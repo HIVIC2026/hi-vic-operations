@@ -31,7 +31,7 @@ const businessInput = z.object({
   name: z.string().trim().min(2).max(200), legal_name: txt(200), trading_name: txt(200), abn: txt(20), acn: txt(20), gst_registered: z.boolean().nullish(),
   business_type: z.enum(["eec_installer", "rec", "other"]).optional(), capabilities: z.array(z.enum(["installer", "electrician"])).max(2).optional(),
   email: txt(320), phone: txt(40), address: txt(300), contact_people: z.array(z.object({ name: z.string().max(200), role: z.string().max(100).optional(), phone: z.string().max(40).optional(), email: z.string().max(320).optional() })).max(20).optional(),
-  service_postcodes: z.array(z.string().trim().max(6)).max(500).optional(), service_regions: z.array(z.string().trim().max(100)).max(100).optional(),
+  service_postcodes: z.array(z.string().trim().max(6)).max(750).optional(), service_regions: z.array(z.string().trim().max(100)).max(100).optional(),
   verify_coverage: z.boolean().optional(),
   weekly_capacity: z.number().int().min(0).max(1000).nullish(), daily_capacity_m2: z.number().positive().max(10000).nullish(), lead_time_days: z.number().int().min(0).max(180).nullish(), availability_notes: txt(2000),
   daily_job_limit: z.number({ message: "Daily job limit must be a whole number." }).int("Daily job limit must be a whole number.").min(1, "Daily job limit must be 1 or more. Leave it empty for no limit.").max(50, "Daily job limit can be at most 50.").nullish(),

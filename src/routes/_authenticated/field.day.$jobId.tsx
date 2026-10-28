@@ -4,7 +4,7 @@
 // "Couldn't get in?" (decisions 214/215). After the install form is Complete the panel reads "Sign the rebate form"
 // (decision 213) with the recorded ticks, the declaration and "Then".
 import { toast } from "sonner";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
@@ -36,7 +36,9 @@ function DayPage() {
   const cgi = useServerFn(tradeCouldntGetInFn);
   const confirmPricing = useServerFn(confirmHivicReadyCheckPricingFn);
   const done = useAction(completeInstallation);
-  const { data, error, refetch } = useQuery({ queryKey: ["trade-day", jobId], queryFn: () => load({ data: { jobId } }), refetchInterval: 30_000, staleTime: 15_000 });
+  const { data, error, refetch } = useQuery({ queryKey: ["trade-day", jobId], queryFn: () => load({ data: { jobId } }), refetchInterval: 30_000, staleTime: 15_000,
+    // Phase 3 path 8: a refusal ("This job isn't available to you.") shows at once instead of "Loading your day…" through retries.
+    retry: (n, e) => n < 3 && !/available to you|assigned to you/i.test((e as Error)?.message ?? "") });
   const { data: x } = useQuery({ queryKey: ["trade-day-extras", jobId], queryFn: () => loadExtras({ data: { jobId } }), retry: false, refetchInterval: 60_000, staleTime: 20_000 });
   const [started, setStarted] = useState(false);
   const [asking, setAsking] = useState(false);
@@ -44,6 +46,7 @@ function DayPage() {
   const installer = data ? data.kind !== "safety_check" : false;
   if (error) return <TradeShell installer={installer}><p role="alert" className="rounded-[18px] border border-line bg-paper p-4 text-sm">{(error as Error).message}</p></TradeShell>;
   if (!data) return <TradeShell installer={false}><p className="text-sm">Loading your day…</p></TradeShell>;
+  if (data.historicalVisit) return <Navigate to="/field/$jobId" params={{ jobId }} replace />;
   const o = data.outcome;
   const ownerFirst = x?.ownerFirstName ?? (data.owner ? data.owner.trim().split(/\s+/)[0] ?? null : null);
   const next = dayNext({ kind: data.kind, channel: data.channel, installFormComplete: !!x?.installForm.complete, rebateSigned: !!x?.rebateSigned, ownerFirstName: ownerFirst });

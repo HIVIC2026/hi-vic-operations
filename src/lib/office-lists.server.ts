@@ -168,7 +168,7 @@ export async function loadEnquiriesList(p: EnquiryListParams, testJobIds?: strin
   });
   // Decision 281: one list. `open` = every enquiry; `incompleteAddresses` = still waiting on the automatic lookup.
   const counts = { open: rows.length, incompleteAddresses: rows.filter((r) => r.problems.length > 0).length, byCategory: categoryCounts(rows.map((r) => r.category)) };
-  const view = p.view ?? "active";
+  const view = p.view ?? "offered";
   const ranked = rankByPriority(rows.map((r) => ({ ...r, insulation: r.insulation, lastHeardAt: r.lastHeardAt })), now);
   const q = p.search.trim().toLowerCase();
   const filtered = ranked.filter((r) => inView(r.category, view) && matchesColumnFilters(r, p.filters ?? {}) && (!q || [r.jobNumber, r.ownerName, r.street, r.suburb, r.postcode, r.email ?? "", r.phone ?? "", r.websiteSaid].join(" ").toLowerCase().includes(q)));

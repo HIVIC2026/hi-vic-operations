@@ -82,3 +82,41 @@ describe("provider errors in plain words (design review 26 Oct)", () => {
     expect(row!.text).not.toContain("{");
   });
 });
+
+describe("fixed failures are hidden", () => {
+  const fail = (job: string, purpose: string, at: string) => ({ job_id: job, purpose, status: "failed", created_at: at, error: "No approved Jo template applies" });
+  const sent = (job: string, purpose: string, at: string) => ({ job_id: job, purpose, status: "sent", created_at: at, error: null });
+  const smsRow = (status: string, at: string) => ({ job_id: "j", message_type: "spot_saved", status, created_at: at, detail: "x" });
+  test("a failed email later sent OK is hidden (Watkinson case)", () => {
+    expect(sendFailedRows({ now: NOW, emails: [fail("j", "existing_leads_launch_v1", ago(5)), sent("j", "existing_leads_launch_v1", ago(4.9))], sms: [] })).toEqual([]);
+  });
+  test("a sent email of a different kind does not hide it", () => {
+    expect(sendFailedRows({ now: NOW, emails: [fail("j", "existing_leads_launch_v1", ago(5)), sent("j", "quote_reminder", ago(4))], sms: [] })).toHaveLength(1);
+  });
+  test("a success before or at the same time as the failure does not hide it", () => {
+    expect(sendFailedRows({ now: NOW, emails: [fail("j", "existing_leads_launch_v1", ago(5)), sent("j", "existing_leads_launch_v1", ago(6))], sms: [] })).toHaveLength(1);
+    expect(sendFailedRows({ now: NOW, emails: [fail("j", "existing_leads_launch_v1", ago(5)), sent("j", "existing_leads_launch_v1", ago(5))], sms: [] })).toHaveLength(1);
+  });
+  test("a success on another job does not hide it", () => {
+    expect(sendFailedRows({ now: NOW, emails: [fail("j", "existing_leads_launch_v1", ago(5)), sent("k", "existing_leads_launch_v1", ago(4))], sms: [] })).toHaveLength(1);
+  });
+  test("a failed text later delivered is hidden; a later 'sent' text is not enough", () => {
+    expect(sendFailedRows({ now: NOW, emails: [], sms: [smsRow("failed", ago(5)), smsRow("delivered", ago(4))] })).toEqual([]);
+    expect(sendFailedRows({ now: NOW, emails: [], sms: [smsRow("undelivered", ago(5)), smsRow("sent", ago(4))] })).toHaveLength(1);
+  });
+  test("only the unfixed failure stays on a job's row", () => {
+    const rows = sendFailedRows({ now: NOW, emails: [fail("j", "existing_leads_launch_v1", ago(5)), sent("j", "existing_leads_launch_v1", ago(4)), fail("j", "quote_reminder", ago(3))], sms: [] });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.count).toBe(1);
+    expect(rows[0]!.text).toContain("Quote reminder email");
+    expect(rows[0]!.text).not.toContain("Save my spot");
+  });
+});
+
+describe("send failed reads are paged safely", () => {
+  test("failed + successful email and text reads have a fixed order, so no page skips a row", async () => {
+    const src = await Bun.file(new URL("../src/lib/office-needs.server.ts", import.meta.url)).text();
+    expect(src).toMatch(/\.in\("status", \[\.\.\.FAILED_EMAIL_STATUSES, \.\.\.SUCCESS_EMAIL_STATUSES\]\)\.gte\("created_at", since7\)\.order\("created_at"\)\.order\("id"\)\.range/);
+    expect(src).toMatch(/\.in\("status", \[\.\.\.FAILED_SMS_STATUSES, \.\.\.SUCCESS_SMS_STATUSES\]\)\.gte\("created_at", since7\)\.order\("created_at"\)\.order\("id"\)\.range/);
+  });
+});

@@ -193,6 +193,17 @@ export async function moneyPayouts(testJobIds?: string[]) {
     if (t) { l.dueAt = t.dueAt; if (t.approvable) l.approvable = true; }
     if (!l.paidAt) { const f = facts.get(l.jobId); l.held = [...(f ? tradePayoutBlockers(l.kind, f) : [PAYOUT_FORM_NOT_COMPLETE[l.kind]]), ...(t?.waiting ?? []), ...(l.held ?? [])]; }
   }
+  // Jo 28 Oct (decision 158): when the office chose the installer to pay for a repeat safety check, it comes off their install payout.
+  const instJobs = [...new Set(lines.filter((l) => l.kind === "installation").map((l) => l.jobId))];
+  if (instJobs.length) {
+    const { data: rp } = await admin.from("workflow_events").select("job_id, details").in("job_id", instJobs).eq("event_type", "repeat_piesa_payer_chosen");
+    const { repeatDeductionEx } = await import("./repeat-piesa.core");
+    for (const l of lines) {
+      if (l.kind !== "installation" || l.amountEx == null) continue;
+      const off = repeatDeductionEx((rp ?? []).filter((e) => e.job_id === l.jobId).map((e) => e.details as { payer?: string; price_inc_gst?: number | null }), gst);
+      if (off > 0) { l.amountEx = Math.round((l.amountEx - off) * 100) / 100; l.held = [...(l.held ?? []), ...(l.amountEx < 0 ? ["Repeat safety check costs more than this install payout — the office settles the difference."] : [])]; }
+    }
+  }
   const g = groupPayouts(lines);
   return { due: g.due, held: g.held, paid: g.paid.slice(0, 30), owedEx: g.due.reduce((a, x) => a + (x.amountEx ?? 0), 0), heldEx: g.held.reduce((a, x) => a + (x.amountEx ?? 0), 0), unknownAmounts: g.due.filter((x) => x.amountEx == null).length };
 }

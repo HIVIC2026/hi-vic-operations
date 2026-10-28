@@ -47,6 +47,8 @@ export type JobNextFacts = {
   installDeadline: string | null;
   installDaysLeft: number | null;
   clearedOn: string | null;
+  /** Jo 28 Oct: the PIESA found electrical fixes and Section C isn't signed yet. */
+  fixesOpen?: boolean;
   /** The Mitti install form (PIISA) is Complete — decision 196. */
   installFormComplete: boolean;
   /** jobs.installation_completed_at is recorded. */
@@ -179,6 +181,9 @@ const noteOnPriceCard = (f: Pick<JobNextFacts, "quoteLine" | "boss" | "channel">
 
 /** The one thing on the job page (decisions 36/41/196). Nothing about the install shows until the install is cleared;
  *  nothing about the rebate form until the Mitti install form is Complete. */
+/** Stages after a PIESA found electrical fixes and before Section C is signed (fixes done). */
+export const FIXES_PAUSED_STAGES = new Set(["rectification_required", "awaiting_owner_rectification_approval", "rectification_scheduling", "rectification_booked", "electrical_variation_pending"]);
+export const FIXES_PAUSED_TITLE = "Paused — waiting on electrical fixes";
 export function jobNext(f0: JobNextFacts): JobNext {
   // Jo 28 Oct 2026 ("The crew shouldn't see the price!!!"): only the business owner may see the not-signed-up note.
   const f = { ...f0, quoteLine: quoteLineForViewer(f0.quoteLine, f0.boss === true) };
@@ -190,6 +195,8 @@ export function jobNext(f0: JobNextFacts): JobNext {
   // Approved state M2-install-booked: "Install booked · Tue 27 Oct at 7:30am" / "Install by Fri 21 Nov · 25 days left."
   if (f.installTurn === "booked" && f.installBookedAt) return { panel: "install_booked", title: `Install booked · ${dayAndTime(f.installBookedAt)}`, sub: f.installDeadline ? `Install by ${ymdShort(f.installDeadline, true)}${left}.` : "The install form is in the 6:30am text that morning. Press Complete in Mitti when it's fully finished.", yours: false, note: "The install form is in the 6:30am text that morning. Press Complete in Mitti when it's fully finished.", ownerReady: ownerReadyLine(f.ownerReady) };
   if (f.installTurn === "expired") return { panel: "install_expired", title: "A new safety check is needed", sub: "The 30-day window after the safety check has passed. Home Insulation Victoria arranges the new check.", yours: false };
+  // Jo 28 Oct: the safety check found electrical fixes — the job is paused until the fixes are done and Section C is signed.
+  if (FIXES_PAUSED_STAGES.has(f.stage ?? "") || (f.fixesOpen === true && !f.clearedOn)) return { panel: "waiting", title: FIXES_PAUSED_TITLE, sub: `The safety check (PIESA) found electrical fixes. The electrician does them and signs off Section C. Once that's done, you offer ${owner} 3 install days.`, yours: false };
   // Decision 296: the install day can't be booked until the owner confirms the safety check on their secure link — nothing for the installer until then.
   if (f.ownerPiesaConfirmed === false && ["installer_to_offer", "installer_to_answer", "owner_to_answer"].includes(f.installTurn ?? "")) return { panel: "waiting", title: OWNER_PIESA_CONFIRM_WAITING, sub: `${window ? `${window} · ` : ""}We've asked ${owner} by email and text. Once they confirm, you offer 3 install days.`, yours: false };
   if (f.installTurn === "installer_to_offer") return { panel: "offer_install_days", title: `Offer ${owner} 3 install days`, sub: window, yours: true };

@@ -81,6 +81,9 @@ export async function recCandidatesFor(jobId: string): Promise<{ postcode: strin
       // Decision 371: a lapsed public liability / REC registration (latest stored date, whatever the `critical` flag) stops new offers too.
       has_valid_licence: !!b.rec_number && licenceKinds.every(verifiedCurrent) && !partnerWorkBlocker(b as unknown as BusinessLike, bc)
         && !expiredBusinessDocsBlocker(bc.map((c) => ({ kind: c.kind, label: c.label ?? c.kind, expires: c.expires_at, verified: c.verification === "verified" })), melbourneYmd(new Date()), ["public_liability_insurance", "rec_registration"]),
+      // Phase 3 path 4 (27 Oct): say WHICH document stops the offer, not always "no licence".
+      licence_blocker: expiredBusinessDocsBlocker(bc.map((c) => ({ kind: c.kind, label: c.label ?? c.kind, expires: c.expires_at, verified: c.verification === "verified" })), melbourneYmd(new Date()), ["public_liability_insurance", "rec_registration"])
+        ?? partnerWorkBlocker(b as unknown as BusinessLike, bc) ?? null,
       // Expired electrical licence: that electrician can't receive new offers.
       approved_workers: (workers ?? []).filter((w) => w.business_id === b.id && !workerOfferBlocker(w as never, melbourneYmd(new Date()))).length,
       weekly_capacity: b.weekly_capacity ?? null, open_jobs: (asg ?? []).filter((a) => a.business_id === b.id).length,
@@ -163,7 +166,7 @@ export async function healStrandedPiesaStage(jobId: string, actorId: string | nu
   }
 }
 
-export async function startPiesaAllocation(jobId: string, actorId: string | null, kind: "piesa" | "rectification" = "piesa", opts: { rateToConfirm?: boolean; onlyBusiness?: string | string[]; adding?: boolean; auto?: import("./ready-check-times.server").AutoOfferMeta } = {}): Promise<PiesaAllocationResult> {
+export async function startPiesaAllocation(jobId: string, actorId: string | null, kind: "piesa" | "rectification" = "piesa", opts: { rateToConfirm?: boolean; onlyBusiness?: string | string[]; adding?: boolean; repeat?: boolean; auto?: import("./ready-check-times.server").AutoOfferMeta } = {}): Promise<PiesaAllocationResult> {
   // Catch up a job whose acceptance was taken but never moved the stage (see healStrandedPiesaStage).
   // Without this the office's next click was refused with "An electrician has already accepted this PIESA."
   // and the job had no way back to piesa_scheduled.
@@ -175,7 +178,8 @@ export async function startPiesaAllocation(jobId: string, actorId: string | null
     admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("active", true).not("booking_confirmed_at", "is", null),
     admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", kind).eq("status", "pending"),
   ]);
-  const blockers = piesaOfferBlockers({ ...facts, hasActiveElectrician: !!elec, hasOpenOffers: !!open && !opts.adding });
+  // Jo 28 Oct: a repeat PIESA after a lapsed window goes to electricians again; the first check's electrician does not block it.
+  const blockers = piesaOfferBlockers({ ...facts, hasActiveElectrician: !!elec && !opts.repeat, hasOpenOffers: !!open && !opts.adding });
   if (blockers.length) throw new WorkflowError(`${kind === "piesa" ? "PIESA" : "Electrical fixes"} offers cannot start: ${blockers.join(" ")}`);
   if (kind === "piesa") {
     // The job must be able to ENTER the PIESA stage before any offer goes out; otherwise offers are sent and the
@@ -187,7 +191,9 @@ export async function startPiesaAllocation(jobId: string, actorId: string | null
     }
   }
   if (!opts.adding && !(await claimRecOfferBatch(jobId, kind))) throw new WorkflowError("Offers are already being prepared for this job. Refresh in a moment.");
-  const res = await offerNextBatch(jobId, actorId, kind, !!opts.rateToConfirm, opts.onlyBusiness, opts.auto);
+  // Jo 28 Oct: a repeat PIESA is a fresh round — offers from the first check don't count against it.
+  const repeatSince = opts.repeat ? (await admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "repeat_piesa_payer_chosen").order("created_at", { ascending: false }).limit(1).maybeSingle()).data?.created_at : undefined;
+  const res = await offerNextBatch(jobId, actorId, kind, !!opts.rateToConfirm, opts.onlyBusiness, opts.auto, repeatSince ?? undefined);
   // Offers started: move the accepted-quote job to the PIESA stage so electricians can accept a time.
   if (kind === "piesa" && res.offered > 0) {
     const { data: j } = await admin.from("jobs").select("stage").eq("id", jobId).single();
@@ -218,7 +224,7 @@ export type OfferBatchResult = { offered: number; exhausted: boolean; reason?: "
 /** `healed` = the call repaired a stranded acceptance instead of sending new offers (P1 UAT DEF-09). */
 export type PiesaAllocationResult = OfferBatchResult & { healed?: boolean };
 
-async function offerNextBatch(jobId: string, actorId: string | null, kind: "piesa" | "rectification", rateToConfirm = false, onlyBusiness?: string | string[], auto?: import("./ready-check-times.server").AutoOfferMeta): Promise<OfferBatchResult> {
+async function offerNextBatch(jobId: string, actorId: string | null, kind: "piesa" | "rectification", rateToConfirm = false, onlyBusiness?: string | string[], auto?: import("./ready-check-times.server").AutoOfferMeta, repeatSince?: string): Promise<OfferBatchResult> {
   const { businessHours, batchSize } = await settings();
   const [{ candidates, installerSourced }, { data: prior }] = await Promise.all([
     recCandidatesFor(jobId),
@@ -258,7 +264,7 @@ async function offerNextBatch(jobId: string, actorId: string | null, kind: "pies
   }
   // Owner-picked times: a fresh round (owner gave more times) re-offers to every approved electrician.
   const win = kind === "piesa" ? await currentWindowRound(jobId) : null;
-  const priorInRound = (prior ?? []).filter((o) => !win?.roundStart || ((o as { offered_at?: string }).offered_at ?? "") >= win.roundStart);
+  const priorInRound = (prior ?? []).filter((o) => (!win?.roundStart || ((o as { offered_at?: string }).offered_at ?? "") >= win.roundStart) && (!repeatSince || ((o as { offered_at?: string }).offered_at ?? "") >= repeatSince));
   const offered = new Set(priorInRound.map((o) => o.business_id));
   const noRate = candidates.filter((c) => offerRateBlocker(rates.get(c.business_id)?.rate ?? null, rateToConfirm));
   if (noRate.length) await logEvent(jobId, actorId, "rec_offer_rate_missing", `${noRate.length} electrician(s) skipped: no agreed electrician rate recorded`, { kind, businesses: noRate.map((c) => c.business_id) }, { internal: true });
@@ -476,8 +482,17 @@ export { clearanceFacts } from "./electrical-clearance.server";
 /** 24h "no time proposed yet" points for released visits (F13: no outbox row). Decision 376: for an accepted safety check
  *  the electrician gets ONE reminder (E14 + text, piesa-times-reminder.server; approved by Jo, decision 384) after the event
  *  below is recorded; every other visit kind stays record-only (piesa-times-reminder.core says why). */
-export async function sweepCoordination(actorId: string | null = null) {
-  const { data: rel } = await admin.from("contact_releases").select("job_id, visit_kind, released_at, assignment_id, job_assignments!inner(active, booking_confirmed_at)").is("revoked_at", null).in("visit_kind", ["ready_check", "piesa", "rectification", "installation"]);
+export async function sweepCoordination(actorId: string | null = null, testJobId?: string) {
+  // An explicitly scoped QA sweep is fail-closed, record-only and cannot read another job's releases.
+  if (testJobId !== undefined) {
+    if (!testJobId.trim()) throw new Error("A TEST job id is required.");
+    const { data: job, error } = await admin.from("jobs").select("source").eq("id", testJobId).maybeSingle();
+    if (error || job?.source !== "qa_test") throw new Error("Coordination QA requires one TEST job.");
+  }
+  let query = admin.from("contact_releases").select("job_id, visit_kind, released_at, assignment_id, job_assignments!inner(active, booking_confirmed_at)").is("revoked_at", null).in("visit_kind", ["ready_check", "piesa", "rectification", "installation"]);
+  if (testJobId !== undefined) query = query.eq("job_id", testJobId);
+  const { data: rel, error: releaseError } = await query;
+  if (releaseError) throw new Error(releaseError.message);
   let reminders = 0;
   // Speed (26 Oct 2026): read the first proposal and any earlier reminder for ALL released jobs at once (was 2 reads per
   // release on every sweep). Same answers: earliest proposal per job + kind, any reminder per job + assignment + visit.
@@ -508,7 +523,7 @@ export async function sweepCoordination(actorId: string | null = null) {
     const s = coordinationState({ releasedAt: r.released_at, firstProposalAt: propAt, confirmedAt: a.booking_confirmed_at, reminderSentAt: remAt });
     if (s.state === "remind") {
       const { coordinationReminderSends } = await import("./piesa-times-reminder.core");
-      const sends = coordinationReminderSends(r.visit_kind);
+      const sends = testJobId === undefined && coordinationReminderSends(r.visit_kind);
       await logEvent(r.job_id, actorId, "coordination_reminder", `24h: no ${r.visit_kind} time proposed yet${sends ? " — electrician reminder prepared (E14 + text)" : " (record only)"}`, { assignment_id: r.assignment_id, visit_kind: r.visit_kind }, { internal: true });
       if (sends) await (await import("./piesa-times-reminder.server")).remindTradeToOfferTimes({ jobId: r.job_id, assignmentId: r.assignment_id, visitKind: r.visit_kind, remindedAt: new Date().toISOString() }).catch((e) => console.error("PIESA times reminder skipped", (e as Error).message));
       reminders++;

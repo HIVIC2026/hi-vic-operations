@@ -6,6 +6,7 @@
 import { FIXES_TIMES_MISSING_LINE } from "./fixes-times.core";
 import { LAPSED_NEEDS_LINE } from "./spot-release.core";
 import { withEditReplacedNotice } from "./quote-edit-replaced.core";
+import { paymentStallLine, type PaymentStall } from "./payment-stall.core";
 
 export type NeedsGroup = "today" | "week" | "watch";
 export const NEEDS_GROUPS: { key: NeedsGroup; label: string }[] = [
@@ -18,7 +19,7 @@ export type NeedsKind =
   | "choose_again" | "quote_check" | "fixes_quote_check" | "sign_consent" | "esc_window" | "final_check" | "send_failed" | "email_change" | "email_unmatched" | "robot_failed" | "piisa_form_failed"
   | "choose_installer" | "choose_electrician" | "veec_a_held" | "piesa_owner_unsigned" | "piesa_fixes_owner_unsigned" | "fixes_times_missing"
   | "payment_not_in_xero" | "payment_overdue" | "ten_days_left" | "second_no_access" | "veec_day_10" | "lapsed_window"
-  | "release_lapsed" | "piesa_form_failed" | "prestart_failed";
+  | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review" | "payment_reversed" | "mitti_form_problem" | "booking_overdue" | "piesa_fixes_found" | "repeat_piesa_choose" | "repeat_piesa_xero_held" | "payment_stalled";
 
 /** Where the one button takes the office. `section` is the Job page stage card id; `act` are inline row actions. */
 export type NeedsButton =
@@ -40,6 +41,7 @@ export type NeedsFacts = {
   jobId: string; jobNumber: string; surname: string; suburb: string | null; isTest?: boolean;
   /** 24-hour installer / electrician offer lapsed or said Not for me (decision 220): "Choose again". */
   offerLapsed?: { role: "installer" | "electrician"; name: string | null; declined: boolean; at: string; note?: string } | null;
+  bookingOverdue?: { at: string; visit: "ready_check" | "piesa" | "rectification" | "installation" } | null;
   /** Decision 389: Jo released the spot, the owner didn't confirm in 5 days → ONE row (release to someone else or leave). */
   releaseLapsed?: { at: string; name: string | null } | null;
   /** Spot saved, no installer chosen yet (decision 239). */
@@ -61,6 +63,12 @@ export type NeedsFacts = {
   fixesOwnerUnsigned?: { at: string; fixesDate: string | null } | null;
   /** Decision 315: the electrician was texted the fixes-times link 24h+ ago and has not given the times (fixes-times.core). */
   fixesTimesMissing?: { at: string } | null;
+  /** Hard stop (missing/conflicting eligibility evidence): the current verified-eligibility result is "needs review". */
+  eligibilityReview?: { at: string; reason: string | null } | null;
+  /** Hard stop (payment mismatch): an owner payment was reversed (deleted/voided in Xero, or refunded) and no payment came in since. */
+  paymentReversed?: { at: string; text: string } | null;
+  /** Hard stop: the Mitti form on this job was refused (wrong job number, wrong or different form). */
+  mittiFormProblem?: { at: string; error: string } | null;
   /** ESC install notification not sent yet; window closes 24h before the install. */
   escWindow?: { closesAt: string; opensAt: string | null } | null;
   /** Install complete, at Final check. */
@@ -84,7 +92,25 @@ export type NeedsFacts = {
   secondNoAccess?: { at: string; reason: string | null } | null;
   veecDay10?: { at: string } | null;
   lapsedWindow?: { deadline: string } | null;
+  /** Jo 28 Oct: the PIESA found electrical fixes and Section C is not signed yet. */
+  fixesFound?: { at: string; stage: string } | null;
+  /** Jo 28 Oct (decision 158, OFFICE CHOOSES): 30-day window lapsed and the office has not chosen who pays the repeat PIESA. */
+  repeatPiesaChoice?: { deadline: string; suggested: string | null } | null;
+  /** Jo 28 Oct (decision 233): the owner-pays repeat PIESA line could not go on the ONE Xero invoice. */
+  repeatXeroHeld?: { at: string; reason: string } | null;
+  /** Jo 28 Oct 2026 (decision card 04:40 UTC, "Alert after 3 days unpaid"): a homeowner payment unpaid for 3+ days
+   *  → ONE row naming the payment and since when (payment-stall.core). Clears when the payment is recorded. */
+  paymentStalled?: PaymentStall | null;
 };
+
+/** Jo 28 Oct: one plain office line while a PIESA's electrical fixes are open. */
+export function fixesFoundLine(stage: string): string {
+  const what = stage === "awaiting_owner_rectification_approval" ? "waiting on owner approval of the fixes quote"
+    : stage === "rectification_scheduling" ? "waiting on the fixes booking"
+    : stage === "rectification_booked" ? "waiting on the fixes and Section C sign-off"
+    : "waiting on fixes quote/approval";
+  return `Safety check found electrical fixes — ${what}`;
+}
 
 const HOUR = 3_600_000;
 const fmtWhen = (iso: string) => new Date(iso).toLocaleString("en-AU", { weekday: "short", hour: "numeric", minute: "2-digit", timeZone: "Australia/Melbourne" }).replace(/\s?([ap]m)$/i, (m) => m.trim().toLowerCase());
@@ -110,6 +136,11 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   if (f.piesaFormFailed) add({ rank: 15, group: "today", kind: "piesa_form_failed", line: f.piesaFormFailed.text, since: f.piesaFormFailed.at, button: { label: "Open job", to: "job", section: "piesa" } });
   if (f.piisaFormFailed) add({ rank: 14, group: "today", kind: "piisa_form_failed", line: f.piisaFormFailed.text, since: f.piisaFormFailed.at, button: { label: "Open job", to: "job", section: "install" } });
   if (f.offerLapsed) add({ rank: 20, group: "today", kind: "choose_again", line: f.offerLapsed.note ? f.offerLapsed.note : `${f.offerLapsed.role === "installer" ? "Installer" : "Electrician"} offer ${f.offerLapsed.declined ? `declined${f.offerLapsed.name ? ` by ${f.offerLapsed.name}` : ""}` : "lapsed · no reply in 24h"}`, since: f.offerLapsed.at, button: { label: "Choose again", to: "job", section: f.offerLapsed.role === "installer" ? "ready-check" : "piesa" } });
+  if (f.bookingOverdue) {
+    const v = f.bookingOverdue.visit;
+    const label = v === "ready_check" ? "Ready Check" : v === "installation" ? "Install" : v === "rectification" ? "Fixes" : "PIESA";
+    add({ rank: 21, group: "today", kind: "booking_overdue", line: `${label} time not confirmed after 48 hours`, since: f.bookingOverdue.at, button: { label: "Open job", to: "job", section: v === "ready_check" ? "ready-check" : v === "installation" ? "install" : "piesa" } });
+  }
   if (f.consentToSign) {
     const due = f.consentToSign.dueAt ? Date.parse(f.consentToSign.dueAt) : null;
     const soon = due == null || due - now <= 48 * HOUR;
@@ -121,6 +152,9 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
     const soon = closes - now <= 48 * HOUR;
     add({ rank: soon ? 35 : 115, group: soon ? "today" : "week", kind: "esc_window", line: `ESC notice window closes ${fmtWhen(f.escWindow.closesAt)}`, since: f.escWindow.opensAt ?? f.escWindow.closesAt, button: { label: "Open Registry block", to: "job", section: "install" } });
   }
+  if (f.mittiFormProblem) add({ rank: 39, group: "today", kind: "mitti_form_problem", line: `Mitti form refused · ${f.mittiFormProblem.error.slice(0, 140)}`, since: f.mittiFormProblem.at, button: { label: "Open job", to: "job" } });
+  if (f.paymentReversed) add({ rank: 39, group: "today", kind: "payment_reversed", line: `Payment reversed · ${f.paymentReversed.text}`, since: f.paymentReversed.at, button: { label: "Open job", to: "job", section: "money" } });
+  if (f.eligibilityReview) add({ rank: 38, group: "today", kind: "eligibility_review", line: eligibilityReviewLine(f.eligibilityReview.reason), since: f.eligibilityReview.at, button: { label: "Review eligibility", to: "job", section: "ready-check" } });
   if (f.quoteToCheck) add({ rank: 40, group: "today", kind: "quote_check", line: withEditReplacedNotice(f.quoteToCheck.ready ? "Quote ready · all checks passed · press Send" : `Quote held · ${f.quoteToCheck.reason ?? "something is missing"}`, !!f.quoteToCheck.editReplaced)!, since: f.quoteToCheck.at, button: { label: "Check & send", to: "job", section: "quote" } });
   if (f.fixesQuoteToCheck) add({ rank: 45, group: "today", kind: "fixes_quote_check", line: `Electrical fixes quote to check${f.fixesQuoteToCheck.reason ? ` · ${f.fixesQuoteToCheck.reason}` : ""}`, since: f.fixesQuoteToCheck.at, button: { label: "Review and send", to: "job", section: "piesa" } });
   if (f.finalCheck) add({ rank: 50, group: "today", kind: "final_check", line: `Final check · install complete · ${f.finalCheck.flags ? `${f.finalCheck.flags} flag${f.finalCheck.flags === 1 ? "" : "s"}` : "no flags"}`, since: f.finalCheck.at, button: { label: "Approve", to: "job", section: "final-check" } });
@@ -130,12 +164,18 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   if (f.fixesTimesMissing) add({ rank: 117, group: "week", kind: "fixes_times_missing", line: FIXES_TIMES_MISSING_LINE, since: f.fixesTimesMissing.at, button: { label: "Open job", to: "job", section: "piesa" } });
   if (f.piesaOwnerUnsigned) add({ rank: 118, group: "week", kind: "piesa_owner_unsigned", line: `Owner hasn't confirmed the safety check${f.piesaOwnerUnsigned.completedDate ? ` of ${fmtDay(`${f.piesaOwnerUnsigned.completedDate}T12:00:00+10:00`)}` : ""} · 5 days · install can't be booked`, since: f.piesaOwnerUnsigned.at, button: { label: "Open job", to: "job", section: "piesa" } });
   if (f.fixesOwnerUnsigned) add({ rank: 119, group: "week", kind: "piesa_fixes_owner_unsigned", line: `Owner hasn't confirmed the electrical fixes${f.fixesOwnerUnsigned.fixesDate ? ` of ${fmtDay(`${f.fixesOwnerUnsigned.fixesDate}T12:00:00+10:00`)}` : ""} · 5 days · official PIESA owner declaration not ticked`, since: f.fixesOwnerUnsigned.at, button: { label: "Open job", to: "job", section: "piesa" } });
+  // Jo 28 Oct: a PIESA that found fixes always tells the office (one row; clears when the fixes are done and Section C signed).
+  if (f.fixesFound) add({ rank: 116, group: "week", kind: "piesa_fixes_found", line: fixesFoundLine(f.fixesFound.stage), since: f.fixesFound.at, button: { label: "Open job", to: "job", section: "piesa" } });
+  if (f.repeatPiesaChoice) add({ rank: 37, group: "today", kind: "repeat_piesa_choose", line: `30-day window lapsed ${fmtDay(f.repeatPiesaChoice.deadline)} · choose who pays the repeat safety check${f.repeatPiesaChoice.suggested ? ` · suggested: ${f.repeatPiesaChoice.suggested}` : ""}`, since: f.repeatPiesaChoice.deadline, button: { label: "Choose who pays", to: "job", section: "install" } });
+  if (f.repeatXeroHeld) add({ rank: 38, group: "today", kind: "repeat_piesa_xero_held", line: `Repeat safety check not on the Xero invoice · ${f.repeatXeroHeld.reason} · add it to the same invoice, then Sync`, since: f.repeatXeroHeld.at, button: { label: "Open job", to: "job", section: "money" } });
   if (f.veecApHeld) add({ rank: 120, group: "week", kind: "veec_a_held", line: `VEEC Part A held over 24h · ${f.veecApHeld.reasons.length} thing${f.veecApHeld.reasons.length === 1 ? "" : "s"} to record${f.veecApHeld.reasons[0] ? ` · ${f.veecApHeld.reasons[0]}` : ""}`, since: f.veecApHeld.at, button: { label: "Open job", to: "job", section: "final-check" } });
   if (f.lapsedWindow) add({ rank: 200, group: "watch", kind: "lapsed_window", line: `30-day window lapsed ${fmtDay(f.lapsedWindow.deadline)} · no install`, since: f.lapsedWindow.deadline, button: { label: "Open job", to: "job", section: "install" } });
   if (f.secondNoAccess) add({ rank: 210, group: "watch", kind: "second_no_access", line: `Couldn’t get in · second time${f.secondNoAccess.reason ? ` · ${f.secondNoAccess.reason}` : ""}`, since: f.secondNoAccess.at, button: { label: "Open job", to: "job", section: "install" } });
   if (f.tenDaysLeft) add({ rank: 220, group: "watch", kind: "ten_days_left", line: `10 days left on the 30-day clock${f.tenDaysLeft.deadline ? ` · last day ${fmtDay(f.tenDaysLeft.deadline)}` : ""}`, since: f.tenDaysLeft.at, button: { label: "Open job", to: "job", section: "install" } });
   if (f.veecDay10) add({ rank: 230, group: "watch", kind: "veec_day_10", line: "VEEC form unsigned · day 10", since: f.veecDay10.at, button: { label: "Open job", to: "job", section: "final-check" } });
   if (f.paymentNotInXero) add({ rank: 240, group: "watch", kind: "payment_not_in_xero", line: `${f.paymentNotInXero.text} · not in Xero yet`, since: f.paymentNotInXero.at, button: { label: "Open job", to: "job", section: "money" } });
+  // Jo 28 Oct 2026 ("Alert after 3 days unpaid"): one row naming the payment the owner owes and since when.
+  if (f.paymentStalled) add({ rank: 242, group: "watch", kind: "payment_stalled", line: paymentStallLine(f.paymentStalled), since: f.paymentStalled.since, button: { label: "Open job", to: "job", section: "money" } });
   if (f.paymentOverdue) add({ rank: 245, group: "watch", kind: "payment_overdue", line: `Payment overdue · chase · ${f.paymentOverdue.text}`, since: f.paymentOverdue.at, button: { label: "Open job", to: "job", section: "money" } });
   return out.sort((a, b) => a.rank - b.rank);
 }
@@ -191,3 +231,18 @@ export function ageLabel(since: string, now: number): string {
 
 /** Partner & system fold (decision 221): one fold line; each item one line with one button. */
 export type SystemRow = { key: string; tag: string; who: string; line: string; since: string | null; button: string; href: string; jobId?: string };
+
+/** Phase 3 path 1 (27 Oct): a "needs review" eligibility result is office work, never "nothing to do". */
+export function eligibilityReviewLine(reason: string | null): string {
+  const r = (reason ?? "").trim();
+  return `Eligibility needs review${r ? ` · ${r.length > 120 ? `${r.slice(0, 117)}…` : r}` : " · Ready Check answers missing or conflicting"}`;
+}
+
+/** Phase 3 path 3 (27 Oct): the newest reversal still open = no owner payment recorded after it. */
+export function openPaymentReversal(events: { event_type: string; created_at: string; amount_cents?: number | null }[]): { at: string; text: string } | null {
+  const sorted = [...events].sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const last = sorted.at(-1);
+  if (!last || last.event_type !== "owner_payment_reversed") return null;
+  const amt = Number(last.amount_cents ?? 0);
+  return { at: last.created_at, text: `${amt > 0 ? `$${(amt / 100).toFixed(2)} ` : ""}no longer counted · ask the owner to pay again` };
+}

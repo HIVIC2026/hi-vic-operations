@@ -6,7 +6,7 @@ import { fullAddress, shortAddress } from "./address";
 import { isTestPartner } from "./test-send.core";
 import { offerTiming } from "./offer-timing.core";
 import { placeWorkJob, type WorkPlace } from "./work-places.core";
-import { COULDNT_GET_IN, offerMoney, electricianPayState, payState, type PayState, surname, type AreaSource, type InsulationNow, type TradeKind, SETUP_STEPS, type SetupKey, tradeJobAllowed, contactVisible, type AccessAssignment, type TeamMemberView, type BusinessNext, type CredentialView, type MittiLogin, latestExpiry, businessNext, bankLine } from "./trade-view.core";
+import { COULDNT_GET_IN, offerMoney, electricianPayState, payState, type PayState, surname, type AreaSource, type InsulationNow, type TradeKind, SETUP_STEPS, type SetupKey, tradeJobAllowed, contactVisible, type AccessAssignment, type TeamMemberView, type BusinessNext, type CredentialView, type MittiLogin, latestExpiry, businessNext, bankLine, installerPayHeldReasons } from "./trade-view.core";
 import { crewClearance, CREW_CLEARANCE_REASON, melbourneToday } from "./worker-compliance.core";
 import { nextActionForViewer } from "./crew-no-price.core";
 import type { UsualElectrician } from "./usual-electrician.core";
@@ -329,6 +329,8 @@ export async function tradeDay(jobId: string, userId: string) {
     admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "trade_couldnt_get_in").order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
   const b = (bks ?? [])[0] ?? null;
+  const { historicalReadyCheckDay } = await import("./trade-view.core");
+  const historicalVisit = c.kind === "installer" && historicalReadyCheckDay(j?.stage ?? null, b?.kind ?? null);
   const showContact = contactVisible(mine ?? []);
   const dayKind = b?.kind === "installation" ? "install" : b?.kind === "ready_check" ? "ready_check" : "safety_check";
   const p = j?.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
@@ -343,6 +345,7 @@ export async function tradeDay(jobId: string, userId: string) {
   else if (dayKind === "install" && ["evidence_outstanding", "ap_review", "ready_for_veec", "complete"].includes(j?.stage ?? "")) { const open = (await import("./ready-check-chase.core")).withoutRetiredInstallDayPhotos(miss ?? []); outcome = open.length ? { kind: "missing", items: open.map((m) => m.label) } : { kind: "wrap" }; }
   const shownKind = outcome?.kind === "couldnt_get_in" && outcome.visit === "install" ? "install" : dayKind;
   return {
+    historicalVisit,
     kind: shownKind as "safety_check" | "ready_check" | "install", channel: j?.channel ?? null, jobNumber: j?.job_number ?? null, owner: showContact ? ow?.full_name ?? null : null, surname: showContact ? surname(ow?.full_name) : null, phone: showContact ? ow?.phone ?? null : null,
     address: showContact ? fullAddress(p?.address_line, p?.suburb, p?.postcode) : null, contactHidden: !showContact, start: b?.scheduled_start ?? null, end: b?.scheduled_end ?? null, outcome,
     // Mitti stays invisible to partners until the office ticks "Mitti account invited".
@@ -482,7 +485,9 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
     const timed: PayState = et
       ? electricianPayState({ paidAt: pe?.created_at ?? null, approvedAt: et.approvedAt })
       : payState({ paidAt: pe?.created_at ?? null, apApprovedAt: (ap ?? []).find((x) => x.job_id === b.job_id)?.created_at ?? null, installerSupplied: (b.jobs as { channel?: string }).channel === "installer_sourced", ownerPaidInFullAt: paidInFull(b.job_id) });
-    const held = timed.kind === "paid" || !gf ? [] : tradePayoutBlockers(b.kind as "assessment" | "rectification" | "installation", gf);
+    // Decision 318 form blockers, plus the decision-410 waiting-for-office-approve line (electricians) and the audit-F19
+    // AP/owner-payment wait (installers) — the same reasons the office Payouts tab and Mark paid show.
+    const held = timed.kind === "paid" || !gf ? [] : [...tradePayoutBlockers(b.kind as "assessment" | "rectification" | "installation", gf), ...(et?.waiting ?? []), ...(b.kind === "installation" && timed.kind === "checking" ? installerPayHeldReasons({ installerSupplied: (b.jobs as { channel?: string }).channel === "installer_sourced", apApprovedAt: (ap ?? []).find((x) => x.job_id === b.job_id)?.created_at ?? null, ownerPaidInFullAt: paidInFull(b.job_id) }) : [])];
     // A held payout is never "Coming": it stays with the jobs being checked until the form is fixed (amounts unchanged).
     const state: PayState = held.length ? { kind: "checking" } : timed;
     const approvedAt = (ap ?? []).find((x) => x.job_id === b.job_id)?.created_at ?? null;
@@ -901,7 +906,9 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     // Jo 28 Oct 2026: crew never see a price — no not-signed-up note (it has $349) in a crew member's page data.
     quote: quote.applies ? { ...installerQuoteView(quote, c.boss), sent: quote.sent, accepted: quote.accepted, declined: quote.declined, held: quote.held, formCompleted: quote.formCompleted === true, sentAt: qq?.sent_at ?? null, acceptedAt: qq?.accepted_at ?? null, declinedAt: quote.declined ? declinedEv?.created_at ?? null : null } : null,
     pay: { amount: c.boss ? pay : null, areaM2: m?.measured_area_m2 == null ? null : Number(m.measured_area_m2), removalM2: m?.removal_required && m.removal_m2 != null ? Number(m.removal_m2) : null },
-    piesa: { passedOn: a?.status === "complete" && a.piesa_outcome === "pass" ? a.completed_at ?? null : null, bookedAt: a?.status === "complete" ? null : piesaBook?.scheduled_start ?? null, electrician: elecName, fixesNote: (fixes ?? []).length ? (fixes ?? []).map((f) => f.description).join(", ") : null },
+    piesa: { passedOn: a?.status === "complete" && a.piesa_outcome === "pass" ? a.completed_at ?? null : null, bookedAt: a?.status === "complete" ? null : piesaBook?.scheduled_start ?? null, electrician: elecName, fixesNote: (fixes ?? []).length ? (fixes ?? []).map((f) => f.description).join(", ") : null,
+      // Jo 28 Oct: the PIESA found fixes and Section C is not signed yet (clearance not given).
+      fixesOpen: a?.status === "complete" && a.piesa_outcome !== "pass" && !clearance.cleared },
     clearance: { cleared: clearance.cleared, clearedOn: clearance.timingDate },
     // Decision 296: whether the owner has confirmed the current PIESA on their secure link (null = no PIESA record yet). Read only once cleared.
     ownerPiesaConfirmed: clearance.cleared ? await (await import("./piesa-owner-confirm.server")).ownerPiesaConfirmFacts(jobId).then((f) => (f ? !!f.confirmation : null)).catch(() => null) : null,

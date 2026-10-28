@@ -42,7 +42,7 @@
 
       <mj-section>
         <mj-column mj-class="panel">
-          <mj-text mj-class="eyebrow center" padding="18px 12px 6px">You pay about</mj-text>
+          <mj-text mj-class="eyebrow center" padding="18px 12px 6px">Your estimated quote based on what you've told us</mj-text>
           <mj-text mj-class="big-blue">$2,188</mj-text>
           <mj-text mj-class="small center" padding="4px 16px 18px">Estimate incl. GST for 137 m². Confirmed at your free Ready Check.</mj-text>
         </mj-column>

@@ -362,7 +362,7 @@ describe("4. 'My usual electrician' with none saved → held; saved later → th
 });
 
 describe("5. The owner accepts on the secure link (6-digit code, signed agreement)", () => {
-  test("code → session → respondToQuoteImpl: accepted, agreement recorded, installer told, invoice step run, stage moved", async () => {
+  test("code → session → respondToQuoteImpl: accepted, agreement recorded, installer NOT yet told, invoice step run, stage moved", async () => {
     const ov = await import("../src/lib/owner-verify.server");
     const { respondToQuoteImpl } = await import("../src/lib/portal.functions");
     const [{ token }] = await q<{ token: string }>("select token from customer_estimate_links where job_id=$1 and status='active'", [A]);
@@ -385,11 +385,11 @@ describe("5. The owner accepts on the secure link (6-digit code, signed agreemen
     expect(await events(A, "QUOTE_ACCEPTED")).toHaveLength(1);
     expect((await job(A))["stage"]).toBe("measured_quote_accepted");
     // Decision 376 (F13): the dead "quote accepted" outbox enqueue is gone — the installer is told by the approved I23
-    // email below instead, and nothing is queued that the dispatcher could never deliver.
+    // email once the safety check is paid instead, and nothing is queued that the dispatcher could never deliver.
     expect(await q<{ payload: string }>("select payload from external_action_queue where job_id=$1", [A])).toEqual([]);
-    // "You're told when they accept": the installer's email through the TEST path, once.
-    expect(await q<{ source_event: string; recipients: string[] }>("select source_event, recipients from job_communications where job_id=$1 and source_event=$2", [A, `jo_tradie:installer_accepted:${qq!.id}`])).toEqual([{ source_event: `jo_tradie:installer_accepted:${qq!.id}`, recipients: ["deep@hivic-test.example"] }]);
-    expect((await events(A, "installer_accepted_email"))[0]!.details).toMatchObject({ status: "sent", quote_id: qq!.id });
+    // Jo 28 Oct 2026: the installer is NOT told at acceptance — nothing has been paid yet. The email goes once the safety check is paid.
+    expect(await q("select id from job_communications where job_id=$1 and source_event=$2", [A, `jo_tradie:installer_accepted:${qq!.id}`])).toHaveLength(0);
+    expect(await events(A, "installer_accepted_email")).toHaveLength(0);
     expect(xero).toEqual([qq!.id]);
     // Accepting twice is refused; nothing doubles.
     await expect(respondToQuoteImpl({ quoteId: qq!.id, accept: true, consent: true, expectedVersion: qq!.version, signing } as never, ctx)).rejects.toThrow(/no longer open/);

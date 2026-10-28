@@ -1,4 +1,31 @@
+## Jo 28 Oct declared coverage proposal
+- [x] Build office-only centroid/radius proposals for both trades, show exclusions without applying them, confirm through existing verified save; 9999 uses 3*, skip non-3xxx, save cap 750. No business data or matching changes.
+- [x] New proposal/save/office-confirmation checks: 8 pass; all coverage-named checks: 27 pass. Preview build/typecheck clean. Full suite: package runner overflowed on failure output; equivalent per-file local-isolated rerun completed 766 files, 7354 pass / 225 fail / 36 skip (78 failing files). No unrelated fixes, business data changes or publication.
+
+## Jo 28 Oct answered inbox emails
+- [x] Recognise synced Outlook sent replies by thread + recipient + later timestamp; hide answered reply-only cards, preserve unresolved changes/declines and later questions. 25 tests pass. Signed-in preview loads empty; populated hosted clearance not verified. No sends/data/switch changes/publication.
+- [x] Hide only the exact no-job emails with confirmed sent replies; accepted delivery confirmed read-only for the reported email. 19 inbox tests pass; signed-in preview inbox loads. History retained; no sends, data/switch changes or publishing.
+## Jo 28 Oct 20:08 decisions
+- [x] 1. HV-1554 marked qa_test (one record, audited admin_override event); safeguard unchanged. Confirm TEST office opens Alpha jobs.
+- [x] 2. PIESA fixes: one Needs me row, installer "paused" wording, clears after fixes + Section C (p2 PASS).
+- [x] 3. 30-day lapse: office chooses payer; owner wording; Accept; price setting (m158 PASS installer-pays). Owner-pays: line on the ONE Xero invoice, paid before offer (m158-owner-pays PASS).
+- [ ] 4. TEST installer ABNs set; ESC step passes. Block 24 BLOCKED: no approved Activity 48 installer declaration template (admin-approved wording only).
+- [ ] 5. Code reads STRIPE_TEST_SECRET_KEY for TEST jobs only. Waiting on Jo to add the key; path 3 card check then.
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo 27 Oct 16:48 follow-up
+- [x] Path 6: TEST-only one-job filters; PGlite/local filter tests pass; HV-3472 390px TEST office shows one 24h/48h row, replay once, booking clears; SMS blocked.
+- [x] Path 5: real historical booking display corrected; HV-3474 installer lands current job page with existing new-check reason. Owner wording/rules unchanged; later ESC configuration blocks completion.
+- [x] No pending TEST Ready Check offers remain; cleanup checks withdrawal and remaining count, tested against other/older TEST and real offers.
+- [x] TEST browser Complete implemented and HV-3473 rerun:13 pass/0 fail/0 blocked/8 NOT RUN; normal sync reads 120m² and reaches measured_estimate_ready. Main run zero emails; prior branch emails to Jo disclosed in journey/27oct-follow-up/report.md.
+- [ ] Full remaining eight browser actions: NOT RUN; missing runner interactions, not credentials. No full end-to-end claim.
+- [ ] Phase 4 uncovered register blocks: NOT RUN; dedicated TEST screen fixtures/recovery actions not implemented. All 47 families enumerated honestly in journey/27oct-follow-up/report.md.
+## Jo 27 Oct 14:04 simulated Bravo invitation and remaining QA
+- [x] TEST Bravo linked with existing verifyMittiMember/setMittiInvited office helpers; sim_ identity read back, check M zero real Mitti calls. No create-user API/email; persistent simulator already models TEST membership.
+- [x] Two browser runs at 390px; final HV-3438:12 pass/0 fail/8 blocked/1 runner error. Actual prestart ticks and Start reach form handoff. Both HV-3437/HV-3438 archived; Bravo/Delta offer flags false restored.
+- [x] Identity suite 13 failures investigated: 11 stale harness-load failures plus absent-field expectation and contradictory-field bypass. Fixed active job-field conflicts, ambiguous search IDs, worker/profile/history binding, conditional writes and fail-closed membership reads; 70 identity/invite/guard checks pass separately.
+- [ ] Complete main simulated Mitti form-answer/Complete interaction and later browser actions; BLOCKED by runner implementation, not credentials or a portal finding.
+- [ ] Eight Phase 3 phone paths NOT_RUN: no separate adverse fixtures/browser steps assembled. 95 relevant isolated rule checks pass; no stop/reason/office-once/recovery phone claim.
+- [x] Triaged email21 and A1/A2 36: stale route decisions392/416/417/419 and mismatched simulator fixture. A2 authenticated fixture corrected (10→8 failures); remaining fixture conversion not done. Isolated suite7261 pass/226 fail/36 skip after final two-file reruns; single-process suite polluted (6084/914/91 errors), not comparable.
 ## Jo 27 Oct 10:46 TEST Bravo and browser rerun
 - [x] Record current Full TEST Bravo certificate and Frankston 3199 coverage, practice-proven; Alpha/HV-1554 untouched, approval pending, offer flags restored.
 - [x] Read-only HV-1554 finding: reserved TEST owner domain; manual TEST-A-2026-10-05 import attributed to Alpha, cancelled/deleted, not qa_test.

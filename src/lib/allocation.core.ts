@@ -50,6 +50,8 @@ export type RecCandidate = {
   is_active: boolean; onboarding_status: string; accepting_new_jobs: boolean | null; receives_hivic_leads: boolean | null;
   coverage_verified: boolean; covers_postcode: boolean; exact_postcode: boolean;
   has_valid_licence: boolean; approved_workers: number;
+  /** Plain reason when has_valid_licence is false (e.g. which document expired). */
+  licence_blocker?: string | null;
   weekly_capacity: number | null; open_jobs: number; recent_offers_30d: number;
   acceptance_rate: number | null; // 0..1 over recent offers, null = no history
   preferred?: boolean;
@@ -73,7 +75,7 @@ export function recEligibilityBlocker(c: RecCandidate): string | null {
   if (c.accepting_new_jobs === false) return "Partner is not accepting new jobs.";
   if (c.receives_hivic_leads === false) return "Partner does not receive Home Insulation Victoria jobs.";
   if (!c.coverage_verified || !c.covers_postcode) return "Partner does not have verified coverage for this area.";
-  if (!c.has_valid_licence) return "Partner has no current electrical licence/REC registration on file.";
+  if (!c.has_valid_licence) return c.licence_blocker || "Partner has no current electrical licence/REC registration on file.";
   if (c.approved_workers < 1) return "Partner has no approved licensed electrician available.";
   if (c.free_in_window === false) return "Partner is already booked in every one of the owner's times.";
   return null;
@@ -361,7 +363,7 @@ export type NeedsCode =
   | "owner_no_show_repeat" | "trade_no_show" | "owner_cancelled_visit" | "rectification_new_times" | "installer_usual_electrician_missing"
   | "mitti_fix_form" | "mitti_review_pickup" | "ready_check_held" | "quote_held_review" | "quote_not_delivered" | "mitti_setup_installer" | "ready_check_chase_installer" | "quote_auto_send_held"
   | "xero_invoice_product_unconfirmed" | "veec_assignment_unsigned" | "electrician_install_attendance" | "install_deposit_unpaid_at_start"
-  | "payment_match_unclear" | "xero_invoice_repairs_held";
+  | "payment_match_unclear" | "xero_invoice_repairs_held" | "xero_invoice_repeat_piesa_held";
 export type NeedsUrgency = "urgent" | "today" | "soon";
 export type NeedsItem = { key: string; code: NeedsCode; jobId: string | null; jobNumber: string | null; why: string; next: string; tab: string; since: string | null; urgency: NeedsUrgency; stage: string | null; suburb: string | null };
 
@@ -381,6 +383,8 @@ export const NEEDS_TEXT: Record<NeedsCode, { why: string; next: string; tab: str
   payment_match_unclear: { why: "A card payment and a Xero payment of the same amount have no shared Stripe id, so both are counted (audit R02).", next: "Office needs to: check in Xero. If it is the same card money, remove that Xero payment and apply it again with the Stripe id (pi_… or ch_…) in the Reference – it then counts once. If they are two payments, nothing changes.", tab: "quotes", urgency: "soon" },
   // Audit R07: the portal counts the approved fixes but the Xero invoice doesn't hold them yet.
   xero_invoice_repairs_held: { why: "Approved electrical fixes are not on the Xero invoice yet — the portal total and the Xero invoice disagree.", next: "Office needs to: add the fixes to the SAME Xero invoice (if Xero refuses because a payment is on it, remove the payment, add the fixes line, re-apply the payment), then press Sync on the job's Money card.", tab: "quotes", urgency: "today" },
+  // Jo 28 Oct: owner-pays repeat PIESA line could not be added to the ONE Xero invoice.
+  xero_invoice_repeat_piesa_held: { why: "The owner accepted a repeat safety check (PIESA) but its price is not on the Xero invoice yet.", next: "Office needs to: add the repeat safety check line to the SAME Xero invoice (if Xero refuses because a payment is on it, remove the payment, add the line, re-apply the payment), then press Sync on the job's Money card.", tab: "quotes", urgency: "today" },
   xero_invoice_product_unconfirmed: { why: "Xero invoice went out without the installed product/m² wording (ESC tax-invoice requirement).", next: "Office needs to: confirm the insulation product and measured area on the job, then add the brand, model, R-value and m² to the Xero invoice line.", tab: "quotes", urgency: "soon" },
   ready_check_chase_installer: { why: "Chase installer: the Ready Check is still missing answers or photos after 24 hours.", next: "Office needs to: call the installer and ask them to finish the Mitti form.", tab: "overview", urgency: "today" },
   installer_usual_electrician_missing: { why: "Installer has no usual electrician saved", next: "Office needs to: ask the installer to add their usual electrician in My business, then sync the Ready Check again.", tab: "quotes", urgency: "today" },

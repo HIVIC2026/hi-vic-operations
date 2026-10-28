@@ -1,4 +1,4 @@
-// Jo 24 Oct (decision 4): email the installer when the owner accepts. Install days: installer offers 3, owner picks or suggests others, back and forth (Jo 24 Oct, later).
+// Jo 24 Oct (decision 4): email the installer once the owner has accepted AND paid the safety check (moved from acceptance, Jo 28 Oct 2026). Install days: installer offers 3, owner picks or suggests others, back and forth (Jo 24 Oct, later).
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { renderInstallerAcceptedEmail } from "../src/lib/installer-accepted-email.core";
@@ -24,11 +24,21 @@ test("wording Jo approved, install days installer-first (to confirm in template 
   expect(m.html).not.toContain("TEST — only sent to Jo");
 });
 
-test("sent once per quote after acceptance, through the office sender (pauses with the master switch); never blocks acceptance", () => {
+test("sent once per quote only when the safety check is paid — never at acceptance (Jo 28 Oct 2026)", () => {
   const srv = readFileSync("src/lib/installer-accepted-email.server.ts", "utf8");
   expect(srv).toContain('eq("event_type", "installer_accepted_email").contains("details", { quote_id: quoteId })');
   expect(srv).toContain("sendOfficeEmail(");
   expect(srv).toContain("sendTestEmail(");
+  expect(srv).toContain("export async function emailInstallerOnSafetyCheckPaid(jobId: string, invoiceId: string)");
+  expect(srv).toContain("youreInDue(");
+  expect(srv).toContain("safetyCheckPaidAt(");
+  expect(srv).toContain("v.invoiceId !== invoiceId");
+  expect(srv).toMatch(/status\s*!==\s*"accepted"/);
   const pf = readFileSync("src/lib/portal.functions.ts", "utf8");
-  expect(pf).toContain('catch (e) { console.error("installer accepted email skipped"');
+  const acc = pf.slice(pf.indexOf("async function invoiceAfterAcceptance"), pf.indexOf("// ---------- Payments"));
+  expect(acc).not.toContain("emailInstallerQuoteAccepted");
+  const pay = readFileSync("src/lib/payments.server.ts", "utf8");
+  const branch = pay.slice(pay.indexOf('if (isStepPaid(v.steps, "safety_check"))'), pay.indexOf("if (v.plan.fixesCents > 0"));
+  expect(branch).toContain("emailInstallerOnSafetyCheckPaid(jobId, invoiceId)");
+  expect(branch).toContain('console.error("installer accepted email skipped"');
 });

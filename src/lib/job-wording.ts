@@ -86,6 +86,7 @@ export const SITUATION: Record<string, { tag: string; next?: string }> = {
   "safety.booked": { tag: "PIESA booked" },
   "safety.arranging": { tag: "Electrician offering PIESA times" },
   "safety.passed": { tag: "PIESA passed" },
+  "safety.fixes_needed": { tag: "PIESA found electrical fixes" },
   "safety.fix_sent_auto": { tag: "Electrical fixes quote sent" },
   "safety.fix_held": { tag: "Electrical fixes to price", next: "Price the item" },
   "safety.fix_approve": { tag: "Electrical fixes to approve", next: "Remind owner" },

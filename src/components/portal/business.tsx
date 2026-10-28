@@ -19,6 +19,7 @@ import { getHigherRates, requestHigherRates, reviewHigherRates } from "@/lib/rat
 import { openFileViewer } from "@/components/portal/file-viewer";
 import { collectionNoticeLabel } from "@/lib/esc-collection-notice.core";
 import { SendNoticeLinkInline } from "@/components/portal/worker-compliance";
+import { proposeDeclaredCoverage } from "@/lib/declared-coverage-proposal.core";
 
 const CRED_KINDS = ["public_liability_insurance", "workers_comp_insurance", "other_insurance", "electrical_licence", "rec_registration", "installer_certification", "business_registration", "other"] as const;
 const csv = (a: string[] | null | undefined) => (a ?? []).join(", ");
@@ -90,6 +91,12 @@ function AdminControls({ businessId, status, xero, onDone }: { businessId: strin
 
 function Details({ b, canEdit, isHivicAdmin, onDone }: { b: Record<string, unknown> & { id: string; name: string }; canEdit: boolean; isHivicAdmin: boolean; onDone: () => void }) {
   const save = useAction(saveBusiness);
+  const [confirmingCoverage, setConfirmingCoverage] = useState(false);
+  const needsCoverage = !Array.isArray(b["service_postcodes"]) || !b["service_postcodes"].length || !b["coverage_verified_at"];
+  const proposal = isHivicAdmin && needsCoverage ? proposeDeclaredCoverage(
+    typeof b["declared_service_origin"] === "string" ? b["declared_service_origin"] : null,
+    typeof b["declared_travel_radius_km"] === "number" ? b["declared_travel_radius_km"] : null,
+  ) : null;
   const s = (k: string) => (b[k] == null ? "" : String(b[k]));
   const [f, setF] = useState<Record<string, string>>({});
   useEffect(() => setF({
@@ -114,6 +121,22 @@ function Details({ b, canEdit, isHivicAdmin, onDone }: { b: Record<string, unkno
   };
   return (
     <Section title="Business details">
+      {proposal && <div className="mb-3 space-y-2 text-sm">
+        <p>{proposal.summary ?? proposal.reason}</p>
+        {proposal.postcodes && <p className="max-h-32 overflow-y-auto break-words text-muted-foreground">{csv(proposal.postcodes)}</p>}
+        {typeof b["declared_excluded_areas"] === "string" && b["declared_excluded_areas"].trim() && <p className="whitespace-pre-wrap">Exclusions: {b["declared_excluded_areas"]}</p>}
+        {proposal.postcodes && <Button disabled={confirmingCoverage} onClick={async () => {
+          if (!proposal.postcodes || confirmingCoverage) return;
+          setConfirmingCoverage(true);
+          try {
+            const saved = await save({ id: b.id, name: b.name, service_postcodes: proposal.postcodes, verify_coverage: true }, "Coverage confirmed");
+            if (saved) {
+              setF((current) => ({ ...current, service_postcodes: csv(proposal.postcodes) }));
+              onDone();
+            }
+          } finally { setConfirmingCoverage(false); }
+        }}>Confirm coverage</Button>}
+      </div>}
       <div className="grid gap-2 sm:grid-cols-2">
         {field("name", "Display name")}{field("legal_name", "Legal name")}{field("trading_name", "Trading name")}{field("abn", "ABN")}{field("acn", "ACN")}
         <label className="text-sm"><span className="text-muted-foreground">GST registered</span><select disabled={!canEdit} className="h-10 w-full rounded border bg-background px-2" value={f["gst"] ?? ""} onChange={(e) => setF({ ...f, gst: e.target.value })}><option value="">—</option><option value="yes">Yes</option><option value="no">No</option></select></label>

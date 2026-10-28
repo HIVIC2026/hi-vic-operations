@@ -52,6 +52,7 @@ export const OFFICE_STATUSES = {
   "safety.booked": {stage: "safety", label: SITUATION["safety.booked"]!.tag, waiting: "Electrician", limit: null },
   "safety.arranging": {stage: "safety", label: SITUATION["safety.arranging"]!.tag, waiting: "Owner + Electrician", limit: { h: 48 }, limitKey: "arranging_hours", action: SITUATION["safety.arranging"]!.next! },
   "safety.passed": {stage: "safety", label: SITUATION["safety.passed"]!.tag, waiting: "System", limit: { d: 1 }, limitKey: "unlock_days" },
+  "safety.fixes_needed": {stage: "safety", label: SITUATION["safety.fixes_needed"]!.tag, waiting: "System", limit: { d: 1 }, limitKey: "auto_quote_days" },
   "safety.fix_sent_auto": {stage: "safety", label: SITUATION["safety.fix_sent_auto"]!.tag, waiting: "System", limit: { d: 1 }, limitKey: "auto_quote_days" },
   "safety.fix_held": {stage: "safety", label: SITUATION["safety.fix_held"]!.tag, waiting: "Us", limit: { d: 1 }, limitKey: "held_quote_days", action: SITUATION["safety.fix_held"]!.next! },
   "safety.fix_approve": {stage: "safety", label: SITUATION["safety.fix_approve"]!.tag, waiting: "Owner", limit: { d: 5 }, limitKey: "fix_approve_days", action: SITUATION["safety.fix_approve"]!.next! },
@@ -227,7 +228,16 @@ function statusFor(f: JobFacts, now: number, lim: Record<string, number>): Offic
       if (f.elecOfferAt) return pick("safety.offered", f.elecOfferAt);
       return pick("safety.pick_times", f.enteredStageAt);
     case "assessment_booked": case "piesa_scheduled": return pick("safety.booked", f.enteredStageAt, { due: f.elecBookingAt ? new Date(new Date(f.elecBookingAt).getTime() + DAY).toISOString() : null, detail: f.elecBookingAt ? `Booked ${f.elecBookingAt.slice(0, 10)}` : null });
-    case "piesa_complete": return pick("safety.passed", f.piesa?.completedAt ?? f.enteredStageAt);
+    case "piesa_complete": {
+      // Phase 3 path 2 (27 Oct): "piesa_complete" means the visit is done, not passed — a PIESA that found fixes never reads "PIESA passed".
+      if (f.piesa && !f.piesa.passed && !f.piesa.sectionCAt) {
+        const r = f.rectQuote;
+        if (r?.releaseState === "held") return pick("safety.fix_held", f.enteredStageAt);
+        if (r?.sentAt) return pick("safety.fix_approve", r.sentAt);
+        return pick("safety.fixes_needed", f.piesa.completedAt ?? f.enteredStageAt);
+      }
+      return pick("safety.passed", f.piesa?.completedAt ?? f.enteredStageAt);
+    }
     case "rectification_required": case "electrical_variation_pending": {
       const r = f.rectQuote;
       if (r?.releaseState === "held" || f.stage === "electrical_variation_pending") return pick("safety.fix_held", f.enteredStageAt);

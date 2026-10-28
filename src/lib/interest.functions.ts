@@ -3,7 +3,7 @@
  *
  * The public submit writes through the publishable client so the anon INSERT policy
  * applies (one insert, nothing readable). Reading and working the list is admin-only.
- * Nothing here sends anything to the homeowner — the office follows up by hand.
+ * Jo 27 Oct: each new registration then starts the normal website enquiry journey (calculator-intake.server).
  */
 import { createServerFn } from "@tanstack/react-start";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
@@ -74,7 +74,8 @@ export const registerInterest = createServerFn({ method: "POST" })
     });
     if (dup.error) return { ok: false, errors: { submit: "We could not save your details just now. Please try again." } };
     if (dup.data === true) return { ok: true, duplicate: true };
-    const { error } = await supabasePublic.from("calculator_interests").insert({
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: row, error } = await supabaseAdmin.from("calculator_interests").insert({
       full_name: parsed.value.fullName,
       mobile: parsed.value.mobile,
       email: parsed.value.email,
@@ -84,12 +85,20 @@ export const registerInterest = createServerFn({ method: "POST" })
       ceiling_m2: parsed.value.ceilingM2,
       insulation_declared: parsed.value.insulationDeclared,
       consent_version: parsed.value.consentVersion,
-    });
-    if (error)
+    }).select("id, consented_at").single();
+    if (error || !row)
       return {
         ok: false,
         errors: { submit: "We could not save your details just now. Please try again, or send an enquiry from our website." },
       };
+    // The registration is saved; a failed enquiry start is recorded on the row for the office, never lost.
+    try {
+      const { startCalculatorEnquiry } = await import("./calculator-intake.server");
+      await startCalculatorEnquiry(row.id, parsed.value, row.consented_at);
+    } catch (e) {
+      console.error("calculator enquiry start failed", e);
+      await supabaseAdmin.from("calculator_interests").update({ intake_error: String((e as Error).message ?? e).slice(0, 500) }).eq("id", row.id);
+    }
     return { ok: true, duplicate: false };
   });
 
@@ -130,4 +139,13 @@ export const updateInterest = createServerFn({ method: "POST" })
     const { error } = await context.supabase.from("calculator_interests").update(patch).eq("id", data.id);
     if (error) throw new Error("We could not save that change. Please try again.");
     return { ok: true };
+  });
+
+/** Admin-only, read-only: what the existing unlinked registrations would do (counts only). Writes nothing. */
+export const dryRunCalculatorInterests = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireAdmin(context.supabase);
+    const { dryRunCalculatorBackfill } = await import("./calculator-intake.server");
+    return dryRunCalculatorBackfill();
   });

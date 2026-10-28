@@ -12,7 +12,7 @@ import { currentFixesQuote, FIXES_ACCEPT_LATEST } from "./fixes-quote-current.se
 import {
   HIV_BANK_DETAILS, type BankDetails, type PaymentStepFacts, type PaymentStepKey, type XeroPaymentInput,
   cumulativePaidCents, depositSweepAction, effectiveLedger, fixesCountedCents, fixesPaymentBlocker, planQuoteTotalCents, isStepCleared, isStepPaid, ledgerXeroPayments, newXeroPayments, payNowBlock, payableNow, paymentPlan, paymentSteps,
-  provisionalBookingDecision, provisionalHoldExpiresAt, installDepositBlocker, INSTALL_DEPOSIT_DUE_STAGES, reconcilePayments, reconciledPaidCents, toCents, xeroPaymentFacts, xeroReceiptKey, xeroReversalReceiptKey, xeroReversals,
+  provisionalBookingDecision, provisionalHoldExpiresAt, installDepositBlocker, INSTALL_DEPOSIT_DUE_STAGES, installDepositDueNow, reconcilePayments, reconciledPaidCents, toCents, xeroPaymentFacts, xeroReceiptKey, xeroReversalReceiptKey, xeroReversals,
 } from "./payments.core";
 
 // Review R08: the ledger reader lives in the lean payment-ledger.server (so read-only gates can count money received
@@ -122,13 +122,14 @@ export async function flagUnclearPaymentMatches(jobId: string, invoiceId: string
 
 /** Everything a page needs: plan, steps, what is due now, ledger, bank details and the Pay now (card) link. */
 export async function jobPaymentView(jobId: string, now = new Date()) {
-  const [{ data: inv, error: invoiceError }, { data: ws }, { data: rect }, { data: installBooking }, { data: installDone }, { data: job }] = await Promise.all([
+  const [{ data: inv, error: invoiceError }, { data: ws }, { data: rect }, { data: installBooking }, { data: installDone }, { data: job }, { data: piesaNow }] = await Promise.all([
     admin.from("invoices").select("id, quote_id, total_inc_gst, total_paid, deposit_amount, xero_invoice_number, xero_reference, xero_online_url, xero_invoice_id, balance_due_date, quotes(accepted_at, customer_total_inc_gst)").eq("job_id", jobId).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("workflow_settings").select("safety_check_payment_inc_gst").eq("id", 1).maybeSingle(),
     currentFixesQuote(jobId).then(q => ({ data: q?.status === "accepted" ? q : null })),
     admin.from("bookings").select("id, created_at, scheduled_start").eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("bookings").select("id, scheduled_start").eq("job_id", jobId).eq("kind", "installation").eq("status", "completed").order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
     admin.from("jobs").select("job_number, stage, source").eq("id", jobId).maybeSingle(),
+    admin.from("piesa_records").select("outcome, section_c_signed_at").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
   ]);
   if (invoiceError) throw new Error("The invoice could not be checked.");
   if (!inv) return null;
@@ -146,8 +147,11 @@ export async function jobPaymentView(jobId: string, now = new Date()) {
   const fixesCents = fixesCountedCents({ rectTotalCents: rect ? toCents(rect.customer_total_inc_gst) : 0, rectAcceptedAt: rect?.accepted_at ?? null, installAcceptedAt: quote?.accepted_at ?? null });
   // Audit R07: once the fixes are on the same Xero invoice its total already holds them — the plan's quote part stays
   // the accepted installation quote, so the grand total equals the Xero invoice total (fixes counted once).
-  const quoteTotalCents = planQuoteTotalCents({ invoiceTotalCents: toCents(inv.total_inc_gst), quoteTotalCents: quote ? toCents(quote.customer_total_inc_gst) : null, fixesCents });
-  const plan = paymentPlan({ quoteTotalCents, safetyCheckCents: safety.cents, fixesCents });
+  // Decision 233: while the owner owes the repeat safety check (PIESA), its price is part of their payment plan.
+  const repeatState = await (await import("./repeat-piesa.server")).repeatPiesaContext(jobId).then((c) => c.state).catch(() => null);
+  const repeatCents = repeatState && repeatState.payer === "owner" && (repeatState.stage === "owner_pay" || repeatState.stage === "offer") && (repeatState.priceIncGst ?? 0) > 0 ? toCents(repeatState.priceIncGst) : 0;
+  const quoteTotalCents = planQuoteTotalCents({ invoiceTotalCents: toCents(inv.total_inc_gst), quoteTotalCents: quote ? toCents(quote.customer_total_inc_gst) : null, fixesCents, repeatCents });
+  const plan = paymentPlan({ quoteTotalCents, safetyCheckCents: safety.cents, fixesCents, repeatCents });
   // Audit F01: reconciled (Xero live payments + card records not yet in Xero), never max(total_paid, ledger sum).
   const raw = await rawPaymentLedger(jobId, inv.id);
   const ledger = effectiveLedger(raw);
@@ -160,8 +164,9 @@ export async function jobPaymentView(jobId: string, now = new Date()) {
     safety_check: { requestedAt: quote?.accepted_at ?? null, waived: (overrides ?? 0) > 0 },
     fixes: { requestedAt: fixesCents > 0 ? rect?.accepted_at ?? null : null },
     // Jo 26 Oct 2026: the deposit is due BEFORE the install is booked (once the install is next); no booking hold.
-    install_deposit: { requestedAt: bookedAt ?? (INSTALL_DEPOSIT_DUE_STAGES.has(job?.stage ?? "") ? now.toISOString() : null), dueAt: bookedAt ? holdExpiresAt : null },
+    install_deposit: { requestedAt: bookedAt ?? (installDepositDueNow(job?.stage, piesaNow) ? now.toISOString() : null), dueAt: bookedAt ? holdExpiresAt : null },
     balance: { requestedAt: installDone?.scheduled_start ?? (job?.stage === "complete" ? now.toISOString() : null), dueAt: inv.balance_due_date ? `${inv.balance_due_date}T23:59:59+11:00` : null },
+    repeat_safety_check: { requestedAt: repeatCents > 0 ? now.toISOString() : null },
   };
   const steps = paymentSteps(plan, paidCents, facts, now.toISOString());
   const due = payableNow(plan, steps, paidCents);
@@ -171,7 +176,7 @@ export async function jobPaymentView(jobId: string, now = new Date()) {
   const provisional = provisionalBookingDecision({ bookedAt, now: now.toISOString(), depositCleared: isStepCleared(steps, "install_deposit"), gateEnabled, hasInvoice: true, installStart });
   // Decision 144: card = Stripe Checkout, only for the $349 / fixes, only when the key + switch allow it for this job's mode.
   const { stripeBlocker } = await import("./stripe.core");
-  const stripeBlock = due.step ? stripeBlocker({ enabled: process.env["STRIPE_PAYMENTS_ENABLED"] === "true", secretKey: process.env["STRIPE_SECRET_KEY"], jobSource: job?.source ?? null, step: due.step.key, amountCents: due.step.outstandingCents }) : "Nothing is due.";
+  const stripeBlock = due.step ? stripeBlocker({ enabled: process.env["STRIPE_PAYMENTS_ENABLED"] === "true", secretKey: (await import("./stripe.server")).stripeKeyFor(job?.source ?? null), jobSource: job?.source ?? null, step: due.step.key, amountCents: due.step.outstandingCents }) : "Nothing is due.";
   return {
     invoiceId: inv.id, plan, steps, paidCents, due, reference, bank, onlineInvoiceUrl: inv.xero_online_url ?? null, jobSource: job?.source ?? null, safetyCheckSource: safety.source,
     stripe: { available: stripeBlock === null, blocker: stripeBlock },
@@ -215,7 +220,11 @@ export async function afterPaymentsChanged(jobId: string, invoiceId: string, act
     await admin.from("jobs").update({ next_action: "Deposit paid – installer to offer 3 install days" }).eq("id", jobId);
   }
   // Decision 325: O22 "You're in!" + safety check receipt once that payment is in (one per accepted quote; best-effort).
-  if (isStepPaid(v.steps, "safety_check")) await (await import("./owner-email-triggers.server")).onSafetyCheckPaid(jobId, invoiceId).catch((e) => console.error("you're in email skipped", (e as Error).message));
+  if (isStepPaid(v.steps, "safety_check")) {
+    await (await import("./owner-email-triggers.server")).onSafetyCheckPaid(jobId, invoiceId).catch((e) => console.error("you're in email skipped", (e as Error).message));
+    // Jo 28 Oct 2026: the installer's "Owner accepted" email goes now, once the safety check is paid (once per quote; best-effort).
+    await (await import("./installer-accepted-email.server")).emailInstallerOnSafetyCheckPaid(jobId, invoiceId).catch((e) => console.error("installer accepted email skipped", (e as Error).message));
+  }
   if (v.plan.fixesCents > 0 && isStepCleared(v.steps, "fixes")) {
     await once("fixes_payment_received", "Electrical fixes paid – the fixes can be scheduled", { amount_cents: v.plan.fixesCents });
     // Decision 366: a fixes time the owner already picked becomes the booking now (the 15-minute tick retries otherwise).

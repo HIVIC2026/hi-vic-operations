@@ -349,7 +349,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
   const next = page ? jobNext({
     channel: page.channel, stage: page.stage, ownerFirstName: owner, formLinked: page.form.linked, formCompleted: page.form.completed, quoteLine: page.quote?.line ?? null,
     needsFinishing: page.form.needsFinishing, needsFinishingItems: page.form.needsFinishingItems, readyCheckTurn: rcTurn, readyCheckBookedAt: page.readyCheck.bookedAt,
-    installTurn: (days?.turn as never) ?? null, installBookedAt: page.install.bookedAt, installDeadline: days?.deadline ?? null, installDaysLeft: days?.daysLeft ?? null, clearedOn: page.clearance.clearedOn,
+    installTurn: (days?.turn as never) ?? null, installBookedAt: page.install.bookedAt, installDeadline: days?.deadline ?? null, installDaysLeft: days?.daysLeft ?? null, clearedOn: page.clearance.clearedOn, fixesOpen: page.piesa.fixesOpen,
     installFormComplete: page.install.form.complete, installationRecorded: !!page.install.recordedAt, rebateSigned: page.install.rebateSigned,
     quoteSentAt: page.quote?.sentAt ?? null, quoteDeclinedAt: page.quote?.declinedAt ?? null, formCompletedAt: page.form.completedAt,
     piesaBooking: page.piesa.bookedAt ? { electrician: page.piesa.electrician, start: page.piesa.bookedAt } : null,

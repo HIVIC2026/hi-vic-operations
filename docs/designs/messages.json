@@ -551,7 +551,7 @@
     "name": "Owner accepted",
     "recipient": "Installer",
     "channel": "Email",
-    "when": "Sent when the owner accepts the quote.",
+    "when": "Sent once the owner has paid the safety check.",
     "status": "Approved",
     "design": "docs/templates/mjml/installer_I23.mjml",
     "image": null,

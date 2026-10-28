@@ -2,6 +2,7 @@
 // six stage cards (open one for its tools) → Money → Contact history → File. Old fold-outs, the three status boxes,
 // office booking forms, the intake review panel, instalments, invoice-route select, partner & relationship panel,
 // expected install week, the second ESC panel and the internal pricing table are gone (audit Part 6 removals).
+import { RepeatPiesaPanel } from "@/components/portal/repeat-piesa";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -55,6 +56,7 @@ function JobPageRoute() {
     <AppShell>
       <JobHeader h={h} more={<JobMoreMenu h={h} cancelOpen={cancelOpen} setCancelOpen={setCancelOpen} onDeleted={() => void navigate({ to: "/admin/jobs/active" })} />} />
       <NextPanel next={data.next} onGo={(k) => go(k)} />
+      {!qaOffice && <RepeatPiesaPanel jobId={jobId} />}
       <StageCards cards={data.cards} open={open} onOpen={(k) => (open === k ? setOpen(null) : go(k))} />
       {open && <div id="stage-workspace" className="scroll-mt-24"><StageWorkspace jobId={jobId} k={open} page={data} onGo={go} /></div>}
       <MoneyCard jobId={jobId} />

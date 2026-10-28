@@ -53,11 +53,18 @@ export function onboardingChecklist(b: BusinessLike, creds: Credential[], hasAgr
 }
 
 /** Blocks compliance-critical work: not approved, suspended, or any critical credential expired. */
+/** Expired critical credentials that no renewal replaces. Phase 3 path 4 (27 Oct): an uploaded renewal of the same
+ *  document (same kind, same person) that is current supersedes the lapsed one, as trade-expiry.core already assumes. */
+export function lapsedCriticalCredentials(creds: Credential[], now = new Date()): Credential[] {
+  const renewed = (c: Credential) => creds.some((o) => o !== c && o.kind === c.kind && (o.profile_id ?? null) === (c.profile_id ?? null) && credentialState(o, now) !== "expired" && (!o.expires_at || (o.expires_at ?? "") > (c.expires_at ?? "")));
+  return creds.filter((c) => c.critical && credentialState(c, now) === "expired" && !renewed(c));
+}
+
 export function partnerWorkBlocker(b: BusinessLike | null, creds: Credential[], now = new Date()): string | null {
   if (!b) return "No partner business linked.";
   if (!b.is_active) return "Partner business is inactive.";
   if (b.onboarding_status !== "approved") return `Partner onboarding is ${b.onboarding_status.replace(/_/g, " ")} – Home Insulation Victoria approval required.`;
-  const expired = creds.filter((c) => c.critical && credentialState(c, now) === "expired");
+  const expired = lapsedCriticalCredentials(creds, now);
   if (expired.length) return `Expired: ${expired.map((c) => c.label).join(", ")}. Upload a current document.`;
   return null;
 }
@@ -96,7 +103,7 @@ export function electricianWorkEligibility(b: BusinessLike | null, creds: Creden
 /** Automatic expiry: an approved business with an expired critical credential becomes 'expired'. */
 export function derivedOnboardingStatus(b: BusinessLike, creds: Credential[], now = new Date()): OnboardingStatus {
   const s = b.onboarding_status as OnboardingStatus;
-  if (s === "approved" && creds.some((c) => c.critical && credentialState(c, now) === "expired")) return "expired";
+  if (s === "approved" && lapsedCriticalCredentials(creds, now).length) return "expired";
   return s;
 }
 

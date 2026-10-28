@@ -1585,6 +1585,8 @@ export type Database = {
           full_name: string
           id: string
           insulation_declared: string
+          intake_error: string | null
+          job_id: string | null
           mobile: string
           postcode: string
           source: string
@@ -1605,6 +1607,8 @@ export type Database = {
           full_name: string
           id?: string
           insulation_declared: string
+          intake_error?: string | null
+          job_id?: string | null
           mobile: string
           postcode: string
           source?: string
@@ -1625,6 +1629,8 @@ export type Database = {
           full_name?: string
           id?: string
           insulation_declared?: string
+          intake_error?: string | null
+          job_id?: string | null
           mobile?: string
           postcode?: string
           source?: string
@@ -1632,7 +1638,43 @@ export type Database = {
           suburb?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "calculator_interests_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calculator_interests_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "calculator_interests_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calculator_interests_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calculator_interests_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ceiling_measurements: {
         Row: {
@@ -10571,6 +10613,33 @@ export type Database = {
           },
         ]
       }
+      qa_owner_codes: {
+        Row: {
+          code: string
+          code_id: string
+          created_at: string
+          expires_at: string
+          id: string
+          job_id: string
+        }
+        Insert: {
+          code: string
+          code_id: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          job_id: string
+        }
+        Update: {
+          code?: string
+          code_id?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          job_id?: string
+        }
+        Relationships: []
+      }
       quote_adjustments: {
         Row: {
           adjusted_by: string
@@ -12749,6 +12818,7 @@ export type Database = {
       }
       workflow_settings: {
         Row: {
+          address_request_live_at: string | null
           ai_email_auto_send_enabled: boolean
           authority_validity_months: number
           auto_electrician_offers: boolean
@@ -12805,6 +12875,7 @@ export type Database = {
           urgency_red_days: number
         }
         Insert: {
+          address_request_live_at?: string | null
           ai_email_auto_send_enabled?: boolean
           authority_validity_months?: number
           auto_electrician_offers?: boolean
@@ -12861,6 +12932,7 @@ export type Database = {
           urgency_red_days?: number
         }
         Update: {
+          address_request_live_at?: string | null
           ai_email_auto_send_enabled?: boolean
           authority_validity_months?: number
           auto_electrician_offers?: boolean

@@ -7,7 +7,7 @@ import { safetyCheckShort } from "./safety-check-amount.core";
 
 export type InvoiceRowState = { label: string; tone: "green" | "rose" | "plain" | "amber"; chase: boolean };
 
-const SHORT: Record<PaymentStepKey, string> = { safety_check: "$349", fixes: "fixes", install_deposit: "deposit", balance: "balance" };
+const SHORT: Record<PaymentStepKey, string> = { safety_check: "$349", fixes: "fixes", install_deposit: "deposit", balance: "balance", repeat_safety_check: "repeat check" };
 const money = (c: number) => `$${Math.round(c / 100).toLocaleString("en-AU")}`;
 
 function ageText(fromIso: string, nowIso: string): string {

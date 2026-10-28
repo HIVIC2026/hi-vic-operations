@@ -74,14 +74,13 @@ function NewEnquiryDialog() {
   );
 }
 
-/** The groups as one row of pill tabs (Jo 27 Oct 2026): In play first (what's still moving), then each group, then
- *  every open enquiry. Saved spots and not-eligible leads are links into Jobs. A failed read shows "–", never 0. */
+/** The groups as one row of pill tabs (tabs start with Offered a spot — Jo 28 Oct 2026: In play removed as a duplicate).
+ *  Then each group, then every open enquiry. Saved spots and not-eligible leads are links into Jobs. A failed read shows "–", never 0. */
 function Groups({ view, counts, onPick }: { view: EnquiryView; counts: CategoryCounts | null; onPick: (v: EnquiryView) => void }) {
   const c = (k: keyof CategoryCounts) => (counts ? counts[k] : null);
   return (
     <div className="grid gap-2 lg:flex lg:items-center lg:justify-between lg:gap-4">
       <PillTabs label="Enquiry groups" value={view} onChange={onPick} options={[
-        { value: "active" as EnquiryView, label: "In play", count: c("active") },
         ...ENQUIRY_CATEGORIES.map((x) => ({ value: x.key as EnquiryView, label: x.label, count: c(x.key), ...(x.key === "not_sent" ? { tone: "rose" as const } : {}) })),
         { value: "all" as EnquiryView, label: "All open", count: c("all") },
       ]} />
@@ -96,7 +95,7 @@ function Groups({ view, counts, onPick }: { view: EnquiryView; counts: CategoryC
 export function EnquiriesScreen() {
   const qc = useQueryClient();
   const load = useServerFn(getEnquiriesList);
-  const [view, setView] = useState<EnquiryView>("active");
+  const [view, setView] = useState<EnquiryView>("offered");
   const [typed, setTyped] = useState("");
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState<ColumnFilters>({});
@@ -107,7 +106,7 @@ export function EnquiriesScreen() {
   const [peek, setPeek] = useState<Peek | null>(null);
   // Search as you type (decision 285): a short pause, then the list refreshes from page 1.
   useEffect(() => { const t = setTimeout(() => { setSearch(typed.trim()); setPage(1); }, 250); return () => clearTimeout(t); }, [typed]);
-  // Decision 383: the opening view (In play) comes from the server's saved copy (worked out now after an office action
+  // Decision 383: the opening view (Offered a spot) comes from the server's saved copy (worked out now after an office action
   // in this tab); while the server refreshes it, ask again in 5 s. One retry, not three.
   const q = useQuery({
     queryKey: ["office-enquiries", view, search, filters, sort, page],
@@ -126,11 +125,10 @@ export function EnquiriesScreen() {
   const refresh = () => { setPicked(new Set()); void qc.invalidateQueries({ queryKey: ["office-enquiries"] }); };
   const onFilter = (k: string, v: ColumnFilterValue) => { setFilters({ ...filters, [k]: v } as ColumnFilters); setPage(1); };
   const pick = (v: EnquiryView) => { setView(v); setPage(1); setPicked(new Set()); };
-  const meta = view === "active" ? { label: "In play", hint: "Still in the journey: offered a spot, or the automatic email didn't send." }
-    : view === "all" ? { label: "Every open enquiry", hint: "Everything before a spot is saved, in one list." }
+  const meta = view === "all" ? { label: "Every open enquiry", hint: "Everything before a spot is saved, in one list." }
     : ENQUIRY_CATEGORIES.find((x) => x.key === view)!;
-  const closeReason = view !== "active" && view !== "all" ? CLOSABLE[view] : undefined;
-  const viewCount = counts && view !== "active" && view !== "all" ? counts[view] : null;
+  const closeReason = view === "all" ? undefined : CLOSABLE[view === "active" ? "offered" : view];
+  const viewCount = counts && view !== "all" ? counts[view === "active" ? "offered" : view] : null;
   // Literal class names (Tailwind only sees whole strings). Decision 286 columns: Job · Owner · Address · Size · Insulation · Estimate · Last heard.
   const cols = "lg:grid-cols-[24px_76px_minmax(0,1.3fr)_minmax(0,1.4fr)_76px_92px_92px_minmax(0,1fr)]";
   return (
@@ -218,7 +216,7 @@ export function EnquiriesScreen() {
           let done = 0, failed = 0;
           const t = toast.loading(`Closing 0 of ${list.length.toLocaleString("en-AU")}…`);
           for (let i = 0; i < list.length; i += 200) {
-            const r = await cancel({ jobIds: list.slice(i, i + 200), reason });
+            const r = await cancel({ jobIds: list.slice(i, i + 200), reason, closeAll: true });
             if (!r) { failed += Math.min(200, list.length - i); continue; }
             done += r.done; failed += r.failed.length;
             toast.loading(`Closing ${(done + failed).toLocaleString("en-AU")} of ${list.length.toLocaleString("en-AU")}…`, { id: t });

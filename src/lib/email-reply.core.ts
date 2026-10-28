@@ -42,7 +42,7 @@ export const TRADE_PORTAL_URL = `${CUSTOMER_BASE}/field`;
 // ---------- Facts (read by the server from the live job / partner records) ----------
 export type Money = { fullPrice: number; rebate: number; youPay: number };
 export type Slot = { start: string; end: string | null };
-export type DueStep = { key: "safety_check" | "fixes" | "install_deposit" | "balance"; outstanding: number; dueAt: string | null; state: "requested" | "overdue"; cardAvailable: boolean };
+export type DueStep = { key: import("./payments.core").PaymentStepKey; outstanding: number; dueAt: string | null; state: "requested" | "overdue"; cardAvailable: boolean };
 
 export type OwnerFacts = {
   jobNumber: string;
@@ -205,6 +205,7 @@ const PAY_STEP_WORDS: Record<DueStep["key"], { what: string; how: string }> = {
   fixes: { what: "electrical fixes payment", how: "by card or bank transfer, with no fee" },
   install_deposit: { what: "booking payment (10%)", how: "by bank transfer or PayID" },
   balance: { what: "balance", how: "by bank transfer or PayID" },
+  repeat_safety_check: { what: "repeat safety check (PIESA) payment", how: "by card or bank transfer, with no fee" },
 };
 
 /** Decision 245: the drafted reply matches the change the owner asked for (nothing is changed until the office taps Apply). */

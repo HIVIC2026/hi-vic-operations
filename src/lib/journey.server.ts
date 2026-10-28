@@ -89,6 +89,10 @@ const s1: StepFn = async (ctx, r) => {
   ctx.jobId = res.job_id; ctx.jobNumber = res.job_number ?? null;
   await assertOwnTestJob(ctx);
   // Website contact consent, recorded exactly as the Base44 intake does (TEST job).
+  const { data: safetyJob, error: safetyRead } = await admin.from("jobs").select("external_refs").eq("id", ctx.jobId).eq("source", "qa_test").single();
+  if (safetyRead || !safetyJob) throw new Error("TEST delivery safety could not be checked.");
+  const { error: safetyWrite } = await admin.from("jobs").update({ external_refs: { ...((safetyJob.external_refs ?? {}) as Record<string, never>), qa_no_delivery: true } }).eq("id", ctx.jobId).eq("source", "qa_test");
+  if (safetyWrite) throw new Error("TEST delivery safety could not be saved.");
   const { data: jo } = await admin.from("jobs").select("owner_id").eq("id", ctx.jobId).single();
   const { recordContactConsent } = await import("./intake.server");
   await recordContactConsent(ctx.jobId, jo!.owner_id!, { contact_consent: true, contact_consent_version: "journey-test", contact_consented_at: new Date().toISOString(), external_enquiry_id: `qa-journey-${ctx.runId}` } as never);
@@ -424,7 +428,8 @@ const s6: StepFn = async (ctx, r) => {
   let auditId = a0?.external_mitti_id ?? null;
   if (auditId) mitti.seed(auditId, tpl);
   else auditId = (await act(r, "office backup: the A3 form is made for the electrician", () => import("./mitti.server").then((m) => m.createAssignMittiAudit(ctx.jobId!, ctx.actorId, mitti.call, { officeOverride: true })))).auditId;
-  mitti.fill(auditId, pass.items);
+  // The real portal prefills Portal Job Number; a blank one fails closed under the identity rule, so fill it as the prefill would.
+  mitti.fill(auditId, [{ item_id: "sim_a3_office_0", label: "Portal Job Number", type: "textsingle", responses: { text: ctx.jobNumber ?? "" } }, ...pass.items] as never);
   const synced = await act(r, "electrician completes the A3 → read by the Mitti sync", async () => { await assertOwnTestJob(ctx); return (await import("./mitti.server")).syncMittiAssessment(ctx.jobId!, ctx.actorId, mitti.call, async () => ({ bytes: TINY_JPEG, contentType: "image/jpeg" })); });
   check(r, "A3 synced as complete with its geotagged evidence", synced.completed, synced.issues.join("; "));
   // The electrician's own "No electrical fixes required" tick on the job page (the same assessment field saveAssessment writes).
@@ -483,7 +488,7 @@ const s7: StepFn = async (ctx, r) => {
     check(r, "PIESA copies not held for another reason", !sent.hold, sent.hold ?? "");
     for (const to of ["owner", "installer"] as const) {
       if (sent.sent.includes(to)) continue;
-      check(r, `PIESA copy to the ${to} held only because the TEST address is not on the allowlist`, /not on the test allowlist/.test(sent.held[to] ?? ""), sent.held[to] ?? "not attempted");
+      check(r, `PIESA copy to the ${to} held only by a TEST hold (allowlist or this run's no-delivery marker)`, /not on the test allowlist|TEST browser run: no delivery/.test(sent.held[to] ?? ""), sent.held[to] ?? "not attempted");
       (r.simulated ??= []).push(`Signed PIESA copy email to the TEST ${to} (held by the TEST sender; recorded as delivered for this TEST job)`);
       await act(r, `signed PIESA copy recorded as delivered to the ${to} (simulated email)`, () => recordTestPiesaCopy(ctx, to, pd.recordDelivery));
     }
@@ -701,7 +706,10 @@ export async function cleanupJourney(ctx: JourneyCtx) {
     const { data: j } = await admin.from("jobs").select("source, created_at").eq("id", ctx.jobId).maybeSingle();
     // Only archive a TEST job this run created: an older kept TEST job linked by address is left alone.
     if (j?.source === "qa_test" && j.created_at >= ctx.startedAt) {
-      await admin.from("partner_offers").update({ status: "withdrawn" } as never).eq("job_id", ctx.jobId).eq("status", "pending");
+      const { error: offerError } = await admin.from("partner_offers").update({ status: "withdrawn" } as never).eq("job_id", ctx.jobId).eq("status", "pending");
+      if (offerError) throw new Error(`TEST offer cleanup failed: ${offerError.message}`);
+      const { count: remaining, error: remainingError } = await admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId).eq("status", "pending");
+      if (remainingError || remaining !== 0) throw new Error("TEST cleanup refused: a pending offer remains.");
       await admin.from("job_assignments").update({ active: false, ended_at: now, end_reason: "TEST journey archived" }).eq("job_id", ctx.jobId).eq("active", true);
       await admin.from("jobs").update({ qa_archived_at: now, stage: "cancelled", cancelled_reason: "TEST journey archived", next_action: "Archived TEST journey" }).eq("id", ctx.jobId).eq("source", "qa_test");
     }
@@ -783,4 +791,4 @@ export async function latestJourneyRun() {
 }
 
 /** Test-only access for the opt-in hard-case branches (journey-branches.server.ts). Same functions, no behaviour change. */
-export const journeyInternals = { uploadEvidence, assertOwnTestJob, TEST_DOMAIN, stageOf, s1, s2, s3, s4, s5, melbourneDate, TINY_JPEG, payStep };
+export const journeyInternals = { uploadEvidence, assertOwnTestJob, TEST_DOMAIN, stageOf, s1, s2, s3, s4, s5, s6, s7, s8, melbourneDate, TINY_JPEG, payStep };

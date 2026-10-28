@@ -84,6 +84,8 @@ import { installerPlanningText, renderInstallerPlanningEmail } from "./installer
 import { ANSWER_CODES, ANSWER_SAMPLES, ANSWER_TYPES, renderOwnerAutoReplyEmail } from "./owner-email-auto-reply.core";
 import { renderSpotReleasedEmail } from "./spot-release-email.core";
 import { spotReleasedText } from "./spot-release.core";
+import { renderAddressRequestEmail } from "./address-request-email.core";
+import { addressRequestText } from "./address-request.core";
 
 /* ---------------------------------------------------------------- types */
 
@@ -433,6 +435,20 @@ const OWNER: TemplateEntry[] = [
   ENTRY({ id: "owner:sms-spot_released", section: "owner", step: "ready_check", kind: "text", code: "", name: "It's your turn (text)", when: "With O77 and its day-2 reminder", who: "Owner", approvalNote: "Jo 25 Oct 2026, decision 389", gate: { kind: "text", smsType: "spot_released" },
     source: { builder: "src/lib/spot-release.core.ts", fn: "spotReleasedText", sender: "src/lib/spot-release.server.ts" },
     render: () => texts([{ label: "Released", body: spotReleasedText(`${JOB}?screen=turn`) }, { label: "Day-2 reminder", body: spotReleasedText(`${JOB}?screen=turn`, true) }]) }),
+  // Plan 2026-10-28 (full address required): a website/email enquiry with no street → the owner is asked to pick their
+  // full address on their secure page, then ONE reminder 24h later. Wording approved by Jo 28 Oct 2026.
+  ENTRY({ id: "owner:address-request", section: "owner", step: "enquiry", kind: "email", code: "", name: "We need your full address (+ 24h reminder)", when: "A website/email enquiry arrives with no street (after go-live); ONE reminder 24h later if still not answered", who: "Owner", approvalNote: "Jo 28 Oct 2026 (full address required)", gate: { kind: "email" },
+    source: { builder: "src/lib/address-request-email.core.ts", fn: "renderAddressRequestEmail", sender: "src/lib/address-request.server.ts" },
+    render: () => email(renderAddressRequestEmail({ pickUrl: `${BASE}/my-address/TEST`, unsubscribeUrl: UNSUB, reminder: false })) }),
+  ENTRY({ id: "owner:address-request-reminder", section: "owner", step: "enquiry", kind: "email", code: "", name: "We need your full address — reminder", when: "24h after the request, if the owner still hasn't picked their address", who: "Owner", approvalNote: "Jo 28 Oct 2026 (full address required)", gate: { kind: "email" },
+    source: { builder: "src/lib/address-request-email.core.ts", fn: "renderAddressRequestEmail", sender: "src/lib/address-request.server.ts" },
+    render: () => email(renderAddressRequestEmail({ pickUrl: `${BASE}/my-address/TEST`, unsubscribeUrl: UNSUB, reminder: true })) }),
+  ENTRY({ id: "owner:sms-address_request", section: "owner", step: "enquiry", kind: "text", code: "", name: "We need your full address (text)", when: "With the full-address email", who: "Owner", approvalNote: "Jo 28 Oct 2026 (full address required)", gate: { kind: "text", smsType: "address_request" },
+    source: { builder: "src/lib/address-request.core.ts", fn: "addressRequestText", sender: "src/lib/address-request.server.ts" },
+    render: () => text(addressRequestText(`${BASE}/my-address/TEST`, false)) }),
+  ENTRY({ id: "owner:sms-address_request_reminder", section: "owner", step: "enquiry", kind: "text", code: "", name: "We need your full address — reminder (text)", when: "With the 24h reminder email", who: "Owner", approvalNote: "Jo 28 Oct 2026 (full address required)", gate: { kind: "text", smsType: "address_request_reminder" },
+    source: { builder: "src/lib/address-request.core.ts", fn: "addressRequestText", sender: "src/lib/address-request.server.ts" },
+    render: () => text(addressRequestText(`${BASE}/my-address/TEST`, true)) }),
 ];
 
 /* ---------------------------------------------------------------- INSTALLER */
@@ -494,7 +510,7 @@ const INSTALLER: TemplateEntry[] = [
     source: { builder: "src/lib/boss-price-link.core.ts", fn: "bossPriceLinkText", sender: "src/lib/boss-price-link.server.ts" },
     render: () => text(bossPriceLinkText({ jobNumber: "HV-TEST", street: "824 High Street Road", link: `${FIELD}#price` })) }),
   // Quote
-  ENTRY({ id: "installer:I23", section: "installer", step: "quote", kind: "email", code: "I23", name: "Good news — the owner accepted", when: "The owner accepts the quote", who: "Installer", approvalNote: "Jo 24 Oct 2026", gate: { kind: "email" },
+  ENTRY({ id: "installer:I23", section: "installer", step: "quote", kind: "email", code: "I23", name: "Good news — the owner accepted", when: "The owner pays the safety check", who: "Installer", approvalNote: "Jo 24 Oct 2026", gate: { kind: "email" },
     source: { builder: "src/lib/installer-accepted-email.core.ts", fn: "renderInstallerAcceptedEmail", sender: "src/lib/installer-accepted-email.server.ts" }, design: "docs/templates/mjml/installer_I23.mjml",
     render: () => email(renderInstallerAcceptedEmail(PARTNER_JOB)) }),
   ENTRY({ id: "installer:I24", section: "installer", step: "quote", kind: "email", code: "I24", name: "The owner declined the quote", when: "The owner declines the quote", who: "Installer", approvalNote: "Jo 24 Oct 2026", gate: { kind: "email" },

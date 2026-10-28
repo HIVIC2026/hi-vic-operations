@@ -41,6 +41,6 @@ function emptyFilter(f: unknown): boolean {
 type ListView = { search: string; sort: string; page: number; filters?: unknown; includeTest?: boolean | undefined; view?: string | undefined; wantIds?: boolean | undefined };
 /** The one view that has a saved copy: what the screen shows when it opens. */
 export function isDefaultListView(p: ListView): boolean {
-  // Enquiries: the opening category is "In play" (enquiry-categories.core); a list of every id is never cached.
-  return p.search === "" && p.sort === "" && p.page === 1 && !p.includeTest && emptyFilter(p.filters) && (!p.view || p.view === "active") && !p.wantIds;
+  // Enquiries: the opening category is "offered" (Offered a spot, Jo 28 Oct 2026); a list of every id is never cached.
+  return p.search === "" && p.sort === "" && p.page === 1 && !p.includeTest && emptyFilter(p.filters) && (!p.view || p.view === "offered") && !p.wantIds;
 }

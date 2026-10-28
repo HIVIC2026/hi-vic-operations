@@ -310,7 +310,10 @@ export type CreateResult = { auditId: string; reused: boolean; mittiUserId: stri
 
 export function pickUser(res: Any, email: string): Any | null {
   const list: Any[] = Array.isArray(res) ? res : res?.users ?? res?.data ?? [];
-  return list.find((u) => String(u?.email ?? "").toLowerCase() === email.toLowerCase()) ?? null;
+  const matches = list.filter((u) => String(u?.email ?? "").trim().toLowerCase() === email.trim().toLowerCase());
+  const ids = new Set(matches.map(u => String(u?.id ?? u?.user_id ?? "").trim()).filter(Boolean));
+  if (ids.size > 1) throw new MittiError("More than one Mitti identity matches this email — the office must check the person's Mitti account.");
+  return matches.find(u => String(u?.id ?? u?.user_id ?? "").trim()) ?? null;
 }
 
 export async function createOrReuseAudit(api: MittiApi, ctx: CreateCtx): Promise<CreateResult> {
@@ -685,8 +688,9 @@ export function validateStoredMittiAudit(audit: Any, ctx: { storedAuditId: strin
   if (!sameMittiTemplateId(p.templateId, ctx.templateId ?? MITTI_TEMPLATE_ID)) throw new MittiError("This Mitti audit does not use the expected Home Insulation Victoria assessment template.");
   // A1 no longer has a Portal Job Number question (Jo 23 Oct): the stored audit ID match above is the link.
   // When the field IS on the form (A2, older A1), it must match exactly as before.
-  if (!p.jobNumberField) return p;
-  if (!ctx.jobNumber?.trim() || !p.jobNumber || p.jobNumber.trim().toUpperCase() !== ctx.jobNumber.trim().toUpperCase())
+  const jobFields = flatten(audit).filter(e => [norm("Portal Job Number"), norm("Job Reference ID")].includes(e.norm));
+  if (!jobFields.length) return p;
+  if (!ctx.jobNumber?.trim() || jobFields.some(e => !e.value?.trim() || e.value.trim().toUpperCase() !== ctx.jobNumber.trim().toUpperCase()))
     throw new MittiError(`Mitti Portal Job Number (${p.jobNumber ?? "missing"}) does not match ${ctx.jobNumber}.`);
   return p;
 }

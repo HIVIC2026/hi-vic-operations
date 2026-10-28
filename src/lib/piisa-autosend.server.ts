@@ -8,7 +8,17 @@ import { PIISA_AUDIT_CREATED_EVENT, PIISA_AUTOSEND_FAILED_EVENT, PIISA_AUTOSEND_
 
 export type PiisaAutoSendResult = { jobId: string; jobNumber: string; outcome: "created" | "skipped" | "failed"; message: string };
 
-export async function sweepPiisaAutoSend(opts: { now?: Date; allowTest?: boolean; dryRun?: boolean } = {}) {
+/** Is the job's install-day claim held because an attempt's result is unknown (uncertain and not released)? */
+async function installDayClaimUncertain(jobId: string): Promise<boolean> {
+  const { UNCERTAIN_EVENT, RELEASE_EVENT } = await import("./mitti-create-claim.core");
+  const { data, error } = await admin.from("workflow_events").select("event_type, details").eq("job_id", jobId).in("event_type", [UNCERTAIN_EVENT, RELEASE_EVENT]);
+  if (error) return false;
+  const rows = (data ?? []) as { event_type: string; details: { kind?: string; claim_id?: string } | null }[];
+  const released = new Set(rows.filter((r) => r.event_type === RELEASE_EVENT).map((r) => r.details?.claim_id));
+  return rows.some((r) => r.event_type === UNCERTAIN_EVENT && r.details?.kind === "install_day" && !released.has(r.details?.claim_id));
+}
+
+export async function sweepPiisaAutoSend(opts: { now?: Date; allowTest?: boolean; dryRun?: boolean; call?: import("./mitti.core").MittiCall } = {}) {
   const now = opts.now ?? new Date();
   const { data: bks, error } = await admin.from("bookings").select("job_id, scheduled_start")
     .eq("kind", "installation").eq("status", "confirmed").gt("scheduled_start", now.toISOString()).lt("scheduled_start", new Date(now.getTime() + 4 * 86_400_000).toISOString()).order("scheduled_start");
@@ -39,16 +49,27 @@ export async function sweepPiisaAutoSend(opts: { now?: Date; allowTest?: boolean
     if (opts.dryRun) { results.push({ jobId: j.id, jobNumber: j.job_number, outcome: "skipped", message: "dry run – would create" }); continue; }
     try {
       const { createPiisaMittiAudit } = await import("./mitti.server");
-      const r = await createPiisaMittiAudit(j.id, null);
+      // opts.call: tests only (fake Mitti); the tick always uses the real caller.
+      const r = opts.call ? await createPiisaMittiAudit(j.id, null, opts.call) : await createPiisaMittiAudit(j.id, null);
       created++;
       results.push({ jobId: j.id, jobNumber: j.job_number, outcome: "created", message: r.reused ? `re-shared ${r.auditId}` : `created ${r.auditId}` });
     } catch (e) {
-      const message = (e as Error).message;
-      await logEvent(j.id, null, PIISA_AUTOSEND_FAILED_EVENT, `Automatic PIISA form not created: ${message}`, { install_start: start, message }, { internal: true }).catch(() => undefined);
       // F15: install today or tomorrow → one office item per install start (cleared by the form being created).
       const alerted = mine.some((e) => e.event_type === PIISA_AUTOSEND_OFFICE_EVENT && (e.details as { install_start?: string } | null)?.install_start === start);
-      if (start && !alerted && piisaAutoSendOfficeAlertDue(start, now))
-        await logEvent(j.id, null, PIISA_AUTOSEND_OFFICE_EVENT, `Install day form could not be created in Mitti: ${message}`.slice(0, 500), { install_start: start, message: message.slice(0, 300), needs_office: true }, { internal: true }).catch(() => undefined);
+      const officeItem = async (message: string) => {
+        if (start && !alerted && piisaAutoSendOfficeAlertDue(start, now))
+          await logEvent(j.id, null, PIISA_AUTOSEND_OFFICE_EVENT, `Install day form could not be created in Mitti: ${message}`.slice(0, 500), { install_start: start, message: message.slice(0, 300), needs_office: true }, { internal: true }).catch(() => undefined);
+      };
+      // A held claim / uncertain outcome is owned by the retry sweep: skip, never log a new failure each hour. A lost
+      // reply (now or from an earlier attempt) still raises the one office item (I8); a claim simply in progress does not.
+      const { MittiClaimHeld, MittiOutcomeUncertain } = await import("./mitti-create.server");
+      if (e instanceof MittiClaimHeld || e instanceof MittiOutcomeUncertain) {
+        if (e instanceof MittiOutcomeUncertain || await installDayClaimUncertain(j.id)) await officeItem((e as Error).message);
+        results.push({ jobId: j.id, jobNumber: j.job_number, outcome: "skipped", message: (e as Error).message }); continue;
+      }
+      const message = (e as Error).message;
+      await logEvent(j.id, null, PIISA_AUTOSEND_FAILED_EVENT, `Automatic PIISA form not created: ${message}`, { install_start: start, message }, { internal: true }).catch(() => undefined);
+      await officeItem(message);
       results.push({ jobId: j.id, jobNumber: j.job_number, outcome: "failed", message });
     }
   }

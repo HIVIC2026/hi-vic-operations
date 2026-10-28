@@ -136,7 +136,7 @@ describe("owner-fixes.server (PGlite)", () => {
     expect(s.step).toBe("pay");
     expect(s.windows).toEqual([]);
     expect(s.quote).toMatchObject({ id: Q, total: 550, lines: [{ description: "Replace damaged cable", amount: 550 }] });
-    await expect(ownerPickFixesTime(JOB, W1, OWNER)).rejects.toThrow(/pay for the electrical fixes first/);
+    await expect(ownerPickFixesTime(JOB, W1, OWNER)).rejects.toThrow(/pay for the electrical fixes before booking/);
     expect((await db.query<{ status: string }>("select status from appointment_proposals order by starts_at")).rows.map((r) => r.status)).toEqual(["proposed", "proposed"]);
   });
   test("paid → pick one time → others superseded → booked through confirmBooking", async () => {
