@@ -188,7 +188,15 @@ export async function sendAiDraft(eventId: string, body: string, actorId: string
   await loose.from("workflow_events").insert({ job_id: job.id, actor_id: actorId, event_type: AI_EMAIL_DRAFT_SENT_EVENT, internal: true,
     summary: `Email reply sent to the owner (approved by office)`, details: { draft_event_id: eventId, to, subject, body: body.trim(), status, idempotency_key: key } });
   await admin.from("job_communications").insert({ job_id: job.id, channel: "email", direction: "outbound", provider: "outlook", provider_message_id: (outlook as { messageId: string | null } | null)?.messageId ?? null, subject, body: body.trim(), recipients: [to] as never,
-    delivery_status: "sent", sent_at: new Date().toISOString(), visibility: "customer", created_by: actorId, source_event: AI_EMAIL_DRAFT_SENT_EVENT, source_reference: (outlook as { internetMessageId: string | null } | null)?.internetMessageId ?? eventId }).then(({ error }) => { if (error) console.error("AI reply not added to history", error.message); });
+    delivery_status: "sent", sent_at: new Date().toISOString(), visibility: "customer", created_by: actorId, source_event: AI_EMAIL_DRAFT_SENT_EVENT, source_reference: (outlook as { internetMessageId: string | null } | null)?.internetMessageId ?? eventId }).select("id").single().then(async ({ data: hist, error }) => {
+      if (error || !hist) { console.error("AI reply not added to history", error?.message ?? "no row"); return; }
+      // Final review 3: link the guard's send row to this history row so contact history shows the reply once.
+      // A failed link is logged only — the email has already gone.
+      try {
+        const { error: le } = await admin.from("customer_email_sends").update({ communication_id: (hist as { id: string }).id }).eq("idempotency_key", key).eq("job_id", job.id);
+        if (le) console.error("AI reply send not linked to history", le.message);
+      } catch (e) { console.error("AI reply send not linked to history", e instanceof Error ? e.message : "unknown"); }
+    });
   await (await import("./outlook-sync.server")).archiveOutlookMessage(String(ev.details["message_id"] ?? "") || null, job.id, actorId);
   return { status };
 }

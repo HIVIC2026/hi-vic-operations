@@ -7,19 +7,22 @@ let tables: Record<string, Row[]> = {};
 let n = 0;
 let deleteAttempts = 0;
 let failInsertOn: string | null = null;
+let failUpdateOn: string | null = null;
 function from(table: string) {
   const f: ((r: Row) => boolean)[] = [];
-  let op: "select" | "insert" | "delete" = "select", payload: Row = {}, one = false;
+  let op: "select" | "insert" | "delete" | "update" = "select", payload: Row = {}, one = false;
   const rows = () => (tables[table] ??= []);
   const get = (r: Row, c: string) => (c.includes("->>") ? r[c.split("->>")[0]!]?.[c.split("->>")[1]!] : r[c]);
   const run = () => {
     if (op === "insert") {
       if (failInsertOn === table) return { data: null, error: { message: "db down" } };
       if (table === "workflow_events" && payload["idempotency_key"] === undefined && payload["details"]?.["idempotency_key"] && rows().some((r) => r["details"]?.["idempotency_key"] === payload["details"]["idempotency_key"] && r["event_type"] === payload["event_type"])) return { data: null, error: { code: "23505", message: "duplicate" } };
-      rows().push({ id: `${table}${++n}`, created_at: "2026-10-28T00:00:00Z", ...payload });
-      return { data: null, error: null };
+      const row = { id: `${table}${++n}`, created_at: "2026-10-28T00:00:00Z", ...payload };
+      rows().push(row);
+      return { data: { id: row.id }, error: null };
     }
     const hit = rows().filter((r) => f.every((x) => x(r)));
+    if (op === "update") { if (failUpdateOn === table) return { data: null, error: { message: "db down" } }; for (const r of hit) Object.assign(r, payload); return { data: null, error: null }; }
     if (op === "delete") { deleteAttempts++; if (table === "workflow_events") throw new Error("workflow_events is append-only"); }
     if (op === "delete") { tables[table] = rows().filter((r) => !hit.includes(r)); return { data: null, error: null }; }
     return { data: one ? hit[0] ?? null : hit, error: null };
@@ -27,6 +30,8 @@ function from(table: string) {
   const b: Record<string, any> = {
     select: () => b, limit: () => b,
     insert: (p: Row) => { op = "insert"; payload = p; return b; },
+    update: (p: Row) => { op = "update"; payload = p; return b; },
+    single: () => { one = true; return b; },
     delete: () => { op = "delete"; return b; },
     eq: (c: string, v: unknown) => { f.push((r) => get(r, c) === v); return b; },
     in: (c: string, v: unknown[]) => { f.push((r) => v.includes(get(r, c))); return b; },
@@ -41,7 +46,8 @@ mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { f
 let guardCalls: Row[] = [];
 let guardResult: { status: string; sent?: { provider: "outlook"; messageId: string | null; internetMessageId: string | null } } = { status: "sent" };
 mock.module("../src/lib/owner-email-send.server", () => ({
-  sendGuardedOwnerEmail: async (p: Row) => { guardCalls.push(p); if (guardResult.sent) p["onSent"]?.(guardResult.sent); return guardResult.status; },
+  // Like the real guard: a successful attempt leaves one customer_email_sends row under the caller's key.
+  sendGuardedOwnerEmail: async (p: Row) => { guardCalls.push(p); (tables["customer_email_sends"] ??= []).push({ id: `ces${++n}`, job_id: p["jobId"], purpose: p["purpose"], idempotency_key: p["key"], status: guardResult.status === "sent" ? "sent" : "failed", sent_at: "2026-10-28T00:00:01Z", created_at: "2026-10-28T00:00:00Z", error: null, communication_id: null, delivery_result: null, delivery_detail: null }); if (guardResult.sent) p["onSent"]?.(guardResult.sent); return guardResult.status; },
 }));
 let outlookSends: Row[] = [];
 let outlookResult: Row = { outcome: "sent", messageId: "AAMk-sent-1", internetMessageId: "<in-1@x>" };
@@ -75,7 +81,7 @@ const seedNoJob = () => {
   ];
 };
 beforeEach(() => {
-  tables = {}; n = 0; deleteAttempts = 0; failInsertOn = null; guardCalls = []; outlookSends = []; archived = []; testSends = 0;
+  tables = {}; n = 0; deleteAttempts = 0; failInsertOn = null; failUpdateOn = null; guardCalls = []; outlookSends = []; archived = []; testSends = 0;
   guardResult = { status: "sent", sent: { provider: "outlook", messageId: "AAMk-sent-1", internetMessageId: "<in-1@x>" } };
   outlookResult = { outcome: "sent", messageId: "AAMk-sent-1", internetMessageId: "<in-1@x>" };
 });
@@ -137,6 +143,25 @@ describe("job reply (sendAiDraft)", () => {
     seedJob();
     failInsertOn = "job_communications";
     expect(await sendAiDraft("D1", BODY, "actor")).toEqual({ status: "sent" });
+  });
+  test("final review 3: one reply = one contact-history row (the send row is linked to its history row)", async () => {
+    seedJob();
+    await sendAiDraft("D1", BODY, "actor");
+    const send = tables["customer_email_sends"]!;
+    const hist = tables["job_communications"]!;
+    expect(send).toHaveLength(1);
+    expect(send[0]!["communication_id"]).toBe(hist[0]!["id"]);
+    const { mergeContactHistory } = await import("../src/lib/contact-history.core");
+    const rows = mergeContactHistory({ emails: send as any, comms: hist.map((c) => ({ received_at: null, delivery_result: null, delivery_detail: null, ...c })) as any, sms: [], messages: [], ownerActions: [] });
+    expect(rows).toHaveLength(1);
+  });
+  test("final review 3: a failed link is logged and the reply is still sent", async () => {
+    seedJob();
+    failUpdateOn = "customer_email_sends";
+    const logged: unknown[] = []; const spy = console.error; console.error = (...a: unknown[]) => { logged.push(a); };
+    try { expect(await sendAiDraft("D1", BODY, "actor")).toEqual({ status: "sent" }); } finally { console.error = spy; }
+    expect(logged.length).toBeGreaterThan(0);
+    expect(archived).toHaveLength(1);
   });
   test("qa_test jobs go through the same guarded Outlook send, never the old test sender", async () => {
     seedJob("qa_test");
