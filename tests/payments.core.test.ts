@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import {
   BANK_DETAILS_TO_CONFIRM, FINAL_INVOICE_PAY_LINE, PAY_LINE_SAFETY_CHECK, PROVISIONAL_HOLD_HOURS, SAFETY_CHECK_CENTS,
   bankDetailLines, cardAllowedFor, cumulativePaidCents, howYouPayLines, isStepCleared, newXeroPayments, payNowBlock, payableNow, paymentLine, paymentMethodsFor,
-  paymentPlan, paymentSteps, planQuoteTotalCents, provisionalBookingDecision, provisionalHoldExpiresAt, stepState, xeroDateIso,
+  paymentPlan, paymentSteps, planQuoteTotalCents, repeatCreditCents, provisionalBookingDecision, provisionalHoldExpiresAt, stepState, xeroDateIso,
   effectiveLedger, ledgerRecordFromEvent, reconciledPaidCents, xeroPaymentFacts, xeroReversals,
   ledgerXeroPayments, reconcilePayments, stripeReceiptKey, stripeRefundReceiptKey, stripeRefundedSoFarCents, xeroReceiptKey, xeroReversalReceiptKey,
   INSTALL_DEPOSIT_NOT_PAID, depositDeadlineBeforeStart, depositSweepAction, installDepositPrestartBlocker,
@@ -312,16 +312,47 @@ describe("repeat safety check on the owner's plan (decision 233, Jo 28 Oct)", ()
     expect(withRepeat.thresholds.repeat_safety_check).toBe(434_900);
     expect(plain.repeatCents).toBe(0);
   });
-  test("a plan with no repeat shows no repeat step; a repeat plan shows it owing until the full total is paid", () => {
+  test("a plan with no repeat shows no repeat step; a repeat plan shows it owing until its own money is in", () => {
     expect(paymentSteps(plain, 0, {}, T0).map((s) => s.key)).not.toContain("repeat_safety_check");
-    const steps = paymentSteps(withRepeat, 400_000, { repeat_safety_check: { requestedAt: T0 } }, T0);
-    const repeat = steps.find((s) => s.key === "repeat_safety_check")!;
+    const facts = { repeat_safety_check: { requestedAt: T0, recordedPaid: false, paidBeforeAcceptCents: 34_900 } };
+    const repeat = paymentSteps(withRepeat, 34_900, facts, T0).find((s) => s.key === "repeat_safety_check")!;
     expect(repeat.label).toBe("Repeat safety check (PIESA)");
     expect(repeat.amountCents).toBe(34_900);
     expect(repeat.state).toBe("requested");
     expect(repeat.outstandingCents).toBe(34_900);
     expect(repeat.methods).toContain("card"); // same card-or-bank rule as the original safety check
-    expect(paymentSteps(withRepeat, 434_900, { repeat_safety_check: { requestedAt: T0 } }, T0).find((s) => s.key === "repeat_safety_check")!.state).toBe("paid");
+  });
+  test("repeat money paid after acceptance flips the repeat step and never counts toward the deposit", () => {
+    const facts = { repeat_safety_check: { requestedAt: T0, recordedPaid: true, paidBeforeAcceptCents: 34_900 }, install_deposit: { requestedAt: T0 } };
+    const steps = paymentSteps(withRepeat, 69_800, facts, T0);
+    expect(steps.map((s) => s.key)).toEqual(["safety_check", "repeat_safety_check", "install_deposit", "balance"]);
+    expect(steps.find((s) => s.key === "repeat_safety_check")!.state).toBe("paid");
+    expect(steps.find((s) => s.key === "install_deposit")!.state).toBe("requested");
+    expect(steps.find((s) => s.key === "install_deposit")!.outstandingCents).toBe(36_510);
+  });
+  test("part payment: repeat owing is the price less what's been paid since acceptance", () => {
+    const r = paymentSteps(withRepeat, 44_900, { repeat_safety_check: { requestedAt: T0, recordedPaid: false, paidBeforeAcceptCents: 34_900 } }, T0).find((s) => s.key === "repeat_safety_check")!;
+    expect(r.state).toBe("requested"); expect(r.outstandingCents).toBe(24_900);
+  });
+  test("money after acceptance goes to the repeat first; repeat is the pay-now step even with the deposit due", () => {
+    const facts = { repeat_safety_check: { requestedAt: T0, recordedPaid: false, paidBeforeAcceptCents: 34_900 }, install_deposit: { requestedAt: T0 } };
+    const steps = paymentSteps(withRepeat, 34_900, facts, T0);
+    expect(payableNow(withRepeat, steps, 34_900).step!.key).toBe("repeat_safety_check");
+    expect(paymentSteps(withRepeat, 50_000, facts, T0).find((s) => s.key === "install_deposit")!.outstandingCents).toBe(36_510);
+  });
+  test("fully credited but not recorded is not pay-now", () => {
+    const facts = { repeat_safety_check: { requestedAt: T0, recordedPaid: false, paidBeforeAcceptCents: 34_900 }, install_deposit: { requestedAt: T0 } };
+    const steps = paymentSteps(withRepeat, 69_800, facts, T0);
+    expect(steps.find((s) => s.key === "repeat_safety_check")!.outstandingCents).toBe(0);
+    expect(payableNow(withRepeat, steps, 69_800).step!.key).toBe("install_deposit");
+  });
+  test("missing paid-before counts nothing until recorded", () => {
+    expect(repeatCreditCents({ repeatCents: 34_900, paidCents: 90_000, paidBeforeAcceptCents: null, recordedPaid: false })).toBe(0);
+    expect(repeatCreditCents({ repeatCents: 34_900, paidCents: 90_000, paidBeforeAcceptCents: null, recordedPaid: true })).toBe(34_900);
+  });
+  test("no repeat owed leaves every step as before", () => {
+    const before = paymentSteps(plain, 100_000, { install_deposit: { requestedAt: T0 } }, T0);
+    expect(before.map((s) => [s.key, s.state, s.outstandingCents])).toEqual([["safety_check", "paid", 0], ["install_deposit", "paid", 0], ["balance", "not_yet", 300_000]]);
   });
   test("How you can pay and the pay-now line include the repeat price", () => {
     expect(howYouPayLines(withRepeat)).toContain("$349.00 for the repeat safety check (PIESA) (card or bank transfer, no fee)");
