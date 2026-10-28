@@ -57,3 +57,17 @@ export function quoteTimerAction(
 }
 
 export const QUOTE_EXPIRED_OWNER_MESSAGE = "This quote has expired. Please contact us for an updated quote.";
+
+// ---- Batch 3a: an expired quote closes the job and emails the owner once ----------------------------------------------
+
+/** The cancel reason the expiry close uses; "Send me a new quote" (Task 2) recognises the job by this exact text. */
+export const QUOTE_EXPIRED_CANCEL_REASON = "Quote expired (14 days)";
+/** Once-only email key for one expired quote. */
+export const quoteExpiredEmailKey = (quoteId: string) => `quote-expired:v1:${quoteId}`;
+/** The owner's My job link opened on the "new quote" screen (Task 2 builds the screen). */
+export const quoteExpiredPageLink = (myJobLink: string) => `${myJobLink}?screen=newquote`;
+/** Close the job only when it is still open and has no other live (issued or accepted) installation quote. */
+export function shouldCloseOnExpiry(jobStage: string | null | undefined, otherInstallationQuoteStatuses: readonly string[]): boolean {
+  if (!jobStage || jobStage === "cancelled" || jobStage === "complete") return false;
+  return !otherInstallationQuoteStatuses.some((s) => s === "issued" || s === "accepted");
+}

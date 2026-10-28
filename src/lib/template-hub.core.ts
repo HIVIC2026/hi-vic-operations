@@ -6,6 +6,7 @@
 // or changes workflow. Entries are grouped by WHO gets them and ordered by job step. Wording waiting for Jo's approval
 // sits in its own section. Retired templates are simply not listed (their files stay in git).
 // tests/templates-hub.test.ts proves every entry comes from a live code path and every live builder / text type is here.
+import { renderQuoteExpiredEmail } from "./quote-expired-email.core";
 import { renderJoOutcomeEmail } from "./jo-outcome-email.core";
 import { withUnsubscribe } from "./emailsafety.core";
 import { renderCoverageUnavailableEmail } from "./coverage-email";
@@ -431,6 +432,10 @@ const OWNER: TemplateEntry[] = [
   ENTRY({ id: "owner:O77", section: "owner", step: "ready_check", kind: "email", code: "O77", name: "It's your turn — confirm your free Ready Check", when: "Jo presses Release on Jobs › Choose installer (and the day-2 reminder); the installer is offered the job only after the owner confirms", who: "Owner", approvalNote: "Jo 25 Oct 2026, decision 389", gate: { kind: "email" },
     source: { builder: "src/lib/spot-release-email.core.ts", fn: "renderSpotReleasedEmail", sender: "src/lib/spot-release.server.ts" }, design: "docs/templates/mjml/owner_O77.mjml",
     render: () => email(renderSpotReleasedEmail({ firstName: "Helen", confirmUrl: `${JOB}?screen=turn`, unsubscribeUrl: UNSUB, reminder: false })) }),
+  // Batch 3a: an expired installation quote closes the job; the owner gets one email with "Send me a new quote". Approved by Jo 29 Oct 2026.
+  ENTRY({ id: "owner:O78", section: "owner", step: "quote", kind: "email", code: "O78", name: "Your quote has expired", when: "The day-14 quote timer expires an installation quote and the job has no other live quote (the job closes; sent once)", who: "Owner", approvalNote: "Jo 29 Oct 2026", gate: { kind: "email" },
+    source: { builder: "src/lib/quote-expired-email.core.ts", fn: "renderQuoteExpiredEmail", sender: "src/lib/quote-expired-email.server.ts" }, design: "docs/templates/mjml/owner_O78.mjml",
+    render: () => email(renderQuoteExpiredEmail({ firstName: "Helen", address: "12 Example St, Sampletown", link: `${JOB}?screen=newquote`, unsubscribeUrl: UNSUB })) }),
   ENTRY({ id: "owner:sms-spot_released", section: "owner", step: "ready_check", kind: "text", code: "", name: "It's your turn (text)", when: "With O77 and its day-2 reminder", who: "Owner", approvalNote: "Jo 25 Oct 2026, decision 389", gate: { kind: "text", smsType: "spot_released" },
     source: { builder: "src/lib/spot-release.core.ts", fn: "spotReleasedText", sender: "src/lib/spot-release.server.ts" },
     render: () => texts([{ label: "Released", body: spotReleasedText(`${JOB}?screen=turn`) }, { label: "Day-2 reminder", body: spotReleasedText(`${JOB}?screen=turn`, true) }]) }),
