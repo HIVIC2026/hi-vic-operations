@@ -9,6 +9,7 @@ import { memoryPostgrest, type Tables } from "./helpers/memory-postgrest";
 const J = "00000000-0000-4000-8000-0000000000a1", Q = "00000000-0000-4000-8000-0000000000b1";
 const tables: Tables = {};
 let entryBlockers: string[] = [];
+let onEntryCheck: (() => void) | null = null;
 const transitions: string[] = [];
 class WorkflowError extends Error {}
 // piesa_records.is_current defaults to true in the schema (0000_hivic_core_schema.sql); the in-memory table has no defaults.
@@ -19,7 +20,7 @@ mock.module("../src/lib/workflow.server", () => ({
   logEvent: async (job: string, actor: string | null, type: string, summary: string, details?: unknown, opts?: { from?: string; to?: string; internal?: boolean }) => {
     tables["workflow_events"]!.push({ id: `ev-${tables["workflow_events"]!.length + 1}`, job_id: job, actor_id: actor, event_type: type, summary, details: details ?? {}, from_stage: opts?.from ?? null, to_stage: opts?.to ?? null, created_at: new Date().toISOString() });
   },
-  stageEntryBlockers: async () => entryBlockers,
+  stageEntryBlockers: async () => { onEntryCheck?.(); return entryBlockers; },
   currentApprovedQuote: async () => ({ id: Q, status: "accepted", customer_total_inc_gst: 5000 }),
   getStage: async (id: string) => tables["jobs"]!.find((j) => j["id"] === id)!["stage"],
   piesaStatus: async (id: string) => { const r = tables["piesa_records"]!.find((p) => p["job_id"] === id && p["is_current"]); return r ? { piesa_date: r["completed_date"], piesa_outcome: r["outcome"], piesa_expired: false, install_deadline: null } : null; },
@@ -33,6 +34,8 @@ mock.module("../src/lib/xero.server", () => ({ addRepeatPiesaToXeroInvoice: asyn
 mock.module("../src/lib/allocation.server", () => ({ startPiesaAllocation: async (id: string) => { offers.push(id); return { offered: 1, exhausted: false }; } }));
 mock.module("../src/lib/autoadvance.server", () => ({ autoAdvanceJob: async () => null }));
 mock.module("../src/lib/install-clearance.server", () => ({ notifyInstallerClearance: async () => undefined }));
+const holds: string[] = [];
+mock.module("../src/lib/install-holds.server", () => ({ createInstallHold: async (id: string) => { holds.push(id); return null; }, moveHoldForPiesa: async () => null, moveHoldForRectification: async () => null }));
 
 const { reopenJob } = await import("../src/lib/office-actions.server");
 const { reopenStageFor } = await import("../src/lib/office-jobs.core");
@@ -54,12 +57,14 @@ function seed(priorStage: string, withPiesa: boolean) {
     admin_config_events: [],
     office_job_list: [],
     ceiling_measurements: [],
+    partner_offers: [],
+    bookings: [],
   });
 }
 const job = () => tables["jobs"]![0]!;
 const events = (t: string) => tables["workflow_events"]!.filter((e) => e["event_type"] === t);
 
-beforeEach(() => { entryBlockers = []; transitions.length = 0; xeroCalls.length = 0; offers.length = 0; });
+beforeEach(() => { entryBlockers = []; onEntryCheck = null; transitions.length = 0; xeroCalls.length = 0; offers.length = 0; holds.length = 0; });
 
 describe("reopenStageFor — where a reopened job goes", () => {
   const same = ["new_enquiry", "eligibility_review", "preliminary_estimate_ready", "ready_check_awaiting_acceptance", "ready_check_awaiting_payment", "ready_check_ready_to_schedule"];
@@ -204,6 +209,83 @@ describe("reopenJob (real, in-memory database)", () => {
     seed("assessment_booking", false);
     await expect(reopenJob(J, "Owner rang back", "admin-1")).rejects.toThrow(/retired/);
     expect(job()["stage"]).toBe("cancelled");
+  });
+});
+
+describe("F3: a reopened job gets its trade prompt again (stale accepted offers / still-confirmed bookings released)", () => {
+  const OLD = "2026-10-05T00:00:00.000Z", FUTURE = "2099-01-01T00:00:00.000Z";
+  const offer = (id: string, kind: string, status: string) => ({ id, job_id: J, business_id: `b-${id}`, kind, status, offered_at: OLD, responded_at: OLD, decline_reason: null, superseded_at: null, summary: {} });
+  const booking = (id: string, kind: string, status: string, start: string) => ({ id, job_id: J, kind, status, scheduled_start: start });
+  const offerRows = () => (tables["partner_offers"] as Record<string, unknown>[]).map((o) => ({ status: String(o["status"]), offered_at: String(o["offered_at"]), kind: String(o["kind"]) }));
+  const byId = (t: string, id: string) => tables[t]!.find((r) => r["id"] === id)!;
+
+  test("reopen to choose installer: the old accepted Ready Check offer is withdrawn (job reopened) and the Choose installer row appears", async () => {
+    seed("ready_check_scheduled", false);
+    tables["partner_offers"] = [offer("o-rc", "ready_check", "accepted"), offer("o-piesa", "piesa", "accepted")];
+    tables["bookings"] = [booking("bk-rc-past", "ready_check", "confirmed", OLD), booking("bk-rc-prop", "ready_check", "proposed", FUTURE), booking("bk-as", "assessment", "confirmed", OLD)];
+    const { readyCheckOfficeItem } = await import("../src/lib/ready-check-times.core");
+    expect(readyCheckOfficeItem({ channel: "hivic_sourced", stage: "ready_check_ready_to_schedule", hasInstaller: false, offers: offerRows().filter((o) => o.kind === "ready_check") })).toBeNull();
+    await reopenJob(J, "Owner rang back", "admin-1");
+    expect(byId("partner_offers", "o-rc")).toMatchObject({ status: "withdrawn", decline_reason: "job reopened" });
+    expect(byId("partner_offers", "o-piesa")["status"]).toBe("accepted"); // not the installer's role
+    expect(byId("bookings", "bk-rc-past")["status"]).toBe("cancelled");
+    expect(byId("bookings", "bk-rc-prop")["status"]).toBe("cancelled");
+    expect(byId("bookings", "bk-as")["status"]).toBe("confirmed");
+    expect(readyCheckOfficeItem({ channel: "hivic_sourced", stage: String(job()["stage"]), hasInstaller: false, offers: offerRows().filter((o) => o.kind === "ready_check") })).toEqual({ code: "choose_installer" });
+  });
+
+  test("reopen to the PIESA stage with no check done: accepted electrician offer withdrawn, past confirmed assessment cancelled, completed visits kept; choose electrician / auto-offer apply", async () => {
+    seed("piesa_scheduled", false);
+    tables["partner_offers"] = [offer("o-piesa", "piesa", "accepted"), offer("o-lost", "piesa", "withdrawn"), offer("o-rc", "ready_check", "accepted")];
+    tables["bookings"] = [booking("bk-as-past", "assessment", "confirmed", OLD), booking("bk-as-done", "assessment", "completed", OLD), booking("bk-rc-done", "ready_check", "confirmed", OLD)];
+    await reopenJob(J, "Owner rang back", "admin-1");
+    expect(job()["stage"]).toBe("piesa_and_install_window_pending");
+    expect(byId("partner_offers", "o-piesa")).toMatchObject({ status: "withdrawn", decline_reason: "job reopened" });
+    expect(byId("partner_offers", "o-rc")["status"]).toBe("accepted");
+    expect(byId("bookings", "bk-as-past")["status"]).toBe("cancelled");
+    expect(byId("bookings", "bk-as-done")["status"]).toBe("completed");
+    expect(byId("bookings", "bk-rc-done")["status"]).toBe("confirmed");
+    // Needs me "choose electrician": the office.server rule — nothing pending/accepted this round, nobody assigned.
+    const { needsChooseTrades } = await import("../src/lib/offer-dispatch.core");
+    const out = offerRows().filter((o) => o.kind === "piesa" && (o.status === "pending" || o.status === "accepted")).length;
+    expect(needsChooseTrades({ officePicks: true, readyForOffer: true, hasTrade: false, offersThisRound: out })).toBe(true);
+    // Auto-offer: offers made before the reopen no longer count as "already allocated once".
+    const { piesaOffersSinceReopen } = await import("../src/lib/repeat-piesa.server");
+    expect(await piesaOffersSinceReopen(J)).toBe(0);
+    const { readFileSync } = require("node:fs");
+    const alloc = readFileSync("src/lib/allocation.server.ts", "utf8");
+    const auto = alloc.slice(alloc.indexOf("async function autoStartPiesaOffers"), alloc.indexOf("async function flagUnapprovedElectricians"));
+    expect(auto).toContain("piesaOffersSinceReopen(j.id)");
+  });
+
+  test("minor: reopen to the PIESA stage places the expected install week again (as transition() does); Ready Check reopen does not", async () => {
+    seed("piesa_scheduled", false);
+    await reopenJob(J, "Owner rang back", "admin-1");
+    expect(holds).toEqual([J]);
+    seed("ready_check_scheduled", false);
+    holds.length = 0;
+    await reopenJob(J, "Owner rang back", "admin-1");
+    expect(holds).toEqual([]);
+  });
+
+  test("minor: the stage update must hit the job — if it was changed meanwhile, nothing is released or logged", async () => {
+    seed("piesa_scheduled", false);
+    tables["partner_offers"] = [offer("o-piesa", "piesa", "accepted")];
+    // Another request moves the job after the checks, before the stage update.
+    onEntryCheck = () => { job()["stage"] = "piesa_scheduled"; };
+    await expect(reopenJob(J, "Owner rang back", "admin-1")).rejects.toThrow(/changed while reopening/);
+    onEntryCheck = null;
+    expect(events("stage_changed")).toHaveLength(1); // only the seeded cancel
+    expect(events(rp.REPEAT_REOPEN_EVENT)).toHaveLength(0);
+    expect(byId("partner_offers", "o-piesa")["status"]).toBe("accepted");
+    expect(holds).toEqual([]);
+  });
+
+  test("a job never reopened still counts every PIESA offer (auto-offer runs once, as before)", async () => {
+    seed("piesa_scheduled", false);
+    tables["partner_offers"] = [offer("o-lost", "piesa", "withdrawn")];
+    const { piesaOffersSinceReopen } = await import("../src/lib/repeat-piesa.server");
+    expect(await piesaOffersSinceReopen(J)).toBe(1);
   });
 });
 

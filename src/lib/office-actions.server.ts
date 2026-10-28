@@ -128,14 +128,44 @@ export async function reopenJob(jobId: string, reason: string, actorId: string) 
     await logEvent(jobId, actorId, "eligibility_set", `Eligibility reopened: needs onsite confirmation (${why})`, { reason: why, previous_outcome: job.eligibility_outcome, decision: 227 }, { internal: true });
   }
   if (target) {
-    const { error } = await admin.from("jobs").update({ stage: target.stage as never, prior_stage: null, cancelled_reason: null }).eq("id", jobId).eq("stage", "cancelled");
+    const { data: moved, error } = await admin.from("jobs").update({ stage: target.stage as never, prior_stage: null, cancelled_reason: null }).eq("id", jobId).eq("stage", "cancelled").select("id");
     if (error) throw new Error(error.message);
-    await logEvent(jobId, actorId, "stage_changed", `Reopened: ${why}`, { reason: why, decision: 227, prior_stage: plan.stage }, { from: "cancelled", to: target.stage as never });
+    // Someone else changed the job meanwhile: stop before anything is released or logged.
+    if ((moved?.length ?? 0) !== 1) throw new WorkflowError(`${job.job_number} changed while reopening — refresh and try again.`);
+    const released = await releaseStaleTradeOnReopen(jobId, target.stage);
+    await logEvent(jobId, actorId, "stage_changed", `Reopened: ${why}`, { reason: why, decision: 227, prior_stage: plan.stage, released }, { from: "cancelled", to: target.stage as never });
     if (target.needsNewPiesa) await supersedePiesaOnReopen(jobId, actorId);
+    if (target.stage === "piesa_and_install_window_pending") {
+      // Same as transition() into this stage: the expected install week (planning note) is placed again — cancel released it.
+      const { createInstallHold } = await import("./install-holds.server");
+      await createInstallHold(jobId, actorId).catch((e) => console.error("install hold not placed", (e as Error).message));
+    }
   } else {
     await logEvent(jobId, actorId, "job_reopened", `Reopened: ${why}`, { reason: why, decision: 227 }, { internal: true });
   }
   return { ok: true, stage: target?.stage ?? job.stage };
+}
+
+/** Batch 1 final fix F3: cancel keeps history (only pending offers and future bookings are released), so a reopened job
+ *  still carries the old trade's ACCEPTED offer and any past still-confirmed visit — which hide "Choose installer" /
+ *  "choose electrician", block the automatic PIESA offers and make the times screen say "booked". For the trade the
+ *  reopened stage needs again (installer for the Ready Check, electrician for the PIESA), accepted offers are withdrawn
+ *  ("job reopened") and confirmed/proposed visits of that kind cancelled, whatever their date. Completed visits stay
+ *  (electrician pay reads them). */
+const REOPEN_RELEASE: Record<string, { offerKinds: string[]; bookingKinds: string[] }> = {
+  ready_check_ready_to_schedule: { offerKinds: ["ready_check"], bookingKinds: ["ready_check"] },
+  piesa_and_install_window_pending: { offerKinds: ["piesa", "rectification"], bookingKinds: ["assessment"] },
+};
+async function releaseStaleTradeOnReopen(jobId: string, stage: string): Promise<{ tradeOffers: number; bookings: number }> {
+  const r = REOPEN_RELEASE[stage];
+  if (!r) return { tradeOffers: 0, bookings: 0 };
+  const now = new Date().toISOString();
+  const [offers, books] = await Promise.all([
+    admin.from("partner_offers").update({ status: "withdrawn", decline_reason: "job reopened", superseded_at: now }).eq("job_id", jobId).eq("status", "accepted").in("kind", r.offerKinds).select("id"),
+    admin.from("bookings").update({ status: "cancelled" }).eq("job_id", jobId).in("status", ["proposed", "confirmed"]).in("kind", r.bookingKinds as never).select("id"),
+  ]);
+  for (const x of [offers, books]) if (x.error) throw new Error(`Reopened, but releasing the old trade failed: ${x.error.message}. Open the job and check.`);
+  return { tradeOffers: offers.data?.length ?? 0, bookings: books.data?.length ?? 0 };
 }
 
 /** Batch 1 task 6 (Jo 28 Oct 2026): reopened at or after the safety check → the old check no longer counts. When a check

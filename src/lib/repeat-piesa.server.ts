@@ -26,6 +26,17 @@ export async function latestReopenAt(jobId: string): Promise<string | null> {
   return (data as { created_at?: string } | null)?.created_at ?? null;
 }
 
+/** Batch 1 final fix F3: PIESA offers made since the job's latest reopen (all of them for a job never reopened). The
+ *  automatic first offer round runs once per job — and once again after a reopen. */
+export async function piesaOffersSinceReopen(jobId: string): Promise<number> {
+  const since = await latestReopenAt(jobId);
+  let q = admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", "piesa");
+  if (since) q = q.gt("offered_at", since);
+  const { count, error } = await q;
+  if (error) throw new Error(error.message);
+  return count ?? 0;
+}
+
 /** Batch 1 task 6: the job's current PIESA record was made before its latest reopen, so it no longer counts. */
 export async function currentPiesaSupersededByReopen(jobId: string): Promise<boolean> {
   const at = await latestReopenAt(jobId);
