@@ -286,6 +286,8 @@ export type TeamMemberView = {
   cii: { certStatus: string | null; level: string | null; expiresOn: string | null } | null;
   /** Decision 319: White Card state for installers with a staff row (optional so older callers compile). null/undefined = not applicable. */
   whiteCard?: WhiteCardState | null;
+  /** Jo 28 Oct: Lead / Crew for installer staff rows; null/undefined = not applicable. */
+  workerRole?: "lead" | "crew" | null;
 };
 export const ROLE_LABEL: Record<TeamMemberView["role"], string> = { owner: "owner", installer: "installer", electrician: "electrician" };
 

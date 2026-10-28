@@ -14,13 +14,14 @@ import { testRecipientBoundary } from './comms-test-recipient.core';
 import { unsubscribeUrlForJob } from './emailsafety.server';
 import { recordCommunication } from './comms.server';
 import { DeliveryRejectedError } from './delivery.core';
+import { countsAsFirstResponse } from './automatic-first-response.core';
 
 /** Fail-closed current history read; no write, link issuance or eligibility change. */
 export async function readCatchup(jobId: string, ownReservation?: string) {
   const [index, job, sends, comms, consent, opt, response, suppressed, work] = await Promise.all([
     admin.from('office_enquiry_index').select('*').eq('id', jobId).maybeSingle(),
     admin.from('jobs').select('property_id,hold_reason,eligibility_review_required,eligibility_decision_source,estimated_area_m2,estimated_area_unknown,properties(enrichment)').eq('id', jobId).maybeSingle(),
-    admin.from('customer_email_sends').select('id,status').eq('job_id', jobId),
+    admin.from('customer_email_sends').select('id,status,purpose').eq('job_id', jobId),
     admin.from('job_communications').select('id').eq('job_id', jobId).eq('direction', 'outbound').eq('channel', 'email').eq('visibility', 'customer'),
     admin.from('owner_contact_consents').select('consent_status').eq('job_id', jobId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
     admin.from('customer_email_optouts').select('opted_out_at').eq('job_id', jobId).maybeSingle(),
@@ -47,20 +48,22 @@ export async function readCatchup(jobId: string, ownReservation?: string) {
     )).flatMap(x => x.id ? [x.id] : []);
     if (ids.length) {
       const [s, c] = await Promise.all([
-        admin.from('customer_email_sends').select('id').in('job_id', ids).in('status', ['sent', 'delivered', 'sending', 'delivered_unrecorded', 'sending_unknown']).limit(1),
+        admin.from('customer_email_sends').select('id,purpose').in('job_id', ids).in('status', ['sent', 'delivered', 'sending', 'delivered_unrecorded', 'sending_unknown']),
         admin.from('job_communications').select('id').in('job_id', ids).eq('direction', 'outbound').eq('channel', 'email').eq('visibility', 'customer').limit(1),
       ]);
       if (s.error || c.error) throw new Error('Could not verify same-recipient correspondence');
-      recipientAnswered ||= !!s.data?.length || !!c.data?.length;
+      recipientAnswered ||= !!s.data?.some(x => countsAsFirstResponse((x as { purpose?: string | null }).purpose)) || !!c.data?.length;
     }
     if (rows.length < 50) break;
   }
+  // The full-address request emails are not a first response (plan 2026-10-28).
+  const firstResponseSends = (sends.data ?? []).filter(x => countsAsFirstResponse((x as { purpose?: string | null }).purpose));
   const blocker = catchupBlocker({
     jobNumber: i.job_number, bucket: i.office_bucket, needsFirstResponse: i.needs_first_response === true,
     source: i.source ?? '', channel: i.channel ?? '', stage: i.stage ?? '', email,
     deleted: !!i.deleted_at, archived: !!i.qa_archived_at, removed: i.removed !== false, holdReason: j.hold_reason,
-    answered: !!sends.data?.some(x => ['sent', 'delivered'].includes(x.status)), outbound: !!comms.data?.length,
-    inFlight: !!sends.data?.some(x => x.id !== ownReservation && !['failed', 'sent', 'delivered'].includes(x.status)), recipientAnswered,
+    answered: firstResponseSends.some(x => ['sent', 'delivered'].includes(x.status)), outbound: !!comms.data?.length,
+    inFlight: firstResponseSends.some(x => x.id !== ownReservation && !['failed', 'sent', 'delivered'].includes(x.status)), recipientAnswered,
     consent: consent.data?.consent_status === 'granted', optedOut: !!opt.data?.opted_out_at || !!response.data?.opted_out_at,
     suppressed: !!suppressed.data?.length || !!response.data?.spot_saved_at, workActive: !!work.data?.length,
     outcome: i.eligibility_outcome, decisionSource: j.eligibility_decision_source, reviewRequired: j.eligibility_review_required,
@@ -71,6 +74,10 @@ export async function readCatchup(jobId: string, ownReservation?: string) {
 async function prepareCatchup(jobId: string, ownReservation?: string) {
   const initial = await readCatchup(jobId, ownReservation);
   if (initial.blocker) return { blocker: initial.blocker };
+  const { loadAddressRequestFacts } = await import('./address-request.server');
+  const { addressRequestOpen, ADDRESS_REQUEST_BLOCK_REASON } = await import('./address-request.core');
+  const facts = await loadAddressRequestFacts(jobId);
+  if (facts && addressRequestOpen(facts)) return { blocker: ADDRESS_REQUEST_BLOCK_REASON };
   const [originalMedia, documents, evidence, estimate, link, config] = await Promise.all([
     groupBMediaForJob(jobId),
     admin.from('documents').select('kind,mime_type,storage_path').eq('job_id', jobId).eq('kind', 'intake_media'),

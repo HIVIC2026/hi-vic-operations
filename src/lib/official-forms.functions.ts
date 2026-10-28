@@ -88,6 +88,8 @@ export const sendPiisaToInstaller = createServerFn({ method: "POST" }).middlewar
   .handler(async ({ data, context }) => {
     const { requireAdmin } = await import("./workflow.server");
     await requireAdmin(context.supabase);
-    const { createPiisaMittiAudit } = await import("./mitti.server");
-    return createPiisaMittiAudit(data.jobId, context.userId);
+    const { createPiisaMittiAudit, realMittiCall } = await import("./mitti.server");
+    // Same as the PIESA button: the office's explicit action may supersede an earlier attempt whose result is unknown
+    // (>= 10 min old, recorded), so a lost reply never leaves the install-day form stuck.
+    return createPiisaMittiAudit(data.jobId, context.userId, realMittiCall, { officeOverride: true });
   });

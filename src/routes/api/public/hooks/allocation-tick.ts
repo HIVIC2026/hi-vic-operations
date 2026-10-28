@@ -134,6 +134,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['spotReleases'] = "failed";
         }
         try {
+          // Plan 2026-10-28 (full address required): website/email enquiries with no street → ask the owner (email + text)
+          // to pick their full address, then ONE reminder 24h later. Off until address_request_live_at is set.
+          const { sweepAddressRequests } = await import("@/lib/address-request.server");
+          (out as Record<string, unknown>)['addressRequests'] = await timed("sweepAddressRequests", () => sweepAddressRequests());
+        } catch (e) {
+          console.error("allocation tick: address request sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['addressRequests'] = "failed";
+        }
+        try {
           // Decision 330: owner asked to confirm the ELECTRICAL FIXES (email O72 + text) after the A4 fixes form; days 1/3, office day 5.
           const { sweepOwnerFixesConfirmations } = await import("@/lib/piesa-fixes-confirm-send.server");
           (out as Record<string, unknown>)['piesaFixesConfirm'] = await timed("sweepOwnerFixesConfirmations", () => sweepOwnerFixesConfirmations());
@@ -308,6 +317,16 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
         } catch (e) {
           console.error("allocation tick: automatic offers sweep failed", (e as Error).message);
           (out as Record<string, unknown>)['autoOffers'] = "failed";
+        }
+        try {
+          // Jo 28 Oct: crew reminder email at 2pm Melbourne the day before an install with no crew picked (once per job +
+          // install date). Real installers get nothing until Jo approves the wording; TEST uses the test-send path.
+          const { sweepCrewReminders } = await import("@/lib/crew-reminder.server");
+          const r = await timed("sweepCrewReminders", () => sweepCrewReminders());
+          (out as Record<string, unknown>)['crewReminders'] = { checked: r.checked, sent: r.sent };
+        } catch (e) {
+          console.error("allocation tick: crew reminder sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['crewReminders'] = "failed";
         }
         try {
           const { sweepPrestart } = await import("@/lib/prestart.server");

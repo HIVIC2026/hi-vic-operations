@@ -17,11 +17,14 @@ import { officeEecFileUrl, officeVerifyEec } from "@/lib/worker-compliance.funct
 import { checkMittiAccess } from "@/lib/mitti-membership.functions";
 import { mittiInviteLine } from "@/lib/mitti-membership.core";
 import { whiteCardCell, type PersonAction } from "@/lib/office-partners.core";
+import { WorkerRoleSwitch } from "@/components/portal/worker-role-switch";
 
 export type PersonView = {
-  id: string; name: string; email: string; businessId: string; business: string; role: string; profileId: string | null; certNumber: string | null; hasCertFile: boolean;
+  id: string; name: string; email: string | null; businessId: string; business: string; role: string; profileId: string | null; certNumber: string | null; hasCertFile: boolean;
   /** Decision 319: worker-compliance.core whiteCardState + the card number recorded so far. */
   whiteCard?: string | null; whiteCardNumber?: string | null;
+  /** Jo 28 Oct: Lead / Crew for installers; null = not applicable. */
+  workerRole?: "lead" | "crew" | null;
   ciiLabel: string; ciiTone: "green" | "rose" | "amber" | "plain"; noticeLabel: string; noticeTone: "green" | "rose" | "plain"; mittiLabel: string; inMitti: boolean; action: PersonAction; clearedReason: string | null;
 };
 
@@ -39,7 +42,7 @@ export function PeopleTable({ people, showBusiness = true, invalidate }: { peopl
           <tr key={p.id}>
             <td className="font-semibold">{p.name}<span className="block text-xs font-normal text-sub">{p.email}</span></td>
             {showBusiness && <td><Link to="/admin/partners/business/$businessId" params={{ businessId: p.businessId }} className="text-hiv-blue hover:underline">{p.business}</Link></td>}
-            <td>{ROLE[p.role] ?? p.role}</td>
+            <td>{ROLE[p.role] ?? p.role}{p.workerRole && <div className="mt-1"><WorkerRoleSwitch tone="office" workerId={p.id} role={p.workerRole} onDone={() => { for (const k of invalidate) void qc.invalidateQueries({ queryKey: [k] }); }} /></div>}</td>
             <td data-why="decision 153: clearance derived from verified CII + level + expiry">{p.ciiTone === "plain" ? p.ciiLabel : <Pill tone={p.ciiTone}>{p.ciiLabel}</Pill>}</td>
             <td data-why="decision 319: White Card per installer, office verifies once">{(() => { const c = whiteCardCell(p.whiteCard); return <>{c.tone === "plain" ? c.label : <Pill tone={c.tone}>{c.label}</Pill>}{c.canDecide && <div className="mt-1"><WhiteCardOfficeInline workerId={p.id} number={p.whiteCardNumber ?? null} onDone={() => { for (const k of invalidate) void qc.invalidateQueries({ queryKey: [k] }); }} /></div>}</>; })()}</td>
             <td data-why="decision 130: per-person ESC privacy notice">{p.noticeTone === "plain" ? p.noticeLabel : <Pill tone={p.noticeTone}>{p.noticeLabel}</Pill>}</td>
