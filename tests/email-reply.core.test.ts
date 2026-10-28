@@ -88,7 +88,7 @@ describe("type selection", () => {
 
 describe("owner_status", () => {
   test("spot saved, no booking yet: says how booking works, never invents a date", () => {
-    const d = draft(owner("Hi, when is my free Ready Check? Haven't heard anything.", { stage: "spot_saved" }));
+    const d = draft(owner("Hi, when is my free Ready Check? Haven't heard anything.", { stage: "ready_check_ready_to_schedule" }));
     expect(d.type).toBe("owner_status");
     expect(d.text).toContain("Spots are released in the order they were saved.");
     expect(d.text).not.toMatch(/\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/);
@@ -172,7 +172,7 @@ describe("new_enquiry", () => {
       expect(composeReply({ subject: "Ceiling insulation", body, from: "new.person@example.org", fromName: "New Person", fromPartner: false, now: SAMPLE_NOW, owner: null })).toBeNull();
   });
   test("no reply ever carries the calculator or the website eligibility check (matched owners get their own page)", () => {
-    const inputs: ReplyInput[] = [...SAMPLES.map((s) => s.input), owner("Any update?", { stage: "preliminary_estimate_ready", spotSaved: false }), owner("How much is it?", { stage: "spot_saved" })];
+    const inputs: ReplyInput[] = [...SAMPLES.map((s) => s.input), owner("Any update?", { stage: "preliminary_estimate_ready", spotSaved: false }), owner("How much is it?", { stage: "ready_check_ready_to_schedule" })];
     for (const i of inputs) {
       const d = draft(i);
       for (const url of d.text.match(/https:\/\/\S+/g) ?? []) {
@@ -192,7 +192,7 @@ describe("new_enquiry", () => {
 
 describe("price_rebate_eligibility", () => {
   test("estimate only (no quote yet): estimate figures + what isn't included", () => {
-    const d = draft(owner("How much will it cost? And what does the rebate cover?", { stage: "spot_saved" }));
+    const d = draft(owner("How much will it cost? And what does the rebate cover?", { stage: "ready_check_ready_to_schedule" }));
     expect(d.type).toBe("price_rebate_eligibility");
     expect(d.text).toContain("Your estimate is $3,798 incl. GST, and the $1,610 VEU rebate comes straight off, so you'd pay $2,188 for the 137 m² ceiling you told us about.");
     expect(d.text).toContain("Not included, only if needed");

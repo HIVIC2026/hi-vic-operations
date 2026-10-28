@@ -24,6 +24,14 @@ export const SPOT_PRICE_NOTE = "This is an estimate. You'll see your exact price
 /** Anything matching this must never appear in pre-release owner copy (tests scan every renderer and constant). */
 export const PRE_RELEASE_FORBIDDEN = /ready check|installer (will|visits?|offers?|measures?|checks?)|offer(s|ed)? you( \d)? times|their times|times for your|\bmeasur|on-?site|as soon as|\bsoon\b|shortly|this week|jump the queue|move up|book your|to book\b|speed it up|demand is high|high demand|availability/i;
 
+/** Decision 388: the ONE pre-release stage rule (AI drafts and the reply composer share it). Enquiry stages, "ready to
+ *  schedule" and the legacy "awaiting payment" stage; NOT "awaiting acceptance" (the owner has already been offered
+ *  times) or anything later. Channel and release facts are the caller's business. */
+const PRE_RELEASE_STAGES: ReadonlySet<string> = new Set([
+  "new_enquiry", "eligibility_review", "preliminary_estimate_ready", "ready_check_ready_to_schedule", "ready_check_awaiting_payment",
+]);
+export const isPreReleaseStage = (stage: string | null | undefined): boolean => !!stage && PRE_RELEASE_STAGES.has(stage);
+
 /** The forbidden phrases found in `text` (empty = spot-only). */
 export function preReleaseViolations(text: string): string[] {
   const re = new RegExp(PRE_RELEASE_FORBIDDEN.source, "gi");

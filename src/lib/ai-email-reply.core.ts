@@ -10,8 +10,7 @@
 import { esc, mjEmail } from "./mail-mjml.core";
 import { changeVisitLink, visitGroupForStage, type ChangeVisit } from "./email-change-reply.core";
 import { smsQuietReason } from "./quote-hold.core";
-import { SPOT_FREE, SPOT_PRICE_NOTE, SPOT_REGISTERED, SPOT_RELEASE_LINE, preReleaseViolations } from "./spot-only-copy.core";
-import { STAGE_ORDER } from "./workflow";
+import { SPOT_FREE, SPOT_PRICE_NOTE, SPOT_REGISTERED, SPOT_RELEASE_LINE, isPreReleaseStage, preReleaseViolations } from "./spot-only-copy.core";
 import type { SpotReleaseState } from "./spot-release.core";
 
 export const AI_EMAIL_DRAFT_EVENT = "email_ai_draft";
@@ -99,12 +98,11 @@ const instructionLines = (NEXT_STEP: string, preRelease: boolean) => [
 
 export const AI_REPLY_INSTRUCTIONS = instructionLines(NEXT_STEP_RELEASED, false).join("\n");
 
-/** Decision 388: pre-release = our own lead (hivic_sourced) at or before "ready_check_ready_to_schedule" whose spot is not released AND confirmed.
- *  Any later stage, an unknown/exception stage or any other channel keeps today's behaviour. */
+/** Decision 388: pre-release = our own lead (hivic_sourced) at a pre-release stage (`isPreReleaseStage`, shared with the
+ *  reply composer) whose spot is not released AND confirmed. Any other stage or channel keeps today's behaviour. */
 export function isPreReleaseOwner(j: { channel: string | null | undefined; stage: string | null | undefined; releaseState: SpotReleaseState | null | undefined }): boolean {
   if (j.channel !== "hivic_sourced") return false;
-  const i = STAGE_ORDER.indexOf(j.stage as never);
-  if (i < 0 || i > STAGE_ORDER.indexOf("ready_check_ready_to_schedule")) return false;
+  if (!isPreReleaseStage(j.stage)) return false;
   return j.releaseState?.state !== "confirmed";
 }
 

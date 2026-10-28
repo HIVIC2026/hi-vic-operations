@@ -11,7 +11,7 @@
 // Decision 292 (Jo 25 Oct, replaces 255): an unmatched NEW sender is NOT drafted for here and never gets an enquiry
 // created from their email — new-sender-reply.core sends them the one website reply (O70); every other unmatched
 // non-partner email waits for the office's Match (decision 247).
-import { SPOT_IN_TOUCH, SPOT_ORDER } from "./spot-only-copy.core";
+import { SPOT_IN_TOUCH, SPOT_ORDER, isPreReleaseStage } from "./spot-only-copy.core";
 import { classifyEmailIntents, looksLikeNewEnquiry, type EmailIntent, type IntentHit } from "./email-intent.core";
 import { CUSTOMER_BASE } from "./engagement.core";
 import type { PayState } from "./trade-view.core";
@@ -244,11 +244,12 @@ function ownerStatus(f: OwnerFacts, intents: EmailIntent[], now: Date): Built {
   const due = f.paymentDue;
   // Card only where Stripe is actually available for this step (decision 144); otherwise bank transfer / PayID.
   const dueLine = (d: DueStep) => `The next step is your ${PAY_STEP_WORDS[d.key].what} of ${money(d.outstanding)}, ${d.cardAvailable ? PAY_STEP_WORDS[d.key].how : "by bank transfer or PayID"}.`;
+  // Decision 388: before release, spot-only wording (spot-only-copy.core's one shared pre-release stage rule).
+  if (isPreReleaseStage(f.stage)) {
+    lines.push("Your spot is saved.", SPOT_ORDER, SPOT_IN_TOUCH);
+    return { lines, link, linkLine, flags };
+  }
   switch (f.stage) {
-    // Decision 388: before release, spot-only wording (spot-only-copy.core).
-    case "spot_saved": case "ready_check_ready_to_schedule": case "ready_check_awaiting_payment": case "preliminary_estimate_ready":
-      lines.push("Your spot is saved.", SPOT_ORDER, SPOT_IN_TOUCH);
-      break;
     case "ready_check_awaiting_acceptance":
       lines.push("Your installer has offered times for your free Ready Check.");
       linkOr("You can pick the one that suits you here:", "your Ready Check times");
@@ -345,9 +346,8 @@ function newEnquiry(f: OwnerFacts): Built {
 }
 
 // ---------- price_rebate_eligibility ----------
-/** Decision 388: stages before the spot is released (the composer's spot-only stages plus the enquiry stages). */
-const PRE_RELEASE_STAGES = new Set(["spot_saved", "ready_check_ready_to_schedule", "ready_check_awaiting_payment", "preliminary_estimate_ready"]);
-const isPreRelease = (f: OwnerFacts) => PRE_RELEASE_STAGES.has(f.stage) || isEnquiryStage(f.stage, f.spotSaved);
+/** Decision 388: stages before the spot is released (spot-only-copy.core's one shared rule). */
+const isPreRelease = (f: OwnerFacts) => isPreReleaseStage(f.stage);
 function priceRebate(f: OwnerFacts): Built {
   const flags: string[] = [];
   const lines: string[] = [];

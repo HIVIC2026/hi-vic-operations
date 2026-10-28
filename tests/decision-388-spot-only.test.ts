@@ -176,7 +176,7 @@ describe("old reply composer before release is spot-only", () => {
     insulationDeclared: null, paymentDue: null, installHeldUntil: null, ownerLink: "https://estimate.homeinsulationvictoria.com.au/estimate/tok", matchedJobs: 1, ...o,
   });
   const reply = (body: string, stage: string, spotSaved = true) => composeReply({ subject: "Re: HV-3150", body, from: "helen.sample@example.com", fromName: "Helen Sample", fromPartner: false, now: new Date("2026-10-26T01:00:00Z"), owner: facts(stage, { spotSaved }) } satisfies ReplyInput);
-  for (const stage of ["spot_saved", "preliminary_estimate_ready", "ready_check_ready_to_schedule", "ready_check_awaiting_payment"]) {
+  for (const stage of ["preliminary_estimate_ready", "ready_check_ready_to_schedule", "ready_check_awaiting_payment"]) {
     test(`status reply at ${stage}`, () => { const d = reply("Any update on my job?", stage); expect(d).not.toBeNull(); clean(stage, d!.text); expect(d!.text).toContain(SPOT_RELEASE_LINE); });
   }
   test("new enquiry reply", () => {
@@ -184,12 +184,25 @@ describe("old reply composer before release is spot-only", () => {
     expect(d).not.toBeNull(); expect(d!.type).toBe("new_enquiry"); clean("new_enquiry", d!.text);
   });
   const PRICE = "How much is the rebate and what would it cost?";
-  for (const stage of ["preliminary_estimate_ready", "spot_saved", "ready_check_awaiting_payment"]) {
+  for (const stage of ["new_enquiry", "eligibility_review", "preliminary_estimate_ready", "ready_check_ready_to_schedule", "ready_check_awaiting_payment"]) {
     test(`price and rebate reply at ${stage}`, () => {
       const d = reply(PRICE, stage); expect(d!.type).toBe("price_rebate_eligibility"); clean(stage, d!.text);
       expect(d!.text).toContain("the licensed electrician's safety check");
     });
   }
+  test("F1: awaiting acceptance (times already offered) is not pre-release in the composer", () => {
+    const st = reply("Any update on my job?", "ready_check_awaiting_acceptance")!;
+    expect(st.text).toContain("Your installer has offered times for your free Ready Check.");
+    expect(st.text).not.toContain(SPOT_RELEASE_LINE);
+    const pr = reply(PRICE, "ready_check_awaiting_acceptance")!;
+    expect(pr.type).toBe("price_rebate_eligibility");
+    expect(pr.text).toContain("That includes the free Ready Check, the licensed electrician's safety check");
+  });
+  test("F1: the composer reads the one shared pre-release stage rule", () => {
+    const src = readFileSync("src/lib/email-reply.core.ts", "utf8");
+    expect(src).toContain("isPreReleaseStage(");
+    expect(src).not.toContain("PRE_RELEASE_STAGES");
+  });
   test("price and rebate reply after release is unchanged", () => {
     const d = reply(PRICE, "ready_check_scheduled")!;
     expect(d.type).toBe("price_rebate_eligibility");

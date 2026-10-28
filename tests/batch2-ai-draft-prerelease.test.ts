@@ -1,7 +1,7 @@
 // Batch 2 task 3: AI email drafts follow the spot-only rule (decision 388) for owners not yet released and confirmed.
 import { describe, expect, test } from "bun:test";
 import { AI_BUSINESS_RULES, AI_BUSINESS_RULES_PRE_RELEASE, AI_REPLY_INSTRUCTIONS, aiReplyInstructions, aiReplyProblems, buildAiReplyInput, isPreReleaseOwner } from "../src/lib/ai-email-reply.core";
-import { PRE_RELEASE_FORBIDDEN, SPOT_RELEASE_LINE, preReleaseViolations } from "../src/lib/spot-only-copy.core";
+import { PRE_RELEASE_FORBIDDEN, SPOT_RELEASE_LINE, isPreReleaseStage, preReleaseViolations } from "../src/lib/spot-only-copy.core";
 
 const ctx = { jobNumber: "HV-1", ownerFirstName: "Sam", stageLabel: "Ready Check ready to schedule", facts: ["Their spot is saved."], links: [], changeLink: null, history: [], email: { from: "sam@x.au", subject: "Hi", body: "When is my turn?" } };
 
@@ -30,6 +30,18 @@ describe("pre-release prompt", () => {
       expect(isPreReleaseOwner(J("hivic_sourced", stage, "declined"))).toBe(true);
       expect(isPreReleaseOwner(J("hivic_sourced", stage, "confirmed"))).toBe(false);
     }
+  });
+  test("F1: one shared pre-release stage rule — awaiting acceptance (times already offered) is NOT pre-release", () => {
+    for (const stage of ["new_enquiry", "eligibility_review", "preliminary_estimate_ready", "ready_check_ready_to_schedule", "ready_check_awaiting_payment"]) {
+      expect(isPreReleaseStage(stage)).toBe(true);
+      expect(isPreReleaseOwner(J("hivic_sourced", stage, "none"))).toBe(true);
+    }
+    for (const stage of ["ready_check_awaiting_acceptance", "ready_check_scheduled", "ready_check_complete", "cancelled", "on_hold", "", "spot_saved"]) {
+      expect(isPreReleaseStage(stage)).toBe(false);
+      expect(isPreReleaseOwner(J("hivic_sourced", stage, "none"))).toBe(false);
+    }
+    expect(isPreReleaseStage(null)).toBe(false);
+    expect(isPreReleaseStage(undefined)).toBe(false);
   });
   test("past the Ready Check stage, other channels and exception stages keep today's behaviour", () => {
     for (const stage of ["ready_check_scheduled", "ready_check_complete", "measured_quote_accepted", "installation_complete", "cancelled", "on_hold"])
