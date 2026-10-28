@@ -16,6 +16,7 @@ import { FIXES_TIMES_GIVEN_EVENT, FIXES_TIMES_LINK_EVENT, fixesTimesMissing } fr
 import { AUTO_FIXES_QUOTE_HELD_EVENT } from "./auto-fixes-quote-send.core";
 import { PIESA_AUTOFORM_FAILED_EVENT, piesaFormFailedOpen } from "./piesa-autoform.core";
 import { prestartFailedFor } from "./prestart.core";
+import type { PaymentStepKey } from "./payments.core";
 
 type Row = Record<string, unknown>;
 const s = (v: unknown) => (v == null ? null : String(v));
@@ -54,6 +55,8 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   const scoped = <T extends { in: (c: string, v: string[]) => T }>(q: T) => (opts.onlyIds ? q.in("job_id", opts.onlyIds) : q);
   const listMode = !opts.onlyIds;
   const { loadQuotesToCheck } = await import("./installer-quote-review.server");
+  // Jo 28 Oct 2026 ("Alert after 3 days unpaid"): the plan maths for the unpaid-payment alert.
+  const { paymentPlan, fixesCountedCents, toCents, INSTALL_DEPOSIT_DUE_STAGES, installDepositDueNow } = await import("./payments.core");
   const { openRobotFailureRows } = await import("./esc-registry-robot.server");
   const { PIISA_AUDIT_CREATED_EVENT, PIISA_AUTOSEND_OFFICE_EVENT, piisaFormFailedOpen } = await import("./piisa-autosend.core");
   const { OWNER_REVIEW_FEEDBACK_EVENT, REVIEW_FEEDBACK_ROW_DAYS, reviewFeedbackRows } = await import("./owner-review.core");
