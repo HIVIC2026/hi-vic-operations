@@ -284,8 +284,9 @@ export const xeroPaymentFacts = (xero: XeroPaymentInput[]): XeroPaymentFact[] =>
 const liveXero = (xero: XeroPaymentFact[]) => xero.filter((p) => !XERO_DEAD.has(String(p.status ?? "").toUpperCase()) && p.amountCents > 0);
 
 /** Audit R02 (25 Oct 2026): same amount within this many days is only a CANDIDATE pair, never proof of one receipt. A card
- *  row and a Xero payment are the same money only when the Xero Reference holds one of the card's Stripe ids; an
- *  identity-less same-amount pair is counted as TWO payments and raised for the office (`unclear`). Legacy office rows
+ *  row and a Xero payment are proven the same money when the Xero Reference holds one of the card's Stripe ids; an
+ *  identity-less same-amount pair inside the window counts ONCE (Jo, batch 1) and is still raised for the office to
+ *  confirm (`unclear`). Legacy office rows
  *  (source bank/manual — typed copies of money Xero holds, decision 368 stopped new ones) keep the amount/date match. */
 export const RECONCILE_WINDOW_DAYS = 10;
 const RECONCILE_WINDOW_MS = RECONCILE_WINDOW_DAYS * 86_400_000;
@@ -322,8 +323,8 @@ export type UnclearPaymentPair<T> = { record: T; xero: XeroPaymentFact };
 /** Pure: which card/office records are already in Xero.
  *  1. Exact: the Xero payment Reference holds one of the record's Stripe ids (PaymentIntent / charge / session).
  *  2. Legacy office rows only (no receipt identity exists for them): same amount within 10 days, closest date first.
- *  Each Xero payment claims at most one record. A card row with no identity match is NOT merged with a same-amount Xero
- *  payment: both count, and the pair is returned in `unclear` for the office to settle in Xero (audit R02).
+ *  3. Card rows with no identity match: same rule as 2, but the pair is also returned in `unclear` for the office to confirm.
+ *  Each Xero payment claims at most one record (an id match or an earlier row's pairing is never paired again).
  *  A card row's Stripe refunds reduce it while it is unmatched; once Xero holds that money Xero is the record. */
 export function reconcilePayments<T extends PaymentRecord>(ledger: T[], xeroPayments: XeroPaymentFact[]) {
   const live = liveXero(xeroPayments);
@@ -353,12 +354,13 @@ export function reconcilePayments<T extends PaymentRecord>(ledger: T[], xeroPaym
     const best = closest(r, claimed);
     if (best >= 0) { claimed.add(best); matched.set(r, live[best]!); }
   }
+  // A card row with no Stripe id in any Xero Reference pairs with the closest same-amount Xero payment inside the window
+  // and counts once; the pair is still returned in `unclear` so the office is asked to confirm it.
   const unclear: UnclearPaymentPair<T>[] = [];
-  const reported = new Set<number>();
   for (const r of others) {
     if (matched.has(r) || r.source !== "card") continue;
-    const best = closest(r, reported);
-    if (best >= 0) { reported.add(best); unclear.push({ record: r, xero: live[best]! }); }
+    const best = closest(r, claimed);
+    if (best >= 0) { claimed.add(best); matched.set(r, live[best]!); unclear.push({ record: r, xero: live[best]! }); }
   }
   const netCents = new Map<T, number>();
   for (const r of others) if (!matched.has(r)) netCents.set(r, Math.max(0, Math.round(r.amountCents) - refundedCents(r, ledger)));

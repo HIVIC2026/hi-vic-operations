@@ -200,13 +200,13 @@ describe("R06: concurrent Stripe callbacks through the real handler", () => {
 
 describe("R02: separate payments count separately; one receipt counts once", () => {
   beforeEach(() => reset(true));
-  test("$349 card + separate $349 bank transfer (no Stripe id in Xero) → $698, raised once for the office", async () => {
+  test("$349 card + separate $349 bank transfer (no Stripe id in Xero) → counted once ($349), still raised once for the office", async () => {
     await recordStripePayment(fact(intentEvent()));
     const xero = [{ PaymentID: "xp-bank", Amount: 349, Date: "2026-10-25T00:00:00", Reference: "TEST-R06" }];
     await recordXeroPayments(INV, JOB, xero, null, { fullList: true });
-    expect(await reconciledInvoicePaidCents(JOB, INV, { xeroPayments: xero, xeroAmountPaid: 349 })).toBe(69_800);
-    expect(await reconciledInvoicePaidCents(JOB, INV)).toBe(69_800);
-    expect(cumulativePaidCents(await paymentLedger(JOB, INV))).toBe(69_800);
+    expect(await reconciledInvoicePaidCents(JOB, INV, { xeroPayments: xero, xeroAmountPaid: 349 })).toBe(34_900);
+    expect(await reconciledInvoicePaidCents(JOB, INV)).toBe(34_900);
+    expect(cumulativePaidCents(await paymentLedger(JOB, INV))).toBe(34_900);
     expect(await flagUnclearPaymentMatches(JOB, INV, xero)).toBe(1);
     expect(await flagUnclearPaymentMatches(JOB, INV, xero)).toBe(0); // once per pair
     expect(await count("owner_payment_match_unclear")).toBe(1);
