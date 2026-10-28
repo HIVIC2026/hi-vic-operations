@@ -63,6 +63,9 @@ difficult-access fee Jo never entered.
       will add the price."
     - Staff can complete the PIESA on site even while their item is unpriced. The fixes quote to the homeowner is not
       sent until every item has a price (Jo 28 Oct).
+    - While the homeowner is deciding, the fixes quote is rebuilt after any item is added, priced or removed, so the
+      homeowner never sees a removed item (Jo 28 Oct). A fixes quote with any $0 item can't be sent; a $0 item should
+      be removed, not sent (Jo 28 Oct).
     - The repair-price question is removed from the Mitti PIESA form. Jo does this in Mitti. Fix items from the form
       arrive unpriced, and the electrician owner or the office prices them in the portal.
     - Closing direct database access to prices for staff logins is a separate piece of work with its own spec
