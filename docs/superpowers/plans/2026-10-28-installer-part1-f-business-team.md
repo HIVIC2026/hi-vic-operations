@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** One Team page where the boss (or Jo) adds people without an email, marks each one Lead or Crew (only Leads get Mitti), people added there sign the worker declarations by link before they can go on a job, electrician bosses are asked for licences, and My business warns about a missing or expired electrical licence and cover under $5m, with plain words and a short electrician "How it works".
+**Goal:** One Team page where the boss (or Jo) adds people without an email, marks each one Lead or Crew (only a Lead can run an install day; Crew get Mitti only if the office adds them), people added there sign the worker declarations by link before they can go on a job, electrician bosses are asked for licences, and My business warns about a missing or expired electrical licence and cover under $5m, with plain words and a short electrician "How it works".
 
-**Architecture:** One pending migration makes `partner_workers.email` optional, limits `worker_role` to `lead`/`crew` and adds `declarations_due` (true only for people the boss adds on Team), proven on PGlite only. Signing reuses the existing `/join/<token>` completion link. Pure rules (`crewRoleOf`, `workerEmailKey`, `mittiEmailFor`, `teamMittiLine`, `businessNext`) live in the existing core files. Mitti invite, removal and visit allocation read Lead/Crew from those rules. The old `/partner/workers` "Your staff" page is deleted and its address redirects to Team.
+**Architecture:** One pending migration makes `partner_workers.email` optional, limits `worker_role` to `lead`/`crew` and adds `declarations_due` (true only for people the boss adds on Team), proven on PGlite only. Signing reuses the existing `/join/<token>` completion link. Pure rules (`crewRoleOf`, `workerEmailKey`, `mittiEmailFor`, `teamMittiLine`, `businessNext`) live in the existing core files. Mitti invite eligibility and the install-day Lead read Lead/Crew from those rules; a Ready Check goes by "has a Mitti login", not by Lead. The old `/partner/workers` "Your staff" page is deleted and its address redirects to Team.
 
 **Tech Stack:** TypeScript, TanStack Start, Supabase, bun:test, PGlite (`tests/helpers/pglite-installer.ts`).
 
@@ -13,13 +13,14 @@
 ## Jo's answers (29 Oct 2026)
 
 1. People already on a team start as Lead, so nobody loses Mitti. `worker_role` null reads as Lead. Approved.
-2. Ready Checks: anyone on the team can still be sent. No Lead and no CII check is added for Ready Checks. F5 still stands: every installer, Lead and Crew, must be CII-certified (install days keep the CII check).
+2. Ready Checks: no Lead and no CII check is added for Ready Checks (the Mitti login gate is answer 7). F5 still stands: every installer, Lead and Crew, must be CII-certified (install days keep the CII check).
 3. People the boss adds on the Team page MUST sign the 6 worker declarations (`workerDeclarations`, `WORKER_DECLARATIONS_VERSION`). They're added now with `declarations_due = true`, then get their own `/join/<token>` link (the existing completion link). Until they sign they can't be sent to any job: no visit allocation, no Ready Check, not in the install crew or Lead picker. No link until the boss adds a mobile or email. The boss copies the link and sends it themself, as the completion link works today. No new text or email is added. People already on teams are not affected (`declarations_due` defaults to false).
 4. Jo switches Lead/Crew in Partners › People. Approved.
 5. $5m cover check is for electricians only. Lead/Crew is for installer staff only (electrician staff keep Mitti as today). Proceeding as proposed.
 6. Electrician guide copy in Task 9 approved exactly as written.
-
-**To raise with Jo (not changed here):** a Ready Check hands the Mitti form to the person sent. Crew have no Mitti login, so sending a Crew member to a Ready Check is refused by the existing "Add them in Mitti first" check, even though the allocation rule allows them.
+7. Crew CAN be sent to a Ready Check if they have a Mitti login (the office adds people to Mitti by hand, as today). The Ready Check gate is "has a Mitti login" (plus the existing CII and signed-declarations gates), not "is Lead". Crew without a Mitti login get the existing "Add them in Mitti first" refusal.
+8. Switching someone from Lead to Crew does NOT remove their Mitti and does NOT raise an office item. Crew still can't be the install-day Lead (only Leads can be picked as Lead in plan D's Job-page picker); Crew can still be install crew members.
+9. Only Leads are auto-eligible for Mitti invites, as before. The office still invites by hand and `MITTI_AUTO_INVITE_ENABLED` is unchanged. Crew get Mitti only if the office adds them.
 
 ## Interfaces with plan D
 
@@ -31,7 +32,8 @@
 - Only F1–F9. Nothing from sections A–E or G is done here. Plan D owns the crew picker. F only adds the two `StaffOption` facts and their checks (see Interfaces with plan D).
 - No live SQL. The migration is written to `docs/pending-migrations/` and proven on PGlite. Going live is a separate step that Jo approves, and it starts with a read-only check that live `worker_role` holds only null/`lead`/`crew`.
 - An empty or missing email never matches another person. Certificate, approval and Mitti lookups go by worker id, or by `workerEmailKey` (`no-email:<id>` when blank).
-- Mitti stays office-run: `MITTI_AUTO_INVITE_ENABLED` is unchanged and the office invites by hand. Switching someone to Crew raises one office item to remove them from Mitti.
+- Mitti stays office-run: `MITTI_AUTO_INVITE_ENABLED` is unchanged and the office invites by hand. Only Leads are auto-eligible for invites. Switching someone to Crew leaves their Mitti alone and raises no office item.
+- Ready Check gate = has a Mitti login (plus the existing CII and signed-declarations gates), never "is Lead". Install-day Lead = Leads only.
 - Lead/Crew changes take effect straight away. They don't re-pend approval: `worker_role` is not in `repend_worker_identity`.
 - The look stays the same. Use the existing M7 kit classes only.
 - Server functions use the literal `createServerFn(...).middleware(...).inputValidator(...).handler(...)` chain.
@@ -39,8 +41,8 @@
 ## Review Focus
 
 1. Two people with no email in one business → neither picks up the other's CII. Test: Task 2 `workerEmailKey never matches across blank emails`.
-2. Lead switched to Crew → no Mitti invite, no install-day allocation, can't be the Lead, and one office "remove from Mitti" item. Ready Check allocation rule is unchanged. Tests: Task 3 `crew never gets Mitti`, `switch to crew raises one office item` and `ready check unchanged, install needs a Lead`.
-3. Lead without their own email → the Mitti lookup uses the business office email. Crew → no lookup at all. Test: Task 3 `mittiEmailFor`.
+2. Crew with a Mitti login → can be sent to a Ready Check; Crew without → refused with the existing "Add them in Mitti first" message; Crew never offered as install Lead. Tests: Task 3 `ready check needs a Mitti login, not Lead` and `crew is never the install Lead`.
+3. Lead without their own email → the Mitti lookup uses the business office email; Crew → their own email only. Only Leads are auto-invited; switching to Crew leaves Mitti alone. Tests: Task 3 `mittiEmailFor`, `crew never auto-invited`, `switch to crew leaves Mitti alone`.
 4. Added on Team and not signed → refused for both visits and as Lead or crew; no link without a mobile or email; signing through the link records the 6 declarations once and clears `declarations_due`. Test: Task 4b `unsigned people can't go on jobs`.
 5. Electrician business: a missing or expired licence comes before bank and agreement. Cover under $5m warns unless they work under a REC. Test: Task 7 `electrician licence and cover`.
 
@@ -56,7 +58,7 @@
 
 - [ ] **Step 1: Write the failing test** using `installerDb()`. Cases: (a) before the migration, inserting an installer with `email = NULL` is refused; (b) after `MIGRATION`, two `email = NULL` installers in the same business both insert; (c) `worker_role = 'boss'` is refused, while `'lead'`, `'crew'` and NULL are accepted; (d) an approved worker changed from lead to crew stays `approval_status = 'approved'`; (e) a row inserted before the migration reads `declarations_due = false` after it, and a new insert with `declarations_due = true` reads back true; (f) running the migration twice is a no-op; (g) `ROLLBACK` raises `team_lead_crew:null_emails` while a null email exists, and after those rows are deleted it restores `email NOT NULL`, drops the check and drops `declarations_due` (the `worker_role` column stays, because it already exists live).
 - [ ] **Step 2: Run it, expect FAIL.** Run: `bun test tests/team-lead-crew-db.test.ts`. Expected: FAIL (files missing).
-- [ ] **Step 3: Write the migration.** It does: `ALTER COLUMN email DROP NOT NULL`, then `ADD COLUMN IF NOT EXISTS worker_role text`, then a `DO $$` block that adds `partner_workers_worker_role_check` only if it's missing. Then `ADD COLUMN IF NOT EXISTS declarations_due boolean NOT NULL DEFAULT false`. It also adds a `COMMENT ON COLUMN ... worker_role` with the text "Jo 27–28 Oct 2026: lead = uses Mitti; crew = no Mitti. NULL reads as lead." and one on `declarations_due`: "Jo 29 Oct 2026: true = added on Team, must sign the worker declarations by link before any job." The rollback is a `DO $$` that raises `team_lead_crew:null_emails` if any email is null, then sets `NOT NULL`, `DROP CONSTRAINT IF EXISTS` and `DROP COLUMN IF EXISTS declarations_due`.
+- [ ] **Step 3: Write the migration.** It does: `ALTER COLUMN email DROP NOT NULL`, then `ADD COLUMN IF NOT EXISTS worker_role text`, then a `DO $$` block that adds `partner_workers_worker_role_check` only if it's missing. Then `ADD COLUMN IF NOT EXISTS declarations_due boolean NOT NULL DEFAULT false`. It also adds a `COMMENT ON COLUMN ... worker_role` with the text "Jo 27–29 Oct 2026: lead = auto-eligible for Mitti, can be install-day Lead; crew = Mitti only if the office adds them, never install-day Lead. NULL reads as lead." and one on `declarations_due`: "Jo 29 Oct 2026: true = added on Team, must sign the worker declarations by link before any job." The rollback is a `DO $$` that raises `team_lead_crew:null_emails` if any email is null, then sets `NOT NULL`, `DROP CONSTRAINT IF EXISTS` and `DROP COLUMN IF EXISTS declarations_due`.
 - [ ] **Step 4: Run, expect PASS.** Run: `bun test tests/team-lead-crew-db.test.ts tests/installer-sign-activation.test.ts`.
 - [ ] **Step 5: Commit**
 
@@ -88,31 +90,31 @@ git add src/lib src/integrations/supabase/types.ts tests/team-no-email.test.ts
 git commit -m "feat(team): lead/crew + no-email rules; email lookups never match a blank email"
 ```
 
-### Task 3: Mitti and visit allocation follow Lead/Crew
+### Task 3: Mitti invites and install-day Lead follow Lead/Crew; Ready Check follows the Mitti login
 
 **Files:**
 - Modify: `src/lib/mitti-invite.core.ts`, `src/lib/mitti-invite.server.ts`, `src/lib/visit-allocation.core.ts`, `src/lib/visit-allocation.server.ts`, `src/lib/office-partners.core.ts`, `src/lib/office-partners.server.ts`, `src/lib/piisa-a3.core.ts` (`StaffOption`, `staffFromRecords`, `crewSelectionProblems`), `src/lib/piisa-a3.server.ts` (`crewStaff` selects `worker_role`)
 - Test: `tests/mitti-invite.core.test.ts`, `tests/visit-allocation.test.ts`, `tests/office-build-b.core.test.ts`, `tests/mitti-invite.server.test.ts`, `tests/installer-part1-d.test.ts` (plan D's file; runs after D Task 4)
 
 **Interfaces:**
-- `InvitePerson` and `RemovalPerson` gain `crew: boolean`. `inviteEligibility` returns `"Crew don't use Mitti — only Leads."` when `crew` is true. `mittiRemovalStep` treats a crew person like a removed one (it no longer skips with "Still active in the portal").
-- `export async function onCrewRoleChanged(workerId: string, role: CrewRole, actorId: string | null, opts?: Opts): Promise<{ action: string; reason?: string }>`. Switching to `lead` calls `onPartnerPersonApproved`. Switching to `crew` with the switch ON runs the removal flow. With the switch OFF, if any Mitti user is known (a prior record or the profile's `mitti_user_id`), it records ONE `mitti_access_failed` with `` `${name} is now Crew — remove them from Mitti by hand.` `` and otherwise skips.
+- `InvitePerson` gains `crew: boolean`. `inviteEligibility` returns `"Crew aren't invited automatically — the office adds them to Mitti by hand."` when `crew` is true (Jo answer 9). `RemovalPerson` and `mittiRemovalStep` are unchanged (Jo answer 8).
+- `export async function onCrewRoleChanged(workerId: string, role: CrewRole, actorId: string | null, opts?: Opts): Promise<{ action: string; reason?: string }>`. Switching to `lead` calls `onPartnerPersonApproved`. Switching to `crew` returns `{ action: "skip", reason: "Crew keep any Mitti login." }` and records nothing and calls no removal.
 - `loadPerson`: `email = w.email ?? (crew ? null : businesses.email)`, so a Lead without their own email uses the business office email.
-- `export function mittiEmailFor(c: { email: string | null; workerRole: CrewRole | null }, businessEmail: string | null): string | null` returns null for crew, and otherwise the person's email falling back to `businessEmail`.
-- `AllocationCandidate` gains `workerRole?: CrewRole | null`. `ALLOCATION_REASON.crew = "Crew don't use Mitti — pick a Lead."` `allocationBlocker` checks in this order: removed → Ready Check: allowed (unchanged, Jo answer 2) → not installer → crew → install CII/White Card rules as today.
-- `visit-allocation.server`: select `worker_role` and `businesses.email`, and look up Mitti with `mittiEmailFor(...)`. A Crew member sent to a Ready Check gets `null` there, so the existing `addInMittiFirst` refusal fires before anything is recorded.
-- `PersonFacts` gains `crew?: boolean`. For crew, `personRow` gives `mittiLabel = "Crew · no Mitti"` and never `invite_mitti`.
+- `export function mittiEmailFor(c: { email: string | null; workerRole: CrewRole | null }, businessEmail: string | null): string | null` returns the person's email; only a non-crew person falls back to `businessEmail`. Crew with a blank email → null.
+- `AllocationCandidate` gains `workerRole?: CrewRole | null`. `ALLOCATION_REASON.crew = "Crew can't be the install-day Lead — pick a Lead."` `allocationBlocker` checks in this order: removed → Ready Check: allowed by role (Jo answers 2 and 7; the Mitti login gate is in the server) → not installer → crew → install CII/White Card rules as today.
+- `visit-allocation.server`: select `worker_role` and `businesses.email`, and look up Mitti with `mittiEmailFor(...)`. The existing `addInMittiFirst` refusal stays the Ready Check gate: Crew with a Mitti login go through; Crew without one are refused before anything is recorded.
+- `PersonFacts` gains `crew?: boolean`. For crew, `personRow` gives `mittiLabel = "Crew · Mitti ✓"` when a Mitti user is known, else `"Crew · no Mitti"`, and never `invite_mitti`.
 - For plan D's picker: `StaffOption` gains `crewRole: CrewRole | null` (set in `staffFromRecords` via `crewRoleOf`). `export const CREW_NOT_LEAD_MESSAGE = "is Crew, so can't be the Lead. Make them Lead on the Team page first.";` `crewSelectionProblems` pushes `` `${lead.name} ${CREW_NOT_LEAD_MESSAGE}` `` when the chosen Lead has `crewRole === "crew"`. Crew members may be Lead or Crew.
 
-- [ ] **Step 1: Write failing tests.** Add `crew never gets Mitti` (eligibility reason, removal step = deactivate/fail, not skip) and `switch to crew raises one office item` (server test, switch off, profile has `mitti_user_id`: exactly one `mitti_access_failed`, and calling it again adds none). Add `mittiEmailFor` (own email, office email fallback, crew → null). Add `ready check unchanged, install needs a Lead`: `allocationBlocker("ready_check", c, today)` is `null` for `sparky`, for a crew installer and for an uncleared installer; `allocationBlocker("install", { ...cleared, workerRole: "crew" }, today)` equals `ALLOCATION_REASON.crew`, and with `workerRole: "lead"` or `null` it is `null`. In `tests/installer-part1-d.test.ts`: a staff list where `a` has `crewRole: "crew"` → `crewSelectionProblems({ lead: "a", additional: [] }, staff).problems` equals `[`A Name ${CREW_NOT_LEAD_MESSAGE}`]` (use the fixture's name), and `{ lead: "b", additional: [{ workerId: "a" }] }` gives `[]`. Add a `personRow` crew label test.
+- [ ] **Step 1: Write failing tests.** Add `crew never auto-invited` (eligibility reason for crew; `mittiRemovalStep` for an active crew person still skips with "Still active in the portal"). Add `switch to crew leaves Mitti alone` (server test, profile has `mitti_user_id`, switch on and off: `{ action: "skip" }`, no workflow event recorded, no Mitti call). Add `mittiEmailFor` (Lead own email, Lead office email fallback, Crew own email, Crew blank → null). Add `ready check needs a Mitti login, not Lead`: `allocationBlocker("ready_check", c, today)` is `null` for `sparky`, for a crew installer and for an uncleared installer; source check that `visit-allocation.server.ts` calls `mittiEmailFor(` and still throws `addInMittiFirst(` when no Mitti user is found. Add `crew is never the install Lead`: `allocationBlocker("install", { ...cleared, workerRole: "crew" }, today)` equals `ALLOCATION_REASON.crew`, and with `workerRole: "lead"` or `null` it is `null`. In `tests/installer-part1-d.test.ts`: a staff list where `a` has `crewRole: "crew"` → `crewSelectionProblems({ lead: "a", additional: [] }, staff).problems` equals `[`A Name ${CREW_NOT_LEAD_MESSAGE}`]` (use the fixture's name), and `{ lead: "b", additional: [{ workerId: "a" }] }` gives `[]`. Add a `personRow` crew label test (both labels).
 - [ ] **Step 2: Run, expect FAIL.** Run: `bun test tests/mitti-invite.core.test.ts tests/mitti-invite.server.test.ts tests/visit-allocation.test.ts tests/office-build-b.core.test.ts tests/installer-part1-d.test.ts`.
-- [ ] **Step 3: Implement** as described above. Update the decision 161 comment at the top of `visit-allocation.core.ts`: Ready Check = anyone still on the list (unchanged); install day = CII-cleared installers who are Leads.
+- [ ] **Step 3: Implement** as described above. Update the decision 161 comment at the top of `visit-allocation.core.ts`: Ready Check = anyone still on the list with a Mitti login (Lead or Crew); install day = CII-cleared installers who are Leads.
 - [ ] **Step 4: Run, expect PASS.** Run the same command plus `bun test tests/allocation-hardening-db.test.ts tests/piesa-allocation-db.test.ts tests/piisa-crew-ready-check.test.ts`.
 - [ ] **Step 5: Commit**
 
 ```bash
 git add src/lib tests
-git commit -m "feat(team): only Leads get Mitti; crew switch raises office remove-from-Mitti item"
+git commit -m "feat(team): only Leads auto-invited and install Lead; Ready Check goes by Mitti login"
 ```
 
 ### Task 4: Team server — add without email, set Lead/Crew, plain login ask
@@ -123,15 +125,15 @@ git commit -m "feat(team): only Leads get Mitti; crew switch raises office remov
 
 **Interfaces:**
 - `TeamMemberView` gains `workerRole: CrewRole | null; mittiRecorded: boolean`. The second one is true when the worker has a `mitti_user_linked`/`mitti_user_invited`/`mitti_invite_linked`/`mitti_user_reactivated`/`mitti_invite_office_done` record.
-- `export function teamMittiLine(m: Pick<TeamMemberView, "role" | "workerRole" | "mittiLogin" | "mittiRecorded">): string` gives one of: `"Crew · no Mitti"`, `"Lead · Mitti ✓"`, `"Lead · Mitti to re-check"`, `"Lead · office adding to Mitti"`. It drops the `"Lead · "` prefix when `workerRole` is null (electricians). `teamFactsLine` uses it in place of the old Mitti text.
-- `TEAM_RULE = "Every installer, Lead and Crew, needs a CII certificate checked by our office. Only Leads use Mitti, so only a Lead can run an install day."`
-- `TEAM_ADD_SHEET` becomes `{ title: "Add a team member", bodyInstaller: "Email and mobile can wait. They sign their declarations by link, and we check their CII certificate, before they go on a job.", bodyElectrician: "Email and mobile can wait. They sign their declarations by link before they go on a job. Each electrician needs a current electrical licence.", name: "Full name", licence: "Electrical licence number", role: "Lead or Crew", lead: "Lead · uses Mitti", crew: "Crew · no Mitti", mobile: "Mobile (optional)", email: "Email (optional)", button: "Add to team", cancel: "Cancel" }`. The invite-link fields and `inviteTextLine`/`inviteContact` stay only while `field.business_.team.tsx` uses them (removed in Task 5).
+- `export function teamMittiLine(m: Pick<TeamMemberView, "role" | "workerRole" | "mittiLogin" | "mittiRecorded">): string` gives one of: `"Crew · no Mitti"`, `"Crew · Mitti ✓"`, `"Lead · Mitti ✓"`, `"Lead · Mitti to re-check"`, `"Lead · office adding to Mitti"`. It drops the `"Lead · "` prefix when `workerRole` is null (electricians). `teamFactsLine` uses it in place of the old Mitti text.
+- `TEAM_RULE = "Every installer, Lead and Crew, needs a CII certificate checked by our office. Only a Lead can run an install day. Crew can do Ready Checks once our office adds them to Mitti."`
+- `TEAM_ADD_SHEET` becomes `{ title: "Add a team member", bodyInstaller: "Email and mobile can wait. They sign their declarations by link, and we check their CII certificate, before they go on a job.", bodyElectrician: "Email and mobile can wait. They sign their declarations by link before they go on a job. Each electrician needs a current electrical licence.", name: "Full name", licence: "Electrical licence number", role: "Lead or Crew", lead: "Lead · can run install days", crew: "Crew · can't lead an install day", mobile: "Mobile (optional)", email: "Email (optional)", button: "Add to team", cancel: "Cancel" }`. The invite-link fields and `inviteTextLine`/`inviteContact` stay only while `field.business_.team.tsx` uses them (removed in Task 5).
 - `TEAM_LOGIN = { button: "Ask the office to send a login", asked: "Asked the office. They'll send the login." }`
 - `export async function tradeAddTeamPerson(userId: string, p: { name: string; workerRole: CrewRole; mobile: string | null; email: string | null; licenceNumber: string | null }): Promise<{ workerId: string }>`. It needs the boss (`bossOrThrow`). `trade_role` comes from `c.kind`. For installers it sets `qualification: installerQualification({})`, `certification_status: "unverified"` and `worker_role`. For electricians it requires `licenceNumber` ("Add their electrical licence number.") and sets `worker_role: null`. It also sets `approval_status: "pending"`, `declarations_due: true` (Jo answer 3) and `added_by: userId`, and uses `crewMobileInput` for the mobile. Error `23502` gives "Adding someone without an email needs the office's database update first." and `23505` gives "Someone with that email is already on your team."
 - `export async function tradeSetCrewRole(userId: string, workerId: string, role: CrewRole, office: boolean): Promise<{ ok: true }>`. It's allowed for the boss of that business or for the office. It refuses non-installers. It writes `worker_role`, appends `admin_config_events` `team_worker_role_set`, then `onCrewRoleChanged(...).catch(log)`.
 - Server fns: `addTeamPerson` and `setTeamCrewRole`. The second one sets `office` from `context.supabase.rpc("is_admin")`.
 
-- [ ] **Step 1: Write failing tests.** Update the pinned `TEAM_RULE` and `teamFactsLine` expectations in `trade-business-m7.test.ts`. Rewrite the `TEAM_ADD_SHEET` assertions in `installer-states.test.ts`. In `team-add-person.test.ts`: `teamMittiLine` for all four states. Source checks: `tradeAddTeamPerson` derives `trade_role` from `c.kind` and never hard-codes `"installer"`, and contains `declarations_due: true`; `tradeSetCrewRole` calls `onCrewRoleChanged`; `tradeRequestLoginInvite` still only raises `tradeChangeRequest`.
+- [ ] **Step 1: Write failing tests.** Update the pinned `TEAM_RULE` and `teamFactsLine` expectations in `trade-business-m7.test.ts`. Rewrite the `TEAM_ADD_SHEET` assertions in `installer-states.test.ts`. In `team-add-person.test.ts`: `teamMittiLine` for all five states. Source checks: `tradeAddTeamPerson` derives `trade_role` from `c.kind` and never hard-codes `"installer"`, and contains `declarations_due: true`; `tradeSetCrewRole` calls `onCrewRoleChanged`; `tradeRequestLoginInvite` still only raises `tradeChangeRequest`.
 - [ ] **Step 2: Run, expect FAIL.** Run: `bun test tests/trade-business-m7.test.ts tests/installer-states.test.ts tests/team-add-person.test.ts`.
 - [ ] **Step 3: Implement** as described above. `tradeBusiness` selects `worker_role` and reads the Mitti records for its worker ids.
 - [ ] **Step 4: Run, expect PASS.** Same command, then `bunx tsc --noEmit`.
@@ -339,9 +341,9 @@ git commit -m "feat(guide): short How it works for electricians"
 ### Task 10: Record the rule and verify everything
 
 **Files:**
-- Modify: `src/config/workflow-decisions.ts` (`partnerPeople.leadCrew`), `docs/HIV_WORKFLOW_SOURCE_OF_TRUTH.md` (one line), `src/lib/AGENTS.md` (amend the decision 161 and Mitti access lines: only Leads get Mitti and install days; Ready Check still anyone on the list; Team-added people sign by link before any job)
+- Modify: `src/config/workflow-decisions.ts` (`partnerPeople.leadCrew`), `docs/HIV_WORKFLOW_SOURCE_OF_TRUTH.md` (one line), `src/lib/AGENTS.md` (amend the decision 161 and Mitti access lines: only Leads are auto-invited to Mitti and can be install-day Lead; Ready Check = anyone on the list with a Mitti login, Lead or Crew; switching to Crew leaves Mitti alone; Team-added people sign by link before any job)
 
-- [ ] **Step 1:** Add `leadCrew: { by: "Jo 27–29 Oct 2026", installerRoles: ["lead", "crew"], mittiOnlyFor: "lead", leadNoEmailUses: "business_office_email", changeableBy: ["office", "business_owner"], effect: "immediate", everyInstallerNeedsCii: true, readyCheckAnyTeamMember: true, teamAddedSignDeclarationsByLink: true, signLinkNeedsMobileOrEmail: true, officeInvitesMittiByHand: true }`, plus the matching one-line rules in the two docs.
+- [ ] **Step 1:** Add `leadCrew: { by: "Jo 27–29 Oct 2026", installerRoles: ["lead", "crew"], mittiAutoInviteOnlyFor: "lead", installLeadOnlyFor: "lead", leadNoEmailUses: "business_office_email", changeableBy: ["office", "business_owner"], effect: "immediate", everyInstallerNeedsCii: true, readyCheckNeedsMittiLogin: true, crewSwitchKeepsMitti: true, teamAddedSignDeclarationsByLink: true, signLinkNeedsMobileOrEmail: true, officeInvitesMittiByHand: true }`, plus the matching one-line rules in the two docs.
 - [ ] **Step 2: Run the full checks**
 
 Run: `bun run test` · Expected: all pass, no new failures.
@@ -352,7 +354,7 @@ Run: `bun scripts/scan-retired-terms.ts` · Expected: ends `0 customer-visible (
 
 ```bash
 git add src/config/workflow-decisions.ts docs/HIV_WORKFLOW_SOURCE_OF_TRUTH.md src/lib/AGENTS.md
-git commit -m "docs: record Lead/Crew and Mitti-for-Leads rule (Jo 27–28 Oct 2026)"
+git commit -m "docs: record Lead/Crew, install Lead and Ready Check Mitti-login rule (Jo 27–29 Oct 2026)"
 ```
 
 Going live (separate, Jo-approved): a read-only check of live `worker_role` values, plus that `declarations_due` doesn't exist yet, then apply `0229_team_lead_crew.sql`, then push and check Team on the TEST businesses on a phone and a computer.
