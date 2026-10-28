@@ -46,8 +46,11 @@ The old Status column is removed (Next step replaces it).
 
 ## Filters and sorting
 - Every column header sorts (tap once up, again down).
-- Every column header has an Excel-style filter: a tick list of that column's values with "Select all".
-  Number and money columns (Days at stage, m², Total cost) filter by ranges (e.g. 0–7, 8–30, 30+ days).
+- Every column header has an Excel-style filter, using the same header pop-up already on Enquiries:
+  tick list for Stage, Next step, Insulation, Installer and Last heard; type-to-filter for Job, Owner and Suburb;
+  min–max for Days at stage, m² and Total cost.
+- On the three pages, the Jobs page switcher ("Our jobs 384 · Installer jobs 26 · Closed jobs") sits under the
+  page title, on phone and computer. The top menu's Jobs link opens Our jobs.
 - Filters, sort and the Needs us switch stay set when Jo comes back (saved in her browser per page).
 - A "Clear filters" link shows when any filter is on.
 
