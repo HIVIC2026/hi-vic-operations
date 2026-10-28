@@ -328,7 +328,7 @@ export function rectificationSendBlocker(q: RectQuoteFacts, actorIsOffice: boole
   if (q.kind !== "rectification") return null;
   if (!actorIsOffice) return "Only Home Insulation Victoria office staff can send electrical fixes quote.";
   if (q.has_unpriced_items) return "Some electrical fixes items still need office pricing.";
-  if (q.has_zero_other_line) return "This electrical fixes quote has an item with no price. Price the item, then rebuild the quote.";
+  if (q.has_zero_other_line) return "This electrical fixes quote has an item with no price or a $0 price. Price or remove the item, then rebuild the quote.";
   if (q.fixes_times_hold) return q.fixes_times_hold;
   if (!q.office_reviewed_at) return "Electrical fixes quote must be reviewed by the office before it is sent.";
   if (q.status !== "draft") return "Only a draft electrical fixes quote can be sent.";

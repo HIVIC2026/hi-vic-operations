@@ -486,8 +486,11 @@ export const removeRectItem = createServerFn({ method: "POST" }).middleware([req
     if (!it) throw new WorkflowError("Not found");
     await requireJobRole(context.supabase, it.job_id, ["admin", "electrician"]);
     if (!it.is_other) throw new WorkflowError("Standard items are derived from the assessment – edit the assessment instead.");
+    const stage = await getStage(it.job_id);
     await admin.from("rectification_items").update({ status: "removed" }).eq("id", data.itemId);
     await logEvent(it.job_id, context.userId, "rectification_item_removed", `Removed item: ${it.description}`);
+    // Jo 28 Oct: while the owner is deciding, the fixes quote is rebuilt after a remove too (same as add and price).
+    if (stage === "awaiting_owner_rectification_approval") await generateRectificationQuote(it.job_id, context.userId);
     return { ok: true };
   });
 

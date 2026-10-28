@@ -58,7 +58,18 @@ const rebuiltWith: (number | null)[][] = [];
 const realQuotes = await import("../src/lib/quotes.server");
 mock.module("../src/lib/quotes.server", () => ({ ...realQuotes, generateRectificationQuote: async (jobId: string) => {
   regenerated.push(jobId);
-  rebuiltWith.push(T["rectification_items"]!.filter((r) => (r["status"] ?? "required") === "required").map((r) => r["other_unit_price_inc_gst"] as number | null));
+  const required = T["rectification_items"]!.filter((r) => (r["status"] ?? "required") === "required");
+  rebuiltWith.push(required.map((r) => r["other_unit_price_inc_gst"] as number | null));
+  // When a held draft exists, rebuild its lines the way the real builder does: one line per required item, an unpriced
+  // Other item at $0, and the quote back to held for office review.
+  const draft = (T["quotes"] ?? []).find((q) => q["job_id"] === jobId && q["kind"] === "rectification" && q["status"] === "draft");
+  if (draft) {
+    T["quote_items"] = [...(T["quote_items"] ?? []).filter((l) => l["quote_id"] !== draft["id"]), ...required.map((r, i) => {
+      const unit = Number(r["other_unit_price_inc_gst"] ?? 0);
+      return { id: `qi-${String(r["id"])}`, quote_id: draft["id"], description: r["description"], is_other: r["is_other"], quantity: r["quantity"], unit_price_inc_gst: unit, line_total_inc_gst: unit * Number(r["quantity"]), sort: i };
+    })];
+    draft["office_reviewed_at"] = null;
+  }
   return "q1";
 } }));
 
@@ -223,15 +234,21 @@ const todosFor = async () => {
   return (await loadTodos(memoryPostgrest(T) as never)).filter((t) => t.key.startsWith("rect:"));
 };
 const UNPRICED = "Some electrical fixes items still need office pricing.";
-const ZERO_LINE = "This electrical fixes quote has an item with no price. Price the item, then rebuild the quote.";
+const NOT_INSTALLATION = "This is not an insulation quote, so it can't be sent from here.";
+const ZERO_LINE = "This electrical fixes quote has an item with no price or a $0 price. Price or remove the item, then rebuild the quote.";
 
 describe("a removed unpriced item no longer blocks", () => {
-  test("staff add an unpriced item, then remove it: the quote can be reviewed and sent, and the To do drops it", async () => {
+  test("staff add an unpriced item, then remove it: the quote is rebuilt without it, can be reviewed and sent, and the To do drops it", async () => {
     T = tables("awaiting_owner_rectification_approval");
+    regenerated.length = 0;
+    // The held draft before the item is added: only the priced item.
+    T["quotes"] = [{ id: QUOTE, job_id: JOB, kind: "rectification", status: "draft", office_reviewed_at: "2026-10-28T00:00:00Z", release_state: "held", release_hold_reason: "Quote held: includes a non-standard electrical fixes item", rect_estimated_hours: 2 }];
+    T["quote_items"] = [{ id: "qi1", quote_id: QUOTE, description: "Replace old switch", is_other: true, quantity: 1, unit_price_inc_gst: 349, line_total_inc_gst: 349, sort: 0 }];
     const f = await fns();
     await f["addOtherRectItem"]!({ data: other(), context: ctx(STAFF) });
     newItem()!["status"] ??= "required"; // the database default (the in-memory store has no defaults)
-    draftQuote(120);
+    // The real state: adding at this stage rebuilt the draft, so it now has a $0 line for the unpriced item.
+    expect(T["quote_items"]!.map((l) => [l["description"], l["unit_price_inc_gst"]])).toEqual([["Replace old switch", 349], ["Move a downlight away from the joist", 0]]);
     // Control: while it is still required, all three checks hold it.
     expect(await sendBlocker()).toBe(UNPRICED);
     expect((await todosFor()).map((t) => t.key)).toEqual([`rect:${newItem()!["id"]}`]);
@@ -239,10 +256,20 @@ describe("a removed unpriced item no longer blocks", () => {
     await expect(reviewRectificationQuote!({ data: { quoteId: QUOTE }, context: ctx(OFFICE) })).rejects.toThrow(UNPRICED);
     await f["removeRectItem"]!({ data: { itemId: newItem()!["id"] }, context: ctx(STAFF) });
     expect(newItem()!["status"]).toBe("removed");
-    expect(await sendBlocker()).toBeNull();
+    // Removing at this stage rebuilds the quote: no line for the removed item, so no $0 line left behind.
+    expect(regenerated).toEqual([JOB, JOB]);
+    expect(T["quote_items"]!.map((l) => l["description"])).toEqual(["Replace old switch"]);
     expect(await todosFor()).toEqual([]);
     await reviewRectificationQuote!({ data: { quoteId: QUOTE }, context: ctx(OFFICE) });
     expect(T["workflow_events"]!.map((e) => e["event_type"])).toContain("rectification_quote_reviewed");
+    expect(await sendBlocker()).toBeNull();
+  });
+
+  test("removing an item at an earlier stage builds no quote (unchanged)", async () => {
+    T = tables();
+    regenerated.length = 0;
+    await (await fns())["removeRectItem"]!({ data: { itemId: ITEM }, context: ctx(BOSS) });
+    expect(regenerated).toEqual([]);
   });
 });
 
@@ -293,6 +320,17 @@ describe("defence in depth: a fixes quote with a $0 Other line is never sent", (
     for (const how of ["office", "auto"] as const) await expect(releaseFixesQuote(QUOTE, OFFICE, how)).rejects.toThrow(ZERO_LINE);
     expect(T["quotes"]![0]!["status"]).toBe("draft");
     expect(T["workflow_events"]!.map((e) => e["event_type"])).not.toContain("rectification_quote_issued");
+  });
+});
+
+describe("the insulation quote send never releases a fixes quote", () => {
+  test("a rectification quote passed to releaseQuoteToOwner is refused and stays a draft", async () => {
+    T = tables("awaiting_owner_rectification_approval");
+    draftQuote(120);
+    const { releaseQuoteToOwner } = await import("../src/lib/office-quote-review.server");
+    for (const how of ["office", "auto"] as const) await expect(releaseQuoteToOwner(JOB, QUOTE, OFFICE, how)).rejects.toThrow(NOT_INSTALLATION);
+    expect(T["quotes"]![0]!["status"]).toBe("draft");
+    expect(T["quotes"]![0]!["sent_at"]).toBeUndefined();
   });
 });
 

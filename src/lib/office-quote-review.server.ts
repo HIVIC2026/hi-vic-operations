@@ -45,6 +45,8 @@ export async function sendOfficeReviewedQuote(jobId: string, quoteId: string, ac
 export async function releaseQuoteToOwner(jobId: string, quoteId: string, actorId: string | null, how: "office" | "auto") {
   const { data: quote, error } = await admin.from("quotes").select("id, job_id, kind, status, sent_at, release_state, release_hold_reason, created_at, option_code").eq("id", quoteId).eq("job_id", jobId).maybeSingle();
   if (error || !quote || !quoteNeedsOfficeReview(quote)) throw new WorkflowError("This quote is no longer available to send.");
+  // Insulation quotes only: an electrical fixes quote goes through releaseFixesQuote, which runs the fixes checks.
+  if (quote.kind !== "installation") throw new WorkflowError("This is not an insulation quote, so it can't be sent from here.");
   const blockers = await officeQuoteBlockers(jobId, quote);
   if (blockers.length) throw new WorkflowError(blockers.join(" • "));
   const { assertCustomerDeliveryAllowed } = await import("./comms.server");
