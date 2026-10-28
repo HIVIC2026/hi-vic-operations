@@ -50,11 +50,11 @@ export async function noticeLinkAcknowledge(p: { token: string; ticked: boolean;
 }
 
 async function recordAcknowledgement(p: { worker: NoticeWorkerRow; actorId: string | null; source: "my_business" | "secure_link"; ip?: string | null; userAgent?: string | null; linkId?: string | null; typedName?: string | null; now?: Date }) {
-  const ev = noticeEventDetails({ businessId: p.worker.business_id, workerId: p.worker.id, workerEmail: p.worker.email, byName: (p.typedName?.trim() || p.worker.full_legal_name), source: p.source, ip: p.ip ?? null, userAgent: p.userAgent ?? null, linkId: p.linkId ?? null, now: p.now ?? new Date() });
+  const ev = noticeEventDetails({ businessId: p.worker.business_id, workerId: p.worker.id, workerEmail: p.worker.email ?? "", byName: (p.typedName?.trim() || p.worker.full_legal_name), source: p.source, ip: p.ip ?? null, userAgent: p.userAgent ?? null, linkId: p.linkId ?? null, now: p.now ?? new Date() });
   const { error } = await admin.from("admin_config_events").insert({ actor_id: p.actorId, event_type: COLLECTION_NOTICE_EVENT, summary: ev.summary, details: ev.details });
   if (error) throw new WorkflowError("Could not record the acknowledgement. Please try again.");
   const { data: b } = await admin.from("businesses").select("onboarding_notes").eq("id", p.worker.business_id).maybeSingle();
-  const email = await sendNoticeCopy({ actorId: p.actorId, businessId: p.worker.business_id, partnerIsTest: isTestPartner(b), to: p.worker.email, name: p.worker.full_legal_name, acknowledgedAt: ev.details.at }).catch((e: Error) => ({ status: "failed" as const, detail: e.message }));
+  const email = !p.worker.email ? { status: "blocked" as const, detail: "No email on the worker record." } : await sendNoticeCopy({ actorId: p.actorId, businessId: p.worker.business_id, partnerIsTest: isTestPartner(b), to: p.worker.email, name: p.worker.full_legal_name, acknowledgedAt: ev.details.at }).catch((e: Error) => ({ status: "failed" as const, detail: e.message }));
   return { ok: true, at: ev.details.at, email };
 }
 
@@ -68,7 +68,7 @@ export async function issueAndSendNoticeLink(p: { worker: NoticeWorkerRow; actor
   const { data: b } = await admin.from("businesses").select("name, trading_name, onboarding_notes").eq("id", p.worker.business_id).maybeSingle();
   const test = isTestPartner(b);
   const token = newToken();
-  const link = noticeLinkDetails({ businessId: p.worker.business_id, workerId: p.worker.id, workerEmail: p.worker.email, tokenHash: await hashToken(token), now });
+  const link = noticeLinkDetails({ businessId: p.worker.business_id, workerId: p.worker.id, workerEmail: p.worker.email ?? "", tokenHash: await hashToken(token), now });
   const { error } = await admin.from("admin_config_events").insert({ actor_id: p.actorId, event_type: COLLECTION_NOTICE_LINK_EVENT, summary: `ESC notice link issued to ${p.worker.full_legal_name} (attempt ${p.attempt})`, details: link });
   if (error) throw new WorkflowError("Could not issue the link.");
   const base = test ? (await import("./test-send.server")).TEST_APP_BASE : (await import("./engagement.core")).CUSTOMER_BASE;
