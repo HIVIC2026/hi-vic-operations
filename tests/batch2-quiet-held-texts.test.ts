@@ -13,7 +13,7 @@ const SIX_55 = "2026-10-28T19:55:00Z"; // 6:55am Melbourne — still quiet
 const LIVE_JOB = { source: "base44", stage: "ready_check_ready_to_schedule", deleted_at: null, qa_archived_at: null };
 
 const held = (over: Partial<HeldRow> = {}, attempt = "a1"): HeldRow => ({
-  idempotency_key: `spot-saved-sms:v1:+61412345678${HELD_KEY_MARK}${attempt}`, message_type: "spot_saved", job_id: "j1", business_id: null,
+  idempotency_key: `spot-saved-confirmation:v1:+61412345678${HELD_KEY_MARK}${attempt}`, message_type: "spot_saved", job_id: "j1", business_id: null,
   to_number: "+61412345678", body: "Home Insulation Victoria: Your spot is saved.", status: "blocked", detail: SMS_QUIET_REASON,
   created_at: HELD_AT, job: LIVE_JOB, ...over,
 });
@@ -32,7 +32,7 @@ describe("quietResendDue (pure)", () => {
     expect(quietResendDue([held()], new Set(), SIX_55)).toEqual([]);
   });
   test("real key already claimed → nothing", () => {
-    expect(quietResendDue([held()], new Set(["spot-saved-sms:v1:+61412345678"]), SEVEN_05)).toEqual([]);
+    expect(quietResendDue([held()], new Set(["spot-saved-confirmation:v1:+61412345678"]), SEVEN_05)).toEqual([]);
   });
   test("held 25h ago → nothing", () => {
     expect(quietResendDue([held({ created_at: "2026-10-27T19:05:00Z" })], new Set(), SEVEN_05)).toEqual([]);
@@ -53,7 +53,7 @@ describe("quietResendDue (pure)", () => {
     expect(quietResendDue([held({ job: null })], new Set(), SEVEN_05)).toEqual([]);
   });
   test("a non-held row, or a key that also has a different hold (e.g. switched off), is left alone", () => {
-    expect(quietResendDue([held({ idempotency_key: "spot-saved-sms:v1:+61412345678" })], new Set(), SEVEN_05)).toEqual([]);
+    expect(quietResendDue([held({ idempotency_key: "spot-saved-confirmation:v1:+61412345678" })], new Set(), SEVEN_05)).toEqual([]);
     const off = held({ detail: "\"Spot saved confirmation\" texts are switched off", created_at: "2026-10-28T20:00:00Z" }, "a2");
     expect(quietResendDue([held(), off], new Set(), SEVEN_05)).toEqual([]);
   });
@@ -65,19 +65,24 @@ describe("quietResendDue (pure)", () => {
 // ---- server: mocked backend, recorder sender ----
 type Row = Record<string, unknown>;
 let tables: Record<string, Row[]> = {};
+let failTable: string | null = null;
+const calls: { t: string; op: string; args: unknown[] }[] = [];
 const builder = (t: string) => {
   const f: ((r: Row) => boolean)[] = [];
   let one = false;
+  let sort: { c: string; asc: boolean } | null = null;
   const b: Record<string, unknown> = {
-    select: () => b, limit: () => b, order: () => b,
+    select: () => b, limit: () => b,
+    order: (c: string, o?: { ascending?: boolean }) => { calls.push({ t, op: "order", args: [c, o] }); sort = { c, asc: o?.ascending !== false }; return b; },
     eq: (c: string, v: unknown) => { f.push((r) => r[c] === v); return b; },
     neq: (c: string, v: unknown) => { f.push((r) => r[c] !== v); return b; },
-    in: (c: string, v: unknown[]) => { f.push((r) => v.includes(r[c])); return b; },
+    in: (c: string, v: unknown[]) => { calls.push({ t, op: "in:" + c, args: [v.length] }); f.push((r) => v.includes(r[c])); return b; },
     gte: (c: string, v: string) => { f.push((r) => String(r[c]) >= v); return b; },
     like: (c: string, v: string) => { const p = v.replace(/^%|%$/g, ""); f.push((r) => String(r[c]).includes(p)); return b; },
     contains: (c: string, v: Record<string, unknown>) => { f.push((r) => Object.entries(v).every(([k, x]) => (r[c] as Row | null)?.[k] === x)); return b; },
     maybeSingle: () => { one = true; return b; },
-    then: (res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) => { const out = (tables[t] ?? []).filter((r) => f.every((x) => x(r))); return Promise.resolve({ data: one ? out[0] ?? null : out, error: null }).then(res, rej); },
+    then: (res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) => { const out = (tables[t] ?? []).filter((r) => f.every((x) => x(r)));
+      if (sort) { const { c, asc } = sort; out.sort((x, y) => (String(x[c]) < String(y[c]) ? -1 : String(x[c]) > String(y[c]) ? 1 : 0) * (asc ? 1 : -1)); } return Promise.resolve(failTable === t ? { data: null, error: { message: "read failed" } } : { data: one ? out[0] ?? null : out, error: null }).then(res, rej); },
   };
   return b;
 };
@@ -89,6 +94,7 @@ const facts = {
   currentBooking: null as unknown,
   turn: "installer_to_answer",
   windowsExist: false,
+  fixesAuditId: "audit1" as string | null,
   price: null as unknown,
 };
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: builder } }));
@@ -100,22 +106,29 @@ mock.module("../src/lib/piesa-fixes-confirm.server", () => ({ ownerFixesConfirmF
 mock.module("../src/lib/install-days.server", () => ({ installDayContext: async () => facts.installDay }));
 mock.module("../src/lib/visit-events.server", () => ({ currentBooking: async () => facts.currentBooking }));
 mock.module("../src/lib/ready-check-times.server", () => ({ readyCheckTurnFor: async () => facts.turn }));
-mock.module("../src/lib/rectification.server", () => ({ rectificationWindowsExist: async () => facts.windowsExist }));
+mock.module("../src/lib/rectification.server", () => ({ rectificationWindowsExist: async () => facts.windowsExist, fixesTimesFacts: async () => ({ auditId: facts.fixesAuditId }) }));
 mock.module("../src/lib/installer-price.server", () => ({ readInstallerPrice: async () => facts.price }));
 afterAll(() => mock.restore());
 
 const JOB = { id: "j1", ...LIVE_JOB, channel: "installer_sourced" };
 beforeEach(() => {
-  sent.length = 0;
+  sent.length = 0; calls.length = 0; failTable = null;
   tables = { sms_messages: [held()], jobs: [JOB], lead_campaign_responses: [{ job_id: "j1", spot_saved_at: "2026-10-28T10:59:00Z", opted_out_at: null }] };
-  Object.assign(facts, { piesa: null, fixes: null, installDay: { clearance: { cleared: true, timingDate: "2026-10-28" }, booked: null }, currentBooking: null, turn: "installer_to_answer", windowsExist: false, price: null });
+  Object.assign(facts, { piesa: null, fixes: null, installDay: { clearance: { cleared: true, timingDate: "2026-10-28" }, booked: null }, currentBooking: null, turn: "installer_to_answer", windowsExist: false, fixesAuditId: "audit1", price: null });
 });
 
 describe("sweepQuietHeldTexts", () => {
   test("due + still true → sendRealSms once with the REAL key, the stored body and event.at = hold time", async () => {
     const { sweepQuietHeldTexts } = await import("../src/lib/quiet-held-texts.server");
     expect(await sweepQuietHeldTexts(SEVEN_05)).toEqual({ sent: 1, skipped: 0 });
-    expect(sent).toEqual([{ type: "spot_saved", key: "spot-saved-sms:v1:+61412345678", to: "+61412345678", body: "Home Insulation Victoria: Your spot is saved.", jobId: "j1", businessId: null, event: { at: HELD_AT, current: true } }]);
+    expect(sent).toEqual([{ type: "spot_saved", key: "spot-saved-confirmation:v1:+61412345678", to: "+61412345678", body: "Home Insulation Victoria: Your spot is saved.", jobId: "j1", businessId: null, event: { at: HELD_AT, current: true } }]);
+  });
+  test("reads holds oldest first and checks real keys 100 per call", async () => {
+    tables["sms_messages"] = Array.from({ length: 150 }, (_, i) => held({ idempotency_key: `spot-saved-confirmation:v1:+614123456${String(i).padStart(2, "0")}${HELD_KEY_MARK}a`, job_id: "gone" }));
+    const { sweepQuietHeldTexts } = await import("../src/lib/quiet-held-texts.server");
+    await sweepQuietHeldTexts(SEVEN_05);
+    expect(calls.some((c) => c.op === "order" && c.args[0] === "created_at" && (c.args[1] as { ascending?: boolean })?.ascending === true)).toBe(true);
+    expect(calls.filter((c) => c.op === "in:idempotency_key").map((c) => c.args[0])).toEqual([100, 50]);
   });
   test("during quiet hours nothing is read or sent", async () => {
     const { sweepQuietHeldTexts } = await import("../src/lib/quiet-held-texts.server");
@@ -129,7 +142,7 @@ describe("sweepQuietHeldTexts", () => {
     expect(sent).toEqual([]);
   });
   test("real key already in sms_messages → not sent", async () => {
-    tables["sms_messages"]!.push({ ...held(), idempotency_key: "spot-saved-sms:v1:+61412345678", status: "sent", detail: "ok" });
+    tables["sms_messages"]!.push({ ...held(), idempotency_key: "spot-saved-confirmation:v1:+61412345678", status: "sent", detail: "ok" });
     const { sweepQuietHeldTexts } = await import("../src/lib/quiet-held-texts.server");
     expect(await sweepQuietHeldTexts(SEVEN_05)).toEqual({ sent: 0, skipped: 0 });
     expect(sent).toEqual([]);
@@ -144,7 +157,7 @@ describe("stale: one per type's still-true reader", () => {
     setFresh(); expect(await STILL_TRUE[type as keyof typeof STILL_TRUE](r)).toBe(true);
     setStale(); expect(await STILL_TRUE[type as keyof typeof STILL_TRUE](r)).toBe(false);
   };
-  test("spot_saved: owner opted out of the campaign", () => check("spot_saved", "spot-saved-sms:v1:+61412345678",
+  test("spot_saved: owner opted out of the campaign", () => check("spot_saved", "spot-saved-confirmation:v1:+61412345678",
     () => { tables["lead_campaign_responses"] = [{ job_id: "j1", spot_saved_at: "2026-10-28T10:59:00Z", opted_out_at: null }]; },
     () => { tables["lead_campaign_responses"] = [{ job_id: "j1", spot_saved_at: "2026-10-28T10:59:00Z", opted_out_at: "2026-10-28T12:00:00Z" }]; }));
   test("quote_ready: quote no longer issued + released", () => check("quote_ready", "quote-ready:v1:q1",
@@ -165,10 +178,18 @@ describe("stale: one per type's still-true reader", () => {
   test("veec_sign_reminder: owner has signed", () => check("veec_sign_reminder", "veec-sign:v1:j1:day3",
     () => { tables["customer_assignments"] = [{ job_id: "j1", record_kind: "final_veec_assignment", status: "pending", consumer_signed_at: null }]; },
     () => { tables["customer_assignments"] = [{ job_id: "j1", record_kind: "final_veec_assignment", status: "pending", consumer_signed_at: "2026-10-28T12:00:00Z" }]; }));
-  test("deposit_release (no own check): job cancelled", () => check("deposit_release", "deposit-release:v1:b1:sms",
-    () => { tables["jobs"] = [JOB]; }, () => { tables["jobs"] = [{ ...JOB, stage: "cancelled" }]; }));
-  test("install_no_access (no own check): job deleted", () => check("install_no_access", "install-no-access:v1:b1:sms",
-    () => { tables["jobs"] = [JOB]; }, () => { tables["jobs"] = [{ ...JOB, deleted_at: "2026-10-28T12:00:00Z" }]; }));
+  const install = (id: string) => ({ id, job_id: "j1", kind: "installation", status: "confirmed", scheduled_start: "2026-11-05T22:00:00Z" });
+  test("deposit_release: a new install day was booked overnight", () => check("deposit_release", "deposit-release:v1:b1:sms",
+    () => { tables["bookings"] = []; }, () => { tables["bookings"] = [install("b2")]; }));
+  test("deposit_release: job cancelled", () => check("deposit_release", "deposit-release:v1:b1:sms",
+    () => { tables["jobs"] = [JOB]; tables["bookings"] = []; }, () => { tables["jobs"] = [{ ...JOB, stage: "cancelled" }]; }));
+  test("install_no_access: a new install day was booked overnight (the reported booking itself does not count)", () => check("install_no_access", "install-no-access:v1:b1:sms",
+    () => { tables["bookings"] = [install("b1")]; }, () => { tables["bookings"] = [install("b1"), install("b2")]; }));
+  test("install_no_access: job deleted", () => check("install_no_access", "install-no-access:v1:b1:sms",
+    () => { tables["jobs"] = [JOB]; tables["bookings"] = []; }, () => { tables["jobs"] = [{ ...JOB, deleted_at: "2026-10-28T12:00:00Z" }]; }));
+  test("veec: a read error fails closed", () => check("veec_sign_reminder", "veec-sign:v1:j1:day1",
+    () => { tables["customer_assignments"] = [{ job_id: "j1", record_kind: "final_veec_assignment", status: "pending", consumer_signed_at: null }]; },
+    () => { failTable = "customer_assignments"; }));
   test("visit_new_times: the visit was rebooked", () => check("visit_new_times", "visit-new-times:v1:j1:bk1:sms",
     () => { tables["workflow_events"] = [{ job_id: "j1", event_type: "visit_new_times_notice", details: { booking_id: "bk1", kind: "ready_check" } }]; facts.currentBooking = null; },
     () => { facts.currentBooking = { id: "bk2" }; }));
@@ -178,10 +199,18 @@ describe("stale: one per type's still-true reader", () => {
   test("boss_price_link: the price has been entered", () => check("boss_price_link", "boss-price-link:v1:j1",
     () => { facts.price = null; },
     () => { facts.price = { record: { price_inc_gst: 2000, included: [] }, setAt: "2026-10-28T12:00:00Z", setBy: null }; }));
+  test("boss_price_link: the stored Ready Check form (the sender's entries) already has a price", () => check("boss_price_link", "boss-price-link:v1:j1",
+    () => { tables["ceiling_measurements"] = [{ job_id: "j1", is_current: true, raw_snapshot: [{ label: "Notes", value: "x" }] }]; },
+    () => { tables["ceiling_measurements"] = [{ job_id: "j1", is_current: true, raw_snapshot: [{ label: "Total quoted price $", value: "2400" }] }]; }));
   test("fixes_times_link: fixes times now given", () => check("fixes_times_link", "fixes-times-link:v1:j1:audit1",
     () => { facts.windowsExist = false; }, () => { facts.windowsExist = true; }));
+  test("fixes_times_link: the PIESA texted about is no longer the current audit", () => check("fixes_times_link", "fixes-times-link:v1:j1:audit1",
+    () => { facts.fixesAuditId = "audit1"; }, () => { facts.fixesAuditId = "audit2"; }));
+  const suggested = (id: string, at: string) => ({ id, job_id: "j1", event_type: "ready_check_days_suggested", created_at: at, details: {} });
   test("ready_check_days_suggested: no longer the installer's move", () => check("ready_check_days_suggested", "rc-days-suggested:v1:j1:ev1",
-    () => { facts.turn = "installer_to_answer"; }, () => { facts.turn = "owner_to_pick"; }));
+    () => { tables["workflow_events"] = [suggested("ev1", "2026-10-28T10:00:00Z")]; facts.turn = "installer_to_answer"; }, () => { facts.turn = "owner_to_pick"; }));
+  test("ready_check_days_suggested: a newer suggestion replaced the one texted about", () => check("ready_check_days_suggested", "rc-days-suggested:v1:j1:ev1",
+    () => { tables["workflow_events"] = [suggested("ev1", "2026-10-28T10:00:00Z")]; }, () => { tables["workflow_events"] = [suggested("ev1", "2026-10-28T10:00:00Z"), suggested("ev2", "2026-10-28T12:00:00Z")]; }));
   test("ready_check_booked_installer: that time is no longer the booked Ready Check", () => check("ready_check_booked_installer", "rc-booked-installer:v1:j1:2026-10-30T23:00:00.000Z",
     () => { tables["bookings"] = [{ job_id: "j1", kind: "ready_check", status: "confirmed", scheduled_start: "2026-10-30T23:00:00.000Z" }]; },
     () => { tables["bookings"] = [{ job_id: "j1", kind: "ready_check", status: "confirmed", scheduled_start: "2026-10-31T01:00:00.000Z" }]; }));
