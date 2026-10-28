@@ -132,4 +132,5 @@ difficult-access fee Jo never entered.
 
 ## Known limits
 - Active jobs shows a saved copy, so the office alert can take up to about 20 minutes to appear.
-- Any change in figures rebuilds an edited draft, not only a price change. That is why the alert wording is general.
+- An office-edited installer draft is rebuilt only when the installer's price or the Mitti form changes (Jo 28 Oct).
+  Other changes, like the VEU value, don't refresh it.
