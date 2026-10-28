@@ -194,6 +194,14 @@ describe("no-job reply (sendNoJobEmailReply)", () => {
     expect(replies()[0]!.details).toEqual({ failed_draft_event_id: "ND1", unmatched_event_id: "U1", to: "sam@example.com", status: "failed: nope", kind: "link" });
     expect(archived).toHaveLength(0);
   });
+  test("an Outlook detail ending in a full stop shows one full stop, not two", async () => {
+    seedNoJob();
+    outlookResult = { outcome: "failed", detail: "Outlook isn't connected." };
+    let msg = "";
+    await sendNoJobEmailReply("U1", "ND1", LINK, "actor").catch((e: Error) => { msg = e.message; });
+    expect(msg).toBe("Not sent — Outlook isn't connected. Reply to them from Outlook instead.");
+    expect(replies()[0]!.details["status"]).toBe("failed: Outlook isn't connected.");
+  });
   test("after only failed earlier links, the next Send takes the :retry1 claim and goes through Outlook", async () => {
     seedNoJob();
     outlookResult = { outcome: "failed", detail: "nope" };

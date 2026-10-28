@@ -246,7 +246,7 @@ export async function sendNoJobEmailReply(unmatchedEventId: string, draftEventId
     await loose.from("workflow_events").insert({ job_id: null, actor_id: actorId, event_type: NO_JOB_REPLY_SENT_EVENT, internal: true,
       summary: `Website-link reply to ${to} not sent: ${d.detail}`, details: { failed_draft_event_id: draft.id, unmatched_event_id: ev.id, to, status: `failed: ${d.detail}`, kind: "link" } })
       .then(({ error: e }) => { if (e) console.error("failed link reply not recorded", e.message); });
-    throw new WorkflowError(`Not sent — ${d.detail}. Reply to them from Outlook instead.`);
+    throw new WorkflowError(`Not sent — ${d.detail.replace(/\.+$/, "")}. Reply to them from Outlook instead.`);
   }
   const status = d.outcome === "sent" ? "sent" : `delivery uncertain: ${d.detail}`;
   const { error } = await loose.from("workflow_events").insert({ job_id: null, actor_id: actorId, event_type: NO_JOB_REPLY_SENT_EVENT, internal: true,
