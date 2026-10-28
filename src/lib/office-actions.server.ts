@@ -171,18 +171,44 @@ async function releaseStaleTradeOnReopen(jobId: string, stage: string): Promise<
 /** Batch 1 task 6 (Jo 28 Oct 2026): reopened at or after the safety check → the old check no longer counts. When a check
  *  was actually done (a PIESA record exists) the owner pays for the new one at the accepted quote's PIESA line; payments
  *  already made stay counted. No record = their original payment covers it. The existing repeat-PIESA gate, owner Accept
- *  and payment then run unchanged (repeat-piesa.server, keyed by the reopen key). */
+ *  and payment then run unchanged (repeat-piesa.server, keyed by the reopen key).
+ *  Batch 1 F6 (Jo 29 Oct 2026): if the owner already paid a repeat check that wasn't done, it carries over to the new
+ *  check (no new charge, no new Xero line) unless that payment was refunded/reversed (`reopenRepeatDecision`). */
 async function supersedePiesaOnReopen(jobId: string, actorId: string) {
-  const { REPEAT_REOPEN_EVENT, REPEAT_PIESA_CHOSEN_EVENT, reopenKey } = await import("./repeat-piesa.core");
+  const { REPEAT_REOPEN_EVENT, REPEAT_PIESA_CHOSEN_EVENT, REPEAT_PIESA_PAID_EVENT, reopenKey, reopenRepeatDecision } = await import("./repeat-piesa.core");
+  const rps = await import("./repeat-piesa.server");
   // Only a check done since the last reopen counts: an already-superseded check is never charged twice.
-  const since = await (await import("./repeat-piesa.server")).latestReopenAt(jobId);
+  const since = await rps.latestReopenAt(jobId);
   let recQ = admin.from("piesa_records").select("id").eq("job_id", jobId);
   if (since) recQ = recQ.gt("created_at", since);
   const { data: rec } = await recQ.limit(1).maybeSingle();
   const hadCheck = !!rec;
+  // The repeat state just before this reopen: a paid repeat that wasn't done yet, and whether it was refunded since.
+  const { state: prior } = await rps.repeatPiesaContext(jobId);
+  let paidAt: string | null = null, recordAfterPaid = false, reversedCentsSincePaid = 0;
+  if (prior.payer === "owner" && prior.stage === "offer" && prior.deadline) {
+    const { data: paid } = await admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", REPEAT_PIESA_PAID_EVENT).contains("details", { deadline: prior.deadline }).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    paidAt = (paid as { created_at?: string } | null)?.created_at ?? null;
+    if (paidAt) {
+      const [{ data: after }, { data: rev }] = await Promise.all([
+        admin.from("piesa_records").select("id").eq("job_id", jobId).gt("created_at", paidAt).limit(1).maybeSingle(),
+        admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "owner_payment_reversed").gte("created_at", paidAt),
+      ]);
+      recordAfterPaid = !!after;
+      reversedCentsSincePaid = ((rev ?? []) as { details: { amount_cents?: number } | null }[]).reduce((a, r) => a + Math.max(0, Math.round(Number(r.details?.amount_cents ?? 0))), 0);
+    }
+  }
+  const decision = reopenRepeatDecision({ hadCheck, prior, paidAt, recordAfterPaid, reversedCentsSincePaid });
   const key = reopenKey(new Date().toISOString());
-  await logEvent(jobId, actorId, REPEAT_REOPEN_EVENT, hadCheck ? "Reopened: the earlier safety check (PIESA) no longer counts — a new one is needed" : "Reopened: no safety check (PIESA) was done yet — the original payment covers it", { key, had_check: hadCheck }, { internal: true });
-  if (!hadCheck) return;
+  if (decision === "carry_over") {
+    // Not a new lapse (had_check false): the paid repeat's own deadline stays the current repeat step. The old check
+    // still no longer counts (any reopen supersedes it).
+    await logEvent(jobId, actorId, REPEAT_REOPEN_EVENT, "Reopened: the earlier safety check (PIESA) no longer counts — the repeat check the owner already paid for covers the new one", { key, had_check: false, check_done: hadCheck, carried_repeat: prior.deadline }, { internal: true });
+    return;
+  }
+  const charge = decision === "charge";
+  await logEvent(jobId, actorId, REPEAT_REOPEN_EVENT, charge ? "Reopened: the earlier safety check (PIESA) no longer counts — a new one is needed" : "Reopened: no safety check (PIESA) was done yet — the original payment covers it", { key, had_check: charge }, { internal: true });
+  if (!charge) return;
   const { currentApprovedQuote } = await import("./workflow.server");
   const quote = await currentApprovedQuote(jobId);
   const price = (await (await import("./safety-check-amount.server")).quoteSafetyCheck(quote?.id ?? null)).incGst;

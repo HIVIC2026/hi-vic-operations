@@ -52,6 +52,20 @@ export function repeatPiesaState(f: RepeatFacts): RepeatState {
   return { stage: "offer", ...base };
 }
 
+/** Batch 1 F6 (Jo 29 Oct 2026): what a reopen does about paying for the new safety check.
+ *  - The owner already PAID a repeat check that wasn't done yet (`prior` = the repeat state just before the reopen):
+ *    charge again only when that payment was refunded/reversed in full since it was paid; otherwise it carries over.
+ *  - Otherwise, as before: a check was done since the last reopen → charge; none → the original payment covers it. */
+export type ReopenRepeatDecision = "charge" | "carry_over" | "none";
+export function reopenRepeatDecision(f: { hadCheck: boolean; prior: RepeatState; paidAt: string | null; recordAfterPaid: boolean; reversedCentsSincePaid: number }): ReopenRepeatDecision {
+  const paidNotDone = f.prior.payer === "owner" && f.prior.stage === "offer" && !!f.paidAt && !f.recordAfterPaid;
+  if (paidNotDone) {
+    const priceCents = Math.round(Number(f.prior.priceIncGst ?? 0) * 100);
+    return priceCents > 0 && f.reversedCentsSincePaid >= priceCents ? "charge" : "carry_over";
+  }
+  return f.hadCheck ? "charge" : "none";
+}
+
 export const REPEAT_PRICE_NOT_SET = "The repeat safety check price isn't set yet, so the owner can't be charged. Add it under Settings › Repeat safety check price first, or choose the installer or Home Insulation Victoria.";
 
 /** Why the office's choice is refused (null = allowed). */

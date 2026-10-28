@@ -106,6 +106,8 @@ mock.module("../src/lib/workflow.server", () => ({
     db.workflow_events!.push({ job_id, actor_id, event_type, summary, details, ...(opts ?? {}) });
   },
 }));
+// Batch 1 F6: reopen reads the repeat-check state (no 30-day lapse on these jobs).
+mock.module("../src/lib/install-days.server", () => ({ installDayContext: async () => ({ deadline: null, expired: false, booked: false }) }));
 // Decision 291 senders, mocked: the real owner path, the partner office-email path and the TEST sender.
 const comms = { enabled: true };
 const calls = { owner: [] as Row[], office: [] as Row[], test: [] as Row[] };

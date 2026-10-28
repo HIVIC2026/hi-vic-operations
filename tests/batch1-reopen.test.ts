@@ -292,6 +292,52 @@ describe("F3: a reopened job gets its trade prompt again (stale accepted offers 
   });
 });
 
+describe("F6 (Jo 29 Oct): the owner already paid a repeat check that wasn't done, then the job is cancelled and reopened", () => {
+  const D = "2026-11-20"; // a 30-day lapse the owner paid for
+  const ev = (type: string, at: string, details: Record<string, unknown>) => ({ id: `ev-${type}-${at}`, job_id: J, event_type: type, summary: type, details, from_stage: null, to_stage: null, created_at: at });
+  const paidRepeat = () => tables["workflow_events"]!.push(
+    ev(rp.REPEAT_PIESA_CHOSEN_EVENT, "2026-10-20T00:00:00.000Z", { deadline: D, payer: "owner", price_inc_gst: 150 }),
+    ev(rp.REPEAT_PIESA_ACCEPTED_EVENT, "2026-10-20T01:00:00.000Z", { deadline: D, payer: "owner", owner_charge_inc_gst: 150, paid_before_cents: 0 }),
+    ev(rp.REPEAT_PIESA_PAID_EVENT, "2026-10-21T00:00:00.000Z", { deadline: D, amount_inc_gst: 150, reference: "xero" }),
+  );
+
+  test("not refunded: the paid repeat carries over — no new charge, no new Xero line, a plain internal note", async () => {
+    seed("installation_booked", true);
+    paidRepeat();
+    expect((await repeatPiesaContext(J)).state).toMatchObject({ stage: "offer", payer: "owner", deadline: D });
+    await reopenJob(J, "Owner rang back", "admin-1");
+    expect(events(rp.REPEAT_PIESA_CHOSEN_EVENT)).toHaveLength(1); // only the original 30-day choice
+    expect(xeroCalls).toEqual([]);
+    const sup = events(rp.REPEAT_REOPEN_EVENT);
+    expect(sup).toHaveLength(1);
+    expect(sup[0]!["details"]).toMatchObject({ had_check: false, carried_repeat: D });
+    expect(String(sup[0]!["summary"])).toContain("already paid");
+    const { state } = await repeatPiesaContext(J);
+    expect(state).toMatchObject({ stage: "offer", payer: "owner", deadline: D });
+    expect(rp.repeatPiesaGateBlocker(state)).toBeNull();
+    // The old check still no longer counts: a new safety check is needed.
+    expect((await electricalState(J)).hasCurrentPiesa).toBe(false);
+  });
+
+  test("refunded (a reversal covering the repeat price after it was paid): the owner is charged again for the new check", async () => {
+    seed("installation_booked", true);
+    paidRepeat();
+    tables["workflow_events"]!.push(ev("owner_payment_reversed", "2026-10-22T00:00:00.000Z", { invoice_id: "inv-1", amount_cents: 15_000, source: "card", note: "stripe-refund:pi_1" }));
+    await reopenJob(J, "Owner rang back", "admin-1");
+    const chosen = events(rp.REPEAT_PIESA_CHOSEN_EVENT);
+    expect(chosen).toHaveLength(2);
+    expect(chosen[1]!["details"]).toMatchObject({ payer: "owner", price_inc_gst: 220, reason: "reopen" });
+    expect((events(rp.REPEAT_REOPEN_EVENT)[0]!["details"] as { had_check: boolean }).had_check).toBe(true);
+    expect((await repeatPiesaContext(J)).state.stage).toBe("owner_accept");
+  });
+
+  test("a partial refund smaller than the repeat price does not count as refunded", () => {
+    expect(rp.reopenRepeatDecision({ hadCheck: true, prior: { stage: "offer", payer: "owner", priceIncGst: 150, deadline: D }, paidAt: "2026-10-21T00:00:00.000Z", recordAfterPaid: false, reversedCentsSincePaid: 5_000 })).toBe("carry_over");
+    expect(rp.reopenRepeatDecision({ hadCheck: true, prior: { stage: "offer", payer: "owner", priceIncGst: 150, deadline: D }, paidAt: "2026-10-21T00:00:00.000Z", recordAfterPaid: true, reversedCentsSincePaid: 0 })).toBe("charge"); // repeat was done
+    expect(rp.reopenRepeatDecision({ hadCheck: false, prior: { stage: "none", payer: null, priceIncGst: null, deadline: null }, paidAt: null, recordAfterPaid: false, reversedCentsSincePaid: 0 })).toBe("none");
+  });
+});
+
 describe("reopen wording on the Xero line, the office card and Needs me", () => {
   const key = "reopen:2026-10-27T22:15:00.000Z"; // 28 Oct in Melbourne
   test("Xero line for a reopen: no 30-day clause, plain-date tag; 30-day line unchanged", () => {
