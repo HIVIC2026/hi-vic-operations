@@ -64,11 +64,10 @@ const { sendNoJobEmailReply } = await import("../src/lib/emails-tab.server");
 const { AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT } = await import("../src/lib/ai-email-reply.core");
 const { EMAIL_UNMATCHED_EVENT } = await import("../src/lib/outlook-guess.core");
 const { NO_JOB_DRAFT_EVENT, NO_JOB_REPLY_SENT_EVENT } = await import("../src/lib/emails-tab.core");
-const { NEW_SENDER_REPLIED_EVENT } = await import("../src/lib/new-sender-reply.core");
+const { NEW_SENDER_REPLIED_EVENT, newSenderReplyKey } = await import("../src/lib/new-sender-reply.core");
 
 const BODY = "Hi Sam,\n\nYes, your spot is saved. We will be in touch.\n\nCheers, the Home Insulation Victoria team";
 const FAIL = "Not sent — Outlook couldn't send it. Try again.";
-const FAIL_NOJOB = "Not sent — Outlook couldn't send it. Reply to them from Outlook instead.";
 const seedJob = (source = "website") => {
   tables["jobs"] = [{ id: "J", source, owner_id: "O" }];
   tables["owners"] = [{ id: "O", email: "owner@example.com" }];
@@ -183,14 +182,62 @@ describe("no-job reply (sendNoJobEmailReply)", () => {
     expect(tables["workflow_events"]!.filter((e) => e.event_type === NO_JOB_REPLY_SENT_EVENT)[0]!.details["status"]).toBe("sent");
     expect(archived).toHaveLength(1);
   });
-  test("definite failure keeps the claim (the log is append-only, no delete attempted) and throws the exact message", async () => {
+  const LINK = "Hi Sam,\n\nThanks for getting in touch! See https://homeinsulationvictoria.com.au/homeowner";
+  const replies = () => tables["workflow_events"]!.filter((e) => e.event_type === NO_JOB_REPLY_SENT_EVENT);
+  test("definite failure keeps the claim (append-only, no delete), records the failed link and throws live's message", async () => {
     seedNoJob();
     outlookResult = { outcome: "failed", detail: "nope" };
-    await expect(sendNoJobEmailReply("U1", "ND1", "Hi Sam,\n\nThanks for getting in touch! See https://homeinsulationvictoria.com.au/homeowner", "actor")).rejects.toThrow(FAIL_NOJOB);
+    await expect(sendNoJobEmailReply("U1", "ND1", LINK, "actor")).rejects.toThrow("Not sent — nope. Reply to them from Outlook instead.");
     expect(deleteAttempts).toBe(0);
     expect(claims()).toHaveLength(1);
-    expect(tables["workflow_events"]!.some((e) => e.event_type === NO_JOB_REPLY_SENT_EVENT)).toBe(false);
+    expect(replies()).toHaveLength(1);
+    expect(replies()[0]!.details).toEqual({ failed_draft_event_id: "ND1", unmatched_event_id: "U1", to: "sam@example.com", status: "failed: nope", kind: "link" });
     expect(archived).toHaveLength(0);
+  });
+  test("after only failed earlier links, the next Send takes the :retry1 claim and goes through Outlook", async () => {
+    seedNoJob();
+    outlookResult = { outcome: "failed", detail: "nope" };
+    await expect(sendNoJobEmailReply("U1", "ND1", LINK, "actor")).rejects.toThrow("Reply to them from Outlook instead.");
+    outlookResult = { outcome: "sent", messageId: "AAMk-2", internetMessageId: null };
+    expect(await sendNoJobEmailReply("U1", "ND1", LINK, "actor")).toEqual({ status: "sent" });
+    expect(outlookSends).toHaveLength(2);
+    expect(outlookSends[1]).toMatchObject({ replyToMessageId: "MSG9", to: "sam@example.com" });
+    expect(claims().map((c) => c.details["idempotency_key"])).toEqual([newSenderReplyKey("sam@example.com"), `${newSenderReplyKey("sam@example.com")}:retry1`]);
+    expect(replies().filter((r) => r.details["status"] === "sent")).toHaveLength(1);
+  });
+  // A second email from the same person (the first one has left the tab once answered).
+  const seedSecondEmail = () => tables["workflow_events"]!.push(
+    { id: "U2", job_id: null, event_type: EMAIL_UNMATCHED_EVENT, details: { from: "sam@example.com", message_id: "MSG10", subject: "Also" } },
+    { id: "ND2", job_id: null, event_type: NO_JOB_DRAFT_EVENT, details: { unmatched_event_id: "U2", message_id: "MSG10", subject: "Re: Also" } });
+  test("after a sent link, a second Send is refused with live's wording and nothing goes", async () => {
+    seedNoJob();
+    await sendNoJobEmailReply("U1", "ND1", LINK, "actor");
+    seedSecondEmail();
+    await expect(sendNoJobEmailReply("U2", "ND2", LINK, "actor")).rejects.toThrow("This person has already had a reply with the website link.");
+    expect(outlookSends).toHaveLength(1);
+  });
+  test("after an uncertain link, a second Send is refused (uncertain counts as sent) and nothing goes", async () => {
+    seedNoJob();
+    outlookResult = { outcome: "uncertain", detail: "timed out", messageId: "AAMk-u" };
+    await sendNoJobEmailReply("U1", "ND1", LINK, "actor");
+    seedSecondEmail();
+    await expect(sendNoJobEmailReply("U2", "ND2", LINK, "actor")).rejects.toThrow("This person has already had a reply with the website link.");
+    expect(outlookSends).toHaveLength(1);
+  });
+  test("double tap sends one Outlook email", async () => {
+    seedNoJob();
+    const r = await Promise.allSettled([sendNoJobEmailReply("U1", "ND1", LINK, "actor"), sendNoJobEmailReply("U1", "ND1", LINK, "actor")]);
+    expect(r.filter((x) => x.status === "fulfilled")).toHaveLength(1);
+    expect(outlookSends).toHaveLength(1);
+  });
+  test("double tap on a retry after a failure sends one Outlook email", async () => {
+    seedNoJob();
+    outlookResult = { outcome: "failed", detail: "nope" };
+    await expect(sendNoJobEmailReply("U1", "ND1", LINK, "actor")).rejects.toThrow();
+    outlookResult = { outcome: "sent", messageId: "AAMk-2", internetMessageId: null };
+    const r = await Promise.allSettled([sendNoJobEmailReply("U1", "ND1", LINK, "actor"), sendNoJobEmailReply("U1", "ND1", LINK, "actor")]);
+    expect(r.filter((x) => x.status === "fulfilled")).toHaveLength(1);
+    expect(outlookSends).toHaveLength(2);
   });
   test("uncertain keeps the claim and counts as sent with the uncertain status", async () => {
     seedNoJob();

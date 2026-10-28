@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createAddressPicker, type PickResult } from "@/lib/address-pick.core";
 import { getOwnerAddressState, saveOwnerAddress, searchOwnerAddress, type OwnerAddressState } from "@/lib/address-request.functions";
 import { LINK_UNAVAILABLE } from "@/lib/estimatelink.core";
 import { EstimateHeader } from "@/components/portal/EstimateHeader";
@@ -61,16 +62,16 @@ function OwnerAddressPage() {
     return () => { live = false; clearTimeout(t); };
   }, [query, token, searchFn]);
 
-  const pick = async (s: Suggestion) => {
-    setBusy(true); setError(null);
-    try {
-      const r = await saveFn({ data: { token, placeId: s.id } });
+  const pickerRef = useRef<ReturnType<typeof createAddressPicker> | null>(null);
+  pickerRef.current ??= createAddressPicker((placeId) => saveFn({ data: { token, placeId } }) as Promise<PickResult>, {
+    setBusy,
+    onDone: (r) => {
       if (r.ok) setSaved(true);
       else if (r.error === LINK_UNAVAILABLE) setUnavailable(true);
-      else setError(r.error);
-    } catch { setError("We couldn't save that address. Please try again."); }
-    finally { setBusy(false); }
-  };
+      else { setError(r.error); requestAnimationFrame(() => document.getElementById("owner-address")?.focus()); }
+    },
+  });
+  const pick = (s: Suggestion) => { setError(null); void pickerRef.current!(s.id); };
 
   const state = unavailable || isError || data?.state === "unavailable" ? "unavailable" : saved || data?.state === "answered" ? "answered" : "open";
   return (

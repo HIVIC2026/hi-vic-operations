@@ -105,11 +105,12 @@ function NoJobCardView({ c, onDone }: { c: NoJobCard; onDone: () => void }) {
       </div>
       {c.subject && <p className="text-sm text-sub">{c.subject}</p>}
       <TheyWrote text={c.theyWrote} />
-      {c.alreadyAutoReplied
-        ? <p className="text-sm text-sub">They already got a reply with the website link.</p>
+      {c.followUp && <p className="text-sm text-sub">They already have the website link — this reply answers their question.</p>}
+      {c.nothingToAnswer
+        ? <p className="text-sm text-sub">Nothing to answer.</p>
         : <Reply body={body} setBody={setBody} busy={busy} saved={saved} waiting />}
       <div className="grid grid-cols-2 gap-2 md:flex">
-        {c.draft && body !== null && !c.alreadyAutoReplied && <button type="button" disabled={busy} className={btn("primary")} onClick={() => void run(() => send({ data: { unmatchedEventId: c.unmatchedEventId, draftEventId: c.draft!.eventId, body } }), "Reply sent")}>{busy ? "Working…" : "Send"}</button>}
+        {c.draft && body !== null && !c.nothingToAnswer && <button type="button" disabled={busy} className={btn("primary")} onClick={() => void run(() => send({ data: { unmatchedEventId: c.unmatchedEventId, draftEventId: c.draft!.eventId, body } }), "Reply sent")}>{busy ? "Working…" : "Send"}</button>}
         {c.guess && !picking
           ? <button type="button" disabled={busy} className={btn("secondary")} onClick={() => void run(() => matchToJob({ data: { unmatchedEventId: c.unmatchedEventId, jobId: c.guess!.jobId } }), `Matched to ${c.guess!.jobNumber ?? "the job"}`)}>Match to {c.guess.jobNumber ?? "job"}</button>
           : null}
@@ -127,7 +128,7 @@ export function EmailsScreen() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: EMAILS_TAB_KEY, queryFn: () => load() });
   const asked = useRef(false);
-  const missing = (q.data?.withJob.some((c) => !c.draft && c.intent === "reply") ?? false) || (q.data?.noJob.some((c) => !c.draft && !c.alreadyAutoReplied) ?? false);
+  const missing = (q.data?.withJob.some((c) => !c.draft && c.intent === "reply") ?? false) || (q.data?.noJob.some((c) => !c.draft) ?? false);
   // Missing AI replies are written a few at a time in the background, then the list refreshes.
   useEffect(() => {
     if (!missing || asked.current) return;

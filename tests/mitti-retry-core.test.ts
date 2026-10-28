@@ -148,6 +148,10 @@ describe("alertEmail", () => {
     expect(m.subject).toBe("Mitti form not made: HV-3519 (Ready Check)");
     for (const s of ["HV-3519", "12 Smith St <Reid>", "sam@example.com", "Mitti said \"no\"", "https://app.example.com/jobs/1"]) expect(m.text).toContain(s);
   });
+  test("intro does not claim a retry happened", () => {
+    expect(alertEmail(input).text.startsWith("The Mitti form for this job was not made. Please check Mitti and make it by hand.")).toBe(true);
+    expect(alertEmail(input).text).not.toContain("even after retrying");
+  });
   test("booking time is Melbourne local", () => expect(alertEmail(input).text).toContain("10:00"));
   test("html escapes user text", () => {
     const h = alertEmail(input).html;

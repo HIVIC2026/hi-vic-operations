@@ -284,7 +284,7 @@ export function alertEmail(i: AlertInput): { subject: string; text: string; html
     ...(i.bookingAt ? [["Booked", melbourne(i.bookingAt)] as [string, string]] : []),
     ["What went wrong", i.error],
   ];
-  const intro = "The Mitti form was not made, even after retrying. Please check Mitti and make it by hand.";
+  const intro = "The Mitti form for this job was not made. Please check Mitti and make it by hand.";
   return {
     subject: `Mitti form not made: ${i.jobNumber} (${label})`,
     text: [intro, "", ...lines.map(([k, v]) => `${k}: ${v}`), "", `Open the job: ${i.jobUrl}`].join("\n"),
