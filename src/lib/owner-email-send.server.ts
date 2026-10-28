@@ -7,7 +7,7 @@
 // reservation 'failed' (nothing was handed to the email service) instead of leaving it 'sending' forever.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 
-export async function sendGuardedOwnerEmail(p: { jobId: string; jobSource: string | null; to: string; purpose: string; key: string; build: (unsubscribeUrl: string | null) => { subject: string; html: string; text: string; attachments?: import("./email-kit.core").EmailAttachment[] }; retryAfterDefiniteFailure?: boolean; beforeSend?: () => Promise<void> }): Promise<string> {
+export async function sendGuardedOwnerEmail(p: { jobId: string; jobSource: string | null; to: string; purpose: string; key: string; build: (unsubscribeUrl: string | null) => { subject: string; html: string; text: string; attachments?: import("./email-kit.core").EmailAttachment[] }; retryAfterDefiniteFailure?: boolean; beforeSend?: () => Promise<void>; transport?: "resend" | { kind: "outlook"; replyToMessageId: string | null }; onSent?: (r: { provider: "outlook" | "resend"; messageId: string | null; internetMessageId: string | null }) => void }): Promise<string> {
   if (await (await import("./qa-inbox.server")).qaDeliveryHeld(p.jobId)) return "blocked — TEST browser run: no delivery";
   const [{ data: opt, error: oe }, { data: response, error: re }, { count: suppressed, error: se }] = await Promise.all([
     admin.from("customer_email_optouts").select("opted_out_at").eq("job_id", p.jobId).maybeSingle(),
@@ -37,11 +37,26 @@ export async function sendGuardedOwnerEmail(p: { jobId: string; jobSource: strin
     await admin.from("customer_email_sends").update({ status: "failed", error: `Not sent — failed before the email service was called: ${(e as Error).message}`.slice(0, 500) }).eq("id", reserved.id);
     throw e;
   }
-  const { resendSend } = await import("./hot-leads-send.server");
   if (route) { mail = { ...mail, ...(await import("./qa-inbox.core")).markTestEmail(route, mail) }; await (await import("./qa-inbox.server")).auditQaInbox(p.jobId, route, p.purpose, p.key); }
+  const notify = (r: Parameters<NonNullable<typeof p.onSent>>[0]) => { try { p.onSent?.(r); } catch (e) { console.error("onSent callback failed", e); } };
+  if (typeof p.transport === "object") {
+    // Outlook: same reservation as above. A QA-routed job starts a NEW message to the test address (never a reply on the customer's thread).
+    // Attachments aren't carried by this transport, so refuse rather than silently drop them.
+    const r = mail.attachments?.length
+      ? { outcome: "failed" as const, detail: "Outlook sending doesn't support attachments." }
+      : await (await import("./outlook-send.server")).sendViaOutlook({ replyToMessageId: route ? null : p.transport.replyToMessageId, to, subject: mail.subject, html: mail.html }).catch((e) => ({ outcome: "failed" as const, detail: e instanceof Error ? e.message : "Outlook send error" }));
+    await admin.from("customer_email_sends").update(r.outcome === "sent"
+      ? { status: "sent", provider: "outlook", sent_at: new Date().toISOString(), error: null, provider_message_id: r.messageId }
+      : { status: "failed", provider: "outlook", sent_at: null, error: r.detail.slice(0, 500) }).eq("id", reserved.id);
+    if (r.outcome !== "sent") return "failed: Outlook couldn't send it";
+    notify({ provider: "outlook", messageId: r.messageId, internetMessageId: r.internetMessageId });
+    return "sent";
+  }
+  const { resendSend } = await import("./hot-leads-send.server");
   const d = await resendSend(to, mail.subject, mail.html, mail.text, p.key, unsubscribe, mail.attachments).catch(() => null);
   const status = !d || d.outcome === "uncertain" ? "delivered_unrecorded" : d.outcome === "rejected" || d.outcome === "not_attempted" ? "failed" : "sent";
   await admin.from("customer_email_sends").update({ status, provider: "resend", sent_at: status === "sent" ? new Date().toISOString() : null, error: status === "sent" ? null : d?.detail ?? "Delivery result unknown", provider_message_id: d && "id" in d ? d.id ?? null : null }).eq("id", reserved.id);
+  if (status === "sent") notify({ provider: "resend", messageId: d && "id" in d ? d.id ?? null : null, internetMessageId: null });
   return status === "sent" ? "sent" : status === "delivered_unrecorded" ? "delivery uncertain — not retried" : `failed: ${d?.detail ?? "send error"}`;
 }
 
