@@ -346,9 +346,23 @@ describe("repeat safety check on the owner's plan (decision 233, Jo 28 Oct)", ()
     expect(steps.find((s) => s.key === "repeat_safety_check")!.outstandingCents).toBe(0);
     expect(payableNow(withRepeat, steps, 69_800).step!.key).toBe("install_deposit");
   });
-  test("missing paid-before counts nothing until recorded", () => {
+  test("missing paid-before counts nothing, even when recorded paid", () => {
     expect(repeatCreditCents({ repeatCents: 34_900, paidCents: 90_000, paidBeforeAcceptCents: null, recordedPaid: false })).toBe(0);
-    expect(repeatCreditCents({ repeatCents: 34_900, paidCents: 90_000, paidBeforeAcceptCents: null, recordedPaid: true })).toBe(34_900);
+    expect(repeatCreditCents({ repeatCents: 34_900, paidCents: 90_000, paidBeforeAcceptCents: null, recordedPaid: true })).toBe(0);
+  });
+  test("recorded paid before the money is in never takes money off the steps already paid", () => {
+    // safety check + deposit (71_410) paid before acceptance, office pressed Record paid, no new money yet
+    const facts = { safety_check: { requestedAt: T0 }, repeat_safety_check: { requestedAt: T0, recordedPaid: true, paidBeforeAcceptCents: 71_410 }, install_deposit: { requestedAt: T0 } };
+    const steps = paymentSteps(withRepeat, 71_410, facts, T0);
+    const by = (k: string) => steps.find((s) => s.key === k)!;
+    expect([by("repeat_safety_check").state, by("repeat_safety_check").outstandingCents]).toEqual(["paid", 0]);
+    expect(by("safety_check").state).toBe("paid");
+    expect(by("install_deposit").state).toBe("paid");
+    expect(repeatCreditCents({ repeatCents: 34_900, paidCents: 71_410, paidBeforeAcceptCents: 71_410, recordedPaid: true })).toBe(0);
+  });
+  test("credit since acceptance is capped at the repeat price", () => {
+    expect(repeatCreditCents({ repeatCents: 34_900, paidCents: 200_000, paidBeforeAcceptCents: 34_900, recordedPaid: false })).toBe(34_900);
+    expect(repeatCreditCents({ repeatCents: 34_900, paidCents: 200_000, paidBeforeAcceptCents: 34_900, recordedPaid: true })).toBe(34_900);
   });
   test("no repeat owed leaves every step as before", () => {
     const before = paymentSteps(plain, 100_000, { install_deposit: { requestedAt: T0 } }, T0);

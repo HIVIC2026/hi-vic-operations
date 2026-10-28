@@ -99,7 +99,7 @@ export type PaymentStepFacts = {
   waived?: boolean;
   /** Repeat safety check only: the office/ledger has recorded the repeat as paid. */
   recordedPaid?: boolean;
-  /** Repeat safety check only: cumulative paid when the repeat was accepted; null = unknown (counts nothing until recorded). */
+  /** Repeat safety check only: cumulative paid when the repeat was accepted; null = unknown (counts nothing). */
   paidBeforeAcceptCents?: number | null;
 };
 export type PaymentStep = {
@@ -118,11 +118,11 @@ export function stepState(f: { thresholdCents: number; amountCents: number; paid
   return "requested";
 }
 
-/** How much of the money paid counts for the repeat safety check: all of it once recorded paid; nothing if we don't know
- *  what was paid before acceptance; else what came in since acceptance, capped at the repeat price. */
+/** How much of the money paid counts for the repeat safety check: only money actually received since acceptance, capped at
+ *  the repeat price — the same whether or not it is recorded paid (a "Record paid" before the money is in never takes money
+ *  off the other steps); nothing if we don't know what was paid before acceptance. */
 export function repeatCreditCents(f: { repeatCents: number; paidCents: number; paidBeforeAcceptCents: number | null; recordedPaid: boolean }): number {
   if (f.repeatCents <= 0) return 0;
-  if (f.recordedPaid) return f.repeatCents;
   if (f.paidBeforeAcceptCents == null) return 0;
   return Math.min(f.repeatCents, Math.max(0, f.paidCents - f.paidBeforeAcceptCents));
 }
