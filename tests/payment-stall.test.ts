@@ -47,7 +47,7 @@ describe("paymentStall", () => {
     const line = paymentStallLine({ key: "install_deposit", since: "2026-10-24T05:00:00Z", days: 3 });
     expect(line).toContain("Install deposit (10%)");
     expect(line).toContain("unpaid since");
-    expect(line).toContain("Sat 24 Oct");
+    expect(line).toContain("Sat, 24 Oct");
     expect(PAYMENT_STALL_DAYS).toBe(3);
   });
 });
