@@ -1,19 +1,19 @@
 // Job offer = approved mock-up M5 (Jo 24 Oct 2026, decisions 200–202): an our-lead Ready Check the office picked this
 // installer for. Two plain lines up top (decision 201), one Next panel to take the job by offering 3 times, what happens
-// next, the 24-hour note and "Not for me". The electrician's PIESA offer shares the route: decision 333 — a new PIESA
-// offer is taken by offering the owner 3 times (like the Ready Check); old offers with the owner's windows still tap one.
+// next, the 24-hour note and "Not for me". The electrician's PIESA offer shares the route: decision 333 — every pending
+// PIESA offer is taken by offering the owner 3 times (like the Ready Check), including jobs started the old way (Jo, B8).
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useRef, useState } from "react";
 import { TradeShell, aud } from "@/components/trade/TradeShell";
-import { getTradeOffer, offerTradeReadyCheckTimes, replyTradeOffer, takeTradeTime } from "@/lib/trade-view.functions";
+import { getTradeOffer, offerTradeReadyCheckTimes, replyTradeOffer } from "@/lib/trade-view.functions";
 import { InstallerReadyCheckTimesCard, ReadyCheckTimesForm } from "@/components/portal/ready-check-times-installer";
 import { PiesaTimesForm } from "@/components/portal/piesa-times-electrician";
 import { offerTradePiesaTimes } from "@/lib/piesa-times.functions";
 import { distanceLine, goneIn } from "@/lib/trade-view.core";
-import { NOT_FOR_ME_SHEET, NOT_FOR_ME_SHEET_ELECTRICIAN, OFFER_LABEL, OFFER_ONLY_YOU, OFFER_PAY_LINE, OFFER_STEPS, dayAndTime, offerAcceptedView, offerClosed, offerTopLines, shortDay, clock } from "@/lib/installer-screens.core";
-import { ContactButtons, ErrorLine, Group, NextPanel, NoFormNoPay, Note, QuietButton, Row, Screen, ScreenHead, outlineLinkClass } from "@/components/trade/installer-kit";
+import { NOT_FOR_ME_SHEET, NOT_FOR_ME_SHEET_ELECTRICIAN, OFFER_LABEL, OFFER_ONLY_YOU, OFFER_PAY_LINE, OFFER_STEPS, dayAndTime, offerAcceptedView, offerClosed, offerTopLines } from "@/lib/installer-screens.core";
+import { ContactButtons, ErrorLine, Group, NextPanel, NoFormNoPay, QuietButton, Row, Screen, ScreenHead, outlineLinkClass } from "@/components/trade/installer-kit";
 
 export const Route = createFileRoute("/_authenticated/field/offer/$offerId")({
   head: () => ({ meta: [{ title: "New job offer – Home Insulation Victoria" }, { name: "description", content: "A Ready Check near you. Offer the owner 3 times to take the job." }, { property: "og:title", content: "New job offer – Home Insulation Victoria" }, { property: "og:description", content: "A Ready Check near you. Offer the owner 3 times to take the job." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
@@ -45,15 +45,12 @@ function NotForMe({ sheet, disabled, sending, onYes, trigger = "button" }: { she
 function OfferPage() {
   const { offerId } = Route.useParams();
   const load = useServerFn(getTradeOffer);
-  const take = useServerFn(takeTradeTime);
   const reply = useServerFn(replyTradeOffer);
   const offerTimes = useServerFn(offerTradeReadyCheckTimes);
   const offerPiesaTimes = useServerFn(offerTradePiesaTimes);
   const { data, error, refetch } = useQuery({ queryKey: ["trade-offer", offerId], queryFn: () => load({ data: { offerId } }), staleTime: 15_000 });
   const [busy, setBusy] = useState<string | null>(null);
-  const [tooSlow, setTooSlow] = useState(false);
-  const [mode, setMode] = useState<"tiles" | "cant" | "cant_sent" | "declined">("tiles");
-  const [note, setNote] = useState("");
+  const [mode, setMode] = useState<"tiles" | "declined">("tiles");
   const [fail, setFail] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const flight = useRef(false); // one booking/reply at a time, even for same-tick double taps
@@ -68,18 +65,11 @@ function OfferPage() {
   );
   if (!data) return <TradeShell installer={false}><p className="text-sm">Loading the job…</p></TradeShell>;
   const what = rc ? "Ready Check" : "Pre Insulation Electrical Safety Assessment (PIESA)";
-  const tap = async (id: string, start: string) => {
-    if (busy || flight.current) return;
-    flight.current = true; setBusy(id); setFail(null);
-    try { const r = await take({ data: { offerId, windowId: id } }); if (r.tooSlow) setTooSlow(true); await refetch(); }
-    catch (e) { setFail(`That time couldn't be booked: ${(e as Error).message || "check your signal and try again."}`); }
-    finally { setBusy(null); flight.current = false; }
-  };
-  // Reply actions ("Suggest another time" / "Not for me"): one tap = one send; failures are shown, never silent.
-  const send = async (r: "cant_make" | "not_for_me", after: () => void | Promise<unknown>) => {
+  // Reply action ("Not for me"): one tap = one send; failures are shown, never silent.
+  const send = async (r: "not_for_me", after: () => void | Promise<unknown>) => {
     if (sending || busy || flight.current) return;
     flight.current = true; setSending(true); setFail(null);
-    try { await reply({ data: { offerId, reply: r, note: r === "cant_make" ? note.trim() || null : null } }); await after(); }
+    try { await reply({ data: { offerId, reply: r, note: null } }); await after(); }
     catch (e) { setFail(`Couldn't send that: ${(e as Error).message || "check your signal and try again."}`); }
     finally { setSending(false); flight.current = false; }
   };
@@ -126,7 +116,7 @@ function OfferPage() {
       </TradeShell>
     );
   }
-  if (tooSlow || data.status !== "pending") {
+  if (data.status !== "pending") {
     const c = offerClosed(data.status, mode === "declined");
     return (
       <TradeShell installer={rc}>
@@ -173,17 +163,6 @@ function OfferPage() {
           <>
             {data.boss && <p className="-mt-1.5 text-[15px]"><span className="text-[22px] font-semibold text-hiv-green">{data.pay != null ? aud(data.pay) : "Rate to confirm"}</span> <span className="text-sub">your rate for this job</span></p>}
             {data.boss && <NoFormNoPay line className="-mt-2" />}
-            {mode === "cant" ? (
-              <section className="rounded-[18px] border border-line p-4">
-                <h2 className="text-[17px] font-semibold">Suggest another time</h2>
-                <p className="mt-1 text-sm text-sub">Tell us a time that works and we'll check with the owner.</p>
-                <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} maxLength={300} placeholder="e.g. Thursday morning" className="mt-3 w-full rounded-xl border border-line p-3 text-base" />
-                <QuietButton className="mt-3" disabled={sending} aria-busy={sending} onClick={() => send("cant_make", () => setMode("cant_sent"))}>{sending ? "Sending…" : "Send to the office"}</QuietButton>
-              </section>
-            ) : mode === "cant_sent" ? (
-              <section className="rounded-[18px] bg-mist p-4"><p className="font-semibold">Thanks, we've got it.</p><p className="text-sm text-sub">We'll check with the owner and come back to you. The times below are still open if one works.</p></section>
-            ) : null}
-            {data.piesaDays.length > 0 ? (
             <NextPanel eyebrow="To take this job" title="Offer the owner 3 times" sub="Within 24 hours: three different days in the next 3 weeks, arriving 8am–3pm. The owner picks one or suggests other days.">
               <div data-piesa-offer-times>
                 <ErrorLine>{fail}</ErrorLine>
@@ -197,19 +176,6 @@ function OfferPage() {
                 <div className="mt-2 flex flex-wrap justify-end text-sm font-semibold text-hiv-blue"><NotForMe sheet={NOT_FOR_ME_SHEET_ELECTRICIAN} disabled={sending || !!busy} sending={sending} trigger="link" onYes={() => send("not_for_me", async () => { setMode("declined"); await refetch(); })} /></div>
               </div>
             </NextPanel>
-            ) : (
-            <NextPanel eyebrow="To take this job" title="Pick one of the owner's times" sub="Tap a time and it's booked. The address shows once you accept.">
-              <ErrorLine>{fail}</ErrorLine>
-              {data.windows.length === 0 && <p className="mt-3 text-sm text-sub" data-no-times>No times are open on this offer right now. Suggest a time or check back soon.</p>}
-              <div className="mt-3.5 grid grid-cols-2 gap-2">{data.windows.map((w) => (
-                <button key={w.id} type="button" disabled={!!busy || sending} onClick={() => tap(w.id, w.start)} className="flex min-h-14 flex-col items-center justify-center rounded-xl border border-line bg-paper px-2 text-sm font-semibold"><span>{shortDay(w.start)}</span><span className="text-hiv-blue">{busy === w.id ? "Booking…" : clock(w.start)}</span></button>))}</div>
-              <div className="mt-2 flex flex-wrap justify-between gap-2 text-sm font-semibold text-hiv-blue">
-                {data.canSuggest ? <button type="button" className="min-h-11 px-1" disabled={sending || !!busy} onClick={() => setMode("cant")}>Suggest another time</button> : <span />}
-                <NotForMe sheet={NOT_FOR_ME_SHEET_ELECTRICIAN} disabled={sending || !!busy} sending={sending && mode !== "cant"} trigger="link" onYes={() => send("not_for_me", async () => { setMode("declined"); await refetch(); })} />
-              </div>
-              {!data.canSuggest && <Note>Can't make these? If nobody takes it, you can suggest another time from {data.suggestUnlockLabel}.</Note>}
-            </NextPanel>
-            )}
           </>
         )}
       </Screen>

@@ -212,8 +212,8 @@ describe("M5 states", () => {
     expect(NOT_FOR_ME_SHEET_ELECTRICIAN).toEqual({ title: "Not for me?", body: "The offer goes back to the office to pick another electrician. It won't come back to you.", yes: "Yes, not for me", keep: "Keep the offer" });
     const page = readFileSync("src/routes/_authenticated/field.offer.$offerId.tsx", "utf8");
     expect(page).toContain("sheet={NOT_FOR_ME_SHEET}");
-    expect(page.match(/sheet=\{NOT_FOR_ME_SHEET_ELECTRICIAN\}/g)?.length).toBe(2);
-    expect(page.match(/trigger="link"/g)?.length).toBe(2);
+    expect(page.match(/sheet=\{NOT_FOR_ME_SHEET_ELECTRICIAN\}/g)?.length).toBe(1);
+    expect(page.match(/trigger="link"/g)?.length).toBe(1);
     expect(page.match(/data-not-for-me-sheet/g)?.length).toBe(1);
     expect(page).not.toMatch(/data-not-for-me onClick=\{\(\) => send\(/);
   });

@@ -181,8 +181,8 @@ export async function tradeOffer(offerId: string, userId: string) {
   const s = (o.summary ?? {}) as { suburb?: string; postcode?: string; distance_km?: number; electrician_rate_inc_gst?: number | null; approx_area_m2?: number; area_source?: AreaSource; insulation_now?: InsulationNow; installer_rate_per_m2?: number | null };
   const windows = (winRows ?? []).filter((w) => w.status === "open" || w.status === "proposed").map((w) => ({ id: w.id, start: w.starts_at, end: w.ends_at }));
   const rcDays = o.kind === "ready_check" && o.status === "pending" ? (await import("./ready-check-times.core")).allowedReadyCheckDays() : [];
-  // Decision 333: a PIESA offer with no owner windows (every new job) is accepted by offering the owner 3 times.
-  const piesaDays = o.kind === "piesa" && o.status === "pending" && windows.length === 0 ? (await import("./piesa-times.core")).allowedPiesaTimeDays() : [];
+  // Decision 333: every pending PIESA offer, including jobs started the old way, is accepted by offering the owner 3 times.
+  const piesaDays = o.kind === "piesa" && o.status === "pending" ? (await import("./piesa-times.core")).allowedPiesaTimeDays() : [];
   let locked: null | { owner: string | null; phone: string | null; address: string; start: string; end: string | null } = null;
   if (o.status === "accepted" && liveAsg) {
     const bk = o.kind === "ready_check" ? "ready_check" : o.kind === "piesa" ? "assessment" : o.kind;
