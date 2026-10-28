@@ -60,7 +60,7 @@ describe("decision 382: Needs me saved copy", () => {
     const fns = readFileSync("src/lib/office-screens.functions.ts", "utf8");
     expect(fns).toContain("getActiveJobsListServed(params as JobsListParams, refresh)");
     expect(fns).toContain("getEnquiriesListServed(params, refresh)");
-    expect(readFileSync("src/components/portal/JobsScreen.tsx", "utf8")).toContain('readOfficeList("jobs"');
+    expect(readFileSync("src/components/portal/JobsLaneScreen.tsx", "utf8")).toContain('readOfficeList("jobs"');
     expect(readFileSync("src/components/portal/EnquiriesScreen.tsx", "utf8")).toContain('readOfficeList("enquiries"');
     expect(readFileSync("src/routes/api/public/hooks/allocation-tick.ts", "utf8")).toContain("refreshListSnapshots()");
     expect(readFileSync("src/hooks/use-me.ts", "utf8")).toContain("markOfficeChanged()");

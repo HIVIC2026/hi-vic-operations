@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/portal/AppShell";
-import { JobsScreen } from "@/components/portal/JobsScreen";
+import { JobsLaneScreen } from "@/components/portal/JobsLaneScreen";
 import { JOBS_STAGE_KEYS, type JobsStage } from "@/lib/office-jobs.core";
 
 // O3 Jobs › Active (decisions 224, 226, 239). `?stage=` opens one of the six stages (old Quote approvals links land on Quote).
@@ -16,6 +16,6 @@ export const Route = createFileRoute("/_authenticated/admin/jobs/active")({
   ] }),
   component: () => {
     const { stage } = Route.useSearch();
-    return <AppShell><JobsScreen mode="active" initialStage={stage} /></AppShell>;
+    return <AppShell><JobsLaneScreen lane="ours" initialStage={stage} /></AppShell>;
   },
 });
