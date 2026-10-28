@@ -211,7 +211,12 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   const heldConsents = consents.filter((c) => f(String(c["job_id"])) && !["cancelled", "stale", "superseded"].includes(String(c["status"])) && consentApHoldAlert({ ownerSignedAt: s(c["owner_signed_at"]), scheduledStart: s(c["scheduled_start"]), now, reasons: ["pending"] }).alert);
   // Decision 389: release state for the "choose installer" jobs (pending → nothing for the office; lapsed → its one row).
   const releaseIds = [...facts.values()].filter((x) => x.spotSaved).map((x) => x.jobId);
-  const [later, partAReasons, consentReasonList, made, payViews, finalFlags, askRows, fbRows, releases] = await Promise.all([
+  // Jo 28 Oct 2026 ("Alert after 3 days unpaid"): follow-up reads keyed by wave 1 — the PIESA quote lines, the
+  // deposit-gate overrides and the stage entry that started each install-deposit wait.
+  const payQuoteIds = payQuotes.filter((x) => x["kind"] === "installation").map((x) => String(x["id"]));
+  const payInvIds = payInvoices.map((x) => String(x["id"]));
+  const depositJobIds = jobs.filter((j) => INSTALL_DEPOSIT_DUE_STAGES.has(j.stage)).map((j) => j.id);
+  const [later, partAReasons, consentReasonList, made, payViews, finalFlags, askRows, fbRows, releases, payPiesaLines, payOverrides, payStageEv] = await Promise.all([
     rIds.length ? byIds("offers after return", rIds, (chunk, a, b) => admin.from("partner_offers").select("job_id, kind, offered_at").in("job_id", chunk).range(a, b)) : Promise.resolve([] as Row[]),
     partA.length && partA.length <= 40
       ? import("./veec-ap-auto.server").then(({ apAutoHoldReasons }) => Promise.all(partA.map(async (v) => (f(String(v["job_id"])) ? await apAutoHoldReasons(String(v["job_id"])).catch(() => ["Prerequisites could not be read."]) : null))))
@@ -228,6 +233,9 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     askJobIds.length ? byIds("email ask jobs", askJobIds, (chunk, a, b) => admin.from("jobs").select("id, job_number, source, owners(full_name), properties(suburb)").in("id", chunk).range(a, b)) : Promise.resolve([] as Row[]),
     fbIds.length ? byIds("review feedback jobs", fbIds, (chunk, a, b) => admin.from("jobs").select("id, job_number, source, owners(full_name)").in("id", chunk).range(a, b)) : Promise.resolve([] as Row[]),
     releaseIds.length ? import("./spot-release.server").then((m) => m.spotReleaseStates(releaseIds)) : Promise.resolve(new Map()),
+    payQuoteIds.length ? byIds("PIESA lines for unpaid payments", payQuoteIds, (chunk, a, b) => admin.from("quote_items").select("quote_id, line_total_inc_gst").in("quote_id", chunk).eq("code", "PIESA").range(a, b)) : Promise.resolve([] as Row[]),
+    payInvIds.length ? byIds("deposit overrides", payInvIds, (chunk, a, b) => admin.from("payment_overrides").select("invoice_id").in("invoice_id", chunk).eq("gate", "deposit").range(a, b)) : Promise.resolve([] as Row[]),
+    depositJobIds.length ? byIds("deposit stage entries", depositJobIds, (chunk, a, b) => admin.from("workflow_events").select("job_id, created_at").in("job_id", chunk).eq("event_type", "stage_changed").in("to_stage", [...INSTALL_DEPOSIT_DUE_STAGES]).order("created_at", { ascending: false }).range(a, b)) : Promise.resolve([] as Row[]),
   ]);
   {
     const { officeItemWithRelease } = await import("./spot-release.core");
