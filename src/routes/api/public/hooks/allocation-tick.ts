@@ -299,6 +299,16 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['autoOffers'] = "failed";
         }
         try {
+          // Jo 28 Oct: crew reminder email at 2pm Melbourne the day before an install with no crew picked (once per job +
+          // install date). Real installers get nothing until Jo approves the wording; TEST uses the test-send path.
+          const { sweepCrewReminders } = await import("@/lib/crew-reminder.server");
+          const r = await timed("sweepCrewReminders", () => sweepCrewReminders());
+          (out as Record<string, unknown>)['crewReminders'] = { checked: r.checked, sent: r.sent };
+        } catch (e) {
+          console.error("allocation tick: crew reminder sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['crewReminders'] = "failed";
+        }
+        try {
           const { sweepPrestart } = await import("@/lib/prestart.server");
           (out as Record<string, unknown>)['prestart'] = await timed("sweepPrestart", () => sweepPrestart());
         } catch (e) {
