@@ -37,7 +37,8 @@ mock.module("../src/lib/sms.server", () => ({ sendRealSms: async () => ({ status
 
 let isAdmin = false; let memberRole: string | null = null;
 mock.module("../src/lib/worker-links.server", () => ({ WORKER_COLS: "*", isAdminCaller: async () => isAdmin, jobBusinesses: async () => [], workerLinksFor: async () => [] }));
-mock.module("../src/lib/pilot.server", () => ({ myBusinesses: async () => new Map(), requireMember: async (_u: string, _b: string, adminOnly?: boolean) => { if (!memberRole || (adminOnly && memberRole !== "business_admin")) throw new Error("Only your business admin can do this."); return memberRole; } }));
+const realPilot = await import("../src/lib/pilot.server");
+mock.module("../src/lib/pilot.server", () => ({ ...realPilot, myBusinesses: async () => new Map(), requireMember: async (_u: string, _b: string, adminOnly?: boolean) => { if (!memberRole || (adminOnly && memberRole !== "business_admin")) throw new Error("Only your business admin can do this."); return memberRole; } }));
 mock.module("@tanstack/react-start", () => ({
   createServerFn: () => { let v: (d: unknown) => unknown = (d) => d; const b = { middleware: () => b, inputValidator: (f: typeof v) => { v = f; return b; }, handler: (h: (a: { data: unknown; context: unknown }) => unknown) => (a: { data: unknown }) => h({ data: v(a.data), context: { userId: "u-boss", supabase: {} } }) }; return b; },
   createMiddleware: () => ({ server: () => ({}) }),
