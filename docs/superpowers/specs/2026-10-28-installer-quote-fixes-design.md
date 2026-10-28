@@ -75,6 +75,8 @@ difficult-access fee Jo never entered.
       They enter the total repair price inc GST; the ticked work list from the form is shown read-only. The office can
       also enter it. Staff never see the card or the price. The homeowner's fixes quote is built from that price, and
       is held until it is entered.
+    - If the repair price still isn't entered 24 hours after the link was sent, the job shows "Waiting on the
+      electrician's price" on Active jobs for the office (Jo 28 Oct). No reminder text.
     - Closing direct database access to prices for staff logins is a separate piece of work with its own spec
       (Jo 28 Oct: "Yes, close it").
 
