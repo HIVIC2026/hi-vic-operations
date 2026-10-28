@@ -351,10 +351,13 @@ export function signRebateThen(ownerFirstName: string | null, pay: number | null
 }
 
 // ---------- M5 · accepted + not-for-me ----------
+/** One label for an accepted job and one for a new offer, on every offer screen (B6). */
+export const OFFER_LABEL = { accepted: "Job accepted", new: "New job offer" } as const;
+
 export function offerAcceptedView(f: { ownerFirstName: string | null; suburb: string | null; jobNumber: string | number | null; times: string[] }): { pill: string; title: string; line2: string; next: { title: string; sub: string }; times: string[]; change: string; owner: [string, string][]; what: [string, string][] } {
   const owner = f.ownerFirstName ?? "the owner";
   return {
-    pill: "You've taken this job", title: `Ready Check in ${f.suburb ?? "Victoria"}`, line2: [f.jobNumber, "Home Insulation Victoria lead"].filter(Boolean).join(" · "),
+    pill: OFFER_LABEL.accepted, title: `Ready Check in ${f.suburb ?? "Victoria"}`, line2: [f.jobNumber, "Home Insulation Victoria lead"].filter(Boolean).join(" · "),
     next: { title: "Nothing for you — the owner is picking a time", sub: `We've sent ${owner} your ${f.times.length || 3} times. You get a text with the day, time and address as soon as ${f.ownerFirstName ? `${owner} picks` : "they pick"} one. If none suit, ${f.ownerFirstName ? owner : "they"} suggest${f.ownerFirstName ? "s" : ""} other days and it comes back to you.` },
     times: f.times.map((t) => dayAndTime(t)), change: "Change these times",
     owner: [["Name", f.ownerFirstName ? owner : "Shown once a time is booked"], ["Address", "Shown once a time is booked"]],

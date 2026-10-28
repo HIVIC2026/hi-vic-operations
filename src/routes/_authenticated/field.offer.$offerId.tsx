@@ -12,7 +12,7 @@ import { InstallerReadyCheckTimesCard, ReadyCheckTimesForm } from "@/components/
 import { PiesaTimesForm } from "@/components/portal/piesa-times-electrician";
 import { offerTradePiesaTimes } from "@/lib/piesa-times.functions";
 import { distanceLine, goneIn } from "@/lib/trade-view.core";
-import { NOT_FOR_ME_SHEET, OFFER_ONLY_YOU, OFFER_PAY_LINE, OFFER_STEPS, dayAndTime, offerAcceptedView, offerClosed, offerTopLines, shortDay, clock } from "@/lib/installer-screens.core";
+import { NOT_FOR_ME_SHEET, OFFER_LABEL, OFFER_ONLY_YOU, OFFER_PAY_LINE, OFFER_STEPS, dayAndTime, offerAcceptedView, offerClosed, offerTopLines, shortDay, clock } from "@/lib/installer-screens.core";
 import { ContactButtons, ErrorLine, Group, NextPanel, NoFormNoPay, Note, QuietButton, Row, Screen, ScreenHead, outlineLinkClass } from "@/components/trade/installer-kit";
 
 export const Route = createFileRoute("/_authenticated/field/offer/$offerId")({
@@ -34,7 +34,6 @@ function OfferPage() {
   const offerPiesaTimes = useServerFn(offerTradePiesaTimes);
   const { data, error, refetch } = useQuery({ queryKey: ["trade-offer", offerId], queryFn: () => load({ data: { offerId } }), staleTime: 15_000 });
   const [busy, setBusy] = useState<string | null>(null);
-  const [took, setTook] = useState<string | null>(null);
   const [tooSlow, setTooSlow] = useState(false);
   const [mode, setMode] = useState<"tiles" | "cant" | "cant_sent" | "declined">("tiles");
   const [note, setNote] = useState("");
@@ -56,7 +55,7 @@ function OfferPage() {
   const tap = async (id: string, start: string) => {
     if (busy || flight.current) return;
     flight.current = true; setBusy(id); setFail(null);
-    try { const r = await take({ data: { offerId, windowId: id } }); if (r.tooSlow) setTooSlow(true); else setTook(start); await refetch(); }
+    try { const r = await take({ data: { offerId, windowId: id } }); if (r.tooSlow) setTooSlow(true); await refetch(); }
     catch (e) { setFail(`That time couldn't be booked: ${(e as Error).message || "check your signal and try again."}`); }
     finally { setBusy(null); flight.current = false; }
   };
@@ -72,7 +71,7 @@ function OfferPage() {
     return (
       <TradeShell installer={rc}>
         <Screen>
-          <ScreenHead pill={took ? "Job accepted" : "Booked"} title={`${what} · ${dayAndTime(data.locked.start)}`} line1={data.locked.owner ?? undefined} line2={data.locked.address}>
+          <ScreenHead pill={OFFER_LABEL.accepted} title={`${what} · ${dayAndTime(data.locked.start)}`} line1={data.locked.owner ?? undefined} line2={data.locked.address}>
             <ContactButtons phone={data.locked.phone} address={data.locked.address} />
           </ScreenHead>
           <a className={outlineLinkClass} href={ics(`${what} – Home Insulation Victoria`, data.locked.start, data.locked.end, data.locked.address)} download="job.ics">Add to calendar</a>
@@ -105,7 +104,7 @@ function OfferPage() {
     return (
       <TradeShell installer={false}>
         <Screen>
-          <section className="rounded-[18px] bg-mist p-4 text-center" data-piesa-times-sent><h1 className="text-[17px] font-semibold">Job accepted · times sent</h1><p className="mt-1 text-sm text-sub">The owner picks one of your times or suggests other days. You'll see it on the job page.</p></section>
+          <section className="rounded-[18px] bg-mist p-4 text-center" data-piesa-times-sent><h1 className="text-[17px] font-semibold">{OFFER_LABEL.accepted}</h1><p className="mt-1 text-sm text-sub">The owner picks one of your times or suggests other days. You'll see it on the job page.</p></section>
           <Link to="/field/$jobId" params={{ jobId: data.jobId }} className={outlineLinkClass}>Open the job page</Link>
         </Screen>
       </TradeShell>
@@ -126,7 +125,7 @@ function OfferPage() {
   return (
     <TradeShell installer={rc}>
       <Screen>
-        <ScreenHead pill={rc ? "New job offer" : "New job"} pillNote={left} title={`${what} in ${data.suburb ?? "Victoria"}`} line2={`${distanceLine(data.distanceKm)}${rc ? " · Home Insulation Victoria lead" : ""}`} />
+        <ScreenHead pill={OFFER_LABEL.new} pillNote={left} title={`${what} in ${data.suburb ?? "Victoria"}`} line2={`${distanceLine(data.distanceKm)}${rc ? " · Home Insulation Victoria lead" : ""}`} />
         {rc ? (
           <>
             <div className="-mt-1.5" data-offer-top>

@@ -4,7 +4,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
   allocationSheet, completeView, couldntGetInSheet, dayChecks, dayNext, electricianRow, installRow, jobNext, leadInstallerDeclaration, moneyJobDetail, needsFinishingList,
-  NOT_FOR_ME_SHEET, offerAcceptedView, ownerReadyLine, paidByMonth, quoteNextWords, quoteStatusRow, signRebateChecks, signRebateThen, whatWeKnow, type JobNextFacts,
+  NOT_FOR_ME_SHEET, OFFER_LABEL, offerAcceptedView, ownerReadyLine, paidByMonth, quoteNextWords, quoteStatusRow, signRebateChecks, signRebateThen, whatWeKnow, type JobNextFacts,
 } from "../src/lib/installer-screens.core";
 import { HOME_EMPTY, homeIsEmpty, monthStripWords, offerPanelWords, offersListView } from "../src/lib/installer-home.core";
 import { QUOTE_DECLINED_LINE, QUOTE_HELD_LINE, QUOTE_SENT_LINE } from "../src/lib/installer-quote-status.core";
@@ -17,6 +17,15 @@ const base: JobNextFacts = {
   needsFinishing: null, readyCheckTurn: "booked", readyCheckBookedAt: "2026-10-19T20:30:00Z", installTurn: "not_ready", installBookedAt: null,
   installDeadline: null, installDaysLeft: null, clearedOn: null, installFormComplete: false, installationRecorded: false, rebateSigned: false,
 };
+
+test("B6: one accepted label, one new-offer label", () => {
+  expect(OFFER_LABEL).toEqual({ accepted: "Job accepted", new: "New job offer" });
+  expect(offerAcceptedView({ ownerFirstName: null, suburb: null, jobNumber: null, times: [] }).pill).toBe(OFFER_LABEL.accepted);
+  const page = readFileSync("src/routes/_authenticated/field.offer.$offerId.tsx", "utf8");
+  for (const gone of ['"Booked"', "You've taken this job", "Job accepted · times sent", '"New job"', 'took ? "Job accepted"']) expect(page).not.toContain(gone);
+  expect(page.match(/OFFER_LABEL\.accepted/g)?.length).toBe(2);
+  expect(page).toContain("pill={OFFER_LABEL.new}");
+});
 
 describe("M1 states", () => {
   test("empty (new installer): the approved empty lines, Add a job under Action needed, $0 strip", () => {
@@ -185,7 +194,7 @@ describe("M4 states", () => {
 describe("M5 states", () => {
   test("accepted: times sent, owner picking, address only once booked", () => {
     const v = offerAcceptedView({ ownerFirstName: null, suburb: "Glen Waverley", jobNumber: "HV-3117", times: ["2026-10-26T05:00:00Z", "2026-10-27T20:30:00Z", "2026-10-30T01:30:00Z"] });
-    expect(v.pill).toBe("You've taken this job");
+    expect(v.pill).toBe("Job accepted");
     expect(v.line2).toBe("HV-3117 · Home Insulation Victoria lead");
     expect(v.next.title).toBe("Nothing for you — the owner is picking a time");
     expect(v.next.sub).toBe("We've sent the owner your 3 times. You get a text with the day, time and address as soon as they pick one. If none suit, they suggest other days and it comes back to you.");
