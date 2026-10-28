@@ -81,7 +81,7 @@ beforeEach(() => {
 describe("Mitti: Leads only, business email for a Lead with no email", () => {
   test("a Lead with no email is searched / recorded with the business's own email", async () => {
     const r = await inv.onPartnerPersonApproved("00000000-0000-4000-8000-0000000000a1", "office", { switches: SW, call });
-    expect(r.action).toBe("record_needed");
+    expect(r).toMatchObject({ action: "record_needed" });
     expect(calls).toEqual(["POST /users/search office@realinsul.com.au"]);
     expect(events().map((e) => [e["event_type"], (e["details"] as Row)["email"], (e["details"] as Row)["email_source"]])).toEqual([["mitti_invite_needed", "office@realinsul.com.au", "business"]]);
   });
