@@ -113,6 +113,8 @@ export function buildEmailsTab(i: {
   ownerNameByJob: Map<string, string | null>;
   /** Senders (lower-case) who already got the automatic website reply. */
   autoRepliedSenders: Set<string>;
+  /** Exact messages with confirmed sent replies; claims, failures and later emails stay visible. */
+  answeredNoJobMessageIds?: Set<string>;
   /** Jobs that are still open (not cancelled, complete or archived). */
   openJobIds?: Set<string>;
 }): EmailsTab {
@@ -123,7 +125,7 @@ export function buildEmailsTab(i: {
     draftClosed: !!c.messageId && i.closedJobDrafts.has(jobDraftKey(c.jobId, c.messageId)), action: ACTION[c.intent ?? ""] ?? "dealt_with",
     stillOpenDecline: !!i.openJobIds?.has(c.jobId) && (c.intent === "cancel" || (c.intent === "reply" && readsAsDecline(c.messageId ? (i.inboundByMessage.get(c.messageId) ?? null) : null))),
   }));
-  const noJob = [...i.unmatched].sort((a, b) => b.at.localeCompare(a.at)).map((u): NoJobCard => {
+  const noJob = i.unmatched.filter((u) => !u.messageId || !i.answeredNoJobMessageIds?.has(u.messageId)).sort((a, b) => b.at.localeCompare(a.at)).map((u): NoJobCard => {
     const g = u.guesses[0];
     return {
       key: `nojob:${u.eventId}`, unmatchedEventId: u.eventId, at: u.at, from: u.from, fromName: u.fromName, subject: u.subject, theyWrote: u.snippet,
