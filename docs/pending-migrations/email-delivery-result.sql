@@ -1,4 +1,10 @@
--- Delivery result (what the receiving mail server did) for sent emails. Additive only.
+-- Email delivery result (catch-up plan 29 Oct 2026, task 3). Records what the receiving mail server did with a sent
+-- email: delivery_result ('delivered' or 'bounced'), delivery_detail (the server's reason) and delivery_at, on both
+-- customer_email_sends and job_communications, plus a provider_message_id lookup index on each so the Resend and
+-- Outlook bounce hooks can find the row. Additive only; idempotent.
+-- Apply BEFORE the code that reads these columns goes live: the portal's email lists and contact history select them,
+-- and a missing column makes those queries fail.
+-- Proven on PGlite: tests/email-delivery-result-practice-db.test.ts. Rollback: email-delivery-result.rollback.sql.
 ALTER TABLE public.customer_email_sends
   ADD COLUMN IF NOT EXISTS delivery_result text NULL,
   ADD COLUMN IF NOT EXISTS delivery_detail text NULL,
