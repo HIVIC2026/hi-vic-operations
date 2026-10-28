@@ -3,11 +3,11 @@
 // A null role counts as Crew, except for someone who already has Mitti access today: they count as Lead so nobody
 // loses access. Only installers have a Lead/Crew role; electricians keep their existing Mitti rules.
 import { MITTI_INVITE_EVENTS } from "./mitti-invite.core";
+export { CREW_SKIP as CREW_NO_MITTI } from "./mitti-invite.core";
 
 export type WorkerRole = "lead" | "crew";
 export const WORKER_ROLE_LABEL: Record<WorkerRole, string> = { lead: "Lead", crew: "Crew" };
 export const WORKER_ROLE_CHANGED_EVENT = "worker_role_changed";
-export const CREW_NO_MITTI = "Crew — only Lead installers get Mitti access.";
 
 /** Mitti records that mean the person has Mitti access today (the latest record wins). */
 const ACCESS_RECORDS = new Set<string>([MITTI_INVITE_EVENTS.linked, MITTI_INVITE_EVENTS.userLinked, MITTI_INVITE_EVENTS.invited, MITTI_INVITE_EVENTS.reactivated, MITTI_INVITE_EVENTS.done]);
