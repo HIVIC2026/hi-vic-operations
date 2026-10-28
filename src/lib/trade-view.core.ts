@@ -80,7 +80,8 @@ export type StatementRow = { jobNumber: string | number | null; surname: string 
 
 /** The statement as CSV: every cell quoted, quotes doubled, CRLF line ends. A held payout reads "Held". */
 export function statementCsv(rows: StatementRow[]): string {
-  const lines = [["Job", "Owner", "Suburb", "What", "Amount", "Status"], ...rows.map((r) => [r.jobNumber ?? "", r.surname ?? "", r.suburb ?? "", r.what, String(r.amount ?? ""), (r.state.kind === "paid" ? null : heldPayPill(r.held))?.label ?? payPill(r.state).label])];
+  const safe = (v: unknown) => { const t = String(v ?? ""); return /^[=+\-@\t\r]/.test(t) ? `'${t}` : t; }; // stop spreadsheet formulas in owner-entered text
+  const lines = [["Job", "Owner", "Suburb", "What", "Amount", "Status"], ...rows.map((r) => [safe(r.jobNumber), safe(r.surname), safe(r.suburb), safe(r.what), String(r.amount ?? ""), (r.state.kind === "paid" ? null : heldPayPill(r.held))?.label ?? payPill(r.state).label])];
   return lines.map((l) => l.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\r\n");
 }
 

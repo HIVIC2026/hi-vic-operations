@@ -62,3 +62,13 @@ describe("E4 statement", () => {
     for (const s of ["navigator.canShare", "navigator.share", "createObjectURL", "revokeObjectURL", "AbortError"]) expect(sf).toContain(s);
   });
 });
+describe("E4 statement formula safety", () => {
+  const row = (o: Partial<Parameters<typeof statementCsv>[0][number]>) => ({ jobNumber: "HV-1", surname: "Smith", suburb: "Brunswick", what: "Install", amount: 1200, state: { kind: "checking" } as const, held: [], ...o });
+  test("text cells starting with a formula character get a leading quote", () => {
+    const line = statementCsv([row({ surname: "=1+1", suburb: "@x", what: "-2", jobNumber: "+3" })]).split("\r\n")[1];
+    expect(line).toBe(`"'+3","'=1+1","'@x","'-2","1200","Being checked"`);
+  });
+  test("normal values are unchanged", () => {
+    expect(statementCsv([row({})]).split("\r\n")[1]).toBe('"HV-1","Smith","Brunswick","Install","1200","Being checked"');
+  });
+});
