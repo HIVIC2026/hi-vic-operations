@@ -1461,11 +1461,13 @@ async function m43Consent(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
     const s = await toQuoteAccepted(rec, ctx, setup, jobs);
     if (!s.ok) { BLOCKED_REASON = `setup failed: ${s.out.at(-1)?.error}`; return; }
     const comms = await import("./comms.server");
-    const { data: cons } = await admin.from("owner_contact_consents").select("id, consent_status").eq("job_id", ctx.jobId!).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    const { data: cons } = await admin.from("owner_contact_consents").select("id, owner_id, consent_status").eq("job_id", ctx.jobId!).order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (!cons) { BLOCKED_REASON = "no owner contact consent row on this TEST job to withhold"; return; }
     // A person's mistake: the consent is withdrawn (a newer not_granted row, exactly how the product records it).
+    // The table is append-only (immutable rows) — an UPDATE is refused, so withdraw/restore must INSERT newer rows.
     await J.assertOwnTestJob(ctx);
-    await admin.from("owner_contact_consents").update({ consent_status: "not_granted" } as never).eq("id", cons.id);
+    const { error: wErr } = await admin.from("owner_contact_consents").insert({ job_id: ctx.jobId!, owner_id: cons.owner_id, source: "qa-journey", consent_status: "not_granted", contact_consent: false, consent_key: `qa-consent-withdraw:${ctx.runId}`, sha256: "qa-journey-consent-withdraw", snapshot: { test: true } } as never);
+    if (wErr) throw new Error(wErr.message);
     let refused = "not refused";
     try { await comms.assertOwnerContactConsent(ctx.jobId!, "TEST journey consent check"); refused = "NOT refused"; }
     catch (e) { refused = `refused: ${(e as Error).message}`; }
@@ -1476,8 +1478,9 @@ async function m43Consent(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
     answer("stops", refused.startsWith("refused") && c.emails === 0, `owner consent withheld; customer contact ${refused}; owner emails on this job=${c.emails}; delivery state=${state}`);
     answer("reason", /No contact consent from the owner on record/.test(refused), `plain refusal: ${refused.slice(0, 200)}; office job page shows the consent/correspondence state=${sees(shots[1], /consent|contact|correspondence/i)}`);
     answer("office_once", told.ok, told.detail);
-    // Fix: the owner's granted consent is back on record — the consent check passes (the global lock is a separate block, unchanged).
-    await admin.from("owner_contact_consents").update({ consent_status: cons.consent_status } as never).eq("id", cons.id);
+    // Fix: the owner's granted consent is back on record as a newer row — the consent check passes (the global lock is a separate block, unchanged).
+    const { error: rErr } = await admin.from("owner_contact_consents").insert({ job_id: ctx.jobId!, owner_id: cons.owner_id, source: "qa-journey", consent_status: cons.consent_status, contact_consent: true, consent_key: `qa-consent-restore:${ctx.runId}`, sha256: "qa-journey-consent-restore", snapshot: { test: true } } as never);
+    if (rErr) throw new Error(rErr.message);
     let ok = "not refused";
     try { await comms.assertOwnerContactConsent(ctx.jobId!, "TEST journey consent check"); ok = "passes"; }
     catch (e) { ok = `still refused: ${(e as Error).message.slice(0, 200)}`; }
