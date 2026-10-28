@@ -8,7 +8,7 @@ import { useState } from "react";
 import { TradeShell, aud } from "@/components/trade/TradeShell";
 import { getTradeMoneyExtras, getTradeMoneyView } from "@/lib/trade-view.functions";
 import { ELECTRICIAN_PAY_RULE_LINE, heldPayPill, payPill } from "@/lib/trade-view.core";
-import { HOW_PAY_WORKS, READY_CHECKS_FREE, bankLine, moneyRowSub, moneyTotals, paidByMonth, shortDay } from "@/lib/installer-screens.core";
+import { HOW_PAY_WORKS, READY_CHECKS_FREE, bankLine, moneyRowSub, moneyTotals, moneyWords, paidByMonth, shortDay } from "@/lib/installer-screens.core";
 import { Group, LinkRow, NoFormNoPay, Note, Pill, Screen, outlineLinkClass } from "@/components/trade/installer-kit";
 
 export const Route = createFileRoute("/_authenticated/field/money")({
@@ -31,6 +31,7 @@ function Money() {
   if (!data) return <TradeShell installer={false}><p className="text-sm">Loading…</p></TradeShell>;
   const business = data.business.replace(/^\[TEST PARTNER\]\s*/, "");
   const t = moneyTotals(data.rows);
+  const w = moneyWords(data.kind);
   const open = data.rows.filter((r) => r.state.kind !== "paid").sort((a, b) => (a.state.kind === "checking" ? -1 : 1) - (b.state.kind === "checking" ? -1 : 1));
   const paid = data.rows.filter((r) => r.state.kind === "paid").sort((a, b) => ((b.state as { on: string }).on).localeCompare((a.state as { on: string }).on));
   const rows = [...open, ...paid.slice(0, PAID_SHOWN)];
@@ -74,14 +75,14 @@ function Money() {
         </div>
 
         {!data.rows.length && !(data.paidByInstaller ?? []).length ? (
-          <section className="rounded-[18px] bg-mist p-4 text-center" data-money-empty><h2 className="text-[17px] font-semibold">No completed jobs yet.</h2><p className="mt-1 text-sm text-sub">Your pay for each install appears here once the install is done.</p></section>
+          <section className="rounded-[18px] bg-mist p-4 text-center" data-money-empty><h2 className="text-[17px] font-semibold">{w.emptyTitle}</h2><p className="mt-1 text-sm text-sub">{w.emptyBody}</p></section>
         ) : (
           <>
             <div className="grid grid-cols-2 gap-2" data-money-totals>
               {tile("Coming", aud(t.coming.total), t.coming.next ? `Next ${shortDay(t.coming.next)}` : "Nothing due yet", "mist", "text-hiv-blue")}
               {tile("Being checked", aud(t.checking.total), `${t.checking.jobs} job${t.checking.jobs === 1 ? "" : "s"}`, "line")}
-              {tile("This month", `${aud(t.thisMonth.total)} paid`, `${t.thisMonth.installs} install${t.thisMonth.installs === 1 ? "" : "s"}`, "line", "text-hiv-green")}
-              {tile("Last month", `${aud(t.lastMonth.total)} paid`, `${t.lastMonth.installs} install${t.lastMonth.installs === 1 ? "" : "s"}`, "line")}
+              {tile("This month", `${aud(t.thisMonth.total)} paid`, w.count(t.thisMonth.installs), "line", "text-hiv-green")}
+              {tile("Last month", `${aud(t.lastMonth.total)} paid`, w.count(t.lastMonth.installs), "line")}
             </div>
 
             <NoFormNoPay />

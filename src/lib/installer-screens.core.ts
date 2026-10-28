@@ -498,6 +498,12 @@ export function moneyTotals(rows: MoneyRowFacts[], now: Date = new Date()): { co
     lastMonth: { total: sum(paidIn(lastKey)), installs: paidIn(lastKey).length },
   };
 }
+
+/** Money page words by trade kind. Electricians do visits (safety check, fixes), never installs (Jo, 28 Oct 2026). */
+export function moneyWords(kind: "installer" | "electrician"): { emptyTitle: string; emptyBody: string; count: (n: number) => string } {
+  if (kind === "electrician") return { emptyTitle: "No completed visits yet.", emptyBody: "Your pay for each safety check and fixes visit shows here once the visit is done.", count: (n) => `${n} visit${n === 1 ? "" : "s"}` };
+  return { emptyTitle: "No completed jobs yet.", emptyBody: "Your pay for each install appears here once the install is done.", count: (n) => `${n} install${n === 1 ? "" : "s"}` };
+}
 /** "Home Insulation Victoria lead · Install 27 Oct" */
 export function moneyRowSub(f: { channel: string | null; doneAt: string | null }): string {
   return [sourceLabel(f.channel), f.doneAt ? `Install ${shortDate(f.doneAt)}` : null].filter(Boolean).join(" · ");
