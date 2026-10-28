@@ -1,8 +1,8 @@
 // Jo 28 Oct 2026 (spec rule 3): electrician staff can still add "Other" fix items with a description, but never see or
 // enter a price. The electrician business owner, or the office, sets the price. "Owner" = admin of the electrician
 // business on THIS job (crew-no-price.server `ownsJobBusiness`). A staff item is saved with no price and
-// `needs_office_pricing`, so it waits in the existing flow (office To do + price form; completeAssessment and the fixes
-// quote send already refuse while an item needs pricing).
+// `needs_office_pricing`, so it waits in the existing flow (office To do + price form). Staff can still complete the
+// PIESA; the fixes quote send refuses while an item needs pricing (Task 8).
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError } from "./workflow.server";
 

@@ -46,8 +46,8 @@ export async function completePiesaAssessment(data: CompletePiesaInput, userId: 
     .filter((e) => a.piesa_outcome === "pass" && e.category === "piesa_signoff")
     .filter((e) => !["uploaded", "verified"].includes(e.status)).map((e) => e.label);
   if (evMissing.length) throw new WorkflowError(`Upload evidence first: ${evMissing.join(", ")}`);
-  const { data: unpriced } = await admin.from("rectification_items").select("description").eq("job_id", data.jobId).eq("status", "required").eq("needs_office_pricing", true);
-  if (unpriced?.length) throw new WorkflowError(`Home Insulation Victoria must price these items first: ${unpriced.map((u) => u.description).join(", ")}`);
+  // Jo 28 Oct 2026 (spec rule 3): an item still waiting for a price does NOT block completion — staff can finish the PIESA
+  // on site. The fixes quote is never sent while any item is unpriced (fixes-quote-release.server `fixesQuoteSendBlocker`).
   // Same-day rule: the PIESA submission must carry the rectification decision – priced items, or an explicit "none required".
   const { count: rectCount } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", data.jobId).eq("status", "required");
   // A live A3 that says repair work is needed carries the electrician's own priced repair list (decisions 305/324):

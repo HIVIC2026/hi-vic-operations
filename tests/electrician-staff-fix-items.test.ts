@@ -1,7 +1,8 @@
 // Jo 28 Oct 2026 (spec rule 3, Task 7): electrician staff can still add "Other" fix items with a description, but never
 // see or enter a price. The electrician business owner, or the office, sets the price. "Owner" = admin of the
 // electrician business on THIS job (crew-no-price.server `ownsJobBusiness`). A staff item with no price waits in the
-// existing `needs_office_pricing` flow (office To do + PriceItemForm, completeAssessment and fixes-quote send blocked).
+// existing `needs_office_pricing` flow (office To do + PriceItemForm, fixes-quote send blocked; since Task 8 staff can
+// still complete the PIESA — tests/electrician-staff-complete-unpriced.test.ts).
 // Real server-function handlers (TanStack wrapper stubbed, zod validator kept) over an in-memory PostgREST.
 // Run on its own (bun shares mock.module across files in one process): bun test tests/electrician-staff-fix-items.test.ts
 import { describe, expect, mock, test } from "bun:test";
@@ -362,8 +363,8 @@ describe("the insulation quote send never releases a fixes quote", () => {
 });
 
 describe("the existing needs_office_pricing flow holds a staff item (no new blocks)", () => {
-  test("completeAssessment, office review and the fixes-quote send already refuse while an item needs pricing; office To do lists it", () => {
-    expect(readFileSync("src/lib/piesa-complete.server.ts", "utf8")).toContain('.eq("needs_office_pricing", true);');
+  test("office review and the fixes-quote send refuse while an item needs pricing (completeAssessment no longer does, Task 8); office To do lists it", () => {
+    expect(readFileSync("src/lib/piesa-complete.server.ts", "utf8")).not.toContain('.eq("needs_office_pricing", true);');
     expect(readFileSync("src/lib/fixes-quote-release.server.ts", "utf8")).toContain('.eq("needs_office_pricing", true);');
     expect(readFileSync("src/lib/allocation.functions.ts", "utf8")).toContain('Some electrical fixes items still need office pricing.');
     expect(readFileSync("src/lib/todo.server.ts", "utf8")).toContain('.eq("needs_office_pricing", true)');
