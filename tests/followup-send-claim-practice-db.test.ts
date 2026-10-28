@@ -89,3 +89,21 @@ test("rollback before use restores the previous definition exactly and drops the
   await expect(ins(db, null, NO_JOB_FOLLOWUP_CLAIM_EVENT, claim("m1", 0))).rejects.toThrow(/workflow_events_job_required/);
   await db.close();
 });
+
+const DRAFT_FAILED = "email_nojob_ai_draft_failed";
+
+test("before the migration the job-less AI-draft failure row is refused; after, it is allowed", async () => {
+  const db = await fixture();
+  await expect(ins(db, null, DRAFT_FAILED, { message_id: "m1" })).rejects.toThrow(/workflow_events_job_required/);
+  await db.exec(read("followup-send-claim.sql"));
+  await ins(db, null, DRAFT_FAILED, { message_id: "m1" });
+  await db.close();
+});
+
+test("rollback refuses while a job-less AI-draft failure row exists", async () => {
+  const db = await fixture();
+  await db.exec(read("followup-send-claim.sql"));
+  await ins(db, null, DRAFT_FAILED, { message_id: "m1" });
+  await expect(db.exec(read("followup-send-claim.rollback.sql"))).rejects.toThrow(/keep followup-send-claim/);
+  await db.close();
+});
