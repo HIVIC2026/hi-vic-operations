@@ -68,64 +68,64 @@ beforeEach(() => {
   sent.length = 0; calls.length = 0; isAdmin = false; memberRole = null;
   tables = {
     partner_workers: [
-      { id: "w-lead", email: null, mobile: null, full_legal_name: "Lee Lead", trade_role: "installer", worker_role: "lead", approval_status: "approved", removed_at: null, profile_id: null, business_id: "b1" },
-      { id: "w-crew", email: null, mobile: "0412000111", full_legal_name: "Cam Crew", trade_role: "installer", worker_role: null, approval_status: "approved", removed_at: null, profile_id: null, business_id: "b1" },
+      { id: "00000000-0000-4000-8000-0000000000a1", email: null, mobile: null, full_legal_name: "Lee Lead", trade_role: "installer", worker_role: "lead", approval_status: "approved", removed_at: null, profile_id: null, business_id: "b1" },
+      { id: "00000000-0000-4000-8000-0000000000a2", email: null, mobile: "0412000111", full_legal_name: "Cam Crew", trade_role: "installer", worker_role: null, approval_status: "approved", removed_at: null, profile_id: null, business_id: "b1" },
     ],
     businesses: [{ id: "b1", name: "Real Insulation", email: "Office@RealInsul.com.au", onboarding_notes: null }, { id: "bt", name: "TEST Insulation", email: "test@hivic.test", onboarding_notes: "[TEST PARTNER]" }],
     profiles: [], admin_config_events: [], workflow_events: [],
-    partner_worker_certifications: [cert("w-lead"), cert("w-crew")],
-    worker_certification_levels: [{ certification_id: "c-w-lead", level: "full", expires_on: "2099-01-01" }, { certification_id: "c-w-crew", level: "full", expires_on: "2099-01-01" }],
+    partner_worker_certifications: [cert("00000000-0000-4000-8000-0000000000a1"), cert("00000000-0000-4000-8000-0000000000a2")],
+    worker_certification_levels: [{ certification_id: "c-00000000-0000-4000-8000-0000000000a1", level: "full", expires_on: "2099-01-01" }, { certification_id: "c-00000000-0000-4000-8000-0000000000a2", level: "full", expires_on: "2099-01-01" }],
   };
 });
 
 describe("Mitti: Leads only, business email for a Lead with no email", () => {
   test("a Lead with no email is searched / recorded with the business's own email", async () => {
-    const r = await inv.onPartnerPersonApproved("w-lead", "office", { switches: SW, call });
+    const r = await inv.onPartnerPersonApproved("00000000-0000-4000-8000-0000000000a1", "office", { switches: SW, call });
     expect(r.action).toBe("record_needed");
     expect(calls).toEqual(["POST /users/search office@realinsul.com.au"]);
     expect(events().map((e) => [e["event_type"], (e["details"] as Row)["email"], (e["details"] as Row)["email_source"]])).toEqual([["mitti_invite_needed", "office@realinsul.com.au", "business"]]);
   });
   test("a null-role person with no Mitti access is Crew: never searched or invited", async () => {
-    const r = await inv.onPartnerPersonApproved("w-crew", "office", { switches: SW, call });
+    const r = await inv.onPartnerPersonApproved("00000000-0000-4000-8000-0000000000a2", "office", { switches: SW, call });
     expect(r).toEqual({ action: "skip", reason: "Crew — only Lead installers get Mitti access." });
     expect(calls).toEqual([]); expect(events()).toEqual([]);
   });
   test("a null-role person who already has Mitti access counts as Lead", async () => {
-    tables["admin_config_events"]!.push({ event_type: "mitti_user_linked", details: { worker_id: "w-crew", email: "office@realinsul.com.au", mitti_user_id: "u9" } });
-    expect((await inv.workerRolesFor(tables["partner_workers"] as never)).get("w-crew")).toBe("lead");
+    tables["admin_config_events"]!.push({ event_type: "mitti_user_linked", details: { worker_id: "00000000-0000-4000-8000-0000000000a2", email: "office@realinsul.com.au", mitti_user_id: "u9" } });
+    expect((await inv.workerRolesFor(tables["partner_workers"] as never)).get("00000000-0000-4000-8000-0000000000a2")).toBe("lead");
   });
 });
 
 describe("Lead / Crew switch", () => {
   test("staff (not business_admin) cannot switch; business_admin can, one admin_config_events row with from → to", async () => {
     memberRole = "staff";
-    await expect(setWorkerRole({ data: { id: "w-crew", role: "lead" } })).rejects.toThrow(/business admin/);
+    await expect(setWorkerRole({ data: { id: "00000000-0000-4000-8000-0000000000a2", role: "lead" } })).rejects.toThrow(/business admin/);
     memberRole = "business_admin";
-    expect(await setWorkerRole({ data: { id: "w-crew", role: "lead" } })).toMatchObject({ changed: true, role: "lead" });
-    expect(tables["partner_workers"]!.find((w) => w["id"] === "w-crew")!["worker_role"]).toBe("lead");
+    expect(await setWorkerRole({ data: { id: "00000000-0000-4000-8000-0000000000a2", role: "lead" } })).toMatchObject({ changed: true, role: "lead" });
+    expect(tables["partner_workers"]!.find((w) => w["id"] === "00000000-0000-4000-8000-0000000000a2")!["worker_role"]).toBe("lead");
     const ev = events().filter((e) => e["event_type"] === "worker_role_changed");
     expect(ev).toHaveLength(1);
-    expect(ev[0]).toMatchObject({ actor_id: "u-boss", summary: "Cam Crew: Crew → Lead", details: { worker_id: "w-crew", from: "crew", to: "lead" } });
+    expect(ev[0]).toMatchObject({ actor_id: "u-boss", summary: "Cam Crew: Crew → Lead", details: { worker_id: "00000000-0000-4000-8000-0000000000a2", from: "crew", to: "lead" } });
   });
   test("HIV admin can switch; switching to the same role records nothing", async () => {
     isAdmin = true;
-    expect(await setWorkerRole({ data: { id: "w-lead", role: "lead" } })).toMatchObject({ changed: false });
+    expect(await setWorkerRole({ data: { id: "00000000-0000-4000-8000-0000000000a1", role: "lead" } })).toMatchObject({ changed: false });
     expect(events()).toEqual([]);
   });
   test("electricians have no Lead/Crew", async () => {
     isAdmin = true;
-    tables["partner_workers"]!.push({ id: "w-e", trade_role: "electrician", business_id: "b1", full_legal_name: "E", removed_at: null });
-    await expect(setWorkerRole({ data: { id: "w-e", role: "lead" } })).rejects.toThrow(/installers only/);
+    tables["partner_workers"]!.push({ id: "00000000-0000-4000-8000-0000000000a4", trade_role: "electrician", business_id: "b1", full_legal_name: "E", removed_at: null });
+    await expect(setWorkerRole({ data: { id: "00000000-0000-4000-8000-0000000000a4", role: "lead" } })).rejects.toThrow(/installers only/);
   });
   test("Lead → Crew deactivates the Mitti user (same record as removal) unless another active Lead uses that email", async () => {
-    tables["admin_config_events"]!.push({ event_type: "mitti_user_invited", details: { worker_id: "w-lead", email: "office@realinsul.com.au", mitti_user_id: "u1" } });
-    tables["partner_workers"]!.push({ id: "w-lead2", email: null, trade_role: "installer", worker_role: "lead", approval_status: "approved", removed_at: null, business_id: "b1" });
-    expect((await inv.onPartnerPersonDemoted("w-lead", "office", { switches: LIVE, call })).action).toBe("skip"); // w-lead2 still a Lead on the business email
+    tables["admin_config_events"]!.push({ event_type: "mitti_user_invited", details: { worker_id: "00000000-0000-4000-8000-0000000000a1", email: "office@realinsul.com.au", mitti_user_id: "u1" } });
+    tables["partner_workers"]!.push({ id: "00000000-0000-4000-8000-0000000000a3", email: null, trade_role: "installer", worker_role: "lead", approval_status: "approved", removed_at: null, business_id: "b1" });
+    expect((await inv.onPartnerPersonDemoted("00000000-0000-4000-8000-0000000000a1", "office", { switches: LIVE, call })).action).toBe("skip"); // w-lead2 still a Lead on the business email
     expect(calls).toEqual([]);
-    tables["partner_workers"]!.find((w) => w["id"] === "w-lead2")!["worker_role"] = "crew";
-    expect((await inv.onPartnerPersonDemoted("w-lead", "office", { switches: LIVE, call })).action).toBe("deactivate");
+    tables["partner_workers"]!.find((w) => w["id"] === "00000000-0000-4000-8000-0000000000a3")!["worker_role"] = "crew";
+    expect((await inv.onPartnerPersonDemoted("00000000-0000-4000-8000-0000000000a1", "office", { switches: LIVE, call })).action).toBe("deactivate");
     expect(calls).toEqual(["PUT /users/u1"]);
-    expect(events().at(-1)).toMatchObject({ event_type: "mitti_user_deactivated", details: { worker_id: "w-lead", mitti_user_id: "u1", reason_kind: "switched_to_crew" } });
+    expect(events().at(-1)).toMatchObject({ event_type: "mitti_user_deactivated", details: { worker_id: "00000000-0000-4000-8000-0000000000a1", mitti_user_id: "u1", reason_kind: "switched_to_crew" } });
   });
 });
 

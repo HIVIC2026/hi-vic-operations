@@ -53,8 +53,8 @@ export function roleSwitchMittiAction(from: WorkerRole, to: WorkerRole): "invite
 /** Who may change it: HIV admins and the business's own business_admin. */
 export const canChangeWorkerRole = (p: { isAdmin: boolean; memberRole: string | null | undefined }) => p.isAdmin || p.memberRole === "business_admin";
 
-/** Lead → Crew keeps the Mitti user when the same Mitti email still belongs to another active Lead. Null roles of
- *  others count as Lead here (fails towards keeping someone's access, never towards removing it). */
+/** Lead → Crew keeps the Mitti user when the same Mitti email still belongs to another active Lead. `workerRole` is the
+ *  role that applies today (effectiveWorkerRole); an unknown (null) role counts as Lead, keeping access rather than removing it. */
 export function emailStillUsedByAnotherLead(selfId: string, email: string | null, others: { id: string; mittiEmail: string | null; tradeRole: string; workerRole: string | null; removedAt: string | null; approvalStatus: string }[]): boolean {
   if (!email) return false;
   return others.some((o) => o.id !== selfId && !o.removedAt && o.approvalStatus === "approved" && o.tradeRole === "installer" && o.workerRole !== "crew" && sameWorkerEmail(o.mittiEmail, email));

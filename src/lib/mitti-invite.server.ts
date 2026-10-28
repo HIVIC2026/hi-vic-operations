@@ -268,14 +268,16 @@ export async function onPartnerPersonDemoted(workerId: string, actorId: string |
   let stillUsed = false;
   if (email) {
     const [{ data: sameEmail, error: e1 }, { data: sameBiz, error: e2 }] = await Promise.all([
-      admin.from("partner_workers").select("id, email, trade_role, worker_role, approval_status, removed_at, business_id").ilike("email", email),
-      admin.from("partner_workers").select("id, email, trade_role, worker_role, approval_status, removed_at, business_id").eq("business_id", w.business_id),
+      admin.from("partner_workers").select("id, email, trade_role, worker_role, approval_status, removed_at, business_id, profile_id").ilike("email", email),
+      admin.from("partner_workers").select("id, email, trade_role, worker_role, approval_status, removed_at, business_id, profile_id").eq("business_id", w.business_id),
     ]);
     if (e1 || e2) throw new WorkflowError("Other active Leads could not be checked — Mitti access was not removed.");
     const bizEmail = workerEmailKey((b as { email?: string | null } | null)?.email);
     const rows = new Map<string, Record<string, unknown>>();
     for (const r of [...(sameEmail ?? []), ...(sameBiz ?? [])] as Record<string, unknown>[]) rows.set(r["id"] as string, r);
-    const others = [...rows.values()].map((r) => ({ id: r["id"] as string, tradeRole: r["trade_role"] as string, workerRole: (r["worker_role"] as string | null) ?? null, removedAt: (r["removed_at"] as string | null) ?? null, approvalStatus: r["approval_status"] as string,
+    // Others' roles as they apply today (a null role is Lead only when that person already has Mitti access).
+    const roles = await workerRolesFor([...rows.values()].filter((r) => r["id"] !== w.id) as never);
+    const others = [...rows.values()].map((r) => ({ id: r["id"] as string, tradeRole: r["trade_role"] as string, workerRole: roles.get(r["id"] as string) ?? null, removedAt: (r["removed_at"] as string | null) ?? null, approvalStatus: r["approval_status"] as string,
       mittiEmail: workerEmailKey(r["email"] as string | null) || (r["business_id"] === w.business_id ? bizEmail || null : null) }));
     stillUsed = emailStillUsedByAnotherLead(w.id, email, others);
   }
