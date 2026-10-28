@@ -35,6 +35,8 @@ export const REPAIR_PRICE_STAGE_REFUSED = "The repair price can only be set afte
 export const REPAIR_PRICE_REBUILD_FAILED = "The repair price changed but the quote could not be rebuilt. Rebuild the quote before sending.";
 /** Send refused: the draft was built from a different electrician price than the one now on the job. */
 export const REPAIR_PRICE_STALE = "The electrician's repair price has changed since this quote was built. Rebuild the quote, then send it.";
+/** Send refused: an extra item was priced, changed or removed since the draft was built (Jo 28 Oct: extras are lines). */
+export const REPAIR_EXTRAS_STALE = "An extra item was priced or changed since this quote was built. Rebuild the quote, then send it.";
 export const REPAIR_PRICE_NO_WORK = "The safety check form doesn't list any repair work.";
 
 /** Stages where the owner or office may set the repair total: from the safety check until the repair quote goes out. */

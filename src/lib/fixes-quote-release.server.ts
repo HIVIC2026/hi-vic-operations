@@ -34,14 +34,21 @@ async function stalePriceBlocker(q: { id: string; job_id: string }): Promise<str
     admin.from("quote_internals").select("calc_snapshot").eq("quote_id", q.id).maybeSingle(),
   ]);
   if (re || ie) throw new Error(`Could not check the electrical fixes quote's price: ${(re ?? ie)!.message}`);
-  const { REPAIR_PRICE_REBUILD_FAILED, REPAIR_PRICE_STALE } = await import("./electrician-repair-price.core");
+  const { REPAIR_PRICE_REBUILD_FAILED, REPAIR_PRICE_STALE, REPAIR_EXTRAS_STALE } = await import("./electrician-repair-price.core");
   if (row?.release_hold_reason === REPAIR_PRICE_REBUILD_FAILED) return REPAIR_PRICE_REBUILD_FAILED;
-  const snap = (internals?.calc_snapshot ?? null) as { pricing_source?: string; electrician_price_inc_gst?: number } | null;
-  const { A4_FIXES_PRICING_SOURCE } = await import("./fixes-price.core");
-  const built = snap?.pricing_source === A4_FIXES_PRICING_SOURCE && Number.isFinite(Number(snap.electrician_price_inc_gst)) ? Math.round(Number(snap.electrician_price_inc_gst) * 100) : null;
+  const snap = (internals?.calc_snapshot ?? null) as { pricing_source?: string; electrician_price_inc_gst?: number; extras_inc_gst?: number } | null;
+  const { A4_FIXES_PRICING_SOURCE, pricedFixesExtras } = await import("./fixes-price.core");
+  const a4 = snap?.pricing_source === A4_FIXES_PRICING_SOURCE;
+  const built = a4 && Number.isFinite(Number(snap!.electrician_price_inc_gst)) ? Math.round(Number(snap!.electrician_price_inc_gst) * 100) : null;
   const src = await (await import("./electrician-repair-price.server")).fixesPriceSourceForJob(q.job_id);
   const now = src.path === "a4_price" ? Math.round(src.electricianPriceIncGst * 100) : null;
-  return built === now ? null : REPAIR_PRICE_STALE;
+  if (built !== now) return REPAIR_PRICE_STALE;
+  if (!a4) return null;
+  // Jo 28 Oct 2026: priced extras are lines on this quote — one priced after the draft was built (and not rebuilt) is stale.
+  const { data: items, error: xe } = await admin.from("rectification_items").select("rate_code, description, quantity, is_other, status, needs_office_pricing, other_unit_price_inc_gst, explanation, source, external_key").eq("job_id", q.job_id).eq("status", "required").eq("is_other", true);
+  if (xe) throw new Error(`Could not check the electrical fixes extra items: ${xe.message}`);
+  const extrasNow = Math.round(pricedFixesExtras(items ?? []).reduce((a, e) => a + e.unitPriceIncGst * e.quantity, 0) * 100);
+  return extrasNow === Math.round(Number(snap!.extras_inc_gst ?? 0) * 100) ? null : REPAIR_EXTRAS_STALE;
 }
 
 /** Releases one draft fixes quote; throws a WorkflowError with the reason when a check fails or it is no longer a draft. */

@@ -1,7 +1,7 @@
 // CENTRAL QUOTE CALCULATIONS. All customer-facing prices are stored inc GST.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { applyRectificationMargin } from "./rectification-pricing.core";
-import { A4_FIXES_PRICING_SOURCE, buildA4FixesQuote, fixesMarginFor } from "./fixes-price.core";
+import { A4_FIXES_PRICING_SOURCE, buildA4FixesQuote, fixesMarginFor, pricedFixesExtras } from "./fixes-price.core";
 import { WorkflowError, logEvent } from "./workflow.server";
 import { quoteInputsFromMeasurement, type MeasurementLike } from "./scope.core";
 import { lookupLocation } from "./activity48.core";
@@ -196,16 +196,19 @@ async function a4FixesPriceSource(jobId: string) {
 
 /** Decision 305 (Jo 25 Oct 2026): ONE line from the electrician's A3 total + the decision-142 margin; no rate-card lookup.
  *  Same supersede/insert/release shape as the rate-card path below — the quote is still a held draft for office review.
- *  Decision 308: `included` is built from the electrician's ticks (fixes-price.core). Decision 310 (Jo 25 Oct 2026):
- *  office-added rectification_items are NOT added on top of the electrician's total — the A3 price is the whole price. */
+ *  Decision 308: `included` is built from the electrician's ticks (fixes-price.core). Jo 28 Oct 2026 (replaces decision
+ *  310): priced "Other" items added in the portal go on top as extra lines and into the trade cost (`pricedFixesExtras`);
+ *  items from the form never do, so no form tick is priced twice. Unpriced items hold the send (fixesQuoteSendBlocker). */
 async function generateA4FixesQuote(jobId: string, actorId: string | null, businessId: string, source: { electricianPriceIncGst: number; included: string }, settings: Awaited<ReturnType<typeof activePricing>>, margin: number, electricianSource: "installer_usual" | "ours") {
   // quotes.rate_card_id is nullable: keep the electrician's active card for reference when there is one, never required here.
   const { data: cards } = await admin.from("rate_cards").select("id, version").eq("kind", "electrical").eq("is_active", true).eq("business_id", businessId).order("version", { ascending: false }).limit(1);
   const card = cards?.[0] ?? null;
   const gstRate = Number(settings.gst_rate);
-  const built = buildA4FixesQuote({ electricianPriceIncGst: source.electricianPriceIncGst, included: source.included, gstRate, margin });
+  const { data: items, error: ie } = await admin.from("rectification_items").select("rate_code, description, quantity, is_other, status, needs_office_pricing, other_unit_price_inc_gst, explanation, source, external_key, created_at").eq("job_id", jobId).eq("status", "required").eq("is_other", true).order("created_at");
+  if (ie) throw new WorkflowError("The extra electrical fixes items could not be read.");
+  const built = buildA4FixesQuote({ electricianPriceIncGst: source.electricianPriceIncGst, included: source.included, gstRate, margin, extras: pricedFixesExtras(items ?? []) });
   const subtotal = built.subtotalIncGst;
-  const q = await saveFixesQuote(jobId, { option_label: "electrical fixes", rate_card_id: card?.id ?? null, pricing_settings_id: settings.id, subtotal_inc_gst: subtotal, gst_amount: r2(subtotal - subtotal / (1 + gstRate)), veec_discount_inc_gst: 0, customer_total_inc_gst: subtotal, created_by: actorId }, built.lines, { cost_ex_gst: built.costExGst, calc_snapshot: { pricing_source: A4_FIXES_PRICING_SOURCE, electrician_price_inc_gst: built.electricianPriceIncGst, rectification_margin_inc_gst: built.marginIncGst, electrician_source: electricianSource, rate_card_version: card?.version ?? null } });
+  const q = await saveFixesQuote(jobId, { option_label: "electrical fixes", rate_card_id: card?.id ?? null, pricing_settings_id: settings.id, subtotal_inc_gst: subtotal, gst_amount: r2(subtotal - subtotal / (1 + gstRate)), veec_discount_inc_gst: 0, customer_total_inc_gst: subtotal, created_by: actorId }, built.lines, { cost_ex_gst: built.costExGst, calc_snapshot: { pricing_source: A4_FIXES_PRICING_SOURCE, electrician_price_inc_gst: built.electricianPriceIncGst, extras_inc_gst: built.extrasIncGst, rectification_margin_inc_gst: built.marginIncGst, electrician_source: electricianSource, rate_card_version: card?.version ?? null } });
   if (q.already) return q.id;
   const { data: workflow } = await admin.from("workflow_settings").select("auto_send_quote, customer_comms_enabled").eq("id", 1).maybeSingle();
   const release = rectificationQuoteDecision({

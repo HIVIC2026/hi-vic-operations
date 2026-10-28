@@ -10,7 +10,10 @@
  * Decisions 313/349/351 (Jo 25 Oct 2026): the margin follows WHOSE electrician, not the lead route — the installer's own
  * (usual / nominated) electrician is passed through on A1; our electrician gets the $100 — always on our leads since
  * decision 374 (we always choose the electrician there) (`fixesMarginFor`).
- * Decision 310 (Jo 25 Oct 2026): office-added fixes items are NOT added on top of the electrician's A3 total.
+ * Decision 310 (Jo 25 Oct 2026) is replaced (Jo 28 Oct 2026): "Other" items staff add in the portal, once priced by the
+ * electrician business owner or the office, go on the quote as EXTRA lines on top of the repair total, and the
+ * electrician is paid for them (they are in the trade cost). Items that came from the Mitti form are never added (the
+ * repair total covers the form), so no form tick is priced twice. Unpriced extras block the send (fixesQuoteSendBlocker).
  * Decision 354: when the A3 is complete and every existing check passes, the fixes quote goes to the owner automatically
  * (auto-fixes-quote-send.{core,server}.ts); otherwise it stays a held draft on Needs me with the reason.
  */
@@ -123,17 +126,42 @@ export type A4FixesQuote = {
   lines: RectificationLine[];
   subtotalIncGst: number;
   electricianPriceIncGst: number;
-  /** Trade cost for quote_internals: the electrician's price ex GST (no margin). */
+  /** Jo 28 Oct 2026: the priced extra items on top of the repair total (inc GST, electrician's price, no margin). */
+  extrasIncGst: number;
+  /** Trade cost for quote_internals: the electrician's price + the extras, ex GST (no margin). */
   costExGst: number;
   marginIncGst: number;
 };
 
-/** ONE line from the electrician's total, then the decision-142 owner margin on top (electrician price + margin). */
-export function buildA4FixesQuote(input: { electricianPriceIncGst: number; included: string; gstRate: number; margin?: number }): A4FixesQuote {
+/** One priced extra item (an "Other" item added in the portal and priced by the electrician business owner or the office). */
+export type FixesExtra = { code: string | null; description: string; quantity: number; unitPriceIncGst: number; explanation: string | null };
+type ExtraItemRow = { rate_code?: string | null; description?: string | null; quantity?: number | string | null; is_other?: boolean | null; status?: string | null; needs_office_pricing?: boolean | null; other_unit_price_inc_gst?: number | string | null; explanation?: string | null; source?: string | null; external_key?: string | null };
+
+/** Jo 28 Oct 2026: the rectification items that become extra lines on the electrician-priced fixes quote — required
+ *  "Other" items added in the portal with a price above $0. Items from the Mitti form (source "mitti" / an external key)
+ *  are covered by the repair total and never added (no form tick priced twice); unpriced items are not lines (they hold
+ *  the send instead). */
+export function pricedFixesExtras(items: ExtraItemRow[]): FixesExtra[] {
+  return items.flatMap((it) => {
+    if (it.is_other !== true || (it.status != null && it.status !== "required") || it.needs_office_pricing === true) return [];
+    if (it.source === "mitti" || (it.external_key != null && String(it.external_key).trim() !== "")) return [];
+    const unit = Number(it.other_unit_price_inc_gst), qty = Number(it.quantity ?? 1);
+    if (it.other_unit_price_inc_gst == null || !Number.isFinite(unit) || unit <= 0 || !Number.isFinite(qty) || qty <= 0) return [];
+    return [{ code: it.rate_code ?? null, description: String(it.description ?? "").trim(), quantity: qty, unitPriceIncGst: r2(unit), explanation: it.explanation ?? null }];
+  });
+}
+
+/** ONE line from the electrician's total, then the decision-142 owner margin on top (electrician price + margin). Jo 28
+ *  Oct 2026: priced extras follow as their own lines at their own price (the margin stays the flat amount on the repair
+ *  line) and are in the trade cost, so the electrician is paid for them. */
+export function buildA4FixesQuote(input: { electricianPriceIncGst: number; included: string; gstRate: number; margin?: number; extras?: FixesExtra[] }): A4FixesQuote {
   const margin = input.margin ?? RECTIFICATION_MARGIN_INC_GST;
   const price = r2(input.electricianPriceIncGst);
   const base: RectificationLine = { code: null, description: A4_FIXES_LINE_DESCRIPTION, quantity: 1, unit: "flat", unit_price_inc_gst: price, line_total_inc_gst: price, is_other: false, explanation: input.included.trim(), sort: 0 };
-  const lines = margin > 0 ? applyRectificationMargin([base], margin) : [base];
+  const repair = margin > 0 ? applyRectificationMargin([base], margin) : [base];
+  const extras: RectificationLine[] = (input.extras ?? []).map((e, i) => ({ code: e.code, description: e.description, quantity: e.quantity, unit: "each", unit_price_inc_gst: e.unitPriceIncGst, line_total_inc_gst: r2(e.unitPriceIncGst * e.quantity), is_other: true, explanation: e.explanation, sort: repair.length + i }));
+  const lines = [...repair, ...extras];
+  const extrasIncGst = r2(extras.reduce((a, l) => a + l.line_total_inc_gst, 0));
   const subtotal = r2(lines.reduce((a, l) => a + l.line_total_inc_gst, 0));
-  return { lines, subtotalIncGst: subtotal, electricianPriceIncGst: price, costExGst: r2(price / (1 + input.gstRate)), marginIncGst: margin };
+  return { lines, subtotalIncGst: subtotal, electricianPriceIncGst: price, extrasIncGst, costExGst: r2((price + extrasIncGst) / (1 + input.gstRate)), marginIncGst: margin };
 }

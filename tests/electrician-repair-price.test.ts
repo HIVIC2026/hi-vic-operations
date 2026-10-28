@@ -525,6 +525,28 @@ describe("a draft built from an earlier price is never sent over a newer one", a
     }
   });
 
+  test("Jo 28 Oct: an extra item priced after the draft was built → refused until rebuilt with it; form items don't count", async () => {
+    T = tables();
+    T["workflow_events"]!.push({ id: "p1", job_id: JOB, event_type: "electrician_repair_price_set", details: { price_inc_gst: 1800, audit_id: AUDIT }, created_at: "2026-10-28T00:00:00Z" });
+    draft(1800, { office_reviewed_at: "2026-10-28T01:00:00Z" });
+    T["rectification_items"] = [{ id: "form-item", job_id: JOB, description: "From the form", quantity: 1, is_other: true, other_unit_price_inc_gst: 300, needs_office_pricing: false, status: "required", explanation: "Mitti", rate_code: null, source: "mitti", external_key: "mitti:a3:1", created_at: "2026-10-28T00:00:00Z" }];
+    expect(await blocker("office")).toBeNull();
+    T["rectification_items"]!.push({ id: ITEM, job_id: JOB, description: "Extra power point", quantity: 1, is_other: true, other_unit_price_inc_gst: 120, needs_office_pricing: false, status: "required", explanation: "Staff added", rate_code: null, source: null, external_key: null, created_at: "2026-10-28T00:00:00Z" });
+    const { REPAIR_EXTRAS_STALE } = await import("../src/lib/electrician-repair-price.core");
+    expect(await blocker("office")).toBe(REPAIR_EXTRAS_STALE);
+    expect(await blocker("auto")).toBe(REPAIR_EXTRAS_STALE);
+    T["quote_internals"]![0]!["calc_snapshot"] = { pricing_source: A4, electrician_price_inc_gst: 1800, extras_inc_gst: 120 };
+    expect(await blocker("office")).toBeNull();
+  });
+
+  test("Jo 28 Oct: an unpriced extra still blocks the send", async () => {
+    T = tables();
+    T["workflow_events"]!.push({ id: "p1", job_id: JOB, event_type: "electrician_repair_price_set", details: { price_inc_gst: 1800, audit_id: AUDIT }, created_at: "2026-10-28T00:00:00Z" });
+    draft(1800, { office_reviewed_at: "2026-10-28T01:00:00Z" });
+    T["rectification_items"] = [{ id: ITEM, job_id: JOB, description: "Extra power point", quantity: 1, is_other: true, other_unit_price_inc_gst: null, needs_office_pricing: true, status: "required", explanation: "Staff added", rate_code: null, source: null, external_key: null, created_at: "2026-10-28T00:00:00Z" }];
+    for (const how of ["office", "auto"] as const) expect(await blocker(how)).not.toBeNull();
+  });
+
   test("a pre-completion held draft is rebuilt when an item is priced too", async () => {
     T = tables({ stage: "piesa_scheduled" }); rebuilt.length = 0;
     T["rectification_items"] = [{ id: ITEM, job_id: JOB, description: "Move a downlight", quantity: 1, is_other: true, other_unit_price_inc_gst: null, needs_office_pricing: true, status: "required", explanation: "Too close", rate_code: null, added_by: STAFF, created_at: "2026-10-28T00:00:00Z" }];
