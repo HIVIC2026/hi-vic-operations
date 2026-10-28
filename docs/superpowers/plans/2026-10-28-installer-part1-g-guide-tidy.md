@@ -18,6 +18,7 @@
 - G5 changes nothing people see: existing tests pass unchanged (except dropping imports of removed exports) and a source-reading test proves the removed exports are gone.
 - Checked findings (no work needed): `notice.$token.tsx` shows only the person's own name, never "(lead installer)"; `navyCard`, `inputCls`, `TradePublicShell` and the `test` / `redesign` shell options are all in use (keep); `greenBtn`/`navyBtn` in `business-pages.tsx` differ from `TradeShell`'s `greenBtn`/`ghostBtn` (padding, gap) so merging would change the look — left as is.
 - `/field/practice/$jobId/$auditId` stays: `src/lib/mitti-link.functions.ts` returns it for simulated (`sim_`) Ready Check forms, `scripts/journey-screens.ts` drives it, and `tests/mitti-practice*.test.ts` cover it.
+- Line numbers cited in this plan are hints from 28 Oct; earlier tasks and plans shift them. Find every edit point by its text (preflight ruling 15).
 
 ## Review Focus
 

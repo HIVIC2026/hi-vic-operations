@@ -176,7 +176,7 @@ test("C7: plain staff-links label", () => {
 
 **Interfaces:**
 - Consumes: `contactVisible(myBookings: { status: string }[]): boolean` (trade-view.core).
-- Produces: `tradeJobStatus(...)` now also returns `ownerContactVisible: boolean`, computed as `contactVisible(own business's bookings on this job)` (`bookings.select("status").eq("job_id").eq("business_id", c.biz.id)`). Also `export function useTradeJobStatus(jobId: string)` in job-status.tsx, with the same query key `["trade-job-status", jobId]`.
+- Produces: `tradeJobStatus(...)` now also returns `ownerContactVisible: boolean`, computed as `contactVisible(own business's bookings on this job)` (`bookings.select("status").eq("job_id").eq("business_id", c.biz.id)`). Also `export function useTradeJobStatus(jobId: string, enabled?: boolean)` (default `true`) in job-status.tsx, with the same query key `["trade-job-status", jobId]`.
 
 - [ ] **Step 1: Failing test:**
 
@@ -302,7 +302,7 @@ describe("C4 (Jo 28 Oct 2026): PIESA result comes from Mitti only", () => {
 - Test: `tests/installer-part1-job-page.test.ts`
 
 **Interfaces (Produces):**
-- `installer-price.core.ts`: `export function hivSwitchOffered(f: { quoteHeldNotOnboarded: boolean; choice: "hivic" | "usual" | "different" }): boolean` returns `held && choice !== "hivic"`. Also `export const HIV_SWITCH = { button: (priceIncGst: number) => \`Use Home Insulation Victoria's electrician ($${priceIncGst})\`, confirm: "Switch this job to Home Insulation Victoria's electrician? You can't switch back.", yes: "Yes, switch", refused: "This job can't be switched to Home Insulation Victoria's electrician." } as const;`
+- `installer-price.core.ts`: `export function hivSwitchOffered(f: { quoteHeldNotOnboarded: boolean; choice: ElectricianChoice }): boolean` (`ElectricianChoice` from `electrician-choice.core.ts`, `"hivic" | "usual"`) returns `held && choice !== "hivic"`. Also `export const HIV_SWITCH = { button: (priceIncGst: number) => \`Use Home Insulation Victoria's electrician ($${priceIncGst})\`, confirm: "Switch this job to Home Insulation Victoria's electrician? You can't switch back.", yes: "Yes, switch", refused: "This job can't be switched to Home Insulation Victoria's electrician." } as const;`
 - `electrician-choice.core.ts`: `ElectricianChoiceRecord["source"]` adds `"installer_switch"`.
 - `installer-price-set.server.ts`: `installerPriceView` also returns `hivSwitch: { priceIncGst: number } | null`. It is non-null only when `hivSwitchOffered({ quoteHeldNotOnboarded: (await loadInstallerQuote(jobId)).electricianNotOnboarded === true, choice })`. The price comes from current `retail_estimator_settings.piesa_assessment_inc_gst`, else 349. Add `export async function switchToHivElectrician(jobId: string, userId: string): Promise<{ ok: true }>`: `a1JobOrThrow` → `requireMember(userId, biz, true)` → re-check `hivSwitchOffered` (else `WorkflowError(HIV_SWITCH.refused)`) → `recordElectricianChoice(jobId, biz, userId, "hivic", "installer_switch")` → `prepareQuoteFromPortal(jobId, userId)`. `prepareQuoteFromPortal` is the sync + draft + auto-send try-block moved verbatim out of `setInstallerPrice`, which now calls it.
 - `installer-price.functions.ts`: `export const switchToHivElectricianFn` (POST, `{ jobId: uuid }`).
