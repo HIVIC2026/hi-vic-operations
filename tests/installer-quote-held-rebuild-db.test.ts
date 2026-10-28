@@ -427,3 +427,81 @@ describe("not-onboarded electrician on an existing job (rule 3)", () => {
     expect(s.line).not.toBe(NOTE);
   });
 });
+
+// Jo 28 Oct 2026 (final review Imp 5): an office hand-edit is kept until something real changes — the installer's
+// price or the Mitti form. The 15-minute check does not undo it when nothing has changed; when it IS replaced the office
+// gets the one alert. A withdrawn edited draft (electrician not onboarded) gets the same alert.
+describe("office hand-edit kept unless the price or the form changes", () => {
+  const alerts = async () => (await db.query<{ details: { quote_id: string | null; replaced_quote_id: string } }>("select details from workflow_events where job_id=$1 and event_type=$2", [JOB, QUOTE_EDIT_REPLACED_EVENT])).rows;
+  /** The office edits the current draft's installer line (adjustQuote: lines, manually_adjusted, a quote_adjusted event). */
+  const officeEdit = async (qid: string, price: number) => {
+    await db.query("update quote_items set unit_price_inc_gst=$2, line_total_inc_gst=$2 where quote_id=$1 and code='INSTALLER_PRICE'", [qid, price]);
+    await db.query("update quotes set manually_adjusted=true where id=$1", [qid]);
+    await db.query("insert into workflow_events (job_id, event_type, details) values ($1,'quote_adjusted',$2)", [JOB, JSON.stringify({ quote_id: qid })]);
+  };
+  const built = async () => {
+    await setCardPrice(2500);
+    await draftInstallerQuoteFromReadyCheck(JOB, U, form(null), "audit_edit");
+    const [d] = (await quotes()).filter((q) => q.status === "draft");
+    await officeEdit(d!.id, 2400);
+    return d!.id;
+  };
+
+  test("edited draft + nothing changed + tick → kept as edited, no alert, no new quote", async () => {
+    const id = await built();
+    for (let i = 0; i < 3; i++) await draftInstallerQuoteFromReadyCheck(JOB, null, form(null), "audit_edit");
+    const all = await quotes();
+    expect(all).toHaveLength(1);
+    expect(all[0]).toMatchObject({ id, status: "draft" });
+    expect(await installerLine(id)).toBe(2400);
+    expect(await alerts()).toHaveLength(0);
+  });
+  test("edited draft + new installer price → replaced with the new price + one alert", async () => {
+    const id = await built();
+    await draftInstallerQuoteFromReadyCheck(JOB, null, form(null), "audit_edit");
+    await setCardPrice(2600);
+    await draftInstallerQuoteFromReadyCheck(JOB, null, form(null), "audit_edit");
+    const all = await quotes();
+    expect(all.find((q) => q.id === id)?.status).toBe("superseded");
+    const [d] = all.filter((q) => q.status === "draft");
+    expect(await installerLine(d!.id)).toBe(2600);
+    const a = await alerts();
+    expect(a).toHaveLength(1);
+    expect(a[0]!.details).toMatchObject({ quote_id: d!.id, replaced_quote_id: id });
+  });
+  test("edited draft + Mitti form changed → replaced + one alert", async () => {
+    const id = await built();
+    await draftInstallerQuoteFromReadyCheck(JOB, null, [...form(null), { label: "Ready Check notes", value: "Manhole moved" }], "audit_edit");
+    const all = await quotes();
+    expect(all.find((q) => q.id === id)?.status).toBe("superseded");
+    const [d] = all.filter((q) => q.status === "draft");
+    expect(await installerLine(d!.id)).toBe(2500);
+    expect((await alerts()).map((a) => a.details.replaced_quote_id)).toEqual([id]);
+  });
+  test("a draft made before inputs were recorded: kept when the price was saved before the edit, then replaced on a form change", async () => {
+    await setCardPrice(2500);
+    const old = await oldDraft();
+    await officeEdit(old, 2400);
+    await draftInstallerQuoteFromReadyCheck(JOB, null, form(null), "audit_legacy");
+    expect((await quotes()).find((q) => q.id === old)?.status).toBe("draft");
+    expect(await events("installer_quote_edit_kept")).toHaveLength(1);
+    await draftInstallerQuoteFromReadyCheck(JOB, null, form(null), "audit_legacy");
+    expect(await events("installer_quote_edit_kept")).toHaveLength(1);
+    expect(await alerts()).toHaveLength(0);
+    await draftInstallerQuoteFromReadyCheck(JOB, null, [...form(null), { label: "Ready Check notes", value: "Changed" }], "audit_legacy");
+    expect((await quotes()).find((q) => q.id === old)?.status).toBe("superseded");
+    expect(await alerts()).toHaveLength(1);
+  });
+  test("an edited draft withdrawn because the electrician isn't onboarded → the same one alert", async () => {
+    const id = await built();
+    await notOnboardedElectrician();
+    await draftInstallerQuoteFromReadyCheck(JOB, null, form("Bradford Gold R5"), "audit_3129");
+    expect((await quotes()).find((q) => q.id === id)?.status).toBe("superseded");
+    expect((await quotes()).filter((q) => q.status === "draft")).toEqual([]);
+    const a = await alerts();
+    expect(a).toHaveLength(1);
+    expect(a[0]!.details).toMatchObject({ quote_id: null, replaced_quote_id: id });
+    await draftInstallerQuoteFromReadyCheck(JOB, null, form("Bradford Gold R5"), "audit_3129");
+    expect(await alerts()).toHaveLength(1);
+  });
+});

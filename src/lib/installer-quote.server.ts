@@ -96,6 +96,9 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   // Jo 27 Oct 2026 (HV-3197, "Ignore it"): the price card is the only price — a Mitti difficult-access charge/fee neither
   // shows on the installer line nor holds the quote. Old forms with no price-card entry keep the form's access answers.
   const fromPriceCard = priced.fromPriceCard;
+  // Jo 28 Oct 2026: what this draft is built from (the form's answers with the price merged in, the audit, any intake
+  // price) — an office hand-edit is kept until this changes.
+  const inputsKey = (await import("./quote-edit-replaced.core")).draftInputsKey(auditId, entries, intakePrice ?? null);
   // Fee awareness is an office quote-SEND prerequisite (Jo, 8 Oct 2026): the draft is still prepared, but held.
   const { data: feeConfirmation } = await admin.from("workflow_events").select("id, details").eq("job_id", jobId).eq("event_type", "installer_owner_fee_awareness").order("created_at", { ascending: false }).limit(1).maybeSingle();
   const { data: open } = await admin.from("quotes").select("id, status, subtotal_inc_gst, veec_discount_inc_gst, option_code, discount_note").eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued", "accepted"]);
@@ -176,10 +179,13 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
     // guessed $349) and any open draft is withdrawn, so the installer sees only their own price.
     if (electricianPriceKnown(mittiElectrician, draftInput.piesaIncGst) && heldFiguresBuildable(draft, { measuredM2: m2, wholeVeec })) {
       setPiesaExplanation(draft, mittiElectrician);
-      await writeHeldInstallerDraft({ jobId, actorId, auditId, open: open ?? [], draft, holdReason: heldDraftHoldReason(draft.blockers), intakePrice: !!intakePrice, mittiElectrician });
+      await writeHeldInstallerDraft({ jobId, actorId, auditId, open: open ?? [], draft, holdReason: heldDraftHoldReason(draft.blockers), intakePrice: !!intakePrice, mittiElectrician, inputsKey });
     } else if ((open ?? []).some((q) => q.status === "draft" && q.option_code === INSTALLER_QUOTE_CODE)) {
+      // Jo 28 Oct 2026: a withdrawn office-edited draft gets the same one office alert as a replaced one.
+      const edited = await officeEditedDraftIds(jobId);
       const { error: se } = await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "installation").eq("status", "draft").eq("option_code", INSTALLER_QUOTE_CODE);
       if (se) throw new Error("The old quote could not be withdrawn.");
+      await alertOfficeEditReplaced(jobId, actorId, edited, null);
     }
     return draft;
   }
@@ -195,7 +201,7 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   const holdReason = [rangeReason, ...releaseBlockers, "Waiting for office review before sending"].filter(Boolean).join(" · ");
   void workflow?.auto_send_quote;
   setPiesaExplanation(draft, mittiElectrician);
-  await writeHeldInstallerDraft({ jobId, actorId, auditId, open: open ?? [], draft, holdReason, intakePrice: !!intakePrice, mittiElectrician });
+  await writeHeldInstallerDraft({ jobId, actorId, auditId, open: open ?? [], draft, holdReason, intakePrice: !!intakePrice, mittiElectrician, inputsKey });
   return draft;
 }
 
@@ -234,7 +240,7 @@ function setPiesaExplanation(draft: InstallerDraft, mittiElectrician: MittiElect
 /** The one held-draft write for both the ready and the held paths: identical lines → only the hold reason is refreshed;
  *  otherwise older drafts are superseded and a new held draft is inserted. Never sends anything. */
 async function writeHeldInstallerDraft(p: {
-  jobId: string; actorId: string | null; auditId: string; draft: InstallerDraft; holdReason: string; intakePrice: boolean; mittiElectrician: MittiElectrician;
+  jobId: string; actorId: string | null; auditId: string; draft: InstallerDraft; holdReason: string; intakePrice: boolean; mittiElectrician: MittiElectrician; inputsKey: string;
   open: { id: string; status: string; subtotal_inc_gst: number | string | null; veec_discount_inc_gst: number | string | null; option_code: string | null; discount_note?: string | null }[];
 }) {
   const { jobId, actorId, auditId, draft, holdReason, mittiElectrician } = p;
@@ -257,10 +263,10 @@ async function writeHeldInstallerDraft(p: {
     }
     return;
   }
-  // Jo 28 Oct 2026: note which drafts the office edited before they are replaced (`*` so the read never names a column).
-  const { data: replacing, error: re } = await admin.from("quotes").select("*").eq("job_id", jobId).eq("kind", "installation").eq("status", "draft");
-  if (re) throw new Error("Could not check the quote being replaced.");
-  const edited = (replacing ?? []).filter((q) => (q as { manually_adjusted?: boolean | null }).manually_adjusted === true).map((q) => String(q.id));
+  // Jo 28 Oct 2026: note which drafts the office edited before they are replaced. An office hand-edit is kept (nothing
+  // written) until the inputs change — the installer's price or the Mitti form; the 15-minute check never undoes it.
+  const edited = await officeEditedDraftIds(jobId);
+  if (edited.length && !(await officeEditInputsChangedFor(jobId, actorId, edited, p.inputsKey))) return;
   const { error: sup } = await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "installation").eq("status", "draft");
   if (sup) throw new Error("The old quote could not be withdrawn.");
   const { data: q, error } = await admin.from("quotes").insert({
@@ -272,13 +278,51 @@ async function writeHeldInstallerDraft(p: {
   if (error || !q) throw new Error(error?.message ?? "Quote could not be saved.");
   const { error: ie } = await admin.from("quote_items").insert(draft.lines.map((l) => ({ ...l, quote_id: q.id })));
   if (ie) throw new Error(ie.message);
-  await logEvent(jobId, actorId, "installer_quote_drafted", `Installer-supplied owner quote drafted — held: ${holdReason}`, { audit_id: auditId, quote_id: q.id, total: draft.subtotal, discount: draft.discount, release_state: "held" }, { internal: true });
+  await logEvent(jobId, actorId, "installer_quote_drafted", `Installer-supplied owner quote drafted — held: ${holdReason}`, { audit_id: auditId, quote_id: q.id, total: draft.subtotal, discount: draft.discount, release_state: "held", inputs_key: p.inputsKey }, { internal: true });
   if (mittiElectrician) await logEvent(jobId, actorId, "mitti_quote_electrician_snapshot", "Ready Check quote electrician price and identity snapshot retained", { quote_id: q.id, electrician: mittiElectrician }, { internal: true });
-  // One office alert per replaced office-edited draft. The rebuild itself is never blocked.
+  await alertOfficeEditReplaced(jobId, actorId, edited, q.id);
+}
+
+/** The open installation drafts the office edited by hand (`adjustQuote` → `manually_adjusted`; `*` so the read never
+ *  names a column that may not exist yet). A failed read throws (the tick retries; nothing is replaced by mistake). */
+async function officeEditedDraftIds(jobId: string): Promise<string[]> {
+  const { data, error } = await admin.from("quotes").select("*").eq("job_id", jobId).eq("kind", "installation").eq("status", "draft");
+  if (error) throw new Error("Could not check the quote being replaced.");
+  return (data ?? []).filter((q) => (q as { manually_adjusted?: boolean | null }).manually_adjusted === true).map((q) => String(q.id));
+}
+
+/** Jo 28 Oct 2026: did the inputs of any office-edited draft change since the edit? With a recorded key (the drafted
+ *  event's or a kept record's), compare keys. A draft made before keys were stored compares the installer's latest price
+ *  time with the edit time, and when kept records the current key, so a later form change is seen too. */
+async function officeEditInputsChangedFor(jobId: string, actorId: string | null, ids: string[], currentKey: string): Promise<boolean> {
+  const { QUOTE_EDIT_KEPT_EVENT, officeEditInputsChanged } = await import("./quote-edit-replaced.core");
+  const stored = await (await import("./installer-price.server")).readInstallerPrice(jobId);
+  const keep: { id: string; recorded: boolean }[] = [];
+  for (const id of ids) {
+    const { data: ev, error } = await admin.from("workflow_events").select("details, created_at").eq("job_id", jobId).in("event_type", ["installer_quote_drafted", QUOTE_EDIT_KEPT_EVENT]).contains("details", { quote_id: id }).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (error) throw new Error("Could not check what the edited quote was built from.");
+    const storedKey = ((ev?.details as { inputs_key?: unknown } | null)?.inputs_key as string | undefined) ?? null;
+    let editedAt = await officeEditedAt(jobId, id);
+    if (!editedAt) {
+      const { data: row, error: qe } = await admin.from("quotes").select("created_at").eq("id", id).maybeSingle();
+      if (qe) throw new Error("Could not check when the quote was edited.");
+      const at = (row as { created_at?: unknown } | null)?.created_at;
+      editedAt = at == null ? null : at instanceof Date ? at.toISOString() : String(at);
+    }
+    if (officeEditInputsChanged({ storedKey, currentKey, editedAt, priceSetAt: stored?.setAt ?? null })) return true;
+    keep.push({ id, recorded: !!storedKey });
+  }
+  for (const k of keep) if (!k.recorded) await logEvent(jobId, actorId, QUOTE_EDIT_KEPT_EVENT, "Office-edited quote kept — nothing has changed since the edit", { quote_id: k.id, inputs_key: currentKey }, { internal: true });
+  return false;
+}
+
+/** One office alert per replaced (or withdrawn) office-edited draft. The rebuild itself is never blocked. */
+async function alertOfficeEditReplaced(jobId: string, actorId: string | null, edited: string[], newQuoteId: string | null) {
+  if (!edited.length) return;
   const { QUOTE_EDIT_REPLACED_EVENT, QUOTE_EDIT_REPLACED_NOTICE } = await import("./quote-edit-replaced.core");
   for (const replacedId of edited) {
     const { data: seen, error: ae } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", QUOTE_EDIT_REPLACED_EVENT).contains("details", { replaced_quote_id: replacedId }).limit(1).maybeSingle();
     if (ae) throw new Error("Could not check the office quote alert.");
-    if (!seen) await logEvent(jobId, actorId, QUOTE_EDIT_REPLACED_EVENT, QUOTE_EDIT_REPLACED_NOTICE, { quote_id: q.id, replaced_quote_id: replacedId, needs_office: true }, { internal: true });
+    if (!seen) await logEvent(jobId, actorId, QUOTE_EDIT_REPLACED_EVENT, QUOTE_EDIT_REPLACED_NOTICE, { quote_id: newQuoteId, replaced_quote_id: replacedId, needs_office: true }, { internal: true });
   }
 }

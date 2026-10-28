@@ -42,3 +42,24 @@ describe("office-edited quote rebuilt", () => {
     expect(users.sort()).toEqual(["job-next-action.core.ts", "installer-quote.server.ts", "office-needs.core.ts", "office-status.core.ts", "office.server.ts"].sort());
   });
 });
+
+describe("office hand-edit kept unless something real changes (Jo 28 Oct)", () => {
+  test("the inputs key: same form answers from any read path → same key; a changed answer, price or audit → new key", async () => {
+    const { draftInputsKey } = await import("../src/lib/quote-edit-replaced.core");
+    const a = [{ label: "Total quoted price (inc GST)", value: "2500" }, { label: "Notes", value: null }];
+    const withIds = a.map((e, i) => ({ ...e, id: `x${i}`, section: "s" }));
+    expect(draftInputsKey("au", withIds)).toBe(draftInputsKey("au", a));
+    expect(draftInputsKey("au", [{ label: "Total quoted price (inc GST)", value: 2500 }, { label: "Notes", value: null }])).toBe(draftInputsKey("au", a));
+    expect(draftInputsKey("au", [{ ...a[0]!, value: "2600" }, a[1]!])).not.toBe(draftInputsKey("au", a));
+    expect(draftInputsKey("au2", a)).not.toBe(draftInputsKey("au", a));
+    expect(draftInputsKey("au", a, { totalIncGst: 1 })).not.toBe(draftInputsKey("au", a));
+  });
+  test("replace only on a changed key; a draft with no key compares the price time with the edit time", async () => {
+    const { officeEditInputsChanged } = await import("../src/lib/quote-edit-replaced.core");
+    expect(officeEditInputsChanged({ storedKey: "k", currentKey: "k", editedAt: null, priceSetAt: "2026-10-28T05:00:00Z" })).toBe(false);
+    expect(officeEditInputsChanged({ storedKey: "k", currentKey: "j", editedAt: null, priceSetAt: null })).toBe(true);
+    expect(officeEditInputsChanged({ storedKey: null, currentKey: "k", editedAt: "2026-10-28T04:00:00Z", priceSetAt: "2026-10-28T05:00:00Z" })).toBe(true);
+    expect(officeEditInputsChanged({ storedKey: null, currentKey: "k", editedAt: "2026-10-28T06:00:00Z", priceSetAt: "2026-10-28T05:00:00Z" })).toBe(false);
+    expect(officeEditInputsChanged({ storedKey: null, currentKey: "k", editedAt: "2026-10-28T06:00:00Z", priceSetAt: null })).toBe(false);
+  });
+});
