@@ -71,6 +71,24 @@ describe("collectFailureCases", () => {
     expect(collectFailureCases([uncertain("j1", "install_day", 1), ev("j1", "mitti_piisa_audit_created", 2)], NOW)).toEqual([]);
     expect(collectFailureCases([ev("j1", "piesa_autoform_failed", 1), ev("j1", ALERT_SENT_EVENT, 2, { kind: "piesa" })], NOW)).toEqual([]);
   });
+  test("a PIESA failure is cleared by a PIESA-kind create event", () => {
+    expect(collectFailureCases([ev("j1", "piesa_autoform_failed", 1), ev("j1", "mitti_audit_created", 2, { kind: "piesa" })], NOW)).toEqual([]);
+    expect(collectFailureCases([ev("j1", "piesa_autoform_failed", 1), ev("j1", "mitti_audit_reshared", 2, { kind: "piesa" })], NOW)).toEqual([]);
+  });
+  test("a PIESA create event does not clear a ready_check case", () => {
+    expect(collectFailureCases([uncertain("j1", "ready_check", 1), ev("j1", "mitti_audit_created", 2, { kind: "piesa" })], NOW)).toHaveLength(1);
+  });
+  test("a piesa-kind access override clears piesa only", () => {
+    const got = collectFailureCases([uncertain("j1", "piesa", 1), uncertain("j1", "ready_check", 1), ev("j1", "mitti_access_override", 2, { kind: "piesa" })], NOW);
+    expect(got.map((c) => c.kind)).toEqual(["ready_check"]);
+  });
+  test("a kind-less create event (older events) clears both ready_check and piesa", () => {
+    expect(collectFailureCases([uncertain("j1", "ready_check", 1), uncertain("j1", "piesa", 1), ev("j1", "mitti_audit_created", 2)], NOW)).toEqual([]);
+  });
+  test("mitti_audit_linked clears ready_check only", () => {
+    const got = collectFailureCases([uncertain("j1", "ready_check", 1), uncertain("j1", "piesa", 1), ev("j1", "mitti_audit_linked", 2)], NOW);
+    expect(got.map((c) => c.kind)).toEqual(["piesa"]);
+  });
   test("a resolver for a different kind or job does not drop the case", () => {
     expect(collectFailureCases([uncertain("j1", "piesa", 1), ev("j1", ALERT_SENT_EVENT, 2, { kind: "ready_check" }), ev("j2", RETRY_LINKED_EVENT, 2, { kind: "piesa" })], NOW)).toHaveLength(1);
   });

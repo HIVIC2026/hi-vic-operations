@@ -225,7 +225,7 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
   }
   await logEvent(jobId, actorId, r.reused ? "mitti_audit_reshared" : "mitti_audit_created",
     r.reused ? `Mitti ${measureOnly ? "measure-up" : "assessment"} re-shared with ${r.assigneeEmail}` : `Mitti ${measureOnly ? "measure-up" : "assessment"} created and assigned to ${r.assigneeEmail} (${scope.label})`,
-    { audit_id: r.auditId, template_id: templateId, prefill_count: r.prefillCount, scope: scope.scope });
+    { audit_id: r.auditId, template_id: templateId, prefill_count: r.prefillCount, scope: scope.scope, kind });
   return { auditId: r.auditId, reused: r.reused, scope: scope.scope };
 }
 

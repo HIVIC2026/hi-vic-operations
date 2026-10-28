@@ -57,22 +57,26 @@ function failureOf(e: WorkflowEventRow): Failure | null {
   }
 }
 
-/** Which kind a "this is fine now" event resolves, or null if it is not a resolver. */
-function resolvesKind(e: WorkflowEventRow): MittiFormKind | null {
+/** Which kinds a "this is fine now" event resolves (empty if it is not a resolver). */
+function resolvesKinds(e: WorkflowEventRow): MittiFormKind[] {
+  const own = asKind(e.details?.["kind"]);
   switch (e.event_type) {
     case RETRY_LINKED_EVENT:
     case ALERT_SENT_EVENT:
-      return asKind(e.details?.["kind"]);
+      return own ? [own] : [];
     case "mitti_audit_created":
-    case "mitti_audit_linked":
+    case "mitti_audit_reshared":
     case "mitti_access_override":
-      return "ready_check";
+      // Newer events say which form they were for; older ones did not, so they clear both Ready Check and PIESA.
+      return own ? [own] : ["ready_check", "piesa"];
+    case "mitti_audit_linked": // the link function only handles Ready Check forms
+      return ["ready_check"];
     case PIISA_AUDIT_CREATED_EVENT:
-      return "install_day";
+      return ["install_day"];
     case FIXES_FORM_CREATED_EVENT:
-      return "fixes";
+      return ["fixes"];
     default:
-      return null;
+      return [];
   }
 }
 
@@ -87,8 +91,7 @@ function unresolvedRuns(events: WorkflowEventRow[], now?: Date): Map<string, Run
   const failures = new Map<string, { jobId: string; kind: MittiFormKind; list: { at: string; f: Failure }[] }>();
   const key = (job: string, kind: string) => `${job}\u0000${kind}`;
   for (const e of rows) {
-    const rk = resolvesKind(e);
-    if (rk) lastResolved.set(key(e.job_id, rk), ms(e.created_at));
+    for (const rk of resolvesKinds(e)) lastResolved.set(key(e.job_id, rk), ms(e.created_at));
     const f = failureOf(e);
     if (f) {
       const k = key(e.job_id, f.kind);
