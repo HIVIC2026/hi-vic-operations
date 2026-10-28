@@ -95,7 +95,7 @@ export function tradeExpiryRows(i: { businesses: ExpiryBusiness[]; credentials: 
 
 /** Latest CII expiry per installer: latest certification check for the person (by id or email), then its latest recorded level. */
 export function latestCiiExpiryByWorker(
-  workers: { id: string; email: string }[],
+  workers: { id: string; email: string | null }[],
   certs: { id: string; worker_id: string | null; worker_email: string; recorded_at: string }[],
   levels: { certification_id: string; expires_on: string; recorded_at: string }[],
 ): Map<string, string> {
@@ -103,7 +103,7 @@ export function latestCiiExpiryByWorker(
   const byRecent = [...certs].sort((a, b) => b.recorded_at.localeCompare(a.recorded_at));
   const lvRecent = [...levels].sort((a, b) => b.recorded_at.localeCompare(a.recorded_at));
   for (const w of workers) {
-    const c = byRecent.find((r) => r.worker_id === w.id || r.worker_email.trim().toLowerCase() === w.email.trim().toLowerCase());
+    const c = byRecent.find((r) => r.worker_id === w.id || (!!w.email?.trim() && r.worker_email.trim().toLowerCase() === w.email.trim().toLowerCase()));
     const l = c ? lvRecent.find((r) => r.certification_id === c.id) : null;
     if (l?.expires_on) out.set(w.id, l.expires_on.slice(0, 10));
   }

@@ -161,7 +161,7 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
   const claims = await import("./mitti-create.server");
   const claimId = existingAuditId ? null : await claims.claimMittiCreate(jobId, kind, actorId,
     `Mitti ${measureOnly ? "measure-up" : "assessment"} creation started for ${prof?.email ?? "assigned trade"}`,
-    { template_id: templateId, scope: scope.scope }, { officeOverride: opts.officeOverride === true });
+    { template_id: templateId, scope: scope.scope, assignee_email: prof?.email ?? null }, { officeOverride: opts.officeOverride === true });
   const base = mittiApi(await mittiCallFor(call, prof?.email));
   const seen = { createAttempted: false, createdId: null as string | null };
   const api: typeof base = { ...base, createAudit: async (body) => {
@@ -229,7 +229,7 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
   }
   await logEvent(jobId, actorId, r.reused ? "mitti_audit_reshared" : "mitti_audit_created",
     r.reused ? `Mitti ${measureOnly ? "measure-up" : "assessment"} re-shared with ${r.assigneeEmail}` : `Mitti ${measureOnly ? "measure-up" : "assessment"} created and assigned to ${r.assigneeEmail} (${scope.label})`,
-    { audit_id: r.auditId, template_id: templateId, prefill_count: r.prefillCount, scope: scope.scope });
+    { audit_id: r.auditId, template_id: templateId, prefill_count: r.prefillCount, scope: scope.scope, kind });
   return { auditId: r.auditId, reused: r.reused, scope: scope.scope };
 }
 
@@ -617,7 +617,7 @@ export async function syncPendingMitti(actorId: string | null, call: MittiCall =
 
 /** Sends the official PIISA to the assigned installer in Mitti with the LR-003 pre-fills (Installation Booked only).
  * Fails closed while the PIISA is locked or its Mitti form isn't configured. Reminders stay in the portal. */
-export async function createPiisaMittiAudit(jobId: string, actorId: string | null, call: MittiCall = realMittiCall) { // actorId null = the 15-minute tick (piisa-autosend.server.ts)
+export async function createPiisaMittiAudit(jobId: string, actorId: string | null, call: MittiCall = realMittiCall, opts: { officeOverride?: boolean } = {}) { // actorId null = the 15-minute tick (piisa-autosend.server.ts)
   const { buildOfficialPrefill, missingKnownFields, PIISA_A3_TEMPLATE_ID } = await import("./mitti.core");
   const a3 = await import("./piisa-a3.core");
   const { OFFICIAL_ITEMS } = await import("./official-forms.core");
@@ -641,13 +641,28 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string | nul
   if (!asg || !email) throw new WorkflowError("Assign an installer with an email address before sending the safety form.");
   const { data: prev, error: previousError } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_piisa_audit_created").order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (previousError) throw new WorkflowError("The existing PIISA audit could not be checked. Try again; no replacement form was created.");
-  const api = mittiApi(await mittiCallFor(call, email));
+  const prevId = (prev?.details as { audit_id?: string } | null)?.audit_id;
+  // Atomic per-job claim (same guard as createAssignMittiAudit; see mitti-create-claim.core.ts). Only a NEW form is
+  // claimed. Only the create POST is non-idempotent, so it is tracked: a failure before it releases the claim; a failure
+  // during/after it without an audit id keeps the claim and records the outcome as uncertain (never auto-retried).
+  const claims = await import("./mitti-create.server");
+  const claimId = prevId ? null : await claims.claimMittiCreate(jobId, "install_day", actorId, `Install day form creation started for ${email}`,
+    { template_id: MITTI_PIISA_TEMPLATE_ID, assignee_email: email }, { officeOverride: opts.officeOverride === true });
+  const base = mittiApi(await mittiCallFor(call, email));
+  const seen = { createAttempted: false, createdId: null as string | null };
+  const api: typeof base = { ...base, createAudit: async (body) => {
+    seen.createAttempted = true;
+    const out = await base.createAudit(body);
+    const id = out?.audit_id ?? out?.id;
+    seen.createdId = id ? String(id) : null;
+    return out;
+  } };
+  try { // (body below is not re-indented, to keep this diff small)
   const users = (await api.searchUsers(email)) as { users?: { id?: string; user_id?: string; email?: string }[] } | { id?: string; user_id?: string; email?: string }[];
   const list = Array.isArray(users) ? users : users?.users ?? [];
   const u = list.find((x) => String(x.email ?? "").toLowerCase() === email.toLowerCase());
   const userId = u?.id ?? u?.user_id;
   if (!userId) throw new WorkflowError(`The assigned installer (${email}) was not found in Mitti. Invite them with that exact email, then retry.`);
-  const prevId = (prev?.details as { audit_id?: string } | null)?.audit_id;
   if (prevId) {
     const previous = await api.getAudit(prevId);
     validateStoredMittiAudit(previous, { storedAuditId: prevId, jobNumber: job.job_number, templateId: MITTI_PIISA_TEMPLATE_ID });
@@ -785,6 +800,18 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string | nul
   await api.shareAudit(String(auditId), String(userId)); await api.setAuditOwner(String(auditId), String(userId));
   await logEvent(jobId, actorId, "mitti_piisa_audit_created", `Installer safety form sent to ${email} with ${p.count} pre-filled answers`, { audit_id: String(auditId), prefill_count: p.count, skipped: p.skipped, template: MITTI_PIISA_TEMPLATE_ID, prefill_notes: prefillNotes, native_version: resolved?.version ?? null });
   return { auditId: String(auditId), reused: false, skipped: p.skipped };
+  } catch (e) {
+    if (!claimId) throw e;
+    const { createOutcome } = await import("./mitti-create-claim.core");
+    const outcome = createOutcome(seen);
+    // "created": Mitti made the form; its id is already stored in mitti_piisa_audit_created, so the next run reuses it.
+    if (outcome === "not_created") await claims.releaseMittiCreate(jobId, "install_day", claimId, actorId, e instanceof Error ? e.message : "Mitti error");
+    else if (outcome === "uncertain") {
+      await claims.recordMittiCreateUncertain(jobId, "install_day", claimId, actorId, e instanceof Error ? e.message : "Mitti error");
+      throw new claims.MittiOutcomeUncertain();
+    }
+    throw e;
+  }
 }
 
 // ---------- visit allocation (decision 161, Jo 24 Oct 2026) ----------
@@ -822,6 +849,6 @@ export async function reassignMittiFormTo(p: { jobId: string; auditId: string; k
     await api.setAuditOwner(p.auditId, p.mittiUserId);
   } catch (e) { throw wrap(e); }
   await logEvent(p.jobId, p.actorId, p.kind === "install" ? "mitti_piisa_audit_reshared" : "mitti_audit_reshared",
-    `${p.kind === "install" ? "Installer safety form" : "Mitti Ready Check form"} handed to ${p.email} (visit allocation)`, { audit_id: p.auditId, mitti_user_id: p.mittiUserId, reason: "visit_allocated" });
+    `${p.kind === "install" ? "Installer safety form" : "Mitti Ready Check form"} handed to ${p.email} (visit allocation)`, { audit_id: p.auditId, mitti_user_id: p.mittiUserId, reason: "visit_allocated", ...(p.kind === "install" ? {} : { kind: "ready_check" as const }) });
   return { auditId: p.auditId };
 }

@@ -17,6 +17,12 @@ export function automaticFirstResponseBlocker(facts: { activatedAt: string | nul
 /** Statuses that prove (or may prove) the homeowner already got an email from this job. Failed attempts stay retryable. */
 export const ANSWERED_SEND_STATUSES = ['sent', 'delivered'] as const;
 export const UNCERTAIN_SEND_STATUSES = ['sending', 'queued', 'delivered_unrecorded', 'sending_unknown'] as const;
+/** Plan 2026-10-28 (full address required): the "we need your full address" request and reminder only ask for the
+ *  address; they are never the first response, so a held job still gets Save my spot after the owner answers.
+ *  Same values as ADDRESS_REQUEST_PURPOSE / ADDRESS_REQUEST_REMINDER_PURPOSE (address-request.core.ts). */
+export const NOT_A_FIRST_RESPONSE_PURPOSES = ['address_request', 'address_request_reminder'] as const;
+/** Does this email send count towards "the enquiry was answered"? */
+export const countsAsFirstResponse = (purpose: string | null | undefined) => !(NOT_A_FIRST_RESPONSE_PURPOSES as readonly string[]).includes(purpose ?? '');
 /** Any prior own-job send of ANY purpose, an uncertain attempt, or customer-visible outbound correspondence blocks an
  *  automatic initial response. Read failures block. */
 export function priorInitialResponseBlocker(f: { sendStatuses: string[] | null; customerOutboundEmails: number | null }): string | null {

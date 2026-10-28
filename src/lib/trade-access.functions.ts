@@ -28,7 +28,7 @@ export const prepareTradeLogin = createServerFn({ method: "POST" }).middleware([
     const { data: biz } = await admin.from("businesses").select("id, name, email, onboarding_status").eq("id", w.business_id).single();
     const block = tradeAccessBlocker(w, biz?.onboarding_status === "approved");
     if (block) throw new WorkflowError(block);
-    const email = w.email.trim().toLowerCase();
+    const email = (w.email ?? "").trim().toLowerCase();
     const redirectTo = new URL("/reset-password", data.redirectTo).toString();
 
     // Existing account? keep it exactly as is, just link it.

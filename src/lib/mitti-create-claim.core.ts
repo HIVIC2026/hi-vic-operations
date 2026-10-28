@@ -10,8 +10,9 @@
 // automatic path can create a second form. Only an explicit office action may override an old uncertain
 // claim (see mitti-create.server.ts).
 
-/** "fixes" = the decision-293 "A4 – Electrical fixes" form (one per booked fixes visit). */
-export type MittiFormKind = "ready_check" | "piesa" | "fixes";
+/** "fixes" = the decision-293 "A4 – Electrical fixes" form (one per booked fixes visit);
+ *  "install_day" = the A5 install-day / PIISA form created by createPiisaMittiAudit (one per job). */
+export type MittiFormKind = "ready_check" | "piesa" | "fixes" | "install_day";
 
 export const CLAIM_EVENT = "mitti_audit_create_started";
 export const RELEASE_EVENT = "mitti_audit_create_released";

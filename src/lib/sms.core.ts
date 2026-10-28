@@ -93,6 +93,11 @@ export const SMS_MESSAGE_TYPES = {
   // Decision 389 (Jo 25 Oct 2026): Jo released the owner's saved spot → "It's your turn" to the OWNER (release + day-2
   // reminder; spot-release.core spotReleasedText). DRAFT until Jo sees the rendered picture (rendered O77 picture).
   spot_released: { audience: "owner", label: "It's your turn – confirm your free Ready Check, release + day-2 reminder (decision 389, approved)", wordingApproved: true, quietHours: true },
+  // Plan 2026-10-28 (full address required): a website/email enquiry with no street → the owner is asked to pick their
+  // full address on /my-address/{token}, plus ONE reminder 24h later. Wording: addressRequestText (address-request.core.ts),
+  // DRAFT until Jo approves it.
+  address_request: { audience: "owner", label: "We need your full address – owner picks it on their secure page", wordingApproved: true /* approved by Jo 28 Oct 2026 */, quietHours: true },
+  address_request_reminder: { audience: "owner", label: "We need your full address – one reminder 24h later", wordingApproved: true /* approved by Jo 28 Oct 2026 */, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 
@@ -166,6 +171,8 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   piesa_times_reminder: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the 24h coordination point; also needs still no times offered
   installer_planning_notice: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the safety check booking; also needs that start still booked
   spot_released: { kind: "window" }, // key = job + release number + slot (released / reminder / release_text); each slot recorded once before any send (spot-release.server)
+  address_request: { kind: "window" }, // key = job; recorded once as a workflow event; a quiet-hours hold is re-tried by the tick under the same key (address-request.server)
+  address_request_reminder: { kind: "window" }, // key = job; due 24h after the request, recorded once; same quiet-hours retry
 };
 
 export type SmsEventInput = {
