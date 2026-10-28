@@ -60,10 +60,16 @@ export async function sendViaOutlook(p: { replyToMessageId: string | null; to: s
         draft = await r.json().catch(() => null);
         draftId = draft?.id ?? null;
         if (!draftId) return { outcome: "failed", detail: "Outlook returned no draft." };
-        const patch = await call("PATCH", mailbox, `/messages/${encodeURIComponent(draftId)}`, {
-          subject: p.subject, body: { contentType: "HTML", content: p.html }, toRecipients: [{ emailAddress: { address: p.to } }],
-        });
-        if (!patch.ok) throw new Error(`Outlook couldn't prepare the reply (HTTP ${patch.status}).`);
+        // Final review 5: if the draft can't be prepared, delete it (best-effort) so Drafts doesn't fill with owner-addressed
+        // copies on every Try again. Nothing was sent, so deleting is safe.
+        const dropDraft = (id: string) => call("DELETE", mailbox!, `/messages/${encodeURIComponent(id)}`).catch(() => null);
+        let patch: Response;
+        try {
+          patch = await call("PATCH", mailbox, `/messages/${encodeURIComponent(draftId)}`, {
+            subject: p.subject, body: { contentType: "HTML", content: p.html }, toRecipients: [{ emailAddress: { address: p.to } }],
+          });
+        } catch (e) { await dropDraft(draftId); throw e; }
+        if (!patch.ok) { await dropDraft(draftId); throw new Error(`Outlook couldn't prepare the reply (HTTP ${patch.status}).`); }
       }
     }
     if (!draftId) { // no original message to reply to (or it no longer exists): a new message

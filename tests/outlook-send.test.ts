@@ -61,6 +61,16 @@ describe("sendViaOutlook", () => {
     expect((await sendViaOutlook(P)).outcome).toBe("failed");
     expect(calls.at(-1)).toMatchObject({ method: "DELETE" });
   });
+  test("final review 5: PATCH refused after createReply deletes the owner-addressed draft and never sends", async () => {
+    script = (c) => c.url.endsWith("/createReply") ? { status: 201, json: { id: "D1" } } : c.method === "PATCH" ? { status: 500 } : { status: 204 };
+    expect(await sendViaOutlook(P)).toEqual({ outcome: "failed", detail: "Outlook couldn't prepare the reply (HTTP 500)." });
+    expect(calls.map((c) => `${c.method} ${c.url.replace(MB, "")}`)).toEqual(["POST /messages/AAMk%3Dorig/createReply", "PATCH /messages/D1", "DELETE /messages/D1"]);
+  });
+  test("final review 5: PATCH throwing also deletes the draft; a failing DELETE never throws", async () => {
+    script = (c) => { if (c.method === "PATCH" || c.method === "DELETE") throw new Error("timed out"); return { status: 201, json: { id: "D1" } }; };
+    expect(await sendViaOutlook(P)).toEqual({ outcome: "failed", detail: "timed out" });
+    expect(calls.map((c) => c.method)).toEqual(["POST", "PATCH", "DELETE"]);
+  });
   test("a network error never throws", async () => {
     script = () => { throw new Error("boom"); };
     expect(await sendViaOutlook(P)).toEqual({ outcome: "failed", detail: "boom" });
