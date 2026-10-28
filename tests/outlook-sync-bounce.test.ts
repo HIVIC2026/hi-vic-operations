@@ -90,3 +90,23 @@ for (const sender of ["postmaster@homeinsulationvictoria.com.au", "MicrosoftExch
     assert.equal(Number((await h.db.query(`SELECT count(*)::int n FROM job_communications`)).rows[0]!.n), 1);
   }));
 }
+
+// Final review 4: the reply may be on the job only as the sync's own Sent-copy row (race, or the history insert failed).
+test("a bounce matches an outbound Outlook row stored by the sync, not only the Emails-tab history row", practice(async (h) => {
+  await h.db.query(
+    `INSERT INTO job_communications(job_id,direction,channel,recipients,subject,body,provider,provider_message_id,sent_at,delivery_status,visibility,source_event)
+     VALUES($1,'outbound','email','["owner@example.test"]','HV-1001','We will see you Tuesday.','outlook',$2,$3,'sent','customer','outlook_sync:thread')`, [TEST_JOB, "synced-copy-1", daysAgo(1)]);
+  const calls = recordCalls(h);
+  await h.server.processMessages([notice("notice-sync-copy")], TEST_MAILBOX, h.counts(), WINDOW);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].providerMessageId, "synced-copy-1");
+}));
+
+test("an outbound Outlook row without a message id is never matched", practice(async (h) => {
+  await h.db.query(
+    `INSERT INTO job_communications(job_id,direction,channel,recipients,subject,body,provider,sent_at,delivery_status,visibility,source_event)
+     VALUES($1,'outbound','email','["owner@example.test"]','HV-1001','x','outlook',$2,'sent','customer','outlook_sync:thread')`, [TEST_JOB, daysAgo(1)]);
+  const calls = recordCalls(h);
+  await h.server.processMessages([notice("notice-no-id")], TEST_MAILBOX, h.counts(), WINDOW);
+  assert.equal(calls.length, 0);
+}));

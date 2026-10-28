@@ -609,7 +609,7 @@ async function recordBounce(notice: MailMessage): Promise<void> {
     if (!address) return;
     const since = new Date(Date.parse(notice.at) - 7 * 24 * 3600 * 1000).toISOString();
     const { data, error } = await syncAdmin.from("job_communications").select("id, job_id, provider_message_id, recipients, subject, sent_at")
-      .eq("provider", "outlook").eq("direction", "outbound").eq("source_event", "email_ai_draft_sent").gte("sent_at", since);
+      .eq("provider", "outlook").eq("direction", "outbound").gte("sent_at", since); // any outbound Outlook row (Emails-tab history or the synced Sent copy); rows without an id are dropped below
     if (error) throw new Error(error.message);
     const rows = (data ?? []).filter((r) => r.provider_message_id && r.sent_at
       && ((r.recipients as string[] | null) ?? []).some((x) => String(x).toLowerCase() === address));
