@@ -270,6 +270,33 @@ describe("a removed unpriced item no longer blocks", () => {
     regenerated.length = 0;
     await (await fns())["removeRectItem"]!({ data: { itemId: ITEM }, context: ctx(BOSS) });
     expect(regenerated).toEqual([]);
+    expect(T["rectification_items"]!.find((r) => r["id"] === ITEM)!["status"]).toBe("removed"); // the last item, removed as before
+  });
+
+  test("at the owner's decision stage, the only required item can't be removed: refused, item stays, quote unchanged", async () => {
+    T = tables("awaiting_owner_rectification_approval");
+    regenerated.length = 0;
+    draftQuote(349);
+    T["quote_items"] = T["quote_items"]!.slice(0, 1);
+    const quoteBefore = JSON.stringify([T["quotes"], T["quote_items"]]);
+    await expect((await fns())["removeRectItem"]!({ data: { itemId: ITEM }, context: ctx(BOSS) })).rejects.toThrow("A quote needs at least one item. To cancel the repairs, contact the office.");
+    expect(T["rectification_items"]!.find((r) => r["id"] === ITEM)!["status"]).toBe("required");
+    expect(JSON.stringify([T["quotes"], T["quote_items"]])).toBe(quoteBefore);
+    expect(regenerated).toEqual([]);
+    expect(T["workflow_events"]!.map((e) => e["event_type"])).not.toContain("rectification_item_removed");
+  });
+
+  test("at the owner's decision stage, removing one of two required items works and rebuilds", async () => {
+    T = tables("awaiting_owner_rectification_approval");
+    regenerated.length = 0;
+    draftQuote(0);
+    await (await fns())["addOtherRectItem"]!({ data: other(), context: ctx(STAFF) });
+    newItem()!["status"] ??= "required";
+    regenerated.length = 0;
+    await (await fns())["removeRectItem"]!({ data: { itemId: newItem()!["id"] }, context: ctx(STAFF) });
+    expect(newItem()!["status"]).toBe("removed");
+    expect(regenerated).toEqual([JOB]);
+    expect(T["quote_items"]!.map((l) => l["description"])).toEqual(["Replace old switch"]);
   });
 });
 

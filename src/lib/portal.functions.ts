@@ -487,6 +487,12 @@ export const removeRectItem = createServerFn({ method: "POST" }).middleware([req
     await requireJobRole(context.supabase, it.job_id, ["admin", "electrician"]);
     if (!it.is_other) throw new WorkflowError("Standard items are derived from the assessment – edit the assessment instead.");
     const stage = await getStage(it.job_id);
+    // Jo 28 Oct: while the owner is deciding, the last repair item can't be removed (a quote needs one item). Checked before any write.
+    if (stage === "awaiting_owner_rectification_approval") {
+      const { data: others, error } = await admin.from("rectification_items").select("id").eq("job_id", it.job_id).eq("status", "required").neq("id", data.itemId).limit(1);
+      if (error) throw new WorkflowError("Could not check the other repair items. Please try again.");
+      if (!others?.length) throw new WorkflowError("A quote needs at least one item. To cancel the repairs, contact the office.");
+    }
     await admin.from("rectification_items").update({ status: "removed" }).eq("id", data.itemId);
     await logEvent(it.job_id, context.userId, "rectification_item_removed", `Removed item: ${it.description}`);
     // Jo 28 Oct: while the owner is deciding, the fixes quote is rebuilt after a remove too (same as add and price).
