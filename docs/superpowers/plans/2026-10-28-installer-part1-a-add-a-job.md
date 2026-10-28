@@ -2,12 +2,12 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Open questions for Jo (answer before the task named; the plan uses the proposed answer until then):**
-1. (Task 1, Task 5) Is the wording in Global Constraints right: the "How did you get this customer?" choices, the door-knock refusal line and the staff line?
-2. (Task 2) If the address is an open job of *another installer* (not an HIV lead), should that keep refusing as today? The plan only changes HIV-lead clashes.
-3. (Task 4) The bulk upload page is also the office's batch tool. Should it go for the office too, as the spec says, or only for installers?
-4. (Task 6) "No half-saved jobs" needs one new database function. Can it be applied live once it passes the practice-database test?
-5. (Task 9) The code already prices HIV leads from agreed rates and shows the price box only on installers' own jobs. Did you see a screen where that isn't true?
+**Jo's answers (29 Oct 2026):**
+1. Lead-source choices, refusal line and staff line: approved as written in Global Constraints.
+2. Address already an open job of another installer: keep refusing it, as today. Only HIV-lead clashes are saved and flagged.
+3. Bulk upload: remove for everyone, office included.
+4. The `add_installer_job` database function may go live once it passes the PGlite test.
+5. Pricing on HIV leads already uses agreed rates; Task 9 only adds tests pinning that.
 
 **Goal:** Make the installer's Add a job page do A1–A9 of the Part 1 spec: lead-source question, HIV-lead clashes saved and flagged, only onboarded usual electricians, no bulk upload, staff told at the start, all-or-nothing save, a "Try again" button, typed addresses and pinned pricing rules.
 
