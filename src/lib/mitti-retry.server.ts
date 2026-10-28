@@ -202,8 +202,10 @@ async function handleCase(c: FailureCase, events: WorkflowEventRow[], opts: Retr
       const id = str(hit.audit_id);
       if (!id || !pickupTemplateMatches(str(hit.template_id), templateId)) continue;
       const p = auditIdentity(c.kind, await api.getAudit(id));
+      // A right-template form we cannot identify means "can't tell": never release or create.
+      if (!p) { await alertOffice(c, "A form in Mitti could not be read, so we can't tell if it is this job's and nothing was retried. " + c.detail, counts); return; }
       // The template id is written the way the claim wrote it, so matchAudits compares like with like.
-      if (p) candidates.push({ ...p, templateId });
+      candidates.push({ ...p, templateId });
     }
   } catch (e) {
     await alertOffice(c, `Could not check Mitti for an existing form, so nothing was retried: ${msgOf(e)}`, counts);

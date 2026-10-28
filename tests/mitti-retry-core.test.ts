@@ -20,7 +20,7 @@ describe("constants", () => {
     expect(RETRY_STARTED_EVENT).toBe("mitti_create_retry_started");
     expect(RETRY_LINKED_EVENT).toBe("mitti_create_retry_linked");
     expect(ALERT_SENT_EVENT).toBe("mitti_create_alert_sent");
-    expect(MITTI_RETRY_FROM).toBe("2026-10-29T00:00:00.000Z");
+    expect(Number.isNaN(Date.parse(MITTI_RETRY_FROM))).toBe(false);
   });
 });
 
@@ -40,7 +40,7 @@ describe("nextAction", () => {
 
 describe("collectFailureCases", () => {
   test("ignores events before MITTI_RETRY_FROM", () => {
-    const old: WorkflowEventRow = { job_id: "j1", event_type: "mitti_audit_create_uncertain", created_at: "2026-10-28T23:59:59.000Z", details: { kind: "ready_check", claim_id: "c0" } };
+    const old: WorkflowEventRow = { job_id: "j1", event_type: "mitti_audit_create_uncertain", created_at: new Date(Date.parse(MITTI_RETRY_FROM) - 1000).toISOString(), details: { kind: "ready_check", claim_id: "c0" } };
     expect(collectFailureCases([old], NOW)).toEqual([]);
   });
   test("uncertain case carries kind, claim id, time and detail", () => {

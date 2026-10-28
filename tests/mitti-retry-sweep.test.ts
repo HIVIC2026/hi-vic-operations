@@ -127,7 +127,7 @@ const INSTALL_TEMPLATE = { template: { template_id: A2_TEMPLATE_ID, name: "TEST 
 type Kind = "ready_check" | "piesa" | "fixes" | "install_day";
 /** A form already in Mitti. owner defaults to the portal's own Mitti API account: after a lost reply the share / set-owner
  *  calls never ran, so the form still belongs to the account that made it. */
-type Found = { id: string; owner?: string; jobNumber?: string | null; address?: string | null; name?: string | null };
+type Found = { id: string; owner?: string; jobNumber?: string | null; address?: string | null; name?: string | null; unreadable?: boolean };
 type Behaviour = { kind?: Kind; create?: "ok" | "timeout"; search?: "ok" | "error" | "full"; noUser?: boolean; usersError?: boolean; found?: Found[]; };
 const CLAIM_TEMPLATE: Record<Kind, string> = { ready_check: MITTI_TEMPLATE_ID, piesa: MITTI_TEMPLATE_ID, fixes: A2_UUID, install_day: A2_UUID };
 const API_ACCOUNT = "user_api";
@@ -165,6 +165,7 @@ function fakeMitti(b: Behaviour = {}) {
     if (method === "GET" && path.startsWith("/audits/")) {
       const id = decodeURIComponent(path.slice("/audits/".length));
       const f = (b.found ?? []).find((x) => x.id === id);
+      if (f?.unreadable) return { template_id: CLAIM_TEMPLATE[kind], unexpected: true }; // no audit_id: can't be identified
       if (f) return { audit_id: id, template_id: CLAIM_TEMPLATE[kind], audit_data: { authorship: { owner_id: f.owner ?? API_ACCOUNT } }, ...formItems(kind, f) };
       return { audit_id: id, template_id: CLAIM_TEMPLATE[kind], header_items: [{ item_id: "h1", label: "Portal Job Number", responses: { text: "HV-9001" } }], items: [] };
     }
@@ -468,6 +469,15 @@ describe("final review fixes", () => {
       expect(m.creates()).toBe(0);
       expect(events(RELEASE_EVENT).length).toBe(0);
       expect(gateway[0]!.text).toContain("could not be read");
+    });
+    test(`C1 ${kind}: a right-template form whose reply can't be identified means "can't tell": one email, no create, no release`, async () => {
+      setup(kind);
+      await failUncertain(kind);
+      const m = fakeMitti({ kind, found: [{ id: "audit_garbled", unreadable: true }] });
+      expect(await sweepWith(m, 3)).toMatchObject({ retried: 0, linked: 0, alerted: 1 });
+      expect(gateway.length + testSends.length).toBe(1);
+      expect(m.creates()).toBe(0);
+      expect(events(RELEASE_EVENT).length).toBe(0);
     });
     test(`C1 ${kind}: this job's form, read with its own labels, is never duplicated; another job's form is ignored`, async () => {
       setup(kind);

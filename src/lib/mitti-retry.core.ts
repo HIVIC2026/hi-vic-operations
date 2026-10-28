@@ -10,7 +10,7 @@ import { flatten, norm as labelNorm } from "./mitti.core";
 import { retryable } from "./onsite-ready-check.core";
 
 /** Failures before this moment are never retried or alerted. */
-export const MITTI_RETRY_FROM = "2026-10-29T00:00:00.000Z"; // set to the deploy time in Task 5
+export const MITTI_RETRY_FROM = "2026-10-28T09:00:00.000Z"; // go-live time (28 Oct 2026, 8pm Sydney); failures before this are ignored
 export const RETRY_DELAY_MS = 120_000;
 export const MAX_RETRIES = 2;
 
