@@ -1,6 +1,6 @@
 ## Jo 28 Oct declared coverage proposal
 - [x] Build office-only centroid/radius proposals for both trades, show exclusions without applying them, confirm through existing verified save; 9999 uses 3*, skip non-3xxx, save cap 750. No business data or matching changes.
-- [ ] Run new coverage checks and full isolated suite; report results without unrelated fixes.
+- [x] New proposal/save/office-confirmation checks: 8 pass; all coverage-named checks: 27 pass. Preview build/typecheck clean. Full suite: package runner overflowed on failure output; equivalent per-file local-isolated rerun completed 766 files, 7354 pass / 225 fail / 36 skip (78 failing files). No unrelated fixes, business data changes or publication.
 
 ## Jo 28 Oct answered inbox emails
 - [x] Recognise synced Outlook sent replies by thread + recipient + later timestamp; hide answered reply-only cards, preserve unresolved changes/declines and later questions. 25 tests pass. Signed-in preview loads empty; populated hosted clearance not verified. No sends/data/switch changes/publication.
