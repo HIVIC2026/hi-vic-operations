@@ -111,7 +111,7 @@ describe("sendMittiFailureAlert", () => {
   test("TEST partner job is also routed to the test sender", async () => {
     const { TEST_PARTNER_MARK } = await import("../src/lib/test-send.core");
     T.job_assignments![0]!.businesses = { onboarding_notes: TEST_PARTNER_MARK };
-    expect(await sendMittiFailureAlert(JOB, "piesa", "k1", content)).toBe("test_routed");
+    expect(await sendMittiFailureAlert(JOB, "ready_check", "k1", content)).toBe("test_routed"); // installer form → installer business
     expect(gateway.length).toBe(0);
   });
   test("test send failure leaves no event", async () => {
@@ -128,3 +128,22 @@ describe("sendMittiFailureAlert", () => {
     expect((alerts()[0]!.details as { to: string }).to).toBe("info@homeinsulationvictoria.com.au");
   });
 });
+
+describe("M5: the TEST check uses the trade for that form", () => {
+  test("a PIESA or fixes alert for a TEST partner electrician goes to the test sender (the installer is real)", async () => {
+    const { TEST_PARTNER_MARK } = await import("../src/lib/test-send.core");
+    T.job_assignments!.push({ job_id: JOB, role: "electrician", active: true, businesses: { onboarding_notes: TEST_PARTNER_MARK } });
+    expect(await sendMittiFailureAlert(JOB, "piesa", "k1", content)).toBe("test_routed");
+    expect(await sendMittiFailureAlert(JOB, "fixes", "k2", content)).toBe("test_routed");
+    expect(gateway.length).toBe(0);
+    // the installer forms on the same job use the (real) installer business
+    expect(await sendMittiFailureAlert(JOB, "install_day", "k3", content)).toBe("sent");
+  });
+  test("a Ready Check alert for a TEST partner installer is test-routed even with a real electrician", async () => {
+    const { TEST_PARTNER_MARK } = await import("../src/lib/test-send.core");
+    T.job_assignments![0]!.businesses = { onboarding_notes: TEST_PARTNER_MARK };
+    T.job_assignments!.push({ job_id: JOB, role: "electrician", active: true, businesses: { onboarding_notes: null } });
+    expect(await sendMittiFailureAlert(JOB, "ready_check", "k1", content)).toBe("test_routed");
+  });
+});
+

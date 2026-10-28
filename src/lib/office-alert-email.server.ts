@@ -14,7 +14,9 @@ export type AlertOutcome = "sent" | "already_sent" | "paused" | "test_routed";
 
 export async function sendMittiFailureAlert(jobId: string, kind: MittiFormKind, alertKey: string, content: { subject: string; text: string; html: string }): Promise<AlertOutcome> {
   const { data: job } = await admin.from("jobs").select("source").eq("id", jobId).maybeSingle();
-  const { data: asg } = await admin.from("job_assignments").select("businesses(onboarding_notes)").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
+  // The trade for THIS form: the electrician's business for PIESA / fixes, the installer's for Ready Check / install day.
+  const role = kind === "piesa" || kind === "fixes" ? "electrician" : "installer";
+  const { data: asg } = await admin.from("job_assignments").select("businesses(onboarding_notes)").eq("job_id", jobId).eq("role", role).eq("active", true).maybeSingle();
   const { isTestPartner, TEST_ALLOWLIST } = await import("./test-send.core");
   const source = (job?.source ?? null) as string | null;
   const test = source === "qa_test" || isTestPartner((asg?.businesses ?? null) as { onboarding_notes?: string | null } | null);

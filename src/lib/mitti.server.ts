@@ -845,6 +845,6 @@ export async function reassignMittiFormTo(p: { jobId: string; auditId: string; k
     await api.setAuditOwner(p.auditId, p.mittiUserId);
   } catch (e) { throw wrap(e); }
   await logEvent(p.jobId, p.actorId, p.kind === "install" ? "mitti_piisa_audit_reshared" : "mitti_audit_reshared",
-    `${p.kind === "install" ? "Installer safety form" : "Mitti Ready Check form"} handed to ${p.email} (visit allocation)`, { audit_id: p.auditId, mitti_user_id: p.mittiUserId, reason: "visit_allocated" });
+    `${p.kind === "install" ? "Installer safety form" : "Mitti Ready Check form"} handed to ${p.email} (visit allocation)`, { audit_id: p.auditId, mitti_user_id: p.mittiUserId, reason: "visit_allocated", ...(p.kind === "install" ? {} : { kind: "ready_check" as const }) });
   return { auditId: p.auditId };
 }

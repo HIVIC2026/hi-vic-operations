@@ -288,3 +288,15 @@ describe("I1: a form left with the Mitti API account after a lost reply", () => 
   });
   test("one match plus another form for the same job elsewhere is not linked", () => expect(matchAudits([a({}), a({ mittiOwnerUserId: "u_other" })], want)).toBe("elsewhere"));
 });
+
+describe("M1: the visit-allocation hand-over says which form it was for", () => {
+  test("reassignMittiFormTo logs kind ready_check on mitti_audit_reshared, so it never clears a PIESA case", async () => {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync("src/lib/mitti.server.ts", "utf8");
+    const fn = src.slice(src.indexOf("export async function reassignMittiFormTo"));
+    expect(fn).toContain('reason: "visit_allocated", ...(p.kind === "install" ? {} : { kind: "ready_check" as const }) }');
+    const got = collectFailureCases([uncertain("j1", "piesa", 1), ev("j1", "mitti_audit_reshared", 2, { audit_id: "a", reason: "visit_allocated", kind: "ready_check" })], NOW);
+    expect(got.map((c) => c.kind)).toEqual(["piesa"]);
+  });
+});
+
