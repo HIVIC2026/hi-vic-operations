@@ -11,8 +11,7 @@ import { contactAnswersFromEntries } from "../src/lib/mitti.core";
 import { resolveMittiElectrician } from "../src/lib/usual-electrician.core";
 import { accessFlagFromEntries, readyCheckRemovalRequired } from "../src/lib/ready-check-answers.core";
 import { PRICE_NEXT_ACTION, formHasInstallerAnswers, isPriceNextAction, needsFinishingFromMissing, readyCheckBasics } from "../src/lib/ready-check-basics.core";
-import { installerStatusLine } from "../src/lib/installer-screens.core";
-import { needsFinishingList } from "../src/lib/installer-screens.core";
+import { installerStatusLine, needsFinishingList } from "../src/lib/installer-screens.core";
 import { needsFinishingItems } from "../src/lib/installer-home.core";
 import { needsFinishingTask } from "../src/lib/trade-view.core";
 import { FORMS, mittiAiPrompt, validateTemplate } from "../src/lib/mitti-forms.core";
@@ -206,6 +205,19 @@ describe("wiring (source facts)", () => {
     expect(a2).toContain('installerDifficultAccessExGst: rate("DIFFICULT_ACCESS")');
     expect(read("src/lib/ready-check-answers.core.ts")).toContain("vals(entries, [LEAN_REMOVE.accessCharge])");
   });
+  test("A9: the price box, price step and price save are for installers' own jobs only; the HIV quote builder refuses them", () => {
+    expect(priceFromPortal("installer_sourced")).toBe(true);
+    expect(priceFromPortal("hivic_sourced")).toBe(false);
+    expect(installerPriceState({ channel: "hivic_sourced", record: null, entries: [] })).toEqual({ required: false, present: true, source: null });
+    expect(installerStatusLine({ channel: "hivic_sourced", formLinked: true, formCompleted: true, formHasAnswers: true, priceEntered: false, boss: true, quoteLine: null }).kind).not.toBe("price");
+    expect(read("src/routes/_authenticated/field.$jobId.tsx")).toContain('page.boss && page.channel === "installer_sourced" && <InstallerPriceCard');
+    const set = read("src/lib/installer-price-set.server.ts");
+    expect(set).toContain("if (!priceFromPortal(j.channel) || !j.originating_installer_business_id) throw new WorkflowError(\"Only your own customers' jobs take your price here.\");");
+    expect(set).toContain("if (!j || !priceFromPortal(j.channel) || !j.originating_installer_business_id) return null;");
+    const q = read("src/lib/quotes.server.ts");
+    expect(q).toContain('if (jobRow.channel === "installer_sourced" || jobRow.installer_led) throw new WorkflowError(');
+    expect(q).toContain("the quote uses that installer's agreed rates");
+  });
 });
 
 // Jo 27 Oct 2026: when the job's current Ready Check says there is no removal, the installer can't tick "Removal of
@@ -269,14 +281,4 @@ describe("Ready Check detail rows above the price box (Jo 27 Oct 2026, redone af
     expect(server).toContain("readyCheckDetailLines");
     expect(server).toContain("removalTotalM2");
   });
-});
-
-test("A9: price box and price step only on installers' own jobs; HIV leads quoted from agreed rates", () => {
-  expect(priceFromPortal("installer_sourced")).toBe(true);
-  expect(priceFromPortal("hivic_sourced")).toBe(false);
-  expect(installerPriceState({ channel: "hivic_sourced", record: null, entries: [] })).toEqual({ required: false, present: true, source: null });
-  expect(installerStatusLine({ channel: "hivic_sourced", formLinked: true, formCompleted: true, formHasAnswers: true, priceEntered: false, boss: true, quoteLine: null }).kind).not.toBe("price");
-  expect(readFileSync("src/routes/_authenticated/field.$jobId.tsx", "utf8")).toContain('page.boss && page.channel === "installer_sourced" && <InstallerPriceCard');
-  expect(readFileSync("src/lib/installer-price-set.server.ts", "utf8")).toContain("Only your own customers' jobs take your price here.");
-  expect(readFileSync("src/lib/quotes.server.ts", "utf8")).toContain("the quote uses that installer's agreed rates");
 });
