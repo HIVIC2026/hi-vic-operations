@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { useAction, useMe } from "@/hooks/use-me";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { getActiveJobsList, bulkCancelOfficeJobs } from "@/lib/office-screens.functions";
 import { bulkJobAction } from "@/lib/bulk.functions";
 import { getMittiSyncProblems } from "@/lib/mitti-pickup.functions";
@@ -27,8 +27,12 @@ import { JobsSwitcher } from "@/components/portal/JobsScreen";
 import { listCard } from "@/components/portal/kit";
 
 const TITLE: Record<JobsLane, string> = { ours: "Our jobs", installer: "Installer jobs" };
-// Literal class names (Tailwind only sees whole strings): tick box + the 11 columns, all shrinkable (no sideways scroll).
-const COLS = "md:grid-cols-[20px_72px_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_44px_56px_52px_80px_minmax(0,0.9fr)_minmax(0,0.9fr)]";
+// Literal class names (Tailwind only sees whole strings): tick box + the 11 columns. Fixed tracks fit their widest
+// heading (11px bold capitals + sort mark + filter dot: Insulation ≈ 80, Total cost ≈ 96) and cells; the rest share
+// what is left and never force a sideways scroll. Headings wrap (never spill) when a column is narrow.
+const COLS = "md:grid-cols-[16px_64px_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_56px_52px_84px_96px_minmax(0,1fr)_minmax(0,1fr)]";
+const HEAD = "min-w-0 flex-wrap [overflow-wrap:anywhere]";
+const CELL = "min-w-0 truncate";
 
 const filterOn = (v: unknown): boolean =>
   typeof v === "string" ? v.trim() !== "" : Array.isArray(v) ? v.length > 0 : !!v && ((v as Range).min != null || (v as Range).max != null);
@@ -122,9 +126,9 @@ export function JobsLaneScreen({ lane, initialStage }: { lane: JobsLane; initial
 
       {q.isError ? <div role="alert" className="rounded-[14px] border border-danger/40 bg-danger-soft p-4 text-sm">Jobs could not be loaded. {(q.error as Error).message} <button type="button" className="font-semibold underline" onClick={() => void q.refetch()}>Try again</button></div> : (
         <div className={listCard}>
-          <div className={cn("hidden items-center gap-x-2 border-b border-line bg-mist px-3 py-2 md:grid", COLS)}>
+          <div className={cn("hidden items-start gap-x-1.5 border-b border-line bg-mist px-2 py-2 md:grid", COLS)}>
             <input type="checkbox" aria-label="Select all on this page" checked={!!d?.rows.length && d.rows.every((r) => picked.has(r.id))} onChange={(e) => setPicked(e.target.checked ? new Set(d?.rows.map((r) => r.id)) : new Set())} />
-            {cols.map((c) => <ColumnHead key={c.key} col={c} sort={view.sort || "heard"} dir={view.sort ? view.dir : "desc"} value={view.filters[c.key as keyof JobsColumnFilters]} onSort={onSort} onFilter={onFilter} />)}
+            {cols.map((c) => <ColumnHead key={c.key} col={c} sort={view.sort || "heard"} dir={view.sort ? view.dir : "desc"} value={view.filters[c.key as keyof JobsColumnFilters]} onSort={onSort} onFilter={onFilter} className={HEAD} />)}
           </div>
           {!d ? <p role="status" className="p-6 text-center text-sm text-sub">Loading jobs…</p> : d.rows.length === 0 ? <p className="p-6 text-center text-sm text-sub">No jobs match. {anyFilter && <button type="button" className="font-semibold text-hiv-blue underline" onClick={clearFilters}>Clear filters</button>}</p> : (
             <ul>
@@ -149,19 +153,19 @@ export function JobsLaneScreen({ lane, initialStage }: { lane: JobsLane; initial
                       </div>
                     </div>
                     {/* Computer: the 11 columns in the spec's order. */}
-                    <div className={cn("hidden cursor-pointer items-center gap-x-2 px-3 py-2.5 text-[13px] hover:bg-mist md:grid", COLS)} onClick={() => open(r.id)}>
+                    <div className={cn("hidden cursor-pointer items-center gap-x-1.5 px-2 py-2.5 text-[13px] hover:bg-mist md:grid", COLS)} onClick={() => open(r.id)}>
                       {tick}
-                      <span className="truncate font-semibold">{job}</span>
+                      <span className="min-w-0 break-words font-semibold">{job}</span>
                       <span className={cn("min-w-0 break-words", r.next.late && "text-danger")}>{r.next.text}</span>
-                      <span className="truncate">{r.owner || "—"}</span>
-                      <span className="truncate text-sub">{r.suburb ?? ""}</span>
-                      <span className="truncate">{JOBS_STAGE_LABEL[r.stage]}</span>
-                      <span>{`${r.days} d`}</span>
-                      <span>{area}</span>
-                      <span>{ins}</span>
-                      <span>{cost}</span>
-                      <span className="truncate">{r.installer ?? "—"}</span>
-                      <span className="truncate text-sub">{heard}</span>
+                      <span className={CELL}>{r.owner || "—"}</span>
+                      <span className={cn(CELL, "text-sub")}>{r.suburb ?? ""}</span>
+                      <span className={CELL}>{JOBS_STAGE_LABEL[r.stage]}</span>
+                      <span className={CELL}>{`${r.days} d`}</span>
+                      <span className={CELL}>{area}</span>
+                      <span className={CELL}>{ins}</span>
+                      <span className={CELL} title={cost}>{cost}</span>
+                      <span className={CELL}>{r.installer ?? "—"}</span>
+                      <span className={cn(CELL, "text-sub")}>{heard}</span>
                     </div>
                   </li>
                 );
@@ -172,14 +176,17 @@ export function JobsLaneScreen({ lane, initialStage }: { lane: JobsLane; initial
       )}
       {d && <Pager page={d.page} totalPages={d.totalPages} total={d.total} shown={d.rows.length} onPage={setPage} />}
 
-      {/* Phone: the same headings (sort + filter) as a list. */}
+      {/* Phone: the same headings (sort + filter) as a full-screen list. */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto bg-paper">
+        <SheetContent side="bottom" className="inset-0 flex h-[100dvh] max-h-none w-full flex-col gap-0 overflow-y-auto bg-paper pb-0">
           <SheetHeader><SheetTitle>Filter</SheetTitle></SheetHeader>
           <div className="mt-3 grid gap-1">
             {cols.map((c) => <div key={c.key} className="border-b border-line py-3 last:border-b-0"><ColumnHead col={c} sort={view.sort || "heard"} dir={view.sort ? view.dir : "desc"} value={view.filters[c.key as keyof JobsColumnFilters]} onSort={onSort} onFilter={onFilter} className="text-sm" /></div>)}
           </div>
-          {anyFilter && <button type="button" className="mt-3 text-sm font-semibold text-hiv-blue underline" onClick={clearFilters}>Clear filters</button>}
+          {anyFilter && <button type="button" className="mt-3 self-start text-sm font-semibold text-hiv-blue underline" onClick={clearFilters}>Clear filters</button>}
+          <div className="sticky bottom-0 mt-auto bg-paper py-4">
+            <SheetClose asChild><button type="button" className="inline-flex min-h-[44px] w-full items-center justify-center rounded-[10px] bg-ink px-4 text-[14px] font-bold text-white">Close</button></SheetClose>
+          </div>
         </SheetContent>
       </Sheet>
 

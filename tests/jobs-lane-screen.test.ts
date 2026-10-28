@@ -80,3 +80,18 @@ test("JobsScreen: removed pieces are gone; Closed stays; switcher with lane coun
   for (const s of ["Our jobs", "Installer jobs", "Closed jobs", "getJobsLaneCounts"]) expect(src).toContain(s);
   expect(src).toContain('export function JobsScreen({ mode }: { mode: "closed" })');
 });
+
+test("fix round 1: computer columns fit their headings and cells; phone Filter is a full-screen list with a Close", () => {
+  const src = lane();
+  const cols = src.match(/const COLS = "md:grid-cols-\[([^\]]+)\]"/)![1]!.split("_");
+  expect(cols.length).toBe(12); // tick box + 11 columns
+  const px = (i: number) => Number(cols[i]!.replace("px", ""));
+  expect(px(8)).toBeGreaterThanOrEqual(80); // Insulation heading
+  expect(px(9)).toBeGreaterThanOrEqual(96); // Total cost: heading and "$12,340 est."
+  for (const c of cols) expect(c).toMatch(/^\d+px$|^minmax\(0,/); // nothing forces a sideways scroll
+  expect(src).toContain('const CELL = "min-w-0 truncate"');
+  expect(src).toContain("className={HEAD}");
+  expect(src).toMatch(/<SheetContent side="bottom" className="inset-0 [^"]*h-\[100dvh\][^"]*overflow-y-auto/);
+  expect(src).not.toContain("max-h-[90vh]");
+  expect(src).toMatch(/<SheetClose asChild><button[^>]*>Close<\/button><\/SheetClose>/);
+});
