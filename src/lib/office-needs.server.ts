@@ -373,14 +373,21 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     // payStageEv is newest-first: the first row per job is the latest entry into a deposit-due stage.
     const depositSinceByJob = new Map<string, string>();
     for (const e of payStageEv) { const id = String(e["job_id"]); if (!depositSinceByJob.has(id)) depositSinceByJob.set(id, String(e["created_at"])); }
-    const repeatByJob = new Map<string, { price: number; acceptedAt: string | null; paid: boolean; paidBeforeCents: number | null }>();
+    const repeatByJob = new Map<string, { deadline: string; price: number; acceptedAt: string | null; paid: boolean; paidBeforeCents: number | null }>();
+    const evDeadline = (e: Row) => String((e["details"] as { deadline?: unknown } | null)?.deadline ?? "");
+    // The newest office choice decides the deadline and the price (installer/HIVIC newest → price 0).
     for (const e of payRepeatEv) { // newest-first
-      const id = String(e["job_id"]); const t = String(e["event_type"]);
-      const cur = repeatByJob.get(id) ?? { price: 0, acceptedAt: null, paid: false, paidBeforeCents: null };
-      if (t === "repeat_piesa_payer_chosen" && cur.price === 0) { const d = e["details"] as { payer?: string; price_inc_gst?: number | null } | null; if (d?.payer === "owner") cur.price = Number(d?.price_inc_gst ?? 0); }
-      else if (t === REPEAT_PIESA_ACCEPTED_EVENT && !cur.acceptedAt) { cur.acceptedAt = String(e["created_at"]); const pb = (e["details"] as { paid_before_cents?: unknown } | null)?.paid_before_cents; cur.paidBeforeCents = typeof pb === "number" && Number.isFinite(pb) ? pb : null; }
+      const id = String(e["job_id"]);
+      if (String(e["event_type"]) !== "repeat_piesa_payer_chosen" || repeatByJob.has(id)) continue;
+      const d = e["details"] as { payer?: string; price_inc_gst?: number | null } | null;
+      repeatByJob.set(id, { deadline: evDeadline(e), price: d?.payer === "owner" ? Number(d?.price_inc_gst ?? 0) : 0, acceptedAt: null, paid: false, paidBeforeCents: null });
+    }
+    // Only acceptance/payment for that same deadline counts.
+    for (const e of payRepeatEv) { // newest-first
+      const cur = repeatByJob.get(String(e["job_id"])); const t = String(e["event_type"]);
+      if (!cur || evDeadline(e) !== cur.deadline) continue;
+      if (t === REPEAT_PIESA_ACCEPTED_EVENT && !cur.acceptedAt) { cur.acceptedAt = String(e["created_at"]); const pb = (e["details"] as { paid_before_cents?: unknown } | null)?.paid_before_cents; cur.paidBeforeCents = typeof pb === "number" && Number.isFinite(pb) ? pb : null; }
       else if (t === REPEAT_PIESA_PAID_EVENT) cur.paid = true;
-      repeatByJob.set(id, cur);
     }
     for (const [id, inv] of invoiceByJob) {
       const x = f(id); const j = jobById.get(id);
@@ -404,7 +411,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       if (fixesCents > 0 && rectQ && own < plan.thresholds.fixes) steps.push({ key: "fixes", since: String(rectQ["accepted_at"]) });
       const depSince = depositSinceByJob.get(id);
       if (depSince && INSTALL_DEPOSIT_DUE_STAGES.has(j.stage) && installDepositDueNow(j.stage, piesaByJob.get(id) as { outcome?: string | null; section_c_signed_at?: string | null } | null) && own < plan.thresholds.install_deposit) steps.push({ key: "install_deposit", since: depSince });
-      if (repeatCents > 0 && rep?.acceptedAt && !rep.paid && paidCents < plan.thresholds.repeat_safety_check) steps.push({ key: "repeat_safety_check", since: rep.acceptedAt });
+      if (repeatCents > 0 && rep?.acceptedAt && !rep.paid && repeatCents - credit > 0) steps.push({ key: "repeat_safety_check", since: rep.acceptedAt });
       const stall = paymentStall(steps, now);
       if (stall) x.paymentStalled = stall;
     }
