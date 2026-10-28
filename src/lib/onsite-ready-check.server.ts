@@ -15,7 +15,7 @@ import type { ReadyCheckPick } from "./ready-check-times.core";
 export type AddJobBooking = "none" | "confirmed" | "blocked";
 export type AddJobResult = { jobId: string; jobNumber: string | null; booking: AddJobBooking; formCreation: "scheduled" | "skipped"; state: OnsiteState };
 
-export async function startOnsiteReadyCheckFor(userId: string, businessId: string, input: OnsiteInput, electrician: ElectricianPlan | null = null, call?: MittiCall, opts: { visit?: ReadyCheckPick | null; now?: Date; /** Decision 289: null = the default rule (usual electrician when saved, else Home Insulation Victoria's). */ electricianChoice?: import("./electrician-choice.core").ElectricianChoice | null } = {}): Promise<AddJobResult> {
+export async function startOnsiteReadyCheckFor(userId: string, businessId: string, input: OnsiteInput, electrician: ElectricianPlan | null = null, call?: MittiCall, opts: { visit?: ReadyCheckPick | null; now?: Date; /** Decision 289 + Jo 28 Oct 2026: null = the default rule (the usual electrician once saved AND signed up with an agreed rate, else Home Insulation Victoria's). */ electricianChoice?: import("./electrician-choice.core").ElectricianChoice | null } = {}): Promise<AddJobResult> {
   const { requireMember, requireApprovedPartner, intakeSourceFor } = await import("./pilot.server");
   await requireMember(userId, businessId, true); // same rule as Add one job: business owner only
   await requireApprovedPartner(businessId);
@@ -26,7 +26,9 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   // Decision 289: "Electrical safety check by" is chosen once here; "my usual electrician" needs one saved in My business
   // and (Jo 28 Oct 2026, spec rule 3) finished signing up with us — refused here too, not just greyed on the screen.
   const { defaultElectricianChoice, electricianChoiceProblem } = await import("./electrician-choice.core");
-  const usual = await usualElectricianForAddJob(businessId);
+  // The approved-electrician list is read only when "usual" is chosen or is the default (nothing sent): a failed read
+  // never blocks a save with Home Insulation Victoria's electrician.
+  const usual = await usualElectricianForAddJob(businessId, { checkOnboarded: opts.electricianChoice !== "hivic" });
   const electricianChoice = opts.electricianChoice ?? defaultElectricianChoice(usual);
   const ecp = electricianChoiceProblem(electricianChoice, usual); if (ecp) problems.push(ecp);
   // Decision 116: the optional visit time follows the job page's rules (exact times, business days, 24h+ ahead) and is
@@ -96,10 +98,12 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
 
 /** Jo 28 Oct 2026 (spec rule 3): the business's usual electrician (My business) and whether they have finished signing
  *  up with an agreed rate — the same approved-REC check the quote pipeline uses (decision 303). Read-only. Read errors
- *  throw (fail closed). The rate stays here: callers send only the name and the onboarded flag to the screen. */
-export async function usualElectricianForAddJob(businessId: string): Promise<(import("./usual-electrician.core").UsualElectrician & { onboarded: boolean }) | null> {
+ *  throw (fail closed). The rate stays here: callers send only the name and the onboarded flag to the screen.
+ *  `checkOnboarded: false` skips the approved-REC read (onboarded = false, unknown) when the choice is already ours. */
+export async function usualElectricianForAddJob(businessId: string, opts: { checkOnboarded?: boolean } = {}): Promise<(import("./usual-electrician.core").UsualElectrician & { onboarded: boolean }) | null> {
   const usual = (await (await import("./usual-electrician.server")).readUsualElectrician(businessId)).electrician;
   if (!usual) return null;
+  if (opts.checkOnboarded === false) return { ...usual, onboarded: false };
   const candidates = await (await import("./rec-onboarded.server")).loadApprovedRecCandidates();
   const paysOwn = (await import("./installer-paid-electricians.core")).installerPaysOwnElectricians(businessId);
   const { usualElectricianOnboarded } = await import("./electrician-choice.core");

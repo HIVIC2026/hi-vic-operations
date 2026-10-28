@@ -13,6 +13,8 @@ const SAM = { name: "Sam Lee", licence: "A12345", priceIncGst: 300, email: "sam@
 const REC = { business_id: "rec-1", name: "Sam Lee Electrical", trading_name: null, rec_number: "REC-1", worker_licences: ["A12345"], onboarding_status: "approved", is_active: true, approved_electricians: 1, piesa_rate: { id: "rate-1", rate_inc_gst: 310 } };
 let usual: typeof SAM | null = SAM;
 let candidates: (typeof REC)[] = [];
+let candidatesFail = false;
+let candidateReads = 0;
 const created: string[] = [];
 
 mock.module("@tanstack/react-start", () => ({
@@ -29,7 +31,7 @@ mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { f
 mock.module("../src/lib/workflow.server", () => ({ WorkflowError: class WorkflowError extends Error {}, logEvent: async () => { created.push("event"); } }));
 mock.module("../src/lib/pilot.server", () => ({ requireMember: async () => {}, requireApprovedPartner: async () => {}, intakeSourceFor: async () => "installer_onsite" }));
 mock.module("../src/lib/usual-electrician.server", () => ({ readUsualElectrician: async () => ({ electrician: usual, revision: "rev-1" }) }));
-mock.module("../src/lib/rec-onboarded.server", () => ({ loadApprovedRecCandidates: async () => candidates }));
+mock.module("../src/lib/rec-onboarded.server", () => ({ loadApprovedRecCandidates: async () => { candidateReads++; if (candidatesFail) throw new Error("approved electricians could not be read"); return candidates; } }));
 // The step straight after validation: an open job at this address stops the save before anything is created, which
 // shows the electrician check passed without needing a database.
 mock.module("../src/lib/duplicate-address.server", () => ({ findOpenJobAtAddress: async () => ({ id: "job-open", job_number: "HV-9" }), flagDuplicateAddress: async () => {}, businessNameFor: async () => "TEST Biz" }));
@@ -44,7 +46,7 @@ const { AddJobFlow } = await import("../src/components/trade/add-job-flow");
 const owner = { full_name: "Ann Lee", address_line: "12 Ryrie Street", suburb: "Geelong", postcode: "3220", phone: "0412 000 777", email: "owner@hivic-test.example", contact_permission: true, consent_by: "installer" as const, address_verified: true };
 const loader = addJobOptions as unknown as (o: { data: { businessId: string } }) => Promise<{ usualElectrician: unknown }>;
 
-beforeEach(() => { usual = SAM; candidates = []; created.length = 0; });
+beforeEach(() => { usual = SAM; candidates = []; candidatesFail = false; candidateReads = 0; created.length = 0; });
 afterEach(() => cleanup());
 
 describe("options loader: name and onboarded only", () => {
@@ -76,6 +78,18 @@ describe("save: 'usual' is checked on the server", () => {
   test("onboarded: accepted (passes the check)", async () => {
     candidates = [REC];
     await expect(startOnsiteReadyCheckFor("user-1", BIZ, owner, null, undefined, { electricianChoice: "usual" })).rejects.toThrow(duplicateAddressMessage("HV-9"));
+  });  // Final review minor: the approved-electrician list is read only when "usual" is chosen or is the default.
+  test("Home Insulation Victoria's electrician chosen: the list is not read, and a failed read can't block the save", async () => {
+    candidatesFail = true;
+    await expect(startOnsiteReadyCheckFor("user-1", BIZ, owner, null, undefined, { electricianChoice: "hivic" })).rejects.toThrow(duplicateAddressMessage("HV-9"));
+    expect(candidateReads).toBe(0);
+  });
+  test("'usual' chosen or nothing sent (the default): the list is read, and a failed read refuses (fail closed)", async () => {
+    candidatesFail = true;
+    await expect(startOnsiteReadyCheckFor("user-1", BIZ, owner, null, undefined, { electricianChoice: "usual" })).rejects.toThrow("approved electricians could not be read");
+    await expect(startOnsiteReadyCheckFor("user-1", BIZ, owner, null, undefined, { electricianChoice: null })).rejects.toThrow("approved electricians could not be read");
+    expect(candidateReads).toBe(2);
+    expect(created).toEqual([]);
   });
 });
 
