@@ -330,6 +330,14 @@ if (!ctx?.jobId || !safe) {
     const path = s.path();
     if (s.step.startsWith("Installer accepts the ESC") && await noticeAcked()) { add({ step: s.step, person: s.person, status: "pass", detail: "Already acknowledged by the installer on an earlier run (append-only record); nothing to press." }); n++; continue; }
     if (!path) { add({ step: s.step, person: s.person, status: "blocked", detail: "Prerequisite record missing (no offer)." }); n++; continue; }
+    if (s.step === "Office quote release") {
+      const pol = await import("../src/lib/qa-office-policy.core");
+      if (!pol.qaOfficeFunctionAllowed("src/lib/installer-quote.functions.ts", "getInstallerQuoteDraft") || !pol.qaOfficeFunctionAllowed("src/lib/installer-quote.functions.ts", "sendInstallerQuote")) {
+        const r = await browse({ n, slug: "office-quote-release", path, wait: s.wait, person: s.person, next: s.next });
+        add({ step: s.step, person: s.person, status: "blocked", detail: "The TEST office login is not allowed to load or send the installer quote (the quote card stays on \"Loading installer quote…\"); widening the TEST office allowlist needs Jo's decision. Nothing pressed.", screenshot: r?.shots ?? [] });
+        broken = true; n++; continue;
+      }
+    }
     const r = await browse({ n, slug: s.step.toLowerCase().replace(/[^a-z]+/g, "-"), path, wait: s.wait, button: s.button, scope: s.scope, person: s.person, next: s.next });
     const st = await jobState();
     const runnerErr = !r ? "browser step crashed" : r.runner_error ?? null;
