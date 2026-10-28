@@ -504,3 +504,9 @@ export function offerMoney(boss: boolean, s: { electrician_rate_inc_gst?: number
   if (!boss) return { pay: null, ratePerM2: null };
   return { pay: s.electrician_rate_inc_gst ?? null, ratePerM2: s.installer_rate_per_m2 ?? null };
 }
+
+/** Last 4 digits of a saved account number, for display only; null when fewer than 4 digits. */
+export function accountEnding(raw: string | null | undefined): string | null {
+  const digits = String(raw ?? "").replace(/\D/g, "");
+  return digits.length >= 4 ? digits.slice(-4) : null;
+}

@@ -6,7 +6,7 @@ import { fullAddress, shortAddress } from "./address";
 import { isTestPartner } from "./test-send.core";
 import { offerTiming } from "./offer-timing.core";
 import { placeWorkJob, type WorkPlace } from "./work-places.core";
-import { COULDNT_GET_IN, offerMoney, electricianPayState, payState, type PayState, surname, type AreaSource, type InsulationNow, type TradeKind, SETUP_STEPS, type SetupKey, tradeJobAllowed, contactVisible, type AccessAssignment, type TeamMemberView, type BusinessNext, type CredentialView, type MittiLogin, latestExpiry, businessNext, bankLine, installerPayHeldReasons } from "./trade-view.core";
+import { COULDNT_GET_IN, offerMoney, electricianPayState, payState, type PayState, surname, type AreaSource, type InsulationNow, type TradeKind, SETUP_STEPS, type SetupKey, tradeJobAllowed, contactVisible, type AccessAssignment, type TeamMemberView, type BusinessNext, type CredentialView, type MittiLogin, latestExpiry, businessNext, bankLine, installerPayHeldReasons, accountEnding } from "./trade-view.core";
 import { crewClearance, CREW_CLEARANCE_REASON, melbourneToday } from "./worker-compliance.core";
 import type { UsualElectrician } from "./usual-electrician.core";
 import type { InstallerQuote } from "./installer-quote-status.server";
@@ -521,10 +521,9 @@ export async function tradeMoney(userId: string) {
   const next = coming.map((r) => (r.state as { on: string }).on).sort()[0] ?? null;
   const nextRows = next ? coming.filter((r) => (r.state as { on: string }).on.slice(0, 10) === next.slice(0, 10)) : [];
   const sum = (xs: typeof rows) => xs.reduce((t, r) => t + (r.amount ?? 0), 0);
-  // Only the last 3 digits of the saved account: enough to recognise it, never the full number.
+  // Only the last 4 digits of the saved account: enough to recognise it, never the full number.
   const { data: bank } = await admin.from("business_bank_details").select("account_number").eq("business_id", c.biz.id).maybeSingle();
-  const digits = String(bank?.account_number ?? "").replace(/\D/g, "");
-  return { kind: c.kind, boss: c.boss, business: c.biz.name, bankEnding: digits.length >= 3 ? digits.slice(-3) : null, next: next ? { on: next, total: sum(nextRows), jobs: nextRows.length } : null, month: sum(rows.filter((r) => r.doneAt && new Date(r.doneAt) >= m0)), allTime: sum(rows), rows, ownerDirect, paidByInstaller };
+  return { kind: c.kind, boss: c.boss, business: c.biz.name, bankEnding: accountEnding(bank?.account_number), next: next ? { on: next, total: sum(nextRows), jobs: nextRows.length } : null, month: sum(rows.filter((r) => r.doneAt && new Date(r.doneAt) >= m0)), allTime: sum(rows), rows, ownerDirect, paidByInstaller };
 }
 
 /**
@@ -994,11 +993,10 @@ export async function tradeMoneyJob(jobId: string, userId: string) {
   const { currentAllocation } = await import("./visit-allocation.core");
   const evs = (alloc ?? []) as { event_type: string; details: unknown; created_at: string }[];
   const crew = [...new Set([decl?.installer_name, currentAllocation(evs, "install")?.worker_name].filter((x): x is string => !!x))];
-  const digits = String(bank?.account_number ?? "").replace(/\D/g, "");
   const paidInFull = (invs ?? []).length && (invs ?? []).every((x) => x.status === "fully_paid") ? (invs ?? []).map((x) => x.balance_paid_at ?? x.paid_at ?? x.updated_at).sort().at(-1) ?? null : null;
   return {
     found: !!row, jobId, jobNumber: row?.jobNumber ?? null, suburb: row?.suburb ?? null, channel: row?.channel ?? null, doneAt: row?.doneAt ?? null,
-    amount: row?.amount ?? null, state: row?.state ?? { kind: "checking" as const }, accountEnding: digits.length >= 4 ? digits.slice(-4) : null,
+    amount: row?.amount ?? null, state: row?.state ?? { kind: "checking" as const }, accountEnding: accountEnding(bank?.account_number),
     product: decl?.installed_product ?? finalAsg?.installed_product ?? null,
     areaM2: finalAsg?.installed_area_m2 != null ? Number(finalAsg.installed_area_m2) : m?.measured_area_m2 != null ? Number(m.measured_area_m2) : null,
     removalM2: m?.removal_required && m.removal_m2 != null ? Number(m.removal_m2) : null, crew,
@@ -1013,9 +1011,8 @@ export async function tradeMoneyExtras(userId: string) {
     admin.from("business_bank_details").select("account_name, account_number, bsb").eq("business_id", c.biz.id).maybeSingle(),
     admin.from("businesses").select("legal_name, name").eq("id", c.biz.id).maybeSingle(),
   ]);
-  const digits = String(bank?.account_number ?? "").replace(/\D/g, "");
   const bsb = String(bank?.bsb ?? "").replace(/\D/g, "");
-  return { accountName: bank?.account_name ?? b?.legal_name ?? b?.name ?? c.biz.name, bsbStart: bsb.length >= 3 ? bsb.slice(0, 3) : null, accountEnding: digits.length >= 3 ? digits.slice(-3) : null };
+  return { accountName: bank?.account_name ?? b?.legal_name ?? b?.name ?? c.biz.name, bsbStart: bsb.length >= 3 ? bsb.slice(0, 3) : null, accountEnding: accountEnding(bank?.account_number) };
 }
 
 

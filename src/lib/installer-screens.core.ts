@@ -507,7 +507,7 @@ export const HOW_PAY_WORKS = [
   { who: "Our leads", how: "Paid within 7 days of our approval" },
 ] as const;
 export const READY_CHECKS_FREE = "Ready Check visits are free, so they never appear here. Nothing to invoice us.";
-/** "BSB 063-xxx · account ending 471" — never the full numbers. */
+/** "BSB 063-xxx · account ending 4471" — never the full numbers. */
 export function bankLine(f: { bsbStart: string | null; accountEnding: string | null }): string {
   if (!f.bsbStart && !f.accountEnding) return "No bank account saved yet";
   return [f.bsbStart ? `BSB ${f.bsbStart}-xxx` : null, f.accountEnding ? `account ending ${f.accountEnding}` : null].filter(Boolean).join(" · ");
