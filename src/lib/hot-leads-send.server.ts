@@ -98,6 +98,13 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   if (jobError) return { jobId, jobNumber: null, outcome: "blocked", detail: "Could not read the job. Try again; nothing sent." };
   if (!job) return { jobId, jobNumber: null, outcome: "failed", detail: "Job not found" };
   const r = (outcome: HotSendResult["outcome"], detail: string): HotSendResult => ({ jobId, jobNumber: job.job_number, outcome, detail });
+  if (mode === "send") {
+    // Waiting for the owner's full address: nothing is reserved or sent until they answer.
+    const { loadAddressRequestFacts } = await import("./address-request.server");
+    const { addressRequestOpen, ADDRESS_REQUEST_BLOCK_REASON } = await import("./address-request.core");
+    const facts = await loadAddressRequestFacts(jobId);
+    if (facts && addressRequestOpen(facts)) return r("blocked", ADDRESS_REQUEST_BLOCK_REASON);
+  }
   const isTest = job.source === "qa_test";
   if (mode === "send" && !isTest && !followup && !morePhotos && !realOn) return r("blocked", "Sending is switched off.");
   if (followup && !["base44", "qa_test"].includes(job.source)) return r("blocked", "Follow-up is only for website owner enquiries.");

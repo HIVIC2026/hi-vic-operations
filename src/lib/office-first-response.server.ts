@@ -71,6 +71,10 @@ export async function readCatchup(jobId: string, ownReservation?: string) {
 async function prepareCatchup(jobId: string, ownReservation?: string) {
   const initial = await readCatchup(jobId, ownReservation);
   if (initial.blocker) return { blocker: initial.blocker };
+  const { loadAddressRequestFacts } = await import('./address-request.server');
+  const { addressRequestOpen, ADDRESS_REQUEST_BLOCK_REASON } = await import('./address-request.core');
+  const facts = await loadAddressRequestFacts(jobId);
+  if (facts && addressRequestOpen(facts)) return { blocker: ADDRESS_REQUEST_BLOCK_REASON };
   const [originalMedia, documents, evidence, estimate, link, config] = await Promise.all([
     groupBMediaForJob(jobId),
     admin.from('documents').select('kind,mime_type,storage_path').eq('job_id', jobId).eq('kind', 'intake_media'),
