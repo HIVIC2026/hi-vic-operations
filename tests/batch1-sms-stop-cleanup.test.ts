@@ -1,11 +1,14 @@
-import { beforeEach, expect, mock, test } from "bun:test";
+import { afterAll, beforeEach, expect, mock, test } from "bun:test";
 import { closeStoppedEnquiries } from "../src/lib/sms-stop.server";
 
 type Row = { id: string; stage: string; owner_phone: string; office_bucket: string; source: string; deleted_at: string | null };
 let rows: Row[] = [], assignments: string[] = [], pendingOffers: string[] = [];
+let stageNow: Record<string, string> = {};
 let updates: string[] = [], events: Record<string, unknown>[] = [];
 const cancelCalls: unknown[][] = [];
-mock.module("../src/lib/office-actions.server", () => ({ cancelJobFully: async (...a: unknown[]) => { cancelCalls.push(a); } }));
+let failFor: string | null = null;
+mock.module("../src/lib/office-actions.server", () => ({ cancelJobFully: async (...a: unknown[]) => { cancelCalls.push(a); if (a[0] === failFor) throw new Error("Cancelled, but releasing the job's bookings failed"); } }));
+afterAll(() => mock.restore());
 
 const db = { from(table: string) {
   const filters: Array<(r: any) => boolean> = [];
@@ -14,6 +17,7 @@ const db = { from(table: string) {
     if (table === "lead_campaign_responses") return { data: rows.map((r) => ({ job_id: r.id })), error: null };
     if (table === "job_assignments") return { data: assignments.map((job_id) => ({ job_id, active: true })).filter((r) => filters.every((f) => f(r))), error: null };
     if (table === "partner_offers") return { data: pendingOffers.map((job_id) => ({ job_id, status: "pending" })).filter((r) => filters.every((f) => f(r))), error: null };
+    if (table === "jobs" && op === "read") return { data: rows.filter((r) => filters.every((f) => f(r))).map((r) => ({ ...r, stage: stageNow[r.id] ?? r.stage })), error: null };
     if (table === "workflow_events") { events.push(payload); return { data: null, error: null }; }
     const selected = rows.filter((r) => filters.every((f) => f(r)));
     if (op === "update") { for (const r of selected) { updates.push(r.id); Object.assign(r, payload); r.office_bucket = "closed"; } }
@@ -31,7 +35,7 @@ const db = { from(table: string) {
   return q;
 } };
 const saved = (id: string): Row => ({ id, stage: "ready_check_ready_to_schedule", owner_phone: "0491 234 567", office_bucket: "active", source: "base44", deleted_at: null });
-beforeEach(() => { rows = []; assignments = []; pendingOffers = []; updates = []; events = []; cancelCalls.length = 0; });
+beforeEach(() => { failFor = null; stageNow = {}; rows = []; assignments = []; pendingOffers = []; updates = []; events = []; cancelCalls.length = 0; });
 
 test("saved spot with an active installer assignment goes through cancelJobFully, telling the installer, with no direct close", async () => {
   rows = [saved("j1")]; assignments = ["j1"];
@@ -58,4 +62,18 @@ test("shared phone: each job is handled its own way", async () => {
   await closeStoppedEnquiries(db, "+61491234567", "sid", "2026-10-28T00:00:00Z");
   expect(cancelCalls.map((c) => c[0])).toEqual(["booked"]);
   expect(updates).toEqual(["plain"]); expect(events).toHaveLength(1); expect(events[0]?.job_id).toBe("plain");
+});
+
+test("one failing cancel does not stop the next job; failure is logged once and rethrown after the loop", async () => {
+  rows = [saved("bad"), saved("good")]; assignments = ["bad", "good"]; failFor = "bad";
+  await expect(closeStoppedEnquiries(db, "+61491234567", "sid", "2026-10-28T00:00:00Z")).rejects.toThrow("releasing the installer failed");
+  expect(cancelCalls.map((c) => c[0])).toEqual(["bad", "good"]);
+  expect(events.filter((e) => e.event_type === "stop_installer_release_failed")).toHaveLength(1);
+  expect(events[0]?.job_id).toBe("bad");
+});
+
+test("a job whose stage changed or is a test job is not cancelled", async () => {
+  rows = [saved("moved"), { ...saved("qa"), source: "qa_test" }]; assignments = ["moved", "qa"]; stageNow = { moved: "ready_check_scheduled" };
+  await closeStoppedEnquiries(db, "+61491234567", "sid", "2026-10-28T00:00:00Z");
+  expect(cancelCalls).toHaveLength(0);
 });

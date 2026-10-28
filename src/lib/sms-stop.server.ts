@@ -26,6 +26,7 @@ export async function closeStoppedEnquiries(db: any, phone: string, sid: string 
       if ((data ?? []).length < 500) break;
     }
   }
+  const failures: string[] = [];
   for (const row of matches) {
     // Re-read the shared classifier before the conditional update; never overwrite a changed stage.
     const { data: current, error: readError } = await db.from("office_enquiry_index")
@@ -40,8 +41,22 @@ export async function closeStoppedEnquiries(db: any, phone: string, sid: string 
     ]);
     if (assignedError || offeredError) throw new Error("Could not check installer for STOP closure");
     if ((assigned ?? []).length || (offered ?? []).length) {
-      const { cancelJobFully } = await import("./office-actions.server");
-      await cancelJobFully(row.id, SMS_STOP_CLOSED_REASON, null, { tell: { owner: false, installer: true } });
+      // Same guards as the direct path: skip if the job changed, is a test job or was deleted since the first read.
+      const { data: live, error: liveError } = await db.from("jobs").select("stage,source,deleted_at").eq("id", row.id).maybeSingle();
+      if (liveError) throw new Error("Could not recheck job for STOP closure");
+      if (!live || live.stage !== row.stage || live.source === "qa_test" || live.deleted_at) continue;
+      try {
+        const { cancelJobFully } = await import("./office-actions.server");
+        await cancelJobFully(row.id, SMS_STOP_CLOSED_REASON, null, { tell: { owner: false, installer: true } });
+      } catch (e) {
+        failures.push(`${row.id}: ${(e as Error).message}`);
+        // No Needs me mechanism fits without new office-needs wiring: one internal history row the office sees on the job.
+        await db.from("workflow_events").insert({
+          job_id: row.id, actor_id: null, event_type: "stop_installer_release_failed", internal: true,
+          summary: "STOP received, but releasing the installer failed — open the job and cancel again",
+          details: { source: "sms_stop", provider_message_id: sid, needs_office: true },
+        }).then(() => undefined, () => undefined);
+      }
       continue;
     }
     const { data: changed, error } = await db.from("jobs").update({
@@ -58,4 +73,5 @@ export async function closeStoppedEnquiries(db: any, phone: string, sid: string 
     });
     if (auditError) throw new Error("STOP closure saved but audit could not be recorded");
   }
+  if (failures.length) throw new Error(`STOP closure: releasing the installer failed for ${failures.length} job(s): ${failures.join("; ")}`);
 }
