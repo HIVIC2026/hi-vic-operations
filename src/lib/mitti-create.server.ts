@@ -153,7 +153,7 @@ export async function onReadyCheckJobAdded(jobId: string, actorId: string | null
   return work;
 }
 
-async function testAssignee(source: string | null, installerUserId: string): Promise<ReadyCheckAssignee | null> {
+export async function testAssignee(source: string | null, installerUserId: string): Promise<ReadyCheckAssignee | null> {
   if (source !== "qa_test") return null;
   const { TEST_MITTI_ASSIGNEE } = await import("./onsite-ready-check.core");
   const { data: p } = await admin.from("profiles").select("full_name").eq("id", installerUserId).maybeSingle();

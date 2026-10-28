@@ -309,6 +309,7 @@ describe("8. existing behaviour kept", () => {
     expect(r).toMatchObject({ auditId: "audit_1", reused: false });
     expect(m.calls).toEqual(["POST /users/search", `GET /templates/v1/templates/${MITTI_TEMPLATE_ID}`, "POST /audits", "POST /audits/audit_1/share", "PUT /inspections/v1/inspections/audit_1/owner"]);
     expect(events("mitti_audit_created").length).toBe(1);
+    expect((events("mitti_audit_created")[0]!.details as { kind?: string }).kind).toBe("ready_check");
     expect((await onsiteFormFor(JOB, INSTALLER, m.call, false)).kind).toBe("open");
   });
   test("switch states still win before anything else (auto_send off -> office; not invited -> office)", async () => {

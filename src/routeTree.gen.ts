@@ -99,6 +99,7 @@ import { Route as ApiPublicHooksCustomerFollowupsRouteImport } from './routes/ap
 import { Route as ApiPublicHooksEscRobotRouteImport } from './routes/api/public/hooks/esc-robot'
 import { Route as ApiPublicHooksExternalActionsRouteImport } from './routes/api/public/hooks/external-actions'
 import { Route as ApiPublicHooksMittiPullRouteImport } from './routes/api/public/hooks/mitti-pull'
+import { Route as ApiPublicHooksMittiRetryRouteImport } from './routes/api/public/hooks/mitti-retry'
 import { Route as ApiPublicHooksOutlookSyncRouteImport } from './routes/api/public/hooks/outlook-sync'
 import { Route as ApiPublicHooksPostIntakeRouteImport } from './routes/api/public/hooks/post-intake'
 import { Route as ApiPublicHooksStripePaymentsRouteImport } from './routes/api/public/hooks/stripe-payments'
@@ -601,6 +602,12 @@ const ApiPublicHooksMittiPullRoute = ApiPublicHooksMittiPullRouteImport.update({
   path: '/api/public/hooks/mitti-pull',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicHooksMittiRetryRoute =
+  ApiPublicHooksMittiRetryRouteImport.update({
+    id: '/api/public/hooks/mitti-retry',
+    path: '/api/public/hooks/mitti-retry',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksOutlookSyncRoute =
   ApiPublicHooksOutlookSyncRouteImport.update({
     id: '/api/public/hooks/outlook-sync',
@@ -762,6 +769,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/esc-robot': typeof ApiPublicHooksEscRobotRoute
   '/api/public/hooks/external-actions': typeof ApiPublicHooksExternalActionsRoute
   '/api/public/hooks/mitti-pull': typeof ApiPublicHooksMittiPullRoute
+  '/api/public/hooks/mitti-retry': typeof ApiPublicHooksMittiRetryRoute
   '/api/public/hooks/outlook-sync': typeof ApiPublicHooksOutlookSyncRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
   '/api/public/hooks/stripe-payments': typeof ApiPublicHooksStripePaymentsRoute
@@ -861,6 +869,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/esc-robot': typeof ApiPublicHooksEscRobotRoute
   '/api/public/hooks/external-actions': typeof ApiPublicHooksExternalActionsRoute
   '/api/public/hooks/mitti-pull': typeof ApiPublicHooksMittiPullRoute
+  '/api/public/hooks/mitti-retry': typeof ApiPublicHooksMittiRetryRoute
   '/api/public/hooks/outlook-sync': typeof ApiPublicHooksOutlookSyncRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
   '/api/public/hooks/stripe-payments': typeof ApiPublicHooksStripePaymentsRoute
@@ -966,6 +975,7 @@ export interface FileRoutesById {
   '/api/public/hooks/esc-robot': typeof ApiPublicHooksEscRobotRoute
   '/api/public/hooks/external-actions': typeof ApiPublicHooksExternalActionsRoute
   '/api/public/hooks/mitti-pull': typeof ApiPublicHooksMittiPullRoute
+  '/api/public/hooks/mitti-retry': typeof ApiPublicHooksMittiRetryRoute
   '/api/public/hooks/outlook-sync': typeof ApiPublicHooksOutlookSyncRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
   '/api/public/hooks/stripe-payments': typeof ApiPublicHooksStripePaymentsRoute
@@ -1071,6 +1081,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/esc-robot'
     | '/api/public/hooks/external-actions'
     | '/api/public/hooks/mitti-pull'
+    | '/api/public/hooks/mitti-retry'
     | '/api/public/hooks/outlook-sync'
     | '/api/public/hooks/post-intake'
     | '/api/public/hooks/stripe-payments'
@@ -1170,6 +1181,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/esc-robot'
     | '/api/public/hooks/external-actions'
     | '/api/public/hooks/mitti-pull'
+    | '/api/public/hooks/mitti-retry'
     | '/api/public/hooks/outlook-sync'
     | '/api/public/hooks/post-intake'
     | '/api/public/hooks/stripe-payments'
@@ -1274,6 +1286,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/esc-robot'
     | '/api/public/hooks/external-actions'
     | '/api/public/hooks/mitti-pull'
+    | '/api/public/hooks/mitti-retry'
     | '/api/public/hooks/outlook-sync'
     | '/api/public/hooks/post-intake'
     | '/api/public/hooks/stripe-payments'
@@ -1328,6 +1341,7 @@ export interface RootRouteChildren {
   ApiPublicHooksEscRobotRoute: typeof ApiPublicHooksEscRobotRoute
   ApiPublicHooksExternalActionsRoute: typeof ApiPublicHooksExternalActionsRoute
   ApiPublicHooksMittiPullRoute: typeof ApiPublicHooksMittiPullRoute
+  ApiPublicHooksMittiRetryRoute: typeof ApiPublicHooksMittiRetryRoute
   ApiPublicHooksOutlookSyncRoute: typeof ApiPublicHooksOutlookSyncRoute
   ApiPublicHooksPostIntakeRoute: typeof ApiPublicHooksPostIntakeRoute
   ApiPublicHooksStripePaymentsRoute: typeof ApiPublicHooksStripePaymentsRoute
@@ -1971,6 +1985,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksMittiPullRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/mitti-retry': {
+      id: '/api/public/hooks/mitti-retry'
+      path: '/api/public/hooks/mitti-retry'
+      fullPath: '/api/public/hooks/mitti-retry'
+      preLoaderRoute: typeof ApiPublicHooksMittiRetryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/outlook-sync': {
       id: '/api/public/hooks/outlook-sync'
       path: '/api/public/hooks/outlook-sync'
@@ -2275,6 +2296,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksEscRobotRoute: ApiPublicHooksEscRobotRoute,
   ApiPublicHooksExternalActionsRoute: ApiPublicHooksExternalActionsRoute,
   ApiPublicHooksMittiPullRoute: ApiPublicHooksMittiPullRoute,
+  ApiPublicHooksMittiRetryRoute: ApiPublicHooksMittiRetryRoute,
   ApiPublicHooksOutlookSyncRoute: ApiPublicHooksOutlookSyncRoute,
   ApiPublicHooksPostIntakeRoute: ApiPublicHooksPostIntakeRoute,
   ApiPublicHooksStripePaymentsRoute: ApiPublicHooksStripePaymentsRoute,
