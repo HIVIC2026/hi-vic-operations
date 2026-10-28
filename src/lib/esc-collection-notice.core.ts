@@ -84,6 +84,8 @@ export type NoticeAckKind = "acknowledged";
 export type NoticeAck = {
   worker_email: string; kind: NoticeAckKind; at: string; by_name: string;
   notice_version: string; notice_sha256: string; source: "onboarding" | "my_business" | "secure_link" | string;
+  /** Jo 28 Oct: set from the record; matches a person who has no email (people with an email still match by email). */
+  worker_id?: string | null;
 };
 export type NoticeWorker = { id?: string | null; email: string | null | undefined; full_legal_name: string; trade_role: string; removed_at?: string | null };
 export type NoticeState = "missing" | "acknowledged";
@@ -101,7 +103,7 @@ const isCurrent = (a: NoticeAck) => a.notice_sha256 === COLLECTION_NOTICE_SHA256
 export function collectionNoticeStatus(workers: readonly NoticeWorker[], acks: readonly NoticeAck[]): NoticeStatus[] {
   return workers.filter((w) => w.trade_role === "installer" && !w.removed_at).map((w) => {
     const email = noticeEmailKey(w.email);
-    const mine = email ? acks.filter((a) => noticeEmailKey(a.worker_email) === email) : [];
+    const mine = email ? acks.filter((a) => noticeEmailKey(a.worker_email) === email) : w.id ? acks.filter((a) => !noticeEmailKey(a.worker_email) && a.worker_id === w.id) : [];
     const best = mine.filter(isCurrent).reduce<NoticeAck | null>((b, a) => (!b || a.at > b.at ? a : b), null);
     return { workerId: w.id ?? null, email, name: w.full_legal_name, state: best ? "acknowledged" : "missing", at: best?.at ?? null, byName: best?.by_name ?? null, source: best?.source ?? null, superseded: !best && mine.length > 0 };
   });
@@ -171,7 +173,7 @@ export function acksFromApplicationData(data: unknown): NoticeAck[] {
 }
 
 /** One `admin_config_events` row (append-only) for an approved business's worker acknowledging for themself. */
-export function noticeEventDetails(p: { businessId: string; workerId: string | null; workerEmail: string; byName: string; source: "my_business" | "secure_link"; ip?: string | null; userAgent?: string | null; linkId?: string | null; now?: Date }) {
+export function noticeEventDetails(p: { businessId: string; workerId: string | null; workerEmail: string | null; byName: string; source: "my_business" | "secure_link"; ip?: string | null; userAgent?: string | null; linkId?: string | null; now?: Date }) {
   const at = (p.now ?? new Date()).toISOString();
   return {
     summary: `${p.byName || p.workerEmail} acknowledged the ESC collection notice v${COLLECTION_NOTICE_VERSION} (${p.source === "secure_link" ? "secure link" : "My business"})`,
@@ -182,13 +184,14 @@ export function ackFromEventDetails(details: unknown): NoticeAck | null {
   const d = (details ?? {}) as Record<string, unknown>;
   const email = noticeEmailKey(typeof d["worker_email"] === "string" ? d["worker_email"] : null);
   const at = typeof d["at"] === "string" ? d["at"] : null;
-  if (!email || !at) return null;
-  return { worker_email: email, kind: "acknowledged", at, by_name: typeof d["by_name"] === "string" ? d["by_name"] : "", notice_version: String(d["notice_version"] ?? ""), notice_sha256: String(d["notice_sha256"] ?? ""), source: String(d["source"] ?? "my_business") };
+  const workerId = typeof d["worker_id"] === "string" ? d["worker_id"] : null;
+  if ((!email && !workerId) || !at) return null;
+  return { worker_email: email, kind: "acknowledged", at, by_name: typeof d["by_name"] === "string" ? d["by_name"] : "", notice_version: String(d["notice_version"] ?? ""), notice_sha256: String(d["notice_sha256"] ?? ""), source: String(d["source"] ?? "my_business"), ...(workerId ? { worker_id: workerId } : {}) };
 }
 
 // ---- Secure links (no login) ----
 export type NoticeLink = { id: string; business_id: string; worker_id: string; worker_email: string; token_hash: string; expires_at: string; created_at: string };
-export function noticeLinkDetails(p: { businessId: string; workerId: string; workerEmail: string; tokenHash: string; now?: Date }) {
+export function noticeLinkDetails(p: { businessId: string; workerId: string; workerEmail: string | null; tokenHash: string; now?: Date }) {
   const now = p.now ?? new Date();
   return { business_id: p.businessId, worker_id: p.workerId, worker_email: noticeEmailKey(p.workerEmail), token_hash: p.tokenHash, expires_at: new Date(now.getTime() + COLLECTION_NOTICE_LINK_DAYS * 86_400_000).toISOString(), issued_at: now.toISOString() };
 }
