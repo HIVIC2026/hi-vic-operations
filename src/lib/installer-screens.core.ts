@@ -376,8 +376,9 @@ export type MoneyJobFacts = {
   jobNumber: string | number | null; suburb: string | null; channel: string | null; doneAt: string | null; amount: number | null; state: { kind: PayKind; on?: string }; accountEnding: string | null;
   product: string | null; areaM2: number | null; removalM2: number | null; crew: string[];
   installerSignedAt: string | null; ownerSignedAt: string | null; apApprovedAt: string | null; ownerPaidInFullAt: string | null;
+  held: string[];
 };
-export function moneyJobDetail(f: MoneyJobFacts): { heading: string; sub: string; pay: string; pill: { kind: PayKind; on?: string }; payNote: string; work: [string, string][]; timeline: [string, string][]; footnote: string } {
+export function moneyJobDetail(f: MoneyJobFacts): { heading: string; sub: string; pay: string; pill: { kind: PayKind; on?: string }; payNote: string; held: string[]; work: [string, string][]; timeline: [string, string][]; footnote: string } {
   const own = f.channel === "installer_sourced";
   const timeline: [string, string][] = [];
   if (f.doneAt) timeline.push(["Install done", shortDay(f.doneAt)]);
@@ -391,6 +392,7 @@ export function moneyJobDetail(f: MoneyJobFacts): { heading: string; sub: string
     sub: [sourceLabel(f.channel), f.doneAt ? `Install ${shortDay(f.doneAt)}` : null].filter(Boolean).join(" · "),
     pay: f.amount != null ? `$${Math.round(f.amount).toLocaleString("en-AU")}` : "To be confirmed", pill: f.state,
     payNote: `Inc GST${f.accountEnding ? ` · paid to the account ending ${f.accountEnding}` : ""}`,
+    held: f.state.kind === "paid" ? [] : f.held,
     work: [["Installed", [f.product, f.areaM2 ? `${Number(f.areaM2)} m²` : null].filter(Boolean).join(" · ") || "To be confirmed"], ["Removed", f.removalM2 ? `${Number(f.removalM2)} m²` : "None"], ["Crew", f.crew.length ? f.crew.join(", ") : "Not recorded"]],
     timeline,
     footnote: own ? "Your customers are paid once the office approves the paperwork and the owner has paid their balance." : "Our leads are paid within 7 days of the office approving the paperwork.",

@@ -1000,7 +1000,7 @@ export async function tradeMoneyJob(jobId: string, userId: string) {
     product: decl?.installed_product ?? finalAsg?.installed_product ?? null,
     areaM2: finalAsg?.installed_area_m2 != null ? Number(finalAsg.installed_area_m2) : m?.measured_area_m2 != null ? Number(m.measured_area_m2) : null,
     removalM2: m?.removal_required && m.removal_m2 != null ? Number(m.removal_m2) : null, crew,
-    installerSignedAt: finalAsg?.installer_signed_at ?? null, ownerSignedAt: finalAsg?.consumer_final_signed_at ?? null, apApprovedAt: row?.approvedAt ?? null, ownerPaidInFullAt: paidInFull,
+    installerSignedAt: finalAsg?.installer_signed_at ?? null, ownerSignedAt: finalAsg?.consumer_final_signed_at ?? null, apApprovedAt: row?.approvedAt ?? null, ownerPaidInFullAt: paidInFull, held: row?.held ?? [],
   };
 }
 
