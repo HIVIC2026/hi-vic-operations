@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { partnerLegacyTarget } from "../src/lib/legacy-links.core";
 import { readFileSync } from "node:fs";
-import { ADD_JOB_LEAD, ADD_JOB_STAFF_ONLY, addJobStartState, FORM_WITHIN_15, NEUTRAL_SAVE_ERROR, SAVE_LABEL, VISIT_FIELD_HINT, VISIT_FIELD_LABEL, WHAT_HAPPENS_NEXT, dayOptionLabel, formLabel, outcomeFor, restoreCustomer, saveErrorMessage, visitPayload, visitProblems, visitSummary } from "../src/lib/add-job-flow.core";
+import { ADD_JOB_LEAD, ADD_JOB_STAFF_ONLY, addJobStartState, FORM_WITHIN_15, NEUTRAL_SAVE_ERROR, SAVE_LABEL, TRY_AGAIN_LABEL, VISIT_FIELD_HINT, VISIT_FIELD_LABEL, WHAT_HAPPENS_NEXT, dayOptionLabel, formLabel, outcomeFor, restoreCustomer, saveErrorMessage, visitPayload, visitProblems, visitSummary } from "../src/lib/add-job-flow.core";
 import { onsiteProblems } from "../src/lib/onsite-ready-check.core";
 
 describe("Add job flow (Jo 8 Oct; basics only since decision 34, 24 Oct)", () => {
@@ -81,4 +81,10 @@ test("A5: the page decides before the form renders", () => {
   expect(page).not.toContain("getPartnerProfile");
   expect(page).toContain("ADD_JOB_STAFF_ONLY");
   expect(page.indexOf('kind === "staff"')).toBeLessThan(page.indexOf("<AddJobFlow"));
+});
+test("A7: plain retry words", () => {
+  expect(TRY_AGAIN_LABEL).toBe("Try again");
+  expect(saveErrorMessage("Failed to fetch")).toBe("The save confirmation was interrupted. Your details are kept; tap Try again to finish the same job. Do not add it again.");
+  const ui = readFileSync("src/components/trade/add-job-flow.tsx", "utf8");
+  expect(ui).not.toContain("Retry submission"); expect(ui).toContain("TRY_AGAIN_LABEL");
 });
