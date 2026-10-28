@@ -4,6 +4,7 @@
 // sweepPiisaAutoSend and claim code; fake Mitti (no network); in-memory admin DB enforcing the workflow_events primary
 // key like Postgres. Fictional data only.
 import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { readFileSync } from "node:fs";
 
 // ---------- in-memory admin client (PK-enforcing for workflow_events) ----------
 type Row = Record<string, unknown>;
@@ -155,3 +156,22 @@ describe("hourly install-day sender", () => {
     expect(events().length).toBe(before); // nothing new logged
   });
 });
+
+describe("C3: the office can take over a lost-reply install-day form", () => {
+  test("the creator supersedes a lost-reply claim (after 10 minutes) only with the office override, recorded", async () => {
+    const m = fakeMitti({ create: "timeout" });
+    await expect(createPiisaMittiAudit(JOB, null, m.call)).rejects.toBeInstanceOf(MittiOutcomeUncertain);
+    ageClaims(11 * 60_000);
+    const ok = fakeMitti();
+    await expect(createPiisaMittiAudit(JOB, "office-1", ok.call)).rejects.toBeInstanceOf(MittiClaimHeld); // without the override: stuck
+    await expect(createPiisaMittiAudit(JOB, "office-1", ok.call, { officeOverride: true })).resolves.toMatchObject({ reused: false });
+    expect(ok.creates()).toBe(1);
+    expect(events("mitti_audit_create_office_override").length).toBe(1);
+  });
+  test("the office 'send to installer' button passes the office override", () => {
+    const src = readFileSync("src/lib/official-forms.functions.ts", "utf8");
+    const fn = src.slice(src.indexOf("export const sendPiisaToInstaller"));
+    expect(fn).toContain("createPiisaMittiAudit(data.jobId, context.userId, realMittiCall, { officeOverride: true })");
+  });
+});
+
