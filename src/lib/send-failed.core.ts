@@ -9,6 +9,9 @@ const DAY = 86_400_000;
 export const FAILED_EMAIL_STATUSES = ["failed"] as const;
 /** sms_messages statuses that mean the text did not reach the phone (our "failed" plus Twilio's "undelivered"). */
 export const FAILED_SMS_STATUSES = ["failed", "undelivered"] as const;
+/** A later send of the same kind with one of these statuses means the failure was fixed (Jo 28 Oct 2026). Texts count only once delivered. */
+export const SUCCESS_EMAIL_STATUSES = ["sent"] as const;
+export const SUCCESS_SMS_STATUSES = ["delivered"] as const;
 
 export type FailedEmailSend = { job_id: string; purpose: string; status: string; created_at: string; error: string | null };
 export type FailedSms = { job_id: string | null; message_type: string; status: string; created_at: string; detail: string | null };
@@ -87,13 +90,21 @@ export function sendFailedRows(i: { now: number; emails: FailedEmailSend[]; sms:
   const since = i.now - (i.windowDays ?? SEND_FAILED_WINDOW_DAYS) * DAY;
   type F = { jobId: string; at: string; line: string };
   const failures: F[] = [];
+  // Latest success per job + kind: a failure followed by a success of the same kind is no longer a problem.
+  const lastOk = new Map<string, number>();
+  const ok = (key: string, at: string) => { const t = Date.parse(at); if (t > (lastOk.get(key) ?? -Infinity)) lastOk.set(key, t); };
+  for (const e of i.emails) if ((SUCCESS_EMAIL_STATUSES as readonly string[]).includes(e.status)) ok(`email|${e.job_id}|${e.purpose}`, e.created_at);
+  for (const s of i.sms) if (s.job_id && (SUCCESS_SMS_STATUSES as readonly string[]).includes(s.status)) ok(`sms|${s.job_id}|${s.message_type}`, s.created_at);
+  const fixed = (key: string, at: string) => (lastOk.get(key) ?? -Infinity) > Date.parse(at);
   for (const e of i.emails) {
     if (!(FAILED_EMAIL_STATUSES as readonly string[]).includes(e.status) || Date.parse(e.created_at) < since) continue;
+    if (fixed(`email|${e.job_id}|${e.purpose}`, e.created_at)) continue;
     const why = trim(plainSendError(e.error));
     failures.push({ jobId: e.job_id, at: e.created_at, line: `Email failed: ${sendLabel(e.purpose, "email")}, ${daysAgoLabel(e.created_at, i.now)}${why ? ` — ${why}` : ""}` });
   }
   for (const s of i.sms) {
     if (!s.job_id || !(FAILED_SMS_STATUSES as readonly string[]).includes(s.status) || Date.parse(s.created_at) < since) continue;
+    if (fixed(`sms|${s.job_id}|${s.message_type}`, s.created_at)) continue;
     const why = trim(plainSendError(s.detail));
     failures.push({ jobId: s.job_id, at: s.created_at, line: `Text ${s.status === "undelivered" ? "not delivered" : "failed"}: ${sendLabel(s.message_type, "sms")}, ${daysAgoLabel(s.created_at, i.now)}${why ? ` — ${why}` : ""}` });
   }
