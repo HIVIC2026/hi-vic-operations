@@ -55,6 +55,10 @@ difficult-access fee Jo never entered.
   - Crew never see office-typed notes (hold reasons, typed next steps). They see a set line instead, e.g. "On hold —
     the office will be in touch" (Jo 28 Oct). Only known, system-written, price-free text is shown to crew.
   - On the rebate form, crew don't see a "Price details" line at all (Jo 28 Oct).
+  - When crew can't see an office note they see "On hold — the office will be in touch" or "The office will be in
+    touch" (wording approved by Jo 28 Oct).
+  - Electrician fixes: electrician staff can still add "Other" fix items with a description, but never see or enter a
+    price. The electrician business owner, or the office, sets the price (Jo 28 Oct).
 
 ### 4. When no owner preview is shown
 - The electrician isn't onboarded (rule 3).

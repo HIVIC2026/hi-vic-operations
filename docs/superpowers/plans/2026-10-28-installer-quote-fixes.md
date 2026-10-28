@@ -147,6 +147,30 @@
   - It does not show on any installer screen.
 - [ ] **Step 4: Commit.**
 
+### Task 7 (build): Electrician staff add fix items without a price
+
+**Files:**
+- Modify: the electrician job page "Other" fixes item form and its server function (find via `other_unit_price_inc_gst`),
+  and where those items are shown to electrician logins
+- Test: tests/electrician-staff-fix-items.test.ts
+
+**Interfaces:**
+- Consumes: `ownsJobBusiness(jobId, userId, "electrician")` from src/lib/crew-no-price.server.ts
+
+- [ ] **Step 1: Write failing tests.**
+  - An electrician staff member (not the owner of the job's electrician business):
+    - can add an "Other" item with a description;
+    - the price field is not shown to them and is refused if sent;
+    - no `other_unit_price_inc_gst` or any amount appears in their page data.
+  - The electrician owner can still see and enter the price.
+  - Office can still see and enter the price.
+  - An item a staff member adds with no price is held for the owner or office to price, using the existing
+    `needs_office_pricing` flow. Check whether that flow exists before relying on it.
+- [ ] **Step 2: Run them.** Expected: FAIL.
+- [ ] **Step 3: Implement.** Use the server-side owner check. Keep existing pricing rules.
+- [ ] **Step 4: Run them.** Expected: PASS. Rerun the crew-no-price test files.
+- [ ] **Step 5: Commit.**
+
 ### Task 6: Bring in main and check the whole branch
 
 - [ ] **Step 1: Merge main.** Run `git fetch origin main && git merge origin/main`, keeping both sides on conflict. Check `git diff origin/main..HEAD --stat` lists only this branch's files.
