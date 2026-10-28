@@ -52,8 +52,18 @@ mock.module("@tanstack/react-start", () => ({
 }));
 mock.module("../src/lib/request-meta", () => ({ withRequestMeta: {} }));
 
+// After a save the job is re-routed through the automatic router (it sends Save my spot); stubbed here, proven end to end
+// in address-request-carry-on.test.ts.
+const routed: string[] = [];
+let routeThrows = false;
+mock.module("../src/lib/lead-email-routing.server", () => ({
+  maybeAutoRouteLeadEmail: async (jobId: string) => { routed.push(jobId); if (routeThrows) throw new Error("router down"); return { route: "offer_spot", sent: true, reason: "stub" }; },
+}));
+
 const PLACES: Record<string, { street: string; suburb: string; postcode: string; state: string }> = {
   vic: { street: "12 Wattle St", suburb: "Brighton", postcode: "3186", state: "VIC" },
+  suburb: { street: "", suburb: "Brighton", postcode: "3186", state: "VIC" },
+  nonumber: { street: "Wattle St", suburb: "Brighton", postcode: "3186", state: "VIC" },
   nsw: { street: "3 Smith St", suburb: "Albury", postcode: "2640", state: "NSW" },
 };
 const searches: string[] = [];
@@ -70,7 +80,7 @@ const GO_LIVE = "2026-10-20T00:00:00Z";
 function seed() {
   for (const k of Object.keys(tables)) delete tables[k];
   for (const k of Object.keys(updates)) delete updates[k];
-  searches.length = 0;
+  searches.length = 0; routed.length = 0; routeThrows = false;
   tables["workflow_settings"] = [{ id: 1, address_request_live_at: GO_LIVE }];
   tables["owners"] = [{ id: "o1", full_name: "Pat Owner" }];
   tables["properties"] = [{ id: "p1", address_line: "Brighton VIC 3186", suburb: null, postcode: "3186", state: "VIC" }];
@@ -97,6 +107,24 @@ describe("owner picks their full address", () => {
     expect(answered()[0]!["summary"]).toBe("Owner gave their full address");
     expect(addressRequestOpen((await loadAddressRequestFacts("j1"))!)).toBe(false);
     expect(await getOwnerAddressState({ data: { token: TOKEN } })).toEqual({ state: "answered" });
+    expect(routed).toEqual(["j1"]); // carries on by itself: re-routed once after the save
+  });
+
+  test("router fails after the save → the owner's save still succeeds (error logged only)", async () => {
+    routeThrows = true;
+    expect(await save("vic")).toEqual({ ok: true });
+    expect(answered()).toHaveLength(1);
+    expect(routed).toEqual(["j1"]);
+  });
+
+  test("a suburb (or a street with no number) picked from the list → choose your full street address; nothing saved", async () => {
+    for (const id of ["suburb", "nonumber"]) {
+      expect(await save(id)).toEqual({ ok: false, error: "Please choose your full street address from the list." });
+    }
+    expect(tables["properties"]![0]!["address_line"]).toBe("Brighton VIC 3186");
+    expect(updates["properties"] ?? []).toEqual([]);
+    expect(answered()).toHaveLength(0);
+    expect(routed).toEqual([]);
   });
 
   test("NSW pick → Victorian postcode error, nothing saved", async () => {
@@ -143,6 +171,7 @@ describe("owner picks their full address", () => {
     ["job created before go-live", () => { tables["jobs"]![0]!["created_at"] = "2026-10-19T00:00:00Z"; }],
     ["job whose street is already full", () => { tables["properties"]![0]!["address_line"] = "7 Gum Rd"; }],
     ["feature switched off (no go-live date)", () => { tables["workflow_settings"]![0]!["address_request_live_at"] = null; }],
+    ["owner told Does Not Appear Eligible", () => { tables["jobs"]![0]!["eligibility_outcome"] = "does_not_appear_eligible"; }],
   ];
   for (const [name, setUp] of notWaiting) {
     test(`${name} → unavailable, save refused, address unchanged, no event`, async () => {
@@ -155,12 +184,15 @@ describe("owner picks their full address", () => {
       expect(updates["owners"] ?? []).toEqual([]);
       expect(answered()).toHaveLength(0);
       expect(tables["workflow_events"]).toEqual([]);
+      expect(routed).toEqual([]);
     });
   }
 
-  test("query under 3 characters returns []", async () => {
+  test("query under 4 characters returns [] (the address service finds nothing shorter); 4 characters searches", async () => {
     expect(await search("12")).toEqual([]);
+    expect(await search("12 W")).toEqual([{ id: "vic", label: "12 Wattle St, Brighton VIC 3186" }]);
+    expect(await search(" 12W ")).toEqual([]);
     expect(await search("  1 ")).toEqual([]);
-    expect(searches).toEqual([]);
+    expect(searches).toEqual(["12 W"]);
   });
 });

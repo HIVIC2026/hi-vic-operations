@@ -98,7 +98,9 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   if (jobError) return { jobId, jobNumber: null, outcome: "blocked", detail: "Could not read the job. Try again; nothing sent." };
   if (!job) return { jobId, jobNumber: null, outcome: "failed", detail: "Job not found" };
   const r = (outcome: HotSendResult["outcome"], detail: string): HotSendResult => ({ jobId, jobNumber: job.job_number, outcome, detail });
-  if (mode === "send") {
+  // Only Save my spot is held (spec): the insulation-details / 3-questions emails (automaticInsulation) and the Office
+  // more-photos request go as before.
+  if (mode === "send" && !testOpts.automaticInsulation && !morePhotos) {
     // Waiting for the owner's full address: nothing is reserved or sent until they answer.
     const { loadAddressRequestFacts } = await import("./address-request.server");
     const { addressRequestOpen, ADDRESS_REQUEST_BLOCK_REASON } = await import("./address-request.core");

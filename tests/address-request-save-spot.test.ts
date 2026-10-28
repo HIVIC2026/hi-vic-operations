@@ -34,6 +34,9 @@ function from(table: string) {
   return b;
 }
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from } }));
+// I4: only Save my spot is held. The insulation-details and more-photos paths need their own facts to reach sendOne.
+mock.module("../src/lib/group-b-media.server", () => ({ groupBMediaForJob: async () => ({ received: false, uncertain: false, excluded: false, count: 0, pendingSync: false }) }));
+mock.module("../src/lib/more-photos-request.server", () => ({ morePhotosRequestReview: async () => ({ reviewId: "review-1", blocker: null }) }));
 
 const GO_LIVE = "2026-10-20T00:00:00Z";
 const seed = (address: string | null, extraEvents: Row[] = [], goLive: string | null = GO_LIVE) => {
@@ -45,6 +48,8 @@ const seed = (address: string | null, extraEvents: Row[] = [], goLive: string | 
   tables["jobs"] = [job];
   tables["workflow_events"] = extraEvents;
   tables["customer_email_sends"] = [];
+  tables["customer_delivery_settings"] = [{ id: 1, enabled: true }];
+  (tables["workflow_settings"][0] as Row)["customer_comms_enabled"] = true;
 };
 
 describe("Save my spot waits for the owner's full address", () => {
@@ -72,13 +77,26 @@ describe("Save my spot waits for the owner's full address", () => {
     expect((await sendSaveMySpot(["j1"], null, { mode: "preview" }))[0]!.detail).not.toBe(ADDRESS_REQUEST_BLOCK_REASON);
   });
 
+  test("every Save my spot send is held: plain and existing-insulation follow-up", async () => {
+    const { sendSaveMySpot, sendExistingInsulationSaveSpot } = await import("../src/lib/hot-leads-send.server");
+    expect((await sendSaveMySpot(["j1"], null, { mode: "send", automaticInitial: true }))[0]).toMatchObject({ outcome: "blocked", detail: ADDRESS_REQUEST_BLOCK_REASON });
+    expect(await sendExistingInsulationSaveSpot("j1", null, false)).toMatchObject({ outcome: "blocked", detail: ADDRESS_REQUEST_BLOCK_REASON });
+  });
+
+  test("the insulation-details / 3-questions emails and the Office more-photos request are NOT held by the address rule", async () => {
+    const S = await import("../src/lib/hot-leads-send.server");
+    expect((await S.sendAutomaticInsulationDetails("j1")).detail).not.toBe(ADDRESS_REQUEST_BLOCK_REASON);
+    expect((await S.sendInsulationQuestionsInvitation("j1")).detail).not.toBe(ADDRESS_REQUEST_BLOCK_REASON);
+    expect((await S.sendMorePhotosRequest("j1", "office-1", false, "review-1")).detail).not.toBe(ADDRESS_REQUEST_BLOCK_REASON);
+  });
+
   test("the reader returns the earliest of each event", async () => {
     const { loadAddressRequestFacts } = await import("../src/lib/address-request.server");
     seed(null, [
       { id: "a", job_id: "j1", event_type: "address_request_sent", created_at: "2026-10-26T02:00:00Z" },
       { id: "b", job_id: "j1", event_type: "address_request_sent", created_at: "2026-10-26T01:00:00Z" },
     ]);
-    expect(await loadAddressRequestFacts("j1")).toEqual({ addressLine: null, source: "base44", channel: "hivic_sourced", createdAt: "2026-10-25T00:00:00Z", goLiveAt: GO_LIVE, sentAt: "2026-10-26T01:00:00Z", reminderAt: null, answeredAt: null });
+    expect(await loadAddressRequestFacts("j1")).toEqual({ addressLine: null, source: "base44", channel: "hivic_sourced", createdAt: "2026-10-25T00:00:00Z", eligibilityOutcome: null, goLiveAt: GO_LIVE, sentAt: "2026-10-26T01:00:00Z", reminderAt: null, answeredAt: null });
     expect(await loadAddressRequestFacts("nope")).toBeNull();
   });
 });

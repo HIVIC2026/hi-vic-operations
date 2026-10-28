@@ -104,7 +104,8 @@ function seed(o: { address?: string | null; goLive?: string | null; createdAt?: 
   tables["workflow_events"] = []; tables["sms_messages"] = []; tables["customer_estimate_links"] = [];
 }
 const events = (t: string) => (tables["workflow_events"] ?? []).filter((e) => e["event_type"] === t);
-const at = (iso: string) => { clockIso = iso; return sweepAddressRequests(Date.parse(iso)); };
+// The email wording flag is false until Jo approves it; these tests run the sweep as it will be after approval.
+const at = (iso: string, approved = true) => { clockIso = iso; return sweepAddressRequests(Date.parse(iso), { approved: { email: approved } }); };
 
 describe("address request: one request, one reminder", () => {
   beforeEach(() => seed());
@@ -221,5 +222,24 @@ describe("address request: one request, one reminder", () => {
     seed();
     tables["workflow_events"]!.push({ id: "a", job_id: "j1", event_type: "address_request_answered", created_at: "2026-10-27T05:00:00Z" });
     expect(await at("2026-10-28T01:00:00.000Z")).toEqual({ sent: 0, reminded: 0 });
+  });
+
+  test("owner told Does Not Appear Eligible → never asked", async () => {
+    tables["jobs"]![0]!["eligibility_outcome"] = "does_not_appear_eligible";
+    expect(await at("2026-10-28T01:00:00.000Z")).toEqual({ sent: 0, reminded: 0 });
+    expect(emails.length + texts.length + senderCalls.length).toBe(0);
+    expect(tables["workflow_events"]).toEqual([]);
+  });
+
+  test("email wording not approved (the code flag as shipped) → nothing sent, nothing logged; approved → asked", async () => {
+    const { ADDRESS_REQUEST_EMAIL_APPROVED } = await import("../src/lib/address-request.core");
+    expect(ADDRESS_REQUEST_EMAIL_APPROVED).toBe(false);
+    clockIso = "2026-10-28T01:00:00.000Z";
+    expect(await sweepAddressRequests(Date.parse(clockIso))).toEqual({ sent: 0, reminded: 0 }); // production default
+    expect(await at("2026-10-28T01:00:00.000Z", false)).toEqual({ sent: 0, reminded: 0 });
+    expect(emails.length + texts.length + senderCalls.length + linkChecks.length).toBe(0);
+    expect(tables["workflow_events"]).toEqual([]);
+    expect(tables["sms_messages"]).toEqual([]);
+    expect(await at("2026-10-28T01:15:00.000Z", true)).toEqual({ sent: 1, reminded: 0 });
   });
 });

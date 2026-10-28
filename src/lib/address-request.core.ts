@@ -6,12 +6,20 @@ export const ADDRESS_REQUEST_REMINDER_EVENT = "address_request_reminder_sent";
 export const ADDRESS_REQUEST_ANSWERED_EVENT = "address_request_answered";
 export const ADDRESS_REQUEST_REMINDER_HOURS = 24;
 export const ADDRESS_REQUEST_BLOCK_REASON = "Waiting for the owner's full address";
+/** Owner page: the pick was a suburb (or a street with no number), not a full street address. */
+export const FULL_STREET_NEEDED = "Please choose your full street address from the list.";
+/** Jo's approval of the request/reminder EMAIL wording (house pattern, like SPOT_RELEASED_APPROVED). DRAFT: false until
+ *  Jo approves it at go-live (plan Task 6). While false the sweep sends nothing and logs nothing. */
+export const ADDRESS_REQUEST_EMAIL_APPROVED = false;
+/** Owner told "Does Not Appear Eligible": never asked for their address "to check your home". */
+export const INELIGIBLE_OUTCOME = "does_not_appear_eligible";
 
 export type AddressRequestFacts = {
   addressLine: string | null;
   source: string | null;
   channel: string | null;
   createdAt: string;
+  eligibilityOutcome: string | null;
   goLiveAt: string | null; // null = feature off
   sentAt: string | null;
   reminderAt: string | null;
@@ -22,6 +30,7 @@ export function addressRequestOpen(f: AddressRequestFacts): boolean {
   if (f.goLiveAt === null) return false;
   if (f.source !== "base44" && f.source !== "email") return false;
   if (f.channel !== "hivic_sourced") return false;
+  if (f.eligibilityOutcome === INELIGIBLE_OUTCOME) return false;
   if (parseStreet(f.addressLine) !== null) return false;
   if (!(Date.parse(f.createdAt) >= Date.parse(f.goLiveAt))) return false;
   return f.answeredAt === null;
@@ -37,6 +46,8 @@ export function addressRequestStep(f: AddressRequestFacts, now: number): "send" 
 /** Email purposes and once-only keys (one request, one reminder per job). */
 export const ADDRESS_REQUEST_PURPOSE = "address_request";
 export const ADDRESS_REQUEST_REMINDER_PURPOSE = "address_request_reminder";
+/** These emails only ask for the address: they are never a first response to the enquiry (Save my spot still goes after). */
+export const ADDRESS_REQUEST_EMAIL_PURPOSES: readonly string[] = [ADDRESS_REQUEST_PURPOSE, ADDRESS_REQUEST_REMINDER_PURPOSE];
 export const addressRequestKey = (jobId: string, reminder: boolean) => `${reminder ? "address-request-reminder" : "address-request"}:v1:${jobId}`;
 /** The owner's secure page to pick their address (their estimate-link token). */
 export const addressRequestPageUrl = (base: string, token: string) => `${base}/my-address/${token}`;

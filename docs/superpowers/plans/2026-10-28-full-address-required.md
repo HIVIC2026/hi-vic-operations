@@ -129,6 +129,7 @@
 
 ### Task 6: Go-live check (with Jo)
 
-- [ ] Show Jo the email, text and page wording; set `wordingApproved: true` only after she says yes.
-- [ ] Apply the migration; set `address_request_live_at` to the go-live time.
-- [ ] Run one TEST enquiry on the website with "Brighton" (refused), then a TEST job with no street in the portal: request reaches the test inbox, Save my spot is held, picking an address lets it carry on.
+- [ ] Show Jo the email, text and page wording. Only after she says yes, set BOTH together: `ADDRESS_REQUEST_EMAIL_APPROVED = true` (`src/lib/address-request.core.ts`, the email) and `wordingApproved: true` for the two texts (`address_request`, `address_request_reminder` in `src/lib/sms.core.ts`). Do this BEFORE the next step — while the email flag is false the sweep sends nothing.
+- [ ] Apply the migrations (`address-request-live-at.sql`, then `0228_address_request_not_first_response.sql`); then set `address_request_live_at` to the go-live time.
+- [ ] On the website, try "Brighton" in the address step — picking the suburb from the list must be refused.
+- [ ] Then send one website enquiry with Jo's OWN email and mobile and no street (TEST jobs are never asked, so this must be a real website enquiry). Note: once the website change is live it no longer lets a street-less address through, so do this before the website change goes live, or use an email enquiry from Jo's own address. **This sends a real email and a real text to Jo.** Check: the request email and text arrive, Save my spot is held, picking a full address on the page lets it carry on (Save my spot email arrives).

@@ -45,7 +45,7 @@ function OwnerAddressPage() {
 
   useEffect(() => {
     const q = query.trim();
-    if (q.length < 3) { setResults([]); setSearching(false); return; }
+    if (q.length < 4) { setResults([]); setSearching(false); return; }
     let live = true;
     setSearching(true);
     const t = setTimeout(async () => {
@@ -90,7 +90,7 @@ function OwnerAddressPage() {
               {results.length > 0 && <ul className="mt-3 divide-y divide-estimate-blue-soft overflow-hidden rounded-md border border-estimate-blue-soft">
                 {results.map((s) => <li key={s.id}><button type="button" disabled={busy} onClick={() => pick(s)} className="block min-h-12 w-full px-4 py-3 text-left text-base text-estimate-navy hover:bg-estimate-canvas disabled:opacity-60">{s.label}</button></li>)}
               </ul>}
-              {!searching && query.trim().length >= 3 && results.length === 0 && !error && <p className="mt-3 text-sm text-estimate-navy/70">No matches yet. Keep typing.</p>}
+              {!searching && query.trim().length >= 4 && results.length === 0 && !error && <p className="mt-3 text-sm text-estimate-navy/70">No matches yet. Keep typing.</p>}
               {busy && <p className="mt-3 text-sm text-estimate-navy/70">Saving…</p>}
               {error && <p role="alert" className="mt-3 text-sm font-semibold text-destructive">{error}</p>}
             </div>}

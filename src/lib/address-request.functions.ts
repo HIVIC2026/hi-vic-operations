@@ -53,7 +53,7 @@ export const searchOwnerAddress = createServerFn({ method: "POST" }).middleware(
     const { LINK_UNAVAILABLE } = await import("./estimatelink.core");
     if (!(await jobIdForAddressToken(data.token))) throw new Error(LINK_UNAVAILABLE);
     const query = data.query.trim();
-    if (query.length < 3) return [];
+    if (query.length < 4) return []; // the address service finds nothing under 4 characters
     const { searchAddressSuggestions } = await import("./address-lookup.server");
     return searchAddressSuggestions(query);
   });
@@ -70,6 +70,10 @@ export const saveOwnerAddress = createServerFn({ method: "POST" }).middleware([w
     const { lookupAddressDetails } = await import("./address-lookup.server");
     const place = await lookupAddressDetails(data.placeId);
     if (!place) return { ok: false, error: "We couldn't find that address. Please try again." };
+    // A suburb (or a street with no number) picked from the list is not a full street address.
+    const { parseStreet } = await import("./address-complete.core");
+    const { FULL_STREET_NEEDED } = await import("./address-request.core");
+    if (parseStreet(place.street ?? "") === null) return { ok: false, error: FULL_STREET_NEEDED };
     const fullName = await ownerFullName(jobId);
     const { ADDRESS_REQUEST_ANSWERED_EVENT } = await import("./address-request.core");
     const { WorkflowError } = await import("./workflow.server");
@@ -81,5 +85,12 @@ export const saveOwnerAddress = createServerFn({ method: "POST" }).middleware([w
       if (e instanceof WorkflowError) return { ok: false, error: e.message };
       throw e;
     }
+    // The job carries on by itself (spec rule 4): the same automatic router as after intake now sends Save my spot. Its
+    // own checks (switches, rules, first-response history, idempotency) all still apply. Best-effort: the owner's save
+    // already succeeded, so a routing failure is logged and never shown to them.
+    try {
+      const { maybeAutoRouteLeadEmail } = await import("./lead-email-routing.server");
+      await maybeAutoRouteLeadEmail(jobId);
+    } catch (e) { console.error("address request: re-route after owner save failed", jobId, (e as Error).message); }
     return { ok: true };
   });

@@ -28,6 +28,7 @@ import { INSULATION_DETAILS_REAL_SEND_APPROVED, SAVE_SPOT_REAL_SEND_APPROVED } f
 import { LAUNCH_COPY_APPROVED } from "../src/lib/launch-campaign.core";
 import { INSULATION_QUESTIONS_SEND_APPROVED } from "../src/lib/insulation-questions-campaign.core";
 import { SMS_MESSAGE_TYPES } from "../src/lib/sms.core";
+import { ADDRESS_REQUEST_EMAIL_APPROVED } from "../src/lib/address-request.core";
 import { VISIT_NEW_TIMES_APPROVED } from "../src/lib/visit-new-times.core";
 import { OWNER_PAPERWORK_COPY_APPROVED } from "../src/lib/paperwork-copy-email.core";
 import { PIESA_TIMES_REMINDER_APPROVED } from "../src/lib/piesa-times-reminder.core";
@@ -115,6 +116,7 @@ describe("approved message switches are on (Jo 24 Oct 2026)", () => {
     // Decision 389 (25 Oct 2026): the "It's your turn" text is approved (Jo saw the O77 picture).
     // Plan 2026-10-28 (full address required): the address request texts are DRAFT until Jo approves them at go-live.
     expect(off.sort()).toEqual(["address_request", "address_request_reminder"]);
+    expect(ADDRESS_REQUEST_EMAIL_APPROVED).toBe(false); // the matching email is held too; both flip together at go-live
     expect("ready_check_booking" in SMS_MESSAGE_TYPES).toBe(false);
   });
   test("approved SMS bodies match the decisions log word for word (brand prefix added by the sender)", () => {

@@ -18,7 +18,7 @@ async function firstEventAt(jobId: string, type: string): Promise<string | null>
 }
 
 export async function loadAddressRequestFacts(jobId: string): Promise<AddressRequestFacts | null> {
-  const { data: job, error } = await admin.from("jobs").select("source, channel, created_at, properties(address_line)").eq("id", jobId).maybeSingle();
+  const { data: job, error } = await admin.from("jobs").select("source, channel, created_at, eligibility_outcome, properties(address_line)").eq("id", jobId).maybeSingle();
   if (error || !job) return null;
   const [goLiveAt, sentAt, reminderAt, answeredAt] = await Promise.all([
     readGoLiveAt(),
@@ -27,7 +27,7 @@ export async function loadAddressRequestFacts(jobId: string): Promise<AddressReq
     firstEventAt(jobId, ADDRESS_REQUEST_ANSWERED_EVENT),
   ]);
   const property = job.properties as unknown as { address_line: string | null } | null;
-  return { addressLine: property?.address_line ?? null, source: job.source ?? null, channel: job.channel ?? null, createdAt: job.created_at, goLiveAt, sentAt, reminderAt, answeredAt };
+  return { addressLine: property?.address_line ?? null, source: job.source ?? null, channel: job.channel ?? null, createdAt: job.created_at, eligibilityOutcome: job.eligibility_outcome ?? null, goLiveAt, sentAt, reminderAt, answeredAt };
 }
 
 // ---- 15-minute tick: send the request, then ONE reminder 24h later ------------------------------------------------
@@ -38,7 +38,7 @@ export async function loadAddressRequestFacts(jobId: string): Promise<AddressReq
 // (8pm–7am) is tried again on later ticks under the SAME key until it goes, without a second event.
 
 export type AddressRequestSweep = { sent: number; reminded: number };
-type Candidate = { id: string; source: string | null; channel: string | null; created_at: string; owners: { email: string | null; phone: string | null } | null; properties: { address_line: string | null } | null };
+type Candidate = { id: string; source: string | null; channel: string | null; created_at: string; eligibility_outcome: string | null; owners: { email: string | null; phone: string | null } | null; properties: { address_line: string | null } | null };
 type EventRow = { job_id: string; event_type: string; created_at: string };
 /** At most this many jobs are actually messaged per tick (a job with no usable owner link doesn't use one up). */
 const SWEEP_BATCH = 50;
@@ -100,17 +100,20 @@ async function runStep(j: Candidate, reminder: boolean, url: string): Promise<"l
   return "logged";
 }
 
-export async function sweepAddressRequests(now: number = Date.now()): Promise<AddressRequestSweep> {
+/** Tests may pass `approved` (production uses the code constant ADDRESS_REQUEST_EMAIL_APPROVED). */
+export async function sweepAddressRequests(now: number = Date.now(), opts: { approved?: { email: boolean } } = {}): Promise<AddressRequestSweep> {
   const out: AddressRequestSweep = { sent: 0, reminded: 0 };
+  const C = await import("./address-request.core");
+  // Email wording not approved yet: a global gate like the go-live date — nothing is sent and nothing is logged.
+  if (!(opts.approved?.email ?? C.ADDRESS_REQUEST_EMAIL_APPROVED)) return out;
   const goLiveAt = await readGoLiveAt();
   if (!goLiveAt) return out;
-  const C = await import("./address-request.core");
   const { smsQuietReason, SMS_QUIET_REASON } = await import("./quote-hold.core");
   const { claimKeyOf } = await import("./sms.core");
 
   const jobs: Candidate[] = [];
   for (let from = 0; ; from += 1000) {
-    const { data, error } = await loose.from("jobs").select("id, source, channel, created_at, owners(email, phone), properties(address_line)")
+    const { data, error } = await loose.from("jobs").select("id, source, channel, created_at, eligibility_outcome, owners(email, phone), properties(address_line)")
       .in("source", ["base44", "email"]).eq("channel", "hivic_sourced").gte("created_at", goLiveAt).is("deleted_at", null)
       .not("stage", "in", "(cancelled,complete)").order("created_at", { ascending: true }).order("id").range(from, from + 999);
     if (error) throw new Error(`Could not read enquiries for the address request: ${error.message}`);
@@ -118,7 +121,7 @@ export async function sweepAddressRequests(now: number = Date.now()): Promise<Ad
     if (!data || data.length < 1000) break;
   }
   // Cheap pure filter first (no street), so the event read only covers jobs that could be waiting.
-  const noStreet = jobs.filter((j) => C.addressRequestOpen({ addressLine: j.properties?.address_line ?? null, source: j.source, channel: j.channel, createdAt: j.created_at, goLiveAt, sentAt: null, reminderAt: null, answeredAt: null }));
+  const noStreet = jobs.filter((j) => C.addressRequestOpen({ addressLine: j.properties?.address_line ?? null, source: j.source, channel: j.channel, createdAt: j.created_at, eligibilityOutcome: j.eligibility_outcome ?? null, goLiveAt, sentAt: null, reminderAt: null, answeredAt: null }));
   if (!noStreet.length) return out;
   const { readByJobIds } = await import("./sweep-batch.server");
   const ids = noStreet.map((j) => j.id);
@@ -129,7 +132,7 @@ export async function sweepAddressRequests(now: number = Date.now()): Promise<Ad
   const work: Work[] = [];
   const retryCandidates: { job: Candidate; reminder: boolean }[] = [];
   for (const j of noStreet) {
-    const f: AddressRequestFacts = { addressLine: j.properties?.address_line ?? null, source: j.source, channel: j.channel, createdAt: j.created_at, goLiveAt,
+    const f: AddressRequestFacts = { addressLine: j.properties?.address_line ?? null, source: j.source, channel: j.channel, createdAt: j.created_at, eligibilityOutcome: j.eligibility_outcome ?? null, goLiveAt,
       sentAt: first(j.id, ADDRESS_REQUEST_SENT_EVENT), reminderAt: first(j.id, ADDRESS_REQUEST_REMINDER_EVENT), answeredAt: first(j.id, ADDRESS_REQUEST_ANSWERED_EVENT) };
     if (!C.addressRequestOpen(f)) continue;
     const step = C.addressRequestStep(f, now);
