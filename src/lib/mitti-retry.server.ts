@@ -98,7 +98,7 @@ export async function adoptExistingAudit(
 
 // ---------- the office alert ----------
 const TRADE_ROLE: Record<MittiFormKind, "installer" | "electrician"> = { ready_check: "installer", install_day: "installer", piesa: "electrician", fixes: "electrician" };
-const BOOKING_KIND: Record<MittiFormKind, string> = { ready_check: "ready_check", piesa: "assessment", fixes: "rectification", install_day: "installation" };
+const BOOKING_KIND: Record<MittiFormKind, "ready_check" | "assessment" | "rectification" | "installation"> = { ready_check: "ready_check", piesa: "assessment", fixes: "rectification", install_day: "installation" };
 
 async function alertOffice(c: FailureCase, error: string, counts: RetrySweepResult) {
   const { data: job } = await admin.from("jobs").select("job_number, property_id").eq("id", c.jobId).maybeSingle();
