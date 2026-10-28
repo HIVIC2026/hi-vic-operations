@@ -372,6 +372,19 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       facts.set(n.jobId, x);
     }
   } catch { unavailable.push("STOP clean-up failures"); }
+  // Batch 3a: an expired quote could not close the job because the owner can't be emailed → one row until the close completes.
+  try {
+    const { quoteExpiredBlockedFact } = await import("./office-needs.core");
+    const raised = await all("expired quotes not emailable", (a, b) => scoped(admin.from("workflow_events").select("job_id")).eq("event_type", "quote_expired_not_emailable").range(a, b));
+    const raisedIds = [...new Set(raised.map((e) => String(e["job_id"])).filter((id) => idSet.has(id)))];
+    if (raisedIds.length) {
+      const ev = await byIds("expired quote history", raisedIds, (c, a, b) => admin.from("workflow_events").select("job_id, event_type, created_at, details").in("job_id", c).in("event_type", ["quote_expired_not_emailable", "quote_expired_closed"]).range(a, b));
+      for (const id of raisedIds) {
+        const hit = quoteExpiredBlockedFact(ev.filter((e) => e["job_id"] === id).map((e) => ({ event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as Record<string, unknown> | null })));
+        const x = f(id); if (x && hit) x.quoteExpiredBlocked = hit;
+      }
+    }
+  } catch { unavailable.push("expired quotes not emailable"); }
   // Batch 1: the owner accepted but the invoice step failed → one Money row until a Xero-linked invoice exists.
   try {
     const { invoiceFailedFact } = await import("./office-needs.core");

@@ -71,3 +71,15 @@ export function shouldCloseOnExpiry(jobStage: string | null | undefined, otherIn
   if (!jobStage || jobStage === "cancelled" || jobStage === "complete") return false;
   return !otherInstallationQuoteStatuses.some((s) => s === "issued" || s === "accepted");
 }
+
+/** Close + email only between 7am and 8pm Melbourne (the same quiet hours as texts); null = fine to act now. */
+export { smsQuietReason as quoteCloseQuietReason } from "./quote-hold.core";
+/** How far back the retry pass looks for expired quotes whose close or email is not finished. */
+export const QUOTE_CLOSE_RETRY_DAYS = 14;
+/** Event types of the close. `quote_expired_closed` = close AND email done (TEST send counts). */
+export const QUOTE_EXPIRED_CLOSED_EVENT = "quote_expired_closed";
+export const QUOTE_EXPIRED_CANCELLED_EVENT = "quote_expired_cancelled";
+export const QUOTE_EXPIRED_BLOCKED_EVENT = "quote_expired_not_emailable";
+export const quoteExpiredBlockedLine = (reason: string) => `Quote expired — owner can't be emailed (${reason})`;
+/** A definite provider failure is worth resending; every other outcome (sent, already attempted, uncertain, blocked) is final. */
+export const quoteExpiredEmailRetriable = (out: string): boolean => /^email failed/.test(out);

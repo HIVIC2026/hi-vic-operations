@@ -1,6 +1,7 @@
 // Batch 3a Task 1: an expired installation quote closes the job (once) and emails the owner once. Fake database + recorded fakes.
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { readFileSync } from "node:fs";
+import { buildNeedsRows, quoteExpiredBlockedFact } from "../src/lib/office-needs.core";
 
 type Row = Record<string, unknown>;
 const tables: Record<string, Row[]> = {};
@@ -15,6 +16,8 @@ function fakeAdmin() {
         eq(c: string, v: unknown) { preds.push((r) => get(r, c) === v); return b; },
         neq(c: string, v: unknown) { preds.push((r) => get(r, c) !== v); return b; },
         not(c: string, _o: string, v: unknown) { preds.push((r) => get(r, c) !== v); return b; },
+        in(c: string, v: unknown[]) { preds.push((r) => v.includes(get(r, c))); return b; },
+        gte(c: string, v: string) { preds.push((r) => String(get(r, c)) >= v); return b; },
         is(c: string, v: unknown) { preds.push((r) => (get(r, c) ?? null) === v); return b; },
         order() { return b; }, limit() { return b; },
         maybeSingle() { one = true; return b; }, single() { one = true; return b; },
@@ -31,28 +34,37 @@ function fakeAdmin() {
 }
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: fakeAdmin() }));
 const events: { jobId: string; type: string; summary: string }[] = [];
-mock.module("../src/lib/workflow.server", () => ({ logEvent: async (jobId: string, _a: unknown, type: string, summary: string) => { events.push({ jobId, type, summary }); } }));
+let evClock = Date.parse("2026-03-20T00:00:00Z");
+mock.module("../src/lib/workflow.server", () => ({ logEvent: async (jobId: string, _a: unknown, type: string, summary: string, details: Row = {}) => {
+  events.push({ jobId, type, summary });
+  evClock += 1000; (tables["workflow_events"] ??= []).push({ id: crypto.randomUUID(), job_id: jobId, event_type: type, summary, details, created_at: new Date(evClock).toISOString() });
+} }));
 const cancels: { jobId: string; reason: string; actor: unknown; opts: unknown }[] = [];
 mock.module("../src/lib/office-actions.server", () => ({
   cancelJobFully: async (jobId: string, reason: string, actor: unknown, opts: unknown) => {
+    if (cancelFails) { cancelFails = false; throw new Error("boom"); }
     cancels.push({ jobId, reason, actor, opts });
     const j = tables["jobs"]!.find((x) => x["id"] === jobId); if (j) j["stage"] = "cancelled";
   },
 }));
-let deliveryAllowed = true;
-mock.module("../src/lib/comms.server", () => ({ assertCustomerDeliveryAllowed: async () => { if (!deliveryAllowed) throw new Error("Customer messages are switched off"); } }));
+let cancelFails = false; let deliveryAllowed = true; let consent = true; let linkOk = true; let emailFailsOnce = false;
+mock.module("../src/lib/comms.server", () => ({
+  assertCustomerDeliveryAllowed: async () => { if (!deliveryAllowed) throw new Error("Customer messages are switched off"); },
+  customerCommsEnabled: async () => deliveryAllowed, hasCurrentOwnerContactConsent: async () => consent,
+}));
 const sent: { via: string; to: string; subject: string; text: string; html: string; key?: string }[] = [];
 const once = new Set<string>();
 mock.module("../src/lib/owner-email-send.server", () => ({
   sendGuardedOwnerEmail: async (p: { to: string; key: string; build: (u: string | null) => { subject: string; text: string; html: string } }) => {
     if (once.has(p.key)) return "already attempted — not resent";
+    if (emailFailsOnce) { emailFailsOnce = false; return "failed: provider refused"; }
     once.add(p.key); const m = p.build("https://u"); sent.push({ via: "live", to: p.to, subject: m.subject, text: m.text, html: m.html, key: p.key }); return "sent";
   },
 }));
 mock.module("../src/lib/test-send.server", () => ({
   sendTestEmail: async (_c: Row, to: string, subject: string, html: string, text: string) => { sent.push({ via: "test", to, subject, html, text }); return { status: "sent", detail: "ok" }; },
 }));
-mock.module("../src/lib/veec-copy-email.server", () => ({ ownerMyJobLink: async () => "https://estimate.homeinsulationvictoria.com.au/my-job/TOKEN" }));
+mock.module("../src/lib/veec-copy-email.server", () => ({ ownerMyJobLink: async () => (linkOk ? "https://estimate.homeinsulationvictoria.com.au/my-job/TOKEN" : null) }));
 
 const { sweepQuoteExpiry } = await import("../src/lib/quote-expiry.server");
 const NOW = new Date("2026-03-20T00:00:00Z");
@@ -60,11 +72,11 @@ const OLD = "2026-02-28T23:00:00Z";
 
 function seed(over: { stage?: string; source?: string; others?: string[] } = {}) {
   for (const k of Object.keys(tables)) delete tables[k];
-  sent.length = 0; cancels.length = 0; events.length = 0; once.clear(); deliveryAllowed = true;
+  sent.length = 0; cancels.length = 0; events.length = 0; once.clear(); deliveryAllowed = true; consent = true; linkOk = true; cancelFails = false; emailFailsOnce = false;
   tables["jobs"] = [{ id: "J1", stage: over.stage ?? "quoted", source: over.source ?? "website", owners: { full_name: "Helen Smith", email: "helen@example.com" }, properties: { address_line: "12 Example St", suburb: "Sampletown" } }];
-  tables["quotes"] = [{ id: "Q1", job_id: "J1", kind: "installation", status: "issued", sent_at: OLD, nudge_day3_at: "x", nudge_day10_at: "y" },
+  tables["quotes"] = [{ id: "Q1", job_id: "J1", kind: "installation", status: "issued", sent_at: OLD, expired_at: null, nudge_day3_at: "x", nudge_day10_at: "y" },
     ...(over.others ?? []).map((s, i) => ({ id: `QX${i}`, job_id: "J1", kind: "installation", status: s, sent_at: null, nudge_day3_at: null, nudge_day10_at: null }))];
-  tables["job_assignments"] = [];
+  tables["job_assignments"] = []; tables["workflow_events"] = [];
 }
 
 describe("expired quote closes the job and emails the owner once", () => {
@@ -114,20 +126,58 @@ describe("expired quote closes the job and emails the owner once", () => {
     expect(sent.map((s) => s.via)).toEqual(["test"]);
     expect(sent[0]!.subject).toBe("Your quote has expired");
   });
-  test("customer messages switched off: job still closes, no email", async () => {
-    deliveryAllowed = false;
+  test("first sweep: the close fails -> second sweep closes once and emails once", async () => {
+    cancelFails = true;
+    await sweepQuoteExpiry(NOW);
+    expect(cancels.length).toBe(0); expect(sent.length).toBe(0);
+    expect(events.some((e) => e.type === "quote_expired_close_failed")).toBe(true);
+    await sweepQuoteExpiry(NOW); await sweepQuoteExpiry(NOW);
+    expect(cancels.length).toBe(1); expect(sent.length).toBe(1);
+    expect(events.filter((e) => e.type === "quote_expired_closed").length).toBe(1);
+  });
+  test("first sweep: the email fails definitely -> second sweep resends once, no second cancel", async () => {
+    emailFailsOnce = true;
     await sweepQuoteExpiry(NOW);
     expect(cancels.length).toBe(1); expect(sent.length).toBe(0);
+    expect(events.some((e) => e.type === "quote_expired_closed")).toBe(false);
+    await sweepQuoteExpiry(NOW); await sweepQuoteExpiry(NOW);
+    expect(cancels.length).toBe(1); expect(sent.length).toBe(1);
+    expect(events.filter((e) => e.type === "quote_expired_closed").length).toBe(1);
   });
-  test("a failed close is recorded and the quote stays expired", async () => {
-    tables["jobs"]![0]!["stage"] = "quoted";
-    const m = await import("../src/lib/office-actions.server");
-    const orig = m.cancelJobFully;
-    mock.module("../src/lib/office-actions.server", () => ({ cancelJobFully: async () => { throw new Error("boom"); } }));
-    const r = await sweepQuoteExpiry(NOW);
-    mock.module("../src/lib/office-actions.server", () => ({ cancelJobFully: orig }));
-    expect(r.expired).toBe(1); expect(sent.length).toBe(0);
-    expect(events.some((e) => e.type === "quote_expired_close_failed")).toBe(true);
+  test("owner can't be emailed for a lasting reason: job stays open, ONE Needs me row, nothing sent", async () => {
+    const cases: [() => void, string][] = [
+      [() => { linkOk = false; }, "no working owner link"],
+      [() => { deliveryAllowed = false; }, "customer messages are switched off"],
+      [() => { consent = false; }, "no contact consent"],
+    ];
+    for (const [setUp, reason] of cases) {
+      seed(); setUp();
+      await sweepQuoteExpiry(NOW); await sweepQuoteExpiry(NOW);
+      expect(cancels.length).toBe(0); expect(sent.length).toBe(0);
+      expect(tables["jobs"]![0]!["stage"]).toBe("quoted");
+      const raised = (tables["workflow_events"] ?? []).filter((e) => e["event_type"] === "quote_expired_not_emailable");
+      expect(raised.length).toBe(1);
+      const fact = quoteExpiredBlockedFact(raised.map((e) => ({ event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: e["details"] as Row })));
+      expect(fact?.reason).toBe(reason);
+      const g = buildNeedsRows({ now: NOW.getTime(), jobs: [{ jobId: "J1", jobNumber: "HV-1", surname: "Smith", suburb: "Sampletown", quoteExpiredBlocked: fact }] });
+      expect(g.today.map((r) => [r.kind, r.line, r.button.label])).toEqual([["quote_expired_blocked", `Quote expired — owner can't be emailed (${reason})`, "Open job"]]);
+    }
+  });
+  test("once the owner can be emailed again, the job closes and the row clears", async () => {
+    consent = false;
+    await sweepQuoteExpiry(NOW);
+    consent = true;
+    await sweepQuoteExpiry(NOW);
+    expect(cancels.length).toBe(1); expect(sent.length).toBe(1);
+    const evs = (tables["workflow_events"] ?? []).map((e) => ({ event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: e["details"] as Row }));
+    expect(quoteExpiredBlockedFact(evs)).toBeNull();
+  });
+  test("night time: 9pm marks expired but does not close; 7:15am does", async () => {
+    await sweepQuoteExpiry(new Date("2026-03-20T10:00:00Z")); // 9:00pm Melbourne
+    expect((tables["quotes"] ?? [])[0]!["status"]).toBe("expired");
+    expect(cancels.length).toBe(0); expect(sent.length).toBe(0);
+    await sweepQuoteExpiry(new Date("2026-03-20T20:15:00Z")); // 7:15am Melbourne next morning
+    expect(cancels.length).toBe(1); expect(sent.length).toBe(1);
   });
 });
 

@@ -18,7 +18,7 @@ export type NeedsKind =
   | "choose_again" | "quote_check" | "fixes_quote_check" | "sign_consent" | "esc_window" | "final_check" | "send_failed" | "email_change" | "email_unmatched" | "robot_failed" | "piisa_form_failed"
   | "choose_installer" | "choose_electrician" | "veec_a_held" | "piesa_owner_unsigned" | "piesa_fixes_owner_unsigned" | "fixes_times_missing"
   | "payment_not_in_xero" | "payment_overdue" | "ten_days_left" | "second_no_access" | "veec_day_10" | "lapsed_window"
-  | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review" | "payment_reversed" | "mitti_form_problem" | "booking_overdue" | "piesa_fixes_found" | "repeat_piesa_choose" | "repeat_piesa_xero_held" | "payment_stalled" | "invoice_failed" | "stop_release_failed";
+  | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review" | "payment_reversed" | "mitti_form_problem" | "booking_overdue" | "piesa_fixes_found" | "repeat_piesa_choose" | "repeat_piesa_xero_held" | "payment_stalled" | "invoice_failed" | "stop_release_failed" | "quote_expired_blocked";
 
 /** Where the one button takes the office. `section` is the Job page stage card id; `act` are inline row actions. */
 export type NeedsButton =
@@ -104,7 +104,17 @@ export type NeedsFacts = {
   invoiceFailed?: { at: string; text: string } | null;
   /** Batch 2: a STOP reply could not release the installer and the job has not been cancelled again since. */
   stopReleaseFailed?: { at: string } | null;
+  /** Batch 3a: an installation quote expired but the owner can't be emailed, so the job was left open. */
+  quoteExpiredBlocked?: { at: string; reason: string } | null;
 };
+
+/** The newest `quote_expired_not_emailable` with no `quote_expired_closed` after it; null otherwise. */
+export function quoteExpiredBlockedFact(events: { event_type: string; created_at: string; details?: Record<string, unknown> | null }[]): { at: string; reason: string } | null {
+  const raised = events.filter((e) => e.event_type === "quote_expired_not_emailable").sort((a, b) => a.created_at.localeCompare(b.created_at)).pop();
+  if (!raised) return null;
+  if (events.some((e) => e.event_type === "quote_expired_closed" && e.created_at > raised.created_at)) return null;
+  return { at: raised.created_at, reason: String(raised.details?.["reason"] ?? "no reason recorded") };
+}
 
 export const STOP_RELEASE_FAILED_LINE = "STOP received, but releasing the installer failed — retrying automatically; open the job if this stays";
 /** The newest `stop_installer_release_failed` (needs_office) with no `job_cancel_released` after it; null otherwise. */
@@ -154,6 +164,7 @@ type Candidate = Omit<NeedsRow, "key" | "jobId" | "jobNumber" | "surname" | "sub
 export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   const out: Candidate[] = [];
   const add = (c: Candidate) => out.push(c);
+  if (f.quoteExpiredBlocked) add({ rank: 9, group: "today", kind: "quote_expired_blocked", line: `Quote expired — owner can't be emailed (${f.quoteExpiredBlocked.reason})`, since: f.quoteExpiredBlocked.at, button: { label: "Open job", to: "job" } });
   if (f.stopReleaseFailed) add({ rank: 9, group: "today", kind: "stop_release_failed", line: STOP_RELEASE_FAILED_LINE, since: f.stopReleaseFailed.at, button: { label: "Open job", to: "job" } });
   if (f.invoiceFailed) add({ rank: 9, group: "today", kind: "invoice_failed", line: "Invoice didn't reach Xero · owner can't pay yet", since: f.invoiceFailed.at, button: { label: "Open job", to: "job", section: "money" } });
   if (f.sendFailed) add({ rank: 10, group: "today", kind: "send_failed", line: `Send failed · ${f.sendFailed.text}`, since: f.sendFailed.at, button: { label: "Open job", to: "job", section: "contact" } });

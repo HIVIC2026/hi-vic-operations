@@ -29,8 +29,27 @@ export async function sendQuoteExpiredEmail(jobId: string, quoteId: string, link
   }
   if (!QUOTE_EXPIRED_EMAIL_APPROVED) return "email not sent — wording awaiting approval";
   if (!owner?.email) return "email not sent — no owner email";
+  try { await (await import("./comms.server")).assertCustomerDeliveryAllowed(jobId, "Quote expired email"); }
+  catch (e) { return `email not sent — ${(e as Error).message}`; }
   try {
-    await (await import("./comms.server")).assertCustomerDeliveryAllowed(jobId, "Quote expired email");
-    return `email ${await (await import("./owner-email-send.server")).sendGuardedOwnerEmail({ jobId, jobSource: job.source, to: owner.email, purpose: QUOTE_EXPIRED_PURPOSE, key: quoteExpiredEmailKey(quoteId), build: (u) => build(u, false) })}`;
-  } catch (e) { return `email not sent — ${(e as Error).message}`; }
+    return `email ${await (await import("./owner-email-send.server")).sendGuardedOwnerEmail({ jobId, jobSource: job.source, to: owner.email, purpose: QUOTE_EXPIRED_PURPOSE, key: quoteExpiredEmailKey(quoteId), retryAfterDefiniteFailure: true, build: (u) => build(u, false) })}`;
+  } catch (e) { return `email failed: ${(e as Error).message}`; }
+}
+
+export type QuoteExpiredDeliverable = { ok: true; link: string } | { ok: false; reason: string };
+
+/** Checked BEFORE the job is closed: can the owner be emailed at all? A lasting "no" leaves the job open. */
+export async function quoteExpiredDeliverable(jobId: string): Promise<QuoteExpiredDeliverable> {
+  const { data: job } = await admin.from("jobs").select("source, owners(email)").eq("id", jobId).maybeSingle();
+  if (!job) return { ok: false, reason: "job not found" };
+  const link = await (await import("./veec-copy-email.server")).ownerMyJobLink(jobId);
+  if (!link) return { ok: false, reason: "no working owner link" };
+  const email = ((job.owners ?? null) as { email: string | null } | null)?.email;
+  if (!email) return { ok: false, reason: "no owner email" };
+  if (job.source === "qa_test") return { ok: true, link };
+  if (!QUOTE_EXPIRED_EMAIL_APPROVED) return { ok: false, reason: "email wording not approved" };
+  const comms = await import("./comms.server");
+  if (!(await comms.customerCommsEnabled())) return { ok: false, reason: "customer messages are switched off" };
+  if (!(await comms.hasCurrentOwnerContactConsent(jobId))) return { ok: false, reason: "no contact consent" };
+  return { ok: true, link };
 }
