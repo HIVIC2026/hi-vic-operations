@@ -21,7 +21,7 @@ describe("Templates navigation", () => {
   });
   test("sections are who-gets-it (Jo's choice) with drafts kept apart; old ?cat= bookmarks fall back to Owner", () => {
     expect(TEMPLATE_SECTIONS.map((s) => s.key)).toEqual(["owner", "installer", "electrician", "office", "mitti", "compliance", "invoices", "waiting"]);
-    for (const s of TEMPLATE_SECTIONS.filter((x) => x.key !== "waiting")) expect(entriesFor(s.key).length).toBeGreaterThan(0); // "waiting" is empty since decision 406 (its tab hides when empty)
+    for (const s of TEMPLATE_SECTIONS.filter((x) => x.key !== "waiting")) expect(entriesFor(s.key).length).toBeGreaterThan(0); // "waiting" holds only the plan 2026-10-28 full-address drafts (its tab hides when empty)
     expect(parseTemplateSearch({ cat: "email" })).toEqual({ cat: "owner" });
     expect(parseTemplateSearch({ cat: "mitti", t: "mitti:A5" })).toEqual({ cat: "mitti", t: "mitti:A5" });
     expect(selectTemplate("mitti", "owner:O18").section).toBe("mitti");
@@ -37,6 +37,19 @@ describe("Templates navigation", () => {
   test("drafts waiting for Jo sit only in their own section; everything else is approved", () => {
     for (const e of TEMPLATE_ENTRIES) expect({ id: e.id, waiting: e.section === "waiting" }).toEqual({ id: e.id, waiting: e.approval === "waiting" });
     for (const e of entriesFor("waiting")) expect(templateStatus(e, null).label).toBe("Off — waiting for Jo's approval");
+  });
+  test("plan 2026-10-28: the full-address request email, its reminder and both texts wait for Jo (shown, not sent)", () => {
+    const ids = ["owner:address-request", "owner:address-request-reminder", "owner:sms-address_request", "owner:sms-address_request_reminder"];
+    for (const id of ids) {
+      const e = TEMPLATE_ENTRIES.find((x) => x.id === id);
+      expect({ id, section: e?.section, approval: e?.approval }).toEqual({ id, section: "waiting", approval: "waiting" });
+      expect(templateStatus(e!, { customer_comms: true, "sms:address_request": true, "sms:address_request_reminder": true }).label).toBe("Off — waiting for Jo's approval");
+    }
+    const body = (id: string) => { const p = TEMPLATE_ENTRIES.find((x) => x.id === id)!.render(); return p.kind === "text" ? p.body : p.kind === "email" ? p.html : ""; };
+    expect(body("owner:sms-address_request")).toBe("Home Insulation Victoria: we need your full address to check your home. Pick it here: https://estimate.homeinsulationvictoria.com.au/my-address/TEST");
+    expect(body("owner:sms-address_request_reminder")).toBe("Home Insulation Victoria: reminder — we need your full address to check your home. Pick it here: https://estimate.homeinsulationvictoria.com.au/my-address/TEST");
+    expect(body("owner:address-request")).toContain("We need your full address to check your home.");
+    expect(body("owner:address-request-reminder")).toContain("Just a reminder — we need your full address to check your home.");
   });
   test("decision 384: the four decision 376 messages are listed under who gets them, approved, with their designs filed there", () => {
     const where: Record<string, [string, string | null]> = {

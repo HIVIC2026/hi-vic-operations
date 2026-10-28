@@ -40,7 +40,10 @@ export async function loadAddressRequestFacts(jobId: string): Promise<AddressReq
 export type AddressRequestSweep = { sent: number; reminded: number };
 type Candidate = { id: string; source: string | null; channel: string | null; created_at: string; owners: { email: string | null; phone: string | null } | null; properties: { address_line: string | null } | null };
 type EventRow = { job_id: string; event_type: string; created_at: string };
+/** At most this many jobs are actually messaged per tick (a job with no usable owner link doesn't use one up). */
 const SWEEP_BATCH = 50;
+/** Owner-link checks per tick (each may prepare a link), so jobs that can't get a link never starve the rest for long. */
+const LINK_CHECK_CAP = 150;
 
 async function ownerPickUrl(jobId: string): Promise<string | null> {
   const { ensureOwnerLink } = await import("./estimatelink.server");
@@ -61,10 +64,17 @@ async function sendText(jobId: string, phone: string | null, url: string, remind
   return sendRealSms({ type: smsTypeFor(reminder), idempotencyKey: addressRequestKey(jobId, reminder), to: phone, body: addressRequestText(url, reminder), jobId });
 }
 
+/** Customer messages on AND this text's own switch on (the gates the sender checks after quiet hours). */
+async function textGatesOn(type: string): Promise<boolean> {
+  const { customerCommsEnabled } = await import("./comms.server");
+  if (!(await customerCommsEnabled())) return false;
+  const { data } = await loose.from("workflow_settings").select("sms_message_switches").eq("id", 1).maybeSingle();
+  const sw = (data as { sms_message_switches?: Record<string, unknown> } | null)?.sms_message_switches;
+  return sw?.[type] === true;
+}
+
 /** One step for one job: email + text, then the event (only when something was actually attempted). */
-async function runStep(j: Candidate, reminder: boolean): Promise<boolean> {
-  const url = await ownerPickUrl(j.id);
-  if (!url) return false; // no usable owner link: nothing logged, try next tick
+async function runStep(j: Candidate, reminder: boolean, url: string): Promise<"logged" | "skipped"> {
   const C = await import("./address-request.core");
   const key = C.addressRequestKey(j.id, reminder);
   let email = "not sent — no owner email";
@@ -78,14 +88,16 @@ async function runStep(j: Candidate, reminder: boolean): Promise<boolean> {
   let sms: { status: string; detail: string };
   try { const t = await sendText(j.id, j.owners?.phone ?? null, url, reminder); sms = { status: t.status, detail: t.detail }; }
   catch (e) { sms = { status: "error", detail: (e as Error).message }; }
-  const attempted = email === "sent" || ["sent", "sent_unknown", "blocked", "already"].includes(sms.status);
-  if (!attempted) return false; // nothing went and nothing was held: the keys keep the next tick to one send each
   const { SMS_QUIET_REASON } = await import("./quote-hold.core");
+  // Nothing really attempted (e.g. customer messages off, wording not approved, text switch off): log nothing, so the
+  // job is asked on a later tick; the once-only keys keep that to one send per channel.
+  const textWillGoAt7am = sms.detail === SMS_QUIET_REASON && (await textGatesOn(smsTypeFor(reminder)));
+  if (!C.addressRequestAttempted(email, sms, { reason: SMS_QUIET_REASON, textWillGoAt7am })) return "skipped";
   const { logEvent } = await import("./workflow.server");
   await logEvent(j.id, null, reminder ? ADDRESS_REQUEST_REMINDER_EVENT : ADDRESS_REQUEST_SENT_EVENT,
     reminder ? "Reminder sent to the owner: we still need their full address" : "Owner asked for their full address (email + text)",
     { idempotency_key: key, email, sms, sms_waits_for_7am: sms.detail === SMS_QUIET_REASON }, { internal: true });
-  return true;
+  return "logged";
 }
 
 export async function sweepAddressRequests(now: number = Date.now()): Promise<AddressRequestSweep> {
@@ -137,17 +149,22 @@ export async function sweepAddressRequests(now: number = Date.now()): Promise<Ad
     }
   }
   work.sort((a, b) => a.job.created_at.localeCompare(b.job.created_at));
-  const batch = work.slice(0, SWEEP_BATCH);
-  const run = async (w: Work) => {
+  // Oldest first. Jobs with no usable owner link are skipped (nothing logged, tried next tick) and don't use up the batch.
+  let messaged = 0, linkChecks = 0;
+  const run = async (w: Work, url: string) => {
     try {
-      if (w.kind === "send") { if (await runStep(w.job, false)) out.sent++; }
-      else if (w.kind === "remind") { if (await runStep(w.job, true)) out.reminded++; }
-      else {
-        const url = await ownerPickUrl(w.job.id);
-        if (url) await sendText(w.job.id, w.job.owners?.phone ?? null, url, w.kind === "retry_remind");
-      }
+      if (w.kind === "send") { if ((await runStep(w.job, false, url)) === "logged") out.sent++; }
+      else if (w.kind === "remind") { if ((await runStep(w.job, true, url)) === "logged") out.reminded++; }
+      else await sendText(w.job.id, w.job.owners?.phone ?? null, url, w.kind === "retry_remind");
     } catch (e) { console.error("address request step failed", w.job.id, (e as Error).message); }
   };
-  for (let i = 0; i < batch.length; i += 4) await Promise.all(batch.slice(i, i + 4).map(run));
+  for (let i = 0; i < work.length && messaged < SWEEP_BATCH && linkChecks < LINK_CHECK_CAP; ) {
+    const slice = work.slice(i, i + Math.min(4, SWEEP_BATCH - messaged, LINK_CHECK_CAP - linkChecks));
+    i += slice.length; linkChecks += slice.length;
+    const urls = await Promise.all(slice.map((w) => ownerPickUrl(w.job.id).catch(() => null)));
+    const ready = slice.flatMap((w, n) => (urls[n] ? [{ w, url: urls[n]! }] : []));
+    messaged += ready.length;
+    await Promise.all(ready.map((r) => run(r.w, r.url)));
+  }
   return out;
 }

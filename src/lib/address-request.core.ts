@@ -41,9 +41,27 @@ export const addressRequestKey = (jobId: string, reminder: boolean) => `${remind
 /** The owner's secure page to pick their address (their estimate-link token). */
 export const addressRequestPageUrl = (base: string, token: string) => `${base}/my-address/${token}`;
 
-/** Owner text (sms types address_request / address_request_reminder). DRAFT: held until Jo approves the wording. */
+/** Owner text (sms types address_request / address_request_reminder). DRAFT: held until Jo approves the wording.
+ *  Both start with the brand line, so the sender's brandSmsBody adds nothing (no doubled "Home Insulation Victoria"). */
 export function addressRequestText(link: string, reminder = false): string {
   return reminder
-    ? `Reminder from Home Insulation Victoria: we need your full address to check your home. Pick it here: ${link}`
+    ? `Home Insulation Victoria: reminder — we need your full address to check your home. Pick it here: ${link}`
     : `Home Insulation Victoria: we need your full address to check your home. Pick it here: ${link}`;
+}
+
+/** SMS holds about THIS owner that a retry will never change: they count as the text having been attempted. */
+export const OWNER_SPECIFIC_SMS_HOLDS: readonly string[] = ["This number replied STOP", "No contact consent from the owner", "Not an Australian mobile number"];
+
+/** Did this step really reach the owner (or as far as it ever can)? Only then is the request event logged.
+ *  Email: any reservation made (sent, uncertain, failed, already attempted). Text: sent / may have sent / refused at the
+ *  gateway (key claimed, never resent) / already handled; held for quiet hours when the text will go at 7am (the caller
+ *  says whether customer messages and this text's switch are on — the sender checks quiet hours before those); or held
+ *  for a reason about this owner that a retry never changes. Global gates (comms off, wording not approved, text switch
+ *  off) never count. */
+export function addressRequestAttempted(email: string, sms: { status: string; detail: string }, quiet: { reason: string; textWillGoAt7am: boolean }): boolean {
+  if (email === "sent" || email.startsWith("delivery uncertain") || email.startsWith("failed") || email.startsWith("already attempted")) return true;
+  if (["sent", "sent_unknown", "failed", "already"].includes(sms.status)) return true;
+  if (sms.status !== "blocked") return false;
+  if (sms.detail === quiet.reason) return quiet.textWillGoAt7am;
+  return OWNER_SPECIFIC_SMS_HOLDS.includes(sms.detail);
 }

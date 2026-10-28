@@ -83,6 +83,8 @@ import { installerPlanningText, renderInstallerPlanningEmail } from "./installer
 import { ANSWER_CODES, ANSWER_SAMPLES, ANSWER_TYPES, renderOwnerAutoReplyEmail } from "./owner-email-auto-reply.core";
 import { renderSpotReleasedEmail } from "./spot-release-email.core";
 import { spotReleasedText } from "./spot-release.core";
+import { renderAddressRequestEmail } from "./address-request-email.core";
+import { addressRequestText } from "./address-request.core";
 
 /* ---------------------------------------------------------------- types */
 
@@ -701,6 +703,20 @@ const INVOICES: TemplateEntry[] = [
 /* ---------------------------------------------------------------- WAITING FOR JO */
 
 const WAITING: TemplateEntry[] = [
+  // Plan 2026-10-28 (full address required): a website/email enquiry with no street → the owner is asked to pick their
+  // full address on their secure page, then ONE reminder 24h later. DRAFT: sends nothing until Jo approves the wording.
+  ENTRY({ id: "owner:address-request", section: "waiting", step: "enquiry", kind: "email", code: "", name: "We need your full address (+ 24h reminder)", when: "A website/email enquiry arrives with no street (after go-live); ONE reminder 24h later if still not answered", who: "Owner", approval: "waiting", approvalNote: "Draft — plan 2026-10-28 (full address required); waiting for Jo", gate: { kind: "email" },
+    source: { builder: "src/lib/address-request-email.core.ts", fn: "renderAddressRequestEmail", sender: "src/lib/address-request.server.ts" },
+    render: () => email(renderAddressRequestEmail({ pickUrl: `${BASE}/my-address/TEST`, unsubscribeUrl: UNSUB, reminder: false })) }),
+  ENTRY({ id: "owner:address-request-reminder", section: "waiting", step: "enquiry", kind: "email", code: "", name: "We need your full address — reminder", when: "24h after the request, if the owner still hasn't picked their address", who: "Owner", approval: "waiting", approvalNote: "Draft — plan 2026-10-28 (full address required); waiting for Jo", gate: { kind: "email" },
+    source: { builder: "src/lib/address-request-email.core.ts", fn: "renderAddressRequestEmail", sender: "src/lib/address-request.server.ts" },
+    render: () => email(renderAddressRequestEmail({ pickUrl: `${BASE}/my-address/TEST`, unsubscribeUrl: UNSUB, reminder: true })) }),
+  ENTRY({ id: "owner:sms-address_request", section: "waiting", step: "enquiry", kind: "text", code: "", name: "We need your full address (text)", when: "With the full-address email", who: "Owner", approval: "waiting", approvalNote: "Draft — plan 2026-10-28 (full address required); waiting for Jo", gate: { kind: "text", smsType: "address_request" },
+    source: { builder: "src/lib/address-request.core.ts", fn: "addressRequestText", sender: "src/lib/address-request.server.ts" },
+    render: () => text(addressRequestText(`${BASE}/my-address/TEST`, false)) }),
+  ENTRY({ id: "owner:sms-address_request_reminder", section: "waiting", step: "enquiry", kind: "text", code: "", name: "We need your full address — reminder (text)", when: "With the 24h reminder email", who: "Owner", approval: "waiting", approvalNote: "Draft — plan 2026-10-28 (full address required); waiting for Jo", gate: { kind: "text", smsType: "address_request_reminder" },
+    source: { builder: "src/lib/address-request.core.ts", fn: "addressRequestText", sender: "src/lib/address-request.server.ts" },
+    render: () => text(addressRequestText(`${BASE}/my-address/TEST`, true)) }),
   ENTRY({ id: "installer:trade-invite", section: "installer", step: "enquiry", kind: "email", code: "", name: "Trade sign-in invite", when: "Goes when the office gives an approved trade worker their own sign-in", who: "Installer / electrician worker", approvalNote: "Jo 27 Oct 2026, decision 406 (the whole email refresh suite)", gate: { kind: "email" },
     source: { builder: "src/lib/trade-access.core.ts", fn: "renderTradeInviteEmail", sender: "src/lib/trade-access.functions.ts" },
     render: () => email(renderTradeInviteEmail({ firstName: "Sam", business: "Sample Insulation Co", setPasswordUrl: `${BASE}/reset-password?token_hash=TEST&type=invite`, signInUrl: `${BASE}/auth` })) }),
@@ -780,5 +796,4 @@ export const NOT_LISTED_BUILDERS: Record<string, string> = {
   renderReloadPage: "Browser error page, not a template",
   testLoginEmail: "TEST partner login address helper",
   automaticLeadEmail: "Routing rule (which Jo template), not wording",
-  renderAddressRequestEmail: "Draft full-address request email (plan 2026-10-28) — shown to Jo before go-live, not live yet",
 };

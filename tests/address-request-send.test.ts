@@ -2,6 +2,7 @@
 // quiet hours goes on a later tick under the same key, with no second event. In-memory database; senders are fakes.
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { SMS_QUIET_REASON, smsQuietReason } from "../src/lib/quote-hold.core";
+import { brandSmsBody } from "../src/lib/sms.core";
 
 type Row = Record<string, unknown>;
 const tables: Record<string, Row[]> = {};
@@ -45,7 +46,11 @@ function from(table: string) {
   return b;
 }
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from } }));
-mock.module("../src/lib/comms.server", () => ({ assertCustomerDeliveryAllowed: async () => undefined, customerCommsEnabled: async () => true, hasCurrentOwnerContactConsent: async () => true }));
+let commsOn = true;
+mock.module("../src/lib/comms.server", () => ({
+  assertCustomerDeliveryAllowed: async () => { if (!commsOn) throw new Error("Customer messages are switched off"); },
+  customerCommsEnabled: async () => commsOn, hasCurrentOwnerContactConsent: async () => true,
+}));
 
 const emails: { purpose: string; key: string; to: string; subject: string; text: string; html: string }[] = [];
 mock.module("../src/lib/owner-email-send.server", () => ({
@@ -54,17 +59,19 @@ mock.module("../src/lib/owner-email-send.server", () => ({
     const m = p.build("https://unsub"); emails.push({ purpose: p.purpose, key: p.key, to: p.to, ...m }); return "sent";
   },
 }));
-// Behaves like the real sender for what matters here: quiet hours hold (recorded under a non-claiming key), else one send per key.
+// Behaves like the real sender for what matters here (wording approval is left out, per the controller ruling): quiet hours,
+// then the customer messages switch, each held under a non-claiming key; else one send per key.
 const texts: { type: string; key: string; to: string; body: string }[] = [];
 const senderCalls: string[] = [];
 mock.module("../src/lib/sms.server", () => ({
   sendRealSms: async (i: { type: string; idempotencyKey: string; to: string; body: string; jobId: string }) => {
     senderCalls.push(i.idempotencyKey);
     const rows = (tables["sms_messages"] ??= []);
-    if (smsQuietReason(clockIso)) {
+    const hold = smsQuietReason(clockIso) ?? (commsOn ? null : "Customer communications are switched off");
+    if (hold) {
       if (rows.some((r) => r["idempotency_key"] === i.idempotencyKey)) return { status: "already", detail: "Already handled", sid: null };
-      rows.push({ id: crypto.randomUUID(), job_id: i.jobId, message_type: i.type, idempotency_key: `${i.idempotencyKey}#held:${crypto.randomUUID()}`, status: "blocked", detail: SMS_QUIET_REASON, created_at: clockIso });
-      return { status: "blocked", detail: SMS_QUIET_REASON, sid: null };
+      rows.push({ id: crypto.randomUUID(), job_id: i.jobId, message_type: i.type, idempotency_key: `${i.idempotencyKey}#held:${crypto.randomUUID()}`, status: "blocked", detail: hold, created_at: clockIso });
+      return { status: "blocked", detail: hold, sid: null };
     }
     if (rows.some((r) => r["idempotency_key"] === i.idempotencyKey)) return { status: "already", detail: "Already handled", sid: null };
     rows.push({ id: crypto.randomUUID(), job_id: i.jobId, message_type: i.type, idempotency_key: i.idempotencyKey, status: "sent", detail: "ok", created_at: clockIso });
@@ -73,9 +80,12 @@ mock.module("../src/lib/sms.server", () => ({
   },
 }));
 let linkReady = true;
+const noLink = new Set<string>();
+const linkChecks: string[] = [];
 mock.module("../src/lib/estimatelink.server", () => ({
   ensureOwnerLink: async (jobId: string) => {
-    if (!linkReady) return false;
+    linkChecks.push(jobId);
+    if (!linkReady || noLink.has(jobId)) return false;
     if (!(tables["customer_estimate_links"] ?? []).some((l) => l["job_id"] === jobId)) (tables["customer_estimate_links"] ??= []).push({ id: "l1", job_id: jobId, purpose: "step3_estimate", status: "active", token: "TOKEN123", expires_at: "2027-01-01T00:00:00Z" });
     return true;
   },
@@ -86,8 +96,8 @@ const { sweepAddressRequests } = await import("../src/lib/address-request.server
 const GO_LIVE = "2026-10-20T00:00:00Z";
 function seed(o: { address?: string | null; goLive?: string | null; createdAt?: string; source?: string } = {}) {
   for (const k of Object.keys(tables)) delete tables[k];
-  emails.length = 0; texts.length = 0; senderCalls.length = 0; linkReady = true; clockIso = "2026-10-28T01:00:00.000Z";
-  tables["workflow_settings"] = [{ id: 1, address_request_live_at: o.goLive === undefined ? GO_LIVE : o.goLive }];
+  emails.length = 0; texts.length = 0; senderCalls.length = 0; linkChecks.length = 0; noLink.clear(); linkReady = true; commsOn = true; clockIso = "2026-10-28T01:00:00.000Z";
+  tables["workflow_settings"] = [{ id: 1, address_request_live_at: o.goLive === undefined ? GO_LIVE : o.goLive, sms_message_switches: { address_request: true, address_request_reminder: true } }];
   const owner = { id: "o1", full_name: "Pat Owner", email: "pat@example.org", phone: "0400000000" };
   const property = { id: "p1", address_line: o.address === undefined ? "Brighton VIC 3186" : o.address };
   tables["jobs"] = [{ id: "j1", source: o.source ?? "base44", channel: "hivic_sourced", stage: "preliminary_estimate_ready", created_at: o.createdAt ?? "2026-10-27T00:00:00Z", deleted_at: null, owner_id: "o1", owners: owner, properties: property }];
@@ -122,7 +132,7 @@ describe("address request: one request, one reminder", () => {
     expect(await at("2026-10-29T01:00:00.000Z")).toEqual({ sent: 0, reminded: 1 });
     expect(emails.map((e) => [e.purpose, e.key])).toEqual([["address_request", "address-request:v1:j1"], ["address_request_reminder", "address-request-reminder:v1:j1"]]);
     expect(texts.map((t) => [t.type, t.key])).toEqual([["address_request", "address-request:v1:j1"], ["address_request_reminder", "address-request-reminder:v1:j1"]]);
-    expect(texts[1]!.body).toBe("Reminder from Home Insulation Victoria: we need your full address to check your home. Pick it here: https://estimate.homeinsulationvictoria.com.au/my-address/TOKEN123");
+    expect(texts[1]!.body).toBe("Home Insulation Victoria: reminder — we need your full address to check your home. Pick it here: https://estimate.homeinsulationvictoria.com.au/my-address/TOKEN123");
     expect(emails[1]!.text).toContain("Just a reminder — we need your full address to check your home.");
     expect(events("address_request_reminder_sent").length).toBe(1);
 
@@ -148,6 +158,50 @@ describe("address request: one request, one reminder", () => {
     senderCalls.length = 0;
     await at("2026-10-28T20:30:00.000Z");
     expect(senderCalls).toEqual([]); expect(texts.length).toBe(1);
+  });
+
+  test("both texts read right after the sender adds its brand line (no doubled brand)", async () => {
+    await at("2026-10-28T01:00:00.000Z");
+    await at("2026-10-29T01:00:00.000Z");
+    expect(texts.map((t) => brandSmsBody(t.body))).toEqual([
+      "Home Insulation Victoria: we need your full address to check your home. Pick it here: https://estimate.homeinsulationvictoria.com.au/my-address/TOKEN123",
+      "Home Insulation Victoria: reminder — we need your full address to check your home. Pick it here: https://estimate.homeinsulationvictoria.com.au/my-address/TOKEN123",
+    ]);
+  });
+
+  test("customer messages switched off → nothing logged (job stays to ask); switched on → asked and logged once", async () => {
+    commsOn = false;
+    expect(await at("2026-10-28T01:00:00.000Z")).toEqual({ sent: 0, reminded: 0 });
+    expect(emails.length + texts.length).toBe(0);
+    expect(events("address_request_sent").length).toBe(0);
+    commsOn = true;
+    expect(await at("2026-10-28T01:15:00.000Z")).toEqual({ sent: 1, reminded: 0 });
+    expect(emails.length).toBe(1); expect(texts.length).toBe(1);
+    expect(events("address_request_sent").length).toBe(1);
+    expect(await at("2026-10-28T01:30:00.000Z")).toEqual({ sent: 0, reminded: 0 });
+    expect(events("address_request_sent").length).toBe(1);
+  });
+
+  test("text switch off at 9pm with no email → not logged; the job is asked once the text can really go", async () => {
+    (tables["jobs"]![0]!["owners"] as Row)["email"] = null;
+    tables["workflow_settings"]![0]!["sms_message_switches"] = {};
+    expect(await at("2026-10-28T10:00:00.000Z")).toEqual({ sent: 0, reminded: 0 }); // held for quiet hours, but the switch is off
+    expect(events("address_request_sent").length).toBe(0);
+    tables["workflow_settings"]![0]!["sms_message_switches"] = { address_request: true };
+    expect(await at("2026-10-28T10:15:00.000Z")).toEqual({ sent: 1, reminded: 0 }); // quiet-hours hold that will go at 7am
+    expect(events("address_request_sent").length).toBe(1);
+    await at("2026-10-28T20:15:00.000Z");
+    expect(texts.length).toBe(1);
+  });
+
+  test("55 older jobs with no owner link don't use up the batch: the newer good job is asked in the same tick", async () => {
+    const base = tables["jobs"]![0]!;
+    const older = Array.from({ length: 55 }, (_, n) => ({ ...base, id: `old-${String(n).padStart(2, "0")}`, created_at: `2026-10-21T00:${String(n).padStart(2, "0")}:00Z` }));
+    for (const j of older) noLink.add(j.id);
+    tables["jobs"] = [...older, base];
+    expect(await at("2026-10-28T01:00:00.000Z")).toEqual({ sent: 1, reminded: 0 });
+    expect(emails.map((e) => e.key)).toEqual(["address-request:v1:j1"]);
+    expect(events("address_request_sent").map((e) => e["job_id"])).toEqual(["j1"]);
   });
 
   test("no usable owner link → skipped this tick (nothing logged), sent on a later tick", async () => {
