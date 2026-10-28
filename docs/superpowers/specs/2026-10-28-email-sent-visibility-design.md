@@ -90,3 +90,17 @@ How the portal learns:
 
 - Outlook has a daily sending limit (about 10,000 for business accounts) — far above reply volumes, so fine.
 - If the Lovable Outlook connector can't be given send permission, part A needs rethinking before building. This is checked first.
+
+## Addition (29 Oct 2026, approved by Jo)
+
+While this was being built, the live portal gained follow-up replies (decision 421) and a new rule for website-link replies. Jo decided:
+
+1. Bring this work up to date with the live portal, keeping both sets of changes.
+2. **Website-link replies** (no job) go through Outlook. The live rule stays: a second link only if every earlier one definitely failed. On-screen wording stays as live ("… Reply to them from Outlook instead.").
+3. **Follow-up replies** (no job, already had the link) go through Outlook as a reply in the same thread, so they show in Sent.
+   - Outlook can't spot a double tap the way Resend does, so a once-only "sending" record is saved before sending. Two taps can never send twice.
+   - Outlook clearly refuses → nothing sent, failure recorded, Jo can try again.
+   - Outlook doesn't answer clearly → counts as sent, never resent.
+   - On-screen wording stays as live.
+
+Also fixed: the delivery-result database change moves to `docs/pending-migrations/` with an undo file and a PGlite proof, the way this portal ships database changes. It is applied to the live database only when Jo puts this live.
