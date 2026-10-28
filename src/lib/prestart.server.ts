@@ -17,12 +17,12 @@ export async function leadInstallerCert(jobId: string): Promise<LeadCert & { ema
   if (!a) return none;
   const { data: w } = await admin.from("partner_workers").select("id, email, full_legal_name, mobile, business_id, trade_role, removed_at, certification").eq("profile_id", a.user_id).eq("business_id", a.business_id ?? "").is("removed_at", null).limit(1).maybeSingle();
   if (!w) return none;
-  const email = w.email.trim().toLowerCase();
+  const email = (w.email ?? "").trim().toLowerCase() || null;
   // Decision 130: the lead must have acknowledged the ESC collection notice (own secure link / My business).
   const noticeAcknowledged = (await (await import("./esc-collection-notice.server")).noticeAckMap([w as never])).get(w.id) ?? null;
   // Decision 319: the lead's White Card (office-verified once); whether it blocks depends on when the install was booked.
   const whiteCard = (await import("./worker-compliance.core")).whiteCardState(w as { trade_role: string; certification: unknown });
-  const { data: certs } = await admin.from("partner_worker_certifications").select("id, status, recorded_at, worker_id, worker_email, certificate_number").or(`worker_id.eq.${w.id},worker_email.eq.${email}`).order("recorded_at", { ascending: false }).limit(1);
+  const { data: certs } = await admin.from("partner_worker_certifications").select("id, status, recorded_at, worker_id, worker_email, certificate_number").or(email ? `worker_id.eq.${w.id},worker_email.eq.${email}` : `worker_id.eq.${w.id}`).order("recorded_at", { ascending: false }).limit(1);
   const c = certs?.[0];
   if (!c) return { found: true, status: null, level: null, expiresOn: null, name: w.full_legal_name, email, certificateNumber: null, mobile: w.mobile ?? null, noticeAcknowledged, whiteCard };
   const { data: lv } = await admin.from("worker_certification_levels").select("level, expires_on").eq("certification_id", c.id).order("recorded_at", { ascending: false }).limit(1).maybeSingle();

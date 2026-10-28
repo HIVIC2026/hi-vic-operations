@@ -111,16 +111,17 @@ export const officeEecFileUrl = createServerFn({ method: "POST" }).middleware([r
   });
 
 /** Decision 153: latest certification check per worker (by id or email) + the latest recorded level/expiry against it. Read-only. */
-async function latestCertFacts(admin: { from: (t: string) => any }, workers: { id: string; email: string }[]) {
+async function latestCertFacts(admin: { from: (t: string) => any }, workers: { id: string; email: string | null }[]) {
   const out = new Map<string, { certStatus: string | null; certId: string | null; level: string | null; expiresOn: string | null }>();
   if (!workers.length) return out;
-  const emails = workers.map((w) => w.email.trim().toLowerCase());
+  // Jo 28 Oct: a person may have no email — match their checks by id only then.
+  const { certOrFilter, sameWorkerEmail } = await import("./worker-role.core");
   const { data: certs } = await admin.from("partner_worker_certifications").select("id, worker_id, worker_email, status, recorded_at")
-    .or(`worker_id.in.(${workers.map((w) => w.id).join(",")}),worker_email.in.(${emails.map((e) => `"${e}"`).join(",")})`).order("recorded_at", { ascending: false });
+    .or(certOrFilter(workers)).order("recorded_at", { ascending: false });
   const ids = ((certs ?? []) as { id: string }[]).map((c) => c.id);
   const { data: levels } = ids.length ? await admin.from("worker_certification_levels").select("certification_id, level, expires_on, recorded_at").in("certification_id", ids).order("recorded_at", { ascending: false }) : { data: [] };
   for (const w of workers) {
-    const c = ((certs ?? []) as { id: string; worker_id: string | null; worker_email: string; status: string }[]).find((r) => r.worker_id === w.id || r.worker_email.trim().toLowerCase() === w.email.trim().toLowerCase()) ?? null;
+    const c = ((certs ?? []) as { id: string; worker_id: string | null; worker_email: string; status: string }[]).find((r) => r.worker_id === w.id || sameWorkerEmail(w.email, r.worker_email)) ?? null;
     const l = c ? ((levels ?? []) as { certification_id: string; level: string; expires_on: string }[]).find((r) => r.certification_id === c.id) ?? null : null;
     out.set(w.id, { certStatus: c?.status ?? null, certId: c?.id ?? null, level: l?.level ?? null, expiresOn: l?.expires_on ?? null });
   }
@@ -147,7 +148,8 @@ export const officeVerifyEec = createServerFn({ method: "POST" }).middleware([re
     const cur = (await latestCertFacts(admin as never, [w])).get(w.id)!;
     if (crewClearance({ certStatus: cur.certStatus, level: cur.level, expiresOn: cur.expiresOn }, t).cleared) throw new Error(`This certificate is already verified and current (${cur.level}, expires ${cur.expiresOn}).`);
     const now = new Date().toISOString();
-    const email = w.email.trim().toLowerCase();
+    // No email on file → "" (the check is still tied to the person by worker_id).
+    const email = (w.email ?? "").trim().toLowerCase();
     const { data: cert, error: ce } = await admin.from("partner_worker_certifications").insert({
       worker_id: w.id, worker_email: email, status: "verified", certificate_number: data.certificateNumber, issuer: null,
       evidence_source: "certificate_sighted", evidence_note: `Office verified the uploaded EEC/CII certificate (${data.level}, expires ${data.expiresOn}).`, recorded_by: context.userId,
