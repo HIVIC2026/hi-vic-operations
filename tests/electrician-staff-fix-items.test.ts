@@ -53,8 +53,14 @@ mock.module("@tanstack/react-start", () => ({
 }));
 mock.module("@/integrations/supabase/auth-middleware", () => ({ requireSupabaseAuth: {} }));
 const regenerated: string[] = [];
+/** The required items' prices at the moment each rebuild ran (proves a rebuild runs after the price is saved). */
+const rebuiltWith: (number | null)[][] = [];
 const realQuotes = await import("../src/lib/quotes.server");
-mock.module("../src/lib/quotes.server", () => ({ ...realQuotes, generateRectificationQuote: async (jobId: string) => { regenerated.push(jobId); return "q1"; } }));
+mock.module("../src/lib/quotes.server", () => ({ ...realQuotes, generateRectificationQuote: async (jobId: string) => {
+  regenerated.push(jobId);
+  rebuiltWith.push(T["rectification_items"]!.filter((r) => (r["status"] ?? "required") === "required").map((r) => r["other_unit_price_inc_gst"] as number | null));
+  return "q1";
+} }));
 
 /** The caller's Supabase client: `my_job_role` / `is_admin` answer for that login. */
 const sbAs = (role: "electrician" | "admin") => ({
@@ -146,7 +152,7 @@ describe("electrician business owner: unchanged, and prices staff items", () => 
 
   test("still has to enter a price (existing rule)", async () => {
     T = tables();
-    await expect((await fns())["addOtherRectItem"]!({ data: other(), context: ctx(BOSS) })).rejects.toThrow();
+    await expect((await fns())["addOtherRectItem"]!({ data: other(), context: ctx(BOSS) })).rejects.toThrow("Enter the price inc GST.");
     expect(newItem()).toBeUndefined();
   });
 
@@ -158,7 +164,7 @@ describe("electrician business owner: unchanged, and prices staff items", () => 
     expect(newItem()!["other_unit_price_inc_gst"]).toBe(150);
     expect(newItem()!["needs_office_pricing"]).toBe(false);
     // An item that already has a price stays as it is (the owner removes and re-adds it, as before).
-    await expect(f["priceRectItem"]!({ data: { itemId: ITEM, unitPriceIncGst: 1, reason: "Change my price" }, context: ctx(BOSS) })).rejects.toThrow();
+    await expect(f["priceRectItem"]!({ data: { itemId: ITEM, unitPriceIncGst: 1, reason: "Change my price" }, context: ctx(BOSS) })).rejects.toThrow("This item already has a price.");
     expect(T["rectification_items"]!.find((r) => r["id"] === ITEM)!["other_unit_price_inc_gst"]).toBe(349);
   });
 
@@ -167,7 +173,7 @@ describe("electrician business owner: unchanged, and prices staff items", () => 
     const f = await fns();
     await f["addOtherRectItem"]!({ data: other(), context: ctx(STAFF) });
     T["jobs"]![0]!["stage"] = "rectification_scheduling";
-    await expect(f["priceRectItem"]!({ data: { itemId: newItem()!["id"], unitPriceIncGst: 150, reason: "Owner checked the job" }, context: ctx(BOSS) })).rejects.toThrow();
+    await expect(f["priceRectItem"]!({ data: { itemId: newItem()!["id"], unitPriceIncGst: 150, reason: "Owner checked the job" }, context: ctx(BOSS) })).rejects.toThrow("Items can only be priced before the owner approves electrical fixes.");
     expect(newItem()!["needs_office_pricing"]).toBe(true);
   });
 
@@ -198,6 +204,98 @@ describe("office: unchanged", () => {
   });
 });
 
+// Fix round 1 (review of 097aa3a).
+const QUOTE = "00000000-0000-4000-8000-000000000731";
+const draftQuote = (otherLinePrice: number) => {
+  T["quotes"] = [{ id: QUOTE, job_id: JOB, kind: "rectification", status: "draft", office_reviewed_at: "2026-10-28T00:00:00Z", release_state: "held", release_hold_reason: "Quote held: includes a non-standard electrical fixes item", rect_estimated_hours: 2 }];
+  T["quote_items"] = [
+    { id: "qi1", quote_id: QUOTE, description: "Replace old switch", is_other: true, quantity: 1, unit_price_inc_gst: 349, line_total_inc_gst: 349, sort: 0 },
+    { id: "qi2", quote_id: QUOTE, description: "Move a downlight away from the joist", is_other: true, quantity: 1, unit_price_inc_gst: otherLinePrice, line_total_inc_gst: otherLinePrice, sort: 1 },
+  ];
+};
+const sendBlocker = async () => {
+  const { fixesQuoteSendBlocker } = await import("../src/lib/fixes-quote-release.server");
+  return fixesQuoteSendBlocker(T["quotes"]![0]! as never, "office", { ignoreTimesHold: true });
+};
+const todosFor = async () => {
+  T["job_overview"] = [{ id: JOB, job_number: "HV-9701", property_address: "1 Test St", stage: "awaiting_owner_rectification_approval", source: "hivic", eligibility_review_required: false, eligibility_outcome: null }];
+  const { loadTodos } = await import("../src/lib/todo.server");
+  return (await loadTodos(memoryPostgrest(T) as never)).filter((t) => t.key.startsWith("rect:"));
+};
+const UNPRICED = "Some electrical fixes items still need office pricing.";
+const ZERO_LINE = "This electrical fixes quote has an item with no price. Price the item, then rebuild the quote.";
+
+describe("a removed unpriced item no longer blocks", () => {
+  test("staff add an unpriced item, then remove it: the quote can be reviewed and sent, and the To do drops it", async () => {
+    T = tables("awaiting_owner_rectification_approval");
+    const f = await fns();
+    await f["addOtherRectItem"]!({ data: other(), context: ctx(STAFF) });
+    newItem()!["status"] ??= "required"; // the database default (the in-memory store has no defaults)
+    draftQuote(120);
+    // Control: while it is still required, all three checks hold it.
+    expect(await sendBlocker()).toBe(UNPRICED);
+    expect((await todosFor()).map((t) => t.key)).toEqual([`rect:${newItem()!["id"]}`]);
+    const { reviewRectificationQuote } = (await import("../src/lib/allocation.functions")) as unknown as Record<string, Fn>;
+    await expect(reviewRectificationQuote!({ data: { quoteId: QUOTE }, context: ctx(OFFICE) })).rejects.toThrow(UNPRICED);
+    await f["removeRectItem"]!({ data: { itemId: newItem()!["id"] }, context: ctx(STAFF) });
+    expect(newItem()!["status"]).toBe("removed");
+    expect(await sendBlocker()).toBeNull();
+    expect(await todosFor()).toEqual([]);
+    await reviewRectificationQuote!({ data: { quoteId: QUOTE }, context: ctx(OFFICE) });
+    expect(T["workflow_events"]!.map((e) => e["event_type"])).toContain("rectification_quote_reviewed");
+  });
+});
+
+describe("office pricing while the owner is deciding rebuilds the held fixes quote", () => {
+  test("office prices a staff item at awaiting_owner_rectification_approval → the quote is rebuilt with the price", async () => {
+    T = tables("awaiting_owner_rectification_approval");
+    regenerated.length = 0; rebuiltWith.length = 0;
+    const f = await fns();
+    await f["addOtherRectItem"]!({ data: other(), context: ctx(STAFF) });
+    expect(rebuiltWith).toEqual([[349, null]]);
+    await f["priceRectItem"]!({ data: { itemId: newItem()!["id"], unitPriceIncGst: 175, reason: "Office checked the job" }, context: ctx(OFFICE) });
+    expect(regenerated).toEqual([JOB, JOB]);
+    expect(rebuiltWith[1]).toEqual([349, 175]);
+  });
+
+  test("office pricing at an earlier stage does not build a quote (unchanged)", async () => {
+    T = tables();
+    regenerated.length = 0;
+    const f = await fns();
+    await f["addOtherRectItem"]!({ data: other(), context: ctx(STAFF) });
+    await f["priceRectItem"]!({ data: { itemId: newItem()!["id"], unitPriceIncGst: 175, reason: "Office checked the job" }, context: ctx(OFFICE) });
+    expect(regenerated).toEqual([]);
+  });
+
+  test("a failure while checking office access is not treated as 'not office'", async () => {
+    T = tables();
+    const f = await fns();
+    await f["addOtherRectItem"]!({ data: other(), context: ctx(STAFF) });
+    const broken = { supabase: { auth: { getUser: async () => ({ data: { user: { user_metadata: {} } } }) }, rpc: async (name: string) => (name === "is_admin" ? { data: null, error: { message: "network down" } } : { data: "electrician", error: null }) } as never, userId: BOSS };
+    await expect(f["priceRectItem"]!({ data: { itemId: newItem()!["id"], unitPriceIncGst: 150, reason: "Owner checked the job" }, context: broken })).rejects.toThrow("network down");
+    expect(newItem()!["needs_office_pricing"]).toBe(true);
+  });
+});
+
+describe("defence in depth: a fixes quote with a $0 Other line is never sent", () => {
+  test("the send check refuses it; the same quote with a price passes", async () => {
+    T = tables("awaiting_owner_rectification_approval");
+    draftQuote(0);
+    expect(await sendBlocker()).toBe(ZERO_LINE);
+    draftQuote(120);
+    expect(await sendBlocker()).toBeNull();
+  });
+
+  test("the release (office Send and auto-send) refuses it and the quote stays a draft", async () => {
+    T = tables("awaiting_owner_rectification_approval");
+    draftQuote(0);
+    const { releaseFixesQuote } = await import("../src/lib/fixes-quote-release.server");
+    for (const how of ["office", "auto"] as const) await expect(releaseFixesQuote(QUOTE, OFFICE, how)).rejects.toThrow(ZERO_LINE);
+    expect(T["quotes"]![0]!["status"]).toBe("draft");
+    expect(T["workflow_events"]!.map((e) => e["event_type"])).not.toContain("rectification_quote_issued");
+  });
+});
+
 describe("the existing needs_office_pricing flow holds a staff item (no new blocks)", () => {
   test("completeAssessment, office review and the fixes-quote send already refuse while an item needs pricing; office To do lists it", () => {
     expect(readFileSync("src/lib/piesa-complete.server.ts", "utf8")).toContain('.eq("needs_office_pricing", true);');
@@ -218,6 +316,19 @@ describe("electrician job page (field.$jobId.tsx)", () => {
     expect(page).toContain("{canPrice && i.is_other && ` @ ${aud(i.other_unit_price_inc_gst)}`}");
     expect(page).toContain('{canPrice && <Input className="h-12" type="number" step="0.01" placeholder="Price inc GST"');
     expect(page).toContain("...(canPrice ? { unitPriceIncGst: Number(o.price) } : {})");
+  });
+  test("the add-item form waits until the server has said whether this login may price", () => {
+    expect(page).toContain("{editable && fix && (");
+  });
+  test("ASSESSMENT_PAGE_COLUMNS is every assessments column except mitti_raw_snapshot (a new column can't be dropped silently)", async () => {
+    const { ASSESSMENT_PAGE_COLUMNS } = await import("../src/lib/crew-no-price.core");
+    const types = readFileSync("src/integrations/supabase/types.ts", "utf8");
+    const start = types.indexOf("      assessments: {\n        Row: {");
+    expect(start).toBeGreaterThan(-1);
+    const body = types.slice(start, types.indexOf("\n        }", start));
+    const rowCols = [...body.matchAll(/^ {10}([a-z0-9_]+):/gm)].map((m) => m[1]!).filter((c) => c !== "mitti_raw_snapshot").sort();
+    expect(rowCols.length).toBeGreaterThan(30);
+    expect(ASSESSMENT_PAGE_COLUMNS.split(",").map((c) => c.trim()).sort()).toEqual(rowCols);
   });
   test("the PIESA reads leave out the Mitti snapshot (it holds the electrician's repair price)", async () => {
     const { ASSESSMENT_PAGE_COLUMNS } = await import("../src/lib/crew-no-price.core");

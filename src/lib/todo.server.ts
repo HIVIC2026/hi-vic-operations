@@ -10,7 +10,7 @@ export async function loadTodos(admin: Admin): Promise<TodoItem[]> {
       admin.from("job_overview").select("id, job_number, property_address, stage, source, eligibility_review_required, eligibility_outcome").not("stage", "in", "(complete,cancelled)"),
       admin.from("invoices").select("id, job_id, xero_invoice_id, xero_invoice_number, deposit_request_raised_at, deposit_amount, status, last_sync_error, xero_update_pending, created_at"),
       admin.from("invoice_status").select("id, deposit_cleared, effective_status"),
-      admin.from("rectification_items").select("id, job_id, description, created_at").eq("needs_office_pricing", true),
+      admin.from("rectification_items").select("id, job_id, description, created_at").eq("status", "required").eq("needs_office_pricing", true),
       admin.from("ceiling_measurements").select("id, job_id, created_at").eq("is_current", true).eq("status", "needs_review"),
       admin.from("reassignment_requests").select("id, job_id, role, reason, created_at").is("resolved_at", null),
       admin.from("partner_enquiries").select("id, name, enquiry_type, source, created_at").in("status", ["new", "submitted"]).neq("enquiry_type", "property_manager").or("source.is.null,source.not.in.(portal_rec_onboarding_test,portal_installer_onboarding_test)"),

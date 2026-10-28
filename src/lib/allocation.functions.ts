@@ -74,7 +74,7 @@ export const reviewRectificationQuote = createServerFn({ method: "POST" }).middl
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { data: q } = await admin.from("quotes").select("id, job_id, kind, status").eq("id", data.quoteId).single();
     if (!q || q.kind !== "rectification" || q.status !== "draft") throw new WorkflowError("Only a draft electrical fixes quote can be reviewed.");
-    const { count } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", q.job_id).eq("needs_office_pricing", true);
+    const { count } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", q.job_id).eq("status", "required").eq("needs_office_pricing", true);
     if (count) throw new WorkflowError("Some electrical fixes items still need office pricing.");
     await admin.from("quotes").update({ office_reviewed_at: new Date().toISOString(), office_reviewed_by: context.userId }).eq("id", q.id);
     await logEvent(q.job_id, context.userId, "rectification_quote_reviewed", "Office reviewed the electrical fixes quote", { quote_id: q.id }, { internal: true });

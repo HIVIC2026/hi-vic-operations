@@ -288,7 +288,7 @@ function OtherItems({ jobId, editable }: { jobId: string; editable: boolean }) {
       <ul className="mb-3 space-y-1 text-sm">
         {data?.map((i) => <li key={i.id}><div className="flex items-center justify-between gap-2"><span>{i.description} × {Number(i.quantity)}{canPrice && i.is_other && ` @ ${aud(i.other_unit_price_inc_gst)}`}</span>{i.is_other && editable && <Button size="sm" variant="ghost" onClick={() => remove({ itemId: i.id })}>Remove</Button>}</div>{canPrice && editable && i.needs_office_pricing && i.status === "required" && <PriceItemForm itemId={i.id} />}</li>)}
       </ul>
-      {editable && (
+      {editable && fix && (
         <form className="grid gap-2" onSubmit={async (e) => { e.preventDefault(); await add({ jobId, description: o.description, quantity: Number(o.quantity), ...(canPrice ? { unitPriceIncGst: Number(o.price) } : {}), explanation: o.explanation }, "Item added"); setO({ description: "", quantity: "1", price: "", explanation: "" }); }}>
           <div className="text-sm font-medium">Add an "Other" item</div>
           <Input className="h-12" placeholder="Description" value={o.description} onChange={(e) => setO({ ...o, description: e.target.value })} required />

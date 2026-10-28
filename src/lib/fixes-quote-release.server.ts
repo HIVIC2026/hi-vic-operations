@@ -12,11 +12,16 @@ export type FixesReleaseHow = "office" | "auto";
 /** The office Send checks for this quote (null = may be sent). `auto` stands in for the office review (decision 354). */
 export async function fixesQuoteSendBlocker(q: { id: string; job_id: string; kind: string; status: string; office_reviewed_at: string | null }, how: FixesReleaseHow, opts: { ignoreTimesHold?: boolean } = {}): Promise<string | null> {
   const { rectificationSendBlocker } = await import("./allocation.core");
-  const { count, error } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", q.job_id).eq("needs_office_pricing", true);
+  // Only items still on the job count: a removed item can't be priced (office-job-parts shows required items only).
+  const { count, error } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", q.job_id).eq("status", "required").eq("needs_office_pricing", true);
   if (error) throw new Error(`Could not check the electrical fixes items: ${error.message}`);
+  // Spec rule 3 (Jo 28 Oct 2026): nothing reaches the owner until every item has a price. Defence in depth for a quote
+  // built before its "Other" item was priced (that item's line is $0 until the quote is rebuilt).
+  const { count: zeroLines, error: le } = await admin.from("quote_items").select("id", { count: "exact", head: true }).eq("quote_id", q.id).eq("is_other", true).eq("unit_price_inc_gst", 0);
+  if (le) throw new Error(`Could not check the electrical fixes quote lines: ${le.message}`);
   // Decision 315: the fixes quote never reaches the owner before the electrician's fixes times exist (the owner picks one).
   const fixesTimesHold = opts.ignoreTimesHold ? null : await (await import("./rectification.server")).fixesTimesHoldFor(q.job_id);
-  return rectificationSendBlocker({ kind: q.kind, status: q.status, office_reviewed_at: how === "auto" ? "automatic checks (decision 354)" : q.office_reviewed_at, has_unpriced_items: !!count, fixes_times_hold: fixesTimesHold }, true);
+  return rectificationSendBlocker({ kind: q.kind, status: q.status, office_reviewed_at: how === "auto" ? "automatic checks (decision 354)" : q.office_reviewed_at, has_unpriced_items: !!count, has_zero_other_line: !!zeroLines, fixes_times_hold: fixesTimesHold }, true);
 }
 
 /** Releases one draft fixes quote; throws a WorkflowError with the reason when a check fails or it is no longer a draft. */

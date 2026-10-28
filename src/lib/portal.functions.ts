@@ -549,21 +549,24 @@ export const priceRectItem = createServerFn({ method: "POST" }).middleware([requ
   .handler(async ({ data, context }) => {
     // Jo 28 Oct 2026 (spec rule 3): the office as before; the owner of the job's electrician business may price an item
     // still waiting for a price (a staff item) before the owner approves the fixes. Staff never.
-    const office = await requireAdmin(context.supabase).then(() => true, () => false);
+    // Only the plain "not office" refusal means "not office"; any other failure (e.g. the check itself failed) stops here.
+    const office = await requireAdmin(context.supabase).then(() => true, (e) => { if (e instanceof WorkflowError && e.message === "Admin only.") return false; throw e; });
     const { data: it } = await admin.from("rectification_items").select("job_id,is_other,description,needs_office_pricing").eq("id", data.itemId).single();
+    const fixItems = await import("./electrician-fix-items.server");
     if (!office) {
       if (!it) throw new WorkflowError("Not found");
       const role = await requireJobRole(context.supabase, it.job_id, ["electrician"]);
-      const fixItems = await import("./electrician-fix-items.server");
       if (!(await fixItems.canPriceFixItems(it.job_id, context.userId, role))) throw new WorkflowError(fixItems.STAFF_PRICING_REFUSED);
       if (!it.needs_office_pricing) throw new WorkflowError("This item already has a price.");
-      if (!fixItems.FIX_ITEM_STAGES.includes(await getStage(it.job_id))) throw new WorkflowError("Items can only be priced before the owner approves electrical fixes.");
     }
     if (!it?.is_other) throw new WorkflowError("Only manual items can be priced here.");
+    const stage = await getStage(it.job_id);
+    if (!office && !fixItems.FIX_ITEM_STAGES.includes(stage)) throw new WorkflowError("Items can only be priced before the owner approves electrical fixes.");
     await admin.from("rectification_items").update({ other_unit_price_inc_gst: data.unitPriceIncGst, needs_office_pricing: false }).eq("id", data.itemId);
     await logEvent(it.job_id, context.userId, "rectification_item_priced", office ? `Office priced: ${it.description}` : `Business owner priced: ${it.description}`, { unit_price_inc_gst: data.unitPriceIncGst, reason: data.reason });
-    // Same as adding an item: while the owner is deciding on the fixes quote, the owner's price rebuilds it.
-    if (!office && (await getStage(it.job_id)) === "awaiting_owner_rectification_approval") await generateRectificationQuote(it.job_id, context.userId);
+    // Spec rule 3: the fixes quote is not sent until every item has a price. While the owner is deciding on it, any
+    // price (owner's or office's) rebuilds it, the same as adding an item, so no $0 line is left on the held draft.
+    if (stage === "awaiting_owner_rectification_approval") await generateRectificationQuote(it.job_id, context.userId);
     return { ok: true };
   });
 
