@@ -34,11 +34,7 @@ const sent: { via: string; to: string; subject?: string }[] = [];
 mock.module("../src/lib/test-send.server", () => ({ TEST_APP_BASE: "https://test", sendTestEmail: async (_c: unknown, to: string, subject: string) => { sent.push({ via: "test", to, subject }); return { status: "sent", detail: "fake" }; } }));
 mock.module("../src/lib/office-email.server", () => ({ sendOfficeEmail: async (p: { to: string; subject: string }) => { sent.push({ via: "real", to: p.to, subject: p.subject }); return { status: "blocked", detail: "fake" }; } }));
 mock.module("../src/lib/sms.server", () => ({ sendRealSms: async () => ({ status: "blocked", detail: "fake" }) }));
-mock.module("../src/lib/workflow.server", () => ({
-  WorkflowError: class extends Error {},
-  logEvent: async (job_id: string, actor_id: string | null, event_type: string, summary: string, details: Row) => { (tables["workflow_events"] ??= []).push({ job_id, actor_id, event_type, summary, details }); },
-  requireAdmin: async () => {},
-}));
+
 let isAdmin = false; let memberRole: string | null = null;
 mock.module("../src/lib/worker-links.server", () => ({ WORKER_COLS: "*", isAdminCaller: async () => isAdmin, jobBusinesses: async () => [], workerLinksFor: async () => [] }));
 mock.module("../src/lib/pilot.server", () => ({ myBusinesses: async () => new Map(), requireMember: async (_u: string, _b: string, adminOnly?: boolean) => { if (!memberRole || (adminOnly && memberRole !== "business_admin")) throw new Error("Only your business admin can do this."); return memberRole; } }));
