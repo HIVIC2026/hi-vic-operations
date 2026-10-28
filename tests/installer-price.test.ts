@@ -4,13 +4,14 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
-  ELECTRICIAN_CHOICE_LABEL, INSTALLER_PRICE_EVENT, NOT_ON_READY_CHECK, PRICE_FORM_LABELS, PRICE_ISSUES, PRICE_NOT_ENTERED, accessFlagLine, formHasPrice, installerPriceFromEvent, installerPriceState, priceCardLines, priceEntriesFromRecord, readyCheckDetailLines, validateInstallerPrice, withInstallerPrice,
+  ELECTRICIAN_CHOICE_LABEL, INSTALLER_PRICE_EVENT, NOT_ON_READY_CHECK, PRICE_FORM_LABELS, PRICE_ISSUES, PRICE_NOT_ENTERED, accessFlagLine, formHasPrice, installerPriceFromEvent, installerPriceState, priceCardLines, priceFromPortal, priceEntriesFromRecord, readyCheckDetailLines, validateInstallerPrice, withInstallerPrice,
 } from "../src/lib/installer-price.core";
 import { quotedPriceFromEntries } from "../src/lib/installer-led.core";
 import { contactAnswersFromEntries } from "../src/lib/mitti.core";
 import { resolveMittiElectrician } from "../src/lib/usual-electrician.core";
 import { accessFlagFromEntries, readyCheckRemovalRequired } from "../src/lib/ready-check-answers.core";
 import { PRICE_NEXT_ACTION, formHasInstallerAnswers, isPriceNextAction, needsFinishingFromMissing, readyCheckBasics } from "../src/lib/ready-check-basics.core";
+import { installerStatusLine } from "../src/lib/installer-screens.core";
 import { needsFinishingList } from "../src/lib/installer-screens.core";
 import { needsFinishingItems } from "../src/lib/installer-home.core";
 import { needsFinishingTask } from "../src/lib/trade-view.core";
@@ -268,4 +269,14 @@ describe("Ready Check detail rows above the price box (Jo 27 Oct 2026, redone af
     expect(server).toContain("readyCheckDetailLines");
     expect(server).toContain("removalTotalM2");
   });
+});
+
+test("A9: price box and price step only on installers' own jobs; HIV leads quoted from agreed rates", () => {
+  expect(priceFromPortal("installer_sourced")).toBe(true);
+  expect(priceFromPortal("hivic_sourced")).toBe(false);
+  expect(installerPriceState({ channel: "hivic_sourced", record: null, entries: [] })).toEqual({ required: false, present: true, source: null });
+  expect(installerStatusLine({ channel: "hivic_sourced", formLinked: true, formCompleted: true, formHasAnswers: true, priceEntered: false, boss: true, quoteLine: null }).kind).not.toBe("price");
+  expect(readFileSync("src/routes/_authenticated/field.$jobId.tsx", "utf8")).toContain('page.boss && page.channel === "installer_sourced" && <InstallerPriceCard');
+  expect(readFileSync("src/lib/installer-price-set.server.ts", "utf8")).toContain("Only your own customers' jobs take your price here.");
+  expect(readFileSync("src/lib/quotes.server.ts", "utf8")).toContain("the quote uses that installer's agreed rates");
 });
