@@ -566,7 +566,8 @@ const s8: StepFn = async (ctx, r) => {
     const pack = await act(r, "completion pack emailed to the owner (the tick's sender)", () => cp.sendCompletionPack(ctx.jobId!, ctx.actorId));
     const { count: provided } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("event_type", "warranty_copy_provided");
     if (!provided) {
-      check(r, "completion pack held only because the TEST owner is not on the allowlist", pack.outcome === "not_sent" && /allowlist/.test(pack.detail), `${pack.outcome}: ${pack.detail}`);
+      // Held by a TEST safeguard (the allowlist, or the per-job TEST "no delivery" marker): count as delivered for this TEST job.
+      check(r, "completion pack held only by a TEST safeguard (allowlist or TEST no-delivery marker)", pack.outcome === "not_sent" && (/allowlist/.test(pack.detail) || /TEST browser run: no delivery/.test(pack.detail)), `${pack.outcome}: ${pack.detail}`);
       (r.simulated ??= []).push("Completion pack email to the TEST owner (held by the TEST sender; the warranty copy recorded as given for this TEST job)");
       await act(r, "product warranty copy recorded as given to the owner (simulated email)", async () => {
         await assertOwnTestJob(ctx);
