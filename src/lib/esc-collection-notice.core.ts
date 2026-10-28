@@ -173,7 +173,7 @@ export function acksFromApplicationData(data: unknown): NoticeAck[] {
 }
 
 /** One `admin_config_events` row (append-only) for an approved business's worker acknowledging for themself. */
-export function noticeEventDetails(p: { businessId: string; workerId: string | null; workerEmail: string; byName: string; source: "my_business" | "secure_link"; ip?: string | null; userAgent?: string | null; linkId?: string | null; now?: Date }) {
+export function noticeEventDetails(p: { businessId: string; workerId: string | null; workerEmail: string | null; byName: string; source: "my_business" | "secure_link"; ip?: string | null; userAgent?: string | null; linkId?: string | null; now?: Date }) {
   const at = (p.now ?? new Date()).toISOString();
   return {
     summary: `${p.byName || p.workerEmail} acknowledged the ESC collection notice v${COLLECTION_NOTICE_VERSION} (${p.source === "secure_link" ? "secure link" : "My business"})`,
@@ -191,7 +191,7 @@ export function ackFromEventDetails(details: unknown): NoticeAck | null {
 
 // ---- Secure links (no login) ----
 export type NoticeLink = { id: string; business_id: string; worker_id: string; worker_email: string; token_hash: string; expires_at: string; created_at: string };
-export function noticeLinkDetails(p: { businessId: string; workerId: string; workerEmail: string; tokenHash: string; now?: Date }) {
+export function noticeLinkDetails(p: { businessId: string; workerId: string; workerEmail: string | null; tokenHash: string; now?: Date }) {
   const now = p.now ?? new Date();
   return { business_id: p.businessId, worker_id: p.workerId, worker_email: noticeEmailKey(p.workerEmail), token_hash: p.tokenHash, expires_at: new Date(now.getTime() + COLLECTION_NOTICE_LINK_DAYS * 86_400_000).toISOString(), issued_at: now.toISOString() };
 }
