@@ -611,7 +611,7 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
   await step(steps, "C15", "C15 Add a job (basics only): creates the job, no booking, and prepares (or explains) the Mitti form", async (c) => {
     const os = await import("../src/lib/onsite-ready-check.server");
     const offline = (async () => { throw new Error("Mitti could not be reached. Try again shortly."); }) as never; // never touches real Mitti
-    const r = await os.startOnsiteReadyCheckFor(ownerId, BIZ, { full_name: `TEST ${tag} Onsite`, address_line: `3 ${tag} Onsite Rd`, suburb: "Fraser Rise", postcode: "3336", phone: "0412 000 315", email: `qa.owner.${tag.toLowerCase()}.onsite@hivic-test.example`, contact_permission: true, consent_by: "installer" }, { mode: "hivic" }, offline);
+    const r = await os.startOnsiteReadyCheckFor(ownerId, BIZ, { full_name: `TEST ${tag} Onsite`, address_line: `3 ${tag} Onsite Rd`, suburb: "Fraser Rise", postcode: "3336", phone: "0412 000 315", email: `qa.owner.${tag.toLowerCase()}.onsite@hivic-test.example`, contact_permission: true, consent_by: "installer" }, { mode: "hivic" }, offline, { leadOrigin: "owner_contacted" });
     const { data: j } = await admin.from("jobs").select("stage, source, channel, installer_site_check, installer_site_check_date, originating_installer_business_id").eq("id", r.jobId).single();
     c("job is installer-supplied TEST work for this installer", j?.channel === "installer_sourced" && j?.source === "qa_test" && j?.originating_installer_business_id === BIZ, `${j?.channel} ${j?.source}`);
     c("no visit claimed (decision 34: the Mitti form answers the visit)", j?.installer_site_check === "no" && !j?.installer_site_check_date, `${j?.installer_site_check} ${j?.installer_site_check_date}`);
@@ -619,7 +619,7 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     c("assigned to this installer", asg === 1, String(asg));
     c("screen always says what happens next", ["open", "preparing", "office", "owner_paperwork", "retry"].includes(r.state.kind) && ("message" in r.state ? r.state.message.length > 20 : true), `${r.state.kind}`);
     c("nothing booked by Add a job (decision 115): job waits at Ready Check ready to schedule", r.booking === "none" && j?.stage === "ready_check_ready_to_schedule", `${j?.stage} / ${r.booking}`);
-    const bad = await os.startOnsiteReadyCheckFor(ownerId, BIZ, { full_name: "X Y", address_line: "1 A St", suburb: "Canberra", postcode: "2604", phone: "0412000000", email: "a@b.co", contact_permission: false }, { mode: "hivic" }, offline).then(() => "made", (e) => (e as Error).message);
+    const bad = await os.startOnsiteReadyCheckFor(ownerId, BIZ, { full_name: "X Y", address_line: "1 A St", suburb: "Canberra", postcode: "2604", phone: "0412000000", email: "a@b.co", contact_permission: false }, { mode: "hivic" }, offline, { leadOrigin: "owner_contacted" }).then(() => "made", (e) => (e as Error).message);
     c("no permission / ACT postcode refused", /Victorian/.test(bad) && /permission to contact|consent/.test(bad), bad);
     c("nothing sent to the owner", (await outboundFor([r.jobId])) === 0);
     await jobsOk(c, [r.jobId]);

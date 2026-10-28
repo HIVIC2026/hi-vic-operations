@@ -1,6 +1,6 @@
 // Installer Add a job (Jo, 8 Oct 2026; basics only since decision 34, 24 Oct 2026; ONE screen per approved mock-up
 // M3, decision 198). Pure presentation/state rules only. Validation comes from the existing validators; no new lifecycle.
-import { PICK_ADDRESS, onsiteProblems, type OnsiteInput, type OnsiteState } from "./onsite-ready-check.core";
+import { LEAD_ORIGIN_BLOCKED, LEAD_ORIGIN_MISSING, PICK_ADDRESS, onsiteProblems, type OnsiteInput, type OnsiteState } from "./onsite-ready-check.core";
 import { installTimeLabel } from "./install-days.core";
 
 /** Mock-up M3 heading lines. */
@@ -96,12 +96,13 @@ export function outcomeFor(r: { booking: AddJobBooking; state: OnsiteState | und
 }
 
 // ---------- Heavier Add a job (approved 24 Oct 2026, decision 237): error state + "Job added" screen. Presentation only. ----------
-export type AddJobField = "full_name" | "address" | "phone" | "email" | "permission" | "visit" | "electrician";
+export type AddJobField = "full_name" | "address" | "phone" | "email" | "permission" | "visit" | "electrician" | "lead_origin";
 /** One short red line per field from the existing validator messages (validation itself is unchanged). */
 export function fieldErrors(problems: string[]): Partial<Record<AddJobField, string>> {
   const out: Partial<Record<AddJobField, string>> = {};
   for (const p of problems) {
-    if (/electrical safety check|usual electrician/i.test(p)) out.electrician ??= p;
+    if (p === LEAD_ORIGIN_BLOCKED || p === LEAD_ORIGIN_MISSING) out.lead_origin ??= p;
+    else if (/electrical safety check|usual electrician/i.test(p)) out.electrician ??= p;
     else if (/full name|first and last|owner's name/i.test(p)) out.full_name ??= "Enter the owner's first and last name.";
     else if (/mobile/i.test(p)) out.phone ??= /Check the mobile/i.test(p) ? "That doesn't look like a mobile number." : "Enter the owner's mobile.";
     else if (/email/i.test(p)) out.email ??= /Check the email/i.test(p) ? "That doesn't look like an email address." : "Enter the owner's email.";

@@ -15,7 +15,7 @@ import type { ReadyCheckPick } from "./ready-check-times.core";
 export type AddJobBooking = "none" | "confirmed" | "blocked";
 export type AddJobResult = { jobId: string; jobNumber: string | null; booking: AddJobBooking; formCreation: "scheduled" | "skipped"; state: OnsiteState };
 
-export async function startOnsiteReadyCheckFor(userId: string, businessId: string, input: OnsiteInput, electrician: ElectricianPlan | null = null, call?: MittiCall, opts: { visit?: ReadyCheckPick | null; now?: Date; /** Decision 289: null = the default rule (usual electrician when saved, else Home Insulation Victoria's). */ electricianChoice?: import("./electrician-choice.core").ElectricianChoice | null } = {}): Promise<AddJobResult> {
+export async function startOnsiteReadyCheckFor(userId: string, businessId: string, input: OnsiteInput, electrician: ElectricianPlan | null = null, call?: MittiCall, opts: { visit?: ReadyCheckPick | null; now?: Date; /** Decision 289: null = the default rule (usual electrician when saved, else Home Insulation Victoria's). */ electricianChoice?: import("./electrician-choice.core").ElectricianChoice | null; /** A1: how the installer got this customer; door-knock and cold call are refused. */ leadOrigin?: import("./onsite-ready-check.core").LeadOrigin | null } = {}): Promise<AddJobResult> {
   const { requireMember, requireApprovedPartner, intakeSourceFor } = await import("./pilot.server");
   await requireMember(userId, businessId, true); // same rule as Add one job: business owner only
   await requireApprovedPartner(businessId);
@@ -23,6 +23,7 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   const problems = onsiteProblems(input);
   const { electricianPlanBlocker, OWNER_CONTACT_PERMISSION } = await import("./job-electrician.core");
   const eb = electricianPlanBlocker(electrician); if (eb) problems.push(eb);
+  const lop = (await import("./onsite-ready-check.core")).leadOriginProblem(opts.leadOrigin); if (lop) problems.push(lop);
   // Decision 289: "Electrical safety check by" is chosen once here; "my usual electrician" needs one saved in My business.
   const { defaultElectricianChoice, electricianChoiceProblem } = await import("./electrician-choice.core");
   const usual = (await (await import("./usual-electrician.server")).readUsualElectrician(businessId)).electrician;
@@ -61,7 +62,7 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   await (await import("./job-electrician.server")).recordJobElectricianChoice(job.id, businessId, electrician ?? { mode: "hivic" }, userId);
   // Decision 289: the one electrician choice for this job (append-only event; the quote pipeline reads it).
   await (await import("./electrician-choice.server")).recordElectricianChoice(job.id, businessId, userId, opts.electricianChoice ?? null, "add_job");
-  await logEvent(job.id, userId, "installer_job_added", "Installer added this customer (Add a job: name, address, mobile, email, contact permission); the Mitti Ready Check form is created next", { business_id: businessId, visit_requested: !!opts.visit });
+  await logEvent(job.id, userId, "installer_job_added", "Installer added this customer (Add a job: name, address, mobile, email, contact permission); the Mitti Ready Check form is created next", { business_id: businessId, visit_requested: !!opts.visit, lead_origin: opts.leadOrigin });
   // Gate A (Jo, 8 Oct): the installer confirmed the owner's consent to be contacted.
   const { gateDoc } = await import("./owner-gates.core");
   const byOwner = input.consent_by === "owner";

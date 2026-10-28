@@ -13,11 +13,13 @@ export const startOnsiteReadyCheck = createServerFn({ method: "POST" }).middlewa
     electrician: plan.optional(),
     /** Decision 289: "Electrical safety check by" — chosen once here, never asked again. */
     electricianChoice: z.enum(["hivic", "usual"]).nullable().optional(),
+    /** A1: how the installer got this customer. */
+    leadOrigin: z.enum(["owner_contacted", "referral", "door_knock", "cold_call"]).nullable().optional(),
     visit: z.object({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), time: z.string().regex(/^\d{2}:\d{2}$/) }).nullable().optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {
     const { startOnsiteReadyCheckFor } = await import("./onsite-ready-check.server");
-    return startOnsiteReadyCheckFor(context.userId, data.businessId, data.owner, (data.electrician ?? { mode: "hivic" }) as never, undefined, { visit: data.visit ?? null, electricianChoice: data.electricianChoice ?? null });
+    return startOnsiteReadyCheckFor(context.userId, data.businessId, data.owner, (data.electrician ?? { mode: "hivic" }) as never, undefined, { visit: data.visit ?? null, electricianChoice: data.electricianChoice ?? null, leadOrigin: data.leadOrigin ?? null });
   });
 
 /** Decision 289: what Add a job needs before it renders — the business's usual electrician (My business), if any. Read-only. */

@@ -11,7 +11,7 @@ import { Link } from "@tanstack/react-router";
 import { CustomerFields, FieldError } from "./customer-fields";
 import { addJobOptions, onsiteFormStatus, startOnsiteReadyCheck } from "@/lib/onsite-ready-check.functions";
 import { OWNER_CONTACT_PERMISSION } from "@/lib/job-electrician.core";
-import type { OnsiteInput, OnsiteState } from "@/lib/onsite-ready-check.core";
+import { LEAD_ORIGINS, LEAD_ORIGIN_QUESTION, leadOriginProblem, type LeadOrigin, type OnsiteInput, type OnsiteState } from "@/lib/onsite-ready-check.core";
 import { a1ReadyCheckTimeBlockers, allowedReadyCheckDays, allowedReadyCheckTimes } from "@/lib/ready-check-times.core";
 import { installTimeLabel } from "@/lib/install-days.core";
 import { ELECTRICIAN_CHOICE_QUESTION, defaultElectricianChoice, electricianChoiceOptions, electricianChoiceProblem, type ElectricianChoice } from "@/lib/electrician-choice.core";
@@ -45,6 +45,8 @@ export function AddJobFlow({ businessId, onReset }: { businessId: string; onExit
   const options = useQuery({ queryKey: ["add-job-options", businessId], queryFn: () => loadOptions({ data: { businessId } }), retry: 1 });
   const usual = options.data?.usualElectrician ?? null;
   const [electrician, setElectrician] = useState<ElectricianChoice | null>(null);
+  // A1: asked fresh every time (not kept in the phone draft).
+  const [leadOrigin, setLeadOrigin] = useState<LeadOrigin | null>(null);
   useEffect(() => { if (options.isSuccess && electrician === null) setElectrician(defaultElectricianChoice(usual)); }, [options.isSuccess]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Poor signal on site: typed details stay on the phone (never the consent tick) until saved.
@@ -52,16 +54,17 @@ export function AddJobFlow({ businessId, onReset }: { businessId: string; onExit
   useEffect(() => { try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...customer, contact_permission: false, consent_by: null })); } catch { /* ignore */ } }, [customer]);
   useEffect(() => { if (shown.length) bannerRef.current?.focus(); }, [shown]);
   // Fixing an answer clears the old hint list; it is rebuilt on the next tap.
-  useEffect(() => { setShown([]); }, [customer, visit]);
+  useEffect(() => { setShown([]); }, [customer, visit, leadOrigin]);
 
   const start = useServerFn(startOnsiteReadyCheck);
 
-  if (saved) return <SavedResult saved={saved} onAddAnother={() => { setSaved(null); setCustomer(blankCustomer()); setVisit({ day: "", time: "" }); setElectrician(defaultElectricianChoice(usual)); onReset?.(); }} />;
+  if (saved) return <SavedResult saved={saved} onAddAnother={() => { setSaved(null); setCustomer(blankCustomer()); setVisit({ day: "", time: "" }); setElectrician(defaultElectricianChoice(usual)); setLeadOrigin(null); onReset?.(); }} />;
 
   const problems = (): string[] => {
     const v = visitPayload(visit);
     const ecp = electricianChoiceProblem(electrician, usual);
-    return [...customerProblems(customer), ...(ecp ? [ecp] : []), ...visitProblems(visit), ...(v ? a1ReadyCheckTimeBlockers(v) : [])];
+    const lop = leadOriginProblem(leadOrigin);
+    return [...(lop ? [lop] : []), ...customerProblems(customer), ...(ecp ? [ecp] : []), ...visitProblems(visit), ...(v ? a1ReadyCheckTimeBlockers(v) : [])];
   };
 
   const save = async () => {
@@ -71,7 +74,7 @@ export function AddJobFlow({ businessId, onReset }: { businessId: string; onExit
     inFlight.current = true; setBusy(true);
     try {
       const choice: ElectricianChoice = electrician ?? defaultElectricianChoice(usual);
-      const r = await start({ data: { businessId, owner: customer, visit: visitPayload(visit), electricianChoice: choice } });
+      const r = await start({ data: { businessId, owner: customer, visit: visitPayload(visit), leadOrigin, electricianChoice: choice } });
       try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
       setSaved({ jobId: r.jobId, jobNumber: r.jobNumber ?? null, booking: r.booking, state: r.state, customer, visit, electrician: { choice, usualName: usual?.name ?? null } });
     } catch (e) { setErr(saveErrorMessage(e instanceof Error ? e.message : null)); }
@@ -83,6 +86,16 @@ export function AddJobFlow({ businessId, onReset }: { businessId: string; onExit
   return (
     <div className="space-y-5" data-add-job-flow data-step="customer">
       {summary && <p ref={bannerRef} tabIndex={-1} role="alert" className="rounded-[12px] border-2 px-3.5 py-3 text-[15px] font-bold leading-[1.4] outline-none" style={{ borderColor: "#8A3B4A", background: "#FBEFF1", color: "#8A3B4A" }} data-step-problems>{summary}</p>}
+      <fieldset className={CARD} data-lead-origin>
+        <legend className="sr-only">{LEAD_ORIGIN_QUESTION}</legend>
+        <p className="text-[15px] font-bold" aria-hidden>{LEAD_ORIGIN_QUESTION}</p>
+        {LEAD_ORIGINS.map((o) => (
+          <label key={o.value} className="flex min-h-12 items-center gap-3 text-[15px]">
+            <input type="radio" name="add-job-lead-origin" value={o.value} checked={leadOrigin === o.value} disabled={busy} onChange={() => { setLeadOrigin(o.value); setErr(null); }} />{o.label}
+          </label>
+        ))}
+        <FieldError>{errors.lead_origin}</FieldError>
+      </fieldset>
       <section className={CARD} data-owner-card>
         <h2 className={CARD_TITLE}>{OWNER_CARD_TITLE}</h2>
         <div className="mt-3.5"><CustomerFields value={customer} consentLabel={OWNER_CONTACT_PERMISSION} errors={errors} onChange={(n) => { setCustomer(n); setErr(null); }} /></div>

@@ -206,7 +206,7 @@ afterAll(async () => { await db.close(); });
 
 describe("1. Add a job = basics only; the Mitti form is created straight away (decisions 34, 115)", () => {
   test("name, address, mobile, email + permission tick → job at ready_check_ready_to_schedule, consent row, no booking, form created", async () => {
-    const r = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(1), { mode: "hivic" }, call);
+    const r = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(1), { mode: "hivic" }, call, { leadOrigin: "owner_contacted" });
     A = r.jobId;
     expect(r.booking).toBe("none");
     expect(r.formCreation).toBe("scheduled");
@@ -235,16 +235,16 @@ describe("1. Add a job = basics only; the Mitti form is created straight away (d
   });
   test("a refused save leaves nothing behind: missing permission, ACT postcode or a bad visit time create no job", async () => {
     const before = (await q("select id from jobs")).length;
-    await expect(os.startOnsiteReadyCheckFor(INST, BIZ, { ...owner(9), contact_permission: false }, { mode: "hivic" }, call)).rejects.toThrow(/permission to contact/);
-    await expect(os.startOnsiteReadyCheckFor(INST, BIZ, { ...owner(9), postcode: "2604" }, { mode: "hivic" }, call)).rejects.toThrow(/Victorian/);
-    await expect(os.startOnsiteReadyCheckFor(INST, BIZ, owner(9), { mode: "hivic" }, call, { visit: { day: DAY_A, time: "03:00" } })).rejects.toThrow(/time/i);
+    await expect(os.startOnsiteReadyCheckFor(INST, BIZ, { ...owner(9), contact_permission: false }, { mode: "hivic" }, call, { leadOrigin: "owner_contacted" })).rejects.toThrow(/permission to contact/);
+    await expect(os.startOnsiteReadyCheckFor(INST, BIZ, { ...owner(9), postcode: "2604" }, { mode: "hivic" }, call, { leadOrigin: "owner_contacted" })).rejects.toThrow(/Victorian/);
+    await expect(os.startOnsiteReadyCheckFor(INST, BIZ, owner(9), { mode: "hivic" }, call, { leadOrigin: "owner_contacted", visit: { day: DAY_A, time: "03:00" } })).rejects.toThrow(/time/i);
     expect((await q("select id from jobs")).length).toBe(before);
   });
 });
 
 describe("2. Optional visit day + time (decisions 110, 116) and the 6:30am list", () => {
   test("decision 116: Add a job WITH a day → booking confirmed, form created once with the booked date; job C without a day → no booking", async () => {
-    const r = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(2), { mode: "hivic" }, call, { visit: { day: DAY_B, time: "14:00" } });
+    const r = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(2), { mode: "hivic" }, call, { leadOrigin: "owner_contacted", visit: { day: DAY_B, time: "14:00" } });
     B = r.jobId;
     expect(r.booking).toBe("confirmed");
     await settle();
@@ -256,7 +256,7 @@ describe("2. Optional visit day + time (decisions 110, 116) and the 6:30am list"
     expect(await auditOf(B)).toBe("audit_2");
     expect(mitti.calls.filter((c) => c === "POST /audits")).toHaveLength(2);
     expect(mitti.audits.get("audit_2")!.items.map((i) => i.label)).toContain("Assessment date/time");
-    const c = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(3), { mode: "hivic" }, call);
+    const c = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(3), { mode: "hivic" }, call, { leadOrigin: "owner_contacted" });
     C = c.jobId;
     await settle();
     expect(c.booking).toBe("none");
@@ -401,7 +401,7 @@ describe("5. The owner accepts on the secure link (6-digit code, signed agreemen
 describe("6. HV-3151: an installer job parked at 'estimate sent' still gets its form on the next tick", () => {
   test("stage preliminary_estimate_ready + a stage refusal 10 minutes ago → the sweep makes ONE form and the job waits on the installer", async () => {
     await q("update workflow_settings set auto_send_mitti=false where id=1"); // keep Add a job from making the form so the sweep is what's tested
-    const r = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(9), { mode: "hivic" }, call);
+    const r = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(9), { mode: "hivic" }, call, { leadOrigin: "owner_contacted" });
     expect(r.formCreation).toBe("skipped");
     await settle();
     await q("update workflow_settings set auto_send_mitti=true where id=1");
@@ -440,7 +440,7 @@ describe("Jo 27 Oct completed Ready Check edit recovery", () => {
   });
   test("completed 75m² removal edit refreshes current measurement then redrafts a held quote once, without sends", async () => {
     const beforeSends = sent.length;
-    const added = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(20), { mode: "hivic" }, call, { electricianChoice: "hivic" });
+    const added = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(20), { mode: "hivic" }, call, { leadOrigin: "owner_contacted", electricianChoice: "hivic" });
     const auditId = await auditOf(added.jobId);
     if (!auditId) throw new Error("No fixture audit");
     completeForm(auditId, "Home Insulation Victoria electrician");
