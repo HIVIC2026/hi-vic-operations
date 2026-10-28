@@ -2,6 +2,7 @@ import { afterEach, expect, mock, test } from "bun:test";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { readFileSync } from "node:fs";
+import type { ReactNode } from "react";
 
 GlobalRegistrator.register();
 const { render, fireEvent, waitFor, cleanup } = await import("@testing-library/react");
@@ -11,6 +12,7 @@ const profile = (id: string) => ({ business: businesses.get(id), myRole: "busine
 mock.module("@tanstack/react-start", () => ({ useServerFn: (fn: unknown) => fn }));
 mock.module("@/integrations/supabase/client", () => ({ supabase: {} }));
 mock.module("@/hooks/use-me", () => ({ useAction: (fn: (input: unknown) => unknown) => fn }));
+mock.module("@/components/portal/panels", () => ({ Section: ({ title, children }: { title: string; children: ReactNode }) => <section><h3>{title}</h3>{children}</section> }));
 const source = readFileSync(new URL("../src/components/portal/business.tsx", import.meta.url), "utf8");
 const pilotImports = source.match(/import \{([^}]+)\} from "@\/lib\/pilot.functions"/s)?.[1];
 if (!pilotImports) throw new Error("Business actions not found");
