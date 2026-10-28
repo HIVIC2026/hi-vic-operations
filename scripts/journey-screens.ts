@@ -104,6 +104,10 @@ const STEPS: Step[] = [
   { step: "Installer acceptance", person: "installer owner", path: () => offer ? `/field/offer/${offer}` : null, wait: "Ready Check", button: "Accept this job", severity: "Stop launch", next: "Ready Check",
     expect: async () => (await admin.from("partner_offers").select("status").eq("id", offer!).single()).data?.status === "accepted" ? null : "offer not accepted" },
   { step: "Ready Check booking", person: "homeowner", path: () => `/my-job/${ctx!.token}`, wait: "Your progress", button: "time:", severity: "Stop launch", next: "time", expect: stageIs("ready_check_scheduled") },
+  { step: "Office quote release", person: "office", path: () => `/admin/jobs/${ctx!.jobId}`, wait: ctx?.jobNumber ?? "HV-", button: "Check & send|Send quote", severity: "Stop launch", next: "Quote",
+    expect: async () => (await admin.from("quotes").select("status").eq("job_id", ctx!.jobId!).eq("status", "issued").limit(1).maybeSingle()).data ? null : "no issued quote after Send quote" },
+  { step: "Owner acceptance", person: "homeowner", path: () => `/my-job/${ctx!.token}?screen=quote`, wait: "Say yes", button: "sign:", severity: "Stop launch", next: "You said yes",
+    expect: async () => (await admin.from("quotes").select("status").eq("job_id", ctx!.jobId!).eq("status", "accepted").limit(1).maybeSingle()).data ? null : "quote not accepted" },
   { step: "Ready Check start and simulated form handoff", person: "installer owner", path: () => `/field/day/${ctx!.jobId}`, wait: "Ready Check", button: "prestart:", severity: "Fix soon", next: "Mitti" },
 ];
 const LATER = ["Office quote release", "Owner acceptance", "PIESA payment and booking", "PIESA completed form approval", "Install deposit and days", "Install day and evidence", "AP final check", "Final payout"];
@@ -223,6 +227,36 @@ async def main():
                 handoff = page.get_by_role("button", name=re.compile(r"Ready Check|Open.*form", re.I))
                 candidates = [x for x in await handoff.all() if await x.is_visible() and await x.is_enabled()]
                 el, how = (candidates[0] if candidates else None), "prestart button"
+            elif name == "sign:":
+                # A person ticks every box in "Say yes", types their name twice, presses the button, proves it's them, presses again.
+                box = page.locator("[data-testid=say-yes]")
+                try: await box.wait_for(state="visible", timeout=30000)
+                except Exception: pass
+                el, how = None, "say-yes button"
+                if await box.count():
+                    for lab in await box.locator("label").filter(has=page.locator("input[type=checkbox]")).all():
+                        cb = lab.locator("input[type=checkbox]")
+                        if not await cb.is_checked(): await lab.click()
+                    for inp in await box.locator("input:not([type=checkbox])").all():
+                        if await inp.is_visible(): await inp.fill("Test Journey")
+                    btn = box.locator("button[aria-disabled]").last
+                    if await btn.is_enabled():
+                        await btn.click(); await page.wait_for_timeout(2500)
+                        em = page.get_by_role("button", name=re.compile(r"^Email me a code", re.I))
+                        cr = cfg.get("codeRead")
+                        if await em.count() and cr:
+                            await em.first.click(); await page.wait_for_timeout(2500)
+                            import urllib.request
+                            code = None
+                            for _ in range(20):
+                                rq = urllib.request.Request(cr["url"] + "/rest/v1/qa_owner_codes?select=code&order=created_at.desc&limit=1&job_id=eq." + cr["job"], headers={"apikey": cr["key"], "Authorization": "Bearer " + cr["key"]})
+                                rows_ = json.loads(urllib.request.urlopen(rq, timeout=10).read() or b"[]")
+                                if rows_: code = rows_[0]["code"]; break
+                                await asyncio.sleep(1)
+                            if code:
+                                await page.get_by_label("Enter code").fill(code)
+                                await page.get_by_role("button", name="Check my code").click(); await page.wait_for_timeout(3000)
+                        el = btn
             elif name == "practice:":
                 answers = ["Yes", "No", "Easy", "1", "120", "No", "Laser in the ceiling space", "No", "No", "No", "Bradford Gold R5", "No"]
                 for control, value in zip(await page.locator("form input").all(), answers): await control.fill(value)
