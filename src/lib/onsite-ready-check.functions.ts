@@ -9,7 +9,7 @@ const plan = z.object({ mode: z.enum(["mine", "hivic", "job_by_job"]), business_
 export const startOnsiteReadyCheck = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({
     businessId: uuid,
-    owner: z.object({ full_name: z.string().max(200), address_line: z.string().max(300), suburb: z.string().max(100), postcode: z.string().max(10), phone: z.string().max(40), email: z.string().max(200), contact_permission: z.boolean(), consent_by: z.enum(["owner", "installer"]).nullable().optional(), address_verified: z.boolean().optional() }),
+    owner: z.object({ full_name: z.string().max(200), address_line: z.string().max(300), suburb: z.string().max(100), postcode: z.string().max(10), phone: z.string().max(40), email: z.string().max(200), contact_permission: z.boolean(), consent_by: z.enum(["owner", "installer"]).nullable().optional(), address_verified: z.boolean().optional(), address_typed: z.boolean().optional() }),
     electrician: plan.optional(),
     /** Decision 289: "Electrical safety check by" — chosen once here, never asked again. */
     electricianChoice: z.enum(["hivic", "usual"]).nullable().optional(),

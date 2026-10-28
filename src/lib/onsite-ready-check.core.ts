@@ -13,6 +13,8 @@ export type OnsiteInput = {
   /** Jo 24 Oct: true only when the address was picked from the Google address list (street, suburb and postcode
    *  all come from the lookup). Typing anything afterwards clears it. */
   address_verified?: boolean | undefined;
+  /** A8: Google could not find it, so the installer typed it in (still checked by the same address rules). */
+  address_typed?: boolean | undefined;
 };
 
 /** On-site Gate A clears when the installer confirms consent. */

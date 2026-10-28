@@ -23,7 +23,7 @@ export const blankCustomer = (): OnsiteInput => ({ full_name: "", address_line: 
 export const restoreCustomer = (raw: unknown): OnsiteInput => {
   const d = (raw && typeof raw === "object" ? raw : {}) as Partial<Record<keyof OnsiteInput, unknown>>;
   const s = (k: keyof OnsiteInput) => (typeof d[k] === "string" ? (d[k] as string) : "");
-  return { full_name: s("full_name"), address_line: s("address_line"), suburb: s("suburb"), postcode: s("postcode"), phone: s("phone"), email: s("email"), contact_permission: false, consent_by: null, address_verified: d.address_verified === true };
+  return { full_name: s("full_name"), address_line: s("address_line"), suburb: s("suburb"), postcode: s("postcode"), phone: s("phone"), email: s("email"), contact_permission: false, consent_by: null, address_verified: d.address_verified === true, address_typed: d.address_typed === true };
 };
 /** A6: the draft also carries its `request_key` (one per draft), so "Try again" after a reload finishes the same job. */
 export const restoreRequestKey = (raw: unknown): string | null => {
@@ -31,9 +31,13 @@ export const restoreRequestKey = (raw: unknown): string | null => {
   return typeof k === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(k) ? k : null;
 };
 
+/** A8: wording of the two links under the address when Google cannot find it. */
+export const ADDRESS_TYPE_IN = "Can't find the address? Type it in";
+export const ADDRESS_PICK_AGAIN = "Pick from the list instead";
+
 /** On the phone the address must also be picked from the Google list (Jo 24 Oct); sample screens type freely. */
 export const customerProblems = (c: OnsiteInput, opts: { requirePicked?: boolean } = {}) =>
-  opts.requirePicked === false || c.address_verified === true ? onsiteProblems(c) : [PICK_ADDRESS, ...onsiteProblems(c)];
+  opts.requirePicked === false || c.address_verified === true || c.address_typed === true ? onsiteProblems(c) : [PICK_ADDRESS, ...onsiteProblems(c)];
 
 /** Save button wording: says what the tap really does — saving is not booking and not an open form. */
 export const SAVE_LABEL = "Add job";
