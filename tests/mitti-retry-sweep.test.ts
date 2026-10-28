@@ -122,35 +122,46 @@ const RC_TEMPLATE = {
 const INSTALL_TEMPLATE = { template: { template_id: A2_TEMPLATE_ID, name: "TEST install day", items: [{ item_id: "job", label: "Portal Job Number", type: "textsingle" }, { item_id: "address", label: "Site address", type: "address" }] } };
 
 type Kind = "ready_check" | "piesa" | "fixes" | "install_day";
-type Found = { id: string; owner?: string; jobNumber?: string | null; address?: string; name?: string };
-type Behaviour = { kind?: Kind; create?: "ok" | "timeout"; search?: "ok" | "error"; noUser?: boolean; found?: Found[] };
+/** A form already in Mitti (owner defaults to the trade). */
+type Found = { id: string; owner?: string; jobNumber?: string | null; address?: string | null; name?: string | null };
+type Behaviour = { kind?: Kind; create?: "ok" | "timeout"; search?: "ok" | "error" | "full"; noUser?: boolean; usersError?: boolean; found?: Found[]; };
 const CLAIM_TEMPLATE: Record<Kind, string> = { ready_check: MITTI_TEMPLATE_ID, piesa: MITTI_TEMPLATE_ID, fixes: A2_UUID, install_day: A2_UUID };
+const API_ACCOUNT = "user_api";
+const TRADE_MITTI_ID = "user_9";
+/** Each form type's own job-number / address questions, as the portal's creators write them. */
+function formItems(kind: Kind, f: Found) {
+  const job = f.jobNumber === undefined ? "HV-9001" : f.jobNumber, address = f.address === undefined ? "3 Fixture Road, Stubbington VIC 3997" : f.address;
+  const name = f.name === undefined ? "Harriet Homeowner (Local)" : f.name;
+  const t = (item_id: string, label: string, text: string | null) => (text === null ? [] : [{ item_id, label, type: "text", responses: { text } }]);
+  switch (kind) {
+    case "ready_check": return { header_items: [...t("h1", "Portal Job Number", job), ...t("h2", "Site address", address), ...t("h3", "Homeowner name", name)], items: [] };
+    case "piesa": return { header_items: [...t("h1", "Job Reference ID", job), ...t("h2", "Address including postcode", address)], items: [] };
+    case "fixes": return { header_items: [], items: [...t("a4_1", "Job number", job), ...t("a4_2", "Address", address)] };
+    case "install_day": return { header_items: [], items: [...t("a5_1", "Portal Job Number", job), ...t("a5_2", "Site address", address)] };
+  }
+}
 function fakeMitti(b: Behaviour = {}) {
   const kind = b.kind ?? "ready_check";
-  const calls: string[] = []; let n = 0;
+  const calls: string[] = []; const searchedFrom: string[] = []; let n = 0;
   const call = async (method: string, path: string, body?: unknown): Promise<unknown> => {
     calls.push(`${method} ${path.split("?")[0]}`);
     if (path === "/users/search") {
+      if (b.usersError) throw new Error("Mitti request failed (500).");
       if (b.noUser) return { users: [] };
       const email = ((body as { email?: string[] } | undefined)?.email ?? [])[0] ?? "";
-      return { users: [{ id: "user_9", email }] };
+      return { users: [{ id: TRADE_MITTI_ID, email }] };
     }
     if (path.startsWith("/templates/")) return kind === "fixes" ? { template: { template_id: A2_TEMPLATE_ID, name: "Fixes", items: FIXES.items, response_sets: FIXES.response_sets } } : kind === "install_day" ? INSTALL_TEMPLATE : RC_TEMPLATE;
     if (method === "GET" && path.startsWith("/audits/search")) {
       if (b.search === "error") throw new Error("Mitti request failed (500).");
+      searchedFrom.push(decodeURIComponent(/modified_after=([^&]+)/.exec(path)?.[1] ?? ""));
+      if (b.search === "full") return { audits: Array.from({ length: 200 }, (_, i) => ({ audit_id: `other_${i}`, template_id: "template_someone_elses" })) };
       return { audits: (b.found ?? []).map((f) => ({ audit_id: f.id, template_id: CLAIM_TEMPLATE[kind] })) };
     }
     if (method === "GET" && path.startsWith("/audits/")) {
       const id = decodeURIComponent(path.slice("/audits/".length));
       const f = (b.found ?? []).find((x) => x.id === id);
-      if (f) return {
-        audit_id: id, template_id: CLAIM_TEMPLATE[kind], audit_data: { authorship: { owner_id: f.owner ?? "user_9" } },
-        header_items: [
-          ...(f.jobNumber === null ? [] : [{ item_id: "h1", label: "Portal Job Number", type: "text", responses: { text: f.jobNumber ?? "HV-9001" } }]),
-          { item_id: "h2", label: "Site address", type: "address", responses: { text: f.address ?? "3 Fixture Road, Stubbington VIC 3997" } },
-          { item_id: "h3", label: "Homeowner name", type: "text", responses: { text: f.name ?? "Harriet Homeowner (Local)" } },
-        ], items: [],
-      };
+      if (f) return { audit_id: id, template_id: CLAIM_TEMPLATE[kind], audit_data: { authorship: { owner_id: f.owner ?? TRADE_MITTI_ID } }, ...formItems(kind, f) };
       return { audit_id: id, template_id: CLAIM_TEMPLATE[kind], header_items: [{ item_id: "h1", label: "Portal Job Number", responses: { text: "HV-9001" } }], items: [] };
     }
     if (path === "/audits") {
@@ -160,7 +171,8 @@ function fakeMitti(b: Behaviour = {}) {
     if (path.endsWith("/share") || path.endsWith("/owner")) return {};
     throw new Error("unexpected " + path);
   };
-  return { call: call as never, calls, creates: () => calls.filter((c) => c === "POST /audits").length, searches: () => calls.filter((c) => c === "GET /audits/search").length };
+  return { call: call as never, calls, searchedFrom, creates: () => calls.filter((c) => c === "POST /audits").length, searches: () => calls.filter((c) => c === "GET /audits/search").length,
+    handedOver: (id: string) => calls.includes(`POST /audits/${id}/share`) && calls.includes(`PUT /inspections/v1/inspections/${id}/owner`) };
 }
 
 const JOB = "a0000000-0000-4000-8000-0000000000f1";
@@ -452,6 +464,27 @@ describe("C2: TEST-job PIESA retries", () => {
       const searched = simHolder.bodies.flatMap((b) => ((b as { email?: string[] } | undefined)?.email ?? []));
       expect(searched.length).toBeGreaterThan(0);
       expect(new Set(searched)).toEqual(new Set([TEST_MITTI_ASSIGNEE]));
+    });
+  }
+});
+
+describe("C1: each form type is read with its own questions", () => {
+  for (const kind of ["ready_check", "piesa", "fixes", "install_day"] as const) {
+    test(`${kind}: a form whose job number and address can't be read means "can't tell": email, never create`, async () => {
+      setup(kind);
+      await failUncertain(kind);
+      const m = fakeMitti({ kind, found: [{ id: "audit_blank", jobNumber: null, address: null, name: null }] });
+      expect(await sweepWith(m, 3)).toMatchObject({ retried: 0, linked: 0, alerted: 1 });
+      expect(m.creates()).toBe(0);
+      expect(events(RELEASE_EVENT).length).toBe(0);
+      expect(gateway[0]!.text).toContain("could not be read");
+    });
+    test(`${kind}: another job's form (read with its own labels) does not block the retry`, async () => {
+      setup(kind);
+      await failUncertain(kind);
+      const other = fakeMitti({ kind, found: [{ id: "audit_other", jobNumber: "HV-1234", address: "9 Elsewhere St, Faraway VIC 3999" }] });
+      expect(await sweepWith(other, 3)).toMatchObject({ retried: 1, alerted: 0 });
+      expect(other.creates()).toBe(1);
     });
   }
 });

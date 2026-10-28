@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   ALERT_SENT_EVENT, MAX_RETRIES, MITTI_RETRY_FROM, RETRY_DELAY_MS, RETRY_LINKED_EVENT, RETRY_STARTED_EVENT,
-  alertEmail, collectFailureCases, matchAudits, nextAction, retriesFor, type FailureCase, type WorkflowEventRow,
+  alertEmail, auditIdentity, collectFailureCases, matchAudits, nextAction, retriesFor, type FailureCase, type WorkflowEventRow,
 } from "../src/lib/mitti-retry.core";
 
 const T0 = Date.parse(MITTI_RETRY_FROM) + 3_600_000;
@@ -123,8 +123,11 @@ describe("matchAudits", () => {
   const audit = (o: Record<string, unknown> = {}) => ({ templateId: "t1", mittiOwnerUserId: "u1", jobNumber: "HV-3519", siteAddress: null, homeownerName: null, ...o });
   test("none for no audits", () => expect(matchAudits([], want)).toBe("none"));
   test("one match on job number", () => expect(matchAudits([audit()], want)).toBe("one"));
-  test("ignores other jobs' forms, other templates and other owners", () => {
-    expect(matchAudits([audit({ jobNumber: "HV-9999" }), audit({ templateId: "t2" }), audit({ mittiOwnerUserId: "u2" })], want)).toBe("none");
+  test("ignores other jobs' forms and other templates", () => {
+    expect(matchAudits([audit({ jobNumber: "HV-9999" }), audit({ templateId: "t2" }), audit({ jobNumber: "HV-9999", mittiOwnerUserId: "u2" })], want)).toBe("none");
+  });
+  test("this job's form with another person is 'elsewhere' (never create, never link)", () => {
+    expect(matchAudits([audit({ mittiOwnerUserId: "u2" })], want)).toBe("elsewhere");
   });
   test("A1 form without a job number matches on address and name", () => {
     const a1 = audit({ jobNumber: null, siteAddress: "  12 SMITH st,  Reid ACT. ", homeownerName: "jo   citizen" });
@@ -132,8 +135,8 @@ describe("matchAudits", () => {
     expect(matchAudits([audit({ jobNumber: null, siteAddress: "13 Smith St, Reid ACT", homeownerName: "Jo Citizen" })], want)).toBe("none");
     expect(matchAudits([audit({ jobNumber: null, siteAddress: "12 Smith St, Reid ACT", homeownerName: "Someone Else" })], want)).toBe("none");
   });
-  test("blank address and name never match", () => {
-    expect(matchAudits([audit({ jobNumber: null })], { ...want, siteAddress: "", homeownerName: "" })).toBe("none");
+  test("blank address and name never match: can't tell", () => {
+    expect(matchAudits([audit({ jobNumber: null })], { ...want, siteAddress: "", homeownerName: "" })).toBe("unclear");
   });
   test("2 matches gives many", () => expect(matchAudits([audit(), audit()], want)).toBe("many"));
 });
@@ -160,3 +163,37 @@ describe("alertEmail", () => {
     expect(m.text).not.toContain("null");
   });
 });
+
+describe("C1: reading each form's job number and address (per form type)", () => {
+  const item = (label: string, text: string, header = false) => ({ header, it: { item_id: label, label, type: "text", responses: { text } } });
+  const audit = (xs: { header: boolean; it: unknown }[], owner = "u1") => ({ audit_id: "a1", template_id: "t", audit_data: { authorship: { owner_id: owner } }, header_items: xs.filter((x) => x.header).map((x) => x.it), items: xs.filter((x) => !x.header).map((x) => x.it) });
+  test("fixes form: 'Job number' / 'Address' (body items)", () => {
+    expect(auditIdentity("fixes", audit([item("Job number", "HV-9001"), item("Address", "3 Fixture Road")]))).toEqual({ auditId: "a1", mittiOwnerUserId: "u1", jobNumber: "HV-9001", siteAddress: "3 Fixture Road", homeownerName: null });
+  });
+  test("install day: 'Portal Job Number' / 'Site address' in the body", () => {
+    expect(auditIdentity("install_day", audit([item("Portal Job Number", "HV-9001"), item("Site address", "3 Fixture Road")]))).toMatchObject({ jobNumber: "HV-9001", siteAddress: "3 Fixture Road" });
+  });
+  test("PIESA: 'Job Reference ID' / 'Address including postcode'", () => {
+    expect(auditIdentity("piesa", audit([item("Job Reference ID", "HV-9001", true), item("Address including postcode", "3 Fixture Road", true)]))).toMatchObject({ jobNumber: "HV-9001", siteAddress: "3 Fixture Road" });
+  });
+  test("Ready Check: header labels, A1 without a job number", () => {
+    expect(auditIdentity("ready_check", audit([item("Site address (please edit street number)", "3 Fixture Road", true), item("Homeowner name", "Harriet", true)]))).toMatchObject({ jobNumber: null, siteAddress: "3 Fixture Road", homeownerName: "Harriet" });
+  });
+  test("two different answers to the job number make the form ambiguous: 'unclear'", () => {
+    const id = auditIdentity("fixes", audit([item("Job number", "HV-9001"), item("Job number", "HV-1234"), item("Address", "3 Fixture Road")]))!;
+    expect(id.ambiguous).toBe(true);
+    expect(matchAudits([{ ...id, templateId: "t1" }], { templateId: "t1", mittiOwnerUserId: "u1", jobNumber: "HV-9001", siteAddress: "3 Fixture Road", homeownerName: "x" })).toBe("unclear");
+  });
+  test("the Ready Check reads header questions only (as the link step does)", () => {
+    expect(auditIdentity("ready_check", audit([item("Portal Job Number", "HV-1", false)]))!.jobNumber).toBeNull();
+  });
+  test("a form whose job number and address can't be read is 'unclear', never 'none'", () => {
+    const want = { templateId: "t1", mittiOwnerUserId: "u1", jobNumber: "HV-3519", siteAddress: "12 Smith St", homeownerName: "Jo" };
+    expect(matchAudits([{ templateId: "t1", mittiOwnerUserId: "u1", jobNumber: null, siteAddress: null, homeownerName: null }], want)).toBe("unclear");
+    // same address, but no job number and no name to confirm it: unclear too
+    expect(matchAudits([{ templateId: "t1", mittiOwnerUserId: "u1", jobNumber: null, siteAddress: "12 Smith St", homeownerName: null }], want)).toBe("unclear");
+    // another address: clearly not this job
+    expect(matchAudits([{ templateId: "t1", mittiOwnerUserId: "u1", jobNumber: null, siteAddress: "99 Other St", homeownerName: null }], want)).toBe("none");
+  });
+});
+

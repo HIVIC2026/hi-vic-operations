@@ -6,11 +6,11 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { formatPropertyAddress } from "./address";
 import { mittiApi, pickUser, type MittiCall } from "./mitti.core";
-import { parsePickupAudit, pickupTemplateMatches } from "./mitti-pickup.core";
+import { pickupTemplateMatches } from "./mitti-pickup.core";
 import { CLAIM_HELD, CLAIM_EVENT, UNCERTAIN_EVENT, isUniqueViolation, stableUuid, type MittiFormKind } from "./mitti-create-claim.core";
 import {
   ALERT_SENT_EVENT, MITTI_RETRY_FROM, RETRY_LINKED_EVENT, RETRY_STARTED_EVENT,
-  alertEmail, collectFailureCases, matchAudits, nextAction, retriesFor, type AuditToMatch, type FailureCase, type WorkflowEventRow,
+  alertEmail, auditIdentity, collectFailureCases, matchAudits, nextAction, retriesFor, type AuditToMatch, type FailureCase, type WorkflowEventRow,
 } from "./mitti-retry.core";
 import { PIESA_AUTOFORM_FAILED_EVENT } from "./piesa-autoform.core";
 import { PIISA_AUDIT_CREATED_EVENT, PIISA_AUTOSEND_FAILED_EVENT } from "./piisa-autosend.core";
@@ -152,7 +152,8 @@ async function handleCase(c: FailureCase, events: WorkflowEventRow[], opts: Retr
   const call = override ?? realMittiCall;
   const searchCall = await mittiCallFor(call, email); // test people use the simulator
 
-  let ownerId = "", candidates: AuditToMatch[] = [];
+  let ownerId = "";
+  const candidates: (AuditToMatch & { auditId: string })[] = [];
   try {
     const api = mittiApi(searchCall);
     const user = pickUser(await api.searchUsers(email), email);
@@ -162,9 +163,10 @@ async function handleCase(c: FailureCase, events: WorkflowEventRow[], opts: Retr
     for (const hit of found?.audits ?? []) {
       const id = str(hit.audit_id);
       if (!id || !pickupTemplateMatches(str(hit.template_id), templateId)) continue;
-      const p = parsePickupAudit(await api.getAudit(id));
+      // C1: each form type is read with its own job-number / address questions.
+      const p = auditIdentity(c.kind, await api.getAudit(id));
       // The template id is written the way the claim wrote it, so matchAudits compares like with like.
-      if (p) candidates.push({ templateId, mittiOwnerUserId: p.mittiOwnerUserId, jobNumber: p.mittiRef, siteAddress: p.siteAddress, homeownerName: p.homeownerName, ...{ auditId: p.auditId } } as AuditToMatch & { auditId: string });
+      if (p) candidates.push({ ...p, templateId });
     }
   } catch (e) {
     await alertOffice(c, `Could not check Mitti for an existing form, so nothing was retried: ${msgOf(e)}`, counts);
@@ -174,15 +176,16 @@ async function handleCase(c: FailureCase, events: WorkflowEventRow[], opts: Retr
   const want = { templateId, mittiOwnerUserId: ownerId, jobNumber: job.job_number, siteAddress, homeownerName };
   const verdict = matchAudits(candidates, want);
   if (verdict === "many") { await alertOffice(c, "More than one matching form was found in Mitti, so nothing was retried or linked. " + c.detail, counts); return; }
-  if (verdict === "none" && matchAudits(candidates.map((a) => ({ ...a, mittiOwnerUserId: ownerId })), want) !== "none") {
+  if (verdict === "unclear") { await alertOffice(c, "A form in Mitti could not be read (no job number or address), so we can't tell if it is this job's and nothing was retried. " + c.detail, counts); return; }
+  if (verdict === "elsewhere") {
     // A form for this job exists but sits with someone other than the trade: we cannot tell if it is ours, so never create.
     await alertOffice(c, "A form for this job was found in Mitti but it is not with the assigned person, so nothing was retried. " + c.detail, counts);
     return;
   }
 
   if (verdict === "one") {
-    const hit = candidates.find((a) => matchAudits([a], want) === "one") as (AuditToMatch & { auditId: string }) | undefined;
-    const auditId = hit!.auditId;
+    const hit = candidates.find((a) => matchAudits([a], want) === "one")!;
+    const auditId = hit.auditId;
     try {
       await adoptExistingAudit(c.jobId, c.kind, auditId, { bookingId: str(cd["booking_id"]) || null, templateId, assigneeEmail: email, call: searchCall });
     } catch (e) {

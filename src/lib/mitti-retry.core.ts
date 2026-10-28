@@ -4,7 +4,9 @@ import type { MittiFormKind } from "./mitti-create-claim.core";
 import { UNCERTAIN_EVENT } from "./mitti-create-claim.core";
 import { PIESA_AUTOFORM_FAILED_EVENT } from "./piesa-autoform.core";
 import { PIISA_AUTOSEND_FAILED_EVENT, PIISA_AUDIT_CREATED_EVENT } from "./piisa-autosend.core";
-import { FIXES_FORM_CREATED_EVENT, FIXES_FORM_HELD_EVENT } from "./fixes-day.core";
+import { FIXES_DAY_Q, FIXES_FORM_CREATED_EVENT, FIXES_FORM_HELD_EVENT } from "./fixes-day.core";
+import { INSTALL_DAY_Q } from "./install-day.core";
+import { flatten, norm as labelNorm } from "./mitti.core";
 
 /** Failures before this moment are never retried or alerted. */
 export const MITTI_RETRY_FROM = "2026-10-29T00:00:00.000Z"; // set to the deploy time in Task 5
@@ -134,28 +136,91 @@ export function nextAction(c: FailureCase, retriesSoFar: { at: string }[], now: 
 
 // ---- matching Mitti forms to a job ----
 
-/** The fields matchAudits reads. A parsed pickup audit fits this shape (jobNumber = its Portal Job Number). */
+/** The fields matchAudits reads (read from a Mitti audit by auditIdentity). */
 export type AuditToMatch = {
   templateId: string;
   mittiOwnerUserId: string | null;
   jobNumber?: string | null;
   siteAddress: string | null;
   homeownerName: string | null;
+  /** Two fields with the same label disagree: the form cannot be read safely. */
+  ambiguous?: boolean;
 };
+
+/** Each form type's own job-number / address / owner-name questions (exact wording). The Ready Check reads header items
+ *  only, exactly as the pickup / link step does (parsePickupAudit); the other forms carry them in the body too. */
+const IDENTITY_LABELS: Record<MittiFormKind, { job: string[]; address: string[]; name: string[]; headerOnly?: boolean; addressPrefix?: boolean }> = {
+  // Jo 23 Oct: the Ready Check address question may carry an instruction suffix ("Site address (please edit…)").
+  ready_check: { job: ["Portal Job Number", "Job Reference ID"], address: ["Site address"], name: ["Homeowner name", "Owner name"], headerOnly: true, addressPrefix: true },
+  piesa: { job: ["Job Reference ID", "Portal Job Number"], address: ["Address including postcode", "Site address"], name: [] },
+  fixes: { job: [FIXES_DAY_Q.jobNumber], address: [FIXES_DAY_Q.address], name: [] },
+  // A5 Install day, or the older official PIISA forms that the same creator still handles.
+  install_day: { job: [INSTALL_DAY_Q.jobNumber, "Job Reference ID"], address: [INSTALL_DAY_Q.address, "Address including postcode"], name: [] },
+};
+
+/** Read one Mitti audit's identity using ITS form type's labels (C1). Null when it has no audit id. Two answers to the
+ *  same question that disagree make it ambiguous (never matched). */
+export function auditIdentity(kind: MittiFormKind, audit: unknown): (Omit<AuditToMatch, "templateId"> & { auditId: string }) | null {
+  const a = audit as { audit_id?: unknown; audit_data?: { authorship?: { owner_id?: unknown } } } | null;
+  const auditId = String(a?.audit_id ?? "").trim();
+  if (!auditId) return null;
+  const L = IDENTITY_LABELS[kind];
+  const entries = flatten(audit).filter((e) => !L.headerOnly || e.header);
+  let ambiguous = false;
+  const read = (labels: string[], prefix = false): string | null => {
+    const want = labels.map(labelNorm);
+    const hits = entries.filter((e) => want.includes(e.norm) || (prefix && want.some((w) => e.norm.startsWith(w + " "))));
+    const values = [...new Set(hits.map((e) => (e.value ?? "").trim()).filter(Boolean))];
+    if (new Set(values.map((v) => norm(v))).size > 1) ambiguous = true;
+    return values[0] ?? null;
+  };
+  const out = {
+    auditId,
+    mittiOwnerUserId: String(a?.audit_data?.authorship?.owner_id ?? "").trim() || null,
+    jobNumber: read(L.job),
+    siteAddress: read(L.address, L.addressPrefix),
+    homeownerName: L.name.length ? read(L.name) : null,
+  };
+  return { ...out, ...(ambiguous ? { ambiguous: true } : {}) };
+}
 
 const norm = (s: string | null | undefined) => (s ?? "").toLowerCase().replace(/\s+/g, " ").trim().replace(/[\s.,;:!]+$/, "");
 
+export type MatchVerdict = "one" | "none" | "many" | "unclear" | "elsewhere";
+
+/**
+ * Is exactly one form in Mitti this job's form, sitting with the trade (or still with the portal's own Mitti API account
+ * after a lost reply, I1)? Never guesses:
+ *  - "unclear": a candidate's job number and address can't be read (or are contradictory) — can't tell, never create (C1).
+ *  - "elsewhere": a form for this job sits with someone else (or with the API account while that account is unknown).
+ *  - "many": more than one form for this job.
+ */
 export function matchAudits(
   audits: AuditToMatch[],
-  want: { templateId: string; mittiOwnerUserId: string; jobNumber: string; siteAddress: string; homeownerName: string },
-): "one" | "none" | "many" {
-  const matches = audits.filter((a) => {
-    if (a.templateId !== want.templateId || a.mittiOwnerUserId !== want.mittiOwnerUserId) return false;
-    if (norm(a.jobNumber)) return norm(a.jobNumber) === norm(want.jobNumber);
-    const addr = norm(a.siteAddress), name = norm(a.homeownerName);
-    return !!addr && !!name && addr === norm(want.siteAddress) && name === norm(want.homeownerName);
-  });
-  return matches.length === 0 ? "none" : matches.length === 1 ? "one" : "many";
+  want: { templateId: string; mittiOwnerUserId: string; apiOwnerUserId?: string | null; jobNumber: string; siteAddress: string; homeownerName: string },
+): MatchVerdict {
+  let matches = 0, unclear = false, elsewhere = false;
+  for (const a of audits) {
+    if (a.templateId !== want.templateId) continue;
+    const ownerOk = !!a.mittiOwnerUserId && (a.mittiOwnerUserId === want.mittiOwnerUserId || (!!want.apiOwnerUserId && a.mittiOwnerUserId === want.apiOwnerUserId));
+    let job: "ours" | "other" | "unclear";
+    if (a.ambiguous) job = "unclear";
+    else if (norm(a.jobNumber)) job = norm(a.jobNumber) === norm(want.jobNumber) ? "ours" : "other";
+    else {
+      const addr = norm(a.siteAddress), name = norm(a.homeownerName);
+      if (!addr) job = "unclear";
+      else if (addr !== norm(want.siteAddress)) job = "other";
+      else if (!name) job = "unclear";
+      else job = name === norm(want.homeownerName) ? "ours" : "other";
+    }
+    // An unreadable form can only be ours when it is with the trade, with the API account, or the API account is unknown.
+    if (job === "unclear") { if (ownerOk || !want.apiOwnerUserId || !a.mittiOwnerUserId) unclear = true; }
+    else if (job === "ours") { if (ownerOk) matches++; else elsewhere = true; }
+  }
+  if (matches > 1) return "many";
+  if (unclear) return "unclear";
+  if (elsewhere) return "elsewhere";
+  return matches === 1 ? "one" : "none";
 }
 
 // ---- the office alert ----
