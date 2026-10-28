@@ -101,7 +101,7 @@ export type AddJobField = "full_name" | "address" | "phone" | "email" | "permiss
 export function fieldErrors(problems: string[]): Partial<Record<AddJobField, string>> {
   const out: Partial<Record<AddJobField, string>> = {};
   for (const p of problems) {
-    if (/electrical safety check|usual electrician/i.test(p)) out.electrician ??= p;
+    if (/electrical safety check|usual electrician|not signed up with us yet/i.test(p)) out.electrician ??= p;
     else if (/full name|first and last|owner's name/i.test(p)) out.full_name ??= "Enter the owner's first and last name.";
     else if (/mobile/i.test(p)) out.phone ??= /Check the mobile/i.test(p) ? "That doesn't look like a mobile number." : "Enter the owner's mobile.";
     else if (/email/i.test(p)) out.email ??= /Check the email/i.test(p) ? "That doesn't look like an email address." : "Enter the owner's email.";

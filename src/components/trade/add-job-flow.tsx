@@ -93,9 +93,13 @@ export function AddJobFlow({ businessId, onReset }: { businessId: string; onExit
         <p className="mt-0.5 text-[13px] leading-[1.45] text-sub">{ELECTRICIAN_CARD.sub}</p>
         <p className="mt-3 text-[15px] font-bold">{ELECTRICIAN_CHOICE_QUESTION}</p>
         {options.isLoading ? <p className="mt-2 text-sm text-sub">Loading…</p> : electricianChoiceOptions(usual).map((o) => (
-          <label key={o.value} className="flex min-h-12 items-center gap-3 text-[15px]">
-            <input type="radio" name="add-job-electrician" value={o.value} checked={electrician === o.value} disabled={busy} onChange={() => { setElectrician(o.value); setErr(null); }} />{o.label}
-          </label>
+          // Rule 3 (Jo 28 Oct): a usual electrician who hasn't finished signing up shows greyed out and can't be picked.
+          <div key={o.value} data-electrician-option={o.value} data-disabled={o.disabled ? "" : undefined}>
+            <label className={`flex min-h-12 items-center gap-3 text-[15px]${o.disabled ? " cursor-not-allowed text-sub opacity-60" : ""}`}>
+              <input type="radio" name="add-job-electrician" value={o.value} checked={electrician === o.value} disabled={busy || o.disabled} aria-describedby={o.note ? `add-job-electrician-${o.value}-note` : undefined} onChange={() => { if (o.disabled) return; setElectrician(o.value); setErr(null); }} />{o.label}
+            </label>
+            {o.note && <p id={`add-job-electrician-${o.value}-note`} className="-mt-1 mb-1 pl-7 text-[13px] leading-[1.45] text-sub">{o.note}</p>}
+          </div>
         ))}
         {options.isSuccess && !usual && <p className="mt-1 text-[13px] leading-[1.45] text-sub">{ELECTRICIAN_CARD.noUsual}</p>}
         <FieldError>{errors.electrician}</FieldError>

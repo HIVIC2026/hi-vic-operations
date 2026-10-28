@@ -27,7 +27,10 @@ CREATE TABLE properties (id uuid primary key default gen_random_uuid(), owner_id
 CREATE TABLE job_assignments (id uuid primary key default gen_random_uuid(), job_id uuid, user_id uuid, role text, business_id uuid, assigned_by uuid, first_response_at timestamptz, active boolean default true, booking_confirmed_at timestamptz, assigned_at timestamptz default now());
 CREATE TABLE business_members (id uuid primary key default gen_random_uuid(), business_id uuid, user_id uuid, member_role text, active boolean default true);
 CREATE TABLE businesses (id uuid primary key, name text, trading_name text, abn text, branding jsonb, business_type text, capabilities text[], base_suburb text, coverage_radius_km int, covers_all_victoria boolean,
-  accepting_new_jobs boolean, onboarding_notes text, mitti_account_invited boolean, onboarding_status text, is_active boolean, approved_at timestamptz, signer_mobile text, phone text);
+  accepting_new_jobs boolean, onboarding_notes text, mitti_account_invited boolean, onboarding_status text, is_active boolean, approved_at timestamptz, signer_mobile text, phone text, rec_number text);
+-- Rule 3 (Jo 28 Oct 2026): Add a job checks the usual electrician is an approved REC with an agreed rate (none here).
+CREATE TABLE partner_workers (id uuid primary key default gen_random_uuid(), business_id uuid, licence_number text, trade_role text, approval_status text, removed_at timestamptz);
+CREATE TABLE electrician_rates (id uuid primary key default gen_random_uuid(), business_id uuid, service_type text, rate_inc_gst numeric, status text, effective_from date, effective_to date);
 CREATE TABLE user_roles (user_id uuid, role text, unique (user_id, role));
 CREATE TABLE profiles (id uuid primary key, full_name text, email text, phone text, business_id uuid);
 CREATE TABLE workflow_settings (id int primary key, mitti_ready_check_template_id text, mitti_ready_check_priced_template_id text, mitti_piesa_template_id text, mitti_piisa_template_id text, auto_send_mitti boolean,

@@ -20,14 +20,15 @@ export const startOnsiteReadyCheck = createServerFn({ method: "POST" }).middlewa
     return startOnsiteReadyCheckFor(context.userId, data.businessId, data.owner, (data.electrician ?? { mode: "hivic" }) as never, undefined, { visit: data.visit ?? null, electricianChoice: data.electricianChoice ?? null });
   });
 
-/** Decision 289: what Add a job needs before it renders — the business's usual electrician (My business), if any. Read-only. */
+/** Decision 289: what Add a job needs before it renders — the business's usual electrician (My business), if any.
+ *  Jo 28 Oct 2026 (rule 3): plus whether they have finished signing up. Name and flag only, never a rate. Read-only. */
 export const addJobOptions = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ businessId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     const { requireMember } = await import("./pilot.server");
     await requireMember(context.userId, data.businessId);
-    const { electrician } = await (await import("./usual-electrician.server")).readUsualElectrician(data.businessId);
-    return { usualElectrician: electrician ? { name: electrician.name } : null };
+    const usual = await (await import("./onsite-ready-check.server")).usualElectricianForAddJob(data.businessId);
+    return { usualElectrician: usual ? { name: usual.name, onboarded: usual.onboarded } : null };
   });
 
 export const onsiteFormStatus = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

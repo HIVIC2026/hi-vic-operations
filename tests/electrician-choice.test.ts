@@ -2,11 +2,11 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
-  ELECTRICIAN_CHOICE_EVENT, ELECTRICIAN_CHOICE_HIVIC, ELECTRICIAN_CHOICE_ISSUES, ELECTRICIAN_CHOICE_QUESTION, defaultElectricianChoice, electricianChoiceFromEvent, electricianChoiceLine, electricianChoiceOptions, electricianChoiceProblem, electricianChoiceRecord, resolveElectricianChoice,
+  ELECTRICIAN_CHOICE_EVENT, ELECTRICIAN_CHOICE_HIVIC, ELECTRICIAN_CHOICE_ISSUES, ELECTRICIAN_CHOICE_QUESTION, defaultElectricianChoice, electricianChoiceFromEvent, electricianChoiceLine, electricianChoiceOptions, electricianChoiceProblem, electricianChoiceRecord, resolveElectricianChoice, savedElectricianChoiceProblem, savedUsualDefault, usualElectricianOnboarded, usualNotSignedUpText,
 } from "../src/lib/electrician-choice.core";
 import { addedView, fieldErrors } from "../src/lib/add-job-flow.core";
 
-const usual = { name: "Sam Lee", licence: "A12345", priceIncGst: 300 };
+const usual = { name: "Sam Lee", licence: "A12345", priceIncGst: 300, onboarded: true };
 
 describe("Add a job: one required choice, usual electrician only when set, default = usual when set", () => {
   test("options and default with a usual electrician saved", () => {
@@ -35,6 +35,52 @@ describe("Add a job: one required choice, usual electrician only when set, defau
     expect(addedView({ ...base, electrician: { choice: "usual", usualName: "Sam Lee" } }).steps[2]).toBe("Sam Lee does the electrical safety check once Ann accepts.");
     expect(addedView({ ...base, electrician: { choice: "hivic", usualName: "Sam Lee" } }).steps[2]).toBe("We arrange the electrical safety check once Ann accepts.");
     expect(addedView(base).steps[2]).toBe("We arrange the electrical safety check once Ann accepts.");
+  });
+});
+
+// Jo 28 Oct 2026 (spec rule 3): "My usual electrician" is offered only once they have finished signing up with an agreed
+// rate. Until then it shows greyed out with the exact text and can't be picked. HIV's electrician is always offered.
+const GREYED = "Sam Lee — not signed up with us yet. They need to finish before you can choose them.";
+describe("Add a job: the usual electrician only once onboarded (rule 3)", () => {
+  const notYet = { name: "Sam Lee", onboarded: false };
+  test("not onboarded: usual shown greyed with the exact text, HIV is the default, 'usual' is refused", () => {
+    expect(electricianChoiceOptions(notYet)).toEqual([
+      { value: "usual", label: "My usual electrician (Sam Lee)", disabled: true, note: GREYED },
+      { value: "hivic", label: "Home Insulation Victoria's electrician" },
+    ]);
+    expect(defaultElectricianChoice(notYet)).toBe("hivic");
+    expect(electricianChoiceProblem("usual", notYet)).toBe(GREYED);
+    expect(electricianChoiceProblem("hivic", notYet)).toBeNull();
+    expect(usualNotSignedUpText("Sam Lee")).toBe(GREYED);
+    // onboarded missing = not onboarded (fails closed)
+    expect(defaultElectricianChoice({ name: "Sam Lee" })).toBe("hivic");
+    expect(electricianChoiceProblem("usual", { name: "Sam Lee" })).toBe(GREYED);
+  });
+  test("onboarded: usual enabled, the default, and accepted", () => {
+    const ok = { name: "Sam Lee", onboarded: true };
+    expect(electricianChoiceOptions(ok)).toEqual([{ value: "usual", label: "My usual electrician (Sam Lee)" }, { value: "hivic", label: "Home Insulation Victoria's electrician" }]);
+    expect(defaultElectricianChoice(ok)).toBe("usual");
+    expect(electricianChoiceProblem("usual", ok)).toBeNull();
+  });
+  test("the greyed reason lands on the electrician field line", () => {
+    expect(fieldErrors([GREYED]).electrician).toBe(GREYED);
+  });
+  test("onboarded = approvedRecFor finds the usual electrician with a rate", () => {
+    const rec = { business_id: "rec-1", name: "Sam Lee Electrical", trading_name: null, rec_number: "REC-1", worker_licences: ["A12345"], onboarding_status: "approved", is_active: true, approved_electricians: 1, piesa_rate: { id: "r1", rate_inc_gst: 310 } };
+    const sam = { name: "Sam Lee", licence: "A12345" };
+    expect(usualElectricianOnboarded(sam, [rec])).toBe(true);
+    expect(usualElectricianOnboarded(sam, [{ ...rec, piesa_rate: null }])).toBe(false); // no agreed rate yet
+    expect(usualElectricianOnboarded(sam, [{ ...rec, onboarding_status: "draft" }])).toBe(false); // not finished
+    expect(usualElectricianOnboarded(sam, [])).toBe(false); // not on the portal
+    // An installer that pays its own electricians (no REC rate by design) uses the same flat price the quote pipeline uses.
+    expect(usualElectricianOnboarded(sam, [{ ...rec, piesa_rate: null }], 350)).toBe(true);
+  });
+  test("bulk upload and the quote pipeline keep their rule (usual when saved), unchanged", () => {
+    expect(savedUsualDefault({ name: "Sam Lee" })).toBe("usual");
+    expect(savedUsualDefault(null)).toBe("hivic");
+    expect(savedElectricianChoiceProblem("usual", { name: "Sam Lee" })).toBeNull();
+    expect(savedElectricianChoiceProblem("usual", null)).toBe(ELECTRICIAN_CHOICE_ISSUES.usual);
+    expect(resolveElectricianChoice({ recorded: null, legacy: null, usual: { name: "Sam Lee", licence: "A12345" } })).toBe("usual");
   });
 });
 
@@ -76,13 +122,14 @@ describe("wiring (source facts)", () => {
     expect(fn).not.toContain("@tanstack/react-start/server");
     const srv = read("src/lib/onsite-ready-check.server.ts");
     expect(srv).toContain("electricianChoiceProblem(electricianChoice, usual)");
-    expect(srv).toContain('recordElectricianChoice(job.id, businessId, userId, opts.electricianChoice ?? null, "add_job")');
+    expect(srv).toContain('recordElectricianChoice(job.id, businessId, userId, electricianChoice, "add_job")');
     expect(srv.indexOf("if (problems.length) throw")).toBeLessThan(srv.indexOf("recordElectricianChoice("));
   });
   test("bulk upload / Add one job: default usual-else-HIV, no new column", () => {
     const s = read("src/lib/partner-import.server.ts");
     expect(s).toContain('recordElectricianChoice(res.job_id, imp.business_id, context.userId, null, "bulk_upload")');
-    expect(read("src/lib/electrician-choice.server.ts")).toContain("const chosen = choice ?? defaultElectricianChoice(usual);");
+    // Bulk upload is not used and keeps its rule (Jo 28 Oct): usual when saved, else HIV — no onboarding check there.
+    expect(read("src/lib/electrician-choice.server.ts")).toContain("const chosen = choice ?? savedUsualDefault(usual);");
     expect(read("src/lib/electrician-choice.server.ts")).not.toMatch(/\.update\(|sendRealSms|mitti\.server/);
   });
   test("quote pipeline: mittiElectricianForJob reads the recorded choice first, legacy answers next, then the default; chase never asks", () => {

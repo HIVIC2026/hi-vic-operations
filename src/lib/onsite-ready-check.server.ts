@@ -23,9 +23,10 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   const problems = onsiteProblems(input);
   const { electricianPlanBlocker, OWNER_CONTACT_PERMISSION } = await import("./job-electrician.core");
   const eb = electricianPlanBlocker(electrician); if (eb) problems.push(eb);
-  // Decision 289: "Electrical safety check by" is chosen once here; "my usual electrician" needs one saved in My business.
+  // Decision 289: "Electrical safety check by" is chosen once here; "my usual electrician" needs one saved in My business
+  // and (Jo 28 Oct 2026, spec rule 3) finished signing up with us — refused here too, not just greyed on the screen.
   const { defaultElectricianChoice, electricianChoiceProblem } = await import("./electrician-choice.core");
-  const usual = (await (await import("./usual-electrician.server")).readUsualElectrician(businessId)).electrician;
+  const usual = await usualElectricianForAddJob(businessId);
   const electricianChoice = opts.electricianChoice ?? defaultElectricianChoice(usual);
   const ecp = electricianChoiceProblem(electricianChoice, usual); if (ecp) problems.push(ecp);
   // Decision 116: the optional visit time follows the job page's rules (exact times, business days, 24h+ ahead) and is
@@ -60,7 +61,7 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   await admin.from("job_assignments").insert({ job_id: job.id, user_id: userId, role: "installer", business_id: businessId, assigned_by: userId, first_response_at: new Date().toISOString() });
   await (await import("./job-electrician.server")).recordJobElectricianChoice(job.id, businessId, electrician ?? { mode: "hivic" }, userId);
   // Decision 289: the one electrician choice for this job (append-only event; the quote pipeline reads it).
-  await (await import("./electrician-choice.server")).recordElectricianChoice(job.id, businessId, userId, opts.electricianChoice ?? null, "add_job");
+  await (await import("./electrician-choice.server")).recordElectricianChoice(job.id, businessId, userId, electricianChoice, "add_job");
   await logEvent(job.id, userId, "installer_job_added", "Installer added this customer (Add a job: name, address, mobile, email, contact permission); the Mitti Ready Check form is created next", { business_id: businessId, visit_requested: !!opts.visit });
   // Gate A (Jo, 8 Oct): the installer confirmed the owner's consent to be contacted.
   const { gateDoc } = await import("./owner-gates.core");
@@ -91,6 +92,18 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   const formCreation = await onReadyCheckJobAdded(job.id, userId, call).catch((e) => { console.error("ready check form not scheduled", (e as Error).message); return "skipped" as const; });
   const state = await onsiteFormFor(job.id, userId, call, false);
   return { jobId: job.id, jobNumber: job.job_number, booking, formCreation, state };
+}
+
+/** Jo 28 Oct 2026 (spec rule 3): the business's usual electrician (My business) and whether they have finished signing
+ *  up with an agreed rate — the same approved-REC check the quote pipeline uses (decision 303). Read-only. Read errors
+ *  throw (fail closed). The rate stays here: callers send only the name and the onboarded flag to the screen. */
+export async function usualElectricianForAddJob(businessId: string): Promise<(import("./usual-electrician.core").UsualElectrician & { onboarded: boolean }) | null> {
+  const usual = (await (await import("./usual-electrician.server")).readUsualElectrician(businessId)).electrician;
+  if (!usual) return null;
+  const candidates = await (await import("./rec-onboarded.server")).loadApprovedRecCandidates();
+  const paysOwn = (await import("./installer-paid-electricians.core")).installerPaysOwnElectricians(businessId);
+  const { usualElectricianOnboarded } = await import("./electrician-choice.core");
+  return { ...usual, onboarded: usualElectricianOnboarded({ name: usual.name, licence: usual.licence }, candidates, paysOwn?.piesaIncGst ?? null) };
 }
 
 /**
