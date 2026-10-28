@@ -101,11 +101,11 @@ ${basis || calc ? `<div style="font-size:13px;color:${KIT.SUB};margin-top:12px;l
 </td></tr></table>`;
 }
 
-/** Two-figure mist box: VEU rebate / You pay about, with a note row. */
+/** Two-figure mist box: VEU rebate / Your estimated quote based on what you've told us, with a note row. */
 export function twoFigureBox(i: { rebate: number; price: number; note: string; margin?: string }): string {
   return `${TABLE} style="background:${KIT.MIST};border-radius:16px;${i.margin ? `margin-top:${i.margin};` : ""}"><tr>
 <td width="50%" align="center" style="padding:16px 8px;border-right:1px solid ${KIT.LINE};"><div style="font-size:11px;font-weight:bold;letter-spacing:1.2px;text-transform:uppercase;color:${KIT.NAVY};">VEU rebate</div><div style="font-size:26px;font-weight:bold;color:${KIT.GREEN};margin-top:4px;">${esc(whole(i.rebate))}</div></td>
-<td width="50%" align="center" style="padding:16px 8px;"><div style="font-size:11px;font-weight:bold;letter-spacing:1.2px;text-transform:uppercase;color:${KIT.NAVY};">You pay about</div><div style="font-size:26px;font-weight:bold;color:${KIT.BLUE};margin-top:4px;">${esc(whole(i.price))}</div></td>
+<td width="50%" align="center" style="padding:16px 8px;"><div style="font-size:11px;font-weight:bold;letter-spacing:1.2px;text-transform:uppercase;color:${KIT.NAVY};">Your estimated quote based on what you've told us</div><div style="font-size:26px;font-weight:bold;color:${KIT.BLUE};margin-top:4px;">${esc(whole(i.price))}</div></td>
 </tr>
 <tr><td colspan="2" align="center" style="padding:0 12px 14px;font-size:12px;color:${KIT.SUB};">${esc(i.note)}</td></tr></table>`;
 }

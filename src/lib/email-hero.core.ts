@@ -189,7 +189,7 @@ export function renderHeadingArt(text: string, style: "h2" | "caps", bg: string)
   return cv.png();
 }
 
-/** "You pay about" amount in Outfit 800 navy, 34/38px, on the estimate card's mist background. Width = text width. */
+/** "Your estimated quote based on what you've told us" amount in Outfit 800 navy, 34/38px, on the estimate card's mist background. Width = text width. */
 export function renderAmountArt(text: string, bg = "#F3F6FF"): Uint8Array {
   const { outfit } = font();
   const w = amountArtWidth(text) * S, h = AMOUNT_LH * S, size = AMOUNT_SIZE * S;

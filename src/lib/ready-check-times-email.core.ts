@@ -54,7 +54,7 @@ export function mjReadyCheckEstimate(e: ReadyCheckEstimate): string {
   const inc = INCLUDED(e.rebate);
   return [
     `<mj-section><mj-column mj-class="panel-mint"><mj-text mj-class="eyebrow center" padding="18px 12px 6px">Your VEU rebate</mj-text><mj-text mj-class="big-green" padding="0 12px 18px">You save ${esc(K.whole(e.rebate))}</mj-text></mj-column></mj-section>`,
-    `<mj-section><mj-column mj-class="panel"><mj-text mj-class="eyebrow center" padding="18px 12px 6px">You pay about</mj-text><mj-text mj-class="big-blue">${esc(K.whole(e.price))}</mj-text><mj-text mj-class="small center" padding="4px 16px 18px">${esc(estimateNote(e))}</mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column mj-class="panel"><mj-text mj-class="eyebrow center" padding="18px 12px 6px">Your estimated quote based on what you've told us</mj-text><mj-text mj-class="big-blue">${esc(K.whole(e.price))}</mj-text><mj-text mj-class="small center" padding="4px 16px 18px">${esc(estimateNote(e))}</mj-text></mj-column></mj-section>`,
     `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 10px">What's included in ${esc(K.whole(e.price))}</mj-text><mj-table padding="0 18px 6px">${inc.map((t, n) => tickRow(esc(t.title), esc(t.detail), n === inc.length - 1)).join("")}</mj-table></mj-column></mj-section>`,
     `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 10px">Not included – only if needed</mj-text><mj-table padding="0 18px 6px">${NOT_INCLUDED.map(([b, rest]) => plusRow(`<strong>${esc(b)}</strong>${esc(rest)}`)).join("")}</mj-table></mj-column></mj-section>`,
     `<mj-section><mj-column><mj-text mj-class="small" padding="14px 12px 0">${esc(CLOSING)}</mj-text></mj-column></mj-section>`,
@@ -64,7 +64,7 @@ export function mjReadyCheckEstimate(e: ReadyCheckEstimate): string {
 export function readyCheckEstimateText(e: ReadyCheckEstimate): string[] {
   return [
     `Your VEU rebate: you save ${K.whole(e.rebate)}`,
-    `You pay about: ${K.whole(e.price)} (${estimateNote(e)})`, "",
+    `Your estimated quote based on what you've told us: ${K.whole(e.price)} (${estimateNote(e)})`, "",
     `WHAT'S INCLUDED IN ${K.whole(e.price)}`, ...INCLUDED(e.rebate).map((t) => `✓ ${t.title}: ${t.detail}`), "",
     "NOT INCLUDED – ONLY IF NEEDED", ...NOT_INCLUDED.map(([b, rest]) => `+ ${b}${rest}`), "",
     CLOSING,
