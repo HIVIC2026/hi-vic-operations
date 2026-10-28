@@ -307,7 +307,9 @@ describe("repeat safety check on the owner's plan (decision 233, Jo 28 Oct)", ()
   test("the repeat price is added to the plan total and every existing threshold is unchanged", () => {
     expect(withRepeat.repeatCents).toBe(34_900);
     expect(withRepeat.grandTotalCents).toBe(434_900);
-    expect(withRepeat.thresholds).toMatchObject(plain.thresholds); // safety/fixes/deposit thresholds identical
+    expect({ safety_check: withRepeat.thresholds.safety_check, fixes: withRepeat.thresholds.fixes, install_deposit: withRepeat.thresholds.install_deposit, balance: withRepeat.thresholds.balance })
+      .toEqual({ safety_check: plain.thresholds.safety_check, fixes: plain.thresholds.fixes, install_deposit: plain.thresholds.install_deposit, balance: plain.thresholds.balance }); // existing thresholds identical
+    expect(withRepeat.thresholds.repeat_safety_check).toBe(434_900);
     expect(plain.repeatCents).toBe(0);
   });
   test("a plan with no repeat shows no repeat step; a repeat plan shows it owing until the full total is paid", () => {
