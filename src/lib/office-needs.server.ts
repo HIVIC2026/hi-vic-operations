@@ -125,6 +125,13 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     all("upcoming installs", (a, b) => scoped(admin.from("bookings").select("job_id, scheduled_start")).eq("kind", "installation").eq("status", "confirmed").gt("scheduled_start", new Date(t0).toISOString()).range(a, b)),
     // Decision 398: the A3 PIESA form was not created automatically at the PIESA booking.
     all("PIESA form failures", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", PIESA_AUTOFORM_FAILED_EVENT).gte("created_at", new Date(t0 - 60 * DAY).toISOString()).range(a, b)),
+    // Jo 28 Oct 2026 ("Alert after 3 days unpaid"): the unpaid-payment alert's facts — invoices, accepted quotes, the
+    // safety-check setting, current PIESA outcomes and the repeat safety check events. All reads; nothing is stored.
+    all("invoices for unpaid payments", (a, b) => scoped(admin.from("invoice_status").select("id, job_id, total_inc_gst, total_paid, created_at")).range(a, b)),
+    all("accepted quotes for unpaid payments", (a, b) => scoped(admin.from("quotes").select("id, job_id, kind, accepted_at, customer_total_inc_gst")).eq("status", "accepted").in("kind", ["installation", "rectification"]).range(a, b)),
+    admin.from("workflow_settings").select("safety_check_payment_inc_gst").eq("id", 1).maybeSingle().then((r) => (r.data ?? null) as Row | null),
+    all("current PIESA outcomes for deposits", (a, b) => scoped(admin.from("piesa_records").select("job_id, outcome, section_c_signed_at")).eq("is_current", true).range(a, b)),
+    all("repeat safety check events", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).in("event_type", ["repeat_piesa_payer_chosen", "repeat_piesa_accepted", "repeat_piesa_paid"]).order("created_at", { ascending: false }).range(a, b)),
   ]);
   const now = office.now;
   const jobs = office.jobs.filter((j) => j.status?.stage !== "ended" || j.stage === "on_hold");
