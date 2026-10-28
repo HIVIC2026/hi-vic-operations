@@ -180,6 +180,17 @@ describe("owner asks for a new quote after expiry", () => {
     expect(readFileSync("src/lib/office-needs.server.ts", "utf8")).toContain("newQuoteNeedsInstallerFact");
   });
 
+  test("our lead whose new quote can't be priced: owner still gets the thanks, office gets one note, nothing issued", async () => {
+    tables["retail_estimator_settings"] = []; // owner prices missing → the quote builder refuses
+    const r = await requestNewQuote(TOKEN);
+    expect(r).toEqual({ kind: "thanks" });
+    expect(job()["stage"]).toBe("measured_estimate_ready");
+    expect(newQuotes().length).toBe(0);
+    const notes = ev("ready_check_needs_office");
+    expect(notes.length).toBe(1);
+    expect(String(((notes[0]!["details"] as Row)["reasons"] as string[])[0])).toContain("New quote could not be prepared");
+  });
+
   test("refused, nothing written: office already reopened / other cancel reason / wrong token / no expiry close / stage guard", async () => {
     const cases: [string, () => void, string][] = [
       ["reopened by office", () => seed({ stage: "measured_estimate_ready" }), TOKEN],
