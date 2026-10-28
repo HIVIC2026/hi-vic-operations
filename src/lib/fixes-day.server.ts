@@ -99,7 +99,7 @@ export async function createFixesForm(jobId: string, actorId: string | null, boo
   const claims = await import("./mitti-create.server");
   let claimId: string | null = null;
   try {
-    claimId = await claims.claimMittiCreate(jobId, "fixes", actorId, `Mitti electrical fixes form creation started for ${email}`, { template_id: tpl.templateId, booking_id: bookingId });
+    claimId = await claims.claimMittiCreate(jobId, "fixes", actorId, `Mitti electrical fixes form creation started for ${email}`, { template_id: tpl.templateId, booking_id: bookingId, assignee_email: email });
   } catch (e) {
     if (e instanceof claims.MittiClaimHeld) return { status: "held", reason: e.message };
     throw e;

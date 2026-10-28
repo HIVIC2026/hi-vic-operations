@@ -1,0 +1,264 @@
+// Automatic retry for failed Mitti form creation. A cron route (Task 5) calls runMittiRetrySweep once a minute.
+// Rules live in mitti-retry.core.ts (pure). Per failed form: wait 2 minutes, check Mitti for a form already made
+// for this job, link it if there is exactly one, create nothing if we cannot tell, otherwise release the old attempt
+// and try again through the normal creator (and its claim guard). Two retries, then one email to the office.
+import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { logEvent } from "./workflow.server";
+import { formatPropertyAddress } from "./address";
+import { mittiApi, pickUser, type MittiCall } from "./mitti.core";
+import { parsePickupAudit, pickupTemplateMatches } from "./mitti-pickup.core";
+import { CLAIM_HELD, CLAIM_EVENT, UNCERTAIN_EVENT, isUniqueViolation, stableUuid, type MittiFormKind } from "./mitti-create-claim.core";
+import {
+  ALERT_SENT_EVENT, MITTI_RETRY_FROM, RETRY_LINKED_EVENT, RETRY_STARTED_EVENT,
+  alertEmail, collectFailureCases, matchAudits, nextAction, retriesFor, type AuditToMatch, type FailureCase, type WorkflowEventRow,
+} from "./mitti-retry.core";
+import { PIESA_AUTOFORM_FAILED_EVENT } from "./piesa-autoform.core";
+import { PIISA_AUDIT_CREATED_EVENT, PIISA_AUTOSEND_FAILED_EVENT } from "./piisa-autosend.core";
+import { FIXES_FORM_CREATED_EVENT, FIXES_FORM_HELD_EVENT } from "./fixes-day.core";
+import { SET_PASSWORD_BASE } from "./set-password-link.core";
+
+export const RETRY_ERROR_EVENT = "mitti_retry_error";
+/** Look back this far before the failed attempt began when searching Mitti (clock differences; matching is strict anyway). */
+const SEARCH_SLACK_MS = 5 * 60_000;
+
+export type RetrySweepOpts = { now?: Date; callFor?: (jobId: string) => MittiCall };
+export type RetrySweepResult = { checked: number; linked: number; retried: number; alerted: number };
+
+/** Every event type collectFailureCases / retriesFor read. */
+const EVENT_TYPES = [
+  "mitti_audit_create_uncertain", "mitti_access_needed", PIESA_AUTOFORM_FAILED_EVENT, FIXES_FORM_HELD_EVENT, PIISA_AUTOSEND_FAILED_EVENT,
+  RETRY_LINKED_EVENT, ALERT_SENT_EVENT, RETRY_STARTED_EVENT,
+  "mitti_audit_created", "mitti_audit_reshared", "mitti_access_override", "mitti_audit_linked", PIISA_AUDIT_CREATED_EVENT, FIXES_FORM_CREATED_EVENT,
+];
+
+async function loadEvents(): Promise<WorkflowEventRow[]> {
+  const out: WorkflowEventRow[] = [];
+  const PAGE = 1000;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await admin.from("workflow_events").select("job_id, event_type, created_at, summary, details")
+      .in("event_type", EVENT_TYPES).gte("created_at", MITTI_RETRY_FROM).order("created_at", { ascending: true }).range(from, from + PAGE - 1);
+    if (error) throw new Error(error.message);
+    const rows = (data ?? []) as unknown as WorkflowEventRow[];
+    out.push(...rows);
+    if (rows.length < PAGE) break;
+  }
+  return out;
+}
+
+const msgOf = (e: unknown) => (e instanceof Error ? e.message : "Mitti error");
+const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+
+// ---------- adopting a form that Mitti already made ----------
+/**
+ * Record a form found in Mitti against the job, the same way each creator records its own on success.
+ * ready_check: the existing link step. piesa: assessments.external_mitti_id. fixes: fixes_form_created.
+ * install_day: mitti_piisa_audit_created.
+ */
+export async function adoptExistingAudit(
+  jobId: string, kind: MittiFormKind, auditId: string,
+  ctx: { bookingId?: string | null; templateId?: string | null; assigneeEmail?: string | null; call?: MittiCall } = {},
+): Promise<void> {
+  switch (kind) {
+    case "ready_check": {
+      const { linkMittiReadyCheckToJob } = await import("./mitti-pickup.server");
+      await linkMittiReadyCheckToJob(null, { auditId, jobId }, ctx.call);
+      return;
+    }
+    case "piesa": {
+      const { data: a } = await admin.from("assessments").select("id").eq("job_id", jobId).maybeSingle();
+      const fields = {
+        external_mitti_id: auditId, mitti_template_id: ctx.templateId ?? null, mitti_assignee_email: ctx.assigneeEmail ?? null,
+        mitti_last_error: null, mitti_sync_status: "pending" as const,
+      };
+      if (a) { const { error } = await admin.from("assessments").update(fields).eq("id", a.id); if (error) throw new Error(error.message); return; }
+      const { data: asg } = await admin.from("job_assignments").select("user_id").eq("job_id", jobId).eq("role", "electrician").eq("active", true).maybeSingle();
+      const { error } = await admin.from("assessments").insert({ ...fields, job_id: jobId, assessor_id: asg?.user_id ?? null } as never);
+      if (error) throw new Error(error.message);
+      return;
+    }
+    case "fixes":
+      await logEvent(jobId, null, FIXES_FORM_CREATED_EVENT, "Electrical fixes form found in Mitti and recorded (the reply to the create request had been lost)",
+        { audit_id: auditId, booking_id: ctx.bookingId ?? null, template_id: ctx.templateId ?? null, assignee_email: ctx.assigneeEmail ?? null, adopted: true });
+      return;
+    case "install_day":
+      await logEvent(jobId, null, PIISA_AUDIT_CREATED_EVENT, "Install day form found in Mitti and recorded (the reply to the create request had been lost)",
+        { audit_id: auditId, template: ctx.templateId ?? null, adopted: true });
+      return;
+  }
+}
+
+// ---------- the office alert ----------
+const TRADE_ROLE: Record<MittiFormKind, "installer" | "electrician"> = { ready_check: "installer", install_day: "installer", piesa: "electrician", fixes: "electrician" };
+const BOOKING_KIND: Record<MittiFormKind, string> = { ready_check: "ready_check", piesa: "assessment", fixes: "rectification", install_day: "installation" };
+
+async function alertOffice(c: FailureCase, error: string, counts: RetrySweepResult) {
+  const { data: job } = await admin.from("jobs").select("job_number, property_id").eq("id", c.jobId).maybeSingle();
+  const [{ data: prop }, { data: asg }, { data: bk }] = await Promise.all([
+    job?.property_id ? admin.from("properties").select("address_line, suburb, state, postcode").eq("id", job.property_id).maybeSingle() : Promise.resolve({ data: null }),
+    admin.from("job_assignments").select("profiles:user_id(full_name, email)").eq("job_id", c.jobId).eq("role", TRADE_ROLE[c.kind]).eq("active", true).maybeSingle(),
+    admin.from("bookings").select("scheduled_start").eq("job_id", c.jobId).eq("kind", BOOKING_KIND[c.kind]).eq("status", "confirmed").order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  const trade = ((asg as unknown as { profiles: { full_name: string | null; email: string | null } | null } | null)?.profiles) ?? null;
+  const content = alertEmail({
+    jobNumber: job?.job_number ?? c.jobId, address: formatPropertyAddress(prop as never), kind: c.kind,
+    tradeName: trade?.full_name ?? null, tradeEmail: trade?.email ?? null, bookingAt: (bk as { scheduled_start?: string } | null)?.scheduled_start ?? null,
+    error: error || c.detail || "Unknown error", jobUrl: `${SET_PASSWORD_BASE}/admin/jobs/${c.jobId}`,
+  });
+  const { sendMittiFailureAlert } = await import("./office-alert-email.server");
+  const outcome = await sendMittiFailureAlert(c.jobId, c.kind, `${c.jobId}:${c.kind}:${c.failedAt}`, content);
+  if (outcome === "sent" || outcome === "test_routed") counts.alerted++;
+}
+
+/** The office flag clears on this event (see mittiOfficeItems). */
+const clearFlag = (jobId: string, kind: MittiFormKind, summary: string, auditId?: string | null) =>
+  logEvent(jobId, null, "mitti_access_override", summary, { kind, ...(auditId ? { audit_id: auditId } : {}) }, { internal: true });
+
+async function countUncertain(jobId: string, kind: MittiFormKind): Promise<number> {
+  const { data } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", UNCERTAIN_EVENT);
+  return (data ?? []).filter((r) => (r.details as { kind?: string } | null)?.kind === kind).length;
+}
+
+// ---------- one failed form ----------
+async function handleCase(c: FailureCase, events: WorkflowEventRow[], opts: RetrySweepOpts, now: Date, counts: RetrySweepResult) {
+  const retries = retriesFor(events, c);
+  const action = nextAction(c, retries, now);
+  if (action === "wait") return;
+  if (action === "alert") { await alertOffice(c, c.detail, counts); return; }
+
+  // ---- search_then_retry: what was the failed attempt trying to make? (from its claim row)
+  const { data: claim } = c.claimId ? await admin.from("workflow_events").select("details, created_at").eq("id", c.claimId).eq("event_type", CLAIM_EVENT).maybeSingle() : { data: null };
+  const cd = (claim?.details ?? {}) as Record<string, unknown>;
+  const templateId = str(cd["template_id"]), email = str(cd["assignee_email"]);
+  const claimAt = Date.parse(String(claim?.created_at ?? ""));
+  if (!claim || !templateId || !email || Number.isNaN(claimAt)) { await alertOffice(c, "Could not tell what the failed attempt was making, so nothing was retried. " + c.detail, counts); return; }
+
+  const { data: job } = await admin.from("jobs").select("id, job_number, property_id, owner_id").eq("id", c.jobId).maybeSingle();
+  const [{ data: prop }, { data: owner }] = await Promise.all([
+    job?.property_id ? admin.from("properties").select("address_line, suburb, state, postcode").eq("id", job.property_id).maybeSingle() : Promise.resolve({ data: null }),
+    job?.owner_id ? admin.from("owners").select("full_name").eq("id", job.owner_id).maybeSingle() : Promise.resolve({ data: null }),
+  ]);
+  const siteAddress = formatPropertyAddress(prop as never), homeownerName = str(owner?.full_name);
+  if (!job?.job_number || !siteAddress || !homeownerName) { await alertOffice(c, "The job's number, address or owner name is missing, so Mitti could not be checked for an existing form. " + c.detail, counts); return; }
+
+  const { realMittiCall, mittiCallFor } = await import("./mitti.server");
+  const override = opts.callFor?.(c.jobId);
+  const call = override ?? realMittiCall;
+  const searchCall = await mittiCallFor(call, email); // test people use the simulator
+
+  let ownerId = "", candidates: AuditToMatch[] = [];
+  try {
+    const api = mittiApi(searchCall);
+    const user = pickUser(await api.searchUsers(email), email);
+    ownerId = str(user?.id ?? user?.user_id);
+    if (!ownerId) throw new Error(`${email} was not found in Mitti`);
+    const found = (await api.searchAudits(new Date(claimAt - SEARCH_SLACK_MS).toISOString())) as { audits?: { audit_id?: string; template_id?: string }[] };
+    for (const hit of found?.audits ?? []) {
+      const id = str(hit.audit_id);
+      if (!id || !pickupTemplateMatches(str(hit.template_id), templateId)) continue;
+      const p = parsePickupAudit(await api.getAudit(id));
+      // The template id is written the way the claim wrote it, so matchAudits compares like with like.
+      if (p) candidates.push({ templateId, mittiOwnerUserId: p.mittiOwnerUserId, jobNumber: p.mittiRef, siteAddress: p.siteAddress, homeownerName: p.homeownerName, ...{ auditId: p.auditId } } as AuditToMatch & { auditId: string });
+    }
+  } catch (e) {
+    await alertOffice(c, `Could not check Mitti for an existing form, so nothing was retried: ${msgOf(e)}`, counts);
+    return;
+  }
+
+  const want = { templateId, mittiOwnerUserId: ownerId, jobNumber: job.job_number, siteAddress, homeownerName };
+  const verdict = matchAudits(candidates, want);
+  if (verdict === "many") { await alertOffice(c, "More than one matching form was found in Mitti, so nothing was retried or linked. " + c.detail, counts); return; }
+  if (verdict === "none" && matchAudits(candidates.map((a) => ({ ...a, mittiOwnerUserId: ownerId })), want) !== "none") {
+    // A form for this job exists but sits with someone other than the trade: we cannot tell if it is ours, so never create.
+    await alertOffice(c, "A form for this job was found in Mitti but it is not with the assigned person, so nothing was retried. " + c.detail, counts);
+    return;
+  }
+
+  if (verdict === "one") {
+    const hit = candidates.find((a) => matchAudits([a], want) === "one") as (AuditToMatch & { auditId: string }) | undefined;
+    const auditId = hit!.auditId;
+    try {
+      await adoptExistingAudit(c.jobId, c.kind, auditId, { bookingId: str(cd["booking_id"]) || null, templateId, assigneeEmail: email, call: searchCall });
+    } catch (e) {
+      await alertOffice(c, `The form was found in Mitti (${auditId}) but could not be linked to the job: ${msgOf(e)}`, counts);
+      return;
+    }
+    await logEvent(c.jobId, null, RETRY_LINKED_EVENT, "The failed Mitti form was found in Mitti and linked to the job", { kind: c.kind, audit_id: auditId }, { internal: true });
+    if (c.kind !== "ready_check") await clearFlag(c.jobId, c.kind, "Form found in Mitti and linked", auditId);
+    counts.linked++;
+    return;
+  }
+
+  // ---- nothing in Mitti: close the old attempt and try again. The started event (explicit id) is what makes
+  // two sweeps agree on who owns this attempt.
+  const attempt = retries.length + 1;
+  const startedId = await stableUuid(`mitti-retry:${c.jobId}:${c.kind}:${c.failedAt}:${attempt}`);
+  const { error: startErr } = await admin.from("workflow_events").insert({
+    id: startedId, job_id: c.jobId, actor_id: null, event_type: RETRY_STARTED_EVENT,
+    summary: `Retrying the Mitti form (attempt ${attempt} of 2) after checking Mitti: nothing found`, details: { kind: c.kind, attempt } as never, internal: true,
+  });
+  if (startErr) { if (isUniqueViolation(startErr)) return; throw new Error(startErr.message); }
+  counts.retried++;
+
+  const { releaseMittiCreate, MittiClaimHeld, MittiOutcomeUncertain } = await import("./mitti-create.server");
+  await releaseMittiCreate(c.jobId, c.kind, c.claimId!, null, "retry_after_search_found_nothing");
+
+  const uncertainBefore = await countUncertain(c.jobId, c.kind);
+  try {
+    const m = await import("./mitti.server");
+    let auditId: string | null = null;
+    switch (c.kind) {
+      case "ready_check": {
+        const { readyCheckFormFacts, testAssignee } = await import("./mitti-create.server");
+        const f = await readyCheckFormFacts(c.jobId);
+        const assignee = f?.installerUserId ? await testAssignee(f.job.source, f.installerUserId) : null;
+        auditId = (await m.createAssignMittiAudit(c.jobId, null, call, { readyCheck: true, ...(assignee ? { assignee } : {}) })).auditId;
+        break;
+      }
+      case "piesa":
+        auditId = (await m.createAssignMittiAudit(c.jobId, null, call)).auditId;
+        break;
+      case "install_day":
+        auditId = (await m.createPiisaMittiAudit(c.jobId, null, call)).auditId;
+        break;
+      case "fixes": {
+        let bookingId = str(cd["booking_id"]);
+        if (!bookingId) {
+          const { data: bk } = await admin.from("bookings").select("id").eq("job_id", c.jobId).eq("kind", "rectification").eq("status", "confirmed").order("scheduled_start", { ascending: false }).limit(1).maybeSingle();
+          bookingId = bk?.id ?? "";
+        }
+        if (!bookingId) { await alertOffice(c, "No booked electrical fixes visit was found, so the form could not be retried.", counts); return; }
+        // createFixesForm picks the simulator itself for test people when no call is given.
+        const r = await (await import("./fixes-day.server")).createFixesForm(c.jobId, null, bookingId, override);
+        if (r.status === "held") {
+          if (r.reason === CLAIM_HELD) return;
+          if ((await countUncertain(c.jobId, "fixes")) > uncertainBefore) return; // lost reply again: it is the new failure
+          await alertOffice(c, r.reason ?? "The form was not made", counts);
+          return;
+        }
+        if (r.status === "not_needed") { await clearFlag(c.jobId, c.kind, `Retry found the form is not needed: ${r.reason ?? ""}`.trim()); return; }
+        auditId = r.auditId ?? null;
+        break;
+      }
+    }
+    await clearFlag(c.jobId, c.kind, "Retry made the form automatically", auditId);
+  } catch (e) {
+    if (e instanceof MittiClaimHeld) return;
+    if (e instanceof MittiOutcomeUncertain) return; // the creator already recorded a fresh uncertain event: the next failedAt
+    await alertOffice(c, msgOf(e), counts);
+  }
+}
+
+/** Run once a minute. One bad case never stops the others. */
+export async function runMittiRetrySweep(opts: RetrySweepOpts = {}): Promise<RetrySweepResult> {
+  const now = opts.now ?? new Date();
+  const counts: RetrySweepResult = { checked: 0, linked: 0, retried: 0, alerted: 0 };
+  const events = await loadEvents();
+  for (const c of collectFailureCases(events, now)) {
+    counts.checked++;
+    try { await handleCase(c, events, opts, now, counts); }
+    catch (e) {
+      await logEvent(c.jobId, null, RETRY_ERROR_EVENT, `Mitti retry check failed: ${msgOf(e).slice(0, 300)}`, { kind: c.kind, failed_at: c.failedAt }, { internal: true }).catch(() => undefined);
+    }
+  }
+  return counts;
+}

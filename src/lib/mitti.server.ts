@@ -157,7 +157,7 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
   const claims = await import("./mitti-create.server");
   const claimId = existingAuditId ? null : await claims.claimMittiCreate(jobId, kind, actorId,
     `Mitti ${measureOnly ? "measure-up" : "assessment"} creation started for ${prof?.email ?? "assigned trade"}`,
-    { template_id: templateId, scope: scope.scope }, { officeOverride: opts.officeOverride === true });
+    { template_id: templateId, scope: scope.scope, assignee_email: prof?.email ?? null }, { officeOverride: opts.officeOverride === true });
   const base = mittiApi(await mittiCallFor(call, prof?.email));
   const seen = { createAttempted: false, createdId: null as string | null };
   const api: typeof base = { ...base, createAudit: async (body) => {
@@ -643,7 +643,7 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string | nul
   // during/after it without an audit id keeps the claim and records the outcome as uncertain (never auto-retried).
   const claims = await import("./mitti-create.server");
   const claimId = prevId ? null : await claims.claimMittiCreate(jobId, "install_day", actorId, `Install day form creation started for ${email}`,
-    { template_id: MITTI_PIISA_TEMPLATE_ID }, { officeOverride: opts.officeOverride === true });
+    { template_id: MITTI_PIISA_TEMPLATE_ID, assignee_email: email }, { officeOverride: opts.officeOverride === true });
   const base = mittiApi(await mittiCallFor(call, email));
   const seen = { createAttempted: false, createdId: null as string | null };
   const api: typeof base = { ...base, createAudit: async (body) => {
