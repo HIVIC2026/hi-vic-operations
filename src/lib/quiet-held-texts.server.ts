@@ -52,10 +52,14 @@ export const stillTrueSpotSaved: StillTrue = async (row) => {
 
 /** quote_ready: the quote is still issued and released (quote-ready-notify.server). */
 export const stillTrueQuoteReady: StillTrue = async (row) => {
-  const quoteId = after(await claimKey(row), "quote-ready:v1:")?.split(":")[0];
-  if (!quoteId) return false;
+  const rest = after(await claimKey(row), "quote-ready:v1:");
+  const quoteId = rest?.split(":")[0];
+  if (!rest || !quoteId || !row.job_id) return false;
+  // Only the text for the CURRENT send goes: a held original after a reopen, or an older :rN after another reopen, is stale.
+  const { currentQuoteReadyKeySuffix, quoteStillReleased } = await import("./quote-ready-notify.server");
+  try { if (rest !== `${quoteId}${await currentQuoteReadyKeySuffix(row.job_id, quoteId)}`) return false; } catch { return false; }
   const { data: q } = await db.from("quotes").select("status, release_state").eq("id", quoteId).eq("job_id", row.job_id).maybeSingle();
-  return (await import("./quote-ready-notify.server")).quoteStillReleased(q);
+  return quoteStillReleased(q);
 };
 
 /** piesa_owner_confirm: the PIESA texted about is still the latest and the owner has not confirmed it. */
