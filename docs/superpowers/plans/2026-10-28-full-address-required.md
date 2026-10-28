@@ -127,6 +127,22 @@
 - [ ] **Step 4: Run** `bun test tests/address-request-page.test.ts` — expect PASS; then full `bun run test`.
 - [ ] **Step 5: Commit** `feat: owner page to give their full address`.
 
+### Task 7: Website — full name needs first and last name
+
+**Files:**
+- Modify: `src/lib/address-pick.js` is address-only — create `src/lib/name-rule.js` instead (Base44 mirror `/home/claude/base44-site`)
+- Modify: `src/pages/Homeowner.jsx:131`
+- Test: `tests/name-rule.test.mjs`
+
+**Interfaces:**
+- Produces: `nameStepError(name: string): string | null` and `NAME_ERROR = "Please enter your first and last name."`
+
+- [ ] **Step 1: Write the failing test** (node:test): `nameStepError("Jo") === NAME_ERROR`; `nameStepError("Jo Lowe") === null`; `nameStepError("  Jo   Lowe  ") === null`; `nameStepError("J Lowe") === NAME_ERROR`; `nameStepError("Mary Jo Lowe") === null`; `nameStepError("") === NAME_ERROR`.
+- [ ] **Step 2: Run** `node --test tests/name-rule.test.mjs` — expect FAIL.
+- [ ] **Step 3: Implement** — split the trimmed name on whitespace; at least two parts, each at least 2 characters. Replace the 2-character check at `Homeowner.jsx:131` with `nameStepError(contact.name)`.
+- [ ] **Step 4: Run** `node --test tests/*.test.mjs` — expect all PASS.
+- [ ] **Step 5: Commit** in the mirror.
+
 ### Task 6: Go-live check (with Jo)
 
 - [ ] Show Jo the email, text and page wording. Only after she says yes, set BOTH together: `ADDRESS_REQUEST_EMAIL_APPROVED = true` (`src/lib/address-request.core.ts`, the email) and `wordingApproved: true` for the two texts (`address_request`, `address_request_reminder` in `src/lib/sms.core.ts`). Do this BEFORE the next step — while the email flag is false the sweep sends nothing.

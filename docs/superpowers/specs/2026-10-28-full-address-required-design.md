@@ -57,3 +57,8 @@ number and name in the stored address line.
   24 hours and no more; no text after 8pm.
 - Picking an address saves it, lifts the hold, and the job then follows the normal Save my spot rules.
 - A job with a full street address is not touched.
+
+## Addendum (28 Oct 2026, approved by Jo): full name on the website
+- The website's "Full name" box must have at least two names, each at least 2 letters ("Jo Lowe" passes, "Jo" is refused).
+- Error copy, exactly: "Please enter your first and last name."
+- Website only (`src/pages/Homeowner.jsx`, contact step, currently `contact.name.trim().length < 2`). Nothing changes in the portal.
