@@ -124,18 +124,18 @@ export async function moneyPayouts(testJobIds?: string[]) {
   if (error) throw new Error(`Could not read jobs: ${error.message}`);
   // Decision 355: electrician pay falls due long before Final check (within 7 days of the office approving the completed form
   // — it never waits for the owner), so jobs with a completed safety check / fixes visit are read too — electrician lines only.
-  let visitsQuery = db.from("bookings").select("job_id, kind").in("kind", ["assessment", "rectification"]).eq("status", "completed");
+  let visitsQuery = db.from("bookings").select("id, job_id, kind, business_id").in("kind", ["assessment", "rectification"]).eq("status", "completed");
   if (testJobIds) visitsQuery = visitsQuery.in("job_id", scope);
   const { data: eb, error: ebe } = await visitsQuery.limit(4000);
   if (ebe) throw new Error(`Could not read completed electrician visits: ${ebe.message}`);
   const finalIds = new Set(((js ?? []) as { id: string }[]).map((j) => j.id));
-  const elecVisits = (eb ?? []) as { job_id: string; kind: string }[];
+  const elecVisits = (eb ?? []) as { id: string; job_id: string; kind: string; business_id: string | null }[];
   const jobs = await liveJobs([...new Set([...finalIds, ...elecVisits.map((b) => b.job_id)])], testJobIds);
   const ids = [...jobs.keys()];
   const [asg, quotes, paidEv, apEv, invs] = await Promise.all([
     inJobs<{ job_id: string; business_id: string; role: string; businesses: { name: string; trading_name: string | null } | null }>("job_assignments", "job_id, business_id, role, businesses(name, trading_name)", ids, (q) => q.eq("active", true)),
     inJobs<{ id: string; job_id: string; kind: string }>("quotes", "id, job_id, kind", ids, (q) => q.eq("status", "accepted")),
-    inJobs<{ job_id: string; details: { kind?: string } | null; created_at: string }>("workflow_events", "job_id, details, created_at", ids, (q) => q.eq("event_type", "payout_marked_paid")),
+    inJobs<{ job_id: string; details: { kind?: string; booking_id?: string } | null; created_at: string }>("workflow_events", "job_id, details, created_at", ids, (q) => q.eq("event_type", "payout_marked_paid")),
     inJobs<{ job_id: string; created_at: string }>("workflow_events", "job_id, created_at", ids, (q) => q.eq("event_type", "stage_changed").eq("to_stage", "ready_for_veec")),
     // Audit F19: owner paid in full (Xero mirror) — installer-supplied jobs wait for it, exactly as the installer's screen.
     inJobs<{ job_id: string; status: string | null; balance_paid_at: string | null; paid_at: string | null; updated_at: string | null }>("invoices", "job_id, status, balance_paid_at, paid_at, updated_at", ids),
@@ -145,7 +145,15 @@ export async function moneyPayouts(testJobIds?: string[]) {
   const costOf = (jobId: string, kind: string) => { const q = quotes.find((x) => x.job_id === jobId && x.kind === kind); const c = q ? internals.find((i) => i.quote_id === q.id) : null; return c?.cost_ex_gst != null ? Number(c.cost_ex_gst) : null; };
   const { data: pricing } = await db.from("pricing_settings").select("piesa_rec_cost_ex_gst, gst_rate").eq("is_active", true).maybeSingle();
   const gst = 1 + (num(pricing?.gst_rate) ?? 0.1);
-  const elecIds = [...new Set(asg.filter((a) => a.role === "electrician").map((a) => a.business_id))];
+  // Batch 1 F5: one safety check line per completed visit, paid to whoever did it (after a reopen that may be an
+  // electrician no longer assigned) — their name and rate are read too.
+  const { safetyVisitFacts } = await import("./trade-payout-gate.server");
+  const { safetyVisitPaidAt, visitGateFacts } = await import("./trade-payout-gate.core");
+  const safety = await safetyVisitFacts(ids);
+  const visitBiz = [...new Set(elecVisits.filter((b) => b.kind === "assessment" && b.business_id).map((b) => b.business_id as string))];
+  const { data: visitNames } = visitBiz.length ? await db.from("businesses").select("id, name, trading_name").in("id", visitBiz) : { data: [] };
+  const bizName = new Map(((visitNames ?? []) as { id: string; name: string; trading_name: string | null }[]).map((b) => [b.id, b.trading_name || b.name]));
+  const elecIds = [...new Set([...asg.filter((a) => a.role === "electrician").map((a) => a.business_id), ...visitBiz])];
   const { data: rates } = elecIds.length ? await db.from("electrician_rates").select("business_id, rate_inc_gst, effective_from").in("business_id", elecIds).eq("service_type", "piesa").in("status", ["active", "approved"]).order("effective_from", { ascending: false }) : { data: [] };
   const piesaEx = (businessId: string) => { const r = ((rates ?? []) as { business_id: string; rate_inc_gst: number }[]).find((x) => x.business_id === businessId); return r ? Math.round((Number(r.rate_inc_gst) / gst) * 100) / 100 : num(pricing?.piesa_rec_cost_ex_gst); };
   // Jo 26 Oct 2026: the safety check on Reinsulate's own-electrician jobs is paid to Reinsulate, at the flat price.
@@ -174,11 +182,18 @@ export async function moneyPayouts(testJobIds?: string[]) {
     const ownerDirect = electricalBillingSource({ channel: j.channel, choice: j.electrician_choice, committedLineOnAcceptedQuote: null, hivPaidAt: null }) === "owner_direct";
     const visited = (kind: string) => elecVisits.some((b) => b.job_id === id && b.kind === kind);
     const paidToInstaller = installerPaid.get(id);
-    if (paidToInstaller && (atFinal || visited("assessment")))
-      lines.push({ jobId: id, jobNumber: j.job_number, businessId: paidToInstaller.businessId, business: `${paidToInstaller.name} (safety checks by their electricians)`, kind: "assessment", amountEx: Math.round((paidToInstaller.piesaIncGst / gst) * 100) / 100, dueAt: null, paidAt: paidFor("assessment") });
+    // Batch 1 F5: one line per completed safety-check visit (none recorded yet on an older job = one line, as before).
+    const safetyVisits: ({ id: string; business_id: string | null } | null)[] = elecVisits.filter((b) => b.job_id === id && b.kind === "assessment");
+    if (!safetyVisits.length && atFinal) safetyVisits.push(null);
+    const paidVisit = (v: { id: string } | null) => safetyVisitPaidAt(paidEv.filter((e) => e.job_id === id), safety.get(id), v?.id ?? null);
+    if (paidToInstaller) for (const v of safetyVisits)
+      lines.push({ jobId: id, jobNumber: j.job_number, businessId: paidToInstaller.businessId, business: `${paidToInstaller.name} (safety checks by their electricians)`, kind: "assessment", amountEx: Math.round((paidToInstaller.piesaIncGst / gst) * 100) / 100, dueAt: null, paidAt: paidVisit(v), ...(v ? { visitId: v.id } : {}) });
     if (elec && !ownerDirect) {
       // dueAt for electrician lines is set below from the decision-355 rule.
-      if (!paidToInstaller && (atFinal || visited("assessment"))) lines.push({ jobId: id, jobNumber: j.job_number, businessId: elec.business_id, business: name(elec), kind: "assessment", amountEx: piesaEx(elec.business_id), dueAt: null, paidAt: paidFor("assessment") });
+      if (!paidToInstaller) for (const v of safetyVisits) {
+        const biz = v?.business_id ?? elec.business_id;
+        lines.push({ jobId: id, jobNumber: j.job_number, businessId: biz, business: bizName.get(biz) ?? (biz === elec.business_id ? name(elec) : "Not assigned"), kind: "assessment", amountEx: piesaEx(biz), dueAt: null, paidAt: paidVisit(v), ...(v ? { visitId: v.id } : {}) });
+      }
       if (quotes.some((q) => q.job_id === id && q.kind === "rectification") && (atFinal || visited("rectification"))) lines.push({ jobId: id, jobNumber: j.job_number, businessId: elec.business_id, business: name(elec), kind: "rectification", amountEx: costOf(id, "rectification"), dueAt: null, paidAt: paidFor("rectification") });
     }
   }
@@ -189,9 +204,12 @@ export async function moneyPayouts(testJobIds?: string[]) {
   const facts = await payoutGateFacts([...new Set([...unpaidJobs, ...elecJobs])]);
   const { electricianPayTiming } = await import("./electrician-pay.core");
   for (const l of lines) {
-    const t = l.kind === "installation" ? null : electricianPayTiming(l.kind, facts.get(l.jobId));
+    // Batch 1 F5: a later safety-check visit is gated on its own record, never the first visit's completed form.
+    const jf = facts.get(l.jobId);
+    const vf = jf && l.kind === "assessment" ? visitGateFacts(jf, safety.get(l.jobId), l.visitId) : jf;
+    const t = l.kind === "installation" ? null : electricianPayTiming(l.kind, vf);
     if (t) { l.dueAt = t.dueAt; if (t.approvable) l.approvable = true; }
-    if (!l.paidAt) { const f = facts.get(l.jobId); l.held = [...(f ? tradePayoutBlockers(l.kind, f) : [PAYOUT_FORM_NOT_COMPLETE[l.kind]]), ...(t?.waiting ?? []), ...(l.held ?? [])]; }
+    if (!l.paidAt) { const f = vf; l.held = [...(f ? tradePayoutBlockers(l.kind, f) : [PAYOUT_FORM_NOT_COMPLETE[l.kind]]), ...(t?.waiting ?? []), ...(l.held ?? [])]; }
   }
   // Jo 28 Oct (decision 158): when the office chose the installer to pay for a repeat safety check, it comes off their install payout.
   const instJobs = [...new Set(lines.filter((l) => l.kind === "installation").map((l) => l.jobId))];

@@ -47,6 +47,8 @@ mock.module("../src/lib/workflow.server", () => ({
 mock.module("../src/lib/trade-payout-gate.server", () => ({
   payoutGateFacts: async (ids: string[]) => new Map(ids.map((id) => [id, { piesa: null, fixes: null, install: { formCompleted: true, evidence: [] } }])),
   payoutBlockersFor: async () => [],
+  safetyVisitFacts: async () => new Map(), // batch 1 F5 (per-visit safety check pay)
+  safetyVisitPayoutBlockers: async () => [],
 }));
 const { markPayoutPaid } = await import("../src/lib/office.functions");
 const { moneyPayouts } = await import("../src/lib/office-money.server");

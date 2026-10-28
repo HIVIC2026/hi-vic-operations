@@ -123,7 +123,7 @@ function Payouts({ q }: { q: Q<PayoutsData> }) {
     if (!ref) return;
     setBusy(g.key);
     try {
-      for (const j of g.jobs) await mark({ data: { jobId: j.jobId, reference: ref.trim(), kind: j.kind } });
+      for (const j of g.jobs) await mark({ data: { jobId: j.jobId, reference: ref.trim(), kind: j.kind, ...(j.visitId ? { bookingId: j.visitId } : {}) } });
       toast.success(`${g.business} marked paid`);
     } catch (e) { toast.error(e instanceof Error ? e.message : "Couldn't mark paid"); }
     finally { setBusy(null); await qc.invalidateQueries({ queryKey: ["money-payouts"] }); }
@@ -131,10 +131,10 @@ function Payouts({ q }: { q: Q<PayoutsData> }) {
   // Decision 410: someone in the office approves the electrician's completed Mitti form; pay is due 7 days later.
   const approveForm = async (h: PayoutsData["held"][number]) => {
     if (h.kind === "installation") return;
-    const key = `approve:${h.jobId}:${h.kind}`;
+    const key = `approve:${h.jobId}:${h.kind}:${h.visitId ?? ""}`;
     setBusy(key);
     try {
-      await approve({ data: { jobId: h.jobId, kind: h.kind } });
+      await approve({ data: { jobId: h.jobId, kind: h.kind, ...(h.visitId ? { bookingId: h.visitId } : {}) } });
       toast.success(`${h.jobNumber} form approved · ${h.business} paid within 7 days`);
     } catch (e) { toast.error(e instanceof Error ? e.message : "Couldn't approve the form"); }
     finally { setBusy(null); await qc.invalidateQueries({ queryKey: ["money-payouts"] }); }
@@ -155,14 +155,14 @@ function Payouts({ q }: { q: Q<PayoutsData> }) {
           </tr>
         ))}
         {q.data.held.map((h) => (
-          <tr key={`held:${h.jobId}:${h.kind}`} data-payout-held data-why="decision 318: no complete Mitti form, no payment">
+          <tr key={`held:${h.jobId}:${h.kind}:${h.visitId ?? ""}`} data-payout-held data-why="decision 318: no complete Mitti form, no payment">
             <td className="font-semibold">{h.business}</td>
             <td className="text-xs">{h.jobNumber}</td>
             <td className="text-xs text-sub">{h.kind === "installation" ? "Install · installer pay" : h.kind === "assessment" ? "PIESA" : "Fixes at cost"}<span className="mt-1 block text-rose">{h.reasons.map((r) => <span key={r} className="block">{r}</span>)}</span></td>
             <td className="font-semibold">{h.amountEx == null ? "to confirm" : `${dollars(h.amountEx)} ex GST`}</td>
             <td>{fmtDay(h.dueAt)}</td>
             <td>{h.approvable && h.kind !== "installation"
-              ? <Btn tone="secondary" data-approve-electrician-form disabled={busy === `approve:${h.jobId}:${h.kind}`} onClick={() => void approveForm(h)}>{busy === `approve:${h.jobId}:${h.kind}` ? "Saving…" : "Approve form"}</Btn>
+              ? <Btn tone="secondary" data-approve-electrician-form disabled={busy === `approve:${h.jobId}:${h.kind}:${h.visitId ?? ""}`} onClick={() => void approveForm(h)}>{busy === `approve:${h.jobId}:${h.kind}:${h.visitId ?? ""}` ? "Saving…" : "Approve form"}</Btn>
               : <Pill tone="rose">Held</Pill>}</td>
           </tr>
         ))}

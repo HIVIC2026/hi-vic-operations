@@ -30,6 +30,7 @@ mock.module("../src/lib/autoadvance.server", () => ({ autoAdvanceJob: async () =
 mock.module("../src/lib/requirements.server", () => ({ jobScope: async () => ({ scope: "ceiling", label: "ceiling" }), advanceSiteRequirements: async () => ({ advanced: false, scope: "ceiling" }) }));
 mock.module("../src/lib/install-clearance.server", () => ({ notifyInstallerClearance: async () => {} }));
 mock.module("../src/lib/trade-payout-gate.server", () => ({
+  safetyVisitFacts: async () => new Map(), // batch 1 F5 (per-visit safety check pay)
   payoutGateFacts: async (ids: string[]) => new Map(ids.map((id) => [id, { piesa: { mittiForm: false, completed: true, evidence: [], completedAt: "2026-10-01T02:00:00Z" }, fixes: null, install: null }])),
 }));
 const { completePiesaAssessment } = await import("../src/lib/piesa-complete.server");
