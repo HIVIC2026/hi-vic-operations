@@ -9,8 +9,9 @@ import { assignBlocker, certificationBlocker, firstName, hashToken, isTokenShape
 const uuid = z.string().uuid();
 const workerInput = z.object({
   full_legal_name: z.string().trim().min(2).max(200),
-  email: z.string().trim().toLowerCase().email().max(254),
-  mobile: z.string().trim().min(8).max(30),
+  // Jo 28 Oct: email and mobile are optional — a person can be saved with just a name and trade role.
+  email: z.string().trim().toLowerCase().max(254).transform((e) => e || null).pipe(z.string().email().nullable()).optional().nullable(),
+  mobile: z.string().trim().max(30).transform((m) => m || null).optional().nullable(),
   trade_role: z.enum(["electrician", "installer"]),
   licence_number: z.string().trim().max(60).optional().nullable(),
   qualification: z.string().trim().max(200).optional().nullable(),
@@ -40,7 +41,7 @@ export const saveWorker = createServerFn({ method: "POST" }).middleware([require
     if (data.trade_role === "electrician" && !data.licence_number) throw new Error("Add the electrician's licence number.");
     if (data.trade_role === "installer" && !data.qualification) throw new Error("Add the installer's qualification (e.g. Cert III or 'Experienced installer').");
     const { id, ...rest } = data;
-    const fields = { ...rest, licence_number: rest.licence_number ?? null, qualification: rest.qualification ?? null };
+    const fields = { ...rest, email: rest.email ?? null, mobile: rest.mobile ?? null, licence_number: rest.licence_number ?? null, qualification: rest.qualification ?? null };
     if (id) {
       const { data: before, error } = await admin.from("partner_workers").select("*").eq("id", id).eq("business_id", data.business_id).maybeSingle();
       if (error || !before) throw new Error("Worker not found.");
@@ -70,6 +71,17 @@ export const removeWorker = createServerFn({ method: "POST" }).middleware([requi
     // Decision 331: removed person → deactivate the Mitti user the portal invited/linked (switch off = no-op). Never fails the removal.
     await import("./mitti-invite.server").then((m) => m.onPartnerPersonRemoved(w.id, context.userId)).catch((e) => console.error("Mitti deactivate skipped", (e as Error).message));
     return { ok: true };
+  });
+
+// Jo 28 Oct: switch an installer person between Lead and Crew (HIV admin or the business's own business_admin).
+export const setWorkerRole = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ workerId: uuid, role: z.enum(["lead", "crew"]) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const { data: w } = await admin.from("partner_workers").select("business_id").eq("id", data.workerId).maybeSingle();
+    if (!w) throw new Error("Person not found.");
+    if (!(await isAdminCaller(context.supabase))) await requireMember(context.userId, w.business_id, true);
+    return (await import("./worker-role.server")).changeWorkerRole(data.workerId, data.role, context.userId);
   });
 
 // ---------- Office: approvals ----------
