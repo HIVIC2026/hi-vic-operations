@@ -3,6 +3,8 @@
 // suggestion shown to the office — it never decides or charges anything. The owner then accepts; owner-pays must be
 // paid before the PIESA is booked; installer-pays is deducted from that installer's payout on the job.
 
+import { melbourneYmd } from "./piesa-windows.core";
+
 export type RepeatPayer = "owner" | "installer" | "hivic";
 export const REPEAT_PAYERS: RepeatPayer[] = ["owner", "installer", "hivic"];
 export const REPEAT_PAYER_LABEL: Record<RepeatPayer, string> = { owner: "Owner", installer: "Installer", hivic: "Home Insulation Victoria" };
@@ -19,6 +21,8 @@ export const REPEAT_PIESA_PRICE_EVENT = "repeat_piesa_price_set";
 export const REPEAT_REOPEN_EVENT = "piesa_superseded_on_reopen";
 export const REOPEN_KEY_PREFIX = "reopen:";
 export const reopenKey = (iso: string) => `${REOPEN_KEY_PREFIX}${iso}`;
+/** Trade/office message (not owner-facing): after a reopen the new check is recorded as a PIESA reassessment. */
+export const SUPERSEDED_USE_REASSESSMENT = "This job was reopened, so the earlier PIESA no longer counts. Record the new safety check as a PIESA reassessment.";
 export const isReopenKey = (deadline: string | null | undefined) => !!deadline && deadline.startsWith(REOPEN_KEY_PREFIX);
 /** A PIESA record made at or before the latest reopen no longer counts (null reopen = it counts). */
 export function piesaSupersededByReopen(recordCreatedAt: string | null | undefined, reopenAt: string | null | undefined): boolean {
@@ -97,9 +101,45 @@ export function ownerRepeatView(s: RepeatState): OwnerRepeatView | null {
 export const REPEAT_XERO_ADDED_EVENT = "xero_invoice_repeat_piesa_added";
 export const REPEAT_XERO_HELD_EVENT = "xero_invoice_repeat_piesa_held";
 /** Tag printed on the Xero line so a lost response is recognised on the invoice itself (one per lapsed deadline). */
-export const repeatLineTag = (deadline: string) => `repeat PIESA ${deadline}`;
+/** Melbourne calendar date of a reopen key ("reopen:<iso>" → "YYYY-MM-DD"). */
+const reopenYmd = (deadline: string) => melbourneYmd(new Date(deadline.slice(REOPEN_KEY_PREFIX.length)));
+/** A reopen's tag is its plain Melbourne date, never the raw key. */
+export const repeatLineTag = (deadline: string) => `repeat PIESA ${isReopenKey(deadline) ? reopenYmd(deadline) : deadline}`;
+/** Every tag that marks this deadline's line as already on the invoice (a reopen also matches the raw-key form). */
+export const repeatLineTags = (deadline: string) => (isReopenKey(deadline) ? [repeatLineTag(deadline), `repeat PIESA ${deadline}`] : [repeatLineTag(deadline)]);
 export const repeatLineKey = (invoiceId: string, deadline: string, cents: number) => `xero-repeat-piesa:v1:${invoiceId}:${deadline}:${Math.round(cents)}`;
-export const repeatLineDescription = (reference: string, deadline: string) => `${reference} – New safety check (PIESA), 30-day window lapsed (${repeatLineTag(deadline)})`;
+export const repeatLineDescription = (reference: string, deadline: string) => isReopenKey(deadline)
+  ? `${reference} – New safety check (PIESA) (${repeatLineTag(deadline)})`
+  : `${reference} – New safety check (PIESA), 30-day window lapsed (${repeatLineTag(deadline)})`;
+
+/** Office repeat card heading (office-only text). */
+export function repeatOfficeHeading(deadline: string | null): string {
+  if (isReopenKey(deadline)) {
+    const day = new Date(deadline!.slice(REOPEN_KEY_PREFIX.length)).toLocaleDateString("en-AU", { day: "numeric", month: "short", timeZone: "Australia/Melbourne" });
+    return `Job reopened ${day} — a new safety check (PIESA) is needed`;
+  }
+  return `30-day window lapsed${deadline ? ` (${deadline})` : ""} — a new safety check (PIESA) is needed`;
+}
+
+type RepeatEv = { job_id?: unknown; event_type?: unknown; created_at?: unknown; details?: unknown };
+const evDeadline = (e: RepeatEv) => String((e.details as { deadline?: unknown } | null)?.deadline ?? "");
+/** Needs me: jobs whose latest office payer choice is for a reopen (jobId → reopen key). Events newest first. */
+export function reopenRepeatDeadlines(ev: RepeatEv[]): Map<string, string> {
+  const out = new Map<string, string>(); const seen = new Set<string>();
+  for (const e of ev) {
+    if (e.event_type !== REPEAT_PIESA_CHOSEN_EVENT) continue;
+    const id = String(e.job_id); if (seen.has(id)) continue; seen.add(id);
+    if (isReopenKey(evDeadline(e))) out.set(id, evDeadline(e));
+  }
+  return out;
+}
+/** The repeat Xero line for this deadline is held (its latest added/held event is a hold) → the Needs me row facts. */
+export function repeatXeroHeldFor(ev: RepeatEv[], deadline: string): { at: string; reason: string } | null {
+  const line = ev.filter((e) => String(e.event_type).startsWith("xero_invoice_repeat_piesa_") && evDeadline(e) === deadline)
+    .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at))).at(-1);
+  if (line?.event_type !== REPEAT_XERO_HELD_EVENT) return null;
+  return { at: String(line.created_at), reason: String((line.details as { reason?: string } | null)?.reason ?? "held") };
+}
 /** Paid = Xero/card payments on the invoice grew by at least the repeat price since the line went on. */
 export function repeatPaidByInvoice(i: { paidCents: number; paidAtAddCents: number; priceCents: number }): boolean {
   return i.priceCents > 0 && i.paidCents - i.paidAtAddCents >= i.priceCents;

@@ -14,7 +14,11 @@ export type CompletePiesaInput = { jobId: string; rectHours?: number | undefined
 export async function completePiesaAssessment(data: CompletePiesaInput, userId: string) {
   const { data: a } = await admin.from("assessments").select("*").eq("job_id", data.jobId).maybeSingle();
   if (!a) throw new WorkflowError("Start the assessment first.");
-  if (a.status === "complete") throw new WorkflowError("Electrical assessment is already complete.");
+  if (a.status === "complete") {
+    // Batch 1 task 6: after a reopen the earlier check no longer counts; the new one is recorded as a reassessment.
+    if (await (await import("./repeat-piesa.server")).currentPiesaSupersededByReopen(data.jobId)) throw new WorkflowError((await import("./repeat-piesa.core")).SUPERSEDED_USE_REASSESSMENT);
+    throw new WorkflowError("Electrical assessment is already complete.");
+  }
   const { jobScope, advanceSiteRequirements } = await import("./requirements.server");
   const s = await jobScope(data.jobId);
   const missing: string[] = [];

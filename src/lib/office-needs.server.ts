@@ -197,6 +197,20 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     }
   }
 
+  // Batch 1 task 6: a reopen's owner-pays repeat line held on Xero gets the same one Today row as a 30-day one.
+  {
+    const { reopenRepeatDeadlines, repeatXeroHeldFor } = await import("./repeat-piesa.core");
+    const reopened = reopenRepeatDeadlines(payRepeatEv);
+    const heldIds = [...reopened.keys()].filter((id) => { const x = f(id); return !!x && !x.repeatXeroHeld; });
+    if (heldIds.length) {
+      const ev = await byIds("repeat Xero lines", heldIds, (chunk, a, b) => admin.from("workflow_events").select("job_id, event_type, details, created_at").in("job_id", chunk).in("event_type", ["xero_invoice_repeat_piesa_held", "xero_invoice_repeat_piesa_added"]).range(a, b));
+      for (const id of heldIds) {
+        const held = repeatXeroHeldFor(ev.filter((e) => String(e["job_id"]) === id), reopened.get(id)!);
+        if (held) f(id)!.repeatXeroHeld = held;
+      }
+    }
+  }
+
   // Wave 2: follow-up reads keyed by what wave 1 found, all at once.
   type Guess = { job_id: string; job_number: string; why?: string[] };
   const guessOf = (u: Record<string, unknown>) => ((u["guesses"] as Guess[] | undefined) ?? [])[0] ?? null;

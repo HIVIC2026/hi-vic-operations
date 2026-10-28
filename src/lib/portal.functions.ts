@@ -580,8 +580,9 @@ export const recordPiesa = createServerFn({ method: "POST" }).middleware([requir
         if (sc.length) throw new WorkflowError(`Section C: ${sc.join(" ")}`);
       }
     } else {
-      const p = await piesaStatus(data.jobId);
-      if (!p?.piesa_expired && stage !== "assessment_complete") throw new WorkflowError("Reassessment is only needed when the PIESA window has expired.");
+      // Batch 1 task 6: a check superseded by a reopen is redone as a reassessment, like an expired one.
+      const rb = await (await import("./piesa-record.server")).reassessmentBlocker(data.jobId, stage);
+      if (rb) throw new WorkflowError(rb);
     }
     // Decision 293: the same writes the Mitti "A4 – Electrical fixes" completion makes (piesa-record.server.ts).
     const { applyPiesaRecord } = await import("./piesa-record.server");

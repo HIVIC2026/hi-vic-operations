@@ -11,7 +11,9 @@ const tables: Tables = {};
 let entryBlockers: string[] = [];
 const transitions: string[] = [];
 class WorkflowError extends Error {}
-mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: (t: string) => memoryPostgrest(tables).from(t), rpc: async () => ({ data: null, error: null }) } }));
+// piesa_records.is_current defaults to true in the schema (0000_hivic_core_schema.sql); the in-memory table has no defaults.
+const withDefaults = (t: string) => { const q = memoryPostgrest(tables).from(t); if (t !== "piesa_records") return q; const ins = q.insert; q.insert = (p: Record<string, unknown>) => ins({ is_current: true, ...p }); return q; };
+mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: withDefaults, rpc: async () => ({ data: null, error: null }) } }));
 mock.module("../src/lib/workflow.server", () => ({
   WorkflowError,
   logEvent: async (job: string, actor: string | null, type: string, summary: string, details?: unknown, opts?: { from?: string; to?: string; internal?: boolean }) => {
@@ -26,6 +28,11 @@ mock.module("../src/lib/workflow.server", () => ({
 mock.module("../src/lib/install-days.server", () => ({ installDayContext: async () => ({ deadline: null, expired: false, booked: false }) }));
 mock.module("../src/lib/quotes.server", () => ({ deriveRectificationItems: async () => 0, generateRectificationQuote: async () => undefined }));
 mock.module("../src/lib/piesa-evidence.server", () => ({ piesaEvidenceHold: async () => [] }));
+const xeroCalls: string[] = []; const offers: string[] = [];
+mock.module("../src/lib/xero.server", () => ({ addRepeatPiesaToXeroInvoice: async (id: string) => { xeroCalls.push(id); return "not_linked"; } }));
+mock.module("../src/lib/allocation.server", () => ({ startPiesaAllocation: async (id: string) => { offers.push(id); return { offered: 1, exhausted: false }; } }));
+mock.module("../src/lib/autoadvance.server", () => ({ autoAdvanceJob: async () => null }));
+mock.module("../src/lib/install-clearance.server", () => ({ notifyInstallerClearance: async () => undefined }));
 
 const { reopenJob } = await import("../src/lib/office-actions.server");
 const { reopenStageFor } = await import("../src/lib/office-jobs.core");
@@ -52,7 +59,7 @@ function seed(priorStage: string, withPiesa: boolean) {
 const job = () => tables["jobs"]![0]!;
 const events = (t: string) => tables["workflow_events"]!.filter((e) => e["event_type"] === t);
 
-beforeEach(() => { entryBlockers = []; transitions.length = 0; });
+beforeEach(() => { entryBlockers = []; transitions.length = 0; xeroCalls.length = 0; offers.length = 0; });
 
 describe("reopenStageFor — where a reopened job goes", () => {
   const same = ["new_enquiry", "eligibility_review", "preliminary_estimate_ready", "ready_check_awaiting_acceptance", "ready_check_awaiting_payment", "ready_check_ready_to_schedule"];
@@ -129,7 +136,9 @@ describe("reopenJob (real, in-memory database)", () => {
     seed("installation_booked", true);
     await reopenJob(J, "Owner rang back", "admin-1");
     const first = (events(rp.REPEAT_REOPEN_EVENT)[0]!["details"] as { key: string }).key;
-    await (await import("../src/lib/repeat-piesa.server")).acceptRepeatPiesa(J).catch(() => undefined);
+    const accepted = await (await import("../src/lib/repeat-piesa.server")).acceptRepeatPiesa(J);
+    expect(accepted).toMatchObject({ stage: "owner_pay", payer: "owner", priceIncGst: 220, deadline: first });
+    expect(xeroCalls).toEqual([J]);
     // Cancelled again before the new safety check, then reopened again a moment later.
     job()["stage"] = "cancelled"; job()["prior_stage"] = "piesa_and_install_window_pending";
     await new Promise((r) => setTimeout(r, 5));
@@ -145,6 +154,38 @@ describe("reopenJob (real, in-memory database)", () => {
     const { state } = await repeatPiesaContext(J);
     expect(state).toMatchObject({ deadline: first, payer: "owner", priceIncGst: 220 });
     expect(state.stage).not.toBe("owner_accept");
+  });
+
+  test("reopen inside the 30-day window: the new PIESA is recorded as a reassessment, the repeat gate clears and the job moves on", async () => {
+    seed("installation_booked", true);
+    await reopenJob(J, "Owner rang back", "admin-1");
+    const rps = await import("../src/lib/repeat-piesa.server");
+    expect((await rps.acceptRepeatPiesa(J)).stage).toBe("owner_pay");
+    expect((await rps.recordRepeatPiesaPaid(J, "admin-1", "Xero payment 1")).stage).toBe("offer");
+    expect(offers).toEqual([J]);
+    const { reassessmentBlocker, applyPiesaRecord } = await import("../src/lib/piesa-record.server");
+    // Before the electrician's visit is booked the reassessment can't be recorded; once booked it can.
+    expect(await reassessmentBlocker(J, "piesa_and_install_window_pending")).toMatch(/once it is booked/);
+    job()["stage"] = "piesa_scheduled";
+    expect(await reassessmentBlocker(J, "piesa_scheduled")).toBeNull();
+    // The old assessment is complete: Complete PIESA points to the reassessment instead of a dead end.
+    const { completePiesaAssessment } = await import("../src/lib/piesa-complete.server");
+    await expect(completePiesaAssessment({ jobId: J }, "elec-2")).rejects.toThrow(/reassessment/);
+    await new Promise((r) => setTimeout(r, 5));
+    await applyPiesaRecord({ jobId: J, actorId: "elec-2", kind: "reassessment", outcome: "pass", completedDate: "2026-10-28", source: { kind: "portal" } });
+    expect(transitions).toContain("piesa_complete");
+    expect(tables["bookings"] ?? []).toEqual([]);
+    const { state } = await repeatPiesaContext(J);
+    expect(rp.repeatPiesaGateBlocker(state)).toBeNull();
+    expect((await electricalState(J)).hasCurrentPiesa).toBe(true);
+    expect(await rps.currentPiesaSupersededByReopen(J)).toBe(false);
+  });
+
+  test("a job that was never reopened keeps today's reassessment rule", async () => {
+    seed("installation_booked", true);
+    job()["stage"] = "installation_scheduling";
+    const { reassessmentBlocker } = await import("../src/lib/piesa-record.server");
+    expect(await reassessmentBlocker(J, "installation_scheduling")).toBe("Reassessment is only needed when the PIESA window has expired.");
   });
 
   test("reopen refuses with the first stage-entry reason and writes nothing", async () => {
@@ -163,5 +204,40 @@ describe("reopenJob (real, in-memory database)", () => {
     seed("assessment_booking", false);
     await expect(reopenJob(J, "Owner rang back", "admin-1")).rejects.toThrow(/retired/);
     expect(job()["stage"]).toBe("cancelled");
+  });
+});
+
+describe("reopen wording on the Xero line, the office card and Needs me", () => {
+  const key = "reopen:2026-10-27T22:15:00.000Z"; // 28 Oct in Melbourne
+  test("Xero line for a reopen: no 30-day clause, plain-date tag; 30-day line unchanged", () => {
+    expect(rp.repeatLineTag(key)).toBe("repeat PIESA 2026-10-28");
+    expect(rp.repeatLineDescription("Home Insulation Victoria HV-1", key)).toBe("Home Insulation Victoria HV-1 – New safety check (PIESA) (repeat PIESA 2026-10-28)");
+    expect(rp.repeatLineDescription("Home Insulation Victoria HV-1", "2026-11-20")).toBe("Home Insulation Victoria HV-1 – New safety check (PIESA), 30-day window lapsed (repeat PIESA 2026-11-20)");
+    // A line already on the invoice is recognised by the new tag and by the raw-key tag it would have had before.
+    expect(rp.repeatLineTags(key)).toEqual(["repeat PIESA 2026-10-28", `repeat PIESA ${key}`]);
+    expect(rp.repeatLineTags("2026-11-20")).toEqual(["repeat PIESA 2026-11-20"]);
+  });
+  test("office card heading: Job reopened <date> for a reopen, 30-day text otherwise", () => {
+    expect(rp.repeatOfficeHeading(key)).toBe("Job reopened 28 Oct — a new safety check (PIESA) is needed");
+    expect(rp.repeatOfficeHeading("2026-11-20")).toBe("30-day window lapsed (2026-11-20) — a new safety check (PIESA) is needed");
+    expect(rp.repeatOfficeHeading(null)).toBe("30-day window lapsed — a new safety check (PIESA) is needed");
+    const { readFileSync } = require("node:fs");
+    expect(readFileSync("src/components/portal/repeat-piesa.tsx", "utf8")).toContain("repeatOfficeHeading(s.deadline)");
+  });
+  test("Needs me: a held reopen Xero line gets one row, like the 30-day one", () => {
+    const ev = [
+      { job_id: "j1", event_type: "xero_invoice_repeat_piesa_held", created_at: "2026-10-28T02:00:00Z", details: { deadline: key, reason: "Xero refused the edit" } },
+      { job_id: "j1", event_type: "repeat_piesa_payer_chosen", created_at: "2026-10-28T01:00:00Z", details: { deadline: key, payer: "owner" } },
+      { job_id: "j2", event_type: "repeat_piesa_payer_chosen", created_at: "2026-10-28T01:00:00Z", details: { deadline: "2026-11-20", payer: "owner" } },
+    ];
+    expect([...rp.reopenRepeatDeadlines(ev)]).toEqual([["j1", key]]);
+    expect(rp.repeatXeroHeldFor(ev.filter((e) => e.job_id === "j1"), key)).toEqual({ at: "2026-10-28T02:00:00Z", reason: "Xero refused the edit" });
+    expect(rp.repeatXeroHeldFor([...ev, { job_id: "j1", event_type: "xero_invoice_repeat_piesa_added", created_at: "2026-10-28T03:00:00Z", details: { deadline: key } }], key)).toBeNull();
+    const { readFileSync } = require("node:fs");
+    const src = readFileSync("src/lib/office-needs.server.ts", "utf8");
+    expect(src).toContain("reopenRepeatDeadlines(payRepeatEv)");
+    expect(src).toContain("repeatXeroHeldFor(");
+    const ns = readFileSync("src/lib/office-needs.core.ts", "utf8");
+    expect(ns).toContain('kind: "repeat_piesa_xero_held"');
   });
 });

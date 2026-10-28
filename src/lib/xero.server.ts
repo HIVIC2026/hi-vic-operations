@@ -463,7 +463,6 @@ async function repeatPiesaStep(inv: RepairsInvoice, call: XeroCall, mode: XeroMo
   const amountCents = toCents(state.priceIncGst);
   const deadline = state.deadline;
   const key = rpc.repeatLineKey(inv.id, deadline, amountCents);
-  const tag = rpc.repeatLineTag(deadline);
   const { data: ev } = await admin.from("workflow_events").select("details").eq("job_id", inv.job_id).eq("event_type", rpc.REPEAT_XERO_ADDED_EVENT);
   const recorded = ((ev ?? []) as { details: Record<string, unknown> | null }[]).map((e) => e.details ?? {}).filter((d) => d["invoice_id"] === inv.id && d["deadline"] === deadline)
     .map((d) => ({ key: String(d["key"] ?? ""), rectQuoteId: deadline, amountCents: Number(d["amount_cents"] ?? 0) }));
@@ -471,6 +470,8 @@ async function repeatPiesaStep(inv: RepairsInvoice, call: XeroCall, mode: XeroMo
   const baseTotalCents = toCents(inv.total_inc_gst);
   let x: import("./xero-repairs.core").XeroInvoiceForRepairs | null = null;
   try { x = (await call(`/api.xro/2.0/Invoices/${inv.xero_invoice_id}`))?.Invoices?.[0] ?? null; } catch (e) { console.error("xero repeat PIESA read failed", (e as Error).message); }
+  // A line already on the invoice keeps the tag it was written with (a reopen line written with the raw-key tag before the batch 1 task 6 fix round).
+  const tag = rpc.repeatLineTags(deadline).find((t) => (x?.LineItems ?? []).some((l) => (l.Description ?? "").includes(t))) ?? rpc.repeatLineTag(deadline);
   const d = core.repairsAmendDecision({ enabled: core.XERO_REPAIRS_AMEND_ENABLED, repairs: { rectQuoteId: deadline, amountCents }, key, recorded, baseTotalCents, xero: x, tag });
   const aud = (c: number) => `$${(c / 100).toFixed(2)}`;
   const invName = inv.xero_invoice_number ? `Xero invoice ${inv.xero_invoice_number}` : "the Xero invoice";

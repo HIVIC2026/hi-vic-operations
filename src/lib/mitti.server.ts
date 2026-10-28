@@ -140,7 +140,11 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
     admin.from("bookings").select("scheduled_start,status").eq("job_id", jobId).eq("kind", "ready_check").eq("status", "confirmed").order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
     admin.from("assessments").select("id,status,external_mitti_id").eq("job_id", jobId).maybeSingle(),
   ]);
-  if (!measureOnly && a?.status === "complete") throw new WorkflowError("Electrical assessment is already complete and locked.");
+  if (!measureOnly && a?.status === "complete") {
+    // Batch 1 task 6: same path as an expired window — the new check is recorded as a reassessment, not a second A3.
+    if (await (await import("./repeat-piesa.server")).currentPiesaSupersededByReopen(jobId)) throw new WorkflowError((await import("./repeat-piesa.core")).SUPERSEDED_USE_REASSESSMENT);
+    throw new WorkflowError("Electrical assessment is already complete and locked.");
+  }
   // Gap 1: no PIESA form until the PIESA visit is confirmed in the portal.
   if (!measureOnly && !booking) throw new WorkflowError(PIESA_BOOKING_MISSING);
   const asg = opts.assignee ? { user_id: opts.assignee.userId, profiles: { full_name: opts.assignee.fullName, email: opts.assignee.email } } : asgRow;
