@@ -501,3 +501,14 @@ describe("7. A2 (Jo 28 Oct): Add a job at an HIV-lead address", () => {
     expect(await q("select id from workflow_events where job_id=$1 and event_type='duplicate_address_linked'", [other.id])).toHaveLength(1);
   });
 });
+
+describe("8. A2 fix: a second Add a job at an address that already has an installer job is refused", () => {
+  test("lead + first installer job at the address → a second Add a job is refused, no extra job", async () => {
+    const [p] = await q<{ id: string }>("insert into properties (address_line, suburb, postcode, state) values ('88 Test Street','Frankston','3199','VIC') returning id");
+    await q("insert into jobs (property_id, stage, source, channel) values ($1,'enquiry','qa_test','hivic_sourced')", [p!.id]);
+    await os.startOnsiteReadyCheckFor(INST, BIZ, owner(88), { mode: "hivic" }, call, { leadOrigin: "owner_contacted" }); // A2 save
+    const before = (await q("select id from jobs")).length;
+    await expect(os.startOnsiteReadyCheckFor(INST, BIZ, owner(88), { mode: "hivic" }, call, { leadOrigin: "owner_contacted" })).rejects.toThrow(/already has an open job/);
+    expect((await q("select id from jobs")).length).toBe(before);
+  });
+});

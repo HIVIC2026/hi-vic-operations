@@ -3,14 +3,14 @@
 // the flag is one internal workflow event on the EXISTING job, carrying where the request came from.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { extractPostcode, suburbFromLine, type AddressKeyInput } from "./address.core";
-import { DUPLICATE_ADDRESS_EVENT, duplicateAddressSummary, openJobAtAddress, type AddressJobCandidate, type DuplicateAddressFrom } from "./duplicate-address.core";
+import { DUPLICATE_ADDRESS_EVENT, clashJobAtAddress, duplicateAddressSummary, openJobAtAddress, type AddressJobCandidate, type DuplicateAddressFrom } from "./duplicate-address.core";
 import { logEvent } from "./workflow.server";
 
 export type OpenAddressJob = { id: string; job_number: string; stage: string | null; property_id: string; channel: string | null };
 const CHECK_FAILED = "We couldn't check this address for an existing job. Please try again.";
 
 /** The open job at this address, or null. `source` keeps practice (qa_test) and real jobs apart. */
-export async function findOpenJobAtAddress(request: AddressKeyInput & { source: string | null }): Promise<OpenAddressJob | null> {
+export async function findOpenJobAtAddress(request: AddressKeyInput & { source: string | null }, opts: { preferNonLead?: boolean } = {}): Promise<OpenAddressJob | null> {
   // A one-line address ("5 Smith St, Bundoora VIC 3083") carries its own postcode.
   const postcode = String(request.postcode ?? "").match(/\d{4}/)?.[0] || extractPostcode(String(request.address_line ?? "")) || null;
   const suburb = request.suburb?.trim() || suburbFromLine(String(request.address_line ?? ""));
@@ -27,7 +27,7 @@ export async function findOpenJobAtAddress(request: AddressKeyInput & { source: 
     const p = byProp.get(j.property_id);
     return { id: j.id, job_number: j.job_number, stage: j.stage ?? null, source: j.source ?? null, channel: j.channel ?? null, deleted_at: j.deleted_at ?? null, created_at: j.created_at ?? null, property_id: j.property_id, address_line: p?.address_line ?? null, suburb: p?.suburb ?? null, postcode: p?.postcode ?? null };
   });
-  const hit = openJobAtAddress(request, candidates);
+  const hit = (opts.preferNonLead ? clashJobAtAddress : openJobAtAddress)(request, candidates);
   return hit ? { id: hit.id, job_number: hit.job_number, stage: hit.stage, property_id: hit.property_id, channel: hit.channel } : null;
 }
 

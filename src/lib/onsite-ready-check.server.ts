@@ -39,7 +39,7 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   // Decision 282 (Jo 25 Oct): only the address matters. An open job at this address is told to the office and the
   // installer sees its number; nothing is created. Email/phone are never a reason to refuse.
   const { findOpenJobAtAddress, flagDuplicateAddress, businessNameFor } = await import("./duplicate-address.server");
-  const open = await findOpenJobAtAddress({ address_line: input.address_line, suburb: input.suburb, postcode: input.postcode, source });
+  const open = await findOpenJobAtAddress({ address_line: input.address_line, suburb: input.suburb, postcode: input.postcode, source }, { preferNonLead: true });
   const clash = (await import("./duplicate-address.core")).addJobClashAction(open);
   // Jo 28 Oct: an open HIV lead at this address does not block the installer; the job is saved and flagged below.
   if (open && clash === "refuse") {

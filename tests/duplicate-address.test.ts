@@ -2,7 +2,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { addressKey, normaliseStreetLine } from "../src/lib/address.core";
-import { DUPLICATE_ADDRESS_EVENT, addJobClashAction, hivLeadClashSummary, duplicateAddressFrom, duplicateAddressMessage, duplicateAddressSummary, isOpenJobStage, openJobAtAddress } from "../src/lib/duplicate-address.core";
+import { DUPLICATE_ADDRESS_EVENT, addJobClashAction, clashJobAtAddress, hivLeadClashSummary, duplicateAddressFrom, duplicateAddressMessage, duplicateAddressSummary, isOpenJobStage, openJobAtAddress } from "../src/lib/duplicate-address.core";
 import { parsePickupAudit, pickupDuplicates } from "../src/lib/mitti-pickup.core";
 import { NEUTRAL_SAVE_ERROR, saveErrorMessage } from "../src/lib/add-job-flow.core";
 
@@ -117,4 +117,16 @@ test("A2 wiring: the server flags the NEW job and only refuses non-HIV clashes",
   expect(srv).toContain('clash === "refuse"');
   expect(srv).toContain("hivLeadClashSummary(open.job_number)");
   expect(readFileSync("src/lib/duplicate-address.server.ts", "utf8")).toContain("id, job_number, stage, source, channel, deleted_at, created_at, property_id");
+});
+
+test("A2 fix: an HIV lead AND an installer job at one address → refuse (the installer job is the one acted on); leads only → save and flag", () => {
+  const lead = job({ id: "lead", address_line: "1/5 Smith St", created_at: "2026-01-01" }) as ReturnType<typeof job> & { channel: string };
+  const inst = job({ id: "inst", address_line: "1/5 Smith St", created_at: "2026-02-01" }) as ReturnType<typeof job> & { channel: string };
+  lead.channel = "hivic_sourced"; inst.channel = "installer_sourced";
+  const both = clashJobAtAddress(req, [lead, inst]);
+  expect(both?.id).toBe("inst");
+  expect(addJobClashAction(both)).toBe("refuse");
+  const only = clashJobAtAddress(req, [lead]);
+  expect(addJobClashAction(only)).toBe("save_and_flag");
+  expect(clashJobAtAddress(req, [{ ...inst, stage: "cancelled" }, lead])?.id).toBe("lead");
 });
