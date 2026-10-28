@@ -89,7 +89,7 @@ Check before sending: no
 ```text
 Hi Sam,
 
-Your estimate is $3,798 incl. GST, and the $1,610 VEU rebate comes straight off, so you'd pay $2,188 for the 137 m² ceiling you told us about. That includes the free Ready Check, the licensed electrician's safety check, premium R5.0 ceiling batts fitted by an EEC-certified installer, and all the rebate paperwork. Not included, only if needed: removing old insulation, a ceiling access fee, electrical fixes, or a bigger ceiling than you told us, and you'll know the exact price before you agree to anything. The rebate is for homes over 5 years old where any insulation already in the ceiling is below R2.0. You can see the full breakdown here: https://estimate.homeinsulationvictoria.com.au/estimate/SAMPLETOKEN3
+Your estimate is $3,798 incl. GST, and the $1,610 VEU rebate comes straight off, so you'd pay $2,188 for the 137 m² ceiling you told us about. That includes the licensed electrician's safety check, premium R5.0 ceiling batts fitted by an EEC-certified installer, and all the rebate paperwork. Not included, only if needed: removing old insulation, a ceiling access fee, electrical fixes, or a bigger ceiling than you told us. The rebate is for homes over 5 years old where any insulation already in the ceiling is below R2.0. You can see the full breakdown here: https://estimate.homeinsulationvictoria.com.au/estimate/SAMPLETOKEN3
 
 Jo, Home Insulation Victoria
 ```

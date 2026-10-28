@@ -29,7 +29,7 @@ import { INSULATION_DETAILS_REAL_SEND_APPROVED, SAVE_SPOT_REAL_SEND_APPROVED } f
 import { INSULATION_QUESTIONS_SEND_APPROVED } from "../src/lib/insulation-questions-campaign.core";
 import { LAUNCH_COPY_APPROVED } from "../src/lib/launch-campaign.core";
 import { AI_BUSINESS_RULES_PRE_RELEASE, aiReplyInstructions, buildAiReplyInput } from "../src/lib/ai-email-reply.core";
-import { composeReply, type OwnerFacts } from "../src/lib/email-reply.core";
+import { composeReply, type OwnerFacts, type ReplyInput } from "../src/lib/email-reply.core";
 import { CUSTOMER_WHAT_COULD_CHANGE } from "../src/lib/customer-quote-system";
 
 const clean = (label: string, text: string) => expect({ label, found: preReleaseViolations(text) }).toEqual({ label, found: [] });
@@ -62,7 +62,7 @@ describe("pre-release emails and texts are spot-only", () => {
       { outcome: "needs_onsite_confirmation", insulation: "unknown", ceilingSizeKnown: false, mediaAlreadyReceived: true },
     ] as const;
     for (const v of variants) {
-      const m = renderJoOutcomeEmail({ ...v, recipient: HELEN, figures: { ...FIG, areaEstimated: !v.ceilingSizeKnown, removalUpTo: 2055 }, links: LINKS } as never)!;
+      const m = renderJoOutcomeEmail({ ...v, recipient: HELEN, figures: { ...FIG, areaEstimated: !v.ceilingSizeKnown, removalUpTo: 2055 }, links: LINKS } satisfies ReplyInput)!;
       expect(m).not.toBeNull();
       clean(`${JSON.stringify(v)} text`, m.plainText);
       clean(`${JSON.stringify(v)} html`, m.html.replace(/<[^>]+>/g, " "));
@@ -175,12 +175,25 @@ describe("old reply composer before release is spot-only", () => {
     readyCheck: null, piesa: null, install: null, quote: null, fixesQuoteSent: false, estimate: { fullPrice: 3798, rebate: 1610, youPay: 2188, areaM2: 137 },
     insulationDeclared: null, paymentDue: null, installHeldUntil: null, ownerLink: "https://estimate.homeinsulationvictoria.com.au/estimate/tok", matchedJobs: 1, ...o,
   });
-  const reply = (body: string, stage: string, spotSaved = true) => composeReply({ subject: "Re: HV-3150", body, from: "helen.sample@example.com", fromName: "Helen Sample", fromPartner: false, now: new Date("2026-10-26T01:00:00Z"), owner: facts(stage, { spotSaved }) } as never);
-  for (const stage of ["spot_saved", "preliminary_estimate_ready", "ready_check_ready_to_schedule"]) {
+  const reply = (body: string, stage: string, spotSaved = true) => composeReply({ subject: "Re: HV-3150", body, from: "helen.sample@example.com", fromName: "Helen Sample", fromPartner: false, now: new Date("2026-10-26T01:00:00Z"), owner: facts(stage, { spotSaved }) } satisfies ReplyInput);
+  for (const stage of ["spot_saved", "preliminary_estimate_ready", "ready_check_ready_to_schedule", "ready_check_awaiting_payment"]) {
     test(`status reply at ${stage}`, () => { const d = reply("Any update on my job?", stage); expect(d).not.toBeNull(); clean(stage, d!.text); expect(d!.text).toContain(SPOT_RELEASE_LINE); });
   }
   test("new enquiry reply", () => {
     const d = reply("Any update?", "preliminary_estimate_ready", false);
     expect(d).not.toBeNull(); expect(d!.type).toBe("new_enquiry"); clean("new_enquiry", d!.text);
+  });
+  const PRICE = "How much is the rebate and what would it cost?";
+  for (const stage of ["preliminary_estimate_ready", "spot_saved", "ready_check_awaiting_payment"]) {
+    test(`price and rebate reply at ${stage}`, () => {
+      const d = reply(PRICE, stage); expect(d!.type).toBe("price_rebate_eligibility"); clean(stage, d!.text);
+      expect(d!.text).toContain("the licensed electrician's safety check");
+    });
+  }
+  test("price and rebate reply after release is unchanged", () => {
+    const d = reply(PRICE, "ready_check_scheduled")!;
+    expect(d.type).toBe("price_rebate_eligibility");
+    expect(d.text).toContain("That includes the free Ready Check, the licensed electrician's safety check");
+    expect(d.text).toContain("before you agree to anything");
   });
 });

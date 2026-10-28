@@ -246,11 +246,8 @@ function ownerStatus(f: OwnerFacts, intents: EmailIntent[], now: Date): Built {
   const dueLine = (d: DueStep) => `The next step is your ${PAY_STEP_WORDS[d.key].what} of ${money(d.outstanding)}, ${d.cardAvailable ? PAY_STEP_WORDS[d.key].how : "by bank transfer or PayID"}.`;
   switch (f.stage) {
     // Decision 388: before release, spot-only wording (spot-only-copy.core).
-    case "spot_saved": case "ready_check_ready_to_schedule": case "preliminary_estimate_ready":
+    case "spot_saved": case "ready_check_ready_to_schedule": case "ready_check_awaiting_payment": case "preliminary_estimate_ready":
       lines.push("Your spot is saved.", SPOT_ORDER, SPOT_IN_TOUCH);
-      break;
-    case "ready_check_awaiting_payment":
-      lines.push("Your spot is saved.", "Certified installers are in high demand, so we book homes in the order people saved their spot.", "When an installer near you is free, they'll offer you times for your free Ready Check and we'll email them to you.");
       break;
     case "ready_check_awaiting_acceptance":
       lines.push("Your installer has offered times for your free Ready Check.");
@@ -348,6 +345,9 @@ function newEnquiry(f: OwnerFacts): Built {
 }
 
 // ---------- price_rebate_eligibility ----------
+/** Decision 388: stages before the spot is released (the composer's spot-only stages plus the enquiry stages). */
+const PRE_RELEASE_STAGES = new Set(["spot_saved", "ready_check_ready_to_schedule", "ready_check_awaiting_payment", "preliminary_estimate_ready"]);
+const isPreRelease = (f: OwnerFacts) => PRE_RELEASE_STAGES.has(f.stage) || isEnquiryStage(f.stage, f.spotSaved);
 function priceRebate(f: OwnerFacts): Built {
   const flags: string[] = [];
   const lines: string[] = [];
@@ -362,10 +362,11 @@ function priceRebate(f: OwnerFacts): Built {
     lines.push(officeConfirms("the price and rebate for your home"));
     flags.push("Missing: quote and estimate figures");
   }
-  lines.push("That includes the free Ready Check, the licensed electrician's safety check, premium R5.0 ceiling batts fitted by an EEC-certified installer, and all the rebate paperwork.");
+  const pre = isPreRelease(f);
+  lines.push(`That includes ${pre ? "" : "the free Ready Check, "}the licensed electrician's safety check, premium R5.0 ceiling batts fitted by an EEC-certified installer, and all the rebate paperwork.`);
   const extras = q
     ? "Electrical fixes aren't included and are only needed if the safety check finds any; they're quoted separately and nothing is done without your OK."
-    : "Not included, only if needed: removing old insulation, a ceiling access fee, electrical fixes, or a bigger ceiling than you told us, and you'll know the exact price before you agree to anything.";
+    : `Not included, only if needed: removing old insulation, a ceiling access fee, electrical fixes, or a bigger ceiling than you told us${pre ? "." : ", and you'll know the exact price before you agree to anything."}`;
   const rule = "The rebate is for homes over 5 years old where any insulation already in the ceiling is below R2.0.";
   let linkLine: string | null = null;
   lines.push(extras, rule);
