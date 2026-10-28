@@ -203,7 +203,7 @@ export function Credentials({ businessId, creds, isHivicAdmin, canAdd, onDone }:
   );
 }
 
-function Team({ businessId, members, workers, canEdit, onDone }: { businessId: string; members: { user_id: string; member_role: string; active: boolean; profiles: unknown }[]; workers: { id: string; profile_id: string | null; trade_role: "electrician" | "installer" | "property_manager"; full_legal_name: string; email: string; licence_number: string | null; qualification: string | null; account_status: string }[]; canEdit: boolean; onDone: () => void }) {
+function Team({ businessId, members, workers, canEdit, onDone }: { businessId: string; members: { user_id: string; member_role: string; active: boolean; profiles: unknown }[]; workers: { id: string; profile_id: string | null; trade_role: "electrician" | "installer" | "property_manager"; full_legal_name: string; email: string | null; licence_number: string | null; qualification: string | null; account_status: string }[]; canEdit: boolean; onDone: () => void }) {
   const add = useAction(addTeamMember);
   const remove = useAction(removeTeamMember);
   const [email, setEmail] = useState("");
