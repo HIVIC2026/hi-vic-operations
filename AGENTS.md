@@ -11,6 +11,7 @@
 
 - `docs/HIV_WORKFLOW_SOURCE_OF_TRUTH.md` + `src/config/workflow-decisions.ts` override older prompts/comments/labels; run `bun scripts/scan-retired-terms.ts` before workflow work. Pending DB changes live in `docs/pending-migrations/` and are proven on PGlite (`tests/helpers/pglite-*.ts`) before any live run. Why: stop retired rules returning and keep untested SQL off the live database.
 # Project rules
+- Declared coverage proposals live in a pure centroid-based core and are office-only suggestions saved through existing saveBusiness verification; matching never reads proposals. Why: partner declarations must not become verified coverage without office confirmation.
 - One-job TEST timing sweeps validate qa_test and suppress senders; browser runs persist a per-job no-delivery marker checked at delivery boundaries. Why: QA must not sweep other jobs or send from the running server.
 - Simulated Ready Check browser completion requires active installer assignment, reserved TEST identity, active qa_test job and exact simulated measurement pointer; it uses the normal Mitti read afterwards. Why: TEST completion must not open real forms or bypass workflow guards.
 - Historical Ready Check day links return to the job page after that visit is no longer current. Why: old bookings must not appear to be today's installation work.
