@@ -28,6 +28,7 @@ import { SMS_MESSAGE_TYPES } from "../src/lib/sms.core";
 import { INSULATION_DETAILS_REAL_SEND_APPROVED, SAVE_SPOT_REAL_SEND_APPROVED } from "../src/lib/hot-leads.core";
 import { INSULATION_QUESTIONS_SEND_APPROVED } from "../src/lib/insulation-questions-campaign.core";
 import { LAUNCH_COPY_APPROVED } from "../src/lib/launch-campaign.core";
+import { AI_BUSINESS_RULES_PRE_RELEASE, aiReplyInstructions, buildAiReplyInput } from "../src/lib/ai-email-reply.core";
 import { CUSTOMER_WHAT_COULD_CHANGE } from "../src/lib/customer-quote-system";
 
 const clean = (label: string, text: string) => expect({ label, found: preReleaseViolations(text) }).toEqual({ label, found: [] });
@@ -136,6 +137,14 @@ describe("pre-release page copy and shared constants", () => {
     const myEstimate = readFileSync("src/routes/my-estimate.$token.tsx", "utf8");
     expect(myEstimate).not.toContain("your Ready Check will confirm the measurements");
     expect(myEstimate).toContain("{d.bookingAllowed && <tr><td>Ready Check</td>");
+  });
+});
+
+describe("AI email drafts before release are spot-only", () => {
+  test("pre-release prompt, rules and input carry no forbidden phrase", () => {
+    clean("AI instructions", aiReplyInstructions({ preRelease: true }));
+    clean("AI rules", AI_BUSINESS_RULES_PRE_RELEASE.join("\n"));
+    clean("AI input", buildAiReplyInput({ jobNumber: null, ownerFirstName: null, stageLabel: "x", facts: [], links: [], changeLink: null, history: [], email: { from: null, subject: null, body: "" } }, { preRelease: true }));
   });
 });
 

@@ -7,7 +7,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MailMessage } from "./outlook-correspondence.core";
 import {
-  AI_EMAIL_DRAFTS_ENABLED, NO_REPLY_NEEDED, AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EDITED_EVENT, latestDraftEdits, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, AI_EMAIL_REPLY_PURPOSE, AI_REPLY_INSTRUCTIONS,
+  AI_EMAIL_DRAFTS_ENABLED, NO_REPLY_NEEDED, AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EDITED_EVENT, latestDraftEdits, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, AI_EMAIL_REPLY_PURPOSE, AI_REPLY_INSTRUCTIONS, aiReplyInstructions, isPreRelease,
   aiDraftKey, aiReplyEmailHtml, aiReplyProblems, aiReplyText, bookingChangeLink, buildAiReplyInput, finishAiReply, replySubject, type AiReplyKind,
 } from "./ai-email-reply.core";
 
@@ -45,10 +45,13 @@ export async function writeAiReplyDraft(p: { jobId: string; message: MailMessage
     const facts = await ownerJobFacts(p.jobId, owner.full_name ?? null, job.stage);
     const { data: hist } = await admin.from("job_communications").select("direction, subject, body, received_at, sent_at, created_at")
       .eq("job_id", p.jobId).eq("channel", "email").order("created_at", { ascending: true }).limit(40);
+    // Decision 388: anything short of a released AND confirmed spot gets the spot-only prompt; an unreadable state counts as not released.
+    const { spotReleaseStates } = await import("./spot-release.server");
+    const preRelease = isPreRelease((await spotReleaseStates([p.jobId]).catch(() => null))?.get(p.jobId) ?? null);
     const lines: string[] = [];
     lines.push(facts.spotSaved ? "Their spot is saved." : "Their spot is not saved yet.");
     if (facts.questionsAnswered) lines.push("They have answered the insulation questions.");
-    if (facts.nextVisit) lines.push(`Next booked visit: ${facts.nextVisit.kind === "piesa" ? "Pre Insulation Electrical Safety Assessment (PIESA)" : facts.nextVisit.kind === "install" ? "install day" : "Ready Check"} on ${slotText(facts.nextVisit.slot)}.`);
+    if (preRelease) { /* no visit talk before release */ } else if (facts.nextVisit) lines.push(`Next booked visit: ${facts.nextVisit.kind === "piesa" ? "Pre Insulation Electrical Safety Assessment (PIESA)" : facts.nextVisit.kind === "install" ? "install day" : "Ready Check"} on ${slotText(facts.nextVisit.slot)}.`);
     else lines.push("No visit is booked right now.");
     if (facts.quoteStatus) lines.push(`Quote: ${facts.quoteStatus === "issued" ? "sent, waiting for them to accept" : facts.quoteStatus}.`);
     lines.push(...(await estimateFacts(p.jobId)));
@@ -64,14 +67,16 @@ export async function writeAiReplyDraft(p: { jobId: string; message: MailMessage
       history: ((hist ?? []) as { direction: string; subject: string | null; body: string; received_at: string | null; sent_at: string | null; created_at: string }[])
         .map((h) => ({ direction: h.direction === "outbound" ? "outbound" as const : "inbound" as const, at: h.received_at ?? h.sent_at ?? h.created_at, subject: h.subject, body: h.body ?? "" })),
       email: { from: m.from, subject: m.subject, body: m.body },
-    });
-    const raw = await aiText(input);
+    }, { preRelease });
+    const raw = await aiText(input, aiReplyInstructions({ preRelease }));
     const noReply = raw.trim().replace(/[.\s]+$/, "") === NO_REPLY_NEEDED;
     const body = noReply ? "" : finishAiReply(raw);
+    // Checked again on Send; a draft that fails is still saved so the office can reword it.
+    const problems = noReply ? [] : aiReplyProblems(body, { preRelease });
     const { data: ins, error } = await loose.from("workflow_events").insert({ job_id: p.jobId, actor_id: null, event_type: AI_EMAIL_DRAFT_EVENT, internal: true,
       summary: noReply ? "No reply needed (owner said no thanks / thanks)" : `AI reply draft waiting for Jo (${p.kind === "simple" ? "simple email" : "needs a check"})`,
       details: { message_id: m.providerMessageId, thread_id: m.threadId, from: m.from, to: owner.email.trim(), their_subject: m.subject, subject: replySubject(m.subject),
-        body, kind: p.kind, reason: p.reason, idempotency_key: aiDraftKey(m.providerMessageId), ...(noReply ? { no_reply_needed: true } : {}) } }).select("id").single();
+        body, kind: p.kind, reason: p.reason, ...(problems.length ? { problems } : {}), idempotency_key: aiDraftKey(m.providerMessageId), ...(noReply ? { no_reply_needed: true } : {}) } }).select("id").single();
     if (error) throw new Error(error.message);
     // Jo 27 Oct 2026: a plain "no thanks" or "thanks" gets no reply; the draft is closed so the card just needs Done.
     if (noReply && ins) await loose.from("workflow_events").insert({ job_id: p.jobId, actor_id: null, event_type: AI_EMAIL_DRAFT_DISCARDED_EVENT, internal: true,
@@ -160,11 +165,16 @@ async function openDraft(eventId: string) {
 export async function sendAiDraft(eventId: string, body: string, actorId: string, now = new Date()): Promise<{ status: string }> {
   // Jo 27 Oct 2026: the office presses Send, so it goes whenever she chooses — no after-8pm hold on manual sends.
   void now;
-  const problems = aiReplyProblems(body);
-  if (problems.length) throw new Error(problems.join(" "));
+  const basic = aiReplyProblems(body);
+  if (basic.length) throw new Error(basic.join(" "));
   const ev = await openDraft(eventId);
   const { data: job } = await admin.from("jobs").select("id, source, owner_id").eq("id", ev.job_id).maybeSingle();
   if (!job) throw new Error("Job not found.");
+  // Decision 388: owners not yet released and confirmed get spot-only wording, checked again here (unreadable state = not released).
+  const { spotReleaseStates } = await import("./spot-release.server");
+  const preRelease = isPreRelease((await spotReleaseStates([job.id]).catch(() => null))?.get(job.id) ?? null);
+  const problems = aiReplyProblems(body, { preRelease });
+  if (problems.length) throw new Error(problems.join(" "));
   const { data: owner } = job.owner_id ? await admin.from("owners").select("email").eq("id", job.owner_id).maybeSingle() : { data: null };
   const to = (owner?.email ?? String(ev.details["to"] ?? "")).trim();
   if (!to) throw new Error("This owner has no email address.");
