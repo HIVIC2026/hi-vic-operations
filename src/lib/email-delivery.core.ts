@@ -1,5 +1,6 @@
 // Resend delivery updates: pure rules. Signature check follows Svix (what Resend uses), event mapping, plain bounce words.
 import { createHmac } from "node:crypto";
+import { OUR_DOMAINS, type MailMessage } from "./outlook-correspondence.core";
 
 export type DeliveryResult = "delivered" | "bounced";
 
@@ -36,4 +37,40 @@ export function resendEventResult(evt: { type: string; data?: { email_id?: strin
   if (evt.type === "email.delivered") return { emailId, result: "delivered", detail: null };
   if (evt.type === "email.bounced") return { emailId, result: "bounced", detail: bounceWords(evt.data?.bounce?.message ?? null) };
   return null;
+}
+
+/** An Outlook "couldn't be delivered" notice: inbound, from the mail system or with a bounce-style subject. */
+export function isBounceNotice(m: MailMessage): boolean {
+  if (m.direction !== "inbound") return false;
+  if (/mailer-daemon|postmaster|microsoftexchange/i.test(m.from ?? "")) return true;
+  return /^\s*(undeliverable:|delivery status notification \(failure\)|mail delivery failed)/i.test(m.subject ?? "");
+}
+
+/** The first address in the notice that is not ours and not the sender: the one that bounced. */
+export function bouncedAddress(m: MailMessage): string | null {
+  const from = (m.from ?? "").toLowerCase();
+  for (const found of m.body.matchAll(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi)) {
+    const e = found[0].toLowerCase().replace(/[.]+$/, "");
+    if (e === from || OUR_DOMAINS.some((d) => e.endsWith(`@${d.toLowerCase()}`))) continue;
+    return e;
+  }
+  return null;
+}
+
+const SEVEN_DAYS_MS = 7 * 24 * 3600 * 1000;
+
+/** Which Outlook reply bounced: sent to that address in the 7 days before the notice; subject match first, else newest. */
+export function matchBounce(
+  notice: { address: string; at: string; subject: string | null },
+  sent: { id: string; to: string; subject: string | null; sentAt: string }[],
+): string | null {
+  const at = Date.parse(notice.at);
+  const address = notice.address.toLowerCase();
+  const cands = sent
+    .map((s) => ({ s, t: Date.parse(s.sentAt) }))
+    .filter(({ s, t }) => s.to.toLowerCase() === address && Number.isFinite(t) && t <= at && at - t <= SEVEN_DAYS_MS)
+    .sort((a, b) => b.t - a.t);
+  const nSubject = (notice.subject ?? "").toLowerCase();
+  const bySubject = cands.find(({ s }) => !!s.subject?.trim() && nSubject.includes(s.subject.trim().toLowerCase()));
+  return (bySubject ?? cands[0])?.s.id ?? null;
 }

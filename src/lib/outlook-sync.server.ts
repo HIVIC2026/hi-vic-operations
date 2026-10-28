@@ -23,6 +23,7 @@ import {
   attachmentIdentityKey, attachmentStoragePath, ATTACHMENT_MAX_FILE_BYTES, ATTACHMENT_MAX_MESSAGE_BYTES,
   counterpartEmails, extractJobNumbers, isPortalDuplicate, matchMessage, normaliseMessage,
   planAttachments, type AttachmentRef, type CandidateJob, type GraphMessage, type MailMessage, type MatchResult, type StoredAttachmentRef,
+  OUR_DOMAINS,
 } from "./outlook-correspondence.core";
 import { EMAIL_UNMATCHED_EVENT, guessJobsForEmail, guessLookups, unmatchedSnippet, type GuessJob } from "./outlook-guess.core";
 import { EMAIL_CHANGE_REQUEST_EVENT, changeRequestLabel, officeRowNeeded, proposedChanges, recentEnoughForAction } from "./email-intent.core";
@@ -41,7 +42,6 @@ type SyncState = {
 };
 type WorkResult = { stored?: boolean; unmatched?: boolean; closed?: boolean; flagged?: boolean; duplicate?: boolean; ignored?: boolean; replayed?: boolean };
 type ClosureWindow = { inboxCompleteThrough: string | null; history?: boolean; backfillFrom?: string | null };
-const OUR_DOMAINS = ["homeinsulationvictoria.com.au"];
 const SELECT = "id,conversationId,internetMessageId,subject,body,bodyPreview,from,sender,toRecipients,ccRecipients,receivedDateTime,sentDateTime,hasAttachments,isDraft";
 const BUCKET = "job-files";
 
