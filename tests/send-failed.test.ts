@@ -112,3 +112,11 @@ describe("fixed failures are hidden", () => {
     expect(rows[0]!.text).not.toContain("Save my spot");
   });
 });
+
+describe("send failed reads are paged safely", () => {
+  test("failed + successful email and text reads have a fixed order, so no page skips a row", async () => {
+    const src = await Bun.file(new URL("../src/lib/office-needs.server.ts", import.meta.url)).text();
+    expect(src).toMatch(/\.in\("status", \[\.\.\.FAILED_EMAIL_STATUSES, \.\.\.SUCCESS_EMAIL_STATUSES\]\)\.gte\("created_at", since7\)\.order\("created_at"\)\.order\("id"\)\.range/);
+    expect(src).toMatch(/\.in\("status", \[\.\.\.FAILED_SMS_STATUSES, \.\.\.SUCCESS_SMS_STATUSES\]\)\.gte\("created_at", since7\)\.order\("created_at"\)\.order\("id"\)\.range/);
+  });
+});
