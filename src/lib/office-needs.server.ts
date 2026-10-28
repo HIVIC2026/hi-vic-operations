@@ -379,7 +379,10 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     const raisedIds = [...new Set(raised.map((e) => String(e["job_id"])).filter((id) => idSet.has(id)))];
     if (raisedIds.length) {
       const ev = await byIds("expired quote history", raisedIds, (c, a, b) => admin.from("workflow_events").select("job_id, event_type, created_at, details").in("job_id", c).in("event_type", ["quote_expired_not_emailable", "quote_expired_closed"]).range(a, b));
+      const live = await byIds("open quotes of expired-quote jobs", raisedIds, (c, a, b) => admin.from("quotes").select("job_id").in("job_id", c).eq("kind", "installation").in("status", ["issued", "accepted"]).range(a, b));
+      const liveIds = new Set(live.map((r) => String(r["job_id"])));
       for (const id of raisedIds) {
+        if (liveIds.has(id)) continue; // a newer quote is out or accepted: nothing to chase
         const hit = quoteExpiredBlockedFact(ev.filter((e) => e["job_id"] === id).map((e) => ({ event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as Record<string, unknown> | null })));
         const x = f(id); if (x && hit) x.quoteExpiredBlocked = hit;
       }

@@ -16,6 +16,7 @@ function fakeAdmin() {
         eq(c: string, v: unknown) { preds.push((r) => get(r, c) === v); return b; },
         neq(c: string, v: unknown) { preds.push((r) => get(r, c) !== v); return b; },
         not(c: string, _o: string, v: unknown) { preds.push((r) => get(r, c) !== v); return b; },
+        contains(c: string, v: Row) { preds.push((r) => Object.entries(v).every(([k, x]) => ((get(r, c) as Row | null)?.[k]) === x)); return b; },
         in(c: string, v: unknown[]) { preds.push((r) => v.includes(get(r, c))); return b; },
         gte(c: string, v: string) { preds.push((r) => String(get(r, c)) >= v); return b; },
         is(c: string, v: unknown) { preds.push((r) => (get(r, c) ?? null) === v); return b; },
@@ -36,6 +37,7 @@ mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: fak
 const events: { jobId: string; type: string; summary: string }[] = [];
 let evClock = Date.parse("2026-03-20T00:00:00Z");
 mock.module("../src/lib/workflow.server", () => ({ logEvent: async (jobId: string, _a: unknown, type: string, summary: string, details: Row = {}) => {
+  if (failMarker && type === "quote_expired_cancelled") throw new Error("write failed");
   events.push({ jobId, type, summary });
   evClock += 1000; (tables["workflow_events"] ??= []).push({ id: crypto.randomUUID(), job_id: jobId, event_type: type, summary, details, created_at: new Date(evClock).toISOString() });
 } }));
@@ -44,10 +46,10 @@ mock.module("../src/lib/office-actions.server", () => ({
   cancelJobFully: async (jobId: string, reason: string, actor: unknown, opts: unknown) => {
     if (cancelFails) { cancelFails = false; throw new Error("boom"); }
     cancels.push({ jobId, reason, actor, opts });
-    const j = tables["jobs"]!.find((x) => x["id"] === jobId); if (j) j["stage"] = "cancelled";
+    const j = tables["jobs"]!.find((x) => x["id"] === jobId); if (j) { j["stage"] = "cancelled"; j["cancelled_reason"] = reason; }
   },
 }));
-let cancelFails = false; let deliveryAllowed = true; let consent = true; let linkOk = true; let emailFailsOnce = false;
+let failMarker = false; let cancelFails = false; let deliveryAllowed = true; let consent = true; let linkOk = true; let emailFailsOnce = false;
 mock.module("../src/lib/comms.server", () => ({
   assertCustomerDeliveryAllowed: async () => { if (!deliveryAllowed) throw new Error("Customer messages are switched off"); },
   customerCommsEnabled: async () => deliveryAllowed, hasCurrentOwnerContactConsent: async () => consent,
@@ -72,7 +74,7 @@ const OLD = "2026-02-28T23:00:00Z";
 
 function seed(over: { stage?: string; source?: string; others?: string[] } = {}) {
   for (const k of Object.keys(tables)) delete tables[k];
-  sent.length = 0; cancels.length = 0; events.length = 0; once.clear(); deliveryAllowed = true; consent = true; linkOk = true; cancelFails = false; emailFailsOnce = false;
+  sent.length = 0; cancels.length = 0; events.length = 0; once.clear(); deliveryAllowed = true; consent = true; linkOk = true; cancelFails = false; emailFailsOnce = false; failMarker = false;
   tables["jobs"] = [{ id: "J1", stage: over.stage ?? "quoted", source: over.source ?? "website", owners: { full_name: "Helen Smith", email: "helen@example.com" }, properties: { address_line: "12 Example St", suburb: "Sampletown" } }];
   tables["quotes"] = [{ id: "Q1", job_id: "J1", kind: "installation", status: "issued", sent_at: OLD, expired_at: null, nudge_day3_at: "x", nudge_day10_at: "y" },
     ...(over.others ?? []).map((s, i) => ({ id: `QX${i}`, job_id: "J1", kind: "installation", status: s, sent_at: null, nudge_day3_at: null, nudge_day10_at: null }))];
@@ -171,6 +173,63 @@ describe("expired quote closes the job and emails the owner once", () => {
     expect(cancels.length).toBe(1); expect(sent.length).toBe(1);
     const evs = (tables["workflow_events"] ?? []).map((e) => ({ event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: e["details"] as Row }));
     expect(quoteExpiredBlockedFact(evs)).toBeNull();
+  });
+  test("office reopens the job after a close whose email failed: no second cancel, no email, row cleared", async () => {
+    emailFailsOnce = true;
+    await sweepQuoteExpiry(NOW);
+    expect(cancels.length).toBe(1);
+    tables["jobs"]![0]!["stage"] = "quoted"; tables["jobs"]![0]!["cancelled_reason"] = null; // office reopened
+    await sweepQuoteExpiry(NOW); await sweepQuoteExpiry(NOW);
+    expect(cancels.length).toBe(1); expect(sent.length).toBe(0);
+    const closed = (tables["workflow_events"] ?? []).filter((e) => e["event_type"] === "quote_expired_closed");
+    expect(closed.length).toBe(1); expect((closed[0]!["details"] as Row)["superseded_by_office"]).toBe(true);
+  });
+  test("job cancelled for a different reason after our close: nothing more is done", async () => {
+    emailFailsOnce = true;
+    await sweepQuoteExpiry(NOW);
+    tables["jobs"]![0]!["cancelled_reason"] = "Owner changed their mind";
+    await sweepQuoteExpiry(NOW);
+    expect(cancels.length).toBe(1); expect(sent.length).toBe(0);
+  });
+  const blockedFact = () => quoteExpiredBlockedFact((tables["workflow_events"] ?? []).map((e) => ({ event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: e["details"] as Row })));
+  test("the blocked row clears when the job gets a newer issued or accepted installation quote", async () => {
+    for (const status of ["issued", "accepted"]) {
+      seed(); consent = false;
+      await sweepQuoteExpiry(NOW);
+      expect(blockedFact()).not.toBeNull();
+      (tables["quotes"] ??= []).push({ id: "QN", job_id: "J1", kind: "installation", status, sent_at: null, expired_at: null });
+      await sweepQuoteExpiry(NOW);
+      expect(blockedFact()).toBeNull(); expect(cancels.length).toBe(0); expect(sent.length).toBe(0);
+    }
+  });
+  test("the blocked row clears when the job is closed by someone else", async () => {
+    consent = false;
+    await sweepQuoteExpiry(NOW);
+    expect(blockedFact()).not.toBeNull();
+    tables["jobs"]![0]!["stage"] = "cancelled"; tables["jobs"]![0]!["cancelled_reason"] = "Owner declined";
+    await sweepQuoteExpiry(NOW);
+    expect(blockedFact()).toBeNull(); expect(cancels.length).toBe(0); expect(sent.length).toBe(0);
+  });
+  test("the blocked row clears when the quote falls out of the 14-day window", async () => {
+    consent = false;
+    await sweepQuoteExpiry(NOW);
+    expect(blockedFact()).not.toBeNull();
+    consent = true;
+    await sweepQuoteExpiry(new Date("2026-04-04T00:00:00Z")); // 15 days later, daytime
+    expect(blockedFact()).toBeNull();
+    const closed = (tables["workflow_events"] ?? []).filter((e) => e["event_type"] === "quote_expired_closed");
+    expect((closed[0]!["details"] as Row)["abandoned"]).toBe(true);
+    expect(cancels.length).toBe(0); expect(sent.length).toBe(0);
+  });
+  test("a quote that expired before this change (no marker) is never closed or emailed", async () => {
+    tables["quotes"]![0]!["status"] = "expired"; tables["quotes"]![0]!["expired_at"] = "2026-03-18T00:00:00Z";
+    await sweepQuoteExpiry(NOW);
+    expect(cancels.length).toBe(0); expect(sent.length).toBe(0);
+  });
+  test("a failed marker write after a successful cancel still sends the email in the same run", async () => {
+    failMarker = true;
+    await sweepQuoteExpiry(NOW);
+    expect(cancels.length).toBe(1); expect(sent.length).toBe(1);
   });
   test("night time: 9pm marks expired but does not close; 7:15am does", async () => {
     await sweepQuoteExpiry(new Date("2026-03-20T10:00:00Z")); // 9:00pm Melbourne

@@ -18,7 +18,8 @@ export async function sweepQuoteExpiry(now: Date = new Date()) {
     if (act === "expire") {
       const { data: u } = await admin.from("quotes").update({ status: "expired", expired_at: iso }).eq("id", q.id).eq("status", "issued").select("id").maybeSingle();
       if (u) {
-        await logEvent(q.job_id, null, "quote_expired", "Installation quote expired: not accepted within 14 days", { quote_id: q.id }, { internal: true });
+        // close_pending: only quotes expired by this sweep are ever closed/emailed (older expired quotes are left alone).
+        await logEvent(q.job_id, null, "quote_expired", "Installation quote expired: not accepted within 14 days", { quote_id: q.id, close_pending: true }, { internal: true });
         expired++;
       }
       continue;
@@ -32,15 +33,26 @@ export async function sweepQuoteExpiry(now: Date = new Date()) {
     await logEvent(q.job_id, null, "quote_nudge", `Day ${day} since the quote (record only — the owner's reminders are the approved quote reminder email and text)`, { quote_id: q.id, day }, { internal: true });
     nudges++;
   }
-  // Close pass: every recently expired quote whose close + email is not finished (first attempt, night-time wait, failure).
+  // Close pass: quotes this sweep expired (close_pending) whose close + email is not finished (first attempt, night wait, failure).
   let closed = 0;
-  const since = new Date(now.getTime() - QUOTE_CLOSE_RETRY_DAYS * 86_400_000).toISOString();
-  const { data: exp } = await admin.from("quotes").select("id, job_id").eq("kind", "installation").eq("status", "expired").gte("expired_at", since).limit(500);
-  const pending = exp ?? [];
-  if (pending.length && !quoteCloseQuietReason(iso)) {
-    const { data: done } = await admin.from("workflow_events").select("job_id, details").in("job_id", pending.map((p) => p.job_id)).eq("event_type", QUOTE_EXPIRED_CLOSED_EVENT);
-    const doneQuotes = new Set((done ?? []).map((e) => String((e.details as { quote_id?: string } | null)?.quote_id)));
-    for (const q of pending) if (!doneQuotes.has(q.id) && (await closeOnExpiry(q.job_id, q.id))) closed++;
+  const day = 86_400_000;
+  const { data: marks } = await admin.from("workflow_events").select("job_id, created_at, details").eq("event_type", "quote_expired").contains("details", { close_pending: true }).gte("created_at", new Date(now.getTime() - (QUOTE_CLOSE_RETRY_DAYS + 7) * day).toISOString()).order("created_at", { ascending: true }).limit(1000);
+  const pending = (marks ?? []).map((m) => ({ jobId: String(m.job_id), quoteId: String((m.details as { quote_id?: string } | null)?.quote_id), at: String(m.created_at) }));
+  const doneQuotes = new Set<string>();
+  const jobIds = [...new Set(pending.map((p) => p.jobId))];
+  for (let i = 0; i < jobIds.length; i += 100) {
+    const { data: done } = await admin.from("workflow_events").select("job_id, details").in("job_id", jobIds.slice(i, i + 100)).eq("event_type", QUOTE_EXPIRED_CLOSED_EVENT);
+    for (const e of done ?? []) doneQuotes.add(String((e.details as { quote_id?: string } | null)?.quote_id));
+  }
+  const windowStart = now.getTime() - QUOTE_CLOSE_RETRY_DAYS * day;
+  const quiet = !!quoteCloseQuietReason(iso);
+  for (const p of pending) {
+    if (doneQuotes.has(p.quoteId)) continue;
+    if (Date.parse(p.at) < windowStart) { // fell out of the retry window without closing: stop trying, clear any Needs me row
+      await logEvent(p.jobId, null, QUOTE_EXPIRED_CLOSED_EVENT, "The expired quote fell out of the 14-day close window without closing the job", { quote_id: p.quoteId, abandoned: true }, { internal: true }).catch(() => undefined);
+      continue;
+    }
+    if (!quiet && (await closeOnExpiry(p.jobId, p.quoteId))) closed++;
   }
   return { expired, nudges, closed };
 }
@@ -49,15 +61,18 @@ export async function sweepQuoteExpiry(now: Date = new Date()) {
 async function closeOnExpiry(jobId: string, quoteId: string): Promise<boolean> {
   try {
     const [{ data: job }, { data: others }, { data: mine }] = await Promise.all([
-      admin.from("jobs").select("stage").eq("id", jobId).maybeSingle(),
+      admin.from("jobs").select("stage, cancelled_reason").eq("id", jobId).maybeSingle(),
       admin.from("quotes").select("status").eq("job_id", jobId).eq("kind", "installation").neq("id", quoteId),
       admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", QUOTE_EXPIRED_CANCELLED_EVENT),
     ]);
-    const cancelledByUs = (mine ?? []).some((e) => (e.details as { quote_id?: string } | null)?.quote_id === quoteId);
-    if (job?.stage === "cancelled" && cancelledByUs) {
+    const hasMarker = (mine ?? []).some((e) => (e.details as { quote_id?: string } | null)?.quote_id === quoteId);
+    const cancelledByUs = job?.stage === "cancelled" && job.cancelled_reason === QUOTE_EXPIRED_CANCEL_REASON;
+    const finish = async (details: Record<string, unknown>, why: string) => { await logEvent(jobId, null, QUOTE_EXPIRED_CLOSED_EVENT, why, { quote_id: quoteId, ...details }, { internal: true }); return false; };
+    if (hasMarker && !cancelledByUs) return finish({ superseded_by_office: true }, "The job was reopened or closed another way after the expired-quote close: nothing more to do");
+    if (cancelledByUs) {
       // The close happened on an earlier run; only the email is left.
     } else {
-      if (!shouldCloseOnExpiry(job?.stage, (others ?? []).map((o) => String(o.status)))) return false;
+      if (!shouldCloseOnExpiry(job?.stage, (others ?? []).map((o) => String(o.status)))) return finish({ not_needed: true }, "The expired quote no longer needs to close the job (job already closed, or another quote is open)");
       const { quoteExpiredDeliverable } = await import("./quote-expired-email.server");
       const d = await quoteExpiredDeliverable(jobId);
       if (!d.ok) {
@@ -68,7 +83,8 @@ async function closeOnExpiry(jobId: string, quoteId: string): Promise<boolean> {
         return false;
       }
       await (await import("./office-actions.server")).cancelJobFully(jobId, QUOTE_EXPIRED_CANCEL_REASON, null, { tell: { owner: false, installer: true } });
-      await logEvent(jobId, null, QUOTE_EXPIRED_CANCELLED_EVENT, "Job closed: the installation quote expired", { quote_id: quoteId }, { internal: true });
+      // A failed marker write must not stop the email this run (the job is closed with our reason either way).
+      await logEvent(jobId, null, QUOTE_EXPIRED_CANCELLED_EVENT, "Job closed: the installation quote expired", { quote_id: quoteId }, { internal: true }).catch(() => undefined);
     }
     const out = await (await import("./quote-expired-email.server")).sendQuoteExpiredEmail(jobId, quoteId);
     if (quoteExpiredEmailRetriable(out)) { await logEvent(jobId, null, "quote_expired_close_failed", `Expired quote email did not go out (will retry): ${out}`, { quote_id: quoteId }, { internal: true }).catch(() => undefined); return false; }
