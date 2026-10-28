@@ -39,7 +39,13 @@ function tables(stage = "assessment_booked"): Tables {
   };
 }
 let T = tables();
-mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: (t: string) => memoryPostgrest(T).from(t), rpc: async () => ({ data: null, error: null }) } }));
+// Final review minor: a failed remove write must stop before the log and the rebuild.
+let failItemUpdate = false;
+mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: (t: string) => {
+  const b = memoryPostgrest(T).from(t) as unknown as Record<string, unknown>;
+  if (failItemUpdate && t === "rectification_items") b["update"] = () => ({ eq: async () => ({ data: null, error: { message: "the database is down" } }) });
+  return b;
+}, rpc: async () => ({ data: null, error: null }) } }));
 mock.module("@tanstack/react-start", () => ({
   createServerFn: () => {
     let validate: (d: unknown) => unknown = (d) => d;
@@ -283,6 +289,22 @@ describe("a removed unpriced item no longer blocks", () => {
     await expect((await fns())["removeRectItem"]!({ data: { itemId: ITEM }, context: ctx(BOSS) })).rejects.toThrow("A quote needs at least one item. To cancel the repairs, contact the office.");
     expect(T["rectification_items"]!.find((r) => r["id"] === ITEM)!["status"]).toBe("required");
     expect(JSON.stringify([T["quotes"], T["quote_items"]])).toBe(quoteBefore);
+    expect(regenerated).toEqual([]);
+    expect(T["workflow_events"]!.map((e) => e["event_type"])).not.toContain("rectification_item_removed");
+  });
+
+  test("a failed remove write: refused with a plain message, nothing logged, no rebuild", async () => {
+    T = tables("awaiting_owner_rectification_approval");
+    regenerated.length = 0;
+    draftQuote(0);
+    await (await fns())["addOtherRectItem"]!({ data: other(), context: ctx(STAFF) });
+    newItem()!["status"] ??= "required";
+    regenerated.length = 0;
+    failItemUpdate = true;
+    try {
+      await expect((await fns())["removeRectItem"]!({ data: { itemId: newItem()!["id"] }, context: ctx(STAFF) })).rejects.toThrow("The item could not be removed. Please try again.");
+    } finally { failItemUpdate = false; }
+    expect(newItem()!["status"]).toBe("required");
     expect(regenerated).toEqual([]);
     expect(T["workflow_events"]!.map((e) => e["event_type"])).not.toContain("rectification_item_removed");
   });
