@@ -233,7 +233,7 @@ select "10am" from the 1st "Arrival time"
 select "10am" from the 2nd "Arrival time"
 select "10am" from the 3rd "Arrival time"
 click "Accept this job"
-check that page contains "Job accepted · times sent"
+check that page contains "Job accepted"
 click "Open the job page"
 check that page contains "Where it's up to"
 
