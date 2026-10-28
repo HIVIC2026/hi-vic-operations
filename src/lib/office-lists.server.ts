@@ -13,7 +13,7 @@ import { CATEGORY_RANK, categoryCounts, enquiryCategory, inView, ownerWrote, typ
 import { FIRST_RESPONSE_PURPOSES } from "./automatic-first-response.core";
 import { readAutoOfferSwitches } from "./auto-offer.server";
 import type { OfficeStatus } from "./office-status.core";
-import { areaCell, costCell, daysAtStage, insulationYesNo, laneOf, matchesJobsFilters, nextStep, type JobsColumnFilters, type JobsColumnRow, type JobsLane } from "./jobs-columns.core";
+import { activeJobInstaller, laneCounts, areaCell, costCell, daysAtStage, insulationYesNo, laneOf, matchesJobsFilters, nextStep, type JobsColumnFilters, type JobsColumnRow, type JobsLane } from "./jobs-columns.core";
 import {
   insulationChip, lastHeardChip, pageOf, rankByPriority, regionChip, sizeChip, sortRows, sourceChip,
   type InsulationChip, type LastHeardChip, type RegionChip, type SizeChip, type SortDir, type SourceChip,
@@ -209,19 +209,23 @@ export type JobsListRow = JobsColumnRow & {
 
 /** Tab badges: active jobs per lane (real jobs only; `testJobIds` = the TEST office, which counts only its own test jobs). */
 export async function loadJobsLaneCounts(testJobIds?: string[]): Promise<{ ours: number; installer: number }> {
-  if (testJobIds) {
-    const rows = await all("TEST lane counts", (a, b) => admin.from("jobs").select("id, channel")
-      .eq("source", "qa_test").is("deleted_at", null).is("qa_archived_at", null)
-      .in("id", testJobIds.length ? testJobIds : ["00000000-0000-0000-0000-000000000000"])
-      .not("stage", "in", "(new_enquiry,eligibility_review,preliminary_estimate_ready,complete,cancelled)").order("id").range(a, b));
-    const installer = rows.filter((r) => laneOf(s(r["channel"])) === "installer").length;
-    return { ours: rows.length - installer, installer };
-  }
-  // office_job_list is the shared office bucket view (not in the generated client types).
-  const view = () => (admin as unknown as { from: (t: string) => any }).from("office_job_list").select("id", { count: "exact", head: true }).eq("office_bucket", "active").or("source.is.null,source.neq.qa_test"); // eslint-disable-line @typescript-eslint/no-explicit-any
-  const [total, installer] = await Promise.all([view(), view().eq("channel", "installer_sourced")]);
-  if (total.error || installer.error) throw new Error(`Could not count jobs: ${(total.error ?? installer.error).message}`);
-  return { ours: (total.count ?? 0) - (installer.count ?? 0), installer: installer.count ?? 0 };
+  // Same rule as the list's `all` (activeJobLane): deleted / archived and stage-less jobs are not counted. Light reads only.
+  const base: Row[] = testJobIds ? await all("TEST lane counts", (a, b) => admin.from("jobs")
+    .select("id,stage,channel,businesses!jobs_originating_installer_business_id_fkey(name)")
+    .eq("source", "qa_test").is("deleted_at", null).is("qa_archived_at", null)
+    .in("id", testJobIds.length ? testJobIds : ["00000000-0000-0000-0000-000000000000"])
+    .not("stage", "in", "(new_enquiry,eligibility_review,preliminary_estimate_ready,complete,cancelled)").order("id").range(a, b))
+    .then(rows => rows.map(r => ({ ...r, installer_name: null, originating_business_name: (r["businesses"] as { name?: string } | null)?.name })))
+    // office_job_list is the shared office bucket view (not in the generated client types).
+    : await all("active job lanes", (a, b) => (admin as unknown as { from: (t: string) => any }).from("office_job_list") // eslint-disable-line @typescript-eslint/no-explicit-any
+      .select("id, stage, channel, installer_name, originating_business_name").eq("office_bucket", "active").or("source.is.null,source.neq.qa_test").order("id").range(a, b));
+  const extra = await byIds("job facts", base.map((r) => String(r["id"])), (c, f, t) => admin.from("jobs").select("id, prior_stage, deleted_at, qa_archived_at").in("id", c).range(f, t));
+  const ex = new Map(extra.map((r) => [String(r["id"]), r]));
+  return laneCounts(base.flatMap((r) => {
+    const e = ex.get(String(r["id"]));
+    if (!e) return [];
+    return [{ channel: s(r["channel"]), stage: s(r["stage"]), priorStage: s(e["prior_stage"]), installerName: s(r["installer_name"]), originatingName: s(r["originating_business_name"]), deleted: !!(e["deleted_at"] || e["qa_archived_at"]) }];
+  }));
 }
 
 export async function loadActiveJobsList(p: JobsListParams, testJobIds?: string[]) {
@@ -268,7 +272,7 @@ export async function loadActiveJobsList(p: JobsListParams, testJobIds?: string[
     const e = ex.get(id)!;
     const prop = e["properties"] as { suburb: string | null; postcode: string | null; answers: Record<string, unknown> | null } | null;
     const ownJob = r["channel"] === "installer_sourced";
-    const installer = s(r["installer_name"]) ?? (ownJob ? s(r["originating_business_name"]) : null);
+    const installer = activeJobInstaller(s(r["channel"]), s(r["installer_name"]), s(r["originating_business_name"]));
     const stage = jobsStage({ stage: s(r["stage"]), priorStage: s(e["prior_stage"]), hasInstaller: !!installer });
     if (!stage) continue;
     const last = heard.last.get(id) ?? null;

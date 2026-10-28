@@ -3,10 +3,27 @@
 import type { OfficeStatus, WaitingOn } from "./office-status.core";
 import { LAST_HEARD_LABEL, type InsulationChip, type LastHeardChip } from "./office-filters.core";
 import { inRange, textHit, type ListColumn, type Range } from "./enquiry-columns.core";
-import { JOBS_STAGES, type JobsStage } from "./office-jobs.core";
+import { JOBS_STAGES, jobsStage, type JobsStage } from "./office-jobs.core";
 
 export type JobsLane = "ours" | "installer";
 export const laneOf = (channel: string | null): JobsLane => (channel === "installer_sourced" ? "installer" : "ours");
+
+/** The installer shown for an active job: the assigned one, else (installer jobs) the business that sent it. */
+export const activeJobInstaller = (channel: string | null, installerName: string | null, originatingName: string | null): string | null =>
+  installerName ?? (channel === "installer_sourced" ? originatingName : null);
+
+export type ActiveJobFacts = { channel: string | null; stage: string | null; priorStage: string | null; installerName: string | null; originatingName: string | null; deleted: boolean };
+/** The one rule for "is this an active job on a Jobs page, and in which lane": the list's `all` and the menu counts both use it. */
+export function activeJobLane(j: ActiveJobFacts): JobsLane | null {
+  if (j.deleted) return null;
+  const stage = jobsStage({ stage: j.stage, priorStage: j.priorStage, hasInstaller: !!activeJobInstaller(j.channel, j.installerName, j.originatingName) });
+  return stage ? laneOf(j.channel) : null;
+}
+export function laneCounts(jobs: ActiveJobFacts[]): { ours: number; installer: number } {
+  const c = { ours: 0, installer: 0 };
+  for (const j of jobs) { const l = activeJobLane(j); if (l) c[l]++; }
+  return c;
+}
 
 export type YesNo = "yes" | "no";
 export const insulationYesNo = (c: InsulationChip): YesNo => (c === "no" ? "no" : "yes");
