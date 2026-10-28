@@ -68,11 +68,11 @@ mock.module("../src/lib/mitti-pickup.server", () => ({
 }));
 
 // TEST people are routed to the persistent simulator; here it is a recorder so the routing can be seen.
-const simHolder: { call: ((m: string, p: string, b?: unknown) => Promise<unknown>) | null; calls: string[] } = { call: null, calls: [] };
+const simHolder: { call: ((m: string, p: string, b?: unknown) => Promise<unknown>) | null; calls: string[]; bodies: unknown[] } = { call: null, calls: [], bodies: [] };
 const realSim = await import("../src/lib/mitti-sim-store.server");
 mock.module("../src/lib/mitti-sim-store.server", () => ({
   ...realSim,
-  persistentSimMittiCall: async (m: string, p: string, b?: unknown) => { simHolder.calls.push(`${m} ${p}`); return simHolder.call!(m, p, b); },
+  persistentSimMittiCall: async (m: string, p: string, b?: unknown) => { simHolder.calls.push(`${m} ${p}`); simHolder.bodies.push(b); return simHolder.call!(m, p, b); },
 }));
 
 // Office alert plumbing (same fakes as office-alert-email.test.ts).
@@ -90,6 +90,8 @@ globalThis.fetch = (async (url: string, init: { body: string }) => {
   gateway.push(JSON.parse(init.body)); return new Response(JSON.stringify({ id: "msg_1" }), { status: 200 });
 }) as never;
 process.env["RESEND_API_KEY"] = "k"; process.env["LOVABLE_API_KEY"] = "g";
+// A real-looking token, so a call that wrongly goes to real Mitti reaches fetch (and shows up in `outbound`).
+process.env["MITTI_API_TOKEN"] = "token-for-tests";
 
 const { MITTI_TEMPLATE_ID } = await import("../src/lib/mitti.core");
 const M = await import("../src/lib/mitti.server");
@@ -172,7 +174,7 @@ const at = (minutes: number) => { clock.now = T0 + minutes * 60_000; return new 
 const profile = { full_name: "Ivan Installer (Local)", email: TRADE_EMAIL };
 
 /** Per-kind job set-up, and the call that makes the form first time round. */
-function setup(kind: Kind, o: { source?: string } = {}) {
+function setup(kind: Kind, o: { source?: string; testPartner?: boolean } = {}) {
   for (const k of Object.keys(T)) delete T[k];
   scopeName = kind === "piesa" ? "FULL" : "MEASURE_UP_ONLY";
   const stage = { ready_check: "ready_check_scheduled", piesa: "piesa_scheduled", fixes: "piesa_complete", install_day: "installation_booked" }[kind];
@@ -181,7 +183,7 @@ function setup(kind: Kind, o: { source?: string } = {}) {
     jobs: [{ id: JOB, job_number: "HV-9001", business_unit: "hivic", stage, estimated_area_m2: 80, life_support: false, life_support_status: "no", property_id: "p1", owner_id: "o1", channel: kind === "ready_check" ? "installer_sourced" : "web", source: o.source ?? "installer", originating_installer_business_id: BIZ }],
     properties: [{ id: "p1", address_line: "3 Fixture Road", suburb: "Stubbington", state: "VIC", postcode: "3997", occupancy: "owner_occupied", enrichment: {} }],
     owners: [{ id: "o1", full_name: "Harriet Homeowner (Local)", email: "homeowner@hivic-local.test", phone: "0400000002" }],
-    job_assignments: [{ job_id: JOB, role, active: true, user_id: TRADE, business_id: BIZ, profiles: profile, businesses: { name: "Ivan Sparks P/L", onboarding_notes: null } }],
+    job_assignments: [{ job_id: JOB, role, active: true, user_id: TRADE, business_id: BIZ, profiles: profile, businesses: { name: "Ivan Sparks P/L", onboarding_notes: o.testPartner ? "[TEST PARTNER] practice" : null } }],
     profiles: [{ id: TRADE, ...profile }],
     businesses: [{ id: BIZ, mitti_account_invited: true }],
     workflow_settings: [{ id: 1, mitti_ready_check_template_id: MITTI_TEMPLATE_ID, mitti_ready_check_priced_template_id: MITTI_TEMPLATE_ID, mitti_piesa_template_id: MITTI_TEMPLATE_ID, mitti_piisa_template_id: A2_UUID, mitti_fixes_template_id: A2_UUID, auto_send_mitti: true }],
@@ -217,7 +219,7 @@ const sweepWith = (m: { call: never }, minutes: number) => runMittiRetrySweep({ 
 beforeEach(() => {
   setup("ready_check");
   clock.now = T0; commsOn = true; commsThrows = false;
-  gateway.length = 0; testSends.length = 0; outbound.length = 0; linkCalls.length = 0; simHolder.calls.length = 0; simHolder.call = null;
+  gateway.length = 0; testSends.length = 0; outbound.length = 0; linkCalls.length = 0; simHolder.calls.length = 0; simHolder.bodies.length = 0; simHolder.call = null;
 });
 
 describe("the retry sweep", () => {
@@ -431,3 +433,26 @@ describe("6. every kind of form passes the fail-then-retry case, and the lost-re
     });
   }
 });
+
+describe("C2: TEST-job PIESA retries", () => {
+  for (const variant of ["qa_test job", "TEST partner"] as const) {
+    test(`a ${variant} PIESA retry only reaches the simulator and the TEST Mitti account`, async () => {
+      setup("piesa", variant === "qa_test job" ? { source: "qa_test" } : { testPartner: true });
+      clock.now = T0;
+      // the first attempt, assigned like the booking does it (TEST assignee), loses its reply
+      const r0 = await M.createAssignMittiAudit(JOB, null, fakeMitti({ kind: "piesa", create: "timeout" }).call, { assignee: { userId: TRADE, fullName: null, email: TEST_MITTI_ASSIGNEE } }).catch((e) => e);
+      expect(r0).toBeInstanceOf(MittiOutcomeUncertain);
+      expect((events(CLAIM_EVENT)[0]!.details as { assignee_email: string }).assignee_email).toBe(TEST_MITTI_ASSIGNEE);
+      const sim = fakeMitti({ kind: "piesa" });
+      simHolder.call = sim.call as never;
+      const r = await runMittiRetrySweep({ now: at(3) }); // the real caller: routing decides
+      expect(r).toMatchObject({ retried: 1, alerted: 0 });
+      expect(sim.creates()).toBe(1);
+      expect(outbound).toEqual([]); // never real Mitti
+      const searched = simHolder.bodies.flatMap((b) => ((b as { email?: string[] } | undefined)?.email ?? []));
+      expect(searched.length).toBeGreaterThan(0);
+      expect(new Set(searched)).toEqual(new Set([TEST_MITTI_ASSIGNEE]));
+    });
+  }
+});
+

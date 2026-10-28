@@ -132,13 +132,20 @@ async function handleCase(c: FailureCase, events: WorkflowEventRow[], opts: Retr
   const claimAt = Date.parse(String(claim?.created_at ?? ""));
   if (!claim || !templateId || !email || Number.isNaN(claimAt)) { await alertOffice(c, "Could not tell what the failed attempt was making, so nothing was retried. " + c.detail, counts); return; }
 
-  const { data: job } = await admin.from("jobs").select("id, job_number, property_id, owner_id").eq("id", c.jobId).maybeSingle();
-  const [{ data: prop }, { data: owner }] = await Promise.all([
+  const { data: job } = await admin.from("jobs").select("id, job_number, property_id, owner_id, source").eq("id", c.jobId).maybeSingle();
+  const [{ data: prop }, { data: owner }, { data: asg }] = await Promise.all([
     job?.property_id ? admin.from("properties").select("address_line, suburb, state, postcode").eq("id", job.property_id).maybeSingle() : Promise.resolve({ data: null }),
     job?.owner_id ? admin.from("owners").select("full_name").eq("id", job.owner_id).maybeSingle() : Promise.resolve({ data: null }),
+    admin.from("job_assignments").select("user_id, businesses(onboarding_notes)").eq("job_id", c.jobId).eq("role", TRADE_ROLE[c.kind]).eq("active", true).maybeSingle(),
   ]);
   const siteAddress = formatPropertyAddress(prop as never), homeownerName = str(owner?.full_name);
   if (!job?.job_number || !siteAddress || !homeownerName) { await alertOffice(c, "The job's number, address or owner name is missing, so Mitti could not be checked for an existing form. " + c.detail, counts); return; }
+
+  // TEST jobs (qa_test, TEST partners) only ever use the TEST Mitti account: never retry one that was aimed elsewhere.
+  const { isTestPartner } = await import("./test-send.core");
+  const { isTestMittiEmail } = await import("./mitti-test-route.core");
+  const testJob = (job as { source?: string | null }).source === "qa_test" || isTestPartner(((asg as { businesses?: unknown } | null)?.businesses ?? null) as never);
+  if (testJob && !isTestMittiEmail(email)) { await alertOffice(c, "This is a TEST job but the failed attempt was not for the TEST Mitti account, so nothing was retried. " + c.detail, counts); return; }
 
   const { realMittiCall, mittiCallFor } = await import("./mitti.server");
   const override = opts.callFor?.(c.jobId);
@@ -214,9 +221,13 @@ async function handleCase(c: FailureCase, events: WorkflowEventRow[], opts: Retr
         auditId = (await m.createAssignMittiAudit(c.jobId, null, call, { readyCheck: true, ...(assignee ? { assignee } : {}) })).auditId;
         break;
       }
-      case "piesa":
-        auditId = (await m.createAssignMittiAudit(c.jobId, null, call)).auditId;
+      case "piesa": {
+        // C2: the same TEST rule as the booking path (qa_test / TEST partner → TEST Mitti account only).
+        const { piesaTestAssignee } = await import("./piesa-autoform.server");
+        const assignee = await piesaTestAssignee((job as { source?: string | null }).source ?? null, asg as never);
+        auditId = (await m.createAssignMittiAudit(c.jobId, null, call, assignee ? { assignee } : {})).auditId;
         break;
+      }
       case "install_day":
         auditId = (await m.createPiisaMittiAudit(c.jobId, null, call)).auditId;
         break;

@@ -23,13 +23,7 @@ export async function onPiesaBooked(jobId: string, bookingId: string, actorId: s
   const d = piesaAutoFormDecision({ deleted: !!job.deleted_at, archived: !!job.qa_archived_at, businessUnit: job.business_unit, hasPiesaForm: !!a?.external_mitti_id });
   if (d.action === "skip") return { outcome: "skipped", reason: d.reason };
 
-  // Practice jobs (qa_test or a TEST partner's electrician) only ever reach the TEST Mitti account (as the Ready Check sweep).
-  let assignee: { userId: string; fullName: string | null; email: string } | undefined;
-  const { isTestPartner } = await import("./test-send.core");
-  if (asg && (job.source === "qa_test" || isTestPartner((asg.businesses ?? null) as never))) {
-    const { TEST_MITTI_ASSIGNEE } = await import("./onsite-ready-check.core");
-    assignee = { userId: asg.user_id, fullName: null, email: TEST_MITTI_ASSIGNEE };
-  }
+  const assignee = await piesaTestAssignee(job.source, asg as never);
   const { createAssignMittiAudit, realMittiCall } = await import("./mitti.server");
   const { MittiClaimHeld, MittiOutcomeUncertain } = await import("./mitti-create.server");
   try {
@@ -41,6 +35,15 @@ export async function onPiesaBooked(jobId: string, bookingId: string, actorId: s
     const reason = e instanceof MittiOutcomeUncertain ? "Mitti may have made the form but the reply was lost — check Mitti first" : e instanceof Error ? e.message : "Mitti error";
     return failed(jobId, bookingId, actorId, reason);
   }
+}
+
+/** Practice jobs (qa_test or a TEST partner's electrician) only ever reach the TEST Mitti account (as the Ready Check
+ *  sweep). Shared with the retry sweep (mitti-retry.server.ts), so a retry is assigned exactly like the first attempt. */
+export async function piesaTestAssignee(source: string | null, asg: { user_id: string; businesses?: { onboarding_notes?: string | null } | null } | null): Promise<{ userId: string; fullName: string | null; email: string } | undefined> {
+  const { isTestPartner } = await import("./test-send.core");
+  if (!asg || !(source === "qa_test" || isTestPartner((asg.businesses ?? null) as never))) return undefined;
+  const { TEST_MITTI_ASSIGNEE } = await import("./onsite-ready-check.core");
+  return { userId: asg.user_id, fullName: null, email: TEST_MITTI_ASSIGNEE };
 }
 
 /** ONE office item per booking (a repeat confirmation of the same booking never adds a second). */
