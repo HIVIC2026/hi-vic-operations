@@ -280,6 +280,8 @@ export type MittiLogin = "linked" | "not_set" | "email_changed";
 export type TeamMemberView = {
   id: string | null; name: string; role: "owner" | "installer" | "electrician"; mobile: string | null; email: string | null;
   hasLogin: boolean; mittiLogin: MittiLogin;
+  /** Jo 28 Oct: installer people with a staff row are Lead or Crew. Omitted = not applicable. */
+  workerRole?: "lead" | "crew";
   /** Installers only (decision 130). null = not applicable. */
   noticeAcknowledged: boolean | null;
   /** Installers with a staff row only (decision 153). null = not applicable (owner without a staff row, electrician). */

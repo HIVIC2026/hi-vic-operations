@@ -182,6 +182,14 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['veecApAuto'] = "failed";
         }
         try {
+          // Jo 28 Oct: 2pm Melbourne the day before an install with no crew picked → ONE email to the installing business (draft, held until approved).
+          const { sweepCrewReminders } = await import("@/lib/crew-reminder.server");
+          (out as Record<string, unknown>)['crewReminders'] = await timed("sweepCrewReminders", () => sweepCrewReminders());
+        } catch (e) {
+          console.error("allocation tick: crew reminder sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['crewReminders'] = "failed";
+        }
+        try {
           const { sweepInstallDays } = await import("@/lib/install-days.server");
           (out as Record<string, unknown>)['installDays'] = await timed("sweepInstallDays", () => sweepInstallDays());
         } catch (e) {

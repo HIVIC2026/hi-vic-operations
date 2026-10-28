@@ -30,23 +30,22 @@ export async function approvePartnerWorker(workerId: string, actorId: string | n
   return true;
 }
 
-type PersonRow = { id: string; full_legal_name: string; email: string; trade_role: string; approval_status: string; removed_at: string | null; certification_status: string | null };
+type PersonRow = { id: string; full_legal_name: string; email: string | null; trade_role: string; approval_status: string; removed_at: string | null; certification_status: string | null };
 
 /** Decision 153 facts: latest office CII check per person (by id or email) + the latest level/expiry recorded against it. Read-only. */
 async function ciiFacts(people: PersonRow[]) {
   const out = new Map<string, AutoApprovePerson["cii"]>();
   const installers = people.filter((w) => w.trade_role === "installer");
   if (!installers.length) return out;
-  const emails = installers.map((w) => w.email.trim().toLowerCase());
+  const { certOrFilter, certMatchesWorker } = await import("./worker-role.core");
   const { data: certs, error } = await admin.from("partner_worker_certifications").select("id, worker_id, worker_email, status, recorded_at")
-    .or(`worker_id.in.(${installers.map((w) => w.id).join(",")}),worker_email.in.(${emails.map((e) => `"${e}"`).join(",")})`).order("recorded_at", { ascending: false });
+    .or(certOrFilter(installers.map((w) => w.id), installers.map((w) => w.email))).order("recorded_at", { ascending: false });
   if (error) throw new Error(`Could not read CII checks: ${error.message}`);
   const ids = (certs ?? []).map((c) => c.id);
   const { data: levels, error: le } = ids.length ? await admin.from("worker_certification_levels").select("certification_id, level, expires_on, recorded_at").in("certification_id", ids).order("recorded_at", { ascending: false }) : { data: [], error: null };
   if (le) throw new Error(`Could not read CII levels: ${le.message}`);
   for (const w of installers) {
-    const email = w.email.trim().toLowerCase();
-    const c = (certs ?? []).find((r) => r.worker_id === w.id || r.worker_email.trim().toLowerCase() === email) ?? null;
+    const c = (certs ?? []).find((r) => certMatchesWorker(r, w)) ?? null;
     const l = c ? (levels ?? []).find((r) => r.certification_id === c.id) ?? null : null;
     out.set(w.id, c ? { certStatus: c.status, level: l?.level ?? null, expiresOn: l?.expires_on ?? null } : null);
   }

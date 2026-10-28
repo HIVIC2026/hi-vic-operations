@@ -672,3 +672,8 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] Journey not-eligible 1.4: T7 only from office close on early enquiries; never sent after a Ready Check
 - [x] Mitti Ready Check form switch ON (Jo 27 Oct), checked on TEST HV-3346
 - [ ] Silver Spirit: Chris added on TEMPORARY TEST CII (Dom's C11-083) — replace with Chris's own CII when Jo has it
+
+## 28 Oct — Jo-approved people/crew spec
+- [x] People without an email (pending migration NOT applied live) (nullable partner_workers.email, pending migration + PGlite proof, null-safe readers)
+- [x] Lead / Crew role on Team page (worker_role, Mitti invite/deactivate rules, audit event)
+- [x] Crew reminder email 2pm Melbourne day before install (flag OFF until Jo approves wording)

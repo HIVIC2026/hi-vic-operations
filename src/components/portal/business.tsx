@@ -19,6 +19,7 @@ import { getHigherRates, requestHigherRates, reviewHigherRates } from "@/lib/rat
 import { openFileViewer } from "@/components/portal/file-viewer";
 import { collectionNoticeLabel } from "@/lib/esc-collection-notice.core";
 import { SendNoticeLinkInline } from "@/components/portal/worker-compliance";
+import { LeadCrewSwitch } from "@/components/portal/lead-crew-switch";
 import { proposeDeclaredCoverage } from "@/lib/declared-coverage-proposal.core";
 
 const CRED_KINDS = ["public_liability_insurance", "workers_comp_insurance", "other_insurance", "electrical_licence", "rec_registration", "installer_certification", "business_registration", "other"] as const;
@@ -203,7 +204,7 @@ export function Credentials({ businessId, creds, isHivicAdmin, canAdd, onDone }:
   );
 }
 
-function Team({ businessId, members, workers, canEdit, onDone }: { businessId: string; members: { user_id: string; member_role: string; active: boolean; profiles: unknown }[]; workers: { id: string; profile_id: string | null; trade_role: "electrician" | "installer" | "property_manager"; full_legal_name: string; email: string; licence_number: string | null; qualification: string | null; account_status: string }[]; canEdit: boolean; onDone: () => void }) {
+function Team({ businessId, members, workers, canEdit, onDone }: { businessId: string; members: { user_id: string; member_role: string; active: boolean; profiles: unknown }[]; workers: { id: string; profile_id: string | null; trade_role: "electrician" | "installer" | "property_manager"; full_legal_name: string; email: string | null; licence_number: string | null; qualification: string | null; account_status: string; worker_role_effective?: "lead" | "crew" | null }[]; canEdit: boolean; onDone: () => void }) {
   const add = useAction(addTeamMember);
   const remove = useAction(removeTeamMember);
   const [email, setEmail] = useState("");
@@ -218,6 +219,12 @@ function Team({ businessId, members, workers, canEdit, onDone }: { businessId: s
         <div key={worker.id} className="flex flex-wrap items-center justify-between gap-2 border-b py-2 text-sm last:border-0">
           <span><b>{worker.full_legal_name}</b> · {worker.trade_role}<span className="block text-xs text-muted-foreground">{worker.email}{worker.licence_number ? ` · ${worker.licence_number}` : worker.qualification ? ` · ${worker.qualification}` : ""}</span></span>
           <Badge variant="outline">Awaiting account</Badge>
+        </div>
+      ))}
+      {canEdit && workers.filter((w) => w.trade_role === "installer" && w.worker_role_effective).map((w) => (
+        <div key={`role-${w.id}`} className="flex flex-wrap items-center justify-between gap-2 border-b py-2 text-sm last:border-0">
+          <span><b>{w.full_legal_name}</b> · installer</span>
+          <LeadCrewSwitch workerId={w.id} role={w.worker_role_effective!} onChanged={onDone} />
         </div>
       ))}
       {canEdit && (

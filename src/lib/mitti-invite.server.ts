@@ -41,18 +41,24 @@ async function isTestPerson(email: string | null, biz: { name?: string | null; o
 }
 
 async function loadPerson(workerId: string) {
-  const { data: w, error } = await admin.from("partner_workers").select("id, email, mobile, full_legal_name, trade_role, approval_status, removed_at, profile_id, business_id").eq("id", workerId).maybeSingle();
+  const { data: w, error } = await admin.from("partner_workers").select("id, email, mobile, full_legal_name, trade_role, worker_role, approval_status, removed_at, profile_id, business_id").eq("id", workerId).maybeSingle();
   if (error) throw new WorkflowError(`This person could not be read: ${error.message}`);
   if (!w) throw new WorkflowError("Partner person not found.");
   const [{ data: b }, { data: p }] = await Promise.all([
-    admin.from("businesses").select("name, onboarding_notes").eq("id", w.business_id).maybeSingle(),
+    admin.from("businesses").select("name, onboarding_notes, email").eq("id", w.business_id).maybeSingle(),
     w.profile_id ? admin.from("profiles").select("email, mitti_user_id, mitti_checked_email, mitti_checked_at").eq("id", w.profile_id).maybeSingle() : Promise.resolve({ data: null }),
   ]);
-  const email = w.email?.trim().toLowerCase() ?? null;
+  // Jo 28 Oct: Lead/Crew. A blank role is Crew unless the person already has Mitti access today (then Lead).
+  const { effectiveWorkerRole, hasMittiAccessToday, mittiEmailFor, workerEmailKey } = await import("./worker-role.core");
+  const prior = priorInviteFor(w.id, await loadInviteRecords(w.id));
+  const workerRole = effectiveWorkerRole(w, hasMittiAccessToday({ profileMittiUserId: p?.mitti_user_id ?? null, prior }));
+  const ownEmail = workerEmailKey(w.email);
+  // A Lead with no email of their own is invited/linked with the business's own email.
+  const email = workerRole === "lead" ? mittiEmailFor(w.email, b?.email) : ownEmail;
   // Decision 153: an installer counts once the office-verified CII check is recorded with level + unexpired expiry.
   let ciiCleared = false;
-  if (w.trade_role === "installer" && email) {
-    const { data: certs } = await admin.from("partner_worker_certifications").select("id, status").or(`worker_id.eq.${w.id},worker_email.eq.${email}`).order("recorded_at", { ascending: false }).limit(1);
+  if (w.trade_role === "installer") {
+    const { data: certs } = await admin.from("partner_worker_certifications").select("id, status").or(ownEmail ? `worker_id.eq.${w.id},worker_email.eq.${ownEmail}` : `worker_id.eq.${w.id}`).order("recorded_at", { ascending: false }).limit(1);
     const c = certs?.[0];
     const { data: lv } = c ? await admin.from("worker_certification_levels").select("level, expires_on").eq("certification_id", c.id).order("recorded_at", { ascending: false }).limit(1).maybeSingle() : { data: null };
     const { crewClearance } = await import("./worker-compliance.core");
@@ -61,10 +67,10 @@ async function loadPerson(workerId: string) {
   const { mittiAccessOf } = await import("./mitti-membership.core");
   const person: InvitePerson = {
     workerId: w.id, tradeRole: w.trade_role, approvalStatus: w.approval_status, removedAt: w.removed_at, email, ciiCleared,
-    mittiAccess: p ? mittiAccessOf(p) : null, isTest: await isTestPerson(email, b ?? null),
+    mittiAccess: p ? mittiAccessOf(p) : null, isTest: await isTestPerson(email, b ?? null), workerRole,
   };
   const profileMismatch = !!w.profile_id && (!p || p.email?.trim().toLowerCase() !== email);
-  return { person, profileMismatch, name: w.full_legal_name as string | null, mobile: (w.mobile ?? null) as string | null, business: b?.name ?? null, businessId: w.business_id as string, profileId: w.profile_id as string | null };
+  return { person, prior, profileMismatch, name: w.full_legal_name as string | null, mobile: (w.mobile ?? null) as string | null, business: b?.name ?? null, businessId: w.business_id as string, profileId: w.profile_id as string | null };
 }
 
 async function record(actorId: string | null, type: MittiInviteEventType, summary: string, details: Record<string, unknown>) {
@@ -112,13 +118,14 @@ type Opts = { switches?: InviteSwitches; call?: MittiCall; message?: InviteMesse
 export async function onPartnerPersonApproved(workerId: string, actorId: string | null, opts: Opts = {}) {
   const sw = opts.switches ?? currentInviteSwitches();
   if (!sw.enabled) return { action: "skip" as const, reason: "Mitti auto-invite is switched off." };
-  const { person, profileMismatch, name, mobile, business, businessId, profileId } = await loadPerson(workerId);
+  const loaded = await loadPerson(workerId);
+  const { person, profileMismatch, name, mobile, business, businessId, profileId } = loaded;
   if (profileMismatch && !person.isTest) {
     const reason = "The worker's email does not match their linked portal login — the office must correct the person link before Mitti access is changed.";
     await record(actorId, MITTI_INVITE_EVENTS.failed, reason, { worker_id: workerId, email: person.email, reason });
     return { action: "fail" as const, reason };
   }
-  const prior = priorInviteFor(workerId, await loadInviteRecords(workerId));
+  const prior = loaded.prior;
   const call = opts.call ?? await realCall();
   const base = { worker_id: workerId, email: person.email, name, business, trade_role: person.tradeRole };
   let step = mittiInviteStep(person, prior, sw);
@@ -236,4 +243,55 @@ export async function confirmMittiInviteDone(workerId: string, actorId: string, 
     return { ok: true, access: (call ? await verifyMittiMember(w.profile_id, actorId, call) : await verifyMittiMember(w.profile_id, actorId)).access };
   }
   return { ok: true, access: null };
+}
+
+/**
+ * Jo 28 Oct: a person switched from Lead to Crew loses Mitti access through the same deactivate step and records as a
+ * removal, unless the same email still belongs to another active Lead (e.g. the business email shared by Leads).
+ */
+export async function onPartnerPersonDemoted(workerId: string, actorId: string | null, opts: Pick<Opts, "switches" | "call"> = {}) {
+  const sw = opts.switches ?? currentInviteSwitches();
+  if (!sw.enabled) return { action: "skip" as const, reason: "Mitti auto-invite is switched off." };
+  const { data: w, error } = await admin.from("partner_workers").select("id, email, full_legal_name, approval_status, removed_at, profile_id, business_id, trade_role").eq("id", workerId).maybeSingle();
+  if (error || !w) throw new WorkflowError("Partner person not found.");
+  const { data: b } = await admin.from("businesses").select("name, onboarding_notes, email").eq("id", w.business_id).maybeSingle();
+  const prior = priorInviteFor(workerId, await loadInviteRecords(workerId));
+  const { mittiEmailFor, workerEmailKey } = await import("./worker-role.core");
+  // The email their Mitti user was made with: the recorded one, else their own, else the business email.
+  const email = workerEmailKey(prior?.email) ?? mittiEmailFor(w.email, b?.email);
+  const leads = email ? await otherActiveLeadsWithEmail(w.id, email) : 0;
+  const step = mittiRemovalStep({ workerId, email, isTest: await isTestPerson(email, b ?? null), removedAt: w.removed_at, approvalStatus: w.approval_status, stillActiveElsewhere: leads > 0, demoted: true }, prior, sw);
+  if (step.action === "skip") return step;
+  const details = { worker_id: workerId, email, name: w.full_legal_name, business: b?.name ?? null, mitti_user_id: step.mittiUserId, reason_kind: "switched_to_crew" };
+  if (step.action === "fail") { await record(actorId, MITTI_INVITE_EVENTS.failed, step.reason, { ...details, reason: step.reason }); return step; }
+  try { await (opts.call ?? await realCall())("PUT", userPath(step.mittiUserId), userStatusBody("inactive")); }
+  catch (e) {
+    const reason = plainMittiReason(e, `Deactivate ${email ?? "this person"} in Mitti by hand so the seat can be released`);
+    await record(actorId, MITTI_INVITE_EVENTS.failed, reason, { ...details, reason });
+    return { action: "fail" as const, reason, mittiUserId: step.mittiUserId };
+  }
+  await record(actorId, MITTI_INVITE_EVENTS.deactivated, `Mitti user for ${email} deactivated (switched to Crew in the portal) — reduce the licence count in Mitti if the seat is not reused`, details);
+  return step;
+}
+
+/** Other approved, not-removed Leads whose Mitti email (own, or their business email when they have none) equals `email`. */
+async function otherActiveLeadsWithEmail(workerId: string, email: string): Promise<number> {
+  const { effectiveWorkerRole, hasMittiAccessToday, mittiEmailFor } = await import("./worker-role.core");
+  const [{ data: own, error: e1 }, { data: bizRows, error: e2 }] = await Promise.all([
+    admin.from("partner_workers").select("id, email, trade_role, worker_role, profile_id, business_id, approval_status, removed_at").ilike("email", email),
+    admin.from("businesses").select("id").ilike("email", email),
+  ]);
+  if (e1 || e2) throw new WorkflowError("Other Leads could not be checked — Mitti access was not removed.");
+  const bizIds = (bizRows ?? []).map((x) => x.id);
+  const { data: blank, error: e3 } = bizIds.length ? await admin.from("partner_workers").select("id, email, trade_role, worker_role, profile_id, business_id, approval_status, removed_at").in("business_id", bizIds).is("email", null) : { data: [], error: null };
+  if (e3) throw new WorkflowError("Other Leads could not be checked — Mitti access was not removed.");
+  const rows = [...(own ?? []), ...(blank ?? [])].filter((o) => o.id !== workerId && !o.removed_at && o.approval_status === "approved");
+  if (!rows.length) return 0;
+  const records = await loadInviteRecords();
+  const pids = rows.map((r) => r.profile_id).filter((x): x is string => !!x);
+  const { data: profs } = pids.length ? await admin.from("profiles").select("id, mitti_user_id").in("id", pids) : { data: [] };
+  return rows.filter((r) => {
+    const access = hasMittiAccessToday({ profileMittiUserId: (profs ?? []).find((p) => p.id === r.profile_id)?.mitti_user_id ?? null, prior: priorInviteFor(r.id, records) });
+    return effectiveWorkerRole(r, access) === "lead" && (mittiEmailFor(r.email, r.email ? null : email) === email);
+  }).length;
 }
