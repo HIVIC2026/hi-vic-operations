@@ -1466,6 +1466,7 @@ async function m43Consent(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
     // A person's mistake: the consent is withdrawn (a newer not_granted row, exactly how the product records it).
     // The table is append-only (immutable rows) — an UPDATE is refused, so withdraw/restore must INSERT newer rows.
     await J.assertOwnTestJob(ctx);
+    const before = await counts(ctx.jobId!); // emails sent by the normal setup BEFORE the consent was withheld — not part of the block
     const { error: wErr } = await admin.from("owner_contact_consents").insert({ job_id: ctx.jobId!, owner_id: cons.owner_id, source: "qa-journey", consent_status: "not_granted", contact_consent: false, consent_key: `qa-consent-withdraw:${ctx.runId}`, sha256: "qa-journey-consent-withdraw", snapshot: { test: true } } as never);
     if (wErr) throw new Error(wErr.message);
     let refused = "not refused";
@@ -1473,9 +1474,10 @@ async function m43Consent(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
     catch (e) { refused = `refused: ${(e as Error).message}`; }
     const state = await comms.customerDeliveryState(ctx.jobId!);
     const c = await counts(ctx.jobId!);
+    const newEmails = c.emails - before.emails; // only emails that went out AFTER consent was withheld
     const told = await officeToldOnce(ctx, (await shoot("m43-blocked", [ownerPage(ctx), ...officePages(ctx)]))[1], /consent|contact|correspondence/i);
     const shots = SHOTS.filter((x) => x.moment === "m43-blocked");
-    answer("stops", refused.startsWith("refused") && c.emails === 0, `owner consent withheld; customer contact ${refused}; owner emails on this job=${c.emails}; delivery state=${state}`);
+    answer("stops", refused.startsWith("refused") && newEmails === 0, `owner consent withheld; customer contact ${refused}; new owner emails after withholding=${newEmails} (setup sent ${before.emails} before); delivery state=${state}`);
     answer("reason", /No contact consent from the owner on record/.test(refused), `plain refusal: ${refused.slice(0, 200)}; office job page shows the consent/correspondence state=${sees(shots[1], /consent|contact|correspondence/i)}`);
     answer("office_once", told.ok, told.detail);
     // Fix: the owner's granted consent is back on record as a newer row — the consent check passes (the global lock is a separate block, unchanged).
