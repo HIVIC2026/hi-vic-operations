@@ -590,6 +590,10 @@ export async function tradeBusiness(userId: string) {
       mittiLogin: mittiLogin(w.profile_id), noticeAcknowledged: noticeOf(w.id, w.trade_role), cii: ciiFacts(w.id, w.trade_role), whiteCard: whiteCardOfRow(w),
     })),
   ];
+  // Jo 28 Oct: Lead/Crew for installer staff rows.
+  const roleIds = staffRows.filter((w) => w.trade_role === "installer").map((w) => w.id);
+  const roles = roleIds.length ? await (await import("./worker-role.server")).workerRoleMap(roleIds).catch(() => new Map<string, "lead" | "crew">()) : new Map<string, "lead" | "crew">();
+  for (const m of team) { const r = m.id ? roles.get(m.id) : undefined; if (r) m.workerRole = r; }
   const credentials: CredentialView[] = (creds ?? []).map((x) => ({ kind: x.kind, label: x.label, expires: x.expires_at, verified: x.verification === "verified" }));
   const liability = latestExpiry(credentials, "public_liability_insurance");
   const licence = c.kind === "electrician" ? (workers ?? []).map((w) => w.licence_expires_on).filter(Boolean).sort()[0] ?? null : null;
