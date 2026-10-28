@@ -26,15 +26,17 @@ const ics = (title: string, start: string, end: string | null, where: string) =>
 };
 
 /** "Not for me" asks "Are you sure?" first (installer and electrician words differ); holds its own open/closed state. */
-function NotForMe({ sheet, disabled, sending, onYes }: { sheet: { title: string; body: string; yes: string; keep: string }; disabled: boolean; sending: boolean; onYes: () => void }) {
+function NotForMe({ sheet, disabled, sending, onYes, trigger = "button" }: { sheet: { title: string; body: string; yes: string; keep: string }; disabled: boolean; sending: boolean; onYes: () => void; trigger?: "button" | "link" }) {
   const [open, setOpen] = useState(false);
   return open ? (
-    <section className="rounded-[18px] border border-line p-4" role="dialog" aria-label={sheet.title} data-not-for-me-sheet>
+    <section className={`rounded-[18px] border border-line p-4 ${trigger === "link" ? "w-full text-ink font-normal" : ""}`} role="dialog" aria-label={sheet.title} data-not-for-me-sheet>
       <h2 className="text-[17px] font-semibold">{sheet.title}</h2>
       <p className="mt-1 text-sm leading-[1.45] text-sub">{sheet.body}</p>
       <QuietButton className="mt-3" disabled={disabled} data-not-for-me onClick={onYes}>{sending ? "Sending…" : sheet.yes}</QuietButton>
       <button type="button" className="mt-2 flex min-h-11 w-full items-center justify-center text-[15px] font-semibold text-sub" onClick={() => setOpen(false)}>{sheet.keep}</button>
     </section>
+  ) : trigger === "link" ? (
+    <button type="button" className="min-h-11 px-1" disabled={disabled} data-not-for-me-open onClick={() => setOpen(true)}>{sending ? "Sending…" : "Not for me"}</button>
   ) : (
     <button type="button" className="flex min-h-11 w-full items-center justify-center text-[15px] font-semibold text-sub disabled:opacity-50" disabled={disabled} data-not-for-me-open onClick={() => setOpen(true)}>Not for me</button>
   );
@@ -192,7 +194,7 @@ function OfferPage() {
                   catch (e) { setFail(`Couldn't send your times: ${(e as Error).message || "check your signal and try again."}`); }
                   finally { setBusy(null); flight.current = false; }
                 }} />
-                <NotForMe sheet={NOT_FOR_ME_SHEET_ELECTRICIAN} disabled={sending || !!busy} sending={sending} onYes={() => send("not_for_me", async () => { setMode("declined"); await refetch(); })} />
+                <div className="mt-2 flex flex-wrap justify-end text-sm font-semibold text-hiv-blue"><NotForMe sheet={NOT_FOR_ME_SHEET_ELECTRICIAN} disabled={sending || !!busy} sending={sending} trigger="link" onYes={() => send("not_for_me", async () => { setMode("declined"); await refetch(); })} /></div>
               </div>
             </NextPanel>
             ) : (
@@ -201,10 +203,10 @@ function OfferPage() {
               {data.windows.length === 0 && <p className="mt-3 text-sm text-sub" data-no-times>No times are open on this offer right now. Suggest a time or check back soon.</p>}
               <div className="mt-3.5 grid grid-cols-2 gap-2">{data.windows.map((w) => (
                 <button key={w.id} type="button" disabled={!!busy || sending} onClick={() => tap(w.id, w.start)} className="flex min-h-14 flex-col items-center justify-center rounded-xl border border-line bg-paper px-2 text-sm font-semibold"><span>{shortDay(w.start)}</span><span className="text-hiv-blue">{busy === w.id ? "Booking…" : clock(w.start)}</span></button>))}</div>
-              <div className="mt-2 flex justify-between gap-2 text-sm font-semibold text-hiv-blue">
+              <div className="mt-2 flex flex-wrap justify-between gap-2 text-sm font-semibold text-hiv-blue">
                 {data.canSuggest ? <button type="button" className="min-h-11 px-1" disabled={sending || !!busy} onClick={() => setMode("cant")}>Suggest another time</button> : <span />}
+                <NotForMe sheet={NOT_FOR_ME_SHEET_ELECTRICIAN} disabled={sending || !!busy} sending={sending && mode !== "cant"} trigger="link" onYes={() => send("not_for_me", async () => { setMode("declined"); await refetch(); })} />
               </div>
-              <NotForMe sheet={NOT_FOR_ME_SHEET_ELECTRICIAN} disabled={sending || !!busy} sending={sending} onYes={() => send("not_for_me", async () => { setMode("declined"); await refetch(); })} />
               {!data.canSuggest && <Note>Can't make these? If nobody takes it, you can suggest another time from {data.suggestUnlockLabel}.</Note>}
             </NextPanel>
             )}
