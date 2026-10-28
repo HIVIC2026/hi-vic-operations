@@ -68,3 +68,9 @@ test("a bounced Outlook-sent copy shows under Email as Bounced; Outlook is not a
   expect(rows[0]?.what).toEndWith(" — Mailbox full");
   expect(CONTACT_CHANNELS).not.toContain("Outlook" as never);
 });
+
+test("a failed text still reads Failed, and a blocked-looking text status is not rewritten", () => {
+  const rows = mergeContactHistory({ ...base, sms: [{ id: "f", message_type: "quote_ready", status: "failed", body: "Hi", created_at: "2026-10-24T01:00:00Z" }, { id: "u", message_type: "quote_ready", status: "undelivered", body: "Hi", created_at: "2026-10-24T02:00:00Z" }] });
+  expect(rows.find((r) => r.id === "sms:f")).toMatchObject({ status: "Failed", failed: true });
+  expect(rows.find((r) => r.id === "sms:u")).toMatchObject({ status: "Not delivered", failed: true });
+});

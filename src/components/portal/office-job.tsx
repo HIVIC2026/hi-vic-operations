@@ -299,7 +299,7 @@ export function ContactHistory({ jobId, rows, waitingFor, onLog }: { jobId: stri
               <span className="text-sub">{dayTime(r.at)}</span>
               <span className="font-semibold">{DIR[r.direction]}</span>
               <span className="text-sub">{r.channel}</span>
-              <span className={cn("min-w-0 break-words", r.failed && "text-rose")}>{r.what}{r.byOffice ? <span className="text-xs text-sub"> · logged by the office</span> : null}</span>
+              <span className={cn("min-w-0 break-words", r.failed && r.channel === "Email" && "text-rose")}>{r.what}{r.byOffice ? <span className="text-xs text-sub"> · logged by the office</span> : null}</span>
               <span className={cn("text-xs font-semibold", r.failed ? "text-rose" : "text-sub")}>{r.status}</span>
             </li>
           ))}
