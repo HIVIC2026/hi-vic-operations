@@ -100,7 +100,11 @@ mock.module("../src/lib/workflow.server", () => ({
   WorkflowError,
   stageEntryBlockers: async () => [],
   currentApprovedQuote: async () => null,
-  logEvent: async (job_id: string, _a: unknown, event_type: string, summary: string, details: unknown, opts?: Row) => { db.workflow_events!.push({ job_id, event_type, summary, details, ...(opts ?? {}) }); },
+  // Like the real workflow_events.actor_id (uuid): "" is refused, null is fine.
+  logEvent: async (job_id: string, actor_id: unknown, event_type: string, summary: string, details: unknown, opts?: Row) => {
+    if (actor_id === "") throw new Error('invalid input syntax for type uuid: ""');
+    db.workflow_events!.push({ job_id, actor_id, event_type, summary, details, ...(opts ?? {}) });
+  },
 }));
 // Decision 291 senders, mocked: the real owner path, the partner office-email path and the TEST sender.
 const comms = { enabled: true };
@@ -206,6 +210,14 @@ describe("cancelJobFully (decision 227, mocked DB)", () => {
     expect(asked).toHaveLength(1);
     expect(asked[0]!.summary).toContain("email the owner and email the installer");
     expect((asked[0]!.details as Row).wording_approved).toBe(true);
+  });
+
+  test("batch 1 F2: owner cancel / STOP (no office actor) still records the notice — actor null, not \"\"", async () => {
+    await cancelJobFully("j1", "Owner cancelled in the portal", null, { tell: { owner: true, installer: false } });
+    const sent = [...events("cancel_notice_sent"), ...events("cancel_notice_held")];
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ event_type: "cancel_notice_sent", actor_id: null });
+    expect((sent[0]!.details as Row).who).toBe("owner");
   });
 
   test("only the owner ticked → only O69; only the installer ticked → only I70", async () => {
