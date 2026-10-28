@@ -477,3 +477,27 @@ describe("Jo 27 Oct completed Ready Check edit recovery", () => {
   });
 });
 
+describe("7. A2 (Jo 28 Oct): Add a job at an HIV-lead address", () => {
+  test("A2 (Jo 28 Oct): an address that is already an HIV lead is saved and flagged on the NEW job; another installer's open job is still refused", async () => {
+    const seed = async (n: number, channel: string) => {
+      const [p] = await q<{ id: string }>("insert into properties (address_line, suburb, postcode, state) values ($1,'Frankston','3199','VIC') returning id", [`${n} Test Street`]);
+      const [j] = await q<{ id: string; job_number: string }>("insert into jobs (property_id, stage, source, channel) values ($1,'enquiry','qa_test',$2) returning id, job_number", [p!.id, channel]);
+      return j!;
+    };
+    const lead = await seed(77, "hivic_sourced");
+    const r = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(77), { mode: "hivic" }, call, { leadOrigin: "owner_contacted" });
+    expect(r.jobId).not.toBe(lead.id);
+    const flags = await q<{ summary: string; details: Record<string, unknown>; internal: boolean }>("select summary, details, internal from workflow_events where job_id=$1 and event_type='duplicate_address_linked'", [r.jobId]);
+    expect(flags).toHaveLength(1);
+    expect(flags[0]!.summary).toBe(`This address is already a Home Insulation Victoria lead (${lead.job_number}) — the installer's job was saved; office to check`);
+    expect(flags[0]!.details).toMatchObject({ from: "add_a_job", existing_job_id: lead.id, existing_job_number: lead.job_number, needs_office: true });
+    expect(flags[0]!.internal).toBe(true);
+    expect(await q("select id from workflow_events where job_id=$1 and event_type='duplicate_address_linked'", [lead.id])).toHaveLength(0);
+
+    const other = await seed(78, "installer_sourced");
+    const before = (await q("select id from jobs")).length;
+    await expect(os.startOnsiteReadyCheckFor(INST, BIZ, owner(78), { mode: "hivic" }, call, { leadOrigin: "owner_contacted" })).rejects.toThrow(/already has an open job/);
+    expect((await q("select id from jobs")).length).toBe(before);
+    expect(await q("select id from workflow_events where job_id=$1 and event_type='duplicate_address_linked'", [other.id])).toHaveLength(1);
+  });
+});

@@ -40,7 +40,9 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   // installer sees its number; nothing is created. Email/phone are never a reason to refuse.
   const { findOpenJobAtAddress, flagDuplicateAddress, businessNameFor } = await import("./duplicate-address.server");
   const open = await findOpenJobAtAddress({ address_line: input.address_line, suburb: input.suburb, postcode: input.postcode, source });
-  if (open) {
+  const clash = (await import("./duplicate-address.core")).addJobClashAction(open);
+  // Jo 28 Oct: an open HIV lead at this address does not block the installer; the job is saved and flagged below.
+  if (open && clash === "refuse") {
     await flagDuplicateAddress(open, userId, { from: "add_a_job", business_id: businessId, business_name: await businessNameFor(businessId), full_name: input.full_name.trim(), email, phone: input.phone.trim(), address_line: input.address_line.trim(), suburb: input.suburb.trim(), postcode: input.postcode.trim() });
     throw new WorkflowError((await import("./duplicate-address.core")).duplicateAddressMessage(open.job_number));
   }
@@ -62,6 +64,10 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   await (await import("./job-electrician.server")).recordJobElectricianChoice(job.id, businessId, electrician ?? { mode: "hivic" }, userId);
   // Decision 289: the one electrician choice for this job (append-only event; the quote pipeline reads it).
   await (await import("./electrician-choice.server")).recordElectricianChoice(job.id, businessId, userId, opts.electricianChoice ?? null, "add_job");
+  if (open && clash === "save_and_flag") {
+    const { DUPLICATE_ADDRESS_EVENT, hivLeadClashSummary } = await import("./duplicate-address.core");
+    await logEvent(job.id, userId, DUPLICATE_ADDRESS_EVENT, hivLeadClashSummary(open.job_number), { from: "add_a_job", existing_job_id: open.id, existing_job_number: open.job_number, needs_office: true }, { internal: true });
+  }
   await logEvent(job.id, userId, "installer_job_added", "Installer added this customer (Add a job: name, address, mobile, email, contact permission); the Mitti Ready Check form is created next", { business_id: businessId, visit_requested: !!opts.visit, lead_origin: opts.leadOrigin });
   // Gate A (Jo, 8 Oct): the installer confirmed the owner's consent to be contacted.
   const { gateDoc } = await import("./owner-gates.core");

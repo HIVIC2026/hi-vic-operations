@@ -2,7 +2,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { addressKey, normaliseStreetLine } from "../src/lib/address.core";
-import { DUPLICATE_ADDRESS_EVENT, duplicateAddressFrom, duplicateAddressMessage, duplicateAddressSummary, isOpenJobStage, openJobAtAddress } from "../src/lib/duplicate-address.core";
+import { DUPLICATE_ADDRESS_EVENT, addJobClashAction, hivLeadClashSummary, duplicateAddressFrom, duplicateAddressMessage, duplicateAddressSummary, isOpenJobStage, openJobAtAddress } from "../src/lib/duplicate-address.core";
 import { parsePickupAudit, pickupDuplicates } from "../src/lib/mitti-pickup.core";
 import { NEUTRAL_SAVE_ERROR, saveErrorMessage } from "../src/lib/add-job-flow.core";
 
@@ -99,4 +99,22 @@ describe("Mitti pickup uses the same address rule", () => {
     ];
     expect(pickupDuplicates(p, jobs).map((d) => d.jobNumber)).toEqual(["HV-2305"]);
   });
+});
+
+test("A2: an open HIV lead at the address → save and flag; another installer's open job → refuse; none → none", () => {
+  expect(addJobClashAction(null)).toBe("none");
+  expect(addJobClashAction({ channel: "hivic_sourced" })).toBe("save_and_flag");
+  expect(addJobClashAction({ channel: "installer_sourced" })).toBe("refuse");
+  expect(hivLeadClashSummary("HV-3201")).toBe("This address is already a Home Insulation Victoria lead (HV-3201) — the installer's job was saved; office to check");
+});
+test("A2 review focus: a cancelled HIV lead or a practice lead never clashes with a real Add a job", () => {
+  expect(openJobAtAddress(req, [job({ address_line: "1/5 Smith St", stage: "cancelled" })])).toBeNull();
+  expect(openJobAtAddress({ ...req, source: "installer_onsite" }, [job({ address_line: "1/5 Smith St", source: "qa_test" })])).toBeNull();
+});
+test("A2 wiring: the server flags the NEW job and only refuses non-HIV clashes", () => {
+  const srv = readFileSync("src/lib/onsite-ready-check.server.ts", "utf8");
+  expect(srv).toContain("addJobClashAction(open)");
+  expect(srv).toContain('clash === "refuse"');
+  expect(srv).toContain("hivLeadClashSummary(open.job_number)");
+  expect(readFileSync("src/lib/duplicate-address.server.ts", "utf8")).toContain("id, job_number, stage, source, channel, deleted_at, created_at, property_id");
 });

@@ -42,3 +42,11 @@ export function duplicateAddressFrom(source: string, channel: "installer_sourced
 export function duplicateAddressSummary(from: DuplicateAddressFrom, businessName: string | null): string {
   return `Another request for this address came in from ${FROM_WORDS[from]}${businessName ? ` (${businessName})` : ""} — linked here, no new job made; office to check`;
 }
+
+/** Jo 28 Oct: an installer's Add a job at an open HIV lead is saved and flagged; another installer's open job is still refused. */
+export const addJobClashAction = (open: { channel: string | null } | null): "none" | "save_and_flag" | "refuse" =>
+  !open ? "none" : open.channel === "hivic_sourced" ? "save_and_flag" : "refuse";
+
+/** Office flag wording on the NEW installer job when its address is already an HIV lead. */
+export const hivLeadClashSummary = (existingJobNumber: string) =>
+  `This address is already a Home Insulation Victoria lead (${existingJobNumber}) — the installer's job was saved; office to check`;
