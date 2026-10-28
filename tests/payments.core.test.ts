@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import {
   BANK_DETAILS_TO_CONFIRM, FINAL_INVOICE_PAY_LINE, PAY_LINE_SAFETY_CHECK, PROVISIONAL_HOLD_HOURS, SAFETY_CHECK_CENTS,
   bankDetailLines, cardAllowedFor, cumulativePaidCents, howYouPayLines, isStepCleared, newXeroPayments, payNowBlock, payableNow, paymentLine, paymentMethodsFor,
-  paymentPlan, paymentSteps, provisionalBookingDecision, provisionalHoldExpiresAt, stepState, xeroDateIso,
+  paymentPlan, paymentSteps, planQuoteTotalCents, provisionalBookingDecision, provisionalHoldExpiresAt, stepState, xeroDateIso,
   effectiveLedger, ledgerRecordFromEvent, reconciledPaidCents, xeroPaymentFacts, xeroReversals,
   ledgerXeroPayments, reconcilePayments, stripeReceiptKey, stripeRefundReceiptKey, stripeRefundedSoFarCents, xeroReceiptKey, xeroReversalReceiptKey,
   INSTALL_DEPOSIT_NOT_PAID, depositDeadlineBeforeStart, depositSweepAction, installDepositPrestartBlocker,
@@ -21,7 +21,7 @@ describe("amount maths (cents)", () => {
     expect(p.balanceCents).toBe(339_705);
     expect(p.safetyCheckCents + p.installDepositCents + p.balanceCents).toBe(412_350);
     expect(p.grandTotalCents).toBe(412_350);
-    expect(p.thresholds).toEqual({ safety_check: 34_900, fixes: 34_900, install_deposit: 72_645, balance: 412_350 });
+    expect(p.thresholds).toEqual({ safety_check: 34_900, fixes: 34_900, install_deposit: 72_645, balance: 412_350, repeat_safety_check: 412_350 });
   });
   test("deposit rounds half up to the cent and never breaks the total", () => {
     const p = paymentPlan({ quoteTotalCents: 34_900 + 1_005 }); // remainder $10.05 → 10% = 1.005 → $1.01
@@ -298,5 +298,42 @@ describe("owner Pay now block", () => {
   test("nothing due: remaining can still be paid in full by bank; all paid says thanks", () => {
     expect(payNowBlock({ step: null, cardAvailable: true, bank, reference: null, remainingCents: 1000 }).lines[0]).toContain("pay the remaining $10.00 any time by bank transfer or PayID");
     expect(payNowBlock({ step: null, cardAvailable: true, bank, reference: null, remainingCents: 0 }).title).toBe("All paid — thank you");
+  });
+});
+
+describe("repeat safety check on the owner's plan (decision 233, Jo 28 Oct)", () => {
+  const plain = paymentPlan({ quoteTotalCents: 400_000 });
+  const withRepeat = paymentPlan({ quoteTotalCents: 400_000, repeatCents: 34_900 });
+  test("the repeat price is added to the plan total and every existing threshold is unchanged", () => {
+    expect(withRepeat.repeatCents).toBe(34_900);
+    expect(withRepeat.grandTotalCents).toBe(434_900);
+    expect({ safety_check: withRepeat.thresholds.safety_check, fixes: withRepeat.thresholds.fixes, install_deposit: withRepeat.thresholds.install_deposit, balance: withRepeat.thresholds.balance })
+      .toEqual({ safety_check: plain.thresholds.safety_check, fixes: plain.thresholds.fixes, install_deposit: plain.thresholds.install_deposit, balance: plain.thresholds.balance }); // existing thresholds identical
+    expect(withRepeat.thresholds.repeat_safety_check).toBe(434_900);
+    expect(plain.repeatCents).toBe(0);
+  });
+  test("a plan with no repeat shows no repeat step; a repeat plan shows it owing until the full total is paid", () => {
+    expect(paymentSteps(plain, 0, {}, T0).map((s) => s.key)).not.toContain("repeat_safety_check");
+    const steps = paymentSteps(withRepeat, 400_000, { repeat_safety_check: { requestedAt: T0 } }, T0);
+    const repeat = steps.find((s) => s.key === "repeat_safety_check")!;
+    expect(repeat.label).toBe("Repeat safety check (PIESA)");
+    expect(repeat.amountCents).toBe(34_900);
+    expect(repeat.state).toBe("requested");
+    expect(repeat.outstandingCents).toBe(34_900);
+    expect(repeat.methods).toContain("card"); // same card-or-bank rule as the original safety check
+    expect(paymentSteps(withRepeat, 434_900, { repeat_safety_check: { requestedAt: T0 } }, T0).find((s) => s.key === "repeat_safety_check")!.state).toBe("paid");
+  });
+  test("How you can pay and the pay-now line include the repeat price", () => {
+    expect(howYouPayLines(withRepeat)).toContain("$349.00 for the repeat safety check (PIESA) (card or bank transfer, no fee)");
+    expect(howYouPayLines(plain).some((l) => l.includes("repeat safety check"))).toBe(false);
+    expect(paymentLine("repeat_safety_check", "INV-7")).toBe("Pay by card or bank transfer — no fee");
+  });
+  test("the repeat line already on the ONE invoice is never counted twice", () => {
+    // invoice total = quote + repeat → the plan's quote part stays the quote; grand total equals the invoice total
+    const q = planQuoteTotalCents({ invoiceTotalCents: 434_900, quoteTotalCents: 400_000, fixesCents: 0, repeatCents: 34_900 });
+    expect(q).toBe(400_000);
+    expect(paymentPlan({ quoteTotalCents: q, repeatCents: 34_900 }).grandTotalCents).toBe(434_900);
+    // unchanged for jobs without a repeat
+    expect(planQuoteTotalCents({ invoiceTotalCents: 400_000, quoteTotalCents: 400_000, fixesCents: 0 })).toBe(400_000);
   });
 });

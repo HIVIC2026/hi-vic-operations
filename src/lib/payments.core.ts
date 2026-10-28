@@ -23,13 +23,15 @@ export const INSTALL_DEPOSIT_RATE = 0.10;
 export const PROVISIONAL_HOLD_HOURS = 48;
 export const PROVISIONAL_HOLD_MS = PROVISIONAL_HOLD_HOURS * 3_600_000;
 
-export type PaymentStepKey = "safety_check" | "fixes" | "install_deposit" | "balance";
-export const PAYMENT_STEP_ORDER: PaymentStepKey[] = ["safety_check", "fixes", "install_deposit", "balance"];
+export type PaymentStepKey = "safety_check" | "fixes" | "install_deposit" | "balance" | "repeat_safety_check";
+/** The repeat safety check sits LAST: its threshold is the grand total, so every existing step's threshold is unchanged. */
+export const PAYMENT_STEP_ORDER: PaymentStepKey[] = ["safety_check", "fixes", "install_deposit", "balance", "repeat_safety_check"];
 export const PAYMENT_STEP_LABEL: Record<PaymentStepKey, string> = {
   safety_check: "Pre Insulation Electrical Safety Assessment (PIESA) payment",
   fixes: "Electrical fixes",
   install_deposit: "Install deposit (10%)",
   balance: "Balance (install day)",
+  repeat_safety_check: "Repeat safety check (PIESA)",
 };
 export type PaymentMethod = "card" | "bank";
 
@@ -45,10 +47,12 @@ export type PaymentPlanInput = {
   safetyCheckCents?: number | null;
   /** Approved electrical fixes (rectification) total inc GST, 0 when none. */
   fixesCents?: number | null;
+  /** Decision 233: the repeat safety check (PIESA) price inc GST the OWNER owes on the ONE invoice, 0 when none. */
+  repeatCents?: number | null;
 };
 export type PaymentPlan = {
-  quoteTotalCents: number; safetyCheckCents: number; fixesCents: number; installDepositCents: number; balanceCents: number;
-  /** Everything the owner pays across the job: quote total + fixes. */
+  quoteTotalCents: number; safetyCheckCents: number; fixesCents: number; repeatCents: number; installDepositCents: number; balanceCents: number;
+  /** Everything the owner pays across the job: quote total + fixes + any repeat safety check. */
   grandTotalCents: number;
   /** Running thresholds in PAYMENT_STEP_ORDER; a step is paid when cumulative received ≥ its threshold. */
   thresholds: Record<PaymentStepKey, number>;
@@ -59,25 +63,27 @@ export function paymentPlan(i: PaymentPlanInput): PaymentPlan {
   const quoteTotalCents = Math.max(0, Math.round(i.quoteTotalCents));
   const safetyCheckCents = Math.min(Math.max(0, Math.round(i.safetyCheckCents ?? SAFETY_CHECK_CENTS)), quoteTotalCents);
   const fixesCents = Math.max(0, Math.round(i.fixesCents ?? 0));
+  const repeatCents = Math.max(0, Math.round(i.repeatCents ?? 0));
   const remaining = quoteTotalCents - safetyCheckCents;
   const installDepositCents = roundHalfUp(remaining * INSTALL_DEPOSIT_RATE);
   const balanceCents = remaining - installDepositCents;
-  const grandTotalCents = quoteTotalCents + fixesCents;
+  const grandTotalCents = quoteTotalCents + fixesCents + repeatCents;
   const thresholds = {
     safety_check: safetyCheckCents,
     fixes: safetyCheckCents + fixesCents,
     install_deposit: safetyCheckCents + fixesCents + installDepositCents,
-    balance: grandTotalCents,
+    balance: quoteTotalCents + fixesCents,
+    repeat_safety_check: grandTotalCents,
   };
-  return { quoteTotalCents, safetyCheckCents, fixesCents, installDepositCents, balanceCents, grandTotalCents, thresholds };
+  return { quoteTotalCents, safetyCheckCents, fixesCents, repeatCents, installDepositCents, balanceCents, grandTotalCents, thresholds };
 }
 
 export const stepAmountCents = (p: PaymentPlan, k: PaymentStepKey) =>
-  k === "safety_check" ? p.safetyCheckCents : k === "fixes" ? p.fixesCents : k === "install_deposit" ? p.installDepositCents : p.balanceCents;
+  k === "safety_check" ? p.safetyCheckCents : k === "fixes" ? p.fixesCents : k === "install_deposit" ? p.installDepositCents : k === "repeat_safety_check" ? p.repeatCents : p.balanceCents;
 
-/** Decision 140/141: card only for the safety check and the fixes; everything else is bank transfer / PayID only. */
+/** Decision 140/141 + 233: card only for the safety check (including the repeat check), the fixes; everything else is bank transfer / PayID only. */
 export function paymentMethodsFor(step: PaymentStepKey): PaymentMethod[] {
-  return step === "safety_check" || step === "fixes" ? ["card", "bank"] : ["bank"];
+  return step === "safety_check" || step === "fixes" || step === "repeat_safety_check" ? ["card", "bank"] : ["bank"];
 }
 export const cardAllowedFor = (step: PaymentStepKey) => paymentMethodsFor(step).includes("card");
 
@@ -109,7 +115,7 @@ export function stepState(f: { thresholdCents: number; amountCents: number; paid
 
 export function paymentSteps(plan: PaymentPlan, paidCents: number, facts: Partial<Record<PaymentStepKey, PaymentStepFacts>>, nowIso: string): PaymentStep[] {
   const paid = Math.max(0, Math.round(paidCents));
-  return PAYMENT_STEP_ORDER.filter((k) => k !== "fixes" || plan.fixesCents > 0).map((key) => {
+  return PAYMENT_STEP_ORDER.filter((k) => (k !== "fixes" || plan.fixesCents > 0) && (k !== "repeat_safety_check" || plan.repeatCents > 0)).map((key) => {
     const f = facts[key] ?? { requestedAt: null };
     const amountCents = stepAmountCents(plan, key);
     const thresholdCents = plan.thresholds[key];
@@ -144,9 +150,11 @@ export function fixesCountedCents(f: { rectTotalCents: number | null | undefined
 /** Audit R07: the plan's quote part. Once the approved fixes are on the ONE Xero invoice (`xero-repairs.core`), the
  *  invoice total is quote + fixes; the plan keeps the accepted installation quote as its quote part so the fixes are
  *  counted once and the plan's grand total equals the Xero invoice total. Otherwise the invoice total, as before. */
-export function planQuoteTotalCents(f: { invoiceTotalCents: number; quoteTotalCents: number | null | undefined; fixesCents: number }): number {
+export function planQuoteTotalCents(f: { invoiceTotalCents: number; quoteTotalCents: number | null | undefined; fixesCents: number; repeatCents?: number | null }): number {
   const q = f.quoteTotalCents == null ? null : Math.round(f.quoteTotalCents);
-  if (f.fixesCents > 0 && q != null && Math.round(f.invoiceTotalCents) === q + Math.round(f.fixesCents)) return q;
+  const fixes = Math.round(f.fixesCents);
+  const repeat = Math.max(0, Math.round(f.repeatCents ?? 0));
+  if (q != null && Math.round(f.invoiceTotalCents) === q + fixes + repeat) return q;
   return Math.round(f.invoiceTotalCents);
 }
 
@@ -445,7 +453,7 @@ export const PAY_LINE_HOW = "Pay by card or bank transfer — no fee either way"
 export function paymentLine(step: PaymentStepKey, reference: string | null, safetyCheckCents = SAFETY_CHECK_CENTS): string {
   const ref = reference ? `, reference ${reference}` : "";
   if (step === "safety_check") return safetyCheckCents === SAFETY_CHECK_CENTS ? PAY_LINE_SAFETY_CHECK : `${aud(safetyCheckCents)} by card or bank transfer — no fee`;
-  if (step === "fixes") return PAY_LINE_FIXES;
+  if (step === "fixes" || step === "repeat_safety_check") return PAY_LINE_FIXES;
   return `${PAY_LINE_BANK_ONLY}${ref}`;
 }
 
@@ -453,6 +461,7 @@ export function paymentLine(step: PaymentStepKey, reference: string | null, safe
 export function howYouPayLines(plan: PaymentPlan): string[] {
   return [
     `${aud(plan.safetyCheckCents)} now for the electrical safety check (card or bank transfer, no fee)`,
+    ...(plan.repeatCents > 0 ? [`${aud(plan.repeatCents)} for the repeat safety check (PIESA) (card or bank transfer, no fee)`] : []),
     `${aud(plan.installDepositCents)} deposit (10% of the install price) before your install day can be booked, by bank transfer or PayID`,
     `${aud(plan.balanceCents)} on install day, by bank transfer or PayID`,
     `Or pay the full ${aud(plan.quoteTotalCents)} any time by bank transfer or PayID`,
