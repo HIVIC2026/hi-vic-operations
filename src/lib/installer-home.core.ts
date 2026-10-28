@@ -155,13 +155,12 @@ export function offerPanelWords(o: { suburb: string | null; areaM2: number | nul
 }
 
 /** Approved state M1-more-offers: the "Job offers · N" list under the first offer — every open offer, the first included. */
-export function offersListView(offers: { id: string; suburb: string | null; areaM2: number | null; expiresAt: string | null }[], closes: (expiresAt: string | null) => string | null): { heading: string; rows: { id: string; title: string; detail: string; closes: string | null }[]; note: string; comingUpFold: (visits: number) => string } | null {
+export function offersListView(offers: { id: string; suburb: string | null; areaM2: number | null; expiresAt: string | null }[], closes: (expiresAt: string | null) => string | null): { heading: string; rows: { id: string; title: string; detail: string; closes: string | null }[]; note: string } | null {
   if (offers.length < 2) return null;
   return {
     heading: `Job offers · ${offers.length}`,
     rows: offers.map((o) => { const w = offerPanelWords(o, 1); return { id: o.id, title: w.title, detail: w.detail, closes: closes(o.expiresAt) }; }),
     note: "Each offer is only for you and stays open 24 hours. Open one to offer the owner 3 Ready Check times.",
-    comingUpFold: (visits: number) => (visits ? `${visits} visit${visits === 1 ? "" : "s"} booked · see My work` : "Nothing booked yet"),
   };
 }
 

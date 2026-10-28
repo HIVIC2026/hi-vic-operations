@@ -94,7 +94,7 @@ export async function tradeHome(userId: string) {
   const week = (books ?? []).filter((b) => mine.includes(b.kind) && byId.has(b.job_id) && new Date(b.scheduled_start) >= wk0 && new Date(b.scheduled_start) < wk1).length;
   // Speed (decision 280): the month figures, status facts, Ready Check quote lines and ended assignments do not depend
   // on each other — one round trip instead of five in a row, and the quote facts in one batch instead of one read per job.
-  const [{ statusFactsFor, statusView }, { installerTab, doneReason }, { installerHomeGroups }, { loadInstallerQuotes }, { installerQuoteLine }] = await Promise.all([
+  const [{ statusFactsFor, statusView }, { installerTab, doneReason }, { installerHomeGroups, comingForInstaller }, { loadInstallerQuotes }, { installerQuoteLine }] = await Promise.all([
     import("./job-status.server"), import("./installer-progress.core"), import("./installer-home.core"), import("./installer-quote-status.server"), import("./installer-quote-status.core"),
   ]);
   const liveIds = live.map((j) => j.id);
@@ -155,7 +155,7 @@ export async function tradeHome(userId: string) {
     formLinked: formFacts.get(j.jobId)?.linked === true, formCompleted: formFacts.get(j.jobId)?.completed === true, formHasAnswers: formFacts.get(j.jobId)?.hasAnswers ?? null,
     priceEntered: j.channel === "installer_sourced" ? priced.has(j.jobId) : null, boss: c.boss,
   }))) : null;
-  return { kind: c.kind, boss: c.boss, business: c.biz.name, firstName: c.firstName, isTest: c.isTest, week, offers: offerList, yourMove, coming, jobs: jobsTabbed, done, home, month: c.boss ? { jobs: month.length, earned: month.reduce((t, r) => t + (r.amount ?? 0), 0), paid: paidThisMonth } : null };
+  return { kind: c.kind, boss: c.boss, business: c.biz.name, firstName: c.firstName, isTest: c.isTest, week, offers: offerList, yourMove, coming: home ? comingForInstaller(coming, home) : coming, jobs: jobsTabbed, done, home, month: c.boss ? { jobs: month.length, earned: month.reduce((t, r) => t + (r.amount ?? 0), 0), paid: paidThisMonth } : null };
 }
 
 /** One offer, trade-side. Owner and address only once this business has taken it. */

@@ -37,11 +37,11 @@ function MyWork() {
   const first = data.offers[0];
 
   if (installer) {
-    const home = data.home ?? { action: [], progress: [], done: [] };
+    const home = data.home ?? { action: [], coming: [], progress: [], done: [] };
     const words = first ? offerPanelWords(first, data.offers.length) : null;
     // Approved state M1-more-offers: the "Job offers · N" list opens under the first offer and the rest folds (decision 235).
     const offersList = offersOpen ? offersListView(data.offers, goneIn) : null;
-    const empty = homeIsEmpty({ offers: data.offers.length, coming: data.coming.length, action: home.action.length, progress: home.progress.length, done: data.done.length });
+    const empty = homeIsEmpty({ offers: data.offers.length, coming: home.coming.length, action: home.action.length, progress: home.progress.length, done: data.done.length });
     return (
       <TradeShell installer boss={data.boss} test={data.isTest} redesign>
         <div data-my-work data-empty={empty || undefined}>
@@ -76,8 +76,7 @@ function MyWork() {
 
         <section data-coming-up>
           <h2 className={`${EYEBROW} border-b border-line pb-2`}>Coming up</h2>
-          {offersList ? <p className="py-3 text-sm text-sub">{offersList.comingUpFold(data.coming.length)}</p>
-            : data.coming.length ? data.coming.map((b) => { const t = dayTile(b.start); return (
+          {data.coming.length ? data.coming.map((b) => { const t = dayTile(b.start); return (
             <Link key={b.jobId + b.start} to="/field/day/$jobId" params={{ jobId: b.jobId }} className="flex min-h-[60px] items-center gap-3.5 border-b border-line py-2.5">
               <span className="w-[74px] shrink-0 rounded-[12px] bg-mist py-2 text-center"><span className="block text-xs font-bold">{t.day}</span><span className="mt-0.5 block text-sm font-semibold text-hiv-blue">{t.time}</span></span>
               <span className="min-w-0 flex-1"><span className="block text-base font-semibold">{b.what} · {b.surname}</span><span className="mt-0.5 block text-sm text-sub">{b.address}</span></span>{CHEVRON}
@@ -85,11 +84,9 @@ function MyWork() {
             : <p className="py-3 text-sm text-sub">{HOME_EMPTY.coming}</p>}
         </section>
 
-        {!offersList && <>
-          <JobGroup group="action" rows={home.action} empty={HOME_EMPTY.action} emptyAction={empty && data.boss ? <Link to="/partner/import" data-empty-add-job className="mt-3 flex min-h-12 w-full items-center justify-center rounded-[12px] bg-hiv-blue text-base font-semibold text-white">{HOME_EMPTY.actionButton}</Link> : null} />
-          <JobGroup group="progress" rows={home.progress} empty={HOME_EMPTY.progress} />
-          <DoneGroup rows={data.done} />
-        </>}
+        <JobGroup group="action" rows={home.action} empty={HOME_EMPTY.action} emptyAction={empty && data.boss ? <Link to="/partner/import" data-empty-add-job className="mt-3 flex min-h-12 w-full items-center justify-center rounded-[12px] bg-hiv-blue text-base font-semibold text-white">{HOME_EMPTY.actionButton}</Link> : null} />
+        <JobGroup group="progress" rows={home.progress} empty={HOME_EMPTY.progress} />
+        <DoneGroup rows={data.done} />
 
         {data.boss && data.month && (() => { const m = monthStripWords(data.month); return (
           <Link to="/field/money" data-this-month className="flex min-h-14 items-center justify-between rounded-[14px] border border-line px-4 py-3.5">

@@ -137,6 +137,14 @@ describe("offer panel and This month strip words", () => {
 });
 
 describe("screen files follow the mock-ups and the audit removals", () => {
+  test("B1/B3: Coming up comes from the groups, and More offers hides no list", () => {
+    const srv = readFileSync("src/lib/trade-view.server.ts", "utf8");
+    expect(srv).toContain("comingForInstaller(coming, home)");
+    const page = readFileSync("src/routes/_authenticated/field.index.tsx", "utf8");
+    expect(page).not.toContain("comingUpFold");
+    expect(page).not.toContain("{!offersList && <>");
+    for (const kept of ['group="action"', 'group="progress"', "<DoneGroup", "data-coming-up"]) expect(page).toContain(kept);
+  });
   test("My work: no windows, no first-to-accept, no intake Q&A, no Add a job button, no bulk upload, groups from the pure core", () => {
     const page = readFileSync("src/routes/_authenticated/field.index.tsx", "utf8");
     for (const gone of ["8–10am", "first to accept", "Quoted?", "Site check?", "InstallerFactsLine", "SourceBadge", "bulk-import", "Upload multiple jobs", "PlusCircle", "Installer customer"]) expect(page).not.toContain(gone);

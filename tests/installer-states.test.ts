@@ -33,7 +33,7 @@ describe("M1 states", () => {
     expect(v.rows.map((r) => r.detail)).toEqual(["Owner says ~120 m² · Home Insulation Victoria lead", "No size yet · Home Insulation Victoria lead", "Owner says ~95 m² · Home Insulation Victoria lead"]);
     expect(v.rows[1]!.closes).toBe("Closes in y");
     expect(v.note).toBe("Each offer is only for you and stays open 24 hours. Open one to offer the owner 3 Ready Check times.");
-    expect(v.comingUpFold(3)).toBe("3 visits booked · see My work");
+    expect("comingUpFold" in v).toBe(false);
     expect(offersListView(offers.slice(0, 1), () => null)).toBeNull();
     expect(offerPanelWords({ suburb: "Glen Waverley", areaM2: 120 }, 3).eyebrow).toBe("3 new job offers");
   });
