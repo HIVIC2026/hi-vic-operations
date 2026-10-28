@@ -149,7 +149,7 @@ open test job as owner
 check that page contains "Spot saved"
 check that page contains "Your numbers"
 check that page contains "Your rebate"
-check that page contains "You pay about"
+check that page contains "Your estimated quote based on what you've told us"
 check that page contains "Remove my enquiry"
 
 ### H-22 · Paperwork card while waiting   [read-only]

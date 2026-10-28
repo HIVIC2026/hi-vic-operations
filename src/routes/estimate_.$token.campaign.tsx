@@ -73,7 +73,7 @@ function Result({ group, videoPriority, token, rebate, customer, suburb, home, r
     </div>
     <dl className="mt-4 grid gap-2 rounded-xl border border-estimate-line p-4 text-sm text-estimate-navy">
       <div className="flex justify-between gap-3"><dt>Your rebate</dt><dd className="font-bold text-estimate-logo-green">{$(rebate)}</dd></div>
-      <div className="flex justify-between gap-3"><dt>You pay about</dt><dd className="font-bold">{$(customer)}</dd></div>
+      <div className="flex justify-between gap-3"><dt>Your estimated quote based on what you've told us</dt><dd className="font-bold">{$(customer)}</dd></div>
       {home && <div className="flex justify-between gap-3"><dt>Home</dt><dd className="text-right">{home}</dd></div>}
     </dl>
     <p className="mt-2 text-xs text-estimate-navy/70">{SPOT_PRICE_NOTE}</p>
@@ -106,7 +106,7 @@ function CampaignDesign({ saveAllowed, ownerQualified, reviewStatus, group, toke
     <section className="mt-7">
       <p className={`text-[11px] font-extrabold uppercase tracking-[0.13em] ${onsite ? "text-estimate-green" : "text-estimate-logo-green"}`}>{onsite ? "Check your insulation" : "🎉 Your rebate is waiting"}</p>
       <h1 className="mt-2 font-display text-[32px] font-extrabold leading-[1.15]">{onsite ? <>{name ? `${name}, take` : "Take"} <span className="text-estimate-logo-green">{rebate}</span> off your ceiling insulation</> : <>Great news{name ? `, ${name}` : ""}! You could take <span className="text-estimate-logo-green">{rebate}</span> off your ceiling insulation</>}</h1>
-      <p className="mt-4 text-[15px] leading-relaxed">Your {suburb ? `${suburb} ` : ""}home {onsite ? "could be eligible" : "looks eligible"} for the Victorian Energy Upgrades rebate. That means you pay about <strong>{money(p.total)}</strong> instead of {money(p.gross)}, and enjoy lower power bills for years to come.</p>
+      <p className="mt-4 text-[15px] leading-relaxed">Your {suburb ? `${suburb} ` : ""}home {onsite ? "could be eligible" : "looks eligible"} for the Victorian Energy Upgrades rebate. That means your estimated quote, based on what you've told us, is <strong>{money(p.total)}</strong> instead of {money(p.gross)}, and enjoy lower power bills for years to come.</p>
       <p className="mt-3 text-sm font-extrabold">{onsite ? "Help us check your insulation so you can save your spot." : `${SPOT_REGISTERED} ${SPOT_ORDER}`}</p>
       <div className="mt-5">{ownerQualified && <p className="mb-3 text-sm">Your owner declaration qualifies you to save your spot. Your eligibility and any removal costs are confirmed before you agree to anything.</p>}{onsite ? videoBtn : saveBtn}</div>
       {onsite ? <p className="mt-3 text-center text-sm">Answer either question Yes to qualify for the preliminary queue, or send photos or video for office review.</p> : <p className="mt-3 text-center text-sm">Free · no payment · no obligation</p>}

@@ -956,7 +956,7 @@ function SpotSavedHome({ v, token }: { v: View; token: string }) {
     <section className="rounded-[22px] bg-card p-5 shadow-sm">
       <p className="font-display text-lg font-extrabold">Your numbers</p>
       <div className="mt-3 flex justify-between text-sm"><span>Your rebate</span><span className="font-bold text-estimate-logo-green">{aud(sp.rebate)}</span></div>
-      <div className="mt-2 flex justify-between text-sm"><span>You pay about</span><span className="font-bold">{sp.cost == null ? "—" : aud(sp.cost)}</span></div>
+      <div className="mt-2 flex justify-between text-sm"><span>Your estimated quote based on what you've told us</span><span className="font-bold">{sp.cost == null ? "—" : aud(sp.cost)}</span></div>
       <p className="mt-3 text-xs text-estimate-navy/70">{SPOT_PRICE_NOTE}</p>
     </section>
     <p className="pt-2 text-center"><a href={optOut} className="text-xs text-estimate-navy/70 underline">Remove my enquiry</a></p>
