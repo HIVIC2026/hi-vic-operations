@@ -16,8 +16,8 @@ const isTestBiz = (b: { name?: string | null; onboarding_notes?: string | null }
 const bizName = (b: { trading_name?: string | null; name: string }) => b.trading_name || b.name;
 const must = <T,>(r: { data: T | null; error: { message: string } | null }, what: string): T => { if (r.error) throw new Error(`Could not read ${what}: ${r.error.message}`); return (r.data ?? []) as T; };
 
-type Worker = { id: string; business_id: string; profile_id: string | null; trade_role: string; full_legal_name: string; email: string; mobile: string | null; licence_number: string | null; licence_expires_on: string | null; certification_status: string | null; certification: Record<string, unknown> | null; removed_at: string | null; approval_status: string };
-const WORKER_COLS = "id, business_id, profile_id, trade_role, full_legal_name, email, mobile, licence_number, licence_expires_on, certification_status, certification, removed_at, approval_status";
+type Worker = { id: string; business_id: string; profile_id: string | null; trade_role: string; full_legal_name: string; email: string | null; worker_role?: string | null; mobile: string | null; licence_number: string | null; licence_expires_on: string | null; certification_status: string | null; certification: Record<string, unknown> | null; removed_at: string | null; approval_status: string };
+const WORKER_COLS = "id, business_id, profile_id, trade_role, full_legal_name, email, mobile, licence_number, licence_expires_on, certification_status, certification, removed_at, approval_status, worker_role";
 
 /** People rows for the given businesses: CII (153), ESC privacy notice (130), Mitti (22/188), one next action. */
 export async function peopleFor(businessIds: string[]) {
@@ -35,6 +35,8 @@ export async function peopleFor(businessIds: string[]) {
   const profileIds = workers.map((w) => w.profile_id).filter((x): x is string => !!x);
   const profiles = profileIds.length ? must<{ id: string; email: string | null; mitti_user_id: string | null; mitti_checked_email: string | null; mitti_checked_at: string | null }[]>(await db.from("profiles").select("id, email, mitti_user_id, mitti_checked_email, mitti_checked_at").in("id", profileIds), "profiles") : [];
   const { data: biz } = await db.from("businesses").select("id, name, trading_name").in("id", businessIds);
+  // Jo 28 Oct: Lead / Crew per installer person (null for electricians).
+  const roles = await (await import("./mitti-invite.server")).workerRolesFor(workers);
   return workers.map((w) => {
     const c = certs.find((r) => r.worker_id === w.id || sameWorkerEmail(w.email, r.worker_email)) ?? null;
     const l = c ? levels.find((r) => r.certification_id === c.id) ?? null : null;
@@ -53,7 +55,7 @@ export async function peopleFor(businessIds: string[]) {
       id: w.id, name: w.full_legal_name, email: w.email, businessId: w.business_id, business: b ? bizName(b) : "—", role: w.trade_role, profileId: w.profile_id,
       whiteCard: whiteCardState(w as never) as string, whiteCardNumber: whiteCardOf(w.certification)?.number ?? null,
       certNumber: ((w.certification as { eec_upload?: { number?: string | null } } | null)?.eec_upload?.number) ?? null, hasCertFile: !!(w.certification as { eec_upload?: { path?: string } } | null)?.eec_upload?.path,
-      clearedReason: cl?.reason ?? null, ...row,
+      clearedReason: cl?.reason ?? null, workerRole: roles.get(w.id) ?? null, ...row,
     };
   });
 }
