@@ -9,13 +9,14 @@ import { mittiAccessOf } from "./mitti-membership.core";
 import { maskBank, personRow, postcodeSummary, rateCardLine } from "./office-partners.core";
 import { credentialState, isElectricianBiz } from "./pilot.core";
 import { partnerIssues, signedRecRates } from "./partner.core";
+import { certMatchesWorker, certOrFilter } from "./worker-role.core";
 
 const db = admin as any; // eslint-disable-line @typescript-eslint/no-explicit-any
 const isTestBiz = (b: { name?: string | null; onboarding_notes?: string | null }) => /^TEST/i.test(b.name ?? "") || (b.onboarding_notes ?? "").includes("[TEST PARTNER]");
 const bizName = (b: { trading_name?: string | null; name: string }) => b.trading_name || b.name;
 const must = <T,>(r: { data: T | null; error: { message: string } | null }, what: string): T => { if (r.error) throw new Error(`Could not read ${what}: ${r.error.message}`); return (r.data ?? []) as T; };
 
-type Worker = { id: string; business_id: string; profile_id: string | null; trade_role: string; full_legal_name: string; email: string; mobile: string | null; licence_number: string | null; licence_expires_on: string | null; certification_status: string | null; certification: Record<string, unknown> | null; removed_at: string | null; approval_status: string };
+type Worker = { id: string; business_id: string; profile_id: string | null; trade_role: string; full_legal_name: string; email: string | null; mobile: string | null; licence_number: string | null; licence_expires_on: string | null; certification_status: string | null; certification: Record<string, unknown> | null; removed_at: string | null; approval_status: string };
 const WORKER_COLS = "id, business_id, profile_id, trade_role, full_legal_name, email, mobile, licence_number, licence_expires_on, certification_status, certification, removed_at, approval_status";
 
 /** People rows for the given businesses: CII (153), ESC privacy notice (130), Mitti (22/188), one next action. */
@@ -24,9 +25,8 @@ export async function peopleFor(businessIds: string[]) {
   const workers = must<Worker[]>(await db.from("partner_workers").select(WORKER_COLS).in("business_id", businessIds).is("removed_at", null).order("full_legal_name"), "people");
   const today = melbourneToday();
   const installers = workers.filter((w) => w.trade_role === "installer");
-  const emails = installers.map((w) => w.email.trim().toLowerCase());
   const certs = installers.length ? must<{ id: string; worker_id: string | null; worker_email: string; status: string }[]>(await db.from("partner_worker_certifications").select("id, worker_id, worker_email, status, recorded_at")
-    .or(`worker_id.in.(${installers.map((w) => w.id).join(",")}),worker_email.in.(${emails.map((e) => `"${e}"`).join(",")})`).order("recorded_at", { ascending: false }), "CII checks") : [];
+    .or(certOrFilter(installers.map((w) => w.id), installers.map((w) => w.email))).order("recorded_at", { ascending: false }), "CII checks") : [];
   const certIds = certs.map((c) => c.id);
   const levels = certIds.length ? must<{ certification_id: string; level: string; expires_on: string }[]>(await db.from("worker_certification_levels").select("certification_id, level, expires_on, recorded_at").in("certification_id", certIds).order("recorded_at", { ascending: false }), "CII levels") : [];
   const { noticeAckMap, noticeSendHistory } = await import("./esc-collection-notice.server");
@@ -35,7 +35,7 @@ export async function peopleFor(businessIds: string[]) {
   const profiles = profileIds.length ? must<{ id: string; email: string | null; mitti_user_id: string | null; mitti_checked_email: string | null; mitti_checked_at: string | null }[]>(await db.from("profiles").select("id, email, mitti_user_id, mitti_checked_email, mitti_checked_at").in("id", profileIds), "profiles") : [];
   const { data: biz } = await db.from("businesses").select("id, name, trading_name").in("id", businessIds);
   return workers.map((w) => {
-    const c = certs.find((r) => r.worker_id === w.id || r.worker_email.trim().toLowerCase() === w.email.trim().toLowerCase()) ?? null;
+    const c = certs.find((r) => certMatchesWorker(r, w)) ?? null;
     const l = c ? levels.find((r) => r.certification_id === c.id) ?? null : null;
     const eec = eecState(w as never);
     const cl = c && eec === "verified" ? crewClearance({ certStatus: c.status, level: l?.level ?? null, expiresOn: l?.expires_on ?? null }, today) : null;
