@@ -354,6 +354,59 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   }
   const unsigned = new Set(veecForms.filter((v) => !v["consumer_signed_at"]).map((v) => String(v["job_id"])));
   for (const e of veecAlerts) { const x = f(String(e["job_id"])); if (x && unsigned.has(String(e["job_id"]))) x.veecDay10 = { at: String(e["created_at"]) }; }
+  // Jo 28 Oct 2026 (decision card 04:40 UTC, "Alert after 3 days unpaid"): a job paused on a homeowner payment that
+  // stays unpaid for 3 full days raises ONE Needs me row naming the payment and since when (payment-stall.core).
+  // The row is derived from the paid amount, never stored — recording the payment clears it by itself. Covered: the
+  // $349 safety check, the fixes, the 10% install deposit and the repeat safety check (the balance is not — Jo's list).
+  {
+    const { paymentStall } = await import("./payment-stall.core");
+    const { safetyCheckCentsFor } = await import("./safety-check-amount.core");
+    const { REPEAT_PIESA_ACCEPTED_EVENT, REPEAT_PIESA_PAID_EVENT } = await import("./repeat-piesa.core");
+    const invoiceByJob = new Map<string, Row>();
+    for (const r of payInvoices) { const id = String(r["job_id"]); const cur = invoiceByJob.get(id); if (!cur || String(r["created_at"]) > String(cur["created_at"])) invoiceByJob.set(id, r); }
+    const quotesByJob = new Map<string, Row[]>();
+    for (const q of payQuotes) { const id = String(q["job_id"]); const list = quotesByJob.get(id); if (list) list.push(q); else quotesByJob.set(id, [q]); }
+    const piesaLinesByQuote = new Map<string, { code: string | null; line_total_inc_gst: number | string | null }[]>();
+    for (const it of payPiesaLines) { const qid = String(it["quote_id"]); const list = piesaLinesByQuote.get(qid); const line = { code: "PIESA", line_total_inc_gst: it["line_total_inc_gst"] as number | null }; if (list) list.push(line); else piesaLinesByQuote.set(qid, [line]); }
+    const waivedInvoices = new Set(payOverrides.map((o) => String(o["invoice_id"])));
+    const piesaByJob = new Map(piesaCurRows.map((p) => [String(p["job_id"]), p]));
+    // payStageEv is newest-first: the first row per job is the latest entry into a deposit-due stage.
+    const depositSinceByJob = new Map<string, string>();
+    for (const e of payStageEv) { const id = String(e["job_id"]); if (!depositSinceByJob.has(id)) depositSinceByJob.set(id, String(e["created_at"])); }
+    const repeatByJob = new Map<string, { price: number; acceptedAt: string | null; paid: boolean }>();
+    for (const e of payRepeatEv) { // newest-first
+      const id = String(e["job_id"]); const t = String(e["event_type"]);
+      const cur = repeatByJob.get(id) ?? { price: 0, acceptedAt: null, paid: false };
+      if (t === "repeat_piesa_payer_chosen" && cur.price === 0) { const d = e["details"] as { payer?: string; price_inc_gst?: number | null } | null; if (d?.payer === "owner") cur.price = Number(d?.price_inc_gst ?? 0); }
+      else if (t === REPEAT_PIESA_ACCEPTED_EVENT && !cur.acceptedAt) cur.acceptedAt = String(e["created_at"]);
+      else if (t === REPEAT_PIESA_PAID_EVENT) cur.paid = true;
+      repeatByJob.set(id, cur);
+    }
+    for (const [id, inv] of invoiceByJob) {
+      const x = f(id); const j = jobById.get(id);
+      if (!x || !j || ["complete", "cancelled", "on_hold"].includes(j.stage)) continue;
+      const qs = quotesByJob.get(id) ?? [];
+      const byAccepted = (k: string) => qs.filter((q) => q["kind"] === k && q["accepted_at"]).sort((a, b) => String(b["accepted_at"]).localeCompare(String(a["accepted_at"])))[0];
+      const installQ = byAccepted("installation");
+      if (!installQ) continue;
+      const rectQ = byAccepted("rectification");
+      const installAccepted = String(installQ["accepted_at"]);
+      const paidCents = toCents(inv["total_paid"]);
+      const safety = safetyCheckCentsFor({ lines: piesaLinesByQuote.get(String(installQ["id"])) ?? [], settingIncGst: (paySettings?.["safety_check_payment_inc_gst"] ?? null) as number | null }).cents;
+      const fixesCents = fixesCountedCents({ rectTotalCents: toCents(rectQ?.["customer_total_inc_gst"]), rectAcceptedAt: rectQ ? String(rectQ["accepted_at"]) : null, installAcceptedAt: installAccepted });
+      const rep = repeatByJob.get(id);
+      const repeatCents = rep && rep.price > 0 && rep.acceptedAt && !rep.paid ? toCents(rep.price) : 0;
+      const plan = paymentPlan({ quoteTotalCents: toCents(installQ["customer_total_inc_gst"]), safetyCheckCents: safety, fixesCents, repeatCents });
+      const steps: { key: PaymentStepKey; since: string }[] = [];
+      if (!waivedInvoices.has(String(inv["id"])) && paidCents < plan.thresholds.safety_check) steps.push({ key: "safety_check", since: installAccepted });
+      if (fixesCents > 0 && rectQ && paidCents < plan.thresholds.fixes) steps.push({ key: "fixes", since: String(rectQ["accepted_at"]) });
+      const depSince = depositSinceByJob.get(id);
+      if (depSince && INSTALL_DEPOSIT_DUE_STAGES.has(j.stage) && installDepositDueNow(j.stage, piesaByJob.get(id) as { outcome?: string | null; section_c_signed_at?: string | null } | null) && paidCents < plan.thresholds.install_deposit) steps.push({ key: "install_deposit", since: depSince });
+      if (repeatCents > 0 && rep?.acceptedAt && paidCents < plan.thresholds.repeat_safety_check) steps.push({ key: "repeat_safety_check", since: rep.acceptedAt });
+      const stall = paymentStall(steps, now);
+      if (stall) x.paymentStalled = stall;
+    }
+  }
   for (const i of overdue) { const x = f(String(i["job_id"])); if (x) x.paymentOverdue = { at: String(i["balance_due_date"] ?? i["deposit_due_date"] ?? new Date(now).toISOString()), text: `$${Math.max(0, Number(i["total_inc_gst"] ?? 0) - Number(i["total_paid"] ?? 0)).toLocaleString("en-AU", { maximumFractionDigits: 0 })} owing` }; }
   if (payViews) provisionalBookings.forEach((b, i) => {
     const x = f(String(b["job_id"])); const v = payViews[i];
