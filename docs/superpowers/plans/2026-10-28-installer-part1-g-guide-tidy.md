@@ -40,9 +40,9 @@
 - Consumes: `PIESA_FULL` from `src/lib/job-wording.ts`.
 - Produces: `export const WELCOME_TAKES = { installer: "Ready Checks and installs", electrician: \`${PIESA_FULL} jobs\` } as const;` in `trade-view.core.ts`.
 
-Copy (DRAFT — Open question for Jo):
+Copy (approved by Jo 29 Oct 2026 — use exactly):
 - Safety check: "We arrange it once the owner accepts. You get the Pre Insulation Electrical Safety Assessment (PIESA) at least 24 hours before install."
-- Install day: "Follow the install form from the 6:30am text, top to bottom: the SWMS (Safe Work Method Statement: your safety plan for the job), the PIISA (Pre-installation installer safety assessment: your safety check before you start), then the photos. Press Complete in Mitti, then sign Part B (your declaration) of the VEEC form (the rebate form: VEEC is the Victorian Energy Efficiency Certificate) on the job."
+- Install day: "Follow the install form from the 6:30am text, top to bottom: the SWMS (Safe Work Method Statement: your safety plan for the job), the PIISA (Pre-installation installer safety assessment: your safety check before you start), then the photos. Press Complete in Mitti, then sign Part B (your declaration) of the VEEC form (the rebate form) on the job."
 - Electrician welcome: "{business} is ready to take Pre Insulation Electrical Safety Assessment (PIESA) jobs from Home Insulation Victoria."
 
 - [ ] **Step 1: Write the failing test**
@@ -62,7 +62,7 @@ test("G1: guide and welcome use the full PIESA name", () => {
   expect(page).not.toContain('"PIESAs"');
 });
 test("G2: SWMS, PIISA, VEEC and Part B explained the first time they appear", () => {
-  for (const [term, plain] of [["SWMS", "Safe Work Method Statement"], ["PIISA", "Pre-installation installer safety assessment"], ["VEEC", "Victorian Energy Efficiency Certificate"], ["Part B", "your declaration"]] as const) {
+  for (const [term, plain] of [["SWMS", "Safe Work Method Statement"], ["PIISA", "Pre-installation installer safety assessment"], ["VEEC", "the rebate form"], ["Part B", "your declaration"]] as const) {
     const at = all.indexOf(term);
     expect(at).toBeGreaterThan(-1);
     expect(all.slice(at, at + 140)).toContain(plain);
@@ -245,7 +245,7 @@ git commit -m "refactor(trade): remove shared leftovers, no visible change (G5)"
 - [ ] **Step 3:** `bun scripts/scan-retired-terms.ts` — Expected: ends `… 0 customer-visible (failing).`
 - [ ] **Step 4:** On the TEST accounts, phone and computer: guide and welcome read as approved; a TEST staff login on `/field/welcome` sees only My work; My business Next panel looks the same; the notice page shows "(lead installer)" only on the Lead. Jo approves before go-live.
 
-## Open questions for Jo
+## Jo's answers (29 Oct 2026)
 
-1. Approve the guide "Safety check" and "Install day" wording and the explanations of SWMS, PIISA, VEEC and Part B (Task 1 copy).
-2. Approve the electrician welcome line: "… is ready to take Pre Insulation Electrical Safety Assessment (PIESA) jobs from Home Insulation Victoria."
+1. Guide wording approved exactly as in Task 1 (install-day VEEC explanation shortened to "(the rebate form)").
+2. Electrician welcome line approved.
