@@ -97,8 +97,10 @@ const range = (v: unknown): Range | null => {
   if (!isObj(v)) return null;
   const num = (x: unknown) => (typeof x === "number" && Number.isFinite(x) ? x : undefined);
   const r: Range = {};
-  if (num(v.min) != null) r.min = num(v.min);
-  if (num(v.max) != null) r.max = num(v.max);
+  const min = num(v["min"]);
+  const max = num(v["max"]);
+  if (min != null) r.min = min;
+  if (max != null) r.max = max;
   return r;
 };
 
@@ -106,11 +108,11 @@ function parseFilters(v: unknown): JobsColumnFilters {
   if (!isObj(v)) return {};
   const f: JobsColumnFilters = {};
   for (const k of ["job", "owner", "suburb"] as const) if (typeof v[k] === "string") f[k] = v[k] as string;
-  const next = strArr(v.next); if (next) f.next = next;
-  const stage = strArr(v.stage); if (stage) f.stage = stage as JobsStage[];
-  const ins = strArr(v.insulation); if (ins) f.insulation = ins as YesNo[];
-  const inst = strArr(v.installer); if (inst) f.installer = inst;
-  const heard = strArr(v.heard); if (heard) f.heard = heard as LastHeardChip[];
+  const next = strArr(v["next"]); if (next) f.next = next;
+  const stage = strArr(v["stage"]); if (stage) f.stage = stage as JobsStage[];
+  const ins = strArr(v["insulation"]); if (ins) f.insulation = ins as YesNo[];
+  const inst = strArr(v["installer"]); if (inst) f.installer = inst;
+  const heard = strArr(v["heard"]); if (heard) f.heard = heard as LastHeardChip[];
   for (const k of ["days", "area", "cost"] as const) { const r = range(v[k]); if (r) f[k] = r; }
   return f;
 }
@@ -121,9 +123,9 @@ export function parseSavedView(raw: string | null): SavedView {
   try { v = JSON.parse(raw); } catch { return DEFAULT_VIEW; }
   if (!isObj(v)) return DEFAULT_VIEW;
   return {
-    filters: parseFilters(v.filters),
-    sort: typeof v.sort === "string" ? v.sort : DEFAULT_VIEW.sort,
-    dir: v.dir === "asc" || v.dir === "desc" ? v.dir : DEFAULT_VIEW.dir,
-    needsUs: typeof v.needsUs === "boolean" ? v.needsUs : DEFAULT_VIEW.needsUs,
+    filters: parseFilters(v["filters"]),
+    sort: typeof v["sort"] === "string" ? v["sort"] : DEFAULT_VIEW.sort,
+    dir: v["dir"] === "asc" || v["dir"] === "desc" ? v["dir"] : DEFAULT_VIEW.dir,
+    needsUs: typeof v["needsUs"] === "boolean" ? v["needsUs"] : DEFAULT_VIEW.needsUs,
   };
 }
