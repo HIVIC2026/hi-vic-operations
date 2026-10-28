@@ -111,3 +111,6 @@ Also fixed: the delivery-result database change moves to `docs/pending-migration
 - Reconnect Outlook in Lovable with send permission.
 - Add `RESEND_WEBHOOK_SECRET`, and a Resend webhook for `email.delivered` and `email.bounced` pointing at `/api/public/hooks/resend-delivery`.
 - Regenerate `src/routeTree.gen.ts` in a real build.
+
+### Also fixed (29 Oct 2026, Jo said yes)
+When the AI fails to write a follow-up draft, the portal records the failure so it waits 30 minutes before trying again. That record has no job, and the database currently refuses it, so the wait never happens. `followup-send-claim.sql` now also allows that record. No emails are affected.

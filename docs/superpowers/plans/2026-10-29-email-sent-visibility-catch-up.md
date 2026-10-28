@@ -77,3 +77,17 @@ Rules: same SQL as 0178 (additive, idempotent); rollback drops the two check con
 - [ ] **Step 3:** Implement.
 - [ ] **Step 4:** Run it plus `./tests/email-delivery.core.test.ts ./tests/resend-delivery-hook.test.ts` — Expected: PASS.
 - [ ] **Step 5:** Commit `chore(email): delivery result columns as a pending migration`.
+
+### Task 4: Allow the job-less AI-draft failure record
+
+**Files:**
+- Modify: `docs/pending-migrations/followup-send-claim.sql`, `docs/pending-migrations/followup-send-claim.rollback.sql`
+- Test: `tests/followup-send-claim-practice-db.test.ts`
+
+Rules: add `email_nojob_ai_draft_failed` to the forward `workflow_events_job_required` list; add it to the rollback's refusal check (rollback refuses while such rows exist); the rollback's restored list stays exactly the previous live definition; header comment updated.
+
+- [ ] **Step 1: Failing test** — job-less `email_nojob_ai_draft_failed` row is allowed after the forward script; rollback refuses while one exists.
+- [ ] **Step 2:** Run `bun test --timeout 30000 ./tests/followup-send-claim-practice-db.test.ts` — Expected: FAIL.
+- [ ] **Step 3:** Implement.
+- [ ] **Step 4:** Run it plus `./tests/emails-tab.test.ts` — Expected: PASS.
+- [ ] **Step 5:** Commit `fix(email): allow the job-less AI-draft failure record`.
