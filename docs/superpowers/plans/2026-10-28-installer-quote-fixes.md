@@ -15,7 +15,7 @@
 ## Global Constraints
 
 - A quote that has been sent or accepted is never changed.
-- Nothing here sends a text or email.
+- Nothing here sends a text or email, except the approved repair-price link text (switch off until turned on).
 - Office Adjust stays available and is not locked.
 - Exact installer note: "We can't send the owner's quote yet. [Name] hasn't finished signing up with us. Ask them to finish, or use our electrician ($349) instead."
 - Exact installer button: "Use Home Insulation Victoria's electrician ($349) instead". The confirm asks "Are you sure?". The switch is final, with no switch back.

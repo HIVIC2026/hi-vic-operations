@@ -87,6 +87,9 @@ difficult-access fee Jo never entered.
     - Owner error messages, approved: "Enter your total price for all the repair work, inc GST (more than $0)." /
       "The repair quote has already gone to the homeowner. To change it, contact the office." / "The repair price can
       only be set after the safety check and before the homeowner has the repair quote."
+    - Extra items the staff add, once priced by the owner or office, go on the homeowner's fixes quote as extra lines
+      on top of the repair total, and the electrician is paid for them (Jo 28 Oct).
+    - If the safety-check form is edited after the owner has priced it, the owner's price still stands (Jo 28 Oct).
     - If the repair price still isn't entered 24 hours after the link was sent, the job shows "Waiting on the
       electrician's price" on Active jobs for the office (Jo 28 Oct). No reminder text.
     - Closing direct database access to prices for staff logins is a separate piece of work with its own spec
@@ -103,6 +106,8 @@ difficult-access fee Jo never entered.
 ### 5. Office
 - A held quote can't be sent while it has hold reasons. A held quote with no reason gets "Quote held for office
   review".
+- An office hand-edit to an installer quote is kept until something real changes: the installer's price, or the
+  Mitti form. The 15-minute check does not undo it when nothing has changed (Jo 28 Oct).
 - If the office edited a draft by hand and an automatic rebuild replaces it, the office gets one alert, worded exactly:
   "The quote your office edited was rebuilt with new figures. Check it before sending." It shows on the Active jobs
   row and on the job page. It doesn't block Send. The installer never sees it. It fires once per replaced draft.
@@ -112,7 +117,8 @@ difficult-access fee Jo never entered.
 
 ### Never
 - A quote already sent or accepted is never changed.
-- Nothing here sends a text or email.
+- Nothing here sends a text or email, except the one approved repair-price link text to the electrician business
+  owner (its switch is off until Jo turns it on).
 - Office edit (Adjust) stays available. It is not locked.
 
 ## Done when (TEST jobs only, nothing sent)
