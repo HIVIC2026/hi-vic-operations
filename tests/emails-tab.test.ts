@@ -108,7 +108,7 @@ describe("Send safety (decision 414 review)", () => {
   const src = readFileSync("src/lib/emails-tab.server.ts", "utf8");
   test("a no-job reply claims the one-per-person website reply BEFORE sending", () => {
     const claim = src.indexOf("idempotency_key: newSenderReplyKey(to)");
-    const send = src.indexOf("await resendSend(to,");
+    const send = src.indexOf("await sendViaOutlook({");
     expect(claim).toBeGreaterThan(0);
     expect(send).toBeGreaterThan(claim);
     expect(src).toContain('claimErr?.code === "23505"');
