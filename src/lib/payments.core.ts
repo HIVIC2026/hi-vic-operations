@@ -115,7 +115,7 @@ export function stepState(f: { thresholdCents: number; amountCents: number; paid
 
 export function paymentSteps(plan: PaymentPlan, paidCents: number, facts: Partial<Record<PaymentStepKey, PaymentStepFacts>>, nowIso: string): PaymentStep[] {
   const paid = Math.max(0, Math.round(paidCents));
-  return PAYMENT_STEP_ORDER.filter((k) => k !== "fixes" || plan.fixesCents > 0).map((key) => {
+  return PAYMENT_STEP_ORDER.filter((k) => (k !== "fixes" || plan.fixesCents > 0) && (k !== "repeat_safety_check" || plan.repeatCents > 0)).map((key) => {
     const f = facts[key] ?? { requestedAt: null };
     const amountCents = stepAmountCents(plan, key);
     const thresholdCents = plan.thresholds[key];
@@ -150,9 +150,11 @@ export function fixesCountedCents(f: { rectTotalCents: number | null | undefined
 /** Audit R07: the plan's quote part. Once the approved fixes are on the ONE Xero invoice (`xero-repairs.core`), the
  *  invoice total is quote + fixes; the plan keeps the accepted installation quote as its quote part so the fixes are
  *  counted once and the plan's grand total equals the Xero invoice total. Otherwise the invoice total, as before. */
-export function planQuoteTotalCents(f: { invoiceTotalCents: number; quoteTotalCents: number | null | undefined; fixesCents: number }): number {
+export function planQuoteTotalCents(f: { invoiceTotalCents: number; quoteTotalCents: number | null | undefined; fixesCents: number; repeatCents?: number | null }): number {
   const q = f.quoteTotalCents == null ? null : Math.round(f.quoteTotalCents);
-  if (f.fixesCents > 0 && q != null && Math.round(f.invoiceTotalCents) === q + Math.round(f.fixesCents)) return q;
+  const fixes = Math.round(f.fixesCents);
+  const repeat = Math.max(0, Math.round(f.repeatCents ?? 0));
+  if (q != null && Math.round(f.invoiceTotalCents) === q + fixes + repeat) return q;
   return Math.round(f.invoiceTotalCents);
 }
 
@@ -451,7 +453,7 @@ export const PAY_LINE_HOW = "Pay by card or bank transfer — no fee either way"
 export function paymentLine(step: PaymentStepKey, reference: string | null, safetyCheckCents = SAFETY_CHECK_CENTS): string {
   const ref = reference ? `, reference ${reference}` : "";
   if (step === "safety_check") return safetyCheckCents === SAFETY_CHECK_CENTS ? PAY_LINE_SAFETY_CHECK : `${aud(safetyCheckCents)} by card or bank transfer — no fee`;
-  if (step === "fixes") return PAY_LINE_FIXES;
+  if (step === "fixes" || step === "repeat_safety_check") return PAY_LINE_FIXES;
   return `${PAY_LINE_BANK_ONLY}${ref}`;
 }
 
@@ -459,6 +461,7 @@ export function paymentLine(step: PaymentStepKey, reference: string | null, safe
 export function howYouPayLines(plan: PaymentPlan): string[] {
   return [
     `${aud(plan.safetyCheckCents)} now for the electrical safety check (card or bank transfer, no fee)`,
+    ...(plan.repeatCents > 0 ? [`${aud(plan.repeatCents)} for the repeat safety check (PIESA) (card or bank transfer, no fee)`] : []),
     `${aud(plan.installDepositCents)} deposit (10% of the install price) before your install day can be booked, by bank transfer or PayID`,
     `${aud(plan.balanceCents)} on install day, by bank transfer or PayID`,
     `Or pay the full ${aud(plan.quoteTotalCents)} any time by bank transfer or PayID`,
