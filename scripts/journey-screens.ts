@@ -112,6 +112,15 @@ const STEPS: Step[] = [
 ];
 const LATER = ["PIESA payment and booking", "PIESA completed form approval", "Install deposit and days", "Install day and evidence", "AP final check", "Final payout"];
 
+const stripeTest = !!process.env["STRIPE_TEST_SECRET_KEY"];
+const LATER_WHY: Record<string, string> = {
+  "PIESA payment and booking": `the $349 safety check must really be paid first — card needs the Stripe TEST key (${stripeTest ? "present" : "not set"}), bank transfer needs a payment recorded in Xero; the runner never records a payment itself, and PIESA times only open once it is paid`,
+  "PIESA completed form approval": "needs the electrician's PIESA Mitti form filled and completed; the TEST practice form page exists only for the Ready Check, and the PIESA must be booked first",
+  "Install deposit and days": "the 10% deposit is bank transfer / PayID only, so it needs a real payment recorded in Xero; install days also need the PIESA done first",
+  "Install day and evidence": "needs the A5 install-day Mitti form filled and completed; there is no TEST practice page for A5, and the install must be booked first",
+  "AP final check": "needs a finished install with evidence and a completion pack on this job",
+  "Final payout": "needs the AP final check approved on this job",
+};
 const py = String.raw`
 import asyncio, json, re, sys
 from pathlib import Path
@@ -351,7 +360,7 @@ if (!ctx?.jobId || !safe) {
     const path = person === "homeowner" ? `/my-job/${ctx.token}` : person === "installer owner" ? `/field/day/${ctx.jobId}` : `/admin/jobs/${ctx.jobId}`;
     const r = await browse({ n: n++, slug: s.toLowerCase().replace(/[^a-z]+/g, "-"), path, wait: person === "office" ? ctx.jobNumber ?? "HV-" : person === "homeowner" ? "Your progress" : "Install", person, next: s });
     const st = await jobState();
-    add({ step: s, person, status: broken ? "blocked" : "not_run", detail: `Page inspected (${r?.url ?? "browser failed"}); ${broken ? "required earlier workflow state not reached" : "this step's page controls are not implemented in the runner"}. No downstream state manufactured.`, screenshot: r?.shots ?? [], stage: st.stage, events: st.events, emailRows: st.emails });
+    add({ step: s, person, status: "blocked", detail: `Page inspected (${r?.url ?? "browser failed"}); ${broken ? "required earlier workflow state not reached" : LATER_WHY[s]}. No downstream state manufactured.`, screenshot: r?.shots ?? [], stage: st.stage, events: st.events, emailRows: st.emails });
   }
 }
 
