@@ -2,16 +2,16 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Open questions for Jo (answer before Tasks 3, 4, 5 and 6 start):**
-1. C7 new name for "More · staff job links": proposed **"Send this job to a staff member"**.
-2. C2 button and check wording: proposed **"Use Home Insulation Victoria's electrician ($349)"**, then **"Switch this job to Home Insulation Victoria's electrician? You can't switch back."** with buttons "Not yet" / "Yes, switch".
-3. C3: "the electrician's Call and Text buttons" is read as the electrician's own Call / Text (owner) buttons on their Job page. Is that right?
-4. C5: the "N days left" next to "Install must start by…" counts down to the same date, so it goes too. OK?
-5. C4: the portal Pass/Fail form is today the only way to record a **repeat** PIESA (after a missed 30-day window). Once it's removed, a repeat PIESA can only be recorded by the office until Mitti handles it. OK to remove it now?
+**Jo's answers (29 Oct 2026):**
+1. C7: "More · staff job links" becomes **"Send this job to a staff member"**. Approved.
+2. C2: button **"Use Home Insulation Victoria's electrician ($349)"**, then **"Switch this job to Home Insulation Victoria's electrician? You can't switch back."** with "Not yet" / "Yes, switch". Approved.
+3. C3: yes, these are the electrician's own Call / Text (owner) buttons on their Job page.
+4. C5: the "N days left" next to "Install must start by…" goes too for electricians. Proceeding as proposed.
+5. C4: a repeat PIESA gets its **own new Mitti form**, made automatically when the repeat PIESA time is booked, like the first one (new Task 5). Then Pass/Fail and manual entry are removed completely, with no exception for repeats (Task 6).
 
 **Goal:** Build spec section C (C1–C9) on the installer and electrician Job page (`/field/$jobId`). Nothing else.
 
-**Architecture:** Wording rules stay in pure `installer-screens.core.ts` and use the existing `PIESA_FULL` constant (`src/lib/job-wording.ts`). The one-way electrician switch is a pure rule (`installer-price.core.ts`) plus one guarded server action that records the existing `electrician_choice_set` event and then re-prepares the quote the same way `setInstallerPrice` does. The electrician's Call/Text rule reuses the existing `contactVisible` (trade-view.core), now returned by `tradeJobStatus`. PIESA results come only from Mitti: Mitti sync → `assessments.piesa_outcome` → "Complete PIESA" (`completePiesaAssessment` writes the `initial` record). The A4 fixes form → `applyPiesaRecord` (fixes-day.server). This plan keeps both paths unchanged.
+**Architecture:** Wording rules stay in pure `installer-screens.core.ts` and use the existing `PIESA_FULL` constant (`src/lib/job-wording.ts`). The one-way electrician switch is a pure rule (`installer-price.core.ts`) plus one guarded server action that records the existing `electrician_choice_set` event and then re-prepares the quote the same way `setInstallerPrice` does. The electrician's Call/Text rule reuses the existing `contactVisible` (trade-view.core), now returned by `tradeJobStatus`. PIESA results come only from Mitti: Mitti sync → `assessments.piesa_outcome` → "Complete PIESA" (`completePiesaAssessment` writes the `initial` record, or `reassessment` for a repeat, Task 5). The A4 fixes form → `applyPiesaRecord` (fixes-day.server). Apart from that record kind, this plan keeps both paths unchanged. A repeat PIESA reuses the job's one `assessments` row (`job_id` is unique). The first check stays on record in its `piesa_records` row and in a `repeat_piesa_form_reset` event. No DB change.
 
 **Tech Stack:** TypeScript, TanStack Start, React, Supabase (admin client), bun:test (pure tests plus the repo's source-reading tests).
 
@@ -29,11 +29,11 @@
 
 ## Review Focus
 
-1. Mitti PIESA results still land after the manual entry is removed. Task 5 test: the Mitti branch keeps `Complete PIESA` and `FixesFormCard`, and `fixes-day.server.ts` still calls `applyPiesaRecord`.
-2. The switch works one way only and only for the business owner. Task 6 test: `hivSwitchOffered` is false once the choice is `hivic` or when nothing is held. The server function calls `requireMember(..., true)`. No admin route imports it.
+1. Mitti PIESA results still land after the manual entry is removed. Task 6 test: the Mitti branch keeps `Complete PIESA` and `FixesFormCard`, and `fixes-day.server.ts` still calls `applyPiesaRecord`.
+2. The switch works one way only and only for the business owner. Task 7 test: `hivSwitchOffered` is false once the choice is `hivic` or when nothing is held. The server function calls `requireMember(..., true)`. No admin route imports it.
 3. Call/Text disappear only after **all** of the electrician's own visits are done. Task 4 test: `contactVisible` cases, and the route puts the buttons behind `ownerContactVisible`.
 4. No "safety check" wording is left on Job page screens. Task 1 test: a source scan of every Job page file, with comments stripped.
-5. "Open Mitti form" shows once. Task 3 test: `mittiLinkPlace` returns exactly one place for every panel.
+5. A repeat PIESA gets exactly one new Mitti form, and the first check stays on record. Task 5 test: `repeatFormStep` resets once per lapsed deadline (a replayed or second booking confirmation → `"none"`), `claimGeneration` moves on after a reset, and a completed repeat writes `reassessment`.
 
 ---
 
@@ -138,7 +138,7 @@ test("C8: install booked without a deadline says the 6:30am sentence once", () =
 
 **Interfaces (Produces, in installer-screens.core.ts):**
 - `export function mittiLinkPlace(f: { panel: JobNextPanel | null; yours: boolean; auditId: string | null; mittiInvited: boolean; formLinked: boolean }): "next" | "ready_check" | null` returns `"next"` when (`panel === "mitti_form"` or (`panel === "quote_status"` and `yours`)) and there is an `auditId` and `mittiInvited`. Otherwise it returns `"ready_check"` when `formLinked`, `auditId` and `mittiInvited`. Otherwise `null`.
-- `export const STAFF_LINKS_LABEL = "Send this job to a staff member";` (Open question 1)
+- `export const STAFF_LINKS_LABEL = "Send this job to a staff member";` (Jo's answer 1)
 
 - [ ] **Step 1: Failing test:**
 
@@ -162,7 +162,7 @@ test("C7: plain staff-links label", () => {
 ```
 
 - [ ] **Step 2: Run, expect FAIL.**
-- [ ] **Step 3: Implement.** In `InstallerFlow`: `const mittiLink = page && next ? mittiLinkPlace({ panel: next.panel, yours: next.yours, auditId: page.form.auditId, mittiInvited: page.mittiInvited, formLinked: page.form.linked }) : null;` (Pass `page.mittiInvited` for now. Task 7 swaps it for `useMittiInvited()`.) The NextPanel link renders when `mittiLink === "next"`. The Ready Check link renders when `mittiLink === "ready_check"`. The summary text becomes `{STAFF_LINKS_LABEL}`.
+- [ ] **Step 3: Implement.** In `InstallerFlow`: `const mittiLink = page && next ? mittiLinkPlace({ panel: next.panel, yours: next.yours, auditId: page.form.auditId, mittiInvited: page.mittiInvited, formLinked: page.form.linked }) : null;` (Pass `page.mittiInvited` for now. Task 8 swaps it for `useMittiInvited()`.) The NextPanel link renders when `mittiLink === "next"`. The Ready Check link renders when `mittiLink === "ready_check"`. The summary text becomes `{STAFF_LINKS_LABEL}`.
 - [ ] **Step 4: Run, expect PASS.** `bun test tests/installer-part1-job-page.test.ts tests/field-job-one-call.test.tsx`
 - [ ] **Step 5: Commit** `git add src/lib/installer-screens.core.ts "src/routes/_authenticated/field.\$jobId.tsx" tests/installer-part1-job-page.test.ts && git commit -m "fix(job page): Open Mitti form once; plain staff links label (C6, C7)"`
 
@@ -203,14 +203,72 @@ test("C5: electricians don't see the install deadline", () => {
 - [ ] **Step 4: Run, expect PASS.** `bun test tests/installer-part1-job-page.test.ts tests/trade-view.test.ts`
 - [ ] **Step 5: Commit** `git add src/lib/job-status.server.ts src/components/trade/job-status.tsx "src/routes/_authenticated/field.\$jobId.tsx" tests/installer-part1-job-page.test.ts && git commit -m "fix(job page): electricians — no install deadline; Call/Text go after their visit (C3, C5)"`
 
-### Task 5: C4 — PIESA result in Mitti only
+### Task 5: C4 (Jo 29 Oct) — a repeat PIESA gets its own new Mitti form
+
+Today `piesaAutoFormDecision` skips because `assessments.external_mitti_id` still holds the first check's form. The `piesa` claim at generation 0 is also already used, so even the office button would get `MittiClaimHeld`. The fix: when a repeat PIESA time is booked, the first check moves to history **once per lapsed deadline**, and the claim moves to a new generation. Then the existing Decision 398 path makes the new form, and the existing pull and "Complete PIESA" bring its result back.
+
+**Files:**
+- Create: `src/lib/repeat-piesa-form.core.ts`. Modify: `src/lib/mitti-create-claim.core.ts`, `src/lib/mitti-create.server.ts` (`generationOf`), `src/lib/piesa-autoform.server.ts`, `src/lib/piesa-complete.server.ts`
+- Test: create `tests/repeat-piesa-form.test.ts`
+
+**Interfaces (Produces):**
+- `repeat-piesa-form.core.ts`: `export const REPEAT_PIESA_FORM_RESET_EVENT = "repeat_piesa_form_reset";`. `export const repeatFormResetSeed = (jobId: string, deadline: string) => \`repeat-piesa-form:${jobId}:${deadline}\`;`. `export const ASSESSMENT_ROUND_RESET = { status: "in_progress", completed_at: null, piesa_outcome: "pending", assessed_on: null, no_rectification_confirmed: null, external_mitti_id: null, mitti_template_id: null, mitti_raw_snapshot: null, mitti_sync_status: "not_synced", mitti_last_error: null } as const;`
+- `export function repeatFormStep(f: { repeatDeadline: string | null; reset: { previousAuditId: string | null } | null; current: { auditId: string | null; status: string } | null }): "reset" | "none"`. It returns `"none"` with no deadline. It returns `"reset"` when no reset event exists for this deadline. When the event exists, it returns `"reset"` only if the row is still the old round (`status === "complete"` and `auditId === reset.previousAuditId`). This covers a crash between the event and the row update.
+- `export function piesaCompletionKind(priorOfficialRecords: number): "initial" | "reassessment"`
+- `mitti-create-claim.core.ts`: `export function claimGeneration(f: { releasedKinds: (string | undefined)[]; repeatResets: number; kind: MittiFormKind }): number` is the number of releases of `kind`, plus `repeatResets` when `kind === "piesa"`. `generationOf` also reads `REPEAT_PIESA_FORM_RESET_EVENT` rows and calls it. The office button then gets the new generation too.
+- `piesa-autoform.server.ts`: `async function startRepeatRoundIfDue(jobId: string, actorId: string | null): Promise<void>`. It uses `repeatPiesaContext` (`stage === "offer"` → deadline), the reset event for that deadline and the assessments row, then calls `repeatFormStep`. On `"reset"`: insert the event with `id: await stableUuid(repeatFormResetSeed(jobId, deadline))` (a duplicate is ignored). Its details are `{ deadline, previous_audit_id, previous_outcome, previous_assessed_on }` and it is `{ internal: true }`. Then use the stored event's `previous_audit_id` to update `assessments` with `ASSESSMENT_ROUND_RESET`, guarded by `.eq("job_id", jobId).eq("status", "complete")` plus the `external_mitti_id` match (`.is(…, null)` when null). It is called first in `onPiesaBooked`. On an error it returns `failed(…, "New PIESA round not started: …")` (one Needs me row). TEST jobs keep `piesaTestAssignee` as they are.
+- `piesa-complete.server.ts`: count `piesa_records` with `kind` in `initial` / `reassessment` for the job, then `kind: piesaCompletionKind(prior ?? 0)`.
+
+- [ ] **Step 1: Failing test** (new file):
+
+```ts
+import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { piesaCompletionKind, repeatFormStep } from "../src/lib/repeat-piesa-form.core";
+import { claimGeneration } from "../src/lib/mitti-create-claim.core";
+const read = (p: string) => readFileSync(p, "utf8");
+const old = { auditId: "m-first", status: "complete" };
+describe("Repeat PIESA gets its own Mitti form (Jo 29 Oct 2026)", () => {
+  test("first check moves to history once per lapsed deadline", () => {
+    expect(repeatFormStep({ repeatDeadline: null, reset: null, current: old })).toBe("none");
+    expect(repeatFormStep({ repeatDeadline: "2026-11-20", reset: null, current: old })).toBe("reset");
+    expect(repeatFormStep({ repeatDeadline: "2026-11-20", reset: { previousAuditId: "m-first" }, current: old })).toBe("reset"); // crash replay
+    expect(repeatFormStep({ repeatDeadline: "2026-11-20", reset: { previousAuditId: "m-first" }, current: { auditId: "m-repeat", status: "in_progress" } })).toBe("none"); // 2nd confirm / sync replay
+    expect(repeatFormStep({ repeatDeadline: "2026-11-20", reset: { previousAuditId: "m-first" }, current: { auditId: null, status: "in_progress" } })).toBe("none");
+  });
+  test("claim moves to a new generation only for the PIESA form", () => {
+    expect(claimGeneration({ releasedKinds: [], repeatResets: 0, kind: "piesa" })).toBe(0);
+    expect(claimGeneration({ releasedKinds: ["piesa", "ready_check"], repeatResets: 1, kind: "piesa" })).toBe(2);
+    expect(claimGeneration({ releasedKinds: ["piesa"], repeatResets: 1, kind: "ready_check" })).toBe(0);
+  });
+  test("completed repeat is a reassessment; first stays initial", () => {
+    expect(piesaCompletionKind(0)).toBe("initial"); expect(piesaCompletionKind(1)).toBe("reassessment");
+  });
+  test("wiring", () => {
+    const s = read("src/lib/piesa-autoform.server.ts");
+    expect(s.indexOf("await startRepeatRoundIfDue(")).toBeGreaterThan(-1);
+    expect(s.indexOf("await startRepeatRoundIfDue(")).toBeLessThan(s.indexOf('admin.from("assessments").select("external_mitti_id")'));
+    const fn = s.slice(s.indexOf("async function startRepeatRoundIfDue"));
+    for (const x of ["repeatFormStep(", "repeatFormResetSeed(", "ASSESSMENT_ROUND_RESET", '.eq("status", "complete")', "internal: true"]) expect(fn).toContain(x);
+    expect(read("src/lib/mitti-create.server.ts")).toContain("claimGeneration(");
+    expect(read("src/lib/piesa-complete.server.ts")).toContain("kind: piesaCompletionKind(");
+  });
+});
+```
+
+- [ ] **Step 2: Run, expect FAIL.** `bun test tests/repeat-piesa-form.test.ts`. Expected: FAIL (module not found).
+- [ ] **Step 3: Implement** the interfaces above exactly. Do not change `piesaAutoFormDecision`, `createAssignMittiAudit` or the pull.
+- [ ] **Step 4: Run, expect PASS.** `bun test tests/repeat-piesa-form.test.ts tests/decision-398-piesa-autoform.test.ts tests/repeat-piesa.test.ts tests/t3-mitti-async-claim.test.ts tests/piisa-claim-guard.test.ts tests/mitti-retry-sweep.test.ts`
+- [ ] **Step 5: Commit** `git add src/lib/repeat-piesa-form.core.ts src/lib/mitti-create-claim.core.ts src/lib/mitti-create.server.ts src/lib/piesa-autoform.server.ts src/lib/piesa-complete.server.ts tests/repeat-piesa-form.test.ts && git commit -m "feat(piesa): a repeat PIESA gets its own new Mitti form when booked; first check kept as history (Jo 29 Oct)"`
+
+### Task 6: C4 — PIESA result in Mitti only
 
 **Files:**
 - Modify: `src/routes/_authenticated/field.$jobId.tsx` (`ElectricianFlow`. Delete `PiesaForm`.)
 - Delete: `src/components/portal/electrician-manual-result.tsx`, `tests/electrician-manual-result.test.tsx`
 - Modify: `tests/p1-s64-date-payment-regressions.test.ts`. Replace the "S64 manual PIESA form is wired…" describe block and the "client additionally caps the date input" test with the Step 1 test. The server date-rule tests stay.
 
-**Interfaces:** Consumes `completeAssessment` (kept), `FixesFormCard`, `MittiOnly` (route-local, `which: "piesa"`).
+**Interfaces:** Consumes Task 5 (a repeat PIESA comes through its own Mitti form, so no repeat needs Pass/Fail), `completeAssessment` (kept), `FixesFormCard`, `MittiOnly` (route-local, `which: "piesa"`).
 
 - [ ] **Step 1: Failing test** (in the S64 file):
 
@@ -227,7 +285,7 @@ describe("C4 (Jo 28 Oct 2026): PIESA result comes from Mitti only", () => {
     expect(src).toContain("<FixesFormCard jobId={jobId}");
     expect(src).toContain('<MittiOnly jobId={jobId} which="piesa" />'); // no form yet → "Home Insulation Victoria links it"
     expect(srcText("../src/lib/fixes-day.server.ts")).toContain("applyPiesaRecord(");
-    expect(srcText("../src/lib/piesa-complete.server.ts")).toContain('kind: "initial"');
+    expect(srcText("../src/lib/piesa-complete.server.ts")).toContain("kind: piesaCompletionKind("); // Task 5: initial or reassessment
   });
 });
 ```
@@ -237,7 +295,7 @@ describe("C4 (Jo 28 Oct 2026): PIESA result comes from Mitti only", () => {
 - [ ] **Step 4: Run, expect PASS.** `bun test tests/p1-s64-date-payment-regressions.test.ts tests/a4-clearance-guard.test.ts tests/install-clearance.test.ts tests/fixes-day.test.ts`
 - [ ] **Step 5: Commit** `git add -A src/routes src/components/portal tests && git commit -m "fix(job page): PIESA result from Mitti only — remove Pass/Fail and manual entry (C4)"`
 
-### Task 6: C2 — one-way switch to HIV's electrician
+### Task 7: C2 — one-way switch to HIV's electrician
 
 **Files:**
 - Modify: `src/lib/installer-price.core.ts`, `src/lib/electrician-choice.core.ts` (source union), `src/lib/installer-price-set.server.ts`, `src/lib/installer-price.functions.ts`, `src/components/trade/InstallerPriceCard.tsx`
@@ -275,7 +333,7 @@ test("C2: one-way switch only on a job held for a not-onboarded electrician", ()
 - [ ] **Step 4: Run, expect PASS.** `bun test tests/installer-part1-job-page.test.ts tests/installer-price.test.ts tests/rec-onboarded*.test.ts tests/trade-job-bundle.test.ts`
 - [ ] **Step 5: Commit** `git add src/lib/installer-price.core.ts src/lib/electrician-choice.core.ts src/lib/installer-price-set.server.ts src/lib/installer-price.functions.ts src/components/trade/InstallerPriceCard.tsx tests/installer-part1-job-page.test.ts && git commit -m "feat(job page): one-way switch to HIV's electrician when stuck on a not-onboarded one (C2)"`
 
-### Task 7: C9 — tidy-up, no visible change
+### Task 8: C9 — tidy-up, no visible change
 
 **Files:**
 - Modify: `src/routes/_authenticated/field.$jobId.tsx` (`OtherItems` title, `InstallerFlow` Mitti check, sign_rebate block)
@@ -302,7 +360,7 @@ test("C9: tidy-up keeps the same screen", () => {
 - [ ] **Step 4: Run, expect PASS.** `bun test tests/installer-part1-job-page.test.ts tests/field-job-one-call.test.tsx`
 - [ ] **Step 5: Commit** `git add "src/routes/_authenticated/field.\$jobId.tsx" src/components/trade/InstallFinishedButton.tsx tests/installer-part1-job-page.test.ts && git commit -m "refactor(job page): tidy-up — one Mitti check, shared install-finished button, no step number (C9)"`
 
-### Task 8: Full checks
+### Task 9: Full checks
 
 - [ ] **Step 1:** `bun run test`. Expected: all suites pass and none fail.
 - [ ] **Step 2:** `bunx tsc --noEmit`. Expected: exit 0 with no errors, in particular no unused-import or type errors in the files changed above.
