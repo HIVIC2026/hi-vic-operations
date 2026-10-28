@@ -1,5 +1,6 @@
 // Jobs pages (spec 2026-10-28-jobs-pages-redesign): "Our jobs" and "Installer jobs" — one screen, one lane each.
-// Top: search · Needs us · Actions, and the red "Mitti sync problems" line only when there are some. Computer: a table
+// Top: search · Needs us · Actions, the red "Mitti sync problems" line only when there are some, and (Installer jobs only)
+// the red "Mitti forms to sort out" line, which opens the link-a-form list. Computer: a table
 // whose headings sort AND filter (the Enquiries pop-up). Phone: one card per job and a Filter button that opens the same
 // headings in a sheet. Filters, sort and Needs us are kept in this browser per page (saved view; storage may be blocked).
 import { useEffect, useState } from "react";
@@ -14,14 +15,14 @@ import { Switch } from "@/components/ui/switch";
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { getActiveJobsList, bulkCancelOfficeJobs } from "@/lib/office-screens.functions";
 import { bulkJobAction } from "@/lib/bulk.functions";
-import { getMittiSyncProblems } from "@/lib/mitti-pickup.functions";
+import { getMittiPickups, getMittiSyncProblems } from "@/lib/mitti-pickup.functions";
 import { JOBS_STAGE_LABEL, type JobsStage } from "@/lib/office-jobs.core";
-import { JOBS_COLUMNS, DEFAULT_VIEW, costLabel, parseSavedView, savedViewKey, type JobsColumnFilters, type JobsLane, type SavedView } from "@/lib/jobs-columns.core";
+import { JOBS_COLUMNS, DEFAULT_VIEW, costLabel, openingView, parseSavedView, savedViewKey, viewToSave, type JobsColumnFilters, type JobsLane, type OnceStage, type SavedView } from "@/lib/jobs-columns.core";
 import type { SortDir } from "@/lib/office-filters.core";
 import type { Range } from "@/lib/enquiry-columns.core";
 import { isDefaultListView } from "@/lib/office-needs-snapshot.core";
 import { readOfficeList } from "@/lib/office-list-refresh";
-import { MittiSyncProblems } from "@/components/portal/mitti-piles";
+import { MittiPickupsToLink, MittiSyncProblems } from "@/components/portal/mitti-piles";
 import { ActionsMenu, ColumnHead, Pager, ReasonDialog, heardLabel, type ColumnFilterValue } from "@/components/portal/office-lists";
 import { JobsSwitcher } from "@/components/portal/JobsScreen";
 import { listCard } from "@/components/portal/kit";
@@ -44,30 +45,35 @@ export function JobsLaneScreen({ lane, initialStage }: { lane: JobsLane; initial
   const navigate = useNavigate();
   const load = useServerFn(getActiveJobsList);
   const syncFn = useServerFn(getMittiSyncProblems);
+  const pickupsFn = useServerFn(getMittiPickups);
   const [view, setView] = useState<SavedView>(DEFAULT_VIEW);
   const [readyLane, setReadyLane] = useState<JobsLane | null>(null); // the lane whose saved view is loaded
+  const [once, setOnce] = useState<OnceStage | null>(null); // an old link's ?stage=: this visit only, never saved
   const [typed, setTyped] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [dialog, setDialog] = useState<string | null>(null);
   const [syncOpen, setSyncOpen] = useState(false);
+  const [formsOpen, setFormsOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  // Saved view: read once per lane (an old bookmark's stage wins once), written on every change. Storage can throw
+  // Saved view: read once per lane (an old bookmark's stage shows on this visit only), written on every change. Storage can throw
   // (private window, blocked site data): the page then simply opens on the default view and forgets.
   useEffect(() => {
     let saved: SavedView = DEFAULT_VIEW;
     try { saved = parseSavedView(localStorage.getItem(savedViewKey(lane))); } catch { saved = DEFAULT_VIEW; }
-    setView(initialStage ? { ...saved, filters: { ...saved.filters, stage: [initialStage] } } : saved);
+    const o = openingView(saved, initialStage);
+    setView(o.view);
+    setOnce(o.once);
     setPage(1);
     setPicked(new Set());
     setReadyLane(lane);
   }, [lane]); // eslint-disable-line react-hooks/exhaustive-deps -- initialStage applies once, on opening
   useEffect(() => {
     if (readyLane !== lane) return;
-    try { localStorage.setItem(savedViewKey(lane), JSON.stringify(view)); } catch { /* not kept: storage unavailable */ }
-  }, [readyLane, lane, view]);
+    try { localStorage.setItem(savedViewKey(lane), JSON.stringify(viewToSave(view, once))); } catch { /* not kept: storage unavailable */ }
+  }, [readyLane, lane, view, once]);
   // Search as you type: a short pause, then the list refreshes from page 1.
   useEffect(() => { const t = setTimeout(() => { setSearch(typed.trim()); setPage(1); }, 250); return () => clearTimeout(t); }, [typed]);
 
@@ -85,6 +91,9 @@ export function JobsLaneScreen({ lane, initialStage }: { lane: JobsLane; initial
   // The TEST office never sees the Mitti line (it is real-job data).
   const sync = useQuery({ queryKey: ["mitti-sync-problems"], queryFn: () => syncFn(), staleTime: 60_000, enabled: !!me && !testOffice });
   const syncCount = sync.data?.rows.length ?? 0;
+  // Installer jobs only: Mitti forms the automatic pickup could not turn into a job, linked here (same cache as Needs me).
+  const pickups = useQuery({ queryKey: ["mitti-pickups"], queryFn: () => pickupsFn(), staleTime: 60_000, retry: 1, enabled: !!me && !testOffice && lane === "installer" });
+  const formsCount = lane === "installer" ? pickups.data?.rows.length ?? 0 : 0;
 
   const cancel = useAction(bulkCancelOfficeJobs);
   const bulk = useAction(bulkJobAction);
@@ -122,6 +131,12 @@ export function JobsLaneScreen({ lane, initialStage }: { lane: JobsLane; initial
         </button>
       )}
       {!testOffice && syncOpen && syncCount > 0 && <div className="mb-3"><MittiSyncProblems /></div>}
+      {!testOffice && formsCount > 0 && (
+        <button type="button" aria-expanded={formsOpen} onClick={() => setFormsOpen(!formsOpen)} className="mb-2 block text-sm font-semibold text-danger">
+          Mitti forms to sort out · {formsCount} {formsOpen ? "▾" : "›"}
+        </button>
+      )}
+      {!testOffice && formsOpen && formsCount > 0 && <div className="mb-3"><MittiPickupsToLink /></div>}
       {anyFilter && <p className="mb-2 md:hidden"><button type="button" className="text-sm font-semibold text-hiv-blue underline" onClick={clearFilters}>Clear filters</button></p>}
 
       {q.isError ? <div role="alert" className="rounded-[14px] border border-danger/40 bg-danger-soft p-4 text-sm">Jobs could not be loaded. {(q.error as Error).message} <button type="button" className="font-semibold underline" onClick={() => void q.refetch()}>Try again</button></div> : (
@@ -138,6 +153,7 @@ export function JobsLaneScreen({ lane, initialStage }: { lane: JobsLane; initial
                 const ins = r.insulation === "yes" ? "Yes" : "No";
                 const heard = heardLabel(r.lastHeardAt, r.lastHeardChannel);
                 const job = `${r.jobNumber}${r.isTest ? " · TEST" : ""}`;
+                const lifeSupport = r.lifeSupport && <span className="ml-1.5 inline-block whitespace-nowrap rounded-full bg-danger-soft px-1.5 py-px align-middle text-[10px] font-bold leading-4 text-danger">Life support</span>;
                 const tick = <input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0 md:mt-0" aria-label={`Select ${r.jobNumber}`} checked={picked.has(r.id)} onClick={(e) => e.stopPropagation()} onChange={(e) => toggle(r.id, e.target.checked)} />;
                 return (
                   <li key={r.id} className="border-b border-line last:border-b-0">
@@ -146,7 +162,7 @@ export function JobsLaneScreen({ lane, initialStage }: { lane: JobsLane; initial
                       {tick}
                       <div className="grid min-w-0 flex-1 gap-0.5 text-[13px]">
                         <span className={cn("break-words text-[15px] font-semibold text-ink", r.next.late && "text-danger")}>{r.next.text}</span>
-                        <span className="truncate text-ink">{[job, r.owner || "—", r.suburb].filter(Boolean).join(" · ")}</span>
+                        <span className="truncate text-ink">{job}{lifeSupport}{" · "}{[r.owner || "—", r.suburb].filter(Boolean).join(" · ")}</span>
                         <span className="truncate text-sub">{JOBS_STAGE_LABEL[r.stage]} · {`${r.days} d`}</span>
                         <span className="truncate text-sub">{[area, `Insulation ${ins}`, cost].join(" · ")}</span>
                         <span className="truncate text-sub">{[r.installer ?? "—", heard].join(" · ")}</span>
@@ -155,7 +171,7 @@ export function JobsLaneScreen({ lane, initialStage }: { lane: JobsLane; initial
                     {/* Computer: the 11 columns in the spec's order. */}
                     <div className={cn("hidden cursor-pointer items-center gap-x-1.5 px-2 py-2.5 text-[13px] hover:bg-mist md:grid", COLS)} onClick={() => open(r.id)}>
                       {tick}
-                      <span className="min-w-0 break-words font-semibold">{job}</span>
+                      <span className="min-w-0 break-words font-semibold">{job}{lifeSupport}</span>
                       <span className={cn("min-w-0 break-words", r.next.late && "text-danger")}>{r.next.text}</span>
                       <span className={CELL}>{r.owner || "—"}</span>
                       <span className={cn(CELL, "text-sub")}>{r.suburb ?? ""}</span>

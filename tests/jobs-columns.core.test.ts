@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import {
   DEFAULT_VIEW, JOBS_COLUMNS, areaCell, costCell, costLabel, daysAtStage, insulationYesNo, laneOf, matchesJobsFilters,
-  nextStep, parseSavedView, savedViewKey, type JobsColumnRow,
+  nextStep, openingView, parseSavedView, savedViewKey, viewToSave, type JobsColumnRow, type SavedView,
 } from "../src/lib/jobs-columns.core";
 import type { OfficeStatus } from "../src/lib/office-status.core";
 
@@ -48,6 +48,19 @@ test("nextStep: spot saved with booking off", () => {
     expect(nextStep(s, { onHold: false, readyCheckBookingOn: false })).toEqual({ text: "Nothing yet", ours: false, late: false });
     expect(nextStep(s, { onHold: false, readyCheckBookingOn: true })).toEqual({ text: "Offer a time", ours: true, late: true });
   }
+});
+
+test("nextStep: spot saved and released — pending waits on owner, lapsed keeps the action (matches Needs me)", () => {
+  for (const key of ["enquiry.spot_saved", "enquiry.spot_saved_video"] as const) {
+    const s = status({ key, stage: "enquiry", waitingOn: "Us", late: true, action: "Offer a time" });
+    expect(nextStep(s, { ...off, release: "pending" })).toEqual({ text: "Waiting on owner", ours: false, late: false });
+    expect(nextStep(s, { ...off, release: "lapsed" })).toEqual({ text: "Offer a time", ours: true, late: true });
+    expect(nextStep(s, { ...off, release: "none" })).toEqual({ text: "Offer a time", ours: true, late: true });
+    expect(nextStep(s, { ...off, release: null })).toEqual({ text: "Offer a time", ours: true, late: true });
+    expect(nextStep(s, { onHold: false, readyCheckBookingOn: false, release: "pending" })).toEqual({ text: "Nothing yet", ours: false, late: false });
+  }
+  // Only spot-saved jobs read the release state.
+  expect(nextStep(status({ action: "Send the quote" }), { ...off, release: "pending" })).toEqual({ text: "Send the quote", ours: true, late: false });
 });
 
 test("nextStep: on hold, and no status", () => {
@@ -135,4 +148,24 @@ test("parseSavedView", () => {
   expect(parseSavedView(JSON.stringify({ ...v, junk: 1, filters: { ...v.filters, bogus: 2 } }))).toEqual(v as never);
   expect(savedViewKey("ours")).toBe("hiv:jobs:ours");
   expect(savedViewKey("installer")).toBe("hiv:jobs:installer");
+});
+
+test("?stage= from an old link applies once: shown on that visit, never written to the saved view", () => {
+  const saved: SavedView = { filters: { owner: "ann", stage: ["install"] }, sort: "days", dir: "asc", needsUs: true };
+  const o = openingView(saved, "quote");
+  expect(o.view).toEqual({ ...saved, filters: { owner: "ann", stage: ["quote"] } });
+  expect(o.once).toEqual({ stage: "quote", savedStage: ["install"] });
+  // Saving that visit keeps her own saved stage, and any other change she makes.
+  expect(viewToSave(o.view, o.once)).toEqual(saved);
+  expect(viewToSave({ ...o.view, needsUs: false }, o.once)).toEqual({ ...saved, needsUs: false });
+  // If she picks a different stage herself on that visit, her own pick is saved.
+  expect(viewToSave({ ...o.view, filters: { ...o.view.filters, stage: ["piesa"] } }, o.once).filters.stage).toEqual(["piesa"]);
+  // No saved stage before: the once-only stage is simply left out.
+  const plain = openingView(DEFAULT_VIEW, "final_check");
+  expect(plain.view.filters).toEqual({ stage: ["final_check"] });
+  expect(viewToSave(plain.view, plain.once)).toEqual(DEFAULT_VIEW);
+  // No ?stage=: the saved view as it is, saved as it is.
+  const none = openingView(saved, undefined);
+  expect(none).toEqual({ view: saved, once: null });
+  expect(viewToSave(saved, null)).toEqual(saved);
 });

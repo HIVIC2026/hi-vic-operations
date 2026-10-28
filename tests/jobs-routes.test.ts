@@ -52,6 +52,22 @@ describe("jobs routes, menu and old links", () => {
     expect(qaOfficeRouteAllowed("/admin/jobs/active")).toBe(true);
   });
 
+  test("final fix 3: project QA expects the new Jobs pages, not the old Active page", () => {
+    const qa = readFileSync("scripts/portal-qa.ts", "utf8");
+    expect(qa).not.toContain('expectedPath: "/admin/jobs/active"');
+    expect(qa).toContain('{ step: "office-jobs", persona: "office", path: "/admin/board", expectedPath: "/admin/jobs/ours", mustSee: ["Our jobs", "Installer jobs", "Closed jobs", "Job", "Next step", "Owner", "Suburb", "Stage", "Days at stage", "m²", "Insulation", "Total cost", "Installer", "Last heard"], widths: [1280] }');
+    expect(qa).toContain('{ step: "office-jobs-phone", persona: "office", path: "/admin/board", expectedPath: "/admin/jobs/ours", mustSee: ["Our jobs", "Installer jobs", "Closed jobs", "Filter"], widths: [390] }');
+    expect(qa).not.toMatch(/mustSee: \[[^\]]*"Choose installer"/);
+    const cov = readFileSync("scripts/portal-qa-coverage.ts", "utf8");
+    expect(cov).toContain("'/admin/jobs/ours', '/admin/jobs/installers', '/admin/jobs/closed',");
+    expect(cov).not.toContain("'/admin/jobs/active'");
+  });
+
+  test("final fix 6: Closed jobs is not on the TEST office allowlist, so its switcher hides that link", () => {
+    expect(qaOfficeRouteAllowed("/admin/jobs/closed")).toBe(false);
+    expect(readFileSync("src/components/portal/JobsScreen.tsx", "utf8")).toContain('{!testOffice && <><span className="text-sub">·</span>{item("closed", "Closed jobs"');
+  });
+
   test("nothing in src still links to /admin/jobs/active except the redirect route", () => {
     const hits = sourceFiles("src").filter((f) => !f.endsWith("routeTree.gen.ts") && !f.endsWith("admin.jobs.active.tsx") && !f.endsWith("qa-office-policy.core.ts") && readFileSync(f, "utf8").includes("/admin/jobs/active"));
     expect(hits).toEqual([]);

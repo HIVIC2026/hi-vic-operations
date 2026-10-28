@@ -7,7 +7,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { useAction } from "@/hooks/use-me";
+import { useAction, useMe } from "@/hooks/use-me";
 import { getJobsLaneCounts, reopenOfficeJob } from "@/lib/office-screens.functions";
 import { bulkJobAction } from "@/lib/bulk.functions";
 import { getJobListPage } from "@/lib/portal.functions";
@@ -25,6 +25,8 @@ const JOBS_PAGES = { ours: "/admin/jobs/ours", installer: "/admin/jobs/installer
 /** "Our jobs 384 · Installer jobs 26 · Closed jobs" under the page title, on phone and computer. */
 export function JobsSwitcher({ current }: { current: "ours" | "installer" | "closed" }) {
   const countsFn = useServerFn(getJobsLaneCounts);
+  const { data: me } = useMe();
+  const testOffice = me?.roles.includes("qa_office") ?? false; // the TEST office may not open Closed jobs
   const counts = useQuery({ queryKey: ["jobs-lane-counts"], queryFn: () => countsFn({ data: {} }), staleTime: 60_000, retry: 1 });
   const c = counts.data;
   const item = (k: "ours" | "installer" | "closed", label: string, n: number | undefined) => (
@@ -35,8 +37,8 @@ export function JobsSwitcher({ current }: { current: "ours" | "installer" | "clo
   return (
     <nav aria-label="Jobs pages" className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
       {item("ours", "Our jobs", c?.ours)}<span className="text-sub">·</span>
-      {item("installer", "Installer jobs", c?.installer)}<span className="text-sub">·</span>
-      {item("closed", "Closed jobs", undefined)}
+      {item("installer", "Installer jobs", c?.installer)}
+      {!testOffice && <><span className="text-sub">·</span>{item("closed", "Closed jobs", undefined)}</>}
     </nav>
   );
 }

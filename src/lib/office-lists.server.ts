@@ -13,6 +13,7 @@ import { CATEGORY_RANK, categoryCounts, enquiryCategory, inView, ownerWrote, typ
 import { FIRST_RESPONSE_PURPOSES } from "./automatic-first-response.core";
 import { readAutoOfferSwitches } from "./auto-offer.server";
 import type { OfficeStatus } from "./office-status.core";
+import type { SpotReleaseState } from "./spot-release.core";
 import { activeJobInstaller, laneCounts, areaCell, costCell, daysAtStage, insulationYesNo, laneOf, matchesJobsFilters, nextStep, type JobsColumnFilters, type JobsColumnRow, type JobsLane } from "./jobs-columns.core";
 import {
   insulationChip, lastHeardChip, pageOf, rankByPriority, regionChip, sizeChip, sortRows, sourceChip,
@@ -264,6 +265,9 @@ export async function loadActiveJobsList(p: JobsListParams, testJobIds?: string[
     const o = await loadOffice(admin, { includeTest: true, onlyIds: live.map((r) => String(r["id"])), statusOnly: true });
     for (const j of o.jobs) statusOf.set(j.id, { status: j.status ?? null, enteredStageAt: j.facts?.enteredStageAt ?? null });
   }
+  // Decision 389 (as Needs me): a saved spot already released waits on the owner's Confirm. One read, spot-saved rows only.
+  const spotSavedIds = [...statusOf].filter(([, v]) => v.status && ["enquiry.spot_saved", "enquiry.spot_saved_video"].includes(v.status.key)).map(([id]) => id);
+  const releases = spotSavedIds.length && switches.readyCheckBooking ? await (await import("./spot-release.server")).spotReleaseStates(spotSavedIds) : new Map<string, SpotReleaseState>();
   const { declaredExtras } = await import("./enquiry.core");
   const { normaliseInsulation } = await import("./eligibility.core");
   const rows: (JobsListRow & { surname: string; lastHeardSort: string | null })[] = [];
@@ -281,7 +285,7 @@ export async function loadActiveJobsList(p: JobsListParams, testJobIds?: string[
     const t = totals(id);
     rows.push({
       id, jobNumber: String(r["job_number"]), owner: s(r["owner_name"]) ?? "", surname: surnameOf(s(r["owner_name"])), suburb: prop?.suburb ?? null, stage,
-      next: nextStep(st?.status ?? null, { onHold, readyCheckBookingOn: switches.readyCheckBooking }),
+      next: nextStep(st?.status ?? null, { onHold, readyCheckBookingOn: switches.readyCheckBooking, release: releases.get(id)?.state ?? null }),
       days: daysAtStage(st?.enteredStageAt ?? null, String(e["created_at"] ?? r["created_at"]), now),
       areaM2: areaCell(measured.get(id) ?? null, e["estimated_area_m2"] == null ? null : Number(e["estimated_area_m2"])),
       insulation: insulationYesNo(insulationChip(normaliseInsulation(declaredExtras(prop?.answers ?? null).existing_insulation))),

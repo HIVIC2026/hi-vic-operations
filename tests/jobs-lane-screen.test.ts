@@ -40,7 +40,7 @@ test("Mitti sync problems shows only above 0, in red, and never for the TEST off
 test("saved view: read and written only inside try/catch, per lane", () => {
   const src = lane();
   expect(src).toMatch(/try \{[^\n}]*parseSavedView\(localStorage\.getItem\(savedViewKey\(lane\)\)\)[^\n}]*\} catch/);
-  expect(src).toMatch(/try \{[^\n}]*localStorage\.setItem\(savedViewKey\(lane\), JSON\.stringify\(view\)\)[^\n}]*\} catch/);
+  expect(src).toMatch(/try \{[^\n}]*localStorage\.setItem\(savedViewKey\(lane\), JSON\.stringify\(viewToSave\(view, once\)\)\)[^\n}]*\} catch/);
   const uses = src.split("\n").filter((l) => l.includes("localStorage"));
   expect(uses.length).toBe(2);
   for (const l of uses) expect(l).toMatch(/try \{.*\} catch/);
@@ -94,4 +94,46 @@ test("fix round 1: computer columns fit their headings and cells; phone Filter i
   expect(src).toMatch(/<SheetContent side="bottom" className="inset-0 [^"]*h-\[100dvh\][^"]*overflow-y-auto/);
   expect(src).not.toContain("max-h-[90vh]");
   expect(src).toMatch(/<SheetClose asChild><button[^>]*>Close<\/button><\/SheetClose>/);
+});
+
+test("final fix 1: Installer jobs only — red 'Mitti forms to sort out · N' above 0, never for the TEST office, opens the link list", () => {
+  const src = lane();
+  expect(src).toContain('queryKey: ["mitti-pickups"], queryFn: () => pickupsFn()');
+  expect(src).toContain('enabled: !!me && !testOffice && lane === "installer"');
+  expect(src).toContain('const formsCount = lane === "installer" ? pickups.data?.rows.length ?? 0 : 0;');
+  expect(src).toMatch(/!testOffice && formsCount > 0 && \(\s*<button [\s\S]{0,200}className="[^"]*text-danger[^"]*">\s*Mitti forms to sort out · \{formsCount\}/);
+  expect(src).toContain("{!testOffice && formsOpen && formsCount > 0 && <div className=\"mb-3\"><MittiPickupsToLink /></div>}");
+  // Needs me "Link form" and the old wording point to it.
+  expect(readFileSync("src/routes/_authenticated/admin.needs-me.tsx", "utf8")).toContain('button: "Link form", href: "/admin/jobs/installers"');
+  expect(readFileSync("src/lib/allocation.core.ts", "utf8")).toContain("open Installer jobs › Mitti forms to sort out");
+  expect(readFileSync("src/routes/_authenticated/admin.settings.tsx", "utf8")).toContain("wait on Installer jobs › Mitti forms to sort out.");
+  for (const f of ["src/lib/allocation.core.ts", "src/routes/_authenticated/admin.settings.tsx"]) expect(readFileSync(f, "utf8")).not.toContain("Ready Checks started in Mitti");
+});
+
+test("final fix 4: a small red 'Life support' tag next to the job number, in the table and on the phone card", () => {
+  const src = lane();
+  expect(src).toMatch(/const lifeSupport = r\.lifeSupport && <span className="[^"]*text-danger[^"]*">Life support<\/span>;/);
+  expect(src).toContain("{job}{lifeSupport}{\" · \"}"); // phone card
+  expect(src).toContain('<span className="min-w-0 break-words font-semibold">{job}{lifeSupport}</span>'); // computer Job cell
+});
+
+test("final fix 5: ?stage= from an old link shows once and is not written to the saved view", () => {
+  const src = lane();
+  expect(src).toContain("const o = openingView(saved, initialStage);");
+  expect(src).toContain("setOnce(o.once);");
+  expect(src).not.toMatch(/setView\(initialStage \?/);
+});
+
+test("final fix 6: the TEST office does not see the Closed jobs link", () => {
+  const src = jobs();
+  expect(src).toContain('const testOffice = me?.roles.includes("qa_office") ?? false;');
+  expect(src).toContain('{!testOffice && <><span className="text-sub">·</span>{item("closed", "Closed jobs", undefined)}</>}');
+});
+
+test("final fix 7: partner business 'Open Jobs ›' goes to Installer jobs for installers; Choose installer links 'Our jobs ›'", () => {
+  const biz = readFileSync("src/routes/_authenticated/admin.partners_.business.$businessId.tsx", "utf8");
+  expect(biz).toContain('<Link to={b.kind === "Installer" ? "/admin/jobs/installers" : "/admin/jobs/ours"} search={{ q: b.name } as never}');
+  const waiting = readFileSync("src/components/portal/InstallerWaitingScreen.tsx", "utf8");
+  expect(waiting).toContain('<Link to="/admin/jobs/ours" className="font-semibold text-hiv-blue">Our jobs ›</Link>');
+  expect(waiting).not.toContain("All active jobs");
 });

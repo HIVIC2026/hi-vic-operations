@@ -366,7 +366,7 @@ export type NeedsItem = { key: string; code: NeedsCode; jobId: string | null; jo
 
 export const NEEDS_TEXT: Record<NeedsCode, { why: string; next: string; tab: string; urgency: NeedsUrgency }> = {
   mitti_fix_form: { why: "Fix Mitti form: the Ready Check could not sync.", next: "Office needs to: read the reason, fix it (or ask the installer to), then press Retry on the job's Mitti card.", tab: "overview", urgency: "today" },
-  mitti_review_pickup: { why: "Link/Review a form started in Mitti.", next: "Office needs to: open \"Ready Checks started in Mitti\" on Active jobs and link it to the right job (or create one).", tab: "overview", urgency: "today" },
+  mitti_review_pickup: { why: "Link/Review a form started in Mitti.", next: "Office needs to: open Installer jobs › Mitti forms to sort out and link it to the right job (or create one).", tab: "overview", urgency: "today" },
   ready_check_held: { why: "Check held Ready Check: the owner quote can't be prepared yet.", next: "Office needs to: sort out each reason listed, then sync the Ready Check again.", tab: "quotes", urgency: "today" },
   quote_held_review: { why: "Review held quote.", next: "Office needs to: check the held owner quote on the Quotes tab and release it or stop it with a reason.", tab: "quotes", urgency: "today" },
   quote_auto_send_held: { why: "Quote not sent automatically: the Ready Check is Complete but a check failed (or the form changed after the quote was sent).", next: "Office needs to: read the reason on the Quotes tab, sort it out, then press Send quote (or ask the installer to fix the form).", tab: "quotes", urgency: "today" },

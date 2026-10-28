@@ -45,3 +45,10 @@ test("menu counts and the list share one rule: deleted, archived and stage-less 
   expect(jobsFn).toContain("activeJobInstaller(");
   expect(lists).toContain("laneCounts(");
 });
+
+test("final fix 2: release states are read once, for spot-saved rows only, and passed to nextStep (as Needs me)", () => {
+  expect(jobsFn).toContain('["enquiry.spot_saved", "enquiry.spot_saved_video"].includes(v.status.key)');
+  expect(jobsFn).toContain('.spotReleaseStates(spotSavedIds)');
+  expect(jobsFn.match(/spotReleaseStates\(/g)?.length).toBe(1);
+  expect(jobsFn).toContain("release: releases.get(id)?.state ?? null");
+});

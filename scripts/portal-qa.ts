@@ -208,7 +208,9 @@ try {
       { step: "office-operations", persona: "office", path: "/admin/operations", expectedPath: "/admin/enquiries", mustSee: ["Enquiries", "Owner", "Address", "Estimate"], widths: [1280] },
       { step: "office-operations-phone", persona: "office", path: "/admin/operations", expectedPath: "/admin/enquiries", mustSee: ["Enquiries"], widths: [390] },
       { step: "office-needs-me", persona: "office", path: "/admin", expectedPath: "/admin/needs-me", mustSee: ["Needs me", "Today", "This week", "Watch"] },
-      { step: "office-jobs", persona: "office", path: "/admin/board", expectedPath: "/admin/jobs/active", mustSee: ["Jobs", "Active", "Closed", "Choose installer", "Ready Check", "Final check"] },
+      // Jobs pages redesign: column headings are computer-only (phone shows one card per job).
+      { step: "office-jobs", persona: "office", path: "/admin/board", expectedPath: "/admin/jobs/ours", mustSee: ["Our jobs", "Installer jobs", "Closed jobs", "Job", "Next step", "Owner", "Suburb", "Stage", "Days at stage", "m²", "Insulation", "Total cost", "Installer", "Last heard"], widths: [1280] },
+      { step: "office-jobs-phone", persona: "office", path: "/admin/board", expectedPath: "/admin/jobs/ours", mustSee: ["Our jobs", "Installer jobs", "Closed jobs", "Filter"], widths: [390] },
       { step: "office-enquiry-groups", persona: "office", path: "/admin/enquiry-groups" },
       { step: "office-campaign-emails", persona: "office", path: "/admin/campaign-emails", expectedPath: "/admin/templates", expectedSearch: { cat: "owner" }, mustSee: ["Templates", "Viewing never sends, saves or connects anything."] },
       { step: "office-partners", persona: "office", path: "/admin/partners?tab=approved", expectedPath: "/admin/partners" }, // O5: Partners overview removed (office audit); Approved shows stored names

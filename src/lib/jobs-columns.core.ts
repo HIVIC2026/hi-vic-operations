@@ -4,6 +4,7 @@ import type { OfficeStatus, WaitingOn } from "./office-status.core";
 import { LAST_HEARD_LABEL, type InsulationChip, type LastHeardChip } from "./office-filters.core";
 import { inRange, textHit, type ListColumn, type Range } from "./enquiry-columns.core";
 import { JOBS_STAGES, jobsStage, type JobsStage } from "./office-jobs.core";
+import type { SpotReleaseStateName } from "./spot-release.core";
 
 export type JobsLane = "ours" | "installer";
 export const laneOf = (channel: string | null): JobsLane => (channel === "installer_sourced" ? "installer" : "ours");
@@ -43,11 +44,14 @@ const WAITING_TEXT: Record<WaitingOn, string> = {
 };
 const SPOT_SAVED = new Set(["enquiry.spot_saved", "enquiry.spot_saved_video"]);
 
-export function nextStep(s: OfficeStatus | null, o: { onHold: boolean; readyCheckBookingOn: boolean }): NextStep {
+/** `release`: the spot's release state (decision 389), read only for spot-saved jobs — a pending release waits on the
+ *  owner's Confirm (as on Needs me); a lapsed one keeps the normal action. */
+export function nextStep(s: OfficeStatus | null, o: { onHold: boolean; readyCheckBookingOn: boolean; release?: SpotReleaseStateName | null }): NextStep {
   if (o.onHold) return { text: "On hold", ours: false, late: s?.late ?? false };
   if (!s) return { text: NOTHING_YET, ours: false, late: false };
   if (s.waitingOn === "Us") {
     if (SPOT_SAVED.has(s.key) && !o.readyCheckBookingOn) return { text: NOTHING_YET, ours: false, late: false };
+    if (SPOT_SAVED.has(s.key) && o.release === "pending") return { text: WAITING_TEXT.Owner, ours: false, late: false };
     return { text: s.action ?? s.label, ours: true, late: s.late };
   }
   return { text: WAITING_TEXT[s.waitingOn], ours: false, late: s.late };
@@ -145,4 +149,19 @@ export function parseSavedView(raw: string | null): SavedView {
     dir: v["dir"] === "asc" || v["dir"] === "desc" ? v["dir"] : DEFAULT_VIEW.dir,
     needsUs: typeof v["needsUs"] === "boolean" ? v["needsUs"] : DEFAULT_VIEW.needsUs,
   };
+}
+
+/** An old link's `?stage=` applies once (Jo, 28 Oct 2026): it filters this visit but is never written to the saved view. */
+export type OnceStage = { stage: JobsStage; savedStage?: JobsStage[] };
+export function openingView(saved: SavedView, initialStage: JobsStage | undefined): { view: SavedView; once: OnceStage | null } {
+  if (!initialStage) return { view: saved, once: null };
+  const once: OnceStage = saved.filters.stage ? { stage: initialStage, savedStage: saved.filters.stage } : { stage: initialStage };
+  return { view: { ...saved, filters: { ...saved.filters, stage: [initialStage] } }, once };
+}
+/** What goes to the browser's saved view: the once-only stage swapped back for her own saved stage (if still showing). */
+export function viewToSave(view: SavedView, once: OnceStage | null): SavedView {
+  const st = view.filters.stage;
+  if (!once || !st || st.length !== 1 || st[0] !== once.stage) return view;
+  const { stage: _drop, ...rest } = view.filters;
+  return { ...view, filters: once.savedStage ? { ...rest, stage: once.savedStage } : rest };
 }
