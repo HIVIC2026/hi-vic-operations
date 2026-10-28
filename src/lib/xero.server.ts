@@ -146,7 +146,7 @@ async function jobInvoice(jobId: string) {
 }
 
 /** Owner accepted the final installation quote: create the ONE full invoice (idempotent) and push it to Xero. */
-export async function createInvoiceForQuote(quoteId: string, actorId: string) {
+export async function createInvoiceForQuote(quoteId: string, actorId: string | null) {
   const { data: q } = await admin.from("quotes").select("id, job_id, kind, status, option_label, customer_total_inc_gst").eq("id", quoteId).single();
   if (!q) throw new Error("Quote not found");
   await requireHivicJob(q.job_id);

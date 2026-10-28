@@ -113,19 +113,20 @@ export function fixesFoundLine(stage: string): string {
   return `Safety check found electrical fixes — ${what}`;
 }
 
-/** The newest `invoice_create_failed` event, unless a Xero-linked invoice has appeared since (the office created it) or a
- *  local invoice already shows its own Xero problem (that one reaches Needs me through the job's status, not twice). */
+/** The newest `invoice_create_failed` event, unless a Xero-linked invoice has appeared since (the office created it). */
 export function invoiceFailedFact(
   events: readonly { at: string; text: string }[],
   invoices: readonly { xero_invoice_id: string | null; last_synced_at: string | null; created_at: string; last_sync_error: string | null; status?: string | null }[],
 ): { at: string; text: string } | null {
   const latest = [...events].sort((a, b) => a.at.localeCompare(b.at)).at(-1);
   if (!latest) return null;
-  if (invoices.some((i) => i.last_sync_error || i.status === "xero_sync_error")) return null;
   const linkedAt = invoices.filter((i) => i.xero_invoice_id).map((i) => Date.parse(i.last_synced_at ?? i.created_at)).filter(Number.isFinite);
   if (linkedAt.length && Math.max(...linkedAt) >= Date.parse(latest.at)) return null;
   return latest;
 }
+
+/** The generic "System · Xero: …" row for an invoice that is not linked to Xero repeats the failed-invoice row: hide it. */
+export const duplicatesInvoiceFailed = (why: string, invoiceFailed: NeedsFacts["invoiceFailed"]): boolean => !!invoiceFailed && why.startsWith("Xero: ");
 
 const HOUR = 3_600_000;
 const fmtWhen = (iso: string) => new Date(iso).toLocaleString("en-AU", { weekday: "short", hour: "numeric", minute: "2-digit", timeZone: "Australia/Melbourne" }).replace(/\s?([ap]m)$/i, (m) => m.trim().toLowerCase());

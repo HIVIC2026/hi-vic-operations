@@ -295,6 +295,8 @@ export async function setVeecSpotPrice(price: number, actorId: string) {
 /** Office "Create invoice": the job's accepted installation quote goes through the same invoice step the acceptance uses. */
 export async function createInvoiceForJob(jobId: string, actorId: string | null): Promise<{ ok: true }> {
   const { WorkflowError } = await import("./workflow.server");
+  const { data: job } = await admin.from("jobs").select("stage").eq("id", jobId).maybeSingle();
+  if (job?.stage === "cancelled") throw new WorkflowError("This job is cancelled, so no invoice can be created.");
   const { data: q, error } = await admin.from("quotes").select("id").eq("job_id", jobId).eq("kind", "installation").eq("status", "accepted").order("accepted_at", { ascending: false }).limit(1).maybeSingle();
   if (error) throw new WorkflowError(`Could not read the accepted quote: ${error.message}`);
   if (!q) throw new WorkflowError("This job has no accepted installation quote, so there is nothing to invoice.");

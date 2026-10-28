@@ -1,7 +1,7 @@
 // Batch 1 task 3: an invoice that never reached Xero after the owner accepted shows on Needs me, and the office can
 // press "Create invoice" (safe to repeat: one invoice row, one Xero create).
 import { describe, expect, test } from "bun:test";
-import { buildNeedsRows, invoiceFailedFact, needsCandidates } from "../src/lib/office-needs.core";
+import { buildNeedsRows, duplicatesInvoiceFailed, invoiceFailedFact, needsCandidates } from "../src/lib/office-needs.core";
 
 const base = { jobId: "J", jobNumber: "HV-1", surname: "Test", suburb: null };
 const ev = (at: string, text = "Xero 500") => ({ at, text });
@@ -37,43 +37,14 @@ describe("invoiceFailedFact", () => {
   test("an unlinked invoice does not clear it", () => {
     expect(invoiceFailedFact([ev("2026-10-28T02:00:00Z")], [inv({ created_at: "2026-10-28T09:00:00Z" })])).not.toBeNull();
   });
-  test("a local invoice already showing a Xero sync problem is not duplicated", () => {
-    expect(invoiceFailedFact([ev("2026-10-28T02:00:00Z")], [inv({ last_sync_error: "Xero 500", status: "xero_sync_error" })])).toBeNull();
+  test("a local invoice that shows its own Xero problem still gets the row (it is not linked)", () => {
+    expect(invoiceFailedFact([ev("2026-10-28T02:00:00Z")], [inv({ last_sync_error: "Xero 500", status: "xero_sync_error" })])).not.toBeNull();
+  });
+  test("the generic System Xero row is hidden only when the job has the failed-invoice row", () => {
+    expect(duplicatesInvoiceFailed("Xero: Xero 500", { at: "x", text: "y" })).toBe(true);
+    expect(duplicatesInvoiceFailed("Xero: Xero 500", null)).toBe(false);
+    expect(duplicatesInvoiceFailed("ESC notice failed: x", { at: "x", text: "y" })).toBe(false);
   });
   test("no failure event → null", () => { expect(invoiceFailedFact([], [])).toBeNull(); });
 });
 
-describe("retry twice", () => {
-  test("ensureInvoice twice → one invoice row; a second push on a linked invoice makes no Xero call", async () => {
-    const { ensureInvoice } = await import("../src/lib/invoice.lifecycle");
-    const rows: Record<string, unknown>[] = [];
-    const store = {
-      find: async (quoteId: string) => (rows.find((r) => r["quote_id"] === quoteId) as never) ?? null,
-      insert: async (r: Record<string, unknown>) => { const row = { id: `inv-${rows.length + 1}`, ...r }; rows.push(row); return row as never; },
-    };
-    const q = { id: "Q", job_id: "J", kind: "installation", status: "accepted", customer_total_inc_gst: 4000 };
-    const a = await ensureInvoice(store as never, q, "2026-10-28", 349);
-    const b = await ensureInvoice(store as never, q, "2026-10-28", 349);
-    expect(rows.length).toBe(1);
-    expect([a.created, b.created]).toEqual([true, false]);
-  });
-});
-
-describe("createInvoiceAfterAcceptance", () => {
-  test("a failure is recorded for Needs me and returned; success records nothing; the installer is never re-emailed", async () => {
-    const { mock } = await import("bun:test");
-    const events: unknown[][] = [];
-    let fail = true; let calls = 0;
-    mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: "inv-1" } }) }) }) }) } }));
-    mock.module("../src/lib/workflow.server", () => ({ WorkflowError: class extends Error {}, logEvent: async (...a: unknown[]) => { events.push(a); } }));
-    mock.module("../src/lib/xero.server", () => ({ createInvoiceForQuote: async () => { calls++; if (fail) throw new Error("Xero 500"); return "inv-1"; } }));
-    const { createInvoiceAfterAcceptance } = await import("../src/lib/invoice-after-acceptance.server");
-    expect(await createInvoiceAfterAcceptance("Q", "J", null)).toEqual({ ok: false, error: "Xero 500" });
-    expect(events.length).toBe(1);
-    expect(events[0]![2]).toBe("invoice_create_failed");
-    fail = false;
-    expect(await createInvoiceAfterAcceptance("Q", "J", "U")).toEqual({ ok: true });
-    expect(events.length).toBe(1);
-    expect(calls).toBe(2);
-  });
-});

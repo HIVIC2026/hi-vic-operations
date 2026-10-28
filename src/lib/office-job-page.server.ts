@@ -142,9 +142,9 @@ export async function loadJobPage(jobId: string, testOffice = false) {
 export async function loadJobMoney(jobId: string, testOffice = false) {
   const { jobPaymentView } = await import("./payments.server");
   const db = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
-  const [view, job, quote, rect, offers, payouts, lodg, ws, inv, elecAsg] = await Promise.all([
+  const [view, job, quote, rect, offers, payouts, lodg, ws, inv, elecAsg, acceptedQ] = await Promise.all([
     jobPaymentView(jobId),
-    admin.from("jobs").select("channel, installer_led, electrician_choice, estimated_area_m2").eq("id", jobId).maybeSingle(),
+    admin.from("jobs").select("stage, channel, installer_led, electrician_choice, estimated_area_m2").eq("id", jobId).maybeSingle(),
     admin.from("quotes").select("id, subtotal_inc_gst, gst_amount, veec_count, veec_discount_inc_gst, veec_unit_value_inc_gst, status, quote_items(code), quote_internals(cost_ex_gst)").eq("job_id", jobId).eq("kind", "installation").in("status", ["accepted", "issued", "draft"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("quotes").select("customer_total_inc_gst, quote_internals(calc_snapshot)").eq("job_id", jobId).eq("kind", "rectification").eq("status", "accepted").order("accepted_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("partner_offers").select("kind, summary, business_id").eq("job_id", jobId).eq("status", "accepted"),
@@ -153,6 +153,7 @@ export async function loadJobMoney(jobId: string, testOffice = false) {
     testOffice ? Promise.resolve({ data: null }) : db.from("workflow_settings").select("current_veec_price").limit(1).maybeSingle(),
     admin.from("invoices").select("xero_invoice_number, xero_invoice_id, total_inc_gst, total_paid, last_synced_at, last_sync_error").eq("job_id", jobId).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "electrician").eq("active", true).limit(1).maybeSingle(),
+    admin.from("quotes").select("id").eq("job_id", jobId).eq("kind", "installation").eq("status", "accepted").limit(1),
   ]);
   const q = quote.data;
   const paidOut = (kind: string | null) => (payouts.data ?? []).map((p) => p.details as { kind?: string; amount?: number }).find((d) => (d?.kind ?? null) === kind && d?.amount != null)?.amount ?? null;
@@ -198,7 +199,7 @@ export async function loadJobMoney(jobId: string, testOffice = false) {
   return {
     invoice: inv.data ? { number: inv.data.xero_invoice_number, total: Number(inv.data.total_inc_gst), paid: Number(inv.data.total_paid), syncedAt: inv.data.last_synced_at, syncError: inv.data.last_sync_error, linked: !!inv.data.xero_invoice_id } : null,
     /** Batch 1: an accepted installation quote exists — with no Xero-linked invoice the Money card offers "Create invoice". */
-    hasAcceptedQuote: ((await admin.from("quotes").select("id").eq("job_id", jobId).eq("kind", "installation").eq("status", "accepted").limit(1)).data ?? []).length > 0,
+    hasAcceptedQuote: (acceptedQ.data ?? []).length > 0 && job.data?.stage !== "cancelled",
     view: view ? { invoiceId: view.invoiceId, steps: view.steps, paidCents: view.paidCents, reference: view.reference, bank: testOffice ? null : view.bank, onlineInvoiceUrl: testOffice ? null : view.onlineInvoiceUrl, provisional: view.provisional, grandTotalCents: view.plan.grandTotalCents } : null,
     margin, quoteStatus: q?.status ?? null,
   };
