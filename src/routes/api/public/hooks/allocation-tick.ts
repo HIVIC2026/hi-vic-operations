@@ -228,6 +228,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['jobOfferTexts'] = "failed";
         }
         try {
+          // Batch 2 (Jo 29 Oct 2026): other one-off texts held by the 8pm–7am quiet hours go at 7am, each re-checked first
+          // ("still true") and re-sent with its real key; anything no longer true is skipped.
+          const { sweepQuietHeldTexts } = await import("@/lib/quiet-held-texts.server");
+          (out as Record<string, unknown>)['quietHeldTexts'] = await timed("sweepQuietHeldTexts", () => sweepQuietHeldTexts());
+        } catch (e) {
+          console.error("allocation tick: quiet-hours held texts failed", (e as Error).message);
+          (out as Record<string, unknown>)['quietHeldTexts'] = "failed";
+        }
+        try {
           // Decision 238: estimate-only leads get a reminder on day 2, 7 and 21 after the estimate email, then an
           // automatic close a week after the day-21 email (held until the wording is approved; TEST → test sender).
           const { sweepEstimateFollowups } = await import("@/lib/estimate-followup.server");

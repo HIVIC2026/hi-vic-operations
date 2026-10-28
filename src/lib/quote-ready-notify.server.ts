@@ -68,6 +68,9 @@ export async function loadOwnerQuoteFacts(jobId: string, quoteId: string, ownerN
   };
 }
 
+/** The quote text is still worth sending only while that quote is issued and released (decision 165; batch 2 7am send). */
+export const quoteStillReleased = (q: { status?: string | null; release_state?: string | null } | null | undefined) => q?.status === "issued" && q?.release_state === "released";
+
 export async function notifyOwnerQuoteReady(jobId: string, quoteId: string, kind: string): Promise<QuoteNotifyResult> {
   if (kind !== "installation") return { sms: "skipped", email: "skipped" };
   const { assertCustomerDeliveryAllowed } = await import("./comms.server");
@@ -105,7 +108,7 @@ export async function notifyOwnerQuoteReady(jobId: string, quoteId: string, kind
     ? await sendRealSms({
         type: "quote_ready", idempotencyKey: `quote-ready:v1:${quoteId}`, to: owner?.phone ?? null, jobId,
         body: ownerQuoteSms(loaded.input.firstName, loaded.input.quoteUrl),
-        event: { at: q?.sent_at ?? null, current: q?.status === "issued" && q?.release_state === "released" },
+        event: { at: q?.sent_at ?? null, current: quoteStillReleased(q) },
       }).catch((e) => ({ status: "failed" as const, detail: e instanceof Error ? e.message : "error", sid: null }))
     : { status: "blocked" as const, detail: `not sent — ${loaded.missing}`, sid: null };
 
