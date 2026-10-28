@@ -3,6 +3,8 @@ import { describe, expect, test } from "bun:test";
 import { partnerSendFailedRows, sendFailedRows } from "../src/lib/send-failed.core";
 import { mittiOfficeItems } from "../src/lib/ready-check-chase.core";
 import { NEEDS_TEXT } from "../src/lib/allocation.core";
+import { buildNeedsRows, stopReleaseFailedFact, type NeedsFacts } from "../src/lib/office-needs.core";
+import { cardOf } from "../src/lib/needs-cards.core";
 import { readFileSync } from "node:fs";
 
 const NOW = Date.parse("2026-10-29T06:00:00Z");
@@ -80,5 +82,24 @@ describe("STOP clean-up failure", () => {
   test("the event is loaded by the needs query", () => {
     const src = readFileSync("src/lib/needs.server.ts", "utf8");
     expect(src).toContain('"stop_installer_release_failed", "job_cancel_released"');
+  });
+});
+
+describe("STOP clean-up failure on the Needs me page", () => {
+  const ev = (event_type: string, ms: number, details: Record<string, unknown> = {}) => ({ event_type, created_at: ago(ms), details });
+  test("open until a later job_cancel_released", () => {
+    expect(stopReleaseFailedFact([ev("stop_installer_release_failed", 2 * H, { needs_office: true })])).toEqual({ at: ago(2 * H) });
+    expect(stopReleaseFailedFact([ev("stop_installer_release_failed", 2 * H, { needs_office: true }), ev("job_cancel_released", H)])).toBeNull();
+    expect(stopReleaseFailedFact([ev("job_cancel_released", 3 * H), ev("stop_installer_release_failed", 2 * H, { needs_office: true })])).not.toBeNull();
+    expect(stopReleaseFailedFact([ev("stop_installer_release_failed", 2 * H)])).toBeNull();
+  });
+  test("one Today row with the verbatim line and Open job", () => {
+    const f: NeedsFacts = { jobId: "j", jobNumber: "HV-1", surname: "Smith", suburb: "Croydon", stopReleaseFailed: { at: ago(H) } };
+    const g = buildNeedsRows({ now: NOW, jobs: [f] });
+    expect(g.today.map((r) => [r.kind, r.line, r.button.label])).toEqual([["stop_release_failed", STOP_LINE, "Open job"]]);
+    expect(cardOf("stop_release_failed")).toBe("failed");
+  });
+  test("gatherNeedsFacts fills the fact", () => {
+    expect(readFileSync("src/lib/office-needs.server.ts", "utf8")).toContain("x.stopReleaseFailed = hit");
   });
 });

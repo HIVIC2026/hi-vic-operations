@@ -30,7 +30,7 @@ const CARD_OF: Record<NeedsKind, NeedsCardId> = {
   sign_consent: "deadlines", esc_window: "deadlines", prestart_failed: "deadlines",
   quote_check: "quotes", fixes_quote_check: "quotes",
   final_check: "final",
-  send_failed: "failed", robot_failed: "failed", piisa_form_failed: "failed", piesa_form_failed: "failed",
+  send_failed: "failed", stop_release_failed: "failed", robot_failed: "failed", piisa_form_failed: "failed", piesa_form_failed: "failed",
   email_change: "emails", email_unmatched: "unmatched",
   choose_installer: "other", choose_electrician: "electrician", eligibility_review: "other",
   piesa_owner_unsigned: "owner", piesa_fixes_owner_unsigned: "owner", fixes_times_missing: "owner", booking_overdue: "owner",
