@@ -1,3 +1,7 @@
+## Jo 28 Oct declared coverage proposal
+- [x] Build office-only centroid/radius proposals for both trades, show exclusions without applying them, confirm through existing verified save; 9999 uses 3*, skip non-3xxx, save cap 750. No business data or matching changes.
+- [ ] Run new coverage checks and full isolated suite; report results without unrelated fixes.
+
 ## Jo 28 Oct answered inbox emails
 - [x] Recognise synced Outlook sent replies by thread + recipient + later timestamp; hide answered reply-only cards, preserve unresolved changes/declines and later questions. 25 tests pass. Signed-in preview loads empty; populated hosted clearance not verified. No sends/data/switch changes/publication.
 - [x] Hide only the exact no-job emails with confirmed sent replies; accepted delivery confirmed read-only for the reported email. 19 inbox tests pass; signed-in preview inbox loads. History retained; no sends, data/switch changes or publishing.
