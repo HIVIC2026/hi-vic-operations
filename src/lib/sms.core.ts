@@ -96,8 +96,8 @@ export const SMS_MESSAGE_TYPES = {
   // Plan 2026-10-28 (full address required): a website/email enquiry with no street → the owner is asked to pick their
   // full address on /my-address/{token}, plus ONE reminder 24h later. Wording: addressRequestText (address-request.core.ts),
   // DRAFT until Jo approves it.
-  address_request: { audience: "owner", label: "We need your full address – owner picks it on their secure page", wordingApproved: false, quietHours: true },
-  address_request_reminder: { audience: "owner", label: "We need your full address – one reminder 24h later", wordingApproved: false, quietHours: true },
+  address_request: { audience: "owner", label: "We need your full address – owner picks it on their secure page", wordingApproved: true /* approved by Jo 28 Oct 2026 */, quietHours: true },
+  address_request_reminder: { audience: "owner", label: "We need your full address – one reminder 24h later", wordingApproved: true /* approved by Jo 28 Oct 2026 */, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 

@@ -9,8 +9,8 @@ export const ADDRESS_REQUEST_BLOCK_REASON = "Waiting for the owner's full addres
 /** Owner page: the pick was a suburb (or a street with no number), not a full street address. */
 export const FULL_STREET_NEEDED = "Please choose your full street address from the list.";
 /** Jo's approval of the request/reminder EMAIL wording (house pattern, like SPOT_RELEASED_APPROVED). DRAFT: false until
- *  Jo approves it at go-live (plan Task 6). While false the sweep sends nothing and logs nothing. */
-export const ADDRESS_REQUEST_EMAIL_APPROVED = false;
+ *  Jo approves it. While false the sweep sends nothing and logs nothing. */
+export const ADDRESS_REQUEST_EMAIL_APPROVED = true; // approved by Jo 28 Oct 2026
 /** Owner told "Does Not Appear Eligible": never asked for their address "to check your home". */
 export const INELIGIBLE_OUTCOME = "does_not_appear_eligible";
 

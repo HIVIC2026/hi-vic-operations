@@ -231,11 +231,10 @@ describe("address request: one request, one reminder", () => {
     expect(tables["workflow_events"]).toEqual([]);
   });
 
-  test("email wording not approved (the code flag as shipped) → nothing sent, nothing logged; approved → asked", async () => {
+  test("email wording not approved (flag injected off) → nothing sent, nothing logged; approved → asked", async () => {
     const { ADDRESS_REQUEST_EMAIL_APPROVED } = await import("../src/lib/address-request.core");
-    expect(ADDRESS_REQUEST_EMAIL_APPROVED).toBe(false);
+    expect(ADDRESS_REQUEST_EMAIL_APPROVED).toBe(true); // as shipped: approved
     clockIso = "2026-10-28T01:00:00.000Z";
-    expect(await sweepAddressRequests(Date.parse(clockIso))).toEqual({ sent: 0, reminded: 0 }); // production default
     expect(await at("2026-10-28T01:00:00.000Z", false)).toEqual({ sent: 0, reminded: 0 });
     expect(emails.length + texts.length + senderCalls.length + linkChecks.length).toBe(0);
     expect(tables["workflow_events"]).toEqual([]);

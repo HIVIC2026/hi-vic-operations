@@ -114,9 +114,9 @@ describe("approved message switches are on (Jo 24 Oct 2026)", () => {
     const off = Object.entries(SMS_MESSAGE_TYPES).filter(([, t]) => !t.wordingApproved).map(([k]) => k);
     // Decision 388 (25 Oct 2026): Jo approved the spot-only spot saved and save-spot reminder texts.
     // Decision 389 (25 Oct 2026): the "It's your turn" text is approved (Jo saw the O77 picture).
-    // Plan 2026-10-28 (full address required): the address request texts are DRAFT until Jo approves them at go-live.
-    expect(off.sort()).toEqual(["address_request", "address_request_reminder"]);
-    expect(ADDRESS_REQUEST_EMAIL_APPROVED).toBe(false); // the matching email is held too; both flip together at go-live
+    // Jo approved the address request texts and email on 28 Oct 2026 (full address required).
+    expect(off).toEqual([]);
+    expect(ADDRESS_REQUEST_EMAIL_APPROVED).toBe(true);
     expect("ready_check_booking" in SMS_MESSAGE_TYPES).toBe(false);
   });
   test("approved SMS bodies match the decisions log word for word (brand prefix added by the sender)", () => {

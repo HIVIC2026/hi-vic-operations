@@ -47,8 +47,8 @@ describe("address request rules", () => {
     expect(addressRequestStep({ ...base, eligibilityOutcome: "does_not_appear_eligible" }, now)).toBe("none");
     for (const o of ["likely_eligible", "needs_onsite_confirmation", null]) expect(addressRequestOpen({ ...base, eligibilityOutcome: o })).toBe(true);
   });
-  test("the email wording waits for Jo: approval flag is off (house pattern)", () => {
-    expect(ADDRESS_REQUEST_EMAIL_APPROVED).toBe(false);
+  test("the email wording is approved by Jo (28 Oct 2026): approval flag is on", () => {
+    expect(ADDRESS_REQUEST_EMAIL_APPROVED).toBe(true);
   });
   test("the request emails never count as a first response; every other purpose does", () => {
     expect(NOT_A_FIRST_RESPONSE_PURPOSES).toEqual(ADDRESS_REQUEST_EMAIL_PURPOSES as typeof NOT_A_FIRST_RESPONSE_PURPOSES);

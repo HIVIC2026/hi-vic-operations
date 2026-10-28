@@ -38,12 +38,12 @@ describe("Templates navigation", () => {
     for (const e of TEMPLATE_ENTRIES) expect({ id: e.id, waiting: e.section === "waiting" }).toEqual({ id: e.id, waiting: e.approval === "waiting" });
     for (const e of entriesFor("waiting")) expect(templateStatus(e, null).label).toBe("Off — waiting for Jo's approval");
   });
-  test("plan 2026-10-28: the full-address request email, its reminder and both texts wait for Jo (shown, not sent)", () => {
+  test("plan 2026-10-28: the full-address request email, its reminder and both texts are approved by Jo (28 Oct 2026), listed under owner", () => {
     const ids = ["owner:address-request", "owner:address-request-reminder", "owner:sms-address_request", "owner:sms-address_request_reminder"];
     for (const id of ids) {
       const e = TEMPLATE_ENTRIES.find((x) => x.id === id);
-      expect({ id, section: e?.section, approval: e?.approval }).toEqual({ id, section: "waiting", approval: "waiting" });
-      expect(templateStatus(e!, { customer_comms: true, "sms:address_request": true, "sms:address_request_reminder": true }).label).toBe("Off — waiting for Jo's approval");
+      expect({ id, section: e?.section, approval: e?.approval }).toEqual({ id, section: "owner", approval: "approved" });
+      expect(templateStatus(e!, { customer_comms: true, "sms:address_request": true, "sms:address_request_reminder": true }).label).not.toBe("Off — waiting for Jo's approval");
     }
     const body = (id: string) => { const p = TEMPLATE_ENTRIES.find((x) => x.id === id)!.render(); return p.kind === "text" ? p.body : p.kind === "email" ? p.html : ""; };
     expect(body("owner:sms-address_request")).toBe("Home Insulation Victoria: we need your full address to check your home. Pick it here: https://estimate.homeinsulationvictoria.com.au/my-address/TEST");
