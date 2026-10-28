@@ -92,23 +92,23 @@ export async function installerOfferFacts(bizs: { id: string }[]): Promise<{ cre
   const noticeAck = await (await import("./esc-collection-notice.server")).noticeAckMap((workers ?? []) as never);
   const wk = (workers ?? []).filter((x) => !workerOfferBlocker({ ...x, collection_notice_acknowledged: noticeAck.get(x.id) ?? null } as never, melbourneYmd(new Date())));
   const all = workers ?? [];
-  const emails = all.map((x) => x.email.trim().toLowerCase());
+  const { certOrFilter, sameWorkerEmail } = await import("./worker-role.core");
   const { data: certs } = all.length
-    ? await admin.from("partner_worker_certifications").select("id, worker_id, worker_email, status, recorded_at").or(`worker_id.in.(${all.map((x) => x.id).join(",")}),worker_email.in.(${emails.map((e) => `"${e}"`).join(",")})`).order("recorded_at", { ascending: false })
+    ? await admin.from("partner_worker_certifications").select("id, worker_id, worker_email, status, recorded_at").or(certOrFilter(all)).order("recorded_at", { ascending: false })
     : { data: [] as { id: string; worker_id: string | null; worker_email: string; status: string; recorded_at: string }[] };
   const certIds = (certs ?? []).map((c) => c.id);
   const { data: levels } = certIds.length
     ? await admin.from("worker_certification_levels").select("certification_id, level, expires_on, recorded_at").in("certification_id", certIds).order("recorded_at", { ascending: false })
     : { data: [] as { certification_id: string; level: string; expires_on: string; recorded_at: string }[] };
   const today = melbourneYmd(new Date());
-  const fullWorker = (x: { id: string; email: string }) => {
-    const c = (certs ?? []).find((r) => r.worker_id === x.id || r.worker_email.trim().toLowerCase() === x.email.trim().toLowerCase());
+  const fullWorker = (x: { id: string; email: string | null }) => {
+    const c = (certs ?? []).find((r) => r.worker_id === x.id || sameWorkerEmail(x.email, r.worker_email));
     if (!c) return false;
     const l = (levels ?? []).find((r) => r.certification_id === c.id);
     return fullCurrentCert({ status: c.status, level: l?.level ?? null, expiresOn: l?.expires_on ?? null }, today);
   };
-  const certOf = (x: { id: string; email: string }) => {
-    const c = (certs ?? []).find((r) => r.worker_id === x.id || r.worker_email.trim().toLowerCase() === x.email.trim().toLowerCase());
+  const certOf = (x: { id: string; email: string | null }) => {
+    const c = (certs ?? []).find((r) => r.worker_id === x.id || sameWorkerEmail(x.email, r.worker_email));
     if (!c) return null;
     const l = (levels ?? []).find((r) => r.certification_id === c.id);
     return { status: c.status, level: l?.level ?? null, expiresOn: l?.expires_on ?? null };
