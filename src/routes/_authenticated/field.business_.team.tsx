@@ -9,6 +9,7 @@ import { createWorkerInvite } from "@/lib/worker-invite.functions";
 import { useBizFile } from "@/components/trade/business-pages";
 import { ROLE_LABEL, TEAM_ADD_SHEET, TEAM_MOBILE_NOTE, TEAM_RULE, teamMobileButton, inviteContact, inviteTextLine, teamCiiLine, teamCountLine, teamFactsLine, teamWhiteCardLine, type InviteTextResult } from "@/lib/trade-view.core";
 import { melbourneToday } from "@/lib/melbourne-time.core";
+import { LeadCrewSwitch } from "@/components/portal/lead-crew-switch";
 import { CertLinkInline, SendNoticeLinkInline, WhiteCardUploadInline } from "@/components/portal/worker-compliance";
 
 export const Route = createFileRoute("/_authenticated/field/business_/team")({
@@ -45,6 +46,7 @@ function Team() {
                   {cii && <p className={`mt-0.5 text-[13px] font-semibold ${cii.tone === "green" ? "text-estimate-green" : "text-[#8A3B4A]"}`}>{cii.text}</p>}
                   {wc && <p data-white-card className={`mt-0.5 text-[13px] font-semibold ${wc.tone === "green" ? "text-estimate-green" : "text-[#8A3B4A]"}`}>{wc.text}</p>}
                   {id && <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {m.workerRole && <LeadCrewSwitch workerId={id} role={m.workerRole} onChanged={() => { void qc.invalidateQueries({ queryKey: ["trade-business"] }); }} />}
                     <MobileInline workerId={id} mobile={m.mobile} onSaved={() => { void qc.invalidateQueries({ queryKey: ["trade-business"] }); }} />
                     {!m.hasLogin && (asked[id] ? <span className="text-[13px] font-semibold text-estimate-green">{asked[id]}</span> : <button type="button" className="min-h-11 rounded-[10px] border border-estimate-line bg-white px-3 text-[13px] font-semibold text-estimate-blue" onClick={async () => { try { await invite({ data: { workerId: id } }); setAsked((a) => ({ ...a, [id]: "Login invite requested" })); } catch (e) { setAsked((a) => ({ ...a, [id]: (e as Error).message })); } }}>Send login invite</button>)}
                     {m.noticeAcknowledged === false && <SendNoticeLinkInline workerId={id} />}

@@ -282,7 +282,11 @@ export const getPartnerProfile = createServerFn({ method: "POST" }).middleware([
     // ESC collection notice state per installer worker (office flag "ESC notice not acknowledged"; informs, never blocks).
     const collectionNotice = await (await import("./esc-collection-notice.server")).businessNoticeStatuses(id);
     const { xero_contact_id: _x, xero_contact_error: _e, ...safe } = business;
-    return { business: adminUser ? business : safe, credentials: creds ?? [], members: members ?? [], workers: workers ?? [], relationships: rels ?? [], agreements: agreements ?? [], rateCards: cards ?? [], electricianBusinesses: adminUser ? (electricians ?? []) : [] /* trades never see HIV's electrician network */, measurementMethods: methods ?? [], checklist, collectionNotice, myRole: adminUser ? "hivic_admin" : mine.get(id) };
+    // Jo 28 Oct: Lead/Crew for installer people (effective role; blank = Crew unless they already have Mitti access).
+    const installerIds = (workers ?? []).filter((w) => w.trade_role === "installer").map((w) => w.id);
+    const roles = installerIds.length ? await (await import("./worker-role.server")).workerRoleMap(installerIds) : new Map<string, "lead" | "crew">();
+    const workersWithRole = (workers ?? []).map((w) => ({ ...w, worker_role_effective: roles.get(w.id) ?? null }));
+    return { business: adminUser ? business : safe, credentials: creds ?? [], members: members ?? [], workers: workersWithRole, relationships: rels ?? [], agreements: agreements ?? [], rateCards: cards ?? [], electricianBusinesses: adminUser ? (electricians ?? []) : [] /* trades never see HIV's electrician network */, measurementMethods: methods ?? [], checklist, collectionNotice, myRole: adminUser ? "hivic_admin" : mine.get(id) };
   });
 
 // ---------- Import ----------
