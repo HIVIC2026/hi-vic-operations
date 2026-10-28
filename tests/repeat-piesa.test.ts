@@ -1,5 +1,5 @@
 import { describe, expect, it, test } from "bun:test";
-import { chooseRepeatPayerBlocker, installerRepeatDeduction, ownerRepeatView, repeatPiesaGateBlocker, repeatPiesaState, REPEAT_PRICE_NOT_SET } from "../src/lib/repeat-piesa.core";
+import { chooseRepeatPayerBlocker, installerRepeatDeduction, ownerRepeatView, repeatPiesaGateBlocker, repeatPiesaState, REPEAT_ARRANGING_TITLE, REPEAT_PRICE_NOT_SET } from "../src/lib/repeat-piesa.core";
 import { fixesFoundLine, needsCandidates } from "../src/lib/office-needs.core";
 import { jobNext, FIXES_PAUSED_TITLE } from "../src/lib/installer-screens.core";
 
@@ -22,6 +22,14 @@ test("owner-pays is refused while the Repeat safety check price is empty", () =>
   expect(chooseRepeatPayerBlocker(lapsed, "owner", 220)).toBeNull();
   expect(chooseRepeatPayerBlocker(lapsed, "installer", null)).toBeNull();
   expect(chooseRepeatPayerBlocker(chose("hivic"), "owner", 220)).toMatch(/already been chosen/);
+});
+
+test("owner page has no repeat card once accepted (and paid if owed) — normal booking area shows", () => {
+  expect(ownerRepeatView({ stage: "offer", payer: "owner", priceIncGst: 349, deadline: "2026-10-01" })).toBeNull();
+  expect(ownerRepeatView({ stage: "offer", payer: "installer", priceIncGst: 349, deadline: "2026-10-01" })).toBeNull();
+  expect(ownerRepeatView({ stage: "choose", payer: null, priceIncGst: null, deadline: "2026-10-01" })!.title).toBe(REPEAT_ARRANGING_TITLE);
+  expect(ownerRepeatView({ stage: "owner_accept", payer: "owner", priceIncGst: 349, deadline: "2026-10-01" })!.button).toBe("Accept");
+  expect(ownerRepeatView({ stage: "owner_pay", payer: "owner", priceIncGst: 349, deadline: "2026-10-01" })!.body).toContain("Please pay $349 inc GST");
 });
 
 test("owner pays: price shown, Accept, then must be paid before booking", () => {

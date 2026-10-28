@@ -65,7 +65,7 @@ export const REPEAT_NEEDED_TITLE = "A new safety check (PIESA) is needed";
 export const REPEAT_WHY = "Your electrical safety check is valid for 30 days. The 30 days since your last check have passed, so the law needs a fresh check before your insulation can be installed.";
 
 export type OwnerRepeatView = { title: string; body: string; price: string | null; button: "Accept" | null };
-/** The owner's job page while a repeat PIESA is in play (null = nothing to show). Never mentions install days. */
+/** The owner's job page while a repeat PIESA is in play (null = nothing to show, including once accepted/paid). Never mentions install days. */
 export function ownerRepeatView(s: RepeatState): OwnerRepeatView | null {
   if (s.stage === "none") return null;
   if (s.stage === "choose") return { title: REPEAT_ARRANGING_TITLE, body: "Our team is arranging the next step for your install. We'll let you know shortly.", price: null, button: null };
@@ -76,7 +76,7 @@ export function ownerRepeatView(s: RepeatState): OwnerRepeatView | null {
     button: "Accept",
   };
   if (s.stage === "owner_pay") return { title: REPEAT_NEEDED_TITLE, body: `Thanks for accepting. Please pay ${money(s.priceIncGst ?? 0)} inc GST for the new safety check. We book it once it's paid.`, price: null, button: null };
-  return { title: REPEAT_NEEDED_TITLE, body: "Thanks for accepting. We're arranging your electrician — they'll offer you 3 safety check times.", price: null, button: null };
+  return null;
 }
 
 // ---- Owner pays (Jo 28 Oct, decision 233): the repeat price goes on the job's ONE Xero invoice as one line ----
