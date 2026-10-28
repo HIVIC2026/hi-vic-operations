@@ -200,7 +200,10 @@ export async function loadJobMoney(jobId: string, testOffice = false) {
     invoice: inv.data ? { number: inv.data.xero_invoice_number, total: Number(inv.data.total_inc_gst), paid: Number(inv.data.total_paid), syncedAt: inv.data.last_synced_at, syncError: inv.data.last_sync_error, linked: !!inv.data.xero_invoice_id } : null,
     /** Batch 1: an accepted installation quote exists — with no Xero-linked invoice the Money card offers "Create invoice". */
     hasAcceptedQuote: (acceptedQ.data ?? []).length > 0 && job.data?.stage !== "cancelled",
-    view: view ? { invoiceId: view.invoiceId, steps: view.steps, paidCents: view.paidCents, reference: view.reference, bank: testOffice ? null : view.bank, onlineInvoiceUrl: testOffice ? null : view.onlineInvoiceUrl, provisional: view.provisional, grandTotalCents: view.plan.grandTotalCents } : null,
+    view: view ? { invoiceId: view.invoiceId, steps: view.steps, paidCents: view.paidCents, reference: view.reference, bank: testOffice ? null : view.bank, onlineInvoiceUrl: testOffice ? null : view.onlineInvoiceUrl, provisional: view.provisional, grandTotalCents: view.plan.grandTotalCents,
+      // Card + Xero pairs counted once until the office says "Two separate payments" (office-only button; the TEST office
+      // cannot press it, so it gets none).
+      unclearPairs: testOffice ? [] : view.unclearPairs } : null,
     margin, quoteStatus: q?.status ?? null,
   };
 }

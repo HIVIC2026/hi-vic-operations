@@ -21,6 +21,7 @@ import { safetyCheckShort } from "@/lib/safety-check-amount.core";
 import { cancelOfficeJob, getOfficeJobMoney, holdOfficeJob, logOfficeCallOrNote, markOfficeJobTest, reopenOfficeJob } from "@/lib/office-screens.functions";
 import { bulkJobAction } from "@/lib/bulk.functions";
 import { retryInvoiceFn } from "@/lib/office-money.functions";
+import { markPaymentsSeparateFn } from "@/lib/payments.functions";
 import { completeInstallation, overrideDepositGate, regenerateRectificationQuote, setHold, syncInvoice } from "@/lib/portal.functions";
 import { openJobDocument } from "@/lib/jobfile.functions";
 import { reopenDeclinedQuote } from "@/lib/installer-quote-review.functions";
@@ -219,6 +220,7 @@ export function MoneyCard({ jobId }: { jobId: string }) {
   const sync = useAction(syncInvoice);
   const override = useAction(overrideDepositGate);
   const createInvoice = useAction(retryInvoiceFn);
+  const separate = useAction(markPaymentsSeparateFn);
   const { data, error } = useQuery({ queryKey: ["office-job-money", jobId], queryFn: () => load({ data: { jobId } }), staleTime: 30_000 });
   const [showMargin, setShowMargin] = useState(false);
   const [overriding, setOverriding] = useState(false);
@@ -249,6 +251,12 @@ export function MoneyCard({ jobId }: { jobId: string }) {
           ))}
         </ul>
       )}
+      {v?.unclearPairs.map((u) => (
+        <div key={u.pairKey} className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-[12px] border border-line px-3 py-2 text-sm" data-testid="unclear-payment-pair">
+          <span>Card payment and a same-amount Xero payment — counted once.</span>
+          <button type="button" className={cn(btn, "border border-line bg-paper text-hiv-blue")} onClick={() => void separate({ invoiceId: v.invoiceId, pairKey: u.pairKey }, "Marked as two separate payments")}>Two separate payments</button>
+        </div>
+      ))}
       <div className="mt-3 rounded-[12px] bg-mist px-3 py-2 text-sm" data-why="decision 230: office only, never shown to installers, electricians or owners">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="font-semibold">Our margin {m.margin != null ? `$${m.margin.toLocaleString("en-AU", { maximumFractionDigits: 0 })}${m.pct != null ? ` (${m.pct}%)` : ""}` : "— not known yet"}</span>
