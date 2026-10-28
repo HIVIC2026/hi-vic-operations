@@ -1,4 +1,5 @@
 ## Jo 28 Oct answered inbox emails
+- [ ] Include confirmed replies Jo sent in Outlook; remove answered reply-only cards, preserve unresolved changes and later inbound questions.
 - [x] Hide only the exact no-job emails with confirmed sent replies; accepted delivery confirmed read-only for the reported email. 19 inbox tests pass; signed-in preview inbox loads. History retained; no sends, data/switch changes or publishing.
 ## Jo 28 Oct 20:08 decisions
 - [x] 1. HV-1554 marked qa_test (one record, audited admin_override event); safeguard unchanged. Confirm TEST office opens Alpha jobs.
