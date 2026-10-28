@@ -242,6 +242,13 @@ export function tapTimeButtons(times: { day: string; time: string; href: string 
   return `${TABLE}>\n${rows.join("\n")}\n</table>${suggest ? `\n<p style="font-size:14px;line-height:1.5;margin:4px 0 0;color:${KIT.SUB};text-align:center;">None suit? ${link(suggest.href, "Suggest other days")}</p>` : ""}`;
 }
 
+/** "Send to a friend" (Jo, 27 Oct): opens a new email with the homeowner page link already written, ready to send to a friend. */
+/** The public homeowner journey page that friends are sent to (Jo, 27 Oct: share the journey, not the calculator). */
+export const HOMEOWNER_PAGE_URL = "https://homeinsulationvictoria.com.au/homeowner";
+export const FRIEND_SHARE_SUBJECT = "Free ceiling insulation check";
+export const friendShareBody = (link: string) => `Hi, I thought this might help. Home Insulation Victoria can help you get the Victorian ceiling insulation rebate. Have a look here: ${link}`;
+export const friendShareHref = (link: string) => `mailto:?subject=${encodeURIComponent(FRIEND_SHARE_SUBJECT)}&body=${encodeURIComponent(friendShareBody(link))}`;
+
 /** White card with a bold title, grey body and a blue arrow link (friend card, "New to how we work?"). */
 export function linkCard(i: { title: string; body: string; href: string; label: string; marginTop?: number }): string {
   return `${TABLE} style="margin-top:${i.marginTop ?? 20}px;border:1px solid ${KIT.LINE};border-radius:14px;background:${KIT.WHITE};"><tr><td style="padding:16px;">
@@ -250,7 +257,7 @@ export function linkCard(i: { title: string; body: string; href: string; label: 
 <a href="${esc(i.href)}" style="font-size:14px;font-weight:bold;color:${KIT.BLUE};">${esc(i.label)} &rarr;</a>
 </td></tr></table>`;
 }
-export const friendCard = (href: string, variant: "spot" | "eligibility" | "cold" = "eligibility") => linkCard(
+export const friendCard = (link: string, variant: "spot" | "eligibility" | "cold" = "eligibility", href = friendShareHref(link)) => linkCard(
   variant === "spot" ? { title: "Have a friend who needs a spot saved?", body: "Send them our free eligibility checker. It takes a minute.", href, label: "Send to a friend" }
     : variant === "cold" ? { title: "Know someone with a cold house?", body: "Send them our free eligibility checker. It takes a minute, and they could get the rebate too.", href, label: "Send to a friend" }
       : { title: "Know someone thinking about insulation?", body: "They can check their own eligibility in about a minute.", href, label: "Send to a friend" },

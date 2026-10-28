@@ -74,7 +74,7 @@ export function renderSpotSavedEmail(i: SpotSavedInput) {
     removalCard,
     removal?.kind === "unknown" ? mjSmall(REMOVAL_BUDGET_EMAIL_NOTE) : "",
     removalLine ? mjSmall(removalLine) : "",
-    i.referralUrl ? mjLinkCard("Have a friend who needs a spot saved?", "Send them our free eligibility checker. It takes a minute.", i.referralUrl, "Send to a friend") : "",
+    i.referralUrl ? mjLinkCard("Have a friend who needs a spot saved?", "Send them our free eligibility checker. It takes a minute.", K.friendShareHref(i.referralUrl), "Send to a friend") : "",
   ].join("\n");
   const html = mjEmail({ subject, preview: SPOT_SAVED_PREVIEW, body, unsubscribe: i.optOutUrl });
   const text = K.plainText([

@@ -416,13 +416,13 @@ function renderNotEligible(input: JoOutcomeEmailInput, subject: string): Estimat
     mjHeadline(headline, O6_INTRO),
     section(`<mj-text mj-class="h2" padding="18px 18px 2px">Why</mj-text><mj-text padding="0 18px 16px">${K.esc(reason)}</mj-text>`, "panel"),
     mjSubSection("Something doesn't look right?", O6_RECHECK, { href: input.links.reviewResultUrl, label: "Review my result" }),
-    // "Send to a friend" opens the public eligibility checker (no customer data in the link).
-    mjLinkCard(FRIEND.title, FRIEND.body, PUBLIC_CALCULATOR_URL, "Send to a friend"),
+    // "Send to a friend" opens a new email to a friend with the public homeowner page link (Jo, 27 Oct) (no customer data in the link).
+    mjLinkCard(FRIEND.title, FRIEND.body, K.friendShareHref(K.HOMEOWNER_PAGE_URL), "Send to a friend"),
   ].join("\n");
   const html = mjEmail({ subject, preview: O6_PREVIEW, body, unsubscribe: "slot" });
   const plainText = K.plainText([
     headline, "", O6_INTRO, "", "WHY", reason, "", "SOMETHING DOESN'T LOOK RIGHT?", O6_RECHECK, `Review my result: ${input.links.reviewResultUrl}`, "",
-    `${FRIEND.title} ${FRIEND.body}`, `Send to a friend: ${PUBLIC_CALCULATOR_URL}`, "",
+    `${FRIEND.title} ${FRIEND.body}`, `Send to a friend: ${K.HOMEOWNER_PAGE_URL}`, "",
     `Reference: ${input.recipient.enquiryReference}`,
   ]) + `\nUnsubscribe: ${REMOVE_ENQUIRY_TEXT_SLOT}`;
   return { subject, previewText: O6_PREVIEW, html, plainText };
