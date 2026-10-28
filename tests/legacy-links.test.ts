@@ -14,13 +14,13 @@ describe("retired page addresses", () => {
     }
   });
   test("search-dependent office redirects keep their old meaning", () => {
-    expect(officeLegacyTarget("operations", { category: "active" })).toEqual({ to: "/admin/jobs/active" });
+    expect(officeLegacyTarget("operations", { category: "active" })).toEqual({ to: "/admin/jobs/ours" });
     expect(officeLegacyTarget("operations", { category: "closed" })).toEqual({ to: "/admin/jobs/closed" });
     expect(officeLegacyTarget("operations")).toEqual({ to: "/admin/enquiries" });
     expect(officeLegacyTarget("enquiry-groups", { status: "photos" })).toEqual({ to: "/admin/enquiries", search: { status: "photos" } });
     expect(officeLegacyTarget("enquiry-groups", { status: "nonsense" })).toEqual({ to: "/admin/enquiries", search: { status: "all" } });
     expect(officeLegacyTarget("compliance")).toEqual({ to: "/admin/settings", search: { tab: "templates" } });
-    expect(officeLegacyTarget("ap-queue")).toEqual({ to: "/admin/jobs/active", search: { stage: "final_check" } });
+    expect(officeLegacyTarget("ap-queue")).toEqual({ to: "/admin/jobs/ours", search: { stage: "final_check" } });
     expect(officeLegacyTarget("/workers/")).toEqual({ to: "/admin/partners", search: { tab: "people" } });
   });
   test("unknown addresses are not invented", () => {

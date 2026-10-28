@@ -88,7 +88,7 @@ describe("isolated operations presentation", () => {
   test("route and endpoint both require admin; direct only; no mutations", () => {
     const endpoint = readFileSync("src/lib/operations-preview.functions.ts", "utf8");
     const server = readFileSync("src/lib/operations-preview.server.ts", "utf8");
-    expect(officeLegacyTarget("operations-preview")).toEqual({ to: "/admin/jobs/active" });
+    expect(officeLegacyTarget("operations-preview")).toEqual({ to: "/admin/jobs/ours" });
     expect(readFileSync("src/routes/_authenticated/admin.tsx", "utf8")).toContain('.admin');
     expect(endpoint).toContain('.middleware([requireSupabaseAuth])'); expect(endpoint.indexOf('await requireAdmin')).toBeLessThan(endpoint.indexOf('client.server'));
     expect(server).toContain(".eq('business_unit', 'hivic').is('deleted_at', null).or('source.is.null,source.neq.qa_test')");

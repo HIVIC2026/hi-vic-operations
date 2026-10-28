@@ -37,18 +37,18 @@ describe("D1 — confirmed first-response paging", () => {
 });
 
 describe("D4 — legacy routes", () => {
-  test("/admin/jobs redirects to active jobs without touching /admin/jobs/:id", () => {
+  test("/admin/jobs redirects to Our jobs without touching /admin/jobs/:id", () => {
     const src = read("src/routes/_authenticated/admin.jobs.tsx");
-    expect(src).toContain('to: "/admin/jobs/active"');
+    expect(src).toContain('to: "/admin/jobs/ours"');
     expect(src).toContain('=== "/admin/jobs"');
     expect(src).toContain("<Outlet />");
   });
   test("/admin/quotes redirects to Jobs › Quote", () => {
-    expect(officeLegacyTarget("quotes")).toEqual({ to: "/admin/jobs/active", search: { stage: "quote" } });
+    expect(officeLegacyTarget("quotes")).toEqual({ to: "/admin/jobs/ours", search: { stage: "quote" } });
   });
   test("/admin/board lands on Jobs; its old Quote approvals tab lands on Jobs › Quote", () => {
-    expect(officeLegacyTarget("board")).toEqual({ to: "/admin/jobs/active" });
-    expect(officeLegacyTarget("board", { tab: "quotes" })).toEqual({ to: "/admin/jobs/active", search: { stage: "quote" } });
+    expect(officeLegacyTarget("board")).toEqual({ to: "/admin/jobs/ours" });
+    expect(officeLegacyTarget("board", { tab: "quotes" })).toEqual({ to: "/admin/jobs/ours", search: { stage: "quote" } });
   });
 });
 

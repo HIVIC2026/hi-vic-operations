@@ -20,7 +20,7 @@ import { ActionsMenu, Pager, ReasonDialog, SortHead } from "@/components/portal/
 const CLOSED_LABEL: Record<JobClosedFilter, string> = { all: "All",  completed: "Completed", cancelled: "Cancelled", ineligible: "Ineligible", test: "Removed / test" };
 
 /** Where the three Jobs pages live (one place to change). */
-const JOBS_PAGES = { ours: "/admin/jobs/active", installer: "/admin/jobs/active", closed: "/admin/jobs/closed" } as const;
+const JOBS_PAGES = { ours: "/admin/jobs/ours", installer: "/admin/jobs/installers", closed: "/admin/jobs/closed" } as const;
 
 /** "Our jobs 384 · Installer jobs 26 · Closed jobs" under the page title, on phone and computer. */
 export function JobsSwitcher({ current }: { current: "ours" | "installer" | "closed" }) {

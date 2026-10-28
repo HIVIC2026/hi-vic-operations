@@ -20,7 +20,7 @@ export const OFFICE_HEADINGS: (OfficeTab & { key: Exclude<OfficeSection, "more">
   { key: "needs", label: "Needs me", to: "/admin/needs-me" },
   { key: "enquiries", label: "Enquiries", to: "/admin/enquiries" },
   { key: "emails", label: "Emails", to: "/admin/emails" },
-  { key: "jobs", label: "Jobs", to: "/admin/jobs/active" },
+  { key: "jobs", label: "Jobs", to: "/admin/jobs/ours" },
   { key: "partners", label: "Partners", to: "/admin/partners" },
   { key: "money", label: "Money", to: "/admin/money" },
 ];

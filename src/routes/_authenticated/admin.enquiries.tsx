@@ -7,7 +7,7 @@ import { EnquiriesScreen } from "@/components/portal/EnquiriesScreen";
 export const Route = createFileRoute("/_authenticated/admin/enquiries")({
   beforeLoad: ({ search }) => {
     const status = (search as { status?: string }).status;
-    if (status === "spot_saved") throw redirect({ to: "/admin/jobs/active", search: { stage: "choose_installer" }, replace: true });
+    if (status === "spot_saved") throw redirect({ to: "/admin/jobs/ours", search: { stage: "choose_installer" }, replace: true });
     if (status === "ineligible" || status === "removed") throw redirect({ to: "/admin/jobs/closed", replace: true });
   },
   validateSearch: (s: Record<string, unknown>): { status?: string } => (typeof s["status"] === "string" ? { status: s["status"] } : {}),

@@ -111,7 +111,7 @@ function PartnerSystemFold({ rows, rowsFailed }: { rows: SystemRow[]; rowsFailed
   const pickups = useQuery({ queryKey: ["mitti-pickups"], queryFn: () => pickupsFn(), staleTime: 60_000, retry: 1 });
   const sync = useQuery({ queryKey: ["mitti-sync-problems"], queryFn: () => syncFn(), staleTime: 60_000, retry: 1 });
   const mitti: SystemRow[] = [
-    ...(pickups.data?.rows ?? []).map((p) => ({ key: `pickup:${p.auditId}`, tag: "Mitti", who: p.business?.name ?? "Mitti user not matched", line: `${pickupLabel(p)} · Ready Check started, no portal job`, since: p.modifiedAt, button: "Link form", href: "/admin/jobs/active" })),
+    ...(pickups.data?.rows ?? []).map((p) => ({ key: `pickup:${p.auditId}`, tag: "Mitti", who: p.business?.name ?? "Mitti user not matched", line: `${pickupLabel(p)} · Ready Check started, no portal job`, since: p.modifiedAt, button: "Link form", href: "/admin/jobs/ours" })),
     ...(sync.data?.rows ?? []).map((p) => ({ key: `sync:${p.jobId}`, tag: "Mitti", who: `${p.jobNumber} ${p.owner ?? ""}`.trim(), line: `Mitti sync problem · ${p.message}`, since: p.since, button: "Open job", href: `/admin/jobs/${p.jobId}`, jobId: p.jobId })),
   ];
   const all = [...rows, ...mitti];

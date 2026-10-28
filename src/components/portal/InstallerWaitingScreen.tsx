@@ -136,7 +136,7 @@ export function InstallerWaitingScreen() {
           <p className="mt-1 text-sm text-sub">{d ? `${waitingCountLine(waitingCounts(d.rows))}${noInstaller ? ` · ${noInstaller.toLocaleString("en-AU")} with no installer able to take the area` : ""}` :"Our leads with a saved spot, waiting for you to pick an installer"}</p>
         </div>
         <div className="flex items-center gap-3 text-sm">
-          <Link to="/admin/jobs/active" className="font-semibold text-hiv-blue">All active jobs ›</Link>
+          <Link to="/admin/jobs/ours" className="font-semibold text-hiv-blue">All active jobs ›</Link>
           <button type="button" className="font-semibold text-hiv-blue underline" onClick={() => setIncludeTest(!includeTest)}>{includeTest ? "Hide TEST jobs" : "Include TEST jobs"}</button>
         </div>
       </div>
