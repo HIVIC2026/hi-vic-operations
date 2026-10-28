@@ -209,7 +209,11 @@ describe("Send safety (decision 414 review)", () => {
     expect(body).toContain("noJobFollowUpSentKey(");
     const check = body.indexOf("NO_JOB_REPLY_SENT_EVENT");
     expect(check).toBeGreaterThan(0);
-    expect(body.indexOf("await resendSend(to,")).toBeGreaterThan(check);
+    // Through Outlook, after its own once-only claim (Outlook has no once-only key).
+    const claim = body.indexOf("event_type: NO_JOB_FOLLOWUP_CLAIM_EVENT");
+    expect(claim).toBeGreaterThan(check);
+    expect(body.indexOf("await sendViaOutlook({ replyToMessageId: mid,")).toBeGreaterThan(claim);
+    expect(body).not.toContain("resendSend");
     expect(src).toContain('draft.details["kind"] === "follow_up"');
   });
   test("Match only raises a reply for the job's owner", () => {
