@@ -1,10 +1,10 @@
 // Batch 2 task 3: sendAiDraft re-checks the spot-only rule against the CURRENT release state. Own file because it mocks modules.
 import { afterAll, describe, expect, mock, test } from "bun:test";
 
-const realClient = await import("../src/integrations/supabase/client.server");
-const realRelease = await import("../src/lib/spot-release.server");
-const realTestSend = await import("../src/lib/test-send.server");
-const realOutlook = await import("../src/lib/outlook-sync.server");
+const realClient = { ...(await import("../src/integrations/supabase/client.server")) };
+const realRelease = { ...(await import("../src/lib/spot-release.server")) };
+const realTestSend = { ...(await import("../src/lib/test-send.server")) };
+const realOutlook = { ...(await import("../src/lib/outlook-sync.server")) };
 
 const world = { channel: "hivic_sourced", stage: "preliminary_estimate_ready", state: "none" as string, inserts: [] as Record<string, unknown>[], sent: 0, jobReads: 0, failLaterJobReads: false };
 const draft = { id: "d1", job_id: "j1", event_type: "email_ai_draft", details: { to: "sam@x.au", subject: "Re: Hi", message_id: "m1" } };

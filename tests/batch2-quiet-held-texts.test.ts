@@ -97,6 +97,17 @@ const facts = {
   fixesAuditId: "audit1" as string | null,
   price: null as unknown,
 };
+// Copies of the real exports (mock.module patches the live module in place), put back in afterAll so the mocks
+// don't leak into later files in the same run.
+const realClient = { ...(await import("@/integrations/supabase/client.server")) };
+const realSms = { ...(await import("../src/lib/sms.server")) };
+const realPiesaConfirm = { ...(await import("../src/lib/piesa-owner-confirm.server")) };
+const realFixesConfirm = { ...(await import("../src/lib/piesa-fixes-confirm.server")) };
+const realInstallDays = { ...(await import("../src/lib/install-days.server")) };
+const realVisitEvents = { ...(await import("../src/lib/visit-events.server")) };
+const realRcTimes = { ...(await import("../src/lib/ready-check-times.server")) };
+const realRect = { ...(await import("../src/lib/rectification.server")) };
+const realInstallerPrice = { ...(await import("../src/lib/installer-price.server")) };
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: builder } }));
 mock.module("../src/lib/sms.server", () => ({ sendRealSms: async (i: { type: string; idempotencyKey: string; to: string; body: string; jobId?: string | null; businessId?: string | null; event?: unknown }) => {
   sent.push({ type: i.type, key: i.idempotencyKey, to: i.to, body: i.body, jobId: i.jobId ?? null, businessId: i.businessId ?? null, event: i.event }); return { status: "sent", detail: "ok", sid: "SM1" };
@@ -108,7 +119,17 @@ mock.module("../src/lib/visit-events.server", () => ({ currentBooking: async () 
 mock.module("../src/lib/ready-check-times.server", () => ({ readyCheckTurnFor: async () => facts.turn }));
 mock.module("../src/lib/rectification.server", () => ({ rectificationWindowsExist: async () => facts.windowsExist, fixesTimesFacts: async () => ({ auditId: facts.fixesAuditId }) }));
 mock.module("../src/lib/installer-price.server", () => ({ readInstallerPrice: async () => facts.price }));
-afterAll(() => mock.restore());
+afterAll(() => {
+  mock.module("@/integrations/supabase/client.server", () => realClient);
+  mock.module("../src/lib/sms.server", () => realSms);
+  mock.module("../src/lib/piesa-owner-confirm.server", () => realPiesaConfirm);
+  mock.module("../src/lib/piesa-fixes-confirm.server", () => realFixesConfirm);
+  mock.module("../src/lib/install-days.server", () => realInstallDays);
+  mock.module("../src/lib/visit-events.server", () => realVisitEvents);
+  mock.module("../src/lib/ready-check-times.server", () => realRcTimes);
+  mock.module("../src/lib/rectification.server", () => realRect);
+  mock.module("../src/lib/installer-price.server", () => realInstallerPrice);
+});
 
 const JOB = { id: "j1", ...LIVE_JOB, channel: "installer_sourced" };
 beforeEach(() => {

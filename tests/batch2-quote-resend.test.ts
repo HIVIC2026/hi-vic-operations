@@ -1,7 +1,7 @@
 // Batch 2, item 4 (Jo 29 Oct 2026): a declined quote that the office reopens and sends again must reach the owner —
 // first sends keep their old keys; after the n-th reopen both keys end `:r${n}`; the 7am held-text sweep only re-sends
 // the text whose key matches the CURRENT reopen count.
-import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test";
 import { HELD_KEY_MARK } from "../src/lib/sms.core";
 import type { HeldRow } from "../src/lib/quiet-held-texts.core";
 
@@ -19,6 +19,13 @@ const builder = (t: string) => {
   };
   return b;
 };
+// Copies of the real exports (mock.module patches the live module in place), put back in afterAll so the mocks
+// don't leak into later files in the same run.
+const realClient = { ...(await import("@/integrations/supabase/client.server")) };
+const realComms = { ...(await import("../src/lib/comms.server")) };
+const realWorkflow = { ...(await import("../src/lib/workflow.server")) };
+const realSms = { ...(await import("../src/lib/sms.server")) };
+const realOwnerEmail = { ...(await import("../src/lib/owner-email-send.server")) };
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: builder } }));
 mock.module("../src/lib/comms.server", () => ({ assertCustomerDeliveryAllowed: async () => {} }));
 mock.module("../src/lib/workflow.server", () => ({ logEvent: async () => {} }));
@@ -35,6 +42,13 @@ mock.module("../src/lib/owner-email-send.server", () => ({ sendGuardedOwnerEmail
   claimed.add(p.key); return "sent";
 } }));
 const { notifyOwnerQuoteReady } = await import("../src/lib/quote-ready-notify.server");
+afterAll(() => {
+  mock.module("@/integrations/supabase/client.server", () => realClient);
+  mock.module("../src/lib/comms.server", () => realComms);
+  mock.module("../src/lib/workflow.server", () => realWorkflow);
+  mock.module("../src/lib/sms.server", () => realSms);
+  mock.module("../src/lib/owner-email-send.server", () => realOwnerEmail);
+});
 
 const reopen = (quoteId: string) => ({ job_id: "j1", event_type: "quote_reopened_by_office", details: { quote_id: quoteId } });
 beforeEach(() => {
