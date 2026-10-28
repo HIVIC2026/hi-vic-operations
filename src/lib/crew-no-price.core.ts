@@ -9,7 +9,8 @@ import { BASE44_NEW_NEXT_ACTION, PRELIM_NEXT_ACTION } from "./enquiry.core";
 import { PROCESSING_NEXT_ACTION } from "./postintake.core";
 import { READY_CHECK_PAID_NEXT_ACTION } from "./readycheck.core";
 import { READY_CHECK_BOOKED } from "./installer-ready-check.core";
-import { PRICE_NEXT_ACTION } from "./ready-check-basics.core";
+import { BASIC_AREA, BASIC_PRODUCT, PRICE_NEXT_ACTION } from "./ready-check-basics.core";
+import { PICKUP_FINISHING_ITEMS } from "./mitti-pickup.core";
 import { VISIT_LABEL } from "./visit-events.core";
 
 /** The electrician job page's `assessments` reads: every column except `mitti_raw_snapshot` (the whole Mitti form,
@@ -30,8 +31,9 @@ const MONEY = /\$|\b\d[\d,]*(?:\.\d{1,2})?\s*(?:inc|ex)\.?\s*GST\b/i;
  *  for typed text — typed text is never passed to non-owners at all. */
 export const hasPrice = (s: string | null | undefined): boolean => typeof s === "string" && MONEY.test(s);
 /** The only number forms the system texts below use: counts of days / years / hours / times, dates, "Section N",
- *  "Gate N". Anything else with a digit (a bare "349") could be money. */
-const KNOWN_NUMBERS = /\b\d+(?:–\d+)? (?:new |install )?days\b|\b\d+ (?:years|hours|safety check times)\b|\b\d{1,2} (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4}\b|\b(?:Section|Gate) \d+\b/g;
+ *  "Gate N" — counts and Section/Gate numbers at most two digits. Anything else with a digit (a bare "349", "Gate 349",
+ *  "349 days") could be money. */
+const KNOWN_NUMBERS = /\b\d{1,2}(?:–\d{1,2})? (?:new |install )?days\b|\b\d{1,2} (?:years|hours|safety check times)\b|\b\d{1,2} (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4}\b|\b(?:Section|Gate) \d{1,2}\b/g;
 /** Belt and braces on the lists below: an entry that could name an amount never makes it in — no "$", "GST", "%" or
  *  cents, and no digit outside the known count/duration/date forms. */
 export const priceFree = (s: string) => !/\$|GST|%|\d[\d,]*\.\d\d/.test(s) && !/\d/.test(s.replace(KNOWN_NUMBERS, ""));
@@ -84,12 +86,18 @@ export const CREW_NEXT_ACTIONS: readonly string[] = [...new Set([
   "Install day released (deposit unpaid by the hold deadline) – owner told; the installer offers 3 new days once the deposit is paid",
 ].filter(priceFree))];
 const NEXT_ACTIONS = new Set(CREW_NEXT_ACTIONS);
-/** "Needs finishing: …(add) <basics> on the Mitti form" (ready-check-basics.core `needsFinishingFromMissing`, mitti-pickup
- *  `needsFinishingText`): the items are plain words only — no digits, no "$", and no money word (a spelled-out amount
- *  or "owner pays …") — so the line can't carry an amount. The price is never a Mitti item (decision 278). */
-const NEEDS_FINISHING = /^Needs finishing: (?:add )?[a-z][a-z /,]* on the Mitti form$/;
-const MONEY_WORD = /\b(?:dollars?|cents?|gst|pays?|price|cost)\b/i;
-const needsFinishingOk = (s: string) => NEEDS_FINISHING.test(s) && !MONEY_WORD.test(s);
+/** "Needs finishing: …(add) <items> on the Mitti form": an ALLOW-LIST of the exact items its two writers can produce —
+ *  ready-check-basics.core `needsFinishingFromMissing` (ceiling area, insulation product, "owner " + mobile/email/
+ *  permission in that order, joined "/") and mitti-pickup.core `needsFinishingText` (`PICKUP_FINISHING_ITEMS`). Every
+ *  item must be one of these, so a typed or spelled-out amount ("three hundred forty nine") can never pass. The price is
+ *  never a Mitti item (decision 278). A new item in either writer must be added here, or crew see the set line. */
+const BASICS_CONTACT = ["mobile", "email", "permission", "mobile/email", "mobile/permission", "email/permission", "mobile/email/permission"].map((p) => `owner ${p}`);
+export const NEEDS_FINISHING_ITEMS: ReadonlySet<string> = new Set([BASIC_AREA, BASIC_PRODUCT, ...BASICS_CONTACT, ...PICKUP_FINISHING_ITEMS]);
+const NEEDS_FINISHING = /^Needs finishing: (?:add )?(.+) on the Mitti form$/;
+const needsFinishingOk = (s: string) => {
+  const m = NEEDS_FINISHING.exec(s);
+  return !!m && m[1]!.split(", ").every((item) => NEEDS_FINISHING_ITEMS.has(item));
+};
 
 /** jobs.next_action as this viewer may see it. Owner: unchanged. Others: allow-listed text as written, the repeat
  *  safety check as its price-free line, anything else the set line. */

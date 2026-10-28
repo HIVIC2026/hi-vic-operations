@@ -82,6 +82,31 @@ describe("the allow-list (pure)", () => {
     for (const t of [...CREW_NEXT_ACTIONS, ...CREW_TIMELINE_SUMMARIES]) expect(priceFree(t)).toBe(true);
   });
 
+  test("final review Imp 3: 'Needs finishing' is an allow-list of the items its writers produce — spelled-out amounts get the set line", async () => {
+    const { nextActionForViewer, priceFree } = await import("../src/lib/crew-no-price.core");
+    for (const t of [
+      "Needs finishing: three hundred forty nine on the Mitti form",
+      "Needs finishing: ceiling area, fee of three hundred on the Mitti form",
+      "Needs finishing: add owner phone, charge three fifty on the Mitti form",
+      "Needs finishing: owner mobile, three hundred on the Mitti form",
+      "Needs finishing: on the Mitti form", "Needs finishing:  on the Mitti form", "Needs finishing: ceiling area,  on the Mitti form",
+    ]) {
+      expect(nextActionForViewer(t, false)).toBe(NEXT_LINE);
+      expect(nextActionForViewer(t, true)).toBe(t);
+    }
+    // Every line the real writers can produce still shows, as written.
+    const { needsFinishingFromMissing, BASIC_AREA, BASIC_PRODUCT, BASIC_PRICE, BASIC_MOBILE, BASIC_EMAIL, BASIC_PERMISSION } = await import("../src/lib/ready-check-basics.core");
+    const { needsFinishingText, PICKUP_FINISHING_ITEMS } = await import("../src/lib/mitti-pickup.core");
+    const subsets = <T,>(xs: readonly T[]): T[][] => xs.reduce<T[][]>((acc, x) => [...acc, ...acc.map((s) => [...s, x])], [[]]).filter((s) => s.length);
+    const basics = subsets([BASIC_AREA, BASIC_PRODUCT, BASIC_PRICE, BASIC_MOBILE, BASIC_EMAIL, BASIC_PERMISSION]).map((m) => needsFinishingFromMissing(m)).filter((t): t is string => !!t);
+    expect(basics.length).toBeGreaterThan(30);
+    const pickup = subsets(PICKUP_FINISHING_ITEMS.slice(0, 3)).concat(subsets([...PICKUP_FINISHING_ITEMS.slice(0, 2), PICKUP_FINISHING_ITEMS[3]])).map((m) => needsFinishingText(m));
+    for (const t of [...basics, ...pickup]) expect(nextActionForViewer(t, false)).toBe(t);
+    // Section / Gate / counts: two digits at most, so "Gate 349" or "349 days" can't pass as a known number.
+    for (const t of ["Gate 349", "Section 100 Part A", "349 days", "120 hours", "349 safety check times", "100–349 days"]) expect(priceFree(t)).toBe(false);
+    for (const t of ["Gate 12", "Section 3 Part A", "30 days", "24 hours", "3 safety check times", "7–14 days"]) expect(priceFree(t)).toBe(true);
+  });
+
   test("no allow-list entry can carry a price; the one stored stage line with $349 is left out", async () => {
     const { CREW_NEXT_ACTIONS, CREW_TIMELINE_SUMMARIES, nextActionForViewer } = await import("../src/lib/crew-no-price.core");
     for (const t of [...CREW_NEXT_ACTIONS, ...CREW_TIMELINE_SUMMARIES]) expect(t).not.toMatch(/\$|GST|\binc\b|\bex\b|\d[\d,]*\.\d\d|%/);

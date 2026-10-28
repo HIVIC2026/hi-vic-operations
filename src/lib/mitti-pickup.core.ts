@@ -214,13 +214,16 @@ export function pickupAutoDecision(input: {
   // Jo 23 Oct: same owner/address already in the portal → link to that job and flag the office; never block or duplicate.
   if (input.duplicates.length) return { action: "link_existing", reasons: [], jobNumbers: input.duplicates.map((d) => d.jobNumber), officeFlag: pickupClashFlag(input.duplicates.map((d) => d.jobNumber)) };
   const missing: string[] = [];
-  if (!input.ownerPhone?.trim()) missing.push("owner phone");
-  if (!input.ownerEmail?.trim()) missing.push("owner email");
-  if (input.contactPermission !== true) missing.push(input.contactPermission === false ? "owner contact permission (owner said No)" : "owner contact permission");
+  const [phone, email, permission, permissionNo] = PICKUP_FINISHING_ITEMS;
+  if (!input.ownerPhone?.trim()) missing.push(phone);
+  if (!input.ownerEmail?.trim()) missing.push(email);
+  if (input.contactPermission !== true) missing.push(input.contactPermission === false ? permissionNo : permission);
   const flag = installerStartedA2 ? { officeFlag: INSTALLER_STARTED_A2_FLAG } : {};
   return missing.length ? { action: "create_job_needs_finishing", reasons: [], missing, ...flag } : { action: "create_job", reasons: [], ...flag };
 }
 
+/** The only items `needsFinishingText` lists. crew-no-price.core allow-lists exactly these (crew see nothing else). */
+export const PICKUP_FINISHING_ITEMS = ["owner phone", "owner email", "owner contact permission", "owner contact permission (owner said No)"] as const;
 /** Installer-app next step for a picked-up form missing owner details. */
 export const needsFinishingText = (missing: string[]) => `Needs finishing: add ${missing.join(", ")} on the Mitti form`;
 
