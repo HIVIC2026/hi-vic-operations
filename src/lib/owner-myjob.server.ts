@@ -11,7 +11,7 @@ import { section1FromFacts } from "./consent.core";
 
 const n = (v: unknown) => Number(v ?? 0) || 0;
 
-/** True once the upfront safety check is paid. Reads the payment view only when something has been paid at all. */
+/** True once the upfront safety check is paid. Fails closed: if the payment check errors, treat it as paid (no cancel). No invoice = nothing paid. */
 export async function safetyCheckPaidFor(jobId: string, anyPaid = true): Promise<boolean> {
   if (!anyPaid) return false;
   try {
@@ -19,7 +19,10 @@ export async function safetyCheckPaidFor(jobId: string, anyPaid = true): Promise
     const { isStepPaid } = await import("./payments.core");
     const v = await jobPaymentView(jobId);
     return !!v && isStepPaid(v.steps, "safety_check");
-  } catch { return false; }
+  } catch (e) {
+    console.error("owner cancel: payment check failed, treating the safety check as paid", (e as Error).message);
+    return true;
+  }
 }
 
 export async function resolveOwnerJob(token: unknown) {
@@ -136,6 +139,9 @@ export async function cancelOwnerJob(token: unknown): Promise<{ ok: boolean; rea
   if (!j) return { ok: false, reason: "Link not recognised." };
   if (j.stage === "cancelled") return { ok: true };
   if (!ownerCanCancel(j.stage, (bk ?? []).map((b) => b.kind), await safetyCheckPaidFor(l.job_id))) return { ok: false, reason: "Your Pre Insulation Electrical Safety Assessment (PIESA) is booked, so this can't be cancelled here. Reply to any of our emails and we'll help." };
+  // Race guard: the stage may have moved since the first read.
+  const { data: fresh } = await admin.from("jobs").select("stage").eq("id", l.job_id).single();
+  if (!fresh || !ownerCanCancel(fresh.stage, (bk ?? []).map((b) => b.kind), false)) return { ok: false, reason: "Your job has just changed. Refresh the page and try again." };
   // Full clean-up (bookings, offers, assignments, ESC notices, install holds; prior stage kept) lives in cancelJobFully.
   try {
     await (await import("./office-actions.server")).cancelJobFully(l.job_id, "Owner cancelled from My job", null, { tell: { owner: false, installer: true } });
@@ -147,6 +153,6 @@ export async function cancelOwnerJob(token: unknown): Promise<{ ok: boolean; rea
   // Stage 5 (Jo 23 Oct): cancelling the job releases its Mitti Ready Check form too.
   if (bk?.some((b) => b.kind === "ready_check")) await (await import("./mitti-pickup.server")).releaseReadyCheckFormOnCancel(l.job_id, null, "owner cancelled the job").catch(() => undefined);
   const { logEvent } = await import("./workflow.server");
-  await logEvent(l.job_id, null, "owner_cancelled_job", "Owner cancelled their job from My job (before the Pre Insulation Electrical Safety Assessment (PIESA) was booked). No charge.", { bookings_cancelled: bk?.length ?? 0, trades_to_notify: true }, { from: j.stage as never, to: "cancelled" });
+  await logEvent(l.job_id, null, "owner_cancelled_job", "Owner cancelled their job from My job (before the Pre Insulation Electrical Safety Assessment (PIESA) was booked). No charge.", { bookings_cancelled: bk?.length ?? 0, trades_to_notify: true }, { internal: true });
   return { ok: true };
 }
