@@ -30,6 +30,9 @@ test("sent once per quote only when the safety check is paid — never at accept
   expect(srv).toContain("sendOfficeEmail(");
   expect(srv).toContain("sendTestEmail(");
   expect(srv).toContain("export async function emailInstallerOnSafetyCheckPaid(jobId: string, invoiceId: string)");
+  expect(srv).toContain("youreInDue(");
+  expect(srv).toContain("safetyCheckPaidAt(");
+  expect(srv).toContain("v.invoiceId !== invoiceId");
   expect(srv).toMatch(/status\s*!==\s*"accepted"/);
   const pf = readFileSync("src/lib/portal.functions.ts", "utf8");
   const acc = pf.slice(pf.indexOf("async function invoiceAfterAcceptance"), pf.indexOf("// ---------- Payments"));

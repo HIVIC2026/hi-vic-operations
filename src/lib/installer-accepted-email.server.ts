@@ -35,6 +35,15 @@ export async function emailInstallerQuoteAccepted(jobId: string, quoteId: string
 
 /** Called when the safety-check payment lands: sends the installer email for the invoice's accepted quote (once per quote). */
 export async function emailInstallerOnSafetyCheckPaid(jobId: string, invoiceId: string): Promise<string> {
+  // Same due check as the owner's O22 email: the current invoice, safety check paid, and paid recently.
+  const { jobPaymentView } = await import("./payments.server");
+  const { safetyCheckPaidAt, youreInDue } = await import("./owner-email-triggers.core");
+  const v = await jobPaymentView(jobId);
+  const step = v?.steps.find((s) => s.key === "safety_check");
+  if (!v || v.invoiceId !== invoiceId || step?.state !== "paid") return "not due — safety check not paid on this invoice";
+  const paidAt = safetyCheckPaidAt(v.ledger, v.plan.thresholds.safety_check);
+  const { data: job } = await admin.from("jobs").select("stage, deleted_at").eq("id", jobId).maybeSingle();
+  if (!job || !paidAt || !youreInDue({ paidAt, stage: job.stage as string, deletedAt: job.deleted_at }, new Date())) return "not due — no recent safety check payment";
   const { data: inv } = await admin.from("invoices").select("quote_id, quotes(status)").eq("id", invoiceId).maybeSingle();
   const quoteId = (inv?.quote_id as string | null) ?? null;
   if (!quoteId) return "not due — no quote";
