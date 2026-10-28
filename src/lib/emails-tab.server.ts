@@ -17,7 +17,8 @@ import { EMAIL_UNMATCHED_DISMISSED_EVENT, EMAIL_UNMATCHED_EVENT, EMAIL_UNMATCHED
 import { NEW_SENDER_REPLIED_EVENT, NEW_SENDER_REPLY_TEMPLATE, newSenderReplyKey } from "./new-sender-reply.core";
 import {
   NO_JOB_DRAFT_CLOSED_EVENT, chunks, jobDraftKey, NO_JOB_DRAFT_EVENT, NO_JOB_INSTRUCTIONS, NO_JOB_REPLIED_REASON, NO_JOB_REPLY_PURPOSE, NO_JOB_REPLY_SENT_EVENT, buildEmailsTab, buildNoJobInput, finishNoJobReply,
-  missingDrafts, noJobDraftKey, noJobReplyProblems, type DraftRef, type EmailsTab, type JobEmailRow, type UnmatchedRow,
+  missingDrafts, noJobDraftKey, noJobReplyProblems, type DraftRef,
+  buildNoJobFollowUpInput, finishNoJobFollowUp, NO_JOB_FOLLOWUP_INSTRUCTIONS, noJobFollowUpKey, noJobFollowUpProblems, type EmailsTab, type JobEmailRow, type UnmatchedRow,
 } from "./emails-tab.core";
 
 const loose = admin as unknown as SupabaseClient;
@@ -62,7 +63,8 @@ export async function loadEmailsTab(): Promise<EmailsTab> {
   for (const r of drafts) {
     const mid = str(r.details["message_id"]);
     if (!mid) continue;
-    const ref = { eventId: r.id, body: edits.get(r.id) ?? String(r.details["body"] ?? "") };
+    const ref: DraftRef = { eventId: r.id, body: edits.get(r.id) ?? String(r.details["body"] ?? ""),
+      kind: r.details["kind"] === "follow_up" ? "follow_up" : "link", nothingToAnswer: r.details["nothing_to_answer"] === true };
     if (r.event_type === AI_EMAIL_DRAFT_EVENT && r.job_id) {
       const k = jobDraftKey(r.job_id, mid);
       if (closed.has(r.id)) closedJobDrafts.add(k); else if (!jobDrafts.has(k)) jobDrafts.set(k, ref);
@@ -110,10 +112,15 @@ async function draftForUnmatched(unmatchedEventId: string): Promise<string> {
   const ev = await eventOf(unmatchedEventId, EMAIL_UNMATCHED_EVENT);
   const mid = str(ev?.details["message_id"]);
   if (!ev || !mid) return "skipped";
-  const { data: dup } = await loose.from("workflow_events").select("id").eq("event_type", NO_JOB_DRAFT_EVENT).eq("details->>message_id", mid).limit(1);
-  if ((dup ?? []).length) return "already";
   const fromName = str(ev.details["from_name"]);
   const subject = str(ev.details["subject"]);
+  const sender = (str(ev.details["from"]) ?? "").trim().toLowerCase();
+  // Jo 28 Oct 2026: someone who already got the website link gets an answer-only reply, never the link again.
+  const { data: had } = sender ? await loose.from("workflow_events").select("details").eq("event_type", NEW_SENDER_REPLIED_EVENT).eq("details->>from", sender).limit(20) : { data: [] };
+  const followUp = ((had ?? []) as { details: { mode?: string } | null }[]).some((r) => r.details?.mode !== "test");
+  const { data: dup } = await loose.from("workflow_events").select("id, details").eq("event_type", NO_JOB_DRAFT_EVENT).eq("details->>message_id", mid).limit(5);
+  if (((dup ?? []) as { details: Det | null }[]).some((d) => (d.details?.["kind"] === "follow_up") === followUp)) return "already";
+  if (followUp) return draftFollowUp(ev, mid, fromName, subject);
   let body: string;
   try {
     const { aiText } = await import("./ai-email-reply.server");
@@ -125,6 +132,17 @@ async function draftForUnmatched(unmatchedEventId: string): Promise<string> {
   const { error } = await loose.from("workflow_events").insert({ job_id: null, actor_id: null, event_type: NO_JOB_DRAFT_EVENT, internal: true,
     summary: `AI reply draft (homeowner page) waiting for the office — ${str(ev.details["from"]) ?? "unknown sender"}`,
     details: { message_id: mid, unmatched_event_id: ev.id, from: str(ev.details["from"]), from_name: fromName, their_subject: subject, subject: replySubject(subject), body, idempotency_key: noJobDraftKey(mid) } });
+  if (error) throw new Error(error.message);
+  return "drafted";
+}
+
+/** Answer-only draft for a follow-up from someone who already has the website link. No AI = no draft (tried again next load). */
+async function draftFollowUp(ev: { id: string; details: Det }, mid: string, fromName: string | null, subject: string | null): Promise<string> {
+  const { aiText } = await import("./ai-email-reply.server");
+  const body = finishNoJobFollowUp(await aiText(buildNoJobFollowUpInput({ fromName, subject, snippet: str(ev.details["snippet"]) ?? "" }), NO_JOB_FOLLOWUP_INSTRUCTIONS));
+  const { error } = await loose.from("workflow_events").insert({ job_id: null, actor_id: null, event_type: NO_JOB_DRAFT_EVENT, internal: true,
+    summary: body ? `AI reply draft (answers their question) waiting for the office — ${str(ev.details["from"]) ?? "unknown sender"}` : `Nothing to answer — ${str(ev.details["from"]) ?? "unknown sender"}`,
+    details: { kind: "follow_up", nothing_to_answer: !body, message_id: mid, unmatched_event_id: ev.id, from: str(ev.details["from"]), from_name: fromName, their_subject: subject, subject: replySubject(subject), body: body ?? "", idempotency_key: `${noJobDraftKey(mid)}:follow_up` } });
   if (error) throw new Error(error.message);
   return "drafted";
 }
@@ -151,11 +169,12 @@ export async function sendJobEmailReply(requestEventId: string, draftEventId: st
 export async function sendNoJobEmailReply(unmatchedEventId: string, draftEventId: string, body: string, actorId: string, now = new Date()) {
   // Jo 27 Oct 2026: the office presses Send, so it goes whenever she chooses — no after-8pm hold on manual sends.
   void now;
-  const problems = noJobReplyProblems(body);
-  if (problems.length) throw new WorkflowError(problems.join(" "));
   const ev = await eventOf(unmatchedEventId, EMAIL_UNMATCHED_EVENT);
   const draft = await eventOf(draftEventId, NO_JOB_DRAFT_EVENT);
   if (!ev || !draft || draft.details["unmatched_event_id"] !== ev.id) throw new WorkflowError("That email or its draft wasn't found.");
+  if (draft.details["kind"] === "follow_up") return sendNoJobFollowUp(ev, draft, body, actorId);
+  const problems = noJobReplyProblems(body);
+  if (problems.length) throw new WorkflowError(problems.join(" "));
   const { data: res } = await loose.from("workflow_events").select("event_type").in("event_type", [EMAIL_UNMATCHED_MATCHED_EVENT, EMAIL_UNMATCHED_DISMISSED_EVENT]).eq("details->>unmatched_event_id", ev.id).limit(1);
   if ((res ?? []).length) throw new WorkflowError("That email has already been dealt with.");
   const to = (str(ev.details["from"]) ?? "").trim().toLowerCase();
@@ -188,6 +207,43 @@ export async function sendNoJobEmailReply(unmatchedEventId: string, draftEventId
     summary: `Email from ${to} answered with the homeowner page link — left in Outlook`, details: { unmatched_event_id: ev.id, message_id: str(ev.details["message_id"]), reason: NO_JOB_REPLIED_REASON } })
     .then(({ error: e }) => { if (e) console.error("no-job reply sent; row not cleared", e.message); });
   await (await import("./outlook-sync.server")).archiveOutlookMessage(str(ev.details["message_id"]), null, actorId);
+  return { status };
+}
+
+/** Follow-up reply (Jo 28 Oct 2026): answers their question only. Not the one-link-per-person claim — they already had
+ *  the link — but once per email: refused if already sent, and the email service's once-only key is per email. */
+async function sendNoJobFollowUp(ev: { id: string; details: Det }, draft: { id: string; details: Det }, body: string, actorId: string) {
+  if (draft.details["nothing_to_answer"] === true) throw new WorkflowError("Nothing to answer on this email.");
+  const problems = noJobFollowUpProblems(body);
+  if (problems.length) throw new WorkflowError(problems.join(" "));
+  const { data: res } = await loose.from("workflow_events").select("event_type").in("event_type", [EMAIL_UNMATCHED_MATCHED_EVENT, EMAIL_UNMATCHED_DISMISSED_EVENT]).eq("details->>unmatched_event_id", ev.id).limit(1);
+  if ((res ?? []).length) throw new WorkflowError("That email has already been dealt with.");
+  const mid = str(ev.details["message_id"]);
+  if (!mid) throw new WorkflowError("That email has no message id.");
+  const key = noJobFollowUpKey(mid);
+  const { data: sent } = await loose.from("workflow_events").select("id").eq("event_type", NO_JOB_REPLY_SENT_EVENT).eq("details->>idempotency_key", key).limit(1);
+  if ((sent ?? []).length) throw new WorkflowError("A reply to this email has already been sent.");
+  const to = (str(ev.details["from"]) ?? "").trim().toLowerCase();
+  if (!to) throw new WorkflowError("That email has no sender address.");
+  if (!(await (await import("./comms.server")).customerCommsEnabled())) throw new WorkflowError("Customer emails are switched off — turn them on in Settings to send.");
+  const { testRecipientBoundary } = await import("./comms-test-recipient.core");
+  const boundary = testRecipientBoundary(to, null);
+  if (boundary.status === "blocked") throw new WorkflowError(boundary.reason);
+  const subject = String(draft.details["subject"] ?? replySubject(str(ev.details["subject"])));
+  const K = await import("./email-kit.core");
+  const html = aiReplyEmailHtml(body, { subject, unsubscribe: null });
+  const text = K.plainText(aiReplyText(body), { unsubscribe: null });
+  const { resendSend } = await import("./hot-leads-send.server");
+  const d = await resendSend(to, subject, html, text, key, null).catch((e: unknown) => ({ outcome: "uncertain" as const, detail: e instanceof Error ? e.message : "send error" }));
+  if (d.outcome === "rejected" || d.outcome === "not_attempted") throw new WorkflowError(`Not sent — ${d.detail}. Reply to them from Outlook instead.`);
+  const status = d.outcome === "accepted" ? "sent" : `delivery uncertain: ${d.detail}`;
+  const { error } = await loose.from("workflow_events").insert({ job_id: null, actor_id: actorId, event_type: NO_JOB_REPLY_SENT_EVENT, internal: true,
+    summary: `Reply sent to ${to} answering their question (office approved)`, details: { draft_event_id: draft.id, unmatched_event_id: ev.id, to, subject, body: body.trim(), status, purpose: NO_JOB_REPLY_PURPOSE, kind: "follow_up", idempotency_key: key } });
+  if (error) console.error("follow-up reply sent but not recorded", error.message);
+  await loose.from("workflow_events").insert({ job_id: null, actor_id: actorId, event_type: EMAIL_UNMATCHED_DISMISSED_EVENT, internal: true,
+    summary: `Email from ${to} answered (follow-up) — left in Outlook`, details: { unmatched_event_id: ev.id, message_id: mid, reason: NO_JOB_REPLIED_REASON } })
+    .then(({ error: e }) => { if (e) console.error("follow-up reply sent; row not cleared", e.message); });
+  await (await import("./outlook-sync.server")).archiveOutlookMessage(mid, null, actorId);
   return { status };
 }
 
