@@ -6,6 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { runAfterResponse } from "./background.server";
 import { loadNeedsMePage, type NeedsMePage } from "./office-needs.server";
 import { loadActiveJobsList, loadEnquiriesList, type EnquiryListParams, type JobsListParams } from "./office-lists.server";
+import type { JobsLane } from "./jobs-columns.core";
 import { LIST_SNAPSHOT_KEYS, NEEDS_REFRESH_CLAIM_MS, isDefaultListView, listSnapshotPlan, needsSnapshotKey, needsSnapshotPlan, type NeedsSnapshotPlan } from "./office-needs-snapshot.core";
 
 const loose = admin as unknown as SupabaseClient;
@@ -56,14 +57,15 @@ export async function refreshNeedsMeSnapshot(): Promise<{ total: number }> {
 }
 
 // Decision 383. `fromCopy` = this answer came from the saved copy (the screen says when it was checked).
-const DEFAULT_JOBS: JobsListParams = { search: "", sort: "", dir: "desc", page: 1, filters: {}, includeTest: false };
+const defaultJobs = (lane: JobsLane): JobsListParams => ({ lane, search: "", sort: "", dir: "desc", page: 1, filters: {}, needsUs: false, includeTest: false });
+const jobsKey = (lane: JobsLane) => (lane === "ours" ? LIST_SNAPSHOT_KEYS.jobsOurs : LIST_SNAPSHOT_KEYS.jobsInstaller);
 const DEFAULT_ENQUIRIES: EnquiryListParams = { search: "", sort: "", dir: "asc", page: 1, filters: {} };
 const live = <T extends object>(page: T) => ({ ...page, computedAt: new Date().toISOString(), refreshing: false, fromCopy: false });
 
-/** Jobs › Active: the default first page from the saved copy, every other view live. `force` = the office just acted. */
+/** Jobs (one lane): the default first page from the saved copy, every other view live. `force` = the office just acted. */
 export async function getActiveJobsListServed(p: JobsListParams, force = false) {
   if (!isDefaultListView(p)) return live(await loadActiveJobsList(p));
-  const out = await served(LIST_SNAPSHOT_KEYS.jobs, () => loadActiveJobsList(DEFAULT_JOBS), (age) => listSnapshotPlan(age, force));
+  const out = await served(jobsKey(p.lane), () => loadActiveJobsList(defaultJobs(p.lane)), (age) => listSnapshotPlan(age, force));
   return { ...out, fromCopy: true };
 }
 
@@ -76,9 +78,10 @@ export async function getEnquiriesListServed(p: EnquiryListParams, force = false
 
 /** 15-minute tick: keep both default list pages warm. */
 export async function refreshListSnapshots(): Promise<{ jobs: number; enquiries: number }> {
-  const [jobs, enquiries] = await Promise.all([
-    computeAndSave(LIST_SNAPSHOT_KEYS.jobs, () => loadActiveJobsList(DEFAULT_JOBS)),
+  const [ours, installer, enquiries] = await Promise.all([
+    computeAndSave(LIST_SNAPSHOT_KEYS.jobsOurs, () => loadActiveJobsList(defaultJobs("ours"))),
+    computeAndSave(LIST_SNAPSHOT_KEYS.jobsInstaller, () => loadActiveJobsList(defaultJobs("installer"))),
     computeAndSave(LIST_SNAPSHOT_KEYS.enquiries, () => loadEnquiriesList(DEFAULT_ENQUIRIES)),
   ]);
-  return { jobs: jobs.all, enquiries: enquiries.counts.open };
+  return { jobs: ours.all + installer.all, enquiries: enquiries.counts.open };
 }

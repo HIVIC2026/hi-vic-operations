@@ -22,7 +22,7 @@ export function checkedLabel(computedAt: string, refreshing: boolean, now = Date
 // Decision 383 (Jo 25 Oct 2026, same complaint): the DEFAULT first page of Jobs › Active and of Enquiries (no search,
 // no filter, default sort, page 1, no TEST jobs) is served the same way, from the same server-only table under its own
 // key. Any other view reads live. After an office action the next open works it out now (never a stale row).
-export const LIST_SNAPSHOT_KEYS = { jobs: "jobs_active:first", enquiries: "enquiries:first" } as const;
+export const LIST_SNAPSHOT_KEYS = { jobsOurs: "jobs_ours:first", jobsInstaller: "jobs_installer:first", enquiries: "enquiries:first" } as const;
 
 /** Lists: like Needs me, except `force` (the office just changed something) works the page out now. */
 export function listSnapshotPlan(ageMs: number | null, force = false): NeedsSnapshotPlan {
@@ -38,9 +38,9 @@ function emptyFilter(f: unknown): boolean {
     || (typeof v === "object" && !Array.isArray(v) && Object.values(v as Record<string, unknown>).every((x) => x == null)));
 }
 
-type ListView = { search: string; sort: string; page: number; filters?: unknown; includeTest?: boolean | undefined; view?: string | undefined; wantIds?: boolean | undefined };
+type ListView = { search: string; sort: string; page: number; filters?: unknown; includeTest?: boolean | undefined; view?: string | undefined; wantIds?: boolean | undefined; needsUs?: boolean | undefined };
 /** The one view that has a saved copy: what the screen shows when it opens. */
 export function isDefaultListView(p: ListView): boolean {
   // Enquiries: the opening category is "offered" (Offered a spot, Jo 28 Oct 2026); a list of every id is never cached.
-  return p.search === "" && p.sort === "" && p.page === 1 && !p.includeTest && emptyFilter(p.filters) && (!p.view || p.view === "offered") && !p.wantIds;
+  return p.search === "" && p.sort === "" && p.page === 1 && !p.includeTest && emptyFilter(p.filters) && (!p.view || p.view === "offered") && !p.wantIds && !p.needsUs; // lane is not here: each lane has its own saved copy
 }

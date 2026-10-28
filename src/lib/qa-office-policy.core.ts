@@ -3,7 +3,7 @@ import { qaOfficeIdentityBlocker, type QaOfficeIdentity } from "./qa-office.core
 export const TEST_OFFICE_UNAVAILABLE = "Not available for the TEST office login";
 // Exact compiler-owned filename/name pairs. Unknown/new functions are never implicitly allowed.
 export const QA_OFFICE_FUNCTIONS = {
-  "src/lib/office-screens.functions.ts": ["getNeedsMePage", "getEnquiriesList", "getActiveJobsList", "getOfficeJobPage", "getOfficeJobMoney", "logOfficeCallOrNote"],
+  "src/lib/office-screens.functions.ts": ["getNeedsMePage", "getEnquiriesList", "getActiveJobsList", "getJobsLaneCounts", "getOfficeJobPage", "getOfficeJobMoney", "logOfficeCallOrNote"],
   "src/lib/office-money.functions.ts": ["getMoneyPayouts"],
   "src/lib/office.functions.ts": ["searchOffice", "approveElectricianForm", "markPayoutPaid"],
   "src/lib/ap-queue.functions.ts": ["getFinalCheck", "approveApJob"],

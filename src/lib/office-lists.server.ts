@@ -11,9 +11,12 @@ import { addressLine, estimateDollars, matchesColumnFilters, type ColumnFilters 
 import { savedPriceFromEstimate } from "./launch-campaign.core";
 import { CATEGORY_RANK, categoryCounts, enquiryCategory, inView, ownerWrote, type EnquiryCategory, type EnquiryView } from "./enquiry-categories.core";
 import { FIRST_RESPONSE_PURPOSES } from "./automatic-first-response.core";
+import { readAutoOfferSwitches } from "./auto-offer.server";
+import type { OfficeStatus } from "./office-status.core";
+import { areaCell, costCell, daysAtStage, insulationYesNo, laneOf, matchesJobsFilters, nextStep, type JobsColumnFilters, type JobsColumnRow, type JobsLane } from "./jobs-columns.core";
 import {
-  insulationChip, lastHeardChip, matchesChips, pageOf, rankByPriority, regionChip, sizeChip, sortRows, sourceChip,
-  type ChipFilters, type InsulationChip, type LastHeardChip, type RegionChip, type SizeChip, type SortDir, type SourceChip,
+  insulationChip, lastHeardChip, pageOf, rankByPriority, regionChip, sizeChip, sortRows, sourceChip,
+  type InsulationChip, type LastHeardChip, type RegionChip, type SizeChip, type SortDir, type SourceChip,
 } from "./office-filters.core";
 
 type Row = Record<string, unknown>;
@@ -93,7 +96,7 @@ export type EnquiryListRow = {
 };
 
 /** Estimate column facts (decision 286): the latest issued / accepted installation quote, else the current website estimate. */
-async function estimateMap(ids: string[]) {
+async function estimateTotals(ids: string[]) {
   const [estimates, quotes] = await Promise.all([
     byIds("website estimates", ids, (c, f, t) => admin.from("indicative_estimates").select("id, job_id, area_m2, insulation_declared, scenarios, created_at").in("job_id", c).eq("status", "current").order("created_at", { ascending: false }).range(f, t)),
     byIds("quotes", ids, (c, f, t) => admin.from("quotes").select("job_id, customer_total_inc_gst, created_at").in("job_id", c).eq("kind", "installation").in("status", ["issued", "accepted"]).order("created_at", { ascending: false }).range(f, t)),
@@ -102,7 +105,11 @@ async function estimateMap(ids: string[]) {
   for (const e of estimates) { const k = String(e["job_id"]); if (!website.has(k)) website.set(k, savedPriceFromEstimate(e as never)?.total ?? null); }
   const quote = new Map<string, number | null>();
   for (const q of quotes) { const k = String(q["job_id"]); if (!quote.has(k)) quote.set(k, q["customer_total_inc_gst"] == null ? null : Number(q["customer_total_inc_gst"])); }
-  return (id: string) => estimateDollars({ websiteTotal: website.get(id) ?? null, quoteTotal: quote.get(id) ?? null });
+  return (id: string) => ({ quoteTotal: quote.get(id) ?? null, estimateTotal: website.get(id) ?? null });
+}
+async function estimateMap(ids: string[]) {
+  const totals = await estimateTotals(ids);
+  return (id: string) => { const t = totals(id); return estimateDollars({ websiteTotal: t.estimateTotal, quoteTotal: t.quoteTotal }); };
 }
 
 export async function loadEnquiriesList(p: EnquiryListParams, testJobIds?: string[]) {
@@ -182,7 +189,6 @@ export async function loadEnquiriesList(p: EnquiryListParams, testJobIds?: strin
   return { ...page, counts, view, ...(p.wantIds ? { ids: sorted.map((r) => r.id) } : {}), rows: page.rows.map(({ score: _s, priority: _n, covered: _c, ...r }) => r as EnquiryListRow) };
 }
 
-export type JobsListParams = { search: string; sort: string; dir: SortDir; page: number; filters: ChipFilters; includeTest?: boolean };
 /** Fresh per-job recheck immediately before a bulk close, never a saved list snapshot. */
 export async function enquiryCloseBlocker(jobId: string): Promise<string | null> {
   const { data: index, error } = await admin.from("office_enquiry_index").select("office_bucket, created_at, enquiry_status, needs_first_response").eq("id", jobId).maybeSingle();
@@ -196,11 +202,27 @@ export async function enquiryCloseBlocker(jobId: string): Promise<string | null>
   const { enquiryBulkCloseBlocker } = await import("./enquiry-categories.core");
   return enquiryBulkCloseBlocker({ createdAt: index.created_at ?? "", enquiryStatus: index.enquiry_status, lastOutboundAt: heard.last.get(jobId)?.at ?? null, lastOwnerAt: inbound.data?.received_at ?? null, inboundAt: inbound.data?.received_at ?? null, optedOut: index.enquiry_status === "opted_out", sendFailed: false, noResponseYet: !(heard.sends.get(jobId) ?? []).some(x => (FIRST_RESPONSE_PURPOSES as readonly string[]).includes(x.purpose)) }, Date.now());
 }
-export type JobsListRow = {
-  id: string; jobNumber: string; owner: string; surname: string; suburb: string | null; stage: JobsStage; status: string; lastHeardAt: string | null; lastHeardChannel: string | null;
-  installer: string | null; ownJob: boolean; onHold: boolean; lifeSupport: boolean; isTest: boolean; insulation: InsulationChip; region: RegionChip | null; source: SourceChip; heard: LastHeardChip;
-  createdAt: string; lastActivityAt: string | null;
+export type JobsListParams = { lane: JobsLane; search: string; sort: string; dir: SortDir; page: number; filters: JobsColumnFilters; needsUs: boolean; includeTest?: boolean };
+export type JobsListRow = JobsColumnRow & {
+  id: string; ownJob: boolean; onHold: boolean; lifeSupport: boolean; isTest: boolean; lastHeardAt: string | null; lastHeardChannel: string | null;
 };
+
+/** Tab badges: active jobs per lane (real jobs only; `testJobIds` = the TEST office, which counts only its own test jobs). */
+export async function loadJobsLaneCounts(testJobIds?: string[]): Promise<{ ours: number; installer: number }> {
+  if (testJobIds) {
+    const rows = await all("TEST lane counts", (a, b) => admin.from("jobs").select("id, channel")
+      .eq("source", "qa_test").is("deleted_at", null).is("qa_archived_at", null)
+      .in("id", testJobIds.length ? testJobIds : ["00000000-0000-0000-0000-000000000000"])
+      .not("stage", "in", "(new_enquiry,eligibility_review,preliminary_estimate_ready,complete,cancelled)").order("id").range(a, b));
+    const installer = rows.filter((r) => laneOf(s(r["channel"])) === "installer").length;
+    return { ours: rows.length - installer, installer };
+  }
+  // office_job_list is the shared office bucket view (not in the generated client types).
+  const view = () => (admin as unknown as { from: (t: string) => any }).from("office_job_list").select("id", { count: "exact", head: true }).eq("office_bucket", "active").or("source.is.null,source.neq.qa_test"); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const [total, installer] = await Promise.all([view(), view().eq("channel", "installer_sourced")]);
+  if (total.error || installer.error) throw new Error(`Could not count jobs: ${(total.error ?? installer.error).message}`);
+  return { ours: (total.count ?? 0) - (installer.count ?? 0), installer: installer.count ?? 0 };
+}
 
 export async function loadActiveJobsList(p: JobsListParams, testJobIds?: string[]) {
   const now = Date.now();
@@ -217,26 +239,30 @@ export async function loadActiveJobsList(p: JobsListParams, testJobIds?: string[
     q = p.includeTest ? q : q.or("source.is.null,source.neq.qa_test");
     return q.order("created_at", { ascending: false }).order("id").range(a, b);
   });
-  const ids = base.map((r) => String(r["id"]));
-  const [extra, heard] = await Promise.all([
-    byIds("job facts", ids, (c, f, t) => admin.from("jobs").select("id, prior_stage, deleted_at, qa_archived_at, properties(suburb, postcode, answers:enrichment->base44->raw->answers)").in("id", c).range(f, t)),
+  // Lane first: everything below works on the one lane being shown (channel decides it, jobs-columns.core laneOf).
+  const inLane = base.filter((r) => laneOf(s(r["channel"])) === p.lane);
+  const ids = inLane.map((r) => String(r["id"]));
+  const [extra, heard, measurements, totals, switches] = await Promise.all([
+    byIds("job facts", ids, (c, f, t) => admin.from("jobs").select("id, prior_stage, deleted_at, qa_archived_at, created_at, estimated_area_m2, properties(suburb, postcode, answers:enrichment->base44->raw->answers)").in("id", c).range(f, t)),
     lastHeardMap(ids),
+    byIds("ceiling measurements", ids, (c, f, t) => admin.from("ceiling_measurements").select("job_id, measured_area_m2, verified_area_m2").in("job_id", c).eq("is_current", true).range(f, t)),
+    estimateTotals(ids),
+    readAutoOfferSwitches(),
   ]);
   const ex = new Map(extra.map((r) => [String(r["id"]), r]));
-  const live = base.filter((r) => { const e = ex.get(String(r["id"])); return e && !e["deleted_at"] && !e["qa_archived_at"]; });
-  // Status line: the office rulebook (office-status.core via loadOffice, status facts only, one wave). Perf 25 Oct 2026
-  // (decision 383): worked out only for the jobs that need it — every job when the search or the Status sort reads it,
-  // otherwise just the page shown (filters, counts and the other sorts never read the status line).
-  const statusOf = new Map<string, string>();
-  const statusFor = async (ids: string[]) => {
-    if (!ids.length) return;
-    const o = await loadOffice(admin, { includeTest: true, onlyIds: ids, statusOnly: true });
-    for (const j of o.jobs) if (j.status) statusOf.set(j.id, `${j.status.label}${j.status.detail ? ` · ${j.status.detail}` : ""}`);
-  };
-  const statusLine = (r: { id: string; onHold: boolean }) => (r.onHold ? `On hold${statusOf.get(r.id) ? ` · ${statusOf.get(r.id)}` : ""}` : statusOf.get(r.id) ?? "Check this job's status");
+  const live = inLane.filter((r) => { const e = ex.get(String(r["id"])); return e && !e["deleted_at"] && !e["qa_archived_at"]; });
+  const measured = new Map<string, number>();
+  for (const m of measurements) { const v = Number(m["verified_area_m2"] ?? m["measured_area_m2"]); if (Number.isFinite(v) && v > 0 && !measured.has(String(m["job_id"]))) measured.set(String(m["job_id"]), v); }
+  // Next step needs the office rulebook (office-status.core via loadOffice, status facts only) for every row in the lane:
+  // one call, because the Next step column, its filter and Needs us all read it.
+  const statusOf = new Map<string, { status: OfficeStatus | null; enteredStageAt: string | null }>();
+  if (live.length) {
+    const o = await loadOffice(admin, { includeTest: true, onlyIds: live.map((r) => String(r["id"])), statusOnly: true });
+    for (const j of o.jobs) statusOf.set(j.id, { status: j.status ?? null, enteredStageAt: j.facts?.enteredStageAt ?? null });
+  }
   const { declaredExtras } = await import("./enquiry.core");
   const { normaliseInsulation } = await import("./eligibility.core");
-  const rows: (JobsListRow & { id: string })[] = [];
+  const rows: (JobsListRow & { surname: string; lastHeardSort: string | null })[] = [];
   for (const r of live) {
     const id = String(r["id"]);
     const e = ex.get(id)!;
@@ -246,26 +272,35 @@ export async function loadActiveJobsList(p: JobsListParams, testJobIds?: string[
     const stage = jobsStage({ stage: s(r["stage"]), priorStage: s(e["prior_stage"]), hasInstaller: !!installer });
     if (!stage) continue;
     const last = heard.last.get(id) ?? null;
+    const onHold = r["stage"] === "on_hold";
+    const st = statusOf.get(id);
+    const t = totals(id);
     rows.push({
       id, jobNumber: String(r["job_number"]), owner: s(r["owner_name"]) ?? "", surname: surnameOf(s(r["owner_name"])), suburb: prop?.suburb ?? null, stage,
-      status: "", // filled in below by statusLine (same rule as before)
-      lastHeardAt: last?.at ?? null, lastHeardChannel: last?.channel ?? null, installer, ownJob, onHold: r["stage"] === "on_hold", lifeSupport: r["life_support"] === true, isTest: r["source"] === "qa_test",
-      insulation: insulationChip(normaliseInsulation(declaredExtras(prop?.answers ?? null).existing_insulation)), region: regionChip(prop?.postcode), source: sourceChip({ source: s(r["source"]), channel: s(r["channel"]) }),
-      heard: lastHeardChip(last?.at ?? null, now), createdAt: String(r["created_at"]), lastActivityAt: s(r["last_activity_at"]),
+      next: nextStep(st?.status ?? null, { onHold, readyCheckBookingOn: switches.readyCheckBooking }),
+      days: daysAtStage(st?.enteredStageAt ?? null, String(e["created_at"] ?? r["created_at"]), now),
+      areaM2: areaCell(measured.get(id) ?? null, e["estimated_area_m2"] == null ? null : Number(e["estimated_area_m2"])),
+      insulation: insulationYesNo(insulationChip(normaliseInsulation(declaredExtras(prop?.answers ?? null).existing_insulation))),
+      cost: costCell({ lane: p.lane, quoteTotal: t.quoteTotal, estimateTotal: t.estimateTotal }),
+      installer, ownJob, onHold, lifeSupport: r["life_support"] === true, isTest: r["source"] === "qa_test",
+      heard: lastHeardChip(last?.at ?? null, now), lastHeardAt: last?.at ?? null, lastHeardChannel: last?.channel ?? null, lastHeardSort: last?.at ?? null,
     });
   }
-  const stageCounts = Object.fromEntries((["choose_installer", "ready_check", "quote", "piesa", "install", "final_check"] as JobsStage[]).map((k) => [k, rows.filter((r) => r.stage === k).length])) as Record<JobsStage, number>;
-  const ownCount = rows.filter((r) => r.ownJob).length;
   const installers = [...new Set(rows.map((r) => r.installer).filter((x): x is string => !!x))].sort();
+  const nextSteps = [...new Set(rows.map((r) => r.next.text))].sort();
   const q = p.search.trim().toLowerCase();
-  const SORTS: Record<string, keyof JobsListRow> = { heard: "lastHeardAt", job: "jobNumber", owner: "surname", suburb: "suburb", stage: "stage", status: "status", installer: "installer", created: "createdAt", activity: "lastActivityAt" };
-  const key = SORTS[p.sort] ?? "lastHeardAt";
-  const everyStatus = !!q || key === "status";
-  if (everyStatus) { await statusFor(rows.map((r) => r.id)); for (const r of rows) r.status = statusLine(r); }
-  const filtered = rows.filter((r) => matchesChips({ ...r, size: "none" }, p.filters) && (!q || [r.jobNumber, r.owner, r.suburb ?? "", r.installer ?? "", r.status].join(" ").toLowerCase().includes(q)));
+  const filtered = rows.filter((r) => matchesJobsFilters(r, p.filters, p.needsUs)
+    && (!q || [r.jobNumber, r.owner, r.suburb ?? "", r.installer ?? "", r.next.text].join(" ").toLowerCase().includes(q)));
   const STAGE_ORDER: Record<JobsStage, number> = { choose_installer: 1, ready_check: 2, quote: 3, piesa: 4, install: 5, final_check: 6 };
-  const sorted = key === "stage" ? [...filtered].sort((a, b) => (STAGE_ORDER[a.stage] - STAGE_ORDER[b.stage]) * (p.dir === "asc" ? 1 : -1) || a.id.localeCompare(b.id)) : sortRows(filtered, key, p.sort ? p.dir : "desc");
+  type Sortable = (typeof rows)[number] & { costSort: number | null; nextSort: string; insSort: string };
+  const SORTS: Record<string, keyof Sortable> = { job: "jobNumber", next: "nextSort", owner: "surname", suburb: "suburb", days: "days", area: "areaM2", insulation: "insSort", cost: "costSort", installer: "installer", heard: "lastHeardSort" };
+  const key = SORTS[p.sort] ?? "lastHeardSort"; // empty sort = Last heard, newest first
+  const withKeys: Sortable[] = filtered.map((r) => ({ ...r, costSort: r.cost.dollars, nextSort: r.next.text, insSort: r.insulation }));
+  const dir = p.sort ? p.dir : "desc";
+  const sorted = p.sort === "stage" ? [...withKeys].sort((a, b) => (STAGE_ORDER[a.stage] - STAGE_ORDER[b.stage]) * (dir === "asc" ? 1 : -1) || a.id.localeCompare(b.id)) : sortRows(withKeys, key, dir);
   const page = pageOf(sorted, p.page);
-  if (!everyStatus) { await statusFor(page.rows.map((r) => r.id)); for (const r of page.rows) r.status = statusLine(r); }
-  return { ...page, total: page.total, all: rows.length, stageCounts, ownCount, installers };
+  return {
+    ...page, total: page.total, all: rows.length, nextSteps, installers,
+    rows: page.rows.map(({ surname: _s, lastHeardSort: _h, costSort: _c, nextSort: _n, insSort: _i, ...r }) => r as JobsListRow),
+  };
 }
