@@ -18,7 +18,7 @@ import { NEW_SENDER_REPLIED_EVENT, NEW_SENDER_REPLY_TEMPLATE, newSenderReplyKey 
 import {
   NO_JOB_DRAFT_CLOSED_EVENT, chunks, jobDraftKey, NO_JOB_DRAFT_EVENT, NO_JOB_INSTRUCTIONS, NO_JOB_REPLIED_REASON, NO_JOB_REPLY_PURPOSE, NO_JOB_REPLY_SENT_EVENT, buildEmailsTab, buildNoJobInput, finishNoJobReply,
   missingDrafts, noJobDraftKey, noJobReplyProblems, type DraftRef,
-  buildNoJobFollowUpInput, finishNoJobFollowUp, NO_JOB_FOLLOWUP_INSTRUCTIONS, noJobFollowUpKey, noJobFollowUpProblems, type EmailsTab, type JobEmailRow, type UnmatchedRow,
+  buildNoJobFollowUpInput, finishNoJobFollowUp, followUpRetryDue, NO_JOB_DRAFT_FAILED_EVENT, NO_JOB_FOLLOWUP_INSTRUCTIONS, noJobFollowUpKey, noJobFollowUpProblems, noJobFollowUpSentKey, type EmailsTab, type JobEmailRow, type UnmatchedRow,
 } from "./emails-tab.core";
 
 const loose = admin as unknown as SupabaseClient;
@@ -138,8 +138,20 @@ async function draftForUnmatched(unmatchedEventId: string): Promise<string> {
 
 /** Answer-only draft for a follow-up from someone who already has the website link. No AI = no draft (tried again next load). */
 async function draftFollowUp(ev: { id: string; details: Det }, mid: string, fromName: string | null, subject: string | null): Promise<string> {
-  const { aiText } = await import("./ai-email-reply.server");
-  const body = finishNoJobFollowUp(await aiText(buildNoJobFollowUpInput({ fromName, subject, snippet: str(ev.details["snippet"]) ?? "" }), NO_JOB_FOLLOWUP_INSTRUCTIONS));
+  // Review fix 6: a failed AI attempt is tried again after 30 minutes, not on every page load.
+  const { data: fails } = await loose.from("workflow_events").select("created_at").eq("event_type", NO_JOB_DRAFT_FAILED_EVENT).eq("details->>message_id", mid).order("created_at", { ascending: false }).limit(3);
+  if (!followUpRetryDue(((fails ?? []) as { created_at: string }[]).map((f) => f.created_at), Date.now())) return "waiting";
+  let body: string | null;
+  try {
+    const { aiText } = await import("./ai-email-reply.server");
+    body = finishNoJobFollowUp(await aiText(buildNoJobFollowUpInput({ fromName, subject, snippet: str(ev.details["snippet"]) ?? "" }), NO_JOB_FOLLOWUP_INSTRUCTIONS));
+  } catch (e) {
+    const why = e instanceof Error ? e.message : "AI error";
+    await loose.from("workflow_events").insert({ job_id: null, actor_id: null, event_type: NO_JOB_DRAFT_FAILED_EVENT, internal: true,
+      summary: `AI couldn't write a follow-up reply yet — ${str(ev.details["from"]) ?? "unknown sender"}`, details: { message_id: mid, unmatched_event_id: ev.id, error: why.slice(0, 300) } })
+      .then(({ error }) => { if (error) console.error("follow-up failure not recorded", error.message); });
+    throw e;
+  }
   const { error } = await loose.from("workflow_events").insert({ job_id: null, actor_id: null, event_type: NO_JOB_DRAFT_EVENT, internal: true,
     summary: body ? `AI reply draft (answers their question) waiting for the office — ${str(ev.details["from"]) ?? "unknown sender"}` : `Nothing to answer — ${str(ev.details["from"]) ?? "unknown sender"}`,
     details: { kind: "follow_up", nothing_to_answer: !body, message_id: mid, unmatched_event_id: ev.id, from: str(ev.details["from"]), from_name: fromName, their_subject: subject, subject: replySubject(subject), body: body ?? "", idempotency_key: `${noJobDraftKey(mid)}:follow_up` } });
@@ -220,8 +232,9 @@ async function sendNoJobFollowUp(ev: { id: string; details: Det }, draft: { id: 
   if ((res ?? []).length) throw new WorkflowError("That email has already been dealt with.");
   const mid = str(ev.details["message_id"]);
   if (!mid) throw new WorkflowError("That email has no message id.");
-  const key = noJobFollowUpKey(mid);
-  const { data: sent } = await loose.from("workflow_events").select("id").eq("event_type", NO_JOB_REPLY_SENT_EVENT).eq("details->>idempotency_key", key).limit(1);
+  const sentKey = noJobFollowUpSentKey(mid);
+  const key = noJobFollowUpKey(mid, body);
+  const { data: sent } = await loose.from("workflow_events").select("id").eq("event_type", NO_JOB_REPLY_SENT_EVENT).eq("details->>sent_key", sentKey).limit(1);
   if ((sent ?? []).length) throw new WorkflowError("A reply to this email has already been sent.");
   const to = (str(ev.details["from"]) ?? "").trim().toLowerCase();
   if (!to) throw new WorkflowError("That email has no sender address.");
@@ -238,7 +251,7 @@ async function sendNoJobFollowUp(ev: { id: string; details: Det }, draft: { id: 
   if (d.outcome === "rejected" || d.outcome === "not_attempted") throw new WorkflowError(`Not sent — ${d.detail}. Reply to them from Outlook instead.`);
   const status = d.outcome === "accepted" ? "sent" : `delivery uncertain: ${d.detail}`;
   const { error } = await loose.from("workflow_events").insert({ job_id: null, actor_id: actorId, event_type: NO_JOB_REPLY_SENT_EVENT, internal: true,
-    summary: `Reply sent to ${to} answering their question (office approved)`, details: { draft_event_id: draft.id, unmatched_event_id: ev.id, to, subject, body: body.trim(), status, purpose: NO_JOB_REPLY_PURPOSE, kind: "follow_up", idempotency_key: key } });
+    summary: `Reply sent to ${to} answering their question (office approved)`, details: { draft_event_id: draft.id, unmatched_event_id: ev.id, to, subject, body: body.trim(), status, purpose: NO_JOB_REPLY_PURPOSE, kind: "follow_up", sent_key: sentKey, idempotency_key: key } });
   if (error) console.error("follow-up reply sent but not recorded", error.message);
   await loose.from("workflow_events").insert({ job_id: null, actor_id: actorId, event_type: EMAIL_UNMATCHED_DISMISSED_EVENT, internal: true,
     summary: `Email from ${to} answered (follow-up) — left in Outlook`, details: { unmatched_event_id: ev.id, message_id: mid, reason: NO_JOB_REPLIED_REASON } })

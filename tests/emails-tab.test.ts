@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildEmailsTab, buildNoJobFollowUpInput, buildNoJobInput, chunks, finishNoJobFollowUp, finishNoJobReply, jobDraftKey, missingDrafts, NOTHING_TO_ANSWER, noJobBaseText, noJobFollowUpKey, noJobFollowUpProblems, noJobReplyProblems, stripQuotedEmail, type JobEmailRow, type UnmatchedRow } from "../src/lib/emails-tab.core";
+import { buildEmailsTab, buildNoJobFollowUpInput, buildNoJobInput, chunks, finishNoJobFollowUp, finishNoJobReply, jobDraftKey, missingDrafts, NOTHING_TO_ANSWER, noJobBaseText, followUpRetryDue, noJobFollowUpKey, noJobFollowUpProblems, noJobFollowUpSentKey, noJobReplyProblems, stripQuotedEmail, type JobEmailRow, type UnmatchedRow } from "../src/lib/emails-tab.core";
 import { HOMEOWNER_ENQUIRY_URL } from "../src/lib/engagement.core";
 
 // Jo 27 Oct 2026, decision 414: the office Emails tab.
@@ -109,6 +109,9 @@ describe("Follow-up questions from people who already got the website link (Jo 2
     expect(stripQuotedEmail(carolyn)).toBe("Thanks for that. Do you know how long we'd currently be looking at in terms of wait time if we did qualify? Thanks heaps.");
     expect(stripQuotedEmail("Is it free?\n\nOn Tue, 28 Oct 2026 Home Insulation Victoria wrote:\n> Hi")).toBe("Is it free?");
     expect(stripQuotedEmail("Plain question")).toBe("Plain question");
+    // Review fix: ordinary words are never cut — "on" in a sentence, or a signature with an email address.
+    expect(stripQuotedEmail("Hi, do you work on weekends? Thanks, Sam <sam@gmail.com>")).toBe("Hi, do you work on weekends? Thanks, Sam <sam@gmail.com>");
+    expect(stripQuotedEmail("On Monday I can be home. Is that ok? Jo <jo@x.com>")).toBe("On Monday I can be home. Is that ok? Jo <jo@x.com>");
   });
   test("AI input has their name and question, and no website link or base reply", () => {
     const s = buildNoJobFollowUpInput({ fromName: "Carolyn Cage", subject: "Re: VEU program ceiling insulation", snippet: carolyn });
@@ -124,16 +127,28 @@ describe("Follow-up questions from people who already got the website link (Jo 2
     expect(r).not.toContain(HOMEOWNER_ENQUIRY_URL);
     expect(finishNoJobFollowUp(NOTHING_TO_ANSWER)).toBeNull();
     expect(finishNoJobFollowUp(` ${NOTHING_TO_ANSWER}. `)).toBeNull();
-    expect(finishNoJobFollowUp("")).toBeNull();
+    // Review fix: an empty or glitchy AI answer is an error (tried again later), never "Nothing to answer".
+    expect(() => finishNoJobFollowUp("")).toThrow();
+    expect(() => finishNoJobFollowUp("  ")).toThrow();
+    expect(finishNoJobFollowUp("Hi Sam, NOTHING_TO_ANSWER but also a real sentence")).not.toBeNull();
   });
-  test("follow-up send checks: no link needed, still no call us and no prices", () => {
+  test("follow-up send checks: no website link (answer only), no call us, no prices", () => {
     expect(noJobFollowUpProblems("Hi Carolyn, it depends on installers.")).toEqual([]);
     expect(noJobFollowUpProblems(" ")).toHaveLength(1);
     expect(noJobFollowUpProblems("Call us — it's $30/m²")).toHaveLength(2);
+    expect(noJobFollowUpProblems(`Hi, see ${HOMEOWNER_ENQUIRY_URL}`)).toHaveLength(1);
   });
-  test("one send key per email, so a double tap can't send twice", () => {
-    expect(noJobFollowUpKey("m9")).toBe(noJobFollowUpKey("m9"));
-    expect(noJobFollowUpKey("m9")).not.toBe(noJobFollowUpKey("m10"));
+  test("send key: same email + same words = same key (a double tap can't send twice); edited words after a refusal = new key", () => {
+    expect(noJobFollowUpKey("m9", "Hi")).toBe(noJobFollowUpKey("m9", "Hi "));
+    expect(noJobFollowUpKey("m9", "Hi")).not.toBe(noJobFollowUpKey("m10", "Hi"));
+    expect(noJobFollowUpKey("m9", "Hi")).not.toBe(noJobFollowUpKey("m9", "Hello"));
+    expect(noJobFollowUpKey("m9", "Hi").startsWith(noJobFollowUpSentKey("m9"))).toBe(true);
+  });
+  test("a failed AI attempt waits 30 minutes before trying that email again", () => {
+    const now = Date.parse("2026-10-28T10:00:00Z");
+    expect(followUpRetryDue([], now)).toBe(true);
+    expect(followUpRetryDue(["2026-10-28T09:45:00Z"], now)).toBe(false);
+    expect(followUpRetryDue(["2026-10-28T09:20:00Z"], now)).toBe(true);
   });
 });
 
@@ -167,6 +182,7 @@ describe("Send safety (decision 414 review)", () => {
     const body = fu.slice(0, fu.indexOf("\n}\n"));
     expect(body).not.toContain("newSenderReplyKey");
     expect(body).toContain("noJobFollowUpKey(");
+    expect(body).toContain("noJobFollowUpSentKey(");
     const check = body.indexOf("NO_JOB_REPLY_SENT_EVENT");
     expect(check).toBeGreaterThan(0);
     expect(body.indexOf("await resendSend(to,")).toBeGreaterThan(check);

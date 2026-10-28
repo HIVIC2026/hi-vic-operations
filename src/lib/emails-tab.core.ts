@@ -69,8 +69,22 @@ export function noJobReplyProblems(body: string): string[] {
 // Someone who already got the website link writes back with a question: the reply answers ONLY what they asked —
 // no link again (Jo: "Answer only"), no prices, dates or times. Just "thanks"/"no" gets no reply ("Nothing to answer").
 export const NOTHING_TO_ANSWER = "NOTHING_TO_ANSWER";
-/** One send per follow-up email, ever (also the email service's once-only key, so a double tap can't send twice). */
-export const noJobFollowUpKey = (messageId: string) => `nojob-email-followup:v1:${messageId}`;
+/** One sent follow-up per email, ever (checked before sending). */
+export const noJobFollowUpSentKey = (messageId: string) => `nojob-email-followup:v1:${messageId}`;
+/** The email service's once-only key: same email + same words → same key, so a double tap can't send twice;
+ *  words edited after a refused send get a new key, so the retry isn't mistaken for the earlier attempt. */
+export const noJobFollowUpKey = (messageId: string, body: string) => `${noJobFollowUpSentKey(messageId)}:${shortHash(body.trim())}`;
+function shortHash(t: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return h.toString(36);
+}
+/** Written when the AI couldn't write a follow-up draft; that email is tried again after 30 minutes, not every page load. */
+export const NO_JOB_DRAFT_FAILED_EVENT = "email_nojob_ai_draft_failed";
+export const FOLLOWUP_RETRY_MS = 30 * 60 * 1000;
+export function followUpRetryDue(failedAts: readonly string[], now: number): boolean {
+  return !failedAts.some((at) => now - Date.parse(at) < FOLLOWUP_RETRY_MS);
+}
 
 export const NO_JOB_FOLLOWUP_INSTRUCTIONS = [
   "You write email replies for Home Insulation Victoria to people who don't have a job with us yet. We already sent them our website link, and they have written back.",
@@ -84,9 +98,10 @@ export const NO_JOB_FOLLOWUP_INSTRUCTIONS = [
   "Return only the email body text, no subject line.",
 ].join("\n");
 
-/** Their new words only: cuts the quoted earlier email ("On 28 Oct 2026, at 6:35 pm, … <info@…" / "… wrote:"). */
+/** Their new words only: cuts the quoted earlier email ("On 28 Oct 2026, at 6:35 pm, … <info@…" / "… wrote:").
+ *  Capital "On" followed by a date number, so "on weekends" or a signature with an email address is never cut. */
 export function stripQuotedEmail(text: string): string {
-  const cut = text.search(/\s*\bOn\s[^\n]{3,120}?(?:\bwrote:|<[^>\s]*@)/i);
+  const cut = text.search(/\s*\bOn\s(?=[^<\n]{0,40}?\b\d{1,4}\b)[^<\n]{3,120}?(?:\bwrote:|<[^>\s]*@)/);
   const t = cut >= 0 ? text.slice(0, cut) : text;
   return t.split("\n").filter((l) => !/^\s*>/.test(l)).join("\n").trim();
 }
@@ -99,17 +114,20 @@ export function buildNoJobFollowUpInput(i: { fromName: string | null; subject: s
   ].join("\n\n");
 }
 
-/** Tidies the AI text like job replies; null when there is nothing to answer. */
+/** Tidies the AI text like job replies; null only when the AI said exactly "nothing to answer". Empty = error (retried). */
 export function finishNoJobFollowUp(raw: string): string | null {
   const t = raw.replace(/\r/g, "").trim();
-  if (!t || t.replace(/[^A-Z_]/g, "") === NOTHING_TO_ANSWER) return null;
+  if (!t) throw new Error("The AI wrote nothing");
+  if (t.replace(/[\s.!"'`]/g, "") === NOTHING_TO_ANSWER) return null;
   return finishAiReply(t);
 }
 
 /** Reasons a follow-up reply can't be sent as written (checked again on Send, after the office's edits). */
 export function noJobFollowUpProblems(body: string): string[] {
   if (!body.trim()) return ["The reply is empty."];
-  return noJobReplyProblems(`${body}\n${HOMEOWNER_ENQUIRY_URL}`);
+  const out = noJobReplyProblems(`${body}\n${HOMEOWNER_ENQUIRY_URL}`);
+  if (body.includes(HOMEOWNER_ENQUIRY_URL.replace(/^https?:\/\//, ""))) out.push("Take out the website link — they already have it.");
+  return out;
 }
 
 // ---------- The tab ----------
