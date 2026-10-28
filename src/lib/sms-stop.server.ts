@@ -53,7 +53,7 @@ export async function closeStoppedEnquiries(db: any, phone: string, sid: string 
         // No Needs me mechanism fits without new office-needs wiring: one internal history row the office sees on the job.
         await db.from("workflow_events").insert({
           job_id: row.id, actor_id: null, event_type: "stop_installer_release_failed", internal: true,
-          summary: "STOP received, but releasing the installer failed — open the job and cancel again",
+          summary: "STOP received, but releasing the installer failed — retrying automatically; open the job if this stays",
           details: { source: "sms_stop", provider_message_id: sid, needs_office: true },
         }).then(() => undefined, () => undefined);
       }

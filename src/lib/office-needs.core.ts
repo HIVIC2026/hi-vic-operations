@@ -106,7 +106,7 @@ export type NeedsFacts = {
   stopReleaseFailed?: { at: string } | null;
 };
 
-export const STOP_RELEASE_FAILED_LINE = "STOP received, but releasing the installer failed — open the job and cancel again";
+export const STOP_RELEASE_FAILED_LINE = "STOP received, but releasing the installer failed — retrying automatically; open the job if this stays";
 /** The newest `stop_installer_release_failed` (needs_office) with no `job_cancel_released` after it; null otherwise. */
 export function stopReleaseFailedFact(events: { event_type: string; created_at: string; details?: Record<string, unknown> | null }[]): { at: string } | null {
   const raised = events.filter((e) => e.event_type === "stop_installer_release_failed" && e.details?.["needs_office"] === true).map((e) => e.created_at).sort().pop();

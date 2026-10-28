@@ -44,6 +44,17 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           out['coordination'] = "failed";
         }
         try {
+          // Batch 2: a STOP cancel whose installer release failed is retried here (max 20 a tick, last 14 days); success writes
+          // `job_cancel_released`, which clears the Needs me row. Counts only.
+          const { retryStopReleases } = await import("@/lib/stop-release.server");
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          const [{ releaseCancelledJob }, { SMS_STOP_CLOSED_REASON }] = await Promise.all([import("@/lib/office-actions.server"), import("@/lib/sms-stop.server")]);
+          (out as Record<string, unknown>)['stopReleases'] = await timed("retryStopReleases", () => retryStopReleases(supabaseAdmin, Date.now(), (id) => releaseCancelledJob(id, SMS_STOP_CLOSED_REASON, null, { owner: false, installer: true })));
+        } catch (e) {
+          console.error("allocation tick: STOP release retry failed", (e as Error).message);
+          (out as Record<string, unknown>)['stopReleases'] = "failed";
+        }
+        try {
           const { sweepQuoteExpiry } = await import("@/lib/quote-expiry.server");
           (out as Record<string, unknown>)['quotes'] = await timed("sweepQuoteExpiry", () => sweepQuoteExpiry());
         } catch (e) {

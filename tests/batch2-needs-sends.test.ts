@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 const NOW = Date.parse("2026-10-29T06:00:00Z");
 const ago = (ms: number) => new Date(NOW - ms).toISOString();
 const H = 3_600_000, D = 86_400_000;
-const STOP_LINE = "STOP received, but releasing the installer failed — open the job and cancel again";
+const STOP_LINE = "STOP received, but releasing the installer failed — retrying automatically; open the job if this stays";
 
 describe("not sure it arrived", () => {
   test("text sent_unknown shows a row", () => {
@@ -79,10 +79,6 @@ describe("STOP clean-up failure", () => {
     expect(code([raise, { ...raise, event_type: "job_cancel_released", created_at: ago(H), details: {} }])).toBe(false);
     expect(code([{ ...raise, event_type: "job_cancel_released", created_at: ago(3 * H), details: {} }, raise])).toBe(true);
   });
-  test("the event is loaded by the needs query", () => {
-    const src = readFileSync("src/lib/needs.server.ts", "utf8");
-    expect(src).toContain('"stop_installer_release_failed", "job_cancel_released"');
-  });
 });
 
 describe("STOP clean-up failure on the Needs me page", () => {
@@ -99,7 +95,42 @@ describe("STOP clean-up failure on the Needs me page", () => {
     expect(g.today.map((r) => [r.kind, r.line, r.button.label])).toEqual([["stop_release_failed", STOP_LINE, "Open job"]]);
     expect(cardOf("stop_release_failed")).toBe("failed");
   });
-  test("gatherNeedsFacts fills the fact", () => {
-    expect(readFileSync("src/lib/office-needs.server.ts", "utf8")).toContain("x.stopReleaseFailed = hit");
+  test("a CANCELLED job with an unreleased STOP failure gets a Needs me fact; after the release it does not", async () => {
+    const { stopReleaseNeeds, retryStopReleases } = await import("../src/lib/stop-release.server");
+    const events: Record<string, unknown>[] = [{ id: 1, job_id: "j", event_type: "stop_installer_release_failed", created_at: ago(2 * H), details: { needs_office: true } }];
+    const jobs = [{ id: "j", job_number: "HV-9", source: "base44", stage: "cancelled", deleted_at: null, owners: { full_name: "Ann Smith" }, properties: { suburb: "Croydon" } }, { id: "t", job_number: "HV-T", source: "qa_test", stage: "cancelled", deleted_at: null, owners: null, properties: null }];
+    const db = { from(table: string) {
+      const f: ((r: any) => boolean)[] = [];
+      const q: any = { select: () => q, eq: (k: string, v: any) => { f.push((r) => r[k] === v); return q; }, in: (k: string, v: any[]) => { f.push((r) => v.includes(r[k])); return q; }, gte: () => q, order: () => q, range: () => q,
+        then: (res: any, rej: any) => Promise.resolve({ data: (table === "jobs" ? jobs : events).filter((r) => f.every((g) => g(r))), error: null }).then(res, rej) };
+      return q;
+    } };
+    expect(await stopReleaseNeeds(db, { includeTest: false })).toEqual([{ jobId: "j", at: ago(2 * H), jobNumber: "HV-9", surname: "Smith", suburb: "Croydon", isTest: false }]);
+    // the tick retries it; releasing writes job_cancel_released, which clears the row
+    const called: string[] = [];
+    const r = await retryStopReleases(db, NOW, async (id) => { called.push(id); events.push({ id: 2, job_id: id, event_type: "job_cancel_released", created_at: ago(1000), details: {} }); });
+    expect(r).toEqual({ tried: 1, released: 1 });
+    expect(called).toEqual(["j"]);
+    expect(await stopReleaseNeeds(db, { includeTest: false })).toEqual([]);
+    expect(await retryStopReleases(db, NOW, async () => { throw new Error("must not run"); })).toEqual({ tried: 0, released: 0 });
+  });
+  test("the tick retries at most 20, only cancelled jobs, only the last 14 days, and a failure keeps the row", async () => {
+    const { retryStopReleases } = await import("../src/lib/stop-release.server");
+    const events: Record<string, unknown>[] = [];
+    const jobs: Record<string, unknown>[] = [];
+    for (let n = 0; n < 25; n++) { events.push({ id: n, job_id: `j${n}`, event_type: "stop_installer_release_failed", created_at: ago(H + n), details: { needs_office: true } }); jobs.push({ id: `j${n}`, stage: n === 3 ? "ready_check_ready_to_schedule" : "cancelled", source: "base44" }); }
+    events.push({ id: 99, job_id: "old", event_type: "stop_installer_release_failed", created_at: ago(15 * D), details: { needs_office: true } }); jobs.push({ id: "old", stage: "cancelled", source: "base44" });
+    const db = { from(table: string) {
+      const f: ((r: any) => boolean)[] = [];
+      const q: any = { select: () => q, eq: (k: string, v: any) => { f.push((r) => r[k] === v); return q; }, in: (k: string, v: any[]) => { f.push((r) => v.includes(r[k])); return q; }, gte: (k: string, v: string) => { f.push((r) => r[k] >= v); return q; }, order: () => q, range: () => q,
+        then: (res: any, rej: any) => Promise.resolve({ data: (table === "jobs" ? jobs : events).filter((r) => f.every((g) => g(r))), error: null }).then(res, rej) };
+      return q;
+    } };
+    const called: string[] = [];
+    const r = await retryStopReleases(db, NOW, async (id) => { called.push(id); if (id === "j24") throw new Error("still failing"); });
+    expect(r).toEqual({ tried: 20, released: 19 });
+    expect(called).toHaveLength(20);
+    expect(called).not.toContain("j3");
+    expect(called).not.toContain("old");
   });
 });

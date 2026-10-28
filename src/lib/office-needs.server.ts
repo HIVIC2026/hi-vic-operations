@@ -362,17 +362,14 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       }
     }
   } catch { unavailable.push("payment reversals"); }
-  // Batch 2: a STOP reply could not release the installer → one row until the job is cancelled again.
+  // Batch 2: a STOP reply cancelled the job but releasing the installer failed → one row until `job_cancel_released` is written
+  // (the tick retries). The job is usually already cancelled, so its facts are made here when the open-jobs read dropped it.
   try {
-    const { stopReleaseFailedFact } = await import("./office-needs.core");
-    const stops = await all("STOP release failures", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).eq("event_type", "stop_installer_release_failed").range(a, b));
-    const stopIds = [...new Set(stops.map((e) => String(e["job_id"])).filter((id) => idSet.has(id)))];
-    if (stopIds.length) {
-      const rel = await byIds("cancel releases of STOP jobs", stopIds, (c, a, b) => admin.from("workflow_events").select("job_id, event_type, created_at").in("job_id", c).eq("event_type", "job_cancel_released").range(a, b));
-      for (const id of stopIds) {
-        const hit = stopReleaseFailedFact([...stops, ...rel].filter((e) => String(e["job_id"]) === id).map((e) => ({ event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as Record<string, unknown> | null })));
-        const x = f(id); if (x && hit) x.stopReleaseFailed = hit;
-      }
+    const { stopReleaseNeeds } = await import("./stop-release.server");
+    for (const n of await stopReleaseNeeds(admin, { includeTest: opts.includeTest, ...(opts.onlyIds ? { onlyIds: opts.onlyIds } : {}) })) {
+      const x = f(n.jobId) ?? { jobId: n.jobId, jobNumber: n.jobNumber, surname: n.surname, suburb: n.suburb, ...(n.isTest ? { isTest: true } : {}) };
+      x.stopReleaseFailed = { at: n.at };
+      facts.set(n.jobId, x);
     }
   } catch { unavailable.push("STOP clean-up failures"); }
   // Batch 1: the owner accepted but the invoice step failed → one Money row until a Xero-linked invoice exists.

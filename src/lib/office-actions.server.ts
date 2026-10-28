@@ -48,13 +48,23 @@ export async function cancelJobFully(jobId: string, reason: string, actorId: str
   if (job.stage === "cancelled") throw new WorkflowError(`${job.job_number} is already cancelled.`);
   if (job.stage === "complete") throw new WorkflowError(`${job.job_number} is complete — a completed job cannot be cancelled.`);
   const tell = opts.tell ?? { owner: false, installer: false };
-  // Decision 291: the installer to tell is read before the assignment is ended below; the cancel number keys the notices.
-  const installerRecipient = tell.installer ? await installerRecipientFor(jobId, (job as { originating_installer_business_id?: string | null }).originating_installer_business_id ?? null) : null;
-  const { data: priorCancels } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "job_cancel_released");
-  const cancelSeq = priorCancels?.length ?? 0;
   const full = opts.note?.trim() ? `${reason.trim()} · ${opts.note.trim()}` : reason.trim();
   const { applyHoldOrCancel } = await import("./job-disposition.server");
   await applyHoldOrCancel(jobId, "cancel", full, actorId, { decision: 227, reason: reason.trim(), note: opts.note?.trim() || null, ...(opts.bulk ? { bulk: true } : {}) });
+  return releaseCancelledJob(jobId, reason, actorId, tell);
+}
+
+/**
+ * The release half of `cancelJobFully`, on its own so it can be run again (batch 2: a STOP cancel whose release failed is
+ * retried on the 15-minute tick). Releases bookings, day offers, trade offers, assignments, ESC notices and install holds
+ * (each update only touches rows still open, so a repeat is harmless), writes `job_cancel_released`, then sends the
+ * ticked cancel notices through their existing once-only keys (same cancel number on a retry).
+ */
+export async function releaseCancelledJob(jobId: string, reason: string, actorId: string | null, tell: TellTicks) {
+  const { data: job } = await admin.from("jobs").select("originating_installer_business_id").eq("id", jobId).maybeSingle();
+  const installerRecipient = tell.installer ? await installerRecipientFor(jobId, (job as { originating_installer_business_id?: string | null } | null)?.originating_installer_business_id ?? null) : null;
+  const { data: priorCancels } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "job_cancel_released");
+  const cancelSeq = priorCancels?.length ?? 0;
   const now = new Date().toISOString();
   const [books, props, offers, asg, esc, holds] = await Promise.all([
     admin.from("bookings").update({ status: "cancelled" }).eq("job_id", jobId).in("status", ["proposed", "confirmed"]).gt("scheduled_start", now).select("id, kind"),
