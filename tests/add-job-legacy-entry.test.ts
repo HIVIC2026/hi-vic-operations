@@ -8,7 +8,9 @@ const base: Access = { admin: false, installer: true, electrician: false, owner:
 test("A4: no bulk upload page or link; old address lands on Add a job", () => {
   expect(existsSync("src/routes/_authenticated/partner.bulk-import.tsx")).toBe(false);
   expect(partnerLegacyTarget("bulk-import")).toEqual({ to: "/partner/import" });
-  expect(readFileSync("src/lib/route-guards.ts", "utf8")).not.toContain("bulk-import");
+  const guards = readFileSync("src/lib/route-guards.ts", "utf8");
+  expect(guards).not.toContain("bulk-import");
+  expect(guards).not.toContain("BULK_UPLOAD");
   for (const f of ["src/routeTree.gen.ts", "src/components/trade/TradeShell.tsx", "src/components/portal/trade-work.tsx", "src/components/portal/AppShell.tsx", "scripts/installer-test.ts", "scripts/trade-shots.ts", "scripts/reinsulate-shots.ts", "scripts/portal-qa-coverage.ts"])
     expect(readFileSync(f, "utf8")).not.toContain("/partner/bulk-import");
 });

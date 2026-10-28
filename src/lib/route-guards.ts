@@ -1,7 +1,6 @@
 // Client-side page guards for signed-in areas (UI only — every server function still checks access itself).
 import { redirect } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
-export { INSTALLER_BULK_UPLOAD_ENABLED };
 
 export type Access = { admin: boolean; qaOffice: boolean; installer: boolean; electrician: boolean; owner: boolean; businessAdmin: boolean; installerBusinessAdmin: boolean };
 
