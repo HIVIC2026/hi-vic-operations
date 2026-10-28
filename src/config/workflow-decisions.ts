@@ -87,6 +87,25 @@ export const WORKFLOW_DECISIONS = {
       eventSummary: "Worker approved automatically with the business (decision 402)",
     },
   },
+  // Jo 28 Oct 2026 (installer quotes always right; spec docs/superpowers/specs/2026-10-28-installer-quote-fixes-design.md).
+  tradePrices: {
+    decided: "2026-10-28",
+    // Only the owner of the trade business ON THE JOB sees a price; installer crew and electrician staff never do.
+    seenBy: "owner_of_the_trade_business_on_the_job_only",
+    crewText: { rule: "allow_list_of_known_system_text_only", holdLine: "On hold — the office will be in touch", nextLine: "The office will be in touch" },
+    usualElectricianAtAddJob: "offered_and_default_only_once_signed_up_with_an_agreed_rate",
+    switchToHivElectrician: { who: "installer_business_owner_only", confirm: "Are you sure?", final: true, event: "electrician_choice_set", officeCanSwap: false },
+    repairPrice: {
+      setBy: ["electrician_business_owner", "office"], staffSeePrice: false, cardTitle: "Price the repairs",
+      ownerText: "The safety check at [street, suburb] needs electrical repairs. Enter your price for the repair work: [link]",
+      fixesQuoteHeldUntilPriced: true, formEditAfterPricing: "owner_price_stands",
+      officeAlertAfterHours: 24, officeAlert: "Waiting on the electrician's price", reminderText: "none",
+    },
+    staffCompletePiesaWithUnpricedItem: true, // the fixes quote is never sent while any item is unpriced or $0
+    staffExtras: "extra_lines_on_top_of_repair_total_paid_to_electrician_form_items_never_added", // replaces decision 310
+    officeQuoteEdit: "kept_until_installer_price_or_mitti_form_changes_then_rebuilt_with_one_office_alert",
+    installerQuoteSend: "never_with_an_older_installer_price",
+  },
   hardStops: [
     "missing_eligibility_evidence",
     "conflicting_eligibility_evidence",
