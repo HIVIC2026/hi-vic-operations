@@ -1,0 +1,60 @@
+// Batch 2 task 3: sendAiDraft re-checks the spot-only rule against the CURRENT release state. Own file because it mocks modules.
+import { afterAll, describe, expect, mock, test } from "bun:test";
+
+const realClient = await import("../src/integrations/supabase/client.server");
+const realRelease = await import("../src/lib/spot-release.server");
+const realTestSend = await import("../src/lib/test-send.server");
+const realOutlook = await import("../src/lib/outlook-sync.server");
+
+const world = { channel: "hivic_sourced", stage: "preliminary_estimate_ready", state: "none" as string, inserts: [] as Record<string, unknown>[], sent: 0 };
+const draft = { id: "d1", job_id: "j1", event_type: "email_ai_draft", details: { to: "sam@x.au", subject: "Re: Hi", message_id: "m1" } };
+const q = (table: string) => {
+  const b: Record<string, unknown> = {};
+  for (const f of ["select", "eq", "in", "contains", "limit", "order"]) b[f] = () => b;
+  b["maybeSingle"] = async () => ({ error: null, data: table === "workflow_events" ? draft : table === "jobs" ? { id: "j1", source: "qa_test", owner_id: "o1", channel: world.channel, stage: world.stage } : { email: "sam@x.au" } });
+  b["insert"] = (r: Record<string, unknown>) => { world.inserts.push(r); return Object.assign(Promise.resolve({ error: null }), { then: (f: (v: unknown) => unknown) => Promise.resolve({ error: null }).then(f) }); };
+  b["then"] = (res: (v: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(res);
+  return b;
+};
+mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: q } }));
+mock.module("../src/lib/spot-release.server", () => ({ spotReleaseStates: async (ids: string[]) => new Map(ids.map((i) => [i, { state: world.state }])) }));
+mock.module("../src/lib/test-send.server", () => ({ sendTestEmail: async () => { world.sent++; return { status: "sent", detail: "" }; } }));
+mock.module("../src/lib/outlook-sync.server", () => ({ archiveOutlookMessage: async () => undefined }));
+afterAll(() => {
+  mock.module("@/integrations/supabase/client.server", () => realClient);
+  mock.module("../src/lib/spot-release.server", () => realRelease);
+  mock.module("../src/lib/test-send.server", () => realTestSend);
+  mock.module("../src/lib/outlook-sync.server", () => realOutlook);
+});
+
+const BAD = "Hi Sam,\n\nYour free Ready Check is coming.\n\nCheers, the Home Insulation Victoria team";
+const reset = (o: Partial<typeof world>) => { Object.assign(world, { channel: "hivic_sourced", stage: "preliminary_estimate_ready", state: "none", inserts: [], sent: 0 }, o); };
+
+describe("sendAiDraft and the spot-only rule", () => {
+  test("pre-release owner: Ready Check wording is refused, nothing sent", async () => {
+    reset({});
+    const { sendAiDraft } = await import("../src/lib/ai-email-reply.server");
+    await expect(sendAiDraft("d1", BAD, "u1")).rejects.toThrow(/released/);
+    expect(world.sent).toBe(0);
+  });
+  test("confirmed owner: the same reply goes", async () => {
+    reset({ state: "confirmed" });
+    const { sendAiDraft } = await import("../src/lib/ai-email-reply.server");
+    expect((await sendAiDraft("d1", BAD, "u1")).status).toBe("sent");
+    expect(world.sent).toBe(1);
+  });
+  test("job past the Ready Check with no release event: the same reply goes", async () => {
+    reset({ stage: "ready_check_scheduled" });
+    const { sendAiDraft } = await import("../src/lib/ai-email-reply.server");
+    expect((await sendAiDraft("d1", BAD, "u1")).status).toBe("sent");
+  });
+  test("uses the CURRENT state at Send, not the state at draft time", async () => {
+    const { sendAiDraft } = await import("../src/lib/ai-email-reply.server");
+    reset({ state: "none" });
+    await expect(sendAiDraft("d1", BAD, "u1")).rejects.toThrow(/released/);
+    world.state = "confirmed"; // owner confirms between drafting and Send
+    expect((await sendAiDraft("d1", BAD, "u1")).status).toBe("sent");
+    world.state = "none"; // back to unconfirmed (new release) -> refused again
+    await expect(sendAiDraft("d1", BAD, "u1")).rejects.toThrow(/released/);
+  });
+});

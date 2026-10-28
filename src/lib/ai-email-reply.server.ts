@@ -7,11 +7,20 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MailMessage } from "./outlook-correspondence.core";
 import {
-  AI_EMAIL_DRAFTS_ENABLED, NO_REPLY_NEEDED, AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EDITED_EVENT, latestDraftEdits, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, AI_EMAIL_REPLY_PURPOSE, AI_REPLY_INSTRUCTIONS, aiReplyInstructions, isPreRelease,
+  AI_EMAIL_DRAFTS_ENABLED, NO_REPLY_NEEDED, AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EDITED_EVENT, latestDraftEdits, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, AI_EMAIL_REPLY_PURPOSE, AI_REPLY_INSTRUCTIONS, aiReplyInstructions, isPreReleaseOwner,
   aiDraftKey, aiReplyEmailHtml, aiReplyProblems, aiReplyText, bookingChangeLink, buildAiReplyInput, finishAiReply, replySubject, type AiReplyKind,
 } from "./ai-email-reply.core";
 
 const loose = admin as unknown as SupabaseClient;
+
+/** Decision 388: is this job's owner still before release? Read fresh each time (draft creation and Send). Unreadable = pre-release only for our own early-stage leads. */
+export async function preReleaseFor(jobId: string): Promise<boolean> {
+  const { data: job } = await admin.from("jobs").select("channel, stage").eq("id", jobId).maybeSingle();
+  if (!job) return false;
+  const { spotReleaseStates } = await import("./spot-release.server");
+  const releaseState = (await spotReleaseStates([jobId]).catch(() => null))?.get(jobId) ?? null;
+  return isPreReleaseOwner({ channel: job.channel, stage: job.stage, releaseState });
+}
 
 /** The AI call shared by job replies and the Emails tab no-job replies (decision 414). */
 export async function aiText(input: string, instructions: string = AI_REPLY_INSTRUCTIONS): Promise<string> {
@@ -46,8 +55,7 @@ export async function writeAiReplyDraft(p: { jobId: string; message: MailMessage
     const { data: hist } = await admin.from("job_communications").select("direction, subject, body, received_at, sent_at, created_at")
       .eq("job_id", p.jobId).eq("channel", "email").order("created_at", { ascending: true }).limit(40);
     // Decision 388: anything short of a released AND confirmed spot gets the spot-only prompt; an unreadable state counts as not released.
-    const { spotReleaseStates } = await import("./spot-release.server");
-    const preRelease = isPreRelease((await spotReleaseStates([p.jobId]).catch(() => null))?.get(p.jobId) ?? null);
+    const preRelease = await preReleaseFor(p.jobId);
     const lines: string[] = [];
     lines.push(facts.spotSaved ? "Their spot is saved." : "Their spot is not saved yet.");
     if (facts.questionsAnswered) lines.push("They have answered the insulation questions.");
@@ -171,8 +179,7 @@ export async function sendAiDraft(eventId: string, body: string, actorId: string
   const { data: job } = await admin.from("jobs").select("id, source, owner_id").eq("id", ev.job_id).maybeSingle();
   if (!job) throw new Error("Job not found.");
   // Decision 388: owners not yet released and confirmed get spot-only wording, checked again here (unreadable state = not released).
-  const { spotReleaseStates } = await import("./spot-release.server");
-  const preRelease = isPreRelease((await spotReleaseStates([job.id]).catch(() => null))?.get(job.id) ?? null);
+  const preRelease = await preReleaseFor(job.id);
   const problems = aiReplyProblems(body, { preRelease });
   if (problems.length) throw new Error(problems.join(" "));
   const { data: owner } = job.owner_id ? await admin.from("owners").select("email").eq("id", job.owner_id).maybeSingle() : { data: null };

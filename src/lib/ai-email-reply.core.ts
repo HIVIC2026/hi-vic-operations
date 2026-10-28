@@ -11,6 +11,7 @@ import { esc, mjEmail } from "./mail-mjml.core";
 import { changeVisitLink, visitGroupForStage, type ChangeVisit } from "./email-change-reply.core";
 import { smsQuietReason } from "./quote-hold.core";
 import { SPOT_FREE, SPOT_PRICE_NOTE, SPOT_REGISTERED, SPOT_RELEASE_LINE, preReleaseViolations } from "./spot-only-copy.core";
+import { STAGE_ORDER } from "./workflow";
 import type { SpotReleaseState } from "./spot-release.core";
 
 export const AI_EMAIL_DRAFT_EVENT = "email_ai_draft";
@@ -98,8 +99,14 @@ const instructionLines = (NEXT_STEP: string, preRelease: boolean) => [
 
 export const AI_REPLY_INSTRUCTIONS = instructionLines(NEXT_STEP_RELEASED, false).join("\n");
 
-/** Owners whose spot has not been released AND confirmed get the spot-only prompt (same rule as auto-offer: only "confirmed" is past release). */
-export const isPreRelease = (s: SpotReleaseState | null | undefined): boolean => s?.state !== "confirmed";
+/** Decision 388: pre-release = our own lead (hivic_sourced) at or before "ready_check_ready_to_schedule" whose spot is not released AND confirmed.
+ *  Any later stage, an unknown/exception stage or any other channel keeps today's behaviour. */
+export function isPreReleaseOwner(j: { channel: string | null | undefined; stage: string | null | undefined; releaseState: SpotReleaseState | null | undefined }): boolean {
+  if (j.channel !== "hivic_sourced") return false;
+  const i = STAGE_ORDER.indexOf(j.stage as never);
+  if (i < 0 || i > STAGE_ORDER.indexOf("ready_check_ready_to_schedule")) return false;
+  return j.releaseState?.state !== "confirmed";
+}
 
 export type AiPromptOpts = { preRelease?: boolean };
 /** The prompt for this owner; released owners get AI_REPLY_INSTRUCTIONS unchanged. */
@@ -107,9 +114,12 @@ export const aiReplyInstructions = (o: AiPromptOpts = {}): string => (o.preRelea
 
 
 /** Jo's standing answers (27 Oct 2026), given to the AI with every job reply. */
+const RULE_CEILING_ONLY = "We only do ceiling insulation (no underfloor or walls).";
+const RULE_BATTS_ONLY = "Our quotes are for R5.0 batts, not blow-in insulation, so no holes are cut in the ceiling.";
+const RULE_OWN_ELECTRICIAN = "An owner's own electrician can do the safety check if they sign up with us as an electrician first (we check their licence and $5 million public liability insurance, and all forms go through our system so the rebate can be claimed): https://portal.homeinsulationvictoria.com.au/electrician-onboarding";
 export const AI_BUSINESS_RULES = [
-  "We only do ceiling insulation (no underfloor or walls).",
-  "Our quotes are for R5.0 batts, not blow-in insulation, so no holes are cut in the ceiling.",
+  RULE_CEILING_ONLY,
+  RULE_BATTS_ONLY,
   "R6.0 and R7.0 are available; the installer confirms the price at the free Ready Check (never quote it).",
   "Old insulation is removed only where needed, at $15/m²; the installer checks how much at the Ready Check.",
   "Extras like cleaning the roof cavity: the installer can quote them at the Ready Check.",
@@ -118,18 +128,18 @@ export const AI_BUSINESS_RULES = [
   "Spots are released in the order they were saved, so we can't give install dates before that. When it's their turn an installer texts and emails a few times for the Ready Check.",
   "After they accept the quote, a licensed electrician does a safety check before any insulation goes in, then the installer puts the insulation in. We look after all the paperwork and the rebate.",
   "The price includes: the free Ready Check; R5.0 batts supplied and installed by a certified installer; the electrician's safety check ($349); our Accredited Person fee for the paperwork and rebate claim ($349). Electrical repairs aren't included — if needed they get a separate quote first.",
-  "An owner's own electrician can do the safety check if they sign up with us as an electrician first (we check their licence and $5 million public liability insurance, and all forms go through our system so the rebate can be claimed): https://portal.homeinsulationvictoria.com.au/electrician-onboarding",
+  RULE_OWN_ELECTRICIAN,
 ];
 
 /** Business rules before release: only the lines that say nothing about a Ready Check, a visit, times or speed, plus Jo's spot-only lines. */
 export const AI_BUSINESS_RULES_PRE_RELEASE = [
-  AI_BUSINESS_RULES[0]!,
-  AI_BUSINESS_RULES[1]!,
+  RULE_CEILING_ONLY,
+  RULE_BATTS_ONLY,
   SPOT_FREE,
   SPOT_REGISTERED,
   SPOT_RELEASE_LINE,
   SPOT_PRICE_NOTE,
-  AI_BUSINESS_RULES[AI_BUSINESS_RULES.length - 1]!,
+  RULE_OWN_ELECTRICIAN,
 ];
 
 
