@@ -23,13 +23,15 @@ export const INSTALL_DEPOSIT_RATE = 0.10;
 export const PROVISIONAL_HOLD_HOURS = 48;
 export const PROVISIONAL_HOLD_MS = PROVISIONAL_HOLD_HOURS * 3_600_000;
 
-export type PaymentStepKey = "safety_check" | "fixes" | "install_deposit" | "balance";
-export const PAYMENT_STEP_ORDER: PaymentStepKey[] = ["safety_check", "fixes", "install_deposit", "balance"];
+export type PaymentStepKey = "safety_check" | "fixes" | "install_deposit" | "balance" | "repeat_safety_check";
+/** The repeat safety check sits LAST: its threshold is the grand total, so every existing step's threshold is unchanged. */
+export const PAYMENT_STEP_ORDER: PaymentStepKey[] = ["safety_check", "fixes", "install_deposit", "balance", "repeat_safety_check"];
 export const PAYMENT_STEP_LABEL: Record<PaymentStepKey, string> = {
   safety_check: "Pre Insulation Electrical Safety Assessment (PIESA) payment",
   fixes: "Electrical fixes",
   install_deposit: "Install deposit (10%)",
   balance: "Balance (install day)",
+  repeat_safety_check: "Repeat safety check (PIESA)",
 };
 export type PaymentMethod = "card" | "bank";
 
@@ -45,10 +47,12 @@ export type PaymentPlanInput = {
   safetyCheckCents?: number | null;
   /** Approved electrical fixes (rectification) total inc GST, 0 when none. */
   fixesCents?: number | null;
+  /** Decision 233: the repeat safety check (PIESA) price inc GST the OWNER owes on the ONE invoice, 0 when none. */
+  repeatCents?: number | null;
 };
 export type PaymentPlan = {
-  quoteTotalCents: number; safetyCheckCents: number; fixesCents: number; installDepositCents: number; balanceCents: number;
-  /** Everything the owner pays across the job: quote total + fixes. */
+  quoteTotalCents: number; safetyCheckCents: number; fixesCents: number; repeatCents: number; installDepositCents: number; balanceCents: number;
+  /** Everything the owner pays across the job: quote total + fixes + any repeat safety check. */
   grandTotalCents: number;
   /** Running thresholds in PAYMENT_STEP_ORDER; a step is paid when cumulative received ≥ its threshold. */
   thresholds: Record<PaymentStepKey, number>;
@@ -59,25 +63,27 @@ export function paymentPlan(i: PaymentPlanInput): PaymentPlan {
   const quoteTotalCents = Math.max(0, Math.round(i.quoteTotalCents));
   const safetyCheckCents = Math.min(Math.max(0, Math.round(i.safetyCheckCents ?? SAFETY_CHECK_CENTS)), quoteTotalCents);
   const fixesCents = Math.max(0, Math.round(i.fixesCents ?? 0));
+  const repeatCents = Math.max(0, Math.round(i.repeatCents ?? 0));
   const remaining = quoteTotalCents - safetyCheckCents;
   const installDepositCents = roundHalfUp(remaining * INSTALL_DEPOSIT_RATE);
   const balanceCents = remaining - installDepositCents;
-  const grandTotalCents = quoteTotalCents + fixesCents;
+  const grandTotalCents = quoteTotalCents + fixesCents + repeatCents;
   const thresholds = {
     safety_check: safetyCheckCents,
     fixes: safetyCheckCents + fixesCents,
     install_deposit: safetyCheckCents + fixesCents + installDepositCents,
     balance: grandTotalCents,
+    repeat_safety_check: grandTotalCents,
   };
-  return { quoteTotalCents, safetyCheckCents, fixesCents, installDepositCents, balanceCents, grandTotalCents, thresholds };
+  return { quoteTotalCents, safetyCheckCents, fixesCents, repeatCents, installDepositCents, balanceCents, grandTotalCents, thresholds };
 }
 
 export const stepAmountCents = (p: PaymentPlan, k: PaymentStepKey) =>
-  k === "safety_check" ? p.safetyCheckCents : k === "fixes" ? p.fixesCents : k === "install_deposit" ? p.installDepositCents : p.balanceCents;
+  k === "safety_check" ? p.safetyCheckCents : k === "fixes" ? p.fixesCents : k === "install_deposit" ? p.installDepositCents : k === "repeat_safety_check" ? p.repeatCents : p.balanceCents;
 
-/** Decision 140/141: card only for the safety check and the fixes; everything else is bank transfer / PayID only. */
+/** Decision 140/141 + 233: card only for the safety check (including the repeat check), the fixes; everything else is bank transfer / PayID only. */
 export function paymentMethodsFor(step: PaymentStepKey): PaymentMethod[] {
-  return step === "safety_check" || step === "fixes" ? ["card", "bank"] : ["bank"];
+  return step === "safety_check" || step === "fixes" || step === "repeat_safety_check" ? ["card", "bank"] : ["bank"];
 }
 export const cardAllowedFor = (step: PaymentStepKey) => paymentMethodsFor(step).includes("card");
 
