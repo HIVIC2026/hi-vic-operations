@@ -3,6 +3,7 @@
 // completes addresses itself; every enquiry is "Waiting on owner").
 // Jobs = six stages from a saved spot: Choose installer · Ready Check · Quote · PIESA · Install · Final check,
 // plus Closed (Completed · Cancelled · Ineligible · Removed / test). PURE: labels and piles only, never moves a job.
+import { STAGE_ORDER, type Stage } from "./workflow";
 
 export type JobsStage = "choose_installer" | "ready_check" | "quote" | "piesa" | "install" | "final_check";
 export const JOBS_STAGES: { key: JobsStage; label: string }[] = [
@@ -83,6 +84,20 @@ export function reopenBlocker(j: { stage: string | null; priorStage: string | nu
   if (!j.priorStage) return "This job has no earlier stage recorded, so it can't be reopened automatically.";
   const r = j.retired(j.priorStage);
   return r ? `It was at a retired step (${j.priorStage.replaceAll("_", " ")}): ${r}` : null;
+}
+
+/**
+ * Where a cancelled job goes when it is reopened (Jo 28 Oct 2026, batch 1 task 6). A booked or done Ready Check goes back
+ * to "choose installer" (the released installer is not re-offered). From the safety check (PIESA) on, the old check no
+ * longer counts: back to PIESA pending and a NEW safety check is needed. Stages it doesn't know stay as they were.
+ */
+const REOPEN_TO_CHOOSE_INSTALLER = new Set(["ready_check_scheduled", "ready_check_complete", "measured_estimate_ready"]);
+const REOPEN_NEW_PIESA_FROM: Stage = "piesa_and_install_window_pending";
+export function reopenStageFor(priorStage: string): { stage: string; needsNewPiesa: boolean } {
+  if (REOPEN_TO_CHOOSE_INSTALLER.has(priorStage)) return { stage: "ready_check_ready_to_schedule", needsNewPiesa: false };
+  const at = STAGE_ORDER.indexOf(priorStage as Stage);
+  if (at >= STAGE_ORDER.indexOf(REOPEN_NEW_PIESA_FROM) && priorStage !== "complete") return { stage: REOPEN_NEW_PIESA_FROM, needsNewPiesa: true };
+  return { stage: priorStage, needsNewPiesa: false };
 }
 
 export type ReopenFacts = {

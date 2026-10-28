@@ -13,6 +13,19 @@ export const REPEAT_PIESA_PAID_EVENT = "repeat_piesa_paid";
 /** admin_config_events: the office "Repeat safety check price" (inc GST). Latest wins; null = not set. */
 export const REPEAT_PIESA_PRICE_EVENT = "repeat_piesa_price_set";
 
+/** Jo 28 Oct 2026 (batch 1 task 6): a job reopened at or after the safety check needs a NEW one; the old check no longer
+ *  counts. details `{ key: "reopen:<iso>", had_check }`. With had_check (a PIESA record existed) the reopen acts as the
+ *  lapse, keyed by `key` in place of a 30-day deadline, until a PIESA record is created after it. */
+export const REPEAT_REOPEN_EVENT = "piesa_superseded_on_reopen";
+export const REOPEN_KEY_PREFIX = "reopen:";
+export const reopenKey = (iso: string) => `${REOPEN_KEY_PREFIX}${iso}`;
+export const isReopenKey = (deadline: string | null | undefined) => !!deadline && deadline.startsWith(REOPEN_KEY_PREFIX);
+/** A PIESA record made at or before the latest reopen no longer counts (null reopen = it counts). */
+export function piesaSupersededByReopen(recordCreatedAt: string | null | undefined, reopenAt: string | null | undefined): boolean {
+  if (!reopenAt) return false;
+  return !recordCreatedAt || Date.parse(recordCreatedAt) <= Date.parse(reopenAt);
+}
+
 export type RepeatChoice = { payer: RepeatPayer; priceIncGst: number | null; deadline: string; at: string };
 export type RepeatFacts = {
   /** Install deadline of the lapsed 30-day window (expired, nothing booked); null when not lapsed. */
@@ -63,6 +76,7 @@ const money = (n: number) => `$${n.toLocaleString("en-AU", { minimumFractionDigi
 export const REPEAT_ARRANGING_TITLE = "We're arranging the next step";
 export const REPEAT_NEEDED_TITLE = "A new safety check (PIESA) is needed";
 export const REPEAT_WHY = "Your electrical safety check is valid for 30 days. The 30 days since your last check have passed, so the law needs a fresh check before your insulation can be installed.";
+export const REPEAT_REOPEN_WHY = "Your job was reopened, so a new safety check is needed before your insulation can be installed.";
 
 export type OwnerRepeatView = { title: string; body: string; price: string | null; button: "Accept" | null };
 /** The owner's job page while a repeat PIESA is in play (null = nothing to show). Never mentions install days. */
@@ -71,7 +85,7 @@ export function ownerRepeatView(s: RepeatState): OwnerRepeatView | null {
   if (s.stage === "choose") return { title: REPEAT_ARRANGING_TITLE, body: "Our team is arranging the next step for your install. We'll let you know shortly.", price: null, button: null };
   const ownerPays = s.payer === "owner" && s.priceIncGst != null;
   if (s.stage === "owner_accept") return {
-    title: REPEAT_NEEDED_TITLE, body: REPEAT_WHY,
+    title: REPEAT_NEEDED_TITLE, body: isReopenKey(s.deadline) ? REPEAT_REOPEN_WHY : REPEAT_WHY,
     price: ownerPays ? `The new safety check costs ${money(s.priceIncGst!)} inc GST. Accepting adds it to your bill. It's paid before the safety check is booked.` : "There's no cost to you for this check.",
     button: "Accept",
   };

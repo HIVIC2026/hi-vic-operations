@@ -10,13 +10,15 @@ export async function currentMeasurement(jobId: string) {
   return data;
 }
 
-/** Electrical requirement = the electrical assessment is complete and its PIESA record is current. */
+/** Electrical requirement = the electrical assessment is complete and its PIESA record is current. Batch 1 task 6: a
+ *  PIESA record made before the job's latest reopen no longer counts, so it can never move a reopened job on. */
 export async function electricalState(jobId: string) {
-  const [{ data: a }, piesa] = await Promise.all([
+  const [{ data: a }, piesa, superseded] = await Promise.all([
     admin.from("assessments").select("status").eq("job_id", jobId).maybeSingle(),
     piesaStatus(jobId),
+    import("./repeat-piesa.server").then((m) => m.currentPiesaSupersededByReopen(jobId)),
   ]);
-  return { hasCurrentPiesa: a?.status === "complete" && !!piesa?.piesa_date, piesaExpired: !!piesa?.piesa_expired };
+  return { hasCurrentPiesa: a?.status === "complete" && !!piesa?.piesa_date && !superseded, piesaExpired: !!piesa?.piesa_expired };
 }
 
 export async function jobScope(jobId: string) {

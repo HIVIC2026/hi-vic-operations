@@ -6,7 +6,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
 import { tidyEnquiryDetails } from "./name-address-tidy.core";
-import { reopenPlan } from "./office-jobs.core";
+import { reopenPlan, reopenStageFor } from "./office-jobs.core";
 
 /** Owner email / installer notice on Hold (decision 233): the dialog is approved (228) but the HOLD wording is not, so the
  *  ticks are recorded for the office and NOTHING is sent until Jo approves it. Cancel notices are approved (decision 291:
@@ -102,6 +102,20 @@ export async function reopenJob(jobId: string, reason: string, actorId: string) 
     removedLead: (removed.data?.length ?? 0) > 0, duplicateContact: (dup.data?.contact_rank ?? 1) > 1, retired: retiredStageBlocker,
   });
   if (!plan.ok) throw new WorkflowError(plan.blocker);
+  // Batch 1 task 6 (Jo 28 Oct 2026): a cancelled stage reopens to a SAFE stage (reopenStageFor), checked like any stage
+  // move before anything is written.
+  const target = plan.stage ? reopenStageFor(plan.stage) : null;
+  if (target) {
+    const { stageEntryBlockers } = await import("./workflow.server");
+    let blockers = await stageEntryBlockers(jobId, target.stage as never, actorId);
+    if (target.needsNewPiesa && blockers.length) {
+      // The open repeat-check step (owner accept / pay) is what a reopen sets up; it still gates booking the PIESA.
+      const [{ repeatPiesaGateBlocker }, { repeatPiesaContext }] = await Promise.all([import("./repeat-piesa.core"), import("./repeat-piesa.server")]);
+      const repeat = repeatPiesaGateBlocker((await repeatPiesaContext(jobId)).state);
+      if (repeat) blockers = blockers.filter((b) => b !== repeat);
+    }
+    if (blockers.length) throw new WorkflowError(blockers[0]!);
+  }
   const why = reason.trim();
   if (plan.source) {
     const { error } = await admin.from("jobs").update({ source: plan.source as never }).eq("id", jobId).eq("source", "qa_test");
@@ -113,14 +127,38 @@ export async function reopenJob(jobId: string, reason: string, actorId: string) 
     if (error) throw new Error(error.message);
     await logEvent(jobId, actorId, "eligibility_set", `Eligibility reopened: needs onsite confirmation (${why})`, { reason: why, previous_outcome: job.eligibility_outcome, decision: 227 }, { internal: true });
   }
-  if (plan.stage) {
-    const { error } = await admin.from("jobs").update({ stage: plan.stage as never, prior_stage: null, cancelled_reason: null }).eq("id", jobId).eq("stage", "cancelled");
+  if (target) {
+    const { error } = await admin.from("jobs").update({ stage: target.stage as never, prior_stage: null, cancelled_reason: null }).eq("id", jobId).eq("stage", "cancelled");
     if (error) throw new Error(error.message);
-    await logEvent(jobId, actorId, "stage_changed", `Reopened: ${why}`, { reason: why, decision: 227 }, { from: "cancelled", to: plan.stage as never });
+    await logEvent(jobId, actorId, "stage_changed", `Reopened: ${why}`, { reason: why, decision: 227, prior_stage: plan.stage }, { from: "cancelled", to: target.stage as never });
+    if (target.needsNewPiesa) await supersedePiesaOnReopen(jobId, actorId);
   } else {
     await logEvent(jobId, actorId, "job_reopened", `Reopened: ${why}`, { reason: why, decision: 227 }, { internal: true });
   }
-  return { ok: true, stage: plan.stage ?? job.stage };
+  return { ok: true, stage: target?.stage ?? job.stage };
+}
+
+/** Batch 1 task 6 (Jo 28 Oct 2026): reopened at or after the safety check → the old check no longer counts. When a check
+ *  was actually done (a PIESA record exists) the owner pays for the new one at the accepted quote's PIESA line; payments
+ *  already made stay counted. No record = their original payment covers it. The existing repeat-PIESA gate, owner Accept
+ *  and payment then run unchanged (repeat-piesa.server, keyed by the reopen key). */
+async function supersedePiesaOnReopen(jobId: string, actorId: string) {
+  const { REPEAT_REOPEN_EVENT, REPEAT_PIESA_CHOSEN_EVENT, reopenKey } = await import("./repeat-piesa.core");
+  // Only a check done since the last reopen counts: an already-superseded check is never charged twice.
+  const since = await (await import("./repeat-piesa.server")).latestReopenAt(jobId);
+  let recQ = admin.from("piesa_records").select("id").eq("job_id", jobId);
+  if (since) recQ = recQ.gt("created_at", since);
+  const { data: rec } = await recQ.limit(1).maybeSingle();
+  const hadCheck = !!rec;
+  const key = reopenKey(new Date().toISOString());
+  await logEvent(jobId, actorId, REPEAT_REOPEN_EVENT, hadCheck ? "Reopened: the earlier safety check (PIESA) no longer counts — a new one is needed" : "Reopened: no safety check (PIESA) was done yet — the original payment covers it", { key, had_check: hadCheck }, { internal: true });
+  if (!hadCheck) return;
+  const { currentApprovedQuote } = await import("./workflow.server");
+  const quote = await currentApprovedQuote(jobId);
+  const price = (await (await import("./safety-check-amount.server")).quoteSafetyCheck(quote?.id ?? null)).incGst;
+  await logEvent(jobId, actorId, REPEAT_PIESA_CHOSEN_EVENT, "Job reopened: the owner pays for the new safety check (PIESA)", {
+    deadline: key, payer: "owner", price_inc_gst: price, suggestion: null, installer_payout_deduction_inc_gst: null, reason: "reopen",
+  }, { internal: true });
 }
 
 /** Decision 233 Hold dialog: reason, until (optional), tell-them ticks (recorded only), 30-day clock unchanged. */

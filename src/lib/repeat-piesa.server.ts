@@ -3,8 +3,8 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
 import {
-  REPEAT_PIESA_ACCEPTED_EVENT, REPEAT_PIESA_CHOSEN_EVENT, REPEAT_PIESA_PAID_EVENT, REPEAT_PIESA_PRICE_EVENT,
-  chooseRepeatPayerBlocker, repeatPiesaState, type RepeatChoice, type RepeatPayer, type RepeatState,
+  REPEAT_PIESA_ACCEPTED_EVENT, REPEAT_PIESA_CHOSEN_EVENT, REPEAT_PIESA_PAID_EVENT, REPEAT_PIESA_PRICE_EVENT, REPEAT_REOPEN_EVENT,
+  chooseRepeatPayerBlocker, piesaSupersededByReopen, repeatPiesaState, type RepeatChoice, type RepeatPayer, type RepeatState,
 } from "./repeat-piesa.core";
 
 export async function repeatPiesaPrice(): Promise<number | null> {
@@ -20,17 +20,42 @@ export async function setRepeatPiesaPrice(priceIncGst: number | null, actorId: s
   return v;
 }
 
+/** Batch 1 task 6: when the latest reopen happened (null = never reopened past the safety check). */
+export async function latestReopenAt(jobId: string): Promise<string | null> {
+  const { data } = await admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", REPEAT_REOPEN_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  return (data as { created_at?: string } | null)?.created_at ?? null;
+}
+
+/** Batch 1 task 6: the job's current PIESA record was made before its latest reopen, so it no longer counts. */
+export async function currentPiesaSupersededByReopen(jobId: string): Promise<boolean> {
+  const at = await latestReopenAt(jobId);
+  if (!at) return false;
+  const { data } = await admin.from("piesa_records").select("created_at").eq("job_id", jobId).eq("is_current", true).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  return !!data && piesaSupersededByReopen((data as { created_at?: string }).created_at, at);
+}
+
+/** Batch 1 task 6: a reopen that superseded a check that was done (had_check) is the current lapse, keyed by its key,
+ *  until a PIESA record is created after it. */
+async function currentReopenLapse(jobId: string): Promise<string | null> {
+  const { data } = await admin.from("workflow_events").select("created_at, details").eq("job_id", jobId).eq("event_type", REPEAT_REOPEN_EVENT).contains("details", { had_check: true }).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const key = (data?.details as { key?: string } | null)?.key;
+  if (!data || !key) return null;
+  const { data: after } = await admin.from("piesa_records").select("id").eq("job_id", jobId).gt("created_at", data.created_at).limit(1).maybeSingle();
+  return after ? null : key;
+}
+
 /** Lapsed deadline + this deadline's choice/acceptance/payment. */
 export async function repeatPiesaContext(jobId: string): Promise<{ state: RepeatState; suggestion: string | null }> {
   const { installDayContext } = await import("./install-days.server");
-  const c = await installDayContext(jobId).catch(() => null);
+  const [c, reopenLapse] = await Promise.all([installDayContext(jobId).catch(() => null), currentReopenLapse(jobId)]);
   const { data: rows } = await admin.from("workflow_events").select("event_type, created_at, details").eq("job_id", jobId).in("event_type", [REPEAT_PIESA_CHOSEN_EVENT, REPEAT_PIESA_ACCEPTED_EVENT, REPEAT_PIESA_PAID_EVENT, "install_window_expired"]).order("created_at", { ascending: false });
   const ev = rows ?? [];
   const d = (r: { details: unknown }) => (r.details ?? {}) as Record<string, unknown>;
   const chosen = ev.find((r) => r.event_type === REPEAT_PIESA_CHOSEN_EVENT);
   const choice: RepeatChoice | null = chosen ? { payer: d(chosen)["payer"] as RepeatPayer, priceIncGst: (d(chosen)["price_inc_gst"] as number | null) ?? null, deadline: String(d(chosen)["deadline"]), at: chosen.created_at } : null;
   // A lapse stays current until the repeat PIESA is offered (the job may leave installation_scheduling afterwards).
-  const lapsedDeadline = c && c.deadline && c.expired && !c.booked ? c.deadline : choice?.deadline ?? null;
+  // A current reopen lapse wins: the check the 30-day window ran from no longer counts.
+  const lapsedDeadline = reopenLapse ?? (c && c.deadline && c.expired && !c.booked ? c.deadline : choice?.deadline ?? null);
   const forDeadline = (t: string) => ev.find((r) => r.event_type === t && String(d(r)["deadline"]) === lapsedDeadline)?.created_at ?? null;
   const state = repeatPiesaState({ lapsedDeadline, choice, acceptedAt: forDeadline(REPEAT_PIESA_ACCEPTED_EVENT), paidAt: forDeadline(REPEAT_PIESA_PAID_EVENT) });
   const exp = ev.find((r) => r.event_type === "install_window_expired" && String(d(r)["deadline"]) === lapsedDeadline);

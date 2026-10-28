@@ -98,6 +98,8 @@ class WorkflowError extends Error {}
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: q } }));
 mock.module("../src/lib/workflow.server", () => ({
   WorkflowError,
+  stageEntryBlockers: async () => [],
+  currentApprovedQuote: async () => null,
   logEvent: async (job_id: string, _a: unknown, event_type: string, summary: string, details: unknown, opts?: Row) => { db.workflow_events!.push({ job_id, event_type, summary, details, ...(opts ?? {}) }); },
 }));
 // Decision 291 senders, mocked: the real owner path, the partner office-email path and the TEST sender.
@@ -298,14 +300,14 @@ describe("cancelJobFully (decision 227, mocked DB)", () => {
     expect(updates).toEqual([]);
   });
 
-  test("reopen restores the stage it was at, with a reason, history kept", async () => {
+  test("reopen goes to a safe stage (batch 1 task 6: install booked → PIESA pending, new safety check), with a reason, history kept", async () => {
     await cancelJobFully("j1", "Owner changed their mind", "admin-1");
     await expect(reopenJob("j1", "", "admin-1")).rejects.toThrow(/reason/);
     const r = await reopenJob("j1", "Owner rang back – go ahead", "admin-1");
-    expect(r.stage).toBe("installation_booked");
-    expect(job("j1")).toMatchObject({ stage: "installation_booked", prior_stage: null, cancelled_reason: null });
+    expect(r.stage).toBe("piesa_and_install_window_pending");
+    expect(job("j1")).toMatchObject({ stage: "piesa_and_install_window_pending", prior_stage: null, cancelled_reason: null });
     const ev = events("stage_changed").at(-1)!;
-    expect(ev).toMatchObject({ from: "cancelled", to: "installation_booked" });
+    expect(ev).toMatchObject({ from: "cancelled", to: "piesa_and_install_window_pending" });
     expect(ev.summary).toBe("Reopened: Owner rang back – go ahead");
     expect(events("job_cancel_released")).toHaveLength(1);
     await expect(reopenJob("j2", "Owner rang back", "admin-1")).rejects.toThrow(/Completed jobs stay closed/);
