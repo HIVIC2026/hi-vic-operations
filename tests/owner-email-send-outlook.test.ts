@@ -4,6 +4,7 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test";
 
 type Row = Record<string, unknown>;
+let updateThrows = false;
 let tables: Record<string, Row[]> = {};
 let n = 0;
 function from(table: string) {
@@ -34,7 +35,12 @@ function from(table: string) {
   };
   return b;
 }
-mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from } }));
+mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: (t: string) => {
+  const b = from(t) as Record<string, any>;
+  const upd = b["update"];
+  b["update"] = (p: Row) => { if (updateThrows && t === "customer_email_sends" && p["provider"] === "outlook") throw new Error("db down"); return upd(p); };
+  return b;
+} } }));
 mock.module("../src/lib/emailsafety.server", () => ({ unsubscribeUrlForJob: async () => "https://example.test/u/1" }));
 const resendCalls: string[] = [];
 mock.module("../src/lib/hot-leads-send.server", () => ({ resendSend: async (to: string) => { resendCalls.push(to); return { outcome: "accepted", id: "re_1", detail: "Accepted" }; } }));
@@ -44,14 +50,16 @@ const { sendGuardedOwnerEmail } = await import("../src/lib/owner-email-send.serv
 const { QA_INBOX } = await import("../src/lib/qa-inbox.core");
 
 let fetched: { method: string; url: string; body: any }[] = [];
-let sendStatus = 202;
+let sendStatus = 202, failCreateReply = false, sendThrows = false;
 const realFetch = globalThis.fetch;
 beforeEach(() => {
   tables = { outlook_sync_state: [{ id: 1, expected_mailbox: "info@example.com" }], jobs: [{ id: "J", source: "website" }, { id: "Q", source: "qa_test" }] };
-  n = 0; fetched = []; sendStatus = 202; resendCalls.length = 0;
+  n = 0; fetched = []; sendStatus = 202; failCreateReply = false; sendThrows = false; updateThrows = false; resendCalls.length = 0;
   globalThis.fetch = (async (url: string, init: RequestInit) => {
     const u = String(url);
     fetched.push({ method: String(init.method), url: u, body: init.body ? JSON.parse(String(init.body)) : undefined });
+    if (u.endsWith("/createReply") && failCreateReply) return new Response(null, { status: 400 });
+    if (u.endsWith("/send") && sendThrows) throw new Error("timed out");
     if (u.endsWith("/createReply")) return new Response(JSON.stringify({ id: "D1", internetMessageId: "<m@x>" }), { status: 201 });
     if (u.endsWith("/messages") ) return new Response(JSON.stringify({ id: "N1", internetMessageId: "<n@x>" }), { status: 201 });
     if (u.endsWith("/send")) return new Response(null, { status: sendStatus });
@@ -61,9 +69,9 @@ beforeEach(() => {
 afterAll(() => { globalThis.fetch = realFetch; });
 
 const OUT = { kind: "outlook" as const, replyToMessageId: "AAMk=orig" };
-const send = (o: { jobId?: string; transport?: typeof OUT; onSent?: (r: any) => void; key?: string } = {}) => sendGuardedOwnerEmail({
+const send = (o: { jobId?: string; transport?: typeof OUT; onSent?: (r: any) => void; key?: string; retry?: boolean } = {}) => sendGuardedOwnerEmail({
   jobId: o.jobId ?? "J", jobSource: "website", to: "owner@example.com", purpose: "owner_reply", key: o.key ?? "k1",
-  build: () => ({ subject: "s", html: "<p>h</p>", text: "t" }), ...(o.transport ? { transport: o.transport } : {}), ...(o.onSent ? { onSent: o.onSent } : {}),
+  build: () => ({ subject: "s", html: "<p>h</p>", text: "t" }), ...(o.transport ? { transport: o.transport } : {}), ...(o.onSent ? { onSent: o.onSent } : {}), ...(o.retry ? { retryAfterDefiniteFailure: true } : {}),
 });
 
 describe("guarded send, Outlook transport", () => {
@@ -87,10 +95,36 @@ describe("guarded send, Outlook transport", () => {
     expect(await send({ transport: OUT })).toBe("already attempted — not resent");
     expect(fetched).toHaveLength(before);
   });
-  test("an Outlook failure is recorded as failed with the fixed message", async () => {
-    sendStatus = 503;
+  test("a definite refusal (4xx on send) is failed, and retryAfterDefiniteFailure then really sends", async () => {
+    sendStatus = 400;
     expect(await send({ transport: OUT })).toBe("failed: Outlook couldn't send it");
     expect(tables["customer_email_sends"]![0]).toMatchObject({ status: "failed", provider: "outlook" });
+    sendStatus = 202;
+    expect(await send({ transport: OUT, retry: true })).toBe("sent");
+    expect(tables["customer_email_sends"]![0]).toMatchObject({ status: "sent" });
+  });
+  test("failure before send (createReply refused) is definite and retryable", async () => {
+    failCreateReply = true;
+    expect(await send({ transport: OUT })).toBe("failed: Outlook couldn't send it");
+    failCreateReply = false;
+    expect(await send({ transport: OUT, retry: true })).toBe("sent");
+  });
+  test("send 5xx or timeout is uncertain: recorded delivered_unrecorded and never resent, even with retry", async () => {
+    sendThrows = true;
+    expect(await send({ transport: OUT })).toBe("delivery uncertain — not retried");
+    expect(tables["customer_email_sends"]![0]).toMatchObject({ status: "delivered_unrecorded", provider: "outlook" });
+    const before = fetched.length;
+    sendThrows = false;
+    expect(await send({ transport: OUT, retry: true })).toBe("already attempted — not resent");
+    expect(fetched).toHaveLength(before);
+    expect(fetched.some((c) => c.method === "DELETE")).toBe(false);
+  });
+  test("if the record update throws after a successful send, the result is still sent and onSent fires", async () => {
+    updateThrows = true;
+    let got: unknown;
+    const spy = console.error; console.error = () => {};
+    try { expect(await send({ transport: OUT, onSent: (r) => { got = r; } })).toBe("sent"); } finally { console.error = spy; updateThrows = false; }
+    expect(got).toMatchObject({ provider: "outlook", messageId: "D1" });
   });
   test("R1: a qa_test job reaches ONLY the test address, as a new message, marked TEST", async () => {
     process.env["HIVIC_COM04_TEST_RECIPIENTS"] = QA_INBOX; // the test inbox is the one address the non-production boundary allows

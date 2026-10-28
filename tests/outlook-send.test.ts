@@ -45,10 +45,20 @@ describe("sendViaOutlook", () => {
     expect(await sendViaOutlook({ ...P, replyToMessageId: null })).toEqual({ outcome: "sent", messageId: "N2", internetMessageId: null });
     expect(calls).toHaveLength(2);
   });
-  test("send 5xx is a failure (and the draft is cleaned up)", async () => {
+  test("send 5xx is UNCERTAIN and the draft is NOT deleted", async () => {
     script = (c) => c.url.endsWith("/createReply") ? { status: 201, json: { id: "D1" } } : c.url.endsWith("/send") ? { status: 503 } : { status: 200 };
     const r = await sendViaOutlook(P);
-    expect(r.outcome).toBe("failed");
+    expect(r).toMatchObject({ outcome: "uncertain", messageId: "D1" });
+    expect(calls.some((c) => c.method === "DELETE")).toBe(false);
+  });
+  test("send timeout is UNCERTAIN and the draft is NOT deleted", async () => {
+    script = (c) => { if (c.url.endsWith("/send")) throw new Error("timed out"); return c.url.endsWith("/createReply") ? { status: 201, json: { id: "D1" } } : { status: 200 }; };
+    expect(await sendViaOutlook(P)).toMatchObject({ outcome: "uncertain", messageId: "D1" });
+    expect(calls.some((c) => c.method === "DELETE")).toBe(false);
+  });
+  test("send 4xx is a definite failure and the draft is cleaned up", async () => {
+    script = (c) => c.url.endsWith("/createReply") ? { status: 201, json: { id: "D1" } } : c.url.endsWith("/send") ? { status: 400 } : { status: 200 };
+    expect((await sendViaOutlook(P)).outcome).toBe("failed");
     expect(calls.at(-1)).toMatchObject({ method: "DELETE" });
   });
   test("a network error never throws", async () => {

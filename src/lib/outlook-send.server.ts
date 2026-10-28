@@ -5,7 +5,9 @@ import { normaliseMailbox, outlookGatewayUrl, outlookMailboxPath, OUTLOOK_REQUES
 import { outlookConfigured, readOutlookSyncState } from "./outlook-sync.server";
 
 export const OUTLOOK_READ_ONLY_DETAIL = "Outlook is connected for reading only. Reconnect it in Lovable to allow sending.";
-export type OutlookSendResult = { outcome: "sent"; messageId: string; internetMessageId: string | null } | { outcome: "failed"; detail: string };
+export type OutlookSendResult = { outcome: "sent"; messageId: string; internetMessageId: string | null } | { outcome: "failed"; detail: string }
+  /** The send call may or may not have gone out (timeout/abort/5xx). Never resend, never delete the draft. */
+  | { outcome: "uncertain"; detail: string; messageId: string };
 
 async function call(method: string, mailbox: string, path: string, body?: unknown): Promise<Response> {
   const res = await fetch(outlookGatewayUrl(`${outlookMailboxPath(mailbox)}${path}`), {
@@ -74,11 +76,14 @@ export async function sendViaOutlook(p: { replyToMessageId: string | null; to: s
       draftId = draft?.id ?? null;
       if (!draftId) return { outcome: "failed", detail: "Outlook returned no draft." };
     }
-    const sent = await call("POST", mailbox, `/messages/${encodeURIComponent(draftId)}/send`);
+    let sent: Response;
+    try { sent = await call("POST", mailbox, `/messages/${encodeURIComponent(draftId)}/send`); }
+    catch (e) { return { outcome: "uncertain", detail: e instanceof Error ? e.message : "Outlook send gave no answer.", messageId: draftId }; }
     if (!sent.ok) {
-      const detail = sent.status === 403 ? OUTLOOK_READ_ONLY_DETAIL : `Outlook couldn't send it (HTTP ${sent.status}).`;
+      if (sent.status >= 500) return { outcome: "uncertain", detail: `Outlook gave no clear answer to the send (HTTP ${sent.status}).`, messageId: draftId };
+      // A definite 4xx refusal: nothing went out, so the draft can be cleaned up.
       await call("DELETE", mailbox, `/messages/${encodeURIComponent(draftId)}`).catch(() => null);
-      return { outcome: "failed", detail };
+      return { outcome: "failed", detail: sent.status === 403 ? OUTLOOK_READ_ONLY_DETAIL : `Outlook couldn't send it (HTTP ${sent.status}).` };
     }
     return { outcome: "sent", messageId: draftId, internetMessageId: draft?.internetMessageId ?? null };
   } catch (e) {

@@ -45,9 +45,17 @@ export async function sendGuardedOwnerEmail(p: { jobId: string; jobSource: strin
     const r = mail.attachments?.length
       ? { outcome: "failed" as const, detail: "Outlook sending doesn't support attachments." }
       : await (await import("./outlook-send.server")).sendViaOutlook({ replyToMessageId: route ? null : p.transport.replyToMessageId, to, subject: mail.subject, html: mail.html }).catch((e) => ({ outcome: "failed" as const, detail: e instanceof Error ? e.message : "Outlook send error" }));
-    await admin.from("customer_email_sends").update(r.outcome === "sent"
+    const row = r.outcome === "sent"
       ? { status: "sent", provider: "outlook", sent_at: new Date().toISOString(), error: null, provider_message_id: r.messageId }
-      : { status: "failed", provider: "outlook", sent_at: null, error: r.detail.slice(0, 500) }).eq("id", reserved.id);
+      : r.outcome === "uncertain"
+        ? { status: "delivered_unrecorded", provider: "outlook", sent_at: null, error: r.detail.slice(0, 500), provider_message_id: r.messageId }
+        : { status: "failed", provider: "outlook", sent_at: null, error: r.detail.slice(0, 500) };
+    // The email has (or may have) gone; a record-keeping problem must not turn that into a thrown error.
+    try {
+      const { error: ue } = await admin.from("customer_email_sends").update(row).eq("id", reserved.id);
+      if (ue) console.error("Outlook send record update failed", ue.message);
+    } catch (e) { console.error("Outlook send record update failed", e instanceof Error ? e.message : "unknown"); }
+    if (r.outcome === "uncertain") return "delivery uncertain — not retried";
     if (r.outcome !== "sent") return "failed: Outlook couldn't send it";
     notify({ provider: "outlook", messageId: r.messageId, internetMessageId: r.internetMessageId });
     return "sent";
