@@ -85,7 +85,5 @@ describe("Jo 7 Oct: Add one job + each Upload jobs card", () => {
     // Decision 34 (Jo 24 Oct): Add a job is basics only — the consent tick is sent with the customer; no files or electrician picker there.
     const one = read("src/components/trade/add-job-flow.tsx");
     expect(one).toContain("owner: customer"); expect(one).not.toContain("<AttachFiles"); expect(one).not.toContain("<ElectricianPicker");
-    const bulk = read("src/routes/_authenticated/partner.bulk-import.tsx");
-    expect(bulk).toContain("<AttachFiles"); expect(bulk).toContain("<ElectricianPicker compact"); expect(bulk).not.toContain("(optional)");
   });
 });

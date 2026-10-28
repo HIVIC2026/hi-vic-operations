@@ -54,6 +54,7 @@ const OFFICE: Record<string, Rule> = {
 /** /partner/<slug> → the trade pages that replaced the old partner area (Jo, 7 Oct). */
 const PARTNER: Record<string, Rule> = {
   add: { to: "/partner/import" },
+  "bulk-import": { to: "/partner/import" },
   payments: { to: "/field/money" },
   profile: { to: "/field/business" },
 };

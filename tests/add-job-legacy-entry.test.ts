@@ -1,23 +1,20 @@
 import { expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { INSTALLER_BULK_UPLOAD_ENABLED, legacyBulkImportRedirect, partnerPathAllowed, type Access } from "../src/lib/route-guards";
+import { existsSync, readFileSync } from "node:fs";
+import { partnerPathAllowed, type Access } from "../src/lib/route-guards";
+import { partnerLegacyTarget } from "../src/lib/legacy-links.core";
 
 const base: Access = { admin: false, installer: true, electrician: false, owner: false, businessAdmin: false, installerBusinessAdmin: false };
 
-test("ordinary installer staff are sent from batch upload to single Add job", () => {
-  expect(legacyBulkImportRedirect(base)).toBe("/partner/import");
-  expect(partnerPathAllowed("/partner/bulk-import", base)).toBe(false);
+test("A4: no bulk upload page or link; old address lands on Add a job", () => {
+  expect(existsSync("src/routes/_authenticated/partner.bulk-import.tsx")).toBe(false);
+  expect(partnerLegacyTarget("bulk-import")).toEqual({ to: "/partner/import" });
+  expect(readFileSync("src/lib/route-guards.ts", "utf8")).not.toContain("bulk-import");
+  for (const f of ["src/routeTree.gen.ts", "src/components/trade/TradeShell.tsx", "src/components/portal/trade-work.tsx", "src/components/portal/AppShell.tsx", "scripts/installer-test.ts", "scripts/trade-shots.ts", "scripts/reinsulate-shots.ts", "scripts/portal-qa-coverage.ts"])
+    expect(readFileSync(f, "utf8")).not.toContain("/partner/bulk-import");
 });
-test("installer batch upload is switched off: business owner/admin goes to Add job (Start in Mitti)", () => {
+test("business owner can open Add a job", () => {
   const boss = { ...base, businessAdmin: true, installerBusinessAdmin: true };
-  expect(INSTALLER_BULK_UPLOAD_ENABLED).toBe(false);
-  expect(legacyBulkImportRedirect(boss)).toBe("/partner/import");
-  expect(partnerPathAllowed("/partner/bulk-import", boss)).toBe(false);
   expect(partnerPathAllowed("/partner/import", boss)).toBe(true);
-});
-test("installer business owner/admin could open batch upload if the switch is turned back on", () => {
-  expect(legacyBulkImportRedirect({ ...base, businessAdmin: true, installerBusinessAdmin: true }, true)).toBeNull();
-  expect(legacyBulkImportRedirect(base, true)).toBe("/partner/import");
 });
 test("server refuses installer batch create/review/confirm while switched off; links are hidden", () => {
   const fns = readFileSync("src/lib/bulk-import.functions.ts", "utf8");
@@ -26,13 +23,7 @@ test("server refuses installer batch create/review/confirm while switched off; l
   // (installer audit 24 Oct: "Upload multiple jobs" link removed); the server switch alone keeps installers out.
   for (const f of ["src/routes/_authenticated/partner.import.tsx", "src/routes/_authenticated/field.business.tsx"]) expect(readFileSync(f, "utf8")).not.toContain("bulk-import");
 });
-test("office retains batch tools", () => {
-  expect(legacyBulkImportRedirect({ ...base, admin: true })).toBeNull();
-});
 test("team management is business owner/admin only", () => {
   expect(partnerPathAllowed("/partner/workers", base)).toBe(false);
   expect(partnerPathAllowed("/partner/workers", { ...base, businessAdmin: true })).toBe(true);
-});
-test("electrician business admin cannot batch upload jobs", () => {
-  expect(partnerPathAllowed("/partner/bulk-import", { ...base, installer: false, electrician: true, businessAdmin: true })).toBe(false);
 });

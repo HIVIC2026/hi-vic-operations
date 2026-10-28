@@ -334,14 +334,14 @@ async function sectionB(steps: Step[], screens: Screen[], ids: { owner: string; 
   const { data: job } = await admin.from("jobs").select("id").eq("originating_installer_business_id", BIZ).eq("source", "qa_test").is("qa_archived_at", null).order("created_at", { ascending: false }).limit(1).maybeSingle();
   const { data: offers } = await admin.from("partner_offers").select("id, status, job_id").eq("business_id", BIZ).order("offered_at", { ascending: false });
   const pending = (offers ?? []).find((o) => o.status !== "accepted"); const accepted = (offers ?? []).find((o) => o.status === "accepted");
-  const pages: [string, string][] = [["My work", "/field"], ["Money", "/field/money"], ["My business", "/field/business"], ["Details", "/field/business/details"], ["Rates", "/field/business/rates"], ["Bank", "/field/business/bank"], ["Insurance", "/field/business/insurance"], ["Agreement", "/field/business/agreement"], ["Team", "/field/business/team"], ["Add one job", "/partner/import"], ["Upload jobs", "/partner/bulk-import"], ["Sign-in landing", "/portal"]];
+  const pages: [string, string][] = [["My work", "/field"], ["Money", "/field/money"], ["My business", "/field/business"], ["Details", "/field/business/details"], ["Rates", "/field/business/rates"], ["Bank", "/field/business/bank"], ["Insurance", "/field/business/insurance"], ["Agreement", "/field/business/agreement"], ["Team", "/field/business/team"], ["Add one job", "/partner/import"], ["Sign-in landing", "/portal"]];
   if (job) pages.push(["Job file", `/field/${job.id}`], ["Today's job", `/field/day/${job.id}`]);
   if (pending) pages.push(["Offer (not accepted)", `/field/offer/${pending.id}`]);
   if (accepted) pages.push(["Offer (accepted)", `/field/offer/${accepted.id}`]);
   for (const [, path] of pages) screens.push({ step: "B2", persona: "owner", path, mustNotSee: BANNED });
   for (const p of ["/field", "/portal"]) screens.push({ step: "B1", persona: "owner", path: p, mustSee: ["My work"], mustNotSee: ["calculator", "application"] });
   for (const p of ["/field", "/portal"]) screens.push({ step: "B1", persona: "staff", path: p, mustSee: ["My work"], mustNotSee: ["calculator"] });
-  for (const p of ["/field/money", "/field/business/rates", "/field/business/bank", "/field/business/agreement", "/partner/bulk-import", "/partner/import"]) screens.push({ step: "B4", persona: "staff", path: p, mustNotSee: ["BSB", "per m²", "Account number", "Upload your list", ...BANNED.slice(0, 3)], noPrices: true });
+  for (const p of ["/field/money", "/field/business/rates", "/field/business/bank", "/field/business/agreement", "/partner/import"]) screens.push({ step: "B4", persona: "staff", path: p, mustNotSee: ["BSB", "per m²", "Account number", "Upload your list", ...BANNED.slice(0, 3)], noPrices: true });
 
   await step(steps, "B1", "B1 Approved installer (owner and staff) lands on My work", async (c) => {
     const h = await tv.tradeHome(ids.owner); c("owner's home loads", !!h);
@@ -436,7 +436,6 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     const { data: rows } = await admin.from("bulk_import_rows").select("job_id").eq("batch_id", u.batchId).not("job_id", "is", null);
     c("confirming twice never makes duplicate jobs", new Set((rows ?? []).map((r) => r.job_id)).size === (rows ?? []).length, again);
     await jobsOk(c, (rows ?? []).map((r) => r.job_id!));
-    screens.push({ step: "C4", persona: "owner", path: `/partner/bulk-import?batch=${u.batchId}`, mustNotSee: BANNED });
   });
   await step(steps, "C2", "C2 XLSX: parses and keeps $3,187.55 exactly", async (c) => {
     const u = await upload("list.xlsx");
@@ -632,7 +631,6 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     c("this run's uploads listed in past uploads", (data ?? []).length >= 9, `${(data ?? []).length} listed`);
     c("nothing sent to any owner across all uploads", (await outboundFor(madeJobs)) === 0, `${madeJobs.length} TEST job(s) checked`);
   });
-  screens.push({ step: "C12", persona: "owner", path: "/partner/bulk-import", mustNotSee: BANNED });
   screens.push({ step: "C14", persona: "staff", path: "/field", mustSee: ["Action needed", "In progress", "Done"], mustNotSee: [...BANNED, "Moving automatically"] });
 
   await step(steps, "C16", "C16 Add job: preliminary edit allowed; measured area locked to office review; wrong business + staff refused; quote lines follow electrician payer", async (c) => {
