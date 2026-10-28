@@ -6,7 +6,7 @@
 import type { PaymentStepKey } from "./payments.core";
 
 export type StripeMode = "test" | "live";
-export const STRIPE_CARD_STEPS: PaymentStepKey[] = ["safety_check", "fixes"];
+export const STRIPE_CARD_STEPS: PaymentStepKey[] = ["safety_check", "fixes", "repeat_safety_check"];
 export const stripeCardAllowed = (step: PaymentStepKey) => STRIPE_CARD_STEPS.includes(step);
 export const stripeModeForJob = (jobSource: string | null | undefined): StripeMode => (jobSource === "qa_test" ? "test" : "live");
 export const stripeKeyMode = (secretKey: string | null | undefined): StripeMode | null =>

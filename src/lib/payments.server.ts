@@ -147,8 +147,11 @@ export async function jobPaymentView(jobId: string, now = new Date()) {
   const fixesCents = fixesCountedCents({ rectTotalCents: rect ? toCents(rect.customer_total_inc_gst) : 0, rectAcceptedAt: rect?.accepted_at ?? null, installAcceptedAt: quote?.accepted_at ?? null });
   // Audit R07: once the fixes are on the same Xero invoice its total already holds them — the plan's quote part stays
   // the accepted installation quote, so the grand total equals the Xero invoice total (fixes counted once).
-  const quoteTotalCents = planQuoteTotalCents({ invoiceTotalCents: toCents(inv.total_inc_gst), quoteTotalCents: quote ? toCents(quote.customer_total_inc_gst) : null, fixesCents });
-  const plan = paymentPlan({ quoteTotalCents, safetyCheckCents: safety.cents, fixesCents });
+  // Decision 233: while the owner owes the repeat safety check (PIESA), its price is part of their payment plan.
+  const repeatState = await (await import("./repeat-piesa.server")).repeatPiesaContext(jobId).then((c) => c.state).catch(() => null);
+  const repeatCents = repeatState && repeatState.payer === "owner" && (repeatState.stage === "owner_pay" || repeatState.stage === "offer") && (repeatState.priceIncGst ?? 0) > 0 ? toCents(repeatState.priceIncGst) : 0;
+  const quoteTotalCents = planQuoteTotalCents({ invoiceTotalCents: toCents(inv.total_inc_gst), quoteTotalCents: quote ? toCents(quote.customer_total_inc_gst) : null, fixesCents, repeatCents });
+  const plan = paymentPlan({ quoteTotalCents, safetyCheckCents: safety.cents, fixesCents, repeatCents });
   // Audit F01: reconciled (Xero live payments + card records not yet in Xero), never max(total_paid, ledger sum).
   const raw = await rawPaymentLedger(jobId, inv.id);
   const ledger = effectiveLedger(raw);
@@ -163,6 +166,7 @@ export async function jobPaymentView(jobId: string, now = new Date()) {
     // Jo 26 Oct 2026: the deposit is due BEFORE the install is booked (once the install is next); no booking hold.
     install_deposit: { requestedAt: bookedAt ?? (installDepositDueNow(job?.stage, piesaNow) ? now.toISOString() : null), dueAt: bookedAt ? holdExpiresAt : null },
     balance: { requestedAt: installDone?.scheduled_start ?? (job?.stage === "complete" ? now.toISOString() : null), dueAt: inv.balance_due_date ? `${inv.balance_due_date}T23:59:59+11:00` : null },
+    repeat_safety_check: { requestedAt: repeatCents > 0 ? now.toISOString() : null },
   };
   const steps = paymentSteps(plan, paidCents, facts, now.toISOString());
   const due = payableNow(plan, steps, paidCents);
