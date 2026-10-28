@@ -78,13 +78,20 @@ const rels: Rels = {
   assessments: { jobs: { table: "jobs", fk: "job_id", on: "base" } },
   job_assignments: { businesses: { table: "businesses", fk: "business_id", on: "base" }, profiles: { table: "profiles", fk: "user_id", on: "base" } },
 };
+// A6: the staged one-transaction save (docs/pending-migrations/add-installer-job-atomic.sql) runs here as it will once live;
+// tests/journey-a1-complete-route-db.test.ts keeps covering the step-by-step fallback (function not deployed).
+await db.exec("CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; CREATE ROLE service_role NOLOGIN;");
+await db.exec((await import("node:fs")).readFileSync("docs/pending-migrations/add-installer-job-atomic.sql", "utf8"));
 const q = async <T,>(sql: string, p: unknown[] = []) => (await db.query<T>(sql, p)).rows;
 const shim = embedShim(db, rels);
 let createdUsers = 0;
+let atomicDeployed = true; // A6: false = the staged function is not live yet (PostgREST's answer) → step-by-step save
 const admin = {
   ...shim,
   rpc: async (name: string, a: Record<string, unknown>) => {
     if (name === "has_role") return { data: true, error: null };
+    if (name === "add_installer_job" && !atomicDeployed) return { data: null, error: { code: "PGRST202", message: "Could not find the function public.add_installer_job(_payload) in the schema cache" } };
+    if (name === "add_installer_job") { try { return { data: await q("select * from public.add_installer_job($1::jsonb)", [JSON.stringify(a["_payload"])]), error: null }; } catch (e) { return { data: null, error: { message: (e as Error).message } }; } }
     if (name === "issue_owner_link_code") { const r = await q<{ id: string }>("insert into owner_link_codes (job_id, channel, destination_masked, code_hash, expires_at) values ($1,$2,$3,$4,$5) returning id", [a["_job"], a["_channel"], a["_masked"], a["_hash"], a["_expires"]]); return { data: r[0]!.id, error: null }; }
     if (name === "enqueue_external_action") { await q("insert into external_action_queue (job_id, action, target, payload, key) values ($1,$2,$3,$4,$5) on conflict (key) do nothing", [a["_job"], a["_action"], a["_target"], a["_payload"], a["_key"]]); return { data: null, error: null }; }
     return { data: null, error: { message: `unexpected rpc ${name}` } };
@@ -510,5 +517,29 @@ describe("8. A2 fix: a second Add a job at an address that already has an instal
     const before = (await q("select id from jobs")).length;
     await expect(os.startOnsiteReadyCheckFor(INST, BIZ, owner(88), { mode: "hivic" }, call, { leadOrigin: "owner_contacted" })).rejects.toThrow(/already has an open job/);
     expect((await q("select id from jobs")).length).toBe(before);
+  });
+});
+
+describe("9. A6: the signal drops after the save, then Try again", () => {
+  test("same request key twice → the same job number, no second job, no extra records", async () => {
+    const key = "6f1c2c1e-6a77-4b55-9d0e-2f3b1c9a0a99";
+    const a = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(99), { mode: "hivic" }, call, { leadOrigin: "owner_contacted", requestKey: key });
+    const before = await q("select (select count(*) from jobs) j, (select count(*) from owners) o, (select count(*) from owner_contact_consents) c, (select count(*) from workflow_events where event_type in ('installer_job_added','installer_contact_permission','electrician_choice_set')) e");
+    const b = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(99), { mode: "hivic" }, call, { leadOrigin: "owner_contacted", requestKey: key });
+    expect(b.jobId).toBe(a.jobId); expect(b.jobNumber).toBe(a.jobNumber);
+    expect(await q("select (select count(*) from jobs) j, (select count(*) from owners) o, (select count(*) from owner_contact_consents) c, (select count(*) from workflow_events where event_type in ('installer_job_added','installer_contact_permission','electrician_choice_set')) e")).toEqual(before);
+    expect(await q("select external_enquiry_id from jobs where id=$1", [a.jobId])).toEqual([{ external_enquiry_id: `onsite:${key}` }]);
+  });
+  test("until add_installer_job is live the step-by-step save still saves everything, HIV-lead flag included", async () => {
+    atomicDeployed = false;
+    try {
+      const [p] = await q<{ id: string }>("insert into properties (address_line, suburb, postcode, state) values ('98 Test Street','Frankston','3199','VIC') returning id");
+      await q("insert into jobs (property_id, stage, source, channel) values ($1,'enquiry','qa_test','hivic_sourced')", [p!.id]);
+      const r = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(98), { mode: "hivic" }, call, { leadOrigin: "owner_contacted", requestKey: "6f1c2c1e-6a77-4b55-9d0e-2f3b1c9a0a98" });
+      expect((await q<{ event_type: string }>("select event_type from workflow_events where job_id=$1 and event_type in ('electrician_choice_set','duplicate_address_linked','installer_job_added','installer_contact_permission') order by created_at", [r.jobId])).map((e) => e.event_type))
+        .toEqual(["electrician_choice_set", "duplicate_address_linked", "installer_job_added", "installer_contact_permission"]);
+      expect(await q("select consent_status from owner_contact_consents where job_id=$1", [r.jobId])).toEqual([{ consent_status: "granted" }]);
+      expect(await q("select electrician_choice from jobs where id=$1", [r.jobId])).toEqual([{ electrician_choice: "hivic_organise" }]);
+    } finally { atomicDeployed = true; }
   });
 });

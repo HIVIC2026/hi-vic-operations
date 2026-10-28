@@ -25,6 +25,11 @@ export const restoreCustomer = (raw: unknown): OnsiteInput => {
   const s = (k: keyof OnsiteInput) => (typeof d[k] === "string" ? (d[k] as string) : "");
   return { full_name: s("full_name"), address_line: s("address_line"), suburb: s("suburb"), postcode: s("postcode"), phone: s("phone"), email: s("email"), contact_permission: false, consent_by: null, address_verified: d.address_verified === true };
 };
+/** A6: the draft also carries its `request_key` (one per draft), so "Try again" after a reload finishes the same job. */
+export const restoreRequestKey = (raw: unknown): string | null => {
+  const k = raw && typeof raw === "object" ? (raw as Record<string, unknown>)["request_key"] : null;
+  return typeof k === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(k) ? k : null;
+};
 
 /** On the phone the address must also be picked from the Google list (Jo 24 Oct); sample screens type freely. */
 export const customerProblems = (c: OnsiteInput, opts: { requirePicked?: boolean } = {}) =>

@@ -16,7 +16,7 @@ import { a1ReadyCheckTimeBlockers, allowedReadyCheckDays, allowedReadyCheckTimes
 import { installTimeLabel } from "@/lib/install-days.core";
 import { ELECTRICIAN_CHOICE_QUESTION, defaultElectricianChoice, addJobElectricianProblem, addJobUsual, electricianChoiceOptions, type ElectricianChoice } from "@/lib/electrician-choice.core";
 import {
-  ADD_JOB_OFFLINE_NOTE, BUSY_LABEL, ELECTRICIAN_CARD, OWNER_CARD_TITLE, SAVE_LABEL, VISIT_CARD, VISIT_FIELD_HINT, WHAT_HAPPENS_NEXT, addedView, blankCustomer, customerProblems, dayOptionLabel, errorSummary, fieldErrors, formLabel, outcomeFor, restoreCustomer,
+  ADD_JOB_OFFLINE_NOTE, BUSY_LABEL, ELECTRICIAN_CARD, OWNER_CARD_TITLE, SAVE_LABEL, VISIT_CARD, VISIT_FIELD_HINT, WHAT_HAPPENS_NEXT, addedView, blankCustomer, customerProblems, dayOptionLabel, errorSummary, fieldErrors, formLabel, outcomeFor, restoreCustomer, restoreRequestKey,
   saveErrorMessage, visitPayload, visitProblems, type AddJobBooking, type VisitPick,
 } from "@/lib/add-job-flow.core";
 import { firstName } from "@/lib/installer-screens.core";
@@ -48,18 +48,20 @@ export function AddJobFlow({ businessId, onReset }: { businessId: string; onExit
   const [electrician, setElectrician] = useState<ElectricianChoice | null>(null);
   // A1: asked fresh every time (not kept in the phone draft).
   const [leadOrigin, setLeadOrigin] = useState<LeadOrigin | null>(null);
+  // A6: one request key per draft, kept across Try again and reloads (in the phone draft); a new one on "Add another job".
+  const [requestKey, setRequestKey] = useState<string>(() => crypto.randomUUID());
   useEffect(() => { if (options.isSuccess && electrician === null) setElectrician(defaultElectricianChoice(pickable)); }, [options.isSuccess]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Poor signal on site: typed details stay on the phone (never the consent tick) until saved.
-  useEffect(() => { try { const d = localStorage.getItem(DRAFT_KEY); if (d) setCustomer(restoreCustomer(JSON.parse(d))); } catch { /* ignore */ } }, []);
-  useEffect(() => { try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...customer, contact_permission: false, consent_by: null })); } catch { /* ignore */ } }, [customer]);
+  useEffect(() => { try { const d = localStorage.getItem(DRAFT_KEY); if (d) { const raw = JSON.parse(d); setCustomer(restoreCustomer(raw)); const k = restoreRequestKey(raw); if (k) setRequestKey(k); } } catch { /* ignore */ } }, []);
+  useEffect(() => { try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...customer, contact_permission: false, consent_by: null, request_key: requestKey })); } catch { /* ignore */ } }, [customer, requestKey]);
   useEffect(() => { if (shown.length) bannerRef.current?.focus(); }, [shown]);
   // Fixing an answer clears the old hint list; it is rebuilt on the next tap.
   useEffect(() => { setShown([]); }, [customer, visit, leadOrigin]);
 
   const start = useServerFn(startOnsiteReadyCheck);
 
-  if (saved) return <SavedResult saved={saved} onAddAnother={() => { setSaved(null); setCustomer(blankCustomer()); setVisit({ day: "", time: "" }); setElectrician(defaultElectricianChoice(pickable)); setLeadOrigin(null); onReset?.(); }} />;
+  if (saved) return <SavedResult saved={saved} onAddAnother={() => { setSaved(null); setCustomer(blankCustomer()); setVisit({ day: "", time: "" }); setElectrician(defaultElectricianChoice(pickable)); setLeadOrigin(null); setRequestKey(crypto.randomUUID()); onReset?.(); }} />;
 
   const problems = (): string[] => {
     const v = visitPayload(visit);
@@ -75,7 +77,7 @@ export function AddJobFlow({ businessId, onReset }: { businessId: string; onExit
     inFlight.current = true; setBusy(true);
     try {
       const choice: ElectricianChoice = electrician ?? defaultElectricianChoice(pickable);
-      const r = await start({ data: { businessId, owner: customer, visit: visitPayload(visit), leadOrigin, electricianChoice: choice } });
+      const r = await start({ data: { businessId, owner: customer, visit: visitPayload(visit), leadOrigin, requestKey, electricianChoice: choice } });
       try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
       setSaved({ jobId: r.jobId, jobNumber: r.jobNumber ?? null, booking: r.booking, state: r.state, customer, visit, electrician: { choice, usualName: pickable?.name ?? null } });
     } catch (e) { setErr(saveErrorMessage(e instanceof Error ? e.message : null)); }
