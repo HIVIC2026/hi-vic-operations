@@ -25,8 +25,12 @@ const MONEY = /\$|\b\d[\d,]*(?:\.\d{1,2})?\s*(?:inc|ex)\.?\s*GST\b/i;
 /** A "$" or an "… inc GST" / "… ex GST" amount. Only used on SYSTEM text (rebate-form field labels), never as the guard
  *  for typed text — typed text is never passed to non-owners at all. */
 export const hasPrice = (s: string | null | undefined): boolean => typeof s === "string" && MONEY.test(s);
-/** Belt and braces on the lists below: an entry that could name an amount never makes it in. */
-const priceFree = (s: string) => !/\$|GST|%|\d[\d,]*\.\d\d/.test(s);
+/** The only number forms the system texts below use: counts of days / years / hours / times, dates, "Section N",
+ *  "Gate N". Anything else with a digit (a bare "349") could be money. */
+const KNOWN_NUMBERS = /\b\d+(?:–\d+)? (?:new |install )?days\b|\b\d+ (?:years|hours|safety check times)\b|\b\d{1,2} (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4}\b|\b(?:Section|Gate) \d+\b/g;
+/** Belt and braces on the lists below: an entry that could name an amount never makes it in — no "$", "GST", "%" or
+ *  cents, and no digit outside the known count/duration/date forms. */
+export const priceFree = (s: string) => !/\$|GST|%|\d[\d,]*\.\d\d/.test(s) && !/\d/.test(s.replace(KNOWN_NUMBERS, ""));
 
 /**
  * jobs.next_action texts a non-owner may see as written. Each is a fixed text from a system writer (grep
@@ -77,8 +81,11 @@ export const CREW_NEXT_ACTIONS: readonly string[] = [...new Set([
 ].filter(priceFree))];
 const NEXT_ACTIONS = new Set(CREW_NEXT_ACTIONS);
 /** "Needs finishing: …(add) <basics> on the Mitti form" (ready-check-basics.core `needsFinishingFromMissing`, mitti-pickup
- *  `needsFinishingText`): the items are plain words only — no digits, no "$" — so the line can't carry an amount. */
+ *  `needsFinishingText`): the items are plain words only — no digits, no "$", and no money word (a spelled-out amount
+ *  or "owner pays …") — so the line can't carry an amount. The price is never a Mitti item (decision 278). */
 const NEEDS_FINISHING = /^Needs finishing: (?:add )?[a-z][a-z /,]* on the Mitti form$/;
+const MONEY_WORD = /\b(?:dollars?|cents?|gst|pays?|price|cost)\b/i;
+const needsFinishingOk = (s: string) => NEEDS_FINISHING.test(s) && !MONEY_WORD.test(s);
 
 /** jobs.next_action as this viewer may see it. Owner: unchanged. Others: allow-listed text as written, the repeat
  *  safety check as its price-free line, anything else the set line. */
@@ -86,7 +93,7 @@ export function nextActionForViewer(text: string | null | undefined, owner: bool
   if (text == null) return null;
   if (owner) return text;
   if (text.startsWith(REPEAT_PIESA_LAPSED)) return CREW_REPEAT_SAFETY_CHECK_LINE;
-  return NEXT_ACTIONS.has(text) || NEEDS_FINISHING.test(text) ? text : CREW_NEXT_LINE;
+  return NEXT_ACTIONS.has(text) || needsFinishingOk(text) ? text : CREW_NEXT_LINE;
 }
 
 /** jobs.hold_reason as this viewer may see it. Every writer is office-typed (hold disposition / guarded stage summary /

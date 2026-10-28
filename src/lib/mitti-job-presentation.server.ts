@@ -1,6 +1,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { installerQuoteLine, quoteLineForViewer } from "./installer-quote-status.core";
 import { needsFinishingTask, jobCardLine } from "./trade-view.core";
+import { nextActionForViewer } from "./crew-no-price.core";
 
 /** Presentation only; reads the linked form, the quote status and existing next-action rules. */
 export async function mittiJobPresentation(jobId: string, userId: string, pre?: import("./trade-view.server").TradeJobAccess) {
@@ -19,7 +20,8 @@ export async function mittiJobPresentation(jobId: string, userId: string, pre?: 
   const f = facts.get(jobId);
   // Jo 28 Oct 2026: crew never see a price — no not-signed-up note ($349) for anyone but the business owner.
   const next = a.applies ? quoteLineForViewer(installerQuoteLine(a), c.boss)
-    : needsFinishingTask(j?.next_action ?? "") ?? (f ? jobCardLine(statusView(c, f)) : "You: finish the Ready Check in Mitti");
+    // next_action can be office-typed: only the job business's owner gets it as written (crew-no-price.core allow-list).
+    : needsFinishingTask(nextActionForViewer(j?.next_action, c.boss) ?? "") ?? (f ? jobCardLine(statusView(c, f)) : "You: finish the Ready Check in Mitti");
   const electrical = e?.details as unknown as import("./usual-electrician.core").MittiElectricianResolution | null;
   // Decision 369: the job page names the electrician only — no declared electrician price (decision 353: their own
   // onboarding rate is the only rate, and it belongs on the quote, not here).

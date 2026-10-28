@@ -863,6 +863,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     c.kind === "installer" ? mittiJobPresentation(jobId, userId, c).catch(() => ({ applies: false as const })) : Promise.resolve({ applies: false as const }),
     c.boss ? tradeMoneyRows(c.biz.id, c.kind, c.isTest).then((rows) => rows.filter((r) => r.jobId === jobId && r.kind === "installation")) : Promise.resolve([] as Awaited<ReturnType<typeof tradeMoneyRows>>),
   ]);
+  // Jo 28 Oct 2026 (rule 3): next_action can be office-typed — non-owners get only allow-listed text (crew-no-price.core).
   const qq = quote.quote as { sent_at?: string | null; accepted_at?: string | null } | null;
   // Approved states (decision 234): the dates and names each panel prints, every one a recorded fact.
   // Decision 251: the owner's side is read only once the install is booked (the M2-install-booked state); nothing is read before that.
@@ -891,7 +892,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     readyCheck: { bookedAt: rcBook?.scheduled_start ?? null, done: rcBook?.status === "completed" },
     install: { bookedAt: inBook?.scheduled_start ?? null, recordedAt: j?.installation_completed_at ?? null, form, rebateSigned, formCompletedAt: decl?.signed_at ?? null, evidenceChecked: Array.isArray(evidenceBlockers) ? evidenceBlockers.length === 0 : false, crew, ownerReady },
     form: mitti.applies
-      ? { linked: true, auditId: mitti.auditId, completed: mitti.completed, missing: mitti.missing, stops: mitti.stops, electrician: mitti.electrician as string | null, needsFinishing: needsFinishingTask(j?.next_action ?? ""), needsFinishingItems: needsFinishingList(j?.next_action ?? ""), completedAt: basicsDone?.created_at ?? null, hasAnswers: mitti.hasAnswers as boolean | null }
+      ? { linked: true, auditId: mitti.auditId, completed: mitti.completed, missing: mitti.missing, stops: mitti.stops, electrician: mitti.electrician as string | null, needsFinishing: needsFinishingTask(nextActionForViewer(j?.next_action, c.boss) ?? ""), needsFinishingItems: needsFinishingList(nextActionForViewer(j?.next_action, c.boss) ?? ""), completedAt: basicsDone?.created_at ?? null, hasAnswers: mitti.hasAnswers as boolean | null }
       : { linked: false, auditId: null as string | null, completed: false, missing: [] as string[], stops: [] as string[], electrician: null as string | null, needsFinishing: null as string | null, needsFinishingItems: [] as string[], completedAt: null as string | null, hasAnswers: null as boolean | null },
     // Decision 278: only whether the boss has entered the price (true/false on the installer's own jobs, null otherwise).
     // The price itself is read by the boss-only card (installer-price.functions) and never travels with the page.

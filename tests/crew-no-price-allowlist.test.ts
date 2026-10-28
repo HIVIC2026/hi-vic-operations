@@ -61,6 +61,25 @@ describe("the allow-list (pure)", () => {
     // "Needs finishing …" only with plain words (no digits / $), so it can't carry an amount.
     expect(nextActionForViewer("Needs finishing: add 349 on the Mitti form", false)).toBe(NEXT_LINE);
     expect(nextActionForViewer("Needs finishing: $ on the Mitti form", false)).toBe(NEXT_LINE);
+    // Fix round 5: no money word either, so a spelled-out or bare amount can't pass.
+    for (const w of ["dollar", "dollars", "cents", "gst", "GST", "pay", "pays", "price", "cost"]) {
+      const t = `Needs finishing: owner ${w} on the Mitti form`;
+      expect(nextActionForViewer(t, false)).toBe(NEXT_LINE);
+      expect(nextActionForViewer(t, true)).toBe(t);
+    }
+    expect(nextActionForViewer("Needs finishing: add three hundred dollars on the Mitti form", false)).toBe(NEXT_LINE);
+    expect(nextActionForViewer("Needs finishing: owner pays three forty nine on the Mitti form", false)).toBe(NEXT_LINE);
+  });
+
+  test("fix round 5: the list filter drops any digit outside the known count/duration/date forms", async () => {
+    const { priceFree, CREW_NEXT_ACTIONS, CREW_TIMELINE_SUMMARIES } = await import("../src/lib/crew-no-price.core");
+    for (const t of ["Owner pays 349", "Call owner re 349", "Deposit 1000 due", "349", "Book PIESA 7–14 days before installation, 349"]) expect(priceFree(t)).toBe(false);
+    for (const t of ["Deposit paid – installer to offer 3 install days", "Book PIESA 7–14 days before installation", "Home built in the last 5 years — does not qualify under the five-year rule",
+      "Waiting for the electrician to offer the owner 3 safety check times (within 24 hours)", "Eligibility set – held until general rollout starts 1 Oct 2026",
+      "VEEC assignment form signed by AP representative (Section 3 Part A)", "Admin corrected Gate 1 – back to eligibility review",
+      "10 days since the install and the owner has not signed the VEEC assignment form. Needs Home Insulation Victoria"]) expect(priceFree(t)).toBe(true);
+    // Every entry still passes the tighter filter (nothing dropped by it), and none has a bare number.
+    for (const t of [...CREW_NEXT_ACTIONS, ...CREW_TIMELINE_SUMMARIES]) expect(priceFree(t)).toBe(true);
   });
 
   test("no allow-list entry can carry a price; the one stored stage line with $349 is left out", async () => {
