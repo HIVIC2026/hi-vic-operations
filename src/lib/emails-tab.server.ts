@@ -29,12 +29,12 @@ export async function loadEmailsTab(): Promise<EmailsTab> {
   const items = await openEmailItems(400);
   const changes: JobEmailRow[] = items.changes.filter((c) => !!c.jobId).map((c) => {
     const d = c as unknown as Det;
-    return { eventId: c.eventId, jobId: c.jobId as string, jobNumber: c.jobNumber, at: c.at, intent: str(d["intent"]), messageId: str(d["message_id"]), from: str(d["from"]), subject: str(d["subject"]) ?? str(d["phrase"]), label: str(d["label"]) };
+    return { eventId: c.eventId, jobId: c.jobId as string, jobNumber: c.jobNumber, at: c.at, intent: str(d["intent"]), messageId: str(d["message_id"]), from: str(d["from"]), subject: str(d["subject"]) ?? str(d["phrase"]), label: str(d["label"]), threadId: str(d["thread_id"]), receivedAt: str(d["received_at"]) };
   });
   const unmatched: UnmatchedRow[] = items.unmatched.map((u) => {
     const d = u as unknown as Det;
     const guesses = Array.isArray(d["guesses"]) ? (d["guesses"] as { job_id?: string; job_number?: string | null }[]).filter((g) => !!g.job_id).map((g) => ({ job_id: g.job_id as string, job_number: g.job_number ?? null })) : [];
-    return { eventId: u.eventId, at: u.at, messageId: str(d["message_id"]), from: str(d["from"]), fromName: str(d["from_name"]), subject: str(d["subject"]), snippet: str(d["snippet"]), guesses };
+    return { eventId: u.eventId, at: u.at, messageId: str(d["message_id"]), from: str(d["from"]), fromName: str(d["from_name"]), subject: str(d["subject"]), snippet: str(d["snippet"]), guesses, threadId: str(d["thread_id"]), receivedAt: str(d["received_at"]) };
   });
   const ids = [...new Set([...changes, ...unmatched].map((r) => r.messageId).filter((x): x is string => !!x))];
   const jobIds = [...new Set(changes.map((c) => c.jobId))];
@@ -78,7 +78,10 @@ export async function loadEmailsTab(): Promise<EmailsTab> {
   const manuallyAnswered = new Set(manualReplies.filter((r) => r.details?.status === "sent").map((r) => r.details?.unmatched_event_id));
   for (const u of unmatched) if (u.messageId && manuallyAnswered.has(u.eventId)) answeredNoJobMessageIds.add(u.messageId);
   const openJobIds = new Set(owners.filter((r) => !r.deleted_at && r.stage !== "cancelled" && r.stage !== "complete").map((r) => r.id));
-  return buildEmailsTab({ changes, unmatched, jobDrafts, noJobDrafts, closedJobDrafts, inboundByMessage, ownerNameByJob, autoRepliedSenders, answeredNoJobMessageIds, openJobIds });
+  const threads = [...new Set([...changes, ...unmatched].map((r) => r.threadId).filter((t): t is string => !!t))];
+  const outlookSent = await many<{ message: { threadId?: string; at?: string; to?: string[] } }>(threads, (part) => loose.from("outlook_message_work").select("message").eq("message->>direction", "outbound").in("message->>threadId", part));
+  const outlookReplies = outlookSent.map((r) => ({ threadId: r.message?.threadId ?? null, at: r.message?.at ?? null, recipients: r.message?.to ?? [] }));
+  return buildEmailsTab({ changes, unmatched, jobDrafts, noJobDrafts, closedJobDrafts, inboundByMessage, ownerNameByJob, autoRepliedSenders, answeredNoJobMessageIds, outlookReplies, openJobIds });
 }
 
 async function eventOf(id: string, type: string) {
