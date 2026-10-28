@@ -10,7 +10,9 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-28-installer-pages-part1-design.md` — section **B only** (B1–B8).
 
-## Open questions for Jo (proposed answers are used in this plan until Jo says otherwise)
+## Jo's answers (29 Oct 2026)
+
+Questions 1–4 approved by Jo as written. Question 5 follows from her spec choice to remove the old offer way.
 
 1. **B4 words.** "Moving automatically" → **"Waiting on others"** (tile sub-line "Nothing for you to do now"); "Needs chasing" → **"Taking a while"** (empty line "Nothing is taking a while right now.").
 2. **B6 labels.** Accepted job (booked or times sent) → **"Job accepted"**; new offer (installer and electrician) → **"New job offer"**.
