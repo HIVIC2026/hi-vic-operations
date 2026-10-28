@@ -1,4 +1,5 @@
-// Jo 24 Oct 2026: once per accepted quote, email the job's installer. Through the office sender, so it pauses with the
+// Jo 24 Oct 2026: once per accepted quote, email the job's installer. Jo 28 Oct 2026: sent once the owner has PAID the
+// safety check (emailInstallerOnSafetyCheckPaid, called from afterPaymentsChanged), not when the quote is accepted. Through the office sender, so it pauses with the
 // master switch; TEST jobs / TEST partners go only to Jo's TEST inbox. Never blocks or undoes the acceptance.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
@@ -30,4 +31,15 @@ export async function emailInstallerQuoteAccepted(jobId: string, quoteId: string
   }
   await logEvent(jobId, null, "installer_accepted_email", `Installer told the owner accepted (${status}: ${detail})`, { quote_id: quoteId, status, to: prof.email }, { internal: true });
   return status;
+}
+
+/** Called when the safety-check payment lands: sends the installer email for the invoice's accepted quote (once per quote). */
+export async function emailInstallerOnSafetyCheckPaid(jobId: string, invoiceId: string): Promise<string> {
+  const { data: inv } = await admin.from("invoices").select("quote_id, quotes(status)").eq("id", invoiceId).maybeSingle();
+  const quoteId = (inv?.quote_id as string | null) ?? null;
+  if (!quoteId) return "not due — no quote";
+  const q = inv?.quotes as { status: string | null } | { status: string | null }[] | null;
+  const status = Array.isArray(q) ? q[0]?.status : q?.status;
+  if (status !== "accepted") return "not due — quote not accepted";
+  return emailInstallerQuoteAccepted(jobId, quoteId);
 }

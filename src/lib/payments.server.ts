@@ -220,7 +220,11 @@ export async function afterPaymentsChanged(jobId: string, invoiceId: string, act
     await admin.from("jobs").update({ next_action: "Deposit paid – installer to offer 3 install days" }).eq("id", jobId);
   }
   // Decision 325: O22 "You're in!" + safety check receipt once that payment is in (one per accepted quote; best-effort).
-  if (isStepPaid(v.steps, "safety_check")) await (await import("./owner-email-triggers.server")).onSafetyCheckPaid(jobId, invoiceId).catch((e) => console.error("you're in email skipped", (e as Error).message));
+  if (isStepPaid(v.steps, "safety_check")) {
+    await (await import("./owner-email-triggers.server")).onSafetyCheckPaid(jobId, invoiceId).catch((e) => console.error("you're in email skipped", (e as Error).message));
+    // Jo 28 Oct 2026: the installer's "Owner accepted" email goes now, once the safety check is paid (once per quote; best-effort).
+    await (await import("./installer-accepted-email.server")).emailInstallerOnSafetyCheckPaid(jobId, invoiceId).catch((e) => console.error("installer accepted email skipped", (e as Error).message));
+  }
   if (v.plan.fixesCents > 0 && isStepCleared(v.steps, "fixes")) {
     await once("fixes_payment_received", "Electrical fixes paid – the fixes can be scheduled", { amount_cents: v.plan.fixesCents });
     // Decision 366: a fixes time the owner already picked becomes the booking now (the 15-minute tick retries otherwise).
