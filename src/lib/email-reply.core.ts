@@ -205,6 +205,7 @@ const PAY_STEP_WORDS: Record<DueStep["key"], { what: string; how: string }> = {
   fixes: { what: "electrical fixes payment", how: "by card or bank transfer, with no fee" },
   install_deposit: { what: "booking payment (10%)", how: "by bank transfer or PayID" },
   balance: { what: "balance", how: "by bank transfer or PayID" },
+  repeat_safety_check: { what: "repeat safety check (PIESA) payment", how: "by card or bank transfer, with no fee" },
 };
 
 /** Decision 245: the drafted reply matches the change the owner asked for (nothing is changed until the office taps Apply). */
