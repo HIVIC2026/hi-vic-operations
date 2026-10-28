@@ -257,6 +257,8 @@ export type PaymentRecord = {
   stripeIds?: string[] | null;
   /** Stripe refund rows: Stripe's cumulative refunded amount for the PaymentIntent at that delivery. */
   refundedTotalCents?: number | null;
+  /** Xero payment ids the office marked "Two separate payments" against this card row: never fuzzy-paired with it. */
+  notSameAs?: string[] | null;
 };
 /** One `owner_payment_recorded` / `owner_payment_reversed` workflow event → ledger record (pure; shared by every reader). */
 export function ledgerRecordFromEvent(eventType: string, createdAt: string, actorId: string | null, d: Record<string, unknown> | null | undefined): PaymentRecord {
@@ -318,12 +320,26 @@ function refundedCents(r: PaymentRecord, ledger: PaymentRecord[]): number {
 export const stripeRefundedSoFarCents = (ledger: PaymentRecord[], paymentKey: string) =>
   refundStateCents(ledger.filter((x) => x.kind === "reversal" && x.source === "card" && (x.stripeIds ?? []).includes(paymentKey)));
 
+/** Identity of a card row + Xero payment pair (used by the unclear row and by the office's "Two separate payments" mark). */
+export const paymentPairKey = (r: { stripeIds?: string[] | null; id?: string }, xeroPaymentId: string | null) => `${(r.stripeIds ?? [])[0] ?? r.id ?? ""}|${xeroPaymentId ?? ""}`;
+/** Attach the office's "Two separate payments" marks (pair keys) to the card rows they name. */
+export function withSeparateMarks<T extends PaymentRecord & { id?: string }>(ledger: T[], pairKeys: Iterable<string>): T[] {
+  const keys = [...pairKeys];
+  if (!keys.length) return ledger;
+  return ledger.map((r) => {
+    const prefix = paymentPairKey(r, null); // "<card key>|"
+    const mine = prefix.length > 1 ? keys.filter((k) => k.startsWith(prefix) && k.length > prefix.length).map((k) => k.slice(prefix.length)) : [];
+    return mine.length ? { ...r, notSameAs: mine } : r;
+  });
+}
+
 export type UnclearPaymentPair<T> = { record: T; xero: XeroPaymentFact };
 
 /** Pure: which card/office records are already in Xero.
  *  1. Exact: the Xero payment Reference holds one of the record's Stripe ids (PaymentIntent / charge / session).
  *  2. Legacy office rows only (no receipt identity exists for them): same amount within 10 days, closest date first.
- *  3. Card rows with no identity match: same rule as 2, but the pair is also returned in `unclear` for the office to confirm.
+ *  3. Card rows with no identity match: same rule as 2, but the pair is also returned in `unclear` for the office to confirm,
+ *     unless the office marked that pair "Two separate payments" (`notSameAs`): then both count and nothing is unclear.
  *  Each Xero payment claims at most one record (an id match or an earlier row's pairing is never paired again).
  *  A card row's Stripe refunds reduce it while it is unmatched; once Xero holds that money Xero is the record. */
 export function reconcilePayments<T extends PaymentRecord>(ledger: T[], xeroPayments: XeroPaymentFact[]) {
@@ -343,7 +359,7 @@ export function reconcilePayments<T extends PaymentRecord>(ledger: T[], xeroPaym
   const closest = (r: T, skip: Set<number>) => {
     let best = -1, bestGap = Infinity;
     live.forEach((p, k) => {
-      if (claimed.has(k) || skip.has(k) || p.amountCents !== Math.round(r.amountCents) || refHolds(p, allIds) || !withinWindow(p.paidAt, r.paidAt)) return;
+      if (claimed.has(k) || skip.has(k) || (p.paymentId && (r.notSameAs ?? []).includes(p.paymentId)) || p.amountCents !== Math.round(r.amountCents) || refHolds(p, allIds) || !withinWindow(p.paidAt, r.paidAt)) return;
       const gap = Math.abs(Date.parse(p.paidAt) - Date.parse(r.paidAt));
       if (gap < bestGap) { best = k; bestGap = gap; }
     });

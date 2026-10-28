@@ -3,7 +3,7 @@
 //      deliveries for one PaymentIntent (checkout.session.completed + payment_intent.succeeded) write ONE ledger row,
 //      apply the money once and run the downstream payment steps once — exercised through the REAL stripe.server /
 //      payments.server code with both callbacks forced to read an empty ledger before either inserts.
-// R02: a $349 card payment and a separate $349 bank payment credit $698 (and are raised once for the office); the same
+// R02: a $349 card payment and a same-amount $349 bank payment count once (and are raised once for the office to confirm); the same
 //      card receipt later in Xero (Stripe id in the Reference) credits $349 once; repeats, reversals and refunds keep the
 //      right net amount.
 // Fixture mirrors drizzle 0000 workflow_events (+ the append-only trigger); job_id is nullable as in the live types.
@@ -198,7 +198,7 @@ describe("R06: concurrent Stripe callbacks through the real handler", () => {
   });
 });
 
-describe("R02: separate payments count separately; one receipt counts once", () => {
+describe("R02: a card + same-amount Xero pair counts once until the office confirms; one receipt counts once", () => {
   beforeEach(() => reset(true));
   test("$349 card + separate $349 bank transfer (no Stripe id in Xero) → counted once ($349), still raised once for the office", async () => {
     await recordStripePayment(fact(intentEvent()));

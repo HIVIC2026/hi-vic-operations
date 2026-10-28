@@ -32,3 +32,15 @@ export const refreshPayNowLink = createServerFn({ method: "POST" }).middleware([
     try { return { url: await refreshOnlineInvoiceUrl(data.invoiceId, context.userId) }; }
     catch (e) { throw new WorkflowError((e as Error).message); }
   });
+
+/** Office: an unclear card + Xero pair is really TWO separate payments (one append-only event; both then count). */
+export const markPaymentsSeparateFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ invoiceId: uuid, pairKey: z.string().min(3).max(300) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { data: inv } = await admin.from("invoices").select("id, job_id").eq("id", data.invoiceId).maybeSingle();
+    if (!inv) throw new WorkflowError("Invoice not found.");
+    const { markPaymentsSeparate } = await import("./payments.server");
+    try { return { marked: await markPaymentsSeparate(inv.job_id, inv.id, data.pairKey, context.userId) }; }
+    catch (e) { throw new WorkflowError((e as Error).message); }
+  });

@@ -267,7 +267,7 @@ export async function syncInvoiceFromXero(invoiceId: string, actorId: string | n
       const fullList = xeroPaymentsListComplete(x.Payments, reconciledPaidCents([], xeroPaymentFacts(xeroPayments)), paidCents);
       ledgerChanged = await recordXeroPayments(invoiceId, inv.job_id, xeroPayments, actorId, { fullList });
       paidCents = await reconciledInvoicePaidCents(inv.job_id, invoiceId, { xeroPayments, xeroAmountPaid: ev.paid });
-      // Audit R02: a same-amount card + Xero pair with no shared Stripe id counts twice and is raised for the office once.
+      // Audit R02: a same-amount card + Xero pair with no shared Stripe id counts once and is raised for the office to confirm.
       const { flagUnclearPaymentMatches } = await import("./payments.server");
       await flagUnclearPaymentMatches(inv.job_id, invoiceId, xeroPayments).catch((e) => console.error("payment match check skipped", (e as Error).message));
     } catch (e) { console.error("xero payment ledger skipped", (e as Error).message); }

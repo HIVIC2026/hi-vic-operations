@@ -3,7 +3,7 @@ import { RectWindowChoice, useRectWindows } from "./rectification-times";
 import { useRef, useState } from "react";
 import { requiredDepositCents } from "@/lib/payment-gate.core";
 import { paymentPlan } from "@/lib/payments.core";
-import { getJobPayments, refreshPayNowLink } from "@/lib/payments.functions";
+import { getJobPayments, markPaymentsSeparateFn, refreshPayNowLink } from "@/lib/payments.functions";
 import { QUOTE_EXPIRED_OWNER_MESSAGE, quoteExpiresAt, quoteIsExpired } from "@/lib/quote-expiry.core";
 import { ownerPanelQuotes } from "@/lib/owner-quote-visibility.core";
 import { veecDiscountLabel } from "@/lib/estimate.core";
@@ -419,6 +419,7 @@ const SOURCE_LABEL: Record<string, string> = { xero: "Xero", bank: "Bank transfe
 function PaymentStepsBlock({ jobId, invoiceId, hasXeroInvoice }: { jobId: string; invoiceId: string; hasXeroInvoice: boolean }) {
   const load = useServerFn(getJobPayments);
   const refresh = useAction(refreshPayNowLink);
+  const separate = useAction(markPaymentsSeparateFn);
   const { data: p } = useQuery({ queryKey: ["job-payments", jobId], queryFn: () => load({ data: { jobId } }) });
   if (!p || p.invoiceId !== invoiceId) return null;
   return (
@@ -436,6 +437,12 @@ function PaymentStepsBlock({ jobId, invoiceId, hasXeroInvoice }: { jobId: string
         {p.onlineInvoiceUrl ? <a href={p.onlineInvoiceUrl} target="_blank" rel="noreferrer" className="font-semibold text-primary underline">Xero online invoice (office view)</a> : <span className="text-muted-foreground">No Xero online invoice link yet{hasXeroInvoice ? "" : " – create the Xero invoice first"}.</span>}
         {hasXeroInvoice && <Button size="sm" variant="outline" onClick={() => refresh({ invoiceId }, "Xero invoice link refreshed")}>Refresh Xero link</Button>}
       </div>
+      {p.unclearPairs.map((u) => (
+        <div key={u.pairKey} className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded bg-warning-soft px-2 py-1" data-testid="unclear-payment-pair">
+          <span>Card {aud(u.amountCents / 100)} and a same-amount Xero payment ({fmtDate(u.xeroPaidAt)}) have no Stripe id – counted once.</span>
+          <Button size="sm" variant="outline" onClick={() => separate({ invoiceId, pairKey: u.pairKey }, "Marked as two separate payments")}>Two separate payments</Button>
+        </div>
+      ))}
       {/* Decision 368: no manual payment entry — payments arrive only from Xero (sync/webhook) and Stripe (webhook). */}
       {p.ledger.length > 0 && <ul className="mt-2 divide-y">{p.ledger.map((r) => <li key={r.id} className="flex flex-wrap justify-between gap-2 py-1"><span>{aud(r.amountCents / 100)} · {SOURCE_LABEL[r.source] ?? r.source}{r.recordedByName ? ` · ${r.recordedByName}` : ""}{r.note ? ` · ${r.note}` : ""}</span><span className="text-muted-foreground">{fmtDateTime(r.paidAt)}</span></li>)}</ul>}
     </div>
