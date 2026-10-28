@@ -7,33 +7,43 @@
 // their own checks, including the unpriced / $0 blocker (fixes-quote-release.server `fixesQuoteSendBlocker`).
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent, requireJobRole } from "./workflow.server";
-import { REPAIR_PRICE_EVENT, REPAIR_PRICE_LOCKED, REPAIR_PRICE_NO_WORK, REPAIR_PRICE_STAGES, REPAIR_PRICE_STAGE_REFUSED, repairPriceNeeded, validateRepairPrice } from "./electrician-repair-price.core";
+import { REPAIR_PRICE_EVENT, REPAIR_PRICE_LOCKED, REPAIR_PRICE_NO_WORK, REPAIR_PRICE_REBUILD_FAILED, REPAIR_PRICE_STAGES, REPAIR_PRICE_STAGE_REFUSED, repairPriceNeeded, validateRepairPrice } from "./electrician-repair-price.core";
 import { a3ForJob, readRepairPrice, type StoredRepairPrice } from "./electrician-repair-price.server";
 
 type Sb = Parameters<typeof requireJobRole>[0];
 
-/** The fixes-quote stages where any pricing (repair total or an item) rebuilds the held draft (decision 354 stages). */
-const REBUILD_STAGES: readonly string[] = ["piesa_complete", "electrical_variation_pending", "rectification_required"];
+/** Where a repair total may BUILD a fixes quote that doesn't exist yet (the decision-354 stages). */
+const BUILD_STAGES: readonly string[] = ["piesa_complete", "electrical_variation_pending", "rectification_required"];
 
 /** A fixes quote that has been sent or accepted is never changed. */
 const sentOrAccepted = (q: { status: string; accepted_at?: string | null } | null) => !!q && (q.status !== "draft" || !!q.accepted_at);
 
+/** The rebuild failed: every unsent fixes draft on the job is held with a reason, so it can't go out with the old figures.
+ *  (`fixesQuoteSendBlocker` refuses a draft carrying this reason; Re-price on the office page builds a fresh one.) */
+async function holdUnsentFixesDrafts(jobId: string): Promise<void> {
+  const { error } = await admin.from("quotes").update({ release_state: "held", release_hold_reason: REPAIR_PRICE_REBUILD_FAILED }).eq("job_id", jobId).eq("kind", "rectification").eq("status", "draft");
+  if (error) console.error("could not hold the fixes draft after a failed rebuild", error.message);
+}
+
 /**
- * Rebuild the held (unsent) fixes quote after a price is set at piesa_complete / electrical_variation_pending /
- * rectification_required, so the office never has to Regenerate by hand. `build`: also build one when there is none yet
- * (the repair total). Never touches a sent or accepted quote; never sends. A failed rebuild is left to the office / tick.
+ * Rebuild the held (unsent) fixes quote after a price is set, so the office never has to Regenerate by hand: any existing
+ * draft at EVERY stage where a price can be set (`REPAIR_PRICE_STAGES`); a missing one is built only at the decision-354
+ * stages when `build` (the repair total). Never touches a sent or accepted quote; never sends. This never throws: the
+ * price is already saved. If the rebuild (or reading the newest quote) fails, the draft is held with a reason so it can't be
+ * sent with old figures, and "failed" is returned.
  */
-export async function rebuildHeldFixesQuote(jobId: string, actorId: string, stage: string, opts: { build: boolean }): Promise<"rebuilt" | "kept"> {
-  if (!REBUILD_STAGES.includes(stage)) return "kept";
-  const current = await (await import("./fixes-quote-current.server")).currentFixesQuote(jobId);
-  if (sentOrAccepted(current)) return "kept";
-  if (!current && !opts.build) return "kept";
+export async function rebuildHeldFixesQuote(jobId: string, actorId: string, stage: string, opts: { build: boolean }): Promise<"rebuilt" | "kept" | "failed"> {
+  if (!REPAIR_PRICE_STAGES.includes(stage)) return "kept";
   try {
+    const current = await (await import("./fixes-quote-current.server")).currentFixesQuote(jobId);
+    if (sentOrAccepted(current)) return "kept";
+    if (!current && !(opts.build && BUILD_STAGES.includes(stage))) return "kept";
     await (await import("./quotes.server")).generateRectificationQuote(jobId, actorId);
     return "rebuilt";
   } catch (e) {
     console.error("held fixes quote not rebuilt", (e as Error).message);
-    return "kept";
+    await holdUnsentFixesDrafts(jobId).catch((he) => console.error("could not hold the fixes draft", (he as Error).message));
+    return "failed";
   }
 }
 
@@ -96,6 +106,9 @@ export async function setRepairPrice(sb: Sb, jobId: string, userId: string, raw:
   if (!REPAIR_PRICE_STAGES.includes(job.stage)) throw new WorkflowError(REPAIR_PRICE_STAGE_REFUSED);
   const a3 = await a3ForJob(jobId);
   if (!a3.auditId || !a3.completed || !repairPriceNeeded(a3.short)) throw new WorkflowError(REPAIR_PRICE_NO_WORK);
+  // The repair list must read in full (counts, "Other" description) — the same rule as completing the PIESA.
+  const listed = (await import("./fixes-price.core")).fixesInclusionsFromTicks(a3.short ?? {});
+  if (!listed.ok) throw new WorkflowError(listed.reason ?? REPAIR_PRICE_NO_WORK);
   // A quote that has been sent or accepted is never changed.
   if (sentOrAccepted(await (await import("./fixes-quote-current.server")).currentFixesQuote(jobId))) throw new WorkflowError(REPAIR_PRICE_LOCKED);
   const { data: asg } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "electrician").eq("active", true).limit(1).maybeSingle();

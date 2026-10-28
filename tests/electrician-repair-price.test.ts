@@ -80,11 +80,23 @@ mock.module("../src/lib/sms.server", () => ({ sendRealSms: async (i: { type: str
 
 // The fixes quote builder: record each rebuild and the portal price it would read at that moment.
 const rebuilt: { jobId: string; source: unknown }[] = [];
+let rebuildFails = false;
 const realQuotes = await import("../src/lib/quotes.server");
 mock.module("../src/lib/quotes.server", () => ({ ...realQuotes, generateRectificationQuote: async (jobId: string) => {
+  if (rebuildFails) throw new Error("the quote builder is down");
   const { fixesPriceSourceForJob } = await import("../src/lib/electrician-repair-price.server");
   rebuilt.push({ jobId, source: await fixesPriceSourceForJob(jobId) });
   return "q-new";
+} }));
+
+// The newest-quote read can be made to fail on its Nth call (the save itself reads it once before the price is written).
+const realCurrent = await import("../src/lib/fixes-quote-current.server");
+const realCurrentFn = realCurrent.currentFixesQuote;
+let currentCalls = 0; let currentFailsOnCall = 0;
+mock.module("../src/lib/fixes-quote-current.server", () => ({ ...realCurrent, currentFixesQuote: async (jobId: string) => {
+  currentCalls++;
+  if (currentFailsOnCall && currentCalls >= currentFailsOnCall) throw new Error("The newest electrical fixes quote could not be checked.");
+  return realCurrentFn(jobId);
 } }));
 
 const sbAs = (role: "electrician" | "admin") => ({
@@ -314,9 +326,7 @@ describe("staff can still complete the PIESA when the A3 lists repair work but h
     expect(repairPriceNeeded(short(a3(null)))).toBe(true);
     expect(repairPriceNeeded(short([{ label: A3_REPAIR_NEEDED_LABEL, value: "Yes" }]))).toBe(false);
     expect(repairPriceNeeded(short([{ label: A3_REPAIR_NEEDED_LABEL, value: "No" }]))).toBe(false);
-    const s = readFileSync("src/lib/piesa-complete.server.ts", "utf8");
-    expect(s).toContain('const a3Lists = liveA3 && a.piesa_outcome === "fail" && (repairPriceNeeded(a3Short) || fixesPriceSource(a3Short).path === "a4_price");');
-    expect(s).toContain('if (!rectCount && a.no_rectification_confirmed !== true && !a3Lists) throw new WorkflowError(');
+    // The completion gate itself (the list must read in full) runs for real in tests/piesa-complete-repair-gate.test.ts.
   });
 });
 
@@ -352,42 +362,80 @@ describe("the fixes quote reads the portal price first", () => {
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Jo 28 Oct 2026 (added to Task 9): 24 hours after the owner's price link was sent with still no price, the job shows
-// exactly "Waiting on the electrician's price" on the office's Active jobs list. No reminder text. Office only.
+// exactly "Waiting on the electrician's price" on the office's Active jobs list. No reminder text. Office only. Fix round 1:
+// it clears whenever the price is no longer wanted (quote sent, job moved on, price in, form redone).
 describe("office alert: waiting on the electrician's price", () => {
   const NOW = Date.parse("2026-10-28T12:00:00Z");
   const hoursAgo = (h: number) => new Date(NOW - h * 3_600_000).toISOString();
-  const facts = (linkSentAt: string | null) => ({ id: JOB, stage: "piesa_complete", createdAt: "2026-10-01T00:00:00Z", lastActivityAt: null, enteredStageAt: hoursAgo(30), repairPriceLinkSentAt: linkSentAt });
+  const NOTICE = "Waiting on the electrician's price";
+  const facts = (linkSentAt: string | null, x: Record<string, unknown> = {}) => ({ id: JOB, stage: "piesa_complete", createdAt: "2026-10-01T00:00:00Z", lastActivityAt: null, enteredStageAt: hoursAgo(30), repairPriceLinkSentAt: linkSentAt, ...x });
   const link = (at: string, audit = AUDIT) => ({ event_type: "repair_price_link_sent", details: { audit_id: audit }, created_at: at });
   const price = (at: string, audit = AUDIT) => ({ event_type: "electrician_repair_price_set", details: { audit_id: audit, price_inc_gst: 1800 }, created_at: at });
+  const wanted = { stage: "piesa_complete", rectQuote: null, currentAuditId: AUDIT, formPriced: false };
 
   test("the wording is exactly Jo's", async () => {
     const { REPAIR_PRICE_WAITING_NOTICE } = await import("../src/lib/repair-price-wait.core");
-    expect(REPAIR_PRICE_WAITING_NOTICE).toBe("Waiting on the electrician's price");
+    expect(REPAIR_PRICE_WAITING_NOTICE).toBe(NOTICE);
   });
 
-  test("23 hours after the link: no alert; 25 hours: the alert", async () => {
+  test("23 hours after the link: no alert; 25 hours unpriced on the current form: the alert", async () => {
     const { officeStatus } = await import("../src/lib/office-status.core");
-    expect(officeStatus(facts(hoursAgo(23)), NOW)!.detail ?? "").not.toContain("Waiting on the electrician's price");
-    expect(officeStatus(facts(hoursAgo(25)), NOW)!.detail).toBe("Waiting on the electrician's price");
-    expect(officeStatus(facts(null), NOW)!.detail ?? "").not.toContain("Waiting on the electrician's price");
-    // In front of an existing detail line, never instead of the status itself.
-    const s = officeStatus({ ...facts(hoursAgo(25)), stage: "piesa_scheduled", elecBookingAt: hoursAgo(40) }, NOW)!;
+    expect(officeStatus(facts(hoursAgo(23)), NOW)!.detail ?? "").not.toContain(NOTICE);
+    expect(officeStatus(facts(hoursAgo(25)), NOW)!.detail).toBe(NOTICE);
+    expect(officeStatus(facts(null), NOW)!.detail ?? "").not.toContain(NOTICE);
+    // In front of an existing detail line, joined with " · ", never instead of the status itself.
+    const s = officeStatus(facts(hoursAgo(25), { stage: "piesa_scheduled", elecBookingAt: hoursAgo(40) }), NOW)!;
     expect(s.key).toBe("safety.booked");
-    expect(s.detail).toBe(`Waiting on the electrician's price Booked ${hoursAgo(40).slice(0, 10)}`);
+    expect(s.detail).toBe(`${NOTICE} · Booked ${hoursAgo(40).slice(0, 10)}`);
   });
 
-  test("based on the recorded link-sent event; once priced, the alert clears", async () => {
+  test("25h unpriced on the current form -> alert; the event rule", async () => {
     const { repairPriceWaitingSince } = await import("../src/lib/repair-price-wait.core");
-    expect(repairPriceWaitingSince([link(hoursAgo(25))])).toBe(hoursAgo(25));
-    expect(repairPriceWaitingSince([link(hoursAgo(25)), price(hoursAgo(2))])).toBeNull();
-    // A price for an earlier form doesn't clear a re-done safety check's link.
-    expect(repairPriceWaitingSince([price(hoursAgo(50), "old"), link(hoursAgo(25))])).toBe(hoursAgo(25));
-    expect(repairPriceWaitingSince([])).toBeNull();
-    const { officeStatus } = await import("../src/lib/office-status.core");
-    expect(officeStatus(facts(repairPriceWaitingSince([link(hoursAgo(25)), price(hoursAgo(2))])), NOW)!.detail ?? "").not.toContain("Waiting on the electrician's price");
+    expect(repairPriceWaitingSince([link(hoursAgo(25))], wanted)).toBe(hoursAgo(25));
+    expect(repairPriceWaitingSince([], wanted)).toBeNull();
   });
 
-  test("Active jobs reads it from the events; it never reaches trade data", async () => {
+  test("price entered in the portal -> no alert; a price for an earlier form doesn't clear it", async () => {
+    const { repairPriceWaitingSince } = await import("../src/lib/repair-price-wait.core");
+    expect(repairPriceWaitingSince([link(hoursAgo(25)), price(hoursAgo(2))], wanted)).toBeNull();
+    expect(repairPriceWaitingSince([price(hoursAgo(50), "old"), link(hoursAgo(25))], wanted)).toBe(hoursAgo(25));
+  });
+
+  test("quote sent (or accepted) -> no alert", async () => {
+    const { repairPriceWaitingSince } = await import("../src/lib/repair-price-wait.core");
+    const { officeStatus } = await import("../src/lib/office-status.core");
+    for (const rectQuote of [{ sentAt: hoursAgo(3), status: "issued" }, { sentAt: hoursAgo(5), status: "accepted", acceptedAt: hoursAgo(1) }]) {
+      expect(repairPriceWaitingSince([link(hoursAgo(25))], { ...wanted, rectQuote })).toBeNull();
+      expect(officeStatus(facts(hoursAgo(25), { rectQuote: { releaseState: "released", sentAt: rectQuote.sentAt, status: rectQuote.status } }), NOW)!.detail ?? "").not.toContain(NOTICE);
+    }
+    // A held draft doesn't clear it.
+    expect(repairPriceWaitingSince([link(hoursAgo(25))], { ...wanted, rectQuote: { sentAt: null, status: "draft" } })).toBe(hoursAgo(25));
+  });
+
+  test("job moved on, ended or cancelled -> no alert", async () => {
+    const { repairPriceWaitingSince } = await import("../src/lib/repair-price-wait.core");
+    const { officeStatus } = await import("../src/lib/office-status.core");
+    for (const stage of ["awaiting_owner_rectification_approval", "rectification_scheduling", "installation_booked", "evidence_outstanding", "complete", "cancelled", "on_hold"]) {
+      expect(repairPriceWaitingSince([link(hoursAgo(25))], { ...wanted, stage }), stage).toBeNull();
+      expect(officeStatus(facts(hoursAgo(25), { stage }), NOW)?.detail ?? "", stage).not.toContain(NOTICE);
+    }
+  });
+
+  test("re-sync where the form now has a price -> no alert", async () => {
+    const { repairPriceWaitingSince, formPriceOf } = await import("../src/lib/repair-price-wait.core");
+    expect(formPriceOf(short(a3("1,200")))).toBe(1200);
+    expect(formPriceOf(short(a3(null)))).toBeNull();
+    expect(repairPriceWaitingSince([link(hoursAgo(25))], { ...wanted, formPriced: true })).toBeNull();
+  });
+
+  test("redone safety check: the old form's link doesn't alert; a priced new form doesn't either", async () => {
+    const { repairPriceWaitingSince } = await import("../src/lib/repair-price-wait.core");
+    expect(repairPriceWaitingSince([link(hoursAgo(25), "audit-old")], { ...wanted, currentAuditId: "audit-new" })).toBeNull();
+    expect(repairPriceWaitingSince([link(hoursAgo(25), "audit-new")], { ...wanted, currentAuditId: "audit-new", formPriced: true })).toBeNull();
+    expect(repairPriceWaitingSince([link(hoursAgo(25), "audit-new")], { ...wanted, currentAuditId: null })).toBeNull();
+  });
+
+  test("Active jobs reads it from the events and the current form; it never reaches trade data", async () => {
     const office = readFileSync("src/lib/office.server.ts", "utf8");
     expect(office).toContain('repairPriceLinkSentAt: repairWaitSince.get(id) ?? null');
     const users = (await import("node:fs")).readdirSync("src/lib").filter((f) => /\.(ts|tsx)$/.test(f) && readFileSync(`src/lib/${f}`, "utf8").includes("repair-price-wait.core"));
@@ -399,5 +447,90 @@ describe("office alert: waiting on the electrician's price", () => {
     const view = await (await priceFns())["getRepairPriceFn"]!({ data: { jobId: JOB }, context: ctx(BOSS) });
     expect(JSON.stringify(view)).not.toContain("Waiting on the electrician");
     expect(await (await priceFns())["getRepairPriceFn"]!({ data: { jobId: JOB }, context: ctx(STAFF) })).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Fix round 1 (IMPORTANT 1, 2): the repair list must read in full before a price is saved, and a draft built from an
+// earlier price can never be sent over a newer portal price.
+describe("saving a price needs a repair list that reads", () => {
+  test("downlights ticked with no count: refused with the plain reason, nothing saved", async () => {
+    T = tables();
+    T["assessments"]![0]!["mitti_raw_snapshot"] = [{ label: A3_REPAIR_NEEDED_LABEL, value: "Yes" }, { label: FIXES_WORK_LABEL, value: DL }];
+    await expect((await priceFns())["setRepairPriceFn"]!({ data: { jobId: JOB, priceIncGst: 1800 }, context: ctx(BOSS) })).rejects.toThrow("The PIESA form ticks downlights but not how many are being replaced");
+    expect(priceEvents()).toHaveLength(0);
+  });
+  test("\"Other\" ticked with no description: refused", async () => {
+    T = tables();
+    T["assessments"]![0]!["mitti_raw_snapshot"] = [{ label: A3_REPAIR_NEEDED_LABEL, value: "Yes" }, { label: FIXES_WORK_LABEL, value: "Other" }];
+    await expect((await priceFns())["setRepairPriceFn"]!({ data: { jobId: JOB, priceIncGst: 1800 }, context: ctx(OFFICE) })).rejects.toThrow("ticks Other but does not describe the other work");
+    expect(priceEvents()).toHaveLength(0);
+  });
+});
+
+describe("a draft built from an earlier price is never sent over a newer one", async () => {
+  const { A4_FIXES_PRICING_SOURCE: A4 } = await import("../src/lib/fixes-price.core");
+  const draft = (priceInSnapshot: number | null, extra: Record<string, unknown> = {}) => {
+    T["quotes"] = [{ id: "q-held", job_id: JOB, kind: "rectification", status: "draft", sent_at: null, accepted_at: null, version: 1, customer_total_inc_gst: 1900, created_at: "2026-10-28T00:00:00Z", office_reviewed_at: null, release_state: "held", release_hold_reason: "Quote held for office review", ...extra }];
+    T["quote_items"] = [];
+    T["quote_internals"] = [{ quote_id: "q-held", calc_snapshot: priceInSnapshot == null ? { rate_card_version: 1 } : { pricing_source: A4, electrician_price_inc_gst: priceInSnapshot } }];
+  };
+  const blocker = async (how: "office" | "auto") => (await import("../src/lib/fixes-quote-release.server")).fixesQuoteSendBlocker(T["quotes"]![0] as never, how, { ignoreTimesHold: true });
+  const STALE = "The electrician's repair price has changed since this quote was built. Rebuild the quote, then send it.";
+
+  test("form-price draft, then a portal price with no rebuild: office Send and auto-send are both refused", async () => {
+    T = tables({ formPrice: "1,200" }); draft(1200);
+    expect(await blocker("auto")).toBeNull();
+    T["workflow_events"]!.push({ id: "p1", job_id: JOB, event_type: "electrician_repair_price_set", details: { price_inc_gst: 1800, audit_id: AUDIT }, created_at: "2026-10-28T00:00:00Z" });
+    expect(await blocker("auto")).toBe(STALE);
+    T["quotes"]![0]!["office_reviewed_at"] = "2026-10-28T01:00:00Z";
+    expect(await blocker("office")).toBe(STALE);
+    // Rebuilt from the portal price: the send is allowed again.
+    draft(1800, { office_reviewed_at: "2026-10-28T01:00:00Z" });
+    expect(await blocker("office")).toBeNull();
+    expect(await blocker("auto")).toBeNull();
+  });
+
+  test("a failed rebuild after saving leaves the price saved, marks the draft held with a reason, and it can't be sent", async () => {
+    T = tables({ formPrice: "1,200" }); draft(1200); rebuilt.length = 0; rebuildFails = true;
+    try {
+      await (await priceFns())["setRepairPriceFn"]!({ data: { jobId: JOB, priceIncGst: 1800 }, context: ctx(BOSS) });
+    } finally { rebuildFails = false; }
+    expect(priceEvents()).toHaveLength(1);
+    expect(T["quotes"]![0]!["release_state"]).toBe("held");
+    expect(String(T["quotes"]![0]!["release_hold_reason"])).toContain("could not be rebuilt");
+    for (const how of ["office", "auto"] as const) expect(await blocker(how)).not.toBeNull();
+    // Even if the price were unchanged, the marker alone stops the send.
+    T["quote_internals"]![0]!["calc_snapshot"] = { pricing_source: A4, electrician_price_inc_gst: 1800 };
+    T["quotes"]![0]!["office_reviewed_at"] = "2026-10-28T01:00:00Z";
+    expect(await blocker("office")).toContain("could not be rebuilt");
+  });
+
+  test("a failure reading the newest quote after the price is saved doesn't undo the save or throw", async () => {
+    T = tables(); draft(1200); currentCalls = 0; currentFailsOnCall = 2;
+    try {
+      const saved = (await (await priceFns())["setRepairPriceFn"]!({ data: { jobId: JOB, priceIncGst: 1800 }, context: ctx(BOSS) })) as { ok: boolean };
+      expect(saved.ok).toBe(true);
+    } finally { currentFailsOnCall = 0; }
+    expect(priceEvents()).toHaveLength(1);
+    expect(T["quotes"]![0]!["release_hold_reason"]).toContain("could not be rebuilt");
+    expect(await blocker("auto")).not.toBeNull();
+  });
+
+  test("every stage that allows a price rebuilds an existing held draft on save", async () => {
+    const { REPAIR_PRICE_STAGES } = await import("../src/lib/electrician-repair-price.core");
+    for (const stage of REPAIR_PRICE_STAGES) {
+      T = tables({ stage }); draft(1200); rebuilt.length = 0;
+      await (await priceFns())["setRepairPriceFn"]!({ data: { jobId: JOB, priceIncGst: 1800 }, context: ctx(BOSS) });
+      expect(rebuilt.map((r) => r.jobId), stage).toEqual([JOB]);
+    }
+  });
+
+  test("a pre-completion held draft is rebuilt when an item is priced too", async () => {
+    T = tables({ stage: "piesa_scheduled" }); rebuilt.length = 0;
+    T["rectification_items"] = [{ id: ITEM, job_id: JOB, description: "Move a downlight", quantity: 1, is_other: true, other_unit_price_inc_gst: null, needs_office_pricing: true, status: "required", explanation: "Too close", rate_code: null, added_by: STAFF, created_at: "2026-10-28T00:00:00Z" }];
+    draft(1200);
+    await (await portalFns())["priceRectItem"]!({ data: { itemId: ITEM, unitPriceIncGst: 150, reason: "Owner checked the job" }, context: ctx(BOSS) });
+    expect(rebuilt).toHaveLength(1);
   });
 });

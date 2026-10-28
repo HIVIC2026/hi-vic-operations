@@ -19,6 +19,10 @@ export const REPAIR_PRICE_SMS_TYPE = "repair_price_link" as const;
 export const REPAIR_PRICE_ISSUE = "Enter your total price for all the repair work, inc GST (more than $0).";
 export const REPAIR_PRICE_LOCKED = "The repair quote has already gone to the homeowner. To change it, contact the office.";
 export const REPAIR_PRICE_STAGE_REFUSED = "The repair price can only be set after the safety check and before the homeowner has the repair quote.";
+/** Held-draft reason when the quote could not be rebuilt after the price changed (fixes-quote-release refuses it). */
+export const REPAIR_PRICE_REBUILD_FAILED = "The repair price changed but the quote could not be rebuilt. Rebuild the quote before sending.";
+/** Send refused: the draft was built from a different electrician price than the one now on the job. */
+export const REPAIR_PRICE_STALE = "The electrician's repair price has changed since this quote was built. Rebuild the quote, then send it.";
 export const REPAIR_PRICE_NO_WORK = "The safety check form doesn't list any repair work.";
 
 /** Stages where the owner or office may set the repair total: from the safety check until the repair quote goes out. */

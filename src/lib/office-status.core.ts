@@ -4,7 +4,7 @@
 
 import { SITUATION } from "./job-wording";
 import { withEditReplacedNotice } from "./quote-edit-replaced.core";
-import { withRepairPriceWaiting } from "./repair-price-wait.core";
+import { repairPriceStillWanted, withRepairPriceWaiting } from "./repair-price-wait.core";
 
 export type OfficeStage = "waiting_list" | "enquiry" | "ready_check" | "quote" | "safety" | "install" | "signoff" | "ended";
 export type WaitingOn = "Us" | "Owner" | "Installer" | "Electrician" | "Owner + Installer" | "Owner + Electrician" | "System" | "Nobody" | "Office / campaign";
@@ -151,7 +151,9 @@ export const isMappedStage = (s: string) => MAPPED_STAGES.has(s);
  *  the electrician's price link with no price, the detail starts with "Waiting on the electrician's price". */
 export function officeStatus(f: JobFacts, now: number, lim: Record<string, number> = DEFAULT_LIMITS): OfficeStatus | null {
   const st = statusFor(f, now, lim);
-  if (!st || !f.repairPriceLinkSentAt) return st;
+  // Task 9: the alert only while the price is still wanted (a price-stage job whose fixes quote hasn't gone out); the loader
+  // also checks the form and the price, so this is the second line of defence for a job that moved on.
+  if (!st || !f.repairPriceLinkSentAt || !repairPriceStillWanted(f.stage, f.rectQuote)) return st;
   return { ...st, detail: withRepairPriceWaiting(st.detail, f.repairPriceLinkSentAt, now) };
 }
 

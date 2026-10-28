@@ -7,7 +7,8 @@ import { limits, officeStatus, type JobFacts, type OfficeStatus } from "./office
 import { buildNeedsMe, type NeedsJob, type PartnerItem, type Snooze } from "./needs-me.core";
 import { withoutRetiredInstallDayPhotos } from "./ready-check-chase.core";
 import { QUOTE_EDIT_REPLACED_EVENT } from "./quote-edit-replaced.core";
-import { repairPriceWaitingSince } from "./repair-price-wait.core";
+import { formPriceOf, repairPriceStillWanted, repairPriceWaitingSince } from "./repair-price-wait.core";
+import { shortAnswersFromEntries } from "./official-short.core";
 import { REPAIR_PRICE_EVENT, REPAIR_PRICE_LINK_EVENT } from "./electrician-repair-price.core";
 
 type Admin = SupabaseClient<Database>;
@@ -139,7 +140,6 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
   const [stageEv, camp, links, wins, offers, books, props, quotes, inv, piesa, rcs, ev, veec, payoutEv, deadlines, invErr, esc, outbox, comms, emails, creds, reassigs, pickAll, tOffers, tAsg, emailsSent, messagesSent, acc, meas, gsigRows, editAlerts, repairPriceEv] = await (early ?? perJob(ids, pickJobs, tIds));
   const editReplacedQuotes = new Set(editAlerts.map((e) => String((e["details"] as { quote_id?: string } | null)?.quote_id ?? "")).filter(Boolean));
   const repairEvBy = new Map<string, Row[]>(); for (const e of repairPriceEv) { const k = String(e["job_id"]); if (!repairEvBy.has(k)) repairEvBy.set(k, []); repairEvBy.get(k)!.push(e); }
-  const repairWaitSince = new Map<string, string>(); for (const [k, evs] of repairEvBy) { const at = repairPriceWaitingSince(evs as never); if (at) repairWaitSince.set(k, at); }
   const { chosenTradeNoAnswer } = await import("./trade-choice.core");
   const tradeChoice = new Map<string, NonNullable<NeedsJob["tradeChoice"]>>();
   const pickAllBy = new Map<string, Row[]>(); for (const o of pickAll) { const k = String(o["job_id"]); if (!pickAllBy.has(k)) pickAllBy.set(k, []); pickAllBy.get(k)!.push(o); }
@@ -200,6 +200,21 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
   const proposal = new Map(props.map((p) => [String(p["job_id"]), { kind: String(p["kind"]), since: String(p["created_at"]) }]));
   const instQ = new Map<string, Row>(), rectQ = new Map<string, Row>();
   for (const q of quotes) (q["kind"] === "rectification" ? rectQ : instQ).set(String(q["job_id"]), q);
+  // Task 9: "Waiting on the electrician's price" only while the price is still wanted — a price-stage job, fixes quote not sent,
+  // the link was for the CURRENT A3 form, and neither the portal nor that form has a price. The form is read only for the
+  // few jobs that pass the first checks (a link event exists), never for the whole list.
+  const rectStatus = (id: string) => { const rq = rectQ.get(id); return rq ? { sentAt: s(rq["sent_at"]), status: String(rq["status"]), acceptedAt: s(rq["accepted_at"]) } : null; };
+  const stageOf = new Map(live.map((j) => [String(j["id"]), String(j["stage"])] as const));
+  const waitCandidates = [...repairEvBy.keys()].filter((id) => idSet.has(id) && repairPriceStillWanted(stageOf.get(id) ?? "", rectStatus(id)));
+  const a3Rows = await byChunks("A3 forms for the repair price alert", waitCandidates, (c) => admin.from("assessments").select("job_id, external_mitti_id, mitti_raw_snapshot").in("job_id", c));
+  const a3By = new Map(a3Rows.map((r) => [String(r["job_id"]), r] as const));
+  const repairWaitSince = new Map<string, string>();
+  for (const id of waitCandidates) {
+    const a3 = a3By.get(id);
+    const entries = Array.isArray(a3?.["mitti_raw_snapshot"]) ? (a3!["mitti_raw_snapshot"] as { label: string; value: string | null }[]).filter((e) => e && typeof e.label === "string") : [];
+    const at = repairPriceWaitingSince(repairEvBy.get(id)! as never, { stage: stageOf.get(id) ?? "", rectQuote: rectStatus(id), currentAuditId: a3 ? s(a3["external_mitti_id"]) : null, formPriced: formPriceOf(entries.length ? shortAnswersFromEntries("piesa", entries) : null) != null });
+    if (at) repairWaitSince.set(id, at);
+  }
   const paid = new Set(inv.filter((v) => v["deposit_cleared"]).map((v) => String(v["job_id"])));
   const pie = new Map(piesa.map((p) => [String(p["job_id"]), p]));
   const rcSub = new Map<string, string>(); for (const r of rcs) latest(rcSub, String(r["job_id"]), s(r["submitted_at"]));

@@ -21,7 +21,27 @@ export async function fixesQuoteSendBlocker(q: { id: string; job_id: string; kin
   if (le) throw new Error(`Could not check the electrical fixes quote lines: ${le.message}`);
   // Decision 315: the fixes quote never reaches the owner before the electrician's fixes times exist (the owner picks one).
   const fixesTimesHold = opts.ignoreTimesHold ? null : await (await import("./rectification.server")).fixesTimesHoldFor(q.job_id);
-  return rectificationSendBlocker({ kind: q.kind, status: q.status, office_reviewed_at: how === "auto" ? "automatic checks (decision 354)" : q.office_reviewed_at, has_unpriced_items: !!count, has_zero_other_line: !!zeroLines, fixes_times_hold: fixesTimesHold }, true);
+  const base = rectificationSendBlocker({ kind: q.kind, status: q.status, office_reviewed_at: how === "auto" ? "automatic checks (decision 354)" : q.office_reviewed_at, has_unpriced_items: !!count, has_zero_other_line: !!zeroLines, fixes_times_hold: fixesTimesHold }, true);
+  return base ?? (q.kind === "rectification" ? await stalePriceBlocker(q) : null);
+}
+
+/** Task 9 fix round 1: a draft is never sent with an electrician price other than the one now on the job (the portal price
+ *  first, else the old form's). Covers a form-price draft followed by a portal price with no rebuild, a rebuild that failed,
+ *  and the office Send as well as the automatic send. */
+async function stalePriceBlocker(q: { id: string; job_id: string }): Promise<string | null> {
+  const [{ data: row, error: re }, { data: internals, error: ie }] = await Promise.all([
+    admin.from("quotes").select("release_hold_reason").eq("id", q.id).maybeSingle(),
+    admin.from("quote_internals").select("calc_snapshot").eq("quote_id", q.id).maybeSingle(),
+  ]);
+  if (re || ie) throw new Error(`Could not check the electrical fixes quote's price: ${(re ?? ie)!.message}`);
+  const { REPAIR_PRICE_REBUILD_FAILED, REPAIR_PRICE_STALE } = await import("./electrician-repair-price.core");
+  if (row?.release_hold_reason === REPAIR_PRICE_REBUILD_FAILED) return REPAIR_PRICE_REBUILD_FAILED;
+  const snap = (internals?.calc_snapshot ?? null) as { pricing_source?: string; electrician_price_inc_gst?: number } | null;
+  const { A4_FIXES_PRICING_SOURCE } = await import("./fixes-price.core");
+  const built = snap?.pricing_source === A4_FIXES_PRICING_SOURCE && Number.isFinite(Number(snap.electrician_price_inc_gst)) ? Math.round(Number(snap.electrician_price_inc_gst) * 100) : null;
+  const src = await (await import("./electrician-repair-price.server")).fixesPriceSourceForJob(q.job_id);
+  const now = src.path === "a4_price" ? Math.round(src.electricianPriceIncGst * 100) : null;
+  return built === now ? null : REPAIR_PRICE_STALE;
 }
 
 /** Releases one draft fixes quote; throws a WorkflowError with the reason when a check fails or it is no longer a draft. */

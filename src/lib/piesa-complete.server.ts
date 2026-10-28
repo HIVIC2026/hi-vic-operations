@@ -53,11 +53,13 @@ export async function completePiesaAssessment(data: CompletePiesaInput, userId: 
   // A live A3 that says repair work is needed carries the electrician's own repair list (decisions 305/324):
   // that IS today's fixes quote (generated from the A3 after completion, decision 354), so no portal items are needed.
   // Task 9 (Jo 28 Oct 2026): the price may come later from the electrician business owner's "Your price" card, so a
-  // ticked repair list counts with or without a price on the form (staff can complete on site; the quote waits).
+  // repair list counts with or without a price on the form (staff can complete on site; the quote waits). The list itself
+  // must read in full: "Yes", at least one tick, the downlight / RCD counts and the "Other" description.
   const a3Short = shortFrom("piesa", (a.mitti_raw_snapshot as { label: string; value: string | null }[] | null) ?? []);
   const { fixesPriceSource } = await import("./fixes-price.core");
   const { repairPriceNeeded } = await import("./electrician-repair-price.core");
-  const a3Lists = liveA3 && a.piesa_outcome === "fail" && (repairPriceNeeded(a3Short) || fixesPriceSource(a3Short).path === "a4_price");
+  const { fixesInclusionsFromTicks } = await import("./fixes-price.core");
+  const a3Lists = liveA3 && a.piesa_outcome === "fail" && ((repairPriceNeeded(a3Short) && fixesInclusionsFromTicks(a3Short).ok) || fixesPriceSource(a3Short).path === "a4_price");
   if (!rectCount && a.no_rectification_confirmed !== true && !a3Lists) throw new WorkflowError("Add the electrical fixes items for today's quote, or tick \"No electrical fixes required\", before completing the PIESA.");
   if (rectCount && a.no_rectification_confirmed === true) throw new WorkflowError("You ticked \"No electrical fixes required\" but electrical fixes items are listed – untick it or remove the items.");
 
