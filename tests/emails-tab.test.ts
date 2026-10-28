@@ -8,6 +8,16 @@ const un = (o: Partial<UnmatchedRow> = {}): UnmatchedRow => ({ eventId: "u1", at
 const base = () => ({ changes: [change()], unmatched: [un()], jobDrafts: new Map(), noJobDrafts: new Map(), closedJobDrafts: new Set<string>(), inboundByMessage: new Map([["m1", "Is my spot still saved?"]]), ownerNameByJob: new Map([["j1", "Juineta Smith"]]), autoRepliedSenders: new Set<string>() });
 
 describe("Emails tab cards", () => {
+  test("confirmed answered email leaves the inbox and count, but a later email from that sender stays", () => {
+    const t = buildEmailsTab({ ...base(), unmatched: [un(), un({ eventId: "u2", messageId: "later" })], answeredNoJobMessageIds: new Set(["m9"]), autoRepliedSenders: new Set(["sam.k@email.com"]) });
+    expect(t.noJob.map((c) => c.unmatchedEventId)).toEqual(["u2"]);
+    expect(t.count).toBe(2);
+    expect(missingDrafts(t).unmatched).toEqual([]);
+  });
+  test("a reply claim without confirmed delivery does not hide the unanswered email", () => {
+    const t = buildEmailsTab({ ...base(), autoRepliedSenders: new Set(["sam.k@email.com"]), answeredNoJobMessageIds: new Set() });
+    expect(t.noJob.map((c) => c.unmatchedEventId)).toEqual(["u1"]);
+  });
   test("a job email shows what they wrote, the owner, its draft and Done", () => {
     const t = buildEmailsTab({ ...base(), jobDrafts: new Map([[jobDraftKey("j1", "m1"), { eventId: "d1", body: "Hi Juineta! Yes it's saved." }]]) });
     expect(t.count).toBe(2);

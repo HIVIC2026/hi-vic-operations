@@ -66,8 +66,16 @@ export function noJobReplyProblems(body: string): string[] {
 }
 
 // ---------- The tab ----------
-export type JobEmailRow = { eventId: string; jobId: string; jobNumber: string | null; at: string; intent: string | null; messageId: string | null; from: string | null; subject: string | null; label: string | null };
-export type UnmatchedRow = { eventId: string; at: string; messageId: string | null; from: string | null; fromName: string | null; subject: string | null; snippet: string | null; guesses: { job_id: string; job_number: string | null }[] };
+export type JobEmailRow = { eventId: string; jobId: string; jobNumber: string | null; at: string; intent: string | null; messageId: string | null; from: string | null; subject: string | null; label: string | null; threadId?: string | null; receivedAt?: string | null };
+export type UnmatchedRow = { eventId: string; at: string; messageId: string | null; from: string | null; fromName: string | null; subject: string | null; snippet: string | null; guesses: { job_id: string; job_number: string | null }[]; threadId?: string | null; receivedAt?: string | null };
+export type OutlookSentReply = { threadId: string | null; at: string | null; recipients: string[] };
+/** A sent reply answers only earlier messages in the same thread addressed to their sender. */
+export function answeredInOutlook(row: { threadId?: string | null; receivedAt?: string | null; at: string; from: string | null }, replies: readonly OutlookSentReply[]): boolean {
+  const received = Date.parse(row.receivedAt ?? row.at);
+  if (!row.threadId || !row.from || !Number.isFinite(received)) return false;
+  const sender = row.from.trim().toLowerCase();
+  return replies.some((r) => r.threadId === row.threadId && !!r.at && Date.parse(r.at) > received && r.recipients.some((to) => to.trim().toLowerCase() === sender));
+}
 export type DraftRef = { eventId: string; body: string };
 
 export type JobEmailCard = {
@@ -113,17 +121,20 @@ export function buildEmailsTab(i: {
   ownerNameByJob: Map<string, string | null>;
   /** Senders (lower-case) who already got the automatic website reply. */
   autoRepliedSenders: Set<string>;
+  /** Exact messages with confirmed sent replies; claims, failures and later emails stay visible. */
+  answeredNoJobMessageIds?: Set<string>;
+  outlookReplies?: readonly OutlookSentReply[];
   /** Jobs that are still open (not cancelled, complete or archived). */
   openJobIds?: Set<string>;
 }): EmailsTab {
-  const withJob = [...i.changes].sort((a, b) => b.at.localeCompare(a.at)).map((c): JobEmailCard => ({
+  const withJob = i.changes.filter((c) => c.intent !== "reply" || !answeredInOutlook(c, i.outlookReplies ?? []) || (!!i.openJobIds?.has(c.jobId) && readsAsDecline(c.messageId ? i.inboundByMessage.get(c.messageId) ?? null : null))).sort((a, b) => b.at.localeCompare(a.at)).map((c): JobEmailCard => ({
     key: `job:${c.eventId}`, requestEventId: c.eventId, jobId: c.jobId, jobNumber: c.jobNumber, name: i.ownerNameByJob.get(c.jobId) ?? null, at: c.at,
     subject: c.subject, theyWrote: c.messageId ? (i.inboundByMessage.get(c.messageId) ?? null) : null, intent: c.intent, label: c.label,
     draft: c.messageId ? (i.jobDrafts.get(jobDraftKey(c.jobId, c.messageId)) ?? null) : null,
     draftClosed: !!c.messageId && i.closedJobDrafts.has(jobDraftKey(c.jobId, c.messageId)), action: ACTION[c.intent ?? ""] ?? "dealt_with",
     stillOpenDecline: !!i.openJobIds?.has(c.jobId) && (c.intent === "cancel" || (c.intent === "reply" && readsAsDecline(c.messageId ? (i.inboundByMessage.get(c.messageId) ?? null) : null))),
   }));
-  const noJob = [...i.unmatched].sort((a, b) => b.at.localeCompare(a.at)).map((u): NoJobCard => {
+  const noJob = i.unmatched.filter((u) => (!u.messageId || !i.answeredNoJobMessageIds?.has(u.messageId)) && !answeredInOutlook(u, i.outlookReplies ?? [])).sort((a, b) => b.at.localeCompare(a.at)).map((u): NoJobCard => {
     const g = u.guesses[0];
     return {
       key: `nojob:${u.eventId}`, unmatchedEventId: u.eventId, at: u.at, from: u.from, fromName: u.fromName, subject: u.subject, theyWrote: u.snippet,
