@@ -2,6 +2,7 @@
 // press "Create invoice" (safe to repeat: one invoice row, one Xero create).
 import { describe, expect, test } from "bun:test";
 import { buildNeedsRows, duplicatesInvoiceFailed, invoiceFailedFact, needsCandidates } from "../src/lib/office-needs.core";
+import { cardOf } from "../src/lib/needs-cards.core";
 
 const base = { jobId: "J", jobNumber: "HV-1", surname: "Test", suburb: null };
 const ev = (at: string, text = "Xero 500") => ({ at, text });
@@ -18,6 +19,9 @@ describe("Needs me row", () => {
     expect(mine[0]!.line).toBe("Invoice didn't reach Xero · owner can't pay yet");
     expect(mine[0]!.button).toEqual({ label: "Open job", to: "job", section: "money" });
     expect(needsCandidates({ ...base, invoiceFailed: { at: "2026-10-28T02:00:00Z", text: "x" } }, Date.now())[0]!.rank).toBe(9);
+  });
+  test("the row sits in the Payments card", () => {
+    expect(cardOf("invoice_failed")).toBe("payments");
   });
   test("no row without the fact", () => {
     expect(needsCandidates({ ...base }, Date.now()).some((c) => c.kind === "invoice_failed")).toBe(false);
