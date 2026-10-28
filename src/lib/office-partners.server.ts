@@ -2,6 +2,7 @@
 // a LOGGED bank-details reveal and resolving a partner's change request. Server-only; callers are admin-checked server
 // functions in office-partners.functions.ts. Clearance, notice and Mitti facts reuse the existing rules
 // (crewClearance, noticeAckMap, mittiAccessOf) — nothing here re-decides who may work.
+import { certOrFilter, sameWorkerEmail } from "./worker-role.core";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { melbourneMonthStart, melbourneToday } from "./melbourne-time.core";
 import { crewClearance, eecState, whiteCardOf, whiteCardState } from "./worker-compliance.core";
@@ -24,9 +25,9 @@ export async function peopleFor(businessIds: string[]) {
   const workers = must<Worker[]>(await db.from("partner_workers").select(WORKER_COLS).in("business_id", businessIds).is("removed_at", null).order("full_legal_name"), "people");
   const today = melbourneToday();
   const installers = workers.filter((w) => w.trade_role === "installer");
-  const emails = installers.map((w) => w.email.trim().toLowerCase());
+  // Jo 28 Oct: a person may have no email — match their checks by id only then.
   const certs = installers.length ? must<{ id: string; worker_id: string | null; worker_email: string; status: string }[]>(await db.from("partner_worker_certifications").select("id, worker_id, worker_email, status, recorded_at")
-    .or(`worker_id.in.(${installers.map((w) => w.id).join(",")}),worker_email.in.(${emails.map((e) => `"${e}"`).join(",")})`).order("recorded_at", { ascending: false }), "CII checks") : [];
+    .or(certOrFilter(installers)).order("recorded_at", { ascending: false }), "CII checks") : [];
   const certIds = certs.map((c) => c.id);
   const levels = certIds.length ? must<{ certification_id: string; level: string; expires_on: string }[]>(await db.from("worker_certification_levels").select("certification_id, level, expires_on, recorded_at").in("certification_id", certIds).order("recorded_at", { ascending: false }), "CII levels") : [];
   const { noticeAckMap, noticeSendHistory } = await import("./esc-collection-notice.server");
@@ -35,7 +36,7 @@ export async function peopleFor(businessIds: string[]) {
   const profiles = profileIds.length ? must<{ id: string; email: string | null; mitti_user_id: string | null; mitti_checked_email: string | null; mitti_checked_at: string | null }[]>(await db.from("profiles").select("id, email, mitti_user_id, mitti_checked_email, mitti_checked_at").in("id", profileIds), "profiles") : [];
   const { data: biz } = await db.from("businesses").select("id, name, trading_name").in("id", businessIds);
   return workers.map((w) => {
-    const c = certs.find((r) => r.worker_id === w.id || r.worker_email.trim().toLowerCase() === w.email.trim().toLowerCase()) ?? null;
+    const c = certs.find((r) => r.worker_id === w.id || sameWorkerEmail(w.email, r.worker_email)) ?? null;
     const l = c ? levels.find((r) => r.certification_id === c.id) ?? null : null;
     const eec = eecState(w as never);
     const cl = c && eec === "verified" ? crewClearance({ certStatus: c.status, level: l?.level ?? null, expiresOn: l?.expires_on ?? null }, today) : null;
