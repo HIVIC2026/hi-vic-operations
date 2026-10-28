@@ -1,6 +1,6 @@
 // Jo 24 Oct 2026: once per accepted quote, email the job's installer. Jo 28 Oct 2026: sent once the owner has PAID the
 // safety check (emailInstallerOnSafetyCheckPaid, called from afterPaymentsChanged), not when the quote is accepted. Through the office sender, so it pauses with the
-// master switch; TEST jobs / TEST partners go only to Jo's TEST inbox. Never blocks or undoes the acceptance.
+// master switch; TEST jobs / TEST partners go only to Jo's TEST inbox. Never blocks payment processing.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 

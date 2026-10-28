@@ -493,7 +493,7 @@ const INSTALLER: TemplateEntry[] = [
     source: { builder: "src/lib/boss-price-link.core.ts", fn: "bossPriceLinkText", sender: "src/lib/boss-price-link.server.ts" },
     render: () => text(bossPriceLinkText({ jobNumber: "HV-TEST", street: "824 High Street Road", link: `${FIELD}#price` })) }),
   // Quote
-  ENTRY({ id: "installer:I23", section: "installer", step: "quote", kind: "email", code: "I23", name: "Good news — the owner accepted", when: "The owner accepts the quote", who: "Installer", approvalNote: "Jo 24 Oct 2026", gate: { kind: "email" },
+  ENTRY({ id: "installer:I23", section: "installer", step: "quote", kind: "email", code: "I23", name: "Good news — the owner accepted", when: "The owner pays the safety check", who: "Installer", approvalNote: "Jo 24 Oct 2026", gate: { kind: "email" },
     source: { builder: "src/lib/installer-accepted-email.core.ts", fn: "renderInstallerAcceptedEmail", sender: "src/lib/installer-accepted-email.server.ts" }, design: "docs/templates/mjml/installer_I23.mjml",
     render: () => email(renderInstallerAcceptedEmail(PARTNER_JOB)) }),
   ENTRY({ id: "installer:I24", section: "installer", step: "quote", kind: "email", code: "I24", name: "The owner declined the quote", when: "The owner declines the quote", who: "Installer", approvalNote: "Jo 24 Oct 2026", gate: { kind: "email" },
