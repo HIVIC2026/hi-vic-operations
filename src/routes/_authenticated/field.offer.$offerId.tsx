@@ -12,7 +12,7 @@ import { InstallerReadyCheckTimesCard, ReadyCheckTimesForm } from "@/components/
 import { PiesaTimesForm } from "@/components/portal/piesa-times-electrician";
 import { offerTradePiesaTimes } from "@/lib/piesa-times.functions";
 import { distanceLine, goneIn } from "@/lib/trade-view.core";
-import { NOT_FOR_ME_SHEET, OFFER_LABEL, OFFER_ONLY_YOU, OFFER_PAY_LINE, OFFER_STEPS, dayAndTime, offerAcceptedView, offerClosed, offerTopLines, shortDay, clock } from "@/lib/installer-screens.core";
+import { NOT_FOR_ME_SHEET, NOT_FOR_ME_SHEET_ELECTRICIAN, OFFER_LABEL, OFFER_ONLY_YOU, OFFER_PAY_LINE, OFFER_STEPS, dayAndTime, offerAcceptedView, offerClosed, offerTopLines, shortDay, clock } from "@/lib/installer-screens.core";
 import { ContactButtons, ErrorLine, Group, NextPanel, NoFormNoPay, Note, QuietButton, Row, Screen, ScreenHead, outlineLinkClass } from "@/components/trade/installer-kit";
 
 export const Route = createFileRoute("/_authenticated/field/offer/$offerId")({
@@ -24,6 +24,21 @@ const ics = (title: string, start: string, end: string | null, where: string) =>
   const f = (d: string) => new Date(d).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
   return `data:text/calendar;charset=utf-8,${encodeURIComponent(["BEGIN:VCALENDAR", "VERSION:2.0", "BEGIN:VEVENT", `DTSTART:${f(start)}`, `DTEND:${f(end ?? start)}`, `SUMMARY:${title}`, `LOCATION:${where}`, "END:VEVENT", "END:VCALENDAR"].join("\r\n"))}`;
 };
+
+/** "Not for me" asks "Are you sure?" first (installer and electrician words differ); holds its own open/closed state. */
+function NotForMe({ sheet, disabled, sending, onYes }: { sheet: { title: string; body: string; yes: string; keep: string }; disabled: boolean; sending: boolean; onYes: () => void }) {
+  const [open, setOpen] = useState(false);
+  return open ? (
+    <section className="rounded-[18px] border border-line p-4" role="dialog" aria-label={sheet.title} data-not-for-me-sheet>
+      <h2 className="text-[17px] font-semibold">{sheet.title}</h2>
+      <p className="mt-1 text-sm leading-[1.45] text-sub">{sheet.body}</p>
+      <QuietButton className="mt-3" disabled={disabled} data-not-for-me onClick={onYes}>{sending ? "Sending…" : sheet.yes}</QuietButton>
+      <button type="button" className="mt-2 flex min-h-11 w-full items-center justify-center text-[15px] font-semibold text-sub" onClick={() => setOpen(false)}>{sheet.keep}</button>
+    </section>
+  ) : (
+    <button type="button" className="flex min-h-11 w-full items-center justify-center text-[15px] font-semibold text-sub disabled:opacity-50" disabled={disabled} data-not-for-me-open onClick={() => setOpen(true)}>Not for me</button>
+  );
+}
 
 function OfferPage() {
   const { offerId } = Route.useParams();
@@ -39,7 +54,6 @@ function OfferPage() {
   const [note, setNote] = useState("");
   const [fail, setFail] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  const [confirmDecline, setConfirmDecline] = useState(false);
   const flight = useRef(false); // one booking/reply at a time, even for same-tick double taps
   const rc = data?.kind === "ready_check";
   if (error) return (
@@ -151,16 +165,7 @@ function OfferPage() {
             </Group>
             <p className="text-center text-[13px] leading-[1.5] text-sub">{OFFER_ONLY_YOU}</p>
             {/* Approved state M5-not-for-me (decision 51): one confirmation sheet before the offer goes back to the office. */}
-            {confirmDecline ? (
-              <section className="rounded-[18px] border border-line p-4" role="dialog" aria-label={NOT_FOR_ME_SHEET.title} data-not-for-me-sheet>
-                <h2 className="text-[17px] font-semibold">{NOT_FOR_ME_SHEET.title}</h2>
-                <p className="mt-1 text-sm leading-[1.45] text-sub">{NOT_FOR_ME_SHEET.body}</p>
-                <QuietButton className="mt-3" disabled={sending || !!busy} data-not-for-me onClick={() => send("not_for_me", async () => { setMode("declined"); await refetch(); })}>{sending ? "Sending…" : NOT_FOR_ME_SHEET.yes}</QuietButton>
-                <button type="button" className="mt-2 flex min-h-11 w-full items-center justify-center text-[15px] font-semibold text-sub" onClick={() => setConfirmDecline(false)}>{NOT_FOR_ME_SHEET.keep}</button>
-              </section>
-            ) : (
-              <button type="button" className="flex min-h-11 w-full items-center justify-center text-[15px] font-semibold text-sub disabled:opacity-50" disabled={sending || !!busy} data-not-for-me-open onClick={() => setConfirmDecline(true)}>Not for me</button>
-            )}
+            <NotForMe sheet={NOT_FOR_ME_SHEET} disabled={sending || !!busy} sending={sending} onYes={() => send("not_for_me", async () => { setMode("declined"); await refetch(); })} />
           </>
         ) : (
           <>
@@ -187,7 +192,7 @@ function OfferPage() {
                   catch (e) { setFail(`Couldn't send your times: ${(e as Error).message || "check your signal and try again."}`); }
                   finally { setBusy(null); flight.current = false; }
                 }} />
-                <div className="mt-2 flex justify-end text-sm font-semibold text-hiv-blue"><button type="button" className="min-h-11 px-1" disabled={sending || !!busy} data-not-for-me onClick={() => send("not_for_me", async () => { setMode("declined"); await refetch(); })}>{sending ? "Sending…" : "Not for me"}</button></div>
+                <NotForMe sheet={NOT_FOR_ME_SHEET_ELECTRICIAN} disabled={sending || !!busy} sending={sending} onYes={() => send("not_for_me", async () => { setMode("declined"); await refetch(); })} />
               </div>
             </NextPanel>
             ) : (
@@ -198,8 +203,8 @@ function OfferPage() {
                 <button key={w.id} type="button" disabled={!!busy || sending} onClick={() => tap(w.id, w.start)} className="flex min-h-14 flex-col items-center justify-center rounded-xl border border-line bg-paper px-2 text-sm font-semibold"><span>{shortDay(w.start)}</span><span className="text-hiv-blue">{busy === w.id ? "Booking…" : clock(w.start)}</span></button>))}</div>
               <div className="mt-2 flex justify-between gap-2 text-sm font-semibold text-hiv-blue">
                 {data.canSuggest ? <button type="button" className="min-h-11 px-1" disabled={sending || !!busy} onClick={() => setMode("cant")}>Suggest another time</button> : <span />}
-                <button type="button" className="min-h-11 px-1" disabled={sending || !!busy} data-not-for-me onClick={() => send("not_for_me", async () => { setMode("declined"); await refetch(); })}>{sending && mode !== "cant" ? "Sending…" : "Not for me"}</button>
               </div>
+              <NotForMe sheet={NOT_FOR_ME_SHEET_ELECTRICIAN} disabled={sending || !!busy} sending={sending} onYes={() => send("not_for_me", async () => { setMode("declined"); await refetch(); })} />
               {!data.canSuggest && <Note>Can't make these? If nobody takes it, you can suggest another time from {data.suggestUnlockLabel}.</Note>}
             </NextPanel>
             )}

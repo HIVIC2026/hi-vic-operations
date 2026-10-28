@@ -365,6 +365,7 @@ export function offerAcceptedView(f: { ownerFirstName: string | null; suburb: st
   };
 }
 export const NOT_FOR_ME_SHEET = { title: "Not for me?", body: "The offer goes back to the office to pick another installer. It won't come back to you. Nothing counts against you.", yes: "Yes, not for me", keep: "Keep the offer" } as const;
+export const NOT_FOR_ME_SHEET_ELECTRICIAN = { title: "Not for me?", body: "The offer goes back to the office to pick another electrician. It won't come back to you.", yes: "Yes, not for me", keep: "Keep the offer" } as const;
 
 // ---------- M6 · all paid grouped by month, per-job detail ----------
 export type PaidRowFacts = { jobId: string; jobNumber: string | number | null; suburb: string | null; surname: string | null; amount: number | null; paidOn: string; doneAt: string | null; channel: string | null };

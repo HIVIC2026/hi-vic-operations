@@ -4,7 +4,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
   allocationSheet, completeView, couldntGetInSheet, dayChecks, dayNext, electricianRow, installRow, jobNext, leadInstallerDeclaration, moneyJobDetail, needsFinishingList,
-  NOT_FOR_ME_SHEET, OFFER_LABEL, offerAcceptedView, ownerReadyLine, paidByMonth, quoteNextWords, quoteStatusRow, signRebateChecks, signRebateThen, whatWeKnow, type JobNextFacts,
+  NOT_FOR_ME_SHEET, NOT_FOR_ME_SHEET_ELECTRICIAN, OFFER_LABEL, offerAcceptedView, ownerReadyLine, paidByMonth, quoteNextWords, quoteStatusRow, signRebateChecks, signRebateThen, whatWeKnow, type JobNextFacts,
 } from "../src/lib/installer-screens.core";
 import { HOME_EMPTY, homeIsEmpty, monthStripWords, offerPanelWords, offersListView } from "../src/lib/installer-home.core";
 import { QUOTE_DECLINED_LINE, QUOTE_HELD_LINE, QUOTE_SENT_LINE } from "../src/lib/installer-quote-status.core";
@@ -206,7 +206,15 @@ describe("M5 states", () => {
     expect(NOT_FOR_ME_SHEET).toEqual({ title: "Not for me?", body: "The offer goes back to the office to pick another installer. It won't come back to you. Nothing counts against you.", yes: "Yes, not for me", keep: "Keep the offer" });
     const page = readFileSync("src/routes/_authenticated/field.offer.$offerId.tsx", "utf8");
     expect(page).toContain("data-not-for-me-sheet");
-    expect(page).toContain("NOT_FOR_ME_SHEET.keep");
+    expect(page).toContain("sheet.keep");
+  });
+  test("B7: electrician Not for me asks first, with electrician words", () => {
+    expect(NOT_FOR_ME_SHEET_ELECTRICIAN).toEqual({ title: "Not for me?", body: "The offer goes back to the office to pick another electrician. It won't come back to you.", yes: "Yes, not for me", keep: "Keep the offer" });
+    const page = readFileSync("src/routes/_authenticated/field.offer.$offerId.tsx", "utf8");
+    expect(page).toContain("sheet={NOT_FOR_ME_SHEET}");
+    expect(page).toContain("sheet={NOT_FOR_ME_SHEET_ELECTRICIAN}");
+    expect(page.match(/data-not-for-me-sheet/g)?.length).toBe(1);
+    expect(page).not.toMatch(/data-not-for-me onClick=\{\(\) => send\(/);
   });
 });
 
