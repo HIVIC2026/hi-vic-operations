@@ -282,8 +282,8 @@ describe("I1: a form left with the Mitti API account after a lost reply", () => 
   test("is ours when the job matches", () => expect(matchAudits([a({})], want)).toBe("one"));
   test("is never adopted when the API account is unknown", () => expect(matchAudits([a({})], { ...want, apiOwnerUserId: null })).toBe("elsewhere"));
   test("a matching form with a third person is 'elsewhere'", () => expect(matchAudits([a({ mittiOwnerUserId: "u_other" })], want)).toBe("elsewhere"));
-  test("an unreadable form with a third person is ignored once the API account is known", () => {
-    expect(matchAudits([a({ mittiOwnerUserId: "u_other", jobNumber: null })], want)).toBe("none");
+  test("an unreadable form is 'unclear' whoever holds it", () => {
+    expect(matchAudits([a({ mittiOwnerUserId: "u_other", jobNumber: null })], want)).toBe("unclear");
     expect(matchAudits([a({ mittiOwnerUserId: "u_other", jobNumber: null })], { ...want, apiOwnerUserId: null })).toBe("unclear");
   });
   test("one match plus another form for the same job elsewhere is not linked", () => expect(matchAudits([a({}), a({ mittiOwnerUserId: "u_other" })], want)).toBe("elsewhere"));

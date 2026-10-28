@@ -248,8 +248,8 @@ export function matchAudits(
       else if (!name) job = "unclear";
       else job = name === norm(want.homeownerName) ? "ours" : "other";
     }
-    // An unreadable form can only be ours when it is with the trade, with the API account, or the API account is unknown.
-    if (job === "unclear") { if (ownerOk || !want.apiOwnerUserId || !a.mittiOwnerUserId) unclear = true; }
+    // Any unreadable form of this template, whoever holds it, means we can't tell (the finding's ruling: never create).
+    if (job === "unclear") unclear = true;
     else if (job === "ours") { if (ownerOk) matches++; else elsewhere = true; }
   }
   if (matches > 1) return "many";
