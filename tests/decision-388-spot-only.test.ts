@@ -7,7 +7,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { PRE_RELEASE_FORBIDDEN, SPOT_PROCESS_STATEMENT, SPOT_RELEASE_LINE, preReleaseViolations } from "../src/lib/spot-only-copy.core";
-import { O2_DONT_KNOW_INTRO, renderJoOutcomeEmail } from "../src/lib/jo-outcome-email.core";
+import { O2_DONT_KNOW_INTRO, renderJoOutcomeEmail, type JoOutcomeEmailInput } from "../src/lib/jo-outcome-email.core";
 import { renderSpotSavedEmail, renderSpotSavedSms } from "../src/lib/spot-saved-messages.core";
 import { ESTIMATE_FOLLOWUP_APPROVED, ESTIMATE_FOLLOWUP_STEPS, renderEstimateFollowupEmail } from "../src/lib/estimate-followup.core";
 import { blastMessage } from "../src/lib/save-spot-reminder-blast.core";
@@ -62,7 +62,7 @@ describe("pre-release emails and texts are spot-only", () => {
       { outcome: "needs_onsite_confirmation", insulation: "unknown", ceilingSizeKnown: false, mediaAlreadyReceived: true },
     ] as const;
     for (const v of variants) {
-      const m = renderJoOutcomeEmail({ ...v, recipient: HELEN, figures: { ...FIG, areaEstimated: !v.ceilingSizeKnown, removalUpTo: 2055 }, links: LINKS } satisfies ReplyInput)!;
+      const m = renderJoOutcomeEmail({ ...v, recipient: HELEN, figures: { ...FIG, areaEstimated: !v.ceilingSizeKnown, removalUpTo: 2055 }, links: LINKS } satisfies JoOutcomeEmailInput)!;
       expect(m).not.toBeNull();
       clean(`${JSON.stringify(v)} text`, m.plainText);
       clean(`${JSON.stringify(v)} html`, m.html.replace(/<[^>]+>/g, " "));
