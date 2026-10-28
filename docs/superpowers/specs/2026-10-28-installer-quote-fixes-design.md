@@ -66,6 +66,8 @@ difficult-access fee Jo never entered.
     - While the homeowner is deciding, the fixes quote is rebuilt after any item is added, priced or removed, so the
       homeowner never sees a removed item (Jo 28 Oct). A fixes quote with any $0 item can't be sent; a $0 item should
       be removed, not sent (Jo 28 Oct).
+    - While the homeowner is deciding, the last repair item can't be removed. The message is: "A quote needs at least
+      one item. To cancel the repairs, contact the office." (Jo 28 Oct)
     - The repair-price question ("Your total price for all the repair work, including GST") is removed from the Mitti
       PIESA form. Jo does this in Mitti, but only after the portal price card below is live.
     - Repair price works the same as the installer setup (Jo 28 Oct): when the safety check is completed with repair
