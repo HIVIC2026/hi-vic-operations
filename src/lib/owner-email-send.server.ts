@@ -16,6 +16,8 @@ export async function sendGuardedOwnerEmail(p: { jobId: string; jobSource: strin
   ]);
   // Jo 27 Oct 08:58: a persisted qa_test job's email goes to the TEST inbox, marked; real jobs unchanged (route null).
   const route = await (await import("./qa-inbox.server")).qaInboxRouteForJob(p.jobId, p.to);
+  // Final review 1: fail closed — a qa_test job with no TEST route (e.g. jobs.source unreadable) never reaches p.to.
+  if (p.jobSource === "qa_test" && !route) return "blocked — not sent";
   const to = route?.to ?? p.to;
   const boundary = (await import("./comms-test-recipient.core")).testRecipientBoundary(to, p.jobSource);
   if (oe || re || se || suppressed == null || opt?.opted_out_at || response?.opted_out_at || suppressed > 0 || boundary.status === "blocked") return "blocked — not sent";

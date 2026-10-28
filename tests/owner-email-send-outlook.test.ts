@@ -69,8 +69,8 @@ beforeEach(() => {
 afterAll(() => { globalThis.fetch = realFetch; });
 
 const OUT = { kind: "outlook" as const, replyToMessageId: "AAMk=orig" };
-const send = (o: { jobId?: string; transport?: typeof OUT; onSent?: (r: any) => void; key?: string; retry?: boolean } = {}) => sendGuardedOwnerEmail({
-  jobId: o.jobId ?? "J", jobSource: "website", to: "owner@example.com", purpose: "owner_reply", key: o.key ?? "k1",
+const send = (o: { jobId?: string; jobSource?: string; transport?: typeof OUT; onSent?: (r: any) => void; key?: string; retry?: boolean } = {}) => sendGuardedOwnerEmail({
+  jobId: o.jobId ?? "J", jobSource: o.jobSource ?? "website", to: "owner@example.com", purpose: "owner_reply", key: o.key ?? "k1",
   build: () => ({ subject: "s", html: "<p>h</p>", text: "t" }), ...(o.transport ? { transport: o.transport } : {}), ...(o.onSent ? { onSent: o.onSent } : {}), ...(o.retry ? { retryAfterDefiniteFailure: true } : {}),
 });
 
@@ -137,6 +137,17 @@ describe("guarded send, Outlook transport", () => {
     expect(create.body.toRecipients).toEqual([{ emailAddress: { address: QA_INBOX } }]);
     expect(create.body.subject).toBe("[TEST] s");
     expect(JSON.stringify(fetched.map((c) => c.body))).not.toContain("owner@example.com");
+  });
+  test("final review 1: a qa_test job whose TEST route can't be read is blocked — no reservation, no Outlook call, owner never emailed", async () => {
+    // "QX" has no readable jobs row, so qaInboxRouteForJob returns null; the caller still says qa_test.
+    expect(await send({ jobId: "QX", jobSource: "qa_test", transport: OUT })).toBe("blocked — not sent");
+    expect(fetched).toEqual([]);
+    expect(tables["customer_email_sends"] ?? []).toEqual([]);
+  });
+  test("final review 1: same fail-closed block on the default Resend transport", async () => {
+    expect(await send({ jobId: "QX", jobSource: "qa_test" })).toBe("blocked — not sent");
+    expect(resendCalls).toEqual([]);
+    expect(tables["customer_email_sends"] ?? []).toEqual([]);
   });
   test("default transport is still Resend", async () => {
     let got: unknown;
