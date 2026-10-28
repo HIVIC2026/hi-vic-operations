@@ -98,6 +98,18 @@ export const NO_JOB_FOLLOWUP_INSTRUCTIONS = [
   "Return only the email body text, no subject line.",
 ].join("\n");
 
+/** Senders (lower-case) whose website-link email actually went — the automatic reply accepted by the email service,
+ *  or an office link reply sent. A failed or uncertain attempt doesn't count (Jo 28 Oct 2026: "only if it arrived"). */
+export function linkArrivedSenders(i: {
+  automatic: readonly { from?: string | null; outcome?: string | null }[];
+  office: readonly { to?: string | null; status?: string | null; kind?: string | null }[];
+}): Set<string> {
+  const out = new Set<string>();
+  for (const r of i.automatic) if (r.outcome === "accepted" && r.from) out.add(r.from.trim().toLowerCase());
+  for (const r of i.office) if (r.status === "sent" && r.kind !== "follow_up" && r.to) out.add(r.to.trim().toLowerCase());
+  return out;
+}
+
 /** Their new words only: cuts the quoted earlier email ("On 28 Oct 2026, at 6:35 pm, … <info@…" / "… wrote:").
  *  Capital "On" followed by a date number, so "on weekends" or a signature with an email address is never cut. */
 export function stripQuotedEmail(text: string): string {
@@ -189,7 +201,7 @@ export function buildEmailsTab(i: {
   /** What the owner wrote, per Outlook message id (from the job's email history). */
   inboundByMessage: Map<string, string>;
   ownerNameByJob: Map<string, string | null>;
-  /** Senders (lower-case) who already got the automatic website reply. */
+  /** Senders (lower-case) whose website-link email actually went (linkArrivedSenders). */
   autoRepliedSenders: Set<string>;
   /** Exact messages with confirmed sent replies; claims, failures and later emails stay visible. */
   answeredNoJobMessageIds?: Set<string>;
