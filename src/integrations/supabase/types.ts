@@ -2939,6 +2939,9 @@ export type Database = {
         Row: {
           communication_id: string | null
           created_at: string
+          delivery_at: string | null
+          delivery_detail: string | null
+          delivery_result: string | null
           error: string | null
           estimate_link_id: string | null
           id: string
@@ -2953,6 +2956,9 @@ export type Database = {
         Insert: {
           communication_id?: string | null
           created_at?: string
+          delivery_at?: string | null
+          delivery_detail?: string | null
+          delivery_result?: string | null
           error?: string | null
           estimate_link_id?: string | null
           id?: string
@@ -2967,6 +2973,9 @@ export type Database = {
         Update: {
           communication_id?: string | null
           created_at?: string
+          delivery_at?: string | null
+          delivery_detail?: string | null
+          delivery_result?: string | null
           error?: string | null
           estimate_link_id?: string | null
           id?: string
@@ -5760,6 +5769,9 @@ export type Database = {
           channel: string
           created_at: string
           created_by: string | null
+          delivery_at: string | null
+          delivery_detail: string | null
+          delivery_result: string | null
           delivery_status: string
           direction: string
           id: string
@@ -5784,6 +5796,9 @@ export type Database = {
           channel: string
           created_at?: string
           created_by?: string | null
+          delivery_at?: string | null
+          delivery_detail?: string | null
+          delivery_result?: string | null
           delivery_status?: string
           direction: string
           id?: string
@@ -5808,6 +5823,9 @@ export type Database = {
           channel?: string
           created_at?: string
           created_by?: string | null
+          delivery_at?: string | null
+          delivery_detail?: string | null
+          delivery_result?: string | null
           delivery_status?: string
           direction?: string
           id?: string
