@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   ALERT_SENT_EVENT, MAX_RETRIES, MITTI_RETRY_FROM, RETRY_DELAY_MS, RETRY_LINKED_EVENT, RETRY_STARTED_EVENT,
-  alertEmail, auditIdentity, collectFailureCases, matchAudits, nextAction, retriesFor, type FailureCase, type WorkflowEventRow,
+  alertEmail, auditIdentity, collectFailureCases, matchAudits, nextAction, retriesFor, runStartedAt, type FailureCase, type WorkflowEventRow,
 } from "../src/lib/mitti-retry.core";
 
 const T0 = Date.parse(MITTI_RETRY_FROM) + 3_600_000;
@@ -164,6 +164,85 @@ describe("alertEmail", () => {
   });
 });
 
+// ---------- final review fix wave ----------
+describe("I2: after the office email, later 'not made' failures are ignored until a real fix", () => {
+  test("hourly install-day failures after an alert do not open a new case", () => {
+    const evs = [ev("j1", "mitti_piisa_autosend_failed", 1, { message: "Assign an installer" }), ev("j1", ALERT_SENT_EVENT, 2, { kind: "install_day" }), ev("j1", "mitti_piisa_autosend_failed", 62, { message: "Assign an installer" })];
+    expect(collectFailureCases(evs, NOW)).toEqual([]);
+  });
+  test("repeated mitti_access_needed after an alert are ignored", () => {
+    const evs = [ev("j1", "mitti_access_needed", 1, null, "On-site Ready Check form could not be created: x"), ev("j1", ALERT_SENT_EVENT, 2, { kind: "ready_check" }), ev("j1", "mitti_access_needed", 30, null, "On-site Ready Check form could not be created: x")];
+    expect(collectFailureCases(evs, NOW)).toEqual([]);
+  });
+  test("an uncertain failure after an alert still counts", () => {
+    const evs = [ev("j1", "mitti_piisa_autosend_failed", 1, { message: "x" }), ev("j1", ALERT_SENT_EVENT, 2, { kind: "install_day" }), uncertain("j1", "install_day", 30, "c9")];
+    expect(collectFailureCases(evs, NOW).map((c) => [c.kind, c.reason, c.claimId])).toEqual([["install_day", "uncertain", "c9"]]);
+  });
+  test("a real resolver after the alert re-arms not_created failures", () => {
+    const evs = [ev("j1", "mitti_piisa_autosend_failed", 1, { message: "x" }), ev("j1", ALERT_SENT_EVENT, 2, { kind: "install_day" }), ev("j1", "mitti_piisa_audit_created", 3), ev("j1", "mitti_piisa_autosend_failed", 40, { message: "x" })];
+    expect(collectFailureCases(evs, NOW)).toHaveLength(1);
+  });
+  test("an alert for another kind does not suppress this kind", () => {
+    const evs = [ev("j1", ALERT_SENT_EVENT, 2, { kind: "ready_check" }), ev("j1", "mitti_piisa_autosend_failed", 40, { message: "x" })];
+    expect(collectFailureCases(evs, NOW)).toHaveLength(1);
+  });
+});
+
+describe("I3: a 'not made' message right after a lost reply does not turn it into an instant email", () => {
+  test("PIESA autoform failure logged after the uncertain event keeps the case uncertain", () => {
+    const evs = [uncertain("j1", "piesa", 1, "cP"), ev("j1", "piesa_autoform_failed", 1, { reason: "Mitti may have made the form but the reply was lost — check Mitti first" })];
+    expect(collectFailureCases(evs, NOW).map((c) => [c.kind, c.reason, c.claimId])).toEqual([["piesa", "uncertain", "cP"]]);
+  });
+  test("auto-assign 'could not be created … Mitti may have created' after the uncertain event keeps it uncertain", () => {
+    const evs = [uncertain("j1", "ready_check", 1, "cR"), ev("j1", "mitti_access_needed", 1, null, "Mitti Ready Check form could not be created automatically: Mitti may have created the form but the reply was lost. Not retried automatically — the office will check Mitti and reconcile it.")];
+    expect(collectFailureCases(evs, NOW).map((c) => [c.reason, c.claimId])).toEqual([["uncertain", "cR"]]);
+  });
+  test("any not_created while the uncertain claim is still held does not override it", () => {
+    const evs = [uncertain("j1", "piesa", 1, "cP"), ev("j1", "piesa_autoform_failed", 5, { reason: "Assign an electrician" })];
+    expect(collectFailureCases(evs, NOW)[0]).toMatchObject({ reason: "uncertain", claimId: "cP" });
+  });
+  test("once that claim is released, a later not_created counts", () => {
+    const evs = [uncertain("j1", "piesa", 1, "cP"), ev("j1", "mitti_audit_create_released", 3, { kind: "piesa", claim_id: "cP" }), ev("j1", "piesa_autoform_failed", 5, { reason: "Assign an electrician" })];
+    expect(collectFailureCases(evs, NOW)[0]).toMatchObject({ reason: "not_created", claimId: null });
+  });
+});
+
+describe("I5: Mitti outages before the create are retried, not emailed at once", () => {
+  test("a 5xx / unreachable / timeout not_created becomes retryable", () => {
+    for (const msg of ["Mitti request failed (500).", "Mitti could not be reached. Try again shortly.", "timeout"]) {
+      const c = collectFailureCases([ev("j1", "piesa_autoform_failed", 1, { reason: msg })], NOW)[0]!;
+      expect(c.reason).toBe("retryable");
+      expect(nextAction(c, [], minsAfter(3))).toBe("search_then_retry");
+      expect(nextAction(c, [], minsAfter(2.5))).toBe("wait");
+    }
+  });
+  test("a permanent not_created still emails at once", () => {
+    const c = collectFailureCases([ev("j1", "piesa_autoform_failed", 1, { reason: "The assigned electrician (x@y) was not found in Mitti." })], NOW)[0]!;
+    expect(c.reason).toBe("not_created");
+    expect(nextAction(c, [], minsAfter(1))).toBe("alert");
+  });
+  test("a retryable case alerts after 2 retries", () => {
+    const c = collectFailureCases([ev("j1", "piesa_autoform_failed", 1, { reason: "Mitti request failed (503)." })], NOW)[0]!;
+    expect(nextAction(c, [{ at: at(3) }, { at: at(6) }], minsAfter(9))).toBe("alert");
+  });
+});
+
+describe("I6: the run's start (for the Mitti search window)", () => {
+  test("is the first failure of the current run, not the latest", () => {
+    const events = [uncertain("j1", "ready_check", 0, "c1"), ev("j1", RETRY_STARTED_EVENT, 3, { kind: "ready_check" }), uncertain("j1", "ready_check", 4, "c2")];
+    const c = collectFailureCases(events, NOW)[0]!;
+    expect(c.failedAt).toBe(at(4));
+    expect(runStartedAt(events, c)).toBe(at(0));
+  });
+});
+
+describe("M2: a kind-less access override (office assigns without Mitti access) only clears Ready Check", () => {
+  test("kind-less override leaves PIESA and install-day cases open", () => {
+    const got = collectFailureCases([uncertain("j1", "piesa", 1), uncertain("j1", "ready_check", 1, "c2"), ev("j1", "mitti_access_override", 2, { user_id: "u", access: "unknown", reason: "x" })], NOW);
+    expect(got.map((c) => c.kind)).toEqual(["piesa"]);
+  });
+});
+
 describe("C1: reading each form's job number and address (per form type)", () => {
   const item = (label: string, text: string, header = false) => ({ header, it: { item_id: label, label, type: "text", responses: { text } } });
   const audit = (xs: { header: boolean; it: unknown }[], owner = "u1") => ({ audit_id: "a1", template_id: "t", audit_data: { authorship: { owner_id: owner } }, header_items: xs.filter((x) => x.header).map((x) => x.it), items: xs.filter((x) => !x.header).map((x) => x.it) });
@@ -197,3 +276,15 @@ describe("C1: reading each form's job number and address (per form type)", () =>
   });
 });
 
+describe("I1: a form left with the Mitti API account after a lost reply", () => {
+  const want = { templateId: "t1", mittiOwnerUserId: "u_trade", apiOwnerUserId: "u_api", jobNumber: "HV-3519", siteAddress: "12 Smith St", homeownerName: "Jo" };
+  const a = (o: Record<string, unknown>) => ({ templateId: "t1", mittiOwnerUserId: "u_api", jobNumber: "HV-3519", siteAddress: null, homeownerName: null, ...o });
+  test("is ours when the job matches", () => expect(matchAudits([a({})], want)).toBe("one"));
+  test("is never adopted when the API account is unknown", () => expect(matchAudits([a({})], { ...want, apiOwnerUserId: null })).toBe("elsewhere"));
+  test("a matching form with a third person is 'elsewhere'", () => expect(matchAudits([a({ mittiOwnerUserId: "u_other" })], want)).toBe("elsewhere"));
+  test("an unreadable form with a third person is ignored once the API account is known", () => {
+    expect(matchAudits([a({ mittiOwnerUserId: "u_other", jobNumber: null })], want)).toBe("none");
+    expect(matchAudits([a({ mittiOwnerUserId: "u_other", jobNumber: null })], { ...want, apiOwnerUserId: null })).toBe("unclear");
+  });
+  test("one match plus another form for the same job elsewhere is not linked", () => expect(matchAudits([a({}), a({ mittiOwnerUserId: "u_other" })], want)).toBe("elsewhere"));
+});

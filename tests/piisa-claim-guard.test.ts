@@ -53,8 +53,8 @@ mock.module("../src/lib/prestart.server", () => ({ requirePrestartClear: async (
 const { createPiisaMittiAudit } = await import("../src/lib/mitti.server");
 const { MittiClaimHeld, MittiOutcomeUncertain } = await import("../src/lib/mitti-create.server");
 const { sweepPiisaAutoSend } = await import("../src/lib/piisa-autosend.server");
-const { CLAIM_EVENT, RELEASE_EVENT, UNCERTAIN_EVENT } = await import("../src/lib/mitti-create-claim.core");
-const { PIISA_AUDIT_CREATED_EVENT, PIISA_AUTOSEND_FAILED_EVENT } = await import("../src/lib/piisa-autosend.core");
+const { CLAIM_EVENT, RELEASE_EVENT, UNCERTAIN_EVENT, claimEventId } = await import("../src/lib/mitti-create-claim.core");
+const { PIISA_AUDIT_CREATED_EVENT, PIISA_AUTOSEND_FAILED_EVENT, PIISA_AUTOSEND_OFFICE_EVENT, piisaFormFailedOpen } = await import("../src/lib/piisa-autosend.core");
 
 // ---------- fake Mitti ----------
 const A2_UUID = "dbaf67a2-c9c5-4120-8c69-0f4a43c5bd39";
@@ -92,6 +92,9 @@ beforeEach(() => {
     workflow_events: [{ id: "e-rc", job_id: JOB, event_type: "stage_changed", to_stage: "ready_check_complete" }],
   });
 });
+
+/** sweepPiisaAutoSend with an injected Mitti caller (opts.call). */
+const sweepPiisaAutoSendWith = (m: { call: never }, now: Date) => sweepPiisaAutoSend({ now, call: m.call } as never);
 
 describe("install-day form claim guard", () => {
   test("install_day timeout records uncertain and a second call does not create", async () => {
@@ -153,12 +156,16 @@ describe("hourly install-day sender", () => {
     expect(out.results).toHaveLength(1);
     expect(out.results[0]!.outcome).toBe("skipped");
     expect(events(PIISA_AUTOSEND_FAILED_EVENT).length).toBe(0);
-    expect(events().length).toBe(before); // nothing new logged
+    // I8: no hourly failure row; only the one office item (install is tomorrow), and only once
+    expect(events().length).toBe(before + 1);
+    expect(events(PIISA_AUTOSEND_OFFICE_EVENT).length).toBe(1);
+    await sweepPiisaAutoSend({ now: new Date(NOW.getTime() + 3_600_000) });
+    expect(events().length).toBe(before + 1);
   });
 });
 
-describe("C3: the office can take over a lost-reply install-day form", () => {
-  test("the creator supersedes a lost-reply claim (after 10 minutes) only with the office override, recorded", async () => {
+describe("final review fixes", () => {
+  test("C3: the office button can take over a lost-reply install-day claim (after 10 minutes), recorded", async () => {
     const m = fakeMitti({ create: "timeout" });
     await expect(createPiisaMittiAudit(JOB, null, m.call)).rejects.toBeInstanceOf(MittiOutcomeUncertain);
     ageClaims(11 * 60_000);
@@ -168,10 +175,35 @@ describe("C3: the office can take over a lost-reply install-day form", () => {
     expect(ok.creates()).toBe(1);
     expect(events("mitti_audit_create_office_override").length).toBe(1);
   });
-  test("the office 'send to installer' button passes the office override", () => {
+  test("C3: the office 'send to installer' button passes the office override", () => {
     const src = readFileSync("src/lib/official-forms.functions.ts", "utf8");
     const fn = src.slice(src.indexOf("export const sendPiisaToInstaller"));
     expect(fn).toContain("createPiisaMittiAudit(data.jobId, context.userId, realMittiCall, { officeOverride: true })");
+  });
+
+  const tomorrowInstall = () => { T.bookings![0]!.scheduled_start = new Date(NOW.getTime() + 20 * 3_600_000).toISOString(); };
+  test("I8: a lost reply on the hourly send raises the install-day office item once", async () => {
+    tomorrowInstall();
+    // the tick's own attempt loses its reply
+    const out = await sweepPiisaAutoSendWith(fakeMitti({ create: "timeout" }), NOW);
+    expect(out.results[0]!.outcome).toBe("skipped");
+    expect(events(PIISA_AUTOSEND_FAILED_EVENT).length).toBe(0); // never a "not made" failure
+    expect(events(PIISA_AUTOSEND_OFFICE_EVENT).length).toBe(1);
+    expect(piisaFormFailedOpen(events() as never)).not.toBeNull();
+    // later ticks see the held claim: no second item
+    await sweepPiisaAutoSendWith(fakeMitti(), new Date(NOW.getTime() + 2 * 3_600_000));
+    expect(events(PIISA_AUTOSEND_OFFICE_EVENT).length).toBe(1);
+  });
+  test("I8: a held claim left uncertain by another path also raises the item once, an in-progress claim does not", async () => {
+    tomorrowInstall();
+    const busy = await claimEventId(JOB, "install_day", 0); // another path holds the claim (in progress)
+    T.workflow_events!.push({ id: busy, job_id: JOB, event_type: CLAIM_EVENT, created_at: NOW.toISOString(), details: { kind: "install_day", generation: 0 } });
+    await sweepPiisaAutoSendWith(fakeMitti(), NOW);
+    expect(events(PIISA_AUTOSEND_OFFICE_EVENT).length).toBe(0); // someone is making it right now
+    T.workflow_events!.push({ id: "u-1", job_id: JOB, event_type: UNCERTAIN_EVENT, created_at: NOW.toISOString(), details: { kind: "install_day", claim_id: busy } });
+    await sweepPiisaAutoSendWith(fakeMitti(), NOW);
+    await sweepPiisaAutoSendWith(fakeMitti(), NOW);
+    expect(events(PIISA_AUTOSEND_OFFICE_EVENT).length).toBe(1);
   });
 });
 

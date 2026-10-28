@@ -12,7 +12,7 @@ function from(table: string) {
   let op: "select" | "insert" | "update" | "delete" = "select"; let values: unknown = null; let head = false; let wantCount = false;
   let page: [number, number] | null = null;
   const f: [string, string, unknown][] = [];
-  const match = (r: Row) => f.every(([k, kind, v]) => kind === "eq" ? r[k] === v : kind === "in" ? (v as unknown[]).includes(r[k]) : kind === "is" ? (r[k] ?? null) === v : true);
+  const match = (r: Row) => f.every(([k, kind, v]) => kind === "eq" ? r[k] === v : kind === "in" ? (v as unknown[]).includes(r[k]) : kind === "is" ? (r[k] ?? null) === v : kind === "gte" ? r[k] == null || String(r[k]) >= String(v) : true);
   const rows = () => (T[table] ??= []);
   const run = () => {
     if (op === "insert") {
@@ -32,7 +32,8 @@ function from(table: string) {
     select: (_c?: string, o?: { count?: string; head?: boolean }) => { head = !!o?.head; wantCount = !!o?.count; return q; },
     eq: (k: string, v: unknown) => { f.push([k, "eq", v]); return q; }, in: (k: string, v: unknown[]) => { f.push([k, "in", v]); return q; },
     is: (k: string, v: unknown) => { f.push([k, "is", v]); return q; },
-    neq: () => q, not: () => q, gte: () => q, gt: () => q, lt: () => q, lte: () => q, contains: () => q, order: () => q, limit: () => q,
+    gte: (k: string, v: unknown) => { f.push([k, "gte", v]); return q; },
+    neq: () => q, not: () => q, gt: () => q, lt: () => q, lte: () => q, contains: () => q, order: () => q, limit: () => q,
     range: (a: number, b: number) => { page = [a, b]; return q; },
     insert: (v: unknown) => { op = "insert"; values = v; return q; }, update: (v: unknown) => { op = "update"; values = v; return q; }, delete: () => { op = "delete"; return q; },
     maybeSingle: async () => { const r = run(); return { data: Array.isArray(r.data) ? r.data[0] ?? null : r.data, error: r.error }; },
@@ -105,6 +106,8 @@ const { CLAIM_EVENT, RELEASE_EVENT, UNCERTAIN_EVENT } = await import("../src/lib
 const { PIISA_AUDIT_CREATED_EVENT } = await import("../src/lib/piisa-autosend.core");
 const { TEST_MITTI_ASSIGNEE } = await import("../src/lib/onsite-ready-check.core");
 const { TEST_ALLOWLIST } = await import("../src/lib/test-send.core");
+const { onPiesaBooked } = await import("../src/lib/piesa-autoform.server");
+const { mittiOfficeItems } = await import("../src/lib/ready-check-chase.core");
 
 // ---------- fake Mitti ----------
 const A2_UUID = "dbaf67a2-c9c5-4120-8c69-0f4a43c5bd39";
@@ -122,7 +125,8 @@ const RC_TEMPLATE = {
 const INSTALL_TEMPLATE = { template: { template_id: A2_TEMPLATE_ID, name: "TEST install day", items: [{ item_id: "job", label: "Portal Job Number", type: "textsingle" }, { item_id: "address", label: "Site address", type: "address" }] } };
 
 type Kind = "ready_check" | "piesa" | "fixes" | "install_day";
-/** A form already in Mitti (owner defaults to the trade). */
+/** A form already in Mitti. owner defaults to the portal's own Mitti API account: after a lost reply the share / set-owner
+ *  calls never ran, so the form still belongs to the account that made it. */
 type Found = { id: string; owner?: string; jobNumber?: string | null; address?: string | null; name?: string | null };
 type Behaviour = { kind?: Kind; create?: "ok" | "timeout"; search?: "ok" | "error" | "full"; noUser?: boolean; usersError?: boolean; found?: Found[]; };
 const CLAIM_TEMPLATE: Record<Kind, string> = { ready_check: MITTI_TEMPLATE_ID, piesa: MITTI_TEMPLATE_ID, fixes: A2_UUID, install_day: A2_UUID };
@@ -161,7 +165,7 @@ function fakeMitti(b: Behaviour = {}) {
     if (method === "GET" && path.startsWith("/audits/")) {
       const id = decodeURIComponent(path.slice("/audits/".length));
       const f = (b.found ?? []).find((x) => x.id === id);
-      if (f) return { audit_id: id, template_id: CLAIM_TEMPLATE[kind], audit_data: { authorship: { owner_id: f.owner ?? TRADE_MITTI_ID } }, ...formItems(kind, f) };
+      if (f) return { audit_id: id, template_id: CLAIM_TEMPLATE[kind], audit_data: { authorship: { owner_id: f.owner ?? API_ACCOUNT } }, ...formItems(kind, f) };
       return { audit_id: id, template_id: CLAIM_TEMPLATE[kind], header_items: [{ item_id: "h1", label: "Portal Job Number", responses: { text: "HV-9001" } }], items: [] };
     }
     if (path === "/audits") {
@@ -232,6 +236,7 @@ beforeEach(() => {
   setup("ready_check");
   clock.now = T0; commsOn = true; commsThrows = false;
   gateway.length = 0; testSends.length = 0; outbound.length = 0; linkCalls.length = 0; simHolder.calls.length = 0; simHolder.bodies.length = 0; simHolder.call = null;
+  process.env["MITTI_API_USER_ID"] = API_ACCOUNT;
 });
 
 describe("the retry sweep", () => {
@@ -258,11 +263,12 @@ describe("the retry sweep", () => {
 
   test("2. lost reply: the form Mitti made is found and linked, nothing new is made", async () => {
     await failUncertain("ready_check");
-    const m = fakeMitti({ found: [{ id: "audit_lost" }] });
+    const m = fakeMitti({ found: [{ id: "audit_lost" }] }); // still owned by the API account: share / owner never ran
     const r = await sweepWith(m, 3);
     expect(r).toMatchObject({ checked: 1, linked: 1, retried: 0, alerted: 0 });
     expect(m.creates()).toBe(0);
     expect(linkCalls).toEqual([{ auditId: "audit_lost", jobId: JOB }]);
+    expect(m.handedOver("audit_lost")).toBe(true); // the creator's share + set-owner step, for the assigned trade
     expect(events(R.RETRY_LINKED_EVENT).map((e) => e.details)).toEqual([{ kind: "ready_check", audit_id: "audit_lost" }]);
     expect(events(R.RETRY_STARTED_EVENT).length).toBe(0);
     expect(gateway.length).toBe(0);
@@ -278,6 +284,8 @@ describe("the retry sweep", () => {
     expect(await sweepWith(m, 6)).toMatchObject({ retried: 1, alerted: 0 });
     expect(m.creates()).toBe(2);
     expect(gateway.length).toBe(0);
+    // I6: both searches start before the FIRST attempt of this run (5 minute margin), not before the latest one
+    expect(m.searchedFrom).toEqual([new Date(T0 - 5 * 60_000).toISOString(), new Date(T0 - 5 * 60_000).toISOString()]);
     const [a, b] = await Promise.all([sweepWith(m, 9), sweepWith(m, 9)]);
     expect(a.alerted + b.alerted).toBe(1);
     expect(m.creates()).toBe(2); // never a third try
@@ -424,8 +432,10 @@ describe("6. every kind of form passes the fail-then-retry case, and the lost-re
       const r = await sweepWith(m, 3);
       expect(r).toMatchObject({ checked: 1, retried: 1, alerted: 0 });
       expect(m.creates()).toBe(1);
-      expect(overrides().length).toBe(1);
-      expect((overrides()[0]!.details as { kind: string }).kind).toBe(kind);
+      // I4: only the Ready Check flag is cleared with an access override; other forms clear through their own records
+      expect(overrides().length).toBe(kind === "ready_check" ? 1 : 0);
+      if (kind === "ready_check") expect((overrides()[0]!.details as { kind: string }).kind).toBe(kind);
+      expect(events("mitti_access_override").length).toBe(kind === "ready_check" ? 1 : 0);
       expect(gateway.length).toBe(0);
       expect((await sweepWith(m, 6)).checked).toBe(0);
     });
@@ -436,6 +446,8 @@ describe("6. every kind of form passes the fail-then-retry case, and the lost-re
       const r = await sweepWith(m, 3);
       expect(r).toMatchObject({ checked: 1, linked: 1, retried: 0, alerted: 0 });
       expect(m.creates()).toBe(0);
+      expect(m.handedOver("audit_lost")).toBe(true);
+      expect(events("mitti_access_override").length).toBe(kind === "ready_check" ? 0 : 0); // RC clears via the link record
       expect(events(R.RETRY_LINKED_EVENT).map((e) => e.details)).toEqual([{ kind, audit_id: "audit_lost" }]);
       if (kind === "piesa") expect((T.assessments as Row[])[0]!.external_mitti_id).toBe("audit_lost");
       if (kind === "fixes") expect(events(FIXES_FORM_CREATED_EVENT)[0]!.details).toMatchObject({ audit_id: "audit_lost", booking_id: "b3" });
@@ -446,14 +458,48 @@ describe("6. every kind of form passes the fail-then-retry case, and the lost-re
   }
 });
 
-describe("C2: TEST-job PIESA retries", () => {
+describe("final review fixes", () => {
+  for (const kind of ["ready_check", "piesa", "fixes", "install_day"] as const) {
+    test(`C1 ${kind}: a form whose job number and address can't be read means "can't tell": email, never create`, async () => {
+      setup(kind);
+      await failUncertain(kind);
+      const m = fakeMitti({ kind, found: [{ id: "audit_blank", jobNumber: null, address: null, name: null }] });
+      expect(await sweepWith(m, 3)).toMatchObject({ retried: 0, linked: 0, alerted: 1 });
+      expect(m.creates()).toBe(0);
+      expect(events(RELEASE_EVENT).length).toBe(0);
+      expect(gateway[0]!.text).toContain("could not be read");
+    });
+    test(`C1 ${kind}: this job's form, read with its own labels, is never duplicated; another job's form is ignored`, async () => {
+      setup(kind);
+      await failUncertain(kind);
+      const other = fakeMitti({ kind, found: [{ id: "audit_other", jobNumber: "HV-1234", address: "9 Elsewhere St, Faraway VIC 3999" }] });
+      expect(await sweepWith(other, 3)).toMatchObject({ retried: 1, alerted: 0 });
+      expect(other.creates()).toBe(1);
+    });
+  }
+
+  test("I1: a form still with the API account is not adopted while that account is unknown (email, no create)", async () => {
+    delete process.env["MITTI_API_USER_ID"];
+    await failUncertain("ready_check");
+    const m = fakeMitti({ found: [{ id: "audit_lost" }] });
+    expect(await sweepWith(m, 3)).toMatchObject({ retried: 0, linked: 0, alerted: 1 });
+    expect(m.creates()).toBe(0);
+    expect(linkCalls.length).toBe(0);
+  });
+  test("I1: a form already with the trade is linked too", async () => {
+    await failUncertain("ready_check");
+    const m = fakeMitti({ found: [{ id: "audit_lost", owner: TRADE_MITTI_ID }] });
+    expect(await sweepWith(m, 3)).toMatchObject({ linked: 1, alerted: 0 });
+    expect(m.creates()).toBe(0);
+  });
+
   for (const variant of ["qa_test job", "TEST partner"] as const) {
-    test(`a ${variant} PIESA retry only reaches the simulator and the TEST Mitti account`, async () => {
+    test(`C2: a ${variant} PIESA retry only reaches the simulator and the TEST Mitti account`, async () => {
       setup("piesa", variant === "qa_test job" ? { source: "qa_test" } : { testPartner: true });
       clock.now = T0;
-      // the first attempt, assigned like the booking does it (TEST assignee), loses its reply
-      const r0 = await M.createAssignMittiAudit(JOB, null, fakeMitti({ kind: "piesa", create: "timeout" }).call, { assignee: { userId: TRADE, fullName: null, email: TEST_MITTI_ASSIGNEE } }).catch((e) => e);
-      expect(r0).toBeInstanceOf(MittiOutcomeUncertain);
+      // the first attempt, exactly as the booking does it (TEST assignee), loses its reply
+      const r0 = await onPiesaBooked(JOB, "b2", null, { call: fakeMitti({ kind: "piesa", create: "timeout" }).call });
+      expect(r0.outcome).toBe("failed");
       expect((events(CLAIM_EVENT)[0]!.details as { assignee_email: string }).assignee_email).toBe(TEST_MITTI_ASSIGNEE);
       const sim = fakeMitti({ kind: "piesa" });
       simHolder.call = sim.call as never;
@@ -466,26 +512,97 @@ describe("C2: TEST-job PIESA retries", () => {
       expect(new Set(searched)).toEqual(new Set([TEST_MITTI_ASSIGNEE]));
     });
   }
-});
 
-describe("C1: each form type is read with its own questions", () => {
-  for (const kind of ["ready_check", "piesa", "fixes", "install_day"] as const) {
-    test(`${kind}: a form whose job number and address can't be read means "can't tell": email, never create`, async () => {
-      setup(kind);
-      await failUncertain(kind);
-      const m = fakeMitti({ kind, found: [{ id: "audit_blank", jobNumber: null, address: null, name: null }] });
-      expect(await sweepWith(m, 3)).toMatchObject({ retried: 0, linked: 0, alerted: 1 });
-      expect(m.creates()).toBe(0);
-      expect(events(RELEASE_EVENT).length).toBe(0);
-      expect(gateway[0]!.text).toContain("could not be read");
-    });
-    test(`${kind}: another job's form (read with its own labels) does not block the retry`, async () => {
-      setup(kind);
-      await failUncertain(kind);
-      const other = fakeMitti({ kind, found: [{ id: "audit_other", jobNumber: "HV-1234", address: "9 Elsewhere St, Faraway VIC 3999" }] });
-      expect(await sweepWith(other, 3)).toMatchObject({ retried: 1, alerted: 0 });
-      expect(other.creates()).toBe(1);
-    });
-  }
+  test("I3: a PIESA lost reply (booking path) is retried after searching, not emailed at once", async () => {
+    setup("piesa");
+    clock.now = T0;
+    const r0 = await onPiesaBooked(JOB, "b2", null, { call: fakeMitti({ kind: "piesa", create: "timeout" }).call });
+    expect(r0.outcome).toBe("failed");
+    expect(events("piesa_autoform_failed").length).toBe(1);
+    const m = fakeMitti({ kind: "piesa" });
+    expect(await sweepWith(m, 0)).toMatchObject({ alerted: 0 });
+    expect(await sweepWith(m, 3)).toMatchObject({ retried: 1, alerted: 0 });
+    expect(m.searches()).toBe(1);
+    expect(m.creates()).toBe(1);
+    expect(gateway.length).toBe(0);
+  });
+
+  test("I4: a PIESA retry does not clear the Ready Check office flag", async () => {
+    setup("piesa");
+    clock.now = T0 - 60_000;
+    (T.workflow_events as Row[]).push({ id: "e-rc-flag", job_id: JOB, event_type: "mitti_access_needed", created_at: new Date(clock.now).toISOString(), summary: "Needs Mitti access: installer not in Mitti", details: {} });
+    await failUncertain("piesa");
+    expect(await sweepWith(fakeMitti({ kind: "piesa" }), 3)).toMatchObject({ retried: 1 });
+    const items = mittiOfficeItems(events() as never, at(4));
+    expect(items.some((i) => i.code === "mitti_setup_installer" && i.jobId === JOB)).toBe(true);
+  });
+
+  test("I5: a Mitti outage before the create waits, searches and retries; no instant email", async () => {
+    setup("piesa");
+    clock.now = T0;
+    const r0 = await onPiesaBooked(JOB, "b2", null, { call: fakeMitti({ kind: "piesa", usersError: true }).call });
+    expect(r0).toMatchObject({ outcome: "failed", reason: "Mitti request failed (500)." });
+    expect(events(RELEASE_EVENT).length).toBe(1); // the creator released its claim: nothing was made
+    const m = fakeMitti({ kind: "piesa" });
+    expect(await sweepWith(m, 1)).toMatchObject({ checked: 1, alerted: 0, retried: 0 });
+    expect(m.calls).toEqual([]);
+    expect(await sweepWith(m, 3)).toMatchObject({ retried: 1, alerted: 0 });
+    expect(m.searches()).toBe(1);
+    expect(m.creates()).toBe(1);
+    expect(events(RELEASE_EVENT).length).toBe(1); // no claim was held, so the sweep released nothing
+    expect(gateway.length).toBe(0);
+  });
+  test("I5: an outage that lasts through both retries emails once", async () => {
+    setup("piesa");
+    clock.now = T0;
+    await onPiesaBooked(JOB, "b2", null, { call: fakeMitti({ kind: "piesa", usersError: true }).call });
+    const down = fakeMitti({ kind: "piesa", usersError: true });
+    // the trade search (before any create) fails, so the sweep cannot check Mitti: it emails, never creates
+    expect(await sweepWith(down, 3)).toMatchObject({ retried: 0, alerted: 1 });
+    expect(down.creates()).toBe(0);
+    expect(gateway.length).toBe(1);
+  });
+  test("I5: a retry that hits an outage again tries once more, then emails", async () => {
+    setup("piesa");
+    clock.now = T0;
+    await onPiesaBooked(JOB, "b2", null, { call: fakeMitti({ kind: "piesa", usersError: true }).call });
+    // search works, but the creator's own steps keep failing with 500s
+    let n = 0;
+    const flaky = fakeMitti({ kind: "piesa" });
+    const call = (async (mth: string, path: string, body?: unknown) => { if (path === "/users/search" && ++n % 2 === 0) throw new Error("Mitti request failed (502)."); return (flaky.call as unknown as (a: string, b: string, c?: unknown) => Promise<unknown>)(mth, path, body); }) as never;
+    const sweep = (min: number) => runMittiRetrySweep({ now: at(min), callFor: () => call });
+    expect(await sweep(3)).toMatchObject({ retried: 1, alerted: 0 });
+    expect(gateway.length).toBe(0);
+    expect(await sweep(6)).toMatchObject({ retried: 1, alerted: 1 });
+    expect(flaky.creates()).toBe(0);
+    expect(gateway.length).toBe(1);
+    expect(await sweep(9)).toMatchObject({ checked: 0 });
+  });
+
+  test("I7: only the last 14 days of events are read", async () => {
+    await failUncertain("ready_check");
+    const m = fakeMitti();
+    expect(await runMittiRetrySweep({ now: at(20 * 24 * 60), callFor: () => m.call })).toMatchObject({ checked: 0 });
+    expect(m.calls).toEqual([]);
+  });
+
+  test("M3: a full page of Mitti results (no paging) emails and creates nothing", async () => {
+    await failUncertain("ready_check");
+    const m = fakeMitti({ search: "full" });
+    expect(await sweepWith(m, 3)).toMatchObject({ retried: 0, alerted: 1 });
+    expect(m.creates()).toBe(0);
+    expect(events(RELEASE_EVENT).length).toBe(0);
+  });
+
+  test("M4: an alert that keeps failing logs at most one error per job and form each hour", async () => {
+    clock.now = T0;
+    expect(await runReadyCheckFormCreation(JOB, null, ASSIGNEE, fakeMitti({ noUser: true }).call, { delaysMs: [] })).toBe("failed");
+    commsThrows = true;
+    const m = fakeMitti();
+    for (const min of [0, 1, 2, 30]) await sweepWith(m, min);
+    expect(events("mitti_retry_error").length).toBe(1);
+    await sweepWith(m, 61);
+    expect(events("mitti_retry_error").length).toBe(2);
+  });
 });
 

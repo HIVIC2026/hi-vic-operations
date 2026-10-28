@@ -1,12 +1,13 @@
 // Automatic retry rules for failed Mitti form creation (pure: no I/O). The sweep (server) feeds it
 // workflow_events rows and acts on the answers; the alert email wording lives here too.
 import type { MittiFormKind } from "./mitti-create-claim.core";
-import { UNCERTAIN_EVENT } from "./mitti-create-claim.core";
+import { RELEASE_EVENT, UNCERTAIN_EVENT } from "./mitti-create-claim.core";
 import { PIESA_AUTOFORM_FAILED_EVENT } from "./piesa-autoform.core";
 import { PIISA_AUTOSEND_FAILED_EVENT, PIISA_AUDIT_CREATED_EVENT } from "./piisa-autosend.core";
 import { FIXES_DAY_Q, FIXES_FORM_CREATED_EVENT, FIXES_FORM_HELD_EVENT } from "./fixes-day.core";
 import { INSTALL_DAY_Q } from "./install-day.core";
 import { flatten, norm as labelNorm } from "./mitti.core";
+import { retryable } from "./onsite-ready-check.core";
 
 /** Failures before this moment are never retried or alerted. */
 export const MITTI_RETRY_FROM = "2026-10-29T00:00:00.000Z"; // set to the deploy time in Task 5
@@ -16,6 +17,8 @@ export const MAX_RETRIES = 2;
 export const RETRY_STARTED_EVENT = "mitti_create_retry_started";
 export const RETRY_LINKED_EVENT = "mitti_create_retry_linked";
 export const ALERT_SENT_EVENT = "mitti_create_alert_sent";
+/** The retry found the form is no longer needed (e.g. no fixes left): closes the case without touching office flags. */
+export const RETRY_NOT_NEEDED_EVENT = "mitti_create_retry_not_needed";
 
 export type WorkflowEventRow = { job_id: string; event_type: string; created_at: string; summary?: string | null; details?: Record<string, unknown> | null };
 
@@ -25,7 +28,9 @@ export type FailureCase = {
   /** The uncertain claim to release before retrying; null when nothing was created (no claim held). */
   claimId: string | null;
   failedAt: string;
-  reason: "uncertain" | "not_created";
+  /** uncertain: the create may have reached Mitti (claim held). retryable: nothing was made, but the error was a Mitti
+   *  outage (5xx / timeout / unreachable) that a retry may fix. not_created: nothing was made and a retry won't help. */
+  reason: "uncertain" | "retryable" | "not_created";
   detail: string;
 };
 
@@ -36,6 +41,10 @@ const str = (v: unknown) => (typeof v === "string" ? v : "");
 
 type Failure = { kind: MittiFormKind; claimId: string | null; reason: FailureCase["reason"]; detail: string };
 
+/** A "not made" message that is really the lost-reply text: the uncertain event logged with it is the failure. */
+const LOST_REPLY_RE = /reply was lost|may have (made|created) the form/i;
+const notCreated = (kind: MittiFormKind, detail: string): Failure => ({ kind, claimId: null, reason: retryable(detail) ? "retryable" : "not_created", detail });
+
 /** What failure (if any) an event records. The sweep's own events (released, retry_*, alert_sent) are never failures. */
 function failureOf(e: WorkflowEventRow): Failure | null {
   const d = e.details ?? {};
@@ -45,15 +54,15 @@ function failureOf(e: WorkflowEventRow): Failure | null {
       return kind ? { kind, claimId: str(d["claim_id"]) || null, reason: "uncertain", detail: str(d["detail"]) || (e.summary ?? "") } : null;
     }
     case "mitti_access_needed":
-      return /could not be created/i.test(e.summary ?? "") ? { kind: "ready_check", claimId: null, reason: "not_created", detail: e.summary ?? "" } : null;
+      return /could not be created/i.test(e.summary ?? "") ? notCreated("ready_check", e.summary ?? "") : null;
     case PIESA_AUTOFORM_FAILED_EVENT:
-      return { kind: "piesa", claimId: null, reason: "not_created", detail: str(d["reason"]) || (e.summary ?? "") };
+      return notCreated("piesa", str(d["reason"]) || (e.summary ?? ""));
     case FIXES_FORM_HELD_EVENT:
       // The fixes creator holds with key "booking:<id>:not_created" when nothing was created.
-      return /:not_created$/.test(str(d["key"])) ? { kind: "fixes", claimId: null, reason: "not_created", detail: str(d["reason"]) || (e.summary ?? "") } : null;
+      return /:not_created$/.test(str(d["key"])) ? notCreated("fixes", str(d["reason"]) || (e.summary ?? "")) : null;
     case PIISA_AUTOSEND_FAILED_EVENT:
       // The autosend only logs this for real failures; held / uncertain claims are skipped there.
-      return { kind: "install_day", claimId: null, reason: "not_created", detail: str(d["message"]) || (e.summary ?? "") };
+      return notCreated("install_day", str(d["message"]) || (e.summary ?? ""));
     default:
       return null;
   }
@@ -64,13 +73,17 @@ function resolvesKinds(e: WorkflowEventRow): MittiFormKind[] {
   const own = asKind(e.details?.["kind"]);
   switch (e.event_type) {
     case RETRY_LINKED_EVENT:
+    case RETRY_NOT_NEEDED_EVENT:
     case ALERT_SENT_EVENT:
       return own ? [own] : [];
     case "mitti_audit_created":
     case "mitti_audit_reshared":
-    case "mitti_access_override":
       // Newer events say which form they were for; older ones did not, so they clear both Ready Check and PIESA.
       return own ? [own] : ["ready_check", "piesa"];
+    case "mitti_access_override":
+      // A kind-less override is the office assigning a trade without confirmed Mitti access (portal assignTrade): it
+      // stands for the Ready Check flag only, never for a PIESA / fixes / install-day form.
+      return own ? [own] : ["ready_check"];
     case "mitti_audit_linked": // the link function only handles Ready Check forms
       return ["ready_check"];
     case PIISA_AUDIT_CREATED_EVENT:
@@ -83,31 +96,48 @@ function resolvesKinds(e: WorkflowEventRow): MittiFormKind[] {
 }
 
 type Run = { failures: { at: string; f: Failure }[]; latest: { at: string; f: Failure } };
+type KeyState = { jobId: string; kind: MittiFormKind; list: { at: string; f: Failure }[]; muted: boolean; held: string | null };
 
-/** Per job+kind: the unresolved failures after the last resolver, or null if there are none. */
+/**
+ * Per job+kind: the unresolved failures after the last resolver, or null if there are none. Walks the events in order:
+ *  - a resolver ends the run; the office alert also MUTES later "not made" failures (they repeat hourly) until a real
+ *    resolver (I2). An uncertain failure always counts: it means a new attempt reached Mitti.
+ *  - while an uncertain claim is still held (not released), a "not made" event does not replace it (I3), and a "not
+ *    made" event carrying the lost-reply text is only the echo of an uncertain event.
+ */
 function unresolvedRuns(events: WorkflowEventRow[], now?: Date): Map<string, Run & { jobId: string; kind: MittiFormKind }> {
   const from = ms(MITTI_RETRY_FROM);
   const limit = now ? now.getTime() : Infinity;
   const rows = events.filter((e) => ms(e.created_at) >= from && ms(e.created_at) <= limit).sort((a, b) => ms(a.created_at) - ms(b.created_at));
-  const lastResolved = new Map<string, number>();
-  const failures = new Map<string, { jobId: string; kind: MittiFormKind; list: { at: string; f: Failure }[] }>();
-  const key = (job: string, kind: string) => `${job}\u0000${kind}`;
+  const states = new Map<string, KeyState>();
+  const state = (jobId: string, kind: MittiFormKind) => {
+    const k = `${jobId}\u0000${kind}`;
+    let st = states.get(k);
+    if (!st) { st = { jobId, kind, list: [], muted: false, held: null }; states.set(k, st); }
+    return st;
+  };
   for (const e of rows) {
-    for (const rk of resolvesKinds(e)) lastResolved.set(key(e.job_id, rk), ms(e.created_at));
-    const f = failureOf(e);
-    if (f) {
-      const k = key(e.job_id, f.kind);
-      const entry = failures.get(k) ?? { jobId: e.job_id, kind: f.kind, list: [] };
-      entry.list.push({ at: e.created_at, f });
-      failures.set(k, entry);
+    if (e.event_type === RELEASE_EVENT) {
+      const kind = asKind(e.details?.["kind"]);
+      const st = kind ? states.get(`${e.job_id}\u0000${kind}`) : undefined;
+      if (st && st.held && st.held === str(e.details?.["claim_id"])) st.held = null;
     }
+    for (const rk of resolvesKinds(e)) {
+      const st = state(e.job_id, rk);
+      st.list = []; st.held = null; st.muted = e.event_type === ALERT_SENT_EVENT;
+    }
+    const f = failureOf(e);
+    if (!f) continue;
+    const st = state(e.job_id, f.kind);
+    if (f.reason === "uncertain") {
+      st.list.push({ at: e.created_at, f }); st.held = f.claimId ?? "unknown"; st.muted = false;
+      continue;
+    }
+    if (st.muted || st.held || LOST_REPLY_RE.test(f.detail)) continue;
+    st.list.push({ at: e.created_at, f });
   }
   const out = new Map<string, Run & { jobId: string; kind: MittiFormKind }>();
-  for (const [k, v] of failures) {
-    const resolvedAt = lastResolved.get(k) ?? -Infinity;
-    const live = v.list.filter((x) => ms(x.at) > resolvedAt);
-    if (live.length) out.set(k, { jobId: v.jobId, kind: v.kind, failures: live, latest: live[live.length - 1]! });
-  }
+  for (const [k, v] of states) if (v.list.length) out.set(k, { jobId: v.jobId, kind: v.kind, failures: v.list, latest: v.list[v.list.length - 1]! });
   return out;
 }
 
@@ -128,8 +158,13 @@ export function retriesFor(events: WorkflowEventRow[], c: FailureCase): { at: st
     .sort((a, b) => ms(a.at) - ms(b.at));
 }
 
+/** When the current run began (its first unresolved failure): the Mitti search window starts here (I6). */
+export function runStartedAt(events: WorkflowEventRow[], c: FailureCase): string {
+  return unresolvedRuns(events).get(`${c.jobId}\u0000${c.kind}`)?.failures[0]?.at ?? c.failedAt;
+}
+
 export function nextAction(c: FailureCase, retriesSoFar: { at: string }[], now: Date): "wait" | "search_then_retry" | "alert" {
-  if (c.reason === "not_created" || retriesSoFar.length >= MAX_RETRIES) return "alert";
+  if (c.reason === "not_created" || retriesSoFar.length >= MAX_RETRIES) return "alert"; // "retryable" waits like "uncertain"
   const last = retriesSoFar.length ? Math.max(...retriesSoFar.map((r) => ms(r.at))) : 0;
   return now.getTime() >= Math.max(ms(c.failedAt), last) + RETRY_DELAY_MS ? "search_then_retry" : "wait";
 }

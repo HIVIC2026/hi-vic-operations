@@ -7,11 +7,12 @@ import { logEvent } from "./workflow.server";
 import { formatPropertyAddress } from "./address";
 import { mittiApi, pickUser, type MittiCall } from "./mitti.core";
 import { pickupTemplateMatches } from "./mitti-pickup.core";
-import { CLAIM_HELD, CLAIM_EVENT, UNCERTAIN_EVENT, isUniqueViolation, stableUuid, type MittiFormKind } from "./mitti-create-claim.core";
+import { CLAIM_HELD, CLAIM_EVENT, RELEASE_EVENT, UNCERTAIN_EVENT, isUniqueViolation, stableUuid, type MittiFormKind } from "./mitti-create-claim.core";
 import {
-  ALERT_SENT_EVENT, MITTI_RETRY_FROM, RETRY_LINKED_EVENT, RETRY_STARTED_EVENT,
-  alertEmail, auditIdentity, collectFailureCases, matchAudits, nextAction, retriesFor, type AuditToMatch, type FailureCase, type WorkflowEventRow,
+  ALERT_SENT_EVENT, MAX_RETRIES, MITTI_RETRY_FROM, RETRY_LINKED_EVENT, RETRY_NOT_NEEDED_EVENT, RETRY_STARTED_EVENT,
+  alertEmail, auditIdentity, collectFailureCases, matchAudits, nextAction, retriesFor, runStartedAt, type AuditToMatch, type FailureCase, type WorkflowEventRow,
 } from "./mitti-retry.core";
+import { retryable } from "./onsite-ready-check.core";
 import { PIESA_AUTOFORM_FAILED_EVENT } from "./piesa-autoform.core";
 import { PIISA_AUDIT_CREATED_EVENT, PIISA_AUTOSEND_FAILED_EVENT } from "./piisa-autosend.core";
 import { FIXES_FORM_CREATED_EVENT, FIXES_FORM_HELD_EVENT } from "./fixes-day.core";
@@ -20,23 +21,31 @@ import { SET_PASSWORD_BASE } from "./set-password-link.core";
 export const RETRY_ERROR_EVENT = "mitti_retry_error";
 /** Look back this far before the failed attempt began when searching Mitti (clock differences; matching is strict anyway). */
 const SEARCH_SLACK_MS = 5 * 60_000;
-
+/** Only this much history is read each minute (I7): a failure older than this is left to the office. */
+const LOOKBACK_MS = 14 * 86_400_000;
+/** Mitti's audit search page size (mitti.core searchAudits). A full page may hide more forms: never create then (M3). */
+const SEARCH_PAGE_LIMIT = 200;
+/** The Mitti user the portal's API token belongs to (I1). After a lost reply the share / set-owner calls never ran, so a
+ *  form Mitti did make is still owned by this account. Unset = unknown: such a form is never adopted (the office is
+ *  emailed instead). Set it to the token user's Mitti user id. */
+export const MITTI_API_USER_ENV = "MITTI_API_USER_ID";
 export type RetrySweepOpts = { now?: Date; callFor?: (jobId: string) => MittiCall };
 export type RetrySweepResult = { checked: number; linked: number; retried: number; alerted: number };
 
 /** Every event type collectFailureCases / retriesFor read. */
 const EVENT_TYPES = [
   "mitti_audit_create_uncertain", "mitti_access_needed", PIESA_AUTOFORM_FAILED_EVENT, FIXES_FORM_HELD_EVENT, PIISA_AUTOSEND_FAILED_EVENT,
-  RETRY_LINKED_EVENT, ALERT_SENT_EVENT, RETRY_STARTED_EVENT,
+  RETRY_LINKED_EVENT, RETRY_NOT_NEEDED_EVENT, ALERT_SENT_EVENT, RETRY_STARTED_EVENT, RELEASE_EVENT,
   "mitti_audit_created", "mitti_audit_reshared", "mitti_access_override", "mitti_audit_linked", PIISA_AUDIT_CREATED_EVENT, FIXES_FORM_CREATED_EVENT,
 ];
 
-async function loadEvents(): Promise<WorkflowEventRow[]> {
+async function loadEvents(now: Date): Promise<WorkflowEventRow[]> {
   const out: WorkflowEventRow[] = [];
   const PAGE = 1000;
+  const since = new Date(Math.max(Date.parse(MITTI_RETRY_FROM), now.getTime() - LOOKBACK_MS)).toISOString();
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await admin.from("workflow_events").select("job_id, event_type, created_at, summary, details")
-      .in("event_type", EVENT_TYPES).gte("created_at", MITTI_RETRY_FROM).order("created_at", { ascending: true }).range(from, from + PAGE - 1);
+      .in("event_type", EVENT_TYPES).gte("created_at", since).order("created_at", { ascending: true }).range(from, from + PAGE - 1);
     if (error) throw new Error(error.message);
     const rows = (data ?? []) as unknown as WorkflowEventRow[];
     out.push(...rows);
@@ -109,9 +118,29 @@ async function alertOffice(c: FailureCase, error: string, counts: RetrySweepResu
   if (outcome === "sent" || outcome === "test_routed") counts.alerted++;
 }
 
-/** The office flag clears on this event (see mittiOfficeItems). */
-const clearFlag = (jobId: string, kind: MittiFormKind, summary: string, auditId?: string | null) =>
-  logEvent(jobId, null, "mitti_access_override", summary, { kind, ...(auditId ? { audit_id: auditId } : {}) }, { internal: true });
+/** The Ready Check office flag ("mitti_setup_installer") clears on this event (see mittiOfficeItems). Ready Check only (I4):
+ *  the other forms clear through their own records (created / adopted events, assessments row). */
+const clearReadyCheckFlag = (jobId: string, summary: string, auditId?: string | null) =>
+  logEvent(jobId, null, "mitti_access_override", summary, { kind: "ready_check", ...(auditId ? { audit_id: auditId } : {}) }, { internal: true });
+
+/** The claim row that tells what the failed attempt was making: the uncertain one, or (nothing held) the latest one
+ *  released before the failure — creators claim before any Mitti call, so an outage happens after the claim. */
+async function claimFor(c: FailureCase): Promise<{ details: Record<string, unknown>; created_at: string } | null> {
+  if (c.claimId) {
+    const { data } = await admin.from("workflow_events").select("details, created_at").eq("id", c.claimId).eq("event_type", CLAIM_EVENT).maybeSingle();
+    return (data as never) ?? null;
+  }
+  const { data } = await admin.from("workflow_events").select("id, details, created_at").eq("job_id", c.jobId).eq("event_type", CLAIM_EVENT);
+  const rows = ((data ?? []) as { id: string; details: Record<string, unknown> | null; created_at: string }[])
+    .filter((r) => r.details?.["kind"] === c.kind && Date.parse(r.created_at) <= Date.parse(c.failedAt))
+    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+  const latest = rows[0];
+  if (!latest) return null;
+  // It must be the attempt that failed: released (nothing was made). A claim still held means we can't tell.
+  const { data: rel } = await admin.from("workflow_events").select("details").eq("job_id", c.jobId).eq("event_type", RELEASE_EVENT);
+  const released = ((rel ?? []) as { details: Record<string, unknown> | null }[]).some((r) => r.details?.["claim_id"] === latest.id);
+  return released ? { details: latest.details ?? {}, created_at: latest.created_at } : null;
+}
 
 async function countUncertain(jobId: string, kind: MittiFormKind): Promise<number> {
   const { data } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", UNCERTAIN_EVENT);
@@ -126,7 +155,7 @@ async function handleCase(c: FailureCase, events: WorkflowEventRow[], opts: Retr
   if (action === "alert") { await alertOffice(c, c.detail, counts); return; }
 
   // ---- search_then_retry: what was the failed attempt trying to make? (from its claim row)
-  const { data: claim } = c.claimId ? await admin.from("workflow_events").select("details, created_at").eq("id", c.claimId).eq("event_type", CLAIM_EVENT).maybeSingle() : { data: null };
+  const claim = await claimFor(c);
   const cd = (claim?.details ?? {}) as Record<string, unknown>;
   const templateId = str(cd["template_id"]), email = str(cd["assignee_email"]);
   const claimAt = Date.parse(String(claim?.created_at ?? ""));
@@ -151,19 +180,27 @@ async function handleCase(c: FailureCase, events: WorkflowEventRow[], opts: Retr
   const override = opts.callFor?.(c.jobId);
   const call = override ?? realMittiCall;
   const searchCall = await mittiCallFor(call, email); // test people use the simulator
+  const api = mittiApi(searchCall);
+  const apiOwnerId = str(process.env[MITTI_API_USER_ENV]) || null;
+  // I6: search from the FIRST attempt of this run (its claim, or its first failure), with a margin for clock differences.
+  const searchFrom = Math.min(claimAt, Date.parse(runStartedAt(events, c))) - SEARCH_SLACK_MS;
 
   let ownerId = "";
   const candidates: (AuditToMatch & { auditId: string })[] = [];
   try {
-    const api = mittiApi(searchCall);
     const user = pickUser(await api.searchUsers(email), email);
     ownerId = str(user?.id ?? user?.user_id);
     if (!ownerId) throw new Error(`${email} was not found in Mitti`);
-    const found = (await api.searchAudits(new Date(claimAt - SEARCH_SLACK_MS).toISOString())) as { audits?: { audit_id?: string; template_id?: string }[] };
-    for (const hit of found?.audits ?? []) {
+    const found = (await api.searchAudits(new Date(searchFrom).toISOString())) as { audits?: { audit_id?: string; template_id?: string }[]; metadata?: Record<string, unknown>; next_page?: unknown; next_page_token?: unknown };
+    const hits = found?.audits ?? [];
+    const meta = found?.metadata ?? {};
+    if (hits.length >= SEARCH_PAGE_LIMIT || found?.next_page || found?.next_page_token || meta["next_page"] || Number(meta["remaining_records"] ?? 0) > 0) {
+      await alertOffice(c, `Mitti returned a full page of forms (${hits.length}), so not every form could be checked and nothing was retried. ` + c.detail, counts);
+      return;
+    }
+    for (const hit of hits) {
       const id = str(hit.audit_id);
       if (!id || !pickupTemplateMatches(str(hit.template_id), templateId)) continue;
-      // C1: each form type is read with its own job-number / address questions.
       const p = auditIdentity(c.kind, await api.getAudit(id));
       // The template id is written the way the claim wrote it, so matchAudits compares like with like.
       if (p) candidates.push({ ...p, templateId });
@@ -173,7 +210,7 @@ async function handleCase(c: FailureCase, events: WorkflowEventRow[], opts: Retr
     return;
   }
 
-  const want = { templateId, mittiOwnerUserId: ownerId, jobNumber: job.job_number, siteAddress, homeownerName };
+  const want = { templateId, mittiOwnerUserId: ownerId, apiOwnerUserId: apiOwnerId, jobNumber: job.job_number, siteAddress, homeownerName };
   const verdict = matchAudits(candidates, want);
   if (verdict === "many") { await alertOffice(c, "More than one matching form was found in Mitti, so nothing was retried or linked. " + c.detail, counts); return; }
   if (verdict === "unclear") { await alertOffice(c, "A form in Mitti could not be read (no job number or address), so we can't tell if it is this job's and nothing was retried. " + c.detail, counts); return; }
@@ -192,8 +229,12 @@ async function handleCase(c: FailureCase, events: WorkflowEventRow[], opts: Retr
       await alertOffice(c, `The form was found in Mitti (${auditId}) but could not be linked to the job: ${msgOf(e)}`, counts);
       return;
     }
+    // I1: the lost reply also skipped the creator's hand-over, so do it now (the same share + set-owner calls).
+    if (hit.mittiOwnerUserId !== ownerId) {
+      try { await api.shareAudit(auditId, ownerId); await api.setAuditOwner(auditId, ownerId); }
+      catch (e) { await alertOffice(c, `The form was found in Mitti (${auditId}) and linked, but could not be handed to ${email}: ${msgOf(e)}`, counts); return; }
+    }
     await logEvent(c.jobId, null, RETRY_LINKED_EVENT, "The failed Mitti form was found in Mitti and linked to the job", { kind: c.kind, audit_id: auditId }, { internal: true });
-    if (c.kind !== "ready_check") await clearFlag(c.jobId, c.kind, "Form found in Mitti and linked", auditId);
     counts.linked++;
     return;
   }
@@ -210,7 +251,10 @@ async function handleCase(c: FailureCase, events: WorkflowEventRow[], opts: Retr
   counts.retried++;
 
   const { releaseMittiCreate, MittiClaimHeld, MittiOutcomeUncertain } = await import("./mitti-create.server");
-  await releaseMittiCreate(c.jobId, c.kind, c.claimId!, null, "retry_after_search_found_nothing");
+  // A "retryable" case holds no claim (the creator released it: nothing was made), so there is nothing to release.
+  if (c.claimId) await releaseMittiCreate(c.jobId, c.kind, c.claimId, null, "retry_after_search_found_nothing");
+  /** I5: an outage again before anything was made: the next sweep tries once more (2 minutes on); the last try emails. */
+  const outageAgain = (msg: string) => retryable(msg) && attempt < MAX_RETRIES;
 
   const uncertainBefore = await countUncertain(c.jobId, c.kind);
   try {
@@ -222,6 +266,7 @@ async function handleCase(c: FailureCase, events: WorkflowEventRow[], opts: Retr
         const f = await readyCheckFormFacts(c.jobId);
         const assignee = f?.installerUserId ? await testAssignee(f.job.source, f.installerUserId) : null;
         auditId = (await m.createAssignMittiAudit(c.jobId, null, call, { readyCheck: true, ...(assignee ? { assignee } : {}) })).auditId;
+        await clearReadyCheckFlag(c.jobId, "Retry made the form automatically", auditId);
         break;
       }
       case "piesa": {
@@ -246,18 +291,23 @@ async function handleCase(c: FailureCase, events: WorkflowEventRow[], opts: Retr
         if (r.status === "held") {
           if (r.reason === CLAIM_HELD) return;
           if ((await countUncertain(c.jobId, "fixes")) > uncertainBefore) return; // lost reply again: it is the new failure
+          if (outageAgain(r.reason ?? "")) return;
           await alertOffice(c, r.reason ?? "The form was not made", counts);
           return;
         }
-        if (r.status === "not_needed") { await clearFlag(c.jobId, c.kind, `Retry found the form is not needed: ${r.reason ?? ""}`.trim()); return; }
+        if (r.status === "not_needed") {
+          await logEvent(c.jobId, null, RETRY_NOT_NEEDED_EVENT, `Mitti form retry stopped: ${r.reason ?? "not needed"}`.trim(), { kind: c.kind }, { internal: true });
+          return;
+        }
         auditId = r.auditId ?? null;
         break;
       }
     }
-    await clearFlag(c.jobId, c.kind, "Retry made the form automatically", auditId);
+    void auditId; // recorded by the creator itself (created event / assessments row)
   } catch (e) {
     if (e instanceof MittiClaimHeld) return;
     if (e instanceof MittiOutcomeUncertain) return; // the creator already recorded a fresh uncertain event: the next failedAt
+    if (outageAgain(msgOf(e))) return;
     await alertOffice(c, msgOf(e), counts);
   }
 }
@@ -266,12 +316,18 @@ async function handleCase(c: FailureCase, events: WorkflowEventRow[], opts: Retr
 export async function runMittiRetrySweep(opts: RetrySweepOpts = {}): Promise<RetrySweepResult> {
   const now = opts.now ?? new Date();
   const counts: RetrySweepResult = { checked: 0, linked: 0, retried: 0, alerted: 0 };
-  const events = await loadEvents();
+  const events = await loadEvents(now);
   for (const c of collectFailureCases(events, now)) {
     counts.checked++;
     try { await handleCase(c, events, opts, now, counts); }
     catch (e) {
-      await logEvent(c.jobId, null, RETRY_ERROR_EVENT, `Mitti retry check failed: ${msgOf(e).slice(0, 300)}`, { kind: c.kind, failed_at: c.failedAt }, { internal: true }).catch(() => undefined);
+      // M4: at most one error row per job + form each hour (deterministic id), however often the sweep runs.
+      const hour = Math.floor(now.getTime() / 3_600_000);
+      const id = await stableUuid(`mitti-retry-error:${c.jobId}:${c.kind}:${hour}`);
+      await admin.from("workflow_events").insert({
+        id, job_id: c.jobId, actor_id: null, event_type: RETRY_ERROR_EVENT, summary: `Mitti retry check failed: ${msgOf(e).slice(0, 300)}`,
+        details: { kind: c.kind, failed_at: c.failedAt } as never, internal: true,
+      }).then(() => undefined, () => undefined);
     }
   }
   return counts;
