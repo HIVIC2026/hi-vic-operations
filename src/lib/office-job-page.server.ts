@@ -18,8 +18,8 @@ const dayTime = (iso: string) => new Date(iso).toLocaleString("en-AU", { weekday
 
 async function contactRows(jobId: string, job: { created_at: string; source: string; channel: string }) {
   const [emails, comms, sms, messages, accepted, payments] = await Promise.all([
-    admin.from("customer_email_sends").select("id, purpose, status, sent_at, created_at, error, communication_id").eq("job_id", jobId).order("created_at", { ascending: false }).limit(300),
-    admin.from("job_communications").select("id, channel, direction, subject, body, delivery_status, provider, sent_at, received_at, created_at, visibility, source_event").eq("job_id", jobId).neq("visibility", "trade").order("created_at", { ascending: false }).limit(300),
+    admin.from("customer_email_sends").select("id, purpose, status, sent_at, created_at, error, communication_id, delivery_result, delivery_detail").eq("job_id", jobId).order("created_at", { ascending: false }).limit(300),
+    admin.from("job_communications").select("id, channel, direction, subject, body, delivery_status, provider, sent_at, received_at, created_at, visibility, source_event, delivery_result, delivery_detail").eq("job_id", jobId).neq("visibility", "trade").order("created_at", { ascending: false }).limit(300),
     admin.from("sms_messages").select("id, message_type, status, body, created_at, to_number, business_id").eq("job_id", jobId).is("business_id", null).order("created_at", { ascending: false }).limit(300),
     admin.from("messages").select("id, body, created_at, internal, sender_label, channel").eq("job_id", jobId).order("created_at", { ascending: false }).limit(300),
     admin.from("quotes").select("id, accepted_at, kind").eq("job_id", jobId).not("accepted_at", "is", null),
