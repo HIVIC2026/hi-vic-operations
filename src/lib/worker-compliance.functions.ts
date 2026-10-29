@@ -2,7 +2,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { approvalFlags, eecState, licenceWarning, missingItems, piisaState, whiteCardState } from "./worker-compliance.core";
+import { approvalFlags, eecState, licenceWarning, missingItems, whiteCardState } from "./worker-compliance.core";
 import { eecUploadMeta, mergeEec } from "./worker-invite.core";
 
 const uuid = z.string().uuid();
@@ -35,7 +35,7 @@ export const myTeamCompliance = createServerFn({ method: "POST" }).middleware([r
     const q = admin.from("partner_workers").select(COLS).is("removed_at", null);
     const { data } = ids.length ? await q.or(`business_id.in.(${ids.join(",")}),profile_id.eq.${context.userId}`) : await q.eq("profile_id", context.userId);
     const t = today();
-    return (await withNoticeAck(data ?? [])).map((w) => ({ id: w.id, name: w.full_legal_name, role: w.trade_role, missing: missingItems(w as never), warning: licenceWarning(w as never, t), piisa: piisaState(w as never), eec: eecState(w as never), whiteCard: whiteCardState(w), licenceExpiry: w.licence_expires_on, selfProfile: w.profile_id === context.userId }));
+    return (await withNoticeAck(data ?? [])).map((w) => ({ id: w.id, name: w.full_legal_name, role: w.trade_role, missing: missingItems(w as never), warning: licenceWarning(w as never, t), eec: eecState(w as never), whiteCard: whiteCardState(w), licenceExpiry: w.licence_expires_on, selfProfile: w.profile_id === context.userId }));
   });
 
 export const addLicenceExpiry = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -90,7 +90,7 @@ export const officeWorkerCompliance = createServerFn({ method: "POST" }).middlew
       const f = facts.get(w.id);
       const row = f ? { ...w, cii_level: f.level, cii_expires_on: f.expiresOn } : w;
       const cl = f && eecState(w as never) === "verified" ? crewClearance({ certStatus: f.certStatus ?? "verified", level: f.level, expiresOn: f.expiresOn }, t) : null;
-      return { id: w.id, name: w.full_legal_name, role: w.trade_role, business: (w.businesses as { trading_name: string | null; name: string } | null)?.trading_name ?? (w.businesses as { name: string } | null)?.name ?? null, flags: approvalFlags(row as never, t), warning: licenceWarning(w as never, t), piisa: piisaState(w as never), hasPiisaFile: !!w.piisa_certificate_path, eec: eecState(w as never), whiteCard: whiteCardState(w), escNotice: w.collection_notice_acknowledged,
+      return { id: w.id, name: w.full_legal_name, role: w.trade_role, business: (w.businesses as { trading_name: string | null; name: string } | null)?.trading_name ?? (w.businesses as { name: string } | null)?.name ?? null, flags: approvalFlags(row as never, t), warning: licenceWarning(w as never, t), hasPiisaFile: !!w.piisa_certificate_path, eec: eecState(w as never), whiteCard: whiteCardState(w), escNotice: w.collection_notice_acknowledged,
         cii: cl ? { level: f!.level, expiresOn: f!.expiresOn, cleared: cl.cleared, reason: cl.reason } : null, certNumber: (w.certification as { eec_upload?: { number?: string | null } } | null)?.eec_upload?.number ?? null };
     }).filter((r) => r.flags.length || r.warning);
   });

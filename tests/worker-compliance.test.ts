@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { CREW_CLEARANCE_REASON, approvalFlags, crewClearance, licenceState, licenceWarning, missingItems, piisaState, workerOfferBlocker } from "../src/lib/worker-compliance.core";
+import { CREW_CLEARANCE_REASON, approvalFlags, crewClearance, licenceState, licenceWarning, missingItems, workerOfferBlocker } from "../src/lib/worker-compliance.core";
 import { stepErrors as recErrors } from "../src/lib/rec-onboarding.core";
 import { stepErrors as instErrors } from "../src/lib/installer-onboarding.core";
 const T = "2026-10-06";
@@ -50,7 +50,7 @@ describe("crew clearance (decision 153, Jo 24 Oct 2026)", () => {
   });
   test("office flags: verified without level, or expired, is called out; undefined level facts never invent a flag", () => {
     // Decision 319: a verified White Card so only the CII facts are under test here.
-    const v = { trade_role: "installer", certification_status: "verified" as const, piisa_status: "done" as const, piisa_certificate_path: "p", piisa_verified_at: "2026-10-01", certification: { white_card: { path: "w", verified_at: "2026-10-25T00:00:00Z" } } as never };
+    const v = { trade_role: "installer", certification_status: "verified" as const, certification: { white_card: { path: "w", verified_at: "2026-10-25T00:00:00Z" } } as never };
     expect(approvalFlags(v, T)).toEqual([]);
     expect(approvalFlags({ ...v, cii_level: null, cii_expires_on: null }, T)).toEqual(["CII level and expiry to record"]);
     expect(approvalFlags({ ...v, cii_level: "full", cii_expires_on: "2026-10-01" }, T)).toEqual(["CII certificate expired"]);
@@ -59,18 +59,8 @@ describe("crew clearance (decision 153, Jo 24 Oct 2026)", () => {
 });
 describe("installer PIISA training", () => {
   const inst = (x: object) => ({ trade_role: "installer", ...x });
-  test("No: can submit, flagged, blocked until verified", () => {
-    const w = inst({ piisa_status: "not_done" });
-    expect(approvalFlags(w, T)).toContain("PIISA training not done");
-    expect(workerOfferBlocker(w, T)).not.toBeNull();
-  });
-  test("uploaded but unverified still blocked; verified ok", () => {
-    expect(piisaState(inst({ piisa_status: "done", piisa_certificate_path: "x" }))).toBe("awaiting_check");
-    expect(workerOfferBlocker(inst({ piisa_status: "done", piisa_certificate_path: "x" }), T)).not.toBeNull();
-    expect(workerOfferBlocker(inst({ piisa_status: "done", piisa_certificate_path: "x", piisa_verified_at: "2026-10-06" }), T)).toBeNull();
-  });
   // Decision 319: existing installers also show the White Card as missing (an Add it prompt, never a block here).
-  test("existing installers show missing with Add it", () => expect(missingItems(inst({}))).toEqual(["piisa", "white_card"]));
+  test("existing installers show missing with Add it", () => expect(missingItems(inst({}))).toEqual(["white_card"]));
   test("form: Yes needs date + certificate; No passes the PIISA check", () => {
     const one = (x: object) => ({ installers: [{ full_legal_name: "Al", mobile: "0412345678", email: "al@ins.com.au", cii_holds: "not_held", ...x }] }) as never;
     const errs = (x: object) => instErrors("installers" as never, one(x)).join(" | ");
