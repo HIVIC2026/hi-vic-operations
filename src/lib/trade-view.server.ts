@@ -661,7 +661,7 @@ export async function tradeSetup(userId: string) {
   for (const e of ev ?? []) { const d = e.details as { key?: SetupKey; done?: boolean }; if (d.key) done[d.key] = !!d.done; }
   const biz = await tradeBusiness(userId);
   if (biz.bankSaved) done.bank = done.bank ?? false;
-  return { kind: c.kind, business: c.biz.name, firstName: c.firstName, mobile: c.profile?.phone ?? null, email: c.profile?.email ?? null, area: biz.area, rate: biz.rate, bankSaved: biz.bankSaved, done, steps: SETUP_STEPS.map((s) => s.key) };
+  return { kind: c.kind, business: c.biz.name, firstName: c.firstName, boss: c.boss, mobile: c.profile?.phone ?? null, email: c.profile?.email ?? null, area: biz.area, rate: biz.rate, bankSaved: biz.bankSaved, done, steps: SETUP_STEPS.map((s) => s.key) };
 }
 
 export async function tradeSetupMark(userId: string, key: SetupKey, done: boolean) {

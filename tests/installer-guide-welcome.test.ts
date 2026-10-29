@@ -25,3 +25,12 @@ test("G2: SWMS, PIISA, VEEC and Part B explained the first time they appear", ()
 test("guide still has the same five steps", () => {
   expect(GUIDE_STEPS.map((s) => s.title)).toEqual(["Get the job", "Ready Check", "PIESA", "Install days", "Install day"]);
 });
+
+test("G3: welcome page menu follows the person — staff see only My work", () => {
+  const page = readFileSync("src/routes/_authenticated/field.welcome.tsx", "utf8");
+  expect(page).toContain("<TradeShell installer={installer} boss={data.boss}>");
+  expect(page).not.toMatch(/<TradeShell installer=\{installer\} boss>/);
+  const srv = readFileSync("src/lib/trade-view.server.ts", "utf8");
+  const fn = srv.slice(srv.indexOf("export async function tradeSetup("), srv.indexOf("export async function tradeSetupMark("));
+  expect(fn).toContain("boss: c.boss");
+});
