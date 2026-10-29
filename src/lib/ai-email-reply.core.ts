@@ -2,7 +2,7 @@
 // - The AI writes every reply fresh from the job's details, current stage and full email history.
 // - Simple emails (where's my job up to, thanks/got it, resend a link, booking time questions) and everything else are
 //   SAVED AS A DRAFT ON THE JOB. Nothing sends by itself until Jo has seen samples and says "send"
-//   (AI_EMAIL_AUTO_SEND_ENABLED stays false). Jo approves and sends each draft from the job page.
+//   (the on/off switch lives on the AI answers page). Jo approves and sends each draft from the job page.
 // - Tone: friendly, relaxed, short; answer first then next step; "rebate", never VEEC/scheme jargon; never "call us",
 //   never a phone number; sign-off "Cheers, the Home Insulation Victoria team" (AI replies only).
 // - Booking change asks get the owner's own My job link on the right screen for the visit (PIESA → electrician,
@@ -38,8 +38,6 @@ export function latestDraftEdits(rows: { created_at: string; details: { draft_ev
 export const AI_EMAIL_REPLY_PURPOSE = "owner_email_ai_reply";
 /** Master switch for writing AI drafts on jobs. */
 export const AI_EMAIL_DRAFTS_ENABLED: boolean = true;
-/** Jo 26 Oct: OFF until Jo has seen sample replies and says "send". With it off simple replies are drafts too. */
-export const AI_EMAIL_AUTO_SEND_ENABLED: boolean = false;
 /** Jo 27 Oct 2026: signed by the team, never by Jo. */
 export const AI_SIGN_OFF = "Cheers, the Home Insulation Victoria team";
 /** The AI returns exactly this when the email needs no reply (a plain "thanks" or acknowledgement). Jo 27 Oct: file those away. */
@@ -354,7 +352,7 @@ export function splitAiOutput(raw: string, o: { ownerFirstName?: string | null }
 }
 
 /** Words in the OWNER's email that mean a person should look at it, whatever the AI labelled it. */
-export const COMPLAINT_WORDS = /\b(?:refunds?|damage[ds]?|damaging|unhappy|mess|messy|cancel(?:l?ed|l?ing|s)?|complain(?:s|ed|ing|t|ts)?|disappointed|disappointing|angry|wrong|broken|leak(?:s|ed|ing|y)?|scam|rip[- ]?off|not\s+(?:happy|satisfied|impressed|good\s+enough)|dissatisfied|terrible|useless|unacceptable|furious|fed\s+up|ombudsman|consumer\s+affairs|fair\s+trading|lawyer|solicitor|legal|money\s+back|disgrace|rubbish|shambles|ridiculous|poor\s+service|worst)\b/i;
+export const COMPLAINT_WORDS = /\b(?:refunds?|damage[ds]?|damaging|unhappy|mess|messy|cancel(?:l?ed|l?ing|s)?|complain(?:s|ed|ing|t|ts)?|disappointed|disappointing|angry|wrong|broken|leak(?:s|ed|ing|y)?|scam|rip[- ]?off|not\s+(?:happy|satisfied|impressed|good\s+enough)|dissatisfied|terribl(?:e|y)|useless|unacceptable|furious|fed\s+up|ombudsman|consumer\s+affairs|fair\s+trading|lawyers?|solicitors?|legal|money\s+back|disgrace(?:ful)?|rubbish|shambles|ridiculous|poor\s+service|worst)\b/i;
 
 /** Whether a draft may send itself. Pure: the caller supplies every fact. Checked in this order; the first blocker wins. */
 export function autoSendDecision(d: {

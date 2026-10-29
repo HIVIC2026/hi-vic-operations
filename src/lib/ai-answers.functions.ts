@@ -71,3 +71,19 @@ export const removeAiAnswer = createServerFn({ method: "POST" }).middleware([req
     if (error) throw new WorkflowError(isMissingDbObject(error) ? WAITING : error.message);
     return { ok: true };
   });
+
+// Auto-send switch and its sample replies (Jo 30 Oct 2026). Office only.
+export const getAutoSendState = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireAdmin(context.supabase);
+    const s = await import("./ai-auto-send.server");
+    const [on, samples] = await Promise.all([s.autoSendOn(), s.autoSendSamples()]);
+    return { on, samples, needed: s.AUTO_SEND_SAMPLES_NEEDED };
+  });
+
+export const switchAutoSend = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ on: z.boolean() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    return (await import("./ai-auto-send.server")).switchAutoSend(data.on, context.userId);
+  });
