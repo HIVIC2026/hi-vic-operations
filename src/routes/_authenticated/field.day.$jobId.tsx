@@ -10,7 +10,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { Check } from "lucide-react";
 import { TradeShell } from "@/components/trade/TradeShell";
-import { TradePrestart } from "@/components/trade/TradePrestart";
+import { TradePrestart, useRememberedStart } from "@/components/trade/TradePrestart";
 import { PiisaCrewPicker } from "@/components/trade/PiisaCrewPicker";
 import { InstallerFinalDeclaration } from "@/components/portal/assignment";
 import { OneTapAction } from "@/components/trade/one-tap-action";
@@ -40,7 +40,7 @@ function DayPage() {
     // Phase 3 path 8: a refusal ("This job isn't available to you.") shows at once instead of "Loading your day…" through retries.
     retry: (n, e) => n < 3 && !/available to you|assigned to you/i.test((e as Error)?.message ?? "") });
   const { data: x } = useQuery({ queryKey: ["trade-day-extras", jobId], queryFn: () => loadExtras({ data: { jobId } }), retry: false, refetchInterval: 60_000, staleTime: 20_000 });
-  const [started, setStarted] = useState(false);
+  const [started, markStarted] = useRememberedStart(`hiv-started-${jobId}-${data?.start ?? ""}`);
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [cgiError, setCgiError] = useState<string | null>(null);
@@ -94,7 +94,7 @@ function DayPage() {
               {next.signRebate ? signRebate
                 : data.mittiId ? (started
                   ? <div className="mt-3" data-mitti-handoff><MittiFormLink auditId={data.mittiId} className={primaryLinkClass}>{next.button}</MittiFormLink><Note className="text-center">Your answers and photos come back to this job. Press Complete in Mitti when it's fully finished.</Note>{data.kind !== "ready_check" && <NoFormNoPay className="mt-3" />}</div>
-                  : <TradePrestart jobId={jobId} kind={data.kind} channel={data.channel} label={next.button} onStart={async () => { if (data.kind === "ready_check" && data.channel === "hivic_sourced") { try { await confirmPricing({ data: { jobId } }); } catch (e) { toast.error(e instanceof Error ? e.message : "Could not start the Ready Check."); return; } } setStarted(true); }} disabledReason={data.kind === "safety_check" && !data.mittiReady && !data.mittiId ? "The office is still setting up the onsite form. Your result will show here once it's in." : null} />)
+                  : <TradePrestart jobId={jobId} kind={data.kind} channel={data.channel} label={next.button} onStart={async () => { if (data.kind === "ready_check" && data.channel === "hivic_sourced") { try { await confirmPricing({ data: { jobId } }); } catch (e) { toast.error(e instanceof Error ? e.message : "Could not start the Ready Check."); return; } } markStarted(); }} disabledReason={data.kind === "safety_check" && !data.mittiReady && !data.mittiId ? "The office is still setting up the onsite form. Your result will show here once it's in." : null} />)
                 : <div className="mt-3" data-mitti-setup>
                     <p className="text-sm font-semibold">Your form is being set up.</p>
                     <p className="mt-1 text-sm text-sub">{data.mittiInvited ? "Home Insulation Victoria is preparing the Mitti form. It appears on this job when ready." : "Your Mitti account isn't invited yet, so the form can't open. Home Insulation Victoria has to invite you."}</p>

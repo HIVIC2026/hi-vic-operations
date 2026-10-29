@@ -8,6 +8,22 @@ import { dayChecks } from "@/lib/installer-screens.core";
 import { CheckLine, PrimaryButton } from "@/components/trade/installer-kit";
 import { HIVIC_READY_CHECK_PRICING_TICK } from "@/lib/owner-confirm.core";
 
+// Remembers on this phone that Start was tapped, so reloading does not ask again. The key names the job and the visit
+// time, so another job or another day starts fresh. Storage can be empty or throw (private window): then it is "not started".
+export function useRememberedStart(key: string): [boolean, () => void] {
+  const [started, setStarted] = useState(false);
+  useEffect(() => {
+    let on = false;
+    try { on = localStorage.getItem(key) === "1"; } catch { /* storage unavailable: not started */ }
+    setStarted(on);
+  }, [key]);
+  const markStarted = () => {
+    setStarted(true);
+    try { localStorage.setItem(key, "1"); } catch { /* ignore */ }
+  };
+  return [started, markStarted];
+}
+
 export function TradePrestart({ jobId, kind, channel, label, onStart, disabledReason }: { jobId: string; kind: DayKind; channel?: string | null; label: string; onStart: () => void | Promise<void>; disabledReason?: string | null }) {
   const key = `hiv-prestart-${jobId}`;
   const [ticks, setTicks] = useState<boolean[]>([false, false, false]);

@@ -107,3 +107,15 @@ describe("D6 one crew picker", () => {
     expect(src("src/lib/trade-job-bundle.server.ts")).toContain('visitsForStage(ov.row.stage).includes("install")');
   });
 });
+
+describe("D8 remembered Start", () => {
+  test("Start is remembered per job and visit time", () => {
+    const tp = src("src/components/trade/TradePrestart.tsx");
+    expect(tp).toContain("export function useRememberedStart(key: string): [boolean, () => void]");
+    expect(tp.match(/try \{/g)?.length).toBeGreaterThanOrEqual(4);
+    const page = src(DAY);
+    expect(page).toContain("useRememberedStart(`hiv-started-${jobId}-${data?.start ?? \"\"}`)");
+    expect(page).toContain("useRememberedStart(");
+    expect(page).not.toContain("setStarted(true)");
+  });
+});
