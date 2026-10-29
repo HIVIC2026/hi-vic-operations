@@ -96,7 +96,7 @@ export type PaymentGateInput = {
   enabled: boolean;
   route: PaymentRoute;
   currentQuote: { id: string; customer_total_inc_gst: number | string } | null; // owner-approved current confirmed quote
-  invoice: { quote_id: string; total_inc_gst: number | string; total_paid: number | string } | null;
+  invoice: { quote_id: string | null; total_inc_gst: number | string; total_paid: number | string } | null;
   plan: InstalmentPlan | null;
   overrideCount: number; // audited office overrides for this invoice
   /** TEST journeys only: an audited simulated payment for the current quote. Never true for a real job. */
