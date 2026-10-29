@@ -15,3 +15,14 @@ describe("My job at Spot saved", () => {
   test("not released: unchanged", () => expect(spotSavedLayout(false)).toEqual({ stepLabel: "Step 1 of 6", showWaitingBox: true, doneSub: "Nothing else to do until your spot is released.", currentIndex: 1 }));
   test("released: no waiting messages, step 2, quote is current", () => expect(spotSavedLayout(true)).toEqual({ stepLabel: "Step 2 of 6", showWaitingBox: false, doneSub: null, currentIndex: 2 }));
 });
+
+import { readFileSync } from "node:fs";
+describe("released spot is wired into My job", () => {
+  const server = readFileSync("src/lib/owner-myjob.server.ts", "utf8");
+  const page = readFileSync("src/routes/my-job.$token.tsx", "utf8");
+  test("server reads this job's spot_released event", () => {
+    expect(server).toMatch(/from\("workflow_events"\)\.select\("id"\)\.eq\("job_id", jobId\)\.eq\("event_type", SPOT_RELEASED_EVENT\)/);
+    expect(server).toMatch(/^\s+released,$/m);
+  });
+  test("page uses the layout helper", () => expect(page).toContain("spotSavedLayout(sp.released)"));
+});

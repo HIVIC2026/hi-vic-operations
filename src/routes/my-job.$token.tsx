@@ -7,7 +7,7 @@ import { OwnerHouse } from "@/components/owner/OwnerHouse";
 import { PIESA_FIXES_NOTE, agreedWithLabel, ownerPriceTitle } from "@/lib/owner-confirm.core";
 import { HOUSE_LEVEL } from "@/lib/owner-house.core";
 import { ownerHeadline } from "@/lib/owner-headlines.core";
-import { gateACard, SPOT_SAVED_PROGRESS } from "@/lib/owner-myjob.core";
+import { gateACard, SPOT_SAVED_PROGRESS, spotSavedLayout } from "@/lib/owner-myjob.core";
 import { ownerPaperworkFn } from "@/lib/owner-gates.functions";
 import { earliestInstall, installDeadline, TWO_HOUR_WINDOWS, visitPill, type OwnerScreen } from "@/lib/owner-myjob.core";
 import { SPOT_FREE, SPOT_PRICE_NOTE, SPOT_REGISTERED, SPOT_RELEASE_LINE, SPOT_WAIT_LINE } from "@/lib/spot-only-copy.core";
@@ -926,7 +926,8 @@ function VeecAssignmentCard({ v, token }: { v: View; token: string }) {
 
 /** Jo-approved My job at the SPOT SAVED stage (before any Ready Check is booked). */
 function SpotSavedHome({ v, token }: { v: View; token: string }) {
-  const sp = v.spotSaved as { rebate: number; cost: number | null; shortAddress: string | null; videoInvite: boolean; optOutUrl: string };
+  const sp = v.spotSaved as { rebate: number; cost: number | null; shortAddress: string | null; videoInvite: boolean; released: boolean; optOutUrl: string };
+  const L = spotSavedLayout(sp.released);
   const loadPw = useServerFn(ownerPaperworkFn);
   const { data: pw } = useQuery({ queryKey: ["owner-paperwork", token], queryFn: () => loadPw({ data: { token } }) });
   const [open, setOpen] = useState(false);
@@ -938,11 +939,11 @@ function SpotSavedHome({ v, token }: { v: View; token: string }) {
       <div className="min-w-0">
         {v.firstName && <p className="text-sm font-semibold">Hi {v.firstName}</p>}
         <h1 className="mt-1 font-display text-2xl font-extrabold leading-tight">Spot saved. Your <span className="text-estimate-logo-green">{aud(sp.rebate)}</span> rebate is waiting.</h1>
-        <p className="mt-2 text-sm text-estimate-navy/80">{sp.shortAddress ? `${sp.shortAddress} · ` : ""}Step 1 of 6</p>
+        <p className="mt-2 text-sm text-estimate-navy/80">{sp.shortAddress ? `${sp.shortAddress} · ` : ""}{L.stepLabel}</p>
       </div>
     </section>
     <OwnerReadyCheckTimes token={token} />
-    <p className="rounded-[18px] bg-estimate-heads-up p-4 text-sm"><strong>{SPOT_REGISTERED}</strong> {SPOT_RELEASE_LINE}</p>
+    {L.showWaitingBox && <p className="rounded-[18px] bg-estimate-heads-up p-4 text-sm"><strong>{SPOT_REGISTERED}</strong> {SPOT_RELEASE_LINE}</p>}
     {card === "todo" && <section data-testid="gate-a-todo" className="rounded-[22px] border-2 border-estimate-green bg-card p-5">
       <p className="text-xs font-bold uppercase tracking-wide text-estimate-green">While you wait · 2 minutes</p>
       <h2 className="mt-1 font-display text-xl font-extrabold">Get your paperwork out of the way</h2>
@@ -951,7 +952,7 @@ function SpotSavedHome({ v, token }: { v: View; token: string }) {
     </section>}
     {card === "done" && <section data-testid="gate-a-done" className="flex items-start gap-3 rounded-[22px] bg-estimate-mint p-5">
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-estimate-green text-estimate-canvas"><Check className="h-5 w-5" /></span>
-      <div><p className="font-display text-lg font-extrabold">Paperwork done. You're ready to go.</p><p className="text-sm">Nothing else to do until your spot is released.</p></div>
+      <div><p className="font-display text-lg font-extrabold">Paperwork done. You're ready to go.</p>{L.doneSub && <p className="text-sm">{L.doneSub}</p>}</div>
     </section>}
     {sp.videoInvite && <section className="rounded-[22px] bg-estimate-mint p-5">
       <h2 className="font-display text-lg font-extrabold">Help us check your insulation: send a quick video</h2>
@@ -961,8 +962,8 @@ function SpotSavedHome({ v, token }: { v: View; token: string }) {
       <p className="font-display text-lg font-extrabold">Your progress</p>
       <ol className="mt-3 space-y-3">{SPOT_SAVED_PROGRESS.map((p, i) => (
         <li key={p.label} className="flex items-start gap-3 text-sm">
-          {i === 0 ? <Check className="mt-0.5 h-4 w-4 text-estimate-green" /> : <span className={`mt-1.5 h-2.5 w-2.5 rounded-full ${i === 1 ? "bg-estimate-blue" : "bg-estimate-line"}`} />}
-          <span><span className={`block font-semibold ${i === 0 ? "text-estimate-green" : i === 1 ? "text-estimate-blue" : ""}`}>{p.label}</span><span className="text-estimate-navy/70">{p.sub}</span></span>
+          {i < L.currentIndex ? <Check className="mt-0.5 h-4 w-4 text-estimate-green" /> : <span className={`mt-1.5 h-2.5 w-2.5 rounded-full ${i === L.currentIndex ? "bg-estimate-blue" : "bg-estimate-line"}`} />}
+          <span><span className={`block font-semibold ${i < L.currentIndex ? "text-estimate-green" : i === L.currentIndex ? "text-estimate-blue" : ""}`}>{p.label}</span><span className="text-estimate-navy/70">{p.sub}</span></span>
         </li>))}</ol>
     </section>
     <section className="rounded-[22px] bg-card p-5 shadow-sm">
