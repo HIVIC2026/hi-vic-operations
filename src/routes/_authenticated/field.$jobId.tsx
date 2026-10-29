@@ -104,7 +104,7 @@ function FieldJobBody({ jobId }: { jobId: string }) {
   const { data: job, isError, error } = useJob(jobId);
   const { data: role } = useQuery({ queryKey: ["myrole", jobId], queryFn: async () => (await supabase.rpc("my_job_role", { _job: jobId })).data, staleTime: 300_000 });
   const status = useTradeJobStatus(jobId, role === "electrician"); // same query as the status card below
-  const showOwnerContact = status.data?.ownerContactVisible !== false;
+  const showOwnerContact = status.data?.ownerContactVisible === true; // fails closed: hidden while loading or on error
   if (!job && isError) return <TradeShell installer={role !== "electrician"}><p className="rounded-[18px] border bg-paper p-6 text-sm text-sub">{/TEST accounts/.test(String((error as Error)?.message)) ? "This TEST sign-in can only open active TEST jobs." : "This job isn't available to you. If it's a new offer, accept it from My work first."}</p><Link to="/field" className="mt-3 inline-block font-bold text-hiv-blue underline">Back to My work</Link></TradeShell>;
   if (!job) return <TradeShell installer={role !== "electrician"}><p className="text-sub">Loading…</p></TradeShell>;
   if (role === "installer") return <TradeShell installer><InstallerFlow jobId={jobId} job={job} /></TradeShell>;

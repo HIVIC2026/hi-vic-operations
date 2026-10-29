@@ -106,8 +106,10 @@ export async function tradeJobStatus(userId: string, jobId: string) {
   }
   const { data: asked } = await admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "trade_reminder_requested").order("created_at", { ascending: false }).limit(1).maybeSingle();
   // Owner contact follows this business's own visits only: gone once every one of them is done (contactVisible).
-  const { data: mine } = await admin.from("bookings").select("status").eq("job_id", jobId).eq("business_id", c.biz.id);
-  return { line: statusView(c, f), timeline: jobTimeline(f), chase: { mode, contact, askedAt: asked?.created_at ?? null }, ownerContactVisible: contactVisible(mine ?? []) };
+  // If this read fails the contact stays hidden (fail closed); only the error code is logged.
+  const { data: mine, error: mineErr } = await admin.from("bookings").select("status").eq("job_id", jobId).eq("business_id", c.biz.id);
+  if (mineErr) console.error("tradeJobStatus: own bookings read failed", mineErr.code ?? "unknown");
+  return { line: statusView(c, f), timeline: jobTimeline(f), chase: { mode, contact, askedAt: asked?.created_at ?? null }, ownerContactVisible: mineErr ? false : contactVisible(mine ?? []) };
 }
 
 /** "Ask Home Insulation Victoria to send a reminder": recorded for the office's Needs me. Never an automatic send. */

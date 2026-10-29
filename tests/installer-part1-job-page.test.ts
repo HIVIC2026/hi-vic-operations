@@ -53,10 +53,24 @@ test("C3: electrician Call/Text follow their own visits", () => {
   expect(contactVisible([{ status: "confirmed" }])).toBe(true);
   expect(contactVisible([{ status: "completed" }, { status: "confirmed" }])).toBe(true);
   expect(contactVisible([{ status: "completed" }, { status: "cancelled" }])).toBe(false);
-  expect(read("src/lib/job-status.server.ts")).toContain("ownerContactVisible: contactVisible(");
+  expect(read("src/lib/job-status.server.ts")).toContain("ownerContactVisible: mineErr ? false : contactVisible(");
   const elec = read(ROUTE).split("function FieldJobBody")[1]!.split("function A1ReadyCheckTimeCard")[0]!;
   expect(elec).toContain("showOwnerContact && job.owner_phone && <a href={`tel:");
   expect(elec).toContain("showOwnerContact && job.owner_phone && <a href={`sms:");
+});
+test("C3: contact hidden while status loads, on read error, and in the overview once visits are done", () => {
+  expect(read(ROUTE)).toContain("status.data?.ownerContactVisible === true");
+  expect(read(ROUTE)).not.toContain("ownerContactVisible !== false");
+  const srv = read("src/lib/job-status.server.ts");
+  expect(srv).toContain("mineErr ? false : contactVisible(");
+  expect(srv).toContain("mineErr.code");
+  expect(srv).not.toContain("console.error(\"tradeJobStatus: own bookings read failed\", mineErr)");
+  const ov = read("src/lib/job-overview.server.ts");
+  expect(ov).toContain("contactVisible(mine ?? [])");
+  expect(ov).toContain("owner_phone: null } };");
+  // trade callers only: the check sits inside the electrician/installer branch, before the admin branch
+  expect(ov.indexOf("contactVisible(mine")).toBeLessThan(ov.indexOf('role === "admin" && row.stage'));
+  expect(ov.indexOf("contactVisible(mine")).toBeGreaterThan(ov.indexOf('role === "electrician" || role === "installer"'));
 });
 test("C5: electricians don't see the install deadline", () => {
   const elec = read(ROUTE).split("function FieldJobBody")[1]!.split("function A1ReadyCheckTimeCard")[0]!;

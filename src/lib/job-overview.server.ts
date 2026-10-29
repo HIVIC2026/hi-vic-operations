@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { requireJobRole } from "./workflow.server";
 import type { JobRole } from "./workflow";
+import { contactVisible } from "./trade-view.core";
 
 type Sb = SupabaseClient<Database>;
 
@@ -28,6 +29,18 @@ export async function jobOverviewFor(sb: Sb, userId: string, jobId: string) {
     if (!rel && !own) {
       const { data: p } = await admin.from("properties").select("suburb, postcode").eq("id", row.property_id!).maybeSingle();
       return { role, row: { ...row, owner_name: null, owner_phone: null, owner_email: null, property_address: [p?.suburb, p?.postcode].filter(Boolean).join(" ") || "Address shared once the visit is arranged" } };
+    }
+    if (rel) {
+      // Same visit-current rule as the trade pages (contactVisible over this business's own bookings): no phone once every visit is done.
+      let visible = false;
+      try {
+        const { requireTradeJob } = await import("./trade-view.server");
+        const c = await requireTradeJob(userId, jobId);
+        const { data: mine, error: mineErr } = await admin.from("bookings").select("status").eq("job_id", jobId).eq("business_id", c.biz.id);
+        if (mineErr) console.error("jobOverviewFor: own bookings read failed", mineErr.code ?? "unknown");
+        else visible = contactVisible(mine ?? []);
+      } catch { visible = false; }
+      if (!visible) return { role, row: { ...row, owner_phone: null } };
     }
   }
   if (role === "admin" && row.stage === "cancelled") {
