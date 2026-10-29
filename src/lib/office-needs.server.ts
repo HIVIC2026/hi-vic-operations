@@ -538,6 +538,14 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       const open = coesNeedsFact(list.map((e) => ({ id: String(e["id"]), event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as Record<string, unknown> | null })));
       const x = f(id); if (x && open) x.coesCheck = open;
     }
+    // Repairs done but no certificate event at all (a job from before this check, or a check that never got written):
+    // read live for jobs waiting on the install booking, so the office still gets the row and its Check again button.
+    const unchecked = jobs.filter((j) => j.stage === "installation_scheduling" && !byJob.has(j.id)).slice(0, 100);
+    if (unchecked.length) {
+      const { coesNeedsFor } = await import("./coes-check.server");
+      const live = await Promise.all(unchecked.map(async (j) => [j.id, await coesNeedsFor(j.id)] as const));
+      for (const [id, fact] of live) { const x = f(id); if (x && fact) x.coesCheck = fact; }
+    }
   } catch { unavailable.push("electrical certificate checks"); }
   const unsigned = new Set(veecForms.filter((v) => !v["consumer_signed_at"]).map((v) => String(v["job_id"])));
   for (const e of veecAlerts) { const x = f(String(e["job_id"])); if (x && unsigned.has(String(e["job_id"]))) x.veecDay10 = { at: String(e["created_at"]) }; }

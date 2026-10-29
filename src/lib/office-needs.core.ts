@@ -73,7 +73,8 @@ export type NeedsFacts = {
   paymentReversed?: { at: string; text: string } | null;
   /** A48 batch 1: the newest A3 safety check breaks the official PIESA rules (piesa-rules-notice.core) — every reason. */
   piesaRulesFailed?: { at: string; reasons: string[] } | null;
-  /** A48 batch 1 task 5: the electrical certificate after the repairs waits for the office (coes-check.core) — Tick or Reject. */
+  /** A48 batch 1 task 5: the electrical certificate after the repairs waits for the office (coes-check.core) — Tick, Reject
+   *  or Check again. `eventId` null = repairs done but never checked. */
   coesCheck?: { at: string; why: string; eventId: string | null } | null;
   /** Hard stop: the Mitti form on this job was refused (wrong job number, wrong or different form). */
   mittiFormProblem?: { at: string; error: string } | null;

@@ -483,13 +483,14 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
           await saveMittiReport(jobId, actorId, a.external_mitti_id, plan.modifiedAt ?? null, "PIESA", call);
           // Decision 178: the evidence that IS on the form is kept with the job file even while other items are still missing.
           await savePiesaEvidenceFiles(jobId, actorId, a.external_mitti_id, snapshot, fetchMedia);
-          // A48 batch 1 task 5: a same-visit repair's certificate (q45) is read by the AI once kept. Never throws.
-          await (await import("./coes-check.server")).checkCurrentCoes(jobId, actorId);
           // Decision 336: the electrician's ACTUAL A3 signature image (media id + its own timestamp) is kept with the job for
           // the official PIESA Part B3 (Word form + PDF). Never throws; a failure is one internal event.
           const { mittiSignatureByLabel } = await import("./fixes-day.core");
           const a4Sig = mittiSignatureByLabel(audit, "Electrician signature");
           await (await import("./official-signature.server")).savePiesaSignatureImage(jobId, actorId, "a4", a.external_mitti_id, a4Sig, fetchMedia);
+          // A48 batch 1 task 5: after the evidence files and signature are kept, a same-visit repair's certificate (q45) is
+          // read by the AI (time-limited; ticked, or one office row). Never throws.
+          await (await import("./coes-check.server")).checkCurrentCoes(jobId, actorId);
         }
         // History only on change (Jo 23 Oct): an unchanged re-sync (same answers, same modified time,
         // same status) adds no new event row.
