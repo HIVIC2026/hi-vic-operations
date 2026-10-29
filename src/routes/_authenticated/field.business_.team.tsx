@@ -126,7 +126,7 @@ function AddTeamMember({ count }: { count: number }) {
             setBusy(true); setErr(null);
             try { const r = await create({ data: { businessId, name: f.name.trim(), contact: inviteContact(f), mobile: f.mobile.trim() || null, trade: "installer" } }); setTexted(r.text ?? null); setLink(`${window.location.origin}/join/${r.token}`); setOpen(false); }
             catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
-          }}>{busy ? "Creating…" : TEAM_ADD_SHEET.button}</button>
+          }}>{busy ? "Creating…" : TEAM_ADD_SHEET.inviteButton}</button>
           <button type="button" className="mt-2 flex min-h-11 w-full items-center justify-center text-[15px] font-semibold text-estimate-sub" onClick={() => setOpen(false)}>{TEAM_ADD_SHEET.cancel}</button>
         </section>
       )}

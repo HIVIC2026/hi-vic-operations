@@ -10,7 +10,7 @@ import { HOME_EMPTY, homeIsEmpty, monthStripWords, offerPanelWords, offersListVi
 import { QUOTE_DECLINED_LINE, QUOTE_HELD_LINE, QUOTE_SENT_LINE } from "../src/lib/installer-quote-status.core";
 import { ADD_JOB_OFFLINE_NOTE, addedView, errorSummary, fieldErrors } from "../src/lib/add-job-flow.core";
 import { PICK_ADDRESS } from "../src/lib/onsite-ready-check.core";
-import { AGREEMENT_COVERS, GUIDE_STEPS, TEAM_ADD_SHEET, bankOnFileRows, escNoticeRowLine, inviteContact, inviteTextLine, signedOnLine, teamCountLine } from "../src/lib/trade-view.core";
+import { AGREEMENT_COVERS, GUIDE_STEPS, TEAM_ADD_SHEET, TEAM_LOGIN, bankOnFileRows, escNoticeRowLine, inviteContact, inviteTextLine, signedOnLine, teamCountLine } from "../src/lib/trade-view.core";
 
 const base: JobNextFacts = {
   channel: "hivic_sourced", stage: "installation_scheduling", ownerFirstName: "Helen", formLinked: true, formCompleted: true, quoteLine: "Waiting on owner: quote accepted – waiting for owner's payment",
@@ -259,7 +259,8 @@ describe("M7 sub-page states", () => {
     expect(route).toContain("{link}</p>"); // the link itself is always shown (fallback)
   });
   test("team add sheet creates the existing /join invite", () => {
-    expect(TEAM_ADD_SHEET.button).toBe("Create the invite link");
+    expect(TEAM_ADD_SHEET).toMatchObject({ title: "Add a team member", bodyInstaller: "Email and mobile can wait. They sign their declarations by link, and we check their CII certificate, before they go on a job.", bodyElectrician: "Email and mobile can wait. They sign their declarations by link before they go on a job. Each electrician needs a current electrical licence.", name: "Full name", licence: "Electrical licence number", role: "Lead or Crew", lead: "Lead · can run install days", crew: "Crew · can't lead an install day", mobile: "Mobile (optional)", email: "Email (optional)", button: "Add to team", cancel: "Cancel" });
+    expect(TEAM_LOGIN).toEqual({ button: "Ask the office to send a login", asked: "Asked the office. They'll send the login." });
     expect(inviteContact({ mobile: " 0466 777 888 ", email: "p@x.com" })).toBe("0466 777 888");
     expect(inviteContact({ mobile: "", email: "p@x.com" })).toBe("p@x.com");
     expect(inviteContact({ mobile: "", email: " " })).toBeNull();

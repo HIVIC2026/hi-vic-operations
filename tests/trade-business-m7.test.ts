@@ -10,9 +10,9 @@ const TODAY = "2026-10-24";
 
 describe("team rows (decisions 153, 161, 130)", () => {
   test("facts line shows mobile, Mitti login and privacy notice from recorded facts only", () => {
-    expect(teamFactsLine({ mobile: "0412 000 111", mittiLogin: "linked", noticeAcknowledged: true })).toBe("0412 000 111 · Mitti login ✓ · Privacy notice ✓");
-    expect(teamFactsLine({ mobile: "0455 444 555", mittiLogin: "not_set", noticeAcknowledged: false })).toBe("0455 444 555 · Mitti login not set · Privacy notice outstanding");
-    expect(teamFactsLine({ mobile: null, mittiLogin: "email_changed", noticeAcknowledged: null })).toBe("No mobile on file · Mitti login to re-check");
+    expect(teamFactsLine({ mobile: "0412 000 111", role: "installer", workerRole: "lead", mittiLogin: "linked", mittiRecorded: false, noticeAcknowledged: true })).toBe("0412 000 111 · Lead · Mitti ✓ · Privacy notice ✓");
+    expect(teamFactsLine({ mobile: "0455 444 555", role: "installer", workerRole: "crew", mittiLogin: "not_set", mittiRecorded: false, noticeAcknowledged: false })).toBe("0455 444 555 · Crew · no Mitti · Privacy notice outstanding");
+    expect(teamFactsLine({ mobile: null, role: "electrician", workerRole: null, mittiLogin: "email_changed", mittiRecorded: false, noticeAcknowledged: null })).toBe("No mobile on file · Mitti to re-check");
   });
   test("CII line is derived by crewClearance: cleared with expiry, otherwise the reason and 'not on installs yet'", () => {
     expect(teamCiiLine({ certStatus: "verified", level: "full", expiresOn: "2027-03-14" }, TODAY)).toEqual({ text: "CII cleared · expires 14 Mar 2027", tone: "green" });
@@ -21,7 +21,7 @@ describe("team rows (decisions 153, 161, 130)", () => {
     expect(teamCiiLine({ certStatus: "verified", level: "full", expiresOn: "2026-10-01" }, TODAY)).toEqual({ text: "CII expired · not on installs yet", tone: "rose" });
     expect(teamCiiLine({ certStatus: "rejected", level: null, expiresOn: null }, TODAY)?.text).toBe("CII not accepted · not on installs yet");
     expect(teamCiiLine(null, TODAY)).toBeNull();
-    expect(TEAM_RULE).toBe("Ready Checks can go to anyone listed here. Install days only to CII-cleared people who've acknowledged the privacy notice.");
+    expect(TEAM_RULE).toBe("Every installer, Lead and Crew, needs a CII certificate checked by our office. Only a Lead can run an install day. Crew can do Ready Checks once our office adds them to Mitti.");
   });
 });
 

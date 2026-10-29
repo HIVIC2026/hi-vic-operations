@@ -578,17 +578,23 @@ export async function tradeBusiness(userId: string) {
   const noticeOf = (workerId: string, role: string) => role !== "installer" ? null : notice.find((n) => n.workerId === workerId)?.state === "acknowledged";
   // Jo 28 Oct: Lead / Crew per installer staff row (null = not applicable).
   const roles = await (await import("./mitti-invite.server")).workerRolesFor(staffRows);
+  // Office Mitti records (linked, invited, reactivated, marked done) per worker: Crew show "Mitti ✓" once the office has added them.
+  const mittiRecordedIds = new Set<string>();
+  if (staffRows.length) {
+    const { data: recs } = await admin.from("admin_config_events").select("details").in("event_type", ["mitti_user_linked", "mitti_user_invited", "mitti_invite_linked", "mitti_user_reactivated", "mitti_invite_office_done"]).in("details->>worker_id", staffRows.map((w) => w.id));
+    for (const e of recs ?? []) { const id = (e.details as { worker_id?: unknown } | null)?.worker_id; if (typeof id === "string") mittiRecordedIds.add(id); }
+  }
   const ownerEmails = new Set(ownerIds.map((id) => (profile(id)?.email ?? "").trim().toLowerCase()).filter(Boolean));
   const ownerRow = (uid: string) => staffRows.find((w) => w.profile_id === uid) ?? staffRows.find((w) => !!w.email && w.email.trim().toLowerCase() === (profile(uid)?.email ?? "").trim().toLowerCase()) ?? null;
   const team: TeamMemberView[] = [
     ...ownerIds.map((uid) => {
       const p = profile(uid), w = ownerRow(uid);
       return { id: w?.id ?? null, name: (p?.full_name ?? w?.full_legal_name ?? "Business owner").trim(), role: "owner" as const, mobile: w?.mobile ?? p?.phone ?? null, email: p?.email ?? w?.email ?? null, hasLogin: true,
-        mittiLogin: mittiLogin(uid), noticeAcknowledged: w ? noticeOf(w.id, w.trade_role) : null, cii: w ? ciiFacts(w.id, w.trade_role) : null, whiteCard: w ? whiteCardOfRow(w) : null, workerRole: w ? roles.get(w.id) ?? null : null };
+        mittiLogin: mittiLogin(uid), mittiRecorded: w ? mittiRecordedIds.has(w.id) : false, noticeAcknowledged: w ? noticeOf(w.id, w.trade_role) : null, cii: w ? ciiFacts(w.id, w.trade_role) : null, whiteCard: w ? whiteCardOfRow(w) : null, workerRole: w ? roles.get(w.id) ?? null : null };
     }),
     ...staffRows.filter((w) => !ownerIds.includes(w.profile_id ?? "") && !ownerEmails.has((w.email ?? "").trim().toLowerCase())).map((w) => ({
       id: w.id as string | null, name: w.full_legal_name.trim(), role: (w.trade_role === "installer" ? "installer" : "electrician") as TeamMemberView["role"], mobile: w.mobile ?? null, email: w.email, hasLogin: !!w.profile_id,
-      mittiLogin: mittiLogin(w.profile_id), noticeAcknowledged: noticeOf(w.id, w.trade_role), cii: ciiFacts(w.id, w.trade_role), whiteCard: whiteCardOfRow(w), workerRole: roles.get(w.id) ?? null,
+      mittiLogin: mittiLogin(w.profile_id), mittiRecorded: mittiRecordedIds.has(w.id), noticeAcknowledged: noticeOf(w.id, w.trade_role), cii: ciiFacts(w.id, w.trade_role), whiteCard: whiteCardOfRow(w), workerRole: roles.get(w.id) ?? null,
     })),
   ];
   const credentials: CredentialView[] = (creds ?? []).map((x) => ({ kind: x.kind, label: x.label, expires: x.expires_at, verified: x.verification === "verified" }));
@@ -746,6 +752,32 @@ export async function tradeSetWorkerMobile(userId: string, workerId: string, raw
   const { error } = await admin.from("partner_workers").update({ mobile: v.mobile }).eq("id", w.id).eq("business_id", c.biz.id);
   if (error) throw new WorkflowError("The mobile couldn't be saved. Try again.");
   return { ok: true, mobile: v.mobile };
+}
+
+/** Jo 29 Oct: the boss adds a person with no email needed (mobile can come later). Installers start as Lead or Crew with
+ *  the CII certificate unchecked; electricians need a licence number. Always pending, and they must sign the worker
+ *  declarations (declarations_due) before any job. Sends nothing. */
+export async function tradeAddTeamPerson(userId: string, p: { name: string; workerRole: import("./worker-role.core").WorkerRole; mobile: string | null; email: string | null; licenceNumber: string | null }): Promise<{ workerId: string }> {
+  const c = await bossOrThrow(userId);
+  const name = p.name.trim();
+  if (!name) throw new WorkflowError("Add their full name.");
+  const licence = p.licenceNumber?.trim() || null;
+  if (c.kind === "electrician" && !licence) throw new WorkflowError("Add their electrical licence number.");
+  const { crewMobileInput } = await import("./swms-sign-text.core");
+  const v = crewMobileInput(p.mobile);
+  if (!v.ok) throw new WorkflowError(v.error);
+  const email = p.email?.trim().toLowerCase() || null;
+  const { installerQualification } = await import("./partner-activation.core");
+  const row = c.kind === "installer"
+    ? { trade_role: c.kind, qualification: installerQualification({}), certification_status: "unverified", worker_role: p.workerRole, licence_number: null }
+    : { trade_role: c.kind, licence_number: licence, worker_role: null };
+  const { data, error } = await admin.from("partner_workers").insert({ business_id: c.biz.id, full_legal_name: name, email, mobile: v.mobile, ...row, approval_status: "pending", declarations_due: true, added_by: userId } as never).select("id").single();
+  if (error) {
+    if (error.code === "23502") throw new WorkflowError("Adding someone without an email needs the office's database update first.");
+    if (error.code === "23505") throw new WorkflowError("Someone with that email is already on your team.");
+    throw new WorkflowError(`Couldn't add them: ${error.message}`);
+  }
+  return { workerId: (data as { id: string }).id };
 }
 
 /** Whether the caller's business has been invited to Mitti by the office (false when unknown). */

@@ -295,6 +295,8 @@ export type MittiLogin = "linked" | "not_set" | "email_changed";
 export type TeamMemberView = {
   id: string | null; name: string; role: "owner" | "installer" | "electrician"; mobile: string | null; email: string | null;
   hasLogin: boolean; mittiLogin: MittiLogin;
+  /** True when the office has a Mitti record for this worker (linked, invited, reactivated or marked done). */
+  mittiRecorded: boolean;
   /** Installers only (decision 130). null = not applicable. */
   noticeAcknowledged: boolean | null;
   /** Installers with a staff row only (decision 153). null = not applicable (owner without a staff row, electrician). */
@@ -306,10 +308,20 @@ export type TeamMemberView = {
 };
 export const ROLE_LABEL: Record<TeamMemberView["role"], string> = { owner: "owner", installer: "installer", electrician: "electrician" };
 
-/** Second line: "0412 000 111 · Mitti login ✓ · Privacy notice ✓" from the person's own facts, nothing invented. */
-export function teamFactsLine(m: Pick<TeamMemberView, "mobile" | "mittiLogin" | "noticeAcknowledged">): string {
+/** "Lead · Mitti ✓" / "Crew · no Mitti" / "Mitti login not set": the Mitti words, with Lead or Crew first for installer staff. */
+export function teamMittiLine(m: Pick<TeamMemberView, "role" | "workerRole" | "mittiLogin" | "mittiRecorded">): string {
+  const prefix = m.workerRole === "lead" ? "Lead · " : m.workerRole === "crew" ? "Crew · " : "";
+  if (m.mittiLogin === "email_changed") return `${prefix}Mitti to re-check`;
+  if (m.mittiLogin === "linked" || m.mittiRecorded) return `${prefix}Mitti ✓`;
+  if (m.workerRole === "crew") return "Crew · no Mitti";
+  if (m.workerRole === "lead") return "Lead · office adding to Mitti";
+  return "Mitti login not set";
+}
+
+/** Second line: "0412 000 111 · Lead · Mitti ✓ · Privacy notice ✓" from the person's own facts, nothing invented. */
+export function teamFactsLine(m: Pick<TeamMemberView, "mobile" | "role" | "workerRole" | "mittiLogin" | "mittiRecorded" | "noticeAcknowledged">): string {
   const parts = [m.mobile?.trim() || "No mobile on file"];
-  parts.push(m.mittiLogin === "linked" ? "Mitti login ✓" : m.mittiLogin === "email_changed" ? "Mitti login to re-check" : "Mitti login not set");
+  parts.push(teamMittiLine(m));
   if (m.noticeAcknowledged != null) parts.push(m.noticeAcknowledged ? "Privacy notice ✓" : "Privacy notice outstanding");
   return parts.join(" · ");
 }
@@ -333,7 +345,9 @@ export function teamWhiteCardLine(state: WhiteCardState | null | undefined): { t
 /** Decision 377: each person's mobile, saved once on Team; their own safety plan sign link is texted there. */
 export const TEAM_MOBILE_NOTE = "Their own safety plan link is texted here before each install.";
 export const teamMobileButton = (mobile: string | null | undefined) => (mobile?.trim() ? "Change mobile" : "Add mobile");
-export const TEAM_RULE ="Ready Checks can go to anyone listed here. Install days only to CII-cleared people who've acknowledged the privacy notice.";
+export const TEAM_RULE = "Every installer, Lead and Crew, needs a CII certificate checked by our office. Only a Lead can run an install day. Crew can do Ready Checks once our office adds them to Mitti.";
+/** "Send login invite" asks the office; it sends nothing itself. */
+export const TEAM_LOGIN = { button: "Ask the office to send a login", asked: "Asked the office. They'll send the login." } as const;
 
 export type CredentialView = { kind: string; label: string; expires: string | null; verified: boolean };
 /** Latest expiry on file for one credential kind (a renewal upload supersedes the old date; null = none recorded). */
@@ -419,9 +433,20 @@ export function businessNext(f: BusinessNextFacts, today: string): BusinessNext 
 /** Team → Add a team member sheet. The invite is the existing single-use /join link (worker-invite); with a mobile the server also texts it to the person (decision 251, team_member_invite). */
 export const TEAM_ADD_SHEET = {
   title: "Add a team member",
+  bodyInstaller: "Email and mobile can wait. They sign their declarations by link, and we check their CII certificate, before they go on a job.",
+  bodyElectrician: "Email and mobile can wait. They sign their declarations by link before they go on a job. Each electrician needs a current electrical licence.",
+  name: "Full name",
+  licence: "Electrical licence number",
+  role: "Lead or Crew",
+  lead: "Lead · can run install days",
+  crew: "Crew · can't lead an install day",
+  mobile: "Mobile (optional)",
+  email: "Email (optional)",
+  button: "Add to team",
+  // Invite-link fields: used only by the old Team page; removed in Task 5.
   body: "They get a link to set up their login, the ESC privacy notice to tick, and a place to upload their CII certificate. The office checks it before they can be on an install.",
   fields: ["Full name", "Mobile", "Email"] as const,
-  button: "Create the invite link",
+  inviteButton: "Create the invite link",
   cancel: "Cancel",
   linkNote: "Send this link to them yourself (text or email). It is single use and lasts 14 days; you won't see it again.",
 } as const;

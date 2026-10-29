@@ -118,6 +118,14 @@ export const setTeamMemberMobile = createServerFn({ method: "POST" }).middleware
   .inputValidator((d) => z.object({ workerId: z.string().uuid(), mobile: z.string().trim().max(30) }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSetWorkerMobile(context.userId, data.workerId, data.mobile));
 
+/** Jo 29 Oct: add a person to the team with no email needed; they sign their declarations by link before any job. */
+export const addTeamPerson = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({
+    name: z.string().trim().min(1).max(120), workerRole: z.enum(["lead", "crew"]), mobile: z.string().trim().max(30).nullable(),
+    email: z.string().trim().email().max(200).nullable(), licenceNumber: z.string().trim().max(60).nullable(),
+  }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeAddTeamPerson(context.userId, data));
+
 /** Jo 24 Oct 2026 (decision 110): A1 installer enters the Ready Check day + time (same slots as the owner's times link). */
 export const setA1ReadyCheckTimeFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), time: z.string().regex(/^\d{2}:\d{2}$/) }).parse(d))
