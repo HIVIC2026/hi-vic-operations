@@ -1,9 +1,11 @@
 // Decision 246 (Jo 24 Oct 2026): automatic offers by coverage, two switches, both OFF until Jo turns them on.
 // "Automatic installer offers": the Choose installer offer goes to ONE approved installer whose Coverage includes
 // the postcode, picked by fewest active jobs then nearest. "Automatic electrician offers": the PIESA offer goes to
-// the nearest approved REC whose coverage includes the postcode (decision 374, Jo 25 Oct 2026: "we ALWAYS choose the
-// electrician – not the installer choosing" — on our leads the installer's usual electrician no longer gets first go;
-// only installer-supplied jobs (A1) put the electrician chosen at Add a job first, `autoOfferPreferredElectrician`). Each offer is open 24h; on "Not for me"/lapse the next match gets it; after 2 misses the job comes back
+// the nearest approved REC whose coverage includes the postcode — except that a preferred electrician goes first:
+// installer-supplied jobs (A1): the electrician chosen at Add a job (decision 426: if they miss or are blocked the job
+// goes back to the office); our leads (29 Oct 2026, replaces decision 374 for routing): the Ready Check installer's
+// approved usual electrician (lapse → office, "Not for me" → nearest, can't be offered → nearest). See
+// `autoOfferPreferredElectrician` and `preferredRule`. Each offer is open 24h; on "Not for me"/lapse the next match gets it; after 2 misses the job comes back
 // to the office (Needs me "Choose again"). With a switch off the office picks as today (decisions 49, 157, 220).
 // Pure rules only: who gets the next automatic offer, or why nobody does. The existing guarded offer senders
 // (officePickReadyCheckInstaller / startPiesaAllocation) still check every gate before anything is written.
@@ -99,9 +101,6 @@ export function rankAutoInstallers(cands: AutoOfferCandidate[], tried: Set<strin
     .sort((a, b) => a.activeJobs - b.activeJobs || byDistance(a, b) || a.name.localeCompare(b.name));
 }
 
-/** Decision 374: the electrician that goes first. Our leads (A2): nobody — we choose (nearest approved REC covering the
- *  postcode), even when the quoted installer has a usual electrician. Installer-supplied jobs (A1): the electrician the
- *  installer chose for this job (their preferred / usual REC), when eligible. */
 /** Installers' own jobs (A1): which of the installer's chosen electricians is "theirs" for the automatic offer — the first
  *  one that can be offered, else the first one chosen (who can't be offered, so the job goes back to the office; decision
  *  426: never another electrician without the installer's say-so). null = the installer chose nobody. */
@@ -110,11 +109,13 @@ export function autoOfferInstallerElectrician(preferredIds: string[], cands: Aut
   return ok ?? preferredIds[0] ?? null;
 }
 
-export function autoOfferPreferredElectrician(i: { channel: string | null | undefined; a1PreferredBusinessId: string | null | undefined }): string | null {
-  return i.channel === "installer_sourced" ? i.a1PreferredBusinessId ?? null : null;
+/** The electrician that goes first. Installer-supplied jobs (A1): the one the installer chose at Add a job. Our leads
+ *  (29 Oct 2026, replaces decision 374 for routing): the Ready Check installer's approved usual electrician, or null. */
+export function autoOfferPreferredElectrician(i: { channel: string | null | undefined; a1PreferredBusinessId: string | null | undefined; ourLeadUsualBusinessId?: string | null }): string | null {
+  return i.channel === "installer_sourced" ? i.a1PreferredBusinessId ?? null : i.ourLeadUsualBusinessId ?? null;
 }
 
-/** Electricians: the preferred electrician first (A1 only, `autoOfferPreferredElectrician`; when eligible), then nearest, then fewest active jobs, then name. */
+/** Electricians: the preferred electrician first (`autoOfferPreferredElectrician`; when eligible), then nearest, then fewest active jobs, then name. */
 export function rankAutoElectricians(cands: AutoOfferCandidate[], tried: Set<string> = new Set(), usualBusinessId: string | null = null, jobIsTest = false): AutoOfferCandidate[] {
   return cands.filter((c) => !autoOfferExclusion(c, tried, jobIsTest))
     .sort((a, b) => Number(b.business_id === usualBusinessId) - Number(a.business_id === usualBusinessId) || byDistance(a, b) || a.activeJobs - b.activeJobs || a.name.localeCompare(b.name));
@@ -154,27 +155,37 @@ export function autoOfferBlocked(f: AutoOfferFacts): Extract<AutoOfferStep, { ac
 const tried = (rows: AutoOfferRow[]) => [...new Set(rows.map((r) => r.business_id).filter((x): x is string => !!x))];
 
 /** The next step for one job: offer ONE trade, hand the job back to the office, or do nothing. */
-export function autoOfferStep(f: AutoOfferFacts & { candidates: AutoOfferCandidate[]; usualBusinessId?: string | null }): AutoOfferStep {
+export function autoOfferStep(f: AutoOfferFacts & { candidates: AutoOfferCandidate[]; usualBusinessId?: string | null;
+  /** "installer_job" (default, A1): preferred missed or blocked → office. "our_lead": lapse → office; declined or can't be offered → nearest. */
+  preferredRule?: "installer_job" | "our_lead" }): AutoOfferStep {
   const blocked = autoOfferBlocked(f);
   if (blocked) return blocked;
   const done = new Set(tried(f.rows));
   const jobIsTest = f.jobIsTest === true;
-  // Decision 426 (Jo 29 Oct 2026): on an installer's own job their chosen electrician goes first; if they don't take
-  // it, the job goes back to the office — we never swap in another electrician without the installer's say-so.
-  if (f.kind === "piesa" && f.usualBusinessId && done.has(f.usualBusinessId)) return { action: "return_to_office", reason: "preferred_missed", misses: autoOfferMisses(f.rows), tried: [...done] };
-  // ...and when their electrician can't be offered it (no agreed rate, lapsed papers, not covering the postcode, paused,
-  // not an approved electrician at all), the job goes to the office too — never nearest-first to someone else.
-  if (f.kind === "piesa" && f.usualBusinessId) {
-    const theirs = f.candidates.find((c) => c.business_id === f.usualBusinessId);
+  let usualBusinessId = f.usualBusinessId ?? null;
+  if (f.kind === "piesa" && f.preferredRule === "our_lead" && usualBusinessId) {
+    // Our leads: their electrician's own latest automatic offer lapsing sends it to the office; "Not for me" (declined,
+    // so tried) or an electrician who can't be offered is simply skipped and the nearest gets it.
+    const own = f.rows.filter((r) => r.auto && r.business_id === usualBusinessId).sort((a, b) => a.offered_at.localeCompare(b.offered_at)).at(-1);
+    if (own?.status === "expired") return { action: "return_to_office", reason: "preferred_missed", misses: autoOfferMisses(f.rows), tried: [...done] };
+    const theirs = f.candidates.find((c) => c.business_id === usualBusinessId);
+    if (!theirs || autoOfferExclusion(theirs, done, jobIsTest)) usualBusinessId = null;
+  } else if (f.kind === "piesa" && usualBusinessId) {
+    // Decision 426 (Jo 29 Oct 2026): on an installer's own job their chosen electrician goes first; if they don't take
+    // it, the job goes back to the office — we never swap in another electrician without the installer's say-so.
+    if (done.has(usualBusinessId)) return { action: "return_to_office", reason: "preferred_missed", misses: autoOfferMisses(f.rows), tried: [...done] };
+    // ...and when their electrician can't be offered it (no agreed rate, lapsed papers, not covering the postcode, paused,
+    // not an approved electrician at all), the job goes to the office too — never nearest-first to someone else.
+    const theirs = f.candidates.find((c) => c.business_id === usualBusinessId);
     if (!theirs || autoOfferExclusion(theirs, done, jobIsTest)) return { action: "return_to_office", reason: "preferred_blocked", misses: autoOfferMisses(f.rows), tried: [...done] };
   }
-  const ranked = f.kind === "ready_check" ? rankAutoInstallers(f.candidates, done, jobIsTest) : rankAutoElectricians(f.candidates, done, f.usualBusinessId ?? null, jobIsTest);
+  const ranked = f.kind === "ready_check" ? rankAutoInstallers(f.candidates, done, jobIsTest) : rankAutoElectricians(f.candidates, done, usualBusinessId, jobIsTest);
   const misses = autoOfferMisses(f.rows);
   const pick = ranked[0];
   if (!pick) return { action: "return_to_office", reason: "no_match", misses, tried: [...done] };
   return {
     action: "offer", businessId: pick.business_id, name: pick.name, attempt: misses + 1,
-    basis: f.kind === "piesa" && pick.business_id === (f.usualBusinessId ?? null) ? "usual_electrician" : "coverage",
+    basis: f.kind === "piesa" && pick.business_id === usualBusinessId ? "usual_electrician" : "coverage",
     activeJobs: pick.activeJobs, distanceKm: pick.distanceKm,
   };
 }
