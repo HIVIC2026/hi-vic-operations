@@ -104,3 +104,15 @@ describe("sendAiDraft refuses empty and marker replies", () => {
     expect(world.sent).toBe(0);
   });
 });
+
+// Jo 30 Oct 2026: Jo's own typed words send as written; the "fixes" / bare "safety check" rules are for the AI's draft only.
+describe("sendAiDraft leaves Jo's wording alone", () => {
+  test("a body with 'fixes' and a bare 'safety check' is sent as written, not rewritten", async () => {
+    reset({ state: "confirmed" });
+    const { sendAiDraft } = await import("../src/lib/ai-email-reply.server");
+    const body = "Hi Sam,\n\nThe fixes are quoted separately and the safety check is $349.\n\nCheers, the Home Insulation Victoria team";
+    expect((await sendAiDraft("d1", body, "u1")).status).toBe("sent");
+    expect(world.sent).toBe(1);
+    expect(world.inserts.some((i) => i["event_type"] === "email_ai_draft_edited")).toBe(false);
+  });
+});

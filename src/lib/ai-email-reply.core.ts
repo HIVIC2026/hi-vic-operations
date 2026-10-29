@@ -360,8 +360,9 @@ export function saveAnswerPrefill(questions: string[], sentBody: string): { topi
 
 const PLACEHOLDER_RE = /<(?:name|address|suburb|postcode|link|email|phone|job)>/gi;
 
-/** Problems that stop a draft being sent as written (checked again at send). */
-export function aiReplyProblems(body: string, opts: { preRelease?: boolean } = {}): string[] {
+/** Problems that stop a draft being sent as written (checked again at send).
+ *  `aiDraft: true` (only for the AI's own text) also runs the two wording rules; Jo's typed words on Send never do (Jo 30 Oct 2026). */
+export function aiReplyProblems(body: string, opts: { preRelease?: boolean; aiDraft?: boolean } = {}): string[] {
   const out: string[] = [];
   // A sign-off on its own (e.g. the AI wrote only office notes) is still an empty reply.
   if (!stripSignOff(body).trim()) out.push("The reply is empty.");
@@ -375,9 +376,9 @@ export function aiReplyProblems(body: string, opts: { preRelease?: boolean } = {
     || /\{\s*"installer_note"/.test(body) || /"new_area_m2"/.test(body)) out.push("Take out the AI's note to the office (NEEDS_JO…).");
   // Placeholders copied from Jo's scrubbed style examples.
   for (const ph of new Set((body.match(PLACEHOLDER_RE) ?? []).map((m) => m.toLowerCase()))) out.push(`Take out the placeholder ${ph} — write the real wording`);
-  if (/\bfixes\b/i.test(body)) out.push("Say “electrical upgrades” instead of “fixes”.");
+  if (opts.aiDraft === true && /\bfixes\b/i.test(body)) out.push("Say “electrical upgrades” instead of “fixes”.");
   // First mention is "electrical safety check (PIESA)"; later plain "safety check" is fine once PIESA has been named.
-  if (/\bsafety check\b/i.test(body) && !/\bPIESA\b/i.test(body)) out.push("Say “electrical safety check (PIESA)”.");
+  if (opts.aiDraft === true && /\bsafety check\b/i.test(body) && !/\bPIESA\b/i.test(body)) out.push("Say “electrical safety check (PIESA)”.");
   if (opts.preRelease) {
     const bad = aiPreReleaseViolations(body);
     if (bad.length) out.push(`Take out “${bad.join("”, “")}” — we can't promise timing before their spot is released.`);
@@ -423,9 +424,11 @@ export async function fixUntilClean(
   body: string,
   preRelease: boolean,
   ai: (input: string, instructions: string) => Promise<string>,
+  opts: { aiDraft?: boolean } = {},
 ): Promise<{ body: string; problems: string[]; tries: number }> {
+  const aiDraft = opts.aiDraft === true;
   let current = body;
-  let problems = aiReplyProblems(current, { preRelease });
+  let problems = aiReplyProblems(current, { preRelease, aiDraft });
   let tries = 0;
   if (!stripSignOff(body).trim()) return { body, problems, tries }; // nothing to rewrite (empty or sign-off only); never ask the AI to invent a reply
   while (problems.length && tries < AI_FIX_TRIES) {
@@ -440,7 +443,7 @@ export async function fixUntilClean(
     if (!text || text.replace(/[.\s]+$/, "") === NO_REPLY_NEEDED) continue;
     // finishAiReply only strips a two-line sign-off; our exact one-line sign-off is dropped first so it is never doubled.
     current = finishAiReply(text);
-    problems = aiReplyProblems(current, { preRelease });
+    problems = aiReplyProblems(current, { preRelease, aiDraft });
   }
   return { body: current, problems, tries };
 }

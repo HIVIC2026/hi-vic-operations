@@ -98,11 +98,28 @@ describe("final review: placeholders and owner wording", () => {
     test(`flags ${ph}`, () => expect(aiReplyProblems(`Hi ${ph},\n\nAll good.`)).toContain(`Take out the placeholder ${ph} — write the real wording`));
   }
   test("flags fixes", () => {
-    expect(aiReplyProblems("Hi Sam,\n\nThe fixes are quoted separately.")).toContain("Say “electrical upgrades” instead of “fixes”.");
-    expect(aiReplyProblems("Hi Sam,\n\nThey need fixing first.")).toEqual([]);
+    expect(aiReplyProblems("Hi Sam,\n\nThe fixes are quoted separately.", { aiDraft: true })).toContain("Say “electrical upgrades” instead of “fixes”.");
+    expect(aiReplyProblems("Hi Sam,\n\nThey need fixing first.", { aiDraft: true })).toEqual([]);
   });
   test("flags a safety check with no PIESA", () => {
-    expect(aiReplyProblems("Hi Sam,\n\nThe safety check is $349.")).toContain("Say “electrical safety check (PIESA)”.");
-    expect(aiReplyProblems("Hi Sam,\n\nThe electrical safety check (PIESA) is $349. The safety check is quick.")).toEqual([]);
+    expect(aiReplyProblems("Hi Sam,\n\nThe safety check is $349.", { aiDraft: true })).toContain("Say “electrical safety check (PIESA)”.");
+    expect(aiReplyProblems("Hi Sam,\n\nThe electrical safety check (PIESA) is $349. The safety check is quick.", { aiDraft: true })).toEqual([]);
+  });
+});
+
+// Jo 30 Oct 2026: the two wording rules are for the AI's own drafts only; Jo's typed words send as written.
+describe("aiReplyProblems: wording rules only for the AI's own draft", () => {
+  test("without aiDraft, fixes and a bare safety check are not flagged", () => {
+    expect(aiReplyProblems("Hi Sam,\n\nThe fixes are quoted separately.")).toEqual([]);
+    expect(aiReplyProblems("Hi Sam,\n\nThe safety check is $349.")).toEqual([]);
+    expect(aiReplyProblems("Hi Sam,\n\nThe fixes and the safety check.", { preRelease: false, aiDraft: false })).toEqual([]);
+  });
+  test("with aiDraft true both are flagged", () => {
+    const p = aiReplyProblems("Hi Sam,\n\nThe fixes and the safety check.", { aiDraft: true });
+    expect(p).toContain("Say “electrical upgrades” instead of “fixes”.");
+    expect(p).toContain("Say “electrical safety check (PIESA)”.");
+  });
+  test("other rules still apply without aiDraft", () => {
+    expect(aiReplyProblems("Hi Sam,\n\nYour VEEC and fixes. Ring us on 03 9123 4567.").length).toBeGreaterThanOrEqual(2);
   });
 });

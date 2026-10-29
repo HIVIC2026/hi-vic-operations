@@ -112,7 +112,7 @@ export async function writeAiReplyDraft(p: { jobId: string; message: MailMessage
     const noReply = out.body.replace(/[.\s]+$/, "") === NO_REPLY_NEEDED;
     // A draft that breaks a rule is rewritten (at most twice) before it is saved; what still fails is saved with it for the office.
     const first = noReply ? "" : finishAiReply(out.body);
-    const fixed = noReply ? { body: "", problems: [] as string[] } : await fixUntilClean(first, preRelease, (i, ins) => aiText(i, ins, AbortSignal.timeout(25_000)));
+    const fixed = noReply ? { body: "", problems: [] as string[] } : await fixUntilClean(first, preRelease, (i, ins) => aiText(i, ins, AbortSignal.timeout(25_000)), { aiDraft: true });
     const body = fixed.body;
     const problems = fixed.problems;
     const { data: ins, error } = await loose.from("workflow_events").insert({ job_id: p.jobId, actor_id: null, event_type: AI_EMAIL_DRAFT_EVENT, internal: true,
