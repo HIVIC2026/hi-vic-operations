@@ -33,7 +33,7 @@ mock.module("@tanstack/react-router", () => ({
   redirect: (o: unknown) => o,
 }));
 mock.module("@/components/trade/TradeShell", () => ({
-  TradeShell: ({ children }: { children: ReactNode }) => <main data-shell="">{children}</main>, TradeTabBar: () => null, TradePublicShell: ({ children }: { children: ReactNode }) => <main>{children}</main>,
+  TradeShell: ({ children }: { children: ReactNode }) => <main data-shell="">{children}</main>, TradePublicShell: ({ children }: { children: ReactNode }) => <main>{children}</main>,
   card: "", navyCard: "", greenBtn: "", ghostBtn: "", inputCls: "", aud: (n: number | null | undefined) => (n == null ? "—" : `$${Math.floor(n)}`),
 }));
 mock.module("sonner", () => ({ toast: { success: () => undefined, error: () => undefined, warning: () => undefined } }));

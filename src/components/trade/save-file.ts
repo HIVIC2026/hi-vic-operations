@@ -5,10 +5,11 @@ export async function saveFile(file: File, opts?: { title?: string }): Promise<v
   if (phone && typeof navigator !== "undefined" && navigator.canShare?.({ files: [file] })) {
     try {
       await navigator.share({ files: [file], ...(opts?.title ? { title: opts.title } : {}) });
+      return;
     } catch (e) {
-      if ((e as { name?: string })?.name !== "AbortError") throw e; // closing the sheet is fine
+      if ((e as { name?: string })?.name === "AbortError") return; // closing the sheet is fine
+      // any other share problem: fall through to the normal download
     }
-    return;
   }
   const url = URL.createObjectURL(file);
   const a = document.createElement("a");
