@@ -2,6 +2,7 @@
 import { houseLevelForStage, type HouseLevel } from "./owner-house.core";
 import { stageWording, PIESA_FULL } from "./job-wording";
 import { ownerHeadline, type OwnerHeadlineStep } from "./owner-headlines.core";
+import { spotReleaseState, type SpotReleaseEventRow } from "./spot-release.core";
 
 export const OWNER_STEPS = ["Ready Check", "Quote", "PIESA", "Install", "Done"] as const;
 /** Decision 389: "turn" = the "It's your turn" page (O77's link): confirm the free Ready Check, or no longer interested.
@@ -90,6 +91,8 @@ export const SPOT_SAVED_PROGRESS = [
   { label: "Done", sub: "Lower bills for years" },
 ] as const;
 /** Spot-saved page once the spot is released (Jo, 29 Oct, HV-3542): no "waiting" lines, "Spot released" ticked, quote is current. */
+/** Released for the page = the latest release is waiting on the owner or confirmed. Lapsed = back on the waiting list. */
+export const spotReleasedForPage = (events: readonly SpotReleaseEventRow[]) => ["pending", "confirmed"].includes(spotReleaseState(events).state);
 export function spotSavedLayout(released: boolean) {
   return released
     ? { stepLabel: "Step 2 of 6", showWaitingBox: false, doneSub: null, currentIndex: 2 }

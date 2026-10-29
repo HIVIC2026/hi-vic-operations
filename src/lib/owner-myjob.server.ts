@@ -1,5 +1,5 @@
 // No-login owner "My job" view. The secure estimate link token is the only credential. Read-only.
-import { isSpotSavedStage } from "./owner-myjob.core";
+import { isSpotSavedStage, spotReleasedForPage } from "./owner-myjob.core";
 import { currentFeeWording } from "./hiv-quote.core";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { isWellFormedToken, LINK_PURPOSE, linkUsable } from "./estimatelink.core";
@@ -9,7 +9,7 @@ import { splitForOption } from "./payment-gate.core";
 import { stepInvoiceKind } from "./payments.core";
 import { safetyCheckIncGstFor } from "./safety-check-amount.core";
 import { section1FromFacts } from "./consent.core";
-import { SPOT_RELEASED_EVENT } from "./spot-release.core";
+import { SPOT_RELEASE_EVENTS } from "./spot-release.core";
 
 const n = (v: unknown) => Number(v ?? 0) || 0;
 
@@ -49,8 +49,8 @@ export async function resolveOwnerJob(token: unknown) {
     admin.from("owner_esc_consents").select("status, scheduled_start").eq("job_id", jobId).eq("status", "awaiting_owner").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("bookings").select("kind").eq("job_id", jobId).in("status", ["proposed", "confirmed"]),
     admin.from("customer_assignments").select("status, consumer_signed_at").eq("job_id", jobId).eq("record_kind", "final_veec_assignment").order("created_at", { ascending: false }),
-    // Jo 29 Oct (HV-3542): once the spot is released the spot-saved page stops saying "we'll be in touch". A failed read = not released.
-    admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", SPOT_RELEASED_EVENT).limit(1).then(({ data, error }) => !error && (data?.length ?? 0) > 0, () => false),
+    // Jo 29 Oct (HV-3542): once the spot is released the spot-saved page stops saying "we'll be in touch". Lapsed = back in the queue. A failed read = not released. (Six reads in this wave: at the cap.)
+    admin.from("workflow_events").select("event_type, created_at, details").eq("job_id", jobId).in("event_type", [...SPOT_RELEASE_EVENTS]).then(({ data, error }) => !error && spotReleasedForPage(data ?? []), () => false),
   ]);
   const veec = ((veecRows ?? []) as { status: string; consumer_signed_at: string | null }[]).find((a) => a.status !== "cancelled") ?? null;
   // An archived job reads as closed to the owner, the same as a cancelled one.
