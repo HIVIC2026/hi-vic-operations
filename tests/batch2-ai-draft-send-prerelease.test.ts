@@ -81,3 +81,26 @@ describe("sendAiDraft and the spot-only rule", () => {
     expect((await sendAiDraft("d1", BAD, "u1")).status).toBe("rewritten");
   });
 });
+
+// AI replies step 2 task 4, fix round 1: a sign-off-only reply or one with an AI office note is never sent.
+describe("sendAiDraft refuses empty and marker replies", () => {
+  test("sign-off only: rewritten, nothing sent", async () => {
+    reset({ state: "confirmed" });
+    const { sendAiDraft } = await import("../src/lib/ai-email-reply.server");
+    const r = await sendAiDraft("d1", "\n\nCheers, the Home Insulation Victoria team", "u1");
+    expect(r.status).toBe("rewritten");
+    if (r.status !== "rewritten") throw new Error("expected rewritten");
+    expect(r.problems).toContain("The reply is empty.");
+    expect(world.sent).toBe(0);
+    expect(world.inserts.some((i) => i["event_type"] === "email_ai_draft_sent")).toBe(false);
+  });
+  test("NEEDS_JO left in (the fix call can't remove it): rewritten, nothing sent", async () => {
+    reset({ state: "confirmed" });
+    const { sendAiDraft } = await import("../src/lib/ai-email-reply.server");
+    const r = await sendAiDraft("d1", "Hi Sam,\n\nThanks.\nNEEDS_JO: solar?\n\nCheers, the Home Insulation Victoria team", "u1");
+    expect(r.status).toBe("rewritten");
+    if (r.status !== "rewritten") throw new Error("expected rewritten");
+    expect(r.problems.join(" ")).toContain("NEEDS_JO");
+    expect(world.sent).toBe(0);
+  });
+});

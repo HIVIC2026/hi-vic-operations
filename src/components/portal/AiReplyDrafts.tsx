@@ -9,34 +9,27 @@ import { AI_REWRITTEN_NOTE, aiReplyEmailHtml } from "@/lib/ai-email-reply.core";
 import { panelLoad } from "@/lib/panel-load.core";
 import { LoadFailed } from "@/components/portal/load-failed";
 import { saveStateText, useDraftAutosave } from "@/components/portal/use-draft-autosave";
-import { NeedsNotes, SaveAnswerForm } from "@/components/portal/ai-needs-answer";
+import { NeedsNotes, PendingSaves, type PendingSave } from "@/components/portal/ai-needs-answer";
 
 type Draft = Awaited<ReturnType<typeof getAiReplyDrafts>>[number];
 
-function DraftCard({ d, onDone }: { d: Draft; onDone: () => void }) {
+function DraftCard({ d, onDone, onSent }: { d: Draft; onDone: () => void; onSent: (p: PendingSave) => void }) {
   const send = useServerFn(sendAiReplyDraft);
   const discard = useServerFn(discardAiReplyDraft);
   const [body, setBody] = useState(d.body);
   const [busy, setBusy] = useState(false);
   const saved = useDraftAutosave(d.eventId, body, d.body);
   const [note, setNote] = useState<{ problems: string[] } | null>(null);
-  // After Send of a reply to a question the AI couldn't answer: the sent words, for "Save as a standard answer?".
-  const [saving, setSaving] = useState<string | null>(null);
-  const run = async (fn: () => Promise<unknown>, ok: string, after: () => void = onDone) => {
+  /** `after` runs before onDone for this one action (Send of a draft with questions adds a pending save to the screen). */
+  const run = async (fn: () => Promise<unknown>, ok: string, after?: () => void) => {
     setBusy(true);
     try {
       const r = await fn();
       // A blocked Send: nothing went out. The fixed reply goes back in the box for Jo to check; the card stays.
       if ((r as { status?: string } | null)?.status === "rewritten") { setBody((r as { body: string }).body); setNote({ problems: (r as { problems: string[] }).problems }); return; }
-      toast.success(ok); after();
+      toast.success(ok); after?.(); onDone();
     } catch (e) { toast.error((e as Error).message || "That didn't work. Try again."); } finally { setBusy(false); }
   };
-  if (saving !== null) return (
-    <li className="grid gap-2 rounded-[12px] border border-line bg-paper p-3">
-      <p className="text-sm text-sub">Reply sent to {d.to}.</p>
-      <SaveAnswerForm questions={d.needsAnswer} sentBody={saving} onDone={onDone} />
-    </li>
-  );
   return (
     <li className="grid gap-2 rounded-[12px] border border-line bg-paper p-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2 text-xs text-sub">
@@ -54,7 +47,7 @@ function DraftCard({ d, onDone }: { d: Draft; onDone: () => void }) {
         <iframe title="Email preview" sandbox="" srcDoc={aiReplyEmailHtml(body, { subject: d.subject, unsubscribe: null })} className="mt-2 h-[520px] w-full max-w-[560px] rounded-[10px] border border-line bg-background" />
       </details>
       <div className="grid grid-cols-2 gap-2 md:flex">
-        <button type="button" disabled={busy} className={btnClass("primary", "min-h-[44px]")} onClick={() => { setNote(null); const sent = body; void run(() => send({ data: { eventId: d.eventId, body } }), "Reply sent", d.needsAnswer.length ? () => setSaving(sent) : onDone); }}>{busy ? "Working…" : "Send"}</button>
+        <button type="button" disabled={busy} className={btnClass("primary", "min-h-[44px]")} onClick={() => { setNote(null); const sent = body; void run(() => send({ data: { eventId: d.eventId, body } }), "Reply sent", d.needsAnswer.length ? () => onSent({ key: d.eventId, label: `Reply sent to ${d.to}.`, questions: d.needsAnswer, sentBody: sent }) : undefined); }}>{busy ? "Working…" : "Send"}</button>
         <button type="button" disabled={busy} className={btnClass("secondary", "min-h-[44px]")} onClick={() => void run(() => discard({ data: { eventId: d.eventId } }), "Draft discarded")}>Discard</button>
       </div>
     </li>
@@ -66,13 +59,18 @@ export function AiReplyDrafts({ jobId }: { jobId: string }) {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["ai-reply-drafts", jobId], queryFn: () => load({ data: { jobId } }), staleTime: 15_000 });
   const waiting = (q.data ?? []).filter((d) => d.status === "waiting");
-  if (panelLoad(q) === "failed") return <section aria-label="Email replies to check" className="mb-4 rounded-[14px] border border-danger p-4"><LoadFailed what="Email replies to check" onRetry={() => void q.refetch()} /></section>;
-  if (!waiting.length) return null;
+  // Sent replies to questions the AI couldn't answer, waiting for "Save as a standard answer?" — screen state, so a refetch can't lose them.
+  const [pendingSaves, setPendingSaves] = useState<PendingSave[]>([]);
+  const addPendingSave = (p: PendingSave) => setPendingSaves((xs) => [...xs.filter((x) => x.key !== p.key), p]);
+  const removePendingSave = (key: string) => setPendingSaves((xs) => xs.filter((x) => x.key !== key));
+  if (panelLoad(q) === "failed") return <section aria-label="Email replies to check" className="mb-4 grid gap-2 rounded-[14px] border border-danger p-4"><PendingSaves items={pendingSaves} onRemove={removePendingSave} /><LoadFailed what="Email replies to check" onRetry={() => void q.refetch()} /></section>;
+  if (!waiting.length && !pendingSaves.length) return null;
   return (
     <section id="stage-email-drafts" aria-label="Email replies to check" className="mb-4 grid gap-2 rounded-[14px] border border-hiv-blue/30 bg-mist p-4">
       <h2 className="font-display text-lg font-bold text-ink">Email replies to check ({waiting.length})</h2>
       <p className="text-sm text-sub">Written by AI from this job's details and emails. Check, edit if needed, then Send.</p>
-      <ul className="grid gap-2">{waiting.map((d) => <DraftCard key={d.eventId} d={d} onDone={() => { void qc.invalidateQueries({ queryKey: ["ai-reply-drafts", jobId] }); void qc.invalidateQueries({ queryKey: ["office-job-page", jobId] }); }} />)}</ul>
+      <PendingSaves items={pendingSaves} onRemove={removePendingSave} />
+      <ul className="grid gap-2">{waiting.map((d) => <DraftCard key={d.eventId} d={d} onSent={addPendingSave} onDone={() => { void qc.invalidateQueries({ queryKey: ["ai-reply-drafts", jobId] }); void qc.invalidateQueries({ queryKey: ["office-job-page", jobId] }); }} />)}</ul>
     </section>
   );
 }

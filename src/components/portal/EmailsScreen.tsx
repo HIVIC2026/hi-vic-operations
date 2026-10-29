@@ -15,7 +15,7 @@ import type { JobEmailCard, NoJobCard } from "@/lib/emails-tab.core";
 import { EMAILS_TAB_KEY } from "@/components/portal/emails-count";
 import { AI_REWRITTEN_NOTE } from "@/lib/ai-email-reply.core";
 import { saveStateText, useDraftAutosave, type SaveState } from "@/components/portal/use-draft-autosave";
-import { NeedsNotes, SaveAnswerForm } from "@/components/portal/ai-needs-answer";
+import { NeedsNotes, PendingSaves, type PendingSave } from "@/components/portal/ai-needs-answer";
 
 const btn = (tone: "primary" | "secondary") => btnClass(tone, "min-h-[46px] whitespace-nowrap md:min-h-[42px]");
 const when = (iso: string) => new Date(iso).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
@@ -24,8 +24,8 @@ type Rewritten = { status: "rewritten"; body: string; problems: string[] };
 
 function useRun(onDone: () => void, onRewritten?: (r: Rewritten) => void) {
   const [busy, setBusy] = useState(false);
-  /** `after` replaces onDone for this one action (Send of a draft with questions keeps the card for "Save as a standard answer"). */
-  const run = async (fn: () => Promise<unknown>, ok: string, after: () => void = onDone) => {
+  /** `after` runs before onDone for this one action (Send of a draft with questions adds a pending save to the screen). */
+  const run = async (fn: () => Promise<unknown>, ok: string, after?: () => void) => {
     setBusy(true);
     try {
       const r = await fn();
@@ -33,7 +33,8 @@ function useRun(onDone: () => void, onRewritten?: (r: Rewritten) => void) {
       if (onRewritten && (r as { status?: string } | null)?.status === "rewritten") { onRewritten(r as Rewritten); return; }
       // A matched email from someone other than the owner is filed on the job without a reply (decision 414 review).
       toast.success((r as { fromOwner?: boolean } | null)?.fromOwner === false ? `${ok} — not from the owner, so it's filed on the job with no reply` : ok);
-      after();
+      after?.();
+      onDone();
     }
     catch (e) { console.error("Emails tab action failed", e); toast.error((e as Error)?.message && (e as Error).message.length < 200 ? (e as Error).message : "That didn't save. Try again."); }
     finally { setBusy(false); }
@@ -69,7 +70,7 @@ function Reply({ body, setBody, busy, waiting, saved = "idle" }: { body: string 
   );
 }
 
-function JobCard({ c, onDone }: { c: JobEmailCard; onDone: () => void }) {
+function JobCard({ c, onDone, onSent }: { c: JobEmailCard; onDone: () => void; onSent: (p: PendingSave) => void }) {
   const send = useServerFn(sendJobEmailReply);
   const apply = useServerFn(applyEmailChange);
   const ignore = useServerFn(ignoreEmailChange);
@@ -78,14 +79,6 @@ function JobCard({ c, onDone }: { c: JobEmailCard; onDone: () => void }) {
   const saved = useDraftAutosave(c.draft?.eventId ?? null, body, c.draft?.body ?? null);
   const [note, setNote] = useState<Rewritten | null>(null);
   const { busy, run } = useRun(onDone, (r) => { setBody(r.body); setNote(r); });
-  // After Send of a reply to a question the AI couldn't answer: the sent words, for "Save as a standard answer?".
-  const [saving, setSaving] = useState<string | null>(null);
-  if (saving !== null) return (
-    <li className="grid gap-2 rounded-[12px] border border-line bg-paper p-3" data-testid="email-card-job">
-      <p className="text-sm text-sub">Reply sent to {c.jobNumber ?? "the job"}{c.name ? ` · ${c.name}` : ""}.</p>
-      <SaveAnswerForm questions={c.needsAnswer} sentBody={saving} onDone={onDone} />
-    </li>
-  );
   return (
     <li className="grid gap-2 rounded-[12px] border border-line bg-paper p-3" data-testid="email-card-job">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -100,7 +93,7 @@ function JobCard({ c, onDone }: { c: JobEmailCard; onDone: () => void }) {
       {c.draftClosed && !c.draft && c.stillOpenDecline ? null : c.draftClosed && !c.draft ? <p className="text-sm text-sub">No reply needed, or it was already answered — press Done to file it away.</p> : <Reply body={body} setBody={(t) => { setNote(null); setBody(t); }} busy={busy} saved={saved} waiting={c.intent === "reply"} />}
       <RewrittenNote note={note} />
       <div className="grid grid-cols-2 gap-2 md:flex">
-        {c.draft && body !== null && <button type="button" disabled={busy} className={btn("primary")} onClick={() => { setNote(null); const sent = body; void run(() => send({ data: { requestEventId: c.requestEventId, draftEventId: c.draft!.eventId, body } }), "Reply sent and saved on the job", c.needsAnswer.length ? () => setSaving(sent) : onDone); }}>{busy ? "Working…" : "Send"}</button>}
+        {c.draft && body !== null && <button type="button" disabled={busy} className={btn("primary")} onClick={() => { setNote(null); const sent = body; void run(() => send({ data: { requestEventId: c.requestEventId, draftEventId: c.draft!.eventId, body } }), "Reply sent and saved on the job", c.needsAnswer.length ? () => onSent({ key: c.key, label: `Reply sent to ${c.jobNumber ?? "the job"}${c.name ? ` · ${c.name}` : ""}.`, questions: c.needsAnswer, sentBody: sent }) : undefined); }}>{busy ? "Working…" : "Send"}</button>}
         {c.stillOpenDecline ? <>
           <button type="button" disabled={busy} className={btn(c.draft ? "secondary" : "primary")} onClick={() => void run(() => apply({ data: { eventId: c.requestEventId, close: c.intent === "reply" } }), "Job closed")}>Close job</button>
           <button type="button" disabled={busy} className={btn("secondary")} onClick={() => void run(() => ignore({ data: { eventId: c.requestEventId } }), "Kept open")}>Keep open</button>
@@ -161,10 +154,15 @@ export function EmailsScreen() {
     void draft().then((r) => { asked.current = false; if (r.drafted > 0) void qc.invalidateQueries({ queryKey: EMAILS_TAB_KEY }); }).catch((e) => { console.error("AI drafts not written", e); });
   }, [missing, draft, qc, q.dataUpdatedAt]);
   const refresh = () => void qc.invalidateQueries({ queryKey: EMAILS_TAB_KEY });
+  // Sent replies to questions the AI couldn't answer, waiting for "Save as a standard answer?" — screen state, so a refetch can't lose them.
+  const [pendingSaves, setPendingSaves] = useState<PendingSave[]>([]);
+  const addPendingSave = (p: PendingSave) => setPendingSaves((xs) => [...xs.filter((x) => x.key !== p.key), p]);
+  const removePendingSave = (key: string) => setPendingSaves((xs) => xs.filter((x) => x.key !== key));
   const t = q.data;
   return (
     <div className="mx-auto grid max-w-[880px] gap-6 px-4 py-6 sm:px-8">
       <PageHeader title="Emails" sub="Owner emails and emails with no job yet. Nothing sends until you press Send." actions={<Link to="/admin/ai-answers" className={btn("secondary")}>AI answers</Link>} />
+      <PendingSaves items={pendingSaves} onRemove={removePendingSave} />
       {q.isLoading && <p className="text-sm text-sub">Loading…</p>}
       {q.isError && <p className="text-sm text-sub">Emails couldn't load. Refresh to try again.</p>}
       {t && (
@@ -172,7 +170,7 @@ export function EmailsScreen() {
           <section className="grid gap-3" aria-label="Has a job">
             <h2 className="text-base font-semibold text-ink">Has a job ({t.withJob.length})</h2>
             {t.withJob.length === 0 ? <p className="text-sm text-sub">No owner emails waiting.</p>
-              : <ul className="grid gap-3">{t.withJob.map((c) => <JobCard key={c.key} c={c} onDone={refresh} />)}</ul>}
+              : <ul className="grid gap-3">{t.withJob.map((c) => <JobCard key={c.key} c={c} onDone={refresh} onSent={addPendingSave} />)}</ul>}
           </section>
           <section className="grid gap-3" aria-label="No job yet">
             <h2 className="text-base font-semibold text-ink">No job yet ({t.noJob.length})</h2>

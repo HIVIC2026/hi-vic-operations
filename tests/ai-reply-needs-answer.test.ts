@@ -44,6 +44,12 @@ describe("splitAiOutput", () => {
     expect(r.needsAnswer).toEqual(["What about solar?"]);
     expect(r.needsYou).toBe(true);
   });
+  test("'NEEDS JO:' / 'needs you :' spellings are accepted", () => {
+    const r = splitAiOutput("Hi,\n\nThanks.\nNEEDS JO: Bendigo?\nneeds you : complaint");
+    expect(r.needsAnswer).toEqual(["Bendigo?"]);
+    expect(r.needsYou).toBe(true);
+    expect(r.body).toBe("Hi,\n\nThanks.");
+  });
   test("an empty NEEDS_JO question is dropped", () => {
     expect(splitAiOutput("Hi,\nNEEDS_JO:   ").needsAnswer).toEqual([]);
   });
@@ -65,7 +71,7 @@ describe("instructions", () => {
 });
 
 describe("aiReplyProblems: a marker left in the body", () => {
-  for (const m of ["NEEDS_JO: what about solar?", "NEEDS_YOU: complaint", "ACTIONS: {}"]) {
+  for (const m of ["NEEDS_JO: what about solar?", "NEEDS_YOU: complaint", "ACTIONS: {}", "NEEDS JO: what about solar?", "needs you : complaint", "needsjo: x"]) {
     test(m, () => {
       const p = aiReplyProblems(`Hi Sam,\n\nThanks.\n${m}`);
       expect(p.join(" ")).toContain("Take out the AI's note to the office (NEEDS_JO…)");
@@ -73,6 +79,35 @@ describe("aiReplyProblems: a marker left in the body", () => {
   }
   test("ordinary words are fine", () => {
     expect(aiReplyProblems("Hi Sam,\n\nWe need you to reply with your actions.")).toEqual([]);
+    expect(aiReplyProblems("Hi Sam,\n\nYour actions: none.")).toEqual([]);
+  });
+});
+
+describe("empty after the sign-off (fix round 1)", () => {
+  test("markers-only AI output gives a draft flagged as empty, and the fix loop does not invent a reply", async () => {
+    const { finishAiReply, fixUntilClean, AI_SIGN_OFF } = await import("../src/lib/ai-email-reply.core");
+    const out = splitAiOutput("NEEDS_YOU: complaint");
+    const first = finishAiReply(out.body);
+    expect(first.trim()).toBe(AI_SIGN_OFF);
+    let calls = 0;
+    const fixed = await fixUntilClean(first, false, async () => { calls++; return "Hi,\n\nMade up."; });
+    expect(calls).toBe(0);
+    expect(fixed.problems).toContain("The reply is empty.");
+  });
+  test("aiReplyProblems: sign-off only is empty", async () => {
+    const { AI_SIGN_OFF } = await import("../src/lib/ai-email-reply.core");
+    expect(aiReplyProblems(`\n\n${AI_SIGN_OFF}`)).toContain("The reply is empty.");
+    expect(aiReplyProblems("Cheers,\nJo")).toContain("The reply is empty.");
+    expect(aiReplyProblems(`Hi Sam,\n\nThanks.\n\n${AI_SIGN_OFF}`)).toEqual([]);
+  });
+});
+
+describe("fix loop output with a marker (fix round 1)", () => {
+  test("a rewrite that still has NEEDS_JO stays a problem", async () => {
+    const { fixUntilClean } = await import("../src/lib/ai-email-reply.core");
+    const r = await fixUntilClean("Hi Sam,\n\nThanks.\nNEEDS_JO: solar?", false, async () => "Hi Sam,\n\nThanks.\nNEEDS_JO: solar?");
+    expect(r.tries).toBe(2);
+    expect(r.problems.join(" ")).toContain("Take out the AI's note to the office (NEEDS_JO…)");
   });
 });
 
@@ -147,6 +182,7 @@ describe("screens (source checks)", () => {
   const emails = readFileSync("src/components/portal/EmailsScreen.tsx", "utf8");
   const drafts = readFileSync("src/components/portal/AiReplyDrafts.tsx", "utf8");
   const shared = readFileSync("src/components/portal/ai-needs-answer.tsx", "utf8");
+  const fnSrc = (all: string, name: string) => { const i = all.indexOf(name); const m = /\n(?:export )?function /g; m.lastIndex = i + 10; const j = m.exec(all)?.index; return all.slice(i, j); };
   test("the shared pieces show both notes and the save form", () => {
     expect(shared).toContain("Needs your answer: ");
     expect(shared).toContain("Needs you — complaint after the install. Check with the installer before replying.");
@@ -158,15 +194,38 @@ describe("screens (source checks)", () => {
     expect(shared).toContain("saveAnswerPrefill(");
     expect(shared).toMatch(/amber/);
   });
-  for (const [name, all, card, box] of [["EmailsScreen", emails, "function JobCard", "<Reply "], ["AiReplyDrafts", drafts, "function DraftCard", "<textarea"]] as const) {
-    const src = all.slice(all.indexOf(card), all.indexOf("\nfunction ", all.indexOf(card) + 10) === -1 ? undefined : all.indexOf("\nfunction ", all.indexOf(card) + 10));
-    test(`${name} shows the notes above the reply box and the save form after Send`, () => {
-      expect(src).toContain("<NeedsNotes");
-      expect(src).toContain("<SaveAnswerForm");
-      expect(src.indexOf("<NeedsNotes")).toBeLessThan(src.indexOf(box));
-      // After a successful send of a draft with questions, the card stays (no onDone) and the form opens.
-      expect(src).toMatch(/needsAnswer\.length/);
-      expect(src).toContain("setSaving(");
+  test("PendingSaves: Save and Skip both remove the entry", () => {
+    const list = fnSrc(shared, "export function PendingSaves");
+    expect(list).toContain("<SaveAnswerForm");
+    expect(list).toContain("onDone={() => onRemove(p.key)}");
+    const form = fnSrc(shared, "export function SaveAnswerForm");
+    expect(form).toMatch(/toast\.success\("Saved to your AI answers"\);\s*onDone\(\)/);
+    expect(form).toContain("onClick={onDone}>Skip");
+  });
+  for (const [name, all, card, screen, box] of [
+    ["EmailsScreen", emails, "function JobCard", "export function EmailsScreen", "<Reply "],
+    ["AiReplyDrafts", drafts, "function DraftCard", "export function AiReplyDrafts", "<textarea"],
+  ] as const) {
+    const cardSrc = fnSrc(all, card);
+    const screenSrc = fnSrc(all, screen);
+    test(`${name}: notes sit above the reply box`, () => {
+      expect(cardSrc).toContain("<NeedsNotes");
+      expect(cardSrc.indexOf("<NeedsNotes")).toBeLessThan(cardSrc.indexOf(box));
+    });
+    test(`${name}: pending saves are screen state, not card state`, () => {
+      expect(screenSrc).toContain("useState<PendingSave[]>");
+      expect(screenSrc).toContain("<PendingSaves items={pendingSaves} onRemove={removePendingSave} />");
+      expect(screenSrc).toContain("onSent={addPendingSave}");
+      expect(screenSrc).toMatch(/removePendingSave = \(key: string\) => setPendingSaves\(\(xs\) => xs\.filter\(\(x\) => x\.key !== key\)\)/);
+      // The list renders before (above) the cards.
+      expect(screenSrc.indexOf("<PendingSaves")).toBeLessThan(screenSrc.indexOf(card === "function JobCard" ? "<JobCard" : "<DraftCard"));
+      expect(cardSrc).not.toContain("<SaveAnswerForm");
+      expect(cardSrc).not.toContain("setSaving(");
+    });
+    test(`${name}: a Send with questions hands the sent words to the screen, then the card finishes`, () => {
+      expect(cardSrc).toMatch(/needsAnswer\.length \? \(\) => onSent\(\{/);
+      expect(cardSrc).toContain("sentBody: sent");
+      expect(all).toMatch(/after\?\.\(\);\s*onDone\(\)/);
     });
   }
 });

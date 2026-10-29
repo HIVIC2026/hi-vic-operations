@@ -225,8 +225,8 @@ export function aiPreReleaseViolations(text: string): string[] {
 export type AiActions = { installerNote?: string; newAreaM2?: number };
 export type AiOutput = { body: string; needsAnswer: string[]; needsYou: boolean; actions: AiActions };
 
-const NEEDS_JO_LINE = /^\s*needs_?jo\s*:\s*(.*?)\s*$/i;
-const NEEDS_YOU_LINE = /^\s*needs_?you\s*:/i;
+const NEEDS_JO_LINE = /^\s*needs[_ ]?jo\s*:\s*(.*?)\s*$/i;
+const NEEDS_YOU_LINE = /^\s*needs[_ ]?you\s*:/i;
 const ACTIONS_LINE = /^\s*actions\s*:/i;
 /** Splits the AI's raw text into the email and its notes to the office. Runs before anything else, so a marker never
  *  reaches the fix loop or the owner. Lenient: any case, optional spaces, a marker anywhere on its own line. */
@@ -264,13 +264,14 @@ export function saveAnswerPrefill(questions: string[], sentBody: string): { topi
 /** Problems that stop a draft being sent as written (checked again at send). */
 export function aiReplyProblems(body: string, opts: { preRelease?: boolean } = {}): string[] {
   const out: string[] = [];
-  if (!body.trim()) out.push("The reply is empty.");
+  // A sign-off on its own (e.g. the AI wrote only office notes) is still an empty reply.
+  if (!stripSignOff(body).trim()) out.push("The reply is empty.");
   if (/\bVEECs?\b|\bVEU\b|Activity 48/i.test(body)) out.push("Say “rebate” instead of scheme words.");
   PHONE.lastIndex = 0;
   if (PHONE.test(body)) out.push("Take out the phone number.");
   PHONE.lastIndex = 0;
   if (/\b(call|ring|phone)\s+(us|the office|our office)\b/i.test(body)) out.push("Take out “call us”.");
-  if (/\bNEEDS_(?:JO|YOU)\s*:/i.test(body) || /\bACTIONS\s*:/.test(body)) out.push("Take out the AI's note to the office (NEEDS_JO…).");
+  if (/\bNEEDS[_ ]?(?:JO|YOU)\s*:/i.test(body) || /\bACTIONS\s*:/.test(body)) out.push("Take out the AI's note to the office (NEEDS_JO…).");
   if (opts.preRelease) {
     const bad = aiPreReleaseViolations(body);
     if (bad.length) out.push(`Take out “${bad.join("”, “")}” — we can't promise timing before their spot is released.`);
@@ -319,7 +320,7 @@ export async function fixUntilClean(
   let current = body;
   let problems = aiReplyProblems(current, { preRelease });
   let tries = 0;
-  if (!body.trim()) return { body, problems, tries }; // nothing to rewrite; never ask the AI to invent a reply
+  if (!stripSignOff(body).trim()) return { body, problems, tries }; // nothing to rewrite (empty or sign-off only); never ask the AI to invent a reply
   while (problems.length && tries < AI_FIX_TRIES) {
     tries++;
     let raw: string;

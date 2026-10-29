@@ -20,7 +20,26 @@ export function NeedsNotes({ needsAnswer, needsYou }: { needsAnswer: string[]; n
   );
 }
 
-/** Shown after a successful Send of a draft that had questions; Save or Skip finishes the card. */
+/** A sent reply to a question the AI couldn't answer, waiting for Save or Skip. Held by the SCREEN, not the card, so it
+ *  survives the card leaving the list on the next refetch (Jo is on her phone: every focus refetches). */
+export type PendingSave = { key: string; label: string; questions: string[]; sentBody: string };
+
+/** The screen-level list of pending saves; Save or Skip removes the entry. */
+export function PendingSaves({ items, onRemove }: { items: PendingSave[]; onRemove: (key: string) => void }) {
+  if (!items.length) return null;
+  return (
+    <ul className="grid gap-2" aria-label="Save your answers">
+      {items.map((p) => (
+        <li key={p.key} className="grid gap-2 rounded-[12px] border border-line bg-paper p-3">
+          <p className="text-sm text-sub">{p.label}</p>
+          <SaveAnswerForm questions={p.questions} sentBody={p.sentBody} onDone={() => onRemove(p.key)} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Save or Skip calls onDone. */
 export function SaveAnswerForm({ questions, sentBody, onDone }: { questions: string[]; sentBody: string; onDone: () => void }) {
   const save = useServerFn(saveAiAnswer);
   const start = saveAnswerPrefill(questions, sentBody);
