@@ -72,7 +72,7 @@ describe("compliance records gate stages", () => {
   const none = new Set<never>();
   test("install start needs pre-install docs", () => expect(complianceRecordBlockers("evidence_outstanding", none, { lifeSupport: false, ownerPaidIncGst: 0 })).toHaveLength(1));
   test("life support adds plan before PIESA booking", () => {
-    expect(complianceRecordBlockers("assessment_booked", none, { lifeSupport: true, ownerPaidIncGst: 0 })).toHaveLength(1);
+    expect(complianceRecordBlockers("piesa_scheduled", none, { lifeSupport: true, ownerPaidIncGst: 0 })).toHaveLength(1);
     expect(complianceRecordBlockers("assessment_booked", none, { lifeSupport: false, ownerPaidIncGst: 0 })).toHaveLength(0);
   });
   test("AP review needs safety, completion docs, co-payment", () => expect(complianceRecordBlockers("ap_review", none, { lifeSupport: false, ownerPaidIncGst: 0 })).toHaveLength(3));

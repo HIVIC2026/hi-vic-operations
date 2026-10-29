@@ -129,12 +129,27 @@ export const RECORD_LABELS: Record<RecordKey, string> = {
   co_payment_paid: "Minimum $200 inc GST co-payment paid by the energy consumer to the Accredited Person and not reimbursed",
   completion_consumer_docs: "Owner given tax invoice, dispute info, instructions, contacts and 5-year warranty",
 };
+/** The safety check visit is booked at piesa_scheduled; the plan must exist before that and stays required through the install. */
+export const LIFE_SUPPORT_PLAN_STAGES = ["piesa_scheduled", "assessment_complete", "installation_booked", "evidence_outstanding"];
 export const MIN_CO_PAYMENT_INC_GST = 200;
+
+/** Life support needs the consent or medical plan before the safety check visit when the owner or the electrician said Yes,
+ *  or when it is unknown (unknown blocks like Yes). `life_support` is the legacy yes flag; `life_support_status` is the answer. */
+export function lifeSupportNeedsPlan(j: { life_support?: boolean | null | undefined; life_support_status?: string | null | undefined }): boolean {
+  const st = String(j.life_support_status ?? "").trim().toLowerCase();
+  return !!j.life_support || st === "yes" || st === "unknown";
+}
+
+/** The electrician's own life support answer on the safety check form (Yes/No); what the job should change to, or null. A "No" never changes anything. */
+export function lifeSupportPatchFromPiesa(answer: unknown, j: { life_support?: boolean | null | undefined; life_support_status?: string | null | undefined }): { life_support: true; life_support_status: "yes" } | null {
+  if (!/^yes$/i.test(String(answer ?? "").trim())) return null;
+  return j.life_support === true && String(j.life_support_status ?? "").toLowerCase() === "yes" ? null : { life_support: true, life_support_status: "yes" };
+}
 
 /** Which recorded items each stage needs (cumulative). Pure. */
 export function complianceRecordBlockers(to: string, recorded: Set<RecordKey>, f: { lifeSupport: boolean; ownerPaidIncGst: number }): string[] {
   const need: RecordKey[] = [];
-  if (f.lifeSupport && ["assessment_booked", "assessment_complete", "installation_booked", "evidence_outstanding"].includes(to)) need.push("life_support_plan");
+  if (f.lifeSupport && LIFE_SUPPORT_PLAN_STAGES.includes(to)) need.push("life_support_plan");
   if (to === "evidence_outstanding") need.push("pre_install_consumer_docs");
   if (to === "ap_review" || to === "ready_for_veec") need.push("installer_safety_assessment", "completion_consumer_docs", "co_payment_paid");
   if (to === "ready_for_veec") need.push("assignment_copy_to_consumer");

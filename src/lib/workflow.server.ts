@@ -312,16 +312,20 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
   blockers.push(...(await readyCheckBlockers(jobId, to)));
   // Owner paperwork gates A–D (one rule set for every journey).
   blockers.push(...(await (await import("./owner-gates.server")).ownerGateStageBlockers(jobId, to)));
-  if (["assessment_booked", "assessment_complete", "installation_booked", "evidence_outstanding", "ap_review", "ready_for_veec"].includes(to)) {
-    const { complianceRecordBlockers } = await import("./compliance-timeline.core");
-    const [{ data: recs }, { data: job }, { data: invs }] = await Promise.all([
+  if (["piesa_scheduled", "assessment_complete", "installation_booked", "evidence_outstanding", "ap_review", "ready_for_veec"].includes(to)) {
+    const { complianceRecordBlockers, lifeSupportNeedsPlan } = await import("./compliance-timeline.core");
+    const [{ data: recs }, { data: job }, { data: invs }, { data: planSigs }] = await Promise.all([
       admin.from("job_compliance_records").select("record_key").eq("job_id", jobId),
-      admin.from("jobs").select("life_support").eq("id", jobId).single(),
+      admin.from("jobs").select("life_support, life_support_status").eq("id", jobId).single(),
       // Batch 3b: the owner's payment on the installation invoice only (fixes / repeat safety check invoices are separate).
       admin.from("invoices").select("deposit_paid_amount").eq("job_id", jobId).eq("kind", "installation"),
+      // The owner's own upload ("I have uploaded it", Gate C) counts the same as the office record.
+      admin.from("owner_gate_signatures").select("doc_key").eq("job_id", jobId).eq("doc_key", "life_support_plan").limit(1),
     ]);
     const paid = (invs ?? []).reduce((a, i) => a + Number(i.deposit_paid_amount ?? 0), 0);
-    blockers.push(...complianceRecordBlockers(to, new Set((recs ?? []).map((r) => r.record_key as never)), { lifeSupport: !!job?.life_support, ownerPaidIncGst: paid }));
+    const recorded = new Set<string>((recs ?? []).map((r) => r.record_key));
+    if ((planSigs ?? []).length) recorded.add("life_support_plan");
+    blockers.push(...complianceRecordBlockers(to, recorded as never, { lifeSupport: lifeSupportNeedsPlan(job ?? {}), ownerPaidIncGst: paid }));
   }
   if (["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked"].includes(to)) {
     const cb = await commercialBlocker(jobId);

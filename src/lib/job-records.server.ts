@@ -19,3 +19,22 @@ export async function recordPiesaCopyDelivery(p: { jobId: string; recipient: "ow
   await admin.from("piesa_deliveries").insert({ job_id: p.jobId, piesa_record_id: cur.id, recipient: p.recipient, delivered_at: p.deliveredAt, method: p.method, document_id: p.documentId ?? null, notes: p.notes ?? null, recorded_by: p.actorId });
   await logEvent(p.jobId, p.actorId, "piesa_copy_delivered", `Signed PIESA copy delivered to ${p.recipient} (${p.method}) at ${p.deliveredAt}`, { piesa_record_id: cur.id });
 }
+
+/** The electrician's own life support answer on the safety check form: a Yes sets the job to yes (both fields) and tells the office;
+ *  a No never clears an owner Yes. Never throws to the sync. */
+export async function applyPiesaLifeSupport(jobId: string, actorId: string | null, answer: unknown): Promise<boolean> {
+  try {
+    const { lifeSupportPatchFromPiesa } = await import("./compliance-timeline.core");
+    const { data: job } = await admin.from("jobs").select("life_support, life_support_status").eq("id", jobId).maybeSingle();
+    if (!job) return false;
+    const patch = lifeSupportPatchFromPiesa(answer, job);
+    if (!patch) return false;
+    const { error } = await admin.from("jobs").update(patch).eq("id", jobId);
+    if (error) throw new Error(error.message);
+    await logEvent(jobId, actorId, "life_support_from_safety_check", "The electrician found life support on site. The consent or medical plan is needed before the install.", { was: job.life_support_status ?? null }, { internal: true });
+    return true;
+  } catch (e) {
+    console.error("life support not updated from the safety check", jobId, (e as Error).message);
+    return false;
+  }
+}

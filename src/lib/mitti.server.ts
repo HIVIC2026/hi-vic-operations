@@ -461,6 +461,8 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
         const [prefillCtx, ownerConfirmation, ownerFixesConfirmation] = await Promise.all([officialPrefillContext(jobId, todayMelbourne(), null), (await import("./piesa-owner-confirm.server")).ownerConfirmationForExpand(jobId).catch(() => null), (await import("./piesa-fixes-confirm.server")).ownerFixesConfirmationForExpand(jobId).catch(() => null)]);
         const expanded = expandPiesa(shortAnswers, { lifeSupportDeclared: prefillCtx.lifeSupportDeclared, today: todayMelbourne(), ownerConfirmation, ownerFixesConfirmation });
         const ev = evaluatePiesa(expanded.answers);
+        // The electrician's own life support answer on site: Yes marks the job (never cleared by a No), so the plan is needed before the install.
+        await (await import("./job-records.server")).applyPiesaLifeSupport(jobId, actorId, shortAnswers["lifeSupportPresent"]);
         // Decision 314 / 327: a completed A3 with "Be on site at the start of the install day" ticked is recorded (history only).
         if (plan.completed) await syncOnsiteStartItem(jobId, actorId, shortAnswers["rectificationOutcome"] === RECTIFICATION_OUTCOMES[2]).catch(() => undefined);
         // A48 batch 1: a completed A3 that breaks the official rules → one event + one electrician message per form version
