@@ -57,6 +57,8 @@ const PARTNER: Record<string, Rule> = {
   "bulk-import": { to: "/partner/import" },
   payments: { to: "/field/money" },
   profile: { to: "/field/business" },
+  // Jo 29 Oct: "Your staff" is gone; Team is the one place to add and manage people (sample=1 demo mode went with it).
+  workers: { to: "/field/business/team" },
 };
 
 /** Public /<slug> pages that were retired. */

@@ -237,12 +237,11 @@ check that page contains "Team"
 check that page contains "Everyone listed here can be given a Ready Check."
 check that page contains "Add a team member"
 
-### I-27 · Staff page (Add a team member from My business)   [read-only]
+### I-27 · Old staff address opens Team   [read-only]
 sign in as installer
-click "My business"
-click "Add a team member"
-check that url contains "/partner/workers"
-check that page contains "Your staff"
+open url "https://portal.homeinsulationvictoria.com.au/partner/workers"
+check that url contains "/field/business/team"
+check that page contains "Add a team member"
 
 ### I-28 · Installer guide   [read-only]
 sign in as installer

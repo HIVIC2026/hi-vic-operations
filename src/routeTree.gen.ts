@@ -66,7 +66,6 @@ import { Route as AuthenticatedOwnerJobIdRouteImport } from './routes/_authentic
 import { Route as AuthenticatedPartnerIndexRouteImport } from './routes/_authenticated/partner.index'
 import { Route as AuthenticatedPartnerSplatRouteImport } from './routes/_authenticated/partner.$'
 import { Route as AuthenticatedPartnerImportRouteImport } from './routes/_authenticated/partner.import'
-import { Route as AuthenticatedPartnerWorkersRouteImport } from './routes/_authenticated/partner.workers'
 import { Route as ApiFilesSplatRouteImport } from './routes/api/files/$'
 import { Route as ApiPublicAddressSearchRouteImport } from './routes/api/public/address-search'
 import { Route as ApiPublicEnquiryRouteImport } from './routes/api/public/enquiry'
@@ -415,12 +414,6 @@ const AuthenticatedPartnerImportRoute =
     path: '/import',
     getParentRoute: () => AuthenticatedPartnerRoute,
   } as any)
-const AuthenticatedPartnerWorkersRoute =
-  AuthenticatedPartnerWorkersRouteImport.update({
-    id: '/workers',
-    path: '/workers',
-    getParentRoute: () => AuthenticatedPartnerRoute,
-  } as any)
 const ApiFilesSplatRoute = ApiFilesSplatRouteImport.update({
   id: '/api/files/$',
   path: '/api/files/$',
@@ -731,7 +724,6 @@ export interface FileRoutesByFullPath {
   '/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
   '/partner/$': typeof AuthenticatedPartnerSplatRoute
   '/partner/import': typeof AuthenticatedPartnerImportRoute
-  '/partner/workers': typeof AuthenticatedPartnerWorkersRoute
   '/api/files/$': typeof ApiFilesSplatRoute
   '/api/public/address-search': typeof ApiPublicAddressSearchRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
@@ -831,7 +823,6 @@ export interface FileRoutesByTo {
   '/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
   '/partner/$': typeof AuthenticatedPartnerSplatRoute
   '/partner/import': typeof AuthenticatedPartnerImportRoute
-  '/partner/workers': typeof AuthenticatedPartnerWorkersRoute
   '/api/files/$': typeof ApiFilesSplatRoute
   '/api/public/address-search': typeof ApiPublicAddressSearchRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
@@ -937,7 +928,6 @@ export interface FileRoutesById {
   '/_authenticated/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
   '/_authenticated/partner/$': typeof AuthenticatedPartnerSplatRoute
   '/_authenticated/partner/import': typeof AuthenticatedPartnerImportRoute
-  '/_authenticated/partner/workers': typeof AuthenticatedPartnerWorkersRoute
   '/api/files/$': typeof ApiFilesSplatRoute
   '/api/public/address-search': typeof ApiPublicAddressSearchRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
@@ -1043,7 +1033,6 @@ export interface FileRouteTypes {
     | '/owner/$jobId'
     | '/partner/$'
     | '/partner/import'
-    | '/partner/workers'
     | '/api/files/$'
     | '/api/public/address-search'
     | '/api/public/enquiry'
@@ -1143,7 +1132,6 @@ export interface FileRouteTypes {
     | '/owner/$jobId'
     | '/partner/$'
     | '/partner/import'
-    | '/partner/workers'
     | '/api/files/$'
     | '/api/public/address-search'
     | '/api/public/enquiry'
@@ -1248,7 +1236,6 @@ export interface FileRouteTypes {
     | '/_authenticated/owner/$jobId'
     | '/_authenticated/partner/$'
     | '/_authenticated/partner/import'
-    | '/_authenticated/partner/workers'
     | '/api/files/$'
     | '/api/public/address-search'
     | '/api/public/enquiry'
@@ -1754,13 +1741,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPartnerImportRouteImport
       parentRoute: typeof AuthenticatedPartnerRoute
     }
-    '/_authenticated/partner/workers': {
-      id: '/_authenticated/partner/workers'
-      path: '/workers'
-      fullPath: '/partner/workers'
-      preLoaderRoute: typeof AuthenticatedPartnerWorkersRouteImport
-      parentRoute: typeof AuthenticatedPartnerRoute
-    }
     '/api/files/$': {
       id: '/api/files/$'
       path: '/api/files/$'
@@ -2221,14 +2201,12 @@ const AuthenticatedOwnerRouteWithChildren =
 interface AuthenticatedPartnerRouteChildren {
   AuthenticatedPartnerSplatRoute: typeof AuthenticatedPartnerSplatRoute
   AuthenticatedPartnerImportRoute: typeof AuthenticatedPartnerImportRoute
-  AuthenticatedPartnerWorkersRoute: typeof AuthenticatedPartnerWorkersRoute
   AuthenticatedPartnerIndexRoute: typeof AuthenticatedPartnerIndexRoute
 }
 
 const AuthenticatedPartnerRouteChildren: AuthenticatedPartnerRouteChildren = {
   AuthenticatedPartnerSplatRoute: AuthenticatedPartnerSplatRoute,
   AuthenticatedPartnerImportRoute: AuthenticatedPartnerImportRoute,
-  AuthenticatedPartnerWorkersRoute: AuthenticatedPartnerWorkersRoute,
   AuthenticatedPartnerIndexRoute: AuthenticatedPartnerIndexRoute,
 }
 

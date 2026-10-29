@@ -10,7 +10,7 @@ const inviteFns = readFileSync("src/lib/worker-invite.functions.ts", "utf8");
 const joinPage = readFileSync("src/routes/join.$token.tsx", "utf8");
 const complianceFns = readFileSync("src/lib/worker-compliance.functions.ts", "utf8");
 const complianceUi = readFileSync("src/components/portal/worker-compliance.tsx", "utf8");
-const teamPage = readFileSync("src/routes/_authenticated/partner.workers.tsx", "utf8");
+const teamPage = readFileSync("src/routes/_authenticated/field.business_.team.tsx", "utf8");
 
 const keys = ["a", "b", "c"];
 const okRegistration = { full_legal_name: "Sam Taylor", mobile: "0412 345 678", email: "sam@x.com", qualification: "Cert III", certificate_path: "worker-invites/inv1/eec-abc.pdf", accepted: keys, signed_name: "Sam Taylor" };
@@ -64,7 +64,7 @@ describe("installer EEC/CII certificate onboarding", () => {
 
   test("5) business owner cannot upload a certificate directly — only generate a completion link", () => {
     // Owner surfaces offer only the link action; no certificate file input outside the worker's join page.
-    expect(teamPage).toContain("Create certificate link");
+    expect(teamPage).toContain("CertLinkInline");
     expect(teamPage).not.toContain('type="file"');
     expect(complianceUi).toContain("Create certificate link");
     expect(joinPage).toContain('type="file"');

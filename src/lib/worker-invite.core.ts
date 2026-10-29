@@ -42,9 +42,6 @@ export function mergeEec(certification: unknown, meta: EecUploadMeta): Record<st
 export const inviteCertPath = (inviteId: string, ext: string) => `worker-invites/${inviteId}/eec-${ext}`;
 export const isInviteCertPath = (inviteId: string, path: string) => path.startsWith(`worker-invites/${inviteId}/eec-`) && !path.includes("..");
 
-export const workerListQueryKey = (sample: boolean) => ["my-workers", sample ? "sample" : "live"] as const;
-export const workerInviteQueryKey = (businessId: string, sample: boolean) => ["worker-invites", businessId, sample ? "sample" : "live"] as const;
-
 export function workerDeclarations(trade: "electrician" | "installer", businessName: string) {
   const work = trade === "electrician" ? "electrical work" : "insulation work";
   return [
