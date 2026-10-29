@@ -325,21 +325,21 @@ export async function tradeDay(jobId: string, userId: string) {
     admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "trade_couldnt_get_in").order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
   const b = (bks ?? [])[0] ?? null;
-  const { historicalReadyCheckDay } = await import("./trade-view.core");
-  const historicalVisit = c.kind === "installer" && historicalReadyCheckDay(j?.stage ?? null, b?.kind ?? null);
+  const { historicalReadyCheckDay, couldntGetInDay } = await import("./trade-view.core");
+  const cgiD = cgi?.details as { reason?: string; visit?: string } | null;
+  const cgiNow = couldntGetInDay({ stage: j?.stage ?? null, last: cgi ? cgiD : null });
+  const historicalVisit = !cgiNow && c.kind === "installer" && historicalReadyCheckDay(j?.stage ?? null, b?.kind ?? null);
   const showContact = contactVisible(mine ?? []);
   const dayKind = b?.kind === "installation" ? "install" : b?.kind === "ready_check" ? "ready_check" : "safety_check";
   const p = j?.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
   const ow = j?.owners as { full_name: string | null; phone: string | null } | null;
   let outcome: null | { kind: "all_clear" } | { kind: "fixes"; items: string[] } | { kind: "quoted" } | { kind: "not_eligible"; reason: string | null } | { kind: "wrap" } | { kind: "missing"; items: string[] } | { kind: "couldnt_get_in"; reason: string; visit: "ready_check" | "install" } = null;
-  const cgiD = cgi?.details as { reason?: string; visit?: string } | null;
-  if (cgi && dayKind === "ready_check" && j?.stage === "ready_check_ready_to_schedule" && cgiD?.visit !== "install") outcome = { kind: "couldnt_get_in", reason: String(cgiD?.reason ?? ""), visit: "ready_check" };
-  // Decision 214: after an install-day report the booking is cancelled, so the day reads from the latest (cancelled) install booking.
-  else if (cgi && cgiD?.visit === "install" && j?.stage === "installation_scheduling") outcome = { kind: "couldnt_get_in", reason: String(cgiD?.reason ?? ""), visit: "install" };
+  // Decision 214: after a report the booking is cancelled, so the day reads from the report itself, not a booking.
+  if (cgiNow) outcome = { kind: "couldnt_get_in", ...cgiNow };
   else if (dayKind === "safety_check" && a?.status === "complete") outcome = a.piesa_outcome === "pass" ? { kind: "all_clear" } : { kind: "fixes", items: (fixes ?? []).map((f) => f.description) };
   else if (dayKind === "ready_check" && (rc?.status === "submitted" || j?.stage === "ready_check_complete" || j?.stage === "measured_estimate_ready" || j?.stage === "measured_quote_accepted")) outcome = j?.eligibility_outcome === "does_not_appear_eligible" ? { kind: "not_eligible", reason: "Existing insulation doesn't qualify for this rebate." } : q ? { kind: "quoted" } : { kind: "quoted" };
   else if (dayKind === "install" && ["evidence_outstanding", "ap_review", "ready_for_veec", "complete"].includes(j?.stage ?? "")) { const open = (await import("./ready-check-chase.core")).withoutRetiredInstallDayPhotos(miss ?? []); outcome = open.length ? { kind: "missing", items: open.map((m) => m.label) } : { kind: "wrap" }; }
-  const shownKind = outcome?.kind === "couldnt_get_in" && outcome.visit === "install" ? "install" : dayKind;
+  const shownKind = cgiNow ? (cgiNow.visit === "install" ? "install" : "ready_check") : dayKind;
   return {
     historicalVisit,
     kind: shownKind as "safety_check" | "ready_check" | "install", channel: j?.channel ?? null, jobNumber: j?.job_number ?? null, owner: showContact ? ow?.full_name ?? null : null, surname: showContact ? surname(ow?.full_name) : null, phone: showContact ? ow?.phone ?? null : null,
@@ -380,9 +380,8 @@ export async function tradeCouldntGetIn(jobId: string, reason: string, userId: s
     return { ok: true, visit: "install" as const, notice };
   }
   const { transition } = await import("./workflow.server");
-  await transition(jobId, "ready_check_ready_to_schedule", userId, `Installer couldn't get in (${reason})`, { reason, business_id: c.biz.id }, { nextAction: `Needs me: rebook the Ready Check (${reason}). Offer back to ${c.biz.name} first.` });
+  await transition(jobId, "ready_check_ready_to_schedule", userId, `Installer couldn't get in (${reason})`, { reason, business_id: c.biz.id }, { nextAction: `Installer offers the owner new Ready Check times (${reason}).` });
   await admin.from("bookings").update({ status: "cancelled" }).eq("id", bk!.id).eq("status", "confirmed");
-  await admin.from("job_assignments").update({ active: false, ended_at: new Date().toISOString(), end_reason: `Couldn't get in: ${reason}` } as never).eq("id", asg.id);
   await logEvent(jobId, userId, "trade_couldnt_get_in", `Needs me: installer couldn't get in (${reason}). Rebook with the owner; offer back to ${c.biz.name} first.`, { reason, visit: "ready_check", business_id: c.biz.id, reoffer_first_to: c.biz.id, needs_office: true }, { internal: true });
   return { ok: true, visit: "ready_check" as const };
 }

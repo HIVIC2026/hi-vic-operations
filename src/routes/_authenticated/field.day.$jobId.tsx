@@ -43,8 +43,9 @@ function DayPage() {
   const [started, setStarted] = useState(false);
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [cgiError, setCgiError] = useState<string | null>(null);
   const installer = data ? data.kind !== "safety_check" : false;
-  if (error) return <TradeShell installer={installer}><p role="alert" className="rounded-[18px] border border-line bg-paper p-4 text-sm">{(error as Error).message}</p></TradeShell>;
+  if (error) return <TradeShell installer={installer}><p role="alert" className="rounded-[18px] border border-line bg-paper p-4 text-sm">{(error as Error).message}</p><Link to="/field" className={outlineLinkClass}>Back to My work</Link></TradeShell>;
   if (!data) return <TradeShell installer={false}><p className="text-sm">Loading your day…</p></TradeShell>;
   if (data.historicalVisit) return <Navigate to="/field/$jobId" params={{ jobId }} replace />;
   const o = data.outcome;
@@ -83,8 +84,9 @@ function DayPage() {
           <section className="rounded-[18px] border border-line p-4" role="dialog" aria-label={sheet.title} data-couldnt-get-in>
             <h2 className="text-[17px] font-semibold">{sheet.title}</h2>
             <p className="mt-1 text-sm leading-[1.45] text-sub">{sheet.sub}</p>
-            <div className="mt-3">{COULDNT_GET_IN.map((r) => <button key={r} type="button" disabled={busy} className="flex min-h-12 w-full items-center justify-between gap-3 border-b border-line text-left text-[15px] font-medium disabled:opacity-50" onClick={async () => { setBusy(true); try { await cgi({ data: { jobId, reason: r } }); await refetch(); } finally { setBusy(false); setAsking(false); } }}><span>{r}</span><span className="text-xl text-sub">›</span></button>)}</div>
-            <button type="button" className="mt-3 min-h-11 w-full text-center text-[15px] font-semibold text-sub" onClick={() => setAsking(false)}>{sheet.cancel}</button>
+            <div className="mt-3">{COULDNT_GET_IN.map((r) => <button key={r} type="button" disabled={busy} className="flex min-h-12 w-full items-center justify-between gap-3 border-b border-line text-left text-[15px] font-medium disabled:opacity-50" onClick={async () => { setBusy(true); setCgiError(null); try { await cgi({ data: { jobId, reason: r } }); await refetch(); setAsking(false); } catch (e) { setCgiError(e instanceof Error ? e.message : "Couldn't send that. Try again."); } finally { setBusy(false); } }}><span>{r}</span><span className="text-xl text-sub">›</span></button>)}</div>
+            {cgiError && <p role="alert" className="mt-2 text-sm font-semibold" data-cgi-error>{cgiError}</p>}
+            <button type="button" className="mt-3 min-h-11 w-full text-center text-[15px] font-semibold text-sub" onClick={() => { setCgiError(null); setAsking(false); }}>{sheet.cancel}</button>
           </section>
         ) : (
           <>

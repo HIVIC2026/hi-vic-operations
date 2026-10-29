@@ -196,6 +196,14 @@ export function couldntGetInPlan(f: { stage: string | null; readyCheckStart: str
   return b ? { blocker: f.stage !== "ready_check_scheduled" ? "This job doesn't have a booked Ready Check or install day." : b } : { visit: "ready_check" };
 }
 
+/** Today's page after a "Couldn't get in?" report: the report is shown whatever booking is left (the installer keeps the job). */
+export function couldntGetInDay(f: { stage: string | null; last: { visit?: string; reason?: string } | null }): { visit: CouldntGetInVisit; reason: string } | null {
+  if (!f.last) return null;
+  const reason = String(f.last.reason ?? "");
+  if (f.last.visit === "install") return f.stage === "installation_scheduling" ? { visit: "install", reason } : null;
+  return f.stage === "ready_check_ready_to_schedule" ? { visit: "ready_check", reason } : null;
+}
+
 /** Paperwork pill: within 30 days → "{N} days"; expired → "Expired"; otherwise "Current". */
 export function expiryPill(expiresOn: string | null, now = new Date()): { label: string; warn: boolean; days: number | null } {
   if (!expiresOn) return { label: "Add it", warn: true, days: null };
