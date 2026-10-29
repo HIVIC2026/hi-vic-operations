@@ -5,7 +5,7 @@
 // portal record is written. Output goes to ./tmp/esc-registry-explore/ (git-ignored tmp). Credentials never printed.
 //   bun scripts/esc-registry-robot-explore.ts [--url <extra page to dump>]
 import { mkdirSync, writeFileSync } from "node:fs";
-import { INSTALL_NOTIFICATION, LOGIN, SELECTOR_MAP_VERIFIED, SELECTOR_MAP_VERSION, VEEC_CREATION, selectorGaps, unmappedNotificationKeys } from "../src/lib/esc-registry-selectors";
+import { INSTALL_NOTIFICATION, LOGIN, SELECTORS_VERIFIED, SELECTOR_MAP_VERSION, VEEC_CREATION, selectorGaps, unmappedNotificationKeys } from "../src/lib/esc-registry-selectors";
 import { ESC_ROBOT_PASSWORD_ENV, ESC_ROBOT_USERNAME_ENV } from "../src/lib/esc-registry-robot.core";
 import { login, type RobotPage } from "../src/lib/esc-registry-robot.browser";
 
@@ -13,7 +13,7 @@ const OUT = "tmp/esc-registry-explore";
 mkdirSync(OUT, { recursive: true });
 const extra = process.argv.includes("--url") ? process.argv[process.argv.indexOf("--url") + 1] ?? null : null;
 
-console.log(`Selector map ${SELECTOR_MAP_VERSION} · verified: ${SELECTOR_MAP_VERIFIED}`);
+console.log(`Selector map ${SELECTOR_MAP_VERSION} · verified: ${JSON.stringify(SELECTORS_VERIFIED)}`);
 console.log(`Open questions (${selectorGaps().length}):`); for (const g of selectorGaps()) console.log(`  - ${g}`);
 const unmapped = unmappedNotificationKeys(); if (unmapped.length) console.log(`Table 5 keys with no selector: ${unmapped.join(", ")}`);
 
@@ -54,4 +54,4 @@ await dump("02-install-notification-form", INSTALL_NOTIFICATION.url);
 await dump("03-veec-creation-form", VEEC_CREATION.url);
 if (extra) await dump("04-extra", extra);
 await browser.close();
-console.log(`\nDone. Compare each dump with esc-registry-selectors.ts, fix the selectors, clear the TODOs, then set SELECTOR_MAP_VERIFIED = true (code change) before the first live run.`);
+console.log(`\nDone. Compare each dump with esc-registry-selectors.ts, fix the selectors, clear the TODOs, then set that task's SELECTORS_VERIFIED mark to true (code change) before the first live run.`);
