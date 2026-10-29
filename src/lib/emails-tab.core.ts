@@ -173,7 +173,9 @@ export function answeredInOutlook(row: { threadId?: string | null; receivedAt?: 
 /** kind: "link" = the website-link reply; "follow_up" = an answer to someone who already has the link (Jo 28 Oct 2026). */
 export type DraftRef = { eventId: string; body: string; kind?: "link" | "follow_up"; nothingToAnswer?: boolean;
   /** Job drafts (AI replies step 2): questions the AI couldn't answer, and a complaint after the install. */
-  needsAnswer?: string[]; needsYou?: boolean };
+  needsAnswer?: string[]; needsYou?: boolean;
+  /** Job drafts: what the AI proposes doing when Jo sends (note for the installer, new ceiling size). */
+  actions?: { installerNote?: string; newAreaM2?: number } };
 
 export type JobEmailCard = {
   key: string; requestEventId: string; jobId: string; jobNumber: string | null; name: string | null; at: string;

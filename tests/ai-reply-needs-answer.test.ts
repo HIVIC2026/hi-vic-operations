@@ -116,7 +116,8 @@ describe("server wiring (source checks)", () => {
   const fn = (name: string) => { const i = server.indexOf(`export async function ${name}`); const j = server.indexOf("\nexport ", i + 10); return server.slice(i, j === -1 ? undefined : j); };
   test("writeAiReplyDraft splits the raw AI text before the no-reply check, finishAiReply and the fix loop", () => {
     const w = fn("writeAiReplyDraft");
-    const split = w.indexOf("splitAiOutput(raw)");
+    // Step 2 task 5: both AI passes (first draft, then the new-size pass) are split straight from aiText.
+    const split = w.indexOf("splitAiOutput(await aiText(");
     expect(split).toBeGreaterThan(-1);
     expect(split).toBeLessThan(w.indexOf("NO_REPLY_NEEDED"));
     expect(split).toBeLessThan(w.indexOf("finishAiReply("));

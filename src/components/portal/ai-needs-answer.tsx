@@ -20,6 +20,31 @@ export function NeedsNotes({ needsAnswer, needsYou }: { needsAnswer: string[]; n
   );
 }
 
+/** What the AI proposes doing when Jo sends (AI replies step 2, task 5). Both start ticked; nothing changes until Send. */
+export type ActionTicks = { applyNote: boolean; applyArea: boolean };
+export const ALL_TICKED: ActionTicks = { applyNote: true, applyArea: true };
+export function ActionChecks({ actions, ticks, onChange, disabled }: { actions: { installerNote?: string; newAreaM2?: number } | undefined; ticks: ActionTicks; onChange: (t: ActionTicks) => void; disabled?: boolean }) {
+  if (!actions?.installerNote && actions?.newAreaM2 == null) return null;
+  const box = "mt-0.5 h-5 w-5 shrink-0 accent-[var(--hiv-blue)]";
+  return (
+    <fieldset className="grid gap-1 text-sm text-ink" data-testid="ai-actions">
+      <legend className="sr-only">When you press Send</legend>
+      {actions.installerNote && (
+        <label className="flex min-h-[44px] items-start gap-2 py-1">
+          <input type="checkbox" className={box} checked={ticks.applyNote} disabled={disabled} onChange={(e) => onChange({ ...ticks, applyNote: e.target.checked })} />
+          <span className="min-w-0 break-words">{`Add note for the installer: ${actions.installerNote}`}</span>
+        </label>
+      )}
+      {actions.newAreaM2 != null && (
+        <label className="flex min-h-[44px] items-start gap-2 py-1">
+          <input type="checkbox" className={box} checked={ticks.applyArea} disabled={disabled} onChange={(e) => onChange({ ...ticks, applyArea: e.target.checked })} />
+          <span>{`Update ceiling size to ${actions.newAreaM2} m²`}</span>
+        </label>
+      )}
+    </fieldset>
+  );
+}
+
 /** A sent reply to a question the AI couldn't answer, waiting for Save or Skip. Held by the SCREEN, not the card, so it
  *  survives the card leaving the list on the next refetch (Jo is on her phone: every focus refetches). */
 export type PendingSave = { key: string; label: string; questions: string[]; sentBody: string };

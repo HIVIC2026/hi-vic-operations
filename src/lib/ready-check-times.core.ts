@@ -4,6 +4,7 @@
 // ahead, up to READY_CHECK_HORIZON_DAYS out. The installer's own customers (installer_sourced) never use this.
 import { formatInstallDay, installStartAt } from "./install-days.core";
 import { isBusinessDay, melbourneYmd } from "./piesa-windows.core";
+import { installerNoteSuffix } from "./installer-texts.core";
 
 /** An office-picked Ready Check offer stays open this long (decision 51). */
 export const READY_CHECK_OFFER_OPEN_HOURS = 24;
@@ -164,7 +165,8 @@ export function readyCheckOfficeItem(f: { channel: string | null; stage: string;
 
 /** Job offer text to the installer — decision 76 wording, approved by Jo 24 Oct 2026 (switched on by decision 154).
  *  "(about {area} m²)" is left out when no area is known; nothing is invented. No STOP line: partner job texts don't carry one. */
-export function readyCheckOfferText(suburb: string | null, url: string, areaM2: number | null = null): string {
+export function readyCheckOfferText(suburb: string | null, url: string, areaM2: number | null = null, notes?: string[]): string {
   const area = typeof areaM2 === "number" && areaM2 > 0 ? ` (about ${Math.round(areaM2)} m²)` : "";
-  return `Home Insulation Victoria: New Ready Check job near ${suburb?.trim() || "you"}${area}. Offer the owner 3 times within 24 hours to take it: ${url}`;
+  // AI replies step 2: the latest office note about the job (never the owner's name or address).
+  return `Home Insulation Victoria: New Ready Check job near ${suburb?.trim() || "you"}${area}. Offer the owner 3 times within 24 hours to take it: ${url}${installerNoteSuffix(notes)}`;
 }

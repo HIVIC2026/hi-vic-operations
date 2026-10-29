@@ -55,9 +55,16 @@ export function installerTextAddress(addressLine: string | null | undefined, sub
 export function readyCheckDaysSuggestedText(f: { suburb: string | null; jobNumber: string; link: string }): string {
   return `The owner at ${f.suburb?.trim() || "the property"} (${f.jobNumber}) suggested other days for their Ready Check. Tap to pick one and set a time: ${f.link}`;
 }
-/** Decision 82, installer booked (A). */
-export function readyCheckBookedInstallerText(f: { startIso: string; address: string | null; jobNumber: string; link: string }): string {
-  return `Booked: Ready Check ${melbourneDayDate(f.startIso)} ${melbourneClock(f.startIso)}, ${f.address ?? "address on the job"} (${f.jobNumber}). Owner details on the job: ${f.link}`;
+/** AI replies step 2: the newest office note for the installer (newest first), as " Note: …" (at most 100 characters), or "". */
+export const INSTALLER_NOTE_TEXT_MAX = 100;
+export function installerNoteSuffix(notes?: string[] | null): string {
+  const n = (notes ?? []).map((x) => x.replace(/\s+/g, " ").trim()).find(Boolean);
+  if (!n) return "";
+  return ` Note: ${n.length > INSTALLER_NOTE_TEXT_MAX ? `${n.slice(0, INSTALLER_NOTE_TEXT_MAX - 1).trimEnd()}…` : n}`;
+}
+/** Decision 82, installer booked (A). `notes` (newest first): the latest office note is added at the end. */
+export function readyCheckBookedInstallerText(f: { startIso: string; address: string | null; jobNumber: string; link: string }, notes?: string[]): string {
+  return `Booked: Ready Check ${melbourneDayDate(f.startIso)} ${melbourneClock(f.startIso)}, ${f.address ?? "address on the job"} (${f.jobNumber}). Owner details on the job: ${f.link}${installerNoteSuffix(notes)}`;
 }
 /** Decision 99, installer day before. */
 export function installTomorrowText(f: { startIso: string; address: string | null; jobNumber: string; link: string }): string {

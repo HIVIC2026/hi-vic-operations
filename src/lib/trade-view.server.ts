@@ -937,7 +937,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   const qq = quote.quote as { sent_at?: string | null; accepted_at?: string | null } | null;
   // Approved states (decision 234): the dates and names each panel prints, every one a recorded fact.
   // Decision 251: the owner's side is read only once the install is booked (the M2-install-booked state); nothing is read before that.
-  const [{ data: declinedEv }, { data: basicsDone }, { data: piesaBook }, { data: elecAsg }, { data: fixes }, { data: evEv }, { data: alloc }, { data: decl }, { data: finalAsg }, ownerReady] = await Promise.all([
+  const [{ data: declinedEv }, { data: basicsDone }, { data: piesaBook }, { data: elecAsg }, { data: fixes }, { data: evEv }, { data: alloc }, { data: decl }, { data: finalAsg }, ownerReady, notes] = await Promise.all([
     admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "quote_declined").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "ready_check_basics").contains("details", { completed: true }).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "assessment").in("status", ["confirmed", "completed"]).order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
@@ -948,6 +948,8 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     admin.from("installer_declarations").select("installer_name, signed_at, installed_product, installed_area_m2").eq("job_id", jobId).eq("status", "signed").order("signed_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("customer_assignments").select("installer_signed_at, consumer_final_signed_at, ap_signed_at, installed_product, installed_area_m2").eq("job_id", jobId).eq("record_kind", "final_veec_assignment").neq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     (async () => inBook?.status === "confirmed" ? await ownerReadyFacts(jobId).catch(() => null) : null)(),
+    // AI replies step 2: the office's notes about the job (e.g. the owner wants R7.0), newest first.
+    import("./ai-email-reply.server").then((m) => m.installerNotes(jobId)),
   ]);
   const elecName = (elecAsg?.profiles as unknown as { full_name: string | null } | null)?.full_name ?? null;
   const evidence = (evEv?.details as { summary?: { blockers?: string[] } ; blockers?: string[] } | null) ?? null;
@@ -958,7 +960,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   const product = decl?.installed_product ?? finalAsg?.installed_product ?? null;
   const payRow = payRows[0] ?? null;
   return {
-    jobNumber: j?.job_number ?? null, stage: j?.stage ?? null, channel: j?.channel ?? null,
+    jobNumber: j?.job_number ?? null, stage: j?.stage ?? null, channel: j?.channel ?? null, notes,
     readyCheck: { bookedAt: rcBook?.scheduled_start ?? null, done: rcBook?.status === "completed" },
     install: { bookedAt: inBook?.scheduled_start ?? null, recordedAt: j?.installation_completed_at ?? null, form, rebateSigned, formCompletedAt: decl?.signed_at ?? null, evidenceChecked: Array.isArray(evidenceBlockers) ? evidenceBlockers.length === 0 : false, crew, ownerReady },
     form: mitti.applies

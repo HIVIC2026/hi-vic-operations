@@ -9,7 +9,7 @@ import { AI_REWRITTEN_NOTE, aiReplyEmailHtml } from "@/lib/ai-email-reply.core";
 import { panelLoad } from "@/lib/panel-load.core";
 import { LoadFailed } from "@/components/portal/load-failed";
 import { saveStateText, useDraftAutosave } from "@/components/portal/use-draft-autosave";
-import { NeedsNotes, PendingSaves, type PendingSave } from "@/components/portal/ai-needs-answer";
+import { ActionChecks, ALL_TICKED, NeedsNotes, PendingSaves, type ActionTicks, type PendingSave } from "@/components/portal/ai-needs-answer";
 
 type Draft = Awaited<ReturnType<typeof getAiReplyDrafts>>[number];
 
@@ -20,6 +20,7 @@ function DraftCard({ d, onDone, onSent }: { d: Draft; onDone: () => void; onSent
   const [busy, setBusy] = useState(false);
   const saved = useDraftAutosave(d.eventId, body, d.body);
   const [note, setNote] = useState<{ problems: string[] } | null>(null);
+  const [ticks, setTicks] = useState<ActionTicks>(ALL_TICKED);
   /** `after` runs before onDone for this one action (Send of a draft with questions adds a pending save to the screen). */
   const run = async (fn: () => Promise<unknown>, ok: string, after?: () => void) => {
     setBusy(true);
@@ -39,6 +40,7 @@ function DraftCard({ d, onDone, onSent }: { d: Draft; onDone: () => void; onSent
       <NeedsNotes needsAnswer={d.needsAnswer} needsYou={d.needsYou} />
       <textarea aria-label="Reply text" value={body} onChange={(e) => { setNote(null); setBody(e.target.value); }} rows={Math.min(14, body.split("\n").length + 2)} className="w-full rounded-[10px] border border-line bg-background p-2 text-sm" disabled={busy} />
       {saveStateText(saved) && <span className={`text-xs ${saved === "failed" ? "text-danger" : "text-sub"}`} aria-live="polite">{saveStateText(saved)}</span>}
+      <ActionChecks actions={d.actions} ticks={ticks} onChange={setTicks} disabled={busy} />
       {note && (note.problems.length
         ? <p className="text-sm text-danger" role="alert">{note.problems.join(" ")}</p>
         : <p className="text-sm text-ink" role="status">{AI_REWRITTEN_NOTE}</p>)}
@@ -47,7 +49,7 @@ function DraftCard({ d, onDone, onSent }: { d: Draft; onDone: () => void; onSent
         <iframe title="Email preview" sandbox="" srcDoc={aiReplyEmailHtml(body, { subject: d.subject, unsubscribe: null })} className="mt-2 h-[520px] w-full max-w-[560px] rounded-[10px] border border-line bg-background" />
       </details>
       <div className="grid grid-cols-2 gap-2 md:flex">
-        <button type="button" disabled={busy} className={btnClass("primary", "min-h-[44px]")} onClick={() => { setNote(null); const sent = body; void run(() => send({ data: { eventId: d.eventId, body } }), "Reply sent", d.needsAnswer.length ? () => onSent({ key: d.eventId, label: `Reply sent to ${d.to}.`, questions: d.needsAnswer, sentBody: sent }) : undefined); }}>{busy ? "Working…" : "Send"}</button>
+        <button type="button" disabled={busy} className={btnClass("primary", "min-h-[44px]")} onClick={() => { setNote(null); const sent = body; void run(() => send({ data: { eventId: d.eventId, body, applyNote: ticks.applyNote, applyArea: ticks.applyArea } }), "Reply sent", d.needsAnswer.length ? () => onSent({ key: d.eventId, label: `Reply sent to ${d.to}.`, questions: d.needsAnswer, sentBody: sent }) : undefined); }}>{busy ? "Working…" : "Send"}</button>
         <button type="button" disabled={busy} className={btnClass("secondary", "min-h-[44px]")} onClick={() => void run(() => discard({ data: { eventId: d.eventId } }), "Draft discarded")}>Discard</button>
       </div>
     </li>

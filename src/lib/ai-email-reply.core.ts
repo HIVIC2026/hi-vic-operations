@@ -13,6 +13,7 @@ import { smsQuietReason } from "./quote-hold.core";
 import { SPOT_FREE, SPOT_PRICE_NOTE, SPOT_REGISTERED, SPOT_RELEASE_LINE, isPreReleaseStage } from "./spot-only-copy.core";
 import { rulesFromAnswers, type AiAnswer } from "./ai-answers.core";
 import type { SpotReleaseState } from "./spot-release.core";
+import { ownerRateForR } from "./hiv-quote.core";
 
 /** Shown on the draft screens after a blocked Send: the box now holds the fixed reply. */
 export const AI_REWRITTEN_NOTE = "We fixed the reply so it follows your rules — check it and press Send.";
@@ -83,6 +84,8 @@ const NEXT_STEP_RELEASED = "Then give the one next step: if their spot isn't sav
 export const AI_WAIT_LINE = "We're bringing on more and more certified installers, but demand is high and there aren't enough of them yet. So we're booking people in the order they saved their spot, as quickly as we can bring on more CII-certified installers. We can't give a date yet, but we'll be in touch as soon as your spot is released.";
 export const AI_RELEASE_MEANS = "When your spot is released, it's your turn: an installer will text and email you some times for your free Ready Check.";
 const NEXT_STEP_PRE_RELEASE = `Then give the one next step: if their spot isn't saved and they want to go ahead, give the save-my-spot link on its own line; if their spot is saved, explain what release means with: ${AI_RELEASE_MEANS} If they ask when or how long, use: ${AI_WAIT_LINE} Give no date, timeframe or speed, and never promise or hint at one.`;
+/** The machine line the AI may add after the email (AI replies step 2, task 5). */
+export const AI_ACTIONS_EXAMPLE = 'ACTIONS: {"installer_note":"…","new_area_m2":90}';
 const instructionLines = (NEXT_STEP: string, preRelease: boolean) => [
   "You write email replies from the Home Insulation Victoria team to home owners about their ceiling insulation. The office reads and sends each one.",
   "Tone: kind, warm and plain, in Australian English, like a real person in our office. Short sentences. Never robotic or call-centre. Never say \"No worries\". Never sign or mention a person's name for us.",
@@ -100,7 +103,8 @@ const instructionLines = (NEXT_STEP: string, preRelease: boolean) => [
   ...(preRelease ? [] : ["If they want to change a booking time, give them the change link provided and say who they'll arrange it with. Never promise a new time yourself."]),
   `If their email is only a plain "thanks", "got it" or similar acknowledgement and needs no answer, return exactly ${"NO_REPLY_NEEDED"} and nothing else.`,
   "Do not include a sign-off; it is added for you.",
-  "Return only the email body text, no subject line (plus any NEEDS_JO / NEEDS_YOU lines after it).",
+  `After the email you may add one line: ${AI_ACTIONS_EXAMPLE} — installer_note only when the owner asks for something the installer must know (for example R6.0 or R7.0, removing old insulation, downlights), short and plain; new_area_m2 only when the owner states their ceiling size as a number in m². Leave out what doesn't apply, and leave the line out if neither does.`,
+  "Return only the email body text, no subject line (plus any NEEDS_JO / NEEDS_YOU / ACTIONS lines after it).",
 ];
 
 export const AI_REPLY_INSTRUCTIONS = instructionLines(NEXT_STEP_RELEASED, false).join("\n");
@@ -221,8 +225,44 @@ export function aiPreReleaseViolations(text: string): string[] {
   return [...new Set((cleaned.match(AI_PRE_RELEASE_TIMING) ?? []).map((m) => m.toLowerCase().replace(/\s+/g, " ")))];
 }
 
-/** Things the AI asks the office to do (Task 5 fills these from an `ACTIONS:` line). */
+/** Things the AI asks the office to do, from its `ACTIONS:` line. Applied only when Jo sends, and only if she leaves them ticked. */
 export type AiActions = { installerNote?: string; newAreaM2?: number };
+export const AI_NOTE_MAX = 200;
+/** A new ceiling size is accepted only as a whole number of m² from 10 to 1000. */
+export const validNewArea = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 10 && v <= 1000;
+/** Keeps only valid actions (note trimmed, 1–200 chars; area a whole number 10–1000); anything else is dropped. */
+export function cleanActions(x: unknown, keys: { note: string; area: string } = { note: "installerNote", area: "newAreaM2" }): AiActions {
+  if (!x || typeof x !== "object" || Array.isArray(x)) return {};
+  const o = x as Record<string, unknown>;
+  const out: AiActions = {};
+  const note = typeof o[keys.note] === "string" ? (o[keys.note] as string).trim() : "";
+  if (note.length >= 1 && note.length <= AI_NOTE_MAX) out.installerNote = note;
+  if (validNewArea(o[keys.area])) out.newAreaM2 = o[keys.area] as number;
+  return out;
+}
+const AI_KEYS = { note: "installer_note", area: "new_area_m2" };
+/** The JSON after `ACTIONS:`; malformed = no actions. */
+function parseActionsLine(line: string): AiActions {
+  const json = line.replace(/^\s*actions\s*:\s*/i, "");
+  try { return cleanActions(JSON.parse(json), AI_KEYS); } catch { return {}; }
+}
+/** Actions saved on a draft (`details.actions`); bad or missing values = none. */
+export const draftActions = (details: Record<string, unknown> | null | undefined): AiActions => cleanActions(details?.["actions"]);
+
+/** R6.0 / R7.0 prices for the AI's facts. The rebate doesn't depend on R-value, so the R5.0 rebate is used; only the
+ *  install part changes (owner price per m² from `ownerRateForR`). */
+export function higherRFacts(areaM2: number, r5Cost: { before: number; rebate: number }, ownerR5IncPerM2: number): string[] {
+  if (!(areaM2 > 0) || !Number.isFinite(r5Cost.before) || !Number.isFinite(r5Cost.rebate)) return [];
+  return (["R6.0", "R7.0"] as const).map((r) => {
+    const before = r5Cost.before + areaM2 * (ownerRateForR(r, ownerR5IncPerM2) - ownerR5IncPerM2);
+    return `${r} for ${areaM2} m²: ${money(before - r5Cost.rebate)} after the ${money(r5Cost.rebate)} rebate (${money(before)} before), including GST.`;
+  });
+}
+/** Prices for a size the owner gave in their email (R5.0 from `whatIfEstimate`, then R6.0 / R7.0). */
+export function newSizeFacts(areaM2: number, r5: { before: number; rebate: number; after: number }, ownerR5IncPerM2: number): string[] {
+  return [`Price for the size they gave (${areaM2} m² ceiling, R5.0): ${money(r5.after)} after the ${money(r5.rebate)} rebate (${money(r5.before)} before), including GST.`, ...higherRFacts(areaM2, r5, ownerR5IncPerM2)];
+}
+const money = (n: number) => `$${Math.round(Number(n)).toLocaleString("en-AU")}`;
 export type AiOutput = { body: string; needsAnswer: string[]; needsYou: boolean; actions: AiActions };
 
 const NEEDS_JO_LINE = /^\s*needs[_ ]?jo\s*:\s*(.*?)\s*$/i;
@@ -233,16 +273,17 @@ const ACTIONS_LINE = /^\s*actions\s*:/i;
 export function splitAiOutput(raw: string): AiOutput {
   const needsAnswer: string[] = [];
   let needsYou = false;
+  let actions: AiActions = {};
   const keep: string[] = [];
   for (const line of (raw ?? "").replace(/\r/g, "").split("\n")) {
     const jo = NEEDS_JO_LINE.exec(line);
     if (jo) { if (jo[1]) needsAnswer.push(jo[1]); continue; }
     if (NEEDS_YOU_LINE.test(line)) { needsYou = true; continue; }
-    if (ACTIONS_LINE.test(line)) continue; // Task 5 parses this; it never reaches the owner.
+    if (ACTIONS_LINE.test(line)) { actions = { ...actions, ...parseActionsLine(line) }; continue; } // never reaches the owner
     keep.push(line.replace(/[ \t]+$/, ""));
   }
   const body = keep.join("\n").replace(/\n{3,}/g, "\n\n").trim();
-  return { body, needsAnswer, needsYou, actions: {} };
+  return { body, needsAnswer, needsYou, actions };
 }
 
 /** needs_answer / needs_you from a saved draft's details (bad or missing values = none). */

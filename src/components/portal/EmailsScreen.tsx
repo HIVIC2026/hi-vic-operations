@@ -15,7 +15,7 @@ import type { JobEmailCard, NoJobCard } from "@/lib/emails-tab.core";
 import { EMAILS_TAB_KEY } from "@/components/portal/emails-count";
 import { AI_REWRITTEN_NOTE } from "@/lib/ai-email-reply.core";
 import { saveStateText, useDraftAutosave, type SaveState } from "@/components/portal/use-draft-autosave";
-import { NeedsNotes, PendingSaves, type PendingSave } from "@/components/portal/ai-needs-answer";
+import { ActionChecks, ALL_TICKED, NeedsNotes, PendingSaves, type ActionTicks, type PendingSave } from "@/components/portal/ai-needs-answer";
 
 const btn = (tone: "primary" | "secondary") => btnClass(tone, "min-h-[46px] whitespace-nowrap md:min-h-[42px]");
 const when = (iso: string) => new Date(iso).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
@@ -78,6 +78,7 @@ function JobCard({ c, onDone, onSent }: { c: JobEmailCard; onDone: () => void; o
   useEffect(() => { if (c.draft && body === null) setBody(c.draft.body); }, [c.draft, body]);
   const saved = useDraftAutosave(c.draft?.eventId ?? null, body, c.draft?.body ?? null);
   const [note, setNote] = useState<Rewritten | null>(null);
+  const [ticks, setTicks] = useState<ActionTicks>(ALL_TICKED);
   const { busy, run } = useRun(onDone, (r) => { setBody(r.body); setNote(r); });
   return (
     <li className="grid gap-2 rounded-[12px] border border-line bg-paper p-3" data-testid="email-card-job">
@@ -91,9 +92,10 @@ function JobCard({ c, onDone, onSent }: { c: JobEmailCard; onDone: () => void; o
       {c.stillOpenDecline && <p className="text-sm font-semibold text-danger">Still open — Close job or Keep open</p>}
       {c.draft && <NeedsNotes needsAnswer={c.needsAnswer} needsYou={c.needsYou} />}
       {c.draftClosed && !c.draft && c.stillOpenDecline ? null : c.draftClosed && !c.draft ? <p className="text-sm text-sub">No reply needed, or it was already answered — press Done to file it away.</p> : <Reply body={body} setBody={(t) => { setNote(null); setBody(t); }} busy={busy} saved={saved} waiting={c.intent === "reply"} />}
+      {c.draft && body !== null && <ActionChecks actions={c.draft.actions} ticks={ticks} onChange={setTicks} disabled={busy} />}
       <RewrittenNote note={note} />
       <div className="grid grid-cols-2 gap-2 md:flex">
-        {c.draft && body !== null && <button type="button" disabled={busy} className={btn("primary")} onClick={() => { setNote(null); const sent = body; void run(() => send({ data: { requestEventId: c.requestEventId, draftEventId: c.draft!.eventId, body } }), "Reply sent and saved on the job", c.needsAnswer.length ? () => onSent({ key: c.key, label: `Reply sent to ${c.jobNumber ?? "the job"}${c.name ? ` · ${c.name}` : ""}.`, questions: c.needsAnswer, sentBody: sent }) : undefined); }}>{busy ? "Working…" : "Send"}</button>}
+        {c.draft && body !== null && <button type="button" disabled={busy} className={btn("primary")} onClick={() => { setNote(null); const sent = body; void run(() => send({ data: { requestEventId: c.requestEventId, draftEventId: c.draft!.eventId, body, applyNote: ticks.applyNote, applyArea: ticks.applyArea } }), "Reply sent and saved on the job", c.needsAnswer.length ? () => onSent({ key: c.key, label: `Reply sent to ${c.jobNumber ?? "the job"}${c.name ? ` · ${c.name}` : ""}.`, questions: c.needsAnswer, sentBody: sent }) : undefined); }}>{busy ? "Working…" : "Send"}</button>}
         {c.stillOpenDecline ? <>
           <button type="button" disabled={busy} className={btn(c.draft ? "secondary" : "primary")} onClick={() => void run(() => apply({ data: { eventId: c.requestEventId, close: c.intent === "reply" } }), "Job closed")}>Close job</button>
           <button type="button" disabled={busy} className={btn("secondary")} onClick={() => void run(() => ignore({ data: { eventId: c.requestEventId } }), "Kept open")}>Keep open</button>
