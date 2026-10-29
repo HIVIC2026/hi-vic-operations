@@ -373,6 +373,23 @@ export function autoSendDecision(d: {
   return { send: "now", reason: "Sends itself" };
 }
 
+/** Append-only record of what auto-send decided for a draft (details: draft_event_id, decision, reason, kind). Newest wins. */
+export const AI_AUTO_DECISION_EVENT = "email_ai_auto_decision";
+export type AutoDecision = { decision: "now" | "at7am" | "no"; reason: string; kind: AiAutoKind; at: string };
+/** Draft id -> its newest auto-send decision (ties: the later row wins). */
+export function latestAutoDecisions(rows: { created_at: string; details: Record<string, unknown> | null }[]): Map<string, AutoDecision> {
+  const out = new Map<string, AutoDecision>();
+  for (const r of rows) {
+    const d = r.details; const id = d?.["draft_event_id"]; const decision = d?.["decision"];
+    if (typeof id !== "string" || (decision !== "now" && decision !== "at7am" && decision !== "no")) continue;
+    const prev = out.get(id);
+    if (prev && prev.at > r.created_at) continue;
+    const kind = AUTO_SEND_KINDS.includes(d?.["kind"] as AiAutoKind) ? d?.["kind"] as AiAutoKind : "other";
+    out.set(id, { decision, reason: String(d?.["reason"] ?? ""), kind, at: r.created_at });
+  }
+  return out;
+}
+
 /** needs_answer / needs_you from a saved draft's details (bad or missing values = none). */
 export function draftNeeds(details: Record<string, unknown> | null | undefined): { needsAnswer: string[]; needsYou: boolean } {
   const a = details?.["needs_answer"];

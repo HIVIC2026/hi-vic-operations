@@ -2,7 +2,10 @@
 // The switch is append-only `ai_auto_send_switched` events (latest wins). No event or any read error = OFF.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, AUTO_SEND_KINDS, latestDraftEdits, AI_EMAIL_DRAFT_EDITED_EVENT, type AiAutoKind } from "./ai-email-reply.core";
+import {
+  AI_AUTO_DECISION_EVENT, AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, AUTO_SEND_KINDS, latestDraftEdits, AI_EMAIL_DRAFT_EDITED_EVENT,
+  aiReplyProblems, aiSendQuietReason, autoSendDecision, draftNeeds, latestAutoDecisions, type AiAutoKind,
+} from "./ai-email-reply.core";
 import { firstNameOf } from "./email-reply.core";
 
 const loose = admin as unknown as SupabaseClient;
@@ -46,7 +49,8 @@ export async function autoSendSamples(): Promise<AutoSendSample[]> {
       if (jobError) throw new Error(jobError.message);
       for (const j of (jobs ?? []) as JobRow[]) jobById.set(j.id, j);
     }
-    for (const r of rows) { const j = jobById.get(r.job_id!); if (j && j.source !== "qa_test" && real.length < AUTO_SEND_SAMPLES_NEEDED) real.push(r); }
+    // A new draft can shift the page window, so the same draft may come back on the next page: count it once.
+    for (const r of rows) { const j = jobById.get(r.job_id!); if (j && j.source !== "qa_test" && real.length < AUTO_SEND_SAMPLES_NEEDED && !real.some((x) => x.id === r.id)) real.push(r); }
     if (batch.length < PAGE_SIZE) break;
   }
   if (!real.length) return [];
@@ -85,4 +89,153 @@ export async function switchAutoSend(on: boolean, actorId: string): Promise<{ on
     summary: on ? "Auto-send turned on" : "Auto-send turned off", details: { on } });
   if (error) throw new Error(error.message);
   return { on };
+}
+
+// ---- Sending (step 4, task 3) ----
+// A saved draft is checked by the pure autoSendDecision with fresh facts; every outcome is an append-only
+// `email_ai_auto_decision` event (newest wins) so the draft card can say what happened. "now" sends through the same
+// sendAiDraft path Jo uses (same once-only key), marked via "ai". "at7am" waits for sweepHeldAutoReplies.
+
+const AI_REPLY_GAP_MS = 30 * 60_000;
+const HELD_LOOKBACK_MS = 3 * 24 * 3600_000;
+export const ALREADY_REPLIED_REASON = "Already replied by AI in the last 30 minutes";
+export const JOB_MOVED_REASON = "Job moved on — check before sending";
+export const EMAILED_AGAIN_REASON = "Owner emailed again — check before sending";
+
+export type AutoSendResult = { send: "now" | "at7am" | "no"; reason: string; sent: boolean };
+
+type DraftEvent = { id: string; job_id: string | null; event_type: string; created_at: string; details: Record<string, unknown> | null };
+
+async function recordDecision(jobId: string, draftId: string, kind: AiAutoKind, decision: "now" | "at7am" | "no", reason: string): Promise<void> {
+  const summary = decision === "now" ? "AI reply sending itself" : decision === "at7am" ? "AI reply waiting for 7am" : `AI reply left for Jo: ${reason}`;
+  const { error } = await loose.from("workflow_events").insert({ job_id: jobId, actor_id: null, event_type: AI_AUTO_DECISION_EVENT, internal: true,
+    summary, details: { draft_event_id: draftId, decision, reason, kind } });
+  if (error) throw new Error(error.message);
+}
+
+/** Sent, discarded or edited (by Jo, or already auto-sent): never touched again. */
+async function handled(draftId: string): Promise<boolean> {
+  const { data, error } = await loose.from("workflow_events").select("id")
+    .in("event_type", [AI_EMAIL_DRAFT_SENT_EVENT, AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EDITED_EVENT]).eq("details->>draft_event_id", draftId).limit(1);
+  if (error) throw new Error(error.message);
+  return (data ?? []).length > 0;
+}
+
+/** An AI reply already went to this owner (this job or their email) in the last 30 minutes. Unreadable = yes. */
+async function recentAiReply(jobId: string, ownerEmail: string, now: Date): Promise<boolean> {
+  const since = new Date(now.getTime() - AI_REPLY_GAP_MS).toISOString();
+  const { data, error } = await loose.from("workflow_events").select("job_id, details").eq("event_type", AI_EMAIL_DRAFT_SENT_EVENT)
+    .eq("details->>via", "ai").gte("created_at", since).limit(500);
+  if (error) return true;
+  const email = ownerEmail.trim().toLowerCase();
+  return ((data ?? []) as { job_id: string | null; details: { to?: unknown } | null }[])
+    .some((r) => r.job_id === jobId || (typeof r.details?.to === "string" && r.details.to.trim().toLowerCase() === email));
+}
+
+/** The owner unsubscribed from email or opted out of the list. Unreadable = opted out. */
+async function ownerOptedOut(jobId: string): Promise<boolean> {
+  const [opt, resp] = await Promise.all([
+    loose.from("customer_email_optouts").select("opted_out_at").eq("job_id", jobId).limit(5),
+    loose.from("lead_campaign_responses").select("opted_out_at").eq("job_id", jobId).limit(5),
+  ]);
+  if (opt.error || resp.error) return true;
+  return [...(opt.data ?? []), ...(resp.data ?? [])].some((r) => !!(r as { opted_out_at: string | null }).opted_out_at);
+}
+
+/**
+ * Decides whether one saved AI draft sends itself, records the decision, and sends it when the answer is "now".
+ * `ownerText`: the owner's email (read from the job when not given). `held`: the 7am sweep — also re-checks that the job
+ * hasn't moved stage and the owner hasn't emailed again. Returns null when the draft is gone or already handled.
+ */
+export async function autoSendDraft(draftId: string, o: { now?: Date; ownerText?: string; held?: boolean } = {}): Promise<AutoSendResult | null> {
+  const now = o.now ?? new Date();
+  const { data: evData, error: evErr } = await loose.from("workflow_events").select("id, job_id, event_type, created_at, details").eq("id", draftId).maybeSingle();
+  if (evErr) throw new Error(evErr.message);
+  const ev = evData as DraftEvent | null;
+  if (!ev || ev.event_type !== AI_EMAIL_DRAFT_EVENT || !ev.job_id) return null;
+  const det = ev.details ?? {};
+  if (det["no_reply_needed"] === true || await handled(draftId)) return null;
+  const jobId = ev.job_id;
+  const kind: AiAutoKind = AUTO_SEND_KINDS.includes(det["auto_kind"] as AiAutoKind) ? det["auto_kind"] as AiAutoKind : "other";
+  const body = String(det["body"] ?? "");
+  const messageId = typeof det["message_id"] === "string" ? det["message_id"] : null;
+  const leave = async (reason: string): Promise<AutoSendResult> => { await recordDecision(jobId, draftId, kind, "no", reason); return { send: "no", reason, sent: false }; };
+
+  const { data: jobData, error: jobErr } = await loose.from("jobs").select("id, source, owner_id, channel, stage, deleted_at").eq("id", jobId).maybeSingle();
+  if (jobErr) throw new Error(jobErr.message);
+  const job = jobData as { id: string; owner_id: string | null; channel: string | null; stage: string | null; deleted_at: string | null } | null;
+  if (!job || job.deleted_at) return leave("Job not found");
+
+  if (o.held) {
+    if (det["job_stage"] !== job.stage) return leave(JOB_MOVED_REASON);
+    const since = typeof det["received_at"] === "string" ? det["received_at"] : ev.created_at;
+    const { data: newer, error: nErr } = await loose.from("job_communications").select("provider_message_id").eq("job_id", jobId).eq("channel", "email")
+      .eq("direction", "inbound").gt("received_at", since).limit(20);
+    if (nErr) throw new Error(nErr.message);
+    if (((newer ?? []) as { provider_message_id: string | null }[]).some((r) => r.provider_message_id !== messageId)) return leave(EMAILED_AGAIN_REASON);
+  }
+
+  let ownerText = o.ownerText;
+  if (ownerText == null && messageId) {
+    const { data: inbound, error: iErr } = await loose.from("job_communications").select("body").eq("job_id", jobId).eq("provider_message_id", messageId).limit(1);
+    if (iErr) throw new Error(iErr.message);
+    const b = ((inbound ?? []) as { body: string | null }[])[0]?.body;
+    if (typeof b === "string") ownerText = b;
+  }
+  if (ownerText == null) return leave("Owner's email not found — check before sending");
+
+  const { data: owner } = job.owner_id ? await loose.from("owners").select("email").eq("id", job.owner_id).maybeSingle() : { data: null };
+  const ownerEmail = String((owner as { email: string | null } | null)?.email ?? "").trim();
+  const { preReleaseFor } = await import("./ai-email-reply.server");
+  const preRelease = await preReleaseFor(jobId, { channel: job.channel, stage: job.stage });
+  const saved = Array.isArray(det["problems"]) ? (det["problems"] as unknown[]).map(String) : [];
+  // Jo's rule (30 Oct): the AI-draft wording checks, run again right here.
+  const problems = [...new Set([...saved, ...aiReplyProblems(body, { preRelease, aiDraft: true })])];
+  const needs = draftNeeds(det);
+  const actions = det["actions"];
+  const hasActions = !!actions && typeof actions === "object" && Object.keys(actions as object).length > 0;
+  let d = autoSendDecision({ switchOn: await autoSendOn(), kind, problems, needsAnswer: needs.needsAnswer, needsYou: needs.needsYou, hasActions,
+    optedOut: await ownerOptedOut(jobId), ownerEmail, ownerText, nowIso: now.toISOString() });
+  if (d.send !== "no" && await recentAiReply(jobId, ownerEmail, now)) d = { send: "no", reason: ALREADY_REPLIED_REASON };
+  if (o.held && d.send === "at7am") return { ...d, sent: false }; // still quiet hours: keep waiting
+  await recordDecision(jobId, draftId, kind, d.send, d.reason);
+  if (d.send !== "now") return { ...d, sent: false };
+
+  try {
+    const { sendAiDraft } = await import("./ai-email-reply.server");
+    const r = await sendAiDraft(draftId, body, null, { via: "ai" }, now);
+    if (r.status === "rewritten") return { ...(await leave("Auto-send failed: the reply needed fixing — check it and press Send")) };
+    return { ...d, sent: true };
+  } catch (e) {
+    // Another run already sent it (same once-only key): not a failure.
+    if (await handled(draftId).catch(() => false)) return { ...d, sent: false };
+    const why = (e instanceof Error ? e.message : String(e)).replace(/^Not sent — /, "");
+    return leave(`Auto-send failed: ${why}`);
+  }
+}
+
+/** The 7am sweep (every 15-minute tick; acts only 7:00am–7:59pm Melbourne): each reply held overnight is checked
+ *  again from scratch and sent, or left for Jo with the reason. A draft is only ever sent once. */
+export async function sweepHeldAutoReplies(now = new Date()): Promise<{ checked: number; sent: number }> {
+  if (aiSendQuietReason(now.toISOString())) return { checked: 0, sent: 0 };
+  const since = new Date(now.getTime() - HELD_LOOKBACK_MS).toISOString();
+  const { data, error } = await loose.from("workflow_events").select("details").eq("event_type", AI_AUTO_DECISION_EVENT)
+    .eq("details->>decision", "at7am").gte("created_at", since).limit(500);
+  if (error) throw new Error(error.message);
+  const ids = [...new Set(((data ?? []) as { details: { draft_event_id?: unknown } | null }[]).map((r) => r.details?.draft_event_id).filter((x): x is string => typeof x === "string"))];
+  let checked = 0; let sent = 0;
+  for (let i = 0; i < ids.length; i += 50) {
+    const part = ids.slice(i, i + 50);
+    const { data: all, error: allErr } = await loose.from("workflow_events").select("created_at, details").eq("event_type", AI_AUTO_DECISION_EVENT)
+      .in("details->>draft_event_id", part).order("created_at", { ascending: true });
+    if (allErr) throw new Error(allErr.message);
+    const latest = latestAutoDecisions((all ?? []) as { created_at: string; details: Record<string, unknown> | null }[]);
+    for (const id of part) {
+      if (latest.get(id)?.decision !== "at7am") continue;
+      checked++;
+      try { if ((await autoSendDraft(id, { now, held: true }))?.sent) sent++; }
+      catch (e) { console.error("held AI reply skipped", e instanceof Error ? e.message : e); }
+    }
+  }
+  return { checked, sent };
 }
