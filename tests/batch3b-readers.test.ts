@@ -215,6 +215,17 @@ describe("office: each invoice listed on its own, with its reference", () => {
     ]);
     expect(r.owedCents).toBe(400_000 - 34_900 + 22_000);
   });
+  test("a paid repeat safety check invoice stays listed after the repeat is no longer owed", async () => {
+    seed({ installPaid: 349 });
+    payXero(INV, 349);
+    const rep = tables["invoices"]!.find((i) => i["id"] === INVR)!;
+    Object.assign(rep, { total_paid: 220, status: "fully_paid" });
+    // The repeat check is over: no current repeat choice, so the payment plan no longer carries the repeat invoice.
+    tables["workflow_events"] = tables["workflow_events"]!.filter((e) => !String(e["event_type"]).startsWith("repeat_piesa_"));
+    const r = await moneyInvoices(new Date("2026-10-29T00:00:00Z"));
+    const row = r.rows.find((x) => x.invoiceId === INVR);
+    expect(row && { label: row.label, reference: row.reference, total: row.totalCents, paid: row.paidCents, state: row.state }).toEqual({ label: "Safety check 2", reference: "Home Insulation Victoria HV-0505 safety check 2", total: 22_000, paid: 22_000, state: "Paid in full" });
+  });
   test("a job with a fixes invoice but no installation invoice (fixes accepted first) is still listed", async () => {
     seed();
     tables["invoices"] = tables["invoices"]!.filter((i) => i["kind"] === "rectification");

@@ -256,21 +256,22 @@ export async function moneyInvoices(now = new Date()) {
       const j = jobs.get(i.job_id)!;
       const v = await jobPaymentView(i.job_id, now).catch(() => null);
       const job = { jobId: i.job_id, jobNumber: j.job_number, owner: j.owners?.full_name ?? null, stage: stageWord(j) };
-      if (!v) {
-        // No payment view (no installation invoice yet, or it could not be read): each of the job's invoices from the
-        // Xero mirror, so a fixes / repeat invoice is never missing from the list.
-        return kinds.flatMap((k) => {
-          const r = newest.get(`${i.job_id}:${k}`);
-          if (!r) return [];
-          const slot = invoiceSlotOf(k);
-          const totalCents = Math.round(Number(r.total_inc_gst ?? 0) * 100), paidCents = Math.round(Number(r.total_paid ?? 0) * 100);
-          const st = k === "installation" ? invoiceRowState([], now.toISOString()) : paidCents >= totalCents ? { label: "Paid in full", tone: "green" as const, chase: false } : { label: "On track", tone: "plain" as const, chase: false };
-          return [{ ...job, invoiceId: r.id, invoiceNumber: r.xero_invoice_number, label: invoiceSlotLabel(slot, r.xero_reference), reference: r.xero_reference, totalCents, paidCents, steps: k === "installation" ? "Not in Xero yet" : "—", state: st.label, tone: st.tone, chase: st.chase }];
-        });
-      }
+      // One invoice straight from the Xero mirror row (its own total and money).
+      const mirror = (k: (typeof kinds)[number]) => {
+        const r = newest.get(`${i.job_id}:${k}`);
+        if (!r) return [];
+        const slot = invoiceSlotOf(k);
+        const totalCents = Math.round(Number(r.total_inc_gst ?? 0) * 100), paidCents = Math.round(Number(r.total_paid ?? 0) * 100);
+        const st = k === "installation" ? invoiceRowState([], now.toISOString()) : paidCents >= totalCents ? { label: "Paid in full", tone: "green" as const, chase: false } : { label: "On track", tone: "plain" as const, chase: false };
+        return [{ ...job, invoiceId: r.id, invoiceNumber: r.xero_invoice_number, label: invoiceSlotLabel(slot, r.xero_reference), reference: r.xero_reference, totalCents, paidCents, steps: k === "installation" ? "Not in Xero yet" : "—", state: st.label, tone: st.tone, chase: st.chase }];
+      };
+      // No payment view (no installation invoice yet, or it could not be read): each of the job's invoices from the
+      // Xero mirror, so a fixes / repeat invoice is never missing from the list.
+      if (!v) return kinds.flatMap(mirror);
       return (["install", "fixes", "repeat"] as const).flatMap((slot) => {
         const r = v.invoices[slot];
-        if (!r) return [];
+        // A repeat safety check invoice stays listed once the repeat is no longer owed (paid, check done): from the mirror.
+        if (!r) return slot === "repeat" ? mirror("repeat_safety_check") : [];
         const steps = v.steps.filter((x) => stepInvoiceKind(x.key) === slot);
         const st = invoiceRowState(steps, now.toISOString());
         return [{ ...job, invoiceId: r.id, invoiceNumber: r.xero_invoice_number, label: invoiceSlotLabel(slot, r.xero_reference), reference: r.xero_reference, totalCents: Math.round(Number(r.total_inc_gst ?? 0) * 100), paidCents: v.paid[slot], steps: steps.length ? stepsLine(steps) : "Not in Xero yet", state: st.label, tone: st.tone, chase: st.chase }];
