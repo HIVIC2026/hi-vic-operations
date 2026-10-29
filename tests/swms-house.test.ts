@@ -99,3 +99,25 @@ describe("signatures count only for the version signed (Jo 30 Oct 2026)", () => 
     expect(swmsStatus(withCrew, currentSignatures(signed, sha(withCrew))).missing).toEqual(["TEST Crew"]);
   });
 });
+
+describe("real TEST job Ready Check answers (HV-3197, HV-1351 shapes)", () => {
+  const none = { lifeSupportStatus: null, piesaOutcome: null, upgradesDone: false, piesaHazards: null };
+  const area = "Which part of the home does this ceiling area cover?\ne.g. Main house – bedrooms and hallway";
+  test("difficult access with its note, empty template area ignored", () => {
+    const f = swmsHouseFacts([
+      e("Life support equipment at property?", "No"), e("Was the ceiling or roof built or replaced in the last 5 years?", "No"),
+      e("What type of roof does the home have? ", "Metal sheet"), e("How would you rate the ceiling access?", "Difficult"),
+      e("Please explain why the access is difficult", "Just is"),
+      e("CLICK ON ME to add a ceiling area", null), e(area, null), e("Are there recessed downlights in this ceiling area?", null),
+      e("── Ceiling Area 1 ──", null), e(area, "Main"), e("Are there recessed downlights in this ceiling area?", "No"),
+      e("Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards", "No"),
+    ], none);
+    expect(swmsHouseLines(f)).toEqual(["Roof: Metal sheet", "Ceiling access: Difficult", "Access note: Just is"]);
+    expect(swmsHouseSteps(f)).toEqual([SWMS_HOUSE_STEPS.difficultAccess]);
+  });
+  test("office placeholder for life support is not read as yes", () => {
+    const f = swmsHouseFacts([e("Life support equipment at property?", "None recorded by office"), e("What type of roof does the home have? ", "Tiles"), e("How would you rate the ceiling access?", "Easy")], { ...none, lifeSupportStatus: "no" });
+    expect(swmsHouseLines(f)).toEqual(["Roof: Tiles", "Ceiling access: Easy"]);
+    expect(swmsHouseSteps(f)).toEqual([]);
+  });
+});
