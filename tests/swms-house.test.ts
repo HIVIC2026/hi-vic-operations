@@ -78,3 +78,24 @@ describe("SWMS plan carries the house section", () => {
     expect(swmsRecordText(buildSwms({ ...base, siteNote: null }), [])).toContain("Specific to this house: None recorded");
   });
 });
+
+describe("signatures count only for the version signed (Jo 30 Oct 2026)", () => {
+  test("a changed plan needs signing again; a new crew member doesn't void the others", async () => {
+    const { createHash } = await import("node:crypto");
+    const { buildSwms, checkSwmsSign, currentSignatures, swmsPlanFingerprintText, swmsStatus } = await import("../src/lib/swms.core");
+    const sha = (p: Parameters<typeof swmsPlanFingerprintText>[0]) => createHash("sha256").update(swmsPlanFingerprintText(p)).digest("hex");
+    const base = { jobNumber: "HV-TEST-2", address: null, businessName: null, installDate: null, lead: { name: "TEST Lead", workerId: "w1" }, crew: [], yearBuilt: 2000, hazardNote: null, siteNote: null };
+    const v1 = buildSwms(base);
+    const signed = [{ key: "w:w1", name: "TEST Lead", typedName: "TEST Lead", signedAt: "2026-11-01T00:00:00Z", planSha: sha(v1) }];
+    expect(swmsStatus(v1, currentSignatures(signed, sha(v1))).complete).toBe(true);
+
+    const v2 = buildSwms({ ...base, houseLines: ["PIESA: passed"] });
+    const now = currentSignatures(signed, sha(v2));
+    expect(swmsStatus(v2, now).missing).toEqual(["TEST Lead"]);
+    expect(checkSwmsSign(v2, now, "w:w1", "TEST Lead").ok).toBe(true);
+
+    const withCrew = buildSwms({ ...base, crew: [{ name: "TEST Crew", workerId: "w2" }] });
+    expect(sha(withCrew)).toBe(sha(v1));
+    expect(swmsStatus(withCrew, currentSignatures(signed, sha(withCrew))).missing).toEqual(["TEST Crew"]);
+  });
+});

@@ -59,7 +59,17 @@ export type SwmsPlan = {
   principalContractor: string; workActivity: string; highRiskWork: string[]; hazards: typeof SWMS_HAZARDS; siteNote: string | null; houseLines: string[]; houseSteps: string[]; signers: SwmsSigner[];
 };
 /** One recorded signature (append-only `swms_signed` workflow event). */
-export type SwmsSignature = { key: string; name: string; typedName: string; signedAt: string };
+export type SwmsSignature = { key: string; name: string; typedName: string; signedAt: string; planSha?: string | null };
+
+/** Jo 30 Oct 2026: the text whose sha256 fingerprints a plan version (signers left out, so adding a crew member doesn't
+ *  void the others' signatures). Same text `signSwms` has always hashed into `plan_sha256`. */
+export function swmsPlanFingerprintText(plan: SwmsPlan): string {
+  return JSON.stringify({ ...plan, signers: undefined });
+}
+/** Jo 30 Oct 2026: a signature counts only for the plan version it was given on. */
+export function currentSignatures(sigs: SwmsSignature[], planSha: string): SwmsSignature[] {
+  return sigs.filter((s) => s.planSha === planSha);
+}
 
 export const swmsSignerKey = (p: SwmsPerson) => (p.workerId ? `w:${p.workerId}` : `n:${norm(p.name)}`);
 

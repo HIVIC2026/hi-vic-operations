@@ -6,7 +6,8 @@
 // Never sends anything and never moves a stage.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
-import { buildSwms, checkSwmsSign, swmsRecordText, swmsStatus, type SwmsFacts, type SwmsPerson, type SwmsPlan, type SwmsSignature, type SwmsStatus } from "./swms.core";
+import { createHash } from "node:crypto";
+import { buildSwms, checkSwmsSign, currentSignatures, swmsPlanFingerprintText, swmsRecordText, swmsStatus, type SwmsFacts, type SwmsPerson, type SwmsPlan, type SwmsSignature, type SwmsStatus } from "./swms.core";
 
 export const SWMS_SIGNED_EVENT = "swms_signed";
 export const SWMS_NOTE_EVENT = "swms_site_note";
@@ -26,6 +27,11 @@ async function installCrew(jobId: string): Promise<{ lead: SwmsPerson | null; cr
     };
     return { lead: person(selection.lead), crew: selection.additional.map(person).filter((x): x is SwmsPerson => !!x) };
   } catch { return { lead: null, crew: [] }; }
+}
+
+/** Jo 30 Oct 2026: sha256 of the plan version (signers left out) — stored on each signature as `plan_sha256`. */
+export function swmsPlanSha(plan: SwmsPlan): string {
+  return createHash("sha256").update(swmsPlanFingerprintText(plan)).digest("hex");
 }
 
 export async function swmsFacts(jobId: string): Promise<SwmsFacts> {
@@ -66,12 +72,14 @@ export async function swmsFacts(jobId: string): Promise<SwmsFacts> {
 export async function swmsSignatures(jobId: string): Promise<SwmsSignature[]> {
   const { data, error } = await admin.from("workflow_events").select("details, created_at").eq("job_id", jobId).eq("event_type", SWMS_SIGNED_EVENT).order("created_at", { ascending: true });
   if (error) throw new Error(error.message);
-  return (data ?? []).map((r) => { const d = r.details as { key?: string; name?: string; typed_name?: string } | null; return { key: String(d?.key ?? ""), name: String(d?.name ?? ""), typedName: String(d?.typed_name ?? ""), signedAt: r.created_at }; }).filter((s) => s.key);
+  return (data ?? []).map((r) => { const d = r.details as { key?: string; name?: string; typed_name?: string; plan_sha256?: string } | null; return { key: String(d?.key ?? ""), name: String(d?.name ?? ""), typedName: String(d?.typed_name ?? ""), signedAt: r.created_at, planSha: d?.plan_sha256 ?? null }; }).filter((s) => s.key);
 }
 
 export async function loadSwms(jobId: string): Promise<{ plan: SwmsPlan; signatures: SwmsSignature[]; status: SwmsStatus }> {
-  const [facts, signatures] = await Promise.all([swmsFacts(jobId), swmsSignatures(jobId)]);
+  const [facts, all] = await Promise.all([swmsFacts(jobId), swmsSignatures(jobId)]);
   const plan = buildSwms(facts);
+  // Jo 30 Oct 2026: signatures given on an older version of the plan no longer count — those people sign again.
+  const signatures = currentSignatures(all, swmsPlanSha(plan));
   return { plan, signatures, status: swmsStatus(plan, signatures) };
 }
 
@@ -93,8 +101,7 @@ export async function signSwms(jobId: string, actorId: string | null, key: strin
   const { plan, signatures } = await loadSwms(jobId);
   const check = checkSwmsSign(plan, signatures, key, typedName);
   if (!check.ok) throw new WorkflowError(check.reason);
-  const { createHash } = await import("node:crypto");
-  const planSha = createHash("sha256").update(JSON.stringify({ ...plan, signers: undefined })).digest("hex");
+  const planSha = swmsPlanSha(plan);
   await logEvent(jobId, actorId, SWMS_SIGNED_EVENT, `Safety plan signed by ${check.signer.name} (${method === "link" ? "own text link" : "logged in"})`, { key, name: check.signer.name, role: check.signer.role, typed_name: typedName.trim(), plan_sha256: planSha, method }, { internal: true });
   const after = await loadSwms(jobId);
   if (after.status.complete) await fileSwms(jobId, actorId).catch(async (e) => { await logEvent(jobId, actorId, "swms_file_failed", "Safety plan signed but the PDF could not be filed — it will be filed on the next signature or office retry", { reason: e instanceof Error ? e.message : "error" }, { internal: true }).catch(() => undefined); });
@@ -106,7 +113,6 @@ export async function fileSwms(jobId: string, actorId: string | null): Promise<{
   const { plan, signatures, status } = await loadSwms(jobId);
   if (!status.complete) return { filed: false, path: null };
   const text = swmsRecordText(plan, signatures);
-  const { createHash } = await import("node:crypto");
   const sha = createHash("sha256").update(text).digest("hex");
   const key = `swms:${sha.slice(0, 32)}`;
   const { data: ex } = await admin.from("documents").select("storage_path").eq("job_id", jobId).eq("source_system", "portal").eq("external_id", key).maybeSingle();
