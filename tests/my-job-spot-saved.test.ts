@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { gateACard, isSpotSavedStage, SPOT_SAVED_PROGRESS } from "../src/lib/owner-myjob.core";
+import { gateACard, isSpotSavedStage, SPOT_SAVED_PROGRESS, spotSavedLayout } from "../src/lib/owner-myjob.core";
 const saved = { spot_saved_at: "2026-10-06T00:00:00Z", opted_out_at: null };
 describe("My job at Spot saved", () => {
   test("paperwork not done -> to-do card", () => expect(gateACard([{ gate: "A" }, { gate: "B" }])).toBe("todo"));
@@ -12,4 +12,6 @@ describe("My job at Spot saved", () => {
     expect(isSpotSavedStage("preliminary_estimate_ready", null, false)).toBe(false);
   });
   test("six steps; step 2 is the release, never a Ready Check (decision 388)", () => expect(SPOT_SAVED_PROGRESS.map((s) => s.label)).toEqual(["Spot saved", "Spot released", "Your quote", "PIESA", "Install", "Done"]));
+  test("not released: unchanged", () => expect(spotSavedLayout(false)).toEqual({ stepLabel: "Step 1 of 6", showWaitingBox: true, doneSub: "Nothing else to do until your spot is released.", currentIndex: 1 }));
+  test("released: no waiting messages, step 2, quote is current", () => expect(spotSavedLayout(true)).toEqual({ stepLabel: "Step 2 of 6", showWaitingBox: false, doneSub: null, currentIndex: 2 }));
 });
