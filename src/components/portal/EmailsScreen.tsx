@@ -153,7 +153,7 @@ export function EmailsScreen() {
   const t = q.data;
   return (
     <div className="mx-auto grid max-w-[880px] gap-6 px-4 py-6 sm:px-8">
-      <PageHeader title="Emails" sub="Owner emails and emails with no job yet. Nothing sends until you press Send." />
+      <PageHeader title="Emails" sub="Owner emails and emails with no job yet. Nothing sends until you press Send." actions={<Link to="/admin/ai-answers" className={btn("secondary")}>AI answers</Link>} />
       {q.isLoading && <p className="text-sm text-sub">Loading…</p>}
       {q.isError && <p className="text-sm text-sub">Emails couldn't load. Refresh to try again.</p>}
       {t && (
