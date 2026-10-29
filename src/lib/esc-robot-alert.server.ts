@@ -17,11 +17,15 @@ export const ROBOT_ALERT_EVENT = "esc_robot_alert_sent";
 export type RobotAlertOutcome = "sent" | "already_sent" | "paused" | "test_skipped";
 
 export async function sendRobotFailureAlert(p: { jobId: string; eventKey: string; task: RobotTask; step: string }): Promise<RobotAlertOutcome> {
-  const { data: job } = await admin.from("jobs").select("job_number, source, property_id").eq("id", p.jobId).maybeSingle();
-  if (job?.source === "qa_test") return "test_skipped";
-  const { data: prop } = job?.property_id ? await admin.from("properties").select("address_line, suburb, state, postcode").eq("id", job.property_id).maybeSingle() : { data: null };
+  const { data: job, error: jobError } = await admin.from("jobs").select("job_number, source, property_id").eq("id", p.jobId).maybeSingle();
+  // Fail closed: if we can't tell whether this is a TEST job, send nothing.
+  if (jobError) throw new Error(`Could not read the job: ${jobError.message}`);
+  if (!job) throw new Error("Could not find the job");
+  if (job.source === "qa_test") return "test_skipped";
+  const { data: prop, error: propError } = job.property_id ? await admin.from("properties").select("address_line, suburb, state, postcode").eq("id", job.property_id).maybeSingle() : { data: null, error: null };
+  if (propError) throw new Error(`Could not read the property: ${propError.message}`);
   const address = prop ? formatPropertyAddress(prop as never) || null : null;
-  const content = robotAlertContent({ jobNumber: job?.job_number ?? p.jobId, address, task: p.task, step: p.step, jobUrl: `${SET_PASSWORD_BASE}/admin/jobs/${p.jobId}` });
+  const content = robotAlertContent({ jobNumber: job.job_number, address, task: p.task, step: p.step, jobUrl: `${SET_PASSWORD_BASE}/admin/jobs/${p.jobId}` });
 
   const id = await stableUuid("esc-robot-alert:" + p.eventKey);
   const { error } = await admin.from("workflow_events").insert({

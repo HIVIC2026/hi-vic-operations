@@ -14,7 +14,7 @@ const JOB = "00000000-0000-4000-8000-00000000000a", JOB2 = "00000000-0000-4000-8
 const N1 = "00000000-0000-4000-8000-0000000000e1";
 const db = new PGlite();
 await db.exec(`
-  create table public.jobs(id uuid primary key, job_number text not null);
+  create table public.jobs(id uuid primary key, job_number text not null, source text not null default 'web');
   insert into public.jobs(id, job_number) values ('${JOB}', 'HV-1'), ('${JOB2}', 'HV-2');
   create table public.workflow_events(id uuid primary key default gen_random_uuid(), job_id uuid, event_type text not null, details jsonb not null default '{}'::jsonb, created_at timestamptz not null default clock_timestamp());
   create table public.esc_notifications(id uuid primary key, job_id uuid not null, sent_at timestamptz, submission_reference text);
@@ -66,6 +66,14 @@ describe("getRobotFailures", () => {
   });
   test("a non-admin is refused", async () => {
     await expect(call({ context: { supabase: { rpc: async () => ({ data: false, error: null }) }, userId: "x" } })).rejects.toThrow(/Admin only/);
+  });
+  test("a TEST job's failure is not returned", async () => {
+    const QA = "00000000-0000-4000-8000-0000000000c1";
+    await db.exec(`insert into public.jobs(id, job_number, source) values ('${QA}', 'HV-QA', 'qa_test')`);
+    await fail(QA, { task: "veec_creation", step: "fill:veec_quantity", error: "no field" });
+    const { rows } = await call({ context: ctx });
+    expect(rows.map((r) => r.jobNumber).sort()).toEqual(["HV-1", "HV-2"]);
+    await db.exec(`delete from public.workflow_events where job_id = '${QA}'`);
   });
   test("a failure whose notice is now sent is not returned", async () => {
     await db.exec(`update public.esc_notifications set sent_at = now(), submission_reference = 'VEU-BY-HAND' where id = '${N1}'`);

@@ -173,7 +173,6 @@ export const logOfficeCallOrNote = createServerFn({ method: "POST" }).middleware
     return logCallOrNote(data.jobId, context.userId, { what: data.what, who: data.who, party: data.party ?? null, said: data.said, waitingFor: data.waitingFor });
   });
 
-
 /** Active jobs pile "Registry robot couldn't lodge": open robot failures (already minus anything done by hand), with job numbers. */
 export const getRobotFailures = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -182,8 +181,10 @@ export const getRobotFailures = createServerFn({ method: "POST" }).middleware([r
     const failures = await openRobotFailureRows();
     if (!failures.length) return { rows: [] as { jobId: string; jobNumber: string; task: "install_notification" | "veec_creation"; at: string; text: string }[] };
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data, error } = await supabaseAdmin.from("jobs").select("id, job_number").in("id", [...new Set(failures.map((f) => f.jobId))]);
+    const { data, error } = await supabaseAdmin.from("jobs").select("id, job_number, source").in("id", [...new Set(failures.map((f) => f.jobId))]);
     if (error) throw new Error(`Could not load job numbers: ${error.message}`);
-    const numbers = new Map((data ?? []).map((j) => [String(j.id), String(j.job_number)]));
-    return { rows: failures.map((f) => ({ jobId: f.jobId, jobNumber: numbers.get(f.jobId) ?? "Job", task: f.task, at: f.at, text: f.text })) };
+    const numbers = new Map((data ?? []).filter((j) => j.source !== "qa_test").map((j) => [String(j.id), String(j.job_number)]));
+    // TEST jobs stay out of the pile; a job we couldn't find at all still shows as "Job".
+    const testIds = new Set((data ?? []).filter((j) => j.source === "qa_test").map((j) => String(j.id)));
+    return { rows: failures.filter((f) => !testIds.has(f.jobId)).map((f) => ({ jobId: f.jobId, jobNumber: numbers.get(f.jobId) ?? "Job", task: f.task, at: f.at, text: f.text })) };
   });

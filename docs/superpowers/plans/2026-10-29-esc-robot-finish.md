@@ -25,7 +25,7 @@
 - Notice verified, VEEC not: a VEEC "submitted" record or live VEEC attempt through the robot API must be refused (test in Task 1).
 - Failure email when the master comms switch is off: no email, failure still recorded and shown (test in Task 2).
 - Email service down: `recordRobotFailure` still records the failure and does not throw (test in Task 2).
-- Same failure recorded twice (runner retry of the API call): only one email (test in Task 2).
+- One email per failure event: the same alert key sent twice gives one email (test in Task 2).
 - A failure later done by hand (notice sent / VEEC lodged): it leaves the Active jobs pile (covered by existing `openRobotFailures`; Task 3 asserts the pile uses it).
 
 ---

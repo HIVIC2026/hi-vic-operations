@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 
 type Row = Record<string, unknown>;
 const T: Record<string, Row[]> = {};
+let readError: string | null = null;
 function from(table: string) {
   let op: "select" | "insert" | "update" | "delete" = "select"; let values: unknown = null;
   const f: [string, unknown][] = [];
@@ -17,6 +18,7 @@ function from(table: string) {
     }
     if (op === "update") { const hit = rows().filter(match); for (const r of hit) Object.assign(r, values as Row); return { data: hit, error: null }; }
     if (op === "delete") { T[table] = rows().filter((r) => !match(r)); return { data: null, error: null }; }
+    if (readError === table) return { data: null, error: { message: "read failed" } };
     return { data: rows().filter(match), error: null };
   };
   const q: Record<string, unknown> = {};
@@ -58,7 +60,7 @@ const alerts = () => (T.workflow_events ?? []).filter((e) => e.event_type === "e
 
 beforeEach(() => {
   for (const k of Object.keys(T)) delete T[k];
-  gateway.length = 0; commsOn = true; gatewayMode = "ok";
+  gateway.length = 0; commsOn = true; gatewayMode = "ok"; readError = null;
   Object.assign(T, {
     jobs: [{ id: JOB, job_number: "HV-1234", source: "web", property_id: "p1" }, { id: QA_JOB, job_number: "HV-9", source: "qa_test", property_id: "p1" }],
     properties: [{ id: "p1", address_line: "1 Example St", suburb: "Testville", state: "VIC", postcode: "3000" }],
@@ -100,6 +102,17 @@ describe("sendRobotFailureAlert", () => {
     expect(gateway.length).toBe(0);
     expect(alerts().length).toBe(0);
   });
+  test("job read fails: nothing sent and no lock left", async () => {
+    readError = "jobs";
+    await expect(sendRobotFailureAlert(p)).rejects.toThrow();
+    expect(gateway.length).toBe(0);
+    expect(alerts().length).toBe(0);
+  });
+  test("job not found: nothing sent and no lock left", async () => {
+    await expect(sendRobotFailureAlert({ ...p, jobId: "a0000000-0000-4000-8000-0000000000ff" })).rejects.toThrow();
+    expect(gateway.length).toBe(0);
+    expect(alerts().length).toBe(0);
+  });
   test("comms off pauses and removes the lock", async () => {
     commsOn = false;
     expect(await sendRobotFailureAlert(p)).toBe("paused");
@@ -118,6 +131,16 @@ describe("recordRobotFailure", () => {
       await recordRobotFailure({ jobId: JOB, task: "install_notification", notificationId: "n1", mode: "live", step: "fill_form", error: "boom", screenshotPath: null, registryUrl: null });
     } finally { console.error = err; }
     expect((T.workflow_events ?? []).some((e) => e.event_type === "esc_registry_robot_failed")).toBe(true);
+    expect(alerts().length).toBe(0);
+  });
+  test("job read fails: no email, no lock, failure still recorded", async () => {
+    readError = "jobs";
+    const err = console.error; console.error = () => {};
+    try {
+      await recordRobotFailure({ jobId: JOB, task: "install_notification", notificationId: "n1", mode: "live", step: "fill_form", error: "boom", screenshotPath: null, registryUrl: null });
+    } finally { console.error = err; }
+    expect((T.workflow_events ?? []).some((e) => e.event_type === "esc_registry_robot_failed")).toBe(true);
+    expect(gateway.length).toBe(0);
     expect(alerts().length).toBe(0);
   });
   test("emails once on failure", async () => {
