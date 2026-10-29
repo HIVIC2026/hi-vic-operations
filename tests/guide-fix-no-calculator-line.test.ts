@@ -6,6 +6,7 @@
 import { describe, expect, test } from "bun:test";
 import { renderJoOutcomeEmail, type JoOutcomeEmailInput } from "../src/lib/jo-outcome-email.core";
 import { renderEstimateFollowupEmail } from "../src/lib/estimate-followup.core";
+import { renderSpotSavedEmail } from "../src/lib/spot-saved-messages.core";
 
 const TOK = "https://estimate.homeinsulationvictoria.com.au/estimate/tok";
 const CALC = `${TOK}#calculator`;
@@ -19,6 +20,7 @@ const SAVE_SPOT_EMAILS: Array<[string, Partial<JoOutcomeEmailInput>]> = [
   ["O1 size known", { insulation: "none", ceilingSizeKnown: true, figures: { ...FIG, areaEstimated: false } }],
   ["O2 some insulation", { insulation: "present", deskCheckStatus: "looks_eligible", ceilingSizeKnown: false }],
   ["O2 don't know", { outcome: "needs_onsite_confirmation", insulation: "unknown", ceilingSizeKnown: false }],
+  ["O2 3 questions", { outcome: "needs_onsite_confirmation", insulation: "unknown", ceilingSizeKnown: false, insulationQuestions: true } as Partial<JoOutcomeEmailInput>],
 ];
 
 const noCalculator = (html: string, text: string) => {
@@ -47,4 +49,10 @@ describe("guide fix 1 — no calculator line in owner emails", () => {
       noCalculator(m.html, m.text);
     });
   }
+  test("O10 spot saved email (HTML and plain text) has no calculator line — Jo 29 Oct 2026", () => {
+    const m = renderSpotSavedEmail({ firstName: "Sarah", rebate: 1470, suburb: "Ballarat", shortAddress: "12 Smith St, Ballarat", myJobUrl: `${TOK}/my-job`, optOutUrl: "https://u/x",
+      estimate: { gross: 5000, customer: 3530, areaM2: 150, address: "12 Smith St, Ballarat", calculatorUrl: CALC } });
+    noCalculator(m.html, m.text);
+    expect(m.text).not.toContain("Try a different size");
+  });
 });
