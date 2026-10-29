@@ -41,6 +41,10 @@ Today a person's signature counts even if the SWMS changes after they sign. From
 
 No new texts or emails are added by this change.
 
+### 4. Dead phone: sign on the Lead's phone
+
+If a crew member can't sign on their own phone, the Lead can open that person's own sign link on the Lead's phone (from the job's safety plan card). The crew member reads the SWMS and types their own name there. The signature is recorded as "signed on the Lead's phone", so the record shows how it was given. They still sign only their own line. The Lead can't type someone else's name for them.
+
 ## Not changing
 
 - The Ready Check and PIESA forms (no new questions)
@@ -49,5 +53,5 @@ No new texts or emails are added by this change.
 
 ## Checks
 
-- Tests: each fact appears when present and is left out when missing; each of the four safety steps appears only when its fact is true; an old signature stops counting after the plan changes, and a new signature counts.
+- Tests: each fact appears when present and is left out when missing; each of the four safety steps appears only when its fact is true; an old signature stops counting after the plan changes, and a new signature counts; a crew member can sign their own line on the Lead's phone and it is recorded that way.
 - Regenerate the sample SWMS PDF using a TEST job with every fact filled in, and look at it.
