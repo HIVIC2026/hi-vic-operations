@@ -457,7 +457,7 @@ async function repeatPiesaStep(inv: RepairsInvoice, call: XeroCall, mode: XeroMo
   if (!inv.xero_invoice_id) return "not_linked";
   const rpc = await import("./repeat-piesa.core");
   const { state } = await (await import("./repeat-piesa.server")).repeatPiesaContext(inv.job_id);
-  if (state.stage !== "owner_pay" || state.payer !== "owner" || !state.deadline || !state.priceIncGst) return "none";
+  if ((state.stage !== "owner_pay" && state.stage !== "offer") || state.payer !== "owner" || !state.deadline || !state.priceIncGst) return "none";
   const core = await import("./xero-repairs.core");
   const { toCents } = await import("./payments.core");
   const amountCents = toCents(state.priceIncGst);
@@ -466,6 +466,8 @@ async function repeatPiesaStep(inv: RepairsInvoice, call: XeroCall, mode: XeroMo
   const { data: ev } = await admin.from("workflow_events").select("details").eq("job_id", inv.job_id).eq("event_type", rpc.REPEAT_XERO_ADDED_EVENT);
   const recorded = ((ev ?? []) as { details: Record<string, unknown> | null }[]).map((e) => e.details ?? {}).filter((d) => d["invoice_id"] === inv.id && d["deadline"] === deadline)
     .map((d) => ({ key: String(d["key"] ?? ""), rectQuoteId: deadline, amountCents: Number(d["amount_cents"] ?? 0) }));
+  // Card path: a card payment moves the job on to "offer" before the line is on; keep adding it until it is recorded.
+  if (!rpc.repeatLineDue({ state, lineAdded: recorded.length > 0 })) return "none";
   if (recorded.some((r) => r.key === key)) return "already";
   const baseTotalCents = toCents(inv.total_inc_gst);
   let x: import("./xero-repairs.core").XeroInvoiceForRepairs | null = null;

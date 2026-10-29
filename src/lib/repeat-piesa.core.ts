@@ -97,7 +97,7 @@ export const REPEAT_WHY = "Your electrical safety check is valid for 30 days. Th
 export const REPEAT_REOPEN_WHY = "Your job was reopened, so a new safety check is needed before your insulation can be installed.";
 
 export type OwnerRepeatView = { title: string; body: string; price: string | null; button: "Accept" | null };
-/** The owner's job page while a repeat PIESA is in play (null = nothing to show). Never mentions install days. */
+/** The owner's job page while a repeat PIESA is in play (null = nothing to show, including once accepted/paid). Never mentions install days. */
 export function ownerRepeatView(s: RepeatState): OwnerRepeatView | null {
   if (s.stage === "none") return null;
   if (s.stage === "choose") return { title: REPEAT_ARRANGING_TITLE, body: "Our team is arranging the next step for your install. We'll let you know shortly.", price: null, button: null };
@@ -108,7 +108,7 @@ export function ownerRepeatView(s: RepeatState): OwnerRepeatView | null {
     button: "Accept",
   };
   if (s.stage === "owner_pay") return { title: REPEAT_NEEDED_TITLE, body: `Thanks for accepting. Please pay ${money(s.priceIncGst ?? 0)} inc GST for the new safety check. We book it once it's paid.`, price: null, button: null };
-  return { title: REPEAT_NEEDED_TITLE, body: "Thanks for accepting. We're arranging your electrician — they'll offer you 3 safety check times.", price: null, button: null };
+  return null;
 }
 
 // ---- Owner pays (Jo 28 Oct, decision 233): the repeat price goes on the job's ONE Xero invoice as one line ----
@@ -154,9 +154,23 @@ export function repeatXeroHeldFor(ev: RepeatEv[], deadline: string): { at: strin
   if (line?.event_type !== REPEAT_XERO_HELD_EVENT) return null;
   return { at: String(line.created_at), reason: String((line.details as { reason?: string } | null)?.reason ?? "held") };
 }
+/** Owner pays: the repeat line belongs on the ONE Xero invoice from acceptance (stage owner_pay), and still after a card
+ *  payment moved the job on to "offer" until a line-added event is recorded for this invoice + deadline. */
+export function repeatLineDue(i: { state: RepeatState; lineAdded: boolean }): boolean {
+  const s = i.state;
+  if (s.payer !== "owner" || !s.deadline || !s.priceIncGst) return false;
+  if (s.stage === "owner_pay") return true;
+  return s.stage === "offer" && !i.lineAdded;
+}
 /** Paid = Xero/card payments on the invoice grew by at least the repeat price since the line went on. */
 export function repeatPaidByInvoice(i: { paidCents: number; paidAtAddCents: number; priceCents: number }): boolean {
   return i.priceCents > 0 && i.paidCents - i.paidAtAddCents >= i.priceCents;
+}
+
+/** Paid by card = a card payment on the invoice since acceptance, and payments grew by at least the repeat price since
+ *  the owner accepted (what they had paid before is recorded on the accepted event). */
+export function repeatCardPaid(i: { priceCents: number; paidCents: number; paidBeforeAcceptCents: number | null; cardRowAfterAccept: boolean }): boolean {
+  return i.cardRowAfterAccept && i.paidBeforeAcceptCents != null && i.priceCents > 0 && i.paidCents - i.paidBeforeAcceptCents >= i.priceCents;
 }
 
 /** Total (ex GST) to take off an installer's install payout for every repeat PIESA the office charged to the installer. */

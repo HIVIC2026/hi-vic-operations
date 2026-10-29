@@ -24,8 +24,9 @@ export const PROVISIONAL_HOLD_HOURS = 48;
 export const PROVISIONAL_HOLD_MS = PROVISIONAL_HOLD_HOURS * 3_600_000;
 
 export type PaymentStepKey = "safety_check" | "fixes" | "install_deposit" | "balance" | "repeat_safety_check";
-/** The repeat safety check sits LAST: its threshold is the grand total, so every existing step's threshold is unchanged. */
-export const PAYMENT_STEP_ORDER: PaymentStepKey[] = ["safety_check", "fixes", "install_deposit", "balance", "repeat_safety_check"];
+/** The repeat safety check sits right after the first safety check and counts its OWN money (see `repeatCreditCents`):
+ *  its money is taken off what the other steps see, so it never counts toward the install deposit. Thresholds are unchanged. */
+export const PAYMENT_STEP_ORDER: PaymentStepKey[] = ["safety_check", "repeat_safety_check", "fixes", "install_deposit", "balance"];
 export const PAYMENT_STEP_LABEL: Record<PaymentStepKey, string> = {
   safety_check: "Pre Insulation Electrical Safety Assessment (PIESA) payment",
   fixes: "Electrical fixes",
@@ -96,6 +97,10 @@ export type PaymentStepFacts = {
   dueAt?: string | null;
   /** An audited office override that waives this step (deposit-gate override waives the safety check). */
   waived?: boolean;
+  /** Repeat safety check only: the office/ledger has recorded the repeat as paid. */
+  recordedPaid?: boolean;
+  /** Repeat safety check only: cumulative paid when the repeat was accepted; null = unknown (counts nothing). */
+  paidBeforeAcceptCents?: number | null;
 };
 export type PaymentStep = {
   key: PaymentStepKey; label: string; amountCents: number; thresholdCents: number; state: PaymentStepState;
@@ -113,14 +118,31 @@ export function stepState(f: { thresholdCents: number; amountCents: number; paid
   return "requested";
 }
 
+/** How much of the money paid counts for the repeat safety check: only money actually received since acceptance, capped at
+ *  the repeat price — the same whether or not it is recorded paid (a "Record paid" before the money is in never takes money
+ *  off the other steps); nothing if we don't know what was paid before acceptance. */
+export function repeatCreditCents(f: { repeatCents: number; paidCents: number; paidBeforeAcceptCents: number | null; recordedPaid: boolean }): number {
+  if (f.repeatCents <= 0) return 0;
+  if (f.paidBeforeAcceptCents == null) return 0;
+  return Math.min(f.repeatCents, Math.max(0, f.paidCents - f.paidBeforeAcceptCents));
+}
+
 export function paymentSteps(plan: PaymentPlan, paidCents: number, facts: Partial<Record<PaymentStepKey, PaymentStepFacts>>, nowIso: string): PaymentStep[] {
   const paid = Math.max(0, Math.round(paidCents));
+  const rf = facts.repeat_safety_check;
+  const credit = repeatCreditCents({ repeatCents: plan.repeatCents, paidCents: paid, paidBeforeAcceptCents: rf?.paidBeforeAcceptCents ?? null, recordedPaid: !!rf?.recordedPaid });
   return PAYMENT_STEP_ORDER.filter((k) => (k !== "fixes" || plan.fixesCents > 0) && (k !== "repeat_safety_check" || plan.repeatCents > 0)).map((key) => {
     const f = facts[key] ?? { requestedAt: null };
     const amountCents = stepAmountCents(plan, key);
+    if (key === "repeat_safety_check") {
+      const state: PaymentStepState = f.recordedPaid ? "paid" : f.requestedAt ? "requested" : "not_yet";
+      const outstandingCents = f.recordedPaid ? 0 : Math.max(0, plan.repeatCents - credit);
+      return { key, label: PAYMENT_STEP_LABEL[key], amountCents, thresholdCents: plan.thresholds.safety_check + plan.repeatCents, state, methods: paymentMethodsFor(key), requestedAt: f.requestedAt, dueAt: f.dueAt ?? null, outstandingCents };
+    }
+    const own = paid - credit; // the repeat's money never counts toward any other step
     const thresholdCents = plan.thresholds[key];
-    const state = stepState({ thresholdCents, amountCents, paidCents: paid, facts: f, nowIso });
-    const outstandingCents = state === "paid" || state === "waived" ? 0 : Math.max(0, Math.min(amountCents, thresholdCents - paid));
+    const state = stepState({ thresholdCents, amountCents, paidCents: own, facts: f, nowIso });
+    const outstandingCents = state === "paid" || state === "waived" ? 0 : Math.max(0, Math.min(amountCents, thresholdCents - own));
     return { key, label: PAYMENT_STEP_LABEL[key], amountCents, thresholdCents, state, methods: paymentMethodsFor(key), requestedAt: f.requestedAt, dueAt: f.dueAt ?? null, outstandingCents };
   });
 }
@@ -202,7 +224,7 @@ export const isStepCleared = (steps: PaymentStep[], key: PaymentStepKey) => ["pa
 
 /** What is payable right now: the earliest requested/overdue step, plus "pay in full" (always allowed). */
 export function payableNow(plan: PaymentPlan, steps: PaymentStep[], paidCents: number) {
-  const due = steps.find((s) => s.state === "requested" || s.state === "overdue") ?? null;
+  const due = steps.find((s) => (s.state === "requested" || s.state === "overdue") && s.outstandingCents > 0) ?? null;
   const remainingCents = Math.max(0, plan.grandTotalCents - Math.max(0, Math.round(paidCents)));
   return { step: due, dueNowCents: due ? due.outstandingCents : 0, remainingCents, cardAvailable: !!due && cardAllowedFor(due.key) };
 }

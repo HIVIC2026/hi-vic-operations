@@ -112,6 +112,8 @@ async function applyAfterStripeChange(inv: { id: string; job_id: string; total_p
     const { applyPaidAmount } = await import("./xero.server");
     await applyPaidAmount(inv.id, total / 100, null).catch((e) => console.error("stripe paid amount apply skipped", (e as Error).message));
   }
+  await (await import("./repeat-piesa.server")).repeatPaidByCard(inv.job_id, inv.id, total)
+    .catch((e) => console.error("repeat PIESA card check skipped", (e as Error).message));
   await afterPaymentsChanged(inv.job_id, inv.id, null);
   return "recorded";
 }
