@@ -164,7 +164,7 @@ describe("approved owner email designs", () => {
   test("O33 Install days", () => {
     const m = renderInstallDaysEmail({ firstName: "Helen", installerName: "Reinsulate", days: ["Tuesday 11 November at 8:00am", "Thursday 13 November at 12:30pm", "Monday 17 November at 7:30am"], myJobUrl: JOB, balanceIncGst: 1851, installBy: "4 December" });
     shell(m.html, m.text, false);
-    has(m.html, ["Helen, pick your install day", "Your safety check is all clear. Reinsulate has offered these days", ">Tuesday 11 November<", "Suggest other days", "Lock in your day", "sign your install consent", "pay a 10% deposit of $185.10", "We hold it for 48 hours", "The rest, $1,665.90, is due on install day", "<strong>Your install must happen by 4 December</strong>, 30 days after your safety check"]);
+    has(m.html, ["Helen, pick your install day", "Your safety check is all clear. Reinsulate has offered these days", ">Tuesday 11 November<", "Suggest other days", "Lock in your day", "sign your install consent", "pay your 10% deposit of $185.10", "Once it's in, your day is locked in", "The rest, $1,665.90, is due on install day", "<strong>Your install must happen by 4 December</strong>, 30 days after your safety check"]);
     expect(INSTALL_DAYS_EMAIL_APPROVED).toBe(true); // approved by Jo 24 Oct 2026 (tests/approved-flags.test.ts lists the decision)
   });
   test("O35 Install booked", () => {
