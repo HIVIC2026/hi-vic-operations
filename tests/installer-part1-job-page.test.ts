@@ -25,3 +25,9 @@ describe("C1 one PIESA name on the Job page", () => {
     expect(n.title).toBe(`Nothing for you — ${PIESA_FULL} booked`);
   });
 });
+
+test("C8: install booked without a deadline says the 6:30am sentence once", () => {
+  const n = jobNext({ channel: "hivic_sourced", stage: "installation_booked", ownerFirstName: "Helen", formLinked: true, formCompleted: true, quoteLine: null, installTurn: "booked", installBookedAt: "2026-10-26T21:00:00Z", installDeadline: null } as never);
+  expect([n.title, n.sub, n.note].join(" | ").match(/6:30am/g)?.length).toBe(1);
+  expect(n.sub).toBeNull();
+});
