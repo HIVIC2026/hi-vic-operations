@@ -13590,6 +13590,14 @@ export type Database = {
           rate_card_id: string
         }[]
       }
+      add_installer_job: {
+        Args: { _payload: Json }
+        Returns: {
+          created: boolean
+          job_id: string
+          job_number: string
+        }[]
+      }
       apply_pre_assessment_test_payment: {
         Args: {
           _idempotency_key: string
