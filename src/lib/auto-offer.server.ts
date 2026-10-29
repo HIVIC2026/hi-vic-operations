@@ -3,7 +3,8 @@
 // installer, 24h, text + email to that installer) and startPiesaAllocation with one business (PIESA). Both switches
 // live in workflow_settings (`auto_installer_offers`, `auto_electrician_offers`; pending migration
 // docs/pending-migrations/auto-offer-switches.sql) and are read defensively: a missing column, unreadable row or
-// anything but `true` is OFF, and with a switch off this file never sends or writes anything.
+// anything but `true` is OFF, and with a switch off this file never sends anything. Decision 426: the one write with
+// the electrician switch off is `handPiesaToOfficeAutoOff` (Automatic dispatch mode only) — a "returned to office" event.
 // Run from the 15-minute allocation tick, and straight after a "Not for me" (so the next match is not left waiting).
 // TEST jobs (source qa_test) ARE offered automatically, but only to [TEST PARTNER] businesses (`isTestPartner`), and a
 // live job never reaches a TEST partner: the pure parity rule filters candidates here, the candidate readers already
@@ -14,12 +15,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { logEvent, stageEntryBlockers } from "./workflow.server";
 import { isTestPartner } from "./test-send.core";
 import {
-  AUTO_OFFER_FLAG, AUTO_OFFER_READY_STAGES, AUTO_OFFER_RETURNED_EVENT, autoOfferBlocked, autoOfferPreferredElectrician, autoOfferReturnedSummary, autoOfferStageReady, autoOfferStep, autoOfferSwitchOn,
+  AUTO_OFFER_FLAG, AUTO_OFFER_READY_STAGES, AUTO_OFFER_RETURNED_EVENT, autoOfferBlocked, autoOfferInstallerElectrician, autoOfferPreferredElectrician, autoOfferReturnedSummary, autoOfferStageReady, autoOfferStep, autoOfferSwitchOn,
   type AutoOfferCandidate, type AutoOfferKind, type AutoOfferRow, type AutoOfferStep,
 } from "./auto-offer.core";
 
 const loose = admin as unknown as SupabaseClient;
 const NONE = ["00000000-0000-0000-0000-000000000000"];
+const PIESA_CHOOSE_NEXT_ACTION = "Needs Home Insulation Victoria: choose an electrician for the PIESA";
 
 /** Both switches, fail-closed (missing columns before the pending migration = off). */
 export async function readAutoOfferSwitches(): Promise<{ ready_check: boolean; piesa: boolean; readyCheckBooking: boolean }> {
@@ -70,7 +72,7 @@ async function installerCandidates(jobId: string): Promise<AutoOfferCandidate[]>
   }));
 }
 
-async function electricianCandidates(jobId: string, channel: string | null): Promise<{ candidates: AutoOfferCandidate[]; usualBusinessId: string | null }> {
+async function electricianCandidates(jobId: string, channel: string | null, jobIsTest: boolean): Promise<{ candidates: AutoOfferCandidate[]; usualBusinessId: string | null }> {
   const alloc = await import("./allocation.server");
   const { postcode, candidates } = await alloc.recCandidatesFor(jobId);
   const ids = candidates.map((c) => c.business_id);
@@ -79,18 +81,22 @@ async function electricianCandidates(jobId: string, channel: string | null): Pro
   ]);
   // Decision 374: our leads — nobody goes first, the nearest approved REC covering the postcode gets it (even when the
   // quoted installer has a usual electrician). The installer's own customers (A1): the electrician the installer chose
-  // for this job / their preferred REC.
-  const usualBusinessId = autoOfferPreferredElectrician({ channel, a1PreferredBusinessId: candidates.find((c) => c.preferred && !c.blocker)?.business_id ?? null });
-  return {
-    usualBusinessId,
-    candidates: candidates.map((c) => ({
+  // for this job / their preferred REC. Decision 426: kept even when that electrician can't be offered the job, so the
+  // pure step sends the job back to the office instead of nearest-first to someone the installer didn't choose.
+  const mapped: AutoOfferCandidate[] = candidates.map((c) => ({
       business_id: c.business_id, name: c.name, coversPostcode: c.coverage_verified && c.covers_postcode, paused: c.accepting_new_jobs === false,
       credentialsOk: c.has_valid_licence, workersCleared: c.approved_workers > 0, activeJobs: jobs.get(c.business_id) ?? 0, distanceKm: km.get(c.business_id) ?? null,
       testPartner: testFlag(test, c.business_id),
       // The guarded sender refuses an electrician without an agreed (onboarding) rate.
       blocker: c.blocker ?? (rates.has(c.business_id) ? null : "No agreed electrician rate recorded."),
-    })),
-  };
+  }));
+  let preferredIds: string[] = [];
+  if (channel === "installer_sourced") {
+    const chosen = await (await import("./job-electrician.server")).jobChosenElectrician(jobId);
+    preferredIds = chosen ? [chosen] : candidates.filter((c) => c.preferred).map((c) => c.business_id);
+  }
+  const usualBusinessId = autoOfferPreferredElectrician({ channel, a1PreferredBusinessId: autoOfferInstallerElectrician(preferredIds, mapped, jobIsTest) });
+  return { usualBusinessId, candidates: mapped };
 }
 
 export type AutoOfferOutcome = { jobId: string; kind: AutoOfferKind; step: AutoOfferStep["action"]; reason?: string; businessId?: string; error?: string };
@@ -129,12 +135,12 @@ export async function autoOfferForJob(jobId: string, kind: AutoOfferKind, switch
   let step: AutoOfferStep;
   if (pre) step = pre;
   else if (kind === "ready_check") step = autoOfferStep({ ...facts, candidates: await installerCandidates(jobId) });
-  else { const e = await electricianCandidates(jobId, job.channel); step = autoOfferStep({ ...facts, candidates: e.candidates, usualBusinessId: e.usualBusinessId }); }
+  else { const e = await electricianCandidates(jobId, job.channel, facts.jobIsTest); step = autoOfferStep({ ...facts, candidates: e.candidates, usualBusinessId: e.usualBusinessId }); }
 
   if (step.action === "none") return { jobId, kind, step: "none", reason: step.reason };
   if (step.action === "return_to_office") {
     await logEvent(jobId, null, AUTO_OFFER_RETURNED_EVENT, autoOfferReturnedSummary(kind, step.reason, step.misses), { kind, reason: step.reason, misses: step.misses, tried_business_ids: step.tried }, { internal: true });
-    await admin.from("jobs").update({ next_action: kind === "ready_check" ? "Needs Home Insulation Victoria: choose an installer for the Ready Check" : "Needs Home Insulation Victoria: choose an electrician for the PIESA" }).eq("id", jobId).in("stage", AUTO_OFFER_READY_STAGES[kind] as never[]);
+    await admin.from("jobs").update({ next_action: kind === "ready_check" ? "Needs Home Insulation Victoria: choose an installer for the Ready Check" : PIESA_CHOOSE_NEXT_ACTION }).eq("id", jobId).in("stage", AUTO_OFFER_READY_STAGES[kind] as never[]);
     return { jobId, kind, step: "return_to_office", reason: step.reason };
   }
   const meta = { attempt: step.attempt, basis: step.basis, activeJobs: step.activeJobs, distanceKm: step.distanceKm };
@@ -146,6 +152,26 @@ export async function autoOfferForJob(jobId: string, kind: AutoOfferKind, switch
     // A guard refused (gate, pairing, paperwork …): nothing was sent; the next tick looks again.
     return { jobId, kind, step: "none", reason: "sender_refused", businessId: step.businessId, error: (e as Error).message };
   }
+}
+
+/** Decision 426 fix wave: "Automatic electrician offers" is OFF while the dispatch mode is Automatic, so nothing would
+ *  send this job's safety check offer (no batch any more). Hand it to the office visibly — the same "returned to office"
+ *  event and next action as the automatic offers' own hand-back, so Needs me shows "Choose again" — ONCE: not again
+ *  while a hand-back newer than the job's latest reopen and latest PIESA offer exists. Never offers anything.
+ *  Callers check the dispatch mode (not office picks). Returns true when it wrote the hand-back. */
+export async function handPiesaToOfficeAutoOff(jobId: string, actorId: string | null = null): Promise<boolean> {
+  const [reopenAt, { data: last }] = await Promise.all([
+    (await import("./repeat-piesa.server")).latestReopenAt(jobId),
+    admin.from("partner_offers").select("offered_at").eq("job_id", jobId).eq("kind", "piesa").order("offered_at", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  const since = [reopenAt, last?.offered_at ?? null].filter((x): x is string => !!x).sort().pop() ?? null;
+  let q = admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", AUTO_OFFER_RETURNED_EVENT).contains("details", { kind: "piesa" });
+  if (since) q = q.gt("created_at", since);
+  const { data: already } = await q.limit(1);
+  if ((already ?? []).length) return false;
+  await logEvent(jobId, actorId, AUTO_OFFER_RETURNED_EVENT, autoOfferReturnedSummary("piesa", "switch_off", 0), { kind: "piesa", reason: "switch_off", misses: 0, tried_business_ids: [] }, { internal: true });
+  await admin.from("jobs").update({ next_action: PIESA_CHOOSE_NEXT_ACTION }).eq("id", jobId).in("stage", AUTO_OFFER_READY_STAGES.piesa as never[]);
+  return true;
 }
 
 /** 15-minute tick: every job waiting for an installer (our leads' Ready Check) or a PIESA electrician, TEST jobs

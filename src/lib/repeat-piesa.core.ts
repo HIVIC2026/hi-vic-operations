@@ -30,6 +30,13 @@ export function piesaSupersededByReopen(recordCreatedAt: string | null | undefin
   return !recordCreatedAt || Date.parse(recordCreatedAt) <= Date.parse(reopenAt);
 }
 
+/** Decision 426 fix wave: the job is in a repeat safety check round when the office chose who pays for it after the
+ *  job's latest reopen (or the job was never reopened). Repeat rounds keep their batch offers and refill. */
+export function repeatRoundActive(payerChosenAt: string | null | undefined, reopenAt: string | null | undefined): boolean {
+  if (!payerChosenAt) return false;
+  return !reopenAt || Date.parse(payerChosenAt) > Date.parse(reopenAt);
+}
+
 export type RepeatChoice = { payer: RepeatPayer; priceIncGst: number | null; deadline: string; at: string };
 export type RepeatFacts = {
   /** Install deadline of the lapsed 30-day window (expired, nothing booked); null when not lapsed. */
