@@ -322,12 +322,24 @@ export async function createInvoiceForJob(jobId: string, actorId: string | null)
   try { fixes = await (await import("./fixes-quote-current.server")).currentFixesQuote(jobId); }
   catch (e) { throw new WorkflowError((e as Error).message); }
   const quoteIds = [q?.id, fixes?.status === "accepted" ? fixes.id : null].filter((x): x is string => !!x);
-  if (!quoteIds.length) throw new WorkflowError("This job has no accepted quote, so there is nothing to invoice.");
+  // Batch 3b: an owner-paid repeat safety check the owner accepted (not yet paid) gets its own invoice too.
+  const { repeatPiesaContext } = await import("./repeat-piesa.server");
+  const { state: repeat } = await repeatPiesaContext(jobId);
+  const repeatDue = repeat.stage === "owner_pay" && repeat.payer === "owner" && !!repeat.deadline && !!repeat.priceIncGst;
+  if (!quoteIds.length && !repeatDue) throw new WorkflowError("This job has no accepted quote, so there is nothing to invoice.");
   const { createInvoiceAfterAcceptance } = await import("./invoice-after-acceptance.server");
   const errors: string[] = [];
   for (const id of quoteIds) {
     const r = await createInvoiceAfterAcceptance(id, jobId, actorId);
     if (!r.ok) errors.push(`${id === q?.id ? "Invoice" : "Fixes invoice"}: ${r.error ?? "unknown error"}`);
+  }
+  if (repeatDue) {
+    try {
+      const { createRepeatInvoice } = await import("./xero.server");
+      const { invoiceId } = await createRepeatInvoice(jobId, repeat.deadline!, repeat.priceIncGst!);
+      const { data: inv } = await admin.from("invoices").select("xero_invoice_id, last_sync_error").eq("id", invoiceId).maybeSingle();
+      if (!inv?.xero_invoice_id) errors.push(`Repeat safety check invoice: ${inv?.last_sync_error ?? "not linked to Xero"}`);
+    } catch (e) { errors.push(`Repeat safety check invoice: ${(e as Error).message}`); }
   }
   if (errors.length) throw new WorkflowError(`The invoice still did not reach Xero: ${errors.join(" · ")}`);
   return { ok: true };

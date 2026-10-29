@@ -56,9 +56,10 @@ export async function newQuoteOfficeFacts(jobIds: string[]): Promise<Map<string,
   return out;
 }
 
-/** Batch 1 + 3b: the failed-invoice fact per job — the newest `invoice_create_failed` per invoice kind (installation or
- *  electrical fixes, from the event's quote), shown while that kind's quote is still accepted and until a Xero-linked
- *  invoice for that quote appears after the failure (Sync / Create invoice). The newest such failure wins. */
+/** Batch 1 + 3b: the failed-invoice fact per job — the newest `invoice_create_failed` per invoice kind (installation,
+ *  electrical fixes or a repeat safety check), shown while that kind's quote is still accepted (a repeat has no quote: its
+ *  own invoice decides) and until a Xero-linked invoice for that quote / repeat appears after the failure (Sync / Create
+ *  invoice). The newest such failure wins. */
 export async function invoiceFailedFacts(jobIds: string[]): Promise<Map<string, NonNullable<NeedsFacts["invoiceFailed"]>>> {
   const out = new Map<string, NonNullable<NeedsFacts["invoiceFailed"]>>();
   if (!jobIds.length) return out;
@@ -66,18 +67,28 @@ export async function invoiceFailedFacts(jobIds: string[]): Promise<Map<string, 
   const [fails, qs, invs] = await Promise.all([
     byIds("failed invoices", jobIds, (c, a, b) => admin.from("workflow_events").select("job_id, summary, details, created_at").in("job_id", c).eq("event_type", "invoice_create_failed").range(a, b)),
     byIds("quotes of failed jobs", jobIds, (c, a, b) => admin.from("quotes").select("id, job_id, kind, status").in("job_id", c).in("kind", ["installation", "rectification"]).range(a, b)),
-    byIds("invoices of failed jobs", jobIds, (c, a, b) => admin.from("invoices").select("job_id, quote_id, kind, xero_invoice_id, last_synced_at, created_at, last_sync_error, status").in("job_id", c).in("kind", ["installation", "rectification"]).range(a, b)),
+    byIds("invoices of failed jobs", jobIds, (c, a, b) => admin.from("invoices").select("job_id, quote_id, kind, repeat_key, xero_invoice_id, last_synced_at, created_at, last_sync_error, status").in("job_id", c).in("kind", ["installation", "rectification", "repeat_safety_check"]).range(a, b)),
   ]);
   const quoteById = new Map(qs.map((q) => [String(q["id"]), q]));
   for (const id of jobIds) {
     let best: NonNullable<NeedsFacts["invoiceFailed"]> | null = null;
-    for (const kind of ["installation", "rectification"] as const) {
+    for (const kind of ["installation", "rectification", "repeat_safety_check"] as const) {
       // Older events carry no kind: read it from their quote; unknown = installation (the only kind before batch 3b).
       const kindOf = (e: Row) => { const d = (e["details"] ?? {}) as Row; const q = quoteById.get(String(d["quote_id"] ?? "")); return String(d["kind"] ?? q?.["kind"] ?? "installation"); };
       const mine = fails.filter((e) => String(e["job_id"]) === id && kindOf(e) === kind).sort((a, b) => String(a["created_at"]).localeCompare(String(b["created_at"])));
       const latest = mine.at(-1);
       if (!latest) continue;
       const quoteId = s(((latest["details"] ?? {}) as Row)["quote_id"]);
+      if (kind === "repeat_safety_check") {
+        const repeatKey = s(((latest["details"] ?? {}) as Row)["repeat_key"]);
+        const hit = invoiceFailedFact(
+          mine.filter((e) => s(((e["details"] ?? {}) as Row)["repeat_key"]) === repeatKey).map((e) => ({ at: String(e["created_at"]), text: String(e["summary"] ?? "") })),
+          invs.filter((i) => String(i["job_id"]) === id && i["kind"] === kind && s(i["repeat_key"]) === repeatKey)
+            .map((i) => ({ xero_invoice_id: s(i["xero_invoice_id"]), last_synced_at: s(i["last_synced_at"]), created_at: String(i["created_at"]), last_sync_error: s(i["last_sync_error"]), status: s(i["status"]) })),
+        );
+        if (hit && (!best || hit.at > best.at)) best = { ...hit, kind };
+        continue;
+      }
       const stillAccepted = quoteId && quoteById.has(quoteId) ? quoteById.get(quoteId)!["status"] === "accepted"
         : qs.some((q) => String(q["job_id"]) === id && q["kind"] === kind && q["status"] === "accepted");
       if (!stillAccepted) continue;

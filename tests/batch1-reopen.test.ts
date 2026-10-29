@@ -30,7 +30,7 @@ mock.module("../src/lib/install-days.server", () => ({ installDayContext: async 
 mock.module("../src/lib/quotes.server", () => ({ deriveRectificationItems: async () => 0, generateRectificationQuote: async () => undefined }));
 mock.module("../src/lib/piesa-evidence.server", () => ({ piesaEvidenceHold: async () => [] }));
 const xeroCalls: string[] = []; const offers: string[] = [];
-mock.module("../src/lib/xero.server", () => ({ addRepeatPiesaToXeroInvoice: async (id: string) => { xeroCalls.push(id); return "not_linked"; } }));
+mock.module("../src/lib/xero.server", () => ({ createRepeatInvoice: async (id: string) => { xeroCalls.push(id); return { invoiceId: "inv-repeat" }; } }));
 mock.module("../src/lib/allocation.server", () => ({ startPiesaAllocation: async (id: string) => { offers.push(id); return { offered: 1, exhausted: false }; } }));
 mock.module("../src/lib/autoadvance.server", () => ({ autoAdvanceJob: async () => null }));
 mock.module("../src/lib/install-clearance.server", () => ({ notifyInstallerClearance: async () => undefined }));

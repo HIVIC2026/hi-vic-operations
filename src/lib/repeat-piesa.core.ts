@@ -111,20 +111,21 @@ export function ownerRepeatView(s: RepeatState): OwnerRepeatView | null {
   return null;
 }
 
-// ---- Owner pays (Jo 28 Oct, decision 233): the repeat price goes on the job's ONE Xero invoice as one line ----
+// ---- Owner pays (batch 3b, Jo 29 Oct): the repeat price is its OWN Xero invoice ("… <job> safety check 2", 3, 4…) ----
+// Older jobs may still carry "repeat line added/held" events from the one-invoice model; nothing writes them any more.
 export const REPEAT_XERO_ADDED_EVENT = "xero_invoice_repeat_piesa_added";
 export const REPEAT_XERO_HELD_EVENT = "xero_invoice_repeat_piesa_held";
-/** Tag printed on the Xero line so a lost response is recognised on the invoice itself (one per lapsed deadline). */
 /** Melbourne calendar date of a reopen key ("reopen:<iso>" → "YYYY-MM-DD"). */
 const reopenYmd = (deadline: string) => melbourneYmd(new Date(deadline.slice(REOPEN_KEY_PREFIX.length)));
 /** A reopen's tag is its plain Melbourne date, never the raw key. */
 export const repeatLineTag = (deadline: string) => `repeat PIESA ${isReopenKey(deadline) ? reopenYmd(deadline) : deadline}`;
-/** Every tag that marks this deadline's line as already on the invoice (a reopen also matches the raw-key form). */
+/** Every tag that marks this deadline's line (a reopen also matches the raw-key form). */
 export const repeatLineTags = (deadline: string) => (isReopenKey(deadline) ? [repeatLineTag(deadline), `repeat PIESA ${deadline}`] : [repeatLineTag(deadline)]);
-export const repeatLineKey = (invoiceId: string, deadline: string, cents: number) => `xero-repeat-piesa:v1:${invoiceId}:${deadline}:${Math.round(cents)}`;
-export const repeatLineDescription = (reference: string, deadline: string) => isReopenKey(deadline)
-  ? `${reference} – New safety check (PIESA) (${repeatLineTag(deadline)})`
-  : `${reference} – New safety check (PIESA), 30-day window lapsed (${repeatLineTag(deadline)})`;
+/** The repeat invoice's one line, after the reference. */
+export const repeatLineText = (deadline: string) => isReopenKey(deadline)
+  ? `New safety check (PIESA) (${repeatLineTag(deadline)})`
+  : `New safety check (PIESA), 30-day window lapsed (${repeatLineTag(deadline)})`;
+export const repeatLineDescription = (reference: string, deadline: string) => `${reference} – ${repeatLineText(deadline)}`;
 
 /** Office repeat card heading (office-only text). */
 export function repeatOfficeHeading(deadline: string | null): string {
@@ -154,23 +155,13 @@ export function repeatXeroHeldFor(ev: RepeatEv[], deadline: string): { at: strin
   if (line?.event_type !== REPEAT_XERO_HELD_EVENT) return null;
   return { at: String(line.created_at), reason: String((line.details as { reason?: string } | null)?.reason ?? "held") };
 }
-/** Owner pays: the repeat line belongs on the ONE Xero invoice from acceptance (stage owner_pay), and still after a card
- *  payment moved the job on to "offer" until a line-added event is recorded for this invoice + deadline. */
-export function repeatLineDue(i: { state: RepeatState; lineAdded: boolean }): boolean {
-  const s = i.state;
-  if (s.payer !== "owner" || !s.deadline || !s.priceIncGst) return false;
-  if (s.stage === "owner_pay") return true;
-  return s.stage === "offer" && !i.lineAdded;
-}
-/** Paid = Xero/card payments on the invoice grew by at least the repeat price since the line went on. */
-export function repeatPaidByInvoice(i: { paidCents: number; paidAtAddCents: number; priceCents: number }): boolean {
-  return i.priceCents > 0 && i.paidCents - i.paidAtAddCents >= i.priceCents;
-}
-
-/** Paid by card = a card payment on the invoice since acceptance, and payments grew by at least the repeat price since
- *  the owner accepted (what they had paid before is recorded on the accepted event). */
-export function repeatCardPaid(i: { priceCents: number; paidCents: number; paidBeforeAcceptCents: number | null; cardRowAfterAccept: boolean }): boolean {
-  return i.cardRowAfterAccept && i.paidBeforeAcceptCents != null && i.priceCents > 0 && i.paidCents - i.paidBeforeAcceptCents >= i.priceCents;
+/** Paid = the CURRENT repeat's own invoice (its repeat key is this deadline) is paid in full. Money on any other invoice
+ *  never counts. */
+export function repeatInvoicePaid(i: { invoice: { kind: string; repeat_key: string | null; total_inc_gst: number | string } | null; deadline: string; paidCents: number }): boolean {
+  const inv = i.invoice;
+  if (!inv || inv.kind !== "repeat_safety_check" || inv.repeat_key !== i.deadline) return false;
+  const totalCents = Math.round(Number(inv.total_inc_gst) * 100);
+  return totalCents > 0 && i.paidCents >= totalCents;
 }
 
 /** Total (ex GST) to take off an installer's install payout for every repeat PIESA the office charged to the installer. */

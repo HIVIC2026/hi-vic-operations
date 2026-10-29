@@ -103,7 +103,7 @@ export type NeedsFacts = {
   paymentStalled?: PaymentStall | null;
   /** Batch 1: the owner accepted but the invoice step failed and no Xero-linked invoice has appeared since. Batch 3b:
    *  `kind` names which invoice (installation, or the electrical fixes invoice). */
-  invoiceFailed?: { at: string; text: string; kind?: "installation" | "rectification" } | null;
+  invoiceFailed?: { at: string; text: string; kind?: "installation" | "rectification" | "repeat_safety_check" } | null;
   /** Batch 3b: a newer fixes quote replaced an accepted one whose own Xero invoice is still unpaid and not voided. */
   oldFixesInvoiceUnpaid?: { at: string } | null;
   /** Batch 2: a STOP reply could not release the installer and the job has not been cancelled again since. */
@@ -154,8 +154,8 @@ export function invoiceFailedFact(
 
 /** Batch 3b: the office line for an old fixes invoice that a newer fixes quote replaced (office-only wording). */
 export const OLD_FIXES_INVOICE_LINE = "Old fixes invoice unpaid — void it in Xero";
-export const invoiceFailedLine = (kind: "installation" | "rectification" | undefined) =>
-  `${kind === "rectification" ? "Fixes invoice" : "Invoice"} didn't reach Xero · owner can't pay yet`;
+export const invoiceFailedLine = (kind: "installation" | "rectification" | "repeat_safety_check" | undefined) =>
+  `${kind === "rectification" ? "Fixes invoice" : kind === "repeat_safety_check" ? "Repeat safety check invoice" : "Invoice"} didn't reach Xero · owner can't pay yet`;
 
 /** The generic "System · Xero: …" row for an invoice that is not linked to Xero repeats the failed-invoice row: hide it. */
 export const duplicatesInvoiceFailed = (why: string, invoiceFailed: NeedsFacts["invoiceFailed"]): boolean => !!invoiceFailed && why.startsWith("Xero: ");

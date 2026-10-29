@@ -119,7 +119,9 @@ export function buildInvoicePayload(a: {
   contactId: string; jobNumber: string; dueDate: string; total: number;
   /** Batch 3b: which invoice this is (default installation). A fixes invoice carries only the fixes lines and never a VEEC
    *  incentive line. */
-  kind?: "installation" | "rectification";
+  kind?: XeroInvoiceKind;
+  /** Repeat safety check only: its number (2, 3, …) in the reference. */
+  repeatNo?: number | undefined;
   items: { description: string; quantity: number | string; unit_price_inc_gst: number | string; line_total_inc_gst: number | string }[];
   /** The VEEC incentive taken off the price (quotes.veec_discount_inc_gst), inc GST. */
   veecIncentive: number | string; tracking: { categoryName: string; optionName: string } | null;
@@ -127,7 +129,7 @@ export function buildInvoicePayload(a: {
   installationAddress?: string | null;
 }) {
   const kind = a.kind ?? "installation";
-  const ref = xeroReference(a.jobNumber, kind);
+  const ref = xeroReference(a.jobNumber, kind, a.repeatNo);
   const Tracking = a.tracking ? [{ Name: a.tracking.categoryName, Option: a.tracking.optionName }] : undefined;
   const address = a.installationAddress?.trim() ? ` – ${INSTALLATION_ADDRESS_LABEL}: ${a.installationAddress.trim()}` : "";
   const LineItems: { Description: string; Quantity: number; UnitAmount: number; AccountCode: string; TaxType?: string; Tracking: { Name: string; Option: string }[] | undefined }[] = a.items.map((i, n) => {
