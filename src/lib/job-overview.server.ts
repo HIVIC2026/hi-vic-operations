@@ -30,8 +30,8 @@ export async function jobOverviewFor(sb: Sb, userId: string, jobId: string) {
       const { data: p } = await admin.from("properties").select("suburb, postcode").eq("id", row.property_id!).maybeSingle();
       return { role, row: { ...row, owner_name: null, owner_phone: null, owner_email: null, property_address: [p?.suburb, p?.postcode].filter(Boolean).join(" ") || "Address shared once the visit is arranged" } };
     }
-    if (rel && !own) {
-      // Their own originated customer keeps the phone (skipped above). Same visit-current rule as the trade pages (contactVisible over this business's own bookings): no phone once every visit is done.
+    if (role === "electrician" && rel && !own) {
+      // C3 is electrician-only: installers keep the phone. Their own originated customer keeps the phone (skipped above). Same visit-current rule as the trade pages (contactVisible over this business's own bookings): no phone once every visit is done.
       let visible = false;
       try {
         const { requireTradeJob } = await import("./trade-view.server");

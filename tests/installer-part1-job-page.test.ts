@@ -72,7 +72,7 @@ test("C3: contact hidden while status loads, on read error, and in the overview 
   // the originating installer's own customer skips the visit check, whatever has_contact_release says
   expect(ov).toContain('if (row.channel === "installer_sourced") {');
   expect(ov).not.toContain('if (!rel && row.channel === "installer_sourced")');
-  expect(ov).toContain("if (rel && !own) {");
+  expect(ov).toContain('if (role === "electrician" && rel && !own) {');
   // trade callers only: the check sits inside the electrician/installer branch, before the admin branch
   expect(ov.indexOf("contactVisible(mine")).toBeLessThan(ov.indexOf('role === "admin" && row.stage'));
   expect(ov.indexOf("contactVisible(mine")).toBeGreaterThan(ov.indexOf('role === "electrician" || role === "installer"'));
