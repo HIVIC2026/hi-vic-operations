@@ -144,7 +144,7 @@ export type InviteStep =
 /** One invite per partner worker, ever (seats are billed). */
 export const inviteKey = (workerId: string) => `mitti-invite:${workerId}`;
 
-export const CREW_SKIP = "Crew — only Lead installers get Mitti access.";
+export const CREW_SKIP = "Crew aren't invited automatically — the office adds them to Mitti by hand.";
 export const TEST_SKIP = "TEST person: TEST forms go to the test assignee and Mitti rejects synthetic emails.";
 
 /** Is this approved partner person someone who should be in Mitti? Installers once their CII is verified (decision 153),
@@ -187,9 +187,7 @@ export function mittiInviteStep(p: InvitePerson, prior: PriorInvite, sw: InviteS
   return sw.apiVerified ? { action: "create", ...base, addToGroup: group } : { action: "record_needed", ...base };
 }
 
-export type RemovalPerson = { workerId: string; email: string | null; isTest: boolean; removedAt: string | null; approvalStatus: string; stillActiveElsewhere: boolean;
-  /** Jo 28 Oct: switched from Lead to Crew while still active in the portal. */
-  demoted?: boolean };
+export type RemovalPerson = { workerId: string; email: string | null; isTest: boolean; removedAt: string | null; approvalStatus: string; stillActiveElsewhere: boolean };
 export type RemovalStep = { action: "skip"; reason: string } | { action: "deactivate"; mittiUserId: string } | { action: "fail"; reason: string; mittiUserId: string };
 
 /** A person removed (or rejected) in the portal → deactivate the Mitti user the portal invited or linked for them. Never
@@ -197,11 +195,11 @@ export type RemovalStep = { action: "skip"; reason: string } | { action: "deacti
 export function mittiRemovalStep(p: RemovalPerson, prior: PriorInvite, sw: InviteSwitches): RemovalStep {
   if (!sw.enabled) return { action: "skip", reason: "Mitti auto-invite is switched off." };
   if (p.isTest) return { action: "skip", reason: TEST_SKIP };
-  if (!p.demoted && !p.removedAt && p.approvalStatus === "approved") return { action: "skip", reason: "Still active in the portal." };
+  if (!p.removedAt && p.approvalStatus === "approved") return { action: "skip", reason: "Still active in the portal." };
   if (prior?.type === MITTI_INVITE_EVENTS.deactivated) return { action: "skip", reason: "Already deactivated in Mitti." };
   if (!prior?.mittiUserId) return { action: "skip", reason: "No Mitti user is recorded for this person." };
   if (prior.email?.trim().toLowerCase() !== p.email?.trim().toLowerCase()) return { action: "fail", mittiUserId: prior.mittiUserId, reason: "This person's email does not match the recorded Mitti identity — the office must check it before deactivation." };
-  if (p.stillActiveElsewhere) return { action: "skip", reason: p.demoted ? "The same email still belongs to another active Lead — Mitti seat kept." : "The same email is still an active trade for another business — Mitti seat kept." };
+  if (p.stillActiveElsewhere) return { action: "skip", reason: "The same email is still an active trade for another business — Mitti seat kept." };
   if (!sw.apiVerified) return { action: "fail", mittiUserId: prior.mittiUserId, reason: `Deactivate ${p.email ?? "this person"} in Mitti by hand so the seat can be released (the portal's Mitti user calls are not verified yet).` };
   return { action: "deactivate", mittiUserId: prior.mittiUserId };
 }

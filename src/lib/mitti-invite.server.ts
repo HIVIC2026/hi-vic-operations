@@ -44,17 +44,16 @@ async function loadPerson(workerId: string) {
   const { data: w, error } = await admin.from("partner_workers").select("id, email, mobile, full_legal_name, trade_role, worker_role, approval_status, removed_at, profile_id, business_id").eq("id", workerId).maybeSingle();
   if (error) throw new WorkflowError(`This person could not be read: ${error.message}`);
   if (!w) throw new WorkflowError("Partner person not found.");
-  const [{ data: b }, { data: p }, records] = await Promise.all([
+  const [{ data: b }, { data: p }] = await Promise.all([
     admin.from("businesses").select("name, email, onboarding_notes").eq("id", w.business_id).maybeSingle(),
     w.profile_id ? admin.from("profiles").select("email, mitti_user_id, mitti_checked_email, mitti_checked_at").eq("id", w.profile_id).maybeSingle() : Promise.resolve({ data: null }),
-    loadInviteRecords(workerId),
   ]);
-  const { workerEmailKey, effectiveWorkerRole, hasMittiAccessToday, mittiEmailFor, certOrFilter } = await import("./worker-role.core");
+  const { workerEmailKey, effectiveWorkerRole, mittiEmailFor, certOrFilter } = await import("./worker-role.core");
   const own = workerEmailKey(w.email) || null;
   const { mittiAccessOf } = await import("./mitti-membership.core");
   const mittiAccess = p ? mittiAccessOf(p) : null;
-  // Jo 28 Oct: Lead / Crew. A null role counts as Crew unless the person already has Mitti access today.
-  const role = effectiveWorkerRole({ tradeRole: w.trade_role, stored: (w as { worker_role?: string | null }).worker_role, hasMittiAccess: hasMittiAccessToday(records[0]?.type ?? null, mittiAccess === "member") });
+  // Jo 29 Oct: Lead / Crew. A null role counts as Lead; Crew only when stored.
+  const role = effectiveWorkerRole({ tradeRole: w.trade_role, stored: (w as { worker_role?: string | null }).worker_role });
   // A Lead with no email of their own is invited / linked with the business's own email.
   const target = w.trade_role === "installer" ? mittiEmailFor({ role, ownEmail: own, businessEmail: (b as { email?: string | null } | null)?.email }) : { email: own, source: own ? "own" as const : null };
   const email = target.email;
@@ -77,26 +76,10 @@ async function loadPerson(workerId: string) {
     profileId: target.source === "own" ? (w.profile_id as string | null) : null, emailSource: target.source };
 }
 
-/** Jo 28 Oct: effective Lead / Crew for installer people (null for others), for the Team pages and the role switch. */
+/** Jo 29 Oct: effective Lead / Crew for installer people (null for others), for the Team pages and the role switch. */
 export async function workerRolesFor(workers: { id: string; trade_role: string; worker_role?: string | null; profile_id: string | null }[]) {
-  const out = new Map<string, "lead" | "crew" | null>();
-  const installers = workers.filter((w) => w.trade_role === "installer");
-  for (const w of workers) if (w.trade_role !== "installer") out.set(w.id, null);
-  if (!installers.length) return out;
-  const { effectiveWorkerRole, hasMittiAccessToday } = await import("./worker-role.core");
-  const { mittiAccessOf } = await import("./mitti-membership.core");
-  const needLookup = installers.filter((w) => w.worker_role !== "lead" && w.worker_role !== "crew");
-  const profileIds = needLookup.map((w) => w.profile_id).filter((x): x is string => !!x);
-  const [records, profiles] = needLookup.length ? await Promise.all([
-    loadInviteRecords(),
-    profileIds.length ? admin.from("profiles").select("id, email, mitti_user_id, mitti_checked_email, mitti_checked_at").in("id", profileIds).then((r) => r.data ?? []) : Promise.resolve([] as never[]),
-  ]) : [[], []];
-  for (const w of installers) {
-    const latest = (records as InviteRecord[]).find((r) => r.workerId === w.id)?.type ?? null;
-    const prof = (profiles as { id: string }[]).find((x) => x.id === w.profile_id);
-    out.set(w.id, effectiveWorkerRole({ tradeRole: w.trade_role, stored: w.worker_role, hasMittiAccess: hasMittiAccessToday(latest, prof ? mittiAccessOf(prof as never) === "member" : false) }));
-  }
-  return out;
+  const { effectiveWorkerRole } = await import("./worker-role.core");
+  return new Map<string, "lead" | "crew" | null>(workers.map((w) => [w.id, effectiveWorkerRole({ tradeRole: w.trade_role, stored: w.worker_role })]));
 }
 
 async function record(actorId: string | null, type: MittiInviteEventType, summary: string, details: Record<string, unknown>) {
@@ -248,50 +231,6 @@ export async function onPartnerPersonRemoved(workerId: string, actorId: string |
     return { action: "fail" as const, reason, mittiUserId: step.mittiUserId };
   }
   await record(actorId, MITTI_INVITE_EVENTS.deactivated, `Mitti user for ${email} deactivated (removed in the portal) — reduce the licence count in Mitti if the seat is not reused`, details);
-  return step;
-}
-
-/**
- * Jo 28 Oct: a person switched from Lead to Crew. Same deactivate path and record as onPartnerPersonRemoved, while they
- * stay active in the portal; kept when the same Mitti email still belongs to another active Lead. Switch OFF → nothing.
- */
-export async function onPartnerPersonDemoted(workerId: string, actorId: string | null, opts: Pick<Opts, "switches" | "call"> = {}) {
-  const sw = opts.switches ?? currentInviteSwitches();
-  if (!sw.enabled) return { action: "skip" as const, reason: "Mitti auto-invite is switched off." };
-  const { data: w, error } = await admin.from("partner_workers").select("id, email, full_legal_name, trade_role, approval_status, removed_at, business_id").eq("id", workerId).maybeSingle();
-  if (error || !w) throw new WorkflowError("Partner person not found.");
-  const { workerEmailKey, emailStillUsedByAnotherLead } = await import("./worker-role.core");
-  const prior = priorInviteFor(workerId, await loadInviteRecords(workerId));
-  const { data: b } = await admin.from("businesses").select("name, email, onboarding_notes").eq("id", w.business_id).maybeSingle();
-  // The Mitti email the portal used: their own, else the one recorded on their invite (a Lead with no email uses the business's).
-  const email = workerEmailKey(w.email) || workerEmailKey(prior?.email) || null;
-  let stillUsed = false;
-  if (email) {
-    const [{ data: sameEmail, error: e1 }, { data: sameBiz, error: e2 }] = await Promise.all([
-      admin.from("partner_workers").select("id, email, trade_role, worker_role, approval_status, removed_at, business_id, profile_id").ilike("email", email),
-      admin.from("partner_workers").select("id, email, trade_role, worker_role, approval_status, removed_at, business_id, profile_id").eq("business_id", w.business_id),
-    ]);
-    if (e1 || e2) throw new WorkflowError("Other active Leads could not be checked — Mitti access was not removed.");
-    const bizEmail = workerEmailKey((b as { email?: string | null } | null)?.email);
-    const rows = new Map<string, Record<string, unknown>>();
-    for (const r of [...(sameEmail ?? []), ...(sameBiz ?? [])] as Record<string, unknown>[]) rows.set(r["id"] as string, r);
-    // Others' roles as they apply today (a null role is Lead only when that person already has Mitti access).
-    const roles = await workerRolesFor([...rows.values()].filter((r) => r["id"] !== w.id) as never);
-    const others = [...rows.values()].map((r) => ({ id: r["id"] as string, tradeRole: r["trade_role"] as string, workerRole: roles.get(r["id"] as string) ?? null, removedAt: (r["removed_at"] as string | null) ?? null, approvalStatus: r["approval_status"] as string,
-      mittiEmail: workerEmailKey(r["email"] as string | null) || (r["business_id"] === w.business_id ? bizEmail || null : null) }));
-    stillUsed = emailStillUsedByAnotherLead(w.id, email, others);
-  }
-  const step = mittiRemovalStep({ workerId, email, isTest: await isTestPerson(email, b ?? null), removedAt: w.removed_at, approvalStatus: w.approval_status, stillActiveElsewhere: stillUsed, demoted: true }, prior, sw);
-  if (step.action === "skip") return step;
-  const details = { worker_id: workerId, email, name: w.full_legal_name, business: b?.name ?? null, mitti_user_id: step.mittiUserId, reason_kind: "switched_to_crew" };
-  if (step.action === "fail") { await record(actorId, MITTI_INVITE_EVENTS.failed, step.reason, { ...details, reason: step.reason }); return step; }
-  try { await (opts.call ?? await realCall())("PUT", userPath(step.mittiUserId), userStatusBody("inactive")); }
-  catch (e) {
-    const reason = plainMittiReason(e, `Deactivate ${email ?? "this person"} in Mitti by hand so the seat can be released`);
-    await record(actorId, MITTI_INVITE_EVENTS.failed, reason, { ...details, reason });
-    return { action: "fail" as const, reason, mittiUserId: step.mittiUserId };
-  }
-  await record(actorId, MITTI_INVITE_EVENTS.deactivated, `Mitti user for ${email} deactivated (switched to Crew in the portal) — reduce the licence count in Mitti if the seat is not reused`, details);
   return step;
 }
 

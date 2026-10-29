@@ -75,8 +75,8 @@ export const removeWorker = createServerFn({ method: "POST" }).middleware([requi
 
 // ---------- Lead / Crew (Jo 28 Oct 2026) ----------
 /** HIV admins and the business's own business_admin switch an installer person between Lead and Crew. Applies straight
- *  away, records ONE admin_config_events row (who, person, from → to); to Lead runs the Mitti invite, Lead → Crew runs the
- *  Mitti deactivate (both never fail the switch). */
+ *  away, records ONE admin_config_events row (who, person, from → to); to Lead runs the Mitti invite (never fails the
+ *  switch); to Crew does nothing in Mitti (Jo 29 Oct). */
 export const setWorkerRole = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ id: uuid, role: z.enum(["lead", "crew"]) }).parse(d))
   .handler(async ({ data, context }) => {
@@ -86,7 +86,7 @@ export const setWorkerRole = createServerFn({ method: "POST" }).middleware([requ
     if (w.trade_role !== "installer") throw new Error("Lead and Crew are for installers only.");
     if (!(await isAdminCaller(context.supabase))) await requireMember(context.userId, w.business_id, true);
     const { workerRolesFor } = await import("./mitti-invite.server");
-    const from = (await workerRolesFor([w])).get(w.id) ?? "crew";
+    const from = (await workerRolesFor([w])).get(w.id) ?? "lead";
     const { WORKER_ROLE_CHANGED_EVENT, roleChangeSummary, roleSwitchMittiAction } = await import("./worker-role.core");
     if (from === data.role && w.worker_role === data.role) return { ok: true, changed: false, role: data.role };
     const { error } = await admin.from("partner_workers").update({ worker_role: data.role }).eq("id", w.id);
@@ -96,7 +96,6 @@ export const setWorkerRole = createServerFn({ method: "POST" }).middleware([requ
     const action = roleSwitchMittiAction(from, data.role);
     const m = await import("./mitti-invite.server");
     if (action === "invite") await m.onPartnerPersonApproved(w.id, context.userId).catch((e) => console.error("Mitti invite after Lead switch skipped", (e as Error).message));
-    if (action === "deactivate") await m.onPartnerPersonDemoted(w.id, context.userId).catch((e) => console.error("Mitti deactivate after Crew switch skipped", (e as Error).message));
     return { ok: true, changed: true, role: data.role };
   });
 
