@@ -55,7 +55,7 @@ import { InstallerInstallDays, useInstallerInstallDays } from "@/components/port
 import { ElectricianPiesaTimesCard } from "@/components/portal/piesa-times-electrician";
 import { WhosDoingThis } from "@/components/trade/visit-allocation";
 import { ContactButtons, Group, LinkRow, NextPanel, NoFormNoPay, Note, PrimaryButton, Row, Screen, ScreenHead, primaryLinkClass } from "@/components/trade/installer-kit";
-import { completeView, electricianRow, firstName, installRow, installerStatusLine, jobNext, payNote, quoteStatusRow, readyCheckRows, sourceLabel, type ReadyCheckTurn } from "@/lib/installer-screens.core";
+import { completeView, electricianRow, firstName, installRow, installerStatusLine, STAFF_LINKS_LABEL, jobNext, mittiLinkPlace, payNote, quoteStatusRow, readyCheckRows, sourceLabel, type ReadyCheckTurn } from "@/lib/installer-screens.core";
 import { InstallerPriceCard } from "@/components/trade/InstallerPriceCard";
 import { FixesFormCard } from "@/components/trade/FixesFormCard";
 import { FixesTimesCard, useTradeFixesTimes } from "@/components/trade/FixesTimesCard";
@@ -346,6 +346,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
     installFormCompletedAt: page.install.formCompletedAt, evidenceChecked: page.install.evidenceChecked, crew: page.install.crew, ownerReady: page.install.ownerReady,
     formHasAnswers: page.form.hasAnswers, priceEntered: page.price.entered, boss: page.boss, ownerPiesaConfirmed: page.ownerPiesaConfirmed,
   }) : null;
+  const mittiLink = page && next ? mittiLinkPlace({ panel: next.panel, yours: next.yours, auditId: page.form.auditId, mittiInvited: page.mittiInvited, formLinked: page.form.linked }) : null;
   const readyCheck = page ? readyCheckRows({ bookedAt: page.readyCheck.bookedAt, done: page.readyCheck.done, formLinked: page.form.linked, formCompleted: page.form.completed, missing: page.form.missing.length + page.form.stops.length, hasAnswers: page.form.hasAnswers }) : null;
   // Decision 279: ONE status line per job. The Quote row shows quote wording only once the form has answers and (A1) the price is in.
   const status = page ? installerStatusLine({ channel: page.channel, formLinked: page.form.linked, formCompleted: page.form.completed, formHasAnswers: page.form.hasAnswers, priceEntered: page.price.entered, boss: page.boss, quoteLine: page.quote?.line ?? null }) : null;
@@ -388,7 +389,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
           {next.panel === "install_booked" && <Link to="/field/day/$jobId" params={{ jobId }} className={`${primaryLinkClass} mt-2`} data-todays-job>Today's job</Link>}
           {["ready_check_offer_times", "ready_check_answer_owner", "ready_check_waiting_owner"].includes(next.panel) && <InstallerReadyCheckTimesCard jobId={jobId} ownerFirstName={owner} />}
           {next.panel === "ready_check_set_time" && a1ReadyCheckEntryAllowed({ channel: job.channel ?? null, stage: job.stage ?? null }) && <A1ReadyCheckTimeCard jobId={jobId} />}
-          {(next.panel === "mitti_form" || (next.panel === "quote_status" && next.yours)) && page.form.auditId && page.mittiInvited && <MittiFormLink auditId={page.form.auditId} className={`${primaryLinkClass} mt-3.5`}>Open Mitti form</MittiFormLink>}
+          {mittiLink === "next" && page.form.auditId && <MittiFormLink auditId={page.form.auditId} className={`${primaryLinkClass} mt-3.5`}>Open Mitti form</MittiFormLink>}
           {/* Decision 318: the pay rule sits beside the Mitti form for the paid visits (install day onwards). */}
           {["offer_install_days", "install_answer_owner", "install_waiting_owner", "install_booked", "sign_rebate", "install_done"].includes(next.panel) && <NoFormNoPay className="mt-3" />}
           {/* Decision 328: check the A5 Install day form now — the same result the lead installer is texted. */}
@@ -425,7 +426,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
         <Group title="Ready Check">
           {(readyCheck.visit !== "Not booked yet" || page.channel === "hivic_sourced") && <Row label="Visit" value={readyCheck.visit} />}
           {readyCheck.form && <Row label="Mitti form" value={readyCheck.form.label} tone={readyCheck.form.tone === "green" ? "green" : readyCheck.form.tone === "sub" ? "sub" : "bold"} />}
-          {page.form.linked && page.form.auditId && page.mittiInvited && <MittiFormLink auditId={page.form.auditId} className="flex min-h-12 w-full items-center justify-between gap-3 text-[15px] font-semibold text-hiv-blue"><span>Open Mitti form</span><span className="text-xl text-sub">›</span></MittiFormLink>}
+          {mittiLink === "ready_check" && page.form.auditId && <MittiFormLink auditId={page.form.auditId} className="flex min-h-12 w-full items-center justify-between gap-3 text-[15px] font-semibold text-hiv-blue"><span>Open Mitti form</span><span className="text-xl text-sub">›</span></MittiFormLink>}
           {!page.form.linked && page.channel === "hivic_sourced" && <MittiOnly jobId={jobId} which="ready_check" />}
         </Group>
       )}
@@ -433,7 +434,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
       <WhosDoingThis jobId={jobId} readyCheckDone={!!page?.readyCheck.done} visitAt={page?.install.bookedAt ?? page?.readyCheck.bookedAt ?? null} suburb={(job.property_address ?? "").split(",").slice(-1)[0]?.replace(/\b(VIC|Victoria)\b.*$/i, "").trim() || null} />
 
       <details>
-        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between border-y border-line text-[15px] text-sub"><span>More · staff job links</span><span className="text-xl">›</span></summary>
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between border-y border-line text-[15px] text-sub"><span>{STAFF_LINKS_LABEL}</span><span className="text-xl">›</span></summary>
         <div className="py-3"><WorkerLinksPanel jobId={jobId} /></div>
       </details>
     </Screen>

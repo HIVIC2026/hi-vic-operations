@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { PIESA_FULL } from "../src/lib/job-wording";
-import { jobNext, thirtyDayLine } from "../src/lib/installer-screens.core";
+import { STAFF_LINKS_LABEL, jobNext, mittiLinkPlace, thirtyDayLine } from "../src/lib/installer-screens.core";
 import { OWNER_PIESA_CONFIRM_WAITING } from "../src/lib/piesa-owner-confirm.core";
 import { SAFETY_CHECK_DOC_TITLE } from "../src/lib/trade-view.core";
 const read = (p: string) => readFileSync(p, "utf8");
@@ -30,4 +30,21 @@ test("C8: install booked without a deadline says the 6:30am sentence once", () =
   const n = jobNext({ channel: "hivic_sourced", stage: "installation_booked", ownerFirstName: "Helen", formLinked: true, formCompleted: true, quoteLine: null, installTurn: "booked", installBookedAt: "2026-10-26T21:00:00Z", installDeadline: null } as never);
   expect([n.title, n.sub, n.note].join(" | ").match(/6:30am/g)?.length).toBe(1);
   expect(n.sub).toBeNull();
+});
+
+test("C6: Open Mitti form has exactly one place", () => {
+  const f = { auditId: "a1", mittiInvited: true, formLinked: true };
+  expect(mittiLinkPlace({ ...f, panel: "mitti_form", yours: true })).toBe("next");
+  expect(mittiLinkPlace({ ...f, panel: "quote_status", yours: true })).toBe("next");
+  expect(mittiLinkPlace({ ...f, panel: "quote_status", yours: false })).toBe("ready_check");
+  expect(mittiLinkPlace({ ...f, panel: "waiting", yours: false })).toBe("ready_check");
+  expect(mittiLinkPlace({ ...f, mittiInvited: false, panel: "mitti_form", yours: true })).toBeNull();
+  const r = read(ROUTE);
+  expect(r).toContain('mittiLink === "next" && <MittiFormLink'); expect(r).toContain('mittiLink === "ready_check" && <MittiFormLink');
+  expect(r).not.toContain('next.panel === "mitti_form" || (next.panel === "quote_status" && next.yours)'); // old inline rule gone
+});
+test("C7: plain staff-links label", () => {
+  expect(STAFF_LINKS_LABEL).toBe("Send this job to a staff member");
+  expect(read(ROUTE)).not.toContain("More · staff job links");
+  expect(read(ROUTE)).toContain("{STAFF_LINKS_LABEL}");
 });

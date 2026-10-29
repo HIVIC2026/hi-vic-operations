@@ -175,6 +175,14 @@ export function installerStatusLine(f: StatusLineFacts): StatusLine {
  *  nothing about the rebate form until the Mitti install form is Complete. */
 /** Stages after a PIESA found electrical fixes and before Section C is signed (fixes done). */
 export const FIXES_PAUSED_STAGES = new Set(["rectification_required", "awaiting_owner_rectification_approval", "rectification_scheduling", "rectification_booked", "electrical_variation_pending"]);
+/** Jo's answer: the label for the link that sends the job to a staff member. */
+export const STAFF_LINKS_LABEL = "Send this job to a staff member";
+/** Where the "Open Mitti form" link shows on the Job page: once, in the Next panel when the form is the job, otherwise in Ready Check. */
+export function mittiLinkPlace(f: { panel: JobNextPanel | null; yours: boolean; auditId: string | null; mittiInvited: boolean; formLinked: boolean }): "next" | "ready_check" | null {
+  if (!f.auditId || !f.mittiInvited) return null;
+  if (f.panel === "mitti_form" || (f.panel === "quote_status" && f.yours)) return "next";
+  return f.formLinked ? "ready_check" : null;
+}
 export const FIXES_PAUSED_TITLE = "Paused — waiting on electrical fixes";
 export function jobNext(f: JobNextFacts): JobNext {
   const owner = f.ownerFirstName ?? "the owner";
