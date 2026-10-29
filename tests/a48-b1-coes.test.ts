@@ -369,6 +369,15 @@ describe("minors", () => {
     await server.checkCurrentCoes(J, null);
     expect(ai.calls[0]!.messages[0]!.content.find((p) => p.type === "file")!.mediaType).toBe("application/pdf");
   });
+  test("final fix: a PDF whose text can't be read logs a warning (the verdict stands, as before)", async () => {
+    seed(repaired(), ["m1"]); // stored bytes are not a real PDF
+    ai.reply = reply("ceiling_work", "Ceiling space wiring made safe");
+    const warned: string[] = [];
+    const orig = console.warn;
+    console.warn = (...a: unknown[]) => { warned.push(a.map(String).join(" ")); };
+    try { expect(await server.checkCurrentCoes(J, null)).toBe("ticked by AI"); } finally { console.warn = orig; }
+    expect(warned.some((w) => w.includes("electrical certificate PDF text could not be read"))).toBe(true);
+  });
 });
 
 describe("wiring", () => {

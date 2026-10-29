@@ -106,7 +106,10 @@ async function pdfText(bytes: Uint8Array): Promise<string> {
       await pdf.destroy().catch(() => undefined);
       return text;
     });
-  } catch { return ""; }
+  } catch (e) {
+    console.warn("electrical certificate PDF text could not be read", (e as Error).message);
+    return "";
+  }
 }
 
 const lastFor = (events: CoesEvent[], key: string) => events.filter((e) => e.details?.["key"] === key).at(-1);
