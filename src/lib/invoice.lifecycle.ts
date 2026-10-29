@@ -28,6 +28,15 @@ export const CUSTOMER_INVOICE_COLUMNS = [
 
 const cents = (n: number | string) => Math.round(Number(n) * 100);
 
+/** Batch 3b: an old fixes invoice voided/deleted in Xero after a newer fixes quote replaced it is stored 'voided' and
+ *  `invoice_status` passes that through. It is closed: never owing. The owner doesn't see it; the office does. */
+export const invoiceVoided = (effectiveStatus: string | null | undefined) => effectiveStatus === "voided";
+export const invoicesShownTo = <T extends { effective_status?: string | null }>(rows: readonly T[], isOffice: boolean): T[] =>
+  isOffice ? [...rows] : rows.filter((r) => !invoiceVoided(r.effective_status));
+/** "Owners owe us" (Money overview): what is still unpaid on every invoice that isn't voided. */
+export const ownersOweTotal = (rows: readonly { effective_status?: string | null; total_inc_gst: number | string | null; total_paid: number | string | null }[]): number =>
+  rows.filter((r) => !invoiceVoided(r.effective_status)).reduce((a, v) => a + Math.max(0, Number(v.total_inc_gst ?? 0) - Number(v.total_paid ?? 0)), 0);
+
 /** Currency-safe split: deposit = configured minimum upfront payment (10% / 5%), balance = total − deposit. */
 export function splitTotal(total: number | string, safetyFeeIncGst?: number | string | null) {
   const { deposit, balance, depositPct } = splitForOption(total, safetyFeeIncGst);

@@ -11,7 +11,14 @@ const INV = "00000000-0000-4000-8000-0000000000i1", OLDFIX = "00000000-0000-4000
 const tables: Tables = {};
 let clock = Date.parse("2026-10-29T00:00:00Z");
 const nextAt = () => new Date((clock += 1000)).toISOString();
-mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: (t: string) => memoryPostgrest(tables).from(t), rpc: async () => ({ data: null, error: null }) } }));
+// `enumWithoutVoided`: the live database before the pending SQL runs — writing status 'voided' is refused.
+let enumWithoutVoided = false;
+const withoutVoided = (q: any) => {
+  const update = q.update.bind(q);
+  q.update = (v: Record<string, unknown>) => (v["status"] === "voided" ? { eq: async () => ({ data: null, error: { message: 'invalid input value for enum payment_status: "voided"' } }) } : update(v));
+  return q;
+};
+mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: (t: string) => (enumWithoutVoided && t === "invoices" ? withoutVoided(memoryPostgrest(tables).from(t)) : memoryPostgrest(tables).from(t)), rpc: async () => ({ data: null, error: null }) } }));
 const realWorkflow = await import("../src/lib/workflow.server");
 mock.module("../src/lib/workflow.server", () => ({
   ...realWorkflow,
@@ -214,6 +221,8 @@ describe("superseded fixes", () => {
     await xs.syncInvoiceFromXero(OLDFIX, "office-1");
     const old = tables["invoices"]!.find((i) => i["id"] === OLDFIX)!;
     expect(old["status"]).not.toBe("xero_sync_error");
+    // Final fix I1: stored as 'voided' so invoice_status (pending SQL) never shows it owing / overdue.
+    expect(old["status"]).toBe("voided");
     expect(old["last_sync_error"] ?? null).toBeNull();
     expect(old["xero_invoice_status"]).toBe("VOIDED");
     // office.server "Xero problems" read: last_sync_error set or status xero_sync_error → none on this job.
@@ -224,6 +233,19 @@ describe("superseded fixes", () => {
     const n = tables["workflow_events"]!.length;
     await xs.syncInvoiceFromXero(OLDFIX, "office-1");
     expect(tables["workflow_events"]!.length).toBe(n);
+  });
+
+  test("I1: before the pending SQL runs ('voided' not allowed yet) Sync still records the void as before", async () => {
+    seedOldFixes();
+    await createInvoiceAfterAcceptance(QR2, J, "owner-1");
+    xero.find((x) => x.InvoiceID === "x-oldfix")!.Status = "DELETED";
+    enumWithoutVoided = true;
+    try { await xs.syncInvoiceFromXero(OLDFIX, "office-1"); } finally { enumWithoutVoided = false; }
+    const old = tables["invoices"]!.find((i) => i["id"] === OLDFIX)!;
+    expect(old["status"]).toBe("deposit_due");
+    expect(old["xero_invoice_status"]).toBe("DELETED");
+    expect(old["last_sync_error"] ?? null).toBeNull();
+    expect(await rowsFor()).toEqual([]);
   });
 
   test("the CURRENT fixes invoice voided in Xero is still a sync problem (unchanged)", async () => {

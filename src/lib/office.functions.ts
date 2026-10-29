@@ -163,7 +163,7 @@ export const getMoneyOverview = createServerFn({ method: "GET" }).middleware([re
       admin.from("workflow_events").select("job_id, summary, created_at").eq("event_type", "payout_marked_paid"),
     ]);
     for (const r of [inv, veec, jobs, paidEv]) if (r.error) throw new Error(`Could not load money figures: ${r.error.message}`);
-    const owed = (inv.data ?? []).reduce((a, v) => a + Math.max(0, Number(v.total_inc_gst ?? 0) - Number(v.total_paid ?? 0)), 0);
+    const owed = (await import("./invoice.lifecycle")).ownersOweTotal(inv.data ?? []); // a voided old fixes invoice owes nothing
     const margin = internals.error ? null : (internals.data ?? []).reduce((a, q) => a + (Number(q.ap_margin_ex_gst ?? 0) + Number(q.ap_fee_ex_gst ?? 0)) * 1.1, 0);
     const lodged = (veec.data ?? []).filter((v) => v.submitted_date && v.submitted_date >= melbourneToday(start)).reduce((a, v) => a + Number(v.quantity ?? 0), 0);
     const paid = new Map((paidEv.data ?? []).map((e) => [e.job_id, e]));

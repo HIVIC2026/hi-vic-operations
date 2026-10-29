@@ -302,7 +302,11 @@ export async function syncInvoiceFromXero(invoiceId: string, actorId: string | n
       const { data: fq } = await admin.from("quotes").select("status").eq("id", inv.quote_id).maybeSingle();
       if (fq?.status === "superseded") {
         const was = String(inv.xero_invoice_status ?? "").toUpperCase();
-        await admin.from("invoices").update({ xero_invoice_status: x.Status, last_sync_error: null, last_synced_at: new Date().toISOString(), ...(inv.status === "xero_sync_error" ? { status: "deposit_due" as const } : {}) }).eq("id", invoiceId);
+        const closed = { xero_invoice_status: x.Status, last_sync_error: null, last_synced_at: new Date().toISOString() };
+        // Stored 'voided' (pending SQL separate-invoices.sql) → invoice_status shows it closed: never owing or overdue for
+        // the office or the owner. Until that SQL runs the value is refused, so it is saved as before (deposit_due).
+        const { error: voidErr } = await admin.from("invoices").update({ ...closed, status: "voided" as const }).eq("id", invoiceId);
+        if (voidErr) await admin.from("invoices").update({ ...closed, ...(inv.status === "xero_sync_error" ? { status: "deposit_due" as const } : {}) }).eq("id", invoiceId);
         await syncLog(invoiceId, true, { status: x.Status, old_fixes_invoice: true }, undefined, "inbound");
         if (was !== String(x.Status ?? "").toUpperCase()) await logEvent(inv.job_id, actorId, "xero_invoice_voided", `Old fixes invoice ${inv.xero_invoice_number ?? ""} is ${x.Status} in Xero – replaced by the newer fixes quote`.replace("  ", " "), { invoice_id: invoiceId, old_fixes_invoice: true }, { internal: true });
         return;

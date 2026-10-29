@@ -10,7 +10,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2, FileUp, Lock, Paperclip, ShieldAlert } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { CUSTOMER_INVOICE_COLUMNS } from "@/lib/invoice.lifecycle";
+import { CUSTOMER_INVOICE_COLUMNS, invoicesShownTo } from "@/lib/invoice.lifecycle";
 import { invoiceSlotLabel, invoiceSlotOf } from "@/lib/office-money.core";
 import { getJobOverview } from "@/lib/admin-records.functions";
 
@@ -467,13 +467,15 @@ export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: bool
     queryFn: async () => ((await supabase.from("invoice_status").select(CUSTOMER_INVOICE_COLUMNS.join(",")).eq("job_id", jobId).order("created_at")).data as unknown as CustomerInvoice[]) ?? [],
   });
   const { data: internals } = useQuery({ queryKey: ["invoice-internals", jobId], enabled: isAdmin, queryFn: () => internalsFn({ data: { jobId } }) });
+  // Batch 3b: an old fixes invoice voided in Xero is closed — the owner doesn't see it, the office does (badge "Voided in Xero").
+  const shown = invoicesShownTo(data ?? [], isAdmin);
   return (
     <Section title={isAdmin ? "Xero invoice & payments" : "Invoices & payments"}>
-      {!data?.length && <p className="text-sm text-muted-foreground">{isAdmin
+      {!shown.length && <p className="text-sm text-muted-foreground">{isAdmin
         ? "No invoice yet – one Xero invoice for the full accepted price is raised when the owner accepts the final installation quote. The Pre Insulation Electrical Safety Assessment (PIESA) payment ($349, set in Settings) must be received before the PIESA can be booked. Then 10% of the rest to book the install day (bank transfer / PayID, held 48h), the balance on install day, or paid in full any time."
         : "No invoice yet – one invoice for the full accepted price is raised once you accept the final installation quote. The Pre Insulation Electrical Safety Assessment (PIESA) payment ($349) must be received before the PIESA can be booked. Then 10% of the rest to book your install day, the balance on install day, or pay in full any time."}</p>}
       <div className="space-y-3">
-        {(data ?? []).map((i) => {
+        {shown.map((i) => {
           const x = internals?.invoices.find((v) => v.id === i.id);
           const ov = internals?.overrides.filter((o) => o.invoice_id === i.id) ?? [];
           // Only the deposit-gate override speaks about the safety check payment.
