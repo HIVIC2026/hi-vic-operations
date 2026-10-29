@@ -11,7 +11,7 @@ describe("no manual office payment entry (decision 368)", () => {
     const src = read("src/lib/payments.functions.ts");
     const exported = [...src.matchAll(/export const (\w+)\s*=\s*createServerFn/g)].map((m) => m[1]);
     // markPaymentsSeparateFn (Jo 28 Oct) only marks a card + Xero pair as two separate payments; it records no money.
-    expect(exported.sort()).toEqual(["getJobPayments", "markPaymentsSeparateFn", "refreshPayNowLink"]);
+    expect(exported.sort()).toEqual(["getJobPayments", "getOwnerPaymentPlan", "markPaymentsSeparateFn", "refreshPayNowLink"]);
     expect(src).not.toMatch(/recordOwnerPayment|recordManualPayment|owner_payment_recorded|logEvent/);
   });
   test("the server has no manual-record path and the office panel has no Record payment form", () => {

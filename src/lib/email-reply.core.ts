@@ -204,7 +204,7 @@ const PIESA = "electrical safety check (PIESA)";
 const PAY_STEP_WORDS: Record<DueStep["key"], { what: string; how: string }> = {
   safety_check: { what: "safety check payment", how: "by card or bank transfer, with no fee" },
   fixes: { what: "electrical fixes payment", how: "by card or bank transfer, with no fee" },
-  install_deposit: { what: "booking payment (10%)", how: "by bank transfer or PayID" },
+  install_deposit: { what: "booking payment (10%)", how: "by card, bank transfer or PayID" },
   balance: { what: "balance", how: "by bank transfer or PayID" },
   repeat_safety_check: { what: "repeat safety check (PIESA) payment", how: "by card or bank transfer, with no fee" },
 };
@@ -243,7 +243,7 @@ function ownerStatus(f: OwnerFacts, intents: EmailIntent[], now: Date): Built {
   };
   const due = f.paymentDue;
   // Card only where Stripe is actually available for this step (decision 144); otherwise bank transfer / PayID.
-  const dueLine = (d: DueStep) => `The next step is your ${PAY_STEP_WORDS[d.key].what} of ${money(d.outstanding)}, ${d.cardAvailable ? PAY_STEP_WORDS[d.key].how : "by bank transfer or PayID"}.`;
+  const dueLine = (d: DueStep) => `The next step is your ${PAY_STEP_WORDS[d.key].what} of ${money(d.outstanding)}, ${d.cardAvailable || d.key === "install_deposit" ? PAY_STEP_WORDS[d.key].how : "by bank transfer or PayID"}.`;
   // Decision 388: before release, spot-only wording (spot-only-copy.core's one shared pre-release stage rule).
   if (isPreReleaseStage(f.stage)) {
     lines.push("Your spot is saved.", SPOT_ORDER, SPOT_IN_TOUCH);
@@ -300,7 +300,7 @@ function ownerStatus(f: OwnerFacts, intents: EmailIntent[], now: Date): Built {
       if (f.install) lines.push(`Your install is booked for ${slotText(f.install)}.`);
       else { lines.push(officeConfirms("your install day")); flags.push("Missing: install booking"); }
       if (due?.key === "install_deposit") {
-        lines.push(`${f.installHeldUntil && Date.parse(f.installHeldUntil) > now.getTime() ? `The day is held until ${dateTimeText(f.installHeldUntil)} while your` : "Your"} booking payment of ${money(due.outstanding)} comes through, by bank transfer or PayID.`);
+        lines.push(`${f.installHeldUntil && Date.parse(f.installHeldUntil) > now.getTime() ? `The day is held until ${dateTimeText(f.installHeldUntil)} while your` : "Your"} booking payment of ${money(due.outstanding)} comes through, by card, bank transfer or PayID.`);
         linkOr("The payment details are here:", "the payment details");
       }
       break;

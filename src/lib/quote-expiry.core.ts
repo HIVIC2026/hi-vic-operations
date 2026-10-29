@@ -57,3 +57,36 @@ export function quoteTimerAction(
 }
 
 export const QUOTE_EXPIRED_OWNER_MESSAGE = "This quote has expired. Please contact us for an updated quote.";
+
+// ---- Batch 3a: an expired quote closes the job and emails the owner once ----------------------------------------------
+
+/** The cancel reason the expiry close uses; "Send me a new quote" (Task 2) recognises the job by this exact text. */
+export const QUOTE_EXPIRED_CANCEL_REASON = "Quote expired (14 days)";
+/** Once-only email key for one expired quote. */
+export const quoteExpiredEmailKey = (quoteId: string) => `quote-expired:v1:${quoteId}`;
+/** The owner's My job link opened on the "new quote" screen (Task 2 builds the screen). */
+export const quoteExpiredPageLink = (myJobLink: string) => `${myJobLink}?screen=newquote`;
+/** Close the job only when it is still open and has no other live (issued or accepted) installation quote. */
+export function shouldCloseOnExpiry(jobStage: string | null | undefined, otherInstallationQuoteStatuses: readonly string[]): boolean {
+  if (!jobStage || jobStage === "cancelled" || jobStage === "complete") return false;
+  return !otherInstallationQuoteStatuses.some((s) => s === "issued" || s === "accepted");
+}
+
+/** Office-only: the expired quote's job has a live booking or money paid (or is on hold), so it is never closed by the timer. */
+export const QUOTE_EXPIRED_HELD_REASON = "Quote expired — job has a booking or payment, check before closing";
+/** The same safety checks the decline auto-close uses (any confirmed/proposed booking, any money paid), plus on hold. */
+export function quoteExpiryHeld(f: { stage: string | null | undefined; liveBooking: boolean; paid: boolean }): boolean {
+  return f.stage === "on_hold" || f.liveBooking || f.paid;
+}
+
+/** Close + email only between 7am and 8pm Melbourne (the same quiet hours as texts); null = fine to act now. */
+export { smsQuietReason as quoteCloseQuietReason } from "./quote-hold.core";
+/** How far back the retry pass looks for expired quotes whose close or email is not finished. */
+export const QUOTE_CLOSE_RETRY_DAYS = 14;
+/** Event types of the close. `quote_expired_closed` = close AND email done (TEST send counts). */
+export const QUOTE_EXPIRED_CLOSED_EVENT = "quote_expired_closed";
+export const QUOTE_EXPIRED_CANCELLED_EVENT = "quote_expired_cancelled";
+export const QUOTE_EXPIRED_BLOCKED_EVENT = "quote_expired_not_emailable";
+export const quoteExpiredBlockedLine = (reason: string) => `Quote expired — owner can't be emailed (${reason})`;
+/** A definite provider failure is worth resending; every other outcome (sent, already attempted, uncertain, blocked) is final. */
+export const quoteExpiredEmailRetriable = (out: string): boolean => /^email failed/.test(out);

@@ -5,7 +5,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { WorkflowError, requireAdmin } from "./workflow.server";
+import { WorkflowError, requireAdmin, requireJobRole } from "./workflow.server";
 
 const uuid = z.string().uuid();
 
@@ -22,6 +22,16 @@ export const getJobPayments = createServerFn({ method: "POST" }).middleware([req
     type Out = Omit<typeof v, "ledger"> & { ledger: Row[] };
     const out: Out = { ...v, ledger: v.ledger.map((r) => ({ ...r, recordedByName: profs?.find((p) => p.id === r.recordedBy)?.full_name ?? null })) };
     return JSON.parse(JSON.stringify(out)) as Out;
+  });
+
+/** The owner's own job only (requireJobRole "owner"): the install deposit (10% of the install price, never the fixes) and the balance. Figures only. */
+export const getOwnerPaymentPlan = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireJobRole(context.supabase, data.jobId, ["owner"]);
+    const { jobPaymentView } = await import("./payments.server");
+    const v = await jobPaymentView(data.jobId);
+    return v ? { invoiceId: v.invoiceId, installDepositCents: v.plan.installDepositCents, balanceCents: v.plan.balanceCents } : null;
   });
 
 export const refreshPayNowLink = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

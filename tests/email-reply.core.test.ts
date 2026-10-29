@@ -112,15 +112,15 @@ describe("owner_status", () => {
     expect(d.text).not.toMatch(/\$\d/);
     expect(d.checkBeforeSending).toBe(true);
   });
-  test("install booked, deposit due: held-until time, bank transfer only, no card fee", () => {
+  test("install booked, deposit due: held-until time, card or bank transfer, no card fee", () => {
     const d = draft(owner("Any update on our install day?", {
       stage: "installation_booked", install: { start: "2026-11-03T21:30:00Z", end: null },
       paymentDue: { key: "install_deposit", outstanding: 185.1, dueAt: "2026-10-26T00:00:00Z", state: "requested", cardAvailable: false }, installHeldUntil: "2026-10-26T00:00:00Z",
     }));
     expect(d.text).toContain("Your install is booked for Wednesday 4 November at 8:30am.");
     expect(d.text).toContain("booking payment of $185.10");
-    expect(d.text).toContain("by bank transfer or PayID");
-    expect(d.text).not.toMatch(/card/i);
+    expect(d.text).toContain("by card, bank transfer or PayID");
+    expect(d.text).not.toMatch(/card fee/i);
     wellFormed(d, "Helen");
   });
   test("can't make the day: the reply matches the change request and nothing is promised", () => {

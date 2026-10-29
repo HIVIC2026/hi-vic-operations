@@ -11,7 +11,7 @@
 // How owners pay (decision 140 — the RBA bans card surcharges from 1 July 2026, so a card fee is NEVER shown):
 //   • $349 safety check at acceptance: card (fee absorbed by Home Insulation Victoria) or bank transfer / PayID.
 //   • Electrical fixes at approval (decision 141): card or bank transfer / PayID, so fixes are never delayed.
-//   • 10% install deposit, balance on install day, pay in full: BANK TRANSFER / PayID ONLY — no card offered.
+//   • 10% install deposit (Jo 29 Oct 2026): card, bank transfer or PayID. Balance on install day, pay in full: BANK TRANSFER / PayID ONLY — no card offered.
 // Card (decision 144) = Stripe Checkout for exactly the step amount (stripe.core.ts); Xero stays the invoice,
 // bank-transfer reference and reconciliation side. All amounts are integer cents.
 
@@ -82,9 +82,9 @@ export function paymentPlan(i: PaymentPlanInput): PaymentPlan {
 export const stepAmountCents = (p: PaymentPlan, k: PaymentStepKey) =>
   k === "safety_check" ? p.safetyCheckCents : k === "fixes" ? p.fixesCents : k === "install_deposit" ? p.installDepositCents : k === "repeat_safety_check" ? p.repeatCents : p.balanceCents;
 
-/** Decision 140/141 + 233: card only for the safety check (including the repeat check), the fixes; everything else is bank transfer / PayID only. */
+/** Decision 140/141 + 233, Jo 29 Oct 2026: card for the safety check (including the repeat check), the fixes and the 10% install deposit; the balance is bank transfer / PayID only. */
 export function paymentMethodsFor(step: PaymentStepKey): PaymentMethod[] {
-  return step === "safety_check" || step === "fixes" || step === "repeat_safety_check" ? ["card", "bank"] : ["bank"];
+  return step === "safety_check" || step === "fixes" || step === "repeat_safety_check" || step === "install_deposit" ? ["card", "bank"] : ["bank"];
 }
 export const cardAllowedFor = (step: PaymentStepKey) => paymentMethodsFor(step).includes("card");
 
@@ -487,6 +487,7 @@ export function bankDetailLines(b: BankDetails, reference: string | null): strin
 export const PAY_LINE_SAFETY_CHECK = "$349 by card or bank transfer — no fee";
 export const PAY_LINE_FIXES = "Pay by card or bank transfer — no fee";
 export const PAY_LINE_BANK_ONLY = "Bank transfer or PayID";
+export const PAY_LINE_DEPOSIT = "Card, bank transfer or PayID";
 export const PAY_LINE_HOW = "Pay by card or bank transfer — no fee either way";
 
 /** "Reference HV-0123" style tail for bank-only steps. */
@@ -494,7 +495,7 @@ export function paymentLine(step: PaymentStepKey, reference: string | null, safe
   const ref = reference ? `, reference ${reference}` : "";
   if (step === "safety_check") return safetyCheckCents === SAFETY_CHECK_CENTS ? PAY_LINE_SAFETY_CHECK : `${aud(safetyCheckCents)} by card or bank transfer — no fee`;
   if (step === "fixes" || step === "repeat_safety_check") return PAY_LINE_FIXES;
-  return `${PAY_LINE_BANK_ONLY}${ref}`;
+  return `${step === "install_deposit" ? PAY_LINE_DEPOSIT : PAY_LINE_BANK_ONLY}${ref}`;
 }
 
 /** The "How you can pay" summary on the quote / acceptance page. */
@@ -502,7 +503,7 @@ export function howYouPayLines(plan: PaymentPlan): string[] {
   return [
     `${aud(plan.safetyCheckCents)} now for the electrical safety check (card or bank transfer, no fee)`,
     ...(plan.repeatCents > 0 ? [`${aud(plan.repeatCents)} for the repeat safety check (PIESA) (card or bank transfer, no fee)`] : []),
-    `${aud(plan.installDepositCents)} deposit (10% of the install price) before your install day can be booked, by bank transfer or PayID`,
+    `${aud(plan.installDepositCents)} deposit (10% of the install price) before your install day can be booked, by card, bank transfer or PayID`,
     `${aud(plan.balanceCents)} on install day, by bank transfer or PayID`,
     `Or pay the full ${aud(plan.quoteTotalCents)} any time by bank transfer or PayID`,
   ];

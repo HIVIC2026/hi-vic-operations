@@ -1,0 +1,22 @@
+<mjml lang="en-AU">
+  <mj-head>
+    <mj-title>Your quote has expired</mj-title>
+    <mj-preview>Tap below and we'll prepare a new quote at today's prices.</mj-preview>
+    <mj-include path="./partials/head.mjml" />
+  </mj-head>
+  <mj-body>
+    <mj-wrapper css-class="card">
+      <mj-include path="./partials/header.mjml" />
+
+      <mj-section>
+        <mj-column>
+          <mj-text>Hi Helen, your insulation quote for 12 Example St, Sampletown has now expired. If you'd still like to go ahead, tap below and we'll prepare a new quote at today's prices.</mj-text>
+          <mj-button href="https://estimate.homeinsulationvictoria.com.au/my-job/TEST?screen=newquote">Send me a new quote</mj-button>
+          <mj-text>Cheers, the Home Insulation Victoria team</mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-include path="./partials/footer-owner.mjml" />
+    </mj-wrapper>
+  </mj-body>
+</mjml>

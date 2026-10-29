@@ -805,7 +805,7 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
       return { ok: true };
     }
 
-    await admin.from("declarations").upsert({ job_id: q.job_id, kind: "owner_consent", declared_by: context.userId, statement: `Owner accepted ${q.option_label} (${q.customer_total_inc_gst} inc GST): approved payment option due now (minimum upfront deposit, paid in full, or active 3-instalment plan), balance due on installation day.` }, { onConflict: "job_id,kind" });
+    await admin.from("declarations").upsert({ job_id: q.job_id, kind: "owner_consent", declared_by: context.userId, statement: `Owner accepted ${q.option_label} (${q.customer_total_inc_gst} inc GST): safety check paid at acceptance; electrical fixes in full if needed; 10% install deposit to book the install; balance on installation day.` }, { onConflict: "job_id,kind" });
     await admin.from("compliance_checks").update({ status: "pass", checked_at: new Date().toISOString() }).eq("job_id", q.job_id).eq("check_key", "owner_consent");
     await logEvent(q.job_id, context.userId, ASSIGNMENT_EVENTS.QUOTE_ACCEPTED, `${q.option_label} accepted with signed Customer Agreement / Quote Acceptance`, { quote_id: q.id, total_inc_gst: q.customer_total_inc_gst });
     // F13: the installer is told by the approved I23 email once the safety check is paid (afterPaymentsChanged in payments.server.ts, Jo 28 Oct 2026);

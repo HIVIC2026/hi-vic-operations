@@ -4,8 +4,9 @@ import { stageWording, PIESA_FULL } from "./job-wording";
 import { ownerHeadline, type OwnerHeadlineStep } from "./owner-headlines.core";
 
 export const OWNER_STEPS = ["Ready Check", "Quote", "PIESA", "Install", "Done"] as const;
-/** Decision 389: "turn" = the "It's your turn" page (O77's link): confirm the free Ready Check, or no longer interested. */
-export type OwnerScreen = "home" | "spot" | "quote" | "book" | "done" | "review" | "fixes" | "turn";
+/** Decision 389: "turn" = the "It's your turn" page (O77's link): confirm the free Ready Check, or no longer interested.
+ *  Batch 3a: "newquote" = O78's "Send me a new quote" button (new-quote-request.*). */
+export type OwnerScreen = "home" | "spot" | "quote" | "book" | "done" | "review" | "fixes" | "turn" | "newquote";
 
 const HEADLINE_BY_LEVEL: OwnerHeadlineStep[] = ["spot_saved", "ready_check_booked", "quote_ready", "booking_visits", "install_booked", "all_done"];
 
