@@ -18,7 +18,10 @@ const withoutVoided = (q: any) => {
   q.update = (v: Record<string, unknown>) => (v["status"] === "voided" ? { eq: async () => ({ data: null, error: { message: 'invalid input value for enum payment_status: "voided"' } }) } : update(v));
   return q;
 };
-mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: (t: string) => (enumWithoutVoided && t === "invoices" ? withoutVoided(memoryPostgrest(tables).from(t)) : memoryPostgrest(tables).from(t)), rpc: async () => ({ data: null, error: null }) } }));
+// `repeatReadFails`: the repeat safety check read (repeat-piesa.server, workflow_events) throws.
+let repeatReadFails = false;
+const failRead = (): never => { throw new Error("events read failed"); };
+mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: (t: string) => (repeatReadFails && t === "workflow_events" ? failRead() : enumWithoutVoided && t === "invoices" ? withoutVoided(memoryPostgrest(tables).from(t)) : memoryPostgrest(tables).from(t)), rpc: async () => ({ data: null, error: null }) } }));
 const realWorkflow = await import("../src/lib/workflow.server");
 mock.module("../src/lib/workflow.server", () => ({
   ...realWorkflow,
@@ -33,8 +36,8 @@ mock.module("../src/lib/payments.server", () => ({
 const { createInvoiceAfterAcceptance } = await import("../src/lib/invoice-after-acceptance.server");
 const xs = await import("../src/lib/xero.server");
 const { buildInvoicePayload, findInvoiceByReference, xeroReference, VEEC_INCENTIVE_LINE } = await import("../src/lib/xero.core");
-const { invoiceFailedFacts, oldFixesInvoiceFacts } = await import("../src/lib/office-needs.server");
-const { needsCandidates, OLD_FIXES_INVOICE_LINE } = await import("../src/lib/office-needs.core");
+const { invoiceFailedFacts, oldFixesInvoiceFacts, oldFixesInvoicePaidFacts } = await import("../src/lib/office-needs.server");
+const { needsCandidates, OLD_FIXES_INVOICE_LINE, oldFixesInvoicePaidLine } = await import("../src/lib/office-needs.core");
 const { cardOf } = await import("../src/lib/needs-cards.core");
 
 // ---------- mocked Xero HTTP (connector gateway) ----------
@@ -256,6 +259,37 @@ describe("superseded fixes", () => {
     expect(invoices("rectification")[0]!["status"]).toBe("xero_sync_error");
   });
 
+  // Final fix I3: money on a replaced fixes invoice reaches the office.
+  const paidRows = async () => {
+    const paid = (await oldFixesInvoicePaidFacts([J])).get(J) ?? null;
+    return needsCandidates({ jobId: J, jobNumber: "HV-0101", surname: "Smith", suburb: null, oldFixesInvoicePaid: paid }, Date.now()).filter((r) => r.kind === "old_fixes_invoice_paid");
+  };
+  test("I3: an old fixes invoice with money on it → ONE office row 'Old fixes invoice has $X paid — apply it or refund it'", async () => {
+    seedOldFixes({ total_paid: 200 });
+    await createInvoiceAfterAcceptance(QR2, J, "owner-1");
+    const rows = await paidRows();
+    expect(rows.length).toBe(1);
+    expect(rows[0]!.line).toBe("Old fixes invoice has $200 paid — apply it or refund it");
+    expect(oldFixesInvoicePaidLine(549.5)).toBe("Old fixes invoice has $549.50 paid — apply it or refund it");
+    expect(rows[0]!.group).toBe("today");
+    expect(rows[0]!.button).toEqual({ label: "Open job", to: "job", section: "money" });
+    expect(cardOf("old_fixes_invoice_paid")).toBe("payments");
+    expect(await rowsFor()).toEqual([]); // not also the "void it" row
+  });
+  test("I3: the row clears when the money is refunded (paid back to 0); the current fixes invoice's money never raises it", async () => {
+    seedOldFixes({ total_paid: 200 });
+    await createInvoiceAfterAcceptance(QR2, J, "owner-1");
+    expect((await paidRows()).length).toBe(1);
+    tables["invoices"]!.find((i) => i["id"] === OLDFIX)!["total_paid"] = 0;
+    expect(await paidRows()).toEqual([]);
+    tables["invoices"]!.find((i) => i["quote_id"] === QR2)!["total_paid"] = 700;
+    expect(await paidRows()).toEqual([]);
+  });
+  test("I3: money on an old fixes invoice that never reached Xero still raises the row", async () => {
+    seedOldFixes({ total_paid: 50, xero_invoice_id: null });
+    expect((await paidRows()).length).toBe(1);
+  });
+
   test("the current accepted fixes invoice is never flagged", async () => {
     await createInvoiceAfterAcceptance(QR, J, "owner-1");
     expect(await rowsFor()).toEqual([]);
@@ -297,6 +331,17 @@ describe("Xero failure on the fixes invoice", () => {
     expect(fx[0]!["xero_reference"]).toBe("Home Insulation Victoria HV-0101 fixes");
     expect(creates().length).toBe(1);
     expect(invoices("installation")).toEqual([installRow!]);
+  });
+  test("office Create invoice: the repeat safety check read failing only adds an error — the install and fixes retries still run", async () => {
+    const { createInvoiceForJob } = await import("../src/lib/office-money.server");
+    expect(invoices("rectification").length).toBe(0);
+    repeatReadFails = true;
+    let err: unknown = null;
+    try { await createInvoiceForJob(J, "office-1"); } catch (e) { err = e; } finally { repeatReadFails = false; }
+    expect(String((err as Error)?.message)).toContain("Repeat safety check: events read failed");
+    const fx = invoices("rectification");
+    expect(fx.length).toBe(1);
+    expect(fx[0]!["xero_invoice_id"]).toBeTruthy();
   });
   test("an installation invoice failure keeps its wording", async () => {
     tables["invoices"] = []; xero = []; // nothing in Xero to adopt

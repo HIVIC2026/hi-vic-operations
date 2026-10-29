@@ -9,6 +9,7 @@ import { electricalBillingSource } from "./installer-led.core";
 import { payoutGateFacts } from "./trade-payout-gate.server";
 import { PAYOUT_FORM_NOT_COMPLETE, tradePayoutBlockers } from "./trade-payout-gate.core";
 import { installerPayHeldReasons, ownerPaidInFullAt, payState } from "./trade-view.core";
+import type { RepeatState } from "./repeat-piesa.core";
 
 const db = admin as any; // eslint-disable-line @typescript-eslint/no-explicit-any
 const chunks = <T,>(xs: T[], n = 100) => Array.from({ length: Math.ceil(xs.length / n) }, (_, i) => xs.slice(i * n, i * n + n));
@@ -348,17 +349,19 @@ export async function createInvoiceForJob(jobId: string, actorId: string | null)
   catch (e) { throw new WorkflowError((e as Error).message); }
   const quoteIds = [q?.id, fixes?.status === "accepted" ? fixes.id : null].filter((x): x is string => !!x);
   // Batch 3b: an owner-paid repeat safety check the owner accepted (not yet paid) gets its own invoice too.
-  const { repeatPiesaContext } = await import("./repeat-piesa.server");
-  const { state: repeat } = await repeatPiesaContext(jobId);
-  const repeatDue = repeat.stage === "owner_pay" && repeat.payer === "owner" && !!repeat.deadline && !!repeat.priceIncGst;
-  if (!quoteIds.length && !repeatDue) throw new WorkflowError("This job has no accepted quote, so there is nothing to invoice.");
-  const { createInvoiceAfterAcceptance } = await import("./invoice-after-acceptance.server");
+  // A failure reading it only adds to the errors: the install and fixes retries still run.
   const errors: string[] = [];
+  let repeat: RepeatState | null = null;
+  try { repeat = (await (await import("./repeat-piesa.server")).repeatPiesaContext(jobId)).state; }
+  catch (e) { errors.push(`Repeat safety check: ${(e as Error)?.message ?? String(e)}`); }
+  const repeatDue = !!repeat && repeat.stage === "owner_pay" && repeat.payer === "owner" && !!repeat.deadline && !!repeat.priceIncGst;
+  if (!quoteIds.length && !repeatDue) throw new WorkflowError(errors.length ? `The invoice still did not reach Xero: ${errors.join(" · ")}` : "This job has no accepted quote, so there is nothing to invoice.");
+  const { createInvoiceAfterAcceptance } = await import("./invoice-after-acceptance.server");
   for (const id of quoteIds) {
     const r = await createInvoiceAfterAcceptance(id, jobId, actorId);
     if (!r.ok) errors.push(`${id === q?.id ? "Invoice" : "Fixes invoice"}: ${r.error ?? "unknown error"}`);
   }
-  if (repeatDue) {
+  if (repeatDue && repeat) {
     try {
       const { createRepeatInvoice } = await import("./xero.server");
       const { invoiceId } = await createRepeatInvoice(jobId, repeat.deadline!, repeat.priceIncGst!);

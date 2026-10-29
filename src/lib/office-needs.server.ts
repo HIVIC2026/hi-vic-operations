@@ -103,20 +103,39 @@ export async function invoiceFailedFacts(jobIds: string[]): Promise<Map<string, 
   return out;
 }
 
+/** Batch 3b: every fixes invoice whose fixes quote a newer one replaced, matched to the jobs here (few rows: no long id
+ *  lists in the URL). Feeds the two "old fixes invoice" rows below from ONE read. */
+async function oldFixesInvoiceRows(jobIds: string[]): Promise<Row[]> {
+  if (!jobIds.length) return [];
+  const want = new Set(jobIds);
+  const rows = await all("old fixes invoices", (a, b) => admin.from("invoices").select("job_id, created_at, total_paid, xero_invoice_id, xero_invoice_status, quotes!inner(status)").eq("kind", "rectification").eq("quotes.status", "superseded").range(a, b));
+  return rows.filter((r) => want.has(String(r["job_id"])));
+}
+
 /** Batch 3b ("superseded fixes"): a fixes invoice linked to Xero whose fixes quote a newer one replaced, nothing paid on it
  *  and not voided/deleted in Xero → the office voids it in Xero. Clears itself once Sync reads it as voided, or money lands. */
-export async function oldFixesInvoiceFacts(jobIds: string[]): Promise<Map<string, NonNullable<NeedsFacts["oldFixesInvoiceUnpaid"]>>> {
+export async function oldFixesInvoiceFacts(jobIds: string[], pre?: Row[]): Promise<Map<string, NonNullable<NeedsFacts["oldFixesInvoiceUnpaid"]>>> {
   const out = new Map<string, NonNullable<NeedsFacts["oldFixesInvoiceUnpaid"]>>();
-  if (!jobIds.length) return out;
-  const want = new Set(jobIds);
-  // Few rows: every linked fixes invoice on a superseded quote, matched to the jobs here (no long id lists in the URL).
-  const rows = await all("old fixes invoices", (a, b) => admin.from("invoices").select("job_id, created_at, total_paid, xero_invoice_status, quotes!inner(status)").eq("kind", "rectification").eq("quotes.status", "superseded").not("xero_invoice_id", "is", null).range(a, b));
-  for (const r of rows) {
+  for (const r of pre ?? await oldFixesInvoiceRows(jobIds)) {
     const id = String(r["job_id"]);
-    if (!want.has(id) || Number(r["total_paid"] ?? 0) > 0 || ["VOIDED", "DELETED"].includes(String(r["xero_invoice_status"] ?? "").toUpperCase())) continue;
+    if (!r["xero_invoice_id"] || Number(r["total_paid"] ?? 0) > 0 || ["VOIDED", "DELETED"].includes(String(r["xero_invoice_status"] ?? "").toUpperCase())) continue;
     const at = String(r["created_at"]);
     const had = out.get(id);
     if (!had || at < had.at) out.set(id, { at });
+  }
+  return out;
+}
+
+/** Final fix I3: money on a fixes invoice whose fixes quote a newer one replaced → the office applies it or refunds it.
+ *  Clears when the paid amount goes back to 0 (refund / reversal: `total_paid` follows the money down). Summed per job. */
+export async function oldFixesInvoicePaidFacts(jobIds: string[], pre?: Row[]): Promise<Map<string, NonNullable<NeedsFacts["oldFixesInvoicePaid"]>>> {
+  const out = new Map<string, NonNullable<NeedsFacts["oldFixesInvoicePaid"]>>();
+  for (const r of pre ?? await oldFixesInvoiceRows(jobIds)) {
+    const paid = Number(r["total_paid"] ?? 0);
+    if (!(paid > 0)) continue;
+    const id = String(r["job_id"]); const at = String(r["created_at"]);
+    const had = out.get(id);
+    out.set(id, { at: had && had.at < at ? had.at : at, paid: Math.round(((had?.paid ?? 0) + paid) * 100) / 100 });
   }
   return out;
 }
@@ -490,7 +509,9 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   } catch { unavailable.push("failed invoices"); }
   // Batch 3b: a newer fixes quote replaced an accepted one whose own Xero invoice is still unpaid → one Money row.
   try {
-    for (const [id, hit] of await oldFixesInvoiceFacts([...idSet])) { const x = f(id); if (x) x.oldFixesInvoiceUnpaid = hit; }
+    const oldFixes = await oldFixesInvoiceRows([...idSet]);
+    for (const [id, hit] of await oldFixesInvoiceFacts([], oldFixes)) { const x = f(id); if (x) x.oldFixesInvoiceUnpaid = hit; }
+    for (const [id, hit] of await oldFixesInvoicePaidFacts([], oldFixes)) { const x = f(id); if (x) x.oldFixesInvoicePaid = hit; }
   } catch { unavailable.push("old fixes invoices"); }
   // Decision 315: 24h after the fixes-times link with no times → one "Electrician hasn't given fixes times" row.
   for (const [id, r] of fixesTimesMissing({ links: fixesLinks.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]) })), given: fixesGiven.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]) })), now })) {
