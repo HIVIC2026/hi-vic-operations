@@ -193,7 +193,6 @@ function MittiOnly({ jobId, which }: { jobId: string; which: "ready_check" | "pi
 }
 
 // ---------- Electrician: one visit, in onsite order ----------
-type A = Record<string, string | number | boolean | null>;
 
 function ElectricianFlow({ jobId, stage }: { jobId: string; stage: string }) {
   const mittiInvited = useMittiInvited();

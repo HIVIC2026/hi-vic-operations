@@ -23,9 +23,11 @@ function block(src: string, name: string) {
 }
 describe("server functions enforce it", () => {
   const portal = readFileSync("src/lib/portal.functions.ts", "utf8");
-  for (const fn of ["completeAssessment", "recordPiesa"]) test(`${fn}: requireJobRole then requireClearanceRecorder, before any read or write`, () => {
+  // C4 (Jo 28 Oct 2026): PIESA results come from Mitti only, so saveAssessment and recordPiesa are office-only; completeAssessment still takes the electrician.
+  const roles: [string, string][] = [["completeAssessment", '["admin", "electrician"]'], ["saveAssessment", '["admin"]'], ["recordPiesa", '["admin"]']];
+  for (const [fn, allowed] of roles) test(`${fn}: requireJobRole(${allowed}) then requireClearanceRecorder, before any read or write`, () => {
     const b = block(portal, fn);
-    const role = b.indexOf('const jobRole = await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);');
+    const role = b.indexOf(`const jobRole = await requireJobRole(context.supabase, data.jobId, ${allowed});`);
     const guard = b.indexOf("await requireClearanceRecorder(context.supabase as never, jobRole, context.userId);");
     expect(role).toBeGreaterThan(0);
     expect(guard).toBeGreaterThan(role);
