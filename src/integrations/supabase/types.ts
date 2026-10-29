@@ -41,6 +41,36 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_reply_answers: {
+        Row: {
+          active: boolean
+          answer: string
+          id: string
+          sort: number
+          topic: string
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          active?: boolean
+          answer: string
+          id?: string
+          sort?: number
+          topic: string
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          active?: boolean
+          answer?: string
+          id?: string
+          sort?: number
+          topic?: string
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       application_reviews: {
         Row: {
           application_id: string
