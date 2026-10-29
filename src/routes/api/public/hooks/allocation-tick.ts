@@ -237,6 +237,14 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['jobOfferTexts'] = "failed";
         }
         try {
+          // Decision 215 / spec D4: a couldn't-get-in text held after 8pm goes at 7am (same key, never twice).
+          const { sweepInstallNoAccessTexts } = await import("@/lib/install-no-access-notice.server");
+          (out as Record<string, unknown>)['installNoAccessTexts'] = await timed("sweepInstallNoAccessTexts", () => sweepInstallNoAccessTexts());
+        } catch (e) {
+          console.error("allocation tick: couldn't-get-in text catch-up failed", (e as Error).message);
+          (out as Record<string, unknown>)['installNoAccessTexts'] = "failed";
+        }
+        try {
           // Decision 238: estimate-only leads get a reminder on day 2, 7 and 21 after the estimate email, then an
           // automatic close a week after the day-21 email (held until the wording is approved; TEST → test sender).
           const { sweepEstimateFollowups } = await import("@/lib/estimate-followup.server");
