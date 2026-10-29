@@ -51,3 +51,25 @@ describe("D3 fix round: install day reads the install form", () => {
     expect(body).toContain('dayKind === "install" ? installMittiId : a?.external_mitti_id');
   });
 });
+
+import { crewSelectionProblems } from "../src/lib/piisa-a3.core";
+describe("D5 Lead + 2, Lead from the Team list", () => {
+  const s = (id: string) => ({ workerId: id, name: id, eec: `CII-${id}`, eecVerified: true });
+  const staff = ["a", "b", "c", "d"].map(s);
+  test("Lead and 2 more, no more", () => {
+    expect(crewSelectionProblems({ lead: "a", additional: [{ workerId: "b" }, { workerId: "c" }] }, staff).problems).toEqual([]);
+    expect(crewSelectionProblems({ lead: "a", additional: [{ workerId: "b" }, { workerId: "c" }, { workerId: "d" }] }, staff).problems).toContain("The install form has room for a Lead and 2 more");
+    expect(src("src/lib/piisa-a3.functions.ts")).toContain("additional: z.array(pick).max(2)");
+    expect(src("src/components/trade/PiisaCrewPicker.tsx")).toContain("extra.length < 2");
+    expect(src("src/components/trade/PiisaCrewPicker.tsx")).not.toContain("extra.length < 3");
+  });
+  test("no typed-in Lead; crew members may still be entered", () => {
+    expect(crewSelectionProblems({ lead: { other: { name: "Zed New", eec: "Z-1" } }, additional: [] }, staff).problems).toEqual(["Choose the Lead from your Team list"]);
+    expect(crewSelectionProblems({ lead: null, additional: [] }, staff).problems).toEqual(["Choose the Lead from your Team list"]);
+    expect(crewSelectionProblems({ lead: "a", additional: [{ other: { name: "Zed New", eec: "Z-1" } }] }, staff).needsVerification).toEqual(["Zed New (EEC Z-1) must be verified by the office before work starts"]);
+    expect(src("src/lib/piisa-a3.functions.ts")).toContain("lead: z.string().uuid().nullable()");
+    const picker = src("src/components/trade/PiisaCrewPicker.tsx");
+    expect(picker).not.toContain("data-lead-other");
+    expect(picker).toContain("No CII-cleared installer is on your Team list yet. Add them under My business → Team.");
+  });
+});

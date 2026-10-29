@@ -14,12 +14,12 @@ const tag = (s: StaffOption) => s.cleared === false ? ` · ${s.clearanceReason ?
 export function PiisaCrewPicker({ jobId }: { jobId: string }) {
   const get = useServerFn(getPiisaCrew), save = useServerFn(savePiisaCrew);
   const { data, refetch } = useQuery({ queryKey: ["piisa-crew", jobId], queryFn: () => get({ data: { jobId } }) });
-  const [lead, setLead] = useState<CrewSelection["lead"]>(null);
+  const [lead, setLead] = useState<string | null>(null);
   const [extra, setExtra] = useState<CrewPick[]>([]);
   const [editing, setEditing] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (!data) return; if (data.selection) { setLead(data.selection.lead); setExtra(data.selection.additional); } else { const r = data.staff.filter(ready); if (r.length === 1 && r[0]) setLead(r[0].workerId); } }, [data]);
+  useEffect(() => { if (!data) return; if (data.selection) { setLead(typeof data.selection.lead === "string" ? data.selection.lead : null); setExtra(data.selection.additional); } else { const r = data.staff.filter(ready); if (r.length === 1 && r[0]) setLead(r[0].workerId); } }, [data]);
   if (!data) return null;
   const check = crewSelectionProblems({ lead, additional: extra }, data.staff);
   const sel = "min-h-11 w-full rounded-xl border border-line bg-paper px-3 text-[15px]";
@@ -30,19 +30,14 @@ export function PiisaCrewPicker({ jobId }: { jobId: string }) {
   const form = (
     <div className="mt-2" data-piisa-crew-form>
       <p className="text-[13px] text-sub" data-native-lookup-note>{A3_NATIVE_CREW_LOOKUP.note}</p>
-      {!data.staff.some(ready) && <p className="mt-2 text-sm font-semibold" data-no-staff>No CII-cleared installer is on your staff list yet. Enter the lead installer under Enter installer details; the office must check them before work starts.</p>}
+      {!data.staff.some(ready) && <p className="mt-2 text-sm font-semibold" data-no-staff>No CII-cleared installer is on your Team list yet. Add them under My business → Team.</p>}
       <label className="mt-3 block text-sm font-semibold">Lead installer
-        <select aria-label="Lead installer" className={`${sel} mt-1`} value={typeof lead === "string" ? lead : lead ? "other" : ""} onChange={(e) => setLead(e.target.value === "other" ? { other: { name: "", eec: "" } } : e.target.value || null)}>
+        <select aria-label="Lead installer" className={`${sel} mt-1`} value={lead ?? ""} onChange={(e) => setLead(e.target.value || null)}>
           <option value="">Choose</option>
           {data.staff.map((s) => <option key={s.workerId} value={s.workerId} disabled={!ready(s)}>{s.name}{tag(s)}</option>)}
-          <option value="other">Enter installer details</option>
         </select>
       </label>
       {typeof lead === "string" && (() => { const s0 = data.staff.find((x) => x.workerId === lead); return s0 ? <p className="mt-2 text-sm" data-lead-cert>{s0.name} · EEC {s0.eecVerified && s0.eec ? `${s0.eec} (checked certificate on file)` : "not verified"}</p> : null; })()}
-      {typeof lead === "object" && lead !== null && <div className="mt-2 grid grid-cols-2 gap-2" data-lead-other>
-        <input className={sel} aria-label="Lead installer full legal name" placeholder="Full legal name" value={lead.other.name} onChange={(e) => setLead({ other: { ...lead.other, name: e.target.value } })} />
-        <input className={sel} aria-label="Lead installer Certified Insulation Installer (CII) certification number" placeholder="Certified Insulation Installer (CII) certification number" value={lead.other.eec} onChange={(e) => setLead({ other: { ...lead.other, eec: e.target.value } })} />
-      </div>}
       {extra.map((a, i) => (
         <div key={i} className="mt-3 space-y-2">
           <select className={sel} aria-label={`Crew member ${i + 2}`} value={"workerId" in a ? a.workerId : "other"} onChange={(e) => setExtra(extra.map((x, j) => j !== i ? x : e.target.value === "other" ? { other: { name: "", eec: "" } } : { workerId: e.target.value }))}>
@@ -57,7 +52,7 @@ export function PiisaCrewPicker({ jobId }: { jobId: string }) {
           <button type="button" className="min-h-9 text-sm font-semibold text-hiv-blue" onClick={() => setExtra(extra.filter((_, j) => j !== i))}>Remove</button>
         </div>
       ))}
-      {extra.length < 3 && <QuietButton className="mt-3" onClick={() => setExtra([...extra, (() => { const next = data.staff.find((s) => ready(s) && s.workerId !== lead && !extra.some((x) => "workerId" in x && x.workerId === s.workerId)); return next ? { workerId: next.workerId } : { other: { name: "", eec: "" } }; })()])}>Add another installer</QuietButton>}
+      {extra.length < 2 && <QuietButton className="mt-3" onClick={() => setExtra([...extra, (() => { const next = data.staff.find((s) => ready(s) && s.workerId !== lead && !extra.some((x) => "workerId" in x && x.workerId === s.workerId)); return next ? { workerId: next.workerId } : { other: { name: "", eec: "" } }; })()])}>Add another installer</QuietButton>}
       {(check.problems.length > 0 || check.needsVerification.length > 0) && <ul className="mt-3 list-disc pl-5 text-sm">{[...check.problems, ...check.needsVerification].map((p) => <li key={p}>{p}</li>)}</ul>}
       <QuietButton className="mt-3 border-hiv-blue" disabled={busy || check.problems.length > 0} onClick={async () => { setBusy(true); setMsg(null); try { const r = await save({ data: { jobId, lead, additional: extra } }); setMsg(r.needsVerification.length ? "Saved. The office must check the extra installer before work starts." : "Crew saved."); setEditing(false); await refetch(); } catch (e) { setMsg(e instanceof Error ? e.message : "Couldn't save."); } finally { setBusy(false); } }}>{busy ? "Saving…" : "Save crew"}</QuietButton>
     </div>
@@ -72,7 +67,7 @@ export function PiisaCrewPicker({ jobId }: { jobId: string }) {
           </div>
         ); })}
         {!editing && !saved && form}
-        {saved && !editing && <LinkRow onClick={() => setEditing(true)}>{saved.additional.length < 3 ? "Add a crew member" : "Change the crew"}</LinkRow>}
+        {saved && !editing && <LinkRow onClick={() => setEditing(true)}>{saved.additional.length < 2 ? "Add a crew member" : "Change the crew"}</LinkRow>}
         {saved && editing && form}
         {msg && <p role="status" className="mt-2 text-sm font-semibold">{msg}</p>}
         <Note>Only CII-cleared staff can be on an install. The crew goes on the PIISA.</Note>

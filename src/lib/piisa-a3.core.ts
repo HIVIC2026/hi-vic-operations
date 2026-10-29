@@ -564,29 +564,21 @@ export type CrewPick = { workerId: string } | { other: { name: string; eec: stri
 export type CrewSelection = { lead: string | { other: { name: string; eec: string } } | null; additional: CrewPick[] };
 export const leadWorkerId = (sel: CrewSelection): string | null => typeof sel.lead === "string" ? sel.lead : null;
 
-/** Lead = cleared staff (decision 153: verified CII + recorded level + not expired) of the assigned installer business; ≤3 additional; no duplicates; "Other" needs name + EEC and office verification. */
+/** Lead = cleared staff (decision 153: verified CII + recorded level + not expired) of the assigned installer business; ≤2 additional (Lead + 2); a crew member may be "Other" (name + EEC, office verification); the Lead may not. */
 export function crewSelectionProblems(sel: CrewSelection, staff: StaffOption[]): { problems: string[]; needsVerification: string[] } {
   const p: string[] = [], nv: string[] = [];
   const byId = new Map(staff.map((s) => [s.workerId, s]));
   const leadId = leadWorkerId(sel);
   const lead = leadId ? byId.get(leadId) : undefined;
-  const leadOther = sel.lead && typeof sel.lead === "object" ? { name: sel.lead.other.name.trim(), eec: sel.lead.other.eec.trim() } : null;
   // Not cleared (derived) blocks; a legacy shape without `cleared` falls through to the EEC check below.
   const notCleared = (s: StaffOption) => s.cleared === false;
   const clearMsg = (s: StaffOption) => `${s.name}: ${s.clearanceReason ?? "not cleared for the crew yet"} — can't go on the safety form yet`;
   const seenIds = new Set<string>(leadId ? [leadId] : []);
   const seenEec = new Set<string>();
   const seenName = new Set<string>();
-  if (leadOther) {
-    if (!leadOther.name || !leadOther.eec) p.push("Other lead installer needs a full name and EEC certification number");
-    else {
-      const known = staff.find((s) => norm(s.name) === norm(leadOther.name) || (s.eec && norm(s.eec) === norm(leadOther.eec)));
-      if (known) p.push(`${known.name} is already on your staff list — choose them instead of Other`);
-      else nv.push(`Lead installer ${leadOther.name} (EEC ${leadOther.eec}) must be verified by the office before work starts`);
-      seenName.add(norm(leadOther.name)); seenEec.add(norm(leadOther.eec));
-    }
-  } else if (leadId && !lead) p.push("The lead installer is not on your staff list");
-  else if (!lead) p.push("Choose the lead installer from your staff, or Other");
+  // Jo 29 Oct 2026: the Lead must come from the Team list (needs a Mitti login); a typed-in or empty Lead is refused.
+  if (!leadId) p.push("Choose the Lead from your Team list");
+  else if (!lead) p.push("The lead installer is not on your staff list");
   else if (lead.workerRole === "crew") p.push(`${lead.name} ${CREW_NOT_LEAD_MESSAGE}`);
   else if (notCleared(lead)) p.push(clearMsg(lead));
   else if (!lead.eecVerified || !lead.eec) p.push(`${lead.name}: EEC certification not verified`);
@@ -594,7 +586,7 @@ export function crewSelectionProblems(sel: CrewSelection, staff: StaffOption[]):
   else if (lead.whiteCardBlocked) p.push(`${lead.name}: ${WHITE_CARD_BLOCK_MESSAGE}`);
   else if (lead.declarationsDue === true) p.push(`${lead.name}: ${DECLARATIONS_DUE_MESSAGE}`);
   if (lead) { seenName.add(norm(lead.name)); if (lead.eec) seenEec.add(norm(lead.eec)); }
-  if (sel.additional.length > 3) p.push("The official form has room for 3 additional installers");
+  if (sel.additional.length > 2) p.push("The install form has room for a Lead and 2 more");
   for (const a of sel.additional) {
     if ("workerId" in a) {
       const s = byId.get(a.workerId);
