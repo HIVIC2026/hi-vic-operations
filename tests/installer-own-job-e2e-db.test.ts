@@ -75,6 +75,7 @@ const rels: Rels = {
   jobs: { properties: { table: "properties", fk: "property_id", on: "base" }, owners: { table: "owners", fk: "owner_id", on: "base" } },
   bookings: { jobs: { table: "jobs", fk: "job_id", on: "base" } },
   ceiling_measurements: { jobs: { table: "jobs", fk: "job_id", on: "base" } },
+  quotes: { quote_items: { table: "quote_items", fk: "quote_id", on: "rel" } }, // real FK quote_items.quote_id -> quotes.id; loadInstallerQuote embeds it
   assessments: { jobs: { table: "jobs", fk: "job_id", on: "base" } },
   job_assignments: { businesses: { table: "businesses", fk: "business_id", on: "base" }, profiles: { table: "profiles", fk: "user_id", on: "base" } },
 };
