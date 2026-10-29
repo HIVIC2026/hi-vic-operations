@@ -293,7 +293,8 @@ function melbourneDate(daysAhead: number) {
 }
 
 /** Pay one owner payment step in full (decisions 139/302/367) as a TEST payment in the Xero Demo Company: the amount is what
- *  the job's own payment plan says is still owing on that step. TEST jobs only (recordDemoTestPayment refuses others). */
+ *  the job's own payment plan says is still owing on that step. TEST jobs only (recordDemoTestPayment refuses others).
+ *  Paid on that step's own invoice (batch 3b, Jo 29 Oct 2026). */
 async function payStep(ctx: JourneyCtx, r: StepResult, step: "safety_check" | "fixes" | "install_deposit" | "balance", label: string) {
   await assertOwnTestJob(ctx);
   const { jobPaymentView } = await import("./payments.server");
@@ -302,7 +303,9 @@ async function payStep(ctx: JourneyCtx, r: StepResult, step: "safety_check" | "f
   const owing = v!.steps.find((s) => s.key === step)?.outstandingCents ?? 0;
   if (owing <= 0) { check(r, `${label} (nothing owing)`, true); return; }
   const x = await import("./xero.server");
-  await act(r, label, () => x.recordDemoTestPayment(v!.invoiceId, owing / 100, ctx.actorId));
+  const { payStepInvoiceId } = await import("./journey.core");
+  const invoiceId = payStepInvoiceId(v!, step);
+  await act(r, label, () => x.recordDemoTestPayment(invoiceId, owing / 100, ctx.actorId));
   const after = (await jobPaymentView(ctx.jobId!))!.steps.find((s) => s.key === step);
   check(r, `${step.replace(/_/g, " ")} step paid`, after?.state === "paid", after?.state);
 }
