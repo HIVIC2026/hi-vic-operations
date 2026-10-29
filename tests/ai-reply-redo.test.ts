@@ -1,5 +1,6 @@
 // AI replies step 1 (redo blocked drafts), task 1: before release, AI replies may explain the Ready Check but never promise timing.
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { AI_RELEASE_MEANS, AI_WAIT_LINE, aiPreReleaseViolations, aiReplyInstructions, aiReplyProblems, buildAiReplyInput, type AiReplyContext } from "../src/lib/ai-email-reply.core";
 
 describe("aiPreReleaseViolations (timing only)", () => {
@@ -125,5 +126,33 @@ describe("fixUntilClean", () => {
       expect(r.body).toBe(bad);
       expect(r.problems.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("task 4: the loop at draft time and on Send (source checks)", () => {
+  const server = readFileSync("src/lib/ai-email-reply.server.ts", "utf8");
+  const tab = readFileSync("src/lib/emails-tab.server.ts", "utf8");
+  const fn = (name: string) => { const i = server.indexOf(`export async function ${name}`); return server.slice(i, server.indexOf("\nexport ", i + 10) === -1 ? undefined : server.indexOf("\nexport ", i + 10)); };
+  test("writeAiReplyDraft runs fixUntilClean after finishAiReply(raw) and saves what remains", () => {
+    const w = fn("writeAiReplyDraft");
+    expect(w.indexOf("finishAiReply(raw)")).toBeGreaterThan(-1);
+    expect(w.indexOf("fixUntilClean(")).toBeGreaterThan(w.indexOf("finishAiReply(raw)"));
+    expect(w).toContain("fixUntilClean(first, preRelease, aiText)");
+  });
+  test("sendAiDraft rewrites, saves the edit and returns rewritten before any send", () => {
+    const s = fn("sendAiDraft");
+    expect(s).toContain("fixUntilClean(");
+    expect(s).toContain("saveDraftEdit(");
+    expect(s).toContain('status: "rewritten"');
+    expect(s.indexOf('status: "rewritten"')).toBeLessThan(s.indexOf("sendGuardedOwnerEmail"));
+    expect(s.indexOf("openDraft(")).toBeLessThan(s.indexOf("fixUntilClean("));
+    expect(s).not.toContain("throw new Error(problems.join");
+    expect(s).not.toContain("throw new Error(basic.join");
+  });
+  test("sendJobEmailReply returns a rewritten result unchanged, with no reply-sent events", () => {
+    const t = tab.slice(tab.indexOf("export async function sendJobEmailReply"));
+    const body = t.slice(0, t.indexOf("\nexport ", 10));
+    expect(body).toContain('r.status === "rewritten"');
+    expect(body.indexOf('r.status === "rewritten"')).toBeLessThan(body.indexOf("applyEmailChange"));
   });
 });

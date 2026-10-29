@@ -41,8 +41,12 @@ describe("sendAiDraft and the spot-only rule", () => {
   test("pre-release owner: Ready Check wording is refused, nothing sent", async () => {
     reset({});
     const { sendAiDraft } = await import("../src/lib/ai-email-reply.server");
-    await expect(sendAiDraft("d1", BAD, "u1")).rejects.toThrow(/released/);
+    const r = await sendAiDraft("d1", BAD, "u1");
+    expect(r.status).toBe("rewritten");
+    expect((r as { problems: string[] }).problems.join(" ")).toMatch(/released/);
     expect(world.sent).toBe(0);
+    expect(world.inserts.some((i) => i["event_type"] === "email_ai_draft_edited")).toBe(true);
+    expect(world.inserts.some((i) => i["event_type"] === "email_ai_draft_sent")).toBe(false);
   });
   test("confirmed owner: the same reply goes", async () => {
     reset({ state: "confirmed" });
@@ -58,7 +62,7 @@ describe("sendAiDraft and the spot-only rule", () => {
   test("final fix: does not fail open — the job already read at Send decides, a failing second read can't let it through", async () => {
     reset({ failLaterJobReads: true });
     const { sendAiDraft } = await import("../src/lib/ai-email-reply.server");
-    await expect(sendAiDraft("d1", BAD, "u1")).rejects.toThrow(/released/);
+    expect((await sendAiDraft("d1", BAD, "u1")).status).toBe("rewritten");
     expect(world.sent).toBe(0);
   });
   test("F1: owner already offered times (awaiting acceptance) is not pre-release at Send", async () => {
@@ -69,10 +73,10 @@ describe("sendAiDraft and the spot-only rule", () => {
   test("uses the CURRENT state at Send, not the state at draft time", async () => {
     const { sendAiDraft } = await import("../src/lib/ai-email-reply.server");
     reset({ state: "none" });
-    await expect(sendAiDraft("d1", BAD, "u1")).rejects.toThrow(/released/);
+    expect((await sendAiDraft("d1", BAD, "u1")).status).toBe("rewritten");
     world.state = "confirmed"; // owner confirms between drafting and Send
     expect((await sendAiDraft("d1", BAD, "u1")).status).toBe("sent");
     world.state = "none"; // back to unconfirmed (new release) -> refused again
-    await expect(sendAiDraft("d1", BAD, "u1")).rejects.toThrow(/released/);
+    expect((await sendAiDraft("d1", BAD, "u1")).status).toBe("rewritten");
   });
 });
