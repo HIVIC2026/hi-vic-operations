@@ -253,6 +253,18 @@ export async function syncInvoiceFromXero(invoiceId: string, actorId: string | n
     const r = await call(`/api.xro/2.0/Invoices/${inv.xero_invoice_id}`);
     const x = r.Invoices[0] ?? {};
     const ev = evaluateXeroInvoice(x, Number(inv.deposit_amount));
+    if (ev.voided && inv.kind === "rectification" && inv.quote_id) {
+      // Batch 3b: an old fixes invoice whose fixes quote a newer one replaced is voided in Xero on purpose (Needs me "Old
+      // fixes invoice unpaid — void it in Xero"). That is its normal end, not a sync problem: no error, no problem row.
+      const { data: fq } = await admin.from("quotes").select("status").eq("id", inv.quote_id).maybeSingle();
+      if (fq?.status === "superseded") {
+        const was = String(inv.xero_invoice_status ?? "").toUpperCase();
+        await admin.from("invoices").update({ xero_invoice_status: x.Status, last_sync_error: null, last_synced_at: new Date().toISOString(), ...(inv.status === "xero_sync_error" ? { status: "deposit_due" as const } : {}) }).eq("id", invoiceId);
+        await syncLog(invoiceId, true, { status: x.Status, old_fixes_invoice: true }, undefined, "inbound");
+        if (was !== String(x.Status ?? "").toUpperCase()) await logEvent(inv.job_id, actorId, "xero_invoice_voided", `Old fixes invoice ${inv.xero_invoice_number ?? ""} is ${x.Status} in Xero – replaced by the newer fixes quote`.replace("  ", " "), { invoice_id: invoiceId, old_fixes_invoice: true }, { internal: true });
+        return;
+      }
+    }
     if (ev.voided) {
       const msg = `Xero invoice is ${x.Status} – payment not confirmed; admin must re-issue or override with reason.`;
       await admin.from("invoices").update({ status: "xero_sync_error", xero_invoice_status: x.Status, last_sync_error: msg, last_synced_at: new Date().toISOString() }).eq("id", invoiceId);

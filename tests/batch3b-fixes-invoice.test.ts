@@ -206,6 +206,34 @@ describe("superseded fixes", () => {
     expect(await rowsFor()).toEqual([]);
   });
 
+  test("office voids the old one in Xero → Sync records it as finished: no sync error, no problem row, Needs me row gone", async () => {
+    seedOldFixes();
+    await createInvoiceAfterAcceptance(QR2, J, "owner-1");
+    expect((await rowsFor()).length).toBe(1);
+    xero.find((x) => x.InvoiceID === "x-oldfix")!.Status = "VOIDED";
+    await xs.syncInvoiceFromXero(OLDFIX, "office-1");
+    const old = tables["invoices"]!.find((i) => i["id"] === OLDFIX)!;
+    expect(old["status"]).not.toBe("xero_sync_error");
+    expect(old["last_sync_error"] ?? null).toBeNull();
+    expect(old["xero_invoice_status"]).toBe("VOIDED");
+    // office.server "Xero problems" read: last_sync_error set or status xero_sync_error → none on this job.
+    expect(tables["invoices"]!.filter((i) => i["job_id"] === J && (i["last_sync_error"] != null || i["status"] === "xero_sync_error"))).toEqual([]);
+    expect(await rowsFor()).toEqual([]);
+    expect((await invoiceFailedFacts([J])).size).toBe(0);
+    // A second Sync logs nothing new.
+    const n = tables["workflow_events"]!.length;
+    await xs.syncInvoiceFromXero(OLDFIX, "office-1");
+    expect(tables["workflow_events"]!.length).toBe(n);
+  });
+
+  test("the CURRENT fixes invoice voided in Xero is still a sync problem (unchanged)", async () => {
+    await createInvoiceAfterAcceptance(QR, J, "owner-1");
+    const fx = invoices("rectification")[0]!;
+    xero.find((x) => x.InvoiceID === fx["xero_invoice_id"])!.Status = "VOIDED";
+    await xs.syncInvoiceFromXero(String(fx["id"]), "office-1");
+    expect(invoices("rectification")[0]!["status"]).toBe("xero_sync_error");
+  });
+
   test("the current accepted fixes invoice is never flagged", async () => {
     await createInvoiceAfterAcceptance(QR, J, "owner-1");
     expect(await rowsFor()).toEqual([]);
@@ -234,6 +262,19 @@ describe("Xero failure on the fixes invoice", () => {
     expect(invoices("rectification")[0]!["xero_reference"]).toBe("Home Insulation Victoria HV-0101 fixes");
     rows = await rowsFor();
     expect(rows).toEqual([]);
+  });
+  test("office Create invoice also creates a missing fixes invoice (no local row after the failure), once only", async () => {
+    const { createInvoiceForJob } = await import("../src/lib/office-money.server");
+    const installRow = structuredClone(invoices("installation")[0]);
+    expect(invoices("rectification").length).toBe(0);
+    expect(await createInvoiceForJob(J, "office-1")).toEqual({ ok: true });
+    expect(await createInvoiceForJob(J, "office-1")).toEqual({ ok: true });
+    const fx = invoices("rectification");
+    expect(fx.length).toBe(1);
+    expect(fx[0]!["quote_id"]).toBe(QR);
+    expect(fx[0]!["xero_reference"]).toBe("Home Insulation Victoria HV-0101 fixes");
+    expect(creates().length).toBe(1);
+    expect(invoices("installation")).toEqual([installRow!]);
   });
   test("an installation invoice failure keeps its wording", async () => {
     tables["invoices"] = []; xero = []; // nothing in Xero to adopt
