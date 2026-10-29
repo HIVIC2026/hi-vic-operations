@@ -106,3 +106,6 @@ test("C9: tidy-up keeps the same screen", () => {
   const b = read("src/components/trade/InstallFinishedButton.tsx");
   for (const s of ["The install is finished", 'busyLabel="Recording…"', "Confirm the install is finished on site? Only do this once the Mitti install form is Complete.", `confirmLabel="Yes, it's finished"`]) expect(b).toContain(s);
 });
+test("Fixes form card no longer points to the removed portal fallback form", () => {
+  expect(read("src/components/trade/FixesFormCard.tsx")).not.toContain("record it below instead");
+});
