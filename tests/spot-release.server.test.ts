@@ -93,7 +93,7 @@ const OWNER = { full_name: "Helen Sample", email: "helen@example.com", phone: "0
 function seed(source: string | null) {
   for (const k of Object.keys(tables)) delete tables[k];
   offers.length = 0; sent.length = 0; deliveryAllowed = true; offerFails = false;
-  tables["jobs"] = [{ id: "job-1", stage: "ready_check_ready_to_schedule", channel: "hivic_sourced", source, owner_id: "own-1", deleted_at: null, job_number: "HV-1" }];
+  tables["jobs"] = [{ id: "job-1", stage: "ready_check_ready_to_schedule", channel: "hivic_sourced", source, owner_id: "own-1", deleted_at: null, job_number: "HV-1", properties: { address_line: "11 Albert St, Brighton VIC 3186" } }];
   tables["owners"] = [{ id: "own-1", ...OWNER }];
   tables["businesses"] = [{ id: "biz-1", name: "Sample Insulation", trading_name: null, onboarding_notes: source === "qa_test" ? "[TEST PARTNER]" : null }, { id: "biz-2", name: "Other Co", trading_name: null, onboarding_notes: "[TEST PARTNER]" }];
   tables["job_assignments"] = []; tables["partner_offers"] = []; tables["workflow_events"] = [];
@@ -141,6 +141,32 @@ describe("Release", () => {
     bookingOpened.length = 0; tables["rate_cards"]!.push({ id: "rc-x", business_id: "biz-x", kind: "installer", is_active: true });
     await expect(S.releaseSpot("job-1", "jo", "biz-x", { approved: ON })).rejects.toThrow(/isn't an approved installer/);
     expect(events().length).toBe(0); expect(sent.length).toBe(0); expect(bookingOpened).toEqual([]);
+  });
+});
+
+describe("Jo 30 Oct: no street, no release", () => {
+  beforeEach(() => { seed(null); bookingOpened.length = 0; });
+  test("a job with no street → refused with the reason; nothing recorded, sent, opened or offered", async () => {
+    const { ADDRESS_REQUEST_BLOCK_REASON } = await import("../src/lib/address-request.core");
+    for (const a of ["Brighton VIC 3186", "Greenwood St", null]) {
+      (tables["jobs"]![0]!["properties"] as Row)["address_line"] = a;
+      await expect(S.releaseSpot("job-1", "jo", "biz-1", { approved: ON })).rejects.toThrow(ADDRESS_REQUEST_BLOCK_REASON);
+    }
+    tables["jobs"]![0]!["properties"] = null;
+    await expect(S.releaseSpot("job-1", "jo", "biz-1", { approved: ON })).rejects.toThrow(ADDRESS_REQUEST_BLOCK_REASON);
+    expect(events().length).toBe(0); expect(sent.length).toBe(0); expect(offers.length).toBe(0); expect(bookingOpened).toEqual([]);
+  });
+  test("TEST job follows the same rule", async () => {
+    seed("qa_test"); (tables["jobs"]![0]!["properties"] as Row)["address_line"] = "Brighton VIC 3186";
+    await expect(S.releaseSpot("job-1", "jo", "biz-1")).rejects.toThrow("Waiting for the owner's full address");
+    expect(events().length).toBe(0); expect(sent.length).toBe(0);
+  });
+  test("owner already confirmed (straight to the installer) but no street → refused, no offer", async () => {
+    await S.releaseSpot("job-1", "jo", "biz-1", { approved: ON }); offerFails = true; await S.confirmSpotRelease("job-1"); offerFails = false;
+    offers.length = 0; sent.length = 0; const before = events().length;
+    (tables["jobs"]![0]!["properties"] as Row)["address_line"] = "Brighton VIC 3186";
+    await expect(S.releaseSpot("job-1", "jo", "biz-2")).rejects.toThrow("Waiting for the owner's full address");
+    expect(offers.length).toBe(0); expect(sent.length).toBe(0); expect(events().length).toBe(before);
   });
 });
 
@@ -230,6 +256,15 @@ describe("15-minute tick", () => {
     const r = await S.releaseSpot("job-1", "jo", "biz-2", { approved: ON, now: at(122) });
     expect(r.mode).toBe("released");
     expect((await S.spotReleaseStateFor("job-1")).state).toBe("pending");
+  });
+  test("no street (Jo 30 Oct) → skipped with the reason: no reminder, no lapse, nothing sent; carries on once fixed", async () => {
+    const before = events().length;
+    (tables["jobs"]![0]!["properties"] as Row)["address_line"] = "Brighton VIC 3186";
+    expect(await S.sweepSpotReleases(at(48.1), { approved: ON })).toMatchObject({ reminded: 0, lapsed: 0, releaseTexts: 0, blocked: 1 });
+    expect(await S.sweepSpotReleases(at(120.1), { approved: ON })).toMatchObject({ reminded: 0, lapsed: 0, blocked: 1 });
+    expect(sent.length).toBe(0); expect(offers.length).toBe(0); expect(events().length).toBe(before);
+    (tables["jobs"]![0]!["properties"] as Row)["address_line"] = "11 Albert St, Brighton VIC 3186";
+    expect(await S.sweepSpotReleases(at(120.2), { approved: ON })).toMatchObject({ lapsed: 1, blocked: 0 });
   });
   test("a job that moved on (installer assigned) is not chased", async () => {
     tables["job_assignments"]!.push({ job_id: "job-1", role: "installer", active: true });

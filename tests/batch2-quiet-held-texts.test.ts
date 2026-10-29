@@ -19,9 +19,9 @@ const held = (over: Partial<HeldRow> = {}, attempt = "a1"): HeldRow => ({
 });
 
 describe("quietResendDue (pure)", () => {
-  test("covers exactly the 14 spec types", () => {
+  test("covers exactly the 14 spec types + the A48 safety check rules text", () => {
     expect([...QUIET_RESEND_TYPES].sort()).toEqual([
-      "boss_price_link", "deposit_release", "fixes_times_link", "install_clearance", "install_no_access", "piesa_owner_confirm", "piesa_owner_fixes_confirm",
+      "boss_price_link", "deposit_release", "fixes_times_link", "install_clearance", "install_no_access", "piesa_owner_confirm", "piesa_owner_fixes_confirm", "piesa_rules_failed",
       "quote_ready", "ready_check_booked_installer", "ready_check_days_suggested", "spot_saved", "veec_sign_reminder", "veec_sign_request", "visit_new_times",
     ]);
   });
@@ -96,6 +96,7 @@ const facts = {
   windowsExist: false,
   fixesAuditId: "audit1" as string | null,
   price: null as unknown,
+  piesaRules: null as { formVersion: string; rules: { rule: string; reason: string }[]; sectionC: boolean } | null,
 };
 // Copies of the real exports (mock.module patches the live module in place), put back in afterAll so the mocks
 // don't leak into later files in the same run.
@@ -108,6 +109,7 @@ const realVisitEvents = { ...(await import("../src/lib/visit-events.server")) };
 const realRcTimes = { ...(await import("../src/lib/ready-check-times.server")) };
 const realRect = { ...(await import("../src/lib/rectification.server")) };
 const realInstallerPrice = { ...(await import("../src/lib/installer-price.server")) };
+const realPiesaRules = { ...(await import("../src/lib/piesa-rules-notice.server")) };
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: builder } }));
 mock.module("../src/lib/sms.server", () => ({ sendRealSms: async (i: { type: string; idempotencyKey: string; to: string; body: string; jobId?: string | null; businessId?: string | null; event?: unknown }) => {
   sent.push({ type: i.type, key: i.idempotencyKey, to: i.to, body: i.body, jobId: i.jobId ?? null, businessId: i.businessId ?? null, event: i.event }); return { status: "sent", detail: "ok", sid: "SM1" };
@@ -119,6 +121,7 @@ mock.module("../src/lib/visit-events.server", () => ({ currentBooking: async () 
 mock.module("../src/lib/ready-check-times.server", () => ({ readyCheckTurnFor: async () => facts.turn }));
 mock.module("../src/lib/rectification.server", () => ({ rectificationWindowsExist: async () => facts.windowsExist, fixesTimesFacts: async () => ({ auditId: facts.fixesAuditId }) }));
 mock.module("../src/lib/installer-price.server", () => ({ readInstallerPrice: async () => facts.price }));
+mock.module("../src/lib/piesa-rules-notice.server", () => ({ ...realPiesaRules, piesaRulesFor: async () => facts.piesaRules }));
 afterAll(() => {
   mock.module("@/integrations/supabase/client.server", () => realClient);
   mock.module("../src/lib/sms.server", () => realSms);
@@ -129,13 +132,14 @@ afterAll(() => {
   mock.module("../src/lib/ready-check-times.server", () => realRcTimes);
   mock.module("../src/lib/rectification.server", () => realRect);
   mock.module("../src/lib/installer-price.server", () => realInstallerPrice);
+  mock.module("../src/lib/piesa-rules-notice.server", () => realPiesaRules);
 });
 
 const JOB = { id: "j1", ...LIVE_JOB, channel: "installer_sourced" };
 beforeEach(() => {
   sent.length = 0; calls.length = 0; failTable = null;
   tables = { sms_messages: [held()], jobs: [JOB], lead_campaign_responses: [{ job_id: "j1", spot_saved_at: "2026-10-28T10:59:00Z", opted_out_at: null }] };
-  Object.assign(facts, { piesa: null, fixes: null, installDay: { clearance: { cleared: true, timingDate: "2026-10-28" }, booked: null }, currentBooking: null, turn: "installer_to_answer", windowsExist: false, fixesAuditId: "audit1", price: null });
+  Object.assign(facts, { piesa: null, fixes: null, installDay: { clearance: { cleared: true, timingDate: "2026-10-28" }, booked: null }, currentBooking: null, turn: "installer_to_answer", windowsExist: false, fixesAuditId: "audit1", price: null, piesaRules: null });
 });
 
 describe("sweepQuietHeldTexts", () => {
@@ -167,6 +171,32 @@ describe("sweepQuietHeldTexts", () => {
     const { sweepQuietHeldTexts } = await import("../src/lib/quiet-held-texts.server");
     expect(await sweepQuietHeldTexts(SEVEN_05)).toEqual({ sent: 0, skipped: 0 });
     expect(sent).toEqual([]);
+  });
+});
+
+describe("A48 batch 1: the safety check rules text held overnight", () => {
+  const V = "aud-1:2026-10-28T09:00:00.000Z";
+  const rulesHeld = () => held({ message_type: "piesa_rules_failed", idempotency_key: `piesa-rules:v1:j1:${V}${HELD_KEY_MARK}a1`, to_number: "+61422222222", body: "Home Insulation Victoria: Hi Sam, the safety check …", business_id: "b1", created_at: "2026-10-28T10:00:00Z" }); // 9pm Melbourne
+  const blocked = { formVersion: V, rules: [{ rule: "P2P3-NO", reason: "x" }], sectionC: false };
+  test("held at 9pm, still blocked at 7:05am → sent once with the real key", async () => {
+    tables["sms_messages"] = [rulesHeld()];
+    facts.piesaRules = blocked;
+    const { sweepQuietHeldTexts } = await import("../src/lib/quiet-held-texts.server");
+    expect(await sweepQuietHeldTexts(SEVEN_05)).toEqual({ sent: 1, skipped: 0 });
+    expect(sent.map((x) => `${x.type}|${x.key}`)).toEqual([`piesa_rules_failed|piesa-rules:v1:j1:${V}`]);
+  });
+  test("cleared overnight (corrected form / Section C) → not sent", async () => {
+    tables["sms_messages"] = [rulesHeld()];
+    facts.piesaRules = { ...blocked, rules: [] };
+    const { sweepQuietHeldTexts } = await import("../src/lib/quiet-held-texts.server");
+    expect(await sweepQuietHeldTexts(SEVEN_05)).toEqual({ sent: 0, skipped: 1 });
+    expect(sent).toEqual([]);
+  });
+  test("a newer form version replaced the one texted about → not sent", async () => {
+    tables["sms_messages"] = [rulesHeld()];
+    facts.piesaRules = { ...blocked, formVersion: "aud-1:2026-10-28T12:00:00.000Z" };
+    const { sweepQuietHeldTexts } = await import("../src/lib/quiet-held-texts.server");
+    expect(await sweepQuietHeldTexts(SEVEN_05)).toEqual({ sent: 0, skipped: 1 });
   });
 });
 

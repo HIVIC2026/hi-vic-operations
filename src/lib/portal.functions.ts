@@ -587,6 +587,11 @@ export const recordPiesa = createServerFn({ method: "POST" }).middleware([requir
     // Decision 293: the same writes the Mitti "A4 – Electrical fixes" completion makes (piesa-record.server.ts).
     const { applyPiesaRecord } = await import("./piesa-record.server");
     await applyPiesaRecord({ jobId: data.jobId, actorId: context.userId, kind: data.kind, outcome: data.outcome, completedDate: data.completedDate, sectionCSignedDate: data.sectionCSignedDate ?? null, notes: data.notes ?? null, source: { kind: "portal" } });
+    // A48 batch 1 task 5: repairs recorded here count too — the fixes evidence uploaded on this page is read by the AI
+    // (time-limited; ticked, or one office row), after the record is written. Never throws.
+    if (data.kind === "post_rectification") await (await import("./coes-check.server")).checkCurrentCoes(data.jobId, context.userId);
+    // A48 batch 1 final fix: repairs signed off here clear the "breaks the official rules" row like a Mitti Section C. Never throws.
+    if (data.kind === "post_rectification") await (await import("./piesa-rules-notice.server")).recheckPiesaRules(data.jobId, context.userId);
     return { ok: true };
   });
 

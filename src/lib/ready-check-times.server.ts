@@ -80,6 +80,15 @@ async function tellOwnerBooked(jobId: string, startsAt: string) {
   await (await import("./ready-check-booked-email.server")).emailOwnerReadyCheckBooked(jobId, startsAt).catch((e) => console.error("ready check booked email skipped", (e as Error).message));
 }
 
+/** Jo 29 Oct 2026 (HV-3542): the booked email/texts keep going if the phone drops the connection after the booking
+ *  is saved (the platform keeps this promise alive past the request); the request still waits for it as before. */
+async function tellBookedKeepGoing(jobId: string, startsAt: string) {
+  const work = (async () => { await tellOwnerBooked(jobId, startsAt); await tellInstallerBooked(jobId, startsAt); })();
+  const { requestContext } = await import("./background.server");
+  requestContext.getStore()?.waitUntil?.(work.catch(() => undefined));
+  await work;
+}
+
 /** Office picks ONE installer (decisions 49–51): one offer, open 24 hours, text + in-app to that installer only.
  *  Same eligibility list the office sees (installerCandidatesFor), TEST/real pairing and own-customer guards before writing. */
 export type AutoOfferMeta = { attempt: number; basis: string; activeJobs: number; distanceKm: number | null };
@@ -93,6 +102,10 @@ export async function officePickReadyCheckInstaller(jobId: string, actorId: stri
   ]);
   const b = readyCheckOfferStartBlockers({ channel: job?.channel ?? null, stage: job?.stage ?? "", deleted: !job || !!job.deleted_at, hasInstaller: !!inst, openOffers: open ?? 0, picks: picks.length });
   if (b.length) throw new WorkflowError(`The Ready Check offer can't be sent: ${b.join(" ")}`);
+  // Jo 30 Oct 2026: never offered (office or automatic) while the owner's street is missing.
+  const { data: street } = job!.property_id ? await admin.from("properties").select("address_line").eq("id", job!.property_id).maybeSingle() : { data: null };
+  const noStreet = (await import("./address-request.core")).noStreetBlock(street?.address_line);
+  if (noStreet) throw new WorkflowError(noStreet);
   const { candidates } = await (await import("./readycheck-booking.server")).installerCandidatesFor(jobId);
   const c = candidates.find((x) => x.business_id === picks[0]);
   if (!c) throw new WorkflowError("That installer isn't an approved installer for this job.");
@@ -224,8 +237,7 @@ async function bookAgreedTime(jobId: string, proposalId: string, startsAt: strin
     await confirmBooking(jobId, "ready_check", startsAt, actorId, roleLabel);
     // Confirmed booking starts the Mitti form in the background (never undoes the booking if it can't).
     await (await import("./mitti-create.server")).onReadyCheckBooked(jobId, actorId).catch((err) => console.error("ready check form not scheduled", (err as Error).message));
-    await tellOwnerBooked(jobId, startsAt);
-    await tellInstallerBooked(jobId, startsAt);
+    await tellBookedKeepGoing(jobId, startsAt);
   } catch (e) {
     await admin.from("appointment_proposals").update({ status: "superseded" }).eq("id", proposalId);
     await logEvent(jobId, actorId, "ready_check_time_booking_blocked", `Ready Check time agreed but booking not confirmed: ${(e as Error).message}`, { proposal_id: proposalId }, { internal: true });
@@ -347,8 +359,7 @@ export async function installerChangeReadyCheck(jobId: string, userId: string, p
   await admin.from("appointment_proposals").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "ready_check").eq("note", READY_CHECK_TIME_NOTE).eq("status", "proposed");
   await logEvent(jobId, userId, "ready_check_changed", "Installer changed the booked Ready Check to a new time", { by: "installer", was: c.bookedAt, starts_at: start }, { internal: true });
   await admin.from("jobs").update({ next_action: "Ready Check booked" }).eq("id", jobId);
-  await tellOwnerBooked(jobId, start);
-  await tellInstallerBooked(jobId, start);
+  await tellBookedKeepGoing(jobId, start);
   return { ok: true, booked: true };
 }
 

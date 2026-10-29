@@ -461,8 +461,13 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
         const [prefillCtx, ownerConfirmation, ownerFixesConfirmation] = await Promise.all([officialPrefillContext(jobId, todayMelbourne(), null), (await import("./piesa-owner-confirm.server")).ownerConfirmationForExpand(jobId).catch(() => null), (await import("./piesa-fixes-confirm.server")).ownerFixesConfirmationForExpand(jobId).catch(() => null)]);
         const expanded = expandPiesa(shortAnswers, { lifeSupportDeclared: prefillCtx.lifeSupportDeclared, today: todayMelbourne(), ownerConfirmation, ownerFixesConfirmation });
         const ev = evaluatePiesa(expanded.answers);
+        // The electrician's own life support answer on site: Yes marks the job (never cleared by a No), so the plan is needed before the install.
+        await (await import("./job-records.server")).applyPiesaLifeSupport(jobId, actorId, shortAnswers["lifeSupportPresent"]);
         // Decision 314 / 327: a completed A3 with "Be on site at the start of the install day" ticked is recorded (history only).
         if (plan.completed) await syncOnsiteStartItem(jobId, actorId, shortAnswers["rectificationOutcome"] === RECTIFICATION_OUTCOMES[2]).catch(() => undefined);
+        // A48 batch 1: a completed A3 that breaks the official rules → one event + one electrician message per form version
+        // (read from the answers just stored); a later version that passes clears it. Never throws.
+        if (plan.completed) await (await import("./piesa-rules-notice.server")).recheckPiesaRules(jobId, actorId);
         issues = [...plan.issues, ...refused.issues, ...evidenceBlockers.map((b) => `${PIESA_EVIDENCE_ISSUE_PREFIX}${b}`), ...(priceTalk ? [priceTalk] : []), ...expanded.flagged.map((f) => `Official form: ${f}`), ...ev.blockers.map((b) => `Official form: ${b.message}${b.confirmation ? ` [${b.confirmation}]` : ""}`)];
         for (const o of plan.others) {
           const { data: ex } = await admin.from("rectification_items").select("id,status").eq("job_id", jobId).eq("external_key", o.external_key).maybeSingle();
@@ -483,6 +488,9 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
           const { mittiSignatureByLabel } = await import("./fixes-day.core");
           const a4Sig = mittiSignatureByLabel(audit, "Electrician signature");
           await (await import("./official-signature.server")).savePiesaSignatureImage(jobId, actorId, "a4", a.external_mitti_id, a4Sig, fetchMedia);
+          // A48 batch 1 task 5: after the evidence files and signature are kept, a same-visit repair's certificate (q45) is
+          // read by the AI (time-limited; ticked, or one office row). Never throws.
+          await (await import("./coes-check.server")).checkCurrentCoes(jobId, actorId);
         }
         // History only on change (Jo 23 Oct): an unchanged re-sync (same answers, same modified time,
         // same status) adds no new event row.

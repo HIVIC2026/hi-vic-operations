@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 
 class WorkflowError extends Error {}
 mock.module("../src/lib/workflow.server", () => ({ WorkflowError }));
-mock.module("../src/lib/esc-registry-selectors", () => ({ SELECTOR_MAP_VERIFIED: true }));
+mock.module("../src/lib/esc-registry-selectors", () => ({ SELECTORS_VERIFIED: { install_notification: true, veec_creation: false } }));
 
 const JOB = "11111111-1111-4111-8111-111111111111";
 const TEST_JOB = "44444444-4444-4444-8444-444444444444";
@@ -22,7 +22,7 @@ mock.module("../src/lib/esc-registry-robot.server", () => ({
   robotSettings: async (env: NodeJS.ProcessEnv) => {
     state.settingsEnv = env;
     const { robotMode } = await import("../src/lib/esc-registry-robot.core");
-    const m = robotMode({ switchOn: state.switchOn, envOn: env["ESC_REGISTRY_ROBOT_ENABLED"] === "true", modeEnv: env["ESC_REGISTRY_ROBOT_MODE"], credentials: !!(env["VEU_REGISTRY_USERNAME"] && env["VEU_REGISTRY_PASSWORD"]), selectorsVerified: true });
+    const m = robotMode({ switchOn: state.switchOn, envOn: env["ESC_REGISTRY_ROBOT_ENABLED"] === "true", modeEnv: env["ESC_REGISTRY_ROBOT_MODE"], credentials: !!(env["VEU_REGISTRY_USERNAME"] && env["VEU_REGISTRY_PASSWORD"]) });
     return { ...m, switchOn: state.switchOn, credentials: m.mode === "off" ? null : { username: env["VEU_REGISTRY_USERNAME"], password: env["VEU_REGISTRY_PASSWORD"] } };
   },
   noticeWork: rec("noticeWork", []),
@@ -68,15 +68,18 @@ describe("robotSettings", () => {
 
 describe("mode cap", () => {
   test("switch off / missing → off; on → the asked mode", async () => {
-    expect(await serverModeCap()).toBe("live");
+    expect(await serverModeCap("install_notification")).toBe("live");
+    expect(await serverModeCap("veec_creation")).toBe("dry_run");
     await robotApiOps.noticeWork({ mode: "live" });
+    await robotApiOps.veecWork({ mode: "live" });
     state.switchOn = false;
-    expect(await serverModeCap()).toBe("off");
+    expect(await serverModeCap("install_notification")).toBe("off");
+    expect(await serverModeCap("veec_creation")).toBe("off");
     await robotApiOps.noticeWork({ mode: "live" });
     await robotApiOps.veecWork({ mode: "dry_run" });
     state.switchOn = null;
     await robotApiOps.veecWork({ mode: "live" });
-    expect(state.calls.map((c) => [c.op, c.args[0]])).toEqual([["noticeWork", "live"], ["noticeWork", "off"], ["veecWork", "off"], ["veecWork", "off"]]);
+    expect(state.calls.map((c) => [c.op, c.args[0]])).toEqual([["noticeWork", "live"], ["veecWork", "dry_run"], ["noticeWork", "off"], ["veecWork", "off"], ["veecWork", "off"]]);
   });
 });
 
@@ -84,9 +87,17 @@ describe("live records", () => {
   test("allowed when live and a real job", async () => {
     await robotApiOps.recordRobotNotificationSubmitted(submitted);
     await robotApiOps.recordRobotNotificationUpdated({ ...submitted, previousNotificationId: NOTICE, updatedAt: submitted.sentAt });
-    await robotApiOps.recordRobotVeecSubmitted(veec);
+    await robotApiOps.recordRobotAttempt({ jobId: JOB, task: "install_notification", notificationId: NOTICE, mode: "live", plan: "submit" });
+    expect(state.calls.map((c) => c.op)).toEqual(["recordRobotNotificationSubmitted", "recordRobotNotificationUpdated", "recordRobotAttempt"]);
+    expect(state.calls[2]!.args[0]).toMatchObject({ mode: "live" });
+  });
+
+  test("VEEC creation is not verified yet: a submitted record is refused, a live attempt is recorded as a dry run", async () => {
+    await expect(robotApiOps.recordRobotVeecSubmitted(veec)).rejects.toThrow("not in live mode");
+    expect(state.calls).toEqual([]);
     await robotApiOps.recordRobotAttempt({ jobId: JOB, task: "veec_creation", notificationId: null, mode: "live", plan: "submit" });
-    expect(state.calls.map((c) => c.op)).toEqual(["recordRobotNotificationSubmitted", "recordRobotNotificationUpdated", "recordRobotVeecSubmitted", "recordRobotAttempt"]);
+    expect(state.calls.map((c) => c.op)).toEqual(["recordRobotAttempt"]);
+    expect(state.calls[0]!.args[0]).toMatchObject({ task: "veec_creation", mode: "dry_run" });
   });
 
   test("refused when the switch is off, for TEST jobs, and for unknown notices — nothing recorded", async () => {
@@ -95,7 +106,7 @@ describe("live records", () => {
     await expect(robotApiOps.recordRobotVeecSubmitted(veec)).rejects.toThrow("not in live mode");
     await expect(robotApiOps.recordRobotAttempt({ jobId: JOB, task: "veec_creation", notificationId: null, mode: "live", plan: "submit" })).rejects.toBeInstanceOf(RobotApiRefused);
     state.switchOn = true;
-    await expect(robotApiOps.recordRobotVeecSubmitted({ ...veec, jobId: TEST_JOB })).rejects.toThrow("TEST jobs are always dry-run");
+    await expect(robotApiOps.recordRobotAttempt({ jobId: TEST_JOB, task: "install_notification", notificationId: NOTICE, mode: "live", plan: "submit" })).rejects.toThrow("TEST jobs are always dry-run");
     rows.esc_notifications![NOTICE] = { job_id: TEST_JOB };
     await expect(robotApiOps.recordRobotNotificationSubmitted(submitted)).rejects.toThrow("TEST jobs");
     delete rows.esc_notifications![NOTICE];

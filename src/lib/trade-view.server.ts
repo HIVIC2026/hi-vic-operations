@@ -1130,6 +1130,18 @@ export async function tradeSwmsSign(jobId: string, userId: string, key: string, 
   return swms.signSwms(jobId, userId, key, typedName, "login");
 }
 
+/** Jo 30 Oct 2026: a crew member's phone is dead — the Lead opens that person's OWN sign link on the Lead's phone. The
+ *  person still types their own name; the signature is recorded as "signed on the Lead's phone". */
+export async function tradeSwmsLeadPhoneLink(jobId: string, userId: string, key: string) {
+  const c = await requireOpenSwms(jobId, userId);
+  const swms = await import("./swms.server");
+  const { swmsLeadPhoneBlocker } = await import("./swms.core");
+  const [{ plan, signatures }, myKeys] = await Promise.all([swms.loadSwms(jobId), mySwmsKeys(userId, c.biz.id)]);
+  const block = swmsLeadPhoneBlocker(plan, signatures, key, myKeys);
+  if (block) throw new WorkflowError(block);
+  return { link: await (await import("./swms-link.server")).swmsSignLink(jobId, key, Date.now(), "lead") };
+}
+
 // ---- Decision 315: the electrician's "Fixes times" card (/field/{jobId}#fixes-times). Electricians only, business-scoped
 // through requireTradeJob + an active ELECTRICIAN assignment for this business. Rules in pure fixes-times.core. ----
 async function requireJobElectrician(jobId: string, userId: string) {

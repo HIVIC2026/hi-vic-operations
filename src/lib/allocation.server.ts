@@ -171,15 +171,17 @@ export async function startPiesaAllocation(jobId: string, actorId: string | null
   // Without this the office's next click was refused with "An electrician has already accepted this PIESA."
   // and the job had no way back to piesa_scheduled.
   if (await healStrandedPiesaStage(jobId, actorId)) return { offered: 0, exhausted: false, healed: true };
-  const [facts, { count: elec }, { count: open }] = await Promise.all([
+  const [facts, { count: elec }, { count: open }, planMissing] = await Promise.all([
     piesaRequestFacts(jobId),
     // Only an electrician who actually CONFIRMED a visit counts as "already accepted": a pre-assignment
     // (e.g. a Test Centre persona row) is not a booking, so it must not block new PIESA offers (DEF-07).
     admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("active", true).not("booking_confirmed_at", "is", null),
     admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", kind).eq("status", "pending"),
+    // A48 batch 1 final fix: life support yes / unknown with no plan on file (owner upload or office record) stops the offers.
+    kind === "piesa" ? (await import("./job-records.server")).lifeSupportPlanMissing(jobId) : Promise.resolve(false),
   ]);
   // Jo 28 Oct: a repeat PIESA after a lapsed window goes to electricians again; the first check's electrician does not block it.
-  const blockers = piesaOfferBlockers({ ...facts, hasActiveElectrician: !!elec && !opts.repeat, hasOpenOffers: !!open && !opts.adding });
+  const blockers = piesaOfferBlockers({ ...facts, hasActiveElectrician: !!elec && !opts.repeat, hasOpenOffers: !!open && !opts.adding, lifeSupportPlanMissing: kind === "piesa" && planMissing });
   if (blockers.length) throw new WorkflowError(`${kind === "piesa" ? "PIESA" : "Electrical fixes"} offers cannot start: ${blockers.join(" ")}`);
   if (kind === "piesa") {
     // The job must be able to ENTER the PIESA stage before any offer goes out; otherwise offers are sent and the

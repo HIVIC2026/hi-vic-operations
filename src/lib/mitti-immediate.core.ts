@@ -31,3 +31,16 @@ export function immediateOutcomeNote(outcome: "created" | "held" | "uncertain" |
 export function immediateNoteSummary(reason: string): string {
   return `Instant Ready Check form not created on Add a job: ${reason}. The 15-minute check will try again.`;
 }
+
+// HV-3542 (Jo 30 Oct): a confirmed Ready Check booking makes the form straight away too; every skip gets one note.
+export const BOOKED_SKIP_EVENT = "mitti_ready_check_booked_skipped";
+
+/** Why the form will not be made when a Ready Check is booked, or null when it may start. */
+export function bookedSkipReason(f: (NonNullable<ImmediateFacts> & { booked: boolean }) | null): string | null {
+  if (f && !f.booked) return "the Ready Check isn't booked yet";
+  return immediateSkipReason(f);
+}
+
+export function bookedNoteSummary(reason: string): string {
+  return `Ready Check form not created when the Ready Check was booked: ${reason}. The 15-minute check will try again.`;
+}

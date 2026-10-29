@@ -128,9 +128,28 @@ export async function readyCheckFormFacts(jobId: string) {
   };
 }
 
-/** Called after a Ready Check booking is confirmed. Schedules creation only when every existing switch allows it. */
+/** Called after a Ready Check booking is confirmed. HV-3542 (Jo 30 Oct): makes the form in the request itself (one
+ *  quick attempt, kept alive with waitUntil) instead of a fire-and-forget step that could be lost. Never throws. */
 export async function onReadyCheckBooked(jobId: string, actorId: string | null, call?: MittiCall): Promise<"scheduled" | "skipped"> {
-  return scheduleReadyCheckFormIfAllowed(jobId, actorId, call, { requireBooking: true });
+  const { bookedSkipReason, bookedNoteSummary, BOOKED_SKIP_EVENT } = await import("./mitti-immediate.core");
+  const note = (reason: string) => logEvent(jobId, actorId, BOOKED_SKIP_EVENT, bookedNoteSummary(reason), { reason }, { internal: true }).catch(() => undefined);
+  const work = (async (): Promise<"scheduled" | "skipped"> => {
+    try {
+      const f = await readyCheckFormFacts(jobId);
+      const skip = bookedSkipReason(f);
+      if (skip || !f) { await note(skip ?? "job not found"); return "skipped"; }
+      const assignee = await testAssignee(f.job.source, f.installerUserId!);
+      await runReadyCheckFormCreation(jobId, actorId, assignee, call, { delaysMs: [] });
+      return "scheduled";
+    } catch (e) {
+      await note(`stopped unexpectedly: ${(e instanceof Error ? e.message : "error").slice(0, 200)}`);
+      return "skipped";
+    }
+  })();
+  // Keep going if the phone drops the connection: the platform keeps this promise alive past the request.
+  const { requestContext } = await import("./background.server");
+  requestContext.getStore()?.waitUntil?.(work);
+  return work;
 }
 
 /** Decisions 34/115 (Jo 24 Oct): Add a job creates the installer's Mitti Ready Check form straight away — no booking
@@ -164,13 +183,4 @@ export async function testAssignee(source: string | null, installerUserId: strin
   const { TEST_MITTI_ASSIGNEE } = await import("./onsite-ready-check.core");
   const { data: p } = await admin.from("profiles").select("full_name").eq("id", installerUserId).maybeSingle();
   return { userId: installerUserId, fullName: p?.full_name ?? null, email: TEST_MITTI_ASSIGNEE };
-}
-
-async function scheduleReadyCheckFormIfAllowed(jobId: string, actorId: string | null, call: MittiCall | undefined, opts: { requireBooking: boolean }): Promise<"scheduled" | "skipped"> {
-  const f = await readyCheckFormFacts(jobId);
-  if (!f || (opts.requireBooking && !f.booked) || f.auditId || f.measurementComplete || !f.installerUserId) return "skipped";
-  if (!f.mittiInvited || !f.templateSet || !f.autoSend || !f.gateADone) return "skipped";
-  const assignee = await testAssignee(f.job.source, f.installerUserId);
-  await scheduleReadyCheckFormCreation(jobId, actorId, assignee, call);
-  return "scheduled";
 }

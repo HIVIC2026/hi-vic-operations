@@ -141,7 +141,17 @@ export const stillTrueBookedInstaller: StillTrue = async (row) => {
   return (await import("./installer-texts.core")).bookedStillCurrent(booked?.scheduled_start ?? null, startIso);
 };
 
+/** piesa_rules_failed: the job is live and the form version in the key is still the newest A3 and still breaks the
+ *  official rules (no corrected form, no signed Section C overnight) — piesa-rules-notice.server. */
+export const stillTruePiesaRules: StillTrue = async (row) => {
+  const version = after(await claimKey(row), `piesa-rules:v1:${row.job_id}:`);
+  if (!version || !(await stillTrueJobLive(row))) return false;
+  const r = await (await import("./piesa-rules-notice.server")).piesaRulesFor(row.job_id!);
+  return !!r && r.formVersion === version && r.rules.length > 0;
+};
+
 export const STILL_TRUE: Record<QuietResendType, StillTrue> = {
+  piesa_rules_failed: stillTruePiesaRules,
   spot_saved: stillTrueSpotSaved,
   quote_ready: stillTrueQuoteReady,
   piesa_owner_confirm: stillTruePiesaOwnerConfirm,

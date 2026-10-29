@@ -75,3 +75,14 @@ describe("the SWMS PDF", () => {
     expect(src).not.toContain("textToPdf(");
   });
 });
+
+describe("Specific to this house (Jo 30 Oct 2026)", () => {
+  test("a long house section splits across pages without losing lines", async () => {
+    const lines = Array.from({ length: 60 }, (_, i) => `Area ${i + 1}: 4 recessed downlights`);
+    const plan = buildSwms({ ...facts("TEST note last"), houseLines: lines, houseSteps: ["Recessed downlights: keep the required clearance"] });
+    const { bytes, layout } = await buildSwmsPdf(plan, []);
+    expect(layout.noteHeaderPages.length).toBeGreaterThan(1);
+    const doc = await PDFDocument.load(bytes);
+    expect(doc.getPageCount()).toBe(layout.pages);
+  });
+});

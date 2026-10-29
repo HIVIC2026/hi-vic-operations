@@ -6,7 +6,8 @@
 // Never sends anything and never moves a stage.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
-import { buildSwms, checkSwmsSign, swmsRecordText, swmsStatus, type SwmsFacts, type SwmsPerson, type SwmsPlan, type SwmsSignature, type SwmsStatus } from "./swms.core";
+import { createHash } from "node:crypto";
+import { buildSwms, checkSwmsSign, currentSignatures, swmsPlanFingerprintText, swmsRecordText, swmsStatus, type SwmsFacts, type SwmsPerson, type SwmsPlan, type SwmsSignature, type SwmsStatus } from "./swms.core";
 
 export const SWMS_SIGNED_EVENT = "swms_signed";
 export const SWMS_NOTE_EVENT = "swms_site_note";
@@ -28,37 +29,57 @@ async function installCrew(jobId: string): Promise<{ lead: SwmsPerson | null; cr
   } catch { return { lead: null, crew: [] }; }
 }
 
+/** Jo 30 Oct 2026: sha256 of the plan version (signers left out) — stored on each signature as `plan_sha256`. */
+export function swmsPlanSha(plan: SwmsPlan): string {
+  return createHash("sha256").update(swmsPlanFingerprintText(plan)).digest("hex");
+}
+
 export async function swmsFacts(jobId: string): Promise<SwmsFacts> {
-  const [{ data: job }, { data: asg }, { data: book }, { data: asm }, { data: note }, crew] = await Promise.all([
-    admin.from("jobs").select("job_number, properties(address_line, suburb, postcode, year_built)").eq("id", jobId).maybeSingle(),
+  const [{ data: job }, { data: asg }, { data: book }, { data: asm }, { data: note }, crew, { data: meas }, { data: piesa }] = await Promise.all([
+    admin.from("jobs").select("job_number, life_support_status, properties(address_line, suburb, postcode, year_built)").eq("id", jobId).maybeSingle(),
     admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle(),
     admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "installation").neq("status", "cancelled").order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
-    admin.from("assessments").select("hazards").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("assessments").select("hazards, piesa_outcome").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", SWMS_NOTE_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     installCrew(jobId),
+    // Jo 30 Oct 2026: house facts — the current Ready Check answers and the current PIESA record.
+    admin.from("ceiling_measurements").select("raw_snapshot").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
+    admin.from("piesa_records").select("outcome, rectification_completed_at").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
   ]);
   if (!job) throw new WorkflowError("Job not found.");
   const { data: biz } = asg?.business_id ? await admin.from("businesses").select("name").eq("id", asg.business_id).maybeSingle() : { data: null };
   const prop = job.properties as { address_line: string | null; suburb: string | null; postcode: string | null; year_built: number | null } | null;
   const { melbourneDateOf } = await import("./install-evidence.server");
+  const { swmsHouseFacts, swmsHouseLines, swmsHouseSteps } = await import("./swms-house.core");
+  const entries = Array.isArray(meas?.raw_snapshot) ? (meas!.raw_snapshot as unknown as { label: string; value: unknown }[]) : [];
+  const upgradesDone = !!piesa?.rectification_completed_at;
+  const house = swmsHouseFacts(entries, {
+    lifeSupportStatus: (job as { life_support_status?: string | null }).life_support_status ?? null,
+    piesaOutcome: upgradesDone ? "fail" : (piesa?.outcome ?? asm?.piesa_outcome ?? null),
+    upgradesDone,
+    piesaHazards: typeof asm?.hazards === "string" ? asm.hazards : null,
+  });
   return {
     jobNumber: job.job_number, address: [prop?.address_line, prop?.suburb, prop?.postcode].filter(Boolean).join(", ") || null,
     businessName: biz?.name ?? null, installDate: melbourneDateOf(book?.scheduled_start ?? null),
     lead: crew.lead, crew: crew.crew, yearBuilt: prop?.year_built ?? null,
     hazardNote: typeof asm?.hazards === "string" ? asm.hazards : null,
     siteNote: ((note?.details as { note?: unknown } | null)?.note as string | undefined) ?? null,
+    houseLines: swmsHouseLines(house), houseSteps: swmsHouseSteps(house),
   };
 }
 
 export async function swmsSignatures(jobId: string): Promise<SwmsSignature[]> {
   const { data, error } = await admin.from("workflow_events").select("details, created_at").eq("job_id", jobId).eq("event_type", SWMS_SIGNED_EVENT).order("created_at", { ascending: true });
   if (error) throw new Error(error.message);
-  return (data ?? []).map((r) => { const d = r.details as { key?: string; name?: string; typed_name?: string } | null; return { key: String(d?.key ?? ""), name: String(d?.name ?? ""), typedName: String(d?.typed_name ?? ""), signedAt: r.created_at }; }).filter((s) => s.key);
+  return (data ?? []).map((r) => { const d = r.details as { key?: string; name?: string; typed_name?: string; plan_sha256?: string } | null; return { key: String(d?.key ?? ""), name: String(d?.name ?? ""), typedName: String(d?.typed_name ?? ""), signedAt: r.created_at, planSha: d?.plan_sha256 ?? null }; }).filter((s) => s.key);
 }
 
 export async function loadSwms(jobId: string): Promise<{ plan: SwmsPlan; signatures: SwmsSignature[]; status: SwmsStatus }> {
-  const [facts, signatures] = await Promise.all([swmsFacts(jobId), swmsSignatures(jobId)]);
+  const [facts, all] = await Promise.all([swmsFacts(jobId), swmsSignatures(jobId)]);
   const plan = buildSwms(facts);
+  // Jo 30 Oct 2026: signatures given on an older version of the plan no longer count — those people sign again.
+  const signatures = currentSignatures(all, swmsPlanSha(plan));
   return { plan, signatures, status: swmsStatus(plan, signatures) };
 }
 
@@ -80,9 +101,8 @@ export async function signSwms(jobId: string, actorId: string | null, key: strin
   const { plan, signatures } = await loadSwms(jobId);
   const check = checkSwmsSign(plan, signatures, key, typedName);
   if (!check.ok) throw new WorkflowError(check.reason);
-  const { createHash } = await import("node:crypto");
-  const planSha = createHash("sha256").update(JSON.stringify({ ...plan, signers: undefined })).digest("hex");
-  await logEvent(jobId, actorId, SWMS_SIGNED_EVENT, `Safety plan signed by ${check.signer.name} (${method === "link" ? "own text link" : "logged in"})`, { key, name: check.signer.name, role: check.signer.role, typed_name: typedName.trim(), plan_sha256: planSha, method }, { internal: true });
+  const planSha = swmsPlanSha(plan);
+  await logEvent(jobId, actorId, SWMS_SIGNED_EVENT, `Safety plan signed by ${check.signer.name} (${method === "link" ? "own text link" : method === "lead_phone" ? "signed on the Lead's phone" : "logged in"})`, { key, name: check.signer.name, role: check.signer.role, typed_name: typedName.trim(), plan_sha256: planSha, method }, { internal: true });
   const after = await loadSwms(jobId);
   if (after.status.complete) await fileSwms(jobId, actorId).catch(async (e) => { await logEvent(jobId, actorId, "swms_file_failed", "Safety plan signed but the PDF could not be filed — it will be filed on the next signature or office retry", { reason: e instanceof Error ? e.message : "error" }, { internal: true }).catch(() => undefined); });
   return { complete: after.status.complete, missing: after.status.missing };
@@ -93,7 +113,6 @@ export async function fileSwms(jobId: string, actorId: string | null): Promise<{
   const { plan, signatures, status } = await loadSwms(jobId);
   if (!status.complete) return { filed: false, path: null };
   const text = swmsRecordText(plan, signatures);
-  const { createHash } = await import("node:crypto");
   const sha = createHash("sha256").update(text).digest("hex");
   const key = `swms:${sha.slice(0, 32)}`;
   const { data: ex } = await admin.from("documents").select("storage_path").eq("job_id", jobId).eq("source_system", "portal").eq("external_id", key).maybeSingle();

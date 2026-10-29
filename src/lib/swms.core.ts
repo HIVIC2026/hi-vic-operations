@@ -49,14 +49,27 @@ export type SwmsFacts = {
   hazardNote: string | null;
   /** Optional site note the crew adds on the job page. */
   siteNote: string | null;
+  /** Jo 30 Oct 2026: house facts from the Ready Check and PIESA (swms-house.core), and their set safety steps. */
+  houseLines?: string[];
+  houseSteps?: string[];
 };
 export type SwmsSigner = { key: string; name: string; role: "lead" | "crew" };
 export type SwmsPlan = {
   rule: typeof SWMS_RULE; jobNumber: string; address: string | null; businessName: string | null; installDate: string | null;
-  principalContractor: string; workActivity: string; highRiskWork: string[]; hazards: typeof SWMS_HAZARDS; siteNote: string | null; signers: SwmsSigner[];
+  principalContractor: string; workActivity: string; highRiskWork: string[]; hazards: typeof SWMS_HAZARDS; siteNote: string | null; houseLines: string[]; houseSteps: string[]; signers: SwmsSigner[];
 };
 /** One recorded signature (append-only `swms_signed` workflow event). */
-export type SwmsSignature = { key: string; name: string; typedName: string; signedAt: string };
+export type SwmsSignature = { key: string; name: string; typedName: string; signedAt: string; planSha?: string | null };
+
+/** Jo 30 Oct 2026: the text whose sha256 fingerprints a plan version (signers left out, so adding a crew member doesn't
+ *  void the others' signatures). Same text `signSwms` has always hashed into `plan_sha256`. */
+export function swmsPlanFingerprintText(plan: SwmsPlan): string {
+  return JSON.stringify({ ...plan, signers: undefined });
+}
+/** Jo 30 Oct 2026: a signature counts only for the plan version it was given on. */
+export function currentSignatures(sigs: SwmsSignature[], planSha: string): SwmsSignature[] {
+  return sigs.filter((s) => s.planSha === planSha);
+}
 
 export const swmsSignerKey = (p: SwmsPerson) => (p.workerId ? `w:${p.workerId}` : `n:${norm(p.name)}`);
 
@@ -83,8 +96,14 @@ export function buildSwms(f: SwmsFacts): SwmsPlan {
   return {
     rule: SWMS_RULE, jobNumber: f.jobNumber, address: f.address, businessName: f.businessName, installDate: f.installDate,
     principalContractor: SWMS_PREPARED_FOR, workActivity: SWMS_WORK_DEFAULT, highRiskWork: swmsHighRiskWork(f), hazards: SWMS_HAZARDS,
-    siteNote: f.siteNote?.trim() ? f.siteNote.trim() : null, signers,
+    siteNote: f.siteNote?.trim() ? f.siteNote.trim() : null, houseLines: [...(f.houseLines ?? [])], houseSteps: [...(f.houseSteps ?? [])], signers,
   };
+}
+
+/** Jo 30 Oct 2026: the "Specific to this house" lines — house facts, then set safety steps, then the installer's note.
+ *  Empty = nothing known ("None recorded" is printed by the callers). */
+export function swmsHouseSection(plan: Pick<SwmsPlan, "houseLines" | "houseSteps" | "siteNote">): string[] {
+  return [...(plan.houseLines ?? []), ...(plan.houseSteps ?? []).map((s) => `Safety step: ${s}`), ...(plan.siteNote ? [plan.siteNote] : [])];
 }
 
 /** Latest signature per signer key (events in any order). */
@@ -143,7 +162,8 @@ export function swmsRecordText(plan: SwmsPlan, sigs: SwmsSignature[]): string {
     "Tasks | Hazard | Control measures | How implemented | Responsible",
   );
   for (const h of plan.hazards) L.push(`${SWMS_RECORD_TASK} | ${h.name} | ${h.short}: ${h.control}. | ${SWMS_HOW_IMPLEMENTED} | ${val(lead)} (lead installer)`);
-  L.push("", SWMS_HOW_IN_PLACE, "", `Specific to this house: ${val(plan.siteNote ?? "None recorded")}`);
+  const house = swmsHouseSection(plan);
+  L.push("", SWMS_HOW_IN_PLACE, "", house.length > 1 ? ["Specific to this house:", ...house.map((x) => `- ${x}`)].join("\n") : `Specific to this house: ${house[0] ?? "None recorded"}`);
   L.push("", `Worker sign-off (${SWMS_SIGN_STATEMENT})`, "Name | Signature | Date");
   for (const s of plan.signers) {
     const g = by.get(s.key);
@@ -173,12 +193,23 @@ export function swmsDate(ymd: string | null | undefined): string {
 
 // ── Decision 364 (Jo 25 Oct 2026): each person signs on their OWN phone. ──
 /** How a signature was given: logged in to the portal as that worker, or through that person's own secure text link. */
-export type SwmsSignMethod = "login" | "link";
+/** Jo 30 Oct 2026: "lead_phone" = that person's own link, opened on the Lead's phone (their own phone was dead). */
+export type SwmsSignMethod = "login" | "link" | "lead_phone";
 /** A logged-in person may sign only a line whose key is one of their own worker keys (`w:<partner_workers.id>`). */
 export function swmsOwnLineBlocker(plan: SwmsPlan, key: string, ownKeys: readonly string[]): string | null {
   const signer = plan.signers.find((s) => s.key === key);
   if (!signer) return "That person is not on this job's crew.";
   return ownKeys.includes(key) ? null : `Only ${signer.name} can sign their own line.`;
+}
+/** Jo 30 Oct 2026: the Lead may open another unsigned person's own sign link on the Lead's phone. Null = allowed. */
+export function swmsLeadPhoneBlocker(plan: SwmsPlan, sigs: SwmsSignature[], key: string, myKeys: readonly string[]): string | null {
+  const signer = plan.signers.find((s) => s.key === key);
+  if (!signer) return "That person is not on this job's crew.";
+  const lead = plan.signers.find((s) => s.role === "lead");
+  if (!lead || !myKeys.includes(lead.key)) return "Only the lead installer can open someone's sign link on their phone.";
+  if (key === lead.key) return "Sign your own line with the Sign button.";
+  if (latestSignatures(sigs).has(key)) return `${signer.name} has already signed.`;
+  return null;
 }
 /** What the job-page card shows on one sign-off line for this viewer. */
 export function swmsLineView(signer: SwmsSigner, signed: boolean, ownKeys: readonly string[], editable: boolean): { kind: "signed" } | { kind: "sign" } | { kind: "waiting"; text: string } | { kind: "closed" } {
