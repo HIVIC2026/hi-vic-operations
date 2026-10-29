@@ -531,7 +531,7 @@ export const ELECTRICIAN_GUIDE_WORDS = {
   back: "Back to My work",
 } as const;
 
-// Decision 317: the electrician's "Safety check (PIESA)" document row on their job page.
+// Decision 317: the electrician's "Pre Insulation Electrical Safety Assessment (PIESA)" document row on their job page.
 export const SAFETY_CHECK_DOC_TITLE = PIESA_FULL;
 /** One line under the row: the signed date and, after the fixes, that this version includes them. */
 export function safetyCheckDocLine(x: { signatureDate: string | null; afterFixes: boolean }): string {

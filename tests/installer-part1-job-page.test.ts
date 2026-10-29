@@ -11,8 +11,8 @@ const ROUTE = "src/routes/_authenticated/field.$jobId.tsx";
 describe("C1 one PIESA name on the Job page", () => {
   test("no 'safety check' wording in Job page sources", () => {
     const core = read("src/lib/installer-screens.core.ts").split("// ---------- M4 · Today's job")[0]!;
-    for (const src of [core, read(ROUTE), read("src/components/trade/InstallerPriceCard.tsx"), read("src/components/portal/piesa-times-electrician.tsx"), read("src/components/trade/FixesTimesCard.tsx")])
-      expect(code(src)).not.toMatch(/safety check/i);
+    for (const src of [core, read(ROUTE), read("src/components/trade/InstallerPriceCard.tsx"), read("src/components/portal/piesa-times-electrician.tsx"), read("src/components/trade/FixesTimesCard.tsx"), read("src/components/trade/FixesFormCard.tsx"), read("src/components/portal/mitti.tsx")])
+      expect(code(src).split(PIESA_FULL).join("").replace(/Pre Insulation Electrical Safety Assessment/g, "")).not.toMatch(/safety (check|assessment)|electrical assessment/i); // the standard name itself is allowed
   });
   test("shared constants use the standard name", () => {
     expect(OWNER_PIESA_CONFIRM_WAITING).toBe(`Waiting for the owner to confirm the ${PIESA_FULL}`);

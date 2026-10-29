@@ -1,4 +1,4 @@
-// Decision 317: the electrician's "Safety check (PIESA)" document row on /field/{jobId}. Presentation only: the row and
+// Decision 317: the electrician's "Pre Insulation Electrical Safety Assessment (PIESA)" document row on /field/{jobId}. Presentation only: the row and
 // the PDF come through trade-view.functions (electricians only, business-scoped); the PDF arrives as bytes and opens
 // from a local blob — no public URL. Nothing shows until the official PIESA exists.
 import { useState } from "react";

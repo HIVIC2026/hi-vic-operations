@@ -113,7 +113,7 @@ export function MittiSyncedFields({ a: raw }: { a: Record<string, unknown> }) {
     ["PIESA outcome", a.piesa_outcome], ["Assessment date", a.assessed_on], ["Hazards", a.hazards], ["Notes", a.notes],
   ];
   return (
-    <Section title="Electrical assessment (from Mitti – read only)">
+    <Section title={`${PIESA_FULL} (from Mitti – read only)`}>
       <dl className="grid grid-cols-2 gap-1 text-sm">{rows.map(([k, v]) => <Fragment key={k}><dt className="text-muted-foreground">{k}</dt><dd>{f(v)}</dd></Fragment>)}</dl>
     </Section>
   );

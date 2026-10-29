@@ -9,6 +9,7 @@ import { MittiFormLink } from "@/components/portal/MittiFormLink";
 import { Button, Section } from "@/components/trade/trade-ui";
 import { getFixesForm, refreshFixesForm } from "@/lib/fixes-day.functions";
 import { FIXES_FORM_LINK_LABEL } from "@/lib/fixes-day.core";
+import { PIESA_FULL } from "@/lib/job-wording";
 
 export function FixesFormCard({ jobId, mittiInvited }: { jobId: string; mittiInvited: boolean }) {
   const load = useServerFn(getFixesForm);
@@ -34,7 +35,7 @@ export function FixesFormCard({ jobId, mittiInvited }: { jobId: string; mittiInv
         )}
       </div>
       {line && <p className="mt-2 text-sm text-sub">{line}</p>}
-      <p className="mt-2 text-xs text-sub">Press Complete in Mitti when the repair work is done: the certificate number, date and photos go onto the safety assessment and the owner's copy. If you can't use Mitti today, record it below instead.</p>
+      <p className="mt-2 text-xs text-sub">Press Complete in Mitti when the repair work is done: the certificate number, date and photos go onto the {PIESA_FULL} and the owner's copy. If you can't use Mitti today, record it below instead.</p>
     </Section>
   );
 }
