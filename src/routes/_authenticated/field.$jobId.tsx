@@ -41,7 +41,7 @@ import { JobStatusCard, useTradeJobStatus } from "@/components/trade/job-status"
 import { OwnerQuoteCard } from "@/components/trade/OwnerQuoteCard";
 import { SafetyPlanCard } from "@/components/trade/SafetyPlanCard";
 import { InstallerReadyCheckTimesCard, useInstallerReadyCheckTimes } from "@/components/portal/ready-check-times-installer";
-import { OneTapAction } from "@/components/trade/one-tap-action";
+import { InstallFinishedButton } from "@/components/trade/InstallFinishedButton";
 import { addApprovedRectItem, addOtherRectItem, completeAssessment, completeInstallation, getAssignedRecRates, removeRectItem } from "@/lib/portal.functions";
 import { aud } from "@/lib/workflow";
 import { Input } from "@/components/ui/input";
@@ -245,7 +245,7 @@ function OtherItems({ jobId, editable }: { jobId: string; editable: boolean }) {
   const [o, setO] = useState({ description: "", quantity: "1", price: "", explanation: "" });
   const [approved, setApproved] = useState({ code: "", quantity: "1" });
   return (
-    <Section title="4 · Electrical fixes items">
+    <Section title="Electrical fixes items">
       {editable && approvedRates.length > 0 && <div className="mb-4 rounded-lg border p-3"><p className="mb-2 text-sm font-semibold">Add from your approved rate schedule</p><div className="grid gap-2 sm:grid-cols-[1fr_7rem_auto]"><select className="h-12 rounded-lg border bg-background px-3 text-sm" value={approved.code} onChange={(e) => setApproved((x) => ({ ...x, code: e.target.value }))}><option value="">Choose an item</option>{approvedRates.map((rate) => <option key={rate.code} value={rate.code}>{rate.description} · {rate.display_unit || rate.unit}</option>)}</select><Input className="h-12" type="number" min="0.01" step="0.01" aria-label="Quantity" value={approved.quantity} onChange={(e) => setApproved((x) => ({ ...x, quantity: e.target.value }))} /><Button disabled={!approved.code || !(Number(approved.quantity) > 0)} onClick={() => addApproved({ jobId, rateCode: approved.code, quantity: Number(approved.quantity) }, "Approved electrical fixes item added")}>Add</Button></div></div>}
       <p className="mb-2 text-xs text-sub">Standard items are priced from your answers.</p>
       <ul className="mb-3 space-y-1 text-sm">
@@ -273,6 +273,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
   const { data: days } = useInstallerInstallDays(jobId);
   const { data: rc } = useInstallerReadyCheckTimes(jobId);
   const done = useAction(completeInstallation);
+  const mittiInvited = useMittiInvited();
   const owner = firstName(job.owner_name);
   const rcTurn: ReadyCheckTurn = rc && rc.applies ? (rc.turn as ReadyCheckTurn) : null;
   const next = page ? jobNext({
@@ -285,7 +286,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
     installFormCompletedAt: page.install.formCompletedAt, evidenceChecked: page.install.evidenceChecked, crew: page.install.crew, ownerReady: page.install.ownerReady,
     formHasAnswers: page.form.hasAnswers, priceEntered: page.price.entered, boss: page.boss, ownerPiesaConfirmed: page.ownerPiesaConfirmed,
   }) : null;
-  const mittiLink = page && next ? mittiLinkPlace({ panel: next.panel, yours: next.yours, auditId: page.form.auditId, mittiInvited: page.mittiInvited, formLinked: page.form.linked }) : null;
+  const mittiLink = page && next ? mittiLinkPlace({ panel: next.panel, yours: next.yours, auditId: page.form.auditId, mittiInvited, formLinked: page.form.linked }) : null;
   const readyCheck = page ? readyCheckRows({ bookedAt: page.readyCheck.bookedAt, done: page.readyCheck.done, formLinked: page.form.linked, formCompleted: page.form.completed, missing: page.form.missing.length + page.form.stops.length, hasAnswers: page.form.hasAnswers }) : null;
   // Decision 279: ONE status line per job. The Quote row shows quote wording only once the form has answers and (A1) the price is in.
   const status = page ? installerStatusLine({ channel: page.channel, formLinked: page.form.linked, formCompleted: page.form.completed, formHasAnswers: page.form.hasAnswers, priceEntered: page.price.entered, boss: page.boss, quoteLine: page.quote?.line ?? null }) : null;
@@ -336,7 +337,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
           {next.panel === "sign_rebate" && (
             <div className="mt-3 space-y-3" data-sign-rebate>
               {!page.install.recordedAt
-                ? <OneTapAction label={<><Check /> The install is finished</>} busyLabel="Recording…" confirm="Confirm the install is finished on site? Only do this once the Mitti install form is Complete." confirmLabel="Yes, it's finished" run={() => done({ jobId }, "Install recorded")} />
+                ? <InstallFinishedButton run={() => done({ jobId }, "Install recorded")} />
                 : <InstallerFinalDeclaration jobId={jobId} />}
             </div>
           )}

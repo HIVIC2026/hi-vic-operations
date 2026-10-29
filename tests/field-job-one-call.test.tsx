@@ -61,7 +61,7 @@ mock.module("@/lib/trade-view.functions", () => ({
   checkTradeInstallForm: refused("checkTradeInstallForm"),
 }));
 mock.module("@/lib/visit-allocation.functions", () => ({ getVisitAllocation: fake("getVisitAllocation", () => ({ canAllocate: false, visits: [] })), allocateVisitFn: refused("allocateVisitFn") }));
-mock.module("@/lib/installer-price.functions", () => ({ getInstallerPriceFn: refused("getInstallerPriceFn"), setInstallerPriceFn: refused("setInstallerPriceFn") }));
+mock.module("@/lib/installer-price.functions", () => ({ getInstallerPriceFn: refused("getInstallerPriceFn"), setInstallerPriceFn: refused("setInstallerPriceFn"), switchToHivElectricianFn: refused("switchToHivElectricianFn") }));
 mock.module("@/lib/installer-quote-status.functions", () => ({ getMyOwnerQuote: refused("getMyOwnerQuote") }));
 
 const { QueryClient, QueryClientProvider } = await import("@tanstack/react-query");

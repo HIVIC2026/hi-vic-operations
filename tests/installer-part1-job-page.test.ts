@@ -97,3 +97,12 @@ test("C2: one-way switch only on a job held for a not-onboarded electrician", ()
   expect(card).toContain("confirm={HIV_SWITCH.confirm}");
   for (const f of readdirSync("src/routes/_authenticated").filter((n: string) => n.startsWith("admin"))) expect(read(`src/routes/_authenticated/${f}`)).not.toContain("switchToHivElectrician");
 });
+
+test("C9: tidy-up keeps the same screen", () => {
+  const r = read(ROUTE);
+  expect(r).not.toContain("4 · Electrical fixes items"); expect(r).toContain('title="Electrical fixes items"');
+  expect(r).not.toContain("page.mittiInvited"); // one Mitti-account check: useMittiInvited()
+  expect(r).not.toContain("The install is finished"); expect(r).toContain("<InstallFinishedButton run={");
+  const b = read("src/components/trade/InstallFinishedButton.tsx");
+  for (const s of ["The install is finished", 'busyLabel="Recording…"', "Confirm the install is finished on site? Only do this once the Mitti install form is Complete.", `confirmLabel="Yes, it's finished"`]) expect(b).toContain(s);
+});
