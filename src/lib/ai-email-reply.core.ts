@@ -12,6 +12,7 @@ import { changeVisitLink, visitGroupForStage, type ChangeVisit } from "./email-c
 import { smsQuietReason } from "./quote-hold.core";
 import { SPOT_FREE, SPOT_PRICE_NOTE, SPOT_REGISTERED, SPOT_RELEASE_LINE, isPreReleaseStage } from "./spot-only-copy.core";
 import { rulesFromAnswers, type AiAnswer } from "./ai-answers.core";
+import type { StyleExample } from "./ai-style.core";
 import type { SpotReleaseState } from "./spot-release.core";
 import { ownerRateForR } from "./hiv-quote.core";
 
@@ -88,7 +89,8 @@ const NEXT_STEP_PRE_RELEASE = `Then give the one next step: if their spot isn't 
 export const AI_ACTIONS_EXAMPLE = 'ACTIONS: {"installer_note":"…","new_area_m2":90}';
 const instructionLines = (NEXT_STEP: string, preRelease: boolean) => [
   "You write email replies from the Home Insulation Victoria team to home owners about their ceiling insulation. The office reads and sends each one.",
-  "Tone: kind, warm and plain, in Australian English, like a real person in our office. Short sentences. Never robotic or call-centre. Never say \"No worries\". Never sign or mention a person's name for us.",
+  "Tone: kind, warm and plain, in Australian English, like a real person in our office. Never robotic or call-centre. Never say \"No worries\". Never sign or mention a person's name for us.",
+  "Answer each question fully, explaining the why when it helps, in short sentences. Warm and plain; an occasional :) is fine.",
   "Start with \"Hi <first name>,\" on its own line (or \"Hi there,\" if no name), then a short thank-you that fits what they wrote.",
   "Answer every question they asked, directly and specifically, using the job facts below (their ceiling size, price, rebate, whether their spot is saved). If they asked several things, answer each one in a short list.",
   "Never say \"we'll check and get back to you\" when the answer is in the facts or the business rules. Only if something truly isn't covered, say we'll find out and reply.",
@@ -117,7 +119,7 @@ export function isPreReleaseOwner(j: { channel: string | null | undefined; stage
   return j.releaseState?.state !== "confirmed";
 }
 
-export type AiPromptOpts = { preRelease?: boolean; answers?: AiAnswer[] | null };
+export type AiPromptOpts = { preRelease?: boolean; answers?: AiAnswer[] | null; style?: StyleExample[] | null };
 /** The prompt for this owner; released owners get AI_REPLY_INSTRUCTIONS unchanged. */
 export const aiReplyInstructions = (o: AiPromptOpts = {}): string => (o.preRelease ? instructionLines(NEXT_STEP_PRE_RELEASE, true).join("\n") : AI_REPLY_INSTRUCTIONS);
 
@@ -136,6 +138,7 @@ export function buildAiReplyInput(c: AiReplyContext, o: AiPromptOpts = {}): stri
     ...(pre ? [] : [`Current stage: ${c.stageLabel}`]),
     c.facts.length ? `Facts:\n- ${c.facts.join("\n- ")}` : "Facts: none recorded",
     `Business rules:\n- ${[...rulesFromAnswers(o.answers ?? null), ...(pre ? preReleaseExtras : [])].join("\n- ")}`,
+    ...(o.style?.length ? [`How Jo writes (style only — never copy facts, prices, dates, names or promises from these):\n${o.style.map((e) => `Owner wrote:\n${e.theirEmail.slice(0, 600)}\nJo replied:\n${e.reply}`).join("\n\n")}`] : []),
     c.links.length ? `Links you may use:\n${c.links.map((l) => `- ${l.label}: ${l.url}`).join("\n")}` : "Links: none — do not offer a link",
     pre ? "No change-time link is available." : c.changeLink ? `To change the time of ${WHO[c.changeLink.visit]}, they use: ${c.changeLink.link}` : "No change-time link is available — if they want to change a time, say we'll sort it and get back to them.",
     `Email history (oldest first):\n${hist || "(none)"}`,
@@ -156,6 +159,8 @@ const CALL_US = /[^.!?\n]*\b(call|ring|phone)\s+(us|the office|our office)\b[^.!
 export function finishAiReply(raw: string): string {
   let t = raw.replace(/\r/g, "").trim();
   t = t.replace(/\n*(cheers|kind regards|regards|thanks|many thanks|best)[,!]?\s*\n(?:jo\s*\n)?[^\n]*(home insulation victoria|team)[^\n]*$/i, "").trim();
+  // The AI sometimes signs as Jo ("Cheers, Jo", "Kind regards,\nJo"): drop it so only the team sign-off remains.
+  t = stripSignOff(t);
   for (const [re, to] of JARGON) t = t.replace(re, to);
   t = t.replace(CALL_US, "").replace(PHONE, "").replace(/[ \t]{2,}/g, " ");
   // Greeting on its own line: "Hi Sarah! Good news…" → "Hi Sarah!\n\nGood news…"
@@ -353,8 +358,11 @@ export function saveAnswerPrefill(questions: string[], sentBody: string): { topi
   return { topic: (questions[0] ?? "").trim().slice(0, 80), answer: lines.join("\n").replace(/\n{3,}/g, "\n\n").trim() };
 }
 
-/** Problems that stop a draft being sent as written (checked again at send). */
-export function aiReplyProblems(body: string, opts: { preRelease?: boolean } = {}): string[] {
+const PLACEHOLDER_RE = /<(?:name|address|suburb|postcode|link|email|phone|job)>/gi;
+
+/** Problems that stop a draft being sent as written (checked again at send).
+ *  `aiDraft: true` (only for the AI's own text) also runs the two wording rules; Jo's typed words on Send never do (Jo 30 Oct 2026). */
+export function aiReplyProblems(body: string, opts: { preRelease?: boolean; aiDraft?: boolean } = {}): string[] {
   const out: string[] = [];
   // A sign-off on its own (e.g. the AI wrote only office notes) is still an empty reply.
   if (!stripSignOff(body).trim()) out.push("The reply is empty.");
@@ -366,6 +374,11 @@ export function aiReplyProblems(body: string, opts: { preRelease?: boolean } = {
   if (/\bNEEDS[_ ]?(?:JO|YOU)[*_]{0,2}\s*:/i.test(body) || /\bNEEDS[_ ]?(?:JO|YOU)[*_]{0,2}\s*[-–]/.test(body)
     || /^[\s*_`>-]*needs[_ ]?(?:jo|you)[*_]{0,2}\s*[:\-–]/im.test(body) || /\bACTIONS[*_]{0,2}\s*:/.test(body)
     || /\{\s*"installer_note"/.test(body) || /"new_area_m2"/.test(body)) out.push("Take out the AI's note to the office (NEEDS_JO…).");
+  // Placeholders copied from Jo's scrubbed style examples.
+  for (const ph of new Set((body.match(PLACEHOLDER_RE) ?? []).map((m) => m.toLowerCase()))) out.push(`Take out the placeholder ${ph} — write the real wording`);
+  if (opts.aiDraft === true && /\bfixes\b/i.test(body)) out.push("Say “electrical upgrades” instead of “fixes”.");
+  // First mention is "electrical safety check (PIESA)"; later plain "safety check" is fine once PIESA has been named.
+  if (opts.aiDraft === true && /\bsafety check\b/i.test(body) && !/\bPIESA\b/i.test(body)) out.push("Say “electrical safety check (PIESA)”.");
   if (opts.preRelease) {
     const bad = aiPreReleaseViolations(body);
     if (bad.length) out.push(`Take out “${bad.join("”, “")}” — we can't promise timing before their spot is released.`);
@@ -383,9 +396,10 @@ export const AI_FIX_INSTRUCTIONS = [
   "Return only the email body, nothing else.",
 ].join("\n");
 
-const SIGN_WORDS = "(?:cheers|kind regards|regards|thanks|many thanks|best)";
+const SIGN_WORDS = "(?:cheers|kind regards|best regards|warm regards|regards|thanks|thank you|many thanks|best)";
 const TRAILING_TEAM_SIGN_OFF = new RegExp(`(?:^|\\n)[ \\t]*${SIGN_WORDS}[ \\t]*,[ \\t]*(?:the[ \\t]+)?(?:home insulation victoria(?:[ \\t]+team)?|team)[ \\t]*\\.?[ \\t]*$`, "i");
-const TRAILING_JO_SIGN_OFF = new RegExp(`(?:^|\\n)[ \\t]*${SIGN_WORDS}[,!.]?[ \\t]*\\n+[ \\t]*jo[ \\t]*$`, "i");
+// "Cheers,\nJo", "Cheers,\n\nJo", "Cheers, Jo", "Cheers Jo!", "Thanks,\nJo :)".
+const TRAILING_JO_SIGN_OFF = new RegExp(`(?:^|\\n)[ \\t]*${SIGN_WORDS}[ \\t]*[,!.]?(?:[ \\t]*\\n)*[ \\t]*jo\\b[ \\t]*[!.]?[ \\t]*(?::-?\\))?[ \\t]*$`, "i");
 /** Removes a trailing sign-off however the AI worded it (our exact one, "Kind regards, the … team", "Cheers,\nJo"), plus surrounding whitespace. */
 export function stripSignOff(text: string): string {
   let t = text.trim();
@@ -410,9 +424,11 @@ export async function fixUntilClean(
   body: string,
   preRelease: boolean,
   ai: (input: string, instructions: string) => Promise<string>,
+  opts: { aiDraft?: boolean } = {},
 ): Promise<{ body: string; problems: string[]; tries: number }> {
+  const aiDraft = opts.aiDraft === true;
   let current = body;
-  let problems = aiReplyProblems(current, { preRelease });
+  let problems = aiReplyProblems(current, { preRelease, aiDraft });
   let tries = 0;
   if (!stripSignOff(body).trim()) return { body, problems, tries }; // nothing to rewrite (empty or sign-off only); never ask the AI to invent a reply
   while (problems.length && tries < AI_FIX_TRIES) {
@@ -427,7 +443,7 @@ export async function fixUntilClean(
     if (!text || text.replace(/[.\s]+$/, "") === NO_REPLY_NEEDED) continue;
     // finishAiReply only strips a two-line sign-off; our exact one-line sign-off is dropped first so it is never doubled.
     current = finishAiReply(text);
-    problems = aiReplyProblems(current, { preRelease });
+    problems = aiReplyProblems(current, { preRelease, aiDraft });
   }
   return { body: current, problems, tries };
 }

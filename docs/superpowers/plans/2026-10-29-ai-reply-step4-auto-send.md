@@ -15,6 +15,7 @@
 - Never auto-send when: switch off, kind not allowed, any `aiReplyProblems` after the fix loop, `needs_answer` non-empty, `needs_you`, any proposed action (note/size), job is TEST/QA unless the test sender redirects, owner opted out, 8pm–7am Melbourne (held to 7am, re-checked then; skipped if a newer email arrived or the draft was sent/discarded).
 - Default is OFF. The switch can only be turned on from the AI answers page after the 10 samples are shown.
 - `AI_EMAIL_AUTO_SEND_ENABLED` constant is removed (it was never read).
+- Auto-send must check the draft with `aiReplyProblems(body, { preRelease, aiDraft: true })` (or rely on the saved `details.problems`, which uses aiDraft) — never the plain Send path, which skips the "fixes"/"safety check" rules for Jo's own typed words (Jo, 30 Oct).
 - Open a PR and stop.
 
 ## Review Focus

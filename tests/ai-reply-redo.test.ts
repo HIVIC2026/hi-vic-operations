@@ -200,7 +200,7 @@ describe("task 4: the loop at draft time and on Send (source checks)", () => {
     // Step 2 task 4: the AI's office notes are split off first, so finishAiReply gets the email body only.
     expect(w.indexOf("finishAiReply(out.body)")).toBeGreaterThan(-1);
     expect(w.indexOf("fixUntilClean(")).toBeGreaterThan(w.indexOf("finishAiReply(out.body)"));
-    expect(w).toContain("fixUntilClean(first, preRelease, (i, ins) => aiText(i, ins, AbortSignal.timeout(25_000)))");
+    expect(w).toContain("fixUntilClean(first, preRelease, (i, ins) => aiText(i, ins, AbortSignal.timeout(25_000)), { aiDraft: true })");
   });
   test("sendAiDraft rewrites, saves the edit and returns rewritten before any send", () => {
     const s = fn("sendAiDraft");
@@ -209,6 +209,7 @@ describe("task 4: the loop at draft time and on Send (source checks)", () => {
     expect(s).toContain('status: "rewritten"');
     expect(s.indexOf('status: "rewritten"')).toBeLessThan(s.indexOf("sendGuardedOwnerEmail"));
     expect(s.indexOf("openDraft(")).toBeLessThan(s.indexOf("fixUntilClean("));
+    expect(s).not.toContain("aiDraft: true"); // Jo 30 Oct: her typed words send as written, the two wording rules are the AI draft's only
     expect(s).not.toContain("throw new Error(problems.join");
     expect(s).not.toContain("throw new Error(basic.join");
   });
@@ -246,5 +247,27 @@ describe("task 5: the screens show the fixed draft after a blocked Send (source 
   test("sendAiDraft's return type narrows on status", () => {
     const s = readFileSync("src/lib/ai-email-reply.server.ts", "utf8");
     expect(s).not.toContain("Promise<{ status: string } | {");
+  });
+});
+
+describe("fixUntilClean: the two wording rules only with aiDraft", () => {
+  const fixy = `Hi Sam,\n\nThe fixes are extra.\n\n${AI_SIGN_OFF}`;
+  test("aiDraft true: the fix loop catches 'fixes' and rewrites it", async () => {
+    let calls = 0;
+    const r = await fixUntilClean(fixy, false, async () => { calls++; return "Hi Sam,\n\nThe electrical upgrades are extra."; }, { aiDraft: true });
+    expect(calls).toBe(1);
+    expect(r.problems).toEqual([]);
+    expect(r.body).toContain("electrical upgrades");
+  });
+  test("aiDraft true: a bare safety check is caught", async () => {
+    let calls = 0;
+    await fixUntilClean(`Hi Sam,\n\nThe safety check is $349.\n\n${AI_SIGN_OFF}`, false, async () => { calls++; return "Hi Sam,\n\nThe electrical safety check (PIESA) is $349."; }, { aiDraft: true });
+    expect(calls).toBe(1);
+  });
+  test("no aiDraft: nothing to fix, ai not called", async () => {
+    let calls = 0;
+    const r = await fixUntilClean(fixy, false, async () => { calls++; return "x"; });
+    expect(calls).toBe(0);
+    expect(r.body).toBe(fixy);
   });
 });
