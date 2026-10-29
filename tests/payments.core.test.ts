@@ -43,11 +43,11 @@ describe("amount maths (cents)", () => {
   });
 });
 
-describe("payment methods (decisions 140/141: never a card fee; card only for $349 and fixes)", () => {
-  test("card for the safety check and the fixes only", () => {
+describe("payment methods (decisions 140/141: never a card fee; card only for $349, fixes and the 10% deposit)", () => {
+  test("card for the safety check, the fixes and the deposit; not the balance", () => {
     expect(paymentMethodsFor("safety_check")).toEqual(["card", "bank"]);
     expect(paymentMethodsFor("fixes")).toEqual(["card", "bank"]);
-    expect(paymentMethodsFor("install_deposit")).toEqual(["bank"]);
+    expect(paymentMethodsFor("install_deposit")).toEqual(["card", "bank"]);
     expect(paymentMethodsFor("balance")).toEqual(["bank"]);
     expect(cardAllowedFor("balance")).toBe(false);
   });
@@ -55,7 +55,7 @@ describe("payment methods (decisions 140/141: never a card fee; card only for $3
     const lines = [paymentLine("safety_check", "INV-0042"), paymentLine("fixes", "INV-0042"), paymentLine("install_deposit", "INV-0042"), paymentLine("balance", "INV-0042"), ...howYouPayLines(paymentPlan({ quoteTotalCents: 400_000 })), FINAL_INVOICE_PAY_LINE];
     for (const l of lines) expect(l).not.toMatch(/fee shown|surcharge|card fee/i);
     expect(paymentLine("safety_check", null)).toBe(PAY_LINE_SAFETY_CHECK);
-    expect(paymentLine("install_deposit", "INV-0042")).toBe("Bank transfer or PayID, reference INV-0042");
+    expect(paymentLine("install_deposit", "INV-0042")).toBe("Card, bank transfer or PayID, reference INV-0042");
     expect(paymentLine("balance", null)).toBe("Bank transfer or PayID");
     expect(howYouPayLines(paymentPlan({ quoteTotalCents: 400_000 }))[1]).toContain("$365.10 deposit (10% of the install price)");
     expect(howYouPayLines(paymentPlan({ quoteTotalCents: 400_000 }))[1]).not.toContain("48 hours") // Jo 26 Oct: deposit before booking, no hold;
@@ -82,11 +82,11 @@ describe("step states are idempotent and driven by cumulative payments", () => {
     expect(s[1]!.outstandingCents).toBe(30_000);
     expect(payableNow(plan, s, 54_900).step?.key).toBe("fixes");
   });
-  test("deposit falls overdue 48h after booking when unpaid; card is not offered for it", () => {
+  test("deposit falls overdue 48h after booking when unpaid; card is offered for it", () => {
     const s = paymentSteps(plan, 84_900, facts, plus(T0, 121));
     const dep = s.find((x) => x.key === "install_deposit")!;
     expect(dep.state).toBe("overdue");
-    expect(payableNow(plan, s, 84_900)).toMatchObject({ dueNowCents: dep.amountCents, cardAvailable: false });
+    expect(payableNow(plan, s, 84_900)).toMatchObject({ dueNowCents: dep.amountCents, cardAvailable: true });
   });
   test("pay in full clears everything, including the balance that was never requested", () => {
     const s = paymentSteps(plan, 450_000, facts, plus(T0, 1));
@@ -288,12 +288,12 @@ describe("owner Pay now block", () => {
     expect(b.lines).toContain("Reference: INV-7");
     expect(payNowBlock({ step: steps[0]!, cardAvailable: false, bank, reference: "INV-7", remainingCents: 400_000 }).card).toBe(false);
   });
-  test("deposit due: no card even when Stripe is available", () => {
+  test("deposit due: card when Stripe is available", () => {
     const steps = paymentSteps(plan, 34_900, { safety_check: { requestedAt: T0 }, install_deposit: { requestedAt: T0 } }, T0);
     const b = payNowBlock({ step: steps.find((s) => s.key === "install_deposit")!, cardAvailable: true, bank, reference: "INV-7", remainingCents: 365_100 });
-    expect(b.card).toBe(false);
+    expect(b.card).toBe(true);
     expect(b.title).toContain("$365.10 due now");
-    expect(b.lines[0]).toBe("Bank transfer or PayID, reference INV-7");
+    expect(b.lines[0]).toBe("Card, bank transfer or PayID, reference INV-7");
   });
   test("nothing due: remaining can still be paid in full by bank; all paid says thanks", () => {
     expect(payNowBlock({ step: null, cardAvailable: true, bank, reference: null, remainingCents: 1000 }).lines[0]).toContain("pay the remaining $10.00 any time by bank transfer or PayID");

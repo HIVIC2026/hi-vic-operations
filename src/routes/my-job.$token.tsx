@@ -652,7 +652,7 @@ function QuoteScreen({ v, token }: { v: View; token: string }) {
 }
 
 /** Decisions 139/140/141: what is due now and how to pay it. Card ("Pay now", Xero online invoice) only for the $349
- *  safety check and electrical fixes; the install deposit and balance are bank transfer / PayID only. Never a card fee. */
+ *  safety check, electrical fixes and the install deposit (Jo 29 Oct); the balance is bank transfer / PayID only. Never a card fee. */
 function PayNowCard({ v, token }: { v: View; token: string }) {
   const p = v.payment as { dueNow: number; remaining: number; paid: number; payNow: { title: string; amount: number; card: boolean; lines: string[] }; provisional: { expiresAt: string | null; deposit: number } | null } | null;
   const checkout = useServerFn(ownerCardCheckoutFn);

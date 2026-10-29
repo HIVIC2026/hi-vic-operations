@@ -204,7 +204,7 @@ const PIESA = "electrical safety check (PIESA)";
 const PAY_STEP_WORDS: Record<DueStep["key"], { what: string; how: string }> = {
   safety_check: { what: "safety check payment", how: "by card or bank transfer, with no fee" },
   fixes: { what: "electrical fixes payment", how: "by card or bank transfer, with no fee" },
-  install_deposit: { what: "booking payment (10%)", how: "by bank transfer or PayID" },
+  install_deposit: { what: "booking payment (10%)", how: "by card, bank transfer or PayID" },
   balance: { what: "balance", how: "by bank transfer or PayID" },
   repeat_safety_check: { what: "repeat safety check (PIESA) payment", how: "by card or bank transfer, with no fee" },
 };
@@ -300,7 +300,7 @@ function ownerStatus(f: OwnerFacts, intents: EmailIntent[], now: Date): Built {
       if (f.install) lines.push(`Your install is booked for ${slotText(f.install)}.`);
       else { lines.push(officeConfirms("your install day")); flags.push("Missing: install booking"); }
       if (due?.key === "install_deposit") {
-        lines.push(`${f.installHeldUntil && Date.parse(f.installHeldUntil) > now.getTime() ? `The day is held until ${dateTimeText(f.installHeldUntil)} while your` : "Your"} booking payment of ${money(due.outstanding)} comes through, by bank transfer or PayID.`);
+        lines.push(`${f.installHeldUntil && Date.parse(f.installHeldUntil) > now.getTime() ? `The day is held until ${dateTimeText(f.installHeldUntil)} while your` : "Your"} booking payment of ${money(due.outstanding)} comes through, ${due.cardAvailable ? "by card, bank transfer or PayID" : "by bank transfer or PayID"}.`);
         linkOr("The payment details are here:", "the payment details");
       }
       break;

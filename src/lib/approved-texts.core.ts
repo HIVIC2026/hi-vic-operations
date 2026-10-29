@@ -9,8 +9,8 @@
 //  - 93  electrician PIESA offer (B) + safety check booked (A) + see you tomorrow (owner)
 //  - 99  insulation install see you tomorrow (owner)
 //  - 135 your install has moved (owner)
-// NOT here (and why): decision 133's "Pay by card here" balance text is superseded by decisions 140/144 (deposit and
-// balance are bank transfer / PayID only), so it is never sent; 2-hour visit reminders, trade day-before reminders for
+// NOT here (and why): decision 133's "Pay by card here" balance text is superseded by decisions 140/144 (only the
+// balance is bank transfer / PayID only), so it is never sent; 2-hour visit reminders, trade day-before reminders for
 // Ready Checks / safety checks, fixes-quote reminders, "pick more safety check times" and pre-start-failed notices have
 // no approved wording, so they are no longer queued at all.
 import { addYmd } from "./melbourne-time.core";

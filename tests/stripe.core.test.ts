@@ -10,10 +10,10 @@ const SECRET = "whsec_test_not_real";
 const sign = (t: number, body: string, secret = SECRET) => `t=${t},v1=${createHmac("sha256", secret).update(`${t}.${body}`, "utf8").digest("hex")}`;
 
 describe("who may use card (Stripe) – fails closed", () => {
-  test("card only for the safety check and the fixes", () => {
+  test("card only for the safety check, the fixes and the install deposit", () => {
     expect(stripeCardAllowed("safety_check")).toBe(true);
     expect(stripeCardAllowed("fixes")).toBe(true);
-    expect(stripeCardAllowed("install_deposit")).toBe(false);
+    expect(stripeCardAllowed("install_deposit")).toBe(true);
     expect(stripeCardAllowed("balance")).toBe(false);
     expect(stripeBlocker({ enabled: true, secretKey: "sk_live_x", jobSource: null, step: "balance", amountCents: 100 })).toMatch(/bank transfer or PayID/);
   });
@@ -89,7 +89,7 @@ describe("webhook events → payment facts (idempotent)", () => {
     expect(stripePaymentKey(f)).toBe("pi_1");
     expect(parseStripeEvent(EVENT({ payment_status: "unpaid" }))?.fact).toBeNull();
     expect(parseStripeEvent(EVENT({ metadata: { job_id: "job-1" } }))?.fact).toBeNull();
-    expect(parseStripeEvent(EVENT({ metadata: { job_id: "job-1", invoice_id: "inv-1", step: "install_deposit" } }))?.fact).toBeNull();
+    expect(parseStripeEvent(EVENT({ metadata: { job_id: "job-1", invoice_id: "inv-1", step: "balance" } }))?.fact).toBeNull();
     expect(parseStripeEvent(JSON.stringify({ id: "evt_3", type: "charge.refunded", data: { object: {} } }))).toMatchObject({ eventId: "evt_3", fact: null });
     expect(parseStripeEvent("nope")).toBeNull();
     expect(parseStripeEvent(JSON.stringify({ type: "x" }))).toBeNull();
