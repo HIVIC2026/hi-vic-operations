@@ -528,6 +528,17 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       const x = f(id); if (x && open) x.piesaRulesFailed = { at: open.at, reasons: open.reasons };
     }
   } catch { unavailable.push("safety check rule failures"); }
+  // A48 batch 1 task 5: the electrical certificate after the repairs waits for the office (AI unsure / not ceiling / error, or rejected).
+  try {
+    const { COES_CHECKED_EVENT, COES_REJECTED_EVENT, coesNeedsFact } = await import("./coes-check.core");
+    const ev = await all("electrical certificate checks", (a, b) => scoped(admin.from("workflow_events").select("id, job_id, event_type, created_at, details")).in("event_type", [COES_CHECKED_EVENT, COES_REJECTED_EVENT]).order("created_at").range(a, b));
+    const byJob = new Map<string, Row[]>();
+    for (const e of ev) { const id = String(e["job_id"]); if (idSet.has(id)) byJob.set(id, [...(byJob.get(id) ?? []), e]); }
+    for (const [id, list] of byJob) {
+      const open = coesNeedsFact(list.map((e) => ({ id: String(e["id"]), event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as Record<string, unknown> | null })));
+      const x = f(id); if (x && open) x.coesCheck = open;
+    }
+  } catch { unavailable.push("electrical certificate checks"); }
   const unsigned = new Set(veecForms.filter((v) => !v["consumer_signed_at"]).map((v) => String(v["job_id"])));
   for (const e of veecAlerts) { const x = f(String(e["job_id"])); if (x && unsigned.has(String(e["job_id"]))) x.veecDay10 = { at: String(e["created_at"]) }; }
   // Jo 28 Oct 2026 (decision card 04:40 UTC, "Alert after 3 days unpaid"): a job paused on a homeowner payment that

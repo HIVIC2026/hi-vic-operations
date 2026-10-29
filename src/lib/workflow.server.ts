@@ -344,6 +344,11 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
     const rb = await (await import("./piesa-rules-notice.server")).piesaRulesBlockerFor(jobId);
     if (rb) blockers.push(rb);
   }
+  // A48 batch 1 task 5: where repairs were done, the electrical certificate must be ticked (AI or office) before the install day.
+  if (to === "installation_booked") {
+    const cb = await (await import("./coes-check.server")).coesBlockerFor(jobId);
+    if (cb) blockers.push(cb);
+  }
   const piesa = await piesaStatus(jobId);
 
   if (["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked"].includes(to)) {

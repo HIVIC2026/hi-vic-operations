@@ -296,6 +296,8 @@ export async function completeFixesForm(jobId: string, auditId: string, opts: { 
   }
   // A48 batch 1: a signed Section C covers the repair rules — clear an open "breaks the official rules" item. Never throws.
   await (await import("./piesa-rules-notice.server")).recheckPiesaRules(jobId, actorId);
+  // A48 batch 1 task 5: the certificate just kept is read by the AI (ticked, or one office row). Never throws.
+  await (await import("./coes-check.server")).checkCurrentCoes(jobId, actorId);
   // Mitti's own report.
   // Decision 336: the A4 signature IMAGE goes in the official Section C box (kept privately with the job first).
   await (await import("./official-signature.server")).savePiesaSignatureImage(jobId, actorId, "a5", auditId, read.signature, fetchMedia);

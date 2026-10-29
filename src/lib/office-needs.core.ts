@@ -10,6 +10,7 @@ import { invoiceSlotLabel, invoiceSlotOf } from "./office-money.core";
 import type { InvoiceSlot } from "./payments.core";
 import { QUOTE_EXPIRED_HELD_REASON } from "./quote-expiry.core";
 import { piesaRulesOfficeLine } from "./piesa-rules-notice.core";
+import { coesOfficeLine } from "./coes-check.core";
 
 export type NeedsGroup = "today" | "week" | "watch";
 export const NEEDS_GROUPS: { key: NeedsGroup; label: string }[] = [
@@ -22,12 +23,12 @@ export type NeedsKind =
   | "choose_again" | "quote_check" | "fixes_quote_check" | "sign_consent" | "esc_window" | "final_check" | "send_failed" | "email_change" | "email_unmatched" | "robot_failed" | "piisa_form_failed"
   | "choose_installer" | "choose_electrician" | "veec_a_held" | "piesa_owner_unsigned" | "piesa_fixes_owner_unsigned" | "fixes_times_missing"
   | "payment_not_in_xero" | "payment_overdue" | "ten_days_left" | "second_no_access" | "veec_day_10" | "lapsed_window"
-  | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review" | "payment_reversed" | "mitti_form_problem" | "booking_overdue" | "piesa_fixes_found" | "repeat_piesa_choose" | "payment_stalled" | "invoice_failed" | "old_fixes_invoice_unpaid" | "old_fixes_invoice_paid" | "stop_release_failed" | "quote_expired_blocked" | "new_quote_installer" | "new_quote_unfinished" | "piesa_rules_failed";
+  | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review" | "payment_reversed" | "mitti_form_problem" | "booking_overdue" | "piesa_fixes_found" | "repeat_piesa_choose" | "payment_stalled" | "invoice_failed" | "old_fixes_invoice_unpaid" | "old_fixes_invoice_paid" | "stop_release_failed" | "quote_expired_blocked" | "new_quote_installer" | "new_quote_unfinished" | "piesa_rules_failed" | "coes_check";
 
 /** Where the one button takes the office. `section` is the Job page stage card id; `act` are inline row actions. */
 export type NeedsButton =
   | { label: string; to: "job"; section?: JobSection }
-  | { label: string; to: "act"; act: "apply" | "ignore" | "match" | "not_customer" };
+  | { label: string; to: "act"; act: "apply" | "ignore" | "match" | "not_customer" | "coes_tick" | "coes_reject" };
 export type JobSection = "ready-check" | "quote" | "piesa" | "install" | "final-check" | "money" | "contact";
 
 export type NeedsRow = {
@@ -72,6 +73,8 @@ export type NeedsFacts = {
   paymentReversed?: { at: string; text: string } | null;
   /** A48 batch 1: the newest A3 safety check breaks the official PIESA rules (piesa-rules-notice.core) — every reason. */
   piesaRulesFailed?: { at: string; reasons: string[] } | null;
+  /** A48 batch 1 task 5: the electrical certificate after the repairs waits for the office (coes-check.core) — Tick or Reject. */
+  coesCheck?: { at: string; why: string; eventId: string | null } | null;
   /** Hard stop: the Mitti form on this job was refused (wrong job number, wrong or different form). */
   mittiFormProblem?: { at: string; error: string } | null;
   /** ESC install notification not sent yet; window closes 24h before the install. */
@@ -200,6 +203,7 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   if (f.prestartFailed) add({ rank: 13, group: "today", kind: "prestart_failed", line: prestartFailedLine(f.prestartFailed.reasons), since: f.prestartFailed.at, button: { label: "Open job", to: "job", section: "install" } });
   if (f.piesaFormFailed) add({ rank: 15, group: "today", kind: "piesa_form_failed", line: f.piesaFormFailed.text, since: f.piesaFormFailed.at, button: { label: "Open job", to: "job", section: "piesa" } });
   if (f.piesaRulesFailed) add({ rank: 16, group: "today", kind: "piesa_rules_failed", line: piesaRulesOfficeLine(f.piesaRulesFailed.reasons), since: f.piesaRulesFailed.at, button: { label: "Open job", to: "job", section: "piesa" } });
+  if (f.coesCheck) add({ rank: 17, group: "today", kind: "coes_check", line: coesOfficeLine(f.coesCheck.why), since: f.coesCheck.at, ...(f.coesCheck.eventId ? { eventId: f.coesCheck.eventId } : {}), button: { label: "Tick", to: "act", act: "coes_tick" }, secondary: { label: "Reject", to: "act", act: "coes_reject" } });
   if (f.piisaFormFailed) add({ rank: 14, group: "today", kind: "piisa_form_failed", line: f.piisaFormFailed.text, since: f.piisaFormFailed.at, button: { label: "Open job", to: "job", section: "install" } });
   if (f.offerLapsed) add({ rank: 20, group: "today", kind: "choose_again", line: f.offerLapsed.note ? f.offerLapsed.note : `${f.offerLapsed.role === "installer" ? "Installer" : "Electrician"} offer ${f.offerLapsed.declined ? `declined${f.offerLapsed.name ? ` by ${f.offerLapsed.name}` : ""}` : "lapsed · no reply in 24h"}`, since: f.offerLapsed.at, button: { label: "Choose again", to: "job", section: f.offerLapsed.role === "installer" ? "ready-check" : "piesa" } });
   if (f.bookingOverdue) {
