@@ -38,3 +38,26 @@ describe("A6: Add a job payload", () => {
     expect(readFileSync("src/lib/onsite-ready-check.functions.ts", "utf8")).toContain("requestKey: z.string().uuid().optional()");
   });
 });
+
+describe("A6 pre-go-live fixes", () => {
+  test("only a missing function or table means add_installer_job isn't deployed", async () => {
+    const { isMissingDbFunction } = await import("../src/lib/schema-compat.core");
+    expect(isMissingDbFunction({ code: "42883", message: "function public.add_installer_job(jsonb) does not exist" })).toBe(true);
+    expect(isMissingDbFunction({ code: "PGRST202", message: "Could not find the function public.add_installer_job(_payload) in the schema cache" })).toBe(true);
+    expect(isMissingDbFunction({ code: "42P01", message: 'relation "owner_contact_consents" does not exist' })).toBe(true);
+    // a missing column inside the function, or any other failure, is a real error, not "not deployed"
+    expect(isMissingDbFunction({ code: "42703", message: 'column "x" does not exist' })).toBe(false);
+    expect(isMissingDbFunction({ code: "PGRST204", message: "Could not find the 'x' column in the schema cache" })).toBe(false);
+    expect(isMissingDbFunction({ code: "P0001", message: "something does not exist" })).toBe(false);
+    expect(isMissingDbFunction(null)).toBe(false);
+    const srv = readFileSync("src/lib/add-installer-job.server.ts", "utf8");
+    expect(srv).toContain("isMissingDbFunction(error)");
+    expect(srv).not.toContain("isMissingDbObject");
+  });
+  test("Try again race: the refuse branch re-checks the request key before refusing or flagging", () => {
+    const srv = readFileSync("src/lib/onsite-ready-check.server.ts", "utf8");
+    const refuse = srv.slice(srv.indexOf("findOpenJobAtAddress("));
+    expect(refuse.indexOf("findAddedJob(requestKey, businessId)")).toBeGreaterThan(0);
+    expect(refuse.indexOf("findAddedJob(requestKey, businessId)")).toBeLessThan(refuse.indexOf("flagDuplicateAddress(open"));
+  });
+});

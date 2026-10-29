@@ -17,8 +17,8 @@ export async function findAddedJob(requestKey: string, businessId: string): Prom
 export async function addInstallerJobAtomic(p: AddInstallerJobPayload): Promise<{ jobId: string; jobNumber: string; created: boolean } | "not_deployed"> {
   const { data, error } = await admin.rpc("add_installer_job" as never, { _payload: p } as never);
   if (error) {
-    const { isMissingDbObject } = await import("./schema-compat.core");
-    if (isMissingDbObject(error)) { console.warn("add_installer_job not deployed (staged add-installer-job-atomic.sql); using the step-by-step save"); return "not_deployed"; }
+    const { isMissingDbFunction } = await import("./schema-compat.core");
+    if (isMissingDbFunction(error)) { console.warn("add_installer_job not deployed (staged add-installer-job-atomic.sql); using the step-by-step save"); return "not_deployed"; }
     throw new WorkflowError((error as { message?: string }).message ?? "Job could not be saved.");
   }
   const row = (Array.isArray(data) ? data[0] : data) as { job_id?: string; job_number?: string; created?: boolean } | null | undefined;
