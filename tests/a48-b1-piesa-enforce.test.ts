@@ -220,6 +220,17 @@ describe("a synced PIESA that breaks the rules stops the job", () => {
     expect(events(core.PIESA_RULES_CLEARED_EVENT).length).toBe(1);
     expect(calls.sms.length).toBe(1);
   });
+  test("fix 1: Part 6 non-IC downlight + on site at the start → exactly the wiring/RCD/downlight reason (the electrician's own B1 answer)", async () => {
+    await resync({ ...clean(), ...switchNo, ...nonIc, ...onsite }, V1);
+    expect(await notice.piesaRulesBlockerFor(J)).toBe(`Safety check breaks the official rules — ${R.rect}`);
+    expect((events(core.PIESA_RULES_FAILED_EVENT)[0]!["details"] as { reasons: string[] }).reasons).toEqual([R.rect]);
+    expect(calls.sms).toEqual([`piesa_rules_failed|piesa-rules:v1:${J}:aud-1:${V1}|0422 222 222|${message(R.rect)}`]);
+    expect(calls.office[0]).toContain(message(R.rect));
+  });
+  test("fix 1: Part 4 ceiling problem + on site → the same reason", async () => {
+    await resync({ ...clean(), ...switchNo, ceilingSafe: "No", ceilingProblems: CEILING_PROBLEMS[3], ...onsite }, V1);
+    expect(await notice.piesaRulesBlockerFor(J)).toBe(`Safety check breaks the official rules — ${R.rect}`);
+  });
   test("several reasons: message has the first two, the event and office row all", async () => {
     await resync({ ...blockedPiesa(), appliancesPresent: "Yes", "b3.licence": "" }, V1);
     const reasons = (events(core.PIESA_RULES_FAILED_EVENT)[0]!["details"] as { reasons: string[] }).reasons;

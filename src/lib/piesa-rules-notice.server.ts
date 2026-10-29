@@ -10,7 +10,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import {
-  PIESA_RULES_CLEARED_EVENT, PIESA_RULES_FAILED_EVENT, PIESA_RULES_SMS_TYPE, piesaEnforcedRules, piesaFormVersion, piesaRulesKey,
+  PIESA_RULES_CLEARED_EVENT, PIESA_RULES_FAILED_EVENT, PIESA_RULES_SMS_TYPE, asElectricianAnswered, piesaEnforcedRules, piesaFormVersion, piesaRulesKey,
   piesaRulesMessage, piesaRulesOfficeLine, piesaRulesOpen, renderPiesaRulesEmail, sectionCSigned,
 } from "./piesa-rules-notice.core";
 
@@ -30,8 +30,13 @@ export async function piesaRulesFor(jobId: string): Promise<PiesaRulesResult | n
   const { expandPiesa } = await import("./official-expand.core");
   const { declaredLifeSupport } = await import("./official-prefill.core");
   // The owner block is ignored by the rules here (filled later from the owner's secure link), so no owner record is read.
-  const { answers } = expandPiesa(shortAnswersFromEntries("piesa", entries), { lifeSupportDeclared: declaredLifeSupport(job?.life_support_status as string | null | undefined), today: todayMelbourne(), ownerConfirmation: null, ownerFixesConfirmation: null });
-  return { formVersion: piesaFormVersion(a.external_mitti_id, a.mitti_modified_at as string | null), rules: piesaEnforcedRules(answers), sectionC: sectionCSigned(answers) };
+  const ctx = { lifeSupportDeclared: declaredLifeSupport(job?.life_support_status as string | null | undefined), today: todayMelbourne(), ownerConfirmation: null, ownerFixesConfirmation: null };
+  const short = shortAnswersFromEntries("piesa", entries);
+  // Section C is read from the stored (derived) answers, where the A4 fixes form's sign-off lands; the rules are checked
+  // against the electrician's own B1 answer so the reason names the real problem (fix round 1).
+  const sectionC = sectionCSigned(expandPiesa(short, ctx).answers);
+  const rules = piesaEnforcedRules(expandPiesa(asElectricianAnswered(short), ctx).answers, sectionC);
+  return { formVersion: piesaFormVersion(a.external_mitti_id, a.mitti_modified_at as string | null), rules, sectionC };
 }
 
 /** "Safety check breaks the official rules — {reasons}" while the newest PIESA form breaks them; null otherwise. */

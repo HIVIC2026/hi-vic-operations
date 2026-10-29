@@ -6,6 +6,7 @@
 import * as K from "./email-kit.core";
 import { esc, mjEmail } from "./mail-mjml.core";
 import { piesaRuleBlockers, type OfficialAnswers } from "./official-forms.core";
+import { RECTIFICATION_OUTCOMES, REPAIR_LEGACY_NOT_BEFORE, onsiteStartTicked, part4to6Problem } from "./official-short.core";
 
 /** Recorded once per form version while it breaks the rules (details: { form_version, rules, reasons }), before any send. */
 export const PIESA_RULES_FAILED_EVENT = "piesa_rules_failed" as const;
@@ -37,10 +38,20 @@ export function sectionCSigned(a: OfficialAnswers): boolean {
   return true;
 }
 
-/** The rule failures that stop the job (Task 1's plain reasons), minus the later steps' blanks and what Section C covers. */
-export function piesaEnforcedRules(a: OfficialAnswers): { rule: string; reason: string }[] {
-  const signed = sectionCSigned(a);
+/** The rule failures that stop the job (Task 1's plain reasons), minus the later steps' blanks and what Section C covers.
+ *  `signed` defaults to these answers' own Section C (the caller passes it when Section C is read from other answers). */
+export function piesaEnforcedRules(a: OfficialAnswers, signed: boolean = sectionCSigned(a)): { rule: string; reason: string }[] {
   return piesaRuleBlockers(a, (rule) => !filledLater(rule) && !(signed && SECTION_C_COVERS.test(rule)));
+}
+
+/** The short answers as the electrician gave them: `deriveRectificationOutcome` turns "on site at the start" into
+ *  "repair work is needed" when there is a Part 4–6 problem (B1 option 3 covers Parts 2–3 only). The rules are checked
+ *  against the electrician's own B1 answer, so the reason names the real problem (RECT-REQUIRED / B1-NOT-POSSIBLE-PART4-6
+ *  → "wiring, safety switch (RCD) or downlight problems …"), not the repairs list the derived answer lacks. */
+export function asElectricianAnswered<T extends Record<string, unknown>>(short: T): T {
+  const changed = /^\s*yes\b/i.test(String(short["rectificationNeeded"] ?? "")) && short["rectificationOutcome"] === RECTIFICATION_OUTCOMES[1]
+    && !short[REPAIR_LEGACY_NOT_BEFORE] && onsiteStartTicked(short) && part4to6Problem(short);
+  return changed ? { ...short, rectificationOutcome: RECTIFICATION_OUTCOMES[2] } : short;
 }
 
 /** Needs me row / stage blocker (office only): every reason. */
