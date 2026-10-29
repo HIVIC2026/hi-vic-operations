@@ -14287,6 +14287,7 @@ export type Database = {
         | "fully_paid"
         | "overdue"
         | "xero_sync_error"
+        | "voided"
       quote_kind: "installation" | "rectification" | "repeat_safety_check"
       quote_status:
         | "draft"
@@ -14559,6 +14560,7 @@ export const Constants = {
         "fully_paid",
         "overdue",
         "xero_sync_error",
+        "voided",
       ],
       quote_kind: ["installation", "rectification", "repeat_safety_check"],
       quote_status: [

@@ -1,7 +1,7 @@
 // Practice database proof: fixes and repeat safety check invoices next to the install one (pending SQL, not run live).
 import { test, expect, beforeEach } from "bun:test";
 import type { PGlite } from "@electric-sql/pglite";
-import { makeInvoicesDb, applySeparateInvoices, rollbackSeparateInvoices } from "./helpers/pglite-separate-invoices";
+import { makeInvoicesDb, applySeparateInvoices, rollbackSeparateInvoices, pending, jobOverview0055, invoiceStatus0079 } from "./helpers/pglite-separate-invoices";
 
 let db: PGlite;
 let job: string;
@@ -95,4 +95,64 @@ test("rollback restores the old rules when no repeat rows exist, and refuses whe
   await expect(plain(quoteA)).rejects.toThrow(); // still one invoice per quote
   await plain(quoteB);
   await applySeparateInvoices(db); // and it can go forward again
+});
+
+// ---- Final fix wave: a voided old fixes invoice is closed; job_overview follows the installation invoice ----
+const statusOf = async (id: string) => (await db.query<{ effective_status: string }>(`SELECT effective_status::text FROM public.invoice_status WHERE id = $1`, [id])).rows[0]!.effective_status;
+const jobPayment = async (jobId = job) => (await db.query<{ payment_status: string | null }>(`SELECT payment_status FROM public.job_overview WHERE id = $1`, [jobId])).rows[0]?.payment_status ?? null;
+const viewCols = async (name: string) => (await db.query<{ column_name: string; data_type: string }>(`SELECT column_name, data_type FROM information_schema.columns WHERE table_name = $1 ORDER BY ordinal_position`, [name])).rows;
+async function seedOverviewJob() {
+  const owner = await uuid("owners"), prop = await uuid("properties");
+  await db.query(`UPDATE public.jobs SET job_number = 'HV-0101', owner_id = $2, property_id = $3 WHERE id = $1`, [job, owner, prop]);
+}
+
+test("I1: a voided old fixes invoice reads 'voided' — never overdue or deposit due", async () => {
+  const id = (await db.query<{ id: string }>(
+    `INSERT INTO public.invoices (job_id, quote_id, kind, status, total_inc_gst, deposit_amount, balance_amount, deposit_due_date)
+     VALUES ($1, $2, 'rectification', 'deposit_due', 550, 550, 0, CURRENT_DATE - 30) RETURNING id`, [job, quoteB])).rows[0]!.id;
+  expect(await statusOf(id)).toBe("overdue"); // before: shows owing
+  await db.query(`UPDATE public.invoices SET status = 'voided' WHERE id = $1`, [id]);
+  expect(await statusOf(id)).toBe("voided");
+  expect((await db.query(`SELECT 1 FROM public.invoice_status WHERE job_id = $1 AND effective_status::text = 'overdue'`, [job])).rows).toEqual([]);
+});
+
+test("I2: job_overview payment status follows the installation invoice, not a newer fixes invoice; same columns and grants", async () => {
+  await seedOverviewJob();
+  await db.query(`UPDATE public.invoices SET status = 'deposit_due', created_at = now() - interval '2 days', total_paid = 3490 WHERE kind = 'installation'`);
+  await db.query(`INSERT INTO public.invoices (job_id, quote_id, kind, total_inc_gst, deposit_amount, balance_amount, deposit_due_date) VALUES ($1, $2, 'rectification', 550, 550, 0, CURRENT_DATE - 30)`, [job, quoteB]);
+  await insert("repeat_safety_check", null, "reopen:k");
+  expect(await jobPayment()).toBe("fully_paid");
+  const fresh = await makeInvoicesDb();
+  const before = (await fresh.query<{ column_name: string; data_type: string }>(`SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'job_overview' ORDER BY ordinal_position`)).rows;
+  expect(await viewCols("job_overview")).toEqual(before);
+  expect((await db.query<{ ok: boolean }>(`SELECT has_table_privilege('authenticated', 'public.job_overview', 'SELECT') AS ok`)).rows[0]!.ok).toBe(true);
+  expect((await db.query<{ ok: boolean }>(`SELECT has_table_privilege('authenticated', 'public.invoice_status', 'SELECT') AS ok`)).rows[0]!.ok).toBe(true);
+});
+
+test("I2: the pending job_overview is the latest (0055) definition with only the installation filter added", () => {
+  const norm = (x: string) => x.replace(/\s+/g, " ").trim();
+  const sql = pending("separate-invoices.sql");
+  const mine = sql.match(/CREATE OR REPLACE VIEW public\.job_overview[\s\S]*?;/)?.[0] ?? "";
+  expect(norm(mine)).toBe(norm(jobOverview0055().replace("WHERE p.job_id = j.id ORDER BY", "WHERE p.job_id = j.id AND p.kind = 'installation'::quote_kind ORDER BY")));
+  const rb = pending("separate-invoices.rollback.sql");
+  expect(norm(rb)).toContain(norm(jobOverview0055()));
+  expect(norm(rb)).toContain(norm(invoiceStatus0079()));
+});
+
+test("rollback puts both views back: payment status follows the newest invoice again, a voided row reads as before", async () => {
+  await seedOverviewJob();
+  await db.query(`UPDATE public.invoices SET status = 'deposit_due', created_at = now() - interval '2 days', total_paid = 3490 WHERE kind = 'installation'`);
+  const fx = (await db.query<{ id: string }>(`INSERT INTO public.invoices (job_id, quote_id, kind, status, total_inc_gst, deposit_amount, balance_amount, deposit_due_date) VALUES ($1, $2, 'rectification', 'voided', 550, 550, 0, CURRENT_DATE - 30) RETURNING id`, [job, quoteB])).rows[0]!.id;
+  await rollbackSeparateInvoices(db);
+  expect(await jobPayment()).toBe("overdue");
+  expect(await statusOf(fx)).toBe("overdue");
+  expect((await db.query<{ status: string }>(`SELECT status::text FROM public.invoices WHERE id = $1`, [fx])).rows[0]!.status).toBe("deposit_due");
+  expect((await db.query<{ ok: boolean }>(`SELECT has_table_privilege('authenticated', 'public.job_overview', 'SELECT') AS ok`)).rows[0]!.ok).toBe(true);
+});
+
+test("the whole pending file also runs as one transaction (new enum values are not used as literals)", async () => {
+  const fresh = await makeInvoicesDb();
+  await fresh.exec(`BEGIN;\n${pending("separate-invoices.sql")}\nCOMMIT;`);
+  const vals = (await fresh.query<{ v: string }>(`SELECT unnest(enum_range(NULL::public.payment_status))::text AS v`)).rows.map((r) => r.v);
+  expect(vals).toContain("voided");
 });
