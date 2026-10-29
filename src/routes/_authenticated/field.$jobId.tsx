@@ -347,6 +347,13 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
         </NextPanel>
       )}
 
+      {/* AI replies step 2: notes the office saved for the installer (e.g. the owner wants R7.0). Older answers carry none. */}
+      {page && (page.notes ?? []).length > 0 && (
+        <Group title="Notes from the office">
+          <ul data-office-notes>{(page.notes ?? []).slice(0, 5).map((n, i) => <li key={i} className="break-words border-b border-line py-3 text-[15px] text-ink last:border-b-0">{n}</li>)}</ul>
+        </Group>
+      )}
+
       {page && (showQuoteStatus || (page.boss && page.channel === "installer_sourced") || page.pay.amount != null) && (
         <Group title="Quote">
           {showQuoteStatus && <Row label="Status" value={quoteRow.label} tone={quoteRow.tone === "green" ? "green" : quoteRow.tone === "sub" ? "sub" : "bold"} />}

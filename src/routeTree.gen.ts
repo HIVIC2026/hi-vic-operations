@@ -40,6 +40,7 @@ import { Route as WTokenRouteImport } from './routes/w.$token'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as AuthenticatedAdminSplatRouteImport } from './routes/_authenticated/admin.$'
 import { Route as AuthenticatedAdminCommunicationsRouteImport } from './routes/_authenticated/admin.communications'
+import { Route as AuthenticatedAdminAiAnswersRouteImport } from './routes/_authenticated/admin.ai-answers'
 import { Route as AuthenticatedAdminElectricianRatesRouteImport } from './routes/_authenticated/admin.electrician-rates'
 import { Route as AuthenticatedAdminEmailsRouteImport } from './routes/_authenticated/admin.emails'
 import { Route as AuthenticatedAdminEnquiriesRouteImport } from './routes/_authenticated/admin.enquiries'
@@ -268,6 +269,12 @@ const AuthenticatedAdminCommunicationsRoute =
   AuthenticatedAdminCommunicationsRouteImport.update({
     id: '/communications',
     path: '/communications',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminAiAnswersRoute =
+  AuthenticatedAdminAiAnswersRouteImport.update({
+    id: '/ai-answers',
+    path: '/ai-answers',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminElectricianRatesRoute =
@@ -715,6 +722,7 @@ export interface FileRoutesByFullPath {
   '/w/$token': typeof WTokenRoute
   '/admin/$': typeof AuthenticatedAdminSplatRoute
   '/admin/communications': typeof AuthenticatedAdminCommunicationsRoute
+  '/admin/ai-answers': typeof AuthenticatedAdminAiAnswersRoute
   '/admin/electrician-rates': typeof AuthenticatedAdminElectricianRatesRoute
   '/admin/emails': typeof AuthenticatedAdminEmailsRoute
   '/admin/enquiries': typeof AuthenticatedAdminEnquiriesRoute
@@ -816,6 +824,7 @@ export interface FileRoutesByTo {
   '/w/$token': typeof WTokenRoute
   '/admin/$': typeof AuthenticatedAdminSplatRoute
   '/admin/communications': typeof AuthenticatedAdminCommunicationsRoute
+  '/admin/ai-answers': typeof AuthenticatedAdminAiAnswersRoute
   '/admin/electrician-rates': typeof AuthenticatedAdminElectricianRatesRoute
   '/admin/emails': typeof AuthenticatedAdminEmailsRoute
   '/admin/enquiries': typeof AuthenticatedAdminEnquiriesRoute
@@ -923,6 +932,7 @@ export interface FileRoutesById {
   '/w/$token': typeof WTokenRoute
   '/_authenticated/admin/$': typeof AuthenticatedAdminSplatRoute
   '/_authenticated/admin/communications': typeof AuthenticatedAdminCommunicationsRoute
+  '/_authenticated/admin/ai-answers': typeof AuthenticatedAdminAiAnswersRoute
   '/_authenticated/admin/electrician-rates': typeof AuthenticatedAdminElectricianRatesRoute
   '/_authenticated/admin/emails': typeof AuthenticatedAdminEmailsRoute
   '/_authenticated/admin/enquiries': typeof AuthenticatedAdminEnquiriesRoute
@@ -1030,6 +1040,7 @@ export interface FileRouteTypes {
     | '/w/$token'
     | '/admin/$'
     | '/admin/communications'
+    | '/admin/ai-answers'
     | '/admin/electrician-rates'
     | '/admin/emails'
     | '/admin/enquiries'
@@ -1131,6 +1142,7 @@ export interface FileRouteTypes {
     | '/w/$token'
     | '/admin/$'
     | '/admin/communications'
+    | '/admin/ai-answers'
     | '/admin/electrician-rates'
     | '/admin/emails'
     | '/admin/enquiries'
@@ -1237,6 +1249,7 @@ export interface FileRouteTypes {
     | '/w/$token'
     | '/_authenticated/admin/$'
     | '/_authenticated/admin/communications'
+    | '/_authenticated/admin/ai-answers'
     | '/_authenticated/admin/electrician-rates'
     | '/_authenticated/admin/emails'
     | '/_authenticated/admin/enquiries'
@@ -1585,6 +1598,13 @@ declare module '@tanstack/react-router' {
       path: '/communications'
       fullPath: '/admin/communications'
       preLoaderRoute: typeof AuthenticatedAdminCommunicationsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/ai-answers': {
+      id: '/_authenticated/admin/ai-answers'
+      path: '/ai-answers'
+      fullPath: '/admin/ai-answers'
+      preLoaderRoute: typeof AuthenticatedAdminAiAnswersRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/electrician-rates': {
@@ -2125,6 +2145,7 @@ const AuthenticatedAdminJobsRouteWithChildren =
 interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminSplatRoute: typeof AuthenticatedAdminSplatRoute
   AuthenticatedAdminCommunicationsRoute: typeof AuthenticatedAdminCommunicationsRoute
+  AuthenticatedAdminAiAnswersRoute: typeof AuthenticatedAdminAiAnswersRoute
   AuthenticatedAdminElectricianRatesRoute: typeof AuthenticatedAdminElectricianRatesRoute
   AuthenticatedAdminEmailsRoute: typeof AuthenticatedAdminEmailsRoute
   AuthenticatedAdminEnquiriesRoute: typeof AuthenticatedAdminEnquiriesRoute
@@ -2147,6 +2168,8 @@ interface AuthenticatedAdminRouteChildren {
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminSplatRoute: AuthenticatedAdminSplatRoute,
   AuthenticatedAdminCommunicationsRoute: AuthenticatedAdminCommunicationsRoute,
+  AuthenticatedAdminAiAnswersRoute:
+    AuthenticatedAdminAiAnswersRoute,
   AuthenticatedAdminElectricianRatesRoute:
     AuthenticatedAdminElectricianRatesRoute,
   AuthenticatedAdminEmailsRoute: AuthenticatedAdminEmailsRoute,

@@ -171,7 +171,11 @@ export function answeredInOutlook(row: { threadId?: string | null; receivedAt?: 
   return replies.some((r) => r.threadId === row.threadId && !!r.at && Date.parse(r.at) > received && r.recipients.some((to) => to.trim().toLowerCase() === sender));
 }
 /** kind: "link" = the website-link reply; "follow_up" = an answer to someone who already has the link (Jo 28 Oct 2026). */
-export type DraftRef = { eventId: string; body: string; kind?: "link" | "follow_up"; nothingToAnswer?: boolean };
+export type DraftRef = { eventId: string; body: string; kind?: "link" | "follow_up"; nothingToAnswer?: boolean;
+  /** Job drafts (AI replies step 2): questions the AI couldn't answer, and a complaint after the install. */
+  needsAnswer?: string[]; needsYou?: boolean;
+  /** Job drafts: what the AI proposes doing when Jo sends (note for the installer, new ceiling size). */
+  actions?: { installerNote?: string; newAreaM2?: number } };
 
 export type JobEmailCard = {
   key: string; requestEventId: string; jobId: string; jobNumber: string | null; name: string | null; at: string;
@@ -183,6 +187,9 @@ export type JobEmailCard = {
   action: "done" | "apply" | "dealt_with";
   /** Jo 27 Oct 2026: the owner said they're not going ahead and the job is still open — "Close job" or "Keep open", never a silent Done. */
   stillOpenDecline: boolean;
+  /** From the open draft: questions only Jo can answer, and a complaint after the install. */
+  needsAnswer: string[];
+  needsYou: boolean;
 };
 export type NoJobCard = {
   key: string; unmatchedEventId: string; at: string; from: string | null; fromName: string | null; subject: string | null;
@@ -226,13 +233,13 @@ export function buildEmailsTab(i: {
   /** Jobs that are still open (not cancelled, complete or archived). */
   openJobIds?: Set<string>;
 }): EmailsTab {
-  const withJob = i.changes.filter((c) => c.intent !== "reply" || !answeredInOutlook(c, i.outlookReplies ?? []) || (!!i.openJobIds?.has(c.jobId) && readsAsDecline(c.messageId ? i.inboundByMessage.get(c.messageId) ?? null : null))).sort((a, b) => b.at.localeCompare(a.at)).map((c): JobEmailCard => ({
+  const withJob = i.changes.filter((c) => c.intent !== "reply" || !answeredInOutlook(c, i.outlookReplies ?? []) || (!!i.openJobIds?.has(c.jobId) && readsAsDecline(c.messageId ? i.inboundByMessage.get(c.messageId) ?? null : null))).sort((a, b) => b.at.localeCompare(a.at)).map((c): Omit<JobEmailCard, "needsAnswer" | "needsYou"> => ({
     key: `job:${c.eventId}`, requestEventId: c.eventId, jobId: c.jobId, jobNumber: c.jobNumber, name: i.ownerNameByJob.get(c.jobId) ?? null, at: c.at,
     subject: c.subject, theyWrote: c.messageId ? (i.inboundByMessage.get(c.messageId) ?? null) : null, intent: c.intent, label: c.label,
     draft: c.messageId ? (i.jobDrafts.get(jobDraftKey(c.jobId, c.messageId)) ?? null) : null,
     draftClosed: !!c.messageId && i.closedJobDrafts.has(jobDraftKey(c.jobId, c.messageId)), action: ACTION[c.intent ?? ""] ?? "dealt_with",
     stillOpenDecline: !!i.openJobIds?.has(c.jobId) && (c.intent === "cancel" || (c.intent === "reply" && readsAsDecline(c.messageId ? (i.inboundByMessage.get(c.messageId) ?? null) : null))),
-  }));
+  })).map((c): JobEmailCard => ({ ...c, needsAnswer: c.draft?.needsAnswer ?? [], needsYou: c.draft?.needsYou === true }));
   const noJob = i.unmatched.filter((u) => (!u.messageId || !i.answeredNoJobMessageIds?.has(u.messageId)) && !answeredInOutlook(u, i.outlookReplies ?? [])).sort((a, b) => b.at.localeCompare(a.at)).map((u): NoJobCard => {
     const g = u.guesses[0];
     const followUp = !!u.from && i.autoRepliedSenders.has(u.from.trim().toLowerCase());

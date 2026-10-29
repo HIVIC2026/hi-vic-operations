@@ -12,11 +12,11 @@ export const getAiReplyDrafts = createServerFn({ method: "GET" }).middleware([re
   });
 
 export const sendAiReplyDraft = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ eventId: z.string().uuid(), body: z.string().trim().min(2).max(8000) }).parse(d))
+  .inputValidator((d: unknown) => z.object({ eventId: z.string().uuid(), body: z.string().trim().min(2).max(8000), applyNote: z.boolean().optional(), applyArea: z.boolean().optional() }).parse(d))
   .handler(async ({ data, context }) => {
     const { requireAdmin } = await import("./workflow.server");
     await requireAdmin(context.supabase);
-    return (await import("./ai-email-reply.server")).sendAiDraft(data.eventId, data.body, context.userId);
+    return (await import("./ai-email-reply.server")).sendAiDraft(data.eventId, data.body, context.userId, { applyNote: data.applyNote === true, applyArea: data.applyArea === true });
   });
 
 export const discardAiReplyDraft = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

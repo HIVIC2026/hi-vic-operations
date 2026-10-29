@@ -28,7 +28,7 @@ import { SMS_MESSAGE_TYPES } from "../src/lib/sms.core";
 import { INSULATION_DETAILS_REAL_SEND_APPROVED, SAVE_SPOT_REAL_SEND_APPROVED } from "../src/lib/hot-leads.core";
 import { INSULATION_QUESTIONS_SEND_APPROVED } from "../src/lib/insulation-questions-campaign.core";
 import { LAUNCH_COPY_APPROVED } from "../src/lib/launch-campaign.core";
-import { AI_BUSINESS_RULES_PRE_RELEASE, AI_RELEASE_MEANS, AI_WAIT_LINE, aiPreReleaseViolations, aiReplyInstructions, buildAiReplyInput } from "../src/lib/ai-email-reply.core";
+import { AI_RELEASE_MEANS, AI_WAIT_LINE, aiPreReleaseViolations, aiReplyInstructions, buildAiReplyInput } from "../src/lib/ai-email-reply.core";
 import { composeReply, type OwnerFacts, type ReplyInput } from "../src/lib/email-reply.core";
 import { CUSTOMER_WHAT_COULD_CHANGE } from "../src/lib/customer-quote-system";
 
@@ -145,11 +145,11 @@ describe("AI email drafts before release are spot-only", () => {
   test("pre-release prompt, rules and input carry no forbidden phrase", () => {
     // Step 1 redo: the AI prompt may explain release and use Jo's wait line; only timing is forbidden.
     const input = buildAiReplyInput({ jobNumber: null, ownerFirstName: null, stageLabel: "x", facts: [], links: [], changeLink: null, history: [], email: { from: null, subject: null, body: "" } }, { preRelease: true });
-    for (const t of [aiReplyInstructions({ preRelease: true }), AI_BUSINESS_RULES_PRE_RELEASE.join("\n"), input]) expect(aiPreReleaseViolations(t)).toEqual([]);
+    for (const t of [aiReplyInstructions({ preRelease: true }), input]) expect(aiPreReleaseViolations(t)).toEqual([]);
     expect(aiReplyInstructions({ preRelease: true })).toContain(AI_RELEASE_MEANS);
     expect(aiReplyInstructions({ preRelease: true })).toContain(AI_WAIT_LINE);
-    expect(AI_BUSINESS_RULES_PRE_RELEASE).toContain(AI_RELEASE_MEANS);
-    expect(AI_BUSINESS_RULES_PRE_RELEASE).toContain(AI_WAIT_LINE);
+    expect(input).toContain(AI_RELEASE_MEANS);
+    expect(input).toContain(AI_WAIT_LINE);
   });
 });
 

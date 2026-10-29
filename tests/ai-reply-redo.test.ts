@@ -195,10 +195,11 @@ describe("task 4: the loop at draft time and on Send (source checks)", () => {
   const server = readFileSync("src/lib/ai-email-reply.server.ts", "utf8");
   const tab = readFileSync("src/lib/emails-tab.server.ts", "utf8");
   const fn = (name: string) => { const i = server.indexOf(`export async function ${name}`); return server.slice(i, server.indexOf("\nexport ", i + 10) === -1 ? undefined : server.indexOf("\nexport ", i + 10)); };
-  test("writeAiReplyDraft runs fixUntilClean after finishAiReply(raw) and saves what remains", () => {
+  test("writeAiReplyDraft runs fixUntilClean after finishAiReply and saves what remains", () => {
     const w = fn("writeAiReplyDraft");
-    expect(w.indexOf("finishAiReply(raw)")).toBeGreaterThan(-1);
-    expect(w.indexOf("fixUntilClean(")).toBeGreaterThan(w.indexOf("finishAiReply(raw)"));
+    // Step 2 task 4: the AI's office notes are split off first, so finishAiReply gets the email body only.
+    expect(w.indexOf("finishAiReply(out.body)")).toBeGreaterThan(-1);
+    expect(w.indexOf("fixUntilClean(")).toBeGreaterThan(w.indexOf("finishAiReply(out.body)"));
     expect(w).toContain("fixUntilClean(first, preRelease, (i, ins) => aiText(i, ins, AbortSignal.timeout(25_000)))");
   });
   test("sendAiDraft rewrites, saves the edit and returns rewritten before any send", () => {

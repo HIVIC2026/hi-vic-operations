@@ -96,7 +96,8 @@ export async function textInstallerReadyCheckBooked(jobId: string, startIso: str
   const { data: booked } = await admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "ready_check").eq("status", "confirmed").limit(1).maybeSingle();
   if (!bookedStillCurrent(booked?.scheduled_start ?? null, startIso)) return "that time is no longer the booked Ready Check";
   await logEvent(jobId, null, INSTALLER_TEXT_EVENT, "Installer texted: Ready Check booked, owner details on the job (decision 82) — text prepared", { text: "ready_check_booked_installer", key, starts_at: startIso, booked_at: bookedAt, business_id: ctx.businessId }, { internal: true });
-  const body = readyCheckBookedInstallerText({ startIso, address: installerTextAddress(ctx.job.properties?.address_line, ctx.job.properties?.suburb), jobNumber: ctx.job.job_number, link: await jobLink(jobId) });
+  const notes = await (await import("./ai-email-reply.server")).installerNotes(jobId);
+  const body = readyCheckBookedInstallerText({ startIso, address: installerTextAddress(ctx.job.properties?.address_line, ctx.job.properties?.suburb), jobNumber: ctx.job.job_number, link: await jobLink(jobId) }, notes);
   return deliver({ type: "ready_check_booked_installer", key, job: ctx.job, businessId: ctx.businessId, biz: ctx.biz, to: ctx.biz?.signer_mobile ?? ctx.biz?.phone ?? null, body, event: { at: bookedAt, current: true }, label: `ready_check_booked_installer:${startIso}` });
 }
 
