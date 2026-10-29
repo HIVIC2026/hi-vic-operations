@@ -93,6 +93,14 @@ export async function textOwnerReadyCheckTimes(jobId: string, triggerEventId: st
 
 /** Decision 82 (B): our-lead Ready Check booked → one text per booked start. */
 export async function textOwnerReadyCheckBooked(jobId: string, startIso: string, bookedAt: string, now = new Date()): Promise<string> {
+  // Jo 29 Oct 2026 (HV-3542): no silent skips — each not-sent reason is recorded once for the office.
+  let outcome: string;
+  try { outcome = await attemptBookedOwnerText(jobId, startIso, bookedAt, now); } catch (e) { outcome = `error — ${(e as Error).message}`; }
+  await (await import("./ready-check-booked-email.server")).recordBookedNotSent(jobId, startIso, "text", outcome);
+  return outcome;
+}
+
+async function attemptBookedOwnerText(jobId: string, startIso: string, bookedAt: string, now: Date): Promise<string> {
   const { READY_CHECK_BOOKED_TEXT_APPROVED } = await import("./ready-check-booked-email.core");
   if (!READY_CHECK_BOOKED_TEXT_APPROVED) return "skipped";
   const job = await loadJob(jobId);

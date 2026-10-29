@@ -5,9 +5,30 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 
+/** Jo 29 Oct 2026 (HV-3542): every not-sent outcome, including a thrown error, is recorded for the office (no silent skips). */
 export async function emailOwnerReadyCheckBooked(jobId: string, startIso: string): Promise<string> {
+  let outcome: string;
+  try { outcome = await attemptBookedEmail(jobId, startIso); } catch (e) { outcome = `error — ${(e as Error).message}`; }
+  await recordBookedNotSent(jobId, startIso, "email", outcome);
+  return outcome;
+}
+
+/** Shared with the owner text: one internal event per not-sent reason and start time (repeat sweeps don't add rows). */
+export async function recordBookedNotSent(jobId: string, startIso: string, channel: "email" | "text", outcome: string) {
+  const { bookedNoticeNotSentReason, bookedNoticeSummary, BOOKED_NOT_SENT_EVENT } = await import("./ready-check-booked-notice.core");
+  const reason = bookedNoticeNotSentReason(outcome);
+  if (!reason) return;
+  try {
+    const { count } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", BOOKED_NOT_SENT_EVENT).contains("details", { channel, starts_at: startIso, reason });
+    if ((count ?? 0) > 0) return;
+    await logEvent(jobId, null, BOOKED_NOT_SENT_EVENT, bookedNoticeSummary(channel, reason), { channel, starts_at: startIso, reason }, { internal: true });
+  } catch (e) { console.error("ready check booked not-sent note failed", (e as Error).message); }
+}
+
+async function attemptBookedEmail(jobId: string, startIso: string): Promise<string> {
   const { data: job } = await admin.from("jobs").select("owner_id, source, channel").eq("id", jobId).maybeSingle();
-  if (!job || job.channel !== "hivic_sourced") return "skipped";
+  if (!job) return "not sent — job not found";
+  if (job.channel !== "hivic_sourced") return "not sent — not an our-lead job";
   const [{ data: owner }, { data: asg }, { data: link }, { count: before }, { data: prop }, { data: saved }] = await Promise.all([
     admin.from("owners").select("full_name, email").eq("id", job.owner_id).maybeSingle(),
     admin.from("job_assignments").select("businesses(name, trading_name, phone, onboarding_notes)").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle(),
@@ -21,7 +42,6 @@ export async function emailOwnerReadyCheckBooked(jobId: string, startIso: string
   const changed = (before ?? 0) > 0;
   const { linkUsable } = await import("./estimatelink.core");
   if (!link || !linkUsable(link)) {
-    await logEvent(jobId, null, "ready_check_booked_email_not_sent", "Ready Check booked — no working owner job link, so no booked email or text was sent", { starts_at: startIso, changed }, { internal: true });
     return "not sent — owner link missing";
   }
   const biz = (asg?.businesses ?? null) as { name: string | null; trading_name: string | null; phone: string | null; onboarding_notes: string | null } | null;
@@ -42,7 +62,6 @@ export async function emailOwnerReadyCheckBooked(jobId: string, startIso: string
     return `${r.status}: ${r.detail}`;
   }
   if (!READY_CHECK_BOOKED_EMAIL_APPROVED) {
-    await logEvent(jobId, null, "ready_check_booked_email_not_sent", `Ready Check ${changed ? "time changed" : "booked"} — the "You're booked" email and text wording is awaiting approval, so nothing was sent`, { starts_at: startIso, changed }, { internal: true });
     return "not sent — wording awaiting approval";
   }
   if (!owner?.email) return "not sent — no owner email";
