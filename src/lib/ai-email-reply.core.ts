@@ -10,7 +10,7 @@
 import { esc, mjEmail } from "./mail-mjml.core";
 import { changeVisitLink, visitGroupForStage, type ChangeVisit } from "./email-change-reply.core";
 import { smsQuietReason } from "./quote-hold.core";
-import { SPOT_FREE, SPOT_PRICE_NOTE, SPOT_REGISTERED, SPOT_RELEASE_LINE, isPreReleaseStage, preReleaseViolations } from "./spot-only-copy.core";
+import { SPOT_FREE, SPOT_PRICE_NOTE, SPOT_REGISTERED, SPOT_RELEASE_LINE, isPreReleaseStage } from "./spot-only-copy.core";
 import type { SpotReleaseState } from "./spot-release.core";
 
 export const AI_EMAIL_DRAFT_EVENT = "email_ai_draft";
@@ -218,6 +218,15 @@ export function aiReplyText(body: string): string[] {
   return body.replace(/\r/g, "").trim().replace(/(https?:\/\/[^\s<>"]+)/g, (u) => `${aiLinkLabel(u)}: ${u}`).split("\n");
 }
 
+/** Before release, an AI reply may explain the Ready Check but must never promise timing or queue position.
+ *  "as soon as your spot is released" is Jo's own wait line, so it is allowed. Automatic emails/texts/pages keep the
+ *  full decision-388 ban (`preReleaseViolations`). */
+const AI_PRE_RELEASE_TIMING = /\bsoon\b|shortly|this week|next week|in a (?:few|couple of) (?:days|weeks)|within \d+ (?:days|weeks)|jump the queue|move up/gi;
+export function aiPreReleaseViolations(text: string): string[] {
+  const cleaned = text.replace(/as soon as your spot is released/gi, " ");
+  return [...new Set((cleaned.match(AI_PRE_RELEASE_TIMING) ?? []).map((m) => m.toLowerCase()))];
+}
+
 /** Problems that stop a draft being sent as written (checked again at send). */
 export function aiReplyProblems(body: string, opts: { preRelease?: boolean } = {}): string[] {
   const out: string[] = [];
@@ -228,8 +237,8 @@ export function aiReplyProblems(body: string, opts: { preRelease?: boolean } = {
   PHONE.lastIndex = 0;
   if (/\b(call|ring|phone)\s+(us|the office|our office)\b/i.test(body)) out.push("Take out “call us”.");
   if (opts.preRelease) {
-    const bad = preReleaseViolations(body);
-    if (bad.length) out.push(`Take out “${bad.join("”, “")}” — their spot hasn't been released yet.`);
+    const bad = aiPreReleaseViolations(body);
+    if (bad.length) out.push(`Take out “${bad.join("”, “")}” — we can't promise timing before their spot is released.`);
   }
   return out;
 }

@@ -53,7 +53,10 @@ describe("pre-release prompt", () => {
 
 describe("aiReplyProblems", () => {
   const bad = "Hi Sam,\n\nWe'll text you for your free Ready Check soon.";
-  test("pre-release flags the Ready Check wording", () => expect(aiReplyProblems(bad, { preRelease: true }).length).toBeGreaterThan(0));
+  test("pre-release flags timing wording (AI replies may explain the Ready Check, never promise timing)", () => {
+    expect(aiReplyProblems(bad, { preRelease: true }).join(" ")).toContain("soon");
+    expect(aiReplyProblems("Hi Sam,\n\nYour free Ready Check is next.", { preRelease: true })).toEqual([]);
+  });
   test("released owner: same body has no pre-release problem", () => { expect(aiReplyProblems(bad, { preRelease: false })).toEqual([]); expect(aiReplyProblems(bad)).toEqual([]); });
   test("the spot-only line passes", () => expect(aiReplyProblems(`Hi Sam,\n\n${SPOT_RELEASE_LINE}`, { preRelease: true })).toEqual([]));
 });

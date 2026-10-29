@@ -34,7 +34,7 @@ afterAll(() => {
   mock.module("../src/lib/owner-email-send.server", () => realOwnerSend);
 });
 
-const BAD = "Hi Sam,\n\nYour free Ready Check is coming.\n\nCheers, the Home Insulation Victoria team";
+const BAD = "Hi Sam,\n\nYour free Ready Check is coming this week.\n\nCheers, the Home Insulation Victoria team";
 const reset = (o: Partial<typeof world>) => { Object.assign(world, { channel: "hivic_sourced", stage: "preliminary_estimate_ready", state: "none", inserts: [], sent: 0, jobReads: 0, failLaterJobReads: false }, o); };
 
 describe("sendAiDraft and the spot-only rule", () => {
