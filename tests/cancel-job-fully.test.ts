@@ -70,14 +70,17 @@ const deletes: string[] = [];
 function q(table: string) {
   const filters: ((r: Row) => boolean)[] = [];
   let patch: Row | null = null;
-  const rows = () => (db[table] ??= []).filter((r) => filters.every((f) => f(r)));
+  let orderBy: ((x: Row, y: Row) => number) | null = null;
+  const rows = () => { const hit = (db[table] ??= []).filter((r) => filters.every((f) => f(r))); return orderBy ? hit.sort(orderBy) : hit; };
   const run = () => {
     const hit = rows();
     if (patch) { for (const r of hit) Object.assign(r, patch); updates.push({ table, patch }); }
     return { data: hit.map((r) => ({ ...r })), error: null };
   };
   const api: any = {
-    select: () => api, order: () => api, limit: () => api,
+    select: () => api, limit: () => api,
+    order: (k: string, o?: { ascending?: boolean }) => { const asc = o?.ascending !== false; orderBy = (x: Row, y: Row) => (String(x[k] ?? "") < String(y[k] ?? "") ? -1 : String(x[k] ?? "") > String(y[k] ?? "") ? 1 : 0) * (asc ? 1 : -1); return api; },
+    like: (k: string, v: string) => { const pre = v.replace(/%$/, ""); filters.push((r) => typeof r[k] === "string" && r[k].startsWith(pre)); return api; },
     update: (p: Row) => { patch = p; return api; },
     insert: (row: Row) => { (db[table] ??= []).push({ id: `${table}-${db[table]!.length + 1}`, created_at: new Date().toISOString(), ...row }); return api; },
     delete: () => { deletes.push(table); return api; },
@@ -103,7 +106,7 @@ mock.module("../src/lib/workflow.server", () => ({
   // Like the real workflow_events.actor_id (uuid): "" is refused, null is fine.
   logEvent: async (job_id: string, actor_id: unknown, event_type: string, summary: string, details: unknown, opts?: Row) => {
     if (actor_id === "") throw new Error('invalid input syntax for type uuid: ""');
-    db.workflow_events!.push({ job_id, actor_id, event_type, summary, details, ...(opts ?? {}) });
+    db.workflow_events!.push({ job_id, actor_id, event_type, summary, details, created_at: new Date().toISOString(), ...(opts ?? {}) });
   },
 }));
 // Batch 1 F6: reopen reads the repeat-check state (no 30-day lapse on these jobs).
@@ -133,7 +136,7 @@ mock.module("../src/lib/office-email.server", () => ({
 mock.module("../src/lib/test-send.server", () => ({
   sendTestEmail: async (ctx: { jobSource: string | null; partnerIsTest: boolean; label: string }, to: string, subject: string) => { calls.test.push({ source: ctx.jobSource, partnerIsTest: ctx.partnerIsTest, label: ctx.label, to, subject }); return { channel: "email", to, status: "sent", detail: "test" }; },
 }));
-const { cancelJobFully, reopenJob } = await import("../src/lib/office-actions.server");
+const { cancelJobFully, reopenJob, releaseCancelledJob } = await import("../src/lib/office-actions.server");
 
 beforeEach(() => { seed(); updates.length = 0; deletes.length = 0; comms.enabled = true; calls.owner.length = 0; calls.office.length = 0; calls.test.length = 0; });
 const job = (id: string) => db.jobs!.find((j) => j.id === id)!;
@@ -289,6 +292,26 @@ describe("cancelJobFully (decision 227, mocked DB)", () => {
     await reopenJob("j1", "Owner rang back", "admin-1");
     await cancelJobFully("j1", "Owner changed their mind again", "admin-1", { tell: { owner: true, installer: false } });
     expect(calls.owner.map((c) => c.key)).toEqual(["cancel-notice:v1:j1:0:owner", "cancel-notice:v1:j1:1:owner"]);
+  });
+
+  test("batch 2 F2: STOP retry after a failed first try (installer already released) emails that installer once", async () => {
+    // First try: the job was closed and the assignment ended, then the release failed before job_cancel_released.
+    const ENDED = new Date(Date.now() - 60_000).toISOString();
+    job("j1").stage = "cancelled";
+    Object.assign(byId("job_assignments", "a-inst"), { active: false, ended_at: ENDED, end_reason: "Job cancelled: Owner replied STOP" });
+    db.job_assignments!.push({ id: "a-older", job_id: "j1", role: "installer", active: false, ended_at: PAST, end_reason: "Job cancelled: earlier", user_id: "u9", business_id: "b-other", profiles: { full_name: "Old Co", email: "old@x.test" }, businesses: { name: "Old Co", trading_name: null, email: "old@x.test", onboarding_notes: null } });
+    await releaseCancelledJob("j1", "Owner replied STOP", null, { owner: false, installer: true });
+    expect(calls.office).toHaveLength(1);
+    expect(calls.office[0]).toMatchObject({ to: "office@reinsulate.test", businessId: "b-real" });
+    // A later run (release now recorded) does not reach back to that installer again.
+    await releaseCancelledJob("j1", "Owner replied STOP", null, { owner: false, installer: true });
+    expect(calls.office).toHaveLength(1);
+  });
+
+  test("batch 2 F2: a normal cancel still tells the active installer, not one released at an earlier cancellation", async () => {
+    db.job_assignments!.push({ id: "a-older", job_id: "j1", role: "installer", active: false, ended_at: PAST, end_reason: "Job cancelled: earlier", user_id: "u9", business_id: "b-other", profiles: { full_name: "Old Co", email: "old@x.test" }, businesses: { name: "Old Co", trading_name: null, email: "old@x.test", onboarding_notes: null } });
+    await cancelJobFully("j1", "Owner changed their mind", "admin-1", { tell: { owner: false, installer: true } });
+    expect(calls.office.map((c) => c.businessId)).toEqual(["b-real"]);
   });
 
   test("the sender module stays behind the existing guards and never talks to a provider itself", async () => {

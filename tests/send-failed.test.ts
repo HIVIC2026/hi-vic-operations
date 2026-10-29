@@ -14,8 +14,7 @@ describe("send failed classifier", () => {
       emails: [
         { job_id: "old", purpose: "existing_leads_launch_v1", status: "failed", created_at: ago(8), error: "x" },
         { job_id: "sent", purpose: "existing_leads_launch_v1", status: "sent", created_at: ago(1), error: null },
-        { job_id: "unknown", purpose: "existing_leads_launch_v1", status: "delivered_unrecorded", created_at: ago(1), error: "Delivery result unknown" },
-        { job_id: "sending", purpose: "quote_reminder", status: "sending", created_at: ago(1), error: null },
+        { job_id: "fresh", purpose: "quote_reminder", status: "sending", created_at: new Date(NOW - 60_000).toISOString(), error: null },
       ],
       sms: [
         { job_id: null, message_type: "job_offer", status: "failed", created_at: ago(1), detail: "no job" },
@@ -116,7 +115,7 @@ describe("fixed failures are hidden", () => {
 describe("send failed reads are paged safely", () => {
   test("failed + successful email and text reads have a fixed order, so no page skips a row", async () => {
     const src = await Bun.file(new URL("../src/lib/office-needs.server.ts", import.meta.url)).text();
-    expect(src).toMatch(/\.in\("status", \[\.\.\.FAILED_EMAIL_STATUSES, \.\.\.SUCCESS_EMAIL_STATUSES\]\)\.gte\("created_at", since7\)\.order\("created_at"\)\.order\("id"\)\.range/);
-    expect(src).toMatch(/\.in\("status", \[\.\.\.FAILED_SMS_STATUSES, \.\.\.SUCCESS_SMS_STATUSES\]\)\.gte\("created_at", since7\)\.order\("created_at"\)\.order\("id"\)\.range/);
+    expect(src).toMatch(/\.in\("status", \[\.\.\.FAILED_EMAIL_STATUSES, \.\.\.UNSURE_EMAIL_STATUSES, \.\.\.SUCCESS_EMAIL_STATUSES\]\)\.gte\("created_at", since7\)\.order\("created_at"\)\.order\("id"\)\.range/);
+    expect(src).toMatch(/\.in\("status", \[\.\.\.FAILED_SMS_STATUSES, \.\.\.UNSURE_SMS_STATUSES, \.\.\.SUCCESS_SMS_STATUSES\]\)\.gte\("created_at", since7\)\.order\("created_at"\)\.order\("id"\)\.range/);
   });
 });

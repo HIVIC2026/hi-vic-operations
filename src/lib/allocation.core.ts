@@ -360,7 +360,7 @@ export type NeedsCode =
   | "owner_no_show_repeat" | "trade_no_show" | "owner_cancelled_visit" | "rectification_new_times" | "installer_usual_electrician_missing"
   | "mitti_fix_form" | "mitti_review_pickup" | "ready_check_held" | "quote_held_review" | "quote_not_delivered" | "mitti_setup_installer" | "ready_check_chase_installer" | "quote_auto_send_held"
   | "xero_invoice_product_unconfirmed" | "veec_assignment_unsigned" | "electrician_install_attendance" | "install_deposit_unpaid_at_start"
-  | "payment_match_unclear" | "xero_invoice_repairs_held" | "xero_invoice_repeat_piesa_held";
+  | "payment_match_unclear" | "xero_invoice_repairs_held" | "xero_invoice_repeat_piesa_held" | "stop_installer_release_failed";
 export type NeedsUrgency = "urgent" | "today" | "soon";
 export type NeedsItem = { key: string; code: NeedsCode; jobId: string | null; jobNumber: string | null; why: string; next: string; tab: string; since: string | null; urgency: NeedsUrgency; stage: string | null; suburb: string | null };
 
@@ -382,6 +382,8 @@ export const NEEDS_TEXT: Record<NeedsCode, { why: string; next: string; tab: str
   xero_invoice_repairs_held: { why: "Approved electrical fixes are not on the Xero invoice yet — the portal total and the Xero invoice disagree.", next: "Office needs to: add the fixes to the SAME Xero invoice (if Xero refuses because a payment is on it, remove the payment, add the fixes line, re-apply the payment), then press Sync on the job's Money card.", tab: "quotes", urgency: "today" },
   // Jo 28 Oct: owner-pays repeat PIESA line could not be added to the ONE Xero invoice.
   xero_invoice_repeat_piesa_held: { why: "The owner accepted a repeat safety check (PIESA) but its price is not on the Xero invoice yet.", next: "Office needs to: add the repeat safety check line to the SAME Xero invoice (if Xero refuses because a payment is on it, remove the payment, add the line, re-apply the payment), then press Sync on the job's Money card.", tab: "quotes", urgency: "today" },
+  // Batch 2 (Jo 29 Oct): the owner texted STOP but cancelling the job's installer failed; the office cancels again.
+  stop_installer_release_failed: { why: "STOP received, but releasing the installer failed — retrying automatically; open the job if this stays", next: "Office needs to: the portal retries every 15 minutes; if this stays, open the job and check the installer is released.", tab: "overview", urgency: "today" },
   xero_invoice_product_unconfirmed: { why: "Xero invoice went out without the installed product/m² wording (ESC tax-invoice requirement).", next: "Office needs to: confirm the insulation product and measured area on the job, then add the brand, model, R-value and m² to the Xero invoice line.", tab: "quotes", urgency: "soon" },
   ready_check_chase_installer: { why: "Chase installer: the Ready Check is still missing answers or photos after 24 hours.", next: "Office needs to: call the installer and ask them to finish the Mitti form.", tab: "overview", urgency: "today" },
   installer_usual_electrician_missing: { why: "Installer has no usual electrician saved", next: "Office needs to: ask the installer to add their usual electrician in My business, then sync the Ready Check again.", tab: "quotes", urgency: "today" },

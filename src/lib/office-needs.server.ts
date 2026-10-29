@@ -3,7 +3,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { loadOffice, type OfficeJob } from "./office.server";
 import { buildNeedsRows, duplicatesInvoiceFailed, type EmailRowInput, type NeedsFacts, type NeedsRow, type SystemRow } from "./office-needs.core";
-import { FAILED_EMAIL_STATUSES, FAILED_SMS_STATUSES, SUCCESS_EMAIL_STATUSES, SUCCESS_SMS_STATUSES, sendFailedRows } from "./send-failed.core";
+import { FAILED_EMAIL_STATUSES, FAILED_SMS_STATUSES, SUCCESS_EMAIL_STATUSES, SUCCESS_SMS_STATUSES, UNSURE_EMAIL_STATUSES, UNSURE_SMS_STATUSES, partnerSendFailedRows, sendFailedRows, tradeTextCoveredKeys } from "./send-failed.core";
 import { AUTO_OFFER_RETURNED_EVENT } from "./auto-offer.core";
 import { surnameOf } from "./office-jobs.core";
 import { VEEC_OFFICE_ALERT_EVENT } from "./veec-assignment-form.core";
@@ -86,8 +86,8 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     all("ESC consents", (a, b) => scoped(admin.from("owner_esc_consents").select("job_id, owner_signed_at, ap_signed_at, status, scheduled_start, created_at")).not("owner_signed_at", "is", null).is("ap_signed_at", null).range(a, b)),
     all("VEEC forms", (a, b) => scoped(admin.from("customer_assignments").select("job_id, installer_signed_at, ap_signed_at, consumer_signed_at, status, created_at")).eq("record_kind", "final_veec_assignment").neq("status", "cancelled").range(a, b)),
     all("ESC notices", (a, b) => scoped(admin.from("esc_notifications").select("job_id, due_by, earliest_send_at, scheduled_start, sent_at, status")).is("sent_at", null).gt("scheduled_start", new Date(t0).toISOString()).range(a, b)),
-    all("failed emails", (a, b) => scoped(admin.from("customer_email_sends").select("job_id, purpose, status, created_at, error")).in("status", [...FAILED_EMAIL_STATUSES, ...SUCCESS_EMAIL_STATUSES]).gte("created_at", since7).order("created_at").order("id").range(a, b)),
-    all("failed texts", (a, b) => scoped(admin.from("sms_messages").select("job_id, message_type, status, created_at, detail")).in("status", [...FAILED_SMS_STATUSES, ...SUCCESS_SMS_STATUSES]).gte("created_at", since7).order("created_at").order("id").range(a, b)),
+    all("failed emails", (a, b) => scoped(admin.from("customer_email_sends").select("job_id, purpose, status, created_at, error")).in("status", [...FAILED_EMAIL_STATUSES, ...UNSURE_EMAIL_STATUSES, ...SUCCESS_EMAIL_STATUSES]).gte("created_at", since7).order("created_at").order("id").range(a, b)),
+    all("failed texts", (a, b) => scoped(admin.from("sms_messages").select("job_id, business_id, message_type, status, created_at, detail")).in("status", [...FAILED_SMS_STATUSES, ...UNSURE_SMS_STATUSES, ...SUCCESS_SMS_STATUSES]).gte("created_at", since7).order("created_at").order("id").range(a, b)),
     all("10-day flags", (a, b) => (opts.onlyIds ? admin.from("jobs").select("id, install_10day_flagged_at, stage").in("id", opts.onlyIds) : admin.from("jobs").select("id, install_10day_flagged_at, stage")).not("install_10day_flagged_at", "is", null).eq("stage", "installation_scheduling").range(a, b)),
     all("no-access reports", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", "trade_couldnt_get_in").contains("details", { visit: "install", needs_office: true }).order("created_at", { ascending: false }).range(a, b)),
     all("VEEC day-10 alerts", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at")).eq("event_type", VEEC_OFFICE_ALERT_EVENT).range(a, b)),
@@ -362,6 +362,16 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       }
     }
   } catch { unavailable.push("payment reversals"); }
+  // Batch 2: a STOP reply cancelled the job but releasing the installer failed → one row until `job_cancel_released` is written
+  // (the tick retries). The job is usually already cancelled, so its facts are made here when the open-jobs read dropped it.
+  try {
+    const { stopReleaseNeeds } = await import("./stop-release.server");
+    for (const n of await stopReleaseNeeds(admin, { includeTest: opts.includeTest, ...(opts.onlyIds ? { onlyIds: opts.onlyIds } : {}) })) {
+      const x = f(n.jobId) ?? { jobId: n.jobId, jobNumber: n.jobNumber, surname: n.surname, suburb: n.suburb, ...(n.isTest ? { isTest: true } : {}) };
+      x.stopReleaseFailed = { at: n.at };
+      facts.set(n.jobId, x);
+    }
+  } catch { unavailable.push("STOP clean-up failures"); }
   // Batch 1: the owner accepted but the invoice step failed → one Money row until a Xero-linked invoice exists.
   try {
     const { invoiceFailedFact } = await import("./office-needs.core");
@@ -478,6 +488,18 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     for (const j of jobs) for (const why of j.needs.failures) if (!/^(Email|Text) /.test(why) && !duplicatesInvoiceFailed(why, facts.get(j.id)?.invoiceFailed)) system.push({ key: `fail:${j.id}:${why}`, tag: "System", who: `${j.jobNumber} ${surnameOf(j.owner)}`.trim(), line: why, since: null, button: "Open job", href: `/admin/jobs/${j.id}`, jobId: j.id });
     // Decision 303: "<REC> onboarded and linked to <installer> — n quote(s) ready to check" (or the conflict the office decides).
     for (const r of recLinks) system.push({ key: r.key, tag: "Partner", who: r.recName, line: r.line, since: r.since, button: r.conflict ? "Decide" : "Quotes to check", href: r.conflict ? "/admin/partners" : "/admin/quotes" });
+    // Batch 2: texts to a trade with no job (e.g. a job offer) that failed or may not have arrived — one row per business, named.
+    {
+      // Job-less daily trade texts already have their own "Daily text to … failed" row (office.server, open trade_text_log
+      // failures): don't show the same failure twice (same business + type).
+      const tradeLog = smsFails.some((m) => !m["job_id"] && /^daily_mitti/.test(String(m["message_type"])))
+        ? await all("trade text failures", (a, b) => (admin as unknown as { from: (t: string) => any }).from("trade_text_log").select("business_id, kind").eq("status", "failed").is("acknowledged_at", null).range(a, b)) // eslint-disable-line @typescript-eslint/no-explicit-any
+        : [];
+      const covered = tradeTextCoveredKeys(tradeLog.map((r: Row) => ({ business_id: s(r["business_id"]), kind: s(r["kind"]) })));
+      const pr = partnerSendFailedRows({ now, covered, sms: smsFails.map((m) => ({ job_id: s(m["job_id"]), business_id: s(m["business_id"]), message_type: String(m["message_type"]), status: String(m["status"]), created_at: String(m["created_at"]), detail: s(m["detail"]) })) });
+      const names = new Map((pr.length ? await byIds("partner text businesses", pr.map((r) => r.businessId), (chunk, a, b) => admin.from("businesses").select("id, name").in("id", chunk).range(a, b)) : []).map((b) => [String(b["id"]), s(b["name"])]));
+      for (const r of pr) system.push({ key: `partner-send:${r.businessId}`, tag: "Partner", who: names.get(r.businessId) ?? "A trade business", line: `Send failed · ${r.text}`, since: r.latestAt, button: "Open", href: `/admin/partners/business/${r.businessId}` });
+    }
     for (const r of [...q.notDrafted, ...(qTest?.notDrafted ?? [])]) if (idSet.has(r.jobId)) system.push({ key: `nodraft:${r.jobId}`, tag: "Quote", who: `${r.jobNumber} ${surnameOf(r.owner)}`.trim(), line: `Quote not drafted yet · ${r.note}`, since: r.at, button: "Open job", href: `/admin/jobs/${r.jobId}`, jobId: r.jobId });
     if (fb.length) {
       const fbJobs = new Map<string, { jobNumber: string; surname: string; isTest?: boolean }>();
