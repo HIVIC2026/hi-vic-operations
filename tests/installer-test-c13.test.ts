@@ -16,3 +16,10 @@ test("installer-test C13 makes its jobs through Add a job and checks booking + n
   expect(c13).not.toMatch(/bulk-import|bulk_import|confirmBatch/);
   expect(s).toContain('import { readyCheckBookingOutcome } from "./portal-qa-coverage";');
 });
+
+test("trade-shots lists /field/business/team once (business-team only)", () => {
+  const s = readFileSync("scripts/trade-shots.ts", "utf8");
+  expect(s).toContain('["business-team", "/field/business/team"]');
+  expect(s).not.toContain("staff-and-invites");
+  expect(s.match(/"\/field\/business\/team"/g)?.length).toBe(1);
+});
