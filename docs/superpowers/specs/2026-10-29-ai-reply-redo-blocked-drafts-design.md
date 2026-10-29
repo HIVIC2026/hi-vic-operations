@@ -11,6 +11,9 @@ A job's AI reply draft is checked against Jo's rules (`aiReplyProblems`: scheme 
 3. **Still breaks a rule after 2 tries:** same as today — the draft stays with the red note for Jo to edit.
 4. **Drafts already waiting** (e.g. Mohamed's): no bulk change. They are fixed by point 2 when Jo taps Send.
 
+## Change from step 2 grilling (Jo, 29 Oct, Q18/Q21)
+For AI replies only, the pre-release check no longer bans "Ready Check" / installer talk — replies may explain what a released spot means. It still bans any timing promise (e.g. "soon", "shortly", "this week", "next week", "in a few days/weeks", "within N days/weeks", "jump the queue", "move up"). Jo's wait line (step 2 spec) is allowed. Automatic emails, texts and the My job page keep the full decision-388 ban. So `aiReplyProblems` uses a new `aiPreReleaseViolations` (timing only) instead of `preReleaseViolations`, and the pre-release prompt is replaced as set out in the step 2 spec.
+
 ## Not in this step
 - No-job replies on the Emails tab (they have their own checks) — unchanged.
 - No new rules, wording or tone changes (steps 2–3). No auto-send (step 4).
