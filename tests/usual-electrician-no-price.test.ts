@@ -36,6 +36,9 @@ describe("usual electrician without a price (decision 369)", () => {
     const route = read("src/routes/_authenticated/field.business_.electrician.tsx");
     expect(route).not.toMatch(/charge|price/i);
     expect(route).not.toMatch(/REC number/);
-    expect(read("src/components/trade/usual-electrician.tsx")).not.toMatch(/REC number/);
+    const form = read("src/components/trade/usual-electrician.tsx");
+    expect(form).not.toMatch(/REC number/);
+    const visible = form.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, ""); // code comments aren't shown to anyone
+    expect(visible).not.toMatch(/charge|price/i);
   });
 });

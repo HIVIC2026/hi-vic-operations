@@ -10,7 +10,7 @@ export const Route = createFileRoute("/_authenticated/field/business_/electricia
 });
 
 /** Decisions 27/157/173/369: one declared nomination (name, licence number), saved as a business-scoped config event.
- *  Used on the installer's jobs only when that electrician is onboarded with us as an approved REC; otherwise our electrician. */
+ *  Used on the installer's jobs only when that electrician is onboarded with us as an approved electrician; otherwise our electrician. */
 function Electrician() {
   const qc = useQueryClient();
   return (
