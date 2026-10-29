@@ -4,15 +4,19 @@ import { afterAll, describe, expect, mock, test } from "bun:test";
 const realClient = { ...(await import("../src/integrations/supabase/client.server")) };
 
 type Row = Record<string, unknown>;
-const world = { tables: {} as Record<string, Row[]>, fail: false, calls: [] as string[] };
+const world = { tables: {} as Record<string, Row[]>, fail: false, calls: [] as string[], ops: [] as { table: string; ops: [string, unknown[]][] }[] };
 const q = (table: string) => {
   world.calls.push(table);
   const b: Record<string, unknown> = {};
   const eqs: [string, unknown][] = [];
-  for (const f of ["select", "neq", "in", "or", "like", "order", "limit", "is", "lt"]) b[f] = () => b;
-  b["eq"] = (c: string, v: unknown) => { eqs.push([c, v]); return b; };
+  const isNull: string[] = [];
+  const rec = { table, ops: [] as [string, unknown[]][] };
+  world.ops.push(rec);
+  for (const f of ["select", "neq", "in", "or", "like", "order", "limit", "lt", "lte"]) b[f] = (...a: unknown[]) => { rec.ops.push([f, a]); return b; };
+  b["eq"] = (c: string, v: unknown) => { rec.ops.push(["eq", [c, v]]); eqs.push([c, v]); return b; };
+  b["is"] = (c: string, v: unknown) => { rec.ops.push(["is", [c, v]]); if (v === null) isNull.push(c); return b; };
   b["then"] = (res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) =>
-    (world.fail ? Promise.reject(new Error("db down")) : Promise.resolve({ data: (world.tables[table] ?? []).filter((r) => eqs.every(([c, v]) => c === "channel" || r[c] === v)), error: null })).then(res, rej);
+    (world.fail ? Promise.reject(new Error("db down")) : Promise.resolve({ data: (world.tables[table] ?? []).filter((r) => eqs.every(([c, v]) => c === "channel" || r[c] === v) && isNull.every((c) => r[c] == null)), error: null })).then(res, rej);
   return b;
 };
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: q } }));
@@ -88,14 +92,14 @@ describe("scrubExample", () => {
 });
 
 describe("loadStyleExamples", () => {
-  const reset = (t: Record<string, Row[]>, fail = false) => { world.tables = t; world.fail = fail; world.calls = []; };
+  const reset = (t: Record<string, Row[]>, fail = false) => { world.tables = t; world.fail = fail; world.calls = []; world.ops = []; };
   test("pairs, scrubs, drops QA/TEST and the current job, 3 round trips", async () => {
     reset({
       job_communications: [
-        { job_id: "j2", direction: "outbound", body: "Hi Sam,\n\nThe rebate is fine.", created_at: "2026-10-20T00:00:00Z" },
-        { job_id: "jq", direction: "outbound", body: "qa", created_at: "2026-10-19T00:00:00Z" },
-        { job_id: "jt", direction: "outbound", body: "t", created_at: "2026-10-19T00:00:00Z" },
-        { job_id: "j3", direction: "outbound", body: "no inbound", created_at: "2026-10-18T00:00:00Z" },
+        { job_id: "j2", direction: "outbound", visibility: "customer", body: "Hi Sam,\n\nThe rebate is fine.", created_at: "2026-10-20T00:00:00Z" },
+        { job_id: "jq", direction: "outbound", visibility: "customer", body: "qa", created_at: "2026-10-19T00:00:00Z" },
+        { job_id: "jt", direction: "outbound", visibility: "customer", body: "t", created_at: "2026-10-19T00:00:00Z" },
+        { job_id: "j3", direction: "outbound", visibility: "customer", body: "no inbound", created_at: "2026-10-18T00:00:00Z" },
         { job_id: "j2", direction: "inbound", body: "Is the rebate real? Sam", created_at: "2026-10-19T00:00:00Z" },
         { job_id: "j2", direction: "inbound", body: "too late", created_at: "2026-10-21T00:00:00Z" },
         { job_id: "jq", direction: "inbound", body: "x", created_at: "2026-10-18T00:00:00Z" },
@@ -117,5 +121,113 @@ describe("loadStyleExamples", () => {
     const spy = mock(() => {}); const orig = console.error; console.error = spy;
     try { expect(await loadStyleExamples("cur", "a")).toEqual([]); } finally { console.error = orig; }
     expect(spy).toHaveBeenCalled();
+  });
+});
+
+// Final review fixes (I1, I2a, I3, M1).
+describe("final review: scrubExample", () => {
+  test("I2a: sign-off name after a blank line is replaced", () => {
+    expect(scrubExample("ok\n\nCheers,\n\nMo", {})).toBe("ok\n\nCheers,\n\n<name>");
+    expect(scrubExample("ok\nKind regards,\n\n\nPriya Nair", {})).toBe("ok\nKind regards,\n\n\n<name>");
+  });
+  test("I1: job numbers become <job>", () => {
+    expect(scrubExample("Your job HV-1234 and hv-55 are fine.", {})).toBe("Your job <job> and <job> are fine.");
+  });
+  test("M1: only capitalised name parts are replaced", () => {
+    const s = scrubExample("Hi Will,\n\nWe will do our best in May. You may book now. Cheers, May", { name: "Will May Best" });
+    expect(s).toBe("Hi <name>,\n\nWe will do our best in <name>. You may book now. Cheers, <name>");
+  });
+});
+
+const OUTLOOK_REPLY = [
+  "Hi Sam,",
+  "",
+  "Thanks for asking. Yes, the rebate comes off upfront :)",
+  "",
+  "Kind regards,",
+  "",
+  "Jo",
+  "Home Insulation Victoria",
+  "info@homeinsulationvictoria.com.au",
+  "",
+  "________________________________",
+  "From: Mark Jones <mark@example.com>",
+  "Sent: Monday, 20 October 2026 9:14 AM",
+  "To: Home Insulation Victoria <info@homeinsulationvictoria.com.au>",
+  "Subject: Re: HV-2001 quote",
+  "",
+  "Hi Jo, Priya Nair said Dave from Sparky Bros quoted $1,240 for HV-2001. Mark",
+].join("\n");
+const OUTLOOK_THEIRS = [
+  "Is the rebate taken off upfront?",
+  "",
+  "On Sun, 19 Oct 2026 at 8:00 am, Home Insulation Victoria wrote:",
+  "> Hi Mark, Priya Nair and Dave from Sparky Bros, $1,240 for HV-2001.",
+].join("\n");
+
+describe("final review: loadStyleExamples", () => {
+  const reset = (t: Record<string, Row[]>, fail = false) => { world.tables = t; world.fail = fail; world.calls = []; world.ops = []; };
+  const job = (id: string, extra: Row = {}) => ({ id, job_number: "HV-9", source: "website", owners: { full_name: "Sam Lee" }, properties: null, ...extra });
+  test("I1: Outlook chain and Jo's signature never reach the example", async () => {
+    reset({
+      job_communications: [
+        { job_id: "j2", direction: "outbound", visibility: "customer", body: OUTLOOK_REPLY, created_at: "2026-10-20T10:00:00Z" },
+        { job_id: "j2", direction: "inbound", body: OUTLOOK_THEIRS, created_at: "2026-10-20T08:00:00Z" },
+      ],
+      jobs: [job("j2")],
+    });
+    const out = await loadStyleExamples("cur", "rebate upfront");
+    expect(out).toHaveLength(1);
+    const all = `${out[0]!.theirEmail}\n${out[0]!.reply}`;
+    for (const bad of ["Mark", "Priya", "Nair", "Dave", "Sparky", "$1,240", "HV-2001", "Kind regards", "Jo\n", "Home Insulation Victoria", "From:", "Sent:", "To:", "Subject:", "info@"]) expect(all).not.toContain(bad);
+    expect(out[0]!.reply).toBe("Hi <name>,\n\nThanks for asking. Yes, the rebate comes off upfront :)");
+    expect(out[0]!.theirEmail).toBe("Is the rebate taken off upfront?");
+  });
+  test("I3: inbound read is bounded, narrow, and capped at 300", async () => {
+    reset({
+      job_communications: [
+        { job_id: "j2", direction: "outbound", visibility: "customer", body: "Hi Sam,\n\nok", created_at: "2026-10-20T10:00:00Z" },
+        { job_id: "j2", direction: "inbound", body: "q", created_at: "2026-10-20T08:00:00Z" },
+      ],
+      jobs: [job("j2")],
+    });
+    await loadStyleExamples("cur", "x");
+    const inbound = world.ops.find((o) => o.table === "job_communications" && o.ops.some(([f, a]) => f === "eq" && a[0] === "direction" && a[1] === "inbound"))!;
+    const sel = String(inbound.ops.find(([f]) => f === "select")![1][0]);
+    expect(sel).not.toContain("*");
+    expect(sel).toContain("received_at");
+    expect(inbound.ops.some(([f, a]) => (f === "lt" || f === "lte") && a[0] === "created_at")).toBe(true);
+    expect(inbound.ops.some(([f, a]) => f === "limit" && a[0] === 300)).toBe(true);
+    const outbound = world.ops.find((o) => o.table === "job_communications" && o.ops.some(([f, a]) => f === "eq" && a[1] === "outbound"))!;
+    expect(outbound.ops.some(([f, a]) => f === "eq" && a[0] === "visibility" && a[1] === "customer")).toBe(true);
+    expect(String(outbound.ops.find(([f]) => f === "select")![1][0])).toContain("sent_at");
+    const jobsQ = world.ops.find((o) => o.table === "jobs")!;
+    expect(jobsQ.ops.some(([f, a]) => f === "is" && a[0] === "deleted_at" && a[1] === null)).toBe(true);
+  });
+  test("I3: internal outbound rows and deleted jobs are skipped", async () => {
+    reset({
+      job_communications: [
+        { job_id: "j2", direction: "outbound", visibility: "internal", body: "Hi Sam,\n\ninternal", created_at: "2026-10-20T10:00:00Z" },
+        { job_id: "j3", direction: "outbound", visibility: "customer", body: "Hi Sam,\n\ndeleted", created_at: "2026-10-20T10:00:00Z" },
+        { job_id: "j2", direction: "inbound", body: "q", created_at: "2026-10-20T08:00:00Z" },
+        { job_id: "j3", direction: "inbound", body: "q", created_at: "2026-10-20T08:00:00Z" },
+      ],
+      jobs: [job("j2"), job("j3", { deleted_at: "2026-10-25T00:00:00Z" })],
+    });
+    expect(await loadStyleExamples("cur", "x")).toEqual([]);
+  });
+  test("I3: pairs by received_at/sent_at when present", async () => {
+    reset({
+      job_communications: [
+        // Synced at 10:00, sent at 09:00.
+        { job_id: "j2", direction: "outbound", visibility: "customer", body: "Hi Sam,\n\nreply", created_at: "2026-10-20T10:00:00Z", sent_at: "2026-10-20T09:00:00Z" },
+        { job_id: "j2", direction: "inbound", body: "after the reply", created_at: "2026-10-20T09:58:00Z", received_at: "2026-10-20T09:30:00Z" },
+        { job_id: "j2", direction: "inbound", body: "the one answered", created_at: "2026-10-20T09:55:00Z", received_at: "2026-10-20T08:30:00Z" },
+      ],
+      jobs: [job("j2")],
+    });
+    const out = await loadStyleExamples("cur", "x");
+    expect(out.map((r) => r.theirEmail)).toEqual(["the one answered"]);
+    expect(out[0]!.at).toBe("2026-10-20T09:00:00Z");
   });
 });

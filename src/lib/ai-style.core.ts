@@ -33,19 +33,31 @@ const GREETING_RE = /^([ \t]*(?:hi|hey|hello|dear|g['’]day|gday|good (?:mornin
 const SIGNOFF = "(?:cheers|thanks|thank you|regards|kind regards|best regards|best)";
 const NAME_LINE = "(?!Home\\b|Team\\b)[A-Z][a-z'’-]+(?:[ \\t]+[A-Z][a-z'’-]+)?";
 const SIGNOFF_SAME_RE = new RegExp(`^([ \\t]*${SIGNOFF}[ \\t,]+)${NAME_LINE}([ \\t]*[,!.]?[ \\t]*)$`, "gim");
-const SIGNOFF_NEXT_RE = new RegExp(`^([ \\t]*${SIGNOFF}[ \\t]*,?[ \\t]*\\n[ \\t]*)${NAME_LINE}([ \\t]*)$`, "gim");
+const SIGNOFF_NEXT_RE = new RegExp(`^([ \\t]*${SIGNOFF}[ \\t]*,?[ \\t]*\\n(?:[ \\t]*\\n)*[ \\t]*)${NAME_LINE}([ \\t]*)$`, "gim");
+const JOB_RE = /\bHV-\d+\b/gi;
 const MAX_LEN = 1200;
+
+const SIGNOFF_WORD = "(?:[Cc]heers|[Tt]hanks|[Tt]hank you|[Mm]any thanks|[Kk]ind regards|[Bb]est regards|[Ww]arm regards|[Rr]egards|[Bb]est|CHEERS|THANKS)";
+const SIGNOFF_LINE_RE = new RegExp(`^[ \\t]*${SIGNOFF_WORD}[ \\t]*[,!.]?[ \\t]*(?:[A-Z][a-z'’-]+(?:[ \\t]+[A-Z][a-z'’-]+)?)?[ \\t]*[,!.]?[ \\t]*(?::-?\\))?[ \\t]*$`);
+/** Jo's own words only: drops the sign-off line and everything after it (her name, signature block). */
+export function cutAtSignOff(reply: string): string {
+  const lines = reply.replace(/\r/g, "").split("\n");
+  const at = lines.findIndex((l, i) => i > 0 && l.trim() !== "" && SIGNOFF_LINE_RE.test(l));
+  return (at === -1 ? lines : lines.slice(0, at)).join("\n").trim();
+}
 
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** Replaces the example job's own known details first (exact), then catches the rest with patterns. */
 export function scrubExample(reply: string, owner: { name?: string; address?: string; suburb?: string; postcode?: string }): string {
-  let t = reply.replace(URL_RE, "<link>").replace(EMAIL_RE, "<email>").replace(PHONE_RE, "<phone>");
+  let t = reply.replace(URL_RE, "<link>").replace(JOB_RE, "<job>").replace(EMAIL_RE, "<email>").replace(PHONE_RE, "<phone>");
   if (owner.address?.trim()) t = t.replace(new RegExp(`(?:(?:unit|apt|apartment|flat|suite|shop)\\s+)?(?:\\d{1,5}[A-Za-z]?/)?${esc(owner.address.trim())}`, "gi"), "<address>");
   if (owner.postcode?.trim()) t = t.replace(new RegExp(`(?<!\\d)${esc(owner.postcode.trim())}(?!\\d)`, "g"), "<postcode>");
   if (owner.suburb?.trim()) t = t.replace(new RegExp(`(?<![A-Za-z<])${esc(owner.suburb.trim())}(?![A-Za-z>])`, "gi"), "<suburb>");
+  // Only capitalised uses, so a name like "Will May Best" never garbles "we will do our best".
   for (const part of (owner.name ?? "").split(/\s+/).filter((p) => p.length >= 2)) {
-    t = t.replace(new RegExp(`(?<![A-Za-z<])${esc(part)}(?![A-Za-z>])`, "gi"), "<name>");
+    const rest = [...part.slice(1)].map((ch) => /[a-z]/i.test(ch) ? `[${ch.toLowerCase()}${ch.toUpperCase()}]` : esc(ch)).join("");
+    t = t.replace(new RegExp(`(?<![A-Za-z<])${esc(part[0]!.toUpperCase())}${rest}(?![A-Za-z>])`, "g"), "<name>");
   }
   t = t.replace(ADDRESS_RE, "<address>").replace(STREET_NO_SUFFIX_RE, "<address>").replace(ADDRESS_TAIL_RE, "<address>")
     .replace(STATE_POSTCODE_RE, "<postcode>").replace(VIC_POSTCODE_RE, "<postcode>")

@@ -80,3 +80,29 @@ describe("Jo's tone (27 Oct 2026)", () => {
     expect(AI_BUSINESS_RULES.join(" ")).toContain("$15/m²");
   });
 });
+
+// Step 3 final review fixes (I2b, I2c, I4).
+describe("final review: Jo sign-offs are stripped", async () => {
+  const { finishAiReply: finish, stripSignOff: strip, AI_SIGN_OFF: S } = await import("../src/lib/ai-email-reply.core");
+  for (const so of ["Kind regards,\nJo", "Cheers, Jo", "Cheers,\n\nJo", "Thanks,\nJo :)", "Cheers Jo!"]) {
+    test(`finishAiReply: ${JSON.stringify(so)}`, () => {
+      const out = finish(`Hi Sam,\n\nAll good.\n\n${so}`);
+      expect(out).toBe(`Hi Sam,\n\nAll good.\n\n${S}`);
+    });
+    test(`stripSignOff: ${JSON.stringify(so)}`, () => expect(strip(`Hi Sam,\n\nAll good.\n\n${so}`)).toBe("Hi Sam,\n\nAll good."));
+  }
+});
+
+describe("final review: placeholders and owner wording", () => {
+  for (const ph of ["<name>", "<address>", "<suburb>", "<postcode>", "<link>", "<email>", "<phone>", "<job>"]) {
+    test(`flags ${ph}`, () => expect(aiReplyProblems(`Hi ${ph},\n\nAll good.`)).toContain(`Take out the placeholder ${ph} — write the real wording`));
+  }
+  test("flags fixes", () => {
+    expect(aiReplyProblems("Hi Sam,\n\nThe fixes are quoted separately.")).toContain("Say “electrical upgrades” instead of “fixes”.");
+    expect(aiReplyProblems("Hi Sam,\n\nThey need fixing first.")).toEqual([]);
+  });
+  test("flags a safety check with no PIESA", () => {
+    expect(aiReplyProblems("Hi Sam,\n\nThe safety check is $349.")).toContain("Say “electrical safety check (PIESA)”.");
+    expect(aiReplyProblems("Hi Sam,\n\nThe electrical safety check (PIESA) is $349. The safety check is quick.")).toEqual([]);
+  });
+});

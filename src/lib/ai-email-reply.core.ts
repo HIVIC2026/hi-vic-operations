@@ -159,6 +159,8 @@ const CALL_US = /[^.!?\n]*\b(call|ring|phone)\s+(us|the office|our office)\b[^.!
 export function finishAiReply(raw: string): string {
   let t = raw.replace(/\r/g, "").trim();
   t = t.replace(/\n*(cheers|kind regards|regards|thanks|many thanks|best)[,!]?\s*\n(?:jo\s*\n)?[^\n]*(home insulation victoria|team)[^\n]*$/i, "").trim();
+  // The AI sometimes signs as Jo ("Cheers, Jo", "Kind regards,\nJo"): drop it so only the team sign-off remains.
+  t = stripSignOff(t);
   for (const [re, to] of JARGON) t = t.replace(re, to);
   t = t.replace(CALL_US, "").replace(PHONE, "").replace(/[ \t]{2,}/g, " ");
   // Greeting on its own line: "Hi Sarah! Good news…" → "Hi Sarah!\n\nGood news…"
@@ -356,6 +358,8 @@ export function saveAnswerPrefill(questions: string[], sentBody: string): { topi
   return { topic: (questions[0] ?? "").trim().slice(0, 80), answer: lines.join("\n").replace(/\n{3,}/g, "\n\n").trim() };
 }
 
+const PLACEHOLDER_RE = /<(?:name|address|suburb|postcode|link|email|phone|job)>/gi;
+
 /** Problems that stop a draft being sent as written (checked again at send). */
 export function aiReplyProblems(body: string, opts: { preRelease?: boolean } = {}): string[] {
   const out: string[] = [];
@@ -369,6 +373,11 @@ export function aiReplyProblems(body: string, opts: { preRelease?: boolean } = {
   if (/\bNEEDS[_ ]?(?:JO|YOU)[*_]{0,2}\s*:/i.test(body) || /\bNEEDS[_ ]?(?:JO|YOU)[*_]{0,2}\s*[-–]/.test(body)
     || /^[\s*_`>-]*needs[_ ]?(?:jo|you)[*_]{0,2}\s*[:\-–]/im.test(body) || /\bACTIONS[*_]{0,2}\s*:/.test(body)
     || /\{\s*"installer_note"/.test(body) || /"new_area_m2"/.test(body)) out.push("Take out the AI's note to the office (NEEDS_JO…).");
+  // Placeholders copied from Jo's scrubbed style examples.
+  for (const ph of new Set((body.match(PLACEHOLDER_RE) ?? []).map((m) => m.toLowerCase()))) out.push(`Take out the placeholder ${ph} — write the real wording`);
+  if (/\bfixes\b/i.test(body)) out.push("Say “electrical upgrades” instead of “fixes”.");
+  // First mention is "electrical safety check (PIESA)"; later plain "safety check" is fine once PIESA has been named.
+  if (/\bsafety check\b/i.test(body) && !/\bPIESA\b/i.test(body)) out.push("Say “electrical safety check (PIESA)”.");
   if (opts.preRelease) {
     const bad = aiPreReleaseViolations(body);
     if (bad.length) out.push(`Take out “${bad.join("”, “")}” — we can't promise timing before their spot is released.`);
@@ -386,9 +395,10 @@ export const AI_FIX_INSTRUCTIONS = [
   "Return only the email body, nothing else.",
 ].join("\n");
 
-const SIGN_WORDS = "(?:cheers|kind regards|regards|thanks|many thanks|best)";
+const SIGN_WORDS = "(?:cheers|kind regards|best regards|warm regards|regards|thanks|thank you|many thanks|best)";
 const TRAILING_TEAM_SIGN_OFF = new RegExp(`(?:^|\\n)[ \\t]*${SIGN_WORDS}[ \\t]*,[ \\t]*(?:the[ \\t]+)?(?:home insulation victoria(?:[ \\t]+team)?|team)[ \\t]*\\.?[ \\t]*$`, "i");
-const TRAILING_JO_SIGN_OFF = new RegExp(`(?:^|\\n)[ \\t]*${SIGN_WORDS}[,!.]?[ \\t]*\\n+[ \\t]*jo[ \\t]*$`, "i");
+// "Cheers,\nJo", "Cheers,\n\nJo", "Cheers, Jo", "Cheers Jo!", "Thanks,\nJo :)".
+const TRAILING_JO_SIGN_OFF = new RegExp(`(?:^|\\n)[ \\t]*${SIGN_WORDS}[ \\t]*[,!.]?(?:[ \\t]*\\n)*[ \\t]*jo\\b[ \\t]*[!.]?[ \\t]*(?::-?\\))?[ \\t]*$`, "i");
 /** Removes a trailing sign-off however the AI worded it (our exact one, "Kind regards, the … team", "Cheers,\nJo"), plus surrounding whitespace. */
 export function stripSignOff(text: string): string {
   let t = text.trim();
