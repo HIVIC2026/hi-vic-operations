@@ -13,18 +13,23 @@ const db = admin as unknown as { from: (t: string) => any }; // eslint-disable-l
 
 /** Every current staff row of the business, with derived clearance facts for installers (reuses the PIISA crew loader). */
 export async function allocationCandidates(businessId: string): Promise<AllocationCandidate[]> {
-  const { data: workers, error } = await db.from("partner_workers").select("id, full_legal_name, trade_role, email, mobile, removed_at, worker_role").eq("business_id", businessId).is("removed_at", null);
+  const cols = "id, full_legal_name, trade_role, email, mobile, removed_at, worker_role";
+  const load = (c: string) => db.from("partner_workers").select(c).eq("business_id", businessId).is("removed_at", null);
+  let { data: workers, error } = await load(`${cols}, declarations_due`);
+  // Until 0230 is live the column is missing: re-read without it and treat everyone as signed (preflight ruling 10).
+  if (error && (await import("./schema-compat.core")).isMissingDbObject(error)) ({ data: workers, error } = await load(cols));
   if (error) throw new WorkflowError(`Couldn't load your staff: ${error.message}`);
   const { data: biz } = await db.from("businesses").select("email").eq("id", businessId).maybeSingle();
   const businessEmail = (biz as { email?: string | null } | null)?.email ?? null;
   const staff = await (await import("./piisa-a3.server")).crewStaff(businessId);
   const byId = new Map(staff.map((s) => [s.workerId, s]));
-  return ((workers ?? []) as { id: string; full_legal_name: string; trade_role: string; email: string | null; mobile: string | null; removed_at: string | null; worker_role?: string | null }[]).map((w) => {
+  return ((workers ?? []) as { id: string; full_legal_name: string; trade_role: string; email: string | null; mobile: string | null; removed_at: string | null; worker_role?: string | null; declarations_due?: boolean | null }[]).map((w) => {
     const s = byId.get(w.id);
     return {
       workerId: w.id, name: w.full_legal_name.trim(), tradeRole: w.trade_role, email: w.email, mobile: w.mobile, removedAt: w.removed_at, workerRole: s?.workerRole ?? effectiveWorkerRole({ tradeRole: w.trade_role, stored: w.worker_role }), businessEmail,
       clearance: s ? { certStatus: s.eecVerified ? "verified" : s.clearanceReason === CREW_CLEARANCE_REASON.withdrawn ? "rejected" : null, level: s.level ?? null, expiresOn: s.expiresOn ?? null } : null,
       whiteCard: s?.whiteCard ?? null,
+      declarationsDue: w.declarations_due === true,
     };
   });
 }

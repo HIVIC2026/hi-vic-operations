@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
   completionErrors, eecUploadMeta, inviteCertPath, inviteMode, inviteState, isInviteCertPath,
-  mergeEec, workerSubmissionErrors,
+  mergeEec, signLinkBlocker, workerSubmissionErrors,
 } from "../src/lib/worker-invite.core";
 import { EEC_TEAM_LABEL, eecState } from "../src/lib/worker-compliance.core";
 
@@ -71,7 +71,8 @@ describe("installer EEC/CII certificate onboarding", () => {
     // Link creation requires business admin membership (or office).
     expect(inviteFns).toContain("await requireMember(context.userId, w.business_id, true)");
     // Verified workers never get a link.
-    expect(inviteFns).toContain('if (w.certification_status === "verified") throw new Error("This worker\'s certificate is already verified.")');
+    expect(inviteFns).toContain("const blocker = signLinkBlocker(w);");
+    expect(signLinkBlocker({ trade_role: "installer", declarations_due: false, email: null, mobile: null, certification_status: "verified" })).toBe("This worker's certificate is already verified.");
   });
 
   test("6) office can view and verify the uploaded certificate", () => {
@@ -105,7 +106,7 @@ describe("installer EEC/CII certificate onboarding", () => {
     expect(workerSubmissionErrors("electrician", elec, keys)).toEqual([]);
     expect(workerSubmissionErrors("electrician", elec, keys)).not.toContain("Upload the EEC / Certified Insulation Installer certificate.");
     // Completion links are installer-only.
-    expect(inviteFns).toContain("Certificate completion links are only for installer workers.");
+    expect(signLinkBlocker({ trade_role: "electrician", declarations_due: false, email: null, mobile: null, certification_status: null })).toBe("Certificate completion links are only for installer workers.");
     expect(eecState({ trade_role: "electrician" })).toBe("not_applicable");
     expect(joinPage).toContain('inv.trade === "electrician"');
   });
@@ -120,7 +121,7 @@ describe("installer EEC/CII certificate onboarding", () => {
   test("completion mode asks only for the certificate (no declarations, no re-sign)", () => {
     expect(completionErrors({})).toContain("Upload the EEC / Certified Insulation Installer certificate.");
     expect(completionErrors({ certificate_path: "worker-invites/i/eec-a.pdf" })).toEqual([]);
-    expect(inviteFns).toContain('mode === "registration" ? workerDeclarations(t, businessName) : []');
+    expect(inviteFns).toContain("declarations: due ? workerDeclarations(t, businessName) : []");
   });
 
   test("team labels are owner-safe and never expose file paths", () => {

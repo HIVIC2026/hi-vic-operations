@@ -6,7 +6,7 @@
 // Mitti form to that person's own Mitti user (looked up by the email on their staff row) and the 6:30am text goes to
 // their mobile instead of the owner's. Nothing here changes stages, bookings, quotes or pay.
 import type { WorkerRole } from "./worker-role.core";
-import { crewClearance, whiteCardBlocker, type CrewClearanceFacts, type WhiteCardState } from "./worker-compliance.core";
+import { DECLARATIONS_DUE_MESSAGE, crewClearance, whiteCardBlocker, type CrewClearanceFacts, type WhiteCardState } from "./worker-compliance.core";
 
 export type VisitKind = "ready_check" | "install";
 export const VISIT_ALLOCATED_EVENT = "visit_allocated";
@@ -28,12 +28,15 @@ export type AllocationCandidate = {
   clearance?: CrewClearanceFacts | null;
   /** Decision 319: White Card state (installers). Undefined = not loaded → the White Card rule is not applied. */
   whiteCard?: WhiteCardState | null;
+  /** Jo 29 Oct 2026: added on Team and not signed the worker declarations yet → no visit of either kind. */
+  declarationsDue?: boolean;
 };
 
 export type AllocationOption = { workerId: string; name: string; mobile: string | null; allowed: boolean; reason: string | null; note: string | null };
 
 export const ALLOCATION_REASON = {
   removed: "No longer on the staff list.",
+  unsigned: DECLARATIONS_DUE_MESSAGE,
   crew: "Crew can't be the install-day Lead — pick a Lead.",
   notInstaller: "Only installers can be given an install day.",
   noMobile: "No mobile on file – the 6:30am text will go to you.",
@@ -44,6 +47,7 @@ export const ALLOCATION_REASON = {
  *  installation was booked before `WHITE_CARD_ENFORCED_FROM` (null = not booked yet = enforced). */
 export function allocationBlocker(kind: VisitKind, c: AllocationCandidate, today: string, install?: { bookingCreatedAt: string | null }): string | null {
   if (c.removedAt) return ALLOCATION_REASON.removed;
+  if (c.declarationsDue) return ALLOCATION_REASON.unsigned;
   if (kind === "ready_check") return null;
   if (c.tradeRole !== "installer") return ALLOCATION_REASON.notInstaller;
   if (c.workerRole === "crew") return ALLOCATION_REASON.crew;

@@ -185,6 +185,8 @@ export type WhiteCardRecord = {
 };
 export type WhiteCardState = "not_applicable" | "missing" | "awaiting_check" | "verified" | "rejected";
 export const WHITE_CARD_BLOCK_MESSAGE = "White Card not verified";
+/** Jo 29 Oct 2026: people added on Team (`partner_workers.declarations_due`) can't go on any job until they sign by link. */
+export const DECLARATIONS_DUE_MESSAGE = "Hasn't signed their worker declarations yet.";
 /** 00:00 on 26 Oct 2026 in Melbourne (AEDT, UTC+11). Installation bookings created before this instant are never blocked. */
 export const WHITE_CARD_ENFORCED_FROM = "2026-10-25T13:00:00.000Z";
 export const WHITE_CARD_EVENTS = { uploaded: "white_card_uploaded", verified: "white_card_verified", rejected: "white_card_rejected" } as const;
