@@ -8,12 +8,13 @@ import { postgrestShim } from "./helpers/pglite-postgrest-shim";
 
 const JOB = "10000000-0000-4000-8000-000000000001", OWN = "10000000-0000-4000-8000-000000000002", PROP = "20000000-0000-4000-8000-000000000001";
 const BIZ = "30000000-0000-4000-8000-000000000001", BIZ2 = "30000000-0000-4000-8000-000000000002";
+const NOSTREET = "10000000-0000-4000-8000-000000000003", PROP2 = "20000000-0000-4000-8000-000000000002";
 const INST = "40000000-0000-4000-8000-000000000001", OWNER = "40000000-0000-4000-8000-000000000009";
 
 const db = new PGlite();
 await db.exec(`
 CREATE TABLE jobs (id uuid primary key, stage text, channel text, source text, deleted_at timestamptz, job_number text, property_id uuid, next_action text, originating_installer_business_id uuid);
-CREATE TABLE properties (id uuid primary key, suburb text, postcode text);
+CREATE TABLE properties (id uuid primary key, suburb text, postcode text, address_line text);
 CREATE TABLE businesses (id uuid primary key, name text, onboarding_notes text);
 CREATE TABLE business_members (id uuid primary key default gen_random_uuid(), business_id uuid, user_id uuid, active boolean default true);
 CREATE TABLE job_assignments (id uuid primary key default gen_random_uuid(), job_id uuid, user_id uuid, business_id uuid, role text, active boolean default true);
@@ -27,9 +28,10 @@ CREATE TABLE workflow_events (id uuid primary key default gen_random_uuid(), job
 CREATE TABLE workflow_settings (id int primary key, ready_check_booking_enabled boolean);
 CREATE TABLE ready_check_windows (id uuid primary key default gen_random_uuid(), job_id uuid, status text, starts_at timestamptz);
 INSERT INTO workflow_settings VALUES (1, true);
-INSERT INTO properties VALUES ('${PROP}','Frankston','3199');
+INSERT INTO properties VALUES ('${PROP}','Frankston','3199','5 Test St, Frankston VIC 3199'), ('${PROP2}','Brighton','3186','Brighton VIC 3186');
 INSERT INTO jobs VALUES ('${JOB}','ready_check_ready_to_schedule','hivic_sourced','qa_test',null,'HV-T1','${PROP}',null,null),
-  ('${OWN}','ready_check_ready_to_schedule','installer_sourced','qa_test',null,'HV-T2','${PROP}',null,'${BIZ}');
+  ('${OWN}','ready_check_ready_to_schedule','installer_sourced','qa_test',null,'HV-T2','${PROP}',null,'${BIZ}'),
+  ('${NOSTREET}','ready_check_ready_to_schedule','hivic_sourced','qa_test',null,'HV-T3','${PROP2}',null,null);
 INSERT INTO businesses VALUES ('${BIZ}','TEST Alpha','[TEST PARTNER]'),('${BIZ2}','TEST Beta','[TEST PARTNER]');
 INSERT INTO business_members (business_id, user_id) VALUES ('${BIZ}','${INST}');`);
 
@@ -92,6 +94,13 @@ describe("office picks one installer", () => {
   });
   test("an ineligible installer is refused", async () => {
     await expect(rc.officePickReadyCheckInstaller(JOB, null, [BIZ2])).rejects.toThrow(/can't take this Ready Check/);
+  });
+  test("no street (Jo 30 Oct) → refused with the reason; no offer, no event, no text", async () => {
+    await expect(rc.officePickReadyCheckInstaller(NOSTREET, null, [BIZ])).rejects.toThrow("Waiting for the owner's full address");
+    await expect(rc.officePickReadyCheckInstaller(NOSTREET, null, [BIZ], { auto: { attempt: 1, basis: "nearest", activeJobs: 0, distanceKm: 1 } })).rejects.toThrow("Waiting for the owner's full address");
+    expect(await q("select id from partner_offers where job_id=$1", [NOSTREET])).toHaveLength(0);
+    expect(await q("select id from workflow_events where job_id=$1", [NOSTREET])).toHaveLength(0);
+    expect(calls.texts).toEqual([]);
   });
   test("installer's own customer: never offered", async () => {
     await expect(rc.officePickReadyCheckInstaller(OWN, null, [BIZ])).rejects.toThrow(/directly/);
