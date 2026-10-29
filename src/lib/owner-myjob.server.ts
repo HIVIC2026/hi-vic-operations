@@ -1,5 +1,5 @@
 // No-login owner "My job" view. The secure estimate link token is the only credential. Read-only.
-import { isSpotSavedStage } from "./owner-myjob.core";
+import { isSpotSavedStage, spotReleasedForPage } from "./owner-myjob.core";
 import { currentFeeWording } from "./hiv-quote.core";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { isWellFormedToken, LINK_PURPOSE, linkUsable } from "./estimatelink.core";
@@ -9,6 +9,7 @@ import { splitForOption } from "./payment-gate.core";
 import { stepInvoiceKind } from "./payments.core";
 import { safetyCheckIncGstFor } from "./safety-check-amount.core";
 import { section1FromFacts } from "./consent.core";
+import { SPOT_RELEASE_EVENTS } from "./spot-release.core";
 
 const n = (v: unknown) => Number(v ?? 0) || 0;
 
@@ -42,12 +43,14 @@ export async function resolveOwnerJob(token: unknown) {
     admin.from("workflow_settings").select("office_time_limits, piesa_install_window_days, safety_check_payment_inc_gst").eq("id", 1).maybeSingle(),
   ]);
   if (!j) return null;
-  const [{ data: rc }, { data: spot }, { data: consent }, { data: cancellableBookings }, { data: veecRows }] = await Promise.all([
+  const [{ data: rc }, { data: spot }, { data: consent }, { data: cancellableBookings }, { data: veecRows }, released] = await Promise.all([
     admin.from("ready_check_acceptances").select("accepted_at").eq("job_id", jobId).limit(1).maybeSingle(),
     admin.from("lead_campaign_responses").select("spot_saved_at, opted_out_at, media_received_at, video_requested, saved_veu_discount, saved_total").eq("job_id", jobId).maybeSingle(),
     admin.from("owner_esc_consents").select("status, scheduled_start").eq("job_id", jobId).eq("status", "awaiting_owner").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("bookings").select("kind").eq("job_id", jobId).in("status", ["proposed", "confirmed"]),
     admin.from("customer_assignments").select("status, consumer_signed_at").eq("job_id", jobId).eq("record_kind", "final_veec_assignment").order("created_at", { ascending: false }),
+    // Jo 29 Oct (HV-3542): once the spot is released the spot-saved page stops saying "we'll be in touch". Lapsed = back in the queue. A failed read = not released. (Six reads in this wave: at the cap.)
+    admin.from("workflow_events").select("event_type, created_at, details").eq("job_id", jobId).in("event_type", [...SPOT_RELEASE_EVENTS]).then(({ data, error }) => !error && spotReleasedForPage(data ?? []), () => false),
   ]);
   const veec = ((veecRows ?? []) as { status: string; consumer_signed_at: string | null }[]).find((a) => a.status !== "cancelled") ?? null;
   // An archived job reads as closed to the owner, the same as a cancelled one.
@@ -117,6 +120,7 @@ export async function resolveOwnerJob(token: unknown) {
       cost: spot?.saved_total != null ? n(spot.saved_total) : null,
       shortAddress: shortAddress((j.properties as { address_line: string | null } | null)?.address_line, (j.properties as { suburb: string | null } | null)?.suburb),
       videoInvite: !!spot?.video_requested && !spot.media_received_at,
+      released,
       optOutUrl: await (await import("./emailsafety.server")).unsubscribeUrlForJob(jobId),
     } : null,
     piesaInstallGapDays: n(limits["piesa_install_gap_days"] ?? DEFAULT_PIESA_INSTALL_GAP_DAYS),
