@@ -13,17 +13,22 @@ import { applyEmailChange, ignoreEmailChange, matchOutlookEmail } from "@/lib/em
 import { getEmailsTab, matchEmailToJob, sendJobEmailReply, sendNoJobEmailReply, writeEmailDrafts } from "@/lib/emails-tab.functions";
 import type { JobEmailCard, NoJobCard } from "@/lib/emails-tab.core";
 import { EMAILS_TAB_KEY } from "@/components/portal/emails-count";
+import { AI_REWRITTEN_NOTE } from "@/lib/ai-email-reply.core";
 import { saveStateText, useDraftAutosave, type SaveState } from "@/components/portal/use-draft-autosave";
 
 const btn = (tone: "primary" | "secondary") => btnClass(tone, "min-h-[46px] whitespace-nowrap md:min-h-[42px]");
 const when = (iso: string) => new Date(iso).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 
-function useRun(onDone: () => void) {
+type Rewritten = { status: "rewritten"; body: string; problems: string[] };
+
+function useRun(onDone: () => void, onRewritten?: (r: Rewritten) => void) {
   const [busy, setBusy] = useState(false);
   const run = async (fn: () => Promise<unknown>, ok: string) => {
     setBusy(true);
     try {
       const r = await fn();
+      // A blocked Send: nothing went out. The fixed reply goes back in the box for Jo to check; the card stays.
+      if (onRewritten && (r as { status?: string } | null)?.status === "rewritten") { onRewritten(r as Rewritten); return; }
       // A matched email from someone other than the owner is filed on the job without a reply (decision 414 review).
       toast.success((r as { fromOwner?: boolean } | null)?.fromOwner === false ? `${ok} — not from the owner, so it's filed on the job with no reply` : ok);
       onDone();
@@ -44,6 +49,13 @@ function TheyWrote({ text }: { text: string | null }) {
   );
 }
 
+function RewrittenNote({ note }: { note: Rewritten | null }) {
+  if (!note) return null;
+  return note.problems.length
+    ? <p className="text-sm text-danger" role="alert">{note.problems.join(" ")}</p>
+    : <p className="text-sm text-ink" role="status">{AI_REWRITTEN_NOTE}</p>;
+}
+
 function Reply({ body, setBody, busy, waiting, saved = "idle" }: { body: string | null; setBody: (s: string) => void; busy: boolean; waiting: boolean; saved?: SaveState }) {
   if (body === null) return <p className="text-sm text-sub">{waiting ? "AI reply is being written — check back in a minute." : "No AI reply for this one."}</p>;
   return (
@@ -62,7 +74,8 @@ function JobCard({ c, onDone }: { c: JobEmailCard; onDone: () => void }) {
   const [body, setBody] = useState<string | null>(c.draft?.body ?? null);
   useEffect(() => { if (c.draft && body === null) setBody(c.draft.body); }, [c.draft, body]);
   const saved = useDraftAutosave(c.draft?.eventId ?? null, body, c.draft?.body ?? null);
-  const { busy, run } = useRun(onDone);
+  const [note, setNote] = useState<Rewritten | null>(null);
+  const { busy, run } = useRun(onDone, (r) => { setBody(r.body); setNote(r); });
   return (
     <li className="grid gap-2 rounded-[12px] border border-line bg-paper p-3" data-testid="email-card-job">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -73,9 +86,10 @@ function JobCard({ c, onDone }: { c: JobEmailCard; onDone: () => void }) {
       {c.intent !== "reply" && c.label && <p className="text-sm font-semibold text-ink">{c.label}</p>}
       <TheyWrote text={c.theyWrote} />
       {c.stillOpenDecline && <p className="text-sm font-semibold text-danger">Still open — Close job or Keep open</p>}
-      {c.draftClosed && !c.draft && c.stillOpenDecline ? null : c.draftClosed && !c.draft ? <p className="text-sm text-sub">No reply needed, or it was already answered — press Done to file it away.</p> : <Reply body={body} setBody={setBody} busy={busy} saved={saved} waiting={c.intent === "reply"} />}
+      {c.draftClosed && !c.draft && c.stillOpenDecline ? null : c.draftClosed && !c.draft ? <p className="text-sm text-sub">No reply needed, or it was already answered — press Done to file it away.</p> : <Reply body={body} setBody={(t) => { setNote(null); setBody(t); }} busy={busy} saved={saved} waiting={c.intent === "reply"} />}
+      <RewrittenNote note={note} />
       <div className="grid grid-cols-2 gap-2 md:flex">
-        {c.draft && body !== null && <button type="button" disabled={busy} className={btn("primary")} onClick={() => void run(() => send({ data: { requestEventId: c.requestEventId, draftEventId: c.draft!.eventId, body } }), "Reply sent and saved on the job")}>{busy ? "Working…" : "Send"}</button>}
+        {c.draft && body !== null && <button type="button" disabled={busy} className={btn("primary")} onClick={() => { setNote(null); void run(() => send({ data: { requestEventId: c.requestEventId, draftEventId: c.draft!.eventId, body } }), "Reply sent and saved on the job"); }}>{busy ? "Working…" : "Send"}</button>}
         {c.stillOpenDecline ? <>
           <button type="button" disabled={busy} className={btn(c.draft ? "secondary" : "primary")} onClick={() => void run(() => apply({ data: { eventId: c.requestEventId, close: c.intent === "reply" } }), "Job closed")}>Close job</button>
           <button type="button" disabled={busy} className={btn("secondary")} onClick={() => void run(() => ignore({ data: { eventId: c.requestEventId } }), "Kept open")}>Keep open</button>

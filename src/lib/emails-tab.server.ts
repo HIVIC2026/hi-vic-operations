@@ -194,6 +194,8 @@ export async function sendJobEmailReply(requestEventId: string, draftEventId: st
   if (!req?.job_id) throw new WorkflowError("That email wasn't found.");
   const { sendAiDraft } = await import("./ai-email-reply.server");
   const r = await sendAiDraft(draftEventId, body, actorId);
+  // Rewritten for Jo to check: nothing was sent, so the request stays open and no reply-sent events are written.
+  if (r.status === "rewritten") return r;
   if (req.details["intent"] === "reply") await (await import("./email-office.server")).applyEmailChange(requestEventId, actorId).catch((e) => console.error("reply sent; row not cleared", e));
   return r;
 }

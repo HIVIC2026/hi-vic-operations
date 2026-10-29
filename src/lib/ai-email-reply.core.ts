@@ -10,9 +10,11 @@
 import { esc, mjEmail } from "./mail-mjml.core";
 import { changeVisitLink, visitGroupForStage, type ChangeVisit } from "./email-change-reply.core";
 import { smsQuietReason } from "./quote-hold.core";
-import { SPOT_FREE, SPOT_PRICE_NOTE, SPOT_REGISTERED, SPOT_RELEASE_LINE, isPreReleaseStage, preReleaseViolations } from "./spot-only-copy.core";
+import { SPOT_FREE, SPOT_PRICE_NOTE, SPOT_REGISTERED, SPOT_RELEASE_LINE, isPreReleaseStage } from "./spot-only-copy.core";
 import type { SpotReleaseState } from "./spot-release.core";
 
+/** Shown on the draft screens after a blocked Send: the box now holds the fixed reply. */
+export const AI_REWRITTEN_NOTE = "We fixed the reply so it follows your rules — check it and press Send.";
 export const AI_EMAIL_DRAFT_EVENT = "email_ai_draft";
 export const AI_EMAIL_DRAFT_SENT_EVENT = "email_ai_draft_sent";
 export const AI_EMAIL_DRAFT_DISCARDED_EVENT = "email_ai_draft_discarded";
@@ -76,8 +78,10 @@ export type AiReplyContext = {
 
 
 const NEXT_STEP_RELEASED = "Then give the one next step: if their spot isn't saved and they want to go ahead, give the save-my-spot link on its own line; if their spot is saved, say that when it's their turn an installer will text and email them a few times for their free Ready Check.";
-/** Decision 388 (Jo 25 Oct 2026): before the spot is released the only thing to say about what comes next is Jo's release line. */
-const NEXT_STEP_PRE_RELEASE = `Then give the one next step: if their spot isn't saved and they want to go ahead, give the save-my-spot link on its own line; if their spot is saved, tell them: ${SPOT_RELEASE_LINE} Say nothing else about what happens after their spot is released, and give no timeframe or speed.`;
+/** Jo's wait line and release line (steps 2-4 spec 2d), verbatim. Before release, AI replies may explain the Ready Check with these but never give a date, timeframe or speed. */
+export const AI_WAIT_LINE = "We're bringing on more and more certified installers, but demand is high and there aren't enough of them yet. So we're booking people in the order they saved their spot, as quickly as we can bring on more CII-certified installers. We can't give a date yet, but we'll be in touch as soon as your spot is released.";
+export const AI_RELEASE_MEANS = "When your spot is released, it's your turn: an installer will text and email you some times for your free Ready Check.";
+const NEXT_STEP_PRE_RELEASE = `Then give the one next step: if their spot isn't saved and they want to go ahead, give the save-my-spot link on its own line; if their spot is saved, explain what release means with: ${AI_RELEASE_MEANS} If they ask when or how long, use: ${AI_WAIT_LINE} Give no date, timeframe or speed, and never promise or hint at one.`;
 const instructionLines = (NEXT_STEP: string, preRelease: boolean) => [
   "You write email replies from the Home Insulation Victoria team to home owners about their ceiling insulation. The office reads and sends each one.",
   "Tone: kind, warm and plain, in Australian English, like a real person in our office. Short sentences. Never robotic or call-centre. Never say \"No worries\". Never sign or mention a person's name for us.",
@@ -129,13 +133,15 @@ export const AI_BUSINESS_RULES = [
   RULE_OWN_ELECTRICIAN,
 ];
 
-/** Business rules before release: only the lines that say nothing about a Ready Check, a visit, times or speed, plus Jo's spot-only lines. */
+/** Business rules before release: the Ready Check may be explained (Jo's release and wait lines), but nothing that gives a date, timeframe or speed. */
 export const AI_BUSINESS_RULES_PRE_RELEASE = [
   RULE_CEILING_ONLY,
   RULE_BATTS_ONLY,
   SPOT_FREE,
   SPOT_REGISTERED,
   SPOT_RELEASE_LINE,
+  AI_RELEASE_MEANS,
+  AI_WAIT_LINE,
   SPOT_PRICE_NOTE,
   RULE_OWN_ELECTRICIAN,
 ];
@@ -218,6 +224,22 @@ export function aiReplyText(body: string): string[] {
   return body.replace(/\r/g, "").trim().replace(/(https?:\/\/[^\s<>"]+)/g, (u) => `${aiLinkLabel(u)}: ${u}`).split("\n");
 }
 
+/** Before release, an AI reply may explain the Ready Check but must never promise timing or queue position.
+ *  "as soon as your spot is released" is Jo's own wait line, so it is allowed. Automatic emails/texts/pages keep the
+ *  full decision-388 ban (`preReleaseViolations`). */
+const AI_PRE_RELEASE_TIMING = new RegExp([
+  String.raw`\bsoon\b`, "shortly", String.raw`this\s+week`, String.raw`next\s+week`, String.raw`this\s+month`, String.raw`next\s+month`, String.raw`next\s+year`, "tomorrow",
+  String.raw`in\s+a\s+(?:few|couple\s+of)\s+(?:days|weeks)`, String.raw`a\s+couple\s+of\s+(?:days|weeks)`,
+  String.raw`within\s+(?:a|an|\d+(?:\s*(?:-|–|to)\s*\d+)?)\s+(?:days?|weeks?|months?|fortnight)`,
+  String.raw`\bin\s+\d+(?:\s*(?:-|–|to)\s*\d+)?\s+(?:days?|weeks?|months?)`,
+  String.raw`in\s+a\s+(?:fortnight|week\s+or\s+two)`, String.raw`in\s+the\s+(?:coming|next\s+few)\s+(?:days|weeks|months)`,
+  String.raw`jump\s+the\s+queue`, String.raw`\bmove\s+up`,
+].join("|"), "gi");
+export function aiPreReleaseViolations(text: string): string[] {
+  const cleaned = text.replace(/as\s+soon\s+as\s+(?:your|their)\s+spot(?:\s+is|['’]s)\s+released/gi, " ");
+  return [...new Set((cleaned.match(AI_PRE_RELEASE_TIMING) ?? []).map((m) => m.toLowerCase().replace(/\s+/g, " ")))];
+}
+
 /** Problems that stop a draft being sent as written (checked again at send). */
 export function aiReplyProblems(body: string, opts: { preRelease?: boolean } = {}): string[] {
   const out: string[] = [];
@@ -228,10 +250,69 @@ export function aiReplyProblems(body: string, opts: { preRelease?: boolean } = {
   PHONE.lastIndex = 0;
   if (/\b(call|ring|phone)\s+(us|the office|our office)\b/i.test(body)) out.push("Take out “call us”.");
   if (opts.preRelease) {
-    const bad = preReleaseViolations(body);
-    if (bad.length) out.push(`Take out “${bad.join("”, “")}” — their spot hasn't been released yet.`);
+    const bad = aiPreReleaseViolations(body);
+    if (bad.length) out.push(`Take out “${bad.join("”, “")}” — we can't promise timing before their spot is released.`);
   }
   return out;
+}
+
+export const AI_FIX_TRIES = 2;
+
+export const AI_FIX_INSTRUCTIONS = [
+  "You are fixing a draft email reply for Home Insulation Victoria.",
+  "The draft breaks the rules listed under PROBLEMS.",
+  "Change only the words or sentences that break those rules. Keep everything else word for word, including the greeting and any edits already made.",
+  "Do not add a sign-off. Do not add anything new.",
+  "Return only the email body, nothing else.",
+].join("\n");
+
+const SIGN_WORDS = "(?:cheers|kind regards|regards|thanks|many thanks|best)";
+const TRAILING_TEAM_SIGN_OFF = new RegExp(`(?:^|\\n)[ \\t]*${SIGN_WORDS}[ \\t]*,[ \\t]*(?:the[ \\t]+)?(?:home insulation victoria(?:[ \\t]+team)?|team)[ \\t]*\\.?[ \\t]*$`, "i");
+const TRAILING_JO_SIGN_OFF = new RegExp(`(?:^|\\n)[ \\t]*${SIGN_WORDS}[,!.]?[ \\t]*\\n+[ \\t]*jo[ \\t]*$`, "i");
+/** Removes a trailing sign-off however the AI worded it (our exact one, "Kind regards, the … team", "Cheers,\nJo"), plus surrounding whitespace. */
+export function stripSignOff(text: string): string {
+  let t = text.trim();
+  for (;;) {
+    const next = (t.endsWith(AI_SIGN_OFF) ? t.slice(0, -AI_SIGN_OFF.length) : t.replace(TRAILING_JO_SIGN_OFF, "").replace(TRAILING_TEAM_SIGN_OFF, "")).trim();
+    if (next === t) return t;
+    t = next;
+  }
+}
+
+/** What the fix call is sent: the problems, then the draft without its sign-off. */
+export function buildAiFixInput(body: string, problems: string[], preRelease: boolean): string {
+  const draft = stripSignOff(body);
+  const parts = ["PROBLEMS:", ...problems.map((p) => `- ${p}`)];
+  if (preRelease) parts.push("", "This wording IS allowed:", AI_RELEASE_MEANS, AI_WAIT_LINE);
+  parts.push("", "DRAFT:", draft);
+  return parts.join("\n");
+}
+
+/** Rewrites a draft that breaks Jo's rules, at most AI_FIX_TRIES AI calls. `ai` is injected so this stays pure. */
+export async function fixUntilClean(
+  body: string,
+  preRelease: boolean,
+  ai: (input: string, instructions: string) => Promise<string>,
+): Promise<{ body: string; problems: string[]; tries: number }> {
+  let current = body;
+  let problems = aiReplyProblems(current, { preRelease });
+  let tries = 0;
+  if (!body.trim()) return { body, problems, tries }; // nothing to rewrite; never ask the AI to invent a reply
+  while (problems.length && tries < AI_FIX_TRIES) {
+    tries++;
+    let raw: string;
+    try {
+      raw = await ai(buildAiFixInput(current, problems, preRelease), AI_FIX_INSTRUCTIONS);
+    } catch {
+      break;
+    }
+    const text = stripSignOff(raw ?? "");
+    if (!text || text.replace(/[.\s]+$/, "") === NO_REPLY_NEEDED) continue;
+    // finishAiReply only strips a two-line sign-off; our exact one-line sign-off is dropped first so it is never doubled.
+    current = finishAiReply(text);
+    problems = aiReplyProblems(current, { preRelease });
+  }
+  return { body: current, problems, tries };
 }
 
 export function replySubject(theirs: string | null): string {
