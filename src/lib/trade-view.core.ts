@@ -305,6 +305,8 @@ export type TeamMemberView = {
   whiteCard?: WhiteCardState | null;
   /** Jo 28 Oct: Lead / Crew for installer staff rows; null/undefined = not applicable. */
   workerRole?: "lead" | "crew" | null;
+  /** Jo 29 Oct: added on Team and not yet signed the worker declarations; can't go on jobs until they do. */
+  declarationsDue: boolean;
 };
 export const ROLE_LABEL: Record<TeamMemberView["role"], string> = { owner: "owner", installer: "installer", electrician: "electrician" };
 
@@ -349,6 +351,7 @@ export const TEAM_MOBILE_NOTE = "Their own safety plan link is texted here befor
 export const teamMobileButton = (mobile: string | null | undefined) => (mobile?.trim() ? "Change mobile" : "Add mobile");
 export const TEAM_RULE = "Every installer, Lead and Crew, needs a CII certificate checked by our office. Only a Lead can run an install day. Crew can do Ready Checks once our office adds them to Mitti.";
 /** "Send login invite" asks the office; it sends nothing itself. */
+export const TEAM_SIGN = { due: "Not signed yet · can't go on jobs", needContact: "Add a mobile or email to send their signing link.", link: "Make signing link" } as const;
 export const TEAM_LOGIN = { button: "Ask the office to send a login", asked: "Asked the office. They'll send the login." } as const;
 
 export type CredentialView = { kind: string; label: string; expires: string | null; verified: boolean };
@@ -432,7 +435,7 @@ export function businessNext(f: BusinessNextFacts, today: string): BusinessNext 
 }
 
 // ---------- M7 sub-page states (approved 24 Oct 2026, decision 236). PURE words over recorded facts. ----------
-/** Team → Add a team member sheet. The invite is the existing single-use /join link (worker-invite); with a mobile the server also texts it to the person (decision 251, team_member_invite). */
+/** Team → Add a team member sheet (Jo 29 Oct: no email needed; they sign their declarations by link). */
 export const TEAM_ADD_SHEET = {
   title: "Add a team member",
   bodyInstaller: "Email and mobile can wait. They sign their declarations by link, and we check their CII certificate, before they go on a job.",
@@ -445,29 +448,9 @@ export const TEAM_ADD_SHEET = {
   mobile: "Mobile (optional)",
   email: "Email (optional)",
   button: "Add to team",
-  // Invite-link fields: used only by the old Team page; removed in Task 5.
-  body: "They get a link to set up their login, the ESC privacy notice to tick, and a place to upload their CII certificate. The office checks it before they can be on an install.",
-  fields: ["Full name", "Mobile", "Email"] as const,
-  inviteButton: "Create the invite link",
   cancel: "Cancel",
-  linkNote: "Send this link to them yourself (text or email). It is single use and lasts 14 days; you won't see it again.",
 } as const;
-/** Decision 251: after "Create the invite link" — did the new person get the link by text? The link itself always stays
- *  on screen for the owner to pass on (the fallback when there is no mobile or the text did not go). */
-export type InviteTextResult = { status: "sent" | "not_sent" | "no_mobile"; detail: string } | null;
-export function inviteTextLine(r: InviteTextResult, mobile: string): { text: string; sent: boolean } {
-  const m = mobile.trim();
-  if (r?.status === "sent") return { text: `We texted the link to ${m}. You can also send it yourself:`, sent: true };
-  if (r?.status === "not_sent") return { text: `We couldn't text it to ${m} just now. ${TEAM_ADD_SHEET.linkNote}`, sent: false };
-  return { text: TEAM_ADD_SHEET.linkNote, sent: false };
-}
 export function teamCountLine(n: number): string { return `${n} ${n === 1 ? "person" : "people"}`; }
-/** Invite contact: the mobile when given, else the email, else nothing (the link is still created). */
-export function inviteContact(f: { mobile: string; email: string }): string | null {
-  const m = f.mobile.trim(), e = f.email.trim();
-  return m || e || null;
-}
-
 /** Your agreement → "What it covers" (installer agreement = AP contract, decisions 23/171). Static approved lines. */
 export const AGREEMENT_COVERS = [
   "Your rates on our leads and the free Ready Check visit",

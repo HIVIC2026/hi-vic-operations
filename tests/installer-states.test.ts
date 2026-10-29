@@ -10,7 +10,7 @@ import { HOME_EMPTY, homeIsEmpty, monthStripWords, offerPanelWords, offersListVi
 import { QUOTE_DECLINED_LINE, QUOTE_HELD_LINE, QUOTE_SENT_LINE } from "../src/lib/installer-quote-status.core";
 import { ADD_JOB_OFFLINE_NOTE, addedView, errorSummary, fieldErrors } from "../src/lib/add-job-flow.core";
 import { PICK_ADDRESS } from "../src/lib/onsite-ready-check.core";
-import { AGREEMENT_COVERS, GUIDE_STEPS, TEAM_ADD_SHEET, TEAM_LOGIN, bankOnFileRows, escNoticeRowLine, inviteContact, inviteTextLine, signedOnLine, teamCountLine } from "../src/lib/trade-view.core";
+import { AGREEMENT_COVERS, GUIDE_STEPS, TEAM_ADD_SHEET, TEAM_LOGIN, bankOnFileRows, escNoticeRowLine, signedOnLine, teamCountLine } from "../src/lib/trade-view.core";
 
 const base: JobNextFacts = {
   channel: "hivic_sourced", stage: "installation_scheduling", ownerFirstName: "Helen", formLinked: true, formCompleted: true, quoteLine: "Waiting on owner: quote accepted – waiting for owner's payment",
@@ -249,21 +249,9 @@ describe("M6 states", () => {
 });
 
 describe("M7 sub-page states", () => {
-  test("team add: the person is texted their link when a mobile is given (decision 251); the link stays on screen to pass on", () => {
-    expect(inviteTextLine({ status: "sent", detail: "ok" }, " 0466 777 888 ")).toEqual({ text: "We texted the link to 0466 777 888. You can also send it yourself:", sent: true });
-    expect(inviteTextLine({ status: "not_sent", detail: "switched off" }, "0466 777 888")).toEqual({ text: `We couldn't text it to 0466 777 888 just now. ${TEAM_ADD_SHEET.linkNote}`, sent: false });
-    expect(inviteTextLine({ status: "no_mobile", detail: "No mobile given" }, "")).toEqual({ text: TEAM_ADD_SHEET.linkNote, sent: false });
-    expect(inviteTextLine(null, "")).toEqual({ text: TEAM_ADD_SHEET.linkNote, sent: false });
-    const route = readFileSync("src/routes/_authenticated/field.business_.team.tsx", "utf8");
-    expect(route).toContain("mobile: f.mobile.trim() || null");
-    expect(route).toContain("{link}</p>"); // the link itself is always shown (fallback)
-  });
-  test("team add sheet creates the existing /join invite", () => {
+  test("team add sheet words", () => {
     expect(TEAM_ADD_SHEET).toMatchObject({ title: "Add a team member", bodyInstaller: "Email and mobile can wait. They sign their declarations by link, and we check their CII certificate, before they go on a job.", bodyElectrician: "Email and mobile can wait. They sign their declarations by link before they go on a job. Each electrician needs a current electrical licence.", name: "Full name", licence: "Electrical licence number", role: "Lead or Crew", lead: "Lead · can run install days", crew: "Crew · can't lead an install day", mobile: "Mobile (optional)", email: "Email (optional)", button: "Add to team", cancel: "Cancel" });
     expect(TEAM_LOGIN).toEqual({ button: "Ask the office to send a login", asked: "Asked the office. They'll send the login." });
-    expect(inviteContact({ mobile: " 0466 777 888 ", email: "p@x.com" })).toBe("0466 777 888");
-    expect(inviteContact({ mobile: "", email: "p@x.com" })).toBe("p@x.com");
-    expect(inviteContact({ mobile: "", email: " " })).toBeNull();
     expect(teamCountLine(3)).toBe("3 people");
     expect(teamCountLine(1)).toBe("1 person");
   });

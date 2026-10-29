@@ -148,7 +148,7 @@ function VerifyEecInline({ workerId, certNumber, renewal, onDone, onError }: { w
 
 /** Business owner: generate a single-use link so the worker uploads their own EEC/CII certificate.
  *  The owner never gets an upload control — only this link action. */
-export function CertLinkInline({ workerId, name }: { workerId: string; name: string }) {
+export function CertLinkInline({ workerId, name, label }: { workerId: string; name: string; label?: string }) {
   const create = useServerFn(createWorkerCompletionLink);
   const [link, setLink] = useState<string | null>(null);
   const [err, setErr] = useState("");
@@ -166,7 +166,7 @@ export function CertLinkInline({ workerId, name }: { workerId: string; name: str
         try { const r = await create({ data: { workerId } }); setLink(`${window.location.origin}/join/${r.token}`); }
         catch (e) { setErr(e instanceof Error ? e.message : "Please try again."); }
         finally { setBusy(false); }
-      }}>{busy ? "Creating…" : `Create certificate link for ${name.split(" ")[0]}`}</Button>
+      }}>{busy ? "Creating…" : label ?? `Create certificate link for ${name.split(" ")[0]}`}</Button>
       {err && <span role="alert" className="text-xs text-destructive">{err}</span>}
     </span>
   );

@@ -62,7 +62,7 @@ function Business() {
             );
           })}
         </ul>
-        <Link to="/partner/workers" data-add-team className="flex min-h-12 items-center justify-between text-[15px] font-semibold text-estimate-blue"><span>Add a team member</span><Chevron /></Link>
+        <Link to="/field/business/team" data-add-team className="flex min-h-12 items-center justify-between text-[15px] font-semibold text-estimate-blue"><span>Add a team member</span><Chevron /></Link>
         {installer && <p className="text-[13px] leading-[1.45] text-estimate-sub">{TEAM_RULE}</p>}
       </section>}
 
