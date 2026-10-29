@@ -10,8 +10,8 @@ const draft = () => ({ ready: true, blockers: [] as string[], lines: [{ code: "I
 const base = { areaM2: 100, removalM2: 0, ownerR5IncPerM2: 30, ownerRemovalIncPerM2: 15, piesaIncGst: 349, apFeeIncGst: 349, gstRate: 0.1, installerR5ExPerM2: 11.5, installerRemovalExPerM2: 4, installerTravelEx: null, installerRExPerM2: 20 };
 
 const SIX = [
-  ["Bradford Gold R5", "R5.0", 30, "R5_BATTS"], ["Bradford Gold R6", "R6.0", 32, "R6_BATTS"], ["Bradford Gold R7", "R7.0", 35, "R7_BATTS"],
-  ["Fletchers Pink Batts R5", "R5.0", 30, "R5_BATTS"], ["Fletchers Pink Batts R6", "R6.0", 32, "R6_BATTS"], ["Fletchers Pink Batts R7", "R7.0", 35, "R7_BATTS"],
+  ["Bradford Gold R5", "R5.0", 30, "R5_BATTS"], ["Bradford Gold R6", "R6.0", 33, "R6_BATTS"], ["Bradford Gold R7", "R7.0", 35, "R7_BATTS"],
+  ["Fletchers Pink Batts R5", "R5.0", 30, "R5_BATTS"], ["Fletchers Pink Batts R6", "R6.0", 33, "R6_BATTS"], ["Fletchers Pink Batts R7", "R7.0", 35, "R7_BATTS"],
 ] as const;
 
 describe("Insulation product — 6 approved options (Jo 22 Oct 23:45)", () => {
