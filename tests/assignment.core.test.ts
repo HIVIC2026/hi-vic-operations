@@ -13,7 +13,8 @@ describe("customer agreement (quote acceptance)", () => {
     expect(agreementSignBlockers(sign, [T("consumer_rights", { approved: false })]).length).toBe(1);
   });
   test("18+ and commercial acceptance are required", () => {
-    expect(agreementSignBlockers({ ...sign, over18: false, acceptAgreement: false }, all).length).toBe(2);
+    // Decision 425 (Jo 29 Oct 2026): the 18+ tick is no longer asked, so only the accept tick blocks here.
+    expect(agreementSignBlockers({ ...sign, over18: false, acceptAgreement: false }, all).length).toBe(1);
   });
 });
 

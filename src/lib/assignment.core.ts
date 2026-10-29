@@ -97,9 +97,15 @@ export type AgreementSignInput = {
   readConsumerInfo: boolean; acceptAgreement: boolean; signatureName: string;
 };
 
+/** Decision 425 (Jo 29 Oct 2026): on My job the owner just ticks and taps Accept — no typed name, no 18+ tick.
+ *  The agreement record takes the owner's name on file; "over 18" is not asked, so it is recorded as false. */
+export function fillSignerFromOwner(i: { authorityType: "owner" | "authorised_representative"; readConsumerInfo: boolean; acceptAgreement: boolean }, ownerName: string | null): AgreementSignInput {
+  const name = (ownerName ?? "").trim();
+  return { ...i, signatoryName: name, signatureName: name, over18: false };
+}
+
 export function agreementSignBlockers(i: AgreementSignInput, templates: Template[]): string[] {
   const b = templateBlockers(templates, "agreement");
-  if (!i.over18) b.push("Signatory must confirm they are 18 or older.");
   if (!i.readConsumerInfo) b.push("Please confirm you have read the VEU consumer information.");
   if (!i.acceptAgreement) b.push("Please confirm you accept the quote and agreement.");
   if (i.signatureName.trim().length < 2) b.push("Type your full name to sign.");

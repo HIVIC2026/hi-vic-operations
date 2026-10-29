@@ -642,14 +642,23 @@ export const adjustQuote = createServerFn({ method: "POST" }).middleware([requir
     return { ok: true };
   });
 
+/** Decision 425 (Jo 29 Oct 2026): My job sends no typed name or 18+ tick; the owner's name on file signs the record. */
+async function signingInput(quoteId: string, s: NonNullable<z.infer<typeof respondToQuoteSchema>["signing"]>) {
+  const { fillSignerFromOwner } = await import("./assignment.core");
+  if (s.signatoryName && s.signatureName) return { signatoryName: s.signatoryName, signatureName: s.signatureName, authorityType: s.authorityType, over18: s.over18 ?? false, readConsumerInfo: s.readConsumerInfo, acceptAgreement: s.acceptAgreement };
+  const pkg = await buildAcceptancePackage(quoteId);
+  return fillSignerFromOwner({ authorityType: s.authorityType, readConsumerInfo: s.readConsumerInfo, acceptAgreement: s.acceptAgreement }, pkg.consumer.name);
+}
+
 export const respondToQuoteSchema = z.object({
     quoteId: uuid, accept: z.boolean(), consent: z.boolean().optional(), reason: z.string().max(1000).optional(),
     windowId: uuid.optional(), noneSuit: z.boolean().optional(), expectedVersion: z.number().int().optional(),
     // Decision 366: My job approves the fixes first, the owner pays them in full, THEN picks the electrician's time.
     pickLater: z.boolean().optional(),
     signing: z.object({
-      signatoryName: z.string().trim().min(2).max(200), authorityType: z.enum(["owner", "authorised_representative"]), over18: z.boolean(),
-      readConsumerInfo: z.boolean(), acceptAgreement: z.boolean(), signatureName: z.string().trim().max(200),
+      // Decision 425: names and the 18+ tick are optional; when left out, the owner's name on file is recorded.
+      signatoryName: z.string().trim().min(2).max(200).optional(), authorityType: z.enum(["owner", "authorised_representative"]), over18: z.boolean().optional(),
+      readConsumerInfo: z.boolean(), acceptAgreement: z.boolean(), signatureName: z.string().trim().max(200).optional(),
       assistance: z.enum(["none", "interpreter", "support_understanding", "both"]),
     }).optional(),
   });
@@ -710,8 +719,7 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
     if (q.kind === "installation") {
       if (!data.signing) throw new WorkflowError("The customer must review and sign the customer agreement to accept this quote.");
       if (!(await context.isOwner(q.job_id))) throw new WorkflowError("Only the customer can sign the agreement.");
-      const { assistance: _a, ...chk } = data.signing;
-      await assertAgreementCanSign(chk);
+      await assertAgreementCanSign(await signingInput(q.id, data.signing));
     }
     // All gates are checked BEFORE the quote is marked accepted, so a blocked acceptance leaves nothing half-done.
     let priorAccepted: string[] = [];
@@ -739,8 +747,8 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
       if (!rect && p?.piesa_expired) throw new WorkflowError("The Pre Insulation Electrical Safety Assessment (PIESA) has expired. Home Insulation Victoria will arrange a reassessment.");
     }
     if (q.kind === "installation" && data.signing) {
-      const { assistance, ...input } = data.signing;
-      await signCustomerAgreement({ quoteId: q.id, actorId: context.userId, input, assistance, ip: context.ip, userAgent: context.userAgent });
+      const input = await signingInput(q.id, data.signing);
+      await signCustomerAgreement({ quoteId: q.id, actorId: context.userId, input, assistance: data.signing.assistance, ip: context.ip, userAgent: context.userAgent });
     }
     let pickedWindow: string | null = null;
     if (q.kind === "rectification") {
