@@ -703,7 +703,8 @@ export const partnerDashboard = createServerFn({ method: "GET" }).middleware([re
       admin.from("jobs").select("id, job_number, stage, next_action, last_activity_at, channel, customer_relationship_owner, owners(full_name), properties(address_line, suburb, postcode)").in("id", jobIds.length ? jobIds : none),
       admin.from("job_assignments").select("job_id, assigned_at, first_response_at, booking_confirmed_at, cannot_attend_at, profiles!job_assignments_user_id_fkey(full_name)").eq("role", "electrician").eq("active", true).in("job_id", jobIds.length ? jobIds : none),
       admin.from("bookings").select("job_id, kind, scheduled_start").eq("status", "confirmed").in("job_id", jobIds.length ? jobIds : none),
-      admin.from("invoice_status" as never).select("job_id, deposit_cleared" as never).in("job_id" as never, (jobIds.length ? jobIds : none) as never),
+      // Batch 3b: the install invoice only (a fixes / repeat safety check invoice never clears the install deposit); newest first.
+      admin.from("invoice_status" as never).select("job_id, deposit_cleared" as never).in("job_id" as never, (jobIds.length ? jobIds : none) as never).eq("kind" as never, "installation" as never).order("created_at" as never, { ascending: false }),
     ]);
     // Owner name / exact address only while this business holds a current, unrevoked visit release (same rule as SQL visit_is_current).
     const { data: rels } = await admin.from("contact_releases").select("job_id, visit_kind, job_assignments!inner(business_id, active)").is("revoked_at", null).in("job_id", jobIds.length ? jobIds : none).eq("job_assignments.business_id", bizId);

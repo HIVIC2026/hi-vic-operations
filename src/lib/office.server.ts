@@ -71,7 +71,8 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
     scoped("bookings", (c) => admin.from("bookings").select("job_id, kind, status, scheduled_start").in("status", ["proposed", "confirmed", "completed"]).in("job_id", c)),
     scoped("suggested times", (c) => admin.from("appointment_proposals").select("job_id, kind, created_at").eq("status", "proposed").in("job_id", c)),
     scoped("quotes", (c) => admin.from("quotes").select("job_id, kind, status, release_state, release_hold_reason, sent_at, accepted_at, created_at").neq("status", "superseded").in("job_id", c).order("created_at")),
-    scoped("payments", (c) => admin.from("invoice_status").select("job_id, deposit_cleared, effective_status").in("job_id", c)),
+    // Batch 3b: the $349 is on the installation invoice — a paid fixes / repeat invoice never reads as "$349 paid".
+    scoped("payments", (c) => admin.from("invoice_status").select("job_id, deposit_cleared, effective_status").eq("kind", "installation").in("job_id", c)),
     scoped("PIESAs", (c) => admin.from("piesa_records").select("job_id, outcome, completed_date, section_c_signed_at").eq("is_current", true).in("job_id", c)),
     scoped("Ready Checks", (c) => admin.from("ready_checks").select("job_id, submitted_at").in("job_id", c)),
     scoped("evidence", (c) => admin.from("evidence_requirements").select("job_id, status, required, category, gate, label").eq("required", true).eq("status", "outstanding").in("job_id", c)),

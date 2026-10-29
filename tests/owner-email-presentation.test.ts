@@ -24,3 +24,9 @@ test('two jobs for the same owner produce one latest owner row', () => {
   const r=latestPerOwner([{ownerId:'a',jobId:'HV-1',at:'2026-10-22'}, {ownerId:'a',jobId:'HV-2',at:'2026-10-23'}, {ownerId:'b',jobId:'HV-3',at:'2026-10-21'}]);
   expect(r.length).toBe(2);expect(r[0]?.jobId).toBe('HV-2');expect(r[0]?.jobIds).toEqual(['HV-2','HV-1']);
 });
+test('final review 2: mail-system notices are never owner emails, whichever direction they normalise to', () => {
+  for (const from of ['postmaster@homeinsulationvictoria.com.au', 'microsoftexchange329e71ec88ae4615bbc36ab6ce41109e@homeinsulationvictoria.com.au', 'mailer-daemon@homeinsulationvictoria.com.au']) {
+    for (const direction of ['inbound', 'outbound']) expect(isHumanOwnerEmail({provider:'outlook',direction,from,subject:'Your message',body:'Delivery has failed to owner@example.com'})).toBe(false);
+  }
+  expect(isHumanOwnerEmail({provider:'outlook',direction:'inbound',from:'MicrosoftExchange1@outlook.com',subject:'Notice',body:'x'})).toBe(false);
+});

@@ -55,7 +55,6 @@ function OwnerJob() {
         {s === "installation_scheduling" && <OwnerInstallDaysCard jobId={jobId} />}
         {bookKind && bookKind !== "installation" && job.deposit_cleared && <BookingPanel jobId={jobId} kind={bookKind} canBook />}
         {s === "installation_booked" && job.deposit_cleared && <BookingPanel jobId={jobId} kind="installation" canBook />}
-        {s === "awaiting_deposit_payment" && <p className="rounded-xl border border-danger/30 bg-danger-soft p-3 text-sm font-medium text-danger">Booking opens once your approved payment option is confirmed: minimum upfront deposit, paid in full, or an active 3-instalment plan.</p>}
         {job.installer_name && !["assessment_booking", "assessment_booked", "awaiting_electrician"].includes(s) && <ChangeTrade jobId={jobId} />}
         <DocumentsPanel jobId={jobId} />
         <VisitContactsCard jobId={jobId} />

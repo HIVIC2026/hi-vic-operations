@@ -58,6 +58,12 @@ const TERMS: { term: string; re: RegExp; action: string; strict?: boolean }[] = 
   { term: "Office tells the trades the electrician-at-start day", re: /tell the installer and electrician the day/g, action: "Decision 327: the electrician is asked automatically once the install day is booked (install-attendance.core)" },
   // Decisions 283/285 (Jo 25 Oct 2026): no priority number and no chip panel on Enquiries.
   { term: "Enquiries priority number / chip panel", re: /1 = hottest|Pick as many as you like · every column is sortable · 1/g, action: "Decisions 283/285: sort hottest first silently; headings filter (286)" },
+  // Batch 3a (Jo 29 Oct 2026): the payment steps are safety check, fixes, 10% install deposit, balance. No deposit tiers, no plan, no Xero deposit request.
+  { term: "3-instalment plan", re: /3-instalment plan/gi, action: "Retired: payment steps are safety check, fixes, 10% install deposit, balance" },
+  { term: "minimum upfront deposit", re: /minimum upfront deposit/gi, action: "Retired: say the 10% install deposit" },
+  { term: "deposit request in Xero", re: /deposit request in Xero|requested in Xero/gi, action: "Retired: no Xero deposit request step (decisions 139-144)" },
+  // Batch 3b (Jo 29 Oct 2026): fixes and repeat safety checks have their own invoices; nothing is added to the install invoice.
+  { term: "fixes / repeat added to the Xero invoice", re: /(?:fixes|repeat (?:safety check|PIESA))[^.\n]{0,60}added (?:as (?:one|a) line )?to the (?:same |ONE |job's )?(?:Xero )?invoice|add (?:it|the fixes|the repeat[^.\n]{0,20}) to the SAME Xero invoice/gi, action: "Retired: fixes and repeat checks are their own invoices (batch 3b)" },
   {
     term: "$220 lead fee",
     re: /\$220 lead fee/gi,

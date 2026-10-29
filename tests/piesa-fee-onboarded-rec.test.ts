@@ -45,14 +45,14 @@ describe("decision 302 — the upfront safety check is the quote's PIESA line", 
     const plan = paymentPlan({ quoteTotalCents: 300_000, safetyCheckCents: piesaLineCents(lines349) });
     expect(plan.safetyCheckCents).toBe(34_900);
     expect(howYouPayLines(plan)[0]).toBe("$349.00 now for the electrical safety check (card or bank transfer, no fee)");
-    const steps = paymentSteps(plan, 0, { safety_check: { requestedAt: "2026-10-25T00:00:00Z" } }, "2026-10-25T01:00:00Z");
-    const due = payableNow(plan, steps, 0);
+    const steps = paymentSteps(plan, { install: 0, fixes: 0, repeat: 0 }, { safety_check: { requestedAt: "2026-10-25T00:00:00Z" } }, "2026-10-25T01:00:00Z");
+    const due = payableNow(plan, steps, { install: 0, fixes: 0, repeat: 0 });
     const block = payNowBlock({ step: due.step, cardAvailable: true, bank: HIV_BANK_DETAILS, reference: "HV-3193", remainingCents: due.remainingCents });
     expect(block.title).toBe("Pre Insulation Electrical Safety Assessment (PIESA) payment: $349.00 due now");
     expect(block.lines[0]).toBe(PAY_LINE_SAFETY_CHECK);
     expect(stepsLine(steps)).toBe("$349 due · deposit $265 — · balance $2,386 —");
     expect(shortAud(splitForOption(3000, 349).deposit)).toBe("$349");
-    expect(P2.button(centsAud(349))).toBe("Sign and pay $349.00");
+    expect(P2.button(centsAud(349))).toBe("Accept and pay $349.00");
     expect(P2.payNote(shortAud(349))).toBe("Pay the $349 by card or bank transfer, no fees. You'll get your signed copy and invoice by email");
     expect(paymentOptionSummary(349)).toBe(PAYMENT_OPTION_SUMMARY);
     expect(safetyCheckPriceFromLines([{ description: "Pre Insulation Electrical Safety Assessment (PIESA)", lineTotalIncGst: 349 }] as never)).toBe(349);
@@ -65,8 +65,8 @@ describe("decision 302 — the upfront safety check is the quote's PIESA line", 
     expect(plan.safetyCheckCents).toBe(22_000);
     expect(plan.installDepositCents).toBe(27_800); // 10% of (3000 − 220)
     expect(howYouPayLines(plan)[0]).toBe("$220.00 now for the electrical safety check (card or bank transfer, no fee)");
-    const steps = paymentSteps(plan, 0, { safety_check: { requestedAt: "2026-10-25T00:00:00Z" } }, "2026-10-25T01:00:00Z");
-    const due = payableNow(plan, steps, 0);
+    const steps = paymentSteps(plan, { install: 0, fixes: 0, repeat: 0 }, { safety_check: { requestedAt: "2026-10-25T00:00:00Z" } }, "2026-10-25T01:00:00Z");
+    const due = payableNow(plan, steps, { install: 0, fixes: 0, repeat: 0 });
     expect(due.dueNowCents).toBe(22_000);
     const block = payNowBlock({ step: due.step, cardAvailable: true, bank: HIV_BANK_DETAILS, reference: "HV-3193", remainingCents: due.remainingCents });
     expect(block.title).toBe("Pre Insulation Electrical Safety Assessment (PIESA) payment: $220.00 due now");
@@ -83,7 +83,7 @@ describe("decision 302 — the upfront safety check is the quote's PIESA line", 
     // P2 page strings
     const split = splitForOption(3000, safetyCheckIncGstFor({ lines: lines220 }));
     expect(split.deposit).toBe(220);
-    expect(P2.button(centsAud(split.deposit))).toBe("Sign and pay $220.00");
+    expect(P2.button(centsAud(split.deposit))).toBe("Accept and pay $220.00");
     expect(P2.tick2Sub(shortAud(split.deposit))).toBe("$220 now for the electrical safety check, 10% to book your install day, the rest on install day. Or pay in full any time.");
     expect(paymentOptionSummary(220)).toContain("The $220 Pre Insulation Electrical Safety Assessment (PIESA) payment is needed");
     // O18 "Next" amount comes from the quote lines
@@ -99,7 +99,9 @@ describe("decision 302 — the upfront safety check is the quote's PIESA line", 
     expect(read("src/lib/workflow.server.ts")).toContain("quoteSafetyCheck(quote?.id ?? null)");
     expect(read("src/lib/owner-gates.server.ts")).toContain("quoteSafetyCheck(q.id, setting)");
     expect(read("src/lib/owner-myjob.server.ts")).toContain("safetyCheckIncGstFor({ lines: quote.quote_items ?? [], settingIncGst: ws?.safety_check_payment_inc_gst ?? null })");
-    expect(read("src/lib/xero.server.ts")).toContain("ensureInvoice(dbStore, q, melbourneDate(new Date().toISOString()), safety.incGst)");
+    // Batch 3b: the upfront amount is the quote's PIESA line for an installation invoice (a fixes invoice: its whole total).
+    expect(read("src/lib/xero.server.ts")).toContain(`const upfront = fixes ? Number(q.customer_total_inc_gst) : (await (await import("./safety-check-amount.server")).quoteSafetyCheck(q.id)).incGst;`);
+    expect(read("src/lib/xero.server.ts")).toContain("ensureInvoice(dbStore, q, melbourneDate(new Date().toISOString()), upfront)");
     expect(read("src/components/portal/office-job.tsx")).toContain("`${safetyCheckShort(s.amountCents)} safety check`");
     expect(read("src/lib/office-stage-cards.core.ts")).toContain("safetyCheckShort(q.safetyCheckCents ?? SAFETY_CHECK_DEFAULT_CENTS)");
   });

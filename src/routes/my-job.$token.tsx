@@ -30,12 +30,15 @@ import { OFFICE_EMAIL, P2, P3, P4, P6, P6F, centsAud, dayMonth, declarationBulle
 import { OWNER_DECLARATIONS, type OwnerDeclarationKey } from "@/lib/consent.core";
 import { ownerConfirmTurnFn, ownerDeclineTurnFn, ownerTurnStateFn } from "@/lib/spot-release.functions";
 import { SPOT_RELEASE_PAGE, WHAT_HAPPENS_NEXT, type OwnerTurnView } from "@/lib/spot-release.core";
+import { ownerRequestNewQuoteFn } from "@/lib/new-quote-request.functions";
+import { NEW_QUOTE_THANKS } from "@/lib/new-quote-request.core";
 
 // Owner "My job" — no login. The secure link token is the only credential; nothing fetched during SSR.
 // Decision 335: "review" = the O51 star links (?screen=review&stars=N).
 // Decision 366: "fixes" = the electrical fixes screen (O29's approve link): approve → pay in full → pick the electrician's time.
 // Decision 389: "turn" = "It's your turn" (O77's link): Confirm the free Ready Check, or no longer interested.
-const SCREENS = ["home", "spot", "quote", "book", "done", "review", "fixes", "turn"] as const satisfies readonly OwnerScreen[];
+// Batch 3a: "newquote" = O78's "Send me a new quote" button: the request runs on arrival, then the approved thanks line.
+const SCREENS = ["home", "spot", "quote", "book", "done", "review", "fixes", "turn", "newquote"] as const satisfies readonly OwnerScreen[];
 
 export const Route = createFileRoute("/my-job/$token")({
   ssr: false,
@@ -84,6 +87,7 @@ function MyJobPage() {
           : !data ? <Unavailable />
           : screen === "review" ? <ReviewScreen token={token} initialStars={stars ?? null} />
           : screen === "turn" ? <TurnScreen token={token} />
+          : screen === "newquote" ? <NewQuoteScreen v={data} token={token} />
           : screen === "quote" ? <QuoteScreen v={data} token={token} />
           : screen === "fixes" ? <FixesScreen v={data} token={token} />
           : screen === "book" ? <BookScreen v={data} token={token} />
@@ -263,6 +267,18 @@ function TurnScreen({ token }: { token: string }) {
   );
 }
 
+/** Batch 3a: O78's "Send me a new quote". The tap is the request (sent once on arrival; a second tap gets the same
+ *  answer and changes nothing). Refused (not a job closed by an expired quote) → the normal My job page. */
+function NewQuoteScreen({ v, token }: { v: View; token: string }) {
+  const ask = useServerFn(ownerRequestNewQuoteFn);
+  const qc = useQueryClient();
+  const { data: r, isLoading, isError } = useQuery({ queryKey: ["owner-newquote", token], queryFn: () => ask({ data: { token } }), retry: false, staleTime: Infinity, refetchOnWindowFocus: false });
+  useEffect(() => { if (r?.kind === "thanks") void qc.invalidateQueries({ queryKey: ["my-job", token] }); }, [r?.kind, qc, token]);
+  if (isLoading) return <p role="status" className="py-10 text-center text-sm">Opening…</p>;
+  if (isError || r?.kind !== "thanks") return v.spotSaved ? <SpotSavedHome v={v} token={token} /> : <Home v={v} token={token} />;
+  return <section data-testid="owner-newquote" className="space-y-4 rounded-[22px] bg-card p-6 shadow-sm"><p className="flex items-start gap-2 font-display text-xl font-extrabold"><Check className="mt-1 h-5 w-5 shrink-0 text-estimate-green" aria-hidden />{NEW_QUOTE_THANKS}</p><Link to="/my-job/$token" params={{ token }} className="block text-center text-sm font-semibold underline">Back to my job</Link></section>;
+}
+
 /** Decision 335: the review screen. The email's star tap is recorded on arrival; 4–5 → thanks + Google (when the link is
  *  set), 1–3 → a private "What could we have done better?" box (never Google). Link token only — it signs nothing. */
 function ReviewScreen({ token, initialStars }: { token: string; initialStars: number | null }) {
@@ -307,8 +323,9 @@ function ReviewScreen({ token, initialStars }: { token: string; initialStars: nu
 }
 const errText = (e: unknown) => (e instanceof Error ? e.message : "Please try again.");
 
-/** Approved P2 "Say yes" (decisions 126/127): two ticks, full name, the 18+/owner tick, typed signature, one locked button.
- *  Same server function, validation and 6-digit code: the code is asked for when the owner presses the button. */
+/** Approved P2 "Say yes" (decisions 126/127; decision 425, Jo 29 Oct 2026): two ticks, owner / acting-for-owner, one
+ *  locked button. No typed name and no 18+ tick — the server records the owner's name on file. The 6-digit code is
+ *  still asked for when the owner presses the button. */
 function AcceptQuote({ token, quote, rebate, safetyCheck }: { token: string; quote: { id: string; version: number }; rebate: number; safetyCheck: number | null }) {
   const [session, setSession] = useSession();
   const [needCode, setNeedCode] = useState(false);
@@ -316,17 +333,17 @@ function AcceptQuote({ token, quote, rebate, safetyCheck }: { token: string; quo
   const accept = useServerFn(ownerAcceptQuoteFn);
   const qc = useQueryClient();
   const { data: ag } = useQuery({ queryKey: ["owner-agreement", quote.id], queryFn: () => load({ data: { token, quoteId: quote.id } }) });
-  const [f, setF] = useState({ name: "", authority: "owner" as "owner" | "authorised_representative", sig: "" });
-  const [over18, setOver18] = useState(false); const [read, setRead] = useState(false); const [agree, setAgree] = useState(false);
+  const [f, setF] = useState({ authority: "owner" as "owner" | "authorised_representative" });
+  const [read, setRead] = useState(false); const [agree, setAgree] = useState(false);
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
   const blocked = (ag?.blockers ?? []) as string[];
   const fee = safetyCheck != null ? shortAud(safetyCheck) : "$349";
   const feeCents = safetyCheck != null ? centsAud(safetyCheck) : "$349.00";
-  const ready = blocked.length === 0 && over18 && read && agree && f.name.trim().length >= 2 && f.sig.trim().length >= 2;
+  const ready = blocked.length === 0 && read && agree;
   const sign = async () => {
     if (!session) { setNeedCode(true); return; }
     setErr(""); setBusy(true);
-    try { await accept({ data: { token, session, quoteId: quote.id, expectedVersion: quote.version, signing: { signatoryName: f.name, authorityType: f.authority, signatureName: f.sig, over18, readConsumerInfo: read, acceptAgreement: agree, assistance: "none" } } }); await qc.invalidateQueries({ queryKey: ["my-job", token] }); }
+    try { await accept({ data: { token, session, quoteId: quote.id, expectedVersion: quote.version, signing: { authorityType: f.authority, readConsumerInfo: read, acceptAgreement: agree, assistance: "none" } } }); await qc.invalidateQueries({ queryKey: ["my-job", token] }); }
     catch (e) { setErr(errText(e)); } finally { setBusy(false); }
   };
   return (
@@ -338,12 +355,7 @@ function AcceptQuote({ token, quote, rebate, safetyCheck }: { token: string; quo
       <TickCard on={read} set={setRead} title={P2.tick2} sub={P2.tick2Sub(fee)} read={P2.tick2Read} readBody={ag ? <>{ag.consumerRights ? `Your consumer information (${ag.consumerRights.version})\n\n${ag.consumerRights.body}` : ""}{ag.paymentTerms ? `\n\nPayment terms\n\n${typeof ag.paymentTerms === "string" ? ag.paymentTerms : JSON.stringify(ag.paymentTerms, null, 1)}` : ""}</> : "Loading…"} />
       {blocked.length > 0 && <p role="alert" className="mt-3 rounded-[12px] bg-estimate-blush p-3 text-sm font-semibold">{blocked.join(" ")}</p>}
       <section className="mt-[18px] rounded-[14px] border border-estimate-line bg-card px-4 py-3.5">
-        <p className="text-[15px] font-bold">{P2.signTitle}</p>
-        <p className="mt-0.5 text-[13px] leading-relaxed text-estimate-sub">{P2.signSub}</p>
-        <TypedField label={P2.fullName} value={f.name} onChange={(name) => setF({ ...f, name })} autoComplete="name" />
         <AuthorityChoice value={f.authority} onChange={(authority) => setF({ ...f, authority })} />
-        <TickCard on={over18} set={setOver18} title={P2.tick3} />
-        <TypedField label={P2.typeAgain} value={f.sig} onChange={(sig) => setF({ ...f, sig })} placeholder={P2.typeHere} italic />
       </section>
       {needCode && !session && <div className="mt-4"><OwnerCodeGate token={token} onVerified={(s) => { setSession(s); setNeedCode(false); }} /></div>}
       {err && <p role="alert" className="mt-3 text-sm font-semibold text-destructive">{err}</p>}
@@ -636,7 +648,7 @@ function QuoteScreen({ v, token }: { v: View; token: string }) {
 }
 
 /** Decisions 139/140/141: what is due now and how to pay it. Card ("Pay now", Xero online invoice) only for the $349
- *  safety check and electrical fixes; the install deposit and balance are bank transfer / PayID only. Never a card fee. */
+ *  safety check, electrical fixes and the install deposit (Jo 29 Oct); the balance is bank transfer / PayID only. Never a card fee. */
 function PayNowCard({ v, token }: { v: View; token: string }) {
   const p = v.payment as { dueNow: number; remaining: number; paid: number; payNow: { title: string; amount: number; card: boolean; lines: string[] }; provisional: { expiresAt: string | null; deposit: number } | null } | null;
   const checkout = useServerFn(ownerCardCheckoutFn);

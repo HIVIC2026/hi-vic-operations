@@ -47,7 +47,7 @@ describe("Pre Insulation Electrical Safety Assessment (PIESA) payment (Jo 7 Oct)
     expect(text).toContain("$349.00 for the Pre Insulation Electrical Safety Assessment (PIESA), now that I accept, by card or bank transfer");
     expect(text).toContain("non-refundable once the PIESA is done");
     expect(text).toContain("only if the electrician finds they're needed");
-    expect(text).toContain("$337.90 (10% of the remaining $3,379.00) to book my install day, by bank transfer or PayID");
+    expect(text).toContain("$337.90 (10% of the remaining $3,379.00) to book my install day, by card, bank transfer or PayID");
     expect(text).toContain("$3,041.10 on install day, by bank transfer or PayID");
     expect(text).toContain("no card fee");
     expect(text).not.toMatch(/instalment|half|\{/i);

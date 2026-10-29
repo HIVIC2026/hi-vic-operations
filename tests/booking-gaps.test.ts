@@ -14,7 +14,8 @@ function from(t: string) {
   Object.assign(q, {
     select: () => q,
     eq: (k: string, v: unknown) => { if (op === "select") rows = rows.filter((r) => r[k] === v); return q; },
-    neq: () => q, in: () => q, not: () => q, is: () => q, gt: () => q, lt: () => q,
+    in: (k: string, v: unknown[]) => { if (op === "select" && rows.some((r) => k in r)) rows = rows.filter((r) => !(k in r) || v.includes(r[k])); return q; },
+    neq: () => q, not: () => q, is: () => q, gt: () => q, lt: () => q,
     order: (k: string, o?: { ascending?: boolean }) => { rows.sort((a, b) => String(a[k] ?? "").localeCompare(String(b[k] ?? "")) * (o?.ascending === false ? -1 : 1)); return q; },
     limit: (n: number) => { rows = rows.slice(0, n); return q; },
     update: () => { op = "update"; return q; }, insert: () => { op = "insert"; return q; },

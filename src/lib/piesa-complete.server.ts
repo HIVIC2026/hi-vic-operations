@@ -15,7 +15,11 @@ export type CompletePiesaInput = { jobId: string; rectHours?: number | undefined
 export async function completePiesaAssessment(data: CompletePiesaInput, userId: string) {
   const { data: a } = await admin.from("assessments").select("*").eq("job_id", data.jobId).maybeSingle();
   if (!a) throw new WorkflowError("Start the assessment first.");
-  if (a.status === "complete") throw new WorkflowError("Electrical assessment is already complete.");
+  if (a.status === "complete") {
+    // Batch 1 task 6: after a reopen the earlier check no longer counts; the new one is recorded as a reassessment.
+    if (await (await import("./repeat-piesa.server")).currentPiesaSupersededByReopen(data.jobId)) throw new WorkflowError((await import("./repeat-piesa.core")).SUPERSEDED_USE_REASSESSMENT);
+    throw new WorkflowError("Electrical assessment is already complete.");
+  }
   const { jobScope, advanceSiteRequirements } = await import("./requirements.server");
   const s = await jobScope(data.jobId);
   const missing: string[] = [];
@@ -83,6 +87,10 @@ export async function completePiesaAssessment(data: CompletePiesaInput, userId: 
   if (priorError) throw new WorkflowError("The earlier PIESA records could not be read, so the PIESA was not recorded. Please try again.");
   await admin.from("piesa_records").update({ is_current: false }).eq("job_id", data.jobId).eq("is_current", true);
   await admin.from("piesa_records").insert({ job_id: data.jobId, assessment_id: a.id, kind: piesaCompletionKind(prior ?? 0), outcome: a.piesa_outcome, completed_date: a.assessed_on!, signed_off_by: userId, external_mitti_id: a.external_mitti_id });
+  // The safety check visit is done: mark the confirmed assessment booking completed so the electrician's pay line shows in the
+  // office Payouts (office-money lists it only for a completed assessment booking). Same as piesa-record.server does for fixes.
+  const { error: visitErr } = await admin.from("bookings").update({ status: "completed" }).eq("job_id", data.jobId).eq("kind", "assessment").eq("status", "confirmed");
+  if (visitErr) console.error("safety check visit not marked done", visitErr.message);
   await logEvent(data.jobId, userId, "electrical_assessment_complete", `Electrical assessment complete – PIESA ${a.piesa_outcome} (${s.label})`, { scope: s.scope });
   // Decision 350: a PIESA done on the Mitti form files the official PIESA signed copy now (held with a reason, never
   // invented). Best-effort: the completion above stands either way.

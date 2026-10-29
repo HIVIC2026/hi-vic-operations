@@ -30,7 +30,7 @@
       <mj-section>
         <mj-column>
           <mj-text mj-class="h2" css-class="email-sub" padding="18px 12px 6px">Lock in your day</mj-text>
-          <mj-text>When you tap a day, you'll sign your install consent (the VEU program needs it) and pay a 10% deposit of $185.10. That locks in your day. We hold it for 48 hours while you do this.</mj-text>
+          <mj-text>To book your day, sign your install consent and pay your 10% deposit of $185.10. Once it's in, your day is locked in.</mj-text>
           <mj-text>The rest, $1,665.90, is due on install day. Or you can pay in full now.</mj-text>
         </mj-column>
       </mj-section>

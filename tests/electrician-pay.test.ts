@@ -75,7 +75,7 @@ describe("timing: office Approve starts the 7 days; the owner's payment is never
 describe("wiring", () => {
   test("trade Money, office Payouts, the trade status line and Mark paid all use the decision-410 rule", () => {
     expect(readFileSync("src/lib/trade-view.server.ts", "utf8")).toContain("electricianPayState({ paidAt: pe?.created_at ?? null, approvedAt: et.approvedAt })");
-    expect(readFileSync("src/lib/office-money.server.ts", "utf8")).toContain("electricianPayTiming(l.kind, facts.get(l.jobId))");
+    expect(readFileSync("src/lib/office-money.server.ts", "utf8")).toContain("electricianPayTiming(l.kind, vf)");
     expect(readFileSync("src/lib/job-status.server.ts", "utf8")).toContain("electricianPayState({ paidAt: paidOut, approvedAt: t.approvedAt })");
     expect(readFileSync("src/lib/office.functions.ts", "utf8")).toContain("electricianPayTiming(data.kind, (await payoutGateFacts([data.jobId])).get(data.jobId)).waiting");
     for (const f of ["src/lib/trade-view.server.ts", "src/lib/office-money.server.ts", "src/lib/job-status.server.ts", "src/lib/office.functions.ts"])
@@ -93,7 +93,7 @@ describe("wiring", () => {
     const at = fn.indexOf("export const approveElectricianForm");
     // requireOfficeJob falls through to requireAdmin for everyone who is not the isolated TEST office login.
     expect(fn.slice(at, at + 600)).toContain("await requireOfficeJob(context.supabase, data.jobId)");
-    expect(fn.slice(at, at + 600)).toContain("recordElectricianFormApproval(data.jobId, data.kind, context.userId)");
+    expect(fn.slice(at, at + 600)).toContain("recordElectricianFormApproval(data.jobId, data.kind, context.userId, ");
     const w = readFileSync("src/lib/electrician-form-approval.server.ts", "utf8");
     expect(w).toContain("if (!gate || blockers.length) throw");
     expect(w).toContain("if (t.approvedAt) return { approvedAt: t.approvedAt, already: true }");

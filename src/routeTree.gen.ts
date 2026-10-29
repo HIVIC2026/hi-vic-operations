@@ -97,10 +97,12 @@ import { Route as ApiPublicHooksBacklogSendRouteImport } from './routes/api/publ
 import { Route as ApiPublicHooksCustomerFollowupsRouteImport } from './routes/api/public/hooks/customer-followups'
 import { Route as ApiPublicHooksEscRobotRouteImport } from './routes/api/public/hooks/esc-robot'
 import { Route as ApiPublicHooksExternalActionsRouteImport } from './routes/api/public/hooks/external-actions'
+import { Route as ApiPublicHooksMittiAuditRouteImport } from './routes/api/public/hooks/mitti-audit'
 import { Route as ApiPublicHooksMittiPullRouteImport } from './routes/api/public/hooks/mitti-pull'
 import { Route as ApiPublicHooksMittiRetryRouteImport } from './routes/api/public/hooks/mitti-retry'
 import { Route as ApiPublicHooksOutlookSyncRouteImport } from './routes/api/public/hooks/outlook-sync'
 import { Route as ApiPublicHooksPostIntakeRouteImport } from './routes/api/public/hooks/post-intake'
+import { Route as ApiPublicHooksResendDeliveryRouteImport } from './routes/api/public/hooks/resend-delivery'
 import { Route as ApiPublicHooksStripePaymentsRouteImport } from './routes/api/public/hooks/stripe-payments'
 import { Route as ApiPublicHooksXeroPaymentsRouteImport } from './routes/api/public/hooks/xero-payments'
 import { Route as ApiPublicReferralsRecordSubmissionRouteImport } from './routes/api/public/referrals/record-submission'
@@ -589,6 +591,12 @@ const ApiPublicHooksExternalActionsRoute =
     path: '/api/public/hooks/external-actions',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksMittiAuditRoute =
+  ApiPublicHooksMittiAuditRouteImport.update({
+    id: '/api/public/hooks/mitti-audit',
+    path: '/api/public/hooks/mitti-audit',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksMittiPullRoute = ApiPublicHooksMittiPullRouteImport.update({
   id: '/api/public/hooks/mitti-pull',
   path: '/api/public/hooks/mitti-pull',
@@ -610,6 +618,12 @@ const ApiPublicHooksPostIntakeRoute =
   ApiPublicHooksPostIntakeRouteImport.update({
     id: '/api/public/hooks/post-intake',
     path: '/api/public/hooks/post-intake',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksResendDeliveryRoute =
+  ApiPublicHooksResendDeliveryRouteImport.update({
+    id: '/api/public/hooks/resend-delivery',
+    path: '/api/public/hooks/resend-delivery',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicHooksStripePaymentsRoute =
@@ -759,10 +773,12 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/esc-robot': typeof ApiPublicHooksEscRobotRoute
   '/api/public/hooks/external-actions': typeof ApiPublicHooksExternalActionsRoute
+  '/api/public/hooks/mitti-audit': typeof ApiPublicHooksMittiAuditRoute
   '/api/public/hooks/mitti-pull': typeof ApiPublicHooksMittiPullRoute
   '/api/public/hooks/mitti-retry': typeof ApiPublicHooksMittiRetryRoute
   '/api/public/hooks/outlook-sync': typeof ApiPublicHooksOutlookSyncRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
+  '/api/public/hooks/resend-delivery': typeof ApiPublicHooksResendDeliveryRoute
   '/api/public/hooks/stripe-payments': typeof ApiPublicHooksStripePaymentsRoute
   '/api/public/hooks/xero-payments': typeof ApiPublicHooksXeroPaymentsRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
@@ -858,10 +874,12 @@ export interface FileRoutesByTo {
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/esc-robot': typeof ApiPublicHooksEscRobotRoute
   '/api/public/hooks/external-actions': typeof ApiPublicHooksExternalActionsRoute
+  '/api/public/hooks/mitti-audit': typeof ApiPublicHooksMittiAuditRoute
   '/api/public/hooks/mitti-pull': typeof ApiPublicHooksMittiPullRoute
   '/api/public/hooks/mitti-retry': typeof ApiPublicHooksMittiRetryRoute
   '/api/public/hooks/outlook-sync': typeof ApiPublicHooksOutlookSyncRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
+  '/api/public/hooks/resend-delivery': typeof ApiPublicHooksResendDeliveryRoute
   '/api/public/hooks/stripe-payments': typeof ApiPublicHooksStripePaymentsRoute
   '/api/public/hooks/xero-payments': typeof ApiPublicHooksXeroPaymentsRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
@@ -963,10 +981,12 @@ export interface FileRoutesById {
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/esc-robot': typeof ApiPublicHooksEscRobotRoute
   '/api/public/hooks/external-actions': typeof ApiPublicHooksExternalActionsRoute
+  '/api/public/hooks/mitti-audit': typeof ApiPublicHooksMittiAuditRoute
   '/api/public/hooks/mitti-pull': typeof ApiPublicHooksMittiPullRoute
   '/api/public/hooks/mitti-retry': typeof ApiPublicHooksMittiRetryRoute
   '/api/public/hooks/outlook-sync': typeof ApiPublicHooksOutlookSyncRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
+  '/api/public/hooks/resend-delivery': typeof ApiPublicHooksResendDeliveryRoute
   '/api/public/hooks/stripe-payments': typeof ApiPublicHooksStripePaymentsRoute
   '/api/public/hooks/xero-payments': typeof ApiPublicHooksXeroPaymentsRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
@@ -1068,10 +1088,12 @@ export interface FileRouteTypes {
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/esc-robot'
     | '/api/public/hooks/external-actions'
+    | '/api/public/hooks/mitti-audit'
     | '/api/public/hooks/mitti-pull'
     | '/api/public/hooks/mitti-retry'
     | '/api/public/hooks/outlook-sync'
     | '/api/public/hooks/post-intake'
+    | '/api/public/hooks/resend-delivery'
     | '/api/public/hooks/stripe-payments'
     | '/api/public/hooks/xero-payments'
     | '/api/public/referrals/record-submission'
@@ -1167,10 +1189,12 @@ export interface FileRouteTypes {
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/esc-robot'
     | '/api/public/hooks/external-actions'
+    | '/api/public/hooks/mitti-audit'
     | '/api/public/hooks/mitti-pull'
     | '/api/public/hooks/mitti-retry'
     | '/api/public/hooks/outlook-sync'
     | '/api/public/hooks/post-intake'
+    | '/api/public/hooks/resend-delivery'
     | '/api/public/hooks/stripe-payments'
     | '/api/public/hooks/xero-payments'
     | '/api/public/referrals/record-submission'
@@ -1271,10 +1295,12 @@ export interface FileRouteTypes {
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/esc-robot'
     | '/api/public/hooks/external-actions'
+    | '/api/public/hooks/mitti-audit'
     | '/api/public/hooks/mitti-pull'
     | '/api/public/hooks/mitti-retry'
     | '/api/public/hooks/outlook-sync'
     | '/api/public/hooks/post-intake'
+    | '/api/public/hooks/resend-delivery'
     | '/api/public/hooks/stripe-payments'
     | '/api/public/hooks/xero-payments'
     | '/api/public/referrals/record-submission'
@@ -1327,10 +1353,12 @@ export interface RootRouteChildren {
   ApiPublicHooksCustomerFollowupsRoute: typeof ApiPublicHooksCustomerFollowupsRoute
   ApiPublicHooksEscRobotRoute: typeof ApiPublicHooksEscRobotRoute
   ApiPublicHooksExternalActionsRoute: typeof ApiPublicHooksExternalActionsRoute
+  ApiPublicHooksMittiAuditRoute: typeof ApiPublicHooksMittiAuditRoute
   ApiPublicHooksMittiPullRoute: typeof ApiPublicHooksMittiPullRoute
   ApiPublicHooksMittiRetryRoute: typeof ApiPublicHooksMittiRetryRoute
   ApiPublicHooksOutlookSyncRoute: typeof ApiPublicHooksOutlookSyncRoute
   ApiPublicHooksPostIntakeRoute: typeof ApiPublicHooksPostIntakeRoute
+  ApiPublicHooksResendDeliveryRoute: typeof ApiPublicHooksResendDeliveryRoute
   ApiPublicHooksStripePaymentsRoute: typeof ApiPublicHooksStripePaymentsRoute
   ApiPublicHooksXeroPaymentsRoute: typeof ApiPublicHooksXeroPaymentsRoute
   ApiPublicReferralsRecordSubmissionRoute: typeof ApiPublicReferralsRecordSubmissionRoute
@@ -1958,6 +1986,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksExternalActionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/mitti-audit': {
+      id: '/api/public/hooks/mitti-audit'
+      path: '/api/public/hooks/mitti-audit'
+      fullPath: '/api/public/hooks/mitti-audit'
+      preLoaderRoute: typeof ApiPublicHooksMittiAuditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/mitti-pull': {
       id: '/api/public/hooks/mitti-pull'
       path: '/api/public/hooks/mitti-pull'
@@ -1984,6 +2019,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/hooks/post-intake'
       fullPath: '/api/public/hooks/post-intake'
       preLoaderRoute: typeof ApiPublicHooksPostIntakeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/resend-delivery': {
+      id: '/api/public/hooks/resend-delivery'
+      path: '/api/public/hooks/resend-delivery'
+      fullPath: '/api/public/hooks/resend-delivery'
+      preLoaderRoute: typeof ApiPublicHooksResendDeliveryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/hooks/stripe-payments': {
@@ -2272,10 +2314,12 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksCustomerFollowupsRoute: ApiPublicHooksCustomerFollowupsRoute,
   ApiPublicHooksEscRobotRoute: ApiPublicHooksEscRobotRoute,
   ApiPublicHooksExternalActionsRoute: ApiPublicHooksExternalActionsRoute,
+  ApiPublicHooksMittiAuditRoute: ApiPublicHooksMittiAuditRoute,
   ApiPublicHooksMittiPullRoute: ApiPublicHooksMittiPullRoute,
   ApiPublicHooksMittiRetryRoute: ApiPublicHooksMittiRetryRoute,
   ApiPublicHooksOutlookSyncRoute: ApiPublicHooksOutlookSyncRoute,
   ApiPublicHooksPostIntakeRoute: ApiPublicHooksPostIntakeRoute,
+  ApiPublicHooksResendDeliveryRoute: ApiPublicHooksResendDeliveryRoute,
   ApiPublicHooksStripePaymentsRoute: ApiPublicHooksStripePaymentsRoute,
   ApiPublicHooksXeroPaymentsRoute: ApiPublicHooksXeroPaymentsRoute,
   ApiPublicReferralsRecordSubmissionRoute:

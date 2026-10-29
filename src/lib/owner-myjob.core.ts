@@ -4,8 +4,9 @@ import { stageWording, PIESA_FULL } from "./job-wording";
 import { ownerHeadline, type OwnerHeadlineStep } from "./owner-headlines.core";
 
 export const OWNER_STEPS = ["Ready Check", "Quote", "PIESA", "Install", "Done"] as const;
-/** Decision 389: "turn" = the "It's your turn" page (O77's link): confirm the free Ready Check, or no longer interested. */
-export type OwnerScreen = "home" | "spot" | "quote" | "book" | "done" | "review" | "fixes" | "turn";
+/** Decision 389: "turn" = the "It's your turn" page (O77's link): confirm the free Ready Check, or no longer interested.
+ *  Batch 3a: "newquote" = O78's "Send me a new quote" button (new-quote-request.*). */
+export type OwnerScreen = "home" | "spot" | "quote" | "book" | "done" | "review" | "fixes" | "turn" | "newquote";
 
 const HEADLINE_BY_LEVEL: OwnerHeadlineStep[] = ["spot_saved", "ready_check_booked", "quote_ready", "booking_visits", "install_booked", "all_done"];
 
@@ -96,8 +97,8 @@ export const gateACard = (todo: { gate: string }[]) => (todo.some((t) => t.gate 
 
 /** Stages from which the owner can no longer cancel from My job: the safety check is booked or later. */
 const NO_OWNER_CANCEL = new Set(["piesa_scheduled", "piesa_complete", "electrical_variation_pending", "rectification_required", "awaiting_owner_rectification_approval", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked", "evidence_outstanding", "ap_review", "ready_for_veec", "complete", "cancelled", "on_hold"]);
-/** Plain "Cancel my job" (Jo, 6 Oct): offered only until the safety check is booked. No cooling-off period. */
-export function ownerCanCancel(stage: string, bookingKinds: string[]): boolean {
-  if (NO_OWNER_CANCEL.has(stage)) return false;
+/** Plain "Cancel my job" (Jo, 6 Oct): offered only until the safety check is booked or paid. No cooling-off period. */
+export function ownerCanCancel(stage: string, bookingKinds: string[], safetyCheckPaid: boolean): boolean {
+  if (safetyCheckPaid || NO_OWNER_CANCEL.has(stage)) return false;
   return !bookingKinds.includes("assessment");
 }

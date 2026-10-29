@@ -192,7 +192,7 @@ describe("Send safety (decision 414 review)", () => {
   const src = readFileSync("src/lib/emails-tab.server.ts", "utf8");
   test("a no-job reply claims the one-per-person website reply BEFORE sending", () => {
     const claim = src.indexOf("idempotency_key: newSenderReplyKey(to)");
-    const send = src.indexOf("await resendSend(to,");
+    const send = src.indexOf("await sendViaOutlook({");
     expect(claim).toBeGreaterThan(0);
     expect(send).toBeGreaterThan(claim);
     // A second link email only goes when every earlier attempt definitely failed, under its own once-only claim.
@@ -209,7 +209,11 @@ describe("Send safety (decision 414 review)", () => {
     expect(body).toContain("noJobFollowUpSentKey(");
     const check = body.indexOf("NO_JOB_REPLY_SENT_EVENT");
     expect(check).toBeGreaterThan(0);
-    expect(body.indexOf("await resendSend(to,")).toBeGreaterThan(check);
+    // Through Outlook, after its own once-only claim (Outlook has no once-only key).
+    const claim = body.indexOf("event_type: NO_JOB_FOLLOWUP_CLAIM_EVENT");
+    expect(claim).toBeGreaterThan(check);
+    expect(body.indexOf("await sendViaOutlook({ replyToMessageId: mid,")).toBeGreaterThan(claim);
+    expect(body).not.toContain("resendSend");
     expect(src).toContain('draft.details["kind"] === "follow_up"');
   });
   test("Match only raises a reply for the job's owner", () => {

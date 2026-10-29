@@ -358,6 +358,15 @@ export function insulationDetailText(d: Partial<InsulationDetail> | null | undef
   return parts.every((p) => p == null) ? null : parts.map((p) => p ?? "not answered").join(", ");
 }
 
+const ANSWER_WORDS: Record<string, string> = { batts: "Batts", loose_fill: "Loose fill", foil: "Foil", thin: "Thin", hand: "About a hand's width", thicker: "Thicker than a hand", whole: "Whole ceiling", partial: "Only some areas", unknown: "Not sure" };
+/** Jo 28 Oct: the owner's three website answers for the job screen — "Loose fill · Thin · Whole ceiling".
+ *  Unanswered questions are left out; null when none were answered. */
+export function insulationAnswersLine(d: Partial<InsulationDetail> | null | undefined): string | null {
+  const answers: (string | null | undefined)[] = [d?.insulation_type, d?.insulation_thickness, d?.insulation_coverage];
+  const parts = answers.filter((v): v is string => !!v).map((v) => ANSWER_WORDS[v] ?? v);
+  return parts.length ? parts.join(" · ") : null;
+}
+
 /** Jo 22 Oct: declared-present routing from the three answers. null = keep current behaviour. */
 export function insulationDetailRoute(d: Partial<InsulationDetail> | null | undefined): "likely_save_spot" | "more_photos" | null {
   const t = d?.insulation_thickness ?? null, c = d?.insulation_coverage ?? null;

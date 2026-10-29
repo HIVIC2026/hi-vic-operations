@@ -11,13 +11,13 @@ export async function installerPayHeldReasonsFor(jobId: string): Promise<string[
   const [{ data: job, error: je }, { data: ap, error: ae }, { data: invs, error: ie }] = await Promise.all([
     admin.from("jobs").select("channel").eq("id", jobId).maybeSingle(),
     admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "stage_changed").eq("to_stage", "ready_for_veec").order("created_at", { ascending: false }).limit(1),
-    admin.from("invoices").select("status, balance_paid_at, paid_at, updated_at").eq("job_id", jobId),
+    admin.from("invoices").select("kind, status, balance_paid_at, paid_at, updated_at").eq("job_id", jobId).eq("kind", "installation"),
   ]);
   if (je || ae || ie) throw new Error(`Could not read the installer pay timing: ${(je ?? ae ?? ie)!.message}`);
   if (!job) throw new Error("Job not found — payout not marked paid.");
   return installerPayHeldReasons({
     installerSupplied: job.channel === "installer_sourced",
     apApprovedAt: (ap ?? [])[0]?.created_at ?? null,
-    ownerPaidInFullAt: ownerPaidInFullAt((invs ?? []) as { status: string | null; balance_paid_at: string | null; paid_at?: string | null; updated_at?: string | null }[]),
+    ownerPaidInFullAt: ownerPaidInFullAt((invs ?? []) as { kind?: string | null; status: string | null; balance_paid_at: string | null; paid_at?: string | null; updated_at?: string | null }[]),
   });
 }

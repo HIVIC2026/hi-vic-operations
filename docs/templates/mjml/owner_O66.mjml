@@ -27,7 +27,7 @@
           <mj-text mj-class="eyebrow center" padding="18px 12px 6px">You pay after the rebate</mj-text>
           <mj-text mj-class="big-blue">$2,188</mj-text>
           <mj-text mj-class="center" font-size="14px" line-height="20px" font-weight="700">incl. GST · full price <span class="strike">$3,798</span></mj-text>
-          <mj-text mj-class="small center" padding="0 16px 18px">Based on what you told us: 137 m² ceiling, no existing insulation.<br /><a href="https://estimate.homeinsulationvictoria.com.au/estimate/TEST/calculator" style="color:#3C51C4;font-weight:700;">Try a different ceiling size</a></mj-text>
+          <mj-text mj-class="small center" padding="0 16px 18px">Based on what you told us: 137 m² ceiling, no existing insulation.</mj-text>
         </mj-column>
       </mj-section>
 

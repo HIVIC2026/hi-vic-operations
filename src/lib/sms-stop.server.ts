@@ -26,12 +26,39 @@ export async function closeStoppedEnquiries(db: any, phone: string, sid: string 
       if ((data ?? []).length < 500) break;
     }
   }
+  const failures: string[] = [];
   for (const row of matches) {
     // Re-read the shared classifier before the conditional update; never overwrite a changed stage.
     const { data: current, error: readError } = await db.from("office_enquiry_index")
       .select("id,stage,owner_phone").eq("id", row.id).eq("office_bucket", row.bucket).maybeSingle();
     if (readError) throw new Error("Could not recheck enquiry for STOP closure");
     if (!current || current.stage !== row.stage || toAuE164(current.owner_phone) !== phone) continue;
+    // An installer already accepted (active assignment) or is still being asked (pending offer): release them and tell
+    // the installer through the one full-cancel path, which logs its own stage change (no second history row here).
+    const [{ data: assigned, error: assignedError }, { data: offered, error: offeredError }] = await Promise.all([
+      db.from("job_assignments").select("id").eq("job_id", row.id).eq("active", true).limit(1),
+      db.from("partner_offers").select("id").eq("job_id", row.id).eq("status", "pending").limit(1),
+    ]);
+    if (assignedError || offeredError) throw new Error("Could not check installer for STOP closure");
+    if ((assigned ?? []).length || (offered ?? []).length) {
+      // Same guards as the direct path: skip if the job changed, is a test job or was deleted since the first read.
+      const { data: live, error: liveError } = await db.from("jobs").select("stage,source,deleted_at").eq("id", row.id).maybeSingle();
+      if (liveError) throw new Error("Could not recheck job for STOP closure");
+      if (!live || live.stage !== row.stage || live.source === "qa_test" || live.deleted_at) continue;
+      try {
+        const { cancelJobFully } = await import("./office-actions.server");
+        await cancelJobFully(row.id, SMS_STOP_CLOSED_REASON, null, { tell: { owner: false, installer: true } });
+      } catch (e) {
+        failures.push(`${row.id}: ${(e as Error).message}`);
+        // No Needs me mechanism fits without new office-needs wiring: one internal history row the office sees on the job.
+        await db.from("workflow_events").insert({
+          job_id: row.id, actor_id: null, event_type: "stop_installer_release_failed", internal: true,
+          summary: "STOP received, but releasing the installer failed — retrying automatically; open the job if this stays",
+          details: { source: "sms_stop", provider_message_id: sid, needs_office: true },
+        }).then(() => undefined, () => undefined);
+      }
+      continue;
+    }
     const { data: changed, error } = await db.from("jobs").update({
       stage: "cancelled", prior_stage: row.stage, cancelled_reason: SMS_STOP_CLOSED_REASON,
       hold_reason: null, last_activity_at: now,
@@ -46,4 +73,5 @@ export async function closeStoppedEnquiries(db: any, phone: string, sid: string 
     });
     if (auditError) throw new Error("STOP closure saved but audit could not be recorded");
   }
+  if (failures.length) throw new Error(`STOP closure: releasing the installer failed for ${failures.length} job(s): ${failures.join("; ")}`);
 }

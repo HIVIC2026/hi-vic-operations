@@ -236,7 +236,7 @@ function mockXero(state: { contacts?: any[]; invoices?: any[]; loseNextInvoiceRe
 const owner = { id: "own1", full_name: "Daniel Rossi", email: "daniel@example.com" };
 async function push(call: XeroCall, invoiceId: string, jobNumber: string) {
   const t = await findTrackingOption(call);
-  let x = await findInvoiceByReference(call, xeroReference(jobNumber));
+  let x = await findInvoiceByReference(call, xeroReference(jobNumber, "installation"));
   if (!x) {
     const { contactId } = await findOrCreateContact(call, owner);
     const payload = buildInvoicePayload({ contactId, jobNumber, dueDate: "2026-09-28", total: 2000, items: [{ description: "Batts", quantity: 100, unit_price_inc_gst: 25, line_total_inc_gst: 2500 }], veecIncentive: 500, tracking: t });
@@ -246,7 +246,7 @@ async function push(call: XeroCall, invoiceId: string, jobNumber: string) {
 }
 
 describe("fake Xero: idempotency, contacts, references", () => {
-  test("deterministic reference", () => expect(xeroReference("HV-1007")).toBe("Home Insulation Victoria HV-1007"));
+  test("deterministic reference", () => expect(xeroReference("HV-1007", "installation")).toBe("Home Insulation Victoria HV-1007"));
   test("lost response + retry = exactly one Xero invoice", async () => {
     const m = mockXero({ loseNextInvoiceResponse: true });
     await expect(push(m.call, "inv1", "HV-1007")).rejects.toThrow("504");

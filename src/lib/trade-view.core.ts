@@ -103,9 +103,12 @@ export function payState(f: { paidAt: string | null; apApprovedAt: string | null
   return { kind: "checking" };
 }
 
-/** When the owner paid in full (the Xero mirror): every invoice on the job fully paid → the latest paid time; else null.
+/** When the owner paid in full (the Xero mirror): every INSTALLATION invoice on the job fully paid → the latest paid time;
+ *  else null. Batch 3b (Jo 29 Oct): installer pay waits for the install invoice only — the electrical fixes and repeat
+ *  safety check invoices never hold it (a row with no `kind` is an installation invoice).
  *  Shared by the installer's Money screen and the office Payouts tab (audit F19) so both show the same due date. */
-export function ownerPaidInFullAt(invs: { status: string | null; balance_paid_at: string | null; paid_at?: string | null; updated_at?: string | null }[]): string | null {
+export function ownerPaidInFullAt(all: { kind?: string | null; status: string | null; balance_paid_at: string | null; paid_at?: string | null; updated_at?: string | null }[]): string | null {
+  const invs = all.filter((x) => (x.kind ?? "installation") === "installation");
   if (!invs.length || invs.some((x) => x.status !== "fully_paid")) return null;
   return invs.map((x) => x.balance_paid_at ?? x.paid_at ?? x.updated_at ?? null).filter((x): x is string => !!x).sort().at(-1) ?? null;
 }

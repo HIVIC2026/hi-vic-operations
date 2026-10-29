@@ -375,7 +375,7 @@ const s5: StepFn = async (ctx, r) => {
   // Safety check payment: Xero Demo Company only for TEST jobs.
   const x = await import("./xero.server");
   const inv = await act(r, "invoice created for the accepted quote (Demo Company)", () => x.createInvoiceForQuote(ctx.quoteId!, ctx.actorId)) as { id?: string } | null;
-  const { data: iv } = await admin.from("invoices").select("id, xero_invoice_id").eq("job_id", ctx.jobId!).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const { data: iv } = await admin.from("invoices").select("id, xero_invoice_id").eq("job_id", ctx.jobId!).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).maybeSingle();
   check(r, "invoice row exists", !!iv, JSON.stringify(inv ?? null).slice(0, 80));
   if (!iv!.xero_invoice_id) await act(r, "invoice pushed to the Xero Demo Company", () => x.pushInvoiceToXero(iv!.id, ctx.actorId) as Promise<unknown>);
   { const { data: linked } = await admin.from("invoices").select("xero_invoice_id, last_sync_error").eq("id", iv!.id).single();
@@ -566,7 +566,8 @@ const s8: StepFn = async (ctx, r) => {
     const pack = await act(r, "completion pack emailed to the owner (the tick's sender)", () => cp.sendCompletionPack(ctx.jobId!, ctx.actorId));
     const { count: provided } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("event_type", "warranty_copy_provided");
     if (!provided) {
-      check(r, "completion pack held only because the TEST owner is not on the allowlist", pack.outcome === "not_sent" && /allowlist/.test(pack.detail), `${pack.outcome}: ${pack.detail}`);
+      // Held by a TEST safeguard (the allowlist, or the per-job TEST "no delivery" marker): count as delivered for this TEST job.
+      check(r, "completion pack held only by a TEST safeguard (allowlist or TEST no-delivery marker)", pack.outcome === "not_sent" && (/allowlist/.test(pack.detail) || /TEST browser run: no delivery/.test(pack.detail)), `${pack.outcome}: ${pack.detail}`);
       (r.simulated ??= []).push("Completion pack email to the TEST owner (held by the TEST sender; the warranty copy recorded as given for this TEST job)");
       await act(r, "product warranty copy recorded as given to the owner (simulated email)", async () => {
         await assertOwnTestJob(ctx);

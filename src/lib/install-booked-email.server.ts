@@ -25,7 +25,7 @@ export async function emailOwnerInstallBooked(jobId: string, startIso: string, o
   const { firstName } = await import("./worker-links.core");
   const { formatInstallDay } = await import("./install-days.core");
   const { renderInstallBookedEmail, INSTALL_BOOKED_EMAIL_APPROVED } = await import("./install-booked-email.core");
-  // Decision 139: the 10% install deposit (bank transfer / PayID, 48h hold) when it is still owing under the payment rule.
+  // Decision 139: the 10% install deposit (card, bank transfer or PayID, 48h hold) when it is still owing under the payment rule.
   const pay = await (await import("./payments.server")).jobPaymentView(jobId).catch(() => null);
   const depositStep = pay?.steps.find((s) => s.key === "install_deposit");
   // Jo 26 Oct 2026: never "Your install is booked" while the 10% deposit is unpaid.
@@ -37,7 +37,7 @@ export async function emailOwnerInstallBooked(jobId: string, startIso: string, o
     ? { amount: `$${(depositStep.outstandingCents / 100).toFixed(2)}`, holdUntil: pay.provisional.expiresAt ? formatInstallDay(pay.provisional.expiresAt) : null, bankLines: (await import("./payments.core")).bankDetailLines(pay.bank, pay.reference) }
     : null;
   // Decision 151: once the deposit has cleared, the same email says "Deposit received ✓" with the balance due on the day.
-  const paidDeposit = opts.depositReceived && pay && depositStep ? { depositPaid: depositStep.amountCents / 100, balanceDue: Math.max(0, (pay.plan.grandTotalCents - pay.paidCents) / 100) } : null;
+  const paidDeposit = opts.depositReceived && pay && depositStep ? { depositPaid: depositStep.amountCents / 100, balanceDue: Math.max(0, (pay.plan.thresholds.balance - pay.paid.install) / 100) } : null; // batch 3b: the install invoice's balance
   const input = {
     firstName: firstName(owner?.full_name ?? null), when: formatInstallDay(startIso), deposit: opts.depositReceived ? null : deposit, payment: paidDeposit,
     address: prop ? fullAddress(prop.address_line, prop.suburb, prop.postcode) || null : null,

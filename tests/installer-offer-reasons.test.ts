@@ -3,7 +3,7 @@ import { INSTALLER_GAP, installerCandidate, installerEligibilityBlocker, install
 
 const today = "2026-10-27";
 const fullCert = { status: "verified", level: "full", expiresOn: "2028-10-27" };
-const ok = { noticeAcknowledged: true, piisaBlocked: false, cert: fullCert };
+const ok = { noticeAcknowledged: true, cert: fullCert };
 const facts: InstallerFacts = {
   business_id: "b", name: "TEST Bravo", is_active: true, onboarding_status: "approved", accepting_new_jobs: true, receives_hivic_leads: true,
   coverage_verified: true, covers_postcode: true, exact_postcode: true, credentialsOk: true, fullCertifiedInstallers: 0, freeMeasureUps: true,
@@ -16,7 +16,6 @@ describe("Choose installer: each 'Can't be offered' reason is the true one", () 
     expect(gap).toBe(INSTALLER_GAP.notice);
     expect(installerEligibilityBlocker(installerCandidate({ ...facts, installerGap: gap }))).toBe("The installer hasn't accepted the ESC privacy notice yet. The installer must open their notice link and accept it.");
   });
-  it("PIISA not verified", () => expect(installerGapReason([{ ...ok, piisaBlocked: true }], today)).toBe(INSTALLER_GAP.piisa));
   it("no certification", () => expect(installerGapReason([{ ...ok, cert: null }], today)).toBe(INSTALLER_GAP.noCert));
   it("certification not verified", () => expect(installerGapReason([{ ...ok, cert: { ...fullCert, status: "pending" } }], today)).toBe(INSTALLER_GAP.certNotVerified));
   it("not Full", () => expect(installerGapReason([{ ...ok, cert: { ...fullCert, level: "provisional" } }], today)).toBe(INSTALLER_GAP.notFull));

@@ -18,7 +18,7 @@
 
       <mj-section>
         <mj-column mj-class="panel">
-          <mj-text mj-class="h2" padding="18px 18px 8px">Pay your $185.10 deposit by bank transfer or PayID</mj-text>
+          <mj-text mj-class="h2" padding="18px 18px 8px">Pay your $185.10 deposit by card, bank transfer or PayID</mj-text>
           <mj-table padding="0 18px 14px">
             <tr><td style="padding:8px 0;color:#5A6785;white-space:nowrap;">Account name</td><td align="right" style="padding:8px 0 8px 12px;"><strong>Home Insulation Victoria</strong></td></tr>
             <tr><td style="padding:8px 0;border-top:1px solid #E4E9F5;color:#5A6785;white-space:nowrap;">BSB</td><td align="right" style="padding:8px 0 8px 12px;border-top:1px solid #E4E9F5;white-space:nowrap;"><strong>082-902</strong></td></tr>

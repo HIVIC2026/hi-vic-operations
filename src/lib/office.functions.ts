@@ -99,16 +99,16 @@ export const snoozeNeedsItem = createServerFn({ method: "POST" }).middleware([re
 /** Decision 410 (Jo 27 Oct 2026): someone in the office approves the electrician's completed Mitti form (A3 / A4);
  *  their pay falls due 7 days later. Refused while the form gate holds it; a second Approve records nothing. */
 export const approveElectricianForm = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: z.string().uuid(), kind: z.enum(["assessment", "rectification"]) }).parse(d))
+  .inputValidator((d) => z.object({ jobId: z.string().uuid(), kind: z.enum(["assessment", "rectification"]), bookingId: z.string().uuid().optional() }).parse(d))
   .handler(async ({ context, data }) => {
     await requireOfficeJob(context.supabase, data.jobId);
     const { recordElectricianFormApproval } = await import("./electrician-form-approval.server");
-    return recordElectricianFormApproval(data.jobId, data.kind, context.userId);
+    return recordElectricianFormApproval(data.jobId, data.kind, context.userId, data.kind === "assessment" ? data.bookingId ?? null : null);
   });
 
 /** Office records that a trade has been paid (no money moves automatically). */
 export const markPayoutPaid = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: z.string().uuid(), reference: z.string().trim().min(2).max(120), kind: z.enum(["assessment", "rectification", "installation"]).optional() }).parse(d))
+  .inputValidator((d) => z.object({ jobId: z.string().uuid(), reference: z.string().trim().min(2).max(120), kind: z.enum(["assessment", "rectification", "installation"]).optional(), bookingId: z.string().uuid().optional() }).parse(d))
   .handler(async ({ context, data }) => {
     await requireOfficeJob(context.supabase, data.jobId);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
@@ -123,15 +123,21 @@ export const markPayoutPaid = createServerFn({ method: "POST" }).middleware([req
       if (electricalBillingSource({ channel: j?.channel ?? null, choice: j?.electrician_choice ?? null, committedLineOnAcceptedQuote: committed, hivPaidAt: null }) === "owner_direct")
         throw new Error("This electrician invoices the owner directly — Home Insulation Victoria doesn't pay this work.");
     }
+    // Batch 1 F5: a safety check payout names its visit (one line per completed visit); the visit must be this job's.
+    const bookingId = data.kind === "assessment" ? data.bookingId ?? null : null;
+    if (bookingId) {
+      const { data: b } = await admin.from("bookings").select("id").eq("id", bookingId).eq("job_id", data.jobId).eq("kind", "assessment").eq("status", "completed").maybeSingle();
+      if (!b) throw new Error("That safety check visit is not a completed visit on this job.");
+    }
     // Decision 318: no payment until the matching Mitti form is Complete and its evidence checks pass (fails closed).
-    const { payoutBlockersFor } = await import("./trade-payout-gate.server");
-    const held = await payoutBlockersFor(data.jobId, data.kind ?? "installation");
+    const { payoutBlockersFor, safetyVisitPayoutBlockers } = await import("./trade-payout-gate.server");
     // Decision 410 (Jo 27 Oct 2026): an electrician payout also needs the office's Approve on that form — it never waits
-    // for the owner to pay.
-    if (data.kind === "assessment" || data.kind === "rectification") {
+    // for the owner to pay. A safety check visit is gated on its own record and approval (both rules in one call).
+    const held = data.kind === "assessment" ? await safetyVisitPayoutBlockers(data.jobId, bookingId) : await payoutBlockersFor(data.jobId, data.kind ?? "installation");
+    if (data.kind === "rectification") {
       const [{ payoutGateFacts }, { electricianPayTiming }] = await Promise.all([import("./trade-payout-gate.server"), import("./electrician-pay.core")]);
       held.push(...electricianPayTiming(data.kind, (await payoutGateFacts([data.jobId])).get(data.jobId)).waiting);
-    } else {
+    } else if (data.kind !== "assessment") {
       // Review R09 / audit F19: installer pay — the SAME rule the Payouts tab shows (AP approval; for installer-supplied
       // A1 jobs also the owner's payment in full), enforced here so a direct call can't mark a held payout paid.
       const { installerPayHeldReasonsFor } = await import("./installer-pay-timing.server");
@@ -139,7 +145,7 @@ export const markPayoutPaid = createServerFn({ method: "POST" }).middleware([req
     }
     if (held.length) throw new Error(`Payout held — not payable yet: ${held.join("; ")}`);
     const { logEvent } = await import("./workflow.server");
-    await logEvent(data.jobId, context.userId, "payout_marked_paid", `Payout marked paid (${data.reference})`, { reference: data.reference, ...(data.kind ? { kind: data.kind } : {}) }, { internal: true });
+    await logEvent(data.jobId, context.userId, "payout_marked_paid", `Payout marked paid (${data.reference})`, { reference: data.reference, ...(data.kind ? { kind: data.kind } : {}), ...(bookingId ? { booking_id: data.bookingId } : {}) }, { internal: true });
     return { ok: true };
   });
 
@@ -157,7 +163,7 @@ export const getMoneyOverview = createServerFn({ method: "GET" }).middleware([re
       admin.from("workflow_events").select("job_id, summary, created_at").eq("event_type", "payout_marked_paid"),
     ]);
     for (const r of [inv, veec, jobs, paidEv]) if (r.error) throw new Error(`Could not load money figures: ${r.error.message}`);
-    const owed = (inv.data ?? []).reduce((a, v) => a + Math.max(0, Number(v.total_inc_gst ?? 0) - Number(v.total_paid ?? 0)), 0);
+    const owed = (await import("./invoice.lifecycle")).ownersOweTotal(inv.data ?? []); // a voided old fixes invoice owes nothing
     const margin = internals.error ? null : (internals.data ?? []).reduce((a, q) => a + (Number(q.ap_margin_ex_gst ?? 0) + Number(q.ap_fee_ex_gst ?? 0)) * 1.1, 0);
     const lodged = (veec.data ?? []).filter((v) => v.submitted_date && v.submitted_date >= melbourneToday(start)).reduce((a, v) => a + Number(v.quantity ?? 0), 0);
     const paid = new Map((paidEv.data ?? []).map((e) => [e.job_id, e]));

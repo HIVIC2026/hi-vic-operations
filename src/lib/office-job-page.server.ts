@@ -18,8 +18,8 @@ const dayTime = (iso: string) => new Date(iso).toLocaleString("en-AU", { weekday
 
 async function contactRows(jobId: string, job: { created_at: string; source: string; channel: string }) {
   const [emails, comms, sms, messages, accepted, payments] = await Promise.all([
-    admin.from("customer_email_sends").select("id, purpose, status, sent_at, created_at, error, communication_id").eq("job_id", jobId).order("created_at", { ascending: false }).limit(300),
-    admin.from("job_communications").select("id, channel, direction, subject, body, delivery_status, provider, sent_at, received_at, created_at, visibility, source_event").eq("job_id", jobId).neq("visibility", "trade").order("created_at", { ascending: false }).limit(300),
+    admin.from("customer_email_sends").select("id, purpose, status, sent_at, created_at, error, communication_id, delivery_result, delivery_detail").eq("job_id", jobId).order("created_at", { ascending: false }).limit(300),
+    admin.from("job_communications").select("id, channel, direction, subject, body, delivery_status, provider, sent_at, received_at, created_at, visibility, source_event, delivery_result, delivery_detail").eq("job_id", jobId).neq("visibility", "trade").order("created_at", { ascending: false }).limit(300),
     admin.from("sms_messages").select("id, message_type, status, body, created_at, to_number, business_id").eq("job_id", jobId).is("business_id", null).order("created_at", { ascending: false }).limit(300),
     admin.from("messages").select("id, body, created_at, internal, sender_label, channel").eq("job_id", jobId).order("created_at", { ascending: false }).limit(300),
     admin.from("quotes").select("id, accepted_at, kind").eq("job_id", jobId).not("accepted_at", "is", null),
@@ -119,8 +119,11 @@ export async function loadJobPage(jobId: string, testOffice = false) {
       readyForVeecAt: s(readyForVeec.data?.created_at), lodged: veec.data?.submitted_date ? `VEEC lodged ${day(veec.data.submitted_date)}` : null },
   };
   const lastHeard = lastHeardFromUs(contacts);
+  const { emailBouncedSet } = await import("./office-lists.server");
+  const emailBounced = (await emailBouncedSet([jobId])).has(jobId);
   return {
     now,
+    emailBounced,
     header: {
       jobId, jobNumber: job.job_number, isTest: job.source === "qa_test", ownJob, installerName: installer, stage: job.stage, deleted: !!job.deleted_at,
       ownerName: owner?.full_name ?? null, surname: surnameOf(owner?.full_name), phone: owner?.phone ?? null, email: owner?.email ?? null,
@@ -142,17 +145,18 @@ export async function loadJobPage(jobId: string, testOffice = false) {
 export async function loadJobMoney(jobId: string, testOffice = false) {
   const { jobPaymentView } = await import("./payments.server");
   const db = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
-  const [view, job, quote, rect, offers, payouts, lodg, ws, inv, elecAsg] = await Promise.all([
+  const [view, job, quote, rect, offers, payouts, lodg, ws, inv, elecAsg, acceptedQ] = await Promise.all([
     jobPaymentView(jobId),
-    admin.from("jobs").select("channel, installer_led, electrician_choice, estimated_area_m2").eq("id", jobId).maybeSingle(),
+    admin.from("jobs").select("stage, channel, installer_led, electrician_choice, estimated_area_m2").eq("id", jobId).maybeSingle(),
     admin.from("quotes").select("id, subtotal_inc_gst, gst_amount, veec_count, veec_discount_inc_gst, veec_unit_value_inc_gst, status, quote_items(code), quote_internals(cost_ex_gst)").eq("job_id", jobId).eq("kind", "installation").in("status", ["accepted", "issued", "draft"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("quotes").select("customer_total_inc_gst, quote_internals(calc_snapshot)").eq("job_id", jobId).eq("kind", "rectification").eq("status", "accepted").order("accepted_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("partner_offers").select("kind, summary, business_id").eq("job_id", jobId).eq("status", "accepted"),
     admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "payout_marked_paid"),
     db.from("veec_lodgements").select("quantity, sale_price_per_veec").eq("job_id", jobId).maybeSingle(),
     testOffice ? Promise.resolve({ data: null }) : db.from("workflow_settings").select("current_veec_price").limit(1).maybeSingle(),
-    admin.from("invoices").select("xero_invoice_number, total_inc_gst, total_paid, last_synced_at, last_sync_error").eq("job_id", jobId).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("invoices").select("xero_invoice_number, xero_invoice_id, total_inc_gst, total_paid, last_synced_at, last_sync_error").eq("job_id", jobId).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "electrician").eq("active", true).limit(1).maybeSingle(),
+    admin.from("quotes").select("id").eq("job_id", jobId).eq("kind", "installation").eq("status", "accepted").limit(1),
   ]);
   const q = quote.data;
   const paidOut = (kind: string | null) => (payouts.data ?? []).map((p) => p.details as { kind?: string; amount?: number }).find((d) => (d?.kind ?? null) === kind && d?.amount != null)?.amount ?? null;
@@ -196,8 +200,21 @@ export async function loadJobMoney(jobId: string, testOffice = false) {
     installerPayEx, piesaCostEx, electricianChosen, fixesCostEx, veecValue: veec.value, veecIncentive: q ? Number(q.veec_discount_inc_gst) : 0,
   }), veecBasis: veec.basis, quoteStatus: q?.status ?? null };
   return {
-    invoice: inv.data ? { number: inv.data.xero_invoice_number, total: Number(inv.data.total_inc_gst), paid: Number(inv.data.total_paid), syncedAt: inv.data.last_synced_at, syncError: inv.data.last_sync_error } : null,
-    view: view ? { invoiceId: view.invoiceId, steps: view.steps, paidCents: view.paidCents, reference: view.reference, bank: testOffice ? null : view.bank, onlineInvoiceUrl: testOffice ? null : view.onlineInvoiceUrl, provisional: view.provisional, grandTotalCents: view.plan.grandTotalCents } : null,
+    invoice: inv.data ? { number: inv.data.xero_invoice_number, total: Number(inv.data.total_inc_gst), paid: Number(inv.data.total_paid), syncedAt: inv.data.last_synced_at, syncError: inv.data.last_sync_error, linked: !!inv.data.xero_invoice_id } : null,
+    /** Batch 1: an accepted installation quote exists — with no Xero-linked invoice the Money card offers "Create invoice". */
+    hasAcceptedQuote: (acceptedQ.data ?? []).length > 0 && job.data?.stage !== "cancelled",
+    view: view ? { invoiceId: view.invoiceId, steps: view.steps, paidCents: view.paidCents, reference: view.reference, bank: testOffice ? null : view.bank, onlineInvoiceUrl: testOffice ? null : view.onlineInvoiceUrl, provisional: view.provisional, grandTotalCents: view.plan.grandTotalCents,
+      // Card + Xero pairs counted once until the office says "Two separate payments" (office-only button; the TEST office
+      // cannot press it, so it gets none).
+      unclearPairs: testOffice ? [] : view.unclearPairs } : null,
+    /** Batch 3b: the job's invoices one by one (install, electrical fixes, repeat safety check), each with its reference. */
+    invoices: view ? await (async () => {
+      const { invoiceSlotLabel } = await import("./office-money.core");
+      return (["install", "fixes", "repeat"] as const).flatMap((slot) => {
+        const r = view.invoices[slot];
+        return r ? [{ invoiceId: r.id, slot, label: invoiceSlotLabel(slot, r.xero_reference), number: r.xero_invoice_number, reference: r.xero_reference, totalCents: Math.round(Number(r.total_inc_gst ?? 0) * 100), paidCents: view.paid[slot], linked: !!r.xero_invoice_id }] : [];
+      });
+    })() : [],
     margin, quoteStatus: q?.status ?? null,
   };
 }

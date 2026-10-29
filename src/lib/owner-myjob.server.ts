@@ -6,10 +6,25 @@ import { isWellFormedToken, LINK_PURPOSE, linkUsable } from "./estimatelink.core
 import { formatPropertyAddress, shortAddress } from "./address";
 import { DEFAULT_PIESA_INSTALL_GAP_DAYS, OWNER_STEPS, ownerAction, ownerCanCancel, ownerHero, ownerStage } from "./owner-myjob.core";
 import { splitForOption } from "./payment-gate.core";
+import { stepInvoiceKind } from "./payments.core";
 import { safetyCheckIncGstFor } from "./safety-check-amount.core";
 import { section1FromFacts } from "./consent.core";
 
 const n = (v: unknown) => Number(v ?? 0) || 0;
+
+/** True once the upfront safety check is paid. Fails closed: if the payment check errors, treat it as paid (no cancel). No invoice = nothing paid. */
+export async function safetyCheckPaidFor(jobId: string, anyPaid = true): Promise<boolean> {
+  if (!anyPaid) return false;
+  try {
+    const { jobPaymentView } = await import("./payments.server");
+    const { isStepPaid } = await import("./payments.core");
+    const v = await jobPaymentView(jobId);
+    return !!v && isStepPaid(v.steps, "safety_check");
+  } catch (e) {
+    console.error("owner cancel: payment check failed, treating the safety check as paid", (e as Error).message);
+    return true;
+  }
+}
 
 export async function resolveOwnerJob(token: unknown) {
   if (!isWellFormedToken(token)) return null;
@@ -21,7 +36,8 @@ export async function resolveOwnerJob(token: unknown) {
     admin.from("jobs").select("job_number, stage, deleted_at, channel, external_refs, owners(full_name, email, phone), properties(address_line, suburb, state, postcode)").eq("id", jobId).single(),
     admin.from("quotes").select("id, kind, status, release_state, option_label, customer_total_inc_gst, veec_discount_inc_gst, subtotal_inc_gst, sent_at, accepted_at, version, quote_items(code, description, quantity, line_total_inc_gst, sort)").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted", "declined"]).order("created_at", { ascending: false }).order("created_at", { ascending: false }),
     admin.from("bookings").select("kind, status, scheduled_start, contractor_id, business_id").eq("job_id", jobId).in("status", ["confirmed", "completed"]).order("scheduled_start"),
-    admin.from("invoices").select("total_paid, amount_paid").eq("job_id", jobId),
+    // "Paid" next to the install price: the installation invoice (batch 3b: fixes / repeat check have their own invoices).
+    admin.from("invoices").select("total_paid, amount_paid").eq("job_id", jobId).eq("kind", "installation"),
     admin.from("indicative_estimates").select("applied_discount").eq("job_id", jobId).is("superseded_at", null).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("workflow_settings").select("office_time_limits, piesa_install_window_days, safety_check_payment_inc_gst").eq("id", 1).maybeSingle(),
   ]);
@@ -75,13 +91,14 @@ export async function resolveOwnerJob(token: unknown) {
   }
   const owner = j.owners as { full_name: string | null; email?: string | null; phone?: string | null } | null;
   const total = quote ? n(quote.customer_total_inc_gst) : null;
-  // Decisions 139/140/141: what is due now, how to pay it (card only for the $349 / fixes), bank details + reference.
+  // Decisions 139/140/141: what is due now, how to pay it (card for the card steps), bank details + reference. Batch 3b:
+  // each step shows its own amount, and the reference is the due step's own invoice (fixes / repeat check have their own).
   // Owner-safe: amounts, state, the Xero online-invoice link and the invoice reference only – never Xero IDs or errors.
   const pay = quote?.status === "accepted" ? await (await import("./payments.server")).jobPaymentView(jobId).catch(() => null) : null;
   const payment = pay ? {
     steps: pay.steps.map((s) => ({ key: s.key, label: s.label, amount: s.amountCents / 100, state: s.state, card: s.methods.includes("card") })),
     dueNow: pay.due.dueNowCents / 100, remaining: pay.due.remainingCents / 100, paid: pay.paidCents / 100,
-    payNow: { ...pay.payNow, amount: pay.payNow.amountCents / 100 }, reference: pay.reference,
+    payNow: { ...pay.payNow, amount: pay.payNow.amountCents / 100 }, reference: pay.due.step ? pay.references[stepInvoiceKind(pay.due.step.key)] : pay.reference,
     provisional: pay.provisional.decision === "provisional" ? { expiresAt: pay.provisional.expiresAt, deposit: pay.plan.installDepositCents / 100 } : null,
   } : null;
   const limits = (ws?.office_time_limits ?? {}) as Record<string, unknown>;
@@ -103,7 +120,7 @@ export async function resolveOwnerJob(token: unknown) {
       optOutUrl: await (await import("./emailsafety.server")).unsubscribeUrlForJob(jobId),
     } : null,
     piesaInstallGapDays: n(limits["piesa_install_gap_days"] ?? DEFAULT_PIESA_INSTALL_GAP_DAYS),
-    canCancel: ownerCanCancel(stage, (cancellableBookings ?? []).map((b) => b.kind)),
+    canCancel: ownerCanCancel(stage, (cancellableBookings ?? []).map((b) => b.kind), await safetyCheckPaidFor(jobId, paid > 0)),
     // Decision 119: after the install the owner signs the official VEEC assignment form here (never before install).
     veecAssignment: ["evidence_outstanding", "ap_review", "ready_for_veec", "complete"].includes(stage) ? { status: veec?.status ?? "not_prepared", signedAt: veec?.consumer_signed_at ?? null } : null,
     // Decision 296: between the electrician's PIESA and the install day the owner confirms the PIESA here (the card reads its own facts via ownerPiesaConfirmFn).
@@ -124,15 +141,21 @@ export async function cancelOwnerJob(token: unknown): Promise<{ ok: boolean; rea
   ]);
   if (!j) return { ok: false, reason: "Link not recognised." };
   if (j.stage === "cancelled") return { ok: true };
-  if (!ownerCanCancel(j.stage, (bk ?? []).map((b) => b.kind))) return { ok: false, reason: "Your Pre Insulation Electrical Safety Assessment (PIESA) is booked, so this can't be cancelled here. Reply to any of our emails and we'll help." };
-  const { data: moved, error } = await admin.from("jobs").update({ stage: "cancelled", cancelled_reason: "Owner cancelled from My job", next_action: "Owner cancelled. Tell any assigned trade." }).eq("id", l.job_id).eq("stage", j.stage).select("id");
-  if (error) throw new Error(error.message);
-  // Nothing changed (the stage moved between the read and the update): report it, touch nothing else.
-  if (!moved?.length) return { ok: false, reason: "Your job has just changed. Refresh the page and try again." };
-  if (bk?.length) await admin.from("bookings").update({ status: "cancelled" }).in("id", bk.map((b) => b.id));
+  if (!ownerCanCancel(j.stage, (bk ?? []).map((b) => b.kind), await safetyCheckPaidFor(l.job_id))) return { ok: false, reason: "Your Pre Insulation Electrical Safety Assessment (PIESA) is booked, so this can't be cancelled here. Reply to any of our emails and we'll help." };
+  // Race guard: the stage may have moved since the first read.
+  const { data: fresh } = await admin.from("jobs").select("stage").eq("id", l.job_id).single();
+  if (!fresh || !ownerCanCancel(fresh.stage, (bk ?? []).map((b) => b.kind), false)) return { ok: false, reason: "Your job has just changed. Refresh the page and try again." };
+  // Full clean-up (bookings, offers, assignments, ESC notices, install holds; prior stage kept) lives in cancelJobFully.
+  try {
+    await (await import("./office-actions.server")).cancelJobFully(l.job_id, "Owner cancelled from My job", null, { tell: { owner: false, installer: true } });
+  } catch (e) {
+    const { data: now } = await admin.from("jobs").select("stage").eq("id", l.job_id).single();
+    if (now?.stage === "cancelled") return { ok: true };
+    throw e;
+  }
   // Stage 5 (Jo 23 Oct): cancelling the job releases its Mitti Ready Check form too.
   if (bk?.some((b) => b.kind === "ready_check")) await (await import("./mitti-pickup.server")).releaseReadyCheckFormOnCancel(l.job_id, null, "owner cancelled the job").catch(() => undefined);
   const { logEvent } = await import("./workflow.server");
-  await logEvent(l.job_id, null, "owner_cancelled_job", "Owner cancelled their job from My job (before the Pre Insulation Electrical Safety Assessment (PIESA) was booked). No charge.", { bookings_cancelled: bk?.length ?? 0, trades_to_notify: true }, { from: j.stage as never, to: "cancelled" });
+  await logEvent(l.job_id, null, "owner_cancelled_job", "Owner cancelled their job from My job (before the Pre Insulation Electrical Safety Assessment (PIESA) was booked). No charge.", { bookings_cancelled: bk?.length ?? 0, trades_to_notify: true }, { internal: true });
   return { ok: true };
 }

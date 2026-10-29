@@ -5,7 +5,10 @@
 
 import { FIXES_TIMES_MISSING_LINE } from "./fixes-times.core";
 import { LAPSED_NEEDS_LINE } from "./spot-release.core";
-import { paymentStallLine, type PaymentStall } from "./payment-stall.core";
+import { paymentStallLine, type InvoicePaymentStall } from "./payment-stall.core";
+import { invoiceSlotLabel, invoiceSlotOf } from "./office-money.core";
+import type { InvoiceSlot } from "./payments.core";
+import { QUOTE_EXPIRED_HELD_REASON } from "./quote-expiry.core";
 
 export type NeedsGroup = "today" | "week" | "watch";
 export const NEEDS_GROUPS: { key: NeedsGroup; label: string }[] = [
@@ -18,7 +21,7 @@ export type NeedsKind =
   | "choose_again" | "quote_check" | "fixes_quote_check" | "sign_consent" | "esc_window" | "final_check" | "send_failed" | "email_change" | "email_unmatched" | "robot_failed" | "piisa_form_failed"
   | "choose_installer" | "choose_electrician" | "veec_a_held" | "piesa_owner_unsigned" | "piesa_fixes_owner_unsigned" | "fixes_times_missing"
   | "payment_not_in_xero" | "payment_overdue" | "ten_days_left" | "second_no_access" | "veec_day_10" | "lapsed_window"
-  | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review" | "payment_reversed" | "mitti_form_problem" | "booking_overdue" | "piesa_fixes_found" | "repeat_piesa_choose" | "repeat_piesa_xero_held" | "payment_stalled";
+  | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review" | "payment_reversed" | "mitti_form_problem" | "booking_overdue" | "piesa_fixes_found" | "repeat_piesa_choose" | "payment_stalled" | "invoice_failed" | "old_fixes_invoice_unpaid" | "old_fixes_invoice_paid" | "stop_release_failed" | "quote_expired_blocked" | "new_quote_installer" | "new_quote_unfinished";
 
 /** Where the one button takes the office. `section` is the Job page stage card id; `act` are inline row actions. */
 export type NeedsButton =
@@ -86,7 +89,8 @@ export type NeedsFacts = {
   prestartFailed?: { at: string; reasons: string[] } | null;
   /** Payment watch rows (decision 240): never "Record payment". */
   paymentNotInXero?: { at: string; text: string } | null;
-  paymentOverdue?: { at: string; text: string } | null;
+  /** Batch 3b: one overdue row per invoice (install / fixes / repeat safety check), with that invoice's reference. */
+  paymentsOverdue?: { at: string; text: string; invoice: InvoiceSlot; reference: string | null }[] | null;
   tenDaysLeft?: { at: string; deadline: string | null } | null;
   secondNoAccess?: { at: string; reason: string | null } | null;
   veecDay10?: { at: string } | null;
@@ -95,12 +99,41 @@ export type NeedsFacts = {
   fixesFound?: { at: string; stage: string } | null;
   /** Jo 28 Oct (decision 158, OFFICE CHOOSES): 30-day window lapsed and the office has not chosen who pays the repeat PIESA. */
   repeatPiesaChoice?: { deadline: string; suggested: string | null } | null;
-  /** Jo 28 Oct (decision 233): the owner-pays repeat PIESA line could not go on the ONE Xero invoice. */
-  repeatXeroHeld?: { at: string; reason: string } | null;
   /** Jo 28 Oct 2026 (decision card 04:40 UTC, "Alert after 3 days unpaid"): a homeowner payment unpaid for 3+ days
-   *  → ONE row naming the payment and since when (payment-stall.core). Clears when the payment is recorded. */
-  paymentStalled?: PaymentStall | null;
+   *  → a row naming the payment and since when (payment-stall.core). Clears when the payment is recorded. Batch 3b: one
+   *  per invoice (install / fixes / repeat safety check), each measured on its own invoice's money. */
+  paymentStalls?: InvoicePaymentStall[] | null;
+  /** Batch 1: the owner accepted but the invoice step failed and no Xero-linked invoice has appeared since. Batch 3b:
+   *  `kind` names which invoice (installation, or the electrical fixes invoice). */
+  invoiceFailed?: { at: string; text: string; kind?: "installation" | "rectification" | "repeat_safety_check" } | null;
+  /** Batch 3b: a newer fixes quote replaced an accepted one whose own Xero invoice is still unpaid and not voided. */
+  oldFixesInvoiceUnpaid?: { at: string } | null;
+  /** Final fix I3: money (not refunded) is on a fixes invoice whose fixes quote a newer one replaced. `paid` in dollars. */
+  oldFixesInvoicePaid?: { at: string; paid: number } | null;
+  /** Batch 2: a STOP reply could not release the installer and the job has not been cancelled again since. */
+  stopReleaseFailed?: { at: string } | null;
+  /** Batch 3a: an installation quote expired but the owner can't be emailed, so the job was left open. */
+  quoteExpiredBlocked?: { at: string; reason: string } | null;
+  /** Batch 3a: the owner asked for a new quote but the installer could not be put back, or the reopen half-finished
+   *  (new-quote-request.core `newQuoteOfficeFact`). Clears when an installation quote is created after it. */
+  newQuoteOffice?: { at: string; kind: "new_quote_installer" | "new_quote_unfinished"; line: string } | null;
 };
+
+/** The newest `quote_expired_not_emailable` with no `quote_expired_closed` after it; null otherwise. */
+export function quoteExpiredBlockedFact(events: { event_type: string; created_at: string; details?: Record<string, unknown> | null }[]): { at: string; reason: string } | null {
+  const raised = events.filter((e) => e.event_type === "quote_expired_not_emailable").sort((a, b) => a.created_at.localeCompare(b.created_at)).pop();
+  if (!raised) return null;
+  if (events.some((e) => e.event_type === "quote_expired_closed" && e.created_at > raised.created_at)) return null;
+  return { at: raised.created_at, reason: String(raised.details?.["reason"] ?? "no reason recorded") };
+}
+
+export const STOP_RELEASE_FAILED_LINE = "STOP received, but releasing the installer failed — retrying automatically; open the job if this stays";
+/** The newest `stop_installer_release_failed` (needs_office) with no `job_cancel_released` after it; null otherwise. */
+export function stopReleaseFailedFact(events: { event_type: string; created_at: string; details?: Record<string, unknown> | null }[]): { at: string } | null {
+  const raised = events.filter((e) => e.event_type === "stop_installer_release_failed" && e.details?.["needs_office"] === true).map((e) => e.created_at).sort().pop();
+  if (!raised) return null;
+  return events.some((e) => e.event_type === "job_cancel_released" && e.created_at > raised) ? null : { at: raised };
+}
 
 /** Jo 28 Oct: one plain office line while a PIESA's electrical fixes are open. */
 export function fixesFoundLine(stage: string): string {
@@ -110,6 +143,29 @@ export function fixesFoundLine(stage: string): string {
     : "waiting on fixes quote/approval";
   return `Safety check found electrical fixes — ${what}`;
 }
+
+/** The newest `invoice_create_failed` event, unless a Xero-linked invoice has appeared since (the office created it). */
+export function invoiceFailedFact(
+  events: readonly { at: string; text: string }[],
+  invoices: readonly { xero_invoice_id: string | null; last_synced_at: string | null; created_at: string; last_sync_error: string | null; status?: string | null }[],
+): { at: string; text: string } | null {
+  const latest = [...events].sort((a, b) => a.at.localeCompare(b.at)).at(-1);
+  if (!latest) return null;
+  const linkedAt = invoices.filter((i) => i.xero_invoice_id).map((i) => Date.parse(i.last_synced_at ?? i.created_at)).filter(Number.isFinite);
+  if (linkedAt.length && Math.max(...linkedAt) >= Date.parse(latest.at)) return null;
+  return latest;
+}
+
+/** Batch 3b: the office line for an old fixes invoice that a newer fixes quote replaced (office-only wording). */
+export const OLD_FIXES_INVOICE_LINE = "Old fixes invoice unpaid — void it in Xero";
+/** Final fix I3 (office-only wording): money on a replaced fixes invoice. */
+export const oldFixesInvoicePaidLine = (paid: number) =>
+  `Old fixes invoice has $${paid.toLocaleString("en-AU", { minimumFractionDigits: Number.isInteger(paid) ? 0 : 2, maximumFractionDigits: 2 })} paid — apply it or refund it`;
+export const invoiceFailedLine = (kind: "installation" | "rectification" | "repeat_safety_check" | undefined) =>
+  `${kind === "rectification" ? "Fixes invoice" : kind === "repeat_safety_check" ? "Repeat safety check invoice" : "Invoice"} didn't reach Xero · owner can't pay yet`;
+
+/** The generic "System · Xero: …" row for an invoice that is not linked to Xero repeats the failed-invoice row: hide it. */
+export const duplicatesInvoiceFailed = (why: string, invoiceFailed: NeedsFacts["invoiceFailed"]): boolean => !!invoiceFailed && why.startsWith("Xero: ");
 
 const HOUR = 3_600_000;
 const fmtWhen = (iso: string) => new Date(iso).toLocaleString("en-AU", { weekday: "short", hour: "numeric", minute: "2-digit", timeZone: "Australia/Melbourne" }).replace(/\s?([ap]m)$/i, (m) => m.trim().toLowerCase());
@@ -121,12 +177,19 @@ export function prestartFailedLine(reasons: readonly string[]): string {
   return `Pre-start check failed${first ? ` · ${first.slice(0, 140)}` : ""}${reasons.length > 1 ? ` (+${reasons.length - 1} more)` : ""}`;
 }
 
-type Candidate = Omit<NeedsRow, "key" | "jobId" | "jobNumber" | "surname" | "suburb" | "isTest"> & { rank: number };
+/** `slot` (batch 3b): a row about one of the job's invoices (install / fixes / repeat) — each invoice keeps its own row (buildNeedsRows). */
+type Candidate = Omit<NeedsRow, "key" | "jobId" | "jobNumber" | "surname" | "suburb" | "isTest"> & { rank: number; slot?: InvoiceSlot };
 
 /** Every candidate row for one job, most urgent first (rank). The caller keeps the first. */
 export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   const out: Candidate[] = [];
   const add = (c: Candidate) => out.push(c);
+  if (f.quoteExpiredBlocked) add({ rank: 9, group: "today", kind: "quote_expired_blocked", line: f.quoteExpiredBlocked.reason === QUOTE_EXPIRED_HELD_REASON ? QUOTE_EXPIRED_HELD_REASON : `Quote expired — owner can't be emailed (${f.quoteExpiredBlocked.reason})`, since: f.quoteExpiredBlocked.at, button: { label: "Open job", to: "job" } });
+  if (f.newQuoteOffice) add({ rank: 9, group: "today", kind: f.newQuoteOffice.kind, line: f.newQuoteOffice.line, since: f.newQuoteOffice.at, button: { label: "Open job", to: "job", section: "ready-check" } });
+  if (f.stopReleaseFailed) add({ rank: 9, group: "today", kind: "stop_release_failed", line: STOP_RELEASE_FAILED_LINE, since: f.stopReleaseFailed.at, button: { label: "Open job", to: "job" } });
+  if (f.invoiceFailed) add({ rank: 9, group: "today", kind: "invoice_failed", line: invoiceFailedLine(f.invoiceFailed.kind), since: f.invoiceFailed.at, button: { label: "Open job", to: "job", section: "money" }, slot: invoiceSlotOf(f.invoiceFailed.kind) });
+  if (f.oldFixesInvoicePaid) add({ rank: 38, group: "today", kind: "old_fixes_invoice_paid", line: oldFixesInvoicePaidLine(f.oldFixesInvoicePaid.paid), since: f.oldFixesInvoicePaid.at, button: { label: "Open job", to: "job", section: "money" }, slot: "fixes" });
+  if (f.oldFixesInvoiceUnpaid) add({ rank: 39, group: "today", kind: "old_fixes_invoice_unpaid", line: OLD_FIXES_INVOICE_LINE, since: f.oldFixesInvoiceUnpaid.at, button: { label: "Open job", to: "job", section: "money" }, slot: "fixes" });
   if (f.sendFailed) add({ rank: 10, group: "today", kind: "send_failed", line: `Send failed · ${f.sendFailed.text}`, since: f.sendFailed.at, button: { label: "Open job", to: "job", section: "contact" } });
   // Review R04: an owner email with no clear answer from the email service — never resent automatically.
   if (f.sendUnknown) add({ rank: 11, group: "today", kind: "send_failed", line: f.sendUnknown.text, since: f.sendUnknown.at, button: { label: "Open job", to: "job", section: "contact" } });
@@ -166,16 +229,15 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   // Jo 28 Oct: a PIESA that found fixes always tells the office (one row; clears when the fixes are done and Section C signed).
   if (f.fixesFound) add({ rank: 116, group: "week", kind: "piesa_fixes_found", line: fixesFoundLine(f.fixesFound.stage), since: f.fixesFound.at, button: { label: "Open job", to: "job", section: "piesa" } });
   if (f.repeatPiesaChoice) add({ rank: 37, group: "today", kind: "repeat_piesa_choose", line: `30-day window lapsed ${fmtDay(f.repeatPiesaChoice.deadline)} · choose who pays the repeat safety check${f.repeatPiesaChoice.suggested ? ` · suggested: ${f.repeatPiesaChoice.suggested}` : ""}`, since: f.repeatPiesaChoice.deadline, button: { label: "Choose who pays", to: "job", section: "install" } });
-  if (f.repeatXeroHeld) add({ rank: 38, group: "today", kind: "repeat_piesa_xero_held", line: `Repeat safety check not on the Xero invoice · ${f.repeatXeroHeld.reason} · add it to the same invoice, then Sync`, since: f.repeatXeroHeld.at, button: { label: "Open job", to: "job", section: "money" } });
   if (f.veecApHeld) add({ rank: 120, group: "week", kind: "veec_a_held", line: `VEEC Part A held over 24h · ${f.veecApHeld.reasons.length} thing${f.veecApHeld.reasons.length === 1 ? "" : "s"} to record${f.veecApHeld.reasons[0] ? ` · ${f.veecApHeld.reasons[0]}` : ""}`, since: f.veecApHeld.at, button: { label: "Open job", to: "job", section: "final-check" } });
   if (f.lapsedWindow) add({ rank: 200, group: "watch", kind: "lapsed_window", line: `30-day window lapsed ${fmtDay(f.lapsedWindow.deadline)} · no install`, since: f.lapsedWindow.deadline, button: { label: "Open job", to: "job", section: "install" } });
   if (f.secondNoAccess) add({ rank: 210, group: "watch", kind: "second_no_access", line: `Couldn’t get in · second time${f.secondNoAccess.reason ? ` · ${f.secondNoAccess.reason}` : ""}`, since: f.secondNoAccess.at, button: { label: "Open job", to: "job", section: "install" } });
   if (f.tenDaysLeft) add({ rank: 220, group: "watch", kind: "ten_days_left", line: `10 days left on the 30-day clock${f.tenDaysLeft.deadline ? ` · last day ${fmtDay(f.tenDaysLeft.deadline)}` : ""}`, since: f.tenDaysLeft.at, button: { label: "Open job", to: "job", section: "install" } });
   if (f.veecDay10) add({ rank: 230, group: "watch", kind: "veec_day_10", line: "VEEC form unsigned · day 10", since: f.veecDay10.at, button: { label: "Open job", to: "job", section: "final-check" } });
-  if (f.paymentNotInXero) add({ rank: 240, group: "watch", kind: "payment_not_in_xero", line: `${f.paymentNotInXero.text} · not in Xero yet`, since: f.paymentNotInXero.at, button: { label: "Open job", to: "job", section: "money" } });
-  // Jo 28 Oct 2026 ("Alert after 3 days unpaid"): one row naming the payment the owner owes and since when.
-  if (f.paymentStalled) add({ rank: 242, group: "watch", kind: "payment_stalled", line: paymentStallLine(f.paymentStalled), since: f.paymentStalled.since, button: { label: "Open job", to: "job", section: "money" } });
-  if (f.paymentOverdue) add({ rank: 245, group: "watch", kind: "payment_overdue", line: `Payment overdue · chase · ${f.paymentOverdue.text}`, since: f.paymentOverdue.at, button: { label: "Open job", to: "job", section: "money" } });
+  if (f.paymentNotInXero) add({ rank: 240, group: "watch", kind: "payment_not_in_xero", line: `${f.paymentNotInXero.text} · not in Xero yet`, since: f.paymentNotInXero.at, button: { label: "Open job", to: "job", section: "money" }, slot: "install" });
+  // Jo 28 Oct 2026 ("Alert after 3 days unpaid"): a row naming the payment the owner owes and since when — one per invoice.
+  for (const p of f.paymentStalls ?? []) add({ rank: 242, group: "watch", kind: "payment_stalled", line: paymentStallLine(p), since: p.since, button: { label: "Open job", to: "job", section: "money" }, slot: p.invoice });
+  for (const p of f.paymentsOverdue ?? []) add({ rank: 245, group: "watch", kind: "payment_overdue", line: `Payment overdue · chase · ${invoiceSlotLabel(p.invoice, p.reference)}${p.reference ? ` ${p.reference}` : ""} · ${p.text}`, since: p.at, button: { label: "Open job", to: "job", section: "money" }, slot: p.invoice });
   return out.sort((a, b) => a.rank - b.rank);
 }
 
@@ -202,14 +264,18 @@ export function emailRow(e: EmailRowInput): NeedsRow {
 
 const GROUP_ORDER: Record<NeedsGroup, number> = { today: 0, week: 1, watch: 2 };
 
-/** One row per job (its most urgent action), email rows on top of Today, oldest first inside a group. */
+/** One row per job (its most urgent action), email rows on top of Today, oldest first inside a group. Batch 3b: when that
+ *  row is about one of the job's invoices (unpaid / overdue / not in Xero / failed / old fixes invoice), each OTHER invoice
+ *  keeps its own top row too (install, fixes, repeat safety check) — one invoice's row never hides another's. */
 export function buildNeedsRows(i: { now: number; jobs: NeedsFacts[]; emails?: EmailRowInput[] }): Record<NeedsGroup, NeedsRow[]> {
   const rows: (NeedsRow & { rank: number })[] = [];
   for (const f of i.jobs) {
-    const top = needsCandidates(f, i.now)[0];
+    const all = needsCandidates(f, i.now);
+    const top = all[0];
     if (!top) continue;
-    const { rank, ...c } = top;
-    rows.push({ ...c, rank, key: `${f.jobId}:${c.kind}`, jobId: f.jobId, jobNumber: f.jobNumber, surname: f.surname, suburb: f.suburb, ...(f.isTest ? { isTest: true } : {}) });
+    const shown = top.slot ? [top, ...all.slice(1).filter((c, n, xs) => c.slot && c.slot !== top.slot && xs.findIndex((y) => y.slot === c.slot) === n)] : [top];
+    for (const { rank, slot, ...c } of shown)
+      rows.push({ ...c, rank, key: slot && slot !== "install" ? `${f.jobId}:${c.kind}:${slot}` : `${f.jobId}:${c.kind}`, jobId: f.jobId, jobNumber: f.jobNumber, surname: f.surname, suburb: f.suburb, ...(f.isTest ? { isTest: true } : {}) });
   }
   for (const e of i.emails ?? []) rows.push({ ...emailRow(e), rank: 5 });
   rows.sort((a, b) => GROUP_ORDER[a.group] - GROUP_ORDER[b.group] || a.rank - b.rank || a.since.localeCompare(b.since));
