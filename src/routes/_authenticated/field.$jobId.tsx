@@ -7,7 +7,7 @@ import { TradeVisitCard } from "@/components/portal/visit-changes";
 import { nextStep } from "@/lib/nextstep.core";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ArrowLeft, Check, HeartPulse, Phone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { TradeShell } from "@/components/trade/TradeShell";
@@ -23,7 +23,6 @@ import { BlockersPanel, BookingPanel, EvidencePanel, MessagesPanel, useJob } fro
 import { Button, Section } from "@/components/trade/trade-ui";
 import { MittiCard, MittiSyncedFields } from "@/components/portal/mitti";
 import { mittiFormId } from "@/lib/mitti-form-link.core";
-import { ElectricianManualResult, manualResultEntry } from "@/components/portal/electrician-manual-result";
 import { useServerFn } from "@tanstack/react-start";
 import { getMyMittiInvited, getTradeJobBundle, getTradeJobPage, setA1ReadyCheckTimeFn } from "@/lib/trade-view.functions";
 import { seedPlan } from "@/lib/trade-job-bundle.core";
@@ -43,12 +42,13 @@ import { OwnerQuoteCard } from "@/components/trade/OwnerQuoteCard";
 import { SafetyPlanCard } from "@/components/trade/SafetyPlanCard";
 import { InstallerReadyCheckTimesCard, useInstallerReadyCheckTimes } from "@/components/portal/ready-check-times-installer";
 import { OneTapAction } from "@/components/trade/one-tap-action";
-import { addApprovedRectItem, addOtherRectItem, completeAssessment, completeInstallation, getAssignedRecRates, recordPiesa, removeRectItem, saveAssessment } from "@/lib/portal.functions";
+import { addApprovedRectItem, addOtherRectItem, completeAssessment, completeInstallation, getAssignedRecRates, removeRectItem } from "@/lib/portal.functions";
 import { aud } from "@/lib/workflow";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { melbourneToday } from "@/lib/melbourne-time.core";
+import { PIESA_FULL } from "@/lib/job-wording";
 import { MittiFormLink } from "@/components/portal/MittiFormLink";
 import { CheckMyFormButton } from "@/components/trade/CheckMyFormButton";
 import { InstallerInstallDays, useInstallerInstallDays } from "@/components/portal/install-days";
@@ -134,7 +134,7 @@ function FieldJobBody({ jobId }: { jobId: string }) {
         {role === "electrician" && <ElectricianPiesaTimesCard jobId={jobId} />}
         {role === "electrician" && <FixesTimesCard jobId={jobId} />}
         {role === "electrician" && <InstallAttendanceCard jobId={jobId} />}
-        {role === "electrician" && <ElectricianFlow jobId={jobId} stage={job.stage!} expired={!!job.piesa_expired} />}
+        {role === "electrician" && <ElectricianFlow jobId={jobId} stage={job.stage!} />}
         {role === "electrician" && <SafetyCheckDocRow jobId={jobId} />}
         {role === "electrician" && ["ready_check_scheduled", "piesa_scheduled", "rectification_booked", "installation_booked"].includes(job.stage!) && <TradeVisitCard jobId={jobId} />}
         <VisitContactsCard jobId={jobId} />
@@ -195,36 +195,19 @@ function MittiOnly({ jobId, which }: { jobId: string; which: "ready_check" | "pi
 // ---------- Electrician: one visit, in onsite order ----------
 type A = Record<string, string | number | boolean | null>;
 
-function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: string; expired: boolean }) {
+function ElectricianFlow({ jobId, stage }: { jobId: string; stage: string }) {
   const mittiInvited = useMittiInvited();
-  const save = useAction(saveAssessment);
   const complete = useAction(completeAssessment);
   const { data: a } = useQuery({ queryKey: ["assessment", jobId], queryFn: async () => (await supabase.from("assessments").select("*").eq("job_id", jobId).maybeSingle()).data });
-  const [f, setF] = useState<A>({});
-  const [saved, setSaved] = useState<string | null>(null);
-  useEffect(() => { if (a) setF(a as unknown as A); }, [a]);
   const locked = a?.status === "complete";
   const [plan, setPlan] = useState<RectPlan>({ hours: "", picks: [] });
   const { data: rectCount } = useQuery({ queryKey: ["rect-items-count", jobId], queryFn: async () => (await supabase.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("status", "required")).count ?? 0, refetchInterval: 30_000 });
   // Decision 315: times already given on the "Fixes times" card are never asked again at Complete PIESA.
   const { data: fixesTimes } = useTradeFixesTimes(jobId);
-  const needsPlan = !!rectCount && f["no_rectification_confirmed"] !== true && !(fixesTimes?.show && fixesTimes.given);
+  const needsPlan = !!rectCount && a?.no_rectification_confirmed !== true && !(fixesTimes?.show && fixesTimes.given);
   const finish = () => complete(needsPlan ? { jobId, rectHours: Number(plan.hours), rectWindows: plan.picks } : { jobId }, "PIESA complete");
   const planBlock = !locked && needsPlan ? <Section title="Electrical fixes time and hours"><RectPlanFields value={plan} onChange={setPlan} /></Section> : null;
-  const put = async (k: string, v: string | number | boolean | null) => {
-    setF((p) => ({ ...p, [k]: v }));
-    if (locked) return;
-    const r = await save({ jobId, patch: { [k]: v } as never });
-    if (!r) return;
-    setSaved(new Date(r.savedAt).toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit" }));
-  };
   const assessing = ["assessment_booking", "assessment_booked", "piesa_scheduled"].includes(stage) && !locked;
-  // Manual PIESA pathway (S64, owner ruling G-E1): no Mitti form linked to this job. Editable while the
-  // assessment is open; a completed one shows as a locked record. The Mitti branch above stays authoritative
-  // whenever assessments.external_mitti_id is set.
-  const manualPath = !a?.external_mitti_id;
-  const canEnter = manualPath && manualResultEntry(a);
-  const showManual = manualPath && (assessing || locked);
   const { data: scope } = useJobScope(jobId);
   const measureBlock = !scope || !assessing ? null : scope.measurement.state === "accepted" ? <MeasurementReadOnly jobId={jobId} canFlag /> : <Section title="Installer Ready Check"><p className="text-sm text-sub">The installer does the Ready Check, not you.</p></Section>;
 
@@ -236,8 +219,6 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
       {/* Decision 318: the pay rule sits beside the PIESA / fixes Mitti forms. */}
       {(stage === "rectification_booked" || (a?.external_mitti_id && assessing)) && <NoFormNoPay />}
       {stage === "rectification_booked" && <FixesFormCard jobId={jobId} mittiInvited={mittiInvited} />}
-      {stage === "rectification_booked" && <PiesaForm jobId={jobId} kind="post_rectification" title="Electrical fixes complete – record PIESA sign-off" />}
-      {expired && <PiesaForm jobId={jobId} kind="reassessment" title="PIESA window expired – record reassessment" />}
       {scope && assessing && <div className="rounded-[13px] bg-mist px-4 py-2 text-sm font-semibold text-ink">Your visit: {scope.label}</div>}
       {a?.external_mitti_id && (assessing || locked) && (
         <>
@@ -250,18 +231,8 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
           {!locked && <Button size="field" className="w-full" disabled={needsPlan && rectPlanProblems(plan).length > 0} onClick={finish}><Check /> Complete PIESA</Button>}
         </>
       )}
-      {showManual && (
-        <>
-          {measureBlock}
-          {/* S64 (owner ruling G-E1): no Mitti form linked — the same saveAssessment/completeAssessment chain, entered here. */}
-          {canEnter && <ElectricianManualResult value={f} locked={locked} savedAt={saved} onPut={put} />}
-          {assessing && <EvidencePanel jobId={jobId} role="electrician" gates={["electrical"]} />}
-          {assessing && <OtherItems jobId={jobId} editable />}
-          {planBlock}
-          {assessing && <Button size="field" className="w-full" disabled={needsPlan && rectPlanProblems(plan).length > 0} onClick={finish}><Check /> Complete PIESA</Button>}
-          {locked && <Section title="Pre Insulation Electrical Safety Assessment (PIESA)"><p className="text-sm text-sub">Pre Insulation Electrical Safety Assessment (PIESA) complete.</p></Section>}
-        </>
-      )}
+      {assessing && !a?.external_mitti_id && <Section title={PIESA_FULL}><MittiOnly jobId={jobId} which="piesa" /></Section>}
+      {locked && !a?.external_mitti_id && <Section title={PIESA_FULL}><p className="text-sm text-sub">{PIESA_FULL} complete.</p></Section>}
     </>
   );
 }
@@ -293,37 +264,6 @@ function OtherItems({ jobId, editable }: { jobId: string; editable: boolean }) {
     </Section>
   );
 }
-
-function PiesaForm({ jobId, kind, title }: { jobId: string; kind: "post_rectification" | "reassessment"; title: string }) {
-  const rec = useAction(recordPiesa);
-  const [date, setDate] = useState(melbourneToday());
-  const [sectionC, setSectionC] = useState(false);
-  const [sectionCDate, setSectionCDate] = useState(melbourneToday());
-  const post = kind === "post_rectification";
-  return (
-    <Section title={title}>
-      {post && <div className="mb-3"><EvidencePanel jobId={jobId} role="electrician" gates={["electrical"]} /></div>}
-      <Label>PIESA completion date</Label>
-      <Input className="mb-3 h-12" type="date" value={date} max={melbourneToday()} onChange={(e) => setDate(e.target.value)} />
-      {post && (
-        <div className="mb-3 rounded-lg border p-3">
-          <label className="flex items-start gap-2 text-sm font-medium">
-            <input type="checkbox" className="mt-1" checked={sectionC} onChange={(e) => setSectionC(e.target.checked)} />
-            <span>I confirm Section C of the completed PIESA has been completed and signed for this electrical fixes work.</span>
-          </label>
-          <Label>Section C signed date</Label>
-          <Input className="h-12" type="date" value={sectionCDate} max={melbourneToday()} onChange={(e) => setSectionCDate(e.target.value)} />
-          <p className="mt-1 text-xs text-sub">Upload the signed PIESA / CoES evidence above before recording a pass.</p>
-        </div>
-      )}
-      <div className="grid grid-cols-2 gap-2">
-        <Button size="field" disabled={post && !sectionC} onClick={() => rec({ jobId, kind, outcome: "pass", completedDate: date, ...(post ? { sectionCCompleted: sectionC, sectionCSignedDate: sectionCDate } : {}) }, "PIESA recorded")}>Pass</Button>
-        <Button size="field" variant="outline" onClick={() => rec({ jobId, kind, outcome: "fail", completedDate: date }, "PIESA recorded")}>Fail</Button>
-      </div>
-    </Section>
-  );
-}
-
 
 // ---------- Installer (mock-up M2) ----------
 type Overview = NonNullable<ReturnType<typeof useJob>["data"]>;
