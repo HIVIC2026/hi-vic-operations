@@ -52,7 +52,7 @@ describe("T1 (size unknown) = T2 (size known) except the size disclosure", () =>
     const note = "Based on a typical 150 m² ceiling (an estimate, not your actual size)";
     const t1 = withUnsubscribe(renderJoOutcomeEmail(input(false))!, UNSUB), t2 = withUnsubscribe(renderJoOutcomeEmail(input(true))!, UNSUB);
     expect(t1.plainText).toContain(note);
-    expect(t1.html).toContain("Try a different ceiling size");
+    expect(t1.html).not.toContain("Try a different ceiling size"); // guide fix 1, Jo 29 Oct 2026
     expect(t2.plainText).not.toContain(note);
   });
 });

@@ -131,7 +131,7 @@ export function ActiveJobs({ includeTest = false, initialStage }: { includeTest?
                   <span className="col-start-2 truncate md:col-auto">{r.surname || r.owner}</span>
                   <span className="col-start-2 truncate text-sub md:col-auto">{r.suburb ?? ""}</span>
                   <span className="col-start-2 md:col-auto"><span className="rounded-full bg-mist px-2 py-0.5 text-[11px] font-semibold text-hiv-blue">{JOBS_STAGE_LABEL[r.stage]}</span></span>
-                  <span className="col-start-2 min-w-0 break-words md:col-auto">{r.status}{r.lifeSupport ? <span className="ml-1 text-rose">· life support</span> : null}</span>
+                  <span className="col-start-2 min-w-0 break-words md:col-auto">{r.status}{r.lifeSupport ? <span className="ml-1 text-rose">· life support</span> : null}{r.emailBounced ? <span className="ml-1.5 whitespace-nowrap rounded-full bg-pink px-2 py-0.5 text-[11px] font-semibold text-rose">Email bounced</span> : null}</span>
                   <span className="col-start-2 text-sub md:col-auto">{heardLabel(r.lastHeardAt, r.lastHeardChannel)}</span>
                   <span className="col-start-2 truncate md:col-auto">{r.installer ? `${r.installer}${r.ownJob ? " (own)" : ""}` : r.stage === "choose_installer" ? "Choose installer" : "—"}</span>
                 </li>

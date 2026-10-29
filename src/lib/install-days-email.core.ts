@@ -37,7 +37,8 @@ export function renderInstallDaysEmail(i: InstallDaysEmailInput) {
   const slots = i.days.map((t) => (typeof t === "string" ? splitDayTime(t) : t)).map((t) => ({ day: t.day, time: t.time, href: t.href || pick }));
   const deposit = i.balanceIncGst != null && i.balanceIncGst > 0 ? Math.round(i.balanceIncGst * 10) / 100 : null;
   const rest = deposit != null ? i.balanceIncGst! - deposit : null;
-  const lock1 = `When you tap a day, you'll sign your install consent (the VEU program needs it)${deposit != null ? ` and pay a 10% deposit of ${K.cents(deposit)}` : " and pay a 10% deposit"}. That locks in your day. We hold it for 48 hours while you do this.`;
+  // Guide fix 2 (Jo 29 Oct 2026, decision 423): the deposit is paid to book the day — no 48-hour hold.
+  const lock1 = `To book your day, sign your install consent and pay your 10% deposit${deposit != null ? ` of ${K.cents(deposit)}` : ""}. Once it's in, your day is locked in.`;
   const lock2 = `The rest${rest != null ? `, ${K.cents(rest)},` : ""} is due on install day. Or you can pay in full now.`;
   const byHtml = i.installBy ? `<strong>Your install must happen by ${esc(i.installBy)}</strong>, 30 days after your safety check.` : `<strong>Your install must happen within 30 days of your safety check.</strong>`;
   const preview = `Your safety check is all clear. ${installer} has offered ${slots.length === 3 ? "three days" : "these days"} – tap the one that suits you.`;

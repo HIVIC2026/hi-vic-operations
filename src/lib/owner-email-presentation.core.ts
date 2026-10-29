@@ -17,6 +17,13 @@ export function cleanOwnerEmail(value: string | null | undefined): string {
   return kept.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
+/** The mail system itself (bounce/delivery notices): local part postmaster, mailer-daemon, or MicrosoftExchange…
+ *  Exchange Online writes these from OUR domain, so the check never depends on direction. */
+export function isMailSystemSender(from: string | null | undefined): boolean {
+  const local = (from ?? "").trim().toLowerCase().split("@")[0] ?? "";
+  return local === "postmaster" || local === "mailer-daemon" || local.startsWith("microsoftexchange");
+}
+
 export type EmailDisplayFacts = { direction?: string | null; provider?: string | null; channel?: string | null; from?: string | null; subject?: string | null; body?: string | null; internal?: boolean };
 /** A reply ABOUT an automated subject is still an owner message; never exclude it by subject alone. */
 export function isHumanOwnerEmail(c: EmailDisplayFacts): boolean {
@@ -24,6 +31,7 @@ export function isHumanOwnerEmail(c: EmailDisplayFacts): boolean {
   if (c.channel && c.channel !== "email") return false;
   if (c.provider !== "outlook" && c.provider !== "manual") return false;
   const from = c.from ?? "";
+  if (isMailSystemSender(from)) return false;
   if (c.direction === "inbound" && /(?:@homeinsulationvictoria\.com\.au|mailer-daemon|postmaster|no[-_]?reply|notifications?@|newsletter)/i.test(from)) return false;
   if (/^(?:automatic reply:|auto(?:matic)?[- ]?response:|out of office\b|undeliverable:|delivery (?:status|failure)|mail delivery (?:failed|subsystem))/i.test(c.subject ?? "")) return false;
   if (/(?:\bnewsletter\b|\bcontractor collaboration\b|\bmarketing proposal\b)/i.test(c.subject ?? "")) return false;
