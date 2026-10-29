@@ -63,7 +63,7 @@ describe("Part A — Jo template defects fixed", () => {
     }
   });
 
-  test("T7 “Checking another property?” calculator opens the PUBLIC calculator; T1–T6 open the customer's own estimate", () => {
+  test("T7 “Checking another property?” calculator opens the PUBLIC calculator; T1–T6 carry no calculator link", () => {
     const t7 = sent(ALL[6]![1]);
     // Decision 73 + Jo, 27 Oct: "Send to a friend" opens a new email with the public homeowner page link
     // written in (no customer data in the link). Friends get the homeowner journey, not the calculator.
@@ -73,8 +73,9 @@ describe("Part A — Jo template defects fixed", () => {
     expect(t7.html).not.toContain(encodeURIComponent(PUBLIC_CALCULATOR_URL));
     for (const [, o] of ALL.slice(0, 6)) {
       const m = sent(o);
-      expect(m.plainText).toContain(`Try a different ceiling size: ${TOK}#calculator`);
-      expect(m.html).toContain(`href="${TOK}#calculator"`);
+      // Guide fix 1 (Jo 29 Oct 2026): owner emails no longer link the calculator at all.
+      expect(m.plainText).not.toContain("Try a different ceiling size");
+      expect(m.html).not.toContain(`href="${TOK}#calculator"`);
       expect(m.plainText).not.toContain(`: ${PUBLIC_CALCULATOR_URL}\n`);
     }
   });
