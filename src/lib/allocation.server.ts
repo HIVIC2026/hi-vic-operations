@@ -388,7 +388,11 @@ async function piesaOffersRanOut(jobId: string, actorId: string | null) {
     stageWaiting: j?.stage === "piesa_and_install_window_pending", anyAccepted: (offers ?? []).some((o) => o.status === "accepted"), officePicks, switchOn: sw.piesa,
     latest: { auto: flags["auto_offer"] === true, officeChoice: flags["office_choice"] === true }, exhaustedSinceLatestOffer: (ex ?? []).length > 0,
   });
-  if (step === "switch_off_hand_back") { await (await import("./auto-offer.server")).handPiesaToOfficeAutoOff(jobId, actorId); return; }
+  if (step === "switch_off_hand_back") {
+    // Logged, never thrown: a failure here must not abort the decline or the expiry loop in sweepRecOffers.
+    await (await import("./auto-offer.server")).handPiesaToOfficeAutoOff(jobId, actorId).catch((e) => console.error("PIESA hand-back skipped", (e as Error).message));
+    return;
+  }
   if (step !== "coverage_exhausted") return;
   const offered = [...new Set((offers ?? []).map((o) => o.business_id).filter((x): x is string => !!x))];
   await logEvent(jobId, actorId, "rec_coverage_exhausted", "No approved electrician left to offer the piesa to — needs Home Insulation Victoria", { kind: "piesa", offered }, { internal: true });

@@ -163,13 +163,12 @@ export async function autoOfferForJob(jobId: string, kind: AutoOfferKind, switch
 export async function handPiesaToOfficeAutoOff(jobId: string, actorId: string | null = null): Promise<boolean> {
   // Only a job genuinely waiting for an electrician: at the PIESA stage, nobody assigned (team-up auto-assign puts an
   // electrician on with no offer row) and its PIESA request gate clear — otherwise there is nothing for the office to choose.
-  const [{ data: j }, { count: elec }] = await Promise.all([
+  // An unreadable assignment check fails closed (no hand-back).
+  const [{ data: j }, { count: elec, error: elecErr }] = await Promise.all([
     admin.from("jobs").select("stage").eq("id", jobId).maybeSingle(),
     admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("active", true),
   ]);
-  if (j?.stage !== "piesa_and_install_window_pending" || (elec ?? 0) > 0) return false;
-  const { piesaRequestBlockers } = await import("./payment-gate.core");
-  if (piesaRequestBlockers(await piesaRequestFacts(jobId)).length) return false;
+  if (elecErr || j?.stage !== "piesa_and_install_window_pending" || (elec ?? 0) > 0) return false;
   const [reopenAt, { data: last }] = await Promise.all([
     (await import("./repeat-piesa.server")).latestReopenAt(jobId),
     admin.from("partner_offers").select("offered_at").eq("job_id", jobId).eq("kind", "piesa").order("offered_at", { ascending: false }).limit(1).maybeSingle(),
@@ -179,6 +178,9 @@ export async function handPiesaToOfficeAutoOff(jobId: string, actorId: string | 
   if (since) q = q.gt("created_at", since);
   const { data: already } = await q.limit(1);
   if ((already ?? []).length) return false;
+  // Checked last (heaviest read): a job already handed back never reads its gate again every tick.
+  const { piesaRequestBlockers } = await import("./payment-gate.core");
+  if (piesaRequestBlockers(await piesaRequestFacts(jobId)).length) return false;
   await logEvent(jobId, actorId, AUTO_OFFER_RETURNED_EVENT, autoOfferReturnedSummary("piesa", "switch_off", 0), { kind: "piesa", reason: "switch_off", misses: 0, tried_business_ids: [] }, { internal: true });
   await admin.from("jobs").update({ next_action: PIESA_CHOOSE_NEXT_ACTION }).eq("id", jobId).in("stage", AUTO_OFFER_READY_STAGES.piesa as never[]);
   return true;

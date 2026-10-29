@@ -28,17 +28,20 @@ const tables: Tables = {};
 const rpcCalls: string[] = [];
 class WorkflowError extends Error {}
 const CLEAR_GATE = { installerIntakeQualified: true, currentQuoteApproved: true, payment: { cleared: true, blocker: "" }, repeatBlocker: null };
-let gateFacts: Record<string, unknown> = CLEAR_GATE;
+let gateFacts: Record<string, unknown> | "THROW" = CLEAR_GATE;
 const db = memoryPostgrest(tables);
+/** A table whose reads fail (database error), to prove fail-closed paths. */
+let failTable: string | null = null;
+const failing = (): unknown => new Proxy({}, { get: (_t, k) => (k === "then" ? (res: (v: unknown) => unknown) => res({ data: null, count: null, error: { message: "boom" } }) : () => failing()) });
 mock.module("@/integrations/supabase/client.server", () => ({
-  supabaseAdmin: { from: (t: string) => db.from(t), rpc: async (name: string) => { rpcCalls.push(name); return { data: false, error: null }; } },
+  supabaseAdmin: { from: (t: string) => (failTable === t ? failing() : db.from(t)), rpc: async (name: string) => { rpcCalls.push(name); return { data: false, error: null }; } },
 }));
 mock.module("../src/lib/workflow.server", () => ({
   WorkflowError,
   logEvent: async (job: string, actor: string | null, type: string, summary: string, details?: unknown) => {
     tables["workflow_events"]!.push({ id: `ev-${tables["workflow_events"]!.length + 1}`, job_id: job, actor_id: actor, event_type: type, summary, details: details ?? {}, created_at: new Date().toISOString() });
   },
-  piesaRequestFacts: async () => gateFacts,
+  piesaRequestFacts: async () => { if (gateFacts === "THROW") throw new Error("facts unreadable"); return gateFacts; },
   stageEntryBlockers: async () => [],
   transition: async () => undefined,
 }));
@@ -50,6 +53,7 @@ function seed(o: { mode?: string; autoOn?: boolean; offers?: Record<string, unkn
   for (const k of Object.keys(tables)) delete tables[k];
   rpcCalls.length = 0;
   gateFacts = CLEAR_GATE;
+  failTable = null;
   Object.assign(tables, {
     jobs: [{ id: J, stage: "piesa_and_install_window_pending", channel: "hivic_sourced", source: "website", deleted_at: null, offer_dispatch_override: null, next_action: null }],
     workflow_settings: [{ id: 1, offer_dispatch_mode: o.mode ?? "automatic", auto_electrician_offers: o.autoOn ?? false }],
@@ -228,6 +232,22 @@ describe("fix wave 1 — automatic electrician offers switched off: the job goes
     job()["stage"] = "piesa_scheduled";
     expect(await autoSrv.handPiesaToOfficeAutoOff(J)).toBe(false);
     expect(events("auto_offer_returned_to_office")).toHaveLength(0);
+  });
+  test("hardening: the assignment check can't be read → no hand-back (fail closed)", async () => {
+    seed();
+    failTable = "job_assignments";
+    expect(await autoSrv.handPiesaToOfficeAutoOff(J)).toBe(false);
+    failTable = null;
+    expect(events("auto_offer_returned_to_office")).toHaveLength(0);
+    expect(job()["next_action"]).toBeNull();
+  });
+  test("hardening: a failing hand-back on the run-out path is logged, never aborts the decline / expiry loop", async () => {
+    seed({ offers: [offer("a1", "b1", "pending", 30, { auto_offer: true, office_choice: true })] });
+    gateFacts = "THROW";
+    await expect(alloc.respondToRecOffer("a1", "u1", false, null)).resolves.toEqual({ ok: true });
+    expect(events("auto_offer_returned_to_office")).toHaveLength(0);
+    const src = readFileSync("src/lib/allocation.server.ts", "utf8");
+    expect(src).toMatch(/handPiesaToOfficeAutoOff\(jobId, actorId\)\.catch\(/);
   });
   test("tick: autoStartPiesaOffers hands the job back when the automatic offers say switch_off", () => {
     const src = readFileSync("src/lib/allocation.server.ts", "utf8");
