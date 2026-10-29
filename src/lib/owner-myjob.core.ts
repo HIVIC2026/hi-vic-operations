@@ -107,7 +107,7 @@ export function ownerCanCancel(stage: string, bookingKinds: string[], safetyChec
 /** Photo or PDF, the same owner upload size limit as the owner photo/video uploads (job-files bucket). */
 export const LIFE_SUPPORT_PLAN_MAX_BYTES = 200 * 1024 * 1024;
 export const LIFE_SUPPORT_PLAN_SOURCE = "owner_life_support";
-const LS_TYPES: Record<string, string> = { "application/pdf": "pdf", "image/jpeg": "jpg", "image/png": "png", "image/heic": "heic", "image/heif": "heif", "image/webp": "webp" };
+const LS_TYPES: Record<string, string> = { "application/pdf": "pdf", "image/jpeg": "jpg", "image/jpg": "jpg", "image/png": "png", "image/heic": "heic", "image/heif": "heif", "image/webp": "webp" };
 const LS_EXT: Record<string, string> = { pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", heic: "image/heic", heif: "image/heif", webp: "image/webp" };
 /** The file's type (phones sometimes send an empty type: fall back to a known extension), or null. */
 export function lifeSupportPlanType(mime: string | null | undefined, fileName: string | null | undefined): string | null {
@@ -116,12 +116,14 @@ export function lifeSupportPlanType(mime: string | null | undefined, fileName: s
   if (m && m !== "application/octet-stream") return null;
   return LS_EXT[(fileName ?? "").toLowerCase().match(/\.([a-z0-9]+)$/)?.[1] ?? ""] ?? null;
 }
-/** Errors reuse the existing owner upload wording. */
+/** Jo-approved error lines for this card only (29 Oct 2026), verbatim. */
+export const LIFE_SUPPORT_PLAN_WRONG_TYPE = "Please upload a photo or PDF.";
+export const LIFE_SUPPORT_PLAN_TOO_BIG = "That file is too big. Please upload a smaller photo or PDF.";
 export function validateLifeSupportPlanFile(x: { mime: string | null; fileName: string | null; size: number }): { ok: true; mime: string } | { ok: false; error: string } {
   const mime = lifeSupportPlanType(x.mime, x.fileName);
-  if (!mime) return { ok: false, error: "That file type isn't accepted. Please upload a PDF, photo (JPG, PNG, WEBP, HEIC), video (MP4, MOV), Word or Excel file." };
+  if (!mime) return { ok: false, error: LIFE_SUPPORT_PLAN_WRONG_TYPE };
   if (!Number.isFinite(x.size) || x.size <= 0) return { ok: false, error: "That file looks empty. Please try again." };
-  if (x.size > LIFE_SUPPORT_PLAN_MAX_BYTES) return { ok: false, error: "That file is larger than 200 MB. Please choose a shorter video or smaller photo." };
+  if (x.size > LIFE_SUPPORT_PLAN_MAX_BYTES) return { ok: false, error: LIFE_SUPPORT_PLAN_TOO_BIG };
   return { ok: true, mime };
 }
 const UUID_RE = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";

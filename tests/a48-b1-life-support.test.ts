@@ -213,7 +213,9 @@ describe("F1: the owner uploads the plan on My job (token-scoped)", () => {
   test("file rules: photo or PDF only, not empty, within the owner upload limit; paths belong to the job", () => {
     expect(validateLifeSupportPlanFile({ mime: "application/pdf", fileName: "plan.pdf", size: 1000 })).toEqual({ ok: true, mime: "application/pdf" });
     expect(validateLifeSupportPlanFile({ mime: "", fileName: "plan.HEIC", size: 1000 })).toEqual({ ok: true, mime: "image/heic" });
-    expect(validateLifeSupportPlanFile({ mime: "video/mp4", fileName: "a.mp4", size: 1000 }).ok).toBe(false);
+    expect(validateLifeSupportPlanFile({ mime: "image/jpg", fileName: "a.jpg", size: 1000 })).toEqual({ ok: true, mime: "image/jpeg" });
+    expect(validateLifeSupportPlanFile({ mime: "video/mp4", fileName: "a.mp4", size: 1000 })).toEqual({ ok: false, error: "Please upload a photo or PDF." });
+    expect(validateLifeSupportPlanFile({ mime: "application/pdf", fileName: "a.pdf", size: 201 * 1024 * 1024 })).toEqual({ ok: false, error: "That file is too big. Please upload a smaller photo or PDF." });
     expect(validateLifeSupportPlanFile({ mime: "application/pdf", fileName: "a.pdf", size: 0 }).ok).toBe(false);
     expect(validateLifeSupportPlanFile({ mime: "application/pdf", fileName: "a.pdf", size: 201 * 1024 * 1024 }).ok).toBe(false);
     const id = "00000000-0000-4000-8000-0000000000f1";
@@ -255,13 +257,14 @@ describe("F1: the owner uploads the plan on My job (token-scoped)", () => {
   test("refused: a bad link, another job's path, a missing file, a wrong stored type (removed), a job that doesn't need it", async () => {
     seed({ life_support: true, life_support_status: "yes" });
     await expect(owner.startLifeSupportPlanUpload("bad", { fileName: "plan.pdf", mime: "application/pdf", size: 10 })).rejects.toThrow();
-    await expect(owner.startLifeSupportPlanUpload(TOKEN, { fileName: "a.mp4", mime: "video/mp4", size: 10 })).rejects.toThrow();
+    await expect(owner.startLifeSupportPlanUpload(TOKEN, { fileName: "a.mp4", mime: "video/mp4", size: 10 })).rejects.toThrow("Please upload a photo or PDF.");
+    await expect(owner.startLifeSupportPlanUpload(TOKEN, { fileName: "a.pdf", mime: "application/pdf", size: 201 * 1024 * 1024 })).rejects.toThrow("That file is too big. Please upload a smaller photo or PDF.");
     const other = lifeSupportPlanPath("00000000-0000-4000-8000-0000000000d9", "00000000-0000-4000-8000-0000000000f1", "application/pdf");
     await expect(owner.finishLifeSupportPlanUpload(TOKEN, { path: other, fileName: "plan.pdf" })).rejects.toThrow();
     const slot = await owner.startLifeSupportPlanUpload(TOKEN, { fileName: "plan.pdf", mime: "application/pdf", size: 10 });
     await expect(owner.finishLifeSupportPlanUpload(TOKEN, { path: slot.path, fileName: "plan.pdf" })).rejects.toThrow();
     objects.set(slot.path, { size: 10, mimetype: "video/mp4" });
-    await expect(owner.finishLifeSupportPlanUpload(TOKEN, { path: slot.path, fileName: "plan.pdf" })).rejects.toThrow();
+    await expect(owner.finishLifeSupportPlanUpload(TOKEN, { path: slot.path, fileName: "plan.pdf" })).rejects.toThrow("Please upload a photo or PDF.");
     expect(removed).toContain(slot.path);
     expect(tables["documents"]!.length).toBe(0);
     seed({ life_support: false, life_support_status: "no" });
@@ -272,6 +275,10 @@ describe("F1: the owner uploads the plan on My job (token-scoped)", () => {
     for (const name of ["getLifeSupportPlanState", "startLifeSupportPlanUploadFn", "finishLifeSupportPlanUploadFn"])
       expect(fns).toMatch(new RegExp(`export const ${name} = createServerFn\\(\\{ method: "POST" \\}\\)\\.middleware\\(\\[withRequestMeta\\]\\)\\s*\\.inputValidator\\(`));
     expect(fns).not.toMatch(/jobId/);
+  });
+  test("the shared upload-safety wrong-type message is unchanged", async () => {
+    const shared = readFileSync("src/lib/upload-safety.server.ts", "utf8");
+    expect(shared).toContain('BAD_FILE_MESSAGE = "That file type isn\'t accepted. Please upload a PDF, photo (JPG, PNG, WEBP, HEIC), video (MP4, MOV), Word or Excel file."');
   });
   test("My job shows Jo's approved words, verbatim", () => {
     const page = readFileSync("src/routes/my-job.$token.tsx", "utf8");

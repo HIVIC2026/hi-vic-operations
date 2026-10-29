@@ -201,7 +201,7 @@ export async function finishLifeSupportPlanUpload(token: unknown, x: { path: str
   const { data: l } = await admin.from("customer_estimate_links").select("job_id, status, expires_at").eq("token", token).eq("purpose", LINK_PURPOSE).maybeSingle();
   if (!l || !linkUsable(l)) throw new Error(LS_GENERIC);
   const jobId = l.job_id;
-  const { parseLifeSupportPlanPath, lifeSupportPlanType, LIFE_SUPPORT_PLAN_MAX_BYTES, LIFE_SUPPORT_PLAN_SOURCE } = await import("./owner-myjob.core");
+  const { parseLifeSupportPlanPath, lifeSupportPlanType, LIFE_SUPPORT_PLAN_MAX_BYTES, LIFE_SUPPORT_PLAN_SOURCE, LIFE_SUPPORT_PLAN_WRONG_TYPE, LIFE_SUPPORT_PLAN_TOO_BIG } = await import("./owner-myjob.core");
   const uploadId = parseLifeSupportPlanPath(jobId, x.path);
   if (!uploadId) throw new Error(LS_GENERIC);
   // The same upload finished twice (retry after a dropped reply): already recorded.
@@ -218,9 +218,11 @@ export async function finishLifeSupportPlanUpload(token: unknown, x: { path: str
   const { verifyStoredUpload, BAD_FILE_MESSAGE } = await import("./upload-safety.server");
   if (!storedMime || size <= 0 || size > LIFE_SUPPORT_PLAN_MAX_BYTES) {
     await admin.storage.from(LS_BUCKET).remove([x.path]);
-    throw new Error(BAD_FILE_MESSAGE);
+    throw new Error(storedMime && size > LIFE_SUPPORT_PLAN_MAX_BYTES ? LIFE_SUPPORT_PLAN_TOO_BIG : LIFE_SUPPORT_PLAN_WRONG_TYPE);
   }
-  await verifyStoredUpload(LS_BUCKET, x.path, storedMime);
+  // The shared check's wrong-type message is for other uploads; this card uses its own approved line.
+  try { await verifyStoredUpload(LS_BUCKET, x.path, storedMime); }
+  catch (e) { throw (e as Error).message === BAD_FILE_MESSAGE ? new Error(LIFE_SUPPORT_PLAN_WRONG_TYPE) : e; }
   const safeName = x.fileName.replace(/[^\w.\- ]+/g, "_").slice(0, 120) || "file";
   const { LIFE_SUPPORT_PLAN_DOC_KIND } = await import("./job-records.server");
   const { error, data: ins } = await admin.from("documents").insert({
