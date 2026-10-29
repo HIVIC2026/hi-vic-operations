@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { PIESA_FULL } from "../src/lib/job-wording";
 import { STAFF_LINKS_LABEL, jobNext, mittiLinkPlace, thirtyDayLine } from "../src/lib/installer-screens.core";
 import { OWNER_PIESA_CONFIRM_WAITING } from "../src/lib/piesa-owner-confirm.core";
-import { SAFETY_CHECK_DOC_TITLE } from "../src/lib/trade-view.core";
+import { SAFETY_CHECK_DOC_TITLE, contactVisible } from "../src/lib/trade-view.core";
 const read = (p: string) => readFileSync(p, "utf8");
 const code = (s: string) => s.replace(/\{\/\*[\s\S]*?\*\/\}/g, "").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 const ROUTE = "src/routes/_authenticated/field.$jobId.tsx";
@@ -47,4 +47,19 @@ test("C7: plain staff-links label", () => {
   expect(STAFF_LINKS_LABEL).toBe("Send this job to a staff member");
   expect(read(ROUTE)).not.toContain("More · staff job links");
   expect(read(ROUTE)).toContain("{STAFF_LINKS_LABEL}");
+});
+
+test("C3: electrician Call/Text follow their own visits", () => {
+  expect(contactVisible([{ status: "confirmed" }])).toBe(true);
+  expect(contactVisible([{ status: "completed" }, { status: "confirmed" }])).toBe(true);
+  expect(contactVisible([{ status: "completed" }, { status: "cancelled" }])).toBe(false);
+  expect(read("src/lib/job-status.server.ts")).toContain("ownerContactVisible: contactVisible(");
+  const elec = read(ROUTE).split("function FieldJobBody")[1]!.split("function A1ReadyCheckTimeCard")[0]!;
+  expect(elec).toContain("showOwnerContact && job.owner_phone && <a href={`tel:");
+  expect(elec).toContain("showOwnerContact && job.owner_phone && <a href={`sms:");
+});
+test("C5: electricians don't see the install deadline", () => {
+  const elec = read(ROUTE).split("function FieldJobBody")[1]!.split("function A1ReadyCheckTimeCard")[0]!;
+  expect(elec).not.toContain("Install must start by");
+  expect(elec).not.toContain("days left");
 });

@@ -19,11 +19,15 @@ export function StatusLineView({ line, compact }: { line: StatusLine; compact?: 
   );
 }
 
-export function JobStatusCard({ jobId }: { jobId: string }) {
+export function useTradeJobStatus(jobId: string, enabled = true) {
   const load = useServerFn(getTradeJobStatus);
+  return useQuery({ queryKey: ["trade-job-status", jobId], queryFn: () => load({ data: { jobId } }), enabled });
+}
+
+export function JobStatusCard({ jobId }: { jobId: string }) {
   const ask = useServerFn(askTradeReminder);
   const qc = useQueryClient();
-  const { data, error } = useQuery({ queryKey: ["trade-job-status", jobId], queryFn: () => load({ data: { jobId } }) });
+  const { data, error } = useTradeJobStatus(jobId);
   const m = useMutation({ mutationFn: () => ask({ data: { jobId } }), onSuccess: () => qc.invalidateQueries({ queryKey: ["trade-job-status", jobId] }) });
   if (error || !data) return null;
   const chaseable = data.line.who === "Owner";
