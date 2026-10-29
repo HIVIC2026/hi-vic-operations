@@ -64,7 +64,7 @@ export type AutoOfferRow = { business_id: string | null; status: string; offered
 export type AutoOfferStep =
   | { action: "none"; reason: "switch_off" | "job_not_ready" | "already_assigned" | "returned_to_office" | "offer_open" | "office_in_charge" }
   | { action: "offer"; businessId: string; name: string; attempt: number; basis: "usual_electrician" | "coverage"; activeJobs: number; distanceKm: number | null }
-  | { action: "return_to_office"; reason: "two_misses" | "no_match"; misses: number; tried: string[] };
+  | { action: "return_to_office"; reason: "two_misses" | "no_match" | "preferred_missed"; misses: number; tried: string[] };
 
 /** Test/live parity (fails closed both ways): a TEST job only to TEST partners, a live job never to a TEST partner. */
 export function autoOfferParityBlocker(c: Pick<AutoOfferCandidate, "testPartner">, jobIsTest: boolean): string | null {
@@ -147,6 +147,9 @@ export function autoOfferStep(f: AutoOfferFacts & { candidates: AutoOfferCandida
   if (blocked) return blocked;
   const done = new Set(tried(f.rows));
   const jobIsTest = f.jobIsTest === true;
+  // Decision 426 (Jo 29 Oct 2026): on an installer's own job their chosen electrician goes first; if they don't take
+  // it, the job goes back to the office — we never swap in another electrician without the installer's say-so.
+  if (f.kind === "piesa" && f.usualBusinessId && done.has(f.usualBusinessId)) return { action: "return_to_office", reason: "preferred_missed", misses: autoOfferMisses(f.rows), tried: [...done] };
   const ranked = f.kind === "ready_check" ? rankAutoInstallers(f.candidates, done, jobIsTest) : rankAutoElectricians(f.candidates, done, f.usualBusinessId ?? null, jobIsTest);
   const misses = autoOfferMisses(f.rows);
   const pick = ranked[0];
@@ -159,8 +162,9 @@ export function autoOfferStep(f: AutoOfferFacts & { candidates: AutoOfferCandida
 }
 
 /** Office wording for the "Choose again" hand-back (Needs me reads `auto_offer_returned_to_office`). */
-export function autoOfferReturnedSummary(kind: AutoOfferKind, reason: "two_misses" | "no_match", misses: number): string {
+export function autoOfferReturnedSummary(kind: AutoOfferKind, reason: "two_misses" | "no_match" | "preferred_missed", misses: number): string {
   const who = kind === "ready_check" ? "installer" : "electrician";
+  if (reason === "preferred_missed") return "Automatic electrician offers: the installer's electrician didn't take it — choose again";
   return reason === "two_misses"
     ? `Automatic ${who} offers: ${misses} ${who}s didn't take it — choose again`
     : misses

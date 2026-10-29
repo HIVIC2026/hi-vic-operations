@@ -140,7 +140,8 @@ describe("electrician pick", () => {
     const cs = [cand("near", { distanceKm: 3 }), cand("usual", { distanceKm: 50, activeJobs: 9 }), cand("mid", { distanceKm: 10 })];
     expect(rankAutoElectricians(cs, new Set(), "usual").map((c) => c.business_id)).toEqual(["usual", "near", "mid"]);
     expect(autoOfferStep({ ...base("piesa"), candidates: cs, usualBusinessId: "usual" })).toMatchObject({ action: "offer", businessId: "usual", basis: "usual_electrician" });
-    expect(autoOfferStep({ ...base("piesa", [miss("usual")]), candidates: cs, usualBusinessId: "usual" })).toMatchObject({ action: "offer", businessId: "near", basis: "coverage", attempt: 2 });
+    // Decision 426 (Jo 29 Oct 2026): if the installer's electrician doesn't take it, the job goes back to the office.
+    expect(autoOfferStep({ ...base("piesa", [miss("usual")]), candidates: cs, usualBusinessId: "usual" })).toMatchObject({ action: "return_to_office", reason: "preferred_missed" });
   });
   test("a blocked usual electrician (e.g. no agreed rate) is skipped", () => {
     const cs = [cand("usual", { blocker: "No agreed electrician rate recorded." }), cand("near", { distanceKm: 3 })];

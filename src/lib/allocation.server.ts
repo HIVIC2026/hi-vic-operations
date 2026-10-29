@@ -317,7 +317,9 @@ async function autoStartPiesaOffers(actorId: string | null) {
     // Already allocated once (since the latest reopen); refill/exhaustion handles the rest.
     if (await (await import("./repeat-piesa.server")).piesaOffersSinceReopen(j.id)) continue;
     if (await (await import("./offer-dispatch.server")).jobOfficePicks(j.id)) continue; // waits in Needs me: "Choose trades for this job"
-    try { await startPiesaAllocation(j.id, actorId); started++; } catch { /* gate not cleared: stay put */ }
+    // Decision 426 (Jo 29 Oct 2026): one electrician at a time (nearest first, 24 hours each) — never a batch.
+    const r = await (await import("./auto-offer.server")).autoOfferForJob(j.id, "piesa").catch(() => null);
+    if (r?.step === "offer") started++;
   }
   return started;
 }
@@ -344,13 +346,9 @@ async function refillIfNeeded(jobId: string, kind: "piesa" | "rectification", ac
     admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("active", true),
   ]);
   if (open || elec) return;
-  if (kind === "piesa") {
-    // Only re-offer while the job is genuinely waiting for a PIESA electrician and its PIESA gate is still clear.
-    const { data: j } = await admin.from("jobs").select("stage").eq("id", jobId).single();
-    if (j?.stage !== "piesa_and_install_window_pending") return;
-    const { piesaRequestBlockers } = await import("./payment-gate.core");
-    if (piesaRequestBlockers(await piesaRequestFacts(jobId)).length) return;
-  }
+  // Decision 426: no new batch of safety check offers. The automatic one-at-a-time offers pick the next electrician;
+  // a job whose older batch has run out goes to the office.
+  if (kind === "piesa") return;
   // Office-picked trade said no / ran out: Needs me shows "Pick another" or "Send to all". Never auto-widen.
   if (await officePickUnanswered(jobId, kind)) return;
   if (await (await import("./offer-dispatch.server")).jobOfficePicks(jobId)) return; // office picks: Needs me shows "add more trades"

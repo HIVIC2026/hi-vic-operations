@@ -108,9 +108,9 @@ export async function autoOfferForJob(jobId: string, kind: AutoOfferKind, switch
     admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", AUTO_OFFER_RETURNED_EVENT).contains("details", { kind }).limit(1),
   ]);
   if (!job) return { jobId, kind, step: "none", reason: "job_not_found" };
-  const mode = kind === "piesa" ? await (await import("./offer-dispatch.server")).dispatchMode() : null;
   let jobReady = !job.deleted_at && autoOfferStageReady(kind, job.stage)
-    && (kind === "ready_check" ? job.channel === "hivic_sourced" : mode !== "automatic" && job.offer_dispatch_override !== "office_picks");
+    // Decision 426 (Jo 29 Oct 2026): safety check offers always go one electrician at a time, in either dispatch mode.
+    && (kind === "ready_check" ? job.channel === "hivic_sourced" : job.offer_dispatch_override !== "office_picks");
   // PIESA: a job still in measured_quote_accepted is ready only once it may ENTER the PIESA stage (decisions 139–141:
   // $349 safety check recorded, quote approved, verified eligible …) — the same entry check startPiesaAllocation makes,
   // so an unpaid acceptance is "not ready" rather than a refused send every tick.
