@@ -798,9 +798,12 @@ export async function tradeAddTeamPerson(userId: string, p: { name: string; work
     : { trade_role: c.kind, licence_number: licence, worker_role: null };
   const { data, error } = await admin.from("partner_workers").insert({ business_id: c.biz.id, full_legal_name: name, email, mobile: v.mobile, ...row, approval_status: "pending", declarations_due: true, added_by: userId } as never).select("id").single();
   if (error) {
-    if (error.code === "23502") throw new WorkflowError("Adding someone without an email needs the office's database update first.");
+    const needsDbUpdate = "Adding someone without an email needs the office's database update first.";
+    if (error.code === "23502") throw new WorkflowError(needsDbUpdate);
+    // Before 0230 (declarations_due) is live: same plain message, no retry without the column.
+    if (error.code === "PGRST204" || (await import("./schema-compat.core")).isMissingDbObject(error)) throw new WorkflowError(needsDbUpdate);
     if (error.code === "23505") throw new WorkflowError("Someone with that email is already on your team.");
-    throw new WorkflowError(`Couldn't add them: ${error.message}`);
+    throw new WorkflowError("Couldn't add them. Please try again.");
   }
   return { workerId: (data as { id: string }).id };
 }
