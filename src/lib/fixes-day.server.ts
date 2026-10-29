@@ -294,6 +294,8 @@ export async function completeFixesForm(jobId: string, auditId: string, opts: { 
     const { error } = await admin.from("assessments").update({ mitti_raw_snapshot: merged as unknown as Json }).eq("id", a.id);
     if (error) throw new WorkflowError(`PIESA Section C could not be written to the stored answers: ${error.message}`);
   }
+  // A48 batch 1: a signed Section C covers the repair rules — clear an open "breaks the official rules" item. Never throws.
+  await (await import("./piesa-rules-notice.server")).recheckPiesaRules(jobId, actorId);
   // Mitti's own report.
   // Decision 336: the A4 signature IMAGE goes in the official Section C box (kept privately with the job first).
   await (await import("./official-signature.server")).savePiesaSignatureImage(jobId, actorId, "a5", auditId, read.signature, fetchMedia);

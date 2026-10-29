@@ -467,11 +467,12 @@ export const PIESA_RULE_REASON: Record<string, string> = {
 export const PIESA_RULE_NOT_BLOCKING: readonly string[] = ["COPY-24H", "P7-NOT-EFFECTIVE"];
 const PIESA_REASON_ORDER = [...new Set(Object.values(PIESA_RULE_REASON))];
 
-/** The official-form rule failures as blocking rules with plain reasons: one per reason, in table order. Unmapped rules are not returned (a test pins that every emitted rule is mapped or excluded). */
-export function piesaRuleBlockers(answers: OfficialAnswers): { rule: string; reason: string }[] {
+/** The official-form rule failures as blocking rules with plain reasons: one per reason, in table order. Unmapped rules are not returned (a test pins that every emitted rule is mapped or excluded).
+ *  `keep` (A48 batch 1 task 2) drops rules before the reasons are grouped, e.g. blanks that a later step fills. */
+export function piesaRuleBlockers(answers: OfficialAnswers, keep: (rule: string) => boolean = () => true): { rule: string; reason: string }[] {
   const byReason = new Map<string, string>();
   for (const b of evaluatePiesa(answers).blockers) {
-    if (PIESA_RULE_NOT_BLOCKING.includes(b.rule)) continue;
+    if (PIESA_RULE_NOT_BLOCKING.includes(b.rule) || !keep(b.rule)) continue;
     const reason = PIESA_RULE_REASON[b.rule] ?? PIESA_RULE_REASON[b.rule.split(":")[0]!];
     if (reason && !byReason.has(reason)) byReason.set(reason, b.rule);
   }

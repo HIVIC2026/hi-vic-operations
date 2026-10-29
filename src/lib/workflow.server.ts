@@ -332,6 +332,11 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
     const ob = await (await import("./piesa-owner-confirm.server")).ownerPiesaConfirmationBlockerFor(jobId);
     if (ob) blockers.push(ob);
   }
+  // A48 batch 1: a safety check that breaks the official PIESA rules stops the job until a corrected form or a signed Section C.
+  if (to === "piesa_complete" || to === "installation_scheduling" || to === "installation_booked") {
+    const rb = await (await import("./piesa-rules-notice.server")).piesaRulesBlockerFor(jobId);
+    if (rb) blockers.push(rb);
+  }
   const piesa = await piesaStatus(jobId);
 
   if (["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked"].includes(to)) {

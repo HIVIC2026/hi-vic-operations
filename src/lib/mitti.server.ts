@@ -463,6 +463,9 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
         const ev = evaluatePiesa(expanded.answers);
         // Decision 314 / 327: a completed A3 with "Be on site at the start of the install day" ticked is recorded (history only).
         if (plan.completed) await syncOnsiteStartItem(jobId, actorId, shortAnswers["rectificationOutcome"] === RECTIFICATION_OUTCOMES[2]).catch(() => undefined);
+        // A48 batch 1: a completed A3 that breaks the official rules → one event + one electrician message per form version
+        // (read from the answers just stored); a later version that passes clears it. Never throws.
+        if (plan.completed) await (await import("./piesa-rules-notice.server")).recheckPiesaRules(jobId, actorId);
         issues = [...plan.issues, ...refused.issues, ...evidenceBlockers.map((b) => `${PIESA_EVIDENCE_ISSUE_PREFIX}${b}`), ...(priceTalk ? [priceTalk] : []), ...expanded.flagged.map((f) => `Official form: ${f}`), ...ev.blockers.map((b) => `Official form: ${b.message}${b.confirmation ? ` [${b.confirmation}]` : ""}`)];
         for (const o of plan.others) {
           const { data: ex } = await admin.from("rectification_items").select("id,status").eq("job_id", jobId).eq("external_key", o.external_key).maybeSingle();

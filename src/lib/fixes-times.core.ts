@@ -4,7 +4,7 @@
 // assigned electrician gets ONE text with a link to their job page (/field/{jobId}#fixes-times) to pick the times there.
 // Pure: the decision, the key, the wording, the link, the quote hold and the 24h Needs me rule. No I/O.
 import { fixesFormNeeded } from "./fixes-day.core";
-import { onsiteStartTicked, repairWorkBesidesOnsite } from "./official-short.core";
+import { onsiteStartTicked, part4to6Problem, repairWorkBesidesOnsite } from "./official-short.core";
 
 /** Recorded once per job + PIESA (A3 audit) BEFORE anything is sent (details: { key, audit_id, completed_at, business_id, to }). */
 export const FIXES_TIMES_LINK_EVENT = "fixes_times_link_sent" as const;
@@ -28,9 +28,10 @@ export function fixesTimesLinkText(f: { address: string | null; link: string }):
 
 // ---- Decision 314: "Be on site at the start of the install day" as the ONLY repair tick = no fixes visit, no times ----
 /** The A3's only repair tick is "Be on site at the start of the install day" (official-short.core `fixesWorkTicks`): the
- *  electrician attends the install day instead of a fixes visit. Any other tick alongside it still needs the times. */
+ *  electrician attends the install day instead of a fixes visit. Any other tick alongside it still needs the times.
+ *  A48 batch 1: never with a Part 4–6 problem — that needs rectification (B1 option 2), so a fixes visit. */
 export function onsiteStartOnly(short: Record<string, unknown>): boolean {
-  return onsiteStartTicked(short) && !repairWorkBesidesOnsite(short);
+  return onsiteStartTicked(short) && !repairWorkBesidesOnsite(short) && !part4to6Problem(short);
 }
 
 /** Does this PIESA need the electrician's fixes times? The existing rectification-needed reading (fixes-day.core

@@ -517,6 +517,17 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   for (const [id, r] of fixesTimesMissing({ links: fixesLinks.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]) })), given: fixesGiven.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]) })), now })) {
     const x = f(id); if (x) x.fixesTimesMissing = { at: r.at };
   }
+  // A48 batch 1: the newest A3 safety check breaks the official rules → one row until a corrected form / signed Section C.
+  try {
+    const { PIESA_RULES_CLEARED_EVENT, PIESA_RULES_FAILED_EVENT, piesaRulesOpen } = await import("./piesa-rules-notice.core");
+    const ev = await all("safety check rule failures", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).in("event_type", [PIESA_RULES_FAILED_EVENT, PIESA_RULES_CLEARED_EVENT]).order("created_at").range(a, b));
+    const byJob = new Map<string, Row[]>();
+    for (const e of ev) { const id = String(e["job_id"]); if (idSet.has(id)) byJob.set(id, [...(byJob.get(id) ?? []), e]); }
+    for (const [id, list] of byJob) {
+      const open = piesaRulesOpen(list.map((e) => ({ event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as Record<string, unknown> | null })));
+      const x = f(id); if (x && open) x.piesaRulesFailed = { at: open.at, reasons: open.reasons };
+    }
+  } catch { unavailable.push("safety check rule failures"); }
   const unsigned = new Set(veecForms.filter((v) => !v["consumer_signed_at"]).map((v) => String(v["job_id"])));
   for (const e of veecAlerts) { const x = f(String(e["job_id"])); if (x && unsigned.has(String(e["job_id"]))) x.veecDay10 = { at: String(e["created_at"]) }; }
   // Jo 28 Oct 2026 (decision card 04:40 UTC, "Alert after 3 days unpaid"): a job paused on a homeowner payment that
