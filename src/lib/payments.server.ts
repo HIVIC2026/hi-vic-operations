@@ -264,7 +264,7 @@ export async function afterPaymentsChanged(jobId: string, invoiceId: string, act
 export async function noteProvisionalBooking(jobId: string, actorId: string | null) {
   const v = await jobPaymentView(jobId);
   if (!v || v.provisional.decision !== "provisional") return;
-  await logEvent(jobId, actorId, "install_booking_provisional", `Install day booked provisionally – ${v.plan.installDepositCents / 100} install deposit due by bank transfer within 48 hours or by noon the day before the install, whichever is sooner (until ${v.provisional.expiresAt})`, { invoice_id: v.invoiceId, deposit_cents: v.plan.installDepositCents, expires_at: v.provisional.expiresAt }, { internal: true });
+  await logEvent(jobId, actorId, "install_booking_provisional", `Install day booked provisionally – ${v.plan.installDepositCents / 100} install deposit due (card, bank transfer or PayID) within 48 hours or by noon the day before the install, whichever is sooner (until ${v.provisional.expiresAt})`, { invoice_id: v.invoiceId, deposit_cents: v.plan.installDepositCents, expires_at: v.provisional.expiresAt }, { internal: true });
 }
 
 /** Decision 367: ONE office row per booking whose install start passed with the deposit still unpaid. */

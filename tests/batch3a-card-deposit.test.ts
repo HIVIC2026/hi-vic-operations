@@ -1,4 +1,5 @@
 // Batch 3a task 3: card is allowed for the 10% install deposit (balance stays bank transfer / PayID). Pure. Run: bun test tests/batch3a-card-deposit.test.ts
+import { readFileSync } from "node:fs";
 import { describe, expect, test } from "bun:test";
 import {
   bankDetailLines, cardAllowedFor, howYouPayLines, payableNow, paymentLine, paymentMethodsFor, paymentPlan, paymentSteps, payNowBlock,
@@ -74,5 +75,23 @@ describe("owner wording", () => {
   test("no card fee wording on the deposit lines", () => {
     const all = [paymentLine("install_deposit", null), ...howYouPayLines(plan), PAYMENT_TERMS_BODY].join(" ");
     expect(/card fee|surcharge/i.test(all.replace(/there is no card fee/gi, ""))).toBe(false);
+  });
+});
+
+describe("fix round 1", () => {
+  const read = (f: string) => readFileSync(`src/lib/${f}`, "utf8");
+  test("agreement read-more deposit line says card, bank transfer or PayID", () => {
+    const s = read("assignment.server.ts");
+    expect(s).toContain("to book the install day (card, bank transfer or PayID)");
+    expect(s).not.toContain("(bank transfer / PayID) and the balance");
+  });
+  test("email-reply deposit is card-inclusive whether or not Stripe is available", () => {
+    const s = read("email-reply.core.ts");
+    expect(s).toContain('install_deposit: { what: "booking payment (10%)", how: "by card, bank transfer or PayID" }');
+    expect(s).not.toMatch(/comes through, \$\{due\.cardAvailable/);
+  });
+  test("office text matches", () => {
+    expect(read("office-stage-cards.core.ts")).toContain("10% to book · card or bank");
+    expect(read("allocation.core.ts")).toContain("about the deposit (card, bank transfer or PayID)");
   });
 });

@@ -25,7 +25,7 @@ export async function emailOwnerInstallBooked(jobId: string, startIso: string, o
   const { firstName } = await import("./worker-links.core");
   const { formatInstallDay } = await import("./install-days.core");
   const { renderInstallBookedEmail, INSTALL_BOOKED_EMAIL_APPROVED } = await import("./install-booked-email.core");
-  // Decision 139: the 10% install deposit (bank transfer / PayID, 48h hold) when it is still owing under the payment rule.
+  // Decision 139: the 10% install deposit (card, bank transfer or PayID, 48h hold) when it is still owing under the payment rule.
   const pay = await (await import("./payments.server")).jobPaymentView(jobId).catch(() => null);
   const depositStep = pay?.steps.find((s) => s.key === "install_deposit");
   // Jo 26 Oct 2026: never "Your install is booked" while the 10% deposit is unpaid.
