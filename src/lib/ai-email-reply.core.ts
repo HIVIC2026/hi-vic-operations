@@ -11,6 +11,7 @@ import { esc, mjEmail } from "./mail-mjml.core";
 import { changeVisitLink, visitGroupForStage, type ChangeVisit } from "./email-change-reply.core";
 import { smsQuietReason } from "./quote-hold.core";
 import { SPOT_FREE, SPOT_PRICE_NOTE, SPOT_REGISTERED, SPOT_RELEASE_LINE, isPreReleaseStage } from "./spot-only-copy.core";
+import { rulesFromAnswers, type AiAnswer } from "./ai-answers.core";
 import type { SpotReleaseState } from "./spot-release.core";
 
 /** Shown on the draft screens after a blocked Send: the box now holds the fixed reply. */
@@ -91,7 +92,7 @@ const instructionLines = (NEXT_STEP: string, preRelease: boolean) => [
   "Keep it relevant: only use a fact or business rule when it answers something they actually raised. Never volunteer extra details they didn't ask about (for example, don't mention batts versus blow-in unless they asked about blow-in).",
   NEXT_STEP,
   "If they say they can't get into the roof or take photos, kindly tell them not to go up there — they don't need to send photos.",
-  "Only use the facts, rules and links given below. Never invent dates, prices, times, people or links. Never quote an R6.0 or R7.0 price.",
+  "Only use the facts, rules and links given below. Never invent dates, prices, times, people or links.",
   "Say \"rebate\" — never say VEEC, VEECs, VEU, Activity 48, ESC or other scheme jargon.",
   "Never ask them to call, never give a phone number. They can just reply to this email.",
   ...(preRelease ? [] : ["If they want to change a booking time, give them the change link provided and say who they'll arrange it with. Never promise a new time yourself."]),
@@ -110,42 +111,17 @@ export function isPreReleaseOwner(j: { channel: string | null | undefined; stage
   return j.releaseState?.state !== "confirmed";
 }
 
-export type AiPromptOpts = { preRelease?: boolean };
+export type AiPromptOpts = { preRelease?: boolean; answers?: AiAnswer[] | null };
 /** The prompt for this owner; released owners get AI_REPLY_INSTRUCTIONS unchanged. */
 export const aiReplyInstructions = (o: AiPromptOpts = {}): string => (o.preRelease ? instructionLines(NEXT_STEP_PRE_RELEASE, true).join("\n") : AI_REPLY_INSTRUCTIONS);
 
 
-/** Jo's standing answers (27 Oct 2026), given to the AI with every job reply. */
-const RULE_CEILING_ONLY = "We only do ceiling insulation (no underfloor or walls).";
-const RULE_BATTS_ONLY = "Our quotes are for R5.0 batts, not blow-in insulation, so no holes are cut in the ceiling.";
-const RULE_OWN_ELECTRICIAN = "An owner's own electrician can do the safety check if they sign up with us as an electrician first (we check their licence and $5 million public liability insurance, and all forms go through our system so the rebate can be claimed): https://portal.homeinsulationvictoria.com.au/electrician-onboarding";
-export const AI_BUSINESS_RULES = [
-  RULE_CEILING_ONLY,
-  RULE_BATTS_ONLY,
-  "R6.0 and R7.0 are available; the installer confirms the price at the free Ready Check (never quote it).",
-  "Old insulation is removed only where needed, at $15/m²; the installer checks how much at the Ready Check.",
-  "Extras like cleaning the roof cavity: the installer can quote them at the Ready Check.",
-  "The free Ready Check: a certified installer comes to the home, measures the ceilings, checks the existing insulation and confirms the job, then the owner gets their final quote. They see the exact price before agreeing to anything.",
-  "The rebate needs any existing insulation to be below R2.0, and it has to be checked at the Ready Check — age alone isn't enough. Owners never need to go into the roof or send photos.",
-  "Spots are released in the order they were saved, so we can't give install dates before that. When it's their turn an installer texts and emails a few times for the Ready Check.",
-  "After they accept the quote, a licensed electrician does a safety check before any insulation goes in, then the installer puts the insulation in. We look after all the paperwork and the rebate.",
-  "The price includes: the free Ready Check; R5.0 batts supplied and installed by a certified installer; the electrician's safety check ($349); our Accredited Person fee for the paperwork and rebate claim ($349). Electrical repairs aren't included — if needed they get a separate quote first.",
-  RULE_OWN_ELECTRICIAN,
-];
+/** Jo's standard answers (steps 2-4 spec 2a) are the business rules: her saved list, else the seed. */
+export const AI_BUSINESS_RULES = rulesFromAnswers(null);
 
-/** Business rules before release: the Ready Check may be explained (Jo's release and wait lines), but nothing that gives a date, timeframe or speed. */
-export const AI_BUSINESS_RULES_PRE_RELEASE = [
-  RULE_CEILING_ONLY,
-  RULE_BATTS_ONLY,
-  SPOT_FREE,
-  SPOT_REGISTERED,
-  SPOT_RELEASE_LINE,
-  AI_RELEASE_MEANS,
-  AI_WAIT_LINE,
-  SPOT_PRICE_NOTE,
-  RULE_OWN_ELECTRICIAN,
-];
-
+/** Before release: the same answers plus Jo's spot-only, release and wait lines. Nothing may give a date, timeframe or speed. */
+const preReleaseExtras = [SPOT_FREE, SPOT_REGISTERED, SPOT_RELEASE_LINE, AI_RELEASE_MEANS, AI_WAIT_LINE, SPOT_PRICE_NOTE];
+export const AI_BUSINESS_RULES_PRE_RELEASE = [...AI_BUSINESS_RULES, ...preReleaseExtras];
 
 export function buildAiReplyInput(c: AiReplyContext, o: AiPromptOpts = {}): string {
   const pre = o.preRelease === true;
@@ -154,7 +130,7 @@ export function buildAiReplyInput(c: AiReplyContext, o: AiPromptOpts = {}): stri
     `Job ${c.jobNumber ?? "(no number)"} · owner first name: ${c.ownerFirstName ?? "unknown"}`,
     ...(pre ? [] : [`Current stage: ${c.stageLabel}`]),
     c.facts.length ? `Facts:\n- ${c.facts.join("\n- ")}` : "Facts: none recorded",
-    `Business rules:\n- ${(pre ? AI_BUSINESS_RULES_PRE_RELEASE : AI_BUSINESS_RULES).join("\n- ")}`,
+    `Business rules:\n- ${[...rulesFromAnswers(o.answers ?? null), ...(pre ? preReleaseExtras : [])].join("\n- ")}`,
     c.links.length ? `Links you may use:\n${c.links.map((l) => `- ${l.label}: ${l.url}`).join("\n")}` : "Links: none — do not offer a link",
     pre ? "No change-time link is available." : c.changeLink ? `To change the time of ${WHO[c.changeLink.visit]}, they use: ${c.changeLink.link}` : "No change-time link is available — if they want to change a time, say we'll sort it and get back to them.",
     `Email history (oldest first):\n${hist || "(none)"}`,
