@@ -91,11 +91,15 @@ describe("TEST / live parity (qa_test jobs are offered too, but only to TEST par
   });
   test("a TEST job gets the automatic offer, to the TEST partner only; with no TEST partner it goes back to the office", () => {
     expect(autoOfferStep({ ...base("ready_check"), jobIsTest: true, candidates: [live, testBiz] })).toMatchObject({ action: "offer", businessId: "test" });
-    expect(autoOfferStep({ ...base("piesa"), jobIsTest: true, candidates: [live, testBiz], usualBusinessId: "live" })).toMatchObject({ action: "offer", businessId: "test", basis: "coverage" });
+    expect(autoOfferStep({ ...base("piesa"), jobIsTest: true, candidates: [live, testBiz] })).toMatchObject({ action: "offer", businessId: "test", basis: "coverage" });
+    // Decision 426 fix wave: an installer's chosen electrician who can't be offered (here: a live one on a TEST job) sends
+    // the job back to the office — never nearest-first to another electrician.
+    expect(autoOfferStep({ ...base("piesa"), jobIsTest: true, candidates: [live, testBiz], usualBusinessId: "live" })).toMatchObject({ action: "return_to_office", reason: "preferred_blocked" });
     expect(autoOfferStep({ ...base("ready_check"), jobIsTest: true, candidates: [live] })).toMatchObject({ action: "return_to_office", reason: "no_match" });
     // Live job: the TEST partner is never the pick, even when it is the nearest or the usual electrician.
     expect(autoOfferStep({ ...base("ready_check"), candidates: [testBiz, live] })).toMatchObject({ action: "offer", businessId: "live" });
-    expect(autoOfferStep({ ...base("piesa"), jobIsTest: false, candidates: [testBiz, live], usualBusinessId: "test" })).toMatchObject({ action: "offer", businessId: "live" });
+    expect(autoOfferStep({ ...base("piesa"), jobIsTest: false, candidates: [testBiz, live] })).toMatchObject({ action: "offer", businessId: "live" });
+    expect(autoOfferStep({ ...base("piesa"), jobIsTest: false, candidates: [testBiz, live], usualBusinessId: "test" })).toMatchObject({ action: "return_to_office", reason: "preferred_blocked" });
     expect(autoOfferStep({ ...base("piesa"), candidates: [testBiz] })).toMatchObject({ action: "return_to_office", reason: "no_match" });
   });
   test("the parity rule is the same one the candidate readers and offer guard use (test-send.core)", () => {
@@ -140,11 +144,16 @@ describe("electrician pick", () => {
     const cs = [cand("near", { distanceKm: 3 }), cand("usual", { distanceKm: 50, activeJobs: 9 }), cand("mid", { distanceKm: 10 })];
     expect(rankAutoElectricians(cs, new Set(), "usual").map((c) => c.business_id)).toEqual(["usual", "near", "mid"]);
     expect(autoOfferStep({ ...base("piesa"), candidates: cs, usualBusinessId: "usual" })).toMatchObject({ action: "offer", businessId: "usual", basis: "usual_electrician" });
-    expect(autoOfferStep({ ...base("piesa", [miss("usual")]), candidates: cs, usualBusinessId: "usual" })).toMatchObject({ action: "offer", businessId: "near", basis: "coverage", attempt: 2 });
+    // Decision 426 (Jo 29 Oct 2026): if the installer's electrician doesn't take it, the job goes back to the office.
+    expect(autoOfferStep({ ...base("piesa", [miss("usual")]), candidates: cs, usualBusinessId: "usual" })).toMatchObject({ action: "return_to_office", reason: "preferred_missed" });
   });
-  test("a blocked usual electrician (e.g. no agreed rate) is skipped", () => {
+  test("installer jobs: a blocked chosen electrician (e.g. no agreed rate) sends the job back to the office, never to someone else", () => {
+    // Decision 426 fix wave (Jo 29 Oct 2026). `usualBusinessId` is only ever set for installer jobs (autoOfferPreferredElectrician
+    // returns null for our leads), so there is no non-installer usual-electrician case to keep.
     const cs = [cand("usual", { blocker: "No agreed electrician rate recorded." }), cand("near", { distanceKm: 3 })];
-    expect(autoOfferStep({ ...base("piesa"), candidates: cs, usualBusinessId: "usual" })).toMatchObject({ businessId: "near" });
+    expect(autoOfferStep({ ...base("piesa"), candidates: cs, usualBusinessId: "usual" })).toMatchObject({ action: "return_to_office", reason: "preferred_blocked" });
+    expect(autoOfferPreferredElectrician({ channel: "hivic_sourced", a1PreferredBusinessId: "usual" })).toBeNull();
+    expect(autoOfferStep({ ...base("piesa"), candidates: cs, usualBusinessId: null })).toMatchObject({ action: "offer", businessId: "near" });
   });
   test("misses only count automatic offers", () => {
     expect(autoOfferMisses([miss("a"), { ...miss("b"), auto: false }, { ...miss("c"), status: "accepted" }])).toBe(1);

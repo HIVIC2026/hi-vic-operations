@@ -317,7 +317,12 @@ async function autoStartPiesaOffers(actorId: string | null) {
     // Already allocated once (since the latest reopen); refill/exhaustion handles the rest.
     if (await (await import("./repeat-piesa.server")).piesaOffersSinceReopen(j.id)) continue;
     if (await (await import("./offer-dispatch.server")).jobOfficePicks(j.id)) continue; // waits in Needs me: "Choose trades for this job"
-    try { await startPiesaAllocation(j.id, actorId); started++; } catch { /* gate not cleared: stay put */ }
+    // Decision 426 (Jo 29 Oct 2026): one electrician at a time (nearest first, 24 hours each) — never a batch.
+    const ao = await import("./auto-offer.server");
+    const r = await ao.autoOfferForJob(j.id, "piesa").catch(() => null);
+    if (r?.step === "offer") started++;
+    // "Automatic electrician offers" off in the Automatic dispatch mode: nothing else would send it — the office, once.
+    else if (r?.reason === "switch_off") await ao.handPiesaToOfficeAutoOff(j.id, actorId).catch((e) => console.error("PIESA hand-back skipped", (e as Error).message));
   }
   return started;
 }
@@ -345,6 +350,9 @@ async function refillIfNeeded(jobId: string, kind: "piesa" | "rectification", ac
   ]);
   if (open || elec) return;
   if (kind === "piesa") {
+    // Decision 426: no new batch of safety check offers for a first-time check — the automatic one-at-a-time offers pick
+    // the next electrician, and a job whose older batch has run out goes to the office. Repeat checks keep this refill.
+    if (!(await (await import("./repeat-piesa.server")).inRepeatPiesaRound(jobId))) return piesaOffersRanOut(jobId, actorId);
     // Only re-offer while the job is genuinely waiting for a PIESA electrician and its PIESA gate is still clear.
     const { data: j } = await admin.from("jobs").select("stage").eq("id", jobId).single();
     if (j?.stage !== "piesa_and_install_window_pending") return;
@@ -356,6 +364,39 @@ async function refillIfNeeded(jobId: string, kind: "piesa" | "rectification", ac
   if (await (await import("./offer-dispatch.server")).jobOfficePicks(jobId)) return; // office picks: Needs me shows "add more trades"
   if (!(await claimRecOfferBatch(jobId, kind))) return;
   await offerNextBatch(jobId, actorId, kind);
+}
+
+/** Decision 426 fix wave: a first-time safety check job whose offers have all been answered. Never a new batch.
+ *  An older batch (sent before decision 426) that ran out → ONE "no approved electrician coverage" event + next action
+ *  (the same as a batch running out did before), so it reaches Needs me; an automatic offer that ran out after the
+ *  switch was turned off → the office (`handPiesaToOfficeAutoOff`); anything else is already handled elsewhere. */
+async function piesaOffersRanOut(jobId: string, actorId: string | null) {
+  const since = await (await import("./repeat-piesa.server")).latestReopenAt(jobId);
+  let oq = admin.from("partner_offers").select("business_id, status, offered_at, summary").eq("job_id", jobId).eq("kind", "piesa");
+  if (since) oq = oq.gt("offered_at", since);
+  const [{ data: j }, { data: offers }] = await Promise.all([admin.from("jobs").select("stage").eq("id", jobId).single(), oq.order("offered_at", { ascending: false })]);
+  const latest = (offers ?? [])[0];
+  if (!latest) return;
+  const flags = (latest.summary ?? {}) as Record<string, unknown>;
+  const [{ data: ex }, officePicks, sw] = await Promise.all([
+    admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "rec_coverage_exhausted").contains("details", { kind: "piesa" }).gt("created_at", latest.offered_at).limit(1),
+    (await import("./offer-dispatch.server")).jobOfficePicks(jobId),
+    (await import("./auto-offer.server")).readAutoOfferSwitches(),
+  ]);
+  const { piesaRanOutStep } = await import("./auto-offer.core");
+  const step = piesaRanOutStep({
+    stageWaiting: j?.stage === "piesa_and_install_window_pending", anyAccepted: (offers ?? []).some((o) => o.status === "accepted"), officePicks, switchOn: sw.piesa,
+    latest: { auto: flags["auto_offer"] === true, officeChoice: flags["office_choice"] === true }, exhaustedSinceLatestOffer: (ex ?? []).length > 0,
+  });
+  if (step === "switch_off_hand_back") {
+    // Logged, never thrown: a failure here must not abort the decline or the expiry loop in sweepRecOffers.
+    await (await import("./auto-offer.server")).handPiesaToOfficeAutoOff(jobId, actorId).catch((e) => console.error("PIESA hand-back skipped", (e as Error).message));
+    return;
+  }
+  if (step !== "coverage_exhausted") return;
+  const offered = [...new Set((offers ?? []).map((o) => o.business_id).filter((x): x is string => !!x))];
+  await logEvent(jobId, actorId, "rec_coverage_exhausted", "No approved electrician left to offer the piesa to — needs Home Insulation Victoria", { kind: "piesa", offered }, { internal: true });
+  await admin.from("jobs").update({ next_action: "Needs Home Insulation Victoria: no approved electrician coverage" }).eq("id", jobId);
 }
 
 /** Electrician accepts/declines a PIESA or rectification offer. Acceptance is atomic in SQL. */

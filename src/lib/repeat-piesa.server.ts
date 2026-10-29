@@ -4,7 +4,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
 import {
   REPEAT_PIESA_ACCEPTED_EVENT, REPEAT_PIESA_CHOSEN_EVENT, REPEAT_PIESA_PAID_EVENT, REPEAT_PIESA_PRICE_EVENT, REPEAT_REOPEN_EVENT,
-  chooseRepeatPayerBlocker, piesaSupersededByReopen, repeatPiesaState, type RepeatChoice, type RepeatPayer, type RepeatState,
+  chooseRepeatPayerBlocker, piesaSupersededByReopen, repeatPiesaState, repeatRoundActive, type RepeatChoice, type RepeatPayer, type RepeatState,
 } from "./repeat-piesa.core";
 
 export async function repeatPiesaPrice(): Promise<number | null> {
@@ -35,6 +35,16 @@ export async function piesaOffersSinceReopen(jobId: string): Promise<number> {
   const { count, error } = await q;
   if (error) throw new Error(error.message);
   return count ?? 0;
+}
+
+/** Decision 426 fix wave: the job is in a repeat safety check round (office chose who pays after the latest reopen, or
+ *  the job was never reopened). Repeat rounds keep their batch offers and refill; first-time checks go one at a time. */
+export async function inRepeatPiesaRound(jobId: string): Promise<boolean> {
+  const [reopenAt, { data }] = await Promise.all([
+    latestReopenAt(jobId),
+    admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", REPEAT_PIESA_CHOSEN_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  return repeatRoundActive((data as { created_at?: string } | null)?.created_at ?? null, reopenAt);
 }
 
 /** Batch 1 task 6: the job's current PIESA record was made before its latest reopen, so it no longer counts. */
