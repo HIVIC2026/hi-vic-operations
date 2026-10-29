@@ -14,7 +14,8 @@ const ok: AutoFormFacts = {
 describe("autoFormDecision", () => {
   test("a fresh bulk-uploaded installer job with no form gets one", () => expect(autoFormDecision(ok, now, true)).toEqual({ action: "create" }));
   test.each([
-    [{ channel: "hivic_sourced" }, "not an installer job"],
+    [{ channel: "hivic_sourced" }, "HIV lead not booked yet"],
+    [{ channel: "website" }, "not an installer job or HIV lead"],
     [{ deleted: true }, "removed"],
     [{ stage: "measured_quote_accepted" }, "past the Ready Check"],
     [{ createdAt: "2026-09-01T00:00:00Z" }, "older than 30 days"],
@@ -44,6 +45,29 @@ describe("autoFormDecision", () => {
     const visited = { ...ok, hasCurrentMeasurement: true, provisionalOnly: true };
     expect(autoFormDecision({ ...visited, createdAt: "2026-10-23T08:00:00Z" }, now, true)).toEqual({ action: "skip", reason: "waiting in case the installer started his own form" });
     expect(autoFormDecision(visited, now, true)).toEqual({ action: "create" });
+  });
+});
+
+// HV-3542 (Jo 30 Oct): HIV website leads get their form from the backup too, but only once the Ready Check is booked.
+describe("autoFormDecision for HIV leads", () => {
+  const lead: AutoFormFacts = { ...ok, channel: "hivic_sourced", stage: "ready_check_scheduled", bookedAt: "2026-10-22T09:00:00Z" };
+  test("a booked HIV lead with no form gets one", () => expect(autoFormDecision(lead, now, true)).toEqual({ action: "create" }));
+  test("an HIV lead with no booking, or at an earlier stage, is skipped", () => {
+    expect(autoFormDecision({ ...lead, bookedAt: null }, now, true)).toEqual({ action: "skip", reason: "HIV lead not booked yet" });
+    expect(autoFormDecision({ ...lead, stage: "ready_check_ready_to_schedule" }, now, true)).toEqual({ action: "skip", reason: "HIV lead not booked yet" });
+  });
+  test("the 30 days count from the booking, not the enquiry", () => {
+    expect(autoFormDecision({ ...lead, createdAt: "2026-08-24T09:00:00Z" }, now, true)).toEqual({ action: "create" });
+    expect(autoFormDecision({ ...lead, createdAt: "2026-08-24T09:00:00Z", bookedAt: "2026-09-22T09:00:00Z" }, now, true)).toEqual({ action: "skip", reason: "older than 30 days" });
+  });
+  test("an HIV lead whose form is already made is skipped", () => {
+    expect(autoFormDecision({ ...lead, hasCurrentMeasurement: true }, now, true)).toEqual({ action: "skip", reason: "already has a Ready Check record" });
+    expect(autoFormDecision({ ...lead, hasCurrentMeasurement: true, provisionalOnly: true }, now, true)).toEqual({ action: "skip", reason: "already has a Ready Check record" });
+  });
+  test("the same switches, installer and back-off checks apply", () => {
+    expect(autoFormDecision({ ...lead, autoSendMitti: false }, now, true)).toEqual({ action: "skip", reason: "automatic Mitti forms are switched off" });
+    expect(autoFormDecision({ ...lead, installerUserId: null }, now, true)).toEqual({ action: "skip", reason: "no installer assigned" });
+    expect(autoFormDecision({ ...lead, lastFailureAt: "2026-10-23T08:00:00Z" }, now, true)).toEqual({ action: "skip", reason: "last attempt failed – retrying tomorrow" });
   });
 });
 
