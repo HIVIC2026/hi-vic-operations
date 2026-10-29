@@ -88,7 +88,7 @@ export async function writeAiReplyDraft(p: { jobId: string; message: MailMessage
     // The owner gave a new ceiling size: price that size and write the reply once more, so it quotes their size.
     // The second pass's body and note are kept; its flags are merged with the first pass's (a "Needs you" or question
     // seen once is never lost — step 4 never auto-sends those); a size other than the one just priced is dropped.
-    // If the second pass fails, the first draft stands.
+    // If the second pass fails, the first draft stands, without its size: that draft never quoted the new size's prices.
     const size = out.actions.newAreaM2;
     if (size != null && size !== est.areaM2) {
       const extra = await newSizePriceFacts(p.jobId, size);
@@ -98,7 +98,11 @@ export async function writeAiReplyDraft(p: { jobId: string; message: MailMessage
           const actions = { ...second.actions };
           if (actions.newAreaM2 !== size) delete actions.newAreaM2;
           out = { body: second.body, needsYou: out.needsYou || second.needsYou, needsAnswer: [...new Set([...out.needsAnswer, ...second.needsAnswer])], actions };
-        } catch (e) { console.error("AI reply new-size pass skipped", e instanceof Error ? e.message : e); }
+        } catch (e) {
+          console.error("AI reply new-size pass skipped", e instanceof Error ? e.message : e);
+          const { newAreaM2: _dropped, ...rest } = out.actions; void _dropped;
+          out = { ...out, actions: rest };
+        }
       }
     }
     const noReply = out.body.replace(/[.\s]+$/, "") === NO_REPLY_NEEDED;
@@ -108,13 +112,13 @@ export async function writeAiReplyDraft(p: { jobId: string; message: MailMessage
     const body = fixed.body;
     const problems = fixed.problems;
     const { data: ins, error } = await loose.from("workflow_events").insert({ job_id: p.jobId, actor_id: null, event_type: AI_EMAIL_DRAFT_EVENT, internal: true,
-      summary: noReply ? "No reply needed (owner said no thanks / thanks)" : `AI reply draft waiting for Jo (${p.kind === "simple" ? "simple email" : "needs a check"})`,
+      summary: noReply ? "No reply needed (owner said thanks)" : `AI reply draft waiting for Jo (${p.kind === "simple" ? "simple email" : "needs a check"})`,
       details: { message_id: m.providerMessageId, thread_id: m.threadId, from: m.from, to: owner.email.trim(), their_subject: m.subject, subject: replySubject(m.subject),
         body, kind: p.kind, reason: p.reason, ...(problems.length ? { problems } : {}),
         ...(!noReply && out.needsAnswer.length ? { needs_answer: out.needsAnswer } : {}), ...(!noReply && out.needsYou ? { needs_you: true } : {}),
         ...(!noReply && Object.keys(out.actions).length ? { actions: out.actions } : {}), idempotency_key: aiDraftKey(m.providerMessageId), ...(noReply ? { no_reply_needed: true } : {}) } }).select("id").single();
     if (error) throw new Error(error.message);
-    // Jo 27 Oct 2026: a plain "no thanks" or "thanks" gets no reply; the draft is closed so the card just needs Done.
+    // Jo 27 Oct 2026: a plain "thanks" gets no reply; the draft is closed so the card just needs Done.
     if (noReply && ins) await loose.from("workflow_events").insert({ job_id: p.jobId, actor_id: null, event_type: AI_EMAIL_DRAFT_DISCARDED_EVENT, internal: true,
       summary: "No reply needed — filed away", details: { draft_event_id: (ins as { id: string }).id } });
     return "drafted";
@@ -266,7 +270,7 @@ export async function sendAiDraft(eventId: string, body: string, actorId: string
     await saveDraftEdit(eventId, fixed.body, actorId);
     return { status: "rewritten", body: fixed.body, problems: fixed.problems };
   }
-  const { data: owner } = job.owner_id ? await admin.from("owners").select("email").eq("id", job.owner_id).maybeSingle() : { data: null };
+  const { data: owner } = job.owner_id ? await admin.from("owners").select("email, full_name").eq("id", job.owner_id).maybeSingle() : { data: null };
   const to = (owner?.email ?? String(ev.details["to"] ?? "")).trim();
   if (!to) throw new Error("This owner has no email address.");
   const K = await import("./email-kit.core");
@@ -300,7 +304,9 @@ export async function sendAiDraft(eventId: string, body: string, actorId: string
     });
   await (await import("./outlook-sync.server")).archiveOutlookMessage(String(ev.details["message_id"] ?? "") || null, job.id, actorId);
   // The email went: now the actions Jo left ticked. A failure here is logged only — the reply has already gone.
-  await applyDraftActions(job.id, eventId, draftActions(ev.details), apply, actorId, (job as { estimated_area_m2?: number | null }).estimated_area_m2 ?? null)
+  // The saved note is checked again against the owner's first name (installers get owner details only once they accept).
+  const ownerFirstName = (await import("./email-reply.core")).firstNameOf((owner as { full_name?: string | null } | null)?.full_name ?? null);
+  await applyDraftActions(job.id, eventId, draftActions(ev.details, ownerFirstName), apply, actorId, (job as { estimated_area_m2?: number | null }).estimated_area_m2 ?? null)
     .catch((e) => console.error("AI reply actions not applied", e instanceof Error ? e.message : e));
   return { status: status as "sent" | `delivery uncertain${string}` };
 }
@@ -313,6 +319,10 @@ async function applyDraftActions(jobId: string, draftEventId: string, actions: A
     if (error) console.error("installer note not saved", error.message);
   }
   if (apply.applyArea && actions.newAreaM2 != null) {
+    // Once the Ready Check has measured the ceiling, that measurement wins: the owner's emailed size is not applied.
+    const { data: measured, error: mErr } = await admin.from("ceiling_measurements").select("id").eq("job_id", jobId).eq("is_current", true).limit(1);
+    if (mErr) { console.error("ceiling size not updated: Ready Check measurement unreadable", mErr.message); return; }
+    if ((measured ?? []).length) { console.warn(`ceiling size not updated to ${actions.newAreaM2} m²: the Ready Check has already measured job ${jobId}`); return; }
     const { error } = await admin.from("jobs").update({ estimated_area_m2: actions.newAreaM2, estimated_area_unknown: false }).eq("id", jobId);
     if (error) { console.error("ceiling size not updated", error.message); return; }
     await loose.from("workflow_events").insert({ job_id: jobId, actor_id: actorId, event_type: CEILING_SIZE_FROM_EMAIL_EVENT, internal: true,

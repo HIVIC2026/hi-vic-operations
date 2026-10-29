@@ -20,6 +20,7 @@ describe("seed answers", () => {
     expect(a).toContain("$35/m²");
     expect(a).toMatch(/tell the installer/);
     expect(a).toContain("free Ready Check");
+    expect(a).toMatch(/never make up/i);
   });
   test("cheaper quote lists the value points and never names the program", () => {
     const a = AI_SEED_ANSWERS.find((x) => x.topic.toLowerCase().includes("cheaper quote"))!.answer;
@@ -82,6 +83,11 @@ describe("aiPreReleaseViolations and the 30-day rule", () => {
     expect(aiPreReleaseViolations("It must be done within 30 days of the install.")).toEqual([]);
     expect(aiPreReleaseViolations("done within  30\n days of your install")).toEqual([]);
   });
+  test("final M-a: only the 30-day rule is exempt", () => {
+    expect(aiPreReleaseViolations("It must be done within 7 days of the install.").length).toBe(1);
+    expect(aiPreReleaseViolations("within 14 days of your installation").length).toBe(1);
+    expect(aiPreReleaseViolations("within 30 days of the installation")).toEqual([]);
+  });
   test("other 'within N days' wording is still flagged", () => {
     expect(aiPreReleaseViolations("within 30 days").length).toBe(1);
     expect(aiPreReleaseViolations("within 10 days we'll call").length).toBe(1);
@@ -106,5 +112,12 @@ describe("fix round 1", () => {
     expect(AI_SEED_ANSWERS.find((x) => x.topic === "Steps after the quote")!.answer).toContain("electrical safety check (PIESA)");
     expect(AI_SEED_ANSWERS.find((x) => x.topic === "What the price includes")!.answer).toContain("electrical safety check (PIESA)");
     expect(AI_SEED_ANSWERS.find((x) => x.topic.includes("R6.0"))!.answer).toContain("same as for R5.0");
+  });
+});
+
+describe("final M-i", () => {
+  test("the unused AI_BUSINESS_RULES_PRE_RELEASE export is gone", async () => {
+    const core = await import("../src/lib/ai-email-reply.core");
+    expect("AI_BUSINESS_RULES_PRE_RELEASE" in core).toBe(false);
   });
 });

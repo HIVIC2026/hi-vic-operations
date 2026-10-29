@@ -373,3 +373,61 @@ describe("fix round 1: second pass keeps the first pass's flags and the priced s
     expect(d["details"]["actions"]).toEqual({ installerNote: "R7" });
   });
 });
+
+describe("final M-e: the new size applies only before the Ready Check measures", () => {
+  test("a current Ready Check measurement: size not changed, note still applied, reason logged", async () => {
+    seed();
+    tables["ceiling_measurements"] = [{ id: "CM1", job_id: "J", is_current: true, measured_area_m2: 118 }];
+    const spy = mock(() => undefined); const orig = console.warn; console.warn = spy;
+    try { expect((await sendAiDraft("D1", BODY, "jo", { applyNote: true, applyArea: true })).status).toBe("sent"); } finally { console.warn = orig; }
+    expect(tables["jobs"]![0]!["estimated_area_m2"]).toBe(120);
+    expect(events("ceiling_size_updated_from_email")).toHaveLength(0);
+    expect(events("installer_note")).toHaveLength(1);
+    expect(String((spy.mock.calls as unknown[][])[0]?.[0] ?? "")).toContain("Ready Check");
+  });
+  test("an old (not current) measurement or another job's: size applied", async () => {
+    seed();
+    tables["ceiling_measurements"] = [{ id: "CM1", job_id: "J", is_current: false }, { id: "CM2", job_id: "K", is_current: true }];
+    await sendAiDraft("D1", BODY, "jo", { applyNote: false, applyArea: true });
+    expect(tables["jobs"]![0]!["estimated_area_m2"]).toBe(90);
+  });
+});
+
+describe("final M-f: Send re-checks the note against the owner's first name", () => {
+  test("a saved note naming the owner is never written", async () => {
+    seed({ installerNote: "Ask Mohamed about R7", newAreaM2: 90 });
+    tables["owners"] = [{ id: "O", email: "mo@example.com", full_name: "Mohamed Ali" }];
+    await sendAiDraft("D1", BODY, "jo", { applyNote: true, applyArea: true });
+    expect(events("installer_note")).toHaveLength(0);
+    expect(tables["jobs"]![0]!["estimated_area_m2"]).toBe(90);
+  });
+  test("an ordinary note still goes", async () => {
+    seed({ installerNote: "Owner wants R7.0" });
+    tables["owners"] = [{ id: "O", email: "mo@example.com", full_name: "Mohamed Ali" }];
+    await sendAiDraft("D1", BODY, "jo", { applyNote: true, applyArea: false });
+    expect(events("installer_note")).toHaveLength(1);
+  });
+  test("draftActions takes the first name", () => {
+    expect(draftActions({ actions: { installerNote: "Ask Mohamed", newAreaM2: 90 } }, "Mohamed")).toEqual({ newAreaM2: 90 });
+  });
+});
+
+describe("final M-g: a failed second pass drops the first pass's size", () => {
+  test("second AI call throws → draft keeps the first body and note, no area action", async () => {
+    const { V25_LOCATIONS } = await import("../src/lib/activity48.core");
+    tables = {
+      jobs: [{ id: "J", job_number: "HV-9", stage: "ready_check_scheduled", owner_id: "O", deleted_at: null, channel: "hivic_sourced", properties: { postcode: "3000" } }],
+      owners: [{ id: "O", full_name: "Mohamed A", email: "mo@example.com" }],
+      lead_campaign_responses: [{ job_id: "J", spot_saved_at: "2026-10-20T00:00:00Z", saved_area_m2: 120, saved_total: 3000, saved_veu_discount: 1000, saved_gross_total: 4000, saved_insulation: null }],
+      veu_location_variables: [V25_LOCATIONS.get("3000")!],
+    };
+    let k = 0;
+    mock.module("ai", () => ({ streamText: () => (k++ === 0 ? { text: Promise.resolve('Hi Mohamed,\n\nThanks for that.\nACTIONS: {"installer_note":"Owner wants R7.0","new_area_m2":90}') } : { text: Promise.reject(new Error("AI down")) }) }));
+    const { writeAiReplyDraft } = await import("../src/lib/ai-email-reply.server");
+    const orig = console.error; console.error = () => undefined;
+    try { expect(await writeAiReplyDraft({ jobId: "J", kind: "other", reason: "t", message: { direction: "inbound", providerMessageId: "M12", threadId: "T", from: "mo@example.com", subject: "R7", body: "90 m²" } as never })).toBe("drafted"); } finally { console.error = orig; }
+    const d = events("email_ai_draft").find((e) => e["details"]["message_id"] === "M12")!;
+    expect(d["details"]["body"]).toContain("Thanks for that.");
+    expect(d["details"]["actions"]).toEqual({ installerNote: "Owner wants R7.0" });
+  });
+});

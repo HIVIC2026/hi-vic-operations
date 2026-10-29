@@ -50,8 +50,9 @@ describe("splitAiOutput", () => {
     expect(r.needsYou).toBe(true);
     expect(r.body).toBe("Hi,\n\nThanks.");
   });
-  test("an empty NEEDS_JO question is dropped", () => {
-    expect(splitAiOutput("Hi,\nNEEDS_JO:   ").needsAnswer).toEqual([]);
+  test("final I3: an empty NEEDS_JO question still flags the draft", () => {
+    expect(splitAiOutput("Hi,\nNEEDS_JO:   ").needsAnswer).toEqual(["(question not given)"]);
+    expect(splitAiOutput("Hi,\n**NEEDS_JO**:").needsAnswer).toEqual(["(question not given)"]);
   });
 });
 
@@ -229,4 +230,88 @@ describe("screens (source checks)", () => {
       expect(all).toMatch(/after\?\.\(\);\s*onDone\(\)/);
     });
   }
+});
+
+describe("final I2: markdown and dash forms of the markers", () => {
+  const hi = "Hi Sam,\n\nThanks.";
+  const NOTE = "Take out the AI's note to the office (NEEDS_JO…)";
+  const flagged = (b: string) => expect(aiReplyProblems(b).join(" ")).toContain(NOTE);
+  test("**NEEDS_JO**: is split off and flagged", () => {
+    const raw = `${hi}\n**NEEDS_JO**: can you do sheds?`;
+    const o = splitAiOutput(raw);
+    expect(o.body).toBe(hi);
+    expect(o.needsAnswer).toEqual(["can you do sheds?"]);
+    flagged(raw);
+  });
+  test("**ACTIONS**: is split off, parsed and flagged", () => {
+    const raw = `${hi}\n**ACTIONS**: {"installer_note":"R7"}`;
+    const o = splitAiOutput(raw);
+    expect(o.body).toBe(hi);
+    expect(o.actions).toEqual({ installerNote: "R7" });
+    flagged(raw);
+  });
+  test("NEEDS JO - and NEEDS_JO – are split off and flagged", () => {
+    for (const m of ["NEEDS JO - can you do sheds?", "NEEDS_JO – can you do sheds?", "__NEEDS_JO__: can you do sheds?", "> NEEDS_JO: can you do sheds?"]) {
+      const o = splitAiOutput(`${hi}\n${m}`);
+      expect({ m, body: o.body, q: o.needsAnswer }).toEqual({ m, body: hi, q: ["can you do sheds?"] });
+      flagged(`${hi}\n${m}`);
+    }
+  });
+  test("**NEEDS_YOU**: complaint and - NEEDS YOU - complaint", () => {
+    for (const m of ["**NEEDS_YOU**: complaint", "- NEEDS YOU - complaint"]) {
+      const o = splitAiOutput(`${hi}\n${m}`);
+      expect(o.body).toBe(hi);
+      expect(o.needsYou).toBe(true);
+      flagged(`${hi}\n${m}`);
+    }
+  });
+  test("a bare ```json fence with installer_note / new_area_m2 is an ACTIONS block", () => {
+    for (const raw of [`${hi}\n\`\`\`json\n{"installer_note":"R7"}\n\`\`\``, `${hi}\n\`\`\`\n{\n  "new_area_m2": 90\n}\n\`\`\``]) {
+      const o = splitAiOutput(raw);
+      expect(o.body).toBe(hi);
+      expect(o.body).not.toMatch(/installer_note|new_area_m2|```/);
+      flagged(raw);
+    }
+    expect(splitAiOutput(`${hi}\n\`\`\`json\n{"installer_note":"R7"}\n\`\`\``).actions).toEqual({ installerNote: "R7" });
+    expect(splitAiOutput(`${hi}\n\`\`\`\n{\n  "new_area_m2": 90\n}\n\`\`\``).actions).toEqual({ newAreaM2: 90 });
+  });
+  test("a fence without those keys stays in the body", () => {
+    const raw = `${hi}\n\`\`\`\nplain text\n\`\`\``;
+    expect(splitAiOutput(raw).body).toBe(raw);
+  });
+  test("- NEEDS_JO: as a list item is split and flagged", () => {
+    const raw = `${hi}\n- NEEDS_JO: can you do sheds?`;
+    const o = splitAiOutput(raw);
+    expect(o.body).toBe(hi);
+    expect(o.needsAnswer).toEqual(["can you do sheds?"]);
+    flagged(raw);
+  });
+  test("an inline NEEDS_JO: is blocked on Send", () => {
+    flagged("Hi Sam,\n\nThanks, we'll check. NEEDS_JO: can you do sheds?");
+    flagged("Hi Sam,\n\nThanks. NEEDS JO - sheds?");
+  });
+  test("leftover action JSON in the body is flagged", () => {
+    flagged(`${hi}\n{"installer_note":"R7"}`);
+    flagged(`${hi}\n{ "new_area_m2": 90 }`);
+  });
+  test("ordinary bullets and dashes are untouched", () => {
+    const raw = "Hi Sam,\n\n- Payment: $349 first\n- Needs: nothing\n\nThanks - talk soon.";
+    expect(splitAiOutput(raw).body).toBe(raw);
+    expect(aiReplyProblems(raw)).toEqual([]);
+  });
+});
+
+describe("final M-b: no-reply summary", () => {
+  test("says 'owner said thanks', not 'no thanks'", () => {
+    const server = readFileSync("src/lib/ai-email-reply.server.ts", "utf8");
+    expect(server).toContain('"No reply needed (owner said thanks)"');
+    expect(server).not.toContain("no thanks / thanks");
+  });
+});
+
+describe("final M-d: heading hidden when only pending saves remain", () => {
+  test("the count and blurb render only with waiting drafts", () => {
+    const src = readFileSync("src/components/portal/AiReplyDrafts.tsx", "utf8");
+    expect(src).toMatch(/\{waiting\.length > 0 && \(\s*<>\s*<h2[^]*Email replies to check \(\{waiting\.length\}\)[^]*Written by AI[^]*<\/>\s*\)\}/);
+  });
 });

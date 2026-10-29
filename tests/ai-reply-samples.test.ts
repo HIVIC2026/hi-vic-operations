@@ -27,4 +27,11 @@ describe("pre-release prompt carries the matching answers", () => {
   for (const [name, topic] of cases) test(name, () => expect(prompt).toContain(seed(topic)));
   test("wait line (6, 8)", () => expect(prompt).toContain(AI_WAIT_LINE));
   test("release line (9)", () => expect(prompt).toContain(AI_RELEASE_MEANS));
+  test("order spots are released (9)", () => expect(prompt).toContain(seed("Order spots are released")));
+  test("existing insulation (23)", () => expect(prompt).toContain(seed("Existing insulation and the rebate")));
+  test("own electrician (14, released owner)", () => {
+    const released = buildAiReplyInput(ctx, { preRelease: false, answers: AI_SEED_ANSWERS });
+    expect(released).toContain(seed("Own electrician"));
+    expect(released).toContain("Current stage: Quote sent");
+  });
 });

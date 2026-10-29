@@ -69,8 +69,12 @@ export function AiReplyDrafts({ jobId }: { jobId: string }) {
   if (!waiting.length && !pendingSaves.length) return null;
   return (
     <section id="stage-email-drafts" aria-label="Email replies to check" className="mb-4 grid gap-2 rounded-[14px] border border-hiv-blue/30 bg-mist p-4">
-      <h2 className="font-display text-lg font-bold text-ink">Email replies to check ({waiting.length})</h2>
-      <p className="text-sm text-sub">Written by AI from this job's details and emails. Check, edit if needed, then Send.</p>
+      {waiting.length > 0 && (
+        <>
+          <h2 className="font-display text-lg font-bold text-ink">Email replies to check ({waiting.length})</h2>
+          <p className="text-sm text-sub">Written by AI from this job's details and emails. Check, edit if needed, then Send.</p>
+        </>
+      )}
       <PendingSaves items={pendingSaves} onRemove={removePendingSave} />
       <ul className="grid gap-2">{waiting.map((d) => <DraftCard key={d.eventId} d={d} onSent={addPendingSave} onDone={() => { void qc.invalidateQueries({ queryKey: ["ai-reply-drafts", jobId] }); void qc.invalidateQueries({ queryKey: ["office-job-page", jobId] }); }} />)}</ul>
     </section>

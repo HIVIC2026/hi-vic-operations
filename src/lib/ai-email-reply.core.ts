@@ -127,7 +127,6 @@ export const AI_BUSINESS_RULES = rulesFromAnswers(null);
 
 /** Before release: the same answers plus Jo's spot-only, release and wait lines. Nothing may give a date, timeframe or speed. */
 const preReleaseExtras = [SPOT_FREE, SPOT_REGISTERED, SPOT_RELEASE_LINE, AI_RELEASE_MEANS, AI_WAIT_LINE, SPOT_PRICE_NOTE];
-export const AI_BUSINESS_RULES_PRE_RELEASE = [...AI_BUSINESS_RULES, ...preReleaseExtras];
 
 export function buildAiReplyInput(c: AiReplyContext, o: AiPromptOpts = {}): string {
   const pre = o.preRelease === true;
@@ -220,8 +219,8 @@ const AI_PRE_RELEASE_TIMING = new RegExp([
 export function aiPreReleaseViolations(text: string): string[] {
   const cleaned = text
     .replace(/as\s+soon\s+as\s+(?:your|their)\s+spot(?:\s+is|['’]s)\s+released/gi, " ")
-    // The government's 30-day rule for the safety check is a rule, not a timing promise.
-    .replace(/within\s+\d+\s+days?\s+of\s+(?:the|your)\s+install(?:ation)?\b/gi, " ");
+    // The government's 30-day rule for the safety check is a rule, not a timing promise. Only 30 days, nothing else.
+    .replace(/within\s+30\s+days?\s+of\s+(?:the|your)\s+install(?:ation)?\b/gi, " ");
   return [...new Set((cleaned.match(AI_PRE_RELEASE_TIMING) ?? []).map((m) => m.toLowerCase().replace(/\s+/g, " ")))];
 }
 
@@ -258,8 +257,8 @@ const braceDepth = (s: string) => { let d = 0; let inStr = false; for (let i = 0
 /** Lines from `start` (the ACTIONS: line) that belong to the ACTIONS block: the JSON may run over several lines or sit in a
  *  ```json fence, on the same line or the next. Returns the block's text (after "ACTIONS:") and the index after it. An
  *  unbalanced block runs to the end, so no JSON is ever left in the owner's email. */
-function actionsBlock(lines: string[], start: number): { text: string; next: number } {
-  const parts = [lines[start]!.replace(/^\s*actions\s*:\s*/i, "")];
+function actionsBlock(lines: string[], start: number, firstText: string): { text: string; next: number } {
+  const parts = [firstText];
   let i = start + 1;
   const joined = () => parts.join("\n");
   // "ACTIONS:" alone on its line: the JSON (or a fence) starts on the next non-blank line.
@@ -273,8 +272,10 @@ function actionsBlock(lines: string[], start: number): { text: string; next: num
   }
   return { text: joined(), next: i };
 }
-/** Actions saved on a draft (`details.actions`); bad or missing values = none. */
-export const draftActions = (details: Record<string, unknown> | null | undefined): AiActions => cleanActions(details?.["actions"]);
+/** Actions saved on a draft (`details.actions`); bad or missing values = none. At Send the owner's first name is passed, so a
+ *  note naming them is dropped even if it was saved (or edited) that way. */
+export const draftActions = (details: Record<string, unknown> | null | undefined, ownerFirstName?: string | null): AiActions =>
+  cleanActions(details?.["actions"], undefined, ownerFirstName);
 
 /** R6.0 / R7.0 prices for the AI's facts. The rebate doesn't depend on R-value, so the R5.0 rebate is used; only the
  *  install part changes (owner price per m² from `ownerRateForR`). */
@@ -292,11 +293,23 @@ export function newSizeFacts(areaM2: number, r5: { before: number; rebate: numbe
 const money = (n: number) => `$${Math.round(Number(n)).toLocaleString("en-AU")}`;
 export type AiOutput = { body: string; needsAnswer: string[]; needsYou: boolean; actions: AiActions };
 
-const NEEDS_JO_LINE = /^\s*needs[_ ]?jo\s*:\s*(.*?)\s*$/i;
-const NEEDS_YOU_LINE = /^\s*needs[_ ]?you\s*:/i;
-const ACTIONS_LINE = /^\s*actions\s*:/i;
+// Markers may come in markdown or list form: "**NEEDS_JO**:", "- NEEDS JO - …", "> NEEDS_JO – …". Leading `*`, `_`,
+// backticks, `-`, `>` and spaces are dropped before matching; up to two `*`/`_` may close the marker.
+const MARKER_LEAD = /^[\s*_`>-]*/;
+const NEEDS_JO_LINE = /^needs[_ ]?jo[*_]{0,2}\s*[:\-–]\s*(.*?)\s*$/i;
+const NEEDS_YOU_LINE = /^needs[_ ]?you[*_]{0,2}\s*[:\-–]/i;
+const ACTIONS_LINE = /^actions[*_]{0,2}\s*:/i;
+const ACTION_KEYS = /"(?:installer_note|new_area_m2)"/;
+/** A bare ```json fence (no ACTIONS: before it) holding installer_note / new_area_m2 is an ACTIONS block too. */
+function bareActionsFence(lines: string[], start: number): { text: string; next: number } | null {
+  if (!/^\s*```(?:json)?\s*$/i.test(lines[start]!)) return null;
+  let i = start + 1;
+  while (i < lines.length && !/^\s*```\s*$/.test(lines[i]!)) i++;
+  const text = lines.slice(start, Math.min(i + 1, lines.length)).join("\n");
+  return ACTION_KEYS.test(text) ? { text, next: i + 1 } : null;
+}
 /** Splits the AI's raw text into the email and its notes to the office. Runs before anything else, so a marker never
- *  reaches the fix loop or the owner. Lenient: any case, optional spaces, a marker anywhere on its own line. */
+ *  reaches the fix loop or the owner. Lenient: any case, optional spaces, markdown/list forms, a marker on its own line. */
 export function splitAiOutput(raw: string, o: { ownerFirstName?: string | null } = {}): AiOutput {
   const needsAnswer: string[] = [];
   let needsYou = false;
@@ -305,15 +318,19 @@ export function splitAiOutput(raw: string, o: { ownerFirstName?: string | null }
   const lines = (raw ?? "").replace(/\r/g, "").split("\n");
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!;
-    if (ACTIONS_LINE.test(line)) { // never reaches the owner, however the JSON is laid out
-      const b = actionsBlock(lines, i);
+    const bare = line.replace(MARKER_LEAD, "");
+    if (ACTIONS_LINE.test(bare)) { // never reaches the owner, however the JSON is laid out
+      const b = actionsBlock(lines, i, bare.replace(/^actions[*_]{0,2}\s*:\s*/i, ""));
       actions = { ...actions, ...parseActionsText(b.text, o.ownerFirstName) };
       i = b.next - 1;
       continue;
     }
-    const jo = NEEDS_JO_LINE.exec(line);
-    if (jo) { if (jo[1]) needsAnswer.push(jo[1]); continue; }
-    if (NEEDS_YOU_LINE.test(line)) { needsYou = true; continue; }
+    const fence = bareActionsFence(lines, i);
+    if (fence) { actions = { ...actions, ...parseActionsText(fence.text, o.ownerFirstName) }; i = fence.next - 1; continue; }
+    const jo = NEEDS_JO_LINE.exec(bare);
+    // An empty question still flags the draft, so it is never treated as fully answered.
+    if (jo) { needsAnswer.push(jo[1]!.replace(/[*_]+$/, "").trim() || "(question not given)"); continue; }
+    if (NEEDS_YOU_LINE.test(bare)) { needsYou = true; continue; }
     keep.push(line.replace(/[ \t]+$/, ""));
   }
   const body = keep.join("\n").replace(/\n{3,}/g, "\n\n").trim();
@@ -346,7 +363,9 @@ export function aiReplyProblems(body: string, opts: { preRelease?: boolean } = {
   if (PHONE.test(body)) out.push("Take out the phone number.");
   PHONE.lastIndex = 0;
   if (/\b(call|ring|phone)\s+(us|the office|our office)\b/i.test(body)) out.push("Take out “call us”.");
-  if (/\bNEEDS[_ ]?(?:JO|YOU)\s*:/i.test(body) || /\bACTIONS\s*:/.test(body)) out.push("Take out the AI's note to the office (NEEDS_JO…).");
+  if (/\bNEEDS[_ ]?(?:JO|YOU)[*_]{0,2}\s*:/i.test(body) || /\bNEEDS[_ ]?(?:JO|YOU)[*_]{0,2}\s*[-–]/.test(body)
+    || /^[\s*_`>-]*needs[_ ]?(?:jo|you)[*_]{0,2}\s*[:\-–]/im.test(body) || /\bACTIONS[*_]{0,2}\s*:/.test(body)
+    || /\{\s*"installer_note"/.test(body) || /"new_area_m2"/.test(body)) out.push("Take out the AI's note to the office (NEEDS_JO…).");
   if (opts.preRelease) {
     const bad = aiPreReleaseViolations(body);
     if (bad.length) out.push(`Take out “${bad.join("”, “")}” — we can't promise timing before their spot is released.`);

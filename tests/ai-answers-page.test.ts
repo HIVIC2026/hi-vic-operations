@@ -4,16 +4,17 @@ import { existsSync, readFileSync } from "node:fs";
 
 let isAdmin = true;
 let dbError: { code?: string; message: string } | null = null;
-const writes: { op: string; table: string; values?: Record<string, unknown>; id?: unknown }[] = [];
-const rows = [{ id: "11111111-1111-4111-8111-111111111111", topic: "A", answer: "aa", active: true, sort: 4 }];
+const writes: { op: string; table: string; values?: unknown; id?: unknown }[] = [];
+const START = [{ id: "11111111-1111-4111-8111-111111111111", topic: "A", answer: "aa", active: true, sort: 4 }];
+let rows: Record<string, unknown>[] = START;
 
 function from(table: string) {
-  let op = "select"; let values: Record<string, unknown> | undefined; let id: unknown;
+  let op = "select"; let values: unknown; let id: unknown;
   const q: Record<string, unknown> = {};
-  const done = () => ({ data: dbError ? null : op === "select" ? rows : null, error: dbError });
+  const done = () => ({ data: dbError ? null : op === "select" ? rows : op === "update" ? rows.filter((r) => r["id"] === id).map((r) => ({ id: r["id"] })) : null, error: dbError });
   Object.assign(q, {
     select: () => q, order: () => q, limit: () => q,
-    insert: (v: Record<string, unknown>) => { op = "insert"; values = v; return q; },
+    insert: (v: unknown) => { op = "insert"; values = v; return q; },
     update: (v: Record<string, unknown>) => { op = "update"; values = v; return q; },
     delete: () => { op = "delete"; return q; },
     eq: (_c: string, v: unknown) => { id = v; return q; },
@@ -84,5 +85,40 @@ describe("AI answers page", () => {
     expect(readFileSync(new URL("../src/components/portal/EmailsScreen.tsx", import.meta.url), "utf8")).toContain('to="/admin/ai-answers"');
     const { sectionFor } = await import("../src/config/office-nav");
     expect(sectionFor("/admin/ai-answers")).toBe("emails");
+  });
+});
+
+describe("final C1(b): an applied but empty table", () => {
+  test("list shows the starting answers (available)", async () => {
+    rows = [];
+    const out = await call(listAiAnswers);
+    expect(out.available).toBe(true);
+    expect(out.answers.map((a: { topic: string; answer: string }) => ({ topic: a.topic, answer: a.answer }))).toEqual(AI_SEED_ANSWERS);
+    rows = START;
+  });
+  test("the first save copies the starting answers in (one insert), then adds the new answer last", async () => {
+    rows = []; writes.length = 0;
+    await call(saveAiAnswer, { topic: "Roof", answer: "We do ceilings.", active: true });
+    expect(writes).toHaveLength(2);
+    const seedWrite = writes[0]!;
+    expect(seedWrite.op).toBe("insert");
+    const seeded = seedWrite.values as { topic: string; answer: string; active: boolean; sort: number; updated_by: string }[];
+    expect(seeded.map((r) => ({ topic: r.topic, answer: r.answer }))).toEqual(AI_SEED_ANSWERS);
+    expect(seeded.map((r) => r.sort)).toEqual(AI_SEED_ANSWERS.map((_, i) => i + 1));
+    expect(seeded.every((r) => r.active && r.updated_by === "u1")).toBe(true);
+    expect(writes[1]).toMatchObject({ op: "insert", values: { topic: "Roof" } });
+    rows = START;
+  });
+  test("a table with rows is not seeded again", async () => {
+    writes.length = 0;
+    await call(saveAiAnswer, { topic: "Roof", answer: "We do ceilings.", active: true });
+    expect(writes).toHaveLength(1);
+  });
+});
+
+describe("final M-c: editing an answer that was removed", () => {
+  test("says to refresh", async () => {
+    await expect(call(saveAiAnswer, { id: "22222222-2222-4222-8222-222222222222", topic: "Roof", answer: "We do ceilings.", active: true }))
+      .rejects.toThrow("That answer no longer exists — refresh the page.");
   });
 });
