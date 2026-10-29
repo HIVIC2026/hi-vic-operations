@@ -49,11 +49,14 @@ export type SwmsFacts = {
   hazardNote: string | null;
   /** Optional site note the crew adds on the job page. */
   siteNote: string | null;
+  /** Jo 30 Oct 2026: house facts from the Ready Check and PIESA (swms-house.core), and their set safety steps. */
+  houseLines?: string[];
+  houseSteps?: string[];
 };
 export type SwmsSigner = { key: string; name: string; role: "lead" | "crew" };
 export type SwmsPlan = {
   rule: typeof SWMS_RULE; jobNumber: string; address: string | null; businessName: string | null; installDate: string | null;
-  principalContractor: string; workActivity: string; highRiskWork: string[]; hazards: typeof SWMS_HAZARDS; siteNote: string | null; signers: SwmsSigner[];
+  principalContractor: string; workActivity: string; highRiskWork: string[]; hazards: typeof SWMS_HAZARDS; siteNote: string | null; houseLines: string[]; houseSteps: string[]; signers: SwmsSigner[];
 };
 /** One recorded signature (append-only `swms_signed` workflow event). */
 export type SwmsSignature = { key: string; name: string; typedName: string; signedAt: string };
@@ -83,8 +86,14 @@ export function buildSwms(f: SwmsFacts): SwmsPlan {
   return {
     rule: SWMS_RULE, jobNumber: f.jobNumber, address: f.address, businessName: f.businessName, installDate: f.installDate,
     principalContractor: SWMS_PREPARED_FOR, workActivity: SWMS_WORK_DEFAULT, highRiskWork: swmsHighRiskWork(f), hazards: SWMS_HAZARDS,
-    siteNote: f.siteNote?.trim() ? f.siteNote.trim() : null, signers,
+    siteNote: f.siteNote?.trim() ? f.siteNote.trim() : null, houseLines: [...(f.houseLines ?? [])], houseSteps: [...(f.houseSteps ?? [])], signers,
   };
+}
+
+/** Jo 30 Oct 2026: the "Specific to this house" lines — house facts, then set safety steps, then the installer's note.
+ *  Empty = nothing known ("None recorded" is printed by the callers). */
+export function swmsHouseSection(plan: Pick<SwmsPlan, "houseLines" | "houseSteps" | "siteNote">): string[] {
+  return [...(plan.houseLines ?? []), ...(plan.houseSteps ?? []).map((s) => `Safety step: ${s}`), ...(plan.siteNote ? [plan.siteNote] : [])];
 }
 
 /** Latest signature per signer key (events in any order). */
@@ -143,7 +152,8 @@ export function swmsRecordText(plan: SwmsPlan, sigs: SwmsSignature[]): string {
     "Tasks | Hazard | Control measures | How implemented | Responsible",
   );
   for (const h of plan.hazards) L.push(`${SWMS_RECORD_TASK} | ${h.name} | ${h.short}: ${h.control}. | ${SWMS_HOW_IMPLEMENTED} | ${val(lead)} (lead installer)`);
-  L.push("", SWMS_HOW_IN_PLACE, "", `Specific to this house: ${val(plan.siteNote ?? "None recorded")}`);
+  const house = swmsHouseSection(plan);
+  L.push("", SWMS_HOW_IN_PLACE, "", house.length > 1 ? ["Specific to this house:", ...house.map((x) => `- ${x}`)].join("\n") : `Specific to this house: ${house[0] ?? "None recorded"}`);
   L.push("", `Worker sign-off (${SWMS_SIGN_STATEMENT})`, "Name | Signature | Date");
   for (const s of plan.signers) {
     const g = by.get(s.key);

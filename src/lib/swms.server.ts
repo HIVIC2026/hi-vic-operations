@@ -29,24 +29,37 @@ async function installCrew(jobId: string): Promise<{ lead: SwmsPerson | null; cr
 }
 
 export async function swmsFacts(jobId: string): Promise<SwmsFacts> {
-  const [{ data: job }, { data: asg }, { data: book }, { data: asm }, { data: note }, crew] = await Promise.all([
-    admin.from("jobs").select("job_number, properties(address_line, suburb, postcode, year_built)").eq("id", jobId).maybeSingle(),
+  const [{ data: job }, { data: asg }, { data: book }, { data: asm }, { data: note }, crew, { data: meas }, { data: piesa }] = await Promise.all([
+    admin.from("jobs").select("job_number, life_support_status, properties(address_line, suburb, postcode, year_built)").eq("id", jobId).maybeSingle(),
     admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle(),
     admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "installation").neq("status", "cancelled").order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
-    admin.from("assessments").select("hazards").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("assessments").select("hazards, piesa_outcome").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", SWMS_NOTE_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     installCrew(jobId),
+    // Jo 30 Oct 2026: house facts — the current Ready Check answers and the current PIESA record.
+    admin.from("ceiling_measurements").select("raw_snapshot").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
+    admin.from("piesa_records").select("outcome, rectification_completed_at").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
   ]);
   if (!job) throw new WorkflowError("Job not found.");
   const { data: biz } = asg?.business_id ? await admin.from("businesses").select("name").eq("id", asg.business_id).maybeSingle() : { data: null };
   const prop = job.properties as { address_line: string | null; suburb: string | null; postcode: string | null; year_built: number | null } | null;
   const { melbourneDateOf } = await import("./install-evidence.server");
+  const { swmsHouseFacts, swmsHouseLines, swmsHouseSteps } = await import("./swms-house.core");
+  const entries = Array.isArray(meas?.raw_snapshot) ? (meas!.raw_snapshot as unknown as { label: string; value: unknown }[]) : [];
+  const upgradesDone = !!piesa?.rectification_completed_at;
+  const house = swmsHouseFacts(entries, {
+    lifeSupportStatus: (job as { life_support_status?: string | null }).life_support_status ?? null,
+    piesaOutcome: upgradesDone ? "fail" : (piesa?.outcome ?? asm?.piesa_outcome ?? null),
+    upgradesDone,
+    piesaHazards: typeof asm?.hazards === "string" ? asm.hazards : null,
+  });
   return {
     jobNumber: job.job_number, address: [prop?.address_line, prop?.suburb, prop?.postcode].filter(Boolean).join(", ") || null,
     businessName: biz?.name ?? null, installDate: melbourneDateOf(book?.scheduled_start ?? null),
     lead: crew.lead, crew: crew.crew, yearBuilt: prop?.year_built ?? null,
     hazardNote: typeof asm?.hazards === "string" ? asm.hazards : null,
     siteNote: ((note?.details as { note?: unknown } | null)?.note as string | undefined) ?? null,
+    houseLines: swmsHouseLines(house), houseSteps: swmsHouseSteps(house),
   };
 }
 

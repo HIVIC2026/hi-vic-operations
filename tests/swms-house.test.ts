@@ -67,3 +67,14 @@ describe("SWMS house facts", () => {
     expect(swmsHouseLines(f)).toEqual(["Roof: Metal sheet", "Ceiling access: Easy", "Lounge: 3 recessed downlights", "Ready Check issue (Lounge): Wasp nest"]);
   });
 });
+
+describe("SWMS plan carries the house section", () => {
+  test("record text lists facts, then safety steps, then the installer's note", async () => {
+    const { buildSwms, swmsRecordText, swmsHouseSection } = await import("../src/lib/swms.core");
+    const base = { jobNumber: "HV-TEST-1", address: null, businessName: null, installDate: null, lead: { name: "TEST Lead", workerId: "w1" }, crew: [], yearBuilt: 2000, hazardNote: null };
+    const plan = buildSwms({ ...base, siteNote: "Dog in yard", houseLines: ["Roof: Tiles"], houseSteps: [SWMS_HOUSE_STEPS.downlights] });
+    expect(swmsHouseSection(plan)).toEqual(["Roof: Tiles", `Safety step: ${SWMS_HOUSE_STEPS.downlights}`, "Dog in yard"]);
+    expect(swmsRecordText(plan, [])).toContain(`Specific to this house:\n- Roof: Tiles\n- Safety step: ${SWMS_HOUSE_STEPS.downlights}\n- Dog in yard`);
+    expect(swmsRecordText(buildSwms({ ...base, siteNote: null }), [])).toContain("Specific to this house: None recorded");
+  });
+});
