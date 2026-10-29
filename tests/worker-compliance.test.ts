@@ -57,17 +57,13 @@ describe("crew clearance (decision 153, Jo 24 Oct 2026)", () => {
     expect(approvalFlags({ ...v, cii_level: "full", cii_expires_on: "2028-01-01" }, T)).toEqual([]);
   });
 });
-describe("installer PIISA training", () => {
+describe("installer sign-up (no PIISA training)", () => {
   const inst = (x: object) => ({ trade_role: "installer", ...x });
   // Decision 319: existing installers also show the White Card as missing (an Add it prompt, never a block here).
   test("existing installers show missing with Add it", () => expect(missingItems(inst({}))).toEqual(["white_card"]));
-  test("form: Yes needs date + certificate; No passes the PIISA check", () => {
+  test("form never asks about PIISA training, whatever an old draft says", () => {
     const one = (x: object) => ({ installers: [{ full_legal_name: "Al", mobile: "0412345678", email: "al@ins.com.au", cii_holds: "not_held", ...x }] }) as never;
     const errs = (x: object) => instErrors("installers" as never, one(x)).join(" | ");
-    expect(errs({})).toContain("PIISA training");
-    expect(errs({ piisa_done: "no" })).not.toContain("PIISA");
-    expect(errs({ piisa_done: "yes" })).toContain("Enter the date they finished PIISA training.");
-    expect(errs({ piisa_done: "yes", piisa_date: "2026-09-01" })).toContain("Upload the PIISA certificate.");
-    expect(errs({ piisa_done: "yes", piisa_date: "2026-09-01", piisa_uploaded: true })).not.toContain("PIISA");
+    for (const x of [{}, { piisa_done: "no" }, { piisa_done: "yes" }, { piisa_done: "yes", piisa_date: "2026-09-01" }]) expect(errs(x)).not.toMatch(/PIISA/i);
   });
 });
