@@ -11,7 +11,18 @@ export const LOCK_STALE_MS = 2 * 60 * 1000;
 export const r2 = (n: number) => Math.round(n * 100) / 100;
 /** Locked Xero/customer-facing reference (owner decision 2026-10-03). */
 export const XERO_REFERENCE_PREFIX = "Home Insulation Victoria ";
-export const xeroReference = (jobNumber: string) => `${XERO_REFERENCE_PREFIX}${jobNumber}`;
+/** Batch 3b (Jo 29 Oct 2026): one Xero invoice per kind. The installation reference is unchanged; electrical fixes and each
+ *  owner-paid repeat safety check get their own invoice with a suffix ("… HV-1234 fixes", "… HV-1234 safety check 2"). */
+export type XeroInvoiceKind = "installation" | "rectification" | "repeat_safety_check";
+export function xeroReference(jobNumber: string, kind: XeroInvoiceKind, repeatNo?: number): string {
+  const base = `${XERO_REFERENCE_PREFIX}${jobNumber}`;
+  if (kind === "rectification") return `${base} fixes`;
+  if (kind === "repeat_safety_check") {
+    if (!repeatNo || !Number.isInteger(repeatNo) || repeatNo < 2) throw new Error("A repeat safety check reference needs its number (2, 3, …).");
+    return `${base} safety check ${repeatNo}`;
+  }
+  return base;
+}
 
 // ---------- Business-unit barrier (fail closed) ----------
 export const HIVIC_BUSINESS_UNIT = "hivic";
@@ -78,11 +89,13 @@ export async function findOrCreateContact(call: XeroCall, owner: { id: string; f
   return { contactId: c.Contacts[0].ContactID as string, created: true };
 }
 
-/** Find an existing live invoice for this job reference (adopt after a lost response). */
-export async function findInvoiceByReference(call: XeroCall, reference: string) {
+/** Find an existing live invoice for this exact reference (adopt after a lost response). The reference must match exactly,
+ *  so the installation reference never picks up "… fixes" or "… safety check 2". `excludeInvoiceIds` = Xero invoices already
+ *  linked to another portal invoice (an older fixes invoice shares the fixes reference and must never be adopted). */
+export async function findInvoiceByReference(call: XeroCall, reference: string, excludeInvoiceIds: readonly string[] = []) {
   assertHivicReference(reference); // exact Home Insulation Victoria reference only – never a broad DC invoice search
   const r = await call(`/api.xro/2.0/Invoices?where=${encodeURIComponent(`Type=="ACCREC"&&Reference=="${q(reference)}"`)}`);
-  return (r.Invoices ?? []).find((i: any) => !["VOIDED", "DELETED"].includes(i.Status)) ?? null;
+  return (r.Invoices ?? []).find((i: any) => i.Reference === reference && !["VOIDED", "DELETED"].includes(i.Status) && !excludeInvoiceIds.includes(i.InvoiceID)) ?? null;
 }
 
 /** Name of the negative incentive line (Activity Guide v1.2 Table 4 / decision 209: "VEEC incentive", not "discount"). */
@@ -94,7 +107,8 @@ export const VEEC_INCENTIVE_TAX_TYPE = "BASEXCLUDED";
 export const VEEC_INCENTIVE_ACCOUNT_CODE = "200";
 export const INSTALLATION_ADDRESS_LABEL = "Installation address";
 
-/** ONE full detailed invoice: every accepted customer-facing quote line once, plus the VEEC incentive as a negative line.
+/** ONE full detailed invoice per accepted quote: every accepted customer-facing quote line once, plus (installation only)
+ *  the VEEC incentive as a negative line. A fixes invoice (batch 3b) carries only the fixes quote's lines.
  *  Amounts are inc GST (LineAmountTypes Inclusive) so Xero never adds GST again; lines must sum to the accepted total exactly.
  *  Decision 209 (Jo 24 Oct 2026): the first line also carries the installation address (the Reference stays the locked
  *  "Home Insulation Victoria <job>"); the insulation line's wording is prepared by `itemiseInvoiceLines` before this call.
@@ -103,13 +117,17 @@ export const INSTALLATION_ADDRESS_LABEL = "Installation address";
  *  wording applies to invoices created from this change on. */
 export function buildInvoicePayload(a: {
   contactId: string; jobNumber: string; dueDate: string; total: number;
+  /** Batch 3b: which invoice this is (default installation). A fixes invoice carries only the fixes lines and never a VEEC
+   *  incentive line. */
+  kind?: "installation" | "rectification";
   items: { description: string; quantity: number | string; unit_price_inc_gst: number | string; line_total_inc_gst: number | string }[];
   /** The VEEC incentive taken off the price (quotes.veec_discount_inc_gst), inc GST. */
   veecIncentive: number | string; tracking: { categoryName: string; optionName: string } | null;
   /** Installation address; printed on the first line when known, never invented. */
   installationAddress?: string | null;
 }) {
-  const ref = xeroReference(a.jobNumber);
+  const kind = a.kind ?? "installation";
+  const ref = xeroReference(a.jobNumber, kind);
   const Tracking = a.tracking ? [{ Name: a.tracking.categoryName, Option: a.tracking.optionName }] : undefined;
   const address = a.installationAddress?.trim() ? ` – ${INSTALLATION_ADDRESS_LABEL}: ${a.installationAddress.trim()}` : "";
   const LineItems: { Description: string; Quantity: number; UnitAmount: number; AccountCode: string; TaxType?: string; Tracking: { Name: string; Option: string }[] | undefined }[] = a.items.map((i, n) => {
@@ -120,7 +138,7 @@ export function buildInvoicePayload(a: {
       ? { Description: `${head} – ${currentFeeWording(i.description)}`, Quantity: q, UnitAmount: u, AccountCode: "200", Tracking }
       : { Description: `${head} – ${currentFeeWording(i.description)} (${q} × ${u})`, Quantity: 1, UnitAmount: lt, AccountCode: "200", Tracking };
   });
-  if (Number(a.veecIncentive) > 0) LineItems.push({ Description: `${ref} – ${VEEC_INCENTIVE_LINE}`, Quantity: 1, UnitAmount: -Number(a.veecIncentive), AccountCode: VEEC_INCENTIVE_ACCOUNT_CODE, TaxType: VEEC_INCENTIVE_TAX_TYPE, Tracking });
+  if (kind === "installation" && Number(a.veecIncentive) > 0) LineItems.push({ Description: `${ref} – ${VEEC_INCENTIVE_LINE}`, Quantity: 1, UnitAmount: -Number(a.veecIncentive), AccountCode: VEEC_INCENTIVE_ACCOUNT_CODE, TaxType: VEEC_INCENTIVE_TAX_TYPE, Tracking });
   const sum = LineItems.reduce((s, l) => s + Math.round(l.Quantity * l.UnitAmount * 100), 0);
   if (sum !== Math.round(a.total * 100)) throw new Error(`Quote lines (${sum / 100}) don't add up to the accepted total (${a.total}) – invoice not pushed.`);
   return { Invoices: [{ Type: "ACCREC", Contact: { ContactID: a.contactId }, LineAmountTypes: "Inclusive", Reference: ref, DueDate: a.dueDate, Status: "AUTHORISED", LineItems }] };

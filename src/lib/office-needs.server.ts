@@ -56,6 +56,61 @@ export async function newQuoteOfficeFacts(jobIds: string[]): Promise<Map<string,
   return out;
 }
 
+/** Batch 1 + 3b: the failed-invoice fact per job — the newest `invoice_create_failed` per invoice kind (installation or
+ *  electrical fixes, from the event's quote), shown while that kind's quote is still accepted and until a Xero-linked
+ *  invoice for that quote appears after the failure (Sync / Create invoice). The newest such failure wins. */
+export async function invoiceFailedFacts(jobIds: string[]): Promise<Map<string, NonNullable<NeedsFacts["invoiceFailed"]>>> {
+  const out = new Map<string, NonNullable<NeedsFacts["invoiceFailed"]>>();
+  if (!jobIds.length) return out;
+  const { invoiceFailedFact } = await import("./office-needs.core");
+  const [fails, qs, invs] = await Promise.all([
+    byIds("failed invoices", jobIds, (c, a, b) => admin.from("workflow_events").select("job_id, summary, details, created_at").in("job_id", c).eq("event_type", "invoice_create_failed").range(a, b)),
+    byIds("quotes of failed jobs", jobIds, (c, a, b) => admin.from("quotes").select("id, job_id, kind, status").in("job_id", c).in("kind", ["installation", "rectification"]).range(a, b)),
+    byIds("invoices of failed jobs", jobIds, (c, a, b) => admin.from("invoices").select("job_id, quote_id, kind, xero_invoice_id, last_synced_at, created_at, last_sync_error, status").in("job_id", c).in("kind", ["installation", "rectification"]).range(a, b)),
+  ]);
+  const quoteById = new Map(qs.map((q) => [String(q["id"]), q]));
+  for (const id of jobIds) {
+    let best: NonNullable<NeedsFacts["invoiceFailed"]> | null = null;
+    for (const kind of ["installation", "rectification"] as const) {
+      // Older events carry no kind: read it from their quote; unknown = installation (the only kind before batch 3b).
+      const kindOf = (e: Row) => { const d = (e["details"] ?? {}) as Row; const q = quoteById.get(String(d["quote_id"] ?? "")); return String(d["kind"] ?? q?.["kind"] ?? "installation"); };
+      const mine = fails.filter((e) => String(e["job_id"]) === id && kindOf(e) === kind).sort((a, b) => String(a["created_at"]).localeCompare(String(b["created_at"])));
+      const latest = mine.at(-1);
+      if (!latest) continue;
+      const quoteId = s(((latest["details"] ?? {}) as Row)["quote_id"]);
+      const stillAccepted = quoteId && quoteById.has(quoteId) ? quoteById.get(quoteId)!["status"] === "accepted"
+        : qs.some((q) => String(q["job_id"]) === id && q["kind"] === kind && q["status"] === "accepted");
+      if (!stillAccepted) continue;
+      const hit = invoiceFailedFact(
+        mine.map((e) => ({ at: String(e["created_at"]), text: String(e["summary"] ?? "") })),
+        invs.filter((i) => String(i["job_id"]) === id && i["kind"] === kind && (!quoteId || String(i["quote_id"]) === quoteId))
+          .map((i) => ({ xero_invoice_id: s(i["xero_invoice_id"]), last_synced_at: s(i["last_synced_at"]), created_at: String(i["created_at"]), last_sync_error: s(i["last_sync_error"]), status: s(i["status"]) })),
+      );
+      if (hit && (!best || hit.at > best.at)) best = { ...hit, kind };
+    }
+    if (best) out.set(id, best);
+  }
+  return out;
+}
+
+/** Batch 3b ("superseded fixes"): a fixes invoice linked to Xero whose fixes quote a newer one replaced, nothing paid on it
+ *  and not voided/deleted in Xero → the office voids it in Xero. Clears itself once Sync reads it as voided, or money lands. */
+export async function oldFixesInvoiceFacts(jobIds: string[]): Promise<Map<string, NonNullable<NeedsFacts["oldFixesInvoiceUnpaid"]>>> {
+  const out = new Map<string, NonNullable<NeedsFacts["oldFixesInvoiceUnpaid"]>>();
+  if (!jobIds.length) return out;
+  const want = new Set(jobIds);
+  // Few rows: every linked fixes invoice on a superseded quote, matched to the jobs here (no long id lists in the URL).
+  const rows = await all("old fixes invoices", (a, b) => admin.from("invoices").select("job_id, created_at, total_paid, xero_invoice_status, quotes!inner(status)").eq("kind", "rectification").eq("quotes.status", "superseded").not("xero_invoice_id", "is", null).range(a, b));
+  for (const r of rows) {
+    const id = String(r["job_id"]);
+    if (!want.has(id) || Number(r["total_paid"] ?? 0) > 0 || ["VOIDED", "DELETED"].includes(String(r["xero_invoice_status"] ?? "").toUpperCase())) continue;
+    const at = String(r["created_at"]);
+    const had = out.get(id);
+    if (!had || at < had.at) out.set(id, { at });
+  }
+  return out;
+}
+
 /** Batch 3a: base facts for jobs still closed by an expired quote ("Quote expired (14 days)"). They are not in the
  *  open-jobs list, but their expired-quote / new-quote office rows still need to show. Deleted (and, unless asked, TEST)
  *  jobs are left out. */
@@ -437,22 +492,14 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   } catch { unavailable.push("new quotes needing the office"); }
   // Batch 1: the owner accepted but the invoice step failed → one Money row until a Xero-linked invoice exists.
   try {
-    const { invoiceFailedFact } = await import("./office-needs.core");
-    const fails = await all("failed invoices", (a, b) => scoped(admin.from("workflow_events").select("job_id, summary, created_at")).eq("event_type", "invoice_create_failed").range(a, b));
+    const fails = await all("failed invoices", (a, b) => scoped(admin.from("workflow_events").select("job_id")).eq("event_type", "invoice_create_failed").range(a, b));
     const failIds = [...new Set(fails.map((e) => String(e["job_id"])).filter((id) => idSet.has(id)))];
-    if (failIds.length) {
-      const acc = await byIds("accepted quotes of failed jobs", failIds, (c, a, b) => admin.from("quotes").select("job_id").in("job_id", c).eq("kind", "installation").eq("status", "accepted").range(a, b));
-      const accepted = new Set(acc.map((r) => String(r["job_id"])));
-      const invs = await byIds("invoices of failed jobs", failIds, (c, a, b) => admin.from("invoices").select("job_id, xero_invoice_id, last_synced_at, created_at, last_sync_error, status").in("job_id", c).eq("kind", "installation").range(a, b));
-      for (const id of failIds) {
-        const hit = invoiceFailedFact(
-          fails.filter((e) => String(e["job_id"]) === id).map((e) => ({ at: String(e["created_at"]), text: String(e["summary"] ?? "") })),
-          invs.filter((i) => String(i["job_id"]) === id).map((i) => ({ xero_invoice_id: s(i["xero_invoice_id"]), last_synced_at: s(i["last_synced_at"]), created_at: String(i["created_at"]), last_sync_error: s(i["last_sync_error"]), status: s(i["status"]) })),
-        );
-        const x = f(id); if (x && hit && accepted.has(id)) x.invoiceFailed = hit;
-      }
-    }
+    for (const [id, hit] of await invoiceFailedFacts(failIds)) { const x = f(id); if (x) x.invoiceFailed = hit; }
   } catch { unavailable.push("failed invoices"); }
+  // Batch 3b: a newer fixes quote replaced an accepted one whose own Xero invoice is still unpaid → one Money row.
+  try {
+    for (const [id, hit] of await oldFixesInvoiceFacts([...idSet])) { const x = f(id); if (x) x.oldFixesInvoiceUnpaid = hit; }
+  } catch { unavailable.push("old fixes invoices"); }
   // Decision 315: 24h after the fixes-times link with no times → one "Electrician hasn't given fixes times" row.
   for (const [id, r] of fixesTimesMissing({ links: fixesLinks.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]) })), given: fixesGiven.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]) })), now })) {
     const x = f(id); if (x) x.fixesTimesMissing = { at: r.at };

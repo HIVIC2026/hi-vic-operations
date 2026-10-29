@@ -239,10 +239,15 @@ describe("owner asks for a new quote after expiry", () => {
       expect(String(q["release_hold_reason"])).toContain("New quote asked for by the owner");
       expect(tables["quote_items"]!.filter((i) => i["quote_id"] === id).some((i) => String(i["description"]).includes("electrical fixes"))).toBe(false);
     }
-    // Once a quote has been SENT after the request, the builder is back to normal (accepted fixes folded in).
+    // Once a quote has been SENT after the request, the builder is back to normal — and (batch 3b) the accepted fixes
+    // are still never folded in: they have their own quote and their own invoice.
     tables["quotes"]!.push({ id: "QS", job_id: "J1", kind: "installation", status: "superseded", sent_at: nextAt(), created_at: nextAt() });
     const [id] = await generateInstallerQuotes("J1", "U1");
-    expect(tables["quote_items"]!.filter((i) => i["quote_id"] === id).some((i) => String(i["description"]).includes("electrical fixes"))).toBe(true);
+    const q = tables["quotes"]!.find((x) => x["id"] === id)!;
+    expect(String(q["release_hold_reason"] ?? "")).not.toContain("New quote asked for by the owner");
+    expect(String(q["option_label"])).not.toContain("electrical fixes");
+    expect(tables["quote_items"]!.filter((i) => i["quote_id"] === id).length).toBeGreaterThan(0);
+    expect(tables["quote_items"]!.filter((i) => i["quote_id"] === id).some((i) => String(i["description"]).startsWith("electrical fixes:"))).toBe(false);
   });
 
   test("a write after the reopen fails (installer put-back): one office note on Needs me, re-tap = thanks, nothing doubles", async () => {

@@ -1,5 +1,5 @@
-// Xero integration boundary – ONE full invoice per accepted quote. Payments are steps on that invoice (safety check, fixes, 10% install deposit,
-// balance) and are confirmed only by Xero payments and the card ledger.
+// Xero integration boundary – ONE full invoice per accepted quote: the installation invoice (safety check, 10% install deposit,
+// balance) and, batch 3b, a separate fixes invoice per accepted fixes quote. Payments are confirmed only by Xero payments and the card ledger.
 // Xero is the system of record; the portal mirrors state and enforces gates.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
@@ -145,15 +145,21 @@ async function jobInvoice(jobId: string) {
   return (data as unknown as InvoiceRow) ?? null;
 }
 
-/** Owner accepted the final installation quote: create the ONE full invoice (idempotent) and push it to Xero. */
+/** Owner accepted a quote: create its ONE invoice (idempotent, one per quote) and push it to Xero. Installation quote →
+ *  the installation invoice; accepted electrical fixes quote (batch 3b) → its own fixes invoice, paid in full, reference
+ *  "Home Insulation Victoria <job> fixes". The installation invoice is never touched by a fixes quote. */
 export async function createInvoiceForQuote(quoteId: string, actorId: string | null) {
   const { data: q } = await admin.from("quotes").select("id, job_id, kind, status, option_label, customer_total_inc_gst").eq("id", quoteId).single();
   if (!q) throw new Error("Quote not found");
+  if (q.kind !== "installation" && q.kind !== "rectification") throw new Error(`A ${q.kind} quote has no invoice of its own.`);
   await requireHivicJob(q.job_id);
+  const fixes = q.kind === "rectification";
   // Decision 302: the Xero deposit = the accepted quote's PIESA line ($349 for our electrician, the REC's onboarded rate otherwise).
-  const safety = await (await import("./safety-check-amount.server")).quoteSafetyCheck(q.id);
-  const { row, created } = await ensureInvoice(dbStore, q, melbourneDate(new Date().toISOString()), safety.incGst);
-  if (created) await logEvent(q.job_id, actorId, "invoice_created_local", `Invoice raised for ${q.option_label}: ${row.total_inc_gst} inc GST. Safety check payment (${row.deposit_amount}) due – owner pays on My job.`, { invoice_id: row.id, total_inc_gst: row.total_inc_gst });
+  // A fixes invoice is paid in full before the fixes visit, so its upfront amount is its whole total.
+  const upfront = fixes ? Number(q.customer_total_inc_gst) : (await (await import("./safety-check-amount.server")).quoteSafetyCheck(q.id)).incGst;
+  const { row, created } = await ensureInvoice(dbStore, q, melbourneDate(new Date().toISOString()), upfront);
+  if (created && fixes) await logEvent(q.job_id, actorId, "invoice_created_local", `Electrical fixes invoice raised for ${q.option_label}: ${row.total_inc_gst} inc GST – owner pays it in full on My job.`, { invoice_id: row.id, total_inc_gst: row.total_inc_gst, kind: q.kind }, { internal: true });
+  else if (created) await logEvent(q.job_id, actorId, "invoice_created_local", `Invoice raised for ${q.option_label}: ${row.total_inc_gst} inc GST. Safety check payment (${row.deposit_amount}) due – owner pays on My job.`, { invoice_id: row.id, total_inc_gst: row.total_inc_gst });
   if (!row.xero_invoice_id) await pushInvoiceToXero(row.id, actorId);
   return row.id;
 }
@@ -166,8 +172,8 @@ export async function pushInvoiceToXero(invoiceId: string, actorId: string | nul
   const { data: inv } = await admin.from("invoices").select("*, quotes(status, customer_total_inc_gst, veec_discount_inc_gst, quote_items(code, description, quantity, unit_price_inc_gst, line_total_inc_gst, sort)), jobs(job_number, owners(id, full_name, email, xero_contact_id), properties(address_line, suburb, state, postcode))").eq("id", invoiceId).single();
   if (!inv) throw new Error("Invoice not found");
   // Decision 209 wording (installation address, itemised insulation line, "VEEC incentive") applies to invoices created from
-  // here on: an invoice already linked to Xero is never re-created or rewritten (the one exception is the audit R07 fixes
-  // line, added only by `repairsStep` below under `xero-repairs.core` rules).
+  // here on: an invoice already linked to Xero is never re-created or rewritten (batch 3b: electrical fixes get their own
+  // invoice instead of a line on this one).
   if (inv.xero_invoice_id) return; // already linked – never create a second Xero invoice
   if (!(await claimLock(invoiceId))) throw new Error("A Xero sync for this invoice is already running – try again shortly.");
   const job = inv.jobs as unknown as { job_number: string; owners: { id: string; full_name: string; email: string | null; xero_contact_id: string | null }; properties: { address_line: string; suburb: string | null; state: string | null; postcode: string | null } | null };
@@ -179,25 +185,31 @@ export async function pushInvoiceToXero(invoiceId: string, actorId: string | nul
     if (!dueDate) throw new Error("Invoice has no due date.");
     const mode = await modeForInvoice(invoiceId);
     const call = callOverride ?? (await tenantCall(mode));
-    const reference = xeroReference(job.job_number);
+    const kind = inv.kind === "rectification" ? "rectification" as const : "installation" as const;
+    const reference = xeroReference(job.job_number, kind);
     const tracking = await findTrackingOption(call, mode);
-    let x = await findInvoiceByReference(call, reference);
+    // An older fixes invoice (superseded fixes quote) shares the fixes reference: never adopt a Xero invoice another portal
+    // invoice is already linked to.
+    const { data: linked, error: linkedErr } = await admin.from("invoices").select("xero_invoice_id").eq("job_id", inv.job_id).neq("id", invoiceId).not("xero_invoice_id", "is", null);
+    if (linkedErr) throw new Error(`Could not read the job's other invoices: ${linkedErr.message}`);
+    let x = await findInvoiceByReference(call, reference, (linked ?? []).map((r) => String(r.xero_invoice_id)));
     let contactId = x?.Contact?.ContactID ?? job.owners.xero_contact_id;
     if (!x) {
       if (!contactId) contactId = (await findOrCreateContact(call, job.owners)).contactId;
       // Decision 209: "Ceiling insulation — {brand} {model} R{value} — {m²} m²" from the declared product + Ready Check area;
       // unknown facts keep the rate-card wording and raise an office item (never invented). Amounts are untouched.
+      // A fixes invoice has no insulation line: its lines go as quoted.
       const { itemiseInvoiceLines, missingProductFacts } = await import("./invoice-itemisation.core");
-      const { installedProductFacts } = await import("./invoice-itemisation.server");
-      const facts = await installedProductFacts(inv.job_id);
-      const itemised = itemiseInvoiceLines([...quote.quote_items].sort((a, b) => a.sort - b.sort), facts);
+      const lines = [...quote.quote_items].sort((a, b) => a.sort - b.sort);
+      const facts = kind === "installation" ? await (await import("./invoice-itemisation.server")).installedProductFacts(inv.job_id) : null;
+      const itemised = facts ? itemiseInvoiceLines(lines, facts) : { items: lines, officeFlag: null };
       const { formatPropertyAddress } = await import("./address");
       const installationAddress = formatPropertyAddress(job.properties) || null;
-      const payload = buildInvoicePayload({ contactId: contactId!, jobNumber: job.job_number, dueDate, total: Number(inv.total_inc_gst), items: itemised.items, veecIncentive: quote.veec_discount_inc_gst, tracking, installationAddress });
+      const payload = buildInvoicePayload({ contactId: contactId!, jobNumber: job.job_number, dueDate, total: Number(inv.total_inc_gst), kind, items: itemised.items, veecIncentive: kind === "installation" ? quote.veec_discount_inc_gst : 0, tracking, installationAddress });
       assertHivicPayload(payload, mode);
       const res = await call("/api.xro/2.0/Invoices", { method: "POST", headers: { "Idempotency-Key": invoiceIdemKey(invoiceId) }, body: payload });
       x = res.Invoices[0];
-      if (itemised.officeFlag) {
+      if (itemised.officeFlag && facts) {
         const { INVOICE_PRODUCT_UNCONFIRMED_EVENT } = await import("./invoice-itemisation.core");
         await logEvent(inv.job_id, actorId, INVOICE_PRODUCT_UNCONFIRMED_EVENT, `${itemised.officeFlag}: ${missingProductFacts(facts).join("; ")}`, { invoice_id: invoiceId, reasons: missingProductFacts(facts), needs_office: true }, { internal: true }).catch((e) => console.error("invoice product flag skipped", (e as Error).message));
       }
@@ -235,10 +247,6 @@ export async function syncInvoiceFromXero(invoiceId: string, actorId: string | n
       await admin.from("invoices").update({ xero_update_pending: false }).eq("id", invoiceId);
       await logEvent(inv.job_id, actorId, "xero_due_date_updated", `Xero due date updated to ${inv.balance_due_date}`, { invoice_id: invoiceId }, { internal: true });
     }
-    // Audit R07: approved electrical fixes go onto this same invoice (or are held for the office) before payments are read,
-    // so the paid/balance state below is measured against the varied total. Never fails the payment sync.
-    await repairsStep(inv as unknown as RepairsInvoice, call, await modeForInvoice(invoiceId), actorId)
-      .catch((e) => console.error("xero repairs step skipped", (e as Error).message));
     // Jo 28 Oct: an accepted owner-pays repeat PIESA goes on this same invoice too (retry on every Sync).
     await repeatPiesaStep(inv as unknown as RepairsInvoice, call, await modeForInvoice(invoiceId), actorId)
       .catch((e) => console.error("xero repeat PIESA step skipped", (e as Error).message));
@@ -354,99 +362,15 @@ export async function applyPaidAmount(invoiceId: string, paid: number, actorId: 
   const effective = Math.max(0, paid);
   const { patch, events } = paymentPatch(inv as unknown as InvoiceRow, effective, depositReachedAt ?? null, new Date().toISOString());
   await admin.from("invoices").update(patch as never).eq("id", invoiceId);
-  if (events.includes("deposit_paid")) await logEvent(inv.job_id, actorId, "deposit_paid", `Safety check payment confirmed in Xero (${inv.deposit_amount})`, { invoice_id: invoiceId, amount_paid: paid });
+  // A fixes invoice has no safety check part (batch 3b): only the installation invoice records the safety check payment.
+  if (events.includes("deposit_paid") && inv.kind === "installation") await logEvent(inv.job_id, actorId, "deposit_paid", `Safety check payment confirmed in Xero (${inv.deposit_amount})`, { invoice_id: invoiceId, amount_paid: paid });
   if (events.includes("balance_paid")) await logEvent(inv.job_id, actorId, "balance_paid", "Invoice fully paid in Xero", { invoice_id: invoiceId });
   if (events.includes("paid_reduced")) await logEvent(inv.job_id, actorId, "payment_total_reduced", `Amount received went down from ${Number(inv.total_paid).toFixed(2)} to ${effective.toFixed(2)} (a Xero payment was deleted or voided, or the same money had been counted twice)`, { invoice_id: invoiceId, was: Number(inv.total_paid), now: effective }, { internal: true });
 }
 
-// ---------- Audit R07 / F03: approved electrical fixes on the SAME Xero invoice ----------
+// Shared by the repeat PIESA line below (batch 3b Task 3 replaces it with its own invoice).
 type RepairsInvoice = { id: string; job_id: string; quote_id: string; kind: string; total_inc_gst: number | string; total_paid: number | string | null; deposit_amount: number | string; deposit_paid_at: string | null; balance_paid_at: string | null; status: string; xero_invoice_id: string | null; xero_invoice_number: string | null };
 export type RepairsStepResult = "none" | "not_linked" | "busy" | "already" | "added" | "adopted" | "held";
-
-/** The fixes amount counted as its own step (same rule as the payment plan, `fixesCountedCents`), the accepted
- *  installation quote total the invoice was raised for, and the amendments already recorded for this invoice. */
-async function repairsFacts(inv: RepairsInvoice) {
-  const [{ data: quote }, { data: rect }, { data: job }, { data: ev }] = await Promise.all([
-    admin.from("quotes").select("customer_total_inc_gst, accepted_at").eq("id", inv.quote_id).maybeSingle(),
-    (await import("./fixes-quote-current.server")).currentFixesQuote(inv.job_id).then(q => ({ data: q?.status === "accepted" ? q : null })),
-    admin.from("jobs").select("job_number").eq("id", inv.job_id).maybeSingle(),
-    admin.from("workflow_events").select("details").eq("job_id", inv.job_id).eq("event_type", (await import("./xero-repairs.core")).REPAIRS_ADDED_EVENT),
-  ]);
-  const { fixesCountedCents, toCents } = await import("./payments.core");
-  const amountCents = fixesCountedCents({ rectTotalCents: rect ? toCents(rect.customer_total_inc_gst) : 0, rectAcceptedAt: rect?.accepted_at ?? null, installAcceptedAt: quote?.accepted_at ?? null });
-  const recorded = ((ev ?? []) as { details: Record<string, unknown> | null }[]).map((e) => e.details ?? {}).filter((d) => d["invoice_id"] === inv.id)
-    .map((d) => ({ key: String(d["key"] ?? ""), rectQuoteId: String(d["rect_quote_id"] ?? ""), amountCents: Number(d["amount_cents"] ?? 0) }));
-  return {
-    repairs: rect && amountCents > 0 ? { rectQuoteId: rect.id as string, amountCents } : null,
-    baseTotalCents: quote ? toCents(quote.customer_total_inc_gst) : toCents(inv.total_inc_gst),
-    jobNumber: (job?.job_number as string | undefined) ?? "",
-    recorded,
-  };
-}
-
-/** One pass for one linked invoice, run under the invoice's sync lock: add the fixes line when Xero allows it, adopt a
- *  line/total already varied in Xero, or hold for the office (one Needs me row per reason). Never a second invoice. */
-async function repairsStep(inv: RepairsInvoice, call: XeroCall, mode: XeroMode, actorId: string | null): Promise<RepairsStepResult> {
-  if (inv.kind !== "installation") return "none";
-  if (!inv.xero_invoice_id) return "not_linked";
-  const core = await import("./xero-repairs.core");
-  const f = await repairsFacts(inv);
-  if (!f.repairs) return "none";
-  const key = core.repairsKey(inv.id, f.repairs.rectQuoteId, f.repairs.amountCents);
-  if (f.recorded.some((r) => r.key === key)) return "already"; // recorded: no Xero call at all
-  let x: import("./xero-repairs.core").XeroInvoiceForRepairs | null = null;
-  try { x = (await call(`/api.xro/2.0/Invoices/${inv.xero_invoice_id}`))?.Invoices?.[0] ?? null; } catch (e) { console.error("xero repairs read failed", (e as Error).message); }
-  const d = core.repairsAmendDecision({ enabled: core.XERO_REPAIRS_AMEND_ENABLED, repairs: f.repairs, key, recorded: f.recorded, baseTotalCents: f.baseTotalCents, xero: x });
-  const aud = (c: number) => `$${(c / 100).toFixed(2)}`;
-  const invName = inv.xero_invoice_number ? `Xero invoice ${inv.xero_invoice_number}` : "the Xero invoice";
-  const hold = async (reason: string) => {
-    const details = { invoice_id: inv.id, key, rect_quote_id: f.repairs!.rectQuoteId, amount_cents: f.repairs!.amountCents, reason };
-    const { count } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", inv.job_id).eq("event_type", core.REPAIRS_HELD_EVENT).contains("details", details);
-    if (!count) await logEvent(inv.job_id, actorId, core.REPAIRS_HELD_EVENT, `Electrical fixes (${aud(f.repairs!.amountCents)}) not added to ${invName}: ${reason}. Office needs to: add them to the same invoice in Xero, then press Sync.`, { ...details, needs_office: true }, { internal: true });
-    return "held" as const;
-  };
-  const adopt = async (newTotalCents: number, basis: string) => {
-    const { toCents } = await import("./payments.core");
-    if (toCents(inv.total_inc_gst) !== newTotalCents) {
-      const { error } = await admin.from("invoices").update(core.amendedInvoicePatch(inv, newTotalCents) as never).eq("id", inv.id);
-      if (error) throw new Error(`Xero invoice varied but the portal invoice could not be updated: ${error.message}`);
-    }
-    await logEvent(inv.job_id, actorId, core.REPAIRS_ADDED_EVENT, `Electrical fixes (${aud(f.repairs!.amountCents)}) are on ${invName} – invoice total now ${aud(newTotalCents)}`, { invoice_id: inv.id, key, rect_quote_id: f.repairs!.rectQuoteId, amount_cents: f.repairs!.amountCents, total_before_cents: f.baseTotalCents, total_after_cents: newTotalCents, basis, xero_invoice_id: inv.xero_invoice_id }, { internal: true });
-  };
-  if (d.action === "none") return "none";
-  if (d.action === "hold") return hold(d.reason);
-  if (d.action === "already") {
-    if (d.basis === "recorded") return "already";
-    await adopt(Math.round(Number(x!.Total ?? 0) * 100), d.basis);
-    return "adopted";
-  }
-  const u = core.buildRepairsAmendment({ xero: x!, jobNumber: f.jobNumber, rectQuoteId: f.repairs.rectQuoteId, amountCents: f.repairs.amountCents, key, mode });
-  let after: import("./xero-repairs.core").XeroInvoiceForRepairs | null = null;
-  try { after = (await call(u.path, { method: u.method, headers: u.headers, body: u.body }))?.Invoices?.[0] ?? null; }
-  catch (e) { return hold(`Xero refused the edit: ${(e as Error).message.slice(0, 200)}`); }
-  const bad = core.verifyRepairsAmendment(x!, after, f.repairs.rectQuoteId, u.expectedTotalCents);
-  if (bad) return hold(`Xero's answer could not be confirmed (${bad})`);
-  await syncLog(inv.id, true, { repairs_added: f.repairs.amountCents, key });
-  await adopt(u.expectedTotalCents, "amended");
-  return "added";
-}
-
-/** Owner approved electrical fixes after the installation quote (decision 366): put them on the job's ONE Xero invoice
- *  now (best-effort; every later Sync / webhook / poll retries through `syncInvoiceFromXero`). Same barrier, lock and
- *  tenant routing as every other Xero write. */
-export async function addRepairsToXeroInvoice(jobId: string, actorId: string | null, callOverride?: XeroCall): Promise<RepairsStepResult> {
-  const inv = await jobInvoice(jobId);
-  if (!inv?.xero_invoice_id) return "not_linked";
-  await requireHivicInvoice(inv.id);
-  if (!(await claimLock(inv.id))) return "busy";
-  try {
-    const mode = await modeForInvoice(inv.id);
-    const call = callOverride ?? (await tenantCall(mode));
-    return await repairsStep(inv as unknown as RepairsInvoice, call, mode, actorId);
-  } finally {
-    await releaseLock(inv.id);
-  }
-}
 
 // ---------- Jo 28 Oct (decision 233): owner-pays repeat PIESA on the SAME Xero invoice ----------
 /** One pass under the invoice's sync lock: when the owner has accepted an owner-pays repeat PIESA, add ONE line for it to

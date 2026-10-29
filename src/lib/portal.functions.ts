@@ -674,7 +674,8 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
       if (latest?.id !== q.id) throw new WorkflowError("This fixes quote has been replaced. Please review the newest quote on My job.");
       if (data.accept && q.status === "accepted") {
         if (data.expectedVersion != null && data.expectedVersion !== q.version) throw new WorkflowError("Please review the newest fixes quote.");
-        await (await import("./xero.server")).addRepairsToXeroInvoice(q.job_id, context.userId);
+        // Re-tap on an accepted fixes quote: retry its own invoice step (once-only per quote).
+        await invoiceAfterAcceptance(q.id, q.job_id, context.userId);
         return { ok: true };
       }
     }
@@ -779,8 +780,8 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
     if (q.kind === "rectification") {
       await logEvent(q.job_id, context.userId, "rectification_scope_approved", `Owner approved electrical fixes scope (${q.customer_total_inc_gst} inc GST)`, { quote_id: q.id });
       // Decision 366 (audit F03): the installation quote is already accepted (Ready Check path), so this stays in the fixes
-      // flow — the fixes are paid in full (their own payment step on the ONE invoice), then the owner picks the
-      // electrician's time and the visit is booked. Installer quotes are never regenerated here.
+      // flow — the fixes are paid in full on their own invoice (batch 3b), then the owner picks the electrician's time and
+      // the visit is booked. Installer quotes are never regenerated here.
       const { count: installAccepted } = await admin.from("quotes").select("id", { count: "exact", head: true }).eq("job_id", q.job_id).eq("kind", "installation").eq("status", "accepted");
       if (installAccepted) {
         const now = await getStage(q.job_id);
@@ -788,19 +789,19 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
           try { await transition(q.job_id, "rectification_scheduling", context.userId, "Owner approved the electrical fixes – the owner pays the fixes in full, then picks the electrician's time"); }
           catch (e) { await logEvent(q.job_id, context.userId, "fixes_approved_stage_held", `Electrical fixes approved, but fixes scheduling could not open yet: ${(e as Error).message}`, { quote_id: q.id, needs_office: true }, { internal: true }); }
         }
-        // Audit R07: the approved fixes go onto the job's ONE Xero invoice (or are held for the office as one Needs me row).
-        // Best-effort: the owner's approval is already committed; every later Sync / webhook / poll retries it.
-        try { await (await import("./xero.server")).addRepairsToXeroInvoice(q.job_id, context.userId); }
-        catch (e) { await logEvent(q.job_id, context.userId, "xero_invoice_repairs_failed", `Electrical fixes approved, but adding them to the Xero invoice failed – Sync retries: ${(e as Error)?.message ?? e}`, { quote_id: q.id }, { internal: true }).catch(() => null); }
+        // Batch 3b: the approved fixes get their OWN Xero invoice (reference "… fixes"); the installation invoice is never
+        // touched. Same once-only step as an installation acceptance; a failure is one Needs me row and Sync retries it.
+        await invoiceAfterAcceptance(q.id, q.job_id, context.userId);
         if (pickedWindow) await (await import("./owner-fixes.server")).bookPickedFixesTime(q.job_id, context.userId).catch(() => undefined);
         return { ok: true };
       }
-      // Old model (no accepted installation quote yet): scope approval only – no invoice. The rectification lines are
-      // folded into the final installation quote.
+      // Old model (no accepted installation quote yet): the fixes still get their own invoice (batch 3b — never folded into
+      // the installation quote), then the final installation quotes are prepared.
+      await invoiceAfterAcceptance(q.id, q.job_id, context.userId);
       await transition(q.job_id, "ready_for_installer_quotes", context.userId, "Electrical fixes scope approved – preparing final installation quotes");
       await genInstaller(q.job_id, context.userId);
       { const { applyCobrand } = await import("./pilot.server"); await applyCobrand(q.job_id); }
-      await transition(q.job_id, "awaiting_quote_acceptance", context.userId, "Final installation quotes (incl. electrical fixes) issued to owner");
+      await transition(q.job_id, "awaiting_quote_acceptance", context.userId, "Final installation quotes issued to owner");
       await autoAdvanceJob(q.job_id, context.userId, "electrical fixes approved");
       return { ok: true };
     }

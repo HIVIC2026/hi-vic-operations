@@ -19,7 +19,7 @@ export type NeedsKind =
   | "choose_again" | "quote_check" | "fixes_quote_check" | "sign_consent" | "esc_window" | "final_check" | "send_failed" | "email_change" | "email_unmatched" | "robot_failed" | "piisa_form_failed"
   | "choose_installer" | "choose_electrician" | "veec_a_held" | "piesa_owner_unsigned" | "piesa_fixes_owner_unsigned" | "fixes_times_missing"
   | "payment_not_in_xero" | "payment_overdue" | "ten_days_left" | "second_no_access" | "veec_day_10" | "lapsed_window"
-  | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review" | "payment_reversed" | "mitti_form_problem" | "booking_overdue" | "piesa_fixes_found" | "repeat_piesa_choose" | "repeat_piesa_xero_held" | "payment_stalled" | "invoice_failed" | "stop_release_failed" | "quote_expired_blocked" | "new_quote_installer" | "new_quote_unfinished";
+  | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review" | "payment_reversed" | "mitti_form_problem" | "booking_overdue" | "piesa_fixes_found" | "repeat_piesa_choose" | "repeat_piesa_xero_held" | "payment_stalled" | "invoice_failed" | "old_fixes_invoice_unpaid" | "stop_release_failed" | "quote_expired_blocked" | "new_quote_installer" | "new_quote_unfinished";
 
 /** Where the one button takes the office. `section` is the Job page stage card id; `act` are inline row actions. */
 export type NeedsButton =
@@ -101,8 +101,11 @@ export type NeedsFacts = {
   /** Jo 28 Oct 2026 (decision card 04:40 UTC, "Alert after 3 days unpaid"): a homeowner payment unpaid for 3+ days
    *  → ONE row naming the payment and since when (payment-stall.core). Clears when the payment is recorded. */
   paymentStalled?: PaymentStall | null;
-  /** Batch 1: the owner accepted but the invoice step failed and no Xero-linked invoice has appeared since. */
-  invoiceFailed?: { at: string; text: string } | null;
+  /** Batch 1: the owner accepted but the invoice step failed and no Xero-linked invoice has appeared since. Batch 3b:
+   *  `kind` names which invoice (installation, or the electrical fixes invoice). */
+  invoiceFailed?: { at: string; text: string; kind?: "installation" | "rectification" } | null;
+  /** Batch 3b: a newer fixes quote replaced an accepted one whose own Xero invoice is still unpaid and not voided. */
+  oldFixesInvoiceUnpaid?: { at: string } | null;
   /** Batch 2: a STOP reply could not release the installer and the job has not been cancelled again since. */
   stopReleaseFailed?: { at: string } | null;
   /** Batch 3a: an installation quote expired but the owner can't be emailed, so the job was left open. */
@@ -149,6 +152,11 @@ export function invoiceFailedFact(
   return latest;
 }
 
+/** Batch 3b: the office line for an old fixes invoice that a newer fixes quote replaced (office-only wording). */
+export const OLD_FIXES_INVOICE_LINE = "Old fixes invoice unpaid — void it in Xero";
+export const invoiceFailedLine = (kind: "installation" | "rectification" | undefined) =>
+  `${kind === "rectification" ? "Fixes invoice" : "Invoice"} didn't reach Xero · owner can't pay yet`;
+
 /** The generic "System · Xero: …" row for an invoice that is not linked to Xero repeats the failed-invoice row: hide it. */
 export const duplicatesInvoiceFailed = (why: string, invoiceFailed: NeedsFacts["invoiceFailed"]): boolean => !!invoiceFailed && why.startsWith("Xero: ");
 
@@ -171,7 +179,8 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   if (f.quoteExpiredBlocked) add({ rank: 9, group: "today", kind: "quote_expired_blocked", line: f.quoteExpiredBlocked.reason === QUOTE_EXPIRED_HELD_REASON ? QUOTE_EXPIRED_HELD_REASON : `Quote expired — owner can't be emailed (${f.quoteExpiredBlocked.reason})`, since: f.quoteExpiredBlocked.at, button: { label: "Open job", to: "job" } });
   if (f.newQuoteOffice) add({ rank: 9, group: "today", kind: f.newQuoteOffice.kind, line: f.newQuoteOffice.line, since: f.newQuoteOffice.at, button: { label: "Open job", to: "job", section: "ready-check" } });
   if (f.stopReleaseFailed) add({ rank: 9, group: "today", kind: "stop_release_failed", line: STOP_RELEASE_FAILED_LINE, since: f.stopReleaseFailed.at, button: { label: "Open job", to: "job" } });
-  if (f.invoiceFailed) add({ rank: 9, group: "today", kind: "invoice_failed", line: "Invoice didn't reach Xero · owner can't pay yet", since: f.invoiceFailed.at, button: { label: "Open job", to: "job", section: "money" } });
+  if (f.invoiceFailed) add({ rank: 9, group: "today", kind: "invoice_failed", line: invoiceFailedLine(f.invoiceFailed.kind), since: f.invoiceFailed.at, button: { label: "Open job", to: "job", section: "money" } });
+  if (f.oldFixesInvoiceUnpaid) add({ rank: 39, group: "today", kind: "old_fixes_invoice_unpaid", line: OLD_FIXES_INVOICE_LINE, since: f.oldFixesInvoiceUnpaid.at, button: { label: "Open job", to: "job", section: "money" } });
   if (f.sendFailed) add({ rank: 10, group: "today", kind: "send_failed", line: `Send failed · ${f.sendFailed.text}`, since: f.sendFailed.at, button: { label: "Open job", to: "job", section: "contact" } });
   // Review R04: an owner email with no clear answer from the email service — never resent automatically.
   if (f.sendUnknown) add({ rank: 11, group: "today", kind: "send_failed", line: f.sendUnknown.text, since: f.sendUnknown.at, button: { label: "Open job", to: "job", section: "contact" } });
