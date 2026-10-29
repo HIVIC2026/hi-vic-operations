@@ -47,7 +47,7 @@ export function electricianChoiceProblem(choice: ElectricianChoice | null | unde
 }
 
 /** What the event stores: the choice, and the usual electrician's name/licence at the time (declared, not verified). */
-export type ElectricianChoiceRecord = { choice: ElectricianChoice; usual_name: string | null; usual_licence: string | null; source: "add_job" | "bulk_upload" | "default" };
+export type ElectricianChoiceRecord = { choice: ElectricianChoice; usual_name: string | null; usual_licence: string | null; source: "add_job" | "bulk_upload" | "default" | "installer_switch" };
 export function electricianChoiceRecord(choice: ElectricianChoice, usual: UsualElectrician | null, source: ElectricianChoiceRecord["source"]): ElectricianChoiceRecord {
   return { choice, usual_name: choice === "usual" ? usual?.name ?? null : null, usual_licence: choice === "usual" ? usual?.licence ?? null : null, source };
 }

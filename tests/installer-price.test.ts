@@ -166,7 +166,7 @@ describe("wiring (source facts)", () => {
   });
   test("functions: literal createServerFn chains, no react-start/server import, no electrician fields", () => {
     const s = read("src/lib/installer-price.functions.ts");
-    expect(s.match(/createServerFn\(\{ method: "POST" \}\)\.middleware\(\[requireSupabaseAuth\]\)/g)?.length).toBe(2);
+    expect(s.match(/createServerFn\(\{ method: "POST" \}\)\.middleware\(\[requireSupabaseAuth\]\)/g)?.length).toBe(3);
     expect(s).not.toContain("@tanstack/react-start/server");
     expect(s).not.toMatch(/electrician: z\.enum|different: z\.object/);
   });

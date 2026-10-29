@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
+import { HIV_SWITCH, hivSwitchOffered } from "../src/lib/installer-price.core";
 import { PIESA_FULL } from "../src/lib/job-wording";
 import { STAFF_LINKS_LABEL, jobNext, mittiLinkPlace, thirtyDayLine } from "../src/lib/installer-screens.core";
 import { OWNER_PIESA_CONFIRM_WAITING } from "../src/lib/piesa-owner-confirm.core";
@@ -80,4 +81,19 @@ test("C5: electricians don't see the install deadline", () => {
   const elec = read(ROUTE).split("function FieldJobBody")[1]!.split("function A1ReadyCheckTimeCard")[0]!;
   expect(elec).not.toContain("Install must start by");
   expect(elec).not.toContain("days left");
+});
+
+test("C2: one-way switch only on a job held for a not-onboarded electrician", () => {
+  expect(hivSwitchOffered({ quoteHeldNotOnboarded: true, choice: "usual" })).toBe(true);
+  expect(hivSwitchOffered({ quoteHeldNotOnboarded: true, choice: "hivic" })).toBe(false); // already switched: no way back
+  expect(hivSwitchOffered({ quoteHeldNotOnboarded: false, choice: "usual" })).toBe(false);
+  expect(HIV_SWITCH.button(349)).toBe("Use Home Insulation Victoria's electrician ($349)");
+  const srv = read("src/lib/installer-price-set.server.ts");
+  const fn = srv.slice(srv.indexOf("export async function switchToHivElectrician"));
+  expect(fn).toMatch(/requireMember\(userId, [^,]+, true\)/);
+  expect(fn).toContain('recordElectricianChoice(jobId, ');
+  expect(fn).toContain('"hivic", "installer_switch")');
+  const card = read("src/components/trade/InstallerPriceCard.tsx");
+  expect(card).toContain("confirm={HIV_SWITCH.confirm}");
+  for (const f of readdirSync("src/routes/_authenticated").filter((n: string) => n.startsWith("admin"))) expect(read(`src/routes/_authenticated/${f}`)).not.toContain("switchToHivElectrician");
 });
