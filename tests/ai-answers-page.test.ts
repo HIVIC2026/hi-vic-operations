@@ -122,3 +122,12 @@ describe("final M-c: editing an answer that was removed", () => {
       .rejects.toThrow("That answer no longer exists — refresh the page.");
   });
 });
+
+describe("re-review: duplicate rows on the office list", () => {
+  test("each rule once, the lowest sort kept", async () => {
+    rows = [{ id: "a", topic: "A", answer: "one", active: true, sort: 1 }, { id: "b", topic: "A", answer: "one", active: true, sort: 1 }, { id: "c", topic: "B", answer: "two", active: true, sort: 2 }];
+    const out = await call(listAiAnswers);
+    expect(out.answers.map((r: { id: string }) => r.id)).toEqual(["a", "c"]);
+    rows = START;
+  });
+});

@@ -121,3 +121,22 @@ describe("final M-i", () => {
     expect("AI_BUSINESS_RULES_PRE_RELEASE" in core).toBe(false);
   });
 });
+
+describe("re-review: duplicate rows from two quick first saves", () => {
+  test("dedupeAnswers keeps the first of each exact (topic, answer), lowest sort first", async () => {
+    const { dedupeAnswers } = await import("../src/lib/ai-answers.core");
+    const rows = [{ topic: "A", answer: "one", sort: 1 }, { topic: "B", answer: "two", sort: 2 }, { topic: "A", answer: "one", sort: 1 }, { topic: "A", answer: "other", sort: 3 }];
+    expect(dedupeAnswers(rows)).toEqual([{ topic: "A", answer: "one", sort: 1 }, { topic: "B", answer: "two", sort: 2 }, { topic: "A", answer: "other", sort: 3 }]);
+  });
+  test("the office page disables every save button while one is running", async () => {
+    const { readFileSync } = await import("node:fs");
+    const page = readFileSync("src/routes/_authenticated/admin.ai-answers.tsx", "utf8");
+    expect(page).toContain("const [busy, setBusy] = useState(false)");
+    expect(page).toContain("<Switch disabled={busy}");
+    expect(page).toContain("disabled={busy || !available || !valid}");
+    expect(page).toMatch(/disabled=\{busy\} onClick=\{\(\) => \{ setDraft/);
+    expect(page).toMatch(/disabled=\{busy\} onClick=\{\(\) => \{ if \(window\.confirm/);
+    const form = readFileSync("src/components/portal/ai-needs-answer.tsx", "utf8");
+    expect(form).toContain("disabled={busy || !valid}");
+  });
+});

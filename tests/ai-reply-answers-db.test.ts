@@ -89,6 +89,11 @@ describe("loadAiAnswers", () => {
     const { AI_SEED_ANSWERS } = await import("../src/lib/ai-answers.core");
     expect(await loadAiAnswers()).toEqual({ answers: AI_SEED_ANSWERS, available: true });
   });
+  test("re-review: duplicate rows (two quick first saves) → each rule once", async () => {
+    reset({ result: { data: [{ topic: "A", answer: "one", active: true, sort: 1 }, { topic: "A", answer: "one", active: true, sort: 1 }, { topic: "B", answer: "two", active: true, sort: 2 }, { topic: "B", answer: "two", active: true, sort: 2 }], error: null } });
+    const { loadAiAnswers } = await import("../src/lib/ai-answers.server");
+    expect(await loadAiAnswers()).toEqual({ answers: [{ topic: "A", answer: "one" }, { topic: "B", answer: "two" }], available: true });
+  });
   test("rows: the active rows in the order given", async () => {
     reset({ result: { data: [{ topic: "A", answer: "one", active: true, sort: 1 }, { topic: "B", answer: "two", active: true, sort: 2 }], error: null } });
     const { loadAiAnswers } = await import("../src/lib/ai-answers.server");

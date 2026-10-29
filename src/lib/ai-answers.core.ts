@@ -41,6 +41,13 @@ export const AI_SEED_ANSWERS: AiAnswer[] = [
   { topic: "Wording", answer: "In every reply, the first time you mention it, write \"electrical safety check (PIESA)\". Anything that is required is \"the government's rebate rules\", never \"our rule\". Say \"electrical upgrades\", never \"fixes\". Say \"rebate\" and never use scheme words." },
 ];
 
+/** Two quick first saves on an empty table can both copy the seed in: an exact repeat of an earlier (topic, answer) is
+ *  dropped, so each rule counts once. Rows come in sort order, so the lowest sort is kept. */
+export function dedupeAnswers<T extends AiAnswer>(rows: T[]): T[] {
+  const seen = new Set<string>();
+  return rows.filter((r) => { const k = JSON.stringify([r.topic, r.answer]); if (seen.has(k)) return false; seen.add(k); return true; });
+}
+
 /** The answers as prompt lines. No rows saved (null/empty) → the seed. Blank answers are left out. */
 export function rulesFromAnswers(rows: AiAnswer[] | null): string[] {
   const own = (rows ?? []).map((r) => r.answer.trim()).filter(Boolean);

@@ -27,8 +27,13 @@ const EMPTY: Draft = { topic: "", answer: "", active: true };
 function AiAnswersOffice() {
   const load = useServerFn(listAiAnswers);
   const q = useQuery({ queryKey: ["ai-answers"], queryFn: () => load() });
-  const save = useAction(saveAiAnswer);
-  const remove = useAction(removeAiAnswer);
+  const saveNow = useAction(saveAiAnswer);
+  const removeNow = useAction(removeAiAnswer);
+  // One change at a time: two quick first saves on an empty table could both copy the starting answers in.
+  const [busy, setBusy] = useState(false);
+  const once = async <T,>(fn: () => Promise<T>): Promise<T | undefined> => { if (busy) return undefined; setBusy(true); try { return await fn(); } finally { setBusy(false); } };
+  const save = (d: Parameters<typeof saveNow>[0], ok?: string) => once(() => saveNow(d, ok));
+  const remove = (d: Parameters<typeof removeNow>[0], ok?: string) => once(() => removeNow(d, ok));
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const available = q.data?.available ?? false;
   const valid = draft.topic.trim().length >= 2 && draft.topic.trim().length <= 80 && draft.answer.trim().length >= 2 && draft.answer.trim().length <= 2000;
@@ -50,15 +55,15 @@ function AiAnswersOffice() {
               {available && a.id && (
                 <label className="flex items-center gap-2 text-xs text-sub">
                   <span>{a.active ? "On" : "Off"}</span>
-                  <Switch checked={a.active} aria-label={`${a.topic} on or off`} onCheckedChange={(on) => void save({ id: a.id, topic: a.topic, answer: a.answer, active: on })} />
+                  <Switch disabled={busy} checked={a.active} aria-label={`${a.topic} on or off`} onCheckedChange={(on) => void save({ id: a.id, topic: a.topic, answer: a.answer, active: on })} />
                 </label>
               )}
             </div>
             <p className={`mt-2 whitespace-pre-wrap break-words text-sm ${a.active ? "text-ink" : "text-sub"}`}>{a.answer}</p>
             {available && a.id && (
               <div className="mt-3 flex flex-wrap gap-2">
-                <Btn tone="secondary" onClick={() => { setDraft({ id: a.id, topic: a.topic, answer: a.answer, active: a.active }); window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" }); }}>Edit</Btn>
-                <Btn tone="secondary" onClick={() => { if (window.confirm(`Remove "${a.topic}"?`)) void remove({ id: a.id! }, "Answer removed"); }}>Remove</Btn>
+                <Btn tone="secondary" disabled={busy} onClick={() => { setDraft({ id: a.id, topic: a.topic, answer: a.answer, active: a.active }); window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" }); }}>Edit</Btn>
+                <Btn tone="secondary" disabled={busy} onClick={() => { if (window.confirm(`Remove "${a.topic}"?`)) void remove({ id: a.id! }, "Answer removed"); }}>Remove</Btn>
               </div>
             )}
           </Panel>
@@ -69,7 +74,7 @@ function AiAnswersOffice() {
           <Field label="Topic" htmlFor="ai-topic" hint="A short name, up to 80 letters."><input id="ai-topic" className={fieldInput} maxLength={80} disabled={!available} value={draft.topic} onChange={(e) => setDraft({ ...draft, topic: e.target.value })} /></Field>
           <Field label="Answer" htmlFor="ai-answer" hint="What the AI should say about it."><textarea id="ai-answer" className={fieldInput} rows={5} maxLength={2000} disabled={!available} value={draft.answer} onChange={(e) => setDraft({ ...draft, answer: e.target.value })} /></Field>
           <div className="flex flex-wrap gap-2">
-            <Btn disabled={!available || !valid} onClick={() => void submit()}>{draft.id ? "Save answer" : "Add answer"}</Btn>
+            <Btn disabled={busy || !available || !valid} onClick={() => void submit()}>{busy ? "Saving…" : draft.id ? "Save answer" : "Add answer"}</Btn>
             {draft.id && <Btn tone="secondary" onClick={() => setDraft(EMPTY)}>Cancel</Btn>}
           </div>
         </div>

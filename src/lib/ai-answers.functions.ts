@@ -4,7 +4,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin, WorkflowError } from "./workflow.server";
-import { AI_SEED_ANSWERS, type AiAnswer } from "./ai-answers.core";
+import { AI_SEED_ANSWERS, dedupeAnswers, type AiAnswer } from "./ai-answers.core";
 import { isMissingDbObject } from "./schema-compat.core";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -25,7 +25,7 @@ export const listAiAnswers = createServerFn({ method: "GET" }).middleware([requi
       return { answers: seedRows(), available: false };
     }
     // Applied but empty: show the starting answers (what the AI uses); the first save copies them in.
-    const rows = (data ?? []) as AiAnswerRow[];
+    const rows = dedupeAnswers((data ?? []) as AiAnswerRow[]);
     return { answers: rows.length ? rows : seedRows(), available: true };
   });
 
