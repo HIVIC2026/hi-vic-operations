@@ -76,7 +76,6 @@ describe("Jo 7 Oct: Add one job + each Upload jobs card", () => {
   test("server: chosen electrician is never auto-assigned; consent and choice checked on confirm; switch to Home Insulation Victoria", () => {
     const team = read("src/lib/teaming.server.ts"); expect(team).toContain('.eq("job_id", jobId).is("ended_at", null);\n  if (chosen) return false;');
     const imp = read("src/lib/partner-import.server.ts"); expect(imp).toContain("electricianPlanBlocker"); expect(imp).toContain("recordJobElectricianChoice"); expect(imp).toContain("contact_permission !== true");
-    const bulk = read("src/lib/bulk-import.server.ts"); expect(bulk).toContain("recordJobElectricianChoice"); expect(bulk).not.toContain('role: "electrician", business_id: plan.business_id');
     const je = read("src/lib/job-electrician.server.ts"); expect(je).toContain("An electrician has already accepted this job"); expect(read("src/lib/job-electrician-invite.server.ts")).toContain('recipient: "partner"');
   });
   test("pages: camera + files with remove, consent tick required, three electrician options", () => {

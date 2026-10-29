@@ -78,7 +78,7 @@ describe("Add a job error wording after decision 282", () => {
   test("the address message passes through as is; raw unique-key text stays neutral; no email refusal exists", () => {
     expect(saveErrorMessage(duplicateAddressMessage("HV-3201"))).toBe(duplicateAddressMessage("HV-3201"));
     expect(saveErrorMessage('duplicate key value violates unique constraint "owners_email_uq"')).toBe(NEUTRAL_SAVE_ERROR);
-    for (const f of ["src/lib/installer-owner.server.ts", "src/lib/add-job-flow.core.ts", "src/lib/onsite-ready-check.server.ts", "src/lib/bulk-import.server.ts", "src/lib/enquiry.server.ts"]) {
+    for (const f of ["src/lib/installer-owner.server.ts", "src/lib/add-job-flow.core.ts", "src/lib/onsite-ready-check.server.ts", "src/lib/enquiry.server.ts"]) {
       expect(readFileSync(f, "utf8")).not.toMatch(/isn't yours|possible_duplicate_owner/);
     }
   });

@@ -57,9 +57,6 @@ describe("every customer needs name, address, email, phone + permission", () => 
   test("Add one job: server refuses without the contact-permission tick", () => {
     expect(readFileSync("src/lib/partner-import.server.ts", "utf8")).toContain('if (data.installer?.contact_permission !== true) blockers.push(');
   });
-  test("bulk Confirm refuses rows with customer gaps", () => {
-    expect(readFileSync("src/lib/bulk-import.server.ts", "utf8")).toMatch(/const gap = customerDetailsReason\(e\);\s*if \(gap\) \{\s*failed\+\+;/);
-  });
 });
 
 describe("Visited rule: photos, measurements or a quote", () => {

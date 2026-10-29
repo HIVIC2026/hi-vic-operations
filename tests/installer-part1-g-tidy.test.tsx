@@ -1,5 +1,6 @@
 import { mock, test, expect } from "bun:test";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { execSync } from "node:child_process";
 import type { ReactNode } from "react";
 
 mock.module("@tanstack/react-router", () => ({
@@ -43,4 +44,12 @@ test("G5: removed leftovers are gone, access results unchanged", async () => {
   expect(users).toContain("saveFile(");
   expect(users).not.toContain("URL.createObjectURL");
   expect(readFileSync("src/components/trade/save-file.ts", "utf8")).toContain("opts?: { title?: string }");
+});
+
+test("G5: bulk upload server leftovers are gone; Add a job's electrician choices stay", () => {
+  for (const f of ["src/lib/bulk-import.server.ts", "src/lib/bulk-import-commit.server.ts", "src/lib/bulk-import-access.server.ts", "src/lib/bulk-upload-switch.core.ts"]) expect(existsSync(f)).toBe(false);
+  const fns = readFileSync("src/lib/bulk-import.functions.ts", "utf8");
+  expect(fns).not.toContain("requireBulkUploadOpen");
+  for (const keep of ["bulkElectricianChoices", "addBulkElectrician", "readBulkFile"]) expect(fns).toContain(`export const ${keep}`);
+  expect(execSync("grep -rln 'bulk-upload-switch\\|bulk-import-commit\\|bulk-import-access\\|bulk-import.server' src || true", { encoding: "utf8" }).trim()).toBe("");
 });
