@@ -295,8 +295,8 @@ export type MittiLogin = "linked" | "not_set" | "email_changed";
 export type TeamMemberView = {
   id: string | null; name: string; role: "owner" | "installer" | "electrician"; mobile: string | null; email: string | null;
   hasLogin: boolean; mittiLogin: MittiLogin;
-  /** True when the office has a Mitti record for this worker (linked, invited, reactivated or marked done). */
-  mittiRecorded: boolean;
+  /** True when the office has a Mitti record for this worker (linked, invited, reactivated or marked done); null = couldn't be read, so unknown. */
+  mittiRecorded: boolean | null;
   /** Installers only (decision 130). null = not applicable. */
   noticeAcknowledged: boolean | null;
   /** Installers with a staff row only (decision 153). null = not applicable (owner without a staff row, electrician). */
@@ -309,10 +309,11 @@ export type TeamMemberView = {
 export const ROLE_LABEL: Record<TeamMemberView["role"], string> = { owner: "owner", installer: "installer", electrician: "electrician" };
 
 /** "Lead · Mitti ✓" / "Crew · no Mitti" / "Mitti login not set": the Mitti words, with Lead or Crew first for installer staff. */
-export function teamMittiLine(m: Pick<TeamMemberView, "role" | "workerRole" | "mittiLogin" | "mittiRecorded">): string {
+export function teamMittiLine(m: Pick<TeamMemberView, "role" | "workerRole" | "mittiLogin" | "mittiRecorded">): string | null {
   const prefix = m.workerRole === "lead" ? "Lead · " : m.workerRole === "crew" ? "Crew · " : "";
   if (m.mittiLogin === "email_changed") return `${prefix}Mitti to re-check`;
   if (m.mittiLogin === "linked" || m.mittiRecorded) return `${prefix}Mitti ✓`;
+  if (m.mittiRecorded === null) return null; // records couldn't be read: say nothing rather than something wrong
   if (m.workerRole === "crew") return "Crew · no Mitti";
   if (m.workerRole === "lead") return "Lead · office adding to Mitti";
   return "Mitti login not set";
@@ -321,7 +322,8 @@ export function teamMittiLine(m: Pick<TeamMemberView, "role" | "workerRole" | "m
 /** Second line: "0412 000 111 · Lead · Mitti ✓ · Privacy notice ✓" from the person's own facts, nothing invented. */
 export function teamFactsLine(m: Pick<TeamMemberView, "mobile" | "role" | "workerRole" | "mittiLogin" | "mittiRecorded" | "noticeAcknowledged">): string {
   const parts = [m.mobile?.trim() || "No mobile on file"];
-  parts.push(teamMittiLine(m));
+  const mitti = teamMittiLine(m);
+  if (mitti) parts.push(mitti);
   if (m.noticeAcknowledged != null) parts.push(m.noticeAcknowledged ? "Privacy notice ✓" : "Privacy notice outstanding");
   return parts.join(" · ");
 }

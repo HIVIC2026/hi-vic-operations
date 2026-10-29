@@ -122,7 +122,7 @@ export const setTeamMemberMobile = createServerFn({ method: "POST" }).middleware
 export const addTeamPerson = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({
     name: z.string().trim().min(1).max(120), workerRole: z.enum(["lead", "crew"]), mobile: z.string().trim().max(30).nullable(),
-    email: z.string().trim().email().max(200).nullable(), licenceNumber: z.string().trim().max(60).nullable(),
+    email: z.string().trim().max(200).email().or(z.literal("")).nullable().transform((v) => v || null), licenceNumber: z.string().trim().max(60).nullable(),
   }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeAddTeamPerson(context.userId, data));
 
