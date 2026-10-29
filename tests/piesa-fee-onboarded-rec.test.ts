@@ -99,7 +99,9 @@ describe("decision 302 — the upfront safety check is the quote's PIESA line", 
     expect(read("src/lib/workflow.server.ts")).toContain("quoteSafetyCheck(quote?.id ?? null)");
     expect(read("src/lib/owner-gates.server.ts")).toContain("quoteSafetyCheck(q.id, setting)");
     expect(read("src/lib/owner-myjob.server.ts")).toContain("safetyCheckIncGstFor({ lines: quote.quote_items ?? [], settingIncGst: ws?.safety_check_payment_inc_gst ?? null })");
-    expect(read("src/lib/xero.server.ts")).toContain("ensureInvoice(dbStore, q, melbourneDate(new Date().toISOString()), safety.incGst)");
+    // Batch 3b: the upfront amount is the quote's PIESA line for an installation invoice (a fixes invoice: its whole total).
+    expect(read("src/lib/xero.server.ts")).toContain(`const upfront = fixes ? Number(q.customer_total_inc_gst) : (await (await import("./safety-check-amount.server")).quoteSafetyCheck(q.id)).incGst;`);
+    expect(read("src/lib/xero.server.ts")).toContain("ensureInvoice(dbStore, q, melbourneDate(new Date().toISOString()), upfront)");
     expect(read("src/components/portal/office-job.tsx")).toContain("`${safetyCheckShort(s.amountCents)} safety check`");
     expect(read("src/lib/office-stage-cards.core.ts")).toContain("safetyCheckShort(q.safetyCheckCents ?? SAFETY_CHECK_DEFAULT_CENTS)");
   });
