@@ -76,3 +76,14 @@ describe("buildAiReplyInput uses the answers", () => {
     }
   });
 });
+
+describe("aiPreReleaseViolations and the 30-day rule", () => {
+  test("'within N days of the install' passes", () => {
+    expect(aiPreReleaseViolations("It must be done within 30 days of the install.")).toEqual([]);
+    expect(aiPreReleaseViolations("done within  30\n days of your install")).toEqual([]);
+  });
+  test("other 'within N days' wording is still flagged", () => {
+    expect(aiPreReleaseViolations("within 30 days").length).toBe(1);
+    expect(aiPreReleaseViolations("within 10 days we'll call").length).toBe(1);
+  });
+});

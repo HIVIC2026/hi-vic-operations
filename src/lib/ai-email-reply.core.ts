@@ -212,7 +212,10 @@ const AI_PRE_RELEASE_TIMING = new RegExp([
   String.raw`jump\s+the\s+queue`, String.raw`\bmove\s+up`,
 ].join("|"), "gi");
 export function aiPreReleaseViolations(text: string): string[] {
-  const cleaned = text.replace(/as\s+soon\s+as\s+(?:your|their)\s+spot(?:\s+is|['’]s)\s+released/gi, " ");
+  const cleaned = text
+    .replace(/as\s+soon\s+as\s+(?:your|their)\s+spot(?:\s+is|['’]s)\s+released/gi, " ")
+    // The government's 30-day rule for the safety check is a rule, not a timing promise.
+    .replace(/within\s+\d+\s+days?\s+of\s+(?:the|your)\s+install(?:ation)?\b/gi, " ");
   return [...new Set((cleaned.match(AI_PRE_RELEASE_TIMING) ?? []).map((m) => m.toLowerCase().replace(/\s+/g, " ")))];
 }
 
