@@ -220,6 +220,24 @@ describe("a synced PIESA that breaks the rules stops the job", () => {
     expect(events(core.PIESA_RULES_CLEARED_EVENT).length).toBe(1);
     expect(calls.sms.length).toBe(1);
   });
+  test("final fix: repairs recorded on the portal (fixes done + Section C signed) clear it the same way", async () => {
+    await resync({ ...clean(), ...switchNo, ...nonIc, ...onsite }, V1);
+    expect(await notice.piesaRulesBlockerFor(J)).not.toBeNull();
+    // A portal record that isn't a signed pass doesn't count.
+    tables["piesa_records"]!.push({ id: "pr-0", job_id: J, kind: "post_rectification", outcome: "fail", section_c_signed_at: null, is_current: true, created_at: "2026-10-29T02:00:00.000Z" });
+    await notice.recheckPiesaRules(J, null);
+    expect(await notice.piesaRulesBlockerFor(J)).not.toBeNull();
+    tables["piesa_records"]!.push({ id: "pr-1", job_id: J, kind: "post_rectification", outcome: "pass", section_c_signed_at: "2026-10-29T00:00:00.000Z", is_current: true, created_at: "2026-10-29T04:00:00.000Z" });
+    expect(await notice.recheckPiesaRules(J, null)).toBe("cleared (Section C signed)");
+    expect(await notice.piesaRulesBlockerFor(J)).toBeNull();
+    expect(events(core.PIESA_RULES_CLEARED_EVENT).length).toBe(1);
+    expect(calls.sms.length).toBe(1);
+  });
+  test("final fix: a portal fixes record from BEFORE this form version doesn't cover it", async () => {
+    tables["piesa_records"]!.push({ id: "pr-1", job_id: J, kind: "post_rectification", outcome: "pass", section_c_signed_at: "2026-10-28T00:00:00.000Z", is_current: true, created_at: "2026-10-28T04:00:00.000Z" });
+    await resync({ ...clean(), ...switchNo, ...nonIc, ...onsite }, V1);
+    expect(await notice.piesaRulesBlockerFor(J)).toBe(`Safety check breaks the official rules — ${R.rect}`);
+  });
   test("fix 1: Part 6 non-IC downlight + on site at the start → exactly the wiring/RCD/downlight reason (the electrician's own B1 answer)", async () => {
     await resync({ ...clean(), ...switchNo, ...nonIc, ...onsite }, V1);
     expect(await notice.piesaRulesBlockerFor(J)).toBe(`Safety check breaks the official rules — ${R.rect}`);
@@ -268,6 +286,11 @@ describe("wiring (source)", () => {
   test("the A4 fixes form re-checks after Section C is merged", () => {
     const f = src("fixes-day.server.ts");
     expect(f.indexOf("recheckPiesaRules(jobId, actorId)")).toBeGreaterThan(f.indexOf("mergeFixesIntoPiesaSnapshot(snapshotOf"));
+  });
+  test("final fix: the portal 'record fixes done' page re-checks the rules after its record is written", () => {
+    const p = src("portal.functions.ts");
+    const fn = p.slice(p.indexOf("export const recordPiesa = createServerFn"));
+    expect(fn.indexOf("recheckPiesaRules(data.jobId, context.userId)")).toBeGreaterThan(fn.indexOf("await applyPiesaRecord({ jobId: data.jobId"));
   });
   test("Needs me reads the failed / cleared events", () => {
     expect(src("office-needs.server.ts")).toContain("piesaRulesOpen(");

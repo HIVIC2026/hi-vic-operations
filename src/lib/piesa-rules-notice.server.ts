@@ -34,9 +34,20 @@ export async function piesaRulesFor(jobId: string): Promise<PiesaRulesResult | n
   const short = shortAnswersFromEntries("piesa", entries);
   // Section C is read from the stored (derived) answers, where the A4 fixes form's sign-off lands; the rules are checked
   // against the electrician's own B1 answer so the reason names the real problem (fix round 1).
-  const sectionC = sectionCSigned(expandPiesa(short, ctx).answers);
+  // Repairs recorded on the portal "record fixes done" page (a passed post_rectification record with Section C signed, at
+  // or after this form version) count the same as a Mitti Section C.
+  const sectionC = sectionCSigned(expandPiesa(short, ctx).answers) || await portalSectionCSigned(jobId, a.mitti_modified_at as string | null);
   const rules = piesaEnforcedRules(expandPiesa(asElectricianAnswered(short), ctx).answers, sectionC);
   return { formVersion: piesaFormVersion(a.external_mitti_id, a.mitti_modified_at as string | null), rules, sectionC };
+}
+
+/** A passed portal post_rectification record with Section C signed, written at or after the form version's time. */
+async function portalSectionCSigned(jobId: string, formModifiedAt: string | null): Promise<boolean> {
+  const { data } = await admin.from("piesa_records").select("created_at, outcome, section_c_signed_at").eq("job_id", jobId).eq("kind", "post_rectification").eq("outcome", "pass").not("section_c_signed_at", "is", null).order("created_at", { ascending: false }).limit(1);
+  const rec = ((data ?? []) as { created_at: string }[])[0];
+  if (!rec) return false;
+  const since = formModifiedAt ? Date.parse(formModifiedAt) : NaN;
+  return !Number.isFinite(since) || Date.parse(rec.created_at) >= since;
 }
 
 /** "Safety check breaks the official rules — {reasons}" while the newest PIESA form breaks them; null otherwise. */

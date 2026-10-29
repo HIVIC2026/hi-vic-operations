@@ -590,6 +590,8 @@ export const recordPiesa = createServerFn({ method: "POST" }).middleware([requir
     // A48 batch 1 task 5: repairs recorded here count too — the fixes evidence uploaded on this page is read by the AI
     // (time-limited; ticked, or one office row), after the record is written. Never throws.
     if (data.kind === "post_rectification") await (await import("./coes-check.server")).checkCurrentCoes(data.jobId, context.userId);
+    // A48 batch 1 final fix: repairs signed off here clear the "breaks the official rules" row like a Mitti Section C. Never throws.
+    if (data.kind === "post_rectification") await (await import("./piesa-rules-notice.server")).recheckPiesaRules(data.jobId, context.userId);
     return { ok: true };
   });
 
