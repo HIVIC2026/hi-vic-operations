@@ -75,7 +75,7 @@ describe("autoFormDecision for HIV leads", () => {
 const db = new PGlite();
 await db.exec(`
 CREATE TABLE jobs (id uuid primary key, job_number text, channel text, source text, stage text, created_at timestamptz, deleted_at timestamptz, qa_archived_at timestamptz, originating_installer_business_id uuid);
-CREATE TABLE workflow_settings (id int, auto_send_mitti boolean, mitti_ready_check_priced_template_id text);
+CREATE TABLE workflow_settings (id int, auto_send_mitti boolean, mitti_ready_check_priced_template_id text, mitti_ready_check_template_id text);
 CREATE TABLE ceiling_measurements (id uuid primary key default gen_random_uuid(), job_id uuid, is_current boolean, provenance text, status text default 'draft', external_source text, accepted_by uuid);
 CREATE TABLE job_assignments (job_id uuid, user_id uuid, business_id uuid, role text, active boolean);
 CREATE TABLE businesses (id uuid, mitti_account_invited boolean, onboarding_notes text);
@@ -83,7 +83,7 @@ CREATE TABLE workflow_events (id uuid primary key default gen_random_uuid(), job
 CREATE TABLE bookings (id uuid primary key default gen_random_uuid(), job_id uuid, kind text, status text, created_at timestamptz);`);
 const REAL = "00000000-0000-0000-0000-0000000000b1", TESTB = "00000000-0000-0000-0000-0000000000b2", U = "00000000-0000-0000-0000-0000000000c1";
 const j = (n: number) => `00000000-0000-0000-0000-0000000000${String(n).padStart(2, "0")}`;
-await db.exec(`INSERT INTO workflow_settings VALUES (1, true, 'template_a1');
+await db.exec(`INSERT INTO workflow_settings VALUES (1, true, 'template_a1', 'template_rc');
 INSERT INTO businesses VALUES ('${REAL}', true, null), ('${TESTB}', true, '[TEST PARTNER] practice');
 INSERT INTO jobs VALUES
  ('${j(1)}','HV-3136','installer_sourced','bulk_import','ready_check_ready_to_schedule','2026-10-23T06:33:00Z',null,null,'${REAL}'),
@@ -137,6 +137,17 @@ describe("sweepReadyCheckForms", () => {
     // HV-3542: booked HIV lead found; HV-3543 (cancelled booking) and HV-0001 (not booked) left out.
     expect(r.wouldCreate.sort()).toEqual(["HV-3121", "HV-3136", "HV-3137", "HV-3151", "HV-3542"]); // HV-3151: stage refusal 10 min ago is no reason to wait a day
     expect(calls).toHaveLength(0);
+  });
+
+  test("HIV leads need the plain Ready Check template, installer jobs the priced one", async () => {
+    await db.query("update workflow_settings set mitti_ready_check_template_id = null");
+    const r = await sweepReadyCheckForms({ now, dryRun: true, enabled: true });
+    expect(r.wouldCreate).not.toContain("HV-3542");
+    expect(r.wouldCreate).toContain("HV-3136");
+    await db.query("update workflow_settings set mitti_ready_check_template_id = 'template_rc', mitti_ready_check_priced_template_id = null");
+    const r2 = await sweepReadyCheckForms({ now, dryRun: true, enabled: true });
+    expect(r2.wouldCreate).toEqual(["HV-3542"]);
+    await db.query("update workflow_settings set mitti_ready_check_priced_template_id = 'template_a1'");
   });
 
   test("creates forms through the guarded create path; TEST partner jobs go only to the TEST Mitti account; failures flag the office once", async () => {

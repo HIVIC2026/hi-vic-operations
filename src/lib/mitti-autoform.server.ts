@@ -31,7 +31,7 @@ export async function sweepReadyCheckForms(opts: { call?: MittiCall; now?: Date;
   const ids = jobs.map((j) => j.id);
   const hivIds = (hivLeads.data ?? []).map((j) => j.id);
   const [ws, measurements, assignments, failures, bookings] = await Promise.all([
-    admin.from("workflow_settings").select("auto_send_mitti, mitti_ready_check_priced_template_id").eq("id", 1).maybeSingle(),
+    admin.from("workflow_settings").select("auto_send_mitti, mitti_ready_check_priced_template_id, mitti_ready_check_template_id").eq("id", 1).maybeSingle(),
     admin.from("ceiling_measurements").select("job_id, provenance, status, external_source, accepted_by").in("job_id", ids).eq("is_current", true),
     admin.from("job_assignments").select("job_id, user_id, business_id").in("job_id", ids).eq("role", "installer").eq("active", true),
     admin.from("workflow_events").select("job_id, created_at, details").in("job_id", ids).eq("event_type", AUTOFORM_FAILED_EVENT).order("created_at", { ascending: false }),
@@ -58,7 +58,7 @@ export async function sweepReadyCheckForms(opts: { call?: MittiCall; now?: Date;
     const d = autoFormDecision({
       channel: j.channel, stage: j.stage, createdAt: j.created_at, deleted: !!j.deleted_at, archived: !!j.qa_archived_at,
       hasCurrentMeasurement: measured.has(j.id), provisionalOnly: provisional.has(j.id), installerUserId: asg?.user_id ?? null,
-      mittiInvited: biz?.mitti_account_invited === true, templateSet: !!ws.data?.mitti_ready_check_priced_template_id?.trim(),
+      mittiInvited: biz?.mitti_account_invited === true, templateSet: !!(j.channel === "hivic_sourced" ? ws.data?.mitti_ready_check_template_id : ws.data?.mitti_ready_check_priced_template_id)?.trim(), // HIV leads use the plain Ready Check form
       autoSendMitti: ws.data?.auto_send_mitti === true,
       lastFailureAt: lastFailure?.created_at ?? null,
       lastFailureReason: (lastFailure?.details as { reason?: string } | null)?.reason ?? null,
