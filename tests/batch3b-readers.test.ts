@@ -223,3 +223,12 @@ describe("office: each invoice listed on its own, with its reference", () => {
     expect(r.openCount).toBe(1);
   });
 });
+
+describe("partner job cards (pilot.functions): deposit cleared comes from the install invoice only", () => {
+  test("the invoice_status read is limited to kind 'installation', newest first", async () => {
+    const src = (await import("node:fs")).readFileSync("src/lib/pilot.functions.ts", "utf8");
+    const read = src.split("\n").find((l) => l.includes(`admin.from("invoice_status" as never).select("job_id, deposit_cleared"`)) ?? "";
+    expect(read).toContain(`.eq("kind" as never, "installation" as never)`);
+    expect(read).toContain(`.order("created_at" as never, { ascending: false })`);
+  });
+});
