@@ -1,6 +1,6 @@
 # Carry sign-up electricians (Rapid, Matthews) - one-off data fix, NOT a schema change
 
-Jo, 29 Oct 2026. Approved installers who named "I have my own electrician" at sign-up before this change never had that electrician saved as their usual electrician. This saves it, and links that sign-up's electrician nominations to the business. Sends nothing (the invite sweep sends on its next tick).
+Jo, 29 Oct 2026. Approved installers who named "I have my own electrician" at sign-up before this change never had that electrician saved as their usual electrician. This saves it, and links that sign-up's electrician nominations to the business. Sends nothing itself. The tick's sign-up invite sweep only invites the main sign-up electrician of installers that have this saved event (`source = installer_signup`), so running (b) is what lets the sweep send on its next tick. Mark any electrician already contacted by hand as handled BEFORE running (b).
 
 Expected today: Rapid Insulation -> Viking Electrical Services Aus PTY LTD (rec 38603); Matthews Insulation -> Tudor Electrical.
 
@@ -16,7 +16,7 @@ with src as (
          coalesce((select e from jsonb_array_elements(a.data->'preferred_electricians') e where e->>'is_primary' = 'true' limit 1),
                   a.data->'preferred_electricians'->0) as main
   from public.businesses b
-  join public.partner_activations pa on pa.business_id = b.id
+  join public.partner_activations pa on pa.business_id = b.id and pa.partner_type = 'installer'
   join public.rec_onboarding_applications a on a.id = pa.application_id
   where b.onboarding_status = 'approved'
     and a.data->>'electrician_choice' = 'have'
@@ -37,13 +37,15 @@ select * from cand where name is not null and licence is not null;
 
 ## (b) Save the usual electrician (one event per business; skips any business that already has one)
 
+**Keep the business ids this returns - (d) needs them.**
+
 ```sql
 with src as (
   select b.id as business_id, b.name as business, a.id as application_id,
          coalesce((select e from jsonb_array_elements(a.data->'preferred_electricians') e where e->>'is_primary' = 'true' limit 1),
                   a.data->'preferred_electricians'->0) as main
   from public.businesses b
-  join public.partner_activations pa on pa.business_id = b.id
+  join public.partner_activations pa on pa.business_id = b.id and pa.partner_type = 'installer'
   join public.rec_onboarding_applications a on a.id = pa.application_id
   where b.onboarding_status = 'approved'
     and a.data->>'electrician_choice' = 'have'
@@ -63,7 +65,8 @@ insert into public.admin_config_events (actor_id, event_type, summary, details)
 select null, 'installer_usual_electrician_saved', 'Usual electrician saved from installer sign-up on approval',
        jsonb_build_object('business_id', business_id, 'source', 'installer_signup',
          'electrician', jsonb_build_object('name', name, 'licence', licence, 'email', email, 'phone', phone))
-from cand where name is not null and licence is not null;
+from cand where name is not null and licence is not null
+returning details->>'business_id' as business_id;
 ```
 
 ## (c) Link the sign-up's electrician nominations to the business
@@ -78,7 +81,7 @@ with src as (
          coalesce((select e from jsonb_array_elements(a.data->'preferred_electricians') e where e->>'is_primary' = 'true' limit 1),
                   a.data->'preferred_electricians'->0) as main
   from public.businesses b
-  join public.partner_activations pa on pa.business_id = b.id
+  join public.partner_activations pa on pa.business_id = b.id and pa.partner_type = 'installer'
   join public.rec_onboarding_applications a on a.id = pa.application_id
   where b.onboarding_status = 'approved'
     and a.data->>'electrician_choice' = 'have'
@@ -106,12 +109,14 @@ Check afterwards: re-run (a) (should return no rows) and
 
 ## (d) Undo
 
+`admin_config_events` is append-only (trigger `trg_admin_config_events_immutable`, migration 0027: update/delete raise), so the undo adds a NEWER event per business with no electrician. The portal reads the latest event, so the business then has no usual electrician, and the invite sweep stops (its latest sign-up event is the undo). Use only the ids (b) and (c) returned.
+
 ```sql
--- remove the sign-up events for the two businesses (by name)
-delete from public.admin_config_events
-where event_type = 'installer_usual_electrician_saved' and details->>'source' = 'installer_signup'
-  and details->>'business_id' in (select id::text from public.businesses
-                                  where name ilike 'Rapid Insulation%' or name ilike 'Matthews Insulation%');
+-- one "no usual electrician" event per business (b) returned (paste those ids)
+insert into public.admin_config_events (actor_id, event_type, summary, details)
+select null, 'installer_usual_electrician_saved', 'Undo: usual electrician from installer sign-up removed',
+       jsonb_build_object('business_id', id, 'electrician', null, 'source', 'installer_signup_undo')
+from unnest(array['<business ids returned by (b)>']::uuid[]) as id;
 -- unlink ONLY the nominations (c) returned (paste those ids)
 update public.electrician_nominations set nominating_business_id = null
 where id in ('<ids returned by (c)>');

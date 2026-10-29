@@ -124,9 +124,10 @@ describe("ready stages", () => {
 });
 
 describe("electrician pick", () => {
-  test("decision 374: an A2 job whose installer has a usual electrician is offered to the NEAREST REC, not the usual one", () => {
+  test("our lead with no approved usual electrician for its Ready Check installer: offered to the NEAREST REC (an A1 pick never carries over)", () => {
     const cs = [cand("near", { distanceKm: 3 }), cand("usual", { distanceKm: 50, activeJobs: 0 }), cand("mid", { distanceKm: 10 })];
-    // our leads: the installer's usual electrician never goes first
+    // our leads (29 Oct 2026): only the Ready Check installer's approved usual electrician (ourLeadUsualBusinessId) goes first;
+    // with none, an A1-style pick is ignored and the nearest goes first
     for (const channel of ["hivic_sourced", "website", null]) expect(autoOfferPreferredElectrician({ channel, a1PreferredBusinessId: "usual", ourLeadUsualBusinessId: undefined })).toBeNull();
     const usualBusinessId = autoOfferPreferredElectrician({ channel: "hivic_sourced", a1PreferredBusinessId: "usual", ourLeadUsualBusinessId: undefined });
     expect(autoOfferStep({ ...base("piesa"), candidates: cs, usualBusinessId })).toMatchObject({ action: "offer", businessId: "near", basis: "coverage", attempt: 1 });
@@ -148,8 +149,8 @@ describe("electrician pick", () => {
     expect(autoOfferStep({ ...base("piesa", [miss("usual")]), candidates: cs, usualBusinessId: "usual" })).toMatchObject({ action: "return_to_office", reason: "preferred_missed" });
   });
   test("installer jobs: a blocked chosen electrician (e.g. no agreed rate) sends the job back to the office, never to someone else", () => {
-    // Decision 426 fix wave (Jo 29 Oct 2026). `usualBusinessId` is only ever set for installer jobs (autoOfferPreferredElectrician
-    // returns null for our leads), so there is no non-installer usual-electrician case to keep.
+    // Decision 426 fix wave (Jo 29 Oct 2026). This is the installer-job rule (default preferredRule). Our leads use
+    // preferredRule "our_lead", where a blocked usual electrician goes to the nearest instead (see the our-lead tests below).
     const cs = [cand("usual", { blocker: "No agreed electrician rate recorded." }), cand("near", { distanceKm: 3 })];
     expect(autoOfferStep({ ...base("piesa"), candidates: cs, usualBusinessId: "usual" })).toMatchObject({ action: "return_to_office", reason: "preferred_blocked" });
     expect(autoOfferPreferredElectrician({ channel: "hivic_sourced", a1PreferredBusinessId: "usual", ourLeadUsualBusinessId: undefined })).toBeNull();

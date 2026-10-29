@@ -293,6 +293,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['payments'] = "failed"; // a Xero outage must not fail the whole tick
         }
         try {
+          // Installer sign-up electrician nominations that were never invited (comms were off at sign-up): one invite each.
+          // Runs BEFORE the decision-303 sweep so the 303 sweep sees this nomination as already handled (never two emails).
+          const { sweepSignupNominationInvites } = await import("@/lib/signup-electrician.server");
+          (out as Record<string, unknown>)['signupElectricianInvites'] = await timed("sweepSignupNominationInvites", () => sweepSignupNominationInvites());
+        } catch (e) {
+          console.error("allocation tick: sign-up electrician invite sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['signupElectricianInvites'] = "failed";
+        }
+        try {
           // Decision 303: ONE REC onboarding invite per electrician an installer named who is not an approved REC
           // (facts recorded by the quote pipeline; sends only through the existing manual invite path, TEST → test inbox).
           const { sweepRecOnboardingInvites } = await import("@/lib/rec-onboarding-invite.server");
@@ -300,14 +309,6 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
         } catch (e) {
           console.error("allocation tick: REC onboarding invite sweep failed", (e as Error).message);
           (out as Record<string, unknown>)['recOnboardingInvites'] = "failed";
-        }
-        try {
-          // Installer sign-up electrician nominations that were never invited (comms were off at sign-up): one invite each.
-          const { sweepSignupNominationInvites } = await import("@/lib/signup-electrician.server");
-          (out as Record<string, unknown>)['signupElectricianInvites'] = await timed("sweepSignupNominationInvites", () => sweepSignupNominationInvites());
-        } catch (e) {
-          console.error("allocation tick: sign-up electrician invite sweep failed", (e as Error).message);
-          (out as Record<string, unknown>)['signupElectricianInvites'] = "failed";
         }
         try {
           const { sweepTradeNoShows } = await import("@/lib/visit-events.server");

@@ -7,7 +7,8 @@ import { signupMainElectrician } from "../src/lib/signup-electrician.core";
 import { readUsualElectrician } from "../src/lib/usual-electrician.server";
 
 const dryRun = process.argv.includes("--dry-run");
-const { data: acts, error } = await admin.from("partner_activations").select("business_id, application_id").not("business_id", "is", null).not("application_id", "is", null);
+const { data: acts, error } = await admin.from("partner_activations").select("business_id, application_id").not("business_id", "is", null).not("application_id", "is", null)
+  .eq("partner_type", "installer").order("activated_at", { ascending: false }).order("id", { ascending: false });
 if (error) { console.error(`Could not read activations: ${error.message}`); process.exit(1); }
 const ids = [...new Set((acts ?? []).map((a) => a.business_id as string))];
 const { data: bizs, error: be } = ids.length ? await admin.from("businesses").select("id, name, onboarding_status").in("id", ids).eq("onboarding_status", "approved") : { data: [], error: null };
@@ -15,6 +16,7 @@ if (be) { console.error(`Could not read businesses: ${be.message}`); process.exi
 
 let saved = 0;
 for (const b of bizs ?? []) {
+  // acts are newest installer activation first, so find() takes the latest one
   const appId = (acts ?? []).find((a) => a.business_id === b.id)?.application_id as string;
   const { data: app } = await admin.from("rec_onboarding_applications").select("data").eq("id", appId).maybeSingle();
   const e = signupMainElectrician(app?.data);

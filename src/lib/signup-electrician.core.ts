@@ -19,10 +19,31 @@ export function signupMainElectrician(data: unknown): UsualElectrician | null {
   });
 }
 
-/** Should the stuck sign-up electrician invite go out now? "wait" = comms are off (try again later); "skip" = never from here. */
-export function signupInviteDue(n: { status: string; invite_sent_at: string | null; business_id: string | null; email: string | null; installerApproved: boolean; commsEnabled: boolean; electricianAlreadyApproved: boolean }): "send" | "wait" | "skip" {
-  if (n.status !== "invite_pending_comms" || n.invite_sent_at || n.business_id || !n.email?.trim() || !n.installerApproved || n.electricianAlreadyApproved) return "skip";
+/** Should the stuck sign-up electrician invite go out now? "wait" = comms are off (try again later); "skip" = never from here.
+ *  Never twice: a link already issued (by the office or anyone) means handled, and any earlier sweep record for this
+ *  nomination (sent, failed, blocked or skipped) is final. Only the application's main electrician, and only once the
+ *  installer's sign-up electrician has been saved (on approval or by the one-off fix: that is the gate). */
+export function signupInviteDue(n: {
+  status: string; invite_sent_at: string | null; invite_link_issued_at: string | null; business_id: string | null; email: string | null;
+  installerApproved: boolean; commsEnabled: boolean; electricianAlreadyApproved: boolean;
+  isMain: boolean; installerSignupSaved: boolean; earlierSweepRecord: boolean; sameEmailAlreadySent: boolean;
+}): "send" | "wait" | "skip" {
+  if (n.status !== "invite_pending_comms" || n.invite_sent_at || n.invite_link_issued_at || n.business_id || !n.email?.trim() || !n.installerApproved || n.electricianAlreadyApproved) return "skip";
+  if (!n.isMain || !n.installerSignupSaved || n.earlierSweepRecord || n.sameEmailAlreadySent) return "skip";
   return n.commsEnabled ? "send" : "wait";
+}
+
+/** The main electrician nomination per sign-up application, matching `signupMainElectrician`: the one marked main,
+ *  else the oldest. Rows with no application are ignored. */
+export function signupMainNominationIds(rows: { id: string; installer_application_id: string | null; is_primary: boolean | null; created_at: string }[]): Set<string> {
+  const best = new Map<string, (typeof rows)[number]>();
+  for (const r of rows) {
+    if (!r.installer_application_id) continue;
+    const cur = best.get(r.installer_application_id);
+    const better = !cur || (r.is_primary === true && cur.is_primary !== true) || (!!r.is_primary === !!cur.is_primary && r.created_at < cur.created_at);
+    if (better) best.set(r.installer_application_id, r);
+  }
+  return new Set([...best.values()].map((r) => r.id));
 }
 
 export const SIGNUP_INVITES_PER_TICK = 25;
