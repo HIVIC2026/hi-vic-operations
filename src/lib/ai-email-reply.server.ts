@@ -44,7 +44,7 @@ export async function aiText(input: string, instructions: string = AI_REPLY_INST
   return (await result.text).trim();
 }
 
-export async function writeAiReplyDraft(p: { jobId: string; message: MailMessage; kind: AiReplyKind; reason: string }): Promise<"drafted" | "already" | "skipped"> {
+export async function writeAiReplyDraft(p: { jobId: string; message: MailMessage; kind: AiReplyKind; reason: string; autoSend?: boolean }): Promise<"drafted" | "already" | "skipped"> {
   if (!AI_EMAIL_DRAFTS_ENABLED || p.message.direction !== "inbound") return "skipped";
   const m = p.message;
   try {
@@ -128,8 +128,9 @@ export async function writeAiReplyDraft(p: { jobId: string; message: MailMessage
     // Jo 27 Oct 2026: a plain "thanks" gets no reply; the draft is closed so the card just needs Done.
     if (noReply && ins) await loose.from("workflow_events").insert({ job_id: p.jobId, actor_id: null, event_type: AI_EMAIL_DRAFT_DISCARDED_EVENT, internal: true,
       summary: "No reply needed — filed away", details: { draft_event_id: (ins as { id: string }).id } });
-    // Step 4: a simple reply may send itself (switch on, nothing to check). Any failure leaves the draft for Jo.
-    if (!noReply && ins) {
+    // Step 4: a simple reply may send itself (switch on, nothing to check) — only for a new email from the Outlook sync
+    // (`autoSend`), never an office "draft a reply". Any failure leaves the draft for Jo.
+    if (p.autoSend === true && !noReply && ins) {
       try { await (await import("./ai-auto-send.server")).autoSendDraft((ins as { id: string }).id, { ownerText: m.body }); }
       catch (e) { console.error("AI reply auto-send skipped", e instanceof Error ? e.message : e); }
     }
@@ -288,7 +289,8 @@ export async function sendAiDraft(eventId: string, body: string, actorId: string
   if (!to) throw new Error("This owner has no email address.");
   const K = await import("./email-kit.core");
   const subject = String(ev.details["subject"] ?? replySubject(null));
-  const key = `${aiDraftKey(String(ev.details["message_id"]))}:send:${eventId}`;
+  // Auto-send: ONE key per owner email, so a second draft of the same email can never send itself too.
+  const key = apply.via === "ai" ? `${aiDraftKey(String(ev.details["message_id"]))}:auto` : `${aiDraftKey(String(ev.details["message_id"]))}:send:${eventId}`;
   const build = (unsubscribe: string | null, test = false) => ({
     subject,
     html: aiReplyEmailHtml(body, { subject, unsubscribe, test }),

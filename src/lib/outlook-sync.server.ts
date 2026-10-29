@@ -475,7 +475,7 @@ async function ownerAutoReply(jobIds: string[], m: MailMessage, mailbox: string 
       const replied337 = changeAsk ? await changeReplied(jobIds[0]!, m.providerMessageId) : false;
       if (!replied337) {
         const kind = r.status === "none" || changeAsk || /approval|comms are switched off/.test(r.detail) ? "simple" : "other";
-        await (await import("./ai-email-reply.server")).writeAiReplyDraft({ jobId: jobIds[0]!, message: m, kind, reason: r.detail });
+        await (await import("./ai-email-reply.server")).writeAiReplyDraft({ jobId: jobIds[0]!, message: m, kind, reason: r.detail, autoSend: true });
       }
     }
     return r.suppressDraft;
