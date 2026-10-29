@@ -59,6 +59,12 @@ export function ourLeadUsualRecId(usual: UsualElectrician | null, candidates: Us
   return usual ? matchUsualElectrician(usual, candidates)?.business_id ?? null : null;
 }
 
+/** The matched approved REC's id, only when it can actually be offered this job (is in `offerableIds`), else null. */
+export function ourLeadPreferredId(usual: UsualElectrician | null, approved: UsualMatchCandidate[], offerableIds: string[]): string | null {
+  const id = ourLeadUsualRecId(usual, approved);
+  return id && offerableIds.includes(id) ? id : null;
+}
+
 /** Owner-facing safety-check line on an our-lead quote. Decision 373 (Jo 25 Oct 2026: "our leads we always charge
  *  $349 for the PIESA regardless"): always HIV's standard price; since decision 374 the electrician is always ours and is
  *  paid their own onboarding rate (`electrician_rates`, snapshotted on the offer). */

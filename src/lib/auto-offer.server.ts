@@ -14,7 +14,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logEvent, piesaRequestFacts, stageEntryBlockers } from "./workflow.server";
 import { isTestPartner } from "./test-send.core";
-import { ourLeadUsualRecId } from "./our-lead-piesa-electrician.core";
+import { ourLeadPreferredId } from "./our-lead-piesa-electrician.core";
 import {
   AUTO_OFFER_FLAG, AUTO_OFFER_READY_STAGES, AUTO_OFFER_RETURNED_EVENT, autoOfferBlocked, autoOfferInstallerElectrician, autoOfferPreferredElectrician, autoOfferReturnedSummary, autoOfferStageReady, autoOfferStep, autoOfferSwitchOn,
   type AutoOfferCandidate, type AutoOfferKind, type AutoOfferRow, type AutoOfferStep,
@@ -97,14 +97,15 @@ async function electricianCandidates(jobId: string, channel: string | null, jobI
     preferredIds = chosen ? [chosen] : candidates.filter((c) => c.preferred).map((c) => c.business_id);
   }
   // Our leads (29 Oct 2026): the Ready Check installer's usual electrician, when they are an approved REC covering the job.
-  // recCandidatesFor carries no rec_number / trading_name, so matching falls back to the exact business name. Any read error = none.
+  // Matched against the approved REC list (rec_number, trading name, workers' licences). Any read error = none.
   let ourLeadUsualBusinessId: string | null = null;
   if (channel !== "installer_sourced") {
     try {
       const installerId = await (await import("./install-holds.server")).quotedInstaller(jobId);
       if (installerId) {
         const { electrician } = await (await import("./usual-electrician.server")).readUsualElectrician(installerId);
-        ourLeadUsualBusinessId = ourLeadUsualRecId(electrician, candidates.map((c) => ({ business_id: c.business_id, name: c.name })));
+        const approved = electrician ? await (await import("./rec-onboarded.server")).loadApprovedRecCandidates() : [];
+        ourLeadUsualBusinessId = ourLeadPreferredId(electrician, approved, candidates.map((c) => c.business_id));
       }
     } catch (e) { console.error("auto-offer: usual electrician lookup failed", jobId, e); }
   }
