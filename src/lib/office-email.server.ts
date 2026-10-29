@@ -8,7 +8,7 @@ const FROM = "Home Insulation Victoria <jobs@homeinsulationvictoria.com.au>";
 export const PARTNER_EMAILS_PAUSED = "Emails are paused while the templates are reviewed (master switch off). Nothing was sent.";
 export type OfficeEmailRecord = { applicationId?: string | null; enquiryId?: string | null; businessId?: string | null };
 
-export async function sendOfficeEmail(p: { actorId: string | null; recipient: OfficeRecipient; to: string; contactName: string | null; subject: string; message: string; label: string; record: OfficeEmailRecord; html?: string; text?: string; attachments?: import("./email-kit.core").EmailAttachment[] }): Promise<SendResult> {
+export async function sendOfficeEmail(p: { actorId: string | null; recipient: OfficeRecipient; to: string; contactName: string | null; subject: string; message: string; label: string; record: OfficeEmailRecord; html?: string; text?: string; attachments?: import("./email-kit.core").EmailAttachment[]; /** Once-only key: the email service drops a repeat with the same key (24h). */ idempotencyKey?: string }): Promise<SendResult> {
   // Jo 24 Oct: partner, applicant and electrician emails pause with the master switch until every template is reviewed.
   const { customerCommsEnabled } = await import("./comms.server");
   const paused = (await customerCommsEnabled()) ? null : PARTNER_EMAILS_PAUSED;
@@ -25,7 +25,7 @@ export async function sendOfficeEmail(p: { actorId: string | null; recipient: Of
       if (!key || !gw) throw new Error("Email is not connected");
       const res = await fetch("https://connector-gateway.lovable.dev/resend/emails", {
         method: "POST",
-        headers: { Authorization: `Bearer ${gw}`, "X-Connection-Api-Key": key, "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() },
+        headers: { Authorization: `Bearer ${gw}`, "X-Connection-Api-Key": key, "Content-Type": "application/json", "Idempotency-Key": p.idempotencyKey ?? crypto.randomUUID() },
         body: JSON.stringify({ from: FROM, to: [to], reply_to: OFFICE_REPLY_TO, subject: c.subject, html: mail.html, text: mail.text, ...(p.attachments?.length ? { attachments: p.attachments.map((a) => ({ filename: a.filename, content: a.content, content_type: a.contentType })) } : {}) }),
         signal: timeoutSignal(RESEND_FETCH_TIMEOUT_MS),
       });

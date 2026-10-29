@@ -4,6 +4,7 @@ import { rectQuoteUnanswered } from "./rectification.core";
 // directly for the active visit, and a time is booked only when the OTHER party (or office) confirms it.
 // Stage progression stays with the existing guarded workflow (stageEntryBlockers / transition / autoAdvanceJob).
 import { piesaRequestBlockers, type PiesaRequestFacts } from "./payment-gate.core";
+import { complianceRecordBlockers } from "./compliance-timeline.core";
 import { WORKFLOW_DECISIONS } from "@/config/workflow-decisions";
 import { veecQueryOverdue } from "./veec.core";
 import { isBusinessDay, melbourneAt, melbourneYmd } from "./piesa-windows.core";
@@ -18,8 +19,11 @@ export const OFFICE_ALERT_AFTER_H = WORKFLOW_DECISIONS.directContact.officeAlert
 
 // ---------- A. PIESA offers ----------
 /** PIESA allocation can start only when the existing PIESA request gate is fully satisfied. */
-export function piesaOfferBlockers(f: PiesaRequestFacts & { hasActiveElectrician: boolean; hasOpenOffers: boolean }): string[] {
+export function piesaOfferBlockers(f: PiesaRequestFacts & { hasActiveElectrician: boolean; hasOpenOffers: boolean; lifeSupportPlanMissing?: boolean }): string[] {
   const out = piesaRequestBlockers(f);
+  // A48 batch 1 final fix (Jo 29 Oct): no safety check offers while the life support plan is missing — the same blocker
+  // complianceRecordBlockers gives the visit (piesa_scheduled).
+  if (f.lifeSupportPlanMissing) out.push(...complianceRecordBlockers("piesa_scheduled", new Set(), { lifeSupport: true, ownerPaidIncGst: 0 }));
   if (f.hasActiveElectrician) out.push("An electrician has already accepted this PIESA.");
   if (f.hasOpenOffers) out.push("PIESA offers are already open for this job.");
   return out;

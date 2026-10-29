@@ -447,6 +447,38 @@ function requiredMissing(key: OfficialKey, a: OfficialAnswers, active: (i: Offic
 const rows = (a: OfficialAnswers, ids: string[], count: number) =>
   Array.from({ length: count }, (_, r) => ids.map((id) => s(a[`${id}#${r}`]))).filter((cells) => cells.some(Boolean));
 
+/** Plain reasons for the PIESA rule failures that block a visit (Jo approved the wording, 29 Oct 2026). Keys are rule ids; `RECT-REQUIRED:<part>` and `REQ:<id>` match by the part before the colon. */
+export const PIESA_RULE_REASON: Record<string, string> = {
+  "P2P3-NO": "a switchboard or solar answer is No, so repairs are needed (or you must be on site at the start)",
+  "RECT-REQUIRED": "wiring, safety switch (RCD) or downlight problems must be repaired before the install",
+  "B1-NOT-POSSIBLE-PART4-6": "wiring, safety switch (RCD) or downlight problems must be repaired before the install",
+  "P2-SWITCH-OVERALL": "the main switch answer must be No when any switchboard item is No",
+  "B1-NOT-POSSIBLE-SCOPE": "\"not possible\" was chosen but no switchboard or solar answer is No",
+  "B1-ONE": "the repairs list doesn't match the repairs answer",
+  "B1-B2": "the repairs list doesn't match the repairs answer",
+  "B2-ONLY-IF-RECT": "the repairs list doesn't match the repairs answer",
+  "P1-LIFE-SUPPORT": "life support is ticked but no consent or medical plan is attached",
+  "P7-DESCRIBE": "an appliance or hazard row is incomplete",
+  "P7-ROW-INCOMPLETE": "an appliance or hazard row is incomplete",
+  "P7-OTHER-INCOMPLETE": "an appliance or hazard row is incomplete",
+  "REQ": "some required answers are blank",
+};
+/** PIESA rules handled elsewhere: never returned by `piesaRuleBlockers`. */
+export const PIESA_RULE_NOT_BLOCKING: readonly string[] = ["COPY-24H", "P7-NOT-EFFECTIVE"];
+const PIESA_REASON_ORDER = [...new Set(Object.values(PIESA_RULE_REASON))];
+
+/** The official-form rule failures as blocking rules with plain reasons: one per reason, in table order. Unmapped rules are not returned (a test pins that every emitted rule is mapped or excluded).
+ *  `keep` (A48 batch 1 task 2) drops rules before the reasons are grouped, e.g. blanks that a later step fills. */
+export function piesaRuleBlockers(answers: OfficialAnswers, keep: (rule: string) => boolean = () => true): { rule: string; reason: string }[] {
+  const byReason = new Map<string, string>();
+  for (const b of evaluatePiesa(answers).blockers) {
+    if (PIESA_RULE_NOT_BLOCKING.includes(b.rule) || !keep(b.rule)) continue;
+    const reason = PIESA_RULE_REASON[b.rule] ?? PIESA_RULE_REASON[b.rule.split(":")[0]!];
+    if (reason && !byReason.has(reason)) byReason.set(reason, b.rule);
+  }
+  return PIESA_REASON_ORDER.filter((r) => byReason.has(r)).map((reason) => ({ rule: byReason.get(reason)!, reason }));
+}
+
 /** PIESA printed rules. Every rule quotes the form; unclear points block with NEEDS OFFICIAL/LEGAL CONFIRMATION. */
 export function evaluatePiesa(a: OfficialAnswers, ctx: PiesaContext = {}): Evaluation {
   const blockers: RuleResult[] = [], nextActions: RuleResult[] = [];
