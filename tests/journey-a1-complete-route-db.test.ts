@@ -258,7 +258,7 @@ describe("A1 step 4 — the $349 safety check, paid by card (decisions 139/144/3
     const s = providers.stripe.sessions[0]!;
     expect(s.form["line_items[0][price_data][unit_amount]"]).toBe("34900");
     expect(s.form["metadata[step]"]).toBe("safety_check");
-    expect(s.idempotencyKey).toBe(`hivic-checkout-${JOB}-safety_check-34900`);
+    expect(s.idempotencyKey).toBe(`hivic-checkout-${JOB}-${s.form["metadata[invoice_id]"]}-safety_check-34900`);
     const st = await import("../src/lib/stripe.server");
     // A forged webhook (wrong secret) changes nothing.
     const forged = await stripePaidWebhook(s, "whsec_wrong");
