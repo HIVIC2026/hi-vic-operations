@@ -21,7 +21,7 @@ export async function jobOverviewFor(sb: Sb, userId: string, jobId: string) {
     // or on a partner-supplied job their own business originated.
     const { data: rel } = await admin.rpc("has_contact_release", { _job: jobId, _user: userId });
     let own = false;
-    if (!rel && row.channel === "installer_sourced") {
+    if (row.channel === "installer_sourced") {
       const { data: j } = await admin.from("jobs").select("originating_installer_business_id").eq("id", jobId).maybeSingle();
       const { data: m } = j?.originating_installer_business_id ? await admin.from("business_members").select("user_id").eq("business_id", j.originating_installer_business_id).eq("user_id", userId).maybeSingle() : { data: null };
       own = !!m;
@@ -30,8 +30,8 @@ export async function jobOverviewFor(sb: Sb, userId: string, jobId: string) {
       const { data: p } = await admin.from("properties").select("suburb, postcode").eq("id", row.property_id!).maybeSingle();
       return { role, row: { ...row, owner_name: null, owner_phone: null, owner_email: null, property_address: [p?.suburb, p?.postcode].filter(Boolean).join(" ") || "Address shared once the visit is arranged" } };
     }
-    if (rel) {
-      // Same visit-current rule as the trade pages (contactVisible over this business's own bookings): no phone once every visit is done.
+    if (rel && !own) {
+      // Their own originated customer keeps the phone (skipped above). Same visit-current rule as the trade pages (contactVisible over this business's own bookings): no phone once every visit is done.
       let visible = false;
       try {
         const { requireTradeJob } = await import("./trade-view.server");
