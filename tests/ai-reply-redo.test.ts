@@ -141,6 +141,13 @@ describe("final review fixes", () => {
       expect(r.body.match(/cheers/gi)?.length).toBe(1);
     }
   });
+  test("F1b: real last sentences that mention thanks or the team are kept", async () => {
+    for (const last of ["Thanks again to the whole team for your patience.", "Thanks for choosing Home Insulation Victoria.", "Thanks, our team will be in touch."]) {
+      const r = await fixUntilClean(`Hi Sam,\n\nYour VEEC is sorted.\n\n${AI_SIGN_OFF}`, false, async () => `Hi Sam,\n\nYour rebate is sorted.\n\n${last}`);
+      expect(r.body).toContain(last);
+      expect(sign(r)).toBe(1);
+    }
+  });
   test("F2: wider timing phrases are flagged", () => {
     for (const bad of ["within a week", "within 2-3 weeks", "in 2 weeks", "in a fortnight", "in a couple of weeks", "in a week or two", "in the coming weeks", "in the next few weeks", "next month", "this month", "next year", "tomorrow", "we can move up your spot"])
       expect(aiPreReleaseViolations(`We'll be in touch ${bad}.`).length).toBeGreaterThan(0);

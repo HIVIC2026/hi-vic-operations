@@ -267,7 +267,7 @@ export const AI_FIX_INSTRUCTIONS = [
 ].join("\n");
 
 const SIGN_WORDS = "(?:cheers|kind regards|regards|thanks|many thanks|best)";
-const TRAILING_TEAM_SIGN_OFF = new RegExp(`(?:^|\\n)[ \\t]*${SIGN_WORDS}\\b[^\\n]*(?:home insulation victoria|team)[^\\n]*$`, "i");
+const TRAILING_TEAM_SIGN_OFF = new RegExp(`(?:^|\\n)[ \\t]*${SIGN_WORDS}[ \\t]*,[ \\t]*(?:the[ \\t]+)?(?:home insulation victoria(?:[ \\t]+team)?|team)[ \\t]*\\.?[ \\t]*$`, "i");
 const TRAILING_JO_SIGN_OFF = new RegExp(`(?:^|\\n)[ \\t]*${SIGN_WORDS}[,!.]?[ \\t]*\\n+[ \\t]*jo[ \\t]*$`, "i");
 /** Removes a trailing sign-off however the AI worded it (our exact one, "Kind regards, the … team", "Cheers,\nJo"), plus surrounding whitespace. */
 export function stripSignOff(text: string): string {
