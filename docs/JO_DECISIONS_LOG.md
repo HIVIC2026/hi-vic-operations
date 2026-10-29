@@ -540,3 +540,5 @@ Newest first. Each line is settled; anything still open is under "Open".
 423. **"Pick your install day" deposit wording (Jo 29 Oct 2026, from the business guide).** O33 now says: "To book your day, sign your install consent and pay your 10% deposit of [deposit]. Once it's in, your day is locked in. The rest, [balance], is due on install day. Or you can pay in full now." The old "We hold it for 48 hours" line is gone — the deposit is paid before the day is booked.
 
 424. **Electrical licence is a hard block (Jo 29 Oct 2026, from the business guide; changes decision 415).** An electrician application with a missing licence number, missing expiry or a past expiry cannot be approved — there is no "approve anyway" override. The approval checklist shows it as something to fix. Insurance, REC number, $5m cover and the $349 price limit stay override-with-reason. Already-approved electricians are not affected.
+
+427. **R6.0 owner price is $33 per m² inc GST (Jo 29 Oct 2026, from the business guide; was $32, decision of 22 Oct).** New our-lead quotes price R6.0 at $33/m². Quotes already sent keep their price. R5.0 ($30) and R7.0 ($35) unchanged.
