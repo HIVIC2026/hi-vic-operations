@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { piesaCompletionKind, repeatFormStep } from "../src/lib/repeat-piesa-form.core";
+import { ASSESSMENT_ROUND_RESET, piesaCompletionKind, repeatFormStep } from "../src/lib/repeat-piesa-form.core";
 import { claimGeneration } from "../src/lib/mitti-create-claim.core";
 const read = (p: string) => readFileSync(p, "utf8");
 const old = { auditId: "m-first", status: "complete" };
@@ -19,6 +19,20 @@ describe("Repeat PIESA gets its own Mitti form (Jo 29 Oct 2026)", () => {
   });
   test("completed repeat is a reassessment; first stays initial", () => {
     expect(piesaCompletionKind(0)).toBe("initial"); expect(piesaCompletionKind(1)).toBe("reassessment");
+  });
+  test("new round starts clean, including the first form's Mitti completion facts (fix round 1)", () => {
+    expect(ASSESSMENT_ROUND_RESET).toEqual({
+      status: "in_progress", completed_at: null, piesa_outcome: "pending", assessed_on: null, no_rectification_confirmed: null,
+      external_mitti_id: null, mitti_template_id: null, mitti_raw_snapshot: null, mitti_sync_status: "not_synced", mitti_last_error: null,
+      mitti_completed: false, mitti_synced_at: null, mitti_modified_at: null, mitti_validation_issues: [],
+    });
+  });
+  test("a failed read of earlier PIESA records stops completion (never silently 'initial')", () => {
+    const c = read("src/lib/piesa-complete.server.ts");
+    const i = c.indexOf("error: priorError");
+    expect(i).toBeGreaterThan(-1);
+    expect(c.indexOf("if (priorError) throw new WorkflowError(", i)).toBeGreaterThan(i);
+    expect(c.indexOf("if (priorError) throw new WorkflowError(")).toBeLessThan(c.indexOf("kind: piesaCompletionKind("));
   });
   test("wiring", () => {
     const s = read("src/lib/piesa-autoform.server.ts");

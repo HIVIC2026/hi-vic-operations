@@ -21,6 +21,11 @@ export const ASSESSMENT_ROUND_RESET = {
   mitti_raw_snapshot: null,
   mitti_sync_status: "not_synced",
   mitti_last_error: null,
+  // Fix round 1 (coordinator ruling): the first form's completion facts must not carry into the new round.
+  mitti_completed: false,
+  mitti_synced_at: null,
+  mitti_modified_at: null,
+  mitti_validation_issues: [],
 } as const;
 
 /**
