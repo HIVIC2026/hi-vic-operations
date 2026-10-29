@@ -1,3 +1,4 @@
+-- APPLIED to the live database 29 Oct 2026 (Jo said yes); index verified.
 -- A48 batch 1 final fix (29 Oct 2026): the "safety check breaks the official rules" electrician message goes once per PIESA
 -- form version. recheckPiesaRules (piesa-rules-notice.server.ts) writes the FIRST `piesa_rules_failed` event for a form
 -- version with details->>'notice_key' = piesa-rules:v1:<jobId>:<formVersion> BEFORE it sends anything. Two Mitti syncs of
