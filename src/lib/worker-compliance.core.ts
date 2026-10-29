@@ -1,4 +1,4 @@
-// Worker compliance rules: electrician licence expiry + installer PIISA training + installer EEC/CII
+// Worker compliance rules: electrician licence expiry + installer EEC/CII
 // certificate. PURE: no I/O. EEC status is office-verified only; a worker-uploaded file is "awaiting_check"
 // until the office verifies it (certification_status stays 'unverified' until then).
 import { COLLECTION_NOTICE_BLOCK_MESSAGE } from "./esc-collection-notice.core";
@@ -6,9 +6,6 @@ import { COLLECTION_NOTICE_BLOCK_MESSAGE } from "./esc-collection-notice.core";
 export type WorkerCompliance = {
   trade_role: "electrician" | "installer" | string;
   licence_expires_on?: string | null;
-  piisa_status?: "done" | "not_done" | null;
-  piisa_certificate_path?: string | null;
-  piisa_verified_at?: string | null;
   certification_status?: "unverified" | "verified" | "rejected" | null;
   certification?: { eec_upload?: { path?: string | null } | null } | null;
   /** ESC collection notice (decision 130): false = this person has not acknowledged it (from esc-collection-notice statuses). Undefined = not loaded. */
@@ -43,14 +40,6 @@ export function licenceState(expiry: string | null | undefined, today: string): 
   return d < 0 ? "expired" : d <= 30 ? "lapses_30" : d <= 60 ? "lapses_60" : "ok";
 }
 
-export type PiisaState = "missing" | "not_done" | "awaiting_check" | "verified";
-export function piisaState(w: WorkerCompliance): PiisaState {
-  if (w.piisa_verified_at && w.piisa_certificate_path) return "verified";
-  if (w.piisa_status === "not_done") return "not_done";
-  if (w.piisa_status === "done" && w.piisa_certificate_path) return "awaiting_check";
-  return "missing";
-}
-
 /** Office approval flags (inform, never block approval). */
 export function approvalFlags(w: WorkerCompliance, today: string): string[] {
   const out: string[] = [];
@@ -61,10 +50,6 @@ export function approvalFlags(w: WorkerCompliance, today: string): string[] {
     if (s === "lapses_30" || s === "lapses_60") out.push("Licence expires within 60 days");
   }
   if (w.trade_role === "installer") {
-    const s = piisaState(w);
-    if (s === "not_done") out.push("PIISA training not done");
-    if (s === "missing") out.push("PIISA training missing");
-    if (s === "awaiting_check") out.push("PIISA certificate to verify");
     const e = eecState(w);
     if (e === "missing") out.push("EEC certificate missing");
     if (e === "awaiting_check") out.push("EEC certificate to verify");
@@ -98,8 +83,6 @@ export function workerOfferBlocker(w: WorkerCompliance, today: string): string |
     if (s === "expired") return "Electrical licence has expired.";
     if (s === "missing") return null; // existing partners: shown as "missing" with an Add it prompt; not yet a block
   }
-  // Existing partners who were never asked show "missing" (Add it prompt) and are not blocked yet.
-  if (w.trade_role === "installer" && w.piisa_status && piisaState(w) !== "verified") return "PIISA training not uploaded and verified.";
   // Decision 130: an installer who has not acknowledged the ESC collection notice cannot be lead or crew on any installation.
   if (w.trade_role === "installer" && w.collection_notice_acknowledged === false) return COLLECTION_NOTICE_BLOCK_MESSAGE;
   return null;
@@ -154,10 +137,9 @@ export function publicLiabilityBlocker(expiresOn: string | null | undefined, tod
 export const melbourneToday = (now = new Date()) => now.toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" });
 
 /** "Missing" items for the My business Add it prompt. */
-export function missingItems(w: WorkerCompliance): ("licence_expiry" | "piisa" | "esc_notice" | "white_card")[] {
-  const m: ("licence_expiry" | "piisa" | "esc_notice" | "white_card")[] = [];
+export function missingItems(w: WorkerCompliance): ("licence_expiry" | "esc_notice" | "white_card")[] {
+  const m: ("licence_expiry" | "esc_notice" | "white_card")[] = [];
   if (w.trade_role === "electrician" && !w.licence_expires_on) m.push("licence_expiry");
-  if (w.trade_role === "installer" && (piisaState(w) === "missing" || piisaState(w) === "not_done")) m.push("piisa");
   if (w.trade_role === "installer" && w.collection_notice_acknowledged === false) m.push("esc_notice");
   // Decision 319: every installer person needs their own White Card on file (missing or not accepted → upload again).
   const wc = whiteCardState(w);

@@ -71,7 +71,7 @@ describe("collectionNoticeStatus", () => {
 describe("enforcement (decision 130): no lead or crew without acknowledgement", () => {
   const T = "2026-10-24";
   test("workerOfferBlocker, approval flags and My business missing items", () => {
-    const base = { trade_role: "installer", piisa_status: "done" as const, piisa_certificate_path: "p", piisa_verified_at: "2026-10-01" };
+    const base = { trade_role: "installer" };
     expect(workerOfferBlocker({ ...base, collection_notice_acknowledged: true }, T)).toBeNull();
     expect(workerOfferBlocker({ ...base, collection_notice_acknowledged: false }, T)).toBe(COLLECTION_NOTICE_BLOCK_MESSAGE);
     expect(workerOfferBlocker({ ...base }, T)).toBeNull(); // not loaded: unchanged behaviour for callers that don't pass it

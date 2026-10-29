@@ -5,13 +5,13 @@
 //
 // Where a fact has a plain server-module recording path it is used (ESC collection notice: tradeAcknowledgeNotice on the
 // person's own login; electrician rates: the activate_electrician_rate SQL function). The office approvals that exist only
-// as signed-in server functions (worker approval, EEC/CII check, White Card check, PIISA check, credential check) are
+// as signed-in server functions (worker approval, EEC/CII check, White Card check, credential check) are
 // recorded with exactly the rows those actions write (same tables, statuses and admin_config_events), as the Test
 // Centre's own fixtures do (qa-access.server, jo-tradie.server). No gate is changed or skipped: the run still goes through
 // every real check, and a TEST person the office REJECTED is never overridden.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { isTestPartner } from "./test-send.core";
-import { crewClearance, whiteCardPathPrefix, whiteCardState, withWhiteCardDecision, withWhiteCardUpload, piisaState, WHITE_CARD_EVENTS } from "./worker-compliance.core";
+import { crewClearance, whiteCardPathPrefix, whiteCardState, withWhiteCardDecision, withWhiteCardUpload, WHITE_CARD_EVENTS } from "./worker-compliance.core";
 import { eecUploadMeta, mergeEec } from "./worker-invite.core";
 import { credentialState } from "./pilot.core";
 
@@ -94,11 +94,11 @@ export async function ensureTestBusinessReady(actorId: string, businessId: strin
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
-// Installer people: approved login, EEC/CII Full + current (decision 153), White Card (319), PIISA training, ESC notice (130).
+// Installer people: approved login, EEC/CII Full + current (decision 153), White Card (319), ESC notice (130).
 // ---------------------------------------------------------------------------------------------------------------------
 
-type WorkerRow = { id: string; business_id: string; email: string; full_legal_name: string; trade_role: string; profile_id: string | null; approval_status: string; certification_status: string | null; certification: unknown; piisa_status: string | null; piisa_certificate_path: string | null; piisa_verified_at: string | null; licence_expires_on: string | null; removed_at: string | null };
-const WORKER_COLS = "id, business_id, email, full_legal_name, trade_role, profile_id, approval_status, certification_status, certification, piisa_status, piisa_certificate_path, piisa_verified_at, licence_expires_on, removed_at";
+type WorkerRow = { id: string; business_id: string; email: string; full_legal_name: string; trade_role: string; profile_id: string | null; approval_status: string; certification_status: string | null; certification: unknown; licence_expires_on: string | null; removed_at: string | null };
+const WORKER_COLS = "id, business_id, email, full_legal_name, trade_role, profile_id, approval_status, certification_status, certification, licence_expires_on, removed_at";
 
 async function testWorkers(businessId: string, role: "installer" | "electrician") {
   await assertTestBusiness(businessId);
@@ -173,22 +173,6 @@ async function ensureWhiteCard(actorId: string, w: WorkerRow, log: SetupLog) {
   log.push(`${w.full_legal_name}: White Card verified (TEST)`);
 }
 
-/** PIISA training certificate uploaded (savePiisa), then verified by the office (officeVerifyPiisa). */
-async function ensurePiisa(actorId: string, w: WorkerRow, log: SetupLog) {
-  if (piisaState(w as never) === "verified") return;
-  const now = new Date().toISOString();
-  let path = w.piisa_certificate_path;
-  if (!path || w.piisa_status !== "done") {
-    path = await uploadTestFile(`workers/${w.id}/piisa-${crypto.randomUUID()}.jpg`);
-    const { error } = await admin.from("partner_workers").update({ piisa_status: "done", piisa_completed_on: melbourneToday(), piisa_certificate_path: path, piisa_verified_at: null, piisa_verified_by: null }).eq("id", w.id);
-    fail("PIISA upload", error);
-  }
-  const { error } = await admin.from("partner_workers").update({ piisa_verified_at: now, piisa_verified_by: actorId }).eq("id", w.id).not("piisa_certificate_path", "is", null);
-  fail("PIISA check", error);
-  await configEvent(actorId, "piisa_verified", "PIISA certificate verified", { worker_id: w.id, test_journey_setup: true });
-  log.push(`${w.full_legal_name}: PIISA training verified (TEST)`);
-}
-
 /** Decision 130: the ESC collection notice, acknowledged by each person on their OWN login (real My business path). A
  *  person with no login of their own stays unacknowledged (and so is not offered work), exactly as the rule says. */
 export async function ensureTestNoticeAcks(installerBiz: string, log: SetupLog) {
@@ -227,7 +211,6 @@ export async function ensureTestInstallerPeople(actorId: string, installerBiz: s
     await ensureEecCleared(actorId, w, log);
     await ensureApproved(actorId, w, log);
     await ensureWhiteCard(actorId, w, log);
-    await ensurePiisa(actorId, w, log);
   }
   await ensureTestNoticeAcks(installerBiz, log);
   const mine = (await testWorkers(installerBiz, "installer")).find((w) => w.profile_id === boss.id);

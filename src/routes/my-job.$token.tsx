@@ -323,8 +323,9 @@ function ReviewScreen({ token, initialStars }: { token: string; initialStars: nu
 }
 const errText = (e: unknown) => (e instanceof Error ? e.message : "Please try again.");
 
-/** Approved P2 "Say yes" (decisions 126/127): two ticks, full name, the 18+/owner tick, typed signature, one locked button.
- *  Same server function, validation and 6-digit code: the code is asked for when the owner presses the button. */
+/** Approved P2 "Say yes" (decisions 126/127; decision 425, Jo 29 Oct 2026): two ticks, owner / acting-for-owner, one
+ *  locked button. No typed name and no 18+ tick — the server records the owner's name on file. The 6-digit code is
+ *  still asked for when the owner presses the button. */
 function AcceptQuote({ token, quote, rebate, safetyCheck }: { token: string; quote: { id: string; version: number }; rebate: number; safetyCheck: number | null }) {
   const [session, setSession] = useSession();
   const [needCode, setNeedCode] = useState(false);
@@ -332,17 +333,17 @@ function AcceptQuote({ token, quote, rebate, safetyCheck }: { token: string; quo
   const accept = useServerFn(ownerAcceptQuoteFn);
   const qc = useQueryClient();
   const { data: ag } = useQuery({ queryKey: ["owner-agreement", quote.id], queryFn: () => load({ data: { token, quoteId: quote.id } }) });
-  const [f, setF] = useState({ name: "", authority: "owner" as "owner" | "authorised_representative", sig: "" });
-  const [over18, setOver18] = useState(false); const [read, setRead] = useState(false); const [agree, setAgree] = useState(false);
+  const [f, setF] = useState({ authority: "owner" as "owner" | "authorised_representative" });
+  const [read, setRead] = useState(false); const [agree, setAgree] = useState(false);
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
   const blocked = (ag?.blockers ?? []) as string[];
   const fee = safetyCheck != null ? shortAud(safetyCheck) : "$349";
   const feeCents = safetyCheck != null ? centsAud(safetyCheck) : "$349.00";
-  const ready = blocked.length === 0 && over18 && read && agree && f.name.trim().length >= 2 && f.sig.trim().length >= 2;
+  const ready = blocked.length === 0 && read && agree;
   const sign = async () => {
     if (!session) { setNeedCode(true); return; }
     setErr(""); setBusy(true);
-    try { await accept({ data: { token, session, quoteId: quote.id, expectedVersion: quote.version, signing: { signatoryName: f.name, authorityType: f.authority, signatureName: f.sig, over18, readConsumerInfo: read, acceptAgreement: agree, assistance: "none" } } }); await qc.invalidateQueries({ queryKey: ["my-job", token] }); }
+    try { await accept({ data: { token, session, quoteId: quote.id, expectedVersion: quote.version, signing: { authorityType: f.authority, readConsumerInfo: read, acceptAgreement: agree, assistance: "none" } } }); await qc.invalidateQueries({ queryKey: ["my-job", token] }); }
     catch (e) { setErr(errText(e)); } finally { setBusy(false); }
   };
   return (
@@ -354,12 +355,7 @@ function AcceptQuote({ token, quote, rebate, safetyCheck }: { token: string; quo
       <TickCard on={read} set={setRead} title={P2.tick2} sub={P2.tick2Sub(fee)} read={P2.tick2Read} readBody={ag ? <>{ag.consumerRights ? `Your consumer information (${ag.consumerRights.version})\n\n${ag.consumerRights.body}` : ""}{ag.paymentTerms ? `\n\nPayment terms\n\n${typeof ag.paymentTerms === "string" ? ag.paymentTerms : JSON.stringify(ag.paymentTerms, null, 1)}` : ""}</> : "Loading…"} />
       {blocked.length > 0 && <p role="alert" className="mt-3 rounded-[12px] bg-estimate-blush p-3 text-sm font-semibold">{blocked.join(" ")}</p>}
       <section className="mt-[18px] rounded-[14px] border border-estimate-line bg-card px-4 py-3.5">
-        <p className="text-[15px] font-bold">{P2.signTitle}</p>
-        <p className="mt-0.5 text-[13px] leading-relaxed text-estimate-sub">{P2.signSub}</p>
-        <TypedField label={P2.fullName} value={f.name} onChange={(name) => setF({ ...f, name })} autoComplete="name" />
         <AuthorityChoice value={f.authority} onChange={(authority) => setF({ ...f, authority })} />
-        <TickCard on={over18} set={setOver18} title={P2.tick3} />
-        <TypedField label={P2.typeAgain} value={f.sig} onChange={(sig) => setF({ ...f, sig })} placeholder={P2.typeHere} italic />
       </section>
       {needCode && !session && <div className="mt-4"><OwnerCodeGate token={token} onVerified={(s) => { setSession(s); setNeedCode(false); }} /></div>}
       {err && <p role="alert" className="mt-3 text-sm font-semibold text-destructive">{err}</p>}

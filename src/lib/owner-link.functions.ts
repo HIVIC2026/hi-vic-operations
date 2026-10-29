@@ -38,7 +38,8 @@ export const ownerAgreementFn = createServerFn({ method: "POST" }).middleware([w
 export const ownerAcceptQuoteFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
   .inputValidator((d) => z.object({
     token, session, quoteId: z.string().uuid(), expectedVersion: z.number().int(),
-    signing: z.object({ ...signer, over18: z.boolean(), readConsumerInfo: z.boolean(), acceptAgreement: z.boolean(), assistance: z.enum(["none", "interpreter", "support_understanding", "both"]) }),
+    // Decision 425 (Jo 29 Oct 2026): no typed name and no 18+ tick — the owner's name on file is recorded.
+    signing: z.object({ authorityType: z.enum(["owner", "authorised_representative"]), readConsumerInfo: z.boolean(), acceptAgreement: z.boolean(), assistance: z.enum(["none", "interpreter", "support_understanding", "both"]) }),
   }).parse(d))
   .handler(async ({ data, context }) => {
     const { ownerSession } = await import("./owner-verify.server");
