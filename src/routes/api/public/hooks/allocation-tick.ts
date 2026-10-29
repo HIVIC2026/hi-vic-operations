@@ -44,6 +44,17 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           out['coordination'] = "failed";
         }
         try {
+          // Batch 2: a STOP cancel whose installer release failed is retried here (max 20 a tick, last 14 days); success writes
+          // `job_cancel_released`, which clears the Needs me row. Counts only.
+          const { retryStopReleases } = await import("@/lib/stop-release.server");
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          const [{ releaseCancelledJob }, { SMS_STOP_CLOSED_REASON }] = await Promise.all([import("@/lib/office-actions.server"), import("@/lib/sms-stop.server")]);
+          (out as Record<string, unknown>)['stopReleases'] = await timed("retryStopReleases", () => retryStopReleases(supabaseAdmin, Date.now(), (id) => releaseCancelledJob(id, SMS_STOP_CLOSED_REASON, null, { owner: false, installer: true })));
+        } catch (e) {
+          console.error("allocation tick: STOP release retry failed", (e as Error).message);
+          (out as Record<string, unknown>)['stopReleases'] = "failed";
+        }
+        try {
           const { sweepQuoteExpiry } = await import("@/lib/quote-expiry.server");
           (out as Record<string, unknown>)['quotes'] = await timed("sweepQuoteExpiry", () => sweepQuoteExpiry());
         } catch (e) {
@@ -235,6 +246,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
         } catch (e) {
           console.error("allocation tick: job offer text catch-up failed", (e as Error).message);
           (out as Record<string, unknown>)['jobOfferTexts'] = "failed";
+        }
+        try {
+          // Batch 2 (Jo 29 Oct 2026): other one-off texts held by the 8pm–7am quiet hours go at 7am, each re-checked first
+          // ("still true") and re-sent with its real key; anything no longer true is skipped.
+          const { sweepQuietHeldTexts } = await import("@/lib/quiet-held-texts.server");
+          (out as Record<string, unknown>)['quietHeldTexts'] = await timed("sweepQuietHeldTexts", () => sweepQuietHeldTexts());
+        } catch (e) {
+          console.error("allocation tick: quiet-hours held texts failed", (e as Error).message);
+          (out as Record<string, unknown>)['quietHeldTexts'] = "failed";
         }
         try {
           // Decision 238: estimate-only leads get a reminder on day 2, 7 and 21 after the estimate email, then an

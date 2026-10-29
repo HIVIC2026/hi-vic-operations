@@ -401,6 +401,11 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
       `PIESA 30-day window expired on ${piesa.install_deadline}. Electrician must record a reassessment before progressing.`,
     );
   }
+  // Batch 1 task 6 (Jo 28 Oct 2026): a PIESA made before the job was reopened no longer counts — it never unlocks install.
+  if (PIESA_WINDOW_STAGES.includes(to) && piesa?.piesa_date && (await (await import("./repeat-piesa.server")).currentPiesaSupersededByReopen(jobId))) {
+    const { PASSING_PIESA_BLOCKER } = await import("./allocation.core");
+    blockers.push(PASSING_PIESA_BLOCKER);
+  }
   const rect = await openRectCount(jobId);
   // Two-requirement model: pre-quote site information = accepted ceiling measure-up + recorded electrical/PIESA.
   if (["assessment_complete", "ready_for_installer_quotes", "awaiting_quote_acceptance"].includes(to)) {

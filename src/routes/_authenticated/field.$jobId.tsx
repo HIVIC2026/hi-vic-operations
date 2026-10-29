@@ -238,6 +238,8 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
       {stage === "rectification_booked" && <FixesFormCard jobId={jobId} mittiInvited={mittiInvited} />}
       {stage === "rectification_booked" && <PiesaForm jobId={jobId} kind="post_rectification" title="Electrical fixes complete – record PIESA sign-off" />}
       {expired && <PiesaForm jobId={jobId} kind="reassessment" title="PIESA window expired – record reassessment" />}
+      {/* Batch 1 task 6: reopened job — the earlier PIESA no longer counts; the new visit is recorded as a reassessment. */}
+      {!expired && locked && stage === "piesa_scheduled" && <PiesaForm jobId={jobId} kind="reassessment" title="PIESA reassessment" />}
       {scope && assessing && <div className="rounded-[13px] bg-mist px-4 py-2 text-sm font-semibold text-ink">Your visit: {scope.label}</div>}
       {a?.external_mitti_id && (assessing || locked) && (
         <>

@@ -21,6 +21,7 @@ function from(table: string) {
 }
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from } }));
 mock.module("../src/lib/trade-payout-gate.server", () => ({
+  safetyVisitFacts: async () => new Map(), // batch 1 F5 (per-visit safety check pay)
   payoutGateFacts: async (ids: string[]) => new Map(ids.map((id) => [id, { piesa: null, fixes: null, install: { formCompleted: true, evidence: [] } }])),
 }));
 const { moneyPayouts } = await import("../src/lib/office-money.server");

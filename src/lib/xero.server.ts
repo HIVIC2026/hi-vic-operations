@@ -146,7 +146,7 @@ async function jobInvoice(jobId: string) {
 }
 
 /** Owner accepted the final installation quote: create the ONE full invoice (idempotent) and push it to Xero. */
-export async function createInvoiceForQuote(quoteId: string, actorId: string) {
+export async function createInvoiceForQuote(quoteId: string, actorId: string | null) {
   const { data: q } = await admin.from("quotes").select("id, job_id, kind, status, option_label, customer_total_inc_gst").eq("id", quoteId).single();
   if (!q) throw new Error("Quote not found");
   await requireHivicJob(q.job_id);
@@ -267,7 +267,7 @@ export async function syncInvoiceFromXero(invoiceId: string, actorId: string | n
       const fullList = xeroPaymentsListComplete(x.Payments, reconciledPaidCents([], xeroPaymentFacts(xeroPayments)), paidCents);
       ledgerChanged = await recordXeroPayments(invoiceId, inv.job_id, xeroPayments, actorId, { fullList });
       paidCents = await reconciledInvoicePaidCents(inv.job_id, invoiceId, { xeroPayments, xeroAmountPaid: ev.paid });
-      // Audit R02: a same-amount card + Xero pair with no shared Stripe id counts twice and is raised for the office once.
+      // Audit R02: a same-amount card + Xero pair with no shared Stripe id counts once and is raised for the office to confirm.
       const { flagUnclearPaymentMatches } = await import("./payments.server");
       await flagUnclearPaymentMatches(inv.job_id, invoiceId, xeroPayments).catch((e) => console.error("payment match check skipped", (e as Error).message));
     } catch (e) { console.error("xero payment ledger skipped", (e as Error).message); }
@@ -463,7 +463,6 @@ async function repeatPiesaStep(inv: RepairsInvoice, call: XeroCall, mode: XeroMo
   const amountCents = toCents(state.priceIncGst);
   const deadline = state.deadline;
   const key = rpc.repeatLineKey(inv.id, deadline, amountCents);
-  const tag = rpc.repeatLineTag(deadline);
   const { data: ev } = await admin.from("workflow_events").select("details").eq("job_id", inv.job_id).eq("event_type", rpc.REPEAT_XERO_ADDED_EVENT);
   const recorded = ((ev ?? []) as { details: Record<string, unknown> | null }[]).map((e) => e.details ?? {}).filter((d) => d["invoice_id"] === inv.id && d["deadline"] === deadline)
     .map((d) => ({ key: String(d["key"] ?? ""), rectQuoteId: deadline, amountCents: Number(d["amount_cents"] ?? 0) }));
@@ -473,6 +472,8 @@ async function repeatPiesaStep(inv: RepairsInvoice, call: XeroCall, mode: XeroMo
   const baseTotalCents = toCents(inv.total_inc_gst);
   let x: import("./xero-repairs.core").XeroInvoiceForRepairs | null = null;
   try { x = (await call(`/api.xro/2.0/Invoices/${inv.xero_invoice_id}`))?.Invoices?.[0] ?? null; } catch (e) { console.error("xero repeat PIESA read failed", (e as Error).message); }
+  // A line already on the invoice keeps the tag it was written with (a reopen line written with the raw-key tag before the batch 1 task 6 fix round).
+  const tag = rpc.repeatLineTags(deadline).find((t) => (x?.LineItems ?? []).some((l) => (l.Description ?? "").includes(t))) ?? rpc.repeatLineTag(deadline);
   const d = core.repairsAmendDecision({ enabled: core.XERO_REPAIRS_AMEND_ENABLED, repairs: { rectQuoteId: deadline, amountCents }, key, recorded, baseTotalCents, xero: x, tag });
   const aud = (c: number) => `$${(c / 100).toFixed(2)}`;
   const invName = inv.xero_invoice_number ? `Xero invoice ${inv.xero_invoice_number}` : "the Xero invoice";

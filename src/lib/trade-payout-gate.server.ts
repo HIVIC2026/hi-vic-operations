@@ -3,7 +3,7 @@
 // Callers: office Money › Payouts (office-money.server), office Mark paid (office.functions markPayoutPaid) and the trade
 // Money rows (trade-view.server) — one rule, one set of facts.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { tradePayoutBlockers, type PayoutKind, type TradePayoutFacts } from "./trade-payout-gate.core";
+import { tradePayoutBlockers, type PayoutKind, type SafetyVisitFacts, type TradePayoutFacts } from "./trade-payout-gate.core";
 import { piesaEvidenceBlockersFromSnapshot } from "./piesa-evidence.core";
 import { shortAnswersFromEntries } from "./official-short.core";
 import { FIXES_FORM_COMPLETED_EVENT, FIXES_FORM_CREATED_EVENT, FIXES_FORM_HELD_EVENT, FIXES_FORM_NOT_DONE_EVENT, fixesFormNeeded, fixesFormOutcome, type FixesFormEvent } from "./fixes-day.core";
@@ -76,4 +76,36 @@ export async function payoutGateFacts(jobIds: string[]): Promise<Map<string, Tra
 export async function payoutBlockersFor(jobId: string, kind: PayoutKind): Promise<string[]> {
   const f = (await payoutGateFacts([jobId])).get(jobId)!;
   return tradePayoutBlockers(kind, f);
+}
+
+/** Batch 1 final fix F5: per job, the safety-check visits (assessment bookings not cancelled, earliest first), the PIESA
+ *  records, the A3 form id and the office's Approve events — so each visit is paid and gated on its own
+ *  (`visitGateFacts`, `safetyVisitPaidAt`). Read-only; every requested job gets an entry. */
+export async function safetyVisitFacts(jobIds: string[]): Promise<Map<string, SafetyVisitFacts>> {
+  const ids = [...new Set(jobIds)];
+  const out = new Map<string, SafetyVisitFacts>();
+  if (!ids.length) return out;
+  const { ELECTRICIAN_FORM_APPROVED_EVENT } = await import("./electrician-pay.core");
+  const [books, recs, forms, appr] = await Promise.all([
+    inJobs<{ id: string; job_id: string; scheduled_start: string; business_id: string | null; status: string }>("bookings", "id, job_id, scheduled_start, business_id, status", ids, (q) => q.eq("kind", "assessment").in("status", ["confirmed", "completed"])),
+    inJobs<{ job_id: string; created_at: string; external_mitti_id: string | null }>("piesa_records", "job_id, created_at, external_mitti_id", ids),
+    inJobs<{ job_id: string; external_mitti_id: string | null }>("assessments", "job_id, external_mitti_id", ids),
+    inJobs<{ job_id: string; details: { kind?: string; booking_id?: string } | null; created_at: string }>("workflow_events", "job_id, details, created_at", ids, (q) => q.eq("event_type", ELECTRICIAN_FORM_APPROVED_EVENT)),
+  ]);
+  const ms = (x: string) => Date.parse(x);
+  for (const id of ids) out.set(id, {
+    visits: books.filter((b) => b.job_id === id).sort((a, b) => ms(a.scheduled_start) - ms(b.scheduled_start)).map((b) => ({ id: b.id, start: b.scheduled_start, businessId: b.business_id, status: b.status })),
+    records: recs.filter((r) => r.job_id === id).map((r) => ({ created_at: r.created_at, external_mitti_id: r.external_mitti_id })),
+    formExternalId: forms.find((f) => f.job_id === id)?.external_mitti_id ?? null,
+    approvals: appr.filter((e) => e.job_id === id && e.details?.kind === "assessment").sort((a, b) => ms(a.created_at) - ms(b.created_at)).map((e) => ({ at: e.created_at, bookingId: e.details?.booking_id ?? null })),
+  });
+  return out;
+}
+
+/** Reasons ONE safety-check visit's payout is held (decision 318 on that visit's own record + decision 410 waiting). */
+export async function safetyVisitPayoutBlockers(jobId: string, bookingId: string | null): Promise<string[]> {
+  const [{ visitGateFacts }, { electricianPayTiming }] = await Promise.all([import("./trade-payout-gate.core"), import("./electrician-pay.core")]);
+  const [gate, visits] = await Promise.all([payoutGateFacts([jobId]), safetyVisitFacts([jobId])]);
+  const f = visitGateFacts(gate.get(jobId)!, visits.get(jobId), bookingId);
+  return [...tradePayoutBlockers("assessment", f), ...electricianPayTiming("assessment", f).waiting];
 }

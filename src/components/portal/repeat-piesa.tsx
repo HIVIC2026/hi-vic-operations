@@ -6,7 +6,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Btn } from "@/components/portal/kit";
 import { chooseRepeatPiesaPayerFn, getRepeatPiesaPriceFn, recordRepeatPiesaPaidFn, repeatPiesaOfficeState, setRepeatPiesaPriceFn } from "@/lib/repeat-piesa.functions";
-import { REPEAT_PAYERS, REPEAT_PAYER_LABEL, type RepeatPayer } from "@/lib/repeat-piesa.core";
+import { REPEAT_PAYERS, REPEAT_PAYER_LABEL, repeatOfficeHeading, type RepeatPayer } from "@/lib/repeat-piesa.core";
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -22,7 +22,7 @@ export function RepeatPiesaPanel({ jobId }: { jobId: string }) {
   const s = data.state;
   return (
     <section data-testid="repeat-piesa-office" className="rounded-[14px] border border-warning bg-warning-soft p-4 text-sm">
-      <p className="font-bold">30-day window lapsed{s.deadline ? ` (${s.deadline})` : ""} — a new safety check (PIESA) is needed</p>
+      <p className="font-bold">{repeatOfficeHeading(s.deadline)}</p>
       {s.stage === "choose" && <>
         <p className="mt-1">Choose who pays for the repeat safety check.{data.suggestion ? ` Suggestion only: ${data.suggestion}.` : ""} Repeat safety check price: {data.price != null ? `$${data.price} inc GST` : "not set"}.</p>
         <div className="mt-3 flex flex-wrap gap-2">{REPEAT_PAYERS.map((p: RepeatPayer) => <Btn key={p} disabled={busy} onClick={() => void run(() => choose({ data: { jobId, payer: p } }))}>{REPEAT_PAYER_LABEL[p]} pays</Btn>)}</div>

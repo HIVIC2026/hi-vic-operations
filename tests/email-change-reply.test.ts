@@ -64,10 +64,10 @@ describe("cancel note", () => {
     expect(CANCEL_NOTE_REPLY).toBe(cancelNote(false));
   });
   test("follows My job's own cancel rule (NO_OWNER_CANCEL): before the safety check is booked yes, after no", () => {
-    expect(cancelNote(ownerCanCancel("ready_check_scheduled", ["ready_check"]))).toBe("");
-    expect(cancelNote(ownerCanCancel("piesa_and_install_window_pending", []))).toBe("");
-    expect(cancelNote(ownerCanCancel("piesa_scheduled", ["assessment"]))).toBe(CANCEL_NOTE_REPLY);
-    expect(cancelNote(ownerCanCancel("installation_booked", ["installation"]))).toBe(CANCEL_NOTE_REPLY);
+    expect(cancelNote(ownerCanCancel("ready_check_scheduled", ["ready_check"], false))).toBe("");
+    expect(cancelNote(ownerCanCancel("piesa_and_install_window_pending", [], false))).toBe("");
+    expect(cancelNote(ownerCanCancel("piesa_scheduled", ["assessment"], false))).toBe(CANCEL_NOTE_REPLY);
+    expect(cancelNote(ownerCanCancel("installation_booked", ["installation"], false))).toBe(CANCEL_NOTE_REPLY);
   });
 });
 
