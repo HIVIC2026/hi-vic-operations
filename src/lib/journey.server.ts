@@ -780,8 +780,12 @@ export async function runServerJourney(opts: { cleanup?: boolean; afterStep?: (c
   finally { globalThis.fetch = realFetch; ms.disarmJourneyMittiGuard(); }
 }
 
-export async function storeJourneyRun(mode: "browser" | "server", ctx: JourneyCtx, result: JourneyResult) {
-  const { data, error } = await admin.from("journey_runs").insert({ mode, started_at: ctx.startedAt, finished_at: new Date().toISOString(), passed: result.passed, failing_step: result.failingStep, failing_reason: result.failingReason, steps: result.steps as never, test_job_id: ctx.jobId }).select("id").single();
+export async function storeJourneyRun(mode: "browser" | "server", ctx: JourneyCtx, result: JourneyResult, opts?: { path?: string; runGroup?: string; status?: "passed" | "failed" | "blocked" }) {
+  const { data, error } = await admin.from("journey_runs").insert({ mode, started_at: ctx.startedAt, finished_at: new Date().toISOString(), passed: result.passed, failing_step: result.failingStep, failing_reason: result.failingReason, steps: result.steps as never, test_job_id: ctx.jobId,
+    ...(opts?.path !== undefined ? { path: opts.path } : {}),
+    ...(opts?.runGroup !== undefined ? { run_group: opts.runGroup } : {}),
+    ...(opts?.status !== undefined ? { status: opts.status } : {}),
+  }).select("id").single();
   if (error) throw new Error(error.message);
   return data.id;
 }

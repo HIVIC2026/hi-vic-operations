@@ -1,3 +1,6 @@
+## Jo 29 Oct daily full journey — Task 1 only
+- [x] Three red-first PGlite tests failed as expected, then all 4 journey_runs checks passed. Optional path/group/status storage and identical 0178 SQL applied only to journey_runs; live columns/constraint/index read back. Scoped test-isolated selection added because the requested filename argument was ignored. Existing journey-live-runner regression: 3 pass / 2 fail (A3 recently-started form guard, downstream visibility); no unrelated journey fixes. Generated nullable invoice quote_id required a compile-only input-type correction, with runtime rules unchanged. No publication, jobs, switches or settings.
+
 ## Jo 28 Oct declared coverage proposal
 - [x] Build office-only centroid/radius proposals for both trades, show exclusions without applying them, confirm through existing verified save; 9999 uses 3*, skip non-3xxx, save cap 750. No business data or matching changes.
 - [x] New proposal/save/office-confirmation checks: 8 pass; all coverage-named checks: 27 pass. Preview build/typecheck clean. Full suite: package runner overflowed on failure output; equivalent per-file local-isolated rerun completed 766 files, 7354 pass / 225 fail / 36 skip (78 failing files). No unrelated fixes, business data changes or publication.

@@ -1,10 +1,13 @@
 // Runs every tests/*.test.ts(x) file in its own Bun process.
 // Why: bun's mock.module() is process-wide and cannot be undone, so a file that stubs the
 // database or a server module would otherwise leak that stub into every later file.
-// Usage: bun scripts/test-isolated.ts [concurrency]
+// Usage: bun scripts/test-isolated.ts [concurrency] [tests/file.test.ts ...]
 import { readdirSync } from "node:fs";
 
-const files = readdirSync("tests").filter((f) => /\.test\.tsx?$/.test(f)).sort().map((f) => `./tests/${f}`);
+const requestedFiles = process.argv.slice(3).map((f) => f.replace(/^\.\//, ""));
+const allFiles = readdirSync("tests").filter((f) => /\.test\.tsx?$/.test(f)).sort().map((f) => `tests/${f}`);
+if (requestedFiles.some((f) => !allFiles.includes(f))) throw new Error("Only existing tests/*.test.ts(x) files can be selected.");
+const files = (requestedFiles.length ? requestedFiles : allFiles).map((f) => `./${f}`);
 const concurrency = Number(process.argv[2] ?? 6);
 const isolatedEnv = {
   ...process.env,
