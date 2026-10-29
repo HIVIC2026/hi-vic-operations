@@ -1,6 +1,6 @@
 import { test, expect } from "bun:test";
 import { readFileSync } from "node:fs";
-import { signupMainElectrician, signupInviteDue } from "../src/lib/signup-electrician.core";
+import { signupMainElectrician, signupInviteDue, pickSendable } from "../src/lib/signup-electrician.core";
 
 const viking = { name: "Will Casdorff", email: "jesse@vikingelec.com.au", mobile: "0 4 6 6 6 5 1 9 0 8", is_primary: true, rec_number: "38603", business_name: "Viking Electrical Services Aus PTY LTD", licence_number: "A81638" };
 test("main electrician from sign-up", () => {
@@ -32,4 +32,17 @@ test("signup invite: skip cases", () => {
 });
 test("tick runs the sign-up invite sweep", () => {
   expect(readFileSync("src/routes/api/public/hooks/allocation-tick.ts", "utf8")).toContain("sweepSignupNominationInvites");
+});
+test("pickSendable: skipped rows do not use up the cap", () => {
+  const rows = Array.from({ length: 300 }, (_, i) => i);
+  const got = pickSendable(rows, 25, (n) => n >= 100);
+  expect(got.length).toBe(25);
+  expect(got[0]).toBe(100);
+  expect(pickSendable([1, 2, 3], 25, () => false)).toEqual([]);
+});
+test("sweep claims the row before sending and checks comms first", () => {
+  const src = readFileSync("src/lib/signup-electrician.server.ts", "utf8");
+  expect(src).toContain('.select("id")');
+  expect(src).toContain("invite_link_issued_at.is.null");
+  expect(src.indexOf("if (!commsEnabled) return out")).toBeLessThan(src.indexOf("loadApprovedRecCandidates(now)"));
 });

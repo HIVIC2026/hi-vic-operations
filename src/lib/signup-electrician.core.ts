@@ -24,3 +24,11 @@ export function signupInviteDue(n: { status: string; invite_sent_at: string | nu
   if (n.status !== "invite_pending_comms" || n.invite_sent_at || n.business_id || !n.email?.trim() || !n.installerApproved || n.electricianAlreadyApproved) return "skip";
   return n.commsEnabled ? "send" : "wait";
 }
+
+export const SIGNUP_INVITES_PER_TICK = 25;
+/** First `cap` rows that can be sent; rows that can never send are passed over and do not use up the cap. */
+export function pickSendable<T>(rows: T[], cap: number, canSend: (r: T) => boolean): T[] {
+  const out: T[] = [];
+  for (const r of rows) { if (out.length >= cap) break; if (canSend(r)) out.push(r); }
+  return out;
+}
