@@ -535,7 +535,7 @@ export async function tradeMoney(userId: string) {
  * prices or other partners.
  */
 /** The team rows with `declarations_due`. Until 0230 is live the column is missing: re-read without it (nobody is due). */
-async function loadTeamWorkers(businessId: string): Promise<{ data: { id: string; full_legal_name: string; trade_role: string; profile_id: string | null; email: string | null; mobile: string | null; certification: unknown; worker_role?: string | null; declarations_due?: boolean; licence_expires_on: string | null }[] | null }> {
+async function loadTeamWorkers(businessId: string): Promise<{ data: { id: string; full_legal_name: string; trade_role: string; profile_id: string | null; email: string | null; mobile: string | null; certification: unknown; worker_role?: string | null; declarations_due?: boolean; licence_expires_on: string | null }[] | null; error?: { code?: string } | null }> {
   const load = (cols: string) => (admin as unknown as { from: (t: string) => any }).from("partner_workers").select(cols).eq("business_id", businessId).is("removed_at", null); // eslint-disable-line @typescript-eslint/no-explicit-any
   const base = "id, full_legal_name, trade_role, approval_status, licence_expires_on, profile_id, email, mobile, certification_status, certification, worker_role";
   const first = await load(`${base}, declarations_due`);
@@ -551,7 +551,7 @@ export async function tradeBusiness(userId: string) {
     team: [] as TeamMemberView[], next: null as BusinessNext, usualElectrician: null as UsualElectrician | null, details: null as null | { legal: string | null; name: string; abn: string | null; baseSuburb: string | null; allVictoria: boolean }, ratesAgreedAt: null as string | null, hasRates: false, bankLine: null as string | null, credentials: [] as CredentialView[], agreement: null as null | { version: string; signer: string; signedAt: string }, notice: [] as { name: string; state: string }[] };
   if (!c.boss) return staffOnly;
   const r = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
-  const [{ data: creds }, { data: workers }, { data: rate }, { data: agr }, { data: bank }, { data: biz }, { data: cards }, { data: members }] = await Promise.all([
+  const [{ data: creds, error: credsError }, { data: workers, error: workersError }, { data: rate }, { data: agr }, { data: bank }, { data: biz }, { data: cards }, { data: members }] = await Promise.all([
     admin.from("business_credentials").select("kind, label, expires_at, verification").eq("business_id", c.biz.id),
     loadTeamWorkers(c.biz.id),
     c.kind === "electrician" ? r.from("electrician_rates").select("rate_inc_gst").eq("business_id", c.biz.id).eq("service_type", "piesa").eq("status", "active").maybeSingle() : Promise.resolve({ data: null }),
@@ -612,15 +612,20 @@ export async function tradeBusiness(userId: string) {
   const liability = latestExpiry(credentials, "public_liability_insurance");
   const licence = c.kind === "electrician" ? (workers ?? []).map((w) => w.licence_expires_on).filter(Boolean).sort()[0] ?? null : null;
   const usual = c.kind === "installer" ? (await (await import("./usual-electrician.server")).readUsualElectrician(c.biz.id)).electrician : null;
+  // Licence/cover warnings only from facts we actually read: any failed read leaves them unknown (no panel), never a false warning.
   let electrician: BusinessNextFacts["electrician"];
   if (c.kind === "electrician") {
-    const [{ data: bz }, { data: act }] = await Promise.all([
+    const [{ data: bz, error: bzError }, { data: act, error: actError }] = await Promise.all([
       admin.from("businesses").select("public_liability_cover_amount").eq("id", c.biz.id).maybeSingle(),
       admin.from("partner_activations").select("application_id").eq("business_id", c.biz.id).limit(1).maybeSingle(),
     ]);
-    const { data: app } = act?.application_id ? await admin.from("rec_onboarding_applications").select("data").eq("id", act.application_id).maybeSingle() : { data: null };
-    const cover = bz?.public_liability_cover_amount;
-    electrician = { licenceExpires: latestExpiry(credentials, "electrical_licence") ?? licence, plCover: cover == null ? null : Number(cover), worksUnderRec: (app?.data as { works_under_rec?: unknown } | null)?.works_under_rec === true };
+    const { data: app, error: appError } = !actError && act?.application_id ? await admin.from("rec_onboarding_applications").select("data").eq("id", act.application_id).maybeSingle() : { data: null, error: null };
+    const failed = [["credentials", credsError], ["workers", workersError], ["business", bzError], ["activation", actError], ["application", appError]].filter(([, e]) => e) as [string, { code?: string }][];
+    for (const [what, e] of failed) console.error(`tradeBusiness: electrician ${what} could not be read`, e.code ?? "unknown");
+    if (!failed.length) {
+      const cover = bz?.public_liability_cover_amount;
+      electrician = { licenceExpires: latestExpiry(credentials, "electrical_licence") ?? licence, plCover: cover == null ? null : Number(cover), worksUnderRec: (app?.data as { works_under_rec?: unknown } | null)?.works_under_rec === true };
+    }
   }
   const hasRates = c.kind === "installer" ? (cards ?? []).length > 0 : !!rate;
   const ratesAgreedAt = (cards ?? []).map((k) => k.effective_from ?? k.created_at).filter(Boolean).sort().at(-1) ?? agr?.signed_at ?? null;

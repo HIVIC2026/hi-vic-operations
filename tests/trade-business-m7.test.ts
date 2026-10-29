@@ -1,6 +1,7 @@
 // My business (approved installer mock-up M7, decision 204): pure derivations behind every row, the NEXT panel and
 // the public liability expiry block (compliance checklist H3). No I/O.
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { agreementLine, bankLine, businessNext, detailsLine, insuranceRowSub, latestExpiry, noticeLine, ratesLine, teamCiiLine, teamFactsLine, usualElectricianLine, TEAM_RULE } from "../src/lib/trade-view.core";
 import { publicLiabilityBlocker } from "../src/lib/worker-compliance.core";
 import { prestartFailures, type PrestartFacts } from "../src/lib/prestart.core";
@@ -136,5 +137,27 @@ describe("electrician licence and cover", () => {
     const n = businessNext({ ...ok, installer: true }, TODAY);
     expect(n?.sub).toBe("Their name and licence number. We use them on your jobs once they're an approved electrician with us.");
     expect(n?.sub).not.toMatch(/price/i);
+  });
+});
+
+describe("electrician licence facts: unknown and boundaries", () => {
+  const ok = { installer: false, publicLiabilityExpires: "2027-06-30", bankSaved: false, agreementSigned: true, noticeOutstanding: [], usualElectrician: false, ciiBlocked: [] };
+  test("unknown electrician facts give no licence or cover panel", () => {
+    expect(businessNext(ok, TODAY)?.to).toBe("/field/business/bank");
+  });
+  test("a licence expiring today is not expired; one that expired yesterday is", () => {
+    const e = { plCover: 5_000_000, worksUnderRec: false };
+    expect(businessNext({ ...ok, electrician: { ...e, licenceExpires: TODAY } }, TODAY)?.to).toBe("/field/business/bank");
+    expect(businessNext({ ...ok, electrician: { ...e, licenceExpires: "2026-10-23" } }, TODAY)?.title).toBe("Your electrical licence has expired");
+  });
+  test("the electrician reads check their errors, and the panel date is the Melbourne date", () => {
+    const src = readFileSync("src/lib/trade-view.server.ts", "utf8");
+    expect(src).toContain("const today = melbourneToday();");
+    for (const name of ["credsError", "workersError", "bzError", "actError", "appError"]) {
+      expect(src).toContain(`error: ${name}`);
+      expect(src).toMatch(new RegExp(`\\[[^\\]]*"${name === "credsError" ? "credentials" : name === "workersError" ? "workers" : name === "bzError" ? "business" : name === "actError" ? "activation" : "application"}", ${name}\\]`));
+    }
+    expect(src).toContain("if (!failed.length) {");
+    expect(src).toMatch(/businessNext\(\{[\s\S]*?\}, today\)/);
   });
 });
