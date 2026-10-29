@@ -19,6 +19,7 @@ function fakeAdmin() {
         contains(c: string, v: Row) { preds.push((r) => Object.entries(v).every(([k, x]) => ((get(r, c) as Row | null)?.[k]) === x)); return b; },
         in(c: string, v: unknown[]) { preds.push((r) => v.includes(get(r, c))); return b; },
         gte(c: string, v: string) { preds.push((r) => String(get(r, c)) >= v); return b; },
+        gt(c: string, v: number) { preds.push((r) => Number(get(r, c)) > v); return b; },
         is(c: string, v: unknown) { preds.push((r) => (get(r, c) ?? null) === v); return b; },
         order() { return b; }, limit() { return b; },
         maybeSingle() { one = true; return b; }, single() { one = true; return b; },
@@ -78,7 +79,7 @@ function seed(over: { stage?: string; source?: string; others?: string[] } = {})
   tables["jobs"] = [{ id: "J1", stage: over.stage ?? "quoted", source: over.source ?? "website", owners: { full_name: "Helen Smith", email: "helen@example.com" }, properties: { address_line: "12 Example St", suburb: "Sampletown" } }];
   tables["quotes"] = [{ id: "Q1", job_id: "J1", kind: "installation", status: "issued", sent_at: OLD, expired_at: null, nudge_day3_at: "x", nudge_day10_at: "y" },
     ...(over.others ?? []).map((s, i) => ({ id: `QX${i}`, job_id: "J1", kind: "installation", status: s, sent_at: null, nudge_day3_at: null, nudge_day10_at: null }))];
-  tables["job_assignments"] = []; tables["workflow_events"] = [];
+  tables["job_assignments"] = []; tables["workflow_events"] = []; tables["bookings"] = []; tables["invoices"] = [];
 }
 
 describe("expired quote closes the job and emails the owner once", () => {
@@ -237,6 +238,65 @@ describe("expired quote closes the job and emails the owner once", () => {
     expect(cancels.length).toBe(0); expect(sent.length).toBe(0);
     await sweepQuoteExpiry(new Date("2026-03-20T20:15:00Z")); // 7:15am Melbourne next morning
     expect(cancels.length).toBe(1); expect(sent.length).toBe(1);
+  });
+});
+
+const HELD_REASON = "Quote expired — job has a booking or payment, check before closing";
+describe("F1: an expired quote never closes a paid, booked or on-hold job", () => {
+  beforeEach(() => seed());
+  const cases: [string, () => void][] = [
+    ["paid job", () => { tables["invoices"] = [{ id: "I1", job_id: "J1", total_paid: 349 }]; }],
+    ["confirmed booking", () => { tables["bookings"] = [{ id: "B1", job_id: "J1", kind: "piesa", status: "confirmed" }]; }],
+    ["proposed booking", () => { tables["bookings"] = [{ id: "B1", job_id: "J1", kind: "installation", status: "proposed" }]; }],
+    ["on-hold job", () => { tables["jobs"]![0]!["stage"] = "on_hold"; }],
+  ];
+  for (const [name, setUp] of cases) {
+    test(`${name}: stays open, ONE office row, no email, no installer notice`, async () => {
+      const stage = (setUp(), tables["jobs"]![0]!["stage"]);
+      await sweepQuoteExpiry(NOW); await sweepQuoteExpiry(NOW);
+      expect(cancels.length).toBe(0); expect(sent.length).toBe(0);
+      expect(tables["jobs"]![0]!["stage"]).toBe(stage);
+      const raised = (tables["workflow_events"] ?? []).filter((e) => e["event_type"] === "quote_expired_not_emailable");
+      expect(raised.length).toBe(1);
+      const fact = quoteExpiredBlockedFact(raised.map((e) => ({ event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: e["details"] as Row })));
+      expect(fact?.reason).toBe(HELD_REASON);
+      const g = buildNeedsRows({ now: NOW.getTime(), jobs: [{ jobId: "J1", jobNumber: "HV-1", surname: "Smith", suburb: "Sampletown", quoteExpiredBlocked: fact }] });
+      expect(g.today.map((r) => [r.kind, r.line])).toEqual([["quote_expired_blocked", HELD_REASON]]);
+    });
+  }
+  test("a cancelled booking or an unpaid invoice does not hold the close", async () => {
+    tables["bookings"] = [{ id: "B1", job_id: "J1", kind: "piesa", status: "cancelled" }];
+    tables["invoices"] = [{ id: "I1", job_id: "J1", total_paid: 0 }];
+    await sweepQuoteExpiry(NOW);
+    expect(cancels.length).toBe(1); expect(sent.length).toBe(1);
+  });
+});
+
+describe("minors: two expiring quotes, retry deliverability", () => {
+  beforeEach(() => seed());
+  test("two quotes expiring on one job: one close, one email", async () => {
+    tables["quotes"]!.push({ id: "Q2", job_id: "J1", kind: "installation", status: "issued", sent_at: OLD, expired_at: null, nudge_day3_at: "x", nudge_day10_at: "y" });
+    await sweepQuoteExpiry(NOW); await sweepQuoteExpiry(NOW);
+    expect(cancels.length).toBe(1); expect(sent.length).toBe(1);
+    const closed = (tables["workflow_events"] ?? []).filter((e) => e["event_type"] === "quote_expired_closed");
+    expect(closed.map((e) => (e["details"] as Row)["quote_id"]).sort()).toEqual(["Q1", "Q2"]);
+  });
+  test("retry after a failed email: owner no longer emailable -> ONE blocked row, not a silent finish; clears once sent", async () => {
+    emailFailsOnce = true;
+    await sweepQuoteExpiry(NOW);
+    expect(cancels.length).toBe(1); expect(sent.length).toBe(0);
+    consent = false;
+    await sweepQuoteExpiry(NOW); await sweepQuoteExpiry(NOW);
+    expect(sent.length).toBe(0);
+    expect((tables["workflow_events"] ?? []).some((e) => e["event_type"] === "quote_expired_closed")).toBe(false);
+    const raised = (tables["workflow_events"] ?? []).filter((e) => e["event_type"] === "quote_expired_not_emailable");
+    expect(raised.length).toBe(1);
+    expect((raised[0]!["details"] as Row)["reason"]).toBe("no contact consent");
+    consent = true;
+    await sweepQuoteExpiry(NOW);
+    expect(cancels.length).toBe(1); expect(sent.length).toBe(1);
+    const evs = (tables["workflow_events"] ?? []).map((e) => ({ event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: e["details"] as Row }));
+    expect(quoteExpiredBlockedFact(evs)).toBeNull();
   });
 });
 

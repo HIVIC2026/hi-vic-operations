@@ -6,6 +6,7 @@
 import { FIXES_TIMES_MISSING_LINE } from "./fixes-times.core";
 import { LAPSED_NEEDS_LINE } from "./spot-release.core";
 import { paymentStallLine, type PaymentStall } from "./payment-stall.core";
+import { QUOTE_EXPIRED_HELD_REASON } from "./quote-expiry.core";
 
 export type NeedsGroup = "today" | "week" | "watch";
 export const NEEDS_GROUPS: { key: NeedsGroup; label: string }[] = [
@@ -167,7 +168,7 @@ type Candidate = Omit<NeedsRow, "key" | "jobId" | "jobNumber" | "surname" | "sub
 export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   const out: Candidate[] = [];
   const add = (c: Candidate) => out.push(c);
-  if (f.quoteExpiredBlocked) add({ rank: 9, group: "today", kind: "quote_expired_blocked", line: `Quote expired — owner can't be emailed (${f.quoteExpiredBlocked.reason})`, since: f.quoteExpiredBlocked.at, button: { label: "Open job", to: "job" } });
+  if (f.quoteExpiredBlocked) add({ rank: 9, group: "today", kind: "quote_expired_blocked", line: f.quoteExpiredBlocked.reason === QUOTE_EXPIRED_HELD_REASON ? QUOTE_EXPIRED_HELD_REASON : `Quote expired — owner can't be emailed (${f.quoteExpiredBlocked.reason})`, since: f.quoteExpiredBlocked.at, button: { label: "Open job", to: "job" } });
   if (f.newQuoteOffice) add({ rank: 9, group: "today", kind: f.newQuoteOffice.kind, line: f.newQuoteOffice.line, since: f.newQuoteOffice.at, button: { label: "Open job", to: "job", section: "ready-check" } });
   if (f.stopReleaseFailed) add({ rank: 9, group: "today", kind: "stop_release_failed", line: STOP_RELEASE_FAILED_LINE, since: f.stopReleaseFailed.at, button: { label: "Open job", to: "job" } });
   if (f.invoiceFailed) add({ rank: 9, group: "today", kind: "invoice_failed", line: "Invoice didn't reach Xero · owner can't pay yet", since: f.invoiceFailed.at, button: { label: "Open job", to: "job", section: "money" } });

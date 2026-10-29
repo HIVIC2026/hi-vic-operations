@@ -72,6 +72,13 @@ export function shouldCloseOnExpiry(jobStage: string | null | undefined, otherIn
   return !otherInstallationQuoteStatuses.some((s) => s === "issued" || s === "accepted");
 }
 
+/** Office-only: the expired quote's job has a live booking or money paid (or is on hold), so it is never closed by the timer. */
+export const QUOTE_EXPIRED_HELD_REASON = "Quote expired — job has a booking or payment, check before closing";
+/** The same safety checks the decline auto-close uses (any confirmed/proposed booking, any money paid), plus on hold. */
+export function quoteExpiryHeld(f: { stage: string | null | undefined; liveBooking: boolean; paid: boolean }): boolean {
+  return f.stage === "on_hold" || f.liveBooking || f.paid;
+}
+
 /** Close + email only between 7am and 8pm Melbourne (the same quiet hours as texts); null = fine to act now. */
 export { smsQuietReason as quoteCloseQuietReason } from "./quote-hold.core";
 /** How far back the retry pass looks for expired quotes whose close or email is not finished. */
