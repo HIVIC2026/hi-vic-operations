@@ -99,6 +99,8 @@ export const setOnboardingStatus = createServerFn({ method: "POST" }).middleware
     // Decision 402: approving the business approves its pending people whose certification is office-verified. Never fails the approval.
     if (data.status === "approved") await import("./worker-approval.server").then((m) => m.autoApproveVerifiedPeople(data.businessId, context.userId)).catch((e) => console.error("Decision 402 auto-approval skipped", (e as Error).message));
     if (data.status === "approved") await (await import("./rec-auto-link.server")).autoLinkApprovedRec(data.businessId, context.userId).catch((e) => console.error("REC auto-link skipped", (e as Error).message));
+    // Installer sign-up: the electrician they named becomes their saved usual electrician. Best-effort; skips itself when the business has no installer application.
+    if (data.status === "approved") await (await import("./signup-electrician.server")).carrySignupElectrician(data.businessId, context.userId).catch((e) => console.error("Sign-up electrician skipped", (e as Error).message));
     return { ok: true };
   });
 
