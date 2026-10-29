@@ -110,14 +110,30 @@ describe("pure wording, keys and rules", async () => {
 
 // ---- server: in-memory database, every sender mocked ----
 const tables: Tables = {};
-const calls = { testEmail: [] as string[], testSms: [] as string[], office: [] as string[], sms: [] as string[] };
-mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: (t: string) => memoryPostgrest(tables).from(t), rpc: async () => ({ data: false, error: null }), storage: { from: () => ({ upload: async () => ({ error: { message: "no storage in test" } }) }) } } }));
+const calls = { testEmail: [] as string[], testSms: [] as string[], office: [] as string[], sms: [] as string[], emailKeys: [] as string[] };
+// Mirrors the pending unique index (docs/pending-migrations/piesa-rules-once.sql): a second piesa_rules_failed event with
+// the same details.notice_key is refused with 23505.
+const fromWithIndex = (t: string) => {
+  const q = memoryPostgrest(tables).from(t);
+  if (t !== "workflow_events") return q;
+  const insert = q.insert.bind(q);
+  // Checked when the insert runs (as the database would), not when it is built.
+  return Object.assign(q, { insert: (row: Record<string, unknown>) => ({
+    then: (res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) => {
+      const key = (row["details"] as Record<string, unknown> | null)?.["notice_key"];
+      if (row["event_type"] === "piesa_rules_failed" && key && (tables["workflow_events"] ?? []).some((e) => e["event_type"] === "piesa_rules_failed" && (e["details"] as Record<string, unknown> | null)?.["notice_key"] === key))
+        return Promise.resolve({ data: null, error: { code: "23505", message: "duplicate key value violates unique constraint" } }).then(res, rej);
+      return (insert(row) as unknown as PromiseLike<unknown>).then(res, rej);
+    },
+  }) });
+};
+mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: fromWithIndex, rpc: async () => ({ data: false, error: null }), storage: { from: () => ({ upload: async () => ({ error: { message: "no storage in test" } }) }) } } }));
 mock.module("../src/lib/test-send.server", () => ({
   TEST_APP_BASE: "https://preview.test",
   sendTestEmail: async (ctx: { label: string }, to: string, subject: string, _h: string, text: string) => { calls.testEmail.push(`${ctx.label}|${to}|${subject}|${text}`); return { channel: "email", to, status: "sent", detail: "test" }; },
   sendTestSms: async (ctx: { label: string }, to: string, body: string) => { calls.testSms.push(`${ctx.label}|${to}|${body}`); return { channel: "sms", to, status: "sent", detail: "test" }; },
 }));
-mock.module("../src/lib/office-email.server", () => ({ sendOfficeEmail: async (p: { label: string; to: string; subject: string; text?: string; recipient: string }) => { calls.office.push(`${p.label}|${p.recipient}|${p.to}|${p.subject}|${p.text}`); return { channel: "email", to: p.to, status: "sent", detail: "ok" }; } }));
+mock.module("../src/lib/office-email.server", () => ({ sendOfficeEmail: async (p: { label: string; to: string; subject: string; text?: string; recipient: string; idempotencyKey?: string }) => { calls.office.push(`${p.label}|${p.recipient}|${p.to}|${p.subject}|${p.text}`); calls.emailKeys.push(p.idempotencyKey ?? ""); return { channel: "email", to: p.to, status: "sent", detail: "ok" }; } }));
 mock.module("../src/lib/sms.server", () => ({ sendRealSms: async (p: { type: string; idempotencyKey: string; to: string | null; body: string }) => { calls.sms.push(`${p.type}|${p.idempotencyKey}|${p.to}|${p.body}`); return { status: "sent", detail: "SM1", sid: "SM1" }; } }));
 mock.module("../src/lib/requirements.server", () => ({ jobScope: async () => ({ scope: "full", label: "whole ceiling", measurementRow: null }), advanceSiteRequirements: async () => ({ advanced: false, scope: "full" }) }));
 
@@ -191,6 +207,18 @@ describe("a synced PIESA that breaks the rules stops the job", () => {
     expect(events(core.PIESA_RULES_FAILED_EVENT).length).toBe(1);
     expect(calls.sms.length).toBe(1);
     expect(calls.office.length).toBe(1);
+  });
+  test("final fix: two syncs of the same form version at the same time → 1 event, 1 email, 1 text", async () => {
+    const out = await Promise.all([notice.recheckPiesaRules(J, null), notice.recheckPiesaRules(J, null)]);
+    expect(events(core.PIESA_RULES_FAILED_EVENT).length).toBe(1);
+    expect((events(core.PIESA_RULES_FAILED_EVENT)[0]!["details"] as Record<string, unknown>)["notice_key"]).toBe(`piesa-rules:v1:${J}:aud-1:${V1}`);
+    expect(calls.office.length).toBe(1);
+    expect(calls.sms.length).toBe(1);
+    expect(out).toContain("already recorded for this form version");
+  });
+  test("final fix: the electrician email carries the once-per-form-version key (the email service drops a repeat)", async () => {
+    await notice.recheckPiesaRules(J, null);
+    expect(calls.emailKeys).toEqual([`piesa-rules:v1:${J}:aud-1:${V1}`]);
   });
   test("corrected form clears: new version passes → blocker null, cleared event, no new send", async () => {
     await notice.recheckPiesaRules(J, null);

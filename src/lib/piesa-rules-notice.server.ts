@@ -58,6 +58,17 @@ export async function piesaRulesBlockerFor(jobId: string): Promise<string | null
 
 type Ev = { event_type: string; created_at: string; details: Record<string, unknown> | null };
 
+/** The first failure event for a form version, carrying `notice_key`. False = another sync already wrote it (23505). */
+async function claimFailure(jobId: string, actorId: string | null, summary: string, details: Record<string, unknown> & { notice_key: string }): Promise<boolean> {
+  const { error } = await admin.from("workflow_events").insert({ job_id: jobId, actor_id: actorId, event_type: PIESA_RULES_FAILED_EVENT, summary, details: details as never, internal: true });
+  if (error) {
+    if ((error as { code?: string }).code === "23505") return false;
+    throw new Error(error.message);
+  }
+  await admin.from("jobs").update({ last_activity_at: new Date().toISOString() }).eq("id", jobId);
+  return true;
+}
+
 /** Re-read the stored A3 answers: record a failure once per form version (and tell the electrician once), or clear it. */
 export async function recheckPiesaRules(jobId: string, actorId: string | null): Promise<string> {
   try {
@@ -70,9 +81,14 @@ export async function recheckPiesaRules(jobId: string, actorId: string | null): 
       if (open?.formVersion === r.formVersion) return "already recorded for this form version";
       const reasons = r.rules.map((x) => x.reason);
       const told = events.some((e) => e.event_type === PIESA_RULES_FAILED_EVENT && e.details?.["form_version"] === r.formVersion);
-      // Claimed BEFORE any send: a re-sync of this form version finds it and stops.
-      await logEvent(jobId, actorId, PIESA_RULES_FAILED_EVENT, piesaRulesOfficeLine(reasons), { form_version: r.formVersion, rules: r.rules.map((x) => x.rule), reasons }, { internal: true });
-      if (told) return "recorded (the electrician was already told about this form version)";
+      const details = { form_version: r.formVersion, rules: r.rules.map((x) => x.rule), reasons };
+      if (told) {
+        await logEvent(jobId, actorId, PIESA_RULES_FAILED_EVENT, piesaRulesOfficeLine(reasons), details, { internal: true });
+        return "recorded (the electrician was already told about this form version)";
+      }
+      // Claimed BEFORE any send, once per form version: a re-sync finds the event and stops; a CONCURRENT sync's insert is
+      // refused by the unique `notice_key` (pending migration piesa-rules-once.sql) and sends nothing.
+      if (!(await claimFailure(jobId, actorId, piesaRulesOfficeLine(reasons), { ...details, notice_key: piesaRulesKey(jobId, r.formVersion) }))) return "already recorded for this form version";
       return await notifyPiesaRuleFailure(jobId, r.formVersion, reasons);
     }
     if (open) {
@@ -124,7 +140,7 @@ export async function notifyPiesaRuleFailure(jobId: string, formVersion: string,
     else {
       try {
         // sendOfficeEmail pauses partner email while customer comms are off (Jo 24 Oct).
-        const r = await (await import("./office-email.server")).sendOfficeEmail({ actorId: null, recipient: "partner", to: emailTo, contactName: pr?.full_name ?? null, subject: mail.subject, message: mail.text, label: PIESA_RULES_SMS_TYPE, record: { businessId: asg.business_id }, html: mail.html, text: mail.text });
+        const r = await (await import("./office-email.server")).sendOfficeEmail({ actorId: null, recipient: "partner", to: emailTo, contactName: pr?.full_name ?? null, subject: mail.subject, message: mail.text, label: PIESA_RULES_SMS_TYPE, record: { businessId: asg.business_id }, html: mail.html, text: mail.text, idempotencyKey: piesaRulesKey(jobId, formVersion) });
         out.push(`electrician email ${r.status}: ${r.detail}`);
       } catch (e) { out.push(`electrician email not sent — ${(e as Error).message}`); }
     }
