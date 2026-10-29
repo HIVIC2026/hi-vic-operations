@@ -264,11 +264,17 @@ describe("owner asks for a new quote after expiry", () => {
     expect(ev("new_quote_unfinished").length).toBe(1);
   });
 
-  test("claim written but the reopen failed: re-tap finishes it (no second claim)", async () => {
+  test("claim written but the reopen failed: ONE office note, re-tap finishes it (no second claim)", async () => {
     failUpdate = "jobs";
+    await expect(requestNewQuote(TOKEN)).rejects.toThrow();
     await expect(requestNewQuote(TOKEN)).rejects.toThrow();
     expect(job()["stage"]).toBe("cancelled");
     expect(ev("new_quote_requested").length).toBe(1);
+    expect(ev("new_quote_unfinished").length).toBe(1);
+    expect((ev("new_quote_unfinished")[0]!["details"] as Row)["reason"]).toBe("jobs update failed");
+    const rows = await needsRowsJ1();
+    expect(rows.map((r) => r.kind)).toEqual(["new_quote_unfinished"]);
+    expect(rows[0]!.line).toBe(`${NEW_QUOTE_UNFINISHED_PREFIX} (jobs update failed)`);
     failUpdate = null;
     expect(await requestNewQuote(TOKEN)).toEqual({ kind: "thanks" });
     expect(job()["stage"]).toBe("measured_estimate_ready");
@@ -288,14 +294,13 @@ describe("owner asks for a new quote after expiry", () => {
     expect(rows[0]!.line).toContain("Owner prices are not set");
   });
 
-  test("refused, nothing written: office already reopened / other cancel reason / wrong token / no expiry close / stage guard", async () => {
+  test("refused, nothing written: office already reopened / other cancel reason / wrong token / no expiry close", async () => {
     const cases: [string, () => void, string][] = [
       ["reopened by office", () => seed({ stage: "measured_estimate_ready" }), TOKEN],
       ["other reason", () => seed({ reason: "Owner not interested" }), TOKEN],
       ["wrong token", () => seed(), "W".repeat(43)],
       ["malformed token", () => seed(), "short"],
       ["no expiry close", () => seed({ marker: false }), TOKEN],
-      ["stage guard", () => { seed(); stageBlockers = ["Verified eligibility not recorded"]; }, TOKEN],
     ];
     for (const [name, setup, token] of cases) {
       setup();
@@ -306,6 +311,40 @@ describe("owner asks for a new quote after expiry", () => {
       expect(job()["stage"]).toBe(stage);
       expect(newQuotes().length).toBe(0);
     }
+  });
+
+  test("F2: stage guard refuses the reopen → claim + ONE office note naming the first blocker; owner keeps the fallback", async () => {
+    stageBlockers = ["Verified eligibility not recorded", "Second blocker"];
+    expect(await requestNewQuote(TOKEN)).toEqual({ kind: "refused" });
+    expect(job()["stage"]).toBe("cancelled");
+    expect(newQuotes().length).toBe(0);
+    expect(ev("new_quote_requested").length).toBe(1);
+    expect(ev("new_quote_unfinished").length).toBe(1);
+    const rows = await needsRowsJ1();
+    expect(rows.map((r) => [r.kind, r.line])).toEqual([["new_quote_unfinished", `${NEW_QUOTE_UNFINISHED_PREFIX} (Verified eligibility not recorded)`]]);
+    // re-tap while still blocked: nothing more is written
+    const before = writes;
+    await requestNewQuote(TOKEN);
+    expect(writes).toBe(before);
+    expect(ev("new_quote_requested").length).toBe(1);
+    expect(ev("new_quote_unfinished").length).toBe(1);
+    // the office clears the blocker: the next tap reopens the job (no second claim)
+    stageBlockers = [];
+    expect(await requestNewQuote(TOKEN)).toEqual({ kind: "thanks" });
+    expect(job()["stage"]).toBe("measured_estimate_ready");
+    expect(ev("new_quote_requested").length).toBe(1);
+  });
+
+  test("Needs me reaches a job still closed by its expired quote (not in the open-jobs list)", async () => {
+    const { expiryClosedJobFacts } = await import("../src/lib/office-needs.server");
+    job()["owners"] = { full_name: "Helen Smith" }; job()["properties"] = { suburb: "Sampletown" }; job()["source"] = "website";
+    const got = await expiryClosedJobFacts(["J1"], false);
+    expect(got.get("J1")).toEqual({ jobId: "J1", jobNumber: "HV-1", surname: "Smith", suburb: "Sampletown" });
+    job()["cancelled_reason"] = "Owner not interested";
+    expect((await expiryClosedJobFacts(["J1"], false)).size).toBe(0);
+    job()["cancelled_reason"] = "Quote expired (14 days)"; job()["source"] = "qa_test";
+    expect((await expiryClosedJobFacts(["J1"], false)).size).toBe(0);
+    expect((await expiryClosedJobFacts(["J1"], true)).get("J1")?.isTest).toBe(true);
   });
 
   test("closed again after an office reopen with the same reason: refused", async () => {

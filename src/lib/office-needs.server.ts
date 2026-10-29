@@ -56,6 +56,22 @@ export async function newQuoteOfficeFacts(jobIds: string[]): Promise<Map<string,
   return out;
 }
 
+/** Batch 3a: base facts for jobs still closed by an expired quote ("Quote expired (14 days)"). They are not in the
+ *  open-jobs list, but their expired-quote / new-quote office rows still need to show. Deleted (and, unless asked, TEST)
+ *  jobs are left out. */
+export async function expiryClosedJobFacts(jobIds: string[], includeTest: boolean): Promise<Map<string, NeedsFacts>> {
+  const out = new Map<string, NeedsFacts>();
+  if (!jobIds.length) return out;
+  const { QUOTE_EXPIRED_CANCEL_REASON } = await import("./quote-expiry.core");
+  const rows = await byIds("jobs closed by an expired quote", jobIds, (c, a, b) => admin.from("jobs").select("id, job_number, source, deleted_at, stage, cancelled_reason, owners(full_name), properties(suburb)").in("id", c).range(a, b));
+  for (const j of rows) {
+    if (j["deleted_at"] || j["stage"] !== "cancelled" || j["cancelled_reason"] !== QUOTE_EXPIRED_CANCEL_REASON) continue;
+    if (!includeTest && j["source"] === "qa_test") continue;
+    out.set(String(j["id"]), { jobId: String(j["id"]), jobNumber: String(j["job_number"]), surname: surnameOf((j["owners"] as { full_name?: string } | null)?.full_name), suburb: (j["properties"] as { suburb?: string } | null)?.suburb ?? null, ...(j["source"] === "qa_test" ? { isTest: true } : {}) });
+  }
+  return out;
+}
+
 export type GatheredNeeds = {
   now: number; jobs: OfficeJob[]; facts: Map<string, NeedsFacts>; emails: EmailRowInput[];
   system: SystemRow[];
@@ -389,11 +405,17 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       facts.set(n.jobId, x);
     }
   } catch { unavailable.push("STOP clean-up failures"); }
+  /** Batch 3a: the open jobs among `ids`, plus jobs still closed by an expired quote (their facts are made here). */
+  const withExpiryClosedJobs = async (ids: string[]) => {
+    const extra = ids.filter((id) => !facts.has(id));
+    for (const [id, x] of await expiryClosedJobFacts(extra, opts.includeTest)) facts.set(id, x);
+    return ids.filter((id) => facts.has(id));
+  };
   // Batch 3a: an expired quote could not close the job because the owner can't be emailed → one row until the close completes.
   try {
     const { quoteExpiredBlockedFact } = await import("./office-needs.core");
     const raised = await all("expired quotes not emailable", (a, b) => scoped(admin.from("workflow_events").select("job_id")).eq("event_type", "quote_expired_not_emailable").range(a, b));
-    const raisedIds = [...new Set(raised.map((e) => String(e["job_id"])).filter((id) => idSet.has(id)))];
+    const raisedIds = await withExpiryClosedJobs([...new Set(raised.map((e) => String(e["job_id"])))]);
     if (raisedIds.length) {
       const ev = await byIds("expired quote history", raisedIds, (c, a, b) => admin.from("workflow_events").select("job_id, event_type, created_at, details").in("job_id", c).in("event_type", ["quote_expired_not_emailable", "quote_expired_closed"]).range(a, b));
       const live = await byIds("open quotes of expired-quote jobs", raisedIds, (c, a, b) => admin.from("quotes").select("job_id").in("job_id", c).eq("kind", "installation").in("status", ["issued", "accepted"]).range(a, b));
@@ -410,7 +432,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   try {
     const { NEW_QUOTE_NEEDS_INSTALLER_EVENT, NEW_QUOTE_UNFINISHED_EVENT } = await import("./new-quote-request.core");
     const raised = await all("new quotes needing the office", (a, b) => scoped(admin.from("workflow_events").select("job_id")).in("event_type", [NEW_QUOTE_NEEDS_INSTALLER_EVENT, NEW_QUOTE_UNFINISHED_EVENT]).range(a, b));
-    const raisedIds = [...new Set(raised.map((e) => String(e["job_id"])).filter((id) => idSet.has(id)))];
+    const raisedIds = await withExpiryClosedJobs([...new Set(raised.map((e) => String(e["job_id"])))]);
     for (const [id, hit] of await newQuoteOfficeFacts(raisedIds)) { const x = f(id); if (x) x.newQuoteOffice = hit; }
   } catch { unavailable.push("new quotes needing the office"); }
   // Batch 1: the owner accepted but the invoice step failed → one Money row until a Xero-linked invoice exists.
