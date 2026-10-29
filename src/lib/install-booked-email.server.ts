@@ -37,7 +37,7 @@ export async function emailOwnerInstallBooked(jobId: string, startIso: string, o
     ? { amount: `$${(depositStep.outstandingCents / 100).toFixed(2)}`, holdUntil: pay.provisional.expiresAt ? formatInstallDay(pay.provisional.expiresAt) : null, bankLines: (await import("./payments.core")).bankDetailLines(pay.bank, pay.reference) }
     : null;
   // Decision 151: once the deposit has cleared, the same email says "Deposit received ✓" with the balance due on the day.
-  const paidDeposit = opts.depositReceived && pay && depositStep ? { depositPaid: depositStep.amountCents / 100, balanceDue: Math.max(0, (pay.plan.grandTotalCents - pay.paidCents) / 100) } : null;
+  const paidDeposit = opts.depositReceived && pay && depositStep ? { depositPaid: depositStep.amountCents / 100, balanceDue: Math.max(0, (pay.plan.thresholds.balance - pay.paid.install) / 100) } : null; // batch 3b: the install invoice's balance
   const input = {
     firstName: firstName(owner?.full_name ?? null), when: formatInstallDay(startIso), deposit: opts.depositReceived ? null : deposit, payment: paidDeposit,
     address: prop ? fullAddress(prop.address_line, prop.suburb, prop.postcode) || null : null,

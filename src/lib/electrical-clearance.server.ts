@@ -14,24 +14,30 @@ export async function onsiteStartOnlyFor(jobId: string): Promise<boolean> {
   return onsiteStartOnly(shortAnswersFromEntries("piesa", entries));
 }
 
-/** Review R08 / audit F14: has the owner paid the FULL accepted onsite electrical (fixes) charge, on top of the safety
- *  check payment, on the ONE installation invoice (pure rule `onsiteChargePaid`, same threshold as the fixes step)?
+/** Review R08 / audit F14: has the owner paid the FULL accepted onsite electrical (fixes) charge on its own fixes invoice
+ *  (batch 3b), and the safety check payment on the installation invoice (pure rule `onsiteChargePaid`)?
  *  Read-only and lean (ledger reader in payment-ledger.server). No invoice / no accepted charge = false. */
 export async function onsiteChargePaidFor(jobId: string): Promise<boolean> {
   const [{ data: inv, error: ie }, { data: rect, error: re }, { data: ws }] = await Promise.all([
     admin.from("invoices").select("id, quote_id, total_inc_gst, total_paid").eq("job_id", jobId).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    admin.from("quotes").select("customer_total_inc_gst").eq("job_id", jobId).eq("kind", "rectification").eq("status", "accepted").order("accepted_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("quotes").select("id, customer_total_inc_gst").eq("job_id", jobId).eq("kind", "rectification").eq("status", "accepted").order("accepted_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("workflow_settings").select("safety_check_payment_inc_gst").eq("id", 1).maybeSingle(),
   ]);
   if (ie || re) throw new Error(`Could not read the onsite electrical charge: ${(ie ?? re)!.message}`);
   if (!inv || !rect) return false;
-  const { data: piesaLines } = inv.quote_id ? await admin.from("quote_items").select("code, line_total_inc_gst").eq("quote_id", inv.quote_id).eq("code", "PIESA") : { data: [] as { code: string | null; line_total_inc_gst: number | string | null }[] };
+  const [{ data: piesaLines }, { data: fixesInv, error: fe }] = await Promise.all([
+    inv.quote_id ? admin.from("quote_items").select("code, line_total_inc_gst").eq("quote_id", inv.quote_id).eq("code", "PIESA") : Promise.resolve({ data: [] as { code: string | null; line_total_inc_gst: number | string | null }[] }),
+    admin.from("invoices").select("id, total_paid").eq("quote_id", rect.id).eq("kind", "rectification").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  if (fe) throw new Error(`Could not read the onsite electrical charge: ${fe.message}`);
+  if (!fixesInv) return false;
   const [{ onsiteChargePaid, toCents }, { safetyCheckCentsFor }, { invoicePaidCents }] = await Promise.all([import("./payments.core"), import("./safety-check-amount.core"), import("./payment-ledger.server")]);
+  const [install, fixes] = await Promise.all([invoicePaidCents(jobId, inv.id, inv.total_paid), invoicePaidCents(jobId, fixesInv.id, fixesInv.total_paid)]);
   return onsiteChargePaid({
     quoteTotalCents: toCents(inv.total_inc_gst),
     safetyCheckCents: safetyCheckCentsFor({ lines: piesaLines ?? [], settingIncGst: ws?.safety_check_payment_inc_gst ?? null }).cents,
     rectTotalCents: toCents(rect.customer_total_inc_gst),
-    paidCents: await invoicePaidCents(jobId, inv.id, inv.total_paid),
+    paid: { install, fixes },
   });
 }
 

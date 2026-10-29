@@ -66,7 +66,7 @@ async function currentReopenLapse(jobId: string): Promise<string | null> {
 }
 
 /** Lapsed deadline + this deadline's choice/acceptance/payment. */
-export async function repeatPiesaContext(jobId: string): Promise<{ state: RepeatState; suggestion: string | null; paidBeforeAcceptCents: number | null }> {
+export async function repeatPiesaContext(jobId: string): Promise<{ state: RepeatState; suggestion: string | null }> {
   const { installDayContext } = await import("./install-days.server");
   const [c, reopenLapse] = await Promise.all([installDayContext(jobId).catch(() => null), currentReopenLapse(jobId)]);
   const { data: rows } = await admin.from("workflow_events").select("event_type, created_at, details").eq("job_id", jobId).in("event_type", [REPEAT_PIESA_CHOSEN_EVENT, REPEAT_PIESA_ACCEPTED_EVENT, REPEAT_PIESA_PAID_EVENT, "install_window_expired"]).order("created_at", { ascending: false });
@@ -81,9 +81,7 @@ export async function repeatPiesaContext(jobId: string): Promise<{ state: Repeat
   const state = repeatPiesaState({ lapsedDeadline, choice, acceptedAt: forDeadline(REPEAT_PIESA_ACCEPTED_EVENT), paidAt: forDeadline(REPEAT_PIESA_PAID_EVENT) });
   const exp = ev.find((r) => r.event_type === "install_window_expired" && String(d(r)["deadline"]) === lapsedDeadline);
   const sp = exp ? String(d(exp)["payer"] ?? "") : "";
-  const acc = ev.find((r) => r.event_type === REPEAT_PIESA_ACCEPTED_EVENT && String(d(r)["deadline"]) === lapsedDeadline);
-  const pb = acc ? d(acc)["paid_before_cents"] : null;
-  return { state, suggestion: sp && sp !== "undetermined" ? sp : null, paidBeforeAcceptCents: typeof pb === "number" && Number.isFinite(pb) ? pb : null };
+  return { state, suggestion: sp && sp !== "undetermined" ? sp : null };
 }
 
 /** Office choice. The suggestion is recorded alongside, never used to decide. */
@@ -113,15 +111,12 @@ export async function acceptRepeatPiesa(jobId: string): Promise<RepeatState> {
     if (state.stage === "owner_pay" || state.stage === "offer") return state; // idempotent
     throw new WorkflowError("There's nothing to accept right now.");
   }
-  // What the owner had already paid on the ONE invoice when they accepted: the repeat counts as paid only once payments
-  // reach this plus the repeat price (a reversed-and-re-applied payment never counts as the repeat payment).
-  const { data: invRow } = await admin.from("invoices").select("total_paid").eq("job_id", jobId).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).maybeSingle();
-  const paidBeforeCents = Math.round(Number(invRow?.total_paid ?? 0) * 100);
-  await logEvent(jobId, null, REPEAT_PIESA_ACCEPTED_EVENT, `Owner accepted the new safety check (PIESA)${state.payer === "owner" ? ` — $${state.priceIncGst} inc GST added to their bill` : " at no cost to them"}`, { deadline: state.deadline, payer: state.payer, owner_charge_inc_gst: state.payer === "owner" ? state.priceIncGst : 0, paid_before_cents: paidBeforeCents }, { internal: false });
+  await logEvent(jobId, null, REPEAT_PIESA_ACCEPTED_EVENT, `Owner accepted the new safety check (PIESA)${state.payer === "owner" ? ` — $${state.priceIncGst} inc GST added to their bill` : " at no cost to them"}`, { deadline: state.deadline, payer: state.payer, owner_charge_inc_gst: state.payer === "owner" ? state.priceIncGst : 0 }, { internal: false });
   const next = (await repeatPiesaContext(jobId)).state;
-  // Owner pays (decision 233): the price goes on the job's ONE Xero invoice now; every Sync retries / holds for the office.
-  if (next.stage === "owner_pay") await (await import("./xero.server")).addRepeatPiesaToXeroInvoice(jobId, null)
-    .catch((e) => console.error("repeat PIESA Xero line skipped", (e as Error).message));
+  // Owner pays (batch 3b): the repeat gets its OWN Xero invoice now, once per repeat. A Xero failure is recorded for the
+  // office (Needs me) and retried by Sync / Create invoice; it never undoes the owner's acceptance.
+  if (next.stage === "owner_pay" && next.payer === "owner" && next.deadline && next.priceIncGst) await (await import("./xero.server")).createRepeatInvoice(jobId, next.deadline, next.priceIncGst)
+    .catch((e) => console.error("repeat safety check invoice skipped", (e as Error).message));
   if (next.stage === "offer") await startRepeatOffer(jobId, next).catch((e) => logEvent(jobId, null, "repeat_piesa_offer_failed", `Repeat safety check offer didn't start: ${(e as Error).message}`, { deadline: next.deadline }, { internal: true }));
   return next;
 }
@@ -136,37 +131,35 @@ export async function recordRepeatPiesaPaid(jobId: string, actorId: string, refe
   return next;
 }
 
-/** Xero sync: once payments on the ONE invoice grew by the repeat price since its line went on, record it paid once and
- *  start the normal PIESA offer. Nothing happens before the line is on the invoice. */
+/** The current repeat's own invoice (null when it has none yet). */
+async function currentRepeatInvoice(jobId: string, invoiceId: string) {
+  const { data } = await admin.from("invoices").select("kind, repeat_key, total_inc_gst").eq("id", invoiceId).eq("job_id", jobId).maybeSingle();
+  return (data as { kind: string; repeat_key: string | null; total_inc_gst: number | string } | null) ?? null;
+}
+
+/** Xero sync: the current repeat's OWN invoice is paid in full → recorded paid once and the normal PIESA offer starts.
+ *  Money on any other invoice never counts. */
 export async function repeatPaidFromInvoice(jobId: string, invoiceId: string, paidCents: number, actorId: string | null): Promise<boolean> {
   const { state } = await repeatPiesaContext(jobId);
   if (state.stage !== "owner_pay" || !state.deadline) return false;
   const rpc = await import("./repeat-piesa.core");
-  const { data: added } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", rpc.REPEAT_XERO_ADDED_EVENT).contains("details", { invoice_id: invoiceId, deadline: state.deadline }).order("created_at", { ascending: false }).limit(1).maybeSingle();
-  const d = (added?.details ?? null) as { amount_cents?: number; paid_at_add_cents?: number } | null;
-  if (!d) return false;
-  const { data: acc } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", REPEAT_PIESA_ACCEPTED_EVENT).contains("details", { deadline: state.deadline }).order("created_at", { ascending: false }).limit(1).maybeSingle();
-  const before = Number((acc?.details as { paid_before_cents?: number } | null)?.paid_before_cents ?? NaN);
-  const paidAtAdd = Math.max(Number.isFinite(before) ? before : 0, Number(d.paid_at_add_cents ?? 0));
-  if (!rpc.repeatPaidByInvoice({ paidCents, paidAtAddCents: paidAtAdd, priceCents: Number(d.amount_cents ?? 0) })) return false;
-  await logEvent(jobId, actorId, REPEAT_PIESA_PAID_EVENT, `Repeat safety check (PIESA) paid on the Xero invoice`, { deadline: state.deadline, amount_inc_gst: state.priceIncGst, reference: "xero", invoice_id: invoiceId }, { internal: true });
+  if (!rpc.repeatInvoicePaid({ invoice: await currentRepeatInvoice(jobId, invoiceId), deadline: state.deadline, paidCents })) return false;
+  await logEvent(jobId, actorId, REPEAT_PIESA_PAID_EVENT, `Repeat safety check (PIESA) paid on its Xero invoice`, { deadline: state.deadline, amount_inc_gst: state.priceIncGst, reference: "xero", invoice_id: invoiceId }, { internal: true });
   const next = (await repeatPiesaContext(jobId)).state;
   await startRepeatOffer(jobId, next);
   return true;
 }
 
-/** Stripe: a card payment for the repeat safety check counts at once. Once a card row for this step landed after the owner
- *  accepted and payments grew by the repeat price, record it paid and start the normal PIESA offer. Idempotent: the
- *  second call sees stage "offer" and does nothing. */
+/** Stripe: a card payment whose row names the current repeat's OWN invoice, with that invoice now paid in full → recorded
+ *  paid and the normal PIESA offer starts. Idempotent: the second call sees stage "offer" and does nothing. */
 export async function repeatPaidByCard(jobId: string, invoiceId: string, paidCents: number): Promise<boolean> {
-  const { state, paidBeforeAcceptCents } = await repeatPiesaContext(jobId);
-  if (state.stage !== "owner_pay" || !state.deadline || !state.priceIncGst) return false;
-  const { data: acc } = await admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", REPEAT_PIESA_ACCEPTED_EVENT).contains("details", { deadline: state.deadline }).order("created_at", { ascending: false }).limit(1).maybeSingle();
-  if (!acc) return false;
+  const { state } = await repeatPiesaContext(jobId);
+  if (state.stage !== "owner_pay" || !state.deadline) return false;
   const { PAYMENT_EVENT } = await import("./payment-ledger.server");
-  const { data: card } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", PAYMENT_EVENT).contains("details", { invoice_id: invoiceId, source: "card", step: "repeat_safety_check" }).gt("created_at", acc.created_at).limit(1);
+  const { data: card } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", PAYMENT_EVENT).contains("details", { invoice_id: invoiceId, source: "card" }).limit(1);
+  if (!(card ?? []).length) return false;
   const rpc = await import("./repeat-piesa.core");
-  if (!rpc.repeatCardPaid({ priceCents: Math.round(state.priceIncGst * 100), paidCents, paidBeforeAcceptCents, cardRowAfterAccept: (card ?? []).length > 0 })) return false;
+  if (!rpc.repeatInvoicePaid({ invoice: await currentRepeatInvoice(jobId, invoiceId), deadline: state.deadline, paidCents })) return false;
   await logEvent(jobId, null, REPEAT_PIESA_PAID_EVENT, `Repeat safety check (PIESA) paid by card`, { deadline: state.deadline, amount_inc_gst: state.priceIncGst, reference: "card", invoice_id: invoiceId }, { internal: true });
   const next = (await repeatPiesaContext(jobId)).state;
   await startRepeatOffer(jobId, next);

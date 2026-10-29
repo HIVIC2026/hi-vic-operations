@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 import { postgrestShim } from "./helpers/pglite-postgrest-shim";
 import { ownerFixesNeedsOwner, ownerFixesStep } from "../src/lib/owner-fixes.core";
-import { FIXES_NOT_PAID_BLOCKER, fixesCountedCents, fixesPaymentBlocker, paymentPlan, paymentSteps } from "../src/lib/payments.core";
+import { FIXES_NOT_PAID_BLOCKER, fixesPaymentBlocker, paymentPlan, paymentSteps } from "../src/lib/payments.core";
 import { planStep, type AdvanceFacts } from "../src/lib/autoadvance.core";
 
 const read = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
@@ -31,22 +31,19 @@ describe("owner fixes step (pure)", () => {
 });
 
 describe("fixes payment step (payment gate)", () => {
-  test("fixes count as their own step only when accepted AFTER the installation quote (never twice)", () => {
-    expect(fixesCountedCents({ rectTotalCents: 55_000, rectAcceptedAt: plus(T0, 48), installAcceptedAt: T0 })).toBe(55_000);
-    expect(fixesCountedCents({ rectTotalCents: 55_000, rectAcceptedAt: T0, installAcceptedAt: plus(T0, 48) })).toBe(0); // old model: folded in
-    expect(fixesCountedCents({ rectTotalCents: 55_000, rectAcceptedAt: null, installAcceptedAt: T0 })).toBe(0);
+  test("fixes are their own step, paid in full on their own invoice (batch 3b; never folded in)", () => {
     const plan = paymentPlan({ quoteTotalCents: 400_000, fixesCents: 55_000 });
     expect(plan.grandTotalCents).toBe(455_000);
-    expect(plan.thresholds.fixes).toBe(34_900 + 55_000);
+    expect(plan.thresholds.fixes).toBe(55_000);
   });
   test("booking blocker until the fixes are paid in full; none without a fixes step", () => {
     const plan = paymentPlan({ quoteTotalCents: 400_000, fixesCents: 55_000 });
     const facts = { safety_check: { requestedAt: T0 }, fixes: { requestedAt: plus(T0, 48) } };
-    expect(fixesPaymentBlocker(plan, paymentSteps(plan, 34_900, facts, plus(T0, 50)))).toBe(FIXES_NOT_PAID_BLOCKER);
-    expect(fixesPaymentBlocker(plan, paymentSteps(plan, 34_900 + 54_999, facts, plus(T0, 50)))).toBe(FIXES_NOT_PAID_BLOCKER);
-    expect(fixesPaymentBlocker(plan, paymentSteps(plan, 34_900 + 55_000, facts, plus(T0, 50)))).toBeNull();
+    expect(fixesPaymentBlocker(plan, paymentSteps(plan, { install: 400_000, fixes: 0, repeat: 0 }, facts, plus(T0, 50)))).toBe(FIXES_NOT_PAID_BLOCKER);
+    expect(fixesPaymentBlocker(plan, paymentSteps(plan, { install: 34_900, fixes: 54_999, repeat: 0 }, facts, plus(T0, 50)))).toBe(FIXES_NOT_PAID_BLOCKER);
+    expect(fixesPaymentBlocker(plan, paymentSteps(plan, { install: 34_900, fixes: 55_000, repeat: 0 }, facts, plus(T0, 50)))).toBeNull();
     const none = paymentPlan({ quoteTotalCents: 400_000 });
-    expect(fixesPaymentBlocker(none, paymentSteps(none, 0, {}, T0))).toBeNull();
+    expect(fixesPaymentBlocker(none, paymentSteps(none, { install: 0, fixes: 0, repeat: 0 }, {}, T0))).toBeNull();
   });
   test("both booking paths carry the fixes-paid blocker", () => {
     expect(read("src/lib/booking.server.ts")).toMatch(/kind === "rectification"\) \{ const fb = await \(await import\("\.\/payments\.server"\)\)\.fixesPaymentBlockerFor\(jobId\)/);

@@ -49,8 +49,9 @@ export function checkoutSessionParams(i: CheckoutIntent): { form: Record<string,
     "payment_intent_data[description]": i.description,
   };
   if (i.customerEmail) form["customer_email"] = i.customerEmail;
-  // Same job + step + amount → same session (safe double-click); a new amount is a new session.
-  return { form, idempotencyKey: `hivic-checkout-${i.jobId}-${i.step}-${i.amountCents}` };
+  // Same job + invoice + step + amount → same session (safe double-click); a new amount or another invoice (batch 3b:
+  // a replaced fixes invoice, a second repeat safety check) is a new session.
+  return { form, idempotencyKey: `hivic-checkout-${i.jobId}-${i.invoiceId}-${i.step}-${i.amountCents}` };
 }
 export const encodeForm = (form: Record<string, string>) => Object.entries(form).map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join("&");
 

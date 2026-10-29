@@ -9,6 +9,7 @@ import { electricalBillingSource } from "./installer-led.core";
 import { payoutGateFacts } from "./trade-payout-gate.server";
 import { PAYOUT_FORM_NOT_COMPLETE, tradePayoutBlockers } from "./trade-payout-gate.core";
 import { installerPayHeldReasons, ownerPaidInFullAt, payState } from "./trade-view.core";
+import type { RepeatState } from "./repeat-piesa.core";
 
 const db = admin as any; // eslint-disable-line @typescript-eslint/no-explicit-any
 const chunks = <T,>(xs: T[], n = 100) => Array.from({ length: Math.ceil(xs.length / n) }, (_, i) => xs.slice(i * n, i * n + n));
@@ -138,7 +139,7 @@ export async function moneyPayouts(testJobIds?: string[]) {
     inJobs<{ job_id: string; details: { kind?: string; booking_id?: string } | null; created_at: string }>("workflow_events", "job_id, details, created_at", ids, (q) => q.eq("event_type", "payout_marked_paid")),
     inJobs<{ job_id: string; created_at: string }>("workflow_events", "job_id, created_at", ids, (q) => q.eq("event_type", "stage_changed").eq("to_stage", "ready_for_veec")),
     // Audit F19: owner paid in full (Xero mirror) — installer-supplied jobs wait for it, exactly as the installer's screen.
-    inJobs<{ job_id: string; status: string | null; balance_paid_at: string | null; paid_at: string | null; updated_at: string | null }>("invoices", "job_id, status, balance_paid_at, paid_at, updated_at", ids),
+    inJobs<{ job_id: string; kind: string | null; status: string | null; balance_paid_at: string | null; paid_at: string | null; updated_at: string | null }>("invoices", "job_id, kind, status, balance_paid_at, paid_at, updated_at", ids, (q) => q.eq("kind", "installation")),
   ]);
   const internals: { quote_id: string; cost_ex_gst: number | null }[] = [];
   for (const part of chunks(quotes.map((q) => q.id))) { const { data } = await db.from("quote_internals").select("quote_id, cost_ex_gst").in("quote_id", part); internals.push(...(data ?? [])); }
@@ -226,30 +227,56 @@ export async function moneyPayouts(testJobIds?: string[]) {
   return { due: g.due, held: g.held, paid: g.paid.slice(0, 30), owedEx: g.due.reduce((a, x) => a + (x.amountEx ?? 0), 0), heldEx: g.held.reduce((a, x) => a + (x.amountEx ?? 0), 0), unknownAmounts: g.due.filter((x) => x.amountEx == null).length };
 }
 
-/** Invoices (decisions 139–144, 240): one Xero invoice per job; steps derived by payments.server jobPaymentView. Read-only. */
+/** Invoices (decisions 139–144, 240): steps derived by payments.server jobPaymentView. Read-only. Batch 3b: a job can have
+ *  an install invoice, an electrical fixes invoice and a repeat safety check invoice — each is its own row, with its own
+ *  total, its own money, its own steps and its reference. */
 export async function moneyInvoices(now = new Date()) {
-  const { data: inv, error } = await db.from("invoices").select("id, job_id, total_inc_gst, total_paid, xero_invoice_number, created_at").eq("kind", "installation").order("created_at", { ascending: false }).limit(400);
+  const { data: inv, error } = await db.from("invoices").select("id, job_id, kind, total_inc_gst, total_paid, xero_invoice_number, xero_reference, created_at").in("kind", ["installation", "rectification", "repeat_safety_check"]).order("created_at", { ascending: false }).limit(600);
   if (error) throw new Error(`Could not read invoices: ${error.message}`);
-  const jobs = await liveJobs([...new Set(((inv ?? []) as { job_id: string }[]).map((i) => i.job_id))]);
-  const live = ((inv ?? []) as { id: string; job_id: string; total_inc_gst: number; total_paid: number; xero_invoice_number: string | null }[]).filter((i) => jobs.has(i.job_id) && jobs.get(i.job_id)!.stage !== "cancelled");
-  const seen = new Set<string>();
-  const latest = live.filter((i) => (seen.has(i.job_id) ? false : (seen.add(i.job_id), true)));
-  const open = latest.filter((i) => Number(i.total_paid ?? 0) < Number(i.total_inc_gst ?? 0)).slice(0, 80);
-  const paid = latest.filter((i) => Number(i.total_paid ?? 0) >= Number(i.total_inc_gst ?? 0)).slice(0, 20);
+  type Inv = { id: string; job_id: string; kind: string; total_inc_gst: number; total_paid: number; xero_invoice_number: string | null; xero_reference: string | null };
+  const all = (inv ?? []) as Inv[];
+  const jobs = await liveJobs([...new Set(all.map((i) => i.job_id))]);
+  const live = all.filter((i) => jobs.has(i.job_id) && jobs.get(i.job_id)!.stage !== "cancelled");
+  // The newest invoice of each kind per job (newest first already). One entry per job: its installation invoice, else
+  // (fixes accepted before any installation quote) its newest fixes / repeat invoice — such a job is listed too.
+  const newest = new Map<string, Inv>();
+  for (const i of live) if (!newest.has(`${i.job_id}:${i.kind}`)) newest.set(`${i.job_id}:${i.kind}`, i);
+  const kinds = ["installation", "rectification", "repeat_safety_check"] as const;
+  const latest = [...new Set(live.map((i) => i.job_id))].map((id) => kinds.map((k) => newest.get(`${id}:${k}`)).find((x): x is Inv => !!x)!);
+  const unpaid = (i: Inv | undefined) => !!i && Number(i.total_paid ?? 0) < Number(i.total_inc_gst ?? 0);
+  const jobOpen = (jobId: string) => ["installation", "rectification", "repeat_safety_check"].some((k) => unpaid(newest.get(`${jobId}:${k}`)));
+  const open = latest.filter((i) => jobOpen(i.job_id)).slice(0, 80);
+  const paid = latest.filter((i) => !jobOpen(i.job_id)).slice(0, 20);
   const { jobPaymentView } = await import("./payments.server");
+  const { stepInvoiceKind } = await import("./payments.core");
+  const { invoiceSlotLabel, invoiceSlotOf } = await import("./office-money.core");
   const rows = [];
   for (const part of chunks([...open, ...paid], 8)) {
-    rows.push(...await Promise.all(part.map(async (i) => {
+    rows.push(...(await Promise.all(part.map(async (i) => {
       const j = jobs.get(i.job_id)!;
       const v = await jobPaymentView(i.job_id, now).catch(() => null);
-      const steps = v?.steps ?? [];
-      const st = invoiceRowState(steps, now.toISOString());
-      return {
-        invoiceId: i.id, invoiceNumber: i.xero_invoice_number, jobId: i.job_id, jobNumber: j.job_number, owner: j.owners?.full_name ?? null, stage: stageWord(j),
-        totalCents: v?.plan.grandTotalCents ?? Math.round(Number(i.total_inc_gst ?? 0) * 100), paidCents: v?.paidCents ?? Math.round(Number(i.total_paid ?? 0) * 100),
-        steps: steps.length ? stepsLine(steps) : "Not in Xero yet", state: st.label, tone: st.tone, chase: st.chase,
+      const job = { jobId: i.job_id, jobNumber: j.job_number, owner: j.owners?.full_name ?? null, stage: stageWord(j) };
+      // One invoice straight from the Xero mirror row (its own total and money).
+      const mirror = (k: (typeof kinds)[number]) => {
+        const r = newest.get(`${i.job_id}:${k}`);
+        if (!r) return [];
+        const slot = invoiceSlotOf(k);
+        const totalCents = Math.round(Number(r.total_inc_gst ?? 0) * 100), paidCents = Math.round(Number(r.total_paid ?? 0) * 100);
+        const st = k === "installation" ? invoiceRowState([], now.toISOString()) : paidCents >= totalCents ? { label: "Paid in full", tone: "green" as const, chase: false } : { label: "On track", tone: "plain" as const, chase: false };
+        return [{ ...job, invoiceId: r.id, invoiceNumber: r.xero_invoice_number, label: invoiceSlotLabel(slot, r.xero_reference), reference: r.xero_reference, totalCents, paidCents, steps: k === "installation" ? "Not in Xero yet" : "—", state: st.label, tone: st.tone, chase: st.chase }];
       };
-    })));
+      // No payment view (no installation invoice yet, or it could not be read): each of the job's invoices from the
+      // Xero mirror, so a fixes / repeat invoice is never missing from the list.
+      if (!v) return kinds.flatMap(mirror);
+      return (["install", "fixes", "repeat"] as const).flatMap((slot) => {
+        const r = v.invoices[slot];
+        // A repeat safety check invoice stays listed once the repeat is no longer owed (paid, check done): from the mirror.
+        if (!r) return slot === "repeat" ? mirror("repeat_safety_check") : [];
+        const steps = v.steps.filter((x) => stepInvoiceKind(x.key) === slot);
+        const st = invoiceRowState(steps, now.toISOString());
+        return [{ ...job, invoiceId: r.id, invoiceNumber: r.xero_invoice_number, label: invoiceSlotLabel(slot, r.xero_reference), reference: r.xero_reference, totalCents: Math.round(Number(r.total_inc_gst ?? 0) * 100), paidCents: v.paid[slot], steps: steps.length ? stepsLine(steps) : "Not in Xero yet", state: st.label, tone: st.tone, chase: st.chase }];
+      });
+    }))).flat());
   }
   const owedCents = rows.reduce((a, r) => a + Math.max(0, r.totalCents - r.paidCents), 0);
   return { rows, owedCents, openCount: open.length, overdue: rows.filter((r) => r.chase).length, bounded: latest.length > open.length + paid.length };
@@ -310,15 +337,39 @@ export async function setVeecSpotPrice(price: number, actorId: string) {
   return { ok: true, pricedOn };
 }
 
-/** Office "Create invoice": the job's accepted installation quote goes through the same invoice step the acceptance uses. */
+/** Office "Create invoice": the job's accepted installation quote and (batch 3b) its current accepted electrical fixes quote
+ *  each go through the same once-only invoice step the acceptance uses; an invoice already linked is left alone. */
 export async function createInvoiceForJob(jobId: string, actorId: string | null): Promise<{ ok: true }> {
   const { WorkflowError } = await import("./workflow.server");
   const { data: job } = await admin.from("jobs").select("stage").eq("id", jobId).maybeSingle();
   if (job?.stage === "cancelled") throw new WorkflowError("This job is cancelled, so no invoice can be created.");
   const { data: q, error } = await admin.from("quotes").select("id").eq("job_id", jobId).eq("kind", "installation").eq("status", "accepted").order("accepted_at", { ascending: false }).limit(1).maybeSingle();
   if (error) throw new WorkflowError(`Could not read the accepted quote: ${error.message}`);
-  if (!q) throw new WorkflowError("This job has no accepted installation quote, so there is nothing to invoice.");
-  const r = await (await import("./invoice-after-acceptance.server")).createInvoiceAfterAcceptance(q.id, jobId, actorId);
-  if (!r.ok) throw new WorkflowError(`The invoice still did not reach Xero: ${r.error ?? "unknown error"}`);
+  let fixes: { id: string; status: string } | null = null;
+  try { fixes = await (await import("./fixes-quote-current.server")).currentFixesQuote(jobId); }
+  catch (e) { throw new WorkflowError((e as Error).message); }
+  const quoteIds = [q?.id, fixes?.status === "accepted" ? fixes.id : null].filter((x): x is string => !!x);
+  // Batch 3b: an owner-paid repeat safety check the owner accepted (not yet paid) gets its own invoice too.
+  // A failure reading it only adds to the errors: the install and fixes retries still run.
+  const errors: string[] = [];
+  let repeat: RepeatState | null = null;
+  try { repeat = (await (await import("./repeat-piesa.server")).repeatPiesaContext(jobId)).state; }
+  catch (e) { errors.push(`Repeat safety check: ${(e as Error)?.message ?? String(e)}`); }
+  const repeatDue = !!repeat && repeat.stage === "owner_pay" && repeat.payer === "owner" && !!repeat.deadline && !!repeat.priceIncGst;
+  if (!quoteIds.length && !repeatDue) throw new WorkflowError(errors.length ? `The invoice still did not reach Xero: ${errors.join(" · ")}` : "This job has no accepted quote, so there is nothing to invoice.");
+  const { createInvoiceAfterAcceptance } = await import("./invoice-after-acceptance.server");
+  for (const id of quoteIds) {
+    const r = await createInvoiceAfterAcceptance(id, jobId, actorId);
+    if (!r.ok) errors.push(`${id === q?.id ? "Invoice" : "Fixes invoice"}: ${r.error ?? "unknown error"}`);
+  }
+  if (repeatDue && repeat) {
+    try {
+      const { createRepeatInvoice } = await import("./xero.server");
+      const { invoiceId } = await createRepeatInvoice(jobId, repeat.deadline!, repeat.priceIncGst!);
+      const { data: inv } = await admin.from("invoices").select("xero_invoice_id, last_sync_error").eq("id", invoiceId).maybeSingle();
+      if (!inv?.xero_invoice_id) errors.push(`Repeat safety check invoice: ${inv?.last_sync_error ?? "not linked to Xero"}`);
+    } catch (e) { errors.push(`Repeat safety check invoice: ${(e as Error).message}`); }
+  }
+  if (errors.length) throw new WorkflowError(`The invoice still did not reach Xero: ${errors.join(" · ")}`);
   return { ok: true };
 }

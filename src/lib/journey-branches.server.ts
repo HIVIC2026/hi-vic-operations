@@ -1306,7 +1306,7 @@ async function m23ElectricianPayout(rec: Recorder, jobs: BranchResult["jobs"], s
     // and the due date must not move (pay never waits for the owner).
     const pay = await import("./payments.server");
     const v = await pay.jobPaymentView(ctx.jobId!);
-    const fixesInvoice = v?.invoiceId ?? null; // one Xero invoice per job — the fixes payment sits on it
+    const fixesInvoice = v?.invoices.fixes?.id ?? null; // batch 3b: the fixes payment sits on the fixes invoice
     let rev = "no fixes invoice to reverse";
     if (fixesInvoice) { try { await (await import("./xero.server")).reverseDemoTestPayment(fixesInvoice, ctx.actorId); rev = "reversed — owner no longer paid"; } catch (e) { rev = `could not reverse: ${(e as Error).message.slice(0, 160)}`; } }
     const afterRev = ep.electricianPayTiming("rectification", (await payoutGateFacts([ctx.jobId!])).get(ctx.jobId!));
@@ -1536,7 +1536,7 @@ async function r158RepeatPiesa(rec: Recorder, jobs: BranchResult["jobs"], setup:
   } finally { await finish(ctx, jobs); }
 }
 
-// ---------- Jo 28 Oct (decision 233): owner pays the repeat PIESA — one line on the job's ONE Xero invoice (Demo Company) ----------
+// ---------- Jo 28 Oct (decision 233) + batch 3b: owner pays the repeat PIESA on its OWN Xero invoice (Demo Company) ----------
 async function r158OwnerPays(rec: Recorder, jobs: BranchResult["jobs"], setup: StepResult[]) {
   const ctx = await freshCtx();
   try {
@@ -1562,27 +1562,22 @@ async function r158OwnerPays(rec: Recorder, jobs: BranchResult["jobs"], setup: S
     const { data: inv0 } = await admin.from("invoices").select("id, total_inc_gst, total_paid, xero_invoice_id").eq("job_id", ctx.jobId!).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).single();
     const { count: invCount0 } = await admin.from("invoices").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!);
     const st1 = await rp.acceptRepeatPiesa(ctx.jobId!);
-    const { data: ev1 } = await admin.from("workflow_events").select("event_type, summary").eq("job_id", ctx.jobId!).in("event_type", ["xero_invoice_repeat_piesa_added", "xero_invoice_repeat_piesa_held"]).order("created_at");
+    // Batch 3b: the repeat gets its OWN invoice ("… safety check 2"); the installation invoice is never touched.
+    const { data: rep } = await admin.from("invoices").select("id, total_inc_gst, xero_invoice_id, xero_reference, last_sync_error").eq("job_id", ctx.jobId!).eq("kind", "repeat_safety_check").order("created_at", { ascending: false }).limit(1).maybeSingle();
     const { count: offers1 } = await admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("kind", "piesa").eq("status", "pending");
     const sig = await officeSignals(ctx.jobId!);
     const shots = await shoot("m158o-accepted", [ownerPage(ctx), ...officePages(ctx)]);
-    answer("stops", st1.stage === "owner_pay" && (offers1 ?? 0) === 0, `after Accept stage=${st1.stage}; pending PIESA offers=${offers1}; Xero line events: ${(ev1 ?? []).map((e) => `${e.event_type}: ${e.summary}`).join(" | ") || "none"}`);
+    answer("stops", st1.stage === "owner_pay" && (offers1 ?? 0) === 0, `after Accept stage=${st1.stage}; pending PIESA offers=${offers1}; repeat invoice: ${rep ? `${rep.xero_reference} ${rep.xero_invoice_id ? "in Xero" : `not in Xero (${rep.last_sync_error ?? "unknown"})`}` : "none"}`);
     answer("reason", sees(shots[0], /Please pay \$349 inc GST for the new safety check/), `owner sees the pay-first line=${sees(shots[0], /Please pay \$349 inc GST/)}`);
-    const held = (ev1 ?? []).some((e) => e.event_type === "xero_invoice_repeat_piesa_held");
-    const heldRows = sig.exceptions.filter((c) => c === "xero_invoice_repeat_piesa_held").length + sig.needsMeText.filter((t) => /repeat safety check/i.test(t)).length;
-    answer("office_once", !held || heldRows === 1, held ? `Xero refused the edit (payment on the invoice); office rows for the held line=${heldRows}; office exceptions: ${sig.exceptions.join(", ") || "none"}` : "line added straight away — nothing for the office to do");
-    // Fix as the office would when held: remove the $349 payment in Xero, Sync (the line goes on), re-apply the $349.
+    const failedRows = sig.needsMeText.filter((t) => /Repeat safety check invoice didn't reach Xero/i.test(t)).length;
+    answer("office_once", rep?.xero_invoice_id ? failedRows === 0 : failedRows === 1, rep?.xero_invoice_id ? "own invoice raised in Xero straight away — nothing for the office to do" : `invoice didn't reach Xero; office rows=${failedRows}`);
     const x = await import("./xero.server");
-    if (held) {
-      await x.reverseDemoTestPayment(inv0!.id, ctx.actorId);
-      await x.recordDemoTestPayment(inv0!.id, Number(inv0!.total_paid ?? 0), ctx.actorId);
-    }
     const { data: inv1 } = await admin.from("invoices").select("total_inc_gst, total_paid").eq("id", inv0!.id).single();
     const { count: invCount1 } = await admin.from("invoices").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!);
     const mid = (await rp.repeatPiesaContext(ctx.jobId!)).state;
-    rec.checks.push({ n: "O.2", name: "repeat price is a line on the SAME invoice; re-applied payment does not count as the repeat payment", status: Number(inv1!.total_inc_gst) === Number(inv0!.total_inc_gst) + TEST_PRICE && invCount1 === invCount0 && mid.stage === "owner_pay" ? "passed" : "failed", detail: `invoice total ${inv0!.total_inc_gst}→${inv1!.total_inc_gst}; invoices on job ${invCount0}→${invCount1}; stage=${mid.stage}`, ids: { invoice_id: inv0!.id } });
-    // The owner pays the repeat price (TEST payment, Demo Company) → paid once → normal PIESA offer.
-    await x.recordDemoTestPayment(inv0!.id, TEST_PRICE, ctx.actorId);
+    rec.checks.push({ n: "O.2", name: "repeat price is its OWN invoice ('… safety check 2'); the installation invoice is unchanged", status: !!rep?.xero_invoice_id && /safety check 2$/.test(String(rep.xero_reference)) && Number(rep.total_inc_gst) === TEST_PRICE && Number(inv1!.total_inc_gst) === Number(inv0!.total_inc_gst) && invCount1 === (invCount0 ?? 0) + 1 && mid.stage === "owner_pay" ? "passed" : "failed", detail: `repeat ${rep?.xero_reference ?? "none"} ${rep?.total_inc_gst ?? ""}; install total ${inv0!.total_inc_gst}→${inv1!.total_inc_gst}; invoices on job ${invCount0}→${invCount1}; stage=${mid.stage}`, ids: { invoice_id: rep?.id ?? inv0!.id } });
+    // The owner pays the repeat invoice (TEST payment, Demo Company) → paid once → normal PIESA offer.
+    if (rep?.xero_invoice_id) await x.recordDemoTestPayment(rep.id, TEST_PRICE, ctx.actorId);
     const end = (await rp.repeatPiesaContext(ctx.jobId!)).state;
     const { count: paidEv } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("event_type", "repeat_piesa_paid");
     const { count: offers2 } = await admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("kind", "piesa").eq("status", "pending");

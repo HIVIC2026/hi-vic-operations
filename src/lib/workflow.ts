@@ -116,6 +116,7 @@ export const PAYMENT_LABEL: Record<string, string> = {
   fully_paid: "Fully paid",
   overdue: "Payment overdue",
   xero_sync_error: "Xero sync error",
+  voided: "Voided in Xero", // batch 3b: an old fixes invoice replaced by a newer fixes quote (office only — owners don't see it)
 };
 
 /** Central PIESA 30-day rule for installation dates (Melbourne-local calendar date). Returns blocker text or null. */

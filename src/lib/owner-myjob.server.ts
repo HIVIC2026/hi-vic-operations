@@ -6,6 +6,7 @@ import { isWellFormedToken, LINK_PURPOSE, linkUsable } from "./estimatelink.core
 import { formatPropertyAddress, shortAddress } from "./address";
 import { DEFAULT_PIESA_INSTALL_GAP_DAYS, OWNER_STEPS, ownerAction, ownerCanCancel, ownerHero, ownerStage } from "./owner-myjob.core";
 import { splitForOption } from "./payment-gate.core";
+import { stepInvoiceKind } from "./payments.core";
 import { safetyCheckIncGstFor } from "./safety-check-amount.core";
 import { section1FromFacts } from "./consent.core";
 
@@ -35,7 +36,8 @@ export async function resolveOwnerJob(token: unknown) {
     admin.from("jobs").select("job_number, stage, deleted_at, channel, external_refs, owners(full_name, email, phone), properties(address_line, suburb, state, postcode)").eq("id", jobId).single(),
     admin.from("quotes").select("id, kind, status, release_state, option_label, customer_total_inc_gst, veec_discount_inc_gst, subtotal_inc_gst, sent_at, accepted_at, version, quote_items(code, description, quantity, line_total_inc_gst, sort)").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted", "declined"]).order("created_at", { ascending: false }).order("created_at", { ascending: false }),
     admin.from("bookings").select("kind, status, scheduled_start, contractor_id, business_id").eq("job_id", jobId).in("status", ["confirmed", "completed"]).order("scheduled_start"),
-    admin.from("invoices").select("total_paid, amount_paid").eq("job_id", jobId),
+    // "Paid" next to the install price: the installation invoice (batch 3b: fixes / repeat check have their own invoices).
+    admin.from("invoices").select("total_paid, amount_paid").eq("job_id", jobId).eq("kind", "installation"),
     admin.from("indicative_estimates").select("applied_discount").eq("job_id", jobId).is("superseded_at", null).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("workflow_settings").select("office_time_limits, piesa_install_window_days, safety_check_payment_inc_gst").eq("id", 1).maybeSingle(),
   ]);
@@ -89,13 +91,14 @@ export async function resolveOwnerJob(token: unknown) {
   }
   const owner = j.owners as { full_name: string | null; email?: string | null; phone?: string | null } | null;
   const total = quote ? n(quote.customer_total_inc_gst) : null;
-  // Decisions 139/140/141: what is due now, how to pay it (card only for the $349 / fixes), bank details + reference.
+  // Decisions 139/140/141: what is due now, how to pay it (card for the card steps), bank details + reference. Batch 3b:
+  // each step shows its own amount, and the reference is the due step's own invoice (fixes / repeat check have their own).
   // Owner-safe: amounts, state, the Xero online-invoice link and the invoice reference only – never Xero IDs or errors.
   const pay = quote?.status === "accepted" ? await (await import("./payments.server")).jobPaymentView(jobId).catch(() => null) : null;
   const payment = pay ? {
     steps: pay.steps.map((s) => ({ key: s.key, label: s.label, amount: s.amountCents / 100, state: s.state, card: s.methods.includes("card") })),
     dueNow: pay.due.dueNowCents / 100, remaining: pay.due.remainingCents / 100, paid: pay.paidCents / 100,
-    payNow: { ...pay.payNow, amount: pay.payNow.amountCents / 100 }, reference: pay.reference,
+    payNow: { ...pay.payNow, amount: pay.payNow.amountCents / 100 }, reference: pay.due.step ? pay.references[stepInvoiceKind(pay.due.step.key)] : pay.reference,
     provisional: pay.provisional.decision === "provisional" ? { expiresAt: pay.provisional.expiresAt, deposit: pay.plan.installDepositCents / 100 } : null,
   } : null;
   const limits = (ws?.office_time_limits ?? {}) as Record<string, unknown>;

@@ -37,11 +37,10 @@ describe("owner sees the After-the-PIESA row with plan figures (fix round 1)", (
     expect(s).toContain("<AfterSafetyCheckRow jobId={jobId} invoiceId={i.id} isAdmin={isAdmin} />");
     expect(s).not.toMatch(/paymentPlan\(/);
   });
-  test("fixes on the invoice do not change the 10%: install price only", async () => {
-    const { paymentPlan, planQuoteTotalCents } = await import("../src/lib/payments.core");
+  test("fixes (their own invoice) do not change the 10%: install price only", async () => {
+    const { paymentPlan } = await import("../src/lib/payments.core");
     const quote = 500000, fixes = 120000, piesa = 34900;
-    const q = planQuoteTotalCents({ invoiceTotalCents: quote + fixes, quoteTotalCents: quote, fixesCents: fixes });
-    const plan = paymentPlan({ quoteTotalCents: q, safetyCheckCents: piesa, fixesCents: fixes });
+    const plan = paymentPlan({ quoteTotalCents: quote, safetyCheckCents: piesa, fixesCents: fixes });
     expect(plan.installDepositCents).toBe(Math.floor((quote - piesa) * 0.1 + 0.5));
     expect(plan.installDepositCents).not.toBe(Math.floor((quote + fixes - piesa) * 0.1 + 0.5));
   });

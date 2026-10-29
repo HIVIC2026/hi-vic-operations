@@ -153,13 +153,15 @@ export function reminderRequestMessage(x: { jobNumber: string; status: string; b
   return `Reminder request for ${x.jobNumber}: please send the owner a reminder. Status: ${x.status}.${x.by ? ` Asked by ${x.by}.` : ""}`;
 }
 
-type PayInvoice = { kind?: string | null; status: string | null; deposit_paid_at: string | null; balance_paid_at: string | null; paid_at: string | null };
+type PayInvoice = { kind?: string | null; status: string | null; deposit_paid_at: string | null; balance_paid_at: string | null; paid_at: string | null; created_at?: string | null };
 const first = (xs: (string | null | undefined)[]) => xs.filter((x): x is string => !!x).sort()[0] ?? null;
 const last = (xs: (string | null | undefined)[]) => xs.filter((x): x is string => !!x).sort().pop() ?? null;
-/** Payment dates from the existing invoice (Xero-mirrored) and $349 payment records. First half = first instalment paid; final half = balance paid on a fully paid install invoice. */
+/** Payment dates from the existing invoice (Xero-mirrored) and $349 payment records. First half = first instalment paid; final half = balance paid on a fully paid install invoice.
+ *  Batch 3b: fixes paid = the job's NEWEST fixes invoice (a replaced fixes quote's old invoice never counts); the repeat
+ *  safety check invoice never counts as install or fixes money. */
 export function paymentDates(invoices: PayInvoice[], safetyPayments: { paid_at: string | null }[]) {
   const inst = invoices.filter((x) => (x.kind ?? "installation") === "installation");
-  const rect = invoices.filter((x) => x.kind === "rectification");
+  const rect = invoices.filter((x) => x.kind === "rectification").sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? ""))).slice(0, 1);
   const fullyPaid = inst.length > 0 && inst.every((x) => x.status === "fully_paid");
   return {
     safetyPaidAt: first(safetyPayments.map((p) => p.paid_at)),

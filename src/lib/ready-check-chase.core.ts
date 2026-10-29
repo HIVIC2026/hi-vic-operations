@@ -59,7 +59,7 @@ export const withoutRetiredInstallDayPhotos = <T extends { category?: string | n
 export type MittiOfficeCode =
   | "mitti_fix_form" | "mitti_review_pickup" | "ready_check_held" | "quote_held_review"
   | "quote_not_delivered" | "mitti_setup_installer" | "ready_check_chase_installer" | "quote_auto_send_held" | "xero_invoice_product_unconfirmed"
-  | "install_deposit_unpaid_at_start" | "payment_match_unclear" | "xero_invoice_repairs_held" | "xero_invoice_repeat_piesa_held" | "stop_installer_release_failed";
+  | "install_deposit_unpaid_at_start" | "payment_match_unclear" | "stop_installer_release_failed";
 export type Ev = { job_id: string | null; event_type: string; created_at: string; details?: Record<string, unknown> | null; summary?: string | null };
 export type MittiOfficeItem = { code: MittiOfficeCode; jobId: string | null; since: string; detail: string | null; key: string };
 
@@ -80,10 +80,6 @@ const RULES: { code: MittiOfficeCode; raise: (e: Ev) => boolean; clear: string[]
   // Audit R02: a card + Xero pair with the same amount and no shared Stripe id (both counted); cleared once the payments
   // reconcile by Stripe id or the Xero payment is removed (payments.server flagUnclearPaymentMatches).
   { code: "payment_match_unclear", raise: (e) => e.event_type === "owner_payment_match_unclear", clear: ["owner_payment_match_resolved"], detail: (e) => e.summary ?? null },
-  // Audit R07: approved electrical fixes could not be added to the job's one Xero invoice (paid/credited/voided invoice,
-  // switch off, totals differ); cleared once they are on it (`xero_invoice_repairs_added`, added or adopted after Sync).
-  { code: "xero_invoice_repeat_piesa_held", raise: (e) => e.event_type === "xero_invoice_repeat_piesa_held", clear: ["xero_invoice_repeat_piesa_added"], detail: (e) => (e.details?.["reason"] as string | undefined) ?? e.summary ?? null },
-  { code: "xero_invoice_repairs_held", raise: (e) => e.event_type === "xero_invoice_repairs_held", clear: ["xero_invoice_repairs_added"], detail: (e) => (e.details?.["reason"] as string | undefined) ?? e.summary ?? null },
   // Batch 2 (Jo 29 Oct): a STOP reply could not release the installer (sms-stop.server writes it with needs_office);
   // cleared by the job's next cancel-release (the office cancelling again).
   { code: "stop_installer_release_failed", raise: (e) => e.event_type === "stop_installer_release_failed" && e.details?.["needs_office"] === true, clear: ["job_cancel_released"], detail: () => null },

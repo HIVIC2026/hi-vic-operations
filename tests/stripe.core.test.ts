@@ -44,10 +44,17 @@ describe("checkout session", () => {
     expect(form["metadata[step]"]).toBe("fixes");
     expect(form["payment_intent_data[metadata][invoice_id]"]).toBe("inv-1");
     expect(form["customer_email"]).toBe("o@example.com");
-    expect(idempotencyKey).toBe("hivic-checkout-job-1-fixes-45000");
+    expect(idempotencyKey).toBe("hivic-checkout-job-1-inv-1-fixes-45000");
     expect(checkoutSessionParams(i).idempotencyKey).toBe(idempotencyKey);
     expect(encodeForm({ "a[b]": "x y", c: "1" })).toBe("a%5Bb%5D=x%20y&c=1");
     expect(Object.keys(form).some((k) => /fee|surcharge/i.test(k))).toBe(false);
+  });
+  test("batch 3b: same step and amount on a different invoice is a different session (key names the invoice)", () => {
+    const i = { jobId: "job-1", invoiceId: "inv-1", step: "fixes" as const, amountCents: 45_000, jobNumber: "HV-0042", description: "x", successUrl: "https://x/a", cancelUrl: "https://x/b" };
+    const a = checkoutSessionParams(i).idempotencyKey;
+    const b = checkoutSessionParams({ ...i, invoiceId: "inv-2" }).idempotencyKey;
+    expect(a).not.toBe(b);
+    expect(b).toContain("inv-2");
   });
 });
 

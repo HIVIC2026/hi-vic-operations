@@ -30,7 +30,7 @@ describe("Add job confirmations and source-specific pricing", () => {
 
   test("the installer is told through the approved I23 email (once per quote) when the safety check is paid, not a dead outbox row (F13)", () => {
     const acceptance = read("src/lib/portal.functions.ts");
-    expect(read("src/lib/payments.server.ts")).toContain("emailInstallerOnSafetyCheckPaid(jobId, invoiceId)");
+    expect(read("src/lib/payments.server.ts")).toContain("emailInstallerOnSafetyCheckPaid(jobId, v.invoiceId)");
     expect(acceptance).not.toContain("owner-quote-accepted-v1");
     expect(read("src/lib/installer-accepted-email.server.ts")).toContain('contains("details", { quote_id: quoteId })');
   });

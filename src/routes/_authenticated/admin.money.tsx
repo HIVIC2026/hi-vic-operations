@@ -184,11 +184,11 @@ function Invoices({ q }: { q: Q<InvoicesData> }) {
   if (q.isPending || !q.data) return <Loading what="invoices" />;
   return (
     <section data-why="decisions 139–144, 209; 240 Stripe/Xero only">
-      <TabCaption>One Xero invoice per job · paid from Stripe or Xero reconciliation · steps are paid when the running total reaches each amount · Chase opens Log a call or note</TabCaption>
+      <TabCaption>Each job's invoices on their own rows (install, electrical fixes, safety check 2) · paid from Stripe or Xero reconciliation · steps are paid when the running total on that invoice reaches each amount · Chase opens Log a call or note</TabCaption>
       <OfficeTable why="decision 240: no Record payment; payments read from Xero/Stripe" isEmpty={!q.data.rows.length} empty="No invoices yet." head={["Invoice", "Owner", "Job", "Total", "Steps", "Paid", "State"]}>
         {q.data.rows.map((r) => (
           <tr key={r.invoiceId}>
-            <td className="font-semibold">{r.invoiceNumber ?? "Not in Xero yet"}</td>
+            <td><span className="font-semibold">{r.label} · {r.invoiceNumber ?? "Not in Xero yet"}</span>{r.reference && <span className="block text-xs text-sub">{r.reference}</span>}</td>
             <td>{r.owner ?? "—"}</td>
             <td><Link to="/admin/jobs/$jobId" params={{ jobId: r.jobId }} className="text-hiv-blue hover:underline">{r.jobNumber}</Link><span className="block text-xs text-sub">{r.stage}</span></td>
             <td>{dollars(r.totalCents / 100)}</td>

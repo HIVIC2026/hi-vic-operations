@@ -35,8 +35,8 @@ const CARD_OF: Record<NeedsKind, NeedsCardId> = {
   choose_installer: "other", choose_electrician: "electrician", eligibility_review: "other",
   piesa_owner_unsigned: "owner", piesa_fixes_owner_unsigned: "owner", fixes_times_missing: "owner", booking_overdue: "owner",
   veec_a_held: "veec", veec_day_10: "veec",
-  invoice_failed: "payments", payment_not_in_xero: "payments", payment_overdue: "payments", payment_reversed: "payments", payment_stalled: "payments", mitti_form_problem: "other",
-  ten_days_left: "clock", lapsed_window: "clock", second_no_access: "clock", repeat_piesa_choose: "clock", repeat_piesa_xero_held: "payments",
+  invoice_failed: "payments", old_fixes_invoice_unpaid: "payments", old_fixes_invoice_paid: "payments", payment_not_in_xero: "payments", payment_overdue: "payments", payment_reversed: "payments", payment_stalled: "payments", mitti_form_problem: "other",
+  ten_days_left: "clock", lapsed_window: "clock", second_no_access: "clock", repeat_piesa_choose: "clock",
   piesa_fixes_found: "other", quote_expired_blocked: "owner", new_quote_installer: "other", new_quote_unfinished: "other",
 };
 

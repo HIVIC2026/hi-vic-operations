@@ -3,7 +3,7 @@
 import { expect, mock, test } from "bun:test";
 import { readFileSync } from "node:fs";
 
-const pair = { pairKey: "pi_3Abc123456|x1", amountCents: 34_900, xeroPaymentId: "x1", xeroPaidAt: "2026-10-26T03:00:00.000Z" };
+const pair = { invoiceId: "inv-1", invoice: "install", reference: "INV-1", pairKey: "pi_3Abc123456|x1", amountCents: 34_900, xeroPaymentId: "x1", xeroPaidAt: "2026-10-26T03:00:00.000Z" };
 mock.module("../src/integrations/supabase/client.server", () => ({ supabaseAdmin: { from() {
   const q: any = { select() { return q; }, eq() { return q; }, in() { return q; }, order() { return q; }, limit() { return q; }, maybeSingle() { return q; },
     then(res: (v: unknown) => void) { return res({ data: null, error: null }); } };
@@ -11,6 +11,8 @@ mock.module("../src/integrations/supabase/client.server", () => ({ supabaseAdmin
 } } }));
 mock.module("../src/lib/payments.server", () => ({ jobPaymentView: async () => ({
   invoiceId: "inv-1", steps: [], paidCents: 34_900, reference: "INV-1", bank: { configured: false }, onlineInvoiceUrl: null, provisional: null,
+  // Batch 3b: the view carries each invoice (install / fixes / repeat) and the money on each.
+  invoices: { install: { id: "inv-1", xero_invoice_number: "INV-1", xero_reference: "Home Insulation Victoria HV-1", total_inc_gst: 1000, xero_invoice_id: "x-1" }, fixes: null, repeat: null }, paid: { install: 34_900, fixes: 0, repeat: 0 },
   plan: { grandTotalCents: 100_000 }, unclearPairs: [pair],
 }) }));
 const { loadJobMoney } = await import("../src/lib/office-job-page.server");

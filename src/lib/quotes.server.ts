@@ -93,12 +93,8 @@ export async function generateInstallerQuotes(jobId: string, actorId: string | n
   const metro = loc ? loc.metropolitan_or_regional === "Metropolitan" : null;
 
   const newQuote = await newQuoteRebuildFor(jobId);
-  // Known rectification scope (owner-approved) is folded in so the single accepted total covers the whole job. Lines stay itemised, no markup.
-  const { data: rectQuote } = newQuote ? { data: null }
-    : await admin.from("quotes").select("id, quote_items(*)").eq("job_id", jobId).eq("kind", "rectification").eq("status", "accepted").order("created_at", { ascending: false }).limit(1).maybeSingle();
-  const rectLines = ((rectQuote?.quote_items ?? []) as { code: string | null; description: string; quantity: number; unit: string; unit_price_inc_gst: number; line_total_inc_gst: number; is_other: boolean; explanation: string | null }[])
-    .map((l) => ({ code: l.code, description: `electrical fixes: ${l.description}`, quantity: Number(l.quantity), unit: l.unit, unit_price_inc_gst: Number(l.unit_price_inc_gst), line_total_inc_gst: Number(l.line_total_inc_gst), is_other: l.is_other, explanation: l.explanation }));
-  const rectTotal = r2(rectLines.reduce((a, l) => a + l.line_total_inc_gst, 0));
+  // Batch 3b (Jo 29 Oct 2026): accepted electrical fixes are never folded in — they have their own quote and their own
+  // invoice. The installation quote keeps only the installation lines (incl. the PIESA and AP fee lines).
   const gstMul = 1 + Number(settings.gst_rate);
   // Decisions 373/374 (Jo 25 Oct 2026): on our leads WE always choose the electrician (nearest approved REC covering the
   // postcode), so the PIESA line is always HIV's standard price ($349) and the electrician is ours (paid their own
@@ -135,7 +131,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string | n
   // Earlier open quotes are superseded only AFTER the new quote and its lines are saved (below): a failure part-way
   // never withdraws the owner's current quote without a replacement.
   const ownSubtotal = r2(calc.lines.reduce((a, l) => a + l.line_total_inc_gst, 0));
-  const subtotal = r2(ownSubtotal + rectTotal);
+  const subtotal = ownSubtotal;
   // Jo, 5 Oct 2026: same basis as the calculator — whole VEECs (Eq 48.1 rounded down, property postcode) × consumer
   // $/VEEC, then the $200 minimum rule. The old flat per-m² credit is no longer used for new/redrafted quotes.
   if (!loc) throw new WorkflowError("VEU discount can't be worked out: the property postcode isn't in the official VEU location list. Quote this job manually.");
@@ -151,7 +147,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string | n
     estimateTotal: currentEstimateTotal(estimate?.scenarios, qi.removalM2 > 0),
     quoteTotal: customerTotal,
     tolerancePct: Number(workflow?.quote_estimate_variance_tolerance_pct ?? 15),
-    hasUnratedExtras: rectLines.some((line) => line.is_other),
+    hasUnratedExtras: false,
     externalSendingEnabled: workflow?.auto_send_quote === true && workflow?.customer_comms_enabled === true,
   });
   // Jo 22 Oct 2026: installer's agreed rate above the owner rate for the chosen R-value → held for office review.
@@ -162,7 +158,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string | n
   const releasedAt = release.status === "issued" ? new Date().toISOString() : null;
   const availableToOwner = release.state !== "held";
   const discountNote = discountNotes(rules).join(" ") || null;
-  const label = rectLines.length ? `${rValue} ceiling insulation + electrical fixes` : `${rValue} ceiling insulation`;
+  const label = `${rValue} ceiling insulation`;
   const { data: q, error } = await admin.from("quotes").insert({
     job_id: jobId, kind: "installation", option_label: label, option_code: R_VALUE_CODE[rValue], status: availableToOwner ? "issued" : "draft", sent_at: releasedAt,
     release_state: release.state, release_hold_reason: release.reason,
@@ -172,10 +168,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string | n
     customer_total_inc_gst: customerTotal, created_by: actorId,
   }).select("id").single();
   if (error || !q) throw new Error(error?.message);
-  const { error: itemsError } = await admin.from("quote_items").insert([
-    ...calc.lines.map((l) => ({ ...l, quote_id: q.id })),
-    ...rectLines.map((l, i) => ({ ...l, quote_id: q.id, sort: 100 + i })),
-  ]);
+  const { error: itemsError } = await admin.from("quote_items").insert(calc.lines.map((l) => ({ ...l, quote_id: q.id })));
   const { error: internalsError } = itemsError ? { error: null } : await admin.from("quote_internals").insert({
     quote_id: q.id, cost_ex_gst: calc.installerCostEx, ap_margin_ex_gst: calc.installerMarkup.markupEx, ap_fee_ex_gst: r2((jobRow.ap_fee_override_inc_gst != null ? Number(jobRow.ap_fee_override_inc_gst) : Number(rs.ap_management_inc_gst)) / gstMul), // job AP fee override wins
     calc_snapshot: { pricing_rule: HIV_PRICING_RULE, installer_markup: calc.installerMarkup, piesa_electrician: piesaElectrician, measurement_id: qi.measurementId, area_m2: qi.areaM2, removal_m2: qi.removalM2, rate_card_version: card.version, pricing_version: settings.version, access: qi.access, access_rating: accessRating, difficult_access_pass_through: calc.difficultAccess, r_value: rValue, product: chosen.product, product_source: chosen.source, product_declared_not_verified: true, discount_notes: discountNotes(rules), discount_cap_applied: rules.cappedAtMax, discount_reduced_for_minimum: rules.reducedForMin },

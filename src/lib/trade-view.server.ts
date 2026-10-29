@@ -431,7 +431,7 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
     admin.from("workflow_events").select("job_id, created_at").eq("event_type", "stage_changed").eq("to_stage", "ready_for_veec").in("job_id", ids.length ? ids : none),
     admin.from("partner_offers").select("job_id, kind, summary").eq("business_id", bizId).eq("status", "accepted").in("job_id", ids.length ? ids : none),
     // Owner paid in full (Xero mirror): needed alongside AP approval before the 7-day payout clock starts.
-    admin.from("invoices").select("job_id, status, balance_paid_at, paid_at, updated_at").in("job_id", ids.length ? ids : none),
+    admin.from("invoices").select("job_id, kind, status, balance_paid_at, paid_at, updated_at").in("job_id", ids.length ? ids : none).eq("kind", "installation"),
     // Committed contract snapshot: does the accepted HIV quote carry this electrical line?
     admin.from("quotes").select("job_id, kind, quote_items(code, description), quote_internals(cost_ex_gst)").in("job_id", ids.length ? ids : none).eq("status", "accepted"),
   ]);
@@ -998,13 +998,14 @@ export async function tradeMoneyJob(jobId: string, userId: string) {
     admin.from("customer_assignments").select("installer_signed_at, consumer_final_signed_at, installed_product, installed_area_m2").eq("job_id", jobId).eq("record_kind", "final_veec_assignment").neq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("workflow_events").select("event_type, details, created_at").eq("job_id", jobId).eq("event_type", "visit_allocated").order("created_at", { ascending: false }),
     admin.from("ceiling_measurements").select("measured_area_m2, removal_m2, removal_required").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
-    admin.from("invoices").select("status, balance_paid_at, paid_at, updated_at").eq("job_id", jobId),
+    admin.from("invoices").select("kind, status, balance_paid_at, paid_at, updated_at").eq("job_id", jobId).eq("kind", "installation"),
   ]);
   const { currentAllocation } = await import("./visit-allocation.core");
   const evs = (alloc ?? []) as { event_type: string; details: unknown; created_at: string }[];
   const crew = [...new Set([decl?.installer_name, currentAllocation(evs, "install")?.worker_name].filter((x): x is string => !!x))];
   const digits = String(bank?.account_number ?? "").replace(/\D/g, "");
-  const paidInFull = (invs ?? []).length && (invs ?? []).every((x) => x.status === "fully_paid") ? (invs ?? []).map((x) => x.balance_paid_at ?? x.paid_at ?? x.updated_at).sort().at(-1) ?? null : null;
+  // Batch 3b: the install invoice only (the shared rule — fixes / repeat safety check invoices never hold installer pay).
+  const paidInFull = (await import("./trade-view.core")).ownerPaidInFullAt(invs ?? []);
   return {
     found: !!row, jobId, jobNumber: row?.jobNumber ?? null, suburb: row?.suburb ?? null, channel: row?.channel ?? null, doneAt: row?.doneAt ?? null,
     amount: row?.amount ?? null, state: row?.state ?? { kind: "checking" as const }, accountEnding: digits.length >= 4 ? digits.slice(-4) : null,

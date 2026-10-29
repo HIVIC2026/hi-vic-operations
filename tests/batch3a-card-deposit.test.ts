@@ -12,7 +12,8 @@ import { renderDepositReleasedEmail } from "../src/lib/deposit-release-notice.co
 const DEPOSIT_PHRASE = "card, bank transfer or payid";
 const NOW = "2026-10-29T00:00:00.000Z";
 const plan = paymentPlan({ quoteTotalCents: 400_000 });
-const steps = paymentSteps(plan, plan.safetyCheckCents, { safety_check: { requestedAt: NOW }, install_deposit: { requestedAt: NOW } }, NOW);
+const paidSafety = { install: plan.safetyCheckCents, fixes: 0, repeat: 0 };
+const steps = paymentSteps(plan, paidSafety, { safety_check: { requestedAt: NOW }, install_deposit: { requestedAt: NOW } }, NOW);
 const bank = { configured: true, accountName: "HIV", bsb: "123456", accountNumber: "12345678", payId: "pay@hiv.test" } as Parameters<typeof bankDetailLines>[0];
 
 describe("rules: card for the install deposit only", () => {
@@ -30,7 +31,7 @@ describe("rules: card for the install deposit only", () => {
     expect(stripeBlocker({ ...f, step: "balance" })).toContain("balance");
   });
   test("Checkout for the deposit charges exactly the deposit due now", () => {
-    const due = payableNow(plan, steps, plan.safetyCheckCents);
+    const due = payableNow(plan, steps, paidSafety);
     expect(due.step?.key).toBe("install_deposit");
     expect(due.dueNowCents).toBe(plan.installDepositCents);
     expect(due.cardAvailable).toBe(true);
@@ -40,8 +41,8 @@ describe("rules: card for the install deposit only", () => {
   });
   test("a part-paid deposit charges only what is left", () => {
     const part = plan.safetyCheckCents + 10_000;
-    const s = paymentSteps(plan, part, { safety_check: { requestedAt: NOW }, install_deposit: { requestedAt: NOW } }, NOW);
-    expect(payableNow(plan, s, part).dueNowCents).toBe(plan.installDepositCents - 10_000);
+    const s = paymentSteps(plan, { install: part, fixes: 0, repeat: 0 }, { safety_check: { requestedAt: NOW }, install_deposit: { requestedAt: NOW } }, NOW);
+    expect(payableNow(plan, s, { install: part, fixes: 0, repeat: 0 }).dueNowCents).toBe(plan.installDepositCents - 10_000);
   });
 });
 

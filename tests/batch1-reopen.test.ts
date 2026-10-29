@@ -30,7 +30,7 @@ mock.module("../src/lib/install-days.server", () => ({ installDayContext: async 
 mock.module("../src/lib/quotes.server", () => ({ deriveRectificationItems: async () => 0, generateRectificationQuote: async () => undefined }));
 mock.module("../src/lib/piesa-evidence.server", () => ({ piesaEvidenceHold: async () => [] }));
 const xeroCalls: string[] = []; const offers: string[] = [];
-mock.module("../src/lib/xero.server", () => ({ addRepeatPiesaToXeroInvoice: async (id: string) => { xeroCalls.push(id); return "not_linked"; } }));
+mock.module("../src/lib/xero.server", () => ({ createRepeatInvoice: async (id: string) => { xeroCalls.push(id); return { invoiceId: "inv-repeat" }; } }));
 mock.module("../src/lib/allocation.server", () => ({ startPiesaAllocation: async (id: string) => { offers.push(id); return { offered: 1, exhausted: false }; } }));
 mock.module("../src/lib/autoadvance.server", () => ({ autoAdvanceJob: async () => null }));
 mock.module("../src/lib/install-clearance.server", () => ({ notifyInstallerClearance: async () => undefined }));
@@ -365,6 +365,19 @@ describe("F6 (Jo 29 Oct): the owner already paid a repeat check that wasn't done
     expect((await repeatPiesaContext(J)).state.stage).toBe("owner_accept");
   });
 
+  // Batch 3b Task 5 (`reopen refund install only`): a refund on the electrical fixes invoice is not "the safety check was
+  // refunded" — the paid repeat still carries over.
+  test("reopen refund install only: a fixes-invoice refund doesn't trigger a repeat charge", async () => {
+    seed("installation_booked", true);
+    tables["invoices"] = [{ id: "inv-fix", job_id: J, kind: "rectification", quote_id: "q-fix", total_inc_gst: 550 }];
+    paidRepeat();
+    tables["workflow_events"]!.push(ev("owner_payment_reversed", "2026-10-22T00:00:00.000Z", { invoice_id: "inv-fix", amount_cents: 55_000, source: "card", note: "stripe-refund:pi_fix" }));
+    await reopenJob(J, "Owner rang back", "admin-1");
+    expect(events(rp.REPEAT_PIESA_CHOSEN_EVENT)).toHaveLength(1);
+    expect(xeroCalls).toEqual([]);
+    expect(events(rp.REPEAT_REOPEN_EVENT)[0]!["details"]).toMatchObject({ had_check: false, carried_repeat: D });
+  });
+
   test("a partial refund smaller than the repeat price does not count as refunded", () => {
     expect(rp.reopenRepeatDecision({ hadCheck: true, prior: { stage: "offer", payer: "owner", priceIncGst: 150, deadline: D }, paidAt: "2026-10-21T00:00:00.000Z", recordAfterPaid: false, reversedCentsSincePaid: 5_000 })).toBe("carry_over");
     expect(rp.reopenRepeatDecision({ hadCheck: true, prior: { stage: "offer", payer: "owner", priceIncGst: 150, deadline: D }, paidAt: "2026-10-21T00:00:00.000Z", recordAfterPaid: true, reversedCentsSincePaid: 0 })).toBe("charge"); // repeat was done
@@ -389,20 +402,9 @@ describe("reopen wording on the Xero line, the office card and Needs me", () => 
     const { readFileSync } = require("node:fs");
     expect(readFileSync("src/components/portal/repeat-piesa.tsx", "utf8")).toContain("repeatOfficeHeading(s.deadline)");
   });
-  test("Needs me: a held reopen Xero line gets one row, like the 30-day one", () => {
-    const ev = [
-      { job_id: "j1", event_type: "xero_invoice_repeat_piesa_held", created_at: "2026-10-28T02:00:00Z", details: { deadline: key, reason: "Xero refused the edit" } },
-      { job_id: "j1", event_type: "repeat_piesa_payer_chosen", created_at: "2026-10-28T01:00:00Z", details: { deadline: key, payer: "owner" } },
-      { job_id: "j2", event_type: "repeat_piesa_payer_chosen", created_at: "2026-10-28T01:00:00Z", details: { deadline: "2026-11-20", payer: "owner" } },
-    ];
-    expect([...rp.reopenRepeatDeadlines(ev)]).toEqual([["j1", key]]);
-    expect(rp.repeatXeroHeldFor(ev.filter((e) => e.job_id === "j1"), key)).toEqual({ at: "2026-10-28T02:00:00Z", reason: "Xero refused the edit" });
-    expect(rp.repeatXeroHeldFor([...ev, { job_id: "j1", event_type: "xero_invoice_repeat_piesa_added", created_at: "2026-10-28T03:00:00Z", details: { deadline: key } }], key)).toBeNull();
+  test("no repeat-line held/added readers remain (the repeat price is its own invoice)", () => {
     const { readFileSync } = require("node:fs");
-    const src = readFileSync("src/lib/office-needs.server.ts", "utf8");
-    expect(src).toContain("reopenRepeatDeadlines(payRepeatEv)");
-    expect(src).toContain("repeatXeroHeldFor(");
-    const ns = readFileSync("src/lib/office-needs.core.ts", "utf8");
-    expect(ns).toContain('kind: "repeat_piesa_xero_held"');
+    expect(readFileSync("src/lib/office-needs.server.ts", "utf8")).not.toMatch(/repeatXeroHeld|xero_invoice_repeat_piesa_/);
+    expect(readFileSync("src/lib/office-needs.core.ts", "utf8")).not.toContain("repeat_piesa_xero_held");
   });
 });
