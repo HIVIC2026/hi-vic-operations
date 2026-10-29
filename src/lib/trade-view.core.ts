@@ -507,6 +507,10 @@ export const GUIDE_STEPS = [
   { title: "Install days", body: "Once the PIESA is cleared, offer the owner 3 days with arrival times. Install within 30 days of the PIESA, or a new one is needed." },
   { title: "Install day", body: "Follow the install form from the 6:30am text, top to bottom: the SWMS (Safe Work Method Statement: your safety plan for the job), the PIISA (Pre-installation installer safety assessment: your safety check before you start), then the photos. Press Complete in Mitti, then sign Part B (your declaration) of the VEEC form (the rebate form) on the job." },
 ] as const;
+/** Browser tab title for the guide page: electricians see "Electrician guide" (Jo, 29 Oct 2026); installers unchanged. */
+export function guideTabTitle(kind: TradeKind): string {
+  return `${kind === "electrician" ? "Electrician" : "Installer"} guide – Home Insulation Victoria`;
+}
 /** What the approved business says it will take, on the welcome page (copy approved by Jo 29 Oct 2026). */
 export const WELCOME_TAKES = { installer: "Ready Checks and installs", electrician: `${PIESA_FULL} jobs` } as const;
 export const GUIDE_WORDS = {

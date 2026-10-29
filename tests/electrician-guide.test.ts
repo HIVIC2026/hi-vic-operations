@@ -41,3 +41,15 @@ test("business page guide row sub differs for electricians only", () => {
   expect(page).toContain('"The 2-minute guide: every job, the 30 days, getting paid"');
   expect(page).toMatch(/installer \? "The 2-minute guide: every job, the 30 days, getting paid" : "One minute: every job and getting paid"/);
 });
+
+import { guideTabTitle } from "../src/lib/trade-view.core";
+test("browser tab says Electrician guide for electricians; installers unchanged", () => {
+  expect(guideTabTitle("electrician")).toBe("Electrician guide – Home Insulation Victoria");
+  expect(guideTabTitle("installer")).toBe("Installer guide – Home Insulation Victoria");
+  const page = readFileSync("src/routes/_authenticated/field.guide.tsx", "utf8");
+  expect(page).toContain('{ title: "Installer guide – Home Insulation Victoria" }');
+  const elec = page.slice(page.indexOf("function ElectricianGuide"), page.indexOf("function InstallerGuide"));
+  expect(elec).toContain('useEffect(() => { document.title = guideTabTitle("electrician"); }, []);');
+  const inst = page.slice(page.indexOf("function InstallerGuide"));
+  expect(inst).not.toContain("document.title");
+});

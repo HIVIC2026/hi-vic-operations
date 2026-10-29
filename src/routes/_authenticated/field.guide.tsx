@@ -1,8 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { TradeShell } from "@/components/trade/TradeShell";
-import { ELECTRICIAN_GUIDE_STEPS, ELECTRICIAN_GUIDE_WORDS, GUIDE_STEPS, GUIDE_WORDS } from "@/lib/trade-view.core";
+import { ELECTRICIAN_GUIDE_STEPS, ELECTRICIAN_GUIDE_WORDS, GUIDE_STEPS, GUIDE_WORDS, guideTabTitle } from "@/lib/trade-view.core";
 import { getTradeBusiness } from "@/lib/trade-view.functions";
 import { NoFormNoPay, outlineLinkClass, Screen } from "@/components/trade/installer-kit";
 
@@ -23,6 +24,7 @@ function Guide() {
 
 // Electrician guide (copy approved by Jo 29 Oct 2026): short, four steps and getting paid; no photos/pay lines, no NoFormNoPay.
 function ElectricianGuide() {
+  useEffect(() => { document.title = guideTabTitle("electrician"); }, []);
   return (
     <TradeShell installer={false}>
       <Screen>
