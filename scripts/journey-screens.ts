@@ -105,8 +105,14 @@ const STEPS: Step[] = [
     expect: async () => (await admin.from("partner_offers").select("status").eq("id", offer!).single()).data?.status === "accepted" ? null : "offer not accepted" },
   { step: "Ready Check booking", person: "homeowner", path: () => `/my-job/${ctx!.token}`, wait: "Your progress", button: "time:", severity: "Stop launch", next: "time", expect: stageIs("ready_check_scheduled") },
   { step: "Ready Check start and simulated form handoff", person: "installer owner", path: () => `/field/day/${ctx!.jobId}`, wait: "Ready Check", button: "prestart:", severity: "Fix soon", next: "Mitti" },
+  // Jo 28 Oct 23:00: the TEST office presses "Check & send", then confirms with "Send quote" (TEST sends stay held).
+  { step: "Office sends the quote (Check & send → Send quote)", person: "office", path: () => `/admin/jobs/${ctx!.jobId}`, wait: ctx?.jobNumber ?? "HV-", button: "Check & send|Send quote", severity: "Stop launch", next: "Quote",
+    expect: async () => (await admin.from("quotes").select("sent_at").eq("job_id", ctx!.jobId!).eq("kind", "installation").not("sent_at", "is", null).limit(1).maybeSingle()).data ? null : "no sent installation quote recorded" },
+  // Jo 28 Oct 23:00: the TEST homeowner ticks the boxes, types their name twice, presses the button and enters the TEST emailed code.
+  { step: "Homeowner says yes (ticks, name twice, code)", person: "homeowner", path: () => `/my-job/${ctx!.token}?screen=quote`, wait: "SAY YES", button: "ownerAccept:", severity: "Stop launch", next: "",
+    expect: async () => (await admin.from("quotes").select("id").eq("job_id", ctx!.jobId!).eq("kind", "installation").eq("status", "accepted").limit(1).maybeSingle()).data ? null : "quote not accepted" },
 ];
-const LATER = ["Office quote release", "Owner acceptance", "PIESA payment and booking", "PIESA completed form approval", "Install deposit and days", "Install day and evidence", "AP final check", "Final payout"];
+const LATER = ["PIESA payment and booking", "PIESA completed form approval", "Install deposit and days", "Install day and evidence", "AP final check", "Final payout"];
 
 const py = String.raw`
 import asyncio, json, re, sys
@@ -223,6 +229,33 @@ async def main():
                 handoff = page.get_by_role("button", name=re.compile(r"Ready Check|Open.*form", re.I))
                 candidates = [x for x in await handoff.all() if await x.is_visible() and await x.is_enabled()]
                 el, how = (candidates[0] if candidates else None), "prestart button"
+            elif name == "ownerAccept:":
+                sy = page.locator("[data-testid=say-yes]")
+                for lab in await sy.locator("label").filter(has=page.locator("input[type=checkbox]")).all():
+                    if await lab.is_visible() and not await lab.locator("input").is_checked(): await lab.click()
+                await sy.get_by_label(re.compile(r"^Your full name", re.I)).fill("Test Journey")
+                await sy.get_by_label(re.compile(r"Type your name again", re.I)).fill("Test Journey")
+                btn = sy.get_by_role("button", name=re.compile(r"^Sign and pay", re.I))
+                if not await btn.is_enabled(): el, how = btn, "sign button"
+                else:
+                    await btn.click(); await page.wait_for_timeout(1500)
+                    em = sy.get_by_role("button", name=re.compile(r"^Email me a code", re.I))
+                    cr = cfg.get("codeRead")
+                    if await em.count() and cr:
+                        import urllib.request, time
+                        since = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(time.time() - 5))
+                        await em.first.click(); await page.wait_for_timeout(2500)
+                        code = None
+                        for _ in range(20):
+                            rq = urllib.request.Request(cr["url"] + "/rest/v1/qa_owner_codes?select=code&order=created_at.desc&limit=1&job_id=eq." + cr["job"] + "&created_at=gte." + since, headers={"apikey": cr["key"], "Authorization": "Bearer " + cr["key"]})
+                            rows_ = json.loads(urllib.request.urlopen(rq, timeout=10).read() or b"[]")
+                            if rows_: code = rows_[0]["code"]; break
+                            await asyncio.sleep(1)
+                        if not code: res["clicked"] = False; res["missing"] = "a fresh TEST code after Email me a code"; break
+                        await sy.get_by_label("Enter code").fill(code)
+                        await sy.get_by_role("button", name="Check my code").click(); await page.wait_for_timeout(2500)
+                        sc = f"screenshots/{cfg['n']:02d}-{cfg['slug']}-code.png"; await page.screenshot(path=str(out / sc)); res["shots"].append(sc)
+                    el, how = sy.get_by_role("button", name=re.compile(r"^Sign and pay", re.I)), "sign button (after code)"
             elif name == "practice:":
                 answers = ["Yes", "No", "Easy", "1", "120", "No", "Laser in the ceiling space", "No", "No", "No", "Bradford Gold R5", "No"]
                 for control, value in zip(await page.locator("form input").all(), answers): await control.fill(value)
