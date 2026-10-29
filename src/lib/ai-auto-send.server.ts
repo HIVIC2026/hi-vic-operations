@@ -4,7 +4,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   AI_AUTO_DECISION_EVENT, AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, AUTO_SEND_KINDS, latestDraftEdits, AI_EMAIL_DRAFT_EDITED_EVENT,
-  aiReplyProblems, aiSendQuietReason, autoSendDecision, autoSendKey, draftNeeds, latestAutoDecisions, type AiAutoKind,
+  aiDraftKey, aiReplyProblems, aiSendQuietReason, autoSendDecision, autoSendKey, draftNeeds, latestAutoDecisions, type AiAutoKind,
 } from "./ai-email-reply.core";
 import { firstNameOf } from "./email-reply.core";
 
@@ -215,6 +215,12 @@ export async function autoSendDraft(draftId: string, o: { now?: Date; ownerText?
   await recordDecision(jobId, draftId, kind, d.send, d.reason);
   if (d.send !== "now") return { ...d, sent: false };
 
+  // Race with Jo pressing Send: her manual send has its own key. If that record exists, she has replied — don't send a second one.
+  if (messageId) {
+    const { data: manual, error: mErr } = await loose.from("customer_email_sends").select("status").eq("idempotency_key", `${aiDraftKey(messageId)}:send:${draftId}`).limit(5);
+    if (mErr) return leave("Auto-send failed: couldn't check whether you'd already replied");
+    if (((manual ?? []) as { status: string | null }[]).some((r) => r.status !== "failed")) return leave(ALREADY_REPLIED_BY_YOU_REASON);
+  }
   try {
     const { sendAiDraft } = await import("./ai-email-reply.server");
     const r = await sendAiDraft(draftId, body, null, { via: "ai" }, now);

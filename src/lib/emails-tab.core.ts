@@ -175,7 +175,9 @@ export type DraftRef = { eventId: string; body: string; kind?: "link" | "follow_
   /** Job drafts (AI replies step 2): questions the AI couldn't answer, and a complaint after the install. */
   needsAnswer?: string[]; needsYou?: boolean;
   /** Job drafts: what the AI proposes doing when Jo sends (note for the installer, new ceiling size). */
-  actions?: { installerNote?: string; newAreaM2?: number } };
+  actions?: { installerNote?: string; newAreaM2?: number };
+  /** Job drafts (step 4): the newest auto-send decision for this draft. */
+  auto?: { decision: "now" | "at7am" | "no"; reason: string } };
 
 export type JobEmailCard = {
   key: string; requestEventId: string; jobId: string; jobNumber: string | null; name: string | null; at: string;
@@ -190,6 +192,10 @@ export type JobEmailCard = {
   /** From the open draft: questions only Jo can answer, and a complaint after the install. */
   needsAnswer: string[];
   needsYou: boolean;
+  /** Step 4: newest auto-send decision on the open draft (a sent draft never has one). */
+  auto?: { decision: "now" | "at7am" | "no"; reason: string };
+  /** The AI sent the reply to this email itself. */
+  sentByAi: boolean;
 };
 export type NoJobCard = {
   key: string; unmatchedEventId: string; at: string; from: string | null; fromName: string | null; subject: string | null;
@@ -213,6 +219,8 @@ export function chunks<T>(xs: T[], n = 50): T[][] {
   return out;
 }
 
+function jobHasOpen(i: { jobDrafts: Map<string, DraftRef> }, jobId: string, messageId: string): boolean { return i.jobDrafts.has(jobDraftKey(jobId, messageId)); }
+
 export function buildEmailsTab(i: {
   changes: JobEmailRow[];
   unmatched: UnmatchedRow[];
@@ -222,6 +230,8 @@ export function buildEmailsTab(i: {
   noJobDrafts: Map<string, DraftRef>;
   /** Job drafts already sent or discarded, keyed by jobDraftKey(job, message). */
   closedJobDrafts: Set<string>;
+  /** Of those, the ones the AI sent itself (step 4), same keys. */
+  aiSentJobDrafts?: Set<string>;
   /** What the owner wrote, per Outlook message id (from the job's email history). */
   inboundByMessage: Map<string, string>;
   ownerNameByJob: Map<string, string | null>;
@@ -233,13 +243,18 @@ export function buildEmailsTab(i: {
   /** Jobs that are still open (not cancelled, complete or archived). */
   openJobIds?: Set<string>;
 }): EmailsTab {
-  const withJob = i.changes.filter((c) => c.intent !== "reply" || !answeredInOutlook(c, i.outlookReplies ?? []) || (!!i.openJobIds?.has(c.jobId) && readsAsDecline(c.messageId ? i.inboundByMessage.get(c.messageId) ?? null : null))).sort((a, b) => b.at.localeCompare(a.at)).map((c): Omit<JobEmailCard, "needsAnswer" | "needsYou"> => ({
+  const withJob = i.changes.filter((c) => c.intent !== "reply" || !answeredInOutlook(c, i.outlookReplies ?? []) || (!!i.openJobIds?.has(c.jobId) && readsAsDecline(c.messageId ? i.inboundByMessage.get(c.messageId) ?? null : null))).sort((a, b) => b.at.localeCompare(a.at)).map((c): Omit<JobEmailCard, "needsAnswer" | "needsYou" | "auto"> => ({
     key: `job:${c.eventId}`, requestEventId: c.eventId, jobId: c.jobId, jobNumber: c.jobNumber, name: i.ownerNameByJob.get(c.jobId) ?? null, at: c.at,
     subject: c.subject, theyWrote: c.messageId ? (i.inboundByMessage.get(c.messageId) ?? null) : null, intent: c.intent, label: c.label,
     draft: c.messageId ? (i.jobDrafts.get(jobDraftKey(c.jobId, c.messageId)) ?? null) : null,
-    draftClosed: !!c.messageId && i.closedJobDrafts.has(jobDraftKey(c.jobId, c.messageId)), action: ACTION[c.intent ?? ""] ?? "dealt_with",
+    draftClosed: !!c.messageId && i.closedJobDrafts.has(jobDraftKey(c.jobId, c.messageId)),
+    sentByAi: !!c.messageId && !jobHasOpen(i, c.jobId, c.messageId) && !!i.aiSentJobDrafts?.has(jobDraftKey(c.jobId, c.messageId)), action: ACTION[c.intent ?? ""] ?? "dealt_with",
     stillOpenDecline: !!i.openJobIds?.has(c.jobId) && (c.intent === "cancel" || (c.intent === "reply" && readsAsDecline(c.messageId ? (i.inboundByMessage.get(c.messageId) ?? null) : null))),
-  })).map((c): JobEmailCard => ({ ...c, needsAnswer: c.draft?.needsAnswer ?? [], needsYou: c.draft?.needsYou === true }));
+  })).map((c): JobEmailCard => {
+    // A sent reply wins over any decision: only an open draft that was not sent shows one.
+    const sentByAi = c.sentByAi && !c.draft;
+    return { ...c, sentByAi, needsAnswer: c.draft?.needsAnswer ?? [], needsYou: c.draft?.needsYou === true, ...(c.draft?.auto && !sentByAi ? { auto: c.draft.auto } : {}) };
+  });
   const noJob = i.unmatched.filter((u) => (!u.messageId || !i.answeredNoJobMessageIds?.has(u.messageId)) && !answeredInOutlook(u, i.outlookReplies ?? [])).sort((a, b) => b.at.localeCompare(a.at)).map((u): NoJobCard => {
     const g = u.guesses[0];
     const followUp = !!u.from && i.autoRepliedSenders.has(u.from.trim().toLowerCase());

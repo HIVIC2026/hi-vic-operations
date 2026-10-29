@@ -11,7 +11,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { WorkflowError } from "./workflow.server";
-import { AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, aiReplyEmailHtml, draftActions, draftNeeds, replySubject } from "./ai-email-reply.core";
+import { AI_AUTO_DECISION_EVENT, latestAutoDecisions, AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, aiReplyEmailHtml, draftActions, draftNeeds, replySubject } from "./ai-email-reply.core";
 import { EMAIL_CHANGE_REQUEST_EVENT } from "./email-intent.core";
 import { EMAIL_UNMATCHED_DISMISSED_EVENT, EMAIL_UNMATCHED_EVENT, EMAIL_UNMATCHED_MATCHED_EVENT } from "./outlook-guess.core";
 import { NEW_SENDER_REPLIED_EVENT, NEW_SENDER_REPLY_TEMPLATE, newSenderReplyKey } from "./new-sender-reply.core";
@@ -77,20 +77,24 @@ export async function loadEmailsTab(): Promise<EmailsTab> {
     many<{ details: { unmatched_event_id?: string; status?: string } | null }>(unmatched.map((u) => u.eventId), (part) => loose.from("workflow_events").select("details").eq("event_type", NO_JOB_REPLY_SENT_EVENT).in("details->>unmatched_event_id", part)),
   ]);
   // Review fix 6: resolutions are looked up for exactly these drafts, not the newest N across all jobs.
-  const done = await many<{ details: { draft_event_id?: string } | null }>(drafts.map((d) => d.id), (part) => loose.from("workflow_events").select("details").in("event_type", [AI_EMAIL_DRAFT_SENT_EVENT, AI_EMAIL_DRAFT_DISCARDED_EVENT, NO_JOB_REPLY_SENT_EVENT, NO_JOB_DRAFT_CLOSED_EVENT]).in("details->>draft_event_id", part));
+  const done = await many<{ event_type: string; details: { draft_event_id?: string; via?: string } | null }>(drafts.map((d) => d.id), (part) => loose.from("workflow_events").select("event_type, details").in("event_type", [AI_EMAIL_DRAFT_SENT_EVENT, AI_EMAIL_DRAFT_DISCARDED_EVENT, NO_JOB_REPLY_SENT_EVENT, NO_JOB_DRAFT_CLOSED_EVENT]).in("details->>draft_event_id", part));
   const closed = new Set(done.map((r) => r.details?.draft_event_id).filter(Boolean));
+  const aiSent = new Set(done.filter((r) => r.event_type === AI_EMAIL_DRAFT_SENT_EVENT && r.details?.via === "ai").map((r) => r.details?.draft_event_id));
+  // Step 4: the newest auto-send decision for each draft (a draft that has a sent event never shows one).
+  const decisionRows = await many<{ created_at: string; details: Det }>(drafts.map((d) => d.id), (part) => loose.from("workflow_events").select("created_at, details").eq("event_type", AI_AUTO_DECISION_EVENT).in("details->>draft_event_id", part));
+  const decisions = latestAutoDecisions(decisionRows);
   const edits = await (await import("./ai-email-reply.server")).draftEditsFor(drafts.map((d) => d.id));
   // Review fix 1: job drafts by job + message, no-job drafts by message — never mixed.
-  const jobDrafts = new Map<string, DraftRef>(), noJobDrafts = new Map<string, DraftRef>(), closedJobDrafts = new Set<string>();
+  const jobDrafts = new Map<string, DraftRef>(), noJobDrafts = new Map<string, DraftRef>(), closedJobDrafts = new Set<string>(), aiSentJobDrafts = new Set<string>();
   for (const r of drafts) {
     const mid = str(r.details["message_id"]);
     if (!mid) continue;
     const ref: DraftRef = { eventId: r.id, body: edits.get(r.id) ?? String(r.details["body"] ?? ""),
       kind: r.details["kind"] === "follow_up" ? "follow_up" : "link", nothingToAnswer: r.details["nothing_to_answer"] === true,
-      ...(r.event_type === AI_EMAIL_DRAFT_EVENT ? { ...draftNeeds(r.details), actions: draftActions(r.details) } : {}) };
+      ...(r.event_type === AI_EMAIL_DRAFT_EVENT ? { ...draftNeeds(r.details), actions: draftActions(r.details), ...(decisions.has(r.id) && !closed.has(r.id) ? { auto: { decision: decisions.get(r.id)!.decision, reason: decisions.get(r.id)!.reason } } : {}) } : {}) };
     if (r.event_type === AI_EMAIL_DRAFT_EVENT && r.job_id) {
       const k = jobDraftKey(r.job_id, mid);
-      if (closed.has(r.id)) closedJobDrafts.add(k); else if (!jobDrafts.has(k)) jobDrafts.set(k, ref);
+      if (closed.has(r.id)) { closedJobDrafts.add(k); if (aiSent.has(r.id)) aiSentJobDrafts.add(k); } else if (!jobDrafts.has(k)) jobDrafts.set(k, ref);
     } else if (r.event_type === NO_JOB_DRAFT_EVENT && !closed.has(r.id) && !noJobDrafts.has(mid)) noJobDrafts.set(mid, ref);
   }
   for (const k of jobDrafts.keys()) closedJobDrafts.delete(k);
@@ -106,7 +110,7 @@ export async function loadEmailsTab(): Promise<EmailsTab> {
   const threads = [...new Set([...changes, ...unmatched].map((r) => r.threadId).filter((t): t is string => !!t))];
   const outlookSent = await many<{ message: { threadId?: string; at?: string; to?: string[] } }>(threads, (part) => loose.from("outlook_message_work").select("message").eq("message->>direction", "outbound").in("message->>threadId", part));
   const outlookReplies = outlookSent.map((r) => ({ threadId: r.message?.threadId ?? null, at: r.message?.at ?? null, recipients: r.message?.to ?? [] }));
-  return buildEmailsTab({ changes, unmatched, jobDrafts, noJobDrafts, closedJobDrafts, inboundByMessage, ownerNameByJob, autoRepliedSenders, answeredNoJobMessageIds, outlookReplies, openJobIds });
+  return buildEmailsTab({ changes, unmatched, jobDrafts, noJobDrafts, closedJobDrafts, aiSentJobDrafts, inboundByMessage, ownerNameByJob, autoRepliedSenders, answeredNoJobMessageIds, outlookReplies, openJobIds });
 }
 
 async function eventOf(id: string, type: string) {

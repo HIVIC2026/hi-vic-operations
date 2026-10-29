@@ -392,6 +392,21 @@ export function latestAutoDecisions(rows: { created_at: string; details: Record<
   return out;
 }
 
+/** What a draft's card shows about auto-send. A sent event wins over any decision (never "failed" for a sent draft);
+ *  a discarded draft shows nothing. `sentVia`: undefined = no sent event, otherwise its details.via. */
+export function draftAutoState(i: { sentVia: string | null | undefined; discarded?: boolean | undefined; decision?: Pick<AutoDecision, "decision" | "reason"> | null | undefined }):
+  { auto?: { decision: "now" | "at7am" | "no"; reason: string }; sentByAi: boolean } {
+  if (i.sentVia !== undefined) return { sentByAi: i.sentVia === "ai" };
+  if (i.discarded || !i.decision) return { sentByAi: false };
+  return { auto: { decision: i.decision.decision, reason: i.decision.reason }, sentByAi: false };
+}
+/** The small grey line on a waiting draft. Nothing when there is no decision, or it is already sending. */
+export function autoNoteText(auto: { decision: "now" | "at7am" | "no"; reason: string } | undefined | null): string | null {
+  if (!auto || auto.decision === "now") return null;
+  if (auto.decision === "at7am") return "Waiting for 7am — will send itself";
+  return /^Auto-send failed/i.test(auto.reason) ? auto.reason : `Didn't send itself: ${auto.reason}`;
+}
+
 /** needs_answer / needs_you from a saved draft's details (bad or missing values = none). */
 export function draftNeeds(details: Record<string, unknown> | null | undefined): { needsAnswer: string[]; needsYou: boolean } {
   const a = details?.["needs_answer"];

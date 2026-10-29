@@ -13,7 +13,7 @@ import { applyEmailChange, ignoreEmailChange, matchOutlookEmail } from "@/lib/em
 import { getEmailsTab, matchEmailToJob, sendJobEmailReply, sendNoJobEmailReply, writeEmailDrafts } from "@/lib/emails-tab.functions";
 import type { JobEmailCard, NoJobCard } from "@/lib/emails-tab.core";
 import { EMAILS_TAB_KEY } from "@/components/portal/emails-count";
-import { AI_REWRITTEN_NOTE } from "@/lib/ai-email-reply.core";
+import { AI_REWRITTEN_NOTE, autoNoteText } from "@/lib/ai-email-reply.core";
 import { saveStateText, useDraftAutosave, type SaveState } from "@/components/portal/use-draft-autosave";
 import { ActionChecks, ALL_TICKED, NeedsNotes, PendingSaves, type ActionTicks, type PendingSave } from "@/components/portal/ai-needs-answer";
 
@@ -91,7 +91,9 @@ function JobCard({ c, onDone, onSent }: { c: JobEmailCard; onDone: () => void; o
       <TheyWrote text={c.theyWrote} />
       {c.stillOpenDecline && <p className="text-sm font-semibold text-danger">Still open — Close job or Keep open</p>}
       {c.draft && <NeedsNotes needsAnswer={c.needsAnswer} needsYou={c.needsYou} />}
-      {c.draftClosed && !c.draft && c.stillOpenDecline ? null : c.draftClosed && !c.draft ? <p className="text-sm text-sub">No reply needed, or it was already answered — press Done to file it away.</p> : <Reply body={body} setBody={(t) => { setNote(null); setBody(t); }} busy={busy} saved={saved} waiting={c.intent === "reply"} />}
+      {c.draft && autoNoteText(c.auto) && <p className="text-xs text-sub" data-testid="auto-send-note">{autoNoteText(c.auto)}</p>}
+      {c.sentByAi && <p className="text-sm text-sub" data-testid="sent-by-ai">Sent by AI</p>}
+      {c.draftClosed && !c.draft && c.stillOpenDecline ? null : c.draftClosed && !c.draft ? <p className="text-sm text-sub">{c.sentByAi ? "The AI already replied — press Done to file it away." : "No reply needed, or it was already answered — press Done to file it away."}</p> : <Reply body={body} setBody={(t) => { setNote(null); setBody(t); }} busy={busy} saved={saved} waiting={c.intent === "reply"} />}
       {c.draft && body !== null && <ActionChecks actions={c.draft.actions} ticks={ticks} onChange={setTicks} disabled={busy} />}
       <RewrittenNote note={note} />
       <div className="grid grid-cols-2 gap-2 md:flex">

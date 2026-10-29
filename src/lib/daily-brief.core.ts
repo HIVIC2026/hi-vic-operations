@@ -63,11 +63,20 @@ export type DailyBrief = {
   apQueue: number;
   atRisk: BriefRisk[];
   yesterday: { day: string; enquiries: number; bookings: number; installs: number; veecsSubmitted: number; veecsRegistered: number };
+  /** AI replies that sent themselves yesterday (Melbourne day), real jobs only. */
+  aiAutoSent: number;
 };
 
-export function buildDailyBrief(i: { date: string; needs: BriefNeed[]; apQueue: number; atRisk: BriefRisk[]; yesterday: DailyBrief["yesterday"] }): DailyBrief {
+/** Count of AI auto-sent replies in [from, to) on non-QA jobs. Rows are `email_ai_draft_sent` events. */
+export function aiAutoSentCount(events: Array<{ job_id: string | null; created_at: string; details: Record<string, unknown> | null }>, jobSource: Map<string, string | null>, from: string, to: string): number {
+  return events.filter((e) => e.details?.["via"] === "ai" && !!e.job_id && e.created_at >= from && e.created_at < to && jobSource.has(e.job_id) && jobSource.get(e.job_id) !== "qa_test").length;
+}
+/** The brief line for it; nothing when none went. */
+export function aiAutoSentLine(n: number): string | null { return n > 0 ? `AI replies sent by themselves: ${n}` : null; }
+
+export function buildDailyBrief(i: { date: string; needs: BriefNeed[]; apQueue: number; atRisk: BriefRisk[]; yesterday: DailyBrief["yesterday"]; aiAutoSent?: number }): DailyBrief {
   const by = (u: BriefNeed["urgency"]) => i.needs.filter((n) => n.urgency === u);
-  return { date: i.date, needs: { urgent: by("urgent"), today: by("today"), soon: by("soon") }, apQueue: i.apQueue, atRisk: [...i.atRisk].sort((a, b) => a.when.localeCompare(b.when)), yesterday: i.yesterday };
+  return { date: i.date, needs: { urgent: by("urgent"), today: by("today"), soon: by("soon") }, apQueue: i.apQueue, atRisk: [...i.atRisk].sort((a, b) => a.when.localeCompare(b.when)), yesterday: i.yesterday, aiAutoSent: i.aiAutoSent ?? 0 };
 }
 
 /** Installs inside the next 7 days whose latest check for that start time has not passed. */

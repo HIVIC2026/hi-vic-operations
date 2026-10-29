@@ -9,7 +9,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MailMessage } from "./outlook-correspondence.core";
 import {
   AI_EMAIL_DRAFTS_ENABLED, NO_REPLY_NEEDED, AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EDITED_EVENT, latestDraftEdits, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, AI_EMAIL_REPLY_PURPOSE, AI_REPLY_INSTRUCTIONS, aiReplyInstructions, isPreReleaseOwner,
-  aiDraftKey, autoSendKey, aiReplyEmailHtml, aiReplyProblems, aiReplyText, bookingChangeLink, buildAiReplyInput, draftActions, draftNeeds, finishAiReply, fixUntilClean, higherRFacts, newSizeFacts, replySubject, splitAiOutput, type AiActions, type AiReplyKind,
+  AI_AUTO_DECISION_EVENT, aiDraftKey, autoSendKey, draftAutoState, latestAutoDecisions, aiReplyEmailHtml, aiReplyProblems, aiReplyText, bookingChangeLink, buildAiReplyInput, draftActions, draftNeeds, finishAiReply, fixUntilClean, higherRFacts, newSizeFacts, replySubject, splitAiOutput, type AiActions, type AiReplyKind,
 } from "./ai-email-reply.core";
 import { loadAiAnswers } from "./ai-answers.server";
 import { loadStyleExamples } from "./ai-style.server";
@@ -213,7 +213,9 @@ async function estimateFacts(jobId: string): Promise<{ lines: string[]; areaM2: 
   return { lines: out, areaM2 };
 }
 
-export type AiDraftRow = { eventId: string; at: string; from: string | null; to: string; subject: string; theirSubject: string | null; body: string; kind: AiReplyKind; status: "waiting" | "sent" | "discarded"; doneAt: string | null; needsAnswer: string[]; needsYou: boolean; actions: AiActions };
+export type AiDraftRow = { eventId: string; at: string; from: string | null; to: string; subject: string; theirSubject: string | null; body: string; kind: AiReplyKind; status: "waiting" | "sent" | "discarded"; doneAt: string | null; needsAnswer: string[]; needsYou: boolean; actions: AiActions;
+  /** Newest auto-send decision (only while waiting), and whether the AI sent this one itself. */
+  auto?: { decision: "now" | "at7am" | "no"; reason: string }; sentByAi: boolean };
 
 /** Saved edits for these drafts: draft id -> newest body. */
 export async function draftEditsFor(ids: string[]): Promise<Map<string, string>> {
@@ -239,19 +241,28 @@ export async function saveDraftEdit(eventId: string, body: string, actorId: stri
 }
 
 export async function listAiDrafts(jobId: string): Promise<AiDraftRow[]> {
-  const [d, done] = await Promise.all([
+  const [d, done, dec] = await Promise.all([
     loose.from("workflow_events").select("id, created_at, details").eq("job_id", jobId).eq("event_type", AI_EMAIL_DRAFT_EVENT).order("created_at", { ascending: false }).limit(50),
     loose.from("workflow_events").select("event_type, created_at, details").eq("job_id", jobId).in("event_type", [AI_EMAIL_DRAFT_SENT_EVENT, AI_EMAIL_DRAFT_DISCARDED_EVENT]).limit(200),
+    loose.from("workflow_events").select("created_at, details").eq("job_id", jobId).eq("event_type", AI_AUTO_DECISION_EVENT).order("created_at", { ascending: false }).limit(500),
   ]);
   if (d.error) throw new Error(d.error.message);
+  if (dec.error) throw new Error(dec.error.message);
   const edits = await draftEditsFor(((d.data ?? []) as { id: string }[]).map((r) => r.id));
-  const res = new Map<string, { type: string; at: string }>();
-  for (const r of (done.data ?? []) as { event_type: string; created_at: string; details: { draft_event_id?: string } }[]) if (r.details?.draft_event_id) res.set(r.details.draft_event_id, { type: r.event_type, at: r.created_at });
+  const decisions = latestAutoDecisions((dec.data ?? []) as { created_at: string; details: Record<string, unknown> | null }[]);
+  const res = new Map<string, { type: string; at: string; via?: string | undefined }>();
+  // A sent event wins over a discard, whichever was written first.
+  for (const r of (done.data ?? []) as { event_type: string; created_at: string; details: { draft_event_id?: string; via?: string } }[]) {
+    const id = r.details?.draft_event_id; if (!id) continue;
+    if (res.get(id)?.type === AI_EMAIL_DRAFT_SENT_EVENT && r.event_type !== AI_EMAIL_DRAFT_SENT_EVENT) continue;
+    res.set(id, { type: r.event_type, at: r.created_at, via: r.details.via });
+  }
   return ((d.data ?? []) as { id: string; created_at: string; details: Record<string, unknown> }[]).map((r) => {
     const x = res.get(r.id); const det = r.details; const needs = draftNeeds(det);
     return { eventId: r.id, at: r.created_at, from: (det["from"] as string) ?? null, to: String(det["to"] ?? ""), subject: String(det["subject"] ?? ""), theirSubject: (det["their_subject"] as string) ?? null,
       body: edits.get(r.id) ?? String(det["body"] ?? ""), kind: det["kind"] === "simple" ? "simple" : "other", status: x ? (x.type === AI_EMAIL_DRAFT_SENT_EVENT ? "sent" : "discarded") : "waiting", doneAt: x?.at ?? null,
-      needsAnswer: needs.needsAnswer, needsYou: needs.needsYou, actions: draftActions(det) };
+      needsAnswer: needs.needsAnswer, needsYou: needs.needsYou, actions: draftActions(det),
+      ...draftAutoState({ sentVia: x?.type === AI_EMAIL_DRAFT_SENT_EVENT ? (x.via ?? "office") : undefined, discarded: x?.type === AI_EMAIL_DRAFT_DISCARDED_EVENT, decision: decisions.get(r.id) }) };
   });
 }
 
