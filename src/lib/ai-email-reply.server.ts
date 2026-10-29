@@ -10,6 +10,7 @@ import {
   AI_EMAIL_DRAFTS_ENABLED, NO_REPLY_NEEDED, AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EDITED_EVENT, latestDraftEdits, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, AI_EMAIL_REPLY_PURPOSE, AI_REPLY_INSTRUCTIONS, aiReplyInstructions, isPreReleaseOwner,
   aiDraftKey, aiReplyEmailHtml, aiReplyProblems, aiReplyText, bookingChangeLink, buildAiReplyInput, finishAiReply, fixUntilClean, replySubject, type AiReplyKind,
 } from "./ai-email-reply.core";
+import { loadAiAnswers } from "./ai-answers.server";
 
 const loose = admin as unknown as SupabaseClient;
 
@@ -77,7 +78,7 @@ export async function writeAiReplyDraft(p: { jobId: string; message: MailMessage
       history: ((hist ?? []) as { direction: string; subject: string | null; body: string; received_at: string | null; sent_at: string | null; created_at: string }[])
         .map((h) => ({ direction: h.direction === "outbound" ? "outbound" as const : "inbound" as const, at: h.received_at ?? h.sent_at ?? h.created_at, subject: h.subject, body: h.body ?? "" })),
       email: { from: m.from, subject: m.subject, body: m.body },
-    }, { preRelease });
+    }, { preRelease, answers: (await loadAiAnswers()).answers });
     const raw = await aiText(input, aiReplyInstructions({ preRelease }));
     const noReply = raw.trim().replace(/[.\s]+$/, "") === NO_REPLY_NEEDED;
     // A draft that breaks a rule is rewritten (at most twice) before it is saved; what still fails is saved with it for the office.
