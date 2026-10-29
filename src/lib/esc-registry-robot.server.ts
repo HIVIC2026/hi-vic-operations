@@ -171,7 +171,13 @@ export async function recordRobotDryRun(p: { jobId: string; task: RobotTask; not
 /** Any failure: internal event with needs_office so Needs me shows it and the office does the submission by hand. */
 export async function recordRobotFailure(p: { jobId: string; task: RobotTask; notificationId: string | null; mode: RobotMode; step: string; error: string; screenshotPath: string | null; registryUrl: string | null }) {
   const details = failureDetails(p);
+  const failedAt = new Date().toISOString(); // logEvent returns no timestamp; this keeps the alert key fixed for this call
   await logEvent(p.jobId, null, ROBOT_EVENTS.failed, `${failureLine(details)}. Needs Home Insulation Victoria`, details, { internal: true });
+  // Tell the office. Never lets an email problem hide the failure itself.
+  try {
+    const { sendRobotFailureAlert } = await import("./esc-robot-alert.server");
+    await sendRobotFailureAlert({ jobId: p.jobId, eventKey: `${p.task}:${p.notificationId ?? p.jobId}:${failedAt}`, task: p.task, step: p.step });
+  } catch (e) { console.error("robot failure email skipped", (e as Error).message); }
 }
 
 /** Robot submitted a NEW install notification. Same patch as the office record, method "adapter", no profile actor. */
