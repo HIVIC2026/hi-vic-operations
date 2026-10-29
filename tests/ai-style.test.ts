@@ -64,6 +64,15 @@ describe("scrubExample", () => {
     const a = scrubExample("At Unit 4/22 Smith St, Brighton 3186 and 5 The Ridgeway, Preston 3072 ok", o);
     expect(a).toBe("At <address> and <address> ok");
   });
+  test("address tails: suburb, state, postcode", () => {
+    expect(scrubExample("At 22 Smith Street, Brighton VIC 3186 ok", {})).toBe("At <address> ok");
+    expect(scrubExample("At 12 Wattle Gr Bentleigh East 3165 ok", {})).toBe("At <address> ok");
+    expect(scrubExample("Lives in Preston VIC 3072 ok", {})).toBe("Lives in Preston <postcode> ok");
+    expect(scrubExample("Lives in Preston 3072 ok", {})).toBe("Lives in Preston <postcode> ok");
+  });
+  test("known address prefix is swallowed", () => {
+    expect(scrubExample("At Unit 4/22 Smith St ok and 4/22 Smith St too", { address: "22 Smith St" })).toBe("At <address> ok and <address> too");
+  });
   test("known job details are removed exactly", () => {
     const s = scrubExample("Hi Jo, your place in Fitzroy North 3068 at 7 Oak Hill is fine, Li.", { name: "Jo Li", address: "7 Oak Hill", suburb: "Fitzroy North", postcode: "3068" });
     expect(s).toBe("Hi <name>, your place in <suburb> <postcode> at <address> is fine, <name>.");

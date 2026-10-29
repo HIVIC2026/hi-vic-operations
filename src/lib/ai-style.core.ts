@@ -25,7 +25,10 @@ const SUFFIX = "St|Street|Rd|Road|Ave|Avenue|Ct|Court|Cres|Crescent|Dr|Drive|Pl|
 const ADDRESS_RE = new RegExp(`\\b(?:(?:unit|apt|apartment|flat|suite|shop)\\s+)?\\d{1,5}[A-Za-z]?(?:/\\d{1,5}[A-Za-z]?)?\\s+(?:[A-Za-z'’-]+\\s+){0,3}?(?:${SUFFIX})\\b\\.?`, "gi");
 const NOT_DATE = "(?!(?:January|February|March|April|May|June|July|August|September|October|November|December|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\\b)";
 const STREET_NO_SUFFIX_RE = new RegExp(`\\b\\d{1,5}[A-Za-z]?\\s+${NOT_DATE}(?:[A-Z][a-z'’-]+\\s?){1,3}?(?=,|\\s+\\d{4}\\b)`, "g");
-const ADDRESS_TAIL_RE = /<address>(?:,\s*[A-Z][a-z]+(?:\s[A-Z][a-z]+)?(?:\s+\d{4})?(?=[\s.,;!)]|$)|\s+\d{4}\b)/g;
+const ST = "(?:VIC|NSW|QLD|SA|WA|TAS|ACT|NT)";
+const ADDRESS_TAIL_RE = new RegExp(`<address>(?:,?\\s+(?:[A-Z][a-z]+\\s+){0,3}${ST}\\s+\\d{4}\\b|,?\\s+(?:[A-Z][a-z]+\\s+){0,3}\\d{4}\\b|,\\s*[A-Z][a-z]+(?:\\s[A-Z][a-z]+){0,2}(?:\\s+${ST})?(?=[\\s.,;!)]|$))`, "g");
+const STATE_POSTCODE_RE = new RegExp(`\\b${ST}\\s+\\d{4}\\b`, "g");
+const VIC_POSTCODE_RE = /(?<=\b[A-Z][a-z]+\s)(?:3\d{3}|8\d{3})\b/g;
 const GREETING_RE = /^([ \t]*(?:hi|hey|hello|dear|g['’]day|gday|good (?:morning|afternoon|evening))[ \t]+)(?!there\b|team\b|all\b|everyone\b)[^\n,!.:;]+/gim;
 const SIGNOFF = "(?:cheers|thanks|thank you|regards|kind regards|best regards|best)";
 const NAME_LINE = "(?!Home\\b|Team\\b)[A-Z][a-z'’-]+(?:[ \\t]+[A-Z][a-z'’-]+)?";
@@ -38,13 +41,14 @@ const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 /** Replaces the example job's own known details first (exact), then catches the rest with patterns. */
 export function scrubExample(reply: string, owner: { name?: string; address?: string; suburb?: string; postcode?: string }): string {
   let t = reply.replace(URL_RE, "<link>").replace(EMAIL_RE, "<email>").replace(PHONE_RE, "<phone>");
-  if (owner.address?.trim()) t = t.replace(new RegExp(esc(owner.address.trim()), "gi"), "<address>");
+  if (owner.address?.trim()) t = t.replace(new RegExp(`(?:(?:unit|apt|apartment|flat|suite|shop)\\s+)?(?:\\d{1,5}[A-Za-z]?/)?${esc(owner.address.trim())}`, "gi"), "<address>");
   if (owner.postcode?.trim()) t = t.replace(new RegExp(`(?<!\\d)${esc(owner.postcode.trim())}(?!\\d)`, "g"), "<postcode>");
   if (owner.suburb?.trim()) t = t.replace(new RegExp(`(?<![A-Za-z<])${esc(owner.suburb.trim())}(?![A-Za-z>])`, "gi"), "<suburb>");
   for (const part of (owner.name ?? "").split(/\s+/).filter((p) => p.length >= 2)) {
     t = t.replace(new RegExp(`(?<![A-Za-z<])${esc(part)}(?![A-Za-z>])`, "gi"), "<name>");
   }
   t = t.replace(ADDRESS_RE, "<address>").replace(STREET_NO_SUFFIX_RE, "<address>").replace(ADDRESS_TAIL_RE, "<address>")
+    .replace(STATE_POSTCODE_RE, "<postcode>").replace(VIC_POSTCODE_RE, "<postcode>")
     .replace(GREETING_RE, "$1<name>").replace(SIGNOFF_SAME_RE, "$1<name>$2").replace(SIGNOFF_NEXT_RE, "$1<name>$2");
   return t.slice(0, MAX_LEN);
 }
