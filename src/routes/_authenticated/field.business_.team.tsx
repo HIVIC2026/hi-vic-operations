@@ -23,6 +23,7 @@ function Team() {
   const invite = useServerFn(requestTeamLoginInvite);
   const remove = useServerFn(removeWorker);
   const [asked, setAsked] = useState<Record<string, string>>({});
+  const [removeErr, setRemoveErr] = useState<Record<string, string>>({});
   const [wcOpen, setWcOpen] = useState<string | null>(null);
   const qc = useQueryClient();
   const installer = data?.kind !== "electrician";
@@ -56,8 +57,9 @@ function Team() {
                     {!m.declarationsDue && m.cii && cii?.tone === "rose" && <CertLinkInline workerId={id} name={m.name} />}
                     {wc?.canUpload && wcOpen !== id && <button type="button" className="min-h-11 rounded-[10px] border border-estimate-line bg-white px-3 text-[13px] font-semibold text-estimate-blue" onClick={() => setWcOpen(id)}>Upload White Card</button>}
                     {wc?.canUpload && wcOpen === id && <WhiteCardUploadInline workerId={id} onDone={refresh} />}
-                    {m.role !== "owner" && <button type="button" data-team-remove className="min-h-11 px-3 text-[13px] font-semibold text-[#8A3B4A]" onClick={async () => { if (!confirm("Remove this team member? Their job links stop working straight away.")) return; try { await remove({ data: { id } }); refresh(); } catch (e) { setAsked((a) => ({ ...a, [id]: (e as Error).message })); } }}>Remove</button>}
+                    {m.role !== "owner" && <button type="button" data-team-remove className="min-h-11 px-3 text-[13px] font-semibold text-[#8A3B4A]" onClick={async () => { if (!confirm("Remove this team member? Their job links stop working straight away.")) return; try { setRemoveErr((r) => ({ ...r, [id]: "" })); await remove({ data: { id } }); refresh(); } catch (e) { setRemoveErr((r) => ({ ...r, [id]: (e as Error).message })); } }}>Remove</button>}
                   </div>}
+                  {id && removeErr[id] && <p role="alert" className="mt-1 text-[13px] font-semibold text-[#8A3B4A]">{removeErr[id]}</p>}
                 </li>
               );
             })}

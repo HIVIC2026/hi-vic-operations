@@ -56,3 +56,9 @@ test("My business: Add a team member goes to Team", () => {
 test("People switch is unchanged", () => {
   expect(src("src/components/portal/partner-people.tsx")).toContain('<WorkerRoleSwitch tone="office"');
 });
+test("remove error shows outside the login branch", () => {
+  expect(team).toContain("setRemoveErr");
+  expect(team).toMatch(/removeErr\[id\]\s*&&\s*<p role="alert"/);
+  expect(team).not.toMatch(/remove\(\{[^\n]*setAsked/);
+  expect(team.indexOf('role="alert" className="mt-1')).toBeGreaterThan(team.indexOf("</div>}"));
+});

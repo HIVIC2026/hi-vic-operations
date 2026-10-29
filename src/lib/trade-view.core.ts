@@ -350,8 +350,8 @@ export function teamWhiteCardLine(state: WhiteCardState | null | undefined): { t
 export const TEAM_MOBILE_NOTE = "Their own safety plan link is texted here before each install.";
 export const teamMobileButton = (mobile: string | null | undefined) => (mobile?.trim() ? "Change mobile" : "Add mobile");
 export const TEAM_RULE = "Every installer, Lead and Crew, needs a CII certificate checked by our office. Only a Lead can run an install day. Crew can do Ready Checks once our office adds them to Mitti.";
-/** "Send login invite" asks the office; it sends nothing itself. */
 export const TEAM_SIGN = { due: "Not signed yet · can't go on jobs", needContact: "Add a mobile or email to send their signing link.", link: "Make signing link" } as const;
+/** "Send login invite" asks the office; it sends nothing itself. */
 export const TEAM_LOGIN = { button: "Ask the office to send a login", asked: "Asked the office. They'll send the login." } as const;
 
 export type CredentialView = { kind: string; label: string; expires: string | null; verified: boolean };
