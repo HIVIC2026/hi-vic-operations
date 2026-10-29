@@ -52,20 +52,28 @@ export type ModeInput = {
   modeEnv: string | null | undefined;
   /** Both VEU_REGISTRY_USERNAME and VEU_REGISTRY_PASSWORD present (non-empty). */
   credentials: boolean;
-  /** esc-registry-selectors SELECTOR_MAP_VERIFIED – live is refused until the map was confirmed on the real form. */
-  selectorsVerified: boolean;
 };
 
-/** The robot's mode for this run. Fails closed at every step; live needs all five facts. */
+/** The robot's mode for this run. Fails closed at every step; live needs all four facts. */
 export function robotMode(i: ModeInput): { mode: RobotMode; reason: string } {
   if (!i.envOn) return { mode: "off", reason: `${ESC_ROBOT_ENV_FLAG} is not "true" on this deployment` };
   if (i.switchOn === null) return { mode: "off", reason: `Settings switch column ${ESC_ROBOT_SWITCH_COLUMN} is missing (pending migration) – off until the database change is applied` };
   if (!i.switchOn) return { mode: "off", reason: "Settings › Switches › ESC Registry robot is off" };
   if (!i.credentials) return { mode: "off", reason: `Registry login missing (${ESC_ROBOT_USERNAME_ENV} / ${ESC_ROBOT_PASSWORD_ENV})` };
   if (i.modeEnv !== "live") return { mode: "dry_run", reason: `${ESC_ROBOT_MODE_ENV} is not "live" – fill and screenshot only` };
-  if (!i.selectorsVerified) return { mode: "dry_run", reason: "Selector map not yet verified on the real Registry form (esc-registry-selectors.ts SELECTOR_MAP_VERIFIED) – fill and screenshot only" };
-  return { mode: "live", reason: "switch on, deployment live, login present, selectors verified" };
+  return { mode: "live", reason: "switch on, deployment live, login present (each task also needs its form checked on the real Registry)" };
 }
+
+const TASK_LABEL: Record<RobotTask, string> = { install_notification: "Install notification", veec_creation: "VEEC creation" };
+
+/** Per-task mode: live is downgraded to dry-run for a task whose form was not yet checked on the real Registry
+ *  (esc-registry-selectors SELECTORS_VERIFIED). off and dry_run are never changed. */
+export function taskMode(mode: RobotMode, task: RobotTask, verified: Record<RobotTask, boolean>): RobotMode {
+  return mode === "live" && !verified[task] ? "dry_run" : mode;
+}
+
+/** Why a task is downgraded, for logs. */
+export const taskNotVerifiedReason = (task: RobotTask) => `${TASK_LABEL[task]} form not yet checked on the real Registry – fill and screenshot only`;
 
 /** TEST (qa_test) jobs never touch the real Registry: live is downgraded to dry-run for them. */
 export function jobMode(mode: RobotMode, jobSource: string | null | undefined): RobotMode {
