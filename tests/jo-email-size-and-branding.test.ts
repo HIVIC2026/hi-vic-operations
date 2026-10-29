@@ -191,7 +191,7 @@ describe("F. the approved wording (decisions 66, 67, 69, 73) is what renders", (
       "Alex, you could save $2,600 on ceiling insulation",
       "To get it you need a certified installer, a licensed electrician and an Accredited Person. We bring them together and run the whole job for you.",
       "Your estimated rebate", "You save $2,600", "You pay after the rebate", "$1,900", "full price", "$4,500",
-      "Try a different ceiling size", "Save your spot – it's free",
+      "Save your spot – it's free",
       // Decision 388 (Jo 25 Oct 2026): spot-only — no Ready Check, times or measuring before release.
       "Thousands of Victorians have registered. Spots are released in the order they were saved. There's no cost and no obligation, and we'll be in touch when yours is released.",
       "Save my free spot", "What's included in $1,900", "Licensed electrician safety check", "Premium R5.0 ceiling batts", "AS/NZS 4859.1",
@@ -200,7 +200,7 @@ describe("F. the approved wording (decisions 66, 67, 69, 73) is what renders", (
     ]) expect(m.html).toContain(t);
     expect(m.html).not.toContain("Ready Check");
     expect(m.html).toContain(`href="${LINKS.saveMySpotUrl}"`);
-    expect(m.html).toContain(`href="${LINKS.calculatorUrl}"`);
+    expect(m.html).not.toContain(`href="${LINKS.calculatorUrl}"`); // guide fix 1, Jo 29 Oct 2026
     expect(m.html).not.toContain("may qualify");
     expect(m.html).not.toContain("Your existing insulation");
   });

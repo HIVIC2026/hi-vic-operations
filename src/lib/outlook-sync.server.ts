@@ -23,9 +23,12 @@ import {
   attachmentIdentityKey, attachmentStoragePath, ATTACHMENT_MAX_FILE_BYTES, ATTACHMENT_MAX_MESSAGE_BYTES,
   counterpartEmails, extractJobNumbers, isPortalDuplicate, matchMessage, normaliseMessage,
   planAttachments, type AttachmentRef, type CandidateJob, type GraphMessage, type MailMessage, type MatchResult, type StoredAttachmentRef,
+  OUR_DOMAINS,
 } from "./outlook-correspondence.core";
 import { EMAIL_UNMATCHED_EVENT, guessJobsForEmail, guessLookups, unmatchedSnippet, type GuessJob } from "./outlook-guess.core";
 import { EMAIL_CHANGE_REQUEST_EVENT, changeRequestLabel, officeRowNeeded, proposedChanges, recentEnoughForAction } from "./email-intent.core";
+import { bounceWords, bouncedAddress, isBounceNotice, matchBounce } from "./email-delivery.core";
+import { applyDeliveryResult } from "./email-delivery.server";
 import { EMAIL_REPLY_DRAFTS_ENABLED } from "./outlook-reply-drafts.core";
 
 // New migration types are local until the database-generated types are refreshed on integration.
@@ -41,7 +44,6 @@ type SyncState = {
 };
 type WorkResult = { stored?: boolean; unmatched?: boolean; closed?: boolean; flagged?: boolean; duplicate?: boolean; ignored?: boolean; replayed?: boolean };
 type ClosureWindow = { inboxCompleteThrough: string | null; history?: boolean; backfillFrom?: string | null };
-const OUR_DOMAINS = ["homeinsulationvictoria.com.au"];
 const SELECT = "id,conversationId,internetMessageId,subject,body,bodyPreview,from,sender,toRecipients,ccRecipients,receivedDateTime,sentDateTime,hasAttachments,isDraft";
 const BUCKET = "job-files";
 
@@ -599,9 +601,34 @@ async function portalDuplicate(m: MailMessage, jobId: string): Promise<boolean> 
   }
 }
 
+/** An Outlook "couldn't be delivered" notice: find the reply we sent to that address in the last 7 days, mark it
+ *  bounced and archive the notice. No match leaves the notice alone. Never throws: one bad notice can't stop the sync. */
+async function recordBounce(notice: MailMessage): Promise<void> {
+  try {
+    const address = bouncedAddress(notice);
+    if (!address) return;
+    const since = new Date(Date.parse(notice.at) - 7 * 24 * 3600 * 1000).toISOString();
+    const { data, error } = await syncAdmin.from("job_communications").select("id, job_id, provider_message_id, recipients, subject, sent_at")
+      .eq("provider", "outlook").eq("direction", "outbound").gte("sent_at", since); // any outbound Outlook row (Emails-tab history or the synced Sent copy); rows without an id are dropped below
+    if (error) throw new Error(error.message);
+    const rows = (data ?? []).filter((r) => r.provider_message_id && r.sent_at
+      && ((r.recipients as string[] | null) ?? []).some((x) => String(x).toLowerCase() === address));
+    const sent = rows.map((r) => ({ id: String(r.id), to: address, subject: (r.subject as string | null) ?? null, sentAt: String(r.sent_at) }));
+    const id = matchBounce({ address, at: notice.at, subject: notice.subject }, sent);
+    const hit = rows.find((r) => String(r.id) === id);
+    if (!hit) return;
+    // Older stored replies without a message id are skipped above: they can't be matched back to Outlook.
+    await applyDeliveryResult({ providerMessageId: String(hit.provider_message_id), result: "bounced", detail: bounceWords(notice.body), at: notice.at });
+    await archiveOutlookMessage(notice.providerMessageId, String(hit.job_id), null);
+  } catch (e) {
+    console.error("Outlook bounce notice not recorded", e instanceof Error ? e.message : String(e));
+  }
+}
+
 export async function processMessages(raw: GraphMessage[], mailbox: string, counts: SyncCounts,
   window: ClosureWindow = { inboxCompleteThrough: null }) {
   const normalised = raw.map((g) => normaliseMessage(g, mailbox, OUR_DOMAINS)).filter((m): m is MailMessage => !!m);
+  for (const m of normalised) if (isBounceNotice(m)) await recordBounce(m);
   const msgs = normalised.filter((m) => isHumanOwnerEmail({...m,provider:"outlook",channel:"email"}));
   bump(counts, "junk", normalised.length - msgs.length);
   if (!msgs.length) return;

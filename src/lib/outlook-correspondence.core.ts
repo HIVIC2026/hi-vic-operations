@@ -63,6 +63,9 @@ export function planAttachments(
   }
   return { store, skipped };
 }
+/** Our own email domains: never treated as the homeowner side. */
+export const OUR_DOMAINS = ["homeinsulationvictoria.com.au"];
+
 export type MailMessage = {
   providerMessageId: string; threadId: string | null; internetMessageId: string | null; direction: "inbound" | "outbound";
   from: string | null; fromName: string | null; to: string[]; cc: string[]; subject: string | null; body: string; at: string;

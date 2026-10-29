@@ -15,7 +15,7 @@ export function mittiNoticeTokenOk(urlToken: string | null, envToken: string | u
 
 function auditIdOf(node: unknown): string | null {
   if (node === null || typeof node !== "object") return null;
-  const id = (node as Record<string, unknown>).audit_id;
+  const id = (node as Record<string, unknown>)["audit_id"];
   return typeof id === "string" && id.length > 0 ? id : null;
 }
 
@@ -29,11 +29,11 @@ export function mittiNoticeAuditId(raw: string): string | null {
   }
   if (body === null || typeof body !== "object") return null;
   const root = body as Record<string, unknown>;
-  const event = root.event;
+  const event = root["event"];
   return (
     auditIdOf(root) ??
-    auditIdOf(root.data) ??
-    auditIdOf(event && typeof event === "object" ? (event as Record<string, unknown>).data : undefined)
+    auditIdOf(root["data"]) ??
+    auditIdOf(event && typeof event === "object" ? (event as Record<string, unknown>)["data"] : undefined)
   );
 }
 

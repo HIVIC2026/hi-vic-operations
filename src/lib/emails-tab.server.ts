@@ -11,14 +11,14 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { WorkflowError } from "./workflow.server";
-import { AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, aiReplyEmailHtml, aiReplyText, replySubject } from "./ai-email-reply.core";
+import { AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, aiReplyEmailHtml, replySubject } from "./ai-email-reply.core";
 import { EMAIL_CHANGE_REQUEST_EVENT } from "./email-intent.core";
 import { EMAIL_UNMATCHED_DISMISSED_EVENT, EMAIL_UNMATCHED_EVENT, EMAIL_UNMATCHED_MATCHED_EVENT } from "./outlook-guess.core";
 import { NEW_SENDER_REPLIED_EVENT, NEW_SENDER_REPLY_TEMPLATE, newSenderReplyKey } from "./new-sender-reply.core";
 import {
   NO_JOB_DRAFT_CLOSED_EVENT, chunks, jobDraftKey, NO_JOB_DRAFT_EVENT, NO_JOB_INSTRUCTIONS, NO_JOB_REPLIED_REASON, NO_JOB_REPLY_PURPOSE, NO_JOB_REPLY_SENT_EVENT, buildEmailsTab, buildNoJobInput, finishNoJobReply,
   missingDrafts, noJobDraftKey, noJobReplyProblems, type DraftRef,
-  buildNoJobFollowUpInput, finishNoJobFollowUp, followUpRetryDue, linkStates, shortHash, type LinkState, NO_JOB_DRAFT_FAILED_EVENT, NO_JOB_FOLLOWUP_INSTRUCTIONS, noJobFollowUpKey, noJobFollowUpProblems, noJobFollowUpSentKey, type EmailsTab, type JobEmailRow, type UnmatchedRow,
+  buildNoJobFollowUpInput, finishNoJobFollowUp, followUpRetryDue, linkStates, shortHash, type LinkState, NO_JOB_DRAFT_FAILED_EVENT, NO_JOB_FOLLOWUP_CLAIM_EVENT, NO_JOB_FOLLOWUP_FAILED_EVENT, NO_JOB_FOLLOWUP_INSTRUCTIONS, noJobFollowUpKey, noJobFollowUpProblems, noJobFollowUpSentKey, type EmailsTab, type JobEmailRow, type UnmatchedRow,
 } from "./emails-tab.core";
 
 const loose = admin as unknown as SupabaseClient;
@@ -234,21 +234,21 @@ export async function sendNoJobEmailReply(unmatchedEventId: string, draftEventId
     if (again) throw new WorkflowError(`Not sent — couldn't record the reply first (${again.message}).`);
   } else if (claimErr) throw new WorkflowError(`Not sent — couldn't record the reply first (${claimErr.message}).`);
   const subject = String(draft.details["subject"] ?? replySubject(str(ev.details["subject"])));
-  // Same draft + same words = same key (double tap safe); edited words after a refused send = a new key.
+  // Same draft + same words = same key; edited words after a refused send = a new key. (Outlook has no once-only key:
+  // the claim above is what stops a double tap sending twice.)
   const key = `${noJobDraftKey(String(draft.details["message_id"]))}:send:${draft.id}:${shortHash(body.trim())}`;
-  const K = await import("./email-kit.core");
   const html = aiReplyEmailHtml(body, { subject, unsubscribe: null });
-  const text = K.plainText(aiReplyText(body), { unsubscribe: null });
-  const { resendSend } = await import("./hot-leads-send.server");
-  const d = await resendSend(to, subject, html, text, key, null).catch((e: unknown) => ({ outcome: "uncertain" as const, detail: e instanceof Error ? e.message : "send error" }));
-  if (d.outcome === "rejected" || d.outcome === "not_attempted") {
-    // Recorded so the link counts as definitely failed (no draft_event_id, so the draft stays open to try again).
+  const { sendViaOutlook } = await import("./outlook-send.server");
+  const d = await sendViaOutlook({ replyToMessageId: str(ev.details["message_id"]), to, subject, html }).catch((e: unknown) => ({ outcome: "uncertain" as const, detail: e instanceof Error ? e.message : "send error", messageId: "" }));
+  if (d.outcome === "failed") {
+    // A refused send keeps the claim (workflow_events is append-only). Recorded so the link counts as definitely failed
+    // (no draft_event_id, so the draft stays open to try again).
     await loose.from("workflow_events").insert({ job_id: null, actor_id: actorId, event_type: NO_JOB_REPLY_SENT_EVENT, internal: true,
       summary: `Website-link reply to ${to} not sent: ${d.detail}`, details: { failed_draft_event_id: draft.id, unmatched_event_id: ev.id, to, status: `failed: ${d.detail}`, kind: "link" } })
       .then(({ error: e }) => { if (e) console.error("failed link reply not recorded", e.message); });
-    throw new WorkflowError(`Not sent — ${d.detail}. Reply to them from Outlook instead.`);
+    throw new WorkflowError(`Not sent — ${d.detail.replace(/\.+$/, "")}. Reply to them from Outlook instead.`);
   }
-  const status = d.outcome === "accepted" ? "sent" : `delivery uncertain: ${d.detail}`;
+  const status = d.outcome === "sent" ? "sent" : `delivery uncertain: ${d.detail}`;
   const { error } = await loose.from("workflow_events").insert({ job_id: null, actor_id: actorId, event_type: NO_JOB_REPLY_SENT_EVENT, internal: true,
     summary: `Reply sent to ${to} pointing to the homeowner page (office approved)`, details: { draft_event_id: draft.id, unmatched_event_id: ev.id, to, subject, body: body.trim(), status, purpose: NO_JOB_REPLY_PURPOSE, idempotency_key: key } });
   if (error) console.error("no-job reply sent but not recorded", error.message);
@@ -260,7 +260,9 @@ export async function sendNoJobEmailReply(unmatchedEventId: string, draftEventId
 }
 
 /** Follow-up reply (Jo 28 Oct 2026): answers their question only. Not the one-link-per-person claim — they already had
- *  the link — but once per email: refused if already sent, and the email service's once-only key is per email. */
+ *  the link — but once per email: refused if already sent, and a once-only claim per email is written before the
+ *  Outlook send (Outlook has no once-only key), so a double tap can't send twice. A definite failure is recorded and
+ *  allows one more try under the next claim key; an uncertain send counts as sent and is never resent. */
 async function sendNoJobFollowUp(ev: { id: string; details: Det }, draft: { id: string; details: Det }, body: string, actorId: string) {
   if (draft.details["nothing_to_answer"] === true) throw new WorkflowError("Nothing to answer on this email.");
   const problems = noJobFollowUpProblems(body);
@@ -279,14 +281,28 @@ async function sendNoJobFollowUp(ev: { id: string; details: Det }, draft: { id: 
   const { testRecipientBoundary } = await import("./comms-test-recipient.core");
   const boundary = testRecipientBoundary(to, null);
   if (boundary.status === "blocked") throw new WorkflowError(boundary.reason);
+  // Once-only claim, written BEFORE the send and after every check that can refuse (so a refusal leaves no claim). Two
+  // taps at once both reach here; the unique index lets only one claim through. Each earlier definite failure moves the
+  // key on by one, so a retry after a failure gets its own single claim.
+  const { data: fails, error: failErr } = await loose.from("workflow_events").select("id").eq("event_type", NO_JOB_FOLLOWUP_FAILED_EVENT).eq("details->>message_id", mid);
+  if (failErr) throw new WorkflowError(`Not sent — couldn't record the reply first (${failErr.message}).`);
+  const claimKey = `${sentKey}:try${(fails ?? []).length}`;
+  const { error: claimErr } = await loose.from("workflow_events").insert({ job_id: null, actor_id: actorId, event_type: NO_JOB_FOLLOWUP_CLAIM_EVENT, internal: true,
+    summary: `Follow-up reply to ${to} — claimed before sending`, details: { unmatched_event_id: ev.id, message_id: mid, draft_event_id: draft.id, to, claim_key: claimKey } });
+  if (claimErr?.code === "23505") throw new WorkflowError("A reply to this email has already been sent.");
+  if (claimErr) throw new WorkflowError(`Not sent — couldn't record the reply first (${claimErr.message}).`);
   const subject = String(draft.details["subject"] ?? replySubject(str(ev.details["subject"])));
-  const K = await import("./email-kit.core");
   const html = aiReplyEmailHtml(body, { subject, unsubscribe: null });
-  const text = K.plainText(aiReplyText(body), { unsubscribe: null });
-  const { resendSend } = await import("./hot-leads-send.server");
-  const d = await resendSend(to, subject, html, text, key, null).catch((e: unknown) => ({ outcome: "uncertain" as const, detail: e instanceof Error ? e.message : "send error" }));
-  if (d.outcome === "rejected" || d.outcome === "not_attempted") throw new WorkflowError(`Not sent — ${d.detail}. Reply to them from Outlook instead.`);
-  const status = d.outcome === "accepted" ? "sent" : `delivery uncertain: ${d.detail}`;
+  const { sendViaOutlook } = await import("./outlook-send.server");
+  const d = await sendViaOutlook({ replyToMessageId: mid, to, subject, html }).catch((e: unknown) => ({ outcome: "uncertain" as const, detail: e instanceof Error ? e.message : "send error", messageId: "" }));
+  if (d.outcome === "failed") {
+    // The claim stays (append-only); this record lets the next Send take the next claim key.
+    await loose.from("workflow_events").insert({ job_id: null, actor_id: actorId, event_type: NO_JOB_FOLLOWUP_FAILED_EVENT, internal: true,
+      summary: `Follow-up reply to ${to} not sent: ${d.detail}`, details: { unmatched_event_id: ev.id, message_id: mid, draft_event_id: draft.id, to, status: `failed: ${d.detail}`, claim_key: claimKey } })
+      .then(({ error: e }) => { if (e) console.error("failed follow-up reply not recorded", e.message); });
+    throw new WorkflowError(`Not sent — ${d.detail.replace(/\.+$/, "")}. Reply to them from Outlook instead.`);
+  }
+  const status = d.outcome === "sent" ? "sent" : `delivery uncertain: ${d.detail}`;
   const { error } = await loose.from("workflow_events").insert({ job_id: null, actor_id: actorId, event_type: NO_JOB_REPLY_SENT_EVENT, internal: true,
     summary: `Reply sent to ${to} answering their question (office approved)`, details: { draft_event_id: draft.id, unmatched_event_id: ev.id, to, subject, body: body.trim(), status, purpose: NO_JOB_REPLY_PURPOSE, kind: "follow_up", sent_key: sentKey, idempotency_key: key } });
   if (error) console.error("follow-up reply sent but not recorded", error.message);

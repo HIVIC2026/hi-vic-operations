@@ -154,6 +154,14 @@ export const markOfficeJobTest = createServerFn({ method: "POST" }).middleware([
     return markJobAsTest(data.jobId, data.reason, context.userId);
   });
 
+export const clearOfficeEmailBounce = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireOfficeJob(context.supabase, data.jobId);
+    const { clearEmailBounce } = await import("./office-actions.server");
+    return clearEmailBounce(data.jobId, context.userId);
+  });
+
 export const logOfficeCallOrNote = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({
     jobId: uuid, what: z.enum(["call", "note", "email_received", "text_received"]), who: z.enum(["owner", "installer", "electrician"]),

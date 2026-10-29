@@ -85,7 +85,6 @@ export function renderSpotSavedEmail(i: SpotSavedInput) {
     ...(est ? [...includedCardsText({ price: est.customer, rebate: i.rebate, someInsulation: some }), "", K.INCLUDED_CLOSING, ""] : []),
     SPOT_SAVED_NOT_INCLUDED,
     ...(removal ? ["", ...(removalLine ? [removalLine] : []), removalNote(removal), EXISTING_PRELIMINARY, ...(removal.kind === "unknown" ? [REMOVAL_BUDGET_EMAIL_NOTE] : [])] : []),
-    ...(est ? [`Try a different size: ${est.calculatorUrl}`] : []),
     ...(i.referralUrl ? ["", "HAVE A FRIEND WHO NEEDS A SPOT SAVED?", "Send them our free eligibility checker. It takes a minute.", `Send to a friend: ${i.referralUrl}`] : []),
   ], { unsubscribe: i.optOutUrl });
   return { subject, html, text };

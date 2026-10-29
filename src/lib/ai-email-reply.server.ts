@@ -195,22 +195,27 @@ export async function sendAiDraft(eventId: string, body: string, actorId: string
     html: aiReplyEmailHtml(body, { subject, unsubscribe, test }),
     text: K.plainText(aiReplyText(body), { testLabel: test, unsubscribe }),
   });
-  let status: string;
-  if (job.source === "qa_test") {
-    const mail = build(null, true);
-    const { sendTestEmail } = await import("./test-send.server");
-    const r = await sendTestEmail({ jobId: job.id, jobSource: job.source, partnerIsTest: false, label: `${AI_EMAIL_REPLY_PURPOSE}:${key}`, actorId }, to, mail.subject, mail.html, mail.text);
-    status = r.status === "sent" ? "sent" : `test-send ${r.status}: ${r.detail}`;
-  } else {
-    await (await import("./comms.server")).assertCustomerDeliveryAllowed(job.id, "Email reply");
-    status = await (await import("./owner-email-send.server")).sendGuardedOwnerEmail({ jobId: job.id, jobSource: job.source, to, purpose: AI_EMAIL_REPLY_PURPOSE, key, build: (u) => build(u) });
-  }
+  // Jo 28 Oct 2026: replies leave from the info@ Outlook mailbox as a reply to the owner's email (so Jo sees them in Sent
+  // Items). Real and TEST jobs both use the guarded sender; it sends TEST jobs to the test address only, as a new message.
+  let outlook: { messageId: string | null; internetMessageId: string | null } | null = null;
+  if (job.source !== "qa_test") await (await import("./comms.server")).assertCustomerDeliveryAllowed(job.id, "Email reply");
+  const status = await (await import("./owner-email-send.server")).sendGuardedOwnerEmail({ jobId: job.id, jobSource: job.source, to, purpose: AI_EMAIL_REPLY_PURPOSE, key, build: (u) => build(u, job.source === "qa_test"),
+    retryAfterDefiniteFailure: true, transport: { kind: "outlook", replyToMessageId: String(ev.details["message_id"] ?? "") || null }, onSent: (r) => { outlook = { messageId: r.messageId, internetMessageId: r.internetMessageId }; } });
+  if (status === "failed: Outlook couldn't send it") throw new Error("Not sent — Outlook couldn't send it. Try again.");
   const sent = status === "sent" || status.startsWith("delivery uncertain");
   if (!sent) throw new Error(`Not sent — ${status}`);
   await loose.from("workflow_events").insert({ job_id: job.id, actor_id: actorId, event_type: AI_EMAIL_DRAFT_SENT_EVENT, internal: true,
     summary: `Email reply sent to the owner (approved by office)`, details: { draft_event_id: eventId, to, subject, body: body.trim(), status, idempotency_key: key } });
-  await admin.from("job_communications").insert({ job_id: job.id, channel: "email", direction: "outbound", provider: "resend", subject, body: body.trim(), recipients: [to] as never,
-    delivery_status: "sent", sent_at: new Date().toISOString(), visibility: "customer", created_by: actorId, source_event: AI_EMAIL_DRAFT_SENT_EVENT, source_reference: eventId }).then(({ error }) => { if (error) console.error("AI reply not added to history", error.message); });
+  await admin.from("job_communications").insert({ job_id: job.id, channel: "email", direction: "outbound", provider: "outlook", provider_message_id: (outlook as { messageId: string | null } | null)?.messageId ?? null, subject, body: body.trim(), recipients: [to] as never,
+    delivery_status: "sent", sent_at: new Date().toISOString(), visibility: "customer", created_by: actorId, source_event: AI_EMAIL_DRAFT_SENT_EVENT, source_reference: (outlook as { internetMessageId: string | null } | null)?.internetMessageId ?? eventId }).select("id").single().then(async ({ data: hist, error }) => {
+      if (error || !hist) { console.error("AI reply not added to history", error?.message ?? "no row"); return; }
+      // Final review 3: link the guard's send row to this history row so contact history shows the reply once.
+      // A failed link is logged only — the email has already gone.
+      try {
+        const { error: le } = await admin.from("customer_email_sends").update({ communication_id: (hist as { id: string }).id }).eq("idempotency_key", key).eq("job_id", job.id);
+        if (le) console.error("AI reply send not linked to history", le.message);
+      } catch (e) { console.error("AI reply send not linked to history", e instanceof Error ? e.message : "unknown"); }
+    });
   await (await import("./outlook-sync.server")).archiveOutlookMessage(String(ev.details["message_id"] ?? "") || null, job.id, actorId);
   return { status };
 }
