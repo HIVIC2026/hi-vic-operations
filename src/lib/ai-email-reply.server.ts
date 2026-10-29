@@ -8,7 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MailMessage } from "./outlook-correspondence.core";
 import {
   AI_EMAIL_DRAFTS_ENABLED, NO_REPLY_NEEDED, AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EDITED_EVENT, latestDraftEdits, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, AI_EMAIL_REPLY_PURPOSE, AI_REPLY_INSTRUCTIONS, aiReplyInstructions, isPreReleaseOwner,
-  aiDraftKey, aiReplyEmailHtml, aiReplyProblems, aiReplyText, bookingChangeLink, buildAiReplyInput, finishAiReply, fixUntilClean, replySubject, type AiReplyKind,
+  aiDraftKey, aiReplyEmailHtml, aiReplyProblems, aiReplyText, bookingChangeLink, buildAiReplyInput, draftNeeds, finishAiReply, fixUntilClean, replySubject, splitAiOutput, type AiReplyKind,
 } from "./ai-email-reply.core";
 import { loadAiAnswers } from "./ai-answers.server";
 
@@ -79,17 +79,20 @@ export async function writeAiReplyDraft(p: { jobId: string; message: MailMessage
         .map((h) => ({ direction: h.direction === "outbound" ? "outbound" as const : "inbound" as const, at: h.received_at ?? h.sent_at ?? h.created_at, subject: h.subject, body: h.body ?? "" })),
       email: { from: m.from, subject: m.subject, body: m.body },
     }, { preRelease, answers: (await loadAiAnswers()).answers });
+    // The AI's notes to the office (NEEDS_JO / NEEDS_YOU / ACTIONS lines) come off first, so they never reach the fix loop or the owner.
     const raw = await aiText(input, aiReplyInstructions({ preRelease }));
-    const noReply = raw.trim().replace(/[.\s]+$/, "") === NO_REPLY_NEEDED;
+    const out = splitAiOutput(raw);
+    const noReply = out.body.replace(/[.\s]+$/, "") === NO_REPLY_NEEDED;
     // A draft that breaks a rule is rewritten (at most twice) before it is saved; what still fails is saved with it for the office.
-    const first = noReply ? "" : finishAiReply(raw);
+    const first = noReply ? "" : finishAiReply(out.body);
     const fixed = noReply ? { body: "", problems: [] as string[] } : await fixUntilClean(first, preRelease, (i, ins) => aiText(i, ins, AbortSignal.timeout(25_000)));
     const body = fixed.body;
     const problems = fixed.problems;
     const { data: ins, error } = await loose.from("workflow_events").insert({ job_id: p.jobId, actor_id: null, event_type: AI_EMAIL_DRAFT_EVENT, internal: true,
       summary: noReply ? "No reply needed (owner said no thanks / thanks)" : `AI reply draft waiting for Jo (${p.kind === "simple" ? "simple email" : "needs a check"})`,
       details: { message_id: m.providerMessageId, thread_id: m.threadId, from: m.from, to: owner.email.trim(), their_subject: m.subject, subject: replySubject(m.subject),
-        body, kind: p.kind, reason: p.reason, ...(problems.length ? { problems } : {}), idempotency_key: aiDraftKey(m.providerMessageId), ...(noReply ? { no_reply_needed: true } : {}) } }).select("id").single();
+        body, kind: p.kind, reason: p.reason, ...(problems.length ? { problems } : {}),
+        ...(!noReply && out.needsAnswer.length ? { needs_answer: out.needsAnswer } : {}), ...(!noReply && out.needsYou ? { needs_you: true } : {}), idempotency_key: aiDraftKey(m.providerMessageId), ...(noReply ? { no_reply_needed: true } : {}) } }).select("id").single();
     if (error) throw new Error(error.message);
     // Jo 27 Oct 2026: a plain "no thanks" or "thanks" gets no reply; the draft is closed so the card just needs Done.
     if (noReply && ins) await loose.from("workflow_events").insert({ job_id: p.jobId, actor_id: null, event_type: AI_EMAIL_DRAFT_DISCARDED_EVENT, internal: true,
@@ -126,7 +129,7 @@ async function estimateFacts(jobId: string): Promise<string[]> {
   return out;
 }
 
-export type AiDraftRow = { eventId: string; at: string; from: string | null; to: string; subject: string; theirSubject: string | null; body: string; kind: AiReplyKind; status: "waiting" | "sent" | "discarded"; doneAt: string | null };
+export type AiDraftRow = { eventId: string; at: string; from: string | null; to: string; subject: string; theirSubject: string | null; body: string; kind: AiReplyKind; status: "waiting" | "sent" | "discarded"; doneAt: string | null; needsAnswer: string[]; needsYou: boolean };
 
 /** Saved edits for these drafts: draft id -> newest body. */
 export async function draftEditsFor(ids: string[]): Promise<Map<string, string>> {
@@ -161,9 +164,10 @@ export async function listAiDrafts(jobId: string): Promise<AiDraftRow[]> {
   const res = new Map<string, { type: string; at: string }>();
   for (const r of (done.data ?? []) as { event_type: string; created_at: string; details: { draft_event_id?: string } }[]) if (r.details?.draft_event_id) res.set(r.details.draft_event_id, { type: r.event_type, at: r.created_at });
   return ((d.data ?? []) as { id: string; created_at: string; details: Record<string, unknown> }[]).map((r) => {
-    const x = res.get(r.id); const det = r.details;
+    const x = res.get(r.id); const det = r.details; const needs = draftNeeds(det);
     return { eventId: r.id, at: r.created_at, from: (det["from"] as string) ?? null, to: String(det["to"] ?? ""), subject: String(det["subject"] ?? ""), theirSubject: (det["their_subject"] as string) ?? null,
-      body: edits.get(r.id) ?? String(det["body"] ?? ""), kind: det["kind"] === "simple" ? "simple" : "other", status: x ? (x.type === AI_EMAIL_DRAFT_SENT_EVENT ? "sent" : "discarded") : "waiting", doneAt: x?.at ?? null };
+      body: edits.get(r.id) ?? String(det["body"] ?? ""), kind: det["kind"] === "simple" ? "simple" : "other", status: x ? (x.type === AI_EMAIL_DRAFT_SENT_EVENT ? "sent" : "discarded") : "waiting", doneAt: x?.at ?? null,
+      needsAnswer: needs.needsAnswer, needsYou: needs.needsYou };
   });
 }
 

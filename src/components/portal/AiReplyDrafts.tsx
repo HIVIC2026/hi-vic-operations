@@ -9,6 +9,7 @@ import { AI_REWRITTEN_NOTE, aiReplyEmailHtml } from "@/lib/ai-email-reply.core";
 import { panelLoad } from "@/lib/panel-load.core";
 import { LoadFailed } from "@/components/portal/load-failed";
 import { saveStateText, useDraftAutosave } from "@/components/portal/use-draft-autosave";
+import { NeedsNotes, SaveAnswerForm } from "@/components/portal/ai-needs-answer";
 
 type Draft = Awaited<ReturnType<typeof getAiReplyDrafts>>[number];
 
@@ -19,21 +20,30 @@ function DraftCard({ d, onDone }: { d: Draft; onDone: () => void }) {
   const [busy, setBusy] = useState(false);
   const saved = useDraftAutosave(d.eventId, body, d.body);
   const [note, setNote] = useState<{ problems: string[] } | null>(null);
-  const run = async (fn: () => Promise<unknown>, ok: string) => {
+  // After Send of a reply to a question the AI couldn't answer: the sent words, for "Save as a standard answer?".
+  const [saving, setSaving] = useState<string | null>(null);
+  const run = async (fn: () => Promise<unknown>, ok: string, after: () => void = onDone) => {
     setBusy(true);
     try {
       const r = await fn();
       // A blocked Send: nothing went out. The fixed reply goes back in the box for Jo to check; the card stays.
       if ((r as { status?: string } | null)?.status === "rewritten") { setBody((r as { body: string }).body); setNote({ problems: (r as { problems: string[] }).problems }); return; }
-      toast.success(ok); onDone();
+      toast.success(ok); after();
     } catch (e) { toast.error((e as Error).message || "That didn't work. Try again."); } finally { setBusy(false); }
   };
+  if (saving !== null) return (
+    <li className="grid gap-2 rounded-[12px] border border-line bg-paper p-3">
+      <p className="text-sm text-sub">Reply sent to {d.to}.</p>
+      <SaveAnswerForm questions={d.needsAnswer} sentBody={saving} onDone={onDone} />
+    </li>
+  );
   return (
     <li className="grid gap-2 rounded-[12px] border border-line bg-paper p-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2 text-xs text-sub">
         <span><strong className="text-ink">To {d.to}</strong> · {d.subject}</span>
         <span>{d.kind === "simple" ? "Simple email" : "Needs a check"} · {new Date(d.at).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</span>
       </div>
+      <NeedsNotes needsAnswer={d.needsAnswer} needsYou={d.needsYou} />
       <textarea aria-label="Reply text" value={body} onChange={(e) => { setNote(null); setBody(e.target.value); }} rows={Math.min(14, body.split("\n").length + 2)} className="w-full rounded-[10px] border border-line bg-background p-2 text-sm" disabled={busy} />
       {saveStateText(saved) && <span className={`text-xs ${saved === "failed" ? "text-danger" : "text-sub"}`} aria-live="polite">{saveStateText(saved)}</span>}
       {note && (note.problems.length
@@ -44,7 +54,7 @@ function DraftCard({ d, onDone }: { d: Draft; onDone: () => void }) {
         <iframe title="Email preview" sandbox="" srcDoc={aiReplyEmailHtml(body, { subject: d.subject, unsubscribe: null })} className="mt-2 h-[520px] w-full max-w-[560px] rounded-[10px] border border-line bg-background" />
       </details>
       <div className="grid grid-cols-2 gap-2 md:flex">
-        <button type="button" disabled={busy} className={btnClass("primary", "min-h-[44px]")} onClick={() => { setNote(null); void run(() => send({ data: { eventId: d.eventId, body } }), "Reply sent"); }}>{busy ? "Working…" : "Send"}</button>
+        <button type="button" disabled={busy} className={btnClass("primary", "min-h-[44px]")} onClick={() => { setNote(null); const sent = body; void run(() => send({ data: { eventId: d.eventId, body } }), "Reply sent", d.needsAnswer.length ? () => setSaving(sent) : onDone); }}>{busy ? "Working…" : "Send"}</button>
         <button type="button" disabled={busy} className={btnClass("secondary", "min-h-[44px]")} onClick={() => void run(() => discard({ data: { eventId: d.eventId } }), "Draft discarded")}>Discard</button>
       </div>
     </li>

@@ -89,6 +89,8 @@ const instructionLines = (NEXT_STEP: string, preRelease: boolean) => [
   "Start with \"Hi <first name>,\" on its own line (or \"Hi there,\" if no name), then a short thank-you that fits what they wrote.",
   "Answer every question they asked, directly and specifically, using the job facts below (their ceiling size, price, rebate, whether their spot is saved). If they asked several things, answer each one in a short list.",
   "Never say \"we'll check and get back to you\" when the answer is in the facts or the business rules. Only if something truly isn't covered, say we'll find out and reply.",
+  "If a question isn't covered by the rules or facts, still answer the rest, and after the email add a line `NEEDS_JO: <their question>` for each one.",
+  "If the owner is complaining about the install (mess, damage, unhappy with the work), write a short holding reply: say sorry and that we're looking into it with the installer. After the email add the line `NEEDS_YOU: complaint`.",
   "Keep it relevant: only use a fact or business rule when it answers something they actually raised. Never volunteer extra details they didn't ask about (for example, don't mention batts versus blow-in unless they asked about blow-in).",
   NEXT_STEP,
   "If they say they can't get into the roof or take photos, kindly tell them not to go up there — they don't need to send photos.",
@@ -98,7 +100,7 @@ const instructionLines = (NEXT_STEP: string, preRelease: boolean) => [
   ...(preRelease ? [] : ["If they want to change a booking time, give them the change link provided and say who they'll arrange it with. Never promise a new time yourself."]),
   `If their email is only a plain "thanks", "got it" or similar acknowledgement and needs no answer, return exactly ${"NO_REPLY_NEEDED"} and nothing else.`,
   "Do not include a sign-off; it is added for you.",
-  "Return only the email body text, no subject line.",
+  "Return only the email body text, no subject line (plus any NEEDS_JO / NEEDS_YOU lines after it).",
 ];
 
 export const AI_REPLY_INSTRUCTIONS = instructionLines(NEXT_STEP_RELEASED, false).join("\n");
@@ -219,6 +221,46 @@ export function aiPreReleaseViolations(text: string): string[] {
   return [...new Set((cleaned.match(AI_PRE_RELEASE_TIMING) ?? []).map((m) => m.toLowerCase().replace(/\s+/g, " ")))];
 }
 
+/** Things the AI asks the office to do (Task 5 fills these from an `ACTIONS:` line). */
+export type AiActions = { installerNote?: string; newAreaM2?: number };
+export type AiOutput = { body: string; needsAnswer: string[]; needsYou: boolean; actions: AiActions };
+
+const NEEDS_JO_LINE = /^\s*needs_?jo\s*:\s*(.*?)\s*$/i;
+const NEEDS_YOU_LINE = /^\s*needs_?you\s*:/i;
+const ACTIONS_LINE = /^\s*actions\s*:/i;
+/** Splits the AI's raw text into the email and its notes to the office. Runs before anything else, so a marker never
+ *  reaches the fix loop or the owner. Lenient: any case, optional spaces, a marker anywhere on its own line. */
+export function splitAiOutput(raw: string): AiOutput {
+  const needsAnswer: string[] = [];
+  let needsYou = false;
+  const keep: string[] = [];
+  for (const line of (raw ?? "").replace(/\r/g, "").split("\n")) {
+    const jo = NEEDS_JO_LINE.exec(line);
+    if (jo) { if (jo[1]) needsAnswer.push(jo[1]); continue; }
+    if (NEEDS_YOU_LINE.test(line)) { needsYou = true; continue; }
+    if (ACTIONS_LINE.test(line)) continue; // Task 5 parses this; it never reaches the owner.
+    keep.push(line.replace(/[ \t]+$/, ""));
+  }
+  const body = keep.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  return { body, needsAnswer, needsYou, actions: {} };
+}
+
+/** needs_answer / needs_you from a saved draft's details (bad or missing values = none). */
+export function draftNeeds(details: Record<string, unknown> | null | undefined): { needsAnswer: string[]; needsYou: boolean } {
+  const a = details?.["needs_answer"];
+  return {
+    needsAnswer: Array.isArray(a) ? a.filter((q): q is string => typeof q === "string" && q.trim() !== "").map((q) => q.trim()) : [],
+    needsYou: details?.["needs_you"] === true,
+  };
+}
+
+/** "Save as a standard answer" starts with the first question as the topic and Jo's sent words, without the greeting and sign-off. */
+export function saveAnswerPrefill(questions: string[], sentBody: string): { topic: string; answer: string } {
+  const lines = stripSignOff(sentBody.replace(/\r/g, "")).split("\n");
+  if (lines.length && /^(hi|hey|hello|g'day|dear)\b[^\n]{0,40}[,!.]?\s*$/i.test(lines[0]!.trim())) lines.shift();
+  return { topic: (questions[0] ?? "").trim().slice(0, 80), answer: lines.join("\n").replace(/\n{3,}/g, "\n\n").trim() };
+}
+
 /** Problems that stop a draft being sent as written (checked again at send). */
 export function aiReplyProblems(body: string, opts: { preRelease?: boolean } = {}): string[] {
   const out: string[] = [];
@@ -228,6 +270,7 @@ export function aiReplyProblems(body: string, opts: { preRelease?: boolean } = {
   if (PHONE.test(body)) out.push("Take out the phone number.");
   PHONE.lastIndex = 0;
   if (/\b(call|ring|phone)\s+(us|the office|our office)\b/i.test(body)) out.push("Take out “call us”.");
+  if (/\bNEEDS_(?:JO|YOU)\s*:/i.test(body) || /\bACTIONS\s*:/.test(body)) out.push("Take out the AI's note to the office (NEEDS_JO…).");
   if (opts.preRelease) {
     const bad = aiPreReleaseViolations(body);
     if (bad.length) out.push(`Take out “${bad.join("”, “")}” — we can't promise timing before their spot is released.`);
