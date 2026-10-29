@@ -21,6 +21,7 @@ export type AutoFormFacts = {
   installerUserId: string | null; mittiInvited: boolean; templateSet: boolean; autoSendMitti: boolean;
   /** When the last automatic attempt failed, if any. */ lastFailureAt: string | null;
   /** Why it failed (the recorded reason), so a stage refusal is retried next tick instead of tomorrow. */ lastFailureReason?: string | null;
+  /** HIV leads only: when the latest confirmed Ready Check booking was made (HV-3542). */ bookedAt?: string | null;
 };
 
 /** A refusal by the Mitti stage guard: nothing reached Mitti, so the next tick may try again once the stage is right
@@ -34,14 +35,22 @@ export type AutoFormDecision = { action: "create" } | { action: "skip"; reason: 
 export function autoFormDecision(f: AutoFormFacts, now: Date, enabled = AUTOFORM_ENABLED): AutoFormDecision {
   const skip = (reason: string): AutoFormDecision => ({ action: "skip", reason });
   if (!enabled) return skip("automatic Ready Check forms are paused");
-  if (f.channel !== "installer_sourced") return skip("not an installer job");
+  const hivLead = f.channel === "hivic_sourced";
+  if (f.channel !== "installer_sourced" && !hivLead) return skip("not an installer job or HIV lead");
   if (f.deleted || f.archived) return skip("removed");
-  if (!(PRE_READY_CHECK_STAGES as readonly string[]).includes(f.stage)) return skip("past the Ready Check");
-  if (now.getTime() - Date.parse(f.createdAt) > AUTOFORM_WINDOW_DAYS * 86_400_000) return skip("older than 30 days");
-  // Portal or Mitti measurements are left alone. Jo 24 Oct: an installer's provisional size ("I've visited" on Add a
-  // job) gives way to the form, after a grace period in which a form he started himself is picked up instead.
-  if (f.hasCurrentMeasurement && !f.provisionalOnly) return skip("already has a Ready Check record");
-  if (f.hasCurrentMeasurement && now.getTime() - Date.parse(f.createdAt) < PROVISIONAL_GRACE_HOURS * 3_600_000) return skip("waiting in case the installer started his own form");
+  if (hivLead) {
+    // HV-3542 (Jo 30 Oct): an HIV lead only gets its form once the Ready Check is booked; the 30 days count from the booking.
+    if (f.stage !== "ready_check_scheduled" || !f.bookedAt) return skip("HIV lead not booked yet");
+    if (now.getTime() - Date.parse(f.bookedAt) > AUTOFORM_WINDOW_DAYS * 86_400_000) return skip("older than 30 days");
+    if (f.hasCurrentMeasurement) return skip("already has a Ready Check record");
+  } else {
+    if (!(PRE_READY_CHECK_STAGES as readonly string[]).includes(f.stage)) return skip("past the Ready Check");
+    if (now.getTime() - Date.parse(f.createdAt) > AUTOFORM_WINDOW_DAYS * 86_400_000) return skip("older than 30 days");
+    // Portal or Mitti measurements are left alone. Jo 24 Oct: an installer's provisional size ("I've visited" on Add a
+    // job) gives way to the form, after a grace period in which a form he started himself is picked up instead.
+    if (f.hasCurrentMeasurement && !f.provisionalOnly) return skip("already has a Ready Check record");
+    if (f.hasCurrentMeasurement && now.getTime() - Date.parse(f.createdAt) < PROVISIONAL_GRACE_HOURS * 3_600_000) return skip("waiting in case the installer started his own form");
+  }
   if (!f.autoSendMitti) return skip("automatic Mitti forms are switched off");
   if (!f.templateSet) return skip("Ready Check form not set up");
   if (!f.mittiInvited) return skip("installer not set up in Mitti");
