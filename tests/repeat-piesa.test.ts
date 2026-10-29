@@ -1,5 +1,5 @@
 import { describe, expect, it, test } from "bun:test";
-import { chooseRepeatPayerBlocker, installerRepeatDeduction, ownerRepeatView, repeatPiesaGateBlocker, repeatPiesaState, REPEAT_PRICE_NOT_SET } from "../src/lib/repeat-piesa.core";
+import { chooseRepeatPayerBlocker, installerRepeatDeduction, ownerRepeatView, repeatCardPaid, repeatPiesaGateBlocker, repeatPiesaState, REPEAT_ARRANGING_TITLE, REPEAT_PRICE_NOT_SET } from "../src/lib/repeat-piesa.core";
 import { fixesFoundLine, needsCandidates } from "../src/lib/office-needs.core";
 import { jobNext, FIXES_PAUSED_TITLE } from "../src/lib/installer-screens.core";
 
@@ -22,6 +22,14 @@ test("owner-pays is refused while the Repeat safety check price is empty", () =>
   expect(chooseRepeatPayerBlocker(lapsed, "owner", 220)).toBeNull();
   expect(chooseRepeatPayerBlocker(lapsed, "installer", null)).toBeNull();
   expect(chooseRepeatPayerBlocker(chose("hivic"), "owner", 220)).toMatch(/already been chosen/);
+});
+
+test("owner page has no repeat card once accepted (and paid if owed) — normal booking area shows", () => {
+  expect(ownerRepeatView({ stage: "offer", payer: "owner", priceIncGst: 349, deadline: "2026-10-01" })).toBeNull();
+  expect(ownerRepeatView({ stage: "offer", payer: "installer", priceIncGst: 349, deadline: "2026-10-01" })).toBeNull();
+  expect(ownerRepeatView({ stage: "choose", payer: null, priceIncGst: null, deadline: "2026-10-01" })!.title).toBe(REPEAT_ARRANGING_TITLE);
+  expect(ownerRepeatView({ stage: "owner_accept", payer: "owner", priceIncGst: 349, deadline: "2026-10-01" })!.button).toBe("Accept");
+  expect(ownerRepeatView({ stage: "owner_pay", payer: "owner", priceIncGst: 349, deadline: "2026-10-01" })!.body).toContain("Please pay $349 inc GST");
 });
 
 test("owner pays: price shown, Accept, then must be paid before booking", () => {
@@ -110,5 +118,33 @@ describe("owner-pays repeat PIESA on the ONE Xero invoice (decision 233, Jo 28 O
     expect(u.expectedTotalCents).toBe(134900);
     // Paid invoice → held for the office, not a second invoice.
     expect(core.repairsAmendDecision({ enabled: true, repairs: { rectQuoteId: "2026-11-20", amountCents: 34900 }, key: "k", recorded: [], baseTotalCents: 100000, xero: { ...x, AmountPaid: 349 }, tag }).action).toBe("hold");
+  });
+});
+
+test("card covers the repeat price after acceptance → paid", () => {
+  expect(repeatCardPaid({ priceCents: 34_900, paidCents: 69_800, paidBeforeAcceptCents: 34_900, cardRowAfterAccept: true })).toBe(true);
+});
+test("card short of the price, no card row, or no paid-before → not paid", () => {
+  expect(repeatCardPaid({ priceCents: 34_900, paidCents: 60_000, paidBeforeAcceptCents: 34_900, cardRowAfterAccept: true })).toBe(false);
+  expect(repeatCardPaid({ priceCents: 34_900, paidCents: 69_800, paidBeforeAcceptCents: 34_900, cardRowAfterAccept: false })).toBe(false);
+  expect(repeatCardPaid({ priceCents: 34_900, paidCents: 69_800, paidBeforeAcceptCents: null, cardRowAfterAccept: true })).toBe(false);
+});
+
+describe("Xero repeat line still goes on after a card payment (final review 2)", () => {
+  it("owner-pays: due at owner_pay, and at offer only until the line is recorded on the invoice", async () => {
+    const { repeatLineDue } = await import("../src/lib/repeat-piesa.core");
+    const paidByCard = accepted("owner", true);
+    expect(paidByCard.stage).toBe("offer");
+    expect(repeatLineDue({ state: accepted("owner"), lineAdded: false })).toBe(true);
+    expect(repeatLineDue({ state: accepted("owner"), lineAdded: true })).toBe(true); // unchanged: the step itself says "already"
+    expect(repeatLineDue({ state: paidByCard, lineAdded: false })).toBe(true);
+    expect(repeatLineDue({ state: paidByCard, lineAdded: true })).toBe(false);
+  });
+  it("never for installer / HIVIC payers or before acceptance", async () => {
+    const { repeatLineDue } = await import("../src/lib/repeat-piesa.core");
+    expect(repeatLineDue({ state: accepted("installer"), lineAdded: false })).toBe(false);
+    expect(repeatLineDue({ state: accepted("hivic"), lineAdded: false })).toBe(false);
+    expect(repeatLineDue({ state: chose("owner"), lineAdded: false })).toBe(false);
+    expect(repeatLineDue({ state: lapsed, lineAdded: false })).toBe(false);
   });
 });

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Open questions for Jo (answer before Tasks 2–4 start; proposed wording is used until she says otherwise):**
+**Jo's answers (29 Oct 2026):** 1–3 approved as written. 4 (file name) proceeding as proposed.
 1. E1 electrician empty Money page: "No completed visits yet." / "Your pay for each safety check and fixes visit shows here once the visit is done." Tiles say "1 visit" / "3 visits".
 2. E2: show the **last 4** bank digits everywhere (per-job page and My business already use 4; only the Money page uses 3).
 3. E3 job pay page heading for the reasons: "Why your pay is held". The reasons use the same words the Money list already shows (e.g. "Waiting for Final check (AP approval) — installer pay falls due 7 days after it"). OK as is?

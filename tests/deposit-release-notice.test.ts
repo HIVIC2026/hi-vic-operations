@@ -22,7 +22,7 @@ describe("wording (decision 170)", () => {
     expect(m.html).toContain("Hi Helen,");
     expect(m.html).toContain("Your install day was released");
     expect(m.html).toContain("so Tuesday 11 November has been released. Your installer will offer new days once it's paid.");
-    expect(m.html).toContain("Pay your $185.10 deposit by bank transfer or PayID");
+    expect(m.html).toContain("Pay your $185.10 deposit by card, bank transfer or PayID");
     // O64 design: bank details as label/value rows.
     expect(m.html).toContain("<strong>082-902</strong>");
     expect(m.html).toContain("<strong>777966349</strong>");

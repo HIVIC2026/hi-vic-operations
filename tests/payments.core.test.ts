@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import {
   BANK_DETAILS_TO_CONFIRM, FINAL_INVOICE_PAY_LINE, PAY_LINE_SAFETY_CHECK, PROVISIONAL_HOLD_HOURS, SAFETY_CHECK_CENTS,
   bankDetailLines, cardAllowedFor, cumulativePaidCents, howYouPayLines, isStepCleared, newXeroPayments, payNowBlock, payableNow, paymentLine, paymentMethodsFor,
-  paymentPlan, paymentSteps, planQuoteTotalCents, provisionalBookingDecision, provisionalHoldExpiresAt, stepState, xeroDateIso,
+  paymentPlan, paymentSteps, planQuoteTotalCents, repeatCreditCents, provisionalBookingDecision, provisionalHoldExpiresAt, stepState, xeroDateIso,
   effectiveLedger, ledgerRecordFromEvent, reconciledPaidCents, xeroPaymentFacts, xeroReversals,
   ledgerXeroPayments, reconcilePayments, stripeReceiptKey, stripeRefundReceiptKey, stripeRefundedSoFarCents, xeroReceiptKey, xeroReversalReceiptKey,
   INSTALL_DEPOSIT_NOT_PAID, depositDeadlineBeforeStart, depositSweepAction, installDepositPrestartBlocker,
@@ -43,11 +43,11 @@ describe("amount maths (cents)", () => {
   });
 });
 
-describe("payment methods (decisions 140/141: never a card fee; card only for $349 and fixes)", () => {
-  test("card for the safety check and the fixes only", () => {
+describe("payment methods (decisions 140/141: never a card fee; card only for $349, fixes and the 10% deposit)", () => {
+  test("card for the safety check, the fixes and the deposit; not the balance", () => {
     expect(paymentMethodsFor("safety_check")).toEqual(["card", "bank"]);
     expect(paymentMethodsFor("fixes")).toEqual(["card", "bank"]);
-    expect(paymentMethodsFor("install_deposit")).toEqual(["bank"]);
+    expect(paymentMethodsFor("install_deposit")).toEqual(["card", "bank"]);
     expect(paymentMethodsFor("balance")).toEqual(["bank"]);
     expect(cardAllowedFor("balance")).toBe(false);
   });
@@ -55,7 +55,7 @@ describe("payment methods (decisions 140/141: never a card fee; card only for $3
     const lines = [paymentLine("safety_check", "INV-0042"), paymentLine("fixes", "INV-0042"), paymentLine("install_deposit", "INV-0042"), paymentLine("balance", "INV-0042"), ...howYouPayLines(paymentPlan({ quoteTotalCents: 400_000 })), FINAL_INVOICE_PAY_LINE];
     for (const l of lines) expect(l).not.toMatch(/fee shown|surcharge|card fee/i);
     expect(paymentLine("safety_check", null)).toBe(PAY_LINE_SAFETY_CHECK);
-    expect(paymentLine("install_deposit", "INV-0042")).toBe("Bank transfer or PayID, reference INV-0042");
+    expect(paymentLine("install_deposit", "INV-0042")).toBe("Card, bank transfer or PayID, reference INV-0042");
     expect(paymentLine("balance", null)).toBe("Bank transfer or PayID");
     expect(howYouPayLines(paymentPlan({ quoteTotalCents: 400_000 }))[1]).toContain("$365.10 deposit (10% of the install price)");
     expect(howYouPayLines(paymentPlan({ quoteTotalCents: 400_000 }))[1]).not.toContain("48 hours") // Jo 26 Oct: deposit before booking, no hold;
@@ -82,11 +82,11 @@ describe("step states are idempotent and driven by cumulative payments", () => {
     expect(s[1]!.outstandingCents).toBe(30_000);
     expect(payableNow(plan, s, 54_900).step?.key).toBe("fixes");
   });
-  test("deposit falls overdue 48h after booking when unpaid; card is not offered for it", () => {
+  test("deposit falls overdue 48h after booking when unpaid; card is offered for it", () => {
     const s = paymentSteps(plan, 84_900, facts, plus(T0, 121));
     const dep = s.find((x) => x.key === "install_deposit")!;
     expect(dep.state).toBe("overdue");
-    expect(payableNow(plan, s, 84_900)).toMatchObject({ dueNowCents: dep.amountCents, cardAvailable: false });
+    expect(payableNow(plan, s, 84_900)).toMatchObject({ dueNowCents: dep.amountCents, cardAvailable: true });
   });
   test("pay in full clears everything, including the balance that was never requested", () => {
     const s = paymentSteps(plan, 450_000, facts, plus(T0, 1));
@@ -185,12 +185,12 @@ describe("audit F01: the same money is counted once; deleted Xero payments are r
     const xero = xeroPaymentFacts([{ PaymentID: "x1", Amount: 349, Date: plus(T0, 72), Reference: "Stripe pi_3Abc123456" }]);
     expect(reconciledPaidCents([card], xero)).toBe(34_900);
   });
-  test("audit R02: no Stripe id in the Reference → a same-amount card + Xero pair is TWO payments ($698), reported as unclear", () => {
+  test("audit R02: no Stripe id in the Reference → a same-amount card + Xero pair counts ONCE ($349) and is still reported as unclear", () => {
     const bank = xeroPaymentFacts([{ PaymentID: "x1", Amount: 349, Date: plus(T0, 24 * 2), Reference: "INV-0042" }]);
-    expect(reconciledPaidCents([card], bank)).toBe(69_800);
+    expect(reconciledPaidCents([card], bank)).toBe(34_900);
     const r = reconcilePayments([card], bank);
     expect(r.unclear.map((u) => u.xero.paymentId)).toEqual(["x1"]);
-    expect(cumulativePaidCents(effectiveLedger([card, ledgerRecordFromEvent("owner_payment_recorded", T0, null, { amount_cents: 34_900, source: "xero", paid_at: plus(T0, 48), xero_payment_id: "x1" })]))).toBe(69_800);
+    expect(cumulativePaidCents(effectiveLedger([card, ledgerRecordFromEvent("owner_payment_recorded", T0, null, { amount_cents: 34_900, source: "xero", paid_at: plus(T0, 48), xero_payment_id: "x1" })]))).toBe(34_900);
     // outside 10 days or a different amount: still two payments, nothing unclear to report
     expect(reconcilePayments([card], xeroPaymentFacts([{ PaymentID: "x1", Amount: 349, Date: plus(T0, 24 * 11) }])).unclear).toEqual([]);
     expect(reconciledPaidCents([card], xeroPaymentFacts([{ PaymentID: "x1", Amount: 300, Date: plus(T0, 24) }]))).toBe(64_900);
@@ -288,12 +288,12 @@ describe("owner Pay now block", () => {
     expect(b.lines).toContain("Reference: INV-7");
     expect(payNowBlock({ step: steps[0]!, cardAvailable: false, bank, reference: "INV-7", remainingCents: 400_000 }).card).toBe(false);
   });
-  test("deposit due: no card even when Stripe is available", () => {
+  test("deposit due: card when Stripe is available", () => {
     const steps = paymentSteps(plan, 34_900, { safety_check: { requestedAt: T0 }, install_deposit: { requestedAt: T0 } }, T0);
     const b = payNowBlock({ step: steps.find((s) => s.key === "install_deposit")!, cardAvailable: true, bank, reference: "INV-7", remainingCents: 365_100 });
-    expect(b.card).toBe(false);
+    expect(b.card).toBe(true);
     expect(b.title).toContain("$365.10 due now");
-    expect(b.lines[0]).toBe("Bank transfer or PayID, reference INV-7");
+    expect(b.lines[0]).toBe("Card, bank transfer or PayID, reference INV-7");
   });
   test("nothing due: remaining can still be paid in full by bank; all paid says thanks", () => {
     expect(payNowBlock({ step: null, cardAvailable: true, bank, reference: null, remainingCents: 1000 }).lines[0]).toContain("pay the remaining $10.00 any time by bank transfer or PayID");
@@ -312,16 +312,61 @@ describe("repeat safety check on the owner's plan (decision 233, Jo 28 Oct)", ()
     expect(withRepeat.thresholds.repeat_safety_check).toBe(434_900);
     expect(plain.repeatCents).toBe(0);
   });
-  test("a plan with no repeat shows no repeat step; a repeat plan shows it owing until the full total is paid", () => {
+  test("a plan with no repeat shows no repeat step; a repeat plan shows it owing until its own money is in", () => {
     expect(paymentSteps(plain, 0, {}, T0).map((s) => s.key)).not.toContain("repeat_safety_check");
-    const steps = paymentSteps(withRepeat, 400_000, { repeat_safety_check: { requestedAt: T0 } }, T0);
-    const repeat = steps.find((s) => s.key === "repeat_safety_check")!;
+    const facts = { repeat_safety_check: { requestedAt: T0, recordedPaid: false, paidBeforeAcceptCents: 34_900 } };
+    const repeat = paymentSteps(withRepeat, 34_900, facts, T0).find((s) => s.key === "repeat_safety_check")!;
     expect(repeat.label).toBe("Repeat safety check (PIESA)");
     expect(repeat.amountCents).toBe(34_900);
     expect(repeat.state).toBe("requested");
     expect(repeat.outstandingCents).toBe(34_900);
     expect(repeat.methods).toContain("card"); // same card-or-bank rule as the original safety check
-    expect(paymentSteps(withRepeat, 434_900, { repeat_safety_check: { requestedAt: T0 } }, T0).find((s) => s.key === "repeat_safety_check")!.state).toBe("paid");
+  });
+  test("repeat money paid after acceptance flips the repeat step and never counts toward the deposit", () => {
+    const facts = { repeat_safety_check: { requestedAt: T0, recordedPaid: true, paidBeforeAcceptCents: 34_900 }, install_deposit: { requestedAt: T0 } };
+    const steps = paymentSteps(withRepeat, 69_800, facts, T0);
+    expect(steps.map((s) => s.key)).toEqual(["safety_check", "repeat_safety_check", "install_deposit", "balance"]);
+    expect(steps.find((s) => s.key === "repeat_safety_check")!.state).toBe("paid");
+    expect(steps.find((s) => s.key === "install_deposit")!.state).toBe("requested");
+    expect(steps.find((s) => s.key === "install_deposit")!.outstandingCents).toBe(36_510);
+  });
+  test("part payment: repeat owing is the price less what's been paid since acceptance", () => {
+    const r = paymentSteps(withRepeat, 44_900, { repeat_safety_check: { requestedAt: T0, recordedPaid: false, paidBeforeAcceptCents: 34_900 } }, T0).find((s) => s.key === "repeat_safety_check")!;
+    expect(r.state).toBe("requested"); expect(r.outstandingCents).toBe(24_900);
+  });
+  test("money after acceptance goes to the repeat first; repeat is the pay-now step even with the deposit due", () => {
+    const facts = { repeat_safety_check: { requestedAt: T0, recordedPaid: false, paidBeforeAcceptCents: 34_900 }, install_deposit: { requestedAt: T0 } };
+    const steps = paymentSteps(withRepeat, 34_900, facts, T0);
+    expect(payableNow(withRepeat, steps, 34_900).step!.key).toBe("repeat_safety_check");
+    expect(paymentSteps(withRepeat, 50_000, facts, T0).find((s) => s.key === "install_deposit")!.outstandingCents).toBe(36_510);
+  });
+  test("fully credited but not recorded is not pay-now", () => {
+    const facts = { repeat_safety_check: { requestedAt: T0, recordedPaid: false, paidBeforeAcceptCents: 34_900 }, install_deposit: { requestedAt: T0 } };
+    const steps = paymentSteps(withRepeat, 69_800, facts, T0);
+    expect(steps.find((s) => s.key === "repeat_safety_check")!.outstandingCents).toBe(0);
+    expect(payableNow(withRepeat, steps, 69_800).step!.key).toBe("install_deposit");
+  });
+  test("missing paid-before counts nothing, even when recorded paid", () => {
+    expect(repeatCreditCents({ repeatCents: 34_900, paidCents: 90_000, paidBeforeAcceptCents: null, recordedPaid: false })).toBe(0);
+    expect(repeatCreditCents({ repeatCents: 34_900, paidCents: 90_000, paidBeforeAcceptCents: null, recordedPaid: true })).toBe(0);
+  });
+  test("recorded paid before the money is in never takes money off the steps already paid", () => {
+    // safety check + deposit (71_410) paid before acceptance, office pressed Record paid, no new money yet
+    const facts = { safety_check: { requestedAt: T0 }, repeat_safety_check: { requestedAt: T0, recordedPaid: true, paidBeforeAcceptCents: 71_410 }, install_deposit: { requestedAt: T0 } };
+    const steps = paymentSteps(withRepeat, 71_410, facts, T0);
+    const by = (k: string) => steps.find((s) => s.key === k)!;
+    expect([by("repeat_safety_check").state, by("repeat_safety_check").outstandingCents]).toEqual(["paid", 0]);
+    expect(by("safety_check").state).toBe("paid");
+    expect(by("install_deposit").state).toBe("paid");
+    expect(repeatCreditCents({ repeatCents: 34_900, paidCents: 71_410, paidBeforeAcceptCents: 71_410, recordedPaid: true })).toBe(0);
+  });
+  test("credit since acceptance is capped at the repeat price", () => {
+    expect(repeatCreditCents({ repeatCents: 34_900, paidCents: 200_000, paidBeforeAcceptCents: 34_900, recordedPaid: false })).toBe(34_900);
+    expect(repeatCreditCents({ repeatCents: 34_900, paidCents: 200_000, paidBeforeAcceptCents: 34_900, recordedPaid: true })).toBe(34_900);
+  });
+  test("no repeat owed leaves every step as before", () => {
+    const before = paymentSteps(plain, 100_000, { install_deposit: { requestedAt: T0 } }, T0);
+    expect(before.map((s) => [s.key, s.state, s.outstandingCents])).toEqual([["safety_check", "paid", 0], ["install_deposit", "paid", 0], ["balance", "not_yet", 300_000]]);
   });
   test("How you can pay and the pay-now line include the repeat price", () => {
     expect(howYouPayLines(withRepeat)).toContain("$349.00 for the repeat safety check (PIESA) (card or bank transfer, no fee)");

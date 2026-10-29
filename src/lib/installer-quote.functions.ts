@@ -2,12 +2,14 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin } from "./workflow.server";
+import { requireOfficeJob } from "./qa-office-access.server";
 
 // Admin-only: the auto-drafted owner quote from an installer's Ready Check, and the office "send" step.
 export const getInstallerQuoteDraft = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireAdmin(context.supabase);
+    // Admin, or the TEST office on a fully isolated TEST job only.
+    await requireOfficeJob(context.supabase, data.jobId);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { data: job, error: je } = await admin.from("jobs").select("channel").eq("id", data.jobId).single();
     if (je) throw new Error(je.message);
@@ -33,7 +35,7 @@ export const getInstallerQuoteDraft = createServerFn({ method: "POST" }).middlew
 export const sendInstallerQuote = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid(), quoteId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireAdmin(context.supabase);
+    await requireOfficeJob(context.supabase, data.jobId);
     return (await import("./office-quote-review.server")).sendOfficeReviewedQuote(data.jobId, data.quoteId, context.userId);
   });
 

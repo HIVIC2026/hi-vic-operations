@@ -16,8 +16,10 @@ async function priceMissing(jobId: string, entries: { label: string; value: unkn
   const { data: job, error } = await admin.from("jobs").select("channel").eq("id", jobId).maybeSingle();
   if (error || !job) return false;
   const { installerPriceState } = await import("./installer-price.core");
-  const stored = await (await import("./installer-price.server")).readInstallerPrice(jobId).catch(() => null);
-  const s = installerPriceState({ channel: job.channel, record: stored?.record ?? null, entries });
+  const ip = await import("./installer-price.server");
+  const stored = await ip.readInstallerPrice(jobId).catch(() => null);
+  // Batch 3a: after a new-quote request an old form's own price no longer counts (entriesWithInstallerPrice drops it).
+  const s = installerPriceState({ channel: job.channel, record: stored?.record ?? null, entries: await ip.entriesWithInstallerPrice(jobId, entries) });
   return s.required && !s.present;
 }
 

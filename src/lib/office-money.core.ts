@@ -47,10 +47,12 @@ export type PayoutLine = { jobId: string; jobNumber: string; businessId: string 
   /** Decision 318: reasons the payout is held (Mitti form not Complete / evidence missing). Empty or absent = payable. */
   held?: string[];
   /** Decision 410: the electrician's form is complete and only waits for the office's Approve. */
-  approvable?: boolean };
+  approvable?: boolean;
+  /** Batch 1 F5: the safety-check visit (assessment booking) this line pays; absent on an older job with no visit marked done. */
+  visitId?: string };
 /** Decision 318: one unpaid payout that is NOT payable yet — shown as Held with its reasons, never in a Mark paid group. */
-export type HeldPayout = { jobId: string; jobNumber: string; businessId: string | null; business: string; trade: "installer" | "electrician"; kind: PayoutLine["kind"]; amountEx: number | null; dueAt: string | null; reasons: string[]; approvable?: boolean };
-export type PayoutGroup = { key: string; businessId: string | null; business: string; trade: "installer" | "electrician"; jobs: { jobId: string; jobNumber: string; kind: PayoutLine["kind"] }[]; amountEx: number | null; dueAt: string | null; paid: boolean; paidAt: string | null };
+export type HeldPayout = { jobId: string; jobNumber: string; businessId: string | null; business: string; trade: "installer" | "electrician"; kind: PayoutLine["kind"]; amountEx: number | null; dueAt: string | null; reasons: string[]; approvable?: boolean; visitId?: string };
+export type PayoutGroup = { key: string; businessId: string | null; business: string; trade: "installer" | "electrician"; jobs: { jobId: string; jobNumber: string; kind: PayoutLine["kind"]; visitId?: string }[]; amountEx: number | null; dueAt: string | null; paid: boolean; paidAt: string | null };
 
 /** Payouts tab: unpaid PAYABLE lines grouped per business and trade (one Mark paid per group); unpaid lines with a
  *  decision-318 hold listed one by one as Held (never payable); paid lines grouped per business + paid day. */
@@ -60,12 +62,12 @@ export function groupPayouts(lines: PayoutLine[]): { due: PayoutGroup[]; held: H
   for (const l of lines) {
     const trade = l.kind === "installation" ? "installer" : "electrician";
     if (!l.paidAt && l.held?.length) {
-      held.push({ jobId: l.jobId, jobNumber: l.jobNumber, businessId: l.businessId, business: l.business, trade, kind: l.kind, amountEx: l.amountEx, dueAt: l.dueAt, reasons: l.held, ...(l.approvable ? { approvable: true } : {}) });
+      held.push({ jobId: l.jobId, jobNumber: l.jobNumber, businessId: l.businessId, business: l.business, trade, kind: l.kind, amountEx: l.amountEx, dueAt: l.dueAt, reasons: l.held, ...(l.approvable ? { approvable: true } : {}), ...(l.visitId ? { visitId: l.visitId } : {}) });
       continue;
     }
     const key = `${l.paidAt ? `paid:${l.paidAt.slice(0, 10)}` : "due"}:${l.businessId ?? l.business}:${trade}`;
     const g = groups.get(key) ?? { key, businessId: l.businessId, business: l.business, trade, jobs: [], amountEx: 0, dueAt: null, paid: !!l.paidAt, paidAt: l.paidAt };
-    g.jobs.push({ jobId: l.jobId, jobNumber: l.jobNumber, kind: l.kind });
+    g.jobs.push({ jobId: l.jobId, jobNumber: l.jobNumber, kind: l.kind, ...(l.visitId ? { visitId: l.visitId } : {}) });
     g.amountEx = g.amountEx == null || l.amountEx == null ? null : Math.round((g.amountEx + l.amountEx) * 100) / 100;
     if (l.dueAt && (!g.dueAt || l.dueAt < g.dueAt)) g.dueAt = l.dueAt;
     groups.set(key, g);

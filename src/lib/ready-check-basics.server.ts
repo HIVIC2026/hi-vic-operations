@@ -11,8 +11,10 @@ export const PROTECT_EVENTS = ["mitti_pickup_needs_finishing", "mitti_pickup_man
 
 export async function checkReadyCheckBasics(jobId: string, actorId: string | null, formEntries: E[], formCompleted: boolean, auditId: string) {
   // Decision 278: the A1 price comes from the portal (business owner) first; old forms that still carry it are the fallback.
-  const priceRecord = await (await import("./installer-price.server")).readInstallerPrice(jobId).catch(() => null);
-  const entries = (await import("./installer-price.core")).withInstallerPrice(formEntries, priceRecord?.record ?? null) as E[];
+  const ip = await import("./installer-price.server");
+  const priceRecord = await ip.readInstallerPrice(jobId).catch(() => null);
+  // Batch 3a: after a new-quote request an old form's own price is dropped (entriesWithInstallerPrice).
+  const entries = (await ip.entriesWithInstallerPrice(jobId, formEntries)) as E[];
   // Decision 279: whether the installer has answered anything beyond the pre-fill (drives "Next: do the Ready Check").
   const answered = formHasInstallerAnswers(formEntries);
   const [{ data: job }, { data: m }, { data: perm }, { data: last }] = await Promise.all([

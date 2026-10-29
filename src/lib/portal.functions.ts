@@ -11,7 +11,7 @@ import { WorkflowError, logEvent, nextStepBlockers, stageEntryBlockers, piesaSta
 import { adjustQuote as adjustQuoteImpl, generateInstallerQuotes as genInstaller, generateRectificationQuote } from "./quotes.server";
 import { enquirySchema, upsertEnquiry } from "./enquiry.server";
 import { installationDateBlocker, STAGE_LABEL, type Stage } from "./workflow";
-import { applyPaidAmount, createInvoiceForQuote, requireHivicInvoice, requireHivicJob, setInstallDueDate, syncInvoiceFromXero } from "./xero.server";
+import { applyPaidAmount, requireHivicInvoice, requireHivicJob, setInstallDueDate, syncInvoiceFromXero } from "./xero.server";
 import { clearInstallDueDate } from "./install-balance.server";
 import { buildDepositOverride, depositRequestPatch } from "./invoice.lifecycle";
 import { commercialBlocker, paymentOptionCleared } from "./workflow.server";
@@ -580,8 +580,9 @@ export const recordPiesa = createServerFn({ method: "POST" }).middleware([requir
         if (sc.length) throw new WorkflowError(`Section C: ${sc.join(" ")}`);
       }
     } else {
-      const p = await piesaStatus(data.jobId);
-      if (!p?.piesa_expired && stage !== "assessment_complete") throw new WorkflowError("Reassessment is only needed when the PIESA window has expired.");
+      // Batch 1 task 6: a check superseded by a reopen is redone as a reassessment, like an expired one.
+      const rb = await (await import("./piesa-record.server")).reassessmentBlocker(data.jobId, stage);
+      if (rb) throw new WorkflowError(rb);
     }
     // Decision 293: the same writes the Mitti "A4 – Electrical fixes" completion makes (piesa-record.server.ts).
     const { applyPiesaRecord } = await import("./piesa-record.server");
@@ -804,7 +805,7 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
       return { ok: true };
     }
 
-    await admin.from("declarations").upsert({ job_id: q.job_id, kind: "owner_consent", declared_by: context.userId, statement: `Owner accepted ${q.option_label} (${q.customer_total_inc_gst} inc GST): approved payment option due now (minimum upfront deposit, paid in full, or active 3-instalment plan), balance due on installation day.` }, { onConflict: "job_id,kind" });
+    await admin.from("declarations").upsert({ job_id: q.job_id, kind: "owner_consent", declared_by: context.userId, statement: `Owner accepted ${q.option_label} (${q.customer_total_inc_gst} inc GST): safety check paid at acceptance; electrical fixes in full if needed; 10% install deposit to book the install; balance on installation day.` }, { onConflict: "job_id,kind" });
     await admin.from("compliance_checks").update({ status: "pass", checked_at: new Date().toISOString() }).eq("job_id", q.job_id).eq("check_key", "owner_consent");
     await logEvent(q.job_id, context.userId, ASSIGNMENT_EVENTS.QUOTE_ACCEPTED, `${q.option_label} accepted with signed Customer Agreement / Quote Acceptance`, { quote_id: q.id, total_inc_gst: q.customer_total_inc_gst });
     // F13: the installer is told by the approved I23 email once the safety check is paid (afterPaymentsChanged in payments.server.ts, Jo 28 Oct 2026);
@@ -826,11 +827,8 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
  *  owner's completed acceptance into an error they cannot retry (the quote is no longer "issued"); record it for office,
  *  which recovers with Retry Xero push (local invoice row exists) or Sync. */
 async function invoiceAfterAcceptance(quoteId: string, jobId: string, actorId: string) {
-  try { await createInvoiceForQuote(quoteId, actorId); }
-  catch (e) {
-    const { data: inv } = await admin.from("invoices").select("id").eq("quote_id", quoteId).maybeSingle();
-    await logEvent(jobId, actorId, "invoice_create_failed", `Quote accepted but the invoice step failed – office action needed: ${(e as Error)?.message ?? e}`, { quote_id: quoteId, invoice_id: inv?.id ?? null, local_invoice_exists: !!inv }, { internal: true }).catch(() => null);
-  }
+  // The installer is told once the safety check is paid (afterPaymentsChanged, Jo 28 Oct 2026), not here.
+  await (await import("./invoice-after-acceptance.server")).createInvoiceAfterAcceptance(quoteId, jobId, actorId);
 }
 
 // ---------- Payments (Xero mirror + gates) ----------

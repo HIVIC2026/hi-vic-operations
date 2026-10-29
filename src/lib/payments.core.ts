@@ -11,7 +11,7 @@
 // How owners pay (decision 140 — the RBA bans card surcharges from 1 July 2026, so a card fee is NEVER shown):
 //   • $349 safety check at acceptance: card (fee absorbed by Home Insulation Victoria) or bank transfer / PayID.
 //   • Electrical fixes at approval (decision 141): card or bank transfer / PayID, so fixes are never delayed.
-//   • 10% install deposit, balance on install day, pay in full: BANK TRANSFER / PayID ONLY — no card offered.
+//   • 10% install deposit (Jo 29 Oct 2026): card, bank transfer or PayID. Balance on install day, pay in full: BANK TRANSFER / PayID ONLY — no card offered.
 // Card (decision 144) = Stripe Checkout for exactly the step amount (stripe.core.ts); Xero stays the invoice,
 // bank-transfer reference and reconciliation side. All amounts are integer cents.
 
@@ -24,8 +24,9 @@ export const PROVISIONAL_HOLD_HOURS = 48;
 export const PROVISIONAL_HOLD_MS = PROVISIONAL_HOLD_HOURS * 3_600_000;
 
 export type PaymentStepKey = "safety_check" | "fixes" | "install_deposit" | "balance" | "repeat_safety_check";
-/** The repeat safety check sits LAST: its threshold is the grand total, so every existing step's threshold is unchanged. */
-export const PAYMENT_STEP_ORDER: PaymentStepKey[] = ["safety_check", "fixes", "install_deposit", "balance", "repeat_safety_check"];
+/** The repeat safety check sits right after the first safety check and counts its OWN money (see `repeatCreditCents`):
+ *  its money is taken off what the other steps see, so it never counts toward the install deposit. Thresholds are unchanged. */
+export const PAYMENT_STEP_ORDER: PaymentStepKey[] = ["safety_check", "repeat_safety_check", "fixes", "install_deposit", "balance"];
 export const PAYMENT_STEP_LABEL: Record<PaymentStepKey, string> = {
   safety_check: "Pre Insulation Electrical Safety Assessment (PIESA) payment",
   fixes: "Electrical fixes",
@@ -81,9 +82,9 @@ export function paymentPlan(i: PaymentPlanInput): PaymentPlan {
 export const stepAmountCents = (p: PaymentPlan, k: PaymentStepKey) =>
   k === "safety_check" ? p.safetyCheckCents : k === "fixes" ? p.fixesCents : k === "install_deposit" ? p.installDepositCents : k === "repeat_safety_check" ? p.repeatCents : p.balanceCents;
 
-/** Decision 140/141 + 233: card only for the safety check (including the repeat check), the fixes; everything else is bank transfer / PayID only. */
+/** Decision 140/141 + 233, Jo 29 Oct 2026: card for the safety check (including the repeat check), the fixes and the 10% install deposit; the balance is bank transfer / PayID only. */
 export function paymentMethodsFor(step: PaymentStepKey): PaymentMethod[] {
-  return step === "safety_check" || step === "fixes" || step === "repeat_safety_check" ? ["card", "bank"] : ["bank"];
+  return step === "safety_check" || step === "fixes" || step === "repeat_safety_check" || step === "install_deposit" ? ["card", "bank"] : ["bank"];
 }
 export const cardAllowedFor = (step: PaymentStepKey) => paymentMethodsFor(step).includes("card");
 
@@ -96,6 +97,10 @@ export type PaymentStepFacts = {
   dueAt?: string | null;
   /** An audited office override that waives this step (deposit-gate override waives the safety check). */
   waived?: boolean;
+  /** Repeat safety check only: the office/ledger has recorded the repeat as paid. */
+  recordedPaid?: boolean;
+  /** Repeat safety check only: cumulative paid when the repeat was accepted; null = unknown (counts nothing). */
+  paidBeforeAcceptCents?: number | null;
 };
 export type PaymentStep = {
   key: PaymentStepKey; label: string; amountCents: number; thresholdCents: number; state: PaymentStepState;
@@ -113,14 +118,31 @@ export function stepState(f: { thresholdCents: number; amountCents: number; paid
   return "requested";
 }
 
+/** How much of the money paid counts for the repeat safety check: only money actually received since acceptance, capped at
+ *  the repeat price — the same whether or not it is recorded paid (a "Record paid" before the money is in never takes money
+ *  off the other steps); nothing if we don't know what was paid before acceptance. */
+export function repeatCreditCents(f: { repeatCents: number; paidCents: number; paidBeforeAcceptCents: number | null; recordedPaid: boolean }): number {
+  if (f.repeatCents <= 0) return 0;
+  if (f.paidBeforeAcceptCents == null) return 0;
+  return Math.min(f.repeatCents, Math.max(0, f.paidCents - f.paidBeforeAcceptCents));
+}
+
 export function paymentSteps(plan: PaymentPlan, paidCents: number, facts: Partial<Record<PaymentStepKey, PaymentStepFacts>>, nowIso: string): PaymentStep[] {
   const paid = Math.max(0, Math.round(paidCents));
+  const rf = facts.repeat_safety_check;
+  const credit = repeatCreditCents({ repeatCents: plan.repeatCents, paidCents: paid, paidBeforeAcceptCents: rf?.paidBeforeAcceptCents ?? null, recordedPaid: !!rf?.recordedPaid });
   return PAYMENT_STEP_ORDER.filter((k) => (k !== "fixes" || plan.fixesCents > 0) && (k !== "repeat_safety_check" || plan.repeatCents > 0)).map((key) => {
     const f = facts[key] ?? { requestedAt: null };
     const amountCents = stepAmountCents(plan, key);
+    if (key === "repeat_safety_check") {
+      const state: PaymentStepState = f.recordedPaid ? "paid" : f.requestedAt ? "requested" : "not_yet";
+      const outstandingCents = f.recordedPaid ? 0 : Math.max(0, plan.repeatCents - credit);
+      return { key, label: PAYMENT_STEP_LABEL[key], amountCents, thresholdCents: plan.thresholds.safety_check + plan.repeatCents, state, methods: paymentMethodsFor(key), requestedAt: f.requestedAt, dueAt: f.dueAt ?? null, outstandingCents };
+    }
+    const own = paid - credit; // the repeat's money never counts toward any other step
     const thresholdCents = plan.thresholds[key];
-    const state = stepState({ thresholdCents, amountCents, paidCents: paid, facts: f, nowIso });
-    const outstandingCents = state === "paid" || state === "waived" ? 0 : Math.max(0, Math.min(amountCents, thresholdCents - paid));
+    const state = stepState({ thresholdCents, amountCents, paidCents: own, facts: f, nowIso });
+    const outstandingCents = state === "paid" || state === "waived" ? 0 : Math.max(0, Math.min(amountCents, thresholdCents - own));
     return { key, label: PAYMENT_STEP_LABEL[key], amountCents, thresholdCents, state, methods: paymentMethodsFor(key), requestedAt: f.requestedAt, dueAt: f.dueAt ?? null, outstandingCents };
   });
 }
@@ -202,7 +224,7 @@ export const isStepCleared = (steps: PaymentStep[], key: PaymentStepKey) => ["pa
 
 /** What is payable right now: the earliest requested/overdue step, plus "pay in full" (always allowed). */
 export function payableNow(plan: PaymentPlan, steps: PaymentStep[], paidCents: number) {
-  const due = steps.find((s) => s.state === "requested" || s.state === "overdue") ?? null;
+  const due = steps.find((s) => (s.state === "requested" || s.state === "overdue") && s.outstandingCents > 0) ?? null;
   const remainingCents = Math.max(0, plan.grandTotalCents - Math.max(0, Math.round(paidCents)));
   return { step: due, dueNowCents: due ? due.outstandingCents : 0, remainingCents, cardAvailable: !!due && cardAllowedFor(due.key) };
 }
@@ -257,6 +279,8 @@ export type PaymentRecord = {
   stripeIds?: string[] | null;
   /** Stripe refund rows: Stripe's cumulative refunded amount for the PaymentIntent at that delivery. */
   refundedTotalCents?: number | null;
+  /** Xero payment ids the office marked "Two separate payments" against this card row: never fuzzy-paired with it. */
+  notSameAs?: string[] | null;
 };
 /** One `owner_payment_recorded` / `owner_payment_reversed` workflow event → ledger record (pure; shared by every reader). */
 export function ledgerRecordFromEvent(eventType: string, createdAt: string, actorId: string | null, d: Record<string, unknown> | null | undefined): PaymentRecord {
@@ -284,8 +308,9 @@ export const xeroPaymentFacts = (xero: XeroPaymentInput[]): XeroPaymentFact[] =>
 const liveXero = (xero: XeroPaymentFact[]) => xero.filter((p) => !XERO_DEAD.has(String(p.status ?? "").toUpperCase()) && p.amountCents > 0);
 
 /** Audit R02 (25 Oct 2026): same amount within this many days is only a CANDIDATE pair, never proof of one receipt. A card
- *  row and a Xero payment are the same money only when the Xero Reference holds one of the card's Stripe ids; an
- *  identity-less same-amount pair is counted as TWO payments and raised for the office (`unclear`). Legacy office rows
+ *  row and a Xero payment are proven the same money when the Xero Reference holds one of the card's Stripe ids; an
+ *  identity-less same-amount pair inside the window counts ONCE (Jo, batch 1) and is still raised for the office to
+ *  confirm (`unclear`). Legacy office rows
  *  (source bank/manual — typed copies of money Xero holds, decision 368 stopped new ones) keep the amount/date match. */
 export const RECONCILE_WINDOW_DAYS = 10;
 const RECONCILE_WINDOW_MS = RECONCILE_WINDOW_DAYS * 86_400_000;
@@ -317,13 +342,27 @@ function refundedCents(r: PaymentRecord, ledger: PaymentRecord[]): number {
 export const stripeRefundedSoFarCents = (ledger: PaymentRecord[], paymentKey: string) =>
   refundStateCents(ledger.filter((x) => x.kind === "reversal" && x.source === "card" && (x.stripeIds ?? []).includes(paymentKey)));
 
+/** Identity of a card row + Xero payment pair (used by the unclear row and by the office's "Two separate payments" mark). */
+export const paymentPairKey = (r: { stripeIds?: string[] | null; id?: string }, xeroPaymentId: string | null) => `${(r.stripeIds ?? [])[0] ?? r.id ?? ""}|${xeroPaymentId ?? ""}`;
+/** Attach the office's "Two separate payments" marks (pair keys) to the card rows they name. */
+export function withSeparateMarks<T extends PaymentRecord & { id?: string }>(ledger: T[], pairKeys: Iterable<string>): T[] {
+  const keys = [...pairKeys];
+  if (!keys.length) return ledger;
+  return ledger.map((r) => {
+    const prefix = paymentPairKey(r, null); // "<card key>|"
+    const mine = prefix.length > 1 ? keys.filter((k) => k.startsWith(prefix) && k.length > prefix.length).map((k) => k.slice(prefix.length)) : [];
+    return mine.length ? { ...r, notSameAs: mine } : r;
+  });
+}
+
 export type UnclearPaymentPair<T> = { record: T; xero: XeroPaymentFact };
 
 /** Pure: which card/office records are already in Xero.
  *  1. Exact: the Xero payment Reference holds one of the record's Stripe ids (PaymentIntent / charge / session).
  *  2. Legacy office rows only (no receipt identity exists for them): same amount within 10 days, closest date first.
- *  Each Xero payment claims at most one record. A card row with no identity match is NOT merged with a same-amount Xero
- *  payment: both count, and the pair is returned in `unclear` for the office to settle in Xero (audit R02).
+ *  3. Card rows with no identity match: same rule as 2, but the pair is also returned in `unclear` for the office to confirm,
+ *     unless the office marked that pair "Two separate payments" (`notSameAs`): then both count and nothing is unclear.
+ *  Each Xero payment claims at most one record (an id match or an earlier row's pairing is never paired again).
  *  A card row's Stripe refunds reduce it while it is unmatched; once Xero holds that money Xero is the record. */
 export function reconcilePayments<T extends PaymentRecord>(ledger: T[], xeroPayments: XeroPaymentFact[]) {
   const live = liveXero(xeroPayments);
@@ -342,7 +381,7 @@ export function reconcilePayments<T extends PaymentRecord>(ledger: T[], xeroPaym
   const closest = (r: T, skip: Set<number>) => {
     let best = -1, bestGap = Infinity;
     live.forEach((p, k) => {
-      if (claimed.has(k) || skip.has(k) || p.amountCents !== Math.round(r.amountCents) || refHolds(p, allIds) || !withinWindow(p.paidAt, r.paidAt)) return;
+      if (claimed.has(k) || skip.has(k) || (p.paymentId && (r.notSameAs ?? []).includes(p.paymentId)) || p.amountCents !== Math.round(r.amountCents) || refHolds(p, allIds) || !withinWindow(p.paidAt, r.paidAt)) return;
       const gap = Math.abs(Date.parse(p.paidAt) - Date.parse(r.paidAt));
       if (gap < bestGap) { best = k; bestGap = gap; }
     });
@@ -353,12 +392,13 @@ export function reconcilePayments<T extends PaymentRecord>(ledger: T[], xeroPaym
     const best = closest(r, claimed);
     if (best >= 0) { claimed.add(best); matched.set(r, live[best]!); }
   }
+  // A card row with no Stripe id in any Xero Reference pairs with the closest same-amount Xero payment inside the window
+  // and counts once; the pair is still returned in `unclear` so the office is asked to confirm it.
   const unclear: UnclearPaymentPair<T>[] = [];
-  const reported = new Set<number>();
   for (const r of others) {
     if (matched.has(r) || r.source !== "card") continue;
-    const best = closest(r, reported);
-    if (best >= 0) { reported.add(best); unclear.push({ record: r, xero: live[best]! }); }
+    const best = closest(r, claimed);
+    if (best >= 0) { claimed.add(best); matched.set(r, live[best]!); unclear.push({ record: r, xero: live[best]! }); }
   }
   const netCents = new Map<T, number>();
   for (const r of others) if (!matched.has(r)) netCents.set(r, Math.max(0, Math.round(r.amountCents) - refundedCents(r, ledger)));
@@ -447,6 +487,7 @@ export function bankDetailLines(b: BankDetails, reference: string | null): strin
 export const PAY_LINE_SAFETY_CHECK = "$349 by card or bank transfer — no fee";
 export const PAY_LINE_FIXES = "Pay by card or bank transfer — no fee";
 export const PAY_LINE_BANK_ONLY = "Bank transfer or PayID";
+export const PAY_LINE_DEPOSIT = "Card, bank transfer or PayID";
 export const PAY_LINE_HOW = "Pay by card or bank transfer — no fee either way";
 
 /** "Reference HV-0123" style tail for bank-only steps. */
@@ -454,7 +495,7 @@ export function paymentLine(step: PaymentStepKey, reference: string | null, safe
   const ref = reference ? `, reference ${reference}` : "";
   if (step === "safety_check") return safetyCheckCents === SAFETY_CHECK_CENTS ? PAY_LINE_SAFETY_CHECK : `${aud(safetyCheckCents)} by card or bank transfer — no fee`;
   if (step === "fixes" || step === "repeat_safety_check") return PAY_LINE_FIXES;
-  return `${PAY_LINE_BANK_ONLY}${ref}`;
+  return `${step === "install_deposit" ? PAY_LINE_DEPOSIT : PAY_LINE_BANK_ONLY}${ref}`;
 }
 
 /** The "How you can pay" summary on the quote / acceptance page. */
@@ -462,7 +503,7 @@ export function howYouPayLines(plan: PaymentPlan): string[] {
   return [
     `${aud(plan.safetyCheckCents)} now for the electrical safety check (card or bank transfer, no fee)`,
     ...(plan.repeatCents > 0 ? [`${aud(plan.repeatCents)} for the repeat safety check (PIESA) (card or bank transfer, no fee)`] : []),
-    `${aud(plan.installDepositCents)} deposit (10% of the install price) before your install day can be booked, by bank transfer or PayID`,
+    `${aud(plan.installDepositCents)} deposit (10% of the install price) before your install day can be booked, by card, bank transfer or PayID`,
     `${aud(plan.balanceCents)} on install day, by bank transfer or PayID`,
     `Or pay the full ${aud(plan.quoteTotalCents)} any time by bank transfer or PayID`,
   ];

@@ -99,6 +99,7 @@ import { Route as ApiPublicHooksBacklogSendRouteImport } from './routes/api/publ
 import { Route as ApiPublicHooksCustomerFollowupsRouteImport } from './routes/api/public/hooks/customer-followups'
 import { Route as ApiPublicHooksEscRobotRouteImport } from './routes/api/public/hooks/esc-robot'
 import { Route as ApiPublicHooksExternalActionsRouteImport } from './routes/api/public/hooks/external-actions'
+import { Route as ApiPublicHooksMittiAuditRouteImport } from './routes/api/public/hooks/mitti-audit'
 import { Route as ApiPublicHooksMittiPullRouteImport } from './routes/api/public/hooks/mitti-pull'
 import { Route as ApiPublicHooksMittiRetryRouteImport } from './routes/api/public/hooks/mitti-retry'
 import { Route as ApiPublicHooksOutlookSyncRouteImport } from './routes/api/public/hooks/outlook-sync'
@@ -604,6 +605,12 @@ const ApiPublicHooksExternalActionsRoute =
     path: '/api/public/hooks/external-actions',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksMittiAuditRoute =
+  ApiPublicHooksMittiAuditRouteImport.update({
+    id: '/api/public/hooks/mitti-audit',
+    path: '/api/public/hooks/mitti-audit',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksMittiPullRoute = ApiPublicHooksMittiPullRouteImport.update({
   id: '/api/public/hooks/mitti-pull',
   path: '/api/public/hooks/mitti-pull',
@@ -782,6 +789,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/esc-robot': typeof ApiPublicHooksEscRobotRoute
   '/api/public/hooks/external-actions': typeof ApiPublicHooksExternalActionsRoute
+  '/api/public/hooks/mitti-audit': typeof ApiPublicHooksMittiAuditRoute
   '/api/public/hooks/mitti-pull': typeof ApiPublicHooksMittiPullRoute
   '/api/public/hooks/mitti-retry': typeof ApiPublicHooksMittiRetryRoute
   '/api/public/hooks/outlook-sync': typeof ApiPublicHooksOutlookSyncRoute
@@ -884,6 +892,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/esc-robot': typeof ApiPublicHooksEscRobotRoute
   '/api/public/hooks/external-actions': typeof ApiPublicHooksExternalActionsRoute
+  '/api/public/hooks/mitti-audit': typeof ApiPublicHooksMittiAuditRoute
   '/api/public/hooks/mitti-pull': typeof ApiPublicHooksMittiPullRoute
   '/api/public/hooks/mitti-retry': typeof ApiPublicHooksMittiRetryRoute
   '/api/public/hooks/outlook-sync': typeof ApiPublicHooksOutlookSyncRoute
@@ -992,6 +1001,7 @@ export interface FileRoutesById {
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/esc-robot': typeof ApiPublicHooksEscRobotRoute
   '/api/public/hooks/external-actions': typeof ApiPublicHooksExternalActionsRoute
+  '/api/public/hooks/mitti-audit': typeof ApiPublicHooksMittiAuditRoute
   '/api/public/hooks/mitti-pull': typeof ApiPublicHooksMittiPullRoute
   '/api/public/hooks/mitti-retry': typeof ApiPublicHooksMittiRetryRoute
   '/api/public/hooks/outlook-sync': typeof ApiPublicHooksOutlookSyncRoute
@@ -1100,6 +1110,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/esc-robot'
     | '/api/public/hooks/external-actions'
+    | '/api/public/hooks/mitti-audit'
     | '/api/public/hooks/mitti-pull'
     | '/api/public/hooks/mitti-retry'
     | '/api/public/hooks/outlook-sync'
@@ -1202,6 +1213,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/esc-robot'
     | '/api/public/hooks/external-actions'
+    | '/api/public/hooks/mitti-audit'
     | '/api/public/hooks/mitti-pull'
     | '/api/public/hooks/mitti-retry'
     | '/api/public/hooks/outlook-sync'
@@ -1309,6 +1321,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/esc-robot'
     | '/api/public/hooks/external-actions'
+    | '/api/public/hooks/mitti-audit'
     | '/api/public/hooks/mitti-pull'
     | '/api/public/hooks/mitti-retry'
     | '/api/public/hooks/outlook-sync'
@@ -1366,6 +1379,7 @@ export interface RootRouteChildren {
   ApiPublicHooksCustomerFollowupsRoute: typeof ApiPublicHooksCustomerFollowupsRoute
   ApiPublicHooksEscRobotRoute: typeof ApiPublicHooksEscRobotRoute
   ApiPublicHooksExternalActionsRoute: typeof ApiPublicHooksExternalActionsRoute
+  ApiPublicHooksMittiAuditRoute: typeof ApiPublicHooksMittiAuditRoute
   ApiPublicHooksMittiPullRoute: typeof ApiPublicHooksMittiPullRoute
   ApiPublicHooksMittiRetryRoute: typeof ApiPublicHooksMittiRetryRoute
   ApiPublicHooksOutlookSyncRoute: typeof ApiPublicHooksOutlookSyncRoute
@@ -2012,6 +2026,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksExternalActionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/mitti-audit': {
+      id: '/api/public/hooks/mitti-audit'
+      path: '/api/public/hooks/mitti-audit'
+      fullPath: '/api/public/hooks/mitti-audit'
+      preLoaderRoute: typeof ApiPublicHooksMittiAuditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/mitti-pull': {
       id: '/api/public/hooks/mitti-pull'
       path: '/api/public/hooks/mitti-pull'
@@ -2337,6 +2358,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksCustomerFollowupsRoute: ApiPublicHooksCustomerFollowupsRoute,
   ApiPublicHooksEscRobotRoute: ApiPublicHooksEscRobotRoute,
   ApiPublicHooksExternalActionsRoute: ApiPublicHooksExternalActionsRoute,
+  ApiPublicHooksMittiAuditRoute: ApiPublicHooksMittiAuditRoute,
   ApiPublicHooksMittiPullRoute: ApiPublicHooksMittiPullRoute,
   ApiPublicHooksMittiRetryRoute: ApiPublicHooksMittiRetryRoute,
   ApiPublicHooksOutlookSyncRoute: ApiPublicHooksOutlookSyncRoute,

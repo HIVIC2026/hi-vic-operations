@@ -20,6 +20,8 @@ import { PAYMENT_STEP_LABEL, type PaymentStep } from "@/lib/payments.core";
 import { safetyCheckShort } from "@/lib/safety-check-amount.core";
 import { cancelOfficeJob, clearOfficeEmailBounce, getOfficeJobMoney, holdOfficeJob, logOfficeCallOrNote, markOfficeJobTest, reopenOfficeJob } from "@/lib/office-screens.functions";
 import { bulkJobAction } from "@/lib/bulk.functions";
+import { retryInvoiceFn } from "@/lib/office-money.functions";
+import { markPaymentsSeparateFn } from "@/lib/payments.functions";
 import { completeInstallation, overrideDepositGate, regenerateRectificationQuote, setHold, syncInvoice } from "@/lib/portal.functions";
 import { openJobDocument } from "@/lib/jobfile.functions";
 import { reopenDeclinedQuote } from "@/lib/installer-quote-review.functions";
@@ -212,11 +214,13 @@ function DeclinedQuoteReopen({ jobId }: { jobId: string }) {
 
 /* ---------------- Money (decisions 139–144, 152, 209, 230, 233, 240) ---------------- */
 const STEP_STATE: Record<string, string> = { not_yet: "Not due", requested: "Due", paid: "Paid", overdue: "Overdue", waived: "Waived" };
-const STEP_HOW: Record<string, string> = { safety_check: "At acceptance · card or bank transfer", fixes: "In full at approval · card or bank transfer", install_deposit: "Before the install is booked · bank transfer", balance: "On install day · bank transfer" };
+const STEP_HOW: Record<string, string> = { safety_check: "At acceptance · card or bank transfer", fixes: "In full at approval · card or bank transfer", install_deposit: "Before the install is booked · card or bank transfer", balance: "On install day · bank transfer" };
 export function MoneyCard({ jobId }: { jobId: string }) {
   const load = useServerFn(getOfficeJobMoney);
   const sync = useAction(syncInvoice);
   const override = useAction(overrideDepositGate);
+  const createInvoice = useAction(retryInvoiceFn);
+  const separate = useAction(markPaymentsSeparateFn);
   const { data, error } = useQuery({ queryKey: ["office-job-money", jobId], queryFn: () => load({ data: { jobId } }), staleTime: 30_000 });
   const [showMargin, setShowMargin] = useState(false);
   const [overriding, setOverriding] = useState(false);
@@ -230,6 +234,12 @@ export function MoneyCard({ jobId }: { jobId: string }) {
         <h2 className="font-display text-lg font-bold text-ink">Money{data.invoice ? ` · invoice ${data.invoice.number ?? "not in Xero yet"} · $${data.invoice.total.toLocaleString("en-AU", { maximumFractionDigits: 0 })} inc GST · paid $${data.invoice.paid.toLocaleString("en-AU", { maximumFractionDigits: 0 })}` : ""}</h2>
         {v?.onlineInvoiceUrl && <a href={v.onlineInvoiceUrl} target="_blank" rel="noreferrer" className="text-sm font-semibold text-hiv-blue underline">Xero invoice (office view)</a>}
       </div>
+      {data.hasAcceptedQuote && !data.invoice?.linked && (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-[12px] border border-rose/30 bg-pink px-3 py-2 text-sm">
+          <span className="font-semibold text-rose">The invoice is not in Xero yet.</span>
+          <button type="button" className={cn(btn, "bg-ink text-white")} onClick={() => void createInvoice({ jobId }, "Invoice created")}>Create invoice</button>
+        </div>
+      )}
       {!v ? <p className="text-sm text-sub">No invoice yet — the one Xero invoice is created when the owner accepts the quote.</p> : (
         <ul className="divide-y divide-line rounded-[12px] border border-line">
           {(v.steps as PaymentStep[]).map((s) => (
@@ -241,6 +251,12 @@ export function MoneyCard({ jobId }: { jobId: string }) {
           ))}
         </ul>
       )}
+      {v?.unclearPairs.map((u) => (
+        <div key={u.pairKey} className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-[12px] border border-line px-3 py-2 text-sm" data-testid="unclear-payment-pair">
+          <span>Card payment and a same-amount Xero payment — counted once.</span>
+          <button type="button" className={cn(btn, "border border-line bg-paper text-hiv-blue")} onClick={() => void separate({ invoiceId: v.invoiceId, pairKey: u.pairKey }, "Marked as two separate payments")}>Two separate payments</button>
+        </div>
+      ))}
       <div className="mt-3 rounded-[12px] bg-mist px-3 py-2 text-sm" data-why="decision 230: office only, never shown to installers, electricians or owners">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="font-semibold">Our margin {m.margin != null ? `$${m.margin.toLocaleString("en-AU", { maximumFractionDigits: 0 })}${m.pct != null ? ` (${m.pct}%)` : ""}` : "— not known yet"}</span>

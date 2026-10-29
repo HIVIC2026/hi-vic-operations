@@ -406,7 +406,7 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
   // Night run 25 Oct 2026: the safety check booking stays "confirmed" after the PIESA (only the fixes / install visits are
   // marked completed), so the electrician's Money showed the Fixes row only. A confirmed safety check counts as done once
   // the job's PIESA (A3) Mitti form is Complete (`assessments.mitti_completed`, the same fact the payout gate reads).
-  const sel = "job_id, kind, scheduled_start, status, business_id, businesses(name, trading_name), jobs!inner(deleted_at, job_number, source, channel, stage, electrician_choice, originating_installer_business_id, owners(full_name), properties(suburb))";
+  const sel = "id, job_id, kind, scheduled_start, status, business_id, businesses(name, trading_name), jobs!inner(deleted_at, job_number, source, channel, stage, electrician_choice, originating_installer_business_id, owners(full_name), properties(suburb))";
   const { data: ownBooks } = await admin.from("bookings").select(sel).is("jobs.deleted_at", null).eq("business_id", bizId).in("status", kind === "electrician" ? ["completed", "confirmed"] : ["completed"]).in("kind", mine as never).order("scheduled_start", { ascending: false });
   // Jo 26 Oct 2026: an installer that pays its own electricians (Reinsulate) is paid for the safety checks they did.
   const { installerPaysOwnElectricians } = await import("./installer-paid-electricians.core");
@@ -464,18 +464,27 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
   const { payoutGateFacts } = await import("./trade-payout-gate.server");
   const { tradePayoutBlockers } = await import("./trade-payout-gate.core");
   const gate = await payoutGateFacts(ids);
+  // Batch 1 F5: a safety check is paid and gated per visit — the new electrician after a reopen never sees the earlier
+  // visit's "Paid" or its completed form.
+  const { safetyVisitFacts } = await import("./trade-payout-gate.server");
+  const { safetyVisitPaidAt, visitGateFacts } = await import("./trade-payout-gate.core");
+  const safety = rows.some((r) => r.kind === "assessment") ? await safetyVisitFacts(ids) : new Map<string, never>();
   // Decision 410 (Jo 27 Oct 2026): electricians — within 7 days of the office approving the completed Mitti form.
   const ep = kind === "electrician" || rows.some((r) => r.kind === "assessment") ? await import("./electrician-pay.core") : null;
   const { ownerPaidInFullAt } = await import("./trade-view.core");
   const paidInFull = (jobId: string) => ownerPaidInFullAt((invs ?? []).filter((x) => x.job_id === jobId));
   return rows.map((b) => {
     const j = b.jobs as { job_number: string; owners: { full_name: string | null } | null; properties: { suburb: string | null } | null };
-    const pe = (paid ?? []).find((p) => p.job_id === b.job_id && ((p.details as { kind?: string })?.kind ?? b.kind) === b.kind);
+    const visitPaidAt = b.kind === "assessment" ? safetyVisitPaidAt((paid ?? []).filter((p) => p.job_id === b.job_id) as { created_at: string; details: { kind?: string; booking_id?: string } | null }[], safety.get(b.job_id), b.id) : null;
+    const pe = b.kind === "assessment"
+      ? (paid ?? []).find((p) => p.job_id === b.job_id && p.created_at === visitPaidAt && (p.details as { kind?: string })?.kind === "assessment")
+      : (paid ?? []).find((p) => p.job_id === b.job_id && ((p.details as { kind?: string })?.kind ?? b.kind) === b.kind);
     const of = (offers ?? []).find((o) => o.job_id === b.job_id && (o.kind === "piesa" ? "assessment" : o.kind === "installer" ? "installation" : o.kind) === b.kind);
     const sum = (of?.summary ?? {}) as { electrician_rate_inc_gst?: number; installer_pay_inc_gst?: number; fixes_pay_inc_gst?: number };
     const payee = b.kind === "assessment" ? payees.get(b.job_id) ?? null : null;
     const amount = payee ? payee.piesaIncGst : Number((pe?.details as { amount?: number })?.amount ?? (b.kind === "assessment" ? sum.electrician_rate_inc_gst ?? piesaRate : b.kind === "rectification" ? sum.fixes_pay_inc_gst ?? fixesPay(b.job_id) : sum.installer_pay_inc_gst ?? ((b.jobs as { channel?: string }).channel === "hivic_sourced" ? ratePay(b.job_id) : null)) ?? 0) || null;
-    const gf = gate.get(b.job_id);
+    const gf0 = gate.get(b.job_id);
+    const gf = gf0 && b.kind === "assessment" ? visitGateFacts(gf0, safety.get(b.job_id), b.id) : gf0;
     const elecKind = b.kind === "assessment" || b.kind === "rectification" ? b.kind : null;
     const et = ep && elecKind ? ep.electricianPayTiming(elecKind, gf) : null;
     const timed: PayState = et
@@ -872,7 +881,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   const [{ data: declinedEv }, { data: basicsDone }, { data: piesaBook }, { data: elecAsg }, { data: fixes }, { data: evEv }, { data: alloc }, { data: decl }, { data: finalAsg }, ownerReady] = await Promise.all([
     admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "quote_declined").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "ready_check_basics").contains("details", { completed: true }).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "assessment").eq("status", "confirmed").order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "assessment").in("status", ["confirmed", "completed"]).order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
     admin.from("job_assignments").select("profiles:user_id(full_name)").eq("job_id", jobId).eq("role", "electrician").eq("active", true).limit(1).maybeSingle(),
     admin.from("rectification_items").select("description, status").eq("job_id", jobId).not("status", "in", "(cancelled,removed)"),
     admin.from("workflow_events").select("details, created_at").eq("job_id", jobId).eq("event_type", "install_evidence_synced").order("created_at", { ascending: false }).limit(1).maybeSingle(),

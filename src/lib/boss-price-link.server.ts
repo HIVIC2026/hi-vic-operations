@@ -22,7 +22,9 @@ export async function textBossPriceLink(jobId: string, i: { auditId: string; com
       (await import("./installer-price.server")).readInstallerPrice(jobId).catch(() => null),
     ]);
     const { installerPriceState } = await import("./installer-price.core");
-    const price = installerPriceState({ channel: j.channel, record: stored?.record ?? null, entries: i.entries ?? [] });
+    // Batch 3a: after a new-quote request an old form's own price no longer counts.
+    const formEntries = await (await import("./installer-price.server")).entriesWithInstallerPrice(jobId, i.entries ?? []);
+    const price = installerPriceState({ channel: j.channel, record: stored?.record ?? null, entries: formEntries });
     const blocker = bossPriceLinkBlocker({ channel: j.channel, deleted: !!j.deleted_at, formCompleted: true, pricePresent: price.present && price.required, alreadySent: !!sent });
     if (blocker) return `skipped: ${blocker}`;
     if (!j.originating_installer_business_id) return "skipped: no installer business on the job";

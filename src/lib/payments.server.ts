@@ -11,18 +11,18 @@ import { logEvent, paymentGateActiveForJob } from "./workflow.server";
 import { currentFixesQuote, FIXES_ACCEPT_LATEST } from "./fixes-quote-current.server";
 import {
   HIV_BANK_DETAILS, type BankDetails, type PaymentStepFacts, type PaymentStepKey, type XeroPaymentInput,
-  cumulativePaidCents, depositSweepAction, effectiveLedger, fixesCountedCents, fixesPaymentBlocker, planQuoteTotalCents, isStepCleared, isStepPaid, ledgerXeroPayments, newXeroPayments, payNowBlock, payableNow, paymentPlan, paymentSteps,
+  cumulativePaidCents, depositSweepAction, paymentPairKey, effectiveLedger, fixesCountedCents, fixesPaymentBlocker, planQuoteTotalCents, isStepCleared, isStepPaid, ledgerXeroPayments, newXeroPayments, payNowBlock, payableNow, paymentPlan, paymentSteps,
   provisionalBookingDecision, provisionalHoldExpiresAt, installDepositBlocker, INSTALL_DEPOSIT_DUE_STAGES, installDepositDueNow, reconcilePayments, reconciledPaidCents, toCents, xeroPaymentFacts, xeroReceiptKey, xeroReversalReceiptKey, xeroReversals,
 } from "./payments.core";
 
 // Review R08: the ledger reader lives in the lean payment-ledger.server (so read-only gates can count money received
 // without this module's senders); re-exported here unchanged.
-import { PAYMENT_EVENT, PAYMENT_REVERSED_EVENT, rawPaymentLedger } from "./payment-ledger.server";
-export { PAYMENT_EVENT, PAYMENT_REVERSED_EVENT, rawPaymentLedger };
+import { PAYMENT_EVENT, PAYMENT_MATCH_SEPARATE_EVENT, PAYMENT_REVERSED_EVENT, rawPaymentLedger } from "./payment-ledger.server";
+export { PAYMENT_EVENT, PAYMENT_MATCH_SEPARATE_EVENT, PAYMENT_REVERSED_EVENT, rawPaymentLedger };
 /** Owner notice when an unpaid provisional booking is released: approved by Jo 24 Oct 2026 (decision 170; wording in deposit-release-notice.core.ts). */
 export { PROVISIONAL_RELEASE_OWNER_NOTICE_APPROVED } from "./deposit-release-notice.core";
-/** Audit R02: a card payment and a same-amount Xero payment with no shared receipt identity — counted as two payments and
- *  raised ONCE per pair for the office to settle in Xero. Cleared by `PAYMENT_MATCH_RESOLVED_EVENT` once no pair is left. */
+/** Audit R02: a card payment and a same-amount Xero payment with no shared receipt identity — counted ONCE until the office
+ *  confirms (Jo 28 Oct) and raised ONCE per pair; "Two separate payments" counts both. Cleared by `PAYMENT_MATCH_RESOLVED_EVENT` once no pair is left. */
 export const PAYMENT_MATCH_UNCLEAR_EVENT = "owner_payment_match_unclear";
 export const PAYMENT_MATCH_RESOLVED_EVENT = "owner_payment_match_resolved";
 
@@ -93,7 +93,7 @@ export async function reconciledInvoicePaidCents(jobId: string, invoiceId: strin
 // the ledger as history and are reconciled against Xero (amount/date — they never had a receipt identity).
 
 /** Audit R02: raise ONE internal office row per card receipt + Xero payment pair that has the same amount within 10 days
- *  but no shared Stripe id. Both payments are counted meanwhile (never silently merged). When no pair is left (the Xero
+ *  but no shared Stripe id. The pair is counted once meanwhile (Jo 28 Oct) until the office confirms or marks it separate. When no pair is left (the Xero
  *  payment was re-applied with the Stripe id in its Reference, or removed), ONE resolved row clears it. Best-effort:
  *  never changes money; `xeroPayments` = the invoice's live Payments list (else the ledger's own Xero view). */
 export async function flagUnclearPaymentMatches(jobId: string, invoiceId: string, xeroPayments?: XeroPaymentInput[] | null): Promise<number> {
@@ -108,16 +108,39 @@ export async function flagUnclearPaymentMatches(jobId: string, invoiceId: string
   let raised = 0;
   for (const { record, xero } of pairs) {
     const card = (record.stripeIds ?? [])[0] ?? record.id;
-    const pairKey = `${card}|${xero.paymentId}`;
+    const pairKey = paymentPairKey(record, xero.paymentId);
     if (raisedKeys.has(pairKey)) continue;
     await logEvent(jobId, null, PAYMENT_MATCH_UNCLEAR_EVENT,
-      `Card payment of $${(record.amountCents / 100).toFixed(2)} (Stripe ${card}) and a Xero payment of $${(xero.amountCents / 100).toFixed(2)} on ${xero.paidAt.slice(0, 10)} have no shared Stripe id — counted as two payments. Needs Home Insulation Victoria`,
+      "Card payment and a same-amount Xero payment with no Stripe id — counted once until you confirm.",
       { invoice_id: invoiceId, pair_key: pairKey, stripe_ids: record.stripeIds ?? [], xero_payment_id: xero.paymentId, xero_reference: xero.reference ?? null, amount_cents: record.amountCents, needs_office: true }, { internal: true });
     raisedKeys.add(pairKey);
     raised++;
   }
-  if (!pairs.length && open.length) await logEvent(jobId, null, PAYMENT_MATCH_RESOLVED_EVENT, "Card and Xero payments now reconcile by Stripe id – nothing left to check", { invoice_id: invoiceId }, { internal: true });
+  if (!pairs.length && open.length) await logEvent(jobId, null, PAYMENT_MATCH_RESOLVED_EVENT, "Card and Xero payments are confirmed – nothing left to check", { invoice_id: invoiceId }, { internal: true });
   return raised;
+}
+
+/** Card + Xero pairs counted once that the office has not confirmed yet (for the "Two separate payments" button). */
+export async function unclearPaymentPairs(jobId: string, invoiceId: string) {
+  const raw = await rawPaymentLedger(jobId, invoiceId);
+  return reconcilePayments(raw, ledgerXeroPayments(raw)).unclear.filter((p) => !!p.xero.paymentId)
+    .map((p) => ({ pairKey: paymentPairKey(p.record, p.xero.paymentId), amountCents: p.record.amountCents, xeroPaymentId: p.xero.paymentId as string, xeroPaidAt: p.xero.paidAt }));
+}
+
+/** The office says an unclear card + Xero pair is TWO separate payments: ONE append-only `payment_match_separate` event
+ *  per pair (second press = no second event). Both then count, the unclear row clears and the paid amount is re-applied.
+ *  Returns false when the pair was already marked. */
+export async function markPaymentsSeparate(jobId: string, invoiceId: string, pairKey: string, actorId: string | null): Promise<boolean> {
+  const { data: prior } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", PAYMENT_MATCH_SEPARATE_EVENT);
+  if (((prior ?? []) as { details: Record<string, unknown> | null }[]).some((r) => r.details?.["invoice_id"] === invoiceId && r.details?.["pair_key"] === pairKey)) return false;
+  const pair = (await unclearPaymentPairs(jobId, invoiceId)).find((p) => p.pairKey === pairKey);
+  if (!pair) throw new Error("That payment pair is no longer waiting for a decision.");
+  await logEvent(jobId, actorId, PAYMENT_MATCH_SEPARATE_EVENT, "Card payment and Xero payment confirmed as two separate payments — both count.",
+    { invoice_id: invoiceId, pair_key: pairKey, xero_payment_id: pair.xeroPaymentId, amount_cents: pair.amountCents }, { internal: true });
+  await flagUnclearPaymentMatches(jobId, invoiceId);
+  const paid = await reconciledInvoicePaidCents(jobId, invoiceId);
+  await (await import("./xero.server")).applyPaidAmount(invoiceId, paid / 100, actorId);
+  return true;
 }
 
 /** Everything a page needs: plan, steps, what is due now, ledger, bank details and the Pay now (card) link. */
@@ -148,7 +171,8 @@ export async function jobPaymentView(jobId: string, now = new Date()) {
   // Audit R07: once the fixes are on the same Xero invoice its total already holds them — the plan's quote part stays
   // the accepted installation quote, so the grand total equals the Xero invoice total (fixes counted once).
   // Decision 233: while the owner owes the repeat safety check (PIESA), its price is part of their payment plan.
-  const repeatState = await (await import("./repeat-piesa.server")).repeatPiesaContext(jobId).then((c) => c.state).catch(() => null);
+  const repeatCtx = await (await import("./repeat-piesa.server")).repeatPiesaContext(jobId).catch(() => null);
+  const repeatState = repeatCtx?.state ?? null;
   const repeatCents = repeatState && repeatState.payer === "owner" && (repeatState.stage === "owner_pay" || repeatState.stage === "offer") && (repeatState.priceIncGst ?? 0) > 0 ? toCents(repeatState.priceIncGst) : 0;
   const quoteTotalCents = planQuoteTotalCents({ invoiceTotalCents: toCents(inv.total_inc_gst), quoteTotalCents: quote ? toCents(quote.customer_total_inc_gst) : null, fixesCents, repeatCents });
   const plan = paymentPlan({ quoteTotalCents, safetyCheckCents: safety.cents, fixesCents, repeatCents });
@@ -166,7 +190,7 @@ export async function jobPaymentView(jobId: string, now = new Date()) {
     // Jo 26 Oct 2026: the deposit is due BEFORE the install is booked (once the install is next); no booking hold.
     install_deposit: { requestedAt: bookedAt ?? (installDepositDueNow(job?.stage, piesaNow) ? now.toISOString() : null), dueAt: bookedAt ? holdExpiresAt : null },
     balance: { requestedAt: installDone?.scheduled_start ?? (job?.stage === "complete" ? now.toISOString() : null), dueAt: inv.balance_due_date ? `${inv.balance_due_date}T23:59:59+11:00` : null },
-    repeat_safety_check: { requestedAt: repeatCents > 0 ? now.toISOString() : null },
+    repeat_safety_check: { requestedAt: repeatCents > 0 ? now.toISOString() : null, recordedPaid: repeatCtx?.state.stage === "offer", paidBeforeAcceptCents: repeatCtx?.paidBeforeAcceptCents ?? null },
   };
   const steps = paymentSteps(plan, paidCents, facts, now.toISOString());
   const due = payableNow(plan, steps, paidCents);
@@ -183,6 +207,8 @@ export async function jobPaymentView(jobId: string, now = new Date()) {
     payNow: payNowBlock({ step: due.step, cardAvailable: stripeBlock === null, bank, reference, remainingCents: due.remainingCents }),
     provisional: { decision: provisional, bookedAt, installStart, expiresAt: holdExpiresAt },
     ledger,
+    unclearPairs: reconcilePayments(raw, ledgerXeroPayments(raw)).unclear.filter((p) => !!p.xero.paymentId)
+      .map((p) => ({ pairKey: paymentPairKey(p.record, p.xero.paymentId), amountCents: p.record.amountCents, xeroPaymentId: p.xero.paymentId as string, xeroPaidAt: p.xero.paidAt })),
   };
 }
 
@@ -239,7 +265,7 @@ export async function afterPaymentsChanged(jobId: string, invoiceId: string, act
 export async function noteProvisionalBooking(jobId: string, actorId: string | null) {
   const v = await jobPaymentView(jobId);
   if (!v || v.provisional.decision !== "provisional") return;
-  await logEvent(jobId, actorId, "install_booking_provisional", `Install day booked provisionally – ${v.plan.installDepositCents / 100} install deposit due by bank transfer within 48 hours or by noon the day before the install, whichever is sooner (until ${v.provisional.expiresAt})`, { invoice_id: v.invoiceId, deposit_cents: v.plan.installDepositCents, expires_at: v.provisional.expiresAt }, { internal: true });
+  await logEvent(jobId, actorId, "install_booking_provisional", `Install day booked provisionally – ${v.plan.installDepositCents / 100} install deposit due (card, bank transfer or PayID) within 48 hours or by noon the day before the install, whichever is sooner (until ${v.provisional.expiresAt})`, { invoice_id: v.invoiceId, deposit_cents: v.plan.installDepositCents, expires_at: v.provisional.expiresAt }, { internal: true });
 }
 
 /** Decision 367: ONE office row per booking whose install start passed with the deposit still unpaid. */

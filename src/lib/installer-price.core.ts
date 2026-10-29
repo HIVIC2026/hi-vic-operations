@@ -121,6 +121,11 @@ export function withInstallerPrice<T extends { label: string; value: unknown }>(
   return [...entries.filter((e) => !drop(e.label)), ...priceEntriesFromRecord(record)];
 }
 
+/** Batch 3a: the form snapshot without an old A1 form's own price answers (after an owner's new-quote request). */
+export function withoutFormPrice<T extends { label: string; value: unknown }>(entries: T[]): T[] {
+  return entries.filter((e) => !isPriceOnlyLabel(e.label));
+}
+
 /** An old A1 form that still carries a usable total. */
 export function formHasPrice(entries: { label: string; value: unknown }[]): boolean {
   const v = entries.find((e) => nrm(e.label) === nrm(LEAN_Q.totalPrice) || nrm(e.label) === nrm("Total quoted price $"))?.value;

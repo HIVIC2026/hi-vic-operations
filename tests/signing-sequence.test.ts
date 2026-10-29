@@ -32,7 +32,7 @@ describe("quote acceptance is commercial; VEEC assignment is post-install", () =
     expect(prepare).toContain("LEGACY_CONDITIONAL_ASSIGNMENT_RETIRED");
   });
   test("still creates the Xero invoice (existing flow) after signing", () => {
-    expect(respond.indexOf("signCustomerAgreement")).toBeLessThan(respond.indexOf("createInvoiceForQuote"));
+    expect(respond.indexOf("signCustomerAgreement")).toBeLessThan(respond.indexOf("createInvoiceAfterAcceptance"));
   });
   test("payment code never mutates assignment records", () => {
     const x = readFileSync("src/lib/xero.server.ts", "utf8") + readFileSync("src/lib/invoice.lifecycle.ts", "utf8");

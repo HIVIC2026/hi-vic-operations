@@ -10,6 +10,8 @@
 import { esc, mjEmail } from "./mail-mjml.core";
 import { changeVisitLink, visitGroupForStage, type ChangeVisit } from "./email-change-reply.core";
 import { smsQuietReason } from "./quote-hold.core";
+import { SPOT_FREE, SPOT_PRICE_NOTE, SPOT_REGISTERED, SPOT_RELEASE_LINE, isPreReleaseStage, preReleaseViolations } from "./spot-only-copy.core";
+import type { SpotReleaseState } from "./spot-release.core";
 
 export const AI_EMAIL_DRAFT_EVENT = "email_ai_draft";
 export const AI_EMAIL_DRAFT_SENT_EVENT = "email_ai_draft_sent";
@@ -72,28 +74,50 @@ export type AiReplyContext = {
   email: { from: string | null; subject: string | null; body: string };
 };
 
-export const AI_REPLY_INSTRUCTIONS = [
+
+const NEXT_STEP_RELEASED = "Then give the one next step: if their spot isn't saved and they want to go ahead, give the save-my-spot link on its own line; if their spot is saved, say that when it's their turn an installer will text and email them a few times for their free Ready Check.";
+/** Decision 388 (Jo 25 Oct 2026): before the spot is released the only thing to say about what comes next is Jo's release line. */
+const NEXT_STEP_PRE_RELEASE = `Then give the one next step: if their spot isn't saved and they want to go ahead, give the save-my-spot link on its own line; if their spot is saved, tell them: ${SPOT_RELEASE_LINE} Say nothing else about what happens after their spot is released, and give no timeframe or speed.`;
+const instructionLines = (NEXT_STEP: string, preRelease: boolean) => [
   "You write email replies from the Home Insulation Victoria team to home owners about their ceiling insulation. The office reads and sends each one.",
   "Tone: kind, warm and plain, in Australian English, like a real person in our office. Short sentences. Never robotic or call-centre. Never say \"No worries\". Never sign or mention a person's name for us.",
   "Start with \"Hi <first name>,\" on its own line (or \"Hi there,\" if no name), then a short thank-you that fits what they wrote.",
   "Answer every question they asked, directly and specifically, using the job facts below (their ceiling size, price, rebate, whether their spot is saved). If they asked several things, answer each one in a short list.",
   "Never say \"we'll check and get back to you\" when the answer is in the facts or the business rules. Only if something truly isn't covered, say we'll find out and reply.",
   "Keep it relevant: only use a fact or business rule when it answers something they actually raised. Never volunteer extra details they didn't ask about (for example, don't mention batts versus blow-in unless they asked about blow-in).",
-  "Then give the one next step: if their spot isn't saved and they want to go ahead, give the save-my-spot link on its own line; if their spot is saved, say that when it's their turn an installer will text and email them a few times for their free Ready Check.",
+  NEXT_STEP,
   "If they say they can't get into the roof or take photos, kindly tell them not to go up there — they don't need to send photos.",
   "Only use the facts, rules and links given below. Never invent dates, prices, times, people or links. Never quote an R6.0 or R7.0 price.",
   "Say \"rebate\" — never say VEEC, VEECs, VEU, Activity 48, ESC or other scheme jargon.",
   "Never ask them to call, never give a phone number. They can just reply to this email.",
-  "If they want to change a booking time, give them the change link provided and say who they'll arrange it with. Never promise a new time yourself.",
+  ...(preRelease ? [] : ["If they want to change a booking time, give them the change link provided and say who they'll arrange it with. Never promise a new time yourself."]),
   `If their email is only a plain "no thanks", "not going ahead", "thanks" or similar and needs no answer, return exactly ${"NO_REPLY_NEEDED"} and nothing else.`,
   "Do not include a sign-off; it is added for you.",
   "Return only the email body text, no subject line.",
-].join("\n");
+];
+
+export const AI_REPLY_INSTRUCTIONS = instructionLines(NEXT_STEP_RELEASED, false).join("\n");
+
+/** Decision 388: pre-release = our own lead (hivic_sourced) at a pre-release stage (`isPreReleaseStage`, shared with the
+ *  reply composer) whose spot is not released AND confirmed. Any other stage or channel keeps today's behaviour. */
+export function isPreReleaseOwner(j: { channel: string | null | undefined; stage: string | null | undefined; releaseState: SpotReleaseState | null | undefined }): boolean {
+  if (j.channel !== "hivic_sourced") return false;
+  if (!isPreReleaseStage(j.stage)) return false;
+  return j.releaseState?.state !== "confirmed";
+}
+
+export type AiPromptOpts = { preRelease?: boolean };
+/** The prompt for this owner; released owners get AI_REPLY_INSTRUCTIONS unchanged. */
+export const aiReplyInstructions = (o: AiPromptOpts = {}): string => (o.preRelease ? instructionLines(NEXT_STEP_PRE_RELEASE, true).join("\n") : AI_REPLY_INSTRUCTIONS);
+
 
 /** Jo's standing answers (27 Oct 2026), given to the AI with every job reply. */
+const RULE_CEILING_ONLY = "We only do ceiling insulation (no underfloor or walls).";
+const RULE_BATTS_ONLY = "Our quotes are for R5.0 batts, not blow-in insulation, so no holes are cut in the ceiling.";
+const RULE_OWN_ELECTRICIAN = "An owner's own electrician can do the safety check if they sign up with us as an electrician first (we check their licence and $5 million public liability insurance, and all forms go through our system so the rebate can be claimed): https://portal.homeinsulationvictoria.com.au/electrician-onboarding";
 export const AI_BUSINESS_RULES = [
-  "We only do ceiling insulation (no underfloor or walls).",
-  "Our quotes are for R5.0 batts, not blow-in insulation, so no holes are cut in the ceiling.",
+  RULE_CEILING_ONLY,
+  RULE_BATTS_ONLY,
   "R6.0 and R7.0 are available; the installer confirms the price at the free Ready Check (never quote it).",
   "Old insulation is removed only where needed, at $15/m²; the installer checks how much at the Ready Check.",
   "Extras like cleaning the roof cavity: the installer can quote them at the Ready Check.",
@@ -102,18 +126,31 @@ export const AI_BUSINESS_RULES = [
   "Spots are released in the order they were saved, so we can't give install dates before that. When it's their turn an installer texts and emails a few times for the Ready Check.",
   "After they accept the quote, a licensed electrician does a safety check before any insulation goes in, then the installer puts the insulation in. We look after all the paperwork and the rebate.",
   "The price includes: the free Ready Check; R5.0 batts supplied and installed by a certified installer; the electrician's safety check ($349); our Accredited Person fee for the paperwork and rebate claim ($349). Electrical repairs aren't included — if needed they get a separate quote first.",
-  "An owner's own electrician can do the safety check if they sign up with us as an electrician first (we check their licence and $5 million public liability insurance, and all forms go through our system so the rebate can be claimed): https://portal.homeinsulationvictoria.com.au/electrician-onboarding",
+  RULE_OWN_ELECTRICIAN,
 ];
 
-export function buildAiReplyInput(c: AiReplyContext): string {
+/** Business rules before release: only the lines that say nothing about a Ready Check, a visit, times or speed, plus Jo's spot-only lines. */
+export const AI_BUSINESS_RULES_PRE_RELEASE = [
+  RULE_CEILING_ONLY,
+  RULE_BATTS_ONLY,
+  SPOT_FREE,
+  SPOT_REGISTERED,
+  SPOT_RELEASE_LINE,
+  SPOT_PRICE_NOTE,
+  RULE_OWN_ELECTRICIAN,
+];
+
+
+export function buildAiReplyInput(c: AiReplyContext, o: AiPromptOpts = {}): string {
+  const pre = o.preRelease === true;
   const hist = c.history.slice(-15).map((h) => `[${h.direction === "inbound" ? "Owner" : "Us"} ${h.at.slice(0, 16)}] ${h.subject ?? ""}\n${h.body.slice(0, 1200)}`).join("\n\n");
   return [
     `Job ${c.jobNumber ?? "(no number)"} · owner first name: ${c.ownerFirstName ?? "unknown"}`,
-    `Current stage: ${c.stageLabel}`,
+    ...(pre ? [] : [`Current stage: ${c.stageLabel}`]),
     c.facts.length ? `Facts:\n- ${c.facts.join("\n- ")}` : "Facts: none recorded",
-    `Business rules:\n- ${AI_BUSINESS_RULES.join("\n- ")}`,
+    `Business rules:\n- ${(pre ? AI_BUSINESS_RULES_PRE_RELEASE : AI_BUSINESS_RULES).join("\n- ")}`,
     c.links.length ? `Links you may use:\n${c.links.map((l) => `- ${l.label}: ${l.url}`).join("\n")}` : "Links: none — do not offer a link",
-    c.changeLink ? `To change the time of ${WHO[c.changeLink.visit]}, they use: ${c.changeLink.link}` : "No change-time link is available — if they want to change a time, say we'll sort it and get back to them.",
+    pre ? "No change-time link is available." : c.changeLink ? `To change the time of ${WHO[c.changeLink.visit]}, they use: ${c.changeLink.link}` : "No change-time link is available — if they want to change a time, say we'll sort it and get back to them.",
     `Email history (oldest first):\n${hist || "(none)"}`,
     `The email to reply to, from ${c.email.from ?? "the owner"} — subject "${c.email.subject ?? ""}":\n${c.email.body.slice(0, 4000)}`,
   ].join("\n\n");
@@ -182,7 +219,7 @@ export function aiReplyText(body: string): string[] {
 }
 
 /** Problems that stop a draft being sent as written (checked again at send). */
-export function aiReplyProblems(body: string): string[] {
+export function aiReplyProblems(body: string, opts: { preRelease?: boolean } = {}): string[] {
   const out: string[] = [];
   if (!body.trim()) out.push("The reply is empty.");
   if (/\bVEECs?\b|\bVEU\b|Activity 48/i.test(body)) out.push("Say “rebate” instead of scheme words.");
@@ -190,6 +227,10 @@ export function aiReplyProblems(body: string): string[] {
   if (PHONE.test(body)) out.push("Take out the phone number.");
   PHONE.lastIndex = 0;
   if (/\b(call|ring|phone)\s+(us|the office|our office)\b/i.test(body)) out.push("Take out “call us”.");
+  if (opts.preRelease) {
+    const bad = preReleaseViolations(body);
+    if (bad.length) out.push(`Take out “${bad.join("”, “")}” — their spot hasn't been released yet.`);
+  }
   return out;
 }
 

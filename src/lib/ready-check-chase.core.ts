@@ -59,7 +59,7 @@ export const withoutRetiredInstallDayPhotos = <T extends { category?: string | n
 export type MittiOfficeCode =
   | "mitti_fix_form" | "mitti_review_pickup" | "ready_check_held" | "quote_held_review"
   | "quote_not_delivered" | "mitti_setup_installer" | "ready_check_chase_installer" | "quote_auto_send_held" | "xero_invoice_product_unconfirmed"
-  | "install_deposit_unpaid_at_start" | "payment_match_unclear" | "xero_invoice_repairs_held" | "xero_invoice_repeat_piesa_held";
+  | "install_deposit_unpaid_at_start" | "payment_match_unclear" | "xero_invoice_repairs_held" | "xero_invoice_repeat_piesa_held" | "stop_installer_release_failed";
 export type Ev = { job_id: string | null; event_type: string; created_at: string; details?: Record<string, unknown> | null; summary?: string | null };
 export type MittiOfficeItem = { code: MittiOfficeCode; jobId: string | null; since: string; detail: string | null; key: string };
 
@@ -84,6 +84,9 @@ const RULES: { code: MittiOfficeCode; raise: (e: Ev) => boolean; clear: string[]
   // switch off, totals differ); cleared once they are on it (`xero_invoice_repairs_added`, added or adopted after Sync).
   { code: "xero_invoice_repeat_piesa_held", raise: (e) => e.event_type === "xero_invoice_repeat_piesa_held", clear: ["xero_invoice_repeat_piesa_added"], detail: (e) => (e.details?.["reason"] as string | undefined) ?? e.summary ?? null },
   { code: "xero_invoice_repairs_held", raise: (e) => e.event_type === "xero_invoice_repairs_held", clear: ["xero_invoice_repairs_added"], detail: (e) => (e.details?.["reason"] as string | undefined) ?? e.summary ?? null },
+  // Batch 2 (Jo 29 Oct): a STOP reply could not release the installer (sms-stop.server writes it with needs_office);
+  // cleared by the job's next cancel-release (the office cancelling again).
+  { code: "stop_installer_release_failed", raise: (e) => e.event_type === "stop_installer_release_failed" && e.details?.["needs_office"] === true, clear: ["job_cancel_released"], detail: () => null },
   // Decision 327 replaced the decision-314 "Electrician must be on site … tell the installer and electrician" line: the
   // electrician is asked automatically once the day is booked (install-attendance.core); the office sees only
   // `electrician_install_attendance` (no answer after 48h, or no day inside the window). Old events stay as history.

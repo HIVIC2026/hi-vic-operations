@@ -68,6 +68,18 @@ export async function loadOwnerQuoteFacts(jobId: string, quoteId: string, ownerN
   };
 }
 
+/** The quote text is still worth sending only while that quote is issued and released (decision 165; batch 2 7am send). */
+export const quoteStillReleased = (q: { status?: string | null; release_state?: string | null } | null | undefined) => q?.status === "issued" && q?.release_state === "released";
+
+/** Key ending for this quote's quote-ready text and email: none for the first send, `:r${n}` after the n-th office reopen of
+ *  the declined quote, so a re-sent quote is a new send. Shared by the sender and the 7am held-text sweep. Throws if unreadable. */
+export async function currentQuoteReadyKeySuffix(jobId: string, quoteId: string): Promise<string> {
+  const { data, error } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "quote_reopened_by_office").contains("details", { quote_id: quoteId });
+  if (error) throw new Error(`Quote reopen count could not be read: ${error.message}`);
+  const n = (data ?? []).length;
+  return n > 0 ? `:r${n}` : "";
+}
+
 export async function notifyOwnerQuoteReady(jobId: string, quoteId: string, kind: string): Promise<QuoteNotifyResult> {
   if (kind !== "installation") return { sms: "skipped", email: "skipped" };
   const { assertCustomerDeliveryAllowed } = await import("./comms.server");
@@ -96,6 +108,9 @@ export async function notifyOwnerQuoteReady(jobId: string, quoteId: string, kind
   }
 
   const { sendRealSms } = await import("./sms.server");
+  let keySuffix: string;
+  try { keySuffix = await currentQuoteReadyKeySuffix(jobId, quoteId); }
+  catch (e) { return { sms: `failed: ${e instanceof Error ? e.message : "error"}`, email: "not sent — quote reopen count unavailable" }; }
   // Decision 165: the trigger is the quote release (sent_at). A switch flipped on days later must not text an old
   // release, and never one that has since been accepted/declined/reopened — so the sender gets the release time and state.
   const { data: q } = await admin.from("quotes").select("sent_at, status, release_state").eq("id", quoteId).eq("job_id", jobId).maybeSingle();
@@ -103,9 +118,9 @@ export async function notifyOwnerQuoteReady(jobId: string, quoteId: string, kind
   const loaded = await loadOwnerQuoteFacts(jobId, quoteId, owner?.full_name ?? null, job.property_id ?? null);
   const s = loaded.input
     ? await sendRealSms({
-        type: "quote_ready", idempotencyKey: `quote-ready:v1:${quoteId}`, to: owner?.phone ?? null, jobId,
+        type: "quote_ready", idempotencyKey: `quote-ready:v1:${quoteId}${keySuffix}`, to: owner?.phone ?? null, jobId,
         body: ownerQuoteSms(loaded.input.firstName, loaded.input.quoteUrl),
-        event: { at: q?.sent_at ?? null, current: q?.status === "issued" && q?.release_state === "released" },
+        event: { at: q?.sent_at ?? null, current: quoteStillReleased(q) },
       }).catch((e) => ({ status: "failed" as const, detail: e instanceof Error ? e.message : "error", sid: null }))
     : { status: "blocked" as const, detail: `not sent — ${loaded.missing}`, sid: null };
 
@@ -117,7 +132,7 @@ export async function notifyOwnerQuoteReady(jobId: string, quoteId: string, kind
   let email = OWNER_QUOTE_EMAIL_APPROVED ? `not sent — ${facts?.missing ?? "quote details unavailable"}` : "no approved wording — not sent";
   if (wording && owner?.email) {
     email = await (await import("./owner-email-send.server")).sendGuardedOwnerEmail({
-      jobId, jobSource: job.source, to: owner.email, purpose: "quote_ready", key: `quote-ready-email:v1:${quoteId}`,
+      jobId, jobSource: job.source, to: owner.email, purpose: "quote_ready", key: `quote-ready-email:v1:${quoteId}${keySuffix}`,
       build: (unsubscribe) => wording === "rendered" && facts?.input
         ? renderOwnerQuoteEmail({ ...facts.input, unsubscribeUrl: unsubscribe, test: false })
         : { subject: tpl!.subject, html: tpl!.body_markdown, text: tpl!.body_markdown },

@@ -73,3 +73,57 @@ export function payoutHeldLine(reasons: string[]): string {
   if (!reasons.length) return "";
   return reasons.length === 1 ? `Held: ${reasons[0]}` : `Held: ${reasons[0]} and ${reasons.length - 1} more`;
 }
+
+/* ---- Batch 1 final fix F5: one safety-check payout per completed visit ----
+ * After a reopen (or a 30-day repeat) a second electrician does a NEW safety check. Each completed safety-check visit is
+ * its own payout line, paid to whoever did it; the old visit's "paid" and its completed form never carry over. */
+
+/** A safety-check (assessment) booking that was not cancelled; `visits` lists them earliest first. */
+export type SafetyVisit = { id: string; start: string; businessId: string | null; status: string };
+export type SafetyVisitFacts = {
+  visits: SafetyVisit[];
+  /** PIESA records (any kind) with when they were made and the Mitti form they came from (null = entered on the portal). */
+  records: { created_at: string; external_mitti_id: string | null }[];
+  /** The job's A3 Mitti form (assessments.external_mitti_id). */
+  formExternalId: string | null;
+  /** Office Approve events on the safety check form (decision 410), earliest first: when, and the visit they named. */
+  approvals: { at: string; bookingId: string | null }[];
+};
+
+const ms = (iso: string | null | undefined) => (iso ? Date.parse(iso) : NaN);
+
+/** The job's first safety-check visit (the one the A3 form and every legacy event belong to). */
+export const firstSafetyVisit = (v: SafetyVisitFacts | undefined): SafetyVisit | null => v?.visits[0] ?? null;
+
+/** Gate facts for ONE safety-check visit. The first visit (or no visit known) keeps the job's facts. A later visit
+ *  counts only its own record: a PIESA record made after that visit from the job's A3 form, with the form completed after
+ *  the visit, uses that form; anything else (no record yet, or a record entered on the portal with no Mitti form) is
+ *  "form not Complete" — decision 318 fails closed. Its approval (decision 410, rule unchanged) is the first Approve that
+ *  names that visit or, unnamed, came after the visit started. */
+export function visitGateFacts(base: TradePayoutFacts, v: SafetyVisitFacts | undefined, visitId: string | null | undefined): TradePayoutFacts {
+  const first = firstSafetyVisit(v);
+  if (!visitId || !v || !first || first.id === visitId) {
+    if (!v?.approvals.some((a) => a.bookingId)) return base;
+    // Approvals that name a later visit belong to that visit, not to the first.
+    const mine = v.approvals.find((a) => !a.bookingId || a.bookingId === first?.id)?.at ?? null;
+    return { ...base, electricianApprovedAt: { assessment: mine, rectification: base.electricianApprovedAt?.rectification ?? null } };
+  }
+  const visit = v.visits.find((x) => x.id === visitId);
+  const start = visit ? ms(visit.start) : Infinity;
+  const ownRecord = v.records.find((r) => ms(r.created_at) >= start && !!r.external_mitti_id && r.external_mitti_id === v.formExternalId);
+  const formAfter = ms(base.piesa?.completedAt) >= start;
+  const piesa = ownRecord && formAfter ? base.piesa : { mittiForm: false, completed: false, evidence: [], completedAt: null };
+  const approved = v.approvals.find((a) => a.bookingId === visitId || (!a.bookingId && ms(a.at) >= start))?.at ?? null;
+  return { ...base, piesa, electricianApprovedAt: { assessment: approved, rectification: base.electricianApprovedAt?.rectification ?? null } };
+}
+
+/** When the office marked ONE safety-check visit paid. An event naming the visit (details.booking_id) pays that visit; a
+ *  legacy event (no booking_id) pays the job's first visit only, and only if it came after that visit started. With no
+ *  visit known (older jobs whose visit was never marked done) any assessment payment counts, as before. Latest wins. */
+export function safetyVisitPaidAt(events: { created_at: string; details: { kind?: string; booking_id?: string } | null }[], v: SafetyVisitFacts | undefined, visitId: string | null | undefined): string | null {
+  const mine = events.filter((e) => (e.details?.kind ?? "installation") === "assessment");
+  const first = firstSafetyVisit(v);
+  const hit = !visitId || !first ? mine
+    : mine.filter((e) => e.details?.booking_id ? e.details.booking_id === visitId : visitId === first.id && ms(e.created_at) >= ms(first.start));
+  return hit.sort((a, b) => ms(a.created_at) - ms(b.created_at)).at(-1)?.created_at ?? null;
+}
