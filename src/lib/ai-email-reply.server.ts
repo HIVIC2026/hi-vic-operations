@@ -82,15 +82,23 @@ export async function writeAiReplyDraft(p: { jobId: string; message: MailMessage
       email: { from: m.from, subject: m.subject, body: m.body },
     }, { preRelease, answers });
     // The AI's notes to the office (NEEDS_JO / NEEDS_YOU / ACTIONS lines) come off first, so they never reach the fix loop or the owner.
-    let out = splitAiOutput(await aiText(inputWith(lines), aiReplyInstructions({ preRelease })));
+    // The owner's first name: an installer note that names them is dropped (installers get owner details only once they accept).
+    const ownerFirstName = firstNameOf(owner.full_name);
+    let out = splitAiOutput(await aiText(inputWith(lines), aiReplyInstructions({ preRelease })), { ownerFirstName });
     // The owner gave a new ceiling size: price that size and write the reply once more, so it quotes their size.
-    // The second pass's notes and actions are kept; if it fails, the first draft stands.
+    // The second pass's body and note are kept; its flags are merged with the first pass's (a "Needs you" or question
+    // seen once is never lost — step 4 never auto-sends those); a size other than the one just priced is dropped.
+    // If the second pass fails, the first draft stands.
     const size = out.actions.newAreaM2;
     if (size != null && size !== est.areaM2) {
       const extra = await newSizePriceFacts(p.jobId, size);
       if (extra.length) {
-        try { out = splitAiOutput(await aiText(inputWith([...lines, ...extra]), aiReplyInstructions({ preRelease }))); }
-        catch (e) { console.error("AI reply new-size pass skipped", e instanceof Error ? e.message : e); }
+        try {
+          const second = splitAiOutput(await aiText(inputWith([...lines, ...extra]), aiReplyInstructions({ preRelease })), { ownerFirstName });
+          const actions = { ...second.actions };
+          if (actions.newAreaM2 !== size) delete actions.newAreaM2;
+          out = { body: second.body, needsYou: out.needsYou || second.needsYou, needsAnswer: [...new Set([...out.needsAnswer, ...second.needsAnswer])], actions };
+        } catch (e) { console.error("AI reply new-size pass skipped", e instanceof Error ? e.message : e); }
       }
     }
     const noReply = out.body.replace(/[.\s]+$/, "") === NO_REPLY_NEEDED;

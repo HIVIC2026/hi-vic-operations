@@ -44,7 +44,6 @@ export async function textInstallerAboutOffer(offerId: string): Promise<string> 
   const sum = o.summary as { suburb?: string | null; area_m2?: number | null } | null;
   const suburb = sum?.suburb ?? null, area = typeof sum?.area_m2 === "number" ? sum.area_m2 : null;
   const { readyCheckOfferText } = await import("./ready-check-times.core");
-  const notes = await (await import("./ai-email-reply.server")).installerNotes(o.job_id);
   const to = b?.signer_mobile ?? b?.phone ?? null;
   const { isTestPartner } = await import("./test-send.core");
   if (job.source === "qa_test" || isTestPartner(b)) {
@@ -52,7 +51,7 @@ export async function textInstallerAboutOffer(offerId: string): Promise<string> 
     const { count } = await admin.from("job_communications").select("id", { count: "exact", head: true }).eq("job_id", o.job_id).eq("source_event", `jo_tradie:${label}`);
     if (count) return "already";
     const { sendTestSms, TEST_APP_BASE } = await import("./test-send.server");
-    const r = await sendTestSms({ jobId: o.job_id, jobSource: job.source, partnerIsTest: isTestPartner(b), label, actorId: null }, to ?? "", readyCheckOfferText(suburb, `${TEST_APP_BASE}/field/offer/${offerId}`, area, notes));
+    const r = await sendTestSms({ jobId: o.job_id, jobSource: job.source, partnerIsTest: isTestPartner(b), label, actorId: null }, to ?? "", readyCheckOfferText(suburb, `${TEST_APP_BASE}/field/offer/${offerId}`, area));
     return `${r.status}: ${r.detail}`;
   }
   const { CUSTOMER_BASE } = await import("./engagement.core");
@@ -61,7 +60,7 @@ export async function textInstallerAboutOffer(offerId: string): Promise<string> 
   const stillOpen = o.status === "pending" && (!o.expires_at || Date.parse(o.expires_at) > Date.now());
   const r = await (await import("./sms.server")).sendRealSms({
     type: "job_offer", idempotencyKey: jobOfferSmsKey(offerId), to, jobId: o.job_id, businessId: o.business_id,
-    body: readyCheckOfferText(suburb, `${CUSTOMER_BASE}/field/offer/${offerId}`, area, notes),
+    body: readyCheckOfferText(suburb, `${CUSTOMER_BASE}/field/offer/${offerId}`, area),
     event: { at: o.offered_at, current: stillOpen },
   });
   return `${r.status}: ${r.detail}`;

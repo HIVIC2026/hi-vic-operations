@@ -103,7 +103,7 @@ const instructionLines = (NEXT_STEP: string, preRelease: boolean) => [
   ...(preRelease ? [] : ["If they want to change a booking time, give them the change link provided and say who they'll arrange it with. Never promise a new time yourself."]),
   `If their email is only a plain "thanks", "got it" or similar acknowledgement and needs no answer, return exactly ${"NO_REPLY_NEEDED"} and nothing else.`,
   "Do not include a sign-off; it is added for you.",
-  `After the email you may add one line: ${AI_ACTIONS_EXAMPLE} — installer_note only when the owner asks for something the installer must know (for example R6.0 or R7.0, removing old insulation, downlights), short and plain; new_area_m2 only when the owner states their ceiling size as a number in m². Leave out what doesn't apply, and leave the line out if neither does.`,
+  `After the email you may add one line: ${AI_ACTIONS_EXAMPLE} — installer_note only when the owner asks for something the installer must know (for example R6.0 or R7.0, removing old insulation, downlights), short and plain, about the job only — never the owner's name, address, phone or email; new_area_m2 only when the owner states their ceiling size as a number in m². Leave out what doesn't apply, and leave the line out if neither does.`,
   "Return only the email body text, no subject line (plus any NEEDS_JO / NEEDS_YOU / ACTIONS lines after it).",
 ];
 
@@ -231,20 +231,47 @@ export const AI_NOTE_MAX = 200;
 /** A new ceiling size is accepted only as a whole number of m² from 10 to 1000. */
 export const validNewArea = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 10 && v <= 1000;
 /** Keeps only valid actions (note trimmed, 1–200 chars; area a whole number 10–1000); anything else is dropped. */
-export function cleanActions(x: unknown, keys: { note: string; area: string } = { note: "installerNote", area: "newAreaM2" }): AiActions {
+const escRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** A note that could carry the owner's details (an email, a phone-like run of 8+ digits, their first name) is never kept:
+ *  installers get owner details from the job only once they accept. */
+export function noteHasOwnerDetails(note: string, ownerFirstName?: string | null): boolean {
+  if (note.includes("@") || /\d{8,}/.test(note.replace(/[\s-]/g, ""))) return true;
+  const first = (ownerFirstName ?? "").trim();
+  return first.length >= 2 && new RegExp(`(?<![\\p{L}\\p{N}])${escRe(first)}(?![\\p{L}\\p{N}])`, "iu").test(note);
+}
+export function cleanActions(x: unknown, keys: { note: string; area: string } = { note: "installerNote", area: "newAreaM2" }, ownerFirstName?: string | null): AiActions {
   if (!x || typeof x !== "object" || Array.isArray(x)) return {};
   const o = x as Record<string, unknown>;
   const out: AiActions = {};
   const note = typeof o[keys.note] === "string" ? (o[keys.note] as string).trim() : "";
-  if (note.length >= 1 && note.length <= AI_NOTE_MAX) out.installerNote = note;
+  if (note.length >= 1 && note.length <= AI_NOTE_MAX && !noteHasOwnerDetails(note, ownerFirstName)) out.installerNote = note;
   if (validNewArea(o[keys.area])) out.newAreaM2 = o[keys.area] as number;
   return out;
 }
 const AI_KEYS = { note: "installer_note", area: "new_area_m2" };
-/** The JSON after `ACTIONS:`; malformed = no actions. */
-function parseActionsLine(line: string): AiActions {
-  const json = line.replace(/^\s*actions\s*:\s*/i, "");
-  try { return cleanActions(JSON.parse(json), AI_KEYS); } catch { return {}; }
+/** The JSON after `ACTIONS:` (fences removed); malformed = no actions. */
+function parseActionsText(text: string, ownerFirstName?: string | null): AiActions {
+  const json = text.replace(/```(?:json)?/gi, "").trim();
+  try { return cleanActions(JSON.parse(json), AI_KEYS, ownerFirstName); } catch { return {}; }
+}
+const braceDepth = (s: string) => { let d = 0; let inStr = false; for (let i = 0; i < s.length; i++) { const c = s[i]; if (inStr) { if (c === "\\") i++; else if (c === '"') inStr = false; } else if (c === '"') inStr = true; else if (c === "{") d++; else if (c === "}") d--; } return d; };
+/** Lines from `start` (the ACTIONS: line) that belong to the ACTIONS block: the JSON may run over several lines or sit in a
+ *  ```json fence, on the same line or the next. Returns the block's text (after "ACTIONS:") and the index after it. An
+ *  unbalanced block runs to the end, so no JSON is ever left in the owner's email. */
+function actionsBlock(lines: string[], start: number): { text: string; next: number } {
+  const parts = [lines[start]!.replace(/^\s*actions\s*:\s*/i, "")];
+  let i = start + 1;
+  const joined = () => parts.join("\n");
+  // "ACTIONS:" alone on its line: the JSON (or a fence) starts on the next non-blank line.
+  if (!joined().trim()) { while (i < lines.length && !lines[i]!.trim()) i++; if (i < lines.length && /^\s*(\{|```)/.test(lines[i]!)) parts.push(lines[i++]!); }
+  const fenced = /^\s*```/.test(joined().trim());
+  if (fenced) {
+    const closed = () => (joined().match(/```/g) ?? []).length >= 2;
+    while (!closed() && i < lines.length) parts.push(lines[i++]!);
+  } else if (/^\s*\{/.test(joined())) {
+    while (braceDepth(joined()) > 0 && i < lines.length) parts.push(lines[i++]!);
+  }
+  return { text: joined(), next: i };
 }
 /** Actions saved on a draft (`details.actions`); bad or missing values = none. */
 export const draftActions = (details: Record<string, unknown> | null | undefined): AiActions => cleanActions(details?.["actions"]);
@@ -270,16 +297,23 @@ const NEEDS_YOU_LINE = /^\s*needs[_ ]?you\s*:/i;
 const ACTIONS_LINE = /^\s*actions\s*:/i;
 /** Splits the AI's raw text into the email and its notes to the office. Runs before anything else, so a marker never
  *  reaches the fix loop or the owner. Lenient: any case, optional spaces, a marker anywhere on its own line. */
-export function splitAiOutput(raw: string): AiOutput {
+export function splitAiOutput(raw: string, o: { ownerFirstName?: string | null } = {}): AiOutput {
   const needsAnswer: string[] = [];
   let needsYou = false;
   let actions: AiActions = {};
   const keep: string[] = [];
-  for (const line of (raw ?? "").replace(/\r/g, "").split("\n")) {
+  const lines = (raw ?? "").replace(/\r/g, "").split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+    if (ACTIONS_LINE.test(line)) { // never reaches the owner, however the JSON is laid out
+      const b = actionsBlock(lines, i);
+      actions = { ...actions, ...parseActionsText(b.text, o.ownerFirstName) };
+      i = b.next - 1;
+      continue;
+    }
     const jo = NEEDS_JO_LINE.exec(line);
     if (jo) { if (jo[1]) needsAnswer.push(jo[1]); continue; }
     if (NEEDS_YOU_LINE.test(line)) { needsYou = true; continue; }
-    if (ACTIONS_LINE.test(line)) { actions = { ...actions, ...parseActionsLine(line) }; continue; } // never reaches the owner
     keep.push(line.replace(/[ \t]+$/, ""));
   }
   const body = keep.join("\n").replace(/\n{3,}/g, "\n\n").trim();

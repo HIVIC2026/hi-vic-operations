@@ -42,7 +42,7 @@ mock.module("../src/lib/spot-release.server", () => ({ spotReleaseStates: async 
 afterAll(() => mock.restore());
 
 const core = await import("../src/lib/ai-email-reply.core");
-const { higherRFacts, splitAiOutput, draftActions, aiReplyInstructions, AI_REPLY_INSTRUCTIONS, newSizeFacts } = core;
+const { higherRFacts, splitAiOutput, draftActions, aiReplyInstructions, AI_REPLY_INSTRUCTIONS, newSizeFacts, cleanActions } = core;
 const { sendAiDraft, installerNotes } = await import("../src/lib/ai-email-reply.server");
 const { readyCheckBookedInstallerText } = await import("../src/lib/installer-texts.core");
 const { readyCheckOfferText } = await import("../src/lib/ready-check-times.core");
@@ -201,18 +201,16 @@ describe("installer sees the note", () => {
     const long = readyCheckBookedInstallerText(f, ["y".repeat(180)]);
     expect(long.slice(plain.length).replace(/^\s*Note: /, "").length).toBeLessThanOrEqual(100);
   });
-  test("offer text adds the latest note", () => {
-    const plain = readyCheckOfferText("Frankston", "https://x/field/offer/1", 120);
-    expect(readyCheckOfferText("Frankston", "https://x/field/offer/1", 120, [])).toBe(plain);
-    const t = readyCheckOfferText("Frankston", "https://x/field/offer/1", 120, ["Owner wants R7.0"]);
-    expect(t.startsWith(plain)).toBe(true);
-    expect(t).toContain("Note: Owner wants R7.0");
+  test("fix 1-2: the pre-award offer text never carries a note (trades get details only once they accept)", () => {
+    expect(readFileSync("src/lib/ready-check-times.core.ts", "utf8")).not.toContain("installerNoteSuffix");
+    const t = readyCheckOfferText("Frankston", "https://x/field/offer/1", 120);
+    expect(t).not.toContain("Note:");
   });
-  test("both senders pass the job's notes", () => {
-    expect(readFileSync("src/lib/installer-texts.server.ts", "utf8")).toMatch(/readyCheckBookedInstallerText\([^;]*installerNotes|notes\)/);
+  test("only the booked (after award) sender passes the job's notes", () => {
+    expect(readFileSync("src/lib/installer-texts.server.ts", "utf8")).toMatch(/readyCheckBookedInstallerText\([^;]*\}, notes\)/);
     const offer = readFileSync("src/lib/ready-check-offer-text.server.ts", "utf8");
-    expect(offer).toContain("installerNotes(");
-    expect((offer.match(/readyCheckOfferText\([^;]*, notes\)/g) ?? []).length).toBe(2);
+    expect(offer).not.toContain("installerNotes(");
+    expect(offer).not.toMatch(/readyCheckOfferText\([^;]*notes\)/);
   });
   test("installer job page lists the notes", () => {
     expect(readFileSync("src/lib/trade-view.server.ts", "utf8")).toContain("installerNotes(jobId)");
@@ -286,5 +284,92 @@ describe("new size second pass", () => {
     expect(await writeAiReplyDraft({ jobId: "J", kind: "other", reason: "t", message: { direction: "inbound", providerMessageId: "M10", threadId: "T", from: "mo@example.com", subject: "R7", body: "90 m², R7?" } as never })).toBe("drafted");
     expect(inputs).toHaveLength(1);
     expect(inputs[0]).toContain("R7.0 for 90 m²: $3,008 after the $840 rebate ($3,848 before)");
+  });
+});
+
+describe("fix round 1: ACTIONS over several lines never reach the owner", () => {
+  const body = "Hi Mohamed,\n\nThanks for that.";
+  const clean = (b: string) => { expect(b).toBe(body); expect(b).not.toMatch(/ACTIONS|installer_note|new_area_m2|[{}]|```/); };
+  test("multi-line JSON is stripped and parsed", () => {
+    const o = splitAiOutput(`${body}\nACTIONS: {\n  "installer_note": "Owner wants R7.0",\n  "new_area_m2": 90\n}`);
+    clean(o.body);
+    expect(o.actions).toEqual({ installerNote: "Owner wants R7.0", newAreaM2: 90 });
+  });
+  test("fenced json block after ACTIONS: is stripped and parsed", () => {
+    for (const raw of [`${body}\nACTIONS:\n\`\`\`json\n{"installer_note":"R7","new_area_m2":90}\n\`\`\``, `${body}\nACTIONS: \`\`\`json\n{\n"installer_note":"R7"\n}\n\`\`\``]) {
+      const o = splitAiOutput(raw);
+      clean(o.body);
+      expect(o.actions.installerNote).toBe("R7");
+    }
+  });
+  test("ACTIONS: on its own line followed by the JSON", () => {
+    const o = splitAiOutput(`${body}\nACTIONS:\n{"new_area_m2":90}`);
+    clean(o.body);
+    expect(o.actions).toEqual({ newAreaM2: 90 });
+  });
+  test("unbalanced braces: no actions, still stripped to the end", () => {
+    const o = splitAiOutput(`${body}\nACTIONS: {\n  "installer_note": "R7",\n  "new_area_m2": 90`);
+    clean(o.body);
+    expect(o.actions).toEqual({});
+  });
+  test("malformed multi-line JSON: no actions, still stripped", () => {
+    const o = splitAiOutput(`${body}\nACTIONS: {\n  installer_note: R7\n}`);
+    clean(o.body);
+    expect(o.actions).toEqual({});
+  });
+  test("NEEDS_JO after a multi-line ACTIONS block still parsed", () => {
+    const o = splitAiOutput(`${body}\nACTIONS: {\n"new_area_m2": 90\n}\nNEEDS_JO: solar?`);
+    clean(o.body);
+    expect(o.needsAnswer).toEqual(["solar?"]);
+  });
+});
+
+describe("fix round 1: notes never carry owner details", () => {
+  const body = "Hi Mohamed,\n\nThanks.";
+  const note = (n: string, first?: string) => splitAiOutput(`${body}\nACTIONS: ${JSON.stringify({ installer_note: n })}`, { ownerFirstName: first }).actions.installerNote;
+  test("email, 8+ digit run or the owner's first name → note dropped", () => {
+    expect(note("Email mo@example.com first")).toBeUndefined();
+    expect(note("Call 0412345678")).toBeUndefined();
+    expect(note("Ask Mohamed about R7", "Mohamed")).toBeUndefined();
+    expect(note("ask MOHAMED about R7", "Mohamed")).toBeUndefined();
+  });
+  test("ordinary notes kept (short numbers, name inside another word)", () => {
+    expect(note("Owner wants R7.0 (asked 29 Oct), 90 m²", "Mohamed")).toBe("Owner wants R7.0 (asked 29 Oct), 90 m²");
+    expect(note("Annex roof too", "Ann")).toBe("Annex roof too");
+    expect(note("Owner wants R7.0")).toBe("Owner wants R7.0");
+  });
+  test("cleanActions takes the first name too", () => {
+    expect(cleanActions({ installerNote: "Jo said R7" }, undefined, "Jo")).toEqual({});
+  });
+  test("the prompt says about the job only", () => {
+    for (const p of [AI_REPLY_INSTRUCTIONS, aiReplyInstructions({ preRelease: true })]) expect(p).toContain("about the job only — never the owner's name, address, phone or email");
+  });
+  test("writeAiReplyDraft passes the owner's first name", () => {
+    // Both passes (first draft and the new-size pass).
+    expect((readFileSync("src/lib/ai-email-reply.server.ts", "utf8").match(/splitAiOutput\(await aiText\([^;]*\{ ownerFirstName \}\)/g) ?? []).length).toBe(2);
+  });
+});
+
+describe("fix round 1: second pass keeps the first pass's flags and the priced size", () => {
+  test("needs_you / needs_answer merged; area action dropped if it differs from the priced size", async () => {
+    const { V25_LOCATIONS } = await import("../src/lib/activity48.core");
+    tables = {
+      jobs: [{ id: "J", job_number: "HV-9", stage: "ready_check_scheduled", owner_id: "O", deleted_at: null, channel: "hivic_sourced", properties: { postcode: "3000" } }],
+      owners: [{ id: "O", full_name: "Mohamed A", email: "mo@example.com" }],
+      lead_campaign_responses: [{ job_id: "J", spot_saved_at: "2026-10-20T00:00:00Z", saved_area_m2: 120, saved_total: 3000, saved_veu_discount: 1000, saved_gross_total: 4000, saved_insulation: null }],
+      veu_location_variables: [V25_LOCATIONS.get("3000")!],
+    };
+    const replies = [
+      'Hi Mohamed,\n\nThanks.\nNEEDS_YOU: complaint\nNEEDS_JO: solar?\nACTIONS: {"new_area_m2":90}',
+      'Hi Mohamed,\n\nFor 90 m² it is the price.\nNEEDS_JO: payment plan?\nACTIONS: {"installer_note":"R7","new_area_m2":95}',
+    ];
+    let k = 0;
+    mock.module("ai", () => ({ streamText: () => ({ text: Promise.resolve(replies[k++] ?? "") }) }));
+    const { writeAiReplyDraft } = await import("../src/lib/ai-email-reply.server");
+    expect(await writeAiReplyDraft({ jobId: "J", kind: "other", reason: "t", message: { direction: "inbound", providerMessageId: "M11", threadId: "T", from: "mo@example.com", subject: "R7", body: "90 m²" } as never })).toBe("drafted");
+    const d = events("email_ai_draft").find((e) => e["details"]["message_id"] === "M11")!;
+    expect(d["details"]["needs_you"]).toBe(true);
+    expect(d["details"]["needs_answer"]).toEqual(["solar?", "payment plan?"]);
+    expect(d["details"]["actions"]).toEqual({ installerNote: "R7" });
   });
 });

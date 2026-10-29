@@ -55,7 +55,8 @@ export function installerTextAddress(addressLine: string | null | undefined, sub
 export function readyCheckDaysSuggestedText(f: { suburb: string | null; jobNumber: string; link: string }): string {
   return `The owner at ${f.suburb?.trim() || "the property"} (${f.jobNumber}) suggested other days for their Ready Check. Tap to pick one and set a time: ${f.link}`;
 }
-/** AI replies step 2: the newest office note for the installer (newest first), as " Note: …" (at most 100 characters), or "". */
+/** AI replies step 2: the newest office note for the installer — only in texts sent after the job is awarded (never the
+ *  pre-award offer text: trades get owner details only once they accept) (newest first), as " Note: …" (at most 100 characters), or "". */
 export const INSTALLER_NOTE_TEXT_MAX = 100;
 export function installerNoteSuffix(notes?: string[] | null): string {
   const n = (notes ?? []).map((x) => x.replace(/\s+/g, " ").trim()).find(Boolean);
