@@ -178,7 +178,8 @@ describe("5/6/7 certification gate, atomic activation, preferences", () => {
     expect(mandatoryActivationBlockers("installer", complete, new Map()).length).toBe(1);
     expect(mandatoryActivationBlockers("installer", complete, latestCertifications([cert("a@samplebiz.com.au", "verified"), { ...cert("a@samplebiz.com.au", "rejected"), recorded_at: "2999-01-01" }])).length).toBe(1);
     expect(mandatoryActivationBlockers("installer", complete, latestCertifications([cert("A@samplebiz.com.au")]))).toEqual([]);
-    expect(mandatoryActivationBlockers("rec", complete, new Map())).toEqual([]);
+    // Electricians have no CII gate; their only hard block is the licence (decision 424, Jo 29 Oct 2026).
+    expect(mandatoryActivationBlockers("rec", { ...complete, licence_number: "A1", licence_expiry: "2099-01-01" } as never, new Map())).toEqual([]);
     expect(certificationRecordErrors({ status: "verified", evidence_source: "certificate_sighted", evidence_note: "short", certificate_number: "" }).length).toBe(2);
     expect(activationBlockers("installer", { ...complete, public_liability_expiry: "2099-99-99" }, INSTALLER_AGREEMENT_VERSION, "2026-01-01").length).toBe(1);
   });
