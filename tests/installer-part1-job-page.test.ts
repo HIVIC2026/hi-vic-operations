@@ -40,7 +40,7 @@ test("C6: Open Mitti form has exactly one place", () => {
   expect(mittiLinkPlace({ ...f, panel: "waiting", yours: false })).toBe("ready_check");
   expect(mittiLinkPlace({ ...f, mittiInvited: false, panel: "mitti_form", yours: true })).toBeNull();
   const r = read(ROUTE);
-  expect(r).toContain('mittiLink === "next" && <MittiFormLink'); expect(r).toContain('mittiLink === "ready_check" && <MittiFormLink');
+  expect(r).toMatch(/mittiLink === "next" && [^<]*<MittiFormLink/); expect(r).toMatch(/mittiLink === "ready_check" && [^<]*<MittiFormLink/);
   expect(r).not.toContain('next.panel === "mitti_form" || (next.panel === "quote_status" && next.yours)'); // old inline rule gone
 });
 test("C7: plain staff-links label", () => {
