@@ -5551,8 +5551,8 @@ export type Database = {
           paid_at?: string | null
           part?: string
           payment_option?: string | null
-          quote_id: string | null
-          repeat_key: string | null
+          quote_id?: string | null
+          repeat_key?: string | null
           status?: Database["public"]["Enums"]["payment_status"]
           sync_lock_at?: string | null
           total_inc_gst: number
