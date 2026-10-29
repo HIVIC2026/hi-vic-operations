@@ -110,3 +110,37 @@ describe("the install texts list each unsigned person's own link", () => {
     }
   });
 });
+
+describe("sign on the Lead's phone (Jo 30 Oct 2026)", () => {
+  test("only the Lead may open another unsigned person's link", async () => {
+    const { swmsLeadPhoneBlocker } = await import("../src/lib/swms.core");
+    expect(swmsLeadPhoneBlocker(plan, [], "w:t2", ["w:t1"])).toBeNull();
+    expect(swmsLeadPhoneBlocker(plan, [], "w:t1", ["w:t2"])).toBe("Only the lead installer can open someone's sign link on their phone.");
+    expect(swmsLeadPhoneBlocker(plan, [], "w:t1", ["w:t1"])).toBe("Sign your own line with the Sign button.");
+    expect(swmsLeadPhoneBlocker(plan, [{ key: "w:t2", name: "TEST Crew", typedName: "TEST Crew", signedAt: "2026-11-01T00:00:00Z" }], "w:t2", ["w:t1"])).toBe("TEST Crew has already signed.");
+    expect(swmsLeadPhoneBlocker(plan, [], "w:gone", ["w:t1"])).toBe("That person is not on this job's crew.");
+  });
+  test("a Lead's-phone link is recorded as signed on the Lead's phone; a normal link stays 'link'", async () => {
+    const methods: string[] = [];
+    const d: SwmsLinkDeps = {
+      secret: () => SECRET,
+      load: async () => ({ plan, signatures: [], job: { installation_completed_at: null, deleted_at: null } }),
+      sign: async (_j, _k, _t, method) => { methods.push(String(method)); return { complete: false, missing: [] }; },
+    };
+    const exp = Math.floor(NOW / 1000) + 3600;
+    await swmsLinkSign(swmsLinkToken({ jobId: "job-1", key: "w:t2", exp, via: "lead" }, SECRET), "TEST Crew", d, NOW);
+    await swmsLinkSign(swmsLinkToken({ jobId: "job-1", key: "w:t2", exp }, SECRET), "TEST Crew", d, NOW);
+    expect(methods).toEqual(["lead_phone", "link"]);
+    expect(verifySwmsLinkToken(swmsLinkToken({ jobId: "job-1", key: "w:t2", exp, via: "lead" }, SECRET), SECRET, NOW)?.via).toBe("lead");
+  });
+  test("the sign page shows the house section", async () => {
+    const withHouse = buildSwms({ ...facts, houseLines: ["Roof: Tiles"], houseSteps: ["TEST step"], siteNote: "TEST note" });
+    const d: SwmsLinkDeps = {
+      secret: () => SECRET,
+      load: async () => ({ plan: withHouse, signatures: [], job: { installation_completed_at: null, deleted_at: null } }),
+      sign: async () => ({ complete: false, missing: [] }),
+    };
+    const view = await swmsLinkView(swmsLinkToken({ jobId: "job-1", key: "w:t2", exp: Math.floor(NOW / 1000) + 3600 }, SECRET), d, NOW);
+    expect(view.house).toEqual(["Roof: Tiles", "Safety step: TEST step", "TEST note"]);
+  });
+});
