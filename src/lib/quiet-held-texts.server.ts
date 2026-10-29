@@ -103,13 +103,14 @@ export const stillTrueInstallClearance: StillTrue = async (row) => {
 export const stillTrueBossPriceLink: StillTrue = async (row) => {
   const j = await jobState(row.job_id);
   if (!j) return false;
-  const stored = await (await import("./installer-price.server")).readInstallerPrice(row.job_id!);
+  const ip = await import("./installer-price.server");
+  const stored = await ip.readInstallerPrice(row.job_id!);
   // The sender passes the completed Ready Check form's entries; the stored copy is the current measurement's raw_snapshot.
   const { data: m, error } = await db.from("ceiling_measurements").select("raw_snapshot").eq("job_id", row.job_id).eq("is_current", true).maybeSingle();
   if (error) return false;
   const entries = Array.isArray(m?.raw_snapshot) ? (m.raw_snapshot as { label: string; value: unknown }[]) : [];
   const { installerPriceState } = await import("./installer-price.core");
-  const price = installerPriceState({ channel: j.channel, record: stored?.record ?? null, entries });
+  const price = installerPriceState({ channel: j.channel, record: stored?.record ?? null, entries: await ip.entriesWithInstallerPrice(row.job_id!, entries) });
   const { bossPriceLinkBlocker } = await import("./boss-price-link.core");
   return bossPriceLinkBlocker({ channel: j.channel, deleted: !!j.deleted_at, formCompleted: true, pricePresent: price.present && price.required, alreadySent: false }) === null;
 };

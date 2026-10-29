@@ -5,14 +5,21 @@ import { QUOTE_EXPIRED_CANCELLED_EVENT, QUOTE_EXPIRED_CANCEL_REASON, QUOTE_EXPIR
 
 /** One claim per expired quote (details.idempotency_key = the expired quote's id). */
 export const NEW_QUOTE_REQUESTED_EVENT = "new_quote_requested";
-/** Our lead whose installer is no longer active: one Needs me row until an installer is on the job or a new quote exists. */
+/** The installer could not be put back on the job (details.lead = "ours" | "installer"): one Needs me row until an
+ *  installation quote is created after it. */
 export const NEW_QUOTE_NEEDS_INSTALLER_EVENT = "new_quote_needs_installer";
+/** The reopen half-finished (a write after the stage move failed): one Needs me row with the reason, until an
+ *  installation quote is created after it. Office-only. */
+export const NEW_QUOTE_UNFINISHED_EVENT = "new_quote_unfinished";
 /** The stage the job reopens to (never via reopenStageFor, which maps this stage back to choose installer). */
 export const NEW_QUOTE_STAGE = "measured_estimate_ready";
 /** Approved owner page line (Jo, 29 Oct 2026). */
 export const NEW_QUOTE_THANKS = "Thanks — we're preparing your new quote and will email it to you.";
 /** Office-only. */
 export const NEW_QUOTE_CHOOSE_INSTALLER_LINE = "New quote asked for — choose installer";
+export const NEW_QUOTE_INSTALLER_INACTIVE_LINE = "New quote asked for — installer no longer active";
+/** Office-only prefix of the one Needs me note when the reopen half-finished (Needs me). */
+export const NEW_QUOTE_UNFINISHED_PREFIX = "New quote asked for, but it could not be finished — do it by hand";
 export const NEW_QUOTE_HOLD_REASON = "New quote asked for by the owner after the last one expired — check it and press Send";
 
 export type NewQuoteEventRow = { event_type: string; created_at: string; details?: Record<string, unknown> | null; to_stage?: string | null };
@@ -54,14 +61,30 @@ export function newQuoteRequestBlocker(f: NewQuoteFacts): string | null {
   return null;
 }
 
-/** Needs me: the newest "choose installer" note, unless an installer is on the job now or an installation quote was made after it. */
-export function newQuoteNeedsInstallerFact(
-  events: readonly NewQuoteEventRow[],
-  now: { hasActiveInstaller: boolean; quoteCreatedAts: readonly string[] },
-): { at: string } | null {
-  const raised = events.filter((e) => e.event_type === NEW_QUOTE_NEEDS_INSTALLER_EVENT).map((e) => e.created_at).sort().pop();
-  if (!raised || now.hasActiveInstaller) return null;
-  return now.quoteCreatedAts.some((at) => at > raised) ? null : { at: raised };
+export type NewQuoteLead = "ours" | "installer";
+export type NewQuoteOfficeFact = { at: string; kind: "new_quote_installer" | "new_quote_unfinished"; line: string };
+
+/** Needs me: the newest "installer not back" / "could not be finished" note, until an installation quote is created after
+ *  it (an installer merely becoming active does not clear it — the quote still has to be made). */
+export function newQuoteOfficeFact(events: readonly NewQuoteEventRow[], now: { quoteCreatedAts: readonly string[] }): NewQuoteOfficeFact | null {
+  const raised = events.filter((e) => e.event_type === NEW_QUOTE_NEEDS_INSTALLER_EVENT || e.event_type === NEW_QUOTE_UNFINISHED_EVENT)
+    .sort((a, b) => a.created_at.localeCompare(b.created_at)).pop();
+  if (!raised) return null;
+  if (now.quoteCreatedAts.some((at) => at > raised.created_at)) return null;
+  if (raised.event_type === NEW_QUOTE_UNFINISHED_EVENT) {
+    const why = typeof raised.details?.["reason"] === "string" ? String(raised.details["reason"]) : "";
+    return { at: raised.created_at, kind: "new_quote_unfinished", line: why ? `${NEW_QUOTE_UNFINISHED_PREFIX} (${why})` : NEW_QUOTE_UNFINISHED_PREFIX };
+  }
+  return { at: raised.created_at, kind: "new_quote_installer", line: raised.details?.["lead"] === "installer" ? NEW_QUOTE_INSTALLER_INACTIVE_LINE : NEW_QUOTE_CHOOSE_INSTALLER_LINE };
+}
+
+/** Whether the next HIV installation quote answers an owner's new-quote request: a request exists and no installation
+ *  quote has been SENT since it. Then the builder (whoever calls it) leaves out accepted fixes lines and holds the quote
+ *  for office Send. */
+export function newQuoteRebuildPending(requestedAts: readonly string[], sentAts: readonly (string | null)[]): boolean {
+  const last = [...requestedAts].sort().pop();
+  if (!last) return false;
+  return !sentAts.some((s) => !!s && s > last);
 }
 
 /** The installer assignment ended by the expiry cancel (`end_reason` "Job cancelled: Quote expired…"), newest first. */

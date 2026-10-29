@@ -8,6 +8,7 @@ const get = (r: Row, path: string): unknown => path.split(".").reduce<unknown>((
 let clock = Date.parse("2026-10-29T00:00:00Z");
 const nextAt = () => { clock += 1000; return new Date(clock).toISOString(); };
 let writes = 0;
+let failUpdate: string | null = null; // table whose updates fail (write-failure tests)
 function fakeAdmin() {
   return {
     from(table: string) {
@@ -35,6 +36,7 @@ function fakeAdmin() {
             return Promise.resolve({ data: ret ? (one ? rows[0] : rows) : null, error: null }).then(res, rej);
           }
           let hit = t.filter((r) => preds.every((p) => p(r)));
+          if (op === "update" && failUpdate === table) return Promise.resolve({ data: null, error: { message: `${table} update failed` } }).then(res, rej);
           if (op === "update") { if (hit.length) writes++; for (const r of hit) Object.assign(r, payload); return Promise.resolve({ data: ret ? (one ? hit[0] ?? null : hit) : null, error: null }).then(res, rej); }
           if (sort) { const { col, asc } = sort; hit = [...hit].sort((x, y) => String(get(x, col)).localeCompare(String(get(y, col))) * (asc ? 1 : -1)); }
           if (lim != null) hit = hit.slice(0, lim);
@@ -60,8 +62,11 @@ mock.module("../src/lib/workflow.server", () => ({
 }));
 
 const { requestNewQuote } = await import("../src/lib/new-quote-request.server");
-const { NEW_QUOTE_THANKS, NEW_QUOTE_CHOOSE_INSTALLER_LINE } = await import("../src/lib/new-quote-request.core");
-const { readInstallerPrice, readInstallerPrices } = await import("../src/lib/installer-price.server");
+const { NEW_QUOTE_THANKS, NEW_QUOTE_CHOOSE_INSTALLER_LINE, NEW_QUOTE_INSTALLER_INACTIVE_LINE, NEW_QUOTE_UNFINISHED_PREFIX } = await import("../src/lib/new-quote-request.core");
+const { readInstallerPrice, readInstallerPrices, entriesWithInstallerPrice } = await import("../src/lib/installer-price.server");
+const { installerPriceState } = await import("../src/lib/installer-price.core");
+const { generateInstallerQuotes } = await import("../src/lib/quotes.server");
+const { newQuoteOfficeFacts } = await import("../src/lib/office-needs.server");
 const { installerStatusLine } = await import("../src/lib/installer-screens.core");
 const { needsCandidates } = await import("../src/lib/office-needs.core");
 const { cardOf } = await import("../src/lib/needs-cards.core");
@@ -71,9 +76,15 @@ const ev = (type: string) => (tables["workflow_events"] ?? []).filter((e) => e["
 const job = () => tables["jobs"]!.find((j) => j["id"] === "J1")!;
 const newQuotes = () => tables["quotes"]!.filter((q) => q["kind"] === "installation" && q["id"] !== "Q1");
 
+/** The Needs me rows for J1 as the office sees them: the server read (newQuoteOfficeFacts) → the pure row rules. */
+async function needsRowsJ1() {
+  const fact = (await newQuoteOfficeFacts(["J1"])).get("J1") ?? null;
+  return needsCandidates({ jobId: "J1", jobNumber: "HV-1", surname: "Smith", suburb: null, newQuoteOffice: fact }, Date.now()).filter((r) => r.kind.startsWith("new_quote"));
+}
+
 function seed(over: { channel?: string; stage?: string; reason?: string | null; installerActive?: boolean; marker?: boolean } = {}) {
   for (const k of Object.keys(tables)) delete tables[k];
-  stageChecks.length = 0; stageBlockers = []; writes = 0;
+  stageChecks.length = 0; stageBlockers = []; writes = 0; failUpdate = null;
   const stage = over.stage ?? "cancelled";
   tables["customer_estimate_links"] = [{ token: TOKEN, job_id: "J1", purpose: "step3_estimate", status: "active", expires_at: "2099-01-01T00:00:00Z" }];
   tables["jobs"] = [{ id: "J1", job_number: "HV-1", stage, prior_stage: "measured_estimate_ready", cancelled_reason: over.reason === undefined ? (stage === "cancelled" ? "Quote expired (14 days)" : null) : over.reason, channel: over.channel ?? "hivic_sourced", installer_led: false, ap_fee_override_inc_gst: null, property_id: "P1" }];
@@ -164,31 +175,117 @@ describe("owner asks for a new quote after expiry", () => {
     expect((await readInstallerPrices(["J1"])).get("J1")?.price_inc_gst).toBe(4200);
   });
 
-  test("installer no longer active: no quote, one Needs me row 'New quote asked for — choose installer'", async () => {
+  test("our lead, installer no longer active: no quote, one Needs me row 'choose installer' that stays until a new quote exists", async () => {
     seed({ installerActive: false });
     const r = await requestNewQuote(TOKEN);
     expect(r).toEqual({ kind: "thanks" });
     expect(newQuotes().length).toBe(0);
     expect(tables["job_assignments"]!.find((a) => a["id"] === "A1")!["active"]).toBe(false);
-    const raised = ev("new_quote_needs_installer");
-    expect(raised.length).toBe(1);
-    const rows = needsCandidates({ jobId: "J1", jobNumber: "HV-1", surname: "Smith", suburb: null, newQuoteInstaller: { at: String(raised[0]!["created_at"]) } }, Date.now());
+    expect(ev("new_quote_needs_installer").length).toBe(1);
+    let rows = await needsRowsJ1();
+    expect(rows.length).toBe(1);
     expect(rows[0]!.line).toBe(NEW_QUOTE_CHOOSE_INSTALLER_LINE);
     expect(NEW_QUOTE_CHOOSE_INSTALLER_LINE).toBe("New quote asked for — choose installer");
     expect(rows[0]!.kind).toBe("new_quote_installer");
+    expect(rows[0]!.button).toEqual({ label: "Open job", to: "job", section: "ready-check" });
     expect(cardOf("new_quote_installer")).toBe("other");
-    expect(readFileSync("src/lib/office-needs.server.ts", "utf8")).toContain("newQuoteNeedsInstallerFact");
+    // Office chooses an installer: the row stays (the quote still has to be made)…
+    tables["job_assignments"]!.push({ id: "A2", job_id: "J1", role: "installer", business_id: "B2", active: true, ended_at: null, end_reason: null });
+    rows = await needsRowsJ1();
+    expect(rows.length).toBe(1);
+    // …and clears once an installation quote is created after the request.
+    tables["quotes"]!.push({ id: "Q2", job_id: "J1", kind: "installation", status: "draft", sent_at: null, created_at: nextAt() });
+    expect(await needsRowsJ1()).toEqual([]);
   });
 
-  test("our lead whose new quote can't be priced: owner still gets the thanks, office gets one note, nothing issued", async () => {
+  test("installer lead, installer business can't be put back: Needs me 'installer no longer active'", async () => {
+    seed({ channel: "installer_sourced", installerActive: false });
+    expect(await requestNewQuote(TOKEN)).toEqual({ kind: "thanks" });
+    expect(newQuotes().length).toBe(0);
+    const rows = await needsRowsJ1();
+    expect(rows.length).toBe(1);
+    expect(rows[0]!.line).toBe(NEW_QUOTE_INSTALLER_INACTIVE_LINE);
+    expect(NEW_QUOTE_INSTALLER_INACTIVE_LINE).toBe("New quote asked for — installer no longer active");
+  });
+
+  test("installer lead, installer put back: no Needs me row", async () => {
+    seed({ channel: "installer_sourced" });
+    expect(await requestNewQuote(TOKEN)).toEqual({ kind: "thanks" });
+    expect(await needsRowsJ1()).toEqual([]);
+  });
+
+  test("installer lead: an old A1 form's own price is not used after the request", async () => {
+    seed({ channel: "installer_sourced" });
+    tables["workflow_events"] = tables["workflow_events"]!.filter((e) => e["event_type"] !== "installer_price_set");
+    const form = [{ label: "Total quoted price $", value: "5000" }, { label: "Ceiling area", value: "100" }];
+    expect(installerPriceState({ channel: "installer_sourced", record: null, entries: await entriesWithInstallerPrice("J1", form) }).present).toBe(true);
+    await requestNewQuote(TOKEN);
+    const after = await entriesWithInstallerPrice("J1", form);
+    expect(after).toEqual([{ label: "Ceiling area", value: "100" }]);
+    expect(installerPriceState({ channel: "installer_sourced", record: null, entries: after }).present).toBe(false);
+  });
+
+  test("any builder call after a request (office Generate, Mitti redraft): no fixes lines, held, not issued — even with automatic sending on", async () => {
+    seed({ stage: "measured_estimate_ready" });
+    tables["job_assignments"]!.find((a) => a["id"] === "A1")!["active"] = true;
+    tables["workflow_events"]!.push({ job_id: "J1", event_type: "new_quote_requested", details: { quote_id: "Q1", idempotency_key: "Q1" }, created_at: nextAt() });
+    expect(tables["workflow_settings"]![0]!["auto_send_quote"]).toBe(true);
+    for (const opts of [{}, { mittiDraft: true }]) {
+      const [id] = await generateInstallerQuotes("J1", "U1", opts);
+      const q = tables["quotes"]!.find((x) => x["id"] === id)!;
+      expect(q["status"]).toBe("draft");
+      expect(q["release_state"]).toBe("held");
+      expect(q["sent_at"]).toBeNull();
+      expect(String(q["release_hold_reason"])).toContain("New quote asked for by the owner");
+      expect(tables["quote_items"]!.filter((i) => i["quote_id"] === id).some((i) => String(i["description"]).includes("electrical fixes"))).toBe(false);
+    }
+    // Once a quote has been SENT after the request, the builder is back to normal (accepted fixes folded in).
+    tables["quotes"]!.push({ id: "QS", job_id: "J1", kind: "installation", status: "superseded", sent_at: nextAt(), created_at: nextAt() });
+    const [id] = await generateInstallerQuotes("J1", "U1");
+    expect(tables["quote_items"]!.filter((i) => i["quote_id"] === id).some((i) => String(i["description"]).includes("electrical fixes"))).toBe(true);
+  });
+
+  test("a write after the reopen fails (installer put-back): one office note on Needs me, re-tap = thanks, nothing doubles", async () => {
+    failUpdate = "job_assignments";
+    expect(await requestNewQuote(TOKEN)).toEqual({ kind: "thanks" });
+    expect(job()["stage"]).toBe("measured_estimate_ready");
+    expect(ev("new_quote_requested").length).toBe(1);
+    expect(ev("new_quote_unfinished").length).toBe(1);
+    const rows = await needsRowsJ1();
+    expect(rows.length).toBe(1);
+    expect(rows[0]!.kind).toBe("new_quote_unfinished");
+    expect(rows[0]!.line.startsWith(NEW_QUOTE_UNFINISHED_PREFIX)).toBe(true);
+    expect(cardOf("new_quote_unfinished")).toBe("other");
+    failUpdate = null;
+    const before = writes;
+    expect(await requestNewQuote(TOKEN)).toEqual({ kind: "thanks" });
+    expect(writes).toBe(before);
+    expect(ev("new_quote_requested").length).toBe(1);
+    expect(ev("new_quote_unfinished").length).toBe(1);
+  });
+
+  test("claim written but the reopen failed: re-tap finishes it (no second claim)", async () => {
+    failUpdate = "jobs";
+    await expect(requestNewQuote(TOKEN)).rejects.toThrow();
+    expect(job()["stage"]).toBe("cancelled");
+    expect(ev("new_quote_requested").length).toBe(1);
+    failUpdate = null;
+    expect(await requestNewQuote(TOKEN)).toEqual({ kind: "thanks" });
+    expect(job()["stage"]).toBe("measured_estimate_ready");
+    expect(ev("new_quote_requested").length).toBe(1);
+    expect(newQuotes().length).toBe(1);
+  });
+
+  test("our lead whose new quote can't be priced: owner still gets the thanks, one Needs me note, nothing issued", async () => {
     tables["retail_estimator_settings"] = []; // owner prices missing → the quote builder refuses
     const r = await requestNewQuote(TOKEN);
     expect(r).toEqual({ kind: "thanks" });
     expect(job()["stage"]).toBe("measured_estimate_ready");
     expect(newQuotes().length).toBe(0);
-    const notes = ev("ready_check_needs_office");
-    expect(notes.length).toBe(1);
-    expect(String(((notes[0]!["details"] as Row)["reasons"] as string[])[0])).toContain("New quote could not be prepared");
+    expect(ev("new_quote_unfinished").length).toBe(1);
+    const rows = await needsRowsJ1();
+    expect(rows.length).toBe(1);
+    expect(rows[0]!.line).toContain("Owner prices are not set");
   });
 
   test("refused, nothing written: office already reopened / other cancel reason / wrong token / no expiry close / stage guard", async () => {

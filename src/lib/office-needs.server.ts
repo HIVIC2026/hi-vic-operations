@@ -39,6 +39,23 @@ async function byIds(what: string, ids: string[], q: (chunk: string[], from: num
   return (await Promise.all(chunks.map((chunk) => all(what, (f, t) => q(chunk, f, t))))).flat();
 }
 
+/** Batch 3a: the "new quote asked for" Needs me fact per job (pure rule `newQuoteOfficeFact`). */
+export async function newQuoteOfficeFacts(jobIds: string[]): Promise<Map<string, import("./new-quote-request.core").NewQuoteOfficeFact>> {
+  const out = new Map<string, import("./new-quote-request.core").NewQuoteOfficeFact>();
+  if (!jobIds.length) return out;
+  const { NEW_QUOTE_NEEDS_INSTALLER_EVENT, NEW_QUOTE_UNFINISHED_EVENT, newQuoteOfficeFact } = await import("./new-quote-request.core");
+  const [ev, qs] = await Promise.all([
+    byIds("new quote requests", jobIds, (c, a, b) => admin.from("workflow_events").select("job_id, event_type, created_at, details").in("job_id", c).in("event_type", [NEW_QUOTE_NEEDS_INSTALLER_EVENT, NEW_QUOTE_UNFINISHED_EVENT]).range(a, b)),
+    byIds("quotes of new quote requests", jobIds, (c, a, b) => admin.from("quotes").select("job_id, created_at").in("job_id", c).eq("kind", "installation").range(a, b)),
+  ]);
+  for (const id of jobIds) {
+    const hit = newQuoteOfficeFact(ev.filter((e) => e["job_id"] === id).map((e) => ({ event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as Record<string, unknown> | null })),
+      { quoteCreatedAts: qs.filter((q) => q["job_id"] === id).map((q) => String(q["created_at"])) });
+    if (hit) out.set(id, hit);
+  }
+  return out;
+}
+
 export type GatheredNeeds = {
   now: number; jobs: OfficeJob[]; facts: Map<string, NeedsFacts>; emails: EmailRowInput[];
   system: SystemRow[];
@@ -388,26 +405,14 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       }
     }
   } catch { unavailable.push("expired quotes not emailable"); }
-  // Batch 3a: the owner asked for a new quote but the installer is no longer active → one row until an installer is on the
-  // job or a new installation quote exists.
+  // Batch 3a: the owner asked for a new quote but the installer could not be put back, or the reopen half-finished →
+  // one row until an installation quote is created after it.
   try {
-    const { NEW_QUOTE_NEEDS_INSTALLER_EVENT, newQuoteNeedsInstallerFact } = await import("./new-quote-request.core");
-    const raised = await all("new quotes needing an installer", (a, b) => scoped(admin.from("workflow_events").select("job_id")).eq("event_type", NEW_QUOTE_NEEDS_INSTALLER_EVENT).range(a, b));
+    const { NEW_QUOTE_NEEDS_INSTALLER_EVENT, NEW_QUOTE_UNFINISHED_EVENT } = await import("./new-quote-request.core");
+    const raised = await all("new quotes needing the office", (a, b) => scoped(admin.from("workflow_events").select("job_id")).in("event_type", [NEW_QUOTE_NEEDS_INSTALLER_EVENT, NEW_QUOTE_UNFINISHED_EVENT]).range(a, b));
     const raisedIds = [...new Set(raised.map((e) => String(e["job_id"])).filter((id) => idSet.has(id)))];
-    if (raisedIds.length) {
-      const [ev, inst, qs] = await Promise.all([
-        byIds("new quote requests", raisedIds, (c, a, b) => admin.from("workflow_events").select("job_id, event_type, created_at").in("job_id", c).eq("event_type", NEW_QUOTE_NEEDS_INSTALLER_EVENT).range(a, b)),
-        byIds("installers of new quote requests", raisedIds, (c, a, b) => admin.from("job_assignments").select("job_id").in("job_id", c).eq("role", "installer").eq("active", true).range(a, b)),
-        byIds("quotes of new quote requests", raisedIds, (c, a, b) => admin.from("quotes").select("job_id, created_at").in("job_id", c).eq("kind", "installation").range(a, b)),
-      ]);
-      const withInst = new Set(inst.map((r) => String(r["job_id"])));
-      for (const id of raisedIds) {
-        const hit = newQuoteNeedsInstallerFact(ev.filter((e) => e["job_id"] === id).map((e) => ({ event_type: String(e["event_type"]), created_at: String(e["created_at"]) })),
-          { hasActiveInstaller: withInst.has(id), quoteCreatedAts: qs.filter((q) => q["job_id"] === id).map((q) => String(q["created_at"])) });
-        const x = f(id); if (x && hit) x.newQuoteInstaller = hit;
-      }
-    }
-  } catch { unavailable.push("new quotes needing an installer"); }
+    for (const [id, hit] of await newQuoteOfficeFacts(raisedIds)) { const x = f(id); if (x) x.newQuoteOffice = hit; }
+  } catch { unavailable.push("new quotes needing the office"); }
   // Batch 1: the owner accepted but the invoice step failed → one Money row until a Xero-linked invoice exists.
   try {
     const { invoiceFailedFact } = await import("./office-needs.core");

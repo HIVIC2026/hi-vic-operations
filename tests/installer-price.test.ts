@@ -172,7 +172,8 @@ describe("wiring (source facts)", () => {
   });
   test("quote pipeline reads the portal price first: draft, basics, chase, auto-send hold, completion", () => {
     expect(read("src/lib/installer-quote.server.ts")).toContain("entriesWithInstallerPrice(jobId, formEntries)");
-    expect(read("src/lib/ready-check-basics.server.ts")).toContain("withInstallerPrice(formEntries, priceRecord?.record ?? null)");
+    // Batch 3a: basics read through entriesWithInstallerPrice (portal price first; old form price dropped after a new-quote request).
+    expect(read("src/lib/ready-check-basics.server.ts")).toContain("entriesWithInstallerPrice(jobId, formEntries)");
     expect(read("src/lib/ready-check-chase.server.ts")).toContain("entriesWithInstallerPrice(p.jobId, p.entries)");
     expect(read("src/lib/auto-quote-send.server.ts")).toContain("await held(jobId, `price:${jobId}`, [PRICE_NOT_ENTERED]);");
     expect(read("src/lib/mitti-complete.server.ts")).toContain("enabled: sendEnabled, entries: i.entries");
