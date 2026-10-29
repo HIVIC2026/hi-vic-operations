@@ -319,8 +319,11 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
       admin.from("jobs").select("life_support, life_support_status").eq("id", jobId).single(),
       // Batch 3b: the owner's payment on the installation invoice only (fixes / repeat safety check invoices are separate).
       admin.from("invoices").select("deposit_paid_amount").eq("job_id", jobId).eq("kind", "installation"),
-      // The owner's own upload ("I have uploaded it", Gate C) counts the same as the office record.
-      admin.from("owner_gate_signatures").select("doc_key").eq("job_id", jobId).eq("doc_key", "life_support_plan").limit(1),
+      // The owner's Gate C tick ("I have uploaded it") is only a tick: it counts only with the stored consent / plan file.
+      Promise.all([
+        admin.from("owner_gate_signatures").select("doc_key").eq("job_id", jobId).eq("doc_key", "life_support_plan").limit(1),
+        admin.from("documents").select("id").eq("job_id", jobId).eq("kind", "life_support_plan").limit(1),
+      ]).then(([sig, file]) => ({ data: (sig.data ?? []).length && (file.data ?? []).length ? [{ doc_key: "life_support_plan" }] : [] })),
     ]);
     const paid = (invs ?? []).reduce((a, i) => a + Number(i.deposit_paid_amount ?? 0), 0);
     const recorded = new Set<string>((recs ?? []).map((r) => r.record_key));

@@ -47,7 +47,7 @@ function seed(job: { life_support: boolean; life_support_status: string | null }
   for (const k of Object.keys(tables)) delete tables[k];
   Object.assign(tables, {
     jobs: [{ id: J, job_number: "HV-0801", source: "website", stage: "piesa_and_install_window_pending", deleted_at: null, qa_archived_at: null, business_unit: "hivic", ...job }],
-    job_compliance_records: [], owner_gate_signatures: [], invoices: [], workflow_events: [], job_assignments: [], assessments: [],
+    job_compliance_records: [], owner_gate_signatures: [], documents: [], invoices: [], workflow_events: [], job_assignments: [], assessments: [],
   });
 }
 const has = async (to: "piesa_scheduled" | "installation_booked") => (await stageEntryBlockers(J, to)).includes(MISSING);
@@ -59,11 +59,23 @@ describe("booking the safety check visit (piesa_scheduled) runs the life support
     await recordComplianceRecord({ jobId: J, key: "life_support_plan", occurredAt: "2026-10-29", reference: null, notes: null, actorId: "00000000-0000-4000-8000-0000000000e1" });
     expect(await has("piesa_scheduled")).toBe(false);
   });
-  test("yes -> the owner's upload (Gate C 'I have uploaded it') clears it", async () => {
+  test("the owner's tick alone (no stored file) does not clear it, at the visit or later", async () => {
     seed({ life_support: true, life_support_status: "yes" });
-    expect(await has("piesa_scheduled")).toBe(true);
     tables["owner_gate_signatures"]!.push({ job_id: J, doc_key: "life_support_plan", doc_version: "v1", signed_at: "2026-10-29T01:00:00Z" });
+    expect(await has("piesa_scheduled")).toBe(true);
+    expect(await has("installation_booked")).toBe(true);
+  });
+  test("a stored file alone (no tick) does not clear it", async () => {
+    seed({ life_support: true, life_support_status: "yes" });
+    tables["documents"]!.push({ id: "d1", job_id: J, kind: "life_support_plan", storage_path: "x/plan.pdf" });
+    expect(await has("piesa_scheduled")).toBe(true);
+  });
+  test("the owner's tick + the stored file clears it", async () => {
+    seed({ life_support: true, life_support_status: "yes" });
+    tables["owner_gate_signatures"]!.push({ job_id: J, doc_key: "life_support_plan", doc_version: "v1", signed_at: "2026-10-29T01:00:00Z" });
+    tables["documents"]!.push({ id: "d1", job_id: J, kind: "life_support_plan", storage_path: "x/plan.pdf" });
     expect(await has("piesa_scheduled")).toBe(false);
+    expect(await has("installation_booked")).toBe(false);
   });
   test("unknown (flag off) blocks like yes", async () => {
     seed({ life_support: false, life_support_status: "unknown" });
