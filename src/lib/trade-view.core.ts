@@ -275,6 +275,7 @@ export function needsFinishingTask(nextAction: string | null | undefined): strin
 import { MIN_REC_PL_COVER } from "./rec-onboarding.core";
 import { isPriceNextAction } from "./ready-check-basics.core";
 import { crewClearance, CREW_CLEARANCE_REASON, WHITE_CARD_TEAM_LABEL, type WhiteCardState } from "./worker-compliance.core";
+import { PIESA_FULL } from "./job-wording";
 
 const MEL = "Australia/Melbourne";
 const asDate = (iso: string) => new Date(iso.length === 10 ? `${iso}T00:00:00+10:00` : iso);
@@ -531,7 +532,7 @@ export const ELECTRICIAN_GUIDE_WORDS = {
 } as const;
 
 // Decision 317: the electrician's "Safety check (PIESA)" document row on their job page.
-export const SAFETY_CHECK_DOC_TITLE = "Safety check (PIESA)";
+export const SAFETY_CHECK_DOC_TITLE = PIESA_FULL;
 /** One line under the row: the signed date and, after the fixes, that this version includes them. */
 export function safetyCheckDocLine(x: { signatureDate: string | null; afterFixes: boolean }): string {
   const d = shortDate(x.signatureDate);

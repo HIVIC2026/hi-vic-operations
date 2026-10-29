@@ -14,7 +14,7 @@ const base: JobNextFacts = {
 describe("M2 job page — one Next panel", () => {
   test("cleared → offer 3 install days with the window line (mock-up M2)", () => {
     // (21 Nov 2026 is a Saturday; the mock-up's "Fri" was a drafting slip — the real calendar wins.)
-    expect(jobNext(base)).toEqual({ panel: "offer_install_days", title: "Offer Helen 3 install days", sub: "Safety check cleared 22 Oct · Install by Sat 21 Nov · 28 days left", yours: true });
+    expect(jobNext(base)).toEqual({ panel: "offer_install_days", title: "Offer Helen 3 install days", sub: "Pre Insulation Electrical Safety Assessment (PIESA) cleared 22 Oct · Install by Sat 21 Nov · 28 days left", yours: true });
   });
   test("install days back and forth via installDayTurn only", () => {
     expect(jobNext({ ...base, installTurn: "owner_to_answer" }).panel).toBe("install_waiting_owner");
@@ -48,7 +48,7 @@ describe("M2 job page — one Next panel", () => {
     expect(JSON.stringify(jobNext(own))).not.toMatch(/Quoted\?|Site check\?|Check eligibility/);
   });
   test("30-day line is the installer's wording, never the owner's", () => {
-    expect(thirtyDayLine("2026-11-21")).toBe("Install within 30 days of the safety check (by 21 Nov) or a new check is needed, and whoever's move it was pays for it.");
+    expect(thirtyDayLine("2026-11-21")).toBe("Install within 30 days of the Pre Insulation Electrical Safety Assessment (PIESA) (by 21 Nov) or a new PIESA is needed, and whoever's move it was pays for it.");
     expect(thirtyDayLine(null)).toBeNull();
     expect(thirtyDayLine("2026-11-21")).not.toMatch(/Your install must|as soon as the installer/);
   });

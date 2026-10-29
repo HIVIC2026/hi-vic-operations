@@ -64,7 +64,7 @@ describe("M2 states", () => {
     expect(quoteStatusRow(null, { needsFinishing: true, formLinked: true }).label).toBe("Not drafted yet · waiting on the form");
   });
   test("quote sent / held / declined: 'Nothing for you' with recorded dates only", () => {
-    expect(quoteNextWords({ quoteLine: QUOTE_SENT_LINE, quoteSentAt: "2026-10-21T22:00:00Z" }, "Helen")).toMatchObject({ title: "Nothing for you — Helen has the quote", sub: "We sent Helen the quote on Thu 22 Oct. We'll tell you when Helen accepts. Then we arrange the electrical safety check.", yours: false });
+    expect(quoteNextWords({ quoteLine: QUOTE_SENT_LINE, quoteSentAt: "2026-10-21T22:00:00Z" }, "Helen")).toMatchObject({ title: "Nothing for you — Helen has the quote", sub: "We sent Helen the quote on Thu 22 Oct. We'll tell you when Helen accepts. Then we arrange the Pre Insulation Electrical Safety Assessment (PIESA).", yours: false });
     expect(quoteNextWords({ quoteLine: QUOTE_HELD_LINE, formCompletedAt: "2026-10-20T22:00:00Z" }, "Helen")).toMatchObject({ title: "Nothing for you — the office is checking the quote", sub: "You pressed Complete in Mitti on Wed 21 Oct. We check every quote before it goes to the owner. If we need anything we'll text you." });
     expect(quoteNextWords({ quoteLine: QUOTE_DECLINED_LINE, quoteDeclinedAt: "2026-10-23T22:00:00Z" }, "Helen")).toMatchObject({ title: "Nothing for you — Helen declined the quote", sub: "Declined Sat 24 Oct. The office may follow up with Helen. If the job comes back, it shows in Action needed." });
     expect(quoteNextWords({ quoteLine: QUOTE_DECLINED_LINE }, "the owner")!.sub).toBe("The office may follow up with the owner. If the job comes back, it shows in Action needed.");
@@ -77,7 +77,7 @@ describe("M2 states", () => {
   });
   test("PIESA booked: nothing for the installer until clearance; electrician row names the visit", () => {
     const n = jobNext({ ...base, piesaBooking: { electrician: "Sam Lee", start: "2026-10-28T22:00:00Z" } });
-    expect(n).toMatchObject({ panel: "waiting", title: "Nothing for you — safety check booked", sub: "Sam Lee (Home Insulation Victoria electrician) does the PIESA on Thu 29 Oct at 9am. Once it's cleared, you offer Helen 3 install days within 30 days.", yours: false });
+    expect(n).toMatchObject({ panel: "waiting", title: "Nothing for you — Pre Insulation Electrical Safety Assessment (PIESA) booked", sub: "Sam Lee (Home Insulation Victoria electrician) does the PIESA on Thu 29 Oct at 9am. Once it's cleared, you offer Helen 3 install days within 30 days.", yours: false });
     expect(jobNext({ ...base, piesaBooking: { electrician: "Sam Lee", start: "2026-10-28T22:00:00Z" }, clearedOn: "2026-10-28T23:00:00Z", installTurn: "installer_to_offer" }).panel).toBe("offer_install_days");
     expect(electricianRow({ name: "Sam Lee", piesaBookedAt: "2026-10-28T22:00:00Z", piesaPassedOn: null, fixesNote: null })).toEqual({ label: "Electrician", value: "Sam Lee · PIESA Thu 29 Oct at 9am" });
     expect(electricianRow({ name: null, piesaBookedAt: null, piesaPassedOn: "2026-10-28T23:00:00Z", fixesNote: "downlight covers needed on the day" })!.value).toBe("PIESA passed Thu 29 Oct · downlight covers needed on the day");

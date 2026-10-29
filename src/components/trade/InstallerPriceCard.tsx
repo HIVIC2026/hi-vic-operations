@@ -14,6 +14,7 @@ import { PRICE_INCLUDED_OPTIONS, PRICE_ISSUES, accessFlagLine, priceCardLines, v
 const REMOVAL_OPTION = PRICE_INCLUDED_OPTIONS[1]; // "Removal of existing insulation"
 import { PRICE_CARD_ANCHOR } from "@/lib/boss-price-link.core";
 import { LinkRow, Note, PrimaryButton, Row } from "@/components/trade/installer-kit";
+import { PIESA_FULL } from "@/lib/job-wording";
 
 export function InstallerPriceCard({ jobId }: { jobId: string }) {
   const load = useServerFn(getInstallerPriceFn);
@@ -63,7 +64,7 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
       )}
       {showForm && (
         <form className="space-y-3 py-2" onSubmit={async (e) => { e.preventDefault(); if (!check.ok) return; setBusy(true); try { const r = await save({ jobId, priceIncGst: price, included, includedOther: other || null }, "Price saved"); if (r) { setEditing(false); await q.refetch(); } } finally { setBusy(false); } }}>
-          <Note className="mt-0">Only you see and set this. We add the $349 Accredited Person fee and the electrical safety check, take off the rebate and prepare {" "}the owner's quote.{access ? " Any difficult access is yours to price in." : ""}</Note>
+          <Note className="mt-0">Only you see and set this. We add the $349 Accredited Person fee and the {PIESA_FULL}, take off the rebate and prepare {" "}the owner's quote.{access ? " Any difficult access is yours to price in." : ""}</Note>
           <div><Label htmlFor="ip-price">Your price to the owner (inc GST)</Label><Input id="ip-price" inputMode="decimal" placeholder="e.g. 2400" value={price} onChange={(e) => setPrice(e.target.value)} /></div>
           <fieldset>
             <legend className="text-sm font-medium">What's included</legend>

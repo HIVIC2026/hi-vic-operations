@@ -72,7 +72,7 @@ describe("the official PIESA PDF text and the /field row label", () => {
     expect(officialPiesaPdfFilename("HV-2001")).toBe("PIESA-HV-2001.pdf");
   });
   test("row title + line", () => {
-    expect(SAFETY_CHECK_DOC_TITLE).toBe("Safety check (PIESA)");
+    expect(SAFETY_CHECK_DOC_TITLE).toBe("Pre Insulation Electrical Safety Assessment (PIESA)");
     expect(safetyCheckDocLine({ signatureDate: null, afterFixes: false })).toBe("Official copy · Download PDF");
     expect(safetyCheckDocLine({ signatureDate: "2026-11-10", afterFixes: true })).toContain("includes your fixes and CoES");
   });
