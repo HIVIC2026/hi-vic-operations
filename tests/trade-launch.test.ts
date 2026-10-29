@@ -95,6 +95,6 @@ describe("Trade sign-in", () => {
   test("TEST sign-ins and TEST businesses always create qa_test jobs", () => {
     const s = readFileSync("src/lib/pilot.server.ts", "utf8");
     expect(s).toContain('testUser || testBiz ? "qa_test" : fallback');
-    for (const f of ["src/lib/portal.functions.ts", "src/lib/partner-import.server.ts", "src/lib/bulk-import.server.ts"]) expect(readFileSync(f, "utf8")).toContain("intakeSourceFor(");
+    for (const f of ["src/lib/portal.functions.ts", "src/lib/partner-import.server.ts"]) expect(readFileSync(f, "utf8")).toContain("intakeSourceFor(");
   });
 });

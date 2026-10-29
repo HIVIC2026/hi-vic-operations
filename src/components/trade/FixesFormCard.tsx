@@ -1,6 +1,6 @@
 // Decision 293: the electrician's job page shows the "A4 – Electrical fixes" Mitti form for the booked fixes visit.
-// Presentation only: the form, its state and the refresh all come from fixes-day.functions; the portal "record fixes
-// done" page below it stays as the fallback.
+// Presentation only: the form, its state and the refresh all come from fixes-day.functions. Mitti is the only way to
+// record fixes done (the portal fallback form was removed).
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -9,6 +9,7 @@ import { MittiFormLink } from "@/components/portal/MittiFormLink";
 import { Button, Section } from "@/components/trade/trade-ui";
 import { getFixesForm, refreshFixesForm } from "@/lib/fixes-day.functions";
 import { FIXES_FORM_LINK_LABEL } from "@/lib/fixes-day.core";
+import { PIESA_FULL } from "@/lib/job-wording";
 
 export function FixesFormCard({ jobId, mittiInvited }: { jobId: string; mittiInvited: boolean }) {
   const load = useServerFn(getFixesForm);
@@ -34,7 +35,7 @@ export function FixesFormCard({ jobId, mittiInvited }: { jobId: string; mittiInv
         )}
       </div>
       {line && <p className="mt-2 text-sm text-sub">{line}</p>}
-      <p className="mt-2 text-xs text-sub">Press Complete in Mitti when the repair work is done: the certificate number, date and photos go onto the safety assessment and the owner's copy. If you can't use Mitti today, record it below instead.</p>
+      <p className="mt-2 text-xs text-sub">Press Complete in Mitti when the repair work is done: the certificate number, date and photos go onto the {PIESA_FULL} and the owner's copy.</p>
     </Section>
   );
 }

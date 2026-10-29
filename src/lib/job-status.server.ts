@@ -1,7 +1,7 @@
 // Facts for the trade "where is this job up to?" line and timeline. Scoped to the signed-in trade's own jobs.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
-import { electricianPayState, payState } from "./trade-view.core";
+import { electricianPayState, payState, contactVisible } from "./trade-view.core";
 import { chaseMode, paymentDates, forViewer, jobStatusLine, jobTimeline, reminderRequestMessage, type StatusFacts } from "./job-status.core";
 import { safetyCheckPayState } from "./payment-gate.core";
 import type { DueSettings } from "./waiting.core";
@@ -105,7 +105,11 @@ export async function tradeJobStatus(userId: string, jobId: string) {
     contact = { phone: o?.phone ?? null, email: o?.email ?? null };
   }
   const { data: asked } = await admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "trade_reminder_requested").order("created_at", { ascending: false }).limit(1).maybeSingle();
-  return { line: statusView(c, f), timeline: jobTimeline(f), chase: { mode, contact, askedAt: asked?.created_at ?? null } };
+  // Owner contact follows this business's own visits only: gone once every one of them is done (contactVisible).
+  // If this read fails the contact stays hidden (fail closed); only the error code is logged.
+  const { data: mine, error: mineErr } = await admin.from("bookings").select("status").eq("job_id", jobId).eq("business_id", c.biz.id);
+  if (mineErr) console.error("tradeJobStatus: own bookings read failed", mineErr.code ?? "unknown");
+  return { line: statusView(c, f), timeline: jobTimeline(f), chase: { mode, contact, askedAt: asked?.created_at ?? null }, ownerContactVisible: mineErr ? false : contactVisible(mine ?? []) };
 }
 
 /** "Ask Home Insulation Victoria to send a reminder": recorded for the office's Needs me. Never an automatic send. */

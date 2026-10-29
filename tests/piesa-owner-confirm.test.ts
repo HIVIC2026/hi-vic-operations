@@ -105,7 +105,7 @@ describe("the gate", () => {
   test("installer job page Next line: waiting for the owner while unconfirmed, the normal offer panel once confirmed", () => {
     const base = { channel: "hivic_sourced", stage: "installation_scheduling", ownerFirstName: "Helen", formLinked: true, formCompleted: true, quoteLine: null, installTurn: "installer_to_offer" as const, installDeadline: "2026-11-23", installDaysLeft: 25, clearedOn: "2026-10-24", installFormComplete: false, installationRecorded: false, rebateSigned: false };
     const waiting = jobNext({ ...base, ownerPiesaConfirmed: false });
-    expect(waiting.panel).toBe("waiting"); expect(waiting.title).toBe(OWNER_PIESA_CONFIRM_WAITING); expect(waiting.title).toBe("Waiting for the owner to confirm the safety check"); expect(waiting.yours).toBe(false);
+    expect(waiting.panel).toBe("waiting"); expect(waiting.title).toBe(OWNER_PIESA_CONFIRM_WAITING); expect(waiting.title).toBe("Waiting for the owner to confirm the Pre Insulation Electrical Safety Assessment (PIESA)"); expect(waiting.yours).toBe(false);
     expect(waiting.sub).toContain("Install by"); expect(waiting.sub).toContain("We've asked Helen by email and text");
     expect(jobNext({ ...base, ownerPiesaConfirmed: true }).panel).toBe("offer_install_days");
     expect(jobNext({ ...base, ownerPiesaConfirmed: null }).panel).toBe("offer_install_days"); // not read / no PIESA record → unchanged behaviour

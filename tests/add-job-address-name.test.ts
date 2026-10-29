@@ -37,3 +37,18 @@ describe("full address", () => {
     expect(src).toContain("victoriaOnly");
   });
 });
+
+const typed = { ...restoreCustomer({}), full_name: "Ann Lee", address_line: "12 Bush Track", suburb: "Kinglake", postcode: "3763", phone: "0412 345 678", email: "a@b.co", contact_permission: true, consent_by: "installer" as const, address_typed: true };
+test("A8: a typed address is accepted without the list, but still checked", () => {
+  expect(customerProblems(typed)).toEqual([]);
+  expect(customerProblems({ ...typed, address_typed: false })).toContain(PICK_ADDRESS);
+  expect(customerProblems({ ...typed, postcode: "2604" })).toContain("We can only take Victorian jobs — this one can't be added");
+  expect(customerProblems({ ...typed, address_line: "Bush Track" })).toContain("Add the street number to the address");
+  expect(restoreCustomer({ ...typed }).address_typed).toBe(true);
+});
+test("A8 wiring: the link shows only after no match; picking again clears typed", () => {
+  const cf = readFileSync("src/components/trade/customer-fields.tsx", "utf8");
+  expect(cf).toContain("onNoMatch="); expect(cf).toContain("ADDRESS_TYPE_IN"); expect(cf).toContain("ADDRESS_PICK_AGAIN");
+  expect(cf).toContain("address_verified: true, address_typed: false");
+  expect(readFileSync("src/lib/onsite-ready-check.functions.ts", "utf8")).toContain("address_typed: z.boolean().optional()");
+});

@@ -27,6 +27,7 @@
 - The crew reminder email (`crew-reminder.server.ts`) is not edited; it keeps counting `piisa_crew_selected`, which every crew save still records.
 - Trade screens read only through `trade-view.server.ts` (src/AGENTS.md).
 - Build after plan C (`2026-10-28-installer-part1-c-job-page.md`); see Task 5 and Task 7 Interfaces.
+- Line numbers cited in this plan are hints from 28 Oct; earlier tasks and plans shift them. Find every edit point by its text (preflight ruling 15).
 
 ## Review Focus
 
@@ -100,7 +101,7 @@ git commit -m "fix(today): couldn't get in keeps the installer and shows thanks;
 ### Task 2: D3 — an electrician's fixes visit opens the fixes form
 
 **Files:**
-- Modify: `src/lib/trade-view.core.ts` and `src/lib/installer-screens.core.ts` (`DayKind` gains `"fixes"`; `DAY_WHAT.fixes`; `dayNext` fixes branch)
+- Modify: `src/lib/installer-screens.core.ts` (the one `DayKind` gains `"fixes"`; `DAY_WHAT.fixes`; `dayNext` fixes branch) and `src/lib/trade-view.core.ts` (delete its own `DayKind` copy; `import type { DayKind } from "./installer-screens.core"` and `export type { DayKind }` so `TradePrestart.tsx` keeps its import; preflight ruling 11)
 - Modify: `src/lib/trade-view.server.ts` (`tradeDay`: `dayKind`, `mittiId`)
 - Modify: `src/routes/_authenticated/field.day.$jobId.tsx` (line 46 `installer`)
 - Test: `tests/installer-part1-d.test.ts`
@@ -123,12 +124,14 @@ describe("D3 fixes visit", () => {
     expect(day).toContain('b?.kind === "rectification" ? "fixes"');
     expect(day).toContain("fixesFormState(jobId)");
     expect(src(DAY)).toContain('const installer = data ? data.kind === "ready_check" || data.kind === "install" : false;');
+    expect(src("src/lib/trade-view.core.ts")).not.toContain("export type DayKind =");
+    expect(src("src/lib/installer-screens.core.ts").match(/export type DayKind =/g)?.length).toBe(1);
   });
 });
 ```
 
 - [ ] **Step 2: Run** `bun test tests/installer-part1-d.test.ts` — Expected: FAIL.
-- [ ] **Step 3: Implement** as in Interfaces. Delete the unused `START_LABEL` from `trade-view.core.ts` now (nothing imports it; it would otherwise need a `fixes` entry). In `tradeDay`: `dayKind = b?.kind === "rectification" ? "fixes" : b?.kind === "installation" ? "install" : …`; when `dayKind === "fixes"` read `(await import("./fixes-day.server")).fixesFormState(jobId)` and use its `auditId` (still only when `mitti_account_invited`) as `mittiId`; the PIESA `a?.external_mitti_id` is used only for `safety_check`. Return type widens to include `"fixes"`.
+- [ ] **Step 3: Implement** as in Interfaces. `DayKind` is declared once, in `installer-screens.core.ts`; `"fixes"` is added there only. Delete the unused `START_LABEL` from `trade-view.core.ts` now (nothing imports it; it would otherwise need a `fixes` entry). In `tradeDay`: `dayKind = b?.kind === "rectification" ? "fixes" : b?.kind === "installation" ? "install" : …`; when `dayKind === "fixes"` read `(await import("./fixes-day.server")).fixesFormState(jobId)` and use its `auditId` (still only when `mitti_account_invited`) as `mittiId`; the PIESA `a?.external_mitti_id` is used only for `safety_check`. Return type widens to include `"fixes"`.
 - [ ] **Step 4: Run** `bun test tests/installer-part1-d.test.ts tests/installer-screens.core.test.ts tests/fixes-day.test.ts` — Expected: PASS.
 - [ ] **Step 5: Commit**
 
@@ -196,6 +199,7 @@ git commit -m "fix(sms): couldn't-get-in text held after 8pm is sent at 7am, onc
 
 **Interfaces:**
 - Produces: `crewSelectionProblems` pushes `"The install form has room for a Lead and 2 more"` when `additional.length > 2`, and `"Choose the Lead from your Team list"` when `sel.lead` is an `{ other }` object or `null` (replaces the old "Other lead" branch and "Choose the lead installer from your staff, or Other"). `CrewSelection` type and `crewPrefill` stay as they are (old saved crews still prefill).
+- Keep plan F's checks when rewriting the Lead branch: the Crew-Lead refusal (`CREW_NOT_LEAD_MESSAGE`) and the `declarationsDue` refusal for the Lead and crew members (plan F Tasks 3 and 4b, built before this task; their tests live in `tests/team-lead-crew-picker.test.ts` and `tests/team-sign-declarations.test.ts`).
 - Produces: `savePiisaCrew` input `lead: z.string().uuid().nullable()`, `additional: z.array(pick).max(2)` (crew members keep "Enter installer details", Jo answer 3).
 - Picker: Lead select has no "Enter installer details" option and no `data-lead-other` inputs; `lead` state is `string | null`; a saved legacy `{ other }` Lead loads as `null` so the boss must pick from the list. Empty-list line becomes `"No CII-cleared installer is on your Team list yet. Add them under My business → Team."` (the old line told them to type the Lead in).
 
@@ -227,7 +231,7 @@ describe("D5 Lead + 2, Lead from the Team list", () => {
 
 - [ ] **Step 2: Run** `bun test tests/installer-part1-d.test.ts` — Expected: FAIL.
 - [ ] **Step 3: Implement** as in Interfaces. In `tests/piisa-crew-ready-check.test.ts` rename the test to "a typed-in Lead is refused; old saved crews still prefill": assert `problems` equals `["Choose the Lead from your Team list"]` for the Zed New lead, drop the `needsVerification`/"choose them instead of Other" lead lines, keep the `listed twice` line only as a crew-member case (`lead: "<cleared staff id from that file>"`, two `{ other }` crew members with the same name), keep the `crewPrefill` line unchanged.
-- [ ] **Step 4: Run** `bun test tests/installer-part1-d.test.ts tests/piisa-crew-ready-check.test.ts tests/piisa-crew-roster.test.ts tests/piisa-native-crew.test.ts tests/white-card.core.test.ts tests/esc-collection-notice.test.ts` — Expected: PASS.
+- [ ] **Step 4: Run** `bun test tests/installer-part1-d.test.ts tests/team-lead-crew-picker.test.ts tests/team-sign-declarations.test.ts tests/piisa-crew-ready-check.test.ts tests/piisa-crew-roster.test.ts tests/piisa-native-crew.test.ts tests/white-card.core.test.ts tests/esc-collection-notice.test.ts` — Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
@@ -248,7 +252,7 @@ git commit -m "fix(crew): Lead + 2, Lead picked from the Team list"
 - Test: `tests/installer-part1-d.test.ts`; update `tests/field-job-one-call.test.tsx` (line 89 seed, line 109 text) and `tests/trade-job-bundle.test.ts` (fake deps line ~31, lists lines 45, 82, 87)
 
 **Interfaces:**
-- Depends on plan C (`2026-10-28-installer-part1-c-job-page.md`) being built first. C edits other parts of `field.$jobId.tsx` (NextPanel/Ready Check Mitti links, the staff-links `<summary>`, sign_rebate) and runs `tests/field-job-one-call.test.tsx`. This task only replaces the `<WhosDoingThis … />` line and adds the picker after it; find it by text, not line number. No overlap with C.
+- Depends on plan C (`2026-10-28-installer-part1-c-job-page.md`) being built first. C edits other parts of `field.$jobId.tsx` (NextPanel/Ready Check Mitti links, the staff-links `<summary>`, sign_rebate) and runs `tests/field-job-one-call.test.tsx`. This task only replaces the `<WhosDoingThis … />` line, adds the picker after it, and adds `visitsForStage` to the route's imports from `@/lib/visit-allocation.core` (not imported there today); find edit points by text, not line number. No overlap with C.
 - Produces: `export const CREW_TITLE = "Who's on the crew today?"` (Jo answer 1).
 - Produces: `export function leadNeedsHandover(f: { leadWorkerId: string | null; allocatedWorkerId: string | null; assigneeWorkerId: string | null }): boolean` → `!!lead && lead !== (allocated ?? assignee)`.
 - Produces: `export async function saveCrewWithLead(jobId: string, userId: string, sel: CrewSelection, call?: MittiCall): Promise<{ needsVerification: string[] }>` — `loadCrew` + throw on `crewSelectionProblems(...).problems` first; reads the current install allocation (`currentAllocation(events, "install")`) and the assigned installer's own `partner_workers` row (`profile_id` = active installer assignment `user_id`); if `leadNeedsHandover` → `allocateVisit(jobId, userId, "install", leadId, call)` (its owner/CII/"Add them in Mitti first" guards refuse before anything is recorded); then `saveCrewSelection(jobId, userId, sel)` (records `piisa_crew_selected`, which the 2pm crew reminder reads).
@@ -326,7 +330,8 @@ describe("D8 remembered Start", () => {
     expect(tp.match(/try \{/g)?.length).toBeGreaterThanOrEqual(4);
     const page = src(DAY);
     expect(page).toContain("useRememberedStart(`hiv-started-${jobId}-${data?.start ?? \"\"}`)");
-    expect(page).not.toContain("useState(false);\n  const [asking");
+    expect(page).toContain("useRememberedStart(");
+    expect(page).not.toContain("setStarted(true)");
   });
 });
 ```

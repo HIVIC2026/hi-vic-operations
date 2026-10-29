@@ -1,8 +1,9 @@
 // Jo 28 Oct 2026 spec, parts 1–3: people without an email, Lead / Crew and the crew reminder email. Pure rules here;
 // persistence in worker-role-crew-server.test.ts and the schema change in worker-email-optional-db.test.ts.
 import { describe, expect, test } from "bun:test";
-import { certOrFilter, effectiveWorkerRole, emailStillUsedByAnotherLead, hasMittiAccessToday, mittiEmailFor, roleSwitchMittiAction, sameWorkerEmail, canChangeWorkerRole } from "../src/lib/worker-role.core";
-import { CREW_SKIP, mittiInviteStep, mittiRemovalStep, type InvitePerson } from "../src/lib/mitti-invite.core";
+import { readFileSync } from "node:fs";
+import { certOrFilter, effectiveWorkerRole, mittiEmailFor, roleSwitchMittiAction, sameWorkerEmail, canChangeWorkerRole } from "../src/lib/worker-role.core";
+import { CREW_SKIP, mittiInviteStep, type InvitePerson } from "../src/lib/mitti-invite.core";
 import { CREW_REMINDER_EMAIL_APPROVED, crewReminderBlocker, crewReminderDue, crewReminderEmail, crewReminderKey } from "../src/lib/crew-reminder.core";
 import { collectionNoticeStatus, ackFromEventDetails, COLLECTION_NOTICE_SHA256 } from "../src/lib/esc-collection-notice.core";
 
@@ -23,14 +24,12 @@ describe("1. people without an email", () => {
 });
 
 describe("2. Lead / Crew", () => {
-  test("null counts as Crew, except someone with Mitti access today counts as Lead", () => {
-    expect(effectiveWorkerRole({ tradeRole: "installer", stored: null, hasMittiAccess: false })).toBe("crew");
-    expect(effectiveWorkerRole({ tradeRole: "installer", stored: null, hasMittiAccess: true })).toBe("lead");
-    expect(effectiveWorkerRole({ tradeRole: "installer", stored: "crew", hasMittiAccess: true })).toBe("crew");
-    expect(effectiveWorkerRole({ tradeRole: "electrician", stored: null, hasMittiAccess: true })).toBeNull();
-    expect(hasMittiAccessToday("mitti_user_invited", false)).toBe(true);
-    expect(hasMittiAccessToday("mitti_user_deactivated", false)).toBe(false);
-    expect(hasMittiAccessToday(null, true)).toBe(true);
+  test("null counts as Lead (Jo 29 Oct answer 1); Crew only when stored", () => {
+    expect(effectiveWorkerRole({ tradeRole: "installer", stored: null })).toBe("lead");
+    expect(effectiveWorkerRole({ tradeRole: "installer", stored: undefined })).toBe("lead");
+    expect(effectiveWorkerRole({ tradeRole: "installer", stored: "crew" })).toBe("crew");
+    expect(effectiveWorkerRole({ tradeRole: "installer", stored: "lead" })).toBe("lead");
+    expect(effectiveWorkerRole({ tradeRole: "electrician", stored: null })).toBeNull();
   });
   test("only HIV admins and the business's own business_admin may switch", () => {
     expect(canChangeWorkerRole({ isAdmin: true, memberRole: null })).toBe(true);
@@ -50,25 +49,15 @@ describe("2. Lead / Crew", () => {
     expect(mittiEmailFor({ role: "lead", ownEmail: "me@biz.com.au", businessEmail: "office@biz.com.au" })).toEqual({ email: "me@biz.com.au", source: "own" });
     expect(mittiEmailFor({ role: "crew", ownEmail: null, businessEmail: "office@biz.com.au" })).toEqual({ email: null, source: null });
   });
-  test("(c)/(d) switching: to Lead invites, Lead → Crew deactivates, no change does nothing", () => {
+  test("switching: to Lead invites; to Crew leaves Mitti alone (Jo answer 8)", () => {
     expect(roleSwitchMittiAction("crew", "lead")).toBe("invite");
-    expect(roleSwitchMittiAction("lead", "crew")).toBe("deactivate");
+    expect(roleSwitchMittiAction("lead", "crew")).toBe("none");
     expect(roleSwitchMittiAction("lead", "lead")).toBe("none");
+    expect(readFileSync("src/lib/worker-links.functions.ts", "utf8")).not.toContain("onPartnerPersonDemoted");
+    expect(readFileSync("src/lib/mitti-invite.core.ts", "utf8")).not.toContain("demoted");
   });
-  test("(c) Lead → Crew deactivates the recorded Mitti user while still active in the portal", () => {
-    const prior = { type: "mitti_user_invited" as const, at: "2026-10-27T00:00:00Z", mittiUserId: "u1", email: "office@biz.com.au" };
-    const p = { workerId: "w1", email: "office@biz.com.au", isTest: false, removedAt: null, approvalStatus: "approved", stillActiveElsewhere: false };
-    expect(mittiRemovalStep(p, prior, ON).action).toBe("skip"); // not demoted: still active → kept (existing rule)
-    expect(mittiRemovalStep({ ...p, demoted: true }, prior, ON)).toEqual({ action: "deactivate", mittiUserId: "u1" });
-    expect(mittiRemovalStep({ ...p, demoted: true, stillActiveElsewhere: true }, prior, ON).action).toBe("skip");
-  });
-  test("(c) the seat is kept when the same email still belongs to another active Lead", () => {
-    const o = (x: Record<string, unknown>) => ({ id: "w2", mittiEmail: "office@biz.com.au", tradeRole: "installer", workerRole: "lead", removedAt: null, approvalStatus: "approved", ...x });
-    expect(emailStillUsedByAnotherLead("w1", "office@biz.com.au", [o({})])).toBe(true);
-    expect(emailStillUsedByAnotherLead("w1", "office@biz.com.au", [o({ workerRole: "crew" })])).toBe(false);
-    expect(emailStillUsedByAnotherLead("w1", "office@biz.com.au", [o({ removedAt: "2026-10-01" })])).toBe(false);
-    expect(emailStillUsedByAnotherLead("w1", "office@biz.com.au", [o({ id: "w1" })])).toBe(false);
-    expect(emailStillUsedByAnotherLead("w1", null, [o({})])).toBe(false);
+  test("crew never auto-invited (Jo answer 9)", () => {
+    expect(CREW_SKIP).toBe("Crew aren't invited automatically — the office adds them to Mitti by hand.");
   });
 });
 

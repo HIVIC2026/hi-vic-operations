@@ -7,6 +7,7 @@ import { WorkflowError, logEvent, stageEntryBlockers, transition, getStage } fro
 import { STAGE_LABEL } from "./workflow";
 import { piesaDateBlockers } from "./piesa-date.core";
 import { autoAdvanceJob } from "./autoadvance.server";
+import { piesaCompletionKind } from "./repeat-piesa-form.core";
 
 export type CompletePiesaInput = { jobId: string; rectHours?: number | undefined; rectWindows?: { date: string; slot: "8-10" | "10-12" | "12-14" | "14-16" }[] | undefined };
 
@@ -57,7 +58,10 @@ export async function completePiesaAssessment(data: CompletePiesaInput, userId: 
   // A live A3 that says repair work is needed carries the electrician's own priced repair list (decisions 305/324):
   // that IS today's fixes quote (generated from the A3 after completion, decision 354), so no portal items are needed.
   const a3Priced = liveA3 && a.piesa_outcome === "fail" && (await import("./fixes-price.core")).fixesPriceSource(shortFrom("piesa", (a.mitti_raw_snapshot as { label: string; value: string | null }[] | null) ?? [])).path === "a4_price";
-  if (!rectCount && a.no_rectification_confirmed !== true && !a3Priced) throw new WorkflowError("Add the electrical fixes items for today's quote, or tick \"No electrical fixes required\", before completing the PIESA.");
+  // Mitti-only PIESA (C4, Jo 28 Oct 2026): the portal tick is gone. A live A3 whose answer is "No repair work needed" (a pass)
+  // with no required fixes items IS "no electrical fixes required". Older / non-live forms still need the explicit tick.
+  const a3NoFixes = liveA3 && a.piesa_outcome === "pass" && !rectCount;
+  if (!rectCount && a.no_rectification_confirmed !== true && !a3Priced && !a3NoFixes) throw new WorkflowError("Add the electrical fixes items for today's quote, or tick \"No electrical fixes required\", before completing the PIESA.");
   if (rectCount && a.no_rectification_confirmed === true) throw new WorkflowError("You ticked \"No electrical fixes required\" but electrical fixes items are listed – untick it or remove the items.");
 
   // Rectification needed: the electrician also gives estimated hours + 3-5 windows (asked once, here) — unless they were
@@ -78,8 +82,11 @@ export async function completePiesaAssessment(data: CompletePiesaInput, userId: 
   }
   const now = new Date().toISOString();
   await admin.from("assessments").update({ status: "complete", completed_at: now, assessor_id: a.assessor_id ?? userId, mitti_sync_status: a.external_mitti_id ? "synced" : "not_synced" }).eq("id", a.id);
+  // Jo 29 Oct 2026: a repeat PIESA (its own new Mitti form) is recorded as a reassessment; the first check stays on record.
+  const { count: prior, error: priorError } = await admin.from("piesa_records").select("id", { count: "exact", head: true }).eq("job_id", data.jobId).in("kind", ["initial", "reassessment"]);
+  if (priorError) throw new WorkflowError("The earlier PIESA records could not be read, so the PIESA was not recorded. Please try again.");
   await admin.from("piesa_records").update({ is_current: false }).eq("job_id", data.jobId).eq("is_current", true);
-  await admin.from("piesa_records").insert({ job_id: data.jobId, assessment_id: a.id, kind: "initial", outcome: a.piesa_outcome, completed_date: a.assessed_on!, signed_off_by: userId, external_mitti_id: a.external_mitti_id });
+  await admin.from("piesa_records").insert({ job_id: data.jobId, assessment_id: a.id, kind: piesaCompletionKind(prior ?? 0), outcome: a.piesa_outcome, completed_date: a.assessed_on!, signed_off_by: userId, external_mitti_id: a.external_mitti_id });
   // The safety check visit is done: mark the confirmed assessment booking completed so the electrician's pay line shows in the
   // office Payouts (office-money lists it only for a completed assessment booking). Same as piesa-record.server does for fixes.
   const { error: visitErr } = await admin.from("bookings").update({ status: "completed" }).eq("job_id", data.jobId).eq("kind", "assessment").eq("status", "confirmed");

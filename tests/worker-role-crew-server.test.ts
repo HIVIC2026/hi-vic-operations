@@ -66,7 +66,7 @@ beforeEach(() => {
   tables = {
     partner_workers: [
       { id: "00000000-0000-4000-8000-0000000000a1", email: null, mobile: null, full_legal_name: "Lee Lead", trade_role: "installer", worker_role: "lead", approval_status: "approved", removed_at: null, profile_id: null, business_id: "b1" },
-      { id: "00000000-0000-4000-8000-0000000000a2", email: null, mobile: "0412000111", full_legal_name: "Cam Crew", trade_role: "installer", worker_role: null, approval_status: "approved", removed_at: null, profile_id: null, business_id: "b1" },
+      { id: "00000000-0000-4000-8000-0000000000a2", email: null, mobile: "0412000111", full_legal_name: "Cam Crew", trade_role: "installer", worker_role: "crew", approval_status: "approved", removed_at: null, profile_id: null, business_id: "b1" },
     ],
     businesses: [{ id: "b1", name: "Real Insulation", email: "Office@RealInsul.com.au", onboarding_notes: null }, { id: "bt", name: "TEST Insulation", email: "test@hivic.test", onboarding_notes: "[TEST PARTNER]" }],
     profiles: [], admin_config_events: [], workflow_events: [],
@@ -82,14 +82,11 @@ describe("Mitti: Leads only, business email for a Lead with no email", () => {
     expect(calls).toEqual(["POST /users/search office@realinsul.com.au"]);
     expect(events().map((e) => [e["event_type"], (e["details"] as Row)["email"], (e["details"] as Row)["email_source"]])).toEqual([["mitti_invite_needed", "office@realinsul.com.au", "business"]]);
   });
-  test("a null-role person with no Mitti access is Crew: never searched or invited", async () => {
+  test("a stored Crew is never searched or invited", async () => {
     const r = await inv.onPartnerPersonApproved("00000000-0000-4000-8000-0000000000a2", "office", { switches: SW, call });
-    expect(r).toEqual({ action: "skip", reason: "Crew — only Lead installers get Mitti access." });
+    expect(r).toEqual({ action: "skip", reason: "Crew aren't invited automatically — the office adds them to Mitti by hand." });
     expect(calls).toEqual([]); expect(events()).toEqual([]);
-  });
-  test("a null-role person who already has Mitti access counts as Lead", async () => {
-    tables["admin_config_events"]!.push({ event_type: "mitti_user_linked", details: { worker_id: "00000000-0000-4000-8000-0000000000a2", email: "office@realinsul.com.au", mitti_user_id: "u9" } });
-    expect((await inv.workerRolesFor(tables["partner_workers"] as never)).get("00000000-0000-4000-8000-0000000000a2")).toBe("lead");
+    expect((await inv.workerRolesFor([{ id: "x", trade_role: "installer", worker_role: null, profile_id: null }])).get("x")).toBe("lead");
   });
 });
 
@@ -114,15 +111,12 @@ describe("Lead / Crew switch", () => {
     tables["partner_workers"]!.push({ id: "00000000-0000-4000-8000-0000000000a4", trade_role: "electrician", business_id: "b1", full_legal_name: "E", removed_at: null });
     await expect(setWorkerRole({ data: { id: "00000000-0000-4000-8000-0000000000a4", role: "lead" } })).rejects.toThrow(/installers only/);
   });
-  test("Lead → Crew deactivates the Mitti user (same record as removal) unless another active Lead uses that email", async () => {
+  test("switch to crew leaves Mitti alone", async () => {
+    isAdmin = true;
     tables["admin_config_events"]!.push({ event_type: "mitti_user_invited", details: { worker_id: "00000000-0000-4000-8000-0000000000a1", email: "office@realinsul.com.au", mitti_user_id: "u1" } });
-    tables["partner_workers"]!.push({ id: "00000000-0000-4000-8000-0000000000a3", email: null, trade_role: "installer", worker_role: "lead", approval_status: "approved", removed_at: null, business_id: "b1" });
-    expect((await inv.onPartnerPersonDemoted("00000000-0000-4000-8000-0000000000a1", "office", { switches: LIVE, call })).action).toBe("skip"); // w-lead2 still a Lead on the business email
+    expect(await setWorkerRole({ data: { id: "00000000-0000-4000-8000-0000000000a1", role: "crew" } })).toMatchObject({ changed: true, role: "crew" });
     expect(calls).toEqual([]);
-    tables["partner_workers"]!.find((w) => w["id"] === "00000000-0000-4000-8000-0000000000a3")!["worker_role"] = "crew";
-    expect((await inv.onPartnerPersonDemoted("00000000-0000-4000-8000-0000000000a1", "office", { switches: LIVE, call })).action).toBe("deactivate");
-    expect(calls).toEqual(["PUT /users/u1"]);
-    expect(events().at(-1)).toMatchObject({ event_type: "mitti_user_deactivated", details: { worker_id: "00000000-0000-4000-8000-0000000000a1", mitti_user_id: "u1", reason_kind: "switched_to_crew" } });
+    expect(events().map((e) => e["event_type"])).toEqual(["mitti_user_invited", "worker_role_changed"]);
   });
 });
 
@@ -155,8 +149,34 @@ describe("crew reminder sweep", () => {
   test("crew already picked or before 2pm → nothing", async () => {
     seedJob("t2", "qa_test", "bt");
     expect((await sweepCrewReminders(new Date("2026-10-28T02:30:00Z"))).results[0]!.outcome).toBe("skipped: not due");
-    tables["workflow_events"]!.push({ job_id: "t2", event_type: "piisa_crew_selected", details: {} });
+    tables["workflow_events"]!.push({ job_id: "t2", event_type: "piisa_crew_selected", details: { selection: { lead: "w-lead", additional: [] } } });
     expect((await sweepCrewReminders(NOW)).results[0]!.outcome).toBe("skipped: crew already picked");
+    expect(sent).toEqual([]);
+  });
+  // Jo 29 Oct 2026: an old saved crew (typed-in Lead, or more than Lead + 2) must be picked again, so it gets the reminder.
+  test("old saved crew (typed-in Lead) gets the reminder, TEST path only", async () => {
+    seedJob("t3", "qa_test", "bt");
+    (tables["workflow_events"] ??= []).push({ job_id: "t3", event_type: "piisa_crew_selected", details: { selection: { lead: { other: { name: "Typed Person", eec: "CII-9" } }, additional: [] } } });
+    expect((await sweepCrewReminders(NOW)).results).toEqual([{ jobId: "t3", outcome: "email (test) sent: fake" }]);
+    expect(sent).toEqual([{ via: "test", to: "test@hivic.test", subject: "Pick the crew for tomorrow's install – 12 Wattle St, Brighton" }]);
+  });
+  test("old saved crew (more than Lead + 2) gets the reminder, TEST path only", async () => {
+    seedJob("t4", "qa_test", "bt");
+    (tables["workflow_events"] ??= []).push({ job_id: "t4", event_type: "piisa_crew_selected", details: { selection: { lead: "w-lead", additional: [{ workerId: "b" }, { workerId: "c" }, { workerId: "d" }] } } });
+    expect((await sweepCrewReminders(NOW)).results).toEqual([{ jobId: "t4", outcome: "email (test) sent: fake" }]);
+    expect(sent.every((m) => m.via === "test")).toBe(true);
+    expect(sent).toHaveLength(1);
+  });
+  test("valid saved crew (Lead + 2, one typed-in extra) → no reminder", async () => {
+    seedJob("t5", "qa_test", "bt");
+    (tables["workflow_events"] ??= []).push({ job_id: "t5", event_type: "piisa_crew_selected", details: { selection: { lead: "w-lead", additional: [{ workerId: "b" }, { other: { name: "Extra", eec: "CII-8" } }] } } });
+    expect((await sweepCrewReminders(NOW)).results[0]!.outcome).toBe("skipped: crew already picked");
+    expect(sent).toEqual([]);
+  });
+  test("real job with an old saved crew: still nothing sent until the wording is approved", async () => {
+    seedJob("r2", "base44", "b1");
+    (tables["workflow_events"] ??= []).push({ job_id: "r2", event_type: "piisa_crew_selected", details: { selection: { lead: { other: { name: "Typed Person", eec: "CII-9" } }, additional: [] } } });
+    expect((await sweepCrewReminders(NOW)).results[0]!.outcome).toBe("skipped: wording not approved yet");
     expect(sent).toEqual([]);
   });
 });

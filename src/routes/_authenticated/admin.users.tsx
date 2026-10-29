@@ -13,6 +13,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { getAdminUsers } from "@/lib/admin-records.functions";
 import { checkAllTrades, checkMittiAccess } from "@/lib/mitti-membership.functions";
 import { MITTI_ACCESS_LABEL, mittiAccessOf, mittiCheckedLabel } from "@/lib/mitti-membership.core";
+import { saveFile } from "@/components/trade/save-file";
 
 export const Route = createFileRoute("/_authenticated/admin/users")({
   head: () => ({ meta: [{ title: "Users – Home Insulation Victoria Portal" }, { name: "description", content: "Manage portal users and roles." }, { property: "og:title", content: "Users – Home Insulation Victoria Portal" }, { property: "og:description", content: "Manage portal users and roles." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
@@ -29,16 +30,6 @@ function Users() {
   const [downloading, setDownloading] = useState<"dad" | "testrigor" | null>(null);
   const [downloadError, setDownloadError] = useState(false);
   const [privateFile, setPrivateFile] = useState<File | null>(null);
-  const savePrivateFile = async (file: File) => {
-    if (window.matchMedia("(pointer: coarse)").matches && navigator.canShare?.({ files: [file] })) {
-      try { await navigator.share({ files: [file], title: "Private TEST login" }); return; }
-      catch (error) { if (error instanceof Error && error.name === "AbortError") return; }
-    }
-    const url = URL.createObjectURL(file);
-    const anchor = document.createElement("a");
-    anchor.href = url; anchor.download = file.name; document.body.appendChild(anchor); anchor.click(); anchor.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
-  };
   const prepareDownload = async (which: "dad" | "testrigor") => {
     if (downloadLock.current) return;
     downloadLock.current = true; setDownloading(which); setDownloadError(false); setPrivateFile(null);
@@ -47,7 +38,7 @@ function Users() {
       const file = new File([result.content], result.filename, { type: result.mimeType });
       setPrivateFile(file);
       // Desktop download; touch users save through a second, synchronous share-sheet gesture.
-      if (!window.matchMedia("(pointer: coarse)").matches) await savePrivateFile(file);
+      if (!window.matchMedia("(pointer: coarse)").matches) await saveFile(file, { title: "Private TEST login" });
     } catch { setDownloadError(true); }
     finally { downloadLock.current = false; setDownloading(null); }
   };
@@ -66,7 +57,7 @@ function Users() {
       {me?.roles.includes("admin") && <div id="test-login" className="my-3 flex flex-wrap items-center gap-2">
         <Button variant="outline" disabled={downloading !== null} onClick={() => void prepareDownload("dad")}><Download className="h-4 w-4" />{downloading === "dad" ? "Preparing private file…" : "Prepare Deep’s TEST login (private file)"}</Button>
         <Button variant="outline" disabled={downloading !== null} onClick={() => void prepareDownload("testrigor")}><Download className="h-4 w-4" />{downloading === "testrigor" ? "Preparing private file…" : "Prepare testRigor TEST logins (private file)"}</Button>
-        {privateFile && <Button variant="outline" onClick={() => void savePrivateFile(privateFile)}><Download className="h-4 w-4" />Save private login file</Button>}
+        {privateFile && <Button variant="outline" onClick={() => void saveFile(privateFile, { title: "Private TEST login" })}><Download className="h-4 w-4" />Save private login file</Button>}
         {downloadError && <p role="alert" className="text-sm text-danger">TEST login download was blocked or could not be verified. No account details were changed.</p>}
       </div>}
       <p className="mb-4 text-sm text-muted-foreground">People appear here after they sign up. Owners are linked automatically when their sign-up email matches their enquiry.</p>

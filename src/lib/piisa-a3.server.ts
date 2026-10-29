@@ -16,7 +16,11 @@ export async function assignedInstallerBusiness(jobId: string): Promise<string> 
 /** Current installer staff of THIS business only. EEC counts only when office-verified; decision 153: cleared = verified + recorded level + not expired (approval_status shown, never a gate). */
 export async function crewStaff(businessId: string, whiteCardFor?: { bookingCreatedAt: string | null }): Promise<StaffOption[]> {
   // All current installer workers of THIS business (approval shown, never changed), with their linked certification rows.
-  const { data, error } = await admin.from("partner_workers").select("id, business_id, email, full_legal_name, certification, approval_status, removed_at, trade_role, licence_expires_on").eq("business_id", businessId).eq("trade_role", "installer").is("removed_at", null);
+  const cols = "id, business_id, email, full_legal_name, certification, approval_status, removed_at, trade_role, worker_role, licence_expires_on";
+  const load = (c: string) => admin.from("partner_workers").select(c).eq("business_id", businessId).eq("trade_role", "installer").is("removed_at", null) as unknown as Promise<{ data: Any[] | null; error: { code?: string; message: string } | null }>;
+  let { data, error } = await load(`${cols}, declarations_due`);
+  // Until 0230 is live the column is missing: re-read without it and treat everyone as signed (preflight ruling 10).
+  if (error && (await import("./schema-compat.core")).isMissingDbObject(error)) ({ data, error } = await load(cols));
   if (error) throw new Error(`Couldn't load your staff: ${error.message}`);
   // Decision 130: a person who has not acknowledged the ESC collection notice can't be lead or crew.
   const noticeAck = await (await import("./esc-collection-notice.server")).noticeAckMap((data ?? []) as never);

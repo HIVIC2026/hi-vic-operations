@@ -8,7 +8,7 @@ export const DUPLICATE_ADDRESS_EVENT = "duplicate_address_linked";
 export const CLOSED_JOB_STAGES = new Set(["cancelled", "complete"]);
 export const isOpenJobStage = (stage: string | null | undefined) => !!stage && !CLOSED_JOB_STAGES.has(stage);
 
-export type AddressJobCandidate = { id: string; job_number: string | null; stage: string | null; source: string | null; deleted_at?: string | null; created_at?: string | null } & AddressKeyInput;
+export type AddressJobCandidate = { id: string; job_number: string | null; stage: string | null; source: string | null; channel?: string | null; deleted_at?: string | null; created_at?: string | null } & AddressKeyInput;
 
 /** Practice (qa_test) requests only ever match practice jobs, and real requests never match practice jobs. */
 export const practiceMatches = (requestSource: string | null | undefined, jobSource: string | null | undefined) =>
@@ -20,6 +20,15 @@ export function openJobAtAddress<T extends AddressJobCandidate>(request: Address
   if (!key) return null;
   const hits = jobs.filter((j) => !j.deleted_at && isOpenJobStage(j.stage) && practiceMatches(request.source, j.source) && addressKey(j) === key);
   return hits.sort((a, b) => String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")))[0] ?? null;
+}
+
+/** Add a job: the open job to act on. Any open job that is NOT an HIV lead wins (oldest first), so another installer's job is still refused even when an HIV lead sits at the same address; otherwise the oldest lead. */
+export function clashJobAtAddress<T extends AddressJobCandidate>(request: AddressKeyInput & { source?: string | null }, jobs: T[]): T | null {
+  const key = addressKey(request);
+  if (!key) return null;
+  const hits = jobs.filter((j) => !j.deleted_at && isOpenJobStage(j.stage) && practiceMatches(request.source, j.source) && addressKey(j) === key)
+    .sort((a, b) => String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")));
+  return hits.find((j) => j.channel !== "hivic_sourced") ?? hits[0] ?? null;
 }
 
 /** What the installer is told: the job number only, never the other customer's details. */
@@ -42,3 +51,11 @@ export function duplicateAddressFrom(source: string, channel: "installer_sourced
 export function duplicateAddressSummary(from: DuplicateAddressFrom, businessName: string | null): string {
   return `Another request for this address came in from ${FROM_WORDS[from]}${businessName ? ` (${businessName})` : ""} — linked here, no new job made; office to check`;
 }
+
+/** Jo 28 Oct: an installer's Add a job at an open HIV lead is saved and flagged; another installer's open job is still refused. */
+export const addJobClashAction = (open: { channel: string | null } | null): "none" | "save_and_flag" | "refuse" =>
+  !open ? "none" : open.channel === "hivic_sourced" ? "save_and_flag" : "refuse";
+
+/** Office flag wording on the NEW installer job when its address is already an HIV lead. */
+export const hivLeadClashSummary = (existingJobNumber: string) =>
+  `This address is already a Home Insulation Victoria lead (${existingJobNumber}) — the installer's job was saved; office to check`;

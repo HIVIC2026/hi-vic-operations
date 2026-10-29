@@ -37,6 +37,12 @@ export async function stableUuid(seed: string): Promise<string> {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
 
+/** Claim generation = releases of this kind, plus (PIESA only) each repeat-PIESA round reset (Jo 29 Oct 2026): a repeat
+ *  PIESA gets its own new form, so its claim must not collide with the first check's. */
+export function claimGeneration(f: { releasedKinds: (string | undefined)[]; repeatResets: number; kind: MittiFormKind }): number {
+  return f.releasedKinds.filter((k) => k === f.kind).length + (f.kind === "piesa" ? f.repeatResets : 0);
+}
+
 export const claimEventId = (jobId: string, kind: MittiFormKind, generation: number) => stableUuid(`mitti-create:${jobId}:${kind}:${generation}`);
 export const releaseEventId = (claimId: string) => stableUuid(`mitti-create-release:${claimId}`);
 

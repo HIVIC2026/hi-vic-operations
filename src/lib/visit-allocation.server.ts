@@ -4,24 +4,33 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
 import type { MittiCall } from "./mitti.core";
+import { effectiveWorkerRole, mittiEmailFor } from "./worker-role.core";
 import { melbourneToday } from "./worker-compliance.core";
 import { CREW_CLEARANCE_REASON } from "./worker-compliance.core";
-import { addInMittiFirst, allocationBlocker, allocationOptions, currentAllocation, visitsForStage, VISIT_ALLOCATED_EVENT, VISIT_LABEL, type AllocationCandidate, type VisitKind } from "./visit-allocation.core";
+import { ALLOCATION_REASON, addInMittiFirst, allocationBlocker, allocationOptions, currentAllocation, leadNeedsHandover, visitsForStage, VISIT_ALLOCATED_EVENT, VISIT_LABEL, type AllocationCandidate, type VisitKind } from "./visit-allocation.core";
+import { crewSelectionProblems, leadWorkerId, type CrewSelection } from "./piisa-a3.core";
 
 const db = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 /** Every current staff row of the business, with derived clearance facts for installers (reuses the PIISA crew loader). */
 export async function allocationCandidates(businessId: string): Promise<AllocationCandidate[]> {
-  const { data: workers, error } = await db.from("partner_workers").select("id, full_legal_name, trade_role, email, mobile, removed_at").eq("business_id", businessId).is("removed_at", null);
+  const cols = "id, full_legal_name, trade_role, email, mobile, removed_at, worker_role";
+  const load = (c: string) => db.from("partner_workers").select(c).eq("business_id", businessId).is("removed_at", null);
+  let { data: workers, error } = await load(`${cols}, declarations_due`);
+  // Until 0230 is live the column is missing: re-read without it and treat everyone as signed (preflight ruling 10).
+  if (error && (await import("./schema-compat.core")).isMissingDbObject(error)) ({ data: workers, error } = await load(cols));
   if (error) throw new WorkflowError(`Couldn't load your staff: ${error.message}`);
+  const { data: biz } = await db.from("businesses").select("email").eq("id", businessId).maybeSingle();
+  const businessEmail = (biz as { email?: string | null } | null)?.email ?? null;
   const staff = await (await import("./piisa-a3.server")).crewStaff(businessId);
   const byId = new Map(staff.map((s) => [s.workerId, s]));
-  return ((workers ?? []) as { id: string; full_legal_name: string; trade_role: string; email: string | null; mobile: string | null; removed_at: string | null }[]).map((w) => {
+  return ((workers ?? []) as { id: string; full_legal_name: string; trade_role: string; email: string | null; mobile: string | null; removed_at: string | null; worker_role?: string | null; declarations_due?: boolean | null }[]).map((w) => {
     const s = byId.get(w.id);
     return {
-      workerId: w.id, name: w.full_legal_name.trim(), tradeRole: w.trade_role, email: w.email, mobile: w.mobile, removedAt: w.removed_at,
+      workerId: w.id, name: w.full_legal_name.trim(), tradeRole: w.trade_role, email: w.email, mobile: w.mobile, removedAt: w.removed_at, workerRole: s?.workerRole ?? effectiveWorkerRole({ tradeRole: w.trade_role, stored: w.worker_role }), businessEmail,
       clearance: s ? { certStatus: s.eecVerified ? "verified" : s.clearanceReason === CREW_CLEARANCE_REASON.withdrawn ? "rejected" : null, level: s.level ?? null, expiresOn: s.expiresOn ?? null } : null,
       whiteCard: s?.whiteCard ?? null,
+      declarationsDue: w.declarations_due === true,
     };
   });
 }
@@ -73,10 +82,12 @@ export async function visitAllocationView(jobId: string, userId: string, pre?: i
  * the staff row's email (TEST partners only ever reach the TEST Mitti account) → `visit_allocated` event → hand over the
  * existing form. A missing Mitti user refuses BEFORE anything is recorded ("Add them in Mitti first").
  */
-export async function allocateVisit(jobId: string, userId: string, kind: VisitKind, workerId: string, call?: MittiCall) {
+export async function allocateVisit(jobId: string, userId: string, kind: VisitKind, workerId: string, call?: MittiCall, opts?: { crewPicker?: boolean }) {
   const tv = await import("./trade-view.server");
   const c = await tv.requireTradeJob(userId, jobId);
-  if (!c.boss) throw new WorkflowError("Only the business owner can allocate a visit.");
+  // Jo 29 Oct 2026: staff can change the install Lead too, but only through the crew picker (saveCrewWithLead).
+  const staffLeadChange = !c.boss && opts?.crewPicker === true && kind === "install";
+  if (!c.boss && !staffLeadChange) throw new WorkflowError("Only the business owner can allocate a visit.");
   if (c.kind !== "installer") throw new WorkflowError("Visits are allocated on installer jobs only.");
   const { data: job } = await db.from("jobs").select("stage, source").eq("id", jobId).maybeSingle();
   if (!visitsForStage(job?.stage ?? null).includes(kind)) throw new WorkflowError(`This job isn't at its ${VISIT_LABEL[kind]} yet.`);
@@ -84,10 +95,11 @@ export async function allocateVisit(jobId: string, userId: string, kind: VisitKi
   if (!cand) throw new WorkflowError("That person isn't on your staff list.");
   const why = allocationBlocker(kind, cand, melbourneToday(), kind === "install" ? { bookingCreatedAt: await installBookingCreatedAt(jobId) } : undefined);
   if (why) throw new WorkflowError(`${cand.name} can't take this ${VISIT_LABEL[kind]}: ${why}`);
+  if (staffLeadChange && cand.workerRole !== "lead") throw new WorkflowError(`${cand.name} can't take this ${VISIT_LABEL[kind]}: ${ALLOCATION_REASON.crew}`);
   const mitti = await import("./mitti.server");
   const useCall = call ?? mitti.realMittiCall;
   // TEST partners never reach a real installer's Mitti user; their forms live under the TEST Mitti account.
-  const lookupEmail = c.isTest || job?.source === "qa_test" ? (await import("./onsite-ready-check.core")).TEST_MITTI_ASSIGNEE : (cand.email ?? "");
+  const lookupEmail = c.isTest || job?.source === "qa_test" ? (await import("./onsite-ready-check.core")).TEST_MITTI_ASSIGNEE : (mittiEmailFor({ role: cand.workerRole ?? null, ownEmail: cand.email, businessEmail: cand.businessEmail }).email ?? "");
   const mittiUserId = await mitti.findMittiUserByEmail(lookupEmail, useCall);
   if (!mittiUserId) throw new WorkflowError(addInMittiFirst(cand.name, cand.email));
   const auditId = await visitFormAuditId(jobId, kind);
@@ -95,6 +107,29 @@ export async function allocateVisit(jobId: string, userId: string, kind: VisitKi
     { visit: kind, worker_id: cand.workerId, worker_name: cand.name, by: userId, mitti_user_id: mittiUserId, audit_id: auditId, form: auditId ? "reassigned" : "none", business_id: c.biz.id });
   if (auditId) await mitti.reassignMittiFormTo({ jobId, auditId, kind, mittiUserId, email: lookupEmail, actorId: userId }, useCall);
   return { ok: true as const, workerId: cand.workerId, name: cand.name, form: auditId ? "reassigned" as const : "none" as const };
+}
+
+/**
+ * Jo 29 Oct 2026 (D6): ONE crew picker saves the install crew, and its Lead is the person who gets the Mitti install form.
+ * Order: crew rules (refuse before anything is recorded) → if the Lead isn't already holding the form (current install
+ * allocation, else the assigned installer's own staff row) hand it over through `allocateVisit` (owner or staff via the
+ * crew picker / CII / "Add them in Mitti first" guards refuse before anything is recorded) → record `piisa_crew_selected` (the 2pm crew reminder reads it).
+ */
+export async function saveCrewWithLead(jobId: string, userId: string, sel: CrewSelection, call?: MittiCall): Promise<{ needsVerification: string[] }> {
+  const piisa = await import("./piisa-a3.server");
+  const { staff } = await piisa.loadCrew(jobId);
+  const { problems } = crewSelectionProblems(sel, staff);
+  if (problems.length) throw new WorkflowError(problems.join(" • "));
+  const leadId = leadWorkerId(sel);
+  const cur = currentAllocation(await allocationEvents(jobId), "install");
+  const { data: asg } = await db.from("job_assignments").select("user_id, business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
+  const { data: own } = asg?.user_id
+    ? await db.from("partner_workers").select("id").eq("profile_id", asg.user_id).eq("business_id", asg.business_id ?? "").is("removed_at", null).limit(1).maybeSingle()
+    : { data: null };
+  if (leadId && leadNeedsHandover({ leadWorkerId: leadId, allocatedWorkerId: cur?.worker_id ?? null, assigneeWorkerId: (own as { id?: string } | null)?.id ?? null })) {
+    await allocateVisit(jobId, userId, "install", leadId, call, { crewPicker: true });
+  }
+  return piisa.saveCrewSelection(jobId, userId, sel);
 }
 
 /** 6:30am text: the allocated person (if any) for one job + visit kind, with their mobile from the staff row. */

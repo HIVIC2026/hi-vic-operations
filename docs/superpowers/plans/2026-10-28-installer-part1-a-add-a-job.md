@@ -29,6 +29,7 @@
 - Server functions are literal `createServerFn(...).middleware(...).inputValidator(...).handler(...)` chains. Never import `@tanstack/react-start/server` in `*.functions.ts`.
 - DB change only as `docs/pending-migrations/add-installer-job-atomic.sql` + `.undo.sql`, proven on PGlite. This plan never applies it live.
 - qa_test and real jobs never match each other (`practiceMatches` unchanged). Tests use fake TEST data only.
+- Line numbers cited in this plan are hints from 28 Oct; earlier tasks and plans shift them. Find every edit point by its text (preflight ruling 15).
 
 ## Review Focus
 
@@ -186,10 +187,10 @@ git commit -m "feat(add-job): usual electrician can be picked only once onboarde
 
 **Files:**
 - Delete: `src/routes/_authenticated/partner.bulk-import.tsx`. Regenerate `src/routeTree.gen.ts` (run `bun run build`; the router plugin rewrites it).
-- Modify: `src/lib/route-guards.ts` (drop `/partner/bulk-import` from `INSTALLER_BOSS_ONLY`, the bulk line in `partnerPathAllowed`, and `legacyBulkImportRedirect`), `src/lib/legacy-links.core.ts` (`PARTNER["bulk-import"] = { to: "/partner/import" }` so old bookmarks land on Add a job)
+- Modify: `src/lib/route-guards.ts` (drop `/partner/bulk-import` from `INSTALLER_BOSS_ONLY`, the bulk line in `partnerPathAllowed`, `legacyBulkImportRedirect`, and the now-unused `INSTALLER_BULK_UPLOAD_ENABLED` import), `src/lib/legacy-links.core.ts` (`PARTNER["bulk-import"] = { to: "/partner/import" }` so old bookmarks land on Add a job)
 - Modify script page lists: `scripts/installer-test.ts` (lines ~337, 344, 439, 635), `scripts/reinsulate-shots.ts`, `scripts/trade-shots.ts`, `scripts/portal-qa-coverage.ts`
 - Tests that read the deleted page: `tests/add-job-legacy-entry.test.ts` (rewrite), `tests/bulk-import-confirm-files.test.ts` (drop `page` and its test), `tests/bulk-import-review.test.mjs` (drop `uiFixture` and every test using it), `tests/job-electrician-7oct.test.ts` (drop the two `bulk` lines), `tests/upload-redesign-7oct.test.ts` (drop the "page: 3 steps" test)
-- Server bulk functions stay. G5 tidies them later.
+- Server bulk functions (`src/lib/bulk-import.*`, `bulk-upload-switch.core.ts`) stay. Plan G Task 5 deletes them (preflight ruling 6).
 
 - [ ] **Step 1: Write the failing test** (`tests/add-job-legacy-entry.test.ts`, replace the bulk tests)
 
@@ -204,7 +205,7 @@ test("A4: no bulk upload page or link; old address lands on Add a job", () => {
 ```
 
 - [ ] **Step 2: Run, expect FAIL.** `bun test tests/add-job-legacy-entry.test.ts`. Expected: FAIL (page exists).
-- [ ] **Step 3: Implement** the deletions and edits listed above. Keep the team-management and electrician-admin tests in that file.
+- [ ] **Step 3: Implement** the deletions and edits listed above. In `tests/add-job-legacy-entry.test.ts` also delete (preflight ruling 5): the `legacyBulkImportRedirect` / `INSTALLER_BULK_UPLOAD_ENABLED` imports; the tests "ordinary installer staff are sent from batch upload…", "installer business owner/admin could open batch upload…", "office retains batch tools" and "electrician business admin cannot batch upload jobs"; and in "installer batch upload is switched off…" every line except `expect(partnerPathAllowed("/partner/import", boss)).toBe(true);` (rename it "business owner can open Add a job"). Keep the team-management test, and keep the page-link loop of "server refuses installer batch…" (its `requireBulkUploadOpen` line goes in plan G Task 5).
 - [ ] **Step 4: Run, expect PASS.** `bun test tests/add-job-legacy-entry.test.ts tests/bulk-import-confirm-files.test.ts tests/job-electrician-7oct.test.ts tests/upload-redesign-7oct.test.ts tests/add-job-confirmations.test.ts` and `bun test tests/bulk-import-review.test.mjs`
 - [ ] **Step 5: Commit**
 
@@ -216,11 +217,12 @@ git commit -m "feat(add-job): remove the bulk upload page and its links (A4)"
 ### Task 5: A5 — Staff are told at the start, before any form
 
 **Files:**
-- Modify: `src/lib/add-job-flow.core.ts`, `src/lib/onsite-ready-check.functions.ts`, `src/routes/_authenticated/partner.import.tsx`
-- Test: `tests/add-job-flow.test.ts` (add tests)
+- Modify: `src/lib/add-job-flow.core.ts`, `src/lib/onsite-ready-check.functions.ts`, `src/routes/_authenticated/partner.import.tsx`, `src/lib/route-guards.ts` (preflight ruling 7)
+- Test: `tests/add-job-flow.test.ts` (add tests), `tests/add-job-legacy-entry.test.ts` (add one assertion)
 
 **Interfaces:**
 - Produces: `ADD_JOB_STAFF_ONLY` (staff line from Global Constraints); `addJobStartState(m: Map<string, "business_admin" | "member">): { kind: "owner"; businessId: string } | { kind: "staff" } | { kind: "none" }`; server fn `addJobStart` (no input) returning that state, read with `myBusinesses(context.userId)`. This is the same membership rule `requireMember(…, true)` uses at save, so the start and the save always agree.
+- Route guard: `"/partner/import"` leaves `INSTALLER_BOSS_ONLY` and gets its own line `if (p.startsWith("/partner/import")) return a.installer;`, so installer staff reach the page (and see `ADD_JOB_STAFF_ONLY`) while electricians stay out as today. The save stays owner-only (`requireMember(…, true)`).
 
 - [ ] **Step 1: Write the failing test**
 
@@ -239,13 +241,22 @@ test("A5: the page decides before the form renders", () => {
 });
 ```
 
+In `tests/add-job-legacy-entry.test.ts` add:
+
+```ts
+test("A5: installer staff reach Add a job (they're told there); electricians don't", () => {
+  expect(partnerPathAllowed("/partner/import", base)).toBe(true);
+  expect(partnerPathAllowed("/partner/import", { ...base, installer: false, electrician: true, businessAdmin: true })).toBe(false);
+});
+```
+
 - [ ] **Step 2: Run, expect FAIL.** `bun test tests/add-job-flow.test.ts`
 - [ ] **Step 3: Implement.** The page queries `addJobStart`. Staff see `ADD_JOB_STAFF_ONLY` plus the existing "Back to My work" link in the existing `data-no-business` box. `none` keeps today's box. `owner` renders `<AddJobFlow businessId=…>`. Loading and error states stay the same.
-- [ ] **Step 4: Run, expect PASS.** `bun test tests/add-job-flow.test.ts tests/business-owner-only.test.ts`
+- [ ] **Step 4: Run, expect PASS.** `bun test tests/add-job-flow.test.ts tests/add-job-legacy-entry.test.ts tests/business-owner-only.test.ts`
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/lib/add-job-flow.core.ts src/lib/onsite-ready-check.functions.ts src/routes/_authenticated/partner.import.tsx tests/add-job-flow.test.ts
+git add src/lib/add-job-flow.core.ts src/lib/onsite-ready-check.functions.ts src/lib/route-guards.ts src/routes/_authenticated/partner.import.tsx tests/add-job-flow.test.ts tests/add-job-legacy-entry.test.ts
 git commit -m "feat(add-job): staff are told at the start that only the owner can add jobs (A5)"
 ```
 
@@ -417,4 +428,4 @@ git commit -m "test(add-job): pin agreed-rate pricing on HIV leads and typed pri
 - [ ] **Step 1:** `bun run test`. Expected: last line `N files · N pass · 0 fail`, exit 0.
 - [ ] **Step 2:** `bunx tsc --noEmit` (there is no typecheck script in package.json). Expected: exit 0. If the baseline before Task 1 already had errors, there must be no new errors in files this plan touched.
 - [ ] **Step 3:** `bun scripts/scan-retired-terms.ts`. Expected: ends `… 0 customer-visible (failing).`, exit 0.
-- [ ] **Step 4:** Do not apply `add-installer-job-atomic.sql` live. It waits for Jo's answer to Q4. Then check each fix on the TEST jobs, on a phone and a computer, before Jo approves the page.
+- [ ] **Step 4:** Jo approved `add-installer-job-atomic.sql` going live once its PGlite test passes (Jo answer 4). Apply it as a separate step, not inside this plan's commits. Then check each fix on the TEST jobs, on a phone and a computer, before Jo approves the page.

@@ -248,6 +248,14 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['jobOfferTexts'] = "failed";
         }
         try {
+          // Decision 215 / spec D4: a couldn't-get-in text held after 8pm goes at 7am (same key, never twice).
+          const { sweepInstallNoAccessTexts } = await import("@/lib/install-no-access-notice.server");
+          (out as Record<string, unknown>)['installNoAccessTexts'] = await timed("sweepInstallNoAccessTexts", () => sweepInstallNoAccessTexts());
+        } catch (e) {
+          console.error("allocation tick: couldn't-get-in text catch-up failed", (e as Error).message);
+          (out as Record<string, unknown>)['installNoAccessTexts'] = "failed";
+        }
+        try {
           // Batch 2 (Jo 29 Oct 2026): other one-off texts held by the 8pm–7am quiet hours go at 7am, each re-checked first
           // ("still true") and re-sent with its real key; anything no longer true is skipped.
           const { sweepQuietHeldTexts } = await import("@/lib/quiet-held-texts.server");

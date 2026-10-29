@@ -10,10 +10,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { Check } from "lucide-react";
 import { TradeShell } from "@/components/trade/TradeShell";
-import { TradePrestart } from "@/components/trade/TradePrestart";
+import { TradePrestart, useRememberedStart } from "@/components/trade/TradePrestart";
 import { PiisaCrewPicker } from "@/components/trade/PiisaCrewPicker";
 import { InstallerFinalDeclaration } from "@/components/portal/assignment";
-import { OneTapAction } from "@/components/trade/one-tap-action";
+import { InstallFinishedButton } from "@/components/trade/InstallFinishedButton";
 import { onsiteFormStatus } from "@/lib/onsite-ready-check.functions";
 import { confirmHivicReadyCheckPricingFn, getTradeDayExtras, getTradeDayView, tradeCouldntGetInFn } from "@/lib/trade-view.functions";
 import { completeInstallation } from "@/lib/portal.functions";
@@ -40,11 +40,12 @@ function DayPage() {
     // Phase 3 path 8: a refusal ("This job isn't available to you.") shows at once instead of "Loading your day…" through retries.
     retry: (n, e) => n < 3 && !/available to you|assigned to you/i.test((e as Error)?.message ?? "") });
   const { data: x } = useQuery({ queryKey: ["trade-day-extras", jobId], queryFn: () => loadExtras({ data: { jobId } }), retry: false, refetchInterval: 60_000, staleTime: 20_000 });
-  const [started, setStarted] = useState(false);
+  const [started, markStarted] = useRememberedStart(`hiv-started-${jobId}-${data?.start ?? ""}`);
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
-  const installer = data ? data.kind !== "safety_check" : false;
-  if (error) return <TradeShell installer={installer}><p role="alert" className="rounded-[18px] border border-line bg-paper p-4 text-sm">{(error as Error).message}</p></TradeShell>;
+  const [cgiError, setCgiError] = useState<string | null>(null);
+  const installer = data ? data.kind === "ready_check" || data.kind === "install" : false;
+  if (error) return <TradeShell installer={installer}><p role="alert" className="rounded-[18px] border border-line bg-paper p-4 text-sm">{(error as Error).message}</p><Link to="/field" className={outlineLinkClass}>Back to My work</Link></TradeShell>;
   if (!data) return <TradeShell installer={false}><p className="text-sm">Loading your day…</p></TradeShell>;
   if (data.historicalVisit) return <Navigate to="/field/$jobId" params={{ jobId }} replace />;
   const o = data.outcome;
@@ -83,8 +84,9 @@ function DayPage() {
           <section className="rounded-[18px] border border-line p-4" role="dialog" aria-label={sheet.title} data-couldnt-get-in>
             <h2 className="text-[17px] font-semibold">{sheet.title}</h2>
             <p className="mt-1 text-sm leading-[1.45] text-sub">{sheet.sub}</p>
-            <div className="mt-3">{COULDNT_GET_IN.map((r) => <button key={r} type="button" disabled={busy} className="flex min-h-12 w-full items-center justify-between gap-3 border-b border-line text-left text-[15px] font-medium disabled:opacity-50" onClick={async () => { setBusy(true); try { await cgi({ data: { jobId, reason: r } }); await refetch(); } finally { setBusy(false); setAsking(false); } }}><span>{r}</span><span className="text-xl text-sub">›</span></button>)}</div>
-            <button type="button" className="mt-3 min-h-11 w-full text-center text-[15px] font-semibold text-sub" onClick={() => setAsking(false)}>{sheet.cancel}</button>
+            <div className="mt-3">{COULDNT_GET_IN.map((r) => <button key={r} type="button" disabled={busy} className="flex min-h-12 w-full items-center justify-between gap-3 border-b border-line text-left text-[15px] font-medium disabled:opacity-50" onClick={async () => { setBusy(true); setCgiError(null); try { await cgi({ data: { jobId, reason: r } }); await refetch(); setAsking(false); } catch (e) { setCgiError(e instanceof Error ? e.message : "Couldn't send that. Try again."); } finally { setBusy(false); } }}><span>{r}</span><span className="text-xl text-sub">›</span></button>)}</div>
+            {cgiError && <p role="alert" className="mt-2 text-sm font-semibold" data-cgi-error>{cgiError}</p>}
+            <button type="button" className="mt-3 min-h-11 w-full text-center text-[15px] font-semibold text-sub" onClick={() => { setCgiError(null); setAsking(false); }}>{sheet.cancel}</button>
           </section>
         ) : (
           <>
@@ -92,7 +94,7 @@ function DayPage() {
               {next.signRebate ? signRebate
                 : data.mittiId ? (started
                   ? <div className="mt-3" data-mitti-handoff><MittiFormLink auditId={data.mittiId} className={primaryLinkClass}>{next.button}</MittiFormLink><Note className="text-center">Your answers and photos come back to this job. Press Complete in Mitti when it's fully finished.</Note>{data.kind !== "ready_check" && <NoFormNoPay className="mt-3" />}</div>
-                  : <TradePrestart jobId={jobId} kind={data.kind} channel={data.channel} label={next.button} onStart={async () => { if (data.kind === "ready_check" && data.channel === "hivic_sourced") { try { await confirmPricing({ data: { jobId } }); } catch (e) { toast.error(e instanceof Error ? e.message : "Could not start the Ready Check."); return; } } setStarted(true); }} disabledReason={data.kind === "safety_check" && !data.mittiReady && !data.mittiId ? "The office is still setting up the onsite form. Your result will show here once it's in." : null} />)
+                  : <TradePrestart jobId={jobId} kind={data.kind} channel={data.channel} label={next.button} onStart={async () => { if (data.kind === "ready_check" && data.channel === "hivic_sourced") { try { await confirmPricing({ data: { jobId } }); } catch (e) { toast.error(e instanceof Error ? e.message : "Could not start the Ready Check."); return; } } markStarted(); }} />)
                 : <div className="mt-3" data-mitti-setup>
                     <p className="text-sm font-semibold">Your form is being set up.</p>
                     <p className="mt-1 text-sm text-sub">{data.mittiInvited ? "Home Insulation Victoria is preparing the Mitti form. It appears on this job when ready." : "Your Mitti account isn't invited yet, so the form can't open. Home Insulation Victoria has to invite you."}</p>
@@ -147,7 +149,7 @@ function SignRebate({ jobId, recorded, onDone, checks, declaration, then }: { jo
     <div className="mt-3 space-y-3" data-sign-rebate>
       {checks.length > 0 && <ul data-sign-rebate-checks>{checks.map((c) => <li key={c} className="flex min-h-9 items-center gap-2.5 text-sm"><span aria-hidden className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md bg-hiv-green text-[13px] font-bold text-white">✓</span>{c}</li>)}</ul>}
       {!recorded
-        ? <OneTapAction label={<><Check /> The install is finished</>} busyLabel="Recording…" confirm="Confirm the install is finished on site? Only do this once the Mitti install form is Complete." confirmLabel="Yes, it's finished" run={onDone} />
+        ? <InstallFinishedButton run={onDone} />
         : <>
           <p className="rounded-[12px] bg-paper p-3 text-sm leading-[1.5]" data-declaration-preview>{declaration}</p>
           <InstallerFinalDeclaration jobId={jobId} />

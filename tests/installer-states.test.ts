@@ -4,19 +4,28 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
   allocationSheet, completeView, couldntGetInSheet, dayChecks, dayNext, electricianRow, installRow, jobNext, leadInstallerDeclaration, moneyJobDetail, needsFinishingList,
-  NOT_FOR_ME_SHEET, offerAcceptedView, ownerReadyLine, paidByMonth, quoteNextWords, quoteStatusRow, signRebateChecks, signRebateThen, whatWeKnow, type JobNextFacts,
+  NOT_FOR_ME_SHEET, NOT_FOR_ME_SHEET_ELECTRICIAN, OFFER_LABEL, offerAcceptedView, ownerReadyLine, paidByMonth, quoteNextWords, quoteStatusRow, signRebateChecks, signRebateThen, whatWeKnow, type JobNextFacts,
 } from "../src/lib/installer-screens.core";
 import { HOME_EMPTY, homeIsEmpty, monthStripWords, offerPanelWords, offersListView } from "../src/lib/installer-home.core";
 import { QUOTE_DECLINED_LINE, QUOTE_HELD_LINE, QUOTE_SENT_LINE } from "../src/lib/installer-quote-status.core";
 import { ADD_JOB_OFFLINE_NOTE, addedView, errorSummary, fieldErrors } from "../src/lib/add-job-flow.core";
 import { PICK_ADDRESS } from "../src/lib/onsite-ready-check.core";
-import { AGREEMENT_COVERS, GUIDE_STEPS, TEAM_ADD_SHEET, bankOnFileRows, escNoticeRowLine, inviteContact, inviteTextLine, signedOnLine, teamCountLine } from "../src/lib/trade-view.core";
+import { AGREEMENT_COVERS, GUIDE_STEPS, TEAM_ADD_SHEET, TEAM_LOGIN, bankOnFileRows, escNoticeRowLine, signedOnLine, teamCountLine } from "../src/lib/trade-view.core";
 
 const base: JobNextFacts = {
   channel: "hivic_sourced", stage: "installation_scheduling", ownerFirstName: "Helen", formLinked: true, formCompleted: true, quoteLine: "Waiting on owner: quote accepted – waiting for owner's payment",
   needsFinishing: null, readyCheckTurn: "booked", readyCheckBookedAt: "2026-10-19T20:30:00Z", installTurn: "not_ready", installBookedAt: null,
   installDeadline: null, installDaysLeft: null, clearedOn: null, installFormComplete: false, installationRecorded: false, rebateSigned: false,
 };
+
+test("B6: one accepted label, one new-offer label", () => {
+  expect(OFFER_LABEL).toEqual({ accepted: "Job accepted", new: "New job offer" });
+  expect(offerAcceptedView({ ownerFirstName: null, suburb: null, jobNumber: null, times: [] }).pill).toBe(OFFER_LABEL.accepted);
+  const page = readFileSync("src/routes/_authenticated/field.offer.$offerId.tsx", "utf8");
+  for (const gone of ['"Booked"', "You've taken this job", "Job accepted · times sent", '"New job"', 'took ? "Job accepted"']) expect(page).not.toContain(gone);
+  expect(page.match(/OFFER_LABEL\.accepted/g)?.length).toBe(2);
+  expect(page).toContain("pill={OFFER_LABEL.new}");
+});
 
 describe("M1 states", () => {
   test("empty (new installer): the approved empty lines, Add a job under Action needed, $0 strip", () => {
@@ -33,7 +42,7 @@ describe("M1 states", () => {
     expect(v.rows.map((r) => r.detail)).toEqual(["Owner says ~120 m² · Home Insulation Victoria lead", "No size yet · Home Insulation Victoria lead", "Owner says ~95 m² · Home Insulation Victoria lead"]);
     expect(v.rows[1]!.closes).toBe("Closes in y");
     expect(v.note).toBe("Each offer is only for you and stays open 24 hours. Open one to offer the owner 3 Ready Check times.");
-    expect(v.comingUpFold(3)).toBe("3 visits booked · see My work");
+    expect("comingUpFold" in v).toBe(false);
     expect(offersListView(offers.slice(0, 1), () => null)).toBeNull();
     expect(offerPanelWords({ suburb: "Glen Waverley", areaM2: 120 }, 3).eyebrow).toBe("3 new job offers");
   });
@@ -55,7 +64,7 @@ describe("M2 states", () => {
     expect(quoteStatusRow(null, { needsFinishing: true, formLinked: true }).label).toBe("Not drafted yet · waiting on the form");
   });
   test("quote sent / held / declined: 'Nothing for you' with recorded dates only", () => {
-    expect(quoteNextWords({ quoteLine: QUOTE_SENT_LINE, quoteSentAt: "2026-10-21T22:00:00Z" }, "Helen")).toMatchObject({ title: "Nothing for you — Helen has the quote", sub: "We sent Helen the quote on Thu 22 Oct. We'll tell you when Helen accepts. Then we arrange the electrical safety check.", yours: false });
+    expect(quoteNextWords({ quoteLine: QUOTE_SENT_LINE, quoteSentAt: "2026-10-21T22:00:00Z" }, "Helen")).toMatchObject({ title: "Nothing for you — Helen has the quote", sub: "We sent Helen the quote on Thu 22 Oct. We'll tell you when Helen accepts. Then we arrange the Pre Insulation Electrical Safety Assessment (PIESA).", yours: false });
     expect(quoteNextWords({ quoteLine: QUOTE_HELD_LINE, formCompletedAt: "2026-10-20T22:00:00Z" }, "Helen")).toMatchObject({ title: "Nothing for you — the office is checking the quote", sub: "You pressed Complete in Mitti on Wed 21 Oct. We check every quote before it goes to the owner. If we need anything we'll text you." });
     expect(quoteNextWords({ quoteLine: QUOTE_DECLINED_LINE, quoteDeclinedAt: "2026-10-23T22:00:00Z" }, "Helen")).toMatchObject({ title: "Nothing for you — Helen declined the quote", sub: "Declined Sat 24 Oct. The office may follow up with Helen. If the job comes back, it shows in Action needed." });
     expect(quoteNextWords({ quoteLine: QUOTE_DECLINED_LINE }, "the owner")!.sub).toBe("The office may follow up with the owner. If the job comes back, it shows in Action needed.");
@@ -68,7 +77,7 @@ describe("M2 states", () => {
   });
   test("PIESA booked: nothing for the installer until clearance; electrician row names the visit", () => {
     const n = jobNext({ ...base, piesaBooking: { electrician: "Sam Lee", start: "2026-10-28T22:00:00Z" } });
-    expect(n).toMatchObject({ panel: "waiting", title: "Nothing for you — safety check booked", sub: "Sam Lee (Home Insulation Victoria electrician) does the PIESA on Thu 29 Oct at 9am. Once it's cleared, you offer Helen 3 install days within 30 days.", yours: false });
+    expect(n).toMatchObject({ panel: "waiting", title: "Nothing for you — Pre Insulation Electrical Safety Assessment (PIESA) booked", sub: "Sam Lee (Home Insulation Victoria electrician) does the PIESA on Thu 29 Oct at 9am. Once it's cleared, you offer Helen 3 install days within 30 days.", yours: false });
     expect(jobNext({ ...base, piesaBooking: { electrician: "Sam Lee", start: "2026-10-28T22:00:00Z" }, clearedOn: "2026-10-28T23:00:00Z", installTurn: "installer_to_offer" }).panel).toBe("offer_install_days");
     expect(electricianRow({ name: "Sam Lee", piesaBookedAt: "2026-10-28T22:00:00Z", piesaPassedOn: null, fixesNote: null })).toEqual({ label: "Electrician", value: "Sam Lee · PIESA Thu 29 Oct at 9am" });
     expect(electricianRow({ name: null, piesaBookedAt: null, piesaPassedOn: "2026-10-28T23:00:00Z", fixesNote: "downlight covers needed on the day" })!.value).toBe("PIESA passed Thu 29 Oct · downlight covers needed on the day");
@@ -185,7 +194,7 @@ describe("M4 states", () => {
 describe("M5 states", () => {
   test("accepted: times sent, owner picking, address only once booked", () => {
     const v = offerAcceptedView({ ownerFirstName: null, suburb: "Glen Waverley", jobNumber: "HV-3117", times: ["2026-10-26T05:00:00Z", "2026-10-27T20:30:00Z", "2026-10-30T01:30:00Z"] });
-    expect(v.pill).toBe("You've taken this job");
+    expect(v.pill).toBe("Job accepted");
     expect(v.line2).toBe("HV-3117 · Home Insulation Victoria lead");
     expect(v.next.title).toBe("Nothing for you — the owner is picking a time");
     expect(v.next.sub).toBe("We've sent the owner your 3 times. You get a text with the day, time and address as soon as they pick one. If none suit, they suggest other days and it comes back to you.");
@@ -197,7 +206,16 @@ describe("M5 states", () => {
     expect(NOT_FOR_ME_SHEET).toEqual({ title: "Not for me?", body: "The offer goes back to the office to pick another installer. It won't come back to you. Nothing counts against you.", yes: "Yes, not for me", keep: "Keep the offer" });
     const page = readFileSync("src/routes/_authenticated/field.offer.$offerId.tsx", "utf8");
     expect(page).toContain("data-not-for-me-sheet");
-    expect(page).toContain("NOT_FOR_ME_SHEET.keep");
+    expect(page).toContain("sheet.keep");
+  });
+  test("B7: electrician Not for me asks first, with electrician words", () => {
+    expect(NOT_FOR_ME_SHEET_ELECTRICIAN).toEqual({ title: "Not for me?", body: "The offer goes back to the office to pick another electrician. It won't come back to you.", yes: "Yes, not for me", keep: "Keep the offer" });
+    const page = readFileSync("src/routes/_authenticated/field.offer.$offerId.tsx", "utf8");
+    expect(page).toContain("sheet={NOT_FOR_ME_SHEET}");
+    expect(page.match(/sheet=\{NOT_FOR_ME_SHEET_ELECTRICIAN\}/g)?.length).toBe(1);
+    expect(page.match(/trigger="link"/g)?.length).toBe(1);
+    expect(page.match(/data-not-for-me-sheet/g)?.length).toBe(1);
+    expect(page).not.toMatch(/data-not-for-me onClick=\{\(\) => send\(/);
   });
 });
 
@@ -231,20 +249,9 @@ describe("M6 states", () => {
 });
 
 describe("M7 sub-page states", () => {
-  test("team add: the person is texted their link when a mobile is given (decision 251); the link stays on screen to pass on", () => {
-    expect(inviteTextLine({ status: "sent", detail: "ok" }, " 0466 777 888 ")).toEqual({ text: "We texted the link to 0466 777 888. You can also send it yourself:", sent: true });
-    expect(inviteTextLine({ status: "not_sent", detail: "switched off" }, "0466 777 888")).toEqual({ text: `We couldn't text it to 0466 777 888 just now. ${TEAM_ADD_SHEET.linkNote}`, sent: false });
-    expect(inviteTextLine({ status: "no_mobile", detail: "No mobile given" }, "")).toEqual({ text: TEAM_ADD_SHEET.linkNote, sent: false });
-    expect(inviteTextLine(null, "")).toEqual({ text: TEAM_ADD_SHEET.linkNote, sent: false });
-    const route = readFileSync("src/routes/_authenticated/field.business_.team.tsx", "utf8");
-    expect(route).toContain("mobile: f.mobile.trim() || null");
-    expect(route).toContain("{link}</p>"); // the link itself is always shown (fallback)
-  });
-  test("team add sheet creates the existing /join invite", () => {
-    expect(TEAM_ADD_SHEET.button).toBe("Create the invite link");
-    expect(inviteContact({ mobile: " 0466 777 888 ", email: "p@x.com" })).toBe("0466 777 888");
-    expect(inviteContact({ mobile: "", email: "p@x.com" })).toBe("p@x.com");
-    expect(inviteContact({ mobile: "", email: " " })).toBeNull();
+  test("team add sheet words", () => {
+    expect(TEAM_ADD_SHEET).toMatchObject({ title: "Add a team member", bodyInstaller: "Email and mobile can wait. They sign their declarations by link, and we check their CII certificate, before they go on a job.", bodyElectrician: "Email and mobile can wait. They sign their declarations by link before they go on a job. Each electrician needs a current electrical licence.", name: "Full name", licence: "Electrical licence number", role: "Lead or Crew", lead: "Lead · can run install days", crew: "Crew · can't lead an install day", mobile: "Mobile (optional)", email: "Email (optional)", button: "Add to team", cancel: "Cancel" });
+    expect(TEAM_LOGIN).toEqual({ button: "Ask the office to send a login", asked: "Asked the office. They'll send the login." });
     expect(teamCountLine(3)).toBe("3 people");
     expect(teamCountLine(1)).toBe("1 person");
   });
@@ -257,7 +264,7 @@ describe("M7 sub-page states", () => {
     expect(escNoticeRowLine({ state: "acknowledged", at: "2026-10-03T03:14:00Z" })).toBe("Acknowledged 3 Oct 2026");
     expect(escNoticeRowLine({ state: "pending", at: null, linkSentAt: "2026-10-20T22:00:00Z", reminderAt: "2026-10-23T22:00:00Z" })).toBe("Not yet · link sent Wed 21 Oct, reminder Sat 24 Oct");
     expect(escNoticeRowLine({ state: "pending", at: null })).toBe("Not yet · no link sent");
-    expect(GUIDE_STEPS.map((s) => s.title)).toEqual(["Get the job", "Ready Check", "Safety check", "Install days", "Install day"]);
+    expect(GUIDE_STEPS.map((s) => s.title)).toEqual(["Get the job", "Ready Check", "PIESA", "Install days", "Install day"]);
   });
 });
 

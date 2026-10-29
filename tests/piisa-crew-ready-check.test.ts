@@ -33,13 +33,9 @@ describe("crew roster from the real certification object", () => {
     const withLevel = staffFromRecords(workers as never, certs, [...levels, { certification_id: "f13f7aad-9f80-4af4-9c1f-197b6f4a7d05", level: "full", expires_on: "2027-06-30", recorded_at: "2026-10-20T00:00:00Z" }], undefined, "2026-10-24");
     expect(crewSelectionProblems({ lead: "d22a6ed2-7a47-4bbd-b293-9636c5e74740", additional: [] }, withLevel).problems).toEqual([]);
   });
-  test("lead may be Other: name + EEC required, flagged for office verification, prefilled as typed", () => {
-    expect(crewSelectionProblems({ lead: { other: { name: "", eec: "1" } }, additional: [] }, staff).problems.join()).toContain("full name");
-    const ok = crewSelectionProblems({ lead: { other: { name: "Zed New", eec: "Z-1" } }, additional: [] }, staff);
-    expect(ok.problems).toEqual([]);
-    expect(ok.needsVerification[0]).toContain("Lead installer Zed New");
-    expect(crewSelectionProblems({ lead: { other: { name: "Ann Approved", eec: "x" } }, additional: [] }, staff).problems.join()).toContain("choose them instead of Other");
-    expect(crewSelectionProblems({ lead: { other: { name: "Zed New", eec: "Z-1" } }, additional: [{ other: { name: "zed new", eec: "Q" } }] }, staff).problems.join()).toContain("listed twice");
+  test("a typed-in Lead is refused; old saved crews still prefill", () => {
+    expect(crewSelectionProblems({ lead: { other: { name: "Zed New", eec: "Z-1" } }, additional: [] }, staff).problems).toEqual(["Choose the Lead from your Team list"]);
+    expect(crewSelectionProblems({ lead: "w-ok", additional: [{ other: { name: "Zed New", eec: "Z-1" } }, { other: { name: "zed new", eec: "Q" } }] }, staff).problems.join()).toContain("listed twice");
     expect(crewPrefill({ lead: { other: { name: "Zed New", eec: "Z-1" } }, additional: [] }, staff)).toEqual([{ itemId: "p2.lead", row: 0, value: "Zed New" }, { itemId: "p8.name", row: 0, value: "Zed New" }, { itemId: "p2.leadEec", row: 0, value: "Z-1" }]);
   });
 });

@@ -69,7 +69,7 @@ function TradeAvatar() {
 }
 
 /** Bottom tabs (mock-up): text only, 13px, active blue bold, 44px tap targets. */
-export function TradeTabBar({ installer, boss }: { installer: boolean; boss: boolean }) {
+function TradeTabBar({ installer, boss }: { installer: boolean; boss: boolean }) {
   const items = useTradeItems(installer, boss);
   return (
     <nav aria-label="Trade menu" className="estimate-brand fixed inset-x-0 bottom-0 z-40 border-t border-line bg-paper pb-[max(22px,env(safe-area-inset-bottom))] pt-2 md:hidden">

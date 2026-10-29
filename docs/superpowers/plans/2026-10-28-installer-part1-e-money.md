@@ -99,6 +99,8 @@ describe("E1 electrician words", () => {
     expect(`${e.emptyTitle} ${e.emptyBody} ${e.count(0)} ${e.count(1)} ${e.count(3)}`).not.toMatch(/install/i);
     expect(e.count(1)).toBe("1 visit");
     expect(e.count(3)).toBe("3 visits");
+    expect(e.emptyTitle).toBe("No completed visits yet."); // Jo answer 1, exact
+    expect(e.emptyBody).toBe("Your pay for each safety check and fixes visit shows here once the visit is done.");
     const i = moneyWords("installer");
     expect([i.emptyTitle, i.emptyBody, i.count(1), i.count(2)]).toEqual(["No completed jobs yet.", "Your pay for each install appears here once the install is done.", "1 install", "2 installs"]);
     const page = src("src/routes/_authenticated/field.money.tsx");

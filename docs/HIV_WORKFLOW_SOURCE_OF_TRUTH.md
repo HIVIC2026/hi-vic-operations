@@ -261,3 +261,6 @@ The business owner adds each team member's mobile once on My business › Team. 
 
 ## A3 PIESA "What is it?" deleted (decision 404, Jo 27 Oct 2026)
 - Jo deleted "What is it?" from the "Add an appliance or flue" block on the A3 PIESA Mitti form because it repeated "What type is it?". The portal no longer expects it (`official-short.core` `applianceWhat` is legacy, optional) and the form check passes without it. Part 7's Appliance column is filled from "What type is it?" (Flue / Exhaust fan / Appliance / Other hazard), with "Where is it?" in Location as before; no "not described" flag when the type is answered. Older forms that still have "What is it?" keep using its answer.
+
+## Lead and Crew installers (Jo 27–29 Oct 2026) — replaces the 28 Oct rules
+- No role set = Lead. Only Leads are invited to Mitti automatically and can be the install-day Lead. Ready Check can go to anyone on the Team list who has a Mitti login, Lead or Crew. Switching someone to Crew leaves their Mitti access alone (the office adds Crew to Mitti by hand). People added on Team sign their declarations by link before any job. Rule in `WORKFLOW_DECISIONS.partnerPeople.leadCrew`.

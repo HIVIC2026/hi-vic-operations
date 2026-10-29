@@ -42,9 +42,6 @@ export function mergeEec(certification: unknown, meta: EecUploadMeta): Record<st
 export const inviteCertPath = (inviteId: string, ext: string) => `worker-invites/${inviteId}/eec-${ext}`;
 export const isInviteCertPath = (inviteId: string, path: string) => path.startsWith(`worker-invites/${inviteId}/eec-`) && !path.includes("..");
 
-export const workerListQueryKey = (sample: boolean) => ["my-workers", sample ? "sample" : "live"] as const;
-export const workerInviteQueryKey = (businessId: string, sample: boolean) => ["worker-invites", businessId, sample ? "sample" : "live"] as const;
-
 export function workerDeclarations(trade: "electrician" | "installer", businessName: string) {
   const work = trade === "electrician" ? "electrical work" : "insulation work";
   return [
@@ -82,9 +79,30 @@ export function workerSubmissionErrors(trade: "electrician" | "installer", s: Wo
   return e;
 }
 
-/** Completion link (existing worker): only the missing certificate is asked for — no declarations, no re-sign. */
-export function completionErrors(s: { certificate_path?: Opt<string> }): string[] {
+/** Completion link (existing worker): the certificate when `need.cert`, plus the worker declarations when they're due
+ *  (people added on Team, Jo 29 Oct 2026) — same two signing errors as registration. */
+export function completionErrors(s: { certificate_path?: Opt<string>; accepted?: Opt<string[]>; signed_name?: Opt<string> }, need: { cert: boolean; declarationKeys: string[] } = { cert: true, declarationKeys: [] }): string[] {
   const e: string[] = [];
-  if (!txt(s.certificate_path)) e.push("Upload the EEC / Certified Insulation Installer certificate.");
+  if (need.cert && !txt(s.certificate_path)) e.push("Upload the EEC / Certified Insulation Installer certificate.");
+  if (need.declarationKeys.length) {
+    const got = new Set(s.accepted ?? []);
+    if (!need.declarationKeys.every((k) => got.has(k))) e.push("Tick every box before signing.");
+    if (!txt(s.signed_name)) e.push("Type your full name to sign.");
+  }
   return e;
+}
+
+/** Why the boss can't make this person's completion link yet (null = can). Declarations due (added on Team): any trade,
+ *  but only once a mobile or email is on file. Otherwise today's certificate-only rules. */
+export function signLinkBlocker(w: { trade_role: string; declarations_due: boolean; email: string | null; mobile: string | null; certification_status: string | null }): string | null {
+  if (w.declarations_due) return txt(w.email) || txt(w.mobile) ? null : "Add their mobile or email first, then make their link.";
+  if (w.trade_role !== "installer") return "Certificate completion links are only for installer workers.";
+  if (w.certification_status === "verified") return "This worker's certificate is already verified.";
+  return null;
+}
+
+/** The person already uploaded their EEC / CII certificate (`certification.eec_upload.path` set). */
+export function hasEecUpload(certification: unknown): boolean {
+  const u = (certification as { eec_upload?: { path?: unknown } } | null)?.eec_upload;
+  return typeof u?.path === "string" && u.path.length > 0;
 }

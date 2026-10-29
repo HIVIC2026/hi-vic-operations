@@ -154,3 +154,10 @@ describe("source pins", () => {
     expect(src("src/routes/_authenticated/field.offer.$offerId.tsx")).toContain("data-piesa-offer-times");
   });
 });
+
+test("B8: offer page has no old owner-times steps; every pending PIESA offer gets the 3-times form", () => {
+  const page = src("src/routes/_authenticated/field.offer.$offerId.tsx");
+  for (const gone of ["Pick one of the owner's times", "Suggest another time", "takeTradeTime", '"cant_make"', "data-no-times", "data.windows", "canSuggest", "suggestUnlockLabel"]) expect(page).not.toContain(gone);
+  expect(page).toContain("data-piesa-offer-times");
+  expect(src("src/lib/trade-view.server.ts")).toContain('const piesaDays = o.kind === "piesa" && o.status === "pending" ? ');
+});

@@ -1,6 +1,7 @@
 // My business (approved installer mock-up M7, decision 204): pure derivations behind every row, the NEXT panel and
 // the public liability expiry block (compliance checklist H3). No I/O.
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { agreementLine, bankLine, businessNext, detailsLine, insuranceRowSub, latestExpiry, noticeLine, ratesLine, teamCiiLine, teamFactsLine, usualElectricianLine, TEAM_RULE } from "../src/lib/trade-view.core";
 import { publicLiabilityBlocker } from "../src/lib/worker-compliance.core";
 import { prestartFailures, type PrestartFacts } from "../src/lib/prestart.core";
@@ -10,9 +11,9 @@ const TODAY = "2026-10-24";
 
 describe("team rows (decisions 153, 161, 130)", () => {
   test("facts line shows mobile, Mitti login and privacy notice from recorded facts only", () => {
-    expect(teamFactsLine({ mobile: "0412 000 111", mittiLogin: "linked", noticeAcknowledged: true })).toBe("0412 000 111 · Mitti login ✓ · Privacy notice ✓");
-    expect(teamFactsLine({ mobile: "0455 444 555", mittiLogin: "not_set", noticeAcknowledged: false })).toBe("0455 444 555 · Mitti login not set · Privacy notice outstanding");
-    expect(teamFactsLine({ mobile: null, mittiLogin: "email_changed", noticeAcknowledged: null })).toBe("No mobile on file · Mitti login to re-check");
+    expect(teamFactsLine({ mobile: "0412 000 111", role: "installer", workerRole: "lead", mittiLogin: "linked", mittiRecorded: false, noticeAcknowledged: true })).toBe("0412 000 111 · Lead · Mitti ✓ · Privacy notice ✓");
+    expect(teamFactsLine({ mobile: "0455 444 555", role: "installer", workerRole: "crew", mittiLogin: "not_set", mittiRecorded: false, noticeAcknowledged: false })).toBe("0455 444 555 · Crew · no Mitti · Privacy notice outstanding");
+    expect(teamFactsLine({ mobile: null, role: "electrician", workerRole: null, mittiLogin: "email_changed", mittiRecorded: false, noticeAcknowledged: null })).toBe("No mobile on file · Mitti to re-check");
   });
   test("CII line is derived by crewClearance: cleared with expiry, otherwise the reason and 'not on installs yet'", () => {
     expect(teamCiiLine({ certStatus: "verified", level: "full", expiresOn: "2027-03-14" }, TODAY)).toEqual({ text: "CII cleared · expires 14 Mar 2027", tone: "green" });
@@ -21,7 +22,7 @@ describe("team rows (decisions 153, 161, 130)", () => {
     expect(teamCiiLine({ certStatus: "verified", level: "full", expiresOn: "2026-10-01" }, TODAY)).toEqual({ text: "CII expired · not on installs yet", tone: "rose" });
     expect(teamCiiLine({ certStatus: "rejected", level: null, expiresOn: null }, TODAY)?.text).toBe("CII not accepted · not on installs yet");
     expect(teamCiiLine(null, TODAY)).toBeNull();
-    expect(TEAM_RULE).toBe("Ready Checks can go to anyone listed here. Install days only to CII-cleared people who've acknowledged the privacy notice.");
+    expect(TEAM_RULE).toBe("Every installer, Lead and Crew, needs a CII certificate checked by our office. Only a Lead can run an install day. Crew can do Ready Checks once our office adds them to Mitti.");
   });
 });
 
@@ -53,7 +54,7 @@ describe("business file rows", () => {
     expect(ratesLine("2026-10-03", true)).toBe("Agreed 3 Oct 2026 · Request a change");
     expect(ratesLine(null, false)).toBe("Being confirmed with the office");
     // Decision 369: no declared electrician price on My business (the onboarding rate is the only rate, decision 353).
-    expect(usualElectricianLine({ name: "Sam Lee", licence: "28841" })).toBe("Sam Lee · REC 28841");
+    expect(usualElectricianLine({ name: "Sam Lee", licence: "28841" })).toBe("Sam Lee · Licence 28841");
     expect(usualElectricianLine({ name: "Sam Lee", licence: "28841", priceIncGst: 280.5 } as { name: string; licence: string })).not.toContain("$");
     expect(usualElectricianLine(null)).toBe("Not set · add them so we can use them on your jobs");
     expect(detailsLine({ legal: "Reinsulate Pty Ltd", name: "Reinsulate", abn: "61 123 456 789", baseSuburb: "Clyde North", allVictoria: false })).toBe("Reinsulate Pty Ltd · ABN 61 123 456 789 · Clyde North");
@@ -105,5 +106,58 @@ describe("public liability expiry blocks offers and pre-start like the CII (H3)"
     expect(installerEligibilityBlocker(installerCandidate({ ...facts, credentialsOk: true }))).toBeNull();
     expect(installerEligibilityBlocker(installerCandidate({ ...facts, credentialsOk: false }))).toBe("A required document has expired.");
     expect(installerEligibilityBlocker(installerCandidate({ ...facts, credentialsOk: true, accepting_new_jobs: false }))).toContain("not accepting new jobs");
+  });
+});
+
+describe("electrician licence and cover", () => {
+  const ok = { installer: false, publicLiabilityExpires: "2027-06-30", bankSaved: true, agreementSigned: true, noticeOutstanding: [], usualElectrician: false, ciiBlocked: [] };
+  const elec = { licenceExpires: "2027-06-30", plCover: 5_000_000, worksUnderRec: false };
+  test("a missing licence comes before bank and agreement", () => {
+    const n = businessNext({ ...ok, bankSaved: false, agreementSigned: false, electrician: { ...elec, licenceExpires: null } }, TODAY);
+    expect(n).toEqual({ title: "We don't have your electrical licence on file", sub: "Upload your current licence so offers keep coming.", button: "Upload licence", to: "/field/business/insurance" });
+  });
+  test("an expired licence", () => {
+    const n = businessNext({ ...ok, bankSaved: false, electrician: { ...elec, licenceExpires: "2026-10-01" } }, TODAY);
+    expect(n).toEqual({ title: "Your electrical licence has expired", sub: "Expired Thu 1 Oct. No new offers until the renewed licence is uploaded.", button: "Upload renewed licence", to: "/field/business/insurance" });
+  });
+  test("cover under $5m or unknown warns", () => {
+    const want = { title: "Your public liability cover must be at least $5 million", sub: "Upload a certificate showing $5 million or more.", button: "Upload insurance", to: "/field/business/insurance" };
+    expect(businessNext({ ...ok, bankSaved: false, electrician: { ...elec, plCover: 2_000_000 } }, TODAY)).toEqual(want);
+    expect(businessNext({ ...ok, electrician: { ...elec, plCover: null } }, TODAY)).toEqual(want);
+    expect(businessNext({ ...ok, electrician: elec }, TODAY)).toBeNull();
+  });
+  test("working under a REC skips the cover check", () => {
+    expect(businessNext({ ...ok, electrician: { ...elec, plCover: 1_000_000, worksUnderRec: true } }, TODAY)).toBeNull();
+    expect(businessNext({ ...ok, electrician: { ...elec, plCover: null, worksUnderRec: true } }, TODAY)).toBeNull();
+  });
+  test("an installer never gets the licence or cover panel", () => {
+    expect(businessNext({ ...ok, installer: true, usualElectrician: true }, TODAY)).toBeNull();
+  });
+  test("the usual-electrician text says nothing about price", () => {
+    const n = businessNext({ ...ok, installer: true }, TODAY);
+    expect(n?.sub).toBe("Their name and licence number. We use them on your jobs once they're an approved electrician with us.");
+    expect(n?.sub).not.toMatch(/price/i);
+  });
+});
+
+describe("electrician licence facts: unknown and boundaries", () => {
+  const ok = { installer: false, publicLiabilityExpires: "2027-06-30", bankSaved: false, agreementSigned: true, noticeOutstanding: [], usualElectrician: false, ciiBlocked: [] };
+  test("unknown electrician facts give no licence or cover panel", () => {
+    expect(businessNext(ok, TODAY)?.to).toBe("/field/business/bank");
+  });
+  test("a licence expiring today is not expired; one that expired yesterday is", () => {
+    const e = { plCover: 5_000_000, worksUnderRec: false };
+    expect(businessNext({ ...ok, electrician: { ...e, licenceExpires: TODAY } }, TODAY)?.to).toBe("/field/business/bank");
+    expect(businessNext({ ...ok, electrician: { ...e, licenceExpires: "2026-10-23" } }, TODAY)?.title).toBe("Your electrical licence has expired");
+  });
+  test("the electrician reads check their errors, and the panel date is the Melbourne date", () => {
+    const src = readFileSync("src/lib/trade-view.server.ts", "utf8");
+    expect(src).toContain("const today = melbourneToday();");
+    for (const name of ["credsError", "workersError", "bzError", "actError", "appError"]) {
+      expect(src).toContain(`error: ${name}`);
+      expect(src).toMatch(new RegExp(`\\[[^\\]]*"${name === "credsError" ? "credentials" : name === "workersError" ? "workers" : name === "bzError" ? "business" : name === "actError" ? "activation" : "application"}", ${name}\\]`));
+    }
+    expect(src).toContain("if (!failed.length) {");
+    expect(src).toMatch(/businessNext\(\{[\s\S]*?\}, today\)/);
   });
 });

@@ -82,6 +82,7 @@ const admin = {
     if (name === "has_role") return { data: true, error: null };
     if (name === "issue_owner_link_code") { const r = await q<{ id: string }>("insert into owner_link_codes (job_id, channel, destination_masked, code_hash, expires_at) values ($1,$2,$3,$4,$5) returning id", [a["_job"], a["_channel"], a["_masked"], a["_hash"], a["_expires"]]); return { data: r[0]!.id, error: null }; }
     if (name === "enqueue_external_action") { await q("insert into external_action_queue (job_id, action, target, payload, key) values ($1,$2,$3,$4,$5) on conflict (key) do nothing", [a["_job"], a["_action"], a["_target"], a["_payload"], a["_key"]]); return { data: null, error: null }; }
+    if (name === "add_installer_job") return { data: null, error: { code: "PGRST202", message: "Could not find the function public.add_installer_job(_payload) in the schema cache" } }; // staged SQL not live yet: step-by-step save
     return { data: null, error: { message: `unexpected rpc ${name}` } };
   },
   auth: { admin: { createUser: async (u: { email?: string }) => { const id = `50000000-0000-4000-8000-00000000000${++createdUsers}`; await q("insert into profiles (id, full_name, email) values ($1,$2,$3)", [id, "Owner", u.email ?? null]); return { data: { user: { id } }, error: null }; } } },
@@ -193,7 +194,7 @@ afterAll(async () => { await db.close(); });
 
 describe("Mitti instant notice + 15-minute pull overlap", () => {
   test("two overlapping syncs then a third → one live quote, sent to the owner exactly once", async () => {
-    const r = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(1), { mode: "hivic" }, call);
+    const r = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(1), { mode: "hivic" }, call, { leadOrigin: "owner_contacted" });
     await settle();
     const auditId = await auditOf(r.jobId);
     if (!auditId) throw new Error("No fixture audit");

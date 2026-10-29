@@ -28,6 +28,7 @@
 // notice": only an "acknowledged" record satisfies it. Nothing here blocks partner activation.
 import { sha256Hex } from "./sha256.core";
 import type { PartnerBlock } from "./partner-email.core";
+import { effectiveWorkerRole } from "./worker-role.core";
 
 export const COLLECTION_NOTICE_TITLE = "VEU Scheme Participant Privacy Collection Notice";
 export const COLLECTION_NOTICE_VERSION = "1.0";
@@ -87,13 +88,15 @@ export type NoticeAck = {
   /** Jo 28 Oct: set from the record; matches a person who has no email (people with an email still match by email). */
   worker_id?: string | null;
 };
-export type NoticeWorker = { id?: string | null; email: string | null | undefined; full_legal_name: string; trade_role: string; removed_at?: string | null };
+export type NoticeWorker = { id?: string | null; email: string | null | undefined; full_legal_name: string; trade_role: string; removed_at?: string | null; worker_role?: string | null };
 export type NoticeState = "missing" | "acknowledged";
 export type NoticeStatus = {
   workerId: string | null; email: string; name: string; state: NoticeState;
   at: string | null; byName: string | null; source: string | null;
   /** True when a record exists only for an earlier notice version/text, which does not count. */
   superseded: boolean;
+  /** The Lead installer (null role on an installer counts as Lead; Crew does not). */
+  lead?: boolean;
 };
 
 export const noticeEmailKey = (e: string | null | undefined) => (e ?? "").trim().toLowerCase();
@@ -105,7 +108,7 @@ export function collectionNoticeStatus(workers: readonly NoticeWorker[], acks: r
     const email = noticeEmailKey(w.email);
     const mine = email ? acks.filter((a) => noticeEmailKey(a.worker_email) === email) : w.id ? acks.filter((a) => !noticeEmailKey(a.worker_email) && a.worker_id === w.id) : [];
     const best = mine.filter(isCurrent).reduce<NoticeAck | null>((b, a) => (!b || a.at > b.at ? a : b), null);
-    return { workerId: w.id ?? null, email, name: w.full_legal_name, state: best ? "acknowledged" : "missing", at: best?.at ?? null, byName: best?.by_name ?? null, source: best?.source ?? null, superseded: !best && mine.length > 0 };
+    return { workerId: w.id ?? null, email, name: w.full_legal_name, state: best ? "acknowledged" : "missing", at: best?.at ?? null, byName: best?.by_name ?? null, source: best?.source ?? null, superseded: !best && mine.length > 0, lead: effectiveWorkerRole({ tradeRole: w.trade_role, stored: w.worker_role }) === "lead" };
   });
 }
 

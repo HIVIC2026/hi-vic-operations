@@ -6,16 +6,22 @@ import { WorkflowError, logEvent } from "./workflow.server";
 import type { MittiCall } from "./mitti.core";
 import {
   CLAIM_EVENT, CLAIM_HELD, OFFICE_OVERRIDE_AFTER_MS, OFFICE_OVERRIDE_EVENT, OUTCOME_UNCERTAIN, RELEASE_EVENT, UNCERTAIN_EVENT,
-  claimEventId, isUniqueViolation, releaseEventId, type MittiFormKind,
+  claimEventId, claimGeneration, isUniqueViolation, releaseEventId, type MittiFormKind,
 } from "./mitti-create-claim.core";
+import { REPEAT_PIESA_FORM_RESET_EVENT } from "./repeat-piesa-form.core";
 
 export class MittiClaimHeld extends WorkflowError { constructor() { super(CLAIM_HELD); this.name = "MittiClaimHeld"; } }
 export class MittiOutcomeUncertain extends WorkflowError { constructor() { super(OUTCOME_UNCERTAIN); this.name = "MittiOutcomeUncertain"; } }
 
 async function generationOf(jobId: string, kind: MittiFormKind): Promise<number> {
-  const { data, error } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", RELEASE_EVENT);
+  const { data, error } = await admin.from("workflow_events").select("event_type, details").eq("job_id", jobId).in("event_type", [RELEASE_EVENT, REPEAT_PIESA_FORM_RESET_EVENT]);
   if (error) throw new Error(error.message);
-  return (data ?? []).filter((r) => (r.details as { kind?: string } | null)?.kind === kind).length;
+  const rows = data ?? [];
+  return claimGeneration({
+    releasedKinds: rows.filter((r) => r.event_type === RELEASE_EVENT).map((r) => (r.details as { kind?: string } | null)?.kind),
+    repeatResets: rows.filter((r) => r.event_type === REPEAT_PIESA_FORM_RESET_EVENT).length,
+    kind,
+  });
 }
 
 async function insertClaim(jobId: string, kind: MittiFormKind, gen: number, actorId: string | null, summary: string, details: Record<string, unknown>) {

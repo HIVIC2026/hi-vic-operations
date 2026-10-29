@@ -237,7 +237,7 @@ async function requireClearanceRecorder(r: Parameters<typeof requireJobRole>[0],
 export const saveAssessment = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, patch: assessmentPatch }).parse(d))
   .handler(async ({ data, context }) => {
-    const jobRole = await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
+    const jobRole = await requireJobRole(context.supabase, data.jobId, ["admin"]);
     await requireClearanceRecorder(context.supabase as never, jobRole, context.userId);
     // Server-side PIESA date rule (same one recordPiesa enforces): no future assessment dates.
     if (data.patch.assessed_on !== undefined && data.patch.assessed_on !== null) {
@@ -563,7 +563,7 @@ export const recordPiesa = createServerFn({ method: "POST" }).middleware([requir
     sectionCSignedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {
-    const jobRole = await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
+    const jobRole = await requireJobRole(context.supabase, data.jobId, ["admin"]);
     await requireClearanceRecorder(context.supabase as never, jobRole, context.userId);
     const dateBlockers = piesaDateBlockers(data.completedDate); // Melbourne calendar date, not UTC
     if (dateBlockers.length) throw new WorkflowError(dateBlockers[0]!);

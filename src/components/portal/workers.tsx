@@ -2,70 +2,22 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Copy, Link2, Trash2 } from "lucide-react";
+import { Copy, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Section } from "@/components/portal/panels";
-import { createWorkerJobLink, jobWorkerLinks, revokeWorkerJobLink, removeWorker, saveWorker } from "@/lib/worker-links.functions";
+import { createWorkerJobLink, jobWorkerLinks, revokeWorkerJobLink } from "@/lib/worker-links.functions";
 
 const STATUS: Record<string, { label: string; cls: string }> = {
   pending: { label: "Pending office approval", cls: "bg-warning-soft text-warning" },
   approved: { label: "Approved", cls: "bg-success-soft text-success" },
   rejected: { label: "Not approved", cls: "bg-danger-soft text-danger" },
 };
-export function WorkerStatus({ s }: { s: string }) {
+function WorkerStatus({ s }: { s: string }) {
   const x = STATUS[s] ?? { label: s, cls: "bg-muted" };
   return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${x.cls}`}>{x.label}</span>;
 }
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : "Something went wrong");
-
-type Worker = { id: string; full_legal_name: string; email: string | null; mobile: string | null; trade_role: string; licence_number: string | null; qualification: string | null; approval_status: string; rejection_reason?: string | null };
-
-export function WorkerForm({ businessId, worker, onDone }: { businessId: string; worker?: Worker; onDone: () => void }) {
-  const save = useServerFn(saveWorker);
-  const [f, setF] = useState({
-    full_legal_name: worker?.full_legal_name ?? "", email: worker?.email ?? "", mobile: worker?.mobile ?? "",
-    trade_role: (worker?.trade_role ?? "electrician") as "electrician" | "installer",
-    licence_number: worker?.licence_number ?? "", qualification: worker?.qualification ?? "",
-  });
-  const [busy, setBusy] = useState(false);
-  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
-  return (
-    <form className="grid gap-3 rounded-xl border bg-card p-4 sm:grid-cols-2" onSubmit={async (e) => {
-      e.preventDefault(); setBusy(true);
-      try {
-        const r = await save({ data: { ...f, business_id: businessId, ...(worker ? { id: worker.id } : {}), licence_number: f.licence_number || null, qualification: f.qualification || null } });
-        toast.success(r.pending ? "Saved — Home Insulation Victoria will approve this staff member shortly." : "Saved");
-        onDone();
-      } catch (er) { toast.error(errMsg(er)); } finally { setBusy(false); }
-    }}>
-      <div className="sm:col-span-2 flex gap-2">
-        {(["electrician", "installer"] as const).map((r) => (
-          <Button key={r} type="button" variant={f.trade_role === r ? "default" : "outline"} onClick={() => setF({ ...f, trade_role: r })}>{r === "electrician" ? "Electrician" : "Installer"}</Button>
-        ))}
-      </div>
-      <label className="text-sm font-medium">Full name<Input required value={f.full_legal_name} onChange={set("full_legal_name")} className="mt-1 h-12" /></label>
-      <label className="text-sm font-medium">Mobile<Input required inputMode="tel" value={f.mobile} onChange={set("mobile")} className="mt-1 h-12" /></label>
-      <label className="text-sm font-medium">Email<Input required type="email" value={f.email} onChange={set("email")} className="mt-1 h-12" /></label>
-      {f.trade_role === "electrician"
-        ? <label className="text-sm font-medium">Electrical licence number<Input required value={f.licence_number} onChange={set("licence_number")} className="mt-1 h-12" /></label>
-        : <label className="text-sm font-medium">Qualification<Input required placeholder="e.g. Cert III or experienced installer" value={f.qualification} onChange={set("qualification")} className="mt-1 h-12" /></label>}
-      <div className="sm:col-span-2 flex justify-end gap-2">
-        <Button type="button" variant="outline" onClick={onDone}>Cancel</Button>
-        <Button type="submit" disabled={busy}>{worker ? "Save changes" : "Add staff member"}</Button>
-      </div>
-    </form>
-  );
-}
-
-export function WorkerRemoveButton({ id, onDone }: { id: string; onDone: () => void }) {
-  const remove = useServerFn(removeWorker);
-  return <Button size="sm" variant="ghost" aria-label="Remove staff member" onClick={async () => {
-    if (!confirm("Remove this staff member? Their job links stop working straight away.")) return;
-    try { await remove({ data: { id } }); toast.success("Staff member removed"); onDone(); } catch (e) { toast.error(errMsg(e)); }
-  }}><Trash2 className="h-4 w-4" /></Button>;
-}
 
 const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleString("en-AU", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "—");
 

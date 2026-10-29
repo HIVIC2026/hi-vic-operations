@@ -5,6 +5,8 @@
 // straight away through the existing claim-guarded createAssignMittiAudit path (decision 115: no booking needed).
 // Decision 116: an optional visit day + time is saved through the same path as the job page (tradeSetReadyCheckTime).
 // Mitti stays hidden until the office ticks "Mitti account invited" for the business.
+// A6 (Jo 29 Oct): the save is one transaction (`add_installer_job`, add-installer-job.server) keyed by the phone's request
+// key, so Try again finishes the same job; until that function is live the step-by-step save below is used.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
 import { ONSITE_CONSENT_SOURCE, READY_CHECK_FORM_COMING, TEST_MITTI_ASSIGNEE, onsiteProblems, onsiteState, type OnsiteInput, type OnsiteState } from "./onsite-ready-check.core";
@@ -15,7 +17,7 @@ import type { ReadyCheckPick } from "./ready-check-times.core";
 export type AddJobBooking = "none" | "confirmed" | "blocked";
 export type AddJobResult = { jobId: string; jobNumber: string | null; booking: AddJobBooking; formCreation: "scheduled" | "skipped"; state: OnsiteState };
 
-export async function startOnsiteReadyCheckFor(userId: string, businessId: string, input: OnsiteInput, electrician: ElectricianPlan | null = null, call?: MittiCall, opts: { visit?: ReadyCheckPick | null; now?: Date; /** Decision 289: null = the default rule (usual electrician when saved, else Home Insulation Victoria's). */ electricianChoice?: import("./electrician-choice.core").ElectricianChoice | null } = {}): Promise<AddJobResult> {
+export async function startOnsiteReadyCheckFor(userId: string, businessId: string, input: OnsiteInput, electrician: ElectricianPlan | null = null, call?: MittiCall, opts: { visit?: ReadyCheckPick | null; now?: Date; /** Decision 289: null = the default rule (usual electrician when saved, else Home Insulation Victoria's). */ electricianChoice?: import("./electrician-choice.core").ElectricianChoice | null; /** A1: how the installer got this customer; door-knock and cold call are refused. */ leadOrigin?: import("./onsite-ready-check.core").LeadOrigin | null; /** A6: the phone's key for this draft; a key already saved resumes that job. */ requestKey?: string | null } = {}): Promise<AddJobResult> {
   const { requireMember, requireApprovedPartner, intakeSourceFor } = await import("./pilot.server");
   await requireMember(userId, businessId, true); // same rule as Add one job: business owner only
   await requireApprovedPartner(businessId);
@@ -23,60 +25,107 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   const problems = onsiteProblems(input);
   const { electricianPlanBlocker, OWNER_CONTACT_PERMISSION } = await import("./job-electrician.core");
   const eb = electricianPlanBlocker(electrician); if (eb) problems.push(eb);
+  const lop = (await import("./onsite-ready-check.core")).leadOriginProblem(opts.leadOrigin); if (lop) problems.push(lop);
   // Decision 289: "Electrical safety check by" is chosen once here; "my usual electrician" needs one saved in My business.
-  const { defaultElectricianChoice, electricianChoiceProblem } = await import("./electrician-choice.core");
-  const usual = (await (await import("./usual-electrician.server")).readUsualElectrician(businessId)).electrician;
-  const electricianChoice = opts.electricianChoice ?? defaultElectricianChoice(usual);
-  const ecp = electricianChoiceProblem(electricianChoice, usual); if (ecp) problems.push(ecp);
+  // A3: "my usual electrician" can be picked only once that electrician is onboarded (checked here as well as on the form).
+  const { defaultElectricianChoice, addJobUsual, addJobElectricianProblem } = await import("./electrician-choice.core");
+  const usualStatus = await (await import("./usual-electrician.server")).readUsualElectricianStatus(businessId);
+  const status = usualStatus.electrician ? { name: usualStatus.electrician.name, onboarded: usualStatus.onboarded } : null;
+  const electricianChoice = opts.electricianChoice ?? defaultElectricianChoice(addJobUsual(status));
+  const ecp = addJobElectricianProblem(electricianChoice, status); if (ecp) problems.push(ecp);
   // Decision 116: the optional visit time follows the job page's rules (exact times, business days, 24h+ ahead) and is
   // checked BEFORE anything is saved, so a bad time never leaves a job behind.
   if (opts.visit) problems.push(...(await import("./ready-check-times.core")).a1ReadyCheckTimeBlockers(opts.visit, now));
   if (problems.length) throw new WorkflowError(problems.join(" • "));
 
-  const email = input.email.trim().toLowerCase();
-  const source = await intakeSourceFor(userId, businessId, "installer_onsite");
-  // Decision 282 (Jo 25 Oct): only the address matters. An open job at this address is told to the office and the
-  // installer sees its number; nothing is created. Email/phone are never a reason to refuse.
-  const { findOpenJobAtAddress, flagDuplicateAddress, businessNameFor } = await import("./duplicate-address.server");
-  const open = await findOpenJobAtAddress({ address_line: input.address_line, suburb: input.suburb, postcode: input.postcode, source });
-  if (open) {
-    await flagDuplicateAddress(open, userId, { from: "add_a_job", business_id: businessId, business_name: await businessNameFor(businessId), full_name: input.full_name.trim(), email, phone: input.phone.trim(), address_line: input.address_line.trim(), suburb: input.suburb.trim(), postcode: input.postcode.trim() });
-    throw new WorkflowError((await import("./duplicate-address.core")).duplicateAddressMessage(open.job_number));
+  // A6: one request key per phone draft. A key an earlier tap already saved means the signal dropped after the save:
+  // finish THAT job (visit + form steps below) instead of checking the address or saving again.
+  const requestKey = opts.requestKey ?? crypto.randomUUID();
+  const { findAddedJob, addInstallerJobAtomic } = await import("./add-installer-job.server");
+  const earlier = await findAddedJob(requestKey, businessId);
+  let job: { id: string; job_number: string | null };
+  let resumed = !!earlier;
+  if (earlier) job = { id: earlier.jobId, job_number: earlier.jobNumber };
+  else {
+    const email = input.email.trim().toLowerCase();
+    const source = await intakeSourceFor(userId, businessId, "installer_onsite");
+    // Decision 282 (Jo 25 Oct): only the address matters. An open job at this address is told to the office and the
+    // installer sees its number; nothing is created. Email/phone are never a reason to refuse.
+    const { findOpenJobAtAddress, flagDuplicateAddress, businessNameFor } = await import("./duplicate-address.server");
+    const open = await findOpenJobAtAddress({ address_line: input.address_line, suburb: input.suburb, postcode: input.postcode, source }, { preferNonLead: true });
+    const clash = (await import("./duplicate-address.core")).addJobClashAction(open);
+    // Jo 28 Oct: an open HIV lead at this address does not block the installer; the job is saved and flagged below.
+    // A6 race: a Try again tap with this request key may have saved this very job since the check above. Finish that job
+    // instead of refusing it (and never flag it to the office).
+    const raced = open && clash === "refuse" ? await findAddedJob(requestKey, businessId) : null;
+    if (raced) { job = { id: raced.jobId, job_number: raced.jobNumber }; resumed = true; }
+    else {
+      if (open && clash === "refuse") {
+        await flagDuplicateAddress(open, userId, { from: "add_a_job", business_id: businessId, business_name: await businessNameFor(businessId), full_name: input.full_name.trim(), email, phone: input.phone.trim(), address_line: input.address_line.trim(), suburb: input.suburb.trim(), postcode: input.postcode.trim() });
+        throw new WorkflowError((await import("./duplicate-address.core")).duplicateAddressMessage(open.job_number));
+      }
+      const { DUPLICATE_ADDRESS_EVENT, hivLeadClashSummary } = await import("./duplicate-address.core");
+      const flag = open && clash === "save_and_flag" ? { summary: hivLeadClashSummary(open.job_number), details: { from: "add_a_job", existing_job_id: open.id, existing_job_number: open.job_number, needs_office: true } } : null;
+      // Gate A (Jo, 8 Oct): the installer confirmed the owner's consent to be contacted.
+      const { gateDoc } = await import("./owner-gates.core");
+      const byOwner = input.consent_by === "owner";
+      // Jo (decision 198 follow-up): the short permission sentence is the label shown and recorded for new jobs; older jobs keep the sentence they were saved with.
+      const text = byOwner ? gateDoc("contact_privacy").body : OWNER_CONTACT_PERMISSION;
+      const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)))].map((x) => x.toString(16).padStart(2, "0")).join("");
+      const consent = { key: byOwner ? "owner_ticked" as const : "installer_confirmed" as const, by: byOwner ? "owner" as const : "installer" as const, text, sha256: hash };
+
+      /** Today's step-by-step writes, unchanged: used until add_installer_job is live, and for a "mine" electrician plan. */
+      const legacySequentialSave = async (): Promise<{ id: string; job_number: string | null }> => {
+        const { createInstallerOwner } = await import("./installer-owner.server");
+        const owner = await createInstallerOwner(admin, businessId, { full_name: input.full_name.trim(), email, phone: input.phone.trim() });
+        const { data: prop, error: pe } = await admin.from("properties").insert({ owner_id: owner.id, address_line: input.address_line.trim(), suburb: input.suburb.trim(), postcode: input.postcode.trim(), state: "VIC" }).select("id").single();
+        if (pe || !prop) throw new WorkflowError(pe?.message ?? "Property could not be saved.");
+        // Decision 34: basics only. The visit, measurements, existing insulation, removal, product, price and electrician are
+        // all answered in the Mitti Ready Check form, so nothing here claims a visit or a quote.
+        const { data: job, error: je } = await admin.from("jobs").insert({
+          owner_id: owner.id, property_id: prop.id, stage: "ready_check_ready_to_schedule", source, business_unit: "hivic", installer_led: true,
+          channel: "installer_sourced", originating_installer_business_id: businessId, originating_installer_user_id: userId,
+          external_enquiry_id: `onsite:${crypto.randomUUID()}`, customer_relationship_owner: "installer",
+          installer_site_check: "no", installer_site_check_date: null, installer_quoted: "no",
+          next_action: READY_CHECK_FORM_COMING,
+        }).select("id, job_number").single();
+        if (je || !job) throw new WorkflowError(je?.message ?? "Job could not be saved.");
+        await admin.from("job_assignments").insert({ job_id: job.id, user_id: userId, role: "installer", business_id: businessId, assigned_by: userId, first_response_at: new Date().toISOString() });
+        await (await import("./job-electrician.server")).recordJobElectricianChoice(job.id, businessId, electrician ?? { mode: "hivic" }, userId);
+        // Decision 289: the one electrician choice for this job (append-only event; the quote pipeline reads it).
+        await (await import("./electrician-choice.server")).recordElectricianChoice(job.id, businessId, userId, electricianChoice, "add_job");
+        if (flag) await logEvent(job.id, userId, DUPLICATE_ADDRESS_EVENT, flag.summary, flag.details, { internal: true });
+        await logEvent(job.id, userId, "installer_job_added", "Installer added this customer (Add a job: name, address, mobile, email, contact permission); the Mitti Ready Check form is created next", { business_id: businessId, visit_requested: !!opts.visit, lead_origin: opts.leadOrigin });
+        const nowIso = new Date().toISOString();
+        const { error: ce } = await admin.from("owner_contact_consents").insert({ job_id: job.id, owner_id: owner.id, source: ONSITE_CONSENT_SOURCE, consent_key: consent.key, consent_status: "granted", contact_consent: true, consented_at: nowIso, snapshot: { by: consent.by, text, recorded_by: userId }, sha256: hash });
+        if (ce) throw new WorkflowError(`Consent could not be saved: ${ce.message}`);
+        await logEvent(job.id, userId, "installer_contact_permission", byOwner ? "Owner ticked contact and privacy consent on the installer's phone" : "Installer confirmed the owner gave consent", { wording: text, by: consent.by }, { internal: true });
+        return job;
+      };
+
+      // A6: owner, property, job, assignment, consent and events in ONE transaction (nothing half-saved). The SQL only
+      // records Home Insulation Victoria's electrician arrangement; a "mine" plan keeps the step-by-step save.
+      const mode = (electrician as { mode?: string } | null)?.mode;
+      const saved = mode === "mine" || mode === "later" ? "not_deployed" as const : await addInstallerJobAtomic((await import("./add-installer-job.core")).addInstallerJobPayload({
+        requestKey, businessId, userId, source, owner: { full_name: input.full_name, email, phone: input.phone },
+        property: { address_line: input.address_line, suburb: input.suburb, postcode: input.postcode }, consent,
+        electricianChoice: (await import("./electrician-choice.core")).electricianChoiceRecord(electricianChoice, usualStatus.electrician, "add_job"),
+        leadOrigin: opts.leadOrigin as import("./onsite-ready-check.core").LeadOrigin, visitRequested: !!opts.visit, flagEvent: flag,
+      }));
+      if (saved === "not_deployed") job = await legacySequentialSave();
+      else { job = { id: saved.jobId, job_number: saved.jobNumber }; resumed = !saved.created; }
+    }
   }
-  const { createInstallerOwner } = await import("./installer-owner.server");
-  const owner = await createInstallerOwner(admin, businessId, { full_name: input.full_name.trim(), email, phone: input.phone.trim() });
-  const { data: prop, error: pe } = await admin.from("properties").insert({ owner_id: owner.id, address_line: input.address_line.trim(), suburb: input.suburb.trim(), postcode: input.postcode.trim(), state: "VIC" }).select("id").single();
-  if (pe || !prop) throw new WorkflowError(pe?.message ?? "Property could not be saved.");
-  // Decision 34: basics only. The visit, measurements, existing insulation, removal, product, price and electrician are
-  // all answered in the Mitti Ready Check form, so nothing here claims a visit or a quote.
-  const { data: job, error: je } = await admin.from("jobs").insert({
-    owner_id: owner.id, property_id: prop.id, stage: "ready_check_ready_to_schedule", source, business_unit: "hivic", installer_led: true,
-    channel: "installer_sourced", originating_installer_business_id: businessId, originating_installer_user_id: userId,
-    external_enquiry_id: `onsite:${crypto.randomUUID()}`, customer_relationship_owner: "installer",
-    installer_site_check: "no", installer_site_check_date: null, installer_quoted: "no",
-    next_action: READY_CHECK_FORM_COMING,
-  }).select("id, job_number").single();
-  if (je || !job) throw new WorkflowError(je?.message ?? "Job could not be saved.");
-  await admin.from("job_assignments").insert({ job_id: job.id, user_id: userId, role: "installer", business_id: businessId, assigned_by: userId, first_response_at: new Date().toISOString() });
-  await (await import("./job-electrician.server")).recordJobElectricianChoice(job.id, businessId, electrician ?? { mode: "hivic" }, userId);
-  // Decision 289: the one electrician choice for this job (append-only event; the quote pipeline reads it).
-  await (await import("./electrician-choice.server")).recordElectricianChoice(job.id, businessId, userId, opts.electricianChoice ?? null, "add_job");
-  await logEvent(job.id, userId, "installer_job_added", "Installer added this customer (Add a job: name, address, mobile, email, contact permission); the Mitti Ready Check form is created next", { business_id: businessId, visit_requested: !!opts.visit });
-  // Gate A (Jo, 8 Oct): the installer confirmed the owner's consent to be contacted.
-  const { gateDoc } = await import("./owner-gates.core");
-  const byOwner = input.consent_by === "owner";
-  // Jo (decision 198 follow-up): the short permission sentence is the label shown and recorded for new jobs; older jobs keep the sentence they were saved with.
-  const text = byOwner ? gateDoc("contact_privacy").body : OWNER_CONTACT_PERMISSION;
-  const nowIso = new Date().toISOString();
-  const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)))].map((x) => x.toString(16).padStart(2, "0")).join("");
-  const { error: ce } = await admin.from("owner_contact_consents").insert({ job_id: job.id, owner_id: owner.id, source: ONSITE_CONSENT_SOURCE, consent_key: byOwner ? "owner_ticked" : "installer_confirmed", consent_status: "granted", contact_consent: true, consented_at: nowIso, snapshot: { by: byOwner ? "owner" : "installer", text, recorded_by: userId }, sha256: hash });
-  if (ce) throw new WorkflowError(`Consent could not be saved: ${ce.message}`);
-  await logEvent(job.id, userId, "installer_contact_permission", byOwner ? "Owner ticked contact and privacy consent on the installer's phone" : "Installer confirmed the owner gave consent", { wording: text, by: byOwner ? "owner" : "installer" }, { internal: true });
 
   // Decision 116: a visit day + time entered on Add a job is the same booking the job page writes (confirmBooking,
   // then the form with the booked date). A refusal never undoes the job; the installer can enter it on the job later.
+  // A6: on Try again an already-confirmed Ready Check booking is reported, not booked twice.
   let booking: AddJobBooking = "none";
-  if (opts.visit) {
+  if (opts.visit && resumed) {
+    const { count } = await admin.from("bookings").select("id", { count: "exact", head: true }).eq("job_id", job.id).eq("kind", "ready_check").eq("status", "confirmed");
+    if (count) booking = "confirmed";
+  }
+  if (opts.visit && booking === "none") {
     try {
       await (await import("./trade-view.server")).tradeSetReadyCheckTime(userId, job.id, opts.visit, now, call);
       booking = "confirmed";

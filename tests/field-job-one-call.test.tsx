@@ -33,7 +33,7 @@ mock.module("@tanstack/react-router", () => ({
   redirect: (o: unknown) => o,
 }));
 mock.module("@/components/trade/TradeShell", () => ({
-  TradeShell: ({ children }: { children: ReactNode }) => <main data-shell="">{children}</main>, TradeTabBar: () => null, TradePublicShell: ({ children }: { children: ReactNode }) => <main>{children}</main>,
+  TradeShell: ({ children }: { children: ReactNode }) => <main data-shell="">{children}</main>, TradePublicShell: ({ children }: { children: ReactNode }) => <main>{children}</main>,
   card: "", navyCard: "", greenBtn: "", ghostBtn: "", inputCls: "", aud: (n: number | null | undefined) => (n == null ? "—" : `$${Math.floor(n)}`),
 }));
 mock.module("sonner", () => ({ toast: { success: () => undefined, error: () => undefined, warning: () => undefined } }));
@@ -61,7 +61,7 @@ mock.module("@/lib/trade-view.functions", () => ({
   checkTradeInstallForm: refused("checkTradeInstallForm"),
 }));
 mock.module("@/lib/visit-allocation.functions", () => ({ getVisitAllocation: fake("getVisitAllocation", () => ({ canAllocate: false, visits: [] })), allocateVisitFn: refused("allocateVisitFn") }));
-mock.module("@/lib/installer-price.functions", () => ({ getInstallerPriceFn: refused("getInstallerPriceFn"), setInstallerPriceFn: refused("setInstallerPriceFn") }));
+mock.module("@/lib/installer-price.functions", () => ({ getInstallerPriceFn: refused("getInstallerPriceFn"), setInstallerPriceFn: refused("setInstallerPriceFn"), switchToHivElectricianFn: refused("switchToHivElectricianFn") }));
 mock.module("@/lib/installer-quote-status.functions", () => ({ getMyOwnerQuote: refused("getMyOwnerQuote") }));
 
 const { QueryClient, QueryClientProvider } = await import("@tanstack/react-query");
@@ -88,6 +88,7 @@ const fullBundle = () => ({
   readyCheckTimes: { applies: true, turn: "booked", canChange: false, days: [], open: [], bookedAt: "2026-10-20T22:00:00Z" },
   allocation: { canAllocate: true, visits: [{ kind: "install", label: "Install", current: null, hasForm: false, options: [] }] },
   swms: { show: false }, workerLinks: { workers: [], links: [], assignedBusinesses: 1, mittiFlag: null }, price: null, ownerQuote: { applies: false }, mittiInvited: { invited: true },
+  crew: { staff: [], selection: null },
 });
 
 const mount = () => {
@@ -106,7 +107,8 @@ describe("/field/$jobId installer job page — one server call on load", () => {
     await waitFor(() => expect(container.textContent).toContain("12 Sample Street, Glen Waverley"));
     await settle();
     expect(container.textContent).toContain("Helen Example");
-    expect(container.textContent).toContain("Who's doing this"); // the allocation card drew from the seeded answer
+    expect(container.textContent).toContain("Who's on the crew today?"); // D6: the one crew picker drew from the seeded answer
+    expect(container.textContent).not.toContain("Who's doing this"); // the allocation card is Ready Check only now
     expect(calls).toEqual({ getTradeJobBundle: 1 });
     expect(unexpected).toEqual([]);
     // The cards' own cache entries hold the bundle's answers, under their own keys, so their actions' invalidations keep working.

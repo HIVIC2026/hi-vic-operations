@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { INVITE_DAYS, inviteExpiry, inviteState, workerDeclarations, workerInviteQueryKey, workerListQueryKey, workerSubmissionErrors } from "../src/lib/worker-invite.core";
+import { INVITE_DAYS, inviteExpiry, inviteState, workerDeclarations, workerSubmissionErrors } from "../src/lib/worker-invite.core";
 
 describe("worker invites", () => {
   const now = Date.parse("2026-10-01T00:00:00Z");
@@ -24,10 +24,6 @@ describe("worker invites", () => {
     expect(installer).toHaveLength(6);
     expect(electrician.find((d) => d.key === "licence_current")?.text).toContain("electrician licence");
     expect(installer.find((d) => d.key === "licence_current")?.text).toContain("training");
-  });
-  test("sample and live staff caches cannot share identity", () => {
-    expect(workerListQueryKey(true)).not.toEqual(workerListQueryKey(false));
-    expect(workerInviteQueryKey("business-1", true)).not.toEqual(workerInviteQueryKey("business-1", false));
   });
   test("submission validation", () => {
     const keys = workerDeclarations("electrician", "Acme").map((d) => d.key);

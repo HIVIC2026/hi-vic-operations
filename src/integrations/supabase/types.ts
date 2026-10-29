@@ -9167,6 +9167,7 @@ export type Database = {
           certification: Json | null
           certification_status: string | null
           created_at: string
+          declarations_due: boolean
           email: string | null
           full_legal_name: string
           id: string
@@ -9199,6 +9200,7 @@ export type Database = {
           certification?: Json | null
           certification_status?: string | null
           created_at?: string
+          declarations_due?: boolean
           email?: string | null
           full_legal_name: string
           id?: string
@@ -9231,6 +9233,7 @@ export type Database = {
           certification?: Json | null
           certification_status?: string | null
           created_at?: string
+          declarations_due?: boolean
           email?: string | null
           full_legal_name?: string
           id?: string

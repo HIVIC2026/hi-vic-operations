@@ -5,6 +5,7 @@
 // Never changes a stage, a booking or the crew; never throws to the tick per job.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
+import { savedCrewNeedsRepick, type CrewSelection } from "./piisa-a3.core";
 import { CREW_REMINDER_EMAIL_APPROVED, CREW_REMINDER_EVENT, crewReminderBlocker, crewReminderEmail, crewReminderKey, installYmd } from "./crew-reminder.core";
 
 type Booking = { id: string; job_id: string; kind: string; status: string; scheduled_start: string };
@@ -27,9 +28,9 @@ export async function sweepCrewReminders(now = new Date(), opts: { approved?: bo
 async function remindOne(b: Booking, now: Date, approved: boolean): Promise<string> {
   const day = installYmd(b.scheduled_start);
   const key = crewReminderKey(b.job_id, day);
-  const [{ data: job }, { count: crew }, { data: prior }, { data: asg }] = await Promise.all([
+  const [{ data: job }, { data: crew }, { data: prior }, { data: asg }] = await Promise.all([
     admin.from("jobs").select("id, job_number, source, deleted_at, properties(address_line, suburb, postcode)").eq("id", b.job_id).maybeSingle(),
-    admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", b.job_id).eq("event_type", "piisa_crew_selected"),
+    admin.from("workflow_events").select("details").eq("job_id", b.job_id).eq("event_type", "piisa_crew_selected").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("workflow_events").select("id").eq("job_id", b.job_id).eq("event_type", CREW_REMINDER_EVENT).contains("details", { key }).limit(1),
     admin.from("job_assignments").select("business_id").eq("job_id", b.job_id).eq("role", "installer").eq("active", true).limit(1).maybeSingle(),
   ]);
@@ -38,7 +39,10 @@ async function remindOne(b: Booking, now: Date, approved: boolean): Promise<stri
   const bizId = (asg as { business_id: string | null } | null)?.business_id ?? null;
   const { data: biz } = bizId ? await admin.from("businesses").select("id, name, email, onboarding_notes").eq("id", bizId).maybeSingle() : { data: null };
   const bz = biz as { id: string; name: string | null; email: string | null; onboarding_notes: string | null } | null;
-  const blocker = crewReminderBlocker({ bookingKind: b.kind, bookingStatus: b.status, scheduledStart: b.scheduled_start, crewSelected: (crew ?? 0) > 0, alreadySent: (prior ?? []).length > 0, jobDeleted: !!j.deleted_at, businessEmail: bz?.email ?? null }, now);
+  // Jo 29 Oct 2026: an old saved crew (typed-in Lead, or more than Lead + 2) has to be picked again, so it still gets the reminder.
+  const selection = ((crew as { details: { selection?: CrewSelection } | null } | null)?.details?.selection) ?? null;
+  const crewSelected = !!selection && !savedCrewNeedsRepick(selection);
+  const blocker = crewReminderBlocker({ bookingKind: b.kind, bookingStatus: b.status, scheduledStart: b.scheduled_start, crewSelected, alreadySent: (prior ?? []).length > 0, jobDeleted: !!j.deleted_at, businessEmail: bz?.email ?? null }, now);
   if (blocker) return `skipped: ${blocker}`;
   const { isTestPartner } = await import("./test-send.core");
   const partnerIsTest = isTestPartner(bz ?? {});

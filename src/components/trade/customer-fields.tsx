@@ -3,7 +3,7 @@ import { VerifiedAddressInput } from "@/components/onboarding/VerifiedAddressInp
 import { OWNER_CONTACT_PERMISSION } from "@/lib/job-electrician.core";
 import type { OnsiteInput } from "@/lib/onsite-ready-check.core";
 import type { ResolvedAddress } from "@/lib/rec-onboarding.core";
-import type { AddJobField } from "@/lib/add-job-flow.core";
+import { ADDRESS_PICK_AGAIN, ADDRESS_TYPE_IN, type AddJobField } from "@/lib/add-job-flow.core";
 
 // Approved heavier Add a job (decision 237, 24 Oct 2026): bold 14px labels, 52px white fields with a 2px line (blue when
 // focused, #8A3B4A with one short red line under the field when wrong), the solid green "✓ Address found" box and the
@@ -25,6 +25,7 @@ export function CustomerFields({ value, onChange, consentLabel, offline = false,
   // Typing afterwards clears the pick; the suburb/postcode are shown, never typed.
   const [text, setText] = useState(() => addressText(value));
   const [resolved, setResolved] = useState<ResolvedAddress | null>(null);
+  const [noMatch, setNoMatch] = useState(false);
   // The address lookup answers after a delay; merge into the LATEST details so a mobile/email typed meanwhile is kept.
   const latest = useRef(value); latest.current = value;
   const field = (key: "full_name" | "phone" | "email" | "address_line" | "suburb" | "postcode", label: string, props: InputHTMLAttributes<HTMLInputElement> = {}, err?: string) => (
@@ -36,22 +37,23 @@ export function CustomerFields({ value, onChange, consentLabel, offline = false,
   const permission = consentLabel ?? OWNER_CONTACT_PERMISSION;
   return <div className="space-y-3.5" data-customer-fields>
     {field("full_name", "Owner's full name", { autoComplete: "name", maxLength: 200 }, errors.full_name)}
-    {offline
-      ? <>{field("address_line", "Address", {}, errors.address)}<div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-2">{field("suburb", "Suburb")}{field("postcode", "Postcode", { inputMode: "numeric", maxLength: 4 })}</div></>
+    {offline || value.address_typed
+      ? <>{field("address_line", "Address", {}, errors.address)}<div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-2">{field("suburb", "Suburb")}{field("postcode", "Postcode", { inputMode: "numeric", maxLength: 4 })}</div>{value.address_typed && !offline && <button type="button" className="mt-1.5 text-[14px] font-bold text-hiv-blue underline" data-address-pick-again onClick={() => onChange({ ...latest.current, address_typed: false, address_verified: false })}>{ADDRESS_PICK_AGAIN}</button>}</>
       : <div>
         <label className={FIELD_LABEL} htmlFor="customer-address">Address</label>
         <div className="mt-1.5" data-address-field data-invalid={errors.address ? "true" : undefined}>
-          <VerifiedAddressInput id="customer-address" victoriaOnly value={text} resolved={resolved} inputStyle={inputStyle(!!errors.address)} mutedColor="#5A6785" {...(addressProvider ? { provider: addressProvider } : {})}
+          <VerifiedAddressInput id="customer-address" victoriaOnly value={text} resolved={resolved} inputStyle={inputStyle(!!errors.address)} mutedColor="#5A6785" {...(addressProvider ? { provider: addressProvider } : {})} onNoMatch={setNoMatch}
             onChange={(next) => { setText(next); if (latest.current.address_verified) onChange({ ...latest.current, address_verified: false }); }}
             onSelect={(d) => {
               setResolved(d);
               if (!d) return;
               const street = (d.street ?? d.label.split(",")[0] ?? "").trim();
-              onChange({ ...latest.current, address_line: street, suburb: (d.suburb ?? "").trim(), postcode: (d.postcode ?? "").trim(), address_verified: true });
+              onChange({ ...latest.current, address_line: street, suburb: (d.suburb ?? "").trim(), postcode: (d.postcode ?? "").trim(), address_verified: true, address_typed: false });
             }} />
         </div>
         <FieldError>{errors.address}</FieldError>
         {value.address_verified && <div className="mt-2 rounded-[12px] border-2 border-hiv-green bg-[#E9FBF1] px-3.5 py-2.5 text-sm leading-[1.45]" data-address-confirmed><span className="font-bold text-hiv-green">✓ Address found</span> <span className="break-words font-medium">{resolved?.label ?? `${value.address_line}, ${value.suburb} VIC ${value.postcode}`}</span></div>}
+        {noMatch && !value.address_verified && <button type="button" className="mt-1.5 text-[14px] font-bold text-hiv-blue underline" data-address-type-in onClick={() => onChange({ ...latest.current, address_typed: true, address_verified: false })}>{ADDRESS_TYPE_IN}</button>}
         <p className="mt-1.5 text-[13px] text-sub">Start typing, then pick the address from the list.</p>
       </div>}
     {field("phone", "Mobile", { inputMode: "tel", autoComplete: "tel", maxLength: 40 }, errors.phone)}

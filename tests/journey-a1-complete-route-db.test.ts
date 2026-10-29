@@ -75,7 +75,7 @@ describe("A1 journey — step 0: harness", () => {
 describe("A1 step 1 — Add a job (decisions 34/115/282/289)", () => {
   test("basics + permission → one job, owner, property, consent, electrician choice, Mitti A1 form created once", async () => {
     const os = await import("../src/lib/onsite-ready-check.server");
-    const r = await os.startOnsiteReadyCheckFor(INST, BIZ, { full_name: "Helen Journey", address_line: "1 Journey Street", suburb: "Frankston", postcode: "3199", phone: OWNER_PHONE, email: OWNER_EMAIL, contact_permission: true, consent_by: "installer", address_verified: true } as never, { mode: "hivic" } as never);
+    const r = await os.startOnsiteReadyCheckFor(INST, BIZ, { full_name: "Helen Journey", address_line: "1 Journey Street", suburb: "Frankston", postcode: "3199", phone: OWNER_PHONE, email: OWNER_EMAIL, contact_permission: true, consent_by: "installer", address_verified: true } as never, { mode: "hivic" } as never, undefined, { leadOrigin: "owner_contacted" });
     JOB = r.jobId;
     await settle();
     expect(backgroundErrors).toEqual([]);

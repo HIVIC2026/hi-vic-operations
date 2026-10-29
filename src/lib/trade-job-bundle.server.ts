@@ -13,6 +13,8 @@ import type { workerLinksFor } from "./worker-links.server";
 import type { installerPriceView } from "./installer-price-set.server";
 import type { myOwnerQuoteFor } from "./my-owner-quote.server";
 import type { JobRole } from "./workflow";
+import type { CrewSelection, StaffOption } from "./piisa-a3.core";
+import { visitsForStage } from "./visit-allocation.core";
 
 type Sb = SupabaseClient<Database>;
 type Out<F extends (...a: never[]) => unknown> = Awaited<ReturnType<F>>;
@@ -26,6 +28,7 @@ export type Swms = Out<typeof tradeSwms>;
 export type WorkerLinks = Out<typeof workerLinksFor>;
 export type Price = Out<typeof installerPriceView>;
 export type OwnerQuote = Out<typeof myOwnerQuoteFor>;
+export type Crew = { staff: StaffOption[]; selection: CrewSelection | null };
 
 /** The section readers, injectable so the bundle's role rules and error isolation can be tested without a database. */
 export type BundleDeps = {
@@ -39,12 +42,13 @@ export type BundleDeps = {
   workerLinks: (sb: Sb, userId: string, jobId: string) => Promise<WorkerLinks>;
   price: (jobId: string, userId: string) => Promise<Price>;
   ownerQuote: (sb: Sb, userId: string, jobId: string) => Promise<OwnerQuote>;
+  crew: (jobId: string) => Promise<Crew>;
 };
 
 async function realDeps(): Promise<BundleDeps> {
-  const [tv, overview, installDays, allocation, workerLinks, price, ownerQuote] = await Promise.all([
+  const [tv, overview, installDays, allocation, workerLinks, price, ownerQuote, piisa] = await Promise.all([
     import("./trade-view.server"), import("./job-overview.server"), import("./install-days.server"), import("./visit-allocation.server"),
-    import("./worker-links.server"), import("./installer-price-set.server"), import("./my-owner-quote.server"),
+    import("./worker-links.server"), import("./installer-price-set.server"), import("./my-owner-quote.server"), import("./piisa-a3.server"),
   ]);
   return {
     overview: overview.jobOverviewFor,
@@ -57,6 +61,7 @@ async function realDeps(): Promise<BundleDeps> {
     workerLinks: workerLinks.workerLinksFor,
     price: price.installerPriceView,
     ownerQuote: (sb, userId, jobId) => ownerQuote.myOwnerQuoteFor(sb as unknown as Parameters<typeof ownerQuote.myOwnerQuoteFor>[0], userId, jobId),
+    crew: piisa.loadCrew,
   };
 }
 
@@ -75,6 +80,8 @@ export type TradeJobBundle = {
   /** Business owner only (decision 278): staff get null here, exactly as `getInstallerPriceFn` gives them. */
   price: Price | SectionError;
   ownerQuote?: OwnerQuote | SectionError | undefined;
+  /** D6: the install crew picker's saved crew (installer, install stages only). */
+  crew?: Crew | SectionError | undefined;
   mittiInvited: { invited: boolean } | SectionError;
 };
 
@@ -90,13 +97,15 @@ export async function tradeJobBundle(sb: Sb, userId: string, jobId: string, deps
   const role = isSectionError(ov) ? ov : ov.role;
   if (isSectionError(access)) {
     const refused = access;
-    return { overview, role, page: refused, installDays: refused, readyCheckTimes: refused, allocation: refused, swms: refused, workerLinks: refused, price: refused, ownerQuote: refused, mittiInvited: refused };
+    return { overview, role, page: refused, installDays: refused, readyCheckTimes: refused, allocation: refused, swms: refused, workerLinks: refused, price: refused, ownerQuote: refused, crew: refused, mittiInvited: refused };
   }
   const pre = access;
   // The installer screens only read these when `my_job_role` says installer; an electrician's visit page reads none of them.
   const installer = isSectionError(ov) ? pre.kind === "installer" : ov.role === "installer";
   const none = Promise.resolve(undefined);
-  const [page, installDays, readyCheckTimes, allocation, swms, workerLinks, price, ownerQuote] = await Promise.all([
+  // D6: the crew picker shows on install stages only (same rule as the Job page), so its saved crew is seeded only then.
+  const installStage = !isSectionError(ov) && visitsForStage(ov.row.stage).includes("install");
+  const [page, installDays, readyCheckTimes, allocation, swms, workerLinks, price, ownerQuote, crew] = await Promise.all([
     installer ? section(d.page(jobId, userId, pre)) : none,
     installer ? section(d.installDays(jobId, userId)) : none,
     installer ? section(d.readyCheckTimes(jobId, userId, pre)) : none,
@@ -107,6 +116,7 @@ export async function tradeJobBundle(sb: Sb, userId: string, jobId: string, deps
     // bundle does not even ask for a staff login.
     installer && pre.boss ? section(d.price(jobId, userId)) : Promise.resolve(null),
     installer ? section(d.ownerQuote(sb, userId, jobId)) : none,
+    installer && installStage ? section(d.crew(jobId)) : none,
   ]);
-  return { overview, role, page, installDays, readyCheckTimes, allocation, swms, workerLinks, price, ownerQuote, mittiInvited: { invited: pre.biz.mitti_account_invited === true } };
+  return { overview, role, page, installDays, readyCheckTimes, allocation, swms, workerLinks, price, ownerQuote, crew, mittiInvited: { invited: pre.biz.mitti_account_invited === true } };
 }

@@ -28,3 +28,11 @@ export const setInstallerPriceFn = createServerFn({ method: "POST" }).middleware
     const saved = await setInstallerPrice(jobId, context.userId, input);
     return { ok: true as const, setAt: saved.setAt };
   });
+
+/** Jo 28 Oct 2026: one-way switch to Home Insulation Victoria's electrician; business admin only (checked inside). */
+export const switchToHivElectricianFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { switchToHivElectrician } = await import("./installer-price-set.server");
+    return switchToHivElectrician(data.jobId, context.userId);
+  });
