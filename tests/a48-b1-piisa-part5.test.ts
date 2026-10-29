@@ -55,7 +55,7 @@ describe("PIISA Part 5 pre-fill follows what the PIESA confirms", () => {
     // A Section C with a tick missing is not signed off at all.
     for (const k of ITEMS) expect(piesaPart5Answers(noBasic).answers[k]).toBeUndefined();
   });
-  test("rectification without Section C: items are blank (and not listed as missing, the installer answers them)", () => {
+  test("rectification without Section C: items are blank (and not listed as missing, the office resolves them)", () => {
     const r = piesaPart5Answers({ ...clear(), "p4.terminations": "No", b1: FIXES, "c.tick2": "Ticked", "c.tick3": "Ticked", "c.tick4": "Ticked", "c.tick5": "Ticked" });
     expect(r.answers["p5.basic"]).toBeUndefined();
     expect(r.answers["p5.recessed"]).toBe("Yes");
