@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { getIntakeSummary } from "@/lib/portal.functions";
 import { Pill } from "./badges";
 import { openFileViewer } from "@/components/portal/file-viewer";
+import { insulationAnswersLine } from "@/lib/enquiry.core";
 
 const yn = (v: string | null | undefined) => (v ? v.charAt(0).toUpperCase() + v.slice(1).replace(/_/g, " ") : "Not answered");
 const shortWhen = (s: string) => new Date(s).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
@@ -49,6 +50,7 @@ export function IntakeSummary({ jobId }: { jobId: string }) {
       )}
       {data.postIntake?.status === "complete" && <p className="mb-2 text-xs text-muted-foreground">Initial eligibility checks complete {when(data.postIntake.completed_at)}</p>}
       {data.buildDecade && <p className="mb-2 text-sm"><span className="font-semibold">Home built:</span> {data.buildDecade} (owner declared on website)</p>}
+      {insulationAnswersLine(data.declaredExtras) && <p className="mb-2 text-sm"><span className="font-semibold">Insulation (owner said):</span> {insulationAnswersLine(data.declaredExtras)}</p>}
       {data.insulationTap && <div className="mb-4 text-sm"><p className="font-semibold">Owner-declared insulation details</p><p>{yn(data.insulationTap.answers.insulation_type)} · {yn(data.insulationTap.answers.insulation_thickness)}</p><p>House built: {yn(data.insulationTap.answers.house_built_period)} (owner declared)</p></div>}
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1 text-sm">
