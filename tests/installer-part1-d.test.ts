@@ -42,3 +42,12 @@ describe("D3 fixes visit", () => {
     expect(src("src/lib/installer-screens.core.ts").match(/export type DayKind =/g)?.length).toBe(1);
   });
 });
+describe("D3 fix round: install day reads the install form", () => {
+  test("install day mittiId comes from installFormFacts, PIESA id only for the safety check", () => {
+    const day = src("src/lib/trade-view.server.ts").slice(src("src/lib/trade-view.server.ts").indexOf("export async function tradeDay"));
+    const end = day.indexOf("export async function tradeCouldntGetIn");
+    const body = day.slice(0, end);
+    expect(body).toContain('dayKind === "install" && c.biz.mitti_account_invited === true ? (await installFormFacts(jobId)).auditId');
+    expect(body).toContain('dayKind === "install" ? installMittiId : a?.external_mitti_id');
+  });
+});
