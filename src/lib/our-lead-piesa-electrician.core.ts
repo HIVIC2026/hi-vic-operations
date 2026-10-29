@@ -54,6 +54,11 @@ export function matchUsualElectrician(usual: UsualElectrician, candidates: Usual
   return candidates.find((c) => normaliseName(c.name) === nm || normaliseName(c.trading_name) === nm) ?? null;
 }
 
+/** Our leads (29 Oct 2026): the approved REC that is the Ready Check installer's usual electrician, else null. */
+export function ourLeadUsualRecId(usual: UsualElectrician | null, candidates: UsualMatchCandidate[]): string | null {
+  return usual ? matchUsualElectrician(usual, candidates)?.business_id ?? null : null;
+}
+
 /** Owner-facing safety-check line on an our-lead quote. Decision 373 (Jo 25 Oct 2026: "our leads we always charge
  *  $349 for the PIESA regardless"): always HIV's standard price; since decision 374 the electrician is always ours and is
  *  paid their own onboarding rate (`electrician_rates`, snapshotted on the offer). */
