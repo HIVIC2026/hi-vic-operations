@@ -231,3 +231,18 @@ describe("final review: loadStyleExamples", () => {
     expect(out[0]!.at).toBe("2026-10-20T09:00:00Z");
   });
 });
+
+// Re-review follow-up: any-case sign-offs and a bare signature block are cut.
+describe("cutAtSignOff", async () => {
+  const { cutAtSignOff } = await import("../src/lib/ai-style.core");
+  for (const so of ["Kind Regards,", "Many Thanks,", "Warm Regards,", "Thank You,", "Best Regards,", "Thanks so much,", "KIND REGARDS", "Thank you so much!"]) {
+    test(`cuts ${JSON.stringify(so)}`, () => expect(cutAtSignOff(`Hi Sam,\n\nAll good.\n\n${so}\nJo\nHome Insulation Victoria`)).toBe("Hi Sam,\n\nAll good."));
+  }
+  test("cuts a bare signature block", () => {
+    expect(cutAtSignOff("Hi Sam,\n\nAll good.\n\nJo\nHome Insulation Victoria")).toBe("Hi Sam,\n\nAll good.");
+    expect(cutAtSignOff("Hi Sam,\n\nAll good.\n\nJo Smith\nHome Insulation Victoria\ninfo@x.com")).toBe("Hi Sam,\n\nAll good.");
+  });
+  test("keeps ordinary lines", () => {
+    expect(cutAtSignOff("Hi Sam,\n\nThanks for asking.\nHome Insulation Victoria does this all the time.")).toBe("Hi Sam,\n\nThanks for asking.\nHome Insulation Victoria does this all the time.");
+  });
+});

@@ -37,12 +37,19 @@ const SIGNOFF_NEXT_RE = new RegExp(`^([ \\t]*${SIGNOFF}[ \\t]*,?[ \\t]*\\n(?:[ \
 const JOB_RE = /\bHV-\d+\b/gi;
 const MAX_LEN = 1200;
 
-const SIGNOFF_WORD = "(?:[Cc]heers|[Tt]hanks|[Tt]hank you|[Mm]any thanks|[Kk]ind regards|[Bb]est regards|[Ww]arm regards|[Rr]egards|[Bb]est|CHEERS|THANKS)";
+// Sign-off words in any case ("Kind Regards", "KIND REGARDS"); the optional name after them stays capitalised-only.
+const anyCase = (w: string) => [...w].map((ch) => /[a-z]/i.test(ch) ? `[${ch.toLowerCase()}${ch.toUpperCase()}]` : ch === " " ? "[ \\t]+" : ch).join("");
+const SIGNOFF_WORD = `(?:${["thank you so much", "thanks so much", "many thanks", "thank you", "kind regards", "best regards", "warm regards", "regards", "cheers", "thanks", "best"].map(anyCase).join("|")})`;
 const SIGNOFF_LINE_RE = new RegExp(`^[ \\t]*${SIGNOFF_WORD}[ \\t]*[,!.]?[ \\t]*(?:[A-Z][a-z'’-]+(?:[ \\t]+[A-Z][a-z'’-]+)?)?[ \\t]*[,!.]?[ \\t]*(?::-?\\))?[ \\t]*$`);
-/** Jo's own words only: drops the sign-off line and everything after it (her name, signature block). */
+const SHORT_NAME_LINE_RE = /^[ \t]*[A-Z][a-z'’-]+(?:[ \t]+[A-Z][a-z'’-]+)?[ \t]*$/;
+const BUSINESS_LINE_RE = /^[ \t]*Home Insulation Victoria[ \t]*$/i;
+/** Jo's own words only: drops the sign-off line and everything after it (her name, signature block).
+ *  With no sign-off word, a short name line followed by "Home Insulation Victoria" starts the signature. */
 export function cutAtSignOff(reply: string): string {
   const lines = reply.replace(/\r/g, "").split("\n");
-  const at = lines.findIndex((l, i) => i > 0 && l.trim() !== "" && SIGNOFF_LINE_RE.test(l));
+  let at = lines.findIndex((l, i) => i > 0 && l.trim() !== "" && SIGNOFF_LINE_RE.test(l));
+  const sig = lines.findIndex((l, i) => i > 1 && BUSINESS_LINE_RE.test(l) && SHORT_NAME_LINE_RE.test(lines[i - 1]!));
+  if (sig !== -1 && (at === -1 || sig - 1 < at)) at = sig - 1;
   return (at === -1 ? lines : lines.slice(0, at)).join("\n").trim();
 }
 
