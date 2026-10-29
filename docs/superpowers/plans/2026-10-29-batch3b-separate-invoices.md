@@ -22,7 +22,7 @@
 
 ## Review Focus
 
-1. Owner pays the fixes by card while the 10% deposit is also due → money lands on the fixes invoice only; the deposit step is unchanged (Task 4 `fixes card stays on fixes`).
+1. Order is: $349 at acceptance → fixes paid in full before the fixes visit is booked → 10% deposit only when booking the install → balance on install day. Fixes money (card or bank) lands on the fixes invoice only and never counts toward the 10% deposit or balance (Task 4 `fixes card stays on fixes`).
 2. A newer fixes quote replaces an accepted one → one invoice per quote; the gate follows the newest; an older unpaid fixes invoice raises one Needs me row (Task 2 `superseded fixes`).
 3. Xero create fails for a fixes/repeat invoice → retried on sync, one `invoice_failed` Needs me row naming the kind (Tasks 2, 3).
 4. Second reopen → a separate "safety check 3" invoice; the first repeat invoice untouched (Task 3 `second repeat`).
@@ -62,7 +62,7 @@
 
 **Interfaces — Produces:** `type JobInvoices = { install: InvoiceRow | null; fixes: InvoiceRow | null; repeat: InvoiceRow | null }`; `paymentSteps(plan, paid: { install: number; fixes: number; repeat: number }, facts, nowIso)`; `stepInvoice(view, step: PaymentStepKey): InvoiceRow | null`.
 
-- [ ] Failing tests: safety check / deposit / balance thresholds from install money only (same numbers as today without fixes); fixes step paid ⇔ fixes invoice paid in full; repeat step paid ⇔ repeat invoice paid in full; `fixes card stays on fixes` → checkout for `fixes` carries the fixes invoice id and amount = fixes outstanding, deposit step unchanged; fixes scheduling gate opens only when the newest fixes invoice is paid; repeat visit booking waits for the repeat invoice; bank reference for fixes = fixes invoice number; owner pay card lists each step with its own amount.
+- [ ] Failing tests: safety check / deposit / balance thresholds from install money only (same numbers as today without fixes); fixes step paid ⇔ fixes invoice paid in full; repeat step paid ⇔ repeat invoice paid in full; `fixes card stays on fixes` → checkout for `fixes` carries the fixes invoice id and amount = fixes outstanding; afterwards the 10% deposit is still unpaid and only requested once the install is being booked; fixes scheduling gate opens only when the newest fixes invoice is paid; repeat visit booking waits for the repeat invoice; bank reference for fixes = fixes invoice number; owner pay card lists each step with its own amount.
 - [ ] RED → implement → GREEN (+ `tests/payments*`, `tests/stripe*`, `tests/*my-job*`, `tests/batch3a-*`) → commit `feat(payments): each step is paid on its own invoice`.
 
 ### Task 5: Readers that assumed one invoice
