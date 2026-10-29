@@ -8,6 +8,8 @@ import { firstNameOf } from "./email-reply.core";
 const loose = admin as unknown as SupabaseClient;
 export const AUTO_SEND_SWITCH_EVENT = "ai_auto_send_switched";
 export const AUTO_SEND_SAMPLES_NEEDED = 10;
+const PAGE_SIZE = 100;
+const MAX_PAGES = 10;
 
 export type AutoSendSample = {
   eventId: string; at: string; body: string; kind: AiAutoKind; ownerFirstName: string | null; jobNumber: string | null;
@@ -27,16 +29,26 @@ export async function autoSendOn(): Promise<boolean> {
 
 /** The latest drafts (up to 10) of an auto-send kind, leaving out QA/TEST jobs. */
 export async function autoSendSamples(): Promise<AutoSendSample[]> {
-  const { data: drafts, error } = await loose.from("workflow_events").select("id, job_id, created_at, details").eq("event_type", AI_EMAIL_DRAFT_EVENT)
-    .in("details->>auto_kind", [...AUTO_SEND_KINDS]).order("created_at", { ascending: false }).limit(100);
-  if (error) throw new Error(error.message);
-  const rows = ((drafts ?? []) as { id: string; job_id: string | null; created_at: string; details: Record<string, unknown> | null }[]).filter((r) => r.job_id);
-  if (!rows.length) return [];
-  const jobIds = [...new Set(rows.map((r) => r.job_id!))];
-  const { data: jobs, error: jobError } = await loose.from("jobs").select("id, job_number, source, owner_id").in("id", jobIds);
-  if (jobError) throw new Error(jobError.message);
-  const jobById = new Map(((jobs ?? []) as { id: string; job_number: string | null; source: string | null; owner_id: string | null }[]).map((j) => [j.id, j]));
-  const real = rows.filter((r) => { const j = jobById.get(r.job_id!); return !!j && j.source !== "qa_test"; }).slice(0, AUTO_SEND_SAMPLES_NEEDED);
+  type Draft = { id: string; job_id: string | null; created_at: string; details: Record<string, unknown> | null };
+  type JobRow = { id: string; job_number: string | null; source: string | null; owner_id: string | null };
+  const jobById = new Map<string, JobRow>();
+  const real: Draft[] = [];
+  // Page through the newest drafts: QA/TEST jobs run every morning and can bury the real ones.
+  for (let page = 0; page < MAX_PAGES && real.length < AUTO_SEND_SAMPLES_NEEDED; page++) {
+    const { data: drafts, error } = await loose.from("workflow_events").select("id, job_id, created_at, details").eq("event_type", AI_EMAIL_DRAFT_EVENT)
+      .in("details->>auto_kind", [...AUTO_SEND_KINDS]).order("created_at", { ascending: false }).range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+    if (error) throw new Error(error.message);
+    const batch = (drafts ?? []) as Draft[];
+    const rows = batch.filter((r) => r.job_id);
+    const jobIds = [...new Set(rows.map((r) => r.job_id!))];
+    for (let i = 0; i < jobIds.length; i += 50) {
+      const { data: jobs, error: jobError } = await loose.from("jobs").select("id, job_number, source, owner_id").in("id", jobIds.slice(i, i + 50));
+      if (jobError) throw new Error(jobError.message);
+      for (const j of (jobs ?? []) as JobRow[]) jobById.set(j.id, j);
+    }
+    for (const r of rows) { const j = jobById.get(r.job_id!); if (j && j.source !== "qa_test" && real.length < AUTO_SEND_SAMPLES_NEEDED) real.push(r); }
+    if (batch.length < PAGE_SIZE) break;
+  }
   if (!real.length) return [];
   const ids = real.map((r) => r.id);
   const ownerIds = [...new Set(real.map((r) => jobById.get(r.job_id!)!.owner_id).filter((x): x is string => !!x))];

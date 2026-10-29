@@ -10,7 +10,7 @@ let isAdmin = true;
 const inserts: Row[] = [];
 
 function from(table: string) {
-  let rows = [...(tables[table] ?? [])]; let ins: Row | null = null; let lim = Infinity;
+  let rows = [...(tables[table] ?? [])]; let ins: Row | null = null; let lim = Infinity; let from0 = 0;
   const q: Record<string, unknown> = {};
   const get = (r: Row, path: string) => path.includes("->>") ? r["details"]?.[path.split("->>")[1]!] : r[path];
   Object.assign(q, {
@@ -20,10 +20,11 @@ function from(table: string) {
     in: (c: string, vs: unknown[]) => { rows = rows.filter((r) => vs.includes(get(r, c))); return q; },
     order: (c: string, o: { ascending: boolean }) => { rows.sort((a, b) => (a[c] < b[c] ? -1 : 1) * (o.ascending ? 1 : -1)); return q; },
     limit: (n: number) => { lim = n; return q; },
+    range: (a: number, b: number) => { from0 = a; lim = b - a + 1; return q; },
     then: (res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) => {
       if (failAll) return Promise.resolve({ data: null, error: { message: "boom" } }).then(res, rej);
       if (ins) { inserts.push({ table, ...ins }); (tables[table] ??= []).push({ created_at: "9999", ...ins }); return Promise.resolve({ data: null, error: null }).then(res, rej); }
-      return Promise.resolve({ data: rows.slice(0, lim), error: null }).then(res, rej);
+      return Promise.resolve({ data: rows.slice(from0, from0 + lim), error: null }).then(res, rej);
     },
   });
   return q;
@@ -104,6 +105,16 @@ describe("switchAutoSend", () => {
     seed(0);
     await switchAutoSend(false, "u1");
     expect(inserts[0]!["details"]).toEqual({ on: false });
+  });
+});
+
+describe("paging and job spread", () => {
+  test("150 newer QA drafts do not bury 12 real ones", async () => {
+    seed(12);
+    for (let i = 0; i < 150; i++) tables["workflow_events"]!.push({ id: `q${i}`, job_id: "jq", event_type: "email_ai_draft", created_at: `2026-12-01T${String(i).padStart(4, "0")}`, details: { body: "qa", auto_kind: "job_status" } });
+    expect(await autoSendSamples()).toHaveLength(10);
+    await switchAutoSend(true, "u1");
+    expect(inserts).toHaveLength(1);
   });
 });
 
