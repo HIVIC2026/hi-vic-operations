@@ -159,13 +159,8 @@ export function setupComplete(done: Partial<Record<SetupKey, boolean>>): boolean
   return SETUP_STEPS.filter((s) => !("optional" in s && s.optional)).every((s) => done[s.key]);
 }
 
-/** Before-you-start: Start stays grey until all three phone checks are ticked. */
-export const PRESTART_CHECKS = [
-  { title: "Location on for your camera", sub: "So every photo is geotagged." },
-  { title: "Battery over 50%", sub: "Bring a power bank if you're low." },
-  { title: "Onsite form open on this job", sub: "" },
-] as const;
-export function prestartReady(ticks: boolean[]): boolean { return PRESTART_CHECKS.every((_, i) => !!ticks[i]); }
+/** Before-you-start: Start stays grey until every phone check is ticked. */
+export function prestartReady(ticks: boolean[], checks: readonly string[]): boolean { return checks.every((_, i) => !!ticks[i]); }
 
 import type { DayKind } from "./installer-screens.core";
 export type { DayKind };

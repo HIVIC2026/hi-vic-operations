@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { couldntGetInDay } from "../src/lib/trade-view.core";
+import { couldntGetInDay, prestartReady } from "../src/lib/trade-view.core";
+import * as tv from "../src/lib/trade-view.core";
 import { DAY_WHAT, dayNext } from "../src/lib/installer-screens.core";
 import { FIXES_FORM_LINK_LABEL } from "../src/lib/fixes-day.core";
 const src = (p: string) => readFileSync(p, "utf8");
@@ -117,5 +118,21 @@ describe("D8 remembered Start", () => {
     expect(page).toContain("useRememberedStart(`hiv-started-${jobId}-${data?.start ?? \"\"}`)");
     expect(page).toContain("useRememberedStart(");
     expect(page).not.toContain("setStarted(true)");
+  });
+});
+
+describe("D9 tidy", () => {
+  test("one phone-check list, no dead messages, one install-finished button", () => {
+    expect("PRESTART_CHECKS" in tv).toBe(false);
+    expect("START_LABEL" in tv).toBe(false);
+    expect(prestartReady([true, true, false], ["a", "b", "c"])).toBe(false);
+    expect(prestartReady([true, true, true], ["a", "b", "c"])).toBe(true);
+    const all = src("src/lib/trade-view.core.ts") + src("src/components/trade/TradePrestart.tsx") + src(DAY);
+    for (const dead of ["Battery over 50%", "disabledReason", "still setting up the onsite form"]) expect(all).not.toContain(dead);
+    const day = src("src/lib/trade-view.server.ts").slice(src("src/lib/trade-view.server.ts").indexOf("export async function tradeDay"), src("src/lib/trade-view.server.ts").indexOf("export async function tradeCouldntGetIn"));
+    expect(day).not.toContain('{ kind: "quoted" } : { kind: "quoted" }');
+    expect(day).not.toContain("mittiReady");
+    expect(src(DAY)).toContain("<InstallFinishedButton run={onDone} />");
+    expect(src(DAY)).not.toContain("The install is finished");
   });
 });

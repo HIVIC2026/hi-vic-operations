@@ -24,7 +24,7 @@ export function useRememberedStart(key: string): [boolean, () => void] {
   return [started, markStarted];
 }
 
-export function TradePrestart({ jobId, kind, channel, label, onStart, disabledReason }: { jobId: string; kind: DayKind; channel?: string | null; label: string; onStart: () => void | Promise<void>; disabledReason?: string | null }) {
+export function TradePrestart({ jobId, kind, channel, label, onStart }: { jobId: string; kind: DayKind; channel?: string | null; label: string; onStart: () => void | Promise<void> }) {
   const key = `hiv-prestart-${jobId}`;
   const [ticks, setTicks] = useState<boolean[]>([false, false, false]);
   const checks = dayChecks({ kind, channel: channel ?? null });
@@ -33,15 +33,14 @@ export function TradePrestart({ jobId, kind, channel, label, onStart, disabledRe
   const pricingTick = kind === "ready_check" && channel === "hivic_sourced";
   useEffect(() => { try { const v = JSON.parse(localStorage.getItem(key) ?? "null"); if (Array.isArray(v)) setTicks(pricingTick ? [!!v[0], !!v[1], false] : v); } catch { /* ignore */ } }, [key, pricingTick]);
   const flip = (i: number) => { const n = ticks.map((t, j) => (j === i ? !t : t)); setTicks(n); try { localStorage.setItem(key, JSON.stringify(pricingTick ? [n[0], n[1], false] : n)); } catch { /* ignore */ } };
-  const ready = prestartReady(ticks);
+  const ready = prestartReady(ticks, checks);
   return (
     <>
       <div className="mt-3" data-prestart-checks>
         {checks.map((c, i) => <CheckLine key={c} on={!!ticks[i]} onClick={() => flip(i)}>{c}</CheckLine>)}
         {pricingTick && <p className="pl-8 text-[13px] leading-[1.45] text-sub" data-hivic-pricing-confirmation>{HIVIC_READY_CHECK_PRICING_TICK}</p>}
       </div>
-      <PrimaryButton className="mt-2.5" disabled={!ready || !!disabledReason} onClick={onStart}>{!ready ? "Tick all 3 to start" : label}</PrimaryButton>
-      {ready && disabledReason && <p className="mt-2 text-center text-[13px] text-sub">{disabledReason}</p>}
+      <PrimaryButton className="mt-2.5" disabled={!ready} onClick={onStart}>{!ready ? "Tick all 3 to start" : label}</PrimaryButton>
     </>
   );
 }

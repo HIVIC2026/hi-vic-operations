@@ -13,7 +13,7 @@ import { TradeShell } from "@/components/trade/TradeShell";
 import { TradePrestart, useRememberedStart } from "@/components/trade/TradePrestart";
 import { PiisaCrewPicker } from "@/components/trade/PiisaCrewPicker";
 import { InstallerFinalDeclaration } from "@/components/portal/assignment";
-import { OneTapAction } from "@/components/trade/one-tap-action";
+import { InstallFinishedButton } from "@/components/trade/InstallFinishedButton";
 import { onsiteFormStatus } from "@/lib/onsite-ready-check.functions";
 import { confirmHivicReadyCheckPricingFn, getTradeDayExtras, getTradeDayView, tradeCouldntGetInFn } from "@/lib/trade-view.functions";
 import { completeInstallation } from "@/lib/portal.functions";
@@ -94,7 +94,7 @@ function DayPage() {
               {next.signRebate ? signRebate
                 : data.mittiId ? (started
                   ? <div className="mt-3" data-mitti-handoff><MittiFormLink auditId={data.mittiId} className={primaryLinkClass}>{next.button}</MittiFormLink><Note className="text-center">Your answers and photos come back to this job. Press Complete in Mitti when it's fully finished.</Note>{data.kind !== "ready_check" && <NoFormNoPay className="mt-3" />}</div>
-                  : <TradePrestart jobId={jobId} kind={data.kind} channel={data.channel} label={next.button} onStart={async () => { if (data.kind === "ready_check" && data.channel === "hivic_sourced") { try { await confirmPricing({ data: { jobId } }); } catch (e) { toast.error(e instanceof Error ? e.message : "Could not start the Ready Check."); return; } } markStarted(); }} disabledReason={data.kind === "safety_check" && !data.mittiReady && !data.mittiId ? "The office is still setting up the onsite form. Your result will show here once it's in." : null} />)
+                  : <TradePrestart jobId={jobId} kind={data.kind} channel={data.channel} label={next.button} onStart={async () => { if (data.kind === "ready_check" && data.channel === "hivic_sourced") { try { await confirmPricing({ data: { jobId } }); } catch (e) { toast.error(e instanceof Error ? e.message : "Could not start the Ready Check."); return; } } markStarted(); }} />)
                 : <div className="mt-3" data-mitti-setup>
                     <p className="text-sm font-semibold">Your form is being set up.</p>
                     <p className="mt-1 text-sm text-sub">{data.mittiInvited ? "Home Insulation Victoria is preparing the Mitti form. It appears on this job when ready." : "Your Mitti account isn't invited yet, so the form can't open. Home Insulation Victoria has to invite you."}</p>
@@ -149,7 +149,7 @@ function SignRebate({ jobId, recorded, onDone, checks, declaration, then }: { jo
     <div className="mt-3 space-y-3" data-sign-rebate>
       {checks.length > 0 && <ul data-sign-rebate-checks>{checks.map((c) => <li key={c} className="flex min-h-9 items-center gap-2.5 text-sm"><span aria-hidden className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md bg-hiv-green text-[13px] font-bold text-white">✓</span>{c}</li>)}</ul>}
       {!recorded
-        ? <OneTapAction label={<><Check /> The install is finished</>} busyLabel="Recording…" confirm="Confirm the install is finished on site? Only do this once the Mitti install form is Complete." confirmLabel="Yes, it's finished" run={onDone} />
+        ? <InstallFinishedButton run={onDone} />
         : <>
           <p className="rounded-[12px] bg-paper p-3 text-sm leading-[1.5]" data-declaration-preview>{declaration}</p>
           <InstallerFinalDeclaration jobId={jobId} />

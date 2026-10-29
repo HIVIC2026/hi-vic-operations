@@ -311,15 +311,13 @@ export async function tradeDay(jobId: string, userId: string) {
   const c = await requireTradeJob(userId, jobId);
   const kinds = c.kind === "installer" ? ["installation", "ready_check"] : ["assessment", "rectification"];
   // Speed (decision 280): every read here depends only on the job and the business — one round trip, not three.
-  const [{ data: bks }, { data: j }, { data: a }, { data: rc }, { data: cm }, { data: q }, { data: miss }, { data: ws }, { data: fixes }, { data: mine }, { data: cgi }] = await Promise.all([
+  const [{ data: bks }, { data: j }, { data: a }, { data: rc }, { data: cm }, { data: miss }, { data: fixes }, { data: mine }, { data: cgi }] = await Promise.all([
     admin.from("bookings").select("kind, scheduled_start, scheduled_end, status").eq("job_id", jobId).in("kind", kinds as never).neq("status", "cancelled").order("scheduled_start", { ascending: false }),
     admin.from("jobs").select("job_number, stage, channel, eligibility_outcome, owners(full_name, phone), properties(address_line, suburb, postcode)").eq("id", jobId).single(),
     admin.from("assessments").select("status, piesa_outcome, external_mitti_id").eq("job_id", jobId).maybeSingle(),
     admin.from("ready_checks").select("status, submitted_at, external_mitti_id").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("ceiling_measurements").select("external_source, external_id").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
-    admin.from("quotes").select("id").eq("job_id", jobId).eq("kind", "installation").limit(1).maybeSingle(),
     admin.from("evidence_requirements").select("label, category, gate").eq("job_id", jobId).eq("required", true).in("status", ["outstanding", "rejected"]),
-    admin.from("workflow_settings").select("mitti_piesa_template_id").eq("id", 1).maybeSingle(),
     admin.from("rectification_items").select("description").eq("job_id", jobId).neq("status", "cancelled"),
     admin.from("bookings").select("status").eq("job_id", jobId).eq("business_id", c.biz.id).in("kind", kinds as never),
     admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "trade_couldnt_get_in").order("created_at", { ascending: false }).limit(1).maybeSingle(),
@@ -339,7 +337,7 @@ export async function tradeDay(jobId: string, userId: string) {
   // Decision 214: after a report the booking is cancelled, so the day reads from the report itself, not a booking.
   if (cgiNow) outcome = { kind: "couldnt_get_in", ...cgiNow };
   else if (dayKind === "safety_check" && a?.status === "complete") outcome = a.piesa_outcome === "pass" ? { kind: "all_clear" } : { kind: "fixes", items: (fixes ?? []).map((f) => f.description) };
-  else if (dayKind === "ready_check" && (rc?.status === "submitted" || j?.stage === "ready_check_complete" || j?.stage === "measured_estimate_ready" || j?.stage === "measured_quote_accepted")) outcome = j?.eligibility_outcome === "does_not_appear_eligible" ? { kind: "not_eligible", reason: "Existing insulation doesn't qualify for this rebate." } : q ? { kind: "quoted" } : { kind: "quoted" };
+  else if (dayKind === "ready_check" && (rc?.status === "submitted" || j?.stage === "ready_check_complete" || j?.stage === "measured_estimate_ready" || j?.stage === "measured_quote_accepted")) outcome = j?.eligibility_outcome === "does_not_appear_eligible" ? { kind: "not_eligible", reason: "Existing insulation doesn't qualify for this rebate." } : { kind: "quoted" };
   else if (dayKind === "install" && ["evidence_outstanding", "ap_review", "ready_for_veec", "complete"].includes(j?.stage ?? "")) { const open = (await import("./ready-check-chase.core")).withoutRetiredInstallDayPhotos(miss ?? []); outcome = open.length ? { kind: "missing", items: open.map((m) => m.label) } : { kind: "wrap" }; }
   const shownKind = cgiNow ? (cgiNow.visit === "install" ? "install" : "ready_check") : dayKind;
   return {
@@ -348,7 +346,7 @@ export async function tradeDay(jobId: string, userId: string) {
     address: showContact ? fullAddress(p?.address_line, p?.suburb, p?.postcode) : null, contactHidden: !showContact, start: b?.scheduled_start ?? null, end: b?.scheduled_end ?? null, outcome,
     // Mitti stays invisible to partners until the office ticks "Mitti account invited".
     mittiInvited: c.biz.mitti_account_invited === true,
-    mittiReady: dayKind === "safety_check" ? !!ws?.mitti_piesa_template_id : false, mittiId: c.biz.mitti_account_invited === true ? (dayKind === "ready_check" ? rc?.external_mitti_id ?? (cm?.external_source === "mitti" ? cm.external_id : null) : dayKind === "fixes" ? fixesMittiId : dayKind === "install" ? installMittiId : a?.external_mitti_id) ?? null : null,
+    mittiId: c.biz.mitti_account_invited === true ? (dayKind === "ready_check" ? rc?.external_mitti_id ?? (cm?.external_source === "mitti" ? cm.external_id : null) : dayKind === "fixes" ? fixesMittiId : dayKind === "install" ? installMittiId : a?.external_mitti_id) ?? null : null,
   };
 }
 
