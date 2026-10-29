@@ -22,3 +22,27 @@ describe("retired payment wording (batch 3a task 4)", () => {
     expect(s).not.toMatch(/paymentPlan\(\{ quoteTotalCents: Math\.round\(Number\(i\.total_inc_gst\)/);
   });
 });
+
+describe("owner sees the After-the-PIESA row with plan figures (fix round 1)", () => {
+  test("owner read is guarded to the owner's own job and returns plan figures only", () => {
+    const s = read("src/lib/payments.functions.ts");
+    const i = s.indexOf("export const getOwnerPaymentPlan");
+    const body = s.slice(i, s.indexOf("export const refreshPayNowLink"));
+    expect(body).toContain('requireJobRole(context.supabase, data.jobId, ["owner"])');
+    expect(body).toContain("v.plan.installDepositCents");
+    expect(body).not.toMatch(/total_inc_gst/);
+  });
+  test("panel shows the row to owners and office from the plan, never the invoice total", () => {
+    const s = read("src/components/portal/panels.tsx");
+    expect(s).toContain("<AfterSafetyCheckRow jobId={jobId} invoiceId={i.id} isAdmin={isAdmin} />");
+    expect(s).not.toMatch(/paymentPlan\(/);
+  });
+  test("fixes on the invoice do not change the 10%: install price only", async () => {
+    const { paymentPlan, planQuoteTotalCents } = await import("../src/lib/payments.core");
+    const quote = 500000, fixes = 120000, piesa = 34900;
+    const q = planQuoteTotalCents({ invoiceTotalCents: quote + fixes, quoteTotalCents: quote, fixesCents: fixes });
+    const plan = paymentPlan({ quoteTotalCents: q, safetyCheckCents: piesa, fixesCents: fixes });
+    expect(plan.installDepositCents).toBe(Math.floor((quote - piesa) * 0.1 + 0.5));
+    expect(plan.installDepositCents).not.toBe(Math.floor((quote + fixes - piesa) * 0.1 + 0.5));
+  });
+});

@@ -2,7 +2,7 @@ import { tradeBlockerLines } from "@/lib/portal-presentation.core";
 import { RectWindowChoice, useRectWindows } from "./rectification-times";
 import { useRef, useState } from "react";
 import { requiredDepositCents } from "@/lib/payment-gate.core";
-import { getJobPayments, refreshPayNowLink } from "@/lib/payments.functions";
+import { getJobPayments, getOwnerPaymentPlan, refreshPayNowLink } from "@/lib/payments.functions";
 import { QUOTE_EXPIRED_OWNER_MESSAGE, quoteExpiresAt, quoteIsExpired } from "@/lib/quote-expiry.core";
 import { ownerPanelQuotes } from "@/lib/owner-quote-visibility.core";
 import { veecDiscountLabel } from "@/lib/estimate.core";
@@ -441,12 +441,19 @@ function PaymentStepsBlock({ jobId, invoiceId, hasXeroInvoice }: { jobId: string
   );
 }
 
-/** Install deposit and balance from the server payment plan: 10% of the install price only (quote total minus the PIESA line, never the fixes). */
-function AfterSafetyCheckRow({ jobId, invoiceId }: { jobId: string; invoiceId: string }) {
-  const load = useServerFn(getJobPayments);
-  const { data: p } = useQuery({ queryKey: ["job-payments", jobId], queryFn: () => load({ data: { jobId } }) });
+/** Install deposit and balance from the server payment plan: 10% of the install price only (quote total minus the PIESA line, never the fixes). Office and owner read the same plan. */
+function AfterSafetyCheckRow({ jobId, invoiceId, isAdmin }: { jobId: string; invoiceId: string; isAdmin: boolean }) {
+  const loadOffice = useServerFn(getJobPayments);
+  const loadOwner = useServerFn(getOwnerPaymentPlan);
+  const { data: p } = useQuery({
+    queryKey: ["after-safety-check", jobId, isAdmin],
+    queryFn: async () => {
+      if (isAdmin) { const v = await loadOffice({ data: { jobId } }); return v ? { invoiceId: v.invoiceId, installDepositCents: v.plan.installDepositCents, balanceCents: v.plan.balanceCents } : null; }
+      return loadOwner({ data: { jobId } });
+    },
+  });
   if (!p || p.invoiceId !== invoiceId) return null;
-  return <div><dt className="text-xs text-muted-foreground">After the PIESA payment</dt><dd className="font-medium">{aud(p.plan.installDepositCents / 100)} (10%) to book the install · {aud(p.plan.balanceCents / 100)} on install day</dd></div>;
+  return <div><dt className="text-xs text-muted-foreground">After the PIESA payment</dt><dd className="font-medium">{aud(p.installDepositCents / 100)} (10%) to book the install · {aud(p.balanceCents / 100)} on install day</dd></div>;
 }
 
 export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: boolean }) {
@@ -481,7 +488,7 @@ export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: bool
                 <div><dt className="text-xs text-muted-foreground">Total accepted price (inc GST)</dt><dd className="font-medium">{aud(i.total_inc_gst)}</dd></div>
                 <div><dt className="text-xs text-muted-foreground">Pre Insulation Electrical Safety Assessment (PIESA) payment</dt><dd className="font-medium" data-testid="safety-check-payment">{aud(i.deposit_amount)} {Number(i.total_paid) >= Number(i.deposit_amount) ? <span className="text-xs text-success">Paid</span> : <span className="text-xs text-danger">Not paid</span>}</dd></div>
                 {safetyOverrides.length > 0 && <div className="sm:col-span-3" data-testid="safety-check-payment-override"><p className="rounded bg-warning-soft px-2 py-1 text-xs font-semibold text-warning">Payment block overridden — the Pre Insulation Electrical Safety Assessment (PIESA) payment has not been received. The job is allowed to proceed on the office's recorded override.</p></div>}
-                {isAdmin && <AfterSafetyCheckRow jobId={jobId} invoiceId={i.id} />}
+                <AfterSafetyCheckRow jobId={jobId} invoiceId={i.id} isAdmin={isAdmin} />
                 <div><dt className="text-xs text-muted-foreground">Paid to date</dt><dd className="font-medium">{aud(i.total_paid)}</dd></div>
                 <div><dt className="text-xs text-muted-foreground">Remaining balance</dt><dd className="font-medium">{aud(remaining)} {i.balance_paid_at && <span className="text-xs text-success">fully paid {fmtDate(i.balance_paid_at)}</span>}</dd></div>
                 <div><dt className="text-xs text-muted-foreground">Final due date (installation day)</dt><dd className="font-medium">{i.balance_due_date ? fmtDate(i.balance_due_date) : <span className="text-xs text-muted-foreground">Pending – set when installation is booked</span>}</dd></div>
