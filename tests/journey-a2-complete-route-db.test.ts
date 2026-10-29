@@ -346,7 +346,7 @@ describe("A2 step 6 — the electrician's safety check (PIESA) with NO repair wo
     expect([...providers.mitti.audits.values()].filter((a) => a.template_id === TPL_A3)).toHaveLength(1);
     expect(await q("select id from workflow_events where job_id=$1 and event_type='piesa_autoform_failed'", [JOB])).toHaveLength(0);
   });
-  test("the A3 says no repair work: the PIESA result is a pass, but Complete PIESA still needs the electrician's own 'No electrical fixes required' tick", async () => {
+  test("the A3 says no repair work: the PIESA result is a pass and Complete PIESA needs no tick (C4)", async () => {
     const forms = await import("./helpers/journey-forms");
     const today = melb(new Date());
     const def = forms.completedA3Pass({ inspectionDate: today, capturedAt: new Date().toISOString(), mediaPrefix: "a2-a3" });
@@ -365,9 +365,8 @@ describe("A2 step 6 — the electrician's safety check (PIESA) with NO repair wo
     expect(a).toMatchObject({ piesa_outcome: "pass", mitti_completed: true });
     expect(a!.no_rectification_confirmed).not.toBe(true);
     const elecCtx = { userId: ELEC, supabase: asUser(ELEC), claims: {} };
-    await expect(pf.completeAssessment({ data: { jobId: JOB }, context: elecCtx })).rejects.toThrow(/No electrical fixes required/);
-    // The electrician ticks it on their job page (the same saveAssessment the page uses), then Complete PIESA.
-    await pf.saveAssessment({ data: { jobId: JOB, patch: { no_rectification_confirmed: true } }, context: elecCtx });
+    // C4: a live A3 pass with no fixes items needs no tick (the portal tick is gone). Set it directly as journey.server.ts does; Complete PIESA must work either way.
+    await admin.from("assessments").update({ no_rectification_confirmed: true }).eq("job_id", JOB);
     await pf.completeAssessment({ data: { jobId: JOB }, context: elecCtx });
     await settle();
     debug("A2-PIESA-DONE", await stageOf(JOB), await recent(JOB, 14), (await comms(JOB)).slice(-6).map((x) => `${x.channel}:${x.source_event}:${x.delivery_status}`));

@@ -54,7 +54,10 @@ export async function completePiesaAssessment(data: CompletePiesaInput, userId: 
   // A live A3 that says repair work is needed carries the electrician's own priced repair list (decisions 305/324):
   // that IS today's fixes quote (generated from the A3 after completion, decision 354), so no portal items are needed.
   const a3Priced = liveA3 && a.piesa_outcome === "fail" && (await import("./fixes-price.core")).fixesPriceSource(shortFrom("piesa", (a.mitti_raw_snapshot as { label: string; value: string | null }[] | null) ?? [])).path === "a4_price";
-  if (!rectCount && a.no_rectification_confirmed !== true && !a3Priced) throw new WorkflowError("Add the electrical fixes items for today's quote, or tick \"No electrical fixes required\", before completing the PIESA.");
+  // Mitti-only PIESA (C4, Jo 28 Oct 2026): the portal tick is gone. A live A3 whose answer is "No repair work needed" (a pass)
+  // with no required fixes items IS "no electrical fixes required". Older / non-live forms still need the explicit tick.
+  const a3NoFixes = liveA3 && a.piesa_outcome === "pass" && !rectCount;
+  if (!rectCount && a.no_rectification_confirmed !== true && !a3Priced && !a3NoFixes) throw new WorkflowError("Add the electrical fixes items for today's quote, or tick \"No electrical fixes required\", before completing the PIESA.");
   if (rectCount && a.no_rectification_confirmed === true) throw new WorkflowError("You ticked \"No electrical fixes required\" but electrical fixes items are listed – untick it or remove the items.");
 
   // Rectification needed: the electrician also gives estimated hours + 3-5 windows (asked once, here) — unless they were

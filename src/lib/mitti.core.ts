@@ -580,8 +580,8 @@ export function parseAudit(audit: Any) {
   if (/no rectification required|rectification work is not required/.test(po)) issues.push("Mitti reports no electrical fixes required (preliminary B1 only) – PIESA clearance stays pending until confirmed in the portal.");
   else if (/rectification required|rectification work is required|rectification work is not possible/.test(po)) patch.piesa_outcome = "fail";
   else if (liveRepair === true) patch.piesa_outcome = "fail";
-  // No = pass, but the portal's explicit "No electrical fixes required" tick stays the electrician's own step at
-  // Complete PIESA (never pre-ticked from a form).
+  // No = pass. Complete PIESA treats a live A3 pass with no fixes items as "no electrical fixes required" (C4); the
+  // tick is never pre-set from a form.
   else if (liveRepair === false) patch.piesa_outcome = "pass";
   else issues.push("PIESA outcome not recorded or ambiguous – stays pending.");
 
