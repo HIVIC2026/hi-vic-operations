@@ -459,8 +459,9 @@ async function changeReplied(jobId: string, messageId: string): Promise<boolean>
 }
 
 /** Decision 386: ONE automatic reply to a matched owner's standard question, before any decision-244 draft. Returns
- *  whether the draft must be skipped (a reply went, or none is needed). Never throws: any failure = the draft as before. */
-async function ownerAutoReply(jobIds: string[], m: MailMessage, mailbox: string | null, counts?: SyncCounts): Promise<boolean> {
+ *  whether the draft must be skipped (a reply went, or none is needed). Never throws: any failure = the draft as before.
+ *  `autoSend`: only the automatic sync queues the AI draft to send itself (step 4); an office Match never does. */
+async function ownerAutoReply(jobIds: string[], m: MailMessage, mailbox: string | null, counts: SyncCounts | undefined, o: { autoSend: boolean }): Promise<boolean> {
   if (m.direction !== "inbound" || !jobIds.length) return false;
   try {
     // Jo 27 Oct 2026: a plain decline that closed the job gets no reply and no AI draft.
@@ -475,7 +476,7 @@ async function ownerAutoReply(jobIds: string[], m: MailMessage, mailbox: string 
       const replied337 = changeAsk ? await changeReplied(jobIds[0]!, m.providerMessageId) : false;
       if (!replied337) {
         const kind = r.status === "none" || changeAsk || /approval|comms are switched off/.test(r.detail) ? "simple" : "other";
-        await (await import("./ai-email-reply.server")).writeAiReplyDraft({ jobId: jobIds[0]!, message: m, kind, reason: r.detail, autoSend: true });
+        await (await import("./ai-email-reply.server")).writeAiReplyDraft({ jobId: jobIds[0]!, message: m, kind, reason: r.detail, autoSend: o.autoSend });
       }
     }
     return r.suppressDraft;
@@ -529,7 +530,7 @@ export async function fileOutlookMessageOnJob(d: { message_id: string; mailbox?:
   const filed = { ...m, attachments: refs };
   const communicationId = await storeOnJob(jobId, filed, "office_matched", visibility);
   const changeRequests = await recordChangeRequests([jobId], filed, refs);
-  const replied = await ownerAutoReply([jobId], filed, mailbox);
+  const replied = await ownerAutoReply([jobId], filed, mailbox, undefined, { autoSend: false });
   const replyDraftId = replied ? null : await draftReply(filed, mailbox, [jobId], "office_matched");
   return { communicationId, message: m, changeRequests, replyDraftId };
 }
@@ -569,7 +570,7 @@ async function finishWork(work: Work, counts: SyncCounts, window: ClosureWindow)
     else {
       if (result.stored) { counts.stored++; bump(counts, "matched"); }
       if (result.stored && !window.history) bump(counts, "changeRequests", await recordChangeRequests(routeJobIds(work.route), work.message, work.attachment_refs ?? []));
-      const replied = result.stored && !window.history ? await ownerAutoReply(routeJobIds(work.route), { ...work.message, attachments: work.attachment_refs?.length ? work.attachment_refs : work.message.attachments }, work.mailbox, counts) : false;
+      const replied = result.stored && !window.history ? await ownerAutoReply(routeJobIds(work.route), { ...work.message, attachments: work.attachment_refs?.length ? work.attachment_refs : work.message.attachments }, work.mailbox, counts, { autoSend: true }) : false;
       if (result.stored && !window.history && !replied && await draftReply(work.message, work.mailbox, routeJobIds(work.route), "sync")) bump(counts, "replyDrafts");
       if (result.unmatched) counts.unmatched++;
       if (result.closed) counts.closed++;

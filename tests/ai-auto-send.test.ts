@@ -99,6 +99,10 @@ describe("autoSendDecision", () => {
       expect(autoSendDecision({ ...ok(), ownerText: `I am ${w} about this` })).toEqual({ send: "no", reason: "Owner sounds unhappy" });
     }
   });
+  test("final review M2: complaint words in the SUBJECT block too", () => {
+    expect(autoSendDecision({ ...ok(), ownerText: "Where are we up to?", ownerSubject: "Refund??" })).toEqual({ send: "no", reason: "Owner sounds unhappy" });
+    expect(autoSendDecision({ ...ok(), ownerSubject: "Re: my job" }).send).toBe("now");
+  });
   test("ordinary wording does not block", () => {
     expect(autoSendDecision({ ...ok(), ownerText: "Did my message come through?" }).send).toBe("now");
     expect(autoSendDecision({ ...ok(), ownerText: "Thanks for the update" }).send).toBe("now");

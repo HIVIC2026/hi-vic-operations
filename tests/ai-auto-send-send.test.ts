@@ -13,9 +13,11 @@ const realOpenAi = { ...(await import("@ai-sdk/openai")) };
 process.env["LOVABLE_API_KEY"] ??= "test-key";
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
-const world = { tables: {} as Record<string, Row[]>, clock: "", sends: [] as Row[], sendResult: "sent" as string, nextId: 1, release: [] as string[], aiText: "" };
+const world = { tables: {} as Record<string, Row[]>, clock: "", sends: [] as Row[], sendResult: "sent" as string, nextId: 1, release: [] as string[], aiText: "",
+  reads: [] as string[], failInsert: null as null | ((table: string, row: Row) => boolean) };
 
 function fromTable(table: string) {
+  world.reads.push(table);
   let filters: ((r: Row) => boolean)[] = [];
   let mode: "select" | "insert" | "update" = "select";
   let payload: Row | Row[] | null = null;
@@ -35,7 +37,9 @@ function fromTable(table: string) {
   };
   const run = () => {
     if (mode === "insert") {
-      const list = (Array.isArray(payload) ? payload : [payload!]).map((r) => ({ id: `id${world.nextId++}`, created_at: world.clock, ...r }));
+      const raw = Array.isArray(payload) ? payload : [payload!];
+      if (world.failInsert && raw.some((r) => world.failInsert!(table, r))) return { data: null, error: { message: "insert failed" } };
+      const list = raw.map((r) => ({ id: `id${world.nextId++}`, created_at: world.clock, ...r }));
       (world.tables[table] ??= []).push(...list);
       return { data: list, error: null };
     }
@@ -60,7 +64,7 @@ function fromTable(table: string) {
     limit: (n: number) => { lim = n; return q; },
     range: (a: number, b: number) => { skip = a; lim = b - a + 1; return q; },
     maybeSingle: async () => { const r = run(); return { data: (r.data as Row[])[0] ?? null, error: null }; },
-    single: async () => { const r = run(); return { data: (r.data as Row[])[0] ?? null, error: null }; },
+    single: async () => { const r = run(); return { data: ((r.data ?? []) as Row[])[0] ?? null, error: r.error }; },
     then: (res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) => Promise.resolve(run()).then(res, rej),
   });
   return q;
@@ -111,7 +115,7 @@ function reset(o: { switchOn?: boolean } = {}) {
     customer_email_sends: [],
     workflow_events: o.switchOn === false ? [] : [{ id: "sw1", job_id: null, event_type: "ai_auto_send_switched", created_at: "2026-10-01T00:00:00.000Z", details: { on: true } }],
   };
-  world.sends = []; world.sendResult = "sent"; world.nextId = 1; world.release = []; world.aiText = "";
+  world.sends = []; world.sendResult = "sent"; world.nextId = 1; world.release = []; world.aiText = ""; world.reads = []; world.failInsert = null;
 }
 /** An inbound owner email stored on the job plus its saved AI draft (as writeAiReplyDraft leaves it). */
 function addDraft(id: string, at: string, o: { msg?: string; text?: string; body?: string; kind?: string; extra?: Row } = {}) {
@@ -144,13 +148,22 @@ describe("send now", () => {
     expect(world.sends.length).toBe(1);
     expect(events("email_ai_draft_sent").length).toBe(1);
   });
-  test("switch off: nothing is ever sent, and the draft says why", async () => {
+  test("final review I1: switch off changes nothing — no decision, no reads beyond the switch", async () => {
     reset({ switchOn: false });
     world.clock = AT_10AM; addDraft("d1", AT_10AM);
-    await autoSendDraft("d1", { now: new Date(AT_10AM), ownerText: ASK });
+    world.reads = [];
+    expect(await autoSendDraft("d1", { now: new Date(AT_10AM), ownerText: ASK })).toBeNull();
+    expect(world.reads).toEqual(["workflow_events"]);
     await sweepHeldAutoReplies(new Date(AT_705AM));
     expect(world.sends.length).toBe(0);
-    expect(lastDecision("d1")).toMatchObject({ decision: "no", reason: "Auto-send is off" });
+    expect(decisions("d1")).toEqual([]);
+  });
+  test("final review I1: a non-simple kind changes nothing — no decision, no job reads", async () => {
+    world.clock = AT_10AM; addDraft("d1", AT_10AM, { kind: "other" });
+    world.reads = [];
+    expect(await autoSendDraft("d1", { now: new Date(AT_10AM), ownerText: ASK })).toBeNull();
+    expect(world.reads.every((t) => t === "workflow_events")).toBe(true);
+    expect(decisions("d1")).toEqual([]);
   });
   test("complaint wording in the owner's email keeps it a draft, whatever the AI called it", async () => {
     world.clock = AT_10AM; addDraft("d1", AT_10AM, { text: "Where's my job up to? I want a refund." });
@@ -172,7 +185,7 @@ describe("send now", () => {
     addDraft("d", AT_10AM, { kind: "other" });
     for (const id of ["a", "b", "c", "d"]) await autoSendDraft(id, { now: new Date(AT_10AM), ownerText: ASK });
     expect(world.sends.length).toBe(0);
-    expect(["a", "b", "c", "d"].map((id) => lastDecision(id)?.["decision"])).toEqual(["no", "no", "no", "no"]);
+    expect(["a", "b", "c", "d"].map((id) => lastDecision(id)?.["decision"])).toEqual(["no", "no", "no", undefined]);
   });
   test("Jo's rule: the AI-draft wording checks run before sending ('fixes' blocks)", async () => {
     world.clock = AT_10AM; addDraft("d1", AT_10AM, { body: "Hi Sam,\n\nYour fixes are booked in.\n\nCheers, the Home Insulation Victoria team" });
@@ -283,18 +296,29 @@ describe("samples", () => {
 
 describe("wiring", () => {
   const server = readFileSync("src/lib/ai-email-reply.server.ts", "utf8");
-  test("writeAiReplyDraft saves the AI's kind, the job stage and the email time, then runs auto-send", () => {
+  test("writeAiReplyDraft saves the AI's kind, the job stage and the email time, then only queues auto-send (never sends)", () => {
     expect(server).toMatch(/auto_kind: out\.kind/);
     expect(server).toMatch(/job_stage: job\.stage/);
     expect(server).toMatch(/received_at: m\.at/);
-    expect(server).toMatch(/autoSendDraft\(/);
+    expect(server).toMatch(/queueAutoSend\(/);
+    expect(server).not.toMatch(/autoSendDraft\(/);
   });
   test("only the Outlook sync asks for auto-send; the Emails tab never does", () => {
-    expect(readFileSync("src/lib/outlook-sync.server.ts", "utf8")).toMatch(/writeAiReplyDraft\(\{[^}]*autoSend: true/);
+    expect(readFileSync("src/lib/outlook-sync.server.ts", "utf8")).toMatch(/writeAiReplyDraft\(\{[^}]*autoSend: o\.autoSend/);
     expect(readFileSync("src/lib/emails-tab.server.ts", "utf8")).not.toMatch(/autoSend/);
   });
-  test("the 15-minute Outlook tick runs the 7am sweep", () => {
-    expect(readFileSync("src/routes/api/public/hooks/outlook-sync.ts", "utf8")).toMatch(/sweepHeldAutoReplies\(/);
+  test("the 15-minute Outlook tick runs the sender after the whole sync, told whether the sync was ok", () => {
+    const route = readFileSync("src/routes/api/public/hooks/outlook-sync.ts", "utf8");
+    expect(route).toMatch(/sweepHeldAutoReplies\(new Date\(\), \{ syncOk: r\.ok \}\)/);
+    expect(route.indexOf("runOutlookSync()")).toBeLessThan(route.indexOf("sweepHeldAutoReplies("));
+  });
+  test("final review M1: an office Match never queues an auto-send; only the automatic sync does", () => {
+    const sync = readFileSync("src/lib/outlook-sync.server.ts", "utf8");
+    const office = sync.slice(sync.indexOf("export async function fileOutlookMessageOnJob"), sync.indexOf("async function finishWork"));
+    expect(office).toMatch(/ownerAutoReply\(\[jobId\], filed, mailbox, undefined, \{ autoSend: false \}\)/);
+    expect(sync).toMatch(/writeAiReplyDraft\(\{[^}]*autoSend: o\.autoSend/);
+    const finish = sync.slice(sync.indexOf("async function finishWork"));
+    expect(finish).toMatch(/ownerAutoReply\([^;]*counts, \{ autoSend: true \}\)/);
   });
 });
 
@@ -313,6 +337,11 @@ describe("fix round 1", () => {
     reset(); world.clock = AT_10AM; world.aiText = "Hi Sam,\n\nYour job is with the installer now. You can see where it's up to on your job page.\n\nKIND: job_status";
     store("mB", AT_10AM);
     expect(await writeAiReplyDraft({ jobId: "j1", message: msg("mB", AT_10AM), kind: "simple", reason: "sync", autoSend: true })).toBe("drafted");
+    // Final review I2+I3: the sync draft is only queued; the sender after the sync sends it.
+    expect(world.sends.length).toBe(0);
+    const id = events("email_ai_draft")[0]!["id"] as string;
+    expect(lastDecision(id)).toMatchObject({ decision: "queued" });
+    await sweepHeldAutoReplies(new Date(AT_10AM), { syncOk: true });
     expect(world.sends.length).toBe(1);
   });
   test("the 'now' path skips when the owner has emailed again", async () => {
@@ -434,5 +463,147 @@ describe("fix round 2", () => {
     // A definitely failed auto attempt doesn't block Jo.
     world.tables["customer_email_sends"]![0]!["status"] = "failed";
     expect((await sendAiDraft("d1", BODY, "u1")).status).toBe("sent");
+  });
+});
+
+describe("final review fixes", () => {
+  const msg = (id: string, at: string, subject = "Hi", body = ASK) => ({ providerMessageId: id, internetMessageId: `<${id}>`, threadId: "t1", from: "sam@x.au", fromName: "Sam Smith", to: ["info@x.au"], cc: [],
+    subject, body, at, direction: "inbound" as const, attachments: [] });
+  const store = (id: string, at: string, body = ASK) => world.tables["job_communications"]!.push({ job_id: "j1", channel: "email", direction: "inbound", provider_message_id: id, body, received_at: at, created_at: at });
+  const REPLY = "Hi Sam,\n\nYour job is with the installer now. You can see where it's up to on your job page.\n\nKIND: job_status";
+  const queue = async (id: string, at: string, subject?: string, body?: string) => {
+    world.clock = at; world.aiText = REPLY; store(id, at, body);
+    expect(await writeAiReplyDraft({ jobId: "j1", message: msg(id, at, subject, body), kind: "simple", reason: "sync", autoSend: true })).toBe("drafted");
+    return events("email_ai_draft").find((e) => e["details"]["message_id"] === id)!["id"] as string;
+  };
+
+  test("I2+I3: switch off or a non-simple kind: writeAiReplyDraft queues nothing", async () => {
+    reset({ switchOn: false });
+    await queue("m1", AT_10AM);
+    expect(events("email_ai_auto_decision")).toEqual([]);
+    reset(); world.aiText = "Hi Sam,\n\nThanks, I'll check.\n\nKIND: other"; world.clock = AT_10AM; store("m2", AT_10AM);
+    await writeAiReplyDraft({ jobId: "j1", message: msg("m2", AT_10AM), kind: "simple", reason: "sync", autoSend: true });
+    expect(events("email_ai_auto_decision")).toEqual([]);
+  });
+  test("I2+I3: Jo's Outlook reply pulled in the same tick (Sent Items after inbound): no AI send", async () => {
+    const id = await queue("m1", AT_10AM);
+    expect(world.sends.length).toBe(0);
+    // Sent Items stored later in the same sync run.
+    world.tables["job_communications"]!.push({ job_id: "j1", channel: "email", direction: "outbound", provider_message_id: "out1", provider: "outlook", delivery_status: "sent", source_event: "outlook_sync:sync", created_by: null, body: "Jo's reply", sent_at: "2026-10-29T23:00:30.000Z" });
+    await sweepHeldAutoReplies(new Date("2026-10-29T23:01:00.000Z"), { syncOk: true });
+    expect(world.sends.length).toBe(0);
+    expect(lastDecision(id)).toMatchObject({ decision: "no", reason: "You've already replied" });
+  });
+  test("I2+I3: sync not ok → nothing sent this tick (queued and held stay); next ok tick sends", async () => {
+    const id = await queue("m1", AT_10AM);
+    const r = await sweepHeldAutoReplies(new Date("2026-10-29T23:01:00.000Z"), { syncOk: false });
+    expect(r.sent).toBe(0);
+    expect(world.sends.length).toBe(0);
+    expect(lastDecision(id)?.["decision"]).toBe("queued");
+    world.clock = "2026-10-29T23:15:00.000Z";
+    expect((await sweepHeldAutoReplies(new Date("2026-10-29T23:15:00.000Z"), { syncOk: true })).sent).toBe(1);
+    expect(world.sends.length).toBe(1);
+    expect(lastDecision(id)?.["decision"]).toBe("now");
+  });
+  test("I2+I3: held drafts also wait while the sync is failing", async () => {
+    world.clock = AT_9PM; addDraft("d1", AT_9PM);
+    await autoSendDraft("d1", { now: new Date(AT_9PM), ownerText: ASK });
+    world.clock = AT_705AM; await sweepHeldAutoReplies(new Date(AT_705AM), { syncOk: false });
+    expect(world.sends.length).toBe(0);
+    expect(lastDecision("d1")?.["decision"]).toBe("at7am");
+  });
+  test("I2+I3: markStuckSends still runs when the sync is not ok", async () => {
+    world.clock = AT_10AM; addDraft("d1", AT_10AM);
+    world.tables["workflow_events"]!.push({ id: "n1", job_id: "j1", event_type: "email_ai_auto_decision", created_at: AT_10AM, details: { draft_event_id: "d1", decision: "now", reason: "Sends itself", kind: "job_status" } });
+    world.clock = "2026-10-30T00:05:00.000Z"; await sweepHeldAutoReplies(new Date("2026-10-30T00:05:00.000Z"), { syncOk: false });
+    expect(lastDecision("d1")).toMatchObject({ decision: "no", reason: "Auto-send failed: didn't finish" });
+  });
+  test("I2+I3: queued at 9pm becomes 'Waiting for 7am', sent once by the 7:05am tick", async () => {
+    const id = await queue("m1", AT_9PM);
+    world.clock = AT_9PM; await sweepHeldAutoReplies(new Date(AT_9PM), { syncOk: true });
+    expect(world.sends.length).toBe(0);
+    expect(lastDecision(id)?.["decision"]).toBe("at7am");
+    world.clock = AT_705AM; await sweepHeldAutoReplies(new Date(AT_705AM), { syncOk: true });
+    expect(world.sends.length).toBe(1);
+  });
+  test("I2+I3: the same fresh checks apply to queued drafts (complaint, job moved, owner emailed again)", async () => {
+    const a = await queue("m1", AT_10AM, "Hi", "Where's my job up to? The installer left a mess.");
+    await sweepHeldAutoReplies(new Date(AT_10AM), { syncOk: true });
+    expect(lastDecision(a)?.["reason"]).toBe("Owner sounds unhappy");
+    reset(); const b = await queue("m2", AT_10AM);
+    world.tables["jobs"]![0]!["stage"] = "piesa_scheduled";
+    await sweepHeldAutoReplies(new Date(AT_10AM), { syncOk: true });
+    expect(lastDecision(b)?.["reason"]).toBe("Job moved on — check before sending");
+    expect(world.sends.length).toBe(0);
+  });
+  test("I2+I3: bounded per tick", async () => {
+    for (let i = 0; i < 30; i++) {
+      world.tables["workflow_events"]!.push({ id: `q${i}`, job_id: "j1", event_type: "email_ai_auto_decision", created_at: AT_10AM, details: { draft_event_id: `missing${i}`, decision: "queued", reason: "Queued", kind: "job_status" } });
+    }
+    const r = await sweepHeldAutoReplies(new Date(AT_10AM), { syncOk: true });
+    expect(r.checked).toBeLessThanOrEqual(25);
+  });
+  test("M2: a complaint in the SUBJECT keeps it a draft", async () => {
+    const id = await queue("m1", AT_10AM, "Refund??", "Where are we up to?");
+    await sweepHeldAutoReplies(new Date(AT_10AM), { syncOk: true });
+    expect(world.sends.length).toBe(0);
+    expect(lastDecision(id)?.["reason"]).toBe("Owner sounds unhappy");
+  });
+  test("M3: complaint words only in quoted history don't block; in the new text they do", async () => {
+    const quoted = "Where's my job up to?\n\nOn Mon, 26 Oct 2026, Home Insulation Victoria wrote:\n> If you're unhappy or want a refund, just reply.";
+    world.clock = AT_10AM; addDraft("d1", AT_10AM, { text: quoted });
+    await autoSendDraft("d1", { now: new Date(AT_10AM) });
+    expect(world.sends.length).toBe(1);
+  });
+  test("M4: 'no reply needed' drafts are never samples", async () => {
+    addDraft("s1", "2026-10-20T00:00:00.000Z");
+    addDraft("s2", "2026-10-21T00:00:00.000Z", { body: "", extra: { no_reply_needed: true } });
+    expect((await autoSendSamples()).map((s) => s.eventId)).toEqual(["s1"]);
+  });
+  test("M5: a held draft Jo edited but hasn't sent: its card never says 'Already handled'", async () => {
+    const { autoNoteText } = await import("../src/lib/ai-email-reply.core");
+    world.clock = AT_9PM; addDraft("d1", AT_9PM);
+    await autoSendDraft("d1", { now: new Date(AT_9PM), ownerText: ASK });
+    world.tables["workflow_events"]!.push({ id: "e1", job_id: "j1", event_type: "email_ai_draft_edited", created_at: "2026-10-30T11:00:00.000Z", details: { draft_event_id: "d1", body: "Jo's words" } });
+    world.clock = AT_705AM; await sweepHeldAutoReplies(new Date(AT_705AM));
+    expect(world.sends.length).toBe(0);
+    const last = lastDecision("d1") as { decision: "no"; reason: string };
+    expect(last.decision).toBe("no");
+    expect(autoNoteText(last)).toBeNull();
+  });
+  test("M6: a held (or queued) decision older than 3 days gets a final 'Too old' and is never sent", async () => {
+    const old = "2026-10-25T10:00:00.000Z";
+    world.clock = old; addDraft("d1", old);
+    world.tables["workflow_events"]!.push({ id: "h1", job_id: "j1", event_type: "email_ai_auto_decision", created_at: old, details: { draft_event_id: "d1", decision: "at7am", reason: "Waiting for 7am", kind: "job_status" } });
+    addDraft("d2", old);
+    world.tables["workflow_events"]!.push({ id: "h2", job_id: "j1", event_type: "email_ai_auto_decision", created_at: old, details: { draft_event_id: "d2", decision: "queued", reason: "Queued", kind: "job_status" } });
+    world.clock = AT_705AM; await sweepHeldAutoReplies(new Date(AT_705AM), { syncOk: true });
+    expect(world.sends.length).toBe(0);
+    expect(lastDecision("d1")).toMatchObject({ decision: "no", reason: "Too old to send itself — check it" });
+    expect(lastDecision("d2")).toMatchObject({ decision: "no", reason: "Too old to send itself — check it" });
+    const n = events("email_ai_auto_decision").length;
+    world.clock = "2026-10-30T20:20:00.000Z"; await sweepHeldAutoReplies(new Date("2026-10-30T20:20:00.000Z"), { syncOk: true });
+    expect(events("email_ai_auto_decision").length).toBe(n);
+  });
+  test("M9: the email went but the sent record didn't save — auto-send isn't marked failed, and is recovered later", async () => {
+    world.failInsert = (t, r) => t === "workflow_events" && r["event_type"] === "email_ai_draft_sent";
+    world.clock = AT_10AM; addDraft("d1", AT_10AM, { msg: "mz" });
+    const r = await autoSendDraft("d1", { now: new Date(AT_10AM), ownerText: ASK });
+    expect(world.sends.length).toBe(1);
+    expect(r?.sent).toBe(true);
+    expect(lastDecision("d1")?.["decision"]).toBe("now");
+    // The history row still went in.
+    expect(world.tables["job_communications"]!.some((c) => c["direction"] === "outbound" && c["source_event"] === "email_ai_draft_sent")).toBe(true);
+    world.failInsert = null;
+    world.tables["customer_email_sends"]!.push({ job_id: "j1", idempotency_key: "owner-email-ai-reply:v1:mz:auto", status: "sent" });
+    world.clock = "2026-10-30T00:05:00.000Z"; await sweepHeldAutoReplies(new Date("2026-10-30T00:05:00.000Z"));
+    expect(events("email_ai_draft_sent").length).toBe(1);
+  });
+  test("M9: office Send whose sent record didn't save says so (never silent)", async () => {
+    world.failInsert = (t, r) => t === "workflow_events" && r["event_type"] === "email_ai_draft_sent";
+    world.clock = AT_10AM; addDraft("d1", AT_10AM);
+    const { sendAiDraft } = await import("../src/lib/ai-email-reply.server");
+    await expect(sendAiDraft("d1", BODY, "u1")).rejects.toThrow(/^Sent, but/);
+    expect(world.sends.length).toBe(1);
   });
 });

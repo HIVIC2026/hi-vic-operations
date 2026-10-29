@@ -3,10 +3,11 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  AI_AUTO_DECISION_EVENT, AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, AUTO_SEND_KINDS, latestDraftEdits, AI_EMAIL_DRAFT_EDITED_EVENT,
+  AI_AUTO_DECISION_EVENT, ALREADY_HANDLED_REASON, QUEUED_REASON, TOO_OLD_REASON, type AutoDecisionValue, AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, AUTO_SEND_KINDS, latestDraftEdits, AI_EMAIL_DRAFT_EDITED_EVENT,
   aiDraftKey, aiReplyProblems, aiSendQuietReason, autoSendDecision, autoSendKey, draftNeeds, latestAutoDecisions, type AiAutoKind,
 } from "./ai-email-reply.core";
 import { firstNameOf } from "./email-reply.core";
+import { latestReplyText } from "./outlook-correspondence.core";
 
 const loose = admin as unknown as SupabaseClient;
 export const AUTO_SEND_SWITCH_EVENT = "ai_auto_send_switched";
@@ -30,7 +31,7 @@ export async function autoSendOn(): Promise<boolean> {
   } catch { return false; }
 }
 
-/** The latest drafts (up to 10) of an auto-send kind, leaving out QA/TEST jobs. */
+/** The latest drafts (up to 10) of an auto-send kind, leaving out QA/TEST jobs and "no reply needed" ones. */
 export async function autoSendSamples(): Promise<AutoSendSample[]> {
   type Draft = { id: string; job_id: string | null; created_at: string; details: Record<string, unknown> | null };
   type JobRow = { id: string; job_number: string | null; source: string | null; owner_id: string | null };
@@ -50,7 +51,8 @@ export async function autoSendSamples(): Promise<AutoSendSample[]> {
       for (const j of (jobs ?? []) as JobRow[]) jobById.set(j.id, j);
     }
     // A new draft can shift the page window, so the same draft may come back on the next page: count it once.
-    for (const r of rows) { const j = jobById.get(r.job_id!); if (j && j.source !== "qa_test" && real.length < AUTO_SEND_SAMPLES_NEEDED && !real.some((x) => x.id === r.id)) real.push(r); }
+    // A plain "thanks" (no reply needed) is never a sample: there's no reply for Jo to judge.
+    for (const r of rows) { const j = jobById.get(r.job_id!); if (j && j.source !== "qa_test" && r.details?.["no_reply_needed"] !== true && real.length < AUTO_SEND_SAMPLES_NEEDED && !real.some((x) => x.id === r.id)) real.push(r); }
     if (batch.length < PAGE_SIZE) break;
   }
   if (!real.length) return [];
@@ -91,18 +93,24 @@ export async function switchAutoSend(on: boolean, actorId: string): Promise<{ on
   return { on };
 }
 
-// ---- Sending (step 4, task 3) ----
-// A saved draft is checked by the pure autoSendDecision with fresh facts; every outcome is an append-only
-// `email_ai_auto_decision` event (newest wins) so the draft card can say what happened. "now" sends through the same
-// sendAiDraft path Jo uses (same once-only key), marked via "ai". "at7am" waits for sweepHeldAutoReplies.
+// ---- Sending (step 4, task 3; final review I2/I3) ----
+// The mail sync only QUEUES a simple draft (queueAutoSend). After the whole sync (inbound AND Sent Items stored) and only
+// when it went ok, sweepHeldAutoReplies checks each queued draft — and from 7am each one held overnight — again from
+// scratch with fresh facts (autoSendDraft, one code path) and sends it, or leaves it for Jo with the reason. Every outcome
+// is an append-only `email_ai_auto_decision` event (newest wins) so the draft card can say what happened. "now" sends
+// through the same sendAiDraft path Jo uses (same once-only key), marked via "ai".
 
 const AI_REPLY_GAP_MS = 30 * 60_000;
 const HELD_LOOKBACK_MS = 3 * 24 * 3600_000;
+/** Queued/held decisions older than HELD_LOOKBACK_MS (up to this far back) get a final "Too old". */
+const TOO_OLD_LOOKBACK_MS = 10 * 24 * 3600_000;
+/** At most this many drafts are checked per 15-minute tick. */
+export const AUTO_SEND_MAX_PER_TICK = 25;
 export const ALREADY_REPLIED_REASON = "Already replied by AI in the last 30 minutes";
 export const JOB_MOVED_REASON = "Job moved on — check before sending";
 export const EMAILED_AGAIN_REASON = "Owner emailed again — check before sending";
 export const ALREADY_REPLIED_BY_YOU_REASON = "You've already replied";
-export const ALREADY_HANDLED_REASON = "Already handled";
+export { ALREADY_HANDLED_REASON, TOO_OLD_REASON };
 export const STUCK_REASON = "Auto-send failed: didn't finish";
 const STUCK_AFTER_MS = 60 * 60_000;
 const SENT_LIKE = ["sent", "delivered", "delivered_unrecorded"] as const;
@@ -111,8 +119,9 @@ export type AutoSendResult = { send: "now" | "at7am" | "no"; reason: string; sen
 
 type DraftEvent = { id: string; job_id: string | null; event_type: string; created_at: string; details: Record<string, unknown> | null };
 
-async function recordDecision(jobId: string | null, draftId: string, kind: AiAutoKind, decision: "now" | "at7am" | "no", reason: string): Promise<void> {
-  const summary = decision === "now" ? "AI reply sending itself" : decision === "at7am" ? "AI reply waiting for 7am" : `AI reply left for Jo: ${reason}`;
+async function recordDecision(jobId: string | null, draftId: string, kind: AiAutoKind, decision: AutoDecisionValue, reason: string): Promise<void> {
+  const summary = decision === "queued" ? "AI reply queued to send itself after the mail sync" : decision === "now" ? "AI reply sending itself"
+    : decision === "at7am" ? "AI reply waiting for 7am" : `AI reply left for Jo: ${reason}`;
   const { error } = await loose.from("workflow_events").insert({ job_id: jobId, actor_id: null, event_type: AI_AUTO_DECISION_EVENT, internal: true,
     summary, details: { draft_event_id: draftId, decision, reason, kind } });
   if (error) throw new Error(error.message);
@@ -147,33 +156,49 @@ async function ownerOptedOut(jobId: string): Promise<boolean> {
   return [...(opt.data ?? []), ...(resp.data ?? [])].some((r) => !!(r as { opted_out_at: string | null }).opted_out_at);
 }
 
+/** Called by writeAiReplyDraft for a new email from the Outlook sync: queues a simple draft to be checked and sent by
+ *  the step after the sync. Switch off or not a simple kind = nothing written. Never sends. */
+export async function queueAutoSend(p: { draftId: string; jobId: string; kind: AiAutoKind }): Promise<boolean> {
+  if (!AUTO_SEND_KINDS.includes(p.kind)) return false;
+  if (!(await autoSendOn())) return false;
+  await recordDecision(p.jobId, p.draftId, p.kind, "queued", QUEUED_REASON);
+  return true;
+}
+
 /**
  * Decides whether one saved AI draft sends itself, records the decision, and sends it when the answer is "now".
- * `ownerText`: the owner's email (read from the job when not given). `held`: the 7am sweep — also re-checks that the job
- * hasn't moved stage and the owner hasn't emailed again. Returns null when the draft is gone or already handled.
+ * Switch off or a non-simple kind on a fresh call = nothing changes (no decision written; final review I1).
+ * `recheck`: the draft's current decision when the sender after the sync picks it up ("queued", or "at7am" held overnight):
+ * also re-checks the job hasn't moved stage, and closes it with a final "no" when it can't send (so it isn't checked again).
+ * `ownerText`: the owner's email (read from the job when not given). Returns null when nothing was decided.
  */
-export async function autoSendDraft(draftId: string, o: { now?: Date; ownerText?: string; held?: boolean } = {}): Promise<AutoSendResult | null> {
+export async function autoSendDraft(draftId: string, o: { now?: Date; ownerText?: string; recheck?: "queued" | "at7am" } = {}): Promise<AutoSendResult | null> {
   const now = o.now ?? new Date();
+  const switchOn = await autoSendOn();
+  if (!switchOn && !o.recheck) return null;
   const { data: evData, error: evErr } = await loose.from("workflow_events").select("id, job_id, event_type, created_at, details").eq("id", draftId).maybeSingle();
   if (evErr) throw new Error(evErr.message);
   const ev = evData as DraftEvent | null;
-  // Gone or already dealt with. In the sweep, a final "no" stops it being checked again.
-  const done = async () => { if (o.held) await recordDecision(ev?.job_id ?? null, draftId, "other", "no", ALREADY_HANDLED_REASON); return null; };
+  // Gone or already dealt with. When re-checking, a final "no" stops it being checked again (the card never shows it).
+  const done = async () => { if (o.recheck) await recordDecision(ev?.job_id ?? null, draftId, "other", "no", ALREADY_HANDLED_REASON); return null; };
   if (!ev || ev.event_type !== AI_EMAIL_DRAFT_EVENT || !ev.job_id) return done();
   const det = ev.details ?? {};
+  const kind: AiAutoKind = AUTO_SEND_KINDS.includes(det["auto_kind"] as AiAutoKind) ? det["auto_kind"] as AiAutoKind : "other";
+  if (!o.recheck && kind === "other") return null;
   if (det["no_reply_needed"] === true || await handled(draftId)) return done();
   const jobId = ev.job_id;
-  const kind: AiAutoKind = AUTO_SEND_KINDS.includes(det["auto_kind"] as AiAutoKind) ? det["auto_kind"] as AiAutoKind : "other";
   const body = String(det["body"] ?? "");
   const messageId = typeof det["message_id"] === "string" ? det["message_id"] : null;
   const leave = async (reason: string): Promise<AutoSendResult> => { await recordDecision(jobId, draftId, kind, "no", reason); return { send: "no", reason, sent: false }; };
+  if (!switchOn) return leave("Auto-send is off");
+  if (kind === "other") return leave("Only simple replies send themselves");
 
   const { data: jobData, error: jobErr } = await loose.from("jobs").select("id, source, owner_id, channel, stage, deleted_at").eq("id", jobId).maybeSingle();
   if (jobErr) throw new Error(jobErr.message);
   const job = jobData as { id: string; owner_id: string | null; channel: string | null; stage: string | null; deleted_at: string | null } | null;
   if (!job || job.deleted_at) return leave("Job not found");
 
-  if (o.held && det["job_stage"] !== job.stage) return leave(JOB_MOVED_REASON);
+  if (o.recheck && det["job_stage"] !== job.stage) return leave(JOB_MOVED_REASON);
   // Still true? Not if the owner wrote again, or someone already replied (e.g. Jo from Outlook), since their email.
   const since = typeof det["received_at"] === "string" ? det["received_at"] : ev.created_at;
   const [inb, outb] = await Promise.all([
@@ -208,10 +233,12 @@ export async function autoSendDraft(draftId: string, o: { now?: Date; ownerText?
   const needs = draftNeeds(det);
   const actions = det["actions"];
   const hasActions = !!actions && typeof actions === "object" && Object.keys(actions as object).length > 0;
-  let d = autoSendDecision({ switchOn: await autoSendOn(), kind, problems, needsAnswer: needs.needsAnswer, needsYou: needs.needsYou, hasActions,
-    optedOut: await ownerOptedOut(jobId), ownerEmail, ownerText, nowIso: now.toISOString() });
+  // Complaint words: the owner's new words (not the quoted history of our own emails) and their subject line.
+  let d = autoSendDecision({ switchOn, kind, problems, needsAnswer: needs.needsAnswer, needsYou: needs.needsYou, hasActions,
+    optedOut: await ownerOptedOut(jobId), ownerEmail, ownerText: latestReplyText(ownerText), ownerSubject: typeof det["their_subject"] === "string" ? det["their_subject"] : "",
+    nowIso: now.toISOString() });
   if (d.send !== "no" && await recentAiReply(jobId, ownerEmail, now)) d = { send: "no", reason: ALREADY_REPLIED_REASON };
-  if (o.held && d.send === "at7am") return { ...d, sent: false }; // still quiet hours: keep waiting
+  if (o.recheck === "at7am" && d.send === "at7am") return { ...d, sent: false }; // still quiet hours: keep waiting
   await recordDecision(jobId, draftId, kind, d.send, d.reason);
   if (d.send !== "now") return { ...d, sent: false };
 
@@ -221,32 +248,67 @@ export async function autoSendDraft(draftId: string, o: { now?: Date; ownerText?
     if (mErr) return leave("Auto-send failed: couldn't check whether you'd already replied");
     if (((manual ?? []) as { status: string | null }[]).some((r) => r.status !== "failed")) return leave(ALREADY_REPLIED_BY_YOU_REASON);
   }
+  const { sendAiDraft, SENT_NOT_RECORDED } = await import("./ai-email-reply.server");
   try {
-    const { sendAiDraft } = await import("./ai-email-reply.server");
     const r = await sendAiDraft(draftId, body, null, { via: "ai" }, now);
     if (r.status === "rewritten") return { ...(await leave("Auto-send failed: the reply needed fixing — check it and press Send")) };
     return { ...d, sent: true };
   } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // It went, but the sent record didn't save: the "now" decision stands and the stuck-send check records it later.
+    if (msg.startsWith(SENT_NOT_RECORDED)) return { ...d, sent: true };
     // Another run already sent it (same once-only key): not a failure.
     if (await handled(draftId).catch(() => false)) return { ...d, sent: false };
-    const why = (e instanceof Error ? e.message : String(e)).replace(/^Not sent — /, "");
+    const why = msg.replace(/^Not sent — /, "");
     // This owner email already had its one auto-reply (another draft of it): not a failure either.
     if (why.startsWith("already attempted")) return leave("Already replied to this email by AI");
     return leave(`Auto-send failed: ${why}`);
   }
 }
 
-/** The 7am sweep (every 15-minute tick; acts only 7:00am–7:59pm Melbourne): each reply held overnight is checked
- *  again from scratch and sent, or left for Jo with the reason. A draft is only ever sent once. */
-export async function sweepHeldAutoReplies(now = new Date()): Promise<{ checked: number; sent: number }> {
+/** The sender after each 15-minute Outlook sync. `syncOk`: the sync just finished cleanly — otherwise nothing is sent this
+ *  tick (Jo's own replies may not be in yet); queued and held drafts stay as they are. Stuck sends are checked every tick.
+ *  Queued drafts are checked at any hour (at night they become "Waiting for 7am"); held ones only 7:00am–7:59pm Melbourne.
+ *  Each is checked again from scratch and sent, or left for Jo with the reason. A draft is only ever sent once. */
+export async function sweepHeldAutoReplies(now = new Date(), o: { syncOk?: boolean } = {}): Promise<{ checked: number; sent: number }> {
   const since = new Date(now.getTime() - HELD_LOOKBACK_MS).toISOString();
   await markStuckSends(now, since).catch((e) => console.error("stuck AI sends not checked", e instanceof Error ? e.message : e));
-  if (aiSendQuietReason(now.toISOString())) return { checked: 0, sent: 0 };
+  if (o.syncOk === false) return { checked: 0, sent: 0 };
+  await markTooOld(now, since).catch((e) => console.error("old AI replies not closed", e instanceof Error ? e.message : e));
+  const wanted: AutoDecisionValue[] = aiSendQuietReason(now.toISOString()) ? ["queued"] : ["queued", "at7am"];
   const { data, error } = await loose.from("workflow_events").select("details").eq("event_type", AI_AUTO_DECISION_EVENT)
-    .eq("details->>decision", "at7am").gte("created_at", since).limit(500);
+    .in("details->>decision", wanted).gte("created_at", since).order("created_at", { ascending: true }).limit(500);
   if (error) throw new Error(error.message);
   const ids = [...new Set(((data ?? []) as { details: { draft_event_id?: unknown } | null }[]).map((r) => r.details?.draft_event_id).filter((x): x is string => typeof x === "string"))];
   let checked = 0; let sent = 0;
+  for (let i = 0; i < ids.length && checked < AUTO_SEND_MAX_PER_TICK; i += 50) {
+    const part = ids.slice(i, i + 50);
+    const { data: all, error: allErr } = await loose.from("workflow_events").select("created_at, details").eq("event_type", AI_AUTO_DECISION_EVENT)
+      .in("details->>draft_event_id", part).order("created_at", { ascending: true });
+    if (allErr) throw new Error(allErr.message);
+    const latest = latestAutoDecisions((all ?? []) as { created_at: string; details: Record<string, unknown> | null }[]);
+    for (const id of part) {
+      const cur = latest.get(id)?.decision;
+      if (cur !== "queued" && cur !== "at7am") continue;
+      if (!wanted.includes(cur)) continue;
+      if (checked >= AUTO_SEND_MAX_PER_TICK) break;
+      checked++;
+      try { if ((await autoSendDraft(id, { now, recheck: cur }))?.sent) sent++; }
+      catch (e) { console.error("waiting AI reply skipped", e instanceof Error ? e.message : e); }
+    }
+  }
+  return { checked, sent };
+}
+
+/** Queued or held decisions older than 3 days (the sender never got to them) get a final "Too old", so the card stops
+ *  saying it is waiting. Looks back 10 days. */
+async function markTooOld(now: Date, since: string): Promise<void> {
+  const from = new Date(now.getTime() - TOO_OLD_LOOKBACK_MS).toISOString();
+  const { data, error } = await loose.from("workflow_events").select("job_id, details").eq("event_type", AI_AUTO_DECISION_EVENT)
+    .in("details->>decision", ["queued", "at7am"]).gte("created_at", from).lt("created_at", since).limit(500);
+  if (error) throw new Error(error.message);
+  const rows = (data ?? []) as { job_id: string | null; details: Record<string, unknown> | null }[];
+  const ids = [...new Set(rows.map((r) => r.details?.["draft_event_id"]).filter((x): x is string => typeof x === "string"))];
   for (let i = 0; i < ids.length; i += 50) {
     const part = ids.slice(i, i + 50);
     const { data: all, error: allErr } = await loose.from("workflow_events").select("created_at, details").eq("event_type", AI_AUTO_DECISION_EVENT)
@@ -254,13 +316,12 @@ export async function sweepHeldAutoReplies(now = new Date()): Promise<{ checked:
     if (allErr) throw new Error(allErr.message);
     const latest = latestAutoDecisions((all ?? []) as { created_at: string; details: Record<string, unknown> | null }[]);
     for (const id of part) {
-      if (latest.get(id)?.decision !== "at7am") continue;
-      checked++;
-      try { if ((await autoSendDraft(id, { now, held: true }))?.sent) sent++; }
-      catch (e) { console.error("held AI reply skipped", e instanceof Error ? e.message : e); }
+      const l = latest.get(id);
+      if (!l || (l.decision !== "queued" && l.decision !== "at7am") || l.at >= since) continue;
+      const jobId = rows.find((r) => r.details?.["draft_event_id"] === id)?.job_id ?? null;
+      await recordDecision(jobId, id, l.kind, "no", TOO_OLD_REASON);
     }
   }
-  return { checked, sent };
 }
 
 /** A "now" decision over an hour old with no sent event (the run stopped part way). If the email service recorded the

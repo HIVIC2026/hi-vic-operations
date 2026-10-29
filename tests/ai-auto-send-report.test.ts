@@ -91,7 +91,7 @@ afterAll(() => {
 });
 
 const { autoSendDraft } = await import("../src/lib/ai-auto-send.server");
-const { draftAutoState, autoNoteText, aiDraftKey } = await import("../src/lib/ai-email-reply.core");
+const { draftAutoState, autoNoteText, aiDraftKey, latestAutoDecisions } = await import("../src/lib/ai-email-reply.core");
 const { aiAutoSentCount, aiAutoSentLine, buildDailyBrief } = await import("../src/lib/daily-brief.core");
 const { buildEmailsTab } = await import("../src/lib/emails-tab.core");
 
@@ -112,7 +112,7 @@ describe("decision / sent mapping", () => {
     expect(draftAutoState({ sentVia: undefined })).toEqual({ sentByAi: false });
   });
   test("note wording", () => {
-    expect(autoNoteText({ decision: "at7am", reason: "Waiting for 7am" })).toBe("Waiting for 7am — will send itself");
+    expect(autoNoteText({ decision: "at7am", reason: "Waiting for 7am" })).toBe("Waiting for 7am — will be checked and sent then");
     expect(autoNoteText({ decision: "no", reason: "Auto-send failed: Outlook down" })).toBe("Auto-send failed: Outlook down");
     expect(autoNoteText({ decision: "no", reason: "Needs your answer" })).toBe("Didn't send itself: Needs your answer");
     expect(autoNoteText({ decision: "no", reason: "Auto-send is off" })).toBeNull();
@@ -120,6 +120,18 @@ describe("decision / sent mapping", () => {
     expect(autoNoteText({ decision: "no", reason: "You've already replied" })).toBe("Didn't send itself: You've already replied");
     expect(autoNoteText({ decision: "now", reason: "Sends itself" })).toBeNull();
     expect(autoNoteText(undefined)).toBeNull();
+  });
+  test("final review I2+I3: a queued draft says it will be checked and sent shortly", () => {
+    expect(autoNoteText({ decision: "queued", reason: "Queued" })).toBe("Will be checked and sent in a few minutes");
+    expect(draftAutoState({ sentVia: undefined, decision: { decision: "queued", reason: "Queued" } })).toEqual({ auto: { decision: "queued", reason: "Queued" }, sentByAi: false });
+    const m = latestAutoDecisions([{ created_at: "2026-10-30T01:00:00Z", details: { draft_event_id: "d1", decision: "queued", reason: "Queued", kind: "job_status" } }]);
+    expect(m.get("d1")?.decision).toBe("queued");
+  });
+  test("final review M5: 'Already handled' is never shown on a waiting (edited) draft", () => {
+    expect(autoNoteText({ decision: "no", reason: "Already handled" })).toBeNull();
+  });
+  test("final review M6: too old", () => {
+    expect(autoNoteText({ decision: "no", reason: "Too old to send itself — check it" })).toBe("Didn't send itself: Too old to send itself — check it");
   });
 });
 

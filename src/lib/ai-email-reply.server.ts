@@ -1,7 +1,7 @@
 // AI email replies on each job (Jo 26 Oct 2026) — see ai-email-reply.core for the rules.
 // writeAiReplyDraft: reads the job's facts, stage and full email history, asks the AI for a fresh reply and saves it as
-// ONE `email_ai_draft` event on the job (one per Outlook message), then hands it to auto-send (ai-auto-send.server: only simple
-// replies, only with the switch on). Best-effort: never throws to the copier.
+// ONE `email_ai_draft` event on the job (one per Outlook message), then queues it for auto-send (ai-auto-send.server: only simple
+// replies, only with the switch on; sent after the sync). Best-effort: never throws to the copier.
 // sendAiDraft / discardAiDraft: office-only, from the job page. Send goes through the guarded owner sender (TEST jobs →
 // TEST inbox only), with a per-draft once-only key so the same email can never go twice.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
@@ -9,7 +9,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MailMessage } from "./outlook-correspondence.core";
 import {
   AI_EMAIL_DRAFTS_ENABLED, NO_REPLY_NEEDED, AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EDITED_EVENT, latestDraftEdits, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, AI_EMAIL_REPLY_PURPOSE, AI_REPLY_INSTRUCTIONS, aiReplyInstructions, isPreReleaseOwner,
-  AI_AUTO_DECISION_EVENT, aiDraftKey, autoSendKey, draftAutoState, latestAutoDecisions, aiReplyEmailHtml, aiReplyProblems, aiReplyText, bookingChangeLink, buildAiReplyInput, draftActions, draftNeeds, finishAiReply, fixUntilClean, higherRFacts, newSizeFacts, replySubject, splitAiOutput, type AiActions, type AiReplyKind,
+  AI_AUTO_DECISION_EVENT, type AutoDecisionValue, aiDraftKey, autoSendKey, draftAutoState, latestAutoDecisions, aiReplyEmailHtml, aiReplyProblems, aiReplyText, bookingChangeLink, buildAiReplyInput, draftActions, draftNeeds, finishAiReply, fixUntilClean, higherRFacts, newSizeFacts, replySubject, splitAiOutput, type AiActions, type AiReplyKind,
 } from "./ai-email-reply.core";
 import { loadAiAnswers } from "./ai-answers.server";
 import { loadStyleExamples } from "./ai-style.server";
@@ -128,11 +128,12 @@ export async function writeAiReplyDraft(p: { jobId: string; message: MailMessage
     // Jo 27 Oct 2026: a plain "thanks" gets no reply; the draft is closed so the card just needs Done.
     if (noReply && ins) await loose.from("workflow_events").insert({ job_id: p.jobId, actor_id: null, event_type: AI_EMAIL_DRAFT_DISCARDED_EVENT, internal: true,
       summary: "No reply needed — filed away", details: { draft_event_id: (ins as { id: string }).id } });
-    // Step 4: a simple reply may send itself (switch on, nothing to check) — only for a new email from the Outlook sync
-    // (`autoSend`), never an office "draft a reply". Any failure leaves the draft for Jo.
+    // Step 4: a simple reply may send itself — only for a new email from the Outlook sync (`autoSend`), never an office
+    // "draft a reply" or Match. Here it is only QUEUED (switch on, simple kind); nothing is sent until the sync has
+    // finished (Jo's own Sent Items stored too) and the sender after it checks it again. Any failure leaves the draft for Jo.
     if (p.autoSend === true && !noReply && ins) {
-      try { await (await import("./ai-auto-send.server")).autoSendDraft((ins as { id: string }).id, { ownerText: m.body }); }
-      catch (e) { console.error("AI reply auto-send skipped", e instanceof Error ? e.message : e); }
+      try { await (await import("./ai-auto-send.server")).queueAutoSend({ draftId: (ins as { id: string }).id, jobId: p.jobId, kind: out.kind }); }
+      catch (e) { console.error("AI reply auto-send not queued", e instanceof Error ? e.message : e); }
     }
     return "drafted";
   } catch (e) {
@@ -215,7 +216,7 @@ async function estimateFacts(jobId: string): Promise<{ lines: string[]; areaM2: 
 
 export type AiDraftRow = { eventId: string; at: string; from: string | null; to: string; subject: string; theirSubject: string | null; body: string; kind: AiReplyKind; status: "waiting" | "sent" | "discarded"; doneAt: string | null; needsAnswer: string[]; needsYou: boolean; actions: AiActions;
   /** Newest auto-send decision (only while waiting), and whether the AI sent this one itself. */
-  auto?: { decision: "now" | "at7am" | "no"; reason: string }; sentByAi: boolean };
+  auto?: { decision: AutoDecisionValue; reason: string }; sentByAi: boolean };
 
 /** Saved edits for these drafts: draft id -> newest body. */
 export async function draftEditsFor(ids: string[]): Promise<Map<string, string>> {
@@ -277,6 +278,8 @@ async function openDraft(eventId: string) {
 /** Which of the draft's proposed actions Jo left ticked. Nothing is applied unless ticked.
  *  `via: "ai"` = auto-send (step 4): no person, never applies an action, saved as "Sent by AI". */
 export type SendApply = { applyNote?: boolean; applyArea?: boolean; via?: "office" | "ai" };
+/** The email went, but its sent record on the job couldn't be saved (final review M9). Starts the thrown message. */
+export const SENT_NOT_RECORDED = "Sent, but the job didn't save it";
 export const INSTALLER_NOTE_EVENT = "installer_note";
 export const CEILING_SIZE_FROM_EMAIL_EVENT = "ceiling_size_updated_from_email";
 
@@ -323,9 +326,15 @@ export async function sendAiDraft(eventId: string, body: string, actorId: string
   const sent = status === "sent" || status.startsWith("delivery uncertain");
   if (!sent) throw new Error(`Not sent — ${status}`);
   const byAi = apply.via === "ai";
-  await loose.from("workflow_events").insert({ job_id: job.id, actor_id: actorId, event_type: AI_EMAIL_DRAFT_SENT_EVENT, internal: true,
+  // Final review M9: the email has gone — its sent record must not vanish silently. One retry; if it still fails, the rest
+  // still runs and the caller is told at the end (auto-send: its stuck-send check writes the record later from the send row).
+  const sentRow = { job_id: job.id, actor_id: actorId, event_type: AI_EMAIL_DRAFT_SENT_EVENT, internal: true,
     summary: byAi ? "Email reply sent to the owner (Sent by AI)" : `Email reply sent to the owner (approved by office)`,
-    details: { draft_event_id: eventId, to, subject, body: body.trim(), status, idempotency_key: key, via: byAi ? "ai" : "office" } });
+    details: { draft_event_id: eventId, to, subject, body: body.trim(), status, idempotency_key: key, via: byAi ? "ai" : "office" } };
+  let { error: sentErr } = await loose.from("workflow_events").insert(sentRow);
+  if (sentErr) ({ error: sentErr } = await loose.from("workflow_events").insert(sentRow));
+  if (sentErr) console.error("AI reply sent but not recorded on the job", sentErr.message);
+  const notRecorded = () => new Error(`${SENT_NOT_RECORDED} (${sentErr!.message}) — don't send it again`);
   await admin.from("job_communications").insert({ job_id: job.id, channel: "email", direction: "outbound", provider: "outlook", provider_message_id: (outlook as { messageId: string | null } | null)?.messageId ?? null, subject, body: body.trim(), recipients: [to] as never,
     delivery_status: "sent", sent_at: new Date().toISOString(), visibility: "customer", created_by: actorId, source_event: AI_EMAIL_DRAFT_SENT_EVENT, source_reference: (outlook as { internetMessageId: string | null } | null)?.internetMessageId ?? eventId }).select("id").single().then(async ({ data: hist, error }) => {
       if (error || !hist) { console.error("AI reply not added to history", error?.message ?? "no row"); return; }
@@ -338,12 +347,13 @@ export async function sendAiDraft(eventId: string, body: string, actorId: string
     });
   await (await import("./outlook-sync.server")).archiveOutlookMessage(String(ev.details["message_id"] ?? "") || null, job.id, actorId);
   // An auto-sent reply never applies anything (drafts with a suggested change never send themselves).
-  if (byAi) return { status: status as "sent" | `delivery uncertain${string}` };
+  if (byAi) { if (sentErr) throw notRecorded(); return { status: status as "sent" | `delivery uncertain${string}` }; }
   // The email went: now the actions Jo left ticked. A failure here is logged only — the reply has already gone.
   // The saved note is checked again against the owner's first name (installers get owner details only once they accept).
   const ownerFirstName = (await import("./email-reply.core")).firstNameOf((owner as { full_name?: string | null } | null)?.full_name ?? null);
   await applyDraftActions(job.id, eventId, draftActions(ev.details, ownerFirstName), apply, actorId, (job as { estimated_area_m2?: number | null }).estimated_area_m2 ?? null)
     .catch((e) => console.error("AI reply actions not applied", e instanceof Error ? e.message : e));
+  if (sentErr) throw notRecorded();
   return { status: status as "sent" | `delivery uncertain${string}` };
 }
 

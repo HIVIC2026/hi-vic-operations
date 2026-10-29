@@ -7,7 +7,7 @@
 import { isClearDecline } from "./email-intent.core";
 import { HOMEOWNER_ENQUIRY_URL } from "./engagement.core";
 import { newSenderFirstName, newSenderReplyText } from "./new-sender-reply.core";
-import { AI_SIGN_OFF, finishAiReply } from "./ai-email-reply.core";
+import { AI_SIGN_OFF, finishAiReply, type AutoDecisionValue } from "./ai-email-reply.core";
 
 export const NO_JOB_DRAFT_EVENT = "email_nojob_ai_draft";
 export const NO_JOB_REPLY_SENT_EVENT = "email_nojob_reply_sent";
@@ -177,7 +177,7 @@ export type DraftRef = { eventId: string; body: string; kind?: "link" | "follow_
   /** Job drafts: what the AI proposes doing when Jo sends (note for the installer, new ceiling size). */
   actions?: { installerNote?: string; newAreaM2?: number };
   /** Job drafts (step 4): the newest auto-send decision for this draft. */
-  auto?: { decision: "now" | "at7am" | "no"; reason: string } };
+  auto?: { decision: AutoDecisionValue; reason: string } };
 
 export type JobEmailCard = {
   key: string; requestEventId: string; jobId: string; jobNumber: string | null; name: string | null; at: string;
@@ -193,7 +193,7 @@ export type JobEmailCard = {
   needsAnswer: string[];
   needsYou: boolean;
   /** Step 4: newest auto-send decision on the open draft (a sent draft never has one). */
-  auto?: { decision: "now" | "at7am" | "no"; reason: string };
+  auto?: { decision: AutoDecisionValue; reason: string };
   /** The AI sent the reply to this email itself. */
   sentByAi: boolean;
 };

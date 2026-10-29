@@ -359,7 +359,8 @@ export const COMPLAINT_WORDS = /\b(?:refunds?|damage[ds]?|damaging|unhappy|mess|
 /** Whether a draft may send itself. Pure: the caller supplies every fact. Checked in this order; the first blocker wins. */
 export function autoSendDecision(d: {
   switchOn: boolean; kind: AiAutoKind; problems: string[]; needsAnswer: string[]; needsYou: boolean; hasActions: boolean;
-  optedOut: boolean; ownerEmail: string; ownerText: string; nowIso: string;
+  /** `ownerText`: the owner's new words (quoted history taken off by the caller); `ownerSubject`: their subject line. */
+  optedOut: boolean; ownerEmail: string; ownerText: string; ownerSubject?: string; nowIso: string;
 }): { send: "now" | "at7am" | "no"; reason: string } {
   const no = (reason: string) => ({ send: "no" as const, reason });
   if (!d.switchOn) return no("Auto-send is off");
@@ -370,20 +371,26 @@ export function autoSendDecision(d: {
   if (d.hasActions) return no("Has a suggested job change");
   if (d.optedOut) return no("Owner unsubscribed");
   if (!d.ownerEmail.trim()) return no("No owner email");
-  if (COMPLAINT_WORDS.test(d.ownerText ?? "")) return no("Owner sounds unhappy");
+  if (COMPLAINT_WORDS.test(`${d.ownerSubject ?? ""}\n${d.ownerText ?? ""}`)) return no("Owner sounds unhappy");
   if (aiSendQuietReason(d.nowIso)) return { send: "at7am", reason: "Waiting for 7am" };
   return { send: "now", reason: "Sends itself" };
 }
 
-/** Append-only record of what auto-send decided for a draft (details: draft_event_id, decision, reason, kind). Newest wins. */
+/** Append-only record of what auto-send decided for a draft (details: draft_event_id, decision, reason, kind). Newest wins.
+ *  "queued" = saved by the mail sync, checked and sent by the step after the whole sync (final review I2/I3). */
 export const AI_AUTO_DECISION_EVENT = "email_ai_auto_decision";
-export type AutoDecision = { decision: "now" | "at7am" | "no"; reason: string; kind: AiAutoKind; at: string };
+export type AutoDecisionValue = "queued" | "now" | "at7am" | "no";
+export type AutoDecision = { decision: AutoDecisionValue; reason: string; kind: AiAutoKind; at: string };
+/** Final "no" reasons the card never shows: the draft is Jo's now (edited, or sent/discarded — those cards say so themselves). */
+export const ALREADY_HANDLED_REASON = "Already handled";
+export const TOO_OLD_REASON = "Too old to send itself — check it";
+export const QUEUED_REASON = "Queued";
 /** Draft id -> its newest auto-send decision (ties: the later row wins). */
 export function latestAutoDecisions(rows: { created_at: string; details: Record<string, unknown> | null }[]): Map<string, AutoDecision> {
   const out = new Map<string, AutoDecision>();
   for (const r of rows) {
     const d = r.details; const id = d?.["draft_event_id"]; const decision = d?.["decision"];
-    if (typeof id !== "string" || (decision !== "now" && decision !== "at7am" && decision !== "no")) continue;
+    if (typeof id !== "string" || (decision !== "queued" && decision !== "now" && decision !== "at7am" && decision !== "no")) continue;
     const prev = out.get(id);
     if (prev && prev.at > r.created_at) continue;
     const kind = AUTO_SEND_KINDS.includes(d?.["kind"] as AiAutoKind) ? d?.["kind"] as AiAutoKind : "other";
@@ -395,17 +402,18 @@ export function latestAutoDecisions(rows: { created_at: string; details: Record<
 /** What a draft's card shows about auto-send. A sent event wins over any decision (never "failed" for a sent draft);
  *  a discarded draft shows nothing. `sentVia`: undefined = no sent event, otherwise its details.via. */
 export function draftAutoState(i: { sentVia: string | null | undefined; discarded?: boolean | undefined; decision?: Pick<AutoDecision, "decision" | "reason"> | null | undefined }):
-  { auto?: { decision: "now" | "at7am" | "no"; reason: string }; sentByAi: boolean } {
+  { auto?: { decision: AutoDecisionValue; reason: string }; sentByAi: boolean } {
   if (i.sentVia !== undefined) return { sentByAi: i.sentVia === "ai" };
   if (i.discarded || !i.decision) return { sentByAi: false };
   return { auto: { decision: i.decision.decision, reason: i.decision.reason }, sentByAi: false };
 }
 /** The small grey line on a waiting draft. Nothing when there is no decision, or it is already sending. */
-export function autoNoteText(auto: { decision: "now" | "at7am" | "no"; reason: string } | undefined | null): string | null {
+export function autoNoteText(auto: { decision: AutoDecisionValue; reason: string } | undefined | null): string | null {
   if (!auto || auto.decision === "now") return null;
-  if (auto.decision === "at7am") return "Waiting for 7am — will send itself";
-  // These two would show on almost every draft: hidden.
-  if (auto.reason === "Auto-send is off" || auto.reason === "Only simple replies send themselves") return null;
+  if (auto.decision === "queued") return "Will be checked and sent in a few minutes";
+  if (auto.decision === "at7am") return "Waiting for 7am — will be checked and sent then";
+  // These two would show on almost every draft: hidden. "Already handled" = Jo has it (e.g. edited, still to send).
+  if (auto.reason === "Auto-send is off" || auto.reason === "Only simple replies send themselves" || auto.reason === ALREADY_HANDLED_REASON) return null;
   return /^Auto-send failed/i.test(auto.reason) ? auto.reason : `Didn't send itself: ${auto.reason}`;
 }
 
