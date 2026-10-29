@@ -15,7 +15,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logEvent } from "./workflow.server";
 import {
-  COES_CHECKED_EVENT, COES_PROMPT, COES_REJECTED_EVENT, COES_WHY, coesKey, coesOfficeLine, coesPortalKey, coesQuoteCheck, coesReadableType, coesState, coesVerdictFromModel,
+  COES_CHECKED_EVENT, COES_PROMPT, COES_REJECTED_EVENT, COES_WHY, coesKey, coesNeedsFact, coesOfficeLine, coesPortalKey, coesQuoteCheck, coesReadableType, coesState, coesVerdictFromModel,
   type CoesEvent, type CoesFileRef, type CoesVerdict, type CoesWhyCode,
 } from "./coes-check.core";
 
@@ -189,6 +189,24 @@ export async function coesNeedsFor(jobId: string, now = new Date()): Promise<{ a
   const s = coesState(await coesEvents(jobId), c.ref.key);
   if (s.state === "ticked") return null;
   return { at: s.at ?? c.since ?? now.toISOString(), why: s.why ?? COES_WHY.not_checked, eventId: s.eventId };
+}
+
+type CoesNeeds = { at: string; why: string; eventId: string | null };
+/** Needs me facts for many jobs. Jobs waiting on the install booking (installation_scheduling) always read the CURRENT
+ *  certificate live (`coesNeedsFor`, the same key the install gate checks), so a newer file after a tick shows "not
+ *  checked yet" with Check again instead of no row while the gate blocks. Other jobs: the newest certificate event. */
+export async function coesNeedsForJobs(jobs: readonly { id: string; stage: string }[], eventsByJob: ReadonlyMap<string, CoesEvent[]>, cap = 200): Promise<Map<string, CoesNeeds>> {
+  const out = new Map<string, CoesNeeds>();
+  const live = jobs.filter((j) => j.stage === "installation_scheduling").slice(0, cap);
+  const liveIds = new Set(live.map((j) => j.id));
+  for (const j of jobs) {
+    if (liveIds.has(j.id)) continue;
+    const fact = coesNeedsFact(eventsByJob.get(j.id) ?? []);
+    if (fact) out.set(j.id, fact);
+  }
+  const facts = await Promise.all(live.map(async (j) => [j.id, await coesNeedsFor(j.id)] as const));
+  for (const [id, fact] of facts) if (fact) out.set(id, fact);
+  return out;
 }
 
 /** The office acts on the job's CURRENT certificate. With the row's event id, a row a newer certificate replaced is refused. */

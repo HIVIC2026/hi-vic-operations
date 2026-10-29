@@ -530,22 +530,15 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   } catch { unavailable.push("safety check rule failures"); }
   // A48 batch 1 task 5: the electrical certificate after the repairs waits for the office (AI unsure / not ceiling / error, or rejected).
   try {
-    const { COES_CHECKED_EVENT, COES_REJECTED_EVENT, coesNeedsFact } = await import("./coes-check.core");
+    const { COES_CHECKED_EVENT, COES_REJECTED_EVENT } = await import("./coes-check.core");
     const ev = await all("electrical certificate checks", (a, b) => scoped(admin.from("workflow_events").select("id, job_id, event_type, created_at, details")).in("event_type", [COES_CHECKED_EVENT, COES_REJECTED_EVENT]).order("created_at").range(a, b));
-    const byJob = new Map<string, Row[]>();
-    for (const e of ev) { const id = String(e["job_id"]); if (idSet.has(id)) byJob.set(id, [...(byJob.get(id) ?? []), e]); }
-    for (const [id, list] of byJob) {
-      const open = coesNeedsFact(list.map((e) => ({ id: String(e["id"]), event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as Record<string, unknown> | null })));
-      const x = f(id); if (x && open) x.coesCheck = open;
-    }
-    // Repairs done but no certificate event at all (a job from before this check, or a check that never got written):
-    // read live for jobs waiting on the install booking, so the office still gets the row and its Check again button.
-    const unchecked = jobs.filter((j) => j.stage === "installation_scheduling" && !byJob.has(j.id)).slice(0, 100);
-    if (unchecked.length) {
-      const { coesNeedsFor } = await import("./coes-check.server");
-      const live = await Promise.all(unchecked.map(async (j) => [j.id, await coesNeedsFor(j.id)] as const));
-      for (const [id, fact] of live) { const x = f(id); if (x && fact) x.coesCheck = fact; }
-    }
+    const byJob = new Map<string, { id: string; event_type: string; created_at: string; details: Record<string, unknown> | null }[]>();
+    for (const e of ev) { const id = String(e["job_id"]); if (idSet.has(id)) byJob.set(id, [...(byJob.get(id) ?? []), { id: String(e["id"]), event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as Record<string, unknown> | null }]); }
+    // Jobs waiting on the install booking read the CURRENT certificate live (the key the install gate checks), so a newer
+    // file after a tick is "not checked yet" with Check again, never no row; other jobs read the newest certificate event.
+    const { coesNeedsForJobs } = await import("./coes-check.server");
+    const facts = await coesNeedsForJobs(jobs.filter((j) => byJob.has(j.id) || j.stage === "installation_scheduling").map((j) => ({ id: j.id, stage: j.stage })), byJob);
+    for (const [id, fact] of facts) { const x = f(id); if (x) x.coesCheck = fact; }
   } catch { unavailable.push("electrical certificate checks"); }
   const unsigned = new Set(veecForms.filter((v) => !v["consumer_signed_at"]).map((v) => String(v["job_id"])));
   for (const e of veecAlerts) { const x = f(String(e["job_id"])); if (x && unsigned.has(String(e["job_id"]))) x.veecDay10 = { at: String(e["created_at"]) }; }
