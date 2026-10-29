@@ -7,7 +7,8 @@ import { pickStyleExamples, scrubExample, topicWordsOf, type StyleExample } from
 
 const loose = admin as unknown as SupabaseClient;
 type Comm = { job_id: string; body: string | null; created_at: string; direction?: string };
-type JobRow = { id: string; job_number: string | null; source: string | null; owners: { full_name: string | null } | { full_name: string | null }[] | null };
+type JobRow = { id: string; job_number: string | null; source: string | null; owners: { full_name: string | null } | { full_name: string | null }[] | null; properties: Prop | Prop[] | null };
+type Prop = { address_line: string | null; suburb: string | null; postcode: string | null };
 
 export async function loadStyleExamples(jobId: string, ownerEmail: string): Promise<StyleExample[]> {
   try {
@@ -20,7 +21,7 @@ export async function loadStyleExamples(jobId: string, ownerEmail: string): Prom
     if (!replies.length) return [];
     const ids = [...new Set(replies.map((r) => r.job_id))];
     const [jobsRes, inRes] = await Promise.all([
-      loose.from("jobs").select("id, job_number, source, owners(full_name)").in("id", ids),
+      loose.from("jobs").select("id, job_number, source, owners(full_name), properties(address_line, suburb, postcode)").in("id", ids),
       loose.from("job_communications").select("job_id, body, created_at").eq("channel", "email").eq("direction", "inbound")
         .in("job_id", ids).order("created_at", { ascending: false }),
     ]);
@@ -35,7 +36,8 @@ export async function loadStyleExamples(jobId: string, ownerEmail: string): Prom
       const theirs = inbound.find((m) => m.job_id === r.job_id && m.created_at < r.created_at && m.body?.trim());
       if (!theirs) continue;
       const o = Array.isArray(j.owners) ? j.owners[0] : j.owners;
-      const owner = { name: o?.full_name ?? "" };
+      const p = Array.isArray(j.properties) ? j.properties[0] : j.properties;
+      const owner = { name: o?.full_name ?? "", address: p?.address_line ?? "", suburb: p?.suburb ?? "", postcode: p?.postcode ?? "" };
       rows.push({ theirEmail: scrubExample(theirs.body!, owner), reply: scrubExample(r.body!, owner), at: r.created_at });
     }
     return pickStyleExamples(rows, topicWordsOf(ownerEmail));

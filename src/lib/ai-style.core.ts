@@ -20,20 +20,31 @@ export function pickStyleExamples(rows: StyleExample[], topicWords: string[], ma
 
 const URL_RE = /\b(?:https?:\/\/|www\.)[^\s<>"')]+/gi;
 const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
-const PHONE_RE = /(\+?61[\s-]?|\b0)[2-478](?:[\s-]?\d){8}\b|\b1[38]00(?:[\s-]?\d){6}\b|\b13(?:[\s-]?\d){4}\b/g;
+const PHONE_RE = /\(0?[2-478]\)[\s-]?\d{4}[\s-]?\d{4}\b|(\+?61[\s-]?|\b0)[2-478](?:[\s-]?\d){8}\b|\b1[38]00(?:[\s-]?\d){6}\b|\b13(?:[\s-]?\d){4}\b/g;
 const SUFFIX = "St|Street|Rd|Road|Ave|Avenue|Ct|Court|Cres|Crescent|Dr|Drive|Pl|Place|Ln|Lane|Way|Pde|Parade|Hwy|Blvd|Cl|Close|Gr|Grove|Tce|Terrace";
-const ADDRESS_RE = new RegExp(`\\b\\d{1,5}[A-Za-z]?(?:/\\d{1,5})?\\s+(?:[A-Za-z'’-]+\\s+){0,3}?(?:${SUFFIX})\\b\\.?`, "gi");
-const GREETING_RE = /^([ \t]*(?:hi|hey|hello)[ \t]+)(?!there\b|team\b|all\b|everyone\b)[^\n,!.:;]+/gim;
+const ADDRESS_RE = new RegExp(`\\b(?:(?:unit|apt|apartment|flat|suite|shop)\\s+)?\\d{1,5}[A-Za-z]?(?:/\\d{1,5}[A-Za-z]?)?\\s+(?:[A-Za-z'’-]+\\s+){0,3}?(?:${SUFFIX})\\b\\.?`, "gi");
+const NOT_DATE = "(?!(?:January|February|March|April|May|June|July|August|September|October|November|December|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\\b)";
+const STREET_NO_SUFFIX_RE = new RegExp(`\\b\\d{1,5}[A-Za-z]?\\s+${NOT_DATE}(?:[A-Z][a-z'’-]+\\s?){1,3}?(?=,|\\s+\\d{4}\\b)`, "g");
+const ADDRESS_TAIL_RE = /<address>(?:,\s*[A-Z][a-z]+(?:\s[A-Z][a-z]+)?(?:\s+\d{4})?(?=[\s.,;!)]|$)|\s+\d{4}\b)/g;
+const GREETING_RE = /^([ \t]*(?:hi|hey|hello|dear|g['’]day|gday|good (?:morning|afternoon|evening))[ \t]+)(?!there\b|team\b|all\b|everyone\b)[^\n,!.:;]+/gim;
+const SIGNOFF = "(?:cheers|thanks|thank you|regards|kind regards|best regards|best)";
+const NAME_LINE = "(?!Home\\b|Team\\b)[A-Z][a-z'’-]+(?:[ \\t]+[A-Z][a-z'’-]+)?";
+const SIGNOFF_SAME_RE = new RegExp(`^([ \\t]*${SIGNOFF}[ \\t,]+)${NAME_LINE}([ \\t]*[,!.]?[ \\t]*)$`, "gim");
+const SIGNOFF_NEXT_RE = new RegExp(`^([ \\t]*${SIGNOFF}[ \\t]*,?[ \\t]*\\n[ \\t]*)${NAME_LINE}([ \\t]*)$`, "gim");
 const MAX_LEN = 1200;
 
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-export function scrubExample(reply: string, owner: { name?: string; address?: string }): string {
+/** Replaces the example job's own known details first (exact), then catches the rest with patterns. */
+export function scrubExample(reply: string, owner: { name?: string; address?: string; suburb?: string; postcode?: string }): string {
   let t = reply.replace(URL_RE, "<link>").replace(EMAIL_RE, "<email>").replace(PHONE_RE, "<phone>");
   if (owner.address?.trim()) t = t.replace(new RegExp(esc(owner.address.trim()), "gi"), "<address>");
-  t = t.replace(ADDRESS_RE, "<address>").replace(GREETING_RE, "$1<name>");
-  for (const part of (owner.name ?? "").split(/\s+/).filter((p) => p.length >= 3)) {
-    t = t.replace(new RegExp(`(?<![A-Za-z])${esc(part)}(?![A-Za-z])`, "gi"), "<name>");
+  if (owner.postcode?.trim()) t = t.replace(new RegExp(`(?<!\\d)${esc(owner.postcode.trim())}(?!\\d)`, "g"), "<postcode>");
+  if (owner.suburb?.trim()) t = t.replace(new RegExp(`(?<![A-Za-z<])${esc(owner.suburb.trim())}(?![A-Za-z>])`, "gi"), "<suburb>");
+  for (const part of (owner.name ?? "").split(/\s+/).filter((p) => p.length >= 2)) {
+    t = t.replace(new RegExp(`(?<![A-Za-z<])${esc(part)}(?![A-Za-z>])`, "gi"), "<name>");
   }
+  t = t.replace(ADDRESS_RE, "<address>").replace(STREET_NO_SUFFIX_RE, "<address>").replace(ADDRESS_TAIL_RE, "<address>")
+    .replace(GREETING_RE, "$1<name>").replace(SIGNOFF_SAME_RE, "$1<name>$2").replace(SIGNOFF_NEXT_RE, "$1<name>$2");
   return t.slice(0, MAX_LEN);
 }

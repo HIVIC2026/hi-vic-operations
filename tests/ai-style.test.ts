@@ -52,6 +52,26 @@ describe("scrubExample", () => {
     expect(s).toContain("<address> on Monday");
     expect(s).not.toMatch(/Mohamed|smith|0412|x\.com/i);
   });
+  test("greetings, sign-offs, phone, address shapes", () => {
+    const o = {};
+    expect(scrubExample("Dear Mohammed,\n\nok", o)).toContain("Dear <name>,");
+    expect(scrubExample("G'day Mo,\n\nok", o)).toContain("G'day <name>,");
+    expect(scrubExample("Good morning Sam,\nok", o)).toContain("Good morning <name>,");
+    expect(scrubExample("ok\n\nCheers Mo", o)).toBe("ok\n\nCheers <name>");
+    expect(scrubExample("ok\nCheers,\nMo", o)).toBe("ok\nCheers,\n<name>");
+    expect(scrubExample("Cheers, the Home Insulation Victoria team", o)).toBe("Cheers, the Home Insulation Victoria team");
+    expect(scrubExample("ring (03) 9123 4567 now", o)).toBe("ring <phone> now");
+    const a = scrubExample("At Unit 4/22 Smith St, Brighton 3186 and 5 The Ridgeway, Preston 3072 ok", o);
+    expect(a).toBe("At <address> and <address> ok");
+  });
+  test("known job details are removed exactly", () => {
+    const s = scrubExample("Hi Jo, your place in Fitzroy North 3068 at 7 Oak Hill is fine, Li.", { name: "Jo Li", address: "7 Oak Hill", suburb: "Fitzroy North", postcode: "3068" });
+    expect(s).toBe("Hi <name>, your place in <suburb> <postcode> at <address> is fine, <name>.");
+  });
+  test("normal text is untouched", () => {
+    const t = "A 10% deposit, R7.0 batts, 90 m\u00b2 at $3,008 within 30 days. Booked for 5 November, ok. Cheers, the Home Insulation Victoria team";
+    expect(scrubExample(t, {})).toBe(t);
+  });
   test("other greeting name still replaced, long text trimmed", () => {
     expect(scrubExample("Hey Priya!\n\nok", {})).toBe("Hey <name>!\n\nok");
     expect(scrubExample("a".repeat(2000), {})).toHaveLength(1200);
@@ -73,7 +93,7 @@ describe("loadStyleExamples", () => {
         { job_id: "jt", direction: "inbound", body: "x", created_at: "2026-10-18T00:00:00Z" },
       ],
       jobs: [
-        { id: "j2", job_number: "HV-1", source: "website", owners: { full_name: "Sam Lee" } },
+        { id: "j2", job_number: "HV-1", source: "website", owners: { full_name: "Sam Lee" }, properties: { address_line: "1 Zed Way", suburb: "Zeta", postcode: "3000" } },
         { id: "jq", job_number: "HV-2", source: "qa_test", owners: { full_name: "Q" } },
         { id: "jt", job_number: "hv-test-3", source: "website", owners: { full_name: "T" } },
         { id: "j3", job_number: "HV-4", source: "website", owners: { full_name: "N" } },
