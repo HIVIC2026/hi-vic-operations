@@ -258,10 +258,15 @@ export const AI_FIX_INSTRUCTIONS = [
   "Return only the email body, nothing else.",
 ].join("\n");
 
+/** Removes a trailing exact AI_SIGN_OFF (and surrounding whitespace). */
+export function stripSignOff(text: string): string {
+  const t = text.trim();
+  return (t.endsWith(AI_SIGN_OFF) ? t.slice(0, -AI_SIGN_OFF.length) : t).trim();
+}
+
 /** What the fix call is sent: the problems, then the draft without its sign-off. */
 export function buildAiFixInput(body: string, problems: string[], preRelease: boolean): string {
-  const trimmed = body.trim();
-  const draft = (trimmed.endsWith(AI_SIGN_OFF) ? trimmed.slice(0, -AI_SIGN_OFF.length) : trimmed).trim();
+  const draft = stripSignOff(body);
   const parts = ["PROBLEMS:", ...problems.map((p) => `- ${p}`)];
   if (preRelease) parts.push("", "This wording IS allowed:", AI_RELEASE_MEANS, AI_WAIT_LINE);
   parts.push("", "DRAFT:", draft);
@@ -285,10 +290,10 @@ export async function fixUntilClean(
     } catch {
       break;
     }
-    const text = (raw ?? "").trim();
+    const text = stripSignOff(raw ?? "");
     if (!text || text === NO_REPLY_NEEDED) continue;
-    // finishAiReply only strips a two-line sign-off; drop our exact one-line sign-off first so it is never doubled.
-    current = finishAiReply(text.endsWith(AI_SIGN_OFF) ? text.slice(0, -AI_SIGN_OFF.length) : text);
+    // finishAiReply only strips a two-line sign-off; our exact one-line sign-off is dropped first so it is never doubled.
+    current = finishAiReply(text);
     problems = aiReplyProblems(current, { preRelease });
   }
   return { body: current, problems, tries };

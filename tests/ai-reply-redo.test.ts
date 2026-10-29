@@ -117,7 +117,7 @@ describe("fixUntilClean", () => {
     expect(r.problems.length).toBeGreaterThan(0);
   });
   test("empty or NO_REPLY_NEEDED counts as a try, body kept", async () => {
-    for (const out of ["", "  \n ", NO_REPLY_NEEDED]) {
+    for (const out of ["", "  \n ", NO_REPLY_NEEDED, AI_SIGN_OFF, `\n${AI_SIGN_OFF}\n`]) {
       let calls = 0;
       const r = await fixUntilClean(bad, false, async () => { calls++; return out; });
       expect(calls).toBe(2);
