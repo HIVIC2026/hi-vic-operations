@@ -1,10 +1,11 @@
 // Visit allocation (decision 161, Jo 24 Oct 2026). PURE: no I/O.
 // The business owner allocates each visit to one of their own staff (My business → Team):
-//   - Ready Check: ANY staff member still on the list (any trade role);
-//   - Install day (PIISA / install): ONLY CII-cleared installers (crewClearance, decision 153).
+//   - Ready Check: anyone still on the list who has a Mitti login (Lead or Crew; the server's addInMittiFirst is the gate);
+//   - Install day (PIISA / install): ONLY CII-cleared installers who are Leads (crewClearance, decision 153; Crew can't be the Lead).
 // Saving is an append-only `visit_allocated` workflow event (latest per visit kind wins); the server re-assigns the
 // Mitti form to that person's own Mitti user (looked up by the email on their staff row) and the 6:30am text goes to
 // their mobile instead of the owner's. Nothing here changes stages, bookings, quotes or pay.
+import type { WorkerRole } from "./worker-role.core";
 import { crewClearance, whiteCardBlocker, type CrewClearanceFacts, type WhiteCardState } from "./worker-compliance.core";
 
 export type VisitKind = "ready_check" | "install";
@@ -18,6 +19,10 @@ export type AllocationCandidate = {
   tradeRole: string;
   email: string | null;
   mobile: string | null;
+  /** Lead / Crew (null = not an installer role). Crew can't be the install-day Lead. */
+  workerRole?: WorkerRole | null;
+  /** The business's own email, used for the Mitti lookup of a Lead with no email of their own. */
+  businessEmail?: string | null;
   removedAt?: string | null;
   /** Clearance facts for installers (decision 153). Omitted/undefined = not loaded → never cleared for install days. */
   clearance?: CrewClearanceFacts | null;
@@ -29,6 +34,7 @@ export type AllocationOption = { workerId: string; name: string; mobile: string 
 
 export const ALLOCATION_REASON = {
   removed: "No longer on the staff list.",
+  crew: "Crew can't be the install-day Lead — pick a Lead.",
   notInstaller: "Only installers can be given an install day.",
   noMobile: "No mobile on file – the 6:30am text will go to you.",
 } as const;
@@ -40,6 +46,7 @@ export function allocationBlocker(kind: VisitKind, c: AllocationCandidate, today
   if (c.removedAt) return ALLOCATION_REASON.removed;
   if (kind === "ready_check") return null;
   if (c.tradeRole !== "installer") return ALLOCATION_REASON.notInstaller;
+  if (c.workerRole === "crew") return ALLOCATION_REASON.crew;
   const cl = crewClearance(c.clearance ?? { certStatus: null, level: null, expiresOn: null }, today);
   if (!cl.cleared) return cl.reason;
   return install ? whiteCardBlocker(c.whiteCard, install.bookingCreatedAt) : null;

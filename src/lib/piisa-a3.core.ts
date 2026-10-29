@@ -11,6 +11,7 @@ import { mittiMediaFile, type MittiMediaFile } from "./piesa-evidence.core";
 import type { OfficialAnswers } from "./official-forms.core";
 import { COLLECTION_NOTICE_BLOCK_MESSAGE } from "./esc-collection-notice.core";
 import { WHITE_CARD_BLOCK_MESSAGE, crewClearance, melbourneToday, whiteCardBlocker, whiteCardState, type WhiteCardState } from "./worker-compliance.core";
+import { effectiveWorkerRole, type WorkerRole } from "./worker-role.core";
 import { INSTALL_EVIDENCE_RELABELS, INSTALL_EVIDENCE_RELABELS_LONG, zoneVideoFiles } from "./install-evidence.core";
 import { INSTALL_DAY_Q, allWithLabel, installDayMedia, installDayMissingQuestions, installDayOfficialAnswers, isInstallDayDoc, labelledItems, readInstallDay } from "./install-day.core";
 
@@ -511,6 +512,8 @@ export function readyCheckPart6Answers(areas: RcArea[], extra: Part6Extra = NO_E
 // ---------- crew ----------
 export type StaffOption = {
   workerId: string; name: string; eec: string | null; eecVerified: boolean;
+  /** Lead / Crew. Crew can't be the install-day Lead; they can be crew members. Undefined = not loaded (not blocking). */
+  workerRole?: WorkerRole | null;
   /** Office login approval (shown only; decision 153: it no longer gates the crew — clearance does). */
   approved?: boolean;
   /** Decision 153: cleared for crews = verified CII certificate + recorded level + expiry not passed. Undefined = not derived (legacy shape, not blocking). */
@@ -529,7 +532,7 @@ export type StaffOption = {
 /** Portal lookup only. Native direct-entry schema awaits concrete edited IDs; the observed native choice mapping remains fail closed. */
 export const A3_NATIVE_CREW_LOOKUP = { available: false, note: "Choose from your company’s approved installers, or enter a full legal name and Certified Insulation Installer (CII) certification number. Entered details need office verification." } as const;
 
-type WorkerRow = { id: string; full_legal_name: string; approval_status: string | null; removed_at: string | null; trade_role: string | null; licence_expires_on?: string | null; certification: unknown };
+type WorkerRow = { id: string; full_legal_name: string; approval_status: string | null; removed_at: string | null; trade_role: string | null; worker_role?: string | null; licence_expires_on?: string | null; certification: unknown };
 type CertRow = { id: string; status: string | null; certificate_number: string | null; issuer: string | null; worker_id?: string | null };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const certificationRef = (c: unknown): string | null => { const v = (c as { verification_id?: unknown } | null)?.verification_id; return typeof v === "string" && UUID.test(v) ? v : null; };
@@ -549,10 +552,11 @@ export function staffFromRecords(workers: WorkerRow[], certs: CertRow[], levels:
     // Decision 153: clearance is derived from the verified check + recorded level/expiry, never from approval_status.
     const cl = crewClearance({ removed_at: w.removed_at, certStatus: ok ? "verified" : c?.status === "rejected" ? "rejected" : null, level, expiresOn }, today);
     const wc = whiteCardState({ trade_role: w.trade_role, certification: w.certification });
-    return { workerId: w.id, name: w.full_legal_name.trim(), eec: ok ? c!.certificate_number!.trim() : null, eecVerified: ok, approved: w.approval_status === "approved", cleared: cl.cleared, clearanceReason: cl.reason, issuer: ok ? c!.issuer?.trim() || null : null, certificationId: ok ? c!.id : null, level, expiresOn, ...(noticeAck ? { noticeAcknowledged: noticeAck.get(w.id) === true } : {}),
+    return { workerId: w.id, name: w.full_legal_name.trim(), workerRole: effectiveWorkerRole({ tradeRole: w.trade_role ?? "", stored: w.worker_role }), eec: ok ? c!.certificate_number!.trim() : null, eecVerified: ok, approved: w.approval_status === "approved", cleared: cl.cleared, clearanceReason: cl.reason, issuer: ok ? c!.issuer?.trim() || null : null, certificationId: ok ? c!.id : null, level, expiresOn, ...(noticeAck ? { noticeAcknowledged: noticeAck.get(w.id) === true } : {}),
       whiteCard: wc, ...(whiteCardFor ? { whiteCardBlocked: whiteCardBlocker(wc, whiteCardFor.bookingCreatedAt) !== null } : {}) };
   }).sort((a, b) => a.name.localeCompare(b.name));
 }
+export const CREW_NOT_LEAD_MESSAGE = "is Crew, so can't be the Lead. Make them Lead on the Team page first.";
 export type CrewPick = { workerId: string } | { other: { name: string; eec: string } };
 /** Lead = a staff workerId, or "Other" (typed name + EEC, office verification required before work starts). */
 export type CrewSelection = { lead: string | { other: { name: string; eec: string } } | null; additional: CrewPick[] };
@@ -581,6 +585,7 @@ export function crewSelectionProblems(sel: CrewSelection, staff: StaffOption[]):
     }
   } else if (leadId && !lead) p.push("The lead installer is not on your staff list");
   else if (!lead) p.push("Choose the lead installer from your staff, or Other");
+  else if (lead.workerRole === "crew") p.push(`${lead.name} ${CREW_NOT_LEAD_MESSAGE}`);
   else if (notCleared(lead)) p.push(clearMsg(lead));
   else if (!lead.eecVerified || !lead.eec) p.push(`${lead.name}: EEC certification not verified`);
   else if (lead.noticeAcknowledged === false) p.push(`${lead.name}: ${COLLECTION_NOTICE_BLOCK_MESSAGE}`);

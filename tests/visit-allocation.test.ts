@@ -102,7 +102,8 @@ describe("Mitti hand-over helper (source checks: existing form only, same share 
 const db = new PGlite();
 await db.exec(`
 CREATE TABLE jobs (id uuid primary key, job_number text, stage text, source text);
-CREATE TABLE partner_workers (id uuid primary key, business_id uuid, full_legal_name text, trade_role text, email text, mobile text, removed_at timestamptz);
+CREATE TABLE partner_workers (id uuid primary key, business_id uuid, full_legal_name text, trade_role text, email text, mobile text, removed_at timestamptz, worker_role text);
+CREATE TABLE businesses (id uuid primary key, email text);
 CREATE TABLE workflow_events (id uuid primary key default gen_random_uuid(), job_id uuid, actor_id uuid, event_type text, summary text, details jsonb, internal boolean default false, created_at timestamptz default clock_timestamp());
 CREATE TABLE ready_checks (id uuid primary key default gen_random_uuid(), job_id uuid, external_mitti_id text, created_at timestamptz default clock_timestamp());
 CREATE TABLE ceiling_measurements (id uuid primary key default gen_random_uuid(), job_id uuid, is_current boolean, external_source text, external_id text);`);
@@ -110,7 +111,9 @@ const BIZ = "00000000-0000-0000-0000-0000000000b1", OWNER = "00000000-0000-0000-
 const J_RC = "00000000-0000-0000-0000-000000000001", J_INST = "00000000-0000-0000-0000-000000000002";
 const W_DEEP = "00000000-0000-0000-0000-0000000000d1", W_MAN = "00000000-0000-0000-0000-0000000000d2", W_NOMITTI = "00000000-0000-0000-0000-0000000000d3";
 await db.query(`INSERT INTO jobs VALUES ($1,'HV-3151','ready_check_scheduled','installer_portal'), ($2,'HV-3152','installation_booked','installer_portal')`, [J_RC, J_INST]);
-await db.query(`INSERT INTO partner_workers VALUES ($1,$4,'Bhavdeep Singh','installer','deep@example.test','0400 000 001',null), ($2,$4,'Manminder Singh','installer','man@example.test','0400 000 002',null), ($3,$4,'New Person','installer','new@example.test',null,null)`, [W_DEEP, W_MAN, W_NOMITTI, BIZ]);
+const W_CREW = "00000000-0000-0000-0000-0000000000d4", W_CREW_NOMITTI = "00000000-0000-0000-0000-0000000000d5", W_LEAD_BIZ = "00000000-0000-0000-0000-0000000000d6";
+await db.query(`INSERT INTO businesses VALUES ($1,'office@reinsulate.test')`, [BIZ]);
+await db.query(`INSERT INTO partner_workers (id, business_id, full_legal_name, trade_role, email, mobile, removed_at, worker_role) VALUES ($1,$4,'Bhavdeep Singh','installer','deep@example.test','0400 000 001',null,null), ($2,$4,'Manminder Singh','installer','man@example.test','0400 000 002',null,null), ($3,$4,'New Person','installer','new@example.test',null,null,null), ($5,$4,'Cara Crew','installer','cara@example.test',null,null,'crew'), ($6,$4,'Cory Crew','installer','cory@example.test',null,null,'crew'), ($7,$4,'Lena Lead','installer',null,null,null,'lead')`, [W_DEEP, W_MAN, W_NOMITTI, BIZ, W_CREW, W_CREW_NOMITTI, W_LEAD_BIZ]);
 await db.query(`INSERT INTO ready_checks (job_id, external_mitti_id) VALUES ($1, 'audit_rc1')`, [J_RC]);
 await db.query(`INSERT INTO workflow_events (job_id, event_type, summary, details) VALUES ($1, 'mitti_piisa_audit_created', 'PIISA', '{"audit_id":"audit_piisa1"}')`, [J_INST]);
 
@@ -125,8 +128,11 @@ mock.module("../src/lib/piisa-a3.server", () => ({ crewStaff: async () => [
   { workerId: W_DEEP, name: "Bhavdeep Singh", eec: "CII-1", eecVerified: true, cleared: true, clearanceReason: null, level: "full", expiresOn: "2027-06-30" },
   { workerId: W_MAN, name: "Manminder Singh", eec: null, eecVerified: false, cleared: false, clearanceReason: CREW_CLEARANCE_REASON.unverified, level: null, expiresOn: null },
   { workerId: W_NOMITTI, name: "New Person", eec: "CII-9", eecVerified: true, cleared: true, clearanceReason: null, level: "full", expiresOn: "2027-06-30" },
+  { workerId: W_CREW, name: "Cara Crew", eec: "CII-4", eecVerified: true, cleared: true, clearanceReason: null, level: "full", expiresOn: "2027-06-30", workerRole: "crew" },
+  { workerId: W_CREW_NOMITTI, name: "Cory Crew", eec: "CII-5", eecVerified: true, cleared: true, clearanceReason: null, level: "full", expiresOn: "2027-06-30", workerRole: "crew" },
+  { workerId: W_LEAD_BIZ, name: "Lena Lead", eec: "CII-6", eecVerified: true, cleared: true, clearanceReason: null, level: "full", expiresOn: "2027-06-30", workerRole: "lead" },
 ] }));
-const mittiUsers: Record<string, string> = { "deep@example.test": "mu-deep", "man@example.test": "mu-man" };
+const mittiUsers: Record<string, string> = { "deep@example.test": "mu-deep", "man@example.test": "mu-man", "cara@example.test": "mu-cara", "office@reinsulate.test": "mu-office" };
 const reassigns: unknown[] = [];
 mock.module("../src/lib/mitti.server", () => ({
   realMittiCall: async () => { throw new Error("no network in tests"); },
@@ -164,6 +170,19 @@ describe("allocateVisit (server wiring)", () => {
     expect(reassigns).toHaveLength(before);
     expect((await events(J_INST)).map((e) => e.details.worker_id)).toEqual([W_DEEP]);
   });
+  test("Crew with a Mitti login can take a Ready Check but never the install day; Crew without Mitti is told to add them first", async () => {
+    await expect(allocateVisit(J_INST, OWNER, "install", W_CREW)).rejects.toThrow("Crew can't be the install-day Lead");
+    const r = await allocateVisit(J_RC, OWNER, "ready_check", W_CREW);
+    expect(r).toMatchObject({ ok: true, name: "Cara Crew" });
+    expect(reassigns.at(-1)).toMatchObject({ jobId: J_RC, mittiUserId: "mu-cara", email: "cara@example.test" });
+    const before = (await events(J_RC)).length;
+    await expect(allocateVisit(J_RC, OWNER, "ready_check", W_CREW_NOMITTI)).rejects.toThrow("Add them in Mitti first");
+    expect(await events(J_RC)).toHaveLength(before);
+  });
+  test("a Lead with no email of their own is found by the business email", async () => {
+    await allocateVisit(J_INST, OWNER, "install", W_LEAD_BIZ);
+    expect(reassigns.at(-1)).toMatchObject({ jobId: J_INST, mittiUserId: "mu-office", email: "office@reinsulate.test" });
+  });
   test("latest allocation wins; wrong visit for the stage and non-owners are refused", async () => {
     await allocateVisit(J_RC, OWNER, "ready_check", W_DEEP);
     expect(await allocatedPersonFor(J_RC, "ready_check")).toMatchObject({ workerId: W_DEEP });
@@ -175,6 +194,6 @@ describe("allocateVisit (server wiring)", () => {
     expect(v.visits[0]).toMatchObject({ kind: "ready_check", current: { workerId: W_DEEP, name: "Bhavdeep Singh" }, hasForm: true, options: [] });
     boss = true;
     const vb = await visitAllocationView(J_INST, OWNER);
-    expect(vb.visits[0]!.options.map((o) => [o.name, o.allowed])).toEqual([["Bhavdeep Singh", true], ["New Person", true], ["Manminder Singh", false]]);
+    expect(vb.visits[0]!.options.map((o) => [o.name, o.allowed])).toEqual([["Bhavdeep Singh", true], ["Lena Lead", true], ["New Person", true], ["Cara Crew", false], ["Cory Crew", false], ["Manminder Singh", false]]);
   });
 });

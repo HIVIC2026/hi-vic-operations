@@ -4,6 +4,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
 import type { MittiCall } from "./mitti.core";
+import { effectiveWorkerRole, mittiEmailFor } from "./worker-role.core";
 import { melbourneToday } from "./worker-compliance.core";
 import { CREW_CLEARANCE_REASON } from "./worker-compliance.core";
 import { addInMittiFirst, allocationBlocker, allocationOptions, currentAllocation, visitsForStage, VISIT_ALLOCATED_EVENT, VISIT_LABEL, type AllocationCandidate, type VisitKind } from "./visit-allocation.core";
@@ -12,14 +13,16 @@ const db = admin as unknown as { from: (t: string) => any }; // eslint-disable-l
 
 /** Every current staff row of the business, with derived clearance facts for installers (reuses the PIISA crew loader). */
 export async function allocationCandidates(businessId: string): Promise<AllocationCandidate[]> {
-  const { data: workers, error } = await db.from("partner_workers").select("id, full_legal_name, trade_role, email, mobile, removed_at").eq("business_id", businessId).is("removed_at", null);
+  const { data: workers, error } = await db.from("partner_workers").select("id, full_legal_name, trade_role, email, mobile, removed_at, worker_role").eq("business_id", businessId).is("removed_at", null);
   if (error) throw new WorkflowError(`Couldn't load your staff: ${error.message}`);
+  const { data: biz } = await db.from("businesses").select("email").eq("id", businessId).maybeSingle();
+  const businessEmail = (biz as { email?: string | null } | null)?.email ?? null;
   const staff = await (await import("./piisa-a3.server")).crewStaff(businessId);
   const byId = new Map(staff.map((s) => [s.workerId, s]));
-  return ((workers ?? []) as { id: string; full_legal_name: string; trade_role: string; email: string | null; mobile: string | null; removed_at: string | null }[]).map((w) => {
+  return ((workers ?? []) as { id: string; full_legal_name: string; trade_role: string; email: string | null; mobile: string | null; removed_at: string | null; worker_role?: string | null }[]).map((w) => {
     const s = byId.get(w.id);
     return {
-      workerId: w.id, name: w.full_legal_name.trim(), tradeRole: w.trade_role, email: w.email, mobile: w.mobile, removedAt: w.removed_at,
+      workerId: w.id, name: w.full_legal_name.trim(), tradeRole: w.trade_role, email: w.email, mobile: w.mobile, removedAt: w.removed_at, workerRole: s?.workerRole ?? effectiveWorkerRole({ tradeRole: w.trade_role, stored: w.worker_role }), businessEmail,
       clearance: s ? { certStatus: s.eecVerified ? "verified" : s.clearanceReason === CREW_CLEARANCE_REASON.withdrawn ? "rejected" : null, level: s.level ?? null, expiresOn: s.expiresOn ?? null } : null,
       whiteCard: s?.whiteCard ?? null,
     };
@@ -87,7 +90,7 @@ export async function allocateVisit(jobId: string, userId: string, kind: VisitKi
   const mitti = await import("./mitti.server");
   const useCall = call ?? mitti.realMittiCall;
   // TEST partners never reach a real installer's Mitti user; their forms live under the TEST Mitti account.
-  const lookupEmail = c.isTest || job?.source === "qa_test" ? (await import("./onsite-ready-check.core")).TEST_MITTI_ASSIGNEE : (cand.email ?? "");
+  const lookupEmail = c.isTest || job?.source === "qa_test" ? (await import("./onsite-ready-check.core")).TEST_MITTI_ASSIGNEE : (mittiEmailFor({ role: cand.workerRole ?? null, ownEmail: cand.email, businessEmail: cand.businessEmail }).email ?? "");
   const mittiUserId = await mitti.findMittiUserByEmail(lookupEmail, useCall);
   if (!mittiUserId) throw new WorkflowError(addInMittiFirst(cand.name, cand.email));
   const auditId = await visitFormAuditId(jobId, kind);
