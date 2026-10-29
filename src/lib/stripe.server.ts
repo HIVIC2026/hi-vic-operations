@@ -1,4 +1,5 @@
-// Stripe Checkout for the $349 safety check and the electrical fixes (decision 144). Rules in stripe.core.ts.
+// Stripe Checkout for the card steps (decision 144). Rules in stripe.core.ts. Batch 3b: each checkout carries the due
+// step's OWN invoice (installation, fixes or repeat safety check), so the card money lands on that invoice only.
 // Keys are env only (STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET); switch STRIPE_PAYMENTS_ENABLED=true for real jobs; TEST
 // jobs only ever use a test key. Webhook payments are recorded once per PaymentIntent in the append-only ledger and
 // then flow through the same payment-step effects as a bank transfer. Xero reconciliation of Stripe payouts is manual
@@ -11,7 +12,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { checkoutSessionParams, encodeForm, parseStripeEvent, stripeBlocker, stripePaymentKey, verifyStripeSignature, type StripePaymentFact } from "./stripe.core";
-import { PAYMENT_EVENT, PAYMENT_REVERSED_EVENT, afterPaymentsChanged, flagUnclearPaymentMatches, insertLedgerEvent, jobPaymentView, rawPaymentLedger, reconciledInvoicePaidCents } from "./payments.server";
+import { PAYMENT_EVENT, PAYMENT_REVERSED_EVENT, afterPaymentsChanged, flagUnclearPaymentMatches, insertLedgerEvent, jobPaymentView, rawPaymentLedger, reconciledInvoicePaidCents, stepInvoice } from "./payments.server";
 import { stripeReceiptKey, stripeRefundReceiptKey, stripeRefundedSoFarCents, toCents } from "./payments.core";
 import type { StripeRefundFact } from "./stripe.core";
 import { timeoutSignal } from "./network-timeout.core";
@@ -25,11 +26,14 @@ export function stripeKeyFor(jobSource: string | null | undefined): string | nul
   return process.env["STRIPE_SECRET_KEY"] ?? null;
 }
 
-/** Owner "Pay now by card": a Stripe Checkout session for exactly the outstanding amount of the step that is due. */
+/** Owner "Pay now by card": a Stripe Checkout session for exactly the outstanding amount of the step that is due, on that
+ *  step's own invoice. */
 export async function createStepCheckout(jobId: string, returnUrl: string, actorId: string | null): Promise<{ url: string } | { blocker: string }> {
   const v = await jobPaymentView(jobId);
   if (!v || !v.due.step) return { blocker: "Nothing is due right now." };
   const step = v.due.step;
+  const invoiceId = stepInvoice(v, step.key)?.id ?? null;
+  if (!invoiceId) return { blocker: "The card payment page could not be started. Please pay by bank transfer." };
   const key = stripeKeyFor(v.jobSource);
   const blocker = stripeBlocker({ enabled: process.env["STRIPE_PAYMENTS_ENABLED"] === "true", secretKey: key, jobSource: v.jobSource, step: step.key, amountCents: step.outstandingCents });
   if (blocker) return { blocker };
@@ -37,7 +41,7 @@ export async function createStepCheckout(jobId: string, returnUrl: string, actor
   const email = (job?.owners as { email: string | null } | null)?.email ?? null;
   const sep = returnUrl.includes("?") ? "&" : "?";
   const { form, idempotencyKey } = checkoutSessionParams({
-    jobId, invoiceId: v.invoiceId, step: step.key, amountCents: step.outstandingCents, jobNumber: job?.job_number ?? "", jobSource: v.jobSource,
+    jobId, invoiceId, step: step.key, amountCents: step.outstandingCents, jobNumber: job?.job_number ?? "", jobSource: v.jobSource,
     description: `Home Insulation Victoria ${job?.job_number ?? ""} – ${step.label}`.trim(),
     successUrl: `${returnUrl}${sep}paid=card`, cancelUrl: `${returnUrl}${sep}paid=cancelled`, customerEmail: email,
   });
@@ -52,7 +56,7 @@ export async function createStepCheckout(jobId: string, returnUrl: string, actor
   }
   const session = (await res.json()) as { id?: string; url?: string };
   if (!session.url) return { blocker: "The card payment page could not be started. Please pay by bank transfer." };
-  await logEvent(jobId, actorId, "stripe_checkout_started", `Card payment page opened for ${step.label} (${(step.outstandingCents / 100).toFixed(2)})`, { step: step.key, amount_cents: step.outstandingCents, session_id: session.id ?? null, invoice_id: v.invoiceId }, { internal: true });
+  await logEvent(jobId, actorId, "stripe_checkout_started", `Card payment page opened for ${step.label} (${(step.outstandingCents / 100).toFixed(2)})`, { step: step.key, amount_cents: step.outstandingCents, session_id: session.id ?? null, invoice_id: invoiceId }, { internal: true });
   return { url: session.url };
 }
 
@@ -82,7 +86,7 @@ async function stripeChargeFor(paymentIntentId: string, livemode: boolean): Prom
 }
 
 export async function recordStripePayment(f: StripePaymentFact): Promise<string> {
-  const { data: inv } = await admin.from("invoices").select("id, job_id, total_paid, jobs(source, business_unit)").eq("id", f.invoiceId).eq("job_id", f.jobId).maybeSingle();
+  const { data: inv } = await admin.from("invoices").select("id, job_id, kind, total_paid, jobs(source, business_unit)").eq("id", f.invoiceId).eq("job_id", f.jobId).maybeSingle();
   if (!inv) return "unknown_invoice";
   const job = inv.jobs as unknown as { source: string | null; business_unit: string | null } | null;
   // A live-mode payment on a TEST job (or vice versa) is never recorded – wrong Stripe account for the job.
@@ -106,13 +110,14 @@ export async function recordStripePayment(f: StripePaymentFact): Promise<string>
   return applyAfterStripeChange(inv);
 }
 
-async function applyAfterStripeChange(inv: { id: string; job_id: string; total_paid: number | string | null }): Promise<"recorded"> {
+async function applyAfterStripeChange(inv: { id: string; job_id: string; kind: string; total_paid: number | string | null }): Promise<"recorded"> {
   const total = await reconciledInvoicePaidCents(inv.job_id, inv.id, { totalPaid: inv.total_paid });
   if (total !== toCents(inv.total_paid)) {
     const { applyPaidAmount } = await import("./xero.server");
     await applyPaidAmount(inv.id, total / 100, null).catch((e) => console.error("stripe paid amount apply skipped", (e as Error).message));
   }
-  await (await import("./repeat-piesa.server")).repeatPaidByCard(inv.job_id, inv.id, total)
+  // Batch 3b: a card payment on the repeat safety check's own invoice → that invoice's paid amount decides it.
+  if (inv.kind === "repeat_safety_check") await (await import("./repeat-piesa.server")).repeatPaidByCard(inv.job_id, inv.id, total)
     .catch((e) => console.error("repeat PIESA card check skipped", (e as Error).message));
   await afterPaymentsChanged(inv.job_id, inv.id, null);
   return "recorded";
@@ -126,7 +131,7 @@ export async function recordStripeRefund(r: StripeRefundFact): Promise<string> {
   const row = ((rows ?? []) as { job_id: string | null; details: Record<string, unknown> | null }[])[0];
   const invoiceId = typeof row?.details?.["invoice_id"] === "string" ? (row.details["invoice_id"] as string) : null;
   if (!row?.job_id || !invoiceId) return "unknown_payment";
-  const { data: inv } = await admin.from("invoices").select("id, job_id, total_paid, jobs(source)").eq("id", invoiceId).eq("job_id", row.job_id).maybeSingle();
+  const { data: inv } = await admin.from("invoices").select("id, job_id, kind, total_paid, jobs(source)").eq("id", invoiceId).eq("job_id", row.job_id).maybeSingle();
   if (!inv) return "unknown_invoice";
   const job = inv.jobs as unknown as { source: string | null } | null;
   if ((job?.source === "qa_test") !== !r.livemode) return "mode_mismatch";

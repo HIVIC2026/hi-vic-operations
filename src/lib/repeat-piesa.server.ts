@@ -56,7 +56,7 @@ async function currentReopenLapse(jobId: string): Promise<string | null> {
 }
 
 /** Lapsed deadline + this deadline's choice/acceptance/payment. */
-export async function repeatPiesaContext(jobId: string): Promise<{ state: RepeatState; suggestion: string | null; paidBeforeAcceptCents: number | null }> {
+export async function repeatPiesaContext(jobId: string): Promise<{ state: RepeatState; suggestion: string | null }> {
   const { installDayContext } = await import("./install-days.server");
   const [c, reopenLapse] = await Promise.all([installDayContext(jobId).catch(() => null), currentReopenLapse(jobId)]);
   const { data: rows } = await admin.from("workflow_events").select("event_type, created_at, details").eq("job_id", jobId).in("event_type", [REPEAT_PIESA_CHOSEN_EVENT, REPEAT_PIESA_ACCEPTED_EVENT, REPEAT_PIESA_PAID_EVENT, "install_window_expired"]).order("created_at", { ascending: false });
@@ -71,9 +71,7 @@ export async function repeatPiesaContext(jobId: string): Promise<{ state: Repeat
   const state = repeatPiesaState({ lapsedDeadline, choice, acceptedAt: forDeadline(REPEAT_PIESA_ACCEPTED_EVENT), paidAt: forDeadline(REPEAT_PIESA_PAID_EVENT) });
   const exp = ev.find((r) => r.event_type === "install_window_expired" && String(d(r)["deadline"]) === lapsedDeadline);
   const sp = exp ? String(d(exp)["payer"] ?? "") : "";
-  const acc = ev.find((r) => r.event_type === REPEAT_PIESA_ACCEPTED_EVENT && String(d(r)["deadline"]) === lapsedDeadline);
-  const pb = acc ? d(acc)["paid_before_cents"] : null;
-  return { state, suggestion: sp && sp !== "undetermined" ? sp : null, paidBeforeAcceptCents: typeof pb === "number" && Number.isFinite(pb) ? pb : null };
+  return { state, suggestion: sp && sp !== "undetermined" ? sp : null };
 }
 
 /** Office choice. The suggestion is recorded alongside, never used to decide. */
@@ -103,11 +101,7 @@ export async function acceptRepeatPiesa(jobId: string): Promise<RepeatState> {
     if (state.stage === "owner_pay" || state.stage === "offer") return state; // idempotent
     throw new WorkflowError("There's nothing to accept right now.");
   }
-  // Bridge until batch 3b Task 4 retires it: what the owner had paid on the installation invoice when they accepted (the
-  // payment plan's repeat credit still reads it). The repeat itself is now paid on its own invoice.
-  const { data: invRow } = await admin.from("invoices").select("total_paid").eq("job_id", jobId).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).maybeSingle();
-  const paidBeforeCents = Math.round(Number(invRow?.total_paid ?? 0) * 100);
-  await logEvent(jobId, null, REPEAT_PIESA_ACCEPTED_EVENT, `Owner accepted the new safety check (PIESA)${state.payer === "owner" ? ` — $${state.priceIncGst} inc GST added to their bill` : " at no cost to them"}`, { deadline: state.deadline, payer: state.payer, owner_charge_inc_gst: state.payer === "owner" ? state.priceIncGst : 0, paid_before_cents: paidBeforeCents }, { internal: false });
+  await logEvent(jobId, null, REPEAT_PIESA_ACCEPTED_EVENT, `Owner accepted the new safety check (PIESA)${state.payer === "owner" ? ` — $${state.priceIncGst} inc GST added to their bill` : " at no cost to them"}`, { deadline: state.deadline, payer: state.payer, owner_charge_inc_gst: state.payer === "owner" ? state.priceIncGst : 0 }, { internal: false });
   const next = (await repeatPiesaContext(jobId)).state;
   // Owner pays (batch 3b): the repeat gets its OWN Xero invoice now, once per repeat. A Xero failure is recorded for the
   // office (Needs me) and retried by Sync / Create invoice; it never undoes the owner's acceptance.

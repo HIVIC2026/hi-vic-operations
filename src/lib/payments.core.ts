@@ -2,11 +2,13 @@
 // line — callers pass it as `safetyCheckCents`; 349 below is only the HIV-electrician default). Pure rules only – no
 // database, no Xero, no dates from the clock.
 //
-// Money: ONE full Xero invoice per accepted quote (xero.core / invoice.lifecycle). Every payment step below is paid
-// AGAINST THAT SAME INVOICE; nothing here creates a second invoice. A step is "paid" when the cumulative amount
-// received on the invoice reaches the step's running threshold. Xero is the system of record; card (Stripe) payments
-// count until Xero shows the same money (`reconciledPaidCents`, audit F01). The office never types a payment in
-// (decision 368): payments arrive only from Xero and Stripe.
+// Money (batch 3b, Jo 29 Oct 2026): each step is paid on its OWN invoice. The installation invoice (one per accepted
+// installation quote; it keeps the $349 safety check (PIESA) and $349 AP fee lines) carries the safety check, the 10% install
+// deposit and the balance; the electrical fixes have their own invoice ("… fixes"); a repeat safety check the owner pays
+// has its own invoice ("… safety check 2", 3…). A step is "paid" when the money received on ITS invoice reaches the step's
+// running threshold on that invoice. Xero is the system of record; card (Stripe) payments count until Xero shows the same
+// money (`reconciledPaidCents`, audit F01). The office never types a payment in (decision 368): payments arrive only from
+// Xero and Stripe.
 //
 // How owners pay (decision 140 — the RBA bans card surcharges from 1 July 2026, so a card fee is NEVER shown):
 //   • $349 safety check at acceptance: card (fee absorbed by Home Insulation Victoria) or bank transfer / PayID.
@@ -24,8 +26,8 @@ export const PROVISIONAL_HOLD_HOURS = 48;
 export const PROVISIONAL_HOLD_MS = PROVISIONAL_HOLD_HOURS * 3_600_000;
 
 export type PaymentStepKey = "safety_check" | "fixes" | "install_deposit" | "balance" | "repeat_safety_check";
-/** The repeat safety check sits right after the first safety check and counts its OWN money (see `repeatCreditCents`):
- *  its money is taken off what the other steps see, so it never counts toward the install deposit. Thresholds are unchanged. */
+/** The repeat safety check sits right after the first safety check. Every step counts only the money on its own invoice
+ *  (`stepInvoiceKind`), so fixes or repeat money never counts toward the install deposit or the balance. */
 export const PAYMENT_STEP_ORDER: PaymentStepKey[] = ["safety_check", "repeat_safety_check", "fixes", "install_deposit", "balance"];
 export const PAYMENT_STEP_LABEL: Record<PaymentStepKey, string> = {
   safety_check: "Pre Insulation Electrical Safety Assessment (PIESA) payment",
@@ -46,16 +48,16 @@ export type PaymentPlanInput = {
   quoteTotalCents: number;
   /** workflow_settings.safety_check_payment_inc_gst in cents; defaults to $349. */
   safetyCheckCents?: number | null;
-  /** Approved electrical fixes (rectification) total inc GST, 0 when none. */
+  /** Approved electrical fixes (rectification) total inc GST — its own invoice — 0 when none. */
   fixesCents?: number | null;
-  /** Decision 233: the repeat safety check (PIESA) price inc GST the OWNER owes on the ONE invoice, 0 when none. */
+  /** Decision 233: the repeat safety check (PIESA) price inc GST the OWNER owes — its own invoice — 0 when none. */
   repeatCents?: number | null;
 };
 export type PaymentPlan = {
   quoteTotalCents: number; safetyCheckCents: number; fixesCents: number; repeatCents: number; installDepositCents: number; balanceCents: number;
   /** Everything the owner pays across the job: quote total + fixes + any repeat safety check. */
   grandTotalCents: number;
-  /** Running thresholds in PAYMENT_STEP_ORDER; a step is paid when cumulative received ≥ its threshold. */
+  /** Running thresholds on each step's OWN invoice; a step is paid when the money received on that invoice ≥ its threshold. */
   thresholds: Record<PaymentStepKey, number>;
 };
 
@@ -70,14 +72,21 @@ export function paymentPlan(i: PaymentPlanInput): PaymentPlan {
   const balanceCents = remaining - installDepositCents;
   const grandTotalCents = quoteTotalCents + fixesCents + repeatCents;
   const thresholds = {
-    safety_check: safetyCheckCents,
-    fixes: safetyCheckCents + fixesCents,
-    install_deposit: safetyCheckCents + fixesCents + installDepositCents,
-    balance: quoteTotalCents + fixesCents,
-    repeat_safety_check: grandTotalCents,
+    safety_check: safetyCheckCents, // installation invoice
+    install_deposit: safetyCheckCents + installDepositCents, // installation invoice
+    balance: quoteTotalCents, // installation invoice
+    fixes: fixesCents, // fixes invoice
+    repeat_safety_check: repeatCents, // repeat safety check invoice
   };
   return { quoteTotalCents, safetyCheckCents, fixesCents, repeatCents, installDepositCents, balanceCents, grandTotalCents, thresholds };
 }
+
+/** Which of the job's invoices a step is paid on. */
+export type InvoiceSlot = "install" | "fixes" | "repeat";
+export const stepInvoiceKind = (k: PaymentStepKey): InvoiceSlot => (k === "fixes" ? "fixes" : k === "repeat_safety_check" ? "repeat" : "install");
+/** Money received on each of the job's invoices, in cents. */
+export type PaidByInvoice = Record<InvoiceSlot, number>;
+export const totalPaidCents = (p: PaidByInvoice) => Math.max(0, Math.round(p.install)) + Math.max(0, Math.round(p.fixes)) + Math.max(0, Math.round(p.repeat));
 
 export const stepAmountCents = (p: PaymentPlan, k: PaymentStepKey) =>
   k === "safety_check" ? p.safetyCheckCents : k === "fixes" ? p.fixesCents : k === "install_deposit" ? p.installDepositCents : k === "repeat_safety_check" ? p.repeatCents : p.balanceCents;
@@ -99,8 +108,6 @@ export type PaymentStepFacts = {
   waived?: boolean;
   /** Repeat safety check only: the office/ledger has recorded the repeat as paid. */
   recordedPaid?: boolean;
-  /** Repeat safety check only: cumulative paid when the repeat was accepted; null = unknown (counts nothing). */
-  paidBeforeAcceptCents?: number | null;
 };
 export type PaymentStep = {
   key: PaymentStepKey; label: string; amountCents: number; thresholdCents: number; state: PaymentStepState;
@@ -118,37 +125,21 @@ export function stepState(f: { thresholdCents: number; amountCents: number; paid
   return "requested";
 }
 
-/** How much of the money paid counts for the repeat safety check: only money actually received since acceptance, capped at
- *  the repeat price — the same whether or not it is recorded paid (a "Record paid" before the money is in never takes money
- *  off the other steps); nothing if we don't know what was paid before acceptance. */
-export function repeatCreditCents(f: { repeatCents: number; paidCents: number; paidBeforeAcceptCents: number | null; recordedPaid: boolean }): number {
-  if (f.repeatCents <= 0) return 0;
-  if (f.paidBeforeAcceptCents == null) return 0;
-  return Math.min(f.repeatCents, Math.max(0, f.paidCents - f.paidBeforeAcceptCents));
-}
-
-export function paymentSteps(plan: PaymentPlan, paidCents: number, facts: Partial<Record<PaymentStepKey, PaymentStepFacts>>, nowIso: string): PaymentStep[] {
-  const paid = Math.max(0, Math.round(paidCents));
-  const rf = facts.repeat_safety_check;
-  const credit = repeatCreditCents({ repeatCents: plan.repeatCents, paidCents: paid, paidBeforeAcceptCents: rf?.paidBeforeAcceptCents ?? null, recordedPaid: !!rf?.recordedPaid });
+/** Each step against the money on ITS invoice (`stepInvoiceKind`). The repeat check is also paid once it is recorded paid. */
+export function paymentSteps(plan: PaymentPlan, paid: PaidByInvoice, facts: Partial<Record<PaymentStepKey, PaymentStepFacts>>, nowIso: string): PaymentStep[] {
   return PAYMENT_STEP_ORDER.filter((k) => (k !== "fixes" || plan.fixesCents > 0) && (k !== "repeat_safety_check" || plan.repeatCents > 0)).map((key) => {
     const f = facts[key] ?? { requestedAt: null };
     const amountCents = stepAmountCents(plan, key);
-    if (key === "repeat_safety_check") {
-      const state: PaymentStepState = f.recordedPaid ? "paid" : f.requestedAt ? "requested" : "not_yet";
-      const outstandingCents = f.recordedPaid ? 0 : Math.max(0, plan.repeatCents - credit);
-      return { key, label: PAYMENT_STEP_LABEL[key], amountCents, thresholdCents: plan.thresholds.safety_check + plan.repeatCents, state, methods: paymentMethodsFor(key), requestedAt: f.requestedAt, dueAt: f.dueAt ?? null, outstandingCents };
-    }
-    const own = paid - credit; // the repeat's money never counts toward any other step
+    const own = Math.max(0, Math.round(paid[stepInvoiceKind(key)]));
     const thresholdCents = plan.thresholds[key];
-    const state = stepState({ thresholdCents, amountCents, paidCents: own, facts: f, nowIso });
+    const state = key === "repeat_safety_check" && f.recordedPaid ? "paid" : stepState({ thresholdCents, amountCents, paidCents: own, facts: f, nowIso });
     const outstandingCents = state === "paid" || state === "waived" ? 0 : Math.max(0, Math.min(amountCents, thresholdCents - own));
     return { key, label: PAYMENT_STEP_LABEL[key], amountCents, thresholdCents, state, methods: paymentMethodsFor(key), requestedAt: f.requestedAt, dueAt: f.dueAt ?? null, outstandingCents };
   });
 }
 
-/** Decision 355: WHEN a step was paid — the payment that took the cumulative total (in paid-at order) to the step's
- *  threshold. `fallback` covers money the Xero mirror shows (invoices.total_paid) without ledger rows. Null = not paid
+/** Decision 355: WHEN a step was paid — the payment that took the cumulative total on the step's OWN invoice (pass that
+ *  invoice's records, in paid-at order) to the step's threshold. `fallback` covers money the Xero mirror shows (invoices.total_paid) without ledger rows. Null = not paid
  *  (or nothing to pay for that step). */
 export function stepPaidAt(plan: PaymentPlan, key: PaymentStepKey, records: { amountCents: number; paidAt: string }[], fallback?: { paidCents: number; at: string | null } | null): string | null {
   if (stepAmountCents(plan, key) <= 0) return null;
@@ -159,25 +150,6 @@ export function stepPaidAt(plan: PaymentPlan, key: PaymentStepKey, records: { am
     if (sum >= threshold) return r.paidAt;
   }
   return fallback && fallback.at && Math.round(fallback.paidCents) >= threshold ? fallback.at : null;
-}
-
-/** Decision 366 / audit F03: the fixes amount the owner pays as its OWN step. Only a fixes (rectification) quote accepted
- *  AFTER the installation quote counts — in the old model the fixes lines were folded into a later installation quote
- *  (so the invoice total already holds them) and counting the fixes quote too would charge them twice. */
-export function fixesCountedCents(f: { rectTotalCents: number | null | undefined; rectAcceptedAt: string | null | undefined; installAcceptedAt: string | null | undefined }): number {
-  if (!f.rectAcceptedAt || !(Number(f.rectTotalCents) > 0)) return 0;
-  if (f.installAcceptedAt && Date.parse(f.rectAcceptedAt) < Date.parse(f.installAcceptedAt)) return 0;
-  return Math.round(Number(f.rectTotalCents));
-}
-/** Audit R07: the plan's quote part. Once the approved fixes are on the ONE Xero invoice (`xero-repairs.core`), the
- *  invoice total is quote + fixes; the plan keeps the accepted installation quote as its quote part so the fixes are
- *  counted once and the plan's grand total equals the Xero invoice total. Otherwise the invoice total, as before. */
-export function planQuoteTotalCents(f: { invoiceTotalCents: number; quoteTotalCents: number | null | undefined; fixesCents: number; repeatCents?: number | null }): number {
-  const q = f.quoteTotalCents == null ? null : Math.round(f.quoteTotalCents);
-  const fixes = Math.round(f.fixesCents);
-  const repeat = Math.max(0, Math.round(f.repeatCents ?? 0));
-  if (q != null && Math.round(f.invoiceTotalCents) === q + fixes + repeat) return q;
-  return Math.round(f.invoiceTotalCents);
 }
 
 /** Jo 26 Oct 2026: the install is booked only once the 10% install deposit (10% of the install price — never the PIESA
@@ -197,8 +169,10 @@ export function installDepositBlocker(plan: Pick<PaymentPlan, "installDepositCen
   return isStepCleared(steps, "install_deposit") ? null : INSTALL_DEPOSIT_BLOCKER;
 }
 
-/** Decision 366: the fixes visit is booked only once the fixes are paid in full (card or bank transfer). */
+/** Decision 366: the fixes visit is booked only once the fixes are paid in full (card or bank transfer) on the newest fixes invoice. */
 export const FIXES_NOT_PAID_BLOCKER = "The electrical fixes must be paid in full before the fixes visit is booked.";
+/** The fixes invoice is paid in full (nothing to pay counts as paid). */
+export const fixesInvoicePaid = (totalCents: number, paidCents: number) => Math.round(totalCents) <= 0 || Math.round(paidCents) >= Math.round(totalCents);
 export function fixesPaymentBlocker(plan: Pick<PaymentPlan, "fixesCents">, steps: PaymentStep[]): string | null {
   if (plan.fixesCents <= 0) return null;
   return isStepCleared(steps, "fixes") ? null : FIXES_NOT_PAID_BLOCKER;
@@ -207,25 +181,27 @@ export function fixesPaymentBlocker(plan: Pick<PaymentPlan, "fixesCents">, steps
 /**
  * Review R08 / audit F14 (decision 314 follow-up): the "electrician on site at the start of the install day" exception
  * clears the job for install coordination only once the FULL accepted onsite electrical (fixes) charge has been
- * received on top of the safety check payment — the same cumulative threshold as the fixes step (`thresholds.fixes`).
- * The generic payment gate (which clears on the safety check payment alone) is never enough on its own. Fails closed:
- * no accepted charge, no invoice or no money = not paid. Amounts are read, never changed.
+ * received on its own fixes invoice AND the safety check payment on the installation invoice (batch 3b). The generic
+ * payment gate (which clears on the safety check payment alone) is never enough on its own. Fails closed: no accepted
+ * charge, no invoice or no money = not paid. Amounts are read, never changed.
  */
 export const ONSITE_CHARGE_NOT_PAID = "Waiting for the owner's payment for the electrician on site at the start of the install day.";
-export function onsiteChargePaid(i: { quoteTotalCents: number | null | undefined; safetyCheckCents: number; rectTotalCents: number | null | undefined; paidCents: number }): boolean {
+export function onsiteChargePaid(i: { quoteTotalCents: number | null | undefined; safetyCheckCents: number; rectTotalCents: number | null | undefined; paid: Pick<PaidByInvoice, "install" | "fixes"> }): boolean {
   const rect = Math.round(Number(i.rectTotalCents ?? 0));
   if (!(rect > 0) || !(Number(i.quoteTotalCents ?? 0) > 0)) return false;
   const plan = paymentPlan({ quoteTotalCents: Number(i.quoteTotalCents), safetyCheckCents: i.safetyCheckCents, fixesCents: rect });
-  return Math.round(i.paidCents) >= plan.thresholds.fixes;
+  return Math.round(i.paid.install) >= plan.thresholds.safety_check && Math.round(i.paid.fixes) >= plan.thresholds.fixes;
 }
 
 export const isStepPaid = (steps: PaymentStep[], key: PaymentStepKey) => (steps.find((s) => s.key === key)?.state ?? "not_yet") === "paid";
 export const isStepCleared = (steps: PaymentStep[], key: PaymentStepKey) => ["paid", "waived"].includes(steps.find((s) => s.key === key)?.state ?? "not_yet");
 
-/** What is payable right now: the earliest requested/overdue step, plus "pay in full" (always allowed). */
-export function payableNow(plan: PaymentPlan, steps: PaymentStep[], paidCents: number) {
+/** What is payable right now: the earliest requested/overdue step, plus "pay in full" (always allowed). Remaining = what is
+ *  left on each invoice (money over one invoice's total never pays another). */
+export function payableNow(plan: PaymentPlan, steps: PaymentStep[], paid: PaidByInvoice) {
   const due = steps.find((s) => (s.state === "requested" || s.state === "overdue") && s.outstandingCents > 0) ?? null;
-  const remainingCents = Math.max(0, plan.grandTotalCents - Math.max(0, Math.round(paidCents)));
+  const left = (total: number, got: number) => Math.max(0, total - Math.max(0, Math.round(got)));
+  const remainingCents = left(plan.quoteTotalCents, paid.install) + left(plan.fixesCents, paid.fixes) + left(plan.repeatCents, paid.repeat);
   return { step: due, dueNowCents: due ? due.outstandingCents : 0, remainingCents, cardAvailable: !!due && cardAllowedFor(due.key) };
 }
 

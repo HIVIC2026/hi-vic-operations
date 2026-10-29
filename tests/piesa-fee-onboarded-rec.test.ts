@@ -45,8 +45,8 @@ describe("decision 302 — the upfront safety check is the quote's PIESA line", 
     const plan = paymentPlan({ quoteTotalCents: 300_000, safetyCheckCents: piesaLineCents(lines349) });
     expect(plan.safetyCheckCents).toBe(34_900);
     expect(howYouPayLines(plan)[0]).toBe("$349.00 now for the electrical safety check (card or bank transfer, no fee)");
-    const steps = paymentSteps(plan, 0, { safety_check: { requestedAt: "2026-10-25T00:00:00Z" } }, "2026-10-25T01:00:00Z");
-    const due = payableNow(plan, steps, 0);
+    const steps = paymentSteps(plan, { install: 0, fixes: 0, repeat: 0 }, { safety_check: { requestedAt: "2026-10-25T00:00:00Z" } }, "2026-10-25T01:00:00Z");
+    const due = payableNow(plan, steps, { install: 0, fixes: 0, repeat: 0 });
     const block = payNowBlock({ step: due.step, cardAvailable: true, bank: HIV_BANK_DETAILS, reference: "HV-3193", remainingCents: due.remainingCents });
     expect(block.title).toBe("Pre Insulation Electrical Safety Assessment (PIESA) payment: $349.00 due now");
     expect(block.lines[0]).toBe(PAY_LINE_SAFETY_CHECK);
@@ -65,8 +65,8 @@ describe("decision 302 — the upfront safety check is the quote's PIESA line", 
     expect(plan.safetyCheckCents).toBe(22_000);
     expect(plan.installDepositCents).toBe(27_800); // 10% of (3000 − 220)
     expect(howYouPayLines(plan)[0]).toBe("$220.00 now for the electrical safety check (card or bank transfer, no fee)");
-    const steps = paymentSteps(plan, 0, { safety_check: { requestedAt: "2026-10-25T00:00:00Z" } }, "2026-10-25T01:00:00Z");
-    const due = payableNow(plan, steps, 0);
+    const steps = paymentSteps(plan, { install: 0, fixes: 0, repeat: 0 }, { safety_check: { requestedAt: "2026-10-25T00:00:00Z" } }, "2026-10-25T01:00:00Z");
+    const due = payableNow(plan, steps, { install: 0, fixes: 0, repeat: 0 });
     expect(due.dueNowCents).toBe(22_000);
     const block = payNowBlock({ step: due.step, cardAvailable: true, bank: HIV_BANK_DETAILS, reference: "HV-3193", remainingCents: due.remainingCents });
     expect(block.title).toBe("Pre Insulation Electrical Safety Assessment (PIESA) payment: $220.00 due now");

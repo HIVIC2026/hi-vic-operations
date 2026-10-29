@@ -38,7 +38,7 @@ test("sent once per quote only when the safety check is paid — never at accept
   const acc = pf.slice(pf.indexOf("async function invoiceAfterAcceptance"), pf.indexOf("// ---------- Payments"));
   expect(acc).not.toContain("emailInstallerQuoteAccepted");
   const pay = readFileSync("src/lib/payments.server.ts", "utf8");
-  const branch = pay.slice(pay.indexOf('if (isStepPaid(v.steps, "safety_check"))'), pay.indexOf("if (v.plan.fixesCents > 0"));
-  expect(branch).toContain("emailInstallerOnSafetyCheckPaid(jobId, invoiceId)");
+  const branch = pay.slice(pay.indexOf('if (isStepPaid(v.steps, "safety_check"))'), pay.indexOf("if (v.due.remainingCents === 0"));
+  expect(branch).toContain("emailInstallerOnSafetyCheckPaid(jobId, v.invoiceId)");
   expect(branch).toContain('console.error("installer accepted email skipped"');
 });
