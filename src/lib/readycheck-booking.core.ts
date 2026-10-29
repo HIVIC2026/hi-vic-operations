@@ -23,14 +23,13 @@ export type InstallerFacts = Omit<RecCandidate, "has_valid_licence" | "approved_
 
 /** Facts for one installer person, used only to explain WHY nobody at the business can be offered. */
 export type InstallerPersonGap = {
-  noticeAcknowledged: boolean | null; piisaBlocked: boolean;
+  noticeAcknowledged: boolean | null;
   cert: { status: string | null; level: string | null; expiresOn: string | null } | null;
 };
 
 export const INSTALLER_GAP = {
   none: "The business has no installer person added yet. The installer business must add one.",
   notice: "The installer hasn't accepted the ESC privacy notice yet. The installer must open their notice link and accept it.",
-  piisa: "The installer's PIISA training isn't uploaded and verified yet. The installer must upload it, then the office verifies it.",
   noCert: "No EEC certification recorded for the installer. The office must record it.",
   certNotVerified: "The installer's EEC certification hasn't been verified. The office must verify it.",
   notFull: "The installer's EEC certification isn't recorded as Full. The office must record a Full level.",
@@ -38,10 +37,10 @@ export const INSTALLER_GAP = {
 } as const;
 
 /** One reason per person, in the order a person would fix them; the business shows the reason of the person
- *  closest to being offerable (notice/PIISA before certificate gaps). Null = someone can be offered. */
+ *  closest to being offerable (notice before certificate gaps). Null = someone can be offered. */
 export function installerGapReason(people: InstallerPersonGap[], today: string): string | null {
   if (people.length === 0) return INSTALLER_GAP.none;
-  const rank: string[] = [INSTALLER_GAP.notice, INSTALLER_GAP.piisa, INSTALLER_GAP.expired, INSTALLER_GAP.notFull, INSTALLER_GAP.certNotVerified, INSTALLER_GAP.noCert];
+  const rank: string[] = [INSTALLER_GAP.notice, INSTALLER_GAP.expired, INSTALLER_GAP.notFull, INSTALLER_GAP.certNotVerified, INSTALLER_GAP.noCert];
   const reasons = people.map((p) => {
     const certGap = !p.cert ? INSTALLER_GAP.noCert
       : p.cert.status !== "verified" ? INSTALLER_GAP.certNotVerified
@@ -49,7 +48,6 @@ export function installerGapReason(people: InstallerPersonGap[], today: string):
       : !p.cert.expiresOn || p.cert.expiresOn < today ? INSTALLER_GAP.expired
       : null;
     if (p.noticeAcknowledged === false) return INSTALLER_GAP.notice;
-    if (p.piisaBlocked) return INSTALLER_GAP.piisa;
     return certGap;
   });
   if (reasons.some((r) => r === null)) return null;

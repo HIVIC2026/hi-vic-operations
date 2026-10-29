@@ -39,7 +39,7 @@ describe("partner emails (Jo 8 Oct wording; decision 107/136/137 designs)", () =
     expect(m.subject).toBe("We've got your application");
     expect(m.html).toContain(">Thanks Sam,<");
     expect(m.html).toContain(">We've got your application<");
-    for (const t of ["We check your details", "CII certification, public liability insurance (min $5 million) and PIISA training.", "You're approved", "invite to Mitti", "Start adding jobs", "If anything's missing, we'll email you exactly what we need."]) expect(m.text).toContain(t);
+    for (const t of ["We check your details", "CII certification and public liability insurance (min $5 million).", "You're approved", "invite to Mitti", "Start adding jobs", "If anything's missing, we'll email you exactly what we need."]) expect(m.text).toContain(t);
     expect(APPLICATION_RECEIVED_EMAIL_APPROVED).toBe(true); // decision 136
   });
 });
