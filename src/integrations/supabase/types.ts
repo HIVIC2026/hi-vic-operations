@@ -6409,7 +6409,10 @@ export type Database = {
           id: string
           mode: string
           passed: boolean | null
+          path: string | null
+          run_group: string | null
           started_at: string
+          status: string | null
           steps: Json
           test_job_id: string | null
         }
@@ -6421,7 +6424,10 @@ export type Database = {
           id?: string
           mode: string
           passed?: boolean | null
+          path?: string | null
+          run_group?: string | null
           started_at?: string
+          status?: string | null
           steps?: Json
           test_job_id?: string | null
         }
@@ -6433,7 +6439,10 @@ export type Database = {
           id?: string
           mode?: string
           passed?: boolean | null
+          path?: string | null
+          run_group?: string | null
           started_at?: string
+          status?: string | null
           steps?: Json
           test_job_id?: string | null
         }
