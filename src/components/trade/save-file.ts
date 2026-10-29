@@ -1,10 +1,10 @@
 /** Save a file from a tap. iPhone ignores <a download> for data links, so phones get the Share sheet.
  * Call it straight from the tap handler (no await before it) so the browser keeps the user gesture. */
-export async function saveFile(file: File): Promise<void> {
+export async function saveFile(file: File, opts?: { title?: string }): Promise<void> {
   const phone = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
   if (phone && typeof navigator !== "undefined" && navigator.canShare?.({ files: [file] })) {
     try {
-      await navigator.share({ files: [file] });
+      await navigator.share({ files: [file], ...(opts?.title ? { title: opts.title } : {}) });
     } catch (e) {
       if ((e as { name?: string })?.name !== "AbortError") throw e; // closing the sheet is fine
     }

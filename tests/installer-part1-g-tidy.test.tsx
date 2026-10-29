@@ -30,3 +30,17 @@ test("G5: one NextPanel; business look renders exactly the old classes; job look
   expect(kit).not.toMatch(/\bsecondary:|\bfield:/);
   expect(readFileSync("src/routes/_authenticated/field.business.tsx", "utf8")).toContain('<NextPanel look="business"');
 });
+
+test("G5: removed leftovers are gone, access results unchanged", async () => {
+  const g = readFileSync("src/lib/route-guards.ts", "utf8");
+  expect(g).not.toContain("ids.map(() => null)");
+  expect(g).not.toContain("INSTALLER_BULK_UPLOAD_ENABLED");
+  expect(g).not.toContain("legacyBulkImportRedirect");
+  expect(readFileSync("src/components/trade/business-pages.tsx", "utf8")).toContain("export const field = inputCls;");
+  expect(readFileSync("src/components/trade/installer-kit.tsx", "utf8")).not.toContain("export function BackToWork");
+  expect(readFileSync("src/components/trade/TradeShell.tsx", "utf8")).not.toContain("export function TradeTabBar");
+  const users = readFileSync("src/routes/_authenticated/admin.users.tsx", "utf8");
+  expect(users).toContain("saveFile(");
+  expect(users).not.toContain("URL.createObjectURL");
+  expect(readFileSync("src/components/trade/save-file.ts", "utf8")).toContain("opts?: { title?: string }");
+});

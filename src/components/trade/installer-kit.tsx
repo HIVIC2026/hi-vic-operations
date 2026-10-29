@@ -14,7 +14,7 @@ export function Screen({ children }: { children: React.ReactNode }) {
   return <div className="mx-auto flex w-full max-w-[430px] flex-col gap-5 text-ink md:max-w-[560px]">{children}</div>;
 }
 
-export function BackToWork() {
+function BackToWork() {
   return <Link to="/field" className="inline-flex min-h-9 items-center text-sm font-medium text-hiv-blue">‹ My work</Link>;
 }
 

@@ -45,14 +45,13 @@ async function loadAccessFresh(userId: string): Promise<Access> {
   const r = new Set((roles ?? []).map((x) => x.role as string));
   const ids = (members ?? []).map((x) => x.business_id as string);
   // Business type is not read here: trade reads of businesses currently fail (row rule), so the installer role decides.
-  const m = ids.map(() => null);
   const qaRole = r.has("qa_office");
   const user = qaRole ? (await currentUser()).data.user : null;
   const qaOffice = qaRole && r.size === 1 && !!user?.email_confirmed_at && /^[^@\s]+@hivic-test\.example$/i.test(user?.email ?? "");
   return {
     admin: r.has("admin") && !qaRole, qaOffice, installer: r.has("installer"), electrician: r.has("electrician"), owner: r.has("owner"),
-    businessAdmin: m.length > 0,
-    installerBusinessAdmin: m.length > 0 && r.has("installer"),
+    businessAdmin: ids.length > 0,
+    installerBusinessAdmin: ids.length > 0 && r.has("installer"),
   };
 }
 
