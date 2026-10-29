@@ -404,6 +404,8 @@ export function draftAutoState(i: { sentVia: string | null | undefined; discarde
 export function autoNoteText(auto: { decision: "now" | "at7am" | "no"; reason: string } | undefined | null): string | null {
   if (!auto || auto.decision === "now") return null;
   if (auto.decision === "at7am") return "Waiting for 7am — will send itself";
+  // These two would show on almost every draft: hidden.
+  if (auto.reason === "Auto-send is off" || auto.reason === "Only simple replies send themselves") return null;
   return /^Auto-send failed/i.test(auto.reason) ? auto.reason : `Didn't send itself: ${auto.reason}`;
 }
 

@@ -115,6 +115,9 @@ describe("decision / sent mapping", () => {
     expect(autoNoteText({ decision: "at7am", reason: "Waiting for 7am" })).toBe("Waiting for 7am — will send itself");
     expect(autoNoteText({ decision: "no", reason: "Auto-send failed: Outlook down" })).toBe("Auto-send failed: Outlook down");
     expect(autoNoteText({ decision: "no", reason: "Needs your answer" })).toBe("Didn't send itself: Needs your answer");
+    expect(autoNoteText({ decision: "no", reason: "Auto-send is off" })).toBeNull();
+    expect(autoNoteText({ decision: "no", reason: "Only simple replies send themselves" })).toBeNull();
+    expect(autoNoteText({ decision: "no", reason: "You've already replied" })).toBe("Didn't send itself: You've already replied");
     expect(autoNoteText({ decision: "now", reason: "Sends itself" })).toBeNull();
     expect(autoNoteText(undefined)).toBeNull();
   });
