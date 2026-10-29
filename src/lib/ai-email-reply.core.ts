@@ -40,7 +40,7 @@ export const AI_EMAIL_DRAFTS_ENABLED: boolean = true;
 export const AI_EMAIL_AUTO_SEND_ENABLED: boolean = false;
 /** Jo 27 Oct 2026: signed by the team, never by Jo. */
 export const AI_SIGN_OFF = "Cheers, the Home Insulation Victoria team";
-/** The AI returns exactly this when the email needs no reply (a plain "no thanks" or "thanks"). Jo 27 Oct: file those away. */
+/** The AI returns exactly this when the email needs no reply (a plain "thanks" or acknowledgement). Jo 27 Oct: file those away. */
 export const NO_REPLY_NEEDED = "NO_REPLY_NEEDED";
 
 export type AiReplyKind = "simple" | "other";
@@ -96,7 +96,7 @@ const instructionLines = (NEXT_STEP: string, preRelease: boolean) => [
   "Say \"rebate\" — never say VEEC, VEECs, VEU, Activity 48, ESC or other scheme jargon.",
   "Never ask them to call, never give a phone number. They can just reply to this email.",
   ...(preRelease ? [] : ["If they want to change a booking time, give them the change link provided and say who they'll arrange it with. Never promise a new time yourself."]),
-  `If their email is only a plain "no thanks", "not going ahead", "thanks" or similar and needs no answer, return exactly ${"NO_REPLY_NEEDED"} and nothing else.`,
+  `If their email is only a plain "thanks", "got it" or similar acknowledgement and needs no answer, return exactly ${"NO_REPLY_NEEDED"} and nothing else.`,
   "Do not include a sign-off; it is added for you.",
   "Return only the email body text, no subject line.",
 ];

@@ -87,3 +87,24 @@ describe("aiPreReleaseViolations and the 30-day rule", () => {
     expect(aiPreReleaseViolations("within 10 days we'll call").length).toBe(1);
   });
 });
+
+describe("fix round 1", () => {
+  test("instructions no longer treat 'no thanks' / 'not going ahead' as no-reply", () => {
+    for (const preRelease of [false, true]) {
+      const ins = aiReplyInstructions({ preRelease });
+      expect(ins).not.toMatch(/no thanks|not going ahead/);
+      expect(ins).toContain("NO_REPLY_NEEDED");
+    }
+  });
+  test("Cancel answer is conditional on the job facts", () => {
+    const a = AI_SEED_ANSWERS.find((x) => x.topic.startsWith("Cancel"))!.answer;
+    expect(a).toContain("Only if the job facts show the job is closed or cancelled");
+    expect(a).toContain("without promising it's closed");
+  });
+  test("all-blank rows fall back to the seed", () => expect(rulesFromAnswers([{ topic: "a", answer: " " }])).toEqual(AI_SEED_ANSWERS.map((a) => a.answer)));
+  test("seed uses PIESA wording and R6/R7 rebate rule", () => {
+    expect(AI_SEED_ANSWERS.find((x) => x.topic === "Steps after the quote")!.answer).toContain("electrical safety check (PIESA)");
+    expect(AI_SEED_ANSWERS.find((x) => x.topic === "What the price includes")!.answer).toContain("electrical safety check (PIESA)");
+    expect(AI_SEED_ANSWERS.find((x) => x.topic.includes("R6.0"))!.answer).toContain("same as for R5.0");
+  });
+});
