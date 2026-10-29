@@ -730,8 +730,10 @@ async function saveSyncState(state: SyncState, patch: Record<string, unknown>): 
   if (error || data?.length !== 1) throw new Error(`Outlook sync state was not saved: ${error?.message ?? "another run changed it; retry from its saved cursor"}`);
 }
 
-/** Bounded import. Successful bounded stops save the provider continuation, including equal-timestamp pages. */
-export async function runOutlookSync(opts: { maxPages?: number; pageSize?: number } = {}): Promise<{ ok: boolean; blocker?: string; counts: SyncCounts }> {
+/** Bounded import. Successful bounded stops save the provider continuation, including equal-timestamp pages.
+ *  `complete`: a normal (not catch-up) run that pulled inbound AND Sent Items right up to this run's time — no next link
+ *  left over and not finishing an older saved continuation. AI replies only send themselves after a complete run. */
+export async function runOutlookSync(opts: { maxPages?: number; pageSize?: number } = {}): Promise<{ ok: boolean; complete: boolean; blocker?: string; counts: SyncCounts }> {
   const counts: SyncCounts = { fetched: 0, stored: 0, duplicate: 0, portalDuplicate: 0, notHomeowner: 0, unmatched: 0, closed: 0, flagged: 0, files: 0, filesSkipped: 0, errors: 0, matched: 0, junk: 0, unmatchedNotRecorded: 0, changeRequests: 0 };
   let state: SyncState | null = null;
   const now = new Date().toISOString();
@@ -747,6 +749,8 @@ export async function runOutlookSync(opts: { maxPages?: number; pageSize?: numbe
     const maxPages = Math.max(1, Math.min(10, Math.floor(opts.maxPages ?? 10)));
     const pageSize = Math.max(1, Math.min(50, Math.floor(opts.pageSize ?? 50)));
     const cursors: Record<string, string | null> = {};
+    // Per stream: pulled right up to `now` this run (fresh query, no continuation left over).
+    const upToNow: Record<string, boolean> = {};
 
     // One folder-agnostic pull per direction: mail moved to Archive or a custom folder is still listed,
     // so a move between runs can never create a gap (already-imported messages dedupe by provider id).
@@ -792,6 +796,7 @@ export async function runOutlookSync(opts: { maxPages?: number; pageSize?: numbe
       }
       cursors[cursorKey as string] = last;
       cursors[nextKey as string] = url;
+      upToNow[cursorKey as string] = !usingSavedNext && !url;
       return url;
     };
 
@@ -825,14 +830,15 @@ export async function runOutlookSync(opts: { maxPages?: number; pageSize?: numbe
     }
     if (counts.errors) throw new Error(`${counts.errors} message(s) remain unfinished; the cursor was not advanced.`);
     await saveSyncState(state, { ...cursors, mailbox, last_run_at: now, last_ok_at: now, last_error: null, last_counts: counts });
-    return { ok: true, counts };
+    const complete = !state.catchup_from && upToNow["all_inbound_cursor"] === true && upToNow["all_outbound_cursor"] === true;
+    return { ok: true, complete, counts };
   } catch (e) {
     let problem = e instanceof Error ? e.message : "Outlook sync failed.";
     if (state) {
       try { await saveSyncState(state, { last_run_at: now, last_error: problem.slice(0, 500), last_counts: counts }); }
       catch (saveError) { problem += ` ${saveError instanceof Error ? saveError.message : "The failure status could not be saved."}`; }
     }
-    return { ok: false, blocker: problem, counts };
+    return { ok: false, complete: false, blocker: problem, counts };
   }
 }
 

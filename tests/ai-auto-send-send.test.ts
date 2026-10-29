@@ -309,7 +309,7 @@ describe("wiring", () => {
   });
   test("the 15-minute Outlook tick runs the sender after the whole sync, told whether the sync was ok", () => {
     const route = readFileSync("src/routes/api/public/hooks/outlook-sync.ts", "utf8");
-    expect(route).toMatch(/sweepHeldAutoReplies\(new Date\(\), \{ syncOk: r\.ok \}\)/);
+    expect(route).toMatch(/sweepHeldAutoReplies\(new Date\(\), \{ syncOk: r\.ok && r\.complete \}\)/);
     expect(route.indexOf("runOutlookSync()")).toBeLessThan(route.indexOf("sweepHeldAutoReplies("));
   });
   test("final review M1: an office Match never queues an auto-send; only the automatic sync does", () => {
@@ -542,6 +542,19 @@ describe("final review fixes", () => {
     }
     const r = await sweepHeldAutoReplies(new Date(AT_10AM), { syncOk: true });
     expect(r.checked).toBeLessThanOrEqual(25);
+  });
+  test("re-review 2: superseded queued rows never crowd out a fresh queued draft", async () => {
+    const early = "2026-10-29T20:00:00.000Z";
+    for (let i = 0; i < 600; i++) {
+      const det = { draft_event_id: `old${i}`, kind: "job_status" };
+      world.tables["workflow_events"]!.push({ id: `oq${i}`, job_id: "j1", event_type: "email_ai_auto_decision", created_at: early, details: { ...det, decision: "queued", reason: "Queued" } });
+      world.tables["workflow_events"]!.push({ id: `on${i}`, job_id: "j1", event_type: "email_ai_auto_decision", created_at: "2026-10-29T20:01:00.000Z", details: { ...det, decision: "no", reason: "Needs you" } });
+    }
+    const id = await queue("m1", AT_10AM);
+    const r = await sweepHeldAutoReplies(new Date(AT_10AM), { syncOk: true });
+    expect(r.checked).toBe(1);
+    expect(world.sends.length).toBe(1);
+    expect(lastDecision(id)?.["decision"]).toBe("now");
   });
   test("M2: a complaint in the SUBJECT keeps it a draft", async () => {
     const id = await queue("m1", AT_10AM, "Refund??", "Where are we up to?");

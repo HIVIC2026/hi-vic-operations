@@ -106,6 +106,9 @@ const HELD_LOOKBACK_MS = 3 * 24 * 3600_000;
 const TOO_OLD_LOOKBACK_MS = 10 * 24 * 3600_000;
 /** At most this many drafts are checked per 15-minute tick. */
 export const AUTO_SEND_MAX_PER_TICK = 25;
+/** Waiting-decision rows read per page, and at most this many pages per tick. */
+const SWEEP_PAGE = 500;
+const SWEEP_MAX_PAGES = 10;
 export const ALREADY_REPLIED_REASON = "Already replied by AI in the last 30 minutes";
 export const JOB_MOVED_REASON = "Job moved on — check before sending";
 export const EMAILED_AGAIN_REASON = "Owner emailed again — check before sending";
@@ -276,26 +279,33 @@ export async function sweepHeldAutoReplies(now = new Date(), o: { syncOk?: boole
   if (o.syncOk === false) return { checked: 0, sent: 0 };
   await markTooOld(now, since).catch((e) => console.error("old AI replies not closed", e instanceof Error ? e.message : e));
   const wanted: AutoDecisionValue[] = aiSendQuietReason(now.toISOString()) ? ["queued"] : ["queued", "at7am"];
-  const { data, error } = await loose.from("workflow_events").select("details").eq("event_type", AI_AUTO_DECISION_EVENT)
-    .in("details->>decision", wanted).gte("created_at", since).order("created_at", { ascending: true }).limit(500);
-  if (error) throw new Error(error.message);
-  const ids = [...new Set(((data ?? []) as { details: { draft_event_id?: unknown } | null }[]).map((r) => r.details?.draft_event_id).filter((x): x is string => typeof x === "string"))];
+  // Only drafts whose NEWEST decision is still queued/held count: older rows already superseded (sent, left for Jo…)
+  // are skipped page by page, so they never crowd out a fresh queued draft.
+  const seen = new Set<string>();
   let checked = 0; let sent = 0;
-  for (let i = 0; i < ids.length && checked < AUTO_SEND_MAX_PER_TICK; i += 50) {
-    const part = ids.slice(i, i + 50);
-    const { data: all, error: allErr } = await loose.from("workflow_events").select("created_at, details").eq("event_type", AI_AUTO_DECISION_EVENT)
-      .in("details->>draft_event_id", part).order("created_at", { ascending: true });
-    if (allErr) throw new Error(allErr.message);
-    const latest = latestAutoDecisions((all ?? []) as { created_at: string; details: Record<string, unknown> | null }[]);
-    for (const id of part) {
-      const cur = latest.get(id)?.decision;
-      if (cur !== "queued" && cur !== "at7am") continue;
-      if (!wanted.includes(cur)) continue;
-      if (checked >= AUTO_SEND_MAX_PER_TICK) break;
-      checked++;
-      try { if ((await autoSendDraft(id, { now, recheck: cur }))?.sent) sent++; }
-      catch (e) { console.error("waiting AI reply skipped", e instanceof Error ? e.message : e); }
+  for (let page = 0; page < SWEEP_MAX_PAGES && checked < AUTO_SEND_MAX_PER_TICK; page++) {
+    const { data, error } = await loose.from("workflow_events").select("details").eq("event_type", AI_AUTO_DECISION_EVENT)
+      .in("details->>decision", wanted).gte("created_at", since).order("created_at", { ascending: true }).range(page * SWEEP_PAGE, (page + 1) * SWEEP_PAGE - 1);
+    if (error) throw new Error(error.message);
+    const rows = (data ?? []) as { details: { draft_event_id?: unknown } | null }[];
+    const ids = [...new Set(rows.map((r) => r.details?.draft_event_id).filter((x): x is string => typeof x === "string" && !seen.has(x)))];
+    for (const id of ids) seen.add(id);
+    for (let i = 0; i < ids.length && checked < AUTO_SEND_MAX_PER_TICK; i += 50) {
+      const part = ids.slice(i, i + 50);
+      const { data: all, error: allErr } = await loose.from("workflow_events").select("created_at, details").eq("event_type", AI_AUTO_DECISION_EVENT)
+        .in("details->>draft_event_id", part).order("created_at", { ascending: true });
+      if (allErr) throw new Error(allErr.message);
+      const latest = latestAutoDecisions((all ?? []) as { created_at: string; details: Record<string, unknown> | null }[]);
+      for (const id of part) {
+        const cur = latest.get(id)?.decision;
+        if ((cur !== "queued" && cur !== "at7am") || !wanted.includes(cur)) continue;
+        if (checked >= AUTO_SEND_MAX_PER_TICK) break;
+        checked++;
+        try { if ((await autoSendDraft(id, { now, recheck: cur }))?.sent) sent++; }
+        catch (e) { console.error("waiting AI reply skipped", e instanceof Error ? e.message : e); }
+      }
     }
+    if (rows.length < SWEEP_PAGE) break;
   }
   return { checked, sent };
 }
