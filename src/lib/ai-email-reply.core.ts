@@ -77,7 +77,10 @@ export type AiReplyContext = {
 
 const NEXT_STEP_RELEASED = "Then give the one next step: if their spot isn't saved and they want to go ahead, give the save-my-spot link on its own line; if their spot is saved, say that when it's their turn an installer will text and email them a few times for their free Ready Check.";
 /** Decision 388 (Jo 25 Oct 2026): before the spot is released the only thing to say about what comes next is Jo's release line. */
-const NEXT_STEP_PRE_RELEASE = `Then give the one next step: if their spot isn't saved and they want to go ahead, give the save-my-spot link on its own line; if their spot is saved, tell them: ${SPOT_RELEASE_LINE} Say nothing else about what happens after their spot is released, and give no timeframe or speed.`;
+/** Jo's wait line and release line (steps 2-4 spec 2d), verbatim. */
+export const AI_WAIT_LINE = "We're bringing on more and more certified installers, but demand is high and there aren't enough of them yet. So we're booking people in the order they saved their spot, as quickly as we can bring on more CII-certified installers. We can't give a date yet, but we'll be in touch as soon as your spot is released.";
+export const AI_RELEASE_MEANS = "When your spot is released, it's your turn: an installer will text and email you some times for your free Ready Check.";
+const NEXT_STEP_PRE_RELEASE = `Then give the one next step: if their spot isn't saved and they want to go ahead, give the save-my-spot link on its own line; if their spot is saved, explain what release means with: ${AI_RELEASE_MEANS} If they ask when or how long, use: ${AI_WAIT_LINE} Give no date, timeframe or speed, and never promise or hint at one.`;
 const instructionLines = (NEXT_STEP: string, preRelease: boolean) => [
   "You write email replies from the Home Insulation Victoria team to home owners about their ceiling insulation. The office reads and sends each one.",
   "Tone: kind, warm and plain, in Australian English, like a real person in our office. Short sentences. Never robotic or call-centre. Never say \"No worries\". Never sign or mention a person's name for us.",
@@ -136,6 +139,8 @@ export const AI_BUSINESS_RULES_PRE_RELEASE = [
   SPOT_FREE,
   SPOT_REGISTERED,
   SPOT_RELEASE_LINE,
+  AI_RELEASE_MEANS,
+  AI_WAIT_LINE,
   SPOT_PRICE_NOTE,
   RULE_OWN_ELECTRICIAN,
 ];
