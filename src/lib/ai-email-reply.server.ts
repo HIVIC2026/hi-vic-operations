@@ -24,7 +24,7 @@ export async function preReleaseFor(jobId: string, known?: { channel: string | n
 }
 
 /** The AI call shared by job replies and the Emails tab no-job replies (decision 414). */
-export async function aiText(input: string, instructions: string = AI_REPLY_INSTRUCTIONS): Promise<string> {
+export async function aiText(input: string, instructions: string = AI_REPLY_INSTRUCTIONS, abortSignal?: AbortSignal): Promise<string> {
   const key = process.env["LOVABLE_API_KEY"];
   if (!key) throw new Error("AI is not configured");
   const { createOpenAI } = await import("@ai-sdk/openai");
@@ -34,6 +34,7 @@ export async function aiText(input: string, instructions: string = AI_REPLY_INST
     model: provider.responses("openai/gpt-6-astra"),
     instructions,
     messages: [{ role: "user", content: input }],
+    ...(abortSignal ? { abortSignal } : {}),
     providerOptions: { openai: { forceReasoning: true, reasoningEffort: "low", reasoningSummary: "auto", store: false, include: ["reasoning.encrypted_content"] } },
   } as Parameters<typeof streamText>[0]);
   return (await result.text).trim();
@@ -81,7 +82,7 @@ export async function writeAiReplyDraft(p: { jobId: string; message: MailMessage
     const noReply = raw.trim().replace(/[.\s]+$/, "") === NO_REPLY_NEEDED;
     // A draft that breaks a rule is rewritten (at most twice) before it is saved; what still fails is saved with it for the office.
     const first = noReply ? "" : finishAiReply(raw);
-    const fixed = noReply ? { body: "", problems: [] as string[] } : await fixUntilClean(first, preRelease, aiText);
+    const fixed = noReply ? { body: "", problems: [] as string[] } : await fixUntilClean(first, preRelease, (i, ins) => aiText(i, ins, AbortSignal.timeout(25_000)));
     const body = fixed.body;
     const problems = fixed.problems;
     const { data: ins, error } = await loose.from("workflow_events").insert({ job_id: p.jobId, actor_id: null, event_type: AI_EMAIL_DRAFT_EVENT, internal: true,
@@ -184,7 +185,7 @@ export async function sendAiDraft(eventId: string, body: string, actorId: string
   const preRelease = await preReleaseFor(job.id, { channel: job.channel ?? null, stage: job.stage ?? null });
   // A draft that breaks a rule is never sent: it is rewritten, saved for Jo to check, and she presses Send again.
   if (aiReplyProblems(body).length || aiReplyProblems(body, { preRelease }).length) {
-    const fixed = await fixUntilClean(body, preRelease, aiText);
+    const fixed = await fixUntilClean(body, preRelease, (i, ins) => aiText(i, ins, AbortSignal.timeout(25_000)));
     await saveDraftEdit(eventId, fixed.body, actorId);
     return { status: "rewritten", body: fixed.body, problems: fixed.problems };
   }

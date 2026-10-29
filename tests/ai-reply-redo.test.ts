@@ -129,6 +129,61 @@ describe("fixUntilClean", () => {
   });
 });
 
+describe("final review fixes", () => {
+  const sign = (r: { body: string }) => r.body.split(AI_SIGN_OFF).length - 1;
+  test("F1: a differently worded sign-off from the AI gives exactly one sign-off", async () => {
+    for (const out of ["Hi Sam,\n\nYour rebate is sorted.\n\nCheers, the Home Insulation Victoria team.", "Hi Sam,\n\nYour rebate is sorted.\n\nKind regards, the Home Insulation Victoria team", "Hi Sam,\n\nYour rebate is sorted.\n\nCheers,\nJo"]) {
+      const r = await fixUntilClean(`Hi Sam,\n\nYour VEEC is sorted.\n\n${AI_SIGN_OFF}`, false, async () => out);
+      expect(sign(r)).toBe(1);
+      expect(r.body.endsWith(AI_SIGN_OFF)).toBe(true);
+      expect(r.body.toLowerCase()).not.toContain("kind regards");
+      expect(r.body).not.toMatch(/Jo$/);
+      expect(r.body.match(/cheers/gi)?.length).toBe(1);
+    }
+  });
+  test("F2: wider timing phrases are flagged", () => {
+    for (const bad of ["within a week", "within 2-3 weeks", "in 2 weeks", "in a fortnight", "in a couple of weeks", "in a week or two", "in the coming weeks", "in the next few weeks", "next month", "this month", "next year", "tomorrow", "we can move up your spot"])
+      expect(aiPreReleaseViolations(`We'll be in touch ${bad}.`).length).toBeGreaterThan(0);
+    expect(aiPreReleaseViolations("We'll remove up to date notes.")).toEqual([]);
+  });
+  test("F2: both spellings of the release phrase pass, 'soon' elsewhere does not", () => {
+    for (const ok of ["as soon as your spot is released", "as soon as your spot's released", "as soon as their spot is released", "as soon as\nyour  spot\nis released"])
+      expect(aiPreReleaseViolations(`We'll be in touch ${ok}.`)).toEqual([]);
+    expect(aiPreReleaseViolations("as soon as your spot's released, or soon")).toEqual(["soon"]);
+    expect(aiPreReleaseViolations(AI_WAIT_LINE)).toEqual([]);
+    expect(aiPreReleaseViolations(AI_RELEASE_MEANS)).toEqual([]);
+  });
+  test("F3: the fix call has a time limit (source check)", () => {
+    const src = readFileSync("src/lib/ai-email-reply.server.ts", "utf8");
+    expect(src).toMatch(/abortSignal/);
+    expect(src.match(/AbortSignal\.timeout\(25_000\)/g)?.length).toBeGreaterThanOrEqual(2);
+  });
+  test("F3: a call that never answers but is cut off counts as a used try", async () => {
+    let calls = 0;
+    const hang = (input: string, instr: string) => { calls++; void input; void instr; return Promise.race([new Promise<string>(() => {}), new Promise<string>((_, rej) => setTimeout(() => rej(new Error("timeout")), 20))]); };
+    const r = await fixUntilClean(`Hi Sam,\n\nYour VEEC is sorted.`, false, hang);
+    expect(r.tries).toBe(1);
+    expect(calls).toBe(1);
+  });
+  test("F4: an empty body returns at once with no AI call", async () => {
+    for (const empty of ["", "  \n "]) {
+      let calls = 0;
+      const r = await fixUntilClean(empty, false, async () => { calls++; return "Hi"; });
+      expect(calls).toBe(0);
+      expect(r.tries).toBe(0);
+      expect(r.problems.length).toBeGreaterThan(0);
+      expect(r.body).toBe(empty);
+    }
+  });
+  test("F5: 'NO_REPLY_NEEDED.' counts as a used try", async () => {
+    let calls = 0;
+    const r = await fixUntilClean(`Hi Sam,\n\nYour VEEC is sorted.`, false, async () => { calls++; return "NO_REPLY_NEEDED."; });
+    expect(calls).toBe(2);
+    expect(r.tries).toBe(2);
+    expect(r.body).toBe("Hi Sam,\n\nYour VEEC is sorted.");
+  });
+});
+
 describe("task 4: the loop at draft time and on Send (source checks)", () => {
   const server = readFileSync("src/lib/ai-email-reply.server.ts", "utf8");
   const tab = readFileSync("src/lib/emails-tab.server.ts", "utf8");
@@ -137,7 +192,7 @@ describe("task 4: the loop at draft time and on Send (source checks)", () => {
     const w = fn("writeAiReplyDraft");
     expect(w.indexOf("finishAiReply(raw)")).toBeGreaterThan(-1);
     expect(w.indexOf("fixUntilClean(")).toBeGreaterThan(w.indexOf("finishAiReply(raw)"));
-    expect(w).toContain("fixUntilClean(first, preRelease, aiText)");
+    expect(w).toContain("fixUntilClean(first, preRelease, (i, ins) => aiText(i, ins, AbortSignal.timeout(25_000)))");
   });
   test("sendAiDraft rewrites, saves the edit and returns rewritten before any send", () => {
     const s = fn("sendAiDraft");
