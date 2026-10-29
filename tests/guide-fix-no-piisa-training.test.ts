@@ -69,3 +69,19 @@ describe("sign-up, approval and profile never mention PIISA training", () => {
     expect(fns).not.toContain("piisa_done");
   });
 });
+
+describe("no PIISA training on the Team page, office list or functions", () => {
+  test("worker-compliance.tsx has no PIISA", () => {
+    const src = readFileSync("src/components/portal/worker-compliance.tsx", "utf8");
+    expect(src).not.toMatch(/piisa/i);
+    expect(src).toContain("Licences");
+  });
+  test("worker-compliance.functions.ts exports none of the PIISA training functions", () => {
+    const src = readFileSync("src/lib/worker-compliance.functions.ts", "utf8");
+    for (const n of ["piisaUploadSlot", "savePiisa", "officeVerifyPiisa", "officePiisaFileUrl"]) expect(src).not.toContain(n);
+    expect(src).not.toMatch(/hasPiisaFile|piisa_status|piisa_certificate_path/);
+  });
+  test("test journey setup has no PIISA training step", () => {
+    expect(readFileSync("src/lib/journey-setup.server.ts", "utf8")).not.toMatch(/piisa/i);
+  });
+});
