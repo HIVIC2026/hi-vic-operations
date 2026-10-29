@@ -9,7 +9,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MailMessage } from "./outlook-correspondence.core";
 import {
   AI_EMAIL_DRAFTS_ENABLED, NO_REPLY_NEEDED, AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EDITED_EVENT, latestDraftEdits, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, AI_EMAIL_REPLY_PURPOSE, AI_REPLY_INSTRUCTIONS, aiReplyInstructions, isPreReleaseOwner,
-  aiDraftKey, aiReplyEmailHtml, aiReplyProblems, aiReplyText, bookingChangeLink, buildAiReplyInput, draftActions, draftNeeds, finishAiReply, fixUntilClean, higherRFacts, newSizeFacts, replySubject, splitAiOutput, type AiActions, type AiReplyKind,
+  aiDraftKey, autoSendKey, aiReplyEmailHtml, aiReplyProblems, aiReplyText, bookingChangeLink, buildAiReplyInput, draftActions, draftNeeds, finishAiReply, fixUntilClean, higherRFacts, newSizeFacts, replySubject, splitAiOutput, type AiActions, type AiReplyKind,
 } from "./ai-email-reply.core";
 import { loadAiAnswers } from "./ai-answers.server";
 import { loadStyleExamples } from "./ai-style.server";
@@ -277,6 +277,12 @@ export async function sendAiDraft(eventId: string, body: string, actorId: string
   if (!job) throw new Error("Job not found.");
   // Decision 388: owners not yet released and confirmed get spot-only wording, checked again here (unreadable state = not released),
   // from the job just read (never a second read that could fail open).
+  // Office Send: if the AI already answered this owner email (its once-only send record exists and didn't fail), stop.
+  if (apply.via !== "ai") {
+    const { data: auto, error: ae } = await loose.from("customer_email_sends").select("status").eq("idempotency_key", autoSendKey(String(ev.details["message_id"]))).limit(1);
+    if (ae) throw new Error("Couldn't check whether the AI already answered — try again.");
+    if (((auto ?? []) as { status: string | null }[]).some((r) => r.status !== "failed")) throw new Error("This email was already answered by AI — check the job's emails first");
+  }
   const preRelease = await preReleaseFor(job.id, { channel: job.channel ?? null, stage: job.stage ?? null });
   // A draft that breaks a rule is never sent: it is rewritten, saved for Jo to check, and she presses Send again.
   if (aiReplyProblems(body).length || aiReplyProblems(body, { preRelease }).length) {
@@ -290,7 +296,7 @@ export async function sendAiDraft(eventId: string, body: string, actorId: string
   const K = await import("./email-kit.core");
   const subject = String(ev.details["subject"] ?? replySubject(null));
   // Auto-send: ONE key per owner email, so a second draft of the same email can never send itself too.
-  const key = apply.via === "ai" ? `${aiDraftKey(String(ev.details["message_id"]))}:auto` : `${aiDraftKey(String(ev.details["message_id"]))}:send:${eventId}`;
+  const key = apply.via === "ai" ? autoSendKey(String(ev.details["message_id"])) : `${aiDraftKey(String(ev.details["message_id"]))}:send:${eventId}`;
   const build = (unsubscribe: string | null, test = false) => ({
     subject,
     html: aiReplyEmailHtml(body, { subject, unsubscribe, test }),

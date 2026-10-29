@@ -4,7 +4,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   AI_AUTO_DECISION_EVENT, AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, AUTO_SEND_KINDS, latestDraftEdits, AI_EMAIL_DRAFT_EDITED_EVENT,
-  aiReplyProblems, aiSendQuietReason, autoSendDecision, draftNeeds, latestAutoDecisions, type AiAutoKind,
+  aiReplyProblems, aiSendQuietReason, autoSendDecision, autoSendKey, draftNeeds, latestAutoDecisions, type AiAutoKind,
 } from "./ai-email-reply.core";
 import { firstNameOf } from "./email-reply.core";
 
@@ -105,6 +105,7 @@ export const ALREADY_REPLIED_BY_YOU_REASON = "You've already replied";
 export const ALREADY_HANDLED_REASON = "Already handled";
 export const STUCK_REASON = "Auto-send failed: didn't finish";
 const STUCK_AFTER_MS = 60 * 60_000;
+const SENT_LIKE = ["sent", "delivered", "delivered_unrecorded"] as const;
 
 export type AutoSendResult = { send: "now" | "at7am" | "no"; reason: string; sent: boolean };
 
@@ -177,10 +178,15 @@ export async function autoSendDraft(draftId: string, o: { now?: Date; ownerText?
   const since = typeof det["received_at"] === "string" ? det["received_at"] : ev.created_at;
   const [inb, outb] = await Promise.all([
     loose.from("job_communications").select("provider_message_id").eq("job_id", jobId).eq("channel", "email").eq("direction", "inbound").gt("received_at", since).limit(20),
-    loose.from("job_communications").select("id").eq("job_id", jobId).eq("channel", "email").eq("direction", "outbound").gt("sent_at", since).limit(1),
+    // Only a real reply by a person: Outlook mail that went (Jo's Sent Items, office sends). Automatic portal emails,
+    // failed rows and AI auto-sends don't count.
+    loose.from("job_communications").select("source_event, created_by").eq("job_id", jobId).eq("channel", "email").eq("direction", "outbound")
+      .eq("provider", "outlook").in("delivery_status", [...SENT_LIKE]).gt("sent_at", since).limit(20),
   ]);
   if (inb.error || outb.error) throw new Error((inb.error ?? outb.error)!.message);
-  if ((outb.data ?? []).length) return leave(ALREADY_REPLIED_BY_YOU_REASON);
+  const byPerson = ((outb.data ?? []) as { source_event: string | null; created_by: string | null }[])
+    .some((r) => !(r.source_event === AI_EMAIL_DRAFT_SENT_EVENT && r.created_by == null));
+  if (byPerson) return leave(ALREADY_REPLIED_BY_YOU_REASON);
   if (((inb.data ?? []) as { provider_message_id: string | null }[]).some((r) => r.provider_message_id !== messageId)) return leave(EMAILED_AGAIN_REASON);
 
   let ownerText = o.ownerText;
@@ -251,24 +257,47 @@ export async function sweepHeldAutoReplies(now = new Date()): Promise<{ checked:
   return { checked, sent };
 }
 
-/** A "now" decision over an hour old with nothing sent (the run stopped part way): marked failed so the card stops saying it's sending. */
+/** A "now" decision over an hour old with no sent event (the run stopped part way). If the email service recorded the
+ *  send under the draft's `:auto` key, the missing sent event is written; otherwise it is marked failed so the card
+ *  stops saying it's sending. */
 async function markStuckSends(now: Date, since: string): Promise<void> {
   const before = new Date(now.getTime() - STUCK_AFTER_MS).toISOString();
   const { data, error } = await loose.from("workflow_events").select("job_id, created_at, details").eq("event_type", AI_AUTO_DECISION_EVENT)
-    .eq("details->>decision", "now").gte("created_at", since).limit(500);
+    .eq("details->>decision", "now").gte("created_at", since).lt("created_at", before).order("created_at", { ascending: false }).limit(500);
   if (error) throw new Error(error.message);
-  const rows = ((data ?? []) as { job_id: string | null; created_at: string; details: Record<string, unknown> | null }[]).filter((r) => r.created_at < before);
+  const rows = (data ?? []) as { job_id: string | null; created_at: string; details: Record<string, unknown> | null }[];
   const ids = [...new Set(rows.map((r) => r.details?.["draft_event_id"]).filter((x): x is string => typeof x === "string"))];
   for (let i = 0; i < ids.length; i += 50) {
     const part = ids.slice(i, i + 50);
-    const { data: all, error: allErr } = await loose.from("workflow_events").select("created_at, details").eq("event_type", AI_AUTO_DECISION_EVENT)
-      .in("details->>draft_event_id", part).order("created_at", { ascending: true });
-    if (allErr) throw new Error(allErr.message);
-    const latest = latestAutoDecisions((all ?? []) as { created_at: string; details: Record<string, unknown> | null }[]);
-    for (const id of part) {
-      const l = latest.get(id);
-      if (l?.decision !== "now" || l.at >= before || await handled(id)) continue;
-      await recordDecision(rows.find((r) => r.details?.["draft_event_id"] === id)?.job_id ?? null, id, l.kind, "no", STUCK_REASON);
+    const [allRes, doneRes, draftsRes] = await Promise.all([
+      loose.from("workflow_events").select("created_at, details").eq("event_type", AI_AUTO_DECISION_EVENT).in("details->>draft_event_id", part).order("created_at", { ascending: true }),
+      loose.from("workflow_events").select("details").in("event_type", [AI_EMAIL_DRAFT_SENT_EVENT, AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EDITED_EVENT]).in("details->>draft_event_id", part),
+      loose.from("workflow_events").select("id, job_id, details").in("id", part),
+    ]);
+    for (const r of [allRes, doneRes, draftsRes]) if (r.error) throw new Error(r.error.message);
+    const latest = latestAutoDecisions((allRes.data ?? []) as { created_at: string; details: Record<string, unknown> | null }[]);
+    const done = new Set(((doneRes.data ?? []) as { details: { draft_event_id?: unknown } | null }[]).map((r) => r.details?.draft_event_id));
+    const drafts = new Map(((draftsRes.data ?? []) as { id: string; job_id: string | null; details: Record<string, unknown> | null }[]).map((d) => [d.id, d]));
+    const stuck = part.filter((id) => { const l = latest.get(id); return l?.decision === "now" && l.at < before && !done.has(id); });
+    if (!stuck.length) continue;
+    const keyOf = (id: string) => { const m = drafts.get(id)?.details?.["message_id"]; return typeof m === "string" ? autoSendKey(m) : null; };
+    const keys = stuck.map(keyOf).filter((k): k is string => !!k);
+    const { data: sendRows, error: sErr } = keys.length ? await loose.from("customer_email_sends").select("idempotency_key, status").in("idempotency_key", keys) : { data: [], error: null };
+    if (sErr) throw new Error(sErr.message);
+    const sendByKey = new Map(((sendRows ?? []) as { idempotency_key: string; status: string | null }[]).map((r) => [r.idempotency_key, r.status]));
+    for (const id of stuck) {
+      const draft = drafts.get(id); const key = keyOf(id); const st = key ? sendByKey.get(key) : undefined;
+      const jobId = draft?.job_id ?? rows.find((r) => r.details?.["draft_event_id"] === id)?.job_id ?? null;
+      if (draft && key && (st === "sent" || st === "delivered_unrecorded")) {
+        const det = draft.details ?? {};
+        const { error: ie } = await loose.from("workflow_events").insert({ job_id: jobId, actor_id: null, event_type: AI_EMAIL_DRAFT_SENT_EVENT, internal: true,
+          summary: "Email reply sent to the owner (Sent by AI)",
+          details: { draft_event_id: id, to: String(det["to"] ?? ""), subject: String(det["subject"] ?? ""), body: String(det["body"] ?? "").trim(),
+            status: st === "sent" ? "sent" : "delivery uncertain — not retried", idempotency_key: key, via: "ai", recovered: true } });
+        if (ie) throw new Error(ie.message);
+        continue;
+      }
+      await recordDecision(jobId, id, latest.get(id)!.kind, "no", STUCK_REASON);
     }
   }
 }

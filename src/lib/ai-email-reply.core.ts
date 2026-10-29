@@ -47,6 +47,8 @@ export type AiReplyKind = "simple" | "other";
 
 /** One draft per Outlook message, ever. */
 export const aiDraftKey = (messageId: string) => `owner-email-ai-reply:v1:${messageId}`;
+/** Auto-send (step 4): ONE send per owner email, whichever draft of it. */
+export const autoSendKey = (messageId: string) => `${aiDraftKey(messageId)}:auto`;
 
 /** No owner emails between 8pm and 7am Melbourne time (same quiet hours as texts). */
 export function aiSendQuietReason(nowIso: string): string | null {

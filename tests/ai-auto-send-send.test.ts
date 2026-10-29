@@ -339,12 +339,12 @@ describe("fix round 1", () => {
   });
   test("Jo replied from Outlook since the owner's email: not sent (now and at 7am)", async () => {
     world.clock = AT_10AM; addDraft("d1", AT_10AM);
-    world.tables["job_communications"]!.push({ job_id: "j1", channel: "email", direction: "outbound", provider_message_id: "out1", body: "Jo's reply", sent_at: "2026-10-29T23:00:30.000Z" });
+    world.tables["job_communications"]!.push({ job_id: "j1", channel: "email", direction: "outbound", provider_message_id: "out1", provider: "outlook", delivery_status: "sent", source_event: "outlook_sync:sync", created_by: null, body: "Jo's reply", sent_at: "2026-10-29T23:00:30.000Z" });
     await autoSendDraft("d1", { now: new Date("2026-10-29T23:01:00.000Z"), ownerText: ASK });
     expect(lastDecision("d1")?.["reason"]).toBe("You've already replied");
     world.clock = AT_9PM; addDraft("d2", AT_9PM);
     await autoSendDraft("d2", { now: new Date(AT_9PM), ownerText: ASK });
-    world.tables["job_communications"]!.push({ job_id: "j1", channel: "email", direction: "outbound", provider_message_id: "out2", body: "Jo's reply", sent_at: "2026-10-30T11:00:00.000Z" });
+    world.tables["job_communications"]!.push({ job_id: "j1", channel: "email", direction: "outbound", provider_message_id: "out2", provider: "outlook", delivery_status: "sent", source_event: "outlook_sync:sync", created_by: null, body: "Jo's reply", sent_at: "2026-10-30T11:00:00.000Z" });
     world.clock = AT_705AM; await sweepHeldAutoReplies(new Date(AT_705AM));
     expect(world.sends.length).toBe(0);
     expect(lastDecision("d2")?.["reason"]).toBe("You've already replied");
@@ -386,5 +386,53 @@ describe("fix round 1", () => {
     expect(events("email_ai_draft_sent")[0]!["details"]).toMatchObject({ via: "ai", status: "delivery uncertain — not retried" });
     await sweepHeldAutoReplies(new Date(AT_705AM));
     expect(events("email_ai_draft_sent").length).toBe(1);
+  });
+});
+
+describe("fix round 2", () => {
+  const out = (o: Row) => world.tables["job_communications"]!.push({ job_id: "j1", channel: "email", direction: "outbound", sent_at: "2026-10-29T23:00:30.000Z", ...o });
+  test("an automatic portal email (spot saved / follow-up) after the owner's email doesn't stop the reply", async () => {
+    world.clock = AT_10AM; addDraft("d1", AT_10AM);
+    out({ provider: "resend", delivery_status: "sent", source_event: "spot_saved_email", created_by: null });
+    out({ provider: "resend", delivery_status: "sent", source_event: "estimate_followup", created_by: null });
+    await autoSendDraft("d1", { now: new Date("2026-10-29T23:01:00.000Z"), ownerText: ASK });
+    expect(world.sends.length).toBe(1);
+  });
+  test("a failed outbound email doesn't count as a reply", async () => {
+    world.clock = AT_10AM; addDraft("d1", AT_10AM);
+    out({ provider: "outlook", delivery_status: "failed", source_event: "email_ai_draft_sent", created_by: "u1" });
+    await autoSendDraft("d1", { now: new Date("2026-10-29T23:01:00.000Z"), ownerText: ASK });
+    expect(world.sends.length).toBe(1);
+  });
+  test("an earlier AI auto-send doesn't count as Jo's reply; Jo's office send does", async () => {
+    world.clock = AT_10AM; addDraft("d1", AT_10AM);
+    out({ provider: "outlook", delivery_status: "sent", source_event: "email_ai_draft_sent", created_by: null });
+    await autoSendDraft("d1", { now: new Date("2026-10-29T23:01:00.000Z"), ownerText: ASK });
+    expect(world.sends.length).toBe(1);
+    reset(); world.clock = AT_10AM; addDraft("d2", AT_10AM);
+    out({ provider: "outlook", delivery_status: "sent", source_event: "email_ai_draft_sent", created_by: "jo" });
+    await autoSendDraft("d2", { now: new Date("2026-10-29T23:01:00.000Z"), ownerText: ASK });
+    expect(world.sends.length).toBe(0);
+    expect(lastDecision("d2")?.["reason"]).toBe("You've already replied");
+  });
+  test("stuck 'now' whose email did go (send record under the :auto key): the sent event is written, not 'failed'", async () => {
+    world.clock = AT_10AM; addDraft("d1", AT_10AM, { msg: "mx" });
+    world.tables["workflow_events"]!.push({ id: "n1", job_id: "j1", event_type: "email_ai_auto_decision", created_at: AT_10AM, details: { draft_event_id: "d1", decision: "now", reason: "Sends itself", kind: "job_status" } });
+    world.tables["customer_email_sends"]!.push({ job_id: "j1", idempotency_key: "owner-email-ai-reply:v1:mx:auto", status: "delivered_unrecorded" });
+    world.clock = "2026-10-30T00:05:00.000Z"; await sweepHeldAutoReplies(new Date("2026-10-30T00:05:00.000Z"));
+    const sent = events("email_ai_draft_sent");
+    expect(sent.length).toBe(1);
+    expect(sent[0]!["details"]).toMatchObject({ draft_event_id: "d1", via: "ai", status: "delivery uncertain — not retried" });
+    expect(lastDecision("d1")?.["decision"]).toBe("now");
+  });
+  test("office Send refuses when the AI already answered that owner email", async () => {
+    world.clock = AT_10AM; addDraft("d1", AT_10AM, { msg: "my" });
+    world.tables["customer_email_sends"]!.push({ job_id: "j1", idempotency_key: "owner-email-ai-reply:v1:my:auto", status: "sent" });
+    const { sendAiDraft } = await import("../src/lib/ai-email-reply.server");
+    await expect(sendAiDraft("d1", BODY, "u1")).rejects.toThrow("This email was already answered by AI — check the job's emails first");
+    expect(world.sends.length).toBe(0);
+    // A definitely failed auto attempt doesn't block Jo.
+    world.tables["customer_email_sends"]![0]!["status"] = "failed";
+    expect((await sendAiDraft("d1", BODY, "u1")).status).toBe("sent");
   });
 });
