@@ -5,6 +5,7 @@ const realClient = { ...(await import("../src/integrations/supabase/client.serve
 const realRelease = { ...(await import("../src/lib/spot-release.server")) };
 const realTestSend = { ...(await import("../src/lib/test-send.server")) };
 const realOutlook = { ...(await import("../src/lib/outlook-sync.server")) };
+const realOwnerSend = { ...(await import("../src/lib/owner-email-send.server")) };
 
 const world = { channel: "hivic_sourced", stage: "preliminary_estimate_ready", state: "none" as string, inserts: [] as Record<string, unknown>[], sent: 0, jobReads: 0, failLaterJobReads: false };
 const draft = { id: "d1", job_id: "j1", event_type: "email_ai_draft", details: { to: "sam@x.au", subject: "Re: Hi", message_id: "m1" } };
@@ -15,7 +16,7 @@ const q = (table: string) => {
     if (table === "jobs" && ++world.jobReads > 1 && world.failLaterJobReads) return { error: { message: "read failed" }, data: null };
     return { error: null, data: table === "workflow_events" ? draft : table === "jobs" ? { id: "j1", source: "qa_test", owner_id: "o1", channel: world.channel, stage: world.stage } : { email: "sam@x.au" } };
   };
-  b["insert"] = (r: Record<string, unknown>) => { world.inserts.push(r); return Object.assign(Promise.resolve({ error: null }), { then: (f: (v: unknown) => unknown) => Promise.resolve({ error: null }).then(f) }); };
+  b["insert"] = (r: Record<string, unknown>) => { world.inserts.push(r); const done = { error: null, data: { id: "h1" } }; return Object.assign(Promise.resolve({ error: null }), { then: (f: (v: unknown) => unknown) => Promise.resolve({ error: null }).then(f), select: () => ({ single: () => Promise.resolve(done) }) }); };
   b["then"] = (res: (v: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(res);
   return b;
 };
@@ -23,11 +24,14 @@ mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { f
 mock.module("../src/lib/spot-release.server", () => ({ spotReleaseStates: async (ids: string[]) => new Map(ids.map((i) => [i, { state: world.state }])) }));
 mock.module("../src/lib/test-send.server", () => ({ sendTestEmail: async () => { world.sent++; return { status: "sent", detail: "" }; } }));
 mock.module("../src/lib/outlook-sync.server", () => ({ archiveOutlookMessage: async () => undefined }));
+// Emails-tab replies now go through Outlook via sendGuardedOwnerEmail (email-sent-visibility); count sends there too.
+mock.module("../src/lib/owner-email-send.server", () => ({ sendGuardedOwnerEmail: async () => { world.sent++; return "sent"; } }));
 afterAll(() => {
   mock.module("@/integrations/supabase/client.server", () => realClient);
   mock.module("../src/lib/spot-release.server", () => realRelease);
   mock.module("../src/lib/test-send.server", () => realTestSend);
   mock.module("../src/lib/outlook-sync.server", () => realOutlook);
+  mock.module("../src/lib/owner-email-send.server", () => realOwnerSend);
 });
 
 const BAD = "Hi Sam,\n\nYour free Ready Check is coming.\n\nCheers, the Home Insulation Victoria team";

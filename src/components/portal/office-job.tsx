@@ -18,7 +18,7 @@ import { CONTACT_CHANNELS, channelCounts, filterContacts, type ContactChannel, t
 import { fileChecklist } from "@/lib/job-file-checklist.core";
 import { PAYMENT_STEP_LABEL, type PaymentStep } from "@/lib/payments.core";
 import { safetyCheckShort } from "@/lib/safety-check-amount.core";
-import { cancelOfficeJob, getOfficeJobMoney, holdOfficeJob, logOfficeCallOrNote, markOfficeJobTest, reopenOfficeJob } from "@/lib/office-screens.functions";
+import { cancelOfficeJob, clearOfficeEmailBounce, getOfficeJobMoney, holdOfficeJob, logOfficeCallOrNote, markOfficeJobTest, reopenOfficeJob } from "@/lib/office-screens.functions";
 import { bulkJobAction } from "@/lib/bulk.functions";
 import { retryInvoiceFn } from "@/lib/office-money.functions";
 import { markPaymentsSeparateFn } from "@/lib/payments.functions";
@@ -290,18 +290,24 @@ export function MoneyCard({ jobId }: { jobId: string }) {
 
 /* ---------------- Contact history (decision 216) ---------------- */
 const DIR: Record<ContactRow["direction"], string> = { sent: "↑ Sent", received: "↓ Received", call: "☎ Call", note: "✎ Note" };
-export function ContactHistory({ jobId, rows, waitingFor, onLog }: { jobId: string; rows: ContactRow[]; waitingFor: string; onLog: () => void }) {
+export function ContactHistory({ jobId, rows, waitingFor, onLog, emailBounced }: { jobId: string; rows: ContactRow[]; waitingFor: string; onLog: () => void; emailBounced?: boolean }) {
   const [channel, setChannel] = useState<ContactChannel | "All">("All");
   const [all, setAll] = useState(false);
   const counts = useMemo(() => channelCounts(rows), [rows]);
   const shown = filterContacts(rows, channel);
-  void jobId;
+  const clearBounce = useAction(clearOfficeEmailBounce);
   return (
     <section id="stage-contact" aria-label="Contact history" className={cn(card, "mb-4 scroll-mt-24")} data-why="decision 216 Contact history: every email/text/call with what we are waiting for">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-display text-lg font-bold text-ink">Contact history · {rows.length}</h2>
         <button type="button" className={cn(btn, "border border-line bg-paper text-hiv-blue")} onClick={onLog}>Log a call or note</button>
       </div>
+      {emailBounced && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-[12px] bg-pink px-3 py-2 text-sm text-rose">
+          <span className="font-semibold">Email bounced</span>
+          <button type="button" className={cn(btn, "ml-auto border border-line bg-paper text-hiv-blue")} onClick={() => void clearBounce({ jobId }, "Cleared")}>Clear</button>
+        </div>
+      )}
       <p className="mb-3 text-sm"><span className="font-semibold">Waiting for:</span> {waitingFor}</p>
       <div className="mb-2 flex flex-wrap gap-1.5" role="group" aria-label="Filter by channel">
         {(["All", ...CONTACT_CHANNELS] as const).map((c) => (
@@ -315,7 +321,7 @@ export function ContactHistory({ jobId, rows, waitingFor, onLog }: { jobId: stri
               <span className="text-sub">{dayTime(r.at)}</span>
               <span className="font-semibold">{DIR[r.direction]}</span>
               <span className="text-sub">{r.channel}</span>
-              <span className="min-w-0 break-words">{r.what}{r.byOffice ? <span className="text-xs text-sub"> · logged by the office</span> : null}</span>
+              <span className={cn("min-w-0 break-words", r.failed && r.channel === "Email" && "text-rose")}>{r.what}{r.byOffice ? <span className="text-xs text-sub"> · logged by the office</span> : null}</span>
               <span className={cn("text-xs font-semibold", r.failed ? "text-rose" : "text-sub")}>{r.status}</span>
             </li>
           ))}
