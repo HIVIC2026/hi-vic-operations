@@ -94,4 +94,28 @@ describe("autoSendDecision", () => {
     }
     expect(autoSendDecision({ ...ok(), ownerText: "Thanks, where are we up to?" }).send).toBe("now");
   });
+  test("wider complaint words and phrases block", () => {
+    for (const w of ["not happy", "Not satisfied", "not impressed", "not good enough", "dissatisfied", "terrible", "useless", "unacceptable", "furious", "fed up", "ombudsman", "Consumer Affairs", "fair trading", "lawyer", "solicitor", "legal action", "money back", "disgrace", "rubbish", "shambles", "ridiculous", "poor service", "worst"]) {
+      expect(autoSendDecision({ ...ok(), ownerText: `I am ${w} about this` })).toEqual({ send: "no", reason: "Owner sounds unhappy" });
+    }
+  });
+  test("ordinary wording does not block", () => {
+    expect(autoSendDecision({ ...ok(), ownerText: "Did my message come through?" }).send).toBe("now");
+    expect(autoSendDecision({ ...ok(), ownerText: "Thanks for the update" }).send).toBe("now");
+  });
+  test("KIND in backticks or with trailing punctuation still parses", () => {
+    expect(splitAiOutput(`${BODY}\nKIND: \`job_status\``).kind).toBe("job_status");
+    expect(splitAiOutput(`${BODY}\nKIND: resend_link.`).kind).toBe("resend_link");
+    expect(splitAiOutput(`${BODY}\nKIND: \`files_received\`.`).kind).toBe("files_received");
+  });
+  test("daylight-saving boundaries use Melbourne time", () => {
+    // Ends 4 Apr 2027 (3am AEDT → 2am AEST): afterwards Melbourne is UTC+10, so 8pm = 10:00Z.
+    expect(autoSendDecision({ ...ok(), nowIso: "2027-04-04T08:59:00Z" }).send).toBe("now"); // 6:59pm
+    expect(autoSendDecision({ ...ok(), nowIso: "2027-04-04T09:59:00Z" }).send).toBe("now"); // 7:59pm
+    expect(autoSendDecision({ ...ok(), nowIso: "2027-04-04T10:00:00Z" }).send).toBe("at7am"); // 8:00pm
+    // Starts 4 Oct 2026 (2am AEST → 3am AEDT): afterwards Melbourne is UTC+11, so 7am = 20:00Z on the 3rd.
+    expect(autoSendDecision({ ...ok(), nowIso: "2026-10-03T19:59:00Z" }).send).toBe("at7am"); // 6:59am
+    expect(autoSendDecision({ ...ok(), nowIso: "2026-10-03T20:00:00Z" }).send).toBe("now"); // 7:00am
+    expect(autoSendDecision({ ...ok(), nowIso: "2026-10-04T08:59:00Z" }).send).toBe("now"); // 7:59pm AEDT
+  });
 });

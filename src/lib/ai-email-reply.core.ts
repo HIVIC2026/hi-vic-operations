@@ -344,7 +344,7 @@ export function splitAiOutput(raw: string, o: { ownerFirstName?: string | null }
     if (jo) { needsAnswer.push(jo[1]!.replace(/[*_]+$/, "").trim() || "(question not given)"); continue; }
     if (NEEDS_YOU_LINE.test(bare)) { needsYou = true; continue; }
     const kd = KIND_LINE.exec(bare);
-    if (kd) { const v = kd[1]!.replace(/[*_`\s]+$/g, "").toLowerCase(); kinds.push((KIND_VALUES.includes(v) ? v : "other") as AiAutoKind); continue; }
+    if (kd) { const v = kd[1]!.replace(/^[*_`"'\s]+|[*_`"'\s.,;:!]+$/g, "").toLowerCase(); kinds.push((KIND_VALUES.includes(v) ? v : "other") as AiAutoKind); continue; }
     keep.push(line.replace(/[ \t]+$/, ""));
   }
   const body = keep.join("\n").replace(/\n{3,}/g, "\n\n").trim();
@@ -354,7 +354,7 @@ export function splitAiOutput(raw: string, o: { ownerFirstName?: string | null }
 }
 
 /** Words in the OWNER's email that mean a person should look at it, whatever the AI labelled it. */
-export const COMPLAINT_WORDS = /\b(?:refunds?|damage[ds]?|damaging|unhappy|mess|messy|cancel(?:l?ed|l?ing|s)?|complain(?:s|ed|ing|t|ts)?|disappointed|disappointing|angry|wrong|broken|leak(?:s|ed|ing|y)?|scam|rip[- ]?off)\b/i;
+export const COMPLAINT_WORDS = /\b(?:refunds?|damage[ds]?|damaging|unhappy|mess|messy|cancel(?:l?ed|l?ing|s)?|complain(?:s|ed|ing|t|ts)?|disappointed|disappointing|angry|wrong|broken|leak(?:s|ed|ing|y)?|scam|rip[- ]?off|not\s+(?:happy|satisfied|impressed|good\s+enough)|dissatisfied|terrible|useless|unacceptable|furious|fed\s+up|ombudsman|consumer\s+affairs|fair\s+trading|lawyer|solicitor|legal|money\s+back|disgrace|rubbish|shambles|ridiculous|poor\s+service|worst)\b/i;
 
 /** Whether a draft may send itself. Pure: the caller supplies every fact. Checked in this order; the first blocker wins. */
 export function autoSendDecision(d: {
