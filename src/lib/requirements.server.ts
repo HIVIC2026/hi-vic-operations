@@ -10,13 +10,15 @@ export async function currentMeasurement(jobId: string) {
   return data;
 }
 
-/** Electrical requirement = the electrical assessment is complete and its PIESA record is current. */
+/** Electrical requirement = the electrical assessment is complete and its PIESA record is current. Batch 1 task 6: a
+ *  PIESA record made before the job's latest reopen no longer counts, so it can never move a reopened job on. */
 export async function electricalState(jobId: string) {
-  const [{ data: a }, piesa] = await Promise.all([
+  const [{ data: a }, piesa, superseded] = await Promise.all([
     admin.from("assessments").select("status").eq("job_id", jobId).maybeSingle(),
     piesaStatus(jobId),
+    import("./repeat-piesa.server").then((m) => m.currentPiesaSupersededByReopen(jobId)),
   ]);
-  return { hasCurrentPiesa: a?.status === "complete" && !!piesa?.piesa_date, piesaExpired: !!piesa?.piesa_expired };
+  return { hasCurrentPiesa: a?.status === "complete" && !!piesa?.piesa_date && !superseded, piesaExpired: !!piesa?.piesa_expired };
 }
 
 export async function jobScope(jobId: string) {
@@ -104,6 +106,10 @@ async function advanceAfterPiesa(jobId: string, actorId: string, scope: string) 
     await admin.from("jobs").update({ next_action: e.message.replace(/^Blocked:\s*/, "") }).eq("id", jobId);
     return { advanced: false, scope, held: e.message };
   }
+  // The safety check visit is done: mark the confirmed assessment booking completed (same as piesa-complete.server), so the
+  // electrician's pay line shows and a later reopen never cancels a finished visit.
+  const { error: visitErr } = await admin.from("bookings").update({ status: "completed" }).eq("job_id", jobId).eq("kind", "assessment").eq("status", "confirmed");
+  if (visitErr) console.error("safety check visit not marked done", visitErr.message);
   const rectCount = await deriveRectificationItems(jobId, actorId);
   await admin.from("compliance_checks").update({ status: piesaClearsElectrical(decision.outcome, rectCount) ? "pass" : "pending" }).eq("job_id", jobId).eq("check_key", "electrical_assessment");
   if (piesaNeedsRectification(decision.outcome, rectCount)) {

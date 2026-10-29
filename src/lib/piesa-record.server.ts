@@ -6,7 +6,7 @@
 // compliance checks, the fixes booking completed, the guarded transition to installation scheduling → autoAdvance →
 // the one installer clearance notice (decision 186). Nothing here sends to the owner.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { logEvent, transition } from "./workflow.server";
+import { WorkflowError, getStage, logEvent, transition } from "./workflow.server";
 import { autoAdvanceJob } from "./autoadvance.server";
 
 export type PostRectificationRecord = {
@@ -22,6 +22,19 @@ export type PostRectificationRecord = {
   /** Where the record came from, kept on the event (portal page or the Mitti fixes form's audit id). */
   source?: { kind: "portal" } | { kind: "mitti_fixes_form"; auditId: string };
 };
+
+/** Who may record a reassessment PIESA (null = allowed): the 30-day window expired, or (batch 1 task 6) the job was
+ *  reopened so the earlier check no longer counts — then once the new visit is booked. */
+export async function reassessmentBlocker(jobId: string, stage: string): Promise<string | null> {
+  if (await (await import("./repeat-piesa.server")).currentPiesaSupersededByReopen(jobId)) {
+    if (stage === "piesa_scheduled") return null;
+    const { STAGE_LABEL } = await import("./workflow");
+    return `The PIESA can be completed once it is booked (current: ${STAGE_LABEL[stage as keyof typeof STAGE_LABEL] ?? stage}).`;
+  }
+  const { piesaStatus } = await import("./workflow.server");
+  const p = await piesaStatus(jobId);
+  return !p?.piesa_expired && stage !== "assessment_complete" ? "Reassessment is only needed when the PIESA window has expired." : null;
+}
 
 /** Writes the PIESA record exactly as the portal page does. Returns the new piesa_records row id when returned. */
 export async function applyPiesaRecord(r: PostRectificationRecord): Promise<{ recordId: string | null }> {
@@ -44,6 +57,14 @@ export async function applyPiesaRecord(r: PostRectificationRecord): Promise<{ re
     await admin.from("compliance_checks").update({ status: "pass", checked_at: new Date().toISOString() }).eq("job_id", r.jobId).in("check_key", ["rectification", "electrical_assessment"]);
     await admin.from("bookings").update({ status: "completed" }).eq("job_id", r.jobId).eq("kind", "rectification").eq("status", "confirmed");
     await transition(r.jobId, "installation_scheduling", r.actorId, "Electrical fixes complete, PIESA passed – installation scheduling unlocked");
+  }
+  // Batch 1 task 6: the new safety check after a reopen is a reassessment at PIESA booked — the visit is done, so the job
+  // moves on to PIESA complete the same guarded way Complete PIESA does (a standing guard keeps it put with the reason).
+  if (r.kind === "reassessment" && (await getStage(r.jobId)) === "piesa_scheduled") {
+    const { error: visitErr } = await admin.from("bookings").update({ status: "completed" }).eq("job_id", r.jobId).eq("kind", "assessment").eq("status", "confirmed");
+    if (visitErr) console.error("safety check visit not marked done", visitErr.message);
+    try { await transition(r.jobId, "piesa_complete", r.actorId, `PIESA complete – ${r.outcome} (new safety check after the job was reopened)`, { piesa_outcome: r.outcome, reassessment: true }); }
+    catch (e) { if (!(e instanceof WorkflowError)) throw e; await admin.from("jobs").update({ next_action: e.message.replace(/^Blocked:\s*/, "") }).eq("id", r.jobId); }
   }
   await autoAdvanceJob(r.jobId, r.actorId, "PIESA recorded");
   // Decision 186: fixes complete + Section C signed is electrical clearance — tell the installer once (nothing when not cleared).

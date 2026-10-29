@@ -6,7 +6,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
 import { tidyEnquiryDetails } from "./name-address-tidy.core";
-import { reopenPlan } from "./office-jobs.core";
+import { reopenPlan, reopenStageFor } from "./office-jobs.core";
 
 /** Owner email / installer notice on Hold (decision 233): the dialog is approved (228) but the HOLD wording is not, so the
  *  ticks are recorded for the office and NOTHING is sent until Jo approves it. Cancel notices are approved (decision 291:
@@ -76,7 +76,7 @@ export async function cancelJobFully(jobId: string, reason: string, actorId: str
     await logEvent(jobId, actorId, "cancel_notice_requested", `Office ticked ${[tell.owner && "email the owner", tell.installer && "email the installer"].filter(Boolean).join(" and ")} — sending by email (decision 291).`, { tell, wording_approved: CANCEL_NOTICE_EMAILS_APPROVED, cancel_seq: cancelSeq }, { internal: true });
     try {
       const { sendCancelNotices } = await import("./cancel-notice.server");
-      notices = await sendCancelNotices(jobId, actorId ?? "", tell, { cancelSeq, installer: installerRecipient });
+      notices = await sendCancelNotices(jobId, actorId, tell, { cancelSeq, installer: installerRecipient });
     } catch (e) {
       await logEvent(jobId, actorId, "cancel_notice_held", `Cancel notices could not be sent: ${(e as Error).message}`, { tell, cancel_seq: cancelSeq, decision: 291 }, { internal: true }).catch(() => undefined);
     }
@@ -102,6 +102,20 @@ export async function reopenJob(jobId: string, reason: string, actorId: string) 
     removedLead: (removed.data?.length ?? 0) > 0, duplicateContact: (dup.data?.contact_rank ?? 1) > 1, retired: retiredStageBlocker,
   });
   if (!plan.ok) throw new WorkflowError(plan.blocker);
+  // Batch 1 task 6 (Jo 28 Oct 2026): a cancelled stage reopens to a SAFE stage (reopenStageFor), checked like any stage
+  // move before anything is written.
+  const target = plan.stage ? reopenStageFor(plan.stage) : null;
+  if (target) {
+    const { stageEntryBlockers } = await import("./workflow.server");
+    let blockers = await stageEntryBlockers(jobId, target.stage as never, actorId);
+    if (target.needsNewPiesa && blockers.length) {
+      // The open repeat-check step (owner accept / pay) is what a reopen sets up; it still gates booking the PIESA.
+      const [{ repeatPiesaGateBlocker }, { repeatPiesaContext }] = await Promise.all([import("./repeat-piesa.core"), import("./repeat-piesa.server")]);
+      const repeat = repeatPiesaGateBlocker((await repeatPiesaContext(jobId)).state);
+      if (repeat) blockers = blockers.filter((b) => b !== repeat);
+    }
+    if (blockers.length) throw new WorkflowError(blockers[0]!);
+  }
   const why = reason.trim();
   if (plan.source) {
     const { error } = await admin.from("jobs").update({ source: plan.source as never }).eq("id", jobId).eq("source", "qa_test");
@@ -113,14 +127,107 @@ export async function reopenJob(jobId: string, reason: string, actorId: string) 
     if (error) throw new Error(error.message);
     await logEvent(jobId, actorId, "eligibility_set", `Eligibility reopened: needs onsite confirmation (${why})`, { reason: why, previous_outcome: job.eligibility_outcome, decision: 227 }, { internal: true });
   }
-  if (plan.stage) {
-    const { error } = await admin.from("jobs").update({ stage: plan.stage as never, prior_stage: null, cancelled_reason: null }).eq("id", jobId).eq("stage", "cancelled");
+  if (target) {
+    const { data: moved, error } = await admin.from("jobs").update({ stage: target.stage as never, prior_stage: null, cancelled_reason: null }).eq("id", jobId).eq("stage", "cancelled").select("id");
     if (error) throw new Error(error.message);
-    await logEvent(jobId, actorId, "stage_changed", `Reopened: ${why}`, { reason: why, decision: 227 }, { from: "cancelled", to: plan.stage as never });
+    // Someone else changed the job meanwhile: stop before anything is released or logged.
+    if ((moved?.length ?? 0) !== 1) throw new WorkflowError(`${job.job_number} changed while reopening — refresh and try again.`);
+    const released = await releaseStaleTradeOnReopen(jobId, target.stage);
+    await logEvent(jobId, actorId, "stage_changed", `Reopened: ${why}`, { reason: why, decision: 227, prior_stage: plan.stage, released }, { from: "cancelled", to: target.stage as never });
+    if (target.needsNewPiesa) await supersedePiesaOnReopen(jobId, actorId);
+    if (target.stage === "piesa_and_install_window_pending") {
+      // Same as transition() into this stage: the expected install week (planning note) is placed again — cancel released it.
+      const { createInstallHold } = await import("./install-holds.server");
+      await createInstallHold(jobId, actorId).catch((e) => console.error("install hold not placed", (e as Error).message));
+    }
   } else {
     await logEvent(jobId, actorId, "job_reopened", `Reopened: ${why}`, { reason: why, decision: 227 }, { internal: true });
   }
-  return { ok: true, stage: plan.stage ?? job.stage };
+  return { ok: true, stage: target?.stage ?? job.stage };
+}
+
+/** Batch 1 final fix F3: cancel keeps history (only pending offers and future bookings are released), so a reopened job
+ *  still carries the old trade's ACCEPTED offer and any past still-confirmed visit — which hide "Choose installer" /
+ *  "choose electrician", block the automatic PIESA offers and make the times screen say "booked". For the trade the
+ *  reopened stage needs again (installer for the Ready Check, electrician for the PIESA), accepted offers are withdrawn
+ *  ("job reopened") and confirmed/proposed visits of that kind cancelled, whatever their date. Completed visits stay
+ *  (electrician pay reads them). */
+const REOPEN_RELEASE: Record<string, { offerKinds: string[]; bookingKinds: string[] }> = {
+  ready_check_ready_to_schedule: { offerKinds: ["ready_check"], bookingKinds: ["ready_check"] },
+  piesa_and_install_window_pending: { offerKinds: ["piesa", "rectification"], bookingKinds: ["assessment"] },
+};
+async function releaseStaleTradeOnReopen(jobId: string, stage: string): Promise<{ tradeOffers: number; bookings: number }> {
+  const r = REOPEN_RELEASE[stage];
+  if (!r) return { tradeOffers: 0, bookings: 0 };
+  const now = new Date().toISOString();
+  if (r.bookingKinds.includes("assessment")) {
+    // Re-review: a finished safety check may still be stored as "confirmed" (older moves to PIESA complete never marked
+    // it). If the visit is in the past and the job has a finished check (A3 complete or a PIESA record), it is DONE:
+    // mark it completed (the old electrician's pay reads it), never cancel it. Only future / undone visits are cancelled.
+    const [{ data: a3 }, { data: rec }] = await Promise.all([
+      admin.from("assessments").select("id").eq("job_id", jobId).eq("mitti_completed", true).limit(1).maybeSingle(),
+      admin.from("piesa_records").select("id").eq("job_id", jobId).limit(1).maybeSingle(),
+    ]);
+    if (a3 || rec) {
+      const { error } = await admin.from("bookings").update({ status: "completed" }).eq("job_id", jobId).eq("kind", "assessment").eq("status", "confirmed").lt("scheduled_start", now);
+      if (error) throw new Error(`Reopened, but marking the finished safety check done failed: ${error.message}. Open the job and check.`);
+    }
+  }
+  const [offers, books] = await Promise.all([
+    admin.from("partner_offers").update({ status: "withdrawn", decline_reason: "job reopened", superseded_at: now }).eq("job_id", jobId).eq("status", "accepted").in("kind", r.offerKinds).select("id"),
+    admin.from("bookings").update({ status: "cancelled" }).eq("job_id", jobId).in("status", ["proposed", "confirmed"]).in("kind", r.bookingKinds as never).select("id"),
+  ]);
+  for (const x of [offers, books]) if (x.error) throw new Error(`Reopened, but releasing the old trade failed: ${x.error.message}. Open the job and check.`);
+  return { tradeOffers: offers.data?.length ?? 0, bookings: books.data?.length ?? 0 };
+}
+
+/** Batch 1 task 6 (Jo 28 Oct 2026): reopened at or after the safety check → the old check no longer counts. When a check
+ *  was actually done (a PIESA record exists) the owner pays for the new one at the accepted quote's PIESA line; payments
+ *  already made stay counted. No record = their original payment covers it. The existing repeat-PIESA gate, owner Accept
+ *  and payment then run unchanged (repeat-piesa.server, keyed by the reopen key).
+ *  Batch 1 F6 (Jo 29 Oct 2026): if the owner already paid a repeat check that wasn't done, it carries over to the new
+ *  check (no new charge, no new Xero line) unless that payment was refunded/reversed (`reopenRepeatDecision`). */
+async function supersedePiesaOnReopen(jobId: string, actorId: string) {
+  const { REPEAT_REOPEN_EVENT, REPEAT_PIESA_CHOSEN_EVENT, REPEAT_PIESA_PAID_EVENT, reopenKey, reopenRepeatDecision } = await import("./repeat-piesa.core");
+  const rps = await import("./repeat-piesa.server");
+  // Only a check done since the last reopen counts: an already-superseded check is never charged twice.
+  const since = await rps.latestReopenAt(jobId);
+  let recQ = admin.from("piesa_records").select("id").eq("job_id", jobId);
+  if (since) recQ = recQ.gt("created_at", since);
+  const { data: rec } = await recQ.limit(1).maybeSingle();
+  const hadCheck = !!rec;
+  // The repeat state just before this reopen: a paid repeat that wasn't done yet, and whether it was refunded since.
+  const { state: prior } = await rps.repeatPiesaContext(jobId);
+  let paidAt: string | null = null, recordAfterPaid = false, reversedCentsSincePaid = 0;
+  if (prior.payer === "owner" && prior.stage === "offer" && prior.deadline) {
+    const { data: paid } = await admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", REPEAT_PIESA_PAID_EVENT).contains("details", { deadline: prior.deadline }).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    paidAt = (paid as { created_at?: string } | null)?.created_at ?? null;
+    if (paidAt) {
+      const [{ data: after }, { data: rev }] = await Promise.all([
+        admin.from("piesa_records").select("id").eq("job_id", jobId).gt("created_at", paidAt).limit(1).maybeSingle(),
+        admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "owner_payment_reversed").gte("created_at", paidAt),
+      ]);
+      recordAfterPaid = !!after;
+      reversedCentsSincePaid = ((rev ?? []) as { details: { amount_cents?: number } | null }[]).reduce((a, r) => a + Math.max(0, Math.round(Number(r.details?.amount_cents ?? 0))), 0);
+    }
+  }
+  const decision = reopenRepeatDecision({ hadCheck, prior, paidAt, recordAfterPaid, reversedCentsSincePaid });
+  const key = reopenKey(new Date().toISOString());
+  if (decision === "carry_over") {
+    // Not a new lapse (had_check false): the paid repeat's own deadline stays the current repeat step. The old check
+    // still no longer counts (any reopen supersedes it).
+    await logEvent(jobId, actorId, REPEAT_REOPEN_EVENT, "Reopened: the earlier safety check (PIESA) no longer counts — the repeat check the owner already paid for covers the new one", { key, had_check: false, check_done: hadCheck, carried_repeat: prior.deadline }, { internal: true });
+    return;
+  }
+  const charge = decision === "charge";
+  await logEvent(jobId, actorId, REPEAT_REOPEN_EVENT, charge ? "Reopened: the earlier safety check (PIESA) no longer counts — a new one is needed" : "Reopened: no safety check (PIESA) was done yet — the original payment covers it", { key, had_check: charge }, { internal: true });
+  if (!charge) return;
+  const { currentApprovedQuote } = await import("./workflow.server");
+  const quote = await currentApprovedQuote(jobId);
+  const price = (await (await import("./safety-check-amount.server")).quoteSafetyCheck(quote?.id ?? null)).incGst;
+  await logEvent(jobId, actorId, REPEAT_PIESA_CHOSEN_EVENT, "Job reopened: the owner pays for the new safety check (PIESA)", {
+    deadline: key, payer: "owner", price_inc_gst: price, suggestion: null, installer_payout_deduction_inc_gst: null, reason: "reopen",
+  }, { internal: true });
 }
 
 /** Decision 233 Hold dialog: reason, until (optional), tell-them ticks (recorded only), 30-day clock unchanged. */

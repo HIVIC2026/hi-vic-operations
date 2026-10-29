@@ -2,7 +2,7 @@
 // the rows and job-next-action.core the Next sentence. Read-only: never moves a job, never sends anything.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { loadOffice, type OfficeJob } from "./office.server";
-import { buildNeedsRows, type EmailRowInput, type NeedsFacts, type NeedsRow, type SystemRow } from "./office-needs.core";
+import { buildNeedsRows, duplicatesInvoiceFailed, type EmailRowInput, type NeedsFacts, type NeedsRow, type SystemRow } from "./office-needs.core";
 import { FAILED_EMAIL_STATUSES, FAILED_SMS_STATUSES, SUCCESS_EMAIL_STATUSES, SUCCESS_SMS_STATUSES, sendFailedRows } from "./send-failed.core";
 import { AUTO_OFFER_RETURNED_EVENT } from "./auto-offer.core";
 import { surnameOf } from "./office-jobs.core";
@@ -197,6 +197,20 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     }
   }
 
+  // Batch 1 task 6: a reopen's owner-pays repeat line held on Xero gets the same one Today row as a 30-day one.
+  {
+    const { reopenRepeatDeadlines, repeatXeroHeldFor } = await import("./repeat-piesa.core");
+    const reopened = reopenRepeatDeadlines(payRepeatEv);
+    const heldIds = [...reopened.keys()].filter((id) => { const x = f(id); return !!x && !x.repeatXeroHeld; });
+    if (heldIds.length) {
+      const ev = await byIds("repeat Xero lines", heldIds, (chunk, a, b) => admin.from("workflow_events").select("job_id, event_type, details, created_at").in("job_id", chunk).in("event_type", ["xero_invoice_repeat_piesa_held", "xero_invoice_repeat_piesa_added"]).range(a, b));
+      for (const id of heldIds) {
+        const held = repeatXeroHeldFor(ev.filter((e) => String(e["job_id"]) === id), reopened.get(id)!);
+        if (held) f(id)!.repeatXeroHeld = held;
+      }
+    }
+  }
+
   // Wave 2: follow-up reads keyed by what wave 1 found, all at once.
   type Guess = { job_id: string; job_number: string; why?: string[] };
   const guessOf = (u: Record<string, unknown>) => ((u["guesses"] as Guess[] | undefined) ?? [])[0] ?? null;
@@ -348,6 +362,24 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       }
     }
   } catch { unavailable.push("payment reversals"); }
+  // Batch 1: the owner accepted but the invoice step failed → one Money row until a Xero-linked invoice exists.
+  try {
+    const { invoiceFailedFact } = await import("./office-needs.core");
+    const fails = await all("failed invoices", (a, b) => scoped(admin.from("workflow_events").select("job_id, summary, created_at")).eq("event_type", "invoice_create_failed").range(a, b));
+    const failIds = [...new Set(fails.map((e) => String(e["job_id"])).filter((id) => idSet.has(id)))];
+    if (failIds.length) {
+      const acc = await byIds("accepted quotes of failed jobs", failIds, (c, a, b) => admin.from("quotes").select("job_id").in("job_id", c).eq("kind", "installation").eq("status", "accepted").range(a, b));
+      const accepted = new Set(acc.map((r) => String(r["job_id"])));
+      const invs = await byIds("invoices of failed jobs", failIds, (c, a, b) => admin.from("invoices").select("job_id, xero_invoice_id, last_synced_at, created_at, last_sync_error, status").in("job_id", c).eq("kind", "installation").range(a, b));
+      for (const id of failIds) {
+        const hit = invoiceFailedFact(
+          fails.filter((e) => String(e["job_id"]) === id).map((e) => ({ at: String(e["created_at"]), text: String(e["summary"] ?? "") })),
+          invs.filter((i) => String(i["job_id"]) === id).map((i) => ({ xero_invoice_id: s(i["xero_invoice_id"]), last_synced_at: s(i["last_synced_at"]), created_at: String(i["created_at"]), last_sync_error: s(i["last_sync_error"]), status: s(i["status"]) })),
+        );
+        const x = f(id); if (x && hit && accepted.has(id)) x.invoiceFailed = hit;
+      }
+    }
+  } catch { unavailable.push("failed invoices"); }
   // Decision 315: 24h after the fixes-times link with no times → one "Electrician hasn't given fixes times" row.
   for (const [id, r] of fixesTimesMissing({ links: fixesLinks.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]) })), given: fixesGiven.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]) })), now })) {
     const x = f(id); if (x) x.fixesTimesMissing = { at: r.at };
@@ -443,7 +475,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   const system: SystemRow[] = [];
   if (listMode) {
     for (const p of office.needs.items.filter((i) => i.rule === "j_partner")) system.push({ key: p.key, tag: /application/i.test(p.what) ? "Application" : /worker|staff/i.test(p.what) ? "Person" : /form/i.test(p.what) ? "Mitti" : "Partner", who: p.what, line: p.why, since: p.dueAt, button: "Review", href: p.href ?? "/admin/partners" });
-    for (const j of jobs) for (const why of j.needs.failures) if (!/^(Email|Text) /.test(why)) system.push({ key: `fail:${j.id}:${why}`, tag: "System", who: `${j.jobNumber} ${surnameOf(j.owner)}`.trim(), line: why, since: null, button: "Open job", href: `/admin/jobs/${j.id}`, jobId: j.id });
+    for (const j of jobs) for (const why of j.needs.failures) if (!/^(Email|Text) /.test(why) && !duplicatesInvoiceFailed(why, facts.get(j.id)?.invoiceFailed)) system.push({ key: `fail:${j.id}:${why}`, tag: "System", who: `${j.jobNumber} ${surnameOf(j.owner)}`.trim(), line: why, since: null, button: "Open job", href: `/admin/jobs/${j.id}`, jobId: j.id });
     // Decision 303: "<REC> onboarded and linked to <installer> — n quote(s) ready to check" (or the conflict the office decides).
     for (const r of recLinks) system.push({ key: r.key, tag: "Partner", who: r.recName, line: r.line, since: r.since, button: r.conflict ? "Decide" : "Quotes to check", href: r.conflict ? "/admin/partners" : "/admin/quotes" });
     for (const r of [...q.notDrafted, ...(qTest?.notDrafted ?? [])]) if (idSet.has(r.jobId)) system.push({ key: `nodraft:${r.jobId}`, tag: "Quote", who: `${r.jobNumber} ${surnameOf(r.owner)}`.trim(), line: `Quote not drafted yet · ${r.note}`, since: r.at, button: "Open job", href: `/admin/jobs/${r.jobId}`, jobId: r.jobId });

@@ -314,8 +314,8 @@ async function autoStartPiesaOffers(actorId: string | null) {
   const { data: waiting } = await admin.from("jobs").select("id").eq("stage", "piesa_and_install_window_pending").neq("source", "qa_test");
   let started = 0;
   for (const j of waiting ?? []) {
-    const { count: any } = await admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", j.id).eq("kind", "piesa");
-    if (any) continue; // already allocated once; refill/exhaustion handles the rest
+    // Already allocated once (since the latest reopen); refill/exhaustion handles the rest.
+    if (await (await import("./repeat-piesa.server")).piesaOffersSinceReopen(j.id)) continue;
     if (await (await import("./offer-dispatch.server")).jobOfficePicks(j.id)) continue; // waits in Needs me: "Choose trades for this job"
     try { await startPiesaAllocation(j.id, actorId); started++; } catch { /* gate not cleared: stay put */ }
   }

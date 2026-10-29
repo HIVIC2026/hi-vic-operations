@@ -185,12 +185,12 @@ describe("audit F01: the same money is counted once; deleted Xero payments are r
     const xero = xeroPaymentFacts([{ PaymentID: "x1", Amount: 349, Date: plus(T0, 72), Reference: "Stripe pi_3Abc123456" }]);
     expect(reconciledPaidCents([card], xero)).toBe(34_900);
   });
-  test("audit R02: no Stripe id in the Reference → a same-amount card + Xero pair is TWO payments ($698), reported as unclear", () => {
+  test("audit R02: no Stripe id in the Reference → a same-amount card + Xero pair counts ONCE ($349) and is still reported as unclear", () => {
     const bank = xeroPaymentFacts([{ PaymentID: "x1", Amount: 349, Date: plus(T0, 24 * 2), Reference: "INV-0042" }]);
-    expect(reconciledPaidCents([card], bank)).toBe(69_800);
+    expect(reconciledPaidCents([card], bank)).toBe(34_900);
     const r = reconcilePayments([card], bank);
     expect(r.unclear.map((u) => u.xero.paymentId)).toEqual(["x1"]);
-    expect(cumulativePaidCents(effectiveLedger([card, ledgerRecordFromEvent("owner_payment_recorded", T0, null, { amount_cents: 34_900, source: "xero", paid_at: plus(T0, 48), xero_payment_id: "x1" })]))).toBe(69_800);
+    expect(cumulativePaidCents(effectiveLedger([card, ledgerRecordFromEvent("owner_payment_recorded", T0, null, { amount_cents: 34_900, source: "xero", paid_at: plus(T0, 48), xero_payment_id: "x1" })]))).toBe(34_900);
     // outside 10 days or a different amount: still two payments, nothing unclear to report
     expect(reconcilePayments([card], xeroPaymentFacts([{ PaymentID: "x1", Amount: 349, Date: plus(T0, 24 * 11) }])).unclear).toEqual([]);
     expect(reconciledPaidCents([card], xeroPaymentFacts([{ PaymentID: "x1", Amount: 300, Date: plus(T0, 24) }]))).toBe(64_900);

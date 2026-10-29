@@ -98,8 +98,16 @@ class WorkflowError extends Error {}
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: q } }));
 mock.module("../src/lib/workflow.server", () => ({
   WorkflowError,
-  logEvent: async (job_id: string, _a: unknown, event_type: string, summary: string, details: unknown, opts?: Row) => { db.workflow_events!.push({ job_id, event_type, summary, details, ...(opts ?? {}) }); },
+  stageEntryBlockers: async () => [],
+  currentApprovedQuote: async () => null,
+  // Like the real workflow_events.actor_id (uuid): "" is refused, null is fine.
+  logEvent: async (job_id: string, actor_id: unknown, event_type: string, summary: string, details: unknown, opts?: Row) => {
+    if (actor_id === "") throw new Error('invalid input syntax for type uuid: ""');
+    db.workflow_events!.push({ job_id, actor_id, event_type, summary, details, ...(opts ?? {}) });
+  },
 }));
+// Batch 1 F6: reopen reads the repeat-check state (no 30-day lapse on these jobs).
+mock.module("../src/lib/install-days.server", () => ({ installDayContext: async () => ({ deadline: null, expired: false, booked: false }) }));
 // Decision 291 senders, mocked: the real owner path, the partner office-email path and the TEST sender.
 const comms = { enabled: true };
 const calls = { owner: [] as Row[], office: [] as Row[], test: [] as Row[] };
@@ -206,6 +214,14 @@ describe("cancelJobFully (decision 227, mocked DB)", () => {
     expect((asked[0]!.details as Row).wording_approved).toBe(true);
   });
 
+  test("batch 1 F2: owner cancel / STOP (no office actor) still records the notice — actor null, not \"\"", async () => {
+    await cancelJobFully("j1", "Owner cancelled in the portal", null, { tell: { owner: true, installer: false } });
+    const sent = [...events("cancel_notice_sent"), ...events("cancel_notice_held")];
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ event_type: "cancel_notice_sent", actor_id: null });
+    expect((sent[0]!.details as Row).who).toBe("owner");
+  });
+
   test("only the owner ticked → only O69; only the installer ticked → only I70", async () => {
     await cancelJobFully("j1", "Owner changed their mind", "admin-1", { tell: { owner: true, installer: false } });
     expect(calls.owner).toHaveLength(1);
@@ -298,14 +314,14 @@ describe("cancelJobFully (decision 227, mocked DB)", () => {
     expect(updates).toEqual([]);
   });
 
-  test("reopen restores the stage it was at, with a reason, history kept", async () => {
+  test("reopen goes to a safe stage (batch 1 task 6: install booked → PIESA pending, new safety check), with a reason, history kept", async () => {
     await cancelJobFully("j1", "Owner changed their mind", "admin-1");
     await expect(reopenJob("j1", "", "admin-1")).rejects.toThrow(/reason/);
     const r = await reopenJob("j1", "Owner rang back – go ahead", "admin-1");
-    expect(r.stage).toBe("installation_booked");
-    expect(job("j1")).toMatchObject({ stage: "installation_booked", prior_stage: null, cancelled_reason: null });
+    expect(r.stage).toBe("piesa_and_install_window_pending");
+    expect(job("j1")).toMatchObject({ stage: "piesa_and_install_window_pending", prior_stage: null, cancelled_reason: null });
     const ev = events("stage_changed").at(-1)!;
-    expect(ev).toMatchObject({ from: "cancelled", to: "installation_booked" });
+    expect(ev).toMatchObject({ from: "cancelled", to: "piesa_and_install_window_pending" });
     expect(ev.summary).toBe("Reopened: Owner rang back – go ahead");
     expect(events("job_cancel_released")).toHaveLength(1);
     await expect(reopenJob("j2", "Owner rang back", "admin-1")).rejects.toThrow(/Completed jobs stay closed/);
