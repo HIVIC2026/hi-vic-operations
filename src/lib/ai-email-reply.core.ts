@@ -12,6 +12,7 @@ import { changeVisitLink, visitGroupForStage, type ChangeVisit } from "./email-c
 import { smsQuietReason } from "./quote-hold.core";
 import { SPOT_FREE, SPOT_PRICE_NOTE, SPOT_REGISTERED, SPOT_RELEASE_LINE, isPreReleaseStage } from "./spot-only-copy.core";
 import { rulesFromAnswers, type AiAnswer } from "./ai-answers.core";
+import type { StyleExample } from "./ai-style.core";
 import type { SpotReleaseState } from "./spot-release.core";
 import { ownerRateForR } from "./hiv-quote.core";
 
@@ -88,7 +89,8 @@ const NEXT_STEP_PRE_RELEASE = `Then give the one next step: if their spot isn't 
 export const AI_ACTIONS_EXAMPLE = 'ACTIONS: {"installer_note":"…","new_area_m2":90}';
 const instructionLines = (NEXT_STEP: string, preRelease: boolean) => [
   "You write email replies from the Home Insulation Victoria team to home owners about their ceiling insulation. The office reads and sends each one.",
-  "Tone: kind, warm and plain, in Australian English, like a real person in our office. Short sentences. Never robotic or call-centre. Never say \"No worries\". Never sign or mention a person's name for us.",
+  "Tone: kind, warm and plain, in Australian English, like a real person in our office. Never robotic or call-centre. Never say \"No worries\". Never sign or mention a person's name for us.",
+  "Answer each question fully, explaining the why when it helps, in short sentences. Warm and plain; an occasional :) is fine.",
   "Start with \"Hi <first name>,\" on its own line (or \"Hi there,\" if no name), then a short thank-you that fits what they wrote.",
   "Answer every question they asked, directly and specifically, using the job facts below (their ceiling size, price, rebate, whether their spot is saved). If they asked several things, answer each one in a short list.",
   "Never say \"we'll check and get back to you\" when the answer is in the facts or the business rules. Only if something truly isn't covered, say we'll find out and reply.",
@@ -117,7 +119,7 @@ export function isPreReleaseOwner(j: { channel: string | null | undefined; stage
   return j.releaseState?.state !== "confirmed";
 }
 
-export type AiPromptOpts = { preRelease?: boolean; answers?: AiAnswer[] | null };
+export type AiPromptOpts = { preRelease?: boolean; answers?: AiAnswer[] | null; style?: StyleExample[] | null };
 /** The prompt for this owner; released owners get AI_REPLY_INSTRUCTIONS unchanged. */
 export const aiReplyInstructions = (o: AiPromptOpts = {}): string => (o.preRelease ? instructionLines(NEXT_STEP_PRE_RELEASE, true).join("\n") : AI_REPLY_INSTRUCTIONS);
 
@@ -136,6 +138,7 @@ export function buildAiReplyInput(c: AiReplyContext, o: AiPromptOpts = {}): stri
     ...(pre ? [] : [`Current stage: ${c.stageLabel}`]),
     c.facts.length ? `Facts:\n- ${c.facts.join("\n- ")}` : "Facts: none recorded",
     `Business rules:\n- ${[...rulesFromAnswers(o.answers ?? null), ...(pre ? preReleaseExtras : [])].join("\n- ")}`,
+    ...(o.style?.length ? [`How Jo writes (style only — never copy facts, prices, dates, names or promises from these):\n${o.style.map((e) => `Owner wrote:\n${e.theirEmail.slice(0, 600)}\nJo replied:\n${e.reply}`).join("\n\n")}`] : []),
     c.links.length ? `Links you may use:\n${c.links.map((l) => `- ${l.label}: ${l.url}`).join("\n")}` : "Links: none — do not offer a link",
     pre ? "No change-time link is available." : c.changeLink ? `To change the time of ${WHO[c.changeLink.visit]}, they use: ${c.changeLink.link}` : "No change-time link is available — if they want to change a time, say we'll sort it and get back to them.",
     `Email history (oldest first):\n${hist || "(none)"}`,

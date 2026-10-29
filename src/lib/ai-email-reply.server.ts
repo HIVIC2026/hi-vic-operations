@@ -11,6 +11,8 @@ import {
   aiDraftKey, aiReplyEmailHtml, aiReplyProblems, aiReplyText, bookingChangeLink, buildAiReplyInput, draftActions, draftNeeds, finishAiReply, fixUntilClean, higherRFacts, newSizeFacts, replySubject, splitAiOutput, type AiActions, type AiReplyKind,
 } from "./ai-email-reply.core";
 import { loadAiAnswers } from "./ai-answers.server";
+import { loadStyleExamples } from "./ai-style.server";
+import type { StyleExample } from "./ai-style.core";
 
 const loose = admin as unknown as SupabaseClient;
 
@@ -73,14 +75,16 @@ export async function writeAiReplyDraft(p: { jobId: string; message: MailMessage
       ...(facts.myJobLink ? [{ label: "Their job page (status, quote, bookings)", url: facts.myJobLink }] : []),
       ...(saveLink && !facts.spotSaved ? [{ label: "Save my free spot", url: saveLink }] : []),
     ];
-    const answers = (await loadAiAnswers()).answers;
+    // Step 3: Jo's recent replies as style examples; any failure just means no examples.
+    const [answersRes, style] = await Promise.all([loadAiAnswers(), loadStyleExamples(p.jobId, m.body).catch(() => [] as StyleExample[])]);
+    const answers = answersRes.answers;
     const inputWith = (factLines: string[]) => buildAiReplyInput({
       jobNumber: job.job_number, ownerFirstName: firstNameOf(owner.full_name), stageLabel: (STAGE_LABEL as Record<string, string>)[job.stage] ?? job.stage,
       facts: factLines, links, changeLink: bookingChangeLink(facts.myJobLink, job.stage),
       history: ((hist ?? []) as { direction: string; subject: string | null; body: string; received_at: string | null; sent_at: string | null; created_at: string }[])
         .map((h) => ({ direction: h.direction === "outbound" ? "outbound" as const : "inbound" as const, at: h.received_at ?? h.sent_at ?? h.created_at, subject: h.subject, body: h.body ?? "" })),
       email: { from: m.from, subject: m.subject, body: m.body },
-    }, { preRelease, answers });
+    }, { preRelease, answers, style });
     // The AI's notes to the office (NEEDS_JO / NEEDS_YOU / ACTIONS lines) come off first, so they never reach the fix loop or the owner.
     // The owner's first name: an installer note that names them is dropped (installers get owner details only once they accept).
     const ownerFirstName = firstNameOf(owner.full_name);
