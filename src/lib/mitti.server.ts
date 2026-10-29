@@ -587,10 +587,11 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
 
 export async function syncPendingMitti(actorId: string | null, call: MittiCall = realMittiCall) {
   // Jo 23 Oct: cancelled/held/completed/archived jobs are never synced — their forms stay in Mitti untouched.
-  const NOT_NEEDED = "(cancelled,on_hold,complete,ready_for_veec)";
+  // Same scope as the instant notice (mitti-sync-scope.core.ts).
+  const { MITTI_SYNC_SCOPE_SELECT, inMittiSyncScope } = await import("./mitti-sync-scope.core");
   const [{ data: as }, { data: ms }] = await Promise.all([
-    admin.from("assessments").select("job_id,jobs!inner(business_unit)").not("external_mitti_id", "is", null).neq("status", "complete").eq("jobs.business_unit", "hivic").is("jobs.deleted_at", null).is("jobs.qa_archived_at", null).not("jobs.stage", "in", NOT_NEEDED),
-    admin.from("ceiling_measurements").select("job_id,jobs!inner(business_unit)").eq("external_source", "mitti").eq("is_current", true).neq("status", "complete").eq("jobs.business_unit", "hivic").is("jobs.deleted_at", null).is("jobs.qa_archived_at", null).not("jobs.stage", "in", NOT_NEEDED),
+    inMittiSyncScope(admin.from("assessments").select(MITTI_SYNC_SCOPE_SELECT).not("external_mitti_id", "is", null)),
+    inMittiSyncScope(admin.from("ceiling_measurements").select(MITTI_SYNC_SCOPE_SELECT).eq("external_source", "mitti").eq("is_current", true)),
   ]);
   const ids = [...new Set([...(as ?? []), ...(ms ?? [])].map((r) => r.job_id))];
   const results: { jobId: string; ok: boolean; message: string }[] = [];

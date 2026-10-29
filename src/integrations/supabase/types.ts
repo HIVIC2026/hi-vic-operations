@@ -12866,6 +12866,7 @@ export type Database = {
           mitti_auto_quote_enabled: boolean
           mitti_fixes_template_id: string | null
           mitti_measureup_template_id: string | null
+          mitti_instant_notice_enabled: boolean
           mitti_pickup_auto_enabled: boolean
           mitti_piesa_template_id: string | null
           mitti_piisa_template_id: string | null
@@ -12923,6 +12924,7 @@ export type Database = {
           mitti_auto_quote_enabled?: boolean
           mitti_fixes_template_id?: string | null
           mitti_measureup_template_id?: string | null
+          mitti_instant_notice_enabled?: boolean
           mitti_pickup_auto_enabled?: boolean
           mitti_piesa_template_id?: string | null
           mitti_piisa_template_id?: string | null
@@ -12980,6 +12982,7 @@ export type Database = {
           mitti_auto_quote_enabled?: boolean
           mitti_fixes_template_id?: string | null
           mitti_measureup_template_id?: string | null
+          mitti_instant_notice_enabled?: boolean
           mitti_pickup_auto_enabled?: boolean
           mitti_piesa_template_id?: string | null
           mitti_piisa_template_id?: string | null
