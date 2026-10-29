@@ -102,7 +102,7 @@ export async function signSwms(jobId: string, actorId: string | null, key: strin
   const check = checkSwmsSign(plan, signatures, key, typedName);
   if (!check.ok) throw new WorkflowError(check.reason);
   const planSha = swmsPlanSha(plan);
-  await logEvent(jobId, actorId, SWMS_SIGNED_EVENT, `Safety plan signed by ${check.signer.name} (${method === "link" ? "own text link" : "logged in"})`, { key, name: check.signer.name, role: check.signer.role, typed_name: typedName.trim(), plan_sha256: planSha, method }, { internal: true });
+  await logEvent(jobId, actorId, SWMS_SIGNED_EVENT, `Safety plan signed by ${check.signer.name} (${method === "link" ? "own text link" : method === "lead_phone" ? "signed on the Lead's phone" : "logged in"})`, { key, name: check.signer.name, role: check.signer.role, typed_name: typedName.trim(), plan_sha256: planSha, method }, { internal: true });
   const after = await loadSwms(jobId);
   if (after.status.complete) await fileSwms(jobId, actorId).catch(async (e) => { await logEvent(jobId, actorId, "swms_file_failed", "Safety plan signed but the PDF could not be filed — it will be filed on the next signature or office retry", { reason: e instanceof Error ? e.message : "error" }, { internal: true }).catch(() => undefined); });
   return { complete: after.status.complete, missing: after.status.missing };

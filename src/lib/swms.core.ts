@@ -193,12 +193,23 @@ export function swmsDate(ymd: string | null | undefined): string {
 
 // ── Decision 364 (Jo 25 Oct 2026): each person signs on their OWN phone. ──
 /** How a signature was given: logged in to the portal as that worker, or through that person's own secure text link. */
-export type SwmsSignMethod = "login" | "link";
+/** Jo 30 Oct 2026: "lead_phone" = that person's own link, opened on the Lead's phone (their own phone was dead). */
+export type SwmsSignMethod = "login" | "link" | "lead_phone";
 /** A logged-in person may sign only a line whose key is one of their own worker keys (`w:<partner_workers.id>`). */
 export function swmsOwnLineBlocker(plan: SwmsPlan, key: string, ownKeys: readonly string[]): string | null {
   const signer = plan.signers.find((s) => s.key === key);
   if (!signer) return "That person is not on this job's crew.";
   return ownKeys.includes(key) ? null : `Only ${signer.name} can sign their own line.`;
+}
+/** Jo 30 Oct 2026: the Lead may open another unsigned person's own sign link on the Lead's phone. Null = allowed. */
+export function swmsLeadPhoneBlocker(plan: SwmsPlan, sigs: SwmsSignature[], key: string, myKeys: readonly string[]): string | null {
+  const signer = plan.signers.find((s) => s.key === key);
+  if (!signer) return "That person is not on this job's crew.";
+  const lead = plan.signers.find((s) => s.role === "lead");
+  if (!lead || !myKeys.includes(lead.key)) return "Only the lead installer can open someone's sign link on their phone.";
+  if (key === lead.key) return "Sign your own line with the Sign button.";
+  if (latestSignatures(sigs).has(key)) return `${signer.name} has already signed.`;
+  return null;
 }
 /** What the job-page card shows on one sign-off line for this viewer. */
 export function swmsLineView(signer: SwmsSigner, signed: boolean, ownKeys: readonly string[], editable: boolean): { kind: "signed" } | { kind: "sign" } | { kind: "waiting"; text: string } | { kind: "closed" } {

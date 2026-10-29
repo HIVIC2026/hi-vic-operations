@@ -236,6 +236,11 @@ export const signTradeSwms = createServerFn({ method: "POST" }).middleware([requ
   .inputValidator((d) => z.object({ jobId: uuid, key: z.string().min(3).max(200), typedName: z.string().trim().min(2).max(200) }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSwmsSign(data.jobId, context.userId, data.key, data.typedName));
 
+/** Jo 30 Oct 2026: the Lead opens a crew member's own sign link on the Lead's phone (dead phone). */
+export const leadPhoneSwmsLink = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, key: z.string().min(3).max(200) }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSwmsLeadPhoneLink(data.jobId, context.userId, data.key));
+
 /** Decision 317: the electrician's "Safety check (PIESA)" document row (electricians only; business-scoped read). */
 export const getTradeSafetyCheckDoc = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
