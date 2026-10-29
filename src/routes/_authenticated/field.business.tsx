@@ -75,7 +75,7 @@ function Business() {
         <FileRow to="/field/business/insurance" title="Insurance and licences" sub={ins.text} warn={ins.warn} testId="insurance" />
         <FileRow to="/field/business/agreement" title="Your agreement" sub={agreementLine(data.agreement)} testId="agreement" />
         {installer && <FileRow to="/field/business/esc-notice" title="ESC privacy notice" sub={notice.text} warn={notice.outstanding > 0} testId="notice" />}
-        <FileRow to="/field/guide" title="How it works" sub="The 2-minute guide: every job, the 30 days, getting paid" testId="guide" />
+        <FileRow to="/field/guide" title="How it works" sub={installer ? "The 2-minute guide: every job, the 30 days, getting paid" : "One minute: every job and getting paid"} testId="guide" />
       </section>}
 
       <button type="button" onClick={() => void signOut()} className="flex min-h-11 w-full items-center justify-center text-[15px] font-semibold text-estimate-sub">Sign out</button>
