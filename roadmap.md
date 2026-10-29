@@ -1,3 +1,6 @@
+## Jo 29 Oct daily full journey — Task 1 only
+- [ ] Add three red-first PGlite tests, optional path/group/status storage and matching pending SQL; prove before applying only the journey_runs change live. No publication, jobs, switches or settings.
+
 ## Jo 28 Oct declared coverage proposal
 - [x] Build office-only centroid/radius proposals for both trades, show exclusions without applying them, confirm through existing verified save; 9999 uses 3*, skip non-3xxx, save cap 750. No business data or matching changes.
 - [x] New proposal/save/office-confirmation checks: 8 pass; all coverage-named checks: 27 pass. Preview build/typecheck clean. Full suite: package runner overflowed on failure output; equivalent per-file local-isolated rerun completed 766 files, 7354 pass / 225 fail / 36 skip (78 failing files). No unrelated fixes, business data changes or publication.
