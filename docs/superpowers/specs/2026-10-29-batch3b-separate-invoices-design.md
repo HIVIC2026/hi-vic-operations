@@ -12,6 +12,8 @@ Date: 29 Oct 2026 · Owner: Jo · Branch `fix/batch3b-separate-invoices` (from m
 | Install invoice | Gets edited when fixes / repeat are added | Install items only — including the $349 safety check (PIESA) and the $349 AP fee, as today. Never edited after it's sent |
 | Installer pay | Waits until every dollar on the job is paid | Waits for the install invoice only |
 
+**Payment order (Jo, 29 Oct):** $349 before the safety check (PIESA) → if it finds fixes, all the fixes paid before the fixes day and time is confirmed → once the fixes are done, 10% to book the install date → balance on install day.
+
 References (agreed): "Home Insulation Victoria HV-1234 fixes" and "Home Insulation Victoria HV-1234 safety check 2". No other new owner wording. No live jobs, so nothing old to move.
 
 ## Technical detail
