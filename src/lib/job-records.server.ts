@@ -38,3 +38,33 @@ export async function applyPiesaLifeSupport(jobId: string, actorId: string | nul
     return false;
   }
 }
+
+/** A48 batch 1 final fix (Jo 29 Oct 2026): the life support consent / medical plan is on file when the owner's upload
+ *  (documents kind `life_support_plan`) or the office record (job_compliance_records `life_support_plan`) exists. No tick. */
+export const LIFE_SUPPORT_PLAN_DOC_KIND = "life_support_plan";
+export async function lifeSupportPlansOnFile(jobIds: readonly string[]): Promise<Set<string>> {
+  if (!jobIds.length) return new Set();
+  const ids = [...jobIds];
+  const [{ data: docs, error: de }, { data: recs, error: re }] = await Promise.all([
+    admin.from("documents").select("job_id").in("job_id", ids).eq("kind", LIFE_SUPPORT_PLAN_DOC_KIND),
+    admin.from("job_compliance_records").select("job_id").in("job_id", ids).eq("record_key", "life_support_plan"),
+  ]);
+  if (de || re) throw new Error((de ?? re)!.message);
+  return new Set([...(docs ?? []), ...(recs ?? [])].map((r) => String(r.job_id)));
+}
+
+/** Jobs (of these) whose life support answer is yes / unknown and that have no plan on file. */
+export async function lifeSupportPlanMissingJobs(jobIds: readonly string[]): Promise<Set<string>> {
+  if (!jobIds.length) return new Set();
+  const { lifeSupportNeedsPlan } = await import("./compliance-timeline.core");
+  const { data: jobs, error } = await admin.from("jobs").select("id, life_support, life_support_status").in("id", [...jobIds]);
+  if (error) throw new Error(error.message);
+  const needing = (jobs ?? []).filter((j) => lifeSupportNeedsPlan(j)).map((j) => String(j.id));
+  const onFile = await lifeSupportPlansOnFile(needing);
+  return new Set(needing.filter((id) => !onFile.has(id)));
+}
+
+/** One job: the plan is needed and not on file (blocks the safety check offers and visit). */
+export async function lifeSupportPlanMissing(jobId: string): Promise<boolean> {
+  return (await lifeSupportPlanMissingJobs([jobId])).has(jobId);
+}

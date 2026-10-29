@@ -540,6 +540,16 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     const facts = await coesNeedsForJobs(jobs.filter((j) => byJob.has(j.id) || j.stage === "installation_scheduling").map((j) => ({ id: j.id, stage: j.stage })), byJob);
     for (const [id, fact] of facts) { const x = f(id); if (x) x.coesCheck = fact; }
   } catch { unavailable.push("electrical certificate checks"); }
+  // A48 batch 1 final fix (Jo 29 Oct): life support yes / unknown with no plan on file → one row until the owner's upload or
+  // the office record is on file (the safety check offers and visit wait for it).
+  try {
+    const { lifeSupportPlanRowStage } = await import("./compliance-timeline.core");
+    const { lifeSupportPlanMissingJobs } = await import("./job-records.server");
+    const cands = jobs.filter((j) => lifeSupportPlanRowStage(j.stage));
+    const missing = new Set<string>();
+    for (let i = 0; i < cands.length; i += 150) for (const id of await lifeSupportPlanMissingJobs(cands.slice(i, i + 150).map((j) => j.id))) missing.add(id);
+    for (const j of cands) { const x = f(j.id); if (x && missing.has(j.id)) x.lifeSupportPlanNeeded = { at: j.status?.since ?? j.facts.createdAt }; }
+  } catch { unavailable.push("life support plans"); }
   const unsigned = new Set(veecForms.filter((v) => !v["consumer_signed_at"]).map((v) => String(v["job_id"])));
   for (const e of veecAlerts) { const x = f(String(e["job_id"])); if (x && unsigned.has(String(e["job_id"]))) x.veecDay10 = { at: String(e["created_at"]) }; }
   // Jo 28 Oct 2026 (decision card 04:40 UTC, "Alert after 3 days unpaid"): a job paused on a homeowner payment that

@@ -151,6 +151,9 @@ export type GateFacts = {
   assignmentEffective: boolean;
   /** Jo 8 Oct: on-site consent (owner ticked on the installer's phone, or installer confirmed) clears Gate A. */
   onsiteConsent?: boolean;
+  /** A48 batch 1 final fix (Jo 29 Oct): the life support consent / plan is on file — the owner's upload on My job or the
+   *  office record. Replaces the owner's "I have uploaded it" tick. */
+  lifeSupportPlanOnFile?: boolean;
 };
 
 export type GateItem = { key: string; label: string; done: boolean; draft: boolean; note?: string | undefined };
@@ -163,8 +166,9 @@ function docItem(f: GateFacts, k: GateDocKey): GateItem {
   return { key: k, label: d.title, done: !!s, draft: s ? s.draft : !approvedNow, note: d.signer === "office" ? "Office records" : undefined };
 }
 
-/** Retired 21 Oct (Jo): hidden everywhere; signed copies stay as history. */
-export const RETIRED_DOC_KEYS: ReadonlySet<string> = new Set(["contact_privacy", "trade_contact_share", "details_confirmation", "life_support_answer", "cooling_off_notice"]);
+/** Retired 21 Oct (Jo): hidden everywhere; signed copies stay as history. Retired 29 Oct (Jo, A48 batch 1 final fix): the
+ *  life support plan "I have uploaded it" tick — the owner uploads the file on My job instead. */
+export const RETIRED_DOC_KEYS: ReadonlySet<string> = new Set(["contact_privacy", "trade_contact_share", "details_confirmation", "life_support_answer", "cooling_off_notice", "life_support_plan"]);
 
 export function evaluateOwnerGates(f: GateFacts): GateResult[] {
   // Jo 21 Oct: Gate A is no longer required before any visit (contact consent and life support come from the enquiry form,
@@ -183,7 +187,8 @@ export function evaluateOwnerGates(f: GateFacts): GateResult[] {
     { key: "piesa_copy", label: "PIESA copy delivered", done: f.piesaCopyDelivered, draft: false },
     docItem(f, "piesa_copy_receipt"),
   ];
-  if (f.lifeSupport) C.push(docItem(f, "life_support_plan"));
+  // A48 batch 1 final fix (Jo 29 Oct): done by the owner's upload or the office record — the tick no longer counts.
+  if (f.lifeSupport) C.push({ key: "life_support_plan", label: gateDoc("life_support_plan").title, done: !!f.lifeSupportPlanOnFile, draft: false, note: "Owner upload or office record" });
   if (f.piesaDeclarationMappingApproved) C.push(docItem(f, "piesa_owner_declaration"));
   // Gate D: the completed official form, made effective from the Gate B assignment (owner re-signs only on material change or if the setting requires it).
   const D: GateItem[] = [{ key: "veec_assignment", label: "Completed VEEC assignment form (effective after install)", done: f.assignmentEffective, draft: false }];
@@ -229,7 +234,7 @@ export function blockedGateNow(results: GateResult[], stage: string): GateResult
 
 /** Gates the owner can sign right now (unsigned owner docs, in gate order, only up to the first incomplete gate that has owner docs). */
 export function ownerToSign(results: GateResult[]): { gate: Gate; key: GateDocKey }[] {
-  const keys = new Set(GATE_DOCS.filter((d) => d.signer === "owner").map((d) => d.key as string));
+  const keys = new Set(GATE_DOCS.filter((d) => d.signer === "owner" && !RETIRED_DOC_KEYS.has(d.key)).map((d) => d.key as string));
   return results.flatMap((r) => r.items.filter((i) => !i.done && keys.has(i.key) && i.key !== "piesa_owner_declaration").map((i) => ({ gate: r.gate, key: i.key as GateDocKey })))
     .filter((x) => x.gate === "A" || x.gate === "B" || x.gate === "C");
 }

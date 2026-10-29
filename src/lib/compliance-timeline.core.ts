@@ -3,6 +3,7 @@ import { addMelbourneBusinessDays, addMelbourneCalendarDays } from "./melbourne-
 // One ordered list of timed/sequenced gates per job, each with status and due time.
 // Timing constants reuse the existing central rules (esc.core) — never duplicated here.
 import { LEAD_MS, EARLIEST_MS } from "./esc.core";
+import { STAGE_ORDER } from "./workflow";
 
 export const DAY_MS = 24 * 3600_000;
 export const DEFAULT_PIESA_WINDOW_DAYS = 30;
@@ -138,6 +139,14 @@ export const MIN_CO_PAYMENT_INC_GST = 200;
 export function lifeSupportNeedsPlan(j: { life_support?: boolean | null | undefined; life_support_status?: string | null | undefined }): boolean {
   const st = String(j.life_support_status ?? "").trim().toLowerCase();
   return !!j.life_support || st === "yes" || st === "unknown";
+}
+
+/** A48 batch 1 final fix (Jo 29 Oct, office-only wording): the Needs me row while the plan is missing. */
+export const LIFE_SUPPORT_PLAN_ROW = "Life support plan needed before the safety check";
+/** The row shows from quote acceptance (safety check offers are next) up to the install (evidence_outstanding). */
+export function lifeSupportPlanRowStage(stage: string): boolean {
+  const i = STAGE_ORDER.indexOf(stage as never);
+  return i >= STAGE_ORDER.indexOf("measured_quote_accepted") && i <= STAGE_ORDER.indexOf("evidence_outstanding") && i >= 0;
 }
 
 /** The electrician's own life support answer on the safety check form (Yes/No); what the job should change to, or null. A "No" never changes anything. */

@@ -314,20 +314,17 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
   blockers.push(...(await (await import("./owner-gates.server")).ownerGateStageBlockers(jobId, to)));
   if (["piesa_scheduled", "assessment_complete", "installation_booked", "evidence_outstanding", "ap_review", "ready_for_veec"].includes(to)) {
     const { complianceRecordBlockers, lifeSupportNeedsPlan } = await import("./compliance-timeline.core");
-    const [{ data: recs }, { data: job }, { data: invs }, { data: planSigs }] = await Promise.all([
+    const [{ data: recs }, { data: job }, { data: invs }, { data: planFile }] = await Promise.all([
       admin.from("job_compliance_records").select("record_key").eq("job_id", jobId),
       admin.from("jobs").select("life_support, life_support_status").eq("id", jobId).single(),
       // Batch 3b: the owner's payment on the installation invoice only (fixes / repeat safety check invoices are separate).
       admin.from("invoices").select("deposit_paid_amount").eq("job_id", jobId).eq("kind", "installation"),
-      // The owner's Gate C tick ("I have uploaded it") is only a tick: it counts only with the stored consent / plan file.
-      Promise.all([
-        admin.from("owner_gate_signatures").select("doc_key").eq("job_id", jobId).eq("doc_key", "life_support_plan").limit(1),
-        admin.from("documents").select("id").eq("job_id", jobId).eq("kind", "life_support_plan").limit(1),
-      ]).then(([sig, file]) => ({ data: (sig.data ?? []).length && (file.data ?? []).length ? [{ doc_key: "life_support_plan" }] : [] })),
+      // A48 batch 1 final fix (Jo 29 Oct): the owner's uploaded consent / plan file alone counts like the office record (no tick).
+      admin.from("documents").select("id").eq("job_id", jobId).eq("kind", "life_support_plan").limit(1),
     ]);
     const paid = (invs ?? []).reduce((a, i) => a + Number(i.deposit_paid_amount ?? 0), 0);
     const recorded = new Set<string>((recs ?? []).map((r) => r.record_key));
-    if ((planSigs ?? []).length) recorded.add("life_support_plan");
+    if ((planFile ?? []).length) recorded.add("life_support_plan");
     blockers.push(...complianceRecordBlockers(to, recorded as never, { lifeSupport: lifeSupportNeedsPlan(job ?? {}), ownerPaidIncGst: paid }));
   }
   if (["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked"].includes(to)) {

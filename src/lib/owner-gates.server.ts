@@ -38,6 +38,7 @@ export async function gateFacts(jobId: string): Promise<GateFacts> {
   if (jobError) throw new WorkflowError("The job visit details could not load. Please retry.");
   if (!job) throw new WorkflowError("The saved job could not be found. Please retry or contact the office.");
   const { count: onsite } = await admin.from("owner_contact_consents").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("source", "onsite_ready_check").eq("consent_status", "granted");
+  const { lifeSupportPlansOnFile } = await import("./job-records.server");
   const latest = (k: string) => (sigs ?? []).filter((s) => s.doc_key === k).at(-1)?.answers as Record<string, unknown> | undefined;
   const keys = new Set((tpl ?? []).map((t) => t.template_key));
   return {
@@ -55,6 +56,7 @@ export async function gateFacts(jobId: string): Promise<GateFacts> {
     piesaDeclarationMappingApproved: !!approved["piesa_owner_declaration"],
     assignmentEffective: assign === "effective_complete",
     onsiteConsent: (onsite ?? 0) > 0,
+    lifeSupportPlanOnFile: (await lifeSupportPlansOnFile([jobId])).has(jobId),
   };
 }
 

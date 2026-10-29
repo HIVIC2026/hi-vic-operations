@@ -2,7 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Check, Phone } from "lucide-react";
-import { cancelMyJob, getOwnerMyJob } from "@/lib/owner-myjob.functions";
+import { cancelMyJob, finishLifeSupportPlanUploadFn, getLifeSupportPlanState, getOwnerMyJob, startLifeSupportPlanUploadFn } from "@/lib/owner-myjob.functions";
+import { supabase } from "@/integrations/supabase/client";
 import { OwnerHouse } from "@/components/owner/OwnerHouse";
 import { PIESA_FIXES_NOTE, agreedWithLabel, ownerPriceTitle } from "@/lib/owner-confirm.core";
 import { HOUSE_LEVEL } from "@/lib/owner-house.core";
@@ -153,6 +154,7 @@ function Home({ v, token }: { v: View; token: string }) {
     {v.fixesConfirm && <FixesConfirmCard token={token} />}
     {/* Decision 366: an electrical fixes quote waiting on the owner (approve / pay / pick a time) links to its screen. */}
     <FixesHomeCard token={token} />
+    <LifeSupportPlanCard token={token} />
     <Hero v={v} level={v.hero.level} headline={v.hero.headline} />
     <OwnerReadyCheckTimes token={token} />
     {/* Decision 137: the 30-day clock on the owner's job page while the install is being booked. */}
@@ -670,6 +672,36 @@ function PayNowCard({ v, token }: { v: View; token: string }) {
 }
 
 /** Decision 366 (audit F03): the Home card for an electrical fixes quote that needs the owner. */
+/** A48 batch 1 final fix (Jo 29 Oct 2026, approved wording verbatim): life support yes / unknown and no plan on file →
+ *  the owner uploads the written consent or medical plan (photo or PDF). That file alone clears the safety check block. */
+function LifeSupportPlanCard({ token }: { token: string }) {
+  const load = useServerFn(getLifeSupportPlanState);
+  const start = useServerFn(startLifeSupportPlanUploadFn);
+  const finish = useServerFn(finishLifeSupportPlanUploadFn);
+  const { data } = useQuery({ queryKey: ["owner-life-support-plan", token], queryFn: () => load({ data: { token } }), retry: false, refetchOnWindowFocus: false });
+  const input = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false); const [done, setDone] = useState(false); const [err, setErr] = useState("");
+  if (done) return <section data-testid="life-support-plan-done" role="status" className="flex items-start gap-3 rounded-[22px] bg-estimate-mint p-5"><Check className="mt-0.5 h-5 w-5 shrink-0 text-estimate-green" aria-hidden /><p className="font-bold">Thanks, we've got your life support plan.</p></section>;
+  if (!data?.show) return null;
+  const upload = async (file: File) => {
+    setErr(""); setBusy(true);
+    try {
+      const slot = await start({ data: { token, fileName: file.name, mime: file.type, size: file.size } });
+      const up = await supabase.storage.from("job-files").uploadToSignedUrl(slot.path, slot.uploadToken, file, { contentType: slot.mime });
+      if (up.error) throw new Error("The upload was interrupted. Please check your connection and try again.");
+      await finish({ data: { token, path: slot.path, fileName: file.name } });
+      setDone(true);
+    } catch (e) { setErr(errText(e)); } finally { setBusy(false); if (input.current) input.current.value = ""; }
+  };
+  return <section data-testid="life-support-plan" className="rounded-[22px] border-2 border-estimate-green bg-card p-5">
+    <h2 className="font-display text-lg font-extrabold">LIFE SUPPORT PLAN</h2>
+    <p className="mt-1 text-sm">Someone at your home uses life support equipment (or you weren't sure). Before the electrician's safety check, please upload your written consent or medical plan.</p>
+    <input ref={input} type="file" accept="application/pdf,image/*" className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); }} />
+    {err && <p role="alert" className="mt-2 text-sm font-bold text-destructive">{err}</p>}
+    <button type="button" className={`${signBtn} mt-4`} disabled={busy} onClick={() => input.current?.click()} aria-busy={busy}>Upload file</button>
+  </section>;
+}
+
 function FixesHomeCard({ token }: { token: string }) {
   const load = useServerFn(ownerFixesStateFn);
   const { data } = useQuery({ queryKey: ["owner-fixes", token], queryFn: () => load({ data: { token } }), retry: false });

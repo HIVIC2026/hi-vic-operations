@@ -159,3 +159,78 @@ export async function cancelOwnerJob(token: unknown): Promise<{ ok: boolean; rea
   await logEvent(l.job_id, null, "owner_cancelled_job", "Owner cancelled their job from My job (before the Pre Insulation Electrical Safety Assessment (PIESA) was booked). No charge.", { bookings_cancelled: bk?.length ?? 0, trades_to_notify: true }, { internal: true });
   return { ok: true };
 }
+
+// ---- A48 batch 1 final fix (Jo 29 Oct 2026): the owner uploads the life support consent / medical plan on My job ----
+// Same pattern as the owner photo/video upload (owner-capture.server): the secure link token is the only credential, the job
+// always comes from the token, the file goes to the private job-files bucket by a short-lived signed upload URL, its stored
+// type and first bytes are checked, then ONE documents row (kind life_support_plan) is written. That file alone clears the
+// life support block (job-records.server lifeSupportPlansOnFile). Never moves a stage.
+const LS_GENERIC = "This link is not available. Please contact Home Insulation Victoria.";
+const LS_BUCKET = "job-files";
+
+/** The link's job when it is open and the owner still needs to upload the plan; null otherwise. */
+async function lifeSupportPlanJob(token: unknown): Promise<string | null> {
+  if (!isWellFormedToken(token)) return null;
+  const { data: l } = await admin.from("customer_estimate_links").select("job_id, status, expires_at").eq("token", token).eq("purpose", LINK_PURPOSE).maybeSingle();
+  if (!l || !linkUsable(l)) return null;
+  const { data: j } = await admin.from("jobs").select("stage, deleted_at").eq("id", l.job_id).maybeSingle();
+  if (!j || j.deleted_at || ["cancelled", "complete"].includes(String(j.stage))) return null;
+  const { lifeSupportPlanMissing } = await import("./job-records.server");
+  return (await lifeSupportPlanMissing(l.job_id)) ? l.job_id : null;
+}
+
+/** My job: show the upload only when life support is yes or unknown and no plan is on file. Never throws. */
+export async function ownerLifeSupportPlanState(token: unknown): Promise<{ show: boolean }> {
+  try { return { show: !!(await lifeSupportPlanJob(token)) }; } catch { return { show: false }; }
+}
+
+export async function startLifeSupportPlanUpload(token: unknown, f: { fileName: string; mime: string; size: number }) {
+  const jobId = await lifeSupportPlanJob(token);
+  if (!jobId) throw new Error(LS_GENERIC);
+  const { validateLifeSupportPlanFile, lifeSupportPlanPath } = await import("./owner-myjob.core");
+  const v = validateLifeSupportPlanFile({ mime: f.mime, fileName: f.fileName, size: f.size });
+  if (!v.ok) throw new Error(v.error);
+  const path = lifeSupportPlanPath(jobId, crypto.randomUUID(), v.mime);
+  const { data, error } = await admin.storage.from(LS_BUCKET).createSignedUploadUrl(path);
+  if (error || !data) throw new Error("Something went wrong. Please try again.");
+  return { path, uploadToken: data.token, mime: v.mime };
+}
+
+export async function finishLifeSupportPlanUpload(token: unknown, x: { path: string; fileName: string }): Promise<{ recorded: true }> {
+  if (!isWellFormedToken(token)) throw new Error(LS_GENERIC);
+  const { data: l } = await admin.from("customer_estimate_links").select("job_id, status, expires_at").eq("token", token).eq("purpose", LINK_PURPOSE).maybeSingle();
+  if (!l || !linkUsable(l)) throw new Error(LS_GENERIC);
+  const jobId = l.job_id;
+  const { parseLifeSupportPlanPath, lifeSupportPlanType, LIFE_SUPPORT_PLAN_MAX_BYTES, LIFE_SUPPORT_PLAN_SOURCE } = await import("./owner-myjob.core");
+  const uploadId = parseLifeSupportPlanPath(jobId, x.path);
+  if (!uploadId) throw new Error(LS_GENERIC);
+  // The same upload finished twice (retry after a dropped reply): already recorded.
+  const { data: prior } = await admin.from("documents").select("id").eq("job_id", jobId).eq("source_system", LIFE_SUPPORT_PLAN_SOURCE).eq("external_id", uploadId).limit(1);
+  if ((prior ?? []).length) return { recorded: true };
+  if (!(await lifeSupportPlanJob(token))) throw new Error(LS_GENERIC);
+  const folder = x.path.slice(0, x.path.lastIndexOf("/"));
+  const { data: objs, error: le } = await admin.storage.from(LS_BUCKET).list(folder, { search: uploadId });
+  if (le) throw new Error("Something went wrong. Please try again.");
+  const obj = (objs ?? []).find((o) => x.path.endsWith(`/${o.name}`));
+  if (!obj) throw new Error("The upload was interrupted. Please check your connection and try again.");
+  const size = Number((obj.metadata as { size?: number } | null)?.size ?? 0);
+  const storedMime = lifeSupportPlanType((obj.metadata as { mimetype?: string } | null)?.mimetype ?? null, x.path);
+  const { verifyStoredUpload, BAD_FILE_MESSAGE } = await import("./upload-safety.server");
+  if (!storedMime || size <= 0 || size > LIFE_SUPPORT_PLAN_MAX_BYTES) {
+    await admin.storage.from(LS_BUCKET).remove([x.path]);
+    throw new Error(BAD_FILE_MESSAGE);
+  }
+  await verifyStoredUpload(LS_BUCKET, x.path, storedMime);
+  const safeName = x.fileName.replace(/[^\w.\- ]+/g, "_").slice(0, 120) || "file";
+  const { LIFE_SUPPORT_PLAN_DOC_KIND } = await import("./job-records.server");
+  const { error, data: ins } = await admin.from("documents").insert({
+    job_id: jobId, kind: LIFE_SUPPORT_PLAN_DOC_KIND, title: `Life support plan (owner upload): ${safeName}`, storage_path: x.path, mime_type: storedMime,
+    source_system: LIFE_SUPPORT_PLAN_SOURCE, external_id: uploadId, original_name: safeName, size_bytes: size,
+  }).select("id").maybeSingle();
+  if (error && !/duplicate/i.test(error.message)) throw new Error("Something went wrong. Please try again.");
+  if (!error) {
+    const { logEvent } = await import("./workflow.server");
+    await logEvent(jobId, null, "life_support_plan_uploaded", "Owner uploaded the life support consent / medical plan on My job", { document_id: ins?.id ?? null, size_bytes: size, mime_type: storedMime }, { internal: true });
+  }
+  return { recorded: true };
+}

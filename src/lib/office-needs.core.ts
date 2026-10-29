@@ -11,6 +11,7 @@ import type { InvoiceSlot } from "./payments.core";
 import { QUOTE_EXPIRED_HELD_REASON } from "./quote-expiry.core";
 import { piesaRulesOfficeLine } from "./piesa-rules-notice.core";
 import { coesOfficeLine } from "./coes-check.core";
+import { LIFE_SUPPORT_PLAN_ROW } from "./compliance-timeline.core";
 
 export type NeedsGroup = "today" | "week" | "watch";
 export const NEEDS_GROUPS: { key: NeedsGroup; label: string }[] = [
@@ -23,7 +24,7 @@ export type NeedsKind =
   | "choose_again" | "quote_check" | "fixes_quote_check" | "sign_consent" | "esc_window" | "final_check" | "send_failed" | "email_change" | "email_unmatched" | "robot_failed" | "piisa_form_failed"
   | "choose_installer" | "choose_electrician" | "veec_a_held" | "piesa_owner_unsigned" | "piesa_fixes_owner_unsigned" | "fixes_times_missing"
   | "payment_not_in_xero" | "payment_overdue" | "ten_days_left" | "second_no_access" | "veec_day_10" | "lapsed_window"
-  | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review" | "payment_reversed" | "mitti_form_problem" | "booking_overdue" | "piesa_fixes_found" | "repeat_piesa_choose" | "payment_stalled" | "invoice_failed" | "old_fixes_invoice_unpaid" | "old_fixes_invoice_paid" | "stop_release_failed" | "quote_expired_blocked" | "new_quote_installer" | "new_quote_unfinished" | "piesa_rules_failed" | "coes_check";
+  | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review" | "payment_reversed" | "mitti_form_problem" | "booking_overdue" | "piesa_fixes_found" | "repeat_piesa_choose" | "payment_stalled" | "invoice_failed" | "old_fixes_invoice_unpaid" | "old_fixes_invoice_paid" | "stop_release_failed" | "quote_expired_blocked" | "new_quote_installer" | "new_quote_unfinished" | "piesa_rules_failed" | "coes_check" | "life_support_plan";
 
 /** Where the one button takes the office. `section` is the Job page stage card id; `act` are inline row actions. */
 export type NeedsButton =
@@ -76,6 +77,9 @@ export type NeedsFacts = {
   /** A48 batch 1 task 5: the electrical certificate after the repairs waits for the office (coes-check.core) — Tick, Reject
    *  or Check again. `eventId` null = repairs done but never checked. */
   coesCheck?: { at: string; why: string; eventId: string | null } | null;
+  /** A48 batch 1 final fix (Jo 29 Oct): life support yes / unknown with no plan on file (owner upload or office record) —
+   *  the safety check offers and visit wait for it. */
+  lifeSupportPlanNeeded?: { at: string } | null;
   /** Hard stop: the Mitti form on this job was refused (wrong job number, wrong or different form). */
   mittiFormProblem?: { at: string; error: string } | null;
   /** ESC install notification not sent yet; window closes 24h before the install. */
@@ -205,6 +209,7 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   if (f.piesaFormFailed) add({ rank: 15, group: "today", kind: "piesa_form_failed", line: f.piesaFormFailed.text, since: f.piesaFormFailed.at, button: { label: "Open job", to: "job", section: "piesa" } });
   if (f.piesaRulesFailed) add({ rank: 16, group: "today", kind: "piesa_rules_failed", line: piesaRulesOfficeLine(f.piesaRulesFailed.reasons), since: f.piesaRulesFailed.at, button: { label: "Open job", to: "job", section: "piesa" } });
   if (f.coesCheck) add({ rank: 17, group: "today", kind: "coes_check", line: coesOfficeLine(f.coesCheck.why), since: f.coesCheck.at, ...(f.coesCheck.eventId ? { eventId: f.coesCheck.eventId } : {}), button: { label: "Tick", to: "act", act: "coes_tick" }, secondary: { label: "Reject", to: "act", act: "coes_reject" } });
+  if (f.lifeSupportPlanNeeded) add({ rank: 18, group: "today", kind: "life_support_plan", line: LIFE_SUPPORT_PLAN_ROW, since: f.lifeSupportPlanNeeded.at, button: { label: "Open job", to: "job", section: "piesa" } });
   if (f.piisaFormFailed) add({ rank: 14, group: "today", kind: "piisa_form_failed", line: f.piisaFormFailed.text, since: f.piisaFormFailed.at, button: { label: "Open job", to: "job", section: "install" } });
   if (f.offerLapsed) add({ rank: 20, group: "today", kind: "choose_again", line: f.offerLapsed.note ? f.offerLapsed.note : `${f.offerLapsed.role === "installer" ? "Installer" : "Electrician"} offer ${f.offerLapsed.declined ? `declined${f.offerLapsed.name ? ` by ${f.offerLapsed.name}` : ""}` : "lapsed · no reply in 24h"}`, since: f.offerLapsed.at, button: { label: "Choose again", to: "job", section: f.offerLapsed.role === "installer" ? "ready-check" : "piesa" } });
   if (f.bookingOverdue) {
