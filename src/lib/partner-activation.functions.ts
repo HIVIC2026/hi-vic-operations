@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { Json } from "@/integrations/supabase/types";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin, WorkflowError } from "./workflow.server";
-import { activationBlockers, certificationRecordErrors, latestCertifications, mandatoryActivationBlockers, planActivation, type CertVerification, type PartnerType } from "./partner-activation.core";
+import { activationBlockers, certificationRecordErrors, electricianLicenceBlockers, latestCertifications, mandatoryActivationBlockers, planActivation, type CertVerification, type PartnerType } from "./partner-activation.core";
 import type { RecData } from "./rec-onboarding.core";
 import type { InstData } from "./installer-onboarding.core";
 
@@ -333,6 +333,7 @@ export const getApprovalChecklist = createServerFn({ method: "POST" }).middlewar
       if (!ws.some((w) => certs.get((w.email ?? "").trim().toLowerCase())?.status === "verified"))
         for (const w of ws) items.push({ key: `cii:${w.email}`, kind: "cii", workerEmail: (w.email ?? "").trim().toLowerCase(), label: `Verify ${(w.full_legal_name ?? w.email ?? "installer").split(/\s+/)[0]}'s CII certificate${ws.length > 1 ? " (at least one installer)" : ""}` });
     }
+    if (type === "rec") for (const b of electricianLicenceBlockers(application as RecData)) items.push({ key: `licence:${b}`, kind: "fix", label: b });
     for (const b of activationBlockers(type, application, app.agreement_version, app.signed_at)) items.push({ key: `ov:${b}`, kind: "override", label: b });
     const { offerState, offerActivationBlocker } = await import("./rate-offer.core");
     const { data: offerRows } = await (admin as unknown as { from: (t: string) => any }).from("partner_rate_offers").select("id, round, status, items, note, gst_registered, created_at, responded_at, response").eq("application_id", app.id); // eslint-disable-line @typescript-eslint/no-explicit-any
