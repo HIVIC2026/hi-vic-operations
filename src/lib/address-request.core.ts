@@ -24,16 +24,22 @@ export type AddressRequestFacts = {
   sentAt: string | null;
   reminderAt: string | null;
   answeredAt: string | null;
+  closed: boolean; // cancelled, deleted or archived: never asked
 };
 
 export function addressRequestOpen(f: AddressRequestFacts): boolean {
   if (f.goLiveAt === null) return false;
+  if (f.closed) return false;
   if (f.source !== "base44" && f.source !== "email") return false;
   if (f.channel !== "hivic_sourced") return false;
   if (f.eligibilityOutcome === INELIGIBLE_OUTCOME) return false;
   if (parseStreet(f.addressLine) !== null) return false;
-  if (!(Date.parse(f.createdAt) >= Date.parse(f.goLiveAt))) return false;
   return f.answeredAt === null;
+}
+
+/** Jo 30 Oct 2026: a job with no street can't have its spot released, a Ready Check offered or a Ready Check booked. */
+export function noStreetBlock(addressLine: string | null | undefined): string | null {
+  return parseStreet(addressLine ?? null) === null ? ADDRESS_REQUEST_BLOCK_REASON : null;
 }
 
 export function addressRequestStep(f: AddressRequestFacts, now: number): "send" | "remind" | "none" {
