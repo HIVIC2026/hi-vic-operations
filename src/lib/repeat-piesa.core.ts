@@ -21,8 +21,8 @@ export const REPEAT_PIESA_PRICE_EVENT = "repeat_piesa_price_set";
 export const REPEAT_REOPEN_EVENT = "piesa_superseded_on_reopen";
 export const REOPEN_KEY_PREFIX = "reopen:";
 export const reopenKey = (iso: string) => `${REOPEN_KEY_PREFIX}${iso}`;
-/** Trade/office message (not owner-facing): after a reopen the new check is recorded as a PIESA reassessment. */
-export const SUPERSEDED_USE_REASSESSMENT = "This job was reopened, so the earlier PIESA no longer counts. Record the new safety check as a PIESA reassessment.";
+/** Trade/office message (not owner-facing): after a reopen the installer books the repeat PIESA, which opens a new Mitti form (Jo 29 Oct 2026). */
+export const SUPERSEDED_USE_REASSESSMENT = "This job was reopened, so the earlier PIESA no longer counts. Book the repeat PIESA. It opens a new Mitti form.";
 export const isReopenKey = (deadline: string | null | undefined) => !!deadline && deadline.startsWith(REOPEN_KEY_PREFIX);
 /** A PIESA record made at or before the latest reopen no longer counts (null reopen = it counts). */
 export function piesaSupersededByReopen(recordCreatedAt: string | null | undefined, reopenAt: string | null | undefined): boolean {

@@ -179,7 +179,7 @@ describe("reopenJob (real, in-memory database)", () => {
     expect(await reassessmentBlocker(J, "piesa_scheduled")).toBeNull();
     // The old assessment is complete: Complete PIESA points to the reassessment instead of a dead end.
     const { completePiesaAssessment } = await import("../src/lib/piesa-complete.server");
-    await expect(completePiesaAssessment({ jobId: J }, "elec-2")).rejects.toThrow(/reassessment/);
+    await expect(completePiesaAssessment({ jobId: J }, "elec-2")).rejects.toThrow(/Book the repeat PIESA/);
     await new Promise((r) => setTimeout(r, 5));
     await applyPiesaRecord({ jobId: J, actorId: "elec-2", kind: "reassessment", outcome: "pass", completedDate: "2026-10-28", source: { kind: "portal" } });
     expect(transitions).toContain("piesa_complete");
