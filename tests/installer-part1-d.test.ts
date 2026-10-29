@@ -73,3 +73,37 @@ describe("D5 Lead + 2, Lead from the Team list", () => {
     expect(picker).toContain("No CII-cleared installer is on your Team list yet. Add them under My business → Team.");
   });
 });
+
+import { leadNeedsHandover } from "../src/lib/visit-allocation.core";
+import { CREW_TITLE } from "../src/lib/installer-screens.core";
+import { BUNDLE_QUERY_KEYS } from "../src/lib/trade-job-bundle.core";
+describe("D6 one crew picker", () => {
+  test("the Lead gets the Mitti form; same person = no hand-over", () => {
+    expect(leadNeedsHandover({ leadWorkerId: "a", allocatedWorkerId: null, assigneeWorkerId: "a" })).toBe(false);
+    expect(leadNeedsHandover({ leadWorkerId: "b", allocatedWorkerId: null, assigneeWorkerId: "a" })).toBe(true);
+    expect(leadNeedsHandover({ leadWorkerId: "b", allocatedWorkerId: "b", assigneeWorkerId: "a" })).toBe(false);
+    expect(leadNeedsHandover({ leadWorkerId: null, allocatedWorkerId: "b", assigneeWorkerId: "a" })).toBe(false);
+    expect(src("src/lib/piisa-a3.functions.ts")).toContain("saveCrewWithLead(data.jobId, context.userId, { lead: data.lead, additional: data.additional })");
+    const srv = src("src/lib/visit-allocation.server.ts");
+    const fn = srv.slice(srv.indexOf("export async function saveCrewWithLead"));
+    expect(fn.indexOf("crewSelectionProblems(")).toBeLessThan(fn.indexOf("allocateVisit("));
+    expect(fn).toContain("saveCrewSelection(jobId, userId, sel)");
+  });
+  test("one picker, one name, on the Job page and Today's job", () => {
+    expect(CREW_TITLE).toBe("Who's on the crew today?");
+    const picker = src("src/components/trade/PiisaCrewPicker.tsx");
+    expect(picker).toContain("title={CREW_TITLE}");
+    expect(picker).toContain(">Change</LinkRow>");
+    expect(picker).toContain("staleTime: 20_000");
+    expect(picker).not.toContain('"Crew today"');
+    expect(src("src/routes/_authenticated/field.$jobId.tsx")).toContain('{visitsForStage(job.stage).includes("install") && <PiisaCrewPicker jobId={jobId} />}');
+    expect(src(DAY)).toContain('{data.kind === "install" && <PiisaCrewPicker jobId={jobId} />}');
+    const card = src("src/components/trade/visit-allocation.tsx");
+    expect(card).toContain('data.visits.filter((v) => v.kind === "ready_check")');
+    expect(card).not.toContain("Mitti install form");
+  });
+  test("the Job page still loads in one call", () => {
+    expect(BUNDLE_QUERY_KEYS.crew("j")).toEqual(["piisa-crew", "j"]);
+    expect(src("src/lib/trade-job-bundle.server.ts")).toContain('visitsForStage(ov.row.stage).includes("install")');
+  });
+});

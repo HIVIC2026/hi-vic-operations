@@ -1,6 +1,7 @@
 // "Who's doing this" (decision 161; mock-up M2 + approved state M2-change-allocation): the business owner picks the
-// staff member for each visit on the installer job screen. Presentation only — eligibility, the event and the Mitti
-// hand-over all happen on the server; the sheet's words come from the pure `allocationSheet`.
+// staff member for the Ready Check on the installer job screen; install days use the one crew picker (D6, PiisaCrewPicker).
+// Presentation only — eligibility, the event and the Mitti hand-over all happen on the server; the sheet's words come
+// from the pure `allocationSheet`.
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
@@ -17,24 +18,23 @@ export function WhosDoingThis({ jobId, readyCheckDone = false, visitAt = null, s
   const [chosen, setChosen] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<Record<string, string>>({});
-  if (!data || !data.visits.length) return null;
-  const hasInstall = data.visits.some((v) => v.kind === "install");
+  if (!data) return null;
+  const visits = data.visits.filter((v) => v.kind === "ready_check");
+  if (!visits.length) return null;
   return (
     <Group title="Who's doing this">
-      {data.visits.map((v, i) => {
+      {visits.map((v, i) => {
         const sheet = open === v.kind ? allocationSheet({ kind: v.kind, visitAt, suburb, chosen, options: v.options.map((o) => ({ workerId: o.workerId, name: o.name, mobile: o.mobile, allowed: o.allowed, reason: o.reason, picked: v.current?.workerId === o.workerId })) }) : null;
         return (
-          <div key={v.kind} className={i < data.visits.length - 1 ? "border-b border-line" : ""}>
+          <div key={v.kind} className={i < visits.length - 1 ? "border-b border-line" : ""}>
             <div className="flex min-h-12 items-center justify-between gap-3 text-[15px]">
               <span className="text-sub">{v.label}</span>
               <span className="text-right font-medium">
                 {v.current ? v.current.name : <span className="text-sub">Not yet</span>}
                 {v.kind === "ready_check" && v.current && readyCheckDone && <span className="text-[13px] text-sub"> · done</span>}
-                {v.kind === "install" && v.current && <span className="text-[13px] text-hiv-green"> · CII cleared</span>}
                 {data.canAllocate && !(v.kind === "ready_check" && readyCheckDone) && <button type="button" className="ml-1.5 min-h-10 font-semibold text-hiv-blue" aria-expanded={open === v.kind} onClick={() => { setOpen(open === v.kind ? null : v.kind); setChosen(null); }}>{v.current ? "Change" : "Choose"}</button>}
               </span>
             </div>
-            {!v.current && v.kind === "install" && open !== v.kind && <p className="pb-2 text-[13px] text-sub">Choose who does the install once a day is booked.</p>}
             {sheet && data.canAllocate && (
               <section className="mb-3 rounded-[18px] border border-line p-4" data-allocation-sheet role="dialog" aria-label={sheet.title}>
                 <h3 className="text-[17px] font-semibold">{sheet.title}</h3>
@@ -72,7 +72,7 @@ export function WhosDoingThis({ jobId, readyCheckDone = false, visitAt = null, s
           </div>
         );
       })}
-      {data.canAllocate && <Note>{hasInstall ? `The Mitti install form and the 6:30am text go to ${data.visits.find((v) => v.kind === "install")?.current?.name ?? "the person you choose"}. Only CII-cleared staff can do install days.` : "The Mitti form and the 6:30am text go to the person you choose."}</Note>}
+      {data.canAllocate && <Note>The Mitti form and the 6:30am text go to the person you choose.</Note>}
     </Group>
   );
 }

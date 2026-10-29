@@ -54,6 +54,8 @@ import { CheckMyFormButton } from "@/components/trade/CheckMyFormButton";
 import { InstallerInstallDays, useInstallerInstallDays } from "@/components/portal/install-days";
 import { ElectricianPiesaTimesCard } from "@/components/portal/piesa-times-electrician";
 import { WhosDoingThis } from "@/components/trade/visit-allocation";
+import { PiisaCrewPicker } from "@/components/trade/PiisaCrewPicker";
+import { visitsForStage } from "@/lib/visit-allocation.core";
 import { ContactButtons, Group, LinkRow, NextPanel, NoFormNoPay, Note, PrimaryButton, Row, Screen, ScreenHead, primaryLinkClass } from "@/components/trade/installer-kit";
 import { completeView, electricianRow, firstName, installRow, installerStatusLine, STAFF_LINKS_LABEL, jobNext, mittiLinkPlace, payNote, quoteStatusRow, readyCheckRows, sourceLabel, type ReadyCheckTurn } from "@/lib/installer-screens.core";
 import { InstallerPriceCard } from "@/components/trade/InstallerPriceCard";
@@ -372,6 +374,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
       )}
 
       <WhosDoingThis jobId={jobId} readyCheckDone={!!page?.readyCheck.done} visitAt={page?.install.bookedAt ?? page?.readyCheck.bookedAt ?? null} suburb={(job.property_address ?? "").split(",").slice(-1)[0]?.replace(/\b(VIC|Victoria)\b.*$/i, "").trim() || null} />
+      {visitsForStage(job.stage).includes("install") && <PiisaCrewPicker jobId={jobId} />}
 
       <details>
         <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between border-y border-line text-[15px] text-sub"><span>{STAFF_LINKS_LABEL}</span><span className="text-xl">›</span></summary>

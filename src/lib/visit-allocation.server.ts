@@ -7,7 +7,8 @@ import type { MittiCall } from "./mitti.core";
 import { effectiveWorkerRole, mittiEmailFor } from "./worker-role.core";
 import { melbourneToday } from "./worker-compliance.core";
 import { CREW_CLEARANCE_REASON } from "./worker-compliance.core";
-import { addInMittiFirst, allocationBlocker, allocationOptions, currentAllocation, visitsForStage, VISIT_ALLOCATED_EVENT, VISIT_LABEL, type AllocationCandidate, type VisitKind } from "./visit-allocation.core";
+import { addInMittiFirst, allocationBlocker, allocationOptions, currentAllocation, leadNeedsHandover, visitsForStage, VISIT_ALLOCATED_EVENT, VISIT_LABEL, type AllocationCandidate, type VisitKind } from "./visit-allocation.core";
+import { crewSelectionProblems, leadWorkerId, type CrewSelection } from "./piisa-a3.core";
 
 const db = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -103,6 +104,29 @@ export async function allocateVisit(jobId: string, userId: string, kind: VisitKi
     { visit: kind, worker_id: cand.workerId, worker_name: cand.name, by: userId, mitti_user_id: mittiUserId, audit_id: auditId, form: auditId ? "reassigned" : "none", business_id: c.biz.id });
   if (auditId) await mitti.reassignMittiFormTo({ jobId, auditId, kind, mittiUserId, email: lookupEmail, actorId: userId }, useCall);
   return { ok: true as const, workerId: cand.workerId, name: cand.name, form: auditId ? "reassigned" as const : "none" as const };
+}
+
+/**
+ * Jo 29 Oct 2026 (D6): ONE crew picker saves the install crew, and its Lead is the person who gets the Mitti install form.
+ * Order: crew rules (refuse before anything is recorded) → if the Lead isn't already holding the form (current install
+ * allocation, else the assigned installer's own staff row) hand it over through `allocateVisit` (owner / CII / "Add them
+ * in Mitti first" guards refuse before anything is recorded) → record `piisa_crew_selected` (the 2pm crew reminder reads it).
+ */
+export async function saveCrewWithLead(jobId: string, userId: string, sel: CrewSelection, call?: MittiCall): Promise<{ needsVerification: string[] }> {
+  const piisa = await import("./piisa-a3.server");
+  const { staff } = await piisa.loadCrew(jobId);
+  const { problems } = crewSelectionProblems(sel, staff);
+  if (problems.length) throw new WorkflowError(problems.join(" • "));
+  const leadId = leadWorkerId(sel);
+  const cur = currentAllocation(await allocationEvents(jobId), "install");
+  const { data: asg } = await db.from("job_assignments").select("user_id, business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
+  const { data: own } = asg?.user_id
+    ? await db.from("partner_workers").select("id").eq("profile_id", asg.user_id).eq("business_id", asg.business_id ?? "").is("removed_at", null).limit(1).maybeSingle()
+    : { data: null };
+  if (leadId && leadNeedsHandover({ leadWorkerId: leadId, allocatedWorkerId: cur?.worker_id ?? null, assigneeWorkerId: (own as { id?: string } | null)?.id ?? null })) {
+    await allocateVisit(jobId, userId, "install", leadId, call);
+  }
+  return piisa.saveCrewSelection(jobId, userId, sel);
 }
 
 /** 6:30am text: the allocated person (if any) for one job + visit kind, with their mobile from the staff row. */

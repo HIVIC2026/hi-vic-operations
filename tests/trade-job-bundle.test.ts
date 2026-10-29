@@ -33,6 +33,7 @@ function fakeDeps(over: Partial<Record<keyof Deps, unknown>> = {}, opts: { boss?
     workerLinks: rec("workerLinks", { workers: [], links: [], assignedBusinesses: 1 }),
     price: rec("price", { canSet: true, current: null }),
     ownerQuote: rec("ownerQuote", { applies: false }),
+    crew: rec("crew", { staff: [], selection: null }),
     ...over,
   } as unknown as Deps;
   return { deps, calls };
@@ -42,7 +43,7 @@ describe("tradeJobBundle (server, injected readers)", () => {
   test("business owner: every section asked exactly once, each trade section with the ONE checked context", async () => {
     const { deps, calls } = fakeDeps();
     const b = await tradeJobBundle(SB, USER, JOB, deps);
-    for (const k of ["overview", "access", "page", "installDays", "readyCheckTimes", "allocation", "swms", "workerLinks", "price", "ownerQuote"]) expect(calls[k]?.length, k).toBe(1);
+    for (const k of ["overview", "access", "page", "installDays", "readyCheckTimes", "allocation", "swms", "workerLinks", "price", "ownerQuote", "crew"]) expect(calls[k]?.length, k).toBe(1);
     const pre = (await deps.access(USER, JOB)) as { checkedFor: unknown };
     for (const k of ["page", "readyCheckTimes", "allocation", "swms"]) expect((calls[k]![0]![2] as { checkedFor: unknown }).checkedFor, k).toEqual(pre.checkedFor);
     expect(b.overview).toEqual({ id: JOB, stage: "installation_scheduling", channel: "installer_sourced" });
@@ -62,7 +63,7 @@ describe("tradeJobBundle (server, injected readers)", () => {
     const { deps, calls } = fakeDeps({}, { kind: "electrician", role: "electrician" });
     const b = await tradeJobBundle(SB, USER, JOB, deps);
     expect(b.role).toBe("electrician");
-    for (const k of ["page", "installDays", "readyCheckTimes", "allocation", "swms", "price", "ownerQuote"]) expect(calls[k], k).toBeUndefined();
+    for (const k of ["page", "installDays", "readyCheckTimes", "allocation", "swms", "price", "ownerQuote", "crew"]) expect(calls[k], k).toBeUndefined();
     expect(b.page).toBeUndefined();
     expect(b.price).toBeNull();
     expect(calls.workerLinks?.length).toBe(1);
@@ -79,12 +80,12 @@ describe("tradeJobBundle (server, injected readers)", () => {
     const seeded = seedPlan(b, JOB).map((s) => s.section);
     expect(seeded).not.toContain("swms");
     expect(seeded).not.toContain("installDays");
-    expect(seeded).toEqual(expect.arrayContaining(["overview", "role", "page", "readyCheckTimes", "allocation", "workerLinks", "price", "ownerQuote", "mittiInvited"]));
+    expect(seeded).toEqual(expect.arrayContaining(["overview", "role", "page", "readyCheckTimes", "allocation", "workerLinks", "price", "ownerQuote", "crew", "mittiInvited"]));
   });
   test("trade access refused: the refusal reaches every trade section (as the eight separate calls were refused one by one); the overview keeps its own answer", async () => {
     const { deps, calls } = fakeDeps({ access: () => Promise.reject(new Error("This job isn't assigned to you.")) });
     const b = await tradeJobBundle(SB, USER, JOB, deps);
-    for (const k of ["page", "installDays", "readyCheckTimes", "allocation", "swms", "workerLinks", "price", "ownerQuote", "mittiInvited"] as const) expect(b[k], k).toEqual({ error: "This job isn't assigned to you." });
+    for (const k of ["page", "installDays", "readyCheckTimes", "allocation", "swms", "workerLinks", "price", "ownerQuote", "crew", "mittiInvited"] as const) expect(b[k], k).toEqual({ error: "This job isn't assigned to you." });
     expect(b.overview).toMatchObject({ id: JOB });
     for (const k of ["page", "installDays", "swms", "price"]) expect(calls[k], k).toBeUndefined();
   });

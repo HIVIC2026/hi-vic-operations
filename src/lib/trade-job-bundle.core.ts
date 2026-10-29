@@ -25,6 +25,7 @@ export const BUNDLE_QUERY_KEYS = {
   price: (jobId: string) => ["installer-price", jobId],
   ownerQuote: (jobId: string) => ["my-owner-quote", jobId],
   mittiInvited: () => ["mitti-invited"],
+  crew: (jobId: string) => ["piisa-crew", jobId],
 } as const;
 
 export type BundleSection = keyof typeof BUNDLE_QUERY_KEYS;

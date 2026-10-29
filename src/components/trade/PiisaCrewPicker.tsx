@@ -1,11 +1,13 @@
-// Crew today (mock-up M4; decisions 153, 161): the install crew for the A5 PIISA from this business's cleared staff,
-// plus "Enter installer details" for someone not on the list (office verification before work starts).
+// Who's on the crew today? (mock-up M4; decisions 153, 161; Jo 29 Oct 2026 D6): the ONE install crew picker, on the Job
+// page and Today's job. The install crew for the A5 PIISA from this business's cleared staff, plus "Enter installer
+// details" for someone not on the list (office verification before work starts). The Lead gets the Mitti install form.
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getPiisaCrew, savePiisaCrew } from "@/lib/piisa-a3.functions";
 import { A3_NATIVE_CREW_LOOKUP, crewSelectionProblems, type CrewPick, type CrewSelection, type StaffOption } from "@/lib/piisa-a3.core";
 import { Group, LinkRow, Note, PrimaryButton, QuietButton } from "@/components/trade/installer-kit";
+import { CREW_TITLE } from "@/lib/installer-screens.core";
 
 // Decision 153: ready = cleared (verified CII + recorded level + not expired); office login approval is not the gate.
 const ready = (s: StaffOption) => s.cleared !== false && s.eecVerified && !!s.eec;
@@ -13,7 +15,7 @@ const tag = (s: StaffOption) => s.cleared === false ? ` · ${s.clearanceReason ?
 
 export function PiisaCrewPicker({ jobId }: { jobId: string }) {
   const get = useServerFn(getPiisaCrew), save = useServerFn(savePiisaCrew);
-  const { data, refetch } = useQuery({ queryKey: ["piisa-crew", jobId], queryFn: () => get({ data: { jobId } }) });
+  const { data, refetch } = useQuery({ queryKey: ["piisa-crew", jobId], queryFn: () => get({ data: { jobId } }), retry: false, staleTime: 20_000 });
   const [lead, setLead] = useState<string | null>(null);
   const [extra, setExtra] = useState<CrewPick[]>([]);
   const [editing, setEditing] = useState(false);
@@ -26,6 +28,7 @@ export function PiisaCrewPicker({ jobId }: { jobId: string }) {
   const name = (p: CrewPick | CrewSelection["lead"]) => typeof p === "string" ? data.staff.find((s) => s.workerId === p)?.name ?? "Staff member" : p && "workerId" in p ? data.staff.find((s) => s.workerId === p.workerId)?.name ?? "Staff member" : p && "other" in p ? p.other.name || "Entered installer" : null;
   const status = (p: CrewPick | CrewSelection["lead"]) => { const id = typeof p === "string" ? p : p && "workerId" in p ? p.workerId : null; const s = id ? data.staff.find((x) => x.workerId === id) : null; return s ? (ready(s) ? { t: "CII cleared", ok: true } : { t: s.clearanceReason ?? "Not cleared", ok: false }) : { t: "Office to verify", ok: false }; };
   const saved = data.selection;
+  const leadName = saved ? name(saved.lead) : null;
   const rows = saved ? [{ pick: saved.lead, lead: true }, ...saved.additional.map((a) => ({ pick: a, lead: false }))].filter((r) => r.pick) : [];
   const form = (
     <div className="mt-2" data-piisa-crew-form>
@@ -58,7 +61,7 @@ export function PiisaCrewPicker({ jobId }: { jobId: string }) {
     </div>
   );
   return (
-    <Group title="Crew today">
+    <Group title={CREW_TITLE}>
       <div data-piisa-crew>
         {rows.map((r, i) => { const s = status(r.pick); return (
           <div key={i} className="flex min-h-12 items-center justify-between gap-3 border-b border-line text-[15px]">
@@ -67,10 +70,10 @@ export function PiisaCrewPicker({ jobId }: { jobId: string }) {
           </div>
         ); })}
         {!editing && !saved && form}
-        {saved && !editing && <LinkRow onClick={() => setEditing(true)}>{saved.additional.length < 2 ? "Add a crew member" : "Change the crew"}</LinkRow>}
+        {saved && !editing && <LinkRow onClick={() => setEditing(true)}>Change</LinkRow>}
         {saved && editing && form}
         {msg && <p role="status" className="mt-2 text-sm font-semibold">{msg}</p>}
-        <Note>Only CII-cleared staff can be on an install. The crew goes on the PIISA.</Note>
+        <Note>{`The Mitti install form and the 6:30am text go to ${leadName ?? "the Lead"}. Only CII-cleared staff can be on an install. The crew goes on the PIISA.`}</Note>
       </div>
     </Group>
   );

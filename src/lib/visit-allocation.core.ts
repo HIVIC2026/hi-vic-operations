@@ -90,6 +90,13 @@ export function currentAllocation(events: { event_type: string; details: unknown
   return d && typeof d.worker_id === "string" ? d : null;
 }
 
+/** Jo 29 Oct 2026 (D6): the crew's Lead gets the Mitti install form. A hand-over is needed only when a Lead is chosen and
+ *  they aren't already the person holding the form (the current install allocation, else the assigned installer). */
+export function leadNeedsHandover(f: { leadWorkerId: string | null; allocatedWorkerId: string | null; assigneeWorkerId: string | null }): boolean {
+  const lead = f.leadWorkerId;
+  return !!lead && lead !== (f.allocatedWorkerId ?? f.assigneeWorkerId);
+}
+
 // ---------- daily 6:30am text recipient ----------
 export type TextRecipient = { key: string; name: string; phone: string | null; who: "allocated" | "owner"; note: string | null };
 /** Allocated person's mobile when allocated and they have one; otherwise the business owner as today (noted). */

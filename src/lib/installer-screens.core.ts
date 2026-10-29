@@ -178,6 +178,8 @@ export function installerStatusLine(f: StatusLineFacts): StatusLine {
 export const FIXES_PAUSED_STAGES = new Set(["rectification_required", "awaiting_owner_rectification_approval", "rectification_scheduling", "rectification_booked", "electrical_variation_pending"]);
 /** Jo's answer: the label for the link that sends the job to a staff member. */
 export const STAFF_LINKS_LABEL = "Send this job to a staff member";
+/** Jo's answer 1 (29 Oct 2026, D6): the one name for the install crew picker, on the Job page and Today's job. */
+export const CREW_TITLE = "Who's on the crew today?";
 /** Where the "Open Mitti form" link shows on the Job page: once, in the Next panel when the form is the job, otherwise in Ready Check. */
 export function mittiLinkPlace(f: { panel: JobNextPanel | null; yours: boolean; auditId: string | null; mittiInvited: boolean; formLinked: boolean }): "next" | "ready_check" | null {
   if (!f.auditId || !f.mittiInvited) return null;
