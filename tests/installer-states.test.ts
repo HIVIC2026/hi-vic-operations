@@ -264,7 +264,7 @@ describe("M7 sub-page states", () => {
     expect(escNoticeRowLine({ state: "acknowledged", at: "2026-10-03T03:14:00Z" })).toBe("Acknowledged 3 Oct 2026");
     expect(escNoticeRowLine({ state: "pending", at: null, linkSentAt: "2026-10-20T22:00:00Z", reminderAt: "2026-10-23T22:00:00Z" })).toBe("Not yet · link sent Wed 21 Oct, reminder Sat 24 Oct");
     expect(escNoticeRowLine({ state: "pending", at: null })).toBe("Not yet · no link sent");
-    expect(GUIDE_STEPS.map((s) => s.title)).toEqual(["Get the job", "Ready Check", "Safety check", "Install days", "Install day"]);
+    expect(GUIDE_STEPS.map((s) => s.title)).toEqual(["Get the job", "Ready Check", "PIESA", "Install days", "Install day"]);
   });
 });
 

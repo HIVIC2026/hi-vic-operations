@@ -503,10 +503,12 @@ export function escNoticeRowLine(s: { state: string; at: string | null; linkSent
 export const GUIDE_STEPS = [
   { title: "Get the job", body: "Your own customer: Add a job and enter their details exactly and in full. Our lead: we text and email you the job. Offer the owner three Ready Check times within 24 hours." },
   { title: "Ready Check", body: "Fill in as much as you can in Mitti. Press Complete only when it's finished: that sends the owner their quote." },
-  { title: "Safety check", body: "We arrange it once the owner accepts. You get the PIESA at least 24 hours before install." },
-  { title: "Install days", body: "Once the safety check is cleared, offer the owner 3 days with arrival times. Install within 30 days of the electrical safety check, or a new one is needed." },
-  { title: "Install day", body: "Follow the install form from the 6:30am text, top to bottom: SWMS, PIISA, then the photos. Press Complete in Mitti, then sign your part of the rebate form on the job." },
+  { title: "PIESA", body: `We arrange it once the owner accepts. You get the ${PIESA_FULL} at least 24 hours before install.` },
+  { title: "Install days", body: "Once the PIESA is cleared, offer the owner 3 days with arrival times. Install within 30 days of the PIESA, or a new one is needed." },
+  { title: "Install day", body: "Follow the install form from the 6:30am text, top to bottom: the SWMS (Safe Work Method Statement: your safety plan for the job), the PIISA (Pre-installation installer safety assessment: your safety check before you start), then the photos. Press Complete in Mitti, then sign Part B (your declaration) of the VEEC form (the rebate form) on the job." },
 ] as const;
+/** What the approved business says it will take, on the welcome page (copy approved by Jo 29 Oct 2026). */
+export const WELCOME_TAKES = { installer: "Ready Checks and installs", electrician: `${PIESA_FULL} jobs` } as const;
 export const GUIDE_WORDS = {
   eyebrow: "Installer guide",
   title: "How every job works",

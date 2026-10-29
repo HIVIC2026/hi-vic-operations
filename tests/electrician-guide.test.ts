@@ -21,7 +21,7 @@ test("electrician guide copy is the approved copy", () => {
 });
 
 test("installer guide steps are unchanged", () => {
-  expect(GUIDE_STEPS.map((s) => s.title)).toEqual(["Get the job", "Ready Check", "Safety check", "Install days", "Install day"]);
+  expect(GUIDE_STEPS.map((s) => s.title)).toEqual(["Get the job", "Ready Check", "PIESA", "Install days", "Install day"]);
 });
 
 test("guide page loads the business and shows the electrician guide only for electricians", () => {

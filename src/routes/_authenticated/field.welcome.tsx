@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { TradeShell, card, ghostBtn, greenBtn } from "@/components/trade/TradeShell";
 import { getTradeSetupView } from "@/lib/trade-view.functions";
+import { WELCOME_TAKES } from "@/lib/trade-view.core";
 
 export const Route = createFileRoute("/_authenticated/field/welcome")({
   head: () => ({ meta: [{ title: "You're approved – Home Insulation Victoria" }, { name: "description", content: "Your business is approved and ready for work." }, { property: "og:title", content: "You're approved – Home Insulation Victoria" }, { property: "og:description", content: "Your business is approved and ready for work." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
@@ -18,7 +19,7 @@ function Welcome() {
   const installer = data.kind === "installer";
   return (
     <TradeShell installer={installer} boss>
-      <section className="rounded-[18px] bg-estimate-green p-6 text-white"><p className="font-display text-[26px] font-bold leading-tight">You're approved</p><p className="mt-1 text-sm font-semibold">{data.business} is ready to take {installer ? "Ready Checks and installs" : "PIESAs"} from Home Insulation Victoria.</p></section>
+      <section className="rounded-[18px] bg-estimate-green p-6 text-white"><p className="font-display text-[26px] font-bold leading-tight">You're approved</p><p className="mt-1 text-sm font-semibold">{data.business} is ready to take {installer ? WELCOME_TAKES.installer : WELCOME_TAKES.electrician} from Home Insulation Victoria.</p></section>
       <section className={card}><p className="text-sm">Everything from your application — business details, rates, area, bank details, insurance, licences, team and agreement — is already loaded. You can see it any time under My business.</p></section>
       <Link to="/field" className={greenBtn}>Go to my work</Link>
       {installer ? <Link to="/field/guide" className={ghostBtn}>How every job works</Link> : null}
