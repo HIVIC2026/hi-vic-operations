@@ -18,3 +18,9 @@ export function signupMainElectrician(data: unknown): UsualElectrician | null {
     ...(phone ? { phone } : {}),
   });
 }
+
+/** Should the stuck sign-up electrician invite go out now? "wait" = comms are off (try again later); "skip" = never from here. */
+export function signupInviteDue(n: { status: string; invite_sent_at: string | null; business_id: string | null; email: string | null; installerApproved: boolean; commsEnabled: boolean; electricianAlreadyApproved: boolean }): "send" | "wait" | "skip" {
+  if (n.status !== "invite_pending_comms" || n.invite_sent_at || n.business_id || !n.email?.trim() || !n.installerApproved || n.electricianAlreadyApproved) return "skip";
+  return n.commsEnabled ? "send" : "wait";
+}
