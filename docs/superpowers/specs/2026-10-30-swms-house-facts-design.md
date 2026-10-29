@@ -37,7 +37,7 @@ The asbestos rule (built before 1990, or "asbestos" in a note) stays as it is no
 
 ### 3. Sign again if the SWMS changes
 
-Today a person's signature counts even if the SWMS changes after they sign. From now on, a signature counts only for the version they signed. Each signature already stores a fingerprint of the plan. If the plan changes (a Ready Check or PIESA update, a new site note, a crew change), the old signatures stop counting and the pre-start check shows them as "not signed" until they sign again.
+Today a person's signature counts even if the SWMS changes after they sign. From now on, a signature counts only for the version they signed. Each signature already stores a fingerprint of the plan. If the plan changes (a Ready Check or PIESA update, or a new site note), the old signatures stop counting and the pre-start check shows them as "not signed" until they sign again. Adding a new crew member only needs that person to sign.
 
 No new texts or emails are added by this change.
 
