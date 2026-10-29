@@ -37,6 +37,7 @@ async function bulkBusinessAccess(actorId: string, businessId: string, work = fa
 
 async function canUseBulkImport(userId: string, businessId: string, onBehalf: boolean) {
   const { isAdmin } = await bulkBusinessAccess(userId,businessId,true);
+  if (!isAdmin) throw new WorkflowError("Uploading multiple jobs is switched off. Start each job's Ready Check in Mitti and it will appear here automatically.");
   if (onBehalf) {
     if (!isAdmin) throw new WorkflowError("Only the office can upload on behalf of an installer.");
   } else {

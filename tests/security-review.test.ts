@@ -28,7 +28,7 @@ describe("4. Bulk import permission", () => {
   test("every member check requires the business boss", () => {
     const src = readFileSync("src/lib/bulk-import.functions.ts", "utf8");
     const calls = [...src.matchAll(/requireMember\(([^)]*)\)/g)].map((m) => m[1]!);
-    expect(calls.length).toBeGreaterThan(2);
+    expect(calls.length).toBe(3);
     for (const c of calls) expect(c.trim().endsWith("true")).toBe(true);
   });
 });

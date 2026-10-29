@@ -53,3 +53,16 @@ test("G5: bulk upload server leftovers are gone; Add a job's electrician choices
   for (const keep of ["bulkElectricianChoices", "addBulkElectrician", "readBulkFile"]) expect(fns).toContain(`export const ${keep}`);
   expect(execSync("grep -rln 'bulk-upload-switch\\|bulk-import-commit\\|bulk-import-access\\|bulk-import.server' src || true", { encoding: "utf8" }).trim()).toBe("");
 });
+
+test("G5: AI file reading stays office-only; a business boss is refused before any paid read", () => {
+  const fns = readFileSync("src/lib/bulk-import.functions.ts", "utf8");
+  const body = fns.slice(fns.indexOf("async function canUseBulkImport"), fns.indexOf("export const bulkElectricianChoices"));
+  const access = body.indexOf("await bulkBusinessAccess(");
+  const refusal = body.indexOf(`if (!isAdmin) throw new WorkflowError("Uploading multiple jobs is switched off. Start each job's Ready Check in Mitti and it will appear here automatically.");`);
+  expect(access).toBeGreaterThan(-1);
+  expect(refusal).toBeGreaterThan(access);
+  expect(refusal).toBeLessThan(body.indexOf("if (onBehalf)"));
+  const read = fns.slice(fns.indexOf("export const readBulkFile"));
+  expect(read.indexOf("await canUseBulkImport(")).toBeGreaterThan(-1);
+  expect(read.indexOf("await canUseBulkImport(")).toBeLessThan(read.indexOf("aiReadMedia("));
+});
