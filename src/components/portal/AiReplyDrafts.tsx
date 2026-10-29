@@ -5,7 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { discardAiReplyDraft, getAiReplyDrafts, sendAiReplyDraft } from "@/lib/ai-email-reply.functions";
 import { btnClass } from "@/components/portal/kit";
-import { aiReplyEmailHtml } from "@/lib/ai-email-reply.core";
+import { AI_REWRITTEN_NOTE, aiReplyEmailHtml } from "@/lib/ai-email-reply.core";
 import { panelLoad } from "@/lib/panel-load.core";
 import { LoadFailed } from "@/components/portal/load-failed";
 import { saveStateText, useDraftAutosave } from "@/components/portal/use-draft-autosave";
@@ -18,9 +18,15 @@ function DraftCard({ d, onDone }: { d: Draft; onDone: () => void }) {
   const [body, setBody] = useState(d.body);
   const [busy, setBusy] = useState(false);
   const saved = useDraftAutosave(d.eventId, body, d.body);
+  const [note, setNote] = useState<{ problems: string[] } | null>(null);
   const run = async (fn: () => Promise<unknown>, ok: string) => {
     setBusy(true);
-    try { await fn(); toast.success(ok); onDone(); } catch (e) { toast.error((e as Error).message || "That didn't work. Try again."); } finally { setBusy(false); }
+    try {
+      const r = await fn();
+      // A blocked Send: nothing went out. The fixed reply goes back in the box for Jo to check; the card stays.
+      if ((r as { status?: string } | null)?.status === "rewritten") { setBody((r as { body: string }).body); setNote({ problems: (r as { problems: string[] }).problems }); return; }
+      toast.success(ok); onDone();
+    } catch (e) { toast.error((e as Error).message || "That didn't work. Try again."); } finally { setBusy(false); }
   };
   return (
     <li className="grid gap-2 rounded-[12px] border border-line bg-paper p-3">
@@ -28,14 +34,17 @@ function DraftCard({ d, onDone }: { d: Draft; onDone: () => void }) {
         <span><strong className="text-ink">To {d.to}</strong> · {d.subject}</span>
         <span>{d.kind === "simple" ? "Simple email" : "Needs a check"} · {new Date(d.at).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</span>
       </div>
-      <textarea aria-label="Reply text" value={body} onChange={(e) => setBody(e.target.value)} rows={Math.min(14, body.split("\n").length + 2)} className="w-full rounded-[10px] border border-line bg-background p-2 text-sm" disabled={busy} />
+      <textarea aria-label="Reply text" value={body} onChange={(e) => { setNote(null); setBody(e.target.value); }} rows={Math.min(14, body.split("\n").length + 2)} className="w-full rounded-[10px] border border-line bg-background p-2 text-sm" disabled={busy} />
       {saveStateText(saved) && <span className={`text-xs ${saved === "failed" ? "text-danger" : "text-sub"}`} aria-live="polite">{saveStateText(saved)}</span>}
+      {note && (note.problems.length
+        ? <p className="text-sm text-danger" role="alert">{note.problems.join(" ")}</p>
+        : <p className="text-sm text-ink" role="status">{AI_REWRITTEN_NOTE}</p>)}
       <details className="text-sm">
         <summary className="cursor-pointer font-semibold text-hiv-blue">How the owner will see it</summary>
         <iframe title="Email preview" sandbox="" srcDoc={aiReplyEmailHtml(body, { subject: d.subject, unsubscribe: null })} className="mt-2 h-[520px] w-full max-w-[560px] rounded-[10px] border border-line bg-background" />
       </details>
       <div className="grid grid-cols-2 gap-2 md:flex">
-        <button type="button" disabled={busy} className={btnClass("primary", "min-h-[44px]")} onClick={() => void run(() => send({ data: { eventId: d.eventId, body } }), "Reply sent")}>{busy ? "Working…" : "Send"}</button>
+        <button type="button" disabled={busy} className={btnClass("primary", "min-h-[44px]")} onClick={() => { setNote(null); void run(() => send({ data: { eventId: d.eventId, body } }), "Reply sent"); }}>{busy ? "Working…" : "Send"}</button>
         <button type="button" disabled={busy} className={btnClass("secondary", "min-h-[44px]")} onClick={() => void run(() => discard({ data: { eventId: d.eventId } }), "Draft discarded")}>Discard</button>
       </div>
     </li>

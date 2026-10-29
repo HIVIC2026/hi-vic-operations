@@ -13,6 +13,8 @@ import { smsQuietReason } from "./quote-hold.core";
 import { SPOT_FREE, SPOT_PRICE_NOTE, SPOT_REGISTERED, SPOT_RELEASE_LINE, isPreReleaseStage } from "./spot-only-copy.core";
 import type { SpotReleaseState } from "./spot-release.core";
 
+/** Shown on the draft screens after a blocked Send: the box now holds the fixed reply. */
+export const AI_REWRITTEN_NOTE = "We fixed the reply so it follows your rules — check it and press Send.";
 export const AI_EMAIL_DRAFT_EVENT = "email_ai_draft";
 export const AI_EMAIL_DRAFT_SENT_EVENT = "email_ai_draft_sent";
 export const AI_EMAIL_DRAFT_DISCARDED_EVENT = "email_ai_draft_discarded";

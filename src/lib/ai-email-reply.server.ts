@@ -173,7 +173,7 @@ async function openDraft(eventId: string) {
   return ev as { id: string; job_id: string; details: Record<string, unknown> };
 }
 
-export async function sendAiDraft(eventId: string, body: string, actorId: string, now = new Date()): Promise<{ status: string } | { status: "rewritten"; body: string; problems: string[] }> {
+export async function sendAiDraft(eventId: string, body: string, actorId: string, now = new Date()): Promise<{ status: "sent" | `delivery uncertain${string}` } | { status: "rewritten"; body: string; problems: string[] }> {
   // Jo 27 Oct 2026: the office presses Send, so it goes whenever she chooses — no after-8pm hold on manual sends.
   void now;
   const ev = await openDraft(eventId);
@@ -221,7 +221,7 @@ export async function sendAiDraft(eventId: string, body: string, actorId: string
       } catch (e) { console.error("AI reply send not linked to history", e instanceof Error ? e.message : "unknown"); }
     });
   await (await import("./outlook-sync.server")).archiveOutlookMessage(String(ev.details["message_id"] ?? "") || null, job.id, actorId);
-  return { status };
+  return { status: status as "sent" | `delivery uncertain${string}` };
 }
 
 export async function discardAiDraft(eventId: string, actorId: string): Promise<void> {

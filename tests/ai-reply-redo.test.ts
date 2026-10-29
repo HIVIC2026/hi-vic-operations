@@ -156,3 +156,32 @@ describe("task 4: the loop at draft time and on Send (source checks)", () => {
     expect(body.indexOf('r.status === "rewritten"')).toBeLessThan(body.indexOf("applyEmailChange"));
   });
 });
+
+describe("task 5: the screens show the fixed draft after a blocked Send (source checks)", () => {
+  const emails = readFileSync("src/components/portal/EmailsScreen.tsx", "utf8");
+  const drafts = readFileSync("src/components/portal/AiReplyDrafts.tsx", "utf8");
+  const core = readFileSync("src/lib/ai-email-reply.core.ts", "utf8");
+  test("the shared note lives in the core file", () => {
+    expect(core).toContain('export const AI_REWRITTEN_NOTE = "We fixed the reply so it follows your rules — check it and press Send."');
+  });
+  for (const [name, src] of [["EmailsScreen", emails], ["AiReplyDrafts", drafts]] as const) {
+    test(`${name}: rewritten fills the box, shows the note or problems, and never finishes the card`, () => {
+      expect(src).toContain('status === "rewritten"');
+      expect(src).toContain("AI_REWRITTEN_NOTE");
+      expect(src).toMatch(/setBody\(\(?r\b/);
+      expect(src).toMatch(/\.problems\.length/);
+      expect(src).toContain("text-danger");
+      const at = src.indexOf('status === "rewritten"');
+      const branch = src.slice(at, src.indexOf("return", at) + 10);
+      expect(branch).not.toContain("onDone()");
+      expect(branch).not.toContain("toast.success");
+    });
+    test(`${name}: the note clears when Jo edits the text`, () => {
+      expect(src).toMatch(/setNote\(null\)/);
+    });
+  }
+  test("sendAiDraft's return type narrows on status", () => {
+    const s = readFileSync("src/lib/ai-email-reply.server.ts", "utf8");
+    expect(s).not.toContain("Promise<{ status: string } | {");
+  });
+});

@@ -43,7 +43,8 @@ describe("sendAiDraft and the spot-only rule", () => {
     const { sendAiDraft } = await import("../src/lib/ai-email-reply.server");
     const r = await sendAiDraft("d1", BAD, "u1");
     expect(r.status).toBe("rewritten");
-    expect((r as { problems: string[] }).problems.join(" ")).toMatch(/released/);
+    if (r.status !== "rewritten") throw new Error("expected rewritten");
+    expect(r.problems.join(" ")).toMatch(/released/);
     expect(world.sent).toBe(0);
     expect(world.inserts.some((i) => i["event_type"] === "email_ai_draft_edited")).toBe(true);
     expect(world.inserts.some((i) => i["event_type"] === "email_ai_draft_sent")).toBe(false);
