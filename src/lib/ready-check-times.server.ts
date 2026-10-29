@@ -102,6 +102,10 @@ export async function officePickReadyCheckInstaller(jobId: string, actorId: stri
   ]);
   const b = readyCheckOfferStartBlockers({ channel: job?.channel ?? null, stage: job?.stage ?? "", deleted: !job || !!job.deleted_at, hasInstaller: !!inst, openOffers: open ?? 0, picks: picks.length });
   if (b.length) throw new WorkflowError(`The Ready Check offer can't be sent: ${b.join(" ")}`);
+  // Jo 30 Oct 2026: never offered (office or automatic) while the owner's street is missing.
+  const { data: street } = job!.property_id ? await admin.from("properties").select("address_line").eq("id", job!.property_id).maybeSingle() : { data: null };
+  const noStreet = (await import("./address-request.core")).noStreetBlock(street?.address_line);
+  if (noStreet) throw new WorkflowError(noStreet);
   const { candidates } = await (await import("./readycheck-booking.server")).installerCandidatesFor(jobId);
   const c = candidates.find((x) => x.business_id === picks[0]);
   if (!c) throw new WorkflowError("That installer isn't an approved installer for this job.");

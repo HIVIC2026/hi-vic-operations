@@ -96,7 +96,7 @@ describe("Save my spot waits for the owner's full address", () => {
       { id: "a", job_id: "j1", event_type: "address_request_sent", created_at: "2026-10-26T02:00:00Z" },
       { id: "b", job_id: "j1", event_type: "address_request_sent", created_at: "2026-10-26T01:00:00Z" },
     ]);
-    expect(await loadAddressRequestFacts("j1")).toEqual({ addressLine: null, source: "base44", channel: "hivic_sourced", createdAt: "2026-10-25T00:00:00Z", eligibilityOutcome: null, goLiveAt: GO_LIVE, sentAt: "2026-10-26T01:00:00Z", reminderAt: null, answeredAt: null });
+    expect(await loadAddressRequestFacts("j1")).toEqual({ addressLine: null, source: "base44", channel: "hivic_sourced", createdAt: "2026-10-25T00:00:00Z", eligibilityOutcome: null, goLiveAt: GO_LIVE, sentAt: "2026-10-26T01:00:00Z", reminderAt: null, answeredAt: null, closed: false });
     expect(await loadAddressRequestFacts("nope")).toBeNull();
   });
 });
