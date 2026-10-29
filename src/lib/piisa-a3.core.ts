@@ -563,6 +563,9 @@ export type CrewPick = { workerId: string } | { other: { name: string; eec: stri
 /** Lead = a staff workerId, or "Other" (typed name + EEC, office verification required before work starts). */
 export type CrewSelection = { lead: string | { other: { name: string; eec: string } } | null; additional: CrewPick[] };
 export const leadWorkerId = (sel: CrewSelection): string | null => typeof sel.lead === "string" ? sel.lead : null;
+/** Jo 29 Oct 2026: a crew saved before the Lead + 2 / Lead-from-the-Team rules (typed-in Lead, or more than 2 others) must be
+ *  picked again — treated as not picked. The stored record is kept. */
+export const savedCrewNeedsRepick = (sel: CrewSelection): boolean => typeof sel.lead === "object" && sel.lead !== null || sel.additional.length > 2;
 
 /** Lead = cleared staff (decision 153: verified CII + recorded level + not expired) of the assigned installer business; ≤2 additional (Lead + 2); a crew member may be "Other" (name + EEC, office verification); the Lead may not. */
 export function crewSelectionProblems(sel: CrewSelection, staff: StaffOption[]): { problems: string[]; needsVerification: string[] } {

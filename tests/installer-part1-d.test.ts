@@ -66,7 +66,21 @@ describe("D3 fix round: install day reads the install form", () => {
   });
 });
 
-import { crewSelectionProblems } from "../src/lib/piisa-a3.core";
+import { crewSelectionProblems, savedCrewNeedsRepick } from "../src/lib/piisa-a3.core";
+describe("Jo 29 Oct: old crews pick again", () => {
+  test("a typed-in Lead or more than Lead + 2 counts as not picked; a valid crew still counts", () => {
+    expect(savedCrewNeedsRepick({ lead: { other: { name: "Typed Person", eec: "CII-9" } }, additional: [] })).toBe(true);
+    expect(savedCrewNeedsRepick({ lead: "a", additional: [{ workerId: "b" }, { workerId: "c" }, { workerId: "d" }] })).toBe(true);
+    expect(savedCrewNeedsRepick({ lead: "a", additional: [{ workerId: "b" }, { other: { name: "Extra", eec: "CII-8" } }] })).toBe(false);
+    expect(savedCrewNeedsRepick({ lead: "a", additional: [] })).toBe(false);
+  });
+  test("the crew picker shows again for an old crew, without deleting it", () => {
+    const picker = src("src/components/trade/PiisaCrewPicker.tsx");
+    expect(picker).toContain("const saved = data.selection && !savedCrewNeedsRepick(data.selection) ? data.selection : null;");
+    expect(picker).toContain("if (data.selection && !savedCrewNeedsRepick(data.selection)) {");
+    expect(src("src/lib/piisa-a3.server.ts")).not.toContain("savedCrewNeedsRepick");
+  });
+});
 describe("D5 Lead + 2, Lead from the Team list", () => {
   const s = (id: string) => ({ workerId: id, name: id, eec: `CII-${id}`, eecVerified: true });
   const staff = ["a", "b", "c", "d"].map(s);

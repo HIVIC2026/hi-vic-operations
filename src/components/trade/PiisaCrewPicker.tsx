@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getPiisaCrew, savePiisaCrew } from "@/lib/piisa-a3.functions";
-import { A3_NATIVE_CREW_LOOKUP, crewSelectionProblems, type CrewPick, type CrewSelection, type StaffOption } from "@/lib/piisa-a3.core";
+import { A3_NATIVE_CREW_LOOKUP, crewSelectionProblems, savedCrewNeedsRepick, type CrewPick, type CrewSelection, type StaffOption } from "@/lib/piisa-a3.core";
 import { Group, LinkRow, Note, PrimaryButton, QuietButton } from "@/components/trade/installer-kit";
 import { CREW_TITLE } from "@/lib/installer-screens.core";
 
@@ -21,13 +21,13 @@ export function PiisaCrewPicker({ jobId }: { jobId: string }) {
   const [editing, setEditing] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (!data) return; if (data.selection) { setLead(typeof data.selection.lead === "string" ? data.selection.lead : null); setExtra(data.selection.additional); } else { const r = data.staff.filter(ready); if (r.length === 1 && r[0]) setLead(r[0].workerId); } }, [data]);
+  useEffect(() => { if (!data) return; if (data.selection && !savedCrewNeedsRepick(data.selection)) { setLead(typeof data.selection.lead === "string" ? data.selection.lead : null); setExtra(data.selection.additional); } else { const r = data.staff.filter(ready); if (r.length === 1 && r[0]) setLead(r[0].workerId); } }, [data]);
   if (!data) return null;
   const check = crewSelectionProblems({ lead, additional: extra }, data.staff);
   const sel = "min-h-11 w-full rounded-xl border border-line bg-paper px-3 text-[15px]";
   const name = (p: CrewPick | CrewSelection["lead"]) => typeof p === "string" ? data.staff.find((s) => s.workerId === p)?.name ?? "Staff member" : p && "workerId" in p ? data.staff.find((s) => s.workerId === p.workerId)?.name ?? "Staff member" : p && "other" in p ? p.other.name || "Entered installer" : null;
   const status = (p: CrewPick | CrewSelection["lead"]) => { const id = typeof p === "string" ? p : p && "workerId" in p ? p.workerId : null; const s = id ? data.staff.find((x) => x.workerId === id) : null; return s ? (ready(s) ? { t: "CII cleared", ok: true } : { t: s.clearanceReason ?? "Not cleared", ok: false }) : { t: "Office to verify", ok: false }; };
-  const saved = data.selection;
+  const saved = data.selection && !savedCrewNeedsRepick(data.selection) ? data.selection : null;
   const leadName = saved ? name(saved.lead) : null;
   const rows = saved ? [{ pick: saved.lead, lead: true }, ...saved.additional.map((a) => ({ pick: a, lead: false }))].filter((r) => r.pick) : [];
   const form = (
