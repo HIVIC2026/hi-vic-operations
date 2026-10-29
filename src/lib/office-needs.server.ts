@@ -281,31 +281,13 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   // Jo 28 Oct (decision 158, OFFICE CHOOSES): a lapsed window with no office payer choice for that deadline → one Today row.
   const lapsedIds = [...facts.values()].filter((x) => x.lapsedWindow).map((x) => x.jobId);
   if (lapsedIds.length) {
-    const ev = await byIds("repeat PIESA choices", lapsedIds, (chunk, a, b) => admin.from("workflow_events").select("job_id, event_type, details, created_at").in("job_id", chunk).in("event_type", ["repeat_piesa_payer_chosen", "install_window_expired", "xero_invoice_repeat_piesa_held", "xero_invoice_repeat_piesa_added"]).range(a, b));
+    const ev = await byIds("repeat PIESA choices", lapsedIds, (chunk, a, b) => admin.from("workflow_events").select("job_id, event_type, details, created_at").in("job_id", chunk).in("event_type", ["repeat_piesa_payer_chosen", "install_window_expired"]).range(a, b));
     for (const id of lapsedIds) {
       const x = f(id)!; const dl = x.lapsedWindow!.deadline;
       const mine = ev.filter((e) => String(e["job_id"]) === id && String((e["details"] as { deadline?: string } | null)?.deadline) === dl);
-      if (mine.some((e) => e["event_type"] === "repeat_piesa_payer_chosen")) {
-        const line = mine.filter((e) => String(e["event_type"]).startsWith("xero_invoice_repeat_piesa_")).sort((a, b) => String(a["created_at"]).localeCompare(String(b["created_at"]))).at(-1);
-        if (line?.["event_type"] === "xero_invoice_repeat_piesa_held") x.repeatXeroHeld = { at: String(line["created_at"]), reason: String((line["details"] as { reason?: string } | null)?.reason ?? "held") };
-        continue;
-      }
+      if (mine.some((e) => e["event_type"] === "repeat_piesa_payer_chosen")) continue;
       const sp = String((mine.find((e) => e["event_type"] === "install_window_expired")?.["details"] as { payer?: string } | null)?.payer ?? "");
       x.repeatPiesaChoice = { deadline: dl, suggested: sp && sp !== "undetermined" ? sp : null };
-    }
-  }
-
-  // Batch 1 task 6: a reopen's owner-pays repeat line held on Xero gets the same one Today row as a 30-day one.
-  {
-    const { reopenRepeatDeadlines, repeatXeroHeldFor } = await import("./repeat-piesa.core");
-    const reopened = reopenRepeatDeadlines(payRepeatEv);
-    const heldIds = [...reopened.keys()].filter((id) => { const x = f(id); return !!x && !x.repeatXeroHeld; });
-    if (heldIds.length) {
-      const ev = await byIds("repeat Xero lines", heldIds, (chunk, a, b) => admin.from("workflow_events").select("job_id, event_type, details, created_at").in("job_id", chunk).in("event_type", ["xero_invoice_repeat_piesa_held", "xero_invoice_repeat_piesa_added"]).range(a, b));
-      for (const id of heldIds) {
-        const held = repeatXeroHeldFor(ev.filter((e) => String(e["job_id"]) === id), reopened.get(id)!);
-        if (held) f(id)!.repeatXeroHeld = held;
-      }
     }
   }
 

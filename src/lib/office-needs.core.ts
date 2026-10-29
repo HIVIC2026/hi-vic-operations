@@ -21,7 +21,7 @@ export type NeedsKind =
   | "choose_again" | "quote_check" | "fixes_quote_check" | "sign_consent" | "esc_window" | "final_check" | "send_failed" | "email_change" | "email_unmatched" | "robot_failed" | "piisa_form_failed"
   | "choose_installer" | "choose_electrician" | "veec_a_held" | "piesa_owner_unsigned" | "piesa_fixes_owner_unsigned" | "fixes_times_missing"
   | "payment_not_in_xero" | "payment_overdue" | "ten_days_left" | "second_no_access" | "veec_day_10" | "lapsed_window"
-  | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review" | "payment_reversed" | "mitti_form_problem" | "booking_overdue" | "piesa_fixes_found" | "repeat_piesa_choose" | "repeat_piesa_xero_held" | "payment_stalled" | "invoice_failed" | "old_fixes_invoice_unpaid" | "stop_release_failed" | "quote_expired_blocked" | "new_quote_installer" | "new_quote_unfinished";
+  | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review" | "payment_reversed" | "mitti_form_problem" | "booking_overdue" | "piesa_fixes_found" | "repeat_piesa_choose" | "payment_stalled" | "invoice_failed" | "old_fixes_invoice_unpaid" | "stop_release_failed" | "quote_expired_blocked" | "new_quote_installer" | "new_quote_unfinished";
 
 /** Where the one button takes the office. `section` is the Job page stage card id; `act` are inline row actions. */
 export type NeedsButton =
@@ -99,8 +99,6 @@ export type NeedsFacts = {
   fixesFound?: { at: string; stage: string } | null;
   /** Jo 28 Oct (decision 158, OFFICE CHOOSES): 30-day window lapsed and the office has not chosen who pays the repeat PIESA. */
   repeatPiesaChoice?: { deadline: string; suggested: string | null } | null;
-  /** Jo 28 Oct (decision 233): the owner-pays repeat PIESA line could not go on the ONE Xero invoice. */
-  repeatXeroHeld?: { at: string; reason: string } | null;
   /** Jo 28 Oct 2026 (decision card 04:40 UTC, "Alert after 3 days unpaid"): a homeowner payment unpaid for 3+ days
    *  → a row naming the payment and since when (payment-stall.core). Clears when the payment is recorded. Batch 3b: one
    *  per invoice (install / fixes / repeat safety check), each measured on its own invoice's money. */
@@ -225,7 +223,6 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   // Jo 28 Oct: a PIESA that found fixes always tells the office (one row; clears when the fixes are done and Section C signed).
   if (f.fixesFound) add({ rank: 116, group: "week", kind: "piesa_fixes_found", line: fixesFoundLine(f.fixesFound.stage), since: f.fixesFound.at, button: { label: "Open job", to: "job", section: "piesa" } });
   if (f.repeatPiesaChoice) add({ rank: 37, group: "today", kind: "repeat_piesa_choose", line: `30-day window lapsed ${fmtDay(f.repeatPiesaChoice.deadline)} · choose who pays the repeat safety check${f.repeatPiesaChoice.suggested ? ` · suggested: ${f.repeatPiesaChoice.suggested}` : ""}`, since: f.repeatPiesaChoice.deadline, button: { label: "Choose who pays", to: "job", section: "install" } });
-  if (f.repeatXeroHeld) add({ rank: 38, group: "today", kind: "repeat_piesa_xero_held", line: `Repeat safety check not on the Xero invoice · ${f.repeatXeroHeld.reason} · add it to the same invoice, then Sync`, since: f.repeatXeroHeld.at, button: { label: "Open job", to: "job", section: "money" } });
   if (f.veecApHeld) add({ rank: 120, group: "week", kind: "veec_a_held", line: `VEEC Part A held over 24h · ${f.veecApHeld.reasons.length} thing${f.veecApHeld.reasons.length === 1 ? "" : "s"} to record${f.veecApHeld.reasons[0] ? ` · ${f.veecApHeld.reasons[0]}` : ""}`, since: f.veecApHeld.at, button: { label: "Open job", to: "job", section: "final-check" } });
   if (f.lapsedWindow) add({ rank: 200, group: "watch", kind: "lapsed_window", line: `30-day window lapsed ${fmtDay(f.lapsedWindow.deadline)} · no install`, since: f.lapsedWindow.deadline, button: { label: "Open job", to: "job", section: "install" } });
   if (f.secondNoAccess) add({ rank: 210, group: "watch", kind: "second_no_access", line: `Couldn’t get in · second time${f.secondNoAccess.reason ? ` · ${f.secondNoAccess.reason}` : ""}`, since: f.secondNoAccess.at, button: { label: "Open job", to: "job", section: "install" } });

@@ -402,20 +402,9 @@ describe("reopen wording on the Xero line, the office card and Needs me", () => 
     const { readFileSync } = require("node:fs");
     expect(readFileSync("src/components/portal/repeat-piesa.tsx", "utf8")).toContain("repeatOfficeHeading(s.deadline)");
   });
-  test("Needs me: a held reopen Xero line gets one row, like the 30-day one", () => {
-    const ev = [
-      { job_id: "j1", event_type: "xero_invoice_repeat_piesa_held", created_at: "2026-10-28T02:00:00Z", details: { deadline: key, reason: "Xero refused the edit" } },
-      { job_id: "j1", event_type: "repeat_piesa_payer_chosen", created_at: "2026-10-28T01:00:00Z", details: { deadline: key, payer: "owner" } },
-      { job_id: "j2", event_type: "repeat_piesa_payer_chosen", created_at: "2026-10-28T01:00:00Z", details: { deadline: "2026-11-20", payer: "owner" } },
-    ];
-    expect([...rp.reopenRepeatDeadlines(ev)]).toEqual([["j1", key]]);
-    expect(rp.repeatXeroHeldFor(ev.filter((e) => e.job_id === "j1"), key)).toEqual({ at: "2026-10-28T02:00:00Z", reason: "Xero refused the edit" });
-    expect(rp.repeatXeroHeldFor([...ev, { job_id: "j1", event_type: "xero_invoice_repeat_piesa_added", created_at: "2026-10-28T03:00:00Z", details: { deadline: key } }], key)).toBeNull();
+  test("no repeat-line held/added readers remain (the repeat price is its own invoice)", () => {
     const { readFileSync } = require("node:fs");
-    const src = readFileSync("src/lib/office-needs.server.ts", "utf8");
-    expect(src).toContain("reopenRepeatDeadlines(payRepeatEv)");
-    expect(src).toContain("repeatXeroHeldFor(");
-    const ns = readFileSync("src/lib/office-needs.core.ts", "utf8");
-    expect(ns).toContain('kind: "repeat_piesa_xero_held"');
+    expect(readFileSync("src/lib/office-needs.server.ts", "utf8")).not.toMatch(/repeatXeroHeld|xero_invoice_repeat_piesa_/);
+    expect(readFileSync("src/lib/office-needs.core.ts", "utf8")).not.toContain("repeat_piesa_xero_held");
   });
 });
