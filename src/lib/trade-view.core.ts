@@ -272,6 +272,7 @@ export function needsFinishingTask(nextAction: string | null | undefined): strin
 }
 
 // ---------- My business (approved mock-up M7, decision 204). PURE labels over recorded facts. ----------
+import { MIN_REC_PL_COVER } from "./rec-onboarding.core";
 import { isPriceNextAction } from "./ready-check-basics.core";
 import { crewClearance, CREW_CLEARANCE_REASON, WHITE_CARD_TEAM_LABEL, type WhiteCardState } from "./worker-compliance.core";
 
@@ -415,6 +416,8 @@ export type BusinessNextFacts = {
   noticeOutstanding: { name: string }[];
   usualElectrician: boolean;
   ciiBlocked: { name: string }[];
+  /** Electrician businesses only. */
+  electrician?: { licenceExpires: string | null; plCover: number | null; worksUnderRec: boolean };
 };
 /**
  * The ONE thing on the business screen (mock-up M7): public liability within 30 days, expired or missing wins;
@@ -426,9 +429,15 @@ export function businessNext(f: BusinessNextFacts, today: string): BusinessNext 
   const d = daysUntil(pl, today);
   if (d < 0) return { title: "Your public liability insurance has expired", sub: `Expired ${dayMonth(pl)}. No new offers or install starts until the renewed certificate is uploaded.`, button: "Upload renewed insurance", to: "/field/business/insurance" };
   if (d <= 30) return { title: d === 0 ? "Your public liability insurance runs out today" : `Your public liability insurance runs out in ${d} day${d === 1 ? "" : "s"}`, sub: `Expires ${dayMonth(pl)}. Upload the renewed certificate so offers keep coming.`, button: "Upload renewed insurance", to: "/field/business/insurance" };
+  const e = f.electrician;
+  if (e) {
+    if (e.licenceExpires == null) return { title: "We don't have your electrical licence on file", sub: "Upload your current licence so offers keep coming.", button: "Upload licence", to: "/field/business/insurance" };
+    if (daysUntil(e.licenceExpires, today) < 0) return { title: "Your electrical licence has expired", sub: `Expired ${dayMonth(e.licenceExpires)}. No new offers until the renewed licence is uploaded.`, button: "Upload renewed licence", to: "/field/business/insurance" };
+    if (!e.worksUnderRec && (e.plCover == null || e.plCover < MIN_REC_PL_COVER)) return { title: "Your public liability cover must be at least $5 million", sub: "Upload a certificate showing $5 million or more.", button: "Upload insurance", to: "/field/business/insurance" };
+  }
   if (!f.bankSaved) return { title: "Add your bank details", sub: "We can't pay you until we know where to send it.", button: "Add bank details", to: "/field/business/bank" };
   if (f.noticeOutstanding.length) return { title: `${f.noticeOutstanding.length === 1 ? `${f.noticeOutstanding[0]!.name} still has` : `${f.noticeOutstanding.length} people still have`} to acknowledge the ESC privacy notice`, sub: "Nobody can be put on an install day until they've ticked it themselves.", button: "Send the notice link", to: "/field/business/esc-notice" };
-  if (f.installer && !f.usualElectrician) return { title: "Add your usual electrician", sub: "Name, REC number and price inc GST. We use them on your jobs if they're an approved REC with us.", button: "Add my usual electrician", to: "/field/business/electrician" };
+  if (f.installer && !f.usualElectrician) return { title: "Add your usual electrician", sub: "Their name and licence number. We use them on your jobs once they're an approved electrician with us.", button: "Add my usual electrician", to: "/field/business/electrician" };
   if (f.ciiBlocked.length) return { title: `${f.ciiBlocked.map((p) => p.name).join(", ")} ${f.ciiBlocked.length === 1 ? "isn't" : "aren't"} cleared for installs yet`, sub: "Their CII certificate has to be verified by the office with its level and expiry recorded.", button: "See the team", to: "/field/business/team" };
   if (!f.agreementSigned) return { title: "Your agreement isn't signed yet", sub: "The office will send it to you to sign.", button: "See your agreement", to: "/field/business/agreement" };
   return null;

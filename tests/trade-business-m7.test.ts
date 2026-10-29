@@ -107,3 +107,34 @@ describe("public liability expiry blocks offers and pre-start like the CII (H3)"
     expect(installerEligibilityBlocker(installerCandidate({ ...facts, credentialsOk: true, accepting_new_jobs: false }))).toContain("not accepting new jobs");
   });
 });
+
+describe("electrician licence and cover", () => {
+  const ok = { installer: false, publicLiabilityExpires: "2027-06-30", bankSaved: true, agreementSigned: true, noticeOutstanding: [], usualElectrician: false, ciiBlocked: [] };
+  const elec = { licenceExpires: "2027-06-30", plCover: 5_000_000, worksUnderRec: false };
+  test("a missing licence comes before bank and agreement", () => {
+    const n = businessNext({ ...ok, bankSaved: false, agreementSigned: false, electrician: { ...elec, licenceExpires: null } }, TODAY);
+    expect(n).toEqual({ title: "We don't have your electrical licence on file", sub: "Upload your current licence so offers keep coming.", button: "Upload licence", to: "/field/business/insurance" });
+  });
+  test("an expired licence", () => {
+    const n = businessNext({ ...ok, bankSaved: false, electrician: { ...elec, licenceExpires: "2026-10-01" } }, TODAY);
+    expect(n).toEqual({ title: "Your electrical licence has expired", sub: "Expired Thu 1 Oct. No new offers until the renewed licence is uploaded.", button: "Upload renewed licence", to: "/field/business/insurance" });
+  });
+  test("cover under $5m or unknown warns", () => {
+    const want = { title: "Your public liability cover must be at least $5 million", sub: "Upload a certificate showing $5 million or more.", button: "Upload insurance", to: "/field/business/insurance" };
+    expect(businessNext({ ...ok, bankSaved: false, electrician: { ...elec, plCover: 2_000_000 } }, TODAY)).toEqual(want);
+    expect(businessNext({ ...ok, electrician: { ...elec, plCover: null } }, TODAY)).toEqual(want);
+    expect(businessNext({ ...ok, electrician: elec }, TODAY)).toBeNull();
+  });
+  test("working under a REC skips the cover check", () => {
+    expect(businessNext({ ...ok, electrician: { ...elec, plCover: 1_000_000, worksUnderRec: true } }, TODAY)).toBeNull();
+    expect(businessNext({ ...ok, electrician: { ...elec, plCover: null, worksUnderRec: true } }, TODAY)).toBeNull();
+  });
+  test("an installer never gets the licence or cover panel", () => {
+    expect(businessNext({ ...ok, installer: true, usualElectrician: true }, TODAY)).toBeNull();
+  });
+  test("the usual-electrician text says nothing about price", () => {
+    const n = businessNext({ ...ok, installer: true }, TODAY);
+    expect(n?.sub).toBe("Their name and licence number. We use them on your jobs once they're an approved electrician with us.");
+    expect(n?.sub).not.toMatch(/price/i);
+  });
+});
