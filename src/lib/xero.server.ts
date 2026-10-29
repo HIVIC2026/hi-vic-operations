@@ -1,5 +1,5 @@
-// Xero integration boundary – ONE full invoice per accepted quote. The configured minimum deposit is requested with Xero's native
-// "Request Deposit" (raised manually by an admin, recorded in the portal) and confirmed only by Xero AmountPaid (gate: evaluatePaymentGate).
+// Xero integration boundary – ONE full invoice per accepted quote. Payments are steps on that invoice (safety check, fixes, 10% install deposit,
+// balance) and are confirmed only by Xero payments and the card ledger.
 // Xero is the system of record; the portal mirrors state and enforces gates.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
@@ -153,7 +153,7 @@ export async function createInvoiceForQuote(quoteId: string, actorId: string | n
   // Decision 302: the Xero deposit = the accepted quote's PIESA line ($349 for our electrician, the REC's onboarded rate otherwise).
   const safety = await (await import("./safety-check-amount.server")).quoteSafetyCheck(q.id);
   const { row, created } = await ensureInvoice(dbStore, q, melbourneDate(new Date().toISOString()), safety.incGst);
-  if (created) await logEvent(q.job_id, actorId, "invoice_created_local", `Invoice raised for ${q.option_label}: ${row.total_inc_gst} inc GST. Minimum deposit (${row.deposit_amount}) must be requested in Xero.`, { invoice_id: row.id, total_inc_gst: row.total_inc_gst });
+  if (created) await logEvent(q.job_id, actorId, "invoice_created_local", `Invoice raised for ${q.option_label}: ${row.total_inc_gst} inc GST. Safety check payment (${row.deposit_amount}) due – owner pays on My job.`, { invoice_id: row.id, total_inc_gst: row.total_inc_gst });
   if (!row.xero_invoice_id) await pushInvoiceToXero(row.id, actorId);
   return row.id;
 }
@@ -206,7 +206,7 @@ export async function pushInvoiceToXero(invoiceId: string, actorId: string | nul
     const { error: linkErr } = await admin.from("invoices").update({ status: "deposit_due", xero_contact_id: contactId, xero_invoice_id: x.InvoiceID, xero_invoice_number: x.InvoiceNumber, xero_reference: x.Reference, xero_invoice_status: x.Status ?? null, xero_tracking_option_id: tracking?.optionId ?? null, xero_update_pending: false, last_synced_at: new Date().toISOString(), last_sync_error: null }).eq("id", invoiceId);
     if (linkErr) throw new Error(`Xero invoice ${x.InvoiceNumber} exists but could not be linked locally: ${linkErr.message}`);
     await syncLog(invoiceId, true, { xero_invoice_id: x.InvoiceID });
-    await logEvent(inv.job_id, actorId, "xero_invoice_created", `Xero invoice ${x.InvoiceNumber} linked – raise the deposit request in Xero`, { invoice_id: invoiceId });
+    await logEvent(inv.job_id, actorId, "xero_invoice_created", `Xero invoice ${x.InvoiceNumber} linked`, { invoice_id: invoiceId });
     // Decision 139: the owner's "Pay now" link is Xero's online invoice. Best-effort; Sync fetches it again if missing.
     await storeOnlineInvoiceUrl(invoiceId, x.InvoiceID, call).catch((e) => console.error("xero online invoice url skipped", (e as Error).message));
   } catch (e) {
@@ -354,7 +354,7 @@ export async function applyPaidAmount(invoiceId: string, paid: number, actorId: 
   const effective = Math.max(0, paid);
   const { patch, events } = paymentPatch(inv as unknown as InvoiceRow, effective, depositReachedAt ?? null, new Date().toISOString());
   await admin.from("invoices").update(patch as never).eq("id", invoiceId);
-  if (events.includes("deposit_paid")) await logEvent(inv.job_id, actorId, "deposit_paid", `Minimum deposit confirmed paid in Xero (${inv.deposit_amount} of ${inv.total_inc_gst} inc GST)`, { invoice_id: invoiceId, amount_paid: paid });
+  if (events.includes("deposit_paid")) await logEvent(inv.job_id, actorId, "deposit_paid", `Safety check payment confirmed in Xero (${inv.deposit_amount})`, { invoice_id: invoiceId, amount_paid: paid });
   if (events.includes("balance_paid")) await logEvent(inv.job_id, actorId, "balance_paid", "Invoice fully paid in Xero", { invoice_id: invoiceId });
   if (events.includes("paid_reduced")) await logEvent(inv.job_id, actorId, "payment_total_reduced", `Amount received went down from ${Number(inv.total_paid).toFixed(2)} to ${effective.toFixed(2)} (a Xero payment was deleted or voided, or the same money had been counted twice)`, { invoice_id: invoiceId, was: Number(inv.total_paid), now: effective }, { internal: true });
 }

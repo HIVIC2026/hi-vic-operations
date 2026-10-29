@@ -2,7 +2,6 @@ import { tradeBlockerLines } from "@/lib/portal-presentation.core";
 import { RectWindowChoice, useRectWindows } from "./rectification-times";
 import { useRef, useState } from "react";
 import { requiredDepositCents } from "@/lib/payment-gate.core";
-import { paymentPlan } from "@/lib/payments.core";
 import { getJobPayments, refreshPayNowLink } from "@/lib/payments.functions";
 import { QUOTE_EXPIRED_OWNER_MESSAGE, quoteExpiresAt, quoteIsExpired } from "@/lib/quote-expiry.core";
 import { ownerPanelQuotes } from "@/lib/owner-quote-visibility.core";
@@ -442,6 +441,14 @@ function PaymentStepsBlock({ jobId, invoiceId, hasXeroInvoice }: { jobId: string
   );
 }
 
+/** Install deposit and balance from the server payment plan: 10% of the install price only (quote total minus the PIESA line, never the fixes). */
+function AfterSafetyCheckRow({ jobId, invoiceId }: { jobId: string; invoiceId: string }) {
+  const load = useServerFn(getJobPayments);
+  const { data: p } = useQuery({ queryKey: ["job-payments", jobId], queryFn: () => load({ data: { jobId } }) });
+  if (!p || p.invoiceId !== invoiceId) return null;
+  return <div><dt className="text-xs text-muted-foreground">After the PIESA payment</dt><dd className="font-medium">{aud(p.plan.installDepositCents / 100)} (10%) to book the install · {aud(p.plan.balanceCents / 100)} on install day</dd></div>;
+}
+
 export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: boolean }) {
   const sync = useAction(syncInvoice);
   const override = useAction(overrideDepositGate);
@@ -474,7 +481,7 @@ export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: bool
                 <div><dt className="text-xs text-muted-foreground">Total accepted price (inc GST)</dt><dd className="font-medium">{aud(i.total_inc_gst)}</dd></div>
                 <div><dt className="text-xs text-muted-foreground">Pre Insulation Electrical Safety Assessment (PIESA) payment</dt><dd className="font-medium" data-testid="safety-check-payment">{aud(i.deposit_amount)} {Number(i.total_paid) >= Number(i.deposit_amount) ? <span className="text-xs text-success">Paid</span> : <span className="text-xs text-danger">Not paid</span>}</dd></div>
                 {safetyOverrides.length > 0 && <div className="sm:col-span-3" data-testid="safety-check-payment-override"><p className="rounded bg-warning-soft px-2 py-1 text-xs font-semibold text-warning">Payment block overridden — the Pre Insulation Electrical Safety Assessment (PIESA) payment has not been received. The job is allowed to proceed on the office's recorded override.</p></div>}
-                <div><dt className="text-xs text-muted-foreground">After the PIESA payment</dt><dd className="font-medium">{(() => { const p = paymentPlan({ quoteTotalCents: Math.round(Number(i.total_inc_gst) * 100), safetyCheckCents: Math.round(Number(i.deposit_amount) * 100) }); return `${aud(p.installDepositCents / 100)} (10%) to book the install · ${aud(p.balanceCents / 100)} on install day`; })()}</dd></div>
+                {isAdmin && <AfterSafetyCheckRow jobId={jobId} invoiceId={i.id} />}
                 <div><dt className="text-xs text-muted-foreground">Paid to date</dt><dd className="font-medium">{aud(i.total_paid)}</dd></div>
                 <div><dt className="text-xs text-muted-foreground">Remaining balance</dt><dd className="font-medium">{aud(remaining)} {i.balance_paid_at && <span className="text-xs text-success">fully paid {fmtDate(i.balance_paid_at)}</span>}</dd></div>
                 <div><dt className="text-xs text-muted-foreground">Final due date (installation day)</dt><dd className="font-medium">{i.balance_due_date ? fmtDate(i.balance_due_date) : <span className="text-xs text-muted-foreground">Pending – set when installation is booked</span>}</dd></div>
@@ -486,9 +493,7 @@ export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: bool
                 : "Refunds: if the check never happens, everything you paid is refunded. If the check is done and the job can't go ahead, we keep the Pre Insulation Electrical Safety Assessment (PIESA) payment and refund the rest."}</p>
               {isAdmin && x && (
                 <>
-                  {x.deposit_request_raised_at
-                    ? <p className="mt-2 rounded bg-muted px-2 py-1 text-xs">Native Xero {Number(x.deposit_request_pct ?? 50)}% deposit request raised ({aud(x.deposit_request_amount)}) by {x.deposit_request_raised_by_name ?? "admin"} on {fmtDateTime(x.deposit_request_raised_at)}. Scheduling still waits for Xero to confirm payment.</p>
-                    : <p className="mt-2 rounded bg-warning-soft px-2 py-1 text-xs font-semibold">Deposit request must be raised in Xero (Invoice → Request deposit), then mark it raised here.</p>}
+                  {x.deposit_request_raised_at && <p className="mt-2 rounded bg-muted px-2 py-1 text-xs">Old Xero deposit request recorded on {fmtDateTime(x.deposit_request_raised_at)}. It no longer affects booking.</p>}
                   <dl className="mt-3 grid grid-cols-2 gap-1 rounded bg-muted p-2 text-xs sm:grid-cols-3">
                     <div><dt className="text-muted-foreground">Xero contact</dt><dd className="break-all">{x.xero_contact_id ?? "—"}</dd></div>
                     <div><dt className="text-muted-foreground">Xero invoice ID</dt><dd className="break-all">{x.xero_invoice_id ?? "—"}</dd></div>
