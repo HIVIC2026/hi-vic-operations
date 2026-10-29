@@ -149,8 +149,34 @@ describe("crew reminder sweep", () => {
   test("crew already picked or before 2pm → nothing", async () => {
     seedJob("t2", "qa_test", "bt");
     expect((await sweepCrewReminders(new Date("2026-10-28T02:30:00Z"))).results[0]!.outcome).toBe("skipped: not due");
-    tables["workflow_events"]!.push({ job_id: "t2", event_type: "piisa_crew_selected", details: {} });
+    tables["workflow_events"]!.push({ job_id: "t2", event_type: "piisa_crew_selected", details: { selection: { lead: "w-lead", additional: [] } } });
     expect((await sweepCrewReminders(NOW)).results[0]!.outcome).toBe("skipped: crew already picked");
+    expect(sent).toEqual([]);
+  });
+  // Jo 29 Oct 2026: an old saved crew (typed-in Lead, or more than Lead + 2) must be picked again, so it gets the reminder.
+  test("old saved crew (typed-in Lead) gets the reminder, TEST path only", async () => {
+    seedJob("t3", "qa_test", "bt");
+    (tables["workflow_events"] ??= []).push({ job_id: "t3", event_type: "piisa_crew_selected", details: { selection: { lead: { other: { name: "Typed Person", eec: "CII-9" } }, additional: [] } } });
+    expect((await sweepCrewReminders(NOW)).results).toEqual([{ jobId: "t3", outcome: "email (test) sent: fake" }]);
+    expect(sent).toEqual([{ via: "test", to: "test@hivic.test", subject: "Pick the crew for tomorrow's install – 12 Wattle St, Brighton" }]);
+  });
+  test("old saved crew (more than Lead + 2) gets the reminder, TEST path only", async () => {
+    seedJob("t4", "qa_test", "bt");
+    (tables["workflow_events"] ??= []).push({ job_id: "t4", event_type: "piisa_crew_selected", details: { selection: { lead: "w-lead", additional: [{ workerId: "b" }, { workerId: "c" }, { workerId: "d" }] } } });
+    expect((await sweepCrewReminders(NOW)).results).toEqual([{ jobId: "t4", outcome: "email (test) sent: fake" }]);
+    expect(sent.every((m) => m.via === "test")).toBe(true);
+    expect(sent).toHaveLength(1);
+  });
+  test("valid saved crew (Lead + 2, one typed-in extra) → no reminder", async () => {
+    seedJob("t5", "qa_test", "bt");
+    (tables["workflow_events"] ??= []).push({ job_id: "t5", event_type: "piisa_crew_selected", details: { selection: { lead: "w-lead", additional: [{ workerId: "b" }, { other: { name: "Extra", eec: "CII-8" } }] } } });
+    expect((await sweepCrewReminders(NOW)).results[0]!.outcome).toBe("skipped: crew already picked");
+    expect(sent).toEqual([]);
+  });
+  test("real job with an old saved crew: still nothing sent until the wording is approved", async () => {
+    seedJob("r2", "base44", "b1");
+    (tables["workflow_events"] ??= []).push({ job_id: "r2", event_type: "piisa_crew_selected", details: { selection: { lead: { other: { name: "Typed Person", eec: "CII-9" } }, additional: [] } } });
+    expect((await sweepCrewReminders(NOW)).results[0]!.outcome).toBe("skipped: wording not approved yet");
     expect(sent).toEqual([]);
   });
 });
