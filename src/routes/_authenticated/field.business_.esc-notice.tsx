@@ -37,9 +37,9 @@ function EscNotice() {
         {(data.boss || mine) && <section data-esc-ack>
           <h2 className="font-display text-[15px] font-semibold">{P5.yourInstallers}</h2>
           <ul>
-            {data.statuses.map((s, i) => {
+            {data.statuses.map((s) => {
               const self = !!s.workerId && s.workerId === data.selfWorkerId;
-              return <NoticeTickRow key={s.email} name={`${s.name}${i === 0 && data.boss ? P5.leadSuffix : ""}`} text={COLLECTION_NOTICE_ACK_TEXT}
+              return <NoticeTickRow key={s.email} name={`${s.name}${s.lead ? P5.leadSuffix : ""}`} text={COLLECTION_NOTICE_ACK_TEXT}
                 on={s.state === "acknowledged" || (self && ticked)} canTick={self && s.state !== "acknowledged"} disabled={busy} onChange={setTicked}
                 acknowledgedAt={s.state === "acknowledged" ? s.at : null}
                 action={s.state !== "acknowledged" && !self && s.workerId && data.boss ? <SendNoticeLinkInline workerId={s.workerId} /> : null} />;
