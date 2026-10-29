@@ -124,10 +124,10 @@ export const createWorkerCompletionLink = createServerFn({ method: "POST" }).mid
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const w = await workerWithDue<{ id: string; business_id: string; full_legal_name: string; trade_role: string; removed_at: string | null; certification_status: string | null; email: string | null; mobile: string | null }>(admin as never, data.workerId, "id, business_id, full_legal_name, trade_role, removed_at, certification_status, email, mobile");
     if (!w || w.removed_at) throw new Error("That team member wasn't found.");
-    const blocker = signLinkBlocker(w);
-    if (blocker) throw new Error(blocker);
     const { data: isAdmin } = await context.supabase.rpc("is_admin");
     if (isAdmin !== true) { const { requireMember } = await import("./pilot.server"); await requireMember(context.userId, w.business_id, true); }
+    const blocker = signLinkBlocker(w);
+    if (blocker) throw new Error(blocker);
     const token = newToken();
     const { error } = await admin.from("partner_worker_invites").insert({
       business_id: w.business_id, created_by: context.userId, invitee_name: w.full_legal_name,

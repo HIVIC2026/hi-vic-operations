@@ -42,6 +42,10 @@ describe("unsigned people can't go on jobs", () => {
     expect(done).toContain("declarations: { version: WORKER_DECLARATIONS_VERSION");
     expect(done).toContain("declarations_due: false");
     expect(fns).toContain("signLinkBlocker(");
+    // only the owner (or office) learns why a link can't be made: the owner check runs before signLinkBlocker
+    const link = fns.slice(fns.indexOf("export const createWorkerCompletionLink"), fns.indexOf("export const submitWorkerInvite"));
+    expect(link.indexOf("requireMember(")).toBeGreaterThan(0);
+    expect(link.indexOf("requireMember(")).toBeLessThan(link.indexOf("signLinkBlocker("));
     expect(src("src/lib/piisa-a3.server.ts")).toContain("declarations_due");
     expect(src("src/lib/visit-allocation.server.ts")).toContain("declarations_due");
     expect(src("src/routes/join.$token.tsx")).toContain("Sign your declarations");
