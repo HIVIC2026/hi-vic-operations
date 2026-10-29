@@ -84,10 +84,11 @@ describe("M4 today's job", () => {
     expect(electricianOnSite({ required: false, name: "Sam Lee", arrival: "8:00am", reason: null })).toBeNull();
     expect(electricianOnSite({ required: true, name: "Sam Lee", arrival: "8:00am", reason: "downlights to be fitted with covers" })).toEqual({
       title: "An electrician must be on site",
-      body: "The safety check found downlights to be fitted with covers. Sam Lee (Home Insulation Victoria electrician) arrives 8:00am. Don't start in the roof until Sam says the power is off.",
+      body: "The PIESA found downlights to be fitted with covers. Sam Lee (Home Insulation Victoria electrician) arrives 8:00am. Don't start in the roof until Sam says the power is off.",
       call: "Call Sam",
     });
     expect(electricianOnSite({ required: true, name: null, arrival: null, reason: null })?.call).toBeNull();
+    expect(electricianOnSite({ required: true, name: null, arrival: null, reason: null })?.body).toStartWith("The PIESA requires an electrician at the start. ");
   });
 });
 

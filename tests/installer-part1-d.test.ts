@@ -30,6 +30,11 @@ describe("D1/D2/D7 couldn't get in + load error", () => {
     expect(err).toContain("Back to My work");
   });
 });
+describe("Jo 29 Oct: Today's job says PIESA, not safety check", () => {
+  test("the PIESA visit panel says Start the PIESA in Mitti", () => {
+    expect(dayNext({ kind: "safety_check", channel: null, installFormComplete: false, rebateSigned: false }).title).toBe("Start the PIESA in Mitti");
+  });
+});
 describe("D3 fixes visit", () => {
   test("fixes visit has its own words and form", () => {
     expect(DAY_WHAT.fixes).toBe("Electrical fixes");

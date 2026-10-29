@@ -451,7 +451,7 @@ export function dayNext(f: { kind: DayKind; channel: string | null; installFormC
   // Approved state M4-ready-check-day: "Do the Ready Check in Mitti" — our lead: we price the owner's quote from the agreed rates.
   if (f.kind === "ready_check") return { title: "Do the Ready Check in Mitti", sub: f.channel === "hivic_sourced" ? `Measure every ceiling area (length × width), photos, existing insulation, access and hazards. We price ${owner === "the owner" ? "the owner's" : `${owner}'s`} quote from your agreed rates.` : "Measure every ceiling area (length × width), photos, existing insulation, access and hazards. Press Complete when it's fully finished.", button: "Open Mitti form", signRebate: false };
   if (f.kind === "fixes") return { title: "Do the fixes in Mitti", sub: "Open the fixes form. Press Complete when the repair work is done.", button: FIXES_FORM_LINK_LABEL, signRebate: false };
-  return { title: "Start the safety check in Mitti", sub: "Open the PIESA form. We pick it up from there.", button: "Open PIESA form", signRebate: false };
+  return { title: "Start the PIESA in Mitti", sub: "Open the PIESA form. We pick it up from there.", button: "Open PIESA form", signRebate: false };
 }
 
 /** Decision 199: the three phone checks, short. */
@@ -464,7 +464,7 @@ export function electricianOnSite(f: { required: boolean; name: string | null; a
   const first = f.name ? firstName(f.name) ?? f.name : "the electrician";
   return {
     title: "An electrician must be on site",
-    body: `${f.reason ? `The safety check found ${f.reason}. ` : "The safety check requires an electrician at the start. "}${who}${f.arrival ? ` arrives ${f.arrival}` : " will be there at the start"}. Don't start in the roof until ${first} says the power is off.`,
+    body: `${f.reason ? `The PIESA found ${f.reason}. ` : "The PIESA requires an electrician at the start. "}${who}${f.arrival ? ` arrives ${f.arrival}` : " will be there at the start"}. Don't start in the roof until ${first} says the power is off.`,
     call: f.name ? `Call ${first}` : null,
   };
 }
