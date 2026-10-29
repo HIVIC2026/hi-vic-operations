@@ -392,7 +392,7 @@ export function ratesLine(agreedAt: string | null, hasRates: boolean): string {
 /** Decision 369: name + licence only — no declared price (the electrician's onboarding rate is the only rate, decision 353). */
 export function usualElectricianLine(e: { name: string; licence: string } | null): string {
   if (!e) return "Not set · add them so we can use them on your jobs";
-  return `${e.name} · REC ${e.licence}`;
+  return `${e.name} · Licence ${e.licence}`;
 }
 
 export function detailsLine(d: { legal: string | null; name: string; abn: string | null; baseSuburb: string | null; allVictoria: boolean }): string {

@@ -29,7 +29,13 @@ describe("usual electrician without a price (decision 369)", () => {
     const form = read("src/components/trade/usual-electrician.tsx");
     expect(form).not.toMatch(/Electrician price|priceIncGst|setPrice/);
     expect(read("src/lib/trade-view.functions.ts")).not.toMatch(/licence: z\.string\(\)[^\n]*priceIncGst/);
-    expect(usualElectricianLine({ name: "Sam Lee", licence: "28841" })).toBe("Sam Lee · REC 28841");
+    expect(usualElectricianLine({ name: "Sam Lee", licence: "28841" })).toBe("Sam Lee · Licence 28841");
     expect(read("src/lib/mitti-job-presentation.server.ts")).not.toMatch(/priceIncGst\.toFixed/);
+  });
+  test("the usual electrician page never mentions a price and says 'licence number' only", () => {
+    const route = read("src/routes/_authenticated/field.business_.electrician.tsx");
+    expect(route).not.toMatch(/charge|price/i);
+    expect(route).not.toMatch(/REC number/);
+    expect(read("src/components/trade/usual-electrician.tsx")).not.toMatch(/REC number/);
   });
 });

@@ -54,7 +54,7 @@ describe("business file rows", () => {
     expect(ratesLine("2026-10-03", true)).toBe("Agreed 3 Oct 2026 · Request a change");
     expect(ratesLine(null, false)).toBe("Being confirmed with the office");
     // Decision 369: no declared electrician price on My business (the onboarding rate is the only rate, decision 353).
-    expect(usualElectricianLine({ name: "Sam Lee", licence: "28841" })).toBe("Sam Lee · REC 28841");
+    expect(usualElectricianLine({ name: "Sam Lee", licence: "28841" })).toBe("Sam Lee · Licence 28841");
     expect(usualElectricianLine({ name: "Sam Lee", licence: "28841", priceIncGst: 280.5 } as { name: string; licence: string })).not.toContain("$");
     expect(usualElectricianLine(null)).toBe("Not set · add them so we can use them on your jobs");
     expect(detailsLine({ legal: "Reinsulate Pty Ltd", name: "Reinsulate", abn: "61 123 456 789", baseSuburb: "Clyde North", allVictoria: false })).toBe("Reinsulate Pty Ltd · ABN 61 123 456 789 · Clyde North");
