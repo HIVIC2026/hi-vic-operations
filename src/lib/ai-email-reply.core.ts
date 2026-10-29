@@ -106,7 +106,8 @@ const instructionLines = (NEXT_STEP: string, preRelease: boolean) => [
   `If their email is only a plain "thanks", "got it" or similar acknowledgement and needs no answer, return exactly ${"NO_REPLY_NEEDED"} and nothing else.`,
   "Do not include a sign-off; it is added for you.",
   `After the email you may add one line: ${AI_ACTIONS_EXAMPLE} — installer_note only when the owner asks for something the installer must know (for example R6.0 or R7.0, removing old insulation, downlights), short and plain, about the job only — never the owner's name, address, phone or email; new_area_m2 only when the owner states their ceiling size as a number in m². Leave out what doesn't apply, and leave the line out if neither does.`,
-  "Return only the email body text, no subject line (plus any NEEDS_JO / NEEDS_YOU / ACTIONS lines after it).",
+  "After the email add one line KIND: <kind> — job_status only if the owner just asks where their job is up to; resend_link only if they ask for a link again; files_received only if they say they've sent photos/files; otherwise other.",
+  "Return only the email body text, no subject line (plus any NEEDS_JO / NEEDS_YOU / ACTIONS / KIND lines after it).",
 ];
 
 export const AI_REPLY_INSTRUCTIONS = instructionLines(NEXT_STEP_RELEASED, false).join("\n");
@@ -296,7 +297,10 @@ export function newSizeFacts(areaM2: number, r5: { before: number; rebate: numbe
   return [`Price for the size they gave (${areaM2} m² ceiling, R5.0): ${money(r5.after)} after the ${money(r5.rebate)} rebate (${money(r5.before)} before), including GST.`, ...higherRFacts(areaM2, r5, ownerR5IncPerM2)];
 }
 const money = (n: number) => `$${Math.round(Number(n)).toLocaleString("en-AU")}`;
-export type AiOutput = { body: string; needsAnswer: string[]; needsYou: boolean; actions: AiActions };
+/** What the AI says a reply is. Only some kinds may ever send themselves (step 4). */
+export type AiAutoKind = "job_status" | "resend_link" | "files_received" | "other";
+export const AUTO_SEND_KINDS: readonly AiAutoKind[] = ["job_status", "resend_link", "files_received"];
+export type AiOutput = { body: string; needsAnswer: string[]; needsYou: boolean; actions: AiActions; kind: AiAutoKind };
 
 // Markers may come in markdown or list form: "**NEEDS_JO**:", "- NEEDS JO - …", "> NEEDS_JO – …". Leading `*`, `_`,
 // backticks, `-`, `>` and spaces are dropped before matching; up to two `*`/`_` may close the marker.
@@ -304,6 +308,8 @@ const MARKER_LEAD = /^[\s*_`>-]*/;
 const NEEDS_JO_LINE = /^needs[_ ]?jo[*_]{0,2}\s*[:\-–]\s*(.*?)\s*$/i;
 const NEEDS_YOU_LINE = /^needs[_ ]?you[*_]{0,2}\s*[:\-–]/i;
 const ACTIONS_LINE = /^actions[*_]{0,2}\s*:/i;
+const KIND_LINE = /^kind[*_]{0,2}\s*:[*_\s]*(.*?)\s*$/i;
+const KIND_VALUES: readonly string[] = ["job_status", "resend_link", "files_received", "other"];
 const ACTION_KEYS = /"(?:installer_note|new_area_m2)"/;
 /** A bare ```json fence (no ACTIONS: before it) holding installer_note / new_area_m2 is an ACTIONS block too. */
 function bareActionsFence(lines: string[], start: number): { text: string; next: number } | null {
@@ -319,6 +325,7 @@ export function splitAiOutput(raw: string, o: { ownerFirstName?: string | null }
   const needsAnswer: string[] = [];
   let needsYou = false;
   let actions: AiActions = {};
+  const kinds: AiAutoKind[] = [];
   const keep: string[] = [];
   const lines = (raw ?? "").replace(/\r/g, "").split("\n");
   for (let i = 0; i < lines.length; i++) {
@@ -336,10 +343,36 @@ export function splitAiOutput(raw: string, o: { ownerFirstName?: string | null }
     // An empty question still flags the draft, so it is never treated as fully answered.
     if (jo) { needsAnswer.push(jo[1]!.replace(/[*_]+$/, "").trim() || "(question not given)"); continue; }
     if (NEEDS_YOU_LINE.test(bare)) { needsYou = true; continue; }
+    const kd = KIND_LINE.exec(bare);
+    if (kd) { const v = kd[1]!.replace(/[*_`\s]+$/g, "").toLowerCase(); kinds.push((KIND_VALUES.includes(v) ? v : "other") as AiAutoKind); continue; }
     keep.push(line.replace(/[ \t]+$/, ""));
   }
   const body = keep.join("\n").replace(/\n{3,}/g, "\n\n").trim();
-  return { body, needsAnswer, needsYou, actions };
+  // No KIND line, an unknown one, or lines that disagree: "other" (never sends itself).
+  const kind: AiAutoKind = kinds.length > 0 && kinds.every((k) => k === kinds[0]) ? kinds[0]! : "other";
+  return { body, needsAnswer, needsYou, actions, kind };
+}
+
+/** Words in the OWNER's email that mean a person should look at it, whatever the AI labelled it. */
+export const COMPLAINT_WORDS = /\b(?:refunds?|damage[ds]?|damaging|unhappy|mess|messy|cancel(?:l?ed|l?ing|s)?|complain(?:s|ed|ing|t|ts)?|disappointed|disappointing|angry|wrong|broken|leak(?:s|ed|ing|y)?|scam|rip[- ]?off)\b/i;
+
+/** Whether a draft may send itself. Pure: the caller supplies every fact. Checked in this order; the first blocker wins. */
+export function autoSendDecision(d: {
+  switchOn: boolean; kind: AiAutoKind; problems: string[]; needsAnswer: string[]; needsYou: boolean; hasActions: boolean;
+  optedOut: boolean; ownerEmail: string; ownerText: string; nowIso: string;
+}): { send: "now" | "at7am" | "no"; reason: string } {
+  const no = (reason: string) => ({ send: "no" as const, reason });
+  if (!d.switchOn) return no("Auto-send is off");
+  if (!AUTO_SEND_KINDS.includes(d.kind)) return no("Only simple replies send themselves");
+  if (d.problems.length > 0) return no("Has a rule problem");
+  if (d.needsAnswer.length > 0) return no("Needs your answer");
+  if (d.needsYou) return no("Needs you");
+  if (d.hasActions) return no("Has a suggested job change");
+  if (d.optedOut) return no("Owner unsubscribed");
+  if (!d.ownerEmail.trim()) return no("No owner email");
+  if (COMPLAINT_WORDS.test(d.ownerText ?? "")) return no("Owner sounds unhappy");
+  if (aiSendQuietReason(d.nowIso)) return { send: "at7am", reason: "Waiting for 7am" };
+  return { send: "now", reason: "Sends itself" };
 }
 
 /** needs_answer / needs_you from a saved draft's details (bad or missing values = none). */
@@ -373,6 +406,7 @@ export function aiReplyProblems(body: string, opts: { preRelease?: boolean; aiDr
   if (/\b(call|ring|phone)\s+(us|the office|our office)\b/i.test(body)) out.push("Take out “call us”.");
   if (/\bNEEDS[_ ]?(?:JO|YOU)[*_]{0,2}\s*:/i.test(body) || /\bNEEDS[_ ]?(?:JO|YOU)[*_]{0,2}\s*[-–]/.test(body)
     || /^[\s*_`>-]*needs[_ ]?(?:jo|you)[*_]{0,2}\s*[:\-–]/im.test(body) || /\bACTIONS[*_]{0,2}\s*:/.test(body)
+    || /^[\s*_`>-]*kind[*_]{0,2}\s*:/im.test(body)
     || /\{\s*"installer_note"/.test(body) || /"new_area_m2"/.test(body)) out.push("Take out the AI's note to the office (NEEDS_JO…).");
   // Placeholders copied from Jo's scrubbed style examples.
   for (const ph of new Set((body.match(PLACEHOLDER_RE) ?? []).map((m) => m.toLowerCase()))) out.push(`Take out the placeholder ${ph} — write the real wording`);

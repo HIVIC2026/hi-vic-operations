@@ -101,7 +101,7 @@ export async function writeAiReplyDraft(p: { jobId: string; message: MailMessage
           const second = splitAiOutput(await aiText(inputWith([...lines, ...extra]), aiReplyInstructions({ preRelease })), { ownerFirstName });
           const actions = { ...second.actions };
           if (actions.newAreaM2 !== size) delete actions.newAreaM2;
-          out = { body: second.body, needsYou: out.needsYou || second.needsYou, needsAnswer: [...new Set([...out.needsAnswer, ...second.needsAnswer])], actions };
+          out = { body: second.body, needsYou: out.needsYou || second.needsYou, needsAnswer: [...new Set([...out.needsAnswer, ...second.needsAnswer])], actions, kind: second.kind };
         } catch (e) {
           console.error("AI reply new-size pass skipped", e instanceof Error ? e.message : e);
           const { newAreaM2: _dropped, ...rest } = out.actions; void _dropped;
