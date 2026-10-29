@@ -227,7 +227,13 @@ async function supersedePiesaOnReopen(jobId: string, actorId: string) {
         admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "owner_payment_reversed").gte("created_at", paidAt),
       ]);
       recordAfterPaid = !!after;
-      reversedCentsSincePaid = ((rev ?? []) as { details: { amount_cents?: number } | null }[]).reduce((a, r) => a + Math.max(0, Math.round(Number(r.details?.amount_cents ?? 0))), 0);
+      // Batch 3b (`reopen refund install only`): a refund on the electrical fixes invoice is never "the safety check was
+      // refunded". Reversals on the installation invoice and on the repeat safety check's own invoice still count.
+      const revs = (rev ?? []) as { details: { amount_cents?: number; invoice_id?: string } | null }[];
+      const revInvoiceIds = [...new Set(revs.map((r) => r.details?.invoice_id).filter((x): x is string => !!x))];
+      const { data: fixesInvs } = revInvoiceIds.length ? await admin.from("invoices").select("id").in("id", revInvoiceIds).eq("kind", "rectification") : { data: [] as { id: string }[] };
+      const fixesIds = new Set(((fixesInvs ?? []) as { id: string }[]).map((x) => x.id));
+      reversedCentsSincePaid = revs.filter((r) => !fixesIds.has(r.details?.invoice_id ?? "")).reduce((a, r) => a + Math.max(0, Math.round(Number(r.details?.amount_cents ?? 0))), 0);
     }
   }
   const decision = reopenRepeatDecision({ hadCheck, prior, paidAt, recordAfterPaid, reversedCentsSincePaid });

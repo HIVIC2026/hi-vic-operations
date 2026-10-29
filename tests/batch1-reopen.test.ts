@@ -365,6 +365,19 @@ describe("F6 (Jo 29 Oct): the owner already paid a repeat check that wasn't done
     expect((await repeatPiesaContext(J)).state.stage).toBe("owner_accept");
   });
 
+  // Batch 3b Task 5 (`reopen refund install only`): a refund on the electrical fixes invoice is not "the safety check was
+  // refunded" — the paid repeat still carries over.
+  test("reopen refund install only: a fixes-invoice refund doesn't trigger a repeat charge", async () => {
+    seed("installation_booked", true);
+    tables["invoices"] = [{ id: "inv-fix", job_id: J, kind: "rectification", quote_id: "q-fix", total_inc_gst: 550 }];
+    paidRepeat();
+    tables["workflow_events"]!.push(ev("owner_payment_reversed", "2026-10-22T00:00:00.000Z", { invoice_id: "inv-fix", amount_cents: 55_000, source: "card", note: "stripe-refund:pi_fix" }));
+    await reopenJob(J, "Owner rang back", "admin-1");
+    expect(events(rp.REPEAT_PIESA_CHOSEN_EVENT)).toHaveLength(1);
+    expect(xeroCalls).toEqual([]);
+    expect(events(rp.REPEAT_REOPEN_EVENT)[0]!["details"]).toMatchObject({ had_check: false, carried_repeat: D });
+  });
+
   test("a partial refund smaller than the repeat price does not count as refunded", () => {
     expect(rp.reopenRepeatDecision({ hadCheck: true, prior: { stage: "offer", payer: "owner", priceIncGst: 150, deadline: D }, paidAt: "2026-10-21T00:00:00.000Z", recordAfterPaid: false, reversedCentsSincePaid: 5_000 })).toBe("carry_over");
     expect(rp.reopenRepeatDecision({ hadCheck: true, prior: { stage: "offer", payer: "owner", priceIncGst: 150, deadline: D }, paidAt: "2026-10-21T00:00:00.000Z", recordAfterPaid: true, reversedCentsSincePaid: 0 })).toBe("charge"); // repeat was done

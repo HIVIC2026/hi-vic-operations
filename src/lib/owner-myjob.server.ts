@@ -36,7 +36,8 @@ export async function resolveOwnerJob(token: unknown) {
     admin.from("jobs").select("job_number, stage, deleted_at, channel, external_refs, owners(full_name, email, phone), properties(address_line, suburb, state, postcode)").eq("id", jobId).single(),
     admin.from("quotes").select("id, kind, status, release_state, option_label, customer_total_inc_gst, veec_discount_inc_gst, subtotal_inc_gst, sent_at, accepted_at, version, quote_items(code, description, quantity, line_total_inc_gst, sort)").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted", "declined"]).order("created_at", { ascending: false }).order("created_at", { ascending: false }),
     admin.from("bookings").select("kind, status, scheduled_start, contractor_id, business_id").eq("job_id", jobId).in("status", ["confirmed", "completed"]).order("scheduled_start"),
-    admin.from("invoices").select("total_paid, amount_paid").eq("job_id", jobId),
+    // "Paid" next to the install price: the installation invoice (batch 3b: fixes / repeat check have their own invoices).
+    admin.from("invoices").select("total_paid, amount_paid").eq("job_id", jobId).eq("kind", "installation"),
     admin.from("indicative_estimates").select("applied_discount").eq("job_id", jobId).is("superseded_at", null).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("workflow_settings").select("office_time_limits, piesa_install_window_days, safety_check_payment_inc_gst").eq("id", 1).maybeSingle(),
   ]);

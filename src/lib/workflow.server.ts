@@ -317,7 +317,8 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
     const [{ data: recs }, { data: job }, { data: invs }] = await Promise.all([
       admin.from("job_compliance_records").select("record_key").eq("job_id", jobId),
       admin.from("jobs").select("life_support").eq("id", jobId).single(),
-      admin.from("invoices").select("deposit_paid_amount").eq("job_id", jobId),
+      // Batch 3b: the owner's payment on the installation invoice only (fixes / repeat safety check invoices are separate).
+      admin.from("invoices").select("deposit_paid_amount").eq("job_id", jobId).eq("kind", "installation"),
     ]);
     const paid = (invs ?? []).reduce((a, i) => a + Number(i.deposit_paid_amount ?? 0), 0);
     blockers.push(...complianceRecordBlockers(to, new Set((recs ?? []).map((r) => r.record_key as never)), { lifeSupport: !!job?.life_support, ownerPaidIncGst: paid }));

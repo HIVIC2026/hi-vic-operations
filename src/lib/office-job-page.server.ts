@@ -207,6 +207,14 @@ export async function loadJobMoney(jobId: string, testOffice = false) {
       // Card + Xero pairs counted once until the office says "Two separate payments" (office-only button; the TEST office
       // cannot press it, so it gets none).
       unclearPairs: testOffice ? [] : view.unclearPairs } : null,
+    /** Batch 3b: the job's invoices one by one (install, electrical fixes, repeat safety check), each with its reference. */
+    invoices: view ? await (async () => {
+      const { invoiceSlotLabel } = await import("./office-money.core");
+      return (["install", "fixes", "repeat"] as const).flatMap((slot) => {
+        const r = view.invoices[slot];
+        return r ? [{ invoiceId: r.id, slot, label: invoiceSlotLabel(slot, r.xero_reference), number: r.xero_invoice_number, reference: r.xero_reference, totalCents: Math.round(Number(r.total_inc_gst ?? 0) * 100), paidCents: view.paid[slot], linked: !!r.xero_invoice_id }] : [];
+      });
+    })() : [],
     margin, quoteStatus: q?.status ?? null,
   };
 }

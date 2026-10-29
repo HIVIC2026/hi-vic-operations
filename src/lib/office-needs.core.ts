@@ -5,7 +5,9 @@
 
 import { FIXES_TIMES_MISSING_LINE } from "./fixes-times.core";
 import { LAPSED_NEEDS_LINE } from "./spot-release.core";
-import { paymentStallLine, type PaymentStall } from "./payment-stall.core";
+import { paymentStallLine, type InvoicePaymentStall } from "./payment-stall.core";
+import { invoiceSlotLabel } from "./office-money.core";
+import type { InvoiceSlot } from "./payments.core";
 import { QUOTE_EXPIRED_HELD_REASON } from "./quote-expiry.core";
 
 export type NeedsGroup = "today" | "week" | "watch";
@@ -87,7 +89,8 @@ export type NeedsFacts = {
   prestartFailed?: { at: string; reasons: string[] } | null;
   /** Payment watch rows (decision 240): never "Record payment". */
   paymentNotInXero?: { at: string; text: string } | null;
-  paymentOverdue?: { at: string; text: string } | null;
+  /** Batch 3b: one overdue row per invoice (install / fixes / repeat safety check), with that invoice's reference. */
+  paymentsOverdue?: { at: string; text: string; invoice: InvoiceSlot; reference: string | null }[] | null;
   tenDaysLeft?: { at: string; deadline: string | null } | null;
   secondNoAccess?: { at: string; reason: string | null } | null;
   veecDay10?: { at: string } | null;
@@ -99,8 +102,9 @@ export type NeedsFacts = {
   /** Jo 28 Oct (decision 233): the owner-pays repeat PIESA line could not go on the ONE Xero invoice. */
   repeatXeroHeld?: { at: string; reason: string } | null;
   /** Jo 28 Oct 2026 (decision card 04:40 UTC, "Alert after 3 days unpaid"): a homeowner payment unpaid for 3+ days
-   *  → ONE row naming the payment and since when (payment-stall.core). Clears when the payment is recorded. */
-  paymentStalled?: PaymentStall | null;
+   *  → a row naming the payment and since when (payment-stall.core). Clears when the payment is recorded. Batch 3b: one
+   *  per invoice (install / fixes / repeat safety check), each measured on its own invoice's money. */
+  paymentStalls?: InvoicePaymentStall[] | null;
   /** Batch 1: the owner accepted but the invoice step failed and no Xero-linked invoice has appeared since. Batch 3b:
    *  `kind` names which invoice (installation, or the electrical fixes invoice). */
   invoiceFailed?: { at: string; text: string; kind?: "installation" | "rectification" | "repeat_safety_check" } | null;
@@ -170,7 +174,8 @@ export function prestartFailedLine(reasons: readonly string[]): string {
   return `Pre-start check failed${first ? ` · ${first.slice(0, 140)}` : ""}${reasons.length > 1 ? ` (+${reasons.length - 1} more)` : ""}`;
 }
 
-type Candidate = Omit<NeedsRow, "key" | "jobId" | "jobNumber" | "surname" | "suburb" | "isTest"> & { rank: number };
+/** `slot` (batch 3b): a payment row about one of the job's invoices — each invoice keeps its own row (buildNeedsRows). */
+type Candidate = Omit<NeedsRow, "key" | "jobId" | "jobNumber" | "surname" | "suburb" | "isTest"> & { rank: number; slot?: InvoiceSlot };
 
 /** Every candidate row for one job, most urgent first (rank). The caller keeps the first. */
 export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
@@ -227,9 +232,9 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   if (f.tenDaysLeft) add({ rank: 220, group: "watch", kind: "ten_days_left", line: `10 days left on the 30-day clock${f.tenDaysLeft.deadline ? ` · last day ${fmtDay(f.tenDaysLeft.deadline)}` : ""}`, since: f.tenDaysLeft.at, button: { label: "Open job", to: "job", section: "install" } });
   if (f.veecDay10) add({ rank: 230, group: "watch", kind: "veec_day_10", line: "VEEC form unsigned · day 10", since: f.veecDay10.at, button: { label: "Open job", to: "job", section: "final-check" } });
   if (f.paymentNotInXero) add({ rank: 240, group: "watch", kind: "payment_not_in_xero", line: `${f.paymentNotInXero.text} · not in Xero yet`, since: f.paymentNotInXero.at, button: { label: "Open job", to: "job", section: "money" } });
-  // Jo 28 Oct 2026 ("Alert after 3 days unpaid"): one row naming the payment the owner owes and since when.
-  if (f.paymentStalled) add({ rank: 242, group: "watch", kind: "payment_stalled", line: paymentStallLine(f.paymentStalled), since: f.paymentStalled.since, button: { label: "Open job", to: "job", section: "money" } });
-  if (f.paymentOverdue) add({ rank: 245, group: "watch", kind: "payment_overdue", line: `Payment overdue · chase · ${f.paymentOverdue.text}`, since: f.paymentOverdue.at, button: { label: "Open job", to: "job", section: "money" } });
+  // Jo 28 Oct 2026 ("Alert after 3 days unpaid"): a row naming the payment the owner owes and since when — one per invoice.
+  for (const p of f.paymentStalls ?? []) add({ rank: 242, group: "watch", kind: "payment_stalled", line: paymentStallLine(p), since: p.since, button: { label: "Open job", to: "job", section: "money" }, slot: p.invoice });
+  for (const p of f.paymentsOverdue ?? []) add({ rank: 245, group: "watch", kind: "payment_overdue", line: `Payment overdue · chase · ${invoiceSlotLabel(p.invoice, p.reference)}${p.reference ? ` ${p.reference}` : ""} · ${p.text}`, since: p.at, button: { label: "Open job", to: "job", section: "money" }, slot: p.invoice });
   return out.sort((a, b) => a.rank - b.rank);
 }
 
@@ -256,14 +261,18 @@ export function emailRow(e: EmailRowInput): NeedsRow {
 
 const GROUP_ORDER: Record<NeedsGroup, number> = { today: 0, week: 1, watch: 2 };
 
-/** One row per job (its most urgent action), email rows on top of Today, oldest first inside a group. */
+/** One row per job (its most urgent action), email rows on top of Today, oldest first inside a group. Batch 3b: when that
+ *  row is an unpaid-invoice row, each OTHER invoice of the job that is unpaid keeps its own row too (install, fixes,
+ *  repeat safety check) — one unpaid invoice never hides another. */
 export function buildNeedsRows(i: { now: number; jobs: NeedsFacts[]; emails?: EmailRowInput[] }): Record<NeedsGroup, NeedsRow[]> {
   const rows: (NeedsRow & { rank: number })[] = [];
   for (const f of i.jobs) {
-    const top = needsCandidates(f, i.now)[0];
+    const all = needsCandidates(f, i.now);
+    const top = all[0];
     if (!top) continue;
-    const { rank, ...c } = top;
-    rows.push({ ...c, rank, key: `${f.jobId}:${c.kind}`, jobId: f.jobId, jobNumber: f.jobNumber, surname: f.surname, suburb: f.suburb, ...(f.isTest ? { isTest: true } : {}) });
+    const shown = top.slot ? [top, ...all.slice(1).filter((c, n, xs) => c.slot && c.slot !== top.slot && xs.findIndex((y) => y.slot === c.slot) === n)] : [top];
+    for (const { rank, slot, ...c } of shown)
+      rows.push({ ...c, rank, key: slot && slot !== "install" ? `${f.jobId}:${c.kind}:${slot}` : `${f.jobId}:${c.kind}`, jobId: f.jobId, jobNumber: f.jobNumber, surname: f.surname, suburb: f.suburb, ...(f.isTest ? { isTest: true } : {}) });
   }
   for (const e of i.emails ?? []) rows.push({ ...emailRow(e), rank: 5 });
   rows.sort((a, b) => GROUP_ORDER[a.group] - GROUP_ORDER[b.group] || a.rank - b.rank || a.since.localeCompare(b.since));

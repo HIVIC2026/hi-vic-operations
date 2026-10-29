@@ -375,7 +375,7 @@ const s5: StepFn = async (ctx, r) => {
   // Safety check payment: Xero Demo Company only for TEST jobs.
   const x = await import("./xero.server");
   const inv = await act(r, "invoice created for the accepted quote (Demo Company)", () => x.createInvoiceForQuote(ctx.quoteId!, ctx.actorId)) as { id?: string } | null;
-  const { data: iv } = await admin.from("invoices").select("id, xero_invoice_id").eq("job_id", ctx.jobId!).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const { data: iv } = await admin.from("invoices").select("id, xero_invoice_id").eq("job_id", ctx.jobId!).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).maybeSingle();
   check(r, "invoice row exists", !!iv, JSON.stringify(inv ?? null).slice(0, 80));
   if (!iv!.xero_invoice_id) await act(r, "invoice pushed to the Xero Demo Company", () => x.pushInvoiceToXero(iv!.id, ctx.actorId) as Promise<unknown>);
   { const { data: linked } = await admin.from("invoices").select("xero_invoice_id, last_sync_error").eq("id", iv!.id).single();

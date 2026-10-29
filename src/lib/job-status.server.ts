@@ -16,7 +16,7 @@ export async function statusFactsFor(c: Ctx, jobIds: string[]): Promise<Map<stri
     admin.from("bookings").select("job_id, kind, status, scheduled_start, scheduled_end, business_id, businesses(name, trading_name)").in("job_id", ids).in("status", ["confirmed", "completed"]),
     admin.from("workflow_events").select("job_id, event_type, to_stage, created_at").in("job_id", ids).in("event_type", ["stage_changed", "payout_marked_paid", "installer_ready_check_times_delivery", "ready_check_more_times_requested"]).order("created_at", { ascending: false }).limit(5000),
     admin.from("quotes").select("job_id, kind, status, sent_at, accepted_at").in("job_id", ids).in("status", ["issued", "accepted"]),
-    admin.from("invoices").select("id, job_id, kind, status, deposit_paid_at, balance_paid_at, paid_at, total_paid, deposit_paid_amount, deposit_amount").in("job_id", ids),
+    admin.from("invoices").select("id, job_id, kind, status, deposit_paid_at, balance_paid_at, paid_at, total_paid, deposit_paid_amount, deposit_amount, created_at").in("job_id", ids),
     admin.from("appointment_proposals").select("job_id, kind, created_at, proposer_role").in("job_id", ids).eq("kind", "assessment").eq("proposer_role", "owner").order("created_at", { ascending: false }),
     admin.from("workflow_settings").select("due_trade_reply_warn_hours, due_trade_reply_exception_hours, due_owner_reminder_days, due_owner_flag_days").eq("id", 1).maybeSingle(),
     admin.from("assessment_payments").select("job_id, paid_at").in("job_id", ids).eq("status", "paid"),
@@ -75,7 +75,8 @@ export async function statusFactsFor(c: Ctx, jobIds: string[]): Promise<Map<stri
       payout: !workDone ? null : elecPay ? (() => {
         const kind = bs.some((b) => b.mine && b.kind === "rectification" && b.status === "completed") ? "rectification" as const : "assessment" as const;
         const t = elecPay[1].electricianPayTiming(kind, elecPay[0].get(j.id));
-        return electricianPayState({ paidAt: paidOut, approvedAt: t.approvedAt });
+        // Batch 3b: a fixes payout waiting on the owner's fixes invoice has no due date yet (t.dueAt null).
+        return electricianPayState({ paidAt: paidOut, approvedAt: t.dueAt ? t.approvedAt : null });
       })() : payState({ paidAt: paidOut, apApprovedAt: apAt, installerSupplied: supplied, ownerPaidInFullAt: full }),
       settings,
     });

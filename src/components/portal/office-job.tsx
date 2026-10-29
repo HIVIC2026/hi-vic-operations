@@ -21,6 +21,7 @@ import { safetyCheckShort } from "@/lib/safety-check-amount.core";
 import { cancelOfficeJob, clearOfficeEmailBounce, getOfficeJobMoney, holdOfficeJob, logOfficeCallOrNote, markOfficeJobTest, reopenOfficeJob } from "@/lib/office-screens.functions";
 import { bulkJobAction } from "@/lib/bulk.functions";
 import { retryInvoiceFn } from "@/lib/office-money.functions";
+import { invoiceSlotLabel } from "@/lib/office-money.core";
 import { markPaymentsSeparateFn } from "@/lib/payments.functions";
 import { completeInstallation, overrideDepositGate, regenerateRectificationQuote, setHold, syncInvoice } from "@/lib/portal.functions";
 import { openJobDocument } from "@/lib/jobfile.functions";
@@ -251,10 +252,20 @@ export function MoneyCard({ jobId }: { jobId: string }) {
           ))}
         </ul>
       )}
+      {data.invoices.length > 1 && (
+        <ul className="mt-3 divide-y divide-line rounded-[12px] border border-line text-sm" data-testid="job-invoices">
+          {data.invoices.map((i) => (
+            <li key={i.invoiceId} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+              <span><span className="font-semibold">{i.label}</span> · {i.number ?? "not in Xero yet"}{i.reference ? <span className="text-xs text-sub"> · {i.reference}</span> : null}</span>
+              <span className="tabular-nums">{money(i.totalCents)} · paid {money(i.paidCents)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
       {v?.unclearPairs.map((u) => (
-        <div key={u.pairKey} className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-[12px] border border-line px-3 py-2 text-sm" data-testid="unclear-payment-pair">
-          <span>Card payment and a same-amount Xero payment — counted once.</span>
-          <button type="button" className={cn(btn, "border border-line bg-paper text-hiv-blue")} onClick={() => void separate({ invoiceId: v.invoiceId, pairKey: u.pairKey }, "Marked as two separate payments")}>Two separate payments</button>
+        <div key={`${u.invoiceId}:${u.pairKey}`} className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-[12px] border border-line px-3 py-2 text-sm" data-testid="unclear-payment-pair">
+          <span>{invoiceSlotLabel(u.invoice, u.reference)}{u.reference ? ` ${u.reference}` : ""} · Card payment and a same-amount Xero payment — counted once.</span>
+          <button type="button" className={cn(btn, "border border-line bg-paper text-hiv-blue")} onClick={() => void separate({ invoiceId: u.invoiceId, pairKey: u.pairKey }, "Marked as two separate payments")}>Two separate payments</button>
         </div>
       ))}
       <div className="mt-3 rounded-[12px] bg-mist px-3 py-2 text-sm" data-why="decision 230: office only, never shown to installers, electricians or owners">

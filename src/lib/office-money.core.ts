@@ -2,8 +2,19 @@
 // No database, no network. Invoice steps come from payments.core (one Xero invoice per job, a step is paid when the
 // running total reaches its threshold). Decision 240: there is NO office "Record payment" anywhere — payments arrive
 // from Stripe or Xero reconciliation; an overdue row offers only "Chase ›" (log a call or note).
-import type { PaymentStep, PaymentStepKey } from "./payments.core";
+import type { InvoiceSlot, PaymentStep, PaymentStepKey } from "./payments.core";
 import { safetyCheckShort } from "./safety-check-amount.core";
+
+/** Batch 3b (office-only labels): which of the job's invoices a row is about — "Install", "Electrical fixes", or
+ *  "Safety check N" (N from the repeat invoice's reference "… safety check N"; 2 when it isn't known). */
+export function invoiceSlotLabel(slot: InvoiceSlot, reference: string | null | undefined): string {
+  if (slot === "install") return "Install";
+  if (slot === "fixes") return "Electrical fixes";
+  const n = /safety check (\d+)\s*$/i.exec(reference ?? "")?.[1];
+  return `Safety check ${n ?? "2"}`;
+}
+/** The invoice slot of an `invoices.kind`. */
+export const invoiceSlotOf = (kind: string | null | undefined): InvoiceSlot => (kind === "rectification" ? "fixes" : kind === "repeat_safety_check" ? "repeat" : "install");
 
 export type InvoiceRowState = { label: string; tone: "green" | "rose" | "plain" | "amber"; chase: boolean };
 

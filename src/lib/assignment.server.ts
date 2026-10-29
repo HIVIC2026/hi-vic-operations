@@ -305,6 +305,14 @@ export async function apPrerequisites(jobId: string): Promise<string[]> {
   return apPrerequisiteBlockers(f);
 }
 
+/** The VEEC form's payment facts: the job's NEWEST installation invoice (batch 3b: a job also has fixes and repeat safety
+ *  check invoices, and a re-quote leaves an older installation invoice — never more than one row is read). */
+export async function assignmentPaymentFacts(jobId: string) {
+  const { data: inv, error } = await admin.from("invoices").select("xero_invoice_number, xero_reference, amount_paid, status").eq("job_id", jobId).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new Error(`Could not read the installation invoice: ${error.message}`);
+  return { status: inv?.status ?? null, reference: inv?.xero_invoice_number ?? inv?.xero_reference ?? null, amount_paid: inv?.amount_paid != null ? Number(inv.amount_paid) : null };
+}
+
 async function computeFinalFacts(jobId: string, fieldValues: Record<string, FieldValue>, templates: Template[]) {
   const agreement = await currentAgreement(jobId);
   const { data: job } = await admin.from("jobs").select("job_number, installation_completed_at").eq("id", jobId).single();
@@ -316,7 +324,7 @@ async function computeFinalFacts(jobId: string, fieldValues: Record<string, Fiel
   const { values, missing } = veecPrefill(jf, fieldValues);
   const fb = [...missing.map((m) => `Missing: ${m}`), ...formFieldBlockers(defs, values).filter((b) => !missing.some((m) => b.includes(m)))];
   if (fb.length) return { blockers: fb, facts: null, agreement, official, defs, values, missing };
-  const { data: inv } = await admin.from("invoices").select("id, xero_invoice_number, xero_reference, amount_paid, status").eq("job_id", jobId).eq("kind", "installation").maybeSingle();
+  const payment = await assignmentPaymentFacts(jobId);
   const installed = jf.areas.filter((a) => a.areaM2 != null || a.brand).map((a) => ({ product: [a.brand, a.model].filter(Boolean).join(" ") || String(values["area_1_product_type"] ?? ""), r_value: a.rValue, area_m2: Number(a.areaM2 ?? 0) }));
   const lead = jf.installers[0] ?? null;
   const facts: FinalFacts = buildFinalFacts({
@@ -325,7 +333,7 @@ async function computeFinalFacts(jobId: string, fieldValues: Record<string, Fiel
     installer: { user_id: agreement.installer_user_id, name: lead?.name ?? null, business: lead?.company ?? null, abn: null, licence: lead?.eec ?? null },
     consumer: { name: jf.consumer.name ?? agreement.signatory_name, email: jf.consumer.email, phone: jf.consumer.phone },
     final_customer_price_inc_gst: Number(agreement.final_customer_price_inc_gst), veu_benefit_inc_gst: Number(agreement.veu_benefit_inc_gst), price_before_benefit_inc_gst: Number(agreement.price_before_benefit_inc_gst),
-    payment: { status: inv?.status ?? null, reference: inv?.xero_invoice_number ?? inv?.xero_reference ?? null, amount_paid: inv?.amount_paid != null ? Number(inv.amount_paid) : null },
+    payment,
     template_version: official.version, form_values: pickFieldValues(defs, values),
   });
   return { blockers: [], facts, agreement, official, defs, values, missing };

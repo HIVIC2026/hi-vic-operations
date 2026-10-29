@@ -33,15 +33,25 @@ export async function payoutGateFacts(jobIds: string[]): Promise<Map<string, Tra
   const out = new Map<string, TradePayoutFacts>();
   if (!ids.length) return out;
   const { ELECTRICIAN_FORM_APPROVED_EVENT } = await import("./electrician-pay.core");
-  const [assess, fixEv, decl, ieEv, apprEv] = await Promise.all([
+  const [assess, fixEv, decl, ieEv, apprEv, fixesQuotes, fixesInvoices] = await Promise.all([
     inJobs<{ job_id: string; external_mitti_id: string | null; mitti_completed: boolean | null; mitti_raw_snapshot: unknown; mitti_synced_at: string | null; mitti_modified_at: string | null }>("assessments", "job_id, external_mitti_id, mitti_completed, mitti_raw_snapshot, mitti_synced_at, mitti_modified_at", ids),
     inJobs<FixesFormEvent & { job_id: string }>("workflow_events", "job_id, event_type, created_at, summary, details", ids, (q) => q.in("event_type", [FIXES_FORM_CREATED_EVENT, FIXES_FORM_COMPLETED_EVENT, FIXES_FORM_NOT_DONE_EVENT, FIXES_FORM_HELD_EVENT]).order("created_at", { ascending: false })),
     inJobs<{ job_id: string }>("installer_declarations", "job_id", ids, (q) => q.eq("status", "signed")),
     inJobs<{ job_id: string; details: { summary?: InstallEvidenceSummary } | null; created_at: string }>("workflow_events", "job_id, details, created_at", ids, (q) => q.eq("event_type", "install_evidence_synced").order("created_at", { ascending: false })),
     // Decision 410: the office's Approve on the electrician's form (earliest one per form counts).
     inJobs<{ job_id: string; details: { kind?: string } | null; created_at: string }>("workflow_events", "job_id, details, created_at", ids, (q) => q.eq("event_type", ELECTRICIAN_FORM_APPROVED_EVENT).order("created_at", { ascending: true })),
+    // Batch 3b (Jo 29 Oct): electrician fixes pay waits for the owner's fixes invoice (the newest accepted fixes quote's own).
+    inJobs<{ id: string; job_id: string; accepted_at: string | null; customer_total_inc_gst: number | string | null }>("quotes", "id, job_id, accepted_at, customer_total_inc_gst", ids, (q) => q.eq("kind", "rectification").eq("status", "accepted")),
+    inJobs<{ job_id: string; quote_id: string | null; total_inc_gst: number | string | null; total_paid: number | string | null }>("invoices", "job_id, quote_id, total_inc_gst, total_paid", ids, (q) => q.eq("kind", "rectification")),
   ]);
   const approvedAt = (id: string, kind: string) => apprEv.find((e) => e.job_id === id && e.details?.kind === kind)?.created_at ?? null;
+  const fixesInvoice = (id: string) => {
+    const q = fixesQuotes.filter((x) => x.job_id === id).sort((a, b) => String(b.accepted_at ?? "").localeCompare(String(a.accepted_at ?? "")))[0];
+    if (!q || !(Number(q.customer_total_inc_gst ?? 0) > 0)) return null;
+    const inv = fixesInvoices.find((x) => x.job_id === id && x.quote_id === q.id);
+    // No invoice yet = nothing paid yet. Paid in full = the Xero mirror (reconciled) reaches the invoice total.
+    return { paid: !!inv && Number(inv.total_paid ?? 0) >= Number(inv.total_inc_gst ?? 0) && Number(inv.total_inc_gst ?? 0) > 0 };
+  };
   const { installStartDate } = await import("./install-evidence.server");
   for (const id of ids) {
     const a = assess.find((x) => x.job_id === id);
@@ -67,6 +77,7 @@ export async function payoutGateFacts(jobIds: string[]): Promise<Map<string, Tra
       fixes: { sameVisitOnPiesa, outcome: fo.outcome, detail: fo.detail, completedAt: fixesDoneAt },
       install: { formCompleted: declared, evidence: !declared && !summary ? [] : installEvidenceGateLines(summary, installDate) },
       electricianApprovedAt: { assessment: approvedAt(id, "assessment"), rectification: approvedAt(id, "rectification") },
+      fixesInvoice: fixesInvoice(id),
     });
   }
   return out;

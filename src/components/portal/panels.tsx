@@ -11,6 +11,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2, FileUp, Lock, Paperclip, ShieldAlert } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { CUSTOMER_INVOICE_COLUMNS } from "@/lib/invoice.lifecycle";
+import { invoiceSlotLabel, invoiceSlotOf } from "@/lib/office-money.core";
 import { getJobOverview } from "@/lib/admin-records.functions";
 
 type CustomerInvoice = { id: string; job_id: string; kind: string; xero_invoice_number: string | null; xero_online_url: string | null; total_inc_gst: number; deposit_amount: number; deposit_paid_at: string | null; balance_amount: number; balance_due_date: string | null; balance_paid_at: string | null; total_paid: number; deposit_cleared: boolean; effective_status: string; created_at: string };
@@ -423,7 +424,7 @@ function PaymentStepsBlock({ jobId, invoiceId, hasXeroInvoice }: { jobId: string
   return (
     <div className="mt-3 rounded border p-2 text-xs" data-testid="payment-steps">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="font-semibold">Payment steps (one invoice{p.reference ? ` · reference ${p.reference}` : ""})</p>
+        <p className="font-semibold">Payment steps (every invoice{p.reference ? ` · install reference ${p.reference}` : ""})</p>
         <span className="text-muted-foreground">Received {aud(p.paidCents / 100)} · remaining {aud(p.due.remainingCents / 100)}</span>
       </div>
       <table className="mt-2 w-full text-left"><thead><tr className="text-muted-foreground"><th className="py-1 pr-2 font-normal">Step</th><th className="py-1 pr-2 font-normal">Amount</th><th className="py-1 pr-2 font-normal">How</th><th className="py-1 font-normal">State</th></tr></thead>
@@ -478,26 +479,30 @@ export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: bool
           // Only the deposit-gate override speaks about the safety check payment.
           const safetyOverrides = ov.filter((o) => o.gate === "deposit");
           const remaining = Math.max(0, Number(i.total_inc_gst) - Number(i.total_paid));
+          // Batch 3b: a job can also have an electrical fixes invoice and a repeat safety check invoice. The office sees
+          // each card labelled with its kind + reference; the safety-check / deposit / install-day rows are install-only.
+          const slot = invoiceSlotOf(i.kind);
+          const install = slot === "install";
           return (
             <div key={i.id} className="rounded-lg border p-3 text-sm">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="font-semibold">Invoice {i.xero_invoice_number && <span className="font-normal text-muted-foreground">· {i.xero_invoice_number}</span>}</div>
+                <div className="font-semibold">{isAdmin ? invoiceSlotLabel(slot, x?.xero_reference) : "Invoice"} {i.xero_invoice_number && <span className="font-normal text-muted-foreground">· {i.xero_invoice_number}</span>}{isAdmin && x?.xero_reference && <span className="font-normal text-muted-foreground"> · {x.xero_reference}</span>}</div>
                 <PaymentBadge status={i.effective_status} />
               </div>
               <dl className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
                 <div><dt className="text-xs text-muted-foreground">Total accepted price (inc GST)</dt><dd className="font-medium">{aud(i.total_inc_gst)}</dd></div>
-                <div><dt className="text-xs text-muted-foreground">Pre Insulation Electrical Safety Assessment (PIESA) payment</dt><dd className="font-medium" data-testid="safety-check-payment">{aud(i.deposit_amount)} {Number(i.total_paid) >= Number(i.deposit_amount) ? <span className="text-xs text-success">Paid</span> : <span className="text-xs text-danger">Not paid</span>}</dd></div>
-                {safetyOverrides.length > 0 && <div className="sm:col-span-3" data-testid="safety-check-payment-override"><p className="rounded bg-warning-soft px-2 py-1 text-xs font-semibold text-warning">Payment block overridden — the Pre Insulation Electrical Safety Assessment (PIESA) payment has not been received. The job is allowed to proceed on the office's recorded override.</p></div>}
+                {install && <div><dt className="text-xs text-muted-foreground">Pre Insulation Electrical Safety Assessment (PIESA) payment</dt><dd className="font-medium" data-testid="safety-check-payment">{aud(i.deposit_amount)} {Number(i.total_paid) >= Number(i.deposit_amount) ? <span className="text-xs text-success">Paid</span> : <span className="text-xs text-danger">Not paid</span>}</dd></div>}
+                {install && safetyOverrides.length > 0 && <div className="sm:col-span-3" data-testid="safety-check-payment-override"><p className="rounded bg-warning-soft px-2 py-1 text-xs font-semibold text-warning">Payment block overridden — the Pre Insulation Electrical Safety Assessment (PIESA) payment has not been received. The job is allowed to proceed on the office's recorded override.</p></div>}
                 <AfterSafetyCheckRow jobId={jobId} invoiceId={i.id} isAdmin={isAdmin} />
                 <div><dt className="text-xs text-muted-foreground">Paid to date</dt><dd className="font-medium">{aud(i.total_paid)}</dd></div>
                 <div><dt className="text-xs text-muted-foreground">Remaining balance</dt><dd className="font-medium">{aud(remaining)} {i.balance_paid_at && <span className="text-xs text-success">fully paid {fmtDate(i.balance_paid_at)}</span>}</dd></div>
-                <div><dt className="text-xs text-muted-foreground">Final due date (installation day)</dt><dd className="font-medium">{i.balance_due_date ? fmtDate(i.balance_due_date) : <span className="text-xs text-muted-foreground">Pending – set when installation is booked</span>}</dd></div>
+                {install && <div><dt className="text-xs text-muted-foreground">Final due date (installation day)</dt><dd className="font-medium">{i.balance_due_date ? fmtDate(i.balance_due_date) : <span className="text-xs text-muted-foreground">Pending – set when installation is booked</span>}</dd></div>}
               </dl>
               {i.xero_online_url && <a href={i.xero_online_url} target="_blank" rel="noreferrer" className="mt-2 inline-block text-sm font-semibold text-primary underline">View / pay invoice</a>}
-              {!i.deposit_cleared && <p className="mt-2 flex items-center gap-1 rounded bg-danger-soft px-2 py-1 text-xs font-semibold text-danger"><Lock className="h-3 w-3" /> Pre Insulation Electrical Safety Assessment (PIESA) can't be booked — {aud(i.deposit_amount)} Pre Insulation Electrical Safety Assessment (PIESA) payment not received.</p>}
-              <p className="mt-2 rounded bg-muted px-2 py-1 text-xs">{isAdmin
+              {install && !i.deposit_cleared && <p className="mt-2 flex items-center gap-1 rounded bg-danger-soft px-2 py-1 text-xs font-semibold text-danger"><Lock className="h-3 w-3" /> Pre Insulation Electrical Safety Assessment (PIESA) can't be booked — {aud(i.deposit_amount)} Pre Insulation Electrical Safety Assessment (PIESA) payment not received.</p>}
+              {install && <p className="mt-2 rounded bg-muted px-2 py-1 text-xs">{isAdmin
                 ? "Refunds (office records manually, nothing moves automatically): check never happens → refund everything paid. Check done and job can't go ahead → keep the Pre Insulation Electrical Safety Assessment (PIESA) payment, refund the rest."
-                : "Refunds: if the check never happens, everything you paid is refunded. If the check is done and the job can't go ahead, we keep the Pre Insulation Electrical Safety Assessment (PIESA) payment and refund the rest."}</p>
+                : "Refunds: if the check never happens, everything you paid is refunded. If the check is done and the job can't go ahead, we keep the Pre Insulation Electrical Safety Assessment (PIESA) payment and refund the rest."}</p>}
               {isAdmin && x && (
                 <>
                   {x.deposit_request_raised_at && <p className="mt-2 rounded bg-muted px-2 py-1 text-xs">Old Xero deposit request recorded on {fmtDateTime(x.deposit_request_raised_at)}. It no longer affects booking.</p>}
@@ -519,7 +524,7 @@ export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: bool
                 <div className="mt-3 flex flex-wrap gap-2">
                   {internals?.xeroAllowed !== false && <Button size="sm" variant="outline" disabled={!!x?.sync_lock_at && Date.now() - Date.parse(x.sync_lock_at) < 120000} onClick={() => sync({ invoiceId: i.id }, "Xero sync finished")}>{x?.xero_invoice_id ? "Sync with Xero" : "Send to Xero (safe retry)"}</Button>}
                   {/* The Xero deposit-request button was removed 24 Oct 2026 (audit removal 4; decisions 139–144: no Xero deposit request step). */}
-                  {!i.deposit_cleared && <Button size="sm" variant="outline" onClick={async () => { const r = await reason.ask({ title: "Override Pre Insulation Electrical Safety Assessment (PIESA) payment block", description: "A reason is required and permanently audited.", placeholder: "Reason for overriding the deposit gate (required, permanently audited)", minLength: 1 }); if (r) override({ invoiceId: i.id, reason: r }, "Override recorded"); }}>Override Pre Insulation Electrical Safety Assessment (PIESA) payment block</Button>}
+                  {install && !i.deposit_cleared && <Button size="sm" variant="outline" onClick={async () => { const r = await reason.ask({ title: "Override Pre Insulation Electrical Safety Assessment (PIESA) payment block", description: "A reason is required and permanently audited.", placeholder: "Reason for overriding the deposit gate (required, permanently audited)", minLength: 1 }); if (r) override({ invoiceId: i.id, reason: r }, "Override recorded"); }}>Override Pre Insulation Electrical Safety Assessment (PIESA) payment block</Button>}
                 </div>
               )}
             </div>

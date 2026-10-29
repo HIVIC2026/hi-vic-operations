@@ -20,7 +20,10 @@ export type FixesFormFacts = { sameVisitOnPiesa: boolean; outcome: "open" | "don
 export type InstallFormFacts = { formCompleted: boolean; evidence: string[] };
 /** Decision 410 (Jo 27 Oct 2026): when someone in the office pressed Approve on the electrician's form (A3 / A4). */
 export type ElectricianFormApprovals = { assessment: string | null; rectification: string | null };
-export type TradePayoutFacts = { piesa: PiesaFormFacts | null; fixes: FixesFormFacts | null; install: InstallFormFacts | null; electricianApprovedAt?: ElectricianFormApprovals };
+/** Batch 3b (Jo 29 Oct): the owner's electrical fixes invoice — the newest accepted fixes quote's own invoice, paid in full
+ *  or not. Null = no accepted fixes quote (nothing for the owner to pay us for the fixes). */
+export type FixesInvoiceFacts = { paid: boolean };
+export type TradePayoutFacts = { piesa: PiesaFormFacts | null; fixes: FixesFormFacts | null; install: InstallFormFacts | null; electricianApprovedAt?: ElectricianFormApprovals; fixesInvoice?: FixesInvoiceFacts | null };
 
 export const PAYOUT_FORM_NOT_COMPLETE: Record<PayoutKind, string> = {
   assessment: "Mitti safety check form (A3) not marked Complete",

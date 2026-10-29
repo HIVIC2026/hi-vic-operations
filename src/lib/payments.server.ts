@@ -217,7 +217,6 @@ export async function jobPaymentView(jobId: string, now = new Date()) {
   const [installMoney, fixesMoney, repeatMoney] = await Promise.all([invoiceMoney(jobId, inv), invoiceMoney(jobId, invoices.fixes), invoiceMoney(jobId, invoices.repeat)]);
   const paid: PaidByInvoice = { install: installMoney.paidCents, fixes: fixesMoney.paidCents, repeat: repeatMoney.paidCents };
   const paidCents = totalPaidCents(paid);
-  const raw = installMoney.raw;
   const ledger = installMoney.ledger;
   const bookedAt = installBooking?.created_at ?? null;
   const installStart = installBooking?.scheduled_start ?? null;
@@ -251,8 +250,11 @@ export async function jobPaymentView(jobId: string, now = new Date()) {
     payNow: payNowBlock({ step: due.step, cardAvailable: stripeBlock === null, bank, reference: dueReference, remainingCents: due.remainingCents }),
     provisional: { decision: provisional, bookedAt, installStart, expiresAt: holdExpiresAt },
     ledger,
-    unclearPairs: reconcilePayments(raw, ledgerXeroPayments(raw)).unclear.filter((p) => !!p.xero.paymentId)
-      .map((p) => ({ pairKey: paymentPairKey(p.record, p.xero.paymentId), amountCents: p.record.amountCents, xeroPaymentId: p.xero.paymentId as string, xeroPaidAt: p.xero.paidAt })),
+    // Batch 3b: unclear card + Xero pairs on EVERY invoice of the job, each with its invoice and that invoice's reference
+    // (the office "Two separate payments" acts on that invoice).
+    unclearPairs: ([["install", inv, installMoney.raw], ["fixes", invoices.fixes, fixesMoney.raw], ["repeat", invoices.repeat, repeatMoney.raw]] as const).flatMap(([slot, row, r]) => !row ? [] :
+      reconcilePayments(r, ledgerXeroPayments(r)).unclear.filter((p) => !!p.xero.paymentId)
+        .map((p) => ({ invoiceId: row.id, invoice: slot as InvoiceSlot, reference: references[slot], pairKey: paymentPairKey(p.record, p.xero.paymentId), amountCents: p.record.amountCents, xeroPaymentId: p.xero.paymentId as string, xeroPaidAt: p.xero.paidAt }))),
   };
 }
 
