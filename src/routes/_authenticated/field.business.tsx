@@ -4,7 +4,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { TradeShell, card } from "@/components/trade/TradeShell";
-import { Chevron, FileRow, NextPanel, SectionHead, Switch, M7 } from "@/components/trade/business-kit";
+import { Chevron, FileRow, SectionHead, Switch, M7 } from "@/components/trade/business-kit";
+import { NextPanel } from "@/components/trade/installer-kit";
 import { getTradeBusiness, setTradeTaking } from "@/lib/trade-view.functions";
 import { agreementLine, detailsLine, insuranceRowSub, noticeLine, ratesLine, ROLE_LABEL, shortDate, TEAM_RULE, teamCiiLine, teamFactsLine, usualElectricianLine } from "@/lib/trade-view.core";
 import { melbourneToday } from "@/lib/melbourne-time.core";
@@ -41,7 +42,7 @@ function Business() {
         </div>
       </section>
 
-      {data.boss && <NextPanel next={data.next} />}
+      {data.boss && data.next && <NextPanel look="business" title={data.next.title} sub={data.next.sub}><Link to={data.next.to as never} className={`${M7.primary} mt-3.5`}>{data.next.button}</Link></NextPanel>}
 
       {data.boss && <section>
         <SectionHead>Team</SectionHead>
