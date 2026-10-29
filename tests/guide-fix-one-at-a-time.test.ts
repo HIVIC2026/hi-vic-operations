@@ -27,6 +27,8 @@ const J = "00000000-0000-4000-8000-0000000007a1";
 const tables: Tables = {};
 const rpcCalls: string[] = [];
 class WorkflowError extends Error {}
+const CLEAR_GATE = { installerIntakeQualified: true, currentQuoteApproved: true, payment: { cleared: true, blocker: "" }, repeatBlocker: null };
+let gateFacts: Record<string, unknown> = CLEAR_GATE;
 const db = memoryPostgrest(tables);
 mock.module("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: { from: (t: string) => db.from(t), rpc: async (name: string) => { rpcCalls.push(name); return { data: false, error: null }; } },
@@ -36,7 +38,7 @@ mock.module("../src/lib/workflow.server", () => ({
   logEvent: async (job: string, actor: string | null, type: string, summary: string, details?: unknown) => {
     tables["workflow_events"]!.push({ id: `ev-${tables["workflow_events"]!.length + 1}`, job_id: job, actor_id: actor, event_type: type, summary, details: details ?? {}, created_at: new Date().toISOString() });
   },
-  piesaRequestFacts: async () => ({ installerIntakeQualified: true, currentQuoteApproved: true, payment: { cleared: true, blocker: "" }, repeatBlocker: null }),
+  piesaRequestFacts: async () => gateFacts,
   stageEntryBlockers: async () => [],
   transition: async () => undefined,
 }));
@@ -47,6 +49,7 @@ const offer = (id: string, biz: string, status: string, offeredMinAgo: number, s
 function seed(o: { mode?: string; autoOn?: boolean; offers?: Record<string, unknown>[]; events?: Record<string, unknown>[] } = {}) {
   for (const k of Object.keys(tables)) delete tables[k];
   rpcCalls.length = 0;
+  gateFacts = CLEAR_GATE;
   Object.assign(tables, {
     jobs: [{ id: J, stage: "piesa_and_install_window_pending", channel: "hivic_sourced", source: "website", deleted_at: null, offer_dispatch_override: null, next_action: null }],
     workflow_settings: [{ id: 1, offer_dispatch_mode: o.mode ?? "automatic", auto_electrician_offers: o.autoOn ?? false }],
@@ -204,6 +207,27 @@ describe("fix wave 1 — automatic electrician offers switched off: the job goes
     expect(events("auto_offer_returned_to_office")).toHaveLength(1);
     expect(events("rec_coverage_exhausted")).toHaveLength(0);
     expect(rpcCalls).not.toContain("claim_rec_offer_batch");
+  });
+  test("re-review: an electrician already assigned (e.g. team-up auto-assign, no offer row) → no hand-back, next action kept", async () => {
+    seed();
+    job()["next_action"] = "Teamed electrician to book the PIESA";
+    tables["job_assignments"]!.push({ id: "a1", job_id: J, role: "electrician", active: true, business_id: "teamed" });
+    expect(await autoSrv.handPiesaToOfficeAutoOff(J)).toBe(false);
+    expect(events("auto_offer_returned_to_office")).toHaveLength(0);
+    expect(job()["next_action"]).toBe("Teamed electrician to book the PIESA");
+  });
+  test("re-review: the PIESA gate isn't clear (e.g. safety check not paid) → no hand-back", async () => {
+    seed();
+    gateFacts = { ...CLEAR_GATE, payment: { cleared: false, blocker: "Safety check payment not received." } };
+    expect(await autoSrv.handPiesaToOfficeAutoOff(J)).toBe(false);
+    expect(events("auto_offer_returned_to_office")).toHaveLength(0);
+    expect(job()["next_action"]).toBeNull();
+  });
+  test("re-review: job not waiting at the PIESA stage → no hand-back", async () => {
+    seed();
+    job()["stage"] = "piesa_scheduled";
+    expect(await autoSrv.handPiesaToOfficeAutoOff(J)).toBe(false);
+    expect(events("auto_offer_returned_to_office")).toHaveLength(0);
   });
   test("tick: autoStartPiesaOffers hands the job back when the automatic offers say switch_off", () => {
     const src = readFileSync("src/lib/allocation.server.ts", "utf8");

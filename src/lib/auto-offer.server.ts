@@ -12,7 +12,7 @@
 // texts/emails for qa_test jobs go through test-send only (ready-check-offer-text.server), so nothing real is sent.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { logEvent, stageEntryBlockers } from "./workflow.server";
+import { logEvent, piesaRequestFacts, stageEntryBlockers } from "./workflow.server";
 import { isTestPartner } from "./test-send.core";
 import {
   AUTO_OFFER_FLAG, AUTO_OFFER_READY_STAGES, AUTO_OFFER_RETURNED_EVENT, autoOfferBlocked, autoOfferInstallerElectrician, autoOfferPreferredElectrician, autoOfferReturnedSummary, autoOfferStageReady, autoOfferStep, autoOfferSwitchOn,
@@ -157,9 +157,19 @@ export async function autoOfferForJob(jobId: string, kind: AutoOfferKind, switch
 /** Decision 426 fix wave: "Automatic electrician offers" is OFF while the dispatch mode is Automatic, so nothing would
  *  send this job's safety check offer (no batch any more). Hand it to the office visibly — the same "returned to office"
  *  event and next action as the automatic offers' own hand-back, so Needs me shows "Choose again" — ONCE: not again
- *  while a hand-back newer than the job's latest reopen and latest PIESA offer exists. Never offers anything.
+ *  while a hand-back newer than the job's latest reopen and latest PIESA offer exists. Never offers anything, and never
+ *  for a job with an electrician assigned, its PIESA request gate not clear, or not at the PIESA stage.
  *  Callers check the dispatch mode (not office picks). Returns true when it wrote the hand-back. */
 export async function handPiesaToOfficeAutoOff(jobId: string, actorId: string | null = null): Promise<boolean> {
+  // Only a job genuinely waiting for an electrician: at the PIESA stage, nobody assigned (team-up auto-assign puts an
+  // electrician on with no offer row) and its PIESA request gate clear — otherwise there is nothing for the office to choose.
+  const [{ data: j }, { count: elec }] = await Promise.all([
+    admin.from("jobs").select("stage").eq("id", jobId).maybeSingle(),
+    admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("active", true),
+  ]);
+  if (j?.stage !== "piesa_and_install_window_pending" || (elec ?? 0) > 0) return false;
+  const { piesaRequestBlockers } = await import("./payment-gate.core");
+  if (piesaRequestBlockers(await piesaRequestFacts(jobId)).length) return false;
   const [reopenAt, { data: last }] = await Promise.all([
     (await import("./repeat-piesa.server")).latestReopenAt(jobId),
     admin.from("partner_offers").select("offered_at").eq("job_id", jobId).eq("kind", "piesa").order("offered_at", { ascending: false }).limit(1).maybeSingle(),
