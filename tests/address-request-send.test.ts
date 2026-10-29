@@ -213,8 +213,37 @@ describe("address request: one request, one reminder", () => {
     expect(await at("2026-10-28T01:15:00.000Z")).toEqual({ sent: 1, reminded: 0 });
   });
 
-  test("not asked: has a street, feature off, before go-live, installer job, already answered", async () => {
-    for (const s of [{ address: "12 Wattle St Brighton VIC 3186" }, { goLive: null }, { createdAt: "2026-10-01T00:00:00Z" }, { source: "portal" }]) {
+  test("older job created before go-live (Jo 30 Oct) → asked once, like a new one", async () => {
+    seed({ createdAt: "2026-09-01T00:00:00Z" });
+    expect(await at("2026-10-28T01:00:00.000Z")).toEqual({ sent: 1, reminded: 0 });
+    expect(emails.map((e) => e.key)).toEqual(["address-request:v1:j1"]);
+    expect(await at("2026-10-28T01:15:00.000Z")).toEqual({ sent: 0, reminded: 0 });
+  });
+
+  test("cancelled, deleted or archived job → never asked", async () => {
+    for (const patch of [{ stage: "cancelled" }, { deleted_at: "2026-10-27T00:00:00Z" }, { qa_archived_at: "2026-10-27T00:00:00Z" }]) {
+      seed({ createdAt: "2026-09-01T00:00:00Z" });
+      Object.assign(tables["jobs"]![0]!, patch);
+      expect(await at("2026-10-28T01:00:00.000Z")).toEqual({ sent: 0, reminded: 0 });
+      expect(emails.length + texts.length + senderCalls.length).toBe(0);
+      expect(tables["workflow_events"]).toEqual([]);
+    }
+  });
+
+  test("7 open jobs → 5 asked this tick, the other 2 next tick, then nothing (never twice)", async () => {
+    const base = tables["jobs"]![0]!;
+    tables["jobs"] = Array.from({ length: 7 }, (_, n) => ({ ...base, id: `j${n + 1}`, created_at: `2026-09-0${n + 1}T00:00:00Z` }));
+    expect(await at("2026-10-28T01:00:00.000Z")).toEqual({ sent: 5, reminded: 0 });
+    expect(emails.map((e) => e.key)).toEqual(["j1", "j2", "j3", "j4", "j5"].map((j) => `address-request:v1:${j}`));
+    expect(await at("2026-10-28T01:15:00.000Z")).toEqual({ sent: 2, reminded: 0 });
+    expect(emails.map((e) => e.key).slice(5)).toEqual(["address-request:v1:j6", "address-request:v1:j7"]);
+    expect(await at("2026-10-28T01:30:00.000Z")).toEqual({ sent: 0, reminded: 0 });
+    expect(emails.length).toBe(7); expect(texts.length).toBe(7);
+    expect(events("address_request_sent").map((e) => e["job_id"]).sort()).toEqual(["j1", "j2", "j3", "j4", "j5", "j6", "j7"]);
+  });
+
+  test("not asked: has a street, feature off, installer job, already answered", async () => {
+    for (const s of [{ address: "12 Wattle St Brighton VIC 3186" }, { goLive: null }, { source: "portal" }]) {
       seed(s);
       expect(await at("2026-10-28T01:00:00.000Z")).toEqual({ sent: 0, reminded: 0 });
       expect(emails.length + texts.length).toBe(0);
