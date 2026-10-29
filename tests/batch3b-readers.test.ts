@@ -36,7 +36,7 @@ const pay = await import("../src/lib/payments.server");
 const { assignmentPaymentFacts } = await import("../src/lib/assignment.server");
 const { installerPayHeldReasonsFor } = await import("../src/lib/installer-pay-timing.server");
 const { payoutGateFacts } = await import("../src/lib/trade-payout-gate.server");
-const { electricianPayTiming, ELECTRICIAN_FIXES_INVOICE_UNPAID } = await import("../src/lib/electrician-pay.core");
+const { electricianPayTiming } = await import("../src/lib/electrician-pay.core");
 const { moneyInvoices } = await import("../src/lib/office-money.server");
 const { jobPaymentStalls, paymentStallLine } = await import("../src/lib/payment-stall.core");
 const { buildNeedsRows } = await import("../src/lib/office-needs.core");
@@ -137,6 +137,19 @@ describe("Needs me: one unpaid row per invoice", () => {
     const rows = buildNeedsRows({ now: NOW, jobs: [{ jobId: J, jobNumber: "HV-0505", surname: "Smith", suburb: null, finalCheck: { at: "2026-10-26T00:00:00.000Z", flags: 0 }, paymentStalls: jobPaymentStalls({ ...base, invoices: invs(0, 0) }) }] });
     expect([...rows.today, ...rows.week, ...rows.watch].map((r) => r.kind)).toEqual(["final_check"]);
   });
+  test("a fixes / repeat invoice row (failed, old fixes invoice) never hides the install unpaid row, and vice versa", () => {
+    const install = jobPaymentStalls({ ...base, fixesQuote: null, invoices: invs(0, 0) });
+    const one = (extra: Record<string, unknown>) => { const r = buildNeedsRows({ now: NOW, jobs: [{ jobId: J, jobNumber: "HV-0505", surname: "Smith", suburb: null, ...extra }] }); return [...r.today, ...r.week, ...r.watch].map((x) => x.kind); };
+    expect(one({ invoiceFailed: { at: "2026-10-28T00:00:00.000Z", text: "x", kind: "rectification" }, paymentStalls: install })).toEqual(["invoice_failed", "payment_stalled"]);
+    expect(one({ invoiceFailed: { at: "2026-10-28T00:00:00.000Z", text: "x", kind: "repeat_safety_check" }, paymentStalls: install })).toEqual(["invoice_failed", "payment_stalled"]);
+    expect(one({ oldFixesInvoiceUnpaid: { at: "2026-10-28T00:00:00.000Z" }, paymentStalls: install })).toEqual(["old_fixes_invoice_unpaid", "payment_stalled"]);
+    // vice versa: the install invoice's rows keep a fixes unpaid row visible
+    const fixes = jobPaymentStalls({ ...base, invoices: invs(349, 0) });
+    expect(one({ invoiceFailed: { at: "2026-10-28T00:00:00.000Z", text: "x", kind: "installation" }, paymentStalls: fixes })).toEqual(["invoice_failed", "payment_stalled"]);
+    expect(one({ paymentNotInXero: { at: "2026-10-28T00:00:00.000Z", text: "Deposit $365" }, paymentStalls: fixes })).toEqual(["payment_not_in_xero", "payment_stalled"]);
+    // the same invoice: still one row
+    expect(one({ invoiceFailed: { at: "2026-10-28T00:00:00.000Z", text: "x", kind: "installation" }, paymentStalls: install })).toEqual(["invoice_failed"]);
+  });
   test("office labels: Install / Electrical fixes / Safety check N from the reference", () => {
     expect(invoiceSlotLabel("install", null)).toBe("Install");
     expect(invoiceSlotLabel("fixes", "Home Insulation Victoria HV-0505 fixes")).toBe("Electrical fixes");
@@ -158,27 +171,13 @@ describe("installer pay waits for the INSTALL invoice only", () => {
   });
 });
 
-describe("electrician fixes pay waits for the FIXES invoice", () => {
-  const gateWith = (fixesInvoice: { paid: boolean } | null) => ({
-    piesa: null, install: null, fixes: { sameVisitOnPiesa: false, outcome: "done" as const, detail: null, completedAt: "2026-10-26T00:00:00.000Z" },
-    electricianApprovedAt: { assessment: null, rectification: "2026-10-27T00:00:00.000Z" }, fixesInvoice,
-  });
-  test("fixes invoice unpaid → held with the plain reason, no due date", () => {
-    const t = electricianPayTiming("rectification", gateWith({ paid: false }) as never);
-    expect(t.waiting).toEqual([ELECTRICIAN_FIXES_INVOICE_UNPAID]);
-    expect(t.dueAt).toBeNull();
-  });
-  test("fixes invoice paid → due 7 days after the office's approval; the safety check payout never waits for it", () => {
-    const t = electricianPayTiming("rectification", gateWith({ paid: true }) as never);
+describe("electrician fixes pay never waits for the owner's fixes invoice (decision 410)", () => {
+  test("fixes invoice unpaid → still due 7 days after the office's approval, nothing held", async () => {
+    seed({ installPaid: 4000, fixesPaid: 0 });
+    const gate = { ...(await payoutGateFacts([J])).get(J)!, fixes: { sameVisitOnPiesa: false, outcome: "done" as const, detail: null, completedAt: "2026-10-26T00:00:00.000Z" }, electricianApprovedAt: { assessment: null, rectification: "2026-10-27T00:00:00.000Z" } };
+    const t = electricianPayTiming("rectification", gate);
     expect(t.waiting).toEqual([]);
     expect(t.dueAt).toBe("2026-11-03T00:00:00.000Z");
-    expect(electricianPayTiming("assessment", { ...gateWith({ paid: false }), piesa: { mittiForm: true, completed: true, evidence: [], completedAt: "2026-10-21T00:00:00.000Z" }, electricianApprovedAt: { assessment: "2026-10-22T00:00:00.000Z", rectification: null } } as never).waiting).toEqual([]);
-  });
-  test("the gate facts read the newest accepted fixes quote's own invoice (install money never counts)", async () => {
-    seed({ installPaid: 4000, fixesPaid: 0 });
-    expect((await payoutGateFacts([J])).get(J)!.fixesInvoice).toEqual({ paid: false });
-    tables["invoices"]!.find((i) => i["id"] === INVF)!["total_paid"] = 550;
-    expect((await payoutGateFacts([J])).get(J)!.fixesInvoice).toEqual({ paid: true });
   });
 });
 
@@ -215,5 +214,12 @@ describe("office: each invoice listed on its own, with its reference", () => {
       { id: INVR, label: "Safety check 2", number: "INV-REP", reference: "Home Insulation Victoria HV-0505 safety check 2", total: 22_000, paid: 0 },
     ]);
     expect(r.owedCents).toBe(400_000 - 34_900 + 22_000);
+  });
+  test("a job with a fixes invoice but no installation invoice (fixes accepted first) is still listed", async () => {
+    seed();
+    tables["invoices"] = tables["invoices"]!.filter((i) => i["kind"] === "rectification");
+    const r = await moneyInvoices(new Date("2026-10-29T00:00:00Z"));
+    expect(r.rows.filter((x) => x.jobId === J).map((x) => [x.invoiceId, x.label, x.invoiceNumber, x.reference, x.totalCents, x.paidCents, x.state])).toEqual([[INVF, "Electrical fixes", "INV-FIX", "Home Insulation Victoria HV-0505 fixes", 55_000, 0, "On track"]]);
+    expect(r.openCount).toBe(1);
   });
 });

@@ -236,17 +236,19 @@ export async function moneyInvoices(now = new Date()) {
   const all = (inv ?? []) as Inv[];
   const jobs = await liveJobs([...new Set(all.map((i) => i.job_id))]);
   const live = all.filter((i) => jobs.has(i.job_id) && jobs.get(i.job_id)!.stage !== "cancelled");
-  // The newest invoice of each kind per job (newest first already); a job is listed when it has an installation invoice.
+  // The newest invoice of each kind per job (newest first already). One entry per job: its installation invoice, else
+  // (fixes accepted before any installation quote) its newest fixes / repeat invoice — such a job is listed too.
   const newest = new Map<string, Inv>();
   for (const i of live) if (!newest.has(`${i.job_id}:${i.kind}`)) newest.set(`${i.job_id}:${i.kind}`, i);
-  const latest = [...newest.values()].filter((i) => i.kind === "installation");
+  const kinds = ["installation", "rectification", "repeat_safety_check"] as const;
+  const latest = [...new Set(live.map((i) => i.job_id))].map((id) => kinds.map((k) => newest.get(`${id}:${k}`)).find((x): x is Inv => !!x)!);
   const unpaid = (i: Inv | undefined) => !!i && Number(i.total_paid ?? 0) < Number(i.total_inc_gst ?? 0);
   const jobOpen = (jobId: string) => ["installation", "rectification", "repeat_safety_check"].some((k) => unpaid(newest.get(`${jobId}:${k}`)));
   const open = latest.filter((i) => jobOpen(i.job_id)).slice(0, 80);
   const paid = latest.filter((i) => !jobOpen(i.job_id)).slice(0, 20);
   const { jobPaymentView } = await import("./payments.server");
   const { stepInvoiceKind } = await import("./payments.core");
-  const { invoiceSlotLabel } = await import("./office-money.core");
+  const { invoiceSlotLabel, invoiceSlotOf } = await import("./office-money.core");
   const rows = [];
   for (const part of chunks([...open, ...paid], 8)) {
     rows.push(...(await Promise.all(part.map(async (i) => {
@@ -254,8 +256,16 @@ export async function moneyInvoices(now = new Date()) {
       const v = await jobPaymentView(i.job_id, now).catch(() => null);
       const job = { jobId: i.job_id, jobNumber: j.job_number, owner: j.owners?.full_name ?? null, stage: stageWord(j) };
       if (!v) {
-        const st = invoiceRowState([], now.toISOString());
-        return [{ ...job, invoiceId: i.id, invoiceNumber: i.xero_invoice_number, label: invoiceSlotLabel("install", i.xero_reference), reference: i.xero_reference, totalCents: Math.round(Number(i.total_inc_gst ?? 0) * 100), paidCents: Math.round(Number(i.total_paid ?? 0) * 100), steps: "Not in Xero yet", state: st.label, tone: st.tone, chase: st.chase }];
+        // No payment view (no installation invoice yet, or it could not be read): each of the job's invoices from the
+        // Xero mirror, so a fixes / repeat invoice is never missing from the list.
+        return kinds.flatMap((k) => {
+          const r = newest.get(`${i.job_id}:${k}`);
+          if (!r) return [];
+          const slot = invoiceSlotOf(k);
+          const totalCents = Math.round(Number(r.total_inc_gst ?? 0) * 100), paidCents = Math.round(Number(r.total_paid ?? 0) * 100);
+          const st = k === "installation" ? invoiceRowState([], now.toISOString()) : paidCents >= totalCents ? { label: "Paid in full", tone: "green" as const, chase: false } : { label: "On track", tone: "plain" as const, chase: false };
+          return [{ ...job, invoiceId: r.id, invoiceNumber: r.xero_invoice_number, label: invoiceSlotLabel(slot, r.xero_reference), reference: r.xero_reference, totalCents, paidCents, steps: k === "installation" ? "Not in Xero yet" : "—", state: st.label, tone: st.tone, chase: st.chase }];
+        });
       }
       return (["install", "fixes", "repeat"] as const).flatMap((slot) => {
         const r = v.invoices[slot];

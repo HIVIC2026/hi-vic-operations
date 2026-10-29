@@ -76,7 +76,7 @@ describe("wiring", () => {
   test("trade Money, office Payouts, the trade status line and Mark paid all use the decision-410 rule", () => {
     expect(readFileSync("src/lib/trade-view.server.ts", "utf8")).toContain("electricianPayState({ paidAt: pe?.created_at ?? null, approvedAt: et.approvedAt })");
     expect(readFileSync("src/lib/office-money.server.ts", "utf8")).toContain("electricianPayTiming(l.kind, vf)");
-    expect(readFileSync("src/lib/job-status.server.ts", "utf8")).toContain("electricianPayState({ paidAt: paidOut, approvedAt: t.dueAt ? t.approvedAt : null })") // batch 3b: fixes pay waits for the fixes invoice;
+    expect(readFileSync("src/lib/job-status.server.ts", "utf8")).toContain("electricianPayState({ paidAt: paidOut, approvedAt: t.approvedAt })");
     expect(readFileSync("src/lib/office.functions.ts", "utf8")).toContain("electricianPayTiming(data.kind, (await payoutGateFacts([data.jobId])).get(data.jobId)).waiting");
     for (const f of ["src/lib/trade-view.server.ts", "src/lib/office-money.server.ts", "src/lib/job-status.server.ts", "src/lib/office.functions.ts"])
       expect(readFileSync(f, "utf8")).not.toContain("ownerElectricalStepsPaidAt");

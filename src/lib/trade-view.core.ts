@@ -119,8 +119,7 @@ export function installerPayHeldReasons(f: { installerSupplied: boolean; apAppro
 
 /** Decision 410 (Jo 27 Oct 2026, replaces 355 for electricians): electricians are paid for the safety check (A3) and the
  *  fixes (A4) within 7 days of someone in the office pressing Approve on their completed Mitti form (Approve is offered
- *  once the decision-318 gate passes). The safety check pay does NOT wait for the owner to pay; the fixes pay also waits for
- *  the owner's fixes invoice (batch 3b, Jo 29 Oct 2026 — `electrician-pay.core`). Installer pay is unchanged (`payState`). */
+ *  once the decision-318 gate passes). It does NOT wait for the owner to pay. Installer pay is unchanged (`payState`). */
 export type ElectricianPayKind = "assessment" | "rectification";
 /** Electrician Money page "How pay works" line (decision 410, Jo 27 Oct 2026). */
 export const ELECTRICIAN_PAY_RULE_LINE = "Paid within 7 days of us approving your completed Mitti form";

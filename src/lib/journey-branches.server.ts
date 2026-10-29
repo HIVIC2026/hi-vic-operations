@@ -1306,7 +1306,7 @@ async function m23ElectricianPayout(rec: Recorder, jobs: BranchResult["jobs"], s
     // and the due date must not move (pay never waits for the owner).
     const pay = await import("./payments.server");
     const v = await pay.jobPaymentView(ctx.jobId!);
-    const fixesInvoice = v?.invoiceId ?? null; // one Xero invoice per job — the fixes payment sits on it
+    const fixesInvoice = v?.invoices.fixes?.id ?? null; // batch 3b: the fixes payment sits on the fixes invoice
     let rev = "no fixes invoice to reverse";
     if (fixesInvoice) { try { await (await import("./xero.server")).reverseDemoTestPayment(fixesInvoice, ctx.actorId); rev = "reversed — owner no longer paid"; } catch (e) { rev = `could not reverse: ${(e as Error).message.slice(0, 160)}`; } }
     const afterRev = ep.electricianPayTiming("rectification", (await payoutGateFacts([ctx.jobId!])).get(ctx.jobId!));

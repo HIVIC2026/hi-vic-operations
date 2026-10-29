@@ -6,7 +6,7 @@
 import { FIXES_TIMES_MISSING_LINE } from "./fixes-times.core";
 import { LAPSED_NEEDS_LINE } from "./spot-release.core";
 import { paymentStallLine, type InvoicePaymentStall } from "./payment-stall.core";
-import { invoiceSlotLabel } from "./office-money.core";
+import { invoiceSlotLabel, invoiceSlotOf } from "./office-money.core";
 import type { InvoiceSlot } from "./payments.core";
 import { QUOTE_EXPIRED_HELD_REASON } from "./quote-expiry.core";
 
@@ -174,7 +174,7 @@ export function prestartFailedLine(reasons: readonly string[]): string {
   return `Pre-start check failed${first ? ` · ${first.slice(0, 140)}` : ""}${reasons.length > 1 ? ` (+${reasons.length - 1} more)` : ""}`;
 }
 
-/** `slot` (batch 3b): a payment row about one of the job's invoices — each invoice keeps its own row (buildNeedsRows). */
+/** `slot` (batch 3b): a row about one of the job's invoices (install / fixes / repeat) — each invoice keeps its own row (buildNeedsRows). */
 type Candidate = Omit<NeedsRow, "key" | "jobId" | "jobNumber" | "surname" | "suburb" | "isTest"> & { rank: number; slot?: InvoiceSlot };
 
 /** Every candidate row for one job, most urgent first (rank). The caller keeps the first. */
@@ -184,8 +184,8 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   if (f.quoteExpiredBlocked) add({ rank: 9, group: "today", kind: "quote_expired_blocked", line: f.quoteExpiredBlocked.reason === QUOTE_EXPIRED_HELD_REASON ? QUOTE_EXPIRED_HELD_REASON : `Quote expired — owner can't be emailed (${f.quoteExpiredBlocked.reason})`, since: f.quoteExpiredBlocked.at, button: { label: "Open job", to: "job" } });
   if (f.newQuoteOffice) add({ rank: 9, group: "today", kind: f.newQuoteOffice.kind, line: f.newQuoteOffice.line, since: f.newQuoteOffice.at, button: { label: "Open job", to: "job", section: "ready-check" } });
   if (f.stopReleaseFailed) add({ rank: 9, group: "today", kind: "stop_release_failed", line: STOP_RELEASE_FAILED_LINE, since: f.stopReleaseFailed.at, button: { label: "Open job", to: "job" } });
-  if (f.invoiceFailed) add({ rank: 9, group: "today", kind: "invoice_failed", line: invoiceFailedLine(f.invoiceFailed.kind), since: f.invoiceFailed.at, button: { label: "Open job", to: "job", section: "money" } });
-  if (f.oldFixesInvoiceUnpaid) add({ rank: 39, group: "today", kind: "old_fixes_invoice_unpaid", line: OLD_FIXES_INVOICE_LINE, since: f.oldFixesInvoiceUnpaid.at, button: { label: "Open job", to: "job", section: "money" } });
+  if (f.invoiceFailed) add({ rank: 9, group: "today", kind: "invoice_failed", line: invoiceFailedLine(f.invoiceFailed.kind), since: f.invoiceFailed.at, button: { label: "Open job", to: "job", section: "money" }, slot: invoiceSlotOf(f.invoiceFailed.kind) });
+  if (f.oldFixesInvoiceUnpaid) add({ rank: 39, group: "today", kind: "old_fixes_invoice_unpaid", line: OLD_FIXES_INVOICE_LINE, since: f.oldFixesInvoiceUnpaid.at, button: { label: "Open job", to: "job", section: "money" }, slot: "fixes" });
   if (f.sendFailed) add({ rank: 10, group: "today", kind: "send_failed", line: `Send failed · ${f.sendFailed.text}`, since: f.sendFailed.at, button: { label: "Open job", to: "job", section: "contact" } });
   // Review R04: an owner email with no clear answer from the email service — never resent automatically.
   if (f.sendUnknown) add({ rank: 11, group: "today", kind: "send_failed", line: f.sendUnknown.text, since: f.sendUnknown.at, button: { label: "Open job", to: "job", section: "contact" } });
@@ -231,7 +231,7 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   if (f.secondNoAccess) add({ rank: 210, group: "watch", kind: "second_no_access", line: `Couldn’t get in · second time${f.secondNoAccess.reason ? ` · ${f.secondNoAccess.reason}` : ""}`, since: f.secondNoAccess.at, button: { label: "Open job", to: "job", section: "install" } });
   if (f.tenDaysLeft) add({ rank: 220, group: "watch", kind: "ten_days_left", line: `10 days left on the 30-day clock${f.tenDaysLeft.deadline ? ` · last day ${fmtDay(f.tenDaysLeft.deadline)}` : ""}`, since: f.tenDaysLeft.at, button: { label: "Open job", to: "job", section: "install" } });
   if (f.veecDay10) add({ rank: 230, group: "watch", kind: "veec_day_10", line: "VEEC form unsigned · day 10", since: f.veecDay10.at, button: { label: "Open job", to: "job", section: "final-check" } });
-  if (f.paymentNotInXero) add({ rank: 240, group: "watch", kind: "payment_not_in_xero", line: `${f.paymentNotInXero.text} · not in Xero yet`, since: f.paymentNotInXero.at, button: { label: "Open job", to: "job", section: "money" } });
+  if (f.paymentNotInXero) add({ rank: 240, group: "watch", kind: "payment_not_in_xero", line: `${f.paymentNotInXero.text} · not in Xero yet`, since: f.paymentNotInXero.at, button: { label: "Open job", to: "job", section: "money" }, slot: "install" });
   // Jo 28 Oct 2026 ("Alert after 3 days unpaid"): a row naming the payment the owner owes and since when — one per invoice.
   for (const p of f.paymentStalls ?? []) add({ rank: 242, group: "watch", kind: "payment_stalled", line: paymentStallLine(p), since: p.since, button: { label: "Open job", to: "job", section: "money" }, slot: p.invoice });
   for (const p of f.paymentsOverdue ?? []) add({ rank: 245, group: "watch", kind: "payment_overdue", line: `Payment overdue · chase · ${invoiceSlotLabel(p.invoice, p.reference)}${p.reference ? ` ${p.reference}` : ""} · ${p.text}`, since: p.at, button: { label: "Open job", to: "job", section: "money" }, slot: p.invoice });
@@ -262,8 +262,8 @@ export function emailRow(e: EmailRowInput): NeedsRow {
 const GROUP_ORDER: Record<NeedsGroup, number> = { today: 0, week: 1, watch: 2 };
 
 /** One row per job (its most urgent action), email rows on top of Today, oldest first inside a group. Batch 3b: when that
- *  row is an unpaid-invoice row, each OTHER invoice of the job that is unpaid keeps its own row too (install, fixes,
- *  repeat safety check) — one unpaid invoice never hides another. */
+ *  row is about one of the job's invoices (unpaid / overdue / not in Xero / failed / old fixes invoice), each OTHER invoice
+ *  keeps its own top row too (install, fixes, repeat safety check) — one invoice's row never hides another's. */
 export function buildNeedsRows(i: { now: number; jobs: NeedsFacts[]; emails?: EmailRowInput[] }): Record<NeedsGroup, NeedsRow[]> {
   const rows: (NeedsRow & { rank: number })[] = [];
   for (const f of i.jobs) {

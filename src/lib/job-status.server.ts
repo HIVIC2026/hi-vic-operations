@@ -75,8 +75,7 @@ export async function statusFactsFor(c: Ctx, jobIds: string[]): Promise<Map<stri
       payout: !workDone ? null : elecPay ? (() => {
         const kind = bs.some((b) => b.mine && b.kind === "rectification" && b.status === "completed") ? "rectification" as const : "assessment" as const;
         const t = elecPay[1].electricianPayTiming(kind, elecPay[0].get(j.id));
-        // Batch 3b: a fixes payout waiting on the owner's fixes invoice has no due date yet (t.dueAt null).
-        return electricianPayState({ paidAt: paidOut, approvedAt: t.dueAt ? t.approvedAt : null });
+        return electricianPayState({ paidAt: paidOut, approvedAt: t.approvedAt });
       })() : payState({ paidAt: paidOut, apApprovedAt: apAt, installerSupplied: supplied, ownerPaidInFullAt: full }),
       settings,
     });
