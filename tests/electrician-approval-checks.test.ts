@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { activationBlockers } from "../src/lib/partner-activation.core";
+import { activationBlockers, electricianLicenceBlockers, mandatoryActivationBlockers } from "../src/lib/partner-activation.core";
+import { readFileSync } from "node:fs";
 import { REC_AGREEMENT_VERSION, type RecData } from "../src/lib/rec-onboarding.core";
 
 // Jo 27 Oct 2026 (decision 415): approving an electrician stops on a missing/expired licence, no REC number, cover
@@ -10,10 +11,20 @@ const stop = (d: Partial<RecData>) => activationBlockers("rec", { ...good(), ...
 
 describe("Electrician approval checks (decision 415)", () => {
   test("a complete electrician passes", () => { expect(stop({})).toEqual([]); });
-  test("licence missing or expired", () => {
-    expect(stop({ licence_number: "" })).toEqual(["Electrical licence is missing."]);
-    expect(stop({ licence_expiry: "2026-10-01" })).toEqual(["Electrical licence is expired or has no expiry date."]);
-    expect(stop({ licence_expiry: undefined })).toEqual(["Electrical licence is expired or has no expiry date."]);
+  // Guide fix 3 (Jo 29 Oct 2026): a missing or expired licence is a HARD block — no "approve anyway" override.
+  const hard = (d: Partial<RecData>) => mandatoryActivationBlockers("rec", { ...good(), ...d } as RecData, undefined, NOW);
+  test("licence missing or expired is a hard block, not an override", () => {
+    expect(hard({ licence_number: "" })).toEqual(["Electrical licence is missing."]);
+    expect(hard({ licence_expiry: "2026-10-01" })).toEqual(["Electrical licence is expired or has no expiry date."]);
+    expect(hard({ licence_expiry: undefined })).toEqual(["Electrical licence is expired or has no expiry date."]);
+    expect(hard({})).toEqual([]);
+    expect(electricianLicenceBlockers({ ...good(), licence_number: " " } as RecData, NOW)).toEqual(["Electrical licence is missing."]);
+    for (const d of [{ licence_number: "" }, { licence_expiry: "2026-10-01" }, { licence_expiry: undefined }]) expect(stop(d)).toEqual([]);
+  });
+  test("the approval checklist shows a licence problem as blocked (no override)", () => {
+    const src = readFileSync("src/lib/partner-activation.functions.ts", "utf8");
+    const checklist = src.slice(src.indexOf("export const getApprovalChecklist"));
+    expect(checklist).toMatch(/electricianLicenceBlockers\([^)]*\)\) items\.push\(\{ key: `licence:\$\{b\}`, kind: "fix"/);
   });
   test("REC number missing — or the host REC's number when they work under another REC", () => {
     expect(stop({ rec_registration_number: "" })).toEqual(["REC number is missing."]);
