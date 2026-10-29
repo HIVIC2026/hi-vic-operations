@@ -55,3 +55,75 @@ describe("pre-release prompt (task 2)", () => {
     expect(b).toContain(AI_RELEASE_MEANS);
   });
 });
+
+// Task 3: fix prompt and fix loop.
+import { AI_FIX_INSTRUCTIONS, AI_FIX_TRIES, AI_SIGN_OFF, NO_REPLY_NEEDED, buildAiFixInput, fixUntilClean } from "../src/lib/ai-email-reply.core";
+
+describe("buildAiFixInput / AI_FIX_INSTRUCTIONS", () => {
+  const body = `Hi Sam,\n\nYour VEEC is sorted.\n\n${AI_SIGN_OFF}`;
+  test("lists every problem and drops the sign-off from the body", () => {
+    const input = buildAiFixInput(body, ["Say “rebate” instead of scheme words.", "Take out the phone number."], false);
+    expect(input).toContain("Say “rebate” instead of scheme words.");
+    expect(input).toContain("Take out the phone number.");
+    expect(input).toContain("Your VEEC is sorted.");
+    expect(input).not.toContain(AI_SIGN_OFF);
+    expect(input).not.toContain(AI_WAIT_LINE);
+  });
+  test("pre-release adds the allowed wording", () => {
+    const input = buildAiFixInput(body, ["x"], true);
+    expect(input).toContain(AI_RELEASE_MEANS);
+    expect(input).toContain(AI_WAIT_LINE);
+  });
+  test("instructions say change only what breaks the rules", () => {
+    expect(AI_FIX_INSTRUCTIONS).toMatch(/only/i);
+    expect(AI_FIX_INSTRUCTIONS).toMatch(/word for word/i);
+    expect(AI_FIX_INSTRUCTIONS).toMatch(/greeting/i);
+    expect(AI_FIX_INSTRUCTIONS).toMatch(/sign-off/i);
+  });
+});
+
+describe("fixUntilClean", () => {
+  const bad = `Hi Sam,\n\nYour VEEC is sorted.\n\n${AI_SIGN_OFF}`;
+  test("AI_FIX_TRIES is 2", () => expect(AI_FIX_TRIES).toBe(2));
+  test("clean body: no tries, ai not called", async () => {
+    let calls = 0;
+    const clean = `Hi Sam,\n\nAll good.\n\n${AI_SIGN_OFF}`;
+    const r = await fixUntilClean(clean, false, async () => { calls++; return "x"; });
+    expect(r).toEqual({ body: clean, problems: [], tries: 0 });
+    expect(calls).toBe(0);
+  });
+  test("one fix cleans it, one sign-off", async () => {
+    const r = await fixUntilClean(bad, false, async () => "Hi Sam,\n\nYour rebate is sorted.\n\nCheers, the Home Insulation Victoria team");
+    expect(r.tries).toBe(1);
+    expect(r.problems).toEqual([]);
+    expect(r.body.split(AI_SIGN_OFF).length - 1).toBe(1);
+    expect(r.body.endsWith(AI_SIGN_OFF)).toBe(true);
+  });
+  test("always bad: two tries, problems kept, last version", async () => {
+    let calls = 0;
+    const r = await fixUntilClean("Hi Sam,\n\nSee you this week.", true, async () => { calls++; return `Hi Sam,\n\nSee you this week (v${calls}).`; });
+    expect(r.tries).toBe(2);
+    expect(calls).toBe(2);
+    expect(r.problems.length).toBeGreaterThan(0);
+    expect(r.body).toContain("(v2)");
+    expect(r.body.endsWith(AI_SIGN_OFF)).toBe(true);
+  });
+  test("ai throws: stops, tries 1, original kept", async () => {
+    let calls = 0;
+    const r = await fixUntilClean(bad, false, async () => { calls++; throw new Error("down"); });
+    expect(calls).toBe(1);
+    expect(r.tries).toBe(1);
+    expect(r.body).toBe(bad);
+    expect(r.problems.length).toBeGreaterThan(0);
+  });
+  test("empty or NO_REPLY_NEEDED counts as a try, body kept", async () => {
+    for (const out of ["", "  \n ", NO_REPLY_NEEDED]) {
+      let calls = 0;
+      const r = await fixUntilClean(bad, false, async () => { calls++; return out; });
+      expect(calls).toBe(2);
+      expect(r.tries).toBe(2);
+      expect(r.body).toBe(bad);
+      expect(r.problems.length).toBeGreaterThan(0);
+    }
+  });
+});

@@ -248,6 +248,52 @@ export function aiReplyProblems(body: string, opts: { preRelease?: boolean } = {
   return out;
 }
 
+export const AI_FIX_TRIES = 2;
+
+export const AI_FIX_INSTRUCTIONS = [
+  "You are fixing a draft email reply for Home Insulation Victoria.",
+  "The draft breaks the rules listed under PROBLEMS.",
+  "Change only the words or sentences that break those rules. Keep everything else word for word, including the greeting and any edits already made.",
+  "Do not add a sign-off. Do not add anything new.",
+  "Return only the email body, nothing else.",
+].join("\n");
+
+/** What the fix call is sent: the problems, then the draft without its sign-off. */
+export function buildAiFixInput(body: string, problems: string[], preRelease: boolean): string {
+  const trimmed = body.trim();
+  const draft = (trimmed.endsWith(AI_SIGN_OFF) ? trimmed.slice(0, -AI_SIGN_OFF.length) : trimmed).trim();
+  const parts = ["PROBLEMS:", ...problems.map((p) => `- ${p}`)];
+  if (preRelease) parts.push("", "This wording IS allowed:", AI_RELEASE_MEANS, AI_WAIT_LINE);
+  parts.push("", "DRAFT:", draft);
+  return parts.join("\n");
+}
+
+/** Rewrites a draft that breaks Jo's rules, at most AI_FIX_TRIES AI calls. `ai` is injected so this stays pure. */
+export async function fixUntilClean(
+  body: string,
+  preRelease: boolean,
+  ai: (input: string, instructions: string) => Promise<string>,
+): Promise<{ body: string; problems: string[]; tries: number }> {
+  let current = body;
+  let problems = aiReplyProblems(current, { preRelease });
+  let tries = 0;
+  while (problems.length && tries < AI_FIX_TRIES) {
+    tries++;
+    let raw: string;
+    try {
+      raw = await ai(buildAiFixInput(current, problems, preRelease), AI_FIX_INSTRUCTIONS);
+    } catch {
+      break;
+    }
+    const text = (raw ?? "").trim();
+    if (!text || text === NO_REPLY_NEEDED) continue;
+    // finishAiReply only strips a two-line sign-off; drop our exact one-line sign-off first so it is never doubled.
+    current = finishAiReply(text.endsWith(AI_SIGN_OFF) ? text.slice(0, -AI_SIGN_OFF.length) : text);
+    problems = aiReplyProblems(current, { preRelease });
+  }
+  return { body: current, problems, tries };
+}
+
 export function replySubject(theirs: string | null): string {
   const s = (theirs ?? "").trim();
   return !s ? "Re: Your insulation job" : /^re:/i.test(s) ? s : `Re: ${s}`;
