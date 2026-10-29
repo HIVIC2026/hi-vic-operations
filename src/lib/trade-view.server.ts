@@ -382,7 +382,7 @@ export async function tradeCouldntGetIn(jobId: string, reason: string, userId: s
   const { transition } = await import("./workflow.server");
   await transition(jobId, "ready_check_ready_to_schedule", userId, `Installer couldn't get in (${reason})`, { reason, business_id: c.biz.id }, { nextAction: `Installer offers the owner new Ready Check times (${reason}).` });
   await admin.from("bookings").update({ status: "cancelled" }).eq("id", bk!.id).eq("status", "confirmed");
-  await logEvent(jobId, userId, "trade_couldnt_get_in", `Needs me: installer couldn't get in (${reason}). Rebook with the owner; offer back to ${c.biz.name} first.`, { reason, visit: "ready_check", business_id: c.biz.id, reoffer_first_to: c.biz.id, needs_office: true }, { internal: true });
+  await logEvent(jobId, userId, "trade_couldnt_get_in", "Installer keeps the job and offers the owner new Ready Check times", { reason, visit: "ready_check", business_id: c.biz.id, reoffer_first_to: c.biz.id, needs_office: true }, { internal: true });
   return { ok: true, visit: "ready_check" as const };
 }
 

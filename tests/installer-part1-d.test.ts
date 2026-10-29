@@ -35,6 +35,14 @@ describe("Jo 29 Oct: Today's job says PIESA, not safety check", () => {
     expect(dayNext({ kind: "safety_check", channel: null, installFormComplete: false, rebateSigned: false }).title).toBe("Start the PIESA in Mitti");
   });
 });
+describe("Jo 29 Oct: Ready Check couldn't-get-in history note", () => {
+  test("the note says the installer keeps the job; the other fields stay", () => {
+    const srv = src("src/lib/trade-view.server.ts");
+    const cgi = srv.slice(srv.indexOf("export async function tradeCouldntGetIn"), srv.indexOf("export async function confirmHivicReadyCheckPricing"));
+    expect(cgi).toContain('await logEvent(jobId, userId, "trade_couldnt_get_in", "Installer keeps the job and offers the owner new Ready Check times", { reason, visit: "ready_check", business_id: c.biz.id, reoffer_first_to: c.biz.id, needs_office: true }, { internal: true });');
+    expect(cgi).not.toContain("offer back to");
+  });
+});
 describe("D3 fixes visit", () => {
   test("fixes visit has its own words and form", () => {
     expect(DAY_WHAT.fixes).toBe("Electrical fixes");
