@@ -5510,7 +5510,8 @@ export type Database = {
           paid_at: string | null
           part: string
           payment_option: string | null
-          quote_id: string
+          quote_id: string | null
+          repeat_key: string | null
           status: Database["public"]["Enums"]["payment_status"]
           sync_lock_at: string | null
           total_inc_gst: number
@@ -5550,7 +5551,8 @@ export type Database = {
           paid_at?: string | null
           part?: string
           payment_option?: string | null
-          quote_id: string
+          quote_id?: string | null
+          repeat_key?: string | null
           status?: Database["public"]["Enums"]["payment_status"]
           sync_lock_at?: string | null
           total_inc_gst: number
@@ -5590,7 +5592,8 @@ export type Database = {
           paid_at?: string | null
           part?: string
           payment_option?: string | null
-          quote_id?: string
+          quote_id?: string | null
+          repeat_key?: string | null
           status?: Database["public"]["Enums"]["payment_status"]
           sync_lock_at?: string | null
           total_inc_gst?: number
@@ -14284,7 +14287,8 @@ export type Database = {
         | "fully_paid"
         | "overdue"
         | "xero_sync_error"
-      quote_kind: "installation" | "rectification"
+        | "voided"
+      quote_kind: "installation" | "rectification" | "repeat_safety_check"
       quote_status:
         | "draft"
         | "issued"
@@ -14556,8 +14560,9 @@ export const Constants = {
         "fully_paid",
         "overdue",
         "xero_sync_error",
+        "voided",
       ],
-      quote_kind: ["installation", "rectification"],
+      quote_kind: ["installation", "rectification", "repeat_safety_check"],
       quote_status: [
         "draft",
         "issued",
