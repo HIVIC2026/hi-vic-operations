@@ -1,5 +1,5 @@
 -- Separate invoices (batch 3b): a job can carry a fixes invoice and repeat safety check invoices next to the install one.
--- NOT RUN on the live database. Proven on a practice database (tests/batch3b-invoices-db.test.ts). Re-runnable.
+-- APPLIED to the live database 29 Oct 2026 (Jo said yes), with NOTIFY pgrst reload. Proven first on a practice database (tests/batch3b-invoices-db.test.ts). Re-runnable.
 --  * kind gains 'repeat_safety_check'; fixes invoices keep kind 'rectification' and still point at their fixes quote.
 --  * A repeat safety check invoice has no quote: quote_id is empty and repeat_key (e.g. 'reopen:<iso>') is set.
 --  * One invoice per quote stays (invoices_quote_id_key). One repeat invoice per job and repeat_key.
