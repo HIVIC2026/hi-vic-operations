@@ -79,7 +79,8 @@ CREATE TABLE workflow_settings (id int, auto_send_mitti boolean, mitti_ready_che
 CREATE TABLE ceiling_measurements (id uuid primary key default gen_random_uuid(), job_id uuid, is_current boolean, provenance text, status text default 'draft', external_source text, accepted_by uuid);
 CREATE TABLE job_assignments (job_id uuid, user_id uuid, business_id uuid, role text, active boolean);
 CREATE TABLE businesses (id uuid, mitti_account_invited boolean, onboarding_notes text);
-CREATE TABLE workflow_events (id uuid primary key default gen_random_uuid(), job_id uuid, actor_id uuid, event_type text, summary text, details jsonb, created_at timestamptz default clock_timestamp());`);
+CREATE TABLE workflow_events (id uuid primary key default gen_random_uuid(), job_id uuid, actor_id uuid, event_type text, summary text, details jsonb, created_at timestamptz default clock_timestamp());
+CREATE TABLE bookings (id uuid primary key default gen_random_uuid(), job_id uuid, kind text, status text, created_at timestamptz);`);
 const REAL = "00000000-0000-0000-0000-0000000000b1", TESTB = "00000000-0000-0000-0000-0000000000b2", U = "00000000-0000-0000-0000-0000000000c1";
 const j = (n: number) => `00000000-0000-0000-0000-0000000000${String(n).padStart(2, "0")}`;
 await db.exec(`INSERT INTO workflow_settings VALUES (1, true, 'template_a1');
@@ -91,9 +92,13 @@ INSERT INTO jobs VALUES
  ('${j(4)}','HV-0001','hivic_sourced','base44','ready_check_ready_to_schedule','2026-10-23T03:00:00Z',null,null,null),
  ('${j(5)}','HV-3121','installer_sourced','installer_mitti','ready_check_ready_to_schedule','2026-10-23T03:12:00Z',null,null,'${TESTB}'),
  ('${j(6)}','HV-3099','installer_sourced','bulk_import','ready_check_ready_to_schedule','2026-10-23T03:00:00Z','2026-10-23T04:00:00Z',null,'${REAL}'),
- ('${j(7)}','HV-3151','installer_sourced','installer_import','preliminary_estimate_ready','2026-10-23T05:00:00Z',null,null,'${REAL}');
+ ('${j(7)}','HV-3151','installer_sourced','installer_import','preliminary_estimate_ready','2026-10-23T05:00:00Z',null,null,'${REAL}'),
+ ('${j(8)}','HV-3542','hivic_sourced','website','ready_check_scheduled','2026-08-01T00:00:00Z',null,null,null),
+ ('${j(9)}','HV-3543','hivic_sourced','website','ready_check_scheduled','2026-10-20T00:00:00Z',null,null,null);
+-- HV-3542: an HIV website lead (old enquiry) booked yesterday with no form; HV-3543 has only a cancelled booking.
+INSERT INTO bookings (job_id, kind, status, created_at) VALUES ('${j(8)}','ready_check','confirmed','2026-10-22T09:30:00Z'), ('${j(9)}','ready_check','cancelled','2026-10-22T09:30:00Z'), ('${j(4)}','assessment','confirmed','2026-10-22T09:30:00Z');
 INSERT INTO ceiling_measurements (job_id, is_current) VALUES ('${j(3)}', true);
-INSERT INTO job_assignments VALUES ('${j(1)}','${U}','${REAL}','installer',true), ('${j(2)}','${U}','${REAL}','installer',true), ('${j(3)}','${U}','${REAL}','installer',true), ('${j(5)}','${U}','${TESTB}','installer',true), ('${j(6)}','${U}','${REAL}','installer',true), ('${j(7)}','${U}','${REAL}','installer',true);
+INSERT INTO job_assignments VALUES ('${j(1)}','${U}','${REAL}','installer',true), ('${j(2)}','${U}','${REAL}','installer',true), ('${j(3)}','${U}','${REAL}','installer',true), ('${j(5)}','${U}','${TESTB}','installer',true), ('${j(6)}','${U}','${REAL}','installer',true), ('${j(7)}','${U}','${REAL}','installer',true), ('${j(8)}','${U}','${REAL}','installer',true), ('${j(9)}','${U}','${REAL}','installer',true);
 -- HV-3151 as it was live on 23 Oct: the website checks parked it at "estimate sent" and the tick's attempt was refused by the stage guard 10 minutes ago.
 INSERT INTO workflow_events (job_id, event_type, summary, details, created_at) VALUES ('${j(7)}', 'mitti_autoform_failed', 'Mitti Ready Check form could not be created automatically', '{"needs_office": true, "reason": "Mitti assessments can only be created once the job is waiting on or has booked its PIESA."}', '2026-10-23T08:50:00Z');`);
 
@@ -127,19 +132,21 @@ describe("sweepReadyCheckForms", () => {
     expect([r.results, r.wouldCreate, calls.length]).toEqual([[], [], 0]);
   });
 
-  test("dry run lists exactly the installer jobs that still need a form", async () => {
+  test("dry run lists exactly the installer jobs and booked HIV leads that still need a form", async () => {
     const r = await sweepReadyCheckForms({ now, dryRun: true, enabled: true });
-    expect(r.wouldCreate.sort()).toEqual(["HV-3121", "HV-3136", "HV-3137", "HV-3151"]); // HV-3151: stage refusal 10 min ago is no reason to wait a day
+    // HV-3542: booked HIV lead found; HV-3543 (cancelled booking) and HV-0001 (not booked) left out.
+    expect(r.wouldCreate.sort()).toEqual(["HV-3121", "HV-3136", "HV-3137", "HV-3151", "HV-3542"]); // HV-3151: stage refusal 10 min ago is no reason to wait a day
     expect(calls).toHaveLength(0);
   });
 
   test("creates forms through the guarded create path; TEST partner jobs go only to the TEST Mitti account; failures flag the office once", async () => {
     const r = await sweepReadyCheckForms({ now, enabled: true });
-    expect(Object.fromEntries(r.results.map((x) => [x.jobNumber, x.outcome]))).toEqual({ "HV-3121": "created", "HV-3136": "created", "HV-3137": "failed", "HV-3151": "created" });
+    expect(Object.fromEntries(r.results.map((x) => [x.jobNumber, x.outcome]))).toEqual({ "HV-3121": "created", "HV-3136": "created", "HV-3137": "failed", "HV-3151": "created", "HV-3542": "created" });
     expect(calls.every((c) => c.opts.readyCheck === true)).toBe(true);
     expect(calls.find((c) => c.jobId === j(5))!.opts.assignee!.email).toBe("jo@actpropertyinspections.com.au");
     expect(calls.find((c) => c.jobId === j(1))!.opts.assignee).toBeUndefined();
-    expect(holds.sort()).toEqual([j(1), j(5), j(7)].sort()); // made forms wait on the installer (HV-3151 leaves "estimate sent"); the failed one is untouched
+    expect(calls.find((c) => c.jobId === j(8))!.opts.assignee).toBeUndefined(); // a real HIV lead goes to the real installer
+    expect(holds.sort()).toEqual([j(1), j(5), j(7), j(8)].sort()); // made forms wait on the installer (HV-3151 leaves "estimate sent"); the failed one is untouched
     const { rows } = await db.query<{ n: number; needs: boolean; kind: string }>("select count(*)::int n, bool_and((details->>'needs_office')::boolean) needs, min(details->>'kind') kind from workflow_events where event_type = 'mitti_autoform_failed' and job_id = $1", [j(2)]);
     expect(rows[0]).toEqual({ n: 1, needs: true, kind: "mitti" }); // a Mitti error: backs off for a day
   });
