@@ -95,8 +95,8 @@ export const SPOT_SAVED_PROGRESS = [
 export const spotReleasedForPage = (events: readonly SpotReleaseEventRow[]) => ["pending", "confirmed"].includes(spotReleaseState(events).state);
 export function spotSavedLayout(released: boolean) {
   return released
-    ? { stepLabel: "Step 2 of 6", showWaitingBox: false, doneSub: null, currentIndex: 2 }
-    : { stepLabel: "Step 1 of 6", showWaitingBox: true, doneSub: "Nothing else to do until your spot is released.", currentIndex: 1 };
+    ? { stepLabel: "Step 2 of 6", showWaitingBox: false, doneSub: null, currentIndex: 2, showReleasedSub: false }
+    : { stepLabel: "Step 1 of 6", showWaitingBox: true, doneSub: "Nothing else to do until your spot is released.", currentIndex: 1, showReleasedSub: true };
 }
 export function isSpotSavedStage(stage: string, spot: { spot_saved_at: string | null; opted_out_at: string | null } | null, readyCheckBooked: boolean) {
   return !!spot?.spot_saved_at && !spot.opted_out_at && !readyCheckBooked && (SPOT_SAVED_STAGES as readonly string[]).includes(stage);

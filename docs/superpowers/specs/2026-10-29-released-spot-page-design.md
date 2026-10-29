@@ -11,6 +11,7 @@ Once the job has a `spot_released` event, the spot-saved page (`SpotSavedHome`) 
 2. Paperwork-done card: drop the line "Nothing else to do until your spot is released."
 3. Progress list: "Spot released" gets a tick; "Your quote" becomes the current step.
 4. Top line: "Step 2 of 6" instead of "Step 1 of 6".
+5. Under the ticked "Spot released", hide its sub line ("…We'll be in touch when your spot is released.") — Jo, 29 Oct.
 
 Unchanged: the headline, the "Choose your Ready Check time" box, numbers, everything after a time is booked.
 

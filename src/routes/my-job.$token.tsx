@@ -963,7 +963,7 @@ function SpotSavedHome({ v, token }: { v: View; token: string }) {
       <ol className="mt-3 space-y-3">{SPOT_SAVED_PROGRESS.map((p, i) => (
         <li key={p.label} className="flex items-start gap-3 text-sm">
           {i < L.currentIndex ? <Check className="mt-0.5 h-4 w-4 text-estimate-green" /> : <span className={`mt-1.5 h-2.5 w-2.5 rounded-full ${i === L.currentIndex ? "bg-estimate-blue" : "bg-estimate-line"}`} />}
-          <span><span className={`block font-semibold ${i < L.currentIndex ? "text-estimate-green" : i === L.currentIndex ? "text-estimate-blue" : ""}`}>{p.label}</span><span className="text-estimate-navy/70">{p.sub}</span></span>
+          <span><span className={`block font-semibold ${i < L.currentIndex ? "text-estimate-green" : i === L.currentIndex ? "text-estimate-blue" : ""}`}>{p.label}</span>{!(i === 1 && !L.showReleasedSub) && <span className="text-estimate-navy/70">{p.sub}</span>}</span>
         </li>))}</ol>
     </section>
     <section className="rounded-[22px] bg-card p-5 shadow-sm">
