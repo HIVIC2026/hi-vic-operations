@@ -7,6 +7,7 @@ import { WorkflowError, logEvent, stageEntryBlockers, transition, getStage } fro
 import { STAGE_LABEL } from "./workflow";
 import { piesaDateBlockers } from "./piesa-date.core";
 import { autoAdvanceJob } from "./autoadvance.server";
+import { piesaCompletionKind } from "./repeat-piesa-form.core";
 
 export type CompletePiesaInput = { jobId: string; rectHours?: number | undefined; rectWindows?: { date: string; slot: "8-10" | "10-12" | "12-14" | "14-16" }[] | undefined };
 
@@ -74,8 +75,10 @@ export async function completePiesaAssessment(data: CompletePiesaInput, userId: 
   }
   const now = new Date().toISOString();
   await admin.from("assessments").update({ status: "complete", completed_at: now, assessor_id: a.assessor_id ?? userId, mitti_sync_status: a.external_mitti_id ? "synced" : "not_synced" }).eq("id", a.id);
+  // Jo 29 Oct 2026: a repeat PIESA (its own new Mitti form) is recorded as a reassessment; the first check stays on record.
+  const { count: prior } = await admin.from("piesa_records").select("id", { count: "exact", head: true }).eq("job_id", data.jobId).in("kind", ["initial", "reassessment"]);
   await admin.from("piesa_records").update({ is_current: false }).eq("job_id", data.jobId).eq("is_current", true);
-  await admin.from("piesa_records").insert({ job_id: data.jobId, assessment_id: a.id, kind: "initial", outcome: a.piesa_outcome, completed_date: a.assessed_on!, signed_off_by: userId, external_mitti_id: a.external_mitti_id });
+  await admin.from("piesa_records").insert({ job_id: data.jobId, assessment_id: a.id, kind: piesaCompletionKind(prior ?? 0), outcome: a.piesa_outcome, completed_date: a.assessed_on!, signed_off_by: userId, external_mitti_id: a.external_mitti_id });
   await logEvent(data.jobId, userId, "electrical_assessment_complete", `Electrical assessment complete – PIESA ${a.piesa_outcome} (${s.label})`, { scope: s.scope });
   // Decision 350: a PIESA done on the Mitti form files the official PIESA signed copy now (held with a reason, never
   // invented). Best-effort: the completion above stands either way.
