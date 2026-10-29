@@ -44,7 +44,7 @@ function DayPage() {
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [cgiError, setCgiError] = useState<string | null>(null);
-  const installer = data ? data.kind !== "safety_check" : false;
+  const installer = data ? data.kind === "ready_check" || data.kind === "install" : false;
   if (error) return <TradeShell installer={installer}><p role="alert" className="rounded-[18px] border border-line bg-paper p-4 text-sm">{(error as Error).message}</p><Link to="/field" className={outlineLinkClass}>Back to My work</Link></TradeShell>;
   if (!data) return <TradeShell installer={false}><p className="text-sm">Loading your day…</p></TradeShell>;
   if (data.historicalVisit) return <Navigate to="/field/$jobId" params={{ jobId }} replace />;

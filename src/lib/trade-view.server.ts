@@ -330,7 +330,8 @@ export async function tradeDay(jobId: string, userId: string) {
   const cgiNow = couldntGetInDay({ stage: j?.stage ?? null, last: cgi ? cgiD : null });
   const historicalVisit = !cgiNow && c.kind === "installer" && historicalReadyCheckDay(j?.stage ?? null, b?.kind ?? null);
   const showContact = contactVisible(mine ?? []);
-  const dayKind = b?.kind === "installation" ? "install" : b?.kind === "ready_check" ? "ready_check" : "safety_check";
+  const dayKind: "safety_check" | "ready_check" | "install" | "fixes" = b?.kind === "rectification" ? "fixes" : b?.kind === "installation" ? "install" : b?.kind === "ready_check" ? "ready_check" : "safety_check";
+  const fixesMittiId = dayKind === "fixes" && c.biz.mitti_account_invited === true ? (await (await import("./fixes-day.server")).fixesFormState(jobId)).auditId : null;
   const p = j?.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
   const ow = j?.owners as { full_name: string | null; phone: string | null } | null;
   let outcome: null | { kind: "all_clear" } | { kind: "fixes"; items: string[] } | { kind: "quoted" } | { kind: "not_eligible"; reason: string | null } | { kind: "wrap" } | { kind: "missing"; items: string[] } | { kind: "couldnt_get_in"; reason: string; visit: "ready_check" | "install" } = null;
@@ -342,11 +343,11 @@ export async function tradeDay(jobId: string, userId: string) {
   const shownKind = cgiNow ? (cgiNow.visit === "install" ? "install" : "ready_check") : dayKind;
   return {
     historicalVisit,
-    kind: shownKind as "safety_check" | "ready_check" | "install", channel: j?.channel ?? null, jobNumber: j?.job_number ?? null, owner: showContact ? ow?.full_name ?? null : null, surname: showContact ? surname(ow?.full_name) : null, phone: showContact ? ow?.phone ?? null : null,
+    kind: shownKind as "safety_check" | "ready_check" | "install" | "fixes", channel: j?.channel ?? null, jobNumber: j?.job_number ?? null, owner: showContact ? ow?.full_name ?? null : null, surname: showContact ? surname(ow?.full_name) : null, phone: showContact ? ow?.phone ?? null : null,
     address: showContact ? fullAddress(p?.address_line, p?.suburb, p?.postcode) : null, contactHidden: !showContact, start: b?.scheduled_start ?? null, end: b?.scheduled_end ?? null, outcome,
     // Mitti stays invisible to partners until the office ticks "Mitti account invited".
     mittiInvited: c.biz.mitti_account_invited === true,
-    mittiReady: dayKind === "safety_check" ? !!ws?.mitti_piesa_template_id : false, mittiId: c.biz.mitti_account_invited === true ? (dayKind === "ready_check" ? rc?.external_mitti_id ?? (cm?.external_source === "mitti" ? cm.external_id : null) : a?.external_mitti_id) ?? null : null,
+    mittiReady: dayKind === "safety_check" ? !!ws?.mitti_piesa_template_id : false, mittiId: c.biz.mitti_account_invited === true ? (dayKind === "ready_check" ? rc?.external_mitti_id ?? (cm?.external_source === "mitti" ? cm.external_id : null) : dayKind === "fixes" ? fixesMittiId : a?.external_mitti_id) ?? null : null,
   };
 }
 

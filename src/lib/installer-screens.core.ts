@@ -112,6 +112,7 @@ import { PRESS_COMPLETE_LINE, QUOTE_DECLINED_LINE, QUOTE_HELD_LINE, QUOTE_SENT_L
 import { isPriceNextAction } from "./ready-check-basics.core";
 import { OWNER_PIESA_CONFIRM_WAITING } from "./piesa-owner-confirm.core";
 import { PIESA_FULL } from "./job-wording";
+import { FIXES_FORM_LINK_LABEL } from "./fixes-day.core";
 
 /** "Needs finishing: price, owner mobile/email/permission on the Mitti form" → the approved M2 list ("Your price", "The owner's email", …). */
 export function needsFinishingList(nextAction: string | null | undefined): string[] {
@@ -427,8 +428,8 @@ export function readyCheckRows(f: { bookedAt: string | null; done: boolean; form
 }
 
 // ---------- M4 · Today's job ----------
-export type DayKind = "safety_check" | "ready_check" | "install";
-export const DAY_WHAT: Record<DayKind, string> = { safety_check: "Pre Insulation Electrical Safety Assessment (PIESA)", ready_check: "Ready Check", install: "Install" };
+export type DayKind = "safety_check" | "ready_check" | "install" | "fixes";
+export const DAY_WHAT: Record<DayKind, string> = { safety_check: "Pre Insulation Electrical Safety Assessment (PIESA)", ready_check: "Ready Check", install: "Install", fixes: "Electrical fixes" };
 
 /** "Today · Tue 27 Oct · 8:00am" — exact arrival time, never a window (decision 43). */
 export function arrivalPill(startIso: string | null, now: Date = new Date()): string | null {
@@ -447,6 +448,7 @@ export function dayNext(f: { kind: DayKind; channel: string | null; installFormC
   if (f.kind === "install") return { title: "Start the install in Mitti", sub: "PIISA, before and after photos and bag labels all go in the install form. Press Complete when it's fully finished.", button: "Open install form", signRebate: false };
   // Approved state M4-ready-check-day: "Do the Ready Check in Mitti" — our lead: we price the owner's quote from the agreed rates.
   if (f.kind === "ready_check") return { title: "Do the Ready Check in Mitti", sub: f.channel === "hivic_sourced" ? `Measure every ceiling area (length × width), photos, existing insulation, access and hazards. We price ${owner === "the owner" ? "the owner's" : `${owner}'s`} quote from your agreed rates.` : "Measure every ceiling area (length × width), photos, existing insulation, access and hazards. Press Complete when it's fully finished.", button: "Open Mitti form", signRebate: false };
+  if (f.kind === "fixes") return { title: "Do the fixes in Mitti", sub: "Open the fixes form. Press Complete when the repair work is done.", button: FIXES_FORM_LINK_LABEL, signRebate: false };
   return { title: "Start the safety check in Mitti", sub: "Open the PIESA form. We pick it up from there.", button: "Open PIESA form", signRebate: false };
 }
 

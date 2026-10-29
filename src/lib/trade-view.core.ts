@@ -167,12 +167,12 @@ export const PRESTART_CHECKS = [
 ] as const;
 export function prestartReady(ticks: boolean[]): boolean { return PRESTART_CHECKS.every((_, i) => !!ticks[i]); }
 
-export type DayKind = "safety_check" | "ready_check" | "install";
+import type { DayKind } from "./installer-screens.core";
+export type { DayKind };
 /** A historical Ready Check booking is not today's visit once the job has moved on. */
 export function historicalReadyCheckDay(stage: string | null, bookingKind: string | null): boolean {
   return bookingKind === null || (bookingKind === "ready_check" && !["ready_check_ready_to_schedule", "ready_check_scheduled", "ready_check_complete", "measured_estimate_ready", "measured_quote_accepted"].includes(stage ?? ""));
 }
-export const START_LABEL: Record<DayKind, string> = { safety_check: "Start check", ready_check: "Start Ready Check", install: "Start install" };
 
 /** Ready Check "Couldn't get in?" reasons (Jo-approved). */
 export const COULDNT_GET_IN = ["No one home", "Couldn't reach the manhole", "Not safe to go up", "Something else"] as const;
