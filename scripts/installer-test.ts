@@ -13,6 +13,7 @@ import { ACKNOWLEDGEMENTS, INSTALLER_AGREEMENT_VERSION, INSTALLER_VISIBLE_PAGES,
 import { performInstallerSign, signedData } from "../src/lib/installer-sign.core";
 import { activationBlockers, latestCertifications, mandatoryActivationBlockers, planActivation, approvedRateItems } from "../src/lib/partner-activation.core";
 import { JOURNEY_ACTOR_EMAIL } from "../src/lib/journey.server";
+import { readyCheckBookingOutcome } from "./portal-qa-coverage";
 
 const RUNS = Number(process.argv[process.argv.indexOf("--runs") + 1]) || 1;
 const stepIndex = process.argv.indexOf("--step");
@@ -460,6 +461,61 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     c("installer can switch to Home Insulation Victoria arranges", jobElectricianLabel(s2) === "Home Insulation Victoria arranges", jobElectricianLabel(s2));
     await admin.from("electrician_nominations").update({ ended_at: new Date().toISOString() }).eq("id", nom!.id);
     await jobsOk(c, [r.jobId]);
+  });
+  await step(steps, "C13", "C13 Not quoted: Book a Ready Check (installer books it with the owner), never offered to anyone else", async (c) => {
+    // Rebuilt on Add a job (same path as C11/C14) after bulk upload was removed. TEST owners, qa_test jobs; restore() archives them.
+    const pi = await import("../src/lib/partner-import.server");
+    const rc = await import("../src/lib/installer-ready-check.server");
+    const addNotQuoted = async (n: string) => {
+      const name = `TEST ${tag} RC${n}`, email = `qa.owner.${tag.toLowerCase()}.rc${n}@hivic-test.example`, phone = `041299913${n}`, address = `${n} ${tag} Ready Rd`;
+      const imp = await pi.createImportFor(ownerId, { businessId: BIZ, sourceSystem: "manual_import", text: `${name}, ${address}, Fraser Rise VIC 3336, ${phone}, ${email}`, csvRow: 0, files: [] });
+      // The installer answers Quoted? No and Site check? No.
+      const r = await pi.confirmImportFor(ownerId, { importId: imp.id, facts: { full_name: name, email, phone, address_line: address, suburb: "Fraser Rise", postcode: "3336" }, installer: { quoted: "no", site_check: "no", contact_permission: true, fee_awareness: true, existing_below_r2: true } });
+      madeJobs.push(r.jobId);
+      return r.jobId;
+    };
+    let where = "start";
+    try {
+      where = 'const j1 = await addNotQuoted("1");';
+      const j1 = await addNotQuoted("1");
+      where = 'const s1 = await rc.installerRcState(j1);';
+      const s1 = await rc.installerRcState(j1);
+      c("Quoted No + not visited shows 'Book a Ready Check'", s1?.action === "book", String(s1?.action));
+      where = 'const when = new Date(Date.now() + 3 * 86_400_000); when.set';
+      const when = new Date(Date.now() + 3 * 86_400_000); when.setUTCHours(0, 0, 0, 0);
+      // Existing rule: a Ready Check can't be booked until the owner signs paperwork A. These owners have no way to sign yet — Jo to decide.
+      where = 'const own = await rc.bookOwnReadyCheck(j1, ownerId, when.toI';
+      const own = await rc.bookOwnReadyCheck(j1, ownerId, when.toISOString()).then(() => "booked", (e) => (e as Error).message);
+      where = 'const { data: b1 } = await admin.from("jobs").select("stage,';
+      const { data: b1 } = await admin.from("jobs").select("stage, next_action").eq("id", j1).single();
+      const booking = readyCheckBookingOutcome(own === "booked", b1, own);
+      if (booking.status === "not_run") throw new NotRun(booking.detail);
+      c("I'll book it: completed booking read back", booking.status === "passed", booking.detail);
+      where = 'const { count: sent1 } = await admin.from("job_communication';
+      const { count: sent1 } = await admin.from("job_communications").select("id", { count: "exact", head: true }).eq("job_id", j1);
+      c("I'll book it: nothing sent to the owner", !sent1, String(sent1));
+      // Decision 180 (Jo, 24 Oct 2026): installers arrange their own customers' visits directly. The second customer only
+      // proves nobody else is ever offered the job.
+      where = 'const j2 = await addNotQuoted("2");';
+      const j2 = await addNotQuoted("2");
+      where = 'const s2 = await rc.installerRcState(j2);';
+      const s2 = await rc.installerRcState(j2);
+      c("second not-quoted customer also shows 'Book a Ready Check' (no owner email path)", s2?.action === "book", String(s2?.action));
+      where = 'const { count: offers } = await admin.from("partner_offers")';
+      const { count: offers } = await admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", j2);
+      c("never offered to any other trade (no offers at all)", !offers, String(offers));
+      where = 'const { assertOfferPairsAllowed } = await import("../src/lib';
+      const { assertOfferPairsAllowed } = await import("../src/lib/offer-guard.server");
+      where = 'const { data: other } = await admin.from("businesses").selec';
+      const { data: other } = await admin.from("businesses").select("id").ilike("onboarding_notes", "%[TEST PARTNER]%").neq("id", BIZ).limit(1).maybeSingle();
+      where = 'if (other) c("an offer to another TEST trade is refused", aw';
+      if (other) c("an offer to another TEST trade is refused", await assertOfferPairsAllowed(j2, [other.id], "ready_check").then(() => false, () => true));
+      where = 'const { count: sent2 } = await admin.from("job_communication';
+      const { count: sent2 } = await admin.from("job_communications").select("id", { count: "exact", head: true }).eq("job_id", j2);
+      c("nothing sent to the second owner either", !sent2, String(sent2));
+      where = "await jobsOk(c, [j1, j2]);";
+      await jobsOk(c, [j1, j2]);
+    } catch (e) { if (e instanceof NotRun) throw e; c(`stopped at: ${where}`, false, (e as Error).message); }
   });
   await step(steps, "C15", "C15 Add a job (basics only): creates the job, no booking, and prepares (or explains) the Mitti form", async (c) => {
     const os = await import("../src/lib/onsite-ready-check.server");
