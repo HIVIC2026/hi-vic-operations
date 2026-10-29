@@ -28,4 +28,4 @@ The portal decides each eligibility check itself from the owner's enquiry answer
 - No new owner or trade wording.
 
 ## Testing
-Test-first. Each check: pass / fail / unclear from sample fact sets (house + clean research; unit not top floor; storey-above research; owner older-than-5 + Ready Check "No"; Ready Check "Yes" built in 5 years; extension risk; previous upgrade other area). Office Pass/Fail clears the row; changed facts re-open. Garage area excluded from eligible m² and quote; normal areas unchanged. Existing eligibility, Ready Check, quote and VEEC tests; full suite vs baseline; tsc; retired scan.
+Test-first. Each check: pass / fail / unclear from sample fact sets (house + clean research; unit not top floor; storey-above research; owner older-than-5 + Ready Check "No"; Ready Check "Yes" built in 5 years; extension risk; previous upgrade yes/unknown/missing → always pass; research "unknown" never makes a check unclear). Office Pass/Fail clears the row; changed facts re-open. Garage area excluded from eligible m² and quote; normal areas unchanged. Existing eligibility, Ready Check, quote and VEEC tests; full suite vs baseline; tsc; retired scan.
