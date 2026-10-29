@@ -106,7 +106,9 @@ CREATE TABLE partner_workers (id uuid primary key, business_id uuid, full_legal_
 CREATE TABLE businesses (id uuid primary key, email text);
 CREATE TABLE workflow_events (id uuid primary key default gen_random_uuid(), job_id uuid, actor_id uuid, event_type text, summary text, details jsonb, internal boolean default false, created_at timestamptz default clock_timestamp());
 CREATE TABLE ready_checks (id uuid primary key default gen_random_uuid(), job_id uuid, external_mitti_id text, created_at timestamptz default clock_timestamp());
-CREATE TABLE ceiling_measurements (id uuid primary key default gen_random_uuid(), job_id uuid, is_current boolean, external_source text, external_id text);`);
+CREATE TABLE ceiling_measurements (id uuid primary key default gen_random_uuid(), job_id uuid, is_current boolean, external_source text, external_id text);
+CREATE TABLE job_assignments (id uuid primary key default gen_random_uuid(), job_id uuid, user_id uuid, business_id uuid, role text, active boolean);
+ALTER TABLE partner_workers ADD COLUMN profile_id uuid;`);
 const BIZ = "00000000-0000-0000-0000-0000000000b1", OWNER = "00000000-0000-0000-0000-0000000000c1";
 const J_RC = "00000000-0000-0000-0000-000000000001", J_INST = "00000000-0000-0000-0000-000000000002";
 const W_DEEP = "00000000-0000-0000-0000-0000000000d1", W_MAN = "00000000-0000-0000-0000-0000000000d2", W_NOMITTI = "00000000-0000-0000-0000-0000000000d3";
@@ -119,19 +121,25 @@ await db.query(`INSERT INTO workflow_events (job_id, event_type, summary, detail
 
 let boss = true;
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: postgrestShim(db) }));
-mock.module("../src/lib/trade-view.server", () => ({ requireTradeJob: async () => ({ biz: { id: BIZ, name: "Reinsulate" }, boss, kind: "installer", isTest: false }) }));
+const OUTSIDER = "00000000-0000-0000-0000-0000000000e9";
+mock.module("../src/lib/trade-view.server", () => ({ requireTradeJob: async (userId: string) => { if (userId === OUTSIDER) throw new Error("This job isn't assigned to you."); return { biz: { id: BIZ, name: "Reinsulate" }, boss, kind: "installer", isTest: false }; } }));
 mock.module("../src/lib/workflow.server", () => ({
   WorkflowError: class WorkflowError extends Error {},
   logEvent: async (jobId: string, actorId: string | null, type: string, summary: string, details: Record<string, unknown>) => { await db.query(`INSERT INTO workflow_events (job_id, actor_id, event_type, summary, details) VALUES ($1,$2,$3,$4,$5)`, [jobId, actorId, type, summary, JSON.stringify(details)]); },
 }));
-mock.module("../src/lib/piisa-a3.server", () => ({ crewStaff: async () => [
+const crewList = () => [
   { workerId: W_DEEP, name: "Bhavdeep Singh", eec: "CII-1", eecVerified: true, cleared: true, clearanceReason: null, level: "full", expiresOn: "2027-06-30" },
   { workerId: W_MAN, name: "Manminder Singh", eec: null, eecVerified: false, cleared: false, clearanceReason: CREW_CLEARANCE_REASON.unverified, level: null, expiresOn: null },
   { workerId: W_NOMITTI, name: "New Person", eec: "CII-9", eecVerified: true, cleared: true, clearanceReason: null, level: "full", expiresOn: "2027-06-30" },
   { workerId: W_CREW, name: "Cara Crew", eec: "CII-4", eecVerified: true, cleared: true, clearanceReason: null, level: "full", expiresOn: "2027-06-30", workerRole: "crew" },
   { workerId: W_CREW_NOMITTI, name: "Cory Crew", eec: "CII-5", eecVerified: true, cleared: true, clearanceReason: null, level: "full", expiresOn: "2027-06-30", workerRole: "crew" },
   { workerId: W_LEAD_BIZ, name: "Lena Lead", eec: "CII-6", eecVerified: true, cleared: true, clearanceReason: null, level: "full", expiresOn: "2027-06-30", workerRole: "lead" },
-] }));
+];
+mock.module("../src/lib/piisa-a3.server", () => ({
+  crewStaff: async () => crewList(),
+  loadCrew: async () => ({ staff: crewList(), selection: null }),
+  saveCrewSelection: async (jobId: string, actorId: string, sel: unknown) => { await db.query(`INSERT INTO workflow_events (job_id, actor_id, event_type, summary, details) VALUES ($1,$2,'piisa_crew_selected','crew',$3)`, [jobId, actorId, JSON.stringify({ selection: sel })]); return { needsVerification: [] }; },
+}));
 const mittiUsers: Record<string, string> = { "deep@example.test": "mu-deep", "man@example.test": "mu-man", "cara@example.test": "mu-cara", "office@reinsulate.test": "mu-office" };
 const reassigns: unknown[] = [];
 mock.module("../src/lib/mitti.server", () => ({
@@ -139,7 +147,7 @@ mock.module("../src/lib/mitti.server", () => ({
   findMittiUserByEmail: async (email: string) => mittiUsers[email.trim().toLowerCase()] ?? null,
   reassignMittiFormTo: async (p: unknown) => { reassigns.push(p); return { auditId: (p as { auditId: string }).auditId }; },
 }));
-const { allocateVisit, allocatedPersonFor, visitAllocationView } = await import("../src/lib/visit-allocation.server");
+const { allocateVisit, allocatedPersonFor, visitAllocationView, saveCrewWithLead } = await import("../src/lib/visit-allocation.server");
 
 async function events(jobId: string) {
   return (await db.query<{ event_type: string; details: { visit: string; worker_id: string; form: string; mitti_user_id: string | null } }>(`SELECT event_type, details FROM workflow_events WHERE job_id=$1 AND event_type='visit_allocated' ORDER BY created_at`, [jobId])).rows;
@@ -195,5 +203,47 @@ describe("allocateVisit (server wiring)", () => {
     boss = true;
     const vb = await visitAllocationView(J_INST, OWNER);
     expect(vb.visits[0]!.options.map((o) => [o.name, o.allowed])).toEqual([["Bhavdeep Singh", true], ["Lena Lead", true], ["New Person", true], ["Cara Crew", false], ["Cory Crew", false], ["Manminder Singh", false]]);
+  });
+});
+
+// Jo 29 Oct 2026: staff (active business members, not the owner) can change the Lead too — only through the crew picker.
+describe("saveCrewWithLead: staff can change the Lead", () => {
+  const STAFF = "00000000-0000-0000-0000-0000000000c2", ASSIGNEE = "00000000-0000-0000-0000-0000000000c3";
+  const NOT_STAFF = "00000000-0000-0000-0000-0000000000d9";
+  const crewEvents = async () => (await db.query(`SELECT 1 FROM workflow_events WHERE job_id=$1 AND event_type='piisa_crew_selected'`, [J_INST])).rows.length;
+  test("a staff member can make another eligible Lead the Lead (form handed over, crew recorded)", async () => {
+    await db.query(`INSERT INTO job_assignments (job_id, user_id, business_id, role, active) VALUES ($1,$2,$3,'installer',true)`, [J_INST, ASSIGNEE, BIZ]);
+    boss = false;
+    const before = await crewEvents();
+    await saveCrewWithLead(J_INST, STAFF, { lead: W_DEEP, additional: [] });
+    expect(await allocatedPersonFor(J_INST, "install")).toMatchObject({ workerId: W_DEEP });
+    expect(reassigns.at(-1)).toMatchObject({ jobId: J_INST, auditId: "audit_piisa1", kind: "install", mittiUserId: "mu-deep", actorId: STAFF });
+    expect(await crewEvents()).toBe(before + 1);
+    boss = true;
+  });
+  test("staff are still refused a Crew person or someone not on the Team; nothing recorded", async () => {
+    boss = false;
+    const ev = (await events(J_INST)).length, crew = await crewEvents();
+    await expect(saveCrewWithLead(J_INST, STAFF, { lead: W_CREW, additional: [] })).rejects.toThrow();
+    await expect(saveCrewWithLead(J_INST, STAFF, { lead: NOT_STAFF, additional: [] })).rejects.toThrow();
+    await expect(allocateVisit(J_INST, STAFF, "install", W_CREW, undefined, { crewPicker: true })).rejects.toThrow(ALLOCATION_REASON.crew);
+    await expect(allocateVisit(J_INST, STAFF, "install", NOT_STAFF, undefined, { crewPicker: true })).rejects.toThrow("That person isn't on your staff list.");
+    await expect(allocateVisit(J_INST, STAFF, "install", W_NOMITTI, undefined, { crewPicker: true })).rejects.toThrow("Add them in Mitti first");
+    expect((await events(J_INST)).length).toBe(ev);
+    expect(await crewEvents()).toBe(crew);
+    boss = true;
+  });
+  test("outside the crew picker, staff still can't allocate", async () => {
+    boss = false;
+    await expect(allocateVisit(J_INST, STAFF, "install", W_LEAD_BIZ)).rejects.toThrow("Only the business owner can allocate a visit.");
+    boss = true;
+  });
+  test("someone who isn't a member of the business is refused", async () => {
+    boss = false;
+    const ev = (await events(J_INST)).length, crew = await crewEvents();
+    await expect(saveCrewWithLead(J_INST, OUTSIDER, { lead: W_LEAD_BIZ, additional: [] })).rejects.toThrow("This job isn't assigned to you.");
+    expect((await events(J_INST)).length).toBe(ev);
+    expect(await crewEvents()).toBe(crew);
+    boss = true;
   });
 });
