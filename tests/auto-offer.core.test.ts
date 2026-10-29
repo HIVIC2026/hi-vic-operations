@@ -127,8 +127,8 @@ describe("electrician pick", () => {
   test("decision 374: an A2 job whose installer has a usual electrician is offered to the NEAREST REC, not the usual one", () => {
     const cs = [cand("near", { distanceKm: 3 }), cand("usual", { distanceKm: 50, activeJobs: 0 }), cand("mid", { distanceKm: 10 })];
     // our leads: the installer's usual electrician never goes first
-    for (const channel of ["hivic_sourced", "website", null]) expect(autoOfferPreferredElectrician({ channel, a1PreferredBusinessId: "usual" })).toBeNull();
-    const usualBusinessId = autoOfferPreferredElectrician({ channel: "hivic_sourced", a1PreferredBusinessId: "usual" });
+    for (const channel of ["hivic_sourced", "website", null]) expect(autoOfferPreferredElectrician({ channel, a1PreferredBusinessId: "usual", ourLeadUsualBusinessId: undefined })).toBeNull();
+    const usualBusinessId = autoOfferPreferredElectrician({ channel: "hivic_sourced", a1PreferredBusinessId: "usual", ourLeadUsualBusinessId: undefined });
     expect(autoOfferStep({ ...base("piesa"), candidates: cs, usualBusinessId })).toMatchObject({ action: "offer", businessId: "near", basis: "coverage", attempt: 1 });
     // next match on decline/lapse, then after 2 misses back to the office (unchanged)
     expect(autoOfferStep({ ...base("piesa", [miss("near")]), candidates: cs, usualBusinessId })).toMatchObject({ action: "offer", businessId: "mid", attempt: 2 });
@@ -152,10 +152,39 @@ describe("electrician pick", () => {
     // returns null for our leads), so there is no non-installer usual-electrician case to keep.
     const cs = [cand("usual", { blocker: "No agreed electrician rate recorded." }), cand("near", { distanceKm: 3 })];
     expect(autoOfferStep({ ...base("piesa"), candidates: cs, usualBusinessId: "usual" })).toMatchObject({ action: "return_to_office", reason: "preferred_blocked" });
-    expect(autoOfferPreferredElectrician({ channel: "hivic_sourced", a1PreferredBusinessId: "usual" })).toBeNull();
+    expect(autoOfferPreferredElectrician({ channel: "hivic_sourced", a1PreferredBusinessId: "usual", ourLeadUsualBusinessId: undefined })).toBeNull();
     expect(autoOfferStep({ ...base("piesa"), candidates: cs, usualBusinessId: null })).toMatchObject({ action: "offer", businessId: "near" });
   });
   test("misses only count automatic offers", () => {
     expect(autoOfferMisses([miss("a"), { ...miss("b"), auto: false }, { ...miss("c"), status: "accepted" }])).toBe(1);
+  });
+});
+
+describe("our lead: installer's usual electrician first (29 Oct 2026)", () => {
+  const lead = (rows: AutoOfferRow[], usual: string | null, cands = [cand("viking", { distanceKm: 40 }), cand("near", { distanceKm: 5 })]) =>
+    autoOfferStep({ ...base("piesa", rows), candidates: cands, usualBusinessId: usual, preferredRule: "our_lead" });
+
+  test("installer's electrician first even when further away", () => {
+    expect(lead([], "viking")).toMatchObject({ action: "offer", businessId: "viking", basis: "usual_electrician" });
+  });
+  test("their electrician lets it lapse → office", () => {
+    expect(lead([miss("viking", "expired")], "viking")).toMatchObject({ action: "return_to_office", reason: "preferred_missed" });
+  });
+  test("their electrician says Not for me → nearest next", () => {
+    expect(lead([miss("viking", "declined")], "viking")).toMatchObject({ action: "offer", businessId: "near", basis: "coverage" });
+  });
+  test("declined then nearest declines → 2 misses → office", () => {
+    expect(lead([miss("viking", "declined"), miss("near", "declined")], "viking")).toMatchObject({ action: "return_to_office", reason: "two_misses" });
+  });
+  test("their electrician can't be offered → nearest, never preferred_blocked", () => {
+    expect(lead([], "viking", [cand("viking", { coversPostcode: false }), cand("near")])).toMatchObject({ action: "offer", businessId: "near" });
+    expect(lead([], "ghost")).toMatchObject({ action: "offer", businessId: "near" });
+  });
+  test("no usual electrician = today's nearest first", () => {
+    expect(lead([], null)).toMatchObject({ action: "offer", businessId: "near" });
+  });
+  test("preferred picks per channel", () => {
+    expect(autoOfferPreferredElectrician({ channel: "hivic_sourced", a1PreferredBusinessId: "x", ourLeadUsualBusinessId: "v" })).toBe("v");
+    expect(autoOfferPreferredElectrician({ channel: "installer_sourced", a1PreferredBusinessId: "x", ourLeadUsualBusinessId: "v" })).toBe("x");
   });
 });
