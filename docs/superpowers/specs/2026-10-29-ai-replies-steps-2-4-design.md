@@ -45,7 +45,7 @@ Standing wording rules (every reply):
 
 ### 2e. Actions on Send (Q20, Q24)
 - The AI may propose job changes alongside the draft, shown under it before Send:
-  - **Note for the installer** (e.g. "Owner wants R7.0 (asked by email 29 Oct)") — saved on the job when Jo sends; shown on the installer's job page.
+  - **Note for the installer** (e.g. "Owner wants R7.0 (asked by email 29 Oct)") — saved on the job when Jo sends; shown on the installer's job page and added to the installer's Ready Check text.
   - **New ceiling size** given by the owner — the reply uses the price for that size; the job's `estimated_area_m2` is updated when Jo sends.
 - Jo can untick either before Send. Nothing changes if she doesn't send.
 
