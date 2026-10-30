@@ -22,7 +22,7 @@ export const sendAreaBatchFn = createServerFn({ method: "POST" }).middleware([re
     for (const id of data.jobIds) await requireOfficeJob(context.supabase, id);
     await requireOfficeBusiness(context.supabase, data.businessId);
     const r = await (await import("./area-batch.server")).sendBatch(data.jobIds, data.businessId, context.userId);
-    return { batchId: r.batchId, installer: r.installer, homes: r.homes, held: r.texts.filter((t) => t.status !== "sent").length };
+    return { batchId: r.batchId, installer: r.installer, homes: r.homes, held: r.texts.filter((t) => t.status !== "sent" && t.status !== "not_texted").length };
   });
 
 /** Office: closed batches whose owners said yes, waiting for Jo's "Send to installer" (Task 6 wires the send). Read only. */

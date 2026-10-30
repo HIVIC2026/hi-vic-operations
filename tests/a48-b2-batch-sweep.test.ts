@@ -65,8 +65,12 @@ mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: fak
 
 // ---- recorded fakes ----------------------------------------------------------------------------------------------
 const sent: { via: string; to: string; body: string; key?: string; type?: string; label?: string }[] = [];
+let smsStatus = "sent"; // what the real sender answers ("blocked" = held: switch off, quiet hours…)
 mock.module("../src/lib/sms.server", () => ({
-  sendRealSms: async (i: { type: string; to: string; body: string; idempotencyKey: string }) => { sent.push({ via: "real-sms", to: i.to, body: i.body, key: i.idempotencyKey, type: i.type }); return { status: "sent", detail: "ok", sid: "SM1" }; },
+  sendRealSms: async (i: { type: string; to: string; body: string; idempotencyKey: string }) => {
+    if (smsStatus !== "sent") return { status: smsStatus, detail: "held", sid: null };
+    sent.push({ via: "real-sms", to: i.to, body: i.body, key: i.idempotencyKey, type: i.type }); return { status: "sent", detail: "ok", sid: "SM1" };
+  },
 }));
 mock.module("../src/lib/test-send.server", () => ({
   sendTestEmail: async () => { throw new Error("no email from the sweep"); },
@@ -74,12 +78,14 @@ mock.module("../src/lib/test-send.server", () => ({
 }));
 mock.module("../src/lib/veec-copy-email.server", () => ({ ownerMyJobLink: async (jobId: string) => `https://estimate.homeinsulationvictoria.com.au/my-job/T-${jobId}` }));
 const finished: string[] = [];
-mock.module("../src/lib/quick-taps.server", () => ({ finishDecline: async (jobId: string) => { finished.push(jobId); return "finished"; } }));
+let finishResult = "finished";
+mock.module("../src/lib/quick-taps.server", () => ({ finishDecline: async (jobId: string) => { finished.push(jobId); return finishResult; } }));
+let cancelLeavesOpen = false; // the office reopened the job straight after (or the cancel didn't stick)
 const cancels: { jobId: string; reason: string; tell: unknown }[] = [];
 mock.module("../src/lib/office-actions.server", () => ({
   cancelJobFully: async (jobId: string, reason: string, _a: string | null, opts: { tell?: unknown } = {}) => {
     cancels.push({ jobId, reason, tell: opts.tell });
-    tables["jobs"]!.find((j) => j["id"] === jobId)!["stage"] = "cancelled";
+    if (!cancelLeavesOpen) tables["jobs"]!.find((j) => j["id"] === jobId)!["stage"] = "cancelled";
   },
 }));
 mock.module("../src/lib/installer-waiting.server", () => ({ installerFacts: async () => [] }));
@@ -104,13 +110,13 @@ function addJob(id: string, o: { source?: string; stage?: string; name?: string 
   tables["property_facts"]!.push({ property_id: `p-${id}`, fact_key: "coordinates", value: [145, -37.8], is_current: true });
 }
 const ev = (jobId: string, type: string, hours: number, details: Row) => tables["workflow_events"]!.push({ id: crypto.randomUUID(), job_id: jobId, event_type: type, created_at: at(hours), details });
-function sendBatch(batchId: string, jobIds: string[], hours = 0, installer = { id: "biz-1", name: "Sample Insulation" }) {
-  for (const j of jobIds) ev(j, "area_batch_sent", hours, { batch_id: batchId, installer_business_id: installer.id, installer_name: installer.name, job_ids: jobIds, idempotency_key: `area-batch:v1:${j}:${batchId}` });
+function sendBatch(batchId: string, jobIds: string[], hours = 0, installer = { id: "biz-1", name: "Sample Insulation" }, carried: string[] = []) {
+  for (const j of jobIds) ev(j, "area_batch_sent", hours, { batch_id: batchId, installer_business_id: installer.id, installer_name: installer.name, job_ids: jobIds, idempotency_key: `area-batch:v1:${j}:${batchId}`, ...(carried.includes(j) ? { carried_pass: true } : {}) });
 }
 const answer = (jobId: string, batchId: string, outcome: string, hours = 1) => ev(jobId, "quick_taps_answered", hours, { batch_id: batchId, outcome, consent_share: outcome === "pass" });
 function seed() {
   for (const k of Object.keys(tables)) delete tables[k];
-  sent.length = 0; finished.length = 0; cancels.length = 0;
+  sent.length = 0; finished.length = 0; cancels.length = 0; smsStatus = "sent"; finishResult = "finished"; cancelLeavesOpen = false;
   for (const t of ["jobs", "lead_campaign_responses", "property_facts", "job_assignments", "partner_offers", "workflow_events"]) tables[t] = [];
   tables["businesses"] = [{ id: "biz-1", name: "Sample Insulation", onboarding_notes: null }, { id: "biz-t", name: "[TEST PARTNER] Co", onboarding_notes: "[TEST PARTNER]" }];
 }
@@ -284,5 +290,89 @@ describe("\"It's your turn\" retired for website owners", () => {
     const src = readFileSync("src/components/portal/choose-installer.tsx", "utf8");
     expect(src).toContain("confirmed && (");
     expect(src).toContain("Send to installer");
+  });
+});
+
+// ---- fix round 1 ---------------------------------------------------------------------------------------------------------
+describe("a pass from a batch the owner left is carried forward", () => {
+  beforeEach(seed);
+  test("left b1, then passed its taps → not a b1 passer, but a batch candidate again (not lost)", async () => {
+    addJob("d"); addJob("a"); sendBatch("b1", ["a", "d"]);
+    ev("d", "area_batch_left", 2, { batch_id: "b1", reason: "address_moved" });
+    answer("d", "b1", "pass", 3);
+    await S.sweepAreaBatches(at(73));
+    expect((events("area_batch_closed", "d")[0]!["details"] as Row)["pass_job_ids"]).toEqual([]);
+    const r = await S.batchCandidates({ now: new Date(at(74)) });
+    expect(r.candidates.map((c) => c.jobId)).toContain("d");
+    // Never day-14 closed: the owner answered.
+    await S.sweepAreaBatches(at(15 * 24));
+    expect(cancels.map((c) => c.jobId)).toEqual(["a"]); // a never answered; d did
+  });
+  test("an answer that raced the close (pass recorded, but freed) is carried forward too", async () => {
+    addJob("a"); sendBatch("b1", ["a"]);
+    await S.sweepAreaBatches(at(73));
+    answer("a", "b1", "pass", 73.5);
+    expect((await S.batchCandidates({ now: new Date(at(74)) })).candidates.map((c) => c.jobId)).toEqual(["a"]);
+  });
+  test("carried into a new batch: never reminded, counted as a passer at that batch's close", async () => {
+    addJob("d"); addJob("e"); sendBatch("b1", ["d"]); ev("d", "area_batch_left", 2, { batch_id: "b1", reason: "address_moved" }); answer("d", "b1", "pass", 3);
+    sendBatch("b2", ["d", "e"], 80, undefined, ["d"]);
+    await S.sweepAreaBatches(at(80 + 60)); // 8am Melbourne, day 2.5 of b2
+    expect(sent.map((x) => x.key)).toEqual(["quick-taps:v1:b2:e:reminder"]);
+    await S.sweepAreaBatches(at(80 + 73));
+    expect(events("area_batch_closed").filter((e) => (e["details"] as Row)["batch_id"] === "b2").map((e) => (e["details"] as Row)["pass_job_ids"])).toEqual([["d"], ["d"]]);
+    expect(events("area_batch_closed", "d").filter((e) => (e["details"] as Row)["batch_id"] === "b2")[0]!["details"]).toMatchObject({ freed_job_ids: ["e"] });
+  });
+  test("a passer handed on in a close's pass list stays out of new batches", async () => {
+    addJob("a"); sendBatch("b1", ["a"]); answer("a", "b1", "pass");
+    await S.sweepAreaBatches(at(73));
+    expect((await S.batchCandidates({ now: new Date(at(74)) })).refused.get("a")).toMatch(/send to installer/i);
+  });
+});
+
+describe("decline retry and day-14 close happen once, and never re-close a reopened job", () => {
+  beforeEach(seed);
+  test("decline retry runs once per job + batch; a failed close counts as failed", async () => {
+    addJob("e"); sendBatch("b1", ["e"]); answer("e", "b1", "decline_access");
+    finishResult = "cancel_failed";
+    const r = await S.sweepAreaBatches(at(5));
+    expect(r.failed).toBe(1);
+    await S.sweepAreaBatches(at(5.25));
+    expect(finished).toEqual(["e"]);
+  });
+  test("a declined job the office reopened (stage change after the answer) is not closed again", async () => {
+    addJob("e"); sendBatch("b1", ["e"]); answer("e", "b1", "no_thanks", 1);
+    ev("e", "stage_changed", 4, { reason: "reopened" });
+    await S.sweepAreaBatches(at(5));
+    expect(finished).toEqual([]);
+  });
+  test("day-14 close is claimed once: a job reopened straight after is not cancelled again", async () => {
+    addJob("n"); sendBatch("b1", ["n"]);
+    cancelLeavesOpen = true;
+    await S.sweepAreaBatches(at(14 * 24 + 1));
+    await S.sweepAreaBatches(at(14 * 24 + 2));
+    expect(cancels.map((c) => c.jobId)).toEqual(["n"]);
+    expect(events("quick_taps_no_answer_closed", "n")).toHaveLength(1);
+  });
+  test("a job reopened after its first send (stage change) is not day-14 closed", async () => {
+    addJob("n"); sendBatch("b1", ["n"]);
+    ev("n", "stage_changed", 100, { reason: "reopened" });
+    await S.sweepAreaBatches(at(14 * 24 + 1));
+    expect(cancels).toEqual([]);
+  });
+});
+
+describe("day-2 reminder claimed only once it went", () => {
+  beforeEach(seed);
+  test("held (switch off) → not claimed; a later tick sends it and claims it once", async () => {
+    addJob("b"); sendBatch("b1", ["b"]);
+    smsStatus = "blocked";
+    await S.sweepAreaBatches(at(49));
+    expect(events("quick_taps_reminded")).toEqual([]);
+    smsStatus = "sent";
+    await S.sweepAreaBatches(at(50));
+    await S.sweepAreaBatches(at(51));
+    expect(sent.map((x) => x.key)).toEqual(["quick-taps:v1:b1:b:reminder"]);
+    expect(events("quick_taps_reminded")).toHaveLength(1);
   });
 });

@@ -410,6 +410,21 @@ describe("saveQuickTaps: declines", () => {
     expect(await S.finishDecline("a")).toBe("finished");
     expect(cancels).toHaveLength(1); expect(mails).toHaveLength(1);
   });
+  test("the close failing again records quick_taps_close_failed once per job + batch", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]);
+    cancelFails = true;
+    await S.saveQuickTaps(tok("a"), ALL_GOOD({ go: "no_thanks" }));
+    expect(await S.finishDecline("a")).toBe("cancel_failed");
+    expect(await S.finishDecline("a")).toBe("cancel_failed");
+    expect(events("quick_taps_close_failed", "a")).toHaveLength(1);
+  });
+  test("an owner carried into a new batch with a standing pass sees the pass screen, not the taps again", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]);
+    tables["workflow_events"]!.push({ id: "l", job_id: "a", event_type: "area_batch_left", created_at: new Date(++clock).toISOString(), details: { batch_id: "b1", reason: "address_moved" } });
+    expect(await S.saveQuickTaps(tok("a"), ALL_GOOD())).toEqual({ kind: "done", outcome: "pass" });
+    tables["workflow_events"]!.push({ id: "s2", job_id: "a", event_type: "area_batch_sent", created_at: new Date(++clock).toISOString(), details: { batch_id: "b2", job_ids: ["a"], carried_pass: true } });
+    expect(await S.quickTapsState(tok("a"))).toEqual({ kind: "done", outcome: "pass" });
+  });
   test("finishDecline on a TEST job sends the test email once only", async () => {
     addJob("t", { source: "qa_test" }); sendBatchEvent("b1", ["t"]);
     await S.saveQuickTaps(tok("t"), ALL_GOOD({ hatch: "no" }));

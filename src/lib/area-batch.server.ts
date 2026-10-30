@@ -17,7 +17,7 @@ import { WorkflowError, logEvent } from "./workflow.server";
 import {
   AREA_BATCH_CLOSED_EVENT, AREA_BATCH_EVENTS, AREA_BATCH_LEFT_EVENT, AREA_BATCH_SENT_EVENT, NO_ANSWER_CLOSE_REASON, QUICK_TAPS_REMINDED_EVENT,
   QUICK_TAPS_REMINDER_SMS_TYPE, QUICK_TAPS_SMS_TYPE, areaBatchClosedKey, areaBatchKey, batchInstallers, batchSpanKm, likelyEligible, nextBatchSeq,
-  openBatchId, outsideBatch, passedQuickTaps, planBatchSweep, quickTapsLink, quickTapsReminderText, quickTapsSmsKey, quickTapsText, suggestBatches,
+  openBatchId, outsideBatch, passHandedOn, planBatchSweep, standingPass, STAGE_CHANGED_EVENT, quickTapsLink, quickTapsReminderText, quickTapsSmsKey, quickTapsText, suggestBatches,
   type AreaBatchEventRow, type BatchHome, type SweepJob,
 } from "./area-batch.core";
 import { QUICK_TAPS_ANSWERED_EVENT } from "./quick-taps.core";
@@ -87,7 +87,9 @@ export async function postcodeCentre(postcode: string | null | undefined): Promi
 /** A full street address (number + street name) is on file. */
 export const hasFullStreet = (addressLine: string | null | undefined): boolean => parseStreet(addressLine) !== null;
 
-export type BatchCandidate = BatchHome & { jobNumber: string; propertyId: string; ownerName: string; phone: string | null; suburb: string; isTest: boolean; source: string | null };
+/** `carriedPass`: the owner already passed the quick taps in a batch they left (or as it closed) — put in a new batch
+ *  without being asked again (Task 4 fix round 1). */
+export type BatchCandidate = BatchHome & { jobNumber: string; propertyId: string; ownerName: string; phone: string | null; suburb: string; isTest: boolean; source: string | null; carriedPass: boolean };
 export type CandidateRead = { candidates: BatchCandidate[]; unlocated: number; refused: Map<string, string> };
 
 /** Who can be put in a batch now. `jobIds` limits the read (Send re-checks its own homes); `locate` caps location lookups. */
@@ -129,7 +131,7 @@ export async function batchCandidates(opts: { includeTest?: boolean; testJobIds?
     if (!sv?.["spot_saved_at"] || sv["opted_out_at"]) { no("the owner hasn't saved a spot"); continue; }
     const ev = eventsBy.get(id) ?? [];
     if (openBatchId(ev as unknown as AreaBatchEventRow[])) { no("it's already in a batch waiting for answers"); continue; }
-    if (passedQuickTaps(ev as unknown as AreaBatchEventRow[])) { no("the owner said yes — it's waiting for you to tap Send to installer"); continue; }
+    if (passHandedOn(ev as unknown as AreaBatchEventRow[], id)) { no("the owner said yes — it's waiting for you to tap Send to installer"); continue; }
     const release = spotReleaseState((ev as unknown as SpotReleaseEventRow[]).filter((e) => (SPOT_RELEASE_EVENTS as readonly string[]).includes(e.event_type)));
     if (release.state === "pending") { no("the owner is being asked to confirm a released spot"); continue; }
     const prop = (j["properties"] ?? null) as { declared?: Record<string, unknown> | null; answers?: Record<string, unknown> | null } | null;
@@ -167,6 +169,7 @@ export async function batchCandidates(opts: { includeTest?: boolean; testJobIds?
       jobId: id, jobNumber: String(j["job_number"] ?? ""), propertyId, lat: point?.lat ?? Number.NaN, lng: point?.lng ?? Number.NaN,
       postcode: (prop?.postcode ?? "").trim(), suburb: (prop?.suburb ?? "").trim(), spotSavedAt: String(savedBy.get(id)?.["spot_saved_at"]),
       ownerName: (owner?.full_name ?? "").trim(), phone: owner?.phone ?? null, isTest: j["source"] === "qa_test", source: s(j["source"]),
+      carriedPass: standingPass((eventsBy.get(id) ?? []) as unknown as AreaBatchEventRow[], id),
     });
   }
   return { candidates, unlocated, refused };
@@ -246,7 +249,7 @@ export async function sendBatch(jobIdsIn: string[], businessId: string, actorId:
   const { ownerMyJobLink } = await import("./veec-copy-email.server");
   const links = new Map<string, string | null>();
   await Promise.all(homes.map(async (h) => links.set(h.jobId, await ownerMyJobLink(h.jobId))));
-  const noLink = homes.filter((h) => !links.get(h.jobId));
+  const noLink = homes.filter((h) => !h.carriedPass && !links.get(h.jobId));
   if (noLink.length) throw new WorkflowError(`${noLink.map((h) => h.jobNumber).join(", ")}: the owner has no working My job link — nothing was sent.`);
 
   // Claims: one area_batch_sent per job, before any text. The batch centre is the first home (suggestBatches lists the
@@ -258,7 +261,7 @@ export async function sendBatch(jobIdsIn: string[], businessId: string, actorId:
   for (const h of homes) {
     const key = areaBatchKey(h.jobId, nextBatchSeq(evs.get(h.jobId) ?? []));
     const won = await claim(h.jobId, actorId, AREA_BATCH_SENT_EVENT, `Area batch sent (${homes.length} ${homes.length === 1 ? "home" : "homes"}, ${installer.name}) — quick taps texted to the owner`,
-      { batch_id: batchId, installer_business_id: businessId, installer_name: installer.name, job_ids: jobIds, centre_job_id: centreHome.jobId, centre, sent_by: actorId, idempotency_key: key });
+      { batch_id: batchId, installer_business_id: businessId, installer_name: installer.name, job_ids: jobIds, centre_job_id: centreHome.jobId, centre, sent_by: actorId, idempotency_key: key, ...(h.carriedPass ? { carried_pass: true } : {}) });
     if (!won) {
       // Someone else batched this home at the same moment: undo ours (append-only close) and send nothing.
       for (const c of claimed) await claim(c.jobId, actorId, AREA_BATCH_CLOSED_EVENT, "Area batch stopped before any text went (another batch took a home)", { batch_id: batchId, pass_job_ids: [], freed_job_ids: claimed.map((x) => x.jobId), reason: "send_interrupted" });
@@ -269,6 +272,8 @@ export async function sendBatch(jobIdsIn: string[], businessId: string, actorId:
 
   const texts: SendBatchResult["texts"] = [];
   const send = async (h: BatchCandidate) => {
+    // Already said yes in a batch they left: recorded in this batch, never asked again.
+    if (h.carriedPass) { texts.push({ jobId: h.jobId, status: "not_texted", detail: "the owner already said yes — not asked again" }); return; }
     try {
       const r = await textOwner(h, batchId, links.get(h.jobId)!, businessId, actorId);
       texts.push({ jobId: h.jobId, ...r });
@@ -345,6 +350,11 @@ export async function leaveBatchIfMoved(jobId: string, batchId: string, point: P
 // ---- 15-minute tick (Task 4) -------------------------------------------------------------------------------------------
 
 export type AreaBatchSweep = { jobs: number; reminded: number; closed: number; declinesFinished: number; noAnswerClosed: number; failed: number };
+/** Statuses meaning the reminder went (or already went) — real sender or test-send. */
+const REMINDER_WENT = ["sent", "already", "sent_unknown"];
+/** Once-only claims for the decline retry and the day-14 close. */
+const DECLINE_RETRIED_EVENT = "quick_taps_decline_retried";
+const NO_ANSWER_CLOSED_EVENT = "quick_taps_no_answer_closed";
 /** Batches sent in the last 21 days (closed at day 3; a home with no answer is closed at day 14 from its first send). */
 const SWEEP_DAYS = 21;
 const sweepJobFields = "id, stage, source, channel, deleted_at, qa_archived_at, owners(full_name, phone)";
@@ -366,7 +376,7 @@ export async function sweepAreaBatches(nowIso: string = new Date().toISOString()
   const [jobs, assigned, history] = await Promise.all([
     byIds("batched jobs", ids, (c, f, t) => admin.from("jobs").select(sweepJobFields).in("id", c).range(f, t)),
     byIds("batched jobs' installers", ids, (c, f, t) => admin.from("job_assignments").select("job_id").in("job_id", c).eq("role", "installer").eq("active", true).range(f, t)),
-    byIds("batch history", ids, (c, f, t) => loose.from("workflow_events").select("job_id, event_type, created_at, details").in("job_id", c).in("event_type", [...AREA_BATCH_EVENTS, QUICK_TAPS_ANSWERED_EVENT, QUICK_TAPS_REMINDED_EVENT]).range(f, t)),
+    byIds("batch history", ids, (c, f, t) => loose.from("workflow_events").select("job_id, event_type, created_at, details").in("job_id", c).in("event_type", [...AREA_BATCH_EVENTS, QUICK_TAPS_ANSWERED_EVENT, QUICK_TAPS_REMINDED_EVENT, STAGE_CHANGED_EVENT, NO_ANSWER_CLOSED_EVENT, DECLINE_RETRIED_EVENT]).range(f, t)),
   ]);
   const withInstaller = new Set(assigned.map((a) => String(a["job_id"])));
   const eventsBy = group(history, "job_id") as unknown as Map<string, AreaBatchEventRow[]>;
@@ -391,29 +401,46 @@ export async function sweepAreaBatches(nowIso: string = new Date().toISOString()
     return claim(jobId, null, AREA_BATCH_CLOSED_EVENT, summary, { batch_id: c.batchId, pass_job_ids: c.passJobIds, freed_job_ids: c.freedJobIds, result: role, idempotency_key: areaBatchClosedKey(c.batchId, jobId) });
   }, "closed"));
 
-  // Day 2: the approved reminder, once per job + batch (claimed before the text).
+  // Day 2: the approved reminder. Claimed only once it went (sent / already sent); a held text (switch off, quiet hours…)
+  // stays unclaimed so a later tick tries again — the real sender's own key never sends it twice.
   await inFours(plan.reminders, ({ batchId, jobId }) => step("reminder", jobId, async () => {
     const j = rows.get(jobId)!;
     const sent = (eventsBy.get(jobId) ?? []).find((e) => e.event_type === AREA_BATCH_SENT_EVENT && (e.details as { batch_id?: unknown } | null)?.batch_id === batchId);
     const businessId = s((sent?.details as { installer_business_id?: unknown } | null)?.installer_business_id);
-    const won = await claim(jobId, null, QUICK_TAPS_REMINDED_EVENT, "Day-2 reminder: quick taps text to the owner", { batch_id: batchId, idempotency_key: quickTapsSmsKey(batchId, jobId, "reminder") });
-    if (!won) return false;
+    const details = { batch_id: batchId, idempotency_key: quickTapsSmsKey(batchId, jobId, "reminder") };
     const link = await (await import("./veec-copy-email.server")).ownerMyJobLink(jobId);
-    if (!link) { await logEvent(jobId, null, "quick_taps_reminder_not_sent", "No working owner job link, so the owner could not be reminded about their quick taps", { batch_id: batchId }, { internal: true }); return true; }
-    await textOwner({ jobId, ownerName: (j.owners?.full_name ?? "").trim(), phone: j.owners?.phone ?? null, isTest: j.source === "qa_test", source: j.source }, batchId, link, businessId, null, "reminder");
-    return true;
+    if (!link) {
+      const won = await claim(jobId, null, QUICK_TAPS_REMINDED_EVENT, "Day-2 reminder not sent: no working owner job link", { ...details, status: "no_link" });
+      if (won) await logEvent(jobId, null, "quick_taps_reminder_not_sent", "No working owner job link, so the owner could not be reminded about their quick taps", { batch_id: batchId }, { internal: true });
+      return false;
+    }
+    const r = await textOwner({ jobId, ownerName: (j.owners?.full_name ?? "").trim(), phone: j.owners?.phone ?? null, isTest: j.source === "qa_test", source: j.source }, batchId, link, businessId, null, "reminder");
+    if (!REMINDER_WENT.includes(r.status)) return false;
+    return claim(jobId, null, QUICK_TAPS_REMINDED_EVENT, "Day-2 reminder: quick taps text to the owner", { ...details, status: r.status });
   }, "reminded"));
 
-  // A decline whose close failed: close + email again (finishDecline is idempotent). Nothing in Needs me.
+  // A decline whose close failed: close + email again (finishDecline is idempotent), once per job + batch. A close that
+  // still fails counts as failed. Nothing in Needs me.
   if (plan.declineRetries.length) {
     const { finishDecline } = await import("./quick-taps.server");
-    await inFours(plan.declineRetries, (jobId) => step("decline", jobId, async () => (await finishDecline(jobId)) === "finished", "declinesFinished"));
+    await inFours(plan.declineRetries, ({ batchId, jobId }) => step("decline", jobId, async () => {
+      const won = await claim(jobId, null, DECLINE_RETRIED_EVENT, "Quick taps: finishing the owner's decline again (the close had failed)", { batch_id: batchId, idempotency_key: `quick-taps:v1:${batchId}:${jobId}:decline_retry` });
+      if (!won) return false;
+      const r = await finishDecline(jobId);
+      if (r === "cancel_failed") throw new Error("the job still couldn't be closed");
+      return r === "finished";
+    }, "declinesFinished"));
   }
 
-  // Day 14 from the first send, never answered: closed quietly (nobody is told).
+  // Day 14 from the first send, never answered: closed quietly (nobody is told), once per job.
   if (plan.noAnswerCloses.length) {
     const { cancelJobFully } = await import("./office-actions.server");
-    await inFours(plan.noAnswerCloses, (jobId) => step("day-14 close", jobId, async () => { await cancelJobFully(jobId, NO_ANSWER_CLOSE_REASON, null, { tell: { owner: false, installer: false } }); return true; }, "noAnswerClosed"));
+    await inFours(plan.noAnswerCloses, ({ batchId, jobId }) => step("day-14 close", jobId, async () => {
+      const won = await claim(jobId, null, NO_ANSWER_CLOSED_EVENT, "Quick taps: no answer 14 days after the first text — job closed quietly", { batch_id: batchId, idempotency_key: `quick-taps:v1:${batchId}:${jobId}:no_answer_closed` });
+      if (!won) return false;
+      await cancelJobFully(jobId, NO_ANSWER_CLOSE_REASON, null, { tell: { owner: false, installer: false } });
+      return true;
+    }, "noAnswerClosed"));
   }
   return out;
 }

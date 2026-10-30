@@ -151,21 +151,30 @@ export const areaBatchClosedKey = (batchId: string, jobId: string) => `area-batc
  *  nobody assigned, not deleted or archived). `events` = its batch events, quick-taps answers and reminder claims. */
 export type SweepJob = { jobId: string; waiting: boolean; events: readonly AreaBatchEventRow[] };
 export type BatchClose = { batchId: string; passJobIds: string[]; freedJobIds: string[]; closeJobIds: string[] };
-export type BatchSweepPlan = { reminders: { batchId: string; jobId: string }[]; closes: BatchClose[]; declineRetries: string[]; noAnswerCloses: string[] };
+export type BatchSweepPlan = { reminders: { batchId: string; jobId: string }[]; closes: BatchClose[]; declineRetries: { batchId: string; jobId: string }[]; noAnswerCloses: { batchId: string; jobId: string }[] };
+/** A stage change on the job (logEvent `stage_changed`): after a decline / first send it means the office moved or reopened
+ *  the job, so the sweep leaves it alone. */
+export const STAGE_CHANGED_EVENT = "stage_changed";
 
 const outcomeOf = (e: AreaBatchEventRow) => { const v = (e.details as { outcome?: unknown } | null)?.outcome; return typeof v === "string" ? v : null; };
 const has = (j: SweepJob, type: string, batchId: string) => j.events.some((e) => e.event_type === type && bid(e) === batchId);
 const answerFor = (j: SweepJob, batchId: string) => j.events.find((e) => e.event_type === ANSWERED && bid(e) === batchId) ?? null;
 const passedIn = (j: SweepJob, batchId: string) => { const a = answerFor(j, batchId); return !!a && outcomeOf(a) === PASS; };
+/** Sent into this batch carrying a pass from a batch the owner left (not asked again). */
+const carriedIn = (j: SweepJob, batchId: string) => j.events.some((e) => e.event_type === AREA_BATCH_SENT_EVENT && bid(e) === batchId && (e.details as { carried_pass?: unknown } | null)?.carried_pass === true);
+const stageChangedAfter = (j: SweepJob, iso: string) => j.events.some((e) => e.event_type === STAGE_CHANGED_EVENT && e.created_at > iso);
 
 /** What the 15-minute sweep does now. Nothing here ever offers a run to an installer (Jo's OK, Task 6).
  *  - Day 2 (48h after the batch was sent): ONE reminder to each owner still waiting who hasn't answered, hasn't left the
  *    batch and isn't closed out of it — not during quiet hours (the next tick outside them sends it); never after day 3.
- *  - Day 3 (72h): the batch closes for every member: passers = answered "pass" and still waiting; freed = no answer and
- *    still waiting (back in the pool). Homes that LEFT the batch, declines and jobs closed meanwhile are in neither list.
+ *    Owners carried in with a standing pass are never reminded.
+ *  - Day 3 (72h): the batch closes for every member: passers = answered "pass" (or carried in with a standing pass) and
+ *    still waiting; freed = no answer and still waiting (back in the pool). Homes that LEFT the batch, declines and jobs
+ *    closed meanwhile are in neither list.
  *  - Any job whose latest answer is a decline but is still waiting (not cancelled yet) → finish the decline again (a
- *    failed close).
- *  - 14 days after the job's FIRST send with no answer at all, still waiting → closed quietly. */
+ *    failed close) — not if the job's stage changed after the answer (the office reopened it). Once per job + batch.
+ *  - 14 days after the job's FIRST send with no answer at all, still waiting, no stage change since → closed quietly.
+ *    Once per job (keyed by the first batch). */
 export function planBatchSweep(jobs: readonly SweepJob[], nowIso: string, quiet: boolean): BatchSweepPlan {
   const now = Date.parse(nowIso);
   const plan: BatchSweepPlan = { reminders: [], closes: [], declineRetries: [], noAnswerCloses: [] };
@@ -190,27 +199,34 @@ export function planBatchSweep(jobs: readonly SweepJob[], nowIso: string, quiet:
     if (age >= CLOSE_AFTER_HOURS * HOUR_MS) {
       plan.closes.push({
         batchId,
-        passJobIds: members.filter((j) => inBatch(j) && passedIn(j, batchId)).map((j) => j.jobId).sort(),
-        freedJobIds: members.filter((j) => inBatch(j) && !answerFor(j, batchId)).map((j) => j.jobId).sort(),
+        passJobIds: members.filter((j) => inBatch(j) && (passedIn(j, batchId) || (!answerFor(j, batchId) && carriedIn(j, batchId)))).map((j) => j.jobId).sort(),
+        freedJobIds: members.filter((j) => inBatch(j) && !answerFor(j, batchId) && !carriedIn(j, batchId)).map((j) => j.jobId).sort(),
         closeJobIds: notClosed.map((j) => j.jobId).sort(),
       });
     } else if (age >= REMIND_AFTER_HOURS * HOUR_MS && !quiet) {
-      for (const j of notClosed) if (inBatch(j) && !answerFor(j, batchId) && !has(j, QUICK_TAPS_REMINDED_EVENT, batchId)) plan.reminders.push({ batchId, jobId: j.jobId });
+      for (const j of notClosed) if (inBatch(j) && !answerFor(j, batchId) && !carriedIn(j, batchId) && !has(j, QUICK_TAPS_REMINDED_EVENT, batchId)) plan.reminders.push({ batchId, jobId: j.jobId });
     }
   }
   for (const j of jobs) {
     const answers = j.events.filter((e) => e.event_type === ANSWERED).sort((a, b) => b.created_at.localeCompare(a.created_at));
     const latest = answers[0] ? outcomeOf(answers[0]) : null;
-    if (latest && DECLINES.includes(latest) && j.waiting) plan.declineRetries.push(j.jobId);
-    const firstSent = Math.min(...j.events.filter((e) => e.event_type === AREA_BATCH_SENT_EVENT).map((e) => Date.parse(e.created_at)));
-    if (!answers.length && j.waiting && Number.isFinite(firstSent) && now - firstSent >= NO_ANSWER_CLOSE_HOURS * HOUR_MS) plan.noAnswerCloses.push(j.jobId);
+    const latestBatch = answers[0] ? bid(answers[0]) : null;
+    if (latest && latestBatch && DECLINES.includes(latest) && j.waiting && !stageChangedAfter(j, answers[0]!.created_at)) plan.declineRetries.push({ batchId: latestBatch, jobId: j.jobId });
+    const first = j.events.filter((e) => e.event_type === AREA_BATCH_SENT_EVENT && bid(e)).sort((a, b) => a.created_at.localeCompare(b.created_at))[0];
+    const firstSent = first ? Date.parse(first.created_at) : Number.NaN;
+    if (first && !answers.length && j.waiting && Number.isFinite(firstSent) && now - firstSent >= NO_ANSWER_CLOSE_HOURS * HOUR_MS && !stageChangedAfter(j, first.created_at))
+      plan.noAnswerCloses.push({ batchId: bid(first)!, jobId: j.jobId });
   }
   return plan;
 }
 
-/** The job passed the quick taps (its latest answer is a pass): it waits for Jo's OK to send it to the installer and is
+/** The job's pass was handed on: it is in a close's pass list, so it waits for Jo's OK to send it to the installer and is
  *  never put in another batch. */
-export const passedQuickTaps = (events: readonly AreaBatchEventRow[]): boolean => {
+export const passHandedOn = (events: readonly AreaBatchEventRow[], jobId: string): boolean =>
+  events.some((e) => e.event_type === AREA_BATCH_CLOSED_EVENT && ((e.details as { pass_job_ids?: unknown } | null)?.pass_job_ids as unknown[] | undefined)?.includes?.(jobId) === true);
+/** A pass not handed on yet (the owner left that batch, or answered as it closed): carried forward — the owner can be put
+ *  in a new batch without being asked again, and counts as a passer at that batch's close. */
+export const standingPass = (events: readonly AreaBatchEventRow[], jobId: string): boolean => {
   const latest = events.filter((e) => e.event_type === ANSWERED).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
-  return !!latest && outcomeOf(latest) === PASS;
+  return !!latest && outcomeOf(latest) === PASS && !passHandedOn(events, jobId);
 };

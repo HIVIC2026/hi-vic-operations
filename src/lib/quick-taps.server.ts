@@ -71,7 +71,10 @@ function batchOf(c: Ctx): { batchId: string | null; answered: Ev | null } {
   const batchId = tapsBatchId(c.events);
   const latestSent = c.events.filter((e) => e.event_type === AREA_BATCH_SENT_EVENT).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
   const forBatch = batchId ?? (latestSent ? bid(latestSent) : null);
-  const answered = forBatch ? c.events.find((e) => e.event_type === QUICK_TAPS_ANSWERED_EVENT && bid(e) === forBatch) ?? null : null;
+  let answered = forBatch ? c.events.find((e) => e.event_type === QUICK_TAPS_ANSWERED_EVENT && bid(e) === forBatch) ?? null : null;
+  // Put in this batch carrying a pass from a batch they left (Task 4 fix round 1): not asked again — the pass stands.
+  const carried = forBatch && c.events.some((e) => e.event_type === AREA_BATCH_SENT_EVENT && bid(e) === forBatch && (e.details as { carried_pass?: unknown } | null)?.carried_pass === true);
+  if (!answered && carried) answered = c.events.filter((e) => e.event_type === QUICK_TAPS_ANSWERED_EVENT).sort((a, b) => b.created_at.localeCompare(a.created_at))[0] ?? null;
   return { batchId, answered };
 }
 
@@ -285,7 +288,8 @@ export async function finishDecline(jobId: string): Promise<FinishDeclineResult>
       const { cancelJobFully } = await import("./office-actions.server");
       await cancelJobFully(jobId, QUICK_TAPS_DECLINE_REASON[decline], null, { tell: { owner: false, installer: false } });
     } catch (e) {
-      await logEvent(jobId, null, "quick_taps_close_failed", `Quick taps: the job could not be closed (no email sent yet): ${(e as Error).message}`, { batch_id: batchId, outcome: decline, error: (e as Error).message }, { internal: true });
+      // Recorded once per job + batch (a later retry that fails again adds nothing).
+      await claimOnce(jobId, "quick_taps_close_failed", { batch_id: batchId, outcome: decline, error: (e as Error).message, idempotency_key: `quick-taps:v1:${batchId}:${jobId}:close_failed` }, `Quick taps: the job could not be closed (no email sent yet): ${(e as Error).message}`);
       return "cancel_failed";
     }
   }

@@ -347,6 +347,24 @@ describe("TEST office login", () => {
     expect(src).toMatch(/showAreaBatches\(me\?\.roles\) && <AreaBatchSuggestions/);
   });
 });
+describe("sendBatch: an owner carrying a pass from a batch they left (Task 4 fix round 1)", () => {
+  beforeEach(seed);
+  test("recorded in the new batch (carried_pass) but not texted again; the others get their text", async () => {
+    addJob("d"); addJob("e");
+    const old = (t: string, details: Row) => tables["workflow_events"]!.push({ job_id: "d", event_type: t, created_at: daysAgo(5), details });
+    old("area_batch_sent", { batch_id: "b0", job_ids: ["d"] });
+    old("area_batch_left", { batch_id: "b0", reason: "address_moved" });
+    old("quick_taps_answered", { batch_id: "b0", outcome: "pass" });
+    const r = await S.sendBatch(["d", "e"], "biz-1", "jo", { now: NOW });
+    const d = events("area_batch_sent").find((e) => e["job_id"] === "d" && (e["details"] as Row)["batch_id"] === r.batchId)!;
+    expect(d["details"]).toMatchObject({ carried_pass: true });
+    const e = events("area_batch_sent").find((x) => x["job_id"] === "e")!;
+    expect((e["details"] as Row)["carried_pass"]).toBeUndefined();
+    expect(sent.map((x) => x.to.length > 0 && x.body.includes("T-e"))).toEqual([true]);
+    expect(r.texts.find((t) => t.jobId === "d")).toMatchObject({ status: "not_texted" });
+  });
+});
+
 describe("sendBatch review fixes", () => {
   beforeEach(seed);
   test("TEST texts carry the office user who tapped Send", async () => {
