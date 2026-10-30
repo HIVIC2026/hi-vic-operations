@@ -37,3 +37,5 @@ Changes:
 3. installer-speed.ts: manifest written with `{ mode: 0o600 }`; python run wrapped in try/finally that blanks the manifest.
 Commands/output: `bun test tests/installer-speed.test.ts` -> 9 pass, 0 fail; `python3 -m py_compile e2e/installer-speed/time.py` ok; `bun scripts/installer-speed.ts --help` prints usage; tsc grep 'installer-speed' prints nothing.
 Note: a staff money refusal (getTradeMoneyView error) renders as a `role="alert"` paragraph without the specific texts, so it may not match the new REFUSAL list; if the first live run shows staff money timing out, add the refusal wording from getTradeMoneyView to REFUSAL for the money screen.
+
+Follow-up: staff money refusal wording is "Money is only shown to the business owner." (trade-view.server.ts); added to REFUSAL, so the note above is resolved.

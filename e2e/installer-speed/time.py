@@ -18,7 +18,7 @@ READY = {
 }
 PATH = {"home": "/field", "job": "/field/{job}", "day": "/field/day/{job}", "business": "/field/business", "money": "/field/money"}
 # What the portal already shows when a page is not for that person.
-REFUSAL = 'main p:has-text("isn\'t available to you"), main p:has-text("TEST sign-in can only"), main p:has-text("assigned to you")'
+REFUSAL = 'main p:has-text("isn\'t available to you"), main p:has-text("TEST sign-in can only"), main p:has-text("assigned to you"), main p:has-text("only shown to the business owner")'
 
 
 def server_fn_name(url):
