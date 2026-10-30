@@ -301,7 +301,7 @@ export async function sweepRecOffers(actorId: string | null = null) {
   const inHouseState = await readInHouseDispatchState();
   if (inHouseState.failed) return { expired: 0, started: 0, healed: 0 };
   const nowIso = new Date().toISOString();
-  const { data: due } = await admin.from("partner_offers").select("id, job_id, jobs!inner(deleted_at, source)").in("kind", ["piesa", "rectification"]).eq("status", "pending").lt("expires_at", nowIso).is("jobs.deleted_at", null).neq("jobs.source", "qa_test");
+  const { data: due } = await admin.from("partner_offers").select("id, job_id, jobs!inner(deleted_at, source)").in("kind", ["piesa", "rectification"]).eq("status", "pending").lt("expires_at", nowIso).is("jobs.deleted_at", null);
   const ids = (due ?? []).filter(o => !inHouseState.held.has(o.job_id)).map(o => o.id);
   const { data: expired } = ids.length ? await admin.from("partner_offers").update({ status: "expired" }).in("id", ids).eq("status", "pending").select("job_id, kind") : { data: [] };
   for (const o of expired ?? []) await logEvent(o.job_id, actorId, "partner_offer_expired", `An electrician ${o.kind} offer expired without a response`, { kind: o.kind }, { internal: true });
@@ -312,7 +312,7 @@ export async function sweepRecOffers(actorId: string | null = null) {
   await flagUnapprovedElectricians(actorId, inHouseState);
   // Stranded acceptances (P1 UAT DEF-09): a confirmed PIESA visit on a job still reading "waiting for an electrician".
   // Bounded, idempotent, and only ever moves a job whose visit evidence already exists.
-  const { data: stranded } = await admin.from("bookings").select("job_id, jobs!inner(stage, deleted_at, source)").eq("kind", "assessment").eq("status", "confirmed").eq("jobs.stage", "piesa_and_install_window_pending").is("jobs.deleted_at", null).neq("jobs.source", "qa_test").limit(50);
+  const { data: stranded } = await admin.from("bookings").select("job_id, jobs!inner(stage, deleted_at, source)").eq("kind", "assessment").eq("status", "confirmed").eq("jobs.stage", "piesa_and_install_window_pending").is("jobs.deleted_at", null).limit(50);
   let healed = 0;
   for (const s of stranded ?? []) if (!inHouseState.held.has(s.job_id) && await healStrandedPiesaStage(s.job_id, actorId)) healed++;
   return { expired: expired?.length ?? 0, started, healed };
@@ -630,7 +630,7 @@ async function windowsNoTaker(jobId: string, actorId: string | null, round: numb
 /** Timer: close owner times that have passed; if a whole round has passed with no electrician, run the no-taker step. */
 async function sweepPiesaWindows(actorId: string | null, inHouseState: InHouseDispatchState) {
   const nowIso = new Date().toISOString();
-  const { data: due } = await admin.from("appointment_proposals").select("id, job_id, jobs!inner(deleted_at, source)").not("piesa_window_round", "is", null).eq("status", "proposed").lt("starts_at", nowIso).is("jobs.deleted_at", null).neq("jobs.source", "qa_test");
+  const { data: due } = await admin.from("appointment_proposals").select("id, job_id, jobs!inner(deleted_at, source)").not("piesa_window_round", "is", null).eq("status", "proposed").lt("starts_at", nowIso).is("jobs.deleted_at", null);
   const ids = (due ?? []).filter(p => !inHouseState.held.has(p.job_id)).map(p => p.id);
   const { data: passed } = ids.length ? await admin.from("appointment_proposals").update({ status: "superseded" }).in("id", ids).eq("status", "proposed").select("job_id") : { data: [] };
   const jobs = new Set((passed ?? []).map((p) => p.job_id));

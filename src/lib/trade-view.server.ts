@@ -887,6 +887,15 @@ export async function inHouseBookVisit(userId: string, input: { jobId: string; k
     if (error instanceof WorkflowError) return { ok: false, blockers: [error.message] };
     throw error;
   }
+  if (input.kind === "ready_check") {
+    const { READY_CHECK_BOOKED } = await import("./installer-ready-check.core");
+    const { error: nextError } = await admin.from("jobs").update({ next_action: READY_CHECK_BOOKED }).eq("id", input.jobId);
+    if (nextError) throw new Error(nextError.message);
+    await (await import("./mitti-create.server")).onReadyCheckBooked(input.jobId, userId).catch((e) => console.error("ready check form not scheduled", (e as Error).message));
+    const { data: assignment, error: assignmentError } = await admin.from("job_assignments").select("business_id").eq("job_id", input.jobId).eq("role", "installer").eq("active", true).maybeSingle();
+    if (assignmentError) throw new Error(assignmentError.message);
+    await logEvent(input.jobId, userId, "installer_ready_check_time_entered", "Partner entered the Ready Check day and time (nothing sent to the owner)", { starts_at: input.start, business_id: assignment?.business_id ?? null });
+  }
   const { data: booking, error } = await admin.from("bookings").select("id").eq("job_id", input.jobId).eq("kind", input.kind).eq("status", "confirmed").eq("scheduled_start", input.start).eq("booked_by", userId).order("created_at", { ascending: false }).limit(1).single();
   if (error || !booking) throw new Error(error?.message ?? "Booking could not be read back.");
   return { ok: true, bookingId: booking.id };

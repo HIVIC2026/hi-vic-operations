@@ -216,7 +216,7 @@ export async function sweepAutoOffers(): Promise<{ enabled: { installer: boolean
   const inHouseState = await readInHouseDispatchState();
   if (inHouseState.failed) return out;
   for (const kind of kinds) {
-    let q = admin.from("jobs").select("id").in("stage", AUTO_OFFER_READY_STAGES[kind] as never[]).is("deleted_at", null).neq("source", "qa_test");
+    let q = admin.from("jobs").select("id").in("stage", AUTO_OFFER_READY_STAGES[kind] as never[]).is("deleted_at", null);
     if (kind === "ready_check") q = q.eq("channel", "hivic_sourced");
     const { data: jobs } = await q.order("created_at").limit(200);
     for (const j of jobs ?? []) {

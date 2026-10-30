@@ -21,6 +21,8 @@ export type AdvanceFacts = {
   /** …and electrical clearance holds on the `electrician_at_start` basis (fixes quote accepted + payment rule cleared,
    *  allocation.core `onsiteStartAtInstall`). The open items are done on the install day. Absent = false. */
   onsiteStartCleared?: boolean;
+  /** Held in-house partner bills rectification; only separate visits use this route. */
+  partnerBilledRectification?: boolean;
   rectQuoteIssued: boolean;
   rectQuoteAccepted: boolean;
   installQuotesIssued: boolean;
@@ -80,6 +82,7 @@ export function planStep(stage: Stage, f: AdvanceFacts): Step {
       // PIESA, the accepted quote, a verified payment option and a valid 30-day window). Rectification found at the PIESA
       // is routed by Home Insulation Victoria (variation vs rectification scheduling is not automated).
       if (onsiteCleared) return t("installation_scheduling", ONSITE_START_INSTALL_SUMMARY);
+      if (f.openRectItems > 0 && !f.onsiteStartOnly && f.partnerBilledRectification) return t("rectification_scheduling", "Partner needs to book rectification");
       return f.openRectItems > 0 ? stop("Electrical fixes listed at the PIESA – Home Insulation Victoria must route the electrical fixes") : t("installation_scheduling", "PIESA complete, no electrical fixes – installation scheduling unlocked");
     case "assessment_complete":
       return f.openRectItems > 0 ? t("rectification_required", `${f.openRectItems} electrical fixes item(s) required`) : t("ready_for_installer_quotes", "No electrical fixes required – ready for installer quotes");
