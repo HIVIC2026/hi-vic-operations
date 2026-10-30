@@ -17,7 +17,7 @@ let failCreate = false;
 let held = true;
 let quoteWrites = 0;
 let claimHeld = false;
-const JOB = "job", EMAIL = "electrician@example.invalid", PIESA = "template_piesa", RECT = "template_rectification";
+const JOB = "job", EMAIL = "electrician@example.invalid", PIESA = `template_${"a".repeat(32)}`, RECT = `template_${"b".repeat(32)}`;
 class WorkflowError extends Error {}
 class MittiClaimHeld extends Error {}
 class MittiOutcomeUncertain extends Error {}
@@ -148,7 +148,7 @@ test("partner-billed in-house quote creation skips without any HIV quote or invo
 });
 for (const scenario of ["hivic", "non-in-house"]) test(`${scenario} rectification items still produce the existing quote`, async () => {
   if (scenario === "hivic") tables.job_assignments[1].businesses.rectification_billed_by = "hivic";
-  else held = false;
+  else { held = false; tables.job_assignments[1].businesses.in_house = false; }
   tables.rectification_items.push({ job_id: JOB, status: "required", rate_code: "RCD", quantity: 1, description: "RCD" });
   expect(await load("quotes.server").generateRectificationQuote(JOB, null)).toBe("quote");
   expect(quoteWrites).toBe(1);
