@@ -1,3 +1,8 @@
+## Jo 30 Oct I6 — held visit messages and quote regression
+- [ ] Audit every visit-coordination sender/prompt; add fail-closed held suppression or portal-booking trade wording test-first without changing owner templates or C1/I1–I5.
+- [ ] Run overlapping Mitti quote test isolated at every commit since 5fadf36; identify first failing commit and repair only an in-house regression.
+- [ ] Run every requested test file isolated, compare failures with 5fadf36, document per-run totals and all changed files. No SQL, delivery or publication.
+
 ## Jo 30 Oct I1–I5 in-house review
 - [x] Red-first: initial groups 76 pass / 5 fail / 3 skip, booking/TEST group 56 pass / 3 fail; implemented bounded fail-closed batch reads, invitation + canonical Ready Check form hook/replay, four legacy TEST sweep exclusions removed, lazy partner-only separate rectification advance, and deduplicated Part C transition retry. Second-partner and mid-flight flag-off practice checks passed; C1/locked rules preserved.
 - [x] Final requested combined: 765 pass / 74 fail / 3 skip / 1 error across 72 files; isolated: 848 pass / 2 fail / 3 skip. Baseline 5fadf36 available combined: 609 pass / 73 fail / 3 skip; every failing existing file checked isolated at baseline, new in-house files absent there. Full names/comparisons in docs/in-house-review-i1-i5-tests.md. Automatic checks build OK. No SQL/providers/publication; no hosted journey claim. Remaining isolated mitti-autoform tick-order fails at baseline; mitti-sync-overlap zero-quote fails now but passes at 5fadf36, left unchanged outside review scope.
