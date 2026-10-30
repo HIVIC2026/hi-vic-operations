@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { clearTradeCache } from "@/lib/trade-cache.client";
+import { clearTradeCache } from "@/lib/trade-cache";
 import { useQueryClient } from "@tanstack/react-query";
 import { LogOut, Menu, X } from "lucide-react";
 import { useState } from "react";

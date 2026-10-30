@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { clearTradeCache, readTradeCache, writeTradeCache } from "../src/lib/trade-cache.client";
+import { clearTradeCache, readTradeCache, writeTradeCache } from "../src/lib/trade-cache";
 
 class FakeStorage {
   m = new Map<string, string>();
@@ -70,7 +70,7 @@ describe("trade cache keys per job", () => {
 });
 
 import { evictPlan } from "../src/lib/trade-job-bundle.core";
-import { resetTradeCacheSignOut } from "../src/lib/trade-cache.client";
+import { resetTradeCacheSignOut } from "../src/lib/trade-cache";
 
 describe("evictPlan", () => {
   const seeded = ["overview", "role", "page"] as const;

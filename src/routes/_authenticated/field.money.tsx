@@ -1,7 +1,7 @@
 // Money = approved mock-up M6 (Jo 24 Oct 2026, decision 203): the installer's own pay only — Coming / Being checked /
 // This month / Last month, per-job rows with payPill states, how pay works by job type, bank account on file,
 // Download statement. Pay states come from trade-view.core payPill; totals from installer-screens.core.
-import { readTradeCache, writeTradeCache } from "@/lib/trade-cache.client";
+import { readTradeCache, writeTradeCache } from "@/lib/trade-cache";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";

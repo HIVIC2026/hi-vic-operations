@@ -1,4 +1,4 @@
-import { clearTradeCache } from "@/lib/trade-cache.client";
+import { clearTradeCache } from "@/lib/trade-cache";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";

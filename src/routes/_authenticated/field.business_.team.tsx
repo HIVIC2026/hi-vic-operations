@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { readTradeCache, writeTradeCache } from "@/lib/trade-cache.client";
+import { readTradeCache, writeTradeCache } from "@/lib/trade-cache";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";

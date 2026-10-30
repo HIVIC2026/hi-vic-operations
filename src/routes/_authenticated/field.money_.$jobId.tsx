@@ -1,7 +1,7 @@
 // Per-job pay detail = approved state M6-job-detail (Jo 24 Oct 2026, decision 235; payState rule decision 109): own pay
 // only, business owner only. Facts come from the same business-scoped money rows as the Money screen; words from the
 // pure `moneyJobDetail`. Never the owner's price or our margin.
-import { readTradeCache, writeTradeCache } from "@/lib/trade-cache.client";
+import { readTradeCache, writeTradeCache } from "@/lib/trade-cache";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";

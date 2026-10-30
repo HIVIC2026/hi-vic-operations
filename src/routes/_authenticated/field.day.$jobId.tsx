@@ -3,7 +3,7 @@
 // PIESA requires one, the job facts + own pay (install) or "What we know" (Ready Check), crew today / who's on this,
 // "Couldn't get in?" (decisions 214/215). After the install form is Complete the panel reads "Sign the rebate form"
 // (decision 213) with the recorded ticks, the declaration and "Then".
-import { readTradeCache, writeTradeCache } from "@/lib/trade-cache.client";
+import { readTradeCache, writeTradeCache } from "@/lib/trade-cache";
 import { toast } from "sonner";
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
