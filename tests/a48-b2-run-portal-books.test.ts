@@ -17,6 +17,8 @@ const subset = (a: unknown, b: unknown): boolean => {
   return a === b;
 };
 let clock = Date.parse("2026-10-20T00:00:00.000Z");
+/** Fix round 1: make one insert fail (a half-finished chooseRunDay). */
+let failInsert: ((table: string, row: Row) => boolean) | null = null;
 function fakeAdmin() {
   return {
     from(table: string) {
@@ -41,6 +43,7 @@ function fakeAdmin() {
         then(res, rej) {
           let out: { data: unknown; error: { message: string; code?: string } | null; count?: number };
           const one = (b as Row)["single1"] === true;
+          if (op === "insert" && failInsert?.(table, payload!)) { failInsert = null; out = { data: null, error: { message: "connection reset" } }; return Promise.resolve(out).then(res, rej); }
           if (op === "insert") {
             const rows = (tables[table] ??= []);
             const row = { id: crypto.randomUUID(), created_at: new Date(++clock).toISOString(), active: true, ...payload! }; rows.push(row); out = { data: one ? row : [row], error: null };
@@ -67,6 +70,9 @@ let smsStatus = "sent";
 mock.module("../src/lib/sms.server", () => ({
   sendRealSms: async (i: { type: string; to: string; body: string; idempotencyKey: string; jobId?: string | null }) => {
     if (smsStatus !== "sent" && i.type === "run_offered") return { status: smsStatus, detail: "held: test", sid: null };
+    // Like the real sender: held unless customer messages are on AND this text's own switch is on.
+    const ws = (tables["workflow_settings"] ?? [])[0] as { customer_comms_enabled?: boolean; sms_message_switches?: Record<string, boolean> } | undefined;
+    if (ws?.customer_comms_enabled !== true || ws?.sms_message_switches?.[i.type] !== true) return { status: "held", detail: "switch off", sid: null };
     if (sent.some((s) => s.key === i.idempotencyKey)) return { status: "already", detail: "already", sid: null };
     sent.push({ via: "real-sms", to: i.to, body: i.body, key: i.idempotencyKey, type: i.type, jobId: i.jobId ?? null }); return { status: "sent", detail: "ok", sid: "SM1" };
   },
@@ -81,7 +87,8 @@ const fact = (id: string, o: Row = {}) => ({
   id, name: id, is_active: true, onboarding_status: "approved", accepting_new_jobs: true, receives_hivic_leads: true, coverage_verified_at: "2026-10-01T00:00:00Z",
   service_postcodes: ["3128"], free_measureups_for_hivic_quote_leads: true, onboarding_notes: id === "biz-t" ? "[TEST PARTNER]" : null, credentialsOk: true, fullCertifiedInstallers: 1, covers_all_victoria: false, ...o,
 });
-mock.module("../src/lib/installer-waiting.server", () => ({ installerFacts: async (ids?: string[]) => [fact("biz-1"), fact("biz-t")].filter((f) => !ids || ids.includes(String(f["id"]))) }));
+let factOverride: Row = {};
+mock.module("../src/lib/installer-waiting.server", () => ({ installerFacts: async (ids?: string[]) => [fact("biz-1", factOverride), fact("biz-t")].filter((f) => !ids || ids.includes(String(f["id"]))) }));
 mock.module("../src/lib/property-coordinates.server", () => ({ ensurePropertyCoordinates: async () => null }));
 const LINK = (j: string) => `https://estimate.homeinsulationvictoria.com.au/my-job/tok-${j}`;
 mock.module("../src/lib/veec-copy-email.server", () => ({ ownerMyJobLink: async (jobId: string) => LINK(jobId) }));
@@ -128,8 +135,8 @@ function closedBatch(batchId: string, jobIds: string[], installer = "biz-1") {
 }
 function seed() {
   for (const k of Object.keys(tables)) delete tables[k];
-  sent.length = 0; booked.length = 0; followOns.length = 0; smsStatus = "sent"; bookingRefusal = null;
-  tables["workflow_settings"] = [{ id: 1, customer_comms_enabled: true, sms_message_switches: { run_offered: true } }];
+  sent.length = 0; booked.length = 0; followOns.length = 0; smsStatus = "sent"; bookingRefusal = null; failInsert = null; factOverride = {};
+  tables["workflow_settings"] = [{ id: 1, customer_comms_enabled: true, sms_message_switches: { run_offered: true, run_time: true, run_time_reminder: true } }];
   for (const t of ["jobs", "lead_campaign_responses", "property_facts", "job_assignments", "partner_offers", "workflow_events", "appointment_proposals"]) tables[t] = [];
   tables["businesses"] = [
     { id: "biz-1", name: "Sample Insulation", business_type: "eec_installer", signer_name: "Sam Smith", signer_mobile: "0411111111", phone: null, onboarding_notes: null, is_active: true },
@@ -137,10 +144,12 @@ function seed() {
   ];
   tables["business_members"] = [
     { user_id: "u-sam", business_id: "biz-1", member_role: "business_admin", active: true },
+    { user_id: "u-kim", business_id: "biz-1", member_role: "staff", active: true },
+    { user_id: "u-gone", business_id: "biz-1", member_role: "staff", active: false },
     { user_id: "u-tess", business_id: "biz-t", member_role: "business_admin", active: true },
   ];
-  tables["user_roles"] = [{ user_id: "u-sam", role: "installer" }, { user_id: "u-tess", role: "installer" }];
-  tables["profiles"] = [{ id: "u-sam", full_name: "Sam Smith" }, { id: "u-tess", full_name: "Tess Test" }];
+  tables["user_roles"] = [{ user_id: "u-sam", role: "installer" }, { user_id: "u-kim", role: "installer" }, { user_id: "u-tess", role: "installer" }];
+  tables["profiles"] = [{ id: "u-sam", full_name: "Sam Smith" }, { id: "u-kim", full_name: "Kim Lee" }, { id: "u-gone", full_name: "Old Staff" }, { id: "u-tess", full_name: "Tess Test" }];
 }
 const events = (type?: string, jobId?: string) => (tables["workflow_events"] ?? []).filter((e) => (!type || e["event_type"] === type) && (!jobId || e["job_id"] === jobId));
 const candidates = async () => (await A.batchCandidates({ includeTest: true, locate: 0 })).candidates;
@@ -168,9 +177,9 @@ describe("pure: wording + plan", () => {
   });
   test("exact approved owner wording (time text + 12-hour reminder)", () => {
     expect(runTimeText({ name: "Ann Lee", day: "Tuesday 27 October", time: "between 9:00 and 10:00am", installer: "Sample Insulation", link: "L" }))
-      .toBe("Hi Ann, your free Ready Check is Tuesday 27 October at between 9:00 and 10:00am with Sample Insulation. Tap to confirm or pick another time: L - Home Insulation Victoria");
+      .toBe("Hi Ann, your free Ready Check is Tuesday 27 October between 9:00 and 10:00am with Sample Insulation. Tap to confirm or pick another time: L - Home Insulation Victoria");
     expect(runTimeReminderText({ name: "Ann Lee", day: "Tuesday 27 October", time: "between 9:00 and 10:00am", link: "L" }))
-      .toBe("Hi Ann, please confirm your free Ready Check on Tuesday 27 October at between 9:00 and 10:00am: L");
+      .toBe("Hi Ann, please confirm your free Ready Check on Tuesday 27 October between 9:00 and 10:00am: L");
   });
   test("plan: > 8 homes needs a second day", () => {
     const ids = Array.from({ length: 10 }, (_, i) => `j${i}`);
@@ -214,8 +223,8 @@ describe("chooseRunDay (Portal books)", () => {
     const t = ownerTexts();
     expect(t.length).toBe(4);
     expect(t.find((x) => x.jobId === order[0])).toMatchObject({ key: `run-time-sms:v1:${runId}:${order[0]}:1`,
-      body: `Hi Owner, your free Ready Check is Tuesday 27 October at between 9:00 and 10:00am with Sample Insulation. Tap to confirm or pick another time: ${LINK(order[0]!)} - Home Insulation Victoria` });
-    expect(t.find((x) => x.jobId === order[3])!.body).toContain("Tuesday 27 October at between 12:00 and 1:00pm with Sample Insulation");
+      body: `Hi Owner, your free Ready Check is Tuesday 27 October between 9:00 and 10:00am with Sample Insulation. Tap to confirm or pick another time: ${LINK(order[0]!)} - Home Insulation Victoria` });
+    expect(t.find((x) => x.jobId === order[3])!.body).toContain("Tuesday 27 October between 12:00 and 1:00pm with Sample Insulation");
     expect(events("run_time_texted").length).toBe(4);
     // the installer page shows each window; the run no longer expires (answered)
     const page = await R.tradeRun(runId, "u-sam");
@@ -244,7 +253,7 @@ describe("chooseRunDay (Portal books)", () => {
     const r = await R.chooseRunDay(runId, "u-sam", DAY, "08:00", "2026-10-28", { now: new Date(clock) });
     expect(r.slots.filter((s) => s.day === DAY).length).toBe(8);
     expect(r.slots.filter((s) => s.day === "2026-10-28").map((s) => [s.jobId, s.start])).toEqual([[order[8], "08:00"]]);
-    expect(ownerTexts().find((x) => x.jobId === order[8])!.body).toContain("Wednesday 28 October at between 8:00 and 9:00am");
+    expect(ownerTexts().find((x) => x.jobId === order[8])!.body).toContain("Wednesday 28 October between 8:00 and 9:00am");
   });
   test("same day twice: a second run for the same installer that day starts after the first run's last window", async () => {
     const r1 = await offered(["a", "b", "c"], { batch: "b1" });
@@ -262,7 +271,7 @@ describe("chooseRunDay (Portal books)", () => {
     now(2);
     await R.chooseRunDay(runId, "u-tess", DAY, "08:00", null, { now: new Date(clock) });
     expect(sent.map((x) => [x.via, x.label?.startsWith("run_time:")])).toEqual([["test-sms", true]]);
-    expect(sent[0]!.body).toContain("your free Ready Check is Tuesday 27 October at between 8:00 and 9:00am with Co.");
+    expect(sent[0]!.body).toContain("your free Ready Check is Tuesday 27 October between 8:00 and 9:00am with Co.");
   });
 });
 
@@ -352,7 +361,7 @@ describe("sweepRunSlots", () => {
     now(14.1); await R.sweepRunSlots(at(14.1)); // 2:06am — quiet hours
     expect(ownerTexts("run_time_reminder")).toEqual([]);
     now(19.1); await R.sweepRunSlots(at(19.1)); // 7:06am
-    expect(ownerTexts("run_time_reminder").map((x) => [x.jobId, x.body])).toEqual([[order[0], `Hi Owner, please confirm your free Ready Check on Tuesday 27 October at between 9:00 and 10:00am: ${LINK(order[0]!)}`]]);
+    expect(ownerTexts("run_time_reminder").map((x) => [x.jobId, x.body])).toEqual([[order[0], `Hi Owner, please confirm your free Ready Check on Tuesday 27 October between 9:00 and 10:00am: ${LINK(order[0]!)}`]]);
     now(20); await R.sweepRunSlots(at(20));
     expect(ownerTexts("run_time_reminder").length).toBe(1);
     now(25.9); await R.sweepRunSlots(at(25.9));
@@ -377,6 +386,208 @@ describe("sweepRunSlots", () => {
     now(43.2); await R.sweepRunSlots(at(43.2));
     expect(events("run_slot_released", order[0]!).length).toBe(1);
     expect(sent.filter((x) => x.jobId === order[1])).toEqual([]);
+  });
+});
+
+// ---- Fix round 1 (Jo 30 Oct: per person, who's doing them, wording, review fixes) ---------------------------------------------
+describe("fix round 1", () => {
+  beforeEach(seed);
+  const claims = () => events("run_window_claimed").map((e) => e["details"] as Row);
+  const frees = () => events("run_window_freed").map((e) => e["details"] as Row);
+  /** Windows still claimed (latest claim per person + day + start not freed). */
+  const liveClaims = () => {
+    const freed = new Set(frees().map((d) => `${d["person"]}|${d["day"]}|${d["start"]}|${d["gen"]}`));
+    return claims().filter((d) => !freed.has(`${d["person"]}|${d["day"]}|${d["start"]}|${d["gen"]}`)).map((d) => `${d["person"]} ${d["day"]} ${d["start"]}`).sort();
+  };
+  const nothingWritten = () => {
+    expect(events("run_mode_chosen")).toEqual([]);
+    expect(events("run_slot_proposed")).toEqual([]);
+    expect(liveClaims()).toEqual([]);
+    expect(ownerTexts()).toEqual([]);
+  };
+
+  test("C: the owner text and reminder drop \"at\" before the window", () => {
+    expect(runTimeText({ name: "Ann", day: "Tuesday 27 October", time: windowWords("09:00", "10:00"), installer: "Sample Insulation", link: "L" }))
+      .toBe("Hi Ann, your free Ready Check is Tuesday 27 October between 9:00 and 10:00am with Sample Insulation. Tap to confirm or pick another time: L - Home Insulation Victoria");
+    expect(runTimeReminderText({ name: "Ann", day: "Tuesday 27 October", time: windowWords("09:00", "10:00"), link: "L" })).toBe("Hi Ann, please confirm your free Ready Check on Tuesday 27 October between 9:00 and 10:00am: L");
+    expect(readFileSync("src/components/owner/OwnerRunTime.tsx", "utf8")).toContain("Your free Ready Check is {data.day} {data.time} with {data.installer}.");
+  });
+
+  test("B: the run page lists the active team; the chosen person goes on the job assignment (default: the person tapping)", async () => {
+    const { runId, order } = await offered(["a", "b"]);
+    now(2);
+    const page = await R.tradeRun(runId, "u-sam");
+    expect(page.team).toEqual([{ userId: "u-kim", name: "Kim Lee" }, { userId: "u-sam", name: "Sam Smith" }]);
+    expect(page.me).toBe("u-sam");
+    // not in this business's active team → refused, nothing written
+    for (const who of ["u-gone", "u-tess"]) {
+      await expect(R.chooseRunDay(runId, "u-sam", DAY, "09:00", null, { now: new Date(clock), personId: who })).rejects.toThrow(/who's doing these Ready Checks/);
+    }
+    nothingWritten();
+    await R.chooseRunDay(runId, "u-sam", DAY, "09:00", null, { now: new Date(clock), personId: "u-kim" });
+    expect(events("run_slot_proposed").map((e) => (e["details"] as Row)["person"])).toEqual(["u-kim", "u-kim"]);
+    await R.ownerConfirmRunSlot(order[0]!, "u-owner", { now: new Date(clock) });
+    expect(tables["job_assignments"]!.filter((a) => a["job_id"] === order[0] && a["active"] === true).map((a) => [a["business_id"], a["user_id"]])).toEqual([["biz-1", "u-kim"]]);
+    // default = the person tapping
+    const r2 = await offered(["c"], { batch: "b2" });
+    now(2);
+    await R.chooseRunDay(r2.runId, "u-kim", DAY, "14:00", null, { now: new Date(clock) });
+    expect(slotOf("c")!["person"]).toBe("u-kim");
+  });
+
+  test("A: 8 a day and same day twice are per person — two crews of one business can both start at 8:00 the same day", async () => {
+    const r1 = await offered(["a", "b", "c", "d", "e", "f", "g", "h"], { batch: "b1" });
+    const r2 = await offered(["i", "j"], { batch: "b2" });
+    const r3 = await offered(["k"], { batch: "b3" });
+    now(2);
+    await R.chooseRunDay(r1.runId, "u-sam", DAY, "08:00", null, { now: new Date(clock) });
+    const kim = await R.chooseRunDay(r2.runId, "u-sam", DAY, "08:00", null, { now: new Date(clock), personId: "u-kim" });
+    expect(kim.slots.map((x) => [x.start, x.end])).toEqual([["08:00", "09:00"], ["09:00", "10:00"]]);
+    // Sam already has 8 that day: a third run for Sam needs another day
+    await expect(R.chooseRunDay(r3.runId, "u-sam", DAY, "08:00", null, { now: new Date(clock) })).rejects.toThrow(/1 more home needs a second day/);
+    // ...but Kim can take it, after Kim's own last window
+    const k2 = await R.chooseRunDay(r3.runId, "u-sam", DAY, "08:00", null, { now: new Date(clock), personId: "u-kim" });
+    expect(k2.slots.map((x) => x.start)).toEqual(["10:00"]);
+  });
+
+  test("1: business accept checks at day pick (approved, can be offered, area, nobody assigned) — refused with nothing written", async () => {
+    const { runId, order } = await offered(["a", "b"]);
+    now(2);
+    for (const o of [{ onboarding_status: "suspended" }, { is_active: false }, { service_postcodes: ["3000"] }, { fullCertifiedInstallers: 0 }]) {
+      factOverride = o;
+      await expect(R.chooseRunDay(runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) })).rejects.toThrow(/can't take every home in this run right now/);
+      nothingWritten();
+    }
+    factOverride = {};
+    tables["job_assignments"]!.push({ id: "asg-x", job_id: order[1], user_id: "u-other", role: "installer", business_id: "biz-other", active: true });
+    await expect(R.chooseRunDay(runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) })).rejects.toThrow(/HV-.* already has an installer/);
+    nothingWritten();
+    tables["job_assignments"]!.find((a) => a["id"] === "asg-x")!["active"] = false;
+    await R.chooseRunDay(runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) });
+    expect(events("run_slot_proposed").length).toBe(2);
+  });
+
+  test("2: real run, owner time text would be held (customer messages off / run_time switch off) → refused, nothing written; TEST runs still go", async () => {
+    const { runId } = await offered(["a", "b"]);
+    now(2);
+    tables["workflow_settings"]![0]!["sms_message_switches"] = { run_offered: true, run_time: false, run_time_reminder: true };
+    await expect(R.chooseRunDay(runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) })).rejects.toThrow(/owner time texts are switched off/);
+    nothingWritten();
+    tables["workflow_settings"]![0]!["sms_message_switches"] = { run_offered: true, run_time: true, run_time_reminder: true };
+    tables["workflow_settings"]![0]!["customer_comms_enabled"] = false;
+    await expect(R.chooseRunDay(runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) })).rejects.toThrow(/Customer messages are switched off/);
+    nothingWritten();
+    // TEST job + TEST partner: test-send, no switch needed
+    const t = await offered(["t"], { batch: "bt", installer: "biz-t", source: "qa_test" });
+    now(2);
+    await R.chooseRunDay(t.runId, "u-tess", DAY, "08:00", null, { now: new Date(clock) });
+    expect(sent.map((x) => x.via)).toEqual(["test-sms"]);
+  });
+
+  test("3: a window is claimed per person + day + start before anything is proposed; a live claim from elsewhere blocks it", async () => {
+    const r1 = await offered(["a", "b"], { batch: "b1" });
+    const r2 = await offered(["c"], { batch: "b2" });
+    now(2);
+    await R.chooseRunDay(r1.runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) });
+    expect(liveClaims()).toEqual([`u-sam ${DAY} 09:00`, `u-sam ${DAY} 10:00`]);
+    // Another run being set up for Sam right now (its claim is in, its window not proposed yet) holds 11:00.
+    ev("z", "run_window_claimed", 2, { run_id: "run-other", job_id: "z", seq: 1, person: "u-sam", day: DAY, start: "11:00", end: "12:00", gen: 1, idempotency_key: `run-window:v1:u-sam:${DAY}:11:00:1` });
+    await expect(R.chooseRunDay(r2.runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) })).rejects.toThrow(/just been taken/);
+    expect(events("run_slot_proposed", "c")).toEqual([]);
+    expect(events("run_mode_chosen", "c")).toEqual([]);
+    // the other claim never became a window: after 15 minutes it no longer blocks
+    now(2.3);
+    const ok = await R.chooseRunDay(r2.runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) });
+    expect(ok.slots.map((x) => x.start)).toEqual(["11:00"]);
+  });
+
+  test("3: owner picks — an owner can't take a window another owner is taking; a moved or released window is claimable again", async () => {
+    const { runId, order } = await offered(["a", "b", "c"]);
+    now(2);
+    await R.chooseRunDay(runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) });
+    const [a, b, c] = [order[0]!, order[1]!, order[2]!];
+    now(3);
+    // another owner's pick of 13:00 is in flight (claimed, not yet proposed)
+    ev(b, "run_window_claimed", 3, { run_id: String(slotOf(b)!["run_id"]), job_id: b, seq: 2, person: "u-sam", day: DAY, start: "13:00", end: "14:00", gen: 1, idempotency_key: `run-window:v1:u-sam:${DAY}:13:00:1` });
+    await expect(R.ownerPickRunWindow(a, "u-owner", "13:00", { now: new Date(clock) })).rejects.toThrow(/just been taken/);
+    expect(booked).toEqual([]);
+    expect(slotOf(a)!["start"]).toBe("09:00");
+    // a moves to 14:00 → 09:00 is freed and c can take it
+    await R.ownerPickRunWindow(a, "u-owner", "14:00", { now: new Date(clock) });
+    expect(liveClaims()).toContain(`u-sam ${DAY} 14:00`);
+    expect(liveClaims()).not.toContain(`u-sam ${DAY} 09:00`);
+    await R.ownerPickRunWindow(c, "u-owner", "09:00", { now: new Date(clock) });
+    expect(booked.map((x) => [x.jobId, x.start])).toEqual([[a, "2026-10-27T03:00:00.000Z"], [c, "2026-10-26T22:00:00.000Z"]]);
+    // c's old 11:00 freed; b says none suit → 10:00 freed too
+    await R.ownerNoRunWindow(b, "u-owner", { now: new Date(clock) });
+    // left: c's 09:00 (claimed again), b's in-flight 13:00, a's 14:00
+    expect(liveClaims()).toEqual([`u-sam ${DAY} 09:00`, `u-sam ${DAY} 13:00`, `u-sam ${DAY} 14:00`]);
+  });
+
+  test("4: a half-finished day pick — the retry completes it (same windows, no double texts)", async () => {
+    const { runId, order } = await offered(["a", "b", "c"]);
+    now(2);
+    failInsert = (t, row) => t === "workflow_events" && row["event_type"] === "run_slot_proposed" && row["job_id"] === order[1];
+    await expect(R.chooseRunDay(runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) })).rejects.toThrow();
+    expect(events("run_slot_proposed").length).toBe(1);
+    await R.chooseRunDay(runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) });
+    expect(order.map((j) => [slotOf(j)!["start"], slotOf(j)!["person"]])).toEqual([["09:00", "u-sam"], ["10:00", "u-sam"], ["11:00", "u-sam"]]);
+    expect(ownerTexts().map((x) => x.jobId).sort()).toEqual([...order].sort());
+    // complete now: a further choice is refused
+    await expect(R.chooseRunDay(runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) })).rejects.toThrow(/no longer open/);
+  });
+
+  test("4: a half-finished day pick nobody retries — the 15-minute tick picks up homes with a choice but no window", async () => {
+    const { runId, order } = await offered(["a", "b", "c"]);
+    now(2);
+    failInsert = (t, row) => t === "workflow_events" && row["event_type"] === "run_mode_chosen" && row["job_id"] === order[1];
+    await expect(R.chooseRunDay(runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) })).rejects.toThrow();
+    expect(events("run_slot_proposed")).toEqual([]);
+    now(2.1); await R.sweepRunSlots(at(2.1)); // too fresh (someone may still be finishing it)
+    expect(events("run_slot_proposed")).toEqual([]);
+    now(2.25); await R.sweepRunSlots(at(2.25));
+    expect(order.map((j) => slotOf(j)?.["start"])).toEqual(["09:00", "10:00", "11:00"]);
+    expect(events("run_mode_chosen").length).toBe(3);
+    now(2.5); await R.sweepRunSlots(at(2.5));
+    expect(ownerTexts().length).toBe(3);
+    expect(events("run_slot_proposed").length).toBe(3);
+    expect(runId).toBeTruthy();
+  });
+
+  test("5: owner picks a window, the booking is refused → no fresh time text for their pick; their 24 h still runs from the first text", async () => {
+    const { runId, order } = await offered(["a", "b"]);
+    now(2);
+    await R.chooseRunDay(runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) });
+    sent.length = 0;
+    const a = order[0]!;
+    now(3);
+    bookingRefusal = "The Ready Check must be assigned to an approved installer.";
+    await expect(R.ownerPickRunWindow(a, "u-owner", "13:00", { now: new Date(clock) })).rejects.toThrow(/approved installer/);
+    expect(slotOf(a)!["start"]).toBe("13:00");
+    now(3.5); await R.sweepRunSlots(at(3.5));
+    expect(ownerTexts()).toEqual([]);
+    now(25.9); await R.sweepRunSlots(at(25.9));
+    expect(events("run_slot_released", a)).toEqual([]);
+    now(26.1); await R.sweepRunSlots(at(26.1));
+    expect(events("run_slot_released", a).map((e) => (e["details"] as Row)["why"])).toEqual(["no_confirm"]);
+    expect(ownerTexts()).toEqual([]);
+  });
+
+  test("6: owners can't pick a window starting less than 24 hours away (the Ready Check lead time); confirming their own window still works", async () => {
+    const { runId, order } = await offered(["a", "b"]);
+    now(7.5); // Sat 7:30pm — Monday is 2 days ahead
+    await R.chooseRunDay(runId, "u-sam", "2026-10-26", "07:00", null, { now: new Date(clock) });
+    const [a, b] = [order[0]!, order[1]!];
+    now(8); // Sat 8pm: Monday 9:00 is 37 h away
+    const st = await R.ownerRunSlotState(a, { now: new Date(clock) });
+    expect(st.kind === "proposed" && st.free.map((w) => w.start)).toEqual(["09:00", "10:00", "11:00", "12:00", "13:00", "14:00"]);
+    now(31); // Sun 7pm: every Monday window is under 24 h away
+    const late = await R.ownerRunSlotState(a, { now: new Date(clock) });
+    expect(late.kind === "proposed" && late.free).toEqual([]);
+    await expect(R.ownerPickRunWindow(a, "u-owner", "12:00", { now: new Date(clock) })).rejects.toThrow(/at least 24 hours away/);
+    expect(booked).toEqual([]);
+    await R.ownerConfirmRunSlot(b, "u-owner", { now: new Date(clock) });
+    expect(booked.map((x) => x.jobId)).toEqual([b]);
   });
 });
 

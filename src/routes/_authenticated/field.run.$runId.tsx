@@ -16,7 +16,7 @@ import { installTimeLabel } from "@/lib/install-days.core";
 import { MAX_PER_DAY, NO_EXPIRY } from "@/lib/run-route.core";
 import { goneIn } from "@/lib/trade-view.core";
 import { NOT_FOR_ME_SHEET, offerClosed } from "@/lib/installer-screens.core";
-import { ContactButtons, DayGrid, ErrorLine, Group, PrimaryButton, QuietButton, Row, Screen, ScreenHead, TimeRows, dayTileLabel, outlineLinkClass } from "@/components/trade/installer-kit";
+import { CheckLine, ContactButtons, DayGrid, ErrorLine, Group, PrimaryButton, QuietButton, Row, Screen, ScreenHead, TimeRows, dayTileLabel, outlineLinkClass } from "@/components/trade/installer-kit";
 
 export const Route = createFileRoute("/_authenticated/field/run/$runId")({
   head: () => ({ meta: [{ title: "Your run – Home Insulation Victoria" }, { name: "robots", content: "noindex" }] }),
@@ -33,6 +33,7 @@ function RunPage() {
   const [day, setDay] = useState("");
   const [second, setSecond] = useState("");
   const [start, setStart] = useState<string>("");
+  const [person, setPerson] = useState<string>("");
   const { data, error, refetch } = useQuery({ queryKey: ["trade-run", runId], queryFn: () => load({ data: { runId } }), staleTime: 15_000 });
   const [busy, setBusy] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<string | null>(null); // home (or "decline") waiting for the second tap
@@ -94,7 +95,7 @@ function RunPage() {
         {open && (!portal ? (
           <section className="rounded-[18px] border border-line p-4" data-run-mode>
             <h2 className="text-[17px] font-semibold">Pick your day</h2>
-            <PrimaryButton className="mt-3" disabled={!!busy} data-run-portal onClick={() => { setPortal(true); setStart(data.defaultStart); }}>Portal books</PrimaryButton>
+            <PrimaryButton className="mt-3" disabled={!!busy} data-run-portal onClick={() => { setPortal(true); setStart(data.defaultStart); setPerson(data.me); }}>Portal books</PrimaryButton>
             <QuietButton className="mt-2" disabled data-run-team>Our team books</QuietButton>
           </section>
         ) : (
@@ -107,7 +108,11 @@ function RunPage() {
                 <h3 className="mt-4 text-[15px] font-semibold">Second day</h3>
                 <DayGrid days={data.days.filter((d) => d !== day)} picked={second ? [second] : []} onToggle={(d) => setSecond(d === second ? "" : d)} label={dayTileLabel} />
               </>}
-              <PrimaryButton className="mt-3.5" disabled={!!busy || !day || !start} data-run-choose onClick={() => void act("choose", () => choose({ data: { runId, day, start, secondDay: second || null } }))}>{busy === "choose" ? "Sending…" : "Send times to owners"}</PrimaryButton>
+              {data.team.length > 0 && <>
+                <h3 className="mt-4 text-[15px] font-semibold">Who's doing these Ready Checks?</h3>
+                <div className="mt-2 grid gap-2" data-run-person>{data.team.map((m) => <CheckLine key={m.userId} on={person === m.userId} onClick={() => setPerson(m.userId)}>{m.name}</CheckLine>)}</div>
+              </>}
+              <PrimaryButton className="mt-3.5" disabled={!!busy || !day || !start} data-run-choose onClick={() => void act("choose", () => choose({ data: { runId, day, start, secondDay: second || null, personId: person || null } }))}>{busy === "choose" ? "Sending…" : "Send times to owners"}</PrimaryButton>
             </>}
             <QuietButton className="mt-2" disabled={!!busy} onClick={() => setPortal(false)}>Back</QuietButton>
           </section>

@@ -6,6 +6,7 @@
 // confirm → back to the pool (a batch candidate again with their standing pass). Events: run-route.core.
 import { formatInstallDay, installStartAt } from "./install-days.core";
 import { melbourneYmd } from "./piesa-windows.core";
+import { READY_CHECK_TIME_LEAD_HOURS } from "./ready-check-times.core";
 import {
   MAX_PER_DAY, RUN_SLOT_CONFIRMED_EVENT, RUN_SLOT_CONFIRM_FAILED_EVENT, RUN_SLOT_PROPOSED_EVENT, RUN_SLOT_RELEASED_EVENT, RUN_TIME_REMINDED_EVENT,
   RUN_TIME_TEXTED_EVENT, runIdOf, windowsFor, type RunEventRow,
@@ -31,12 +32,13 @@ export const runSlotConfirmKey = (runId: string, jobId: string, seq: number, att
 export const runSlotReleaseKey = (runId: string, jobId: string) => `run-slot-released:v1:${runId}:${jobId}`;
 
 const first = (name: string | null | undefined) => (name ?? "").trim().split(/\s+/)[0] || "there";
-/** Jo approved 30 Oct 2026 (part 2 spec). Verbatim. `time` = windowWords(…), e.g. "between 9:00 and 10:00am". */
+/** Jo approved 30 Oct 2026 (part 2 spec; "at" dropped before the window, Jo 30 Oct). Verbatim. `time` = windowWords(…),
+ *  e.g. "…is Tuesday 27 October between 9:00 and 10:00am with…". */
 export const runTimeText = (f: { name: string | null | undefined; day: string; time: string; installer: string; link: string }) =>
-  `Hi ${first(f.name)}, your free Ready Check is ${f.day} at ${f.time} with ${f.installer}. Tap to confirm or pick another time: ${f.link} - Home Insulation Victoria`;
-/** Jo approved 30 Oct 2026 (part 2 spec): the 12-hour reminder. Verbatim. */
+  `Hi ${first(f.name)}, your free Ready Check is ${f.day} ${f.time} with ${f.installer}. Tap to confirm or pick another time: ${f.link} - Home Insulation Victoria`;
+/** Jo approved 30 Oct 2026 (part 2 spec): the 12-hour reminder ("at" dropped before the window). Verbatim. */
 export const runTimeReminderText = (f: { name: string | null | undefined; day: string; time: string; link: string }) =>
-  `Hi ${first(f.name)}, please confirm your free Ready Check on ${f.day} at ${f.time}: ${f.link}`;
+  `Hi ${first(f.name)}, please confirm your free Ready Check on ${f.day} ${f.time}: ${f.link}`;
 
 const clock12 = (hhmm: string) => {
   const [h, m] = hhmm.split(":").map(Number) as [number, number];
@@ -100,19 +102,26 @@ export function planRunDays(f: { memberIds: readonly string[]; day: string; star
 export function dayGrid(gridStart: string): { start: string; end: string }[] {
   return windowsFor(gridStart, MAX_PER_DAY).windows;
 }
-/** Free windows that day: on the grid, not held by another home, and not started yet. */
+/** An owner's own pick must start at least the existing Ready Check lead time (24 hours) from now. */
+export const RUN_OWNER_PICK_LEAD_HOURS = READY_CHECK_TIME_LEAD_HOURS;
+/** Existing Ready Check wording (ready-check-times.core). */
+export const RUN_PICK_TOO_SOON = "The time must be at least 24 hours away.";
+export const pickTooSoon = (day: string, start: string, now: Date) => windowStartAt(day, start).getTime() < now.getTime() + RUN_OWNER_PICK_LEAD_HOURS * 3_600_000;
+/** Free windows that day for an owner's own pick: on the grid, not held by another home, and at least 24 hours away. */
 export function freeWindows(f: { day: string; gridStart: string; held: readonly Window[]; now: Date }): { start: string; end: string }[] {
-  return dayGrid(f.gridStart).filter((w) => !f.held.some((h) => h.day === f.day && h.start < w.end && w.start < h.end) && windowStartAt(f.day, w.start).getTime() > f.now.getTime());
+  return dayGrid(f.gridStart).filter((w) => !f.held.some((h) => h.day === f.day && h.start < w.end && w.start < h.end) && !pickTooSoon(f.day, w.start, f.now));
 }
 
 // ---- slot state ---------------------------------------------------------------------------------------------------------
 
 export type SlotState = "proposed" | "confirmed" | "released";
 export type Slot = Window & {
+  /** The installer person doing it (Jo 30 Oct: "Who's doing these Ready Checks?"); the 8-a-day cap is per person. */
+  person: string; by: string;
   runId: string; jobId: string; batchId: string; businessId: string; seq: number; state: SlotState;
   proposedAt: string; textedAt: string | null; remindedAt: string | null; failedConfirms: number;
 };
-type D = { batch_id?: unknown; business_id?: unknown; seq?: unknown; day?: unknown; start?: unknown; end?: unknown };
+type D = { batch_id?: unknown; business_id?: unknown; seq?: unknown; day?: unknown; start?: unknown; end?: unknown; person?: unknown; by?: unknown };
 const dd = (e: RunEventRow) => (e.details ?? {}) as D;
 const str = (v: unknown) => (typeof v === "string" ? v : "");
 
@@ -127,7 +136,11 @@ export function slotsOf(events: readonly RunEventRow[]): Slot[] {
     const cur = by.get(key);
     if (e.event_type === RUN_SLOT_PROPOSED_EVENT) {
       if (cur && (cur.state === "released" || seq <= cur.seq)) continue;
-      by.set(key, { runId: runIdOf(e)!, jobId: e.job_id, batchId: str(d.batch_id), businessId: str(d.business_id), seq, state: "proposed", day: str(d.day), start: str(d.start), end: str(d.end), proposedAt: e.created_at, textedAt: null, remindedAt: null, failedConfirms: 0 });
+      // An owner's own pick is never re-texted and doesn't restart their 24 hours: it keeps the earlier text's times
+      // (no earlier text → counted from the pick itself).
+      const ownerPick = str(d.by) === "owner" && !!cur;
+      by.set(key, { runId: runIdOf(e)!, jobId: e.job_id, batchId: str(d.batch_id), businessId: str(d.business_id), person: str(d.person), by: str(d.by), seq, state: "proposed", day: str(d.day), start: str(d.start), end: str(d.end), proposedAt: e.created_at,
+        textedAt: ownerPick ? cur!.textedAt ?? e.created_at : null, remindedAt: ownerPick ? cur!.remindedAt : null, failedConfirms: 0 });
     } else if (!cur || cur.state === "released") continue;
     else if (e.event_type === RUN_SLOT_RELEASED_EVENT) cur.state = "released";
     else if (seq !== cur.seq) continue;
@@ -159,4 +172,41 @@ export function slotDue(s: Slot, now: Date): SlotDue {
   if (t >= Math.min(texted + RUN_CONFIRM_HOURS * 3_600_000, windowAt)) return "release";
   if (!s.remindedAt && t >= texted + RUN_REMINDER_HOURS * 3_600_000) return "remind";
   return null;
+}
+
+// ---- window claims (no double-booking) ---------------------------------------------------------------------------------------
+// One claim per installer person + day + window start, written BEFORE a window is proposed (installer's day pick or an
+// owner's own pick) and freed when that window is released or moved. Generation n = the n-th claim of that window; the
+// pending migration docs/pending-migrations/run-window-claims.sql makes each key unique (race-proof); until then the
+// server checks first and the earliest row of a generation wins.
+export const RUN_WINDOW_CLAIMED_EVENT = "run_window_claimed";
+export const RUN_WINDOW_FREED_EVENT = "run_window_freed";
+export const RUN_WINDOW_EVENTS = [RUN_WINDOW_CLAIMED_EVENT, RUN_WINDOW_FREED_EVENT] as const;
+export const runWindowKey = (person: string, day: string, start: string, gen: number) => `run-window:v1:${person}:${day}:${start}:${gen}`;
+export const runWindowFreedKey = (person: string, day: string, start: string, gen: number) => `run-window-freed:v1:${person}:${day}:${start}:${gen}`;
+/** A claim whose window was never proposed (the writer stopped part way) stops blocking after this long. */
+export const RUN_CLAIM_IN_FLIGHT_MINUTES = 15;
+
+export type WindowClaim = { person: string; day: string; start: string; gen: number; jobId: string; runId: string; seq: number; at: string };
+type CD = { person?: unknown; day?: unknown; start?: unknown; gen?: unknown; seq?: unknown };
+/** The current (latest generation, not freed) claim of one window, or null; `gen` = the latest generation used (0 = none). */
+export function currentClaim(events: readonly RunEventRow[], w: { person: string; day: string; start: string }): { gen: number; claim: WindowClaim | null } {
+  const mine = events.filter((e) => { const d = (e.details ?? {}) as CD; return d.person === w.person && d.day === w.day && d.start === w.start; });
+  const claimed = new Map<number, WindowClaim>();
+  for (const e of [...mine].filter((e) => e.event_type === RUN_WINDOW_CLAIMED_EVENT).sort((a, b) => a.created_at.localeCompare(b.created_at))) {
+    const d = (e.details ?? {}) as CD;
+    const gen = Number(d.gen ?? 0);
+    if (!claimed.has(gen)) claimed.set(gen, { ...w, gen, jobId: e.job_id, runId: runIdOf(e) ?? "", seq: Number(d.seq ?? 0), at: e.created_at });
+  }
+  const freed = new Set(mine.filter((e) => e.event_type === RUN_WINDOW_FREED_EVENT).map((e) => Number(((e.details ?? {}) as CD).gen ?? 0)));
+  const gen = Math.max(0, ...claimed.keys(), ...freed);
+  const c = claimed.get(gen);
+  return { gen, claim: c && !freed.has(gen) ? c : null };
+}
+/** Does this claim still hold its window? Its home closed → no. Its window proposed (that seq or later) → only while that
+ *  home still holds this exact window. Not proposed yet → only for the first 15 minutes (someone may be writing it now). */
+export function claimHolds(c: WindowClaim, slot: Slot | undefined, jobClosed: boolean, now: Date): boolean {
+  if (jobClosed) return false;
+  if (slot && slot.seq >= c.seq) return holds(slot) && slot.day === c.day && slot.start === c.start && slot.person === c.person;
+  return now.getTime() - Date.parse(c.at) < RUN_CLAIM_IN_FLIGHT_MINUTES * 60_000;
 }

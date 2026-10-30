@@ -26,7 +26,7 @@ export function OwnerRunTime({ token }: { token: string }) {
   const tile = "min-h-12 rounded-2xl border border-estimate-line bg-card px-3 text-sm font-bold";
   return (
     <section className={box} data-owner-run-time="choose">
-      <p className="font-bold">Your free Ready Check is {data.day} at {data.time} with {data.installer}.</p>
+      <p className="font-bold">Your free Ready Check is {data.day} {data.time} with {data.installer}.</p>
       {!session ? <div className="mt-3"><OwnerCodeGate token={token} onVerified={setSession} /></div> : !other ? <>
         <button type="button" className={`${signBtn} mt-3`} disabled={busy} data-run-confirm onClick={() => go(() => confirm({ data: { token, session } }))}>Confirm</button>
         <button type="button" className="mt-2 min-h-12 w-full rounded-2xl border border-estimate-line px-3 text-sm font-bold" disabled={busy} data-run-cant onClick={() => setOther(true)}>Can't make it</button>

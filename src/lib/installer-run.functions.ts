@@ -35,5 +35,5 @@ export const declineTradeRun = createServerFn({ method: "POST" }).middleware([re
 
 /** Installer, Portal books: pick the day (≥ 2 days ahead), start time (default 8:00) and a second day when needed. */
 export const chooseTradeRunDay = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ runId: uuid, day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), start: z.string().regex(/^\d{2}:\d{2}$/), secondDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable() }).parse(d))
-  .handler(async ({ data, context }) => plain(await (await import("./installer-run.server")).chooseRunDay(data.runId, context.userId, data.day, data.start, data.secondDay)));
+  .inputValidator((d) => z.object({ runId: uuid, day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), start: z.string().regex(/^\d{2}:\d{2}$/), secondDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(), personId: uuid.nullable().optional() }).parse(d))
+  .handler(async ({ data, context }) => plain(await (await import("./installer-run.server")).chooseRunDay(data.runId, context.userId, data.day, data.start, data.secondDay, { personId: data.personId ?? null })));
