@@ -42,7 +42,23 @@ export const createEnquiry = createServerFn({ method: "POST" }).middleware([requ
 export const createTestEnquiry = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => enquirySchema.parse(d))
   .handler(async ({ data, context }) => {
-    await requireAdmin(context.supabase);
+    // Jo 30 Oct: admin as before, or the TEST office alone with a @hivic-test.example owner email.
+    const { testEnquiryBlocker } = await import("./qa-email.core");
+    const has = async (role: "admin" | "qa_office") => {
+      const { data: yes, error } = await context.supabase.rpc("has_role", { _user_id: context.userId, _role: role });
+      if (error) throw new WorkflowError(`Could not verify TEST access: ${error.message}`);
+      return yes === true;
+    };
+    const roles = { admin: await has("admin"), qaOffice: await has("qa_office") };
+    let emailHasAccount = false;
+    if (roles.qaOffice && !roles.admin) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { count, error } = await supabaseAdmin.from("profiles").select("id", { count: "exact", head: true }).ilike("email", (await import("./email-match")).exactLike((data.email ?? "").trim()));
+      if (error) throw new WorkflowError(`Could not check the TEST email: ${error.message}`);
+      emailHasAccount = (count ?? 0) > 0;
+    }
+    const blocker = testEnquiryBlocker(roles, data.email, { emailHasAccount });
+    if (blocker) throw new WorkflowError(blocker);
     return upsertEnquiry({ ...data, external_enquiry_id: `qa-${crypto.randomUUID()}` }, "qa_test", context.userId);
   });
 
@@ -1321,6 +1337,31 @@ export const getAuthorityDocUrl = createServerFn({ method: "POST" }).middleware(
 export const autoAdvancePipeline = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   await requireAdmin(context.supabase);
   return autoAdvanceOpenJobs(context.userId);
+});
+
+/** Test Centre list (Jo 30 Oct): active TEST jobs only, for admin or the TEST office login. Never real jobs. */
+export const getQaJourneys = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
+  const { requireQaJourneyActor } = await import("./qa-access.server");
+  await requireQaJourneyActor(context);
+  const { activeQaJobsFilter } = await import("./qa-journeys.core");
+  const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+  const { requireOfficeIdentity, officeTestJobIds } = await import("./qa-office-access.server");
+  let ids: { id: string }[];
+  if (await requireOfficeIdentity(context.supabase) === "qa_office") {
+    // Review 30 Oct: the TEST office only sees fully isolated TEST jobs (TEST owner, people and partners).
+    ids = (await officeTestJobIds(context.supabase)).map((id) => ({ id }));
+  } else {
+    const { data: rows, error: idError } = await admin.from("jobs").select("id")
+      .eq("source", activeQaJobsFilter.source).is("qa_archived_at", null).is("deleted_at", null)
+      .order("created_at", { ascending: false }).limit(50);
+    if (idError) throw new Error(`TEST journeys could not be loaded: ${idError.message}`);
+    ids = rows ?? [];
+  }
+  if (!ids.length) return [];
+  const { data, error } = await admin.from("job_overview").select("id, job_number, property_address, owner_name, stage, source, next_action")
+    .in("id", ids.map((j) => j.id)).eq("source", activeQaJobsFilter.source).order("created_at", { ascending: false });
+  if (error) throw new Error(`TEST journeys could not be loaded: ${error.message}`);
+  return data ?? [];
 });
 
 /** Admin-only pipeline read. Verify the caller with their RLS-scoped client, then load the complete board. */
