@@ -107,6 +107,8 @@ describe("submitOwnerPiesaWindows requires the 30-day acknowledgement (every own
       select: (_c?: string, o?: { count?: string }) => { if (op === "select") count = o?.count === "exact"; return b; },
       insert: (p: unknown) => { op = "insert"; patch = p; return b; }, update: (p: unknown) => { op = "update"; patch = p; return b; },
       eq: (c: string, v: unknown) => { f.push((r) => r[c] === v); return b; }, in: () => b, order: () => b, limit: () => b,
+      is: (c: string, v: unknown) => { f.push((r) => (r[c] ?? null) === v); return b; },
+      neq: (c: string, v: unknown) => { f.push((r) => r[c] !== v); return b; },
       not: (c: string, _o: string, v: unknown) => { f.push((r) => (v === null ? r[c] != null : true)); return b; },
       single: () => { one = true; return b; }, maybeSingle: () => { one = true; return b; },
       then: (res: (v: unknown) => unknown) => {
