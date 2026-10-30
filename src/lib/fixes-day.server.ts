@@ -65,17 +65,54 @@ async function heldOnce(jobId: string, key: string, reason: string, extra: Recor
 
 export type FixesCreateResult = { status: "created" | "reused" | "held" | "not_needed"; auditId?: string; reason?: string };
 
+export const RECTIFICATION_FORM_CLOSED_UNUSED = "rectification_form_closed_unused";
+
+/** Existing rectification audit pointers live in job-bound workflow history, not a second PIESA pointer. */
+async function existingRectificationForm(jobId: string) {
+  const { data, error } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", FIXES_FORM_CREATED_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new Error(error.message);
+  const auditId = (data?.details as { audit_id?: string } | null)?.audit_id;
+  if (!auditId) return null;
+  const { count, error: ce } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).in("event_type", [RECTIFICATION_FORM_CLOSED_UNUSED, FIXES_FORM_COMPLETED_EVENT]).contains("details", { audit_id: auditId });
+  if (ce) throw new Error(ce.message);
+  return { auditId, closed: !!count };
+}
+
+/** The current Mitti client exposes no close/cancel operation: retain its identity and close locally. */
+export async function closeUnusedRectificationForm(jobId: string): Promise<void> {
+  const form = await existingRectificationForm(jobId);
+  if (!form || form.closed) return;
+  const { data: a, error } = await admin.from("assessments").select("no_rectification_confirmed").eq("job_id", jobId).maybeSingle();
+  if (error) throw new Error(error.message);
+  if (a?.no_rectification_confirmed !== true) return;
+  const { stableUuid, isUniqueViolation } = await import("./mitti-create-claim.core");
+  const { error: insertError } = await admin.from("workflow_events").insert({
+    id: await stableUuid(`rectification-unused:${jobId}:${form.auditId}`), job_id: jobId, actor_id: null,
+    event_type: RECTIFICATION_FORM_CLOSED_UNUSED, summary: "Rectification form closed in the portal: PIESA confirms no rectification is needed; the Mitti client has no close or cancel operation",
+    details: { audit_id: form.auditId, reason: "PIESA confirms no rectification", portal_only: true },
+  });
+  if (insertError && !isUniqueViolation(insertError)) throw new Error(insertError.message);
+}
+
 /**
  * Create the fixes form for the booked rectification visit (one per booking). Never throws on Mitti or setup problems:
  * each becomes the one office item. `bookingId` is the confirmed rectification booking (idempotency key).
  */
-export async function createFixesForm(jobId: string, actorId: string | null, bookingId: string, call?: MittiCall): Promise<FixesCreateResult> {
+export async function createFixesForm(jobId: string, actorId: string | null, bookingId: string, call?: MittiCall, opts: { atPiesaBooking?: boolean } = {}): Promise<FixesCreateResult> {
   const { data: job } = await admin.from("jobs").select("id, job_number, business_unit, source, stage, deleted_at, qa_archived_at").eq("id", jobId).maybeSingle();
   if (!job || job.business_unit !== "hivic" || job.deleted_at || job.qa_archived_at) return { status: "not_needed", reason: "job not live" };
+  const existing = await existingRectificationForm(jobId);
+  if (existing) return existing.closed ? { status: "not_needed", reason: "rectification form closed" } : { status: "reused", auditId: existing.auditId };
   const { count: already } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", FIXES_FORM_CREATED_EVENT).contains("details", { booking_id: bookingId });
   if (already) return { status: "reused", reason: "form already created for this visit" };
   const need = await fixesFormNeededFor(jobId);
-  if (!need.needed) return { status: "not_needed", reason: "the PIESA lists no repair work left for a later visit" };
+  if (!need.needed && !opts.atPiesaBooking) return { status: "not_needed", reason: "the PIESA lists no repair work left for a later visit" };
+  if (opts.atPiesaBooking) {
+    const { readInHouseDispatchState } = await import("./in-house-suppression.server");
+    const state = await readInHouseDispatchState([jobId]);
+    if (state.failed) throw new WorkflowError("Couldn't check the job's partner — please try again.");
+    if (!state.held.has(jobId) || job.source === "qa_test") return { status: "not_needed", reason: "not an in-house job" };
+  }
 
   const tpl = await readFixesTemplate();
   if (tpl.pending) { await heldOnce(jobId, `booking:${bookingId}:pending_db`, FIXES_TEMPLATE_PENDING_DB, { booking_id: bookingId }); return { status: "held", reason: FIXES_TEMPLATE_PENDING_DB }; }
@@ -99,7 +136,7 @@ export async function createFixesForm(jobId: string, actorId: string | null, boo
   const claims = await import("./mitti-create.server");
   let claimId: string | null = null;
   try {
-    claimId = await claims.claimMittiCreate(jobId, "fixes", actorId, `Mitti electrical fixes form creation started for ${email}`, { template_id: tpl.templateId, booking_id: bookingId, assignee_email: email });
+    claimId = await claims.claimMittiCreate(jobId, "fixes", actorId, `Mitti rectification form creation started for ${email}`, { template_id: tpl.templateId, booking_id: bookingId, assignee_email: email });
   } catch (e) {
     if (e instanceof claims.MittiClaimHeld) return { status: "held", reason: e.message };
     throw e;
@@ -129,13 +166,15 @@ export async function createFixesForm(jobId: string, actorId: string | null, boo
     if (!auditId) throw new MittiError("Mitti did not return an audit ID.");
     seen.createdId = String(auditId);
     // Identity first, so a failed share never leads to a second form on retry.
-    await logEvent(jobId, actorId, FIXES_FORM_CREATED_EVENT, `Electrical fixes form created in Mitti for ${email} with ${prefill.length} pre-filled answers (${FIXES_DAY_TEMPLATE_NAME})`,
+    await logEvent(jobId, actorId, FIXES_FORM_CREATED_EVENT, `Rectification form created in Mitti for ${email} with ${prefill.length} pre-filled answers`,
       { audit_id: String(auditId), booking_id: bookingId, template_id: tpl.templateId, prefill_count: prefill.length, assignee_email: email, mitti_user_id: userId, test, rule: FIXES_DAY_RULE });
     await api.shareAudit(String(auditId), userId);
     await api.setAuditOwner(String(auditId), userId);
     return { status: "created", auditId: String(auditId) };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Mitti error";
+    const { error: syncError } = await admin.from("assessments").update({ mitti_sync_status: "error", mitti_last_error: msg }).eq("job_id", jobId);
+    if (syncError) throw new Error(syncError.message);
     if (seen.createdId) {
       // Mitti made the form but sharing failed: it is recorded above; the office hands it over from the job page.
       await heldOnce(jobId, `booking:${bookingId}:share:${seen.createdId}`, `The form was created in Mitti but could not be handed to ${email}: ${msg}`, { booking_id: bookingId, audit_id: seen.createdId });
@@ -165,6 +204,8 @@ export async function fixesFormState(jobId: string): Promise<{ auditId: string |
     .in("event_type", [FIXES_FORM_CREATED_EVENT, FIXES_FORM_COMPLETED_EVENT, FIXES_FORM_NOT_DONE_EVENT, FIXES_FORM_HELD_EVENT]).order("created_at", { ascending: false }).limit(50);
   const tpl = await readFixesTemplate();
   const r = fixesFormOutcome((evs ?? []) as FixesFormEvent[]);
+  const existing = await existingRectificationForm(jobId);
+  if (existing?.closed && r.outcome !== "done") return { auditId: null, createdAt: r.createdAt, outcome: null, detail: "Rectification form closed in the portal", templateSetUp: !!tpl.templateId, pendingDb: tpl.pending };
   return { ...r, templateSetUp: !!tpl.templateId, pendingDb: tpl.pending };
 }
 
@@ -236,6 +277,9 @@ async function regenerateOfficialPiesa(jobId: string, actorId: string | null, sn
  */
 export async function completeFixesForm(jobId: string, auditId: string, opts: { call?: MittiCall; fetchMedia?: import("./mitti.server").MittiMediaFetch; today?: string; actorId?: string | null } = {}): Promise<FixesCompleteResult> {
   const actorId = opts.actorId ?? null;
+  const { count: closed, error: closedError } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", RECTIFICATION_FORM_CLOSED_UNUSED).contains("details", { audit_id: auditId });
+  if (closedError) throw new Error(closedError.message);
+  if (closed) return { status: "already", detail: "Rectification form closed in the portal" };
   const { count: done } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", FIXES_FORM_COMPLETED_EVENT).contains("details", { audit_id: auditId });
   if (done) return { status: "already", detail: null };
   const [{ data: job }, { data: a }, tpl] = await Promise.all([

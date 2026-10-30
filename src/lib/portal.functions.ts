@@ -626,6 +626,7 @@ export const regenerateRectificationQuote = createServerFn({ method: "POST" }).m
     await requireAdmin(context.supabase);
     const stage = await getStage(data.jobId);
     const quoteId = await generateRectificationQuote(data.jobId, context.userId);
+    if (typeof quoteId !== "string") return { ok: false, skipped: quoteId.skipped, message: "The partner bills rectification directly." };
     const { data: released } = await admin.from("quotes").select("id").eq("id", quoteId).eq("status", "issued").maybeSingle();
     if (stage === "rectification_required" && released) await transition(data.jobId, "awaiting_owner_rectification_approval", context.userId, "Electrical fixes quote released to owner");
     return { ok: true };

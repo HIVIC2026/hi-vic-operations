@@ -39,9 +39,15 @@ export async function reassessmentBlocker(jobId: string, stage: string): Promise
 /** Writes the PIESA record exactly as the portal page does. Returns the new piesa_records row id when returned. */
 export async function applyPiesaRecord(r: PostRectificationRecord): Promise<{ recordId: string | null }> {
   const post = r.kind === "post_rectification";
+  if (r.source?.kind === "mitti_fixes_form") {
+    const { data: existing, error } = await admin.from("workflow_events").select("details").eq("job_id", r.jobId).eq("event_type", "piesa_recorded").contains("details", { source: "mitti_fixes_form", audit_id: r.source.auditId }).maybeSingle();
+    if (error) throw new Error(error.message);
+    if (existing) return { recordId: (existing.details as { record_id?: string } | null)?.record_id ?? null };
+  }
+  await (await import("./fixes-day.server")).closeUnusedRectificationForm(r.jobId);
   if (post) await admin.from("rectification_items").update({ status: "completed" }).eq("job_id", r.jobId).eq("status", "required");
   await admin.from("piesa_records").update({ is_current: false }).eq("job_id", r.jobId).eq("is_current", true);
-  const { data: rec } = await admin.from("piesa_records").insert({
+  const { data: rec, error: recordError } = await admin.from("piesa_records").insert({
     job_id: r.jobId,
     kind: r.kind,
     outcome: r.outcome,
@@ -49,14 +55,15 @@ export async function applyPiesaRecord(r: PostRectificationRecord): Promise<{ re
     signed_off_by: r.actorId,
     notes: r.notes ?? null,
     ...(post ? { rectification_completed_at: `${r.completedDate}T00:00:00.000Z` } : {}),
-    ...(post && r.outcome === "pass" ? { section_c_signed_at: `${r.sectionCSignedDate!}T00:00:00.000Z` } : {}),
+    ...(post && r.outcome === "pass" ? { section_c_signed_at: `${r.sectionCSignedDate ?? r.completedDate}T00:00:00.000Z` } : {}),
   }).select("id").maybeSingle();
-  await logEvent(r.jobId, r.actorId, "piesa_recorded", `PIESA (${r.kind.replace("_", " ")}) ${r.outcome} on ${r.completedDate}${r.source?.kind === "mitti_fixes_form" ? " — from the Mitti electrical fixes form" : ""}`,
-    r.source?.kind === "mitti_fixes_form" ? { source: "mitti_fixes_form", audit_id: r.source.auditId } : {});
+  if (recordError) throw new Error(recordError.message);
+  await logEvent(r.jobId, r.actorId, "piesa_recorded", `PIESA (${r.kind.replace("_", " ")}) ${r.outcome} on ${r.completedDate}${r.source?.kind === "mitti_fixes_form" ? " — from the Mitti rectification form" : ""}`,
+    r.source?.kind === "mitti_fixes_form" ? { source: "mitti_fixes_form", audit_id: r.source.auditId, record_id: rec?.id ?? null } : {});
   if (post && r.outcome === "pass") {
     await admin.from("compliance_checks").update({ status: "pass", checked_at: new Date().toISOString() }).eq("job_id", r.jobId).in("check_key", ["rectification", "electrical_assessment"]);
     await admin.from("bookings").update({ status: "completed" }).eq("job_id", r.jobId).eq("kind", "rectification").eq("status", "confirmed");
-    await transition(r.jobId, "installation_scheduling", r.actorId, "Electrical fixes complete, PIESA passed – installation scheduling unlocked");
+    await transition(r.jobId, "installation_scheduling", r.actorId, "Rectification complete, PIESA passed – installation scheduling unlocked");
   }
   // Batch 1 task 6: the new safety check after a reopen is a reassessment at PIESA booked — the visit is done, so the job
   // moves on to PIESA complete the same guarded way Complete PIESA does (a standing guard keeps it put with the reason).
