@@ -249,6 +249,16 @@ export function coordinationState(f: CoordinationFacts, now = new Date()): Coord
   return { state: "waiting", hours };
 }
 
+/** Jo 28 Oct 2026: a Ready Check is past waiting for a time once it is done. */
+export const READY_CHECK_DONE_STAGES: ReadonlySet<string> = new Set(["ready_check_complete", "measured_estimate_ready", "measured_quote_accepted"]);
+/** Whether the 48h "time not confirmed" office flag applies to this visit. Installers book the Ready Check with the owner
+ *  outside the portal (Jo 28 Oct 2026), so installer jobs never get it; nor does a Ready Check already done. Other visits unchanged. */
+export function readyCheckOverdueApplies(visit: VisitKind | string, job: { stage: string | null | undefined; channel: string | null | undefined }): boolean {
+  if (visit !== "ready_check") return true;
+  if (job.channel === "installer_sourced") return false;
+  return !READY_CHECK_DONE_STAGES.has(job.stage ?? "");
+}
+
 export type ProposalLike = { status: string; proposer_role: string };
 /** Booked only when the recorded proposal is accepted by someone other than the proposer, or by office. */
 export function isConfirmedBooking(p: ProposalLike & { responder_role?: string | null }): boolean {
@@ -453,7 +463,7 @@ export function needsItem(code: NeedsCode, jobId: string | null, jobNumber: stri
 
 export type NeedsInput = {
   now: Date;
-  jobs: { id: string; job_number: string | null; stage?: string | null; suburb?: string | null }[];
+  jobs: { id: string; job_number: string | null; stage?: string | null; suburb?: string | null; channel?: string | null }[];
   recNoLongerApproved?: { job_id: string; since: string | null }[];
   coverageExhausted: { job_id: string; created_at: string; detail?: string | undefined }[]; // latest exhaustion with no active electrician since
   releases: { job_id: string; visit_kind: VisitKind; released_at: string; confirmed_at: string | null }[];
@@ -491,6 +501,9 @@ export function buildNeedsHivic(i: NeedsInput): NeedsItem[] {
   for (const e of i.coverageExhausted) add("rec_coverage_exhausted", e.job_id, e.created_at, e.detail);
   for (const r of i.recNoLongerApproved ?? []) add("rec_no_longer_approved", r.job_id, r.since);
   for (const r of i.releases) {
+    // Jo 28 Oct: installers book the Ready Check outside the portal; a done Ready Check never waits on a time.
+    const rj = jobs.get(r.job_id);
+    if (!readyCheckOverdueApplies(r.visit_kind, { stage: rj?.stage ?? null, channel: rj?.channel ?? null })) continue;
     const s = coordinationState({ releasedAt: r.released_at, firstProposalAt: null, confirmedAt: r.confirmed_at }, i.now);
     if (s.state !== "needs_office") continue;
     if (r.visit_kind === "ready_check") add("ready_check_booking_overdue", r.job_id, r.released_at);
