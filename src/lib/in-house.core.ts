@@ -32,6 +32,11 @@ export function inHouseEnableBlockers(f: InHouseFacts): string[] {
   return blockers;
 }
 
+/** A new business has none of the recorded prerequisites yet. */
+export function newInHouseBlockers(): string[] {
+  return inHouseEnableBlockers({ approvedElectricianWorkers: 0, hasActiveRateCardWithPiesa: false, mittiElectricianLogins: 0, mittiAccountInvited: false });
+}
+
 export function partnerBillsRectification(b: InHouseBusiness): boolean {
   return isInHousePartner(b) && b.rectification_billed_by === "partner";
 }

@@ -16,7 +16,7 @@ import {
 } from "./pilot.core";
 import { loadBusiness, myBusinesses, requireApprovedPartner, requireMember, sha, sweepPartnerExpiry } from "./pilot.server";
 import { signFile } from "./file-links.server";
-import { inHouseEnableBlockers } from "./in-house.core";
+import { inHouseEnableBlockers, newInHouseBlockers } from "./in-house.core";
 
 const uuid = z.string().uuid();
 const isAdmin = async (sb: { rpc: (n: "is_admin") => PromiseLike<{ data: unknown; error?: { message: string } | null }> }) => {
@@ -58,7 +58,7 @@ export const saveBusiness = createServerFn({ method: "POST" }).middleware([requi
     }
     if (!id) {
       if (!adminUser) throw new WorkflowError("Only Home Insulation Victoria can create a partner business.");
-      if (patch.in_house) throw new WorkflowError(inHouseEnableBlockers({ approvedElectricianWorkers: 0, hasActiveRateCardWithPiesa: false, mittiElectricianLogins: 0, mittiAccountInvited: false }).join(" • "));
+      if (patch.in_house) throw new WorkflowError(newInHouseBlockers().join(" • "));
       const { data: row, error } = await admin.from("businesses").insert({ ...patch, business_type: patch.business_type ?? "eec_installer" } as never).select("id").single();
       if (error) throw new WorkflowError(error.message);
       return { id: row.id };
