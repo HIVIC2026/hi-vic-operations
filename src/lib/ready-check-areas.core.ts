@@ -3,6 +3,8 @@
 // original-condition / completion evidence is an ordinary evidence_requirements row tagged with `area_key`
 // (pending migration 0214). No second job/evidence subsystem. Uploading a file never accepts it.
 
+import { excludedAreaName } from "./excluded-areas.core";
+
 export const AREAS_FIELD_KEY = "measure.areas_v1";
 /** Per-area evidence rows sort after the job-level rows, so existing "first row for this category" lookups are unchanged. */
 export const AREA_EVIDENCE_SORT = 800;
@@ -40,13 +42,15 @@ export function areaProblems(areas: RcArea[], totalAreaM2: number | null = null)
     if (a.existing === "none" && a.removal === "yes") p.push(`${name}: no existing insulation, so nothing can be removed`);
   }
   if (totalAreaM2 != null && areas.length && areas.every((a) => a.areaM2 != null)) {
-    const sum = Math.round(areas.reduce((s, a) => s + (a.areaM2 ?? 0), 0) * 100) / 100;
+    // Garage / carport / shed areas never count toward the eligible total (Jo 30 Oct 2026).
+    const sum = Math.round(areas.filter((a) => !excludedAreaName(a.label)).reduce((s, a) => s + (a.areaM2 ?? 0), 0) * 100) / 100;
     if (Math.abs(sum - totalAreaM2) > 0.5) p.push(`The areas add up to ${sum} m², but the measured ceiling area is ${totalAreaM2} m² — correct one of them`);
   }
   return p;
 }
 
-export function totals(areas: RcArea[]) {
+export function totals(all: RcArea[]) {
+  const areas = all.filter((a) => !excludedAreaName(a.label));
   const known = (f: (a: RcArea) => number | null) => (areas.length && areas.every((a) => f(a) != null) ? Math.round(areas.reduce((s, a) => s + (f(a) ?? 0), 0) * 100) / 100 : null);
   return { areaM2: known((a) => a.areaM2), removalM2: known((a) => (a.removal === "no" ? 0 : a.removalM2)) };
 }

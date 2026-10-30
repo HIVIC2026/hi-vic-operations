@@ -61,8 +61,8 @@ export function suggestBatches(homes: BatchHome[], nowIso: string): BatchHome[][
   }
 }
 
-/** Garage, carport, car port or shed as a whole word, any case ("Shedding room" is not one). */
-export const excludedAreaName = (name: string): boolean => /\b(garage|car\s?port|shed)\b/i.test(name);
+// One definition, shared with the m² totals (it lives in excluded-areas.core so those cores stay light).
+export { excludedAreaName } from "./excluded-areas.core";
 
 // ---- Send (Task 2): events, keys, owner text, covering installers. PURE. ------------------------------------------------
 /** One `area_batch_sent` per job (append-only workflow_events), written before the owner's text. */

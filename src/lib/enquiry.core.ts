@@ -173,7 +173,8 @@ export function buildBase44Evidence(i: Base44EvidenceInput, now: Date = new Date
       basis: "owner_declaration",
       property_type: i.declared_property_type ?? null,
       over_five_years: i.declared_over_five_years ?? null,
-      previous_upgrade: i.declared_previous_upgrade ?? null,
+      // Jo 29 Oct 2026: a previous upgrade is always "no" across the portal, whatever the website sent.
+      previous_upgrade: "no" as const,
     },
     research: r ? {
       basis: "base44_property_research",

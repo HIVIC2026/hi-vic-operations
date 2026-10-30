@@ -6,6 +6,7 @@ type Any = any;
 // by OCCURRENCE (form order), never "first match wins". Stable native item IDs below were READ FROM THE RENDERED
 // EDITOR DOM of the draft (Jo, 8 Oct 2026 12:57 UTC) — draft-observed until the published API definition agrees;
 // any disagreement fails closed (a3MissingFields).
+import { excludedAreaName } from "./excluded-areas.core";
 import { flatten, norm, type Entry, type NativeMapping } from "./mitti.core";
 import { mittiMediaFile, type MittiMediaFile } from "./piesa-evidence.core";
 import type { OfficialAnswers } from "./official-forms.core";
@@ -439,7 +440,8 @@ export function readyCheckPart6Answers(areas: RcArea[], extra: Part6Extra = NO_E
   const present = pres.some(Boolean);
   answers["p6.present"] = present ? "Yes" : "No";
   if (!present) return { answers, missing, ...none };
-  const withIns = areas.filter((a) => a.present === true);
+  // Garage / carport / shed areas are not part of the claim (Jo 30 Oct 2026).
+  const withIns = areas.filter((a) => a.present === true && !excludedAreaName(a.name ?? ""));
   // Decision 375 (Jo 25 Oct 2026): the official form asks the average height whenever insulation is present (removal
   // included); the Ready Check asks the depth per area with existing insulation. One shared depth is used as is; differing
   // depths become ONE average weighted by each area's m² (nearest mm). A missing depth, or a missing m² when weighting is

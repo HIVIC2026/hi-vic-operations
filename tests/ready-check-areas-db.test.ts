@@ -113,7 +113,7 @@ describe("two areas, save/reopen, retry", () => {
     expect(d.areas.map((a) => [a.key, a.areaM2, a.removal, a.removalM2])).toEqual([["main", 50, "yes", 30], ["garage", 30, "no", null]]);
     expect(d.areas[0].sources.removalM2?.kind).toBe("installer_supplied"); // unchanged -> original supplier
     expect(d.areas[0].sources.areaM2).toMatchObject({ kind: "recorded_onsite", by: USER }); // changed -> saver
-    expect(d.areaTotals).toEqual({ areaM2: 80, removalM2: 30 });
+    expect(d.areaTotals).toEqual({ areaM2: 50, removalM2: 30 });
     expect((await q("select area_key, category from evidence_requirements where job_id=$1 order by area_key, category", [JOB])).map((r) => `${r.area_key}/${r.category}`))
       .toEqual(["garage/before_ceiling_space", "garage/completed_installation", "main/before_ceiling_space", "main/completed_installation"]);
     expect((await q("select * from ready_check_observations where job_id=$1 and field_key='measure.areas_v1'", [JOB])).length).toBe(1);

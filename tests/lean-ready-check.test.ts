@@ -97,9 +97,9 @@ describe("§6.4 reader: 'No safe access' = difficult + the new stop", () => {
 });
 
 describe("§6.4 reader: area name + Length × Width per area, m² as the old-form fallback", () => {
-  test("two repeating-group areas: names kept, m² = L × W, total summed, downlights and removal per area", () => {
+  test("two repeating-group areas: names kept, m² = L × W, total summed (the garage is left out of it), downlights and removal per area", () => {
     const p = parseAudit(leanAudit());
-    expect(p.patch.measured_area_m2).toBe(126);
+    expect(p.patch.measured_area_m2).toBe(102);
     expect(p.patch.removal_required).toBe(true);
     expect(p.patch.removal_m2).toBe(40);
     expect(p.patch.downlights_qty).toBe(6);
