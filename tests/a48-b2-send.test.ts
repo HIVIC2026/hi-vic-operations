@@ -16,6 +16,7 @@ const subset = (a: unknown, b: unknown): boolean => {
   return a === b;
 };
 let clock = Date.parse("2026-10-30T00:00:00.000Z");
+let failRead: string | null = null; // a table whose next select fails with a database error
 function fakeAdmin() {
   return {
     from(table: string) {
@@ -38,6 +39,7 @@ function fakeAdmin() {
         then(res, rej) {
           let out: { data: unknown; error: { message: string; code?: string } | null; count?: number };
           const one = (b as Row)["single1"] === true;
+          if (op === "select" && failRead === table) { failRead = null; return Promise.resolve({ data: null, error: { message: "db down" } }).then(res, rej); }
           if (op === "insert") {
             const rows = (tables[table] ??= []);
             const det = (payload?.["details"] ?? {}) as Row;
@@ -128,9 +130,13 @@ const ids = (n: number, p = "j") => Array.from({ length: n }, (_, i) => `${p}${i
 
 // ---- wording + switches -----------------------------------------------------------------------------------------
 describe("quick taps texts", () => {
-  test("exact owner wording (spec part 1, Jo approved)", () => {
-    expect(quickTapsText("Helen Sample", "https://x/my-job/T?screen=taps")).toBe("Hi Helen, 4 quick taps before we can book your free Ready Check: https://x/my-job/T?screen=taps - Home Insulation Victoria");
-    expect(quickTapsReminderText("Helen Sample", "L")).toBe("Hi Helen, just a reminder - 4 quick taps so we can book your free Ready Check: L");
+  test("exact owner wording (Jo approved 30 Oct 2026)", () => {
+    expect(quickTapsText("Helen Sample", "https://x/my-job/T?screen=taps")).toBe("Hi Helen, great news - it's almost time for your free Ready Check! Please confirm a few quick details for your quote: https://x/my-job/T?screen=taps - Home Insulation Victoria");
+    expect(quickTapsReminderText("Helen Sample", "L")).toBe("Hi Helen, just a reminder - please confirm a few quick details so we can book your free Ready Check: L");
+  });
+  test("no name → \"Hi there,\" (Jo approved)", () => {
+    expect(quickTapsText(null, "L")).toBe("Hi there, great news - it's almost time for your free Ready Check! Please confirm a few quick details for your quote: L - Home Insulation Victoria");
+    expect(quickTapsReminderText("  ", "L")).toBe("Hi there, just a reminder - please confirm a few quick details so we can book your free Ready Check: L");
   });
   test("the sender never adds a second brand to a text already signed by Home Insulation Victoria", () => {
     const t = quickTapsText("Helen", "L");
@@ -265,7 +271,7 @@ describe("sendBatch", () => {
     expect(sent.length).toBe(8);
     expect(sent.every((s) => s.via === "real-sms" && s.type === "quick_taps")).toBe(true);
     expect(sent.find((s) => s.key === `quick-taps:v1:${r.batchId}:j1:sent`)!.body)
-      .toBe("Hi Owner, 4 quick taps before we can book your free Ready Check: https://estimate.homeinsulationvictoria.com.au/my-job/T-j1?screen=taps - Home Insulation Victoria");
+      .toBe("Hi Owner, great news - it's almost time for your free Ready Check! Please confirm a few quick details for your quote: https://estimate.homeinsulationvictoria.com.au/my-job/T-j1?screen=taps - Home Insulation Victoria");
     expect(new Set(sent.map((s) => s.key)).size).toBe(8);
   });
   test("TEST jobs go through test-send, never the real sender", async () => {
@@ -322,5 +328,40 @@ describe("brand line", () => {
   test("older texts ending with an en dash sign-off still get the brand line first (unchanged)", () =>
     expect(brandSmsBody("Spot saved! Your job: L – Home Insulation Victoria")).toBe("Home Insulation Victoria: Spot saved! Your job: L – Home Insulation Victoria"));
   test("the day-2 reminder (no sign-off) gets the brand line first", () =>
-    expect(brandSmsBody(quickTapsReminderText("Helen", "L"))).toBe("Home Insulation Victoria: Hi Helen, just a reminder - 4 quick taps so we can book your free Ready Check: L"));
+    expect(brandSmsBody(quickTapsReminderText("Helen", "L"))).toBe("Home Insulation Victoria: Hi Helen, just a reminder - please confirm a few quick details so we can book your free Ready Check: L"));
+});
+
+// ---- review fix round 1 -----------------------------------------------------------------------------------------------
+describe("TEST office login", () => {
+  test("suggested batches are hidden for the TEST office login (its functions are not on the TEST office allowlist)", async () => {
+    const { showAreaBatches } = await import("../src/lib/area-batch.core");
+    const { qaOfficeFunctionAllowed } = await import("../src/lib/qa-office-policy.core");
+    expect(qaOfficeFunctionAllowed("src/lib/area-batch.functions.ts", "getAreaBatchSuggestions")).toBe(false);
+    expect(showAreaBatches(["qa_office"])).toBe(false);
+    expect(showAreaBatches(["admin", "qa_office"])).toBe(false);
+    expect(showAreaBatches(["admin"])).toBe(true);
+    expect(showAreaBatches(undefined)).toBe(false); // not known yet → nothing loads
+    const src = await Bun.file("src/components/portal/InstallerWaitingScreen.tsx").text();
+    expect(src).toMatch(/showAreaBatches\(me\?\.roles\) && <AreaBatchSuggestions/);
+  });
+});
+describe("sendBatch review fixes", () => {
+  beforeEach(seed);
+  test("TEST texts carry the office user who tapped Send", async () => {
+    const ctxs: Row[] = [];
+    mock.module("../src/lib/test-send.server", () => ({
+      sendTestEmail: async () => { throw new Error("no email"); },
+      sendTestSms: async (c: Row, to: string, body: string) => { ctxs.push(c); sent.push({ via: "test-sms", to, body }); return { status: "sent", detail: "ok" }; },
+    }));
+    addJob("t1", { source: "qa_test" });
+    installers = [installer({ id: "biz-t", name: "[TEST PARTNER] Co", onboarding_notes: "[TEST PARTNER]" })];
+    await S.sendBatch(["t1"], "biz-t", "jo", { now: NOW });
+    expect(ctxs[0]!["actorId"]).toBe("jo");
+  });
+  test("job number lookup failing → refused clearly, nothing recorded or sent", async () => {
+    addJob("j1");
+    failRead = "jobs";
+    await expect(S.sendBatch(["j1"], "biz-1", "jo", { now: NOW })).rejects.toThrow(/Could not read the jobs: db down/);
+    expect(events().length).toBe(0); expect(sent.length).toBe(0);
+  });
 });

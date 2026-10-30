@@ -77,12 +77,12 @@ export const QUICK_TAPS_REMINDER_SMS_TYPE = "quick_taps_reminder" as const;
 /** The owner's own My job link, on the quick taps screen. */
 export const quickTapsLink = (myJobLink: string) => `${myJobLink}?screen=taps`;
 const hiName = (fullName: string | null | undefined) => (fullName ?? "").trim().split(/\s+/)[0] || "there";
-/** Jo approved 29–30 Oct 2026 (spec part 1, owner wording). Verbatim. */
+/** Jo approved 30 Oct 2026 (replaces the spec's first wording). Verbatim. No name → "Hi there," (Jo approved). */
 export const quickTapsText = (fullName: string | null | undefined, link: string) =>
-  `Hi ${hiName(fullName)}, 4 quick taps before we can book your free Ready Check: ${link} - Home Insulation Victoria`;
-/** Day-2 reminder (sent by Task 4's sweep). Verbatim. */
+  `Hi ${hiName(fullName)}, great news - it's almost time for your free Ready Check! Please confirm a few quick details for your quote: ${link} - Home Insulation Victoria`;
+/** Day-2 reminder (sent by Task 4's sweep). Jo approved 30 Oct 2026. Verbatim. */
 export const quickTapsReminderText = (fullName: string | null | undefined, link: string) =>
-  `Hi ${hiName(fullName)}, just a reminder - 4 quick taps so we can book your free Ready Check: ${link}`;
+  `Hi ${hiName(fullName)}, just a reminder - please confirm a few quick details so we can book your free Ready Check: ${link}`;
 
 /** Claim key of a job's n-th batch: the same job can never be claimed twice for the same slot. */
 export const areaBatchKey = (jobId: string, seq: number) => `area-batch:v1:${jobId}:${seq}`;
@@ -119,3 +119,6 @@ export function batchInstallers<I extends BatchInstaller>(installers: readonly I
     return installerCanBeOffered(all ? { ...i, service_postcodes: [pc] } : i, { postcode: pc || null, isTest: h.isTest });
   }));
 }
+
+/** The TEST office login never sees suggested batches (their functions are not on its allowlist); roles unknown → hidden. */
+export const showAreaBatches = (roles: readonly string[] | null | undefined): boolean => !!roles && roles.includes("admin") && !roles.includes("qa_office");

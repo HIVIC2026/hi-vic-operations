@@ -184,8 +184,9 @@ export async function sendBatch(jobIdsIn: string[], businessId: string, actorId:
   if (!jobIds.length) throw new WorkflowError("Pick at least one home.");
   if (jobIds.length > MAX_SEND) throw new WorkflowError(`A batch is at most ${MAX_SEND} homes.`);
 
-  const { data: numbers } = await admin.from("jobs").select("id, job_number").in("id", jobIds);
-  const label = (id: string) => String((numbers ?? []).find((n) => n.id === id)?.job_number ?? id);
+  const { data: numbers, error: ne } = await admin.from("jobs").select("id, job_number").in("id", jobIds);
+  if (ne) throw new WorkflowError(`Could not read the jobs: ${ne.message} — nothing was sent.`);
+  const label = (id: string) => String((numbers ?? []).find((n) => n.id === id)?.job_number ?? "a job that no longer exists");
   // One batch at a time: any home already in an open batch refuses the whole Send.
   const evs = await batchEvents(jobIds);
   const inBatch = jobIds.filter((id) => openBatchId(evs.get(id) ?? []));
@@ -238,7 +239,7 @@ export async function sendBatch(jobIdsIn: string[], businessId: string, actorId:
   const texts: SendBatchResult["texts"] = [];
   const send = async (h: BatchCandidate) => {
     try {
-      const r = await textOwner(h, batchId, links.get(h.jobId)!, businessId);
+      const r = await textOwner(h, batchId, links.get(h.jobId)!, businessId, actorId);
       texts.push({ jobId: h.jobId, ...r });
     } catch (e) { texts.push({ jobId: h.jobId, status: "failed", detail: (e as Error).message }); }
   };
@@ -259,13 +260,13 @@ async function claim(jobId: string, actorId: string | null, type: string, summar
 }
 
 /** The quick taps text, once per job + batch (TEST → test-send; real → the one real sender with its own switch). */
-async function textOwner(h: BatchCandidate, batchId: string, myJobLink: string, businessId: string): Promise<{ status: string; detail: string }> {
+async function textOwner(h: BatchCandidate, batchId: string, myJobLink: string, businessId: string, actorId: string | null): Promise<{ status: string; detail: string }> {
   const body = quickTapsText(h.ownerName, quickTapsLink(myJobLink));
   if (h.isTest) {
     const { data: biz } = await admin.from("businesses").select("onboarding_notes").eq("id", businessId).maybeSingle();
     const { isTestPartner } = await import("./test-send.core");
     const { sendTestSms } = await import("./test-send.server");
-    const r = await sendTestSms({ jobId: h.jobId, jobSource: h.source, partnerIsTest: isTestPartner(biz ?? null), label: `quick_taps:${batchId}`, actorId: null }, h.phone ?? "", body);
+    const r = await sendTestSms({ jobId: h.jobId, jobSource: h.source, partnerIsTest: isTestPartner(biz ?? null), label: `quick_taps:${batchId}`, actorId }, h.phone ?? "", body);
     return { status: r.status, detail: r.detail };
   }
   const { sendRealSms } = await import("./sms.server");

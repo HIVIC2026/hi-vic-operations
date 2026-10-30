@@ -100,8 +100,8 @@ export const SMS_MESSAGE_TYPES = {
   address_request_reminder: { audience: "owner", label: "We need your full address – one reminder 24h later", wordingApproved: true /* approved by Jo 28 Oct 2026 */, quietHours: true },
   // A48 batch 2 (Jo 29–30 Oct 2026, wording approved in the part 1 spec): Jo taps Send on an area batch → the OWNER gets the
   // quick taps link (area-batch.core quickTapsText), plus the day-2 reminder. Own switches, off until Jo switches them on.
-  quick_taps: { audience: "owner", label: "4 quick taps before we can book your free Ready Check – area batch sent (A48 batch 2)", wordingApproved: true, quietHours: true },
-  quick_taps_reminder: { audience: "owner", label: "4 quick taps – day-2 reminder (A48 batch 2)", wordingApproved: true, quietHours: true },
+  quick_taps: { audience: "owner", label: "Confirm a few quick details for your free Ready Check – area batch sent (A48 batch 2)", wordingApproved: true, quietHours: true },
+  quick_taps_reminder: { audience: "owner", label: "Confirm a few quick details – day-2 reminder (A48 batch 2)", wordingApproved: true, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 

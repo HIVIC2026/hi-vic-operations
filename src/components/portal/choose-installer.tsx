@@ -94,7 +94,7 @@ export function ChooseInstallerPanel({ jobId, reportLoad = false }: { jobId: str
 }
 
 /** A48 batch 2 (Jo 29–30 Oct 2026): suggested batches of nearby homes that look likely to qualify. Jo picks an installer
- *  who covers every home and taps Send; each owner gets the 4 quick taps text. Nothing is ever sent automatically. */
+ *  who covers every home and taps Send; each owner gets a text to confirm a few quick details. Nothing is ever sent automatically. */
 export function AreaBatchSuggestions({ includeTest = false }: { includeTest?: boolean }) {
   const qc = useQueryClient();
   const load = useServerFn(getAreaBatchSuggestions);
@@ -117,7 +117,7 @@ export function AreaBatchSuggestions({ includeTest = false }: { includeTest?: bo
   return (
     <section aria-label="Suggested batches" className="mb-4 rounded-[18px] border border-line bg-paper p-4">
       <h2 className="font-display text-[17px] font-bold text-ink">Suggested batches</h2>
-      <p className="mt-1 text-[13px] text-sub">Nearby homes that look likely to qualify. Pick an installer and tap Send — each owner gets the 4 quick taps text.</p>
+      <p className="mt-1 text-[13px] text-sub">Nearby homes that look likely to qualify. Pick an installer and tap Send — each owner gets a text to confirm a few quick details.</p>
       {q.isError ? (
         <p role="alert" className="mt-3 text-sm text-danger">Couldn't load the batches. {(q.error as Error).message} <button type="button" className="font-semibold underline" onClick={() => void q.refetch()}>Try again</button></p>
       ) : !d ? <p className="mt-3 text-sm text-sub">Loading…</p> : d.batches.length === 0 ? (

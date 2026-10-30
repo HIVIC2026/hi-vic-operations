@@ -16,6 +16,8 @@ import { AreaBatchSuggestions, ChooseInstallerPanel } from "@/components/portal/
 import { ColumnHead, Pager, type ColumnFilterValue } from "@/components/portal/office-lists";
 import { Pill, PillTabs, listCard } from "@/components/portal/kit";
 import { getInstallerWaitingList } from "@/lib/installer-waiting.functions";
+import { showAreaBatches } from "@/lib/area-batch.core";
+import { useMe } from "@/hooks/use-me";
 import { INSULATION_LABEL, REGION_LABEL, pageOf, type SortDir } from "@/lib/office-filters.core";
 import { estimateLabel, sizeLabel } from "@/lib/enquiry-columns.core";
 import {
@@ -100,6 +102,7 @@ function fieldsOf(r: InstallerWaitingRow, now: number) {
 
 export function InstallerWaitingScreen() {
   const load = useServerFn(getInstallerWaitingList);
+  const { data: me } = useMe();
   const [includeTest, setIncludeTest] = useState(false);
   const [typed, setTyped] = useState("");
   const [search, setSearch] = useState("");
@@ -140,7 +143,8 @@ export function InstallerWaitingScreen() {
           <button type="button" className="font-semibold text-hiv-blue underline" onClick={() => setIncludeTest(!includeTest)}>{includeTest ? "Hide TEST jobs" : "Include TEST jobs"}</button>
         </div>
       </div>
-      <AreaBatchSuggestions includeTest={includeTest} />
+      {/* A48 batch 2: not for the TEST office login (its functions are not on the TEST office allowlist). */}
+      {showAreaBatches(me?.roles) && <AreaBatchSuggestions includeTest={includeTest} />}
       <PillTabs<WaitingTab> label="Saved spots" value={tab} onChange={pickTab} options={[
         { value: "to_release", label: "To release", count: d ? d.rows.length - (waitingOwner ?? 0) : null },
         { value: "waiting_owner", label: "Waiting for owner", count: waitingOwner ?? null },
