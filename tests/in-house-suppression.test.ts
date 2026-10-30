@@ -247,14 +247,16 @@ test("actual three UI callbacks stop before success/reset/refetch and show skipp
       ts.forEachChild(node, visit);
     }
     visit(source); if (!arrow) throw new Error(`Missing UI callback ${scenario.path}`);
-    for (const skipped of ["in_house", "in_house_read_failed"] as const) {
-      const result = inHouse.inHouseSkippedAction(skipped);
+    const results = [inHouse.inHouseSkippedAction("in_house"), inHouse.inHouseSkippedAction("in_house_read_failed"), ...(scenario.action === "choose" ? [{ ok: true }] : [])];
+    for (const result of results) {
       const messages: string[] = []; const success: string[] = [];
+      const invalidations: unknown[][] = [];
       const deps: Record<string, any> = {
         [scenario.action]: async () => result, assertInHouseActionSucceeded: inHouse.assertInHouseActionSucceeded,
         busy: false, flight: { current: false }, setBusy: () => {}, setFail: (s: string | null) => { if (s) messages.push(s); },
         refetch: async () => { success.push("refetch"); }, setPicks: () => { success.push("reset"); },
-        qc: { invalidateQueries: async () => { success.push("refresh"); } },
+        qc: { invalidateQueries: async (...args: unknown[]) => { invalidations.push(args); success.push("refresh"); } },
+        markOfficeChanged: () => { success.push("office-changed"); },
         toast: { success: () => { success.push("toast"); }, error: (s: string) => { messages.push(s); } },
         offerId: "offer", token: "token", session: "session", jobId: "j", picks: [], understands: true,
       };
@@ -263,7 +265,14 @@ test("actual three UI callbacks stop before success/reset/refetch and show skipp
       new Function("exports", ...Object.keys(deps), code)(exports, ...Object.values(deps));
       if (scenario.catches) await exports.callback([]);
       else { try { await exports.callback(); } catch (e) { messages.push((e as Error).message); } }
-      expect(messages).toEqual([result.message]); expect(success).toEqual([]);
+      if ("skipped" in result) {
+        expect(messages).toEqual([result.message]); expect(success).toEqual([]);
+        expect(invalidations).toEqual([]);
+      } else {
+        expect(messages).toEqual([]);
+        expect(success).toEqual(["office-changed", "toast", "reset", "refresh"]);
+        expect(invalidations).toEqual([[]]);
+      }
     }
   }
 });
