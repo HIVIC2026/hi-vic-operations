@@ -33,12 +33,17 @@ describe("before the SQL is live: not paused, nothing changes", () => {
   test("sender helper → not paused, with a warning", async () => {
     const warn = spyOn(console, "warn").mockImplementation(() => {});
     expect(await tradeMessagesPausedNow()).toBeNull();
+    expect(await tradeMessagesPausedNow()).toBeNull();
+    expect(await tradeMessagesPausedNow()).toBeNull();
+    // Logged once per process, not on every send.
+    expect(warn.mock.calls).toHaveLength(1);
     expect(String(warn.mock.calls[0]?.[0] ?? "")).toContain("trade_messages_paused");
     warn.mockRestore();
   });
   test("Settings shows it off, not editable, write refused", async () => {
     const s = await sw();
     expect(s.label).toBe("Pause all trade messages");
+    expect(s.what).toContain("Mitti's own emails about forms still come from Mitti");
     expect(s.on).toBe(false);
     expect(s.editable).toBe(false);
     expect(s.note).toContain("trade-messages-paused.sql");
@@ -87,6 +92,7 @@ describe("pending migration trade-messages-paused.sql", () => {
   });
 
   test("rollback removes column, trigger and function; repeatable; code back to not paused", async () => {
+    expect(ROLLBACK.split("\n")[0]).toContain("WARNING: rolling back = UNPAUSED");
     await db.exec(ROLLBACK);
     await db.exec(ROLLBACK);
     const cols = await db.query("select 1 from information_schema.columns where table_name = 'workflow_settings' and column_name = 'trade_messages_paused'");

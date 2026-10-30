@@ -3,7 +3,8 @@
 // - sendRealSms: partner texts held (recorded "blocked", key NOT claimed); owner texts and sign-in codes still go;
 //   unpaused → the same key sends exactly once.
 // - sendOfficeEmail: partner/applicant emails held and recorded; homeowner + Jo's TEST inbox unchanged.
-// - representative paths: job offer (text + email), team member invite (text), install tomorrow (text).
+// - representative paths: job offer (text + email), team member invite (text). Install tomorrow runs its REAL path in
+//   trade-pause-install-tomorrow.test.ts.
 import { beforeEach, describe, expect, mock, setSystemTime, test } from "bun:test";
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
@@ -34,7 +35,7 @@ await db.exec(`create schema auth; create function auth.uid() returns uuid langu
   insert into public.partner_worker_invites values ('${INVITE}', '${BIZ}', now() + interval '14 days', null, null);`);
 await db.exec(readFileSync("docs/pending-migrations/0141_real_sms_sender.sql", "utf8"));
 await db.exec(readFileSync("docs/pending-migrations/trade-messages-paused.sql", "utf8"));
-await db.exec(`update public.workflow_settings set sms_message_switches = '{"job_offer":true,"team_member_invite":true,"install_tomorrow":true,"quote_ready":true,"owner_code":true}' where id = 1`);
+await db.exec(`update public.workflow_settings set sms_message_switches = '{"job_offer":true,"team_member_invite":true,"install_tomorrow":true,"swms_sign_link":true,"quote_ready":true,"owner_code":true}' where id = 1`);
 
 const twilio: string[] = [];
 const emails: { to: string; subject: string }[] = [];
@@ -72,10 +73,10 @@ beforeEach(async () => { await setPaused(true); });
 
 describe("sendRealSms while paused", () => {
   test("partner text held (recorded, key not claimed) → unpaused → same key sends once", async () => {
-    const input = { type: "install_tomorrow" as const, idempotencyKey: "install-tomorrow:v1:b1", to: "0412 345 678", body: "Install tomorrow", jobId: JOB, businessId: BIZ };
+    const input = { type: "swms_sign_link" as const, idempotencyKey: "swms-sign:v1:b1", to: "0412 345 678", body: "Sign the safety plan", jobId: JOB, businessId: BIZ };
     const held = await sendRealSms(input);
     expect(held).toMatchObject({ status: "blocked", detail: "Trade messages paused" });
-    const r = await smsRows("install-tomorrow:v1:b1");
+    const r = await smsRows("swms-sign:v1:b1");
     expect(r).toHaveLength(1);
     expect(r[0]!.status).toBe("blocked");
     expect(r[0]!.idempotency_key).toContain(HELD_KEY_MARK);

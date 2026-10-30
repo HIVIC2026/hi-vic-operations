@@ -35,6 +35,11 @@ export async function textBossPriceLink(jobId: string, i: { auditId: string; com
     const to = b?.signer_mobile ?? b?.phone ?? null;
     const key = bossPriceLinkKey(jobId);
     const completedAt = i.completedAt ?? new Date().toISOString();
+    // Jo 30 Oct 2026: "Pause all trade messages" — held BEFORE the claim (TEST unchanged), so a later sync can still send it.
+    if (j.source !== "qa_test" && !(await import("./test-send.core")).isTestPartner(b ?? {})) {
+      const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow();
+      if (tradePaused) return `held: ${tradePaused}`;
+    }
     // Claimed once, before any send: a second sync or the sweep finds this event and stops.
     await logEvent(jobId, null, BOSS_PRICE_LINK_EVENT, `Business owner texted the link to enter the price (decision 288) — text prepared${to ? "" : " (no business mobile on file)"}`, { key, audit_id: i.auditId, completed_at: completedAt, business_id: b?.id ?? j.originating_installer_business_id, to }, { internal: true });
     if (!to) return "not sent: no business mobile";

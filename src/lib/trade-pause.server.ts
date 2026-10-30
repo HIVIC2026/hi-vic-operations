@@ -4,6 +4,8 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { readTradePause } from "./trade-pause.core";
 
+let missingWarned = false;
+
 /** The hold reason while trade messages are paused, else null. */
 export async function tradeMessagesPausedNow(): Promise<string | null> {
   let r: { data: unknown; error: { code?: string | null; message?: string | null } | null };
@@ -13,6 +15,7 @@ export async function tradeMessagesPausedNow(): Promise<string | null> {
     r = { data: null, error: { message: (e as Error).message } };
   }
   const out = readTradePause({ data: r.data as { trade_messages_paused?: boolean | null } | null, error: r.error });
-  if (out.warning) console.warn(out.warning);
+  // The missing-column warning is logged once per process (it would repeat on every send); real read failures every time.
+  if (out.warning && (out.reason !== null || !missingWarned)) { if (out.reason === null) missingWarned = true; console.warn(out.warning); }
   return out.reason;
 }
