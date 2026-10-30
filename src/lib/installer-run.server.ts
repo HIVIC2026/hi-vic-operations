@@ -478,24 +478,38 @@ async function writeChoice(state: RunState, c: RunChoice, slots: readonly { jobI
 async function completeRunChoice(state: RunState, c: RunChoice, actorId: string | null, now: Date): Promise<ChooseRunDayResult | null> {
   const picked = c.jobIds.filter((id) => state.memberIds.includes(id));
   if (!picked.length) return null;
-  if (runDayBlocker(c.day, now) || (c.second && runDayBlocker(c.second, now))) return null;
   const [ev, jobs, assigned] = await Promise.all([slotEventsFor(picked), slotJobsById(picked), activeInstallerJobs(picked)]);
   const here = slotsOf(ev).filter((x) => x.runId === state.runId);
   const has = new Set(here.map((x) => x.jobId));
   const missing = picked.filter((id) => { const j = jobs.get(id); return !has.has(id) && !!j && !j.qa_archived_at && jobWaitingForInstaller({ channel: j.channel, stage: j.stage, hasInstaller: assigned.has(id), deleted: !!j.deleted_at }); });
   if (!missing.length) return null;
-  if (!(await runTeam(state.businessId)).some((m) => m.userId === c.person)) return null;
+  // Can never be placed now (the day has gone, the person left, the business can't take them): released back to the pool
+  // like a "none suit" (standing pass, owner not asked, not texted), once per home.
+  if (runDayBlocker(c.day, now) || (c.second && runDayBlocker(c.second, now))) { await releaseUnplaced(state, missing, actorId); return null; }
+  if (!(await runTeam(state.businessId)).some((m) => m.userId === c.person)) { await releaseUnplaced(state, missing, actorId); return null; }
   const homes = missing.map((id) => ({ postcode: (jobs.get(id)?.properties?.postcode ?? "").trim(), isTest: jobs.get(id)?.source === "qa_test" }));
-  if (!(await canTakeHomes(state.businessId, homes))) return null;
+  if (!(await canTakeHomes(state.businessId, homes))) { await releaseUnplaced(state, missing, actorId); return null; }
+  // Temporary: the owner time texts are switched off — wait, retry on later ticks.
   if (await ownerTextsBlocker(state.businessId, homes)) return null;
   const days = c.second ? [c.day, c.second] : [c.day];
   const held = heldBy(await personDays(state.businessId, c.person, days, now), () => true);
   const plan = planRunDays({ memberIds: missing, day: c.day, start: c.start, secondDay: c.second, held });
   if (!plan.ok) throw new WorkflowError(plan.why);
   const slots = plan.slots.filter((x) => !pickTooSoon(x.day, x.start, now));
+  const tooSoon = plan.slots.filter((x) => pickTooSoon(x.day, x.start, now)).map((x) => x.jobId);
+  if (slots.length) await writeChoice(state, c, slots, actorId, now, false);
+  if (tooSoon.length) await releaseUnplaced(state, tooSoon, actorId);
   if (!slots.length) return null;
-  await writeChoice(state, c, slots, actorId, now, false);
   return { slots: [...here.filter(holds).map((x) => ({ jobId: x.jobId, day: x.day, start: x.start, end: x.end })), ...slots] };
+}
+
+/** Homes a resume can't place: released like "none suit" (same `run_slot_released`, so they are batch candidates again with
+ *  their standing pass; the owner isn't asked or texted). Once per home (the release key). */
+async function releaseUnplaced(state: RunState, jobIds: readonly string[], actorId: string | null): Promise<void> {
+  for (const jobId of jobIds) {
+    await claimBatchEvent(jobId, actorId, RUN_SLOT_RELEASED_EVENT, "No Ready Check window could be given for this home — back on the list for the next batch (owner not asked again)",
+      { run_id: state.runId, batch_id: state.batchId, business_id: state.businessId, seq: 0, why: "not_placed", idempotency_key: runSlotReleaseKey(state.runId, jobId) });
+  }
 }
 
 /** Installer, Portal books: pick the day (and a second day when more than 8 homes don't fit), the start time and who is
@@ -574,7 +588,7 @@ async function resumeRunChoices(now: Date): Promise<{ resumed: number; failed: n
   const old = [...picks.keys()].filter((r) => !fresh(r));
   if (!old.length) return out;
   const pickedJobs = [...new Set(old.flatMap((r) => [...picks.get(r)!.jobIds]))];
-  const proposed = (await readByIds("run windows", pickedJobs, (c, f, t) => loose.from("workflow_events").select("job_id, details").in("job_id", c).eq("event_type", RUN_SLOT_PROPOSED_EVENT).range(f, t))) as unknown as RunEventRow[];
+  const proposed = (await readByIds("run windows", pickedJobs, (c, f, t) => loose.from("workflow_events").select("job_id, details").in("job_id", c).in("event_type", [RUN_SLOT_PROPOSED_EVENT, RUN_SLOT_RELEASED_EVENT]).range(f, t))) as unknown as RunEventRow[];
   const windowed = new Set(proposed.map((e) => `${runIdOf(e)}|${e.job_id}`));
   const allHaveWindows = (runId: string) => [...picks.get(runId)!.jobIds].every((id) => windowed.has(`${runId}|${id}`));
   const runIds = old.filter((r) => !allHaveWindows(r));

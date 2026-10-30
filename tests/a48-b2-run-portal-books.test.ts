@@ -736,6 +736,60 @@ describe("fix round 2", () => {
 });
 
 // ---- parked from Task 6 ------------------------------------------------------------------------------------------------------
+describe("fix round 3", () => {
+  beforeEach(seed);
+  const stop = async (ids: string[], o: { personId?: string; source?: string } = {}) => {
+    const r = await offered(ids, o.source ? { source: o.source } : {});
+    now(2);
+    failInsert = (t, row) => t === "workflow_events" && row["event_type"] === "run_mode_chosen" && row["job_id"] === r.order[1];
+    await expect(R.chooseRunDay(r.runId, "u-sam", DAY, "09:00", null, { now: new Date(clock), ...(o.personId ? { personId: o.personId } : {}) })).rejects.toThrow();
+    expect(events("run_slot_proposed")).toEqual([]);
+    return r;
+  };
+  const released = () => events("run_slot_released").map((e) => [e["job_id"], (e["details"] as Row)["why"]]).sort();
+
+  test("the day has passed → every picked home without a window is released once, a batch candidate again, nobody texted", async () => {
+    const { order } = await stop(["a", "b", "c"]);
+    now(100); await R.sweepRunSlots(at(100));
+    expect(released().map((x) => x[0])).toEqual([...order].sort());
+    now(101); await R.sweepRunSlots(at(101));
+    expect(events("run_slot_released").length).toBe(3);
+    expect(events("run_slot_proposed")).toEqual([]);
+    expect(ownerTexts()).toEqual([]);
+    expect((await candidates()).map((x) => [x.jobId, x.carriedPass]).sort()).toEqual([...order].sort().map((j) => [j, true]));
+  });
+
+  test("the chosen person left the team → released, not proposed", async () => {
+    const { order } = await stop(["a", "b"], { personId: "u-kim" });
+    tables["business_members"]!.find((m) => m["user_id"] === "u-kim")!["active"] = false;
+    now(2.25); await R.sweepRunSlots(at(2.25));
+    expect(released().map((x) => x[0])).toEqual([...order].sort());
+    expect(events("run_slot_proposed")).toEqual([]);
+    expect(ownerTexts()).toEqual([]);
+    expect((await candidates()).map((x) => x.jobId).sort()).toEqual([...order].sort());
+    now(2.5); await R.sweepRunSlots(at(2.5));
+    expect(events("run_slot_released").length).toBe(2);
+  });
+
+  test("a window under the 24 h lead time releases only that home (a day 2+ days ahead is never under 24 h, so this is wiring-checked)", () => {
+    const src = readFileSync("src/lib/installer-run.server.ts", "utf8");
+    expect(src).toMatch(/const tooSoon = plan\.slots\.filter\(\(x\) => pickTooSoon\(x\.day, x\.start, now\)\)\.map\(\(x\) => x\.jobId\);/);
+    expect(src).toMatch(/if \(tooSoon\.length\) await releaseUnplaced\(state, tooSoon, actorId\);/);
+  });
+
+  test("owner time texts switched off → not released, proposed later once switched on", async () => {
+    const { order } = await stop(["a", "b"]);
+    tables["workflow_settings"]![0]!["sms_message_switches"] = { run_offered: true, run_time: false, run_time_reminder: true };
+    for (const h of [2.25, 8, 20]) { now(h); await R.sweepRunSlots(at(h)); }
+    expect(events("run_slot_released")).toEqual([]);
+    expect(events("run_slot_proposed")).toEqual([]);
+    tables["workflow_settings"]![0]!["sms_message_switches"] = { run_offered: true, run_time: true, run_time_reminder: true };
+    now(21); await R.sweepRunSlots(at(21));
+    expect(order.map((j) => slotOf(j)?.["start"])).toEqual(["09:00", "10:00"]);
+    expect(events("run_slot_released")).toEqual([]);
+  });
+});
+
 describe("installer's 24 h count from the first run text that went", () => {
   beforeEach(seed);
   test("held first text → no expiry; re-texted at hour 10 → expires 24 h after that", async () => {
