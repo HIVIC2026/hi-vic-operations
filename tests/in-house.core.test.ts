@@ -70,3 +70,15 @@ test("business input permits only the two billing choices", () => {
   expect(schema.safeParse({ name: "TEST partner", in_house: false, rectification_billed_by: "hivic" }).success).toBe(true);
   expect(schema.safeParse({ name: "TEST partner", rectification_billed_by: "electrician" }).success).toBe(false);
 });
+test("payee flag is stripped by input validation and by save for both office and partner", async () => {
+  const expression = source.match(/const businessInput = (z\.object\([\s\S]*?\n\}\));/)?.[1];
+  if (!expression) throw new Error("Business input missing");
+  const schema = new Function("z", "uuid", "txt", `return ${expression}`)(z, z.string().uuid(), (n: number) => z.string().trim().max(n).nullish()) as z.ZodType;
+  expect(schema.parse({ name: "TEST partner", pays_own_electricians: true })).not.toHaveProperty("pays_own_electricians");
+  for (const office of [true, false]) {
+    const f = saveFixture(office);
+    await f.run({ id: "business-a", name: "TEST partner", pays_own_electricians: true });
+    expect(f.writes[0]).not.toHaveProperty("pays_own_electricians");
+    expect(f.rpcCalls).toEqual([]);
+  }
+});

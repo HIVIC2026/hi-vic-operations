@@ -20,7 +20,7 @@ function reads(rows: Record<string, unknown[]>, failedTable?: string) {
   return { calls, admin: { from(table: string) {
     const call = { table, filters: [] as unknown[][] }; calls.push(call);
     const q: any = { then(resolve: (x: unknown) => unknown) { return Promise.resolve({ data: rows[table] ?? [], error: failedTable === table ? { message: "read failed" } : null }).then(resolve); } };
-    for (const name of ["select", "in", "eq", "lte", "order", "ilike", "is", "contains", "limit"]) q[name] = (...args: unknown[]) => { call.filters.push([name, ...args]); return q; };
+    for (const name of ["select", "in", "eq", "lte", "order", "ilike", "is", "contains", "limit", "or"]) q[name] = (...args: unknown[]) => { call.filters.push([name, ...args]); return q; };
     q.maybeSingle = q.single = async () => ({ data: rows[table]?.[0] ?? null, error: failedTable === table ? { message: "read failed" } : null });
     return q;
   } } };
@@ -31,14 +31,14 @@ function priceModule(fixture: ReturnType<typeof reads>) {
     "./installer-paid-electricians.core": pricing, "./melbourne-time.core": { melbourneToday: () => "2026-10-30" },
   });
 }
-test("in-house batch uses three reads for many businesses and filters enabled, active effective electrical cards", async () => {
+test("payee batch reads both flags and any active effective card with a PIESA line", async () => {
   const f = reads({ businesses: [{ id: "a", name: "A", in_house: true }, { id: "b", name: "B", in_house: true }], rate_cards: [{ id: "ca", business_id: "a" }, { id: "cb", business_id: "b" }], rate_card_items: [{ rate_card_id: "ca", unit_price_ex_gst: 100 }, { rate_card_id: "cb", unit_price_ex_gst: 200 }] });
   const result = await priceModule(f).inHouseBusinessesFor(["a", "b", "ordinary"]);
   expect(result.get("a").piesaIncGst).toBe(110);
   expect(result.get("b").piesaIncGst).toBe(220);
   expect(f.calls.map(c => c.table)).toEqual(["businesses", "rate_cards", "rate_card_items"]);
-  expect(f.calls[0]?.filters).toContainEqual(["eq", "in_house", true]);
-  expect(f.calls[1]?.filters).toContainEqual(["eq", "kind", "electrical"]);
+  expect(f.calls[0]?.filters).toContainEqual(["or", "in_house.eq.true,pays_own_electricians.eq.true"]);
+  expect(f.calls[1]?.filters).not.toContainEqual(["eq", "kind", "electrical"]);
   expect(f.calls[1]?.filters).toContainEqual(["eq", "is_active", true]);
   expect(f.calls[1]?.filters).toContainEqual(["lte", "effective_from", "2026-10-30"]);
 });
@@ -75,7 +75,7 @@ test("missing in-house PIESA rate reaches quote resolution with the exact hold, 
   const result = await m.mittiElectricianForJob("j", null, [], "audit");
   expect(result.ready).toBe(false);
   expect(result.priceIncGst).toBeNull();
-  expect(result.reasons).toEqual(["In-house partner has no PIESA rate on its rate card"]);
+  expect(result.reasons).toEqual(["Installer business has no PIESA rate on its rate card"]);
   expect((await m.readUsualElectricianStatus("a")).onboarded).toBe(false);
 });
 test("valid in-house line still prices flat while non-in-house uses the REC rate", async () => {
@@ -87,7 +87,7 @@ test("valid in-house line still prices flat while non-in-house uses the REC rate
 });
 test("safety-check payout refuses a missing PIESA line, but keeps HIV electrician direct", async () => {
   const f = reads({ businesses: [{ id: "a", name: "A", in_house: true }], workflow_events: [{ job_id: "j", details: { choice: "usual" } }] });
-  await expect(priceModule(f).safetyCheckPayeesFor([{ id: "j", originating_installer_business_id: "a" }])).rejects.toThrow("In-house partner has no PIESA rate on its rate card");
+  await expect(priceModule(f).safetyCheckPayeesFor([{ id: "j", originating_installer_business_id: "a" }])).rejects.toThrow("Installer business has no PIESA rate on its rate card");
   const direct = reads({ businesses: [{ id: "a", name: "A", in_house: true }], workflow_events: [{ job_id: "j", details: { choice: "hivic" } }] });
   expect((await priceModule(direct).safetyCheckPayeesFor([{ id: "j", originating_installer_business_id: "a" }])).get("j")).toBeNull();
 });
@@ -96,7 +96,7 @@ test("quote builder persists the exact missing-rate hold on an existing draft", 
   const start = source.indexOf("  if (!draft.ready) {");
   const end = source.indexOf("  const installerPrice =", start);
   const code = ts.transpile(`async function run() {${source.slice(start, end)}}; exports.run=run;`, { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS });
-  const reason = "In-house partner has no PIESA rate on its rate card";
+  const reason = "Installer business has no PIESA rate on its rate card";
   const draft = { ready: false, blockers: [reason] };
   const updates: unknown[] = [];
   const admin = { from: () => ({ select: () => ({ eq: () => ({ eq: () => ({ order: () => ({ limit: () => ({ maybeSingle: async () => ({ data: null }) }) }) }) }) }), update: (patch: unknown) => { updates.push(patch); return { eq: () => ({ eq: async () => ({ error: null }) }) }; } }) };
@@ -139,4 +139,14 @@ test("trade money display survives both in-house reads throwing and matches non-
   expect(normal).toHaveLength(1);
   expect(await run(true, errors)).toEqual(normal);
   expect(errors).toHaveLength(2);
+});
+test("own-electrician-only business uses the newest card containing PIESA, including installer kind", async () => {
+  const f = reads({ businesses: [{ id: "a", name: "Reinsulate", in_house: false, pays_own_electricians: true }, { id: "b", name: "Rapid", in_house: true, pays_own_electricians: false }],
+    rate_cards: [{ id: "empty", business_id: "a", version: 9, kind: "installer" }, { id: "new", business_id: "a", version: 8, kind: "installer" }, { id: "old", business_id: "a", version: 7, kind: "electrical" }, { id: "rapid", business_id: "b", version: 1, kind: "installer" }],
+    rate_card_items: [{ rate_card_id: "new", unit_price_ex_gst: 318.18 }, { rate_card_id: "old", unit_price_ex_gst: 100 }, { rate_card_id: "rapid", unit_price_ex_gst: 400 }],
+    workflow_events: [{ job_id: "j", details: { choice: "usual" } }] });
+  const api = priceModule(f);
+  expect(await api.readInstallerPaidElectricians("a")).toEqual({ businessId: "a", name: "Reinsulate", piesaIncGst: 350 });
+  expect((await api.safetyCheckPayeesFor([{ id: "j", originating_installer_business_id: "a" }])).get("j")?.piesaIncGst).toBe(350);
+  expect((await api.ownElectricianBusinessesFor(["a", "b"])).get("b")).toMatchObject({ in_house: true, pays_own_electricians: false, piesaIncGst: 440 });
 });
