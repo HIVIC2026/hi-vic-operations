@@ -36,7 +36,16 @@ class WorkflowError extends Error {}
 let failHeldRead = false;
 let rectificationGuardCalls = 0;
 const shim = embedShim(db, { job_assignments: { businesses: { table: "businesses", fk: "business_id", on: "base" } } });
-const admin = { from(table: string) { if (failHeldRead && table === "job_assignments") throw new Error("read unavailable"); return shim.from(table); } };
+const admin = { from(table: string) {
+  if (failHeldRead && table === "job_assignments") throw new Error("read unavailable");
+  const query = shim.from(table);
+  // PGlite's enum-array parameters need PostgreSQL's literal spelling, unlike text/UUID arrays.
+  if (table === "bookings") {
+    const originalIn = query.in;
+    query.in = (column, values) => originalIn(column, `{${values.join(",")}}` as unknown as unknown[]);
+  }
+  return query;
+} };
 const logEvent = async (jobId: string, actor: string, event: string, summary: string, details = {}) => {
   await db.query("insert into workflow_events(job_id,actor_id,event_type,summary,details) values($1,$2,$3,$4,$5)", [jobId,actor,event,summary,JSON.stringify(details)]);
 };
