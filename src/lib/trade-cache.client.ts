@@ -3,6 +3,11 @@
 const PREFIX = "hiv-trade:v1:";
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
+// Set by clearTradeCache (sign-out): a fetch still in flight must not write the old user's answer back. Sign-out reloads the page.
+let signedOut = false;
+/** Tests only. */
+export function resetTradeCacheSignOut(): void { signedOut = false; }
+
 const store = (): Storage | null => {
   try { return (globalThis as { localStorage?: Storage }).localStorage ?? null; } catch { return null; }
 };
@@ -20,10 +25,17 @@ export function readTradeCache<T>(userId: string, key: string): { data: T; at: n
 
 /** Call only after a successful fetch, so an error is never kept. */
 export function writeTradeCache(userId: string, key: string, data: unknown): void {
+  if (signedOut) return;
   try { store()?.setItem(`${PREFIX}${userId}:${key}`, JSON.stringify({ at: Date.now(), data })); } catch { /* no cache is fine */ }
 }
 
+/** Drop one entry (a screen the server no longer answers for this user). */
+export function dropTradeCache(userId: string, key: string): void {
+  try { store()?.removeItem(`${PREFIX}${userId}:${key}`); } catch { /* nothing to drop */ }
+}
+
 export function clearTradeCache(): void {
+  signedOut = true;
   try {
     const s = store();
     if (!s) return;

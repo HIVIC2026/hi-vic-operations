@@ -2,14 +2,14 @@ import { inHouseTradeBookingText } from "@/lib/in-house-message.core";
 // Installer Job page = approved mock-up M2 (Jo 24 Oct 2026, decisions 196/198): one Next panel, Quote, Ready Check,
 // Who's doing this, More. Decision 277 (Jo 25 Oct 2026): no in-portal Messages section — the installer uses Call/Text
 // and the portal sends its own automatic texts. The electrician's visit flow shares this route unchanged.
-import { readTradeCache, writeTradeCache } from "@/lib/trade-cache.client";
+import { dropTradeCache, readTradeCache, writeTradeCache } from "@/lib/trade-cache.client";
 import { RectPlanFields, rectPlanProblems, type RectPlan } from "@/components/portal/rectification-times";
 import { VisitContactsCard } from "@/components/portal/allocation";
 import { TradeVisitCard } from "@/components/portal/visit-changes";
 import { nextStep } from "@/lib/nextstep.core";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, HeartPulse, Phone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { TradeShell } from "@/components/trade/TradeShell";
@@ -27,7 +27,7 @@ import { MittiCard, MittiSyncedFields } from "@/components/portal/mitti";
 import { mittiFormId } from "@/lib/mitti-form-link.core";
 import { useServerFn } from "@tanstack/react-start";
 import { getMyMittiInvited, getTradeJobBundle, getTradeJobPage, setA1ReadyCheckTimeFn } from "@/lib/trade-view.functions";
-import { bundleUsable, seedPlan } from "@/lib/trade-job-bundle.core";
+import { BUNDLE_QUERY_KEYS, bundleUsable, evictPlan, seedPlan, type BundleSection } from "@/lib/trade-job-bundle.core";
 import { a1ReadyCheckEntryAllowed, a1ReadyCheckTimeBlockers, allowedReadyCheckDays, allowedReadyCheckTimes } from "@/lib/ready-check-times.core";
 import { installTimeLabel } from "@/lib/install-days.core";
 
@@ -77,20 +77,35 @@ export const Route = createFileRoute("/_authenticated/field/$jobId")({
  *  written into their own Query cache entries before the page draws, so each card finds its answer already there and
  *  fetches on its own only when one of its actions invalidates it (or the bundle left that section out). A section the
  *  server could not answer is simply not seeded: that card fetches and handles its error exactly as before. */
+const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
 function useTradeJobBundle(jobId: string, uid: string) {
   const qc = useQueryClient();
   const load = useServerFn(getTradeJobBundle);
   type Bundle = Awaited<ReturnType<typeof load>>;
   const ck = `job-bundle:${jobId}`;
-  // Return visit: the last copy of this user's bundle (under 24 h) draws the page at once. Each section it holds is put in
-  // the card's own Query entry (only where that entry is empty), and the bundle is asked again straight away.
-  const seed = useMemo(() => {
-    const c = readTradeCache<Bundle>(uid, ck);
-    if (c) for (const s of seedPlan(c.data as Record<string, unknown>, jobId)) if (qc.getQueryData([...s.key]) === undefined) qc.setQueryData([...s.key], s.data);
-    return c;
-  }, [uid, ck]); // eslint-disable-line react-hooks/exhaustive-deps
+  const seed = useMemo(() => readTradeCache<Bundle>(uid, ck), [uid, ck]);
+  const seeded = useRef<BundleSection[]>([]);
+  // Return visit: before the page first draws (layout effect, so nothing flashes), each section of the cached bundle goes
+  // into its card's own Query entry where that is empty. `ready` holds the page back until then.
+  const [ready, setReady] = useState(!seed);
+  useIsoLayoutEffect(() => {
+    if (seed) {
+      for (const s of seedPlan(seed.data as Record<string, unknown>, jobId)) {
+        if (qc.getQueryData([...s.key]) === undefined) { qc.setQueryData([...s.key], s.data); seeded.current.push(s.section); }
+      }
+    }
+    setReady(true);
+  }, [seed, jobId]); // eslint-disable-line react-hooks/exhaustive-deps
   const askedOnce = useRef(false);
-  return useQuery({
+  // The server no longer answers for this job (or the section): forget the old copy so the cards fetch themselves and show the usual refusal.
+  const evict = (fresh: Bundle | null) => {
+    const plan = evictPlan(seeded.current, fresh as Partial<Record<BundleSection, unknown>> | null);
+    if (plan.dropCache) dropTradeCache(uid, ck);
+    for (const sec of plan.sections) void qc.resetQueries({ queryKey: [...BUNDLE_QUERY_KEYS[sec](jobId)], exact: true });
+    seeded.current = [];
+  };
+  const q = useQuery({
     queryKey: ["trade-job-bundle", jobId],
     queryFn: async ({ queryKey }) => {
       // `useAction` invalidates every query after an action; the cards refetch themselves then, so the bundle is not
@@ -98,8 +113,10 @@ function useTradeJobBundle(jobId: string, uid: string) {
       const prev = qc.getQueryData<Bundle>(queryKey);
       if (prev && (askedOnce.current || !seed)) return prev;
       askedOnce.current = true;
-      const bundle = await load({ data: { jobId } });
+      let bundle: Bundle;
+      try { bundle = await load({ data: { jobId } }); } catch (e) { if (seed) evict(null); throw e; }
       for (const s of seedPlan(bundle, jobId)) qc.setQueryData([...s.key], s.data);
+      if (seed) evict(bundle);
       if (bundleUsable(bundle as { overview?: unknown })) writeTradeCache(uid, ck, bundle); // only a good answer is kept
       return bundle;
     },
@@ -108,6 +125,7 @@ function useTradeJobBundle(jobId: string, uid: string) {
     staleTime: seed ? 0 : Infinity, retry: false, refetchOnMount: seed ? true : false, refetchOnWindowFocus: false, refetchOnReconnect: false,
     ...(seed ? { initialData: seed.data, initialDataUpdatedAt: seed.at } : {}),
   });
+  return { ...q, ready };
 }
 
 function FieldJob() {
@@ -116,7 +134,7 @@ function FieldJob() {
   const bundle = useTradeJobBundle(jobId, uid);
   // While the one call is in flight nothing below mounts, so no card starts its own fetch. A failed bundle still renders
   // the page: every card then loads itself (the pre-bundle behaviour) and the existing refusal wording applies.
-  if (!bundle.isFetched && bundle.data === undefined) return <TradeShell installer><p className="text-sub">Loading…</p></TradeShell>;
+  if (!bundle.ready || (!bundle.isFetched && bundle.data === undefined)) return <TradeShell installer><p className="text-sub">Loading…</p></TradeShell>;
   return <FieldJobBody jobId={jobId} />;
 }
 

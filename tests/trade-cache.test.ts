@@ -11,7 +11,7 @@ class FakeStorage {
 }
 const g = globalThis as unknown as { localStorage?: unknown };
 let orig: unknown;
-beforeEach(() => { orig = g.localStorage; g.localStorage = new FakeStorage(); });
+beforeEach(() => { resetTradeCacheSignOut(); orig = g.localStorage; g.localStorage = new FakeStorage(); });
 afterEach(() => { g.localStorage = orig; });
 
 describe("trade cache", () => {
@@ -66,5 +66,33 @@ describe("trade cache keys per job", () => {
     expect(readTradeCache<{ overview: number }>("u1", "job-bundle:a")?.data.overview).toBe(1);
     expect(readTradeCache<{ overview: number }>("u1", "job-bundle:b")?.data.overview).toBe(2);
     expect(readTradeCache("u1", "job-bundle:c")).toBeNull();
+  });
+});
+
+import { evictPlan } from "../src/lib/trade-job-bundle.core";
+import { resetTradeCacheSignOut } from "../src/lib/trade-cache.client";
+
+describe("evictPlan", () => {
+  const seeded = ["overview", "role", "page"] as const;
+  test("a refused or failed fresh bundle drops the cached copy and every seeded section", () => {
+    expect(evictPlan(seeded, { overview: { error: "no" } })).toEqual({ dropCache: true, sections: ["overview", "role", "page"] });
+    expect(evictPlan(seeded, null)).toEqual({ dropCache: true, sections: ["overview", "role", "page"] });
+  });
+  test("a usable bundle drops only seeded sections it did not answer", () => {
+    expect(evictPlan(seeded, { overview: { id: 1 }, role: "installer", page: { error: "x" } })).toEqual({ dropCache: false, sections: ["page"] });
+    expect(evictPlan(seeded, { overview: { id: 1 }, role: "installer", page: {} })).toEqual({ dropCache: false, sections: [] });
+    expect(evictPlan(seeded, { overview: { id: 1 } })).toEqual({ dropCache: false, sections: ["role", "page"] });
+  });
+});
+
+describe("sign-out race", () => {
+  test("after clearTradeCache a late write is ignored", () => {
+    writeTradeCache("u1", "home", 1);
+    clearTradeCache();
+    writeTradeCache("u1", "home", 2);
+    expect(readTradeCache("u1", "home")).toBeNull();
+    resetTradeCacheSignOut();
+    writeTradeCache("u1", "home", 3);
+    expect(readTradeCache("u1", "home")?.data).toBe(3);
   });
 });
