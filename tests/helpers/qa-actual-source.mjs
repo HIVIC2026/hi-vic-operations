@@ -33,5 +33,7 @@ export function loadHandlers(admin,context) {
   const createServerFn=()=>({middleware(){return this;},inputValidator(){return this;},handler(fn){return args=>fn({...args,context});}});
   return loadModule('src/lib/test-accounts.functions.ts',{'@tanstack/react-start':{createServerFn},zod:{z},
     '@/integrations/supabase/auth-middleware':{requireSupabaseAuth:()=>{}},'./workflow.server':workflow,
-    '@/integrations/supabase/client.server':{supabaseAdmin:admin},'./qa-access.server':server});
+    '@/integrations/supabase/client.server':{supabaseAdmin:admin},'./qa-access.server':server,
+    // Full TEST-isolation check (real one is covered by qa-office-job-scope-practice-db); tests may override via context.officeJob.
+    './qa-office-access.server':{requireOfficeJob:async(_sb,jobId)=>context.officeJob?context.officeJob(jobId):'admin'}});
 }
