@@ -4,23 +4,31 @@ import { jobHeldByInHousePartner } from "./in-house.core";
 
 export type InHouseDispatchState = { held: Set<string>; failed: boolean };
 
-/** One joined read for the whole sweep; never a per-job business lookup or stale flag cache. */
+/** Active installer assignments for ANY job. Page every scope completely; never cache a partial held set. */
 export async function readInHouseDispatchState(jobIds?: string[]): Promise<InHouseDispatchState> {
   if (jobIds?.length === 0) return { held: new Set(), failed: false };
   try {
     const client = admin as unknown as SupabaseClient;
-    let query = client.from("job_assignments")
-      .select("job_id, business_id, businesses(in_house), jobs!inner(deleted_at, source)")
-      .eq("role", "installer").eq("active", true).is("jobs.deleted_at", null).neq("jobs.source", "qa_test");
-    if (jobIds) query = query.in("job_id", [...new Set(jobIds)]);
-    const { data, error } = await query;
-    if (error) throw new Error(error.message);
-    if (!data) throw new Error("Installer assignments unavailable");
     const held = new Set<string>();
-    for (const row of data ?? []) {
-      const business = row.businesses as unknown as { in_house: boolean } | null;
-      if (row.business_id && (!business || typeof business.in_house !== "boolean")) throw new Error("Installer business flag unavailable");
-      if (jobHeldByInHousePartner({ activeInstallerBusiness: business })) held.add(row.job_id);
+    const pageSize = 200;
+    const ids = jobIds ? [...new Set(jobIds)] : undefined;
+    const scopes = ids ? Array.from({ length: Math.ceil(ids.length / pageSize) }, (_, i) => ids.slice(i * pageSize, (i + 1) * pageSize)) : [undefined];
+    for (const scope of scopes) {
+      for (let offset = 0; ; offset += pageSize) {
+        let query = client.from("job_assignments")
+          .select("job_id, business_id, businesses(in_house)")
+          .eq("role", "installer").eq("active", true).order("id").range(offset, offset + pageSize - 1);
+        if (scope) query = query.in("job_id", scope);
+        const { data, error } = await query;
+        if (error) throw new Error(error.message);
+        if (!data) throw new Error("Installer assignments unavailable");
+        for (const row of data) {
+          const business = row.businesses as unknown as { in_house: boolean } | null;
+          if (row.business_id && (!business || typeof business.in_house !== "boolean")) throw new Error("Installer business flag unavailable");
+          if (jobHeldByInHousePartner({ activeInstallerBusiness: business })) held.add(row.job_id);
+        }
+        if (data.length < pageSize) break;
+      }
     }
     return { held, failed: false };
   } catch (error) {

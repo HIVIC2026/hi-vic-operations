@@ -13,6 +13,7 @@ import {
 } from "./ready-check-times.core";
 import { melbourneYmd } from "./piesa-windows.core";
 import { inHouseDispatchSkip } from "./in-house-suppression.server";
+import { inHouseSkippedAction } from "./in-house.core";
 
 async function context(jobId: string) {
   const [{ data: job }, { data: asg }, { data: booked }, { data: rows }] = await Promise.all([
@@ -182,7 +183,7 @@ export async function acceptOfferWithTimes(offerId: string, userId: string, pick
   const { data: o } = await admin.from("partner_offers").select("id, job_id, kind, status, business_id, offered_at, expires_at").eq("id", offerId).maybeSingle();
   if (!o || o.kind !== "ready_check") throw new WorkflowError("Offer not found.");
   const skipped = await inHouseDispatchSkip(o.job_id);
-  if (skipped) return { ok: true, skipped };
+  if (skipped) return inHouseSkippedAction(skipped);
   if (o.status !== "pending") throw new WorkflowError("This offer is no longer open.");
   if (readyCheckOfferOverdue(o, now)) throw new WorkflowError("This offer has closed (24 hours passed).");
   const c0 = await context(o.job_id);
