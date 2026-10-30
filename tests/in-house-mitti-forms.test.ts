@@ -370,6 +370,7 @@ test('sweep skips additional stages for hivic and catches one failed job without
  }
  const sweepCall:mitti.MittiCall=async(method,path,body)=>{
  if(path.includes('/bad')) throw Error('one job failed');
+ if(method==='GET' && path.includes('/good')) { calls.push({method,path,body}); return {audit_id:'good',template_id:RECT,completed:false,items:core.FIXES_DAY_QUESTIONS.map(q=>({label:q.label}))}; }
  return call(method,path,body);
  };
  const out=await load('fixes-day.server').sweepFixesForms({call:sweepCall});
