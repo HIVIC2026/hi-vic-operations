@@ -15,6 +15,7 @@ import {
 import { melbourneYmd } from "./piesa-windows.core";
 import { melbourneToday } from "@/lib/melbourne-time.core";
 import { inHouseDispatchSkip, readInHouseDispatchState, type InHouseDispatchState } from "./in-house-suppression.server";
+import { inHouseSkippedAction } from "./in-house.core";
 
 const NONE = ["00000000-0000-0000-0000-000000000000"];
 
@@ -169,7 +170,7 @@ export async function healStrandedPiesaStage(jobId: string, actorId: string | nu
 
 export async function startPiesaAllocation(jobId: string, actorId: string | null, kind: "piesa" | "rectification" = "piesa", opts: { rateToConfirm?: boolean; onlyBusiness?: string | string[]; adding?: boolean; repeat?: boolean; auto?: import("./ready-check-times.server").AutoOfferMeta } = {}, inHouseState?: InHouseDispatchState): Promise<PiesaAllocationResult> {
   const skipped = await inHouseDispatchSkip(jobId, inHouseState);
-  if (skipped) return { offered: 0, exhausted: false, skipped };
+  if (skipped) return { offered: 0, exhausted: false, ...inHouseSkippedAction(skipped) };
   // Catch up a job whose acceptance was taken but never moved the stage (see healStrandedPiesaStage).
   // Without this the office's next click was refused with "An electrician has already accepted this PIESA."
   // and the job had no way back to piesa_scheduled.
@@ -227,7 +228,7 @@ async function claimRecOfferBatch(jobId: string, kind: "piesa" | "rectification"
 /** What one allocation attempt actually did. `reason` explains a zero-offer result (P1 UAT DEF-08). */
 export type OfferBatchResult = { offered: number; exhausted: boolean; reason?: "owner_times" | "coverage" };
 /** `healed` = the call repaired a stranded acceptance instead of sending new offers (P1 UAT DEF-09). */
-export type PiesaAllocationResult = OfferBatchResult & { healed?: boolean; skipped?: "in_house" | "in_house_read_failed" };
+export type PiesaAllocationResult = OfferBatchResult & { healed?: boolean; skipped?: "in_house" | "in_house_read_failed"; ok?: false; message?: string };
 
 async function offerNextBatch(jobId: string, actorId: string | null, kind: "piesa" | "rectification", rateToConfirm = false, onlyBusiness?: string | string[], auto?: import("./ready-check-times.server").AutoOfferMeta, repeatSince?: string): Promise<OfferBatchResult> {
   const { businessHours, batchSize } = await settings();
@@ -648,7 +649,7 @@ async function sweepPiesaWindows(actorId: string | null, inHouseState: InHouseDi
  *  on a job that already had a round. New jobs: the electrician offers 3 times (piesa-times.server.ts). */
 export async function submitOwnerPiesaWindows(jobId: string, userId: string, picks: { date: string; slot: import("./piesa-windows.core").PiesaSlot }[], ack: { understandsThirtyDays: boolean | undefined; ip: string | null; userAgent: string | null }) {
   const skipped = await inHouseDispatchSkip(jobId);
-  if (skipped) return { ok: true, round: 0, skipped };
+  if (skipped) return { round: 0, ...inHouseSkippedAction(skipped) };
   const { piesaWindowBlockers, windowBounds, PIESA_MAX_ROUNDS } = await import("./piesa-windows.core");
   const b = piesaWindowBlockers(picks);
   if (b.length) throw new WorkflowError(b.join(" "));

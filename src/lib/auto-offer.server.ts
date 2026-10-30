@@ -6,8 +6,9 @@
 // anything but `true` is OFF, and with a switch off this file never sends anything. Decision 426: the one write with
 // the electrician switch off is `handPiesaToOfficeAutoOff` (Automatic dispatch mode only) — a "returned to office" event.
 // Run from the 15-minute allocation tick, and straight after a "Not for me" (so the next match is not left waiting).
-// TEST jobs (source qa_test) ARE offered automatically, but only to [TEST PARTNER] businesses (`isTestPartner`), and a
-// live job never reaches a TEST partner: the pure parity rule filters candidates here, the candidate readers already
+// TEST jobs (source qa_test) and deleted jobs are excluded from automatic sweep candidates. Direct TEST dispatch
+// still uses TEST partners only. A live job never reaches a TEST partner: the pure parity rule filters candidates here,
+// the candidate readers already
 // apply `partnerAllowedForJob`, and `assertOfferPairsAllowed` refuses any mismatch before a row is written. Offer
 // texts/emails for qa_test jobs go through test-send only (ready-check-offer-text.server), so nothing real is sent.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
@@ -15,6 +16,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { logEvent, piesaRequestFacts, stageEntryBlockers } from "./workflow.server";
 import { isTestPartner } from "./test-send.core";
 import { ourLeadPreferredId } from "./our-lead-piesa-electrician.core";
+import { inHouseSkippedAction } from "./in-house.core";
 import { inHouseDispatchSkip, readInHouseDispatchState, type InHouseDispatchState } from "./in-house-suppression.server";
 import {
   AUTO_OFFER_FLAG, AUTO_OFFER_READY_STAGES, AUTO_OFFER_RETURNED_EVENT, autoOfferBlocked, autoOfferInstallerElectrician, autoOfferPreferredElectrician, autoOfferReturnedSummary, autoOfferStageReady, autoOfferStep, autoOfferSwitchOn,
@@ -114,13 +116,13 @@ async function electricianCandidates(jobId: string, channel: string | null, jobI
   return { usualBusinessId, candidates: mapped };
 }
 
-export type AutoOfferOutcome = { jobId: string; kind: AutoOfferKind; step: AutoOfferStep["action"]; reason?: string; businessId?: string; error?: string; skipped?: "in_house" | "in_house_read_failed" };
+export type AutoOfferOutcome = { jobId: string; kind: AutoOfferKind; step: AutoOfferStep["action"]; reason?: string; businessId?: string; error?: string; skipped?: "in_house" | "in_house_read_failed"; ok?: false; message?: string };
 
 /** One job, one kind: offer the next match, hand the job back to the office, or do nothing. Never throws for a
  *  refused send (the guarded sender's reason is returned); with the switch off it reads the switch and stops. */
 export async function autoOfferForJob(jobId: string, kind: AutoOfferKind, switches?: Awaited<ReturnType<typeof readAutoOfferSwitches>>, inHouseState?: InHouseDispatchState): Promise<AutoOfferOutcome> {
   const skipped = await inHouseDispatchSkip(jobId, inHouseState);
-  if (skipped) return { jobId, kind, step: "none", reason: skipped, skipped };
+  if (skipped) return { jobId, kind, step: "none", reason: skipped, ...inHouseSkippedAction(skipped) };
   const sw = switches ?? await readAutoOfferSwitches();
   if (!sw[kind]) return { jobId, kind, step: "none", reason: "switch_off" };
   if (kind === "ready_check" && !sw.readyCheckBooking) return { jobId, kind, step: "none", reason: "ready_check_booking_off" };

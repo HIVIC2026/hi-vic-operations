@@ -160,7 +160,7 @@ function q(table: string) {
   let head = false;
   const rows = () => (db[table] ?? []).filter((r) => filters.every((f) => f(r)));
   const api: any = {
-    select: (_c?: string, o?: { head?: boolean }) => { head = !!o?.head; return api; }, order: () => api, limit: () => api,
+    select: (_c?: string, o?: { head?: boolean }) => { head = !!o?.head; return api; }, order: () => api, limit: () => api, range: () => api,
     eq: (k: string, v: unknown) => { filters.push((r) => r[k] === v); return api; },
     neq: (k: string, v: unknown) => { filters.push((r) => r[k] !== v); return api; },
     in: (k: string, v: unknown[]) => { filters.push((r) => v.includes(r[k])); return api; },

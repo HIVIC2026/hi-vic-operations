@@ -33,6 +33,7 @@ import { ownerConfirmTurnFn, ownerDeclineTurnFn, ownerTurnStateFn } from "@/lib/
 import { SPOT_RELEASE_PAGE, WHAT_HAPPENS_NEXT, type OwnerTurnView } from "@/lib/spot-release.core";
 import { ownerRequestNewQuoteFn } from "@/lib/new-quote-request.functions";
 import { NEW_QUOTE_THANKS } from "@/lib/new-quote-request.core";
+import { assertInHouseActionSucceeded } from "@/lib/in-house.core";
 
 // Owner "My job" — no login. The secure link token is the only credential; nothing fetched during SSR.
 // Decision 335: "review" = the O51 star links (?screen=review&stars=N).
@@ -451,7 +452,7 @@ function BookPickers({ token }: { token: string }) {
         <span>{data.piesa.thirtyDayAck.wording}</span>
       </label>}
       <div className="mt-3 space-y-3">{nextDays(8).map((d) => <div key={d}><p className="text-xs font-bold">{day(d + "T02:00:00Z")}</p><div className="mt-1 grid grid-cols-2 gap-2">{SLOTS.map(([k, l]) => { const on = picks.some((p) => p.date === d && p.slot === k); return <button key={k} className={tile(on)} onClick={() => setPicks(on ? picks.filter((p) => !(p.date === d && p.slot === k)) : picks.length < 5 ? [...picks, { date: d, slot: k }] : picks)}>{l}</button>; })}</div></div>)}</div>
-      <button className={`${signBtn} mt-4`} disabled={busy || picks.length < 3 || (!!data.piesa.thirtyDayAck?.needed && !understands)} onClick={() => go(() => choosePiesa({ data: { token, session, picks, understandsThirtyDays: understands } }))}>Send my {picks.length} times</button>
+      <button className={`${signBtn} mt-4`} disabled={busy || picks.length < 3 || (!!data.piesa.thirtyDayAck?.needed && !understands)} onClick={() => go(async () => { const result = await choosePiesa({ data: { token, session, picks, understandsThirtyDays: understands } }); assertInHouseActionSucceeded(result); })}>Send my {picks.length} times</button>
     </section>}
     {any && session && piesaMove && pt && <section className="rounded-[22px] bg-card p-5 shadow-sm" data-piesa-times-owner>
       <h3 className="font-display text-lg font-extrabold">Choose your Pre Insulation Electrical Safety Assessment (PIESA) time</h3>
