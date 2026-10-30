@@ -12,7 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createTestEnquiry, getAdminPipeline } from "@/lib/portal.functions";
+import { createTestEnquiry, getAdminPipeline, getQaJourneys } from "@/lib/portal.functions";
 import { clearOnboardingStartBlock, issueOnboardingLink, listOnboardingLinks, listOnboardingStartBlocks, revokeOnboardingLink, runOnboardingUploadCleanup } from "@/lib/onboarding-links.functions";
 import { QA_PERSONA_LABEL, qaAccessPath, type QaPersona } from "@/lib/qa-role-link.core";
 import { archiveQaJourney, createTestTradeAccounts, issueQaPersonaLink, issueQaWorkerLink, prepareQaJourneyAccess, simulateQaJourneyTime, simulateQaPayment } from "@/lib/test-accounts.functions";
@@ -41,9 +41,11 @@ const INITIAL = {
 };
 
 function TestCentre() {
-  const load = useServerFn(getAdminPipeline);
+  // Jo 30 Oct: the TEST office login sees a cut-down Test Centre — TEST jobs and the create form only.
+  const { qaOffice } = Route.useRouteContext();
+  const load = useServerFn(qaOffice ? getQaJourneys : getAdminPipeline);
   const archive = useServerFn(archiveQaJourney);
-  const { data = [], error, isPending, refetch } = useQuery({ queryKey: ["pipeline"], queryFn: () => load(), retry: 3 });
+  const { data = [], error, isPending, refetch } = useQuery({ queryKey: [qaOffice ? "qa-journeys" : "pipeline"], queryFn: () => load(), retry: 3 });
   const jobs = data.filter((job) => job.source === "qa_test");
   const [deleting, setDeleting] = useState<string | null>(null);
   return (
@@ -52,7 +54,7 @@ function TestCentre() {
         <div><p className="text-xs font-bold uppercase text-primary">Launch testing</p><h1 className="mt-1 font-display text-3xl font-bold">Test Centre</h1><p className="mt-1 text-sm text-muted-foreground">Dummy journeys stay marked as test records and do not enter live intake automation.</p></div>
         <CreateTestJob onDone={() => void refetch()} />
       </div>
-      <JoTradiePanel />
+      {!qaOffice && <JoTradiePanel />}
       <div className="mb-5 rounded-md border border-workspace-sun-strong/40 bg-workspace-sun p-4 text-sm"><b>Safe testing is active.</b> Customer messages and external writes remain locked. Use separate role accounts for final permission testing.</div>
       {error ? <div role="alert" className="rounded-md border border-danger bg-danger-soft p-4 text-sm text-danger">Test records could not be loaded. Nothing has been deleted. <Button size="sm" variant="outline" className="ml-2" onClick={() => void refetch()}>Try again</Button></div>
         : isPending ? <p className="text-sm text-muted-foreground">Loading test journeys…</p>
@@ -64,9 +66,9 @@ function TestCentre() {
             <div className="mt-4 border-t pt-3"><div className="flex flex-wrap gap-2"><Button asChild size="sm"><Link to="/admin/jobs/$jobId" params={{ jobId: job.id! }}>Open journey</Link></Button><QaRoleControls jobId={job.id!} /><Button size="sm" variant="outline" disabled={deleting === job.id} onClick={async () => { if (!window.confirm("Archive this TEST journey and revoke its TEST access? Its audit history will be retained.")) return; setDeleting(job.id!); try { await archive({ data: { jobId: job.id! } }); toast.success("TEST journey archived and access revoked"); await refetch(); } catch (e) { toast.error(e instanceof Error ? e.message : "Could not archive TEST journey"); } finally { setDeleting(null); } }}><Trash2 className="h-4 w-4" />Archive</Button></div></div>
           </article>
         ))}</div>}
-      <TestTradeAccounts />
-      <OnboardingLinks />
-      <OnboardingLimits />
+      {!qaOffice && <TestTradeAccounts />}
+      {!qaOffice && <OnboardingLinks />}
+      {!qaOffice && <OnboardingLimits />}
     </AppShell>
   );
 }
