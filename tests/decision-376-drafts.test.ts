@@ -163,6 +163,7 @@ function q(table: string) {
     select: (_c?: string, o?: { head?: boolean }) => { head = !!o?.head; return api; }, order: () => api, limit: () => api,
     eq: (k: string, v: unknown) => { filters.push((r) => r[k] === v); return api; },
     neq: (k: string, v: unknown) => { filters.push((r) => r[k] !== v); return api; },
+    in: (k: string, v: unknown[]) => { filters.push((r) => v.includes(r[k])); return api; },
     is: (k: string, v: unknown) => { filters.push((r) => (r[k] ?? null) === v); return api; },
     gte: (k: string, v: string) => { filters.push((r) => String(r[k]) >= v); return api; },
     contains: (k: string, v: Row) => { filters.push((r) => Object.entries(v).every(([kk, vv]) => (r[k] ?? {})[kk] === vv)); return api; },

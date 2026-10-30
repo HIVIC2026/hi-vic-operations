@@ -36,6 +36,10 @@ INSERT INTO business_members (business_id, user_id) VALUES ('${BIZ}','${INST}');
 const shim = postgrestShim(db);
 // This fixture's SQL shim cannot project joined selects. Model the new read from its real assignment rows.
 mock.module("../src/lib/in-house-suppression.server", () => ({
+  readInHouseDispatchState: async () => {
+    const rows = (await db.query<{ job_id: string }>("select a.job_id from job_assignments a join businesses b on b.id=a.business_id where a.role='installer' and a.active and b.in_house")).rows;
+    return { held: new Set(rows.map(row => row.job_id)), failed: false };
+  },
   inHouseDispatchSkip: async (jobId: string) => {
     const rows = (await db.query<{ in_house: boolean }>("select b.in_house from job_assignments a join businesses b on b.id=a.business_id where a.job_id=$1 and a.role='installer' and a.active", [jobId])).rows;
     return rows.some(row => row.in_house) ? "in_house" : null;
