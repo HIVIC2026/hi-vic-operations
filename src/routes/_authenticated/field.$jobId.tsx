@@ -9,7 +9,7 @@ import { TradeVisitCard } from "@/components/portal/visit-changes";
 import { nextStep } from "@/lib/nextstep.core";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, HeartPulse, Phone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { TradeShell } from "@/components/trade/TradeShell";
@@ -27,7 +27,7 @@ import { MittiCard, MittiSyncedFields } from "@/components/portal/mitti";
 import { mittiFormId } from "@/lib/mitti-form-link.core";
 import { useServerFn } from "@tanstack/react-start";
 import { getMyMittiInvited, getTradeJobBundle, getTradeJobPage, setA1ReadyCheckTimeFn } from "@/lib/trade-view.functions";
-import { seedPlan } from "@/lib/trade-job-bundle.core";
+import { bundleUsable, seedPlan } from "@/lib/trade-job-bundle.core";
 import { a1ReadyCheckEntryAllowed, a1ReadyCheckTimeBlockers, allowedReadyCheckDays, allowedReadyCheckTimes } from "@/lib/ready-check-times.core";
 import { installTimeLabel } from "@/lib/install-days.core";
 
@@ -77,31 +77,46 @@ export const Route = createFileRoute("/_authenticated/field/$jobId")({
  *  written into their own Query cache entries before the page draws, so each card finds its answer already there and
  *  fetches on its own only when one of its actions invalidates it (or the bundle left that section out). A section the
  *  server could not answer is simply not seeded: that card fetches and handles its error exactly as before. */
-function useTradeJobBundle(jobId: string) {
+function useTradeJobBundle(jobId: string, uid: string) {
   const qc = useQueryClient();
   const load = useServerFn(getTradeJobBundle);
+  type Bundle = Awaited<ReturnType<typeof load>>;
+  const ck = `job-bundle:${jobId}`;
+  // Return visit: the last copy of this user's bundle (under 24 h) draws the page at once. Each section it holds is put in
+  // the card's own Query entry (only where that entry is empty), and the bundle is asked again straight away.
+  const seed = useMemo(() => {
+    const c = readTradeCache<Bundle>(uid, ck);
+    if (c) for (const s of seedPlan(c.data as Record<string, unknown>, jobId)) if (qc.getQueryData([...s.key]) === undefined) qc.setQueryData([...s.key], s.data);
+    return c;
+  }, [uid, ck]); // eslint-disable-line react-hooks/exhaustive-deps
+  const askedOnce = useRef(false);
   return useQuery({
     queryKey: ["trade-job-bundle", jobId],
     queryFn: async ({ queryKey }) => {
       // `useAction` invalidates every query after an action; the cards refetch themselves then, so the bundle is not
-      // asked again (its first answer is kept) — one call on first paint, none after.
-      const prev = qc.getQueryData<Awaited<ReturnType<typeof load>>>(queryKey);
-      if (prev) return prev;
+      // asked again (its first answer is kept) — one call on first paint, none after. A seeded copy is old: ask once.
+      const prev = qc.getQueryData<Bundle>(queryKey);
+      if (prev && (askedOnce.current || !seed)) return prev;
+      askedOnce.current = true;
       const bundle = await load({ data: { jobId } });
       for (const s of seedPlan(bundle, jobId)) qc.setQueryData([...s.key], s.data);
+      if (bundleUsable(bundle as { overview?: unknown })) writeTradeCache(uid, ck, bundle); // only a good answer is kept
       return bundle;
     },
     // First paint only: afterwards the cards' own queries, polls and invalidations carry on exactly as before.
-    staleTime: Infinity, retry: false, refetchOnMount: false, refetchOnWindowFocus: false, refetchOnReconnect: false,
+    // A seeded copy is old, so it is stale and asked once on mount (Infinity would never ask).
+    staleTime: seed ? 0 : Infinity, retry: false, refetchOnMount: seed ? true : false, refetchOnWindowFocus: false, refetchOnReconnect: false,
+    ...(seed ? { initialData: seed.data, initialDataUpdatedAt: seed.at } : {}),
   });
 }
 
 function FieldJob() {
   const { jobId } = Route.useParams();
-  const bundle = useTradeJobBundle(jobId);
+  const uid = Route.useRouteContext().user.id;
+  const bundle = useTradeJobBundle(jobId, uid);
   // While the one call is in flight nothing below mounts, so no card starts its own fetch. A failed bundle still renders
   // the page: every card then loads itself (the pre-bundle behaviour) and the existing refusal wording applies.
-  if (!bundle.isFetched) return <TradeShell installer><p className="text-sub">Loading…</p></TradeShell>;
+  if (!bundle.isFetched && bundle.data === undefined) return <TradeShell installer><p className="text-sub">Loading…</p></TradeShell>;
   return <FieldJobBody jobId={jobId} />;
 }
 

@@ -1,4 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
+import { clearTradeCache } from "@/lib/trade-cache.client";
 import { useQueryClient } from "@tanstack/react-query";
 import { LogOut, Menu, X } from "lucide-react";
 import { useState } from "react";
@@ -19,6 +20,7 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
   const signOut = async () => {
     await qc.cancelQueries();
     qc.clear();
+    clearTradeCache();
     await supabase.auth.signOut();
     navigate({ to: "/auth", replace: true });
   };

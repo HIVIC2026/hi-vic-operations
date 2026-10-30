@@ -58,3 +58,13 @@ describe("trade cache", () => {
     expect(() => clearTradeCache()).not.toThrow();
   });
 });
+
+describe("trade cache keys per job", () => {
+  test("two jobs for one user do not mix, and a null/absent entry reads as none", () => {
+    writeTradeCache("u1", "job-bundle:a", { overview: 1 });
+    writeTradeCache("u1", "job-bundle:b", { overview: 2 });
+    expect(readTradeCache<{ overview: number }>("u1", "job-bundle:a")?.data.overview).toBe(1);
+    expect(readTradeCache<{ overview: number }>("u1", "job-bundle:b")?.data.overview).toBe(2);
+    expect(readTradeCache("u1", "job-bundle:c")).toBeNull();
+  });
+});

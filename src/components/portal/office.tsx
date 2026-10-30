@@ -1,6 +1,7 @@
 // The office frame (decision 218, approved O1–O7): logo · Needs me · Enquiries · Jobs · Partners · Money · More ▾ ·
 // search · initials; on a phone the five headings become bottom tabs. Presentation only — no task polling.
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { clearTradeCache } from "@/lib/trade-cache.client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
@@ -139,6 +140,6 @@ export function useOfficeSignOut() {
   const navigate = useNavigate();
   return async () => {
     const { supabase } = await import("@/integrations/supabase/client");
-    await qc.cancelQueries(); qc.clear(); await supabase.auth.signOut(); navigate({ to: "/auth", replace: true });
+    await qc.cancelQueries(); qc.clear(); clearTradeCache(); await supabase.auth.signOut(); navigate({ to: "/auth", replace: true });
   };
 }
