@@ -1,5 +1,7 @@
 ## Jo 30 Oct in-house partner — Task 4 own bookings
-- [ ] Test-first member-only booking card using confirmBooking; preserve all blockers, only skip the rectification payment guard for an in-house partner billing directly. Practice database and requested regressions; no publication or live SQL.
+- [x] Test-first (1 pass / 13 fail), then 14 practice booking tests pass: actual confirmBooking/wrapper/held reads, real local booking + ESC preparation records, existing payment/date/Part C/owner blockers, other-business refusal. Only partner-billed in-house rectification skips its HIV payment check; all other guards unchanged. Four Melbourne date-time pickers on the trade page; isolated actual-card desktop/390px blocker/success/time conversion checked, zero browser errors.
+- [x] Requested isolated regressions: 20 files, 223 pass / 1 fail; unrelated esc-collection-notice White Card expectation remains unchanged (worker-compliance identical to pre-task). Automatic build/typecheck clean. No live SQL, delivery or publication; commits managed by Lovable, requested message: feat: in-house partners book their own visits.
+- [ ] Hosted member booking/readback NOT RUN: the new surface explicitly excludes qa_test jobs; no real-job booking used as a test. Requires a separately authorised safe hosted test arrangement.
 
 ## Jo 30 Oct in-house partner — Task 3 suppression
 - [x] Review N1: extended the actual UI-callback test failed first (20 pass / 1 fail). Successful PIESA window submissions restore unkeyed query invalidation and the existing office-change notification; both skipped outcomes show their message without either refresh. No SQL or publication.
