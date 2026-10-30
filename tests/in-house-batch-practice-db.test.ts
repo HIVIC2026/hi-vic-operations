@@ -13,7 +13,7 @@ async function setup() {
     UPDATE profiles SET email='electrician@example.invalid',mitti_user_id='m',mitti_checked_email='electrician@example.invalid',mitti_checked_at=now() WHERE id='${id(3)}';
     INSERT INTO auth.users VALUES ('${id(1)}');
     CREATE TABLE user_roles(user_id uuid,role text); INSERT INTO user_roles VALUES ('${id(1)}','admin');
-    CREATE TABLE businesses(id uuid primary key,name text,trading_name text,in_house boolean,is_active boolean,coverage_lat double precision,coverage_lng double precision,coverage_radius_km integer,service_postcodes text[] default '{}',covers_all_victoria boolean default false);
+    CREATE TABLE businesses(id uuid primary key,name text,trading_name text,in_house boolean,pays_own_electricians boolean not null default false,is_active boolean,coverage_lat double precision,coverage_lng double precision,coverage_radius_km integer,service_postcodes text[] default '{}',covers_all_victoria boolean default false);
     INSERT INTO businesses(id,name,trading_name,in_house,is_active,service_postcodes) VALUES ('${id(10)}','Rapid Insulation','Rapid Insulation',true,true,ARRAY['3199']),('${id(11)}','Other','Other',false,true,'{}');
     CREATE TABLE business_members(business_id uuid,user_id uuid,active boolean);
     INSERT INTO business_members VALUES ('${id(10)}','${id(2)}',true),('${id(10)}','${id(3)}',true);
@@ -121,5 +121,13 @@ test("a downstream write failure rolls the whole job transaction back", async ()
     expect((await db.query("SELECT * FROM in_house_batches")).rows).toHaveLength(0);
     expect((await db.query("SELECT * FROM job_assignments")).rows).toHaveLength(0);
     expect((await db.query("SELECT electrician_choice FROM jobs WHERE id=$1",[id(20)])).rows).toEqual([{ electrician_choice: null }]);
+  } finally { await db.close(); }
+});
+test("allocation RPC refuses payee-only businesses without assignments or audit writes", async () => {
+  const db = await setup(); try {
+    await db.exec("UPDATE businesses SET in_house=false,pays_own_electricians=true");
+    expect(await send(db)).toMatchObject({ sent: false });
+    expect((await db.query("SELECT * FROM job_assignments")).rows).toEqual([]);
+    expect((await db.query("SELECT * FROM workflow_events")).rows).toEqual([]);
   } finally { await db.close(); }
 });

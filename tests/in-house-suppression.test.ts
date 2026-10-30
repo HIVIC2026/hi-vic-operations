@@ -276,3 +276,26 @@ test("actual three UI callbacks stop before success/reset/refetch and show skipp
     }
   }
 });
+test("Reinsulate-style payee-only assignment stays unheld and owner time emails retain their normal paths", async () => {
+  const f = fixture(); f.setFlag(false);
+  f.data.held_assignments = [{ job_id: "j", business_id: "b", role: "installer", active: true, businesses: { in_house: false, pays_own_electricians: true } }];
+  expect(inHouse.jobHeldByInHousePartner({ activeInstallerBusiness: f.data.held_assignments[0].businesses })).toBe(false);
+  const state = await f.load("in-house-suppression.server").readInHouseDispatchState(["j"]);
+  expect(state.failed).toBe(false); expect(state.held.size).toBe(0);
+  f.data.partner_offers = [];
+  f.overrides["./ready-check-times.server"] = { officePickReadyCheckInstaller: async () => { f.writes.push("partner_offers"); } };
+  expect(await f.load("auto-offer.server").autoOfferForJob("j", "ready_check", switches)).toMatchObject({ step: "offer", businessId: "b" });
+  await f.load("ready-check-times.server", "\nexport const testTellOwner = tellOwner;").testTellOwner("j", []);
+  expect(await f.load("owner-email-triggers.server").onSafetyCheckTimesOffered("j", ["2026-11-04T00:00:00Z"])).toBe("sent");
+  expect(f.sends).toEqual(["ready_check", "piesa"]);
+});
+test("payee-only PIESA allocation reaches the normal booked-stage healing, never the in-house skip", async () => {
+  const f = fixture(); f.setFlag(false);
+  f.data.held_assignments = [{ job_id: "j", business_id: "b", role: "installer", active: true, businesses: { in_house: false, pays_own_electricians: true } }];
+  f.data.jobs = [{ id: "j", stage: "piesa_and_install_window_pending" }];
+  f.data.bookings = [{ id: "book", job_id: "j", kind: "assessment", status: "confirmed", scheduled_start: "2026-11-04T00:00:00Z" }];
+  f.data.job_assignments = [{ id: "asg", job_id: "j", role: "electrician", active: true }];
+  f.overrides["./workflow.server"].transition = async () => { f.writes.push("stage"); };
+  expect(await f.load("allocation.server").startPiesaAllocation("j", "office")).toEqual({ offered: 0, exhausted: false, healed: true });
+  expect(f.writes).toEqual(["stage"]);
+});
