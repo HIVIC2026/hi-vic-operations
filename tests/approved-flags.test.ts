@@ -115,8 +115,7 @@ describe("approved message switches are on (Jo 24 Oct 2026)", () => {
     // Decision 388 (25 Oct 2026): Jo approved the spot-only spot saved and save-spot reminder texts.
     // Decision 389 (25 Oct 2026): the "It's your turn" text is approved (Jo saw the O77 picture).
     // Jo approved the address request texts and email on 28 Oct 2026 (full address required).
-    // A48 batch 2 Task 8 (30 Oct 2026): the installer's "an owner cancelled" run text is new DRAFT wording awaiting Jo.
-    expect(off).toEqual(["run_slot_cancelled"]);
+    expect(off).toEqual([]);
     expect(ADDRESS_REQUEST_EMAIL_APPROVED).toBe(true);
     expect("ready_check_booking" in SMS_MESSAGE_TYPES).toBe(false);
   });

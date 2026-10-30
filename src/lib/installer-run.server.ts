@@ -19,14 +19,14 @@ import { fullAddress } from "./address";
 import {
   RUN_DECLINED_EVENT, RUN_EVENTS, RUN_OFFERED_TEXT_EVENT, RUN_TEXT_WENT, RUN_EXPIRED_EVENT, RUN_HOME_REMOVED_EVENT, RUN_OFFERED_EVENT, RUN_OFFERED_SMS_TYPE, RUN_REPLY_HOURS,
   RUN_MODE_CHOSEN_EVENT, RUN_MOVED_EVENT, RUN_SLOT_CANCELLED_EVENT, RUN_SLOT_CONFIRMED_EVENT, RUN_SLOT_CONFIRM_FAILED_EVENT, RUN_SLOT_EVENTS, RUN_SLOT_PROPOSED_EVENT, RUN_SLOT_RELEASED_EVENT, RUN_TIME_REMINDED_EVENT, RUN_TIME_TEXTED_EVENT,
-  areaLines, orderRun, windowsFor, runExpiryDue, runIdOf, runLink, runOfferedKey, runOfferedSmsKey, runOfferedText, runReleaseKey, runState, runSuburb, tapRows,
+  areaLines, isFillRow, orderRun, windowsFor, runExpiryDue, runIdOf, runLink, runOfferedKey, runOfferedSmsKey, runOfferedText, runReleaseKey, runState, runSuburb, tapRows,
   type RunEventRow, type RunState, type RunStatus,
 } from "./run-route.core";
 import {
   RUN_DEFAULT_START, RUN_FILL_RADIUS_M, RUN_PICK_TOO_SOON, RUN_PORTAL_MODE, RUN_SLOT_CANCELLED_SMS_TYPE, RUN_TEAM_MODE, RUN_TIME_REMINDER_SMS_TYPE, RUN_TIME_SMS_TYPE, RUN_WINDOW_CLAIMED_EVENT, RUN_WINDOW_EVENTS, RUN_WINDOW_FREED_EVENT,
   claimHolds, currentClaim, freeWindows, holds, pickTooSoon, planRunDays, runDayBlocker, runDayWords, runDays, runModeKey,
   runSlotCancelledKey, runSlotCancelledSmsKey, runSlotCancelledText, runSlotFilledKey, runTeamExpired, slotTimeWords,
-  runSlotConfirmKey, runSlotKey, runSlotReleaseKey, runTimeReminderSmsKey, runTimeReminderText, runTimeSmsKey, runTimeText, runWindowFreedKey, runWindowKey, slotDue, slotsOf, windowSlots, windowStartAt, windowWords,
+  runSlotConfirmKey, runSlotKey, runSlotReleaseKey, runTeamTimeText, runTimeReminderSmsKey, runTimeReminderText, runTimeSmsKey, runTimeText, runWindowFreedKey, runWindowKey, slotDue, slotsOf, windowSlots, windowStartAt, windowWords,
   type OwnerRunSlotView, type Slot, type SlotState, type Window, type WindowClaim,
 } from "./run-portal.core";
 import { isReadyCheckTime } from "./ready-check-times.core";
@@ -291,7 +291,10 @@ export type RunSweep = { runs: number; expired: number; failed: number };
 export async function sweepRunOffers(nowIso: string = new Date().toISOString()): Promise<RunSweep> {
   const out: RunSweep = { runs: 0, expired: 0, failed: 0 };
   const since = new Date(Date.parse(nowIso) - SWEEP_DAYS * 86_400_000).toISOString();
-  const offered = await readAll("offered runs", (f, t) => loose.from("workflow_events").select("job_id, details").eq("event_type", RUN_OFFERED_EVENT).gte("created_at", since).order("created_at").range(f, t));
+  // Fix round 1: a Fill row (filled_from) only joins an answered run — never a run to expire. Its run's own offer rows are
+  // older than the sweep window, so the history read below would see the Fill row alone and look like a fresh offer.
+  const offered = (await readAll("offered runs", (f, t) => loose.from("workflow_events").select("job_id, details").eq("event_type", RUN_OFFERED_EVENT).gte("created_at", since).order("created_at").range(f, t)))
+    .filter((e) => !isFillRow(e as unknown as RunEventRow));
   const runIds = [...new Set(offered.map((e) => runIdOf(e as unknown as RunEventRow)).filter((x): x is string => !!x))];
   if (!runIds.length) return out;
   const jobIds = [...new Set(offered.map((e) => String(e["job_id"])))];
@@ -645,7 +648,8 @@ async function textSlot(x: Slot, job: SlotJob, kind: "time" | "reminder", now: D
   if (!to) return "no mobile";
   const biz = await businessOf(x.businessId);
   const f = { name: job.owners?.full_name ?? null, day: runDayWords(x.day), time: slotTimeWords(x), link };
-  const body = kind === "time" ? runTimeText({ ...f, installer: tradeName(biz) }) : runTimeReminderText(f);
+  // A team-entered time (fix round 1, Jo 30 Oct): its own approved wording — no other times are offered.
+  const body = kind === "time" ? (x.by === "team" ? runTeamTimeText : runTimeText)({ ...f, installer: tradeName(biz) }) : runTimeReminderText(f);
   const type = kind === "time" ? RUN_TIME_SMS_TYPE : RUN_TIME_REMINDER_SMS_TYPE;
   const { isTestPartner } = await import("./test-send.core");
   let r: { status: string; detail: string };
@@ -660,11 +664,35 @@ async function textSlot(x: Slot, job: SlotJob, kind: "time" | "reminder", now: D
   return r.status;
 }
 
-async function releaseSlot(x: Slot, actorId: string | null, why: "none_suit" | "no_confirm"): Promise<boolean> {
-  const won = await claimBatchEvent(x.jobId, actorId, RUN_SLOT_RELEASED_EVENT, why === "none_suit" ? "Owner said none of the times suit — back on the list for the next batch (not asked again)" : "Owner didn't confirm their Ready Check window within 24 hours — back on the list for the next batch (not asked again)",
+const RELEASE_SUMMARY = {
+  none_suit: "Owner said none of the times suit — back on the list for the next batch (not asked again)",
+  no_confirm: "Owner didn't confirm their Ready Check window within 24 hours — back on the list for the next batch (not asked again)",
+  time_passed: "The Ready Check time the installer's team entered passed without the owner confirming — back on the list for the next batch (not asked again)",
+} as const;
+async function releaseSlot(x: Slot, actorId: string | null, why: keyof typeof RELEASE_SUMMARY): Promise<boolean> {
+  const won = await claimBatchEvent(x.jobId, actorId, RUN_SLOT_RELEASED_EVENT, RELEASE_SUMMARY[why],
     { run_id: x.runId, batch_id: x.batchId, business_id: x.businessId, seq: x.seq, why, idempotency_key: runSlotReleaseKey(x.runId, x.jobId) });
   await freeWindow(x, actorId, why);
+  await endMovedBooking(x, actorId);
   return won;
+}
+
+/** Fix round 1: a home that WAS booked from this run (an earlier window confirmed) and is now released after Move run
+ *  (none suit / no confirm) — the run's installer assignment is ended (the existing visit-release shape: active off, ended
+ *  at, reason) so the home really is back in Jo's suggestions with its standing pass, and the job's Mitti Ready Check
+ *  form is released (existing releaseReadyCheckFormOnCancel) so it no longer shows the old booking. A home booked again
+ *  meanwhile (stage not "to schedule") is left alone. Best-effort: never stops the release. */
+async function endMovedBooking(x: Slot, actorId: string | null): Promise<void> {
+  try {
+    const ev = await slotEventsFor([x.jobId]);
+    const wasBooked = ev.some((e) => e.event_type === RUN_SLOT_CONFIRMED_EVENT && runIdOf(e) === x.runId && Number((e.details as { seq?: unknown } | null)?.seq ?? 0) < x.seq);
+    if (!wasBooked) return;
+    const { data: job } = await admin.from("jobs").select("stage").eq("id", x.jobId).maybeSingle();
+    if (!job || job.stage !== "ready_check_ready_to_schedule") return;
+    const why = "Run moved and the owner didn't confirm a new Ready Check time — back on the list for the next batch";
+    await admin.from("job_assignments").update({ active: false, ended_at: new Date().toISOString(), end_reason: why } as never).eq("job_id", x.jobId).eq("role", "installer").eq("business_id", x.businessId).eq("active", true);
+    await (await import("./mitti-pickup.server")).releaseReadyCheckFormOnCancel(x.jobId, actorId, "the run was moved and the owner didn't confirm a new time");
+  } catch (e) { console.error("moved run home not unassigned", x.runId, x.jobId, (e as Error).message); }
 }
 
 export type RunSlotSweep = { texted: number; reminded: number; released: number; resumed: number; failed: number };
@@ -680,6 +708,8 @@ export async function sweepRunSlots(nowIso: string = new Date().toISOString(), o
     catch (e) { out.failed++; console.error("run day picks not checked", (e as Error).message); }
     try { const r = await sweepTeamBookings(now); out.released += r.released; out.failed += r.failed; }
     catch (e) { out.failed++; console.error("team bookings not checked", (e as Error).message); }
+    try { const r = await sweepCancelledTexts(now); out.failed += r.failed; }
+    catch (e) { out.failed++; console.error("held cancel texts not checked", (e as Error).message); }
     const since = new Date(now.getTime() - SLOT_LOOKBACK_DAYS * 86_400_000).toISOString();
     const proposed = await readAll("run windows", (f, t) => loose.from("workflow_events").select("job_id").eq("event_type", RUN_SLOT_PROPOSED_EVENT).gte("created_at", since).range(f, t));
     jobIds = [...new Set(proposed.map((e) => String(e["job_id"])))];
@@ -691,7 +721,7 @@ export async function sweepRunSlots(nowIso: string = new Date().toISOString(), o
     if (!job || isClosedOrArchivedJob(job)) continue;
     try {
       const due = slotDue(x, now);
-      if (due === "release") { if (await releaseSlot(x, null, "no_confirm")) out.released++; }
+      if (due === "release") { if (await releaseSlot(x, null, x.by === "team" ? "time_passed" : "no_confirm")) out.released++; }
       else if (due === "text") { if ((RUN_TEXT_WENT as readonly string[]).includes(await textSlot(x, job, "time", now))) out.texted++; }
       else if (due === "remind") { if ((RUN_TEXT_WENT as readonly string[]).includes(await textSlot(x, job, "reminder", now))) out.reminded++; }
     } catch (e) { out.failed++; console.error("run window step failed", x.runId, x.jobId, (e as Error).message); }
@@ -720,7 +750,7 @@ export async function ownerRunSlotState(jobId: string, opts: { now?: Date } = {}
   if (!x || x.state === "released" || x.state === "cancelled") return { kind: "none" };
   const { data: job } = await admin.from("jobs").select("stage, deleted_at, qa_archived_at").eq("id", jobId).maybeSingle();
   if (!job || isClosedOrArchivedJob(job)) return { kind: "none" };
-  const base = { day: runDayWords(x.day), time: slotTimeWords(x), installer: tradeName(await businessOf(x.businessId)) };
+  const base = { day: runDayWords(x.day), time: slotTimeWords(x), installer: tradeName(await businessOf(x.businessId)), team: x.by === "team" };
   if (x.state === "confirmed") return { kind: "confirmed", ...base };
   return { kind: "proposed", ...base, free: (await freeFor(x, now)).map((w) => ({ ...w, label: windowWords(w.start, w.end) })) };
 }
@@ -833,7 +863,7 @@ export async function enterTeamTime(runId: string, userId: string, jobId: string
   const { state, events } = await loadRun(runId, userId);
   if (!state.jobIds.includes(jobId)) throw new WorkflowError("That home isn't in this run.");
   const c = storedChoice(events, runId);
-  if (state.status !== "answered" || !c || c.mode !== RUN_TEAM_MODE || runTeamExpired(c.at, now) || !state.memberIds.includes(jobId)) throw new WorkflowError(NOT_OPEN);
+  if (state.status !== "answered" || !c || c.mode !== RUN_TEAM_MODE || runTeamExpired(teamChosenAt(events, runId, jobId) ?? c.at, now) || !state.memberIds.includes(jobId)) throw new WorkflowError(NOT_OPEN);
   if (!YMD_RE.test(day)) throw new WorkflowError("Please choose a day.");
   if (!HHMM.test(time)) throw new WorkflowError("Please choose a time.");
   const startsAt = windowStartAt(day, time);
@@ -855,8 +885,14 @@ export async function enterTeamTime(runId: string, userId: string, jobId: string
   return { day, start: time };
 }
 
+/** When this home's 5 team-booking days started: its own `run_mode_chosen` (the run's choice, or — a home added by Fill — when
+ *  it was added). */
+const teamChosenAt = (events: readonly RunEventRow[], runId: string, jobId: string): string | null =>
+  events.filter((e) => e.event_type === RUN_MODE_CHOSEN_EVENT && runIdOf(e) === runId && e.job_id === jobId).map((e) => e.created_at).sort()[0] ?? null;
+
 /** 15-minute tick: team-booked runs chosen 5+ days ago → each home not booked (no confirmed time) goes back to Jo's
- *  suggestions with the standing pass, once. Closed homes are skipped. Nothing is sent. */
+ *  suggestions with the standing pass, once (each home's 5 days from its own choice row). Closed homes are skipped. Nothing
+ *  is sent. */
 async function sweepTeamBookings(now: Date): Promise<{ released: number; failed: number }> {
   const out = { released: 0, failed: 0 };
   const since = new Date(now.getTime() - SLOT_LOOKBACK_DAYS * 86_400_000).toISOString();
@@ -879,6 +915,7 @@ async function sweepTeamBookings(now: Date): Promise<{ released: number; failed:
       const j = jobs.get(id);
       const x = slots.find((y) => y.jobId === id);
       if (!j || isClosedOrArchivedJob(j) || x?.state === "confirmed" || x?.state === "cancelled") continue;
+      if (!runTeamExpired(teamChosenAt(events, runId, id) ?? first.get(runId)!, now)) continue;
       try {
         if (await claimBatchEvent(id, null, RUN_SLOT_RELEASED_EVENT, "Not booked by the installer's team within 5 days — back on the list for the next batch (owner not asked again)",
           { run_id: runId, batch_id: st.batchId, business_id: st.businessId, seq: x?.seq ?? 0, why: "team_not_booked", idempotency_key: runSlotReleaseKey(runId, id) })) out.released++;
@@ -978,7 +1015,48 @@ export async function runOwnerCancelled(jobId: string, opts: { now?: Date } = {}
   return { told: true, text: await textInstallerCancelled(x, now) };
 }
 
+/** Recorded once when the installer's cancel text actually went (sent / already / sent_unknown); the tick retries until then. */
+export const RUN_SLOT_CANCELLED_TEXTED_EVENT = "run_slot_cancelled_texted";
+
+/** 15-minute tick (fix round 1): a cancel text that was held (quiet hours, switch off, sender down) is tried again while the
+ *  cancelled time is still unfilled and still ahead; once it goes it is recorded and never tried again. */
+async function sweepCancelledTexts(now: Date): Promise<{ failed: number }> {
+  const out = { failed: 0 };
+  const since = new Date(now.getTime() - SLOT_LOOKBACK_DAYS * 86_400_000).toISOString();
+  const cancels = (await readAll("cancelled run windows", (f, t) => loose.from("workflow_events").select(EVENT_COLS).eq("event_type", RUN_SLOT_CANCELLED_EVENT).gte("created_at", since).range(f, t))) as unknown as RunEventRow[];
+  if (!cancels.length) return out;
+  const jobIds = [...new Set(cancels.map((e) => e.job_id))];
+  const [texted, events] = await Promise.all([
+    readByIds("cancel texts", jobIds, (c, f, t) => loose.from("workflow_events").select(EVENT_COLS).in("job_id", c).eq("event_type", RUN_SLOT_CANCELLED_TEXTED_EVENT).range(f, t)) as unknown as Promise<RunEventRow[]>,
+    slotEventsFor(jobIds),
+  ]);
+  const went = new Set(texted.map((e) => `${runIdOf(e)}|${e.job_id}|${Number((e.details as { seq?: unknown } | null)?.seq ?? 0)}`));
+  const due = slotsOf(events).filter((x) => x.state === "cancelled" && !went.has(`${x.runId}|${x.jobId}|${x.seq}`) && windowStartAt(x.day, x.start).getTime() > now.getTime());
+  if (!due.length) return out;
+  if (smsQuietReason(now.toISOString())) return out;
+  for (const x of due) {
+    try {
+      // Filled meanwhile (the installer tapped Fill) → nothing to tell.
+      const { data: fill, error } = await loose.from("workflow_events").select("id").eq("event_type", RUN_OFFERED_EVENT).contains("details", { run_id: x.runId, filled_from: x.jobId, filled_seq: x.seq }).limit(1);
+      if (error) throw new Error(error.message);
+      if ((fill ?? []).length) continue;
+      await textInstallerCancelled(x, now);
+    } catch (e) { out.failed++; console.error("held cancel text not retried", x.runId, x.jobId, (e as Error).message); }
+  }
+  return out;
+}
+
 async function textInstallerCancelled(x: Slot, now: Date): Promise<string> {
+  const status = await sendInstallerCancelled(x);
+  if ((RUN_TEXT_WENT as readonly string[]).includes(status)) {
+    await claimBatchEvent(x.jobId, null, RUN_SLOT_CANCELLED_TEXTED_EVENT, "Installer texted that the owner cancelled their Ready Check time",
+      { run_id: x.runId, business_id: x.businessId, seq: x.seq, status, idempotency_key: `run-slot-cancelled-texted:v1:${x.runId}:${x.jobId}:${x.seq}` })
+      .catch((e) => console.error("cancel text not recorded", x.runId, x.jobId, (e as Error).message));
+  }
+  return status;
+}
+
+async function sendInstallerCancelled(x: Slot): Promise<string> {
   const [{ data: biz }, jobs] = await Promise.all([
     admin.from("businesses").select("id, name, signer_name, signer_mobile, phone, onboarding_notes").eq("id", x.businessId).maybeSingle(),
     slotJobsById([x.jobId]),
@@ -993,7 +1071,7 @@ async function textInstallerCancelled(x: Slot, now: Date): Promise<string> {
   const body = runSlotCancelledText({ name: b.signer_name, day: runDayWords(x.day), time: slotTimeWords(x), link: runLink(base, x.runId) });
   try {
     if (test) return (await (await import("./test-send.server")).sendTestSms({ jobId: x.jobId, jobSource: source, partnerIsTest: isTestPartner(b), label: `${RUN_SLOT_CANCELLED_SMS_TYPE}:${x.runId}:${x.seq}`, actorId: null }, to, body)).status;
-    return (await (await import("./sms.server")).sendRealSms({ type: RUN_SLOT_CANCELLED_SMS_TYPE, idempotencyKey: runSlotCancelledSmsKey(x.runId, x.jobId, x.seq), to, body, jobId: x.jobId, businessId: b.id, event: { at: now.toISOString(), current: true } })).status;
+    return (await (await import("./sms.server")).sendRealSms({ type: RUN_SLOT_CANCELLED_SMS_TYPE, idempotencyKey: runSlotCancelledSmsKey(x.runId, x.jobId, x.seq), to, body, jobId: x.jobId, businessId: b.id })).status;
   } catch (e) { console.error("run slot cancelled installer text not sent", x.runId, x.jobId, (e as Error).message); return "failed"; }
 }
 
@@ -1007,7 +1085,11 @@ export async function fillCancelledSlot(runId: string, userId: string, cancelled
   const prior = events.find((e) => e.event_type === RUN_OFFERED_EVENT && runIdOf(e) === runId && (e.details as { filled_from?: unknown; filled_seq?: unknown } | null)?.filled_from === cancelledJobId && Number((e.details as { filled_seq?: unknown }).filled_seq) === x.seq);
   if (prior) return { jobId: prior.job_id };
   if (state.status !== "answered") throw new WorkflowError(NOT_OPEN);
-  if (pickTooSoon(x.day, x.start, now)) throw new WorkflowError(RUN_PICK_TOO_SOON);
+  const choice = storedChoice(events, runId);
+  // Fix round 1: on a TEAM run the filled owner is added "to be booked by the team" — the team calls them and enters the time
+  // as for its other homes (no portal window, no claim, no text now).
+  const team = choice?.mode === RUN_TEAM_MODE;
+  if (!team && pickTooSoon(x.day, x.start, now)) throw new WorkflowError(RUN_PICK_TOO_SOON);
   const nobody = "No waiting owners nearby right now.";
   const point = await homePoint(cancelledJobId);
   if (!point) throw new WorkflowError(nobody);
@@ -1022,6 +1104,15 @@ export async function fillCancelledSlot(runId: string, userId: string, cancelled
   if (!pick) throw new WorkflowError(nobody);
   const textsOff = await ownerTextsBlocker(state.businessId, [{ isTest: pick.isTest }]);
   if (textsOff) throw new WorkflowError(textsOff);
+  if (team) {
+    const won = await claimBatchEvent(pick.jobId, userId, RUN_OFFERED_EVENT, `Added to ${tradeName(await businessOf(state.businessId))}'s run for a cancelled Ready Check time (Fill from nearby waiting owners) — their team calls the owner and enters the time`,
+      { run_id: runId, batch_id: state.batchId, business_id: state.businessId, job_ids: [pick.jobId], offered_at: now.toISOString(), offered_by: userId, filled_from: cancelledJobId, filled_seq: x.seq, idempotency_key: runSlotFilledKey(runId, cancelledJobId, x.seq) });
+    if (!won) return { jobId: pick.jobId };
+    // Its own 5 days for the team to book it (from now), like the run's other homes had from the choice.
+    await claimBatchEvent(pick.jobId, userId, RUN_MODE_CHOSEN_EVENT, "Added to an Our team books run — their team calls the owner and enters the time (5 days)",
+      { run_id: runId, batch_id: state.batchId, business_id: state.businessId, mode: RUN_TEAM_MODE, person: choice!.person, chosen_by: userId, job_ids: [pick.jobId], filled_from: cancelledJobId, idempotency_key: runModeKey(runId, pick.jobId) });
+    return { jobId: pick.jobId };
+  }
   const h: Holder = { jobId: pick.jobId, runId, batchId: state.batchId, businessId: state.businessId, seq: 1, person: x.person, day: x.day, start: x.start, end: x.end };
   if (!(await claimWindow(h, userId, now))) throw new WorkflowError(TAKEN);
   const won = await claimBatchEvent(pick.jobId, userId, RUN_OFFERED_EVENT, `Offered a cancelled Ready Check time from ${tradeName(await businessOf(state.businessId))}'s run (Fill from nearby waiting owners)`,

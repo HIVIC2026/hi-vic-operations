@@ -42,6 +42,10 @@ const first = (name: string | null | undefined) => (name ?? "").trim().split(/\s
  *  e.g. "…is Tuesday 27 October between 9:00 and 10:00am with…". */
 export const runTimeText = (f: { name: string | null | undefined; day: string; time: string; installer: string; link: string }) =>
   `Hi ${first(f.name)}, your free Ready Check is ${f.day} ${f.time} with ${f.installer}. Tap to confirm or pick another time: ${f.link} - Home Insulation Victoria`;
+/** Jo approved 30 Oct 2026 (Task 8 fix round 1): the time text for a TEAM-entered time — no other times are offered, so no
+ *  "pick another time". Verbatim. `time` = exactTimeWords(…), e.g. "…is Sunday 25 October at 6:15am with…". */
+export const runTeamTimeText = (f: { name: string | null | undefined; day: string; time: string; installer: string; link: string }) =>
+  `Hi ${first(f.name)}, your free Ready Check is ${f.day} ${f.time} with ${f.installer}. Tap to confirm: ${f.link} - Home Insulation Victoria`;
 /** Jo approved 30 Oct 2026 (part 2 spec): the 12-hour reminder ("at" dropped before the window). Verbatim. */
 export const runTimeReminderText = (f: { name: string | null | undefined; day: string; time: string; link: string }) =>
   `Hi ${first(f.name)}, please confirm your free Ready Check on ${f.day} ${f.time}: ${f.link}`;
@@ -166,11 +170,12 @@ export function slotsOf(events: readonly RunEventRow[]): Slot[] {
 /** Windows holding the installer's time: proposed or confirmed. */
 export const holds = (s: Slot) => s.state === "proposed" || s.state === "confirmed";
 
-/** The owner's run card on My job. */
+/** The owner's run card on My job. `team` = a time the installer's team entered (exact time; Confirm / Can't make it only,
+ *  "Can't make it" = back on the list like "None of these suit"). */
 export type OwnerRunSlotView =
   | { kind: "none" }
-  | { kind: "proposed"; day: string; time: string; installer: string; free: { start: string; end: string; label: string }[] }
-  | { kind: "confirmed"; day: string; time: string; installer: string };
+  | { kind: "proposed"; day: string; time: string; installer: string; team: boolean; free: { start: string; end: string; label: string }[] }
+  | { kind: "confirmed"; day: string; time: string; installer: string; team: boolean };
 
 export type SlotDue = "text" | "remind" | "release" | null;
 /** What the 15-minute tick does for a waiting window. The owner's 24 hours count from their text (it may be held, e.g.
@@ -179,10 +184,10 @@ export function slotDue(s: Slot, now: Date): SlotDue {
   if (s.state !== "proposed") return null;
   const t = now.getTime();
   const windowAt = windowStartAt(s.day, s.start).getTime();
-  // A team-entered time (Task 8): the text and the 12-hour reminder only, before the time; never released here — the
-  // 5-day team-booking expiry decides (the team may enter another time meanwhile).
+  // A team-entered time (Task 8): the text and the 12-hour reminder only, before the time; never released at 24 h (the team
+  // may enter another time meanwhile). Fix round 1: once the time itself passes unconfirmed → released (back to the pool).
   if (s.by === "team") {
-    if (t >= windowAt) return null;
+    if (t >= windowAt) return "release";
     if (!s.textedAt) return "text";
     return !s.remindedAt && t >= Date.parse(s.textedAt) + RUN_REMINDER_HOURS * 3_600_000 ? "remind" : null;
   }

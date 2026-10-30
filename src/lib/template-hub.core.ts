@@ -54,7 +54,7 @@ import { composeReply } from "./email-reply.core";
 import { brandSmsBody } from "./sms.core";
 import { quickTapsReminderText, quickTapsText } from "./area-batch.core";
 import { runOfferedText } from "./run-route.core";
-import { runSlotCancelledText, runTimeReminderText, runTimeText, windowWords } from "./run-portal.core";
+import { exactTimeWords, runSlotCancelledText, runTeamTimeText, runTimeReminderText, runTimeText, windowWords } from "./run-portal.core";
 import { blastMessage } from "./save-spot-reminder-blast.core";
 import { threeQuestionsSms } from "./three-questions-reminder.core";
 import {
@@ -468,6 +468,10 @@ const OWNER: TemplateEntry[] = [
   ENTRY({ id: "owner:sms-run_time", section: "owner", step: "ready_check", kind: "text", code: "", name: "Your free Ready Check time — confirm (text)", when: "The installer picks the run's day (Portal books)", who: "Owner", approvalNote: "Jo 30 Oct 2026 (A48 batch 2 part 2 spec)", gate: { kind: "text", smsType: "run_time" },
     source: { builder: "src/lib/run-portal.core.ts", fn: "runTimeText", sender: "src/lib/installer-run.server.ts" },
     render: () => text(runTimeText({ name: "Helen Sample", day: "Tuesday 27 October", time: windowWords("09:00", "10:00"), installer: "Sample Insulation", link: JOB })) }),
+  // Task 8 fix round 1 (Jo 30 Oct 2026): the same text type for a time the installer's team entered (exact time, no other times).
+  ENTRY({ id: "owner:sms-run_time_team", section: "owner", step: "ready_check", kind: "text", code: "", name: "Your free Ready Check time from the installer's team — confirm (text)", when: "The installer's team enters the time they agreed with the owner (Our team books)", who: "Owner", approvalNote: "Jo 30 Oct 2026 (A48 batch 2 Task 8 fix round 1)", gate: { kind: "text", smsType: "run_time" },
+    source: { builder: "src/lib/run-portal.core.ts", fn: "runTeamTimeText", sender: "src/lib/installer-run.server.ts" },
+    render: () => text(runTeamTimeText({ name: "Helen Sample", day: "Tuesday 27 October", time: exactTimeWords("2026-10-27", "09:00"), installer: "Sample Insulation", link: JOB })) }),
   ENTRY({ id: "owner:sms-run_time_reminder", section: "owner", step: "ready_check", kind: "text", code: "", name: "Please confirm your free Ready Check — 12-hour reminder (text)", when: "12 hours after the time text, if the owner hasn't confirmed", who: "Owner", approvalNote: "Jo 30 Oct 2026 (A48 batch 2 part 2 spec)", gate: { kind: "text", smsType: "run_time_reminder" },
     source: { builder: "src/lib/run-portal.core.ts", fn: "runTimeReminderText", sender: "src/lib/installer-run.server.ts" },
     render: () => text(runTimeReminderText({ name: "Helen Sample", day: "Tuesday 27 October", time: windowWords("09:00", "10:00"), link: JOB })) }),
@@ -535,8 +539,8 @@ const INSTALLER: TemplateEntry[] = [
   ENTRY({ id: "installer:sms-run_offered", section: "installer", step: "ready_check", kind: "text", code: "", name: "You've got a run (text)", when: "Jo taps Send to installer on a closed batch (Jobs › Choose installer)", who: "Installer (business owner)", approvalNote: "Jo 30 Oct 2026 (A48 batch 2 part 2 spec)", gate: { kind: "text", smsType: "run_offered" },
     source: { builder: "src/lib/run-route.core.ts", fn: "runOfferedText", sender: "src/lib/installer-run.server.ts" },
     render: () => text(runOfferedText({ name: "Sam Sample", homes: 8, suburb: "Box Hill", link: `${BASE}/field/run/TEST-RUN` })) }),
-  // A48 batch 2 part 2, Task 8: an owner cancelled a confirmed window in the installer's run. DRAFT wording (not approved).
-  ENTRY({ id: "installer:sms-run_slot_cancelled", section: "installer", step: "ready_check", kind: "text", code: "", name: "An owner cancelled — fill the time (text)", when: "An owner in the installer's run cancels after confirming their window", who: "Installer (business owner)", approvalNote: "DRAFT — wording awaiting Jo (A48 batch 2 Task 8)", gate: { kind: "text", smsType: "run_slot_cancelled" },
+  // A48 batch 2 part 2, Task 8: an owner cancelled a confirmed window in the installer's run (wording approved by Jo 30 Oct 2026).
+  ENTRY({ id: "installer:sms-run_slot_cancelled", section: "installer", step: "ready_check", kind: "text", code: "", name: "An owner cancelled — fill the time (text)", when: "An owner in the installer's run cancels after confirming their window", who: "Installer (business owner)", approvalNote: "Jo 30 Oct 2026 (A48 batch 2 Task 8 fix round 1)", gate: { kind: "text", smsType: "run_slot_cancelled" },
     source: { builder: "src/lib/run-portal.core.ts", fn: "runSlotCancelledText", sender: "src/lib/installer-run.server.ts" },
     render: () => text(runSlotCancelledText({ name: "Sam Sample", day: "Tuesday 27 October", time: windowWords("09:00", "10:00"), link: `${BASE}/field/run/TEST-RUN` })) }),
   // Quote

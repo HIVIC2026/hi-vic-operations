@@ -11,7 +11,7 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { SMS_FRESHNESS, SMS_MESSAGE_TYPES } from "../src/lib/sms.core";
-import { exactTimeWords, runSlotCancelledText, windowWords } from "../src/lib/run-portal.core";
+import { exactTimeWords, runSlotCancelledText, runTeamTimeText, windowWords } from "../src/lib/run-portal.core";
 import { SET_PASSWORD_BASE } from "../src/lib/set-password-link.core";
 
 type Row = Record<string, unknown>;
@@ -37,6 +37,8 @@ function fakeAdmin() {
         gt(c: string, v: string) { preds.push((r) => String(get(r, c)) > v); return b; },
         lt(c: string, v: string) { preds.push((r) => String(get(r, c)) < v); return b; },
         contains(c: string, v: unknown) { preds.push((r) => subset(get(r, c), v)); return b; },
+        like(c: string, v: string) { const re = new RegExp(`^${v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/%/g, ".*")}$`); preds.push((r) => re.test(String(get(r, c) ?? ""))); return b; },
+        not() { return b; },
         order() { return b; }, range() { return b; },
         limit(n: number) { lim = n; return b; },
         maybeSingle() { lim = 1; (b as Row)["single1"] = true; return b; },
@@ -110,6 +112,12 @@ mock.module("../src/lib/installer-texts.server", () => ({
   textInstallerReadyCheckBooked: async (j: string) => { followOns.push(`installer-text:${j}`); },
   textTradeOwnerChangedVisit: async () => { followOns.push("owner-changed-text"); },
 }));
+// The Mitti form release on a cancelled Ready Check (existing helper), recorded.
+const mittiReleased: string[] = [];
+const realPickup = await import("../src/lib/mitti-pickup.server");
+mock.module("../src/lib/mitti-pickup.server", () => ({ ...realPickup, releaseReadyCheckFormOnCancel: async (j: string) => { mittiReleased.push(j); return { released: true }; } }));
+// The office Cancel's stage move (existing applyHoldOrCancel), recorded as the stage only.
+mock.module("../src/lib/job-disposition.server", () => ({ applyHoldOrCancel: async (j: string) => { tables["jobs"]!.find((x) => x["id"] === j)!["stage"] = "cancelled"; } }));
 // The stage move back to "to schedule" (the existing transition), recorded.
 const realWorkflow = await import("../src/lib/workflow.server");
 const moved: { jobId: string; to: string }[] = [];
@@ -155,7 +163,7 @@ function standingPassOwner(id: string, o: { source?: string } = {}) {
 }
 function seed() {
   for (const k of Object.keys(tables)) delete tables[k];
-  sent.length = 0; booked.length = 0; followOns.length = 0; moved.length = 0;
+  sent.length = 0; booked.length = 0; followOns.length = 0; moved.length = 0; mittiReleased.length = 0;
   tables["workflow_settings"] = [{ id: 1, customer_comms_enabled: true, sms_message_switches: { run_offered: true, run_time: true, run_time_reminder: true, run_slot_cancelled: true } }];
   for (const t of ["jobs", "lead_campaign_responses", "property_facts", "job_assignments", "partner_offers", "workflow_events", "appointment_proposals", "bookings"]) tables[t] = [];
   tables["businesses"] = [
@@ -193,11 +201,15 @@ describe("wording + SMS type", () => {
     expect(exactTimeWords("2026-10-25", "06:15")).toBe("at 6:15am");
     expect(exactTimeWords("2026-10-27", "13:30")).toBe("at 1:30pm");
   });
-  test("run_slot_cancelled: INSTALLER text, own switch (off: not in the switches), quiet hours, DRAFT wording until Jo approves", () => {
-    expect(SMS_MESSAGE_TYPES.run_slot_cancelled).toMatchObject({ audience: "partner", wordingApproved: false, quietHours: true });
-    expect(SMS_FRESHNESS.run_slot_cancelled).toEqual({ kind: "event", maxAgeMinutes: 24 * 60 });
+  test("run_slot_cancelled: INSTALLER text, own switch (off: not in the switches), quiet hours, wording approved by Jo (fix round 1); a held text is retried by the tick", () => {
+    expect(SMS_MESSAGE_TYPES.run_slot_cancelled).toMatchObject({ audience: "partner", wordingApproved: true, quietHours: true });
+    expect(SMS_FRESHNESS.run_slot_cancelled).toEqual({ kind: "window" });
     expect(runSlotCancelledText({ name: "Sam Smith", day: "Tuesday 27 October", time: windowWords("09:00", "10:00"), link: "L" }))
       .toBe("Hi Sam, an owner cancelled their Ready Check on Tuesday 27 October between 9:00 and 10:00am. To offer that time to a nearby waiting owner: L - Home Insulation Victoria");
+  });
+  test("team-entered time owner text: Jo's approved wording (fix round 1), no \"pick another time\"", () => {
+    expect(runTeamTimeText({ name: "Ann Lee", day: "Sunday 25 October", time: exactTimeWords("2026-10-25", "06:15"), installer: "Sample Insulation", link: "L" }))
+      .toBe("Hi Ann, your free Ready Check is Sunday 25 October at 6:15am with Sample Insulation. Tap to confirm: L - Home Insulation Victoria");
   });
 });
 
@@ -236,11 +248,11 @@ describe("Our team books", () => {
     expect(order.map((j) => [slotOf(j)!["day"], slotOf(j)!["start"], slotOf(j)!["by"], slotOf(j)!["person"]])).toEqual(order.map(() => ["2026-10-25", "06:15", "team", "u-kim"]));
     const t = ownerTexts();
     expect(t.length).toBe(3);
-    expect(t.find((x) => x.jobId === order[0])!.body).toBe(`Hi Owner, your free Ready Check is Sunday 25 October at 6:15am with Sample Insulation. Tap to confirm or pick another time: ${LINK(order[0]!)} - Home Insulation Victoria`);
+    expect(t.find((x) => x.jobId === order[0])!.body).toBe(`Hi Owner, your free Ready Check is Sunday 25 October at 6:15am with Sample Insulation. Tap to confirm: ${LINK(order[0]!)} - Home Insulation Victoria`);
     // no window claims for team times
     expect(events("run_window_claimed")).toEqual([]);
     const st = await R.ownerRunSlotState(order[0]!, { now: new Date(clock) });
-    expect(st).toMatchObject({ kind: "proposed", day: "Sunday 25 October", time: "at 6:15am", free: [] });
+    expect(st).toMatchObject({ kind: "proposed", day: "Sunday 25 October", time: "at 6:15am", free: [], team: true });
   });
   test("the owner confirms → booked through the existing path at that exact time, the chosen person assigned", async () => {
     const { runId, order } = await team(["a"]);
@@ -462,11 +474,169 @@ describe("owner cancels a confirmed window", () => {
   });
 });
 
+// ---- fix round 1 ------------------------------------------------------------------------------------------------------------------
+describe("fix round 1", () => {
+  beforeEach(seed);
+  const active = (j: string) => tables["job_assignments"]!.filter((a) => a["job_id"] === j && a["active"] === true);
+  test("1: a Fill row more than 7 days after the offer never makes the offer sweep expire the run", async () => {
+    const r = await offered(["a", "b"]);
+    now(2);
+    await R.chooseRunDay(r.runId, "u-sam", "2026-11-03", "09:00", null, { now: new Date(clock) });
+    now(3);
+    const a = r.order[0]!;
+    await R.ownerConfirmRunSlot(a, "u-owner", { now: new Date(clock) });
+    cancelJob(a);
+    await R.runOwnerCancelled(a, { now: new Date(clock) });
+    standingPassOwner("e");
+    now(7 * 24 + 10);
+    expect(await R.fillCancelledSlot(r.runId, "u-sam", a, { now: new Date(clock) })).toEqual({ jobId: "e" });
+    await R.sweepRunOffers(at(7 * 24 + 10 + 25));
+    expect(events("run_expired")).toEqual([]);
+    const page = await R.tradeRun(r.runId, "u-sam");
+    expect(page.status).toBe("answered");
+    expect(page.homes.map((h) => h.jobId)).toContain("e");
+  });
+  test("2: after Move run, a previously booked owner who doesn't re-confirm (none suit / 24 h) is unassigned and really back in Jo's suggestions; the Mitti form is released", async () => {
+    const r = await offered(["a", "b"]);
+    now(2);
+    await R.chooseRunDay(r.runId, "u-sam", DAY, "09:00", null, { now: new Date(clock), personId: "u-kim" });
+    const [a, b] = r.order as [string, string];
+    now(3);
+    await R.ownerConfirmRunSlot(a, "u-owner", { now: new Date(clock) });
+    await R.ownerConfirmRunSlot(b, "u-owner", { now: new Date(clock) });
+    expect(active(a).length).toBe(1);
+    now(5);
+    await R.moveRun(r.runId, "u-sam", "2026-10-29", "08:00", { now: new Date(clock) });
+    now(6);
+    await R.ownerNoRunWindow(a, "u-owner", { now: new Date(clock) });
+    await R.sweepRunSlots(at(31));
+    await R.sweepRunSlots(at(32));
+    expect(events("run_slot_released").map((e) => [e["job_id"], (e["details"] as Row)["why"]]).sort()).toEqual([[a, "none_suit"], [b, "no_confirm"]].sort());
+    expect([active(a), active(b)]).toEqual([[], []]);
+    expect(mittiReleased.sort()).toEqual([a, b].sort());
+    expect([stage(a), stage(b)]).toEqual(["ready_check_ready_to_schedule", "ready_check_ready_to_schedule"]);
+    expect((await candidates()).filter((c) => [a, b].includes(c.jobId)).map((c) => [c.jobId, c.carriedPass]).sort()).toEqual([[a, true], [b, true]].sort());
+  });
+  test("2b: a home never booked that the move re-windows is released as before (no unassign, no Mitti step)", async () => {
+    const r = await offered(["a"]);
+    now(2);
+    await R.chooseRunDay(r.runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) });
+    now(5);
+    await R.moveRun(r.runId, "u-sam", "2026-10-29", "08:00", { now: new Date(clock) });
+    await R.ownerNoRunWindow(r.order[0]!, "u-owner", { now: new Date(clock) });
+    expect(mittiReleased).toEqual([]);
+    expect(events("run_slot_released").length).toBe(1);
+  });
+  test("3: an office Cancel of a run job runs the same hook: the installer told once", async () => {
+    const r = await offered(["a", "b"]);
+    now(2);
+    await R.chooseRunDay(r.runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) });
+    now(3);
+    const a = r.order[0]!;
+    await R.ownerConfirmRunSlot(a, "u-owner", { now: new Date(clock) });
+    sent.length = 0;
+    const { cancelJobFully } = await import("../src/lib/office-actions.server");
+    await cancelJobFully(a, "Owner rang to cancel", "u-jo");
+    expect(events("run_slot_cancelled", a).length).toBe(1);
+    expect(sent.map((x) => [x.type, x.to, x.key])).toEqual([["run_slot_cancelled", "0411111111", `run-slot-cancelled-sms:v1:${r.runId}:${a}:1`]]);
+    await R.runOwnerCancelled(a, { now: new Date(clock) }); // a second path (My job) → still once
+    expect(events("run_slot_cancelled", a).length).toBe(1);
+    expect(sent.length).toBe(1);
+  });
+  test("4: a held installer cancel text is retried by the tick while the slot is unfilled; once only when it actually sends", async () => {
+    const r = await offered(["a", "b"]);
+    now(2);
+    await R.chooseRunDay(r.runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) });
+    now(3);
+    const a = r.order[0]!;
+    await R.ownerConfirmRunSlot(a, "u-owner", { now: new Date(clock) });
+    sent.length = 0;
+    const sw = (tables["workflow_settings"]![0]!["sms_message_switches"] as Record<string, boolean>);
+    sw["run_slot_cancelled"] = false;
+    cancelJob(a);
+    await R.runOwnerCancelled(a, { now: new Date(clock) });
+    await R.sweepRunSlots(at(4));
+    expect(ownerTexts("run_slot_cancelled")).toEqual([]);
+    sw["run_slot_cancelled"] = true;
+    await R.sweepRunSlots(at(5));
+    await R.sweepRunSlots(at(6));
+    expect(ownerTexts("run_slot_cancelled").map((x) => x.key)).toEqual([`run-slot-cancelled-sms:v1:${r.runId}:${a}:1`]);
+    expect(events("run_slot_cancelled_texted", a).length).toBe(1);
+  });
+  test("4b: held, then the slot is filled → the cancel text is never sent", async () => {
+    const r = await offered(["a", "b"]);
+    now(2);
+    await R.chooseRunDay(r.runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) });
+    now(3);
+    const a = r.order[0]!;
+    await R.ownerConfirmRunSlot(a, "u-owner", { now: new Date(clock) });
+    const sw = (tables["workflow_settings"]![0]!["sms_message_switches"] as Record<string, boolean>);
+    sw["run_slot_cancelled"] = false;
+    cancelJob(a);
+    await R.runOwnerCancelled(a, { now: new Date(clock) });
+    standingPassOwner("e");
+    now(4);
+    await R.fillCancelledSlot(r.runId, "u-sam", a, { now: new Date(clock) });
+    sw["run_slot_cancelled"] = true;
+    await R.sweepRunSlots(at(5));
+    expect(ownerTexts("run_slot_cancelled")).toEqual([]);
+  });
+  test("5: Fill on a TEAM run adds the owner as \"to be booked by the team\": no portal window, no text; the team enters the time as for other homes", async () => {
+    const r = await offered(["a", "b"]);
+    now(2);
+    await R.chooseTeamBooks(r.runId, "u-sam", { personId: "u-kim", now: new Date(clock) });
+    const a = r.order[0]!;
+    await R.enterTeamTime(r.runId, "u-kim", a, DAY, "09:00", { now: new Date(clock) });
+    now(3);
+    await R.ownerConfirmRunSlot(a, "u-owner", { now: new Date(clock) });
+    cancelJob(a);
+    await R.runOwnerCancelled(a, { now: new Date(clock) });
+    expect(ownerTexts("run_slot_cancelled").at(-1)!.body).toContain("cancelled their Ready Check on Tuesday 27 October at 9am.");
+    standingPassOwner("e");
+    sent.length = 0;
+    now(4);
+    expect(await R.fillCancelledSlot(r.runId, "u-sam", a, { now: new Date(clock) })).toEqual({ jobId: "e" });
+    expect(events("run_slot_proposed", "e")).toEqual([]);
+    expect(events("run_window_claimed", "e")).toEqual([]);
+    expect(sent).toEqual([]);
+    expect(events("run_mode_chosen", "e").map((x) => [(x["details"] as Row)["mode"], (x["details"] as Row)["person"]])).toEqual([["team", "u-kim"]]);
+    const page = await R.tradeRun(r.runId, "u-sam");
+    expect(page.homes.find((h) => h.jobId === "e")).toMatchObject({ slot: null });
+    expect(page.cancelled).toEqual([{ jobId: a, window: "Tuesday 27 October, at 9am", filledBy: "HV-e" }]);
+    await R.enterTeamTime(r.runId, "u-kim", "e", "2026-10-28", "11:30", { now: new Date(clock) });
+    expect(ownerTexts().map((x) => [x.jobId, x.body])).toEqual([["e", `Hi Owner, your free Ready Check is Wednesday 28 October at 11:30am with Sample Insulation. Tap to confirm: ${LINK("e")} - Home Insulation Victoria`]]);
+    now(5);
+    await R.ownerConfirmRunSlot("e", "u-owner-e", { now: new Date(clock) });
+    expect(booked.at(-1)).toMatchObject({ jobId: "e", start: "2026-10-28T00:30:00.000Z" });
+    expect(active("e").map((x) => x["user_id"])).toEqual(["u-kim"]);
+  });
+  test("6: a team time that passes unconfirmed → released to the pool once on the tick", async () => {
+    const r = await offered(["a"]);
+    now(2);
+    await R.chooseTeamBooks(r.runId, "u-sam", { now: new Date(clock) });
+    const a = r.order[0]!;
+    await R.enterTeamTime(r.runId, "u-sam", a, "2026-10-26", "09:00", { now: new Date(clock) });
+    await R.sweepRunSlots(at(44)); // before the time (Monday 9am Melbourne = 45 h after T0)
+    expect(events("run_slot_released")).toEqual([]);
+    await R.sweepRunSlots(at(46));
+    await R.sweepRunSlots(at(47));
+    expect(events("run_slot_released").map((e) => [e["job_id"], (e["details"] as Row)["why"]])).toEqual([[a, "time_passed"]]);
+    expect((await candidates()).filter((c) => c.jobId === a).map((c) => c.carriedPass)).toEqual([true]);
+    expect(await R.ownerRunSlotState(a, { now: new Date(clock) })).toEqual({ kind: "none" });
+  });
+});
+
 // ---- wiring ---------------------------------------------------------------------------------------------------------------------
 describe("wiring", () => {
   const src = (p: string) => readFileSync(p, "utf8");
   test("the owner's own cancel (My job) runs the run hook; the run page has the three new controls", () => {
     expect(src("src/lib/owner-myjob.server.ts")).toContain("runOwnerCancelled");
+    // every cancel (office, email, quote expiry, quick taps) goes through releaseCancelledJob, which runs the same hook
+    expect(src("src/lib/office-actions.server.ts")).toContain("runOwnerCancelled");
+    // the owner's team-time card: Confirm / Can't make it only, booked line without a comma
+    const card = src("src/components/owner/OwnerRunTime.tsx");
+    expect(card).toContain("data-run-team-cant");
+    expect(card).toContain("Your Ready Check is booked for {data.day} {data.time}.");
     const page = src("src/routes/_authenticated/field.run.$runId.tsx");
     expect(page).toContain("Fill from nearby waiting owners");
     expect(page).toContain("Move run");
