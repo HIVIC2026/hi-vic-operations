@@ -39,6 +39,7 @@ export async function reassessmentBlocker(jobId: string, stage: string): Promise
 /** Writes the PIESA record exactly as the portal page does. Returns the new piesa_records row id when returned. */
 export async function applyPiesaRecord(r: PostRectificationRecord): Promise<{ recordId: string | null }> {
   const post = r.kind === "post_rectification";
+  if (post && !r.sectionCSignedDate) throw new WorkflowError("Section C signed date is required for a post-rectification PIESA record.");
   if (r.source?.kind === "mitti_fixes_form") {
     const { data: existing, error } = await admin.from("workflow_events").select("details").eq("job_id", r.jobId).eq("event_type", "piesa_recorded").contains("details", { source: "mitti_fixes_form", audit_id: r.source.auditId }).maybeSingle();
     if (error) throw new Error(error.message);
@@ -55,7 +56,7 @@ export async function applyPiesaRecord(r: PostRectificationRecord): Promise<{ re
     signed_off_by: r.actorId,
     notes: r.notes ?? null,
     ...(post ? { rectification_completed_at: `${r.completedDate}T00:00:00.000Z` } : {}),
-    ...(post && r.outcome === "pass" ? { section_c_signed_at: `${r.sectionCSignedDate ?? r.completedDate}T00:00:00.000Z` } : {}),
+    ...(post && r.outcome === "pass" ? { section_c_signed_at: `${r.sectionCSignedDate}T00:00:00.000Z` } : {}),
   }).select("id").maybeSingle();
   if (recordError) throw new Error(recordError.message);
   await logEvent(r.jobId, r.actorId, "piesa_recorded", `PIESA (${r.kind.replace("_", " ")}) ${r.outcome} on ${r.completedDate}${r.source?.kind === "mitti_fixes_form" ? " — from the Mitti rectification form" : ""}`,
@@ -63,6 +64,9 @@ export async function applyPiesaRecord(r: PostRectificationRecord): Promise<{ re
   if (post && r.outcome === "pass") {
     await admin.from("compliance_checks").update({ status: "pass", checked_at: new Date().toISOString() }).eq("job_id", r.jobId).in("check_key", ["rectification", "electrical_assessment"]);
     await admin.from("bookings").update({ status: "completed" }).eq("job_id", r.jobId).eq("kind", "rectification").eq("status", "confirmed");
+    if ((await getStage(r.jobId)) === "piesa_scheduled" && await (await import("./in-house-rectification.server")).partnerBilledRectificationFor(r.jobId)) {
+      await transition(r.jobId, "piesa_complete", r.actorId, "PIESA and Part C rectification completed on the same visit");
+    }
     await transition(r.jobId, "installation_scheduling", r.actorId, "Rectification complete, PIESA passed – installation scheduling unlocked");
   }
   // Batch 1 task 6: the new safety check after a reopen is a reassessment at PIESA booked — the visit is done, so the job

@@ -42,7 +42,7 @@ export async function onPiesaBooked(jobId: string, bookingId: string, actorId: s
   const { createAssignMittiAudit, realMittiCall } = await import("./mitti.server");
   const { MittiClaimHeld, MittiOutcomeUncertain } = await import("./mitti-create.server");
   try {
-    const r = a?.external_mitti_id ? { reused: true, auditId: a.external_mitti_id } : await createAssignMittiAudit(jobId, actorId, opts.call ?? realMittiCall, assignee ? { assignee } : {});
+    const r = await createAssignMittiAudit(jobId, actorId, opts.call ?? realMittiCall, assignee ? { assignee } : {});
     if (paired) {
       const { createFixesForm } = await import("./fixes-day.server");
       const companion = await createFixesForm(jobId, actorId, bookingId, opts.call, { atPiesaBooking: true });
