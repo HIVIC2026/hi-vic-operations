@@ -71,6 +71,8 @@ import { InHouseBookingCard, useInHouseBookingAccess } from "@/components/trade/
 export const Route = createFileRoute("/_authenticated/field/$jobId")({
   head: () => ({ meta: [{ title: "Job – Home Insulation Victoria Field" }, { name: "description", content: "Onsite job workflow." }, { property: "og:title", content: "Job – Home Insulation Victoria Field" }, { property: "og:description", content: "Onsite job workflow." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   component: FieldJob,
+  // Job A -> job B remounts the page, so B's cached copy is asked once (askedOnce/seeded refs are per job, not reused).
+  remountDeps: ({ params }) => params,
 });
 
 /** Speed (decision 280): ONE server call on first paint. The bundle answers every section the cards below read and is
@@ -310,10 +312,9 @@ type Overview = NonNullable<ReturnType<typeof useJob>["data"]>;
 
 function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
   const load = useServerFn(getTradeJobPage);
-  const uid = Route.useRouteContext().user.id;
-  const ck = `job-page:${jobId}`;
-  const seed = useMemo(() => readTradeCache<Awaited<ReturnType<typeof load>>>(uid, ck), [uid, ck]); // eslint-disable-line react-hooks/exhaustive-deps
-  const { data: page } = useQuery({ queryKey: ["trade-job-page", jobId], queryFn: async () => { const d = await load({ data: { jobId } }); if (d) writeTradeCache(uid, ck, d); return d; }, retry: false, refetchInterval: 60_000, staleTime: 20_000, ...(seed ? { initialData: seed.data, initialDataUpdatedAt: seed.at } : {}) });
+  // No cache of its own: the job bundle seeds ["trade-job-page", jobId] on a return visit, and its evict resets it. An
+  // initialData copy here would be re-applied by that reset and bring back an old or refused page (final review I3).
+  const { data: page } = useQuery({ queryKey: ["trade-job-page", jobId], queryFn: () => load({ data: { jobId } }), retry: false, refetchInterval: 60_000, staleTime: 20_000 });
   const { data: days } = useInstallerInstallDays(jobId);
   const { data: rc } = useInstallerReadyCheckTimes(jobId);
   const done = useAction(completeInstallation);

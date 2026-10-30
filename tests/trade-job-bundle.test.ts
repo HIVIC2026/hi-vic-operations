@@ -158,6 +158,16 @@ describe("section errors and the seed plan (pure)", () => {
     // Seeded cards must consider a fresh answer fresh, or they would refetch on mount and undo the one-call load.
     for (const p of ["src/components/trade/visit-allocation.tsx", "src/components/trade/SafetyPlanCard.tsx", "src/components/portal/workers.tsx", "src/components/trade/InstallerPriceCard.tsx", "src/components/trade/OwnerQuoteCard.tsx"]) expect(src(p), p).toMatch(/staleTime: 20_000/);
   });
+  test("the job page keeps no second cache copy, and a new job remounts the page (final review I3 + remount check)", () => {
+    const route = readFileSync("src/routes/_authenticated/field.$jobId.tsx", "utf8");
+    // Only the bundle reads/writes the device cache, so its evict/reset cannot be undone by another initialData copy.
+    expect(route).not.toContain("job-page:");
+    expect(route.match(/initialData:/g)?.length).toBe(1);
+    expect(route.match(/writeTradeCache\(/g)?.length).toBe(1);
+    expect(route.match(/readTradeCache</g)?.length).toBe(1);
+    // /field/A -> /field/B must not reuse A's askedOnce/seeded refs.
+    expect(route).toMatch(/createFileRoute\("\/_authenticated\/field\/\$jobId"\)\(\{[\s\S]*?remountDeps: \(\{ params \}\) => params,[\s\S]*?\}\);/);
+  });
   test("the server function is a literal chain on the same middleware as getTradeJobPage, and each section reader is the per-section function's own helper", () => {
     const fns = readFileSync("src/lib/trade-view.functions.ts", "utf8");
     expect(fns).toMatch(/export const getTradeJobBundle = createServerFn\(\{ method: "POST" \}\)\.middleware\(\[requireSupabaseAuth\]\)\n\s+\.inputValidator\(\(d\) => z\.object\(\{ jobId: uuid \}\)\.parse\(d\)\)\n\s+\.handler\(/);
