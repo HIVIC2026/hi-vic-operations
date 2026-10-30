@@ -167,6 +167,12 @@ describe("sweepQuietHeldTexts", () => {
     expect(await sweepQuietHeldTexts(SEVEN_05)).toEqual({ sent: 0, skipped: 1 });
     expect(sent).toEqual([]);
   });
+  test("Jo 30 Oct: an older 'spot-saved:<job>' text already delivered → held text not resent", async () => {
+    tables["sms_messages"]!.push({ ...held(), idempotency_key: "spot-saved:j1", status: "delivered", detail: "ok" });
+    const { sweepQuietHeldTexts } = await import("../src/lib/quiet-held-texts.server");
+    expect(await sweepQuietHeldTexts(SEVEN_05)).toEqual({ sent: 0, skipped: 1 });
+    expect(sent).toEqual([]);
+  });
   test("real key already in sms_messages → not sent", async () => {
     tables["sms_messages"]!.push({ ...held(), idempotency_key: "spot-saved-confirmation:v1:+61412345678", status: "sent", detail: "ok" });
     const { sweepQuietHeldTexts } = await import("../src/lib/quiet-held-texts.server");
