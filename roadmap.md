@@ -1,3 +1,7 @@
+## Jo 30 Oct in-house partner — Task 3 suppression
+- [ ] Tests red first, then suppress offer rounds and owner time-picking/reminders for active in-house installer assignments; batch sweep reads and fail closed with logging. Preserve partner-call notices and every payment/booking gate. No publication or SQL.
+- [ ] Run covering and requested existing regressions; report actual results and managed commit.
+
 ## Jo 30 Oct in-house partner — Task 2 batch allocation
 - [x] Review I1–I4: tests red first, no allocation ledger writes, always job-bound pending intent, approved guarded sender + existing tick sweep, RPC postcode/radius/statewide coverage, earliest-created approved electrician (no worker-primary marker exists). Main batch migration applied live by Jo; new coverage SQL/undo remains pending, exact old-body undo proven on PGlite. Covering and existing partner/teaming/sender tests pass; automatic build/typecheck clean. No live SQL, sends, switches, deployment or publication during this review.
 - [x] Main batch migration 2026-10-30_in_house_batch.sql is applied live with Jo's authorisation. Initial test-first batch rules, atomic per-job allocation and office screen passed 21 covering tests; existing partner/teaming regressions: 54 pass / 0 fail across 7 isolated files. Automatic build/typecheck: build OK. No publication or manual commit (managed by Lovable).
