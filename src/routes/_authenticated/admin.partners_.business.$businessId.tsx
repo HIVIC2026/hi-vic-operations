@@ -100,7 +100,7 @@ function BusinessFile() {
           {p.data && <details className="mt-3"><summary className="cursor-pointer text-sm font-semibold text-hiv-blue">Change usual electrician</summary><div className="mt-2"><Electricians businessId={businessId} rels={p.data.relationships as never} options={(p.data.electricianBusinesses as { id: string; name: string; onboarding_status: string }[]).filter((e) => e.id !== businessId)} canEdit onDone={() => void refresh()} /></div></details>}
         </Panel>}
         <BankPanel businessId={businessId} f={f} />
-        <Panel title="Jobs" action={<Link to="/admin/jobs/active" search={{ q: b.name } as never} className="text-sm font-semibold text-hiv-blue hover:underline">Open Jobs ›</Link>}>
+        <Panel title="Jobs" action={<Link to={b.kind === "Installer" ? "/admin/jobs/installers" : "/admin/jobs/ours"} search={{ q: b.name } as never} className="text-sm font-semibold text-hiv-blue hover:underline">Open Jobs ›</Link>}>
           <dl data-why="daily office action: see this partner's work">
             <Row k="This month">{f.jobs.thisMonth} jobs · {f.jobs.installsThisMonth} installs done</Row>
             <Row k="All time">{f.jobs.all} jobs · {f.jobs.complete} complete · {f.jobs.cancelled} cancelled · {f.jobs.active} active</Row>

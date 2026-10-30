@@ -71,7 +71,7 @@ export function JobHeader({ h, more }: { h: Header; more: ReactNode }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2 text-sm">
-            <Link to="/admin/jobs/active" className="font-semibold text-sub">‹ Jobs</Link>
+            <Link to="/admin/jobs/ours" className="font-semibold text-sub">‹ Jobs</Link>
             <span className="font-display text-lg font-bold text-ink">{h.jobNumber}</span>
             <span className="rounded-full bg-mist px-2.5 py-0.5 text-[11px] font-semibold text-hiv-blue">{h.ownJob ? `Installer's own · ${h.installerName ?? "installer"}` : "Our lead"}</span>
             {h.statusPill && <span className={cn("rounded-full px-2.5 py-0.5 text-[11px] font-semibold", h.stage === "cancelled" ? "bg-pink text-rose" : "bg-mint text-hiv-green")}>{h.statusPill}</span>}

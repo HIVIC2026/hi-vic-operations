@@ -3,7 +3,7 @@ import { qaOfficeIdentityBlocker, type QaOfficeIdentity } from "./qa-office.core
 export const TEST_OFFICE_UNAVAILABLE = "Not available for the TEST office login";
 // Exact compiler-owned filename/name pairs. Unknown/new functions are never implicitly allowed.
 export const QA_OFFICE_FUNCTIONS = {
-  "src/lib/office-screens.functions.ts": ["getNeedsMePage", "getEnquiriesList", "getActiveJobsList", "getOfficeJobPage", "getOfficeJobMoney", "logOfficeCallOrNote"],
+  "src/lib/office-screens.functions.ts": ["getNeedsMePage", "getEnquiriesList", "getActiveJobsList", "getJobsLaneCounts", "getOfficeJobPage", "getOfficeJobMoney", "logOfficeCallOrNote"],
   "src/lib/office-money.functions.ts": ["getMoneyPayouts"],
   "src/lib/office.functions.ts": ["searchOffice", "approveElectricianForm", "markPayoutPaid"],
   "src/lib/ap-queue.functions.ts": ["getFinalCheck", "approveApJob"],
@@ -21,7 +21,7 @@ export function qaOfficeFunctionAllowed(filename: string, name: string): boolean
 }
 export function qaOfficeRouteAllowed(pathname: string, search = ""): boolean {
   const path = pathname.replace(/\/$/, "");
-  if (["/admin", "/admin/needs-me", "/admin/enquiries", "/admin/jobs", "/admin/jobs/active", "/admin/jobs/choose-installer"].includes(path)) return true;
+  if (["/admin", "/admin/needs-me", "/admin/enquiries", "/admin/jobs", "/admin/jobs/active", "/admin/jobs/ours", "/admin/jobs/installers", "/admin/jobs/choose-installer"].includes(path)) return true;
   if (path === "/admin/money") return new URLSearchParams(search).get("tab") === "payouts";
   return /^\/admin\/jobs\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(path);
 }

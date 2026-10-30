@@ -100,11 +100,12 @@ describe("RobotFailuresPile", () => {
   });
 });
 
-test("Active jobs has the fold line next to the Mitti piles, red when there are failures, hidden from the test office", async () => {
+test("Our jobs / Installer jobs have the red fold line next to the Mitti lines, only when there are failures, hidden from the test office", async () => {
+  // The old Active jobs page (JobsScreen Piles) became JobsLaneScreen in the Jobs pages redesign (#58).
   const { readFileSync } = await import("node:fs");
-  const src = readFileSync("src/components/portal/JobsScreen.tsx", "utf8");
+  const src = readFileSync("src/components/portal/JobsLaneScreen.tsx", "utf8");
   expect(src).toContain("Registry robot couldn't lodge");
   expect(src).toContain("getRobotFailures");
-  expect(src).toContain("No robot problems.");
-  expect(src).toContain("{!testOffice && <Piles />}");
+  expect(src).toContain("{!testOffice && robotCount > 0 && (");
+  expect(src).toContain("<RobotFailuresPile />");
 });

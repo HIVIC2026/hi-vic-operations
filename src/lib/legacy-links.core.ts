@@ -15,14 +15,14 @@ const ENQUIRY_STATUSES = ["all", "new", "spot_saved", "offered_spot", "insulatio
 /** /admin/<slug> → today's office page. */
 const OFFICE: Record<string, Rule> = {
   // Jobs (decision 218: the Pipeline board, lists and AP queue are stages on Jobs › Active).
-  board: (s) => (s["tab"] === "quotes" ? { to: "/admin/jobs/active", search: { stage: "quote" } } : { to: "/admin/jobs/active" }),
-  list: { to: "/admin/jobs/active" },
-  pipeline: { to: "/admin/jobs/active" },
-  "operations-preview": { to: "/admin/jobs/active" },
-  quotes: { to: "/admin/jobs/active", search: { stage: "quote" } },
+  board: (s) => (s["tab"] === "quotes" ? { to: "/admin/jobs/ours", search: { stage: "quote" } } : { to: "/admin/jobs/ours" }),
+  list: { to: "/admin/jobs/ours" },
+  pipeline: { to: "/admin/jobs/ours" },
+  "operations-preview": { to: "/admin/jobs/ours" },
+  quotes: { to: "/admin/jobs/ours", search: { stage: "quote" } },
   // AP approval happens on each job's Final check card (approveApJob); Jobs › Final check lists every job waiting on it.
-  "ap-queue": { to: "/admin/jobs/active", search: { stage: "final_check" } },
-  operations: (s) => (s["category"] === "active" ? { to: "/admin/jobs/active" } : s["category"] === "closed" ? { to: "/admin/jobs/closed" } : { to: "/admin/enquiries" }),
+  "ap-queue": { to: "/admin/jobs/ours", search: { stage: "final_check" } },
+  operations: (s) => (s["category"] === "active" ? { to: "/admin/jobs/ours" } : s["category"] === "closed" ? { to: "/admin/jobs/closed" } : { to: "/admin/enquiries" }),
   // Needs me (the office home).
   today: { to: "/admin/needs-me" },
   todo: { to: "/admin/needs-me" },

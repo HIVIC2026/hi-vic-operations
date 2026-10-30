@@ -23,7 +23,7 @@ describe("admin pipeline visibility", () => {
   });
 
   it("the Pipeline board is retired (decision 218, audit removal 1): it only redirects and never runs maintenance on open", () => {
-    expect(officeLegacyTarget("board")).toEqual({ to: "/admin/jobs/active" });
+    expect(officeLegacyTarget("board")).toEqual({ to: "/admin/jobs/ours" });
     expect(existsSync("src/routes/_authenticated/admin.board.tsx")).toBe(false);
   });
 

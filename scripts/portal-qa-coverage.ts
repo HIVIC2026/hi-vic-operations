@@ -10,7 +10,7 @@ export function uiRouteInventory(source: string): RouteCoverage[] {
 }
 export const READ_ONLY_PATHS = [
   '/', '/calculator', '/privacy', '/auth',
-  '/admin/jobs/active', '/admin/jobs/closed', '/admin/enquiries',
+  '/admin/jobs/ours', '/admin/jobs/installers', '/admin/jobs/closed', '/admin/enquiries',
   '/admin/templates',
   '/admin/money',
   '/field', '/field/money', '/field/business', '/field/business/details', '/field/business/insurance',

@@ -102,8 +102,9 @@ describe("New from installers (no manual 'seen' step)", () => {
     expect(fns).not.toMatch(/\.insert\(|\.update\(|\.delete\(|sendMessage|logEvent\(/);
     const panel = readFileSync("src/components/portal/NewFromInstallers.tsx", "utf8");
     expect(panel).not.toMatch(/Mark seen|markInstallerJobsSeen/);
-    // One pile (0218): New from installers lives only on Jobs › Active (Today's brief retired, decision 218).
-    expect(readFileSync("src/components/portal/JobsScreen.tsx", "utf8")).toContain("<NewFromInstallers />");
+    // Jobs pages redesign (28 Oct 2026): the "New from installers" fold is removed from the Jobs pages (Today's brief retired, decision 218).
+    expect(readFileSync("src/components/portal/JobsScreen.tsx", "utf8")).not.toContain("<NewFromInstallers />");
+    expect(readFileSync("src/components/portal/JobsLaneScreen.tsx", "utf8")).not.toContain("<NewFromInstallers />");
     expect(officeLegacyTarget("today")).toEqual({ to: "/admin/needs-me" });
   });
 });

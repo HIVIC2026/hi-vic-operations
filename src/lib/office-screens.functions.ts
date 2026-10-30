@@ -5,9 +5,10 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin, WorkflowError } from "./workflow.server";
 import { requireOfficeJob, requireOfficeIdentity, officeTestJobIds } from "./qa-office-access.server";
-import { HEARD_CHIPS, INSULATION_CHIPS, REGION_CHIPS, SIZE_CHIPS, SOURCE_CHIPS } from "./office-filters.core";
-import { JOBS_STAGE_KEYS } from "./office-jobs.core";
+import { HEARD_CHIPS, INSULATION_CHIPS } from "./office-filters.core";
+import { JOBS_STAGE_KEYS, type JobsStage } from "./office-jobs.core";
 import { ENQUIRY_VIEWS } from "./enquiry-categories.core";
+import type { JobsListParams } from "./office-lists.server";
 
 const uuid = z.string().uuid();
 const range = z.object({ min: z.number().finite().min(0).optional(), max: z.number().finite().min(0).optional() }).optional();
@@ -17,16 +18,12 @@ const columnFilters = z.object({
   size: range, estimate: range,
   insulation: z.array(z.enum(INSULATION_CHIPS)).max(3).optional(), heard: z.array(z.enum(HEARD_CHIPS)).max(4).optional(),
 }).default({});
-const chips = z.object({
-  insulation: z.array(z.enum(INSULATION_CHIPS)).max(3).optional(),
-  size: z.array(z.enum(SIZE_CHIPS)).max(4).optional(),
-  region: z.array(z.enum(REGION_CHIPS)).max(6).optional(),
-  source: z.array(z.enum(SOURCE_CHIPS)).max(4).optional(),
-  heard: z.array(z.enum(HEARD_CHIPS)).max(4).optional(),
-  stage: z.array(z.enum(JOBS_STAGE_KEYS as [string, ...string[]])).max(6).optional(),
-  installer: z.array(z.string().max(200)).max(40).optional(),
-  suburb: z.string().max(80).optional(),
-  ownJobs: z.boolean().optional(),
+/** Jobs pages: per-column filters (text / min–max / picks), the shape of JobsColumnFilters. */
+const jobsFilters = z.object({
+  job: z.string().max(40).optional(), owner: z.string().max(80).optional(), suburb: z.string().max(80).optional(),
+  next: z.array(z.string().max(200)).max(40).optional(), stage: z.array(z.enum(JOBS_STAGE_KEYS as [JobsStage, ...JobsStage[]])).max(6).optional(),
+  insulation: z.array(z.enum(["yes", "no"])).max(2).optional(), installer: z.array(z.string().max(200)).max(40).optional(),
+  heard: z.array(z.enum(HEARD_CHIPS)).max(4).optional(), days: range, area: range, cost: range,
 }).default({});
 const reason = z.string().trim().min(3).max(500);
 const tell = { tellOwner: z.boolean().default(false), tellInstaller: z.boolean().default(false) };
@@ -84,19 +81,29 @@ export const getEnquiriesList = createServerFn({ method: "POST" }).middleware([r
 
 export const getActiveJobsList = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({
+    lane: z.enum(["ours", "installer"]).default("ours"), needsUs: z.boolean().default(false),
     search: z.string().max(120).default(""), sort: z.string().max(20).default(""), dir: z.enum(["asc", "desc"]).default("desc"),
-    page: z.number().int().min(1).max(10_000).default(1), filters: chips, includeTest: z.boolean().default(false), refresh: z.boolean().default(false),
+    page: z.number().int().min(1).max(10_000).default(1), filters: jobsFilters, includeTest: z.boolean().default(false), refresh: z.boolean().default(false),
   }).parse(d))
   .handler(async ({ data, context }) => {
     if (await requireOfficeIdentity(context.supabase) === "qa_office") {
       const ids = await officeTestJobIds(context.supabase);
       const { loadActiveJobsList } = await import("./office-lists.server");
-      return { ...await loadActiveJobsList(data, ids), computedAt: new Date().toISOString(), refreshing: false, fromCopy: false };
+      return { ...await loadActiveJobsList(data as JobsListParams, ids), computedAt: new Date().toISOString(), refreshing: false, fromCopy: false };
     }
     // Decision 383: the default first page comes from the saved copy (`refresh` = the office just acted: work it out now).
     const { getActiveJobsListServed } = await import("./office-needs-snapshot.server");
     const { refresh, ...params } = data;
-    return getActiveJobsListServed(params, refresh);
+    return getActiveJobsListServed(params as JobsListParams, refresh);
+  });
+
+/** Jobs pages: how many active jobs sit in each lane (tab badges). Real jobs only; the TEST office counts its own test jobs. */
+export const getJobsLaneCounts = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({}).parse(d ?? {}))
+  .handler(async ({ context }) => {
+    const { loadJobsLaneCounts } = await import("./office-lists.server");
+    if (await requireOfficeIdentity(context.supabase) === "qa_office") return loadJobsLaneCounts(await officeTestJobIds(context.supabase));
+    return loadJobsLaneCounts();
   });
 
 /** Decision 227: Cancel at any time (one job). */

@@ -33,17 +33,19 @@ describe("office read budgets (synthetic, counts only)", () => {
   test("Jobs › Active", async () => {
     fresh();
     const { loadActiveJobsList } = await import("@/lib/office-lists.server");
-    const t = Date.now(); await loadActiveJobsList({ search: "", sort: "", dir: "desc", page: 1, filters: {}, includeTest: false }); const s = report("jobs-active", Date.now() - t);
+    const t = Date.now(); await loadActiveJobsList({ lane: "ours", search: "", sort: "", dir: "desc", page: 1, filters: {}, needsUs: false, includeTest: false }); const s = report("jobs-active", Date.now() - t);
     expect(s.writes).toEqual([]);
     // Baseline 157 requests in 34 sequential waves (one loadOffice per 150 jobs, one after another); then one loadOffice
     // (110 requests, 4 waves). Decision 383: status facts only, for the page shown, in one wave → 38 requests, 3 waves.
-    expect(s.requests).toBeLessThanOrEqual(45);
+    // Jobs pages redesign: every lane row's status is read, plus measurements, quotes, estimates and the auto-offer switch
+    // in the first wave → measured 65 requests, still 3 waves, on the synthetic office.
+    expect(s.requests).toBeLessThanOrEqual(70);
     expect(s.waves).toBeLessThanOrEqual(3);
   }, 120_000);
   test("Jobs › Active with a search (every status line is read)", async () => {
     fresh();
     const { loadActiveJobsList } = await import("@/lib/office-lists.server");
-    const t = Date.now(); await loadActiveJobsList({ search: "hv-", sort: "", dir: "desc", page: 1, filters: {}, includeTest: false }); const s = report("jobs-active-search", Date.now() - t);
+    const t = Date.now(); await loadActiveJobsList({ lane: "ours", search: "hv-", sort: "", dir: "desc", page: 1, filters: {}, needsUs: false, includeTest: false }); const s = report("jobs-active-search", Date.now() - t);
     expect(s.writes).toEqual([]);
     expect(s.requests).toBeLessThanOrEqual(80);
     expect(s.waves).toBeLessThanOrEqual(3);
@@ -64,26 +66,32 @@ describe("office read budgets (synthetic, counts only)", () => {
     const { getActiveJobsListServed, getEnquiriesListServed } = await import("@/lib/office-needs-snapshot.server");
     // Seed the copies straight into the synthetic table the counter reads.
     current = makeCounterDb({ ...officeTables(N), office_needs_snapshot: [
-      { key: "jobs_active:first", payload: { rows: [], page: 1, totalPages: 1, total: 0, pageSize: 50, all: 0, stageCounts: {}, ownCount: 0, installers: [] }, computed_at: at, refreshing_at: null },
+      { key: "jobs_ours:first", payload: { rows: [], page: 1, totalPages: 1, total: 0, pageSize: 50, all: 0, nextSteps: [], installers: [] }, computed_at: at, refreshing_at: null },
+      { key: "jobs_installer:first", payload: { rows: [], page: 1, totalPages: 1, total: 0, pageSize: 50, all: 0, nextSteps: [], installers: [] }, computed_at: at, refreshing_at: null },
       { key: "enquiries:first", payload: { rows: [], page: 1, totalPages: 1, total: 0, pageSize: 50, counts: { open: 0, incompleteAddresses: 0 } }, computed_at: at, refreshing_at: null },
     ] }, { rtt: 5, perRow: 0, maxIn: 200 });
-    const j = await getActiveJobsListServed({ search: "", sort: "", dir: "desc", page: 1, filters: {}, includeTest: false });
+    const ji = await getActiveJobsListServed({ lane: "installer", search: "", sort: "", dir: "desc", page: 1, filters: {}, needsUs: false, includeTest: false });
+    expect(ji.fromCopy).toBe(true);
+    const j = await getActiveJobsListServed({ lane: "ours", search: "", sort: "", dir: "desc", page: 1, filters: {}, needsUs: false, includeTest: false });
     expect(j.fromCopy).toBe(true);
     const e = await getEnquiriesListServed({ search: "", sort: "", dir: "asc", page: 1, filters: {} });
     expect(e.fromCopy).toBe(true);
     const s = report("lists-from-copy", 0);
-    expect(s.requests).toBe(2); // one per screen
+    expect(s.requests).toBe(3); // one per lane + one for Enquiries
     expect(s.writes).toEqual([]);
   }, 120_000);
-  test("decision 383: page-only status lines equal the every-job status lines", async () => {
+  test("decision 383: next steps are filled for every row, with or without a search", async () => {
     fresh();
     const { loadActiveJobsList } = await import("@/lib/office-lists.server");
-    const base = { sort: "", dir: "desc" as const, page: 1, filters: {}, includeTest: false };
-    const pageOnly = await loadActiveJobsList({ ...base, search: "" });
-    const every = await loadActiveJobsList({ ...base, search: "hv-" }); // matches every job number, same order
-    expect(every.total).toBe(pageOnly.total);
-    expect(pageOnly.rows.map((r) => r.status).filter((x) => x === "")).toEqual([]);
-    expect(pageOnly.rows).toEqual(every.rows);
+    // Every lane row now has its next step worked out (one loadOffice call), so the search view and the plain view agree.
+    for (const lane of ["ours", "installer"] as const) {
+      const base = { lane, sort: "", dir: "desc" as const, page: 1, filters: {}, needsUs: false, includeTest: false };
+      const plain = await loadActiveJobsList({ ...base, search: "" });
+      const every = await loadActiveJobsList({ ...base, search: "hv-" }); // matches every job number, same order
+      expect(every.total).toBe(plain.total);
+      expect(plain.rows.map((r) => r.next.text).filter((x) => !x)).toEqual([]);
+      expect(plain.rows).toEqual(every.rows);
+    }
   }, 120_000);
   test("decision 383: loadOffice statusOnly gives the same status as the full read", async () => {
     fresh();

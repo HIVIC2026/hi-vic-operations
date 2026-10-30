@@ -61,7 +61,7 @@ function Settings() {
       {tab === "switches" && <Switches />}
       {tab === "rules" && <section data-why="decisions 220, 238, 2, 141, 120, 130, 158, 246"><TabCaption>What the portal does on its own</TabCaption>
         <OfficeTable why="read-only list of automatic rules" head={["Rule", "What happens"]}>{AUTOMATIC_RULES.map((r) => <tr key={r.rule} data-why={r.why}><td className="font-semibold">{r.rule}</td><td>{r.what}</td></tr>)}</OfficeTable><RepeatPiesaPriceCard /></section>}
-      {tab === "mitti" && <section className="space-y-5" data-why="Mitti-first pickup rule; 205/206/210 form items"><TabCaption>The Mitti forms the portal reads · forms started in Mitti become jobs every 15 minutes (switch under Switches); ones that can't be matched wait on Jobs › Ready Checks started in Mitti.</TabCaption><MittiFormsSection /><MeasurementStandardCard /></section>}
+      {tab === "mitti" && <section className="space-y-5" data-why="Mitti-first pickup rule; 205/206/210 form items"><TabCaption>The Mitti forms the portal reads · forms started in Mitti become jobs every 15 minutes (switch under Switches); ones that can't be matched wait on Installer jobs › Mitti forms to sort out.</TabCaption><MittiFormsSection /><MeasurementStandardCard /></section>}
       {tab === "esc" && <section data-why="decisions 118b/121/195; Activity Guide Appendix A Table 5"><TabCaption>What goes in the VEU Registry install notification, and where each value comes from</TabCaption><EscConfigSection /></section>}
       {tab === "xero" && <XeroTab />}
       {tab === "users" && <UsersTab />}

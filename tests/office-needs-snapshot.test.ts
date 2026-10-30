@@ -42,7 +42,7 @@ describe("decision 382: Needs me saved copy", () => {
     expect(listSnapshotPlan(10_000)).toBe("serve");
     expect(listSnapshotPlan(NEEDS_FRESH_MS + 1)).toBe("serve_and_refresh");
     expect(listSnapshotPlan(null)).toBe("compute_now");
-    expect(LIST_SNAPSHOT_KEYS).toEqual({ jobs: "jobs_active:first", enquiries: "enquiries:first" });
+    expect(LIST_SNAPSHOT_KEYS).toEqual({ jobsOurs: "jobs_ours:first", jobsInstaller: "jobs_installer:first", enquiries: "enquiries:first" });
   });
   test("decision 383: after a change in this tab the opening view asks for a fresh page until one comes back", async () => {
     const asked: boolean[] = [];
@@ -58,9 +58,9 @@ describe("decision 382: Needs me saved copy", () => {
   });
   test("decision 383 wired: server fns, screens, tick, useAction", () => {
     const fns = readFileSync("src/lib/office-screens.functions.ts", "utf8");
-    expect(fns).toContain("getActiveJobsListServed(params, refresh)");
+    expect(fns).toContain("getActiveJobsListServed(params as JobsListParams, refresh)");
     expect(fns).toContain("getEnquiriesListServed(params, refresh)");
-    expect(readFileSync("src/components/portal/JobsScreen.tsx", "utf8")).toContain('readOfficeList("jobs"');
+    expect(readFileSync("src/components/portal/JobsLaneScreen.tsx", "utf8")).toContain('readOfficeList("jobs"');
     expect(readFileSync("src/components/portal/EnquiriesScreen.tsx", "utf8")).toContain('readOfficeList("enquiries"');
     expect(readFileSync("src/routes/api/public/hooks/allocation-tick.ts", "utf8")).toContain("refreshListSnapshots()");
     expect(readFileSync("src/hooks/use-me.ts", "utf8")).toContain("markOfficeChanged()");

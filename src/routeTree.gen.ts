@@ -83,6 +83,8 @@ import { Route as AuthenticatedAdminJobsJobIdRouteImport } from './routes/_authe
 import { Route as AuthenticatedAdminJobsActiveRouteImport } from './routes/_authenticated/admin.jobs.active'
 import { Route as AuthenticatedAdminJobsChooseInstallerRouteImport } from './routes/_authenticated/admin.jobs.choose-installer'
 import { Route as AuthenticatedAdminJobsClosedRouteImport } from './routes/_authenticated/admin.jobs.closed'
+import { Route as AuthenticatedAdminJobsInstallersRouteImport } from './routes/_authenticated/admin.jobs.installers'
+import { Route as AuthenticatedAdminJobsOursRouteImport } from './routes/_authenticated/admin.jobs.ours'
 import { Route as AuthenticatedFieldBusinessAgreementRouteImport } from './routes/_authenticated/field.business_.agreement'
 import { Route as AuthenticatedFieldBusinessBankRouteImport } from './routes/_authenticated/field.business_.bank'
 import { Route as AuthenticatedFieldBusinessDetailsRouteImport } from './routes/_authenticated/field.business_.details'
@@ -511,6 +513,18 @@ const AuthenticatedAdminJobsClosedRoute =
     path: '/closed',
     getParentRoute: () => AuthenticatedAdminJobsRoute,
   } as any)
+const AuthenticatedAdminJobsInstallersRoute =
+  AuthenticatedAdminJobsInstallersRouteImport.update({
+    id: '/installers',
+    path: '/installers',
+    getParentRoute: () => AuthenticatedAdminJobsRoute,
+  } as any)
+const AuthenticatedAdminJobsOursRoute =
+  AuthenticatedAdminJobsOursRouteImport.update({
+    id: '/ours',
+    path: '/ours',
+    getParentRoute: () => AuthenticatedAdminJobsRoute,
+  } as any)
 const AuthenticatedFieldBusinessAgreementRoute =
   AuthenticatedFieldBusinessAgreementRouteImport.update({
     id: '/business_/agreement',
@@ -780,6 +794,8 @@ export interface FileRoutesByFullPath {
   '/admin/jobs/active': typeof AuthenticatedAdminJobsActiveRoute
   '/admin/jobs/choose-installer': typeof AuthenticatedAdminJobsChooseInstallerRoute
   '/admin/jobs/closed': typeof AuthenticatedAdminJobsClosedRoute
+  '/admin/jobs/installers': typeof AuthenticatedAdminJobsInstallersRoute
+  '/admin/jobs/ours': typeof AuthenticatedAdminJobsOursRoute
   '/field/business/agreement': typeof AuthenticatedFieldBusinessAgreementRoute
   '/field/business/bank': typeof AuthenticatedFieldBusinessBankRoute
   '/field/business/details': typeof AuthenticatedFieldBusinessDetailsRoute
@@ -884,6 +900,8 @@ export interface FileRoutesByTo {
   '/admin/jobs/active': typeof AuthenticatedAdminJobsActiveRoute
   '/admin/jobs/choose-installer': typeof AuthenticatedAdminJobsChooseInstallerRoute
   '/admin/jobs/closed': typeof AuthenticatedAdminJobsClosedRoute
+  '/admin/jobs/installers': typeof AuthenticatedAdminJobsInstallersRoute
+  '/admin/jobs/ours': typeof AuthenticatedAdminJobsOursRoute
   '/field/business/agreement': typeof AuthenticatedFieldBusinessAgreementRoute
   '/field/business/bank': typeof AuthenticatedFieldBusinessBankRoute
   '/field/business/details': typeof AuthenticatedFieldBusinessDetailsRoute
@@ -994,6 +1012,8 @@ export interface FileRoutesById {
   '/_authenticated/admin/jobs/active': typeof AuthenticatedAdminJobsActiveRoute
   '/_authenticated/admin/jobs/choose-installer': typeof AuthenticatedAdminJobsChooseInstallerRoute
   '/_authenticated/admin/jobs/closed': typeof AuthenticatedAdminJobsClosedRoute
+  '/_authenticated/admin/jobs/installers': typeof AuthenticatedAdminJobsInstallersRoute
+  '/_authenticated/admin/jobs/ours': typeof AuthenticatedAdminJobsOursRoute
   '/_authenticated/field/business_/agreement': typeof AuthenticatedFieldBusinessAgreementRoute
   '/_authenticated/field/business_/bank': typeof AuthenticatedFieldBusinessBankRoute
   '/_authenticated/field/business_/details': typeof AuthenticatedFieldBusinessDetailsRoute
@@ -1104,6 +1124,8 @@ export interface FileRouteTypes {
     | '/admin/jobs/active'
     | '/admin/jobs/choose-installer'
     | '/admin/jobs/closed'
+    | '/admin/jobs/installers'
+    | '/admin/jobs/ours'
     | '/field/business/agreement'
     | '/field/business/bank'
     | '/field/business/details'
@@ -1208,6 +1230,8 @@ export interface FileRouteTypes {
     | '/admin/jobs/active'
     | '/admin/jobs/choose-installer'
     | '/admin/jobs/closed'
+    | '/admin/jobs/installers'
+    | '/admin/jobs/ours'
     | '/field/business/agreement'
     | '/field/business/bank'
     | '/field/business/details'
@@ -1317,6 +1341,8 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/jobs/active'
     | '/_authenticated/admin/jobs/choose-installer'
     | '/_authenticated/admin/jobs/closed'
+    | '/_authenticated/admin/jobs/installers'
+    | '/_authenticated/admin/jobs/ours'
     | '/_authenticated/field/business_/agreement'
     | '/_authenticated/field/business_/bank'
     | '/_authenticated/field/business_/details'
@@ -1927,6 +1953,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminJobsClosedRouteImport
       parentRoute: typeof AuthenticatedAdminJobsRoute
     }
+    '/_authenticated/admin/jobs/installers': {
+      id: '/_authenticated/admin/jobs/installers'
+      path: '/installers'
+      fullPath: '/admin/jobs/installers'
+      preLoaderRoute: typeof AuthenticatedAdminJobsInstallersRouteImport
+      parentRoute: typeof AuthenticatedAdminJobsRoute
+    }
+    '/_authenticated/admin/jobs/ours': {
+      id: '/_authenticated/admin/jobs/ours'
+      path: '/ours'
+      fullPath: '/admin/jobs/ours'
+      preLoaderRoute: typeof AuthenticatedAdminJobsOursRouteImport
+      parentRoute: typeof AuthenticatedAdminJobsRoute
+    }
     '/_authenticated/field/business_/agreement': {
       id: '/_authenticated/field/business_/agreement'
       path: '/business/agreement'
@@ -2166,6 +2206,8 @@ interface AuthenticatedAdminJobsRouteChildren {
   AuthenticatedAdminJobsActiveRoute: typeof AuthenticatedAdminJobsActiveRoute
   AuthenticatedAdminJobsChooseInstallerRoute: typeof AuthenticatedAdminJobsChooseInstallerRoute
   AuthenticatedAdminJobsClosedRoute: typeof AuthenticatedAdminJobsClosedRoute
+  AuthenticatedAdminJobsInstallersRoute: typeof AuthenticatedAdminJobsInstallersRoute
+  AuthenticatedAdminJobsOursRoute: typeof AuthenticatedAdminJobsOursRoute
 }
 
 const AuthenticatedAdminJobsRouteChildren: AuthenticatedAdminJobsRouteChildren =
@@ -2175,6 +2217,9 @@ const AuthenticatedAdminJobsRouteChildren: AuthenticatedAdminJobsRouteChildren =
     AuthenticatedAdminJobsChooseInstallerRoute:
       AuthenticatedAdminJobsChooseInstallerRoute,
     AuthenticatedAdminJobsClosedRoute: AuthenticatedAdminJobsClosedRoute,
+    AuthenticatedAdminJobsInstallersRoute:
+      AuthenticatedAdminJobsInstallersRoute,
+    AuthenticatedAdminJobsOursRoute: AuthenticatedAdminJobsOursRoute,
   }
 
 const AuthenticatedAdminJobsRouteWithChildren =

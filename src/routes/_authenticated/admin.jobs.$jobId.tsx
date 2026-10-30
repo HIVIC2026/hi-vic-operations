@@ -54,7 +54,7 @@ function JobPageRoute() {
   const h = data.header;
   return (
     <AppShell>
-      <JobHeader h={h} more={<JobMoreMenu h={h} cancelOpen={cancelOpen} setCancelOpen={setCancelOpen} onDeleted={() => void navigate({ to: "/admin/jobs/active" })} />} />
+      <JobHeader h={h} more={<JobMoreMenu h={h} cancelOpen={cancelOpen} setCancelOpen={setCancelOpen} onDeleted={() => void navigate({ to: "/admin/jobs/ours" })} />} />
       <NextPanel next={data.next} onGo={(k) => go(k)} />
       {!qaOffice && <RepeatPiesaPanel jobId={jobId} />}
       <StageCards cards={data.cards} open={open} onOpen={(k) => (open === k ? setOpen(null) : go(k))} />

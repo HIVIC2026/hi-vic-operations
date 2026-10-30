@@ -23,7 +23,6 @@ test("screens use the honest states", () => {
   expect(money).not.toContain(": \"…\"}");
   expect(money).toContain("tileText(");
   const jobs = src("src/components/portal/JobsScreen.tsx");
-  expect(jobs).toContain("pileCount(");
   expect(jobs).not.toContain('picks.isError ? "?"');
   expect(jobs).toMatch(/Closed jobs[\s\S]{0,200}retry|what="Closed jobs"/);
   const settings = src("src/routes/_authenticated/admin.settings.tsx");
