@@ -27,7 +27,7 @@ import * as paymentsServer from "./payments.server";
 import * as installAttendanceServer from "./install-attendance.server";
 import * as installAttendanceCore from "./install-attendance.core";
 import { electricalClearance } from "./allocation.core";
-import { needsFinishingTask, installerAttendanceLine } from "./trade-view.core";
+import { needsFinishingTask, installerAttendanceLine, historicalReadyCheckDay, couldntGetInDay } from "./trade-view.core";
 import { needsFinishingList } from "./installer-screens.core";
 import { currentAllocation } from "./visit-allocation.core";
 import { isStepPaid } from "./payments.core";
@@ -36,6 +36,12 @@ const loadInstallerQuote = (jobId: string) => quoteStatusServer.loadInstallerQuo
 // Namespace imports: several tests replace these modules with partial mocks; a namespace never fails on a missing export.
 import * as quoteStatusServer from "./installer-quote-status.server";
 import * as installerPriceServer from "./installer-price.server";
+// Speed (installer screens, Task 7): the day screen's pure modules load once at module scope (namespace imports, read at call
+// time). The day's server modules (fixes-day, official-forms, swms) stay lazy imports: their own dependencies (node:crypto,
+// data files) are not available to the test loader that loads this file, and a cached import() costs no database round.
+import * as officialFormsCore from "./official-forms.core";
+import * as enquiryCore from "./enquiry.core";
+import * as eligibilityCore from "./eligibility.core";
 const loadInstallerQuotes = (ids: string[]) => quoteStatusServer.loadInstallerQuotes(ids);
 const readInstallerPrices = (ids: string[]) => installerPriceServer.readInstallerPrices(ids);
 
@@ -361,7 +367,11 @@ export async function requireTradeJob(userId: string, jobId: string, pre?: Trade
 export async function tradeDay(jobId: string, userId: string) {
   const c = await requireTradeJob(userId, jobId);
   const kinds = c.kind === "installer" ? ["installation", "ready_check"] : ["assessment", "rectification"];
-  // Speed (decision 280): every read here depends only on the job and the business — one round trip, not three.
+  // Speed (installer screens, Task 7): two rounds for the installer's day — (1) the one access check, (2) every read below in
+  // one round trip (decision 280). The install form's Mitti id is read in that same round whenever it could be shown (an
+  // installer business with "Mitti account invited"), and used only on an install day — two small read-only reads that a
+  // Ready Check day drops. An electrician's fixes form still waits for the day kind (its own chain).
+  const installFormP = c.kind === "installer" && c.biz.mitti_account_invited === true ? early(installFormFacts(jobId)) : null;
   const [{ data: bks }, { data: j }, { data: a }, { data: rc }, { data: cm }, { data: miss }, { data: fixes }, { data: mine }, { data: cgi }] = await Promise.all([
     admin.from("bookings").select("kind, scheduled_start, scheduled_end, status").eq("job_id", jobId).in("kind", kinds as never).neq("status", "cancelled").order("scheduled_start", { ascending: false }),
     admin.from("jobs").select("job_number, stage, channel, eligibility_outcome, owners(full_name, phone), properties(address_line, suburb, postcode)").eq("id", jobId).single(),
@@ -374,13 +384,12 @@ export async function tradeDay(jobId: string, userId: string) {
     admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "trade_couldnt_get_in").order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
   const b = (bks ?? [])[0] ?? null;
-  const { historicalReadyCheckDay, couldntGetInDay } = await import("./trade-view.core");
+  const dayKind: DayKind = b?.kind === "rectification" ? "fixes" : b?.kind === "installation" ? "install" : b?.kind === "ready_check" ? "ready_check" : "safety_check";
   const cgiD = cgi?.details as { reason?: string; visit?: string } | null;
   const cgiNow = couldntGetInDay({ stage: j?.stage ?? null, last: cgi ? cgiD : null });
   const historicalVisit = !cgiNow && c.kind === "installer" && historicalReadyCheckDay(j?.stage ?? null, b?.kind ?? null);
   const showContact = contactVisible(mine ?? []);
-  const dayKind: DayKind = b?.kind === "rectification" ? "fixes" : b?.kind === "installation" ? "install" : b?.kind === "ready_check" ? "ready_check" : "safety_check";
-  const installMittiId = dayKind === "install" && c.biz.mitti_account_invited === true ? (await installFormFacts(jobId)).auditId : null;
+  const installMittiId = dayKind === "install" && c.biz.mitti_account_invited === true && installFormP ? (await installFormP).auditId : null;
   const fixesMittiId = dayKind === "fixes" && c.biz.mitti_account_invited === true ? (await (await import("./fixes-day.server")).fixesFormState(jobId)).auditId : null;
   const p = j?.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
   const ow = j?.owners as { full_name: string | null; phone: string | null } | null;
@@ -389,7 +398,7 @@ export async function tradeDay(jobId: string, userId: string) {
   if (cgiNow) outcome = { kind: "couldnt_get_in", ...cgiNow };
   else if (dayKind === "safety_check" && a?.status === "complete") outcome = a.piesa_outcome === "pass" ? { kind: "all_clear" } : { kind: "fixes", items: (fixes ?? []).map((f) => f.description) };
   else if (dayKind === "ready_check" && (rc?.status === "submitted" || j?.stage === "ready_check_complete" || j?.stage === "measured_estimate_ready" || j?.stage === "measured_quote_accepted")) outcome = j?.eligibility_outcome === "does_not_appear_eligible" ? { kind: "not_eligible", reason: "Existing insulation doesn't qualify for this rebate." } : { kind: "quoted" };
-  else if (dayKind === "install" && ["evidence_outstanding", "ap_review", "ready_for_veec", "complete"].includes(j?.stage ?? "")) { const open = (await import("./ready-check-chase.core")).withoutRetiredInstallDayPhotos(miss ?? []); outcome = open.length ? { kind: "missing", items: open.map((m) => m.label) } : { kind: "wrap" }; }
+  else if (dayKind === "install" && ["evidence_outstanding", "ap_review", "ready_for_veec", "complete"].includes(j?.stage ?? "")) { const open = withoutRetiredInstallDayPhotos(miss ?? []); outcome = open.length ? { kind: "missing", items: open.map((m) => m.label) } : { kind: "wrap" }; }
   const shownKind = cgiNow ? (cgiNow.visit === "install" ? "install" : "ready_check") : dayKind;
   return {
     historicalVisit,
@@ -984,11 +993,9 @@ export async function setMittiInvited(actorId: string, businessId: string, invit
 /** The signed PIESA says an electrician must be present at the start (B1 "rectification not possible"). */
 async function piesaNeedsElectricianAtStart(jobId: string): Promise<boolean> {
   try {
-    const { currentCopy } = await import("./official-forms.server");
-    const { answersFromDocument, B1_OPTIONS } = await import("./official-forms.core");
-    const pe = await currentCopy(jobId, "piesa");
+    const pe = await (await import("./official-forms.server")).currentCopy(jobId, "piesa");
     if (!pe.copy) return false;
-    return (answersFromDocument(pe.copy.snapshot.document) as Record<string, unknown>)["b1"] === B1_OPTIONS[2];
+    return (officialFormsCore.answersFromDocument(pe.copy.snapshot.document) as Record<string, unknown>)["b1"] === officialFormsCore.B1_OPTIONS[2];
   } catch { return false; }
 }
 
@@ -1120,38 +1127,42 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
 
 /** Today's job extras (M4): the job facts and own pay, the electrician-on-site rule, install form state. */
 export async function tradeDayExtras(jobId: string, userId: string) {
+  // Speed (installer screens, Task 7): every read that needs only the job id starts with the trade access check (one round);
+  // this business's own bookings and the electrician's name (only when the signed PIESA asks for them) follow it. The safety
+  // plan runs its own chain beside them (crew → staff → certifications). The access refusal is always awaited first; reads
+  // started before it are read-only and dropped when refused. Same reads, same value, same failure rules.
+  const jP = early(admin.from("jobs").select("channel, installation_completed_at").eq("id", jobId).single());
+  const mP = early(admin.from("ceiling_measurements").select("measured_area_m2, removal_m2, removal_required, access_difficulty").eq("job_id", jobId).eq("is_current", true).maybeSingle());
+  const qP = early(admin.from("quotes").select("status, created_at, quote_items(code, description, sort)").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted", "draft"]).order("created_at", { ascending: false }).limit(1).maybeSingle());
+  const rebateP = early(rebateSignedByInstaller(jobId));
+  const payP = early(installerPayForJob(jobId));
+  const formP = early(installFormFacts(jobId));
+  const needsElecP = early(piesaNeedsElectricianAtStart(jobId));
+  const dlP = early(admin.from("job_piesa_deadlines").select("install_deadline").eq("job_id", jobId).maybeSingle());
+  const allocP = early(admin.from("workflow_events").select("event_type, details, created_at").eq("job_id", jobId).eq("event_type", "visit_allocated").order("created_at", { ascending: false }));
+  const declP = early(admin.from("installer_declarations").select("installer_name, signed_at").eq("job_id", jobId).eq("status", "signed").order("signed_at", { ascending: false }).limit(1).maybeSingle());
+  const evEvP = early(admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "install_evidence_synced").order("created_at", { ascending: false }).limit(1).maybeSingle());
+  const saysP = early(ownerSaysFor(jobId));
+  const ownerRowP = early(admin.from("jobs").select("owners(full_name), properties(address_line, suburb)").eq("id", jobId).maybeSingle());
+  // Decision 261: the portal safety plan (SWMS) signed by everyone listed (display only: a failed read is "not complete").
+  // Lazy import (see the module-scope note); once loaded it resolves without a timer tick, so the reads start in round one.
+  const swmsP = early(import("./swms.server").then((m) => m.swmsStatusFor(jobId)));
   const c = await requireTradeJob(userId, jobId);
-  const [{ data: j }, { data: m }, { data: q }, rebateSigned, pay, form, needsElec] = await Promise.all([
-    admin.from("jobs").select("channel, installation_completed_at").eq("id", jobId).single(),
-    admin.from("ceiling_measurements").select("measured_area_m2, removal_m2, removal_required, access_difficulty").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
-    admin.from("quotes").select("status, created_at, quote_items(code, description, sort)").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted", "draft"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    rebateSignedByInstaller(jobId),
-    installerPayForJob(jobId),
-    installFormFacts(jobId),
-    piesaNeedsElectricianAtStart(jobId),
-  ]);
-  const { data: el } = needsElec ? await admin.from("job_assignments").select("profiles:user_id(full_name, phone)").eq("job_id", jobId).eq("role", "electrician").eq("active", true).limit(1).maybeSingle() : { data: null };
+  const mineBkP = early(admin.from("bookings").select("status").eq("job_id", jobId).eq("business_id", c.biz.id).in("kind", ["ready_check", "installation"] as never));
+  const elP = early(needsElecP.then(async (needsElec) => needsElec ? await admin.from("job_assignments").select("profiles:user_id(full_name, phone)").eq("job_id", jobId).eq("role", "electrician").eq("active", true).limit(1).maybeSingle() : { data: null }));
+  const [{ data: j }, { data: m }, { data: q }, rebateSigned, pay, form, needsElec] = await Promise.all([jP, mP, qP, rebateP, payP, formP, needsElecP]);
+  const { data: el } = await elP;
   const prof = (el?.profiles as unknown as { full_name: string | null; phone: string | null } | null) ?? null;
   const items = ((q?.quote_items as { code: string | null; description: string | null; sort: number | null }[] | null) ?? []).sort((x, y) => (x.sort ?? 0) - (y.sort ?? 0));
   const product = items.find((i) => !["PIESA", "AP_FEE", "INSTALLER_PRICE"].includes(i.code ?? "") && !/removal|safety assessment|accredited person/i.test(i.description ?? ""))?.description ?? null;
   // Approved M4 states: the 30-day end date (couldn't-get-in sheet), who the visit is allocated to, the owner's own
   // answers (Ready Check day "What we know"), the install form's Complete time and the PIISA signature (sign-rebate ticks).
-  const [{ data: dl }, { data: alloc }, { data: decl }, { data: evEv }, says, { data: ownerRow }, { data: mineBk }] = await Promise.all([
-    admin.from("job_piesa_deadlines").select("install_deadline").eq("job_id", jobId).maybeSingle(),
-    admin.from("workflow_events").select("event_type, details, created_at").eq("job_id", jobId).eq("event_type", "visit_allocated").order("created_at", { ascending: false }),
-    admin.from("installer_declarations").select("installer_name, signed_at").eq("job_id", jobId).eq("status", "signed").order("signed_at", { ascending: false }).limit(1).maybeSingle(),
-    admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "install_evidence_synced").order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    ownerSaysFor(jobId),
-    admin.from("jobs").select("owners(full_name), properties(address_line, suburb)").eq("id", jobId).maybeSingle(),
-    admin.from("bookings").select("status").eq("job_id", jobId).eq("business_id", c.biz.id).in("kind", ["ready_check", "installation"] as never),
-  ]);
-  const { currentAllocation } = await import("./visit-allocation.core");
+  const [{ data: dl }, { data: alloc }, { data: decl }, { data: evEv }, says, { data: ownerRow }, { data: mineBk }] = await Promise.all([dlP, allocP, declP, evEvP, saysP, ownerRowP, mineBkP]);
   const evs = (alloc ?? []) as { event_type: string; details: unknown; created_at: string }[];
   const allocated = currentAllocation(evs, "install")?.worker_name ?? currentAllocation(evs, "ready_check")?.worker_name ?? null;
   const evidence = (evEv?.details as { summary?: { blockers?: string[] }; blockers?: string[] } | null) ?? null;
   const blockers = evidence?.summary?.blockers ?? evidence?.blockers ?? null;
-  // Decision 261: the portal safety plan (SWMS) signed by everyone listed.
-  const swmsComplete = (await (await import("./swms.server")).swmsStatusFor(jobId))?.complete === true;
+  const swmsComplete = (await swmsP)?.complete === true;
   const showContact = contactVisible(mineBk ?? []);
   const ow = ownerRow?.owners as { full_name: string | null } | null;
   const p = ownerRow?.properties as { address_line: string | null; suburb: string | null } | null;
@@ -1171,9 +1182,7 @@ async function ownerSaysFor(jobId: string): Promise<{ areaM2: number | null; ins
   const { data: j } = await admin.from("jobs").select("estimated_area_m2, estimated_area_unknown, properties(enrichment)").eq("id", jobId).maybeSingle();
   const enrich = (j?.properties as { enrichment?: Record<string, unknown> | null } | null)?.enrichment ?? null;
   const b44 = (enrich?.["base44"] ?? {}) as { raw?: { answers?: Record<string, unknown> } };
-  const { declaredExtras } = await import("./enquiry.core");
-  const { normaliseInsulation } = await import("./eligibility.core");
-  const ins = normaliseInsulation(declaredExtras(b44.raw?.answers ?? null).existing_insulation);
+  const ins = eligibilityCore.normaliseInsulation(enquiryCore.declaredExtras(b44.raw?.answers ?? null).existing_insulation);
   const area = j?.estimated_area_unknown ? null : j?.estimated_area_m2 == null ? null : Number(j.estimated_area_m2);
   return { areaM2: Number.isFinite(area as number) && (area as number) > 0 ? area : null, insulation: ins === "none" ? "none" : ins === "present" ? "some" : ins === "unknown" ? "unknown" : null };
 }

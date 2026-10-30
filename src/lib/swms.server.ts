@@ -7,6 +7,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
 import { createHash } from "node:crypto";
+import { early } from "./early-read";
 import { buildSwms, checkSwmsSign, currentSignatures, swmsPlanFingerprintText, swmsRecordText, swmsStatus, type SwmsFacts, type SwmsPerson, type SwmsPlan, type SwmsSignature, type SwmsStatus } from "./swms.core";
 
 export const SWMS_SIGNED_EVENT = "swms_signed";
@@ -35,9 +36,13 @@ export function swmsPlanSha(plan: SwmsPlan): string {
 }
 
 export async function swmsFacts(jobId: string): Promise<SwmsFacts> {
-  const [{ data: job }, { data: asg }, { data: book }, { data: asm }, { data: note }, crew, { data: meas }, { data: piesa }] = await Promise.all([
+  // Speed (installer screens, Task 7): the installer business's name is read as soon as the assignment is known, beside the
+  // crew chain, not after it. Read-only; still used only once the job is found.
+  const asgP = early(admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle());
+  const bizP = early(asgP.then(async ({ data: asg }) => asg?.business_id ? await admin.from("businesses").select("name").eq("id", asg.business_id).maybeSingle() : { data: null }));
+  const [{ data: job }, , { data: book }, { data: asm }, { data: note }, crew, { data: meas }, { data: piesa }] = await Promise.all([
     admin.from("jobs").select("job_number, life_support_status, properties(address_line, suburb, postcode, year_built)").eq("id", jobId).maybeSingle(),
-    admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle(),
+    asgP,
     admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "installation").neq("status", "cancelled").order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
     admin.from("assessments").select("hazards, piesa_outcome").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", SWMS_NOTE_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle(),
@@ -47,7 +52,7 @@ export async function swmsFacts(jobId: string): Promise<SwmsFacts> {
     admin.from("piesa_records").select("outcome, rectification_completed_at").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
   ]);
   if (!job) throw new WorkflowError("Job not found.");
-  const { data: biz } = asg?.business_id ? await admin.from("businesses").select("name").eq("id", asg.business_id).maybeSingle() : { data: null };
+  const { data: biz } = await bizP;
   const prop = job.properties as { address_line: string | null; suburb: string | null; postcode: string | null; year_built: number | null } | null;
   const { melbourneDateOf } = await import("./install-evidence.server");
   const { swmsHouseFacts, swmsHouseLines, swmsHouseSteps } = await import("./swms-house.core");

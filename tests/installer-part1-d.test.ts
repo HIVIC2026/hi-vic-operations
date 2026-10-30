@@ -61,7 +61,10 @@ describe("D3 fix round: install day reads the install form", () => {
     const day = src("src/lib/trade-view.server.ts").slice(src("src/lib/trade-view.server.ts").indexOf("export async function tradeDay"));
     const end = day.indexOf("export async function tradeCouldntGetIn");
     const body = day.slice(0, end);
-    expect(body).toContain('dayKind === "install" && c.biz.mitti_account_invited === true ? (await installFormFacts(jobId)).auditId');
+    // Speed (Task 7): the install form facts are read in the day's one read round (installer + Mitti invited) and used only on
+    // an install day — still installFormFacts, still gated on the day kind and the Mitti tick.
+    expect(body).toContain('c.kind === "installer" && c.biz.mitti_account_invited === true ? early(installFormFacts(jobId)) : null');
+    expect(body).toContain('dayKind === "install" && c.biz.mitti_account_invited === true && installFormP ? (await installFormP).auditId');
     expect(body).toContain('dayKind === "install" ? installMittiId : a?.external_mitti_id');
   });
 });
