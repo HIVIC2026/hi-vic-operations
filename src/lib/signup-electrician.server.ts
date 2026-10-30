@@ -33,7 +33,8 @@ export async function carrySignupElectrician(businessId: string, actorId: string
 export async function sweepSignupNominationInvites(now = new Date()): Promise<{ checked: number; sent: number; skipped: number; failed: number }> {
   const out = { checked: 0, sent: 0, skipped: 0, failed: 0 };
   const { customerCommsEnabled } = await import("./comms.server");
-  const commsEnabled = await customerCommsEnabled();
+  // Jo 30 Oct 2026: "Pause all trade messages" counts as paused comms here (nothing claimed, retried next tick).
+  const commsEnabled = (await customerCommsEnabled()) && !(await (await import("./trade-pause.server")).tradeMessagesPausedNow());
   if (!commsEnabled) return out; // paused comms: nothing to do, retried next tick
   const { data: rows, error } = await admin.from("electrician_nominations")
     .select("id, installer_application_id, contact_name, business_name, email, rec_number, licence_number, status, invite_sent_at, invite_link_issued_at, business_id")

@@ -50,6 +50,9 @@ export async function textSwmsSignLinks(jobId: string, booking: { id: string; sc
     const { smsQuietReason } = await import("./quote-hold.core");
     const q = smsQuietReason(now.toISOString());
     if (q) return [`held: ${q}`];
+    // Jo 30 Oct 2026: "Pause all trade messages" — nothing prepared or claimed; the sweep sends once unpaused.
+    const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow();
+    if (tradePaused) return [`held: ${tradePaused}`];
   }
   const { loadSwms } = await import("./swms.server");
   const { swmsUnsignedSigners } = await import("./swms.core");

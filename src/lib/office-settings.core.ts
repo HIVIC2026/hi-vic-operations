@@ -15,7 +15,7 @@ export type SwitchDef =
   | { key: string; label: string; what: string; why: string; kind: "code"; value: boolean; where: string };
 
 /** The ONLY workflow_settings columns the Settings page may write. Anything else is refused server-side. */
-export const OFFICE_SWITCH_COLUMNS = ["customer_comms_enabled", "auto_installer_offers", "auto_electrician_offers", "mitti_pickup_auto_enabled", "mitti_instant_notice_enabled", "daily_mitti_text_enabled", "esc_registry_robot_enabled"] as const;
+export const OFFICE_SWITCH_COLUMNS = ["customer_comms_enabled", "auto_installer_offers", "auto_electrician_offers", "mitti_pickup_auto_enabled", "mitti_instant_notice_enabled", "daily_mitti_text_enabled", "esc_registry_robot_enabled", "trade_messages_paused"] as const;
 export type OfficeSwitchColumn = (typeof OFFICE_SWITCH_COLUMNS)[number];
 /** Columns that need a pending migration before they exist (fail closed: shown "waiting for the database change"). */
 export const PENDING_SWITCH_COLUMNS: Partial<Record<OfficeSwitchColumn, string>> = {
@@ -23,6 +23,7 @@ export const PENDING_SWITCH_COLUMNS: Partial<Record<OfficeSwitchColumn, string>>
   auto_electrician_offers: "docs/pending-migrations/auto-offer-switches.sql",
   esc_registry_robot_enabled: "docs/pending-migrations/esc-registry-robot-switch.sql",
   mitti_instant_notice_enabled: "docs/pending-migrations/mitti-instant-notice-switch.sql",
+  trade_messages_paused: "docs/pending-migrations/trade-messages-paused.sql",
 };
 
 export const SWITCHES: SwitchDef[] = [
@@ -30,6 +31,7 @@ export const SWITCHES: SwitchDef[] = [
   { key: "auto_installer_offers", label: "Automatic installer offers", what: "Offer goes to one installer covering the postcode (fewest active jobs, then nearest); 24h each; after 2 misses → Needs me", why: "decision 246", kind: "column", column: "auto_installer_offers", pendingMigration: PENDING_SWITCH_COLUMNS.auto_installer_offers },
   { key: "auto_electrician_offers", label: "Automatic electrician offers", what: "Nearest approved electrician covering the postcode (our leads); installer's own customers use the electrician chosen at Add a job; same 24h rule", why: "decisions 246/374", kind: "column", column: "auto_electrician_offers", pendingMigration: PENDING_SWITCH_COLUMNS.auto_electrician_offers },
   { key: "customer_comms", label: "Customer emails and texts", what: "The master switch for every owner email and text (each text type also needs its own switch below)", why: "decisions 159, 154", kind: "column", column: "customer_comms_enabled" },
+  { key: "trade_messages_paused", label: "Pause all trade messages", what: "On = the portal sends no texts or emails to installers, electricians or their teams. Most go out once you turn it off; day-before and same-day reminders are skipped. No new Mitti logins are made. Mitti's own emails about forms still come from Mitti. Owner messages, office alerts and sign-in codes still go", why: "Jo 30 Oct 2026", kind: "column", column: "trade_messages_paused", pendingMigration: PENDING_SWITCH_COLUMNS.trade_messages_paused },
   { key: "spot_saved", label: "Spot saved confirmation · text", what: "Text when a spot is saved", why: "decision 159; spot-saved-send rule", kind: "sms", smsType: "spot_saved" },
   { key: "spot_saved_email", label: "Spot saved confirmation · email", what: "Email when a spot is saved", why: "decision 159; spot-saved-send rule", kind: "sms", smsType: "spot_saved_email" },
   { key: "install_no_access", label: "We couldn't get in today", what: "Text after a no-access install day (email follows the same approval)", why: "decisions 215, 217", kind: "sms", smsType: "install_no_access" },

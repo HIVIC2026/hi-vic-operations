@@ -33,6 +33,11 @@ export async function textFixesTimesLink(jobId: string, i: { auditId: string; co
     // The assigned electrician's own mobile, else their business's (the same rule as the other trade texts).
     const to = asg?.profiles?.phone ?? asg?.businesses?.signer_mobile ?? asg?.businesses?.phone ?? null;
     const completedAt = i.completedAt ?? new Date().toISOString();
+    // Jo 30 Oct 2026: "Pause all trade messages" — held BEFORE the claim (TEST unchanged), so a later sync can still send it.
+    if (j.source !== "qa_test" && !(await import("./test-send.core")).isTestPartner(asg?.businesses ?? {})) {
+      const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow();
+      if (tradePaused) return `held: ${tradePaused}`;
+    }
     // Claimed once, before any send: a later sync, the tick or a re-sync finds this event and stops.
     await logEvent(jobId, null, FIXES_TIMES_LINK_EVENT, `Electrician texted the link to pick 3 to 5 electrical fixes times (decision 315) — text prepared${to ? "" : " (no electrician mobile on file)"}`, { key, audit_id: i.auditId, completed_at: completedAt, business_id: asg!.business_id, to }, { internal: true });
     if (!to) return "not sent: no electrician mobile";

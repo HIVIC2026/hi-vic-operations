@@ -100,6 +100,8 @@ export async function emailInstallerAboutOffer(offerId: string): Promise<string>
     const { CUSTOMER_BASE } = await import("./engagement.core");
     const mail = renderReadyCheckOfferEmail({ installerFirstName: first, suburb, areaM2, offerUrl: `${CUSTOMER_BASE}/field/offer/${offerId}` });
     const r = await (await import("./office-email.server")).sendOfficeEmail({ actorId: null as unknown as string, recipient: "partner", to, contactName: b?.signer_name ?? null, subject: mail.subject, message: mail.text, label: "job_offer_email", record: { businessId: o.business_id }, html: mail.html, text: mail.text });
+    // Jo 30 Oct 2026: a "Pause all trade messages" hold is recorded by the sender but never claims this offer's email.
+    if (r.status === "blocked" && (await import("./trade-pause.core")).isTradePauseHold(r.detail)) return `held: ${r.detail}`;
     status = r.status; detail = r.detail;
   }
   await logEvent(o.job_id, null, READY_CHECK_OFFER_EMAIL_EVENT, `Job offer email to ${b?.name ?? "installer"} (${status}: ${detail})`, { offer_id: o.id, business_id: o.business_id, status, to, version: READY_CHECK_OFFER_EMAIL_VERSION }, { internal: true });

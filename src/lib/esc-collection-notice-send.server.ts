@@ -68,6 +68,12 @@ export async function issueAndSendNoticeLink(p: { worker: NoticeWorkerRow; actor
   const now = p.now ?? new Date();
   const { data: b } = await admin.from("businesses").select("name, trading_name, onboarding_notes").eq("id", p.worker.business_id).maybeSingle();
   const test = isTestPartner(b);
+  // Jo 30 Oct 2026: "Pause all trade messages" — no link issued, nothing sent or recorded, so a paused attempt never
+  // counts as one of the 3 tries; the sweep (or the button) sends it once unpaused.
+  if (!test) {
+    const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow();
+    if (tradePaused) return { sms: { status: "blocked", detail: tradePaused }, email: { status: "blocked", detail: tradePaused }, attempt: p.attempt, paused: true as const };
+  }
   const token = newToken();
   const link = noticeLinkDetails({ businessId: p.worker.business_id, workerId: p.worker.id, workerEmail: p.worker.email, tokenHash: await hashToken(token), now });
   const { error } = await admin.from("admin_config_events").insert({ actor_id: p.actorId, event_type: COLLECTION_NOTICE_LINK_EVENT, summary: `ESC notice link issued to ${p.worker.full_legal_name} (attempt ${p.attempt})`, details: link });
@@ -138,7 +144,7 @@ export async function sweepCollectionNoticeLinks(now = new Date()) {
   for (const w of pending) {
     const plan = noticeSendPlan(history.get(w.id) ?? [], now);
     if (!plan) continue;
-    try { await issueAndSendNoticeLink({ worker: w, actorId: null, attempt: plan.attempt, reminder: plan.reminder, now }); sent++; }
+    try { const r = await issueAndSendNoticeLink({ worker: w, actorId: null, attempt: plan.attempt, reminder: plan.reminder, now }); if (!("paused" in r)) sent++; }
     catch (e) { failed++; console.error("esc notice link send failed", (e as Error).message); }
   }
   return { checked: workers.length, pending: pending.length, sent, failed };
