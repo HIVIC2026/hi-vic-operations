@@ -6,7 +6,7 @@ import { fullAddress, shortAddress } from "./address";
 import { isTestPartner } from "./test-send.core";
 import { offerTiming } from "./offer-timing.core";
 import { placeWorkJob, type WorkPlace } from "./work-places.core";
-import { COULDNT_GET_IN, offerMoney, electricianPayState, payState, type PayState, surname, type AreaSource, type InsulationNow, type TradeKind, type DayKind, SETUP_STEPS, type SetupKey, tradeJobAllowed, contactVisible, type AccessAssignment, type TeamMemberView, type BusinessNext, type CredentialView, type MittiLogin, latestExpiry, businessNext, type BusinessNextFacts, bankLine, installerPayHeldReasons, accountEnding } from "./trade-view.core";
+import { COULDNT_GET_IN, offerMoney, electricianPayState, payState, type PayState, surname, type AreaSource, type InsulationNow, type TradeKind, type DayKind, SETUP_STEPS, type SetupKey, tradeJobAllowed, contactVisible, type AccessAssignment, type TeamMemberView, type BusinessNext, type CredentialView, type MittiLogin, latestExpiry, businessNext, type BusinessNextFacts, bankLine, installerPayHeldReasons, accountEnding, ownerPaidInFullAt } from "./trade-view.core";
 import { crewClearance, CREW_CLEARANCE_REASON, melbourneToday } from "./worker-compliance.core";
 import type { UsualElectrician } from "./usual-electrician.core";
 import type { InstallerQuote } from "./installer-quote-status.server";
@@ -357,8 +357,18 @@ export async function requireTradeJob(userId: string, jobId: string, pre?: Trade
   if (pre && pre.checkedFor.userId === userId && pre.checkedFor.jobId === jobId) return pre;
   // Speed (installer screens, Task 6): the job's assignments need only the job id, so they are read alongside the sign-in
   // context — one round, not two. The sign-in refusal still wins (the context is awaited first).
-  const asgP = early(admin.from("job_assignments").select("job_id, business_id, user_id, active").eq("job_id", jobId).eq("active", true));
+  const asgP = jobAssignmentsRead(jobId);
   const c = await ctxOrThrow(userId);
+  return tradeJobAccess(c, userId, jobId, asgP);
+}
+
+/** The job's active assignments for the access check, started at once (see `early`). */
+function jobAssignmentsRead(jobId: string) {
+  return early(admin.from("job_assignments").select("job_id, business_id, user_id, active").eq("job_id", jobId).eq("active", true));
+}
+
+/** requireTradeJob's check on a context already read and the job's assignments read (a failed read = not assigned). */
+async function tradeJobAccess(c: NonNullable<Awaited<ReturnType<typeof tradeContext>>>, userId: string, jobId: string, asgP: ReturnType<typeof jobAssignmentsRead>): Promise<TradeJobAccess> {
   const { data } = await asgP;
   if (!tradeJobAllowed({ signedIn: true, userId, businessId: c.biz.id, boss: c.boss, jobId, assignments: (data ?? []) as AccessAssignment[] })) throw new WorkflowError("This job isn't assigned to you.");
   return { ...c, checkedFor: { userId, jobId } };
@@ -598,7 +608,13 @@ export async function partnerPayStates(bizId: string, kind: TradeKind, testOnly:
 export async function tradeMoney(userId: string) {
   const c = await ctxOrThrow(userId);
   if (!c.boss) throw new WorkflowError("Money is only shown to the business owner.");
-  const all = await tradeMoneyRows(c.biz.id, c.kind, c.isTest);
+  // Speed (installer screens, Task 8): the saved account is read with the money rows' first round (owner only, after the
+  // refusal above) instead of after them. Only the last 4 digits of the saved account: enough to recognise it, never the
+  // full number.
+  const [all, { data: bank }] = await Promise.all([
+    tradeMoneyRows(c.biz.id, c.kind, c.isTest),
+    admin.from("business_bank_details").select("account_number").eq("business_id", c.biz.id).maybeSingle(),
+  ]);
   // Owner-direct electrical work is invoiced to the owner by the electrician: never an HIV payout, never in our totals.
   const rows = all.filter((r) => r.billing === "hivic");
   const ownerDirect = all.filter((r) => r.billing === "owner_direct").map((r) => ({ jobId: r.jobId, jobNumber: r.jobNumber, surname: r.surname, suburb: r.suburb, what: r.what, doneAt: r.doneAt }));
@@ -609,8 +625,6 @@ export async function tradeMoney(userId: string) {
   const next = coming.map((r) => (r.state as { on: string }).on).sort()[0] ?? null;
   const nextRows = next ? coming.filter((r) => (r.state as { on: string }).on.slice(0, 10) === next.slice(0, 10)) : [];
   const sum = (xs: typeof rows) => xs.reduce((t, r) => t + (r.amount ?? 0), 0);
-  // Only the last 4 digits of the saved account: enough to recognise it, never the full number.
-  const { data: bank } = await admin.from("business_bank_details").select("account_number").eq("business_id", c.biz.id).maybeSingle();
   return { kind: c.kind, boss: c.boss, business: c.biz.name, bankEnding: accountEnding(bank?.account_number), next: next ? { on: next, total: sum(nextRows), jobs: nextRows.length } : null, month: sum(rows.filter((r) => r.doneAt && new Date(r.doneAt) >= m0)), allTime: sum(rows), rows, ownerDirect, paidByInstaller };
 }
 
@@ -1189,23 +1203,26 @@ async function ownerSaysFor(jobId: string): Promise<{ areaM2: number | null; ins
 
 /** M6 per-job pay detail (approved state M6-job-detail): own pay only, business owner only, facts from the same rows as Money. */
 export async function tradeMoneyJob(jobId: string, userId: string) {
+  // Speed (installer screens, Task 8): the job's assignments (not money) are read alongside the sign-in context, as
+  // requireTradeJob does; the owner refusal is awaited first, then the job check, and only then is any money or job
+  // fact read — the money rows and the job's six reads together (two rounds), not one after the other.
+  const asgP = jobAssignmentsRead(jobId);
   const c = await bossOrThrow(userId);
-  await requireTradeJob(userId, jobId);
-  const rows = (await tradeMoneyRows(c.biz.id, c.kind, c.isTest)).filter((r) => r.jobId === jobId && r.billing === "hivic");
-  const row = rows.find((r) => r.kind === "installation") ?? rows[0] ?? null;
-  const [{ data: bank }, { data: decl }, { data: finalAsg }, { data: alloc }, { data: m }, { data: invs }] = await Promise.all([
+  await tradeJobAccess(c, userId, jobId, asgP);
+  const [all, [{ data: bank }, { data: decl }, { data: finalAsg }, { data: alloc }, { data: m }, { data: invs }]] = await Promise.all([tradeMoneyRows(c.biz.id, c.kind, c.isTest), Promise.all([
     admin.from("business_bank_details").select("account_number").eq("business_id", c.biz.id).maybeSingle(),
     admin.from("installer_declarations").select("installer_name, installed_product, installed_area_m2").eq("job_id", jobId).eq("status", "signed").order("signed_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("customer_assignments").select("installer_signed_at, consumer_final_signed_at, installed_product, installed_area_m2").eq("job_id", jobId).eq("record_kind", "final_veec_assignment").neq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("workflow_events").select("event_type, details, created_at").eq("job_id", jobId).eq("event_type", "visit_allocated").order("created_at", { ascending: false }),
     admin.from("ceiling_measurements").select("measured_area_m2, removal_m2, removal_required").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
     admin.from("invoices").select("kind, status, balance_paid_at, paid_at, updated_at").eq("job_id", jobId).eq("kind", "installation"),
-  ]);
-  const { currentAllocation } = await import("./visit-allocation.core");
+  ])]);
+  const rows = all.filter((r) => r.jobId === jobId && r.billing === "hivic");
+  const row = rows.find((r) => r.kind === "installation") ?? rows[0] ?? null;
   const evs = (alloc ?? []) as { event_type: string; details: unknown; created_at: string }[];
   const crew = [...new Set([decl?.installer_name, currentAllocation(evs, "install")?.worker_name].filter((x): x is string => !!x))];
   // Batch 3b: the install invoice only (the shared rule — fixes / repeat safety check invoices never hold installer pay).
-  const paidInFull = (await import("./trade-view.core")).ownerPaidInFullAt(invs ?? []);
+  const paidInFull = ownerPaidInFullAt(invs ?? []);
   return {
     found: !!row, jobId, jobNumber: row?.jobNumber ?? null, suburb: row?.suburb ?? null, channel: row?.channel ?? null, doneAt: row?.doneAt ?? null,
     amount: row?.amount ?? null, state: row?.state ?? { kind: "checking" as const }, accountEnding: accountEnding(bank?.account_number),
