@@ -130,6 +130,7 @@ for(const entry of otherEntries) for(const payee of [false,true]) test(`${entry.
    return q;
  };
  const args=entry.args.map(x=>typeof x==='object'&&x&&'auditId' in x?{...x,short:{}}:x);
- await f.load(entry.file)[entry.fn](...args);
+ const result = await f.load(entry.file)[entry.fn](...args);
+ if(entry.fn === "textFixesTimesLink" && !f.calls.length) console.log("LOCAL RESULT",result);
  expect(f.calls.length).toBeGreaterThan(0);
 });
