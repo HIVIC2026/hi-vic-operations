@@ -12,7 +12,6 @@ import { InstallerReadyCheckTimesCard, ReadyCheckTimesForm } from "@/components/
 import { PiesaTimesForm } from "@/components/portal/piesa-times-electrician";
 import { offerTradePiesaTimes } from "@/lib/piesa-times.functions";
 import { distanceLine, goneIn } from "@/lib/trade-view.core";
-import { assertInHouseActionSucceeded } from "@/lib/in-house.core";
 import { NOT_FOR_ME_SHEET, NOT_FOR_ME_SHEET_ELECTRICIAN, OFFER_LABEL, OFFER_ONLY_YOU, OFFER_PAY_LINE, OFFER_STEPS, dayAndTime, offerAcceptedView, offerClosed, offerTopLines } from "@/lib/installer-screens.core";
 import { ContactButtons, ErrorLine, Group, NextPanel, NoFormNoPay, QuietButton, Row, Screen, ScreenHead, outlineLinkClass } from "@/components/trade/installer-kit";
 
@@ -147,7 +146,7 @@ function OfferPage() {
                 <ReadyCheckTimesForm days={data.rcDays} busy={!!busy || sending} sendLabel="Accept this job" note="Sends these 3 times to the owner. The address and the owner's details show once you accept." onSend={async (picks) => {
                   if (busy || flight.current) return;
                   flight.current = true; setBusy("times"); setFail(null);
-                  try { const result = await offerTimes({ data: { offerId, picks } }); assertInHouseActionSucceeded(result); await refetch(); }
+                  try { const result = await offerTimes({ data: { offerId, picks } }); if (!result.ok) { setFail(result.message); return; } await refetch(); }
                   catch (e) { setFail(`Couldn't send your times: ${(e as Error).message || "check your signal and try again."}`); }
                   finally { setBusy(null); flight.current = false; }
                 }} />
