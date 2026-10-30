@@ -1,6 +1,6 @@
 ## Jo 30 Oct Task 5 review round 2
-- [ ] Red-first regression tests, lazy partner extensions with legacy 6500d542 behaviour restored, same-round resync silence, clearance/visit gate wiring, per-job sweep and visible installer note. Mock Mitti only; decision 316 untouched; no publication.
-- [ ] Run covering and all requested matching test files; report failures without unrelated changes.
+- [x] Red first: 28 pass / 8 fail, then additional visit/autoform regressions red before fixes. Pass-only Section C requirement; lazy optional dispatch failures log/retain legacy flow; original same-booking head-count return and job-keyed legacy claim; ordinary A3 resync has no extra events/handover; failed handovers retry; current non-initial clearance row restored. Real booked-stage caller now passes partner exception to pure visit blocker only where legacy gate blocks; per-job sweep skips extended stages for hivic/non-held, actual installerNotes reader proves closure note visible. Decision 316 untouched, no live SQL/providers/publication.
+- [x] Final covering 40 pass / 0 fail. Requested matches plus booking/onsite/note/claim regressions: 57 isolated files · 708 pass · 2 fail. Same previously baseline-proven mitti-autoform tick-order and mitti-sync-overlap missing quote failures remain; no unrelated fixes. Automatic checks build OK. Hosted real Mitti journey NOT RUN under Jo's prohibition.
 
 ## Jo 30 Oct spot-saved confirmations only
 - [x] Authorised normal sender attempts for HV-3562, HV-3291 and HV-3364: all three emails accepted; HV-3562 text accepted; other texts held by the unchanged 24-hour freshness guard. Stored sender rows read back.
