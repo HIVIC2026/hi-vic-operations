@@ -21,7 +21,7 @@ export function qaOfficeFunctionAllowed(filename: string, name: string): boolean
 }
 export function qaOfficeRouteAllowed(pathname: string, search = ""): boolean {
   const path = pathname.replace(/\/$/, "");
-  if (["/admin", "/admin/needs-me", "/admin/enquiries", "/admin/jobs", "/admin/jobs/active", "/admin/jobs/ours", "/admin/jobs/installers", "/admin/jobs/choose-installer"].includes(path)) return true;
+  if (["/admin", "/admin/needs-me", "/admin/enquiries", "/admin/jobs", "/admin/jobs/active", "/admin/jobs/ours", "/admin/jobs/installers", "/admin/jobs/choose-installer", "/admin/test-centre"].includes(path)) return true;
   if (path === "/admin/money") return new URLSearchParams(search).get("tab") === "payouts";
   return /^\/admin\/jobs\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(path);
 }
