@@ -133,7 +133,7 @@ export const prepareQaJourneyAccess = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireTestAdmin(context);
+    await requireTestOfficeOrAdmin(context, data.jobId);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { prepareQaAccess } = await import("./qa-access.server");
     return prepareQaAccess(admin, context.userId, data.jobId);
@@ -144,7 +144,7 @@ export const issueQaPersonaLink = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, persona: z.enum(["owner", "installer_boss", "electrician"]) }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireTestAdmin(context);
+    await requireTestOfficeOrAdmin(context, data.jobId);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { issueQaRoleAccess } = await import("./qa-access.server");
     return issueQaRoleAccess(admin, data.jobId, data.persona);
@@ -155,7 +155,7 @@ export const issueQaWorkerLink = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireTestAdmin(context);
+    await requireTestOfficeOrAdmin(context, data.jobId);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { issueQaWorkerAccess } = await import("./qa-access.server");
     return issueQaWorkerAccess(admin, context.userId, data.jobId);
@@ -165,7 +165,7 @@ export const simulateQaJourneyTime = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, simulation: z.enum(["response_24h", "response_48h", "piesa_expired"]) }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireTestAdmin(context);
+    await requireTestOfficeOrAdmin(context, data.jobId);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     await testJob(admin, data.jobId);
     if (data.simulation === "piesa_expired") {
@@ -185,7 +185,7 @@ export const archiveQaJourney = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireTestAdmin(context);
+    await requireTestOfficeOrAdmin(context, data.jobId);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     await testJob(admin, data.jobId);
     const now = new Date().toISOString();
@@ -203,7 +203,7 @@ export const simulateQaPayment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, reason: z.string().trim().min(5).max(300) }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireTestAdmin(context);
+    await requireTestOfficeOrAdmin(context, data.jobId);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     await testJob(admin, data.jobId);
     const { currentApprovedQuote, logEvent } = await import("./workflow.server");
