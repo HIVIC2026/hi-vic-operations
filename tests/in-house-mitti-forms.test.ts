@@ -18,6 +18,7 @@ let held = true;
 let quoteWrites = 0;
 let claimHeld = false;
 let realMitti = false, realWorkflow = false, failShare = false, failOwner = false, failHeld = false, completeDuringSync = false;
+let dispatchReads = 0, realClaims = false;
 let repeatDeadline: string | null = null;
 let auditResponse: any = null;
 const claims = new Set<string>();
@@ -71,7 +72,7 @@ const overrides: Record<string, any> = {
   "./workflow.server": { WorkflowError, logEvent, getStage: async () => tables.jobs[0].stage, transition: async (_j: string, stage: string) => { tables.jobs[0].stage = stage; } },
   "./mitti.core": mitti, "./fixes-day.core": core, "./in-house.core": inHouse, "./mitti-identity.core": identity,
   "./mitti-create-claim.core": claimsCore, "./piesa-autoform.core": autoCore, "./official-short.core": short,
-  "./in-house-suppression.server": { readInHouseDispatchState: async () => ({ held: new Set(held ? [JOB] : []), failed: failHeld }) },
+  "./in-house-suppression.server": { readInHouseDispatchState: async () => { dispatchReads++; return { held: new Set(held ? [JOB] : []), failed: failHeld }; } },
   "./repeat-piesa.server": { currentPiesaSupersededByReopen: async()=>false, repeatPiesaContext: async () => ({ state: { stage: repeatDeadline ? "offer" : "none", deadline: repeatDeadline } }) },
   "./test-send.core": { isTestPartner: () => false }, "./onsite-ready-check.core": { TEST_MITTI_ASSIGNEE: "test@example.invalid" },
   "./mitti-create.server": { MittiClaimHeld, MittiOutcomeUncertain, claimMittiCreate: async (_j:string, kind:string, _a:any, _s:any, details:any) => { const key = `${kind}:${details?.rectification_round ?? details?.booking_id ?? "initial"}`; if (claims.has(key)) throw new MittiClaimHeld("creation already claimed"); claims.add(key); claimHeld = true; return key; }, releaseMittiCreate: async (_j:string,_k:string,key:string) => { claims.delete(key); claimHeld = false; }, recordMittiCreateUncertain: async () => {} },
@@ -101,6 +102,7 @@ function load(name: string, cache: Record<string, any> = {}): any {
       },
     };
     if (p === "./workflow.server" && realWorkflow) return load("workflow.server",cache);
+    if (p === "./mitti-create.server" && realClaims) return load("mitti-create.server",cache);
     if (p in overrides) return overrides[p];
     if (p.startsWith("./") && !p.endsWith(".server")) return require(`../src/lib/${p.slice(2)}`);
     if (p.startsWith("./")) return load(p.slice(2), cache);
@@ -109,7 +111,7 @@ function load(name: string, cache: Record<string, any> = {}): any {
   return out;
 }
 beforeEach(() => {
-  held = true; failHeld=false; completeDuringSync=false; failCreate = false; claimHeld = false; realMitti=false; realWorkflow=false; failShare=false; failOwner=false; repeatDeadline=null; auditResponse=null; claims.clear(); calls = []; quoteWrites = 0;
+  dispatchReads=0; realClaims=false; held = true; failHeld=false; completeDuringSync=false; failCreate = false; claimHeld = false; realMitti=false; realWorkflow=false; failShare=false; failOwner=false; repeatDeadline=null; auditResponse=null; claims.clear(); calls = []; quoteWrites = 0;
   tables = {
     jobs: [{ id: JOB, job_number: "HV-TEST", source: "base44", business_unit: "hivic", stage: "piesa_scheduled", property_id:"property", owner_id:"owner", channel:"hivic_sourced", deleted_at: null, install_deadline: "2026-11-29" }],
     assessments: [{ id: "assessment", job_id: JOB, external_mitti_id: null, mitti_raw_snapshot: [], no_rectification_confirmed: false }],
@@ -290,11 +292,50 @@ test("real amended PIESA sync reopens only a new round and resets no-rectificati
  expect(calls.filter(c=>c.path==="/audits")).toHaveLength(3);
 });
 
-test("held-read failure cannot bypass the quote or clearance gates",async()=>{
+test("held-read failure cannot bypass money and keeps clearance blocked without throwing",async()=>{
  failHeld=true; seedOfficial();
  await expect(load("quotes.server").generateRectificationQuote(JOB,null)).rejects.toThrow("Couldn't check");
- await expect(load("electrical-clearance.server").clearanceFacts(JOB)).rejects.toThrow("Couldn't check");
+ expect(allocation.electricalClearance(await load("electrical-clearance.server").clearanceFacts(JOB)).cleared).toBe(false);
  expect(quoteWrites).toBe(0);
+});
+test('failed post_rectification accepts no Section C date and writes the failed record', async()=>{
+ await load('piesa-record.server').applyPiesaRecord({jobId:JOB,actorId:null,kind:'post_rectification',outcome:'fail',completedDate:'2026-11-02'});
+ expect(tables.piesa_records).toHaveLength(1); expect(tables.piesa_records[0].outcome).toBe('fail'); expect(tables.piesa_records[0].section_c_signed_at).toBeUndefined();
+});
+test('legacy same-booking reuse has no dispatch, calls, events or status changes',async()=>{
+ held=false; failHeld=true;
+ tables.workflow_events.push({job_id:JOB,event_type:core.FIXES_FORM_CREATED_EVENT,details:{booking_id:'legacy',audit_id:'old'}});
+ const before=JSON.stringify(tables.assessments);
+ expect(await load('fixes-day.server').createFixesForm(JOB,null,'legacy',call)).toEqual({status:'reused',reason:'form already created for this visit'});
+ expect(dispatchReads).toBe(0); expect(calls).toHaveLength(0); expect(JSON.stringify(tables.assessments)).toBe(before); expect(tables.workflow_events).toHaveLength(1);
+});
+test('legacy fixes claim key remains jobId without dispatch reads',async()=>{
+ realClaims=true; held=false;
+ const s=load('mitti-create.server'); const id=await s.claimMittiCreate(JOB,'fixes',null,'legacy',{booking_id:'visit'});
+ expect(id).toBe(await claimsCore.claimEventId(JOB,'fixes',0)); expect(dispatchReads).toBe(0);
+});
+test('accepted rectification quote requires no partner dispatch lookup',async()=>{
+ seedOfficial(); tables.quotes.push({job_id:JOB,kind:'rectification',status:'accepted'}); failHeld=true;
+ const facts=await load('electrical-clearance.server').clearanceFacts(JOB);
+ expect(facts.rectificationQuoteAccepted).toBe(true); expect(dispatchReads).toBe(0);
+});
+test('hivic dispatch failure keeps clearance gate with no throw through onsite caller',async()=>{
+ seedOfficial(); tables.job_assignments[1].businesses.rectification_billed_by='hivic'; failHeld=true;
+ const s=load('electrical-clearance.server'); expect(await s.onsiteStartClearedFor(JOB)).toBe(false);
+ realWorkflow=true; await expect(load('workflow.server').stageEntryBlockers(JOB,'installation_scheduling')).resolves.toBeArray();
+});
+test('ordinary repeated A3 sync has no new events or share/owner calls',async()=>{
+ await load('piesa-autoform.server').onPiesaBooked(JOB,'visit',null,{call}); realMitti=true; setPiesaAudit(true);
+ const s=load('mitti.server'), media=async()=>({bytes:new Uint8Array([1]),contentType:'image/png'});
+ await s.syncMittiAssessment(JOB,null,call,media); const n=tables.workflow_events.length, handovers=calls.filter(c=>/\/(share|owner)$/.test(c.path)).length;
+ await s.syncMittiAssessment(JOB,null,call,media);
+ expect(tables.workflow_events).toHaveLength(n); expect(calls.filter(c=>/\/(share|owner)$/.test(c.path))).toHaveLength(handovers);
+ expect(tables.assessments[0].mitti_sync_status).toBe('synced');
+});
+test('A3 sync dispatch outage skips extension instead of failing sync',async()=>{
+ held=false; tables.assessments[0].external_mitti_id='audit-1'; realMitti=true; setPiesaAudit(true); failHeld=true;
+ await load('mitti.server').syncMittiAssessment(JOB,null,call,async()=>({bytes:new Uint8Array([1]),contentType:'image/png'}));
+ expect(tables.assessments[0].mitti_sync_status).toBe('synced'); expect(calls.filter(c=>/\/(share|owner)$/.test(c.path))).toHaveLength(0);
 });
 test("concurrent completed assessment is not changed by the no-rectification follow-up update",async()=>{
  await load("piesa-autoform.server").onPiesaBooked(JOB,"visit",null,{call}); realMitti=true; setPiesaAudit(false); completeDuringSync=true;

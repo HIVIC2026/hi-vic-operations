@@ -1,3 +1,7 @@
+## Jo 30 Oct Task 5 review round 2
+- [ ] Red-first regression tests, lazy partner extensions with legacy 6500d542 behaviour restored, same-round resync silence, clearance/visit gate wiring, per-job sweep and visible installer note. Mock Mitti only; decision 316 untouched; no publication.
+- [ ] Run covering and all requested matching test files; report failures without unrelated changes.
+
 ## Jo 30 Oct spot-saved confirmations only
 - [x] Authorised normal sender attempts for HV-3562, HV-3291 and HV-3364: all three emails accepted; HV-3562 text accepted; other texts held by the unchanged 24-hour freshness guard. Stored sender rows read back.
 - [x] Missing queue diagnosis: canonical save transaction commits before the separate confirmation preparation/queue/send work; records show saves but no subsequent queue for HV-3291/HV-3364. Historical logs unavailable, so exact interruption cause is unproven.
