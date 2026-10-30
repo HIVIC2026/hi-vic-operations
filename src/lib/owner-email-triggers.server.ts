@@ -7,6 +7,7 @@
 // it never throws, so the workflow action that called it is never broken by an email. Rules: owner-email-triggers.core.ts.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
+import { inHouseDispatchSkip } from "./in-house-suppression.server";
 import {
   OWNER_EMAIL_LABEL, OWNER_EMAIL_TRIGGER_EVENT, OWNER_REVIEW_SCREEN_READY, REVIEW_REQUEST_AFTER_DAYS, REVIEW_REQUEST_LAST_DAY, dayMonthLabel, directMoveFrom, installDayMove, ownerEmailKey, quoteReminderDue,
   reviewRequestBlocker, reviewRequestDue, safetyCheckPaidAt, weekdayDayMonthLabel, youreInDue, type OwnerEmailCode, type QuoteReminderKind,
@@ -46,6 +47,8 @@ async function safetyCheckPaid(jobId: string): Promise<number | null> {
 
 /** O26: the electrician offered PIESA time(s) to the owner (piesa-times.server.ts, decision 333; old pilot.functions.ts proposeTime). */
 export async function onSafetyCheckTimesOffered(jobId: string, startsAt: string[]): Promise<string> {
+  const skipped = await inHouseDispatchSkip(jobId);
+  if (skipped) return skipped;
   return fireOwnerEmailOnce(jobId, "O26", ownerEmailKey.safetyCheckTimes(jobId, startsAt), async () => {
     const [el, paid] = await Promise.all([electricianFor(jobId), safetyCheckPaid(jobId)]);
     const { emailOwnerSafetyCheckTimes } = await import("./approved-owner-emails.server");
