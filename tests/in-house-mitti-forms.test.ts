@@ -17,7 +17,7 @@ let failCreate = false;
 let held = true;
 let quoteWrites = 0;
 let claimHeld = false;
-let realMitti = false, realWorkflow = false, failShare = false;
+let realMitti = false, realWorkflow = false, failShare = false, failHeld = false, completeDuringSync = false;
 let repeatDeadline: string | null = null;
 let auditResponse: any = null;
 const claims = new Set<string>();
@@ -45,6 +45,7 @@ function from(table: string) {
       let rows = all.filter(r => filters.every(f => f(r)));
       if (op === "insert") { rows = (Array.isArray(patch) ? patch : [patch]).map((p: Row) => ({ id: `${table}-${all.length}`, created_at: new Date(Date.now()+all.length).toISOString(), is_current: true, ...p })); all.push(...rows); }
       if (op === "update") rows.forEach(r => Object.assign(r, patch));
+      if (table === "assessments" && op === "update" && patch.mitti_raw_snapshot && completeDuringSync) rows.forEach(r => { r.status="complete"; });
       if (sortKey) rows = [...rows].sort((a,b) => String(a[sortKey] ?? "").localeCompare(String(b[sortKey] ?? "")) * (ascending ? 1 : -1));
       rows = rows.slice(0, limit);
       return { data: single ? rows[0] ?? null : rows, error: null, count: count ? rows.length : null };
@@ -69,7 +70,7 @@ const overrides: Record<string, any> = {
   "./workflow.server": { WorkflowError, logEvent, getStage: async () => tables.jobs[0].stage, transition: async (_j: string, stage: string) => { tables.jobs[0].stage = stage; } },
   "./mitti.core": mitti, "./fixes-day.core": core, "./in-house.core": inHouse, "./mitti-identity.core": identity,
   "./mitti-create-claim.core": claimsCore, "./piesa-autoform.core": autoCore, "./official-short.core": short,
-  "./in-house-suppression.server": { readInHouseDispatchState: async () => ({ held: new Set(held ? [JOB] : []), failed: false }) },
+  "./in-house-suppression.server": { readInHouseDispatchState: async () => ({ held: new Set(held ? [JOB] : []), failed: failHeld }) },
   "./repeat-piesa.server": { currentPiesaSupersededByReopen: async()=>false, repeatPiesaContext: async () => ({ state: { stage: repeatDeadline ? "offer" : "none", deadline: repeatDeadline } }) },
   "./test-send.core": { isTestPartner: () => false }, "./onsite-ready-check.core": { TEST_MITTI_ASSIGNEE: "test@example.invalid" },
   "./mitti-create.server": { MittiClaimHeld, MittiOutcomeUncertain, claimMittiCreate: async (_j:string, kind:string, _a:any, _s:any, details:any) => { const key = `${kind}:${details?.rectification_round ?? details?.booking_id ?? "initial"}`; if (claims.has(key)) throw new MittiClaimHeld("creation already claimed"); claims.add(key); claimHeld = true; return key; }, releaseMittiCreate: async (_j:string,_k:string,key:string) => { claims.delete(key); claimHeld = false; }, recordMittiCreateUncertain: async () => {} },
@@ -107,7 +108,7 @@ function load(name: string, cache: Record<string, any> = {}): any {
   return out;
 }
 beforeEach(() => {
-  held = true; failCreate = false; claimHeld = false; realMitti=false; realWorkflow=false; failShare=false; repeatDeadline=null; auditResponse=null; claims.clear(); calls = []; quoteWrites = 0;
+  held = true; failHeld=false; completeDuringSync=false; failCreate = false; claimHeld = false; realMitti=false; realWorkflow=false; failShare=false; repeatDeadline=null; auditResponse=null; claims.clear(); calls = []; quoteWrites = 0;
   tables = {
     jobs: [{ id: JOB, job_number: "HV-TEST", source: "base44", business_unit: "hivic", stage: "piesa_scheduled", property_id:"property", owner_id:"owner", channel:"hivic_sourced", deleted_at: null, install_deadline: "2026-11-29" }],
     assessments: [{ id: "assessment", job_id: JOB, external_mitti_id: null, mitti_raw_snapshot: [], no_rectification_confirmed: false }],
@@ -286,4 +287,33 @@ test("real amended PIESA sync reopens only a new round and resets no-rectificati
  expect(calls.filter(c=>c.path==="/audits")).toHaveLength(3);
  await s.syncMittiAssessment(JOB,null,call,media);
  expect(calls.filter(c=>c.path==="/audits")).toHaveLength(3);
+});
+
+test("held-read failure cannot bypass the quote or clearance gates",async()=>{
+ failHeld=true; seedOfficial();
+ await expect(load("quotes.server").generateRectificationQuote(JOB,null)).rejects.toThrow("Couldn't check");
+ await expect(load("electrical-clearance.server").clearanceFacts(JOB)).rejects.toThrow("Couldn't check");
+ expect(quoteWrites).toBe(0);
+});
+test("concurrent completed assessment is not changed by the no-rectification follow-up update",async()=>{
+ await load("piesa-autoform.server").onPiesaBooked(JOB,"visit",null,{call}); realMitti=true; setPiesaAudit(false); completeDuringSync=true;
+ await load("mitti.server").syncMittiAssessment(JOB,null,call,async()=>({bytes:new Uint8Array([1]),contentType:"image/png"}));
+ expect(tables.assessments[0].no_rectification_confirmed).toBe(false);
+ expect(tables.workflow_events.filter(e=>e.event_type==="rectification_form_closed_unused")).toHaveLength(0);
+});
+for(const scenario of ["hivic","non-in-house"]) test(`${scenario} cannot complete the rectification form at PIESA complete`,async()=>{
+ seedOfficial(); tables.jobs[0].stage="piesa_complete"; auditResponse=signedAudit();
+ if(scenario==="hivic") tables.job_assignments[1].businesses.rectification_billed_by="hivic";
+ else {held=false; tables.job_assignments[1].businesses.in_house=false;}
+ const result=await load("fixes-day.server").completeFixesForm(JOB,"audit-2",{call,today:"2026-11-03"});
+ expect(result.status).toBe("held"); expect(tables.piesa_records.filter(r=>r.kind==="post_rectification")).toHaveLength(0);
+ const facts=await load("electrical-clearance.server").clearanceFacts(JOB); expect(allocation.electricalClearance(facts).blocker).toBe("Owner has not approved the electrical fixes quote.");
+});
+test("pre-review companion pointer is reused by its current PIESA booking, never job-wide",async()=>{
+ await load("piesa-autoform.server").onPiesaBooked(JOB,"visit",null,{call});
+ for(const e of tables.workflow_events) if(e.event_type===core.FIXES_FORM_CREATED_EVENT) delete e.details.rectification_round;
+ tables.bookings.push({id:"visit",job_id:JOB,kind:"assessment",status:"confirmed",scheduled_start:"2026-11-01T00:00:00Z"});
+ tables.rectification_items.push({job_id:JOB,status:"required",description:"RCD"});
+ expect((await load("fixes-day.server").onRectificationBooked(JOB,"rect-visit",null,call)).auditId).toBe("audit-2");
+ expect(calls.filter(c=>c.path==="/audits")).toHaveLength(2);
 });
