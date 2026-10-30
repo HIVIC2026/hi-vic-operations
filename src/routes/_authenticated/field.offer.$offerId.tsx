@@ -146,7 +146,7 @@ function OfferPage() {
                 <ReadyCheckTimesForm days={data.rcDays} busy={!!busy || sending} sendLabel="Accept this job" note="Sends these 3 times to the owner. The address and the owner's details show once you accept." onSend={async (picks) => {
                   if (busy || flight.current) return;
                   flight.current = true; setBusy("times"); setFail(null);
-                  try { const result = await offerTimes({ data: { offerId, picks } }); if (!result.ok) { setFail(result.message); return; } await refetch(); }
+                  try { const result = await offerTimes({ data: { offerId, picks } }); if (!result.ok && "message" in result) { setFail(result.message); return; } await refetch(); }
                   catch (e) { setFail(`Couldn't send your times: ${(e as Error).message || "check your signal and try again."}`); }
                   finally { setBusy(null); flight.current = false; }
                 }} />

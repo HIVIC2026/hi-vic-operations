@@ -66,7 +66,7 @@ describe("decision 307 source pins", () => {
     const card = readFileSync("src/components/portal/piesa-times.tsx", "utf8");
     const old = card.slice(card.indexOf("export function PiesaTimesCard"));
     expect(old).toContain("data.thirtyDayAck.wording");
-    expect(old).toContain("choose({ jobId, picks, understandsThirtyDays: understands }");
+    expect(old).toContain("choose({ data: { jobId, picks, understandsThirtyDays: understands }");
     expect(old).toContain("disabled={busy || ackBlock || blockers.length > 0}");
   });
   test("server refuses with the plain message and records once per cycle", () => {
