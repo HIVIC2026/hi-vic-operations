@@ -880,6 +880,8 @@ export async function inHouseBookingAccess(userId: string, jobId: string, client
 export async function inHouseBookVisit(userId: string, input: { jobId: string; kind: import("./booking.server").BookingKind; start: string }, client = admin): Promise<{ ok: true; bookingId: string } | { ok: false; blockers: string[] }> {
   const access = await inHouseBookingAccess(userId, input.jobId, client);
   if (!access.allowed) return { ok: false, blockers: access.blockers };
+  const existingReadyCheck = input.kind === "ready_check" ? access.bookings?.find(b => b.kind === "ready_check" && b.status === "confirmed" && b.scheduled_start && new Date(b.scheduled_start).getTime() === new Date(input.start).getTime()) : undefined;
+  if (existingReadyCheck) return { ok: true, bookingId: existingReadyCheck.id };
   const { confirmBooking } = await import("./booking.server");
   try {
     await confirmBooking(input.jobId, input.kind, input.start, userId, "in-house partner");

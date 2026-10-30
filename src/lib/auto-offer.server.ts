@@ -6,8 +6,7 @@
 // anything but `true` is OFF, and with a switch off this file never sends anything. Decision 426: the one write with
 // the electrician switch off is `handPiesaToOfficeAutoOff` (Automatic dispatch mode only) — a "returned to office" event.
 // Run from the 15-minute allocation tick, and straight after a "Not for me" (so the next match is not left waiting).
-// TEST jobs (source qa_test) and deleted jobs are excluded from automatic sweep candidates. Direct TEST dispatch
-// still uses TEST partners only. A live job never reaches a TEST partner: the pure parity rule filters candidates here,
+// TEST jobs ARE offered automatically, to TEST partners only. Deleted jobs are excluded. A live job never reaches a TEST partner: the pure parity rule filters candidates here,
 // the candidate readers already
 // apply `partnerAllowedForJob`, and `assertOfferPairsAllowed` refuses any mismatch before a row is written. Offer
 // texts/emails for qa_test jobs go through test-send only (ready-check-offer-text.server), so nothing real is sent.
