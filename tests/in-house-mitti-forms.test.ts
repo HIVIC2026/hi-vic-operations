@@ -168,10 +168,10 @@ test("rectification Mitti creation failure is visible and an uncertain create is
 test("Part C sync records post_rectification once and leaves the official PIESA deadline unchanged", async () => {
   tables.jobs[0].stage = "rectification_booked";
   const s = load("piesa-record.server");
-  const input = { jobId: JOB, actorId: "electrician", kind: "post_rectification", outcome: "pass", completedDate: "2026-10-30", sectionCSignedDate: "2026-10-30", source: { kind: "mitti_fixes_form", auditId: "audit-2" } };
+  const input = { jobId: JOB, actorId: "electrician", kind: "post_rectification", outcome: "pass", completedDate: "2026-11-02", sectionCSignedDate: "2026-11-02", source: { kind: "mitti_fixes_form", auditId: "audit-2" } };
   await s.applyPiesaRecord(input); await s.applyPiesaRecord(input);
   expect(tables.piesa_records).toHaveLength(1);
-  expect(tables.piesa_records[0].section_c_signed_at).toBe("2026-10-30T00:00:00.000Z");
+  expect(tables.piesa_records[0].section_c_signed_at).toBe("2026-11-02T00:00:00.000Z");
   expect(tables.jobs[0].install_deadline).toBe("2026-11-29");
   expect(allocation.electricalClearance({ piesaOutcome: "pass", piesaCompletedAt: "2026-10-30", rectificationRequired: false }).timingDate).toBe("2026-10-30");
 });
