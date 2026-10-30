@@ -1,3 +1,6 @@
+## Jo 30 Oct in-house partner — Task 2 batch allocation
+- [ ] Test-first coverage, atomic per-job allocation, office screen and pending SQL/undo; no live SQL, sending or publication. Hosted allocation awaits Jo's migration approval; no manual commit (managed by Lovable).
+
 ## Jo 30 Oct in-house partner — Task 1 only
 - [x] Correction: job-less in-house change/backfill history targets admin_config_events because workflow_events requires a job. Test-first reproduced the real CHECK failure; main/follow-up trigger, actor/old/new history, zero workflow_events writes and idempotent/scoped backfill undo proved on PGlite. Requested suite: 51 pass / 0 fail; automatic build/typecheck clean. No live SQL or publication; correction migration remains pending.
 - [x] Task 1 is applied live with Jo's authorisation: columns, guard trigger, save_in_house_partner RPC and two In-house PIESA rate cards. Bounded isolated full suite before Task 1: 874 files, 8758 pass / 219 fail / 36 skip (76 pre-existing failing files); with Task 1: 876 files, 8767 pass / 219 fail / 36 skip (the same 76 failing files with identical per-file counts). Preview build/typecheck clean. No publication or commit.
