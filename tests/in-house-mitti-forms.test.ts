@@ -211,7 +211,7 @@ const signedAudit = () => ({audit_id:"audit-2",template_id:RECT,completed:true,i
 ]});
 const seedOfficial = () => { tables.quotes.push({id:"install-quote",job_id:JOB,kind:"installation",status:"accepted",customer_total_inc_gst:2000}); tables.invoices.push({quote_id:"install-quote",job_id:JOB,kind:"installation",total_inc_gst:2000,total_paid:349}); tables.piesa_records.push({job_id:JOB,kind:"initial",outcome:"fail",completed_date:"2026-10-30",signed_off_by:"electrician",is_current:true}); tables.rectification_items.push({job_id:JOB,status:"required",description:"RCD"}); };
 test("partner-billed same-visit signed form reaches real install clearance without a quote and keeps official deadline",async()=>{
- realWorkflow=true; seedOfficial(); tables.jobs[0].stage="piesa_complete"; auditResponse=signedAudit();
+ await load("piesa-autoform.server").onPiesaBooked(JOB,"piesa-booking",null,{call}); realWorkflow=true; seedOfficial(); tables.jobs[0].stage="piesa_complete"; auditResponse=signedAudit();
  const server=load("fixes-day.server");
  const result=await server.completeFixesForm(JOB,"audit-2",{call,fetchMedia:async()=>({bytes:new Uint8Array([1]),contentType:"image/png"}),today:"2026-11-03"});
  expect(result.status, result.detail ?? "completion").toBe("done");
@@ -330,4 +330,12 @@ test("amended-round create failure is visible and stays fail-closed on retry",as
  expect(tables.assessments[0].mitti_sync_status).toBe("error");
  await expect(s.syncMittiAssessment(JOB,null,call,media)).rejects.toThrow();
  expect(tables.assessments[0].mitti_sync_status).toBe("error");
+});
+
+test("a previous PIESA round's still-open rectification form cannot complete the current round",async()=>{
+ const s=load("piesa-autoform.server"); await s.onPiesaBooked(JOB,"first",null,{call});
+ tables.assessments[0].status="complete"; repeatDeadline="2026-11-29"; await s.onPiesaBooked(JOB,"repeat",null,{call});
+ seedOfficial(); tables.jobs[0].stage="piesa_complete"; auditResponse=signedAudit();
+ const result=await load("fixes-day.server").completeFixesForm(JOB,"audit-2",{call,today:"2026-11-03"});
+ expect(result.status).toBe("waiting"); expect(tables.piesa_records.filter(r=>r.kind==="post_rectification")).toHaveLength(0);
 });
