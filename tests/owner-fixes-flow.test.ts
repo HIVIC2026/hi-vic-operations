@@ -70,7 +70,7 @@ describe("approval stays in the fixes flow", () => {
   });
   test("O29's approve link opens the fixes screen", () => {
     expect(read("src/lib/approved-owner-emails.server.ts")).toMatch(/renderFixesQuoteEmail\(\{[^\n]*\?screen=fixes/);
-    expect(read("src/routes/my-job.$token.tsx")).toMatch(/"fixes"(, "turn")?(, "newquote")?\] as const satisfies/);
+    expect(read("src/routes/my-job.$token.tsx")).toMatch(/"fixes"(, "turn")?(, "newquote")?(, "taps")?\] as const satisfies/);
   });
 });
 
