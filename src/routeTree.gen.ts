@@ -92,6 +92,7 @@ import { Route as AuthenticatedFieldBusinessTeamRouteImport } from './routes/_au
 import { Route as AuthenticatedFieldDayJobIdRouteImport } from './routes/_authenticated/field.day.$jobId'
 import { Route as AuthenticatedFieldMoneyJobIdRouteImport } from './routes/_authenticated/field.money_.$jobId'
 import { Route as AuthenticatedFieldOfferOfferIdRouteImport } from './routes/_authenticated/field.offer.$offerId'
+import { Route as AuthenticatedFieldRunRunIdRouteImport } from './routes/_authenticated/field.run.$runId'
 import { Route as ApiPublicHooksAllocationTickRouteImport } from './routes/api/public/hooks/allocation-tick'
 import { Route as ApiPublicHooksBacklogSendRouteImport } from './routes/api/public/hooks/backlog-send'
 import { Route as ApiPublicHooksCustomerFollowupsRouteImport } from './routes/api/public/hooks/customer-followups'
@@ -562,6 +563,12 @@ const AuthenticatedFieldOfferOfferIdRoute =
     path: '/offer/$offerId',
     getParentRoute: () => AuthenticatedFieldRoute,
   } as any)
+const AuthenticatedFieldRunRunIdRoute =
+  AuthenticatedFieldRunRunIdRouteImport.update({
+    id: '/run/$runId',
+    path: '/run/$runId',
+    getParentRoute: () => AuthenticatedFieldRoute,
+  } as any)
 const ApiPublicHooksAllocationTickRoute =
   ApiPublicHooksAllocationTickRouteImport.update({
     id: '/api/public/hooks/allocation-tick',
@@ -768,6 +775,7 @@ export interface FileRoutesByFullPath {
   '/field/day/$jobId': typeof AuthenticatedFieldDayJobIdRoute
   '/field/money/$jobId': typeof AuthenticatedFieldMoneyJobIdRoute
   '/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
+  '/field/run/$runId': typeof AuthenticatedFieldRunRunIdRoute
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
   '/api/public/hooks/backlog-send': typeof ApiPublicHooksBacklogSendRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
@@ -869,6 +877,7 @@ export interface FileRoutesByTo {
   '/field/day/$jobId': typeof AuthenticatedFieldDayJobIdRoute
   '/field/money/$jobId': typeof AuthenticatedFieldMoneyJobIdRoute
   '/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
+  '/field/run/$runId': typeof AuthenticatedFieldRunRunIdRoute
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
   '/api/public/hooks/backlog-send': typeof ApiPublicHooksBacklogSendRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
@@ -976,6 +985,7 @@ export interface FileRoutesById {
   '/_authenticated/field/day/$jobId': typeof AuthenticatedFieldDayJobIdRoute
   '/_authenticated/field/money_/$jobId': typeof AuthenticatedFieldMoneyJobIdRoute
   '/_authenticated/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
+  '/_authenticated/field/run/$runId': typeof AuthenticatedFieldRunRunIdRoute
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
   '/api/public/hooks/backlog-send': typeof ApiPublicHooksBacklogSendRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
@@ -1083,6 +1093,7 @@ export interface FileRouteTypes {
     | '/field/day/$jobId'
     | '/field/money/$jobId'
     | '/field/offer/$offerId'
+    | '/field/run/$runId'
     | '/api/public/hooks/allocation-tick'
     | '/api/public/hooks/backlog-send'
     | '/api/public/hooks/customer-followups'
@@ -1184,6 +1195,7 @@ export interface FileRouteTypes {
     | '/field/day/$jobId'
     | '/field/money/$jobId'
     | '/field/offer/$offerId'
+    | '/field/run/$runId'
     | '/api/public/hooks/allocation-tick'
     | '/api/public/hooks/backlog-send'
     | '/api/public/hooks/customer-followups'
@@ -1290,6 +1302,7 @@ export interface FileRouteTypes {
     | '/_authenticated/field/day/$jobId'
     | '/_authenticated/field/money_/$jobId'
     | '/_authenticated/field/offer/$offerId'
+    | '/_authenticated/field/run/$runId'
     | '/api/public/hooks/allocation-tick'
     | '/api/public/hooks/backlog-send'
     | '/api/public/hooks/customer-followups'
@@ -1951,6 +1964,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFieldOfferOfferIdRouteImport
       parentRoute: typeof AuthenticatedFieldRoute
     }
+    '/_authenticated/field/run/$runId': {
+      id: '/_authenticated/field/run/$runId'
+      path: '/run/$runId'
+      fullPath: '/field/run/$runId'
+      preLoaderRoute: typeof AuthenticatedFieldRunRunIdRouteImport
+      parentRoute: typeof AuthenticatedFieldRoute
+    }
     '/api/public/hooks/allocation-tick': {
       id: '/api/public/hooks/allocation-tick'
       path: '/api/public/hooks/allocation-tick'
@@ -2193,6 +2213,7 @@ interface AuthenticatedFieldRouteChildren {
   AuthenticatedFieldDayJobIdRoute: typeof AuthenticatedFieldDayJobIdRoute
   AuthenticatedFieldMoneyJobIdRoute: typeof AuthenticatedFieldMoneyJobIdRoute
   AuthenticatedFieldOfferOfferIdRoute: typeof AuthenticatedFieldOfferOfferIdRoute
+  AuthenticatedFieldRunRunIdRoute: typeof AuthenticatedFieldRunRunIdRoute
   AuthenticatedFieldPracticeJobIdAuditIdRoute: typeof AuthenticatedFieldPracticeJobIdAuditIdRoute
 }
 
@@ -2220,6 +2241,7 @@ const AuthenticatedFieldRouteChildren: AuthenticatedFieldRouteChildren = {
   AuthenticatedFieldDayJobIdRoute: AuthenticatedFieldDayJobIdRoute,
   AuthenticatedFieldMoneyJobIdRoute: AuthenticatedFieldMoneyJobIdRoute,
   AuthenticatedFieldOfferOfferIdRoute: AuthenticatedFieldOfferOfferIdRoute,
+  AuthenticatedFieldRunRunIdRoute: AuthenticatedFieldRunRunIdRoute,
   AuthenticatedFieldPracticeJobIdAuditIdRoute:
     AuthenticatedFieldPracticeJobIdAuditIdRoute,
 }

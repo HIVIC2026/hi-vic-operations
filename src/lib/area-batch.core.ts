@@ -2,6 +2,7 @@
 import { distanceM } from "./geo.core";
 import { installerCanBeOffered, type WaitingInstaller } from "./installer-waiting-columns.core";
 import { QUICK_TAPS_ANSWERED_EVENT, QUICK_TAPS_DECLINE_REASON } from "./quick-taps.core";
+import { RUN_RELEASE_EVENTS } from "./run-route.core";
 
 const norm = (v: string | null | undefined) => (v ?? "").trim().toLowerCase();
 
@@ -220,10 +221,14 @@ export function planBatchSweep(jobs: readonly SweepJob[], nowIso: string, quiet:
   return plan;
 }
 
-/** The job's pass was handed on: it is in a close's pass list, so it waits for Jo's OK to send it to the installer and is
- *  never put in another batch. */
-export const passHandedOn = (events: readonly AreaBatchEventRow[], jobId: string): boolean =>
-  events.some((e) => e.event_type === AREA_BATCH_CLOSED_EVENT && ((e.details as { pass_job_ids?: unknown } | null)?.pass_job_ids as unknown[] | undefined)?.includes?.(jobId) === true);
+/** The job's pass was handed on: it is in a close's pass list, so it waits for Jo's OK to send it to the installer (or is in
+ *  the run she sent) and is never put in another batch. A pass whose run let the home go for that batch (installer removed
+ *  the home, declined, or no reply in 24 h — run-route.core RUN_RELEASE_EVENTS, keyed by the run's batch_id) is free again. */
+export const passHandedOn = (events: readonly AreaBatchEventRow[], jobId: string): boolean => {
+  const released = new Set(events.filter((e) => (RUN_RELEASE_EVENTS as readonly string[]).includes(e.event_type)).map(bid).filter(Boolean));
+  return events.some((e) => e.event_type === AREA_BATCH_CLOSED_EVENT && !released.has(bid(e))
+    && ((e.details as { pass_job_ids?: unknown } | null)?.pass_job_ids as unknown[] | undefined)?.includes?.(jobId) === true);
+};
 /** A pass not handed on yet (the owner left that batch, or answered as it closed): carried forward — the owner can be put
  *  in a new batch without being asked again, and counts as a passer at that batch's close. */
 export const standingPass = (events: readonly AreaBatchEventRow[], jobId: string): boolean => {

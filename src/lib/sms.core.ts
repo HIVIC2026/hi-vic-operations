@@ -102,6 +102,9 @@ export const SMS_MESSAGE_TYPES = {
   // quick taps link (area-batch.core quickTapsText), plus the day-2 reminder. Own switches, off until Jo switches them on.
   quick_taps: { audience: "owner", label: "Confirm a few quick details for your free Ready Check – area batch sent (A48 batch 2)", wordingApproved: true, quietHours: true },
   quick_taps_reminder: { audience: "owner", label: "Confirm a few quick details – day-2 reminder (A48 batch 2)", wordingApproved: true, quietHours: true },
+  // A48 batch 2 part 2 (Jo 30 Oct 2026, wording approved in the part 2 spec): Jo taps "Send to installer" on a closed batch →
+  // the INSTALLER gets the run link (run-route.core runOfferedText). Own switch, off until Jo switches it on.
+  run_offered: { audience: "partner", label: "You've got a run of Ready Checks – pick your day (A48 batch 2 runs)", wordingApproved: true, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 
@@ -179,6 +182,7 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   address_request_reminder: { kind: "window" }, // key = job; due 24h after the request, recorded once; same quiet-hours retry
   quick_taps: { kind: "window" }, // key = batch + job + step; the area_batch_sent event is recorded before any send (area-batch.server)
   quick_taps_reminder: { kind: "window" }, // key = batch + job + reminder; due on day 2, recomputed by the batch sweep
+  run_offered: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = Jo's "Send to installer" tap; the run's 24h reply window
 };
 
 export type SmsEventInput = {

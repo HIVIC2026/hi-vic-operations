@@ -53,6 +53,7 @@ import { officeEmailLayout, electricianInviteLayout } from "./office-email.core"
 import { composeReply } from "./email-reply.core";
 import { brandSmsBody } from "./sms.core";
 import { quickTapsReminderText, quickTapsText } from "./area-batch.core";
+import { runOfferedText } from "./run-route.core";
 import { blastMessage } from "./save-spot-reminder-blast.core";
 import { threeQuestionsSms } from "./three-questions-reminder.core";
 import {
@@ -521,6 +522,10 @@ const INSTALLER: TemplateEntry[] = [
   ENTRY({ id: "installer:sms-boss_price_link", section: "installer", step: "quote", kind: "text", code: "", name: "Enter your price (text)", when: "A1 Ready Check marked Complete with no price yet", who: "Installer (business owner)", approvalNote: "Jo 25 Oct 2026, decision 288", gate: { kind: "text", smsType: "boss_price_link" },
     source: { builder: "src/lib/boss-price-link.core.ts", fn: "bossPriceLinkText", sender: "src/lib/boss-price-link.server.ts" },
     render: () => text(bossPriceLinkText({ jobNumber: "HV-TEST", street: "824 High Street Road", link: `${FIELD}#price` })) }),
+  // A48 batch 2 part 2 (Jo 30 Oct 2026): Jo taps "Send to installer" on a closed area batch → the installer's run link.
+  ENTRY({ id: "installer:sms-run_offered", section: "installer", step: "ready_check", kind: "text", code: "", name: "You've got a run (text)", when: "Jo taps Send to installer on a closed batch (Jobs › Choose installer)", who: "Installer (business owner)", approvalNote: "Jo 30 Oct 2026 (A48 batch 2 part 2 spec)", gate: { kind: "text", smsType: "run_offered" },
+    source: { builder: "src/lib/run-route.core.ts", fn: "runOfferedText", sender: "src/lib/installer-run.server.ts" },
+    render: () => text(runOfferedText({ name: "Sam Sample", homes: 8, suburb: "Box Hill", link: `${BASE}/field/run/TEST-RUN` })) }),
   // Quote
   ENTRY({ id: "installer:I23", section: "installer", step: "quote", kind: "email", code: "I23", name: "Good news — the owner accepted", when: "The owner pays the safety check", who: "Installer", approvalNote: "Jo 24 Oct 2026", gate: { kind: "email" },
     source: { builder: "src/lib/installer-accepted-email.core.ts", fn: "renderInstallerAcceptedEmail", sender: "src/lib/installer-accepted-email.server.ts" }, design: "docs/templates/mjml/installer_I23.mjml",

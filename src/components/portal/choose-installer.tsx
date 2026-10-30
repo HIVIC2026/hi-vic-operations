@@ -13,6 +13,7 @@ import { Section } from "@/components/portal/panels";
 import { listChooseTrades } from "@/lib/offer-dispatch.functions";
 import { getSpotRelease, releaseSpotFn } from "@/lib/spot-release.functions";
 import { getAreaBatchSuggestions, getBatchesReadyToSend, sendAreaBatchFn } from "@/lib/area-batch.functions";
+import { offerRunFn } from "@/lib/installer-run.functions";
 import { Pill, btnClass } from "@/components/portal/kit";
 import { CHOOSE_LOAD_FAILED, choosePanelState } from "@/lib/installer-waiting-columns.core";
 
@@ -161,8 +162,23 @@ export function AreaBatchSuggestions({ includeTest = false }: { includeTest?: bo
  *  checks the homes and taps "Send to installer" (wired in Task 6; until then the button is off). Nothing in Needs me. */
 export function BatchesReadyToSend({ includeTest = false }: { includeTest?: boolean }) {
   const load = useServerFn(getBatchesReadyToSend);
+  const offer = useServerFn(offerRunFn);
+  const qc = useQueryClient();
   const q = useQuery({ queryKey: ["area-batches", "ready", includeTest], queryFn: () => load({ data: { includeTest } }), staleTime: 30_000 });
+  const [busy, setBusy] = useState<string | null>(null);
   const d = q.data;
+  // Jo's one tap: the run goes to the installer she picked when she sent the batch. One tap at a time.
+  const send = async (batchId: string) => {
+    if (busy) return;
+    setBusy(batchId);
+    try {
+      const r = await offer({ data: { batchId } });
+      if (r.text.status === "sent" || r.text.status === "already") toast.success(`Sent to ${r.installer || "the installer"} — ${r.homes} ${r.homes === 1 ? "home" : "homes"}`);
+      else toast.warning(`Run sent to ${r.installer || "the installer"}, but the text didn't go: ${r.text.detail}`);
+      void qc.invalidateQueries();
+    } catch (e) { toast.error(e instanceof Error ? e.message : "That didn't work"); }
+    finally { setBusy(null); }
+  };
   if (q.isError) return <p role="alert" className="mb-4 text-sm text-danger">Couldn't load the batches ready to send. {(q.error as Error).message} <button type="button" className="font-semibold underline" onClick={() => void q.refetch()}>Try again</button></p>;
   if (!d || d.length === 0) return null;
   return (
@@ -180,7 +196,7 @@ export function BatchesReadyToSend({ includeTest = false }: { includeTest?: bool
             <ul className="mt-2 text-[13px] text-sub">
               {b.homes.map((h) => <li key={h.jobId}>{h.jobNumber} · {h.ownerName || "Owner"} · {h.suburb || h.postcode}</li>)}
             </ul>
-            <button type="button" className={`mt-2 ${btnClass("primary")}`} disabled>Send to installer</button>
+            <button type="button" className={`mt-2 ${btnClass("primary")}`} disabled={!!busy} onClick={() => void send(b.batchId)}>{busy === b.batchId ? "Sending…" : "Send to installer"}</button>
           </li>
         ))}
       </ul>

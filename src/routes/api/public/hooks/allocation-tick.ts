@@ -144,6 +144,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['areaBatches'] = "failed";
         }
         try {
+          // A48 batch 2 part 2: a run Jo sent to the installer with no reply in 24 hours → its homes go back to Jo's suggestions
+          // (owners not asked again). Nothing is sent and nothing lands in Needs me. Runs are only ever OFFERED by Jo's tap.
+          const { sweepRunOffers } = await import("@/lib/installer-run.server");
+          (out as Record<string, unknown>)['runOffers'] = await timed("sweepRunOffers", () => sweepRunOffers());
+        } catch (e) {
+          console.error("allocation tick: run offer sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['runOffers'] = "failed";
+        }
+        try {
           // Plan 2026-10-28 (full address required): website/email enquiries with no street → ask the owner (email + text)
           // to pick their full address, then ONE reminder 24h later. Off until address_request_live_at is set.
           const { sweepAddressRequests } = await import("@/lib/address-request.server");

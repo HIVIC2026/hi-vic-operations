@@ -21,6 +21,7 @@ import {
   type AreaBatchEventRow, type BatchHome, type SweepJob,
 } from "./area-batch.core";
 import { QUICK_TAPS_ANSWERED_EVENT } from "./quick-taps.core";
+import { RUN_EVENTS, RUN_OFFERED_EVENT, runIdOf, runState, type RunEventRow } from "./run-route.core";
 import { installerWaiting } from "./installer-waiting-columns.core";
 import { SPOT_RELEASE_EVENTS, jobWaitingForInstaller, spotReleaseState, type SpotReleaseEventRow } from "./spot-release.core";
 import { declaredExtras, declaredInsulationDetail } from "./enquiry.core";
@@ -108,7 +109,7 @@ export async function batchCandidates(opts: { includeTest?: boolean; testJobIds?
     byIds("installers", ids, (c, f, t) => admin.from("job_assignments").select("job_id").in("job_id", c).eq("role", "installer").eq("active", true).range(f, t)),
     byIds("Ready Check offers", ids, (c, f, t) => admin.from("partner_offers").select("job_id, status, offered_at, businesses(name)").in("job_id", c).eq("kind", "ready_check").range(f, t)),
     byIds("saved spots", ids, (c, f, t) => admin.from("lead_campaign_responses").select("job_id, spot_saved_at, opted_out_at, saved_insulation").in("job_id", c).range(f, t)),
-    byIds("batch and release history", ids, (c, f, t) => loose.from("workflow_events").select("job_id, event_type, created_at, details").in("job_id", c).in("event_type", [...AREA_BATCH_EVENTS, QUICK_TAPS_ANSWERED_EVENT, ...SPOT_RELEASE_EVENTS]).range(f, t)),
+    byIds("batch and release history", ids, (c, f, t) => loose.from("workflow_events").select("job_id, event_type, created_at, details").in("job_id", c).in("event_type", [...AREA_BATCH_EVENTS, QUICK_TAPS_ANSWERED_EVENT, ...SPOT_RELEASE_EVENTS, ...RUN_EVENTS]).range(f, t)),
     propIds.length ? byIds("property facts", propIds, (c, f, t) => loose.from("property_facts").select("property_id, fact_key, value").in("property_id", c).in("fact_key", ["coordinates", "roof_form"]).eq("is_current", true).range(f, t)) : Promise.resolve([] as Row[]),
   ]) : [[], [], [], [], []];
   const withInstaller = new Set(assigned.map((a) => String(a["job_id"])));
@@ -131,7 +132,11 @@ export async function batchCandidates(opts: { includeTest?: boolean; testJobIds?
     if (!sv?.["spot_saved_at"] || sv["opted_out_at"]) { no("the owner hasn't saved a spot"); continue; }
     const ev = eventsBy.get(id) ?? [];
     if (openBatchId(ev as unknown as AreaBatchEventRow[])) { no("it's already in a batch waiting for answers"); continue; }
-    if (passHandedOn(ev as unknown as AreaBatchEventRow[], id)) { no("the owner said yes — it's waiting for you to tap Send to installer"); continue; }
+    if (passHandedOn(ev as unknown as AreaBatchEventRow[], id)) {
+      const runIds = [...new Set((ev as unknown as RunEventRow[]).filter((e) => e.event_type === RUN_OFFERED_EVENT).map(runIdOf).filter((x): x is string => !!x))];
+      const inRun = runIds.some((r) => { const st = runState(r, ev as unknown as RunEventRow[]); return !!st && st.memberIds.includes(id) && (st.status === "offered" || st.status === "answered"); });
+      no(inRun ? "it's in a run sent to the installer" : "the owner said yes — it's waiting for you to tap Send to installer"); continue;
+    }
     const release = spotReleaseState((ev as unknown as SpotReleaseEventRow[]).filter((e) => (SPOT_RELEASE_EVENTS as readonly string[]).includes(e.event_type)));
     if (release.state === "pending") { no("the owner is being asked to confirm a released spot"); continue; }
     const prop = (j["properties"] ?? null) as { declared?: Record<string, unknown> | null; answers?: Record<string, unknown> | null } | null;
@@ -453,7 +458,8 @@ export type ReadyBatch = { batchId: string; closedAt: string; isTest: boolean; i
 const READY_DAYS = 60;
 
 /** Closed batches with owners who said yes, still waiting for an installer: the passers, their suburbs and the installer Jo
- *  picked at Send. Nothing is sent from here; "Send to installer" is Jo's tap (Task 6). Zero passers left → not listed. */
+ *  picked at Send. Nothing is sent from here; "Send to installer" is Jo's tap (installer-run.server). Zero passers
+ *  left, or already sent to the installer → not listed. */
 export async function batchesReadyToSend(opts: { includeTest?: boolean; testJobIds?: string[]; now?: Date } = {}): Promise<ReadyBatch[]> {
   const now = opts.now ?? new Date();
   const since = new Date(now.getTime() - READY_DAYS * 86_400_000).toISOString();
@@ -472,15 +478,20 @@ export async function batchesReadyToSend(opts: { includeTest?: boolean; testJobI
   let passIds = [...new Set([...byBatch.values()].flatMap((b) => b.pass))];
   if (opts.testJobIds) { const allowed = new Set(opts.testJobIds); passIds = passIds.filter((id) => allowed.has(id)); }
   if (!passIds.length) return [];
-  const [jobs, assigned, sentRows] = await Promise.all([
+  const [jobs, assigned, sentRows, runRows] = await Promise.all([
     byIds("waiting passers", passIds, (c, f, t) => admin.from("jobs").select("id, job_number, stage, source, channel, deleted_at, qa_archived_at, owners(full_name), properties(suburb, postcode)").in("id", c).range(f, t)),
     byIds("passers' installers", passIds, (c, f, t) => admin.from("job_assignments").select("job_id").in("job_id", c).eq("role", "installer").eq("active", true).range(f, t)),
     byIds("sent batches", passIds, (c, f, t) => loose.from("workflow_events").select("job_id, event_type, created_at, details").in("job_id", c).eq("event_type", AREA_BATCH_SENT_EVENT).range(f, t)),
+    byIds("runs sent", passIds, (c, f, t) => loose.from("workflow_events").select("job_id, details").in("job_id", c).eq("event_type", RUN_OFFERED_EVENT).range(f, t)),
   ]);
+  // A batch Jo already sent to the installer (Jo's tap, installer-run.server) is never listed again — even after a decline / no reply,
+  // when its owners are back in the suggestions with their standing pass.
+  const sentToInstaller = new Set(runRows.map((r) => s((r["details"] as { batch_id?: unknown } | null)?.batch_id)).filter(Boolean));
   const withInstaller = new Set(assigned.map((a) => String(a["job_id"])));
   const jobBy = new Map(jobs.map((j) => [String(j["id"]), j]));
   const out: ReadyBatch[] = [];
   for (const [batchId, b] of byBatch) {
+    if (sentToInstaller.has(batchId)) continue;
     const homes: (ReadyHome & { isTest: boolean })[] = [];
     for (const id of b.pass) {
       const j = jobBy.get(id);
@@ -503,3 +514,6 @@ export async function batchesReadyToSend(opts: { includeTest?: boolean; testJobI
   }
   return out.sort((a, b) => a.closedAt.localeCompare(b.closedAt));
 }
+
+/** Shared with the installer's run (installer-run.server): the same once-only claim and batched id reads. */
+export { claim as claimBatchEvent, byIds as readByIds, all as readAll };
