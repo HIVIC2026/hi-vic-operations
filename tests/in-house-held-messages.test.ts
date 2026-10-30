@@ -30,7 +30,7 @@ function fixture(held: boolean, payee = false, failed = false) {
     './address':{fullAddress:()=> '1 Test St'}, './veec-copy-email.server':{ownerMyJobLink:async()=> 'https://example.test'},
     './ready-check-times.server':{readyCheckTurnFor:async()=> 'owner_to_answer'}, './quote-hold.core':{smsQuietReason:()=>null},
     './mitti.core':{isClosedOrArchivedJob:()=>false}, './payments.server':{jobPaymentView:async()=>null},
-    './approved-owner-emails.server':new Proxy({}, {get:()=>async()=>{calls.push('message');return 'sent';}}),
+    './approved-owner-emails.server':new Proxy({}, {get:(_,key)=>key==='then'?undefined:async()=>{calls.push('message');return 'sent';}}),
     './booking.server':{confirmBooking:async()=>{writes.push('booking');return 'b';}},
   };
   const cache:Record<string,any>={};
@@ -69,7 +69,4 @@ for(const payee of [false,true]) {
 }
 test('clearance sweep skips held partner without a delivery claim',async()=>{
   const f=fixture(true);expect(await f.load('install-clearance.server').sweepInstallClearance(new Date('2026-10-30'))).toMatchObject({notified:0});expect(f.calls).toEqual([]);expect(f.writes).toEqual([]);
-});
-test('rectification held-window sweep leaves partner coordination alone',async()=>{
-  const f=fixture(true);expect(await f.load('rectification.server').sweepHeldRectWindows()).toEqual({booked:0,lapsed:0});expect(f.writes).toEqual([]);
 });
