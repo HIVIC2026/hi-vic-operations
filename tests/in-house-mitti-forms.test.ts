@@ -58,7 +58,7 @@ const logEvent = async (job: string, actor: string | null, event_type: string, s
 const call: mitti.MittiCall = async (method, path, body) => {
   calls.push({ method, path, body });
   if (path.endsWith("/share") && failShare) throw new Error("share failed");
-  if (method === "GET" && path.startsWith("/users")) return {users:[{id:"mitti-user", email:EMAIL}]};
+  if (path === "/users/search") return {users:[{id:"mitti-user", email:EMAIL}]};
   if (method === "GET" && path.startsWith("/audits/")) return auditResponse ?? {audit_id:path.split("/")[2], template_id:path.endsWith("audit-1") ? PIESA : RECT, items:[]};
   if (path === "/audits") { if (failCreate) throw new Error("Mitti create reply lost"); return { audit_id: `audit-${calls.filter(c => c.path === "/audits").length}` }; }
   if (path.includes("/templates/")) return { template: { template_id: path.includes(PIESA) ? PIESA : RECT, items: path.includes(PIESA) ? ["Property Address", "Owner name"].map((label,i)=>({item_id:`p${i}`,label})) : core.FIXES_DAY_QUESTIONS.map(q => ({ item_id: `i${q.n}`, label: q.label })) } };
@@ -72,7 +72,7 @@ const overrides: Record<string, any> = {
   "./in-house-suppression.server": { readInHouseDispatchState: async () => ({ held: new Set(held ? [JOB] : []), failed: false }) },
   "./repeat-piesa.server": { currentPiesaSupersededByReopen: async()=>false, repeatPiesaContext: async () => ({ state: { stage: repeatDeadline ? "offer" : "none", deadline: repeatDeadline } }) },
   "./test-send.core": { isTestPartner: () => false }, "./onsite-ready-check.core": { TEST_MITTI_ASSIGNEE: "test@example.invalid" },
-  "./mitti-create.server": { MittiClaimHeld, MittiOutcomeUncertain, claimMittiCreate: async (_j:string, kind:string, _a:any, _s:any, details:any) => { const key = `${kind}:${details?.rectification_round ?? "initial"}`; if (claims.has(key)) throw new MittiClaimHeld("creation already claimed"); claims.add(key); claimHeld = true; return key; }, releaseMittiCreate: async (_j:string,_k:string,key:string) => { claims.delete(key); claimHeld = false; }, recordMittiCreateUncertain: async () => {} },
+  "./mitti-create.server": { MittiClaimHeld, MittiOutcomeUncertain, claimMittiCreate: async (_j:string, kind:string, _a:any, _s:any, details:any) => { const key = `${kind}:${held ? details?.rectification_round ?? "initial" : details?.booking_id ?? "initial"}`; if (claims.has(key)) throw new MittiClaimHeld("creation already claimed"); claims.add(key); claimHeld = true; return key; }, releaseMittiCreate: async (_j:string,_k:string,key:string) => { claims.delete(key); claimHeld = false; }, recordMittiCreateUncertain: async () => {} },
   "./official-forms.server": { officialPrefillContext: async () => ({ address: "TEST address", electrician: { name: "Electrician" }, lifeSupportDeclared: false }) },
   "./eligibility.server": { todayMelbourne: () => "2026-10-30" },
   "./autoadvance.server": { autoAdvanceJob: async () => {} },
@@ -202,7 +202,7 @@ Object.assign(overrides, {
 overrides["./official-forms.server"].hazardBlockers=async()=>[];
 overrides["./official-forms.server"].currentCopy=async()=>({unavailable:true});
 const signedAudit = () => ({audit_id:"audit-2",template_id:RECT,completed:true,items:[
- ...core.FIXES_DAY_QUESTIONS.map(q=>({item_id:`i${q.n}`,label:q.label})),
+ ...core.FIXES_DAY_QUESTIONS.filter(q=>![core.FIXES_DAY_Q.jobNumber,core.FIXES_DAY_Q.done,core.FIXES_DAY_Q.coesNumber,core.FIXES_DAY_Q.certDate,core.FIXES_DAY_Q.coesFile,core.FIXES_DAY_Q.workPhoto,core.FIXES_DAY_Q.signature].includes(q.label)).map(q=>({item_id:`i${q.n}`,label:q.label})),
  ...[[core.FIXES_DAY_Q.jobNumber,"HV-TEST"],[core.FIXES_DAY_Q.done,"Yes"],[core.FIXES_DAY_Q.coesNumber,"C123"],[core.FIXES_DAY_Q.certDate,"2026-11-02"]].map(([label,text])=>({label,responses:{text}})),
  {label:core.FIXES_DAY_Q.coesFile,media:[{media_id:"coes"}]},
  {label:core.FIXES_DAY_Q.workPhoto,media:[{media_id:"photo",location:{latitude:-37.8,longitude:145}}]},
@@ -260,7 +260,7 @@ test("rectification handover failure retries share and owner using its existing 
  expect(tables.assessments[0].mitti_sync_status).toBe("error");
  failShare=false; await s.onRectificationBooked(JOB,"rect-visit",null,call);
  expect(calls.filter(c=>c.path==="/audits")).toHaveLength(2);
- expect(calls.filter(c=>c.path==="/audits/audit-2/owner").length).toBeGreaterThanOrEqual(2);
+ expect(calls.filter(c=>c.path==="/inspections/v1/inspections/audit-2/owner").length).toBeGreaterThanOrEqual(2);
 });
 
 const setPiesaAudit = (repair:boolean) => {
