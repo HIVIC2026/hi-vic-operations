@@ -25,7 +25,12 @@ export const RUN_OFFERED_SMS_TYPE = "run_offered" as const;
 export const RUN_REPLY_HOURS = 24;
 
 export const runOfferedKey = (batchId: string, jobId: string) => `run-offered:v1:${batchId}:${jobId}`;
-export const runOfferedSmsKey = (runId: string) => `run-offered-sms:v1:${runId}`;
+/** One key per send attempt: a resend (only when no earlier attempt went) never reuses a key a failed send claimed. */
+export const runOfferedSmsKey = (runId: string, attempt: number) => `run-offered-sms:v1:${runId}:${attempt}`;
+/** One per send attempt of the installer text (on the run's first home): {run_id, attempt, status}. */
+export const RUN_OFFERED_TEXT_EVENT = "run_offered_text";
+/** Attempt statuses meaning the text went (or may have gone) — never sent again. */
+export const RUN_TEXT_WENT = ["sent", "already", "sent_unknown"] as const;
 export const runReleaseKey = (type: (typeof RUN_RELEASE_EVENTS)[number], runId: string, jobId: string) => `${type}:v1:${runId}:${jobId}`;
 /** The installer's run page (signed in, business-scoped). */
 export const runLink = (base: string, runId: string) => `${base.replace(/\/+$/, "")}/field/run/${runId}`;

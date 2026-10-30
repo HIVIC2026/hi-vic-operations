@@ -6,6 +6,7 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { orderRun, windowsFor, runOfferedText } from "../src/lib/run-route.core";
+import { passHandedOn } from "../src/lib/area-batch.core";
 import { SMS_FRESHNESS, SMS_MESSAGE_TYPES } from "../src/lib/sms.core";
 
 type Row = Record<string, unknown>;
@@ -60,8 +61,10 @@ mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: fak
 
 // ---- recorded fakes ----------------------------------------------------------------------------------------------
 const sent: { via: string; to: string; body: string; key?: string; type?: string; businessId?: string | null; label?: string }[] = [];
+let smsStatus = "sent"; // what the real sender answers ("blocked" = held after the run was claimed, e.g. STOP / consent)
 mock.module("../src/lib/sms.server", () => ({
   sendRealSms: async (i: { type: string; to: string; body: string; idempotencyKey: string; businessId?: string | null }) => {
+    if (smsStatus !== "sent") return { status: smsStatus, detail: "held: test", sid: null };
     if (sent.some((s) => s.key === i.idempotencyKey)) return { status: "already", detail: "already", sid: null };
     sent.push({ via: "real-sms", to: i.to, body: i.body, key: i.idempotencyKey, type: i.type, businessId: i.businessId ?? null }); return { status: "sent", detail: "ok", sid: "SM1" };
   },
@@ -72,7 +75,12 @@ mock.module("../src/lib/test-send.server", () => ({
   sendTestEmail: async () => { throw new Error("no email here"); },
   sendTestSms: async (c: { label: string }, to: string, body: string) => { sent.push({ via: "test-sms", to, body, label: c.label }); return { status: "sent", detail: "ok" }; },
 }));
-mock.module("../src/lib/installer-waiting.server", () => ({ installerFacts: async () => [] }));
+const fact = (id: string, o: Row = {}) => ({
+  id, name: id, is_active: true, onboarding_status: "approved", accepting_new_jobs: true, receives_hivic_leads: true, coverage_verified_at: "2026-10-01T00:00:00Z",
+  service_postcodes: ["3128"], free_measureups_for_hivic_quote_leads: true, onboarding_notes: id === "biz-t" ? "[TEST PARTNER]" : null, credentialsOk: true, fullCertifiedInstallers: 1, covers_all_victoria: false, ...o,
+});
+let installerFacts: Row[] = [];
+mock.module("../src/lib/installer-waiting.server", () => ({ installerFacts: async (ids?: string[]) => installerFacts.filter((f) => !ids || ids.includes(String(f["id"]))) }));
 mock.module("../src/lib/property-coordinates.server", () => ({ ensurePropertyCoordinates: async () => null }));
 
 const R = await import("../src/lib/installer-run.server");
@@ -111,7 +119,9 @@ function closedBatch(batchId: string, jobIds: string[], installer = "biz-1", o: 
 }
 function seed() {
   for (const k of Object.keys(tables)) delete tables[k];
-  sent.length = 0;
+  sent.length = 0; smsStatus = "sent";
+  installerFacts = [fact("biz-1"), fact("biz-2"), fact("biz-t")];
+  tables["workflow_settings"] = [{ id: 1, customer_comms_enabled: true, sms_message_switches: { run_offered: true } }];
   for (const t of ["jobs", "lead_campaign_responses", "property_facts", "job_assignments", "partner_offers", "workflow_events"]) tables[t] = [];
   tables["businesses"] = [
     { id: "biz-1", name: "Sample Insulation", business_type: "eec_installer", signer_name: "Sam Smith", signer_mobile: "0411111111", phone: null, onboarding_notes: null, is_active: true },
@@ -181,7 +191,7 @@ describe("offerRun (Jo taps Send to installer)", () => {
     const r = await R.offerRun("b1", "u-jo", { now: new Date(clock) });
     expect(r.homes).toBe(4);
     const link = `https://estimate.homeinsulationvictoria.com.au/field/run/${r.runId}`;
-    expect(sent).toEqual([{ via: "real-sms", to: "0411111111", type: "run_offered", businessId: "biz-1", key: `run-offered-sms:v1:${r.runId}`,
+    expect(sent).toEqual([{ via: "real-sms", to: "0411111111", type: "run_offered", businessId: "biz-1", key: `run-offered-sms:v1:${r.runId}:1`,
       body: `Hi Sam, you've got a run of 4 Ready Checks around Box Hill. Pick your day: ${link} - Home Insulation Victoria` }]);
     const offered = events("run_offered");
     expect(offered.map((e) => e["job_id"]).sort()).toEqual(["a", "b", "c", "d"]);
@@ -227,6 +237,83 @@ describe("offerRun (Jo taps Send to installer)", () => {
     await expect(R.offerRun("nope", "u-jo", { now: new Date(clock) })).rejects.toThrow(/nothing was sent/);
     expect(sent).toEqual([]);
     expect(events("run_offered")).toEqual([]);
+  });
+});
+
+// ---- fix round 1 -------------------------------------------------------------------------------------------------------
+describe("fix round 1: refuse when the text would be held; resend a run whose text never went; coverage at tap time", () => {
+  beforeEach(seed);
+  const ready = () => { for (const id of ["a", "b"]) addJob(id); closedBatch("b1", ["a", "b"]); now(1); };
+  const ws = () => tables["workflow_settings"]![0]!;
+  for (const [what, set] of [
+    ["the run_offered switch is off", () => { ws()["sms_message_switches"] = { run_offered: false }; }],
+    ["customer messages are off", () => { ws()["customer_comms_enabled"] = false; }],
+    ["trade messages are paused", () => { ws()["trade_messages_paused"] = true; }],
+  ] as const) {
+    test(`real run refused when ${what}: no run_offered, no text`, async () => {
+      ready(); set();
+      await expect(R.offerRun("b1", "u-jo", { now: new Date(clock) })).rejects.toThrow(/nothing was sent\.?$/i);
+      expect(events("run_offered")).toEqual([]);
+      expect(sent).toEqual([]);
+    });
+  }
+  test("no trade_messages_paused column (separate PR not merged) = not paused", async () => {
+    ready();
+    expect("trade_messages_paused" in ws()).toBe(false);
+    await R.offerRun("b1", "u-jo", { now: new Date(clock) });
+    expect(sent.length).toBe(1);
+  });
+  test("TEST runs skip the real-text checks (test-send only)", async () => {
+    addJob("a", { source: "qa_test" }); closedBatch("bt", ["a"], "biz-t"); now(1);
+    ws()["sms_message_switches"] = {};
+    await R.offerRun("bt", "u-jo", { now: new Date(clock) });
+    expect(sent.map((x) => x.via)).toEqual(["test-sms"]);
+  });
+  test("text held after the claim → the next tap re-texts the SAME run (no new claims); once it went → refused", async () => {
+    ready();
+    smsStatus = "blocked";
+    const r1 = await R.offerRun("b1", "u-jo", { now: new Date(clock) });
+    expect(r1.text.status).toBe("blocked");
+    expect(sent).toEqual([]);
+    expect(events("run_offered").length).toBe(2);
+    smsStatus = "sent"; now(2);
+    const r2 = await R.offerRun("b1", "u-jo", { now: new Date(clock) });
+    expect(r2.runId).toBe(r1.runId);
+    expect(r2.text.status).toBe("sent");
+    expect(sent.map((x) => [x.key, x.body.includes(`/field/run/${r1.runId}`)])).toEqual([[`run-offered-sms:v1:${r1.runId}:2`, true]]);
+    expect(events("run_offered").length).toBe(2);
+    await expect(R.offerRun("b1", "u-jo", { now: new Date(clock) })).rejects.toThrow(/already been sent/);
+    expect(sent.length).toBe(1);
+  });
+  test("a declined run is never re-texted by the tap", async () => {
+    ready();
+    smsStatus = "failed";
+    const r1 = await R.offerRun("b1", "u-jo", { now: new Date(clock) });
+    await R.declineRun(r1.runId, "u-sam");
+    smsStatus = "sent";
+    await expect(R.offerRun("b1", "u-jo", { now: new Date(clock) })).rejects.toThrow(/already been sent/);
+    expect(sent).toEqual([]);
+  });
+  test("installer can't be offered every home any more (e.g. not taking jobs / area) → refused, nothing written", async () => {
+    ready();
+    installerFacts = [fact("biz-1", { accepting_new_jobs: false })];
+    await expect(R.offerRun("b1", "u-jo", { now: new Date(clock) })).rejects.toThrow(/can't be offered every home.*nothing was sent/);
+    installerFacts = [fact("biz-1", { service_postcodes: ["3000"] })];
+    await expect(R.offerRun("b1", "u-jo", { now: new Date(clock) })).rejects.toThrow(/can't be offered every home/);
+    installerFacts = [];
+    await expect(R.offerRun("b1", "u-jo", { now: new Date(clock) })).rejects.toThrow(/can't be offered every home/);
+    expect(events("run_offered")).toEqual([]);
+    expect(sent).toEqual([]);
+  });
+  test("passHandedOn: another job's release in the same batch doesn't free this job", () => {
+    const evs = [
+      { job_id: "x", event_type: "area_batch_closed", created_at: at(0), details: { batch_id: "b1", pass_job_ids: ["x", "y"] } },
+      { job_id: "y", event_type: "run_home_removed", created_at: at(1), details: { batch_id: "b1", run_id: "r1" } },
+    ];
+    expect(passHandedOn(evs, "x")).toBe(true);
+    expect(passHandedOn(evs, "y")).toBe(false);
+    // per-job lists (rows without job_id) still work
+    expect(passHandedOn(evs.map(({ job_id: _j, ...e }) => e), "x")).toBe(false);
   });
 });
 
