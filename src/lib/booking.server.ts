@@ -61,14 +61,14 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
   // Decision 366 (audit F03): the electrical fixes are paid in full before their visit is booked (every booking path).
   if (kind === "rectification") {
     const { readInHouseDispatchState } = await import("./in-house-suppression.server");
-    const { partnerBillsRectification, type InHouseBusiness } = await import("./in-house.core");
+    const { partnerBillsRectification } = await import("./in-house.core");
     const state = await readInHouseDispatchState([jobId]);
     if (state.failed) throw new WorkflowError("Couldn't check the job's partner — please try again.");
     let partnerBilled = false;
     if (state.held.has(jobId)) {
       const { data: installer, error } = await admin.from("job_assignments").select("businesses(in_house, rectification_billed_by)").eq("job_id", jobId).eq("role", "installer").eq("active", true).single();
       if (error || !installer?.businesses) throw new WorkflowError("Couldn't check the job's partner — please try again.");
-      partnerBilled = partnerBillsRectification(installer.businesses as unknown as InHouseBusiness);
+      partnerBilled = partnerBillsRectification(installer.businesses as unknown as import("./in-house.core").InHouseBusiness);
     }
     if (!partnerBilled) { const blocker = await (await import("./payments.server")).fixesPaymentBlockerFor(jobId); if (blocker) throw new WorkflowError(`Blocked: ${blocker}`); }
   }
