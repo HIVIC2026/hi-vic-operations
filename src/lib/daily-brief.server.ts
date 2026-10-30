@@ -4,7 +4,7 @@
 // by approved-texts.server.ts; the installer's day-before text is install_tomorrow (installer-texts.server.ts); 2-hour
 // reminders and trade day-before reminders for Ready Checks / safety checks have no approved wording and are not sent.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { briefDueFor, buildDailyBrief, prestartNotPassed, yesterdayBounds, type BriefRisk } from "./daily-brief.core";
+import { aiAutoSentCount, briefDueFor, buildDailyBrief, prestartNotPassed, yesterdayBounds, type BriefRisk } from "./daily-brief.core";
 
 /** Facts for one brief. Read-only. QA jobs are left out. */
 export async function collectBrief(date: string, now = new Date()) {
@@ -13,7 +13,7 @@ export async function collectBrief(date: string, now = new Date()) {
   const y = yesterdayBounds(date);
   const { loadNeedsHivic } = await import("./needs.server");
   const needs = await loadNeedsHivic();
-  const [jobs, clocks, esc, inst, checks, enq, bk, done, vs, vr] = await Promise.all([
+  const [jobs, clocks, esc, inst, checks, enq, bk, done, vs, vr, aiSent] = await Promise.all([
     admin.from("jobs").select("id, job_number, stage, source"),
     admin.from("job_piesa_deadlines").select("job_id, install_deadline, days_remaining, piesa_expired").eq("piesa_expired", false).lte("days_remaining", 7),
     admin.from("esc_notifications").select("job_id, due_by").is("sent_at", null).not("status", "in", "(stale,cancelled)").not("due_by", "is", null).lte("due_by", week),
@@ -24,8 +24,9 @@ export async function collectBrief(date: string, now = new Date()) {
     admin.from("jobs").select("id", { count: "exact", head: true }).neq("source", "qa_test").gte("installation_completed_at", y.from).lt("installation_completed_at", y.to),
     admin.from("veec_lodgements").select("job_id").eq("submitted_date", y.day),
     admin.from("veec_lodgements").select("job_id").eq("status", "approved").gte("updated_at", y.from).lt("updated_at", y.to),
+    admin.from("workflow_events").select("job_id, created_at, details").eq("event_type", "email_ai_draft_sent").eq("details->>via", "ai").gte("created_at", y.from).lt("created_at", y.to).limit(1000),
   ]);
-  for (const r of [jobs, clocks, esc, inst, checks, enq, bk, done, vs, vr]) if (r.error) throw new Error(`Could not load daily brief facts: ${r.error.message}`);
+  for (const r of [jobs, clocks, esc, inst, checks, enq, bk, done, vs, vr, aiSent]) if (r.error) throw new Error(`Could not load daily brief facts: ${r.error.message}`);
   const jobMap = new Map((jobs.data ?? []).map((j) => [j.id, j]));
   const live = (id: string | null) => !!id && jobMap.get(id)?.source !== "qa_test" && !["complete", "cancelled"].includes(jobMap.get(id)?.stage ?? "");
   const num = (id: string | null) => (id ? jobMap.get(id)?.job_number ?? null : null);
@@ -45,6 +46,7 @@ export async function collectBrief(date: string, now = new Date()) {
       bookings: (bk.data ?? []).filter((b) => (b.jobs as { source: string | null } | null)?.source !== "qa_test").length,
       installs: done.count ?? 0, veecsSubmitted: real(vs.data), veecsRegistered: real(vr.data),
     },
+    aiAutoSent: aiAutoSentCount((aiSent.data ?? []) as never, new Map((jobs.data ?? []).map((j) => [j.id, j.source])), y.from, y.to),
   });
 }
 

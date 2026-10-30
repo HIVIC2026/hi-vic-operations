@@ -1,6 +1,7 @@
 // AI email replies on each job (Jo 26 Oct 2026) — see ai-email-reply.core for the rules.
 // writeAiReplyDraft: reads the job's facts, stage and full email history, asks the AI for a fresh reply and saves it as
-// ONE `email_ai_draft` event on the job (one per Outlook message). Never sends. Best-effort: never throws to the copier.
+// ONE `email_ai_draft` event on the job (one per Outlook message), then queues it for auto-send (ai-auto-send.server: only simple
+// replies, only with the switch on; sent after the sync). Best-effort: never throws to the copier.
 // sendAiDraft / discardAiDraft: office-only, from the job page. Send goes through the guarded owner sender (TEST jobs →
 // TEST inbox only), with a per-draft once-only key so the same email can never go twice.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
@@ -8,7 +9,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MailMessage } from "./outlook-correspondence.core";
 import {
   AI_EMAIL_DRAFTS_ENABLED, NO_REPLY_NEEDED, AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EDITED_EVENT, latestDraftEdits, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, AI_EMAIL_REPLY_PURPOSE, AI_REPLY_INSTRUCTIONS, aiReplyInstructions, isPreReleaseOwner,
-  aiDraftKey, aiReplyEmailHtml, aiReplyProblems, aiReplyText, bookingChangeLink, buildAiReplyInput, draftActions, draftNeeds, finishAiReply, fixUntilClean, higherRFacts, newSizeFacts, replySubject, splitAiOutput, type AiActions, type AiReplyKind,
+  AI_AUTO_DECISION_EVENT, type AutoDecisionValue, aiDraftKey, autoSendKey, draftAutoState, latestAutoDecisions, aiReplyEmailHtml, aiReplyProblems, aiReplyText, bookingChangeLink, buildAiReplyInput, draftActions, draftNeeds, finishAiReply, fixUntilClean, higherRFacts, newSizeFacts, replySubject, splitAiOutput, type AiActions, type AiReplyKind,
 } from "./ai-email-reply.core";
 import { loadAiAnswers } from "./ai-answers.server";
 import { loadStyleExamples } from "./ai-style.server";
@@ -43,7 +44,7 @@ export async function aiText(input: string, instructions: string = AI_REPLY_INST
   return (await result.text).trim();
 }
 
-export async function writeAiReplyDraft(p: { jobId: string; message: MailMessage; kind: AiReplyKind; reason: string }): Promise<"drafted" | "already" | "skipped"> {
+export async function writeAiReplyDraft(p: { jobId: string; message: MailMessage; kind: AiReplyKind; reason: string; autoSend?: boolean }): Promise<"drafted" | "already" | "skipped"> {
   if (!AI_EMAIL_DRAFTS_ENABLED || p.message.direction !== "inbound") return "skipped";
   const m = p.message;
   try {
@@ -101,7 +102,7 @@ export async function writeAiReplyDraft(p: { jobId: string; message: MailMessage
           const second = splitAiOutput(await aiText(inputWith([...lines, ...extra]), aiReplyInstructions({ preRelease })), { ownerFirstName });
           const actions = { ...second.actions };
           if (actions.newAreaM2 !== size) delete actions.newAreaM2;
-          out = { body: second.body, needsYou: out.needsYou || second.needsYou, needsAnswer: [...new Set([...out.needsAnswer, ...second.needsAnswer])], actions };
+          out = { body: second.body, needsYou: out.needsYou || second.needsYou, needsAnswer: [...new Set([...out.needsAnswer, ...second.needsAnswer])], actions, kind: second.kind };
         } catch (e) {
           console.error("AI reply new-size pass skipped", e instanceof Error ? e.message : e);
           const { newAreaM2: _dropped, ...rest } = out.actions; void _dropped;
@@ -119,12 +120,21 @@ export async function writeAiReplyDraft(p: { jobId: string; message: MailMessage
       summary: noReply ? "No reply needed (owner said thanks)" : `AI reply draft waiting for Jo (${p.kind === "simple" ? "simple email" : "needs a check"})`,
       details: { message_id: m.providerMessageId, thread_id: m.threadId, from: m.from, to: owner.email.trim(), their_subject: m.subject, subject: replySubject(m.subject),
         body, kind: p.kind, reason: p.reason, ...(problems.length ? { problems } : {}),
+        // Step 4: the AI's own label, the job's stage and when the email came in (the 7am sweep re-checks these).
+        auto_kind: out.kind, job_stage: job.stage, received_at: m.at,
         ...(!noReply && out.needsAnswer.length ? { needs_answer: out.needsAnswer } : {}), ...(!noReply && out.needsYou ? { needs_you: true } : {}),
         ...(!noReply && Object.keys(out.actions).length ? { actions: out.actions } : {}), idempotency_key: aiDraftKey(m.providerMessageId), ...(noReply ? { no_reply_needed: true } : {}) } }).select("id").single();
     if (error) throw new Error(error.message);
     // Jo 27 Oct 2026: a plain "thanks" gets no reply; the draft is closed so the card just needs Done.
     if (noReply && ins) await loose.from("workflow_events").insert({ job_id: p.jobId, actor_id: null, event_type: AI_EMAIL_DRAFT_DISCARDED_EVENT, internal: true,
       summary: "No reply needed — filed away", details: { draft_event_id: (ins as { id: string }).id } });
+    // Step 4: a simple reply may send itself — only for a new email from the Outlook sync (`autoSend`), never an office
+    // "draft a reply" or Match. Here it is only QUEUED (switch on, simple kind); nothing is sent until the sync has
+    // finished (Jo's own Sent Items stored too) and the sender after it checks it again. Any failure leaves the draft for Jo.
+    if (p.autoSend === true && !noReply && ins) {
+      try { await (await import("./ai-auto-send.server")).queueAutoSend({ draftId: (ins as { id: string }).id, jobId: p.jobId, kind: out.kind }); }
+      catch (e) { console.error("AI reply auto-send not queued", e instanceof Error ? e.message : e); }
+    }
     return "drafted";
   } catch (e) {
     console.error("AI reply draft skipped", e instanceof Error ? e.message : e);
@@ -204,7 +214,9 @@ async function estimateFacts(jobId: string): Promise<{ lines: string[]; areaM2: 
   return { lines: out, areaM2 };
 }
 
-export type AiDraftRow = { eventId: string; at: string; from: string | null; to: string; subject: string; theirSubject: string | null; body: string; kind: AiReplyKind; status: "waiting" | "sent" | "discarded"; doneAt: string | null; needsAnswer: string[]; needsYou: boolean; actions: AiActions };
+export type AiDraftRow = { eventId: string; at: string; from: string | null; to: string; subject: string; theirSubject: string | null; body: string; kind: AiReplyKind; status: "waiting" | "sent" | "discarded"; doneAt: string | null; needsAnswer: string[]; needsYou: boolean; actions: AiActions;
+  /** Newest auto-send decision (only while waiting), and whether the AI sent this one itself. */
+  auto?: { decision: AutoDecisionValue; reason: string }; sentByAi: boolean };
 
 /** Saved edits for these drafts: draft id -> newest body. */
 export async function draftEditsFor(ids: string[]): Promise<Map<string, string>> {
@@ -218,7 +230,7 @@ export async function draftEditsFor(ids: string[]): Promise<Map<string, string>>
 }
 
 /** Save the office's edit to an open draft (job or no-job). Nothing is sent. */
-export async function saveDraftEdit(eventId: string, body: string, actorId: string): Promise<{ ok: true }> {
+export async function saveDraftEdit(eventId: string, body: string, actorId: string | null): Promise<{ ok: true }> {
   const { data: ev } = await loose.from("workflow_events").select("id, job_id, event_type").eq("id", eventId).maybeSingle();
   if (!ev || (ev.event_type !== AI_EMAIL_DRAFT_EVENT && ev.event_type !== "email_nojob_ai_draft")) throw new Error("That draft wasn't found.");
   const { data: done } = await loose.from("workflow_events").select("event_type").in("event_type", [AI_EMAIL_DRAFT_SENT_EVENT, AI_EMAIL_DRAFT_DISCARDED_EVENT, "email_nojob_reply_sent", "email_nojob_ai_draft_closed"]).eq("details->>draft_event_id", eventId).limit(1);
@@ -230,19 +242,28 @@ export async function saveDraftEdit(eventId: string, body: string, actorId: stri
 }
 
 export async function listAiDrafts(jobId: string): Promise<AiDraftRow[]> {
-  const [d, done] = await Promise.all([
+  const [d, done, dec] = await Promise.all([
     loose.from("workflow_events").select("id, created_at, details").eq("job_id", jobId).eq("event_type", AI_EMAIL_DRAFT_EVENT).order("created_at", { ascending: false }).limit(50),
     loose.from("workflow_events").select("event_type, created_at, details").eq("job_id", jobId).in("event_type", [AI_EMAIL_DRAFT_SENT_EVENT, AI_EMAIL_DRAFT_DISCARDED_EVENT]).limit(200),
+    loose.from("workflow_events").select("created_at, details").eq("job_id", jobId).eq("event_type", AI_AUTO_DECISION_EVENT).order("created_at", { ascending: false }).limit(500),
   ]);
   if (d.error) throw new Error(d.error.message);
+  if (dec.error) throw new Error(dec.error.message);
   const edits = await draftEditsFor(((d.data ?? []) as { id: string }[]).map((r) => r.id));
-  const res = new Map<string, { type: string; at: string }>();
-  for (const r of (done.data ?? []) as { event_type: string; created_at: string; details: { draft_event_id?: string } }[]) if (r.details?.draft_event_id) res.set(r.details.draft_event_id, { type: r.event_type, at: r.created_at });
+  const decisions = latestAutoDecisions((dec.data ?? []) as { created_at: string; details: Record<string, unknown> | null }[]);
+  const res = new Map<string, { type: string; at: string; via?: string | undefined }>();
+  // A sent event wins over a discard, whichever was written first.
+  for (const r of (done.data ?? []) as { event_type: string; created_at: string; details: { draft_event_id?: string; via?: string } }[]) {
+    const id = r.details?.draft_event_id; if (!id) continue;
+    if (res.get(id)?.type === AI_EMAIL_DRAFT_SENT_EVENT && r.event_type !== AI_EMAIL_DRAFT_SENT_EVENT) continue;
+    res.set(id, { type: r.event_type, at: r.created_at, via: r.details.via });
+  }
   return ((d.data ?? []) as { id: string; created_at: string; details: Record<string, unknown> }[]).map((r) => {
     const x = res.get(r.id); const det = r.details; const needs = draftNeeds(det);
     return { eventId: r.id, at: r.created_at, from: (det["from"] as string) ?? null, to: String(det["to"] ?? ""), subject: String(det["subject"] ?? ""), theirSubject: (det["their_subject"] as string) ?? null,
       body: edits.get(r.id) ?? String(det["body"] ?? ""), kind: det["kind"] === "simple" ? "simple" : "other", status: x ? (x.type === AI_EMAIL_DRAFT_SENT_EVENT ? "sent" : "discarded") : "waiting", doneAt: x?.at ?? null,
-      needsAnswer: needs.needsAnswer, needsYou: needs.needsYou, actions: draftActions(det) };
+      needsAnswer: needs.needsAnswer, needsYou: needs.needsYou, actions: draftActions(det),
+      ...draftAutoState({ sentVia: x?.type === AI_EMAIL_DRAFT_SENT_EVENT ? (x.via ?? "office") : undefined, discarded: x?.type === AI_EMAIL_DRAFT_DISCARDED_EVENT, decision: decisions.get(r.id) }) };
   });
 }
 
@@ -254,12 +275,15 @@ async function openDraft(eventId: string) {
   return ev as { id: string; job_id: string; details: Record<string, unknown> };
 }
 
-/** Which of the draft's proposed actions Jo left ticked. Nothing is applied unless ticked. */
-export type SendApply = { applyNote: boolean; applyArea: boolean };
+/** Which of the draft's proposed actions Jo left ticked. Nothing is applied unless ticked.
+ *  `via: "ai"` = auto-send (step 4): no person, never applies an action, saved as "Sent by AI". */
+export type SendApply = { applyNote?: boolean; applyArea?: boolean; via?: "office" | "ai" };
+/** The email went, but its sent record on the job couldn't be saved (final review M9). Starts the thrown message. */
+export const SENT_NOT_RECORDED = "Sent, but the job didn't save it";
 export const INSTALLER_NOTE_EVENT = "installer_note";
 export const CEILING_SIZE_FROM_EMAIL_EVENT = "ceiling_size_updated_from_email";
 
-export async function sendAiDraft(eventId: string, body: string, actorId: string, apply: SendApply = { applyNote: false, applyArea: false }, now = new Date()): Promise<{ status: "sent" | `delivery uncertain${string}` } | { status: "rewritten"; body: string; problems: string[] }> {
+export async function sendAiDraft(eventId: string, body: string, actorId: string | null, apply: SendApply = {}, now = new Date()): Promise<{ status: "sent" | `delivery uncertain${string}` } | { status: "rewritten"; body: string; problems: string[] }> {
   // Jo 27 Oct 2026: the office presses Send, so it goes whenever she chooses — no after-8pm hold on manual sends.
   void now;
   const ev = await openDraft(eventId);
@@ -267,6 +291,12 @@ export async function sendAiDraft(eventId: string, body: string, actorId: string
   if (!job) throw new Error("Job not found.");
   // Decision 388: owners not yet released and confirmed get spot-only wording, checked again here (unreadable state = not released),
   // from the job just read (never a second read that could fail open).
+  // Office Send: if the AI already answered this owner email (its once-only send record exists and didn't fail), stop.
+  if (apply.via !== "ai") {
+    const { data: auto, error: ae } = await loose.from("customer_email_sends").select("status").eq("idempotency_key", autoSendKey(String(ev.details["message_id"]))).limit(1);
+    if (ae) throw new Error("Couldn't check whether the AI already answered — try again.");
+    if (((auto ?? []) as { status: string | null }[]).some((r) => r.status !== "failed")) throw new Error("This email was already answered by AI — check the job's emails first");
+  }
   const preRelease = await preReleaseFor(job.id, { channel: job.channel ?? null, stage: job.stage ?? null });
   // A draft that breaks a rule is never sent: it is rewritten, saved for Jo to check, and she presses Send again.
   if (aiReplyProblems(body).length || aiReplyProblems(body, { preRelease }).length) {
@@ -279,7 +309,8 @@ export async function sendAiDraft(eventId: string, body: string, actorId: string
   if (!to) throw new Error("This owner has no email address.");
   const K = await import("./email-kit.core");
   const subject = String(ev.details["subject"] ?? replySubject(null));
-  const key = `${aiDraftKey(String(ev.details["message_id"]))}:send:${eventId}`;
+  // Auto-send: ONE key per owner email, so a second draft of the same email can never send itself too.
+  const key = apply.via === "ai" ? autoSendKey(String(ev.details["message_id"])) : `${aiDraftKey(String(ev.details["message_id"]))}:send:${eventId}`;
   const build = (unsubscribe: string | null, test = false) => ({
     subject,
     html: aiReplyEmailHtml(body, { subject, unsubscribe, test }),
@@ -294,8 +325,16 @@ export async function sendAiDraft(eventId: string, body: string, actorId: string
   if (status === "failed: Outlook couldn't send it") throw new Error("Not sent — Outlook couldn't send it. Try again.");
   const sent = status === "sent" || status.startsWith("delivery uncertain");
   if (!sent) throw new Error(`Not sent — ${status}`);
-  await loose.from("workflow_events").insert({ job_id: job.id, actor_id: actorId, event_type: AI_EMAIL_DRAFT_SENT_EVENT, internal: true,
-    summary: `Email reply sent to the owner (approved by office)`, details: { draft_event_id: eventId, to, subject, body: body.trim(), status, idempotency_key: key } });
+  const byAi = apply.via === "ai";
+  // Final review M9: the email has gone — its sent record must not vanish silently. One retry; if it still fails, the rest
+  // still runs and the caller is told at the end (auto-send: its stuck-send check writes the record later from the send row).
+  const sentRow = { job_id: job.id, actor_id: actorId, event_type: AI_EMAIL_DRAFT_SENT_EVENT, internal: true,
+    summary: byAi ? "Email reply sent to the owner (Sent by AI)" : `Email reply sent to the owner (approved by office)`,
+    details: { draft_event_id: eventId, to, subject, body: body.trim(), status, idempotency_key: key, via: byAi ? "ai" : "office" } };
+  let { error: sentErr } = await loose.from("workflow_events").insert(sentRow);
+  if (sentErr) ({ error: sentErr } = await loose.from("workflow_events").insert(sentRow));
+  if (sentErr) console.error("AI reply sent but not recorded on the job", sentErr.message);
+  const notRecorded = () => new Error(`${SENT_NOT_RECORDED} (${sentErr!.message}) — don't send it again`);
   await admin.from("job_communications").insert({ job_id: job.id, channel: "email", direction: "outbound", provider: "outlook", provider_message_id: (outlook as { messageId: string | null } | null)?.messageId ?? null, subject, body: body.trim(), recipients: [to] as never,
     delivery_status: "sent", sent_at: new Date().toISOString(), visibility: "customer", created_by: actorId, source_event: AI_EMAIL_DRAFT_SENT_EVENT, source_reference: (outlook as { internetMessageId: string | null } | null)?.internetMessageId ?? eventId }).select("id").single().then(async ({ data: hist, error }) => {
       if (error || !hist) { console.error("AI reply not added to history", error?.message ?? "no row"); return; }
@@ -307,16 +346,19 @@ export async function sendAiDraft(eventId: string, body: string, actorId: string
       } catch (e) { console.error("AI reply send not linked to history", e instanceof Error ? e.message : "unknown"); }
     });
   await (await import("./outlook-sync.server")).archiveOutlookMessage(String(ev.details["message_id"] ?? "") || null, job.id, actorId);
+  // An auto-sent reply never applies anything (drafts with a suggested change never send themselves).
+  if (byAi) { if (sentErr) throw notRecorded(); return { status: status as "sent" | `delivery uncertain${string}` }; }
   // The email went: now the actions Jo left ticked. A failure here is logged only — the reply has already gone.
   // The saved note is checked again against the owner's first name (installers get owner details only once they accept).
   const ownerFirstName = (await import("./email-reply.core")).firstNameOf((owner as { full_name?: string | null } | null)?.full_name ?? null);
   await applyDraftActions(job.id, eventId, draftActions(ev.details, ownerFirstName), apply, actorId, (job as { estimated_area_m2?: number | null }).estimated_area_m2 ?? null)
     .catch((e) => console.error("AI reply actions not applied", e instanceof Error ? e.message : e));
+  if (sentErr) throw notRecorded();
   return { status: status as "sent" | `delivery uncertain${string}` };
 }
 
 /** Applies the draft's ticked actions after a successful send: a note for the installer, and/or the owner's ceiling size. */
-async function applyDraftActions(jobId: string, draftEventId: string, actions: AiActions, apply: SendApply, actorId: string, previousArea: number | null): Promise<void> {
+async function applyDraftActions(jobId: string, draftEventId: string, actions: AiActions, apply: SendApply, actorId: string | null, previousArea: number | null): Promise<void> {
   if (apply.applyNote && actions.installerNote) {
     const { error } = await loose.from("workflow_events").insert({ job_id: jobId, actor_id: actorId, event_type: INSTALLER_NOTE_EVENT, internal: true,
       summary: `Note for the installer: ${actions.installerNote}`, details: { note: actions.installerNote, source: "ai_reply", draft_event_id: draftEventId } });

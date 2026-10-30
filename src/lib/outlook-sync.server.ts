@@ -459,8 +459,9 @@ async function changeReplied(jobId: string, messageId: string): Promise<boolean>
 }
 
 /** Decision 386: ONE automatic reply to a matched owner's standard question, before any decision-244 draft. Returns
- *  whether the draft must be skipped (a reply went, or none is needed). Never throws: any failure = the draft as before. */
-async function ownerAutoReply(jobIds: string[], m: MailMessage, mailbox: string | null, counts?: SyncCounts): Promise<boolean> {
+ *  whether the draft must be skipped (a reply went, or none is needed). Never throws: any failure = the draft as before.
+ *  `autoSend`: only the automatic sync queues the AI draft to send itself (step 4); an office Match never does. */
+async function ownerAutoReply(jobIds: string[], m: MailMessage, mailbox: string | null, counts: SyncCounts | undefined, o: { autoSend: boolean }): Promise<boolean> {
   if (m.direction !== "inbound" || !jobIds.length) return false;
   try {
     // Jo 27 Oct 2026: a plain decline that closed the job gets no reply and no AI draft.
@@ -475,7 +476,7 @@ async function ownerAutoReply(jobIds: string[], m: MailMessage, mailbox: string 
       const replied337 = changeAsk ? await changeReplied(jobIds[0]!, m.providerMessageId) : false;
       if (!replied337) {
         const kind = r.status === "none" || changeAsk || /approval|comms are switched off/.test(r.detail) ? "simple" : "other";
-        await (await import("./ai-email-reply.server")).writeAiReplyDraft({ jobId: jobIds[0]!, message: m, kind, reason: r.detail });
+        await (await import("./ai-email-reply.server")).writeAiReplyDraft({ jobId: jobIds[0]!, message: m, kind, reason: r.detail, autoSend: o.autoSend });
       }
     }
     return r.suppressDraft;
@@ -529,7 +530,7 @@ export async function fileOutlookMessageOnJob(d: { message_id: string; mailbox?:
   const filed = { ...m, attachments: refs };
   const communicationId = await storeOnJob(jobId, filed, "office_matched", visibility);
   const changeRequests = await recordChangeRequests([jobId], filed, refs);
-  const replied = await ownerAutoReply([jobId], filed, mailbox);
+  const replied = await ownerAutoReply([jobId], filed, mailbox, undefined, { autoSend: false });
   const replyDraftId = replied ? null : await draftReply(filed, mailbox, [jobId], "office_matched");
   return { communicationId, message: m, changeRequests, replyDraftId };
 }
@@ -569,7 +570,7 @@ async function finishWork(work: Work, counts: SyncCounts, window: ClosureWindow)
     else {
       if (result.stored) { counts.stored++; bump(counts, "matched"); }
       if (result.stored && !window.history) bump(counts, "changeRequests", await recordChangeRequests(routeJobIds(work.route), work.message, work.attachment_refs ?? []));
-      const replied = result.stored && !window.history ? await ownerAutoReply(routeJobIds(work.route), { ...work.message, attachments: work.attachment_refs?.length ? work.attachment_refs : work.message.attachments }, work.mailbox, counts) : false;
+      const replied = result.stored && !window.history ? await ownerAutoReply(routeJobIds(work.route), { ...work.message, attachments: work.attachment_refs?.length ? work.attachment_refs : work.message.attachments }, work.mailbox, counts, { autoSend: true }) : false;
       if (result.stored && !window.history && !replied && await draftReply(work.message, work.mailbox, routeJobIds(work.route), "sync")) bump(counts, "replyDrafts");
       if (result.unmatched) counts.unmatched++;
       if (result.closed) counts.closed++;
@@ -729,8 +730,10 @@ async function saveSyncState(state: SyncState, patch: Record<string, unknown>): 
   if (error || data?.length !== 1) throw new Error(`Outlook sync state was not saved: ${error?.message ?? "another run changed it; retry from its saved cursor"}`);
 }
 
-/** Bounded import. Successful bounded stops save the provider continuation, including equal-timestamp pages. */
-export async function runOutlookSync(opts: { maxPages?: number; pageSize?: number } = {}): Promise<{ ok: boolean; blocker?: string; counts: SyncCounts }> {
+/** Bounded import. Successful bounded stops save the provider continuation, including equal-timestamp pages.
+ *  `complete`: a normal (not catch-up) run that pulled inbound AND Sent Items right up to this run's time — no next link
+ *  left over and not finishing an older saved continuation. AI replies only send themselves after a complete run. */
+export async function runOutlookSync(opts: { maxPages?: number; pageSize?: number } = {}): Promise<{ ok: boolean; complete: boolean; blocker?: string; counts: SyncCounts }> {
   const counts: SyncCounts = { fetched: 0, stored: 0, duplicate: 0, portalDuplicate: 0, notHomeowner: 0, unmatched: 0, closed: 0, flagged: 0, files: 0, filesSkipped: 0, errors: 0, matched: 0, junk: 0, unmatchedNotRecorded: 0, changeRequests: 0 };
   let state: SyncState | null = null;
   const now = new Date().toISOString();
@@ -746,6 +749,8 @@ export async function runOutlookSync(opts: { maxPages?: number; pageSize?: numbe
     const maxPages = Math.max(1, Math.min(10, Math.floor(opts.maxPages ?? 10)));
     const pageSize = Math.max(1, Math.min(50, Math.floor(opts.pageSize ?? 50)));
     const cursors: Record<string, string | null> = {};
+    // Per stream: pulled right up to `now` this run (fresh query, no continuation left over).
+    const upToNow: Record<string, boolean> = {};
 
     // One folder-agnostic pull per direction: mail moved to Archive or a custom folder is still listed,
     // so a move between runs can never create a gap (already-imported messages dedupe by provider id).
@@ -791,6 +796,7 @@ export async function runOutlookSync(opts: { maxPages?: number; pageSize?: numbe
       }
       cursors[cursorKey as string] = last;
       cursors[nextKey as string] = url;
+      upToNow[cursorKey as string] = !usingSavedNext && !url;
       return url;
     };
 
@@ -824,14 +830,15 @@ export async function runOutlookSync(opts: { maxPages?: number; pageSize?: numbe
     }
     if (counts.errors) throw new Error(`${counts.errors} message(s) remain unfinished; the cursor was not advanced.`);
     await saveSyncState(state, { ...cursors, mailbox, last_run_at: now, last_ok_at: now, last_error: null, last_counts: counts });
-    return { ok: true, counts };
+    const complete = !state.catchup_from && upToNow["all_inbound_cursor"] === true && upToNow["all_outbound_cursor"] === true;
+    return { ok: true, complete, counts };
   } catch (e) {
     let problem = e instanceof Error ? e.message : "Outlook sync failed.";
     if (state) {
       try { await saveSyncState(state, { last_run_at: now, last_error: problem.slice(0, 500), last_counts: counts }); }
       catch (saveError) { problem += ` ${saveError instanceof Error ? saveError.message : "The failure status could not be saved."}`; }
     }
-    return { ok: false, blocker: problem, counts };
+    return { ok: false, complete: false, blocker: problem, counts };
   }
 }
 

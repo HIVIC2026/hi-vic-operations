@@ -8,7 +8,7 @@ import { buildEmailsTab, jobDraftKey, type JobEmailRow } from "../src/lib/emails
 describe("splitAiOutput", () => {
   test("no markers: body unchanged, nothing flagged", () => {
     const r = splitAiOutput("Hi Sam,\n\nYour spot is saved.");
-    expect(r).toEqual({ body: "Hi Sam,\n\nYour spot is saved.", needsAnswer: [], needsYou: false, actions: {} });
+    expect(r).toEqual({ body: "Hi Sam,\n\nYour spot is saved.", needsAnswer: [], needsYou: false, actions: {}, kind: "other" });
   });
   test("one NEEDS_JO line is taken out of the body and returned", () => {
     const r = splitAiOutput("Hi Sam,\n\nYour spot is saved.\n\nNEEDS_JO: Do you install in Bendigo?");

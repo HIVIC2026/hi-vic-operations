@@ -184,7 +184,7 @@ describe("copier wiring", () => {
     expect(fw.indexOf("ownerAutoReply(")).toBeLessThan(fw.indexOf("draftReply("));
     expect(fw).toContain("!replied && await draftReply(work.message");
     const om = s.slice(s.indexOf("export async function fileOutlookMessageOnJob"), s.indexOf("async function finishWork"));
-    expect(om).toContain("const replied = await ownerAutoReply([jobId], filed, mailbox);");
+    expect(om).toContain("const replied = await ownerAutoReply([jobId], filed, mailbox, undefined, { autoSend: false });");
     expect(om).toContain("replied ? null : await draftReply(filed, mailbox, [jobId], \"office_matched\")");
   });
   test("Needs me: the reply-needed row reuses the email row (Done / Ignore) and Done changes nothing on the job", async () => {

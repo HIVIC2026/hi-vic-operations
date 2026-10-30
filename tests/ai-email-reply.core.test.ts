@@ -1,9 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { AI_EMAIL_AUTO_SEND_ENABLED, AI_SIGN_OFF, aiReplyProblems, aiSendQuietReason, bookingChangeLink, finishAiReply } from "../src/lib/ai-email-reply.core";
+import { AI_SIGN_OFF, aiReplyProblems, aiSendQuietReason, bookingChangeLink, finishAiReply } from "../src/lib/ai-email-reply.core";
 
 const MY = "https://estimate.homeinsulationvictoria.com.au/my-job/TOK";
 describe("AI email replies — Jo 26 Oct rules", () => {
-  test("auto-send stays off until Jo says send", () => expect(AI_EMAIL_AUTO_SEND_ENABLED).toBe(false));
   test("sign-off is added exactly once", () => {
     const out = finishAiReply("Hi Sarah!\nAll good.\n\nCheers,\nThe Home Insulation Victoria team");
     expect(out.endsWith(AI_SIGN_OFF)).toBe(true);
