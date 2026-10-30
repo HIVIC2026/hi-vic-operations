@@ -31,11 +31,11 @@ function from(table: string) {
   let op = "read", patch: any, single = false, count = false, limit = Infinity; let sortKey = "", ascending = true;
   const q: any = {
     select: (_c: string, o: any) => { count = o?.count === "exact"; return q; },
-    eq: (k: string, v: any) => { filters.push(r => r[k] === v); return q; },
+    eq: (k: string, v: any) => { filters.push(r => k.startsWith('jobs.') ? r.jobs?.[k.slice(5)] === v : r[k] === v); return q; },
     neq: (k: string, v: any) => { filters.push(r => r[k] !== v); return q; },
     is: (k: string, v: any) => { filters.push(r => (r[k] ?? null) === v); return q; },
     not: () => q,
-    in: (k: string, v: any[]) => { filters.push(r => v.includes(r[k])); return q; },
+    in: (k: string, v: any[]) => { filters.push(r => v.includes(k.startsWith('jobs.') ? r.jobs?.[k.slice(5)] : r[k])); return q; },
     contains: (k: string, v: Row) => { filters.push(r => Object.entries(v).every(([key, value]) => r[k]?.[key] === value)); return q; },
     order: (k: string, o?: any) => { sortKey = k; ascending = o?.ascending !== false; return q; }, range: () => q, limit: (n: number) => { limit = n; return q; },
     update: (p: any) => { op = "update"; patch = p; return q; },
@@ -355,6 +355,25 @@ test('unused closure note is returned by the actual installer note reader',async
  tables.assessments[0].no_rectification_confirmed=true;
  await load('fixes-day.server').closeUnusedRectificationForm(JOB);
  expect(await load('ai-email-reply.server').installerNotes(JOB)).toContain('Rectification form not needed — you can ignore it in Mitti.');
+});
+test('PIESA autoform dispatch outage keeps legacy creation and already branch',async()=>{
+ held=false; failHeld=true;
+ const s=load('piesa-autoform.server');
+ expect((await s.onPiesaBooked(JOB,'legacy',null,{call})).outcome).toBe('created');
+ expect((await s.onPiesaBooked(JOB,'legacy',null,{call})).outcome).toBe('skipped');
+ expect(calls.filter(c=>c.path==='/audits')).toHaveLength(1);
+});
+test('sweep skips additional stages for hivic and catches one failed job without stopping the next',async()=>{
+ tables.job_assignments[1].businesses.rectification_billed_by='hivic';
+ for (const [audit_id,stage] of [['bad','rectification_booked'],['good','rectification_booked'],['extra','piesa_complete']]) {
+ tables.workflow_events.push({job_id:JOB,event_type:core.FIXES_FORM_CREATED_EVENT,details:{audit_id},jobs:{stage,business_unit:'hivic',deleted_at:null,qa_archived_at:null}});
+ }
+ const sweepCall:mitti.MittiCall=async(method,path,body)=>{
+ if(path.includes('/bad')) throw Error('one job failed');
+ return call(method,path,body);
+ };
+ const out=await load('fixes-day.server').sweepFixesForms({call:sweepCall});
+ expect(out.failed).toBe(1);expect(out.checked).toBe(2);expect(calls.some(c=>c.path.includes('/good'))).toBe(true);expect(calls.some(c=>c.path.includes('/extra'))).toBe(false);
 });
 test("concurrent completed assessment is not changed by the no-rectification follow-up update",async()=>{
  await load("piesa-autoform.server").onPiesaBooked(JOB,"visit",null,{call}); realMitti=true; setPiesaAudit(false); completeDuringSync=true;
