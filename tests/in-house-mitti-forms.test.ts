@@ -186,6 +186,9 @@ test("Part C sync records post_rectification once and leaves the official PIESA 
 });
 // Real production completion, sync and clearance functions; only external side effects are mocked.
 Object.assign(overrides, {
+ './ai-answers.server': {loadAiAnswers:async()=>({answers:[],available:false})},
+ './ai-style.server': {loadStyleExamples:async()=>[]},
+ './payments.server': {fixesPaymentBlockerFor:async()=> 'Owner must approve and pay rectification',installDepositBlockerFor:async()=>null},
  "./requirements.server": {jobScope:async()=>({scope:"ELECTRICAL_ONLY",label:"PIESA",measurementRow:null})},
  "./owner-gates.server": {ownerGateStageBlockers:async()=>[]},
  "./installer-intake.server": {isIntakeJob:async()=>false},
@@ -337,6 +340,20 @@ test('A3 sync dispatch outage skips extension instead of failing sync',async()=>
  held=false; tables.assessments[0].external_mitti_id='audit-1'; realMitti=true; setPiesaAudit(true); failHeld=true;
  await load('mitti.server').syncMittiAssessment(JOB,null,call,async()=>({bytes:new Uint8Array([1]),contentType:'image/png'}));
  expect(tables.assessments[0].mitti_sync_status).toBe('synced'); expect(calls.filter(c=>/\/(share|owner)$/.test(c.path))).toHaveLength(0);
+});
+test('real booked-stage caller passes partner exception to the visit quote gate',async()=>{
+ realWorkflow=true; seedOfficial();
+ expect(await load('workflow.server').stageEntryBlockers(JOB,'rectification_booked')).not.toContain('Owner must approve and pay rectification');
+ tables.job_assignments[1].businesses.rectification_billed_by='hivic';
+ expect(await load('workflow.server').stageEntryBlockers(JOB,'rectification_booked')).toContain('Owner must approve and pay rectification');
+ failHeld=true;
+ expect(await load('workflow.server').stageEntryBlockers(JOB,'rectification_booked')).toContain('Owner must approve and pay rectification');
+});
+test('unused closure note is returned by the actual installer note reader',async()=>{
+ await load('piesa-autoform.server').onPiesaBooked(JOB,'visit',null,{call});
+ tables.assessments[0].no_rectification_confirmed=true;
+ await load('fixes-day.server').closeUnusedRectificationForm(JOB);
+ expect(await load('ai-email-reply.server').installerNotes(JOB)).toContain('Rectification form not needed — you can ignore it in Mitti.');
 });
 test("concurrent completed assessment is not changed by the no-rectification follow-up update",async()=>{
  await load("piesa-autoform.server").onPiesaBooked(JOB,"visit",null,{call}); realMitti=true; setPiesaAudit(false); completeDuringSync=true;
