@@ -22,6 +22,7 @@ import { bulkCancelOfficeJobs, getEnquiriesList } from "@/lib/office-screens.fun
 import { checkedLabel, isDefaultListView } from "@/lib/office-needs-snapshot.core";
 import { readOfficeList } from "@/lib/office-list-refresh";
 import { removeLeadsFn } from "@/lib/enquiry-groups.functions";
+import { CLOSE_REASONS, closeRouteFor } from "@/lib/enquiries-screen.core";
 import { createEnquiry } from "@/lib/portal.functions";
 import { tidyEnquiryDetails } from "@/lib/name-address-tidy.core";
 import { INSULATION_LABEL, type InsulationChip, type SortDir } from "@/lib/office-filters.core";
@@ -154,7 +155,7 @@ export function EnquiriesScreen() {
             <div className="flex items-center gap-3">
               <span className="text-sm text-sub">{d ? `${d.total.toLocaleString("en-AU")} · showing ${d.rows.length}` : "Loading…"}{d?.fromCopy ? ` · checked ${checkedLabel(d.computedAt, false)}` : ""}{(q.isFetching || d?.refreshing) && d ? " · updating…" : ""}</span>
               {active.length > 0 && <button type="button" className="text-sm font-semibold text-hiv-blue underline" onClick={() => { setFilters({}); setPage(1); }}>Clear {active.length} filter{active.length === 1 ? "" : "s"}</button>}
-              <ActionsMenu selected={picked.size} onPick={setDialog} actions={[{ key: "cancel", label: "Cancel", danger: true }, { key: "remove", label: "Remove (duplicate / junk)", danger: true }]} />
+              <ActionsMenu selected={picked.size} onPick={setDialog} actions={[{ key: "close", label: "Close", danger: true }]} />
             </div>
           </div>
           {q.isError ? <div role="alert" className="rounded-[14px] border border-danger/40 bg-danger-soft p-4 text-sm">Enquiries could not load — this does not mean there are none. {(q.error as Error).message} <button type="button" className="font-semibold underline" onClick={() => void q.refetch()}>Try again</button></div> : (
@@ -207,8 +208,7 @@ export function EnquiriesScreen() {
           {d && <Pager page={d.page} totalPages={d.totalPages} total={d.total} shown={d.rows.length} onPage={setPage} />}
         </section>
       <JobPeek peek={peek} onClose={() => { setPeek(null); refresh(); }} />
-      <ReasonDialog open={dialog === "cancel"} title={`Cancel ${ids.length} enquir${ids.length === 1 ? "y" : "ies"}`} description="Each moves to Jobs › Closed; reminders stop; history is kept." action="Cancel" danger presets={["Owner changed mind", "Not eligible", "No response", "Owner opted out", "Duplicate"]} onOpenChange={(v) => setDialog(v ? "cancel" : null)} run={async (reason) => { const r = await cancel({ jobIds: ids, reason }); if (!r) return false; if (r.failed.length) toast.error(`${r.done} cancelled; ${r.failed.length} not: ${r.failed[0]!.error}`); else toast.success(`${r.done} cancelled`); refresh(); return true; }} />
-      <ReasonDialog open={dialog === "remove"} title={`Remove ${ids.length}`} description="For duplicates and junk. Website enquiries only; they move to Jobs › Closed › Removed / test, history kept." action="Remove" danger presets={["Duplicate", "Junk / spam", "Test"]} onOpenChange={(v) => setDialog(v ? "remove" : null)} run={async (reason) => { const r = await remove({ ids, reason }, "Removed"); refresh(); return !!r; }} />
+      <ReasonDialog open={dialog === "close"} title={`Close ${ids.length} enquir${ids.length === 1 ? "y" : "ies"}`} description="Duplicate, Junk / spam or Test go to Closed › Removed / test. Any other reason goes to Closed. History is kept." action="Close" danger presets={[...CLOSE_REASONS]} onOpenChange={(v) => setDialog(v ? "close" : null)} run={async (reason) => { if (closeRouteFor(reason) === "remove") { const r = await remove({ ids, reason }, "Removed"); refresh(); return !!r; } const r = await cancel({ jobIds: ids, reason }); if (!r) return false; if (r.failed.length) toast.error(`${r.done} cancelled; ${r.failed.length} not: ${r.failed[0]!.error}`); else toast.success(`${r.done} cancelled`); refresh(); return true; }} />
       {closeReason && (
         <ReasonDialog open={dialog === "close-all"} title={`Close all ${(viewCount ?? 0).toLocaleString("en-AU")} in ${meta.label}`} description="Each moves to Jobs › Closed with this reason; reminders stop; history is kept and any can be reopened." action="Close them" danger presets={[closeReason]} onOpenChange={(v) => setDialog(v ? "close-all" : null)} run={async (reason) => {
           // Every id in this group as the server sees it now, closed 200 at a time with the same audited cancel.
