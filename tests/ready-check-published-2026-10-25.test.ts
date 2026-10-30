@@ -190,8 +190,8 @@ describe("three areas in the new shape: 6×5, 4×3.5 (Remove 12 m²), 3×2 (Top 
   for (const calculated of [true, false]) {
     describe(`calculated per-area m² ${calculated ? "present" : "absent"}`, () => {
       const p = parseAudit(audit({ calculated }));
-      it("total m² = 50, removal m² = 12, three areas", () => {
-        expect(p.patch.measured_area_m2).toBe(50);
+      it("total m² = 44 (garage left out), removal m² = 12, three areas", () => {
+        expect(p.patch.measured_area_m2).toBe(44);
         expect(p.patch.removal_required).toBe(true);
         expect(p.patch.removal_m2).toBe(12);
         expect(p.areas.map((a) => [a.label, a.lengthM, a.widthM, a.areaM2, a.removal, a.removalM2])).toEqual([
@@ -203,24 +203,24 @@ describe("three areas in the new shape: 6×5, 4×3.5 (Remove 12 m²), 3×2 (Top 
       it("the Total ceiling area (m²) item is never read as a fourth area", () => {
         expect(p.areas).toHaveLength(3);
         expect(readAreas({ areas: p.areas })).toHaveLength(3);
-        expect(totals(readAreas({ areas: p.areas }))).toEqual({ areaM2: 50, removalM2: null }); // removalM2 null: Main house has no removal answer (no existing insulation)
+        expect(totals(readAreas({ areas: p.areas }))).toEqual({ areaM2: 44, removalM2: null }); // removalM2 null: Main house has no removal answer (no existing insulation)
       });
-      it("three diagram boxes, 50 m² total", () => {
+      it("three diagram boxes, 44 m² total (garage drawn, not counted)", () => {
         const areas = areasFromReadyCheckEntries(p.snapshot);
         expect(areas.map((a) => [a.name, a.lengthM, a.widthM, a.areaM2, a.existingNote])).toEqual([
           ["Main house", 6, 5, 30, "No existing insulation"], ["Rear extension", 4, 3.5, 14, "Existing insulation: remove 12 m²"], ["Garage", 3, 2, 6, "Existing insulation: top up"],
         ]);
-        expect(totalAreaM2(areas)).toBe(50);
+        expect(totalAreaM2(areas)).toBe(44);
         const layout = areaDiagramLayout({ kind: "ready_check", jobNumber: "HV-9001", address: "1 Test St", generatedAt: "2026-10-25T00:00:00Z", areas });
         expect(layout.boxes).toHaveLength(3);
-        expect(layout.footer[0]).toBe("Total area to insulate: 50 m² across 3 upgrade areas");
+        expect(layout.footer[0]).toBe("Total area to insulate: 44 m² across 2 upgrade areas");
       });
-      it("basics complete (area from the summed patch) and the quote inputs carry 50 m² + 12 m² removal", () => {
+      it("basics complete (area from the summed patch) and the quote inputs carry 44 m² + 12 m² removal", () => {
         const { measure } = splitPatch(p.patch);
         const plan = planMeasurementUpdate({ scope: "SPLIT", current: null, incoming: measure as never, source: "installer", external: { source: "mitti", id: p.auditId } });
         expect(plan.action).toBe("create");
         const row = { ...(plan as { values: Record<string, unknown> }).values, id: "m1", status: "complete", source_role: "installer" };
-        expect(quoteInputsFromMeasurement(row as never)).toMatchObject({ areaM2: 50, removalM2: 12 });
+        expect(quoteInputsFromMeasurement(row as never)).toMatchObject({ areaM2: 44, removalM2: 12 });
         const basics = readyCheckBasics({ installerSourced: true, areaM2: Number(row.measured_area_m2), productReady: true, installerPriceIncGst: 3200, ownerMobile: "0400000000", ownerEmail: "jolowexo@hotmail.com", contactPermission: true, stops: readyCheckStopReasons(p.snapshot), formCompleted: false });
         expect(basics.ready).toBe(true);
         expect(basics.missing).toEqual([]);

@@ -123,10 +123,9 @@ export function evaluateGate1(f: Gate1Facts): Gate1Decision {
   else if (f.declaredOverMinAge === "yes") rule("ceiling_age", L, "pass", `Owner says the building is over ${min} years old`, age);
   else rule("ceiling_age", L, "onsite", `Confirm the building is over ${min} years old`, age);
 
-  // Previous Activity 48 — only confirmed office evidence can fail.
+  // Previous Activity 48 — Jo 29 Oct 2026: always "no" across the portal; this rule never fails or flags, whatever old rows say.
   const PL = "Previous Activity 48";
-  if (f.previousActivity48Confirmed === true) rule("previous_activity", PL, "fail", "Previous Activity 48 for the same ceiling area confirmed", { fact: "previous Activity 48 confirmed", source: "properties.enrichment.previous_activity_48_confirmed", basis: "verified" });
-  else rule("previous_activity", PL, "pass", "No confirmed previous Activity 48 for the same ceiling area", ev("previous_activity", { fact: "none confirmed", source: "properties.enrichment", basis: "recorded" }));
+  rule("previous_activity", PL, "pass", "No confirmed previous Activity 48 for the same ceiling area", ev("previous_activity", { fact: "none confirmed", source: "properties.enrichment", basis: "recorded" }));
 
   // Existing insulation above the relevant ceiling
   const IL = "Existing insulation";

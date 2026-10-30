@@ -2,6 +2,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { withRequestMeta } from "./request-meta";
+import type { OwnerRunSlotView } from "./run-portal.core";
 
 const token = z.string().max(200);
 const session = z.string().min(40).max(80);
@@ -169,6 +170,37 @@ export const ownerSuggestReadyCheckDaysFn = createServerFn({ method: "POST" }).m
   .handler(async ({ data }) => {
     const s = await (await import("./owner-verify.server")).ownerSession(data.token, data.session);
     return (await import("./ready-check-times.server")).ownerSuggestReadyCheckDays(s.jobId, s.userId, data.days);
+  });
+
+// A48 batch 2 part 2 (Portal books): the owner's window from the installer's run. Viewing takes the secure link only;
+// confirming, picking another window or "none suit" need the 6-digit code, like every other Ready Check booking action.
+export const ownerRunSlotFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token }).parse(d))
+  .handler(async ({ data }) => {
+    const jobId = await ownerJobId(data.token);
+    if (!jobId) return { kind: "none" } as OwnerRunSlotView;
+    return JSON.parse(JSON.stringify(await (await import("./installer-run.server")).ownerRunSlotState(jobId))) as OwnerRunSlotView;
+  });
+
+export const ownerConfirmRunSlotFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token, session }).parse(d))
+  .handler(async ({ data }) => {
+    const s = await (await import("./owner-verify.server")).ownerSession(data.token, data.session);
+    return (await import("./installer-run.server")).ownerConfirmRunSlot(s.jobId, s.userId);
+  });
+
+export const ownerPickRunWindowFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token, session, start: z.string().regex(/^\d{2}:\d{2}$/) }).parse(d))
+  .handler(async ({ data }) => {
+    const s = await (await import("./owner-verify.server")).ownerSession(data.token, data.session);
+    return (await import("./installer-run.server")).ownerPickRunWindow(s.jobId, s.userId, data.start);
+  });
+
+export const ownerNoRunWindowFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token, session }).parse(d))
+  .handler(async ({ data }) => {
+    const s = await (await import("./owner-verify.server")).ownerSession(data.token, data.session);
+    return (await import("./installer-run.server")).ownerNoRunWindow(s.jobId, s.userId);
   });
 
 /** Decision 80: owner "Change time" on a booked our-lead Ready Check → back to the installer to offer new times. */

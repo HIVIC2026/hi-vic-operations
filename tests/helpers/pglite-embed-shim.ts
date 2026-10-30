@@ -79,7 +79,17 @@ export function embedShim(db: PGlite, rels: Rels, options: { jsonColumns?: Recor
   const join = (r: Rel, baseRef: string, relRef: string) => (r.on === "base" ? `${relRef}."id" = ${baseRef}.${q(r.fk)}` : `${relRef}.${q(r.fk)} = ${baseRef}."id"`);
   const cols = (table: string, ref: string, parts: Part[]): string =>
     parts.map((p) => {
-      if (p.kind === "col") return p.name === "*" ? `${ref}.*` : `${ref}.${q(p.name)}`;
+      if (p.kind === "col") {
+        if (p.name === "*") return `${ref}.*`;
+        // JSON paths as PostgREST reads them: `alias:col->a->b` / `col->>a` (alias defaults to the last key).
+        const path = /^(?:([a-z_0-9]+):)?([a-z_0-9]+)((?:->>?[a-z_0-9]+)+)$/i.exec(p.name);
+        if (path) {
+          const [, alias, col, rest] = path as unknown as [string, string | undefined, string, string];
+          const steps = [...rest.matchAll(/(->>?)([a-z_0-9]+)/gi)].map((m) => ({ op: m[1]!, key: m[2]! }));
+          return `${ref}.${q(col)}${steps.map((st) => `${st.op}'${st.key}'`).join("")} AS ${q(alias ?? steps.at(-1)!.key)}`;
+        }
+        return `${ref}.${q(p.name)}`;
+      }
       const r = rel(table, p); const sub = `e${++n}`;
       const inner = `SELECT ${cols(r.table, sub, p.parts)} FROM ${r.table} ${sub} WHERE ${join(r, ref, sub)}`;
       return r.on === "base" ? `(SELECT row_to_json(x) FROM (${inner} LIMIT 1) x) AS ${q(p.alias)}` : `(SELECT coalesce(json_agg(x), '[]'::json) FROM (${inner}) x) AS ${q(p.alias)}`;

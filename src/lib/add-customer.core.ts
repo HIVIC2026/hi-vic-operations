@@ -1,9 +1,11 @@
+import { excludedAreaName } from "./excluded-areas.core";
+
 // Pure checks for the installer's "Add your own customer" form. Never prices or decides eligibility.
 
 export type A1Area = { name: string; length: string; width: string; existing: boolean | null; type: string; depth: string; depthPhoto: string | null; action: "remove" | "top_up" | null; downlights: string; hazards: string; hazardPhoto: string | null };
 
 export function areaTotal(areas: A1Area[]): number {
-  return Math.round(areas.reduce((s, a) => { const m = Number(a.length) * Number(a.width); return s + (Number.isFinite(m) && m > 0 ? m : 0); }, 0) * 10) / 10;
+  return Math.round(areas.filter((a) => !excludedAreaName(a.name)).reduce((s, a) => { const m = Number(a.length) * Number(a.width); return s + (Number.isFinite(m) && m > 0 ? m : 0); }, 0) * 10) / 10;
 }
 
 export type AddCustomerInput = {

@@ -141,6 +141,34 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['spotReleases'] = "failed";
         }
         try {
+          // A48 batch 2 (Jo 30 Oct 2026): area batches — day-2 quick taps reminder (outside quiet hours), day-3 close (owners
+          // who said yes wait for Jo's "Send to installer"; nothing goes to an installer automatically), decline retries,
+          // day-14 no-answer close (nobody told). Nothing lands in Needs me.
+          const { sweepAreaBatches } = await import("@/lib/area-batch.server");
+          (out as Record<string, unknown>)['areaBatches'] = await timed("sweepAreaBatches", () => sweepAreaBatches());
+        } catch (e) {
+          console.error("allocation tick: area batch sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['areaBatches'] = "failed";
+        }
+        try {
+          // A48 batch 2 part 2: a run Jo sent to the installer with no reply in 24 hours → its homes go back to Jo's suggestions
+          // (owners not asked again). Nothing is sent and nothing lands in Needs me. Runs are only ever OFFERED by Jo's tap.
+          const { sweepRunOffers } = await import("@/lib/installer-run.server");
+          (out as Record<string, unknown>)['runOffers'] = await timed("sweepRunOffers", () => sweepRunOffers());
+        } catch (e) {
+          console.error("allocation tick: run offer sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['runOffers'] = "failed";
+        }
+        try {
+          // A48 batch 2 part 2, Portal books: each owner's window text (held overnight until 7am), the 12-hour reminder once,
+          // and no confirm 24 hours after the text → back in the pool. A home closed meanwhile is skipped and never texted.
+          const { sweepRunSlots } = await import("@/lib/installer-run.server");
+          (out as Record<string, unknown>)['runSlots'] = await timed("sweepRunSlots", () => sweepRunSlots());
+        } catch (e) {
+          console.error("allocation tick: run window sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['runSlots'] = "failed";
+        }
+        try {
           // Plan 2026-10-28 (full address required): website/email enquiries with no street → ask the owner (email + text)
           // to pick their full address, then ONE reminder 24h later. Off until address_request_live_at is set.
           const { sweepAddressRequests } = await import("@/lib/address-request.server");

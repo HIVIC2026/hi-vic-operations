@@ -88,6 +88,9 @@ export async function releaseCancelledJob(jobId: string, reason: string, actorId
   await admin.from("jobs").update({ next_action: null }).eq("id", jobId);
   const released = { bookings: books.data?.length ?? 0, dayOffers: props.data?.length ?? 0, tradeOffers: offers.data?.length ?? 0, trades: asg.data?.length ?? 0, escNotices: esc.data?.length ?? 0, installHolds: holds.data?.length ?? 0 };
   await logEvent(jobId, actorId, "job_cancel_released", `Cancelled: released ${released.bookings} booking(s), ${released.trades} trade(s), ${released.tradeOffers} open offer(s); reminders and texts stop. History kept.`, { ...released, cancel_seq: cancelSeq, decision: 227 }, { internal: true });
+  // A48 batch 2 Task 8 fix round 1: every cancel (office, email, quick taps, quote expiry, My job) of a home with a CONFIRMED
+  // window in an installer's run runs the same hook — the installer is told once and can fill the time. Best-effort.
+  try { await (await import("./installer-run.server")).runOwnerCancelled(jobId); } catch (e) { console.error("run cancel hook skipped", (e as Error).message); }
   let notices: import("./cancel-notice.server").CancelNoticeResult = { owner: null, installer: null };
   if (tell.owner || tell.installer) {
     // History: the ticks themselves (decision 227), then one event per send / hold (decision 291).

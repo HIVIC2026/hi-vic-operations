@@ -23,6 +23,7 @@ export async function refreshCompletedReadyCheck(jobId: string, auditId: string,
   if (error) throw new Error("Completed Ready Check edits could not be saved");
   if (!updated) return false;
   await logEvent(jobId, null, "mitti_completed_measurement_refreshed", "Edited completed Ready Check measurements refreshed from Mitti", { measurement_id: m.id, audit_id: auditId, modified_at: parsed.modifiedAt, measurement: splitPatch(parsed.patch).measure }, { internal: true });
+  await (await import("./excluded-areas.server")).recordExcludedAreas(jobId, null, parsed.excludedAreas ?? []).catch(() => undefined);
   return true;
 }
 

@@ -20,6 +20,8 @@ export async function ensurePropertyCoordinates(jobId: string, propertyId: strin
       job_id: jobId, property_id: propertyId, fact_key: "coordinates", value: coords as never, check_status: "info",
       source_type: "address_search", source_name: "Google Places (website address search)", confidence: "medium", evidence_kind: "direct",
       note: "Filled for the photo location check (night run 25 Oct 2026): same postcode and suburb as the job address.",
+      // A48 batch 2: the address this location was found for, so a changed address is known to need a new one.
+      raw_snapshot: { address: { address_line: p?.address_line ?? null, suburb: p?.suburb ?? null, postcode: p?.postcode ?? null } } as never,
     });
     return coords;
   } catch (e) {
