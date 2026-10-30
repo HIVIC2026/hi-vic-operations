@@ -41,6 +41,36 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_reply_answers: {
+        Row: {
+          active: boolean
+          answer: string
+          id: string
+          sort: number
+          topic: string
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          active?: boolean
+          answer: string
+          id?: string
+          sort?: number
+          topic: string
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          active?: boolean
+          answer?: string
+          id?: string
+          sort?: number
+          topic?: string
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       application_reviews: {
         Row: {
           application_id: string
@@ -1400,6 +1430,9 @@ export type Database = {
           free_quotes_for_hivic_leads: boolean | null
           gst_registered: boolean | null
           id: string
+          in_house: boolean
+          in_house_set_at: string | null
+          in_house_set_by: string | null
           installer_certification: Json
           is_active: boolean
           lead_time: string | null
@@ -1412,10 +1445,12 @@ export type Database = {
           name: string
           onboarding_notes: string | null
           onboarding_status: string
+          pays_own_electricians: boolean
           phone: string | null
           public_liability_cover_amount: number | null
           rec_number: string | null
           receives_hivic_leads: boolean | null
+          rectification_billed_by: string
           service_postcodes: string[]
           service_regions: string[]
           signer_email: string | null
@@ -1465,6 +1500,9 @@ export type Database = {
           free_quotes_for_hivic_leads?: boolean | null
           gst_registered?: boolean | null
           id?: string
+          in_house?: boolean
+          in_house_set_at?: string | null
+          in_house_set_by?: string | null
           installer_certification?: Json
           is_active?: boolean
           lead_time?: string | null
@@ -1477,10 +1515,12 @@ export type Database = {
           name: string
           onboarding_notes?: string | null
           onboarding_status?: string
+          pays_own_electricians?: boolean
           phone?: string | null
           public_liability_cover_amount?: number | null
           rec_number?: string | null
           receives_hivic_leads?: boolean | null
+          rectification_billed_by?: string
           service_postcodes?: string[]
           service_regions?: string[]
           signer_email?: string | null
@@ -1530,6 +1570,9 @@ export type Database = {
           free_quotes_for_hivic_leads?: boolean | null
           gst_registered?: boolean | null
           id?: string
+          in_house?: boolean
+          in_house_set_at?: string | null
+          in_house_set_by?: string | null
           installer_certification?: Json
           is_active?: boolean
           lead_time?: string | null
@@ -1542,10 +1585,12 @@ export type Database = {
           name?: string
           onboarding_notes?: string | null
           onboarding_status?: string
+          pays_own_electricians?: boolean
           phone?: string | null
           public_liability_cover_amount?: number | null
           rec_number?: string | null
           receives_hivic_leads?: boolean | null
+          rectification_billed_by?: string
           service_postcodes?: string[]
           service_regions?: string[]
           signer_email?: string | null
@@ -4925,6 +4970,45 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: true
             referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      in_house_batches: {
+        Row: {
+          business_id: string
+          id: string
+          job_ids: string[]
+          sent_at: string
+          sent_by: string
+        }
+        Insert: {
+          business_id: string
+          id?: string
+          job_ids?: string[]
+          sent_at?: string
+          sent_by: string
+        }
+        Update: {
+          business_id?: string
+          id?: string
+          job_ids?: string[]
+          sent_at?: string
+          sent_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "in_house_batches_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "in_house_batches_sent_by_fkey"
+            columns: ["sent_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -12903,6 +12987,7 @@ export type Database = {
           save_my_spot_auto_rules: Json
           save_my_spot_real_send_enabled: boolean
           sms_message_switches: Json
+          trade_messages_paused: boolean
           updated_at: string
           urgency_amber_days: number
           urgency_red_days: number
@@ -12960,6 +13045,7 @@ export type Database = {
           save_my_spot_auto_rules?: Json
           save_my_spot_real_send_enabled?: boolean
           sms_message_switches?: Json
+          trade_messages_paused?: boolean
           updated_at?: string
           urgency_amber_days?: number
           urgency_red_days?: number
@@ -13017,6 +13103,7 @@ export type Database = {
           save_my_spot_auto_rules?: Json
           save_my_spot_real_send_enabled?: boolean
           sms_message_switches?: Json
+          trade_messages_paused?: boolean
           updated_at?: string
           urgency_amber_days?: number
           urgency_red_days?: number
@@ -13598,6 +13685,17 @@ export type Database = {
           job_number: string
         }[]
       }
+      allocate_in_house_batch_job: {
+        Args: {
+          _actor: string
+          _batch: string
+          _business: string
+          _electrician: string
+          _installer: string
+          _job: string
+        }
+        Returns: Json
+      }
       apply_pre_assessment_test_payment: {
         Args: {
           _idempotency_key: string
@@ -14009,6 +14107,10 @@ export type Database = {
         Args: { _actor: string; _prices: Json; _reason: string }
         Returns: number
       }
+      pull_back_in_house_job: {
+        Args: { _actor: string; _job: string; _reason: string }
+        Returns: undefined
+      }
       qa_office_api_boundary: { Args: never; Returns: undefined }
       qa_office_business_allowed: {
         Args: { _business: string }
@@ -14104,6 +14206,15 @@ export type Database = {
           p_summary: string
         }
         Returns: boolean
+      }
+      save_in_house_partner: {
+        Args: {
+          p_actor_id: string
+          p_business_id: string
+          p_in_house: boolean
+          p_rectification_billed_by: string
+        }
+        Returns: undefined
       }
       save_owner_insulation_details: {
         Args: { p_answers: Json; p_token: string }

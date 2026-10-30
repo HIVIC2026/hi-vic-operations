@@ -261,7 +261,9 @@ const s4: StepFn = async (ctx, r) => {
   r.simulated = ["Mitti Ready Check form (Ready Check written as the Mitti sync would)"];
   await admin.from("ceiling_measurements").update({ is_current: false }).eq("job_id", ctx.jobId!).eq("is_current", true);
   const { error: me } = await admin.from("ceiling_measurements").insert({ job_id: ctx.jobId!, status: "complete", is_current: true, source_role: "installer", created_by: ctx.installer.id, measured_area_m2: 120, removal_required: false, insulation_present: false, access_difficulty: "easy", measurement_method: "laser",
-    completed_by: ctx.installer.id, completed_at: new Date().toISOString(), measured_on: melbourneDate(0), external_source: "journey_sim", external_id: `sim-${ctx.runId}`, raw_snapshot: { downlight_count: 6, downlight_type: "LED sealed" } } as never);
+    completed_by: ctx.installer.id, completed_at: new Date().toISOString(), measured_on: melbourneDate(0), external_source: "journey_sim", external_id: `sim-${ctx.runId}`, raw_snapshot: { downlight_count: 6, downlight_type: "LED sealed" },
+    // Jo 30 Oct 2026: one ceiling area as the Mitti sync stores it (m², before video; product is per job, not per area).
+    zones: [{ key: "mitti-1", label: "Main ceiling", name: "Main ceiling", areaM2: 120, existing: "none", present: false, removal: "no", downlights: 6, beforeVideo: true, product: null, scope: null, sources: {} }] } as never);
   check(r, "Ready Check recorded", !me, me?.message);
   // The insulation product answer on the form, recorded the way the Mitti sync records it (declared, not verified).
   await (await import("./insulation-product.server")).mittiProductForJob(ctx.jobId!, ctx.installer.id, [{ label: "What insulation product will you be using on this job?", value: "Bradford Gold R5" }], `sim-${ctx.runId}`);
@@ -411,7 +413,7 @@ const s6: StepFn = async (ctx, r) => {
   const { data: el } = await admin.from("profiles").select("email, full_name").eq("id", ctx.electrician.id).single();
   if (!el?.email || !ws?.mitti_piesa_template_id) throw new StepFail("TEST PIESA simulator requires template and electrician email");
   const tpl = ws.mitti_piesa_template_id.trim();
-  const pass = sim.simulatedA3PassAnswers({ seed: `${ctx.runId}-a3`, inspectionDate: melbourneDate(0), capturedAt: now, electrician: el.full_name ?? "TEST Delta Electrician" });
+  const pass = sim.simulatedA3PassAnswers({ seed: `${ctx.runId}-a3`, inspectionDate: melbourneDate(0), capturedAt: now, electrician: el.full_name ?? "TEST Delta Electrician", jobNumber: ctx.jobNumber });
   const office = ["Portal Job Number", "Property Address", "Owner name"].map((label, i) => ({ item_id: `sim_a3_office_${i}`, label, type: "textsingle" }));
   const mitti = sim.simulatedMitti({ templates: { [tpl]: sim.templateOfItems([...office, ...pass.items]) }, users: [{ id: "sim-mitti-electrician", email: el.email }] });
   const ms = await import("./mitti.server");

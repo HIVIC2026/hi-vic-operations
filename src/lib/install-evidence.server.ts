@@ -5,7 +5,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { melbourneToday, addYmd } from "./melbourne-time.core";
-import { declaredProductProblems, evaluateInstallEvidence, installEvidenceGateLines, jobProductOptions, readInstallEvidence, type InstallEvidenceCtx, type InstallEvidenceSummary, type InstallPrefillCtx, type JobZone } from "./install-evidence.core";
+import { declaredProductProblems, evaluateInstallEvidence, withJobProduct, installEvidenceGateLines, jobProductOptions, readInstallEvidence, type InstallEvidenceCtx, type InstallEvidenceSummary, type InstallPrefillCtx, type JobZone } from "./install-evidence.core";
 import { AREAS_FIELD_KEY, readAreas } from "./ready-check-areas.core";
 import type { MittiMediaFetch } from "./mitti.server";
 
@@ -23,6 +23,16 @@ const daysBetween = (a: string | null, b: string | null) => { if (!a || !b) retu
 
 /** Upgrade zones the job records: the canonical Ready Check areas, else structured measurement zones, else the one measurement. */
 export async function jobUpgradeZones(jobId: string): Promise<JobZone[]> {
+  const zones = await readyCheckZones(jobId);
+  if (!zones.some((z) => !z.product)) return zones;
+  // Jo 30 Oct 2026: the Ready Check asks the product once per job; areas without their own use it (latest ready answer).
+  const { data: ev } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_product_recorded").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const d = ev?.details as { ready?: boolean; product?: unknown } | null;
+  const { insulationProduct } = await import("./insulation-product.core");
+  return withJobProduct(zones, d?.ready ? insulationProduct(d.product)?.option ?? null : null);
+}
+
+async function readyCheckZones(jobId: string): Promise<JobZone[]> {
   // Canonical Ready Check areas (latest Ready Check, `measure.areas_v1` observation) read directly: this module sits on the
   // autoAdvanceJob import graph, so it must not pull the Ready Check draft module and its intake/Mitti imports.
   const { data: rcRow } = await admin.from("ready_checks").select("id").eq("job_id", jobId).neq("status", "superseded").order("version", { ascending: false }).limit(1).maybeSingle();

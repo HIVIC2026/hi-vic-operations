@@ -35,6 +35,9 @@ export async function completePiesaAssessment(data: CompletePiesaInput, userId: 
   if (a.piesa_outcome === "pending") missing.push("PIESA outcome");
   if (!a.assessed_on) missing.push("assessment date");
   if (missing.length) throw new WorkflowError(`Still needed: ${missing.join(", ")}`);
+  // A48 batch 1: a Mitti PIESA whose answers break the official form's own rules cannot be completed.
+  const rulesBlocker = await (await import("./piesa-rules-notice.server")).piesaRulesBlockerFor(data.jobId);
+  if (rulesBlocker) throw new WorkflowError(rulesBlocker);
   // Decision 178: a Mitti PIESA cannot be completed until its evidence (switchboard + on-site photos geotagged,
   // a photo per hazard, the CES after fixes) is on the synced form. Same pure rule as the sync and the stage gate.
   if (a.external_mitti_id) {

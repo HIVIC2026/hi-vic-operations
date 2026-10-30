@@ -1,3 +1,4 @@
+import { inHouseDispatchSkip } from "./in-house-suppression.server";
 // Jo 24 Oct 2026: "Your install is booked" to the owner once a day and time are agreed. Best-effort: never blocks the
 // booking. TEST jobs get the draft through test-send; real owners only once Jo approves the wording AND customer
 // messages are on, through the one guarded owner-email path. One email per booked start time.
@@ -5,6 +6,8 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 
 export async function emailOwnerInstallBooked(jobId: string, startIso: string, opts: { depositReceived?: boolean } = {}): Promise<string> {
+  const skipped = await inHouseDispatchSkip(jobId);
+  if (skipped) return skipped;
   const { data: job } = await admin.from("jobs").select("owner_id, property_id, source").eq("id", jobId).maybeSingle();
   if (!job) return "skipped";
   const [{ data: owner }, { data: prop }, { data: asg }, { data: m }, { data: link }] = await Promise.all([

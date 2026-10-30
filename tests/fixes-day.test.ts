@@ -176,6 +176,7 @@ describe("completeFixesForm: files are kept first; a failed download holds and i
     logEvent: async (job: string, _actor: string | null, type: string, summary: string, details?: unknown) => { (tables["workflow_events"] ??= []).push({ job_id: job, event_type: type, summary, details: details ?? {} }); },
   }));
   const audit = { items: [...fullAudit().items, item(Q.repairList, "1. Replace RCD")], audit_id: AUDIT, template_id: TPL, completed: true };
+  mock.module("../src/lib/in-house-suppression.server", () => ({ readInHouseDispatchState: async () => ({ held: new Set<string>(), failed: false }) }));
   const call = (async () => audit) as never;
   const PDF = new TextEncoder().encode("%PDF-1.4");
 

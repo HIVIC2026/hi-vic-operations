@@ -1,3 +1,4 @@
+import { inHouseDispatchSkip } from "./in-house-suppression.server";
 // Decision 215 (Jo, 24 Oct 2026): owner notice after an install-day "Couldn't get in?" (trade-view.server
 // tradeCouldntGetIn → install-days.server changeInstallDay). Records ONE `install_no_access_owner_notice` event per
 // cancelled install booking before sending, so a retry never texts or emails twice. TEST jobs → test-send only; real
@@ -40,6 +41,8 @@ async function noticeFacts(jobId: string, wasStart: string, newDayStarts: string
 }
 
 export async function sendInstallNoAccessNotice(p: InstallNoAccessNoticeInput): Promise<string> {
+  const skipped = await inHouseDispatchSkip(p.jobId);
+  if (skipped) return skipped;
   const { data: prior } = await admin.from("workflow_events").select("id").eq("job_id", p.jobId).eq("event_type", INSTALL_NO_ACCESS_NOTICE_EVENT).contains("details", { booking_id: p.bookingId }).limit(1).maybeSingle();
   if (prior) return "already handled";
   await logEvent(p.jobId, null, INSTALL_NO_ACCESS_NOTICE_EVENT, "Owner told we couldn't get in on the install day: text + email prepared", { booking_id: p.bookingId, was: p.wasStart, reason: p.reason }, { internal: true });
@@ -79,6 +82,8 @@ export async function sendInstallNoAccessNotice(p: InstallNoAccessNoticeInput): 
  *  email already went at once and no new event is recorded. Skips when the job is gone or closed, or the owner already has
  *  a new install day booked (the text would be out of date). */
 export async function resendInstallNoAccessText(p: { jobId: string; bookingId: string; wasStart: string; reason: string; reportedAt: string }): Promise<string> {
+  const skipped = await inHouseDispatchSkip(p.jobId);
+  if (skipped) return skipped;
   const { data: j } = await admin.from("jobs").select("stage, deleted_at").eq("id", p.jobId).maybeSingle();
   const { CLOSED_JOB_STAGES } = await import("./duplicate-address.core");
   if (!j || j.deleted_at || CLOSED_JOB_STAGES.has(j.stage ?? "")) return "skipped — job closed";

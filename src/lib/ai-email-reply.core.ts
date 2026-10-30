@@ -10,9 +10,14 @@
 import { esc, mjEmail } from "./mail-mjml.core";
 import { changeVisitLink, visitGroupForStage, type ChangeVisit } from "./email-change-reply.core";
 import { smsQuietReason } from "./quote-hold.core";
-import { SPOT_FREE, SPOT_PRICE_NOTE, SPOT_REGISTERED, SPOT_RELEASE_LINE, isPreReleaseStage, preReleaseViolations } from "./spot-only-copy.core";
+import { SPOT_FREE, SPOT_PRICE_NOTE, SPOT_REGISTERED, SPOT_RELEASE_LINE, isPreReleaseStage } from "./spot-only-copy.core";
+import { rulesFromAnswers, type AiAnswer } from "./ai-answers.core";
+import type { StyleExample } from "./ai-style.core";
 import type { SpotReleaseState } from "./spot-release.core";
+import { ownerRateForR } from "./hiv-quote.core";
 
+/** Shown on the draft screens after a blocked Send: the box now holds the fixed reply. */
+export const AI_REWRITTEN_NOTE = "We fixed the reply so it follows your rules — check it and press Send.";
 export const AI_EMAIL_DRAFT_EVENT = "email_ai_draft";
 export const AI_EMAIL_DRAFT_SENT_EVENT = "email_ai_draft_sent";
 export const AI_EMAIL_DRAFT_DISCARDED_EVENT = "email_ai_draft_discarded";
@@ -37,7 +42,7 @@ export const AI_EMAIL_DRAFTS_ENABLED: boolean = true;
 export const AI_EMAIL_AUTO_SEND_ENABLED: boolean = false;
 /** Jo 27 Oct 2026: signed by the team, never by Jo. */
 export const AI_SIGN_OFF = "Cheers, the Home Insulation Victoria team";
-/** The AI returns exactly this when the email needs no reply (a plain "no thanks" or "thanks"). Jo 27 Oct: file those away. */
+/** The AI returns exactly this when the email needs no reply (a plain "thanks" or acknowledgement). Jo 27 Oct: file those away. */
 export const NO_REPLY_NEEDED = "NO_REPLY_NEEDED";
 
 export type AiReplyKind = "simple" | "other";
@@ -76,24 +81,32 @@ export type AiReplyContext = {
 
 
 const NEXT_STEP_RELEASED = "Then give the one next step: if their spot isn't saved and they want to go ahead, give the save-my-spot link on its own line; if their spot is saved, say that when it's their turn an installer will text and email them a few times for their free Ready Check.";
-/** Decision 388 (Jo 25 Oct 2026): before the spot is released the only thing to say about what comes next is Jo's release line. */
-const NEXT_STEP_PRE_RELEASE = `Then give the one next step: if their spot isn't saved and they want to go ahead, give the save-my-spot link on its own line; if their spot is saved, tell them: ${SPOT_RELEASE_LINE} Say nothing else about what happens after their spot is released, and give no timeframe or speed.`;
+/** Jo's wait line and release line (steps 2-4 spec 2d), verbatim. Before release, AI replies may explain the Ready Check with these but never give a date, timeframe or speed. */
+export const AI_WAIT_LINE = "We're bringing on more and more certified installers, but demand is high and there aren't enough of them yet. So we're booking people in the order they saved their spot, as quickly as we can bring on more CII-certified installers. We can't give a date yet, but we'll be in touch as soon as your spot is released.";
+export const AI_RELEASE_MEANS = "When your spot is released, it's your turn: an installer will text and email you some times for your free Ready Check.";
+const NEXT_STEP_PRE_RELEASE = `Then give the one next step: if their spot isn't saved and they want to go ahead, give the save-my-spot link on its own line; if their spot is saved, explain what release means with: ${AI_RELEASE_MEANS} If they ask when or how long, use: ${AI_WAIT_LINE} Give no date, timeframe or speed, and never promise or hint at one.`;
+/** The machine line the AI may add after the email (AI replies step 2, task 5). */
+export const AI_ACTIONS_EXAMPLE = 'ACTIONS: {"installer_note":"…","new_area_m2":90}';
 const instructionLines = (NEXT_STEP: string, preRelease: boolean) => [
   "You write email replies from the Home Insulation Victoria team to home owners about their ceiling insulation. The office reads and sends each one.",
-  "Tone: kind, warm and plain, in Australian English, like a real person in our office. Short sentences. Never robotic or call-centre. Never say \"No worries\". Never sign or mention a person's name for us.",
+  "Tone: kind, warm and plain, in Australian English, like a real person in our office. Never robotic or call-centre. Never say \"No worries\". Never sign or mention a person's name for us.",
+  "Answer each question fully, explaining the why when it helps, in short sentences. Warm and plain; an occasional :) is fine.",
   "Start with \"Hi <first name>,\" on its own line (or \"Hi there,\" if no name), then a short thank-you that fits what they wrote.",
   "Answer every question they asked, directly and specifically, using the job facts below (their ceiling size, price, rebate, whether their spot is saved). If they asked several things, answer each one in a short list.",
   "Never say \"we'll check and get back to you\" when the answer is in the facts or the business rules. Only if something truly isn't covered, say we'll find out and reply.",
+  "If a question isn't covered by the rules or facts, still answer the rest, and after the email add a line `NEEDS_JO: <their question>` for each one.",
+  "If the owner is complaining about the install (mess, damage, unhappy with the work), write a short holding reply: say sorry and that we're looking into it with the installer. After the email add the line `NEEDS_YOU: complaint`.",
   "Keep it relevant: only use a fact or business rule when it answers something they actually raised. Never volunteer extra details they didn't ask about (for example, don't mention batts versus blow-in unless they asked about blow-in).",
   NEXT_STEP,
   "If they say they can't get into the roof or take photos, kindly tell them not to go up there — they don't need to send photos.",
-  "Only use the facts, rules and links given below. Never invent dates, prices, times, people or links. Never quote an R6.0 or R7.0 price.",
+  "Only use the facts, rules and links given below. Never invent dates, prices, times, people or links.",
   "Say \"rebate\" — never say VEEC, VEECs, VEU, Activity 48, ESC or other scheme jargon.",
   "Never ask them to call, never give a phone number. They can just reply to this email.",
   ...(preRelease ? [] : ["If they want to change a booking time, give them the change link provided and say who they'll arrange it with. Never promise a new time yourself."]),
-  `If their email is only a plain "no thanks", "not going ahead", "thanks" or similar and needs no answer, return exactly ${"NO_REPLY_NEEDED"} and nothing else.`,
+  `If their email is only a plain "thanks", "got it" or similar acknowledgement and needs no answer, return exactly ${"NO_REPLY_NEEDED"} and nothing else.`,
   "Do not include a sign-off; it is added for you.",
-  "Return only the email body text, no subject line.",
+  `After the email you may add one line: ${AI_ACTIONS_EXAMPLE} — installer_note only when the owner asks for something the installer must know (for example R6.0 or R7.0, removing old insulation, downlights), short and plain, about the job only — never the owner's name, address, phone or email; new_area_m2 only when the owner states their ceiling size as a number in m². Leave out what doesn't apply, and leave the line out if neither does.`,
+  "Return only the email body text, no subject line (plus any NEEDS_JO / NEEDS_YOU / ACTIONS lines after it).",
 ];
 
 export const AI_REPLY_INSTRUCTIONS = instructionLines(NEXT_STEP_RELEASED, false).join("\n");
@@ -106,40 +119,16 @@ export function isPreReleaseOwner(j: { channel: string | null | undefined; stage
   return j.releaseState?.state !== "confirmed";
 }
 
-export type AiPromptOpts = { preRelease?: boolean };
+export type AiPromptOpts = { preRelease?: boolean; answers?: AiAnswer[] | null; style?: StyleExample[] | null };
 /** The prompt for this owner; released owners get AI_REPLY_INSTRUCTIONS unchanged. */
 export const aiReplyInstructions = (o: AiPromptOpts = {}): string => (o.preRelease ? instructionLines(NEXT_STEP_PRE_RELEASE, true).join("\n") : AI_REPLY_INSTRUCTIONS);
 
 
-/** Jo's standing answers (27 Oct 2026), given to the AI with every job reply. */
-const RULE_CEILING_ONLY = "We only do ceiling insulation (no underfloor or walls).";
-const RULE_BATTS_ONLY = "Our quotes are for R5.0 batts, not blow-in insulation, so no holes are cut in the ceiling.";
-const RULE_OWN_ELECTRICIAN = "An owner's own electrician can do the safety check if they sign up with us as an electrician first (we check their licence and $5 million public liability insurance, and all forms go through our system so the rebate can be claimed): https://portal.homeinsulationvictoria.com.au/electrician-onboarding";
-export const AI_BUSINESS_RULES = [
-  RULE_CEILING_ONLY,
-  RULE_BATTS_ONLY,
-  "R6.0 and R7.0 are available; the installer confirms the price at the free Ready Check (never quote it).",
-  "Old insulation is removed only where needed, at $15/m²; the installer checks how much at the Ready Check.",
-  "Extras like cleaning the roof cavity: the installer can quote them at the Ready Check.",
-  "The free Ready Check: a certified installer comes to the home, measures the ceilings, checks the existing insulation and confirms the job, then the owner gets their final quote. They see the exact price before agreeing to anything.",
-  "The rebate needs any existing insulation to be below R2.0, and it has to be checked at the Ready Check — age alone isn't enough. Owners never need to go into the roof or send photos.",
-  "Spots are released in the order they were saved, so we can't give install dates before that. When it's their turn an installer texts and emails a few times for the Ready Check.",
-  "After they accept the quote, a licensed electrician does a safety check before any insulation goes in, then the installer puts the insulation in. We look after all the paperwork and the rebate.",
-  "The price includes: the free Ready Check; R5.0 batts supplied and installed by a certified installer; the electrician's safety check ($349); our Accredited Person fee for the paperwork and rebate claim ($349). Electrical repairs aren't included — if needed they get a separate quote first.",
-  RULE_OWN_ELECTRICIAN,
-];
+/** Jo's standard answers (steps 2-4 spec 2a) are the business rules: her saved list, else the seed. */
+export const AI_BUSINESS_RULES = rulesFromAnswers(null);
 
-/** Business rules before release: only the lines that say nothing about a Ready Check, a visit, times or speed, plus Jo's spot-only lines. */
-export const AI_BUSINESS_RULES_PRE_RELEASE = [
-  RULE_CEILING_ONLY,
-  RULE_BATTS_ONLY,
-  SPOT_FREE,
-  SPOT_REGISTERED,
-  SPOT_RELEASE_LINE,
-  SPOT_PRICE_NOTE,
-  RULE_OWN_ELECTRICIAN,
-];
-
+/** Before release: the same answers plus Jo's spot-only, release and wait lines. Nothing may give a date, timeframe or speed. */
+const preReleaseExtras = [SPOT_FREE, SPOT_REGISTERED, SPOT_RELEASE_LINE, AI_RELEASE_MEANS, AI_WAIT_LINE, SPOT_PRICE_NOTE];
 
 export function buildAiReplyInput(c: AiReplyContext, o: AiPromptOpts = {}): string {
   const pre = o.preRelease === true;
@@ -148,7 +137,8 @@ export function buildAiReplyInput(c: AiReplyContext, o: AiPromptOpts = {}): stri
     `Job ${c.jobNumber ?? "(no number)"} · owner first name: ${c.ownerFirstName ?? "unknown"}`,
     ...(pre ? [] : [`Current stage: ${c.stageLabel}`]),
     c.facts.length ? `Facts:\n- ${c.facts.join("\n- ")}` : "Facts: none recorded",
-    `Business rules:\n- ${(pre ? AI_BUSINESS_RULES_PRE_RELEASE : AI_BUSINESS_RULES).join("\n- ")}`,
+    `Business rules:\n- ${[...rulesFromAnswers(o.answers ?? null), ...(pre ? preReleaseExtras : [])].join("\n- ")}`,
+    ...(o.style?.length ? [`How Jo writes (style only — never copy facts, prices, dates, names or promises from these):\n${o.style.map((e) => `Owner wrote:\n${e.theirEmail.slice(0, 600)}\nJo replied:\n${e.reply}`).join("\n\n")}`] : []),
     c.links.length ? `Links you may use:\n${c.links.map((l) => `- ${l.label}: ${l.url}`).join("\n")}` : "Links: none — do not offer a link",
     pre ? "No change-time link is available." : c.changeLink ? `To change the time of ${WHO[c.changeLink.visit]}, they use: ${c.changeLink.link}` : "No change-time link is available — if they want to change a time, say we'll sort it and get back to them.",
     `Email history (oldest first):\n${hist || "(none)"}`,
@@ -169,6 +159,8 @@ const CALL_US = /[^.!?\n]*\b(call|ring|phone)\s+(us|the office|our office)\b[^.!
 export function finishAiReply(raw: string): string {
   let t = raw.replace(/\r/g, "").trim();
   t = t.replace(/\n*(cheers|kind regards|regards|thanks|many thanks|best)[,!]?\s*\n(?:jo\s*\n)?[^\n]*(home insulation victoria|team)[^\n]*$/i, "").trim();
+  // The AI sometimes signs as Jo ("Cheers, Jo", "Kind regards,\nJo"): drop it so only the team sign-off remains.
+  t = stripSignOff(t);
   for (const [re, to] of JARGON) t = t.replace(re, to);
   t = t.replace(CALL_US, "").replace(PHONE, "").replace(/[ \t]{2,}/g, " ");
   // Greeting on its own line: "Hi Sarah! Good news…" → "Hi Sarah!\n\nGood news…"
@@ -218,20 +210,242 @@ export function aiReplyText(body: string): string[] {
   return body.replace(/\r/g, "").trim().replace(/(https?:\/\/[^\s<>"]+)/g, (u) => `${aiLinkLabel(u)}: ${u}`).split("\n");
 }
 
-/** Problems that stop a draft being sent as written (checked again at send). */
-export function aiReplyProblems(body: string, opts: { preRelease?: boolean } = {}): string[] {
+/** Before release, an AI reply may explain the Ready Check but must never promise timing or queue position.
+ *  "as soon as your spot is released" is Jo's own wait line, so it is allowed. Automatic emails/texts/pages keep the
+ *  full decision-388 ban (`preReleaseViolations`). */
+const AI_PRE_RELEASE_TIMING = new RegExp([
+  String.raw`\bsoon\b`, "shortly", String.raw`this\s+week`, String.raw`next\s+week`, String.raw`this\s+month`, String.raw`next\s+month`, String.raw`next\s+year`, "tomorrow",
+  String.raw`in\s+a\s+(?:few|couple\s+of)\s+(?:days|weeks)`, String.raw`a\s+couple\s+of\s+(?:days|weeks)`,
+  String.raw`within\s+(?:a|an|\d+(?:\s*(?:-|–|to)\s*\d+)?)\s+(?:days?|weeks?|months?|fortnight)`,
+  String.raw`\bin\s+\d+(?:\s*(?:-|–|to)\s*\d+)?\s+(?:days?|weeks?|months?)`,
+  String.raw`in\s+a\s+(?:fortnight|week\s+or\s+two)`, String.raw`in\s+the\s+(?:coming|next\s+few)\s+(?:days|weeks|months)`,
+  String.raw`jump\s+the\s+queue`, String.raw`\bmove\s+up`,
+].join("|"), "gi");
+export function aiPreReleaseViolations(text: string): string[] {
+  const cleaned = text
+    .replace(/as\s+soon\s+as\s+(?:your|their)\s+spot(?:\s+is|['’]s)\s+released/gi, " ")
+    // The government's 30-day rule for the safety check is a rule, not a timing promise. Only 30 days, nothing else.
+    .replace(/within\s+30\s+days?\s+of\s+(?:the|your)\s+install(?:ation)?\b/gi, " ");
+  return [...new Set((cleaned.match(AI_PRE_RELEASE_TIMING) ?? []).map((m) => m.toLowerCase().replace(/\s+/g, " ")))];
+}
+
+/** Things the AI asks the office to do, from its `ACTIONS:` line. Applied only when Jo sends, and only if she leaves them ticked. */
+export type AiActions = { installerNote?: string; newAreaM2?: number };
+export const AI_NOTE_MAX = 200;
+/** A new ceiling size is accepted only as a whole number of m² from 10 to 1000. */
+export const validNewArea = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 10 && v <= 1000;
+/** Keeps only valid actions (note trimmed, 1–200 chars; area a whole number 10–1000); anything else is dropped. */
+const escRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** A note that could carry the owner's details (an email, a phone-like run of 8+ digits, their first name) is never kept:
+ *  installers get owner details from the job only once they accept. */
+export function noteHasOwnerDetails(note: string, ownerFirstName?: string | null): boolean {
+  if (note.includes("@") || /\d{8,}/.test(note.replace(/[\s-]/g, ""))) return true;
+  const first = (ownerFirstName ?? "").trim();
+  return first.length >= 2 && new RegExp(`(?<![\\p{L}\\p{N}])${escRe(first)}(?![\\p{L}\\p{N}])`, "iu").test(note);
+}
+export function cleanActions(x: unknown, keys: { note: string; area: string } = { note: "installerNote", area: "newAreaM2" }, ownerFirstName?: string | null): AiActions {
+  if (!x || typeof x !== "object" || Array.isArray(x)) return {};
+  const o = x as Record<string, unknown>;
+  const out: AiActions = {};
+  const note = typeof o[keys.note] === "string" ? (o[keys.note] as string).trim() : "";
+  if (note.length >= 1 && note.length <= AI_NOTE_MAX && !noteHasOwnerDetails(note, ownerFirstName)) out.installerNote = note;
+  if (validNewArea(o[keys.area])) out.newAreaM2 = o[keys.area] as number;
+  return out;
+}
+const AI_KEYS = { note: "installer_note", area: "new_area_m2" };
+/** The JSON after `ACTIONS:` (fences removed); malformed = no actions. */
+function parseActionsText(text: string, ownerFirstName?: string | null): AiActions {
+  const json = text.replace(/```(?:json)?/gi, "").trim();
+  try { return cleanActions(JSON.parse(json), AI_KEYS, ownerFirstName); } catch { return {}; }
+}
+const braceDepth = (s: string) => { let d = 0; let inStr = false; for (let i = 0; i < s.length; i++) { const c = s[i]; if (inStr) { if (c === "\\") i++; else if (c === '"') inStr = false; } else if (c === '"') inStr = true; else if (c === "{") d++; else if (c === "}") d--; } return d; };
+/** Lines from `start` (the ACTIONS: line) that belong to the ACTIONS block: the JSON may run over several lines or sit in a
+ *  ```json fence, on the same line or the next. Returns the block's text (after "ACTIONS:") and the index after it. An
+ *  unbalanced block runs to the end, so no JSON is ever left in the owner's email. */
+function actionsBlock(lines: string[], start: number, firstText: string): { text: string; next: number } {
+  const parts = [firstText];
+  let i = start + 1;
+  const joined = () => parts.join("\n");
+  // "ACTIONS:" alone on its line: the JSON (or a fence) starts on the next non-blank line.
+  if (!joined().trim()) { while (i < lines.length && !lines[i]!.trim()) i++; if (i < lines.length && /^\s*(\{|```)/.test(lines[i]!)) parts.push(lines[i++]!); }
+  const fenced = /^\s*```/.test(joined().trim());
+  if (fenced) {
+    const closed = () => (joined().match(/```/g) ?? []).length >= 2;
+    while (!closed() && i < lines.length) parts.push(lines[i++]!);
+  } else if (/^\s*\{/.test(joined())) {
+    while (braceDepth(joined()) > 0 && i < lines.length) parts.push(lines[i++]!);
+  }
+  return { text: joined(), next: i };
+}
+/** Actions saved on a draft (`details.actions`); bad or missing values = none. At Send the owner's first name is passed, so a
+ *  note naming them is dropped even if it was saved (or edited) that way. */
+export const draftActions = (details: Record<string, unknown> | null | undefined, ownerFirstName?: string | null): AiActions =>
+  cleanActions(details?.["actions"], undefined, ownerFirstName);
+
+/** R6.0 / R7.0 prices for the AI's facts. The rebate doesn't depend on R-value, so the R5.0 rebate is used; only the
+ *  install part changes (owner price per m² from `ownerRateForR`). */
+export function higherRFacts(areaM2: number, r5Cost: { before: number; rebate: number }, ownerR5IncPerM2: number): string[] {
+  if (!(areaM2 > 0) || !Number.isFinite(r5Cost.before) || !Number.isFinite(r5Cost.rebate)) return [];
+  return (["R6.0", "R7.0"] as const).map((r) => {
+    const before = r5Cost.before + areaM2 * (ownerRateForR(r, ownerR5IncPerM2) - ownerR5IncPerM2);
+    return `${r} for ${areaM2} m²: ${money(before - r5Cost.rebate)} after the ${money(r5Cost.rebate)} rebate (${money(before)} before), including GST.`;
+  });
+}
+/** Prices for a size the owner gave in their email (R5.0 from `whatIfEstimate`, then R6.0 / R7.0). */
+export function newSizeFacts(areaM2: number, r5: { before: number; rebate: number; after: number }, ownerR5IncPerM2: number): string[] {
+  return [`Price for the size they gave (${areaM2} m² ceiling, R5.0): ${money(r5.after)} after the ${money(r5.rebate)} rebate (${money(r5.before)} before), including GST.`, ...higherRFacts(areaM2, r5, ownerR5IncPerM2)];
+}
+const money = (n: number) => `$${Math.round(Number(n)).toLocaleString("en-AU")}`;
+export type AiOutput = { body: string; needsAnswer: string[]; needsYou: boolean; actions: AiActions };
+
+// Markers may come in markdown or list form: "**NEEDS_JO**:", "- NEEDS JO - …", "> NEEDS_JO – …". Leading `*`, `_`,
+// backticks, `-`, `>` and spaces are dropped before matching; up to two `*`/`_` may close the marker.
+const MARKER_LEAD = /^[\s*_`>-]*/;
+const NEEDS_JO_LINE = /^needs[_ ]?jo[*_]{0,2}\s*[:\-–]\s*(.*?)\s*$/i;
+const NEEDS_YOU_LINE = /^needs[_ ]?you[*_]{0,2}\s*[:\-–]/i;
+const ACTIONS_LINE = /^actions[*_]{0,2}\s*:/i;
+const ACTION_KEYS = /"(?:installer_note|new_area_m2)"/;
+/** A bare ```json fence (no ACTIONS: before it) holding installer_note / new_area_m2 is an ACTIONS block too. */
+function bareActionsFence(lines: string[], start: number): { text: string; next: number } | null {
+  if (!/^\s*```(?:json)?\s*$/i.test(lines[start]!)) return null;
+  let i = start + 1;
+  while (i < lines.length && !/^\s*```\s*$/.test(lines[i]!)) i++;
+  const text = lines.slice(start, Math.min(i + 1, lines.length)).join("\n");
+  return ACTION_KEYS.test(text) ? { text, next: i + 1 } : null;
+}
+/** Splits the AI's raw text into the email and its notes to the office. Runs before anything else, so a marker never
+ *  reaches the fix loop or the owner. Lenient: any case, optional spaces, markdown/list forms, a marker on its own line. */
+export function splitAiOutput(raw: string, o: { ownerFirstName?: string | null } = {}): AiOutput {
+  const needsAnswer: string[] = [];
+  let needsYou = false;
+  let actions: AiActions = {};
+  const keep: string[] = [];
+  const lines = (raw ?? "").replace(/\r/g, "").split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+    const bare = line.replace(MARKER_LEAD, "");
+    if (ACTIONS_LINE.test(bare)) { // never reaches the owner, however the JSON is laid out
+      const b = actionsBlock(lines, i, bare.replace(/^actions[*_]{0,2}\s*:\s*/i, ""));
+      actions = { ...actions, ...parseActionsText(b.text, o.ownerFirstName) };
+      i = b.next - 1;
+      continue;
+    }
+    const fence = bareActionsFence(lines, i);
+    if (fence) { actions = { ...actions, ...parseActionsText(fence.text, o.ownerFirstName) }; i = fence.next - 1; continue; }
+    const jo = NEEDS_JO_LINE.exec(bare);
+    // An empty question still flags the draft, so it is never treated as fully answered.
+    if (jo) { needsAnswer.push(jo[1]!.replace(/[*_]+$/, "").trim() || "(question not given)"); continue; }
+    if (NEEDS_YOU_LINE.test(bare)) { needsYou = true; continue; }
+    keep.push(line.replace(/[ \t]+$/, ""));
+  }
+  const body = keep.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  return { body, needsAnswer, needsYou, actions };
+}
+
+/** needs_answer / needs_you from a saved draft's details (bad or missing values = none). */
+export function draftNeeds(details: Record<string, unknown> | null | undefined): { needsAnswer: string[]; needsYou: boolean } {
+  const a = details?.["needs_answer"];
+  return {
+    needsAnswer: Array.isArray(a) ? a.filter((q): q is string => typeof q === "string" && q.trim() !== "").map((q) => q.trim()) : [],
+    needsYou: details?.["needs_you"] === true,
+  };
+}
+
+/** "Save as a standard answer" starts with the first question as the topic and Jo's sent words, without the greeting and sign-off. */
+export function saveAnswerPrefill(questions: string[], sentBody: string): { topic: string; answer: string } {
+  const lines = stripSignOff(sentBody.replace(/\r/g, "")).split("\n");
+  if (lines.length && /^(hi|hey|hello|g'day|dear)\b[^\n]{0,40}[,!.]?\s*$/i.test(lines[0]!.trim())) lines.shift();
+  return { topic: (questions[0] ?? "").trim().slice(0, 80), answer: lines.join("\n").replace(/\n{3,}/g, "\n\n").trim() };
+}
+
+const PLACEHOLDER_RE = /<(?:name|address|suburb|postcode|link|email|phone|job)>/gi;
+
+/** Problems that stop a draft being sent as written (checked again at send).
+ *  `aiDraft: true` (only for the AI's own text) also runs the two wording rules; Jo's typed words on Send never do (Jo 30 Oct 2026). */
+export function aiReplyProblems(body: string, opts: { preRelease?: boolean; aiDraft?: boolean } = {}): string[] {
   const out: string[] = [];
-  if (!body.trim()) out.push("The reply is empty.");
+  // A sign-off on its own (e.g. the AI wrote only office notes) is still an empty reply.
+  if (!stripSignOff(body).trim()) out.push("The reply is empty.");
   if (/\bVEECs?\b|\bVEU\b|Activity 48/i.test(body)) out.push("Say “rebate” instead of scheme words.");
   PHONE.lastIndex = 0;
   if (PHONE.test(body)) out.push("Take out the phone number.");
   PHONE.lastIndex = 0;
   if (/\b(call|ring|phone)\s+(us|the office|our office)\b/i.test(body)) out.push("Take out “call us”.");
+  if (/\bNEEDS[_ ]?(?:JO|YOU)[*_]{0,2}\s*:/i.test(body) || /\bNEEDS[_ ]?(?:JO|YOU)[*_]{0,2}\s*[-–]/.test(body)
+    || /^[\s*_`>-]*needs[_ ]?(?:jo|you)[*_]{0,2}\s*[:\-–]/im.test(body) || /\bACTIONS[*_]{0,2}\s*:/.test(body)
+    || /\{\s*"installer_note"/.test(body) || /"new_area_m2"/.test(body)) out.push("Take out the AI's note to the office (NEEDS_JO…).");
+  // Placeholders copied from Jo's scrubbed style examples.
+  for (const ph of new Set((body.match(PLACEHOLDER_RE) ?? []).map((m) => m.toLowerCase()))) out.push(`Take out the placeholder ${ph} — write the real wording`);
+  if (opts.aiDraft === true && /\bfixes\b/i.test(body)) out.push("Say “electrical upgrades” instead of “fixes”.");
+  // First mention is "electrical safety check (PIESA)"; later plain "safety check" is fine once PIESA has been named.
+  if (opts.aiDraft === true && /\bsafety check\b/i.test(body) && !/\bPIESA\b/i.test(body)) out.push("Say “electrical safety check (PIESA)”.");
   if (opts.preRelease) {
-    const bad = preReleaseViolations(body);
-    if (bad.length) out.push(`Take out “${bad.join("”, “")}” — their spot hasn't been released yet.`);
+    const bad = aiPreReleaseViolations(body);
+    if (bad.length) out.push(`Take out “${bad.join("”, “")}” — we can't promise timing before their spot is released.`);
   }
   return out;
+}
+
+export const AI_FIX_TRIES = 2;
+
+export const AI_FIX_INSTRUCTIONS = [
+  "You are fixing a draft email reply for Home Insulation Victoria.",
+  "The draft breaks the rules listed under PROBLEMS.",
+  "Change only the words or sentences that break those rules. Keep everything else word for word, including the greeting and any edits already made.",
+  "Do not add a sign-off. Do not add anything new.",
+  "Return only the email body, nothing else.",
+].join("\n");
+
+const SIGN_WORDS = "(?:cheers|kind regards|best regards|warm regards|regards|thanks|thank you|many thanks|best)";
+const TRAILING_TEAM_SIGN_OFF = new RegExp(`(?:^|\\n)[ \\t]*${SIGN_WORDS}[ \\t]*,[ \\t]*(?:the[ \\t]+)?(?:home insulation victoria(?:[ \\t]+team)?|team)[ \\t]*\\.?[ \\t]*$`, "i");
+// "Cheers,\nJo", "Cheers,\n\nJo", "Cheers, Jo", "Cheers Jo!", "Thanks,\nJo :)".
+const TRAILING_JO_SIGN_OFF = new RegExp(`(?:^|\\n)[ \\t]*${SIGN_WORDS}[ \\t]*[,!.]?(?:[ \\t]*\\n)*[ \\t]*jo\\b[ \\t]*[!.]?[ \\t]*(?::-?\\))?[ \\t]*$`, "i");
+/** Removes a trailing sign-off however the AI worded it (our exact one, "Kind regards, the … team", "Cheers,\nJo"), plus surrounding whitespace. */
+export function stripSignOff(text: string): string {
+  let t = text.trim();
+  for (;;) {
+    const next = (t.endsWith(AI_SIGN_OFF) ? t.slice(0, -AI_SIGN_OFF.length) : t.replace(TRAILING_JO_SIGN_OFF, "").replace(TRAILING_TEAM_SIGN_OFF, "")).trim();
+    if (next === t) return t;
+    t = next;
+  }
+}
+
+/** What the fix call is sent: the problems, then the draft without its sign-off. */
+export function buildAiFixInput(body: string, problems: string[], preRelease: boolean): string {
+  const draft = stripSignOff(body);
+  const parts = ["PROBLEMS:", ...problems.map((p) => `- ${p}`)];
+  if (preRelease) parts.push("", "This wording IS allowed:", AI_RELEASE_MEANS, AI_WAIT_LINE);
+  parts.push("", "DRAFT:", draft);
+  return parts.join("\n");
+}
+
+/** Rewrites a draft that breaks Jo's rules, at most AI_FIX_TRIES AI calls. `ai` is injected so this stays pure. */
+export async function fixUntilClean(
+  body: string,
+  preRelease: boolean,
+  ai: (input: string, instructions: string) => Promise<string>,
+  opts: { aiDraft?: boolean } = {},
+): Promise<{ body: string; problems: string[]; tries: number }> {
+  const aiDraft = opts.aiDraft === true;
+  let current = body;
+  let problems = aiReplyProblems(current, { preRelease, aiDraft });
+  let tries = 0;
+  if (!stripSignOff(body).trim()) return { body, problems, tries }; // nothing to rewrite (empty or sign-off only); never ask the AI to invent a reply
+  while (problems.length && tries < AI_FIX_TRIES) {
+    tries++;
+    let raw: string;
+    try {
+      raw = await ai(buildAiFixInput(current, problems, preRelease), AI_FIX_INSTRUCTIONS);
+    } catch {
+      break;
+    }
+    const text = stripSignOff(raw ?? "");
+    if (!text || text.replace(/[.\s]+$/, "") === NO_REPLY_NEEDED) continue;
+    // finishAiReply only strips a two-line sign-off; our exact one-line sign-off is dropped first so it is never doubled.
+    current = finishAiReply(text);
+    problems = aiReplyProblems(current, { preRelease, aiDraft });
+  }
+  return { body: current, problems, tries };
 }
 
 export function replySubject(theirs: string | null): string {

@@ -28,6 +28,13 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
         const { sweepRecOffers, sweepCoordination } = await import("@/lib/allocation.server");
         const out: { ok: boolean; offers?: unknown; coordination?: unknown } = { ok: true };
         try {
+          const { sweepSpotSavedConfirmations } = await import('@/lib/spot-saved-recovery.server');
+          (out as Record<string, unknown>)['spotSavedConfirmations'] = await timed('sweepSpotSavedConfirmations', () => sweepSpotSavedConfirmations());
+        } catch (e) {
+          console.error('allocation tick: spot saved confirmation recovery failed', (e as Error).message);
+          (out as Record<string, unknown>)['spotSavedConfirmations'] = 'failed';
+        }
+        try {
           const o = await timed("sweepRecOffers", () => sweepRecOffers());
           out['offers'] = { expired: o.expired, started: Array.isArray(o.started) ? o.started.length : o.started };
         } catch (e) {
@@ -302,6 +309,13 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['estimateFollowups'] = "failed";
         }
         try {
+          const { sweepInHousePartnerCalls } = await import("@/lib/in-house-batch-email.server");
+          (out as Record<string, unknown>)['inHousePartnerCalls'] = await timed("sweepInHousePartnerCalls", () => sweepInHousePartnerCalls());
+        } catch (e) {
+          console.error("allocation tick: partner call email sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['inHousePartnerCalls'] = "failed";
+        }
+        try {
           // Decision 158: 20/10-day reminders to owner + installer (held until approved; TEST → test sender) and the
           // repeat-PIESA payer record when the 30-day window lapses with nothing booked.
           const { sweepInstallWindowRule } = await import("@/lib/thirty-day-rule.server");
@@ -319,6 +333,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
         } catch (e) {
           console.error("allocation tick: payments sweep failed", (e as Error).message);
           (out as Record<string, unknown>)['payments'] = "failed"; // a Xero outage must not fail the whole tick
+        }
+        try {
+          // Installer sign-up electrician nominations that were never invited (comms were off at sign-up): one invite each.
+          // Runs BEFORE the decision-303 sweep so the 303 sweep sees this nomination as already handled (never two emails).
+          const { sweepSignupNominationInvites } = await import("@/lib/signup-electrician.server");
+          (out as Record<string, unknown>)['signupElectricianInvites'] = await timed("sweepSignupNominationInvites", () => sweepSignupNominationInvites());
+        } catch (e) {
+          console.error("allocation tick: sign-up electrician invite sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['signupElectricianInvites'] = "failed";
         }
         try {
           // Decision 303: ONE REC onboarding invite per electrician an installer named who is not an approved REC

@@ -30,5 +30,7 @@ export const getJobWaiting = createServerFn({ method: "POST" }).middleware([requ
       depositRequestRaised: !!inv?.deposit_request_raised_at,
       settings: ws ? { tradeWarnHours: ws.due_trade_reply_warn_hours, tradeExceptionHours: ws.due_trade_reply_exception_hours, ownerReminderDays: ws.due_owner_reminder_days, ownerFlagDays: ws.due_owner_flag_days } : undefined,
     });
-    return { ...w, viewerRole: role };
+    const dispatch = await (await import("./in-house-suppression.server")).inHouseDispatchSkip(data.jobId);
+    const visit = dispatch ? (await import("./in-house-message.core")).inHouseTradeBookingText(job.stage) : null;
+    return visit ? { ...w, viewerRole: role, coordinationSuppressed: true, parties: ["Installer" as const], arranging: false, sentence: role === "owner" ? "" : dispatch === "in_house" ? visit : "Visit booking details unavailable", dueAt: null, dueLabel: null, overdueBy: null, status: "ok" as const, action: { label: "Open job", tab: "overview" as const } } : { ...w, viewerRole: role, coordinationSuppressed: false };
   });

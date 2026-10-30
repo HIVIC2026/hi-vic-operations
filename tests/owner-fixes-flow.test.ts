@@ -46,7 +46,7 @@ describe("fixes payment step (payment gate)", () => {
     expect(fixesPaymentBlocker(none, paymentSteps(none, { install: 0, fixes: 0, repeat: 0 }, {}, T0))).toBeNull();
   });
   test("both booking paths carry the fixes-paid blocker", () => {
-    expect(read("src/lib/booking.server.ts")).toMatch(/kind === "rectification"\) \{ const fb = await \(await import\("\.\/payments\.server"\)\)\.fixesPaymentBlockerFor\(jobId\)/);
+    expect(read("src/lib/booking.server.ts")).toMatch(/if \(!partnerBilled\) \{ const blocker = await \(await import\("\.\/payments\.server"\)\)\.fixesPaymentBlockerFor\(jobId\)/);
     expect(read("src/lib/workflow.server.ts")).toMatch(/to === "rectification_booked"\) \{\s*const fb = await \(await import\("\.\/payments\.server"\)\)\.fixesPaymentBlockerFor\(jobId\)/);
   });
 });

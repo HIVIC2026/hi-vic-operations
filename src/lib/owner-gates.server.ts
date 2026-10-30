@@ -4,6 +4,7 @@ import { PDFDocument, StandardFonts } from "pdf-lib";
 import { SAFETY_CHECK_FEE_DEFAULT } from "./payment-gate.core";
 import { paymentPlan, toCents } from "./payments.core";
 import { GATE_DOCS, RETIRED_DOC_KEYS, paymentTermsMoney, paymentTermsText, type PaymentMoney, answerVars, evaluateOwnerGates, installerVisitFromSiteCheck, fillTemplate, gateDoc, ownerGateBlockers, ownerToSign, quoteAcceptanceReady, type GateDocKey, type GateFacts, type GateResult } from "./owner-gates.core";
+import { lifeSupportNeedsPlan } from "./compliance-timeline.core";
 import { agreementSigned, assignmentStatus, logEvent, WorkflowError } from "./workflow.server";
 
 async function sha256(s: string) {
@@ -24,7 +25,7 @@ export async function approvedVersions(): Promise<Record<string, string>> {
 
 export async function gateFacts(jobId: string): Promise<GateFacts> {
   const [{ data: job, error: jobError }, { data: sigs }, approved, { data: quotes }, agreed, { data: tpl }, { data: esc }, { data: dels }, assign] = await Promise.all([
-    admin.from("jobs").select("source, life_support, installer_site_check").eq("id", jobId).single(),
+    admin.from("jobs").select("source, life_support, life_support_status, installer_site_check").eq("id", jobId).single(),
     admin.from("owner_gate_signatures").select("doc_key, doc_version, doc_draft, answers, signed_at").eq("job_id", jobId).order("signed_at"),
     approvedVersions(),
     admin.from("quotes").select("id").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted"]).limit(1),
@@ -37,6 +38,7 @@ export async function gateFacts(jobId: string): Promise<GateFacts> {
   if (jobError) throw new WorkflowError("The job visit details could not load. Please retry.");
   if (!job) throw new WorkflowError("The saved job could not be found. Please retry or contact the office.");
   const { count: onsite } = await admin.from("owner_contact_consents").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("source", "onsite_ready_check").eq("consent_status", "granted");
+  const { lifeSupportPlansOnFile } = await import("./job-records.server");
   const latest = (k: string) => (sigs ?? []).filter((s) => s.doc_key === k).at(-1)?.answers as Record<string, unknown> | undefined;
   const keys = new Set((tpl ?? []).map((t) => t.template_key));
   return {
@@ -44,7 +46,7 @@ export async function gateFacts(jobId: string): Promise<GateFacts> {
     signed: (sigs ?? []).map((s) => ({ key: s.doc_key, version: s.doc_version, draft: s.doc_draft })),
     approved,
     tenant: latest("details_confirmation")?.["role"] === "tenant",
-    lifeSupport: !!job?.life_support || latest("life_support_answer")?.["life_support"] === "yes",
+    lifeSupport: lifeSupportNeedsPlan(job ?? {}) || latest("life_support_answer")?.["life_support"] === "yes",
     visitedByInstaller: installerVisitFromSiteCheck(job.installer_site_check),
     hasQuote: (quotes ?? []).length > 0,
     agreementSigned: agreed,
@@ -54,6 +56,7 @@ export async function gateFacts(jobId: string): Promise<GateFacts> {
     piesaDeclarationMappingApproved: !!approved["piesa_owner_declaration"],
     assignmentEffective: assign === "effective_complete",
     onsiteConsent: (onsite ?? 0) > 0,
+    lifeSupportPlanOnFile: (await lifeSupportPlansOnFile([jobId])).has(jobId),
   };
 }
 

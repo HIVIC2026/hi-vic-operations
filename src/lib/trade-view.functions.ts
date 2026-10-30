@@ -131,6 +131,14 @@ export const setA1ReadyCheckTimeFn = createServerFn({ method: "POST" }).middlewa
   .inputValidator((d) => z.object({ jobId: uuid, day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), time: z.string().regex(/^\d{2}:\d{2}$/) }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSetReadyCheckTime(context.userId, data.jobId, { day: data.day, time: data.time }));
 
+export const getInHouseBookingAccess = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).inHouseBookingAccess(context.userId, data.jobId, context.supabase));
+
+export const inHouseBookVisit = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, kind: z.enum(["ready_check", "assessment", "rectification", "installation"]), start: z.string().datetime({ offset: true }) }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).inHouseBookVisit(context.userId, data, context.supabase));
+
 export const getMyMittiInvited = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
   .handler(async ({ context }) => (await import("./trade-view.server")).tradeMittiInvited(context.userId));
 
@@ -235,6 +243,11 @@ export const saveTradeSwmsNote = createServerFn({ method: "POST" }).middleware([
 export const signTradeSwms = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, key: z.string().min(3).max(200), typedName: z.string().trim().min(2).max(200) }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSwmsSign(data.jobId, context.userId, data.key, data.typedName));
+
+/** Jo 30 Oct 2026: the Lead opens a crew member's own sign link on the Lead's phone (dead phone). */
+export const leadPhoneSwmsLink = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, key: z.string().min(3).max(200) }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSwmsLeadPhoneLink(data.jobId, context.userId, data.key));
 
 /** Decision 317: the electrician's "Safety check (PIESA)" document row (electricians only; business-scoped read). */
 export const getTradeSafetyCheckDoc = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

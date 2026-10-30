@@ -1,3 +1,4 @@
+import { inHouseDispatchSkip } from "./in-house-suppression.server";
 // Decision 326 (25 Oct 2026): the approved owner texts that had wording but no sender (decisions 78, 82, 89, 93, 99, 135).
 // Same shape as installer-texts.server.ts (decisions 79/82/99): ONE `approved_text_prepared` workflow event per text +
 // key is recorded BEFORE anything is sent, so a retry never texts twice; TEST jobs → test-send only; real owners → the ONE
@@ -70,11 +71,13 @@ async function deliver(p: { kind: ApprovedTextKind; key: string; job: JobRow; bo
 }
 
 /** Shared "not sent" outcomes (the sweeps count everything else as handled). */
-export const NOT_HANDLED = ["skipped", "already handled", "not due", "not an our-lead job", "no longer current", "owner link missing", "missing facts", QUIET_HOURS_WAIT] as const;
+export const NOT_HANDLED = ["in_house", "in_house_read_failed", "skipped", "already handled", "not due", "not an our-lead job", "no longer current", "owner link missing", "missing facts", QUIET_HOURS_WAIT] as const;
 const handled = (r: string) => !(NOT_HANDLED as readonly string[]).includes(r);
 
 /** Decision 78: the installer offered the owner Ready Check times → one text per offer event (our leads). */
 export async function textOwnerReadyCheckTimes(jobId: string, triggerEventId: string, offeredAt: string, now = new Date()): Promise<string> {
+  const skipped = await inHouseDispatchSkip(jobId);
+  if (skipped) return skipped;
   const job = await loadJob(jobId);
   if (!job) return "skipped";
   if (job.channel !== "hivic_sourced") return "not an our-lead job";
@@ -93,6 +96,16 @@ export async function textOwnerReadyCheckTimes(jobId: string, triggerEventId: st
 
 /** Decision 82 (B): our-lead Ready Check booked → one text per booked start. */
 export async function textOwnerReadyCheckBooked(jobId: string, startIso: string, bookedAt: string, now = new Date()): Promise<string> {
+  const skipped = await inHouseDispatchSkip(jobId);
+  if (skipped) return skipped;
+  // Jo 29 Oct 2026 (HV-3542): no silent skips — each not-sent reason is recorded once for the office.
+  let outcome: string;
+  try { outcome = await attemptBookedOwnerText(jobId, startIso, bookedAt, now); } catch (e) { outcome = `error — ${(e as Error).message}`; }
+  await (await import("./ready-check-booked-email.server")).recordBookedNotSent(jobId, startIso, "text", outcome);
+  return outcome;
+}
+
+async function attemptBookedOwnerText(jobId: string, startIso: string, bookedAt: string, now: Date): Promise<string> {
   const { READY_CHECK_BOOKED_TEXT_APPROVED } = await import("./ready-check-booked-email.core");
   if (!READY_CHECK_BOOKED_TEXT_APPROVED) return "skipped";
   const job = await loadJob(jobId);
@@ -112,6 +125,8 @@ export async function textOwnerReadyCheckBooked(jobId: string, startIso: string,
 
 /** Decision 93 (A): safety check (PIESA) booked → one text per booked start. */
 export async function textOwnerSafetyCheckBooked(jobId: string, startIso: string, bookedAt: string, now = new Date()): Promise<string> {
+  const skipped = await inHouseDispatchSkip(jobId);
+  if (skipped) return skipped;
   const job = await loadJob(jobId);
   if (!job) return "skipped";
   const key = approvedTextKey.piesaBookedOwner(jobId, startIso);
@@ -128,6 +143,8 @@ export async function textOwnerSafetyCheckBooked(jobId: string, startIso: string
 
 /** Decisions 82 / 93 / 99: the afternoon before a booked Ready Check (our leads), safety check or install → "See you tomorrow". */
 export async function textOwnerVisitTomorrow(kind: VisitTextKind, jobId: string, booking: { id: string; scheduled_start: string }, now = new Date()): Promise<string> {
+  const skipped = await inHouseDispatchSkip(jobId);
+  if (skipped) return skipped;
   if (!visitTomorrowDue(now, booking.scheduled_start)) return "not due";
   const job = await loadJob(jobId);
   if (!job) return "skipped";
@@ -169,6 +186,8 @@ export async function textOwnerQuoteReminder(q: QuoteRow, now = new Date()): Pro
 
 /** Decision 135: the agreed install day changed and a new day is booked → one text per new booking. */
 export async function textOwnerInstallMoved(jobId: string, booking: InstallBookingRow, wasStart: string, now = new Date()): Promise<string> {
+  const skipped = await inHouseDispatchSkip(jobId);
+  if (skipped) return skipped;
   const job = await loadJob(jobId);
   if (!job) return "skipped";
   const key = approvedTextKey.installMoved(jobId, booking.id);

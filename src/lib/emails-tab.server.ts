@@ -11,7 +11,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { WorkflowError } from "./workflow.server";
-import { AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, aiReplyEmailHtml, replySubject } from "./ai-email-reply.core";
+import { AI_EMAIL_DRAFT_DISCARDED_EVENT, AI_EMAIL_DRAFT_EVENT, AI_EMAIL_DRAFT_SENT_EVENT, aiReplyEmailHtml, draftActions, draftNeeds, replySubject } from "./ai-email-reply.core";
 import { EMAIL_CHANGE_REQUEST_EVENT } from "./email-intent.core";
 import { EMAIL_UNMATCHED_DISMISSED_EVENT, EMAIL_UNMATCHED_EVENT, EMAIL_UNMATCHED_MATCHED_EVENT } from "./outlook-guess.core";
 import { NEW_SENDER_REPLIED_EVENT, NEW_SENDER_REPLY_TEMPLATE, newSenderReplyKey } from "./new-sender-reply.core";
@@ -86,7 +86,8 @@ export async function loadEmailsTab(): Promise<EmailsTab> {
     const mid = str(r.details["message_id"]);
     if (!mid) continue;
     const ref: DraftRef = { eventId: r.id, body: edits.get(r.id) ?? String(r.details["body"] ?? ""),
-      kind: r.details["kind"] === "follow_up" ? "follow_up" : "link", nothingToAnswer: r.details["nothing_to_answer"] === true };
+      kind: r.details["kind"] === "follow_up" ? "follow_up" : "link", nothingToAnswer: r.details["nothing_to_answer"] === true,
+      ...(r.event_type === AI_EMAIL_DRAFT_EVENT ? { ...draftNeeds(r.details), actions: draftActions(r.details) } : {}) };
     if (r.event_type === AI_EMAIL_DRAFT_EVENT && r.job_id) {
       const k = jobDraftKey(r.job_id, mid);
       if (closed.has(r.id)) closedJobDrafts.add(k); else if (!jobDrafts.has(k)) jobDrafts.set(k, ref);
@@ -189,11 +190,13 @@ export async function writeMissingEmailDrafts(): Promise<{ drafted: number }> {
 }
 
 /** Send the job reply (saved on the job's email history), then clear a reply-needed email from the tab. */
-export async function sendJobEmailReply(requestEventId: string, draftEventId: string, body: string, actorId: string) {
+export async function sendJobEmailReply(requestEventId: string, draftEventId: string, body: string, actorId: string, apply: { applyNote: boolean; applyArea: boolean } = { applyNote: false, applyArea: false }) {
   const req = await eventOf(requestEventId, EMAIL_CHANGE_REQUEST_EVENT);
   if (!req?.job_id) throw new WorkflowError("That email wasn't found.");
   const { sendAiDraft } = await import("./ai-email-reply.server");
-  const r = await sendAiDraft(draftEventId, body, actorId);
+  const r = await sendAiDraft(draftEventId, body, actorId, apply);
+  // Rewritten for Jo to check: nothing was sent, so the request stays open and no reply-sent events are written.
+  if (r.status === "rewritten") return r;
   if (req.details["intent"] === "reply") await (await import("./email-office.server")).applyEmailChange(requestEventId, actorId).catch((e) => console.error("reply sent; row not cleared", e));
   return r;
 }

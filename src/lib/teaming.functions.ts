@@ -65,7 +65,7 @@ export const respondTeamInvite = createServerFn({ method: "POST" })
         const merged: Record<string, unknown> = { ...cur };
         for (const [k, v] of Object.entries(fill)) if (v && !cur[k]) merged[k] = v;
         // Jo 26 Oct 2026: an installer that pays its own electricians (Reinsulate) — no safety check rate or bank details.
-        const paysOwn = (await import("./installer-paid-electricians.core")).installerPaysOwnElectricians((n as { nominating_business_id?: string | null }).nominating_business_id);
+        const paysOwn = await (await import("./installer-paid-electricians.server")).readInstallerPaidElectricians((n as { nominating_business_id?: string | null }).nominating_business_id);
         if (paysOwn) { merged["paid_by_installer"] = true; merged["paid_by_installer_name"] = paysOwn.name; }
         await d.from("rec_onboarding_applications").update({ data: merged as never }).eq("id", app.id);
       }

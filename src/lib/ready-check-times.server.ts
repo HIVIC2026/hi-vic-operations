@@ -12,6 +12,8 @@ import {
   readyCheckOfferExpiry, readyCheckOfferOverdue, readyCheckOfferStartBlockers, readyCheckStartAt, readyCheckTurn, type ReadyCheckPick,
 } from "./ready-check-times.core";
 import { melbourneYmd } from "./piesa-windows.core";
+import { inHouseDispatchSkip } from "./in-house-suppression.server";
+import { inHouseSkippedAction } from "./in-house.core";
 
 async function context(jobId: string) {
   const [{ data: job }, { data: asg }, { data: booked }, { data: rows }] = await Promise.all([
@@ -72,12 +74,22 @@ async function insertTimes(jobId: string, userId: string, role: "installer" | "o
 const startsOf = (picks: ReadyCheckPick[]) => picks.map((p) => readyCheckStartAt(p.day, p.time).toISOString());
 
 async function tellOwner(jobId: string, starts: string[]) {
+  if (await inHouseDispatchSkip(jobId)) return;
   await (await import("./ready-check-times-email.server")).emailOwnerReadyCheckTimes(jobId, starts).catch((e) => console.error("ready check times email skipped", (e as Error).message));
 }
 
 /** Owner "You're booked" (decision 80; best-effort, held until the wording is approved and messages are on). */
 async function tellOwnerBooked(jobId: string, startsAt: string) {
   await (await import("./ready-check-booked-email.server")).emailOwnerReadyCheckBooked(jobId, startsAt).catch((e) => console.error("ready check booked email skipped", (e as Error).message));
+}
+
+/** Jo 29 Oct 2026 (HV-3542): the booked email/texts keep going if the phone drops the connection after the booking
+ *  is saved (the platform keeps this promise alive past the request); the request still waits for it as before. */
+async function tellBookedKeepGoing(jobId: string, startsAt: string) {
+  const work = (async () => { await tellOwnerBooked(jobId, startsAt); await tellInstallerBooked(jobId, startsAt); })();
+  const { requestContext } = await import("./background.server");
+  requestContext.getStore()?.waitUntil?.(work.catch(() => undefined));
+  await work;
 }
 
 /** Office picks ONE installer (decisions 49–51): one offer, open 24 hours, text + in-app to that installer only.
@@ -170,6 +182,8 @@ export async function sweepOfficePickedOffers(actorId: string | null = null, now
 export async function acceptOfferWithTimes(offerId: string, userId: string, picks: ReadyCheckPick[], now = new Date()) {
   const { data: o } = await admin.from("partner_offers").select("id, job_id, kind, status, business_id, offered_at, expires_at").eq("id", offerId).maybeSingle();
   if (!o || o.kind !== "ready_check") throw new WorkflowError("Offer not found.");
+  const skipped = await inHouseDispatchSkip(o.job_id);
+  if (skipped) return inHouseSkippedAction(skipped);
   if (o.status !== "pending") throw new WorkflowError("This offer is no longer open.");
   if (readyCheckOfferOverdue(o, now)) throw new WorkflowError("This offer has closed (24 hours passed).");
   const c0 = await context(o.job_id);
@@ -225,8 +239,7 @@ export async function bookAgreedTime(jobId: string, proposalId: string | null, s
     await confirmBooking(jobId, "ready_check", startsAt, actorId, roleLabel);
     // Confirmed booking starts the Mitti form in the background (never undoes the booking if it can't).
     await (await import("./mitti-create.server")).onReadyCheckBooked(jobId, actorId).catch((err) => console.error("ready check form not scheduled", (err as Error).message));
-    await tellOwnerBooked(jobId, startsAt);
-    await tellInstallerBooked(jobId, startsAt);
+    await tellBookedKeepGoing(jobId, startsAt);
   } catch (e) {
     if (proposalId) await admin.from("appointment_proposals").update({ status: "superseded" }).eq("id", proposalId);
     await logEvent(jobId, actorId, "ready_check_time_booking_blocked", `Ready Check time agreed but booking not confirmed: ${(e as Error).message}`, { proposal_id: proposalId }, { internal: true });
@@ -357,8 +370,7 @@ export async function installerChangeReadyCheck(jobId: string, userId: string, p
   await admin.from("appointment_proposals").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "ready_check").eq("note", READY_CHECK_TIME_NOTE).eq("status", "proposed");
   await logEvent(jobId, userId, "ready_check_changed", "Installer changed the booked Ready Check to a new time", { by: "installer", was: c.bookedAt, starts_at: start }, { internal: true });
   await admin.from("jobs").update({ next_action: "Ready Check booked" }).eq("id", jobId);
-  await tellOwnerBooked(jobId, start);
-  await tellInstallerBooked(jobId, start);
+  await tellBookedKeepGoing(jobId, start);
   return { ok: true, booked: true };
 }
 

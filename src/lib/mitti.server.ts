@@ -195,20 +195,20 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
       else if (outcome === "created") {
         // Mitti made the form but a later step (share / owner) failed: store it so every retry REUSES it.
         if (measureOnly) {
-          await pointMeasurementAtMitti(jobId, m, seen.createdId!, actorId);
+          await pointMeasurementAtMitti(jobId, m, String(seen.createdId), actorId);
         } else if (a) await admin.from("assessments").update({ external_mitti_id: seen.createdId, mitti_template_id: templateId }).eq("id", a.id);
         else { await admin.from("assessments").insert({ job_id: jobId, assessor_id: asg.user_id, external_mitti_id: seen.createdId, mitti_template_id: templateId, mitti_last_error: msg, mitti_sync_status: "error", mitti_scope: scope.scope }); throw wrap(e); }
       } else {
         await claims.recordMittiCreateUncertain(jobId, kind, claimId, actorId, msg);
         if (!measureOnly) {
-          if (a) await admin.from("assessments").update({ mitti_last_error: msg }).eq("id", a.id);
+          if (a) await admin.from("assessments").update({ mitti_last_error: msg, mitti_sync_status: "error" }).eq("id", a.id);
           else await admin.from("assessments").insert({ job_id: jobId, assessor_id: asg.user_id, mitti_last_error: msg, mitti_sync_status: "error", mitti_scope: scope.scope });
         }
         throw new claims.MittiOutcomeUncertain();
       }
     }
     if (!measureOnly) {
-      if (a) await admin.from("assessments").update({ mitti_last_error: msg }).eq("id", a.id);
+      if (a) await admin.from("assessments").update({ mitti_last_error: msg, mitti_sync_status: "error" }).eq("id", a.id);
       else await admin.from("assessments").insert({ job_id: jobId, assessor_id: asg.user_id, mitti_last_error: msg, mitti_sync_status: "error", mitti_scope: scope.scope });
     }
     throw wrap(e);
@@ -409,7 +409,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
   if (job.business_unit !== "hivic") throw new WorkflowError("Mitti automation is only available for Home Insulation Victoria jobs.");
   // Cancelled / deleted / QA-archived: no sync, no events, no quote draft or hold.
   if ((await import("./mitti.core")).isClosedOrArchivedJob(job)) return { locked: false, completed: false, issues: [] as string[] };
-  const { data: a } = await admin.from("assessments").select("id,status,external_mitti_id,mitti_template_id,mitti_completed,mitti_modified_at,mitti_sync_status").eq("job_id", jobId).maybeSingle();
+  const { data: a } = await admin.from("assessments").select("id,status,external_mitti_id,mitti_template_id,mitti_completed,mitti_modified_at,mitti_sync_status,no_rectification_confirmed").eq("job_id", jobId).maybeSingle();
   const s = await jobScope(jobId);
   const m = s.measurementRow;
   const measureAudit = m?.external_source === "mitti" && m.external_id && m.external_id !== a?.external_mitti_id && m.status !== "complete" ? m.external_id : null;
@@ -455,14 +455,28 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
           mitti_raw_snapshot: snapshot as unknown as Json, mitti_validation_issues: [...plan.issues, ...refused.issues, ...evidenceBlockers.map((b) => `${PIESA_EVIDENCE_ISSUE_PREFIX}${b}`), ...(priceTalk ? [priceTalk] : [])] as unknown as Json, mitti_last_error: null,
           ...(completed ? { mitti_synced_at: now } : {}),
         }).eq("id", a.id).neq("status", "complete");
+        const outcome = shortAnswers['rectificationOutcome'];
+        if (outcome) {
+          // Optional paired-form work never lets a dispatch outage fail the existing A3 sync.
+          try { await (await import('./fixes-day.server')).syncRectificationCompanion(jobId, actorId, {
+            noRectification: completed && outcome === RECTIFICATION_OUTCOMES[0],
+            needsRectification: outcome !== RECTIFICATION_OUTCOMES[0], previouslyNotNeeded: a.no_rectification_confirmed === true,
+          }, call); }
+          catch (e) { console.error('In-house companion sync failed', e instanceof Error ? e.message : 'Mitti error'); }
+        }
         // Printed PIESA rules, checked server-side on every sync (blockers stay as review issues; nothing is completed here).
         // The Mitti form is the short onsite version: answers are expanded into the official items first.
         // Decision 296: the owner block (o.*) comes from the owner's secure-link confirmation record, never from this form.
         const [prefillCtx, ownerConfirmation, ownerFixesConfirmation] = await Promise.all([officialPrefillContext(jobId, todayMelbourne(), null), (await import("./piesa-owner-confirm.server")).ownerConfirmationForExpand(jobId).catch(() => null), (await import("./piesa-fixes-confirm.server")).ownerFixesConfirmationForExpand(jobId).catch(() => null)]);
         const expanded = expandPiesa(shortAnswers, { lifeSupportDeclared: prefillCtx.lifeSupportDeclared, today: todayMelbourne(), ownerConfirmation, ownerFixesConfirmation });
         const ev = evaluatePiesa(expanded.answers);
+        // The electrician's own life support answer on site: Yes marks the job (never cleared by a No), so the plan is needed before the install.
+        await (await import("./job-records.server")).applyPiesaLifeSupport(jobId, actorId, shortAnswers["lifeSupportPresent"]);
         // Decision 314 / 327: a completed A3 with "Be on site at the start of the install day" ticked is recorded (history only).
         if (plan.completed) await syncOnsiteStartItem(jobId, actorId, shortAnswers["rectificationOutcome"] === RECTIFICATION_OUTCOMES[2]).catch(() => undefined);
+        // A48 batch 1: a completed A3 that breaks the official rules → one event + one electrician message per form version
+        // (read from the answers just stored); a later version that passes clears it. Never throws.
+        if (plan.completed) await (await import("./piesa-rules-notice.server")).recheckPiesaRules(jobId, actorId);
         issues = [...plan.issues, ...refused.issues, ...evidenceBlockers.map((b) => `${PIESA_EVIDENCE_ISSUE_PREFIX}${b}`), ...(priceTalk ? [priceTalk] : []), ...expanded.flagged.map((f) => `Official form: ${f}`), ...ev.blockers.map((b) => `Official form: ${b.message}${b.confirmation ? ` [${b.confirmation}]` : ""}`)];
         for (const o of plan.others) {
           const { data: ex } = await admin.from("rectification_items").select("id,status").eq("job_id", jobId).eq("external_key", o.external_key).maybeSingle();
@@ -483,6 +497,9 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
           const { mittiSignatureByLabel } = await import("./fixes-day.core");
           const a4Sig = mittiSignatureByLabel(audit, "Electrician signature");
           await (await import("./official-signature.server")).savePiesaSignatureImage(jobId, actorId, "a4", a.external_mitti_id, a4Sig, fetchMedia);
+          // A48 batch 1 task 5: after the evidence files and signature are kept, a same-visit repair's certificate (q45) is
+          // read by the AI (time-limited; ticked, or one office row). Never throws.
+          await (await import("./coes-check.server")).checkCurrentCoes(jobId, actorId);
         }
         // History only on change (Jo 23 Oct): an unchanged re-sync (same answers, same modified time,
         // same status) adds no new event row.

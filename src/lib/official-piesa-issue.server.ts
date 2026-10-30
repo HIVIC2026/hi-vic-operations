@@ -34,6 +34,9 @@ export async function issueOfficialPiesa(jobId: string, actorId: string | null):
   const entries = entriesOf(a?.mitti_raw_snapshot);
   if (!a?.external_mitti_id || !entries.length) return hold("no synced Mitti PIESA form on this job");
   if (a.status !== "complete" || !a.assessed_on) return hold("the PIESA is not complete");
+  // A48 batch 1: never file an official PIESA whose answers break the form's own rules.
+  const rulesBlocker = await (await import("./piesa-rules-notice.server")).piesaRulesBlockerFor(jobId);
+  if (rulesBlocker) return hold(rulesBlocker);
   const { data: asg } = await admin.from("job_assignments").select("user_id").eq("job_id", jobId).eq("role", "electrician").eq("active", true).maybeSingle();
   if (!asg?.user_id) return hold("no assigned electrician to attribute the PIESA to");
   const { data: prof } = await admin.from("profiles").select("full_name").eq("id", asg.user_id).maybeSingle();

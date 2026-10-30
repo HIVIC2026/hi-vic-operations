@@ -260,7 +260,8 @@ export const getJobScope = createServerFn({ method: "POST" }).middleware([requir
     catch (e) { if (e instanceof WorkflowError) return null; throw e; }
     const { jobScope } = await import("./requirements.server");
     const { measurementRow: _m, ...s } = await jobScope(data.jobId);
-    return s;
+    const dispatch = await (await import("./in-house-suppression.server")).inHouseDispatchSkip(data.jobId);
+    return dispatch && /offer|pick|choose|book|arrang|time|visit/i.test(s.nextAction ?? "") ? { ...s, nextAction: "" } : s;
   });
 
 export const saveMeasurement = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -587,6 +588,11 @@ export const recordPiesa = createServerFn({ method: "POST" }).middleware([requir
     // Decision 293: the same writes the Mitti "A4 – Electrical fixes" completion makes (piesa-record.server.ts).
     const { applyPiesaRecord } = await import("./piesa-record.server");
     await applyPiesaRecord({ jobId: data.jobId, actorId: context.userId, kind: data.kind, outcome: data.outcome, completedDate: data.completedDate, sectionCSignedDate: data.sectionCSignedDate ?? null, notes: data.notes ?? null, source: { kind: "portal" } });
+    // A48 batch 1 task 5: repairs recorded here count too — the fixes evidence uploaded on this page is read by the AI
+    // (time-limited; ticked, or one office row), after the record is written. Never throws.
+    if (data.kind === "post_rectification") await (await import("./coes-check.server")).checkCurrentCoes(data.jobId, context.userId);
+    // A48 batch 1 final fix: repairs signed off here clear the "breaks the official rules" row like a Mitti Section C. Never throws.
+    if (data.kind === "post_rectification") await (await import("./piesa-rules-notice.server")).recheckPiesaRules(data.jobId, context.userId);
     return { ok: true };
   });
 
@@ -621,6 +627,7 @@ export const regenerateRectificationQuote = createServerFn({ method: "POST" }).m
     await requireAdmin(context.supabase);
     const stage = await getStage(data.jobId);
     const quoteId = await generateRectificationQuote(data.jobId, context.userId);
+    if (typeof quoteId !== "string") return { ok: false, skipped: quoteId.skipped, message: "The partner bills rectification directly." };
     const { data: released } = await admin.from("quotes").select("id").eq("id", quoteId).eq("status", "issued").maybeSingle();
     if (stage === "rectification_required" && released) await transition(data.jobId, "awaiting_owner_rectification_approval", context.userId, "Electrical fixes quote released to owner");
     return { ok: true };

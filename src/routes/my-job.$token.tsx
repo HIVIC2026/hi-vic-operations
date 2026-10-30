@@ -2,7 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Check, Phone } from "lucide-react";
-import { cancelMyJob, getOwnerMyJob } from "@/lib/owner-myjob.functions";
+import { cancelMyJob, finishLifeSupportPlanUploadFn, getLifeSupportPlanState, getOwnerMyJob, startLifeSupportPlanUploadFn } from "@/lib/owner-myjob.functions";
+import { supabase } from "@/integrations/supabase/client";
 import { OwnerHouse } from "@/components/owner/OwnerHouse";
 import { PIESA_FIXES_NOTE, agreedWithLabel, ownerPriceTitle } from "@/lib/owner-confirm.core";
 import { HOUSE_LEVEL } from "@/lib/owner-house.core";
@@ -36,6 +37,7 @@ import { NEW_QUOTE_THANKS } from "@/lib/new-quote-request.core";
 import { ownerQuickTapsAddressSearchFn, ownerQuickTapsDetailsFn, ownerQuickTapsSaveFn, ownerQuickTapsStateFn } from "@/lib/quick-taps.functions";
 import { QUICK_TAPS_COPY, nextTapStep, tapOutcome, websiteQuestions, type FinalOutcome, type QuickTapAnswers, type QuickTapsView } from "@/lib/quick-taps.core";
 import { createAddressPicker, type PickResult } from "@/lib/address-pick.core";
+import { assertInHouseActionSucceeded } from "@/lib/in-house.core";
 
 // Owner "My job" — no login. The secure link token is the only credential; nothing fetched during SSR.
 // Decision 335: "review" = the O51 star links (?screen=review&stars=N).
@@ -159,6 +161,7 @@ function Home({ v, token }: { v: View; token: string }) {
     {v.fixesConfirm && <FixesConfirmCard token={token} />}
     {/* Decision 366: an electrical fixes quote waiting on the owner (approve / pay / pick a time) links to its screen. */}
     <FixesHomeCard token={token} />
+    <LifeSupportPlanCard token={token} />
     <Hero v={v} level={v.hero.level} headline={v.hero.headline} />
     <OwnerRunTime token={token} />
     <OwnerReadyCheckTimes token={token} />
@@ -552,6 +555,7 @@ function BookPickers({ token }: { token: string }) {
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
   if (repeat) return <RepeatPiesaCard token={token} />;
   if (!data) return null;
+  if (data.inHouseDispatch) return <>{data.piesa.booked && <p className="text-sm font-semibold">Pre Insulation Electrical Safety Assessment (PIESA) · {visitPill(data.piesa.booked.startsAt)}</p>}{data.install.bookedAt && <p className="text-sm font-semibold">Install · {visitPill(data.install.bookedAt)}</p>}</>;
   const installMove = data.install.turn === "owner_to_answer";
   // Decision 333: the electrician offers the safety check times; the owner taps one or suggests days (old jobs keep the old picker).
   const pt = data.piesaTimes as { applies: boolean; turn: string; open: { id: string; starts_at: string }[]; days: string[]; thirtyDayAck: { needed: boolean; wording: string } } | undefined;
@@ -582,7 +586,7 @@ function BookPickers({ token }: { token: string }) {
         <span>{data.piesa.thirtyDayAck.wording}</span>
       </label>}
       <div className="mt-3 space-y-3">{nextDays(8).map((d) => <div key={d}><p className="text-xs font-bold">{day(d + "T02:00:00Z")}</p><div className="mt-1 grid grid-cols-2 gap-2">{SLOTS.map(([k, l]) => { const on = picks.some((p) => p.date === d && p.slot === k); return <button key={k} className={tile(on)} onClick={() => setPicks(on ? picks.filter((p) => !(p.date === d && p.slot === k)) : picks.length < 5 ? [...picks, { date: d, slot: k }] : picks)}>{l}</button>; })}</div></div>)}</div>
-      <button className={`${signBtn} mt-4`} disabled={busy || picks.length < 3 || (!!data.piesa.thirtyDayAck?.needed && !understands)} onClick={() => go(() => choosePiesa({ data: { token, session, picks, understandsThirtyDays: understands } }))}>Send my {picks.length} times</button>
+      <button className={`${signBtn} mt-4`} disabled={busy || picks.length < 3 || (!!data.piesa.thirtyDayAck?.needed && !understands)} onClick={() => go(async () => { const result = await choosePiesa({ data: { token, session, picks, understandsThirtyDays: understands } }); assertInHouseActionSucceeded(result); })}>Send my {picks.length} times</button>
     </section>}
     {any && session && piesaMove && pt && <section className="rounded-[22px] bg-card p-5 shadow-sm" data-piesa-times-owner>
       <h3 className="font-display text-lg font-extrabold">Choose your Pre Insulation Electrical Safety Assessment (PIESA) time</h3>
@@ -803,10 +807,40 @@ function PayNowCard({ v, token }: { v: View; token: string }) {
 }
 
 /** Decision 366 (audit F03): the Home card for an electrical fixes quote that needs the owner. */
+/** A48 batch 1 final fix (Jo 29 Oct 2026, approved wording verbatim): life support yes / unknown and no plan on file →
+ *  the owner uploads the written consent or medical plan (photo or PDF). That file alone clears the safety check block. */
+function LifeSupportPlanCard({ token }: { token: string }) {
+  const load = useServerFn(getLifeSupportPlanState);
+  const start = useServerFn(startLifeSupportPlanUploadFn);
+  const finish = useServerFn(finishLifeSupportPlanUploadFn);
+  const { data } = useQuery({ queryKey: ["owner-life-support-plan", token], queryFn: () => load({ data: { token } }), retry: false, refetchOnWindowFocus: false });
+  const input = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false); const [done, setDone] = useState(false); const [err, setErr] = useState("");
+  if (done) return <section data-testid="life-support-plan-done" role="status" className="flex items-start gap-3 rounded-[22px] bg-estimate-mint p-5"><Check className="mt-0.5 h-5 w-5 shrink-0 text-estimate-green" aria-hidden /><p className="font-bold">Thanks, we've got your life support plan.</p></section>;
+  if (!data?.show) return null;
+  const upload = async (file: File) => {
+    setErr(""); setBusy(true);
+    try {
+      const slot = await start({ data: { token, fileName: file.name, mime: file.type, size: file.size } });
+      const up = await supabase.storage.from("job-files").uploadToSignedUrl(slot.path, slot.uploadToken, file, { contentType: slot.mime });
+      if (up.error) throw new Error("The upload was interrupted. Please check your connection and try again.");
+      await finish({ data: { token, path: slot.path, fileName: file.name } });
+      setDone(true);
+    } catch (e) { setErr(errText(e)); } finally { setBusy(false); if (input.current) input.current.value = ""; }
+  };
+  return <section data-testid="life-support-plan" className="rounded-[22px] border-2 border-estimate-green bg-card p-5">
+    <h2 className="font-display text-lg font-extrabold">LIFE SUPPORT PLAN</h2>
+    <p className="mt-1 text-sm">Someone at your home uses life support equipment (or you weren't sure). Before the electrician's safety check, please upload your written consent or medical plan.</p>
+    <input ref={input} type="file" accept="application/pdf,image/*" className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); }} />
+    {err && <p role="alert" className="mt-2 text-sm font-bold text-destructive">{err}</p>}
+    <button type="button" className={`${signBtn} mt-4`} disabled={busy} onClick={() => input.current?.click()} aria-busy={busy}>Upload file</button>
+  </section>;
+}
+
 function FixesHomeCard({ token }: { token: string }) {
   const load = useServerFn(ownerFixesStateFn);
   const { data } = useQuery({ queryKey: ["owner-fixes", token], queryFn: () => load({ data: { token } }), retry: false });
-  if (!data || !ownerFixesNeedsOwner(data.step)) return null;
+  if (!data || !ownerFixesNeedsOwner(data.step) || (data.inHouseDispatch && data.step === "pick")) return null;
   return <section data-testid="fixes-home" className="rounded-[22px] border-2 border-estimate-blue bg-card p-5">
     <p className="text-xs font-bold uppercase tracking-wide text-estimate-blue">{OWNER_FIXES_COPY.kicker}</p>
     <h2 className="mt-1 font-display text-lg font-extrabold">{OWNER_FIXES_COPY.title}</h2>
@@ -856,14 +890,14 @@ function FixesScreen({ v, token }: { v: View; token: string }) {
         <DeclineQuote token={token} quoteId={q.id} />
       </div>}
       {data.step === "pay" && <><p className="text-sm font-semibold">{OWNER_FIXES_COPY.pay}</p><PayNowCard v={v} token={token} /></>}
-      {data.step === "pick" && <div data-testid="fixes-pick" className="space-y-2">
+      {!v.inHouseDispatch && data.step === "pick" && <div data-testid="fixes-pick" className="space-y-2">
         <p className="text-sm font-semibold">{OWNER_FIXES_COPY.pick}</p>
         {data.windows.map((w) => <label key={w.id} className="flex min-h-12 items-center gap-3 rounded-2xl border border-estimate-line bg-card px-4 text-sm font-semibold"><input type="radio" name="fixes-time" checked={chosen === w.id} onChange={() => setChosen(w.id)} />{formatPiesaTime(w.startsAt)}</label>)}
         {needCode && !session && <div className="mt-4"><OwnerCodeGate token={token} onVerified={(s) => { setSession(s); setNeedCode(false); }} /></div>}
         <LockedButton ready={!!chosen} busy={busy} busyLabel="Booking…" onClick={() => void run((s) => pick({ data: { token, session: s, proposalId: chosen! } }))}>{OWNER_FIXES_COPY.pickButton}</LockedButton>
       </div>}
-      {data.step === "waiting_times" && <p className="rounded-[14px] bg-estimate-mist px-4 py-3 text-sm">{OWNER_FIXES_COPY.waitingTimes}</p>}
-      {data.step === "booking" && <p className="rounded-[14px] bg-estimate-mist px-4 py-3 text-sm">{OWNER_FIXES_COPY.booking}</p>}
+      {!v.inHouseDispatch && data.step === "waiting_times" && <p className="rounded-[14px] bg-estimate-mist px-4 py-3 text-sm">{OWNER_FIXES_COPY.waitingTimes}</p>}
+      {!v.inHouseDispatch && data.step === "booking" && <p className="rounded-[14px] bg-estimate-mist px-4 py-3 text-sm">{OWNER_FIXES_COPY.booking}</p>}
       {data.step === "booked" && data.bookedAt && <p data-testid="fixes-booked" className="rounded-[14px] bg-estimate-mint px-4 py-3 text-center text-sm font-bold text-estimate-green">{OWNER_FIXES_COPY.booked(formatPiesaTime(data.bookedAt))}</p>}
       {data.step === "declined" && <p className="rounded-[14px] bg-estimate-mist px-4 py-3 text-sm">{OWNER_FIXES_COPY.declined}</p>}
       {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
@@ -879,6 +913,7 @@ function FixesNote() {
 
 function BookScreen({ v, token }: { v: View; token: string }) {
   const today = melbourneToday();
+  if (v.inHouseDispatch) return <><Back token={token} /><PayNowCard v={v} token={token} /><BookPickers token={token} /></>;
   return <>
     <Back token={token} />
     <Hero v={v} level={HOUSE_LEVEL.book_visits} size="sm" headline={ownerHeadline("booking_visits", v.numbers.rebate)} />

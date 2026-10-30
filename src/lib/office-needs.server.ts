@@ -38,6 +38,42 @@ async function byIds(what: string, ids: string[], q: (chunk: string[], from: num
   return (await Promise.all(chunks.map((chunk) => all(what, (f, t) => q(chunk, f, t))))).flat();
 }
 
+/** Only live held jobs enter these read-only stall rules. Page/batch every dependent read. */
+export async function inHouseNeedsFacts(jobIds: string[]): Promise<Map<string, NonNullable<NeedsFacts["inHouse"]>>> {
+  const out = new Map<string, NonNullable<NeedsFacts["inHouse"]>>();
+  if (!jobIds.length) return out;
+  const live = await byIds("in-house live jobs", jobIds, (c, a, b) => admin.from("jobs").select("id").in("id", c).is("deleted_at", null).neq("source", "qa_test").not("stage", "in", "(cancelled,complete)").order("id").range(a, b));
+  const ids = live.map(j => String(j["id"]));
+  if (!ids.length) return out;
+  const { readInHouseDispatchState } = await import("./in-house-suppression.server");
+  const state = await readInHouseDispatchState(ids);
+  if (state.failed) throw new Error("Could not load in-house partner checks");
+  const held = ids.filter(id => state.held.has(id));
+  if (!held.length) return out;
+  const [assignments, batches, bookings, quotes, records, deadlines] = await Promise.all([
+    byIds("in-house partner names", held, (c,a,b) => admin.from("job_assignments").select("job_id,business_id,businesses(name,trading_name,in_house)").in("job_id",c).eq("role","installer").eq("active",true).order("id").range(a,b)),
+    byIds("in-house batch times", held, (c,a,b) => admin.from("workflow_events").select("job_id,created_at,details").in("job_id",c).eq("event_type","in_house_batch_sent").order("created_at").order("id").range(a,b)),
+    byIds("in-house bookings", held, (c,a,b) => admin.from("bookings").select("job_id,kind").in("job_id",c).in("kind",["ready_check","installation"]).neq("status","cancelled").order("id").range(a,b)),
+    byIds("in-house accepted quotes", held, (c,a,b) => admin.from("quotes").select("job_id,accepted_at").in("job_id",c).eq("kind","installation").eq("status","accepted").not("accepted_at","is",null).order("accepted_at").order("id").range(a,b)),
+    byIds("in-house completed PIESA", held, (c,a,b) => admin.from("piesa_records").select("job_id,completed_date").in("job_id",c).neq("kind","post_rectification").not("completed_date","is",null).order("id").range(a,b)),
+    byIds("in-house PIESA days remaining", held, (c,a,b) => admin.from("job_piesa_deadlines").select("job_id,days_remaining,install_deadline").in("job_id",c).order("job_id").range(a,b)),
+  ]);
+  for (const id of held) {
+    const assignment = assignments.find(a => a["job_id"] === id && (a["businesses"] as { in_house?: boolean } | null)?.in_house);
+    if (!assignment) continue;
+    const business = assignment["businesses"] as { name: string; trading_name?: string | null };
+    const batch = batches.filter(e => e["job_id"] === id && (e["details"] as Row | null)?.["business_id"] === assignment["business_id"]).at(-1);
+    const deadline = deadlines.find(d => d["job_id"] === id);
+    out.set(id, { partnerName: business.trading_name || business.name, batchSentAt: s(batch?.["created_at"]),
+      readyCheckBooked: bookings.some(b => b["job_id"] === id && b["kind"] === "ready_check"),
+      installationBooked: bookings.some(b => b["job_id"] === id && b["kind"] === "installation"),
+      quoteAcceptedAt: s(quotes.filter(q => q["job_id"] === id).at(-1)?.["accepted_at"]),
+      piesaCompleted: records.some(r => r["job_id"] === id),
+      daysRemaining: deadline?.["days_remaining"] == null ? null : Number(deadline["days_remaining"]), deadline: s(deadline?.["install_deadline"]) });
+  }
+  return out;
+}
+
 /** Batch 3a: the "new quote asked for" Needs me fact per job (pure rule `newQuoteOfficeFact`). */
 export async function newQuoteOfficeFacts(jobIds: string[]): Promise<Map<string, import("./new-quote-request.core").NewQuoteOfficeFact>> {
   const out = new Map<string, import("./new-quote-request.core").NewQuoteOfficeFact>();
@@ -258,6 +294,10 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   const facts = new Map<string, NeedsFacts>();
   for (const j of jobs) facts.set(j.id, { jobId: j.id, jobNumber: j.jobNumber, surname: surnameOf(j.owner), suburb: j.suburb, ...(j.source === "qa_test" ? { isTest: true } : {}) });
   const f = (id: string) => facts.get(id);
+  const dispatch = await (await import("./in-house-suppression.server")).readInHouseDispatchState(jobs.map(j => j.id));
+  for (const j of jobs) { const x = f(j.id); if (x) x.inHouseDispatch = dispatch.failed ? "in_house_read_failed" : dispatch.held.has(j.id) ? "in_house" : null; }
+  const inHouse = await inHouseNeedsFacts(jobs.filter(j => j.source !== "qa_test").map(j => j.id));
+  for (const [id, ih] of inHouse) { const x = f(id); if (x) x.inHouse = ih; }
   // Same 48h rule as the legacy exceptions queue; current Needs me must not silently omit it.
   if (ids.length) {
     const releases = await byIds("unconfirmed visit releases", ids, (chunk, a, b) => admin.from("contact_releases").select("job_id, visit_kind, released_at, job_assignments!inner(active, booking_confirmed_at)").in("job_id", chunk).is("revoked_at", null).range(a, b));
@@ -517,6 +557,39 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   for (const [id, r] of fixesTimesMissing({ links: fixesLinks.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]) })), given: fixesGiven.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]) })), now })) {
     const x = f(id); if (x) x.fixesTimesMissing = { at: r.at };
   }
+  // A48 batch 1: the newest A3 safety check breaks the official rules → one row until a corrected form / signed Section C.
+  try {
+    const { PIESA_RULES_CLEARED_EVENT, PIESA_RULES_FAILED_EVENT, piesaRulesOpen } = await import("./piesa-rules-notice.core");
+    const ev = await all("safety check rule failures", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).in("event_type", [PIESA_RULES_FAILED_EVENT, PIESA_RULES_CLEARED_EVENT]).order("created_at").range(a, b));
+    const byJob = new Map<string, Row[]>();
+    for (const e of ev) { const id = String(e["job_id"]); if (idSet.has(id)) byJob.set(id, [...(byJob.get(id) ?? []), e]); }
+    for (const [id, list] of byJob) {
+      const open = piesaRulesOpen(list.map((e) => ({ event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as Record<string, unknown> | null })));
+      const x = f(id); if (x && open) x.piesaRulesFailed = { at: open.at, reasons: open.reasons };
+    }
+  } catch { unavailable.push("safety check rule failures"); }
+  // A48 batch 1 task 5: the electrical certificate after the repairs waits for the office (AI unsure / not ceiling / error, or rejected).
+  try {
+    const { COES_CHECKED_EVENT, COES_REJECTED_EVENT } = await import("./coes-check.core");
+    const ev = await all("electrical certificate checks", (a, b) => scoped(admin.from("workflow_events").select("id, job_id, event_type, created_at, details")).in("event_type", [COES_CHECKED_EVENT, COES_REJECTED_EVENT]).order("created_at").range(a, b));
+    const byJob = new Map<string, { id: string; event_type: string; created_at: string; details: Record<string, unknown> | null }[]>();
+    for (const e of ev) { const id = String(e["job_id"]); if (idSet.has(id)) byJob.set(id, [...(byJob.get(id) ?? []), { id: String(e["id"]), event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as Record<string, unknown> | null }]); }
+    // Jobs waiting on the install booking read the CURRENT certificate live (the key the install gate checks), so a newer
+    // file after a tick is "not checked yet" with Check again, never no row; other jobs read the newest certificate event.
+    const { coesNeedsForJobs } = await import("./coes-check.server");
+    const facts = await coesNeedsForJobs(jobs.filter((j) => byJob.has(j.id) || j.stage === "installation_scheduling").map((j) => ({ id: j.id, stage: j.stage })), byJob);
+    for (const [id, fact] of facts) { const x = f(id); if (x) x.coesCheck = fact; }
+  } catch { unavailable.push("electrical certificate checks"); }
+  // A48 batch 1 final fix (Jo 29 Oct): life support yes / unknown with no plan on file → one row until the owner's upload or
+  // the office record is on file (the safety check offers and visit wait for it).
+  try {
+    const { lifeSupportPlanRowStage } = await import("./compliance-timeline.core");
+    const { lifeSupportPlanMissingJobs } = await import("./job-records.server");
+    const cands = jobs.filter((j) => lifeSupportPlanRowStage(j.stage));
+    const missing = new Set<string>();
+    for (let i = 0; i < cands.length; i += 150) for (const id of await lifeSupportPlanMissingJobs(cands.slice(i, i + 150).map((j) => j.id))) missing.add(id);
+    for (const j of cands) { const x = f(j.id); if (x && missing.has(j.id)) x.lifeSupportPlanNeeded = { at: j.status?.since ?? j.facts.createdAt }; }
+  } catch { unavailable.push("life support plans"); }
   const unsigned = new Set(veecForms.filter((v) => !v["consumer_signed_at"]).map((v) => String(v["job_id"])));
   for (const e of veecAlerts) { const x = f(String(e["job_id"])); if (x && unsigned.has(String(e["job_id"]))) x.veecDay10 = { at: String(e["created_at"]) }; }
   // Jo 28 Oct 2026 (decision card 04:40 UTC, "Alert after 3 days unpaid"): a job paused on a homeowner payment that

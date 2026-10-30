@@ -7,6 +7,7 @@ import { resolveMittiElectrician } from "../src/lib/usual-electrician.core";
 import { stepErrors, visibleSteps, type RecData } from "../src/lib/rec-onboarding.core";
 
 const REINSULATE = "a8304d2d-339b-4cbf-bcf1-fb09ce7935b0";
+const business = { id: REINSULATE, name: "Reinsulate", in_house: false, pays_own_electricians: true, piesaIncGst: 350 };
 const rec = (over: Partial<ApprovedRecCandidate> = {}): ApprovedRecCandidate => ({
   business_id: "rec-1", name: "Orlando Powered Pty Ltd", trading_name: "Orlando Powered", rec_number: "30614", worker_licences: ["A63151"],
   onboarding_status: "approved", is_active: true, approved_electricians: 1, piesa_rate: null, ...over,
@@ -14,16 +15,25 @@ const rec = (over: Partial<ApprovedRecCandidate> = {}): ApprovedRecCandidate => 
 
 describe("which installers pay their own electricians", () => {
   test("Reinsulate (and its TEST partner) at a flat $350; everyone else is paid by us as before", () => {
-    expect(installerPaysOwnElectricians(REINSULATE)).toMatchObject({ name: "Reinsulate", piesaIncGst: 350 });
-    expect(installerPaysOwnElectricians("17793408-bf5c-4ddd-9bec-64199f64f9fb")?.piesaIncGst).toBe(350);
-    expect(installerPaysOwnElectricians("someone-else")).toBeNull();
+    expect(installerPaysOwnElectricians(business)).toMatchObject({ name: "Reinsulate", piesaIncGst: 350 });
+    expect(installerPaysOwnElectricians({ ...business, id: "17793408-bf5c-4ddd-9bec-64199f64f9fb" })?.piesaIncGst).toBe(350);
+    expect(installerPaysOwnElectricians({ ...business, pays_own_electricians: false })).toBeNull();
+    expect(installerPaysOwnElectricians({ ...business, id: "new-partner", piesaIncGst: 420 })?.piesaIncGst).toBe(420);
+    expect(installerPaysOwnElectricians({ ...business, piesaIncGst: null })).toEqual({ businessId: REINSULATE, name: "Reinsulate", piesaIncGst: null, release_hold_reason: "Installer business has no PIESA rate on its rate card" });
     expect(installerPaysOwnElectricians(null)).toBeNull();
   });
   test("our own electrician on a Reinsulate job is still paid directly", () => {
-    expect(safetyCheckPayee({ installerBusinessId: REINSULATE, electricianChoice: "hivic" })).toBeNull();
-    expect(safetyCheckPayee({ installerBusinessId: REINSULATE, electricianChoice: null })).toBeNull();
-    expect(safetyCheckPayee({ installerBusinessId: REINSULATE, electricianChoice: "usual" })?.businessId).toBe(REINSULATE);
-    expect(safetyCheckPayee({ installerBusinessId: "someone-else", electricianChoice: "usual" })).toBeNull();
+    expect(safetyCheckPayee({ business, electricianChoice: "hivic" })).toBeNull();
+    expect(safetyCheckPayee({ business, electricianChoice: null })).toBeNull();
+    expect(safetyCheckPayee({ business, electricianChoice: "usual" })?.businessId).toBe(REINSULATE);
+    expect(safetyCheckPayee({ business: { ...business, pays_own_electricians: false }, electricianChoice: "usual" })).toBeNull();
+  });
+  test("missing or invalid in-house PIESA prices hold instead of borrowing another rate", () => {
+    for (const price of [null, undefined, 0, -1, NaN]) {
+      expect(installerPaysOwnElectricians({ ...business, piesaIncGst: price })?.release_hold_reason).toBe("Installer business has no PIESA rate on its rate card");
+    }
+    expect(safetyCheckPayee({ business: { ...business, piesaIncGst: null }, electricianChoice: "usual" })?.release_hold_reason).toBe("Installer business has no PIESA rate on its rate card");
+    expect(installerPaysOwnElectricians({ ...business, pays_own_electricians: false, piesaIncGst: null })).toBeNull();
   });
 });
 

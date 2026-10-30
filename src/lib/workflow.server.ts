@@ -312,16 +312,20 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
   blockers.push(...(await readyCheckBlockers(jobId, to)));
   // Owner paperwork gates A–D (one rule set for every journey).
   blockers.push(...(await (await import("./owner-gates.server")).ownerGateStageBlockers(jobId, to)));
-  if (["assessment_booked", "assessment_complete", "installation_booked", "evidence_outstanding", "ap_review", "ready_for_veec"].includes(to)) {
-    const { complianceRecordBlockers } = await import("./compliance-timeline.core");
-    const [{ data: recs }, { data: job }, { data: invs }] = await Promise.all([
+  if (["piesa_scheduled", "assessment_complete", "installation_booked", "evidence_outstanding", "ap_review", "ready_for_veec"].includes(to)) {
+    const { complianceRecordBlockers, lifeSupportNeedsPlan } = await import("./compliance-timeline.core");
+    const [{ data: recs }, { data: job }, { data: invs }, { data: planFile }] = await Promise.all([
       admin.from("job_compliance_records").select("record_key").eq("job_id", jobId),
-      admin.from("jobs").select("life_support").eq("id", jobId).single(),
+      admin.from("jobs").select("life_support, life_support_status").eq("id", jobId).single(),
       // Batch 3b: the owner's payment on the installation invoice only (fixes / repeat safety check invoices are separate).
       admin.from("invoices").select("deposit_paid_amount").eq("job_id", jobId).eq("kind", "installation"),
+      // A48 batch 1 final fix (Jo 29 Oct): the owner's uploaded consent / plan file alone counts like the office record (no tick).
+      admin.from("documents").select("id").eq("job_id", jobId).eq("kind", "life_support_plan").limit(1),
     ]);
     const paid = (invs ?? []).reduce((a, i) => a + Number(i.deposit_paid_amount ?? 0), 0);
-    blockers.push(...complianceRecordBlockers(to, new Set((recs ?? []).map((r) => r.record_key as never)), { lifeSupport: !!job?.life_support, ownerPaidIncGst: paid }));
+    const recorded = new Set<string>((recs ?? []).map((r) => r.record_key));
+    if ((planFile ?? []).length) recorded.add("life_support_plan");
+    blockers.push(...complianceRecordBlockers(to, recorded as never, { lifeSupport: lifeSupportNeedsPlan(job ?? {}), ownerPaidIncGst: paid }));
   }
   if (["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked"].includes(to)) {
     const cb = await commercialBlocker(jobId);
@@ -331,6 +335,16 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
   if (to === "installation_booked") {
     const ob = await (await import("./piesa-owner-confirm.server")).ownerPiesaConfirmationBlockerFor(jobId);
     if (ob) blockers.push(ob);
+  }
+  // A48 batch 1: a safety check that breaks the official PIESA rules stops the job until a corrected form or a signed Section C.
+  if (to === "piesa_complete" || to === "installation_scheduling" || to === "installation_booked") {
+    const rb = await (await import("./piesa-rules-notice.server")).piesaRulesBlockerFor(jobId);
+    if (rb) blockers.push(rb);
+  }
+  // A48 batch 1 task 5: where repairs were done, the electrical certificate must be ticked (AI or office) before the install day.
+  if (to === "installation_booked") {
+    const cb = await (await import("./coes-check.server")).coesBlockerFor(jobId);
+    if (cb) blockers.push(cb);
   }
   const piesa = await piesaStatus(jobId);
 
@@ -444,7 +458,13 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
   // Decision 366 (audit F03): no fixes visit is booked until the electrical fixes are paid in full.
   if (to === "rectification_booked") {
     const fb = await (await import("./payments.server")).fixesPaymentBlockerFor(jobId);
-    if (fb) blockers.push(fb);
+    if (fb) {
+      // Resolve the exception only where the legacy quote/payment gate would block.
+      const partnerBilledRectification = await (await import('./in-house-rectification.server')).optionalPartnerBilledRectificationFor(jobId);
+      const { rectificationVisitBlocker } = await import('./allocation.core');
+      const visit = rectificationVisitBlocker({ quoteAccepted: false, recActiveApproved: true, partnerBilledRectification });
+      if (visit) blockers.push(fb);
+    }
   }
   // Jo 26 Oct 2026: no install booking until the 10% install deposit is paid.
   if (to === "installation_booked") {

@@ -13,7 +13,7 @@ export type LeadEmailRouteResult = { route: "offer_spot" | "request_insulation" 
  *  Shared by the automatic router below and the Office manual-email preparation (STEP 17). */
 export async function selectLeadEmailRoute(jobId: string) {
   const [{ data: job }, { data: work }, { data: review }] = await Promise.all([
-    admin.from("jobs").select("life_support_status, source, channel, eligibility_outcome, eligibility_decision_source, eligibility_review_required, estimated_area_m2, estimated_area_unknown, properties(enrichment, state)").eq("id", jobId).maybeSingle(),
+    admin.from("jobs").select("life_support_status, source, channel, eligibility_outcome, eligibility_decision_source, eligibility_review_required, eligibility_decision_rules, estimated_area_m2, estimated_area_unknown, properties(enrichment, state)").eq("id", jobId).maybeSingle(),
     admin.from("post_intake_work").select("id").eq("job_id", jobId).in("status", ["queued", "processing", "retry"]).limit(1).maybeSingle(),
     admin.from("customer_engagement_events").select("metadata").eq("job_id", jobId).eq("event_type", "intake_media_reviewed").order("occurred_at", { ascending: false }).limit(1),
   ]);
@@ -27,6 +27,7 @@ export async function selectLeadEmailRoute(jobId: string) {
   return automaticLeadEmail({
     source: job.source, channel: job.channel, decisionSource: job.eligibility_decision_source,
     reviewRequired: !!job.eligibility_review_required, outcome: job.eligibility_outcome,
+    audit: job.eligibility_decision_rules as import("./enquiry-groups.core").StoredAudit,
     intakeWorkActive: !!work, // Jo 23 Oct 08:14 UTC: any saved tap answer means existing insulation was described -> Save my spot (thin or standard wording).
     declaredInsulation: effectiveInsulation(!latestOutcome && tap ? "present" : normaliseInsulation(extras.existing_insulation), latestOutcome),
     ownerEnteredArea: !job.estimated_area_unknown && Number(job.estimated_area_m2) > 0,

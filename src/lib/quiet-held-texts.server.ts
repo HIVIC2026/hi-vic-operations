@@ -1,3 +1,4 @@
+import { inHouseDispatchSkip } from "./in-house-suppression.server";
 // Batch 2, item 1 (Jo 29 Oct 2026): texts held by the 8pm–7am quiet hours go at 7am — skipped if no longer true.
 // The 15-minute tick (allocation-tick, next to sweepJobOfferTexts) reads last-24h quiet-hours holds whose real key is
 // unclaimed (`quietResendDue`), re-checks each type's own "still true" fact (`STILL_TRUE`, reusing the senders' existing
@@ -141,7 +142,17 @@ export const stillTrueBookedInstaller: StillTrue = async (row) => {
   return (await import("./installer-texts.core")).bookedStillCurrent(booked?.scheduled_start ?? null, startIso);
 };
 
+/** piesa_rules_failed: the job is live and the form version in the key is still the newest A3 and still breaks the
+ *  official rules (no corrected form, no signed Section C overnight) — piesa-rules-notice.server. */
+export const stillTruePiesaRules: StillTrue = async (row) => {
+  const version = after(await claimKey(row), `piesa-rules:v1:${row.job_id}:`);
+  if (!version || !(await stillTrueJobLive(row))) return false;
+  const r = await (await import("./piesa-rules-notice.server")).piesaRulesFor(row.job_id!);
+  return !!r && r.formVersion === version && r.rules.length > 0;
+};
+
 export const STILL_TRUE: Record<QuietResendType, StillTrue> = {
+  piesa_rules_failed: stillTruePiesaRules,
   spot_saved: stillTrueSpotSaved,
   quote_ready: stillTrueQuoteReady,
   piesa_owner_confirm: stillTruePiesaOwnerConfirm,
@@ -191,6 +202,7 @@ export async function sweepQuietHeldTexts(nowIso: string = new Date().toISOStrin
   const { sendRealSms } = await import("./sms.server");
   for (const row of due) {
     try {
+      if (row.job_id && ["deposit_release", "visit_new_times", "install_no_access", "install_clearance", "fixes_times_link", "ready_check_days_suggested"].includes(row.message_type) && await inHouseDispatchSkip(row.job_id)) { out.skipped++; continue; }
       if (!(await STILL_TRUE[row.message_type as QuietResendType](row))) { out.skipped++; continue; }
       // Stored body is already branded; brandSmsBody does not add the prefix twice.
       const r = await sendRealSms({

@@ -37,7 +37,7 @@ export async function campaignLink(token: unknown) {
   // Keep the homeowner's declaration intact. A reviewed no-insulation offer must open its matching
   // campaign lane; the recorded official eligibility outcome is still required by launchGroup.
   const insulation = effectiveInsulation(normaliseInsulation(declaredExtras(base44.raw?.answers ?? null).existing_insulation), mediaReview);
-  const group = launchGroup(job.eligibility_outcome, insulation);
+  const group = launchGroup(job.eligibility_outcome, insulation, job.eligibility_decision_rules as import("./enquiry-groups.core").StoredAudit);
   if (!group) return null;
   const { data: response } = await admin.from("lead_campaign_responses").select("opted_out_at").eq("job_id", job.id).maybeSingle();
   if (!response?.opted_out_at) {

@@ -14,7 +14,7 @@ const db = new PGlite();
 await db.exec(`
 CREATE TABLE jobs (id uuid primary key, stage text, channel text, source text, deleted_at timestamptz, job_number text, property_id uuid, next_action text, originating_installer_business_id uuid);
 CREATE TABLE properties (id uuid primary key, suburb text, postcode text);
-CREATE TABLE businesses (id uuid primary key, name text, onboarding_notes text);
+CREATE TABLE businesses (id uuid primary key, name text, onboarding_notes text, in_house boolean not null default false);
 CREATE TABLE business_members (id uuid primary key default gen_random_uuid(), business_id uuid, user_id uuid, active boolean default true);
 CREATE TABLE job_assignments (id uuid primary key default gen_random_uuid(), job_id uuid, user_id uuid, business_id uuid, role text, active boolean default true);
 CREATE TABLE partner_offers (id uuid primary key default gen_random_uuid(), job_id uuid, business_id uuid, kind text, status text default 'pending', batch int default 1, summary jsonb,
@@ -30,10 +30,21 @@ INSERT INTO workflow_settings VALUES (1, true);
 INSERT INTO properties VALUES ('${PROP}','Frankston','3199');
 INSERT INTO jobs VALUES ('${JOB}','ready_check_ready_to_schedule','hivic_sourced','qa_test',null,'HV-T1','${PROP}',null,null),
   ('${OWN}','ready_check_ready_to_schedule','installer_sourced','qa_test',null,'HV-T2','${PROP}',null,'${BIZ}');
-INSERT INTO businesses VALUES ('${BIZ}','TEST Alpha','[TEST PARTNER]'),('${BIZ2}','TEST Beta','[TEST PARTNER]');
+INSERT INTO businesses (id, name, onboarding_notes) VALUES ('${BIZ}','TEST Alpha','[TEST PARTNER]'),('${BIZ2}','TEST Beta','[TEST PARTNER]');
 INSERT INTO business_members (business_id, user_id) VALUES ('${BIZ}','${INST}');`);
 
 const shim = postgrestShim(db);
+// This fixture's SQL shim cannot project joined selects. Model the new read from its real assignment rows.
+mock.module("../src/lib/in-house-suppression.server", () => ({
+  readInHouseDispatchState: async () => {
+    const rows = (await db.query<{ job_id: string }>("select a.job_id from job_assignments a join businesses b on b.id=a.business_id where a.role='installer' and a.active and b.in_house")).rows;
+    return { held: new Set(rows.map(row => row.job_id)), failed: false };
+  },
+  inHouseDispatchSkip: async (jobId: string) => {
+    const rows = (await db.query<{ in_house: boolean }>("select b.in_house from job_assignments a join businesses b on b.id=a.business_id where a.job_id=$1 and a.role='installer' and a.active", [jobId])).rows;
+    return rows.some(row => row.in_house) ? "in_house" : null;
+  },
+}));
 const calls = { texts: [] as string[], bookings: [] as string[], forms: [] as string[], emails: [] as string[][] };
 // Minimal stand-in for the SQL accept_ready_check_offer (the real one is proven in its own migration tests).
 const rpc = async (name: string, a: Record<string, unknown>) => {

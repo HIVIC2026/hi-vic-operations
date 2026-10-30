@@ -278,7 +278,7 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
     const fixesTemplateItems = fd.FIXES_DAY_QUESTIONS.map((q, i) => ({ item_id: `sim_a4_${i + 1}`, label: q.label, type: q.type === "photo" ? "media" : q.type === "signature" ? "signature" : q.type === "yes_no" ? "question" : "textsingle" }));
     tpl.fixes = String((ws as Record<string, unknown> | null)?.[fd.FIXES_TEMPLATE_COLUMN] ?? "").trim();
     const now = new Date().toISOString();
-    const pass = sim.simulatedA3PassAnswers({ seed: `${ctx.runId}-a3fix`, inspectionDate: J.melbourneDate(0), capturedAt: now, electrician: el?.full_name ?? "TEST Delta Electrician" });
+    const pass = sim.simulatedA3PassAnswers({ seed: `${ctx.runId}-a3fix`, inspectionDate: J.melbourneDate(0), capturedAt: now, electrician: el?.full_name ?? "TEST Delta Electrician", jobNumber: ctx.jobNumber });
     const pick = (label: string, v: string[]) => ({ item_id: `sim_a3_fix_${label.length}_${v.length}`, label, type: "question", responses: { selected: v.map((x) => ({ label: x })) } });
     const text = (label: string, v: string) => ({ item_id: `sim_a3_fix_t_${label.length}`, label, type: "textsingle", responses: { text: v } });
     const items = pass.items.map((it) => (it.label === os.A3_REPAIR_NEEDED_LABEL ? { ...it, responses: { selected: [{ label: "Yes" }] } } : it));
@@ -1043,7 +1043,7 @@ async function fixesChain(rec: Recorder, ctx: JourneyCtx, setup: StepResult[], j
   const fixesTemplateItems = fd.FIXES_DAY_QUESTIONS.map((q, i) => ({ item_id: `sim_a4_${i + 1}`, label: q.label, type: q.type === "photo" ? "media" : q.type === "signature" ? "signature" : q.type === "yes_no" ? "question" : "textsingle" }));
   const tplFixes = String((ws as Record<string, unknown> | null)?.[fd.FIXES_TEMPLATE_COLUMN] ?? "").trim();
   const now = new Date().toISOString();
-  const pass = sim.simulatedA3PassAnswers({ seed: `${ctx.runId}-a3fix`, inspectionDate: J.melbourneDate(0), capturedAt: now, electrician: el?.full_name ?? "TEST Delta Electrician" });
+  const pass = sim.simulatedA3PassAnswers({ seed: `${ctx.runId}-a3fix`, inspectionDate: J.melbourneDate(0), capturedAt: now, electrician: el?.full_name ?? "TEST Delta Electrician", jobNumber: ctx.jobNumber });
   const pick = (label: string, v: string[]) => ({ item_id: `sim_a3_fix_${label.length}_${v.length}`, label, type: "question", responses: { selected: v.map((x) => ({ label: x })) } });
   const text = (label: string, v: string) => ({ item_id: `sim_a3_fix_t_${label.length}`, label, type: "textsingle", responses: { text: v } });
   const items = pass.items.map((it) => (it.label === os.A3_REPAIR_NEEDED_LABEL ? { ...it, responses: { selected: [{ label: "Yes" }] } } : it));

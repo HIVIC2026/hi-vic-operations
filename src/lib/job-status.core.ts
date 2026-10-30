@@ -1,3 +1,4 @@
+import { inHouseTradeBookingText } from "./in-house-message.core";
 // "Where is this job up to?" for trades (Jo, 7 Oct 2026). One plain status line + a progress timeline, from real facts only.
 // Pure. Staff (non-owner) logins never see payment amounts.
 import { DEFAULT_DUE, type DueSettings } from "./waiting.core";
@@ -12,6 +13,7 @@ export type StatusBooking = { kind: string; status: string; start: string | null
 import { stageWording } from "./job-wording";
 const SITUATION_TRADE = { rcAccept: "Waiting for owner to accept Ready Check" } as const;
 export type StatusFacts = {
+  inHouseDispatch?: "in_house" | "in_house_read_failed" | null;
   stage: string; stageSince: string | null; now: Date; staff: boolean;
   bookings: StatusBooking[];
   quoteSentAt: string | null; quoteAcceptedAt: string | null;
@@ -61,6 +63,8 @@ function latest(b: StatusBooking[], kind: string, status?: string) {
 
 export function jobStatusLine(f: StatusFacts): StatusLine {
   const S = f.stage;
+  const heldVisit = f.inHouseDispatch ? inHouseTradeBookingText(S) : null;
+  if (heldVisit) return { text: f.inHouseDispatch === "in_house" ? heldVisit : "Visit booking details unavailable", who: "You", since: f.stageSince, waitingDays: null, tone: "ok", money: null };
     const wait = (text: string, who: Who, since: string | null, sentLabel = "sent"): StatusLine => {
     const d = days(since, f.now);
     return { text: [text, since ? `${sentLabel} ${fmtDay(since)}` : null, waitTxt(d), who].filter(Boolean).join(" · "), who, since, waitingDays: d, tone: toneFor(who, since, f.now, f.settings), money: null };

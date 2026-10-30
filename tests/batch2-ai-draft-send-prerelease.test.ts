@@ -1,6 +1,11 @@
 // Batch 2 task 3: sendAiDraft re-checks the spot-only rule against the CURRENT release state. Own file because it mocks modules.
 import { afterAll, describe, expect, mock, test } from "bun:test";
 
+// Jo 30 Oct 2026: no real AI in this file. Where an AI key is set (the Lovable sandbox) the AI fix call cleaned the draft,
+// leaving no problems to assert on; without it the draft keeps its problems, so the refusal is checked the same everywhere.
+const savedAiKey = process.env["LOVABLE_API_KEY"];
+delete process.env["LOVABLE_API_KEY"];
+
 const realClient = { ...(await import("../src/integrations/supabase/client.server")) };
 const realRelease = { ...(await import("../src/lib/spot-release.server")) };
 const realTestSend = { ...(await import("../src/lib/test-send.server")) };
@@ -27,6 +32,7 @@ mock.module("../src/lib/outlook-sync.server", () => ({ archiveOutlookMessage: as
 // Emails-tab replies now go through Outlook via sendGuardedOwnerEmail (email-sent-visibility); count sends there too.
 mock.module("../src/lib/owner-email-send.server", () => ({ sendGuardedOwnerEmail: async () => { world.sent++; return "sent"; } }));
 afterAll(() => {
+  if (savedAiKey !== undefined) process.env["LOVABLE_API_KEY"] = savedAiKey;
   mock.module("@/integrations/supabase/client.server", () => realClient);
   mock.module("../src/lib/spot-release.server", () => realRelease);
   mock.module("../src/lib/test-send.server", () => realTestSend);
@@ -34,15 +40,20 @@ afterAll(() => {
   mock.module("../src/lib/owner-email-send.server", () => realOwnerSend);
 });
 
-const BAD = "Hi Sam,\n\nYour free Ready Check is coming.\n\nCheers, the Home Insulation Victoria team";
+const BAD = "Hi Sam,\n\nYour free Ready Check is coming this week.\n\nCheers, the Home Insulation Victoria team";
 const reset = (o: Partial<typeof world>) => { Object.assign(world, { channel: "hivic_sourced", stage: "preliminary_estimate_ready", state: "none", inserts: [], sent: 0, jobReads: 0, failLaterJobReads: false }, o); };
 
 describe("sendAiDraft and the spot-only rule", () => {
   test("pre-release owner: Ready Check wording is refused, nothing sent", async () => {
     reset({});
     const { sendAiDraft } = await import("../src/lib/ai-email-reply.server");
-    await expect(sendAiDraft("d1", BAD, "u1")).rejects.toThrow(/released/);
+    const r = await sendAiDraft("d1", BAD, "u1");
+    expect(r.status).toBe("rewritten");
+    if (r.status !== "rewritten") throw new Error("expected rewritten");
+    expect(r.problems.join(" ")).toMatch(/released/);
     expect(world.sent).toBe(0);
+    expect(world.inserts.some((i) => i["event_type"] === "email_ai_draft_edited")).toBe(true);
+    expect(world.inserts.some((i) => i["event_type"] === "email_ai_draft_sent")).toBe(false);
   });
   test("confirmed owner: the same reply goes", async () => {
     reset({ state: "confirmed" });
@@ -58,7 +69,7 @@ describe("sendAiDraft and the spot-only rule", () => {
   test("final fix: does not fail open — the job already read at Send decides, a failing second read can't let it through", async () => {
     reset({ failLaterJobReads: true });
     const { sendAiDraft } = await import("../src/lib/ai-email-reply.server");
-    await expect(sendAiDraft("d1", BAD, "u1")).rejects.toThrow(/released/);
+    expect((await sendAiDraft("d1", BAD, "u1")).status).toBe("rewritten");
     expect(world.sent).toBe(0);
   });
   test("F1: owner already offered times (awaiting acceptance) is not pre-release at Send", async () => {
@@ -69,10 +80,45 @@ describe("sendAiDraft and the spot-only rule", () => {
   test("uses the CURRENT state at Send, not the state at draft time", async () => {
     const { sendAiDraft } = await import("../src/lib/ai-email-reply.server");
     reset({ state: "none" });
-    await expect(sendAiDraft("d1", BAD, "u1")).rejects.toThrow(/released/);
+    expect((await sendAiDraft("d1", BAD, "u1")).status).toBe("rewritten");
     world.state = "confirmed"; // owner confirms between drafting and Send
     expect((await sendAiDraft("d1", BAD, "u1")).status).toBe("sent");
     world.state = "none"; // back to unconfirmed (new release) -> refused again
-    await expect(sendAiDraft("d1", BAD, "u1")).rejects.toThrow(/released/);
+    expect((await sendAiDraft("d1", BAD, "u1")).status).toBe("rewritten");
+  });
+});
+
+// AI replies step 2 task 4, fix round 1: a sign-off-only reply or one with an AI office note is never sent.
+describe("sendAiDraft refuses empty and marker replies", () => {
+  test("sign-off only: rewritten, nothing sent", async () => {
+    reset({ state: "confirmed" });
+    const { sendAiDraft } = await import("../src/lib/ai-email-reply.server");
+    const r = await sendAiDraft("d1", "\n\nCheers, the Home Insulation Victoria team", "u1");
+    expect(r.status).toBe("rewritten");
+    if (r.status !== "rewritten") throw new Error("expected rewritten");
+    expect(r.problems).toContain("The reply is empty.");
+    expect(world.sent).toBe(0);
+    expect(world.inserts.some((i) => i["event_type"] === "email_ai_draft_sent")).toBe(false);
+  });
+  test("NEEDS_JO left in (the fix call can't remove it): rewritten, nothing sent", async () => {
+    reset({ state: "confirmed" });
+    const { sendAiDraft } = await import("../src/lib/ai-email-reply.server");
+    const r = await sendAiDraft("d1", "Hi Sam,\n\nThanks.\nNEEDS_JO: solar?\n\nCheers, the Home Insulation Victoria team", "u1");
+    expect(r.status).toBe("rewritten");
+    if (r.status !== "rewritten") throw new Error("expected rewritten");
+    expect(r.problems.join(" ")).toContain("NEEDS_JO");
+    expect(world.sent).toBe(0);
+  });
+});
+
+// Jo 30 Oct 2026: Jo's own typed words send as written; the "fixes" / bare "safety check" rules are for the AI's draft only.
+describe("sendAiDraft leaves Jo's wording alone", () => {
+  test("a body with 'fixes' and a bare 'safety check' is sent as written, not rewritten", async () => {
+    reset({ state: "confirmed" });
+    const { sendAiDraft } = await import("../src/lib/ai-email-reply.server");
+    const body = "Hi Sam,\n\nThe fixes are quoted separately and the safety check is $349.\n\nCheers, the Home Insulation Victoria team";
+    expect((await sendAiDraft("d1", body, "u1")).status).toBe("sent");
+    expect(world.sent).toBe(1);
+    expect(world.inserts.some((i) => i["event_type"] === "email_ai_draft_edited")).toBe(false);
   });
 });

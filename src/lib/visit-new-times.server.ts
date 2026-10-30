@@ -1,3 +1,4 @@
+import { inHouseDispatchSkip } from "./in-house-suppression.server";
 // Decision 376 (approved by Jo, decision 384): the owner is told ONCE (email O74 + text) when the TRADE cancels a booked visit — called only from
 // visit-events.server `tradeCancelVisit`, after `reopen` has recorded `visit_times_reopened` for that booking. The notice
 // is recorded as a `visit_new_times_notice` workflow event BEFORE anything is sent (once per booking, ever). TEST jobs →
@@ -21,6 +22,8 @@ async function ownerPicksNow(jobId: string, kind: NewTimesVisit): Promise<boolea
 }
 
 export async function notifyOwnerVisitNewTimes(i: { jobId: string; bookingId: string; kind: VisitKind; wasIso: string }): Promise<string> {
+  const skipped = await inHouseDispatchSkip(i.jobId);
+  if (skipped) return skipped;
   try {
     if (!isNewTimesVisit(i.kind)) return "skipped — the office arranges this visit";
     const kind = i.kind;

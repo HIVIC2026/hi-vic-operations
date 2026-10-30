@@ -67,6 +67,7 @@ import { readyCheckIncompleteText } from "./ready-check-chase.core";
 import { dailyText, updateText, diffDay } from "./daily-mitti-text.core";
 import { bossPriceLinkText } from "./boss-price-link.core";
 import { fixesTimesLinkText } from "./fixes-times.core";
+import { piesaRulesMessage, renderPiesaRulesEmail } from "./piesa-rules-notice.core";
 import { attendanceSmsText, attendanceReminderText, attendanceBookedText, installerCantAttendText } from "./install-attendance.core";
 import { installDayResultText, installDayReminderText } from "./install-day-confirm.core";
 import { FORMS, type FormField } from "./mitti-forms.core";
@@ -637,6 +638,13 @@ const ELECTRICIAN: TemplateEntry[] = [
   ENTRY({ id: "electrician:sms-fixes_times_link", section: "electrician", step: "fixes", kind: "text", code: "", name: "Pick times for the electrical fixes (text)", when: "The A3 says fixes are needed and no fixes times exist yet", who: "Electrician", approvalNote: "Jo 25 Oct 2026, decision 315", gate: { kind: "text", smsType: "fixes_times_link" },
     source: { builder: "src/lib/fixes-times.core.ts", fn: "fixesTimesLinkText", sender: "src/lib/fixes-times-link.server.ts" },
     render: () => text(fixesTimesLinkText({ address: SHORT_ADDRESS, link: FIELD })) }),
+  // A48 batch 1 (Jo 29 Oct 2026, wording approved): the A3 safety check breaks the official PIESA rules.
+  ENTRY({ id: "electrician:piesa-rules", section: "electrician", step: "safety_check", kind: "email", code: "", name: "Safety check can't go ahead yet (official rules)", when: "The A3 safety check breaks the official PIESA rules — once per form version", who: "Electrician", approvalNote: "Jo 29 Oct 2026, A48 batch 1", gate: { kind: "email" },
+    source: { builder: "src/lib/piesa-rules-notice.core.ts", fn: "renderPiesaRulesEmail", sender: "src/lib/piesa-rules-notice.server.ts" },
+    render: () => email(renderPiesaRulesEmail({ name: "Sam", job: "HV-TEST", address: SHORT_ADDRESS, reasons: ["a switchboard or solar answer is No, so repairs are needed (or you must be on site at the start)"] })) }),
+  ENTRY({ id: "electrician:sms-piesa_rules_failed", section: "electrician", step: "safety_check", kind: "text", code: "", name: "Safety check can't go ahead yet (text)", when: "With the safety check rules email", who: "Electrician", approvalNote: "Jo 29 Oct 2026, A48 batch 1", gate: { kind: "text", smsType: "piesa_rules_failed" },
+    source: { builder: "src/lib/piesa-rules-notice.core.ts", fn: "piesaRulesMessage", sender: "src/lib/piesa-rules-notice.server.ts" },
+    render: () => text(piesaRulesMessage({ name: "Sam", job: "HV-TEST", address: SHORT_ADDRESS, reasons: ["a switchboard or solar answer is No, so repairs are needed (or you must be on site at the start)"] })) }),
   ENTRY({ id: "electrician:sms-electrician_install_attendance", section: "electrician", step: "install", kind: "text", code: "", name: "Be there at the start of the install (text)", when: "Install day booked when the A3 says the electrician must be on site at the start; 24h reminder", who: "Electrician", approvalNote: "Jo 25 Oct 2026, decision 327", gate: { kind: "text", smsType: "electrician_install_attendance" },
     source: { builder: "src/lib/install-attendance.core.ts", fn: "attendanceSmsText", sender: "src/lib/install-attendance.server.ts" },
     render: () => texts([

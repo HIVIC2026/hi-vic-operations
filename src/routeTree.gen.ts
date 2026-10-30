@@ -39,10 +39,12 @@ import { Route as SpTokenRouteImport } from './routes/sp.$token'
 import { Route as WTokenRouteImport } from './routes/w.$token'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as AuthenticatedAdminSplatRouteImport } from './routes/_authenticated/admin.$'
+import { Route as AuthenticatedAdminAiAnswersRouteImport } from './routes/_authenticated/admin.ai-answers'
 import { Route as AuthenticatedAdminCommunicationsRouteImport } from './routes/_authenticated/admin.communications'
 import { Route as AuthenticatedAdminElectricianRatesRouteImport } from './routes/_authenticated/admin.electrician-rates'
 import { Route as AuthenticatedAdminEmailsRouteImport } from './routes/_authenticated/admin.emails'
 import { Route as AuthenticatedAdminEnquiriesRouteImport } from './routes/_authenticated/admin.enquiries'
+import { Route as AuthenticatedAdminInHouseBatchesRouteImport } from './routes/_authenticated/admin.in-house-batches'
 import { Route as AuthenticatedAdminInterestsRouteImport } from './routes/_authenticated/admin.interests'
 import { Route as AuthenticatedAdminJobsRouteImport } from './routes/_authenticated/admin.jobs'
 import { Route as AuthenticatedAdminMoneyRouteImport } from './routes/_authenticated/admin.money'
@@ -265,6 +267,12 @@ const AuthenticatedAdminSplatRoute = AuthenticatedAdminSplatRouteImport.update({
   path: '/$',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const AuthenticatedAdminAiAnswersRoute =
+  AuthenticatedAdminAiAnswersRouteImport.update({
+    id: '/ai-answers',
+    path: '/ai-answers',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminCommunicationsRoute =
   AuthenticatedAdminCommunicationsRouteImport.update({
     id: '/communications',
@@ -287,6 +295,12 @@ const AuthenticatedAdminEnquiriesRoute =
   AuthenticatedAdminEnquiriesRouteImport.update({
     id: '/enquiries',
     path: '/enquiries',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminInHouseBatchesRoute =
+  AuthenticatedAdminInHouseBatchesRouteImport.update({
+    id: '/in-house-batches',
+    path: '/in-house-batches',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminInterestsRoute =
@@ -721,10 +735,12 @@ export interface FileRoutesByFullPath {
   '/sp/$token': typeof SpTokenRoute
   '/w/$token': typeof WTokenRoute
   '/admin/$': typeof AuthenticatedAdminSplatRoute
+  '/admin/ai-answers': typeof AuthenticatedAdminAiAnswersRoute
   '/admin/communications': typeof AuthenticatedAdminCommunicationsRoute
   '/admin/electrician-rates': typeof AuthenticatedAdminElectricianRatesRoute
   '/admin/emails': typeof AuthenticatedAdminEmailsRoute
   '/admin/enquiries': typeof AuthenticatedAdminEnquiriesRoute
+  '/admin/in-house-batches': typeof AuthenticatedAdminInHouseBatchesRoute
   '/admin/interests': typeof AuthenticatedAdminInterestsRoute
   '/admin/jobs': typeof AuthenticatedAdminJobsRouteWithChildren
   '/admin/money': typeof AuthenticatedAdminMoneyRoute
@@ -823,10 +839,12 @@ export interface FileRoutesByTo {
   '/sp/$token': typeof SpTokenRoute
   '/w/$token': typeof WTokenRoute
   '/admin/$': typeof AuthenticatedAdminSplatRoute
+  '/admin/ai-answers': typeof AuthenticatedAdminAiAnswersRoute
   '/admin/communications': typeof AuthenticatedAdminCommunicationsRoute
   '/admin/electrician-rates': typeof AuthenticatedAdminElectricianRatesRoute
   '/admin/emails': typeof AuthenticatedAdminEmailsRoute
   '/admin/enquiries': typeof AuthenticatedAdminEnquiriesRoute
+  '/admin/in-house-batches': typeof AuthenticatedAdminInHouseBatchesRoute
   '/admin/interests': typeof AuthenticatedAdminInterestsRoute
   '/admin/jobs': typeof AuthenticatedAdminJobsRouteWithChildren
   '/admin/money': typeof AuthenticatedAdminMoneyRoute
@@ -931,10 +949,12 @@ export interface FileRoutesById {
   '/sp/$token': typeof SpTokenRoute
   '/w/$token': typeof WTokenRoute
   '/_authenticated/admin/$': typeof AuthenticatedAdminSplatRoute
+  '/_authenticated/admin/ai-answers': typeof AuthenticatedAdminAiAnswersRoute
   '/_authenticated/admin/communications': typeof AuthenticatedAdminCommunicationsRoute
   '/_authenticated/admin/electrician-rates': typeof AuthenticatedAdminElectricianRatesRoute
   '/_authenticated/admin/emails': typeof AuthenticatedAdminEmailsRoute
   '/_authenticated/admin/enquiries': typeof AuthenticatedAdminEnquiriesRoute
+  '/_authenticated/admin/in-house-batches': typeof AuthenticatedAdminInHouseBatchesRoute
   '/_authenticated/admin/interests': typeof AuthenticatedAdminInterestsRoute
   '/_authenticated/admin/jobs': typeof AuthenticatedAdminJobsRouteWithChildren
   '/_authenticated/admin/money': typeof AuthenticatedAdminMoneyRoute
@@ -1039,10 +1059,12 @@ export interface FileRouteTypes {
     | '/sp/$token'
     | '/w/$token'
     | '/admin/$'
+    | '/admin/ai-answers'
     | '/admin/communications'
     | '/admin/electrician-rates'
     | '/admin/emails'
     | '/admin/enquiries'
+    | '/admin/in-house-batches'
     | '/admin/interests'
     | '/admin/jobs'
     | '/admin/money'
@@ -1141,10 +1163,12 @@ export interface FileRouteTypes {
     | '/sp/$token'
     | '/w/$token'
     | '/admin/$'
+    | '/admin/ai-answers'
     | '/admin/communications'
     | '/admin/electrician-rates'
     | '/admin/emails'
     | '/admin/enquiries'
+    | '/admin/in-house-batches'
     | '/admin/interests'
     | '/admin/jobs'
     | '/admin/money'
@@ -1248,10 +1272,12 @@ export interface FileRouteTypes {
     | '/sp/$token'
     | '/w/$token'
     | '/_authenticated/admin/$'
+    | '/_authenticated/admin/ai-answers'
     | '/_authenticated/admin/communications'
     | '/_authenticated/admin/electrician-rates'
     | '/_authenticated/admin/emails'
     | '/_authenticated/admin/enquiries'
+    | '/_authenticated/admin/in-house-batches'
     | '/_authenticated/admin/interests'
     | '/_authenticated/admin/jobs'
     | '/_authenticated/admin/money'
@@ -1593,6 +1619,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSplatRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/ai-answers': {
+      id: '/_authenticated/admin/ai-answers'
+      path: '/ai-answers'
+      fullPath: '/admin/ai-answers'
+      preLoaderRoute: typeof AuthenticatedAdminAiAnswersRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/communications': {
       id: '/_authenticated/admin/communications'
       path: '/communications'
@@ -1619,6 +1652,13 @@ declare module '@tanstack/react-router' {
       path: '/enquiries'
       fullPath: '/admin/enquiries'
       preLoaderRoute: typeof AuthenticatedAdminEnquiriesRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/in-house-batches': {
+      id: '/_authenticated/admin/in-house-batches'
+      path: '/in-house-batches'
+      fullPath: '/admin/in-house-batches'
+      preLoaderRoute: typeof AuthenticatedAdminInHouseBatchesRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/interests': {
@@ -2144,10 +2184,12 @@ const AuthenticatedAdminJobsRouteWithChildren =
 
 interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminSplatRoute: typeof AuthenticatedAdminSplatRoute
+  AuthenticatedAdminAiAnswersRoute: typeof AuthenticatedAdminAiAnswersRoute
   AuthenticatedAdminCommunicationsRoute: typeof AuthenticatedAdminCommunicationsRoute
   AuthenticatedAdminElectricianRatesRoute: typeof AuthenticatedAdminElectricianRatesRoute
   AuthenticatedAdminEmailsRoute: typeof AuthenticatedAdminEmailsRoute
   AuthenticatedAdminEnquiriesRoute: typeof AuthenticatedAdminEnquiriesRoute
+  AuthenticatedAdminInHouseBatchesRoute: typeof AuthenticatedAdminInHouseBatchesRoute
   AuthenticatedAdminInterestsRoute: typeof AuthenticatedAdminInterestsRoute
   AuthenticatedAdminJobsRoute: typeof AuthenticatedAdminJobsRouteWithChildren
   AuthenticatedAdminMoneyRoute: typeof AuthenticatedAdminMoneyRoute
@@ -2166,11 +2208,13 @@ interface AuthenticatedAdminRouteChildren {
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminSplatRoute: AuthenticatedAdminSplatRoute,
+  AuthenticatedAdminAiAnswersRoute: AuthenticatedAdminAiAnswersRoute,
   AuthenticatedAdminCommunicationsRoute: AuthenticatedAdminCommunicationsRoute,
   AuthenticatedAdminElectricianRatesRoute:
     AuthenticatedAdminElectricianRatesRoute,
   AuthenticatedAdminEmailsRoute: AuthenticatedAdminEmailsRoute,
   AuthenticatedAdminEnquiriesRoute: AuthenticatedAdminEnquiriesRoute,
+  AuthenticatedAdminInHouseBatchesRoute: AuthenticatedAdminInHouseBatchesRoute,
   AuthenticatedAdminInterestsRoute: AuthenticatedAdminInterestsRoute,
   AuthenticatedAdminJobsRoute: AuthenticatedAdminJobsRouteWithChildren,
   AuthenticatedAdminMoneyRoute: AuthenticatedAdminMoneyRoute,

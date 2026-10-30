@@ -6,14 +6,17 @@
 // anything but `true` is OFF, and with a switch off this file never sends anything. Decision 426: the one write with
 // the electrician switch off is `handPiesaToOfficeAutoOff` (Automatic dispatch mode only) — a "returned to office" event.
 // Run from the 15-minute allocation tick, and straight after a "Not for me" (so the next match is not left waiting).
-// TEST jobs (source qa_test) ARE offered automatically, but only to [TEST PARTNER] businesses (`isTestPartner`), and a
-// live job never reaches a TEST partner: the pure parity rule filters candidates here, the candidate readers already
+// TEST jobs ARE offered automatically, to TEST partners only. Deleted jobs are excluded. A live job never reaches a TEST partner: the pure parity rule filters candidates here,
+// the candidate readers already
 // apply `partnerAllowedForJob`, and `assertOfferPairsAllowed` refuses any mismatch before a row is written. Offer
 // texts/emails for qa_test jobs go through test-send only (ready-check-offer-text.server), so nothing real is sent.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logEvent, piesaRequestFacts, stageEntryBlockers } from "./workflow.server";
 import { isTestPartner } from "./test-send.core";
+import { ourLeadPreferredId } from "./our-lead-piesa-electrician.core";
+import { inHouseSkippedAction } from "./in-house.core";
+import { inHouseDispatchSkip, readInHouseDispatchState, type InHouseDispatchState } from "./in-house-suppression.server";
 import {
   AUTO_OFFER_FLAG, AUTO_OFFER_READY_STAGES, AUTO_OFFER_RETURNED_EVENT, autoOfferBlocked, autoOfferInstallerElectrician, autoOfferPreferredElectrician, autoOfferReturnedSummary, autoOfferStageReady, autoOfferStep, autoOfferSwitchOn,
   type AutoOfferCandidate, type AutoOfferKind, type AutoOfferRow, type AutoOfferStep,
@@ -95,15 +98,30 @@ async function electricianCandidates(jobId: string, channel: string | null, jobI
     const chosen = await (await import("./job-electrician.server")).jobChosenElectrician(jobId);
     preferredIds = chosen ? [chosen] : candidates.filter((c) => c.preferred).map((c) => c.business_id);
   }
-  const usualBusinessId = autoOfferPreferredElectrician({ channel, a1PreferredBusinessId: autoOfferInstallerElectrician(preferredIds, mapped, jobIsTest) });
+  // Our leads (29 Oct 2026): the Ready Check installer's usual electrician, when they are an approved REC covering the job.
+  // Matched against the approved REC list (rec_number, trading name, workers' licences). Any read error = none.
+  let ourLeadUsualBusinessId: string | null = null;
+  if (channel !== "installer_sourced") {
+    try {
+      const installerId = await (await import("./install-holds.server")).quotedInstaller(jobId);
+      if (installerId) {
+        const { electrician } = await (await import("./usual-electrician.server")).readUsualElectrician(installerId);
+        const approved = electrician ? await (await import("./rec-onboarded.server")).loadApprovedRecCandidates() : [];
+        ourLeadUsualBusinessId = ourLeadPreferredId(electrician, approved, candidates.map((c) => c.business_id));
+      }
+    } catch (e) { console.error("auto-offer: usual electrician lookup failed", jobId, e); }
+  }
+  const usualBusinessId = autoOfferPreferredElectrician({ channel, a1PreferredBusinessId: autoOfferInstallerElectrician(preferredIds, mapped, jobIsTest), ourLeadUsualBusinessId });
   return { usualBusinessId, candidates: mapped };
 }
 
-export type AutoOfferOutcome = { jobId: string; kind: AutoOfferKind; step: AutoOfferStep["action"]; reason?: string; businessId?: string; error?: string };
+export type AutoOfferOutcome = { jobId: string; kind: AutoOfferKind; step: AutoOfferStep["action"]; reason?: string; businessId?: string; error?: string; skipped?: "in_house" | "in_house_read_failed"; ok?: false; message?: string };
 
 /** One job, one kind: offer the next match, hand the job back to the office, or do nothing. Never throws for a
  *  refused send (the guarded sender's reason is returned); with the switch off it reads the switch and stops. */
-export async function autoOfferForJob(jobId: string, kind: AutoOfferKind, switches?: Awaited<ReturnType<typeof readAutoOfferSwitches>>): Promise<AutoOfferOutcome> {
+export async function autoOfferForJob(jobId: string, kind: AutoOfferKind, switches?: Awaited<ReturnType<typeof readAutoOfferSwitches>>, inHouseState?: InHouseDispatchState): Promise<AutoOfferOutcome> {
+  const skipped = await inHouseDispatchSkip(jobId, inHouseState);
+  if (skipped) return { jobId, kind, step: "none", reason: skipped, ...inHouseSkippedAction(skipped) };
   const sw = switches ?? await readAutoOfferSwitches();
   if (!sw[kind]) return { jobId, kind, step: "none", reason: "switch_off" };
   if (kind === "ready_check" && !sw.readyCheckBooking) return { jobId, kind, step: "none", reason: "ready_check_booking_off" };
@@ -135,7 +153,7 @@ export async function autoOfferForJob(jobId: string, kind: AutoOfferKind, switch
   let step: AutoOfferStep;
   if (pre) step = pre;
   else if (kind === "ready_check") step = autoOfferStep({ ...facts, candidates: await installerCandidates(jobId) });
-  else { const e = await electricianCandidates(jobId, job.channel, facts.jobIsTest); step = autoOfferStep({ ...facts, candidates: e.candidates, usualBusinessId: e.usualBusinessId }); }
+  else { const e = await electricianCandidates(jobId, job.channel, facts.jobIsTest); step = autoOfferStep({ ...facts, candidates: e.candidates, usualBusinessId: e.usualBusinessId, preferredRule: job.channel === "installer_sourced" ? "installer_job" : "our_lead" }); }
 
   if (step.action === "none") return { jobId, kind, step: "none", reason: step.reason };
   if (step.action === "return_to_office") {
@@ -146,7 +164,7 @@ export async function autoOfferForJob(jobId: string, kind: AutoOfferKind, switch
   const meta = { attempt: step.attempt, basis: step.basis, activeJobs: step.activeJobs, distanceKm: step.distanceKm };
   try {
     if (kind === "ready_check") await (await import("./ready-check-times.server")).officePickReadyCheckInstaller(jobId, null, [step.businessId], { auto: meta });
-    else await (await import("./allocation.server")).startPiesaAllocation(jobId, null, "piesa", { onlyBusiness: step.businessId, auto: meta });
+    else await (await import("./allocation.server")).startPiesaAllocation(jobId, null, "piesa", { onlyBusiness: step.businessId, auto: meta }, inHouseState);
     return { jobId, kind, step: "offer", businessId: step.businessId };
   } catch (e) {
     // A guard refused (gate, pairing, paperwork …): nothing was sent; the next tick looks again.
@@ -160,7 +178,8 @@ export async function autoOfferForJob(jobId: string, kind: AutoOfferKind, switch
  *  while a hand-back newer than the job's latest reopen and latest PIESA offer exists. Never offers anything, and never
  *  for a job with an electrician assigned, its PIESA request gate not clear, or not at the PIESA stage.
  *  Callers check the dispatch mode (not office picks). Returns true when it wrote the hand-back. */
-export async function handPiesaToOfficeAutoOff(jobId: string, actorId: string | null = null): Promise<boolean> {
+export async function handPiesaToOfficeAutoOff(jobId: string, actorId: string | null = null, inHouseState?: InHouseDispatchState): Promise<boolean> {
+  if (await inHouseDispatchSkip(jobId, inHouseState)) return false;
   // Only a job genuinely waiting for an electrician: at the PIESA stage, nobody assigned (team-up auto-assign puts an
   // electrician on with no offer row) and its PIESA request gate clear — otherwise there is nothing for the office to choose.
   // An unreadable assignment check fails closed (no hand-back).
@@ -192,13 +211,16 @@ export async function sweepAutoOffers(): Promise<{ enabled: { installer: boolean
   const sw = await readAutoOfferSwitches();
   const out = { enabled: { installer: sw.ready_check, electrician: sw.piesa }, offered: 0, returned: 0, refused: 0 };
   const kinds = (["ready_check", "piesa"] as const).filter((k) => sw[k] && (k !== "ready_check" || sw.readyCheckBooking));
+  if (!kinds.length) return out;
+  const inHouseState = await readInHouseDispatchState();
+  if (inHouseState.failed) return out;
   for (const kind of kinds) {
     let q = admin.from("jobs").select("id").in("stage", AUTO_OFFER_READY_STAGES[kind] as never[]).is("deleted_at", null);
     if (kind === "ready_check") q = q.eq("channel", "hivic_sourced");
     const { data: jobs } = await q.order("created_at").limit(200);
     for (const j of jobs ?? []) {
       try {
-        const r = await autoOfferForJob(j.id, kind, sw);
+        const r = await autoOfferForJob(j.id, kind, sw, inHouseState);
         if (r.step === "offer") out.offered++;
         else if (r.step === "return_to_office") out.returned++;
         else if (r.reason === "sender_refused") out.refused++;

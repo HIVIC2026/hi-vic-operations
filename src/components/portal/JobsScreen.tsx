@@ -9,7 +9,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAction, useMe } from "@/hooks/use-me";
-import { getActiveJobsList, bulkCancelOfficeJobs, reopenOfficeJob } from "@/lib/office-screens.functions";
+import { getActiveJobsList, bulkCancelOfficeJobs, reopenOfficeJob, getRobotFailures } from "@/lib/office-screens.functions";
 import { bulkJobAction } from "@/lib/bulk.functions";
 import { getJobListPage } from "@/lib/portal.functions";
 import { getNewInstallerJobs } from "@/lib/installer-new-jobs.functions";
@@ -23,6 +23,7 @@ import { NewFromInstallers } from "@/components/portal/NewFromInstallers";
 import { LoadError } from "@/components/portal/office-tabs";
 import { pileCount } from "@/lib/read-state.core";
 import { MittiPickupsToLink, MittiSyncProblems } from "@/components/portal/mitti-piles";
+import { RobotFailuresPile } from "@/components/portal/robot-failures-pile";
 import { ActionsMenu, ChipGroup, FilterPanel, Pager, ReasonDialog, SortHead, heardLabel } from "@/components/portal/office-lists";
 
 const CLOSED_LABEL: Record<JobClosedFilter, string> = { all: "All",  completed: "Completed", cancelled: "Cancelled", ineligible: "Ineligible", test: "Removed / test" };
@@ -37,15 +38,16 @@ function Tabs({ mode, active, closed }: { mode: "active" | "closed"; active: num
   );
 }
 
-/** Three small piles, one fold line each (decision 224); counts come from the same caches as the full piles. */
+/** Four small piles, one fold line each (decision 224); counts come from the same caches as the full piles. */
 function Piles() {
-  const [open, setOpen] = useState<"new" | "mitti" | "sync" | null>(null);
-  const newFn = useServerFn(getNewInstallerJobs), pickFn = useServerFn(getMittiPickups), syncFn = useServerFn(getMittiSyncProblems);
+  const [open, setOpen] = useState<"new" | "mitti" | "sync" | "robot" | null>(null);
+  const newFn = useServerFn(getNewInstallerJobs), pickFn = useServerFn(getMittiPickups), syncFn = useServerFn(getMittiSyncProblems), robotFn = useServerFn(getRobotFailures);
   const fresh = useQuery({ queryKey: ["new-from-installers", false], queryFn: () => newFn({ data: { showTestJobs: false } }), staleTime: 60_000 });
   const picks = useQuery({ queryKey: ["mitti-pickups"], queryFn: () => pickFn(), staleTime: 60_000, retry: 1 });
   const sync = useQuery({ queryKey: ["mitti-sync-problems"], queryFn: () => syncFn(), staleTime: 60_000 });
-  const line = (k: "new" | "mitti" | "sync", label: string, count: string) => (
-    <button type="button" aria-expanded={open === k} onClick={() => setOpen(open === k ? null : k)} className={cn("text-sm font-semibold", open === k ? "text-ink" : "text-hiv-blue")}>{label} · {count} {open === k ? "▾" : "›"}</button>
+  const robot = useQuery({ queryKey: ["robot-failures"], queryFn: () => robotFn(), staleTime: 60_000, retry: 1 });
+  const line = (k: "new" | "mitti" | "sync" | "robot", label: string, count: string, red = false) => (
+    <button type="button" aria-expanded={open === k} onClick={() => setOpen(open === k ? null : k)} className={cn("text-sm font-semibold", red ? "text-danger" : open === k ? "text-ink" : "text-hiv-blue")}>{label} · {count} {open === k ? "▾" : "›"}</button>
   );
   return (
     <div className="mb-4" data-why="audit §3 blocks: New from installers (31), Mitti pick-ups (Mitti-first rule), sync problems">
@@ -53,10 +55,12 @@ function Piles() {
         {line("new", "New from installers", pileCount({ count: fresh.data ? (fresh.data.attention?.length ?? 0) + (fresh.data.fresh?.length ?? 0) : undefined, failed: fresh.isError }))}
         {line("mitti", "Ready Checks started in Mitti", pileCount({ count: picks.data?.rows.length, failed: picks.isError }))}
         {line("sync", "Mitti sync problems", pileCount({ count: sync.data?.rows.length, failed: sync.isError }))}
+        {line("robot", "Registry robot couldn't lodge", pileCount({ count: robot.data?.rows.length, failed: robot.isError }), (robot.data?.rows.length ?? 0) > 0)}
       </div>
       {open === "new" && <div className="mt-3">{fresh.isError && !fresh.data ? <LoadError what="New from installers" error={fresh.error} retry={() => void fresh.refetch()} /> : <NewFromInstallers />}</div>}
       {open === "mitti" && <div className="mt-3">{picks.isError && !picks.data ? <LoadError what="Ready Checks started in Mitti" error={picks.error} retry={() => void picks.refetch()} /> : picks.data?.rows.length === 0 ? <p className="text-sm text-sub">No Ready Checks waiting to be linked.</p> : <MittiPickupsToLink />}</div>}
       {open === "sync" && <div className="mt-3">{sync.isError && !sync.data ? <LoadError what="Mitti sync problems" error={sync.error} retry={() => void sync.refetch()} /> : sync.data?.rows.length === 0 ? <p className="text-sm text-sub">No Mitti sync problems.</p> : <MittiSyncProblems />}</div>}
+      {open === "robot" && <div className="mt-3">{robot.isError && !robot.data ? <LoadError what="Registry robot problems" error={robot.error} retry={() => void robot.refetch()} /> : robot.data?.rows.length === 0 ? <p className="text-sm text-sub">No robot problems.</p> : <RobotFailuresPile />}</div>}
     </div>
   );
 }

@@ -47,14 +47,14 @@ describe("pending migration esc-registry-robot-switch.sql on PGlite", () => {
     expect(await sw()).toMatchObject({ on: false, editable: true });
     expect((await robotSettings(ENV_LIVE)).mode).toBe("off");
   });
-  test("Jo turns it on (compare-and-swap, audited): the robot sees it, but the selector map keeps it in dry run; deployment flags are separate locks", async () => {
+  test("Jo turns it on (compare-and-swap, audited): the robot sees it (the per-task verified mark is applied per job, not here); deployment flags are separate locks", async () => {
     await setOfficeSwitch("esc_registry_robot", true, false, "first supervised run", ACTOR);
     expect((await sw()).on).toBe(true);
     const audits = (await db.query<{ event_type: string; details: { key: string; to: boolean } }>("select event_type, details from public.admin_config_events")).rows;
     expect(audits).toEqual([{ event_type: "office_switch_changed", details: expect.objectContaining({ key: "esc_registry_robot", to: true }) }]);
     const live = await robotSettings(ENV_LIVE);
     expect(live.switchOn).toBe(true);
-    expect(live.mode).toBe("dry_run"); // SELECTOR_MAP_VERIFIED is false until the first supervised run
+    expect(live.mode).toBe("live");
     expect(live.credentials).toEqual({ username: "ap@example.com", password: "secret" });
     expect((await robotSettings({ ...ENV_LIVE, ESC_REGISTRY_ROBOT_ENABLED: "false" })).mode).toBe("off");
     expect((await robotSettings({ ...ENV_LIVE, VEU_REGISTRY_PASSWORD: "" })).mode).toBe("off");
