@@ -28,7 +28,7 @@ function reads(rows: Record<string, unknown[]>, failedTable?: string) {
 function priceModule(fixture: ReturnType<typeof reads>) {
   return moduleAt("src/lib/installer-paid-electricians.server.ts", {
     "@/integrations/supabase/client.server": { supabaseAdmin: fixture.admin },
-    "./installer-paid-electricians.core": pricing, "./melbourne-time.core": { melbourneToday: () => "2026-10-30" },
+    "./sweep-batch.core": {}, "./installer-paid-electricians.core": pricing, "./melbourne-time.core": { melbourneToday: () => "2026-10-30" },
   });
 }
 test("payee batch reads both flags and any active effective card with a PIESA line", async () => {

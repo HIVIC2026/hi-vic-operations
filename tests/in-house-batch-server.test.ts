@@ -23,7 +23,7 @@ function fixture(failedTable?: string, failPage = -1) {
     const call = { table, filters: [] as unknown[][] }; calls.push(call);
     const q: any = { then(resolve: (value: unknown) => unknown) {
       let result = data[table] ?? [];
-      for (const [key, column, ids] of call.filters) if (key === "in") result = result.filter((r: any) => (ids as unknown[]).includes(r[column as string]));
+      for (const [key, column, ids] of call.filters) if (key === "in") result = result.filter((r: any) => r[column as string] === undefined || (ids as unknown[]).includes(r[column as string]));
       const range = call.filters.find(([key]) => key === "range");
       const offset = range ? Number(range[1]) : 0;
       result = result.slice(offset, range ? Number(range[2]) + 1 : 1000);
@@ -35,6 +35,7 @@ function fixture(failedTable?: string, failPage = -1) {
   const dependencies: Record<string, unknown> = {
     "@/integrations/supabase/client.server": { supabaseAdmin: admin }, "./in-house-batch.core": rules,
     "./in-house-batch-email.server": { sendInHousePartnerCall:async(id:string)=>{expect(rpcCalls.length).toBeGreaterThan(0);emailCalls.push(id);return "draft";} },
+    "./sweep-batch.core": { chunkIds: (ids: unknown[], n: number) => Array.from({length:Math.ceil(ids.length/n)},(_,i)=>ids.slice(i*n,(i+1)*n)) },
     "./in-house.core": inHouse, "./mitti-membership.core": membership, "./melbourne-time.core": { melbourneToday: () => "2026-10-30" },
     "./installer-paid-electricians.server": { inHouseFactsFor: async () => ({ approvedElectricianWorkers: 1, hasActiveRateCardWithPiesa: true, mittiElectricianLogins: 1, mittiAccountInvited: true }) },
   };
