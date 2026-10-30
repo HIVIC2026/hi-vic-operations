@@ -1,31 +1,41 @@
-# Activity 48 batch 2 — eligibility checked automatically (design)
+# Activity 48 batch 2, part 1 — area batches + quick taps (design)
 
-Date: 29 Oct 2026 · Owner: Jo · Branch `fix/a48-batch2-eligibility`. Ends with an open PR (no merge, no publish). Any live database change only after Jo says yes.
-Source: 29 Oct Activity 48 audit — R2, R3, R6, R7, R8 (ESC Ceiling Insulation Activity Guide v1.2 §1.1.1, §1.1.3; DEECA industry pack slide 13).
+Date: 30 Oct 2026 · Owner: Jo · Branch `fix/a48-batch2-eligibility`. Ends with an open PR (no merge, no publish). Any live database change only after Jo says yes. Part 2 (the installer's run and back-to-back booking) has its own spec.
+Why: no wasted Ready Check visits, almost no office work, and installers (e.g. Rapid Insulation; No Gap once approved) get runs of nearby jobs. Rules: ESC Ceiling Insulation Activity Guide v1.2 §1.1.1, §1.1.3 (R2, R3, R6, R7, R8 of the 29 Oct audit). Grilled with Jo 29–30 Oct.
 
 ## In plain words
 
-The portal decides each eligibility check itself from the owner's enquiry answers and the Ready Check answers and area names. The property research is used only where it actually returns something: today only Vicmap address/planning/property and Google Solar (roof shape) run; Nearmap, Pricefinder, Vicmap buildings and the evidence provider are not set up, so building class, storey above and recent extension always come back "unknown" — an unknown research value never makes a check unclear. Jo does nothing when the answer is clear.
+1. **Who:** website owners (`hivic_sourced`) who saved a spot. Installer-added jobs skip all of this.
+2. **Most likely eligible first** — only these are batched for now: owner said house, townhouse, or unit on the top floor; owner said the home is over 5 years old; Google Solar doesn't say the roof is fully flat (unknown is fine); owner said no insulation, or existing insulation is "thin". (179 of the 420 owners waiting on 30 Oct.)
+3. **Batch suggestions:** the portal suggests the next batch — 8 to 10 likely homes within 10 km of each other (a smaller batch once its homes have waited 2 weeks), plus the installers whose checked service area covers them. Jo picks the installer and taps **Send**. That's her only step.
+4. **Quick taps** (text + My job, one question at a time, big buttons):
+   1. Is there a manhole or hatch into your roof space? [Yes] [No] [Not sure]
+   2. Is your roof sloped, flat, or some of each? [Sloped] [Flat] [Some of each] [Not sure]
+   3. Was your home built, or its ceiling replaced, in the last 5 years? [No] [Yes] [Not sure]
+   4. [Yes, let's go — you can share my name and number with the installer to book it] [No thanks]
+   - plus any website answer the owner left blank, in the website's wording.
+5. **After 3 days** the batch closes: pass + "Yes, let's go" → the batch goes to the chosen installer as one run (part 2). No hatch, flat, 5 years "Yes" → polite decline, job closed. "No thanks" → closed. No answer → joins the next nearby batch; closed quietly at day 14. "Not sure" always passes (the installer checks on the day).
+6. **Replaces "It's your turn"** for website owners. Nothing lands in Needs me.
+7. **Also:** measured areas named garage, carport or shed are left out of the eligible m² automatically. Previous upgrade is always "No" (done live 29 Oct; new enquiries stored as "no").
 
-**Sample run on 1,893 real enquiries (29 Oct, read-only):** building type / roof above — 1,853 pass, 3 fail, 37 unclear; not built in 5 years — 1,849 pass (Ready Check still to confirm), 15 fail, 29 unclear; one upgrade per home — always pass. About 70 jobs would need a look, not 1,561.
-
-| Check (rule) | Clear pass | Clear fail |
-|---|---|---|
-| Building class: Class 1, or a sole-occupancy unit in a Class 2 building (R2) | owner type is a house/townhouse/unit AND research doesn't say otherwise (or research says class1 / class2_sou) | research or owner says not a home |
-| Ceiling space with a roof above, no storey above (R3) | house/townhouse with no "storey above" research flag; or unit where owner says top floor and research agrees | research says another storey above the ceiling, or owner says unit isn't top floor |
-| Nothing built in the last 5 years — ceiling/roof above, or floor/structure/extension below (R6) | owner says older than 5 years AND Ready Check says ceiling/roof not built or replaced in 5 years AND no recent-extension research flag | Ready Check says built/replaced in 5 years, or verified build date within 5 years |
-| Garages, carports, sheds excluded (R8) | — | any measured area whose name says garage / carport / shed is left out of the eligible m² automatically (never priced or claimed) |
-| One upgrade per home (R7) | always pass — Jo 29 Oct: Activity 48 is new, so no home has had one. Live data: every stored owner answer was set to "no" on 29 Oct (originals kept only in `admin_config_events` `previous_upgrade_set_no`). New enquiries are stored as "no"; nothing is ever flagged for it | — |
-
-**Results:** all clear pass → eligible, nothing for Jo. A clear fail → not eligible; the office can't override. Unclear, missing or sources disagree → one Needs me row "Eligibility needs a look — {which check}" with Pass / Fail buttons (office decision recorded with who/when). Office-only wording.
+**Owner wording (Jo approved 29–30 Oct):**
+- Text: "Hi {name}, 4 quick taps before we can book your free Ready Check: {link} - Home Insulation Victoria"
+- Reminder (day 2): "Hi {name}, just a reminder - 4 quick taps so we can book your free Ready Check: {link}"
+- After passing (My job): "Thanks! We're lining up your free Ready Check with an installer in your area. We'll text you your time soon."
+- No hatch / flat (screen + email): "Unfortunately we can't help with this one, as we need access into the roof space. Please contact another installer, they may be able to assist."
+- 5 years (screen + email): "Thanks for letting us know. Unfortunately homes built, or with a ceiling replaced, in the last 5 years don't qualify for the Victorian Energy Upgrades program, so we can't help with this one."
+- No thanks (screen + email): "No worries, thanks for letting us know. If you change your mind, just get in touch."
 
 ## Technical detail
 
-- New pure `src/lib/a48-eligibility.core.ts`: `a48EligibilityChecks(facts): { key, result: "pass" | "fail" | "unclear", why }[]` for `building_class`, `roof_above`, `built_5_years`, `one_upgrade`; `excludedAreaNames(areas)` (case-insensitive "garage", "carport", "shed", "car port"). Facts come from existing `eligibility.core.ts` derivations (`classifyPremises`, `ncc_class_evidence`, `another_storey_above_relevant_ceiling`, `declaredTopFloor`, `over_five_years`, `age_evidence`, `recent_extension_or_added_storey_risk`, `previous_upgrade` / `previous_activity_48_confirmed`) and Ready Check answers (`ready-check-answers.core.ts`, incl. the "built or replaced in the last 5 years" answer and per-area names).
-- `verified-eligibility.core.ts` `assessEligibility`: a `fail` blocks `eligible`; an `unclear` without an office decision keeps the job out of `eligible` with the Needs me row. `priorActivityBlocker` and every previous-upgrade reader treat the check as passed (no office prior-activity check needed, no row, no owner/office prompt); `enquiry.server.ts` stores `declared_previous_upgrade = "no"` for new enquiries.
-- Office decision: event `eligibility_check_decided {key, result, by}`; a later change in the underlying facts re-opens the check.
-- Eligible m²: measured areas named garage/carport/shed are excluded wherever the eligible area is totalled (quote lines and VEEC area facts); recorded as `excluded_area {name, m2}`.
-- No new owner or trade wording.
+- **Locations:** before a home can be batched, `ensurePropertyCoordinates` (property-coordinates.server.ts, Vicmap → Google Places fallback) fills its `coordinates` fact once. Distance = `distanceM` (geo.core.ts).
+- **Likely-eligible (pure):** `src/lib/area-batch.core.ts` `likelyEligible(facts)`: reads `enrichment.base44.declared` (`property_type`, `over_five_years`), raw answers (`top_floor`, `insulation`, `insulation_thickness`) and the current `roof_form` fact.
+- **Suggestions (pure):** `suggestBatches(homes, installers, now)`: greedy densest-first clusters within 10 km, 8–10 homes; smaller clusters only when every home has waited ≥ 14 days since its spot was saved; installers from `verifiedServiceAreaMatch` covering every home in the batch (or `covers_all_victoria`).
+- **Send:** office server fn creates `area_batch_sent {batch_id, installer_business_id, job_ids}` (workflow_events per job, append-only) and sends the text (guarded sender, TEST → test-send, quiet hours per existing rules). One batch per job at a time.
+- **Owner page:** My job `?screen=taps` (owner token only) — answers stored as `quick_taps_answered {answers, consent_share}`; the share-consent tap also records the existing `trade_contact_share` owner gate.
+- **Outcomes:** sweep on the existing 15-minute tick: day-2 reminder; day-3 close → `area_batch_closed` with pass list → hands the run to part 2; declines via `cancelJobFully` with the matching reason and email; day-14 no-answer close; non-answerers are freed for the next batch.
+- **Retire** `spot-release` release/confirm for website owners (code kept for history; Choose installer page shows batch suggestions instead).
+- **Garage exclusion** where eligible m² is totalled (quote lines, VEEC area facts); recorded as `excluded_area {name, m2}`.
 
 ## Testing
-Test-first. Each check: pass / fail / unclear from sample fact sets (house + clean research; unit not top floor; storey-above research; owner older-than-5 + Ready Check "No"; Ready Check "Yes" built in 5 years; extension risk; previous upgrade yes/unknown/missing → always pass; research "unknown" never makes a check unclear). Office Pass/Fail clears the row; changed facts re-open. Garage area excluded from eligible m² and quote; normal areas unchanged. Existing eligibility, Ready Check, quote and VEEC tests; full suite vs baseline; tsc; retired scan.
+Test-first. likelyEligible cases (each rule in/out); suggestBatches on fixed coordinates (10 km, 8–10 cap, 14-day small batches, installer coverage); send → text once (TEST test-send); every tap outcome incl. "Not sure"; reminder day 2, close day 3, day-14 close; installer jobs never batched; garage areas excluded. Existing spot-release / Ready Check tests updated; full suite vs baseline; tsc; retired scan.
