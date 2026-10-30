@@ -44,6 +44,7 @@ import { Route as AuthenticatedAdminCommunicationsRouteImport } from './routes/_
 import { Route as AuthenticatedAdminElectricianRatesRouteImport } from './routes/_authenticated/admin.electrician-rates'
 import { Route as AuthenticatedAdminEmailsRouteImport } from './routes/_authenticated/admin.emails'
 import { Route as AuthenticatedAdminEnquiriesRouteImport } from './routes/_authenticated/admin.enquiries'
+import { Route as AuthenticatedAdminInHouseBatchesRouteImport } from './routes/_authenticated/admin.in-house-batches'
 import { Route as AuthenticatedAdminInterestsRouteImport } from './routes/_authenticated/admin.interests'
 import { Route as AuthenticatedAdminJobsRouteImport } from './routes/_authenticated/admin.jobs'
 import { Route as AuthenticatedAdminMoneyRouteImport } from './routes/_authenticated/admin.money'
@@ -293,6 +294,12 @@ const AuthenticatedAdminEnquiriesRoute =
   AuthenticatedAdminEnquiriesRouteImport.update({
     id: '/enquiries',
     path: '/enquiries',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminInHouseBatchesRoute =
+  AuthenticatedAdminInHouseBatchesRouteImport.update({
+    id: '/in-house-batches',
+    path: '/in-house-batches',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminInterestsRoute =
@@ -726,6 +733,7 @@ export interface FileRoutesByFullPath {
   '/admin/electrician-rates': typeof AuthenticatedAdminElectricianRatesRoute
   '/admin/emails': typeof AuthenticatedAdminEmailsRoute
   '/admin/enquiries': typeof AuthenticatedAdminEnquiriesRoute
+  '/admin/in-house-batches': typeof AuthenticatedAdminInHouseBatchesRoute
   '/admin/interests': typeof AuthenticatedAdminInterestsRoute
   '/admin/jobs': typeof AuthenticatedAdminJobsRouteWithChildren
   '/admin/money': typeof AuthenticatedAdminMoneyRoute
@@ -828,6 +836,7 @@ export interface FileRoutesByTo {
   '/admin/electrician-rates': typeof AuthenticatedAdminElectricianRatesRoute
   '/admin/emails': typeof AuthenticatedAdminEmailsRoute
   '/admin/enquiries': typeof AuthenticatedAdminEnquiriesRoute
+  '/admin/in-house-batches': typeof AuthenticatedAdminInHouseBatchesRoute
   '/admin/interests': typeof AuthenticatedAdminInterestsRoute
   '/admin/jobs': typeof AuthenticatedAdminJobsRouteWithChildren
   '/admin/money': typeof AuthenticatedAdminMoneyRoute
@@ -936,6 +945,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/electrician-rates': typeof AuthenticatedAdminElectricianRatesRoute
   '/_authenticated/admin/emails': typeof AuthenticatedAdminEmailsRoute
   '/_authenticated/admin/enquiries': typeof AuthenticatedAdminEnquiriesRoute
+  '/_authenticated/admin/in-house-batches': typeof AuthenticatedAdminInHouseBatchesRoute
   '/_authenticated/admin/interests': typeof AuthenticatedAdminInterestsRoute
   '/_authenticated/admin/jobs': typeof AuthenticatedAdminJobsRouteWithChildren
   '/_authenticated/admin/money': typeof AuthenticatedAdminMoneyRoute
@@ -1044,6 +1054,7 @@ export interface FileRouteTypes {
     | '/admin/electrician-rates'
     | '/admin/emails'
     | '/admin/enquiries'
+    | '/admin/in-house-batches'
     | '/admin/interests'
     | '/admin/jobs'
     | '/admin/money'
@@ -1146,6 +1157,7 @@ export interface FileRouteTypes {
     | '/admin/electrician-rates'
     | '/admin/emails'
     | '/admin/enquiries'
+    | '/admin/in-house-batches'
     | '/admin/interests'
     | '/admin/jobs'
     | '/admin/money'
@@ -1253,6 +1265,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/electrician-rates'
     | '/_authenticated/admin/emails'
     | '/_authenticated/admin/enquiries'
+    | '/_authenticated/admin/in-house-batches'
     | '/_authenticated/admin/interests'
     | '/_authenticated/admin/jobs'
     | '/_authenticated/admin/money'
@@ -1626,6 +1639,13 @@ declare module '@tanstack/react-router' {
       path: '/enquiries'
       fullPath: '/admin/enquiries'
       preLoaderRoute: typeof AuthenticatedAdminEnquiriesRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/in-house-batches': {
+      id: '/_authenticated/admin/in-house-batches'
+      path: '/in-house-batches'
+      fullPath: '/admin/in-house-batches'
+      preLoaderRoute: typeof AuthenticatedAdminInHouseBatchesRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/interests': {
@@ -2149,6 +2169,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminElectricianRatesRoute: typeof AuthenticatedAdminElectricianRatesRoute
   AuthenticatedAdminEmailsRoute: typeof AuthenticatedAdminEmailsRoute
   AuthenticatedAdminEnquiriesRoute: typeof AuthenticatedAdminEnquiriesRoute
+  AuthenticatedAdminInHouseBatchesRoute: typeof AuthenticatedAdminInHouseBatchesRoute
   AuthenticatedAdminInterestsRoute: typeof AuthenticatedAdminInterestsRoute
   AuthenticatedAdminJobsRoute: typeof AuthenticatedAdminJobsRouteWithChildren
   AuthenticatedAdminMoneyRoute: typeof AuthenticatedAdminMoneyRoute
@@ -2173,6 +2194,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
     AuthenticatedAdminElectricianRatesRoute,
   AuthenticatedAdminEmailsRoute: AuthenticatedAdminEmailsRoute,
   AuthenticatedAdminEnquiriesRoute: AuthenticatedAdminEnquiriesRoute,
+  AuthenticatedAdminInHouseBatchesRoute: AuthenticatedAdminInHouseBatchesRoute,
   AuthenticatedAdminInterestsRoute: AuthenticatedAdminInterestsRoute,
   AuthenticatedAdminJobsRoute: AuthenticatedAdminJobsRouteWithChildren,
   AuthenticatedAdminMoneyRoute: AuthenticatedAdminMoneyRoute,
