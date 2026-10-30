@@ -1,8 +1,8 @@
-// Office-authorised callers only. All writes are one locked DB transaction per job; never delivers messages.
+// Office-authorised callers only. Allocation is atomic; approved owner notices use the guarded sender afterwards.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { batchJobEligible, batchPartnerCovers, suggestBatches, type BatchJob, type InHousePartner } from "./in-house-batch.core";
-import { pickTeamElectrician } from "./teaming.core";
+import { sendInHousePartnerCall } from "./in-house-batch-email.server";
 import { inHouseFactsFor } from "./installer-paid-electricians.server";
 import { inHouseEnableBlockers } from "./in-house.core";
 import { mittiAccessOf } from "./mitti-membership.core";
@@ -47,25 +47,21 @@ export async function loadInHouseBatches() {
 async function selectWorkers(businessId: string) {
   const blockers = inHouseEnableBlockers(await inHouseFactsFor(businessId));
   if (blockers.length) return { reason: blockers.join("; ") };
-  const [workers, members, relationships] = await Promise.all([
-    rows<{ profile_id: string | null; trade_role: string; email: string | null; licence_expires_on: string | null }>(db.from("partner_workers").select("profile_id,trade_role,email,licence_expires_on").eq("business_id", businessId).eq("approval_status", "approved").is("removed_at", null).order("created_at")),
+  const [workers, members] = await Promise.all([
+    rows<{ profile_id: string | null; trade_role: string; email: string | null; licence_expires_on: string | null; created_at: string }>(db.from("partner_workers").select("profile_id,trade_role,email,licence_expires_on,created_at").eq("business_id", businessId).eq("approval_status", "approved").is("removed_at", null).order("created_at").order("profile_id")),
     rows<{ user_id: string }>(db.from("business_members").select("user_id").eq("business_id", businessId).eq("active", true)),
-    rows<{ electrician_business_id: string; is_primary: boolean; preferred: boolean; active: boolean }>(db.from("partner_relationships").select("electrician_business_id,is_primary,preferred,active").eq("installer_business_id", businessId).eq("active", true)),
   ]);
   const ids = workers.flatMap(w => w.profile_id ? [w.profile_id] : []);
   const profiles = ids.length ? await rows<{ id: string; email: string | null; mitti_user_id: string | null; mitti_checked_email: string | null; mitti_checked_at: string | null }>(db.from("profiles").select("id,email,mitti_user_id,mitti_checked_email,mitti_checked_at").in("id", ids)) : [];
-  const live = workers.filter(w => !!w.profile_id && members.some(m => m.user_id === w.profile_id));
+  const live = workers.filter(w => !!w.profile_id && members.some(m => m.user_id === w.profile_id)).sort((a,b) => a.created_at.localeCompare(b.created_at) || (a.profile_id ?? "").localeCompare(b.profile_id ?? ""));
   const installer = live.find(w => w.trade_role === "installer");
   const electricians = live.filter(w => {
     const profile = profiles.find(p => p.id === w.profile_id);
     return w.trade_role === "electrician" && (!w.licence_expires_on || w.licence_expires_on >= melbourneToday()) && !!profile && mittiAccessOf({ ...profile, email: w.email ?? profile.email }) === "member";
   });
-  // Existing picker lives in teaming.core. Honour actual nominated business relationships,
-  // never fabricate preferences from worker order. This task requires BOTH assignments in this business.
-  const pick = pickTeamElectrician(relationships, [{ id: businessId, eligible: electricians.length > 0, inArea: true }]);
-  // Team-ups choose businesses, not workers. With no internal self-team, use the business's
-  // own approved worker directly; an external team must never change either assignment's business.
-  const electrician = pick?.id === businessId || !pick ? electricians[0] : undefined;
+  // Choose the business's primary/approved electrician first if a worker marker exists, else the earliest created_at.
+  // Live partner_workers has no primary marker; partner_relationships.is_primary identifies a BUSINESS, not a worker.
+  const electrician = electricians[0];
   if (!installer?.profile_id || !electrician?.profile_id) return { reason: "No in-house electrician with approved active access" };
   return { installer: installer.profile_id, electrician: electrician.profile_id };
 }
@@ -90,7 +86,11 @@ export async function sendInHouseBatch(input: { businessId: string; jobIds: stri
       continue;
     }
     const outcome = result.data as { sent: boolean; reason?: string };
-    if (outcome.sent) sent.push(jobId); else refused.push({ jobId, reason: outcome.reason ?? "Job unavailable" });
+    if (outcome.sent) {
+      sent.push(jobId);
+      // Email failure never undoes allocation. The durable pending event is picked up after approval by the tick.
+      try { await sendInHousePartnerCall(jobId); } catch (error) { console.error("Partner call email after allocation failed", error instanceof Error ? error.message : "unknown"); }
+    } else refused.push({ jobId, reason: outcome.reason ?? "Job unavailable" });
   }
   return { sent, refused };
 }
