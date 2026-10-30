@@ -1,0 +1,245 @@
+{
+  "tradeHome": {
+    "kind": "installer",
+    "boss": true,
+    "business": "[TEST PARTNER] Reinsulate",
+    "firstName": "Bhavdeep",
+    "isTest": true,
+    "week": "<time>",
+    "offers": [],
+    "yourMove": [
+      {
+        "jobId": "05eba075-0e5e-4f96-a584-f45596799e89",
+        "title": "Do the Ready Check and fill in the form",
+        "detail": "TEST E2E Owner, Reservoir"
+      },
+      {
+        "jobId": "847d6cd0-0db0-400d-88fa-dbe89d1440d4",
+        "title": "Do the Ready Check and fill in the form",
+        "detail": "Jo Lowe, Fraser Rise"
+      },
+      {
+        "jobId": "d2f0904b-45e9-4784-a045-99c94afcd81f",
+        "title": "Do the Ready Check and fill in the form",
+        "detail": "TEST Missing Info Owner, Reservoir"
+      }
+    ],
+    "coming": [],
+    "jobs": [
+      {
+        "jobId": "05eba075-0e5e-4f96-a584-f45596799e89",
+        "jobNumber": "HV-3129",
+        "channel": "installer_sourced",
+        "place": "needs_me",
+        "status": "In progress",
+        "line": {
+          "text": "Ready Check to be booked · since Fri 23 Oct · waiting 7 days · Owner",
+          "who": "Owner",
+          "since": "2026-10-23T05:21:37.226042+00:00",
+          "waitingDays": 7,
+          "tone": "rose",
+          "money": null
+        },
+        "owner": "TEST E2E Owner",
+        "surname": "Owner",
+        "suburb": "Reservoir",
+        "address": "9 E2E Test Street, Reservoir VIC 3073",
+        "street": "9 E2E Test Street, Reservoir",
+        "quoteLine": "Your electrician needs to finish onboarding before the quote goes out",
+        "stage": "ready_check_scheduled",
+        "tab": "progress"
+      },
+      {
+        "jobId": "46ceb8a6-fba9-44a1-9d9e-b16cf07fc321",
+        "jobNumber": "HV-3197",
+        "channel": "installer_sourced",
+        "place": "moving",
+        "status": "In progress",
+        "line": {
+          "text": "Quote waiting for owner · sent Sun 25 Oct · waiting 5 days · Owner",
+          "who": "Owner",
+          "since": "2026-10-25T01:15:52.883218+00:00",
+          "waitingDays": 5,
+          "tone": "rose",
+          "money": null
+        },
+        "owner": "Jo Test Owner",
+        "surname": "Owner",
+        "suburb": "Reservoir",
+        "address": "12 Smith Street, Reservoir VIC 3073",
+        "street": "12 Smith Street, Reservoir",
+        "quoteLine": "Waiting on office: checking the quote",
+        "stage": "measured_estimate_ready",
+        "tab": "progress"
+      },
+      {
+        "jobId": "847d6cd0-0db0-400d-88fa-dbe89d1440d4",
+        "jobNumber": "HV-3177",
+        "channel": "installer_sourced",
+        "place": "needs_me",
+        "status": "Needs finishing: ceiling area, insulation product, owner permission on the Mitti form",
+        "line": {
+          "text": "Ready Check to be booked · since Sun 25 Oct · waiting 5 days · Owner",
+          "who": "Owner",
+          "since": "2026-10-24T23:15:36.887817+00:00",
+          "waitingDays": 5,
+          "tone": "rose",
+          "money": null
+        },
+        "owner": "Jo Lowe",
+        "surname": "Lowe",
+        "suburb": "Fraser Rise",
+        "address": "30 Dash Street, Fraser Rise VIC 3336",
+        "street": "30 Dash Street, Fraser Rise",
+        "quoteLine": null,
+        "stage": "ready_check_scheduled",
+        "tab": "action"
+      },
+      {
+        "jobId": "d2f0904b-45e9-4784-a045-99c94afcd81f",
+        "jobNumber": "HV-3134",
+        "channel": "installer_sourced",
+        "place": "needs_me",
+        "status": "Needs finishing: ceiling area, insulation product on the Mitti form",
+        "line": {
+          "text": "Ready Check to be booked · since Fri 23 Oct · waiting 7 days · Owner",
+          "who": "Owner",
+          "since": "2026-10-23T06:28:13.125336+00:00",
+          "waitingDays": 7,
+          "tone": "rose",
+          "money": null
+        },
+        "owner": "TEST Missing Info Owner",
+        "surname": "Owner",
+        "suburb": "Reservoir",
+        "address": "17 E2E Practice Street, Reservoir VIC 3073",
+        "street": "17 E2E Practice Street, Reservoir",
+        "quoteLine": null,
+        "stage": "ready_check_scheduled",
+        "tab": "action"
+      }
+    ],
+    "done": [],
+    "home": {
+      "action": [
+        {
+          "jobId": "05eba075-0e5e-4f96-a584-f45596799e89",
+          "jobNumber": "HV-3129",
+          "street": "9 E2E Test Street, Reservoir",
+          "suburb": "Reservoir",
+          "channel": "installer_sourced",
+          "stage": "ready_check_scheduled",
+          "place": "needs_me",
+          "placeTitle": "Do the Ready Check and fill in the form",
+          "inHouseDispatch": null,
+          "nextAction": "Assign installer for the free Ready Check – confirm onsite: Confirm the building is over 5 years old; Existing insulation unknown – confirm onsite",
+          "quoteLine": "Your electrician needs to finish onboarding before the quote goes out",
+          "status": {
+            "text": "Ready Check to be booked · since Fri 23 Oct · waiting 7 days · Owner",
+            "who": "Owner"
+          },
+          "upcoming": null,
+          "installDeadline": null,
+          "endedAt": "2026-10-30T20:15:59.197604+00:00",
+          "formLinked": true,
+          "formCompleted": false,
+          "formHasAnswers": true,
+          "priceEntered": true,
+          "boss": true,
+          "group": "action",
+          "next": "Next: do the Ready Check and fill in the Mitti form"
+        },
+        {
+          "jobId": "847d6cd0-0db0-400d-88fa-dbe89d1440d4",
+          "jobNumber": "HV-3177",
+          "street": "30 Dash Street, Fraser Rise",
+          "suburb": "Fraser Rise",
+          "channel": "installer_sourced",
+          "stage": "ready_check_scheduled",
+          "place": "needs_me",
+          "placeTitle": "Do the Ready Check and fill in the form",
+          "inHouseDispatch": null,
+          "nextAction": "Needs finishing: ceiling area, insulation product, owner permission on the Mitti form",
+          "quoteLine": null,
+          "status": {
+            "text": "Ready Check to be booked · since Sun 25 Oct · waiting 5 days · Owner",
+            "who": "Owner"
+          },
+          "upcoming": null,
+          "installDeadline": null,
+          "endedAt": "2026-10-25T07:00:45.323733+00:00",
+          "formLinked": true,
+          "formCompleted": false,
+          "formHasAnswers": true,
+          "priceEntered": true,
+          "boss": true,
+          "group": "action",
+          "next": "Next: finish the Mitti form (ceiling area, insulation product and owner details missing)"
+        },
+        {
+          "jobId": "d2f0904b-45e9-4784-a045-99c94afcd81f",
+          "jobNumber": "HV-3134",
+          "street": "17 E2E Practice Street, Reservoir",
+          "suburb": "Reservoir",
+          "channel": "installer_sourced",
+          "stage": "ready_check_scheduled",
+          "place": "needs_me",
+          "placeTitle": "Do the Ready Check and fill in the form",
+          "inHouseDispatch": null,
+          "nextAction": "Needs finishing: ceiling area, insulation product on the Mitti form",
+          "quoteLine": null,
+          "status": {
+            "text": "Ready Check to be booked · since Fri 23 Oct · waiting 7 days · Owner",
+            "who": "Owner"
+          },
+          "upcoming": null,
+          "installDeadline": null,
+          "endedAt": "2026-10-27T23:45:58.300651+00:00",
+          "formLinked": true,
+          "formCompleted": false,
+          "formHasAnswers": true,
+          "priceEntered": false,
+          "boss": true,
+          "group": "action",
+          "next": "Next: finish the Mitti form (ceiling area and insulation product missing)"
+        }
+      ],
+      "coming": [],
+      "progress": [
+        {
+          "jobId": "46ceb8a6-fba9-44a1-9d9e-b16cf07fc321",
+          "jobNumber": "HV-3197",
+          "street": "12 Smith Street, Reservoir",
+          "suburb": "Reservoir",
+          "channel": "installer_sourced",
+          "stage": "measured_estimate_ready",
+          "place": "moving",
+          "placeTitle": "Quote waiting for owner",
+          "inHouseDispatch": null,
+          "nextAction": "Owner to accept measured project quote",
+          "quoteLine": "Waiting on office: checking the quote",
+          "status": {
+            "text": "Quote waiting for owner · sent Sun 25 Oct · waiting 5 days · Owner",
+            "who": "Owner"
+          },
+          "upcoming": null,
+          "installDeadline": null,
+          "endedAt": "2026-10-30T20:00:44.320105+00:00",
+          "formLinked": true,
+          "formCompleted": true,
+          "formHasAnswers": true,
+          "priceEntered": true,
+          "boss": true,
+          "group": "progress",
+          "next": "Next: nothing yet — office is checking the quote"
+        }
+      ],
+      "done": []
+    },
+    "month": {
+      "jobs": 0,
+      "earned": 0,
+      "paid": 0
+    }
+  }
+}

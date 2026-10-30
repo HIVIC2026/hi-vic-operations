@@ -1,0 +1,22 @@
+{
+  "tradeHome": {
+    "kind": "installer",
+    "boss": false,
+    "business": "[TEST PARTNER] Reinsulate",
+    "firstName": "TEST",
+    "isTest": true,
+    "week": "<time>",
+    "offers": [],
+    "yourMove": [],
+    "coming": [],
+    "jobs": [],
+    "done": [],
+    "home": {
+      "action": [],
+      "coming": [],
+      "progress": [],
+      "done": []
+    },
+    "month": null
+  }
+}

@@ -1,0 +1,181 @@
+{
+  "tradeBusiness": {
+    "kind": "installer",
+    "boss": true,
+    "name": "[TEST PARTNER] Reinsulate",
+    "taking": false,
+    "approvedSince": "2026-10-06T22:25:03.233+00:00",
+    "area": "Up to 100 km from Frankston",
+    "licenceExpires": null,
+    "liabilityExpires": "2026-11-19",
+    "rate": null,
+    "agreementSigned": true,
+    "bankSaved": true,
+    "team": [
+      {
+        "id": "c5768235-087a-4601-a7e9-d38d529feb10",
+        "name": "Bhavdeep (TEST)",
+        "role": "owner",
+        "mobile": null,
+        "email": "deep-test@hivic.test",
+        "hasLogin": true,
+        "mittiLogin": "not_set",
+        "mittiRecorded": false,
+        "noticeAcknowledged": false,
+        "cii": {
+          "certStatus": null,
+          "level": null,
+          "expiresOn": null
+        },
+        "whiteCard": "missing",
+        "workerRole": "lead",
+        "declarationsDue": false
+      },
+      {
+        "id": "04ee2f61-f4e5-4c2c-b969-6755a24a8edc",
+        "name": "Manminder Singh",
+        "role": "installer",
+        "mobile": null,
+        "email": "test+ngu.auss.at.gmail.com@hivic.test",
+        "hasLogin": false,
+        "mittiLogin": "not_set",
+        "mittiRecorded": false,
+        "noticeAcknowledged": false,
+        "cii": {
+          "certStatus": null,
+          "level": null,
+          "expiresOn": null
+        },
+        "whiteCard": "missing",
+        "workerRole": "lead",
+        "declarationsDue": false
+      }
+    ],
+    "next": {
+      "title": "Your public liability insurance runs out in 19 days",
+      "sub": "Expires Thu 19 Nov. Upload the renewed certificate so offers keep coming.",
+      "button": "Upload renewed insurance",
+      "to": "/field/business/insurance"
+    },
+    "usualElectrician": null,
+    "details": {
+      "legal": "[TEST PARTNER] Reinsulate",
+      "name": "[TEST PARTNER] Reinsulate",
+      "abn": "99000000000",
+      "baseSuburb": "Frankston",
+      "allVictoria": false
+    },
+    "ratesAgreedAt": "2026-10-30",
+    "hasRates": true,
+    "bankLine": "Infronix pty ltd · BSB 063-xxx · account ending 0854",
+    "credentials": [
+      {
+        "kind": "public_liability_insurance",
+        "label": "Public liability insurance",
+        "expires": "2026-11-19",
+        "verified": true
+      },
+      {
+        "kind": "installer_certification",
+        "label": "CII certification — Bhavdeep singh",
+        "expires": "2029-05-19",
+        "verified": false
+      }
+    ],
+    "agreement": {
+      "version": "HI-VIC-A48-INST-1.16-2026-10-05",
+      "signer": "Sultan Sharma",
+      "signedAt": "2026-10-06T06:27:10.309+00:00"
+    },
+    "notice": [
+      {
+        "name": "Bhavdeep singh",
+        "state": "missing"
+      },
+      {
+        "name": "Manminder Singh",
+        "state": "missing"
+      }
+    ]
+  },
+  "tradeBusinessFile": {
+    "businessId": "17793408-bf5c-4ddd-9bec-64199f64f9fb",
+    "kind": "installer",
+    "boss": true,
+    "usualElectrician": null,
+    "details": {
+      "name": "[TEST PARTNER] Reinsulate",
+      "legal": "[TEST PARTNER] Reinsulate",
+      "abn": "99000000000",
+      "phone": "+61402006294",
+      "email": "deep-test@hivic.test",
+      "address": "17 Newcastle Rd, Rockbank VIC 3335",
+      "area": "Up to 100 km from Frankston",
+      "days": "Mon, Tue, Wed, Thu, Fri",
+      "leadTime": "3-5 business days",
+      "liabilityCover": 5000000
+    },
+    "credentials": [
+      {
+        "id": "14271b1f-2a86-4f9e-9756-e3598c11b07c",
+        "label": "CII certification — Bhavdeep singh",
+        "expires": "2029-05-19",
+        "verified": false,
+        "hasFile": false,
+        "path": null
+      },
+      {
+        "id": "2d33d8bb-91b5-4a80-914d-537c28a5b737",
+        "label": "Public liability insurance",
+        "expires": "2026-11-19",
+        "verified": true,
+        "hasFile": true,
+        "path": "installer-onboarding/52760973-7685-4b3e-80b1-76b8e11da72f/insurance-ee30f6b3-c890-4583-b02a-376845d399ae.pdf"
+      }
+    ],
+    "agreement": {
+      "version": "HI-VIC-A48-INST-1.16-2026-10-05",
+      "signer": "Sultan Sharma",
+      "signedAt": "2026-10-06T06:27:10.309+00:00"
+    },
+    "rates": [
+      {
+        "label": "R5.0 ceiling batts supply & install",
+        "unit": "m2",
+        "inc_gst": 23
+      },
+      {
+        "label": "Batts removal and disposal",
+        "unit": "m2",
+        "inc_gst": 13
+      },
+      {
+        "label": "Loose-fill removal and disposal",
+        "unit": "m2",
+        "inc_gst": 13
+      },
+      {
+        "label": "R6.0 ceiling batts supply & install",
+        "unit": "m2",
+        "inc_gst": 26
+      },
+      {
+        "label": "R7.0 ceiling batts supply & install",
+        "unit": "m2",
+        "inc_gst": 30
+      },
+      {
+        "label": "Top up to R5.0 over existing insulation (existing stays in place)",
+        "unit": "m2",
+        "inc_gst": 23
+      },
+      {
+        "label": "Pre Insulation Electrical Safety Assessment (PIESA)",
+        "unit": "each",
+        "inc_gst": 350
+      }
+    ],
+    "openRequests": [],
+    "ratesAgreedAt": "2026-10-30"
+  }
+}
