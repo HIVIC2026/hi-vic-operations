@@ -20,10 +20,13 @@ function splitTop(s: string): string[] {
   if (cur.trim()) out.push(cur.trim());
   return out;
 }
-type Sel = { cols: string[]; star: boolean; embeds: { name: string; inner: boolean; sel: Sel }[] };
+type Sel = { cols: string[]; star: boolean; embeds: { name: string; inner: boolean; sel: Sel; fk?: string }[] };
 function parseSel(s: string): Sel {
   const sel: Sel = { cols: [], star: false, embeds: [] };
   for (const part of splitTop(s)) {
+    // `table:fk_column(...)`: a to-one embed of `table` through the row's `fk_column` (e.g. `profiles:user_id(full_name)`).
+    const a = /^([a-z_]+):([a-z_]+)\((.*)\)$/s.exec(part);
+    if (a) { sel.embeds.push({ name: a[1]!, inner: false, sel: parseSel(a[3]!), fk: a[2]! }); continue; }
     // `name!inner(...)` joins; `name!fk_name(...)` is a PostgREST relationship hint (ignored: one relationship per name here).
     const m = /^([a-z_]+)(?:!([a-z_]+))?\((.*)\)$/s.exec(part);
     if (m) sel.embeds.push({ name: m[1]!, inner: m[2] === "inner", sel: parseSel(m[3]!) });
@@ -46,7 +49,7 @@ export function memoryPostgrest(tables: Tables) {
     const out: Row = sel.star || !sel.cols.length ? { ...row } : Object.fromEntries(sel.cols.map((c) => [c, row[c] ?? null]));
     if (!sel.star && sel.cols.length === 0 && sel.embeds.length) for (const k of Object.keys(out)) delete out[k];
     for (const e of sel.embeds) {
-      const v = embed(table, row, e.name);
+      const v = e.fk ? (T[e.name] ?? []).find((c) => c["id"] === row[e.fk!]) ?? null : embed(table, row, e.name);
       out[e.name] = Array.isArray(v) ? v.map((x) => project(e.name, x, e.sel)) : v ? project(e.name, v, e.sel) : null;
     }
     return out;

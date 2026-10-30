@@ -15,8 +15,11 @@ export const PAYMENT_MATCH_SEPARATE_EVENT = "payment_match_separate";
 type LedgerRow = { id: string; event_type: string; created_at: string; actor_id: string | null; details: Record<string, unknown> };
 /** Every payment + reversal row for the invoice, as recorded (append-only). Use `paymentLedger` for money received. */
 export async function rawPaymentLedger(jobId: string, invoiceId?: string): Promise<(PaymentRecord & { id: string; createdAt: string })[]> {
-  const { data } = await admin.from("workflow_events").select("id, event_type, created_at, actor_id, details").eq("job_id", jobId).in("event_type", [PAYMENT_EVENT, PAYMENT_REVERSED_EVENT]).order("created_at");
-  const { data: marks } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", PAYMENT_MATCH_SEPARATE_EVENT);
+  // Speed (installer screens, Task 6): the payments and the "two separate payments" marks are independent — one round.
+  const [{ data }, { data: marks }] = await Promise.all([
+    admin.from("workflow_events").select("id, event_type, created_at, actor_id, details").eq("job_id", jobId).in("event_type", [PAYMENT_EVENT, PAYMENT_REVERSED_EVENT]).order("created_at"),
+    admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", PAYMENT_MATCH_SEPARATE_EVENT),
+  ]);
   const separate = ((marks ?? []) as unknown as { details: Record<string, unknown> | null }[])
     .filter((m) => !invoiceId || m.details?.["invoice_id"] === invoiceId).map((m) => String(m.details?.["pair_key"] ?? "")).filter(Boolean);
   const rows = ((data ?? []) as unknown as LedgerRow[])

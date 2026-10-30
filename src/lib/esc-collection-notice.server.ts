@@ -46,9 +46,10 @@ export async function businessNoticeStatuses(businessId: string, workers?: reado
 }
 
 /** worker id → acknowledged?, across businesses, for offer filtering and crew rosters. */
-export async function noticeAckMap(workers: readonly (NoticeWorker & { id: string; business_id: string })[]): Promise<Map<string, boolean>> {
+export async function noticeAckMap(workers: readonly (NoticeWorker & { id: string; business_id: string })[], preloaded?: Map<string, NoticeAck[]>): Promise<Map<string, boolean>> {
   const ids = [...new Set(workers.map((w) => w.business_id))];
-  const acks = await loadNoticeAcks(ids);
+  // `preloaded`: the same records already read for these businesses (speed: read alongside the workers); else read here.
+  const acks = preloaded && ids.every((b) => preloaded.has(b)) ? preloaded : await loadNoticeAcks(ids);
   const out = new Map<string, boolean>();
   for (const b of ids) for (const [id, ok] of noticeAckByWorkerId(collectionNoticeStatus(workers.filter((w) => w.business_id === b), acks.get(b) ?? []))) out.set(id, ok);
   return out;

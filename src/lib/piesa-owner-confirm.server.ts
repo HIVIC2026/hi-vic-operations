@@ -9,6 +9,7 @@ import {
   validateOwnerPiesaConfirmation, type OwnerPiesaConfirmation, type PiesaOwnerConfirmFacts,
 } from "./piesa-owner-confirm.core";
 import { RECTIFICATION_OUTCOMES, shortAnswersFromEntries } from "./official-short.core";
+import { early } from "./early-read";
 
 const db = () => admin as unknown as { from: (t: string) => any };
 
@@ -18,19 +19,27 @@ export const OWNER_CONFIRMED_PIESA_KINDS = ["initial", "reassessment"] as const;
 
 /** The electrician's PIESA (latest `initial` or `reassessment` piesa_records row — a re-done PIESA is a new row) with everything the page and the gate need. Null = no PIESA yet. */
 export async function ownerPiesaConfirmFacts(jobId: string): Promise<PiesaOwnerConfirmFacts | null> {
-  const { data: rec } = await admin.from("piesa_records").select("id, outcome, completed_date, created_at, signed_off_by").eq("job_id", jobId).in("kind", [...OWNER_CONFIRMED_PIESA_KINDS]).order("created_at", { ascending: false }).limit(1).maybeSingle();
-  if (!rec || !rec.signed_off_by) return null;
-  const [{ data: events }, { count: items }, { data: a }, { data: elecAsg }, copy] = await Promise.all([
+  // Speed (installer screens, Task 6): everything below needs only the job id, so it is read alongside the PIESA record
+  // (dropped when there is no signed-off record); the electrician's profile follows their assignment, their business
+  // follows the profile, and the signed copy's hash follows the copy — each as soon as the fact it needs is in.
+  const elecAsgP = early(admin.from("job_assignments").select("user_id").eq("job_id", jobId).eq("role", "electrician").eq("active", true).maybeSingle());
+  const profileP = early(elecAsgP.then(async ({ data: asg }) => asg?.user_id ? await admin.from("profiles").select("full_name, business_id").eq("id", asg.user_id).maybeSingle() : { data: null }));
+  const bizP = early(profileP.then(async ({ data: ep }) => ep?.business_id ? await admin.from("businesses").select("name, legal_name").eq("id", ep.business_id).maybeSingle() : { data: null }));
+  const copyP = early(import("./official-forms.server").then((m) => m.currentCopy(jobId, "piesa")).catch(() => ({ copy: null, unavailable: true })));
+  const copyRowP = early(copyP.then(async (copy) => copy.copy ? await db().from("official_form_signed_copies").select("snapshot_sha256").eq("id", copy.copy.id).maybeSingle() : { data: null }));
+  const restP = early(Promise.all([
     admin.from("workflow_events").select("details, created_at").eq("job_id", jobId).eq("event_type", PIESA_OWNER_CONFIRMED_EVENT),
     admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", jobId).not("status", "in", "(cancelled,removed)"),
     admin.from("assessments").select("mitti_raw_snapshot").eq("job_id", jobId).maybeSingle(),
-    admin.from("job_assignments").select("user_id").eq("job_id", jobId).eq("role", "electrician").eq("active", true).maybeSingle(),
-    (await import("./official-forms.server")).currentCopy(jobId, "piesa").catch(() => ({ copy: null, unavailable: true })),
-  ]);
+    elecAsgP,
+    copyP,
+  ]));
+  const { data: rec } = await admin.from("piesa_records").select("id, outcome, completed_date, created_at, signed_off_by").eq("job_id", jobId).in("kind", [...OWNER_CONFIRMED_PIESA_KINDS]).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (!rec || !rec.signed_off_by) return null;
+  const [{ data: events }, { count: items }, { data: a }, { data: elecAsg }, copy] = await restP;
   let electrician: PiesaOwnerConfirmFacts["electrician"] = { name: null, recName: null };
   if (elecAsg?.user_id) {
-    const { data: ep } = await admin.from("profiles").select("full_name, business_id").eq("id", elecAsg.user_id).maybeSingle();
-    const { data: eb } = ep?.business_id ? await admin.from("businesses").select("name, legal_name").eq("id", ep.business_id).maybeSingle() : { data: null };
+    const [{ data: ep }, { data: eb }] = await Promise.all([profileP, bizP]);
     electrician = { name: ep?.full_name ?? null, recName: (eb as { legal_name?: string | null; name?: string | null } | null)?.legal_name ?? (eb as { name?: string | null } | null)?.name ?? null };
   }
   // "Electrician present on install day" = the PIESA's three-way outcome (short form) — never guessed from a blank.
@@ -39,7 +48,7 @@ export async function ownerPiesaConfirmFacts(jobId: string): Promise<PiesaOwnerC
   const electricianOnInstallDay = short["rectificationOutcome"] === RECTIFICATION_OUTCOMES[2];
   let signedCopy: PiesaOwnerConfirmFacts["signedCopy"] = null;
   if (copy.copy) {
-    const { data: row } = await db().from("official_form_signed_copies").select("snapshot_sha256").eq("id", copy.copy.id).maybeSingle();
+    const { data: row } = await copyRowP;
     signedCopy = { id: copy.copy.id, sha: (row as { snapshot_sha256?: string | null } | null)?.snapshot_sha256 ?? null };
   }
   return {

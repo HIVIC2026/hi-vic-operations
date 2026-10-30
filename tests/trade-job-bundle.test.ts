@@ -69,6 +69,27 @@ describe("tradeJobBundle (server, injected readers)", () => {
     expect(calls.workerLinks?.length).toBe(1);
     expect(seedPlan(b, JOB).map((s) => s.section)).toEqual(["overview", "role", "workerLinks", "price", "mittiInvited"]);
   });
+  test("speed (Task 6): an installer business's sections start before the overview answers; the overview still decides", async () => {
+    let release!: (v: unknown) => void;
+    const slow = new Promise((r) => { release = r; });
+    const { deps, calls } = fakeDeps({ overview: () => slow });
+    const pending = tradeJobBundle(SB, USER, JOB, deps);
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    for (const k of ["page", "installDays", "readyCheckTimes", "allocation", "swms", "workerLinks", "price", "ownerQuote"]) expect(calls[k]?.length, k).toBe(1);
+    expect(calls.crew).toBeUndefined(); // the crew needs the overview's stage (D6)
+    release({ role: "installer", row: { id: JOB, stage: "installation_scheduling", channel: "installer_sourced" } });
+    const b = await pending;
+    expect(calls.crew?.length).toBe(1);
+    expect(b.page).toEqual({ jobNumber: "HV-1", boss: true });
+  });
+  test("speed (Task 6): an installer business whose role on this job is not installer gets exactly the old answer", async () => {
+    const { deps } = fakeDeps({}, { kind: "installer", role: "owner" });
+    const b = await tradeJobBundle(SB, USER, JOB, deps);
+    for (const k of ["page", "installDays", "readyCheckTimes", "allocation", "swms", "ownerQuote", "crew"] as const) expect(b[k], k).toBeUndefined();
+    expect(b.price).toBeNull();
+    expect(b.workerLinks).toEqual({ workers: [], links: [], assignedBusinesses: 1 });
+    expect(b.role).toBe("owner");
+  });
   test("one failing section becomes { error } and every other section still answers (the page never goes blank)", async () => {
     const { deps } = fakeDeps({ swms: () => Promise.reject(new Error("SWMS read failed")), installDays: () => Promise.reject(new Error("no quoted installer")) });
     const b = await tradeJobBundle(SB, USER, JOB, deps);

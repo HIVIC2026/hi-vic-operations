@@ -20,6 +20,7 @@ import {
 // Review R08: the ledger reader lives in the lean payment-ledger.server (so read-only gates can count money received
 // without this module's senders); re-exported here unchanged.
 import { PAYMENT_EVENT, PAYMENT_MATCH_SEPARATE_EVENT, PAYMENT_REVERSED_EVENT, rawPaymentLedger } from "./payment-ledger.server";
+import { early } from "./early-read";
 export { PAYMENT_EVENT, PAYMENT_MATCH_SEPARATE_EVENT, PAYMENT_REVERSED_EVENT, rawPaymentLedger };
 /** Owner notice when an unpaid provisional booking is released: approved by Jo 24 Oct 2026 (decision 170; wording in deposit-release-notice.core.ts). */
 export { PROVISIONAL_RELEASE_OWNER_NOTICE_APPROVED } from "./deposit-release-notice.core";
@@ -180,6 +181,10 @@ async function invoiceMoney(jobId: string, inv: InvoiceRow | null) {
 /** Everything a page needs: plan, steps, what is due now, ledger, bank details and the Pay now (card) link. Null while the
  *  job has no installation invoice (the fixes gate then reads the fixes invoice itself — `fixesPaymentBlockerFor`). */
 export async function jobPaymentView(jobId: string, now = new Date()) {
+  // Speed (installer screens, Task 6): the repeat-check context and the payment-gate switch need only the job id, so they
+  // are read alongside the invoice (each awaited where it was before; a read that is not needed is simply dropped).
+  const repeatCtxP = early(import("./repeat-piesa.server").then((m) => m.repeatPiesaContext(jobId)).catch(() => null));
+  const gateEnabledP = early(paymentGateActiveForJob(jobId));
   const [{ data: invRow, error: invoiceError }, { data: ws }, { data: rect }, { data: installBooking }, { data: installDone }, { data: job }, { data: piesaNow }] = await Promise.all([
     admin.from("invoices").select(`${INVOICE_COLS}, quotes(accepted_at, customer_total_inc_gst)`).eq("job_id", jobId).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("workflow_settings").select("safety_check_payment_inc_gst").eq("id", 1).maybeSingle(),
@@ -193,9 +198,11 @@ export async function jobPaymentView(jobId: string, now = new Date()) {
   if (!invRow) return null;
   const inv = invRow as unknown as InvoiceRow & { quotes: { accepted_at: string | null; customer_total_inc_gst: number } | null };
   // Decision 233: while the owner owes the repeat safety check (PIESA), it is a step of their plan, paid on its own invoice.
-  const repeatCtx = await (await import("./repeat-piesa.server")).repeatPiesaContext(jobId).catch(() => null);
+  const repeatCtx = await repeatCtxP;
   const repeatState = repeatCtx?.state ?? null;
   const repeatOwed = !!repeatState && repeatState.payer === "owner" && (repeatState.stage === "owner_pay" || repeatState.stage === "offer") && (repeatState.priceIncGst ?? 0) > 0 && !!repeatState.deadline;
+  // The installation invoice's money needs only that invoice: read with the follow-up reads, awaited below as before.
+  const installMoneyP = early(invoiceMoney(jobId, inv));
   const [{ count: overrides }, { data: piesaLines }, fixesInv, { data: repeatRow }] = await Promise.all([
     admin.from("payment_overrides").select("id", { count: "exact", head: true }).eq("invoice_id", inv.id).eq("gate", "deposit"),
     inv.quote_id ? admin.from("quote_items").select("code, line_total_inc_gst").eq("quote_id", inv.quote_id).eq("code", "PIESA") : Promise.resolve({ data: [] as { code: string | null; line_total_inc_gst: number | string | null }[] }),
@@ -214,7 +221,7 @@ export async function jobPaymentView(jobId: string, now = new Date()) {
   const fixesCents = fixesInv ? toCents(fixesInv.total_inc_gst) : rect ? toCents(rect.customer_total_inc_gst) : 0;
   const repeatCents = !repeatOwed ? 0 : invoices.repeat ? toCents(invoices.repeat.total_inc_gst) : toCents(repeatState!.priceIncGst);
   const plan = paymentPlan({ quoteTotalCents: toCents(inv.total_inc_gst), safetyCheckCents: safety.cents, fixesCents, repeatCents });
-  const [installMoney, fixesMoney, repeatMoney] = await Promise.all([invoiceMoney(jobId, inv), invoiceMoney(jobId, invoices.fixes), invoiceMoney(jobId, invoices.repeat)]);
+  const [installMoney, fixesMoney, repeatMoney] = await Promise.all([installMoneyP, invoiceMoney(jobId, invoices.fixes), invoiceMoney(jobId, invoices.repeat)]);
   const paid: PaidByInvoice = { install: installMoney.paidCents, fixes: fixesMoney.paidCents, repeat: repeatMoney.paidCents };
   const paidCents = totalPaidCents(paid);
   const ledger = installMoney.ledger;
@@ -238,7 +245,7 @@ export async function jobPaymentView(jobId: string, now = new Date()) {
   const references: Record<InvoiceSlot, string | null> = { install: installReference, fixes: invoiceReference(invoices.fixes), repeat: invoiceReference(invoices.repeat) };
   const dueReference = due.step ? references[stepInvoiceKind(due.step.key)] : installReference;
   const bank = bankDetails();
-  const gateEnabled = await paymentGateActiveForJob(jobId);
+  const gateEnabled = await gateEnabledP;
   const provisional = provisionalBookingDecision({ bookedAt, now: now.toISOString(), depositCleared: isStepCleared(steps, "install_deposit"), gateEnabled, hasInvoice: true, installStart });
   // Decision 144: card = Stripe Checkout, only for the card steps, only when the key + switch allow it for this job's mode,
   // and only when the due step's own invoice exists (the checkout carries that invoice).
