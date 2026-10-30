@@ -6,7 +6,7 @@ function from(table:string){
   let one=false,head=false,op="read",payload:Row={};const filters:((r:Row)=>boolean)[]=[];
   const tables:Record<string,Row[]>={
     jobs:[{id:"j",source:"base44",deleted_at:null,stage:"preliminary_estimate_ready",owners:{email:"owner@example.com"}}],
-    workflow_events:[{job_id:"j",event_type:"in_house_partner_call_email_pending",details:{business_id:"b",batch_id:"batch",partner_trading_name:"Rapid Insulation"}}],
+    workflow_events:[{job_id:"j","jobs.deleted_at":null,"jobs.source":"base44",event_type:"in_house_partner_call_email_pending",details:{business_id:"b",batch_id:"batch",partner_trading_name:"Rapid Insulation"}}],
     job_assignments:[{job_id:"j",business_id:"b",role:"installer",active:true}],
     customer_communication_templates:approved?[{id:"t",template_key:"in_house_partner_will_call",status:"approved",approved_by:"office",approved_at:"2026-10-30",subject:"{{partner_trading_name}} will call you",body_markdown:"{{partner_trading_name}} will call you to book your free Ready Check"}]:[],
     customer_email_optouts:optedOut?[{job_id:"j",opted_out_at:"2026-10-30"}]:[],
