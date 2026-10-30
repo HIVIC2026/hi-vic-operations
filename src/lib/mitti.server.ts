@@ -624,9 +624,11 @@ export async function syncPendingMitti(actorId: string | null, call: MittiCall =
   const { data: pe } = await admin.from("workflow_events").select("job_id").eq("event_type", "mitti_piisa_audit_created");
   const { syncPiisaDeclaration } = await import("./piisa-declaration.server");
   const peIds = [...new Set((pe ?? []).map((e) => e.job_id as string).filter(Boolean))];
-  const { data: gone } = peIds.length ? await admin.from("jobs").select("id").in("id", peIds).not("deleted_at", "is", null) : { data: [] };
-  const deletedIds = new Set((gone ?? []).map((j) => j.id));
-  for (const jobId of peIds.filter((id) => !deletedIds.has(id))) {
+  // Same rule as the forms above (Jo 23 Oct): cancelled / deleted / QA-archived jobs are never synced.
+  const { isClosedOrArchivedJob } = await import("./mitti.core");
+  const { data: peJobs } = peIds.length ? await admin.from("jobs").select("id,stage,deleted_at,qa_archived_at").in("id", peIds) : { data: [] };
+  const closedIds = new Set((peJobs ?? []).filter((j) => isClosedOrArchivedJob(j)).map((j) => j.id));
+  for (const jobId of peIds.filter((id) => !closedIds.has(id))) {
     try { const r = await syncPiisaDeclaration(jobId, actorId, call); if (r.status !== "already") results.push({ jobId, ok: r.status === "saved" || r.status === "pending", message: r.message }); }
     catch (e) { results.push({ jobId, ok: false, message: e instanceof Error ? e.message : "error" }); }
   }
