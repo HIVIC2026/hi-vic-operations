@@ -307,6 +307,15 @@ test('failed post_rectification accepts no Section C date and writes the failed 
  await load('piesa-record.server').applyPiesaRecord({jobId:JOB,actorId:null,kind:'post_rectification',outcome:'fail',completedDate:'2026-11-02'});
  expect(tables.piesa_records).toHaveLength(1); expect(tables.piesa_records[0].outcome).toBe('fail'); expect(tables.piesa_records[0].section_c_signed_at).toBeUndefined();
 });
+test('legacy fixes-form create failure leaves assessment sync fields untouched and still logs the held event',async()=>{
+ held=false; failCreate=true;
+ tables.rectification_items.push({job_id:JOB,status:'required',description:'RCD'});
+ const r=await load('fixes-day.server').createFixesForm(JOB,null,'legacy-visit',call);
+ expect(r.status).toBe('held');
+ expect(tables.assessments[0].mitti_sync_status).toBeUndefined();
+ expect(tables.assessments[0].mitti_last_error).toBeUndefined();
+ expect(tables.workflow_events.filter(e=>e.event_type===core.FIXES_FORM_HELD_EVENT)).toHaveLength(1);
+});
 test('legacy same-booking reuse has no dispatch, calls, events or status changes',async()=>{
  held=false; failHeld=true;
  tables.workflow_events.push({job_id:JOB,event_type:core.FIXES_FORM_CREATED_EVENT,details:{booking_id:'legacy',audit_id:'old'}});

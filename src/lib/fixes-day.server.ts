@@ -279,8 +279,12 @@ export async function createFixesForm(jobId: string, actorId: string | null, boo
     return { status: "created", auditId: String(auditId) };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Mitti error";
-    const { error: syncError } = await admin.from("assessments").update({ mitti_sync_status: "error", mitti_last_error: msg }).eq("job_id", jobId);
-    if (syncError) throw new Error(syncError.message);
+    // Only the in-house paired companion surfaces failures through the assessment sync fields;
+    // every other job keeps the legacy behaviour (held event only, no assessments write).
+    if (paired) {
+      const { error: syncError } = await admin.from("assessments").update({ mitti_sync_status: "error", mitti_last_error: msg }).eq("job_id", jobId);
+      if (syncError) throw new Error(syncError.message);
+    }
     if (seen.createdId) {
       // Mitti made the form but sharing failed: it is recorded above; the office hands it over from the job page.
       await heldOnce(jobId, `booking:${bookingId}:share:${seen.createdId}`, `The form was created in Mitti but could not be handed to ${email}: ${msg}`, { booking_id: bookingId, audit_id: seen.createdId });
