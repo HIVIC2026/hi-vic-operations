@@ -6,6 +6,8 @@ test("pending in-house migration backfills only the old list, defaults billing a
   const db = new PGlite();
   try {
     await db.exec(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;
+      CREATE SCHEMA auth; CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$ SELECT null::uuid $$;
+      CREATE FUNCTION public.is_admin() RETURNS boolean LANGUAGE sql AS $$ SELECT false $$;
       CREATE TABLE public.businesses(id uuid primary key, name text, updated_at timestamptz default now());
       CREATE TABLE public.rate_cards(id uuid primary key default gen_random_uuid(),business_id uuid,kind text,name text,version integer,effective_from date,is_active boolean);
       CREATE TABLE public.rate_card_items(id uuid primary key default gen_random_uuid(),rate_card_id uuid,category text,code text,description text,unit text,unit_price_ex_gst numeric,sort integer);
@@ -29,8 +31,9 @@ test("pending in-house migration backfills only the old list, defaults billing a
     expect(events[0]?.details.new.rectification_billed_by).toBe("partner");
     await db.exec("SELECT save_in_house_partner('00000000-0000-0000-0000-000000000001',false,'partner','00000000-0000-0000-0000-000000000002')");
     expect((await db.query("SELECT * FROM workflow_events")).rows).toHaveLength(1);
-    await db.exec("GRANT USAGE ON SCHEMA public TO authenticated; SET ROLE authenticated");
+    await db.exec("GRANT USAGE ON SCHEMA public TO authenticated; GRANT SELECT,UPDATE ON businesses TO authenticated; SET ROLE authenticated");
     await expect(db.exec("SELECT save_in_house_partner('00000000-0000-0000-0000-000000000001',true,'partner','00000000-0000-0000-0000-000000000002')")).rejects.toThrow("permission denied");
+    await expect(db.exec("UPDATE businesses SET in_house=true WHERE name='RAPID INSULATION'")).rejects.toThrow("Only the office");
     await db.exec("RESET ROLE");
     await expect(db.exec("UPDATE businesses SET rectification_billed_by='other'")).rejects.toThrow();
     await db.exec(readFileSync("docs/pending-migrations/2026-10-30_in_house_partner.undo.sql", "utf8"));
