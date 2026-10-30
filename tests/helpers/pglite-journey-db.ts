@@ -144,6 +144,8 @@ export function journeySchemaSql(): { sql: string; rels: Rels } {
       const mig = declared.get(`${t.name}.${c.name}`);
       const family = (x: string) => /^(integer|bigint|numeric|double precision)$/.test(x) ? "number" : /^(date|timestamptz|timestamp|text|uuid)$/.test(x) || x.startsWith("public.") ? "string" : x;
       if (mig && (family(mig) === family(type) || (family(type) === "string" && mig.startsWith("public.")))) type = mig;
+      // A text id the migration chain declares (e.g. mitti_sim_audits "sim_…" ids) stays text, with no uuid default.
+      if (c.name === "id" && mig === "text") return `"id" text primary key`;
       if (c.name === "id" && (type === "text" || type === "uuid")) return `"id" uuid primary key default gen_random_uuid()`;
       if (c.optional && !nullable) {
         const key = `${t.name}.${c.name}`;

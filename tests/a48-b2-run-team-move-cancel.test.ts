@@ -22,6 +22,8 @@ const subset = (a: unknown, b: unknown): boolean => {
   return a === b;
 };
 let clock = Date.parse("2026-10-20T00:00:00.000Z");
+/** Tables whose updates fail (Task 9: the assignment update in endMovedBooking). */
+const failUpdates = new Set<string>();
 function fakeAdmin() {
   return {
     from(table: string) {
@@ -51,6 +53,8 @@ function fakeAdmin() {
           if (op === "insert") {
             const rows = (tables[table] ??= []);
             const row = { id: crypto.randomUUID(), created_at: new Date(++clock).toISOString(), active: true, ...payload! }; rows.push(row); out = { data: one ? row : [row], error: null };
+          } else if (op === "update" && failUpdates.has(table)) {
+            out = { data: null, error: { message: `${table} update failed` } };
           } else if (op === "update") {
             const hit = (tables[table] ?? []).filter((r) => preds.every((p) => p(r)));
             for (const r of hit) Object.assign(r, payload);
@@ -70,8 +74,11 @@ mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: fak
 
 // ---- recorded fakes ----------------------------------------------------------------------------------------------
 const sent: { via: string; to: string; body: string; key?: string; type?: string; jobId?: string | null; label?: string }[] = [];
+/** Every call to the real sender (a held call writes an sms_messages row in the real one). */
+const realAttempts: { type: string; key: string }[] = [];
 mock.module("../src/lib/sms.server", () => ({
   sendRealSms: async (i: { type: string; to: string; body: string; idempotencyKey: string; jobId?: string | null }) => {
+    realAttempts.push({ type: i.type, key: i.idempotencyKey });
     const ws = (tables["workflow_settings"] ?? [])[0] as { customer_comms_enabled?: boolean; sms_message_switches?: Record<string, boolean> } | undefined;
     if (ws?.customer_comms_enabled !== true || ws?.sms_message_switches?.[i.type] !== true) return { status: "held", detail: "switch off", sid: null };
     if (sent.some((s) => s.key === i.idempotencyKey)) return { status: "already", detail: "already", sid: null };
@@ -163,7 +170,7 @@ function standingPassOwner(id: string, o: { source?: string } = {}) {
 }
 function seed() {
   for (const k of Object.keys(tables)) delete tables[k];
-  sent.length = 0; booked.length = 0; followOns.length = 0; moved.length = 0; mittiReleased.length = 0;
+  sent.length = 0; booked.length = 0; followOns.length = 0; moved.length = 0; mittiReleased.length = 0; realAttempts.length = 0; failUpdates.clear();
   tables["workflow_settings"] = [{ id: 1, customer_comms_enabled: true, sms_message_switches: { run_offered: true, run_time: true, run_time_reminder: true, run_slot_cancelled: true } }];
   for (const t of ["jobs", "lead_campaign_responses", "property_facts", "job_assignments", "partner_offers", "workflow_events", "appointment_proposals", "bookings"]) tables[t] = [];
   tables["businesses"] = [
@@ -623,6 +630,120 @@ describe("fix round 1", () => {
     expect(events("run_slot_released").map((e) => [e["job_id"], (e["details"] as Row)["why"]])).toEqual([[a, "time_passed"]]);
     expect((await candidates()).filter((c) => c.jobId === a).map((c) => c.carriedPass)).toEqual([true]);
     expect(await R.ownerRunSlotState(a, { now: new Date(clock) })).toEqual({ kind: "none" });
+  });
+});
+
+// ---- Task 9 pre-final cleanup ------------------------------------------------------------------------------------------------
+describe("Task 9 cleanup", () => {
+  beforeEach(seed);
+  const active = (j: string) => tables["job_assignments"]!.filter((a) => a["job_id"] === j && a["active"] === true);
+  const cancelAttempts = () => realAttempts.filter((x) => x.type === "run_slot_cancelled").length;
+  async function cancelledConfirmed() {
+    const r = await offered(["a", "b"]);
+    now(2);
+    await R.chooseRunDay(r.runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) });
+    now(3);
+    const a = r.order[0]!;
+    await R.ownerConfirmRunSlot(a, "u-owner", { now: new Date(clock) });
+    sent.length = 0;
+    return { r, a };
+  }
+  const ws = () => tables["workflow_settings"]![0]!;
+  const sw = () => ws()["sms_message_switches"] as Record<string, boolean>;
+
+  test("held cancel text: while run_slot_cancelled is switched off the tick never calls the sender (no held row per tick); switched on → sent once", async () => {
+    const { r, a } = await cancelledConfirmed();
+    sw()["run_slot_cancelled"] = false;
+    cancelJob(a);
+    await R.runOwnerCancelled(a, { now: new Date(clock) });
+    const first = cancelAttempts(); // the owner's cancel itself tries once (recorded held for the office)
+    await R.sweepRunSlots(at(4)); await R.sweepRunSlots(at(5)); await R.sweepRunSlots(at(6));
+    expect(cancelAttempts()).toBe(first);
+    sw()["run_slot_cancelled"] = true;
+    await R.sweepRunSlots(at(7)); await R.sweepRunSlots(at(8));
+    expect(ownerTexts("run_slot_cancelled").map((x) => x.key)).toEqual([`run-slot-cancelled-sms:v1:${r.runId}:${a}:1`]);
+    expect(events("run_slot_cancelled_texted", a).length).toBe(1);
+  });
+  test("held cancel text: customer messages off, or trade messages paused → the tick doesn't call the sender either; retried once allowed", async () => {
+    const { r, a } = await cancelledConfirmed();
+    ws()["customer_comms_enabled"] = false;
+    cancelJob(a);
+    await R.runOwnerCancelled(a, { now: new Date(clock) });
+    const first = cancelAttempts();
+    await R.sweepRunSlots(at(4));
+    expect(cancelAttempts()).toBe(first);
+    ws()["customer_comms_enabled"] = true;
+    ws()["trade_messages_paused"] = true;
+    await R.sweepRunSlots(at(5)); await R.sweepRunSlots(at(6));
+    expect(cancelAttempts()).toBe(first);
+    expect(ownerTexts("run_slot_cancelled")).toEqual([]);
+    ws()["trade_messages_paused"] = false;
+    await R.sweepRunSlots(at(7));
+    expect(ownerTexts("run_slot_cancelled").map((x) => x.key)).toEqual([`run-slot-cancelled-sms:v1:${r.runId}:${a}:1`]);
+  });
+
+  async function movedBooked() {
+    const r = await offered(["a", "b"]);
+    now(2);
+    await R.chooseRunDay(r.runId, "u-sam", DAY, "09:00", null, { now: new Date(clock), personId: "u-kim" });
+    const [a, b] = r.order as [string, string];
+    now(3);
+    await R.ownerConfirmRunSlot(a, "u-owner", { now: new Date(clock) });
+    await R.ownerConfirmRunSlot(b, "u-owner", { now: new Date(clock) });
+    now(5);
+    await R.moveRun(r.runId, "u-sam", "2026-10-29", "08:00", { now: new Date(clock) });
+    now(6);
+    return { r, a, b };
+  }
+  test("moved booking released: the Mitti form is released only when the update really ended this business's assignment", async () => {
+    const { a, b } = await movedBooked();
+    // a: the office already ended the assignment; b: the assignment is another business's.
+    for (const x of active(a)) x["active"] = false;
+    for (const x of active(b)) x["business_id"] = "biz-other";
+    await R.ownerNoRunWindow(a, "u-owner", { now: new Date(clock) });
+    await R.ownerNoRunWindow(b, "u-owner", { now: new Date(clock) });
+    expect(events("run_slot_released").length).toBe(2);
+    expect(mittiReleased).toEqual([]);
+    expect(active(b).map((x) => x["business_id"])).toEqual(["biz-other"]);
+  });
+  test("moved booking released: an assignment update that fails → no Mitti release (the release itself still stands)", async () => {
+    const { a } = await movedBooked();
+    failUpdates.add("job_assignments");
+    await R.ownerNoRunWindow(a, "u-owner", { now: new Date(clock) });
+    expect(events("run_slot_released", a).length).toBe(1);
+    expect(mittiReleased).toEqual([]);
+    failUpdates.clear();
+  });
+  test("moved booking released: a real end of the assignment still releases the Mitti form (once)", async () => {
+    const { a } = await movedBooked();
+    await R.ownerNoRunWindow(a, "u-owner", { now: new Date(clock) });
+    expect(active(a)).toEqual([]);
+    expect(mittiReleased).toEqual([a]);
+  });
+
+  test("team Fill: the Fill row written but the home's own run_mode_chosen missing (crash) → a repeat tap writes it, once", async () => {
+    const r = await offered(["a", "b"]);
+    now(2);
+    await R.chooseTeamBooks(r.runId, "u-sam", { personId: "u-kim", now: new Date(clock) });
+    const a = r.order[0]!;
+    await R.enterTeamTime(r.runId, "u-kim", a, DAY, "09:00", { now: new Date(clock) });
+    now(3);
+    await R.ownerConfirmRunSlot(a, "u-owner", { now: new Date(clock) });
+    cancelJob(a);
+    await R.runOwnerCancelled(a, { now: new Date(clock) });
+    standingPassOwner("e");
+    sent.length = 0;
+    now(4);
+    expect(await R.fillCancelledSlot(r.runId, "u-sam", a, { now: new Date(clock) })).toEqual({ jobId: "e" });
+    // The crash: the Fill row is there, e's own choice row isn't.
+    tables["workflow_events"] = tables["workflow_events"]!.filter((e) => !(e["event_type"] === "run_mode_chosen" && e["job_id"] === "e"));
+    expect(await R.fillCancelledSlot(r.runId, "u-sam", a, { now: new Date(clock) })).toEqual({ jobId: "e" });
+    expect(await R.fillCancelledSlot(r.runId, "u-sam", a, { now: new Date(clock) })).toEqual({ jobId: "e" });
+    expect(events("run_mode_chosen", "e").map((x) => [(x["details"] as Row)["mode"], (x["details"] as Row)["person"], (x["details"] as Row)["filled_from"]])).toEqual([["team", "u-kim", a]]);
+    expect(events("run_offered", "e").length).toBe(1);
+    expect(sent).toEqual([]);
+    await R.enterTeamTime(r.runId, "u-kim", "e", "2026-10-28", "11:30", { now: new Date(clock) });
+    expect(ownerTexts().map((x) => x.jobId)).toEqual(["e"]);
   });
 });
 

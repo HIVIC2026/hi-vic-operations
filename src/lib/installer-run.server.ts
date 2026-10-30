@@ -681,7 +681,8 @@ async function releaseSlot(x: Slot, actorId: string | null, why: keyof typeof RE
  *  (none suit / no confirm) — the run's installer assignment is ended (the existing visit-release shape: active off, ended
  *  at, reason) so the home really is back in Jo's suggestions with its standing pass, and the job's Mitti Ready Check
  *  form is released (existing releaseReadyCheckFormOnCancel) so it no longer shows the old booking. A home booked again
- *  meanwhile (stage not "to schedule") is left alone. Best-effort: never stops the release. */
+ *  meanwhile (stage not "to schedule") is left alone; the form is released only when the update really ended this run's
+ *  business's assignment (Task 9). Best-effort: never stops the release. */
 async function endMovedBooking(x: Slot, actorId: string | null): Promise<void> {
   try {
     const ev = await slotEventsFor([x.jobId]);
@@ -690,7 +691,10 @@ async function endMovedBooking(x: Slot, actorId: string | null): Promise<void> {
     const { data: job } = await admin.from("jobs").select("stage").eq("id", x.jobId).maybeSingle();
     if (!job || job.stage !== "ready_check_ready_to_schedule") return;
     const why = "Run moved and the owner didn't confirm a new Ready Check time — back on the list for the next batch";
-    await admin.from("job_assignments").update({ active: false, ended_at: new Date().toISOString(), end_reason: why } as never).eq("job_id", x.jobId).eq("role", "installer").eq("business_id", x.businessId).eq("active", true);
+    const { data: ended, error: ue } = await admin.from("job_assignments").update({ active: false, ended_at: new Date().toISOString(), end_reason: why } as never).eq("job_id", x.jobId).eq("role", "installer").eq("business_id", x.businessId).eq("active", true).select("id");
+    if (ue) throw new Error(`the installer assignment could not be ended: ${ue.message}`);
+    // Task 9: only when this run's business really had the home (an assignment ended just now) is its Mitti form released.
+    if (!((ended ?? []) as unknown[]).length) return;
     await (await import("./mitti-pickup.server")).releaseReadyCheckFormOnCancel(x.jobId, actorId, "the run was moved and the owner didn't confirm a new time");
   } catch (e) { console.error("moved run home not unassigned", x.runId, x.jobId, (e as Error).message); }
 }
@@ -1034,20 +1038,27 @@ async function sweepCancelledTexts(now: Date): Promise<{ failed: number }> {
   const due = slotsOf(events).filter((x) => x.state === "cancelled" && !went.has(`${x.runId}|${x.jobId}|${x.seq}`) && windowStartAt(x.day, x.start).getTime() > now.getTime());
   if (!due.length) return out;
   if (smsQuietReason(now.toISOString())) return out;
+  // Task 9: while a real text would only be held (customer messages off, the run_slot_cancelled switch off, trade messages
+  // paused), the real sender is not called at all — it would write a new held sms_messages row every tick. TEST runs still
+  // go through test-send. Retried on the first tick after it is switched on.
+  const { data: wsRow, error: we } = await loose.from("workflow_settings").select("*").eq("id", 1).maybeSingle();
+  if (we) throw new Error(`Could not read the message switches: ${we.message}`);
+  const w = (wsRow ?? null) as { customer_comms_enabled?: boolean | null; sms_message_switches?: Record<string, boolean> | null; trade_messages_paused?: boolean | null } | null;
+  const realOff = w?.customer_comms_enabled !== true || w?.sms_message_switches?.[RUN_SLOT_CANCELLED_SMS_TYPE] !== true || w?.trade_messages_paused === true;
   for (const x of due) {
     try {
       // Filled meanwhile (the installer tapped Fill) → nothing to tell.
       const { data: fill, error } = await loose.from("workflow_events").select("id").eq("event_type", RUN_OFFERED_EVENT).contains("details", { run_id: x.runId, filled_from: x.jobId, filled_seq: x.seq }).limit(1);
       if (error) throw new Error(error.message);
       if ((fill ?? []).length) continue;
-      await textInstallerCancelled(x, now);
+      await textInstallerCancelled(x, now, { realOff });
     } catch (e) { out.failed++; console.error("held cancel text not retried", x.runId, x.jobId, (e as Error).message); }
   }
   return out;
 }
 
-async function textInstallerCancelled(x: Slot, now: Date): Promise<string> {
-  const status = await sendInstallerCancelled(x);
+async function textInstallerCancelled(x: Slot, _now: Date, opts: { realOff?: boolean } = {}): Promise<string> {
+  const status = await sendInstallerCancelled(x, opts);
   if ((RUN_TEXT_WENT as readonly string[]).includes(status)) {
     await claimBatchEvent(x.jobId, null, RUN_SLOT_CANCELLED_TEXTED_EVENT, "Installer texted that the owner cancelled their Ready Check time",
       { run_id: x.runId, business_id: x.businessId, seq: x.seq, status, idempotency_key: `run-slot-cancelled-texted:v1:${x.runId}:${x.jobId}:${x.seq}` })
@@ -1056,7 +1067,8 @@ async function textInstallerCancelled(x: Slot, now: Date): Promise<string> {
   return status;
 }
 
-async function sendInstallerCancelled(x: Slot): Promise<string> {
+/** `realOff`: a real text would only be held now — return "held" without calling the real sender (nothing written). */
+async function sendInstallerCancelled(x: Slot, opts: { realOff?: boolean } = {}): Promise<string> {
   const [{ data: biz }, jobs] = await Promise.all([
     admin.from("businesses").select("id, name, signer_name, signer_mobile, phone, onboarding_notes").eq("id", x.businessId).maybeSingle(),
     slotJobsById([x.jobId]),
@@ -1067,6 +1079,7 @@ async function sendInstallerCancelled(x: Slot): Promise<string> {
   const { isTestPartner } = await import("./test-send.core");
   const source = jobs.get(x.jobId)?.source ?? null;
   const test = source === "qa_test" || isTestPartner(b);
+  if (!test && opts.realOff) return "held";
   const base = test ? (await import("./test-send.server")).TEST_APP_BASE : (await import("./set-password-link.core")).SET_PASSWORD_BASE;
   const body = runSlotCancelledText({ name: b.signer_name, day: runDayWords(x.day), time: slotTimeWords(x), link: runLink(base, x.runId) });
   try {
@@ -1083,9 +1096,14 @@ export async function fillCancelledSlot(runId: string, userId: string, cancelled
   const x = slotsOf(events).find((y) => y.runId === runId && y.jobId === cancelledJobId && y.state === "cancelled");
   if (!x) throw new WorkflowError(NOT_AVAILABLE);
   const prior = events.find((e) => e.event_type === RUN_OFFERED_EVENT && runIdOf(e) === runId && (e.details as { filled_from?: unknown; filled_seq?: unknown } | null)?.filled_from === cancelledJobId && Number((e.details as { filled_seq?: unknown }).filled_seq) === x.seq);
-  if (prior) return { jobId: prior.job_id };
-  if (state.status !== "answered") throw new WorkflowError(NOT_OPEN);
   const choice = storedChoice(events, runId);
+  if (prior) {
+    // Task 9: a team Fill that stopped after the Fill row (no run_mode_chosen for the added home) is finished by the repeat tap.
+    if (choice?.mode === RUN_TEAM_MODE && !events.some((e) => e.event_type === RUN_MODE_CHOSEN_EVENT && runIdOf(e) === runId && e.job_id === prior.job_id))
+      await teamFillChoice(state, choice, prior.job_id, cancelledJobId, userId);
+    return { jobId: prior.job_id };
+  }
+  if (state.status !== "answered") throw new WorkflowError(NOT_OPEN);
   // Fix round 1: on a TEAM run the filled owner is added "to be booked by the team" — the team calls them and enters the time
   // as for its other homes (no portal window, no claim, no text now).
   const team = choice?.mode === RUN_TEAM_MODE;
@@ -1108,9 +1126,7 @@ export async function fillCancelledSlot(runId: string, userId: string, cancelled
     const won = await claimBatchEvent(pick.jobId, userId, RUN_OFFERED_EVENT, `Added to ${tradeName(await businessOf(state.businessId))}'s run for a cancelled Ready Check time (Fill from nearby waiting owners) — their team calls the owner and enters the time`,
       { run_id: runId, batch_id: state.batchId, business_id: state.businessId, job_ids: [pick.jobId], offered_at: now.toISOString(), offered_by: userId, filled_from: cancelledJobId, filled_seq: x.seq, idempotency_key: runSlotFilledKey(runId, cancelledJobId, x.seq) });
     if (!won) return { jobId: pick.jobId };
-    // Its own 5 days for the team to book it (from now), like the run's other homes had from the choice.
-    await claimBatchEvent(pick.jobId, userId, RUN_MODE_CHOSEN_EVENT, "Added to an Our team books run — their team calls the owner and enters the time (5 days)",
-      { run_id: runId, batch_id: state.batchId, business_id: state.businessId, mode: RUN_TEAM_MODE, person: choice!.person, chosen_by: userId, job_ids: [pick.jobId], filled_from: cancelledJobId, idempotency_key: runModeKey(runId, pick.jobId) });
+    await teamFillChoice(state, choice!, pick.jobId, cancelledJobId, userId);
     return { jobId: pick.jobId };
   }
   const h: Holder = { jobId: pick.jobId, runId, batchId: state.batchId, businessId: state.businessId, seq: 1, person: x.person, day: x.day, start: x.start, end: x.end };
@@ -1122,4 +1138,11 @@ export async function fillCancelledSlot(runId: string, userId: string, cancelled
     { run_id: runId, batch_id: state.batchId, business_id: state.businessId, seq: 1, person: x.person, day: x.day, start: x.start, end: x.end, starts_at: windowStartAt(x.day, x.start).toISOString(), by: "fill", idempotency_key: runSlotKey(runId, pick.jobId, 1) });
   await sweepRunSlots(now.toISOString(), { jobIds: [pick.jobId] }).catch((e) => console.error("filled window text deferred to the tick", runId, (e as Error).message));
   return { jobId: pick.jobId };
+}
+
+/** A home added to a TEAM run by Fill: its own 5 days for the team to book it (from now), like the run's other homes had from
+ *  the choice. Once per run + home (the mode key). */
+async function teamFillChoice(state: RunState, choice: RunChoice, jobId: string, cancelledJobId: string, userId: string): Promise<void> {
+  await claimBatchEvent(jobId, userId, RUN_MODE_CHOSEN_EVENT, "Added to an Our team books run — their team calls the owner and enters the time (5 days)",
+    { run_id: state.runId, batch_id: state.batchId, business_id: state.businessId, mode: RUN_TEAM_MODE, person: choice.person, chosen_by: userId, job_ids: [jobId], filled_from: cancelledJobId, idempotency_key: runModeKey(state.runId, jobId) });
 }
