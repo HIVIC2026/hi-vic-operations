@@ -1,3 +1,7 @@
+## Jo 30 Oct I1–I5 in-house review
+- [ ] Red-first batch scale/chunk failures, Ready Check form/invitation, legacy TEST sweeps, partner rectification advancement and PIESA retry regressions; second-partner/flag-off focus checks.
+- [ ] Implement bounded fail-closed reads and guarded idempotent flow repairs, preserving C1/locked rules; run requested suite and compare failing files with 5fadf36. No live SQL/providers/publication.
+
 ## Jo 30 Oct C1 — separate electrician payee from in-house holding
 - [x] Red-first payment/save/practice checks: 19 pass / 9 fail before implementation, then 28 pass / 0 fail. Payee-only held/offer/email/booking/batch regressions: 61 pass / 0 fail. Whole-repo consumer classification recorded in docs/pays-own-electricians-c1-audit.md; holding remains in_house-only.
 - [x] SQL-only flag, reason audit and two-business correction plus exact prior-guard undo proved on PGlite, preserving both active $350 PIESA cards. Partner input and handler strip flag for office and trades. Requested 24-file bun test run: 286 pass / 0 fail / 1003 assertions; automatic checks build OK. No live SQL/providers/publication; locked workflows, recovery files and generated clients untouched.
