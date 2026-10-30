@@ -856,6 +856,39 @@ export async function tradeSetReadyCheckTime(userId: string, jobId: string, pick
   return { ok: true, startsAt: start };
 }
 
+/** Own in-house business membership, not an offer or a customer's time-picking action. */
+export async function inHouseBookingAccess(userId: string, jobId: string, client = admin): Promise<{ allowed: boolean; blockers: string[] }> {
+  const { readInHouseDispatchState } = await import("./in-house-suppression.server");
+  const state = await readInHouseDispatchState([jobId]);
+  if (state.failed) return { allowed: false, blockers: ["Couldn't check the job's partner — please try again."] };
+  if (!state.held.has(jobId)) return { allowed: false, blockers: ["forbidden"] };
+  const { data: assignment, error: assignmentError } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
+  if (assignmentError) throw new Error(assignmentError.message);
+  if (!assignment?.business_id) return { allowed: false, blockers: ["forbidden"] };
+  const { data: member, error: memberError } = await client.from("business_members").select("business_id").eq("user_id", userId).eq("business_id", assignment.business_id).eq("active", true).maybeSingle();
+  if (memberError) throw new Error(memberError.message);
+  if (!member) return { allowed: false, blockers: ["forbidden"] };
+  const { data: job, error: jobError } = await admin.from("jobs").select("id").eq("id", jobId).is("deleted_at", null).neq("source", "qa_test").maybeSingle();
+  if (jobError) throw new Error(jobError.message);
+  return job ? { allowed: true, blockers: [] } : { allowed: false, blockers: ["forbidden"] };
+}
+
+/** A thin member-scoped wrapper: all booking rules and writes stay in confirmBooking. */
+export async function inHouseBookVisit(userId: string, input: { jobId: string; kind: import("./booking.server").BookingKind; start: string }, client = admin): Promise<{ ok: true; bookingId: string } | { ok: false; blockers: string[] }> {
+  const access = await inHouseBookingAccess(userId, input.jobId, client);
+  if (!access.allowed) return { ok: false, blockers: access.blockers };
+  const { confirmBooking } = await import("./booking.server");
+  try {
+    await confirmBooking(input.jobId, input.kind, input.start, userId, "in-house partner");
+  } catch (error) {
+    if (error instanceof WorkflowError) return { ok: false, blockers: [error.message] };
+    throw error;
+  }
+  const { data: booking, error } = await admin.from("bookings").select("id").eq("job_id", input.jobId).eq("kind", input.kind).eq("status", "confirmed").eq("scheduled_start", input.start).eq("booked_by", userId).order("created_at", { ascending: false }).limit(1).single();
+  if (error || !booking) throw new Error(error?.message ?? "Booking could not be read back.");
+  return { ok: true, bookingId: booking.id };
+}
+
 export async function setMittiInvited(actorId: string, businessId: string, invited: boolean) {
   const { error } = await admin.from("businesses").update({ mitti_account_invited: invited, mitti_account_invited_at: invited ? new Date().toISOString() : null, mitti_account_invited_by: invited ? actorId : null }).eq("id", businessId);
   if (error) throw new WorkflowError(error.message);
