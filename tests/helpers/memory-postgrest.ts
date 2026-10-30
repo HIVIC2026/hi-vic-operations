@@ -6,7 +6,7 @@
 type Row = Record<string, any>;
 export type Tables = Record<string, Row[]>;
 
-const singular = (t: string) => (t.endsWith("ies") ? `${t.slice(0, -3)}y` : t.replace(/s$/, ""));
+const singular = (t: string) => (t.endsWith("ies") ? `${t.slice(0, -3)}y` : t.endsWith("sses") ? t.slice(0, -2) : t.replace(/s$/, ""));
 let seq = 0;
 const newId = () => `00000000-0000-4000-9000-${String(++seq).padStart(12, "0")}`;
 
@@ -24,8 +24,9 @@ type Sel = { cols: string[]; star: boolean; embeds: { name: string; inner: boole
 function parseSel(s: string): Sel {
   const sel: Sel = { cols: [], star: false, embeds: [] };
   for (const part of splitTop(s)) {
-    const m = /^([a-z_]+)(!inner)?\((.*)\)$/s.exec(part);
-    if (m) sel.embeds.push({ name: m[1]!, inner: !!m[2], sel: parseSel(m[3]!) });
+    // `name!inner(...)` joins; `name!fk_name(...)` is a PostgREST relationship hint (ignored: one relationship per name here).
+    const m = /^([a-z_]+)(?:!([a-z_]+))?\((.*)\)$/s.exec(part);
+    if (m) sel.embeds.push({ name: m[1]!, inner: m[2] === "inner", sel: parseSel(m[3]!) });
     else if (part === "*") sel.star = true;
     else sel.cols.push(part);
   }
@@ -87,6 +88,11 @@ export function memoryPostgrest(tables: Tables) {
         gt(c: string, v: unknown) { filters.push((r) => cmp(get(table, r, c), v) > 0); return b; },
         lt(c: string, v: unknown) { filters.push((r) => cmp(get(table, r, c), v) < 0); return b; },
         lte(c: string, v: unknown) { filters.push((r) => cmp(get(table, r, c), v) <= 0); return b; },
+        ilike(c: string, pattern: string) {
+          const re = new RegExp(`^${pattern.split("%").map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/_/g, ".")).join(".*")}$`, "is");
+          filters.push((r) => { const v = get(table, r, c); return typeof v === "string" && re.test(v); });
+          return b;
+        },
         contains(c: string, v: unknown) { filters.push((r) => contains(get(table, r, c), v)); return b; },
         not(c: string, o: string, v: unknown) {
           if (o === "is" && v === null) filters.push((r) => get(table, r, c) != null);

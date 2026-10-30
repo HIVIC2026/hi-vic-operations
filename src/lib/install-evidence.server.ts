@@ -70,6 +70,26 @@ export async function installStartDate(jobId: string, a3StartDate?: string | nul
   return melbourneDateOf(job?.installation_completed_at);
 }
 
+/** `installStartDate` (no form date) for many jobs in one round: the same two facts per job — its first confirmed or
+ *  completed installation booking, else the job's completion record — read side by side for every job at once. A failed
+ *  read counts as no row, exactly as the single lookup's caller treats it. Speed (installer screens, Task 5). */
+export async function installStartDates(jobIds: string[]): Promise<Map<string, string | null>> {
+  const ids = [...new Set(jobIds)];
+  const out = new Map<string, string | null>();
+  for (let i = 0; i < ids.length; i += 100) {
+    const part = ids.slice(i, i + 100);
+    const [{ data: books }, { data: jobs }] = await Promise.all([
+      admin.from("bookings").select("job_id, scheduled_start").in("job_id", part).eq("kind", "installation").in("status", ["confirmed", "completed"]).order("scheduled_start", { ascending: true }),
+      admin.from("jobs").select("id, installation_completed_at").in("id", part),
+    ]);
+    for (const id of part) {
+      const b = (books ?? []).find((x) => x.job_id === id); // ascending: the row the single lookup's limit(1) returns
+      out.set(id, b?.scheduled_start ? melbourneDateOf(b.scheduled_start) : melbourneDateOf((jobs ?? []).find((j) => j.id === id)?.installation_completed_at));
+    }
+  }
+  return out;
+}
+
 export async function latestInstallEvidenceRecord(jobId: string) {
   const { data, error } = await admin.from("workflow_events").select("details, created_at").eq("job_id", jobId).eq("event_type", INSTALL_EVIDENCE_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (error) throw new Error("Install-day evidence could not be read.");
