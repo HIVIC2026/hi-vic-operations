@@ -32,13 +32,13 @@
 - Document early recovery owns module error/rejection events; the router handles preload/route catches and cache-busts reloads; both use the pure page-recovery stale-export classifier. Why: competing refresh handlers or missed named lazy exports can leave stale tabs blank.
 - Read nested `AGENTS.md`, including `src/lib` and `scripts`, before edits. Why: scoped safeguards.
 - Server functions are literal `createServerFn(...).middleware(...).inputValidator(...).handler(...)` chains; never import `@tanstack/react-start/server` in `*.functions.ts`. Why: factories/that import break the client bundle.
-- Test Centre jobs start `source='qa_test'`, bypassing post-intake. Why: no live automation.
+- Test Centre: `source='qa_test'`, bypass post-intake. Why: no live automation.
 - Journey TEST-trade setup snapshots and restores both offer-preference flags alongside coverage. Why: temporary practice readiness must not undo office-paused dummy trades.
 - `/` on every customer host and `/calculator` serve the same current public calculator; staff sign in at `/auth`, and on the staff host (`staff-host.core.ts`, portal.homeinsulationvictoria.com.au, decision 381) `/` opens `/auth`. Secure estimates never embed the retired what-if calculator or track calculator use. Why: preserve customer links and one calculator without obsolete variants.
 - The server entry detaches GET/HEAD rendering requests from the local adapter's socket-owned abort signal; keep mutation requests unchanged. Why: cancelled preview navigation must not throw after response close and blank the page.
 - Portal look lives in `src/styles.css` tokens (`.portal-theme`) plus pure presentation pieces in `src/components/portal/kit.tsx`; redesign phases use these presentation pieces; phase 3 may add canonical office navigation/routes and compact actual job pages but never change domain guards or workflow. Why: agreed office simplification preserves operational behaviour.
 
-- Portal QA = `bun run portal-qa` only; gaps NOT_RUN, never PASS. Why: honest bounded checks.
+- Portal QA: `bun run portal-qa` only; gaps NOT_RUN, never PASS. Why: honest checks.
 - `journey --screens` is browser-first evidence with a fail-closed preflight, never the legacy server-driven setup; unproven website sandbox, server-wide provider guards, TEST-domain actors or rule mismatches block downstream actions. Why: command-process guards cannot protect browser-triggered server mutations, and screenshots after direct server actions are not screen proof.
 - Screen walk-through starts from the journey s1 qa_test job (website form is portal-qa's), probes message/Mitti/Demo safeguards for that job before any page action, and marks unreached steps BLOCKED/NOT RUN. Why: honest page evidence without manufacturing downstream state.
 - Screen journey selects the isolated Bravo persona with people preparation disabled; records release before owner confirmation, attempts independent pages after failures, and restores only selected TEST businesses. Why: Alpha's historical non-qa_test link must remain untouched and QA must not approve people to bypass gates.
