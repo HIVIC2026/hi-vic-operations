@@ -408,8 +408,8 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
   const sel = "id, job_id, kind, scheduled_start, status, business_id, businesses(name, trading_name), jobs!inner(deleted_at, job_number, source, channel, stage, electrician_choice, originating_installer_business_id, owners(full_name), properties(suburb))";
   const { data: ownBooks } = await admin.from("bookings").select(sel).is("jobs.deleted_at", null).eq("business_id", bizId).in("status", kind === "electrician" ? ["completed", "confirmed"] : ["completed"]).in("kind", mine as never).order("scheduled_start", { ascending: false });
   // Jo 26 Oct 2026: an installer that pays its own electricians (Reinsulate) is paid for the safety checks they did.
-  const { installerPaysOwnElectricians } = await import("./installer-paid-electricians.core");
-  const { data: theirChecks } = kind === "installer" && installerPaysOwnElectricians(bizId)
+  const { readInstallerPaidElectricians } = await import("./installer-paid-electricians.server");
+  const { data: theirChecks } = kind === "installer" && await readInstallerPaidElectricians(bizId)
     ? await admin.from("bookings").select(sel).is("jobs.deleted_at", null).eq("jobs.originating_installer_business_id", bizId).eq("kind", "assessment").in("status", ["completed", "confirmed"]).order("scheduled_start", { ascending: false })
     : { data: [] };
   const books = [...(ownBooks ?? []), ...(theirChecks ?? [])];

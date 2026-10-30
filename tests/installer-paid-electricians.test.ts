@@ -7,6 +7,7 @@ import { resolveMittiElectrician } from "../src/lib/usual-electrician.core";
 import { stepErrors, visibleSteps, type RecData } from "../src/lib/rec-onboarding.core";
 
 const REINSULATE = "a8304d2d-339b-4cbf-bcf1-fb09ce7935b0";
+const business = { id: REINSULATE, name: "Reinsulate", in_house: true, piesaIncGst: 350 };
 const rec = (over: Partial<ApprovedRecCandidate> = {}): ApprovedRecCandidate => ({
   business_id: "rec-1", name: "Orlando Powered Pty Ltd", trading_name: "Orlando Powered", rec_number: "30614", worker_licences: ["A63151"],
   onboarding_status: "approved", is_active: true, approved_electricians: 1, piesa_rate: null, ...over,
@@ -14,16 +15,18 @@ const rec = (over: Partial<ApprovedRecCandidate> = {}): ApprovedRecCandidate => 
 
 describe("which installers pay their own electricians", () => {
   test("Reinsulate (and its TEST partner) at a flat $350; everyone else is paid by us as before", () => {
-    expect(installerPaysOwnElectricians(REINSULATE)).toMatchObject({ name: "Reinsulate", piesaIncGst: 350 });
-    expect(installerPaysOwnElectricians("17793408-bf5c-4ddd-9bec-64199f64f9fb")?.piesaIncGst).toBe(350);
-    expect(installerPaysOwnElectricians("someone-else")).toBeNull();
+    expect(installerPaysOwnElectricians(business)).toMatchObject({ name: "Reinsulate", piesaIncGst: 350 });
+    expect(installerPaysOwnElectricians({ ...business, id: "17793408-bf5c-4ddd-9bec-64199f64f9fb" })?.piesaIncGst).toBe(350);
+    expect(installerPaysOwnElectricians({ ...business, in_house: false })).toBeNull();
+    expect(installerPaysOwnElectricians({ ...business, id: "new-partner", piesaIncGst: 420 })?.piesaIncGst).toBe(420);
+    expect(installerPaysOwnElectricians({ ...business, piesaIncGst: null })).toBeNull();
     expect(installerPaysOwnElectricians(null)).toBeNull();
   });
   test("our own electrician on a Reinsulate job is still paid directly", () => {
-    expect(safetyCheckPayee({ installerBusinessId: REINSULATE, electricianChoice: "hivic" })).toBeNull();
-    expect(safetyCheckPayee({ installerBusinessId: REINSULATE, electricianChoice: null })).toBeNull();
-    expect(safetyCheckPayee({ installerBusinessId: REINSULATE, electricianChoice: "usual" })?.businessId).toBe(REINSULATE);
-    expect(safetyCheckPayee({ installerBusinessId: "someone-else", electricianChoice: "usual" })).toBeNull();
+    expect(safetyCheckPayee({ business, electricianChoice: "hivic" })).toBeNull();
+    expect(safetyCheckPayee({ business, electricianChoice: null })).toBeNull();
+    expect(safetyCheckPayee({ business, electricianChoice: "usual" })?.businessId).toBe(REINSULATE);
+    expect(safetyCheckPayee({ business: { ...business, in_house: false }, electricianChoice: "usual" })).toBeNull();
   });
 });
 

@@ -35,7 +35,7 @@ export async function mittiElectricianForJob(jobId: string, actorId: string | nu
   const { onboardedElectricianResolution, ELECTRICIAN_ONBOARDING_NEEDED_EVENT } = await import("./rec-onboarded.core");
   const candidates = legacy.choice === "hivic" || legacy.needsProfile ? [] : await (await import("./rec-onboarded.server")).loadApprovedRecCandidates();
   // Jo 26 Oct 2026: an installer that pays its own electricians (Reinsulate) → flat owner line, no REC rate needed.
-  const paysOwn = (await import("./installer-paid-electricians.core")).installerPaysOwnElectricians(job.originating_installer_business_id);
+  const paysOwn = await (await import("./installer-paid-electricians.server")).readInstallerPaidElectricians(job.originating_installer_business_id);
   const resolved = onboardedElectricianResolution({ legacy, usual: saved?.electrician ?? null, candidates, flatPiesaIncGst: paysOwn?.piesaIncGst ?? null });
   if (resolved.notOnboarded && job.originating_installer_business_id) {
     const need = { installer_business_id: job.originating_installer_business_id, name: resolved.notOnboarded.name, licence: resolved.notOnboarded.licence, email: resolved.notOnboarded.email, choice: resolved.choice };
@@ -59,7 +59,7 @@ export async function readUsualElectricianStatus(businessId: string): Promise<{ 
   const { electrician } = await readUsualElectrician(businessId);
   if (!electrician) return { electrician: null, onboarded: false };
   const candidates = await (await import("./rec-onboarded.server")).loadApprovedRecCandidates();
-  const flat = (await import("./installer-paid-electricians.core")).installerPaysOwnElectricians(businessId)?.piesaIncGst ?? null;
+  const flat = (await (await import("./installer-paid-electricians.server")).readInstallerPaidElectricians(businessId))?.piesaIncGst ?? null;
   const { usualIsOnboarded } = await import("./rec-onboarded.core");
   return { electrician, onboarded: usualIsOnboarded(electrician, candidates, flat) };
 }
