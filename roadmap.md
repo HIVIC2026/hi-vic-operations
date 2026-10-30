@@ -1,3 +1,6 @@
+## Jo 30 Oct TEST office password reset
+- [ ] Collect Jo's new password privately, apply it only to qa.office@hivic-test.example, and verify sign-in without sending messages or changing roles. Waiting for secure password entry; never reveal the value in chat.
+
 ## Jo 30 Oct I6 — held visit messages and quote regression
 - [x] Audit every visit-coordination sender/prompt; add fail-closed held suppression or portal-booking trade wording test-first without changing owner templates or C1/I1–I5.
 - [x] Run overlapping Mitti quote test isolated at every commit since 5fadf36; identify first failing commit and repair only an in-house regression.
