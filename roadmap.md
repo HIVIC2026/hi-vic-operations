@@ -1,7 +1,7 @@
 ## Jo 30 Oct I6 — held visit messages and quote regression
-- [ ] Audit every visit-coordination sender/prompt; add fail-closed held suppression or portal-booking trade wording test-first without changing owner templates or C1/I1–I5.
-- [ ] Run overlapping Mitti quote test isolated at every commit since 5fadf36; identify first failing commit and repair only an in-house regression.
-- [ ] Run every requested test file isolated, compare failures with 5fadf36, document per-run totals and all changed files. No SQL, delivery or publication.
+- [x] Audit every visit-coordination sender/prompt; add fail-closed held suppression or portal-booking trade wording test-first without changing owner templates or C1/I1–I5.
+- [x] Run overlapping Mitti quote test isolated at every commit since 5fadf36; identify first failing commit and repair only an in-house regression.
+- [x] Run every requested test file isolated, compare failures with 5fadf36, document per-run totals and all changed files. No SQL, delivery or publication.
 
 ## Jo 30 Oct I1–I5 in-house review
 - [x] Red-first: initial groups 76 pass / 5 fail / 3 skip, booking/TEST group 56 pass / 3 fail; implemented bounded fail-closed batch reads, invitation + canonical Ready Check form hook/replay, four legacy TEST sweep exclusions removed, lazy partner-only separate rectification advance, and deduplicated Part C transition retry. Second-partner and mid-flight flag-off practice checks passed; C1/locked rules preserved.
