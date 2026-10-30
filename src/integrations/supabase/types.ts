@@ -14104,6 +14104,10 @@ export type Database = {
         Args: { _actor: string; _prices: Json; _reason: string }
         Returns: number
       }
+      pull_back_in_house_job: {
+        Args: { _actor: string; _job: string; _reason: string }
+        Returns: undefined
+      }
       qa_office_api_boundary: { Args: never; Returns: undefined }
       qa_office_business_allowed: {
         Args: { _business: string }

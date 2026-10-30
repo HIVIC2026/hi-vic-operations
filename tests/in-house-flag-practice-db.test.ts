@@ -18,6 +18,22 @@ test("pending in-house migration backfills only the old list, defaults billing a
       ('17793408-bf5c-4ddd-9bec-64199f64f9fb','[TEST PARTNER] Reinsulate'),
       ('00000000-0000-0000-0000-000000000001','RAPID INSULATION');`);
     await db.exec(readFileSync("docs/pending-migrations/2026-10-30_in_house_partner.sql", "utf8"));
+    await db.exec(readFileSync("docs/pending-migrations/2026-10-30_pays_own_electricians.sql", "utf8"));
+    const split = (await db.query<{ name: string; in_house: boolean; pays_own_electricians: boolean }>("SELECT name,in_house,pays_own_electricians FROM businesses ORDER BY name")).rows;
+    for (const name of ["Reinsulate", "[TEST PARTNER] Reinsulate"]) expect(split.find(r => r.name === name)).toMatchObject({ in_house: false, pays_own_electricians: true });
+    expect(split.find(r => r.name === "RAPID INSULATION")).toMatchObject({ in_house: false, pays_own_electricians: false });
+    const splitHistory = (await db.query<{ details: { business_id: string; reason: string }; actor_id: string }>("SELECT details,actor_id::text FROM admin_config_events ORDER BY details->>'business_id'")).rows;
+    expect(splitHistory).toHaveLength(2);
+    expect(splitHistory.map(r => r.details.business_id).sort()).toEqual(["17793408-bf5c-4ddd-9bec-64199f64f9fb", "a8304d2d-339b-4cbf-bcf1-fb09ce7935b0"]);
+    for (const r of splitHistory) { expect(r.details.reason).toBe("split pays-own-electricians from in-house partner"); expect(r.actor_id).toBe("950fa0b6-dc44-49af-a754-6a65f26a661e"); }
+    expect((await db.query("SELECT r.is_active,r.kind,r.name,round(i.unit_price_ex_gst,2)::text AS price FROM rate_cards r JOIN rate_card_items i ON i.rate_card_id=r.id")).rows).toEqual([
+      { is_active: true, kind: "electrical", name: "In-house PIESA", price: "318.18" }, { is_active: true, kind: "electrical", name: "In-house PIESA", price: "318.18" }
+    ]);
+    await db.exec(readFileSync("docs/pending-migrations/2026-10-30_pays_own_electricians.undo.sql", "utf8"));
+    expect((await db.query("SELECT column_name FROM information_schema.columns WHERE table_name='businesses' AND column_name='pays_own_electricians'")).rows).toEqual([]);
+    expect((await db.query("SELECT details->>'reason' AS reason FROM admin_config_events WHERE details->>'reason'='undo split pays-own-electricians'")).rows).toHaveLength(2);
+    expect((await db.query("SELECT pg_get_functiondef(oid) AS body FROM pg_proc WHERE proname='guard_in_house_partner'")).rows[0]).not.toEqual(expect.objectContaining({ body: expect.stringContaining("hivic.in_house_reason") }));
+
     const { rows } = await db.query<{ name: string; in_house: boolean; rectification_billed_by: string }>("SELECT name,in_house,rectification_billed_by FROM businesses ORDER BY name");
     expect(rows.find(r => r.name === "Reinsulate")?.in_house).toBe(true);
     expect(rows.find(r => r.name === "[TEST PARTNER] Reinsulate")?.in_house).toBe(true);
@@ -26,7 +42,7 @@ test("pending in-house migration backfills only the old list, defaults billing a
     expect((await db.query<{ proconfig: string[] }>("SELECT proconfig FROM pg_proc WHERE proname IN ('guard_in_house_partner','save_in_house_partner')")).rows).toEqual([{ proconfig: ["search_path=public, pg_temp"] }, { proconfig: ["search_path=public, pg_temp"] }]);
     expect((await db.query<{ price: string }>("SELECT round(unit_price_ex_gst*1.1,2)::text AS price FROM rate_card_items")).rows).toEqual([{ price: "350.00" }, { price: "350.00" }]);
     await db.exec("SELECT save_in_house_partner('00000000-0000-0000-0000-000000000001',false,'partner','00000000-0000-0000-0000-000000000002')");
-    const events = (await db.query<{ actor_id: string; details: { old: { rectification_billed_by: string }; new: { rectification_billed_by: string } } }>("SELECT * FROM admin_config_events")).rows;
+    const events = (await db.query<{ actor_id: string; details: { old: { rectification_billed_by: string }; new: { rectification_billed_by: string } } }>("SELECT * FROM admin_config_events WHERE details->>'business_id'='00000000-0000-0000-0000-000000000001'")).rows;
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({ event_type: "in_house_partner_changed", details: { business_id: "00000000-0000-0000-0000-000000000001", old: { in_house: false }, new: { in_house: false } } });
     expect((await db.query("SELECT * FROM workflow_events")).rows).toHaveLength(0);
@@ -34,7 +50,7 @@ test("pending in-house migration backfills only the old list, defaults billing a
     expect(events[0]?.details.old.rectification_billed_by).toBe("hivic");
     expect(events[0]?.details.new.rectification_billed_by).toBe("partner");
     await db.exec("SELECT save_in_house_partner('00000000-0000-0000-0000-000000000001',false,'partner','00000000-0000-0000-0000-000000000002')");
-    expect((await db.query("SELECT * FROM admin_config_events")).rows).toHaveLength(1);
+    expect((await db.query("SELECT * FROM admin_config_events WHERE details->>'business_id'='00000000-0000-0000-0000-000000000001'")).rows).toHaveLength(1);
     await db.exec("GRANT USAGE ON SCHEMA public TO authenticated; GRANT SELECT,UPDATE ON businesses TO authenticated; SET ROLE authenticated");
     await expect(db.exec("SELECT save_in_house_partner('00000000-0000-0000-0000-000000000001',true,'partner','00000000-0000-0000-0000-000000000002')")).rejects.toThrow("permission denied");
     await expect(db.exec("UPDATE businesses SET in_house=true WHERE name='RAPID INSULATION'")).rejects.toThrow("Only the office");
@@ -52,7 +68,7 @@ test("pending in-house migration backfills only the old list, defaults billing a
     expect((await db.query("SELECT tgname FROM pg_trigger WHERE tgname='trg_guard_in_house_partner'")).rows).toEqual([]);
     expect((await db.query("SELECT proname FROM pg_proc WHERE proname IN ('guard_in_house_partner','save_in_house_partner')")).rows).toEqual([]);
     // Permanent office-change history survives rollback; it records a real accepted change.
-    expect((await db.query("SELECT * FROM admin_config_events WHERE event_type='in_house_partner_changed'")).rows).toHaveLength(1);
+    expect((await db.query("SELECT * FROM admin_config_events WHERE event_type='in_house_partner_changed'")).rows).toHaveLength(5);
   } finally { await db.close(); }
 });
 

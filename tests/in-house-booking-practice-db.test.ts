@@ -24,7 +24,7 @@ const DEADLINE = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10)
 await db.exec(`
 CREATE TYPE booking_kind AS ENUM ('assessment','ready_check','rectification','installation');
 CREATE TYPE booking_status AS ENUM ('proposed','confirmed','completed','cancelled');
-CREATE TABLE businesses(id uuid primary key, in_house boolean not null default false, rectification_billed_by text not null default 'hivic' CHECK(rectification_billed_by IN ('partner','hivic')), business_type text, onboarding_status text, is_active boolean, capabilities text[]);
+CREATE TABLE businesses(id uuid primary key, in_house boolean not null default false, pays_own_electricians boolean not null default false, rectification_billed_by text not null default 'hivic' CHECK(rectification_billed_by IN ('partner','hivic')), business_type text, onboarding_status text, is_active boolean, capabilities text[]);
 CREATE TABLE business_members(id uuid primary key default gen_random_uuid(), business_id uuid references businesses(id), user_id uuid, active boolean not null default true, member_role text CHECK(member_role IN ('business_admin','member')));
 CREATE TABLE jobs(id uuid primary key, stage text, source text, deleted_at timestamptz, signed boolean, fee_paid boolean, deposit_paid boolean, rectification_paid boolean, piesa_completed boolean, rectification_required boolean, part_c_signed boolean, install_deadline text);
 CREATE TABLE job_assignments(id uuid primary key default gen_random_uuid(), job_id uuid references jobs(id), business_id uuid references businesses(id), user_id uuid, role text, active boolean not null default true, booking_confirmed_at timestamptz);
@@ -273,4 +273,11 @@ test("current bookings are read only for the job's own active in-house member", 
   expect(own.bookings).toHaveLength(1);
   expect(own.bookings[0]).toMatchObject({ kind: "installation", status: "confirmed" });
   expect((await load("trade-view.server").inHouseBookingAccess(OUTSIDER, JOB)).bookings ?? []).toEqual([]);
+});
+test("payee-only Reinsulate member has no in-house access/card and cannot use the in-house booking writer", async () => {
+  await db.query("update businesses set in_house=false,pays_own_electricians=true where id=$1", [BIZ]);
+  const access = await load("trade-view.server").inHouseBookingAccess(MEMBER, JOB);
+  expect(access).toEqual({ allowed: false, blockers: ["forbidden"] });
+  expect(await book()).toEqual({ ok: false, blockers: ["forbidden"] });
+  expect(await rows("select id from bookings")).toHaveLength(0);
 });

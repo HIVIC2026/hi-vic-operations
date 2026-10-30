@@ -27,6 +27,7 @@ const isAdmin = async (sb: { rpc: (n: "is_admin") => PromiseLike<{ data: unknown
 const txt = (n: number) => z.string().trim().max(n).nullish();
 
 // ---------- Business file ----------
+// pays_own_electricians is SQL-only: unknown keys are stripped for every caller.
 const businessInput = z.object({
   id: uuid.optional(),
   name: z.string().trim().min(2).max(200), legal_name: txt(200), trading_name: txt(200), abn: txt(20), acn: txt(20), gst_registered: z.boolean().nullish(),
@@ -50,6 +51,7 @@ export const saveBusiness = createServerFn({ method: "POST" }).middleware([requi
     const sb = splitInvoicingBlocker(data.commercial_route);
     if (sb) throw new WorkflowError(sb);
     const { id, verify_coverage, ...patch } = data;
+    delete (patch as Record<string, unknown>)["pays_own_electricians"]; // Defence in depth, including office creates.
     if (patch.service_postcodes) {
       const invalid = patch.service_postcodes.filter((entry) => !/^3\d{3}$/.test(entry) && !/^3\d{0,2}\*$/.test(entry));
       if (invalid.length) throw new WorkflowError(`Invalid Victorian postcode coverage: ${invalid.join(", ")}`);

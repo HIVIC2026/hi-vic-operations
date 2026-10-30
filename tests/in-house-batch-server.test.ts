@@ -21,7 +21,10 @@ function fixture(failedTable?: string) {
   };
   const admin = { from(table: string) {
     const call = { table, filters: [] as unknown[][] }; calls.push(call);
-    const q: any = { then(resolve: (value: unknown) => unknown) { return Promise.resolve({ data: data[table] ?? [], error: table === failedTable ? { message: "read unavailable" } : null }).then(resolve); } };
+    const q: any = { then(resolve: (value: unknown) => unknown) {
+      let result = data[table] ?? [];
+      if (table === "businesses" && call.filters.some(([key, col, value]) => key === "eq" && col === "in_house" && value === true)) result = result.filter((b: any) => b.in_house === true);
+      return Promise.resolve({ data: result, error: table === failedTable ? { message: "read unavailable" } : null }).then(resolve); } };
     for (const key of ["select","in","eq","is","not","neq","order"]) q[key] = (...args: unknown[]) => { call.filters.push([key,...args]); return q; };
     return q;
   }, async rpc(name: string, input: unknown) { rpcCalls.push({ name, input }); return { data: { sent: true }, error: null }; } };
@@ -79,4 +82,12 @@ test("out-of-area and missing electrician membership are refused without writes"
   const outside = fixture(); outside.data.properties=[{ id: "p",postcode: "3000" }];
   expect((await outside.api.sendInHouseBatch({ businessId: "b",jobIds: ["j"],actorId: "office" })).refused).toEqual([{ jobId: "j",reason: "Outside this partner's coverage" }]);
   expect(outside.rpcCalls).toHaveLength(0);
+});
+test("payee-only Reinsulate is absent from batch partners/suggestions and send refuses before any allocation", async () => {
+  const f = fixture();
+  f.data.businesses = [{ id: "b", name: "Reinsulate", in_house: false, pays_own_electricians: true, is_active: true, service_postcodes: ["3199"] }];
+  const screen = await f.api.loadInHouseBatches();
+  expect(screen.partners).toEqual([]); expect(screen.suggestions).toEqual([]);
+  expect(await f.api.sendInHouseBatch({ businessId: "b", jobIds: ["j"], actorId: "office" })).toEqual({ sent: [], refused: [{ jobId: "j", reason: "Partner is not active in-house" }] });
+  expect(f.rpcCalls).toEqual([]); expect(f.emailCalls).toEqual([]);
 });

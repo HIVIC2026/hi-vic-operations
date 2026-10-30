@@ -1,34 +1,40 @@
-// Jo 26 Oct 2026: which jobs' safety check we pay to the INSTALLER instead of the electrician (rules in
-// installer-paid-electricians.core.ts). Read-only, batched by job id; read errors throw (fail closed upstream).
+// Flat PIESA payee: pays_own_electricians OR in_house; this does not decide held visits.
+// Read-only, batched by job id; money read errors throw (fail closed upstream).
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { installerPaysOwnElectricians, safetyCheckPayee, type InstallerPaidElectricians, type InstallerPiesaResult } from "./installer-paid-electricians.core";
+import { installerPaysOwnElectricians, paysOwnElectricians, safetyCheckPayee, type InstallerPaidElectricians, type InstallerPiesaResult } from "./installer-paid-electricians.core";
 import type { InHousePiesaBusiness } from "./installer-paid-electricians.core";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { melbourneToday } from "./melbourne-time.core";
 
 /** Pending schema uses a local read overlay; a missing flag never enables the arrangement. */
-export async function inHouseBusinessesFor(ids: string[]): Promise<Map<string, InHousePiesaBusiness>> {
+export async function ownElectricianBusinessesFor(ids: string[]): Promise<Map<string, InHousePiesaBusiness>> {
   const out = new Map<string, InHousePiesaBusiness>();
   if (!ids.length) return out;
-  const { data: businesses, error } = await admin.from("businesses").select("id,name,in_house").in("id", [...new Set(ids)]).eq("in_house", true);
-  if (error) throw new Error("Could not read in-house partner configuration.");
-  const enabled = (businesses ?? []).filter(b => (b as unknown as { in_house?: boolean }).in_house === true);
+  // Local schema overlay until Jo applies the pending SQL; generated types are not deployment proof.
+  const db = admin as unknown as SupabaseClient;
+  const { data: businesses, error } = await db.from("businesses").select("id,name,in_house,pays_own_electricians").in("id", [...new Set(ids)]).or("in_house.eq.true,pays_own_electricians.eq.true");
+  if (error) throw new Error("Could not read installer electrician-payment configuration.");
+  const enabled = ((businesses ?? []) as InHousePiesaBusiness[]).filter(paysOwnElectricians);
   if (!enabled.length) return out;
   const { data: cards, error: ce } = await admin.from("rate_cards").select("id,business_id,version,effective_from")
-    .in("business_id", enabled.map(b => b.id)).eq("kind", "electrical").eq("is_active", true).lte("effective_from", melbourneToday()).order("version", { ascending: false });
+    .in("business_id", enabled.map(b => b.id)).eq("is_active", true).lte("effective_from", melbourneToday()).order("version", { ascending: false });
   if (ce) throw new Error("Could not read the in-house PIESA rate cards.");
   const { data: lines, error: le } = cards?.length ? await admin.from("rate_card_items").select("rate_card_id,code,unit_price_ex_gst").in("rate_card_id", cards.map(c => c.id)).ilike("code", "piesa") : { data: [], error: null };
   if (le) throw new Error("Could not read the in-house PIESA prices.");
   for (const b of enabled) {
     const card = (cards ?? []).find(c => c.business_id === b.id && (lines ?? []).some(l => l.rate_card_id === c.id));
     const line = card ? (lines ?? []).find(l => l.rate_card_id === card.id) : null;
-    out.set(b.id, { id: b.id, name: b.name, in_house: true, piesaIncGst: line ? Math.round(Number(line.unit_price_ex_gst) * 110) / 100 : null });
+    out.set(b.id, { id: b.id, name: b.name, in_house: b.in_house === true, pays_own_electricians: b.pays_own_electricians === true, piesaIncGst: line ? Math.round(Number(line.unit_price_ex_gst) * 110) / 100 : null });
   }
   return out;
 }
 
+/** Compatibility alias for payment readers only; held readers must use in-house.core. */
+export const inHouseBusinessesFor = ownElectricianBusinessesFor;
+
 export async function readInstallerPaidElectricians(businessId: string | null | undefined): Promise<InstallerPiesaResult | null> {
   if (!businessId) return null;
-  return installerPaysOwnElectricians((await inHouseBusinessesFor([businessId])).get(businessId));
+  return installerPaysOwnElectricians((await ownElectricianBusinessesFor([businessId])).get(businessId));
 }
 
 export async function inHouseFactsFor(businessId: string) {
@@ -55,7 +61,7 @@ export async function inHouseFactsFor(businessId: string) {
 /** Per job: the installer we pay for the safety check, or null (we pay the electrician as usual). */
 export async function safetyCheckPayeesFor(jobs: { id: string; originating_installer_business_id: string | null }[]): Promise<Map<string, InstallerPaidElectricians | null>> {
   const out = new Map<string, InstallerPaidElectricians | null>(jobs.map((j) => [j.id, null]));
-  const businesses = await inHouseBusinessesFor([...new Set(jobs.flatMap(j => j.originating_installer_business_id ? [j.originating_installer_business_id] : []))]);
+  const businesses = await ownElectricianBusinessesFor([...new Set(jobs.flatMap(j => j.originating_installer_business_id ? [j.originating_installer_business_id] : []))]);
   const candidates = jobs.filter((j) => installerPaysOwnElectricians(businesses.get(j.originating_installer_business_id ?? "")));
   if (!candidates.length) return out;
   const { data, error } = await admin.from("workflow_events").select("job_id, details, created_at").in("job_id", candidates.map((j) => j.id))
