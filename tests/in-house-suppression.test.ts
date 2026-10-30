@@ -9,6 +9,7 @@ import * as decisions from "../src/config/workflow-decisions";
 function fixture() {
   let flagged = true;
   let readFailure = false;
+  let failPage = -1;
   const calls: { table: string; filters: unknown[][]; select: string }[] = [];
   const writes: string[] = [];
   const sends: string[] = [];
@@ -21,21 +22,25 @@ function fixture() {
   };
   const admin = { from(table: string) {
     const call = { table, filters: [] as unknown[][], select: "" }; calls.push(call);
-    let single = false; let head = false; let mutation = false;
+    let single = false; let head = false; let mutation = false; let offset = 0; let end = 999;
     const q: any = { then(resolve: (value: unknown) => unknown) {
       if (mutation) writes.push(table);
       let rows = data[table] ?? [];
       const stateRead = table === "job_assignments" && call.select.includes("in_house");
-      if (stateRead) rows = [{ job_id: "j", business_id: "b", businesses: { in_house: flagged }, jobs: { deleted_at: null, source: "base44" } }];
+      if (stateRead) rows = data.held_assignments ?? [{ job_id: "j", business_id: "b", role: "installer", active: true, businesses: { in_house: flagged }, jobs: data.jobs?.[0] }];
       for (const [key, col, val] of call.filters) {
-        if (typeof col !== "string" || col.includes(".") || !(col in (rows[0] ?? {}))) continue;
-        if (key === "eq") rows = rows.filter(r => r[col] === val);
-        if (key === "in") rows = rows.filter(r => (val as unknown[]).includes(r[col]));
-        if (key === "is") rows = rows.filter(r => r[col] === val);
+        if (typeof col !== "string" || (!col.includes(".") && !(col in (rows[0] ?? {})))) continue;
+        const value = (r: any) => col.split(".").reduce((v, part) => v?.[part], r);
+        if (key === "eq") rows = rows.filter(r => value(r) === val);
+        if (key === "neq") rows = rows.filter(r => value(r) !== val);
+        if (key === "in") rows = rows.filter(r => (val as unknown[]).includes(value(r)));
+        if (key === "is") rows = rows.filter(r => (value(r) ?? null) === val);
       }
-      return Promise.resolve({ data: head ? null : single ? rows[0] ?? null : rows, count: rows.length, error: stateRead && readFailure ? { message: "state unavailable" } : null }).then(resolve);
+      if (stateRead) rows = rows.slice(offset, end + 1);
+      return Promise.resolve({ data: head ? null : single ? rows[0] ?? null : rows, count: rows.length, error: stateRead && (readFailure || offset === failPage) ? { message: "state unavailable" } : null }).then(resolve);
     } };
     q.select = (s: string, opts?: { head?: boolean }) => { call.select = s; head = !!opts?.head; return q; };
+    q.range = (from: number, to: number) => { offset = from; end = to; call.filters.push(["range", from, to]); return q; };
     for (const name of ["eq", "in", "is", "neq", "not", "lt", "gt", "gte", "order", "limit", "contains"]) q[name] = (...args: unknown[]) => { call.filters.push([name, ...args]); return q; };
     for (const name of ["single", "maybeSingle"]) q[name] = () => { single = true; return q; };
     for (const name of ["insert", "update", "upsert", "delete"]) q[name] = () => { mutation = true; return q; };
@@ -68,7 +73,7 @@ function fixture() {
     });
     return out;
   }
-  return { load, data, calls, writes, sends, overrides, setFlag: (v: boolean) => { flagged = v; }, failRead: () => { readFailure = true; } };
+  return { load, data, calls, writes, sends, overrides, setFlag: (v: boolean) => { flagged = v; }, failRead: () => { readFailure = true; }, failPage: (v: number) => { failPage = v; } };
 }
 const switches = { ready_check: true, piesa: true, readyCheckBooking: true };
 
@@ -166,4 +171,43 @@ test("non-in-house Ready Check emails retain the normal path", async () => {
   const f = fixture(); f.setFlag(false);
   await f.load("ready-check-times.server", "\nexport const testTellOwner = tellOwner;").testTellOwner("j", []);
   expect(f.sends).toEqual(["ready_check"]);
+});
+test("TEST and deleted in-house jobs are held even when the double honours joined job filters", async () => {
+  for (const job of [{ source: "qa_test", deleted_at: null }, { source: "base44", deleted_at: "2026-10-30" }]) {
+    const f = fixture(); Object.assign(f.data.jobs?.[0] ?? {}, job);
+    expect(await f.load("auto-offer.server").autoOfferForJob("j", "ready_check", switches)).toMatchObject({ skipped: "in_house" });
+    expect(await f.load("allocation.server").startPiesaAllocation("j", null)).toMatchObject({ skipped: "in_house" });
+    await f.load("ready-check-times.server", "\nexport const testTellOwner = tellOwner;").testTellOwner("j", []);
+    expect(await f.load("owner-email-triggers.server").onSafetyCheckTimesOffered("j", [])).toBe("in_house");
+    expect(f.writes).toEqual([]); expect(f.sends).toEqual([]);
+  }
+});
+test("held read pages beyond 1000 assignments and keeps paging on an exact boundary", async () => {
+  const f = fixture();
+  f.data.held_assignments = Array.from({ length: 1200 }, (_, i) => ({ job_id: `j${i}`, business_id: "b", role: "installer", active: true, businesses: { in_house: i === 1199 } }));
+  const state = await f.load("in-house-suppression.server").readInHouseDispatchState();
+  expect(state.failed).toBe(false); expect(state.held.has("j1199")).toBe(true);
+  expect(f.calls.filter(c => c.select.includes("in_house"))).toHaveLength(7);
+});
+test("failed later page logs and discards partial held results", async () => {
+  const f = fixture();
+  f.data.held_assignments = Array.from({ length: 201 }, (_, i) => ({ job_id: `j${i}`, business_id: "b", role: "installer", active: true, businesses: { in_house: true } }));
+  f.failPage(200);
+  const errors: unknown[][] = []; const original = console.error; console.error = (...args) => { errors.push(args); };
+  try {
+    const state = await f.load("in-house-suppression.server").readInHouseDispatchState();
+    expect(state.failed).toBe(true); expect(state.held.size).toBe(0); expect(errors).toHaveLength(1);
+  } finally { console.error = original; }
+});
+test("owner-facing skips never report success and return the exact plain message", async () => {
+  for (const failed of [false, true]) {
+    const f = fixture(); if (failed) f.failRead();
+    const original = console.error; console.error = () => {};
+    try {
+      const expected = { ok: false, skipped: failed ? "in_house_read_failed" : "in_house", message: failed ? "Couldn't check the job's partner — please try again." : "Your installer will contact you directly to book this visit." };
+      expect(await f.load("allocation.server").submitOwnerPiesaWindows("j", "owner", [], {})).toMatchObject(expected);
+      expect(await f.load("ready-check-times.server").acceptOfferWithTimes("offer", "installer", [])).toMatchObject(expected);
+      expect(f.writes).toEqual([]);
+    } finally { console.error = original; }
+  }
 });
