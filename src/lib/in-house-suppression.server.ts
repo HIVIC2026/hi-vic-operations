@@ -15,6 +15,7 @@ export async function readInHouseDispatchState(jobIds?: string[]): Promise<InHou
     if (jobIds) query = query.in("job_id", [...new Set(jobIds)]);
     const { data, error } = await query;
     if (error) throw new Error(error.message);
+    if (!data) throw new Error("Installer assignments unavailable");
     const held = new Set<string>();
     for (const row of data ?? []) {
       const business = row.businesses as unknown as { in_house: boolean } | null;

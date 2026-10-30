@@ -134,3 +134,36 @@ test("flag off dispatches normally when there is no assignment or booking", asyn
   expect(await api.autoOfferForJob("j", "ready_check", switches)).toMatchObject({ step: "offer", businessId: "b" });
   expect(f.writes).toEqual(["partner_offers"]);
 });
+test("REC sweep leaves in-house offers and owner windows untouched with one state read", async () => {
+  const f = fixture();
+  f.data.partner_offers = [{ id: "old", job_id: "j", kind: "piesa", status: "pending" }];
+  f.data.appointment_proposals = [{ id: "time", job_id: "j", status: "proposed", piesa_window_round: 1 }];
+  expect(await f.load("allocation.server").sweepRecOffers()).toEqual({ expired: 0, started: 0, healed: 0 });
+  expect(f.writes).toEqual([]);
+  expect(f.calls.filter(c => c.select.includes("in_house"))).toHaveLength(1);
+});
+test("automatic sweep uses one state read across both kinds", async () => {
+  const f = fixture();
+  f.data.workflow_settings = [{ auto_installer_offers: true, auto_electrician_offers: true, ready_check_booking_enabled: true }];
+  const result = await f.load("auto-offer.server").sweepAutoOffers();
+  expect(result.offered).toBe(0); expect(f.writes).toEqual([]);
+  expect(f.calls.filter(c => c.select.includes("in_house"))).toHaveLength(1);
+});
+test("failed reads stop PIESA start, owner times and reminder sweeps without writes", async () => {
+  const f = fixture(); f.failRead();
+  const original = console.error; const errors: unknown[][] = [];
+  console.error = (...args) => { errors.push(args); };
+  try {
+    const api = f.load("allocation.server");
+    expect(await api.startPiesaAllocation("j", null)).toMatchObject({ skipped: "in_house_read_failed" });
+    expect(await api.submitOwnerPiesaWindows("j", "owner", [], {})).toMatchObject({ skipped: "in_house_read_failed" });
+    expect(await api.sweepRecOffers()).toEqual({ expired: 0, started: 0, healed: 0 });
+    expect(await api.sweepCoordination()).toEqual({ reminders: 0 });
+    expect(errors).toHaveLength(4); expect(f.writes).toEqual([]);
+  } finally { console.error = original; }
+});
+test("non-in-house Ready Check emails retain the normal path", async () => {
+  const f = fixture(); f.setFlag(false);
+  await f.load("ready-check-times.server", "\nexport const testTellOwner = tellOwner;").testTellOwner("j", []);
+  expect(f.sends).toEqual(["ready_check"]);
+});

@@ -167,8 +167,8 @@ export async function healStrandedPiesaStage(jobId: string, actorId: string | nu
   }
 }
 
-export async function startPiesaAllocation(jobId: string, actorId: string | null, kind: "piesa" | "rectification" = "piesa", opts: { rateToConfirm?: boolean; onlyBusiness?: string | string[]; adding?: boolean; repeat?: boolean; auto?: import("./ready-check-times.server").AutoOfferMeta } = {}): Promise<PiesaAllocationResult> {
-  const skipped = await inHouseDispatchSkip(jobId);
+export async function startPiesaAllocation(jobId: string, actorId: string | null, kind: "piesa" | "rectification" = "piesa", opts: { rateToConfirm?: boolean; onlyBusiness?: string | string[]; adding?: boolean; repeat?: boolean; auto?: import("./ready-check-times.server").AutoOfferMeta } = {}, inHouseState?: InHouseDispatchState): Promise<PiesaAllocationResult> {
+  const skipped = await inHouseDispatchSkip(jobId, inHouseState);
   if (skipped) return { offered: 0, exhausted: false, skipped };
   // Catch up a job whose acceptance was taken but never moved the stage (see healStrandedPiesaStage).
   // Without this the office's next click was refused with "An electrician has already accepted this PIESA."
@@ -308,12 +308,12 @@ export async function sweepRecOffers(actorId: string | null = null) {
   for (const o of jobs.values()) await refillIfNeeded(o.job_id, o.kind as "piesa" | "rectification", actorId, inHouseState);
   await sweepPiesaWindows(actorId, inHouseState);
   const started = await autoStartPiesaOffers(actorId, inHouseState);
-  await flagUnapprovedElectricians(actorId);
+  await flagUnapprovedElectricians(actorId, inHouseState);
   // Stranded acceptances (P1 UAT DEF-09): a confirmed PIESA visit on a job still reading "waiting for an electrician".
   // Bounded, idempotent, and only ever moves a job whose visit evidence already exists.
-  const { data: stranded } = await admin.from("bookings").select("job_id, jobs!inner(stage)").eq("kind", "assessment").eq("status", "confirmed").eq("jobs.stage", "piesa_and_install_window_pending").limit(50);
+  const { data: stranded } = await admin.from("bookings").select("job_id, jobs!inner(stage, deleted_at, source)").eq("kind", "assessment").eq("status", "confirmed").eq("jobs.stage", "piesa_and_install_window_pending").is("jobs.deleted_at", null).neq("jobs.source", "qa_test").limit(50);
   let healed = 0;
-  for (const s of stranded ?? []) if (await healStrandedPiesaStage(s.job_id, actorId)) healed++;
+  for (const s of stranded ?? []) if (!inHouseState.held.has(s.job_id) && await healStrandedPiesaStage(s.job_id, actorId)) healed++;
   return { expired: expired?.length ?? 0, started, healed };
 }
 
@@ -338,10 +338,11 @@ async function autoStartPiesaOffers(actorId: string | null, inHouseState: InHous
 }
 
 /** Assigned electrician who is no longer an approved/eligible REC -> one Needs Home Insulation Victoria event (no silent stall, no auto-swap). */
-async function flagUnapprovedElectricians(actorId: string | null) {
+async function flagUnapprovedElectricians(actorId: string | null, inHouseState: InHouseDispatchState) {
   const stages = ["piesa_and_install_window_pending", "piesa_scheduled", "piesa_complete", "electrical_variation_pending", "rectification_required", "awaiting_owner_rectification_approval", "rectification_scheduling", "rectification_booked"];
-  const { data: asg } = await admin.from("job_assignments").select("job_id, business_id, jobs!inner(stage, source)").eq("role", "electrician").eq("active", true).not("business_id", "is", null).in("jobs.stage", stages as never);
+  const { data: asg } = await admin.from("job_assignments").select("job_id, business_id, jobs!inner(stage, source, deleted_at)").eq("role", "electrician").eq("active", true).not("business_id", "is", null).in("jobs.stage", stages as never).is("jobs.deleted_at", null).neq("jobs.source", "qa_test");
   for (const a of asg ?? []) {
+    if (inHouseState.held.has(a.job_id)) continue;
     if ((a.jobs as { source: string | null }).source === "qa_test") continue;
     const { candidates } = await recCandidatesFor(a.job_id);
     const c = candidates.find((x) => x.business_id === a.business_id);

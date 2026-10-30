@@ -163,7 +163,7 @@ export async function autoOfferForJob(jobId: string, kind: AutoOfferKind, switch
   const meta = { attempt: step.attempt, basis: step.basis, activeJobs: step.activeJobs, distanceKm: step.distanceKm };
   try {
     if (kind === "ready_check") await (await import("./ready-check-times.server")).officePickReadyCheckInstaller(jobId, null, [step.businessId], { auto: meta });
-    else await (await import("./allocation.server")).startPiesaAllocation(jobId, null, "piesa", { onlyBusiness: step.businessId, auto: meta });
+    else await (await import("./allocation.server")).startPiesaAllocation(jobId, null, "piesa", { onlyBusiness: step.businessId, auto: meta }, inHouseState);
     return { jobId, kind, step: "offer", businessId: step.businessId };
   } catch (e) {
     // A guard refused (gate, pairing, paperwork …): nothing was sent; the next tick looks again.
