@@ -35,7 +35,7 @@ const db = { from(table: string) {
 } };
 mock.module('../src/integrations/supabase/client.server', () => ({ supabaseAdmin: db }));
 mock.module('../src/lib/workflow.server', () => ({ logEvent: async (job_id: string, _actor: unknown, event_type: string, _summary: string, details: Row) => {
-  (rows.workflow_events ??= []).push({ job_id, event_type, details });
+  (rows.workflow_events ??= []).push({ job_id, event_type, details, created_at: new Date().toISOString() });
 } }));
 mock.module('../src/lib/comms.server', () => ({ hasCurrentOwnerContactConsent: async () => true, recordCommunication: async () => {} }));
 mock.module('../src/lib/emailsafety.server', () => ({ unsubscribeUrlForJob: async () => null }));
@@ -98,4 +98,17 @@ test('read failure discards the sweep before any send', async () => {
 test('more than a page of completed saves cannot hide an unqueued save', async () => {
   for (let i = 0; i < 205; i++) home(`done-${i}`, { completed: true });
   home('last'); await sweepSpotSavedConfirmations(); expect(emailCalls).toBe(1); expect(smsCalls).toBe(1);
+});
+test('pending policy holds cannot starve later saved homes across ticks', async () => {
+  for (let i = 0; i < 21; i++) home(`held-${i}`);
+  rows.workflow_settings[0].customer_comms_enabled = false;
+  await sweepSpotSavedConfirmations();
+  rows.workflow_settings[0].customer_comms_enabled = true;
+  await sweepSpotSavedConfirmations();
+  expect(rows.customer_email_sends.some(r => r.job_id === 'held-20')).toBe(true);
+});
+test('failure on a later selection page sends nothing from earlier pages', async () => {
+  for (let i = 0; i < 205; i++) home(`candidate-${i}`);
+  readFailure = 'workflow_events'; await expect(sweepSpotSavedConfirmations()).rejects.toThrow('read failed');
+  expect(emailCalls).toBe(0); expect(smsCalls).toBe(0);
 });
