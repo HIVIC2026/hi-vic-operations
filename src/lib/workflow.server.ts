@@ -458,7 +458,13 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
   // Decision 366 (audit F03): no fixes visit is booked until the electrical fixes are paid in full.
   if (to === "rectification_booked") {
     const fb = await (await import("./payments.server")).fixesPaymentBlockerFor(jobId);
-    if (fb) blockers.push(fb);
+    if (fb) {
+      // Resolve the exception only where the legacy quote/payment gate would block.
+      const partnerBilledRectification = await (await import('./in-house-rectification.server')).optionalPartnerBilledRectificationFor(jobId);
+      const { rectificationVisitBlocker } = await import('./allocation.core');
+      const visit = rectificationVisitBlocker({ quoteAccepted: false, recActiveApproved: true, partnerBilledRectification });
+      if (visit) blockers.push(fb);
+    }
   }
   // Jo 26 Oct 2026: no install booking until the 10% install deposit is paid.
   if (to === "installation_booked") {

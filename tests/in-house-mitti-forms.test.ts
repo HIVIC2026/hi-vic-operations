@@ -266,6 +266,7 @@ test("rectification handover failure retries share and owner using its existing 
  failOwner=true; await load("piesa-autoform.server").onPiesaBooked(JOB,"visit",null,{call});
  const s=load("fixes-day.server");
  expect(tables.assessments[0].mitti_sync_status).toBe("error");
+ tables.rectification_items.push({job_id:JOB,status:'required',description:'RCD'});
  failOwner=false; await s.onRectificationBooked(JOB,"rect-visit",null,call);
  expect(calls.filter(c=>c.path==="/audits")).toHaveLength(2);
  expect(calls.filter(c=>c.path.endsWith('/owner') && c.path.includes('audit-2')).length).toBeGreaterThanOrEqual(2);
