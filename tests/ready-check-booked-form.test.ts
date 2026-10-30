@@ -103,3 +103,10 @@ describe("onReadyCheckBooked (HV-3542)", () => {
     expect(logged[0]!.summary).toContain("could not be created");
   });
 });
+
+test("two real booked callbacks keep the first stored Mitti form and never create another audit", async () => {
+  expect(await C.onReadyCheckBooked(JOB, INSTALLER)).toBe("scheduled");
+  T.ceiling_measurements = [{ job_id: JOB, is_current: true, external_source: "mitti", external_id: "audit_1", status: "draft" }];
+  expect(await C.onReadyCheckBooked(JOB, INSTALLER)).toBe("skipped");
+  expect(mitti.created).toEqual([JOB]);
+});

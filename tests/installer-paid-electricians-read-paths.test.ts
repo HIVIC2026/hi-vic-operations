@@ -20,7 +20,7 @@ function reads(rows: Record<string, unknown[]>, failedTable?: string) {
   return { calls, admin: { from(table: string) {
     const call = { table, filters: [] as unknown[][] }; calls.push(call);
     const q: any = { then(resolve: (x: unknown) => unknown) { return Promise.resolve({ data: rows[table] ?? [], error: failedTable === table ? { message: "read failed" } : null }).then(resolve); } };
-    for (const name of ["select", "in", "eq", "lte", "order", "ilike", "is", "contains", "limit", "or"]) q[name] = (...args: unknown[]) => { call.filters.push([name, ...args]); return q; };
+    for (const name of ["select", "in", "eq", "lte", "order", "ilike", "is", "contains", "limit", "or", "range"]) q[name] = (...args: unknown[]) => { call.filters.push([name, ...args]); return q; };
     q.maybeSingle = q.single = async () => ({ data: rows[table]?.[0] ?? null, error: failedTable === table ? { message: "read failed" } : null });
     return q;
   } } };
@@ -28,7 +28,7 @@ function reads(rows: Record<string, unknown[]>, failedTable?: string) {
 function priceModule(fixture: ReturnType<typeof reads>) {
   return moduleAt("src/lib/installer-paid-electricians.server.ts", {
     "@/integrations/supabase/client.server": { supabaseAdmin: fixture.admin },
-    "./sweep-batch.core": {}, "./installer-paid-electricians.core": pricing, "./melbourne-time.core": { melbourneToday: () => "2026-10-30" },
+    "./sweep-batch.core": { chunkIds: (ids: unknown[], n: number) => Array.from({length:Math.ceil(ids.length/n)},(_,i)=>ids.slice(i*n,(i+1)*n)) }, "./mitti-membership.core": { mittiAccessOf: () => "member" }, "./installer-paid-electricians.core": pricing, "./melbourne-time.core": { melbourneToday: () => "2026-10-30" },
   });
 }
 test("payee batch reads both flags and any active effective card with a PIESA line", async () => {
@@ -149,4 +149,13 @@ test("own-electrician-only business uses the newest card containing PIESA, inclu
   expect(await api.readInstallerPaidElectricians("a")).toEqual({ businessId: "a", name: "Reinsulate", piesaIncGst: 350 });
   expect((await api.safetyCheckPayeesFor([{ id: "j", originating_installer_business_id: "a" }])).get("j")?.piesaIncGst).toBe(350);
   expect((await api.ownElectricianBusinessesFor(["a", "b"])).get("b")).toMatchObject({ in_house: true, pays_own_electricians: false, piesaIncGst: 440 });
+});
+
+test("actual in-house facts read the business Mitti invitation, failing closed when unknown or false", async () => {
+  for (const invited of [true,false]) {
+    const f=reads({businesses:[{id:"a",mitti_account_invited:invited}],partner_workers:[{profile_id:"e",email:"e@example.invalid"}],profiles:[{id:"e",email:"e@example.invalid"}],rate_cards:[{id:"c"}],rate_card_items:[{unit_price_ex_gst:318.18}]});
+    expect(await priceModule(f).inHouseFactsFor("a")).toEqual({approvedElectricianWorkers:1,hasActiveRateCardWithPiesa:true,mittiElectricianLogins:1,mittiAccountInvited:invited});
+    expect(f.calls.find(c=>c.table==="businesses")?.filters).toContainEqual(["select","mitti_account_invited"]);
+  }
+  await expect(priceModule(reads({},"businesses")).inHouseFactsFor("a")).rejects.toThrow("Mitti invitation");
 });

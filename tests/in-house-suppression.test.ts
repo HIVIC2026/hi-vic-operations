@@ -22,7 +22,7 @@ function fixture() {
   };
   const admin = { from(table: string) {
     const call = { table, filters: [] as unknown[][], select: "" }; calls.push(call);
-    let single = false; let head = false; let mutation = false; let offset = 0; let end = 999;
+    let single = false; let head = false; let mutation = false; let patch: Record<string, unknown> | null = null; let offset = 0; let end = 999;
     const q: any = { then(resolve: (value: unknown) => unknown) {
       if (mutation) writes.push(table);
       let rows = data[table] ?? [];
@@ -36,6 +36,7 @@ function fixture() {
         if (key === "in") rows = rows.filter(r => (val as unknown[]).includes(value(r)));
         if (key === "is") rows = rows.filter(r => (value(r) ?? null) === val);
       }
+      if (patch) rows.forEach(r => Object.assign(r, patch));
       if (stateRead) rows = rows.slice(offset, end + 1);
       return Promise.resolve({ data: head ? null : single ? rows[0] ?? null : rows, count: rows.length, error: stateRead && (readFailure || offset === failPage) ? { message: "state unavailable" } : null }).then(resolve);
     } };
@@ -43,7 +44,7 @@ function fixture() {
     q.range = (from: number, to: number) => { offset = from; end = to; call.filters.push(["range", from, to]); return q; };
     for (const name of ["eq", "in", "is", "neq", "not", "lt", "gt", "gte", "order", "limit", "contains"]) q[name] = (...args: unknown[]) => { call.filters.push([name, ...args]); return q; };
     for (const name of ["single", "maybeSingle"]) q[name] = () => { single = true; return q; };
-    for (const name of ["insert", "update", "upsert", "delete"]) q[name] = () => { mutation = true; return q; };
+    for (const name of ["insert", "update", "upsert", "delete"]) q[name] = (value: Record<string, unknown>) => { mutation = true; if (name === "update") patch = value; return q; };
     return q;
   }, async rpc(name: string) { writes.push(name); return { data: true, error: null }; } };
   const cache: Record<string, any> = {};
@@ -319,4 +320,22 @@ test("flag switched off preserves assignments/booked Ready Check and normal PIES
   expect(await f.load("allocation.server").startPiesaAllocation("j","office")).toMatchObject({healed:true});
   expect(JSON.stringify({assignments:f.data.job_assignments,bookings:f.data.bookings})).toBe(before);
   expect(f.writes).toEqual(["stage"]);
+});
+
+test("TEST pending offers expire and refill and owner windows supersede, unless held in-house", async () => {
+  for (const held of [false,true]) {
+    const f=fixture(); f.setFlag(held); f.data.jobs[0].source="qa_test";
+    const joined={source:"qa_test",deleted_at:null,stage:"piesa_and_install_window_pending"};
+    f.data.partner_offers=[{id:"expired",job_id:"j",kind:"piesa",status:"pending",expires_at:"2020-01-01",jobs:joined}];
+    f.data.appointment_proposals=[{id:"window",job_id:"j",status:"proposed",starts_at:"2020-01-01",piesa_window_round:1,jobs:joined}];
+    f.data.job_assignments=[{id:"e",job_id:"j",role:"electrician",active:true}];
+    const extra="\nrefillIfNeeded = async () => { globalThis.__testRefills++; }; autoStartPiesaOffers = async () => 0; flagUnapprovedElectricians = async () => {};";
+    (globalThis as any).__testRefills=0;
+    const api=f.load("allocation.server",extra);
+    expect((await api.sweepRecOffers()).expired).toBe(held?0:1);
+    expect(f.data.partner_offers[0].status).toBe(held?"pending":"expired");
+    expect(f.data.appointment_proposals[0].status).toBe(held?"proposed":"superseded");
+    expect((globalThis as any).__testRefills).toBe(held?0:1);
+    delete (globalThis as any).__testRefills;
+  }
 });

@@ -6,6 +6,7 @@ import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { embedShim } from "./helpers/pglite-embed-shim";
 import * as inHouse from "../src/lib/in-house.core";
+import { runAutoAdvance } from "../src/lib/autoadvance.core";
 import * as allocation from "../src/lib/allocation.core";
 import * as workflowCore from "../src/lib/workflow";
 import * as installDays from "../src/lib/install-days.core";
@@ -302,4 +303,14 @@ test("Ready Check Mitti failure keeps the confirmed booking and logs without und
   const original = console.error; const errors: unknown[] = []; console.error = (...args) => errors.push(args);
   try { expect((await book("ready_check")).ok).toBe(true); expect(await rows("select id from bookings where kind='ready_check' and status='confirmed'")).toHaveLength(1); expect(errors).toHaveLength(1); }
   finally { console.error = original; }
+});
+
+test("partner-billed separate visit advances via the actual planner then books rectification without a HIV quote", async () => {
+  await patch("stage","piesa_complete");
+  const base:any={openRectItems:1,onsiteStartOnly:false,partnerBilledRectification:true,rectBookingConfirmed:false};
+  const result=await runAutoAdvance({getStage:async()=>(await job()).stage,facts:async()=>base,blockers:async()=>[],transition:async(to,summary)=>{await patch("stage",to);await logEvent(JOB,MEMBER,"stage_changed",summary);},generateQuotes:async()=>{throw new Error("No HIV quote");},completeSite:async()=>false});
+  expect(result.to).toBe("rectification_scheduling");
+  expect((await book("rectification")).ok).toBe(true); expect(rectificationGuardCalls).toBe(0);
+  expect(await rows("select id from bookings where kind='rectification' and status='confirmed'")).toHaveLength(1);
+  expect(await rows("select id from workflow_events where event_type='stage_changed'")).toHaveLength(2);
 });
