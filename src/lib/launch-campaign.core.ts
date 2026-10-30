@@ -1,4 +1,5 @@
 import { sendKindFromKey } from "./save-spot-delivery.core";
+import { firstResponseOutcome, type StoredAudit } from "./enquiry-groups.core";
 
 export const LAUNCH_CAMPAIGN = "existing_leads_launch_v1" as const;
 export const LAUNCH_BATCH_SIZE = 50;
@@ -48,7 +49,8 @@ export function campaignSaveDecision(c: { group: LaunchGroup; mediaReview: strin
   return campaignSaveAllowed(c.group, deskStatus);
 }
 
-export function launchGroup(outcome: string | null, insulation: string | null): LaunchGroup | null {
+export function launchGroup(outcome: string | null, insulation: string | null, audit: StoredAudit = null): LaunchGroup | null {
+  outcome = firstResponseOutcome(outcome, insulation, audit);
   if (outcome === "likely_eligible" && insulation === "none") return "likely";
   if ((outcome === "likely_eligible" || outcome === "needs_onsite_confirmation") && (insulation === "present" || insulation === "unknown" || insulation === null)) return "onsite";
   return null;

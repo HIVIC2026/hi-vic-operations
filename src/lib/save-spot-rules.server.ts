@@ -98,11 +98,12 @@ export function prepareRulesForSave(input: { rules: unknown; enabled: boolean; p
 
 export type AutomaticCandidateFacts = AutomaticSaveSpotFacts & { jobNumber: string | null };
 
-const candidateSelect = "id, job_number, stage, created_at, source, channel, eligibility_outcome, eligibility_decision_source, eligibility_review_required, estimated_area_m2, estimated_area_unknown, properties(postcode, enrichment)";
+const candidateSelect = "id, job_number, stage, created_at, source, channel, eligibility_outcome, eligibility_decision_source, eligibility_review_required, eligibility_decision_rules, estimated_area_m2, estimated_area_unknown, properties(postcode, enrichment)";
 
 type CandidateRow = {
   id: string; job_number: string | null; stage: string | null; created_at: string | null; source: string | null; channel: string | null;
   eligibility_outcome: string | null; eligibility_decision_source: string | null; eligibility_review_required: boolean | null;
+  eligibility_decision_rules?: import("./enquiry-groups.core").StoredAudit;
   estimated_area_m2: number | null; estimated_area_unknown: boolean | null;
   properties: { postcode: string | null; enrichment: Record<string, unknown> | null } | { postcode: string | null; enrichment: Record<string, unknown> | null }[] | null;
 };
@@ -421,6 +422,7 @@ export async function previewAutomaticSaveSpotMatching(page = 1): Promise<Automa
     const route = automaticLeadEmail({
       source: row.source, channel: row.channel, decisionSource: row.eligibility_decision_source,
       reviewRequired: row.eligibility_review_required === true, outcome: row.eligibility_outcome,
+      audit: row.eligibility_decision_rules ?? null,
       intakeWorkActive: intakeActive.has(row.id), declaredInsulation: facts.insulation,
       ownerEnteredArea: !facts.areaUnknown && (facts.areaM2 ?? 0) > 0,
     });
