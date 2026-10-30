@@ -217,8 +217,9 @@ export async function installerOfferNewTimes(jobId: string, userId: string, pick
   return { ok: true };
 }
 
-/** Agreed time → confirmed Ready Check booking (all booking guards and stage move), then the Mitti form. */
-async function bookAgreedTime(jobId: string, proposalId: string, startsAt: string, actorId: string, roleLabel: string) {
+/** Agreed time → confirmed Ready Check booking (all booking guards and stage move), then the Mitti form. Also used by an
+ *  installer run's confirmed window (installer-run.server, no proposal row: `proposalId` null). */
+export async function bookAgreedTime(jobId: string, proposalId: string | null, startsAt: string, actorId: string, roleLabel: string) {
   try {
     const { confirmBooking } = await import("./booking.server");
     await confirmBooking(jobId, "ready_check", startsAt, actorId, roleLabel);
@@ -227,7 +228,7 @@ async function bookAgreedTime(jobId: string, proposalId: string, startsAt: strin
     await tellOwnerBooked(jobId, startsAt);
     await tellInstallerBooked(jobId, startsAt);
   } catch (e) {
-    await admin.from("appointment_proposals").update({ status: "superseded" }).eq("id", proposalId);
+    if (proposalId) await admin.from("appointment_proposals").update({ status: "superseded" }).eq("id", proposalId);
     await logEvent(jobId, actorId, "ready_check_time_booking_blocked", `Ready Check time agreed but booking not confirmed: ${(e as Error).message}`, { proposal_id: proposalId }, { internal: true });
     throw e;
   }

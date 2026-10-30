@@ -105,6 +105,11 @@ export const SMS_MESSAGE_TYPES = {
   // A48 batch 2 part 2 (Jo 30 Oct 2026, wording approved in the part 2 spec): Jo taps "Send to installer" on a closed batch →
   // the INSTALLER gets the run link (run-route.core runOfferedText). Own switch, off until Jo switches it on.
   run_offered: { audience: "partner", label: "You've got a run of Ready Checks – pick your day (A48 batch 2 runs)", wordingApproved: true, quietHours: true },
+  // A48 batch 2 part 2, Portal books (Jo 30 Oct 2026, wording approved in the part 2 spec): the installer picked the run's day
+  // → each OWNER gets their 1-hour window to confirm (run-portal.core runTimeText), plus ONE reminder at 12 hours. Own
+  // switches, off until Jo switches them on.
+  run_time: { audience: "owner", label: "Your free Ready Check is {day} at {time} – tap to confirm (A48 batch 2 runs)", wordingApproved: true, quietHours: true },
+  run_time_reminder: { audience: "owner", label: "Please confirm your free Ready Check – 12-hour reminder (A48 batch 2 runs)", wordingApproved: true, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 
@@ -183,6 +188,8 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   quick_taps: { kind: "window" }, // key = batch + job + step; the area_batch_sent event is recorded before any send (area-batch.server)
   quick_taps_reminder: { kind: "window" }, // key = batch + job + reminder; due on day 2, recomputed by the batch sweep
   run_offered: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = Jo's "Send to installer" tap; the run's 24h reply window
+  run_time: { kind: "window" }, // key = run + job + window; the window is recorded before any send; held → the tick retries
+  run_time_reminder: { kind: "window" }, // key = run + job + window; due 12h after the time text, recomputed by the tick
 };
 
 export type SmsEventInput = {

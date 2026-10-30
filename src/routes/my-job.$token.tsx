@@ -25,6 +25,7 @@ import { melbourneToday, addYmd } from "@/lib/melbourne-time.core";
 import { formatInstallDay } from "@/lib/install-days.core";
 import { PIESA_OWNER_SUGGEST_MAX, formatPiesaTime } from "@/lib/piesa-times.core";
 import { OwnerReadyCheckTimes } from "@/components/owner/OwnerReadyCheckTimes";
+import { OwnerRunTime } from "@/components/owner/OwnerRunTime";
 import { AuthorityChoice, FactRows, FormCard, InfoBox, LockHint, LockedButton, OwnerFooter, OwnerPageHeader, PageIntro, SectionTitle, SmallNote, ThirtyDayClock, TickCard, TypedField } from "@/components/owner/OwnerPageKit";
 import { OFFICE_EMAIL, P2, P3, P4, P6, P6F, centsAud, dayMonth, declarationBullets, longDate, sentence, shortAud, weekdayDate } from "@/lib/owner-pages.core";
 import { OWNER_DECLARATIONS, type OwnerDeclarationKey } from "@/lib/consent.core";
@@ -159,6 +160,7 @@ function Home({ v, token }: { v: View; token: string }) {
     {/* Decision 366: an electrical fixes quote waiting on the owner (approve / pay / pick a time) links to its screen. */}
     <FixesHomeCard token={token} />
     <Hero v={v} level={v.hero.level} headline={v.hero.headline} />
+    <OwnerRunTime token={token} />
     <OwnerReadyCheckTimes token={token} />
     {/* Decision 137: the 30-day clock on the owner's job page while the install is being booked. */}
     {a.button?.screen === "book" && <ThirtyDayClock />}
@@ -1073,6 +1075,7 @@ function SpotSavedHome({ v, token }: { v: View; token: string }) {
         <p className="mt-2 text-sm text-estimate-navy/80">{sp.shortAddress ? `${sp.shortAddress} · ` : ""}{L.stepLabel}</p>
       </div>
     </section>
+    <OwnerRunTime token={token} />
     <OwnerReadyCheckTimes token={token} />
     {L.showWaitingBox && <p className="rounded-[18px] bg-estimate-heads-up p-4 text-sm"><strong>{SPOT_REGISTERED}</strong> {SPOT_RELEASE_LINE}</p>}
     {card === "todo" && <section data-testid="gate-a-todo" className="rounded-[22px] border-2 border-estimate-green bg-card p-5">

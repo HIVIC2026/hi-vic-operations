@@ -14,11 +14,24 @@ export const RUN_OFFERED_EVENT = "run_offered";
 export const RUN_HOME_REMOVED_EVENT = "run_home_removed";
 export const RUN_DECLINED_EVENT = "run_declined";
 export const RUN_EXPIRED_EVENT = "run_expired";
-/** The installer answered the run (Task 7/8 add `run_mode_chosen`): no 24-hour expiry after one of these. */
-export const RUN_REPLY_EVENTS: readonly string[] = ["run_mode_chosen"];
+/** The installer picked how the run is booked (Task 7: `{mode: "portal"}`): no 24-hour expiry after one of these. */
+export const RUN_MODE_CHOSEN_EVENT = "run_mode_chosen";
+export const RUN_REPLY_EVENTS: readonly string[] = [RUN_MODE_CHOSEN_EVENT];
+// Portal books (Task 7, run-portal.core): per home, keyed by run_id + seq.
+//   run_slot_proposed {run_id, batch_id, business_id, seq, day, start, end, by}  — the home's 1-hour arrival window
+//   run_slot_confirmed {run_id, seq, day, start, end}  — the owner confirmed (then booked through bookAgreedTime)
+//   run_slot_confirm_failed {run_id, seq, reason}      — the booking was refused; the window is waiting again
+//   run_slot_released {run_id, batch_id, seq, why}     — none suit / no confirm in 24 h: back in the pool (carried pass)
+//   run_time_texted / run_time_reminded {run_id, seq, status} — the owner's time text / 12-hour reminder went
+export const RUN_SLOT_PROPOSED_EVENT = "run_slot_proposed";
+export const RUN_SLOT_CONFIRMED_EVENT = "run_slot_confirmed";
+export const RUN_SLOT_CONFIRM_FAILED_EVENT = "run_slot_confirm_failed";
+export const RUN_SLOT_RELEASED_EVENT = "run_slot_released";
+export const RUN_TIME_TEXTED_EVENT = "run_time_texted";
+export const RUN_TIME_REMINDED_EVENT = "run_time_reminded";
+export const RUN_SLOT_EVENTS = [RUN_SLOT_PROPOSED_EVENT, RUN_SLOT_CONFIRMED_EVENT, RUN_SLOT_CONFIRM_FAILED_EVENT, RUN_SLOT_RELEASED_EVENT, RUN_TIME_TEXTED_EVENT, RUN_TIME_REMINDED_EVENT] as const;
 /** A home leaves the run and its owner's pass is free again (batch candidate, carried pass). */
-export const RUN_RELEASE_EVENTS = [RUN_HOME_REMOVED_EVENT, RUN_DECLINED_EVENT, RUN_EXPIRED_EVENT] as const;
-export const RUN_EVENTS = [RUN_OFFERED_EVENT, ...RUN_RELEASE_EVENTS, ...RUN_REPLY_EVENTS] as const;
+export const RUN_RELEASE_EVENTS = [RUN_HOME_REMOVED_EVENT, RUN_DECLINED_EVENT, RUN_EXPIRED_EVENT, RUN_SLOT_RELEASED_EVENT] as const;
 
 /** New installer text: its own SMS switch, partner audience, off until Jo switches it on. */
 export const RUN_OFFERED_SMS_TYPE = "run_offered" as const;
@@ -31,6 +44,7 @@ export const runOfferedSmsKey = (runId: string, attempt: number) => `run-offered
 export const RUN_OFFERED_TEXT_EVENT = "run_offered_text";
 /** Attempt statuses meaning the text went (or may have gone) — never sent again. */
 export const RUN_TEXT_WENT = ["sent", "already", "sent_unknown"] as const;
+export const RUN_EVENTS = [RUN_OFFERED_EVENT, ...RUN_RELEASE_EVENTS, ...RUN_REPLY_EVENTS, RUN_OFFERED_TEXT_EVENT, ...RUN_SLOT_EVENTS] as const;
 export const runReleaseKey = (type: (typeof RUN_RELEASE_EVENTS)[number], runId: string, jobId: string) => `${type}:v1:${runId}:${jobId}`;
 /** The installer's run page (signed in, business-scoped). */
 export const runLink = (base: string, runId: string) => `${base.replace(/\/+$/, "")}/field/run/${runId}`;
@@ -107,16 +121,25 @@ export function runState(runId: string, events: readonly RunEventRow[]): RunStat
   const listed = Array.isArray(d.job_ids) ? d.job_ids.filter((x): x is string => typeof x === "string") : [];
   const offeredJobs = new Set(offers.map((e) => e.job_id));
   const jobIds = [...listed.filter((j) => offeredJobs.has(j)), ...[...offeredJobs].filter((j) => !listed.includes(j)).sort()];
+  // Out of the run: removed by the installer, or the owner's window released (none suit / no confirm).
   const removed = new Set(mine.filter((e) => e.event_type === RUN_HOME_REMOVED_EVENT).map((e) => e.job_id));
-  const memberIds = jobIds.filter((j) => !removed.has(j));
+  const slotReleased = new Set(mine.filter((e) => e.event_type === RUN_SLOT_RELEASED_EVENT).map((e) => e.job_id));
+  const memberIds = jobIds.filter((j) => !removed.has(j) && !slotReleased.has(j));
   const has = (t: string) => mine.some((e) => e.event_type === t);
   const status: RunStatus = has(RUN_DECLINED_EVENT) ? "declined" : has(RUN_EXPIRED_EVENT) ? "expired" : !memberIds.length ? "ended"
     : mine.some((e) => RUN_REPLY_EVENTS.includes(e.event_type)) ? "answered" : "offered";
   const offeredAt = offers[0]!.created_at;
-  const expiresAt = typeof d.expires_at === "string" ? d.expires_at : new Date(Date.parse(offeredAt) + RUN_REPLY_HOURS * 3_600_000).toISOString();
+  // The installer's 24 hours count from the first text that actually went (sent / already / sent_unknown). Attempts recorded
+  // but none went → no clock yet (Jo's tap re-texts the run). No attempt recorded at all → from the offer (stored expiry).
+  const attempts = mine.filter((e) => e.event_type === RUN_OFFERED_TEXT_EVENT).sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const firstWent = attempts.find((e) => (RUN_TEXT_WENT as readonly string[]).includes(String((e.details as { status?: unknown } | null)?.status)));
+  const stored = typeof d.expires_at === "string" ? d.expires_at : new Date(Date.parse(offeredAt) + RUN_REPLY_HOURS * 3_600_000).toISOString();
+  const expiresAt = firstWent ? new Date(Date.parse(firstWent.created_at) + RUN_REPLY_HOURS * 3_600_000).toISOString() : attempts.length ? NO_EXPIRY : stored;
   return { runId, batchId: String(d.batch_id ?? ""), businessId: String(d.business_id ?? ""), offeredAt, expiresAt, jobIds, memberIds, removedIds: jobIds.filter((j) => removed.has(j)), status };
 }
 
+/** expiresAt while no attempt of the installer text has gone: never due. */
+export const NO_EXPIRY = "9999-12-31T00:00:00.000Z";
 /** Still waiting for the installer's reply and 24 hours have passed. */
 export const runExpiryDue = (s: RunState, nowIso: string): boolean => s.status === "offered" && Date.parse(nowIso) >= Date.parse(s.expiresAt);
 

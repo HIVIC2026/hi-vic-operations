@@ -153,6 +153,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['runOffers'] = "failed";
         }
         try {
+          // A48 batch 2 part 2, Portal books: each owner's window text (held overnight until 7am), the 12-hour reminder once,
+          // and no confirm 24 hours after the text → back in the pool. A home closed meanwhile is skipped and never texted.
+          const { sweepRunSlots } = await import("@/lib/installer-run.server");
+          (out as Record<string, unknown>)['runSlots'] = await timed("sweepRunSlots", () => sweepRunSlots());
+        } catch (e) {
+          console.error("allocation tick: run window sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['runSlots'] = "failed";
+        }
+        try {
           // Plan 2026-10-28 (full address required): website/email enquiries with no street → ask the owner (email + text)
           // to pick their full address, then ONE reminder 24h later. Off until address_request_live_at is set.
           const { sweepAddressRequests } = await import("@/lib/address-request.server");

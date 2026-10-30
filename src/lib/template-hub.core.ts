@@ -54,6 +54,7 @@ import { composeReply } from "./email-reply.core";
 import { brandSmsBody } from "./sms.core";
 import { quickTapsReminderText, quickTapsText } from "./area-batch.core";
 import { runOfferedText } from "./run-route.core";
+import { runTimeReminderText, runTimeText, windowWords } from "./run-portal.core";
 import { blastMessage } from "./save-spot-reminder-blast.core";
 import { threeQuestionsSms } from "./three-questions-reminder.core";
 import {
@@ -462,6 +463,14 @@ const OWNER: TemplateEntry[] = [
   ENTRY({ id: "owner:sms-quick_taps_reminder", section: "owner", step: "ready_check", kind: "text", code: "", name: "Confirm a few quick details — day-2 reminder (text)", when: "Day 2 of the batch, if the owner hasn't answered", who: "Owner", approvalNote: "Jo 30 Oct 2026 (A48 batch 2)", gate: { kind: "text", smsType: "quick_taps_reminder" },
     source: { builder: "src/lib/area-batch.core.ts", fn: "quickTapsReminderText", sender: "src/lib/area-batch.server.ts" },
     render: () => text(quickTapsReminderText("Helen Sample", `${JOB}?screen=taps`)) }),
+  // A48 batch 2 part 2 (Jo 30 Oct 2026), Portal books: the installer picked the run's day → each owner's 1-hour window to
+  // confirm, plus one reminder at 12 hours.
+  ENTRY({ id: "owner:sms-run_time", section: "owner", step: "ready_check", kind: "text", code: "", name: "Your free Ready Check time — confirm (text)", when: "The installer picks the run's day (Portal books)", who: "Owner", approvalNote: "Jo 30 Oct 2026 (A48 batch 2 part 2 spec)", gate: { kind: "text", smsType: "run_time" },
+    source: { builder: "src/lib/run-portal.core.ts", fn: "runTimeText", sender: "src/lib/installer-run.server.ts" },
+    render: () => text(runTimeText({ name: "Helen Sample", day: "Tuesday 27 October", time: windowWords("09:00", "10:00"), installer: "Sample Insulation", link: JOB })) }),
+  ENTRY({ id: "owner:sms-run_time_reminder", section: "owner", step: "ready_check", kind: "text", code: "", name: "Please confirm your free Ready Check — 12-hour reminder (text)", when: "12 hours after the time text, if the owner hasn't confirmed", who: "Owner", approvalNote: "Jo 30 Oct 2026 (A48 batch 2 part 2 spec)", gate: { kind: "text", smsType: "run_time_reminder" },
+    source: { builder: "src/lib/run-portal.core.ts", fn: "runTimeReminderText", sender: "src/lib/installer-run.server.ts" },
+    render: () => text(runTimeReminderText({ name: "Helen Sample", day: "Tuesday 27 October", time: windowWords("09:00", "10:00"), link: JOB })) }),
 ];
 
 /* ---------------------------------------------------------------- INSTALLER */
