@@ -211,3 +211,22 @@ test("owner-facing skips never report success and return the exact plain message
     } finally { console.error = original; }
   }
 });
+test("UI guard shows skipped messages before any success state", () => {
+  for (const skipped of ["in_house", "in_house_read_failed"] as const) {
+    const result = inHouse.inHouseSkippedAction(skipped);
+    let success = false; let message = "";
+    try { inHouse.assertInHouseActionSucceeded(result); success = true; } catch (e) { message = (e as Error).message; }
+    expect(success).toBe(false); expect(message).toBe(result.message);
+  }
+  expect(() => inHouse.assertInHouseActionSucceeded({ ok: true })).not.toThrow();
+});
+test("scoped held lookup chunks candidate ids at 200 and reads the last chunk", async () => {
+  const f = fixture();
+  f.data.held_assignments = Array.from({ length: 1001 }, (_, i) => ({ job_id: `j${i}`, business_id: "b", role: "installer", active: true, businesses: { in_house: i === 1000 } }));
+  const state = await f.load("in-house-suppression.server").readInHouseDispatchState(f.data.held_assignments.map(r => r.job_id));
+  expect(state.held.has("j1000")).toBe(true);
+  for (const call of f.calls) {
+    const filter = call.filters.find(([key]) => key === "in");
+    expect((filter?.[2] as unknown[]).length).toBeLessThanOrEqual(200);
+  }
+});
