@@ -29,6 +29,9 @@ test("pending in-house migration backfills only the old list, defaults billing a
     expect(events[0]?.details.new.rectification_billed_by).toBe("partner");
     await db.exec("SELECT save_in_house_partner('00000000-0000-0000-0000-000000000001',false,'partner','00000000-0000-0000-0000-000000000002')");
     expect((await db.query("SELECT * FROM workflow_events")).rows).toHaveLength(1);
+    await db.exec("GRANT USAGE ON SCHEMA public TO authenticated; SET ROLE authenticated");
+    await expect(db.exec("SELECT save_in_house_partner('00000000-0000-0000-0000-000000000001',true,'partner','00000000-0000-0000-0000-000000000002')")).rejects.toThrow("permission denied");
+    await db.exec("RESET ROLE");
     await expect(db.exec("UPDATE businesses SET rectification_billed_by='other'")).rejects.toThrow();
     await db.exec(readFileSync("docs/pending-migrations/2026-10-30_in_house_partner.undo.sql", "utf8"));
     expect((await db.query("SELECT column_name FROM information_schema.columns WHERE table_name='businesses' AND column_name IN ('in_house','in_house_set_at','in_house_set_by','rectification_billed_by')")).rows).toEqual([]);
