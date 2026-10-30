@@ -1,3 +1,4 @@
+import { inHouseDispatchSkip } from "./in-house-suppression.server";
 // Batch 2, item 1 (Jo 29 Oct 2026): texts held by the 8pm–7am quiet hours go at 7am — skipped if no longer true.
 // The 15-minute tick (allocation-tick, next to sweepJobOfferTexts) reads last-24h quiet-hours holds whose real key is
 // unclaimed (`quietResendDue`), re-checks each type's own "still true" fact (`STILL_TRUE`, reusing the senders' existing
@@ -201,6 +202,7 @@ export async function sweepQuietHeldTexts(nowIso: string = new Date().toISOStrin
   const { sendRealSms } = await import("./sms.server");
   for (const row of due) {
     try {
+      if (row.job_id && ["deposit_release", "visit_new_times", "install_no_access", "install_clearance", "fixes_times_link", "ready_check_days_suggested"].includes(row.message_type) && await inHouseDispatchSkip(row.job_id)) { out.skipped++; continue; }
       if (!(await STILL_TRUE[row.message_type as QuietResendType](row))) { out.skipped++; continue; }
       // Stored body is already branded; brandSmsBody does not add the prefix twice.
       const r = await sendRealSms({

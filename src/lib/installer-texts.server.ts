@@ -1,3 +1,4 @@
+import { inHouseDispatchSkip } from "./in-house-suppression.server";
 // Three approved one-off installer texts (Jo, 24 Oct 2026; decisions 79, 82, 99; built per decision 193), same shape as
 // decision 186 (`install-clearance.server.ts`): ONE `installer_text_prepared` workflow event per text + key is recorded
 // BEFORE anything is sent; TEST jobs / TEST partners → test-send only; real partners → the ONE real SMS sender
@@ -50,6 +51,8 @@ async function deliver(p: { type: "ready_check_days_suggested" | "ready_check_bo
 
 /** Decision 79: the owner suggested other Ready Check days → text the installer once per suggestion event. */
 export async function textInstallerOwnerSuggestedDays(jobId: string, triggerEventId: string, suggestedAt: string): Promise<string> {
+  const skipped = await inHouseDispatchSkip(jobId);
+  if (skipped) return skipped;
   const ctx = await jobAndInstaller(jobId);
   if (!ctx) return "skipped";
   if (ctx.job.channel !== "hivic_sourced") return "not an our-lead job";
@@ -68,6 +71,8 @@ export async function textInstallerOwnerSuggestedDays(jobId: string, triggerEven
  *  electrician business that held the cancelled booking (read BEFORE it was released; no link, the job is no longer theirs).
  *  Recorded as `installer_text_prepared` before any send; TEST job / TEST partner → test-send; real → the one real sender. */
 export async function textTradeOwnerChangedVisit(p: { jobId: string; kind: import("./installer-texts.core").OwnerChangedVisitKind; triggerEventId: string; changedAt: string; wasIso: string | null; electricianBusinessId?: string | null }): Promise<string> {
+  const skipped = await inHouseDispatchSkip(p.jobId);
+  if (skipped) return skipped;
   const { OWNER_CHANGED_VISIT_SMS_TYPE, ownerChangedVisitKey, ownerChangedVisitText } = await import("./installer-texts.core");
   let ctx: { job: JobRow; businessId: string; biz: BizRow | null } | null;
   if (p.kind === "assessment") {
@@ -168,7 +173,7 @@ export async function sweepInstallerTexts(now = new Date()): Promise<{ installTo
     admin.from("workflow_events").select("id, job_id, created_at").eq("event_type", "ready_check_days_suggested").gte("created_at", since),
     admin.from("bookings").select("id, job_id, scheduled_start, created_at").eq("kind", "ready_check").eq("status", "confirmed").gte("created_at", since),
   ]);
-  const handled = (r: string) => !["not due", "skipped", "already handled", "not an our-lead job", "no longer the installer's move", "that time is no longer the booked Ready Check"].includes(r);
+  const handled = (r: string) => !["in_house", "in_house_read_failed", "not due", "skipped", "already handled", "not an our-lead job", "no longer the installer's move", "that time is no longer the booked Ready Check"].includes(r);
   for (const b of installs ?? []) {
     try { if (handled(await textInstallerInstallTomorrow(b.job_id, b, now))) out.installTomorrow++; } catch (e) { console.error("install tomorrow text failed", b.job_id, (e as Error).message); }
   }

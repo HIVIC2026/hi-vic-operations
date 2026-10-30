@@ -1,3 +1,4 @@
+import { inHouseDispatchSkip } from "./in-house-suppression.server";
 // Decision 170 (Jo, 24 Oct 2026): owner notice when an unpaid provisional install day is released after 48h
 // (payments.server sweepProvisionalBookings). Records ONE `install_booking_released_owner_notice` event per released
 // booking before sending, so a retried tick never texts or emails twice. TEST jobs → test-send only; real owners → the
@@ -20,6 +21,8 @@ export type DepositReleaseNoticeInput = {
 };
 
 export async function sendDepositReleaseNotice(p: DepositReleaseNoticeInput): Promise<string> {
+  const skipped = await inHouseDispatchSkip(p.jobId);
+  if (skipped) return skipped;
   const { data: prior } = await admin.from("workflow_events").select("id").eq("job_id", p.jobId).eq("event_type", DEPOSIT_RELEASE_NOTICE_EVENT).contains("details", { booking_id: p.bookingId }).limit(1).maybeSingle();
   if (prior) return "already handled";
   await logEvent(p.jobId, null, DEPOSIT_RELEASE_NOTICE_EVENT, "Owner told the install day was released (deposit not received within 48 hours): text + email prepared", { booking_id: p.bookingId, was: p.wasStart }, { internal: true });
