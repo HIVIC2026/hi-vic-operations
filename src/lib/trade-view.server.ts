@@ -36,11 +36,7 @@ export async function tradeContext(userId: string) {
   ]);
   const m = (mem ?? [])[0];
   if (!m) return null;
-  // PostgREST always returns the embed (the row, or null when there is none). A reader that leaves the key out entirely
-  // (older in-memory test doubles) gets the original separate read — same row either way.
-  const embedded = (m as unknown as { businesses?: Biz | null }).businesses;
-  const b = embedded !== undefined ? embedded
-    : (await admin.from("businesses").select(BIZ_COLS).eq("id", m.business_id).single()).data as Biz | null;
+  const b = (m as unknown as { businesses: Biz | null }).businesses;
   if (!b) return null;
   const r = new Set((roles ?? []).map((x) => x.role as string));
   const kind: TradeKind = r.has("installer") && !r.has("electrician") ? "installer" : b.business_type === "eec_installer" && !r.has("electrician") ? "installer" : "electrician";

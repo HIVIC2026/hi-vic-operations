@@ -5,7 +5,7 @@ import { expect, mock, test } from "bun:test";
 let insertError: { code?: string; message: string } | null = null;
 let inserts = 0;
 const result = (table: string) => {
-  if (table === "business_members") return { data: [{ business_id: "b1", member_role: "business_admin" }], error: null };
+  if (table === "business_members") return { data: [{ business_id: "b1", member_role: "business_admin", businesses: { id: "b1", name: "Test Biz", business_type: "eec_installer" } }], error: null }; // business embedded, as PostgREST returns it
   if (table === "user_roles") return { data: [{ role: "installer" }], error: null };
   if (table === "profiles") return { data: { full_name: "Boss Test" }, error: null };
   if (table === "businesses") return { data: { id: "b1", name: "Test Biz", business_type: "eec_installer" }, error: null };

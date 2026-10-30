@@ -175,12 +175,14 @@ describe("tradeHome speed (Task 5)", () => {
     expect(r.rounds).toBeLessThanOrEqual(3);
   });
 
-  test("owner of an in-house installer business (pays its own electricians): at most 5 sequential rounds", async () => {
+  // The brief's target of at most 2 rounds is deferred: it needs a read-only database function (context, offers and
+  // assignments in one call), held until the live timing shows whether it is needed.
+  test("owner of an in-house installer business (pays its own electricians): at most 4 sequential rounds", async () => {
     failWhen = null; seed({ inHouse: true });
     const r = await measured(U_BOSS);
     expect(r.out.month).not.toBeNull();
-    if (r.rounds > 5) console.log(`owner (in-house) rounds = ${r.rounds}\n${roundsOf(r.log)}`);
-    expect(r.rounds).toBeLessThanOrEqual(5);
+    if (r.rounds > 4) console.log(`owner (in-house) rounds = ${r.rounds}\n${roundsOf(r.log)}`);
+    expect(r.rounds).toBeLessThanOrEqual(4);
   });
 
   test("electrician owner: at most 3 sequential rounds", async () => {

@@ -182,6 +182,8 @@ function seed() {
     { user_id: "u-kim", business_id: "biz-1", member_role: "staff", active: true },
     { user_id: "u-tess", business_id: "biz-t", member_role: "business_admin", active: true },
   ];
+  // PostgREST embed read by tradeContext (`business_members → businesses(...)`), kept live against the businesses rows.
+  for (const m of tables["business_members"]!) Object.defineProperty(m, "businesses", { enumerable: true, configurable: true, get: () => (tables["businesses"] ?? []).find((b) => b["id"] === m["business_id"]) ?? null });
   tables["profiles"] = [{ id: "u-sam", full_name: "Sam Smith" }, { id: "u-kim", full_name: "Kim Lee" }, { id: "u-tess", full_name: "Tess Test" }];
 }
 const events = (type?: string, jobId?: string) => (tables["workflow_events"] ?? []).filter((e) => (!type || e["event_type"] === type) && (!jobId || e["job_id"] === jobId));
