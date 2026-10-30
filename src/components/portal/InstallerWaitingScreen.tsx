@@ -12,7 +12,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { ChooseInstallerPanel } from "@/components/portal/choose-installer";
+import { AreaBatchSuggestions, ChooseInstallerPanel } from "@/components/portal/choose-installer";
 import { ColumnHead, Pager, type ColumnFilterValue } from "@/components/portal/office-lists";
 import { Pill, PillTabs, listCard } from "@/components/portal/kit";
 import { getInstallerWaitingList } from "@/lib/installer-waiting.functions";
@@ -140,6 +140,7 @@ export function InstallerWaitingScreen() {
           <button type="button" className="font-semibold text-hiv-blue underline" onClick={() => setIncludeTest(!includeTest)}>{includeTest ? "Hide TEST jobs" : "Include TEST jobs"}</button>
         </div>
       </div>
+      <AreaBatchSuggestions includeTest={includeTest} />
       <PillTabs<WaitingTab> label="Saved spots" value={tab} onChange={pickTab} options={[
         { value: "to_release", label: "To release", count: d ? d.rows.length - (waitingOwner ?? 0) : null },
         { value: "waiting_owner", label: "Waiting for owner", count: waitingOwner ?? null },

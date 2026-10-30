@@ -88,7 +88,8 @@ describe("every entry renders EXACTLY from the live code with TEST sample data",
         expect({ id: e.id, subject: p.subject.length > 0, doc: /^<!doctype html/i.test(p.html.trimStart()) }).toEqual({ id: e.id, subject: true, doc: true });
         expect(p.html).not.toContain("TEST — only sent to Jo"); // shown as real recipients see it
       }
-      if (p.kind === "text") expect(p.body.startsWith("Home Insulation Victoria")).toBe(true);
+      // Brand line first, or (A48 batch 2 quick taps, wording approved by Jo 29–30 Oct 2026) signed off " - Home Insulation Victoria".
+      if (p.kind === "text") expect({ id: e.id, branded: p.body.startsWith("Home Insulation Victoria") || / - Home Insulation Victoria$/.test(p.body) }).toEqual({ id: e.id, branded: true });
       if (p.kind === "texts") for (const v of p.variants) expect({ id: e.id, v: v.label, ok: v.body.startsWith("Home Insulation Victoria") && v.body.length > 30 }).toEqual({ id: e.id, v: v.label, ok: true });
       if (p.kind === "questions") expect(p.groups.flatMap((g) => g.items).length).toBeGreaterThan(5);
     }

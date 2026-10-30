@@ -52,6 +52,7 @@ import { MITTI_INVITE_MESSAGE, renderMittiInviteEmail } from "./mitti-invite.cor
 import { officeEmailLayout, electricianInviteLayout } from "./office-email.core";
 import { composeReply } from "./email-reply.core";
 import { brandSmsBody } from "./sms.core";
+import { quickTapsReminderText, quickTapsText } from "./area-batch.core";
 import { blastMessage } from "./save-spot-reminder-blast.core";
 import { threeQuestionsSms } from "./three-questions-reminder.core";
 import {
@@ -453,6 +454,13 @@ const OWNER: TemplateEntry[] = [
   ENTRY({ id: "owner:sms-address_request_reminder", section: "owner", step: "enquiry", kind: "text", code: "", name: "We need your full address — reminder (text)", when: "With the 24h reminder email", who: "Owner", approvalNote: "Jo 28 Oct 2026 (full address required)", gate: { kind: "text", smsType: "address_request_reminder" },
     source: { builder: "src/lib/address-request.core.ts", fn: "addressRequestText", sender: "src/lib/address-request.server.ts" },
     render: () => text(addressRequestText(`${BASE}/my-address/TEST`, true)) }),
+  // A48 batch 2 (Jo 29–30 Oct 2026): Jo taps Send on an area batch → each owner gets the quick taps link (+ day-2 reminder).
+  ENTRY({ id: "owner:sms-quick_taps", section: "owner", step: "ready_check", kind: "text", code: "", name: "4 quick taps (text)", when: "Jo taps Send on a suggested batch (Jobs › Choose installer)", who: "Owner", approvalNote: "Jo 29–30 Oct 2026 (A48 batch 2 spec)", gate: { kind: "text", smsType: "quick_taps" },
+    source: { builder: "src/lib/area-batch.core.ts", fn: "quickTapsText", sender: "src/lib/area-batch.server.ts" },
+    render: () => text(quickTapsText("Helen Sample", `${JOB}?screen=taps`)) }),
+  ENTRY({ id: "owner:sms-quick_taps_reminder", section: "owner", step: "ready_check", kind: "text", code: "", name: "4 quick taps — day-2 reminder (text)", when: "Day 2 of the batch, if the owner hasn't answered", who: "Owner", approvalNote: "Jo 29–30 Oct 2026 (A48 batch 2 spec)", gate: { kind: "text", smsType: "quick_taps_reminder" },
+    source: { builder: "src/lib/area-batch.core.ts", fn: "quickTapsReminderText", sender: "src/lib/area-batch.server.ts" },
+    render: () => text(quickTapsReminderText("Helen Sample", `${JOB}?screen=taps`)) }),
 ];
 
 /* ---------------------------------------------------------------- INSTALLER */

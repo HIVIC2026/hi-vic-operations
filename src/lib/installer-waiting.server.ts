@@ -65,9 +65,9 @@ async function partnerFacts(testBusinessIds?: string[]): Promise<WaitingPartner[
 
 /** Every installer business with the facts the Ready Check offer rule reads — the same loader the pop-up's candidate
  *  list uses (readycheck-booking.server `installerOfferFacts`), so "Installer ✓" matches what the pop-up can release. */
-async function installerFacts(testBusinessIds?: string[]): Promise<WaitingInstaller[]> {
+export async function installerFacts(testBusinessIds?: string[]): Promise<(WaitingInstaller & { covers_all_victoria: boolean | null })[]> {
   const bizs = await all("installers", (a, b) => {
-    const q = admin.from("businesses").select("id, name, is_active, onboarding_status, accepting_new_jobs, receives_hivic_leads, coverage_verified_at, service_postcodes, free_measureups_for_hivic_quote_leads, onboarding_notes").or("business_type.eq.eec_installer,capabilities.cs.{installer}");
+    const q = admin.from("businesses").select("id, name, is_active, onboarding_status, accepting_new_jobs, receives_hivic_leads, coverage_verified_at, service_postcodes, free_measureups_for_hivic_quote_leads, onboarding_notes, covers_all_victoria").or("business_type.eq.eec_installer,capabilities.cs.{installer}");
     return (testBusinessIds ? q.in("id", testBusinessIds.length ? testBusinessIds : ["00000000-0000-0000-0000-000000000000"]) : q).range(a, b);
   });
   const ids = bizs.map((b) => ({ ...(b as object), id: String(b["id"]) }));
@@ -80,6 +80,7 @@ async function installerFacts(testBusinessIds?: string[]): Promise<WaitingInstal
       coverage_verified_at: s(r["coverage_verified_at"]), service_postcodes: (r["service_postcodes"] ?? null) as string[] | null,
       free_measureups_for_hivic_quote_leads: (r["free_measureups_for_hivic_quote_leads"] ?? null) as boolean | null, onboarding_notes: s(r["onboarding_notes"]),
       credentialsOk: facts.credentialsOk(r as never), fullCertifiedInstallers: facts.fullCertified(r.id),
+      covers_all_victoria: (r["covers_all_victoria"] ?? null) as boolean | null,
     };
   });
 }

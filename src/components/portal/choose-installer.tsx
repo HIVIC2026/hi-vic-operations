@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Section } from "@/components/portal/panels";
 import { listChooseTrades } from "@/lib/offer-dispatch.functions";
 import { getSpotRelease, releaseSpotFn } from "@/lib/spot-release.functions";
-import { btnClass } from "@/components/portal/kit";
+import { getAreaBatchSuggestions, sendAreaBatchFn } from "@/lib/area-batch.functions";
+import { Pill, btnClass } from "@/components/portal/kit";
 import { CHOOSE_LOAD_FAILED, choosePanelState } from "@/lib/installer-waiting-columns.core";
 
 const money = (n: number) => `$${n.toLocaleString("en-AU", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`;
@@ -89,5 +90,68 @@ export function ChooseInstallerPanel({ jobId, reportLoad = false }: { jobId: str
         </div>
       </Section>
     </div>
+  );
+}
+
+/** A48 batch 2 (Jo 29–30 Oct 2026): suggested batches of nearby homes that look likely to qualify. Jo picks an installer
+ *  who covers every home and taps Send; each owner gets the 4 quick taps text. Nothing is ever sent automatically. */
+export function AreaBatchSuggestions({ includeTest = false }: { includeTest?: boolean }) {
+  const qc = useQueryClient();
+  const load = useServerFn(getAreaBatchSuggestions);
+  const send = useServerFn(sendAreaBatchFn);
+  const q = useQuery({ queryKey: ["area-batches", includeTest], queryFn: () => load({ data: { includeTest } }), staleTime: 30_000 });
+  const [picked, setPicked] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  const d = q.data;
+  const go = async (key: string, jobIds: string[], businessId: string, name: string) => {
+    if (busy) return;
+    setBusy(key);
+    try {
+      const r = await send({ data: { jobIds, businessId } });
+      toast.success(`Sent to ${r.homes} ${r.homes === 1 ? "owner" : "owners"} for ${name}${r.held ? ` · ${r.held} text${r.held === 1 ? "" : "s"} held (see the job)` : ""}`);
+      void qc.invalidateQueries({ queryKey: ["area-batches"] });
+      void qc.invalidateQueries({ queryKey: ["installer-waiting"] });
+    } catch (e) { toast.error(e instanceof Error ? e.message : "That didn't work"); }
+    finally { setBusy(null); }
+  };
+  return (
+    <section aria-label="Suggested batches" className="mb-4 rounded-[18px] border border-line bg-paper p-4">
+      <h2 className="font-display text-[17px] font-bold text-ink">Suggested batches</h2>
+      <p className="mt-1 text-[13px] text-sub">Nearby homes that look likely to qualify. Pick an installer and tap Send — each owner gets the 4 quick taps text.</p>
+      {q.isError ? (
+        <p role="alert" className="mt-3 text-sm text-danger">Couldn't load the batches. {(q.error as Error).message} <button type="button" className="font-semibold underline" onClick={() => void q.refetch()}>Try again</button></p>
+      ) : !d ? <p className="mt-3 text-sm text-sub">Loading…</p> : d.batches.length === 0 ? (
+        <p className="mt-3 text-sm text-sub">No batch ready yet.{d.unlocated ? ` Still finding the location of ${d.unlocated} ${d.unlocated === 1 ? "home" : "homes"}.` : ""}</p>
+      ) : (
+        <ul className="mt-3 space-y-3">
+          {d.batches.map((b) => {
+            const key = b.homes[0]?.jobId ?? "";
+            const choice = picked[key] ?? (b.installers.length === 1 ? b.installers[0]!.id : "");
+            const chosen = b.installers.find((i) => i.id === choice);
+            return (
+              <li key={key} className="rounded-[14px] border border-line p-3" data-batch={key}>
+                <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-ink">
+                  {b.homes.length} {b.homes.length === 1 ? "home" : "homes"} · within {b.spanKm} km
+                  {b.isTest && <Pill tone="amber">TEST</Pill>}
+                </p>
+                <p className="text-[13px] text-sub">{b.suburbs.join(", ")}</p>
+                <ul className="mt-2 text-[13px] text-sub">
+                  {b.homes.map((h) => <li key={h.jobId}>{h.jobNumber} · {h.ownerName || "Owner"} · {h.suburb || h.postcode}</li>)}
+                </ul>
+                {b.installers.length === 0 ? <p className="mt-2 text-[13px] text-rose">No installer covers every home in this batch.</p> : (
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <select aria-label="Installer" className="h-10 min-w-0 flex-1 rounded-[10px] border border-line bg-paper px-2 text-sm" value={choice} onChange={(e) => setPicked({ ...picked, [key]: e.target.value })}>
+                      {b.installers.length > 1 && <option value="">Pick an installer</option>}
+                      {b.installers.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+                    </select>
+                    <button type="button" className={btnClass("primary")} disabled={!chosen || !!busy} onClick={() => chosen && void go(key, b.homes.map((h) => h.jobId), chosen.id, chosen.name)}>{busy === key ? "Sending…" : "Send"}</button>
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }

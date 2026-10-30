@@ -77,6 +77,18 @@ describe("suggestBatches", () => {
     expect(ids.length).toBe(20);
   });
   test("no homes, no batches", () => expect(suggestBatches([], NOW)).toEqual([]));
+  test("one home that has waited 14+ days → exactly one batch of 1", () => {
+    const r = suggestBatches([mk("solo", 0, 0, 20)], NOW);
+    expect(r.length).toBe(1);
+    expect(r[0]!.map((h) => h.jobId)).toEqual(["solo"]);
+  });
+  test("a home with an unreadable spot-saved date is never put in a small batch (and nothing throws)", () => {
+    const bad = { ...mk("bad", 0, 0, 0), spotSavedAt: "not a date" };
+    expect(suggestBatches([bad], NOW)).toEqual([]);
+    const waited = Array.from({ length: 3 }, (_, i) => mk(`w${i}`, i * 0.5, 0, 20));
+    const ids = suggestBatches([...waited, { ...bad, lat: waited[1]!.lat }], NOW).flat().map((h) => h.jobId);
+    expect(ids).not.toContain("bad");
+  });
 });
 
 describe("excludedAreaName", () => {

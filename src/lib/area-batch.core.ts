@@ -1,5 +1,6 @@
 // Area batches (A48 batch 2). PURE: no I/O. Owner answers and the roof fact come in as plain values.
 import { distanceM } from "./geo.core";
+import { installerCanBeOffered, type WaitingInstaller } from "./installer-waiting-columns.core";
 
 const norm = (v: string | null | undefined) => (v ?? "").trim().toLowerCase();
 
@@ -61,3 +62,60 @@ export function suggestBatches(homes: BatchHome[], nowIso: string): BatchHome[][
 
 /** Garage, carport, car port or shed as a whole word, any case ("Shedding room" is not one). */
 export const excludedAreaName = (name: string): boolean => /\b(garage|car\s?port|shed)\b/i.test(name);
+
+// ---- Send (Task 2): events, keys, owner text, covering installers. PURE. ------------------------------------------------
+/** One `area_batch_sent` per job (append-only workflow_events), written before the owner's text. */
+export const AREA_BATCH_SENT_EVENT = "area_batch_sent";
+/** Written per job when its batch closes (Task 4). A sent batch with no close for that job is still open. */
+export const AREA_BATCH_CLOSED_EVENT = "area_batch_closed";
+export const AREA_BATCH_EVENTS = [AREA_BATCH_SENT_EVENT, AREA_BATCH_CLOSED_EVENT] as const;
+
+/** New owner texts: each has its own SMS switch, off until Jo switches it on. */
+export const QUICK_TAPS_SMS_TYPE = "quick_taps" as const;
+export const QUICK_TAPS_REMINDER_SMS_TYPE = "quick_taps_reminder" as const;
+
+/** The owner's own My job link, on the quick taps screen. */
+export const quickTapsLink = (myJobLink: string) => `${myJobLink}?screen=taps`;
+const hiName = (fullName: string | null | undefined) => (fullName ?? "").trim().split(/\s+/)[0] || "there";
+/** Jo approved 29–30 Oct 2026 (spec part 1, owner wording). Verbatim. */
+export const quickTapsText = (fullName: string | null | undefined, link: string) =>
+  `Hi ${hiName(fullName)}, 4 quick taps before we can book your free Ready Check: ${link} - Home Insulation Victoria`;
+/** Day-2 reminder (sent by Task 4's sweep). Verbatim. */
+export const quickTapsReminderText = (fullName: string | null | undefined, link: string) =>
+  `Hi ${hiName(fullName)}, just a reminder - 4 quick taps so we can book your free Ready Check: ${link}`;
+
+/** Claim key of a job's n-th batch: the same job can never be claimed twice for the same slot. */
+export const areaBatchKey = (jobId: string, seq: number) => `area-batch:v1:${jobId}:${seq}`;
+export const quickTapsSmsKey = (batchId: string, jobId: string, step: "sent" | "reminder") => `quick-taps:v1:${batchId}:${jobId}:${step}`;
+
+export type AreaBatchEventRow = { event_type: string; created_at: string; details: unknown };
+const bid = (e: AreaBatchEventRow) => { const v = (e.details as { batch_id?: unknown } | null)?.batch_id; return typeof v === "string" && v ? v : null; };
+
+/** The job's open batch (sent, not closed for this job), or null. One batch per job at a time. */
+export function openBatchId(events: readonly AreaBatchEventRow[]): string | null {
+  const closed = new Set(events.filter((e) => e.event_type === AREA_BATCH_CLOSED_EVENT).map(bid).filter(Boolean));
+  const open = events.filter((e) => e.event_type === AREA_BATCH_SENT_EVENT && bid(e) && !closed.has(bid(e)))
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  return open.length ? bid(open[0]!) : null;
+}
+export const nextBatchSeq = (events: readonly AreaBatchEventRow[]) => events.filter((e) => e.event_type === AREA_BATCH_SENT_EVENT).length + 1;
+
+/** Widest gap between two homes in the batch, in km (1 decimal). */
+export function batchSpanKm(homes: readonly { lat: number; lng: number }[]): number {
+  let m = 0;
+  for (let i = 0; i < homes.length; i++) for (let j = i + 1; j < homes.length; j++) m = Math.max(m, distanceM(homes[i]!, homes[j]!));
+  return Math.round(m / 100) / 10;
+}
+
+export type BatchInstaller = WaitingInstaller & { covers_all_victoria?: boolean | null };
+const VIC_POSTCODE = /^[38]\d{3}$/;
+/** Installers who can be offered EVERY home: the Choose installer rule (`installerCanBeOffered`, verified postcode area),
+ *  or an office-verified "anywhere in Victoria" area for a Victorian postcode. */
+export function batchInstallers<I extends BatchInstaller>(installers: readonly I[], homes: readonly { postcode: string; isTest: boolean }[]): I[] {
+  if (!homes.length) return [];
+  return installers.filter((i) => homes.every((h) => {
+    const pc = (h.postcode ?? "").trim();
+    const all = i.covers_all_victoria === true && VIC_POSTCODE.test(pc);
+    return installerCanBeOffered(all ? { ...i, service_postcodes: [pc] } : i, { postcode: pc || null, isTest: h.isTest });
+  }));
+}
