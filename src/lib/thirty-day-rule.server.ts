@@ -130,8 +130,8 @@ export async function sweepInstallWindowRule(now = new Date()): Promise<{ checke
       if (c.expired) { if ((await recordInstallWindowExpiry(j.id, c.deadline, c.clearance.timingDate)) !== "already recorded") expired++; continue; }
       const step = dueInstallWindowReminder({ deadline: c.deadline, booked: c.booked, expired: c.expired, done: await doneSteps(j.id, c.deadline), now, quiet });
       if (!step) continue;
-      await sendInstallWindowReminder(j.id, step, c.deadline, now);
-      reminders++;
+      const result = await sendInstallWindowReminder(j.id, step, c.deadline, now);
+      if (result !== "in_house" && result !== "in_house_read_failed" && result !== "already handled" && result !== "skipped") reminders++;
     } catch (e) { console.error("30-day rule sweep failed", j.id, (e as Error).message); }
   }
   return { checked: (jobs ?? []).length, reminders, expired };

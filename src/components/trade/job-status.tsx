@@ -30,7 +30,7 @@ export function JobStatusCard({ jobId }: { jobId: string }) {
   const { data, error } = useTradeJobStatus(jobId);
   const m = useMutation({ mutationFn: () => ask({ data: { jobId } }), onSuccess: () => qc.invalidateQueries({ queryKey: ["trade-job-status", jobId] }) });
   if (error || !data) return null;
-  const chaseable = data.line.who === "Owner";
+  const chaseable = data.line.who === "Owner" && !data.chase.coordinationSuppressed;
   return (
     <section className="rounded-[18px] border border-line bg-paper p-4" data-job-status>
       <p className="text-xs font-bold uppercase tracking-wide text-sub">Where it's up to</p>
