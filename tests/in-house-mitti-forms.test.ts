@@ -17,7 +17,7 @@ let failCreate = false;
 let held = true;
 let quoteWrites = 0;
 let claimHeld = false;
-let realMitti = false, realWorkflow = false, failShare = false, failHeld = false, completeDuringSync = false;
+let realMitti = false, realWorkflow = false, failShare = false, failOwner = false, failHeld = false, completeDuringSync = false;
 let repeatDeadline: string | null = null;
 let auditResponse: any = null;
 const claims = new Set<string>();
@@ -58,6 +58,7 @@ const logEvent = async (job: string, actor: string | null, event_type: string, s
 };
 const call: mitti.MittiCall = async (method, path, body) => {
   calls.push({ method, path, body });
+  if (path.endsWith("/owner") && failOwner) throw new Error("set owner failed");
   if (path.endsWith("/share") && failShare) throw new Error("share failed");
   if (path === "/users/search") return {users:[{id:"mitti-user", email:EMAIL}]};
   if (method === "GET" && path.startsWith("/audits/")) return auditResponse ?? {audit_id:path.split("/")[2], template_id:path.endsWith("audit-1") ? PIESA : RECT, items:[]};
@@ -108,7 +109,7 @@ function load(name: string, cache: Record<string, any> = {}): any {
   return out;
 }
 beforeEach(() => {
-  held = true; failHeld=false; completeDuringSync=false; failCreate = false; claimHeld = false; realMitti=false; realWorkflow=false; failShare=false; repeatDeadline=null; auditResponse=null; claims.clear(); calls = []; quoteWrites = 0;
+  held = true; failHeld=false; completeDuringSync=false; failCreate = false; claimHeld = false; realMitti=false; realWorkflow=false; failShare=false; failOwner=false; repeatDeadline=null; auditResponse=null; claims.clear(); calls = []; quoteWrites = 0;
   tables = {
     jobs: [{ id: JOB, job_number: "HV-TEST", source: "base44", business_unit: "hivic", stage: "piesa_scheduled", property_id:"property", owner_id:"owner", channel:"hivic_sourced", deleted_at: null, install_deadline: "2026-11-29" }],
     assessments: [{ id: "assessment", job_id: JOB, external_mitti_id: null, mitti_raw_snapshot: [], no_rectification_confirmed: false }],
@@ -339,4 +340,13 @@ test("a previous PIESA round's still-open rectification form cannot complete the
  seedOfficial(); tables.jobs[0].stage="piesa_complete"; auditResponse=signedAudit();
  const result=await load("fixes-day.server").completeFixesForm(JOB,"audit-2",{call,today:"2026-11-03"});
  expect(result.status).toBe("waiting"); expect(tables.piesa_records.filter(r=>r.kind==="post_rectification")).toHaveLength(0);
+});
+
+test("set-owner failure retries both handover operations with no new audit",async()=>{
+ realMitti=true; failOwner=true; tables.bookings.push({job_id:JOB,kind:"assessment",status:"confirmed",scheduled_start:"2026-11-01T00:00:00Z"});
+ const s=load("piesa-autoform.server"); await s.onPiesaBooked(JOB,"visit",null,{call});
+ expect(tables.assessments[0].mitti_last_error).toContain("set owner failed");
+ failOwner=false; await s.onPiesaBooked(JOB,"visit",null,{call});
+ expect(calls.filter(c=>c.path==="/audits")).toHaveLength(2);
+ expect(calls.filter(c=>c.path==="/inspections/v1/inspections/audit-1/owner")).toHaveLength(2);
 });
