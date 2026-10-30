@@ -411,7 +411,7 @@ const s6: StepFn = async (ctx, r) => {
   const { data: el } = await admin.from("profiles").select("email, full_name").eq("id", ctx.electrician.id).single();
   if (!el?.email || !ws?.mitti_piesa_template_id) throw new StepFail("TEST PIESA simulator requires template and electrician email");
   const tpl = ws.mitti_piesa_template_id.trim();
-  const pass = sim.simulatedA3PassAnswers({ seed: `${ctx.runId}-a3`, inspectionDate: melbourneDate(0), capturedAt: now, electrician: el.full_name ?? "TEST Delta Electrician" });
+  const pass = sim.simulatedA3PassAnswers({ seed: `${ctx.runId}-a3`, inspectionDate: melbourneDate(0), capturedAt: now, electrician: el.full_name ?? "TEST Delta Electrician", jobNumber: ctx.jobNumber });
   const office = ["Portal Job Number", "Property Address", "Owner name"].map((label, i) => ({ item_id: `sim_a3_office_${i}`, label, type: "textsingle" }));
   const mitti = sim.simulatedMitti({ templates: { [tpl]: sim.templateOfItems([...office, ...pass.items]) }, users: [{ id: "sim-mitti-electrician", email: el.email }] });
   const ms = await import("./mitti.server");

@@ -22,7 +22,9 @@ export const simMediaId = (seed: string) => {
 
 /** The electrician's A3 PIESA, Complete, no repair work: mains, solar, wiring safe; no downlights or hazards; the
  *  switchboard and on-site photos geotagged at the property; declaration ticked and signed. */
-export function simulatedA3PassAnswers(o: { seed: string; inspectionDate: string; capturedAt: string; electrician: string }) {
+/** `jobNumber` / `address` (Jo 30 Oct 2026): the live A3's "Job Reference ID" and "Address including postcode", which the
+ *  real portal prefills. Left out when the caller fills the job number itself (the wrong-job identity test). */
+export function simulatedA3PassAnswers(o: { seed: string; inspectionDate: string; capturedAt: string; electrician: string; jobNumber?: string | null; address?: string | null }) {
   const m = (n: string) => simMediaId(`${o.seed}-${n}`);
   let seq = 0;
   const id = () => `sim_a3_${++seq}`;
@@ -30,6 +32,7 @@ export function simulatedA3PassAnswers(o: { seed: string; inspectionDate: string
   const text = (label: string, v: string): Item => ({ item_id: id(), label, type: "textsingle", responses: { text: v } });
   const photo = (label: string, mediaId: string): Item => ({ item_id: id(), label, type: "media", media: [{ media_id: mediaId, captured_at: o.capturedAt, date_created: o.capturedAt, location: { ...JOURNEY_SITE } }] });
   const items: Item[] = [
+    ...(o.jobNumber ? [text("Job Reference ID", o.jobNumber), text("Address including postcode", o.address ?? "TEST address, Melbourne VIC 3000")] : []),
     pick(NO_PRICE_TALK_LABEL, "Yes"),
     text("Date of inspection", o.inspectionDate),
     pick(LIFE_SUPPORT_PRESENT, "No"),
@@ -41,6 +44,12 @@ export function simulatedA3PassAnswers(o: { seed: string; inspectionDate: string
     pick("Is any electrical repair work needed before insulation can be installed?", "No"),
     photo(PIESA_EVIDENCE_BY_ID.switchboard_photo.label, m("switchboard")),
     photo(PIESA_EVIDENCE_BY_ID.onsite_photo.label, m("onsite")),
+    // The live A3's required electrician details (items 68–72), typed by the electrician in Mitti (Jo 30 Oct 2026).
+    text("Electrician licence number", "TEST-LIC-0001"),
+    text("Electrician full name", o.electrician),
+    text("Electrical contractor (REC) business name", "TEST Delta Electrical"),
+    text("REC registration number", "TEST-REC-0001"),
+    text("Electrician phone", "0400000000"),
     pick("I declare that all information contained in and attached to this form is correct and not misleading by inclusion or omission", "Yes"),
     { item_id: id(), label: "Electrician signature", type: "signature", responses: { image: { media_id: m("signature"), timestamp: o.capturedAt }, name: o.electrician } },
   ];
