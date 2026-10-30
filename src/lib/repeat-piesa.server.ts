@@ -68,8 +68,11 @@ async function currentReopenLapse(jobId: string): Promise<string | null> {
 /** Lapsed deadline + this deadline's choice/acceptance/payment. */
 export async function repeatPiesaContext(jobId: string): Promise<{ state: RepeatState; suggestion: string | null }> {
   const { installDayContext } = await import("./install-days.server");
-  const [c, reopenLapse] = await Promise.all([installDayContext(jobId).catch(() => null), currentReopenLapse(jobId)]);
-  const { data: rows } = await admin.from("workflow_events").select("event_type, created_at, details").eq("job_id", jobId).in("event_type", [REPEAT_PIESA_CHOSEN_EVENT, REPEAT_PIESA_ACCEPTED_EVENT, REPEAT_PIESA_PAID_EVENT, "install_window_expired"]).order("created_at", { ascending: false });
+  // Speed (installer screens, Task 6): the repeat events need only the job id — read alongside the context (one round).
+  const [c, reopenLapse, { data: rows }] = await Promise.all([
+    installDayContext(jobId).catch(() => null), currentReopenLapse(jobId),
+    (async () => await admin.from("workflow_events").select("event_type, created_at, details").eq("job_id", jobId).in("event_type", [REPEAT_PIESA_CHOSEN_EVENT, REPEAT_PIESA_ACCEPTED_EVENT, REPEAT_PIESA_PAID_EVENT, "install_window_expired"]).order("created_at", { ascending: false }))(),
+  ]);
   const ev = rows ?? [];
   const d = (r: { details: unknown }) => (r.details ?? {}) as Record<string, unknown>;
   const chosen = ev.find((r) => r.event_type === REPEAT_PIESA_CHOSEN_EVENT);

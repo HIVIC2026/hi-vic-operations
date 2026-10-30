@@ -14,6 +14,7 @@
 // existing guarded official-forms path (held with its reason while the PIESA mapping is unapproved) and the O28 copies go
 // through deliverPiesaCopies (its own holds). Q9 = No → one office item with the Q10 text, nothing else. Idempotent per audit.
 import type { Json } from "@/integrations/supabase/types";
+import { early } from "./early-read";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, getStage, logEvent } from "./workflow.server";
 import { MittiError, mittiApi, parseAudit, type MittiCall } from "./mitti.core";
@@ -98,10 +99,14 @@ async function rectificationRound(jobId: string): Promise<string> {
 }
 
 /** In-house reuse only. Non-in-house forms retain their original per-booking lifetime. */
-async function existingRectificationForm(jobId: string, knownHeld = false) {
+function companionRounds(jobId: string) {
+  return admin.from('workflow_events').select('details').eq('job_id', jobId).eq('event_type', FIXES_FORM_CREATED_EVENT).order('created_at', { ascending: false }).limit(50);
+}
+
+async function existingRectificationForm(jobId: string, knownHeld = false, companionsRead?: ReturnType<typeof companionRounds> | Promise<Awaited<ReturnType<typeof companionRounds>>>) {
   if (!knownHeld) {
     // Do not consult dispatch at all without any companion-round history.
-    const { data: companions } = await admin.from('workflow_events').select('details').eq('job_id', jobId).eq('event_type', FIXES_FORM_CREATED_EVENT).order('created_at', { ascending: false }).limit(50);
+    const { data: companions } = await (companionsRead ?? companionRounds(jobId));
     if (!companions?.some(companion => !!(companion.details as { rectification_round?: string } | null)?.rectification_round)) return null;
   }
   const { readInHouseDispatchState } = await import("./in-house-suppression.server");
@@ -310,11 +315,16 @@ export async function onRectificationBooked(jobId: string, bookingId: string, ac
 
 /** The job's latest fixes form (from the append-only history) and what happened to it. */
 export async function fixesFormState(jobId: string): Promise<{ auditId: string | null; createdAt: string | null; outcome: "open" | "done" | "not_done" | "held" | null; detail: string | null; templateSetUp: boolean; pendingDb: boolean }> {
-  const { data: evs } = await admin.from("workflow_events").select("event_type, created_at, summary, details").eq("job_id", jobId)
-    .in("event_type", [FIXES_FORM_CREATED_EVENT, FIXES_FORM_COMPLETED_EVENT, FIXES_FORM_NOT_DONE_EVENT, FIXES_FORM_HELD_EVENT]).order("created_at", { ascending: false }).limit(50);
-  const tpl = await readFixesTemplate();
+  // Speed (installer screens, Task 7): the form events, the template setting and the companion-round history need only the
+  // job id — one round, awaited in the same order as before.
+  const evsP = early(admin.from("workflow_events").select("event_type, created_at, summary, details").eq("job_id", jobId)
+    .in("event_type", [FIXES_FORM_CREATED_EVENT, FIXES_FORM_COMPLETED_EVENT, FIXES_FORM_NOT_DONE_EVENT, FIXES_FORM_HELD_EVENT]).order("created_at", { ascending: false }).limit(50));
+  const tplP = early(readFixesTemplate());
+  const companionsP = early(companionRounds(jobId));
+  const { data: evs } = await evsP;
+  const tpl = await tplP;
   const r = fixesFormOutcome((evs ?? []) as FixesFormEvent[]);
-  const existing = await existingRectificationForm(jobId);
+  const existing = await existingRectificationForm(jobId, false, companionsP);
   if (existing?.closed && r.outcome !== "done") return { auditId: null, createdAt: r.createdAt, outcome: null, detail: "Rectification form closed in the portal", templateSetUp: !!tpl.templateId, pendingDb: tpl.pending };
   return { ...r, templateSetUp: !!tpl.templateId, pendingDb: tpl.pending };
 }

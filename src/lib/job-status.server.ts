@@ -5,14 +5,22 @@ import { electricianPayState, payState, contactVisible } from "./trade-view.core
 import { chaseMode, paymentDates, forViewer, jobStatusLine, jobTimeline, reminderRequestMessage, type StatusFacts } from "./job-status.core";
 import { safetyCheckPayState } from "./payment-gate.core";
 import type { DueSettings } from "./waiting.core";
+// Namespace imports: several tests replace these modules with partial mocks; a namespace never fails on a missing export.
+import * as inHouseSuppression from "./in-house-suppression.server";
+import * as payoutGate from "./trade-payout-gate.server";
+import { electricianPayTiming } from "./electrician-pay.core";
 
 const none = ["00000000-0000-0000-0000-000000000000"];
 type Ctx = { biz: { id: string; name: string }; boss: boolean; kind: "installer" | "electrician" };
 
 export async function statusFactsFor(c: Ctx, jobIds: string[]): Promise<Map<string, StatusFacts & { channel: string | null; originating: string | null; jobNumber: string }>> {
   const ids = jobIds.length ? jobIds : none;
-  const dispatch = await (await import("./in-house-suppression.server")).readInHouseDispatchState(jobIds);
-  const [{ data: jobs }, { data: books }, { data: ev }, { data: quotes }, { data: invs }, { data: props }, { data: ws }, { data: aps }, { data: sims }, { data: ovs }, { data: rcw }] = await Promise.all([
+  // Speed (installer screens, Task 5): the in-house read (its own catch: a failure marks the line, never the page) and
+  // the electrician's payout-gate facts start with the eleven fact reads — one round, not three in a row.
+  const gateP = c.kind === "electrician" && jobIds.length ? payoutGate.payoutGateFacts(jobIds) : null;
+  gateP?.catch(() => undefined); // awaited below whenever a job came back; ignored (as before: never read) when none did
+  const [dispatch, { data: jobs }, { data: books }, { data: ev }, { data: quotes }, { data: invs }, { data: props }, { data: ws }, { data: aps }, { data: sims }, { data: ovs }, { data: rcw }] = await Promise.all([
+    inHouseSuppression.readInHouseDispatchState(jobIds),
     admin.from("jobs").select("id, job_number, stage, channel, originating_installer_business_id, created_at").in("id", ids),
     admin.from("bookings").select("job_id, kind, status, scheduled_start, scheduled_end, business_id, businesses(name, trading_name)").in("job_id", ids).in("status", ["confirmed", "completed"]),
     admin.from("workflow_events").select("job_id, event_type, to_stage, created_at").in("job_id", ids).in("event_type", ["stage_changed", "payout_marked_paid", "installer_ready_check_times_delivery", "ready_check_more_times_requested"]).order("created_at", { ascending: false }).limit(5000),
@@ -31,10 +39,8 @@ export async function statusFactsFor(c: Ctx, jobIds: string[]): Promise<Map<stri
   const now = new Date();
   // Decision 410 (Jo 27 Oct 2026): an electrician's pay follows the office's Approve on their form only (not AP, not the owner).
   const realIds = (jobs ?? []).map((j) => j.id);
-  const elecPay = c.kind === "electrician" && realIds.length ? await Promise.all([
-    (await import("./trade-payout-gate.server")).payoutGateFacts(realIds),
-    import("./electrician-pay.core"),
-  ]) : null;
+  // Decision 318 facts per job: the same per-job entries whether asked for the found jobs or every requested id.
+  const elecPay = c.kind === "electrician" && realIds.length && gateP ? [await gateP, { electricianPayTiming }] as const : null;
   const out = new Map<string, StatusFacts & { channel: string | null; originating: string | null; jobNumber: string }>();
   for (const j of jobs ?? []) {
     const e = (ev ?? []).filter((x) => x.job_id === j.id);

@@ -1,7 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { clearTradeCache, readTradeCache, writeTradeCache } from "@/lib/trade-cache.client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { TradeShell, card } from "@/components/trade/TradeShell";
 import { Chevron, FileRow, SectionHead, Switch, M7 } from "@/components/trade/business-kit";
@@ -21,13 +22,15 @@ function Business() {
   const setTaking = useServerFn(setTradeTaking);
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const { data, error, refetch } = useQuery({ queryKey: ["trade-business"], queryFn: () => load(), staleTime: 30_000 });
+  const uid = Route.useRouteContext().user.id;
+  const seed = useMemo(() => readTradeCache<Awaited<ReturnType<typeof load>>>(uid, "business"), [uid]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { data, error, refetch } = useQuery({ queryKey: ["trade-business"], queryFn: async () => { const d = await load(); if (d) writeTradeCache(uid, "business", d); return d; }, staleTime: 30_000, ...(seed ? { initialData: seed.data, initialDataUpdatedAt: seed.at } : {}) });
   const [busy, setBusy] = useState(false);
   if (error) return <TradeShell installer={false}><p role="alert" className={card}>{(error as Error).message}</p></TradeShell>;
   if (!data) return <TradeShell installer={false}><p className="text-sm">Loading…</p></TradeShell>;
   const installer = data.kind === "installer";
   const today = melbourneToday();
-  const signOut = async () => { await qc.cancelQueries(); qc.clear(); await supabase.auth.signOut(); navigate({ to: "/auth", replace: true }); };
+  const signOut = async () => { await qc.cancelQueries(); qc.clear(); clearTradeCache(); await supabase.auth.signOut(); navigate({ to: "/auth", replace: true }); };
   const since = shortDate(data.approvedSince);
   const ins = insuranceRowSub(data.credentials, today);
   const notice = noticeLine(data.notice);

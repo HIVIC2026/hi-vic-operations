@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { readTradeCache, writeTradeCache } from "@/lib/trade-cache.client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { TradeShell, card } from "@/components/trade/TradeShell";
 import { BackToBusiness, Chevron, M7, SectionHead } from "@/components/trade/business-kit";
 import { addTeamPerson, getTradeBusiness, requestTeamLoginInvite, setTeamMemberMobile } from "@/lib/trade-view.functions";
@@ -19,7 +20,9 @@ export const Route = createFileRoute("/_authenticated/field/business_/team")({
 /** Same rows as My business (mock-up M7), plus each person's actions: login ask, signing link, privacy notice link, CII certificate link, remove. */
 function Team() {
   const load = useServerFn(getTradeBusiness);
-  const { data, error } = useQuery({ queryKey: ["trade-business"], queryFn: () => load() });
+  const uid = Route.useRouteContext().user.id;
+  const seed = useMemo(() => readTradeCache<Awaited<ReturnType<typeof load>>>(uid, "business"), [uid]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { data, error } = useQuery({ queryKey: ["trade-business"], queryFn: async () => { const d = await load(); if (d) writeTradeCache(uid, "business", d); return d; }, ...(seed ? { initialData: seed.data, initialDataUpdatedAt: seed.at } : {}) });
   const invite = useServerFn(requestTeamLoginInvite);
   const remove = useServerFn(removeWorker);
   const [asked, setAsked] = useState<Record<string, string>>({});

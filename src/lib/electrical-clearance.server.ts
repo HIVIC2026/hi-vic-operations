@@ -44,12 +44,13 @@ export async function onsiteChargePaidFor(jobId: string): Promise<boolean> {
 export async function clearanceFacts(jobId: string): Promise<ClearanceFacts> {
   // Decision 316 (Jo 25 Oct 2026): the 30 days run from the official PIESA. The anchor is the latest official PIESA
   // (initial, or a reassessment after an expired window) — it stays the anchor after a post_rectification row becomes current.
-  const [{ data: initial }, { data: rect }, { data: rq }] = await Promise.all([
+  // Speed (installer screens, Task 6): the fixes-item count needs only the job id — read in the same round.
+  const [{ data: initial }, { data: rect }, { data: rq }, { count: items }] = await Promise.all([
     admin.from("piesa_records").select("outcome, completed_date, signed_off_by").eq("job_id", jobId).in("kind", ["initial", "reassessment"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("piesa_records").select("rectification_completed_at, section_c_signed_at, outcome").eq("job_id", jobId).neq("kind", "initial").eq("is_current", true).maybeSingle(),
     admin.from("quotes").select("status").eq("job_id", jobId).eq("kind", "rectification").in("status", ["issued", "accepted"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", jobId),
   ]);
-  const { count: items } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", jobId);
   const rectificationRequired = (items ?? 0) > 0 || initial?.outcome === 'fail';
   const partnerBilledRectification = rectificationRequired && rq?.status !== 'accepted'
     ? await (await import('./in-house-rectification.server')).optionalPartnerBilledRectificationFor(jobId) : false;

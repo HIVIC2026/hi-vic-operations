@@ -31,8 +31,9 @@ export async function myBusinesses(userId: string) {
   return map;
 }
 
-export async function requireMember(userId: string, businessId: string, adminOnly = false) {
-  const role = (await myBusinesses(userId)).get(businessId);
+/** `memberships`: this user's `myBusinesses` read, already started by the caller (speed); the same rule is applied to it. */
+export async function requireMember(userId: string, businessId: string, adminOnly = false, memberships?: Promise<Awaited<ReturnType<typeof myBusinesses>>>) {
+  const role = (await (memberships ?? myBusinesses(userId))).get(businessId);
   if (!role || (adminOnly && role !== "business_admin")) throw new WorkflowError(adminOnly ? "Only your business admin can do this." : "You are not part of this business.");
   return role;
 }

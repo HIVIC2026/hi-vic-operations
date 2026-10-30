@@ -9,6 +9,7 @@ import { melbourneToday } from "./worker-compliance.core";
 import { CREW_CLEARANCE_REASON } from "./worker-compliance.core";
 import { ALLOCATION_REASON, addInMittiFirst, allocationBlocker, allocationOptions, currentAllocation, leadNeedsHandover, visitsForStage, VISIT_ALLOCATED_EVENT, VISIT_LABEL, type AllocationCandidate, type VisitKind } from "./visit-allocation.core";
 import { crewSelectionProblems, leadWorkerId, type CrewSelection } from "./piisa-a3.core";
+import { early } from "./early-read";
 
 const db = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -16,13 +17,17 @@ const db = admin as unknown as { from: (t: string) => any }; // eslint-disable-l
 export async function allocationCandidates(businessId: string): Promise<AllocationCandidate[]> {
   const cols = "id, full_legal_name, trade_role, email, mobile, removed_at, worker_role";
   const load = (c: string) => db.from("partner_workers").select(c).eq("business_id", businessId).is("removed_at", null);
+  // Speed (installer screens, Task 6): the business email and the crew clearance facts need only the business id — read
+  // alongside the staff rows; a staff read error still throws first, then the crew facts' error, as before.
+  const bizP = early(db.from("businesses").select("email").eq("id", businessId).maybeSingle() as PromiseLike<{ data: { email?: string | null } | null }>);
+  const staffP = early(import("./piisa-a3.server").then((m) => m.crewStaff(businessId)));
   let { data: workers, error } = await load(`${cols}, declarations_due`);
   // Until 0230 is live the column is missing: re-read without it and treat everyone as signed (preflight ruling 10).
   if (error && (await import("./schema-compat.core")).isMissingDbObject(error)) ({ data: workers, error } = await load(cols));
   if (error) throw new WorkflowError(`Couldn't load your staff: ${error.message}`);
-  const { data: biz } = await db.from("businesses").select("email").eq("id", businessId).maybeSingle();
+  const { data: biz } = await bizP;
   const businessEmail = (biz as { email?: string | null } | null)?.email ?? null;
-  const staff = await (await import("./piisa-a3.server")).crewStaff(businessId);
+  const staff = await staffP;
   const byId = new Map(staff.map((s) => [s.workerId, s]));
   return ((workers ?? []) as { id: string; full_legal_name: string; trade_role: string; email: string | null; mobile: string | null; removed_at: string | null; worker_role?: string | null; declarations_due?: boolean | null }[]).map((w) => {
     const s = byId.get(w.id);
@@ -53,9 +58,12 @@ export async function visitFormAuditId(jobId: string, kind: VisitKind): Promise<
     const id = (ev?.details as { audit_id?: unknown } | null)?.audit_id;
     return id ? String(id) : null;
   }
-  const { data: f } = await db.from("ready_checks").select("external_mitti_id").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  // Speed (installer screens, Task 6): the form record and the current measurement are read together; the form wins.
+  const [{ data: f }, { data: m }] = await Promise.all([
+    db.from("ready_checks").select("external_mitti_id").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    db.from("ceiling_measurements").select("external_source, external_id").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
+  ]);
   if (f?.external_mitti_id) return String(f.external_mitti_id);
-  const { data: m } = await db.from("ceiling_measurements").select("external_source, external_id").eq("job_id", jobId).eq("is_current", true).maybeSingle();
   return m?.external_source === "mitti" && m.external_id ? String(m.external_id) : null;
 }
 
@@ -65,14 +73,21 @@ export async function visitAllocationView(jobId: string, userId: string, pre?: i
   const { data: job } = await db.from("jobs").select("stage").eq("id", jobId).maybeSingle();
   const kinds = visitsForStage(job?.stage ?? null);
   if (!kinds.length || c.kind !== "installer") return { canAllocate: false, visits: [] as { kind: VisitKind; label: string; current: { workerId: string; name: string } | null; hasForm: boolean; options: ReturnType<typeof allocationOptions> }[] };
-  const [events, candidates] = await Promise.all([allocationEvents(jobId), c.boss ? allocationCandidates(c.biz.id) : Promise.resolve([] as AllocationCandidate[])]);
+  // Speed (installer screens, Task 6): the events, the staff list, the install booking date and each visit's form are
+  // read together (they need only the job, the business and the visit kinds); the visits keep the stage's order.
+  const [events, candidates, bookingCreatedAt, forms] = await Promise.all([
+    allocationEvents(jobId),
+    c.boss ? allocationCandidates(c.biz.id) : Promise.resolve([] as AllocationCandidate[]),
+    // Decision 319: install days also need a verified White Card unless the installation was booked before the cutoff.
+    kinds.includes("install") ? installBookingCreatedAt(jobId) : Promise.resolve(null),
+    Promise.all(kinds.map((kind) => visitFormAuditId(jobId, kind))),
+  ]);
   const today = melbourneToday();
-  // Decision 319: install days also need a verified White Card unless the installation was booked before the cutoff.
-  const install = kinds.includes("install") ? { bookingCreatedAt: await installBookingCreatedAt(jobId) } : undefined;
+  const install = kinds.includes("install") ? { bookingCreatedAt } : undefined;
   const visits = [];
-  for (const kind of kinds) {
+  for (const [i, kind] of kinds.entries()) {
     const cur = currentAllocation(events, kind);
-    visits.push({ kind, label: VISIT_LABEL[kind], current: cur ? { workerId: cur.worker_id, name: cur.worker_name } : null, hasForm: !!(await visitFormAuditId(jobId, kind)), options: c.boss ? allocationOptions(kind, candidates, today, kind === "install" ? install : undefined) : [] });
+    visits.push({ kind, label: VISIT_LABEL[kind], current: cur ? { workerId: cur.worker_id, name: cur.worker_name } : null, hasForm: !!forms[i], options: c.boss ? allocationOptions(kind, candidates, today, kind === "install" ? install : undefined) : [] });
   }
   return { canAllocate: c.boss, visits };
 }

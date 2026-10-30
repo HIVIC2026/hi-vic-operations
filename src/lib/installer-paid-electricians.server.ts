@@ -17,11 +17,20 @@ export async function ownElectricianBusinessesFor(ids: string[]): Promise<Map<st
   if (error) throw new Error("Could not read installer electrician-payment configuration.");
   const enabled = ((businesses ?? []) as InHousePiesaBusiness[]).filter(paysOwnElectricians);
   if (!enabled.length) return out;
-  const { data: cards, error: ce } = await admin.from("rate_cards").select("id,business_id,version,effective_from")
-    .in("business_id", enabled.map(b => b.id)).eq("is_active", true).lte("effective_from", melbourneToday()).order("version", { ascending: false });
+  // Speed (installer screens, Task 5): the cards and their PIESA lines are read side by side (the lines through the same
+  // card filters) — one round instead of two. Lines are kept only for the cards read; errors fail as before.
+  const today = melbourneToday();
+  const enabledIds = enabled.map(b => b.id);
+  const [{ data: cards, error: ce }, { data: cardLines, error: le }] = await Promise.all([
+    admin.from("rate_cards").select("id,business_id,version,effective_from")
+      .in("business_id", enabledIds).eq("is_active", true).lte("effective_from", today).order("version", { ascending: false }),
+    db.from("rate_card_items").select("rate_card_id,code,unit_price_ex_gst,rate_cards!inner(business_id)")
+      .in("rate_cards.business_id", enabledIds).eq("rate_cards.is_active", true).lte("rate_cards.effective_from", today).ilike("code", "piesa"),
+  ]);
   if (ce) throw new Error("Could not read the in-house PIESA rate cards.");
-  const { data: lines, error: le } = cards?.length ? await admin.from("rate_card_items").select("rate_card_id,code,unit_price_ex_gst").in("rate_card_id", cards.map(c => c.id)).ilike("code", "piesa") : { data: [], error: null };
-  if (le) throw new Error("Could not read the in-house PIESA prices.");
+  if (cards?.length && le) throw new Error("Could not read the in-house PIESA prices.");
+  const cardIds = new Set((cards ?? []).map(c => c.id));
+  const lines = ((cardLines ?? []) as { rate_card_id: string; code: string | null; unit_price_ex_gst: number }[]).filter(l => cardIds.has(l.rate_card_id));
   for (const b of enabled) {
     const card = (cards ?? []).find(c => c.business_id === b.id && (lines ?? []).some(l => l.rate_card_id === c.id));
     const line = card ? (lines ?? []).find(l => l.rate_card_id === card.id) : null;
@@ -64,14 +73,26 @@ export async function inHouseFactsFor(businessId: string) {
 /** Per job: the installer we pay for the safety check, or null (we pay the electrician as usual). */
 export async function safetyCheckPayeesFor(jobs: { id: string; originating_installer_business_id: string | null }[]): Promise<Map<string, InstallerPaidElectricians | null>> {
   const out = new Map<string, InstallerPaidElectricians | null>(jobs.map((j) => [j.id, null]));
-  const businesses = await ownElectricianBusinessesFor([...new Set(jobs.flatMap(j => j.originating_installer_business_id ? [j.originating_installer_business_id] : []))]);
+  const originating = [...new Set(jobs.flatMap(j => j.originating_installer_business_id ? [j.originating_installer_business_id] : []))];
+  // Speed (installer screens, Task 5): the electrician choices are read alongside the business configuration (for the
+  // jobs that have an originating installer) and used only for the candidates, as before. A failed choice read still
+  // fails only when there is a candidate.
+  const withInstaller = [...new Set(jobs.filter((j) => j.originating_installer_business_id).map((j) => j.id))];
+  const choicesP = withInstaller.length
+    ? Promise.all(chunkIds(withInstaller, 200).map((ids) => Promise.resolve(admin.from("workflow_events").select("job_id, details, created_at").in("job_id", ids).eq("event_type", "mitti_electrician_recorded").order("created_at", { ascending: false }))))
+    : null;
+  choicesP?.catch(() => undefined);
+  const businesses = await ownElectricianBusinessesFor(originating);
   const candidates = jobs.filter((j) => installerPaysOwnElectricians(businesses.get(j.originating_installer_business_id ?? "")));
   if (!candidates.length) return out;
-  const { data, error } = await admin.from("workflow_events").select("job_id, details, created_at").in("job_id", candidates.map((j) => j.id))
-    .eq("event_type", "mitti_electrician_recorded").order("created_at", { ascending: false });
-  if (error) throw new Error(`Could not read the Ready Check electrician choices: ${error.message}`);
+  const parts = await choicesP!;
+  const failed = parts.find((r) => r.error);
+  if (failed?.error) throw new Error(`Could not read the Ready Check electrician choices: ${failed.error.message}`);
+  const candidateIds = new Set(candidates.map((j) => j.id));
+  // Newest first within each job, as the single ordered read gave (each job's rows sit in one part).
+  const data = parts.flatMap((r) => r.data ?? []).filter((e) => !!e.job_id && candidateIds.has(e.job_id));
   const choice = new Map<string, string | null>();
-  for (const e of (data ?? []) as { job_id: string; details: { choice?: string | null } | null }[]) if (!choice.has(e.job_id)) choice.set(e.job_id, e.details?.choice ?? null);
+  for (const e of data as { job_id: string; details: { choice?: string | null } | null }[]) if (!choice.has(e.job_id)) choice.set(e.job_id, e.details?.choice ?? null);
   for (const j of candidates) {
     const payee = safetyCheckPayee({ business: businesses.get(j.originating_installer_business_id ?? ""), electricianChoice: choice.get(j.id) ?? null });
     if (payee?.release_hold_reason) throw new Error(payee.release_hold_reason);

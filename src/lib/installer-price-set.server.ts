@@ -8,6 +8,13 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
 import { HIV_SWITCH, INSTALLER_PRICE_EVENT, hivSwitchOffered, priceFromPortal, validateInstallerPrice, type InstallerPriceInput } from "./installer-price.core";
 import { readInstallerPrice, type StoredInstallerPrice } from "./installer-price.server";
+import { early } from "./early-read";
+// Namespaces: tests replace these modules with partial mocks; a namespace never fails on a missing export.
+import * as pilotServer from "./pilot.server";
+import * as usualElectricianServer from "./usual-electrician.server";
+import * as electricianChoiceServer from "./electrician-choice.server";
+import * as quoteStatusServer from "./installer-quote-status.server";
+const loadInstallerQuote = (jobId: string) => quoteStatusServer.loadInstallerQuote(jobId);
 
 async function a1JobOrThrow(jobId: string) {
   const { data: j, error } = await admin.from("jobs").select("id, channel, originating_installer_business_id, stage, deleted_at").eq("id", jobId).maybeSingle();
@@ -32,16 +39,20 @@ async function currentReadyCheck(jobId: string): Promise<{ entries: { label: str
 
 /** The boss's "Your price" card: the saved price, the job's electrician choice (read-only) and the access flag. Team members: null (nothing shown). */
 export async function installerPriceView(jobId: string, userId: string) {
-  const { data: j } = await admin.from("jobs").select("channel, originating_installer_business_id, properties(address_line,suburb,state,postcode)").eq("id", jobId).maybeSingle();
+  // Speed (installer screens, Task 6): the job, the caller's memberships and every card read that needs only the job id
+  // start together; the usual electrician follows the job's business. Nothing is used or returned until the job and the
+  // business-owner checks pass, in the same order as before (a refused caller gets null; read errors surface as before).
+  const jobP = early(admin.from("jobs").select("channel, originating_installer_business_id, properties(address_line,suburb,state,postcode)").eq("id", jobId).maybeSingle());
+  const mineP = early(pilotServer.myBusinesses(userId));
+  const storedP = early(readInstallerPrice(jobId));
+  const usualP = early(jobP.then(({ data: jj }) => jj?.originating_installer_business_id ? usualElectricianServer.readUsualElectrician(jj.originating_installer_business_id).catch(() => ({ electrician: null })) : { electrician: null }));
+  const recordedP = early(electricianChoiceServer.readElectricianChoice(jobId).catch(() => null));
+  const readyCheckP = early(currentReadyCheck(jobId).catch(() => ({ entries: [] as { label: string; value: string | null }[], removalRequired: null, hasReadyCheck: false, installAreaM2: null, removalM2: null })));
+  const quoteP = early(loadInstallerQuote(jobId));
+  const { data: j } = await jobP;
   if (!j || !priceFromPortal(j.channel) || !j.originating_installer_business_id) return null;
-  const { myBusinesses } = await import("./pilot.server");
-  if ((await myBusinesses(userId)).get(j.originating_installer_business_id) !== "business_admin") return null;
-  const [stored, usual, recorded, readyCheck] = await Promise.all([
-    readInstallerPrice(jobId),
-    (await import("./usual-electrician.server")).readUsualElectrician(j.originating_installer_business_id).catch(() => ({ electrician: null })),
-    (await import("./electrician-choice.server")).readElectricianChoice(jobId).catch(() => null),
-    currentReadyCheck(jobId).catch(() => ({ entries: [] as { label: string; value: string | null }[], removalRequired: null, hasReadyCheck: false, installAreaM2: null, removalM2: null })),
-  ]);
+  if ((await mineP).get(j.originating_installer_business_id) !== "business_admin") return null;
+  const [stored, usual, recorded, readyCheck] = await Promise.all([storedP, usualP, recordedP, readyCheckP]);
   const { entries, removalRequired } = readyCheck;
   const { resolveElectricianChoice, electricianChoiceLine } = await import("./electrician-choice.core");
   const { contactAnswersFromEntries } = await import("./mitti.core");
@@ -56,7 +67,7 @@ export async function installerPriceView(jobId: string, userId: string) {
   const { formatPropertyAddress } = await import("./address");
   const product = resolveMittiProduct(contactAnswersFromEntries(entries).productOption).product;
   const address = formatPropertyAddress(j.properties);
-  const held = (await (await import("./installer-quote-status.server")).loadInstallerQuote(jobId)).electricianNotOnboarded === true;
+  const held = (await quoteP).electricianNotOnboarded === true;
   let hivSwitch: { priceIncGst: number } | null = null;
   if (hivSwitchOffered({ quoteHeldNotOnboarded: held, choice: choice === "hivic" ? "hivic" : "usual" })) {
     const { data: rs } = await admin.from("retail_estimator_settings").select("piesa_assessment_inc_gst").eq("is_current", true).maybeSingle();

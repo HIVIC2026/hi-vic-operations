@@ -9,6 +9,9 @@
 // key, so Try again finishes the same job; until that function is live the step-by-step save below is used.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
+import { early } from "./early-read";
+// Speed (installer screens, Task 7): namespace import (read at call time) so the memberships read starts with the job read.
+import * as pilotServer from "./pilot.server";
 import { ONSITE_CONSENT_SOURCE, READY_CHECK_FORM_COMING, TEST_MITTI_ASSIGNEE, onsiteProblems, onsiteState, type OnsiteInput, type OnsiteState } from "./onsite-ready-check.core";
 import type { ElectricianPlan } from "./job-electrician.core";
 import type { MittiCall } from "./mitti.core";
@@ -148,11 +151,17 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
  * duplicates are prevented by the atomic claim inside createAssignMittiAudit.
  */
 export async function onsiteFormFor(jobId: string, userId: string, call?: MittiCall, request = false): Promise<OnsiteState> {
-  const { data: j } = await admin.from("jobs").select("channel, originating_installer_business_id, source").eq("id", jobId).maybeSingle();
+  // Speed (installer screens, Task 7): two rounds. (1) The job, the caller's memberships and every status read that needs
+  // only the job id; (2) the business's Mitti flag. The job refusal, then the membership refusal, are awaited first; the
+  // reads started before them are read-only and dropped when refused. Nothing is written before both checks pass.
+  const jP = early(admin.from("jobs").select("channel, originating_installer_business_id, source").eq("id", jobId).maybeSingle());
+  const membersP = early((async () => pilotServer.myBusinesses(userId))());
+  const jobReads = factsJobReads(jobId);
+  const { data: j } = await jP;
   if (!j || j.channel !== "installer_sourced" || !j.originating_installer_business_id) throw new WorkflowError("This job isn't one of your customers.");
-  const { requireMember } = await import("./pilot.server");
-  await requireMember(userId, j.originating_installer_business_id);
-  const facts = await factsFor(jobId, j.originating_installer_business_id);
+  const bizP = early(admin.from("businesses").select("mitti_account_invited").eq("id", j.originating_installer_business_id).maybeSingle());
+  await pilotServer.requireMember(userId, j.originating_installer_business_id, false, membersP);
+  const facts = await factsFor(jobId, j.originating_installer_business_id, { biz: bizP, ...jobReads });
   const state = onsiteState(facts);
   if (!request || (state.kind !== "preparing" && state.kind !== "retry")) return state;
   const { data: prof } = await admin.from("profiles").select("full_name, email").eq("id", userId).maybeSingle();
@@ -161,14 +170,19 @@ export async function onsiteFormFor(jobId: string, userId: string, call?: MittiC
   return onsiteState({ ...facts, lastError: null });
 }
 
-async function factsFor(jobId: string, businessId: string) {
-  const [{ data: b }, { data: ws }, { data: m }, { count: booked }, { data: err }] = await Promise.all([
-    admin.from("businesses").select("mitti_account_invited").eq("id", businessId).maybeSingle(),
-    admin.from("workflow_settings").select("mitti_ready_check_priced_template_id, auto_send_mitti").eq("id", 1).maybeSingle(),
-    admin.from("ceiling_measurements").select("external_source, external_id, status").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
-    admin.from("bookings").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", "ready_check").eq("status", "confirmed"),
-    admin.from("workflow_events").select("summary, created_at").eq("job_id", jobId).eq("event_type", "mitti_access_needed").order("created_at", { ascending: false }).limit(1).maybeSingle(),
-  ]);
+/** The status reads that need only the job id (started early by onsiteFormFor). */
+function factsJobReads(jobId: string) {
+  return {
+    ws: early(admin.from("workflow_settings").select("mitti_ready_check_priced_template_id, auto_send_mitti").eq("id", 1).maybeSingle()),
+    m: early(admin.from("ceiling_measurements").select("external_source, external_id, status").eq("job_id", jobId).eq("is_current", true).maybeSingle()),
+    booked: early(admin.from("bookings").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", "ready_check").eq("status", "confirmed")),
+    err: early(admin.from("workflow_events").select("summary, created_at").eq("job_id", jobId).eq("event_type", "mitti_access_needed").order("created_at", { ascending: false }).limit(1).maybeSingle()),
+  };
+}
+
+async function factsFor(jobId: string, businessId: string, pre?: ReturnType<typeof factsJobReads> & { biz: PromiseLike<{ data: { mitti_account_invited: boolean | null } | null }> }) {
+  const r = pre ?? { biz: admin.from("businesses").select("mitti_account_invited").eq("id", businessId).maybeSingle(), ...factsJobReads(jobId) };
+  const [{ data: b }, { data: ws }, { data: m }, { count: booked }, { data: err }] = await Promise.all([r.biz, r.ws, r.m, r.booked, r.err]);
   return {
     mittiInvited: b?.mitti_account_invited === true, templateSet: !!ws?.mitti_ready_check_priced_template_id?.trim(), autoSend: ws?.auto_send_mitti === true,
     gateADone: true, booked: !!booked,

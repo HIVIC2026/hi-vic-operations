@@ -41,6 +41,8 @@ function reset(over: Partial<Record<string, Row[]>> = {}) {
     external_action_outbox: [] as Row[],
     ...over,
   });
+  // PostgREST embed read by tradeContext (`business_members → businesses(...)`), kept live against the businesses rows.
+  for (const m of db["business_members"]!) Object.defineProperty(m, "businesses", { enumerable: true, configurable: true, get: () => (db["businesses"] ?? []).find((b) => b["id"] === m["business_id"]) ?? null });
 }
 
 function q(table: string) {
