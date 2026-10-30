@@ -86,7 +86,18 @@ async function existingRectificationForm(jobId: string) {
   const round = await rectificationRound(jobId);
   const { data, error } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", FIXES_FORM_CREATED_EVENT).contains("details", { rectification_round: round }).order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (error) throw new Error(error.message);
-  const details = data?.details as { audit_id?: string; assignee_email?: string; mitti_user_id?: string } | null;
+  let details = data?.details as { audit_id?: string; assignee_email?: string; mitti_user_id?: string } | null;
+  // Pre-review events have no round key. Adopt only the current PIESA booking, never the latest job-wide form.
+  if (!details && !round.includes(":")) {
+    const { data: booking, error: be } = await admin.from("bookings").select("id").eq("job_id", jobId).eq("kind", "assessment").in("status", ["confirmed", "completed"]).order("scheduled_start", { ascending: false }).limit(1).maybeSingle();
+    if (be) throw new Error(be.message);
+    if (booking) {
+      const { data: legacy, error: le } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", FIXES_FORM_CREATED_EVENT).contains("details", { booking_id: booking.id }).maybeSingle();
+      if (le) throw new Error(le.message);
+      const d = legacy?.details as { audit_id?: string; assignee_email?: string; mitti_user_id?: string; rectification_round?: string } | null;
+      if (d && !d.rectification_round) details = d;
+    }
+  }
   const auditId = details?.audit_id;
   if (!auditId) return null;
   const { count, error: ce } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).in("event_type", [RECTIFICATION_FORM_CLOSED_UNUSED, FIXES_FORM_COMPLETED_EVENT]).contains("details", { audit_id: auditId });
