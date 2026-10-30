@@ -302,6 +302,7 @@ test("concurrent completed assessment is not changed by the no-rectification fol
  expect(tables.workflow_events.filter(e=>e.event_type==="rectification_form_closed_unused")).toHaveLength(0);
 });
 for(const scenario of ["hivic","non-in-house"]) test(`${scenario} cannot complete the rectification form at PIESA complete`,async()=>{
+ await load("piesa-autoform.server").onPiesaBooked(JOB,"visit",null,{call});
  seedOfficial(); tables.jobs[0].stage="piesa_complete"; auditResponse=signedAudit();
  if(scenario==="hivic") tables.job_assignments[1].businesses.rectification_billed_by="hivic";
  else {held=false; tables.job_assignments[1].businesses.in_house=false;}
