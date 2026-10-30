@@ -372,6 +372,13 @@ export async function completeFixesForm(jobId: string, auditId: string, opts: { 
   if (!job) throw new WorkflowError("Job not found.");
   const { isClosedOrArchivedJob } = await import("./mitti.core");
   if (isClosedOrArchivedJob(job)) return { status: "waiting", detail: "job closed or archived" };
+  const { readInHouseDispatchState } = await import("./in-house-suppression.server");
+  const dispatch = await readInHouseDispatchState([jobId]);
+  if (dispatch.failed) throw new WorkflowError("Couldn't check the job's partner — please try again.");
+  if (dispatch.held.has(jobId)) {
+    const current = await existingRectificationForm(jobId);
+    if (!current || current.auditId !== auditId) return { status: "waiting", detail: "Rectification form belongs to an earlier PIESA round" };
+  }
   const mitti = opts.call ?? (await import("./mitti.server")).realMittiCall;
   const fetchMedia = opts.fetchMedia ?? (await import("./mitti.server")).realMittiMedia;
   const audit = await mittiApi(mitti).getAudit(auditId);
