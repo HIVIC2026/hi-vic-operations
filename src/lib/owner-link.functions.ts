@@ -81,6 +81,7 @@ export const ownerBookingStateFn = createServerFn({ method: "POST" }).middleware
     const [piesa, install, ack, times, piesaBooked] = await Promise.all([ownerPiesaWindowState(jobId), ownerInstallDayState(jobId), ownerThirtyDayAckState(jobId), ownerPiesaTimesState(jobId), ownerPiesaBookingState(jobId)]);
     // Decision 333: `piesaTimes` = the electrician's offered times (new way); `piesa.canPick` = the old window picker, old jobs only.
     return JSON.parse(JSON.stringify({
+      inHouseDispatch: await (await import("./in-house-suppression.server")).inHouseDispatchSkip(jobId),
       piesa: { canPick: piesa.canPick, windows: piesa.windows.map((w) => ({ starts_at: w.starts_at, ends_at: w.ends_at })), thirtyDayAck: { needed: ack.needed, wording: ack.wording }, booked: piesaBooked },
       piesaTimes: { applies: times.applies, turn: times.turn, open: times.open, days: times.days, bookedAt: times.bookedAt, thirtyDayAck: times.thirtyDayAck },
       install: { turn: install.turn, days: install.days, deadline: install.deadline, daysLeft: install.daysLeft, open: install.open, bookedAt: install.bookedAt },
@@ -151,7 +152,9 @@ export const ownerReadyCheckTimesFn = createServerFn({ method: "POST" }).middlew
   .handler(async ({ data }) => {
     const jobId = await ownerJobId(data.token);
     if (!jobId) return null;
-    return JSON.parse(JSON.stringify(await (await import("./ready-check-times.server")).ownerReadyCheckTimesState(jobId)));
+    const state = await (await import("./ready-check-times.server")).ownerReadyCheckTimesState(jobId);
+    const dispatch = await (await import("./in-house-suppression.server")).inHouseDispatchSkip(jobId);
+    return JSON.parse(JSON.stringify(dispatch ? { ...state, inHouseDispatch: dispatch, canChange: false, open: [], days: [] } : state));
   });
 
 export const ownerTakeReadyCheckTimeFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])

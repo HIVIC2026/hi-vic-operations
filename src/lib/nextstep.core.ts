@@ -1,3 +1,4 @@
+import { inHouseTradeBookingText } from "./in-house-message.core";
 // ONE rule for what every screen shows as a job's stage tag, next step and who it waits on.
 // Derived from the stage + Gate 1 state only; stored free-text next_action is never displayed as the step.
 import { waitingOn, type Stage, type WaitingOn } from "./workflow";
@@ -5,6 +6,7 @@ import { stageWording, ELIGIBILITY_WORDS } from "./job-wording";
 
 export type NextStepInput = {
   stage: string | null | undefined;
+  inHouseDispatch?: "in_house" | "in_house_read_failed" | null;
   eligibility_outcome?: string | null;
   eligibility_review_required?: boolean | null;
   next_action?: string | null; // only used for REVIEW REQUIRED reasons and hold reasons
@@ -26,6 +28,7 @@ export function nextStep(j: NextStepInput): NextStep {
   if (j.eligibility_outcome === "does_not_appear_eligible") return { label: ELIGIBILITY_WORDS.does_not_appear_eligible, next: "Send not eligible email", waitingOn: "Home Insulation Victoria", tone: "bad" };
   if (EARLY.includes(stage)) return { label: w.tag, next: w.next, waitingOn: "Home Insulation Victoria", tone: "brand" };
   if (w.tag === "Spot saved" && stage === "preliminary_estimate_ready") return { label: w.tag, next: w.next, waitingOn: "Home Insulation Victoria", tone: "good" };
+  if (j.inHouseDispatch && inHouseTradeBookingText(stage)) return { label: w.tag, next: j.inHouseDispatch === "in_house" ? "Visit booking is with the in-house partner" : "Visit booking details unavailable", waitingOn: "Installer", tone: "brand" };
   return { label: w.tag, next: w.next, waitingOn: waitingOn(stage, null), tone: stage === "awaiting_deposit_payment" ? "warn" : "brand" };
 }
 

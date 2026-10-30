@@ -260,7 +260,8 @@ export const getJobScope = createServerFn({ method: "POST" }).middleware([requir
     catch (e) { if (e instanceof WorkflowError) return null; throw e; }
     const { jobScope } = await import("./requirements.server");
     const { measurementRow: _m, ...s } = await jobScope(data.jobId);
-    return s;
+    const dispatch = await (await import("./in-house-suppression.server")).inHouseDispatchSkip(data.jobId);
+    return dispatch && /offer|pick|choose|book|arrang|time|visit/i.test(s.nextAction ?? "") ? { ...s, nextAction: "" } : s;
   });
 
 export const saveMeasurement = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

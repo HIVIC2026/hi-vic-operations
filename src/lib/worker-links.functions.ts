@@ -205,12 +205,14 @@ export const getWorkerJobView = createServerFn({ method: "POST" })
       import("./allocation.core"),
     ]);
     if (!j) throw new Error("This job is no longer available.");
+    const dispatch = await (await import("./in-house-suppression.server")).inHouseDispatchSkip(l.job_id);
+    const heldText = dispatch ? (await import("./in-house-message.core")).inHouseTradeBookingText(j.stage) : null;
     const mittiId = mb?.mitti_account_invited !== true ? null : w.trade_role === "electrician" ? a?.external_mitti_id : (m?.external_source === "mitti" ? m.external_id : null) ?? a?.external_mitti_id;
     const released = (rels ?? []).some((r) => (r.job_assignments as { active: boolean }).active && visitIsCurrent(r.visit_kind, j.stage ?? ""));
     const { data: oc } = released ? await admin.from("job_overview").select("owner_name, owner_phone, owner_email").eq("id", l.job_id).maybeSingle() : { data: null };
     return {
       worker: { name: w.full_legal_name, firstName: firstName(w.full_legal_name), role: w.trade_role, business: bizName },
-      job: { ...j, owner_first_name: firstName(j.owner_name), owner_name: undefined },
+      job: { ...j, ...(heldText ? { next_action: dispatch === "in_house" ? heldText : "Visit booking details unavailable" } : {}), owner_first_name: firstName(j.owner_name), owner_name: undefined },
       ownerContact: oc ? { name: oc.owner_name, phone: oc.owner_phone, email: oc.owner_email } : null,
       mittiUrl: mittiId ? (await import("./mitti-link.core")).mittiFormUrl(mittiId) : null,
       bookings: books ?? [],
