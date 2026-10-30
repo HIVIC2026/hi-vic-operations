@@ -1,3 +1,7 @@
+## Jo 30 Oct C1 — separate electrician payee from in-house holding
+- [ ] Red-first split/payee/held-path and practice SQL/undo tests; audit all consumers; keep held workflows in_house-only.
+- [ ] Implement SQL-only flag, reason audit and two-business correction without touching rate cards; strip flag from partner saves; report SQL and requested test totals. No live SQL/providers/publication.
+
 ## Jo 30 Oct Task 6 — in-house stalls and pull-back
 - [x] Red-first business-day/three stall tests (1 pass / 5 fail / 1 missing-export error), practice action tests (0 pass / 3 fail), and real reader booking regression (1 pass / 1 fail) followed by implementation. Reused existing Victorian calendar and recorded PIESA days remaining. Final covering + office-needs + adjacent: 80 pass / 0 fail / 345 assertions across 12 files; automatic build OK.
 - [x] Admin-bound service-only atomic pull-back ends both held-business assignments and records actor/reason once; bookings/stages untouched. PGlite two-user refusal, exclusions, replay, audit rollback and undo passed. Actual reason-dialog isolated desktop/390px input/submit/close passed; no real job changed. Holiday list and existing discrepancies recorded in docs/in-house-task6-holidays.md. No live SQL/providers/publication; locked intake/Gate 1/decision 316 and recovery files untouched.
