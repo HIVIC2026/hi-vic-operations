@@ -168,7 +168,10 @@ export async function createFixesForm(jobId: string, actorId: string | null, boo
     if (!state.held.has(jobId) || job.source === "qa_test") return { status: "not_needed", reason: "not an in-house job" };
   }
 
-  const round = await rectificationRound(jobId);
+  const { readInHouseDispatchState } = await import("./in-house-suppression.server");
+  const dispatch = await readInHouseDispatchState([jobId]);
+  if (dispatch.failed) throw new WorkflowError("Couldn't check the job's partner — please try again.");
+  const round = dispatch.held.has(jobId) ? await rectificationRound(jobId) : `booking:${bookingId}`;
   const tpl = await readFixesTemplate();
   if (tpl.pending) { await heldOnce(jobId, `booking:${bookingId}:pending_db`, FIXES_TEMPLATE_PENDING_DB, { booking_id: bookingId }); return { status: "held", reason: FIXES_TEMPLATE_PENDING_DB }; }
   if (!tpl.templateId) { await heldOnce(jobId, `booking:${bookingId}:no_template`, FIXES_TEMPLATE_MISSING, { booking_id: bookingId }); return { status: "held", reason: FIXES_TEMPLATE_MISSING }; }
