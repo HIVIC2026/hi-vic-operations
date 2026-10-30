@@ -44,7 +44,7 @@ const admin = { from(table: string) {
   if (table === "job_assignments") {
     const select = query.select;
     query.select = (columns, ...args) => {
-      if (failHeldRead && columns.includes("businesses!inner")) throw new Error("read unavailable");
+      if (failHeldRead && columns === "job_id, business_id, businesses(in_house)") throw new Error("read unavailable");
       if (failBillingRead && columns === "businesses(in_house, rectification_billed_by)") {
         query.single = async () => ({ data: null, error: { message: "billing read unavailable" } });
       }
