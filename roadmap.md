@@ -1,3 +1,6 @@
+## Jo 30 Oct in-house partner — Task 4 own bookings
+- [ ] Test-first member-only booking card using confirmBooking; preserve all blockers, only skip the rectification payment guard for an in-house partner billing directly. Practice database and requested regressions; no publication or live SQL.
+
 ## Jo 30 Oct in-house partner — Task 3 suppression
 - [x] Review N1: extended the actual UI-callback test failed first (20 pass / 1 fail). Successful PIESA window submissions restore unkeyed query invalidation and the existing office-change notification; both skipped outcomes show their message without either refresh. No SQL or publication.
 - [x] Review I1–I3: four new tests failed first (14 pass / 4 fail); held lookup now includes TEST/deleted jobs, pages active assignments to exhaustion in 200-row pages and scopes candidate ids in 200-id chunks. Failed pages discard partial results and log. Skipped actions return ok:false with Jo's exact messages; all three UI callbacks stop before success/reset/refetch. Covering: 21 pass / 0 fail / 91 assertions; existing requested and payment/reminder/partner-call regressions: 12 files, 166 pass / 0 fail. Automatic build/typecheck clean. No SQL, sends or publication.
