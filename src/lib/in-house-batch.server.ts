@@ -47,9 +47,10 @@ export async function loadInHouseBatches() {
 async function selectWorkers(businessId: string) {
   const blockers = inHouseEnableBlockers(await inHouseFactsFor(businessId));
   if (blockers.length) return { reason: blockers.join("; ") };
-  const [workers, members] = await Promise.all([
+  const [workers, members, relationships] = await Promise.all([
     rows<{ profile_id: string | null; trade_role: string; email: string | null; licence_expires_on: string | null }>(db.from("partner_workers").select("profile_id,trade_role,email,licence_expires_on").eq("business_id", businessId).eq("approval_status", "approved").is("removed_at", null).order("created_at")),
     rows<{ user_id: string }>(db.from("business_members").select("user_id").eq("business_id", businessId).eq("active", true)),
+    rows<{ electrician_business_id: string; is_primary: boolean; preferred: boolean; active: boolean }>(db.from("partner_relationships").select("electrician_business_id,is_primary,preferred,active").eq("installer_business_id", businessId).eq("active", true)),
   ]);
   const ids = workers.flatMap(w => w.profile_id ? [w.profile_id] : []);
   const profiles = ids.length ? await rows<{ id: string; email: string | null; mitti_user_id: string | null; mitti_checked_email: string | null; mitti_checked_at: string | null }>(db.from("profiles").select("id,email,mitti_user_id,mitti_checked_email,mitti_checked_at").in("id", ids)) : [];
@@ -59,11 +60,12 @@ async function selectWorkers(businessId: string) {
     const profile = profiles.find(p => p.id === w.profile_id);
     return w.trade_role === "electrician" && (!w.licence_expires_on || w.licence_expires_on >= melbourneToday()) && !!profile && mittiAccessOf({ ...profile, email: w.email ?? profile.email }) === "member";
   });
-  // pickTeamElectrician is exported by teaming.core (not teaming.server); same primary/backup chooser.
-  const pick = pickTeamElectrician(electricians.flatMap((w, i) => w.profile_id ? [{ electrician_business_id: w.profile_id, is_primary: i === 0, preferred: true, active: true }] : []),
-    electricians.flatMap(w => w.profile_id ? [{ id: w.profile_id, eligible: true, inArea: true }] : []));
-  if (!installer?.profile_id || !pick) return { reason: "No approved installer and electrician workers with active access" };
-  return { installer: installer.profile_id, electrician: pick.id };
+  // Existing picker lives in teaming.core. Honour actual nominated business relationships,
+  // never fabricate preferences from worker order. This task requires BOTH assignments in this business.
+  const pick = pickTeamElectrician(relationships, [{ id: businessId, eligible: electricians.length > 0, inArea: true }]);
+  const electrician = pick?.id === businessId ? electricians[0] : undefined;
+  if (!installer?.profile_id || !electrician?.profile_id) return { reason: "No preferred in-house electrician with approved active access" };
+  return { installer: installer.profile_id, electrician: electrician.profile_id };
 }
 
 export async function sendInHouseBatch(input: { businessId: string; jobIds: string[]; actorId: string }): Promise<{ sent: string[]; refused: { jobId: string; reason: string }[] }> {

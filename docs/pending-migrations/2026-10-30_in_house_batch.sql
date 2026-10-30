@@ -78,7 +78,7 @@ BEGIN
   INSERT INTO public.workflow_events(job_id,actor_id,event_type,summary,details,internal)
     VALUES (_job,_actor,'in_house_batch_sent','Ready Check allocated to ' || partner_name,
       jsonb_build_object('batch_id',_batch,'business_id',_business),true);
-  SELECT id INTO approved_template FROM public.customer_communication_templates
+    SELECT id INTO approved_template FROM public.customer_communication_templates
     WHERE template_key='in_house_partner_will_call' AND status='approved' AND approved_by IS NOT NULL AND approved_at IS NOT NULL
     ORDER BY approved_at DESC LIMIT 1;
   IF approved_template IS NOT NULL THEN

@@ -16,6 +16,7 @@ function fixture(failedTable?: string) {
     lead_campaign_responses: [{ job_id: "j", spot_saved_at: "2026-10-30" }], properties: [{ id: "p", address_line: "1 Example Street", postcode: "3199" }],
     partner_workers: [{ profile_id: "i", trade_role: "installer" },{ profile_id: "e", trade_role: "electrician", email: "e@example.invalid" }],
     business_members: [{ user_id: "i" }, { user_id: "e" }],
+    partner_relationships: [{ electrician_business_id: "b", is_primary: true, preferred: true, active: true }],
     profiles: [{ id: "e", email: "e@example.invalid", mitti_checked_email: "e@example.invalid", mitti_user_id: "m", mitti_checked_at: "2026-10-30" }],
   };
   const admin = { from(table: string) {
@@ -50,11 +51,16 @@ test("actual send uses same-business approved workers, binds actor and deduplica
   expect(f.rpcCalls[0]).toMatchObject({ name: "allocate_in_house_batch_job",input: { _business: "b",_job: "j",_actor: "office",_installer: "i",_electrician: "e" } });
 });
 test("failed reads propagate and never invoke an allocation", async () => {
-  for (const table of ["jobs","businesses","job_assignments","lead_campaign_responses","customer_email_optouts","partner_workers","profiles"]) {
+  for (const table of ["jobs","businesses","job_assignments","lead_campaign_responses","customer_email_optouts","partner_workers","profiles","partner_relationships"]) {
     const f = fixture(table);
     await expect(f.api.sendInHouseBatch({ businessId: "b",jobIds: ["j"],actorId: "office" })).rejects.toThrow("read unavailable");
     expect(f.rpcCalls).toHaveLength(0);
   }
+});
+test("missing preferred relationship refuses rather than inventing the partner's electrician", async () => {
+  const f = fixture(); f.data.partner_relationships = [];
+  expect((await f.api.sendInHouseBatch({ businessId: "b",jobIds: ["j"],actorId: "office" })).refused).toEqual([{ jobId: "j",reason: "No preferred in-house electrician with approved active access" }]);
+  expect(f.rpcCalls).toHaveLength(0);
 });
 test("out-of-area and missing electrician membership are refused without writes", async () => {
   const f = fixture(); f.data.profiles=[];
