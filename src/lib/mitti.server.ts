@@ -455,6 +455,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
           mitti_raw_snapshot: snapshot as unknown as Json, mitti_validation_issues: [...plan.issues, ...refused.issues, ...evidenceBlockers.map((b) => `${PIESA_EVIDENCE_ISSUE_PREFIX}${b}`), ...(priceTalk ? [priceTalk] : [])] as unknown as Json, mitti_last_error: null,
           ...(completed ? { mitti_synced_at: now } : {}),
         }).eq("id", a.id).neq("status", "complete");
+        if (completed && safeElectrical.no_rectification_confirmed === true) await (await import("./fixes-day.server")).closeUnusedRectificationForm(jobId);
         // Printed PIESA rules, checked server-side on every sync (blockers stay as review issues; nothing is completed here).
         // The Mitti form is the short onsite version: answers are expanded into the official items first.
         // Decision 296: the owner block (o.*) comes from the owner's secure-link confirmation record, never from this form.

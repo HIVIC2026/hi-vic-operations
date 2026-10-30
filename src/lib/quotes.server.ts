@@ -234,6 +234,11 @@ async function generateA4FixesQuote(jobId: string, actorId: string | null, busin
 }
 
 export async function generateRectificationQuote(jobId: string, actorId: string | null) {
+  const { data: installer, error } = await admin.from("job_assignments").select("businesses(in_house, rectification_billed_by)").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
+  if (error) throw new WorkflowError("Couldn't check the job's partner — please try again.");
+  const { partnerBillsRectification } = await import("./in-house.core");
+  const business = installer?.businesses as unknown as import("./in-house.core").InHouseBusiness | null;
+  if (business && partnerBillsRectification(business)) return { skipped: "in_house_partner_bills" as const };
   const settings = await activePricing();
   const { data: rec } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "electrician").eq("active", true).maybeSingle();
   if (!rec?.business_id) throw new WorkflowError("Assign an approved REC business before generating the electrical fixes quote.");
