@@ -30,7 +30,7 @@
 - Campaign spot saves use one database transaction for response, save event and queue stage; secure next visits repair only recorded saves, without delivery. Why: interrupted requests and replays must not strand saved spots or send repair messages.
 - Verified post-Ready-Check ineligible notifications share the existing T7 per-job email key and guarded sender; only durable held records retry after revalidating the current final verification. Why: no duplicate messages, no Gate 1 mutation or historical backlog release.
 - Document early recovery owns module error/rejection events; the router handles preload/route catches and cache-busts reloads; both use the pure page-recovery stale-export classifier. Why: competing refresh handlers or missed named lazy exports can leave stale tabs blank.
-- Read nested `AGENTS.md`, including `src/lib` and `scripts`, before edits. Why: scoped safeguards.
+- Read nested `AGENTS.md` (`src/lib`, `scripts`) before edits. Why: scoped safeguards.
 - Server functions are literal `createServerFn(...).middleware(...).inputValidator(...).handler(...)` chains; never import `@tanstack/react-start/server` in `*.functions.ts`. Why: factories/that import break the client bundle.
 - Test Centre: `source='qa_test'`, bypass post-intake. Why: no live automation.
 - Journey TEST-trade setup snapshots and restores both offer-preference flags alongside coverage. Why: temporary practice readiness must not undo office-paused dummy trades.
