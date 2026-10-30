@@ -1,5 +1,6 @@
 // Phone-first trade frame (Jo-approved; Style A frame per approved mock-ups M1–M3, decision 198): logo + initials
 // circle, bottom tabs My work · Add a job · Money · My business. Presentation only.
+import { clearTradeCache } from "@/lib/trade-cache.client";
 import * as React from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
@@ -56,7 +57,7 @@ function TradeAvatar() {
   const ini = name.replace(/[^A-Za-z\s@.]/g, "").split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("");
   const [open, setOpen] = React.useState(false);
   // Everyone (business owner and staff) can sign out from the top-right circle on every trade page.
-  const signOut = async () => { await supabase.auth.signOut(); window.location.replace("/portal"); };
+  const signOut = async () => { clearTradeCache(); await supabase.auth.signOut(); window.location.replace("/portal"); };
   return (
     <div className="relative ml-auto shrink-0">
       <button type="button" aria-label="Account menu" aria-expanded={open} onClick={() => setOpen((o) => !o)} className="grid h-9 w-9 place-items-center rounded-full border border-line bg-mist text-[13px] font-semibold text-ink">{ini || "·"}</button>

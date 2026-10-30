@@ -1,10 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { readTradeCache, writeTradeCache } from "@/lib/trade-cache.client";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ChevronRight } from "lucide-react";
 import { TradeShell, aud, card } from "@/components/trade/TradeShell";
 import { NowPanel, Pill, btnClass } from "@/components/portal/kit";
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { StatusLineView } from "@/components/trade/job-status";
 import { getTradeHome } from "@/lib/trade-view.functions";
 import { ELECTRICIAN_WORK_WORDS, dayTile, goneIn, tradeGreeting } from "@/lib/trade-view.core";
@@ -29,7 +30,10 @@ function MyWork() {
   const [onlyMoving, setOnlyMoving] = useState(false);
   const [offersOpen, setOffersOpen] = useState(false);
   // staleTime (decision 280): coming back from a job shows the last answer at once; the 60s poll and every action's invalidation still refresh it.
-  const { data, error, refetch } = useQuery({ queryKey: ["trade-home"], queryFn: () => load(), refetchInterval: 60_000, staleTime: 20_000 });
+  // Return visit: the last copy (this user only, under 24 h) shows at once; it is old, so a fresh copy still loads straight away.
+  const uid = Route.useRouteContext().user.id;
+  const seed = useMemo(() => readTradeCache<Awaited<ReturnType<typeof load>>>(uid, "home"), [uid]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { data, error, refetch } = useQuery({ queryKey: ["trade-home"], queryFn: async () => { const d = await load(); if (d) writeTradeCache(uid, "home", d); return d; }, refetchInterval: 60_000, staleTime: 20_000, ...(seed ? { initialData: seed.data, initialDataUpdatedAt: seed.at } : {}) });
   if (error) return <TradeShell installer={false}><div role="alert" className={card}><p className="text-sm">Your work couldn't load. Check your signal and try again.</p><button className="mt-3 min-h-11 font-bold text-estimate-blue" onClick={() => refetch()}>Try again</button></div></TradeShell>;
   if (data === undefined) return <TradeShell installer={false}><p className="text-sm">Loading your work…</p></TradeShell>;
   if (data === null) return <TradeShell installer={false}><p className={`${card} text-sm`}>Your sign-in isn't linked to an approved business yet. Home Insulation Victoria will sort this out.</p></TradeShell>;

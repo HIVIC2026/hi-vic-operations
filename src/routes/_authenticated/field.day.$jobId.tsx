@@ -3,11 +3,12 @@
 // PIESA requires one, the job facts + own pay (install) or "What we know" (Ready Check), crew today / who's on this,
 // "Couldn't get in?" (decisions 214/215). After the install form is Complete the panel reads "Sign the rebate form"
 // (decision 213) with the recorded ticks, the declaration and "Then".
+import { readTradeCache, writeTradeCache } from "@/lib/trade-cache.client";
 import { toast } from "sonner";
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Check } from "lucide-react";
 import { TradeShell } from "@/components/trade/TradeShell";
 import { TradePrestart, useRememberedStart } from "@/components/trade/TradePrestart";
@@ -36,7 +37,10 @@ function DayPage() {
   const cgi = useServerFn(tradeCouldntGetInFn);
   const confirmPricing = useServerFn(confirmHivicReadyCheckPricingFn);
   const done = useAction(completeInstallation);
-  const { data, error, refetch } = useQuery({ queryKey: ["trade-day", jobId], queryFn: () => load({ data: { jobId } }), refetchInterval: 30_000, staleTime: 15_000,
+  const uid = Route.useRouteContext().user.id;
+  const ck = `day:${jobId}`;
+  const seed = useMemo(() => readTradeCache<Awaited<ReturnType<typeof load>>>(uid, ck), [uid, ck]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { data, error, refetch } = useQuery({ queryKey: ["trade-day", jobId], queryFn: async () => { const d = await load({ data: { jobId } }); if (d) writeTradeCache(uid, ck, d); return d; }, refetchInterval: 30_000, staleTime: 15_000, ...(seed ? { initialData: seed.data, initialDataUpdatedAt: seed.at } : {}),
     // Phase 3 path 8: a refusal ("This job isn't available to you.") shows at once instead of "Loading your day…" through retries.
     retry: (n, e) => n < 3 && !/available to you|assigned to you/i.test((e as Error)?.message ?? "") });
   const { data: x } = useQuery({ queryKey: ["trade-day-extras", jobId], queryFn: () => loadExtras({ data: { jobId } }), retry: false, refetchInterval: 60_000, staleTime: 20_000 });

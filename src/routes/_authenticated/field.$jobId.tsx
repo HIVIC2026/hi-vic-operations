@@ -2,13 +2,14 @@ import { inHouseTradeBookingText } from "@/lib/in-house-message.core";
 // Installer Job page = approved mock-up M2 (Jo 24 Oct 2026, decisions 196/198): one Next panel, Quote, Ready Check,
 // Who's doing this, More. Decision 277 (Jo 25 Oct 2026): no in-portal Messages section — the installer uses Call/Text
 // and the portal sends its own automatic texts. The electrician's visit flow shares this route unchanged.
+import { readTradeCache, writeTradeCache } from "@/lib/trade-cache.client";
 import { RectPlanFields, rectPlanProblems, type RectPlan } from "@/components/portal/rectification-times";
 import { VisitContactsCard } from "@/components/portal/allocation";
 import { TradeVisitCard } from "@/components/portal/visit-changes";
 import { nextStep } from "@/lib/nextstep.core";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ArrowLeft, Check, HeartPulse, Phone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { TradeShell } from "@/components/trade/TradeShell";
@@ -276,7 +277,10 @@ type Overview = NonNullable<ReturnType<typeof useJob>["data"]>;
 
 function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
   const load = useServerFn(getTradeJobPage);
-  const { data: page } = useQuery({ queryKey: ["trade-job-page", jobId], queryFn: () => load({ data: { jobId } }), retry: false, refetchInterval: 60_000, staleTime: 20_000 });
+  const uid = Route.useRouteContext().user.id;
+  const ck = `job-page:${jobId}`;
+  const seed = useMemo(() => readTradeCache<Awaited<ReturnType<typeof load>>>(uid, ck), [uid, ck]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { data: page } = useQuery({ queryKey: ["trade-job-page", jobId], queryFn: async () => { const d = await load({ data: { jobId } }); if (d) writeTradeCache(uid, ck, d); return d; }, retry: false, refetchInterval: 60_000, staleTime: 20_000, ...(seed ? { initialData: seed.data, initialDataUpdatedAt: seed.at } : {}) });
   const { data: days } = useInstallerInstallDays(jobId);
   const { data: rc } = useInstallerReadyCheckTimes(jobId);
   const done = useAction(completeInstallation);
