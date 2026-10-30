@@ -72,7 +72,7 @@ const overrides: Record<string, any> = {
   "./in-house-suppression.server": { readInHouseDispatchState: async () => ({ held: new Set(held ? [JOB] : []), failed: false }) },
   "./repeat-piesa.server": { currentPiesaSupersededByReopen: async()=>false, repeatPiesaContext: async () => ({ state: { stage: repeatDeadline ? "offer" : "none", deadline: repeatDeadline } }) },
   "./test-send.core": { isTestPartner: () => false }, "./onsite-ready-check.core": { TEST_MITTI_ASSIGNEE: "test@example.invalid" },
-  "./mitti-create.server": { MittiClaimHeld, MittiOutcomeUncertain, claimMittiCreate: async (_j:string, kind:string, _a:any, _s:any, details:any) => { const key = `${kind}:${held ? details?.rectification_round ?? "initial" : details?.booking_id ?? "initial"}`; if (claims.has(key)) throw new MittiClaimHeld("creation already claimed"); claims.add(key); claimHeld = true; return key; }, releaseMittiCreate: async (_j:string,_k:string,key:string) => { claims.delete(key); claimHeld = false; }, recordMittiCreateUncertain: async () => {} },
+  "./mitti-create.server": { MittiClaimHeld, MittiOutcomeUncertain, claimMittiCreate: async (_j:string, kind:string, _a:any, _s:any, details:any) => { const key = `${kind}:${details?.rectification_round ?? details?.booking_id ?? "initial"}`; if (claims.has(key)) throw new MittiClaimHeld("creation already claimed"); claims.add(key); claimHeld = true; return key; }, releaseMittiCreate: async (_j:string,_k:string,key:string) => { claims.delete(key); claimHeld = false; }, recordMittiCreateUncertain: async () => {} },
   "./official-forms.server": { officialPrefillContext: async () => ({ address: "TEST address", electrician: { name: "Electrician" }, lifeSupportDeclared: false }) },
   "./eligibility.server": { todayMelbourne: () => "2026-10-30" },
   "./autoadvance.server": { autoAdvanceJob: async () => {} },
@@ -115,7 +115,7 @@ beforeEach(() => {
       { job_id: JOB, role: "electrician", active: true, user_id: "electrician", business_id: "biz", profiles: { email: EMAIL }, businesses: { in_house: true, rectification_billed_by: "partner" } },
       { job_id: JOB, role: "installer", active: true, business_id: "biz", businesses: { in_house: true, rectification_billed_by: "partner" } },
     ],
-    properties:[{id:"property",address_line:"1 TEST street"}],owners:[{id:"owner",full_name:"Owner"}], customer_agreements:[{job_id:JOB,status:"signed"}], invoices:[], workflow_settings: [{ id: 1, payment_option_gate_enabled:true, safety_check_payment_inc_gst:349, mitti_piesa_template_id:PIESA, mitti_fixes_template_id: RECT }], workflow_events: [], rectification_items: [], piesa_records: [], bookings: [], compliance_checks: [], documents:[{job_id:JOB,source_system:"mitti",external_id:"audit-2:completed"}],
+    properties:[{id:"property",address_line:"1 TEST street"}],owners:[{id:"owner",full_name:"Owner"}], customer_agreements:[{job_id:JOB,status:"signed"}], invoices:[], quotes:[], workflow_settings: [{ id: 1, payment_option_gate_enabled:true, safety_check_payment_inc_gst:349, mitti_piesa_template_id:PIESA, mitti_fixes_template_id: RECT }], workflow_events: [], rectification_items: [], piesa_records: [], bookings: [], compliance_checks: [], documents:[{job_id:JOB,source_system:"mitti",external_id:"audit-2:completed"}],
     pricing_settings: [{ is_active: true, gst_rate: 0.1 }], rate_cards: [{ kind: "electrical", is_active: true, business_id: "biz", rate_card_items: [{ code: "RCD", unit_price_ex_gst: 10 }] }],
   };
 });
@@ -206,9 +206,9 @@ const signedAudit = () => ({audit_id:"audit-2",template_id:RECT,completed:true,i
  ...[[core.FIXES_DAY_Q.jobNumber,"HV-TEST"],[core.FIXES_DAY_Q.done,"Yes"],[core.FIXES_DAY_Q.coesNumber,"C123"],[core.FIXES_DAY_Q.certDate,"2026-11-02"]].map(([label,text])=>({label,responses:{text}})),
  {label:core.FIXES_DAY_Q.coesFile,media:[{media_id:"coes"}]},
  {label:core.FIXES_DAY_Q.workPhoto,media:[{media_id:"photo",location:{latitude:-37.8,longitude:145}}]},
- {label:core.FIXES_DAY_Q.signature,responses:{image:{media_id:"signature",timestamp:"2026-11-02T03:00:00Z"},name:"Electrician"}},
+ {label:core.FIXES_DAY_Q.signature,responses:{image:{media_id:"0123456789abcdef0123456789abcdef",timestamp:"2026-11-02T03:00:00Z"},name:"Electrician"}},
 ]});
-const seedOfficial = () => { tables.piesa_records.push({job_id:JOB,kind:"initial",outcome:"fail",completed_date:"2026-10-30",signed_off_by:"electrician",is_current:true}); tables.rectification_items.push({job_id:JOB,status:"required",description:"RCD"}); };
+const seedOfficial = () => { tables.quotes.push({id:"install-quote",job_id:JOB,kind:"installation",status:"accepted",customer_total_inc_gst:2000}); tables.invoices.push({quote_id:"install-quote",job_id:JOB,kind:"installation",total_inc_gst:2000,total_paid:349}); tables.piesa_records.push({job_id:JOB,kind:"initial",outcome:"fail",completed_date:"2026-10-30",signed_off_by:"electrician",is_current:true}); tables.rectification_items.push({job_id:JOB,status:"required",description:"RCD"}); };
 test("partner-billed same-visit signed form reaches real install clearance without a quote and keeps official deadline",async()=>{
  realWorkflow=true; seedOfficial(); tables.jobs[0].stage="piesa_complete"; auditResponse=signedAudit();
  const server=load("fixes-day.server");
