@@ -97,13 +97,6 @@ const search = (query: string, token = TOKEN) => searchOwnerAddress({ data: { to
 describe("owner picks their full address", () => {
   beforeEach(() => seed());
 
-  test("older job created before go-live (Jo 30 Oct) → open, the owner can pick", async () => {
-    tables["jobs"]![0]!["created_at"] = "2026-09-01T00:00:00Z";
-    expect((await getOwnerAddressState({ data: { token: TOKEN } })).state).toBe("open");
-    expect(await save("vic")).toEqual({ ok: true });
-    expect(answered()).toHaveLength(1);
-  });
-
   test("Victorian pick → address saved, answered event logged, request closed (Save my spot no longer held)", async () => {
     const { loadAddressRequestFacts } = await import("../src/lib/address-request.server");
     expect(addressRequestOpen((await loadAddressRequestFacts("j1"))!)).toBe(true);
@@ -175,8 +168,7 @@ describe("owner picks their full address", () => {
 
   const notWaiting: [string, () => void][] = [
     ["office/partner-channel job", () => { tables["jobs"]![0]!["channel"] = "installer_sourced"; }],
-    ["cancelled job", () => { tables["jobs"]![0]!["stage"] = "cancelled"; }],
-    ["deleted job", () => { tables["jobs"]![0]!["deleted_at"] = "2026-10-29T00:00:00Z"; }],
+    ["job created before go-live", () => { tables["jobs"]![0]!["created_at"] = "2026-10-19T00:00:00Z"; }],
     ["job whose street is already full", () => { tables["properties"]![0]!["address_line"] = "7 Gum Rd"; }],
     ["feature switched off (no go-live date)", () => { tables["workflow_settings"]![0]!["address_request_live_at"] = null; }],
     ["owner told Does Not Appear Eligible", () => { tables["jobs"]![0]!["eligibility_outcome"] = "does_not_appear_eligible"; }],

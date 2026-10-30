@@ -23,7 +23,6 @@ import {
 } from "./spot-release.core";
 import { SMS_MESSAGE_TYPES } from "./sms.core";
 import { smsQuietReason } from "./quote-hold.core";
-import { noStreetBlock } from "./address-request.core";
 
 const loose = admin as unknown as SupabaseClient;
 
@@ -50,13 +49,12 @@ export async function spotReleaseStates(jobIds: string[]): Promise<Map<string, S
 
 async function jobFacts(jobId: string) {
   const [{ data: job, error }, { count: inst }] = await Promise.all([
-    admin.from("jobs").select("id, stage, channel, source, owner_id, deleted_at, job_number, properties(address_line)").eq("id", jobId).maybeSingle(),
+    admin.from("jobs").select("id, stage, channel, source, owner_id, deleted_at, job_number").eq("id", jobId).maybeSingle(),
     admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "installer").eq("active", true),
   ]);
   if (error) throw new Error(error.message);
   if (!job) return null;
-  const addressLine = (job as unknown as { properties: { address_line: string | null } | null }).properties?.address_line ?? null;
-  return { ...job, addressLine, hasInstaller: (inst ?? 0) > 0, waiting: jobWaitingForInstaller({ channel: job.channel, stage: job.stage, hasInstaller: (inst ?? 0) > 0, deleted: !!job.deleted_at }) };
+  return { ...job, hasInstaller: (inst ?? 0) > 0, waiting: jobWaitingForInstaller({ channel: job.channel, stage: job.stage, hasInstaller: (inst ?? 0) > 0, deleted: !!job.deleted_at }) };
 }
 
 /** Insert one spot-release event as a claim. false = this slot was already claimed (unique key, or the read-then-insert check). */
@@ -126,8 +124,6 @@ export async function releaseSpot(jobId: string, actorId: string | null, busines
   const now = opts.now ?? new Date();
   const [job, events, hasRateCard] = await Promise.all([jobFacts(jobId), eventsFor(jobId), installerHasActiveRateCard(businessId)]);
   if (!job || job.deleted_at) throw new WorkflowError("This job is no longer available.");
-  const noStreet = noStreetBlock(job.addressLine); // Jo 30 Oct 2026: never released while the owner's street is missing
-  if (noStreet) throw new WorkflowError(noStreet);
   const state = spotReleaseState(events);
   const approved = opts.approved ?? { email: SPOT_RELEASED_APPROVED, sms: SMS_MESSAGE_TYPES[SPOT_RELEASED_SMS_TYPE].wordingApproved as boolean };
   const plan = releasePlan({ state, testJob: job.source === "qa_test", emailApproved: approved.email, smsApproved: approved.sms, hasRateCard });
@@ -228,12 +224,11 @@ export async function declineSpotRelease(jobId: string, now = new Date()): Promi
 
 // ---- 15-minute tick ----------------------------------------------------------------------------------------------
 
-/** blocked = pending releases skipped this tick because the job has no street ("Waiting for the owner's full address"). */
-export type SpotReleaseSweep = { pending: number; reminded: number; releaseTexts: number; lapsed: number; failed: number; blocked: number };
+export type SpotReleaseSweep = { pending: number; reminded: number; releaseTexts: number; lapsed: number; failed: number };
 
 /** Day-2 reminder, 7am release text, day-5 lapse. Reads batched; due jobs run four at a time (never one long serial loop). */
 export async function sweepSpotReleases(now = new Date(), opts: { approved?: { email: boolean; sms: boolean } } = {}): Promise<SpotReleaseSweep> {
-  const out: SpotReleaseSweep = { pending: 0, reminded: 0, releaseTexts: 0, lapsed: 0, failed: 0, blocked: 0 };
+  const out: SpotReleaseSweep = { pending: 0, reminded: 0, releaseTexts: 0, lapsed: 0, failed: 0 };
   // Releases from the last 30 days (a release lapses at day 5, so older ones are settled).
   const since = new Date(now.getTime() - 30 * 86_400_000).toISOString();
   const recent: { job_id: string }[] = [];
@@ -248,7 +243,7 @@ export async function sweepSpotReleases(now = new Date(), opts: { approved?: { e
   const { readByJobIds } = await import("./sweep-batch.server");
   const [states, jobs, inst] = await Promise.all([
     spotReleaseStates(ids),
-    readByJobIds<{ id: string; stage: string; channel: string | null; deleted_at: string | null; properties: { address_line: string | null } | null }>("released jobs", ids, (c) => admin.from("jobs").select("id, stage, channel, deleted_at, properties(address_line)").in("id", c) as never),
+    readByJobIds<{ id: string; stage: string; channel: string | null; deleted_at: string | null }>("released jobs", ids, (c) => admin.from("jobs").select("id, stage, channel, deleted_at").in("id", c)),
     readByJobIds<{ job_id: string }>("released jobs' installers", ids, (c) => admin.from("job_assignments").select("job_id").in("job_id", c).eq("role", "installer").eq("active", true)),
   ]);
   const withInst = new Set(inst.map((a) => String(a.job_id)));
@@ -257,8 +252,6 @@ export async function sweepSpotReleases(now = new Date(), opts: { approved?: { e
     const s = states.get(j.id);
     if (!s || s.state !== "pending") continue;
     out.pending++;
-    // Jo 30 Oct 2026: no street → skipped ("Waiting for the owner's full address"); carries on once the owner picks it.
-    if (noStreetBlock(j.properties?.address_line)) { out.blocked++; continue; }
     const what = spotReleaseDue(s, now, { waiting: jobWaitingForInstaller({ channel: j.channel, stage: j.stage, hasInstaller: withInst.has(j.id), deleted: !!j.deleted_at }) });
     if (what) due.push({ jobId: j.id, state: s, what });
   }

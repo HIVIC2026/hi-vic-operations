@@ -10,13 +10,6 @@ export type BookingKind = "assessment" | "ready_check" | "rectification" | "inst
 
 export async function confirmBooking(jobId: string, kind: BookingKind, start: string, actorId: string, roleLabel: string, notes?: string | null) {
   const need = kind === "installation" || kind === "ready_check" ? "installer" : "electrician";
-  if (kind === "ready_check") {
-    // Jo 30 Oct 2026 (HV-3542): never booked while the owner's street is missing — owner, installer and office override alike.
-    const { data: j } = await admin.from("jobs").select("properties(address_line)").eq("id", jobId).maybeSingle();
-    const line = (j as unknown as { properties: { address_line: string | null } | null } | null)?.properties?.address_line ?? null;
-    const noStreet = (await import("./address-request.core")).noStreetBlock(line);
-    if (noStreet) throw new WorkflowError(noStreet);
-  }
   const stage = await getStage(jobId);
   const map: Record<BookingKind, [Stage[], Stage]> = {
     // "assessment" booking kind = the PIESA visit (legacy enum name). Only after the PIESA gate.
