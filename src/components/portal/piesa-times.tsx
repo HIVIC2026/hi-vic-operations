@@ -13,6 +13,7 @@ import { PIESA_OWNER_SUGGEST_MAX, formatPiesaTime, ownerPiesaDaysBlockers } from
 import { Section } from "./panels";
 import { toast } from "sonner";
 import { assertInHouseActionSucceeded } from "@/lib/in-house.core";
+import { markOfficeChanged } from "@/lib/office-list-refresh";
 
 const dayLabel = (ymd: string) => new Intl.DateTimeFormat("en-AU", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${ymd}T12:00:00Z`));
 
@@ -91,7 +92,7 @@ export function PiesaTimesCard({ jobId }: { jobId: string }) {
       <p className="mt-3 text-xs text-muted-foreground">{picks.length} of {PIESA_WINDOW_MAX} chosen.{picks.length > 0 && blockers.length ? ` ${blockers[0]}` : ""}</p>
       {data.thirtyDayAck.needed && <label className="mt-3 flex items-start gap-3 rounded-lg border p-3 text-sm"><input type="checkbox" className="mt-1 h-5 w-5 shrink-0" checked={understands} onChange={(e) => setUnderstands(e.target.checked)} /><span>{data.thirtyDayAck.wording}</span></label>}
       <Button size="field" className="mt-2 w-full" disabled={busy || ackBlock || blockers.length > 0}
-        onClick={async () => { setBusy(true); try { const result = await choose({ data: { jobId, picks, understandsThirtyDays: understands } }); assertInHouseActionSucceeded(result); toast.success("Times sent to our electricians"); setPicks([]); await qc.invalidateQueries({ queryKey: ["piesa-windows", jobId] }); } catch (e) { toast.error(e instanceof Error ? e.message : "Something went wrong"); } finally { setBusy(false); } }}>
+        onClick={async () => { setBusy(true); try { const result = await choose({ data: { jobId, picks, understandsThirtyDays: understands } }); assertInHouseActionSucceeded(result); markOfficeChanged(); toast.success("Times sent to our electricians"); setPicks([]); await qc.invalidateQueries(); } catch (e) { toast.error(e instanceof Error ? e.message : "Something went wrong"); } finally { setBusy(false); } }}>
         Send my times
       </Button>
     </Section>
