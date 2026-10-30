@@ -39,3 +39,14 @@ Why: no wasted Ready Check visits, almost no office work, and installers (e.g. R
 
 ## Testing
 Test-first. likelyEligible cases (each rule in/out); suggestBatches on fixed coordinates (10 km, 8–10 cap, 14-day small batches, installer coverage); send → text once (TEST test-send); every tap outcome incl. "Not sure"; reminder day 2, close day 3, day-14 close; installer jobs never batched; garage areas excluded. Existing spot-release / Ready Check tests updated; full suite vs baseline; tsc; retired scan.
+
+## Amendment — 30 Oct (Jo approved)
+
+- **Owner text (replaces the "4 quick taps" text):** "Hi {name}, great news - it's almost time for your free Ready Check! Please confirm a few quick details for your quote: {link} - Home Insulation Victoria". **Reminder (day 2):** "Hi {name}, just a reminder - please confirm a few quick details so we can book your free Ready Check: {link}". No first name on file → "Hi there,".
+- **Name and address come first, for every owner**, each with [Yes] [Change it]:
+  1. "Is this your full name for your quote? {full name}" — none on file → "What's your full name for your quote?" (typed)
+  2. "Is this the right address for your quote? {address}" — none on file → "What's the full address of the home for your quote?" (typed)
+  then the hatch, roof, 5-year and "Yes, let's go" taps.
+- A changed or new name/address updates the job. A changed or new address is re-located; if it is over 10 km from the batch centre the owner leaves this batch and goes back to the pool (not told).
+- Owners with only a postcode on file are batched by their postcode's centre until they give a full address.
+- **Runs never go to an installer automatically.** When a batch closes, Jo sees who passed and taps **Send to installer**.
