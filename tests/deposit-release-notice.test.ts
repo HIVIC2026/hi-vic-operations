@@ -73,7 +73,8 @@ const db: Record<string, Row[]> = {
 function q(table: string) {
   const filters: ((r: Row) => boolean)[] = [];
   const api: any = {
-    select: () => api, order: () => api, limit: () => api,
+    select: () => api, order: () => api, limit: () => api, range: () => api,
+    in: (k: string, v: unknown[]) => { filters.push((r) => v.includes(r[k])); return api; },
     eq: (k: string, v: unknown) => { filters.push((r) => r[k] === v); return api; },
     contains: (k: string, v: Row) => { filters.push((r) => Object.entries(v).every(([kk, vv]) => (r[k] ?? {})[kk] === vv)); return api; },
     maybeSingle: async () => ({ data: db[table]!.find((r) => filters.every((f) => f(r))) ?? null }),
