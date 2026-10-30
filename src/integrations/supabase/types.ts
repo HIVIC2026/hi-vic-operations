@@ -1430,6 +1430,9 @@ export type Database = {
           free_quotes_for_hivic_leads: boolean | null
           gst_registered: boolean | null
           id: string
+          in_house: boolean
+          in_house_set_at: string | null
+          in_house_set_by: string | null
           installer_certification: Json
           is_active: boolean
           lead_time: string | null
@@ -1446,6 +1449,7 @@ export type Database = {
           public_liability_cover_amount: number | null
           rec_number: string | null
           receives_hivic_leads: boolean | null
+          rectification_billed_by: string
           service_postcodes: string[]
           service_regions: string[]
           signer_email: string | null
@@ -1495,6 +1499,9 @@ export type Database = {
           free_quotes_for_hivic_leads?: boolean | null
           gst_registered?: boolean | null
           id?: string
+          in_house?: boolean
+          in_house_set_at?: string | null
+          in_house_set_by?: string | null
           installer_certification?: Json
           is_active?: boolean
           lead_time?: string | null
@@ -1511,6 +1518,7 @@ export type Database = {
           public_liability_cover_amount?: number | null
           rec_number?: string | null
           receives_hivic_leads?: boolean | null
+          rectification_billed_by?: string
           service_postcodes?: string[]
           service_regions?: string[]
           signer_email?: string | null
@@ -1560,6 +1568,9 @@ export type Database = {
           free_quotes_for_hivic_leads?: boolean | null
           gst_registered?: boolean | null
           id?: string
+          in_house?: boolean
+          in_house_set_at?: string | null
+          in_house_set_by?: string | null
           installer_certification?: Json
           is_active?: boolean
           lead_time?: string | null
@@ -1576,6 +1587,7 @@ export type Database = {
           public_liability_cover_amount?: number | null
           rec_number?: string | null
           receives_hivic_leads?: boolean | null
+          rectification_billed_by?: string
           service_postcodes?: string[]
           service_regions?: string[]
           signer_email?: string | null
@@ -14137,6 +14149,15 @@ export type Database = {
           p_summary: string
         }
         Returns: boolean
+      }
+      save_in_house_partner: {
+        Args: {
+          p_actor_id: string
+          p_business_id: string
+          p_in_house: boolean
+          p_rectification_billed_by: string
+        }
+        Returns: undefined
       }
       save_owner_insulation_details: {
         Args: { p_answers: Json; p_token: string }
