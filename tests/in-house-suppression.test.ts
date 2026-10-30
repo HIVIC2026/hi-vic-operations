@@ -230,3 +230,40 @@ test("scoped held lookup chunks candidate ids at 200 and reads the last chunk", 
     expect((filter?.[2] as unknown[]).length).toBeLessThanOrEqual(200);
   }
 });
+test("actual three UI callbacks stop before success/reset/refetch and show skipped messages", async () => {
+  const scenarios = [
+    { path: "src/routes/_authenticated/field.offer.$offerId.tsx", action: "offerTimes", catches: true },
+    { path: "src/routes/my-job.$token.tsx", action: "choosePiesa", catches: false },
+    { path: "src/components/portal/piesa-times.tsx", action: "choose", catches: true },
+  ];
+  for (const scenario of scenarios) {
+    const text = readFileSync(scenario.path, "utf8");
+    const source = ts.createSourceFile(scenario.path, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    let arrow: ts.ArrowFunction | undefined;
+    function visit(node: ts.Node) {
+      if (ts.isArrowFunction(node) && node.getText(source).includes(`await ${scenario.action}(`)) {
+        if (!arrow || node.getText(source).length < arrow.getText(source).length) arrow = node;
+      }
+      ts.forEachChild(node, visit);
+    }
+    visit(source); if (!arrow) throw new Error(`Missing UI callback ${scenario.path}`);
+    for (const skipped of ["in_house", "in_house_read_failed"] as const) {
+      const result = inHouse.inHouseSkippedAction(skipped);
+      const messages: string[] = []; const success: string[] = [];
+      const deps: Record<string, any> = {
+        [scenario.action]: async () => result, assertInHouseActionSucceeded: inHouse.assertInHouseActionSucceeded,
+        busy: false, flight: { current: false }, setBusy: () => {}, setFail: (s: string | null) => { if (s) messages.push(s); },
+        refetch: async () => { success.push("refetch"); }, setPicks: () => { success.push("reset"); },
+        qc: { invalidateQueries: async () => { success.push("refresh"); } },
+        toast: { success: () => { success.push("toast"); }, error: (s: string) => { messages.push(s); } },
+        offerId: "offer", token: "token", session: "session", jobId: "j", picks: [], understands: true,
+      };
+      const exports: any = {};
+      const code = ts.transpile(`exports.callback = ${arrow.getText(source)};`, { target: ts.ScriptTarget.ES2022 });
+      new Function("exports", ...Object.keys(deps), code)(exports, ...Object.values(deps));
+      if (scenario.catches) await exports.callback([]);
+      else { try { await exports.callback(); } catch (e) { messages.push((e as Error).message); } }
+      expect(messages).toEqual([result.message]); expect(success).toEqual([]);
+    }
+  }
+});
