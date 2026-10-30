@@ -857,7 +857,7 @@ export async function tradeSetReadyCheckTime(userId: string, jobId: string, pick
 }
 
 /** Own in-house business membership, not an offer or a customer's time-picking action. */
-export async function inHouseBookingAccess(userId: string, jobId: string, client = admin): Promise<{ allowed: boolean; blockers: string[] }> {
+export async function inHouseBookingAccess(userId: string, jobId: string, client = admin): Promise<{ allowed: boolean; blockers: string[]; bookings?: { id: string; kind: string; scheduled_start: string | null; status: string }[] }> {
   const { readInHouseDispatchState } = await import("./in-house-suppression.server");
   const state = await readInHouseDispatchState([jobId]);
   if (state.failed) return { allowed: false, blockers: ["Couldn't check the job's partner — please try again."] };
@@ -870,7 +870,10 @@ export async function inHouseBookingAccess(userId: string, jobId: string, client
   if (!member) return { allowed: false, blockers: ["forbidden"] };
   const { data: job, error: jobError } = await admin.from("jobs").select("id").eq("id", jobId).is("deleted_at", null).neq("source", "qa_test").maybeSingle();
   if (jobError) throw new Error(jobError.message);
-  return job ? { allowed: true, blockers: [] } : { allowed: false, blockers: ["forbidden"] };
+  if (!job) return { allowed: false, blockers: ["forbidden"] };
+  const { data: bookings, error: bookingError } = await admin.from("bookings").select("id, kind, scheduled_start, status").eq("job_id", jobId).neq("status", "cancelled").order("created_at", { ascending: false });
+  if (bookingError) throw new Error(bookingError.message);
+  return { allowed: true, blockers: [], bookings: bookings ?? [] };
 }
 
 /** A thin member-scoped wrapper: all booking rules and writes stay in confirmBooking. */

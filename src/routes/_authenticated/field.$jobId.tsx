@@ -136,8 +136,8 @@ function FieldJobBody({ jobId }: { jobId: string }) {
       <div className="space-y-4">
         {/* Decision 333: the electrician offers the owner 3 safety check times (the owner picks one or suggests days). */}
         <InHouseBookingCard jobId={jobId} />
-        {role === "electrician" && inHouseAccess.data?.allowed === false && <ElectricianPiesaTimesCard jobId={jobId} />}
-        {role === "electrician" && inHouseAccess.data?.allowed === false && <FixesTimesCard jobId={jobId} />}
+        {role === "electrician" && inHouseAccess.data?.allowed !== true && <ElectricianPiesaTimesCard jobId={jobId} />}
+        {role === "electrician" && inHouseAccess.data?.allowed !== true && <FixesTimesCard jobId={jobId} />}
         {role === "electrician" && <InstallAttendanceCard jobId={jobId} />}
         {role === "electrician" && <ElectricianFlow jobId={jobId} stage={job.stage!} />}
         {role === "electrician" && <SafetyCheckDocRow jobId={jobId} />}
@@ -331,10 +331,10 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
           {next.ownerReady && <p className={`mt-2.5 text-sm font-medium ${next.ownerReady.done ? "text-hiv-green" : "text-ink"}`} data-owner-ready>{next.ownerReady.text}</p>}
           {/* Decision 327: electrician needed at the start of the install day — confirmed / waiting, or the "can't make it" alert. */}
           {page.electricianAttendance && <p className={`mt-2.5 text-sm font-medium ${page.electricianAttendance.line === ELECTRICIAN_ATTENDANCE_CONFIRMED ? "text-hiv-green" : "text-ink"}`} data-electrician-attendance>{page.electricianAttendance.alert ?? page.electricianAttendance.line}</p>}
-          {inHouseAccess.data?.allowed === false && ["offer_install_days", "install_answer_owner", "install_waiting_owner", "install_booked"].includes(next.panel) && <InstallerInstallDays jobId={jobId} ownerFirstName={owner} />}
+          {(next.panel === "install_booked" || (inHouseAccess.data?.allowed !== true && ["offer_install_days", "install_answer_owner", "install_waiting_owner"].includes(next.panel))) && <InstallerInstallDays jobId={jobId} ownerFirstName={owner} readOnly={inHouseAccess.data?.allowed === true} />}
           {next.panel === "install_booked" && <Link to="/field/day/$jobId" params={{ jobId }} className={`${primaryLinkClass} mt-2`} data-todays-job>Today's job</Link>}
-          {inHouseAccess.data?.allowed === false && ["ready_check_offer_times", "ready_check_answer_owner", "ready_check_waiting_owner"].includes(next.panel) && <InstallerReadyCheckTimesCard jobId={jobId} ownerFirstName={owner} />}
-          {inHouseAccess.data?.allowed === false && next.panel === "ready_check_set_time" && a1ReadyCheckEntryAllowed({ channel: job.channel ?? null, stage: job.stage ?? null }) && <A1ReadyCheckTimeCard jobId={jobId} />}
+          {inHouseAccess.data?.allowed !== true && ["ready_check_offer_times", "ready_check_answer_owner", "ready_check_waiting_owner"].includes(next.panel) && <InstallerReadyCheckTimesCard jobId={jobId} ownerFirstName={owner} />}
+          {inHouseAccess.data?.allowed !== true && next.panel === "ready_check_set_time" && a1ReadyCheckEntryAllowed({ channel: job.channel ?? null, stage: job.stage ?? null }) && <A1ReadyCheckTimeCard jobId={jobId} />}
           {mittiLink === "next" && page.form.auditId && <MittiFormLink auditId={page.form.auditId} className={`${primaryLinkClass} mt-3.5`}>Open Mitti form</MittiFormLink>}
           {/* Decision 318: the pay rule sits beside the Mitti form for the paid visits (install day onwards). */}
           {["offer_install_days", "install_answer_owner", "install_waiting_owner", "install_booked", "sign_rebate", "install_done"].includes(next.panel) && <NoFormNoPay className="mt-3" />}

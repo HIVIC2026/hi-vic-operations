@@ -24,7 +24,9 @@ export function useInHouseBookingAccess(jobId: string) {
   return useQuery({ queryKey: ["in-house-booking-access", jobId], queryFn: () => load({ data: { jobId } }), retry: false });
 }
 
-function VisitPicker({ jobId, kind, label }: { jobId: string; kind: VisitKind; label: string }) {
+type ExistingBooking = { id: string; kind: string; scheduled_start: string | null; status: string };
+
+function VisitPicker({ jobId, kind, label, booking }: { jobId: string; kind: VisitKind; label: string; booking?: ExistingBooking }) {
   const book = useServerFn(inHouseBookVisit);
   const qc = useQueryClient();
   const [value, setValue] = useState("");
@@ -44,6 +46,10 @@ function VisitPicker({ jobId, kind, label }: { jobId: string; kind: VisitKind; l
       finally { setBusy(false); }
     }}>
       <Label htmlFor={id}>{label}</Label>
+      {booking && <p className="break-words text-sm text-sub">
+        {booking.scheduled_start && <time dateTime={booking.scheduled_start}>{new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "short", year: "numeric" }).format(new Date(booking.scheduled_start))} · {new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(booking.scheduled_start))}</time>}
+        {booking.scheduled_start ? " · " : ""}{booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+      </p>}
       <Input id={id} type="datetime-local" aria-label={`${label} date and time (Melbourne)`} className="h-12 min-w-0 w-full" required value={value} onChange={(event) => setValue(event.target.value)} />
       {blockers.length > 0 && <ul role="alert" className="space-y-1 break-words text-sm text-rose">{blockers.map((blocker, index) => <li key={index}>{blocker}</li>)}</ul>}
       <Button type="submit" size="field" variant="outline" className="w-full whitespace-normal" disabled={busy || !value}>{busy ? "Saving…" : `Book ${label}`}</Button>
@@ -53,6 +59,6 @@ function VisitPicker({ jobId, kind, label }: { jobId: string; kind: VisitKind; l
 
 export function InHouseBookingCard({ jobId }: { jobId: string }) {
   const access = useInHouseBookingAccess(jobId);
-  if (!access.data?.allowed) return null;
-  return <Group title="Visit bookings">{visits.map((visit) => <VisitPicker key={visit.kind} jobId={jobId} {...visit} />)}</Group>;
+  if (access.isLoading || access.isError || access.data?.allowed !== true) return null;
+  return <Group title="Visit bookings">{visits.map((visit) => <VisitPicker key={visit.kind} jobId={jobId} {...visit} booking={access.data.bookings?.find((booking) => booking.kind === visit.kind)} />)}</Group>;
 }
