@@ -38,5 +38,11 @@ test("pending in-house migration backfills only the old list, defaults billing a
     await expect(db.exec("UPDATE businesses SET rectification_billed_by='other'")).rejects.toThrow();
     await db.exec(readFileSync("docs/pending-migrations/2026-10-30_in_house_partner.undo.sql", "utf8"));
     expect((await db.query("SELECT column_name FROM information_schema.columns WHERE table_name='businesses' AND column_name IN ('in_house','in_house_set_at','in_house_set_by','rectification_billed_by')")).rows).toEqual([]);
+    expect((await db.query("SELECT * FROM rate_cards")).rows).toEqual([]);
+    expect((await db.query("SELECT * FROM rate_card_items")).rows).toEqual([]);
+    expect((await db.query("SELECT tgname FROM pg_trigger WHERE tgname='trg_guard_in_house_partner'")).rows).toEqual([]);
+    expect((await db.query("SELECT proname FROM pg_proc WHERE proname IN ('guard_in_house_partner','save_in_house_partner')")).rows).toEqual([]);
+    // Permanent office-change history survives rollback; it records a real accepted change.
+    expect((await db.query("SELECT * FROM workflow_events WHERE event_type='in_house_partner_changed'")).rows).toHaveLength(1);
   } finally { await db.close(); }
 });
