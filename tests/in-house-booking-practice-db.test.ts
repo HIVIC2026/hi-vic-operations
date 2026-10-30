@@ -6,6 +6,7 @@ import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { embedShim } from "./helpers/pglite-embed-shim";
 import * as inHouse from "../src/lib/in-house.core";
+import { runAutoAdvance } from "../src/lib/autoadvance.core";
 import * as allocation from "../src/lib/allocation.core";
 import * as workflowCore from "../src/lib/workflow";
 import * as installDays from "../src/lib/install-days.core";
@@ -26,7 +27,7 @@ CREATE TYPE booking_kind AS ENUM ('assessment','ready_check','rectification','in
 CREATE TYPE booking_status AS ENUM ('proposed','confirmed','completed','cancelled');
 CREATE TABLE businesses(id uuid primary key, in_house boolean not null default false, pays_own_electricians boolean not null default false, rectification_billed_by text not null default 'hivic' CHECK(rectification_billed_by IN ('partner','hivic')), business_type text, onboarding_status text, is_active boolean, capabilities text[]);
 CREATE TABLE business_members(id uuid primary key default gen_random_uuid(), business_id uuid references businesses(id), user_id uuid, active boolean not null default true, member_role text CHECK(member_role IN ('business_admin','member')));
-CREATE TABLE jobs(id uuid primary key, stage text, source text, deleted_at timestamptz, signed boolean, fee_paid boolean, deposit_paid boolean, rectification_paid boolean, piesa_completed boolean, rectification_required boolean, part_c_signed boolean, install_deadline text);
+CREATE TABLE jobs(id uuid primary key, stage text, next_action text, source text, deleted_at timestamptz, signed boolean, fee_paid boolean, deposit_paid boolean, rectification_paid boolean, piesa_completed boolean, rectification_required boolean, part_c_signed boolean, install_deadline text);
 CREATE TABLE job_assignments(id uuid primary key default gen_random_uuid(), job_id uuid references jobs(id), business_id uuid references businesses(id), user_id uuid, role text, active boolean not null default true, booking_confirmed_at timestamptz);
 CREATE TABLE bookings(id uuid primary key default gen_random_uuid(), job_id uuid not null references jobs(id), kind booking_kind not null, contractor_id uuid, assignment_id uuid references job_assignments(id), business_id uuid references businesses(id), scheduled_start timestamptz, scheduled_end timestamptz, booked_by uuid, notes text, status booking_status not null, created_at timestamptz not null default now());
 CREATE TABLE workflow_events(id uuid primary key default gen_random_uuid(), job_id uuid, actor_id uuid, event_type text not null, summary text, details jsonb, created_at timestamptz default now(), CONSTRAINT workflow_events_job_required CHECK(job_id IS NOT NULL OR event_type=ANY(ARRAY['email_unmatched','email_unmatched_dismissed','email_new_sender_replied','email_nojob_ai_draft','email_nojob_reply_sent','email_nojob_ai_draft_closed','email_nojob_followup_claim','email_nojob_followup_failed','email_nojob_ai_draft_failed'])));
@@ -38,6 +39,7 @@ class WorkflowError extends Error {}
 let failHeldRead = false;
 let failBillingRead = false;
 let rectificationGuardCalls = 0;
+let formCalls = 0, formAudits = 0, failForm = false;
 const shim = embedShim(db, { job_assignments: { businesses: { table: "businesses", fk: "business_id", on: "base" } } });
 const admin = { from(table: string) {
   const query = shim.from(table);
@@ -91,6 +93,8 @@ const overrides: Record<string, any> = {
   "./installer-planning-notice.server": { notifyInstallerPlanning: async () => {} }, "./engagement.server": { recordBookingCompleted: async () => {} },
   "./owner-email-triggers.server": { onSafetyCheckBooked: async () => {} }, "./piesa-autoform.server": { onPiesaBooked: async () => {} },
   "./consent.server": { syncOwnerConsent: async () => {}, currentConsent: async () => null },
+  "./mitti-create.server": { onReadyCheckBooked: async () => { formCalls++; if (failForm) throw new Error("mock Mitti unavailable"); if (!formAudits) formAudits++; } },
+  "./installer-ready-check.core": { READY_CHECK_BOOKED: "Ready Check booked" },
   "./consent.core": { consentValidityBlockers: () => [] },
 };
 // Isolate modules without global mock pollution. Only the ESC helper's unrelated fact reads are stubbed;
@@ -121,11 +125,11 @@ function load(name: string, cache: Record<string, any> = {}): any {
 const book = async (kind = "installation", actor = MEMBER, start = START) => load("trade-view.server").inHouseBookVisit(actor, { jobId: JOB, kind, start });
 const patch = async (field: string, value: unknown) => db.query(`update jobs set "${field}"=$1 where id=$2`, [value,JOB]);
 beforeEach(async () => {
-  failHeldRead = false; failBillingRead = false; rectificationGuardCalls = 0;
+  failHeldRead = false; failBillingRead = false; rectificationGuardCalls = 0; formCalls = 0; formAudits = 0; failForm = false;
   await db.exec("truncate esc_notifications,workflow_events,bookings,job_assignments,business_members,jobs,businesses cascade");
   await db.query("insert into businesses(id,in_house,rectification_billed_by,business_type,onboarding_status,is_active,capabilities) values($1,true,'partner','eec_installer','approved',true,ARRAY['installer','electrician']),($2,false,'hivic','eec_installer','approved',true,ARRAY['installer'])", [BIZ,OTHER]);
   await db.query("insert into business_members(business_id,user_id,member_role) values($1,$2,'member'),($3,$4,'business_admin')", [BIZ,MEMBER,OTHER,OUTSIDER]);
-  await db.query("insert into jobs values($1,'installation_scheduling','base44',null,true,true,true,false,true,false,true,$2)",[JOB,DEADLINE]);
+  await db.query("insert into jobs(id,stage,source,deleted_at,signed,fee_paid,deposit_paid,rectification_paid,piesa_completed,rectification_required,part_c_signed,install_deadline) values($1,'installation_scheduling','base44',null,true,true,true,false,true,false,true,$2)",[JOB,DEADLINE]);
   for (const role of ["installer","electrician"]) await db.query("insert into job_assignments(job_id,business_id,user_id,role) values($1,$2,$3,$4)",[JOB,BIZ,MEMBER,role]);
 });
 afterAll(async () => db.close());
@@ -280,4 +284,33 @@ test("payee-only Reinsulate member has no in-house access/card and cannot use th
   expect(access).toEqual({ allowed: false, blockers: ["forbidden"] });
   expect(await book()).toEqual({ ok: false, blockers: ["forbidden"] });
   expect(await rows("select id from bookings")).toHaveLength(0);
+});
+
+test("in-house Ready Check schedules its form once; repeated callback retains one audit and other visits do not schedule it", async () => {
+  await patch("stage", "ready_check_ready_to_schedule");
+  expect((await book("ready_check")).ok).toBe(true);
+  expect(formCalls).toBe(1); expect(formAudits).toBe(1);
+  expect((await job()).next_action).toBe("Ready Check booked");
+  expect(await rows("select id from workflow_events where event_type='installer_ready_check_time_entered'")).toHaveLength(1);
+  const retry = await book("ready_check");
+  expect(formAudits).toBe(1);
+  if (retry.ok) expect(await rows("select id from bookings where kind='ready_check'")).toHaveLength(1);
+  await patch("stage", "installation_scheduling"); await book("installation");
+  expect(formCalls).toBe(1);
+});
+test("Ready Check Mitti failure keeps the confirmed booking and logs without undo", async () => {
+  await patch("stage", "ready_check_ready_to_schedule"); failForm = true;
+  const original = console.error; const errors: unknown[] = []; console.error = (...args) => errors.push(args);
+  try { expect((await book("ready_check")).ok).toBe(true); expect(await rows("select id from bookings where kind='ready_check' and status='confirmed'")).toHaveLength(1); expect(errors).toHaveLength(1); }
+  finally { console.error = original; }
+});
+
+test("partner-billed separate visit advances via the actual planner then books rectification without a HIV quote", async () => {
+  await patch("stage","piesa_complete");
+  const base:any={openRectItems:1,onsiteStartOnly:false,partnerBilledRectification:true,rectBookingConfirmed:false};
+  const result=await runAutoAdvance({getStage:async()=>(await job()).stage,facts:async()=>base,blockers:async()=>[],transition:async(to,summary)=>{await patch("stage",to);await logEvent(JOB,MEMBER,"stage_changed",summary);},generateQuotes:async()=>{throw new Error("No HIV quote");},completeSite:async()=>false});
+  expect(result.to).toBe("rectification_scheduling");
+  expect((await book("rectification")).ok).toBe(true); expect(rectificationGuardCalls).toBe(0);
+  expect(await rows("select id from bookings where kind='rectification' and status='confirmed'")).toHaveLength(1);
+  expect(await rows("select id from workflow_events where event_type='stage_changed'")).toHaveLength(2);
 });

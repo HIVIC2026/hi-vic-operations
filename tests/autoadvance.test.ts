@@ -156,3 +156,12 @@ describe("Gate 1 auto-decision", () => {
     expect((await runAutoAdvance(accepted.deps)).to).toBe("ready_check_complete"); // an office-accepted measure-up still skips the Ready Check
   });
 });
+
+test("partner-billed separate rectification advances from PIESA complete without a HIV quote; other jobs remain", async () => {
+  for (const partnerBilledRectification of [true, false]) {
+    const f = fake("piesa_complete", { openRectItems: 1, partnerBilledRectification } as Partial<AdvanceFacts>);
+    const r = await runAutoAdvance(f.deps);
+    expect(r.to).toBe(partnerBilledRectification ? "rectification_scheduling" : "piesa_complete");
+    expect(r.steps).toEqual(partnerBilledRectification ? ["rectification_scheduling"] : []);
+  }
+});

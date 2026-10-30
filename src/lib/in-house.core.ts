@@ -1,6 +1,6 @@
 /** Held visits and partner-billed rectification use in_house ONLY, never pays_own_electricians. No I/O. */
 export type InHouseBusiness = { in_house: boolean; rectification_billed_by: "partner" | "hivic" };
-export type InHouseFacts = { approvedElectricianWorkers: number; hasActiveRateCardWithPiesa: boolean; mittiElectricianLogins: number };
+export type InHouseFacts = { approvedElectricianWorkers: number; hasActiveRateCardWithPiesa: boolean; mittiElectricianLogins: number; mittiAccountInvited: boolean };
 
 export function isInHousePartner(b: { in_house: boolean }): boolean { return b.in_house === true; }
 
@@ -28,7 +28,13 @@ export function inHouseEnableBlockers(f: InHouseFacts): string[] {
   if (f.approvedElectricianWorkers < 1) blockers.push("No approved electrician worker");
   if (!f.hasActiveRateCardWithPiesa) blockers.push("No active rate card with PIESA");
   if (f.mittiElectricianLogins < 1) blockers.push("No electrician Mitti login");
+  if (!f.mittiAccountInvited) blockers.push("Mitti account not invited");
   return blockers;
+}
+
+/** A new business has none of the recorded prerequisites yet. */
+export function newInHouseBlockers(): string[] {
+  return inHouseEnableBlockers({ approvedElectricianWorkers: 0, hasActiveRateCardWithPiesa: false, mittiElectricianLogins: 0, mittiAccountInvited: false });
 }
 
 export function partnerBillsRectification(b: InHouseBusiness): boolean {

@@ -10,13 +10,13 @@ describe("in-house partner", () => {
     expect(isInHousePartner({ in_house: false })).toBe(false);
   });
   test("requires approved worker and Mitti login", () => {
-    expect(inHouseEnableBlockers({ approvedElectricianWorkers: 0, hasActiveRateCardWithPiesa: true, mittiElectricianLogins: 0 })).toEqual(["No approved electrician worker", "No electrician Mitti login"]);
+    expect(inHouseEnableBlockers({ approvedElectricianWorkers: 0, hasActiveRateCardWithPiesa: true, mittiElectricianLogins: 0, mittiAccountInvited: true })).toEqual(["No approved electrician worker", "No electrician Mitti login"]);
   });
   test("requires an active PIESA rate card", () => {
-    expect(inHouseEnableBlockers({ approvedElectricianWorkers: 1, hasActiveRateCardWithPiesa: false, mittiElectricianLogins: 1 })).toEqual(["No active rate card with PIESA"]);
+    expect(inHouseEnableBlockers({ approvedElectricianWorkers: 1, hasActiveRateCardWithPiesa: false, mittiElectricianLogins: 1, mittiAccountInvited: true })).toEqual(["No active rate card with PIESA"]);
   });
   test("allows all good facts", () => {
-    expect(inHouseEnableBlockers({ approvedElectricianWorkers: 1, hasActiveRateCardWithPiesa: true, mittiElectricianLogins: 1 })).toEqual([]);
+    expect(inHouseEnableBlockers({ approvedElectricianWorkers: 1, hasActiveRateCardWithPiesa: true, mittiElectricianLogins: 1, mittiAccountInvited: true })).toEqual([]);
   });
   test("partner bills rectification only when in-house", () => {
     expect(partnerBillsRectification({ in_house: true, rectification_billed_by: "partner" })).toBe(true);
@@ -34,7 +34,7 @@ const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 const javascript = ts.transpile(handlerBody.replace('await (await import("./installer-paid-electricians.server")).inHouseFactsFor(id)', 'await readFacts(id)'), { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext });
 const runHandler = new AsyncFunction("data", "context", "isAdmin", "splitInvoicingBlocker", "WorkflowError", "admin", "requireMember", "CRITICAL_FIELDS", "inHouseEnableBlockers", "readFacts", javascript);
 
-function saveFixture(adminUser: boolean, facts = { approvedElectricianWorkers: 1, hasActiveRateCardWithPiesa: true, mittiElectricianLogins: 1 }) {
+function saveFixture(adminUser: boolean, facts = { approvedElectricianWorkers: 1, hasActiveRateCardWithPiesa: true, mittiElectricianLogins: 1, mittiAccountInvited: true }) {
   const writes: Record<string, unknown>[] = [];
   const rpcCalls: { name: string; args: Record<string, unknown> }[] = [];
   const before = { id: "business-a", name: "TEST partner", in_house: false, rectification_billed_by: "hivic" };
@@ -56,7 +56,7 @@ test("only the office can save in-house and billing configuration", async () => 
 });
 
 test("save refuses enabling with the exact blocker reasons and writes nothing", async () => {
-  const office = saveFixture(true, { approvedElectricianWorkers: 0, hasActiveRateCardWithPiesa: true, mittiElectricianLogins: 0 });
+  const office = saveFixture(true, { approvedElectricianWorkers: 0, hasActiveRateCardWithPiesa: true, mittiElectricianLogins: 0, mittiAccountInvited: true });
   await expect(office.run({ id: "business-a", name: "TEST partner", in_house: true })).rejects.toThrow("No approved electrician worker • No electrician Mitti login");
   expect(office.rpcCalls).toEqual([]);
   expect(office.writes).toEqual([]);
@@ -81,4 +81,13 @@ test("payee flag is stripped by input validation and by save for both office and
     expect(f.writes[0]).not.toHaveProperty("pays_own_electricians");
     expect(f.rpcCalls).toEqual([]);
   }
+});
+
+test("in-house enabling requires the business Mitti account invitation and office save refuses without it", async () => {
+  const facts = { approvedElectricianWorkers: 1, hasActiveRateCardWithPiesa: true, mittiElectricianLogins: 1, mittiAccountInvited: false };
+  expect(inHouseEnableBlockers(facts)).toEqual(["Mitti account not invited"]);
+  expect(inHouseEnableBlockers({ ...facts, mittiAccountInvited: true })).toEqual([]);
+  const f = saveFixture(true, facts);
+  await expect(f.run({ id: "business-a", name: "TEST partner", in_house: true })).rejects.toThrow("Mitti account not invited");
+  expect(f.rpcCalls).toEqual([]); expect(f.writes).toEqual([]);
 });

@@ -4,6 +4,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { installerPaysOwnElectricians, paysOwnElectricians, safetyCheckPayee, type InstallerPaidElectricians, type InstallerPiesaResult } from "./installer-paid-electricians.core";
 import type { InHousePiesaBusiness } from "./installer-paid-electricians.core";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { chunkIds } from "./sweep-batch.core";
 import { melbourneToday } from "./melbourne-time.core";
 
 /** Pending schema uses a local read overlay; a missing flag never enables the arrangement. */
@@ -38,19 +39,21 @@ export async function readInstallerPaidElectricians(businessId: string | null | 
 }
 
 export async function inHouseFactsFor(businessId: string) {
-  const { data: workers, error } = await admin.from("partner_workers").select("profile_id,email")
-    .eq("business_id", businessId).eq("trade_role", "electrician").eq("approval_status", "approved").is("removed_at", null);
-  if (error) throw new Error("Could not read approved electrician workers.");
+  const { data: business, error: businessError } = await admin.from("businesses").select("mitti_account_invited").eq("id", businessId).maybeSingle();
+  if (businessError) throw new Error("Could not read the partner Mitti invitation.");
+  async function all<T>(query: (a: number, b: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>): Promise<T[]> {
+    const out: T[] = [];
+    for (let a = 0; ; a += 200) { const r = await query(a, a+199); if (r.error) throw new Error(r.error.message); const page = (r.data ?? []) as T[]; out.push(...page); if (page.length < 200) return out; }
+  }
+  const workers = await all<{ profile_id: string | null; email: string | null }>((a,b) => admin.from("partner_workers").select("profile_id,email")
+    .eq("business_id", businessId).eq("trade_role", "electrician").eq("approval_status", "approved").is("removed_at", null).order("id").range(a,b));
   const ids = (workers ?? []).flatMap(w => w.profile_id ? [w.profile_id] : []);
-  const { data: profiles, error: pe } = ids.length ? await admin.from("profiles").select("id,email,mitti_user_id,mitti_checked_at,mitti_checked_email").in("id", ids) : { data: [], error: null };
-  if (pe) throw new Error("Could not read electrician Mitti logins.");
+  const profiles = (await Promise.all(chunkIds([...new Set(ids)],200).map(c => all<{ id: string; email: string | null; mitti_user_id: string | null; mitti_checked_at: string | null; mitti_checked_email: string | null }>((a,b) => admin.from("profiles").select("id,email,mitti_user_id,mitti_checked_at,mitti_checked_email").in("id",c).order("id").range(a,b))))).flat();
   const { mittiAccessOf } = await import("./mitti-membership.core");
   // Read cards independently of the current flag so an office can enable a new partner.
-  const { data: cards, error: ce } = await admin.from("rate_cards").select("id").eq("business_id", businessId).eq("is_active", true).lte("effective_from", melbourneToday());
-  if (ce) throw new Error("Could not read the partner rate cards.");
-  const { data: lines, error: le } = cards?.length ? await admin.from("rate_card_items").select("unit_price_ex_gst").in("rate_card_id", cards.map(c => c.id)).ilike("code", "piesa") : { data: [], error: null };
-  if (le) throw new Error("Could not read the PIESA rate-card line.");
-  return { approvedElectricianWorkers: workers?.length ?? 0,
+  const cards = await all<{id:string}>((a,b) => admin.from("rate_cards").select("id").eq("business_id",businessId).eq("is_active",true).lte("effective_from",melbourneToday()).order("id").range(a,b));
+  const lines = (await Promise.all(chunkIds(cards.map(c=>c.id),200).map(c=>all<{unit_price_ex_gst:number}>((a,b)=>admin.from("rate_card_items").select("unit_price_ex_gst").in("rate_card_id",c).ilike("code","piesa").order("id").range(a,b))))).flat();
+  return { mittiAccountInvited: business?.mitti_account_invited === true, approvedElectricianWorkers: workers?.length ?? 0,
     hasActiveRateCardWithPiesa: (lines ?? []).some(l => Number(l.unit_price_ex_gst) > 0),
     mittiElectricianLogins: (workers ?? []).filter(w => {
       const p = (profiles ?? []).find(p => p.id === w.profile_id);

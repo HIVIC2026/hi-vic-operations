@@ -440,3 +440,21 @@ test("set-owner failure retries both handover operations with no new audit",asyn
  expect(calls.filter(c=>c.path==="/audits")).toHaveLength(2);
  expect(calls.filter(c=>c.path==="/inspections/v1/inspections/audit-1/owner")).toHaveLength(2);
 });
+
+test("Part C record retries outstanding transitions after PIESA evidence arrives without duplicate records/events", async () => {
+  const workflow = overrides["./workflow.server"];
+  const original = workflow.transition;
+  let evidence = false; const transitions: string[] = [];
+  workflow.transition = async (_j: string, stage: string) => { if (!evidence) throw new WorkflowError("Blocked: PIESA evidence not synced"); transitions.push(stage); tables.jobs[0].stage = stage; };
+  const input = { jobId: JOB, actorId: "electrician", kind: "post_rectification", outcome: "pass", completedDate: "2026-11-02", sectionCSignedDate: "2026-11-02", source: { kind: "mitti_fixes_form", auditId: "audit-2" } };
+  try {
+    const s = load("piesa-record.server");
+    await expect(s.applyPiesaRecord(input)).rejects.toThrow("PIESA evidence");
+    expect(tables.jobs[0].stage).toBe("piesa_scheduled");
+    expect(tables.piesa_records).toHaveLength(1); expect(tables.workflow_events.filter(e => e.event_type === "piesa_recorded")).toHaveLength(1);
+    evidence = true; await s.applyPiesaRecord(input); await s.applyPiesaRecord(input);
+    expect(tables.jobs[0].stage).toBe("installation_scheduling");
+    expect(transitions).toEqual(["piesa_complete", "installation_scheduling"]);
+    expect(tables.piesa_records).toHaveLength(1); expect(tables.workflow_events.filter(e => e.event_type === "piesa_recorded")).toHaveLength(1);
+  } finally { workflow.transition = original; }
+});
