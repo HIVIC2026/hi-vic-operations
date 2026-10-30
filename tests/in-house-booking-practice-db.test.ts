@@ -40,11 +40,11 @@ let failBillingRead = false;
 let rectificationGuardCalls = 0;
 const shim = embedShim(db, { job_assignments: { businesses: { table: "businesses", fk: "business_id", on: "base" } } });
 const admin = { from(table: string) {
-  if (failHeldRead && table === "job_assignments") throw new Error("read unavailable");
   const query = shim.from(table);
   if (table === "job_assignments") {
     const select = query.select;
     query.select = (columns, ...args) => {
+      if (failHeldRead && columns.includes("businesses!inner")) throw new Error("read unavailable");
       if (failBillingRead && columns === "businesses(in_house, rectification_billed_by)") {
         query.single = async () => ({ data: null, error: { message: "billing read unavailable" } });
       }
