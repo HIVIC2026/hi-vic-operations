@@ -22,6 +22,7 @@ test("pending in-house migration backfills only the old list, defaults billing a
     expect(rows.find(r => r.name === "[TEST PARTNER] Reinsulate")?.in_house).toBe(true);
     expect(rows.find(r => r.name === "RAPID INSULATION")?.in_house).toBe(false);
     expect(rows.every(r => r.rectification_billed_by === "hivic")).toBe(true);
+    expect((await db.query<{ proconfig: string[] }>("SELECT proconfig FROM pg_proc WHERE proname IN ('guard_in_house_partner','save_in_house_partner')")).rows).toEqual([{ proconfig: ["search_path=public, pg_temp"] }, { proconfig: ["search_path=public, pg_temp"] }]);
     expect((await db.query<{ price: string }>("SELECT round(unit_price_ex_gst*1.1,2)::text AS price FROM rate_card_items")).rows).toEqual([{ price: "350.00" }, { price: "350.00" }]);
     await db.exec("SELECT save_in_house_partner('00000000-0000-0000-0000-000000000001',false,'partner','00000000-0000-0000-0000-000000000002')");
     const events = (await db.query<{ actor_id: string; details: { old: { rectification_billed_by: string }; new: { rectification_billed_by: string } } }>("SELECT * FROM workflow_events")).rows;

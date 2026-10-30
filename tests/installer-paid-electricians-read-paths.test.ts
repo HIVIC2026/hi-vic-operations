@@ -54,13 +54,13 @@ test("each configuration read failure propagates, including the safety-check mon
     await expect(priceModule(f).safetyCheckPayeesFor([{ id: "j", originating_installer_business_id: "a" }])).rejects.toThrow("Could not read");
   }
 });
-function usualModule(priceRead: () => Promise<unknown>) {
+function usualModule(priceRead: () => Promise<unknown>, candidates: rec.ApprovedRecCandidate[] = []) {
   const f = reads({ jobs: [{ channel: "installer_sourced", originating_installer_business_id: "a" }], admin_config_events: [{ id: "revision", details: { electrician: { name: "REC", licence: "A1" } } }] });
   return moduleAt("src/lib/usual-electrician.server.ts", {
     "@/integrations/supabase/client.server": { supabaseAdmin: f.admin }, "./usual-electrician.core": usual,
     "./mitti.core": { contactAnswersFromEntries: () => ({}) }, "./workflow.server": { logEvent: async () => {} },
     "./electrician-choice.core": { resolveElectricianChoice: () => "usual" }, "./electrician-choice.server": { readElectricianChoice: async () => "usual" },
-    "./rec-onboarded.core": rec, "./rec-onboarded.server": { loadApprovedRecCandidates: async () => [] },
+    "./rec-onboarded.core": rec, "./rec-onboarded.server": { loadApprovedRecCandidates: async () => candidates },
     "./installer-paid-electricians.server": { readInstallerPaidElectricians: priceRead },
   });
 }
@@ -70,11 +70,26 @@ test("usual-electrician refuses a failed configuration read instead of pricing",
   await expect(m.readUsualElectricianStatus("a")).rejects.toThrow("configuration unavailable");
 });
 test("missing in-house PIESA rate reaches quote resolution with the exact hold, not REC fallback", async () => {
-  const m = usualModule(async () => pricing.installerPaysOwnElectricians({ id: "a", name: "A", in_house: true, piesaIncGst: null }));
+  const candidates = [{ business_id: "rec", name: "REC", rec_number: "A1", worker_licences: [], onboarding_status: "approved", is_active: true, approved_electricians: 1, piesa_rate: { id: "rate", rate_inc_gst: 999 } }];
+  const m = usualModule(async () => pricing.installerPaysOwnElectricians({ id: "a", name: "A", in_house: true, piesaIncGst: null }), candidates);
   const result = await m.mittiElectricianForJob("j", null, [], "audit");
   expect(result.ready).toBe(false);
   expect(result.priceIncGst).toBeNull();
   expect(result.reasons).toEqual(["In-house partner has no PIESA rate on its rate card"]);
+  expect((await m.readUsualElectricianStatus("a")).onboarded).toBe(false);
+});
+test("valid in-house line still prices flat while non-in-house uses the REC rate", async () => {
+  const candidates = [{ business_id: "rec", name: "REC", rec_number: "A1", worker_licences: [], onboarding_status: "approved", is_active: true, approved_electricians: 1, piesa_rate: { id: "rate", rate_inc_gst: 999 } }];
+  const flat = usualModule(async () => pricing.installerPaysOwnElectricians({ id: "a", name: "A", in_house: true, piesaIncGst: 350 }), candidates);
+  expect(await flat.mittiElectricianForJob("j", null, [], "audit")).toMatchObject({ ready: true, priceIncGst: 350, reasons: [] });
+  const ordinary = usualModule(async () => null, candidates);
+  expect(await ordinary.mittiElectricianForJob("j", null, [], "audit")).toMatchObject({ ready: true, priceIncGst: 999, reasons: [] });
+});
+test("safety-check payout refuses a missing PIESA line, but keeps HIV electrician direct", async () => {
+  const f = reads({ businesses: [{ id: "a", name: "A", in_house: true }], workflow_events: [{ job_id: "j", details: { choice: "usual" } }] });
+  await expect(priceModule(f).safetyCheckPayeesFor([{ id: "j", originating_installer_business_id: "a" }])).rejects.toThrow("In-house partner has no PIESA rate on its rate card");
+  const direct = reads({ businesses: [{ id: "a", name: "A", in_house: true }], workflow_events: [{ job_id: "j", details: { choice: "hivic" } }] });
+  expect((await priceModule(direct).safetyCheckPayeesFor([{ id: "j", originating_installer_business_id: "a" }])).get("j")).toBeNull();
 });
 test("quote builder persists the exact missing-rate hold on an existing draft", async () => {
   const source = readFileSync("src/lib/installer-quote.server.ts", "utf8");
