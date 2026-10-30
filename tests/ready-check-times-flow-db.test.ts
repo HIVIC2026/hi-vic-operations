@@ -34,6 +34,14 @@ INSERT INTO businesses VALUES ('${BIZ}','TEST Alpha','[TEST PARTNER]'),('${BIZ2}
 INSERT INTO business_members (business_id, user_id) VALUES ('${BIZ}','${INST}');`);
 
 const shim = postgrestShim(db);
+// This fixture's SQL shim cannot project joined selects. Model the new read from its real assignment rows.
+mock.module("../src/lib/in-house-suppression.server", () => ({
+  inHouseDispatchSkip: async (jobId: string) => {
+    const rows = (await db.query("select id from job_assignments where job_id=$1 and role='installer' and active", [jobId])).rows;
+    // All businesses in this existing non-in-house/TEST flow fixture remain ordinary partners.
+    return rows.length >= 0 ? null : "in_house_read_failed";
+  },
+}));
 const calls = { texts: [] as string[], bookings: [] as string[], forms: [] as string[], emails: [] as string[][] };
 // Minimal stand-in for the SQL accept_ready_check_offer (the real one is proven in its own migration tests).
 const rpc = async (name: string, a: Record<string, unknown>) => {

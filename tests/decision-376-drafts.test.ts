@@ -143,8 +143,8 @@ const db: Record<string, Row[]> = {
   ],
   owners: [{ id: "o1", full_name: "Helen Yang", email: "helen@example.com", phone: "0412 000 111" }, { id: "o2", full_name: "Test Owner", email: "jo@test.test", phone: "0400 000 000" }],
   job_assignments: [
-    { id: "inst-real", job_id: "job-real", role: "installer", active: true, business_id: "b-i", profiles: { full_name: "Ian Inst", email: "ian@inst.test", phone: "0411 111 111" }, businesses: { name: "Inst Co", email: "office@inst.test", phone: null, signer_mobile: null, onboarding_notes: null } },
-    { id: "inst-test", job_id: "job-test", role: "installer", active: true, business_id: "b-i", profiles: { full_name: "Ian Inst", email: "ian@inst.test", phone: "0411 111 111" }, businesses: { name: "Inst Co", email: "office@inst.test", phone: null, signer_mobile: null, onboarding_notes: null } },
+    { id: "inst-real", job_id: "job-real", role: "installer", active: true, business_id: "b-i", profiles: { full_name: "Ian Inst", email: "ian@inst.test", phone: "0411 111 111" }, businesses: { in_house: false, name: "Inst Co", email: "office@inst.test", phone: null, signer_mobile: null, onboarding_notes: null } },
+    { id: "inst-test", job_id: "job-test", role: "installer", active: true, business_id: "b-i", profiles: { full_name: "Ian Inst", email: "ian@inst.test", phone: "0411 111 111" }, businesses: { in_house: false, name: "Inst Co", email: "office@inst.test", phone: null, signer_mobile: null, onboarding_notes: null } },
     { id: "el-real", job_id: "job-real", role: "electrician", active: true, booking_confirmed_at: null, business_id: "b-e", profiles: { full_name: "Sam Spark", email: "sam@spark.test", phone: "0422 222 222" }, businesses: { name: "Spark", email: "office@spark.test", phone: null, signer_mobile: null, onboarding_notes: null } },
     { id: "el-test", job_id: "job-test", role: "electrician", active: true, booking_confirmed_at: null, business_id: "b-e", profiles: { full_name: "Sam Spark", email: "sam@spark.test", phone: "0422 222 222" }, businesses: { name: "Spark", email: "office@spark.test", phone: null, signer_mobile: null, onboarding_notes: null } },
   ],
