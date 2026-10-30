@@ -98,3 +98,38 @@ for(const purpose of ['quote_accepted','safety_check_times','safety_check_booked
     const f=fixture(false,payee);expect(await f.load('owner-template-send.server').sendOwnerTemplateEmail({jobId:'j',purpose,key:'key',approved:true,label:'test',notSentEvent:'test',render:()=>({subject:'existing',html:'existing',text:'existing'})})).toContain('sent');expect(f.calls).toEqual(['message']);
   });
 }
+// Every newly guarded sender must still reach the existing message path when unheld,
+// including a business that pays its own electricians. Extra facts are test-only.
+for(const entry of otherEntries) for(const payee of [false,true]) test(`${entry.fn}: ${payee?'payee-only':'non-held'} existing sender path remains`,async()=>{
+ const f=fixture(false,payee);
+ f.tables.workflow_events=[{id:'event',created_at:'2026-10-30',details:{},event_type:'visit_times_reopened'}];
+ f.modules['./readycheck-booking.server']={ownerReadyCheckWindowState:async()=>({canPick:true})};
+ f.modules['./visit-events.server']={currentBooking:async()=>null};
+ f.modules['./rectification.server']={rectificationWindowsExist:async()=>false};
+ f.modules['./ai-email-reply.server']={installerNotes:async()=>null};
+ f.modules['./ready-check-booked-email.server']={recordBookedNotSent:async()=>{}};
+ f.modules['./payments.server']={jobPaymentView:async()=>({invoiceId:'invoice',steps:[{key:'safety_check',state:'paid'}],plan:{safetyCheckCents:34900,quoteTotalCents:100000,thresholds:{safety_check:34900}},ledger:[]})};
+ // These render/eligibility dependencies are not the held rule under test.
+ for(const name of ['installer-planning-notice','visit-new-times','install-no-access-notice','deposit-release-notice','fixes-times','ready-check-booked-email','approved-texts','owner-email-triggers']) {
+   const core=require(`../src/lib/${name}.core.ts`);
+   f.modules[`./${name}.core`]=new Proxy(core,{get:(o,k)=>{
+     if(k==='fixesTimesNeeded')return ()=>true;
+     if(k==='safetyCheckPaidAt')return ()=>new Date().toISOString();
+     if(k==='youreInDue')return ()=>true;
+     return Reflect.get(o,k);
+   }});
+ }
+ // Preparation history is empty except the prerequisite cancellation event.
+ const realFrom=(f.modules['@/integrations/supabase/client.server'].supabaseAdmin as any).from;
+ f.modules['@/integrations/supabase/client.server'].supabaseAdmin.from=(t:string)=>{
+   const q=realFrom(t);let columns='';const select=q.select; q.select=(s:string,o:any)=>{columns=s;return select(s,o);};
+   if(t==='workflow_events'){q.maybeSingle=async()=>({data:columns==='id, created_at'?{id:'event',created_at:'2026-10-30'}:null,count:0,error:null});}
+   if(t==='invoices')q.maybeSingle=async()=>({data:{quote_id:'quote',quotes:{status:'accepted',veec_discount_inc_gst:1000}},error:null});
+   if(t==='quotes')q.maybeSingle=async()=>({data:{kind:'rectification',customer_total_inc_gst:349},error:null});
+   if(t==='documents')q.maybeSingle=async()=>({data:null,error:null});
+   return q;
+ };
+ const args=entry.args.map(x=>typeof x==='object'&&x&&'auditId' in x?{...x,short:{}}:x);
+ await f.load(entry.file)[entry.fn](...args);
+ expect(f.calls.length).toBeGreaterThan(0);
+});
