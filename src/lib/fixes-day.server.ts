@@ -277,6 +277,9 @@ async function regenerateOfficialPiesa(jobId: string, actorId: string | null, sn
  */
 export async function completeFixesForm(jobId: string, auditId: string, opts: { call?: MittiCall; fetchMedia?: import("./mitti.server").MittiMediaFetch; today?: string; actorId?: string | null } = {}): Promise<FixesCompleteResult> {
   const actorId = opts.actorId ?? null;
+  const { count: closed, error: closedError } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", RECTIFICATION_FORM_CLOSED_UNUSED).contains("details", { audit_id: auditId });
+  if (closedError) throw new Error(closedError.message);
+  if (closed) return { status: "already", detail: "Rectification form closed in the portal" };
   const { count: done } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", FIXES_FORM_COMPLETED_EVENT).contains("details", { audit_id: auditId });
   if (done) return { status: "already", detail: null };
   const [{ data: job }, { data: a }, tpl] = await Promise.all([
