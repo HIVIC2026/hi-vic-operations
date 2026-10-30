@@ -7,7 +7,7 @@ import { isTestPartner } from "./test-send.core";
 import { offerTiming } from "./offer-timing.core";
 import { placeWorkJob, type WorkPlace } from "./work-places.core";
 import { COULDNT_GET_IN, offerMoney, electricianPayState, payState, type PayState, surname, type AreaSource, type InsulationNow, type TradeKind, type DayKind, SETUP_STEPS, type SetupKey, tradeJobAllowed, contactVisible, type AccessAssignment, type TeamMemberView, type BusinessNext, type CredentialView, type MittiLogin, latestExpiry, businessNext, type BusinessNextFacts, bankLine, installerPayHeldReasons, accountEnding, ownerPaidInFullAt } from "./trade-view.core";
-import { crewClearance, CREW_CLEARANCE_REASON, melbourneToday } from "./worker-compliance.core";
+import { crewClearance, CREW_CLEARANCE_REASON, melbourneToday, whiteCardState } from "./worker-compliance.core";
 import type { UsualElectrician } from "./usual-electrician.core";
 import type { InstallerQuote } from "./installer-quote-status.server";
 // Speed (installer screens, Task 5): module-scope imports instead of awaited import() calls inside the loaders.
@@ -42,6 +42,14 @@ import * as installerPriceServer from "./installer-price.server";
 import * as officialFormsCore from "./official-forms.core";
 import * as enquiryCore from "./enquiry.core";
 import * as eligibilityCore from "./eligibility.core";
+// Speed (installer screens, Task 9): the business pages' modules, imported at module scope (namespaces, as above).
+import * as piisaA3Server from "./piisa-a3.server";
+import * as escNoticeServer from "./esc-collection-notice.server";
+import * as escNoticeCore from "./esc-collection-notice.core";
+import * as mittiInviteServer from "./mitti-invite.server";
+import * as usualElectricianServer from "./usual-electrician.server";
+import * as schemaCompatCore from "./schema-compat.core";
+import { mittiAccessOf } from "./mitti-membership.core";
 const loadInstallerQuotes = (ids: string[]) => quoteStatusServer.loadInstallerQuotes(ids);
 const readInstallerPrices = (ids: string[]) => installerPriceServer.readInstallerPrices(ids);
 
@@ -641,7 +649,7 @@ async function loadTeamWorkers(businessId: string): Promise<{ data: { id: string
   const load = (cols: string) => (admin as unknown as { from: (t: string) => any }).from("partner_workers").select(cols).eq("business_id", businessId).is("removed_at", null); // eslint-disable-line @typescript-eslint/no-explicit-any
   const base = "id, full_legal_name, trade_role, approval_status, licence_expires_on, profile_id, email, mobile, certification_status, certification, worker_role";
   const first = await load(`${base}, declarations_due`);
-  if (first.error && (await import("./schema-compat.core")).isMissingDbObject(first.error)) return await load(base);
+  if (first.error && schemaCompatCore.isMissingDbObject(first.error)) return await load(base);
   return first;
 }
 
@@ -652,7 +660,27 @@ export async function tradeBusiness(userId: string) {
   const staffOnly = { kind: c.kind, boss: false as boolean, name: c.biz.name, taking: c.biz.accepting_new_jobs !== false, approvedSince: null as string | null, area: null as string | null, licenceExpires: null as string | null, liabilityExpires: null as string | null, rate: null as number | null, agreementSigned: false, bankSaved: false,
     team: [] as TeamMemberView[], next: null as BusinessNext, usualElectrician: null as UsualElectrician | null, details: null as null | { legal: string | null; name: string; abn: string | null; baseSuburb: string | null; allVictoria: boolean }, ratesAgreedAt: null as string | null, hasRates: false, bankLine: null as string | null, credentials: [] as CredentialView[], agreement: null as null | { version: string; signer: string; signedAt: string }, notice: [] as { name: string; state: string }[] };
   if (!c.boss) return staffOnly;
+  // Speed (installer screens, Task 9): three rounds — (1) sign-in context and the owner check above, (2) every owner read that
+  // needs only the business (started only after the owner check, as before), (3) the reads that need the team rows (profiles,
+  // Mitti records) alongside the second step of the CII and notice records. Same reads, same value, same failure rules.
   const r = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
+  type CiiRow = { workerId: string; eecVerified: boolean; clearanceReason?: string | null; level?: string | null; expiresOn?: string | null };
+  type NoticeRow = { workerId: string | null; name: string; state: string };
+  // CII clearance facts (decision 153) and privacy notice acknowledgements (decision 130): display reads, failures shown as
+  // no facts (their catch, as before). The notice workers and their records are read side by side (was one after the other).
+  const crewRead = () => piisaA3Server.crewStaff(c.biz.id).catch(() => [] as CiiRow[]);
+  const noticeRead = () => Promise.all([escNoticeServer.loadNoticeWorkers([c.biz.id]), escNoticeServer.loadBusinessNoticeAcks(c.biz.id)])
+    .then(([w, a]) => escNoticeCore.collectionNoticeStatus(w, a) as NoticeRow[]).catch(() => [] as NoticeRow[]);
+  // An installer business always needs them: start them now. Otherwise only when the team has an installer (known in round 2).
+  const crewEarly = c.kind === "installer" ? crewRead() : null;
+  const noticeEarly = c.kind === "installer" ? noticeRead() : null;
+  // Electrician cover facts: the activation's application needs the activation, so it chains on it (rounds 2–3).
+  const electricianReads = c.kind === "electrician" ? early(Promise.all([
+    admin.from("businesses").select("public_liability_cover_amount").eq("id", c.biz.id).maybeSingle(),
+    admin.from("partner_activations").select("application_id").eq("business_id", c.biz.id).limit(1).maybeSingle(),
+  ]).then(async ([bzRes, actRes]) => ({ bzRes, actRes, appRes: !actRes.error && actRes.data?.application_id ? await admin.from("rec_onboarding_applications").select("data").eq("id", actRes.data.application_id).maybeSingle() : { data: null, error: null } }))) : null;
+  // The usual electrician's failure fails the page (as before); started now, awaited after round 3 like before (last read).
+  const usualEarly = c.kind === "installer" ? early(usualElectricianServer.readUsualElectrician(c.biz.id)) : null;
   const [{ data: creds, error: credsError }, { data: workers, error: workersError }, { data: rate }, { data: agr }, { data: bank }, { data: biz }, { data: cards }, { data: members }] = await Promise.all([
     admin.from("business_credentials").select("kind, label, expires_at, verification").eq("business_id", c.biz.id),
     loadTeamWorkers(c.biz.id),
@@ -665,21 +693,19 @@ export async function tradeBusiness(userId: string) {
   ]);
   const ownerIds = (members ?? []).filter((m) => m.member_role === "business_admin").map((m) => m.user_id);
   const profileIds = [...new Set([...ownerIds, ...(workers ?? []).map((w) => w.profile_id).filter((x): x is string => !!x)])];
-  const { data: profs } = profileIds.length ? await admin.from("profiles").select("id, full_name, phone, email, mitti_user_id, mitti_checked_email, mitti_checked_at").in("id", profileIds) : { data: [] as never[] };
-  const profile = (id: string | null | undefined) => (profs ?? []).find((p) => p.id === id) ?? null;
-  const { mittiAccessOf } = await import("./mitti-membership.core");
-  const mittiLogin = (id: string | null | undefined): MittiLogin => { const p = profile(id); if (!p) return "not_set"; const a = mittiAccessOf(p as never); return a === "member" ? "linked" : a === "email_changed" ? "email_changed" : "not_set"; };
-  // CII clearance facts (decision 153) and privacy notice acknowledgements (decision 130) for installer staff rows.
   const staffRows = (workers ?? []) as { id: string; full_legal_name: string; trade_role: string; profile_id: string | null; email: string | null; mobile: string | null; certification: unknown; worker_role?: string | null; declarations_due?: boolean }[];
+  const needCrew = c.kind === "installer" || staffRows.some((w) => w.trade_role === "installer");
+  // Round 3. Office Mitti records (linked, invited, reactivated, marked done) per worker: Crew show "Mitti ✓" once the office has added them.
+  const [{ data: profs }, recsRes, cii, notice] = await Promise.all([
+    profileIds.length ? admin.from("profiles").select("id, full_name, phone, email, mitti_user_id, mitti_checked_email, mitti_checked_at").in("id", profileIds) : Promise.resolve({ data: [] as never[] }),
+    staffRows.length ? admin.from("admin_config_events").select("details").in("event_type", ["mitti_user_linked", "mitti_user_invited", "mitti_invite_linked", "mitti_user_reactivated", "mitti_invite_office_done"]).in("details->>worker_id", staffRows.map((w) => w.id)) : Promise.resolve(null),
+    needCrew ? crewEarly ?? crewRead() : Promise.resolve([] as CiiRow[]),
+    needCrew ? noticeEarly ?? noticeRead() : Promise.resolve([] as NoticeRow[]),
+  ]);
+  const profile = (id: string | null | undefined) => (profs ?? []).find((p) => p.id === id) ?? null;
+  const mittiLogin = (id: string | null | undefined): MittiLogin => { const p = profile(id); if (!p) return "not_set"; const a = mittiAccessOf(p as never); return a === "member" ? "linked" : a === "email_changed" ? "email_changed" : "not_set"; };
   // Decision 319: each installer person's White Card (office-verified once).
-  const { whiteCardState } = await import("./worker-compliance.core");
   const whiteCardOfRow = (w: { trade_role: string; certification: unknown }) => w.trade_role === "installer" ? whiteCardState(w) : null;
-  const [cii, notice] = c.kind === "installer" || staffRows.some((w) => w.trade_role === "installer")
-    ? await Promise.all([
-      (await import("./piisa-a3.server")).crewStaff(c.biz.id).catch(() => [] as { workerId: string; eecVerified: boolean; clearanceReason?: string | null; level?: string | null; expiresOn?: string | null }[]),
-      (await import("./esc-collection-notice.server")).businessNoticeStatuses(c.biz.id).catch(() => [] as { workerId: string | null; name: string; state: string }[]),
-    ])
-    : [[], []];
   const ciiFacts = (workerId: string, role: string): TeamMemberView["cii"] => {
     if (role !== "installer") return null;
     const s = cii.find((x) => x.workerId === workerId);
@@ -688,12 +714,11 @@ export async function tradeBusiness(userId: string) {
   };
   const noticeOf = (workerId: string, role: string) => role !== "installer" ? null : notice.find((n) => n.workerId === workerId)?.state === "acknowledged";
   // Jo 28 Oct: Lead / Crew per installer staff row (null = not applicable).
-  const roles = await (await import("./mitti-invite.server")).workerRolesFor(staffRows);
-  // Office Mitti records (linked, invited, reactivated, marked done) per worker: Crew show "Mitti ✓" once the office has added them.
+  const roles = await mittiInviteServer.workerRolesFor(staffRows);
   const mittiRecordedIds = new Set<string>();
   let mittiRecordsKnown = true;
-  if (staffRows.length) {
-    const { data: recs, error: recsError } = await admin.from("admin_config_events").select("details").in("event_type", ["mitti_user_linked", "mitti_user_invited", "mitti_invite_linked", "mitti_user_reactivated", "mitti_invite_office_done"]).in("details->>worker_id", staffRows.map((w) => w.id));
+  if (recsRes) {
+    const { data: recs, error: recsError } = recsRes;
     if (recsError) { mittiRecordsKnown = false; console.error("tradeBusiness: Mitti records could not be read", recsError.code ?? "unknown"); }
     for (const e of recs ?? []) { const id = (e.details as { worker_id?: unknown } | null)?.worker_id; if (typeof id === "string") mittiRecordedIds.add(id); }
   }
@@ -713,15 +738,11 @@ export async function tradeBusiness(userId: string) {
   const credentials: CredentialView[] = (creds ?? []).map((x) => ({ kind: x.kind, label: x.label, expires: x.expires_at, verified: x.verification === "verified" }));
   const liability = latestExpiry(credentials, "public_liability_insurance");
   const licence = c.kind === "electrician" ? (workers ?? []).map((w) => w.licence_expires_on).filter(Boolean).sort()[0] ?? null : null;
-  const usual = c.kind === "installer" ? (await (await import("./usual-electrician.server")).readUsualElectrician(c.biz.id)).electrician : null;
+  const usual = usualEarly ? (await usualEarly).electrician : null;
   // Licence/cover warnings only from facts we actually read: any failed read leaves them unknown (no panel), never a false warning.
   let electrician: BusinessNextFacts["electrician"];
-  if (c.kind === "electrician") {
-    const [{ data: bz, error: bzError }, { data: act, error: actError }] = await Promise.all([
-      admin.from("businesses").select("public_liability_cover_amount").eq("id", c.biz.id).maybeSingle(),
-      admin.from("partner_activations").select("application_id").eq("business_id", c.biz.id).limit(1).maybeSingle(),
-    ]);
-    const { data: app, error: appError } = !actError && act?.application_id ? await admin.from("rec_onboarding_applications").select("data").eq("id", act.application_id).maybeSingle() : { data: null, error: null };
+  if (electricianReads) {
+    const { bzRes: { data: bz, error: bzError }, actRes: { data: act, error: actError }, appRes: { data: app, error: appError } } = await electricianReads;
     const failed = [["credentials", credsError], ["workers", workersError], ["business", bzError], ["activation", actError], ["application", appError]].filter(([, e]) => e) as [string, { code?: string }][];
     for (const [what, e] of failed) console.error(`tradeBusiness: electrician ${what} could not be read`, e.code ?? "unknown");
     if (!failed.length) {
@@ -776,9 +797,11 @@ export async function tradeSetupMark(userId: string, key: SetupKey, done: boolea
 /** My business sections (Jo, 7 Oct): read-only facts for the trade-style pages. Partners never edit details or rates here. */
 export async function tradeBusinessFile(userId: string) {
   const c = await bossOrThrow(userId);
-  const usual = c.kind === "installer" ? await (await import("./usual-electrician.server")).readUsualElectrician(c.biz.id) : null;
+  // Speed (installer screens, Task 9): the usual electrician is read with the other reads (one round after the owner check,
+  // was two). Its failure still fails the page, before the "Business not found." check, as before.
   const r = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
-  const [{ data: b }, { data: creds }, { data: agr }, { data: cards }, { data: erates }, { data: open }] = await Promise.all([
+  const [usual, { data: b }, { data: creds }, { data: agr }, { data: cards }, { data: erates }, { data: open }] = await Promise.all([
+    c.kind === "installer" ? usualElectricianServer.readUsualElectrician(c.biz.id) : Promise.resolve(null),
     admin.from("businesses").select("id, name, legal_name, trading_name, abn, phone, email, address, base_suburb, coverage_radius_km, covers_all_victoria, typical_days, lead_time, public_liability_cover_amount, onboarding_status").eq("id", c.biz.id).single(),
     admin.from("business_credentials").select("id, kind, label, number, issuer, expires_at, verification, document_path").eq("business_id", c.biz.id).order("created_at", { ascending: false }),
     admin.from("partner_agreements").select("version, signer_name, signed_at").eq("business_id", c.biz.id).order("signed_at", { ascending: false }).limit(1).maybeSingle(),
