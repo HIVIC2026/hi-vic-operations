@@ -18,7 +18,7 @@ mock.module("../src/integrations/supabase/client.server", () => ({ supabaseAdmin
   const filters: Record<string, unknown> = {};
   const q: any = {
     select(c: string) { columns = c; return q; }, eq(k: string, v: unknown) { filters[k] = v; return q; },
-    is() { return q; }, in() { return q; }, order() { return q; }, limit() { return q; },
+    is() { return q; }, in() { return q; }, or() { return q; }, order() { return q; }, limit() { return q; },
     upsert(p: Record<string, any>) { op = "upsert"; payload = p; return q; },
     update(p: Record<string, any>) { op = "update"; payload = p; return q; },
     insert(p: Record<string, any>) { op = "insert"; payload = p; return q; },

@@ -76,6 +76,7 @@ const builder = (t: string) => {
     order: (c: string, o?: { ascending?: boolean }) => { calls.push({ t, op: "order", args: [c, o] }); sort = { c, asc: o?.ascending !== false }; return b; },
     eq: (c: string, v: unknown) => { f.push((r) => r[c] === v); return b; },
     neq: (c: string, v: unknown) => { f.push((r) => r[c] !== v); return b; },
+    or: (expr: string) => { const parts = expr.split(",").map((x) => { const [c, , ...v] = x.split("."); return [c!, v.join(".")] as const; }); f.push((r) => parts.some(([c, v]) => String(r[c]) === v)); return b; },
     in: (c: string, v: unknown[]) => { calls.push({ t, op: "in:" + c, args: [v.length] }); f.push((r) => v.includes(r[c])); return b; },
     gte: (c: string, v: string) => { f.push((r) => String(r[c]) >= v); return b; },
     like: (c: string, v: string) => { const p = v.replace(/^%|%$/g, ""); f.push((r) => String(r[c]).includes(p)); return b; },
