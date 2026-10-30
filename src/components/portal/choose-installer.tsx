@@ -1,8 +1,9 @@
 // Office job page: "Choose installer" for an our-lead Ready Check (Jo 24 Oct 2026, decisions 49–51).
-// Nearby approved installers with their area and rates. Decision 389 (Jo 25 Oct 2026): tapping Release records the
-// installer as a PENDING release and sends the OWNER "It's your turn"; the installer is offered the job (open 24 hours)
-// only once the owner confirms. A confirmed owner whose installer said Not for me / didn't answer is not asked again:
-// Release goes straight to the installer. Installers' own customers never show this.
+// Nearby approved installers with their area and rates. Decision 389 (Jo 25 Oct 2026): tapping Release recorded the
+// installer as a PENDING release and sent the OWNER "It's your turn". A48 batch 2 (Jo 30 Oct 2026): website owners are
+// no longer released one by one — they go in area batches (Suggested batches) — so Release now shows only for an owner
+// who already confirmed (it goes straight to the installer); old releases stay readable. Installers' own customers never
+// show this.
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -11,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Section } from "@/components/portal/panels";
 import { listChooseTrades } from "@/lib/offer-dispatch.functions";
 import { getSpotRelease, releaseSpotFn } from "@/lib/spot-release.functions";
-import { getAreaBatchSuggestions, sendAreaBatchFn } from "@/lib/area-batch.functions";
+import { getAreaBatchSuggestions, getBatchesReadyToSend, sendAreaBatchFn } from "@/lib/area-batch.functions";
 import { Pill, btnClass } from "@/components/portal/kit";
 import { CHOOSE_LOAD_FAILED, choosePanelState } from "@/lib/installer-waiting-columns.core";
 
@@ -64,8 +65,8 @@ export function ChooseInstallerPanel({ jobId, reportLoad = false }: { jobId: str
             ? <p className="rounded-md border px-3 py-2">Offer sent to <span className="font-semibold">{d.openOffer.business ?? "the installer"}</span>. Waiting for them to offer the owner 3 times{d.openOffer.expiresAt ? ` (closes ${when(d.openOffer.expiresAt)})` : ""}.</p>
             : pending ? <p className="rounded-md border px-3 py-2" data-release="pending">{rel?.line}. The installer is offered the job only once the owner confirms.</p>
             : confirmed ? <p className="rounded-md border px-3 py-2" data-release="confirmed"><span className="font-semibold">{rel?.line}.</span> Release sends the offer straight to the installer (the owner isn't asked again).</p>
-            : <p className="text-muted-foreground">{rel?.state === "lapsed" ? `${rel.line}. ` : ""}Tap Release next to an installer: the owner gets "It's your turn" and confirms first. Only then does that installer get the offer (24 hours to offer the owner 3 times).</p>}
-          {!d.openOffer && !pending && (
+            : <p className="text-muted-foreground">{rel?.state === "lapsed" ? `${rel.line}. ` : ""}Website owners now go in area batches — use Suggested batches on Choose installer.</p>}
+          {!d.openOffer && confirmed && (
             <ul className="divide-y rounded-md border">
               {shown.length === 0 && <li className="px-3 py-3 text-muted-foreground">No installer can be offered {d.suburb || "this area"} right now{d.others.length ? " — show the others to see why" : ""}.</li>}
               {shown.map((t) => {
@@ -85,7 +86,7 @@ export function ChooseInstallerPanel({ jobId, reportLoad = false }: { jobId: str
               })}
             </ul>
           )}
-          {!d.openOffer && !pending && d.others.length > 0 && <button type="button" className="text-xs font-semibold text-primary" onClick={() => setShowAll((v) => !v)}>{showAll ? "Show nearby only" : `Show ${d.others.length} more installer${d.others.length === 1 ? "" : "s"}`}</button>}
+          {!d.openOffer && confirmed && d.others.length > 0 && <button type="button" className="text-xs font-semibold text-primary" onClick={() => setShowAll((v) => !v)}>{showAll ? "Show nearby only" : `Show ${d.others.length} more installer${d.others.length === 1 ? "" : "s"}`}</button>}
           {q.error && <p className="text-destructive">{(q.error as Error).message}</p>}
         </div>
       </Section>
@@ -152,6 +153,37 @@ export function AreaBatchSuggestions({ includeTest = false }: { includeTest?: bo
           })}
         </ul>
       )}
+    </section>
+  );
+}
+
+/** A48 batch 2 (Jo 30 Oct 2026): closed batches whose owners said yes. Runs never go to an installer automatically — Jo
+ *  checks the homes and taps "Send to installer" (wired in Task 6; until then the button is off). Nothing in Needs me. */
+export function BatchesReadyToSend({ includeTest = false }: { includeTest?: boolean }) {
+  const load = useServerFn(getBatchesReadyToSend);
+  const q = useQuery({ queryKey: ["area-batches", "ready", includeTest], queryFn: () => load({ data: { includeTest } }), staleTime: 30_000 });
+  const d = q.data;
+  if (q.isError) return <p role="alert" className="mb-4 text-sm text-danger">Couldn't load the batches ready to send. {(q.error as Error).message} <button type="button" className="font-semibold underline" onClick={() => void q.refetch()}>Try again</button></p>;
+  if (!d || d.length === 0) return null;
+  return (
+    <section aria-label="Ready to send to the installer" className="mb-4 rounded-[18px] border border-line bg-paper p-4">
+      <h2 className="font-display text-[17px] font-bold text-ink">Ready to send to the installer</h2>
+      <p className="mt-1 text-[13px] text-sub">These owners said yes. Check the homes, then tap Send to installer.</p>
+      <ul className="mt-3 space-y-3">
+        {d.map((b) => (
+          <li key={b.batchId} className="rounded-[14px] border border-line p-3" data-ready-batch={b.batchId}>
+            <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-ink">
+              {b.homes.length} {b.homes.length === 1 ? "home" : "homes"} · {b.installer.name || "Installer"}
+              {b.isTest && <Pill tone="amber">TEST</Pill>}
+            </p>
+            <p className="text-[13px] text-sub">{[...new Set(b.homes.map((h) => [h.suburb, h.postcode].filter(Boolean).join(" ")).filter(Boolean))].sort().join(", ")}</p>
+            <ul className="mt-2 text-[13px] text-sub">
+              {b.homes.map((h) => <li key={h.jobId}>{h.jobNumber} · {h.ownerName || "Owner"} · {h.suburb || h.postcode}</li>)}
+            </ul>
+            <button type="button" className={`mt-2 ${btnClass("primary")}`} disabled>Send to installer</button>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

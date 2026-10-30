@@ -1,6 +1,7 @@
 // Area batches (A48 batch 2). PURE: no I/O. Owner answers and the roof fact come in as plain values.
 import { distanceM } from "./geo.core";
 import { installerCanBeOffered, type WaitingInstaller } from "./installer-waiting-columns.core";
+import { QUICK_TAPS_ANSWERED_EVENT, QUICK_TAPS_DECLINE_REASON } from "./quick-taps.core";
 
 const norm = (v: string | null | undefined) => (v ?? "").trim().toLowerCase();
 
@@ -131,3 +132,85 @@ export function batchInstallers<I extends BatchInstaller>(installers: readonly I
 
 /** The TEST office login never sees suggested batches (their functions are not on its allowlist); roles unknown → hidden. */
 export const showAreaBatches = (roles: readonly string[] | null | undefined): boolean => !!roles && roles.includes("admin") && !roles.includes("qa_office");
+
+// ---- sweep (Task 4): day-2 reminder, day-3 close, day-14 no-answer close. PURE. ----------------------------------------
+/** One per job + batch, claimed before the day-2 reminder text. */
+export const QUICK_TAPS_REMINDED_EVENT = "quick_taps_reminded";
+const ANSWERED = QUICK_TAPS_ANSWERED_EVENT;
+const PASS = "pass";
+const DECLINES = Object.keys(QUICK_TAPS_DECLINE_REASON);
+const HOUR_MS = 3_600_000;
+export const REMIND_AFTER_HOURS = 48; // day 2
+export const CLOSE_AFTER_HOURS = 72; // day 3
+export const NO_ANSWER_CLOSE_HOURS = 14 * 24; // day 14 from the first send
+/** cancelJobFully reason for a home whose owner never answered (closed quietly — nobody is told). */
+export const NO_ANSWER_CLOSE_REASON = "Quick taps: no answer after 14 days";
+export const areaBatchClosedKey = (batchId: string, jobId: string) => `area-batch-closed:v1:${batchId}:${jobId}`;
+
+/** A job as the sweep sees it. `waiting` = still a website job waiting for an installer (Ready Check scheduling stage,
+ *  nobody assigned, not deleted or archived). `events` = its batch events, quick-taps answers and reminder claims. */
+export type SweepJob = { jobId: string; waiting: boolean; events: readonly AreaBatchEventRow[] };
+export type BatchClose = { batchId: string; passJobIds: string[]; freedJobIds: string[]; closeJobIds: string[] };
+export type BatchSweepPlan = { reminders: { batchId: string; jobId: string }[]; closes: BatchClose[]; declineRetries: string[]; noAnswerCloses: string[] };
+
+const outcomeOf = (e: AreaBatchEventRow) => { const v = (e.details as { outcome?: unknown } | null)?.outcome; return typeof v === "string" ? v : null; };
+const has = (j: SweepJob, type: string, batchId: string) => j.events.some((e) => e.event_type === type && bid(e) === batchId);
+const answerFor = (j: SweepJob, batchId: string) => j.events.find((e) => e.event_type === ANSWERED && bid(e) === batchId) ?? null;
+const passedIn = (j: SweepJob, batchId: string) => { const a = answerFor(j, batchId); return !!a && outcomeOf(a) === PASS; };
+
+/** What the 15-minute sweep does now. Nothing here ever offers a run to an installer (Jo's OK, Task 6).
+ *  - Day 2 (48h after the batch was sent): ONE reminder to each owner still waiting who hasn't answered, hasn't left the
+ *    batch and isn't closed out of it — not during quiet hours (the next tick outside them sends it); never after day 3.
+ *  - Day 3 (72h): the batch closes for every member: passers = answered "pass" and still waiting; freed = no answer and
+ *    still waiting (back in the pool). Homes that LEFT the batch, declines and jobs closed meanwhile are in neither list.
+ *  - Any job whose latest answer is a decline but is still waiting (not cancelled yet) → finish the decline again (a
+ *    failed close).
+ *  - 14 days after the job's FIRST send with no answer at all, still waiting → closed quietly. */
+export function planBatchSweep(jobs: readonly SweepJob[], nowIso: string, quiet: boolean): BatchSweepPlan {
+  const now = Date.parse(nowIso);
+  const plan: BatchSweepPlan = { reminders: [], closes: [], declineRetries: [], noAnswerCloses: [] };
+  const batches = new Map<string, { sentAt: number; members: SweepJob[] }>();
+  for (const j of jobs) {
+    for (const e of j.events) {
+      const b = e.event_type === AREA_BATCH_SENT_EVENT ? bid(e) : null;
+      if (!b) continue;
+      const t = Date.parse(e.created_at);
+      const cur = batches.get(b) ?? { sentAt: t, members: [] };
+      cur.sentAt = Math.min(cur.sentAt, t);
+      if (!cur.members.includes(j)) cur.members.push(j);
+      batches.set(b, cur);
+    }
+  }
+  for (const [batchId, { sentAt, members }] of [...batches].sort((a, b) => a[1].sentAt - b[1].sentAt)) {
+    const age = now - sentAt;
+    if (!Number.isFinite(age)) continue;
+    const notClosed = members.filter((j) => !has(j, AREA_BATCH_CLOSED_EVENT, batchId));
+    if (!notClosed.length) continue;
+    const inBatch = (j: SweepJob) => j.waiting && !has(j, AREA_BATCH_LEFT_EVENT, batchId);
+    if (age >= CLOSE_AFTER_HOURS * HOUR_MS) {
+      plan.closes.push({
+        batchId,
+        passJobIds: members.filter((j) => inBatch(j) && passedIn(j, batchId)).map((j) => j.jobId).sort(),
+        freedJobIds: members.filter((j) => inBatch(j) && !answerFor(j, batchId)).map((j) => j.jobId).sort(),
+        closeJobIds: notClosed.map((j) => j.jobId).sort(),
+      });
+    } else if (age >= REMIND_AFTER_HOURS * HOUR_MS && !quiet) {
+      for (const j of notClosed) if (inBatch(j) && !answerFor(j, batchId) && !has(j, QUICK_TAPS_REMINDED_EVENT, batchId)) plan.reminders.push({ batchId, jobId: j.jobId });
+    }
+  }
+  for (const j of jobs) {
+    const answers = j.events.filter((e) => e.event_type === ANSWERED).sort((a, b) => b.created_at.localeCompare(a.created_at));
+    const latest = answers[0] ? outcomeOf(answers[0]) : null;
+    if (latest && DECLINES.includes(latest) && j.waiting) plan.declineRetries.push(j.jobId);
+    const firstSent = Math.min(...j.events.filter((e) => e.event_type === AREA_BATCH_SENT_EVENT).map((e) => Date.parse(e.created_at)));
+    if (!answers.length && j.waiting && Number.isFinite(firstSent) && now - firstSent >= NO_ANSWER_CLOSE_HOURS * HOUR_MS) plan.noAnswerCloses.push(j.jobId);
+  }
+  return plan;
+}
+
+/** The job passed the quick taps (its latest answer is a pass): it waits for Jo's OK to send it to the installer and is
+ *  never put in another batch. */
+export const passedQuickTaps = (events: readonly AreaBatchEventRow[]): boolean => {
+  const latest = events.filter((e) => e.event_type === ANSWERED).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+  return !!latest && outcomeOf(latest) === PASS;
+};

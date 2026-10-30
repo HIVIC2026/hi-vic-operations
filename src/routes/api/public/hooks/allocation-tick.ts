@@ -134,6 +134,16 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['spotReleases'] = "failed";
         }
         try {
+          // A48 batch 2 (Jo 30 Oct 2026): area batches — day-2 quick taps reminder (outside quiet hours), day-3 close (owners
+          // who said yes wait for Jo's "Send to installer"; nothing goes to an installer automatically), decline retries,
+          // day-14 no-answer close (nobody told). Nothing lands in Needs me.
+          const { sweepAreaBatches } = await import("@/lib/area-batch.server");
+          (out as Record<string, unknown>)['areaBatches'] = await timed("sweepAreaBatches", () => sweepAreaBatches());
+        } catch (e) {
+          console.error("allocation tick: area batch sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['areaBatches'] = "failed";
+        }
+        try {
           // Plan 2026-10-28 (full address required): website/email enquiries with no street → ask the owner (email + text)
           // to pick their full address, then ONE reminder 24h later. Off until address_request_live_at is set.
           const { sweepAddressRequests } = await import("@/lib/address-request.server");

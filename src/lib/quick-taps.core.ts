@@ -112,3 +112,24 @@ export type QuickTapsView =
   | { kind: "none" }
   | { kind: "ask"; name: string | null; address: string | null; website: WebsiteFacts }
   | { kind: "done"; outcome: FinalOutcome };
+
+export type AddressParts = { address_line: string | null; suburb: string | null; postcode: string | null };
+const addrNorm = (v: string | null | undefined) => (v ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+export const sameAddress = (a: AddressParts, b: AddressParts) =>
+  addrNorm(a.address_line) === addrNorm(b.address_line) && addrNorm(a.suburb) === addrNorm(b.suburb) && addrNorm(a.postcode) === addrNorm(b.postcode);
+/** The address a `coordinates` fact was found for (`raw_snapshot.address`, written by ensurePropertyCoordinates), or null
+ *  for an older fact that doesn't say. */
+export function locationAddress(rawSnapshot: unknown): AddressParts | null {
+  const a = (rawSnapshot as { address?: Record<string, unknown> | null } | null)?.address;
+  if (!a || typeof a !== "object") return null;
+  const s = (v: unknown) => (typeof v === "string" ? v : null);
+  return { address_line: s(a["address_line"]), suburb: s(a["suburb"]), postcode: s(a["postcode"]) };
+}
+/** Does the home need a fresh location after the owner confirmed `saved`? Decided from the address the CURRENT location
+ *  was found for — not the address the page showed — so a retry after a half-finished move still re-locates the home.
+ *  An older location that doesn't say its address (or no location yet) → only when the address changed, now or in an
+ *  earlier quick-taps save. */
+export function locationNeedsRefresh(f: { locationAddress: AddressParts | null; saved: AddressParts; changedNow: boolean; changedBefore: boolean }): boolean {
+  if (f.locationAddress) return !sameAddress(f.locationAddress, f.saved);
+  return f.changedNow || f.changedBefore;
+}

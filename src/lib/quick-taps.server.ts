@@ -3,8 +3,9 @@
 // step3_estimate customer_estimate_links row); the job comes from the token, never from the page.
 // - quickTapsState: what the screen shows. Not in a batch asking for taps (or the job is closed) → `none`.
 // - saveQuickTapsDetails: the name / address taps ("Change it" or typed). Saved through the ONE audited enquiry details
-//   save (office-actions.server saveEnquiryDetails, event `quick_taps_details_saved`). A changed address is re-located
-//   (old `coordinates` fact superseded, ensurePropertyCoordinates); over 10 km from the batch centre → the home leaves the
+//   save (office-actions.server saveEnquiryDetails, event `quick_taps_details_saved`). A home whose current location was
+//   found for another address is re-located (old `coordinates` fact superseded, ensurePropertyCoordinates; decided by
+//   locationNeedsRefresh, so a retry after a half-finished move still re-locates); over 10 km from the batch centre → the home leaves the
 //   batch (area-batch.server leaveBatchIfMoved) and goes back in the pool — the owner is not told and carries on.
 // - saveQuickTaps: the answers. ONE `quick_taps_answered {batch_id, answers, consent_share, outcome}` per job + batch,
 //   claimed before anything else happens (a second save, or a second device, gets the same outcome and nothing more).
@@ -21,8 +22,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { WorkflowError, logEvent } from "./workflow.server";
 import { AREA_BATCH_EVENTS, AREA_BATCH_SENT_EVENT, tapsBatchId, type AreaBatchEventRow } from "./area-batch.core";
 import {
-  QUICK_TAPS_ANSWERED_EVENT, QUICK_TAPS_DECLINE_REASON, tapOutcome, websiteQuestions,
-  type FinalOutcome, type QuickTapAnswers, type QuickTapsView, type WebsiteAnswers, type WebsiteFacts, type WebsiteKey,
+  QUICK_TAPS_ANSWERED_EVENT, QUICK_TAPS_DECLINE_REASON, locationAddress, locationNeedsRefresh, tapOutcome, websiteQuestions,
+  type AddressParts, type FinalOutcome, type QuickTapAnswers, type QuickTapsView, type WebsiteAnswers, type WebsiteFacts, type WebsiteKey,
 } from "./quick-taps.core";
 import { formatPropertyAddress } from "./address";
 import { declaredExtras } from "./enquiry.core";
@@ -160,7 +161,8 @@ export async function saveQuickTapsDetails(token: string, input: { fullName?: st
     if (e instanceof WorkflowError) return { ok: false, error: e.message };
     throw e;
   }
-  const moved = !same(saved.street, before.street) || !same(saved.suburb, before.suburb) || !same(saved.postcode, before.postcode);
+  const changedNow = !same(saved.street, before.street) || !same(saved.suburb, before.suburb) || !same(saved.postcode, before.postcode);
+  const moved = prop?.id ? await needsNewLocation(jobId, prop.id, { address_line: saved.street, suburb: saved.suburb, postcode: saved.postcode }, changedNow) : false;
   if (moved && prop?.id) {
     // The old location belongs to the old address: superseded (kept as history), then the new one is looked up once.
     // If that fails, stop: looking up now would just hand back the old address's location.
@@ -172,6 +174,18 @@ export async function saveQuickTapsDetails(token: string, input: { fullName?: st
     await B.leaveBatchIfMoved(jobId, batchId, point);
   }
   return { ok: true, name: saved.fullName, address: formatPropertyAddress({ address_line: saved.street, suburb: saved.suburb, state: "VIC", postcode: saved.postcode }) };
+}
+
+/** "Moved" = the current location was found for a different address (locationNeedsRefresh): a retry after the old
+ *  location couldn't be superseded (address already saved) still re-locates the home. */
+async function needsNewLocation(jobId: string, propertyId: string, saved: AddressParts, changedNow: boolean): Promise<boolean> {
+  const [{ data: fact, error: fe }, { data: earlier, error: ee }] = await Promise.all([
+    loose.from("property_facts").select("raw_snapshot").eq("property_id", propertyId).eq("fact_key", "coordinates").eq("is_current", true).limit(1).maybeSingle(),
+    loose.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "quick_taps_details_saved").contains("details", { address_changed: true }).limit(1),
+  ]);
+  if (fe) throw new Error(`Could not read the home's location: ${fe.message}`);
+  if (ee) throw new Error(`Could not read the address history: ${ee.message}`);
+  return locationNeedsRefresh({ locationAddress: locationAddress((fact as { raw_snapshot?: unknown } | null)?.raw_snapshot), saved, changedNow, changedBefore: (earlier ?? []).length > 0 });
 }
 
 /** Blank website answers onto enrichment.base44.declared (blanks only; the owner's website answers are never changed). */

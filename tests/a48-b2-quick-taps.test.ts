@@ -120,7 +120,9 @@ mock.module("../src/lib/property-coordinates.server", () => ({
     if (existing) return existing["value"];
     const c = lookupCoords[propertyId];
     if (!c) return null;
-    tables["property_facts"]!.push({ property_id: propertyId, fact_key: "coordinates", value: c, is_current: true });
+    // Like the real lookup: the location records the address it was found for.
+    const p = tables["properties"]!.find((r) => r["id"] === propertyId)!;
+    tables["property_facts"]!.push({ property_id: propertyId, fact_key: "coordinates", value: c, is_current: true, raw_snapshot: { address: { address_line: p["address_line"], suburb: p["suburb"], postcode: p["postcode"] } } });
     return c;
   },
 }));
@@ -507,6 +509,29 @@ describe("saveQuickTapsDetails", () => {
     await expect(S.saveQuickTapsDetails(tok("a"), { placeId: "pl-far" })).rejects.toThrow(/location/i);
     expect(located).toEqual([]);
     expect(events(AREA_BATCH_LEFT_EVENT)).toEqual([]);
+  });
+  test("retry after the old location couldn't be superseded: the new address (already saved) is re-located and leaves the batch", async () => {
+    addJob("a"); addJob("c"); sendBatchEvent("b1", ["c", "a"], { lat: -37.8, lng: 145 });
+    places["pl-far"] = { street: "9 Far Away Road", suburb: "Geelong", postcode: "3220", state: "VIC" };
+    lookupCoords["p-a"] = pt(25);
+    failUpdates.add("property_facts");
+    await expect(S.saveQuickTapsDetails(tok("a"), { placeId: "pl-far" })).rejects.toThrow(/location/i);
+    failUpdates.clear();
+    // The owner taps Yes on the (already saved) new address: "moved" comes from the location's address, not the page's.
+    expect(await S.saveQuickTapsDetails(tok("a"), {})).toMatchObject({ ok: true, address: "9 Far Away Road, Geelong, VIC 3220" });
+    const facts = tables["property_facts"]!.filter((f) => f["property_id"] === "p-a" && f["fact_key"] === "coordinates");
+    expect(facts.map((f) => f["is_current"])).toEqual([false, true]);
+    expect(events(AREA_BATCH_LEFT_EVENT, "a")).toHaveLength(1);
+    // Once the location matches the address, confirming again looks nothing up.
+    located.length = 0;
+    expect(await S.saveQuickTapsDetails(tok("a"), {})).toMatchObject({ ok: true });
+    expect(located).toEqual([]);
+  });
+  test("confirming an unchanged address never re-locates the home", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]);
+    expect(await S.saveQuickTapsDetails(tok("a"), {})).toMatchObject({ ok: true });
+    expect(located).toEqual([]);
+    expect(tables["property_facts"]!.filter((f) => f["property_id"] === "p-a").map((f) => f["is_current"])).toEqual([true]);
   });
   test("a picked suburb (no street number) is refused with the existing message", async () => {
     addJob("a", { street: null }); sendBatchEvent("b1", ["a"]);

@@ -12,7 +12,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { AreaBatchSuggestions, ChooseInstallerPanel } from "@/components/portal/choose-installer";
+import { AreaBatchSuggestions, BatchesReadyToSend, ChooseInstallerPanel } from "@/components/portal/choose-installer";
 import { ColumnHead, Pager, type ColumnFilterValue } from "@/components/portal/office-lists";
 import { Pill, PillTabs, listCard } from "@/components/portal/kit";
 import { getInstallerWaitingList } from "@/lib/installer-waiting.functions";
@@ -144,6 +144,7 @@ export function InstallerWaitingScreen() {
         </div>
       </div>
       {/* A48 batch 2: not for the TEST office login (its functions are not on the TEST office allowlist). */}
+      {showAreaBatches(me?.roles) && <BatchesReadyToSend includeTest={includeTest} />}
       {showAreaBatches(me?.roles) && <AreaBatchSuggestions includeTest={includeTest} />}
       <PillTabs<WaitingTab> label="Saved spots" value={tab} onChange={pickTab} options={[
         { value: "to_release", label: "To release", count: d ? d.rows.length - (waitingOwner ?? 0) : null },
