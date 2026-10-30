@@ -115,7 +115,7 @@ beforeEach(() => {
       { job_id: JOB, role: "electrician", active: true, user_id: "electrician", business_id: "biz", profiles: { email: EMAIL }, businesses: { in_house: true, rectification_billed_by: "partner" } },
       { job_id: JOB, role: "installer", active: true, business_id: "biz", businesses: { in_house: true, rectification_billed_by: "partner" } },
     ],
-    properties:[{id:"property",address_line:"1 TEST street"}],owners:[{id:"owner",full_name:"Owner"}], customer_agreements:[{job_id:JOB,status:"signed"}], invoices:[], workflow_settings: [{ id: 1, payment_option_gate_enabled:true, safety_check_payment_inc_gst:349, mitti_piesa_template_id:PIESA, mitti_fixes_template_id: RECT }], workflow_events: [], rectification_items: [], piesa_records: [], bookings: [], compliance_checks: [],
+    properties:[{id:"property",address_line:"1 TEST street"}],owners:[{id:"owner",full_name:"Owner"}], customer_agreements:[{job_id:JOB,status:"signed"}], invoices:[], workflow_settings: [{ id: 1, payment_option_gate_enabled:true, safety_check_payment_inc_gst:349, mitti_piesa_template_id:PIESA, mitti_fixes_template_id: RECT }], workflow_events: [], rectification_items: [], piesa_records: [], bookings: [], compliance_checks: [], documents:[{job_id:JOB,source_system:"mitti",external_id:"audit-2:completed"}],
     pricing_settings: [{ is_active: true, gst_rate: 0.1 }], rate_cards: [{ kind: "electrical", is_active: true, business_id: "biz", rate_card_items: [{ code: "RCD", unit_price_ex_gst: 10 }] }],
   };
 });
@@ -160,7 +160,7 @@ for (const scenario of ["hivic", "non-in-house"]) test(`${scenario} rectificatio
 test("rectification Mitti creation failure is visible and an uncertain create is not retried", async () => {
   await load("piesa-autoform.server").onPiesaBooked(JOB, "booking", null, { call });
   // A distinct seed with existing PIESA but no rectification form: retry must still try the companion form.
-  tables.workflow_events = []; claimHeld = false; failCreate = true;
+  tables.workflow_events = []; claims.clear(); claimHeld = false; failCreate = true;
   const s = load("piesa-autoform.server");
   await s.onPiesaBooked(JOB, "booking", null, { call });
   expect(tables.assessments[0].mitti_sync_status).toBe("error");
@@ -201,7 +201,7 @@ Object.assign(overrides, {
 });
 overrides["./official-forms.server"].hazardBlockers=async()=>[];
 overrides["./official-forms.server"].currentCopy=async()=>({unavailable:true});
-const signedAudit = () => ({audit_id:"audit-2",template_id:RECT,status:"completed",items:[
+const signedAudit = () => ({audit_id:"audit-2",template_id:RECT,completed:true,items:[
  ...core.FIXES_DAY_QUESTIONS.map(q=>({item_id:`i${q.n}`,label:q.label})),
  ...[[core.FIXES_DAY_Q.jobNumber,"HV-TEST"],[core.FIXES_DAY_Q.done,"Yes"],[core.FIXES_DAY_Q.coesNumber,"C123"],[core.FIXES_DAY_Q.certDate,"2026-11-02"]].map(([label,text])=>({label,responses:{text}})),
  {label:core.FIXES_DAY_Q.coesFile,media:[{media_id:"coes"}]},
@@ -246,7 +246,7 @@ test("repeat in-house PIESA gets its own rectification audit",async()=>{
  expect(calls.filter(c=>c.path==="/audits").map(c=>c.body.template_id)).toEqual([PIESA,RECT,PIESA,RECT]);
 });
 test("share failure retries both handover operations without creating duplicate audits",async()=>{
- realMitti=true; failShare=true;
+ realMitti=true; failShare=true; tables.bookings.push({job_id:JOB,kind:"assessment",status:"confirmed",scheduled_start:"2026-11-01T00:00:00Z"});
  const s=load("piesa-autoform.server"); await s.onPiesaBooked(JOB,"visit",null,{call});
  expect(tables.assessments[0].mitti_sync_status).toBe("error");
  failShare=false; await s.onPiesaBooked(JOB,"visit",null,{call});
@@ -261,4 +261,29 @@ test("rectification handover failure retries share and owner using its existing 
  failShare=false; await s.onRectificationBooked(JOB,"rect-visit",null,call);
  expect(calls.filter(c=>c.path==="/audits")).toHaveLength(2);
  expect(calls.filter(c=>c.path==="/audits/audit-2/owner").length).toBeGreaterThanOrEqual(2);
+});
+
+const setPiesaAudit = (repair:boolean) => {
+ const forms=require("./helpers/journey-forms");
+ const form=repair ? forms.completedA3({inspectionDate:"2026-10-30",capturedAt:"2026-10-30T01:00:00Z",priceIncGst:600,mediaPrefix:"round"}) : forms.completedA3Pass({inspectionDate:"2026-10-30",capturedAt:"2026-10-30T01:00:00Z",mediaPrefix:"round"});
+ auditResponse={audit_id:"audit-1",template_id:PIESA,completed:true,items:form.items,modified_at:repair?"2026-10-30T02:00:00Z":"2026-10-30T01:00:00Z"};
+ tables.documents ??= []; tables.documents.push({job_id:JOB,source_system:"mitti",external_id:`audit-1:${auditResponse.modified_at}`});
+ tables.assessments[0].mitti_template_id=PIESA;
+};
+test("real Mitti no-rectification sync closes companion once and writes the existing partner-visible note",async()=>{
+ await load("piesa-autoform.server").onPiesaBooked(JOB,"visit",null,{call}); realMitti=true; setPiesaAudit(false);
+ const s=load("mitti.server"); await s.syncMittiAssessment(JOB,null,call,async()=>({bytes:new Uint8Array([1]),contentType:"image/png"}));
+ expect(tables.assessments[0].no_rectification_confirmed).toBe(true);
+ expect(tables.workflow_events.filter(e=>e.event_type==="rectification_form_closed_unused")).toHaveLength(1);
+ expect(tables.workflow_events.filter(e=>e.event_type==="installer_note").map(e=>e.details.note)).toEqual(["Rectification form not needed — you can ignore it in Mitti."]);
+});
+test("real amended PIESA sync reopens only a new round and resets no-rectification flag",async()=>{
+ await load("piesa-autoform.server").onPiesaBooked(JOB,"visit",null,{call}); realMitti=true; setPiesaAudit(false);
+ const s=load("mitti.server"), media=async()=>({bytes:new Uint8Array([1]),contentType:"image/png"});
+ await s.syncMittiAssessment(JOB,null,call,media); setPiesaAudit(true);
+ await s.syncMittiAssessment(JOB,null,call,media);
+ expect(tables.assessments[0].no_rectification_confirmed).toBe(false);
+ expect(calls.filter(c=>c.path==="/audits")).toHaveLength(3);
+ await s.syncMittiAssessment(JOB,null,call,media);
+ expect(calls.filter(c=>c.path==="/audits")).toHaveLength(3);
 });
