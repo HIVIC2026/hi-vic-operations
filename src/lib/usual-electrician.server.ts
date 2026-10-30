@@ -34,7 +34,7 @@ export async function mittiElectricianForJob(jobId: string, actorId: string | nu
   // rate); otherwise the quote holds "Electrician not onboarded: <name>" and the tick issues ONE onboarding invite.
   const { onboardedElectricianResolution, ELECTRICIAN_ONBOARDING_NEEDED_EVENT } = await import("./rec-onboarded.core");
   const candidates = legacy.choice === "hivic" || legacy.needsProfile ? [] : await (await import("./rec-onboarded.server")).loadApprovedRecCandidates();
-  // Jo 26 Oct 2026: an installer that pays its own electricians (Reinsulate) → flat owner line, no REC rate needed.
+  // pays_own_electricians OR in_house → the business's flat PIESA line, no REC rate needed; not a held-visit decision.
   const paysOwn = await (await import("./installer-paid-electricians.server")).readInstallerPaidElectricians(job.originating_installer_business_id);
   const resolved = paysOwn?.release_hold_reason
     ? { ...legacy, ready: false, priceIncGst: null, reasons: [paysOwn.release_hold_reason], needsProfile: false, notOnboarded: null }
