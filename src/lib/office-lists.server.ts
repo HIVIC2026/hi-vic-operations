@@ -128,9 +128,9 @@ export async function loadEnquiriesList(p: EnquiryListParams, testJobIds?: strin
     .select("id,job_number,created_at,source,channel,owners(full_name,email,phone)").eq("source", "qa_test").eq("channel", "hivic_sourced")
     .in("id", testJobIds.length ? testJobIds : ["00000000-0000-0000-0000-000000000000"])
     .in("stage", ["new_enquiry", "eligibility_review", "preliminary_estimate_ready"]).order("created_at", { ascending: false }).order("id").range(a, b))
-    .then(rows => rows.map(r => { const owner = r["owners"] as { full_name?: string; email?: string; phone?: string } | null; return { ...r, owner_name: owner?.full_name, owner_email: owner?.email, owner_phone: owner?.phone, enquiry_status: null, needs_first_response: false, latest_attempt_status: null }; }))
+    .then(rows => rows.map(r => { const owner = r["owners"] as { full_name?: string; email?: string; phone?: string } | null; return { ...r, owner_name: owner?.full_name, owner_email: owner?.email, owner_phone: owner?.phone, enquiry_status: null, needs_first_response: false, latest_attempt_status: null, latest_attempt_at: null }; }))
     : await all("enquiries", (a, b) => {
-    let q = admin.from("office_enquiry_index").select("id, job_number, created_at, source, channel, enquiry_status, needs_first_response, latest_attempt_status, owner_name, owner_email, owner_phone").eq("office_bucket", "enquiry").eq("channel", "hivic_sourced");
+    let q = admin.from("office_enquiry_index").select("id, job_number, created_at, source, channel, enquiry_status, needs_first_response, latest_attempt_status, latest_attempt_at, owner_name, owner_email, owner_phone").eq("office_bucket", "enquiry").eq("channel", "hivic_sourced");
     q = q.in("source", ["base44", "portal", "email"]);
     return q.order("created_at", { ascending: false }).order("id").range(a, b);
   });
@@ -156,7 +156,7 @@ export async function loadEnquiriesList(p: EnquiryListParams, testJobIds?: strin
   const jobById = new Map(jobs.map((j) => [String(j["id"]), j]));
   const answeredSet = new Set(answered.map((a) => String(a["job_id"])));
   const REMINDER = /reminder|followup|follow_up/;
-  const rows = index.map((r) => {
+  const allRows = index.map((r) => {
     const id = String(r["id"]);
     const j = jobById.get(id);
     const prop = (j?.["properties"] ?? null) as { address_line: string | null; suburb: string | null; postcode: string | null; answers: Record<string, unknown> | null } | null;
@@ -171,7 +171,7 @@ export async function loadEnquiriesList(p: EnquiryListParams, testJobIds?: strin
     const ans = answeredAt.get(id) ?? null, inb = inboundAt.get(id) ?? null;
     const ownerAt = [ans, inb].filter((x): x is string => !!x).sort().at(-1) ?? null;
     const noResponseYet = !sends.some(x => (FIRST_RESPONSE_PURPOSES as readonly string[]).includes(x.purpose));
-    const category = enquiryCategory({ createdAt: String(r["created_at"]), enquiryStatus: s(r["enquiry_status"]), lastOutboundAt: last?.at ?? null, lastOwnerAt: ownerAt, inboundAt: inb, optedOut: optedOut.has(id), sendFailed: latestFailed, noResponseYet }, now);
+    const category = enquiryCategory({ createdAt: String(r["created_at"]), enquiryStatus: s(r["enquiry_status"]), lastOutboundAt: last?.at ?? null, lastOwnerAt: ownerAt, inboundAt: inb, optedOut: optedOut.has(id), sendFailed: latestFailed, sendFailedAt: latestFailed ? s(r["latest_attempt_at"]) : null, noResponseYet }, now);
     return {
       emailBounced: bounced.has(id), category, ownerWroteAt: ownerWrote({ inboundAt: inb, lastOutboundAt: last?.at ?? null }, now),
       id, jobNumber: String(r["job_number"]), ownerName: tidy.fullName, street: tidy.street, suburb: tidy.suburb, postcode: tidy.postcode, address: addressLine(tidy), phone: s(r["owner_phone"]), email: s(r["owner_email"]),
@@ -184,6 +184,8 @@ export async function loadEnquiriesList(p: EnquiryListParams, testJobIds?: strin
       createdAt: String(r["created_at"]), areaM2, covered: covered(tidy.postcode || prop?.postcode || null, tidy.suburb || null),
     };
   });
+  // Failed first emails are on Needs me only (Jo 30 Oct 2026): out of the list, the counts and Close all.
+  const rows = allRows.filter((r) => r.category !== "needs_me");
   // Decision 281: one list. `open` = every enquiry; `incompleteAddresses` = still waiting on the automatic lookup.
   const counts = { open: rows.length, incompleteAddresses: rows.filter((r) => r.problems.length > 0).length, byCategory: categoryCounts(rows.map((r) => r.category)) };
   const view = p.view ?? "offered";

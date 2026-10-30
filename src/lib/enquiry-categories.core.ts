@@ -7,17 +7,22 @@
 // questions email is simply "Offered a spot" here, like everyone else waiting on Save my spot.
 // Gone quiet = nothing either way for 4 weeks: the day 2 / 7 / 21 reminders plus the 7-day close (decision 242) would
 // have closed it, so these are leads we did reach and then heard nothing back from. A lead the automation never
-// reached at all (no first response) is never Gone quiet, whatever its age (Jo 27 Oct 2026) — it stays "Email didn't
-// send", where the office can still chase it.
+// reached at all (no first response) is never Gone quiet, whatever its age (Jo 27 Oct 2026) — it stays "Email not
+// sent yet", where the office can still chase it.
+// Failed first emails are on Needs me only (Jo 30 Oct 2026): an enquiry sits in exactly one pile, so a failed send is
+// category "needs_me", which is not a tab and is left out of every view and count here. Needs me shows failures from
+// the last 7 days only (send-failed.core), so an older failure (or one with no known time) comes back here as
+// "Email not sent yet" instead of vanishing from both screens (Jo 30 Oct 2026).
 // PURE: no I/O.
+import { SEND_FAILED_WINDOW_DAYS } from "./send-failed.core";
 
-export type EnquiryCategory = "offered" | "not_sent" | "opted_out" | "quiet";
+export type EnquiryCategory = "offered" | "not_sent" | "opted_out" | "quiet" | "needs_me";
 /** What the screen can ask for: one category, "active" (the default: still in the journey) or "all". */
 export type EnquiryView = EnquiryCategory | "active" | "all";
 
 export const ENQUIRY_CATEGORIES: readonly { key: EnquiryCategory; label: string; hint: string; active: boolean }[] = [
   { key: "offered", label: "Offered a spot", hint: "Estimate sent with the Save my spot offer. Reminders go out on day 2, 7 and 21.", active: true },
-  { key: "not_sent", label: "Email didn't send", hint: "The automatic response failed or hasn't gone out yet. Failed sends are also on Needs me.", active: true },
+  { key: "not_sent", label: "Email not sent yet", hint: "The first email hasn't gone out yet, or failed over 7 days ago. Failed emails from the last 7 days are on Needs me.", active: true },
   { key: "opted_out", label: "Opted out", hint: "The owner unsubscribed or said no thanks. Nothing more is sent.", active: false },
   { key: "quiet", label: "Gone quiet", hint: "No reply for 4 weeks or more, after the offer and reminders.", active: false },
 ];
@@ -38,6 +43,8 @@ export type CategoryFacts = {
   optedOut: boolean;
   /** The automatic first response failed. */
   sendFailed: boolean;
+  /** When the failed send was tried (office_enquiry_index.latest_attempt_at); null/absent when unknown. */
+  sendFailedAt?: string | null;
   /** No first response recorded yet (a recent lead waits for the sweep; an old one never got it). */
   noResponseYet: boolean;
   /** Latest owner email, separately from answers submitted on the website. */
@@ -58,7 +65,10 @@ export function enquiryBulkCloseBlocker(f: CategoryFacts, now: number): string |
 
 export function enquiryCategory(f: CategoryFacts, now: number): EnquiryCategory {
   if (f.optedOut) return "opted_out";
-  if (f.sendFailed) return "not_sent";
+  if (f.sendFailed) {
+    const at = t(f.sendFailedAt ?? null);
+    return Number.isFinite(at) && now - at <= SEND_FAILED_WINDOW_DAYS * DAY ? "needs_me" : "not_sent";
+  }
   // Jo 27 Oct 2026: a lead that never got a first response is never "Gone quiet", whatever its age — it stays an
   // email to chase, so "Close all" (Gone quiet / Opted out only) can never close it.
   if (f.noResponseYet) return "not_sent";
@@ -69,9 +79,10 @@ export function enquiryCategory(f: CategoryFacts, now: number): EnquiryCategory 
 }
 
 /** Order on the opening view: what may need the office first, then the waiting piles. */
-export const CATEGORY_RANK: Record<EnquiryCategory, number> = { not_sent: 0, offered: 1, opted_out: 2, quiet: 3 };
+export const CATEGORY_RANK: Record<EnquiryCategory, number> = { not_sent: 0, offered: 1, opted_out: 2, quiet: 3, needs_me: 9 };
 
 export function inView(c: EnquiryCategory, v: EnquiryView): boolean {
+  if (c === "needs_me") return false; // Needs me screen only (Jo 30 Oct 2026)
   if (v === "all") return true;
   if (v === "active") return ENQUIRY_CATEGORIES.find((x) => x.key === c)?.active ?? false;
   return c === v;
@@ -80,8 +91,8 @@ export function inView(c: EnquiryCategory, v: EnquiryView): boolean {
 export type CategoryCounts = Record<EnquiryCategory, number> & { active: number; all: number };
 
 export function categoryCounts(cats: EnquiryCategory[]): CategoryCounts {
-  const out: CategoryCounts = { offered: 0, not_sent: 0, opted_out: 0, quiet: 0, active: 0, all: cats.length };
-  for (const c of cats) { out[c]++; if (inView(c, "active")) out.active++; }
+  const out: CategoryCounts = { offered: 0, not_sent: 0, opted_out: 0, quiet: 0, needs_me: 0, active: 0, all: 0 };
+  for (const c of cats) { if (c === "needs_me") continue; out[c]++; out.all++; if (inView(c, "active")) out.active++; }
   return out;
 }
 

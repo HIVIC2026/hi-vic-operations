@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
+import { SEND_FAILED_WINDOW_DAYS } from "../src/lib/send-failed.core";
 import { CLOSABLE, ENQUIRY_CATEGORIES, ENQUIRY_VIEWS, categoryCounts, enquiryCategory, inView, ownerWrote } from "../src/lib/enquiry-categories.core";
 
 const NOW = Date.parse("2026-10-26T00:00:00Z");
@@ -8,7 +9,7 @@ const base = { createdAt: ago(10), enquiryStatus: "offered_spot", lastOutboundAt
 
 test("opted out wins, then an email that didn't send", () => {
   expect(enquiryCategory({ ...base, optedOut: true, sendFailed: true }, NOW)).toBe("opted_out");
-  expect(enquiryCategory({ ...base, sendFailed: true, createdAt: ago(90), lastOutboundAt: null }, NOW)).toBe("not_sent");
+  expect(enquiryCategory({ ...base, sendFailed: true, sendFailedAt: ago(1), createdAt: ago(90), lastOutboundAt: null }, NOW)).toBe("needs_me");
   expect(enquiryCategory({ ...base, noResponseYet: true, createdAt: ago(1), lastOutboundAt: null }, NOW)).toBe("not_sent");
   // Jo 27 Oct 2026: a lead that never got a first response is never "Gone quiet", whatever its age.
   expect(enquiryCategory({ ...base, noResponseYet: true, createdAt: ago(90), lastOutboundAt: null }, NOW)).toBe("not_sent");
@@ -56,7 +57,7 @@ test("views and counts: the opening view leaves out opted out and gone quiet", (
   expect(inView("offered", "active")).toBe(true);
   expect(inView("quiet", "all")).toBe(true);
   expect(inView("offered", "not_sent")).toBe(false);
-  expect(categoryCounts(["offered", "quiet", "quiet", "opted_out", "not_sent"])).toEqual({ offered: 1, not_sent: 1, opted_out: 1, quiet: 2, active: 2, all: 5 });
+  expect(categoryCounts(["offered", "quiet", "quiet", "opted_out", "not_sent"])).toEqual({ offered: 1, not_sent: 1, opted_out: 1, quiet: 2, needs_me: 0, active: 2, all: 5 });
 });
 
 test("emails live on the office Emails tab (decision 414), not on Enquiries", () => {
@@ -70,4 +71,38 @@ test("Wrote to us: the owner emailed in the last 14 days and we haven't written 
   expect(ownerWrote({ inboundAt: ago(2), lastOutboundAt: ago(1) }, NOW)).toBeNull();
   expect(ownerWrote({ inboundAt: ago(20), lastOutboundAt: null }, NOW)).toBeNull();
   expect(ownerWrote({ inboundAt: null, lastOutboundAt: ago(1) }, NOW)).toBeNull();
+});
+
+test("failed first email is on Needs me only (Jo 30 Oct 2026)", () => {
+  for (const v of ENQUIRY_VIEWS) expect(inView("needs_me", v)).toBe(false);
+  expect(categoryCounts(["needs_me", "offered"])).toEqual({ offered: 1, not_sent: 0, opted_out: 0, quiet: 0, needs_me: 0, active: 1, all: 1 });
+  expect(CLOSABLE.needs_me).toBeUndefined();
+  expect(enquiryCategory({ ...base, optedOut: true, sendFailed: true }, NOW)).toBe("opted_out");
+  expect(enquiryCategory({ ...base, sendFailed: false }, NOW)).toBe("offered");
+});
+
+test("the not_sent tab says the email hasn't gone yet", () => {
+  const c = ENQUIRY_CATEGORIES.find((x) => x.key === "not_sent");
+  expect(c?.label).toBe("Email not sent yet");
+  expect(c?.hint).toBe("The first email hasn't gone out yet, or failed over 7 days ago. Failed emails from the last 7 days are on Needs me.");
+});
+
+test("failed first email: Needs me for 7 days (same window as Needs me), then back on Email not sent yet (Jo 30 Oct 2026)", () => {
+  expect(SEND_FAILED_WINDOW_DAYS).toBe(7);
+  const failed = { ...base, sendFailed: true, noResponseYet: true, lastOutboundAt: null };
+  expect(enquiryCategory({ ...failed, sendFailedAt: ago(2) }, NOW)).toBe("needs_me");
+  expect(enquiryCategory({ ...failed, sendFailedAt: ago(7) }, NOW)).toBe("needs_me");
+  expect(enquiryCategory({ ...failed, sendFailedAt: ago(8) }, NOW)).toBe("not_sent");
+  // Unknown failure time: never hide a lead we can't place.
+  expect(enquiryCategory({ ...failed, sendFailedAt: null }, NOW)).toBe("not_sent");
+  expect(enquiryCategory(failed, NOW)).toBe("not_sent");
+  expect(enquiryCategory({ ...failed, sendFailedAt: ago(2), optedOut: true }, NOW)).toBe("opted_out");
+  // The core imports the window from send-failed.core so both stay in step, and stays pure.
+  const core = readFileSync("src/lib/enquiry-categories.core.ts", "utf8");
+  expect(core).toContain('import { SEND_FAILED_WINDOW_DAYS } from "./send-failed.core"');
+  expect(readFileSync("src/lib/send-failed.core.ts", "utf8")).not.toMatch(/^import /m);
+  // The list reads the failure time from the same row as the failed status.
+  const lists = readFileSync("src/lib/office-lists.server.ts", "utf8");
+  expect(lists).toMatch(/latest_attempt_status, latest_attempt_at/);
+  expect(lists).toMatch(/sendFailedAt: latestFailed \? s\(r\["latest_attempt_at"\]\) : null/);
 });
