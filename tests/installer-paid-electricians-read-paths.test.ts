@@ -76,6 +76,20 @@ test("missing in-house PIESA rate reaches quote resolution with the exact hold, 
   expect(result.priceIncGst).toBeNull();
   expect(result.reasons).toEqual(["In-house partner has no PIESA rate on its rate card"]);
 });
+test("quote builder persists the exact missing-rate hold on an existing draft", async () => {
+  const source = readFileSync("src/lib/installer-quote.server.ts", "utf8");
+  const start = source.indexOf("  if (!draft.ready) {");
+  const end = source.indexOf("  const installerPrice =", start);
+  const code = ts.transpile(`async function run() {${source.slice(start, end)}}; exports.run=run;`, { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS });
+  const reason = "In-house partner has no PIESA rate on its rate card";
+  const draft = { ready: false, blockers: [reason] };
+  const updates: unknown[] = [];
+  const admin = { from: () => ({ select: () => ({ eq: () => ({ eq: () => ({ order: () => ({ limit: () => ({ maybeSingle: async () => ({ data: null }) }) }) }) }) }), update: (patch: unknown) => { updates.push(patch); return { eq: () => ({ eq: async () => ({ error: null }) }) }; } }) };
+  const exports: any = {};
+  new Function("exports", "require", "draft", "mittiProduct", "mittiElectrician", "admin", "jobId", "actorId", "auditId", "logEvent", "open", "INSTALLER_QUOTE_CODE", code)(exports, () => { throw new Error("Unexpected import"); }, draft, null, { ready: false, reasons: [reason], needsProfile: false, notOnboarded: null }, admin, "j", null, "audit", async () => {}, [{ id: "q", status: "draft", option_code: "INSTALLER_A1" }], "INSTALLER_A1");
+  expect(await exports.run()).toEqual(draft);
+  expect(updates).toEqual([{ release_state: "held", release_hold_reason: reason }]);
+});
 test("teaming propagates the configuration error before saving application or accepting", async () => {
   const source = readFileSync("src/lib/teaming.functions.ts", "utf8");
   const body = source.split("export const respondTeamInvite =")[1]?.split(".handler(async ({ data }) => {")[1]?.split("\n  });")[0];
