@@ -1445,6 +1445,7 @@ export type Database = {
           name: string
           onboarding_notes: string | null
           onboarding_status: string
+          pays_own_electricians: boolean
           phone: string | null
           public_liability_cover_amount: number | null
           rec_number: string | null
@@ -1514,6 +1515,7 @@ export type Database = {
           name: string
           onboarding_notes?: string | null
           onboarding_status?: string
+          pays_own_electricians?: boolean
           phone?: string | null
           public_liability_cover_amount?: number | null
           rec_number?: string | null
@@ -1583,6 +1585,7 @@ export type Database = {
           name?: string
           onboarding_notes?: string | null
           onboarding_status?: string
+          pays_own_electricians?: boolean
           phone?: string | null
           public_liability_cover_amount?: number | null
           rec_number?: string | null
