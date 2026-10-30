@@ -20,6 +20,8 @@ const subset = (a: unknown, b: unknown): boolean => {
   return a === b;
 };
 let clock = Date.parse("2026-10-30T00:00:00.000Z");
+/** Tables whose updates fail (to prove a failed write stops the step). */
+const failUpdates = new Set<string>();
 function fakeAdmin() {
   return {
     from(table: string) {
@@ -48,6 +50,8 @@ function fakeAdmin() {
             if (table === "workflow_events" && det["idempotency_key"] && rows.some((r) => r["event_type"] === payload?.["event_type"] && (r["details"] as Row)?.["idempotency_key"] === det["idempotency_key"]))
               out = { data: null, error: { message: "duplicate key", code: "23505" } };
             else { clock += 1000; const row = { id: crypto.randomUUID(), created_at: new Date(clock).toISOString(), ...payload! }; rows.push(row); out = { data: one ? row : [row], error: null }; }
+          } else if (op === "update" && failUpdates.has(table)) {
+            out = { data: null, error: { message: `update on ${table} failed` } };
           } else if (op === "update") {
             const hit = (tables[table] ?? []).filter((r) => preds.every((p) => p(r)));
             for (const r of hit) Object.assign(r, payload);
@@ -67,9 +71,11 @@ mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: fak
 
 // ---- recorded fakes ----------------------------------------------------------------------------------------------
 const cancels: { jobId: string; reason: string; tell: unknown }[] = [];
+let cancelFails = false;
 const detailSaves: { jobId: string; v: Row; event: Row }[] = [];
 mock.module("../src/lib/office-actions.server", () => ({
   cancelJobFully: async (jobId: string, reason: string, _actor: string | null, opts: { tell?: unknown } = {}) => {
+    if (cancelFails) throw new Error("cancel blew up");
     cancels.push({ jobId, reason, tell: opts.tell });
     const j = tables["jobs"]!.find((r) => r["id"] === jobId)!;
     if (j["stage"] === "cancelled") throw new Error("already cancelled");
@@ -150,6 +156,7 @@ function seed() {
   for (const k of Object.keys(tables)) delete tables[k];
   for (const k of Object.keys(lookupCoords)) delete lookupCoords[k];
   for (const k of Object.keys(places)) delete places[k];
+  cancelFails = false; failUpdates.clear();
   cancels.length = 0; detailSaves.length = 0; gates.length = 0; mails.length = 0; located.length = 0;
   for (const t of ["jobs", "owners", "properties", "customer_estimate_links", "lead_campaign_responses", "property_facts", "job_assignments", "partner_offers", "workflow_events"]) tables[t] = [];
   tables["businesses"] = [{ id: "biz-1", name: "Sample Insulation", trading_name: null, onboarding_notes: null }];
@@ -250,6 +257,14 @@ describe("wording (Jo approved 29–30 Oct 2026), verbatim", () => {
       expect(m.text).toContain(QUICK_TAPS_COPY.outcome[o]);
       expect(m.text).toContain("Hi Helen,");
       expect(m.html).toContain(QUICK_TAPS_COPY.outcome[o]);
+      expect(m.subject).toBe("Your free Ready Check");
+    }
+  });
+  test("no first name on file → \"Hi there,\" (Jo approved)", () => {
+    for (const firstName of [null, "", "   "]) {
+      const m = renderQuickTapsDeclineEmail({ outcome: "no_thanks", firstName, unsubscribeUrl: null });
+      expect(m.text.startsWith("Hi there,")).toBe(true);
+      expect(m.html).toContain("Hi there,");
     }
   });
 });
@@ -310,6 +325,14 @@ describe("saveQuickTaps: pass", () => {
     expect(cancels).toEqual([]); expect(mails).toEqual([]);
     expect(await S.quickTapsState(tok("a"))).toEqual({ kind: "done", outcome: "pass" });
   });
+  test("TEST job passing → the gate is recorded, nothing real is sent", async () => {
+    addJob("t", { source: "qa_test" }); sendBatchEvent("b1", ["t"]);
+    expect(await S.saveQuickTaps(tok("t"), ALL_GOOD(), { ip: null, userAgent: null })).toEqual({ kind: "done", outcome: "pass" });
+    expect(gates).toHaveLength(1);
+    expect(gates[0]).toMatchObject({ jobId: "t", key: "trade_contact_share", signatoryName: "Helen t", method: "link_code" });
+    expect(mails).toEqual([]); expect(cancels).toEqual([]);
+    expect(events("quick_taps_answered", "t")[0]!["details"]).toMatchObject({ outcome: "pass", consent_share: true });
+  });
   test("nothing lands in Needs me (no office-needs event)", async () => {
     addJob("a"); sendBatchEvent("b1", ["a"]);
     await S.saveQuickTaps(tok("a"), ALL_GOOD());
@@ -364,6 +387,41 @@ describe("saveQuickTaps: declines", () => {
     expect(cancels).toHaveLength(1); expect(mails).toHaveLength(1); expect(gates).toEqual([]);
     expect(events("quick_taps_answered", "a")).toHaveLength(1);
     expect(await S.quickTapsState(tok("a"))).toEqual({ kind: "done", outcome: "decline_access" });
+  });
+  test("cancel fails → no decline email, the failure is recorded; finishDecline later → cancelled + one email; twice → still one", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]);
+    cancelFails = true;
+    expect(await S.saveQuickTaps(tok("a"), ALL_GOOD({ go: "no_thanks" }))).toEqual({ kind: "done", outcome: "no_thanks" });
+    expect(mails).toEqual([]);
+    expect(events("quick_taps_close_failed", "a")).toHaveLength(1);
+    expect(events("quick_taps_close_failed", "a")[0]!["details"]).toMatchObject({ batch_id: "b1", outcome: "no_thanks" });
+    expect(tables["jobs"]!.find((j) => j["id"] === "a")!["stage"]).not.toBe("cancelled");
+    // Still failing: the helper records the failure again and sends nothing.
+    expect(await S.finishDecline("a")).toBe("cancel_failed");
+    expect(mails).toEqual([]);
+    cancelFails = false;
+    expect(await S.finishDecline("a")).toBe("finished");
+    expect(cancels).toEqual([{ jobId: "a", reason: QUICK_TAPS_DECLINE_REASON.no_thanks, tell: { owner: false, installer: false } }]);
+    expect(tables["jobs"]!.find((j) => j["id"] === "a")!["stage"]).toBe("cancelled");
+    expect(mails).toHaveLength(1);
+    expect(mails[0]!.text).toContain(QUICK_TAPS_COPY.outcome.no_thanks);
+    expect(await S.finishDecline("a")).toBe("finished");
+    expect(cancels).toHaveLength(1); expect(mails).toHaveLength(1);
+  });
+  test("finishDecline on a TEST job sends the test email once only", async () => {
+    addJob("t", { source: "qa_test" }); sendBatchEvent("b1", ["t"]);
+    await S.saveQuickTaps(tok("t"), ALL_GOOD({ hatch: "no" }));
+    expect(await S.finishDecline("t")).toBe("finished");
+    expect(await Promise.all([S.finishDecline("t"), S.finishDecline("t")])).toEqual(["finished", "finished"]);
+    expect(mails.map((m) => m.via)).toEqual(["test-email"]);
+    expect(cancels).toHaveLength(1);
+  });
+  test("finishDecline does nothing for a pass, or with no answer", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]); addJob("c");
+    await S.saveQuickTaps(tok("a"), ALL_GOOD());
+    expect(await S.finishDecline("a")).toBe("nothing_to_do");
+    expect(await S.finishDecline("c")).toBe("nothing_to_do");
+    expect(cancels).toEqual([]); expect(mails).toEqual([]);
   });
   test("double answer, both at once → one outcome, one cancel, one email", async () => {
     addJob("a"); sendBatchEvent("b1", ["a"]);
@@ -441,6 +499,15 @@ describe("saveQuickTapsDetails", () => {
     expect((await S.quickTapsState(tok("a"))).kind).toBe("ask");
     expect(await S.saveQuickTaps(tok("a"), ALL_GOOD())).toEqual({ kind: "done", outcome: "pass" });
   });
+  test("the old location can't be superseded → stops (no look-up with the old location, no batch change)", async () => {
+    addJob("a"); addJob("c"); sendBatchEvent("b1", ["c", "a"], { lat: -37.8, lng: 145 });
+    places["pl-far"] = { street: "9 Far Away Road", suburb: "Geelong", postcode: "3220", state: "VIC" };
+    lookupCoords["p-a"] = pt(25);
+    failUpdates.add("property_facts");
+    await expect(S.saveQuickTapsDetails(tok("a"), { placeId: "pl-far" })).rejects.toThrow(/location/i);
+    expect(located).toEqual([]);
+    expect(events(AREA_BATCH_LEFT_EVENT)).toEqual([]);
+  });
   test("a picked suburb (no street number) is refused with the existing message", async () => {
     addJob("a", { street: null }); sendBatchEvent("b1", ["a"]);
     places["pl-sub"] = { street: "", suburb: "Melbourne", postcode: "3000", state: "VIC" };
@@ -470,6 +537,15 @@ describe("postcode-only homes are batched by their postcode's centre", () => {
     expect(r.candidates[0]).toMatchObject({ lat: centres["3220"]![0], lng: centres["3220"]![1] });
     expect(located).toEqual(["full"]);
     expect(r.refused.get("full")).toBe("we don't have its location yet");
+  });
+  test("postcode-only home with no known postcode centre → no street look-up, left out until located", async () => {
+    addJob("pc0", { street: null, postcode: "0000", coords: null });
+    addJob("pcx", { street: null, postcode: "", coords: null });
+    const r = await B.batchCandidates({ now: NOW });
+    expect(located).toEqual([]);
+    expect(r.candidates).toEqual([]);
+    expect(r.refused.get("pc0")).toBe("we don't have its location yet");
+    expect(r.refused.get("pcx")).toBe("we don't have its location yet");
   });
 });
 

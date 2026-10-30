@@ -141,7 +141,8 @@ export async function batchCandidates(opts: { includeTest?: boolean; testJobIds?
   // Fill missing locations once (stored as the property's `coordinates` fact), a few at a time. Only full street addresses
   // can be looked up; a postcode-only home is placed at its postcode's centre until the owner gives the full address.
   for (const k of keep) if (!k.point && !k.fullStreet) k.point = await postcodeCentre((k.j["properties"] as { postcode?: string | null } | null)?.postcode);
-  const missing = keep.filter((k) => !k.point && k.propertyId).slice(0, opts.locate ?? LOCATE_PER_LOAD);
+  // A postcode-only home with no known postcode centre is never looked up by street: it waits for its full address.
+  const missing = keep.filter((k) => !k.point && k.propertyId && k.fullStreet).slice(0, opts.locate ?? LOCATE_PER_LOAD);
   if (missing.length) {
     const { ensurePropertyCoordinates } = await import("./property-coordinates.server");
     for (let i = 0; i < missing.length; i += 4) {

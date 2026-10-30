@@ -12,6 +12,9 @@
 //   existing `trade_contact_share` owner gate (the "Yes, let's go" tap is the consent). Declines → cancelJobFully with the
 //   matching reason (no O69 cancel notice: the owner gets this decline email instead) + the matching approved email
 //   (TEST → test-send; real → customer comms + consent, then the guarded owner email sender with a once-only key).
+//   The email goes only AFTER the job is closed: a failed close sends nothing and records `quick_taps_close_failed`.
+// - finishDecline(jobId): close + email for a decline answer, idempotent — what saveQuickTaps runs, and what a later
+//   sweep calls again for decline answers whose job isn't cancelled yet.
 // Nothing here raises a Needs me row.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -160,7 +163,9 @@ export async function saveQuickTapsDetails(token: string, input: { fullName?: st
   const moved = !same(saved.street, before.street) || !same(saved.suburb, before.suburb) || !same(saved.postcode, before.postcode);
   if (moved && prop?.id) {
     // The old location belongs to the old address: superseded (kept as history), then the new one is looked up once.
-    await loose.from("property_facts").update({ is_current: false, superseded_at: new Date().toISOString() }).eq("property_id", prop.id).eq("fact_key", "coordinates").eq("is_current", true);
+    // If that fails, stop: looking up now would just hand back the old address's location.
+    const { error: se } = await loose.from("property_facts").update({ is_current: false, superseded_at: new Date().toISOString() }).eq("property_id", prop.id).eq("fact_key", "coordinates").eq("is_current", true);
+    if (se) throw new Error(`Could not update the home's location: ${se.message}`);
     const { ensurePropertyCoordinates } = await import("./property-coordinates.server");
     const B = await import("./area-batch.server");
     const point = propertyPoint(await ensurePropertyCoordinates(jobId, prop.id)) ?? (await B.postcodeCentre(saved.postcode));
@@ -187,16 +192,20 @@ async function storeWebsiteAnswers(c: Ctx, given: WebsiteAnswers, keys: readonly
   if (ue) throw new Error(`Could not save the answers: ${ue.message}`);
 }
 
-/** One claim per job + batch: false = already answered (unique key, or the read-then-insert check). */
-async function claimAnswer(jobId: string, details: Record<string, unknown>, summary: string): Promise<boolean> {
+/** The decline email's once-only claim (written before the send). */
+const QUICK_TAPS_EMAIL_CLAIM_EVENT = "quick_taps_email_claimed";
+
+/** One claim per job + key: false = already claimed (unique key, or the read-then-insert check). */
+async function claimOnce(jobId: string, eventType: string, details: Record<string, unknown>, summary: string): Promise<boolean> {
   const key = String(details["idempotency_key"]);
-  const { data: prior, error: pe } = await loose.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", QUICK_TAPS_ANSWERED_EVENT).contains("details", { idempotency_key: key }).limit(1);
+  const { data: prior, error: pe } = await loose.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", eventType).contains("details", { idempotency_key: key }).limit(1);
   if (pe) throw new Error(`Could not check the answers: ${pe.message}`);
   if ((prior ?? []).length) return false;
-  const { error } = await loose.from("workflow_events").insert({ job_id: jobId, actor_id: null, event_type: QUICK_TAPS_ANSWERED_EVENT, summary, details, internal: true });
+  const { error } = await loose.from("workflow_events").insert({ job_id: jobId, actor_id: null, event_type: eventType, summary, details, internal: true });
   if (error) { if (error.code === "23505") return false; throw new Error(`Could not save the answers: ${error.message}`); }
   return true;
 }
+const claimAnswer = (jobId: string, details: Record<string, unknown>, summary: string) => claimOnce(jobId, QUICK_TAPS_ANSWERED_EVENT, details, summary);
 
 const SUMMARY: Record<FinalOutcome, string> = {
   pass: "Quick taps: owner passed and said yes, let's go (consent to share name and number with the installer)",
@@ -238,19 +247,44 @@ export async function saveQuickTaps(token: string, answers: QuickTapAnswers, met
     }
     return { kind: "done", outcome };
   }
-  try {
-    const { cancelJobFully } = await import("./office-actions.server");
-    await cancelJobFully(jobId, QUICK_TAPS_DECLINE_REASON[outcome], null, { tell: { owner: false, installer: false } });
-  } catch (e) {
-    await logEvent(jobId, null, "quick_taps_close_failed", `Quick taps: the job could not be closed: ${(e as Error).message}`, { batch_id: batchId, outcome, error: (e as Error).message }, { internal: true });
-  }
-  await emailDecline(c, batchId, outcome);
+  await finishDecline(jobId);
   return { kind: "done", outcome };
 }
 
-/** The matching approved decline email, once (TEST → test-send; real → guarded owner email with a once-only key). */
+export type FinishDeclineResult = "finished" | "cancel_failed" | "nothing_to_do";
+
+/** Finish a decline answer: close the job (cancelJobFully with the matching reason, no O69 notice), THEN the matching
+ *  decline email, once. If the close fails, nothing is sent and `quick_taps_close_failed` is recorded — so a later sweep
+ *  can simply call this again for decline answers whose job isn't cancelled. Safe to call any number of times: a job
+ *  already cancelled is not cancelled again, and the email is claimed once per job + batch before it is sent.
+ *  Acts only when the job's latest quick-taps answer is a decline. */
+export async function finishDecline(jobId: string): Promise<FinishDeclineResult> {
+  const c = await load(jobId);
+  if (!c) return "nothing_to_do";
+  const latest = c.events.filter((e) => e.event_type === QUICK_TAPS_ANSWERED_EVENT).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+  const outcome = str((latest?.details as { outcome?: unknown } | null)?.outcome) as FinalOutcome | null;
+  const batchId = latest ? bid(latest) : null;
+  if (!latest || !batchId || !outcome || !(outcome in QUICK_TAPS_DECLINE_REASON)) return "nothing_to_do";
+  const decline = outcome as Exclude<FinalOutcome, "pass">;
+  if (c.job.stage !== "cancelled") {
+    try {
+      const { cancelJobFully } = await import("./office-actions.server");
+      await cancelJobFully(jobId, QUICK_TAPS_DECLINE_REASON[decline], null, { tell: { owner: false, installer: false } });
+    } catch (e) {
+      await logEvent(jobId, null, "quick_taps_close_failed", `Quick taps: the job could not be closed (no email sent yet): ${(e as Error).message}`, { batch_id: batchId, outcome: decline, error: (e as Error).message }, { internal: true });
+      return "cancel_failed";
+    }
+  }
+  await emailDecline(c, batchId, decline);
+  return "finished";
+}
+
+/** The matching approved decline email, once per job + batch (claimed before the send; TEST → test-send; real → guarded
+ *  owner email with a once-only key). */
 async function emailDecline(c: Ctx, batchId: string, outcome: Exclude<FinalOutcome, "pass">) {
   const jobId = c.job.id;
+  const claimed = await claimOnce(jobId, QUICK_TAPS_EMAIL_CLAIM_EVENT, { batch_id: batchId, outcome, idempotency_key: `quick-taps:v1:${batchId}:${jobId}:email` }, `Quick taps email (${outcome.replace("_", " ")}): sending`);
+  if (!claimed) return;
   const to = str(c.job.owners?.email);
   const { renderQuickTapsDeclineEmail } = await import("./quick-taps-email.core");
   const build = (unsubscribeUrl: string | null, test: boolean) => renderQuickTapsDeclineEmail({ outcome, firstName: c.job.owners?.full_name ?? null, unsubscribeUrl, test });
