@@ -127,7 +127,7 @@ export async function reopenRectificationRound(jobId: string, actorId: string | 
   if (result.status === "held" || result.reason && result.status !== "not_needed") throw new WorkflowError(result.reason ?? "Rectification form is held");
 }
 
-async function handoverRectificationForm(jobId: string, actorId: string | null, form: { auditId: string; email?: string; userId?: string }, call?: MittiCall): Promise<FixesCreateResult> {
+async function handoverRectificationForm(jobId: string, actorId: string | null, form: { auditId: string; email?: string | undefined; userId?: string | undefined }, call?: MittiCall): Promise<FixesCreateResult> {
   try {
     if (!form.email || !form.userId) throw new MittiError("Rectification form assignee is missing; office review required.");
     const { mittiCallFor, realMittiCall } = await import("./mitti.server");
