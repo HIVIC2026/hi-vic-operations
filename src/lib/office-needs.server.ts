@@ -38,6 +38,42 @@ async function byIds(what: string, ids: string[], q: (chunk: string[], from: num
   return (await Promise.all(chunks.map((chunk) => all(what, (f, t) => q(chunk, f, t))))).flat();
 }
 
+/** Only live held jobs enter these read-only stall rules. Page/batch every dependent read. */
+export async function inHouseNeedsFacts(jobIds: string[]): Promise<Map<string, NonNullable<NeedsFacts["inHouse"]>>> {
+  const out = new Map<string, NonNullable<NeedsFacts["inHouse"]>>();
+  if (!jobIds.length) return out;
+  const live = await byIds("in-house live jobs", jobIds, (c, a, b) => admin.from("jobs").select("id").in("id", c).is("deleted_at", null).neq("source", "qa_test").not("stage", "in", "(cancelled,complete)").order("id").range(a, b));
+  const ids = live.map(j => String(j["id"]));
+  if (!ids.length) return out;
+  const { readInHouseDispatchState } = await import("./in-house-suppression.server");
+  const state = await readInHouseDispatchState(ids);
+  if (state.failed) throw new Error("Could not load in-house partner checks");
+  const held = ids.filter(id => state.held.has(id));
+  if (!held.length) return out;
+  const [assignments, batches, bookings, quotes, records, deadlines] = await Promise.all([
+    byIds("in-house partner names", held, (c,a,b) => admin.from("job_assignments").select("job_id,business_id,businesses(name,trading_name,in_house)").in("job_id",c).eq("role","installer").eq("active",true).order("id").range(a,b)),
+    byIds("in-house batch times", held, (c,a,b) => admin.from("workflow_events").select("job_id,created_at,details").in("job_id",c).eq("event_type","in_house_batch_sent").order("created_at").order("id").range(a,b)),
+    byIds("in-house bookings", held, (c,a,b) => admin.from("bookings").select("job_id,kind").in("job_id",c).in("kind",["ready_check","installation"]).neq("status","cancelled").order("id").range(a,b)),
+    byIds("in-house accepted quotes", held, (c,a,b) => admin.from("quotes").select("job_id,accepted_at").in("job_id",c).eq("kind","installation").eq("status","accepted").not("accepted_at","is",null).order("accepted_at").order("id").range(a,b)),
+    byIds("in-house completed PIESA", held, (c,a,b) => admin.from("piesa_records").select("job_id,completed_date").in("job_id",c).neq("kind","post_rectification").not("completed_date","is",null).order("id").range(a,b)),
+    byIds("in-house PIESA days remaining", held, (c,a,b) => admin.from("job_piesa_deadlines").select("job_id,days_remaining,install_deadline").in("job_id",c).order("job_id").range(a,b)),
+  ]);
+  for (const id of held) {
+    const assignment = assignments.find(a => a["job_id"] === id && (a["businesses"] as { in_house?: boolean } | null)?.in_house);
+    if (!assignment) continue;
+    const business = assignment["businesses"] as { name: string; trading_name?: string | null };
+    const batch = batches.filter(e => e["job_id"] === id && (e["details"] as Row | null)?.["business_id"] === assignment["business_id"]).at(-1);
+    const deadline = deadlines.find(d => d["job_id"] === id);
+    out.set(id, { partnerName: business.trading_name || business.name, batchSentAt: s(batch?.["created_at"]),
+      readyCheckBooked: bookings.some(b => b["job_id"] === id && b["kind"] === "ready_check"),
+      installationBooked: bookings.some(b => b["job_id"] === id && b["kind"] === "installation"),
+      quoteAcceptedAt: s(quotes.filter(q => q["job_id"] === id).at(-1)?.["accepted_at"]),
+      piesaCompleted: records.some(r => r["job_id"] === id),
+      daysRemaining: deadline?.["days_remaining"] == null ? null : Number(deadline["days_remaining"]), deadline: s(deadline?.["install_deadline"]) });
+  }
+  return out;
+}
+
 /** Batch 3a: the "new quote asked for" Needs me fact per job (pure rule `newQuoteOfficeFact`). */
 export async function newQuoteOfficeFacts(jobIds: string[]): Promise<Map<string, import("./new-quote-request.core").NewQuoteOfficeFact>> {
   const out = new Map<string, import("./new-quote-request.core").NewQuoteOfficeFact>();
@@ -258,6 +294,8 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   const facts = new Map<string, NeedsFacts>();
   for (const j of jobs) facts.set(j.id, { jobId: j.id, jobNumber: j.jobNumber, surname: surnameOf(j.owner), suburb: j.suburb, ...(j.source === "qa_test" ? { isTest: true } : {}) });
   const f = (id: string) => facts.get(id);
+  const inHouse = await inHouseNeedsFacts(jobs.filter(j => j.source !== "qa_test").map(j => j.id));
+  for (const [id, ih] of inHouse) { const x = f(id); if (x) x.inHouse = ih; }
   // Same 48h rule as the legacy exceptions queue; current Needs me must not silently omit it.
   if (ids.length) {
     const releases = await byIds("unconfirmed visit releases", ids, (chunk, a, b) => admin.from("contact_releases").select("job_id, visit_kind, released_at, job_assignments!inner(active, booking_confirmed_at)").in("job_id", chunk).is("revoked_at", null).range(a, b));

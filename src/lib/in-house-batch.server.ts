@@ -10,6 +10,15 @@ import { melbourneToday } from "./melbourne-time.core";
 
 // Pending tables/columns are deliberately a local overlay, not generated schema edits.
 const db = supabaseAdmin as unknown as SupabaseClient;
+/** Admin role is checked again by the service-only atomic RPC; actor comes from the authenticated boundary. */
+export async function pullBackInHouseJob(input: { jobId: string; reason: string; actorId: string }): Promise<void> {
+  if (!input.reason.trim()) throw new Error("Reason required");
+  const result = await db.rpc("pull_back_in_house_job", { _job: input.jobId, _reason: input.reason.trim(), _actor: input.actorId });
+  if (result.error) {
+    if (["PGRST202", "42883"].includes(result.error.code)) throw new Error("Taking jobs back is awaiting the approved database change.");
+    throw new Error(result.error.message);
+  }
+}
 type Property = { id: string; postcode: string | null; address_line: string; suburb: string | null };
 type Job = { id: string; job_number: string; property_id: string; stage: string; source: string; deleted_at: string | null };
 type Assignment = { job_id: string; business_id: string | null; role: string };
