@@ -107,6 +107,21 @@ export const REQUIRED_GATES: Record<string, string[]> = {
 };
 const INFO_ONLY = new Set(["life_support", "occupancy", "area", "preliminary", "rollout", "relevant_ceiling"]);
 
+/** First-response qualification only: age unknown is checked at the Ready Check, never a Gate 1 rewrite. */
+export function firstResponseOutcome(outcome: string | null, insulation: string | null, audit: StoredAudit): string | null {
+  if (outcome !== "needs_onsite_confirmation" || insulation !== "none" || audit?.ruleset_version !== GATE1_RULESET_VERSION) return outcome;
+  const rules = audit.rules ?? [];
+  if (audit.hard_failures?.length || audit.review_reasons?.length) return outcome;
+  if (!rules.some(r => r.key === "ceiling_age" && r.result === "onsite")) return outcome;
+  if (!Object.entries(REQUIRED_GATES).every(([key, allowed]) => {
+    const matches = rules.filter(r => r.key === key);
+    return matches.length > 0 && matches.every(r => allowed.includes(r.result ?? ""));
+  })) return outcome;
+  if (!rules.some(r => r.key === "existing_insulation" && r.result === "pass")) return outcome;
+  if (rules.some(r => !(r.key && r.key in REQUIRED_GATES) && !(r.key === "existing_insulation" && r.result === "pass") && !(INFO_ONLY.has(r.key ?? "") && r.result === "info"))) return outcome;
+  return "likely_eligible";
+}
+
 /** Insulation-details group: existing insulation (present OR unsure) is the ONLY open item; every other required gate passed. */
 export function insulationOnly(audit: StoredAudit, declared: EnquiryInput["declaredInsulation"]): { ok: true } | { ok: false; why: string; missing: boolean } {
   const rules = Array.isArray(audit?.rules) ? audit.rules : [];
@@ -153,7 +168,7 @@ export function classifyEnquiry(x: EnquiryInput): EnquiryClass {
   if (!official) return other("missing_info", "No official preliminary result recorded", area, videoState);
   if (x.reviewRequired || !x.outcome) return other("needs_review", x.audit?.review_reasons?.[0] ?? "Review required", area, videoState);
   if (x.decisionSource === "system" && x.audit?.ruleset_version !== GATE1_RULESET_VERSION) return other("needs_review", "Screening out of date – re-check against current rules", area, videoState);
-  if (x.outcome === "likely_eligible") {
+  if (firstResponseOutcome(x.outcome, x.declaredInsulation ?? null, x.audit) === "likely_eligible") {
     if (area.m2 != null) return { group: "likely_size", otherReason: null, reason: `${AREA_LABEL[area.source]} ceiling area`, area, videoState, nextAction: GROUP_ACTION.likely_size };
     return { group: "likely_no_size", otherReason: null, reason: "No usable ceiling area", area: { m2: ASSUMED_REFERENCE_AREA_M2, source: "assumed" }, videoState, nextAction: GROUP_ACTION.likely_no_size };
   }
@@ -297,6 +312,7 @@ export function automaticLeadEmail(x: {
   redFlag?: string | null;
   /** Code switch ALL_NEW_ENQUIRIES_OFFER_APPROVED (passed by the router; OFF until Jo says go). */
   offerAllApproved?: boolean;
+  audit?: StoredAudit;
 }): { email: AutomaticLeadEmail; blocker: string | null; assumedArea?: true; existingInsulation?: true; insulationUnknown?: true } {
   if (x.source === "qa_test") return { email: "none", blocker: "TEST enquiry" };
   if (x.source !== "base44" || x.channel !== "hivic_sourced") return { email: "none", blocker: "Not a website owner enquiry" };
@@ -304,7 +320,7 @@ export function automaticLeadEmail(x: {
   if (x.decisionSource !== "system" && x.decisionSource !== "admin") return { email: "none", blocker: "Official eligibility result is missing" };
   if (x.reviewRequired) return { email: "none", blocker: "Eligibility needs office review" };
   if (x.outcome === "does_not_appear_eligible") return { email: "ineligible", blocker: null };
-  if (x.outcome === "likely_eligible" && x.declaredInsulation === "none") {
+  if (firstResponseOutcome(x.outcome, x.declaredInsulation, x.audit ?? null) === "likely_eligible" && x.declaredInsulation === "none") {
     // No owner size: same initial response, priced on the clearly labelled typical 150 m² assumption (owner answer stays unknown).
     return { email: "offer_spot", blocker: null, ...(x.ownerEnteredArea ? {} : { assumedArea: true }) };
   }

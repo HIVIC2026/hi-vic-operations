@@ -1,3 +1,6 @@
+## Jo 30 Oct unknown house age first response
+- [x] Apply the same current-audit age-onsite qualification to likely/no-insulation grouping, automatic routing, campaign links and sender rendering; five-year failures remain blocked. No sends, data/switch changes or publication.
+
 ## Jo 29 Oct daily full journey — Task 1 only
 - [x] Three red-first PGlite tests failed as expected, then all 4 journey_runs checks passed. Optional path/group/status storage and identical 0178 SQL applied only to journey_runs; live columns/constraint/index read back. Scoped test-isolated selection added because the requested filename argument was ignored. Existing journey-live-runner regression: 3 pass / 2 fail (A3 recently-started form guard, downstream visibility); no unrelated journey fixes. Generated nullable invoice quote_id required a compile-only input-type correction, with runtime rules unchanged. No publication, jobs, switches or settings.
 
