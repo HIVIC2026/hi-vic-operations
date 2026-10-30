@@ -1,0 +1,460 @@
+import { beforeEach, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import ts from "typescript";
+import * as core from "../src/lib/fixes-day.core";
+import * as mitti from "../src/lib/mitti.core";
+import * as inHouse from "../src/lib/in-house.core";
+import * as identity from "../src/lib/mitti-identity.core";
+import * as claimsCore from "../src/lib/mitti-create-claim.core";
+import * as autoCore from "../src/lib/piesa-autoform.core";
+import * as short from "../src/lib/official-short.core";
+import * as allocation from "../src/lib/allocation.core";
+
+type Row = Record<string, any>;
+let tables: Record<string, Row[]>;
+let calls: { method: string; path: string; body: any }[];
+let failCreate = false;
+let held = true;
+let quoteWrites = 0;
+let claimHeld = false;
+let realMitti = false, realWorkflow = false, failShare = false, failOwner = false, failHeld = false, completeDuringSync = false;
+let dispatchReads = 0, realClaims = false;
+let repeatDeadline: string | null = null;
+let auditResponse: any = null;
+const claims = new Set<string>();
+const JOB = "job", EMAIL = "electrician@example.invalid", PIESA = `template_${"a".repeat(32)}`, RECT = `template_${"b".repeat(32)}`;
+class WorkflowError extends Error {}
+class MittiClaimHeld extends Error {}
+class MittiOutcomeUncertain extends Error {}
+function from(table: string) {
+  const filters: ((r: Row) => boolean)[] = [];
+  let op = "read", patch: any, single = false, count = false, limit = Infinity; let sortKey = "", ascending = true;
+  const q: any = {
+    select: (_c: string, o: any) => { count = o?.count === "exact"; return q; },
+    eq: (k: string, v: any) => { filters.push(r => k.startsWith('jobs.') ? r.jobs?.[k.slice(5)] === v : r[k] === v); return q; },
+    neq: (k: string, v: any) => { filters.push(r => r[k] !== v); return q; },
+    is: (k: string, v: any) => { filters.push(r => (r[k] ?? null) === v); return q; },
+    not: () => q,
+    in: (k: string, v: any[]) => { filters.push(r => v.includes(k.startsWith('jobs.') ? r.jobs?.[k.slice(5)] : r[k])); return q; },
+    contains: (k: string, v: Row) => { filters.push(r => Object.entries(v).every(([key, value]) => r[k]?.[key] === value)); return q; },
+    order: (k: string, o?: any) => { sortKey = k; ascending = o?.ascending !== false; return q; }, range: () => q, limit: (n: number) => { limit = n; return q; },
+    update: (p: any) => { op = "update"; patch = p; return q; },
+    insert: (p: any) => { op = "insert"; patch = p; return q; },
+    single: () => { single = true; return q; }, maybeSingle: () => { single = true; return q; },
+    then: (resolve: any, reject: any) => Promise.resolve().then(() => {
+      const all = tables[table] ??= [];
+      if (table === "job_piesa_deadlines") { const initial = tables.piesa_records.filter(r => r.kind !== "post_rectification").at(-1); const current = tables.piesa_records.find(r => r.is_current); return {data: {piesa_date: initial?.completed_date, piesa_outcome: current?.outcome ?? initial?.outcome, install_deadline: "2026-11-29", piesa_expired: false}, error: null}; }
+      let rows = all.filter(r => filters.every(f => f(r)));
+      if (op === "insert") { rows = (Array.isArray(patch) ? patch : [patch]).map((p: Row) => ({ id: `${table}-${all.length}`, created_at: new Date(Date.now()+all.length).toISOString(), is_current: true, ...p })); all.push(...rows); }
+      if (op === "update") rows.forEach(r => Object.assign(r, patch));
+      if (table === "assessments" && op === "update" && patch.mitti_raw_snapshot && completeDuringSync) rows.forEach(r => { r.status="complete"; });
+      if (sortKey) rows = [...rows].sort((a,b) => String(a[sortKey] ?? "").localeCompare(String(b[sortKey] ?? "")) * (ascending ? 1 : -1));
+      rows = rows.slice(0, limit);
+      return { data: single ? rows[0] ?? null : rows, error: null, count: count ? rows.length : null };
+    }).then(resolve, reject),
+  };
+  return q;
+}
+const logEvent = async (job: string, actor: string | null, event_type: string, summary: string, details: Row = {}) => {
+  tables.workflow_events.push({ job_id: job, actor_id: actor, event_type, summary, details, created_at: new Date().toISOString() });
+};
+const call: mitti.MittiCall = async (method, path, body) => {
+  calls.push({ method, path, body });
+  if (path.endsWith("/owner") && failOwner) throw new Error("set owner failed");
+  if (path.endsWith("/share") && failShare) throw new Error("share failed");
+  if (path === "/users/search") return {users:[{id:"mitti-user", email:EMAIL}]};
+  if (method === "GET" && path.startsWith("/audits/")) return auditResponse ?? {audit_id:path.split("/")[2], template_id:path.endsWith("audit-1") ? PIESA : RECT, items:[]};
+  if (path === "/audits") { if (failCreate) throw new Error("Mitti create reply lost"); return { audit_id: `audit-${calls.filter(c => c.path === "/audits").length}` }; }
+  if (path.includes("/templates/")) return { template: { template_id: path.includes(PIESA) ? PIESA : RECT, items: path.includes(PIESA) ? ["Property Address", "Owner name"].map((label,i)=>({item_id:`p${i}`,label})) : core.FIXES_DAY_QUESTIONS.map(q => ({ item_id: `i${q.n}`, label: q.label })) } };
+  return {};
+};
+const overrides: Record<string, any> = {
+  "@/integrations/supabase/client.server": { supabaseAdmin: { from, storage: {from:()=>({upload:async()=>({error:null})})}, rpc:async (_n:string,p:any)=> { tables.jobs[0].stage=p._to; return {error:null}; } } },
+  "./workflow.server": { WorkflowError, logEvent, getStage: async () => tables.jobs[0].stage, transition: async (_j: string, stage: string) => { tables.jobs[0].stage = stage; } },
+  "./mitti.core": mitti, "./fixes-day.core": core, "./in-house.core": inHouse, "./mitti-identity.core": identity,
+  "./mitti-create-claim.core": claimsCore, "./piesa-autoform.core": autoCore, "./official-short.core": short,
+  "./in-house-suppression.server": { readInHouseDispatchState: async () => { dispatchReads++; return { held: new Set(held ? [JOB] : []), failed: failHeld }; } },
+  "./repeat-piesa.server": { currentPiesaSupersededByReopen: async()=>false, repeatPiesaContext: async () => ({ state: { stage: repeatDeadline ? "offer" : "none", deadline: repeatDeadline } }) },
+  "./test-send.core": { isTestPartner: () => false }, "./onsite-ready-check.core": { TEST_MITTI_ASSIGNEE: "test@example.invalid" },
+  "./mitti-create.server": { MittiClaimHeld, MittiOutcomeUncertain, claimMittiCreate: async (_j:string, kind:string, _a:any, _s:any, details:any) => { const key = `${kind}:${details?.rectification_round ?? details?.booking_id ?? "initial"}`; if (claims.has(key)) throw new MittiClaimHeld("creation already claimed"); claims.add(key); claimHeld = true; return key; }, releaseMittiCreate: async (_j:string,_k:string,key:string) => { claims.delete(key); claimHeld = false; }, recordMittiCreateUncertain: async () => {} },
+  "./official-forms.server": { officialPrefillContext: async () => ({ address: "TEST address", electrician: { name: "Electrician" }, lifeSupportDeclared: false }) },
+  "./eligibility.server": { todayMelbourne: () => "2026-10-30" },
+  "./autoadvance.server": { autoAdvanceJob: async () => {} },
+  "./install-clearance.server": { notifyInstallerClearance: async () => {} },
+  "./fixes-quote-save.server": { saveFixesQuote: async () => { quoteWrites++; return { id: "quote", already: true }; } },
+  "./our-lead-piesa-electrician.server": { electricianSourceForJob: async () => "installer_usual" },
+};
+// Actual module bodies with isolated mocked dependencies, no process-wide mock pollution or real Mitti.
+function load(name: string, cache: Record<string, any> = {}): any {
+  if (cache[name]) return cache[name];
+  let source = readFileSync(`src/lib/${name}.ts`, "utf8");
+  const out = {}; cache[name] = out;
+  const extra = {};
+  new Function("exports", "require", ...Object.keys(extra), ts.transpile(source, { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }))(out, (p: string) => {
+    if (p === "./mitti.server" && !realMitti) return {
+      saveMittiReport:async()=>{}, realMittiCall: call, mittiCallFor: async (c: any) => c, findMittiUserByEmail: async () => "mitti-user",
+      createAssignMittiAudit: async () => {
+        const a = tables.assessments[0];
+        if (a.external_mitti_id) { await call("POST", `/audits/${a.external_mitti_id}/share`, {shares:[{id:"mitti-user"}]}); await call("POST", `/audits/${a.external_mitti_id}/owner`, {}); return { auditId: a.external_mitti_id, reused: true }; }
+        const r: any = await call("POST", "/audits", { template_id: PIESA });
+        Object.assign(a, { external_mitti_id: r.audit_id, mitti_assignee_email: EMAIL });
+        await call("POST", `/audits/${r.audit_id}/share`, { shares: [{ id: "mitti-user" }] });
+        return { auditId: r.audit_id, reused: false };
+      },
+    };
+    if (p === "./workflow.server" && realWorkflow) return load("workflow.server",cache);
+    if (p === "./mitti-create.server" && realClaims) return load("mitti-create.server",cache);
+    if (p in overrides) return overrides[p];
+    if (p.startsWith("./") && !p.endsWith(".server")) return require(`../src/lib/${p.slice(2)}`);
+    if (p.startsWith("./")) return load(p.slice(2), cache);
+    throw new Error(`Unexpected test dependency ${p}`);
+  }, ...Object.values(extra));
+  return out;
+}
+beforeEach(() => {
+  dispatchReads=0; realClaims=false; held = true; failHeld=false; completeDuringSync=false; failCreate = false; claimHeld = false; realMitti=false; realWorkflow=false; failShare=false; failOwner=false; repeatDeadline=null; auditResponse=null; claims.clear(); calls = []; quoteWrites = 0;
+  tables = {
+    jobs: [{ id: JOB, job_number: "HV-TEST", source: "base44", business_unit: "hivic", stage: "piesa_scheduled", property_id:"property", owner_id:"owner", channel:"hivic_sourced", deleted_at: null, install_deadline: "2026-11-29" }],
+    assessments: [{ id: "assessment", job_id: JOB, external_mitti_id: null, mitti_raw_snapshot: [], no_rectification_confirmed: false }],
+    job_assignments: [
+      { job_id: JOB, role: "electrician", active: true, user_id: "electrician", business_id: "biz", profiles: { email: EMAIL }, businesses: { in_house: true, rectification_billed_by: "partner" } },
+      { job_id: JOB, role: "installer", active: true, business_id: "biz", businesses: { in_house: true, rectification_billed_by: "partner" } },
+    ],
+    properties:[{id:"property",address_line:"1 TEST street"}],owners:[{id:"owner",full_name:"Owner"}], customer_agreements:[{job_id:JOB,status:"signed"}], invoices:[], quotes:[], workflow_settings: [{ id: 1, payment_option_gate_enabled:true, safety_check_payment_inc_gst:349, mitti_piesa_template_id:PIESA, mitti_fixes_template_id: RECT }], workflow_events: [], rectification_items: [], piesa_records: [], bookings: [], compliance_checks: [], documents:[{job_id:JOB,source_system:"mitti",external_id:"audit-2:completed"}],
+    pricing_settings: [{ is_active: true, gst_rate: 0.1 }], rate_cards: [{ kind: "electrical", is_active: true, business_id: "biz", rate_card_items: [{ code: "RCD", unit_price_ex_gst: 10 }] }],
+  };
+});
+test("in-house PIESA booking creates exactly two template-bound audits with the same assignee, and retries reuse", async () => {
+  const server = load("piesa-autoform.server");
+  await server.onPiesaBooked(JOB, "booking", null, { call });
+  await server.onPiesaBooked(JOB, "booking", null, { call });
+  expect(calls.filter(c => c.path === "/audits").map(c => c.body.template_id)).toEqual([PIESA, RECT]);
+  expect(calls.filter(c => c.path.endsWith("/share")).every(c => c.body.shares[0].id === "mitti-user")).toBe(true);
+});
+test("non-in-house PIESA booking still creates only one audit", async () => {
+  held = false;
+  await load("piesa-autoform.server").onPiesaBooked(JOB, "booking", null, { call });
+  expect(calls.filter(c => c.path === "/audits").map(c => c.body.template_id)).toEqual([PIESA]);
+});
+test("a rectification booking reuses the precreated open audit", async () => {
+  const s = load("piesa-autoform.server"); await s.onPiesaBooked(JOB, "booking", null, { call });
+  tables.rectification_items.push({ job_id: JOB, status: "required", description: "RCD" });
+  expect(await load("fixes-day.server").onRectificationBooked(JOB, "rect-booking", null, call)).toMatchObject({ status: "reused", auditId: "audit-2" });
+  expect(calls.filter(c => c.path === "/audits")).toHaveLength(2);
+});
+test("unused rectification form is closed once locally and never recreated by a rectification booking", async () => {
+  await load("piesa-autoform.server").onPiesaBooked(JOB, "booking", null, { call });
+  tables.assessments[0].no_rectification_confirmed = true;
+  const s = load("fixes-day.server");
+  await s.closeUnusedRectificationForm(JOB); await s.closeUnusedRectificationForm(JOB);
+  expect(tables.workflow_events.filter(e => e.event_type === "rectification_form_closed_unused")).toHaveLength(1);
+  expect((await s.onRectificationBooked(JOB, "rect-booking", null, call)).status).toBe("not_needed");
+  expect(calls.filter(c => c.path === "/audits")).toHaveLength(2);
+});
+test("partner-billed in-house quote creation skips without any HIV quote or invoice", async () => {
+  expect(await load("quotes.server").generateRectificationQuote(JOB, null)).toEqual({ skipped: "in_house_partner_bills" });
+  expect(quoteWrites).toBe(0); expect(tables.invoices ?? []).toEqual([]);
+});
+for (const scenario of ["hivic", "non-in-house"]) test(`${scenario} rectification items still produce the existing quote`, async () => {
+  if (scenario === "hivic") tables.job_assignments[1].businesses.rectification_billed_by = "hivic";
+  else { held = false; tables.job_assignments[1].businesses.in_house = false; }
+  tables.rectification_items.push({ job_id: JOB, status: "required", rate_code: "RCD", quantity: 1, description: "RCD" });
+  expect(await load("quotes.server").generateRectificationQuote(JOB, null)).toBe("quote");
+  expect(quoteWrites).toBe(1);
+});
+test("rectification Mitti creation failure is visible and an uncertain create is not retried", async () => {
+  await load("piesa-autoform.server").onPiesaBooked(JOB, "booking", null, { call });
+  // A distinct seed with existing PIESA but no rectification form: retry must still try the companion form.
+  tables.workflow_events = []; claims.clear(); claimHeld = false; failCreate = true;
+  const s = load("piesa-autoform.server");
+  await s.onPiesaBooked(JOB, "booking", null, { call });
+  expect(tables.assessments[0].mitti_sync_status).toBe("error");
+  expect(tables.assessments[0].mitti_last_error).toContain("Mitti create reply lost");
+  const attempts = calls.filter(c => c.path === "/audits").length;
+  await s.onPiesaBooked(JOB, "booking", null, { call });
+  expect(calls.filter(c => c.path === "/audits")).toHaveLength(attempts);
+});
+test("Part C sync records post_rectification once and leaves the official PIESA deadline unchanged", async () => {
+  tables.jobs[0].stage = "rectification_booked";
+  const s = load("piesa-record.server");
+  const input = { jobId: JOB, actorId: "electrician", kind: "post_rectification", outcome: "pass", completedDate: "2026-11-02", sectionCSignedDate: "2026-11-02", source: { kind: "mitti_fixes_form", auditId: "audit-2" } };
+  await s.applyPiesaRecord(input); await s.applyPiesaRecord(input);
+  expect(tables.piesa_records).toHaveLength(1);
+  expect(tables.piesa_records[0].section_c_signed_at).toBe("2026-11-02T00:00:00.000Z");
+  expect(tables.jobs[0].install_deadline).toBe("2026-11-29");
+  expect(allocation.electricalClearance({ piesaOutcome: "pass", piesaCompletedAt: "2026-10-30", rectificationRequired: false }).timingDate).toBe("2026-10-30");
+});
+// Real production completion, sync and clearance functions; only external side effects are mocked.
+Object.assign(overrides, {
+ './ai-answers.server': {loadAiAnswers:async()=>({answers:[],available:false})},
+ './ai-style.server': {loadStyleExamples:async()=>[]},
+ './payments.server': {fixesPaymentBlockerFor:async()=> 'Owner must approve and pay rectification',installDepositBlockerFor:async()=>null},
+ "./requirements.server": {jobScope:async()=>({scope:"ELECTRICAL_ONLY",label:"PIESA",measurementRow:null})},
+ "./owner-gates.server": {ownerGateStageBlockers:async()=>[]},
+ "./installer-intake.server": {isIntakeJob:async()=>false},
+ "./piesa-rules-notice.server": {recheckPiesaRules:async()=>{},piesaRulesBlockerFor:async()=>null},
+ "./piesa-owner-confirm.server": {ownerConfirmationForExpand:async()=>null},
+ "./piesa-fixes-confirm.server": {ownerFixesConfirmationForExpand:async()=>null},
+ "./official-signature.server": {savePiesaSignatureImage:async()=>{}},
+ "./coes-check.server": {checkCurrentCoes:async()=>{}},
+ "./piesa-delivery.server": {deliverPiesaCopies:async()=>({hold:"TEST no delivery"})},
+ "./electrician-piesa-copy.server": {sendElectricianPiesaCopy:async()=>"TEST no delivery"},
+ "./piesa-fixes-confirm-send.server": {sendFixesConfirmStep:async()=>"TEST no delivery"},
+ "./safety-check-amount.server": {quoteSafetyCheck:async()=>({incGst:349})},
+ "./job-records.server": {applyPiesaLifeSupport:async()=>{}},
+ "./fixes-times-link.server": {textFixesTimesLink:async()=>{}},
+ "./auto-fixes-quote-send.server": {maybeAutoSendFixesQuote:async()=>{}},
+ "./installer-quote.server": {draftInstallerQuoteFromReadyCheck:async()=>{}},
+ "./pilot.server": {applyCobrand:async()=>{}},
+});
+overrides["./official-forms.server"].hazardBlockers=async()=>[];
+overrides["./official-forms.server"].currentCopy=async()=>({unavailable:true});
+const signedAudit = () => ({audit_id:"audit-2",template_id:RECT,completed:true,items:[
+ ...core.FIXES_DAY_QUESTIONS.filter(q=>![core.FIXES_DAY_Q.jobNumber,core.FIXES_DAY_Q.done,core.FIXES_DAY_Q.coesNumber,core.FIXES_DAY_Q.certDate,core.FIXES_DAY_Q.coesFile,core.FIXES_DAY_Q.workPhoto,core.FIXES_DAY_Q.signature].includes(q.label)).map(q=>({item_id:`i${q.n}`,label:q.label})),
+ ...[[core.FIXES_DAY_Q.jobNumber,"HV-TEST"],[core.FIXES_DAY_Q.done,"Yes"],[core.FIXES_DAY_Q.coesNumber,"C123"],[core.FIXES_DAY_Q.certDate,"2026-11-02"]].map(([label,text])=>({label,responses:{text}})),
+ {label:core.FIXES_DAY_Q.coesFile,media:[{media_id:"coes"}]},
+ {label:core.FIXES_DAY_Q.workPhoto,media:[{media_id:"photo",location:{latitude:-37.8,longitude:145}}]},
+ {label:core.FIXES_DAY_Q.signature,responses:{image:{media_id:"0123456789abcdef0123456789abcdef",timestamp:"2026-11-02T03:00:00Z"},name:"Electrician"}},
+]});
+const seedOfficial = () => { tables.quotes.push({id:"install-quote",job_id:JOB,kind:"installation",status:"accepted",customer_total_inc_gst:2000}); tables.invoices.push({quote_id:"install-quote",job_id:JOB,kind:"installation",total_inc_gst:2000,total_paid:349}); tables.piesa_records.push({job_id:JOB,kind:"initial",outcome:"fail",completed_date:"2026-10-30",signed_off_by:"electrician",is_current:true}); tables.rectification_items.push({job_id:JOB,status:"required",description:"RCD"}); };
+test("partner-billed same-visit signed form reaches real install clearance without a quote and keeps official deadline",async()=>{
+ await load("piesa-autoform.server").onPiesaBooked(JOB,"piesa-booking",null,{call}); realWorkflow=true; seedOfficial(); tables.jobs[0].stage="piesa_complete"; auditResponse=signedAudit();
+ const server=load("fixes-day.server");
+ const result=await server.completeFixesForm(JOB,"audit-2",{call,fetchMedia:async()=>({bytes:new Uint8Array([1]),contentType:"image/png"}),today:"2026-11-03"});
+ expect(result.status, result.detail ?? "completion").toBe("done");
+ const facts=await load("electrical-clearance.server").clearanceFacts(JOB);
+ const cleared=allocation.electricalClearance(facts);
+ expect(cleared.cleared).toBe(true); expect(cleared.timingDate).toBe("2026-10-30");
+ expect(require("../src/lib/install-days.core").installWindowDeadline(cleared.timingDate)).toBe("2026-11-29");
+ expect(tables.piesa_records.filter(r=>r.kind==="post_rectification")[0].section_c_signed_at).toBe("2026-11-02T00:00:00.000Z");
+});
+for(const partnerBilled of [false,true]) test(`real clearance quote gate partner billing=${partnerBilled}`,()=>{
+ const facts:any={piesaOutcome:"fail",piesaCompletedAt:"2026-10-30",rectificationRequired:true,rectificationQuoteAccepted:false,rectificationCompletedAt:"2026-11-02",sectionCSignedAt:"2026-11-02",partnerBilledRectification:partnerBilled};
+ expect(allocation.electricalClearance(facts).cleared).toBe(partnerBilled);
+ expect(allocation.rectificationVisitBlocker({quoteAccepted:false,recActiveApproved:true,partnerBilledRectification:partnerBilled} as any)===null).toBe(partnerBilled);
+});
+test("post_rectification requires explicit Section C date before any writes; reassessment does not",async()=>{
+ const s=load("piesa-record.server");
+ await expect(s.applyPiesaRecord({jobId:JOB,actorId:null,kind:"post_rectification",outcome:"pass",completedDate:"2026-11-02"})).rejects.toThrow("Section C");
+ expect(tables.piesa_records).toHaveLength(0);
+ await s.applyPiesaRecord({jobId:JOB,actorId:null,kind:"reassessment",outcome:"pass",completedDate:"2026-11-02"});
+ expect(tables.piesa_records).toHaveLength(1);
+});
+test("non-in-house second rectification booking creates a new audit after completion",async()=>{
+ held=false; tables.job_assignments[1].businesses.in_house=false; seedOfficial();
+ const s=load("fixes-day.server"); await s.onRectificationBooked(JOB,"visit-1",null,call);
+ tables.workflow_events.push({job_id:JOB,event_type:core.FIXES_FORM_COMPLETED_EVENT,details:{audit_id:"audit-1"}});
+ expect((await s.onRectificationBooked(JOB,"visit-2",null,call)).status).toBe("created");
+ expect(calls.filter(c=>c.path==="/audits")).toHaveLength(2);
+});
+test("repeat in-house PIESA gets its own rectification audit",async()=>{
+ const s=load("piesa-autoform.server"); await s.onPiesaBooked(JOB,"visit-1",null,{call});
+ tables.assessments[0].status="complete"; repeatDeadline="2026-11-29";
+ await s.onPiesaBooked(JOB,"visit-2",null,{call});
+ expect(calls.filter(c=>c.path==="/audits").map(c=>c.body.template_id)).toEqual([PIESA,RECT,PIESA,RECT]);
+});
+test("share failure retries both handover operations without creating duplicate audits",async()=>{
+ realMitti=true; failShare=true; tables.bookings.push({job_id:JOB,kind:"assessment",status:"confirmed",scheduled_start:"2026-11-01T00:00:00Z"});
+ const s=load("piesa-autoform.server"); await s.onPiesaBooked(JOB,"visit",null,{call});
+ expect(tables.assessments[0].mitti_sync_status).toBe("error");
+ failShare=false; await s.onPiesaBooked(JOB,"visit",null,{call});
+ expect(calls.filter(c=>c.path==="/audits")).toHaveLength(2);
+ expect(calls.filter(c=>c.path.endsWith("/share")).length).toBeGreaterThanOrEqual(3);
+ expect(calls.filter(c=>c.path.endsWith("/owner")).length).toBeGreaterThanOrEqual(2);
+});
+test("rectification handover failure retries share and owner using its existing identity",async()=>{
+ failOwner=true; await load("piesa-autoform.server").onPiesaBooked(JOB,"visit",null,{call});
+ const s=load("fixes-day.server");
+ expect(tables.assessments[0].mitti_sync_status).toBe("error");
+ tables.rectification_items.push({job_id:JOB,status:'required',description:'RCD'});
+ failOwner=false; await s.onRectificationBooked(JOB,"rect-visit",null,call);
+ expect(calls.filter(c=>c.path==="/audits")).toHaveLength(2);
+ expect(calls.filter(c=>c.path.endsWith('/owner') && c.path.includes('audit-2')).length).toBeGreaterThanOrEqual(2);
+});
+
+const setPiesaAudit = (repair:boolean) => {
+ const forms=require("./helpers/journey-forms");
+ const form=repair ? forms.completedA3({inspectionDate:"2026-10-30",capturedAt:"2026-10-30T01:00:00Z",priceIncGst:600,mediaPrefix:"round"}) : forms.completedA3Pass({inspectionDate:"2026-10-30",capturedAt:"2026-10-30T01:00:00Z",mediaPrefix:"round"});
+ auditResponse={audit_id:"audit-1",template_id:PIESA,completed:true,items:form.items,modified_at:repair?"2026-10-30T02:00:00Z":"2026-10-30T01:00:00Z"};
+ tables.documents ??= []; tables.documents.push({job_id:JOB,source_system:"mitti",external_id:`audit-1:${auditResponse.modified_at}`});
+ tables.assessments[0].mitti_template_id=PIESA;
+};
+test("real Mitti no-rectification sync closes companion once and writes the existing partner-visible note",async()=>{
+ await load("piesa-autoform.server").onPiesaBooked(JOB,"visit",null,{call}); realMitti=true; setPiesaAudit(false);
+ const s=load("mitti.server"); await s.syncMittiAssessment(JOB,null,call,async()=>({bytes:new Uint8Array([1]),contentType:"image/png"}));
+ expect(tables.assessments[0].no_rectification_confirmed).toBe(true);
+ expect(tables.workflow_events.filter(e=>e.event_type==="rectification_form_closed_unused")).toHaveLength(1);
+ expect(tables.workflow_events.filter(e=>e.event_type==="installer_note").map(e=>e.details.note)).toEqual(["Rectification form not needed — you can ignore it in Mitti."]);
+});
+test("real amended PIESA sync reopens only a new round and resets no-rectification flag",async()=>{
+ await load("piesa-autoform.server").onPiesaBooked(JOB,"visit",null,{call}); realMitti=true; setPiesaAudit(false);
+ const s=load("mitti.server"), media=async()=>({bytes:new Uint8Array([1]),contentType:"image/png"});
+ await s.syncMittiAssessment(JOB,null,call,media); setPiesaAudit(true);
+ await s.syncMittiAssessment(JOB,null,call,media);
+ expect(tables.assessments[0].no_rectification_confirmed).toBe(false);
+ expect(calls.filter(c=>c.path==="/audits")).toHaveLength(3);
+ await s.syncMittiAssessment(JOB,null,call,media);
+ expect(calls.filter(c=>c.path==="/audits")).toHaveLength(3);
+});
+
+test("held-read failure cannot bypass money and keeps clearance blocked without throwing",async()=>{
+ failHeld=true; seedOfficial();
+ await expect(load("quotes.server").generateRectificationQuote(JOB,null)).rejects.toThrow("Couldn't check");
+ expect(allocation.electricalClearance(await load("electrical-clearance.server").clearanceFacts(JOB)).cleared).toBe(false);
+ expect(quoteWrites).toBe(0);
+});
+test('failed post_rectification accepts no Section C date and writes the failed record', async()=>{
+ await load('piesa-record.server').applyPiesaRecord({jobId:JOB,actorId:null,kind:'post_rectification',outcome:'fail',completedDate:'2026-11-02'});
+ expect(tables.piesa_records).toHaveLength(1); expect(tables.piesa_records[0].outcome).toBe('fail'); expect(tables.piesa_records[0].section_c_signed_at).toBeUndefined();
+});
+test('legacy fixes-form create failure leaves assessment sync fields untouched and still logs the held event',async()=>{
+ held=false; failCreate=true;
+ tables.rectification_items.push({job_id:JOB,status:'required',description:'RCD'});
+ const r=await load('fixes-day.server').createFixesForm(JOB,null,'legacy-visit',call);
+ expect(r.status).toBe('held');
+ expect(tables.assessments[0].mitti_sync_status).toBeUndefined();
+ expect(tables.assessments[0].mitti_last_error).toBeUndefined();
+ expect(tables.workflow_events.filter(e=>e.event_type===core.FIXES_FORM_HELD_EVENT)).toHaveLength(1);
+});
+test('legacy same-booking reuse has no dispatch, calls, events or status changes',async()=>{
+ held=false; failHeld=true;
+ tables.workflow_events.push({job_id:JOB,event_type:core.FIXES_FORM_CREATED_EVENT,details:{booking_id:'legacy',audit_id:'old'}});
+ const before=JSON.stringify(tables.assessments);
+ expect(await load('fixes-day.server').createFixesForm(JOB,null,'legacy',call)).toEqual({status:'reused',reason:'form already created for this visit'});
+ expect(dispatchReads).toBe(0); expect(calls).toHaveLength(0); expect(JSON.stringify(tables.assessments)).toBe(before); expect(tables.workflow_events).toHaveLength(1);
+});
+test('legacy fixes claim key remains jobId without dispatch reads',async()=>{
+ realClaims=true; held=false;
+ const s=load('mitti-create.server'); const id=await s.claimMittiCreate(JOB,'fixes',null,'legacy',{booking_id:'visit'});
+ expect(id).toBe(await claimsCore.claimEventId(JOB,'fixes',0)); expect(dispatchReads).toBe(0);
+});
+test('accepted rectification quote requires no partner dispatch lookup',async()=>{
+ seedOfficial(); tables.quotes.push({job_id:JOB,kind:'rectification',status:'accepted'}); failHeld=true;
+ const facts=await load('electrical-clearance.server').clearanceFacts(JOB);
+ expect(facts.rectificationQuoteAccepted).toBe(true); expect(dispatchReads).toBe(0);
+});
+test('hivic dispatch failure keeps clearance gate with no throw through onsite caller',async()=>{
+ seedOfficial(); tables.job_assignments[1].businesses.rectification_billed_by='hivic'; failHeld=true;
+ const s=load('electrical-clearance.server'); expect(await s.onsiteStartClearedFor(JOB)).toBe(false);
+ realWorkflow=true; await expect(load('workflow.server').stageEntryBlockers(JOB,'installation_scheduling')).resolves.toBeArray();
+});
+test('ordinary repeated A3 sync has no new events or share/owner calls',async()=>{
+ await load('piesa-autoform.server').onPiesaBooked(JOB,'visit',null,{call}); realMitti=true; setPiesaAudit(true);
+ const s=load('mitti.server'), media=async()=>({bytes:new Uint8Array([1]),contentType:'image/png'});
+ await s.syncMittiAssessment(JOB,null,call,media); const n=tables.workflow_events.length, handovers=calls.filter(c=>/\/(share|owner)$/.test(c.path)).length;
+ await s.syncMittiAssessment(JOB,null,call,media);
+ expect(tables.workflow_events).toHaveLength(n); expect(calls.filter(c=>/\/(share|owner)$/.test(c.path))).toHaveLength(handovers);
+ expect(tables.assessments[0].mitti_sync_status).toBe('synced');
+});
+test('A3 sync dispatch outage skips extension instead of failing sync',async()=>{
+ held=false; tables.assessments[0].external_mitti_id='audit-1'; realMitti=true; setPiesaAudit(true); failHeld=true;
+ await load('mitti.server').syncMittiAssessment(JOB,null,call,async()=>({bytes:new Uint8Array([1]),contentType:'image/png'}));
+ expect(tables.assessments[0].mitti_sync_status).toBe('synced'); expect(calls.filter(c=>/\/(share|owner)$/.test(c.path))).toHaveLength(0);
+});
+test('real booked-stage caller passes partner exception to the visit quote gate',async()=>{
+ realWorkflow=true; seedOfficial();
+ expect(await load('workflow.server').stageEntryBlockers(JOB,'rectification_booked')).not.toContain('Owner must approve and pay rectification');
+ tables.job_assignments[1].businesses.rectification_billed_by='hivic';
+ expect(await load('workflow.server').stageEntryBlockers(JOB,'rectification_booked')).toContain('Owner must approve and pay rectification');
+ failHeld=true;
+ expect(await load('workflow.server').stageEntryBlockers(JOB,'rectification_booked')).toContain('Owner must approve and pay rectification');
+});
+test('unused closure note is returned by the actual installer note reader',async()=>{
+ await load('piesa-autoform.server').onPiesaBooked(JOB,'visit',null,{call});
+ tables.assessments[0].no_rectification_confirmed=true;
+ await load('fixes-day.server').closeUnusedRectificationForm(JOB);
+ expect(await load('ai-email-reply.server').installerNotes(JOB)).toContain('Rectification form not needed — you can ignore it in Mitti.');
+});
+test('PIESA autoform dispatch outage keeps legacy creation and already branch',async()=>{
+ held=false; failHeld=true;
+ const s=load('piesa-autoform.server');
+ expect((await s.onPiesaBooked(JOB,'legacy',null,{call})).outcome).toBe('created');
+ expect((await s.onPiesaBooked(JOB,'legacy',null,{call})).outcome).toBe('skipped');
+ expect(calls.filter(c=>c.path==='/audits')).toHaveLength(1);
+});
+test('sweep skips additional stages for hivic and catches one failed job without stopping the next',async()=>{
+ tables.job_assignments[1].businesses.rectification_billed_by='hivic';
+ for (const [audit_id,stage] of [['bad','rectification_booked'],['good','rectification_booked'],['extra','piesa_complete']]) {
+ tables.workflow_events.push({job_id:JOB,event_type:core.FIXES_FORM_CREATED_EVENT,details:{audit_id},jobs:{stage,business_unit:'hivic',deleted_at:null,qa_archived_at:null}});
+ }
+ const sweepCall:mitti.MittiCall=async(method,path,body)=>{
+ if(path.includes('/bad')) throw Error('one job failed');
+ if(method==='GET' && path.includes('/good')) { calls.push({method,path,body}); return {audit_id:'good',template_id:RECT,completed:false,items:core.FIXES_DAY_QUESTIONS.map(q=>({label:q.label}))}; }
+ return call(method,path,body);
+ };
+ const out=await load('fixes-day.server').sweepFixesForms({call:sweepCall});
+ expect(out.failed).toBe(1);expect(out.checked).toBe(2);expect(calls.some(c=>c.path.includes('/good'))).toBe(true);expect(calls.some(c=>c.path.includes('/extra'))).toBe(false);
+});
+test("concurrent completed assessment is not changed by the no-rectification follow-up update",async()=>{
+ await load("piesa-autoform.server").onPiesaBooked(JOB,"visit",null,{call}); realMitti=true; setPiesaAudit(false); completeDuringSync=true;
+ await load("mitti.server").syncMittiAssessment(JOB,null,call,async()=>({bytes:new Uint8Array([1]),contentType:"image/png"}));
+ expect(tables.assessments[0].no_rectification_confirmed).toBe(false);
+ expect(tables.workflow_events.filter(e=>e.event_type==="rectification_form_closed_unused")).toHaveLength(0);
+});
+for(const scenario of ["hivic","non-in-house"]) test(`${scenario} cannot complete the rectification form at PIESA complete`,async()=>{
+ await load("piesa-autoform.server").onPiesaBooked(JOB,"visit",null,{call});
+ seedOfficial(); tables.jobs[0].stage="piesa_complete"; auditResponse=signedAudit();
+ if(scenario==="hivic") tables.job_assignments[1].businesses.rectification_billed_by="hivic";
+ else {held=false; tables.job_assignments[1].businesses.in_house=false;}
+ const result=await load("fixes-day.server").completeFixesForm(JOB,"audit-2",{call,today:"2026-11-03"});
+ expect(result.status).toBe("held"); expect(tables.piesa_records.filter(r=>r.kind==="post_rectification")).toHaveLength(0);
+ const facts=await load("electrical-clearance.server").clearanceFacts(JOB); expect(allocation.electricalClearance(facts).blocker).toBe("Owner has not approved the electrical fixes quote.");
+});
+test("pre-review companion pointer is reused by its current PIESA booking, never job-wide",async()=>{
+ await load("piesa-autoform.server").onPiesaBooked(JOB,"visit",null,{call});
+ for(const e of tables.workflow_events) if(e.event_type===core.FIXES_FORM_CREATED_EVENT) delete e.details.rectification_round;
+ tables.bookings.push({id:"visit",job_id:JOB,kind:"assessment",status:"confirmed",scheduled_start:"2026-11-01T00:00:00Z"});
+ tables.rectification_items.push({job_id:JOB,status:"required",description:"RCD"});
+ expect((await load("fixes-day.server").onRectificationBooked(JOB,"rect-visit",null,call)).auditId).toBe("audit-2");
+ expect(calls.filter(c=>c.path==="/audits")).toHaveLength(2);
+});
+
+for(const field of ["rectificationCompletedAt","sectionCSignedAt"]) test(`partner-billed clearance still requires ${field}`,()=>{
+ const facts:any={piesaOutcome:"fail",piesaCompletedAt:"2026-10-30",rectificationRequired:true,rectificationQuoteAccepted:false,rectificationCompletedAt:"2026-11-02",sectionCSignedAt:"2026-11-02",partnerBilledRectification:true}; facts[field]=null;
+ expect(allocation.electricalClearance(facts).cleared).toBe(false);
+});
+test("amended-round create failure is visible and stays fail-closed on retry",async()=>{
+ await load("piesa-autoform.server").onPiesaBooked(JOB,"visit",null,{call}); realMitti=true; setPiesaAudit(false);
+ const s=load("mitti.server"), media=async()=>({bytes:new Uint8Array([1]),contentType:"image/png"});
+ await s.syncMittiAssessment(JOB,null,call,media); setPiesaAudit(true); failCreate=true;
+ await s.syncMittiAssessment(JOB,null,call,media);
+ expect(tables.assessments[0].mitti_sync_status).toBe("error");
+ const creates=calls.filter(c=>c.path==='/audits').length;
+ await s.syncMittiAssessment(JOB,null,call,media);
+ expect(calls.filter(c=>c.path==='/audits')).toHaveLength(creates);
+});
+
+test("a previous PIESA round's still-open rectification form cannot complete the current round",async()=>{
+ const s=load("piesa-autoform.server"); await s.onPiesaBooked(JOB,"first",null,{call});
+ tables.assessments[0].status="complete"; repeatDeadline="2026-11-29"; await s.onPiesaBooked(JOB,"repeat",null,{call});
+ seedOfficial(); tables.jobs[0].stage="piesa_complete"; auditResponse=signedAudit();
+ const result=await load("fixes-day.server").completeFixesForm(JOB,"audit-2",{call,today:"2026-11-03"});
+ expect(result.status).toBe("waiting"); expect(tables.piesa_records.filter(r=>r.kind==="post_rectification")).toHaveLength(0);
+});
+
+test("set-owner failure retries both handover operations with no new audit",async()=>{
+ realMitti=true; failOwner=true; tables.bookings.push({job_id:JOB,kind:"assessment",status:"confirmed",scheduled_start:"2026-11-01T00:00:00Z"});
+ const s=load("piesa-autoform.server"); await s.onPiesaBooked(JOB,"visit",null,{call});
+ expect(tables.assessments[0].mitti_last_error).toContain("set owner failed");
+ failOwner=false; await s.onPiesaBooked(JOB,"visit",null,{call});
+ expect(calls.filter(c=>c.path==="/audits")).toHaveLength(2);
+ expect(calls.filter(c=>c.path==="/inspections/v1/inspections/audit-1/owner")).toHaveLength(2);
+});
+
+test("Part C record retries outstanding transitions after PIESA evidence arrives without duplicate records/events", async () => {
+  const workflow = overrides["./workflow.server"];
+  const original = workflow.transition;
+  let evidence = false; const transitions: string[] = [];
+  workflow.transition = async (_j: string, stage: string) => { if (!evidence) throw new WorkflowError("Blocked: PIESA evidence not synced"); transitions.push(stage); tables.jobs[0].stage = stage; };
+  const input = { jobId: JOB, actorId: "electrician", kind: "post_rectification", outcome: "pass", completedDate: "2026-11-02", sectionCSignedDate: "2026-11-02", source: { kind: "mitti_fixes_form", auditId: "audit-2" } };
+  try {
+    const s = load("piesa-record.server");
+    await expect(s.applyPiesaRecord(input)).rejects.toThrow("PIESA evidence");
+    expect(tables.jobs[0].stage).toBe("piesa_scheduled");
+    expect(tables.piesa_records).toHaveLength(1); expect(tables.workflow_events.filter(e => e.event_type === "piesa_recorded")).toHaveLength(1);
+    evidence = true; await s.applyPiesaRecord(input); await s.applyPiesaRecord(input);
+    expect(tables.jobs[0].stage).toBe("installation_scheduling");
+    expect(transitions).toEqual(["piesa_complete", "installation_scheduling"]);
+    expect(tables.piesa_records).toHaveLength(1); expect(tables.workflow_events.filter(e => e.event_type === "piesa_recorded")).toHaveLength(1);
+  } finally { workflow.transition = original; }
+});

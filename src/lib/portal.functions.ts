@@ -260,7 +260,8 @@ export const getJobScope = createServerFn({ method: "POST" }).middleware([requir
     catch (e) { if (e instanceof WorkflowError) return null; throw e; }
     const { jobScope } = await import("./requirements.server");
     const { measurementRow: _m, ...s } = await jobScope(data.jobId);
-    return s;
+    const dispatch = await (await import("./in-house-suppression.server")).inHouseDispatchSkip(data.jobId);
+    return dispatch && /offer|pick|choose|book|arrang|time|visit/i.test(s.nextAction ?? "") ? { ...s, nextAction: "" } : s;
   });
 
 export const saveMeasurement = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -626,6 +627,7 @@ export const regenerateRectificationQuote = createServerFn({ method: "POST" }).m
     await requireAdmin(context.supabase);
     const stage = await getStage(data.jobId);
     const quoteId = await generateRectificationQuote(data.jobId, context.userId);
+    if (typeof quoteId !== "string") return { ok: false, skipped: quoteId.skipped, message: "The partner bills rectification directly." };
     const { data: released } = await admin.from("quotes").select("id").eq("id", quoteId).eq("status", "issued").maybeSingle();
     if (stage === "rectification_required" && released) await transition(data.jobId, "awaiting_owner_rectification_approval", context.userId, "Electrical fixes quote released to owner");
     return { ok: true };

@@ -5,6 +5,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
 import { RC_DRAFT_FIELDS, fromObservations, knownPrefill, rcProgress, rcSubmitBlockers, toObservations, type RcDraftValues, type RcEvidence } from "./ready-check-draft.core";
 import type { Observations } from "./readycheck.core";
+import { excludedAreaName } from "./excluded-areas.core";
 import { AREAS_FIELD_KEY, AREA_EVIDENCE_SORT, areaEvidenceSpecs, areaProblems, areaTasks, areaWorksBlockers, attribute, carryForward, readAreas, totals, type AreaReq, type RcArea } from "./ready-check-areas.core";
 
 const RC_CORRECTION_COPY_FIELD = "measure.correction_copy_v1";
@@ -246,6 +247,7 @@ export async function saveRcAreas(jobId: string, userId: string, businessId: str
   await ensureAreaReqs(jobId, areas);
   const { error: ue } = await admin.from("ready_checks").update({ updated_at: now }).eq("id", rc.id).eq("status", "draft");
   if (ue) throw new WorkflowError(ue.message);
+  await (await import("./excluded-areas.server")).recordExcludedAreas(jobId, userId, areas.filter((a) => excludedAreaName(a.label)).map((a) => ({ name: a.label, m2: a.areaM2 }))).catch(() => undefined);
   await logEvent(jobId, userId, "ready_check_areas_saved", `Ready Check ceiling areas saved (${areas.length}) — not submitted, nothing accepted`, { ready_check_id: rc.id, areas: areas.map((a) => a.key) }, { internal: true });
   return loadRcDraft(jobId);
 }

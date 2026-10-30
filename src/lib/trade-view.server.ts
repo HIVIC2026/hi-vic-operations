@@ -106,6 +106,17 @@ export async function tradeHome(userId: string) {
     c.kind === "installer" ? loadInstallerQuotes(liveIds).catch(() => new Map<string, InstallerQuote>()) : Promise.resolve(new Map<string, InstallerQuote>()),
     c.boss ? histQ : histQ.eq("user_id", userId),
   ]);
+  const { inHouseTradeBookingText } = await import("./in-house-message.core");
+  for (const j of live) {
+    const held = sf.get(j.id)?.inHouseDispatch;
+    const wording = held ? inHouseTradeBookingText(j.stage) : null;
+    if (!wording) continue;
+    const line = held === "in_house" ? wording : "Visit booking details unavailable";
+    const old = placeOf.get(j.id);
+    if (old) old.title = line;
+    const move = yourMove.find(x => x.jobId === j.id);
+    if (move) move.title = line;
+  }
   // This month (business owner only, own pay only): installs done this month and what was paid to this business this month.
   const money = moneyAll.filter((r) => r.billing === "hivic");
   const m0 = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -150,6 +161,7 @@ export async function tradeHome(userId: string) {
   const upcomingTile = (id: string) => { const b = upcomingOf(id)[0]; return b ? { what: VISIT[b.kind] ?? "Visit", start: b.scheduled_start } : null; };
   const home = c.kind === "installer" ? installerHomeGroups(jobsTabbed.map((j) => ({
     jobId: j.jobId, jobNumber: j.jobNumber, street: j.street, suburb: j.suburb, channel: j.channel, stage: j.stage, place: j.place, placeTitle: placeOf.get(j.jobId)?.title ?? null,
+    inHouseDispatch: sf.get(j.jobId)?.inHouseDispatch ?? null,
     nextAction: (byId.get(j.jobId) as { next_action?: string | null } | undefined)?.next_action ?? null, quoteLine: j.quoteLine, status: j.line ? { text: j.line.text, who: j.line.who } : null,
     upcoming: upcomingTile(j.jobId), installDeadline: deadline.get(j.jobId) ?? null, endedAt: byId.get(j.jobId)?.updated_at ?? null,
     formLinked: formFacts.get(j.jobId)?.linked === true, formCompleted: formFacts.get(j.jobId)?.completed === true, formHasAnswers: formFacts.get(j.jobId)?.hasAnswers ?? null,
@@ -408,8 +420,12 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
   const sel = "id, job_id, kind, scheduled_start, status, business_id, businesses(name, trading_name), jobs!inner(deleted_at, job_number, source, channel, stage, electrician_choice, originating_installer_business_id, owners(full_name), properties(suburb))";
   const { data: ownBooks } = await admin.from("bookings").select(sel).is("jobs.deleted_at", null).eq("business_id", bizId).in("status", kind === "electrician" ? ["completed", "confirmed"] : ["completed"]).in("kind", mine as never).order("scheduled_start", { ascending: false });
   // Jo 26 Oct 2026: an installer that pays its own electricians (Reinsulate) is paid for the safety checks they did.
-  const { installerPaysOwnElectricians } = await import("./installer-paid-electricians.core");
-  const { data: theirChecks } = kind === "installer" && installerPaysOwnElectricians(bizId)
+  const { readInstallerPaidElectricians } = await import("./installer-paid-electricians.server");
+  const displayPayer = kind === "installer" ? await readInstallerPaidElectricians(bizId).catch((error: unknown) => {
+    console.error("In-house partner display read failed", error);
+    return null;
+  }) : null;
+  const { data: theirChecks } = displayPayer && !displayPayer.release_hold_reason
     ? await admin.from("bookings").select(sel).is("jobs.deleted_at", null).eq("jobs.originating_installer_business_id", bizId).eq("kind", "assessment").in("status", ["completed", "confirmed"]).order("scheduled_start", { ascending: false })
     : { data: [] };
   const books = [...(ownBooks ?? []), ...(theirChecks ?? [])];
@@ -418,7 +434,10 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
   const safetyDone = new Set((doneSafety ?? []).map((a) => a.job_id));
   const done = books.filter((b) => b.status === "completed" || (b.kind === "assessment" && safetyDone.has(b.job_id)));
   const checkJobs = [...new Map(done.filter((b) => b.kind === "assessment").map((b) => [b.job_id, { id: b.job_id, originating_installer_business_id: (b.jobs as { originating_installer_business_id?: string | null }).originating_installer_business_id ?? null }])).values()];
-  const payees = await (await import("./installer-paid-electricians.server")).safetyCheckPayeesFor(checkJobs);
+  const payees = await (await import("./installer-paid-electricians.server")).safetyCheckPayeesFor(checkJobs).catch((error: unknown) => {
+    console.error("In-house safety-check display read failed", error);
+    return new Map<string, import("./installer-paid-electricians.core").InstallerPaidElectricians | null>();
+  });
   // One safety check row per job (a completed and a confirmed booking for the same job are one payout).
   const seenSafety = new Set<string>();
   const rows = done.filter((b) => b.kind !== "ready_check" && (!testOnly || (b.jobs as { source: string }).source === "qa_test") && (b.kind !== "assessment" || (seenSafety.has(b.job_id) ? false : (seenSafety.add(b.job_id), true))));
@@ -847,6 +866,53 @@ export async function tradeSetReadyCheckTime(userId: string, jobId: string, pick
   await (await import("./mitti-create.server")).onReadyCheckBooked(jobId, userId, call).catch((e) => console.error("ready check form not scheduled", (e as Error).message));
   await logEvent(jobId, userId, "installer_ready_check_time_entered", "Installer entered the Ready Check day and time on his own job (nothing sent to the owner)", { starts_at: start, business_id: c.biz.id });
   return { ok: true, startsAt: start };
+}
+
+/** Own in-house business membership, not an offer or a customer's time-picking action. */
+export async function inHouseBookingAccess(userId: string, jobId: string, client = admin): Promise<{ allowed: boolean; blockers: string[]; bookings?: { id: string; kind: string; scheduled_start: string | null; status: string }[] }> {
+  const { readInHouseDispatchState } = await import("./in-house-suppression.server");
+  const state = await readInHouseDispatchState([jobId]);
+  if (state.failed) return { allowed: false, blockers: ["Couldn't check the job's partner — please try again."] };
+  if (!state.held.has(jobId)) return { allowed: false, blockers: ["forbidden"] };
+  const { data: assignment, error: assignmentError } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
+  if (assignmentError) throw new Error(assignmentError.message);
+  if (!assignment?.business_id) return { allowed: false, blockers: ["forbidden"] };
+  const { data: member, error: memberError } = await client.from("business_members").select("business_id").eq("user_id", userId).eq("business_id", assignment.business_id).eq("active", true).maybeSingle();
+  if (memberError) throw new Error(memberError.message);
+  if (!member) return { allowed: false, blockers: ["forbidden"] };
+  const { data: job, error: jobError } = await admin.from("jobs").select("id").eq("id", jobId).is("deleted_at", null).neq("source", "qa_test").maybeSingle();
+  if (jobError) throw new Error(jobError.message);
+  if (!job) return { allowed: false, blockers: ["forbidden"] };
+  const { data: bookings, error: bookingError } = await admin.from("bookings").select("id, kind, scheduled_start, status").eq("job_id", jobId).neq("status", "cancelled").order("created_at", { ascending: false });
+  if (bookingError) throw new Error(bookingError.message);
+  return { allowed: true, blockers: [], bookings: bookings ?? [] };
+}
+
+/** A thin member-scoped wrapper: all booking rules and writes stay in confirmBooking. */
+export async function inHouseBookVisit(userId: string, input: { jobId: string; kind: import("./booking.server").BookingKind; start: string }, client = admin): Promise<{ ok: true; bookingId: string } | { ok: false; blockers: string[] }> {
+  const access = await inHouseBookingAccess(userId, input.jobId, client);
+  if (!access.allowed) return { ok: false, blockers: access.blockers };
+  const existingReadyCheck = input.kind === "ready_check" ? access.bookings?.find(b => b.kind === "ready_check" && b.status === "confirmed" && b.scheduled_start && new Date(b.scheduled_start).getTime() === new Date(input.start).getTime()) : undefined;
+  if (existingReadyCheck) return { ok: true, bookingId: existingReadyCheck.id };
+  const { confirmBooking } = await import("./booking.server");
+  try {
+    await confirmBooking(input.jobId, input.kind, input.start, userId, "in-house partner");
+  } catch (error) {
+    if (error instanceof WorkflowError) return { ok: false, blockers: [error.message] };
+    throw error;
+  }
+  if (input.kind === "ready_check") {
+    const { READY_CHECK_BOOKED } = await import("./installer-ready-check.core");
+    const { error: nextError } = await admin.from("jobs").update({ next_action: READY_CHECK_BOOKED }).eq("id", input.jobId);
+    if (nextError) throw new Error(nextError.message);
+    await (await import("./mitti-create.server")).onReadyCheckBooked(input.jobId, userId).catch((e) => console.error("ready check form not scheduled", (e as Error).message));
+    const { data: assignment, error: assignmentError } = await admin.from("job_assignments").select("business_id").eq("job_id", input.jobId).eq("role", "installer").eq("active", true).maybeSingle();
+    if (assignmentError) throw new Error(assignmentError.message);
+    await logEvent(input.jobId, userId, "installer_ready_check_time_entered", "Partner entered the Ready Check day and time (nothing sent to the owner)", { starts_at: input.start, business_id: assignment?.business_id ?? null });
+  }
+  const { data: booking, error } = await admin.from("bookings").select("id").eq("job_id", input.jobId).eq("kind", input.kind).eq("status", "confirmed").eq("scheduled_start", input.start).eq("booked_by", userId).order("created_at", { ascending: false }).limit(1).single();
+  if (error || !booking) throw new Error(error?.message ?? "Booking could not be read back.");
+  return { ok: true, bookingId: booking.id };
 }
 
 export async function setMittiInvited(actorId: string, businessId: string, invited: boolean) {

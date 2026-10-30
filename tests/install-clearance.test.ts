@@ -95,8 +95,8 @@ describe("wording (decision 186)", () => {
 
 // ---- in-memory backend for the server module ----
 type Row = Record<string, any>;
-const REAL_BIZ = { name: "Reinsulate", trading_name: null, email: "office@reinsulate.test", phone: "0400 111 222", onboarding_notes: null };
-const TEST_BIZ = { name: "Test Installers", trading_name: null, email: "test@reinsulate.test", phone: "0400 333 444", onboarding_notes: "[TEST PARTNER]" };
+const REAL_BIZ = { in_house: false, pays_own_electricians: true, name: "Reinsulate", trading_name: null, email: "office@reinsulate.test", phone: "0400 111 222", onboarding_notes: null };
+const TEST_BIZ = { in_house: false, name: "Test Installers", trading_name: null, email: "test@reinsulate.test", phone: "0400 333 444", onboarding_notes: "[TEST PARTNER]" };
 const SAM = { full_name: "Sam Lee", email: "sam@reinsulate.test", phone: "0412 345 678" };
 const db: Record<string, Row[]> = {
   workflow_events: [],
@@ -124,7 +124,8 @@ const db: Record<string, Row[]> = {
 function q(table: string) {
   const filters: ((r: Row) => boolean)[] = [];
   const api: any = {
-    select: () => api, order: () => api, limit: () => api,
+    select: () => api, order: () => api, limit: () => api, range: () => api,
+    in: (k: string, v: unknown[]) => { filters.push((r) => v.includes(r[k])); return api; },
     eq: (k: string, v: unknown) => { filters.push((r) => r[k] === v); return api; },
     neq: (k: string, v: unknown) => { filters.push((r) => r[k] !== v); return api; },
     is: (k: string, v: unknown) => { filters.push((r) => (r[k] ?? null) === v); return api; },

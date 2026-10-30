@@ -100,7 +100,7 @@ describe("source pins", () => {
     // Lean module: no senders, Xero or Mitti in the stage/auto-advance import graph.
     const imports = [...e.matchAll(/(?:from|import\()\s*["']([^"']+)["']/g)].map((m) => m[1]).sort();
     // Review R08: the onsite charge is read through the lean ledger reader + pure rules (never payments.server's senders).
-    expect(imports).toEqual(["./allocation.core", "./fixes-times.core", "./official-short.core", "./payment-ledger.server", "./payments.core", "./safety-check-amount.core", "./workflow.server", "@/integrations/supabase/client.server"]);
+    expect(imports).toEqual(["./allocation.core", "./fixes-times.core", "./in-house-rectification.server", "./official-short.core", "./payment-ledger.server", "./payments.core", "./safety-check-amount.core", "./workflow.server", "@/integrations/supabase/client.server"]);
     expect(e).toContain("(await onsiteChargePaidFor(jobId).catch(() => false))");
     const ledger = read("src/lib/payment-ledger.server.ts");
     expect([...ledger.matchAll(/(?:from|import\()\s*["']([^"']+)["']/g)].map((m) => m[1]).sort()).toEqual(["./payments.core", "@/integrations/supabase/client.server"]);

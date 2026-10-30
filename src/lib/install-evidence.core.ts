@@ -279,6 +279,13 @@ export type InstallEvidenceCtx = {
   /** PIISA Part 6 "existing insulation present" answer (foil question applies). */
   existingInsulation?: boolean | null;
 };
+/** Jo 30 Oct 2026: the Mitti Ready Check asks the product once per job, so an area with no product of its own uses the
+ *  job's Ready Check product (the same answer the quote uses). No job product → the area stays blank and the job is held. */
+export function withJobProduct(zones: JobZone[], jobProduct: string | null): JobZone[] {
+  if (!jobProduct) return zones;
+  return zones.map((z) => (z.product ? z : { ...z, product: jobProduct }));
+}
+
 
 export type InstallEvidenceItem = { id: string; zone: number | null; label: string; state: "met" | "missing" | "review" | "not_required"; count: number; problems: string[] };
 export type InstallEvidenceSummary = {

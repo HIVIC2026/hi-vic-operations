@@ -101,6 +101,22 @@ export const SMS_MESSAGE_TYPES = {
   // DRAFT until Jo approves it.
   address_request: { audience: "owner", label: "We need your full address – owner picks it on their secure page", wordingApproved: true /* approved by Jo 28 Oct 2026 */, quietHours: true },
   address_request_reminder: { audience: "owner", label: "We need your full address – one reminder 24h later", wordingApproved: true /* approved by Jo 28 Oct 2026 */, quietHours: true },
+  // A48 batch 2 (Jo 29–30 Oct 2026, wording approved in the part 1 spec): Jo taps Send on an area batch → the OWNER gets the
+  // quick taps link (area-batch.core quickTapsText), plus the day-2 reminder. Own switches, off until Jo switches them on.
+  quick_taps: { audience: "owner", label: "Confirm a few quick details for your free Ready Check – area batch sent (A48 batch 2)", wordingApproved: true, quietHours: true },
+  quick_taps_reminder: { audience: "owner", label: "Confirm a few quick details – day-2 reminder (A48 batch 2)", wordingApproved: true, quietHours: true },
+  // A48 batch 2 part 2 (Jo 30 Oct 2026, wording approved in the part 2 spec): Jo taps "Send to installer" on a closed batch →
+  // the INSTALLER gets the run link (run-route.core runOfferedText). Own switch, off until Jo switches it on.
+  run_offered: { audience: "partner", label: "You've got a run of Ready Checks – pick your day (A48 batch 2 runs)", wordingApproved: true, quietHours: true },
+  // A48 batch 2 part 2, Portal books (Jo 30 Oct 2026, wording approved in the part 2 spec): the installer picked the run's day
+  // → each OWNER gets their 1-hour window to confirm (run-portal.core runTimeText), plus ONE reminder at 12 hours. Own
+  // switches, off until Jo switches them on.
+  run_time: { audience: "owner", label: "Your free Ready Check is {day} {time} – tap to confirm (A48 batch 2 runs)", wordingApproved: true, quietHours: true },
+  run_time_reminder: { audience: "owner", label: "Please confirm your free Ready Check – 12-hour reminder (A48 batch 2 runs)", wordingApproved: true, quietHours: true },
+  // A48 batch 2 part 2, Task 8: the owner cancelled a confirmed run window → the INSTALLER is told once, with the run link
+  // ("Fill from nearby waiting owners"; run-portal.core runSlotCancelledText). Own switch, off until Jo switches it on;
+  // wording approved by Jo 30 Oct 2026 (Task 8 fix round 1).
+  run_slot_cancelled: { audience: "partner", label: "An owner cancelled their Ready Check in your run – offer the time to a nearby owner (A48 batch 2 runs)", wordingApproved: true, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 
@@ -177,6 +193,12 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   spot_released: { kind: "window" }, // key = job + release number + slot (released / reminder / release_text); each slot recorded once before any send (spot-release.server)
   address_request: { kind: "window" }, // key = job; recorded once as a workflow event; a quiet-hours hold is re-tried by the tick under the same key (address-request.server)
   address_request_reminder: { kind: "window" }, // key = job; due 24h after the request, recorded once; same quiet-hours retry
+  quick_taps: { kind: "window" }, // key = batch + job + step; the area_batch_sent event is recorded before any send (area-batch.server)
+  quick_taps_reminder: { kind: "window" }, // key = batch + job + reminder; due on day 2, recomputed by the batch sweep
+  run_offered: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = Jo's "Send to installer" tap; the run's 24h reply window
+  run_time: { kind: "window" }, // key = run + job + window; the window is recorded before any send; held → the tick retries
+  run_time_reminder: { kind: "window" }, // key = run + job + window; due 12h after the time text, recomputed by the tick
+  run_slot_cancelled: { kind: "window" }, // key = run + job + window; `run_slot_cancelled` recorded once per window before any send; held → the tick retries while that time is still unfilled and ahead
 };
 
 export type SmsEventInput = {
@@ -261,16 +283,28 @@ export function smsBlocker(x: SmsGateInput): string | null {
   if (!x.commsEnabled) return "Customer communications are switched off";
   if (!x.typeSwitchOn && !(ONE_OFF_BLAST_TYPES.includes(x.type as SmsMessageType) && x.adminSpotReminderBlast === true)) return `"${t.label}" texts are switched off`;
   if (!x.senderConfigured) return "No Australian sending number set up";
-  if (!toAuE164(x.to)) return "Not an Australian mobile number";
-  if (x.optedOut) return "This number replied STOP";
-  if (!x.consent) return t.audience === "owner" ? "No contact consent from the owner" : "Partner is not approved and active";
+  if (!toAuE164(x.to)) return SMS_NOT_MOBILE;
+  if (x.optedOut) return SMS_REPLIED_STOP;
+  if (!x.consent) return t.audience === "owner" ? SMS_NO_OWNER_CONSENT : "Partner is not approved and active";
   return null;
 }
 
+/** Holds that belong to the RECIPIENT (not a switch, quiet hours or the sender): trying again changes nothing until the
+ *  owner's details change. Callers that retry on a tick record these once instead (A48 batch 2 final review m5). */
+export const SMS_NOT_MOBILE = "Not an Australian mobile number";
+export const SMS_REPLIED_STOP = "This number replied STOP";
+export const SMS_NO_OWNER_CONSENT = "No contact consent from the owner";
+const RECIPIENT_HOLDS: readonly string[] = [SMS_NOT_MOBILE, SMS_REPLIED_STOP, SMS_NO_OWNER_CONSENT];
+/** A real-sender result that was held for the recipient (STOP, no consent, not a mobile). */
+export const smsHeldForRecipient = (r: { status: string; detail: string | null | undefined }): boolean => r.status === "blocked" && RECIPIENT_HOLDS.includes(String(r.detail ?? ""));
+
 /** Brand line at the start of every text the portal sends (Jo, 8 Oct). Visible brand only — never "HI VIC". */
 export const SMS_BRAND_PREFIX = "Home Insulation Victoria: ";
+/** A text Jo approved signed off at the end with " - Home Insulation Victoria" (plain hyphen; A48 batch 2 quick taps)
+ *  already carries the brand. Only that exact ending: older texts ending "– Home Insulation Victoria" keep the prefix. */
+const SIGNED_OFF = / - Home Insulation Victoria$/;
 export function brandSmsBody(body: string): string {
-  return body.trimStart().startsWith(SMS_BRAND_PREFIX) ? body : SMS_BRAND_PREFIX + body.trimStart();
+  return body.trimStart().startsWith(SMS_BRAND_PREFIX) || SIGNED_OFF.test(body) ? body : SMS_BRAND_PREFIX + body.trimStart();
 }
 
 /** STOP / START keywords (Twilio standard set). */

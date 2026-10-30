@@ -51,6 +51,9 @@ import { AssessmentView, Compliance, ComplianceRecords, EligibilityForm, JobCove
 import { FinalCheckScreen } from "@/components/portal/final-check";
 import { panelLoad, readOrThrow } from "@/lib/panel-load.core";
 import { LoadFailed } from "@/components/portal/load-failed";
+import { Button } from "@/components/ui/button";
+import { InHousePullBackDialog } from "@/components/portal/InHousePullBackDialog";
+import { Undo2 } from "lucide-react";
 
 export type JobPage = Awaited<ReturnType<typeof import("@/lib/office-job-page.server").loadJobPage>>;
 type Header = JobPage["header"];
@@ -506,7 +509,7 @@ function ReasonDialog({ title, description, action, tone, open, onOpenChange, ru
 export function JobMoreMenu({ h, cancelOpen, setCancelOpen, onDeleted }: { h: Header; cancelOpen: boolean; setCancelOpen: (v: boolean) => void; onDeleted: () => void }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [dialog, setDialog] = useState<"hold" | "test" | "delete" | "reopen" | "override" | null>(null);
+  const [dialog, setDialog] = useState<"hold" | "test" | "delete" | "reopen" | "override" | "pull-back" | null>(null);
   const resume = useAction(setHold);
   const markTest = useAction(markOfficeJobTest);
   const reopen = useAction(reopenOfficeJob);
@@ -518,6 +521,7 @@ export function JobMoreMenu({ h, cancelOpen, setCancelOpen, onDeleted }: { h: He
     <div className="relative">
       <button type="button" aria-expanded={open} aria-haspopup="menu" onClick={() => setOpen(!open)} className={cn(btn, "border border-line bg-paper text-hiv-blue")}>More ▾</button>
       <MenuPanel open={open} onPick={() => setOpen(false)}>
+          {h.inHouseHeld && !closed && !h.deleted && !h.isTest && <Button role="menuitem" variant="ghost" className="w-full justify-start" onClick={() => setDialog("pull-back")}><Undo2 />Take this job back</Button>}
           {h.stage === "on_hold" ? <button role="menuitem" type="button" className={item} onClick={() => void resume({ jobId: h.jobId, action: "resume" }, "Resumed")}>Resume</button>
             : !closed && <button role="menuitem" type="button" className={item} onClick={() => setDialog("hold")}>Put on hold</button>}
           {!h.isTest && <button role="menuitem" type="button" className={item} onClick={() => setDialog("test")}>Mark as test</button>}
@@ -528,6 +532,7 @@ export function JobMoreMenu({ h, cancelOpen, setCancelOpen, onDeleted }: { h: He
       </MenuPanel>
       <CancelDialog h={h} open={cancelOpen} onOpenChange={setCancelOpen} onDone={() => void qc.invalidateQueries()} />
       <HoldDialog h={h} open={dialog === "hold"} onOpenChange={(v) => setDialog(v ? "hold" : null)} />
+      <InHousePullBackDialog jobId={h.jobId} jobNumber={h.jobNumber} open={dialog === "pull-back"} onOpenChange={v => setDialog(v ? "pull-back" : null)} />
       <ReasonDialog title={`Mark ${h.jobNumber} as test`} description="It moves to Jobs › Closed › Removed / test and leaves every live list." action="Mark as test" tone="ink" open={dialog === "test"} onOpenChange={(v) => setDialog(v ? "test" : null)} run={async (reason) => !!(await markTest({ jobId: h.jobId, reason }, "Marked as test"))} />
       <ReasonDialog title={`Reopen ${h.jobNumber}`} description="Back to the stage it was at; the history is kept." action="Reopen" tone="ink" open={dialog === "reopen"} onOpenChange={(v) => setDialog(v ? "reopen" : null)} run={async (reason) => !!(await reopen({ jobId: h.jobId, reason }, "Reopened"))} />
       <ReasonDialog title={`Delete ${h.jobNumber}`} description="TEST jobs only. Signed or sent records linked to it stop the delete and are kept." action="Delete" tone="rose" open={dialog === "delete"} onOpenChange={(v) => setDialog(v ? "delete" : null)} run={async (reason) => { const r = await bulk({ jobIds: [h.jobId], action: "delete", reason }); if (r?.failed.length) { toast.error(r.failed[0]!.error ?? "Could not delete"); return false; } if (r) { toast.success("Deleted"); onDeleted(); } return !!r; }} />

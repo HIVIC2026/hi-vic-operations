@@ -1,3 +1,4 @@
+import { inHouseTradeBookingText } from "@/lib/in-house-message.core";
 // Installer Job page = approved mock-up M2 (Jo 24 Oct 2026, decisions 196/198): one Next panel, Quote, Ready Check,
 // Who's doing this, More. Decision 277 (Jo 25 Oct 2026): no in-portal Messages section — the installer uses Call/Text
 // and the portal sends its own automatic texts. The electrician's visit flow shares this route unchanged.
@@ -64,6 +65,7 @@ import { FixesTimesCard, useTradeFixesTimes } from "@/components/trade/FixesTime
 import { SafetyCheckDocRow } from "@/components/trade/SafetyCheckDocRow";
 import { InstallAttendanceCard } from "@/components/trade/InstallAttendanceCard";
 import { ELECTRICIAN_ATTENDANCE_CONFIRMED } from "@/lib/trade-view.core";
+import { InHouseBookingCard, useInHouseBookingAccess } from "@/components/trade/InHouseBookingCard";
 
 export const Route = createFileRoute("/_authenticated/field/$jobId")({
   head: () => ({ meta: [{ title: "Job – Home Insulation Victoria Field" }, { name: "description", content: "Onsite job workflow." }, { property: "og:title", content: "Job – Home Insulation Victoria Field" }, { property: "og:description", content: "Onsite job workflow." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
@@ -107,12 +109,14 @@ function FieldJobBody({ jobId }: { jobId: string }) {
   const { data: role } = useQuery({ queryKey: ["myrole", jobId], queryFn: async () => (await supabase.rpc("my_job_role", { _job: jobId })).data, staleTime: 300_000 });
   const status = useTradeJobStatus(jobId, role === "electrician"); // same query as the status card below
   const showOwnerContact = status.data?.ownerContactVisible === true; // fails closed: hidden while loading or on error
+  const inHouseAccess = useInHouseBookingAccess(jobId);
   if (!job && isError) return <TradeShell installer={role !== "electrician"}><p className="rounded-[18px] border bg-paper p-6 text-sm text-sub">{/TEST accounts/.test(String((error as Error)?.message)) ? "This TEST sign-in can only open active TEST jobs." : "This job isn't available to you. If it's a new offer, accept it from My work first."}</p><Link to="/field" className="mt-3 inline-block font-bold text-hiv-blue underline">Back to My work</Link></TradeShell>;
   if (!job) return <TradeShell installer={role !== "electrician"}><p className="text-sub">Loading…</p></TradeShell>;
   if (role === "installer") return <TradeShell installer><InstallerFlow jobId={jobId} job={job} /></TradeShell>;
   const step = nextStep(job);
   const turn = tradeTurn({ trade: role === "electrician" ? role : null, stage: job.stage ?? "", waitingOn: step.waitingOn });
   const task = turn.task;
+  const heldTask = inHouseAccess.data?.allowed === true ? inHouseTradeBookingText(job.stage) : null;
   const maps = job.property_address ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(job.property_address)}` : null;
   return (
     <TradeShell installer={false}>
@@ -122,7 +126,7 @@ function FieldJobBody({ jobId }: { jobId: string }) {
         <h1 className="font-display text-[24px] font-bold leading-tight">{streetAndSuburb(job.property_address) || "Your job"}</h1>
         {job.owner_name && <p className="text-sm text-sub">{job.owner_name}</p>}
       </div>
-      <NowPanel attention={turn.yourTurn} eyebrow={turn.eyebrow} status={task.label}
+      <NowPanel attention={turn.yourTurn} eyebrow={turn.eyebrow} status={heldTask ?? task.label}
         pairs={job.life_support ? [{ label: "Note", value: <span className="inline-flex items-center gap-1 text-rose"><HeartPulse className="h-3 w-3" /> Life support at this property</span> }] : []}
         action={<div className="flex flex-wrap gap-2">
           {showOwnerContact && job.owner_phone && <a href={`tel:${job.owner_phone}`} className={btnClass("primary")}><Phone className="h-4 w-4" /> Call</a>}
@@ -133,8 +137,9 @@ function FieldJobBody({ jobId }: { jobId: string }) {
       <div><BlockersPanel jobId={jobId} quietWhenClear partner /></div>
       <div className="space-y-4">
         {/* Decision 333: the electrician offers the owner 3 safety check times (the owner picks one or suggests days). */}
-        {role === "electrician" && <ElectricianPiesaTimesCard jobId={jobId} />}
-        {role === "electrician" && <FixesTimesCard jobId={jobId} />}
+        <InHouseBookingCard jobId={jobId} />
+        {role === "electrician" && inHouseAccess.data?.allowed !== true && <ElectricianPiesaTimesCard jobId={jobId} />}
+        {role === "electrician" && inHouseAccess.data?.allowed !== true && <FixesTimesCard jobId={jobId} />}
         {role === "electrician" && <InstallAttendanceCard jobId={jobId} />}
         {role === "electrician" && <ElectricianFlow jobId={jobId} stage={job.stage!} />}
         {role === "electrician" && <SafetyCheckDocRow jobId={jobId} />}
@@ -277,6 +282,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
   const done = useAction(completeInstallation);
   const mittiInvited = useMittiInvited();
   const owner = firstName(job.owner_name);
+  const inHouseAccess = useInHouseBookingAccess(jobId);
   const rcTurn: ReadyCheckTurn = rc && rc.applies ? (rc.turn as ReadyCheckTurn) : null;
   const next = page ? jobNext({
     channel: page.channel, stage: page.stage, ownerFirstName: owner, formLinked: page.form.linked, formCompleted: page.form.completed, quoteLine: page.quote?.line ?? null,
@@ -288,6 +294,8 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
     installFormCompletedAt: page.install.formCompletedAt, evidenceChecked: page.install.evidenceChecked, crew: page.install.crew, ownerReady: page.install.ownerReady,
     formHasAnswers: page.form.hasAnswers, priceEntered: page.price.entered, boss: page.boss, ownerPiesaConfirmed: page.ownerPiesaConfirmed,
   }) : null;
+  const heldNext = inHouseAccess.data?.allowed === true && next && ["offer_install_days", "install_answer_owner", "install_waiting_owner", "ready_check_offer_times", "ready_check_answer_owner", "ready_check_waiting_owner", "ready_check_set_time"].includes(next.panel)
+    ? `Book the ${next.panel.startsWith("ready_check") ? "Ready Check" : "install"} in the portal` : null;
   const mittiLink = page && next ? mittiLinkPlace({ panel: next.panel, yours: next.yours, auditId: page.form.auditId, mittiInvited, formLinked: page.form.linked }) : null;
   const readyCheck = page ? readyCheckRows({ bookedAt: page.readyCheck.bookedAt, done: page.readyCheck.done, formLinked: page.form.linked, formCompleted: page.form.completed, missing: page.form.missing.length + page.form.stops.length, hasAnswers: page.form.hasAnswers }) : null;
   // Decision 279: ONE status line per job. The Quote row shows quote wording only once the form has answers and (A1) the price is in.
@@ -321,16 +329,16 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
       </ScreenHead>
 
       {page && next && (
-        <NextPanel title={next.title} sub={next.sub}>
+        <NextPanel title={heldNext ?? next.title} sub={heldNext ? null : next.sub}>
           {next.items && next.items.length > 0 && <ul className="mt-2.5" data-next-items>{next.items.map((it) => <li key={it} className="flex min-h-10 items-center gap-2.5 border-b border-line text-[15px] last:border-b-0"><span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-hiv-blue" />{it}</li>)}</ul>}
           {next.checks && next.checks.length > 0 && <ul className="mt-2.5" data-next-checks>{next.checks.map((c) => <li key={c} className="flex min-h-9 items-center gap-2.5 text-sm"><span aria-hidden className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md bg-hiv-green text-[13px] font-bold text-white">✓</span>{c}</li>)}</ul>}
           {next.ownerReady && <p className={`mt-2.5 text-sm font-medium ${next.ownerReady.done ? "text-hiv-green" : "text-ink"}`} data-owner-ready>{next.ownerReady.text}</p>}
           {/* Decision 327: electrician needed at the start of the install day — confirmed / waiting, or the "can't make it" alert. */}
           {page.electricianAttendance && <p className={`mt-2.5 text-sm font-medium ${page.electricianAttendance.line === ELECTRICIAN_ATTENDANCE_CONFIRMED ? "text-hiv-green" : "text-ink"}`} data-electrician-attendance>{page.electricianAttendance.alert ?? page.electricianAttendance.line}</p>}
-          {["offer_install_days", "install_answer_owner", "install_waiting_owner", "install_booked"].includes(next.panel) && <InstallerInstallDays jobId={jobId} ownerFirstName={owner} />}
+          {(next.panel === "install_booked" || (inHouseAccess.data?.allowed !== true && ["offer_install_days", "install_answer_owner", "install_waiting_owner"].includes(next.panel))) && <InstallerInstallDays jobId={jobId} ownerFirstName={owner} readOnly={inHouseAccess.data?.allowed === true} />}
           {next.panel === "install_booked" && <Link to="/field/day/$jobId" params={{ jobId }} className={`${primaryLinkClass} mt-2`} data-todays-job>Today's job</Link>}
-          {["ready_check_offer_times", "ready_check_answer_owner", "ready_check_waiting_owner"].includes(next.panel) && <InstallerReadyCheckTimesCard jobId={jobId} ownerFirstName={owner} />}
-          {next.panel === "ready_check_set_time" && a1ReadyCheckEntryAllowed({ channel: job.channel ?? null, stage: job.stage ?? null }) && <A1ReadyCheckTimeCard jobId={jobId} />}
+          {inHouseAccess.data?.allowed !== true && ["ready_check_offer_times", "ready_check_answer_owner", "ready_check_waiting_owner"].includes(next.panel) && <InstallerReadyCheckTimesCard jobId={jobId} ownerFirstName={owner} />}
+          {inHouseAccess.data?.allowed !== true && next.panel === "ready_check_set_time" && a1ReadyCheckEntryAllowed({ channel: job.channel ?? null, stage: job.stage ?? null }) && <A1ReadyCheckTimeCard jobId={jobId} />}
           {mittiLink === "next" && page.form.auditId && <MittiFormLink auditId={page.form.auditId} className={`${primaryLinkClass} mt-3.5`}>Open Mitti form</MittiFormLink>}
           {/* Decision 318: the pay rule sits beside the Mitti form for the paid visits (install day onwards). */}
           {["offer_install_days", "install_answer_owner", "install_waiting_owner", "install_booked", "sign_rebate", "install_done"].includes(next.panel) && <NoFormNoPay className="mt-3" />}
@@ -343,9 +351,11 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
                 : <InstallerFinalDeclaration jobId={jobId} />}
             </div>
           )}
-          {next.note && <Note className="mt-3">{next.note}</Note>}
+          {!heldNext && next.note && <Note className="mt-3">{next.note}</Note>}
         </NextPanel>
       )}
+
+      <InHouseBookingCard jobId={jobId} />
 
       {/* AI replies step 2: notes the office saved for the installer (e.g. the owner wants R7.0). Older answers carry none. */}
       {page && (page.notes ?? []).length > 0 && (

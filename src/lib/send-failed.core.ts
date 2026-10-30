@@ -90,8 +90,14 @@ export function plainSendError(raw: string | null | undefined): string {
 
 const trim = (s: string | null | undefined, n = 120) => { const v = (s ?? "").replace(/\s+/g, " ").trim(); return v.length > n ? `${v.slice(0, n - 1)}…` : v; };
 
-/** The Needs me line for one text that failed or may not have arrived; null for anything else (delivered, queued, blocked quiet-hours holds). */
+/** A48 batch 2 (Jo 30 Oct 2026: "nothing from this flow lands in Needs me"): area batch and installer run texts never make
+ *  a Send failed row — their own flows retry, release or expire them (area-batch.server, installer-run.server). */
+export const NOT_IN_NEEDS_ME_SMS_TYPES: readonly string[] = ["quick_taps", "quick_taps_reminder", "run_offered", "run_time", "run_time_reminder", "run_slot_cancelled"];
+
+/** The Needs me line for one text that failed or may not have arrived; null for anything else (delivered, queued, blocked
+ *  quiet-hours holds, and the A48 batch 2 texts). */
 function smsLine(s: FailedSms, now: number): string | null {
+  if (NOT_IN_NEEDS_ME_SMS_TYPES.includes(s.message_type)) return null;
   const when = `${sendLabel(s.message_type, "sms")}, ${daysAgoLabel(s.created_at, now)}`;
   if ((UNSURE_SMS_STATUSES as readonly string[]).includes(s.status)) return `Text not sure it arrived: ${when}`;
   if (!(FAILED_SMS_STATUSES as readonly string[]).includes(s.status)) return null;

@@ -177,7 +177,8 @@ describe("repeat sync / facts version", () => {
     expect(await eligibilityFactsVersion({ ...input(), contact_consent: false, media: [{ x: 1 }], full_name: "Other", phone: "1" } as never)).toBe(v);
     expect(await eligibilityFactsVersion(input({ address_line: "2 Other St" }))).not.toBe(v);
     expect(await eligibilityFactsVersion(input({ base44_answers: { insulation: "present" } }))).not.toBe(v);
-    expect(await eligibilityFactsVersion(input({ declared_previous_upgrade: "yes" }))).not.toBe(v);
+    expect(await eligibilityFactsVersion(input({ declared_previous_upgrade: "yes" }))).toBe(v); // previous upgrade is always "no" (Jo 29 Oct)
+    expect(await eligibilityFactsVersion(input({ declared_over_five_years: "no" }))).not.toBe(v);
     expect(planEnqueue({ id: "w", status: "complete", facts_version: v, attempts: 1 }, "other")).toBe("requeue");
     reset(); intelMode = "ok";
     await enqueueInitialGate1(JOB, v, "new enquiry"); await processPostIntakeWork({ jobId: JOB });

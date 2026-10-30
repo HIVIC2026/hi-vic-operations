@@ -46,7 +46,7 @@ describe("fixes payment step (payment gate)", () => {
     expect(fixesPaymentBlocker(none, paymentSteps(none, { install: 0, fixes: 0, repeat: 0 }, {}, T0))).toBeNull();
   });
   test("both booking paths carry the fixes-paid blocker", () => {
-    expect(read("src/lib/booking.server.ts")).toMatch(/kind === "rectification"\) \{ const fb = await \(await import\("\.\/payments\.server"\)\)\.fixesPaymentBlockerFor\(jobId\)/);
+    expect(read("src/lib/booking.server.ts")).toMatch(/if \(!partnerBilled\) \{ const blocker = await \(await import\("\.\/payments\.server"\)\)\.fixesPaymentBlockerFor\(jobId\)/);
     expect(read("src/lib/workflow.server.ts")).toMatch(/to === "rectification_booked"\) \{\s*const fb = await \(await import\("\.\/payments\.server"\)\)\.fixesPaymentBlockerFor\(jobId\)/);
   });
 });
@@ -70,7 +70,7 @@ describe("approval stays in the fixes flow", () => {
   });
   test("O29's approve link opens the fixes screen", () => {
     expect(read("src/lib/approved-owner-emails.server.ts")).toMatch(/renderFixesQuoteEmail\(\{[^\n]*\?screen=fixes/);
-    expect(read("src/routes/my-job.$token.tsx")).toMatch(/"fixes"(, "turn")?(, "newquote")?\] as const satisfies/);
+    expect(read("src/routes/my-job.$token.tsx")).toMatch(/"fixes"(, "turn")?(, "newquote")?(, "taps")?\] as const satisfies/);
   });
 });
 

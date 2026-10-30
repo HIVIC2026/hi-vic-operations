@@ -44,6 +44,7 @@ import { Route as AuthenticatedAdminCommunicationsRouteImport } from './routes/_
 import { Route as AuthenticatedAdminElectricianRatesRouteImport } from './routes/_authenticated/admin.electrician-rates'
 import { Route as AuthenticatedAdminEmailsRouteImport } from './routes/_authenticated/admin.emails'
 import { Route as AuthenticatedAdminEnquiriesRouteImport } from './routes/_authenticated/admin.enquiries'
+import { Route as AuthenticatedAdminInHouseBatchesRouteImport } from './routes/_authenticated/admin.in-house-batches'
 import { Route as AuthenticatedAdminInterestsRouteImport } from './routes/_authenticated/admin.interests'
 import { Route as AuthenticatedAdminJobsRouteImport } from './routes/_authenticated/admin.jobs'
 import { Route as AuthenticatedAdminMoneyRouteImport } from './routes/_authenticated/admin.money'
@@ -93,6 +94,7 @@ import { Route as AuthenticatedFieldBusinessTeamRouteImport } from './routes/_au
 import { Route as AuthenticatedFieldDayJobIdRouteImport } from './routes/_authenticated/field.day.$jobId'
 import { Route as AuthenticatedFieldMoneyJobIdRouteImport } from './routes/_authenticated/field.money_.$jobId'
 import { Route as AuthenticatedFieldOfferOfferIdRouteImport } from './routes/_authenticated/field.offer.$offerId'
+import { Route as AuthenticatedFieldRunRunIdRouteImport } from './routes/_authenticated/field.run.$runId'
 import { Route as ApiPublicHooksAllocationTickRouteImport } from './routes/api/public/hooks/allocation-tick'
 import { Route as ApiPublicHooksBacklogSendRouteImport } from './routes/api/public/hooks/backlog-send'
 import { Route as ApiPublicHooksCustomerFollowupsRouteImport } from './routes/api/public/hooks/customer-followups'
@@ -293,6 +295,12 @@ const AuthenticatedAdminEnquiriesRoute =
   AuthenticatedAdminEnquiriesRouteImport.update({
     id: '/enquiries',
     path: '/enquiries',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminInHouseBatchesRoute =
+  AuthenticatedAdminInHouseBatchesRouteImport.update({
+    id: '/in-house-batches',
+    path: '/in-house-batches',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminInterestsRoute =
@@ -569,6 +577,12 @@ const AuthenticatedFieldOfferOfferIdRoute =
     path: '/offer/$offerId',
     getParentRoute: () => AuthenticatedFieldRoute,
   } as any)
+const AuthenticatedFieldRunRunIdRoute =
+  AuthenticatedFieldRunRunIdRouteImport.update({
+    id: '/run/$runId',
+    path: '/run/$runId',
+    getParentRoute: () => AuthenticatedFieldRoute,
+  } as any)
 const ApiPublicHooksAllocationTickRoute =
   ApiPublicHooksAllocationTickRouteImport.update({
     id: '/api/public/hooks/allocation-tick',
@@ -726,6 +740,7 @@ export interface FileRoutesByFullPath {
   '/admin/electrician-rates': typeof AuthenticatedAdminElectricianRatesRoute
   '/admin/emails': typeof AuthenticatedAdminEmailsRoute
   '/admin/enquiries': typeof AuthenticatedAdminEnquiriesRoute
+  '/admin/in-house-batches': typeof AuthenticatedAdminInHouseBatchesRoute
   '/admin/interests': typeof AuthenticatedAdminInterestsRoute
   '/admin/jobs': typeof AuthenticatedAdminJobsRouteWithChildren
   '/admin/money': typeof AuthenticatedAdminMoneyRoute
@@ -776,6 +791,7 @@ export interface FileRoutesByFullPath {
   '/field/day/$jobId': typeof AuthenticatedFieldDayJobIdRoute
   '/field/money/$jobId': typeof AuthenticatedFieldMoneyJobIdRoute
   '/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
+  '/field/run/$runId': typeof AuthenticatedFieldRunRunIdRoute
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
   '/api/public/hooks/backlog-send': typeof ApiPublicHooksBacklogSendRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
@@ -828,6 +844,7 @@ export interface FileRoutesByTo {
   '/admin/electrician-rates': typeof AuthenticatedAdminElectricianRatesRoute
   '/admin/emails': typeof AuthenticatedAdminEmailsRoute
   '/admin/enquiries': typeof AuthenticatedAdminEnquiriesRoute
+  '/admin/in-house-batches': typeof AuthenticatedAdminInHouseBatchesRoute
   '/admin/interests': typeof AuthenticatedAdminInterestsRoute
   '/admin/jobs': typeof AuthenticatedAdminJobsRouteWithChildren
   '/admin/money': typeof AuthenticatedAdminMoneyRoute
@@ -878,6 +895,7 @@ export interface FileRoutesByTo {
   '/field/day/$jobId': typeof AuthenticatedFieldDayJobIdRoute
   '/field/money/$jobId': typeof AuthenticatedFieldMoneyJobIdRoute
   '/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
+  '/field/run/$runId': typeof AuthenticatedFieldRunRunIdRoute
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
   '/api/public/hooks/backlog-send': typeof ApiPublicHooksBacklogSendRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
@@ -936,6 +954,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/electrician-rates': typeof AuthenticatedAdminElectricianRatesRoute
   '/_authenticated/admin/emails': typeof AuthenticatedAdminEmailsRoute
   '/_authenticated/admin/enquiries': typeof AuthenticatedAdminEnquiriesRoute
+  '/_authenticated/admin/in-house-batches': typeof AuthenticatedAdminInHouseBatchesRoute
   '/_authenticated/admin/interests': typeof AuthenticatedAdminInterestsRoute
   '/_authenticated/admin/jobs': typeof AuthenticatedAdminJobsRouteWithChildren
   '/_authenticated/admin/money': typeof AuthenticatedAdminMoneyRoute
@@ -986,6 +1005,7 @@ export interface FileRoutesById {
   '/_authenticated/field/day/$jobId': typeof AuthenticatedFieldDayJobIdRoute
   '/_authenticated/field/money_/$jobId': typeof AuthenticatedFieldMoneyJobIdRoute
   '/_authenticated/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
+  '/_authenticated/field/run/$runId': typeof AuthenticatedFieldRunRunIdRoute
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
   '/api/public/hooks/backlog-send': typeof ApiPublicHooksBacklogSendRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
@@ -1044,6 +1064,7 @@ export interface FileRouteTypes {
     | '/admin/electrician-rates'
     | '/admin/emails'
     | '/admin/enquiries'
+    | '/admin/in-house-batches'
     | '/admin/interests'
     | '/admin/jobs'
     | '/admin/money'
@@ -1094,6 +1115,7 @@ export interface FileRouteTypes {
     | '/field/day/$jobId'
     | '/field/money/$jobId'
     | '/field/offer/$offerId'
+    | '/field/run/$runId'
     | '/api/public/hooks/allocation-tick'
     | '/api/public/hooks/backlog-send'
     | '/api/public/hooks/customer-followups'
@@ -1146,6 +1168,7 @@ export interface FileRouteTypes {
     | '/admin/electrician-rates'
     | '/admin/emails'
     | '/admin/enquiries'
+    | '/admin/in-house-batches'
     | '/admin/interests'
     | '/admin/jobs'
     | '/admin/money'
@@ -1196,6 +1219,7 @@ export interface FileRouteTypes {
     | '/field/day/$jobId'
     | '/field/money/$jobId'
     | '/field/offer/$offerId'
+    | '/field/run/$runId'
     | '/api/public/hooks/allocation-tick'
     | '/api/public/hooks/backlog-send'
     | '/api/public/hooks/customer-followups'
@@ -1253,6 +1277,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/electrician-rates'
     | '/_authenticated/admin/emails'
     | '/_authenticated/admin/enquiries'
+    | '/_authenticated/admin/in-house-batches'
     | '/_authenticated/admin/interests'
     | '/_authenticated/admin/jobs'
     | '/_authenticated/admin/money'
@@ -1303,6 +1328,7 @@ export interface FileRouteTypes {
     | '/_authenticated/field/day/$jobId'
     | '/_authenticated/field/money_/$jobId'
     | '/_authenticated/field/offer/$offerId'
+    | '/_authenticated/field/run/$runId'
     | '/api/public/hooks/allocation-tick'
     | '/api/public/hooks/backlog-send'
     | '/api/public/hooks/customer-followups'
@@ -1626,6 +1652,13 @@ declare module '@tanstack/react-router' {
       path: '/enquiries'
       fullPath: '/admin/enquiries'
       preLoaderRoute: typeof AuthenticatedAdminEnquiriesRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/in-house-batches': {
+      id: '/_authenticated/admin/in-house-batches'
+      path: '/in-house-batches'
+      fullPath: '/admin/in-house-batches'
+      preLoaderRoute: typeof AuthenticatedAdminInHouseBatchesRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/interests': {
@@ -1971,6 +2004,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFieldOfferOfferIdRouteImport
       parentRoute: typeof AuthenticatedFieldRoute
     }
+    '/_authenticated/field/run/$runId': {
+      id: '/_authenticated/field/run/$runId'
+      path: '/run/$runId'
+      fullPath: '/field/run/$runId'
+      preLoaderRoute: typeof AuthenticatedFieldRunRunIdRouteImport
+      parentRoute: typeof AuthenticatedFieldRoute
+    }
     '/api/public/hooks/allocation-tick': {
       id: '/api/public/hooks/allocation-tick'
       path: '/api/public/hooks/allocation-tick'
@@ -2149,6 +2189,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminElectricianRatesRoute: typeof AuthenticatedAdminElectricianRatesRoute
   AuthenticatedAdminEmailsRoute: typeof AuthenticatedAdminEmailsRoute
   AuthenticatedAdminEnquiriesRoute: typeof AuthenticatedAdminEnquiriesRoute
+  AuthenticatedAdminInHouseBatchesRoute: typeof AuthenticatedAdminInHouseBatchesRoute
   AuthenticatedAdminInterestsRoute: typeof AuthenticatedAdminInterestsRoute
   AuthenticatedAdminJobsRoute: typeof AuthenticatedAdminJobsRouteWithChildren
   AuthenticatedAdminMoneyRoute: typeof AuthenticatedAdminMoneyRoute
@@ -2173,6 +2214,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
     AuthenticatedAdminElectricianRatesRoute,
   AuthenticatedAdminEmailsRoute: AuthenticatedAdminEmailsRoute,
   AuthenticatedAdminEnquiriesRoute: AuthenticatedAdminEnquiriesRoute,
+  AuthenticatedAdminInHouseBatchesRoute: AuthenticatedAdminInHouseBatchesRoute,
   AuthenticatedAdminInterestsRoute: AuthenticatedAdminInterestsRoute,
   AuthenticatedAdminJobsRoute: AuthenticatedAdminJobsRouteWithChildren,
   AuthenticatedAdminMoneyRoute: AuthenticatedAdminMoneyRoute,
@@ -2215,6 +2257,7 @@ interface AuthenticatedFieldRouteChildren {
   AuthenticatedFieldDayJobIdRoute: typeof AuthenticatedFieldDayJobIdRoute
   AuthenticatedFieldMoneyJobIdRoute: typeof AuthenticatedFieldMoneyJobIdRoute
   AuthenticatedFieldOfferOfferIdRoute: typeof AuthenticatedFieldOfferOfferIdRoute
+  AuthenticatedFieldRunRunIdRoute: typeof AuthenticatedFieldRunRunIdRoute
   AuthenticatedFieldPracticeJobIdAuditIdRoute: typeof AuthenticatedFieldPracticeJobIdAuditIdRoute
 }
 
@@ -2242,6 +2285,7 @@ const AuthenticatedFieldRouteChildren: AuthenticatedFieldRouteChildren = {
   AuthenticatedFieldDayJobIdRoute: AuthenticatedFieldDayJobIdRoute,
   AuthenticatedFieldMoneyJobIdRoute: AuthenticatedFieldMoneyJobIdRoute,
   AuthenticatedFieldOfferOfferIdRoute: AuthenticatedFieldOfferOfferIdRoute,
+  AuthenticatedFieldRunRunIdRoute: AuthenticatedFieldRunRunIdRoute,
   AuthenticatedFieldPracticeJobIdAuditIdRoute:
     AuthenticatedFieldPracticeJobIdAuditIdRoute,
 }

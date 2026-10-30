@@ -1,3 +1,4 @@
+import { inHouseDispatchSkip } from "./in-house-suppression.server";
 // Decision 376 (approved by Jo, decision 384): the installer planning notice after a CONFIRMED safety check booking (email I71 + text). Called only
 // from booking.server `confirmBooking` (kind assessment), after the `installer_planning_notice` job-history point. Recorded
 // ONCE per installer assignment + PIESA start as `installer_planning_notified` BEFORE anything is sent. TEST jobs / TEST
@@ -12,6 +13,8 @@ import {
 type Asg = { id: string; active: boolean; business_id: string | null; profiles: { full_name: string | null; email: string | null; phone: string | null } | null; businesses: { name: string | null; email: string | null; phone: string | null; signer_mobile: string | null; onboarding_notes: string | null } | null };
 
 export async function notifyInstallerPlanning(i: { jobId: string; assignmentId: string; piesaStartIso: string }): Promise<string> {
+  const skipped = await inHouseDispatchSkip(i.jobId);
+  if (skipped) return skipped;
   try {
     const keys = installerPlanningKeys(i.assignmentId, i.piesaStartIso);
     const { data: prior } = await admin.from("workflow_events").select("id").eq("job_id", i.jobId).eq("event_type", INSTALLER_PLANNING_NOTIFIED_EVENT).contains("details", { key: keys.base }).limit(1).maybeSingle();

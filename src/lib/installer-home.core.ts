@@ -1,3 +1,4 @@
+import { inHouseTradeBookingText } from "./in-house-message.core";
 // Installer "My work" (approved mock-up M1, decision 198; decisions 36, 41, 43, 48). PURE presentation only: it
 // puts each of the installer's jobs in exactly ONE of Coming up / Action needed / In progress / Done and writes ONE "Next:" line
 // per job from facts the server has already decided (place, stage, quote status, Mitti basics, bookings).
@@ -8,6 +9,7 @@ import { installerStatusLine } from "./installer-screens.core";
 
 export type HomeGroup = "action" | "coming" | "progress" | "done" | "offer";
 export type InstallerHomeJob = {
+  inHouseDispatch?: "in_house" | "in_house_read_failed" | null;
   jobId: string;
   jobNumber: string | number | null;
   /** "5 Somerset Court, Mulgrave" (street + suburb, no postcode). */
@@ -87,6 +89,8 @@ export function installerNext(j: InstallerHomeJob): { group: HomeGroup; next: st
   if (j.quoteLine === QUOTE_SENT_LINE) return { group: "progress", next: "Next: nothing yet — owner has the quote" };
   if (j.quoteLine === QUOTE_DECLINED_LINE) return { group: "progress", next: "Next: nothing yet — owner declined the quote" };
   if (j.place === "coming_up" && j.upcoming) return { group: "coming", next: `Next: ${j.upcoming.what.toLowerCase() === "install" ? "install" : j.upcoming.what} ${fmtWeekdayDayMonth(j.upcoming.start)} at ${exactTime(j.upcoming.start)}` };
+  const heldVisit = j.inHouseDispatch ? inHouseTradeBookingText(j.stage) : null;
+  if (heldVisit) return { group: "action", next: j.inHouseDispatch === "in_house" ? `Next: ${heldVisit}` : "Visit booking details unavailable" };
   if (j.place === "needs_me") {
     const t = j.placeTitle ?? "";
     if (/suggested time/i.test(t)) return { group: "action", next: "Next: reply to the owner's suggested time" };

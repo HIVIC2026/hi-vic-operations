@@ -81,10 +81,13 @@ if (ctx?.jobId) {
 const ref = new URL(process.env["SUPABASE_URL"]!).hostname.split(".")[0];
 const storageKey = `sb-${ref}-auth-token`;
 const people: Record<string, string> = { office: "qa.office@hivic-test.example", "installer owner": installerEmail, electrician: J.TEST_ELECTRICIAN_EMAIL };
-type Step = { step: string; person: string; path: () => string | null; wait: string; button?: string; scope?: Record<string, string>; expect?: () => Promise<string | null>; severity: Row["severity"]; next: string };
-const offerId = async () => (await admin.from("partner_offers").select("id").eq("job_id", ctx!.jobId!).order("offered_at", { ascending: false }).limit(1).maybeSingle()).data?.id as string | undefined;
+/** `blocked`: a step a person can't do from the page in this walk-through — recorded BLOCKED with the reason; nothing is
+ *  manufactured behind the page, so the steps after it are attempted on their pages and marked BLOCKED. */
+type Step = { step: string; person: string; path: () => string | null; wait: string; button?: string; scope?: Record<string, string>; expect?: () => Promise<string | null>; severity: Row["severity"]; next: string; blocked?: string };
+// A48 batch 2: the installer's run for this job (Jo's "Send to installer"), once there is one.
+const runIdOf = async () => ((await admin.from("workflow_events").select("details").eq("job_id", ctx!.jobId!).eq("event_type", "run_offered").order("created_at").limit(1).maybeSingle()).data?.details as { run_id?: string } | null)?.run_id;
 const stageIs = (...s: string[]) => async () => { const st = (await jobState()).stage; return st && s.includes(st) ? null : `stage is ${st}, expected ${s.join(" or ")}`; };
-let offer: string | undefined;
+let run: string | undefined;
 const noticeAcked = async () => {
   const { data: w } = await admin.from("partner_workers").select("id, business_id, email, trade_role").eq("email", installerEmail).is("removed_at", null);
   if (!w?.length) return false;
@@ -98,12 +101,20 @@ const STEPS: Step[] = [
   // Decision 130 (Jo 27 Oct): the installer accepts the ESC privacy notice themself, on their phone, through the real page.
   { step: "Installer accepts the ESC privacy notice (My business → ESC privacy notice)", person: "installer owner", path: () => "/field", wait: "My business", button: "My business|ESC privacy notice|tick:|Save acknowledgements", severity: "Stop launch", next: "acknowledg",
     expect: async () => (await noticeAcked()) ? null : "no acknowledgement recorded for the TEST Bravo installer" },
-  { step: "Office release (Choose installer → Release)", person: "office", path: () => `/admin/jobs/${ctx!.jobId}`, wait: ctx?.jobNumber ?? "HV-", button: "Choose installer|Release", scope: { Release: "TEST Bravo Insulation" }, severity: "Stop launch", next: "Choose installer",
-    expect: async () => (await admin.from("workflow_events").select("id").eq("job_id", ctx!.jobId!).eq("event_type", "spot_released").limit(1).maybeSingle()).data ? null : "no spot release recorded" },
-  { step: "Owner confirms released spot", person: "homeowner", path: () => `/my-job/${ctx!.token}?screen=turn`, wait: "Ready Check", button: "Yes, I'd still like my free Ready Check", severity: "Stop launch", next: "Ready Check", expect: async () => (offer = await offerId()) ? null : "no installer offer created after owner confirmation" },
-  { step: "Installer acceptance", person: "installer owner", path: () => offer ? `/field/offer/${offer}` : null, wait: "Ready Check", button: "Accept this job", severity: "Stop launch", next: "Ready Check",
-    expect: async () => (await admin.from("partner_offers").select("status").eq("id", offer!).single()).data?.status === "accepted" ? null : "offer not accepted" },
-  { step: "Ready Check booking", person: "homeowner", path: () => `/my-job/${ctx!.token}`, wait: "Your progress", button: "time:", severity: "Stop launch", next: "time", expect: stageIs("ready_check_scheduled") },
+  // A48 batch 2 (Jo 30 Oct): website owners no longer get the one-by-one Release ("It's your turn"). Jo sends an AREA BATCH
+  // (Choose installer → Suggested batches → Send), owners answer the quick taps, the batch closes on day 3, Jo taps "Send to
+  // installer", the installer picks the run day (Portal books) and the owner confirms their window on My job.
+  { step: "Office batch Send (Choose installer → Suggested batches → Send)", person: "office", path: () => `/admin/jobs/${ctx!.jobId}`, wait: ctx?.jobNumber ?? "HV-", severity: "Stop launch", next: "Choose installer",
+    blocked: "The TEST office login doesn't show Suggested batches (A48 batch 2 ruling: no access change without Jo), so a person can't send this TEST home's batch from the page. No batch was made behind the page." },
+  { step: "Owner quick taps (name, address, 4 taps on My job)", person: "homeowner", path: () => `/my-job/${ctx!.token}?screen=taps`, wait: "Is this your full name", button: "Yes|Yes|Yes|Sloped|No|Yes, let's go", severity: "Stop launch", next: "",
+    expect: async () => (await admin.from("workflow_events").select("id").eq("job_id", ctx!.jobId!).eq("event_type", "quick_taps_answered").contains("details", { outcome: "pass" }).limit(1).maybeSingle()).data ? null : "no quick taps pass recorded" },
+  { step: "Day-3 batch close (15-minute tick, 72 hours after Send)", person: "system", path: () => null, wait: "", severity: "Stop launch", next: "",
+    blocked: "Time-based tick 72 hours after Send; the walk-through can't wait or move the clock, and running the sweep directly would make state behind the page. Proven in tests/journey-a2-complete-route-db.test.ts." },
+  { step: "Office Send to installer (Choose installer → Ready to send)", person: "office", path: () => `/admin/jobs/${ctx!.jobId}`, wait: ctx?.jobNumber ?? "HV-", severity: "Stop launch", next: "Choose installer",
+    blocked: "The TEST office login is refused \"Send to installer\" (offerRunFn: TEST office can't send runs). No run was made behind the page." },
+  { step: "Installer picks the run day (run page → Portal books)", person: "installer owner", path: () => run ? `/field/run/${run}` : null, wait: "Pick your day", button: "Portal books", severity: "Stop launch", next: "Pick your day",
+    expect: async () => (await admin.from("workflow_events").select("id").eq("job_id", ctx!.jobId!).eq("event_type", "run_slot_proposed").limit(1).maybeSingle()).data ? null : "no Ready Check window given to the owner (the runner doesn't pick a day tile yet)" },
+  { step: "Owner confirms their Ready Check window (My job → Confirm)", person: "homeowner", path: () => `/my-job/${ctx!.token}`, wait: "Ready Check", button: "Confirm", severity: "Stop launch", next: "Ready Check", expect: stageIs("ready_check_scheduled") },
   { step: "Ready Check start and simulated form handoff", person: "installer owner", path: () => `/field/day/${ctx!.jobId}`, wait: "Ready Check", button: "prestart:", severity: "Fix soon", next: "Mitti" },
   // Jo 28 Oct 23:00: the TEST office presses "Check & send", then confirms with "Send quote" (TEST sends stay held).
   { step: "Office sends the quote (Check & send → Send quote)", person: "office", path: () => `/admin/jobs/${ctx!.jobId}`, wait: ctx?.jobNumber ?? "HV-", button: "Check & send|Send quote", severity: "Stop launch", next: "Quote",
@@ -317,9 +328,11 @@ if (!ctx?.jobId || !safe) {
 } else {
   let broken = false; let n = 1;
   for (const s of STEPS) {
+    if (s.step.startsWith("Installer picks the run day")) run = await runIdOf();
     const path = s.path();
     if (s.step.startsWith("Installer accepts the ESC") && await noticeAcked()) { add({ step: s.step, person: s.person, status: "pass", detail: "Already acknowledged by the installer on an earlier run (append-only record); nothing to press." }); n++; continue; }
-    if (!path) { add({ step: s.step, person: s.person, status: "blocked", detail: "Prerequisite record missing (no offer)." }); n++; continue; }
+    if (s.blocked) { add({ step: s.step, person: s.person, status: "blocked", detail: s.blocked }); broken = true; n++; continue; }
+    if (!path) { add({ step: s.step, person: s.person, status: "blocked", detail: "Prerequisite record missing (no run sent to the installer)." }); broken = true; n++; continue; }
     const r = await browse({ n, slug: s.step.toLowerCase().replace(/[^a-z]+/g, "-"), path, wait: s.wait, button: s.button, scope: s.scope, person: s.person, next: s.next });
     const st = await jobState();
     const runnerErr = !r ? "browser step crashed" : r.runner_error ?? null;

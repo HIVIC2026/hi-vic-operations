@@ -74,7 +74,9 @@ export async function resolveOwnerJob(token: unknown) {
   const paid = (invoices ?? []).reduce((s, i) => s + n(i.total_paid ?? i.amount_paid), 0);
   const quoteOpen = quote?.status === "issued" && (stage === "awaiting_quote_acceptance" || stage === "measured_estimate_ready") ? { expiresAt: quote.sent_at ? new Date(new Date(quote.sent_at).getTime() + 14 * 86400_000).toISOString() : null } : null;
   const bookingOpen = ["measured_quote_accepted", "piesa_and_install_window_pending", "installation_scheduling"].includes(stage);
+  const inHouseDispatch = await (await import("./in-house-suppression.server")).inHouseDispatchSkip(jobId);
   const action = ownerAction({ stage, readyCheckRequested: !!rc?.accepted_at, visit: upcoming?.scheduled_start ? { kind: upcoming.kind, startsAt: upcoming.scheduled_start } : null, quoteOpen, bookingOpen });
+  if (inHouseDispatch && action.button?.screen === "book") { action.button = null; action.title = ""; action.sentence = ""; }
   const hero = ownerHero(stage, rebate);
   const done = (bookings ?? []).filter((b) => b.status === "completed");
   const doneAt = (kind: string) => done.find((b) => b.kind === kind)?.scheduled_start ?? null;
@@ -106,6 +108,7 @@ export async function resolveOwnerJob(token: unknown) {
   } : null;
   const limits = (ws?.office_time_limits ?? {}) as Record<string, unknown>;
   return {
+    inHouseDispatch,
     jobNumber: j.job_number, firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null,
     address: formatPropertyAddress(j.properties as never) || null, stage, hero, action, trade: upcoming ? trade : null,
     visit: upcoming ? { kind: upcoming.kind, startsAt: upcoming.scheduled_start } : null, progress,
@@ -159,6 +162,8 @@ export async function cancelOwnerJob(token: unknown): Promise<{ ok: boolean; rea
   }
   // Stage 5 (Jo 23 Oct): cancelling the job releases its Mitti Ready Check form too.
   if (bk?.some((b) => b.kind === "ready_check")) await (await import("./mitti-pickup.server")).releaseReadyCheckFormOnCancel(l.job_id, null, "owner cancelled the job").catch(() => undefined);
+  // A48 batch 2 Task 8: a confirmed window in an installer's run → the installer is told once and can fill it (best-effort).
+  try { await (await import("./installer-run.server")).runOwnerCancelled(l.job_id); } catch (e) { console.error("run cancel hook skipped", (e as Error).message); }
   const { logEvent } = await import("./workflow.server");
   await logEvent(l.job_id, null, "owner_cancelled_job", "Owner cancelled their job from My job (before the Pre Insulation Electrical Safety Assessment (PIESA) was booked). No charge.", { bookings_cancelled: bk?.length ?? 0, trades_to_notify: true }, { internal: true });
   return { ok: true };

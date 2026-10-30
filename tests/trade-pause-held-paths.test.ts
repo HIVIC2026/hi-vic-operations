@@ -43,6 +43,7 @@ mock.module("../src/lib/workflow.server", () => ({
 }));
 let paused: string | null = "Trade messages paused";
 mock.module("../src/lib/trade-pause.server", () => ({ tradeMessagesPausedNow: async () => paused }));
+mock.module("../src/lib/in-house-suppression.server", () => ({ inHouseDispatchSkip: async () => null, readInHouseDispatchState: async () => ({ held: new Set<string>(), failed: false }) }));
 const sms: { type: string; key: string }[] = [];
 const emails: string[] = [];
 mock.module("../src/lib/sms.server", () => ({ sendRealSms: async (p: { type: string; idempotencyKey: string }) => { sms.push({ type: p.type, key: p.idempotencyKey }); return { status: "sent", detail: "ok", sid: "x" }; } }));

@@ -7,6 +7,7 @@
 // it never throws, so the workflow action that called it is never broken by an email. Rules: owner-email-triggers.core.ts.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
+import { inHouseDispatchSkip } from "./in-house-suppression.server";
 import {
   OWNER_EMAIL_LABEL, OWNER_EMAIL_TRIGGER_EVENT, OWNER_REVIEW_SCREEN_READY, REVIEW_REQUEST_AFTER_DAYS, REVIEW_REQUEST_LAST_DAY, dayMonthLabel, directMoveFrom, installDayMove, ownerEmailKey, quoteReminderDue,
   reviewRequestBlocker, reviewRequestDue, safetyCheckPaidAt, weekdayDayMonthLabel, youreInDue, type OwnerEmailCode, type QuoteReminderKind,
@@ -46,6 +47,8 @@ async function safetyCheckPaid(jobId: string): Promise<number | null> {
 
 /** O26: the electrician offered PIESA time(s) to the owner (piesa-times.server.ts, decision 333; old pilot.functions.ts proposeTime). */
 export async function onSafetyCheckTimesOffered(jobId: string, startsAt: string[]): Promise<string> {
+  const skipped = await inHouseDispatchSkip(jobId);
+  if (skipped) return skipped;
   return fireOwnerEmailOnce(jobId, "O26", ownerEmailKey.safetyCheckTimes(jobId, startsAt), async () => {
     const [el, paid] = await Promise.all([electricianFor(jobId), safetyCheckPaid(jobId)]);
     const { emailOwnerSafetyCheckTimes } = await import("./approved-owner-emails.server");
@@ -55,6 +58,8 @@ export async function onSafetyCheckTimesOffered(jobId: string, startsAt: string[
 
 /** O26 booked version: the PIESA visit is booked (booking.server.ts confirmBooking, kind assessment). */
 export async function onSafetyCheckBooked(jobId: string, startIso: string, changed: boolean): Promise<string> {
+  const skipped = await inHouseDispatchSkip(jobId);
+  if (skipped) return skipped;
   return fireOwnerEmailOnce(jobId, "O26_booked", ownerEmailKey.safetyCheckBooked(jobId, startIso), async () => {
     const el = await electricianFor(jobId);
     const { emailOwnerSafetyCheckBooked } = await import("./approved-owner-emails.server");
@@ -66,6 +71,8 @@ export async function onSafetyCheckBooked(jobId: string, startIso: string, chang
 
 /** O29: the office sent the reviewed electrical fixes quote (allocation.functions.ts sendRectificationQuote). */
 export async function onFixesQuoteIssued(jobId: string, quoteId: string): Promise<string> {
+  const skipped = await inHouseDispatchSkip(jobId);
+  if (skipped) return skipped;
   return fireOwnerEmailOnce(jobId, "O29", ownerEmailKey.fixesQuote(quoteId), async () => {
     const { piesaStatus } = await import("./workflow.server");
     const [{ data: q }, { data: items }, { data: found }, el, ps] = await Promise.all([
@@ -97,6 +104,8 @@ async function balanceAfterSafetyCheck(jobId: string): Promise<number | null> {
 
 /** O33: the installer offered install days (install-days.server.ts installerOfferDays). `deadline` = YYYY-MM-DD install-by. */
 export async function onInstallDaysOffered(jobId: string, startsAt: string[], deadline: string | null): Promise<string> {
+  const skipped = await inHouseDispatchSkip(jobId);
+  if (skipped) return skipped;
   return fireOwnerEmailOnce(jobId, "O33", ownerEmailKey.installDays(jobId, startsAt), async () => {
     const balance = await balanceAfterSafetyCheck(jobId);
     const { emailOwnerInstallDays } = await import("./approved-owner-emails.server");
@@ -123,6 +132,8 @@ export async function installDayMoveFor(jobId: string, newStart: string): Promis
 
 /** O42: a booked install day moved from `wasIso` to `startIso`. */
 export async function onInstallDayMoved(jobId: string, startIso: string, wasIso: string): Promise<string> {
+  const skipped = await inHouseDispatchSkip(jobId);
+  if (skipped) return skipped;
   return fireOwnerEmailOnce(jobId, "O42", ownerEmailKey.installDayChanged(jobId, startIso), async () => {
     const { emailOwnerInstallDayChanged } = await import("./approved-owner-emails.server");
     return emailOwnerInstallDayChanged(jobId, startIso, wasIso);
@@ -154,6 +165,8 @@ async function signedAcceptanceAttachment(jobId: string, jobNumber: string | nul
  * the step; the signed acceptance PDF is attached when it can be read.
  */
 export async function onSafetyCheckPaid(jobId: string, invoiceId: string): Promise<string> {
+  const skipped = await inHouseDispatchSkip(jobId);
+  if (skipped) return skipped;
   try {
     const { jobPaymentView } = await import("./payments.server");
     const v = await jobPaymentView(jobId);

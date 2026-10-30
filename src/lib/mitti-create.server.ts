@@ -25,7 +25,9 @@ async function generationOf(jobId: string, kind: MittiFormKind): Promise<number>
 }
 
 async function insertClaim(jobId: string, kind: MittiFormKind, gen: number, actorId: string | null, summary: string, details: Record<string, unknown>) {
-  const id = await claimEventId(jobId, kind, gen);
+  // Only verified in-house creators supply a round; legacy claims remain keyed on jobId.
+  const rectificationScope = kind === "fixes" ? details["rectification_round"] : null;
+  const id = await claimEventId(rectificationScope ? `${jobId}:${rectificationScope}` : jobId, kind, gen);
   const { error } = await admin.from("workflow_events").insert({ id, job_id: jobId, actor_id: actorId, event_type: CLAIM_EVENT, summary, details: { ...details, kind, generation: gen } as never, internal: true });
   if (!error) return { ok: true as const, id };
   if (isUniqueViolation(error)) return { ok: false as const, id };

@@ -1,6 +1,11 @@
 // Batch 2 task 3: sendAiDraft re-checks the spot-only rule against the CURRENT release state. Own file because it mocks modules.
 import { afterAll, describe, expect, mock, test } from "bun:test";
 
+// Jo 30 Oct 2026: no real AI in this file. Where an AI key is set (the Lovable sandbox) the AI fix call cleaned the draft,
+// leaving no problems to assert on; without it the draft keeps its problems, so the refusal is checked the same everywhere.
+const savedAiKey = process.env["LOVABLE_API_KEY"];
+delete process.env["LOVABLE_API_KEY"];
+
 const realClient = { ...(await import("../src/integrations/supabase/client.server")) };
 const realRelease = { ...(await import("../src/lib/spot-release.server")) };
 const realTestSend = { ...(await import("../src/lib/test-send.server")) };
@@ -27,6 +32,7 @@ mock.module("../src/lib/outlook-sync.server", () => ({ archiveOutlookMessage: as
 // Emails-tab replies now go through Outlook via sendGuardedOwnerEmail (email-sent-visibility); count sends there too.
 mock.module("../src/lib/owner-email-send.server", () => ({ sendGuardedOwnerEmail: async () => { world.sent++; return "sent"; } }));
 afterAll(() => {
+  if (savedAiKey !== undefined) process.env["LOVABLE_API_KEY"] = savedAiKey;
   mock.module("@/integrations/supabase/client.server", () => realClient);
   mock.module("../src/lib/spot-release.server", () => realRelease);
   mock.module("../src/lib/test-send.server", () => realTestSend);

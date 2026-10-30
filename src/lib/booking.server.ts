@@ -10,13 +10,6 @@ export type BookingKind = "assessment" | "ready_check" | "rectification" | "inst
 
 export async function confirmBooking(jobId: string, kind: BookingKind, start: string, actorId: string, roleLabel: string, notes?: string | null) {
   const need = kind === "installation" || kind === "ready_check" ? "installer" : "electrician";
-  if (kind === "ready_check") {
-    // Jo 30 Oct 2026 (HV-3542): never booked while the owner's street is missing — owner, installer and office override alike.
-    const { data: j } = await admin.from("jobs").select("properties(address_line)").eq("id", jobId).maybeSingle();
-    const line = (j as unknown as { properties: { address_line: string | null } | null } | null)?.properties?.address_line ?? null;
-    const noStreet = (await import("./address-request.core")).noStreetBlock(line);
-    if (noStreet) throw new WorkflowError(noStreet);
-  }
   const stage = await getStage(jobId);
   const map: Record<BookingKind, [Stage[], Stage]> = {
     // "assessment" booking kind = the PIESA visit (legacy enum name). Only after the PIESA gate.
@@ -66,7 +59,19 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
   if (kind !== "ready_check") { const cb = await commercialBlocker(jobId); if (cb) throw new WorkflowError(`Blocked: ${cb}`); }
   if (kind !== "ready_check") { const g = await paymentGate(jobId); if (!g.cleared) throw new WorkflowError(`Blocked: ${g.blocker}`); }
   // Decision 366 (audit F03): the electrical fixes are paid in full before their visit is booked (every booking path).
-  if (kind === "rectification") { const fb = await (await import("./payments.server")).fixesPaymentBlockerFor(jobId); if (fb) throw new WorkflowError(`Blocked: ${fb}`); }
+  if (kind === "rectification") {
+    const { readInHouseDispatchState } = await import("./in-house-suppression.server");
+    const { partnerBillsRectification } = await import("./in-house.core");
+    const state = await readInHouseDispatchState([jobId]);
+    if (state.failed) throw new WorkflowError("Couldn't check the job's partner — please try again.");
+    let partnerBilled = false;
+    if (state.held.has(jobId)) {
+      const { data: installer, error } = await admin.from("job_assignments").select("businesses(in_house, rectification_billed_by)").eq("job_id", jobId).eq("role", "installer").eq("active", true).single();
+      if (error || !installer?.businesses) throw new WorkflowError("Couldn't check the job's partner — please try again.");
+      partnerBilled = partnerBillsRectification(installer.businesses as unknown as import("./in-house.core").InHouseBusiness);
+    }
+    if (!partnerBilled) { const blocker = await (await import("./payments.server")).fixesPaymentBlockerFor(jobId); if (blocker) throw new WorkflowError(`Blocked: ${blocker}`); }
+  }
   // Jo 26 Oct 2026: the install is booked only after the 10% install deposit is paid (the PIESA fee never unlocks it).
   if (kind === "installation") { const db = await (await import("./payments.server")).installDepositBlockerFor(jobId); if (db) throw new WorkflowError(`Blocked: ${db}`); }
   { const { jobDeletedBlocker } = await import("./job-live.server"); const del = await jobDeletedBlocker(jobId); if (del) throw new WorkflowError(del); }

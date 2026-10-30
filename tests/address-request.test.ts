@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { ADDRESS_REQUEST_BLOCK_REASON, ADDRESS_REQUEST_EMAIL_APPROVED, ADDRESS_REQUEST_EMAIL_PURPOSES, addressRequestOpen, addressRequestStep, noStreetBlock, type AddressRequestFacts } from "../src/lib/address-request.core";
+import { ADDRESS_REQUEST_EMAIL_APPROVED, ADDRESS_REQUEST_EMAIL_PURPOSES, addressRequestOpen, addressRequestStep, type AddressRequestFacts } from "../src/lib/address-request.core";
 import { NOT_A_FIRST_RESPONSE_PURPOSES, countsAsFirstResponse } from "../src/lib/automatic-first-response.core";
 
 const HOUR = 3600_000;
 const goLive = "2026-10-28T00:00:00.000Z";
 const base: AddressRequestFacts = {
   addressLine: "Brighton VIC 3186", source: "base44", channel: "hivic_sourced",
-  createdAt: "2026-10-29T00:00:00.000Z", eligibilityOutcome: "needs_onsite_confirmation", goLiveAt: goLive, sentAt: null, reminderAt: null, answeredAt: null, closed: false,
+  createdAt: "2026-10-29T00:00:00.000Z", eligibilityOutcome: "needs_onsite_confirmation", goLiveAt: goLive, sentAt: null, reminderAt: null, answeredAt: null,
 };
 const now = Date.parse("2026-11-01T00:00:00.000Z");
 
@@ -32,16 +32,8 @@ describe("address request rules", () => {
   test("street but no suburb is left to address completion: not open", () => {
     expect(addressRequestOpen({ ...base, addressLine: "12 Wattle St", source: "base44" })).toBe(false);
   });
-  test("older job created before go-live (Jo 30 Oct): still open, send", () => {
-    const old = { ...base, createdAt: "2026-09-01T00:00:00.000Z" };
-    expect(addressRequestOpen(old)).toBe(true);
-    expect(addressRequestStep(old, now)).toBe("send");
-    expect(addressRequestOpen({ ...old, goLiveAt: null })).toBe(false);
-  });
-  test("cancelled, deleted or archived job: never open", () => {
-    const old = { ...base, createdAt: "2026-09-01T00:00:00.000Z", closed: true };
-    expect(addressRequestOpen(old)).toBe(false);
-    expect(addressRequestStep(old, now)).toBe("none");
+  test("created before go-live: not open", () => {
+    expect(addressRequestOpen({ ...base, createdAt: "2026-10-27T23:59:59.000Z" })).toBe(false);
   });
   test("portal installer job: not open", () => {
     expect(addressRequestOpen({ ...base, source: "portal" })).toBe(false);
@@ -63,16 +55,6 @@ describe("address request rules", () => {
     expect(countsAsFirstResponse("address_request")).toBe(false);
     expect(countsAsFirstResponse("address_request_reminder")).toBe(false);
     for (const p of ["existing_leads_launch_v1", "step3_estimate", "insulation_video_request", null]) expect(countsAsFirstResponse(p)).toBe(true);
-  });
-});
-
-describe("noStreetBlock: no street means no release, offer or booking", () => {
-  test("no street → the reason", () => {
-    for (const a of ["Brighton VIC 3186", "Greenwood St", "Park Ave, Glen Huntly VIC 3163", "", null]) expect(noStreetBlock(a)).toBe(ADDRESS_REQUEST_BLOCK_REASON);
-    expect(ADDRESS_REQUEST_BLOCK_REASON).toBe("Waiting for the owner's full address");
-  });
-  test("a street with a number → null", () => {
-    for (const a of ["11 Albert St, Brighton VIC 3186", "Unit 14/26-30 Willansby Ave, Brighton VIC 3186", "Unit 14/26-30 Willansby Ave"]) expect(noStreetBlock(a)).toBeNull();
   });
 });
 

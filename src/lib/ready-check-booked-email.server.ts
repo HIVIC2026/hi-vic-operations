@@ -1,3 +1,4 @@
+import { inHouseDispatchSkip } from "./in-house-suppression.server";
 // Decision 80 (Jo 24 Oct 2026): "You're booked" to the owner after an our-lead Ready Check is booked or changed.
 // Best-effort: never blocks the booking. TEST jobs get the email through test-send; real owners only with the flag on
 // (decision 81) AND customer messages on, through the one guarded owner-email path. No text is sent from here. One email
@@ -7,6 +8,8 @@ import { logEvent } from "./workflow.server";
 
 /** Jo 29 Oct 2026 (HV-3542): every not-sent outcome, including a thrown error, is recorded for the office (no silent skips). */
 export async function emailOwnerReadyCheckBooked(jobId: string, startIso: string): Promise<string> {
+  const skipped = await inHouseDispatchSkip(jobId);
+  if (skipped) return skipped;
   let outcome: string;
   try { outcome = await attemptBookedEmail(jobId, startIso); } catch (e) { outcome = `error — ${(e as Error).message}`; }
   await recordBookedNotSent(jobId, startIso, "email", outcome);

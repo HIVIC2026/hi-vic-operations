@@ -1,3 +1,4 @@
+import { inHouseDispatchSkip } from "./in-house-suppression.server";
 // Decision 315 (Jo 25 Oct 2026): the A3 PIESA sync saw the PIESA completed, repair work is needed (not fixed on the same
 // visit, not the decision-314 on-site-only answer) and no electrician fixes windows exist → text the assigned electrician
 // ONE link to their job page to pick 3–5 fixes times + estimated hours. Same shape as the decision-288 boss price link:
@@ -14,6 +15,8 @@ type JobRow = { id: string; source: string | null; deleted_at: string | null; pr
 type AsgRow = { business_id: string | null; profiles: { full_name: string | null; phone: string | null } | null; businesses: { id: string; signer_mobile: string | null; phone: string | null; onboarding_notes: string | null } | null };
 
 export async function textFixesTimesLink(jobId: string, i: { auditId: string; completedAt: string | null; short: Record<string, string | null | undefined> }): Promise<string> {
+  const skipped = await inHouseDispatchSkip(jobId);
+  if (skipped) return skipped;
   try {
     const { data: job } = await admin.from("jobs").select("id, source, deleted_at, properties(address_line, suburb)").eq("id", jobId).maybeSingle();
     const j = job as unknown as JobRow | null;

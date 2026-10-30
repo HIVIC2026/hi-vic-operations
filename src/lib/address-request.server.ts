@@ -17,11 +17,8 @@ async function firstEventAt(jobId: string, type: string): Promise<string | null>
   return data?.[0]?.created_at ?? null;
 }
 
-/** Cancelled, deleted or archived: never asked. */
-const isClosed = (j: { stage?: string | null; deleted_at?: string | null; qa_archived_at?: string | null }) => j.stage === "cancelled" || !!j.deleted_at || !!j.qa_archived_at;
-
 export async function loadAddressRequestFacts(jobId: string): Promise<AddressRequestFacts | null> {
-  const { data: job, error } = await admin.from("jobs").select("source, channel, created_at, eligibility_outcome, stage, deleted_at, qa_archived_at, properties(address_line)").eq("id", jobId).maybeSingle();
+  const { data: job, error } = await admin.from("jobs").select("source, channel, created_at, eligibility_outcome, properties(address_line)").eq("id", jobId).maybeSingle();
   if (error || !job) return null;
   const [goLiveAt, sentAt, reminderAt, answeredAt] = await Promise.all([
     readGoLiveAt(),
@@ -30,22 +27,21 @@ export async function loadAddressRequestFacts(jobId: string): Promise<AddressReq
     firstEventAt(jobId, ADDRESS_REQUEST_ANSWERED_EVENT),
   ]);
   const property = job.properties as unknown as { address_line: string | null } | null;
-  return { addressLine: property?.address_line ?? null, source: job.source ?? null, channel: job.channel ?? null, createdAt: job.created_at, eligibilityOutcome: job.eligibility_outcome ?? null, goLiveAt, sentAt, reminderAt, answeredAt, closed: isClosed(job) };
+  return { addressLine: property?.address_line ?? null, source: job.source ?? null, channel: job.channel ?? null, createdAt: job.created_at, eligibilityOutcome: job.eligibility_outcome ?? null, goLiveAt, sentAt, reminderAt, answeredAt };
 }
 
 // ---- 15-minute tick: send the request, then ONE reminder 24h later ------------------------------------------------
-// Candidates: only while address_request_live_at is set; website/email enquiries (hivic_sourced) whenever created
-// (Jo 30 Oct 2026: older jobs too), not deleted, archived, cancelled or complete. The pure rule (addressRequestStep) decides per job. Email through the one guarded
+// Candidates: only while address_request_live_at is set; website/email enquiries (hivic_sourced) created since go-live,
+// not deleted, not cancelled/complete. The pure rule (addressRequestStep) decides per job. Email through the one guarded
 // owner-email path; text through the one real SMS sender (switch, wording approval, quiet hours, consent, STOP live there).
 // The event is logged once per step; the 24h reminder clock runs from the request event. A text held only for quiet hours
 // (8pm–7am) is tried again on later ticks under the SAME key until it goes, without a second event.
 
 export type AddressRequestSweep = { sent: number; reminded: number };
-type Candidate = { id: string; source: string | null; channel: string | null; created_at: string; eligibility_outcome: string | null; stage: string | null; deleted_at: string | null; qa_archived_at: string | null; owners: { email: string | null; phone: string | null } | null; properties: { address_line: string | null } | null };
+type Candidate = { id: string; source: string | null; channel: string | null; created_at: string; eligibility_outcome: string | null; owners: { email: string | null; phone: string | null } | null; properties: { address_line: string | null } | null };
 type EventRow = { job_id: string; event_type: string; created_at: string };
-/** At most this many jobs are actually messaged per tick (a job with no usable owner link doesn't use one up).
- *  5 (Jo 30 Oct 2026) so the first run on the older jobs doesn't send them all at once. */
-const SWEEP_BATCH = 5;
+/** At most this many jobs are actually messaged per tick (a job with no usable owner link doesn't use one up). */
+const SWEEP_BATCH = 50;
 /** Owner-link checks per tick (each may prepare a link), so jobs that can't get a link never starve the rest for long. */
 const LINK_CHECK_CAP = 150;
 
@@ -117,15 +113,15 @@ export async function sweepAddressRequests(now: number = Date.now(), opts: { app
 
   const jobs: Candidate[] = [];
   for (let from = 0; ; from += 1000) {
-    const { data, error } = await loose.from("jobs").select("id, source, channel, created_at, eligibility_outcome, stage, deleted_at, qa_archived_at, owners(email, phone), properties(address_line)")
-      .in("source", ["base44", "email"]).eq("channel", "hivic_sourced").is("deleted_at", null).is("qa_archived_at", null)
+    const { data, error } = await loose.from("jobs").select("id, source, channel, created_at, eligibility_outcome, owners(email, phone), properties(address_line)")
+      .in("source", ["base44", "email"]).eq("channel", "hivic_sourced").gte("created_at", goLiveAt).is("deleted_at", null)
       .not("stage", "in", "(cancelled,complete)").order("created_at", { ascending: true }).order("id").range(from, from + 999);
     if (error) throw new Error(`Could not read enquiries for the address request: ${error.message}`);
     jobs.push(...((data ?? []) as unknown as Candidate[]));
     if (!data || data.length < 1000) break;
   }
   // Cheap pure filter first (no street), so the event read only covers jobs that could be waiting.
-  const noStreet = jobs.filter((j) => C.addressRequestOpen({ addressLine: j.properties?.address_line ?? null, source: j.source, channel: j.channel, createdAt: j.created_at, eligibilityOutcome: j.eligibility_outcome ?? null, goLiveAt, sentAt: null, reminderAt: null, answeredAt: null, closed: isClosed(j) }));
+  const noStreet = jobs.filter((j) => C.addressRequestOpen({ addressLine: j.properties?.address_line ?? null, source: j.source, channel: j.channel, createdAt: j.created_at, eligibilityOutcome: j.eligibility_outcome ?? null, goLiveAt, sentAt: null, reminderAt: null, answeredAt: null }));
   if (!noStreet.length) return out;
   const { readByJobIds } = await import("./sweep-batch.server");
   const ids = noStreet.map((j) => j.id);
@@ -136,7 +132,7 @@ export async function sweepAddressRequests(now: number = Date.now(), opts: { app
   const work: Work[] = [];
   const retryCandidates: { job: Candidate; reminder: boolean }[] = [];
   for (const j of noStreet) {
-    const f: AddressRequestFacts = { addressLine: j.properties?.address_line ?? null, source: j.source, channel: j.channel, createdAt: j.created_at, eligibilityOutcome: j.eligibility_outcome ?? null, goLiveAt, closed: isClosed(j),
+    const f: AddressRequestFacts = { addressLine: j.properties?.address_line ?? null, source: j.source, channel: j.channel, createdAt: j.created_at, eligibilityOutcome: j.eligibility_outcome ?? null, goLiveAt,
       sentAt: first(j.id, ADDRESS_REQUEST_SENT_EVENT), reminderAt: first(j.id, ADDRESS_REQUEST_REMINDER_EVENT), answeredAt: first(j.id, ADDRESS_REQUEST_ANSWERED_EVENT) };
     if (!C.addressRequestOpen(f)) continue;
     const step = C.addressRequestStep(f, now);
