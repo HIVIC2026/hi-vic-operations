@@ -422,6 +422,7 @@ function BookPickers({ token }: { token: string }) {
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
   if (repeat) return <RepeatPiesaCard token={token} />;
   if (!data) return null;
+  if (data.inHouseDispatch) return <>{data.piesa.booked && <p className="text-sm font-semibold">Pre Insulation Electrical Safety Assessment (PIESA) · {visitPill(data.piesa.booked.startsAt)}</p>}{data.install.bookedAt && <p className="text-sm font-semibold">Install · {visitPill(data.install.bookedAt)}</p>}</>;
   const installMove = data.install.turn === "owner_to_answer";
   // Decision 333: the electrician offers the safety check times; the owner taps one or suggests days (old jobs keep the old picker).
   const pt = data.piesaTimes as { applies: boolean; turn: string; open: { id: string; starts_at: string }[]; days: string[]; thirtyDayAck: { needed: boolean; wording: string } } | undefined;
@@ -756,14 +757,14 @@ function FixesScreen({ v, token }: { v: View; token: string }) {
         <DeclineQuote token={token} quoteId={q.id} />
       </div>}
       {data.step === "pay" && <><p className="text-sm font-semibold">{OWNER_FIXES_COPY.pay}</p><PayNowCard v={v} token={token} /></>}
-      {data.step === "pick" && <div data-testid="fixes-pick" className="space-y-2">
+      {!v.inHouseDispatch && data.step === "pick" && <div data-testid="fixes-pick" className="space-y-2">
         <p className="text-sm font-semibold">{OWNER_FIXES_COPY.pick}</p>
         {data.windows.map((w) => <label key={w.id} className="flex min-h-12 items-center gap-3 rounded-2xl border border-estimate-line bg-card px-4 text-sm font-semibold"><input type="radio" name="fixes-time" checked={chosen === w.id} onChange={() => setChosen(w.id)} />{formatPiesaTime(w.startsAt)}</label>)}
         {needCode && !session && <div className="mt-4"><OwnerCodeGate token={token} onVerified={(s) => { setSession(s); setNeedCode(false); }} /></div>}
         <LockedButton ready={!!chosen} busy={busy} busyLabel="Booking…" onClick={() => void run((s) => pick({ data: { token, session: s, proposalId: chosen! } }))}>{OWNER_FIXES_COPY.pickButton}</LockedButton>
       </div>}
-      {data.step === "waiting_times" && <p className="rounded-[14px] bg-estimate-mist px-4 py-3 text-sm">{OWNER_FIXES_COPY.waitingTimes}</p>}
-      {data.step === "booking" && <p className="rounded-[14px] bg-estimate-mist px-4 py-3 text-sm">{OWNER_FIXES_COPY.booking}</p>}
+      {!v.inHouseDispatch && data.step === "waiting_times" && <p className="rounded-[14px] bg-estimate-mist px-4 py-3 text-sm">{OWNER_FIXES_COPY.waitingTimes}</p>}
+      {!v.inHouseDispatch && data.step === "booking" && <p className="rounded-[14px] bg-estimate-mist px-4 py-3 text-sm">{OWNER_FIXES_COPY.booking}</p>}
       {data.step === "booked" && data.bookedAt && <p data-testid="fixes-booked" className="rounded-[14px] bg-estimate-mint px-4 py-3 text-center text-sm font-bold text-estimate-green">{OWNER_FIXES_COPY.booked(formatPiesaTime(data.bookedAt))}</p>}
       {data.step === "declined" && <p className="rounded-[14px] bg-estimate-mist px-4 py-3 text-sm">{OWNER_FIXES_COPY.declined}</p>}
       {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
@@ -779,6 +780,7 @@ function FixesNote() {
 
 function BookScreen({ v, token }: { v: View; token: string }) {
   const today = melbourneToday();
+  if (v.inHouseDispatch) return <><Back token={token} /><PayNowCard v={v} token={token} /><BookPickers token={token} /></>;
   return <>
     <Back token={token} />
     <Hero v={v} level={HOUSE_LEVEL.book_visits} size="sm" headline={ownerHeadline("booking_visits", v.numbers.rebate)} />

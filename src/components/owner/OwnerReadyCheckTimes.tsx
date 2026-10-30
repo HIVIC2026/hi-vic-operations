@@ -9,7 +9,7 @@ import { ownerChangeReadyCheckFn, ownerReadyCheckTimesFn, ownerSuggestReadyCheck
 import { READY_CHECK_OWNER_SUGGEST_MAX, formatReadyCheckTime } from "@/lib/ready-check-times.core";
 
 const dayLabel = (ymd: string) => new Intl.DateTimeFormat("en-AU", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${ymd}T12:00:00Z`));
-type State = { applies: boolean; allowed?: boolean; turn?: string; bookedAt?: string | null; canChange?: boolean; open?: { id: string; starts_at: string; by: string }[]; days?: string[] } | null;
+type State = { inHouseDispatch?: string | null; applies: boolean; allowed?: boolean; turn?: string; bookedAt?: string | null; canChange?: boolean; open?: { id: string; starts_at: string; by: string }[]; days?: string[] } | null;
 
 export function OwnerReadyCheckTimes({ token }: { token: string }) {
   const load = useServerFn(ownerReadyCheckTimesFn);
@@ -24,6 +24,7 @@ export function OwnerReadyCheckTimes({ token }: { token: string }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   if (!data?.applies || !data.allowed) return null;
+  if (data.inHouseDispatch) return data.bookedAt ? <p className="text-sm font-semibold">Ready Check · {formatReadyCheckTime(data.bookedAt)}</p> : null;
   const go = async (f: () => Promise<unknown>) => { setErr(""); setBusy(true); try { await f(); setDays([]); setSuggesting(false); await refetch(); } catch (e) { setErr(e instanceof Error ? e.message : "That didn't work. Please try again."); } finally { setBusy(false); } };
   const tile = (on: boolean) => `min-h-12 rounded-2xl border px-3 text-sm font-bold ${on ? "border-estimate-green bg-estimate-mint" : "border-estimate-line bg-card"}`;
   const box = "rounded-[22px] bg-card p-5 text-sm shadow-sm";

@@ -50,11 +50,11 @@ function OwnerJob() {
         <OwnerAssignmentCard jobId={jobId} />
         <QuotesPanel jobId={jobId} canRespond />
         <PaymentsPanel jobId={jobId} isAdmin={false} />
-        {(s === "measured_quote_accepted" || s === "piesa_and_install_window_pending") && <PiesaTimesCard jobId={jobId} />}
-        {["ready_check_scheduled", "piesa_scheduled", "rectification_booked", "installation_booked"].includes(s ?? "") && <OwnerVisitChangeCard jobId={jobId} />}
-        {s === "installation_scheduling" && <OwnerInstallDaysCard jobId={jobId} />}
-        {bookKind && bookKind !== "installation" && job.deposit_cleared && <BookingPanel jobId={jobId} kind={bookKind} canBook />}
-        {s === "installation_booked" && job.deposit_cleared && <BookingPanel jobId={jobId} kind="installation" canBook />}
+        {(s === "measured_quote_accepted" || s === "piesa_and_install_window_pending") && !job.inHouseDispatch && <PiesaTimesCard jobId={jobId} />}
+        {["ready_check_scheduled", "piesa_scheduled", "rectification_booked", "installation_booked"].includes(s ?? "") && !job.inHouseDispatch && <OwnerVisitChangeCard jobId={jobId} />}
+        {s === "installation_scheduling" && !job.inHouseDispatch && <OwnerInstallDaysCard jobId={jobId} />}
+        {bookKind && bookKind !== "installation" && job.deposit_cleared && <BookingPanel jobId={jobId} kind={bookKind} canBook={!job.inHouseDispatch} />}
+        {s === "installation_booked" && job.deposit_cleared && <BookingPanel jobId={jobId} kind="installation" canBook={!job.inHouseDispatch} />}
         {job.installer_name && !["assessment_booking", "assessment_booked", "awaiting_electrician"].includes(s) && <ChangeTrade jobId={jobId} />}
         <DocumentsPanel jobId={jobId} />
         <VisitContactsCard jobId={jobId} />

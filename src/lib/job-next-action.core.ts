@@ -1,3 +1,4 @@
+import { inHouseTradeBookingText } from "./in-house-message.core";
 // O2 Job page "Next" panel (decision 218: ONE Next panel, one sentence, one button; 223). Whose move it is, one
 // sentence, at most one button, plus "Blocked because …" when the office cannot act yet. PURE: built from the same
 // facts as Needs me (office-needs.core) and the office status (office-status.core), so the two can never disagree.
@@ -51,6 +52,8 @@ export function nextAction(i: NextInput, now: number): NextAction {
       blocked: i.blockers?.length ? i.blockers.join(" · ") : null,
     };
   }
+  const heldVisit = i.facts?.inHouseDispatch === "in_house" || i.facts?.inHouse ? inHouseTradeBookingText(i.stage) : null;
+  if (heldVisit) return { who: "installer", sentence: heldVisit, button: null, blocked: i.blockers?.join(" · ") || null };
   if (!i.status) return { who: "us", sentence: "This job's status could not be worked out — check its records.", button: null, blocked: null };
   // Installer's own customer at the Ready Check (decision 54): the installer arranges and does it; the office only watches.
   if (i.status.key === "ready_check.installer_own") return { who: "installer", sentence: "Installer is doing the Ready Check · nothing for the office", button: null, blocked: i.blockers?.length ? i.blockers.join(" · ") : null };

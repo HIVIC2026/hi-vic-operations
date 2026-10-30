@@ -1,3 +1,4 @@
+import { inHouseTradeBookingText } from "@/lib/in-house-message.core";
 // Installer Job page = approved mock-up M2 (Jo 24 Oct 2026, decisions 196/198): one Next panel, Quote, Ready Check,
 // Who's doing this, More. Decision 277 (Jo 25 Oct 2026): no in-portal Messages section — the installer uses Call/Text
 // and the portal sends its own automatic texts. The electrician's visit flow shares this route unchanged.
@@ -115,6 +116,7 @@ function FieldJobBody({ jobId }: { jobId: string }) {
   const step = nextStep(job);
   const turn = tradeTurn({ trade: role === "electrician" ? role : null, stage: job.stage ?? "", waitingOn: step.waitingOn });
   const task = turn.task;
+  const heldTask = inHouseAccess.data?.allowed === true ? inHouseTradeBookingText(job.stage) : null;
   const maps = job.property_address ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(job.property_address)}` : null;
   return (
     <TradeShell installer={false}>
@@ -124,7 +126,7 @@ function FieldJobBody({ jobId }: { jobId: string }) {
         <h1 className="font-display text-[24px] font-bold leading-tight">{streetAndSuburb(job.property_address) || "Your job"}</h1>
         {job.owner_name && <p className="text-sm text-sub">{job.owner_name}</p>}
       </div>
-      <NowPanel attention={turn.yourTurn} eyebrow={turn.eyebrow} status={task.label}
+      <NowPanel attention={turn.yourTurn} eyebrow={turn.eyebrow} status={heldTask ?? task.label}
         pairs={job.life_support ? [{ label: "Note", value: <span className="inline-flex items-center gap-1 text-rose"><HeartPulse className="h-3 w-3" /> Life support at this property</span> }] : []}
         action={<div className="flex flex-wrap gap-2">
           {showOwnerContact && job.owner_phone && <a href={`tel:${job.owner_phone}`} className={btnClass("primary")}><Phone className="h-4 w-4" /> Call</a>}
@@ -292,6 +294,8 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
     installFormCompletedAt: page.install.formCompletedAt, evidenceChecked: page.install.evidenceChecked, crew: page.install.crew, ownerReady: page.install.ownerReady,
     formHasAnswers: page.form.hasAnswers, priceEntered: page.price.entered, boss: page.boss, ownerPiesaConfirmed: page.ownerPiesaConfirmed,
   }) : null;
+  const heldNext = inHouseAccess.data?.allowed === true && next && ["offer_install_days", "install_answer_owner", "install_waiting_owner", "ready_check_offer_times", "ready_check_answer_owner", "ready_check_waiting_owner", "ready_check_set_time"].includes(next.panel)
+    ? `Book the ${next.panel.startsWith("ready_check") ? "Ready Check" : "install"} in the portal` : null;
   const mittiLink = page && next ? mittiLinkPlace({ panel: next.panel, yours: next.yours, auditId: page.form.auditId, mittiInvited, formLinked: page.form.linked }) : null;
   const readyCheck = page ? readyCheckRows({ bookedAt: page.readyCheck.bookedAt, done: page.readyCheck.done, formLinked: page.form.linked, formCompleted: page.form.completed, missing: page.form.missing.length + page.form.stops.length, hasAnswers: page.form.hasAnswers }) : null;
   // Decision 279: ONE status line per job. The Quote row shows quote wording only once the form has answers and (A1) the price is in.
@@ -325,7 +329,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
       </ScreenHead>
 
       {page && next && (
-        <NextPanel title={next.title} sub={next.sub}>
+        <NextPanel title={heldNext ?? next.title} sub={heldNext ? null : next.sub}>
           {next.items && next.items.length > 0 && <ul className="mt-2.5" data-next-items>{next.items.map((it) => <li key={it} className="flex min-h-10 items-center gap-2.5 border-b border-line text-[15px] last:border-b-0"><span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-hiv-blue" />{it}</li>)}</ul>}
           {next.checks && next.checks.length > 0 && <ul className="mt-2.5" data-next-checks>{next.checks.map((c) => <li key={c} className="flex min-h-9 items-center gap-2.5 text-sm"><span aria-hidden className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md bg-hiv-green text-[13px] font-bold text-white">✓</span>{c}</li>)}</ul>}
           {next.ownerReady && <p className={`mt-2.5 text-sm font-medium ${next.ownerReady.done ? "text-hiv-green" : "text-ink"}`} data-owner-ready>{next.ownerReady.text}</p>}
@@ -347,7 +351,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
                 : <InstallerFinalDeclaration jobId={jobId} />}
             </div>
           )}
-          {next.note && <Note className="mt-3">{next.note}</Note>}
+          {!heldNext && next.note && <Note className="mt-3">{next.note}</Note>}
         </NextPanel>
       )}
 

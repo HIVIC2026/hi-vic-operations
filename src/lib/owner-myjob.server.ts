@@ -74,7 +74,9 @@ export async function resolveOwnerJob(token: unknown) {
   const paid = (invoices ?? []).reduce((s, i) => s + n(i.total_paid ?? i.amount_paid), 0);
   const quoteOpen = quote?.status === "issued" && (stage === "awaiting_quote_acceptance" || stage === "measured_estimate_ready") ? { expiresAt: quote.sent_at ? new Date(new Date(quote.sent_at).getTime() + 14 * 86400_000).toISOString() : null } : null;
   const bookingOpen = ["measured_quote_accepted", "piesa_and_install_window_pending", "installation_scheduling"].includes(stage);
+  const inHouseDispatch = await (await import("./in-house-suppression.server")).inHouseDispatchSkip(jobId);
   const action = ownerAction({ stage, readyCheckRequested: !!rc?.accepted_at, visit: upcoming?.scheduled_start ? { kind: upcoming.kind, startsAt: upcoming.scheduled_start } : null, quoteOpen, bookingOpen });
+  if (inHouseDispatch && (action.button?.screen === "book" || action.button?.screen === "readycheck")) { action.button = null; action.title = ""; action.body = ""; }
   const hero = ownerHero(stage, rebate);
   const done = (bookings ?? []).filter((b) => b.status === "completed");
   const doneAt = (kind: string) => done.find((b) => b.kind === kind)?.scheduled_start ?? null;
@@ -106,6 +108,7 @@ export async function resolveOwnerJob(token: unknown) {
   } : null;
   const limits = (ws?.office_time_limits ?? {}) as Record<string, unknown>;
   return {
+    inHouseDispatch,
     jobNumber: j.job_number, firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null,
     address: formatPropertyAddress(j.properties as never) || null, stage, hero, action, trade: upcoming ? trade : null,
     visit: upcoming ? { kind: upcoming.kind, startsAt: upcoming.scheduled_start } : null, progress,

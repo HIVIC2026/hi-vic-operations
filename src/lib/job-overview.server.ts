@@ -13,9 +13,11 @@ type Sb = SupabaseClient<Database>;
 export async function jobOverviewFor(sb: Sb, userId: string, jobId: string) {
   const role: JobRole = await requireJobRole(sb, jobId, ["admin", "owner", "electrician", "installer"]);
   const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
-  const { data: row, error } = await admin.from("job_overview").select("*").eq("id", jobId).maybeSingle();
+  const { data: originalRow, error } = await admin.from("job_overview").select("*").eq("id", jobId).maybeSingle();
   if (error) throw new Error(`Job could not be loaded: ${error.message}`);
-  if (!row) throw new Error("Job not found or no longer available.");
+  if (!originalRow) throw new Error("Job not found or no longer available.");
+  const dispatch = await (await import("./in-house-suppression.server")).inHouseDispatchSkip(jobId);
+  const row = { ...originalRow, inHouseDispatch: dispatch };
   if (role === "electrician" || role === "installer") {
     // Trades see owner name/contact/exact address only while their own visit is current (SQL has_contact_release),
     // or on a partner-supplied job their own business originated.
