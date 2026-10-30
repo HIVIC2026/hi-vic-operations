@@ -1,4 +1,4 @@
-/** Office-controlled partner configuration; no I/O or workflow progression. */
+/** Held visits and partner-billed rectification use in_house ONLY, never pays_own_electricians. No I/O. */
 export type InHouseBusiness = { in_house: boolean; rectification_billed_by: "partner" | "hivic" };
 export type InHouseFacts = { approvedElectricianWorkers: number; hasActiveRateCardWithPiesa: boolean; mittiElectricianLogins: number };
 
