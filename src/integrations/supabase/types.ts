@@ -12933,6 +12933,7 @@ export type Database = {
           save_my_spot_auto_rules: Json
           save_my_spot_real_send_enabled: boolean
           sms_message_switches: Json
+          trade_messages_paused: boolean
           updated_at: string
           urgency_amber_days: number
           urgency_red_days: number
@@ -12990,6 +12991,7 @@ export type Database = {
           save_my_spot_auto_rules?: Json
           save_my_spot_real_send_enabled?: boolean
           sms_message_switches?: Json
+          trade_messages_paused?: boolean
           updated_at?: string
           urgency_amber_days?: number
           urgency_red_days?: number
@@ -13047,6 +13049,7 @@ export type Database = {
           save_my_spot_auto_rules?: Json
           save_my_spot_real_send_enabled?: boolean
           sms_message_switches?: Json
+          trade_messages_paused?: boolean
           updated_at?: string
           urgency_amber_days?: number
           urgency_red_days?: number

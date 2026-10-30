@@ -1,3 +1,6 @@
+## Jo 30 Oct in-house partner — Task 1 only
+- [x] Red-first tests failed as expected; pending migration + undo proved on PGlite; stored flag and business PIESA rate-card readers, admin-only guarded panel and atomic audit added. 27 focused checks pass; preview build/typecheck clean. npm test hit ERR_STRING_TOO_LONG; bounded equivalent isolated full suite: 876 files, 8766 pass / 220 fail / 36 skip, 77 failing files. No unrelated test fixes, live changes, migration application, publication or commit. Hosted save is not verified because the migration must stay unapplied.
+
 ## Jo 30 Oct unknown house age first response
 - [x] Apply the same current-audit age-onsite qualification to likely/no-insulation grouping, automatic routing, campaign links and sender rendering; five-year failures remain blocked. No sends, data/switch changes or publication.
 
