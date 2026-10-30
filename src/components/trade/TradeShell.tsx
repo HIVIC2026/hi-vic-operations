@@ -1,6 +1,6 @@
 // Phone-first trade frame (Jo-approved; Style A frame per approved mock-ups M1–M3, decision 198): logo + initials
 // circle, bottom tabs My work · Add a job · Money · My business. Presentation only.
-import { clearTradeCache } from "@/lib/trade-cache.client";
+import { clearTradeCache } from "@/lib/trade-cache";
 import * as React from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";

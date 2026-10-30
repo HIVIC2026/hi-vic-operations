@@ -2,7 +2,7 @@ import { inHouseTradeBookingText } from "@/lib/in-house-message.core";
 // Installer Job page = approved mock-up M2 (Jo 24 Oct 2026, decisions 196/198): one Next panel, Quote, Ready Check,
 // Who's doing this, More. Decision 277 (Jo 25 Oct 2026): no in-portal Messages section — the installer uses Call/Text
 // and the portal sends its own automatic texts. The electrician's visit flow shares this route unchanged.
-import { dropTradeCache, readTradeCache, writeTradeCache } from "@/lib/trade-cache.client";
+import { dropTradeCache, readTradeCache, writeTradeCache } from "@/lib/trade-cache";
 import { RectPlanFields, rectPlanProblems, type RectPlan } from "@/components/portal/rectification-times";
 import { VisitContactsCard } from "@/components/portal/allocation";
 import { TradeVisitCard } from "@/components/portal/visit-changes";

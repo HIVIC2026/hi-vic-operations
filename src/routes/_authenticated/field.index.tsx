@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { readTradeCache, writeTradeCache } from "@/lib/trade-cache.client";
+import { readTradeCache, writeTradeCache } from "@/lib/trade-cache";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ChevronRight } from "lucide-react";
