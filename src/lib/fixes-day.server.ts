@@ -125,7 +125,20 @@ export async function closeUnusedRectificationForm(jobId: string): Promise<void>
 /** An amended PIESA that now needs rectification starts a new local round; the unused prior audit stays closed. */
 export async function reopenRectificationRound(jobId: string, actorId: string | null, call?: MittiCall): Promise<void> {
   const form = await existingRectificationForm(jobId);
-  if (!form?.closed) return;
+  if (!form) {
+    // A prior sync started the new round but create/share failed. Retry that same identity/claim.
+    const round = await rectificationRound(jobId);
+    if (!round.includes(":")) return;
+    const result = await createFixesForm(jobId, actorId, round, call, { atPiesaBooking: true });
+    if (result.status === "held" || result.reason && result.status !== "not_needed") throw new WorkflowError(result.reason ?? "Rectification form is held");
+    return;
+  }
+  if (!form.closed) {
+    // Existing open companion may still need its share/owner handover retried.
+    const result = await handoverRectificationForm(jobId, actorId, form, call);
+    if (result.status === "held") throw new WorkflowError(result.reason ?? "Rectification form handover is held");
+    return;
+  }
   const { data: closed, error } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", RECTIFICATION_FORM_CLOSED_UNUSED).contains("details", { audit_id: form.auditId }).maybeSingle();
   if (error) throw new Error(error.message);
   if (!closed) return; // completed work is not an unused form
