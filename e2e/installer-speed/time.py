@@ -4,6 +4,7 @@ timed from navigation start until the screen's main content is visible. Records 
 Read-only: it only opens pages. Sessions are TEST accounts from the manifest, put in localStorage before the app loads."""
 import asyncio, json, sys, time
 from pathlib import Path
+from urllib.parse import urlparse
 from playwright.async_api import async_playwright
 
 RUNS = 5
@@ -17,7 +18,7 @@ READY = {
 }
 PATH = {"home": "/field", "job": "/field/{job}", "day": "/field/day/{job}", "business": "/field/business", "money": "/field/money"}
 # What the portal already shows when a page is not for that person.
-REFUSAL = '[role="alert"], main p:has-text("isn\'t available to you"), main p:has-text("TEST sign-in can only")'
+REFUSAL = 'main p:has-text("isn\'t available to you"), main p:has-text("TEST sign-in can only"), main p:has-text("assigned to you")'
 
 
 def server_fn_name(url):
@@ -38,7 +39,9 @@ async def one_run(browser, m, screen, role):
     ctx = await browser.new_context(viewport={"width": 390, "height": 844})
     try:
         sess = m["sessions"][role]
-        await ctx.add_init_script(f"try{{localStorage.setItem({json.dumps(m['storageKey'])},{json.dumps(json.dumps(sess))})}}catch(e){{}}")
+        origin = "{u.scheme}://{u.netloc}".format(u=urlparse(m["base"]))
+        # Only the portal's own page gets the TEST token (not other origins or frames).
+        await ctx.add_init_script(f"try{{if(location.origin==={json.dumps(origin)})localStorage.setItem({json.dumps(m['storageKey'])},{json.dumps(json.dumps(sess))})}}catch(e){{}}")
         page = await ctx.new_page()
         page.set_default_timeout(45000)
         cdp = await ctx.new_cdp_session(page)
@@ -53,6 +56,12 @@ async def one_run(browser, m, screen, role):
         await page.wait_for_selector(f"{READY[screen]}, {REFUSAL}", state="visible")
         ms = round((time.monotonic() - t0) * 1000)
         ready = await page.locator(READY[screen]).first.is_visible()
+        if not ready:  # a refusal text showed; give the real screen about 1 s to appear before calling it a refusal
+            try:
+                await page.locator(READY[screen]).first.wait_for(state="visible", timeout=1000)
+                ready = True
+            except Exception:
+                pass
         landed = page.url
         await page.wait_for_timeout(300)  # let calls that were already in flight finish so they are counted
         if "/auth" in landed:

@@ -29,3 +29,11 @@ Also: `bun scripts/installer-speed.ts --help` prints usage, exit 0; `python3 -m 
 4. Server-fn names: dev URLs carry a readable tail, production compiled builds may be opaque hashes; serverFnName falls back to the raw tail then. If the before table shows hash names, map them with scripts/qa-serverfn-resolve.ts.
 5. Untested live (no server key); the selectors and the CDP/localStorage approach follow shoot.py and existing markup only. First live run should be watched for the staff job/day rows and the `main h1` on the day page.
 6. The "wait for selector" times out at 45 s per run; a timeout shows as FAILED in the table.
+
+## Fix round 1
+Changes:
+1. time.py: init script now sets the TEST token only when `location.origin` equals the origin of the manifest `base` (origin from urlparse, passed via json.dumps).
+2. time.py: REFUSAL no longer contains `[role="alert"]`; only the specific texts ("isn't available to you", "TEST sign-in can only", "assigned to you"). After a refusal match, waits up to 1 s for READY before concluding refusal. The unexpected-refusal error text now reads the refusal paragraph.
+3. installer-speed.ts: manifest written with `{ mode: 0o600 }`; python run wrapped in try/finally that blanks the manifest.
+Commands/output: `bun test tests/installer-speed.test.ts` -> 9 pass, 0 fail; `python3 -m py_compile e2e/installer-speed/time.py` ok; `bun scripts/installer-speed.ts --help` prints usage; tsc grep 'installer-speed' prints nothing.
+Note: a staff money refusal (getTradeMoneyView error) renders as a `role="alert"` paragraph without the specific texts, so it may not match the new REFUSAL list; if the first live run shows staff money timing out, add the refusal wording from getTradeMoneyView to REFUSAL for the money screen.

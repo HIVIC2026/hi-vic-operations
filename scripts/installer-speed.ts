@@ -69,11 +69,15 @@ const resultPath = `${work}/result.json`;
 writeFileSync(manifest, JSON.stringify({
   base: args.base, screens: args.screens, jobId: picked?.jobId ?? "", staffAssigned: picked?.staffAssigned ?? false, resultPath,
   storageKey: `sb-${process.env["SUPABASE_PROJECT_ID"] ?? "wvuffpykgnqliikhodzl"}-auth-token`, sessions,
-}));
+}), { mode: 0o600 });
 
 console.log(`Timing ${args.screens.join(", ")} on ${args.base} (5 cold loads each, owner and staff)...`);
-const py = spawnSync("python3", [new URL("../e2e/installer-speed/time.py", import.meta.url).pathname, manifest], { encoding: "utf8", stdio: ["ignore", "inherit", "inherit"], timeout: 60 * 60_000 });
-writeFileSync(manifest, "{}"); // do not leave the sign-in tokens on disk
+let py;
+try {
+  py = spawnSync("python3", [new URL("../e2e/installer-speed/time.py", import.meta.url).pathname, manifest], { encoding: "utf8", stdio: ["ignore", "inherit", "inherit"], timeout: 60 * 60_000 });
+} finally {
+  writeFileSync(manifest, "{}"); // do not leave the sign-in tokens on disk
+}
 if (py.status !== 0) { console.error("The browser timing run failed."); process.exit(1); }
 
 const results = JSON.parse(readFileSync(resultPath, "utf8")) as { screen: string; role: string; runs: Run[] }[];
