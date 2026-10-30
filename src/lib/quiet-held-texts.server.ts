@@ -45,6 +45,8 @@ export const stillTrueSpotSaved: StillTrue = async (row) => {
   const j = await jobState(row.job_id);
   const { data: resp } = await db.from("lead_campaign_responses").select("spot_saved_at, opted_out_at").eq("job_id", row.job_id).maybeSingle();
   const { spotSavedJobBlocker } = await import("./spot-saved-send.core");
+  // Jo 30 Oct: never resend a held text when an earlier one (any key format) already went to this job or phone.
+  if (row.job_id && await (await import("./spot-saved-send.server")).spotSavedTextAlreadySent(row.job_id, row.to_number ?? null)) return false;
   return !!j && spotSavedJobBlocker({
     source: j.source, stage: j.stage, deletedAt: j.deleted_at, qaArchivedAt: j.qa_archived_at, spotSavedAt: resp?.spot_saved_at ?? null,
     campaignOptedOutAt: resp?.opted_out_at ?? null, consent: true, commsEnabled: true,
