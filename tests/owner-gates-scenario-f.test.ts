@@ -32,7 +32,8 @@ describe("Scenario F — owner paperwork gates", () => {
       // Gate C
       const cStage = "evidence_outstanding";
       expect(blocked(base(bDone), cStage).length).toBe(j.f.lifeSupport ? 4 : 3);
-      const cDone = { ...bDone, escConsentSigned: true, piesaCopyDelivered: true, signed: [...bDone.signed, ...sign("piesa_copy_receipt", "life_support_plan")] };
+      // A48 batch 1 final fix: the life support plan is done by the owner's upload or the office record (no tick).
+      const cDone = { ...bDone, escConsentSigned: true, piesaCopyDelivered: true, lifeSupportPlanOnFile: true, signed: [...bDone.signed, ...sign("piesa_copy_receipt")] };
       expect(blocked(base(cDone), cStage)).toEqual([]);
       // Gate D
       expect(blocked(base(cDone), "ready_for_veec")).toEqual(["Owner paperwork D: Completed VEEC assignment form (effective after install) not signed yet."]);

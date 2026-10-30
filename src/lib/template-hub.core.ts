@@ -6,6 +6,7 @@
 // or changes workflow. Entries are grouped by WHO gets them and ordered by job step. Wording waiting for Jo's approval
 // sits in its own section. Retired templates are simply not listed (their files stay in git).
 // tests/templates-hub.test.ts proves every entry comes from a live code path and every live builder / text type is here.
+import { renderQuoteExpiredEmail } from "./quote-expired-email.core";
 import { renderJoOutcomeEmail } from "./jo-outcome-email.core";
 import { withUnsubscribe } from "./emailsafety.core";
 import { renderCoverageUnavailableEmail } from "./coverage-email";
@@ -51,6 +52,9 @@ import { MITTI_INVITE_MESSAGE, renderMittiInviteEmail } from "./mitti-invite.cor
 import { officeEmailLayout, electricianInviteLayout } from "./office-email.core";
 import { composeReply } from "./email-reply.core";
 import { brandSmsBody } from "./sms.core";
+import { quickTapsReminderText, quickTapsText } from "./area-batch.core";
+import { runOfferedText } from "./run-route.core";
+import { exactTimeWords, runSlotCancelledText, runTeamTimeText, runTimeReminderText, runTimeText, windowWords } from "./run-portal.core";
 import { blastMessage } from "./save-spot-reminder-blast.core";
 import { threeQuestionsSms } from "./three-questions-reminder.core";
 import {
@@ -63,6 +67,7 @@ import { readyCheckIncompleteText } from "./ready-check-chase.core";
 import { dailyText, updateText, diffDay } from "./daily-mitti-text.core";
 import { bossPriceLinkText } from "./boss-price-link.core";
 import { fixesTimesLinkText } from "./fixes-times.core";
+import { piesaRulesMessage, renderPiesaRulesEmail } from "./piesa-rules-notice.core";
 import { attendanceSmsText, attendanceReminderText, attendanceBookedText, installerCantAttendText } from "./install-attendance.core";
 import { installDayResultText, installDayReminderText } from "./install-day-confirm.core";
 import { FORMS, type FormField } from "./mitti-forms.core";
@@ -83,6 +88,8 @@ import { installerPlanningText, renderInstallerPlanningEmail } from "./installer
 import { ANSWER_CODES, ANSWER_SAMPLES, ANSWER_TYPES, renderOwnerAutoReplyEmail } from "./owner-email-auto-reply.core";
 import { renderSpotReleasedEmail } from "./spot-release-email.core";
 import { spotReleasedText } from "./spot-release.core";
+import { renderAddressRequestEmail } from "./address-request-email.core";
+import { addressRequestText } from "./address-request.core";
 
 /* ---------------------------------------------------------------- types */
 
@@ -429,9 +436,46 @@ const OWNER: TemplateEntry[] = [
   ENTRY({ id: "owner:O77", section: "owner", step: "ready_check", kind: "email", code: "O77", name: "It's your turn — confirm your free Ready Check", when: "Jo presses Release on Jobs › Choose installer (and the day-2 reminder); the installer is offered the job only after the owner confirms", who: "Owner", approvalNote: "Jo 25 Oct 2026, decision 389", gate: { kind: "email" },
     source: { builder: "src/lib/spot-release-email.core.ts", fn: "renderSpotReleasedEmail", sender: "src/lib/spot-release.server.ts" }, design: "docs/templates/mjml/owner_O77.mjml",
     render: () => email(renderSpotReleasedEmail({ firstName: "Helen", confirmUrl: `${JOB}?screen=turn`, unsubscribeUrl: UNSUB, reminder: false })) }),
+  // Batch 3a: an expired installation quote closes the job; the owner gets one email with "Send me a new quote". Approved by Jo 29 Oct 2026.
+  ENTRY({ id: "owner:O78", section: "owner", step: "quote", kind: "email", code: "O78", name: "Your quote has expired", when: "The day-14 quote timer expires an installation quote and the job has no other live quote (the job closes; sent once)", who: "Owner", approvalNote: "Jo 29 Oct 2026", gate: { kind: "email" },
+    source: { builder: "src/lib/quote-expired-email.core.ts", fn: "renderQuoteExpiredEmail", sender: "src/lib/quote-expired-email.server.ts" }, design: "docs/templates/mjml/owner_O78.mjml",
+    render: () => email(renderQuoteExpiredEmail({ firstName: "Helen", address: "12 Example St, Sampletown", link: `${JOB}?screen=newquote`, unsubscribeUrl: UNSUB })) }),
   ENTRY({ id: "owner:sms-spot_released", section: "owner", step: "ready_check", kind: "text", code: "", name: "It's your turn (text)", when: "With O77 and its day-2 reminder", who: "Owner", approvalNote: "Jo 25 Oct 2026, decision 389", gate: { kind: "text", smsType: "spot_released" },
     source: { builder: "src/lib/spot-release.core.ts", fn: "spotReleasedText", sender: "src/lib/spot-release.server.ts" },
     render: () => texts([{ label: "Released", body: spotReleasedText(`${JOB}?screen=turn`) }, { label: "Day-2 reminder", body: spotReleasedText(`${JOB}?screen=turn`, true) }]) }),
+  // Plan 2026-10-28 (full address required): a website/email enquiry with no street → the owner is asked to pick their
+  // full address on their secure page, then ONE reminder 24h later. Wording approved by Jo 28 Oct 2026.
+  ENTRY({ id: "owner:address-request", section: "owner", step: "enquiry", kind: "email", code: "", name: "We need your full address (+ 24h reminder)", when: "A website/email enquiry arrives with no street (after go-live); ONE reminder 24h later if still not answered", who: "Owner", approvalNote: "Jo 28 Oct 2026 (full address required)", gate: { kind: "email" },
+    source: { builder: "src/lib/address-request-email.core.ts", fn: "renderAddressRequestEmail", sender: "src/lib/address-request.server.ts" },
+    render: () => email(renderAddressRequestEmail({ pickUrl: `${BASE}/my-address/TEST`, unsubscribeUrl: UNSUB, reminder: false })) }),
+  ENTRY({ id: "owner:address-request-reminder", section: "owner", step: "enquiry", kind: "email", code: "", name: "We need your full address — reminder", when: "24h after the request, if the owner still hasn't picked their address", who: "Owner", approvalNote: "Jo 28 Oct 2026 (full address required)", gate: { kind: "email" },
+    source: { builder: "src/lib/address-request-email.core.ts", fn: "renderAddressRequestEmail", sender: "src/lib/address-request.server.ts" },
+    render: () => email(renderAddressRequestEmail({ pickUrl: `${BASE}/my-address/TEST`, unsubscribeUrl: UNSUB, reminder: true })) }),
+  ENTRY({ id: "owner:sms-address_request", section: "owner", step: "enquiry", kind: "text", code: "", name: "We need your full address (text)", when: "With the full-address email", who: "Owner", approvalNote: "Jo 28 Oct 2026 (full address required)", gate: { kind: "text", smsType: "address_request" },
+    source: { builder: "src/lib/address-request.core.ts", fn: "addressRequestText", sender: "src/lib/address-request.server.ts" },
+    render: () => text(addressRequestText(`${BASE}/my-address/TEST`, false)) }),
+  ENTRY({ id: "owner:sms-address_request_reminder", section: "owner", step: "enquiry", kind: "text", code: "", name: "We need your full address — reminder (text)", when: "With the 24h reminder email", who: "Owner", approvalNote: "Jo 28 Oct 2026 (full address required)", gate: { kind: "text", smsType: "address_request_reminder" },
+    source: { builder: "src/lib/address-request.core.ts", fn: "addressRequestText", sender: "src/lib/address-request.server.ts" },
+    render: () => text(addressRequestText(`${BASE}/my-address/TEST`, true)) }),
+  // A48 batch 2 (Jo 29–30 Oct 2026): Jo taps Send on an area batch → each owner gets the quick taps link (+ day-2 reminder).
+  ENTRY({ id: "owner:sms-quick_taps", section: "owner", step: "ready_check", kind: "text", code: "", name: "Confirm a few quick details (text)", when: "Jo taps Send on a suggested batch (Jobs › Choose installer)", who: "Owner", approvalNote: "Jo 30 Oct 2026 (A48 batch 2)", gate: { kind: "text", smsType: "quick_taps" },
+    source: { builder: "src/lib/area-batch.core.ts", fn: "quickTapsText", sender: "src/lib/area-batch.server.ts" },
+    render: () => text(quickTapsText("Helen Sample", `${JOB}?screen=taps`)) }),
+  ENTRY({ id: "owner:sms-quick_taps_reminder", section: "owner", step: "ready_check", kind: "text", code: "", name: "Confirm a few quick details — day-2 reminder (text)", when: "Day 2 of the batch, if the owner hasn't answered", who: "Owner", approvalNote: "Jo 30 Oct 2026 (A48 batch 2)", gate: { kind: "text", smsType: "quick_taps_reminder" },
+    source: { builder: "src/lib/area-batch.core.ts", fn: "quickTapsReminderText", sender: "src/lib/area-batch.server.ts" },
+    render: () => text(quickTapsReminderText("Helen Sample", `${JOB}?screen=taps`)) }),
+  // A48 batch 2 part 2 (Jo 30 Oct 2026), Portal books: the installer picked the run's day → each owner's 1-hour window to
+  // confirm, plus one reminder at 12 hours.
+  ENTRY({ id: "owner:sms-run_time", section: "owner", step: "ready_check", kind: "text", code: "", name: "Your free Ready Check time — confirm (text)", when: "The installer picks the run's day (Portal books)", who: "Owner", approvalNote: "Jo 30 Oct 2026 (A48 batch 2 part 2 spec)", gate: { kind: "text", smsType: "run_time" },
+    source: { builder: "src/lib/run-portal.core.ts", fn: "runTimeText", sender: "src/lib/installer-run.server.ts" },
+    render: () => text(runTimeText({ name: "Helen Sample", day: "Tuesday 27 October", time: windowWords("09:00", "10:00"), installer: "Sample Insulation", link: JOB })) }),
+  // Task 8 fix round 1 (Jo 30 Oct 2026): the same text type for a time the installer's team entered (exact time, no other times).
+  ENTRY({ id: "owner:sms-run_time_team", section: "owner", step: "ready_check", kind: "text", code: "", name: "Your free Ready Check time from the installer's team — confirm (text)", when: "The installer's team enters the time they agreed with the owner (Our team books)", who: "Owner", approvalNote: "Jo 30 Oct 2026 (A48 batch 2 Task 8 fix round 1)", gate: { kind: "text", smsType: "run_time" },
+    source: { builder: "src/lib/run-portal.core.ts", fn: "runTeamTimeText", sender: "src/lib/installer-run.server.ts" },
+    render: () => text(runTeamTimeText({ name: "Helen Sample", day: "Tuesday 27 October", time: exactTimeWords("2026-10-27", "09:00"), installer: "Sample Insulation", link: JOB })) }),
+  ENTRY({ id: "owner:sms-run_time_reminder", section: "owner", step: "ready_check", kind: "text", code: "", name: "Please confirm your free Ready Check — 12-hour reminder (text)", when: "12 hours after the time text, if the owner hasn't confirmed", who: "Owner", approvalNote: "Jo 30 Oct 2026 (A48 batch 2 part 2 spec)", gate: { kind: "text", smsType: "run_time_reminder" },
+    source: { builder: "src/lib/run-portal.core.ts", fn: "runTimeReminderText", sender: "src/lib/installer-run.server.ts" },
+    render: () => text(runTimeReminderText({ name: "Helen Sample", day: "Tuesday 27 October", time: windowWords("09:00", "10:00"), link: JOB })) }),
 ];
 
 /* ---------------------------------------------------------------- INSTALLER */
@@ -492,8 +536,16 @@ const INSTALLER: TemplateEntry[] = [
   ENTRY({ id: "installer:sms-boss_price_link", section: "installer", step: "quote", kind: "text", code: "", name: "Enter your price (text)", when: "A1 Ready Check marked Complete with no price yet", who: "Installer (business owner)", approvalNote: "Jo 25 Oct 2026, decision 288", gate: { kind: "text", smsType: "boss_price_link" },
     source: { builder: "src/lib/boss-price-link.core.ts", fn: "bossPriceLinkText", sender: "src/lib/boss-price-link.server.ts" },
     render: () => text(bossPriceLinkText({ jobNumber: "HV-TEST", street: "824 High Street Road", link: `${FIELD}#price` })) }),
+  // A48 batch 2 part 2 (Jo 30 Oct 2026): Jo taps "Send to installer" on a closed area batch → the installer's run link.
+  ENTRY({ id: "installer:sms-run_offered", section: "installer", step: "ready_check", kind: "text", code: "", name: "You've got a run (text)", when: "Jo taps Send to installer on a closed batch (Jobs › Choose installer)", who: "Installer (business owner)", approvalNote: "Jo 30 Oct 2026 (A48 batch 2 part 2 spec)", gate: { kind: "text", smsType: "run_offered" },
+    source: { builder: "src/lib/run-route.core.ts", fn: "runOfferedText", sender: "src/lib/installer-run.server.ts" },
+    render: () => text(runOfferedText({ name: "Sam Sample", homes: 8, suburb: "Box Hill", link: `${BASE}/field/run/TEST-RUN` })) }),
+  // A48 batch 2 part 2, Task 8: an owner cancelled a confirmed window in the installer's run (wording approved by Jo 30 Oct 2026).
+  ENTRY({ id: "installer:sms-run_slot_cancelled", section: "installer", step: "ready_check", kind: "text", code: "", name: "An owner cancelled — fill the time (text)", when: "An owner in the installer's run cancels after confirming their window", who: "Installer (business owner)", approvalNote: "Jo 30 Oct 2026 (A48 batch 2 Task 8 fix round 1)", gate: { kind: "text", smsType: "run_slot_cancelled" },
+    source: { builder: "src/lib/run-portal.core.ts", fn: "runSlotCancelledText", sender: "src/lib/installer-run.server.ts" },
+    render: () => text(runSlotCancelledText({ name: "Sam Sample", day: "Tuesday 27 October", time: windowWords("09:00", "10:00"), link: `${BASE}/field/run/TEST-RUN` })) }),
   // Quote
-  ENTRY({ id: "installer:I23", section: "installer", step: "quote", kind: "email", code: "I23", name: "Good news — the owner accepted", when: "The owner accepts the quote", who: "Installer", approvalNote: "Jo 24 Oct 2026", gate: { kind: "email" },
+  ENTRY({ id: "installer:I23", section: "installer", step: "quote", kind: "email", code: "I23", name: "Good news — the owner accepted", when: "The owner pays the safety check", who: "Installer", approvalNote: "Jo 24 Oct 2026", gate: { kind: "email" },
     source: { builder: "src/lib/installer-accepted-email.core.ts", fn: "renderInstallerAcceptedEmail", sender: "src/lib/installer-accepted-email.server.ts" }, design: "docs/templates/mjml/installer_I23.mjml",
     render: () => email(renderInstallerAcceptedEmail(PARTNER_JOB)) }),
   ENTRY({ id: "installer:I24", section: "installer", step: "quote", kind: "email", code: "I24", name: "The owner declined the quote", when: "The owner declines the quote", who: "Installer", approvalNote: "Jo 24 Oct 2026", gate: { kind: "email" },
@@ -586,6 +638,13 @@ const ELECTRICIAN: TemplateEntry[] = [
   ENTRY({ id: "electrician:sms-fixes_times_link", section: "electrician", step: "fixes", kind: "text", code: "", name: "Pick times for the electrical fixes (text)", when: "The A3 says fixes are needed and no fixes times exist yet", who: "Electrician", approvalNote: "Jo 25 Oct 2026, decision 315", gate: { kind: "text", smsType: "fixes_times_link" },
     source: { builder: "src/lib/fixes-times.core.ts", fn: "fixesTimesLinkText", sender: "src/lib/fixes-times-link.server.ts" },
     render: () => text(fixesTimesLinkText({ address: SHORT_ADDRESS, link: FIELD })) }),
+  // A48 batch 1 (Jo 29 Oct 2026, wording approved): the A3 safety check breaks the official PIESA rules.
+  ENTRY({ id: "electrician:piesa-rules", section: "electrician", step: "safety_check", kind: "email", code: "", name: "Safety check can't go ahead yet (official rules)", when: "The A3 safety check breaks the official PIESA rules — once per form version", who: "Electrician", approvalNote: "Jo 29 Oct 2026, A48 batch 1", gate: { kind: "email" },
+    source: { builder: "src/lib/piesa-rules-notice.core.ts", fn: "renderPiesaRulesEmail", sender: "src/lib/piesa-rules-notice.server.ts" },
+    render: () => email(renderPiesaRulesEmail({ name: "Sam", job: "HV-TEST", address: SHORT_ADDRESS, reasons: ["a switchboard or solar answer is No, so repairs are needed (or you must be on site at the start)"] })) }),
+  ENTRY({ id: "electrician:sms-piesa_rules_failed", section: "electrician", step: "safety_check", kind: "text", code: "", name: "Safety check can't go ahead yet (text)", when: "With the safety check rules email", who: "Electrician", approvalNote: "Jo 29 Oct 2026, A48 batch 1", gate: { kind: "text", smsType: "piesa_rules_failed" },
+    source: { builder: "src/lib/piesa-rules-notice.core.ts", fn: "piesaRulesMessage", sender: "src/lib/piesa-rules-notice.server.ts" },
+    render: () => text(piesaRulesMessage({ name: "Sam", job: "HV-TEST", address: SHORT_ADDRESS, reasons: ["a switchboard or solar answer is No, so repairs are needed (or you must be on site at the start)"] })) }),
   ENTRY({ id: "electrician:sms-electrician_install_attendance", section: "electrician", step: "install", kind: "text", code: "", name: "Be there at the start of the install (text)", when: "Install day booked when the A3 says the electrician must be on site at the start; 24h reminder", who: "Electrician", approvalNote: "Jo 25 Oct 2026, decision 327", gate: { kind: "text", smsType: "electrician_install_attendance" },
     source: { builder: "src/lib/install-attendance.core.ts", fn: "attendanceSmsText", sender: "src/lib/install-attendance.server.ts" },
     render: () => texts([

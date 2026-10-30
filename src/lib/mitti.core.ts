@@ -4,6 +4,7 @@
 // completeAssessment remains the authoritative gate.
 import { canonicalMittiTemplateId, mittiTemplateIdentity, sameMittiTemplateId } from "./mitti-identity.core";
 import { PRE_READY_CHECK_STAGES } from "./installer-new-jobs.core";
+import { splitEligibleAreas, type ExcludedArea } from "./excluded-areas.core";
 import { A3_REPAIR_NEEDED_LABEL, LIFE_SUPPORT_PRESENT } from "./official-short.core";
 import { EXISTING_DEPTH_Q, isNoSafeAccess, isR2OrAbove, isRValueBandAnswer, LEAN_ALIASES, LEAN_Q, premisesTypeOption } from "./ready-check-lean.core";
 
@@ -469,17 +470,21 @@ export function parseAudit(audit: Any) {
     const depthMm = depthRaw != null && depthRaw >= 0 ? depthRaw : null;
     return { parent: p, suitable, depthMm, conductive, conductiveEvidence, keepReason, name, m2: m2.value, lengthM: len.value, widthM: wid.value, state, present, removal, removalType, rv, rvBand: rvRaw && isRValueBand(rvRaw) ? (isR2OrAbove(rvRaw) ? "at_or_above_r2" as const : "below_r2" as const) : null, photos, insulated: present === true || /under-insulated/.test(state), remAnswer: remAnswer.value, hazardFlag, hazardEvidence, hazardNote, downlights };
   });
+  // Garage / carport / shed areas stay in the per-area record but never count toward the eligible m² or the removal m².
+  const { eligible: counted, excluded: leftOut } = splitEligibleAreas(rooms, (r) => r.name);
+  const excludedAreas: ExcludedArea[] = leftOut.map((r) => ({ name: (r.name ?? "").trim(), m2: r.m2 }));
   for (const [i, r] of rooms.entries()) if (r.hazardFlag === true && !r.hazardEvidence) issues.push(`Area ${i + 1}${r.name ? ` (${r.name})` : ""}: issues flagged but no photo was added${r.hazardNote ? ` (installer note: ${r.hazardNote})` : ""} – office review required.`);
-  if (rooms.length > 0) {
-    if (rooms.some((r) => r.m2 == null || r.m2 <= 0)) issues.push("A room's measured area was missing or invalid – whole-house area not taken from Mitti; office review required.");
-    else patch.measured_area_m2 = r2(rooms.reduce((s, r) => s + (r.m2 ?? 0), 0));
-    if (rooms.some((r) => r.state)) patch.insulation_present = rooms.some((r) => /under-insulated/.test(r.state));
-    if (rooms.some((r) => r.removal != null || (r.remAnswer ?? 0) > 0)) {
-      patch.removal_required = rooms.some((r) => r.removal === true || (r.remAnswer ?? 0) > 0);
+  if (rooms.length > 0 && counted.length === 0) issues.push("Every ceiling area is a garage, carport or shed – no eligible area; office review required.");
+  else if (rooms.length > 0) {
+    if (counted.some((r) => r.m2 == null || r.m2 <= 0)) issues.push("A room's measured area was missing or invalid – whole-house area not taken from Mitti; office review required.");
+    else patch.measured_area_m2 = r2(counted.reduce((s, r) => s + (r.m2 ?? 0), 0));
+    if (counted.some((r) => r.state)) patch.insulation_present = counted.some((r) => /under-insulated/.test(r.state));
+    if (counted.some((r) => r.removal != null || (r.remAnswer ?? 0) > 0)) {
+      patch.removal_required = counted.some((r) => r.removal === true || (r.remAnswer ?? 0) > 0);
       if (patch.removal_required) {
         // Jo 23 Oct: every area's "How much existing insulation needs to be removed? (m²)" answer is summed;
         // an area marked Remove with no answer falls back to that area's full m2.
-        const remRooms = rooms.filter((r) => r.removal === true || (r.remAnswer ?? 0) > 0);
+        const remRooms = counted.filter((r) => r.removal === true || (r.remAnswer ?? 0) > 0);
         const remM2 = remRooms.map((r) => (r.remAnswer != null && r.remAnswer > 0 ? r.remAnswer : r.m2));
       if (remM2.some((m) => m == null || m <= 0)) issues.push("A removal area's size was missing or invalid – removal area not taken from Mitti; office review required.");
         else patch.removal_m2 = r2(remM2.reduce<number>((s, m) => s + (m ?? 0), 0));
@@ -488,13 +493,13 @@ export function parseAudit(audit: Any) {
         if (types.length > 1) issues.push("More than one existing insulation type was ticked (batts + loose fill) – mixed insulation needs office review.");
         if (types.length === 0) issues.push("Insulation type to remove not captured – needed for removal pricing; office follow-up required.");
       }
-    } else if (rooms.every((r) => r.present === false)) {
+    } else if (counted.every((r) => r.present === false)) {
       // 25 Oct 2026: no existing insulation in any area is an explicit "nothing to remove" — it clears a removal figure
       // left behind by an earlier partial fill (a stale hidden branch once carried 20 m² into a job).
       patch.removal_required = false;
     }
     // Per-area R-values (A1): record the lowest; differing values across areas need office review.
-    const rvs = rooms.map((r) => r.rv).filter((v): v is number => v != null && v > 0);
+    const rvs = counted.map((r) => r.rv).filter((v): v is number => v != null && v > 0);
     if (rvs.length > 0) {
       patch.existing_r_value = Math.min(...rvs);
       if (new Set(rvs).size > 1) issues.push("Existing insulation R-values differ between ceiling areas – the lowest was recorded; office review required.");
@@ -580,8 +585,8 @@ export function parseAudit(audit: Any) {
   if (/no rectification required|rectification work is not required/.test(po)) issues.push("Mitti reports no electrical fixes required (preliminary B1 only) – PIESA clearance stays pending until confirmed in the portal.");
   else if (/rectification required|rectification work is required|rectification work is not possible/.test(po)) patch.piesa_outcome = "fail";
   else if (liveRepair === true) patch.piesa_outcome = "fail";
-  // No = pass, but the portal's explicit "No electrical fixes required" tick stays the electrician's own step at
-  // Complete PIESA (never pre-ticked from a form).
+  // No = pass. Complete PIESA treats a live A3 pass with no fixes items as "no electrical fixes required" (C4); the
+  // tick is never pre-set from a form.
   else if (liveRepair === false) patch.piesa_outcome = "pass";
   else issues.push("PIESA outcome not recorded or ambiguous – stays pending.");
 
@@ -640,7 +645,7 @@ export function parseAudit(audit: Any) {
   const readyFlag = yesNo(val(entries, ["Ready for office review"]));
   const completed = !!(audit?.completed || audit?.audit_data?.date_completed || audit?.completed_at || readyFlag);
   return {
-    auditId, patch, issues, others, completed, areas,
+    auditId, patch, issues, others, completed, areas, excludedAreas,
     templateId: String(audit?.template_id ?? audit?.audit_data?.template_id ?? ""),
     jobNumber: val(entries, ["Portal Job Number", "Job Reference ID"]),
     failReasons,

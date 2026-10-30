@@ -49,11 +49,14 @@ export async function loadInstallerQuotes(jobIds: string[]): Promise<Map<string,
   const out = new Map<string, InstallerQuote>();
   const ids = [...new Set(jobIds)];
   if (!ids.length) return out;
-  const [{ data: jobs }, { data: qs, error }, { data: ms }, { data: basicsRows, error: be }] = await Promise.all([
+  // Speed (installer screens, Task 5): the hold events are read with the rest (for every job) and used only for the unsent
+  // Ready Check quotes, as before — one round instead of two. A failed hold read still fails only when it is needed.
+  const [{ data: jobs }, { data: qs, error }, { data: ms }, { data: basicsRows, error: be }, { data: holdRows, error: holdError }] = await Promise.all([
     admin.from("jobs").select("id, channel").in("id", ids),
     admin.from("quotes").select(QUOTE_COLS).in("job_id", ids).eq("kind", "installation").in("status", QUOTE_STATUSES).order("created_at", { ascending: false }),
     admin.from("ceiling_measurements").select("job_id, external_source, external_id").in("job_id", ids).eq("is_current", true),
     admin.from("workflow_events").select("job_id, details, created_at").in("job_id", ids).eq("event_type", "ready_check_basics").order("created_at", { ascending: false }),
+    admin.from("workflow_events").select("job_id, details").in("job_id", ids).eq("event_type", "quote_auto_send_held"),
   ]);
   if (error || be) throw new WorkflowError("Quote could not be read.");
   const channelOf = new Map((jobs ?? []).map((j) => [j.id, j.channel ?? null]));
@@ -65,10 +68,9 @@ export async function loadInstallerQuotes(jobIds: string[]): Promise<Map<string,
   // Hold events only for unsent Ready Check quotes (the single loader checks `details @> {quote_id}`; same test here).
   const unsent = [...latestQuote.values()].filter((q) => !q.sent_at && q.job_id && isReadyCheckQuote(q.option_code, measurement.get(q.job_id) ?? null));
   const unsentJobIds = [...new Set(unsent.map((q) => q.job_id as string))];
-  const { data: holds, error: he } = unsentJobIds.length
-    ? await admin.from("workflow_events").select("job_id, details").in("job_id", unsentJobIds).eq("event_type", "quote_auto_send_held")
-    : { data: [] as { job_id: string | null; details: unknown }[], error: null };
-  if (he) throw new WorkflowError("Quote hold could not be checked.");
+  const unsentSet = new Set(unsentJobIds);
+  const holds = unsentJobIds.length ? (holdRows ?? []).filter((h) => h.job_id && unsentSet.has(h.job_id)) : [];
+  if (unsentJobIds.length && holdError) throw new WorkflowError("Quote hold could not be checked.");
   const heldQuoteIds = new Set((holds ?? []).map((h) => String((h.details as { quote_id?: unknown } | null)?.quote_id ?? "")));
   for (const id of ids) {
     const channel = channelOf.get(id) ?? null;

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { canonicalMittiTemplateId, sameMittiTemplateId } from "../src/lib/mitti-identity.core";
 import { buildPrefill, createOrReuseAudit, mittiApi, pickUser, planSync, PIISA_A3_TEMPLATE_ID, type CreateCtx } from "../src/lib/mitti.core";
 import { inspectSavedMittiForm } from "../src/lib/mitti-form-health.core";
+import { createOutcome } from "../src/lib/mitti-create-claim.core";
 import { createMittiBoundaryHarness, providerWrites, type DbResult, type ApiOperation } from "./helpers/mitti-boundary-harness";
 
 // The observed A2 spelling is a regression fixture, never a production setting or seed.
@@ -238,7 +239,7 @@ test("actual health server makes one template GET and preserves an official appr
 });
 
 function piisaHarness(options: { configured?: string; previous?: string | null; existing?: unknown; previousReadError?: boolean; provider?: (op: ApiOperation) => Promise<unknown> } = {}) {
-  const observed = { apChecks: 0, crewReads: 0 };
+  const observed = { apChecks: 0, crewReads: 0, claims: [] as string[] };
   const h = createMittiBoundaryHarness({
     database: op => {
       if (op.mode !== "read") throw new Error("Unexpected PIISA database mutation");
@@ -260,6 +261,14 @@ function piisaHarness(options: { configured?: string; previous?: string | null; 
       "./piisa-a3.core": {},
       "./piisa-a3.server": { loadCrew: async () => { observed.crewReads++; return { staff: [], selection: null }; } },
       "./piisa-ap.core": { ensurePiisaAp: async () => { observed.apChecks++; } },
+      // The install-day claim guard (writes go to workflow_events in production; recorded here, not executed).
+      "./mitti-create.server": {
+        claimMittiCreate: async (_job: string, kind: string) => { observed.claims.push(`claim:${kind}`); return "claim_fixture"; },
+        releaseMittiCreate: async (_job: string, kind: string) => { observed.claims.push(`release:${kind}`); },
+        recordMittiCreateUncertain: async (_job: string, kind: string) => { observed.claims.push(`uncertain:${kind}`); },
+        MittiOutcomeUncertain: class MittiOutcomeUncertain extends Error {},
+      },
+      "./mitti-create-claim.core": { createOutcome },
     },
   });
   return { ...h, observed, server: h.load("mitti.server") };
@@ -270,7 +279,7 @@ test("PIISA reuses a canonical-equivalent template only after verifying the stor
   const result = await h.server.createPiisaMittiAudit("fixture_job", "test_admin", h.call);
   assert.equal(result.reused, true); assert.equal(result.auditId, AUDIT); assert.equal(h.observed.apChecks, 1);
   assert.deepEqual(h.apiCalls.map(c => c.path), ["/users/search", `/audits/${AUDIT}`, `/audits/${AUDIT}/share`, `/inspections/v1/inspections/${AUDIT}/owner`]);
-  assert.equal(h.eventCalls.length, 1);
+  assert.equal(h.eventCalls.length, 1); assert.deepEqual(h.observed.claims, []);
 });
 
 test("PIISA wrong audit, wrong job or unverifiable template blocks AP updates, sharing and owner changes", async () => {
@@ -302,6 +311,7 @@ test("a UUID A5 selection enters the actual verified-crew branch before any form
     await assert.rejects(h.server.createPiisaMittiAudit("fixture_job", "test_admin", h.call), /Choose the install crew/);
     assert.equal(h.observed.crewReads, 1);
     assert.deepEqual(providerWrites(h.apiCalls), []); assert.deepEqual(h.eventCalls, []);
+    assert.deepEqual(h.observed.claims, ["claim:install_day", "release:install_day"]);
   }
 });
 
@@ -310,6 +320,7 @@ test("new PIISA refuses an unidentifiable or different returned form before any 
     const h = piisaHarness({ configured: A2_UUID, previous: null, provider: ordinaryProvider(definition(id)) });
     await assert.rejects(h.server.createPiisaMittiAudit("fixture_job", "test_admin", h.call), /unexpected or unidentifiable PIISA template/);
     assert.deepEqual(providerWrites(h.apiCalls), []); assert.deepEqual(h.eventCalls, []);
+    assert.deepEqual(h.observed.claims, ["claim:install_day", "release:install_day"]);
   }
 });
 

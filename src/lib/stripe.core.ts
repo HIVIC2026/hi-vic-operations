@@ -1,12 +1,12 @@
 // Stripe card payments (Jo 24 Oct 2026, decision 144 – overrides 139/140 for these two payments only). Pure, no network.
 // Card = Stripe Checkout for (1) the $349 safety check at acceptance and (2) the electrical fixes at approval; the fee
 // is absorbed, no surcharge is ever shown (decision 140). The install deposit and the balance stay bank transfer /
-// PayID against the Xero invoice. Keys live only in env (STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET); TEST (qa_test)
+// PayID against the Xero invoice (the 10% install deposit may also be paid by card, Jo 29 Oct 2026). Keys live only in env (STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET); TEST (qa_test)
 // jobs may only ever use a Stripe TEST key; real jobs need a live key AND the STRIPE_PAYMENTS_ENABLED switch.
 import type { PaymentStepKey } from "./payments.core";
 
 export type StripeMode = "test" | "live";
-export const STRIPE_CARD_STEPS: PaymentStepKey[] = ["safety_check", "fixes", "repeat_safety_check"];
+export const STRIPE_CARD_STEPS: PaymentStepKey[] = ["safety_check", "fixes", "repeat_safety_check", "install_deposit"];
 export const stripeCardAllowed = (step: PaymentStepKey) => STRIPE_CARD_STEPS.includes(step);
 export const stripeModeForJob = (jobSource: string | null | undefined): StripeMode => (jobSource === "qa_test" ? "test" : "live");
 export const stripeKeyMode = (secretKey: string | null | undefined): StripeMode | null =>
@@ -14,7 +14,7 @@ export const stripeKeyMode = (secretKey: string | null | undefined): StripeMode 
 
 /** Why Stripe may not be used right now (null = allowed). Fails closed on every missing piece. */
 export function stripeBlocker(f: { enabled: boolean; secretKey: string | null | undefined; jobSource: string | null | undefined; step: PaymentStepKey; amountCents: number }): string | null {
-  if (!stripeCardAllowed(f.step)) return "Card payment is only for the safety check and the electrical fixes – the install deposit and balance are paid by bank transfer or PayID.";
+  if (!stripeCardAllowed(f.step)) return "Card payment is only for the safety check, the electrical fixes and the install deposit – the balance is paid by bank transfer or PayID.";
   if (f.amountCents <= 0) return "Nothing is owing on this step.";
   const keyMode = stripeKeyMode(f.secretKey);
   if (!keyMode) return "Card payments are not set up yet (no Stripe key).";
@@ -49,8 +49,9 @@ export function checkoutSessionParams(i: CheckoutIntent): { form: Record<string,
     "payment_intent_data[description]": i.description,
   };
   if (i.customerEmail) form["customer_email"] = i.customerEmail;
-  // Same job + step + amount → same session (safe double-click); a new amount is a new session.
-  return { form, idempotencyKey: `hivic-checkout-${i.jobId}-${i.step}-${i.amountCents}` };
+  // Same job + invoice + step + amount → same session (safe double-click); a new amount or another invoice (batch 3b:
+  // a replaced fixes invoice, a second repeat safety check) is a new session.
+  return { form, idempotencyKey: `hivic-checkout-${i.jobId}-${i.invoiceId}-${i.step}-${i.amountCents}` };
 }
 export const encodeForm = (form: Record<string, string>) => Object.entries(form).map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join("&");
 

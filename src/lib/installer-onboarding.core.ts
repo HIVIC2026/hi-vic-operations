@@ -52,7 +52,7 @@ export const EXTRA_ITEMS = [
 
 export const CAPACITY_BANDS = [{ v: "1-3", n: 3 }, { v: "4-8", n: 8 }, { v: "9-15", n: 15 }, { v: "15+", n: 20 }] as const;
 
-export type Installer = { full_legal_name?: string; qualification?: string; mobile?: string; email?: string; cii_holds?: WorkerCii | null; cii_certificate_number?: string; cii_issuer?: string; cii_issue_date?: string; cii_level?: "full" | "provisional" | null; cii_expiry?: string; is_self?: boolean; piisa_done?: "yes" | "no" | null; piisa_date?: string; piisa_uploaded?: boolean;
+export type Installer = { full_legal_name?: string; qualification?: string; mobile?: string; email?: string; cii_holds?: WorkerCii | null; cii_certificate_number?: string; cii_issuer?: string; cii_issue_date?: string; cii_level?: "full" | "provisional" | null; cii_expiry?: string; is_self?: boolean;
   /** Decision 319: derived server-side from data.white_card_files (never trusted from the browser); optional at onboarding. */
   white_card_uploaded?: boolean;
   /** ESC collection notice (esc-collection-notice.core.ts): the browser sends the tick; the server stamps `esc_notice_ack`. */
@@ -197,15 +197,6 @@ export function stepFieldErrors(step: StepKey, d: InstData, now = new Date()): F
           if (x.cii_level !== "full" && x.cii_level !== "provisional") add(`installer-${i}-cii-level`, say(i, "Choose Full or Provisional."));
           if (!validCalendarDate(x.cii_expiry)) add(`installer-${i}-cii-expiry`, say(i, "Enter the expiry date, for example 05/10/2028."));
           else if ((x.cii_expiry as string) <= today) add(`installer-${i}-cii-expiry`, say(i, "This certificate has expired — enter a future expiry date."));
-        }
-        // PIISA training: Yes needs date + certificate; No can still submit (flagged, no jobs until verified).
-        if (x.piisa_done !== "yes" && x.piisa_done !== "no") add(`installer-${i}-piisa`, say(i, "Tell us if they've done the PIISA training."));
-        if (x.piisa_done === "yes") {
-          if (!validCalendarDate(x.piisa_date)) add(`installer-${i}-piisa-date`, say(i, "Enter the date they finished PIISA training."));
-          else if ((x.piisa_date as string) > today) add(`installer-${i}-piisa-date`, say(i, "The PIISA date can't be in the future."));
-          const files = (d as { piisa_files?: Record<string, string> }).piisa_files;
-          const uploaded = files ? !!files[(x.email ?? "").trim().toLowerCase()] : x.piisa_uploaded === true;
-          if (!uploaded) add(`installer-${i}-piisa-upload`, say(i, "Upload the PIISA certificate."));
         }
         // ESC rule (1 Oct 2026, decision 130): the applicant acknowledges the collection notice for themself here; every other
         // installer gets their own secure link after approval — the owner cannot tick for them.

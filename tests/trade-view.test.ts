@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { couldntGetInMessage, dayTile, distanceLine, expiryPill, goneIn, payPill, payState, prestartReady, roughInstallValue, roughValueNote, setupComplete, SETUP_STEPS, PRESTART_CHECKS, tradeGreeting } from "../src/lib/trade-view.core";
+import { couldntGetInMessage, dayTile, distanceLine, expiryPill, goneIn, payPill, payState, prestartReady, roughInstallValue, roughValueNote, setupComplete, SETUP_STEPS, tradeGreeting } from "../src/lib/trade-view.core";
 
 describe("trade view presentation", () => {
   test("greeting and quiet week", () => {
@@ -33,9 +33,8 @@ describe("trade view presentation", () => {
     expect(setupComplete({ details: true, rates: true, bank: true })).toBe(false);
     // Mitti is never shown to partners until the office invites them.
     expect(SETUP_STEPS.some((s) => s.key === ("mitti" as string))).toBe(false);
-    expect(PRESTART_CHECKS.some((c) => /mitti/i.test(c.title + c.sub))).toBe(false);
-    expect(prestartReady([true, true, false])).toBe(false);
-    expect(prestartReady([true, true, true])).toBe(true);
+    expect(prestartReady([true, true, false], ["a", "b", "c"])).toBe(false);
+    expect(prestartReady([true, true, true], ["a", "b", "c"])).toBe(true);
   });
   test("couldn't get in and expiry", () => {
     expect(couldntGetInMessage("No one home")).toBe("Thanks for letting us know. No one home. We'll rebook with the owner and offer it back to you first.");

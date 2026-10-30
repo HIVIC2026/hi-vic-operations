@@ -7,7 +7,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { PRE_RELEASE_FORBIDDEN, SPOT_PROCESS_STATEMENT, SPOT_RELEASE_LINE, preReleaseViolations } from "../src/lib/spot-only-copy.core";
-import { O2_DONT_KNOW_INTRO, renderJoOutcomeEmail } from "../src/lib/jo-outcome-email.core";
+import { O2_DONT_KNOW_INTRO, renderJoOutcomeEmail, type JoOutcomeEmailInput } from "../src/lib/jo-outcome-email.core";
 import { renderSpotSavedEmail, renderSpotSavedSms } from "../src/lib/spot-saved-messages.core";
 import { ESTIMATE_FOLLOWUP_APPROVED, ESTIMATE_FOLLOWUP_STEPS, renderEstimateFollowupEmail } from "../src/lib/estimate-followup.core";
 import { blastMessage } from "../src/lib/save-spot-reminder-blast.core";
@@ -28,6 +28,8 @@ import { SMS_MESSAGE_TYPES } from "../src/lib/sms.core";
 import { INSULATION_DETAILS_REAL_SEND_APPROVED, SAVE_SPOT_REAL_SEND_APPROVED } from "../src/lib/hot-leads.core";
 import { INSULATION_QUESTIONS_SEND_APPROVED } from "../src/lib/insulation-questions-campaign.core";
 import { LAUNCH_COPY_APPROVED } from "../src/lib/launch-campaign.core";
+import { AI_RELEASE_MEANS, AI_WAIT_LINE, aiPreReleaseViolations, aiReplyInstructions, buildAiReplyInput } from "../src/lib/ai-email-reply.core";
+import { composeReply, type OwnerFacts, type ReplyInput } from "../src/lib/email-reply.core";
 import { CUSTOMER_WHAT_COULD_CHANGE } from "../src/lib/customer-quote-system";
 
 const clean = (label: string, text: string) => expect({ label, found: preReleaseViolations(text) }).toEqual({ label, found: [] });
@@ -60,7 +62,7 @@ describe("pre-release emails and texts are spot-only", () => {
       { outcome: "needs_onsite_confirmation", insulation: "unknown", ceilingSizeKnown: false, mediaAlreadyReceived: true },
     ] as const;
     for (const v of variants) {
-      const m = renderJoOutcomeEmail({ ...v, recipient: HELEN, figures: { ...FIG, areaEstimated: !v.ceilingSizeKnown, removalUpTo: 2055 }, links: LINKS } as never)!;
+      const m = renderJoOutcomeEmail({ ...v, recipient: HELEN, figures: { ...FIG, areaEstimated: !v.ceilingSizeKnown, removalUpTo: 2055 }, links: LINKS } satisfies JoOutcomeEmailInput)!;
       expect(m).not.toBeNull();
       clean(`${JSON.stringify(v)} text`, m.plainText);
       clean(`${JSON.stringify(v)} html`, m.html.replace(/<[^>]+>/g, " "));
@@ -139,6 +141,18 @@ describe("pre-release page copy and shared constants", () => {
   });
 });
 
+describe("AI email drafts before release are spot-only", () => {
+  test("pre-release prompt, rules and input carry no forbidden phrase", () => {
+    // Step 1 redo: the AI prompt may explain release and use Jo's wait line; only timing is forbidden.
+    const input = buildAiReplyInput({ jobNumber: null, ownerFirstName: null, stageLabel: "x", facts: [], links: [], changeLink: null, history: [], email: { from: null, subject: null, body: "" } }, { preRelease: true });
+    for (const t of [aiReplyInstructions({ preRelease: true }), input]) expect(aiPreReleaseViolations(t)).toEqual([]);
+    expect(aiReplyInstructions({ preRelease: true })).toContain(AI_RELEASE_MEANS);
+    expect(aiReplyInstructions({ preRelease: true })).toContain(AI_WAIT_LINE);
+    expect(input).toContain(AI_RELEASE_MEANS);
+    expect(input).toContain(AI_WAIT_LINE);
+  });
+});
+
 describe("approval flags: reworded live messages with a flag are held; nothing else switched", () => {
   test("decision 388 wording approved by Jo (O1/O2 25 Oct; 3-questions email by decision 393)", () => {
     expect(SAVE_SPOT_REAL_SEND_APPROVED).toBe(true); // Jo approved the spot-only O1/O2 wording 25 Oct 2026
@@ -156,5 +170,47 @@ describe("approval flags: reworded live messages with a flag are held; nothing e
   test("the O1/O2 flag really holds the real senders", () => {
     expect(readFileSync("src/lib/hot-leads-send.server.ts", "utf8")).toContain("if (!SAVE_SPOT_REAL_SEND_APPROVED) return false;");
     expect(readFileSync("src/lib/followups.server.ts", "utf8")).toContain('if (!SAVE_SPOT_REAL_SEND_APPROVED) return { sent: false as const, reason: "wording_not_approved" };');
+  });
+});
+
+describe("old reply composer before release is spot-only", () => {
+  const facts = (stage: string, o: Partial<OwnerFacts> = {}): OwnerFacts => ({
+    jobNumber: "HV-3150", jobSource: "hivic_sourced", stage, spotSaved: true, ownerFullName: "Helen Sample", suburb: "Glen Waverley",
+    readyCheck: null, piesa: null, install: null, quote: null, fixesQuoteSent: false, estimate: { fullPrice: 3798, rebate: 1610, youPay: 2188, areaM2: 137 },
+    insulationDeclared: null, paymentDue: null, installHeldUntil: null, ownerLink: "https://estimate.homeinsulationvictoria.com.au/estimate/tok", matchedJobs: 1, ...o,
+  });
+  const reply = (body: string, stage: string, spotSaved = true) => composeReply({ subject: "Re: HV-3150", body, from: "helen.sample@example.com", fromName: "Helen Sample", fromPartner: false, now: new Date("2026-10-26T01:00:00Z"), owner: facts(stage, { spotSaved }) } satisfies ReplyInput);
+  for (const stage of ["preliminary_estimate_ready", "ready_check_ready_to_schedule", "ready_check_awaiting_payment"]) {
+    test(`status reply at ${stage}`, () => { const d = reply("Any update on my job?", stage); expect(d).not.toBeNull(); clean(stage, d!.text); expect(d!.text).toContain(SPOT_RELEASE_LINE); });
+  }
+  test("new enquiry reply", () => {
+    const d = reply("Any update?", "preliminary_estimate_ready", false);
+    expect(d).not.toBeNull(); expect(d!.type).toBe("new_enquiry"); clean("new_enquiry", d!.text);
+  });
+  const PRICE = "How much is the rebate and what would it cost?";
+  for (const stage of ["new_enquiry", "eligibility_review", "preliminary_estimate_ready", "ready_check_ready_to_schedule", "ready_check_awaiting_payment"]) {
+    test(`price and rebate reply at ${stage}`, () => {
+      const d = reply(PRICE, stage); expect(d!.type).toBe("price_rebate_eligibility"); clean(stage, d!.text);
+      expect(d!.text).toContain("the licensed electrician's safety check");
+    });
+  }
+  test("F1: awaiting acceptance (times already offered) is not pre-release in the composer", () => {
+    const st = reply("Any update on my job?", "ready_check_awaiting_acceptance")!;
+    expect(st.text).toContain("Your installer has offered times for your free Ready Check.");
+    expect(st.text).not.toContain(SPOT_RELEASE_LINE);
+    const pr = reply(PRICE, "ready_check_awaiting_acceptance")!;
+    expect(pr.type).toBe("price_rebate_eligibility");
+    expect(pr.text).toContain("That includes the free Ready Check, the licensed electrician's safety check");
+  });
+  test("F1: the composer reads the one shared pre-release stage rule", () => {
+    const src = readFileSync("src/lib/email-reply.core.ts", "utf8");
+    expect(src).toContain("isPreReleaseStage(");
+    expect(src).not.toContain("PRE_RELEASE_STAGES");
+  });
+  test("price and rebate reply after release is unchanged", () => {
+    const d = reply(PRICE, "ready_check_scheduled")!;
+    expect(d.type).toBe("price_rebate_eligibility");
+    expect(d.text).toContain("That includes the free Ready Check, the licensed electrician's safety check");
+    expect(d.text).toContain("before you agree to anything");
   });
 });

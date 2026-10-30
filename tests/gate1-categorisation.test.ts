@@ -17,7 +17,7 @@ describe("Simple Gate 1", () => {
   test("not a home -> does not appear eligible", () => { expect(d({ declaredPropertyType: "Commercial office" }).outcome).toBe("does_not_appear_eligible"); expect(d({ isResidential: false }).outcome).toBe("does_not_appear_eligible"); });
   test("unit not top floor -> needs onsite", () => expect(d({ declaredPropertyType: "Unit", declaredTopFloor: "no" }).outcome).toBe("needs_onsite_confirmation"));
   test("insulation present or unknown -> needs onsite", () => { expect(d({ declaredInsulation: "present" }).outcome).toBe("needs_onsite_confirmation"); expect(d({ declaredInsulation: null }).outcome).toBe("needs_onsite_confirmation"); });
-  test("confirmed previous Activity 48 for same ceiling area -> fail", () => expect(d({ previousActivity48Confirmed: true }).failed).toContain("Previous Activity 48 for the same ceiling area confirmed"));
+  test("previous Activity 48 never fails (always no, Jo 29 Oct)", () => expect(d({ previousActivity48Confirmed: true }).failed).not.toContain("Previous Activity 48 for the same ceiling area confirmed"));
   test("life support / area unknown are flags only", () => {
     const x = d({ lifeSupportStatus: "yes", areaKnown: false });
     expect(x.outcome).toBe("likely_eligible");

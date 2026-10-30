@@ -10,7 +10,8 @@
 // (piisa-a3.core readyCheckPart6Answers) — never from this form.
 import { norm } from "./mitti.core";
 import { onsiteStartTicked } from "./official-short.core";
-import { B1_OPTIONS } from "./official-forms.core";
+import { B1_OPTIONS, type OfficialAnswers } from "./official-forms.core";
+import { sectionCSigned } from "./piesa-rules-notice.core";
 import { mittiMediaFile, type MittiMediaFile } from "./piesa-evidence.core";
 
 export const INSTALL_DAY_TEMPLATE_NAME = "A5 – Install day";
@@ -367,13 +368,13 @@ const isTicked = (v: unknown) => v === true || (typeof v === "string" && /^(yes|
  * Official PIISA p5.recessed / p5.count / p5.icConfirmed / p5.safeToCover / p5.rcd / p5.tps / p5.basic from the job's
  * signed PIESA answers (decision 262). Source per answer:
  *  - recessed lights + count: PIESA Part 6 (p6.recessed, p6.count);
- *  - lights / RCD / TPS / basic protection when rectification was required: the electrician's Section C ticks
- *    (c.tick2 lights, c.tick3 RCD, c.tick4 TPS, c.tick5 basic protection) — a missing tick is a missing fact;
- *  - when the PIESA outcome (B1) is "rectification is not required", the PIESA itself records that no electrical defects
- *    were found, so the four confirmations are Yes.
+ *  - A48 batch 1 task 3 (Jo 29 Oct 2026): lights (IC / IC-4, safe to cover), RCD, TPS and basic protection are "Yes" only
+ *    when the PIESA really confirms them: the matching Part 4-6 answers are all clear (lights: Part 6; TPS: Part 5 + Part 4
+ *    TPS; basic protection: Part 4 terminations + plug bases; RCD: all of Parts 4-6), OR the PIESA's Section C is signed
+ *    (`sectionCSigned`) and ticks that item (c.tick2 lights, c.tick3 RCD, c.tick4 TPS, c.tick5 basic protection). B1 "not
+ *    required" / "not possible" alone confirms nothing. Otherwise the item is left blank for the installer (a No stops the job).
  *  - decision 362: when B1 is "rectification is not possible … an electrician must be present at the start" (option 3,
- *    decision 338), the PIESA validator has already required Parts 4–6 to find nothing, so the confirmations are Yes as for
- *    no fixes; p5.electricianPresent is Yes only from this form's "Is the electrician here?" = Yes WITH the electrician
+ *    decision 338), p5.electricianPresent is Yes only from this form's "Is the electrician here?" = Yes WITH the electrician
  *    photo (`installDay`), otherwise it stays missing.
  * Anything not established is listed in `missing` (a pre-start blocker), never guessed.
  */
@@ -386,15 +387,24 @@ export function piesaPart5Answers(piesa: Record<string, unknown> | null | undefi
   if (recessed) answers["p5.recessed"] = recessed; else missing.push("PIESA Part 6: recessed lights not answered");
   if (recessed === "Yes") { if (s("p6.count")) answers["p5.count"] = s("p6.count"); else missing.push("PIESA Part 6: number of recessed lights not recorded"); }
   const b1 = s("b1");
-  const ticks: [string, string, string][] = [["p5.icConfirmed", "c.tick2", "lights IC / IC-4"], ["p5.safeToCover", "c.tick2", "lights safe to cover"], ["p5.rcd", "c.tick3", "RCD protection"], ["p5.tps", "c.tick4", "TPS cables"], ["p5.basic", "c.tick5", "basic protection"]];
-  if (b1 === B1_NO_FIXES) for (const [id] of ticks) answers[id] = "Yes";
-  else if (b1 === B1_FIXES) for (const [id, c, label] of ticks) { if (isTicked(piesa[c])) answers[id] = "Yes"; else missing.push(`PIESA Section C: ${label} not confirmed by the electrician`); }
-  else if (b1 === B1_OPTIONS[2]) {
-    for (const [id] of ticks) answers[id] = "Yes";
+  // A48 batch 1 task 3: an item is "Yes" only when the electrician's PIESA really confirms it — the matching Part 4-6 answers
+  // are all clear, OR a signed Section C (sectionCSigned) ticks that item. Never because B1 says "not required"/"not possible".
+  // Anything else stays blank for the installer to answer (a No stops the job: P5-CANNOT-COMMENCE).
+  const is = (k: string, v: "yes" | "no") => yesNo(s(k))?.toLowerCase() === v;
+  const lightsClear = is("p6.recessed", "no") || (is("p6.recessed", "yes") && is("p6.prohibited", "no"));
+  const tpsClear = ["p5.nonTps", "p5.splitConduit", "p5.damaged"].every((k) => is(k, "no")) && (is("p4.tps", "yes") || /^n\/?a\b/i.test(s("p4.tps")));
+  const basicClear = ["p4.terminations", "p4.plugBases"].every((k) => is(k, "yes"));
+  // No Part 4-6 question is about safety switches alone, so RCD protection needs the whole of Parts 4-6 to be clear.
+  const allClear = lightsClear && tpsClear && basicClear && ["p4.conduit", "p4.supported", "p4.treatment", "p4.foil"].every((k) => is(k, "yes"));
+  const sectionC = sectionCSigned(piesa as OfficialAnswers);
+  const ticks: [string, string, boolean][] = [["p5.icConfirmed", "c.tick2", lightsClear], ["p5.safeToCover", "c.tick2", lightsClear], ["p5.rcd", "c.tick3", allClear], ["p5.tps", "c.tick4", tpsClear], ["p5.basic", "c.tick5", basicClear]];
+  const known = b1 === B1_NO_FIXES || b1 === B1_FIXES || b1 === B1_OPTIONS[2];
+  if (known) for (const [id, c, clear] of ticks) if (clear || (sectionC && isTicked(piesa[c]))) answers[id] = "Yes";
+  if (b1 === B1_OPTIONS[2]) {
     if (installDay?.electricianHere === "Yes" && installDay.electricianPhoto) answers["p5.electricianPresent"] = "Yes";
     else missing.push(ELECTRICIAN_AT_START_MISSING);
   }
-  else missing.push(b1 ? "PIESA outcome not recognised — the light and cable confirmations need office review" : "PIESA outcome (B1) not recorded");
+  else if (!known) missing.push(b1 ? "PIESA outcome not recognised — the light and cable confirmations need office review" : "PIESA outcome (B1) not recorded");
   return { answers, missing: [...new Set(missing)] };
 }
 

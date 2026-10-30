@@ -18,8 +18,11 @@ import { CONTACT_CHANNELS, channelCounts, filterContacts, type ContactChannel, t
 import { fileChecklist } from "@/lib/job-file-checklist.core";
 import { PAYMENT_STEP_LABEL, type PaymentStep } from "@/lib/payments.core";
 import { safetyCheckShort } from "@/lib/safety-check-amount.core";
-import { cancelOfficeJob, getOfficeJobMoney, holdOfficeJob, logOfficeCallOrNote, markOfficeJobTest, reopenOfficeJob } from "@/lib/office-screens.functions";
+import { cancelOfficeJob, clearOfficeEmailBounce, getOfficeJobMoney, holdOfficeJob, logOfficeCallOrNote, markOfficeJobTest, reopenOfficeJob } from "@/lib/office-screens.functions";
 import { bulkJobAction } from "@/lib/bulk.functions";
+import { retryInvoiceFn } from "@/lib/office-money.functions";
+import { invoiceSlotLabel } from "@/lib/office-money.core";
+import { markPaymentsSeparateFn } from "@/lib/payments.functions";
 import { completeInstallation, overrideDepositGate, regenerateRectificationQuote, setHold, syncInvoice } from "@/lib/portal.functions";
 import { openJobDocument } from "@/lib/jobfile.functions";
 import { reopenDeclinedQuote } from "@/lib/installer-quote-review.functions";
@@ -48,6 +51,9 @@ import { AssessmentView, Compliance, ComplianceRecords, EligibilityForm, JobCove
 import { FinalCheckScreen } from "@/components/portal/final-check";
 import { panelLoad, readOrThrow } from "@/lib/panel-load.core";
 import { LoadFailed } from "@/components/portal/load-failed";
+import { Button } from "@/components/ui/button";
+import { InHousePullBackDialog } from "@/components/portal/InHousePullBackDialog";
+import { Undo2 } from "lucide-react";
 
 export type JobPage = Awaited<ReturnType<typeof import("@/lib/office-job-page.server").loadJobPage>>;
 type Header = JobPage["header"];
@@ -212,11 +218,13 @@ function DeclinedQuoteReopen({ jobId }: { jobId: string }) {
 
 /* ---------------- Money (decisions 139–144, 152, 209, 230, 233, 240) ---------------- */
 const STEP_STATE: Record<string, string> = { not_yet: "Not due", requested: "Due", paid: "Paid", overdue: "Overdue", waived: "Waived" };
-const STEP_HOW: Record<string, string> = { safety_check: "At acceptance · card or bank transfer", fixes: "In full at approval · card or bank transfer", install_deposit: "Before the install is booked · bank transfer", balance: "On install day · bank transfer" };
+const STEP_HOW: Record<string, string> = { safety_check: "At acceptance · card or bank transfer", fixes: "In full at approval · card or bank transfer", install_deposit: "Before the install is booked · card or bank transfer", balance: "On install day · bank transfer" };
 export function MoneyCard({ jobId }: { jobId: string }) {
   const load = useServerFn(getOfficeJobMoney);
   const sync = useAction(syncInvoice);
   const override = useAction(overrideDepositGate);
+  const createInvoice = useAction(retryInvoiceFn);
+  const separate = useAction(markPaymentsSeparateFn);
   const { data, error } = useQuery({ queryKey: ["office-job-money", jobId], queryFn: () => load({ data: { jobId } }), staleTime: 30_000 });
   const [showMargin, setShowMargin] = useState(false);
   const [overriding, setOverriding] = useState(false);
@@ -230,6 +238,12 @@ export function MoneyCard({ jobId }: { jobId: string }) {
         <h2 className="font-display text-lg font-bold text-ink">Money{data.invoice ? ` · invoice ${data.invoice.number ?? "not in Xero yet"} · $${data.invoice.total.toLocaleString("en-AU", { maximumFractionDigits: 0 })} inc GST · paid $${data.invoice.paid.toLocaleString("en-AU", { maximumFractionDigits: 0 })}` : ""}</h2>
         {v?.onlineInvoiceUrl && <a href={v.onlineInvoiceUrl} target="_blank" rel="noreferrer" className="text-sm font-semibold text-hiv-blue underline">Xero invoice (office view)</a>}
       </div>
+      {data.hasAcceptedQuote && !data.invoice?.linked && (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-[12px] border border-rose/30 bg-pink px-3 py-2 text-sm">
+          <span className="font-semibold text-rose">The invoice is not in Xero yet.</span>
+          <button type="button" className={cn(btn, "bg-ink text-white")} onClick={() => void createInvoice({ jobId }, "Invoice created")}>Create invoice</button>
+        </div>
+      )}
       {!v ? <p className="text-sm text-sub">No invoice yet — the one Xero invoice is created when the owner accepts the quote.</p> : (
         <ul className="divide-y divide-line rounded-[12px] border border-line">
           {(v.steps as PaymentStep[]).map((s) => (
@@ -241,6 +255,22 @@ export function MoneyCard({ jobId }: { jobId: string }) {
           ))}
         </ul>
       )}
+      {data.invoices.length > 1 && (
+        <ul className="mt-3 divide-y divide-line rounded-[12px] border border-line text-sm" data-testid="job-invoices">
+          {data.invoices.map((i) => (
+            <li key={i.invoiceId} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+              <span><span className="font-semibold">{i.label}</span> · {i.number ?? "not in Xero yet"}{i.reference ? <span className="text-xs text-sub"> · {i.reference}</span> : null}</span>
+              <span className="tabular-nums">{money(i.totalCents)} · paid {money(i.paidCents)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {v?.unclearPairs.map((u) => (
+        <div key={`${u.invoiceId}:${u.pairKey}`} className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-[12px] border border-line px-3 py-2 text-sm" data-testid="unclear-payment-pair">
+          <span>{invoiceSlotLabel(u.invoice, u.reference)}{u.reference ? ` ${u.reference}` : ""} · Card payment and a same-amount Xero payment — counted once.</span>
+          <button type="button" className={cn(btn, "border border-line bg-paper text-hiv-blue")} onClick={() => void separate({ invoiceId: u.invoiceId, pairKey: u.pairKey }, "Marked as two separate payments")}>Two separate payments</button>
+        </div>
+      ))}
       <div className="mt-3 rounded-[12px] bg-mist px-3 py-2 text-sm" data-why="decision 230: office only, never shown to installers, electricians or owners">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="font-semibold">Our margin {m.margin != null ? `$${m.margin.toLocaleString("en-AU", { maximumFractionDigits: 0 })}${m.pct != null ? ` (${m.pct}%)` : ""}` : "— not known yet"}</span>
@@ -274,18 +304,24 @@ export function MoneyCard({ jobId }: { jobId: string }) {
 
 /* ---------------- Contact history (decision 216) ---------------- */
 const DIR: Record<ContactRow["direction"], string> = { sent: "↑ Sent", received: "↓ Received", call: "☎ Call", note: "✎ Note" };
-export function ContactHistory({ jobId, rows, waitingFor, onLog }: { jobId: string; rows: ContactRow[]; waitingFor: string; onLog: () => void }) {
+export function ContactHistory({ jobId, rows, waitingFor, onLog, emailBounced }: { jobId: string; rows: ContactRow[]; waitingFor: string; onLog: () => void; emailBounced?: boolean }) {
   const [channel, setChannel] = useState<ContactChannel | "All">("All");
   const [all, setAll] = useState(false);
   const counts = useMemo(() => channelCounts(rows), [rows]);
   const shown = filterContacts(rows, channel);
-  void jobId;
+  const clearBounce = useAction(clearOfficeEmailBounce);
   return (
     <section id="stage-contact" aria-label="Contact history" className={cn(card, "mb-4 scroll-mt-24")} data-why="decision 216 Contact history: every email/text/call with what we are waiting for">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-display text-lg font-bold text-ink">Contact history · {rows.length}</h2>
         <button type="button" className={cn(btn, "border border-line bg-paper text-hiv-blue")} onClick={onLog}>Log a call or note</button>
       </div>
+      {emailBounced && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-[12px] bg-pink px-3 py-2 text-sm text-rose">
+          <span className="font-semibold">Email bounced</span>
+          <button type="button" className={cn(btn, "ml-auto border border-line bg-paper text-hiv-blue")} onClick={() => void clearBounce({ jobId }, "Cleared")}>Clear</button>
+        </div>
+      )}
       <p className="mb-3 text-sm"><span className="font-semibold">Waiting for:</span> {waitingFor}</p>
       <div className="mb-2 flex flex-wrap gap-1.5" role="group" aria-label="Filter by channel">
         {(["All", ...CONTACT_CHANNELS] as const).map((c) => (
@@ -299,7 +335,7 @@ export function ContactHistory({ jobId, rows, waitingFor, onLog }: { jobId: stri
               <span className="text-sub">{dayTime(r.at)}</span>
               <span className="font-semibold">{DIR[r.direction]}</span>
               <span className="text-sub">{r.channel}</span>
-              <span className="min-w-0 break-words">{r.what}{r.byOffice ? <span className="text-xs text-sub"> · logged by the office</span> : null}</span>
+              <span className={cn("min-w-0 break-words", r.failed && r.channel === "Email" && "text-rose")}>{r.what}{r.byOffice ? <span className="text-xs text-sub"> · logged by the office</span> : null}</span>
               <span className={cn("text-xs font-semibold", r.failed ? "text-rose" : "text-sub")}>{r.status}</span>
             </li>
           ))}
@@ -473,7 +509,7 @@ function ReasonDialog({ title, description, action, tone, open, onOpenChange, ru
 export function JobMoreMenu({ h, cancelOpen, setCancelOpen, onDeleted }: { h: Header; cancelOpen: boolean; setCancelOpen: (v: boolean) => void; onDeleted: () => void }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [dialog, setDialog] = useState<"hold" | "test" | "delete" | "reopen" | "override" | null>(null);
+  const [dialog, setDialog] = useState<"hold" | "test" | "delete" | "reopen" | "override" | "pull-back" | null>(null);
   const resume = useAction(setHold);
   const markTest = useAction(markOfficeJobTest);
   const reopen = useAction(reopenOfficeJob);
@@ -485,6 +521,7 @@ export function JobMoreMenu({ h, cancelOpen, setCancelOpen, onDeleted }: { h: He
     <div className="relative">
       <button type="button" aria-expanded={open} aria-haspopup="menu" onClick={() => setOpen(!open)} className={cn(btn, "border border-line bg-paper text-hiv-blue")}>More ▾</button>
       <MenuPanel open={open} onPick={() => setOpen(false)}>
+          {h.inHouseHeld && !closed && !h.deleted && !h.isTest && <Button role="menuitem" variant="ghost" className="w-full justify-start" onClick={() => setDialog("pull-back")}><Undo2 />Take this job back</Button>}
           {h.stage === "on_hold" ? <button role="menuitem" type="button" className={item} onClick={() => void resume({ jobId: h.jobId, action: "resume" }, "Resumed")}>Resume</button>
             : !closed && <button role="menuitem" type="button" className={item} onClick={() => setDialog("hold")}>Put on hold</button>}
           {!h.isTest && <button role="menuitem" type="button" className={item} onClick={() => setDialog("test")}>Mark as test</button>}
@@ -495,9 +532,10 @@ export function JobMoreMenu({ h, cancelOpen, setCancelOpen, onDeleted }: { h: He
       </MenuPanel>
       <CancelDialog h={h} open={cancelOpen} onOpenChange={setCancelOpen} onDone={() => void qc.invalidateQueries()} />
       <HoldDialog h={h} open={dialog === "hold"} onOpenChange={(v) => setDialog(v ? "hold" : null)} />
+      <InHousePullBackDialog jobId={h.jobId} jobNumber={h.jobNumber} open={dialog === "pull-back"} onOpenChange={v => setDialog(v ? "pull-back" : null)} />
       <ReasonDialog title={`Mark ${h.jobNumber} as test`} description="It moves to Jobs › Closed › Removed / test and leaves every live list." action="Mark as test" tone="ink" open={dialog === "test"} onOpenChange={(v) => setDialog(v ? "test" : null)} run={async (reason) => !!(await markTest({ jobId: h.jobId, reason }, "Marked as test"))} />
       <ReasonDialog title={`Reopen ${h.jobNumber}`} description="Back to the stage it was at; the history is kept." action="Reopen" tone="ink" open={dialog === "reopen"} onOpenChange={(v) => setDialog(v ? "reopen" : null)} run={async (reason) => !!(await reopen({ jobId: h.jobId, reason }, "Reopened"))} />
-      <ReasonDialog title={`Delete ${h.jobNumber}`} description="TEST jobs only. Signed or sent records linked to it stop the delete and are kept." action="Delete" tone="rose" open={dialog === "delete"} onOpenChange={(v) => setDialog(v ? "delete" : null)} run={async (reason) => { const r = await bulk({ jobIds: [h.jobId], action: "delete", reason }); if (r?.failed.length) { toast.error(r.failed[0]!.error ?? "Could not delete"); return false; } if (r) { toast.success("Deleted"); onDeleted(); } return !!r; }} />
+      <ReasonDialog title={`Delete ${h.jobNumber}`} description="TEST jobs only. You can restore it from Settings › Deleted." action="Delete" tone="rose" open={dialog === "delete"} onOpenChange={(v) => setDialog(v ? "delete" : null)} run={async (reason) => { const r = await bulk({ jobIds: [h.jobId], action: "delete", reason }); if (r?.failed.length) { toast.error(r.failed[0]!.error ?? "Could not delete"); return false; } if (r) { toast.success("Deleted"); onDeleted(); } return !!r; }} />
       <Dialog open={dialog === "override"} onOpenChange={(v) => setDialog(v ? "override" : null)}>
         <DialogContent data-why="decision 220: one hidden office override for phone bookings, reason required, logged">
           <DialogHeader><DialogTitle>Set a visit time by hand · {visitKind === "ready_check" ? "Ready Check" : "PIESA"}</DialogTitle><DialogDescription>For phone bookings only. Recorded permanently with your reason.</DialogDescription></DialogHeader>

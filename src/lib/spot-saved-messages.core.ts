@@ -68,7 +68,7 @@ export function renderSpotSavedEmail(i: SpotSavedInput) {
   const body = [
     `<mj-section><mj-column><mj-text mj-class="hi">${K.esc(smartMove)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${K.esc(rebateLine)}</mj-text><mj-text>${K.esc(SPOT_SAVED_BATCH_TEXT)}</mj-text></mj-column></mj-section>`,
     est ? `<mj-section><mj-column mj-class="panel-mint"><mj-text mj-class="eyebrow center" padding="18px 12px 6px">VEU rebate</mj-text><mj-text mj-class="big-green" padding="0 12px 18px">You save ${K.esc(K.whole(i.rebate))}</mj-text></mj-column></mj-section>`
-      + `<mj-section><mj-column mj-class="panel"><mj-text mj-class="eyebrow center" padding="18px 12px 6px">You pay about</mj-text><mj-text mj-class="big-blue">${K.esc(K.whole(est.customer))}</mj-text><mj-text mj-class="small center" padding="0 16px 18px">${K.esc(estNote!)}</mj-text></mj-column></mj-section>` : "",
+      + `<mj-section><mj-column mj-class="panel"><mj-text mj-class="eyebrow center" padding="18px 12px 6px">Your estimated quote based on what you've told us</mj-text><mj-text mj-class="big-blue">${K.esc(K.whole(est.customer))}</mj-text><mj-text mj-class="small center" padding="0 16px 18px">${K.esc(estNote!)}</mj-text></mj-column></mj-section>` : "",
     `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 10px">What happens next</mj-text><mj-table padding="0 18px 4px">${steps.map((st, n) => `<tr><td width="34" valign="top" style="padding:1px 0 ${n === steps.length - 1 ? 12 : 14}px;"><span class="num">${n + 1}</span></td><td style="padding:0 0 ${n === steps.length - 1 ? 12 : 14}px;"><strong>${K.esc(st.title)}</strong><br /><span class="muted">${K.esc(st.detail ?? "")}</span></td></tr>`).join("")}</mj-table><mj-button href="${K.esc(i.myJobUrl)}" padding="0 18px 16px">See my job</mj-button></mj-column></mj-section>`,
     est ? `${mjIncludedCards({ price: est.customer, rebate: i.rebate, someInsulation: some })}${mjSmallEnd(K.esc(K.INCLUDED_CLOSING))}` : mjSmall(SPOT_SAVED_NOT_INCLUDED),
     removalCard,
@@ -79,13 +79,12 @@ export function renderSpotSavedEmail(i: SpotSavedInput) {
   const html = mjEmail({ subject, preview: SPOT_SAVED_PREVIEW, body, unsubscribe: i.optOutUrl });
   const text = K.plainText([
     smartMove, `${rebateLine}.`, "", SPOT_SAVED_BATCH_TEXT, "",
-    ...(est ? [`VEU rebate: You save ${rebate}`, `You pay about: ${K.whole(est.customer)}`, estNote!, ""] : []),
+    ...(est ? [`VEU rebate: You save ${rebate}`, `Your estimated quote based on what you've told us: ${K.whole(est.customer)}`, estNote!, ""] : []),
     "WHAT HAPPENS NEXT", ...steps.map((s, n) => `${n + 1}. ${s.title}: ${s.detail}`), "",
     `See my job: ${i.myJobUrl}`, "",
     ...(est ? [...includedCardsText({ price: est.customer, rebate: i.rebate, someInsulation: some }), "", K.INCLUDED_CLOSING, ""] : []),
     SPOT_SAVED_NOT_INCLUDED,
     ...(removal ? ["", ...(removalLine ? [removalLine] : []), removalNote(removal), EXISTING_PRELIMINARY, ...(removal.kind === "unknown" ? [REMOVAL_BUDGET_EMAIL_NOTE] : [])] : []),
-    ...(est ? [`Try a different size: ${est.calculatorUrl}`] : []),
     ...(i.referralUrl ? ["", "HAVE A FRIEND WHO NEEDS A SPOT SAVED?", "Send them our free eligibility checker. It takes a minute.", `Send to a friend: ${i.referralUrl}`] : []),
   ], { unsubscribe: i.optOutUrl });
   return { subject, html, text };

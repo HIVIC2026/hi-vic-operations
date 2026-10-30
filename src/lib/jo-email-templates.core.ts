@@ -212,7 +212,6 @@ function renderEligibleNoInsulation(r: JoRecipient, f: JoEstimateFigures, thinPa
     `Property: ${r.propertyAddress}`,
     ceilingLine(f), "",
     assumedNote, "",
-    "Want to explore a different ceiling size? Open the calculator →", "",
     includesTable(declaredThinPatchy, f), "",
     "### Save your spot", "",
     "We’ve been inundated with requests from owners across Victoria. With limited availability of suitably qualified installers, we’re opening Ready Check bookings in batches.", "",
@@ -246,7 +245,6 @@ function renderBelowR2Reviewed(r: JoRecipient, f: JoEstimateFigures): string {
     `Property: ${r.propertyAddress}`,
     ceilingLine(f), "",
     assumedNote, "",
-    "Want to explore a different ceiling size? Open the calculator →", "",
     includesTable(true, f), "",
     // Jo 22 Oct: when the "up to" removal box shows, the old removal section is dropped so nothing repeats.
     ...(f.removalUpTo != null && f.removalUpTo > 0 ? [] : [
@@ -292,7 +290,6 @@ function renderPotentiallyEligible(r: JoRecipient, f: JoEstimateFigures, questio
     `Property: ${r.propertyAddress}`,
     ceilingLine(f), "",
     assumedNote, "",
-    "Want to explore a different ceiling size? Open the calculator →", "",
     includesTable(true, f), "",
     ...(questions ? [
     // Jo 23 Oct 08:36 UTC final design: one sentence, one button.

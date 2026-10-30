@@ -15,6 +15,8 @@ type Props = {
   resolved?: ResolvedAddress | null | undefined;
   onChange: (value: string) => void;
   onSelect: (value: ResolvedAddress | null) => void;
+  /** A8: true when the lookup found nothing or is unavailable, false when results come back. */
+  onNoMatch?: (none: boolean) => void;
   victoriaOnly?: boolean;
   id?: string;
   inputStyle: CSSProperties;
@@ -24,7 +26,7 @@ type Props = {
 };
 
 /** Verified Australian address picker. Free text never becomes a verified address. */
-export function VerifiedAddressInput({ value, resolved, onChange, onSelect, victoriaOnly = false, id = "address", inputStyle, mutedColor, provider = defaultAddressProvider, onPendingChange }: Props) {
+export function VerifiedAddressInput({ value, resolved, onChange, onSelect, victoriaOnly = false, id = "address", inputStyle, mutedColor, provider = defaultAddressProvider, onPendingChange, onNoMatch }: Props) {
   const [announce, setAnnounce] = useState("");
   const [items, setItems] = useState<AddressSuggestion[]>([]);
   const [open, setOpen] = useState(false);
@@ -84,9 +86,11 @@ export function VerifiedAddressInput({ value, resolved, onChange, onSelect, vict
         if (!mounted.current || mine !== searchSeq.current || picking.current) return;
         setItems(results); setActive(results.length ? 0 : -1); setOpen(true);
         setNote(results.length ? "" : "No Australian address matched. Keep typing and include the postcode.");
+        onNoMatch?.(results.length === 0);
       } catch {
         if (mounted.current && mine === searchSeq.current && !picking.current) {
           setItems([]); setOpen(true); setNote("Address lookup is unavailable right now. Edit the address to try again.");
+          onNoMatch?.(true);
         }
       } finally {
         if (mounted.current && mine === searchSeq.current && !picking.current) setLoading(false);

@@ -3,8 +3,8 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
 import {
-  REPEAT_PIESA_ACCEPTED_EVENT, REPEAT_PIESA_CHOSEN_EVENT, REPEAT_PIESA_PAID_EVENT, REPEAT_PIESA_PRICE_EVENT,
-  chooseRepeatPayerBlocker, repeatPiesaState, type RepeatChoice, type RepeatPayer, type RepeatState,
+  REPEAT_PIESA_ACCEPTED_EVENT, REPEAT_PIESA_CHOSEN_EVENT, REPEAT_PIESA_PAID_EVENT, REPEAT_PIESA_PRICE_EVENT, REPEAT_REOPEN_EVENT,
+  chooseRepeatPayerBlocker, piesaSupersededByReopen, repeatPiesaState, repeatRoundActive, type RepeatChoice, type RepeatPayer, type RepeatState,
 } from "./repeat-piesa.core";
 
 export async function repeatPiesaPrice(): Promise<number | null> {
@@ -20,17 +20,66 @@ export async function setRepeatPiesaPrice(priceIncGst: number | null, actorId: s
   return v;
 }
 
+/** Batch 1 task 6: when the latest reopen happened (null = never reopened past the safety check). */
+export async function latestReopenAt(jobId: string): Promise<string | null> {
+  const { data } = await admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", REPEAT_REOPEN_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  return (data as { created_at?: string } | null)?.created_at ?? null;
+}
+
+/** Batch 1 final fix F3: PIESA offers made since the job's latest reopen (all of them for a job never reopened). The
+ *  automatic first offer round runs once per job — and once again after a reopen. */
+export async function piesaOffersSinceReopen(jobId: string): Promise<number> {
+  const since = await latestReopenAt(jobId);
+  let q = admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", "piesa");
+  if (since) q = q.gt("offered_at", since);
+  const { count, error } = await q;
+  if (error) throw new Error(error.message);
+  return count ?? 0;
+}
+
+/** Decision 426 fix wave: the job is in a repeat safety check round (office chose who pays after the latest reopen, or
+ *  the job was never reopened). Repeat rounds keep their batch offers and refill; first-time checks go one at a time. */
+export async function inRepeatPiesaRound(jobId: string): Promise<boolean> {
+  const [reopenAt, { data }] = await Promise.all([
+    latestReopenAt(jobId),
+    admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", REPEAT_PIESA_CHOSEN_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  return repeatRoundActive((data as { created_at?: string } | null)?.created_at ?? null, reopenAt);
+}
+
+/** Batch 1 task 6: the job's current PIESA record was made before its latest reopen, so it no longer counts. */
+export async function currentPiesaSupersededByReopen(jobId: string): Promise<boolean> {
+  const at = await latestReopenAt(jobId);
+  if (!at) return false;
+  const { data } = await admin.from("piesa_records").select("created_at").eq("job_id", jobId).eq("is_current", true).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  return !!data && piesaSupersededByReopen((data as { created_at?: string }).created_at, at);
+}
+
+/** Batch 1 task 6: a reopen that superseded a check that was done (had_check) is the current lapse, keyed by its key,
+ *  until a PIESA record is created after it. */
+async function currentReopenLapse(jobId: string): Promise<string | null> {
+  const { data } = await admin.from("workflow_events").select("created_at, details").eq("job_id", jobId).eq("event_type", REPEAT_REOPEN_EVENT).contains("details", { had_check: true }).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const key = (data?.details as { key?: string } | null)?.key;
+  if (!data || !key) return null;
+  const { data: after } = await admin.from("piesa_records").select("id").eq("job_id", jobId).gt("created_at", data.created_at).limit(1).maybeSingle();
+  return after ? null : key;
+}
+
 /** Lapsed deadline + this deadline's choice/acceptance/payment. */
 export async function repeatPiesaContext(jobId: string): Promise<{ state: RepeatState; suggestion: string | null }> {
   const { installDayContext } = await import("./install-days.server");
-  const c = await installDayContext(jobId).catch(() => null);
-  const { data: rows } = await admin.from("workflow_events").select("event_type, created_at, details").eq("job_id", jobId).in("event_type", [REPEAT_PIESA_CHOSEN_EVENT, REPEAT_PIESA_ACCEPTED_EVENT, REPEAT_PIESA_PAID_EVENT, "install_window_expired"]).order("created_at", { ascending: false });
+  // Speed (installer screens, Task 6): the repeat events need only the job id — read alongside the context (one round).
+  const [c, reopenLapse, { data: rows }] = await Promise.all([
+    installDayContext(jobId).catch(() => null), currentReopenLapse(jobId),
+    (async () => await admin.from("workflow_events").select("event_type, created_at, details").eq("job_id", jobId).in("event_type", [REPEAT_PIESA_CHOSEN_EVENT, REPEAT_PIESA_ACCEPTED_EVENT, REPEAT_PIESA_PAID_EVENT, "install_window_expired"]).order("created_at", { ascending: false }))(),
+  ]);
   const ev = rows ?? [];
   const d = (r: { details: unknown }) => (r.details ?? {}) as Record<string, unknown>;
   const chosen = ev.find((r) => r.event_type === REPEAT_PIESA_CHOSEN_EVENT);
   const choice: RepeatChoice | null = chosen ? { payer: d(chosen)["payer"] as RepeatPayer, priceIncGst: (d(chosen)["price_inc_gst"] as number | null) ?? null, deadline: String(d(chosen)["deadline"]), at: chosen.created_at } : null;
   // A lapse stays current until the repeat PIESA is offered (the job may leave installation_scheduling afterwards).
-  const lapsedDeadline = c && c.deadline && c.expired && !c.booked ? c.deadline : choice?.deadline ?? null;
+  // A current reopen lapse wins: the check the 30-day window ran from no longer counts.
+  const lapsedDeadline = reopenLapse ?? (c && c.deadline && c.expired && !c.booked ? c.deadline : choice?.deadline ?? null);
   const forDeadline = (t: string) => ev.find((r) => r.event_type === t && String(d(r)["deadline"]) === lapsedDeadline)?.created_at ?? null;
   const state = repeatPiesaState({ lapsedDeadline, choice, acceptedAt: forDeadline(REPEAT_PIESA_ACCEPTED_EVENT), paidAt: forDeadline(REPEAT_PIESA_PAID_EVENT) });
   const exp = ev.find((r) => r.event_type === "install_window_expired" && String(d(r)["deadline"]) === lapsedDeadline);
@@ -65,15 +114,12 @@ export async function acceptRepeatPiesa(jobId: string): Promise<RepeatState> {
     if (state.stage === "owner_pay" || state.stage === "offer") return state; // idempotent
     throw new WorkflowError("There's nothing to accept right now.");
   }
-  // What the owner had already paid on the ONE invoice when they accepted: the repeat counts as paid only once payments
-  // reach this plus the repeat price (a reversed-and-re-applied payment never counts as the repeat payment).
-  const { data: invRow } = await admin.from("invoices").select("total_paid").eq("job_id", jobId).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).maybeSingle();
-  const paidBeforeCents = Math.round(Number(invRow?.total_paid ?? 0) * 100);
-  await logEvent(jobId, null, REPEAT_PIESA_ACCEPTED_EVENT, `Owner accepted the new safety check (PIESA)${state.payer === "owner" ? ` — $${state.priceIncGst} inc GST added to their bill` : " at no cost to them"}`, { deadline: state.deadline, payer: state.payer, owner_charge_inc_gst: state.payer === "owner" ? state.priceIncGst : 0, paid_before_cents: paidBeforeCents }, { internal: false });
+  await logEvent(jobId, null, REPEAT_PIESA_ACCEPTED_EVENT, `Owner accepted the new safety check (PIESA)${state.payer === "owner" ? ` — $${state.priceIncGst} inc GST added to their bill` : " at no cost to them"}`, { deadline: state.deadline, payer: state.payer, owner_charge_inc_gst: state.payer === "owner" ? state.priceIncGst : 0 }, { internal: false });
   const next = (await repeatPiesaContext(jobId)).state;
-  // Owner pays (decision 233): the price goes on the job's ONE Xero invoice now; every Sync retries / holds for the office.
-  if (next.stage === "owner_pay") await (await import("./xero.server")).addRepeatPiesaToXeroInvoice(jobId, null)
-    .catch((e) => console.error("repeat PIESA Xero line skipped", (e as Error).message));
+  // Owner pays (batch 3b): the repeat gets its OWN Xero invoice now, once per repeat. A Xero failure is recorded for the
+  // office (Needs me) and retried by Sync / Create invoice; it never undoes the owner's acceptance.
+  if (next.stage === "owner_pay" && next.payer === "owner" && next.deadline && next.priceIncGst) await (await import("./xero.server")).createRepeatInvoice(jobId, next.deadline, next.priceIncGst)
+    .catch((e) => console.error("repeat safety check invoice skipped", (e as Error).message));
   if (next.stage === "offer") await startRepeatOffer(jobId, next).catch((e) => logEvent(jobId, null, "repeat_piesa_offer_failed", `Repeat safety check offer didn't start: ${(e as Error).message}`, { deadline: next.deadline }, { internal: true }));
   return next;
 }
@@ -88,20 +134,36 @@ export async function recordRepeatPiesaPaid(jobId: string, actorId: string, refe
   return next;
 }
 
-/** Xero sync: once payments on the ONE invoice grew by the repeat price since its line went on, record it paid once and
- *  start the normal PIESA offer. Nothing happens before the line is on the invoice. */
+/** The current repeat's own invoice (null when it has none yet). */
+async function currentRepeatInvoice(jobId: string, invoiceId: string) {
+  const { data } = await admin.from("invoices").select("kind, repeat_key, total_inc_gst").eq("id", invoiceId).eq("job_id", jobId).maybeSingle();
+  return (data as { kind: string; repeat_key: string | null; total_inc_gst: number | string } | null) ?? null;
+}
+
+/** Xero sync: the current repeat's OWN invoice is paid in full → recorded paid once and the normal PIESA offer starts.
+ *  Money on any other invoice never counts. */
 export async function repeatPaidFromInvoice(jobId: string, invoiceId: string, paidCents: number, actorId: string | null): Promise<boolean> {
   const { state } = await repeatPiesaContext(jobId);
   if (state.stage !== "owner_pay" || !state.deadline) return false;
   const rpc = await import("./repeat-piesa.core");
-  const { data: added } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", rpc.REPEAT_XERO_ADDED_EVENT).contains("details", { invoice_id: invoiceId, deadline: state.deadline }).order("created_at", { ascending: false }).limit(1).maybeSingle();
-  const d = (added?.details ?? null) as { amount_cents?: number; paid_at_add_cents?: number } | null;
-  if (!d) return false;
-  const { data: acc } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", REPEAT_PIESA_ACCEPTED_EVENT).contains("details", { deadline: state.deadline }).order("created_at", { ascending: false }).limit(1).maybeSingle();
-  const before = Number((acc?.details as { paid_before_cents?: number } | null)?.paid_before_cents ?? NaN);
-  const paidAtAdd = Math.max(Number.isFinite(before) ? before : 0, Number(d.paid_at_add_cents ?? 0));
-  if (!rpc.repeatPaidByInvoice({ paidCents, paidAtAddCents: paidAtAdd, priceCents: Number(d.amount_cents ?? 0) })) return false;
-  await logEvent(jobId, actorId, REPEAT_PIESA_PAID_EVENT, `Repeat safety check (PIESA) paid on the Xero invoice`, { deadline: state.deadline, amount_inc_gst: state.priceIncGst, reference: "xero", invoice_id: invoiceId }, { internal: true });
+  if (!rpc.repeatInvoicePaid({ invoice: await currentRepeatInvoice(jobId, invoiceId), deadline: state.deadline, paidCents })) return false;
+  await logEvent(jobId, actorId, REPEAT_PIESA_PAID_EVENT, `Repeat safety check (PIESA) paid on its Xero invoice`, { deadline: state.deadline, amount_inc_gst: state.priceIncGst, reference: "xero", invoice_id: invoiceId }, { internal: true });
+  const next = (await repeatPiesaContext(jobId)).state;
+  await startRepeatOffer(jobId, next);
+  return true;
+}
+
+/** Stripe: a card payment whose row names the current repeat's OWN invoice, with that invoice now paid in full → recorded
+ *  paid and the normal PIESA offer starts. Idempotent: the second call sees stage "offer" and does nothing. */
+export async function repeatPaidByCard(jobId: string, invoiceId: string, paidCents: number): Promise<boolean> {
+  const { state } = await repeatPiesaContext(jobId);
+  if (state.stage !== "owner_pay" || !state.deadline) return false;
+  const { PAYMENT_EVENT } = await import("./payment-ledger.server");
+  const { data: card } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", PAYMENT_EVENT).contains("details", { invoice_id: invoiceId, source: "card" }).limit(1);
+  if (!(card ?? []).length) return false;
+  const rpc = await import("./repeat-piesa.core");
+  if (!rpc.repeatInvoicePaid({ invoice: await currentRepeatInvoice(jobId, invoiceId), deadline: state.deadline, paidCents })) return false;
+  await logEvent(jobId, null, REPEAT_PIESA_PAID_EVENT, `Repeat safety check (PIESA) paid by card`, { deadline: state.deadline, amount_inc_gst: state.priceIncGst, reference: "card", invoice_id: invoiceId }, { internal: true });
   const next = (await repeatPiesaContext(jobId)).state;
   await startRepeatOffer(jobId, next);
   return true;

@@ -76,7 +76,6 @@ describe("Jo 7 Oct: Add one job + each Upload jobs card", () => {
   test("server: chosen electrician is never auto-assigned; consent and choice checked on confirm; switch to Home Insulation Victoria", () => {
     const team = read("src/lib/teaming.server.ts"); expect(team).toContain('.eq("job_id", jobId).is("ended_at", null);\n  if (chosen) return false;');
     const imp = read("src/lib/partner-import.server.ts"); expect(imp).toContain("electricianPlanBlocker"); expect(imp).toContain("recordJobElectricianChoice"); expect(imp).toContain("contact_permission !== true");
-    const bulk = read("src/lib/bulk-import.server.ts"); expect(bulk).toContain("recordJobElectricianChoice"); expect(bulk).not.toContain('role: "electrician", business_id: plan.business_id');
     const je = read("src/lib/job-electrician.server.ts"); expect(je).toContain("An electrician has already accepted this job"); expect(read("src/lib/job-electrician-invite.server.ts")).toContain('recipient: "partner"');
   });
   test("pages: camera + files with remove, consent tick required, three electrician options", () => {
@@ -85,7 +84,5 @@ describe("Jo 7 Oct: Add one job + each Upload jobs card", () => {
     // Decision 34 (Jo 24 Oct): Add a job is basics only — the consent tick is sent with the customer; no files or electrician picker there.
     const one = read("src/components/trade/add-job-flow.tsx");
     expect(one).toContain("owner: customer"); expect(one).not.toContain("<AttachFiles"); expect(one).not.toContain("<ElectricianPicker");
-    const bulk = read("src/routes/_authenticated/partner.bulk-import.tsx");
-    expect(bulk).toContain("<AttachFiles"); expect(bulk).toContain("<ElectricianPicker compact"); expect(bulk).not.toContain("(optional)");
   });
 });

@@ -220,7 +220,7 @@ try {
       { step: "rec-money", persona: "rec", path: "/field/money" },
       { step: "installer-home", persona: "installer", path: "/partner" },
       { step: "installer-add-job", persona: "installer", path: "/partner/add", mustSee: ["Add"] },
-      { step: "installer-team", persona: "installer", path: "/partner/workers" },
+      { step: "installer-team", persona: "installer", path: "/field/business/team" },
       ...(ownerJob ? [{ step: "owner-job", persona: "owner", path: `/owner/${ownerJob}` }] : []),
       { step: "public-calculator", persona: "public", path: "/" },
     ].map((s) => ({ ...s,

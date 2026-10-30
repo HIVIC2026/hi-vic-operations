@@ -14,8 +14,7 @@ describe("send failed classifier", () => {
       emails: [
         { job_id: "old", purpose: "existing_leads_launch_v1", status: "failed", created_at: ago(8), error: "x" },
         { job_id: "sent", purpose: "existing_leads_launch_v1", status: "sent", created_at: ago(1), error: null },
-        { job_id: "unknown", purpose: "existing_leads_launch_v1", status: "delivered_unrecorded", created_at: ago(1), error: "Delivery result unknown" },
-        { job_id: "sending", purpose: "quote_reminder", status: "sending", created_at: ago(1), error: null },
+        { job_id: "fresh", purpose: "quote_reminder", status: "sending", created_at: new Date(NOW - 60_000).toISOString(), error: null },
       ],
       sms: [
         { job_id: null, message_type: "job_offer", status: "failed", created_at: ago(1), detail: "no job" },
@@ -116,7 +115,25 @@ describe("fixed failures are hidden", () => {
 describe("send failed reads are paged safely", () => {
   test("failed + successful email and text reads have a fixed order, so no page skips a row", async () => {
     const src = await Bun.file(new URL("../src/lib/office-needs.server.ts", import.meta.url)).text();
-    expect(src).toMatch(/\.in\("status", \[\.\.\.FAILED_EMAIL_STATUSES, \.\.\.SUCCESS_EMAIL_STATUSES\]\)\.gte\("created_at", since7\)\.order\("created_at"\)\.order\("id"\)\.range/);
-    expect(src).toMatch(/\.in\("status", \[\.\.\.FAILED_SMS_STATUSES, \.\.\.SUCCESS_SMS_STATUSES\]\)\.gte\("created_at", since7\)\.order\("created_at"\)\.order\("id"\)\.range/);
+    expect(src).toMatch(/\.in\("status", \[\.\.\.FAILED_EMAIL_STATUSES, \.\.\.UNSURE_EMAIL_STATUSES, \.\.\.SUCCESS_EMAIL_STATUSES\]\)\.gte\("created_at", since7\)\.order\("created_at"\)\.order\("id"\)\.range/);
+    expect(src).toMatch(/\.in\("status", \[\.\.\.FAILED_SMS_STATUSES, \.\.\.UNSURE_SMS_STATUSES, \.\.\.SUCCESS_SMS_STATUSES\]\)\.gte\("created_at", since7\)\.order\("created_at"\)\.order\("id"\)\.range/);
+  });
+});
+
+describe("A48 batch 2 texts never land in Needs me (Jo, final review m9)", () => {
+  const TYPES = ["quick_taps", "quick_taps_reminder", "run_offered", "run_time", "run_time_reminder", "run_slot_cancelled"];
+  test("failed / not-sure batch and run texts make no job row and no partner row; other texts still do", async () => {
+    const { partnerSendFailedRows } = await import("../src/lib/send-failed.core");
+    const sms = [
+      ...TYPES.flatMap((t) => [
+        { job_id: "j1", message_type: t, status: "failed", created_at: ago(1), detail: "Twilio 400" },
+        { job_id: "j1", message_type: t, status: "sent_unknown", created_at: ago(1), detail: null },
+        { job_id: null, business_id: "biz-1", message_type: t, status: "undelivered", created_at: ago(1), detail: null },
+      ]),
+      { job_id: "j2", message_type: "spot_saved", status: "failed", created_at: ago(1), detail: "Twilio 400" },
+      { job_id: null, business_id: "biz-2", message_type: "job_offer", status: "failed", created_at: ago(1), detail: null },
+    ];
+    expect(sendFailedRows({ now: NOW, emails: [], sms }).map((r) => r.jobId)).toEqual(["j2"]);
+    expect(partnerSendFailedRows({ now: NOW, sms }).map((r) => r.businessId)).toEqual(["biz-2"]);
   });
 });

@@ -2,10 +2,13 @@
 import { houseLevelForStage, type HouseLevel } from "./owner-house.core";
 import { stageWording, PIESA_FULL } from "./job-wording";
 import { ownerHeadline, type OwnerHeadlineStep } from "./owner-headlines.core";
+import { spotReleaseState, type SpotReleaseEventRow } from "./spot-release.core";
 
 export const OWNER_STEPS = ["Ready Check", "Quote", "PIESA", "Install", "Done"] as const;
-/** Decision 389: "turn" = the "It's your turn" page (O77's link): confirm the free Ready Check, or no longer interested. */
-export type OwnerScreen = "home" | "spot" | "quote" | "book" | "done" | "review" | "fixes" | "turn";
+/** Decision 389: "turn" = the "It's your turn" page (O77's link): confirm the free Ready Check, or no longer interested.
+ *  Batch 3a: "newquote" = O78's "Send me a new quote" button (new-quote-request.*).
+ *  A48 batch 2: "taps" = the quick taps (quick-taps.*): name, address, hatch, roof, 5 years, "Yes, let's go". */
+export type OwnerScreen = "home" | "spot" | "quote" | "book" | "done" | "review" | "fixes" | "turn" | "newquote" | "taps";
 
 const HEADLINE_BY_LEVEL: OwnerHeadlineStep[] = ["spot_saved", "ready_check_booked", "quote_ready", "booking_visits", "install_booked", "all_done"];
 
@@ -88,6 +91,14 @@ export const SPOT_SAVED_PROGRESS = [
   { label: "Install", sub: "About 4 hours" },
   { label: "Done", sub: "Lower bills for years" },
 ] as const;
+/** Spot-saved page once the spot is released (Jo, 29 Oct, HV-3542): no "waiting" lines, "Spot released" ticked, quote is current. */
+/** Released for the page = the latest release is waiting on the owner or confirmed. Lapsed = back on the waiting list. */
+export const spotReleasedForPage = (events: readonly SpotReleaseEventRow[]) => ["pending", "confirmed"].includes(spotReleaseState(events).state);
+export function spotSavedLayout(released: boolean) {
+  return released
+    ? { stepLabel: "Step 2 of 6", showWaitingBox: false, doneSub: null, currentIndex: 2, showReleasedSub: false }
+    : { stepLabel: "Step 1 of 6", showWaitingBox: true, doneSub: "Nothing else to do until your spot is released.", currentIndex: 1, showReleasedSub: true };
+}
 export function isSpotSavedStage(stage: string, spot: { spot_saved_at: string | null; opted_out_at: string | null } | null, readyCheckBooked: boolean) {
   return !!spot?.spot_saved_at && !spot.opted_out_at && !readyCheckBooked && (SPOT_SAVED_STAGES as readonly string[]).includes(stage);
 }
@@ -96,8 +107,40 @@ export const gateACard = (todo: { gate: string }[]) => (todo.some((t) => t.gate 
 
 /** Stages from which the owner can no longer cancel from My job: the safety check is booked or later. */
 const NO_OWNER_CANCEL = new Set(["piesa_scheduled", "piesa_complete", "electrical_variation_pending", "rectification_required", "awaiting_owner_rectification_approval", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked", "evidence_outstanding", "ap_review", "ready_for_veec", "complete", "cancelled", "on_hold"]);
-/** Plain "Cancel my job" (Jo, 6 Oct): offered only until the safety check is booked. No cooling-off period. */
-export function ownerCanCancel(stage: string, bookingKinds: string[]): boolean {
-  if (NO_OWNER_CANCEL.has(stage)) return false;
+/** Plain "Cancel my job" (Jo, 6 Oct): offered only until the safety check is booked or paid. No cooling-off period. */
+export function ownerCanCancel(stage: string, bookingKinds: string[], safetyCheckPaid: boolean): boolean {
+  if (safetyCheckPaid || NO_OWNER_CANCEL.has(stage)) return false;
   return !bookingKinds.includes("assessment");
+}
+
+// ---- A48 batch 1 final fix (Jo 29 Oct 2026): the owner uploads the life support consent / medical plan on My job ----
+/** Photo or PDF, the same owner upload size limit as the owner photo/video uploads (job-files bucket). */
+export const LIFE_SUPPORT_PLAN_MAX_BYTES = 200 * 1024 * 1024;
+export const LIFE_SUPPORT_PLAN_SOURCE = "owner_life_support";
+const LS_TYPES: Record<string, string> = { "application/pdf": "pdf", "image/jpeg": "jpg", "image/jpg": "jpg", "image/png": "png", "image/heic": "heic", "image/heif": "heif", "image/webp": "webp" };
+const LS_EXT: Record<string, string> = { pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", heic: "image/heic", heif: "image/heif", webp: "image/webp" };
+/** The file's type (phones sometimes send an empty type: fall back to a known extension), or null. */
+export function lifeSupportPlanType(mime: string | null | undefined, fileName: string | null | undefined): string | null {
+  const m = (mime ?? "").toLowerCase().split(";")[0]!.trim();
+  if (LS_TYPES[m]) return m === "image/jpg" ? "image/jpeg" : m;
+  if (m && m !== "application/octet-stream") return null;
+  return LS_EXT[(fileName ?? "").toLowerCase().match(/\.([a-z0-9]+)$/)?.[1] ?? ""] ?? null;
+}
+/** Jo-approved error lines for this card only (29 Oct 2026), verbatim. */
+export const LIFE_SUPPORT_PLAN_WRONG_TYPE = "Please upload a photo or PDF.";
+export const LIFE_SUPPORT_PLAN_TOO_BIG = "That file is too big. Please upload a smaller photo or PDF.";
+export function validateLifeSupportPlanFile(x: { mime: string | null; fileName: string | null; size: number }): { ok: true; mime: string } | { ok: false; error: string } {
+  const mime = lifeSupportPlanType(x.mime, x.fileName);
+  if (!mime) return { ok: false, error: LIFE_SUPPORT_PLAN_WRONG_TYPE };
+  if (!Number.isFinite(x.size) || x.size <= 0) return { ok: false, error: "That file looks empty. Please try again." };
+  if (x.size > LIFE_SUPPORT_PLAN_MAX_BYTES) return { ok: false, error: LIFE_SUPPORT_PLAN_TOO_BIG };
+  return { ok: true, mime };
+}
+const UUID_RE = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+export const lifeSupportPlanPath = (jobId: string, uploadId: string, mime: string) => `${jobId}/owner-life-support/${uploadId}.${LS_TYPES[mime] ?? "bin"}`;
+/** Server-side check that a client-returned path belongs to THIS link's job. Returns the upload id or null. */
+export function parseLifeSupportPlanPath(jobId: string, path: unknown): string | null {
+  if (typeof path !== "string") return null;
+  const m = path.match(new RegExp(`^(${UUID_RE})/owner-life-support/(${UUID_RE})\\.(pdf|jpg|png|heic|heif|webp)$`));
+  return m && m[1] === jobId ? m[2]! : null;
 }

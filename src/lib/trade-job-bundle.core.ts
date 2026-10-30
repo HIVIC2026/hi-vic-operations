@@ -25,6 +25,7 @@ export const BUNDLE_QUERY_KEYS = {
   price: (jobId: string) => ["installer-price", jobId],
   ownerQuote: (jobId: string) => ["my-owner-quote", jobId],
   mittiInvited: () => ["mitti-invited"],
+  crew: (jobId: string) => ["piisa-crew", jobId],
 } as const;
 
 export type BundleSection = keyof typeof BUNDLE_QUERY_KEYS;
@@ -45,3 +46,11 @@ export function seedPlan(bundle: Partial<Record<BundleSection, unknown>>, jobId:
 
 /** The page is usable when its overview answered — the one section the route itself cannot do without. */
 export const bundleUsable = (bundle: { overview?: unknown } | null | undefined) => !!bundle && bundle.overview !== undefined && !isSectionError(bundle.overview);
+
+/** After a seeded page's fresh bundle arrives: what to throw away. A bundle that is not usable (refused, withdrawn, failed)
+ *  drops the whole cached copy and every seeded section; otherwise only seeded sections the fresh bundle did not answer. */
+export function evictPlan(seeded: readonly BundleSection[], fresh: Partial<Record<BundleSection, unknown>> | null | undefined): { dropCache: boolean; sections: BundleSection[] } {
+  if (!bundleUsable(fresh as { overview?: unknown } | null | undefined)) return { dropCache: true, sections: [...seeded] };
+  const f = fresh as Partial<Record<BundleSection, unknown>>;
+  return { dropCache: false, sections: seeded.filter((x) => !(x in f) || f[x] === undefined || isSectionError(f[x])) };
+}

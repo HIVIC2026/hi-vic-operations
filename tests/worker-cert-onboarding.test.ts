@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
   completionErrors, eecUploadMeta, inviteCertPath, inviteMode, inviteState, isInviteCertPath,
-  mergeEec, workerSubmissionErrors,
+  mergeEec, signLinkBlocker, workerSubmissionErrors,
 } from "../src/lib/worker-invite.core";
 import { EEC_TEAM_LABEL, eecState } from "../src/lib/worker-compliance.core";
 
@@ -10,7 +10,7 @@ const inviteFns = readFileSync("src/lib/worker-invite.functions.ts", "utf8");
 const joinPage = readFileSync("src/routes/join.$token.tsx", "utf8");
 const complianceFns = readFileSync("src/lib/worker-compliance.functions.ts", "utf8");
 const complianceUi = readFileSync("src/components/portal/worker-compliance.tsx", "utf8");
-const teamPage = readFileSync("src/routes/_authenticated/partner.workers.tsx", "utf8");
+const teamPage = readFileSync("src/routes/_authenticated/field.business_.team.tsx", "utf8");
 
 const keys = ["a", "b", "c"];
 const okRegistration = { full_legal_name: "Sam Taylor", mobile: "0412 345 678", email: "sam@x.com", qualification: "Cert III", certificate_path: "worker-invites/inv1/eec-abc.pdf", accepted: keys, signed_name: "Sam Taylor" };
@@ -64,14 +64,15 @@ describe("installer EEC/CII certificate onboarding", () => {
 
   test("5) business owner cannot upload a certificate directly — only generate a completion link", () => {
     // Owner surfaces offer only the link action; no certificate file input outside the worker's join page.
-    expect(teamPage).toContain("Create certificate link");
+    expect(teamPage).toContain("CertLinkInline");
     expect(teamPage).not.toContain('type="file"');
     expect(complianceUi).toContain("Create certificate link");
     expect(joinPage).toContain('type="file"');
     // Link creation requires business admin membership (or office).
     expect(inviteFns).toContain("await requireMember(context.userId, w.business_id, true)");
     // Verified workers never get a link.
-    expect(inviteFns).toContain('if (w.certification_status === "verified") throw new Error("This worker\'s certificate is already verified.")');
+    expect(inviteFns).toContain("const blocker = signLinkBlocker(w);");
+    expect(signLinkBlocker({ trade_role: "installer", declarations_due: false, email: null, mobile: null, certification_status: "verified" })).toBe("This worker's certificate is already verified.");
   });
 
   test("6) office can view and verify the uploaded certificate", () => {
@@ -105,7 +106,7 @@ describe("installer EEC/CII certificate onboarding", () => {
     expect(workerSubmissionErrors("electrician", elec, keys)).toEqual([]);
     expect(workerSubmissionErrors("electrician", elec, keys)).not.toContain("Upload the EEC / Certified Insulation Installer certificate.");
     // Completion links are installer-only.
-    expect(inviteFns).toContain("Certificate completion links are only for installer workers.");
+    expect(signLinkBlocker({ trade_role: "electrician", declarations_due: false, email: null, mobile: null, certification_status: null })).toBe("Certificate completion links are only for installer workers.");
     expect(eecState({ trade_role: "electrician" })).toBe("not_applicable");
     expect(joinPage).toContain('inv.trade === "electrician"');
   });
@@ -120,7 +121,7 @@ describe("installer EEC/CII certificate onboarding", () => {
   test("completion mode asks only for the certificate (no declarations, no re-sign)", () => {
     expect(completionErrors({})).toContain("Upload the EEC / Certified Insulation Installer certificate.");
     expect(completionErrors({ certificate_path: "worker-invites/i/eec-a.pdf" })).toEqual([]);
-    expect(inviteFns).toContain('mode === "registration" ? workerDeclarations(t, businessName) : []');
+    expect(inviteFns).toContain("declarations: due ? workerDeclarations(t, businessName) : []");
   });
 
   test("team labels are owner-safe and never expose file paths", () => {

@@ -13,7 +13,7 @@ import {
 import { isVictorianAddress, resumeFailureMode } from "@/lib/rec-onboarding.core";
 import { COLLECTION_NOTICE_ACK_TEXT, COLLECTION_NOTICE_PARAGRAPHS } from "@/lib/esc-collection-notice.core";
 import {
-  confirmInstallerInsuranceUpload, getInstallerAgreement, installerInsuranceUploadUrl, installerPiisaUploadUrl, confirmInstallerPiisaUpload, installerWhiteCardUploadUrl, confirmInstallerWhiteCardUpload,
+  confirmInstallerInsuranceUpload, getInstallerAgreement, installerInsuranceUploadUrl, installerWhiteCardUploadUrl, confirmInstallerWhiteCardUpload,
   loadInstallerOnboarding, saveInstallerOnboarding, signInstallerAgreement, startInstallerOnboarding,
 } from "@/lib/installer-onboarding.functions";
 import { newResumeToken, takeStaffLink } from "@/lib/onboarding-security.core";
@@ -675,12 +675,6 @@ function InstallersStep({ d, up, errFor, token, setError, preview, revision, onU
             <Field label="Expiry date" required hint="For example 05/10/2028, or pick from the calendar" htmlFor={`installer-${i}-cii-expiry`} error={errFor(`installer-${i}-cii-expiry`)}><DateBox id={`installer-${i}-cii-expiry`} value={x.cii_expiry} onChange={(v) => set(i, { cii_expiry: v })} /></Field>
           </>}
           {(x.cii_holds === "in_training" || x.cii_holds === "not_held") && <p style={warn}>You can still register. This person can't be assigned to jobs until they hold a CII certification and our office has verified it.</p>}
-          <Field label="Have you completed the PIISA (pre-installation installer safety assessment) training?" required htmlFor={`installer-${i}-piisa`} error={errFor(`installer-${i}-piisa`)}><div id={`installer-${i}-piisa`} tabIndex={-1}><Choice options={[{ v: "yes", l: "Yes" }, { v: "no", l: "No" }]} value={x.piisa_done ?? null} onChange={(v) => set(i, { piisa_done: v as "yes" | "no" })} /></div></Field>
-          {x.piisa_done === "yes" && <>
-            <Field label="Date completed" required htmlFor={`installer-${i}-piisa-date`} error={errFor(`installer-${i}-piisa-date`)}><DateBox id={`installer-${i}-piisa-date`} value={x.piisa_date} onChange={(v) => set(i, { piisa_date: v })} /></Field>
-            <PiisaUpload email={x.email ?? ""} uploaded={!!x.piisa_uploaded} onDone={() => set(i, { piisa_uploaded: true })} token={token} setError={setError} preview={preview} revision={revision} onUploadBusy={onUploadBusy} error={errFor(`installer-${i}-piisa-upload`)} />
-          </>}
-          {x.piisa_done === "no" && <p style={warn}>You can still submit. They can't get jobs until the certificate is uploaded and our office has checked it.</p>}
           <Field label="White Card (construction induction card)" hint="Optional now. They can't be lead or crew on an install until our office has checked it.">
             <WhiteCardUpload email={x.email ?? ""} uploaded={!!x.white_card_uploaded} onDone={() => set(i, { white_card_uploaded: true })} token={token} setError={setError} preview={preview} revision={revision} onUploadBusy={onUploadBusy} />
           </Field>
@@ -787,33 +781,6 @@ const SAMPLE_INSTALLER_DATA: InstData = {
   gst_registered: true, r5_rate: 20, batts_removal_rate: 8, loose_fill_removal_rate: 12, extra_rates: {},
   bank_account_name: "Sample Insulation Pty Ltd", bank_bsb: "123-456", bank_account_number: "12345678", agreement_reviewed: false,
 };
-
-function PiisaUpload({ email, uploaded, onDone, token, setError, preview, revision, onUploadBusy, error }: { email: string; uploaded: boolean; onDone: () => void; token: string; setError: (s: string | null) => void; preview: boolean; revision: RevisionRef; onUploadBusy: (b: boolean) => void; error: string | null }) {
-  const [busy, setBusy] = useState(false);
-  async function onFile(picked: File | undefined) {
-    if (!picked) return;
-    if (preview) { setError("Sample preview only — upload is disabled."); return; }
-    if (!email.trim()) { setError("Add this installer's email first."); return; }
-    setError(null);
-    let f: File, mime: "application/pdf" | "image/jpeg" | "image/png";
-    try { ({ file: f, mime } = await prepareCertificate(picked)); } catch (e) { setError(e instanceof Error ? e.message : "Upload a PDF, JPG or PNG."); return; }
-    setBusy(true); onUploadBusy(true);
-    try {
-      const u = await installerPiisaUploadUrl({ data: { token, content_type: mime, size: f.size, filename: f.name } });
-      const { error: upErr } = await supabase.storage.from("partner-files").uploadToSignedUrl(u.path, u.token, f, { contentType: mime });
-      if (upErr) throw new Error("Upload failed. Please try again.");
-      await uploadWithRevision(revision, (base) => confirmInstallerPiisaUpload({ data: { token, path: u.path, content_type: mime, email: email.trim().toLowerCase(), base_updated_at: base } }));
-      onDone();
-    } catch (e) { setError(e instanceof Error ? e.message : "Upload failed."); } finally { setBusy(false); onUploadBusy(false); }
-  }
-  const accept = "application/pdf,image/jpeg,image/png,image/heic,image/heif,.heic,.heif";
-  return <div style={{ margin: "0 0 16px" }}>
-    {uploaded
-      ? <p style={okLine}>✓ PIISA certificate uploaded. {!preview && <label style={{ color: BLUE, fontWeight: 700, cursor: "pointer", marginLeft: 6 }}>Replace<input type="file" hidden accept={accept} onChange={(e) => onFile(e.target.files?.[0])} /></label>}</p>
-      : <label style={{ ...btn(false, busy), display: "inline-flex", alignItems: "center" }}>{busy ? "Uploading…" : "Upload PIISA certificate"}<input type="file" hidden disabled={busy} accept={accept} onChange={(e) => onFile(e.target.files?.[0])} /></label>}
-    {error && <div role="alert" style={{ color: "#8C1D18", fontSize: 13, fontWeight: 700, marginTop: 6 }}>{error}</div>}
-  </div>;
-}
 
 /** Decision 319: each installer's White Card (optional at onboarding; the office verifies it once after approval). */
 function WhiteCardUpload({ email, uploaded, onDone, token, setError, preview, revision, onUploadBusy }: { email: string; uploaded: boolean; onDone: () => void; token: string; setError: (s: string | null) => void; preview: boolean; revision: RevisionRef; onUploadBusy: (b: boolean) => void }) {

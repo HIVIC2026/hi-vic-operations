@@ -71,6 +71,9 @@ export async function sendSpotSavedConfirmation(jobId: string, opts: { dry?: boo
     emailSwitchOn: sw[SPOT_SAVED_EMAIL_SWITCH] === true, smsSwitchOn: sw[SPOT_SAVED_SMS_SWITCH] === true, hasLink: !!token,
   });
   const out: SpotSavedSendResult = { jobId, email: skipOf(plan.email), sms: skipOf(plan.sms) };
+  // Jo 30 Oct: earlier sends under ANY key (old per-job or new per-owner) count; a failed check never sends.
+  if (plan.email.send && job && await spotSavedEmailAlreadySent(jobId)) { out.email = { status: "already", detail: "Already sent for this job" }; (plan as { email: ChannelPlan }).email = { send: false, reason: "Already sent for this job" }; }
+  if (plan.sms.send && job && await spotSavedTextAlreadySent(jobId, plan.sms.to)) { out.sms = { status: "already", detail: "Already sent to this job or phone" }; (plan as { sms: ChannelPlan }).sms = { send: false, reason: "Already sent to this job or phone" }; }
   if (opts.emailOnly) out.sms = { status: "skipped", detail: "Email-only confirmation path" };
   if (!job) return out;
   if (opts.dry) {
@@ -95,6 +98,24 @@ export async function sendSpotSavedConfirmation(jobId: string, opts: { dry?: boo
   }
   await logEvent(jobId, null, "spot_saved_confirmation_sent", `Spot saved confirmation – email: ${out.email.status}; text: ${out.sms.status}`, { email: out.email, sms: out.sms }, { internal: true }).catch(() => null);
   return out;
+}
+
+/** True when any spot_saved text was sent/delivered/sending to this job or phone, under either key format. Read errors count as sent. */
+export async function spotSavedTextAlreadySent(jobId: string, e164: string | null): Promise<boolean> {
+  const { priorSpotSavedTextSent, SPOT_SAVED_DONE_STATUSES } = await import("./spot-saved-send.core");
+  const or = e164 ? `job_id.eq.${jobId},to_number.eq.${e164}` : `job_id.eq.${jobId}`;
+  const { data, error } = await admin.from("sms_messages").select("job_id, to_number, status, message_type")
+    .eq("message_type", "spot_saved").in("status", [...SPOT_SAVED_DONE_STATUSES]).or(or).limit(5);
+  if (error) return true;
+  return priorSpotSavedTextSent(data ?? [], jobId, e164);
+}
+/** True when a spot saved email was already sent/sending for this job (any address). Read errors count as sent. */
+export async function spotSavedEmailAlreadySent(jobId: string): Promise<boolean> {
+  const { priorSpotSavedEmailSent, SPOT_SAVED_EMAIL_DONE_STATUSES } = await import("./spot-saved-send.core");
+  const { data, error } = await admin.from("customer_email_sends").select("job_id, status, purpose")
+    .eq("job_id", jobId).eq("purpose", SPOT_SAVED_EMAIL_PURPOSE).in("status", [...SPOT_SAVED_EMAIL_DONE_STATUSES]).limit(5);
+  if (error) return true;
+  return priorSpotSavedEmailSent(data ?? [], jobId);
 }
 
 const skipOf = (p: ChannelPlan) => (p.send ? { status: "pending", detail: "" } : { status: "skipped", detail: p.reason });

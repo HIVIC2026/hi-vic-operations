@@ -32,6 +32,13 @@ export type ApprovedRecCandidate = UsualMatchCandidate & {
   piesa_rate: { id: string; rate_inc_gst: number | string } | null;
 };
 
+/** A3 (Jo 28 Oct 2026): the installer's saved usual electrician counts at Add a job only once they resolve to an approved REC
+ *  (same test the quote uses). `flatPiesaIncGst`: installers who pay their own electricians need no rate. */
+export function usualIsOnboarded(usual: UsualElectrician | null, candidates: ApprovedRecCandidate[], flatPiesaIncGst: number | null): boolean {
+  if (!usual) return false;
+  return approvedRecFor({ name: usual.name, licence: usual.licence ?? null }, candidates, flatPiesaIncGst).rec !== null;
+}
+
 export type OnboardedRec = { businessId: string; businessName: string | null; rateId: string | null; piesaRateIncGst: number };
 
 /** Why a matched business is NOT an approved REC we may quote (null = fine). Fails closed on every missing fact.

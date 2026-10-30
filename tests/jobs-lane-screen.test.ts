@@ -113,8 +113,13 @@ test("final fix 1: Installer jobs only — red 'Mitti forms to sort out · N' ab
 test("final fix 4: a small red 'Life support' tag next to the job number, in the table and on the phone card", () => {
   const src = lane();
   expect(src).toMatch(/const lifeSupport = r\.lifeSupport && <span className="[^"]*text-danger[^"]*">Life support<\/span>;/);
-  expect(src).toContain("{job}{lifeSupport}{\" · \"}"); // phone card
-  expect(src).toContain('<span className="min-w-0 break-words font-semibold">{job}{lifeSupport}</span>'); // computer Job cell
+  expect(src).toContain("{job}{lifeSupport}{bounced}{\" · \"}"); // phone card
+  expect(src).toContain('<span className="min-w-0 break-words font-semibold">{job}{lifeSupport}{bounced}</span>'); // computer Job cell
+});
+
+test("main's 'Email bounced' tag (f34ace02) sits next to Life support, in the table and on the phone card", () => {
+  const src = lane();
+  expect(src).toMatch(/const bounced = r\.emailBounced && <span className="[^"]*text-rose[^"]*">Email bounced<\/span>;/);
 });
 
 test("final fix 5: ?stage= from an old link shows once and is not written to the saved view", () => {

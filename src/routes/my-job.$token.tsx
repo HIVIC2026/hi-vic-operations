@@ -2,18 +2,19 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Check, Phone } from "lucide-react";
-import { cancelMyJob, getOwnerMyJob } from "@/lib/owner-myjob.functions";
+import { cancelMyJob, finishLifeSupportPlanUploadFn, getLifeSupportPlanState, getOwnerMyJob, startLifeSupportPlanUploadFn } from "@/lib/owner-myjob.functions";
+import { supabase } from "@/integrations/supabase/client";
 import { OwnerHouse } from "@/components/owner/OwnerHouse";
 import { PIESA_FIXES_NOTE, agreedWithLabel, ownerPriceTitle } from "@/lib/owner-confirm.core";
 import { HOUSE_LEVEL } from "@/lib/owner-house.core";
 import { ownerHeadline } from "@/lib/owner-headlines.core";
-import { gateACard, SPOT_SAVED_PROGRESS } from "@/lib/owner-myjob.core";
+import { gateACard, SPOT_SAVED_PROGRESS, spotSavedLayout } from "@/lib/owner-myjob.core";
 import { ownerPaperworkFn } from "@/lib/owner-gates.functions";
 import { earliestInstall, installDeadline, TWO_HOUR_WINDOWS, visitPill, type OwnerScreen } from "@/lib/owner-myjob.core";
 import { SPOT_FREE, SPOT_PRICE_NOTE, SPOT_REGISTERED, SPOT_RELEASE_LINE, SPOT_WAIT_LINE } from "@/lib/spot-only-copy.core";
 import { PAYMENT_OPTION_SUMMARY, paymentOptionSummary } from "@/lib/payment-gate.core";
 import { howYouPayLines, paymentPlan } from "@/lib/payments.core";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { OwnerPaperwork } from "@/components/owner/OwnerPaperwork";
 import { OwnerCodeGate, signBtn } from "@/components/owner/OwnerSign";
@@ -25,17 +26,26 @@ import { melbourneToday, addYmd } from "@/lib/melbourne-time.core";
 import { formatInstallDay } from "@/lib/install-days.core";
 import { PIESA_OWNER_SUGGEST_MAX, formatPiesaTime } from "@/lib/piesa-times.core";
 import { OwnerReadyCheckTimes } from "@/components/owner/OwnerReadyCheckTimes";
+import { OwnerRunTime } from "@/components/owner/OwnerRunTime";
 import { AuthorityChoice, FactRows, FormCard, InfoBox, LockHint, LockedButton, OwnerFooter, OwnerPageHeader, PageIntro, SectionTitle, SmallNote, ThirtyDayClock, TickCard, TypedField } from "@/components/owner/OwnerPageKit";
 import { OFFICE_EMAIL, P2, P3, P4, P6, P6F, centsAud, dayMonth, declarationBullets, longDate, sentence, shortAud, weekdayDate } from "@/lib/owner-pages.core";
 import { OWNER_DECLARATIONS, type OwnerDeclarationKey } from "@/lib/consent.core";
 import { ownerConfirmTurnFn, ownerDeclineTurnFn, ownerTurnStateFn } from "@/lib/spot-release.functions";
 import { SPOT_RELEASE_PAGE, WHAT_HAPPENS_NEXT, type OwnerTurnView } from "@/lib/spot-release.core";
+import { ownerRequestNewQuoteFn } from "@/lib/new-quote-request.functions";
+import { NEW_QUOTE_THANKS } from "@/lib/new-quote-request.core";
+import { ownerQuickTapsAddressSearchFn, ownerQuickTapsDetailsFn, ownerQuickTapsSaveFn, ownerQuickTapsStateFn } from "@/lib/quick-taps.functions";
+import { QUICK_TAPS_COPY, nextTapStep, tapOutcome, websiteQuestions, type FinalOutcome, type QuickTapAnswers, type QuickTapsView } from "@/lib/quick-taps.core";
+import { createAddressPicker, type PickResult } from "@/lib/address-pick.core";
+import { assertInHouseActionSucceeded } from "@/lib/in-house.core";
 
 // Owner "My job" — no login. The secure link token is the only credential; nothing fetched during SSR.
 // Decision 335: "review" = the O51 star links (?screen=review&stars=N).
 // Decision 366: "fixes" = the electrical fixes screen (O29's approve link): approve → pay in full → pick the electrician's time.
 // Decision 389: "turn" = "It's your turn" (O77's link): Confirm the free Ready Check, or no longer interested.
-const SCREENS = ["home", "spot", "quote", "book", "done", "review", "fixes", "turn"] as const satisfies readonly OwnerScreen[];
+// Batch 3a: "newquote" = O78's "Send me a new quote" button: the request runs on arrival, then the approved thanks line.
+// A48 batch 2: "taps" = the quick taps (the batch text's link): one question per screen, big buttons.
+const SCREENS = ["home", "spot", "quote", "book", "done", "review", "fixes", "turn", "newquote", "taps"] as const satisfies readonly OwnerScreen[];
 
 export const Route = createFileRoute("/my-job/$token")({
   ssr: false,
@@ -84,6 +94,8 @@ function MyJobPage() {
           : !data ? <Unavailable />
           : screen === "review" ? <ReviewScreen token={token} initialStars={stars ?? null} />
           : screen === "turn" ? <TurnScreen token={token} />
+          : screen === "taps" ? <TapsScreen v={data} token={token} />
+          : screen === "newquote" ? <NewQuoteScreen v={data} token={token} />
           : screen === "quote" ? <QuoteScreen v={data} token={token} />
           : screen === "fixes" ? <FixesScreen v={data} token={token} />
           : screen === "book" ? <BookScreen v={data} token={token} />
@@ -149,7 +161,9 @@ function Home({ v, token }: { v: View; token: string }) {
     {v.fixesConfirm && <FixesConfirmCard token={token} />}
     {/* Decision 366: an electrical fixes quote waiting on the owner (approve / pay / pick a time) links to its screen. */}
     <FixesHomeCard token={token} />
+    <LifeSupportPlanCard token={token} />
     <Hero v={v} level={v.hero.level} headline={v.hero.headline} />
+    <OwnerRunTime token={token} />
     <OwnerReadyCheckTimes token={token} />
     {/* Decision 137: the 30-day clock on the owner's job page while the install is being booked. */}
     {a.button?.screen === "book" && <ThirtyDayClock />}
@@ -263,6 +277,144 @@ function TurnScreen({ token }: { token: string }) {
   );
 }
 
+const tapBtn = "flex min-h-14 w-full items-center justify-center rounded-full border border-estimate-navy bg-card px-5 py-3 text-center text-base font-bold disabled:opacity-50";
+const tapPrimary = "flex min-h-14 w-full items-center justify-center rounded-full bg-estimate-green px-5 py-3 text-center text-base font-bold text-estimate-canvas disabled:opacity-50";
+
+/** A48 batch 2: the quick taps. One question per screen, in order: full name, address, hatch, roof, 5 years, any website
+ *  answer left blank, then "Yes, let's go" / "No thanks". A decline tap ends it. Name/address changes are saved as they
+ *  are given (a typed name waits for the address when there is no full address on file yet); the answers are saved once.
+ *  Not in a batch asking for taps → the normal My job page. The link token is the only credential. */
+function TapsScreen({ v, token }: { v: View; token: string }) {
+  const load = useServerFn(ownerQuickTapsStateFn);
+  const save = useServerFn(ownerQuickTapsSaveFn);
+  const saveDetails = useServerFn(ownerQuickTapsDetailsFn);
+  const qc = useQueryClient();
+  const { data: st, isLoading } = useQuery({ queryKey: ["owner-taps", token], queryFn: () => load({ data: { token } }) as Promise<QuickTapsView>, retry: false, refetchOnWindowFocus: false });
+  const [done, setDone] = useState<FinalOutcome | null>(null);
+  const [a, setA] = useState<QuickTapAnswers>({});
+  const [onFile, setOnFile] = useState<{ name: string | null; address: string | null } | null>(null);
+  const [pendingName, setPendingName] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  if (isLoading && !st) return <p role="status" className="py-10 text-center text-sm">Opening…</p>;
+  const view: QuickTapsView | null = done ? { kind: "done", outcome: done } : st ?? null;
+  if (!view || view.kind === "none") return v.spotSaved ? <SpotSavedHome v={v} token={token} /> : <Home v={v} token={token} />;
+  const card = "space-y-4 rounded-[22px] bg-card p-6 shadow-sm";
+  if (view.kind === "done") return <section data-testid="owner-taps" data-outcome={view.outcome} className={card}><p className="flex items-start gap-2 font-display text-xl font-extrabold">{view.outcome === "pass" && <Check className="mt-1 h-5 w-5 shrink-0 text-estimate-green" aria-hidden />}{QUICK_TAPS_COPY.outcome[view.outcome]}</p></section>;
+
+  const name = onFile?.name ?? view.name;
+  const address = onFile?.address ?? view.address;
+  const blanksFor = (x: QuickTapAnswers) => websiteQuestions(view.website, x.website ?? {});
+  const step = nextTapStep(a, blanksFor(a));
+  const submit = async (x: QuickTapAnswers) => {
+    setErr(""); setBusy(true);
+    try {
+      const r = (await save({ data: { token, answers: x } })) as QuickTapsView;
+      if (r.kind === "done") { setDone(r.outcome); void qc.invalidateQueries({ queryKey: ["my-job", token] }); }
+    } catch (e) { setErr(errText(e)); } finally { setBusy(false); }
+  };
+  const answer = (x: QuickTapAnswers) => {
+    setA(x); setEditing(false); setTyped(""); setErr("");
+    if (tapOutcome(x, blanksFor(x)) !== "incomplete") void submit(x);
+  };
+  const details = async (input: { fullName?: string | null; placeId?: string | null }, then: (r: { name: string; address: string }) => void): Promise<PickResult> => {
+    const r = await saveDetails({ data: { token, fullName: input.fullName ?? null, placeId: input.placeId ?? null } });
+    if (r.ok) { setOnFile({ name: r.name, address: r.address }); then(r); }
+    return r.ok ? { ok: true } : { ok: false, error: r.error };
+  };
+  const options = <T extends string>(list: readonly { value: T; label: string }[], pick: (value: T) => void) =>
+    <div className="space-y-3">{list.map((o) => <button key={o.value} type="button" className={tapBtn} disabled={busy} onClick={() => pick(o.value)}>{o.label}</button>)}</div>;
+  const confirm = (question: string, value: string, yes: () => void) => <>
+    <h1 className="font-display text-2xl font-extrabold">{question}</h1>
+    <p className="rounded-[14px] bg-estimate-panel px-4 py-3.5 text-lg font-bold">{value}</p>
+    <div className="space-y-3">
+      <button type="button" className={tapPrimary} disabled={busy} onClick={yes}>{QUICK_TAPS_COPY.yes}</button>
+      <button type="button" className={tapBtn} disabled={busy} onClick={() => { setEditing(true); setTyped(""); setErr(""); }}>{QUICK_TAPS_COPY.change}</button>
+    </div>
+  </>;
+  const saveName = async () => {
+    const n = typed.trim().replace(/\s+/g, " ");
+    if (n.length < 2) { setErr("Please type your full name."); return; }
+    if (!address) { setPendingName(n); answer({ ...a, name: n }); return; } // saved with the address on the next tap
+    setBusy(true); setErr("");
+    try { const r = await details({ fullName: n }, (d) => answer({ ...a, name: d.name })); if (!r.ok) setErr(r.error); }
+    catch (e) { setErr(errText(e)); } finally { setBusy(false); }
+  };
+
+  let body: ReactNode = null;
+  if (busy && !step) body = <p role="status" className="py-6 text-center text-sm">Saving…</p>;
+  else if (step === "name") body = name && !editing ? confirm(QUICK_TAPS_COPY.nameConfirm, name, () => answer({ ...a, name })) : <>
+    <h1 className="font-display text-2xl font-extrabold">{QUICK_TAPS_COPY.nameAsk}</h1>
+    <input aria-label={QUICK_TAPS_COPY.nameAsk} autoComplete="name" className="h-14 w-full rounded-2xl border border-estimate-line bg-card px-4 text-lg" value={typed} disabled={busy} onChange={(e) => setTyped(e.target.value)} />
+    <button type="button" className={tapPrimary} disabled={busy} onClick={() => void saveName()}>{busy ? "Saving…" : "Save"}</button>
+  </>;
+  else if (step === "address") body = address && !editing ? confirm(QUICK_TAPS_COPY.addressConfirm, address, () => answer({ ...a, address })) : <>
+    <h1 className="font-display text-2xl font-extrabold">{QUICK_TAPS_COPY.addressAsk}</h1>
+    <QuickTapsAddressSearch token={token} save={(placeId) => details({ fullName: pendingName, placeId }, (d) => { setPendingName(null); answer({ ...a, name: d.name, address: d.address }); })} />
+  </>;
+  else if (step === "hatch") body = <><h1 className="font-display text-2xl font-extrabold">{QUICK_TAPS_COPY.hatch.question}</h1>{options(QUICK_TAPS_COPY.hatch.options, (hatch) => answer({ ...a, hatch }))}</>;
+  else if (step === "roof") body = <><h1 className="font-display text-2xl font-extrabold">{QUICK_TAPS_COPY.roof.question}</h1>{options(QUICK_TAPS_COPY.roof.options, (roof) => answer({ ...a, roof }))}</>;
+  else if (step === "five_years") body = <><h1 className="font-display text-2xl font-extrabold">{QUICK_TAPS_COPY.five_years.question}</h1>{options(QUICK_TAPS_COPY.five_years.options, (five_years) => answer({ ...a, five_years }))}</>;
+  else if (step === "go") body = options(QUICK_TAPS_COPY.go.options, (go) => answer({ ...a, go }));
+  else if (step) { const w = QUICK_TAPS_COPY.website[step]; body = <><h1 className="font-display text-2xl font-extrabold">{w.label}</h1>{options(w.options, (value) => answer({ ...a, website: { ...a.website, [step]: value } }))}</>; }
+  else body = <button type="button" className={tapPrimary} disabled={busy} onClick={() => void submit(a)}>Try again</button>;
+  return <section data-testid="owner-taps" data-step={step ?? "saving"} className={card}>{body}{err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}</section>;
+}
+
+/** The address tap's search (the same search-and-pick as the owner's address page, my-address.$token): the address can
+ *  only be picked from the list, never typed in free. */
+function QuickTapsAddressSearch({ token, save }: { token: string; save: (placeId: string) => Promise<PickResult> }) {
+  const searchFn = useServerFn(ownerQuickTapsAddressSearchFn);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<{ id: string; label: string }[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 4) { setResults([]); setSearching(false); return; }
+    let live = true;
+    setSearching(true);
+    const t = setTimeout(async () => {
+      try { const r = (await searchFn({ data: { token, query: q } })) as { id: string; label: string }[]; if (live) { setResults(r); setError(null); } }
+      catch { if (live) setError("We couldn't search right now. Please try again."); }
+      finally { if (live) setSearching(false); }
+    }, 300);
+    return () => { live = false; clearTimeout(t); };
+  }, [query, token, searchFn]);
+  const saveRef = useRef(save);
+  saveRef.current = save;
+  const pickerRef = useRef<ReturnType<typeof createAddressPicker> | null>(null);
+  pickerRef.current ??= createAddressPicker((placeId) => saveRef.current(placeId), { setBusy, onDone: (r) => { if (!r.ok) setError(r.error); } });
+  return <div>
+    <label htmlFor="taps-address" className="block text-sm font-semibold">Start typing your address</label>
+    <input id="taps-address" type="search" inputMode="search" autoComplete="off" enterKeyHint="search" value={query} disabled={busy}
+      onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }}
+      className="mt-2 block h-14 w-full rounded-2xl border border-estimate-line bg-card px-4 text-lg" />
+    {searching && <p className="mt-3 text-sm">Searching…</p>}
+    {results.length > 0 && <ul className="mt-3 divide-y divide-estimate-line overflow-hidden rounded-2xl border border-estimate-line">
+      {results.map((r) => <li key={r.id}><button type="button" disabled={busy} onClick={() => { setError(null); void pickerRef.current!(r.id); }} className="block min-h-14 w-full px-4 py-3 text-left text-base disabled:opacity-60">{r.label}</button></li>)}
+    </ul>}
+    {!searching && query.trim().length >= 4 && results.length === 0 && !error && <p className="mt-3 text-sm">No matches yet. Keep typing.</p>}
+    {busy && <p className="mt-3 text-sm">Saving…</p>}
+    {error && <p role="alert" className="mt-3 text-sm font-semibold text-destructive">{error}</p>}
+  </div>;
+}
+
+/** Batch 3a: O78's "Send me a new quote". The tap is the request (sent once on arrival; a second tap gets the same
+ *  answer and changes nothing). Refused (not a job closed by an expired quote) → the normal My job page. */
+function NewQuoteScreen({ v, token }: { v: View; token: string }) {
+  const ask = useServerFn(ownerRequestNewQuoteFn);
+  const qc = useQueryClient();
+  const { data: r, isLoading, isError } = useQuery({ queryKey: ["owner-newquote", token], queryFn: () => ask({ data: { token } }), retry: false, staleTime: Infinity, refetchOnWindowFocus: false });
+  useEffect(() => { if (r?.kind === "thanks") void qc.invalidateQueries({ queryKey: ["my-job", token] }); }, [r?.kind, qc, token]);
+  if (isLoading) return <p role="status" className="py-10 text-center text-sm">Opening…</p>;
+  if (isError || r?.kind !== "thanks") return v.spotSaved ? <SpotSavedHome v={v} token={token} /> : <Home v={v} token={token} />;
+  return <section data-testid="owner-newquote" className="space-y-4 rounded-[22px] bg-card p-6 shadow-sm"><p className="flex items-start gap-2 font-display text-xl font-extrabold"><Check className="mt-1 h-5 w-5 shrink-0 text-estimate-green" aria-hidden />{NEW_QUOTE_THANKS}</p><Link to="/my-job/$token" params={{ token }} className="block text-center text-sm font-semibold underline">Back to my job</Link></section>;
+}
+
 /** Decision 335: the review screen. The email's star tap is recorded on arrival; 4–5 → thanks + Google (when the link is
  *  set), 1–3 → a private "What could we have done better?" box (never Google). Link token only — it signs nothing. */
 function ReviewScreen({ token, initialStars }: { token: string; initialStars: number | null }) {
@@ -307,8 +459,9 @@ function ReviewScreen({ token, initialStars }: { token: string; initialStars: nu
 }
 const errText = (e: unknown) => (e instanceof Error ? e.message : "Please try again.");
 
-/** Approved P2 "Say yes" (decisions 126/127): two ticks, full name, the 18+/owner tick, typed signature, one locked button.
- *  Same server function, validation and 6-digit code: the code is asked for when the owner presses the button. */
+/** Approved P2 "Say yes" (decisions 126/127; decision 425, Jo 29 Oct 2026): two ticks, owner / acting-for-owner, one
+ *  locked button. No typed name and no 18+ tick — the server records the owner's name on file. The 6-digit code is
+ *  still asked for when the owner presses the button. */
 function AcceptQuote({ token, quote, rebate, safetyCheck }: { token: string; quote: { id: string; version: number }; rebate: number; safetyCheck: number | null }) {
   const [session, setSession] = useSession();
   const [needCode, setNeedCode] = useState(false);
@@ -316,17 +469,17 @@ function AcceptQuote({ token, quote, rebate, safetyCheck }: { token: string; quo
   const accept = useServerFn(ownerAcceptQuoteFn);
   const qc = useQueryClient();
   const { data: ag } = useQuery({ queryKey: ["owner-agreement", quote.id], queryFn: () => load({ data: { token, quoteId: quote.id } }) });
-  const [f, setF] = useState({ name: "", authority: "owner" as "owner" | "authorised_representative", sig: "" });
-  const [over18, setOver18] = useState(false); const [read, setRead] = useState(false); const [agree, setAgree] = useState(false);
+  const [f, setF] = useState({ authority: "owner" as "owner" | "authorised_representative" });
+  const [read, setRead] = useState(false); const [agree, setAgree] = useState(false);
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
   const blocked = (ag?.blockers ?? []) as string[];
   const fee = safetyCheck != null ? shortAud(safetyCheck) : "$349";
   const feeCents = safetyCheck != null ? centsAud(safetyCheck) : "$349.00";
-  const ready = blocked.length === 0 && over18 && read && agree && f.name.trim().length >= 2 && f.sig.trim().length >= 2;
+  const ready = blocked.length === 0 && read && agree;
   const sign = async () => {
     if (!session) { setNeedCode(true); return; }
     setErr(""); setBusy(true);
-    try { await accept({ data: { token, session, quoteId: quote.id, expectedVersion: quote.version, signing: { signatoryName: f.name, authorityType: f.authority, signatureName: f.sig, over18, readConsumerInfo: read, acceptAgreement: agree, assistance: "none" } } }); await qc.invalidateQueries({ queryKey: ["my-job", token] }); }
+    try { await accept({ data: { token, session, quoteId: quote.id, expectedVersion: quote.version, signing: { authorityType: f.authority, readConsumerInfo: read, acceptAgreement: agree, assistance: "none" } } }); await qc.invalidateQueries({ queryKey: ["my-job", token] }); }
     catch (e) { setErr(errText(e)); } finally { setBusy(false); }
   };
   return (
@@ -338,12 +491,7 @@ function AcceptQuote({ token, quote, rebate, safetyCheck }: { token: string; quo
       <TickCard on={read} set={setRead} title={P2.tick2} sub={P2.tick2Sub(fee)} read={P2.tick2Read} readBody={ag ? <>{ag.consumerRights ? `Your consumer information (${ag.consumerRights.version})\n\n${ag.consumerRights.body}` : ""}{ag.paymentTerms ? `\n\nPayment terms\n\n${typeof ag.paymentTerms === "string" ? ag.paymentTerms : JSON.stringify(ag.paymentTerms, null, 1)}` : ""}</> : "Loading…"} />
       {blocked.length > 0 && <p role="alert" className="mt-3 rounded-[12px] bg-estimate-blush p-3 text-sm font-semibold">{blocked.join(" ")}</p>}
       <section className="mt-[18px] rounded-[14px] border border-estimate-line bg-card px-4 py-3.5">
-        <p className="text-[15px] font-bold">{P2.signTitle}</p>
-        <p className="mt-0.5 text-[13px] leading-relaxed text-estimate-sub">{P2.signSub}</p>
-        <TypedField label={P2.fullName} value={f.name} onChange={(name) => setF({ ...f, name })} autoComplete="name" />
         <AuthorityChoice value={f.authority} onChange={(authority) => setF({ ...f, authority })} />
-        <TickCard on={over18} set={setOver18} title={P2.tick3} />
-        <TypedField label={P2.typeAgain} value={f.sig} onChange={(sig) => setF({ ...f, sig })} placeholder={P2.typeHere} italic />
       </section>
       {needCode && !session && <div className="mt-4"><OwnerCodeGate token={token} onVerified={(s) => { setSession(s); setNeedCode(false); }} /></div>}
       {err && <p role="alert" className="mt-3 text-sm font-semibold text-destructive">{err}</p>}
@@ -407,6 +555,7 @@ function BookPickers({ token }: { token: string }) {
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
   if (repeat) return <RepeatPiesaCard token={token} />;
   if (!data) return null;
+  if (data.inHouseDispatch) return <>{data.piesa.booked && <p className="text-sm font-semibold">Pre Insulation Electrical Safety Assessment (PIESA) · {visitPill(data.piesa.booked.startsAt)}</p>}{data.install.bookedAt && <p className="text-sm font-semibold">Install · {visitPill(data.install.bookedAt)}</p>}</>;
   const installMove = data.install.turn === "owner_to_answer";
   // Decision 333: the electrician offers the safety check times; the owner taps one or suggests days (old jobs keep the old picker).
   const pt = data.piesaTimes as { applies: boolean; turn: string; open: { id: string; starts_at: string }[]; days: string[]; thirtyDayAck: { needed: boolean; wording: string } } | undefined;
@@ -437,7 +586,7 @@ function BookPickers({ token }: { token: string }) {
         <span>{data.piesa.thirtyDayAck.wording}</span>
       </label>}
       <div className="mt-3 space-y-3">{nextDays(8).map((d) => <div key={d}><p className="text-xs font-bold">{day(d + "T02:00:00Z")}</p><div className="mt-1 grid grid-cols-2 gap-2">{SLOTS.map(([k, l]) => { const on = picks.some((p) => p.date === d && p.slot === k); return <button key={k} className={tile(on)} onClick={() => setPicks(on ? picks.filter((p) => !(p.date === d && p.slot === k)) : picks.length < 5 ? [...picks, { date: d, slot: k }] : picks)}>{l}</button>; })}</div></div>)}</div>
-      <button className={`${signBtn} mt-4`} disabled={busy || picks.length < 3 || (!!data.piesa.thirtyDayAck?.needed && !understands)} onClick={() => go(() => choosePiesa({ data: { token, session, picks, understandsThirtyDays: understands } }))}>Send my {picks.length} times</button>
+      <button className={`${signBtn} mt-4`} disabled={busy || picks.length < 3 || (!!data.piesa.thirtyDayAck?.needed && !understands)} onClick={() => go(async () => { const result = await choosePiesa({ data: { token, session, picks, understandsThirtyDays: understands } }); assertInHouseActionSucceeded(result); })}>Send my {picks.length} times</button>
     </section>}
     {any && session && piesaMove && pt && <section className="rounded-[22px] bg-card p-5 shadow-sm" data-piesa-times-owner>
       <h3 className="font-display text-lg font-extrabold">Choose your Pre Insulation Electrical Safety Assessment (PIESA) time</h3>
@@ -636,7 +785,7 @@ function QuoteScreen({ v, token }: { v: View; token: string }) {
 }
 
 /** Decisions 139/140/141: what is due now and how to pay it. Card ("Pay now", Xero online invoice) only for the $349
- *  safety check and electrical fixes; the install deposit and balance are bank transfer / PayID only. Never a card fee. */
+ *  safety check, electrical fixes and the install deposit (Jo 29 Oct); the balance is bank transfer / PayID only. Never a card fee. */
 function PayNowCard({ v, token }: { v: View; token: string }) {
   const p = v.payment as { dueNow: number; remaining: number; paid: number; payNow: { title: string; amount: number; card: boolean; lines: string[] }; provisional: { expiresAt: string | null; deposit: number } | null } | null;
   const checkout = useServerFn(ownerCardCheckoutFn);
@@ -658,10 +807,40 @@ function PayNowCard({ v, token }: { v: View; token: string }) {
 }
 
 /** Decision 366 (audit F03): the Home card for an electrical fixes quote that needs the owner. */
+/** A48 batch 1 final fix (Jo 29 Oct 2026, approved wording verbatim): life support yes / unknown and no plan on file →
+ *  the owner uploads the written consent or medical plan (photo or PDF). That file alone clears the safety check block. */
+function LifeSupportPlanCard({ token }: { token: string }) {
+  const load = useServerFn(getLifeSupportPlanState);
+  const start = useServerFn(startLifeSupportPlanUploadFn);
+  const finish = useServerFn(finishLifeSupportPlanUploadFn);
+  const { data } = useQuery({ queryKey: ["owner-life-support-plan", token], queryFn: () => load({ data: { token } }), retry: false, refetchOnWindowFocus: false });
+  const input = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false); const [done, setDone] = useState(false); const [err, setErr] = useState("");
+  if (done) return <section data-testid="life-support-plan-done" role="status" className="flex items-start gap-3 rounded-[22px] bg-estimate-mint p-5"><Check className="mt-0.5 h-5 w-5 shrink-0 text-estimate-green" aria-hidden /><p className="font-bold">Thanks, we've got your life support plan.</p></section>;
+  if (!data?.show) return null;
+  const upload = async (file: File) => {
+    setErr(""); setBusy(true);
+    try {
+      const slot = await start({ data: { token, fileName: file.name, mime: file.type, size: file.size } });
+      const up = await supabase.storage.from("job-files").uploadToSignedUrl(slot.path, slot.uploadToken, file, { contentType: slot.mime });
+      if (up.error) throw new Error("The upload was interrupted. Please check your connection and try again.");
+      await finish({ data: { token, path: slot.path, fileName: file.name } });
+      setDone(true);
+    } catch (e) { setErr(errText(e)); } finally { setBusy(false); if (input.current) input.current.value = ""; }
+  };
+  return <section data-testid="life-support-plan" className="rounded-[22px] border-2 border-estimate-green bg-card p-5">
+    <h2 className="font-display text-lg font-extrabold">LIFE SUPPORT PLAN</h2>
+    <p className="mt-1 text-sm">Someone at your home uses life support equipment (or you weren't sure). Before the electrician's safety check, please upload your written consent or medical plan.</p>
+    <input ref={input} type="file" accept="application/pdf,image/*" className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); }} />
+    {err && <p role="alert" className="mt-2 text-sm font-bold text-destructive">{err}</p>}
+    <button type="button" className={`${signBtn} mt-4`} disabled={busy} onClick={() => input.current?.click()} aria-busy={busy}>Upload file</button>
+  </section>;
+}
+
 function FixesHomeCard({ token }: { token: string }) {
   const load = useServerFn(ownerFixesStateFn);
   const { data } = useQuery({ queryKey: ["owner-fixes", token], queryFn: () => load({ data: { token } }), retry: false });
-  if (!data || !ownerFixesNeedsOwner(data.step)) return null;
+  if (!data || !ownerFixesNeedsOwner(data.step) || (data.inHouseDispatch && data.step === "pick")) return null;
   return <section data-testid="fixes-home" className="rounded-[22px] border-2 border-estimate-blue bg-card p-5">
     <p className="text-xs font-bold uppercase tracking-wide text-estimate-blue">{OWNER_FIXES_COPY.kicker}</p>
     <h2 className="mt-1 font-display text-lg font-extrabold">{OWNER_FIXES_COPY.title}</h2>
@@ -711,14 +890,14 @@ function FixesScreen({ v, token }: { v: View; token: string }) {
         <DeclineQuote token={token} quoteId={q.id} />
       </div>}
       {data.step === "pay" && <><p className="text-sm font-semibold">{OWNER_FIXES_COPY.pay}</p><PayNowCard v={v} token={token} /></>}
-      {data.step === "pick" && <div data-testid="fixes-pick" className="space-y-2">
+      {!v.inHouseDispatch && data.step === "pick" && <div data-testid="fixes-pick" className="space-y-2">
         <p className="text-sm font-semibold">{OWNER_FIXES_COPY.pick}</p>
         {data.windows.map((w) => <label key={w.id} className="flex min-h-12 items-center gap-3 rounded-2xl border border-estimate-line bg-card px-4 text-sm font-semibold"><input type="radio" name="fixes-time" checked={chosen === w.id} onChange={() => setChosen(w.id)} />{formatPiesaTime(w.startsAt)}</label>)}
         {needCode && !session && <div className="mt-4"><OwnerCodeGate token={token} onVerified={(s) => { setSession(s); setNeedCode(false); }} /></div>}
         <LockedButton ready={!!chosen} busy={busy} busyLabel="Booking…" onClick={() => void run((s) => pick({ data: { token, session: s, proposalId: chosen! } }))}>{OWNER_FIXES_COPY.pickButton}</LockedButton>
       </div>}
-      {data.step === "waiting_times" && <p className="rounded-[14px] bg-estimate-mist px-4 py-3 text-sm">{OWNER_FIXES_COPY.waitingTimes}</p>}
-      {data.step === "booking" && <p className="rounded-[14px] bg-estimate-mist px-4 py-3 text-sm">{OWNER_FIXES_COPY.booking}</p>}
+      {!v.inHouseDispatch && data.step === "waiting_times" && <p className="rounded-[14px] bg-estimate-mist px-4 py-3 text-sm">{OWNER_FIXES_COPY.waitingTimes}</p>}
+      {!v.inHouseDispatch && data.step === "booking" && <p className="rounded-[14px] bg-estimate-mist px-4 py-3 text-sm">{OWNER_FIXES_COPY.booking}</p>}
       {data.step === "booked" && data.bookedAt && <p data-testid="fixes-booked" className="rounded-[14px] bg-estimate-mint px-4 py-3 text-center text-sm font-bold text-estimate-green">{OWNER_FIXES_COPY.booked(formatPiesaTime(data.bookedAt))}</p>}
       {data.step === "declined" && <p className="rounded-[14px] bg-estimate-mist px-4 py-3 text-sm">{OWNER_FIXES_COPY.declined}</p>}
       {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
@@ -734,6 +913,7 @@ function FixesNote() {
 
 function BookScreen({ v, token }: { v: View; token: string }) {
   const today = melbourneToday();
+  if (v.inHouseDispatch) return <><Back token={token} /><PayNowCard v={v} token={token} /><BookPickers token={token} /></>;
   return <>
     <Back token={token} />
     <Hero v={v} level={HOUSE_LEVEL.book_visits} size="sm" headline={ownerHeadline("booking_visits", v.numbers.rebate)} />
@@ -914,7 +1094,8 @@ function VeecAssignmentCard({ v, token }: { v: View; token: string }) {
 
 /** Jo-approved My job at the SPOT SAVED stage (before any Ready Check is booked). */
 function SpotSavedHome({ v, token }: { v: View; token: string }) {
-  const sp = v.spotSaved as { rebate: number; cost: number | null; shortAddress: string | null; videoInvite: boolean; optOutUrl: string };
+  const sp = v.spotSaved as { rebate: number; cost: number | null; shortAddress: string | null; videoInvite: boolean; released: boolean; optOutUrl: string };
+  const L = spotSavedLayout(sp.released);
   const loadPw = useServerFn(ownerPaperworkFn);
   const { data: pw } = useQuery({ queryKey: ["owner-paperwork", token], queryFn: () => loadPw({ data: { token } }) });
   const [open, setOpen] = useState(false);
@@ -926,11 +1107,12 @@ function SpotSavedHome({ v, token }: { v: View; token: string }) {
       <div className="min-w-0">
         {v.firstName && <p className="text-sm font-semibold">Hi {v.firstName}</p>}
         <h1 className="mt-1 font-display text-2xl font-extrabold leading-tight">Spot saved. Your <span className="text-estimate-logo-green">{aud(sp.rebate)}</span> rebate is waiting.</h1>
-        <p className="mt-2 text-sm text-estimate-navy/80">{sp.shortAddress ? `${sp.shortAddress} · ` : ""}Step 1 of 6</p>
+        <p className="mt-2 text-sm text-estimate-navy/80">{sp.shortAddress ? `${sp.shortAddress} · ` : ""}{L.stepLabel}</p>
       </div>
     </section>
+    <OwnerRunTime token={token} />
     <OwnerReadyCheckTimes token={token} />
-    <p className="rounded-[18px] bg-estimate-heads-up p-4 text-sm"><strong>{SPOT_REGISTERED}</strong> {SPOT_RELEASE_LINE}</p>
+    {L.showWaitingBox && <p className="rounded-[18px] bg-estimate-heads-up p-4 text-sm"><strong>{SPOT_REGISTERED}</strong> {SPOT_RELEASE_LINE}</p>}
     {card === "todo" && <section data-testid="gate-a-todo" className="rounded-[22px] border-2 border-estimate-green bg-card p-5">
       <p className="text-xs font-bold uppercase tracking-wide text-estimate-green">While you wait · 2 minutes</p>
       <h2 className="mt-1 font-display text-xl font-extrabold">Get your paperwork out of the way</h2>
@@ -939,7 +1121,7 @@ function SpotSavedHome({ v, token }: { v: View; token: string }) {
     </section>}
     {card === "done" && <section data-testid="gate-a-done" className="flex items-start gap-3 rounded-[22px] bg-estimate-mint p-5">
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-estimate-green text-estimate-canvas"><Check className="h-5 w-5" /></span>
-      <div><p className="font-display text-lg font-extrabold">Paperwork done. You're ready to go.</p><p className="text-sm">Nothing else to do until your spot is released.</p></div>
+      <div><p className="font-display text-lg font-extrabold">Paperwork done. You're ready to go.</p>{L.doneSub && <p className="text-sm">{L.doneSub}</p>}</div>
     </section>}
     {sp.videoInvite && <section className="rounded-[22px] bg-estimate-mint p-5">
       <h2 className="font-display text-lg font-extrabold">Help us check your insulation: send a quick video</h2>
@@ -949,14 +1131,14 @@ function SpotSavedHome({ v, token }: { v: View; token: string }) {
       <p className="font-display text-lg font-extrabold">Your progress</p>
       <ol className="mt-3 space-y-3">{SPOT_SAVED_PROGRESS.map((p, i) => (
         <li key={p.label} className="flex items-start gap-3 text-sm">
-          {i === 0 ? <Check className="mt-0.5 h-4 w-4 text-estimate-green" /> : <span className={`mt-1.5 h-2.5 w-2.5 rounded-full ${i === 1 ? "bg-estimate-blue" : "bg-estimate-line"}`} />}
-          <span><span className={`block font-semibold ${i === 0 ? "text-estimate-green" : i === 1 ? "text-estimate-blue" : ""}`}>{p.label}</span><span className="text-estimate-navy/70">{p.sub}</span></span>
+          {i < L.currentIndex ? <Check className="mt-0.5 h-4 w-4 text-estimate-green" /> : <span className={`mt-1.5 h-2.5 w-2.5 rounded-full ${i === L.currentIndex ? "bg-estimate-blue" : "bg-estimate-line"}`} />}
+          <span><span className={`block font-semibold ${i < L.currentIndex ? "text-estimate-green" : i === L.currentIndex ? "text-estimate-blue" : ""}`}>{p.label}</span>{!(i === 1 && !L.showReleasedSub) && <span className="text-estimate-navy/70">{p.sub}</span>}</span>
         </li>))}</ol>
     </section>
     <section className="rounded-[22px] bg-card p-5 shadow-sm">
       <p className="font-display text-lg font-extrabold">Your numbers</p>
       <div className="mt-3 flex justify-between text-sm"><span>Your rebate</span><span className="font-bold text-estimate-logo-green">{aud(sp.rebate)}</span></div>
-      <div className="mt-2 flex justify-between text-sm"><span>You pay about</span><span className="font-bold">{sp.cost == null ? "—" : aud(sp.cost)}</span></div>
+      <div className="mt-2 flex justify-between text-sm"><span>Your estimated quote based on what you've told us</span><span className="font-bold">{sp.cost == null ? "—" : aud(sp.cost)}</span></div>
       <p className="mt-3 text-xs text-estimate-navy/70">{SPOT_PRICE_NOTE}</p>
     </section>
     <p className="pt-2 text-center"><a href={optOut} className="text-xs text-estimate-navy/70 underline">Remove my enquiry</a></p>

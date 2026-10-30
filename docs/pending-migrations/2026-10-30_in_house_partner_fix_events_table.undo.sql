@@ -1,0 +1,2 @@
+-- Intentionally no destructive undo: do not restore the broken workflow_events target or delete audit history.
+-- Undo of the main in-house partner migration drops guard_in_house_partner and its trigger.

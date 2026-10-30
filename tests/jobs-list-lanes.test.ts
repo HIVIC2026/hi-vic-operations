@@ -52,3 +52,9 @@ test("final fix 2: release states are read once, for spot-saved rows only, and p
   expect(jobsFn.match(/spotReleaseStates\(/g)?.length).toBe(1);
   expect(jobsFn).toContain("release: releases.get(id)?.state ?? null");
 });
+
+test("main's Email bounced flag (f34ace02) is still worked out for every lane row", () => {
+  expect(jobsFn).toContain("emailBouncedSet(ids)");
+  expect(jobsFn).toContain("emailBounced: bounced.has(id)");
+  expect(lists).toMatch(/export type JobsListRow = JobsColumnRow & \{[^}]*emailBounced: boolean;/);
+});

@@ -75,6 +75,21 @@ export function payPill(p: PayState): { label: string; tone: "blue" | "blush" | 
   return { label: "Being checked", tone: "blush" };
 }
 
+/** One line of the pay statement (Money tab "Download statement"). */
+export type StatementRow = { jobNumber: string | number | null; surname: string | null; suburb: string | null; what: string; amount: number | null; state: PayState; held: string[] };
+
+/** The statement as CSV: every cell quoted, quotes doubled, CRLF line ends. A held payout reads "Held". */
+export function statementCsv(rows: StatementRow[]): string {
+  const safe = (v: unknown) => { const t = String(v ?? ""); return /^[=+\-@\t\r]/.test(t) ? `'${t}` : t; }; // stop spreadsheet formulas in owner-entered text
+  const lines = [["Job", "Owner", "Suburb", "What", "Amount", "Status"], ...rows.map((r) => [safe(r.jobNumber), safe(r.surname), safe(r.suburb), safe(r.what), String(r.amount ?? ""), (r.state.kind === "paid" ? null : heldPayPill(r.held))?.label ?? payPill(r.state).label])];
+  return lines.map((l) => l.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\r\n");
+}
+
+/** "pay-statement-2026-10-28.csv" (Melbourne date). */
+export function statementFileName(now: Date = new Date()): string {
+  return `pay-statement-${new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(now)}.csv`;
+}
+
 /** Pay state from facts: paid event wins; office AP approval starts the 7-day clock; otherwise it's being checked. */
 /** Jo's terms: the clock starts only once BOTH office AP approval and the owner's payment in full are recorded (later of the two).
  * `ownerPaidInFullAt` omitted = legacy callers (AP approval only). */
@@ -88,9 +103,12 @@ export function payState(f: { paidAt: string | null; apApprovedAt: string | null
   return { kind: "checking" };
 }
 
-/** When the owner paid in full (the Xero mirror): every invoice on the job fully paid → the latest paid time; else null.
+/** When the owner paid in full (the Xero mirror): every INSTALLATION invoice on the job fully paid → the latest paid time;
+ *  else null. Batch 3b (Jo 29 Oct): installer pay waits for the install invoice only — the electrical fixes and repeat
+ *  safety check invoices never hold it (a row with no `kind` is an installation invoice).
  *  Shared by the installer's Money screen and the office Payouts tab (audit F19) so both show the same due date. */
-export function ownerPaidInFullAt(invs: { status: string | null; balance_paid_at: string | null; paid_at?: string | null; updated_at?: string | null }[]): string | null {
+export function ownerPaidInFullAt(all: { kind?: string | null; status: string | null; balance_paid_at: string | null; paid_at?: string | null; updated_at?: string | null }[]): string | null {
+  const invs = all.filter((x) => (x.kind ?? "installation") === "installation");
   if (!invs.length || invs.some((x) => x.status !== "fully_paid")) return null;
   return invs.map((x) => x.balance_paid_at ?? x.paid_at ?? x.updated_at ?? null).filter((x): x is string => !!x).sort().at(-1) ?? null;
 }
@@ -144,20 +162,15 @@ export function setupComplete(done: Partial<Record<SetupKey, boolean>>): boolean
   return SETUP_STEPS.filter((s) => !("optional" in s && s.optional)).every((s) => done[s.key]);
 }
 
-/** Before-you-start: Start stays grey until all three phone checks are ticked. */
-export const PRESTART_CHECKS = [
-  { title: "Location on for your camera", sub: "So every photo is geotagged." },
-  { title: "Battery over 50%", sub: "Bring a power bank if you're low." },
-  { title: "Onsite form open on this job", sub: "" },
-] as const;
-export function prestartReady(ticks: boolean[]): boolean { return PRESTART_CHECKS.every((_, i) => !!ticks[i]); }
+/** Before-you-start: Start stays grey until every phone check is ticked. */
+export function prestartReady(ticks: boolean[], checks: readonly string[]): boolean { return checks.every((_, i) => !!ticks[i]); }
 
-export type DayKind = "safety_check" | "ready_check" | "install";
+import type { DayKind } from "./installer-screens.core";
+export type { DayKind };
 /** A historical Ready Check booking is not today's visit once the job has moved on. */
 export function historicalReadyCheckDay(stage: string | null, bookingKind: string | null): boolean {
   return bookingKind === null || (bookingKind === "ready_check" && !["ready_check_ready_to_schedule", "ready_check_scheduled", "ready_check_complete", "measured_estimate_ready", "measured_quote_accepted"].includes(stage ?? ""));
 }
-export const START_LABEL: Record<DayKind, string> = { safety_check: "Start check", ready_check: "Start Ready Check", install: "Start install" };
 
 /** Ready Check "Couldn't get in?" reasons (Jo-approved). */
 export const COULDNT_GET_IN = ["No one home", "Couldn't reach the manhole", "Not safe to go up", "Something else"] as const;
@@ -179,6 +192,14 @@ export function couldntGetInPlan(f: { stage: string | null; readyCheckStart: str
   }
   const b = couldntGetInBlocker(f.stage, f.readyCheckStart, f.now);
   return b ? { blocker: f.stage !== "ready_check_scheduled" ? "This job doesn't have a booked Ready Check or install day." : b } : { visit: "ready_check" };
+}
+
+/** Today's page after a "Couldn't get in?" report: the report is shown whatever booking is left (the installer keeps the job). */
+export function couldntGetInDay(f: { stage: string | null; last: { visit?: string; reason?: string } | null }): { visit: CouldntGetInVisit; reason: string } | null {
+  if (!f.last) return null;
+  const reason = String(f.last.reason ?? "");
+  if (f.last.visit === "install") return f.stage === "installation_scheduling" ? { visit: "install", reason } : null;
+  return f.stage === "ready_check_ready_to_schedule" ? { visit: "ready_check", reason } : null;
 }
 
 /** Paperwork pill: within 30 days → "{N} days"; expired → "Expired"; otherwise "Current". */
@@ -257,8 +278,10 @@ export function needsFinishingTask(nextAction: string | null | undefined): strin
 }
 
 // ---------- My business (approved mock-up M7, decision 204). PURE labels over recorded facts. ----------
+import { MIN_REC_PL_COVER } from "./rec-onboarding.core";
 import { isPriceNextAction } from "./ready-check-basics.core";
 import { crewClearance, CREW_CLEARANCE_REASON, WHITE_CARD_TEAM_LABEL, type WhiteCardState } from "./worker-compliance.core";
+import { PIESA_FULL } from "./job-wording";
 
 const MEL = "Australia/Melbourne";
 const asDate = (iso: string) => new Date(iso.length === 10 ? `${iso}T00:00:00+10:00` : iso);
@@ -280,19 +303,37 @@ export type MittiLogin = "linked" | "not_set" | "email_changed";
 export type TeamMemberView = {
   id: string | null; name: string; role: "owner" | "installer" | "electrician"; mobile: string | null; email: string | null;
   hasLogin: boolean; mittiLogin: MittiLogin;
+  /** True when the office has a Mitti record for this worker (linked, invited, reactivated or marked done); null = couldn't be read, so unknown. */
+  mittiRecorded: boolean | null;
   /** Installers only (decision 130). null = not applicable. */
   noticeAcknowledged: boolean | null;
   /** Installers with a staff row only (decision 153). null = not applicable (owner without a staff row, electrician). */
   cii: { certStatus: string | null; level: string | null; expiresOn: string | null } | null;
   /** Decision 319: White Card state for installers with a staff row (optional so older callers compile). null/undefined = not applicable. */
   whiteCard?: WhiteCardState | null;
+  /** Jo 28 Oct: Lead / Crew for installer staff rows; null/undefined = not applicable. */
+  workerRole?: "lead" | "crew" | null;
+  /** Jo 29 Oct: added on Team and not yet signed the worker declarations; can't go on jobs until they do. */
+  declarationsDue: boolean;
 };
 export const ROLE_LABEL: Record<TeamMemberView["role"], string> = { owner: "owner", installer: "installer", electrician: "electrician" };
 
-/** Second line: "0412 000 111 · Mitti login ✓ · Privacy notice ✓" from the person's own facts, nothing invented. */
-export function teamFactsLine(m: Pick<TeamMemberView, "mobile" | "mittiLogin" | "noticeAcknowledged">): string {
+/** "Lead · Mitti ✓" / "Crew · no Mitti" / "Mitti login not set": the Mitti words, with Lead or Crew first for installer staff. */
+export function teamMittiLine(m: Pick<TeamMemberView, "role" | "workerRole" | "mittiLogin" | "mittiRecorded">): string | null {
+  const prefix = m.workerRole === "lead" ? "Lead · " : m.workerRole === "crew" ? "Crew · " : "";
+  if (m.mittiLogin === "email_changed") return `${prefix}Mitti to re-check`;
+  if (m.mittiLogin === "linked" || m.mittiRecorded) return `${prefix}Mitti ✓`;
+  if (m.mittiRecorded === null) return null; // records couldn't be read: say nothing rather than something wrong
+  if (m.workerRole === "crew") return "Crew · no Mitti";
+  if (m.workerRole === "lead") return "Lead · office adding to Mitti";
+  return "Mitti login not set";
+}
+
+/** Second line: "0412 000 111 · Lead · Mitti ✓ · Privacy notice ✓" from the person's own facts, nothing invented. */
+export function teamFactsLine(m: Pick<TeamMemberView, "mobile" | "role" | "workerRole" | "mittiLogin" | "mittiRecorded" | "noticeAcknowledged">): string {
   const parts = [m.mobile?.trim() || "No mobile on file"];
-  parts.push(m.mittiLogin === "linked" ? "Mitti login ✓" : m.mittiLogin === "email_changed" ? "Mitti login to re-check" : "Mitti login not set");
+  const mitti = teamMittiLine(m);
+  if (mitti) parts.push(mitti);
   if (m.noticeAcknowledged != null) parts.push(m.noticeAcknowledged ? "Privacy notice ✓" : "Privacy notice outstanding");
   return parts.join(" · ");
 }
@@ -316,7 +357,10 @@ export function teamWhiteCardLine(state: WhiteCardState | null | undefined): { t
 /** Decision 377: each person's mobile, saved once on Team; their own safety plan sign link is texted there. */
 export const TEAM_MOBILE_NOTE = "Their own safety plan link is texted here before each install.";
 export const teamMobileButton = (mobile: string | null | undefined) => (mobile?.trim() ? "Change mobile" : "Add mobile");
-export const TEAM_RULE ="Ready Checks can go to anyone listed here. Install days only to CII-cleared people who've acknowledged the privacy notice.";
+export const TEAM_RULE = "Every installer, Lead and Crew, needs a CII certificate checked by our office. Only a Lead can run an install day. Crew can do Ready Checks once our office adds them to Mitti.";
+export const TEAM_SIGN = { due: "Not signed yet · can't go on jobs", needContact: "Add a mobile or email to send their signing link.", link: "Make signing link" } as const;
+/** "Send login invite" asks the office; it sends nothing itself. */
+export const TEAM_LOGIN = { button: "Ask the office to send a login", asked: "Asked the office. They'll send the login." } as const;
 
 export type CredentialView = { kind: string; label: string; expires: string | null; verified: boolean };
 /** Latest expiry on file for one credential kind (a renewal upload supersedes the old date; null = none recorded). */
@@ -355,7 +399,7 @@ export function ratesLine(agreedAt: string | null, hasRates: boolean): string {
 /** Decision 369: name + licence only — no declared price (the electrician's onboarding rate is the only rate, decision 353). */
 export function usualElectricianLine(e: { name: string; licence: string } | null): string {
   if (!e) return "Not set · add them so we can use them on your jobs";
-  return `${e.name} · REC ${e.licence}`;
+  return `${e.name} · Licence ${e.licence}`;
 }
 
 export function detailsLine(d: { legal: string | null; name: string; abn: string | null; baseSuburb: string | null; allVictoria: boolean }): string {
@@ -379,6 +423,8 @@ export type BusinessNextFacts = {
   noticeOutstanding: { name: string }[];
   usualElectrician: boolean;
   ciiBlocked: { name: string }[];
+  /** Electrician businesses only. */
+  electrician?: { licenceExpires: string | null; plCover: number | null; worksUnderRec: boolean };
 };
 /**
  * The ONE thing on the business screen (mock-up M7): public liability within 30 days, expired or missing wins;
@@ -390,40 +436,37 @@ export function businessNext(f: BusinessNextFacts, today: string): BusinessNext 
   const d = daysUntil(pl, today);
   if (d < 0) return { title: "Your public liability insurance has expired", sub: `Expired ${dayMonth(pl)}. No new offers or install starts until the renewed certificate is uploaded.`, button: "Upload renewed insurance", to: "/field/business/insurance" };
   if (d <= 30) return { title: d === 0 ? "Your public liability insurance runs out today" : `Your public liability insurance runs out in ${d} day${d === 1 ? "" : "s"}`, sub: `Expires ${dayMonth(pl)}. Upload the renewed certificate so offers keep coming.`, button: "Upload renewed insurance", to: "/field/business/insurance" };
+  const e = f.electrician;
+  if (e) {
+    if (e.licenceExpires == null) return { title: "We don't have your electrical licence on file", sub: "Upload your current licence so offers keep coming.", button: "Upload licence", to: "/field/business/insurance" };
+    if (daysUntil(e.licenceExpires, today) < 0) return { title: "Your electrical licence has expired", sub: `Expired ${dayMonth(e.licenceExpires)}. No new offers until the renewed licence is uploaded.`, button: "Upload renewed licence", to: "/field/business/insurance" };
+    if (!e.worksUnderRec && (e.plCover == null || e.plCover < MIN_REC_PL_COVER)) return { title: "Your public liability cover must be at least $5 million", sub: "Upload a certificate showing $5 million or more.", button: "Upload insurance", to: "/field/business/insurance" };
+  }
   if (!f.bankSaved) return { title: "Add your bank details", sub: "We can't pay you until we know where to send it.", button: "Add bank details", to: "/field/business/bank" };
   if (f.noticeOutstanding.length) return { title: `${f.noticeOutstanding.length === 1 ? `${f.noticeOutstanding[0]!.name} still has` : `${f.noticeOutstanding.length} people still have`} to acknowledge the ESC privacy notice`, sub: "Nobody can be put on an install day until they've ticked it themselves.", button: "Send the notice link", to: "/field/business/esc-notice" };
-  if (f.installer && !f.usualElectrician) return { title: "Add your usual electrician", sub: "Name, REC number and price inc GST. We use them on your jobs if they're an approved REC with us.", button: "Add my usual electrician", to: "/field/business/electrician" };
+  if (f.installer && !f.usualElectrician) return { title: "Add your usual electrician", sub: "Their name and licence number. We use them on your jobs once they're an approved electrician with us.", button: "Add my usual electrician", to: "/field/business/electrician" };
   if (f.ciiBlocked.length) return { title: `${f.ciiBlocked.map((p) => p.name).join(", ")} ${f.ciiBlocked.length === 1 ? "isn't" : "aren't"} cleared for installs yet`, sub: "Their CII certificate has to be verified by the office with its level and expiry recorded.", button: "See the team", to: "/field/business/team" };
   if (!f.agreementSigned) return { title: "Your agreement isn't signed yet", sub: "The office will send it to you to sign.", button: "See your agreement", to: "/field/business/agreement" };
   return null;
 }
 
 // ---------- M7 sub-page states (approved 24 Oct 2026, decision 236). PURE words over recorded facts. ----------
-/** Team → Add a team member sheet. The invite is the existing single-use /join link (worker-invite); with a mobile the server also texts it to the person (decision 251, team_member_invite). */
+/** Team → Add a team member sheet (Jo 29 Oct: no email needed; they sign their declarations by link). */
 export const TEAM_ADD_SHEET = {
   title: "Add a team member",
-  body: "They get a link to set up their login, the ESC privacy notice to tick, and a place to upload their CII certificate. The office checks it before they can be on an install.",
-  fields: ["Full name", "Mobile", "Email"] as const,
-  button: "Create the invite link",
+  bodyInstaller: "Email and mobile can wait. They sign their declarations by link, and we check their CII certificate, before they go on a job.",
+  bodyElectrician: "Email and mobile can wait. They sign their declarations by link before they go on a job. Each electrician needs a current electrical licence.",
+  name: "Full name",
+  licence: "Electrical licence number",
+  role: "Lead or Crew",
+  lead: "Lead · can run install days",
+  crew: "Crew · can't lead an install day",
+  mobile: "Mobile (optional)",
+  email: "Email (optional)",
+  button: "Add to team",
   cancel: "Cancel",
-  linkNote: "Send this link to them yourself (text or email). It is single use and lasts 14 days; you won't see it again.",
 } as const;
-/** Decision 251: after "Create the invite link" — did the new person get the link by text? The link itself always stays
- *  on screen for the owner to pass on (the fallback when there is no mobile or the text did not go). */
-export type InviteTextResult = { status: "sent" | "not_sent" | "no_mobile"; detail: string } | null;
-export function inviteTextLine(r: InviteTextResult, mobile: string): { text: string; sent: boolean } {
-  const m = mobile.trim();
-  if (r?.status === "sent") return { text: `We texted the link to ${m}. You can also send it yourself:`, sent: true };
-  if (r?.status === "not_sent") return { text: `We couldn't text it to ${m} just now. ${TEAM_ADD_SHEET.linkNote}`, sent: false };
-  return { text: TEAM_ADD_SHEET.linkNote, sent: false };
-}
 export function teamCountLine(n: number): string { return `${n} ${n === 1 ? "person" : "people"}`; }
-/** Invite contact: the mobile when given, else the email, else nothing (the link is still created). */
-export function inviteContact(f: { mobile: string; email: string }): string | null {
-  const m = f.mobile.trim(), e = f.email.trim();
-  return m || e || null;
-}
-
 /** Your agreement → "What it covers" (installer agreement = AP contract, decisions 23/171). Static approved lines. */
 export const AGREEMENT_COVERS = [
   "Your rates on our leads and the free Ready Check visit",
@@ -463,10 +506,16 @@ export function escNoticeRowLine(s: { state: string; at: string | null; linkSent
 export const GUIDE_STEPS = [
   { title: "Get the job", body: "Your own customer: Add a job and enter their details exactly and in full. Our lead: we text and email you the job. Offer the owner three Ready Check times within 24 hours." },
   { title: "Ready Check", body: "Fill in as much as you can in Mitti. Press Complete only when it's finished: that sends the owner their quote." },
-  { title: "Safety check", body: "We arrange it once the owner accepts. You get the PIESA at least 24 hours before install." },
-  { title: "Install days", body: "Once the safety check is cleared, offer the owner 3 days with arrival times. Install within 30 days of the electrical safety check, or a new one is needed." },
-  { title: "Install day", body: "Follow the install form from the 6:30am text, top to bottom: SWMS, PIISA, then the photos. Press Complete in Mitti, then sign your part of the rebate form on the job." },
+  { title: "PIESA", body: `We arrange it once the owner accepts. You get the ${PIESA_FULL} at least 24 hours before install.` },
+  { title: "Install days", body: "Once the PIESA is cleared, offer the owner 3 days with arrival times. Install within 30 days of the PIESA, or a new one is needed." },
+  { title: "Install day", body: "Follow the install form from the 6:30am text, top to bottom: the SWMS (Safe Work Method Statement: your safety plan for the job), the PIISA (Pre-installation installer safety assessment: your safety check before you start), then the photos. Press Complete in Mitti, then sign Part B (your declaration) of the VEEC form (the rebate form) on the job." },
 ] as const;
+/** Browser tab title for the guide page: electricians see "Electrician guide" (Jo, 29 Oct 2026); installers unchanged. */
+export function guideTabTitle(kind: TradeKind): string {
+  return `${kind === "electrician" ? "Electrician" : "Installer"} guide – Home Insulation Victoria`;
+}
+/** What the approved business says it will take, on the welcome page (copy approved by Jo 29 Oct 2026). */
+export const WELCOME_TAKES = { installer: "Ready Checks and installs", electrician: `${PIESA_FULL} jobs` } as const;
 export const GUIDE_WORDS = {
   eyebrow: "Installer guide",
   title: "How every job works",
@@ -478,8 +527,24 @@ export const GUIDE_WORDS = {
   back: "Back to My work",
 } as const;
 
-// Decision 317: the electrician's "Safety check (PIESA)" document row on their job page.
-export const SAFETY_CHECK_DOC_TITLE = "Safety check (PIESA)";
+/** Electrician guide (copy approved by Jo 29 Oct 2026, word for word): four steps and getting paid. Static wording, no job data. */
+export const ELECTRICIAN_GUIDE_STEPS = [
+  { title: "Take the job", body: "We text and email you each offer. Accept it in My work if you can do it." },
+  { title: "Book the PIESA", body: "Offer the owner 3 times for the Pre Insulation Electrical Safety Assessment (PIESA). It's booked once they pick one." },
+  { title: "Do the PIESA in Mitti", body: "Fill in the PIESA form on site and take the photos in Mitti. If fixes are needed, add your price for them on the form. Press Complete when it's finished." },
+  { title: "Fixes, if needed", body: "If the owner says yes to the fixes, book a time with them, do the work and fill in the fixes form in Mitti. Press Complete when done." },
+] as const;
+export const ELECTRICIAN_GUIDE_WORDS = {
+  eyebrow: "Electrician guide",
+  title: "How every job works",
+  sub: "One minute. Four steps and getting paid.",
+  paidTitle: "Getting paid",
+  paidBody: "We pay your agreed rate 7 days after we approve your completed form. A form that isn't finished can't be paid.",
+  back: "Back to My work",
+} as const;
+
+// Decision 317: the electrician's "Pre Insulation Electrical Safety Assessment (PIESA)" document row on their job page.
+export const SAFETY_CHECK_DOC_TITLE = PIESA_FULL;
 /** One line under the row: the signed date and, after the fixes, that this version includes them. */
 export function safetyCheckDocLine(x: { signatureDate: string | null; afterFixes: boolean }): string {
   const d = shortDate(x.signatureDate);
@@ -502,3 +567,18 @@ export function offerMoney(boss: boolean, s: { electrician_rate_inc_gst?: number
   if (!boss) return { pay: null, ratePerM2: null };
   return { pay: s.electrician_rate_inc_gst ?? null, ratePerM2: s.installer_rate_per_m2 ?? null };
 }
+
+/** Last 4 digits of a saved account number, for display only; null when fewer than 4 digits. */
+export function accountEnding(raw: string | null | undefined): string | null {
+  const digits = String(raw ?? "").replace(/\D/g, "");
+  return digits.length >= 4 ? digits.slice(-4) : null;
+}
+
+/** Electrician My work: plain trade words for jobs that are waiting on someone else (Jo, 28 Oct 2026). */
+export const ELECTRICIAN_WORK_WORDS = {
+  waitingTile: "Waiting on others",
+  waitingSub: "Nothing for you to do now",
+  waitingFilter: "Waiting on others",
+  slowFilter: "Taking a while",
+  slowEmpty: "Nothing is taking a while right now.",
+} as const;

@@ -97,7 +97,7 @@ export function useInstallerInstallDays(jobId: string) {
 /** Quoted installer (mock-up M2, decisions 1/19/43/163/186): offer 3 days with an exact arrival time each; take one of
  *  the owner's suggested days or offer 3 new ones; booked → Change day. Rendered INSIDE the job page's one Next panel,
  *  so it carries no heading of its own. Turn comes from installDayTurn on the server only. */
-export function InstallerInstallDays({ jobId, ownerFirstName }: { jobId: string; ownerFirstName?: string | null }) {
+export function InstallerInstallDays({ jobId, ownerFirstName, readOnly = false }: { jobId: string; ownerFirstName?: string | null; readOnly?: boolean }) {
   const qc = useQueryClient();
   const offer = useAction(installerOfferInstallDays);
   const take = useAction(installerTakeInstallDay);
@@ -114,6 +114,7 @@ export function InstallerInstallDays({ jobId, ownerFirstName }: { jobId: string;
   if (!data || data.turn === "not_ready" || data.turn === "expired") return null;
   const line = thirtyDayLine(data.deadline);
   const foot = line && <p className="mt-3 border-t border-line pt-2.5 text-[13px] leading-[1.45] text-sub">⏰ {line}</p>;
+  if (readOnly) return data.turn === "booked" ? <div data-install-booked>{data.bookedAt && <p className="mt-3 text-sm">Booked: <strong>{formatInstallDay(data.bookedAt)}</strong></p>}{foot}</div> : null;
   if (data.turn === "booked") return (
     <div data-install-booked>
       {!sure ? <QuietButton className="mt-3.5" disabled={busy} onClick={() => setSure(true)}>Change day</QuietButton> : <div className="mt-3.5 space-y-2">

@@ -2,6 +2,7 @@
 // (plus the shared nextStep rule). No stored state, so it can never disagree with the pipeline.
 import { DEFAULT_NEXT_ACTION, STORED_NEXT_ACTION, STAGE_LABEL, waitingOn, type Stage, type WaitingOn } from "./workflow";
 import { nextStep, type NextStepInput } from "./nextstep.core";
+import { stepInvoiceKind, type PaymentStepKey } from "./payments.core";
 
 export type GateKey = "enquiry" | "ready_check" | "quote" | "deposit" | "piesa" | "rectification" | "install" | "evidence" | "veec";
 export type StepStatus = "done" | "current" | "upcoming" | "skipped";
@@ -69,4 +70,13 @@ export function buildJourney(j: JourneyInput): Journey {
   const upNext = exception || stage === "complete" ? [] : flat.slice((at < 0 ? flat.findIndex((s) => s.status === "upcoming") - 1 : at) + 1).filter((s) => s.status === "upcoming").slice(0, 3);
   const headline = exception ? (exception === "on_hold" ? "On hold" : "Cancelled") : stage === "complete" ? "Complete" : current ? `Gate ${current.number} – ${current.title}` : ns.label;
   return { gates, current, upNext, headline, next: ns.next, exception, mismatches: j.mismatches ?? [] };
+}
+
+/** Jo 29 Oct 2026 (batch 3b): the TEST journey runner pays a step on that step's own invoice — fixes on the fixes invoice,
+ *  a repeat safety check on the repeat invoice, everything else on the installation invoice. No fallback: a missing
+ *  invoice stops the run rather than paying the wrong one. */
+export function payStepInvoiceId(view: { invoices: Record<"install" | "fixes" | "repeat", { id: string } | null> }, step: PaymentStepKey): string {
+  const inv = view.invoices[stepInvoiceKind(step)];
+  if (!inv) throw new Error(`No ${step.replace(/_/g, " ")} invoice on this TEST job yet.`);
+  return inv.id;
 }

@@ -7,8 +7,8 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2, ShieldAlert } from "lucide-react";
-import { getTradeSwms, saveTradeSwmsNote, signTradeSwms } from "@/lib/trade-view.functions";
-import { SWMS_HOW_IN_PLACE, SWMS_SIGN_STATEMENT, swmsLineView } from "@/lib/swms.core";
+import { getTradeSwms, leadPhoneSwmsLink, saveTradeSwmsNote, signTradeSwms } from "@/lib/trade-view.functions";
+import { SWMS_HOW_IN_PLACE, SWMS_SIGN_STATEMENT, swmsHouseSection, swmsLineView } from "@/lib/swms.core";
 import { fmtDateTime } from "@/lib/workflow";
 import { useAction } from "@/hooks/use-me";
 import { Section } from "@/components/trade/trade-ui";
@@ -24,6 +24,7 @@ export function SafetyPlanCard({ jobId }: { jobId: string }) {
   const { data } = useQuery({ queryKey: key, queryFn: () => load({ data: { jobId } }), retry: false, staleTime: 20_000 });
   const saveNote = useAction(saveTradeSwmsNote);
   const sign = useAction(signTradeSwms);
+  const leadLink = useAction(leadPhoneSwmsLink);
   const [note, setNote] = useState<string | null>(null);
   const [signing, setSigning] = useState<string | null>(null);
   const [typed, setTyped] = useState("");
@@ -33,6 +34,9 @@ export function SafetyPlanCard({ jobId }: { jobId: string }) {
   const myKeys = data.myKeys ?? [];
   const signedBy = new Map(signatures.map((s) => [s.key, s]));
   const refresh = () => qc.invalidateQueries({ queryKey: key });
+  // Jo 30 Oct 2026: house facts + set safety steps (from the Ready Check and PIESA), shown above the installer's own note.
+  const house = swmsHouseSection({ ...plan, siteNote: null });
+  const iAmLead = plan.signers.some((s) => s.role === "lead" && myKeys.includes(s.key));
   return (
     <Section title="Safety plan" right={status.complete ? <span className="inline-flex items-center gap-1 text-sm font-semibold text-success"><CheckCircle2 className="h-4 w-4" /> Signed</span> : <span className="inline-flex items-center gap-1 text-sm font-semibold text-rose"><ShieldAlert className="h-4 w-4" /> Not signed</span>}>
       <div className="space-y-3 text-sm" data-safety-plan>
@@ -47,7 +51,11 @@ export function SafetyPlanCard({ jobId }: { jobId: string }) {
           <p className="mt-2">{SWMS_HOW_IN_PLACE}</p>
         </div>
         <div>
-          <p className="font-medium">Anything specific to this house (optional)</p>
+          <p className="font-medium">Specific to this house</p>
+          {house.length ? <ul className="list-disc space-y-1 pl-5" data-swms-house>{house.map((h, i) => <li key={i} className={h.startsWith("Safety step:") ? "font-semibold" : undefined}>{h}</li>)}</ul> : <p className="text-sub">Nothing recorded from the Ready Check or PIESA.</p>}
+        </div>
+        <div>
+          <p className="font-medium">Anything else specific to this house (optional)</p>
           {editable ? (
             <div className="space-y-2">
               <Textarea value={note ?? plan.siteNote ?? ""} onChange={(e) => setNote(e.target.value)} placeholder="E.g. tight access near the hot water unit" />
@@ -68,6 +76,7 @@ export function SafetyPlanCard({ jobId }: { jobId: string }) {
                     <span>{s.name}{s.role === "lead" ? " (lead installer)" : ""}</span>
                     {g ? <span className="text-success">Signed {fmtDateTime(g.signedAt)}</span>
                       : view.kind === "sign" && signing !== s.key ? <Button size="sm" onClick={() => { setSigning(s.key); setTyped(""); setOk(false); }}>Sign</Button>
+                      : view.kind === "waiting" && iAmLead ? <span className="flex items-center gap-2"><span className="text-sub" data-swms-waiting>{view.text}</span><Button size="sm" variant="outline" data-swms-lead-phone onClick={async () => { const r = await leadLink({ jobId, key: s.key }); if (r?.link) window.location.assign(r.link); }}>Sign on my phone</Button></span>
                       : view.kind === "waiting" ? <span className="text-sub" data-swms-waiting>{view.text}</span>
                       : view.kind === "sign" ? null : <span className="text-sub">Not signed</span>}
                   </div>

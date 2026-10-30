@@ -189,7 +189,7 @@ describe("A · REC business admin without the electrician app role (0115 busines
   });
   test("saveAssessment (draft PIESA outcome) is REFUSED and nothing is written  [STEP 80 fix]", async () => {
     const r = await outcome(call(portal.saveAssessment, U.recAdmin, { jobId: JOB.e, patch: { piesa_outcome: "pass", notes: "rec admin" } }));
-    expect(r).toEqual({ ok: false, error: CLEARANCE_RECORDER_REFUSED });
+    expect(r).toEqual({ ok: false, error: NO_PERMISSION }); // C4: office-only now, refused at the role check
     expect(await draft(JOB.e)).toBeNull();
   });
   test("completeAssessment is REFUSED (STEP 73 guard present at HEAD)", async () => {
@@ -197,7 +197,7 @@ describe("A · REC business admin without the electrician app role (0115 busines
   });
   test("recordPiesa is REFUSED (STEP 73 guard present at HEAD)", async () => {
     const r = await outcome(call(portal.recordPiesa, U.recAdmin, { jobId: JOB.e, kind: "post_rectification", outcome: "pass", completedDate: "2026-10-01" }));
-    expect(r).toEqual({ ok: false, error: CLEARANCE_RECORDER_REFUSED });
+    expect(r).toEqual({ ok: false, error: NO_PERMISSION }); // C4: office-only now
   });
   test("submitDeclaration('electrician_declaration') is REFUSED and nothing is written  [STEP 80 fix]", async () => {
     const r = await outcome(call(portal.submitDeclaration, U.recAdmin, { jobId: JOB.e, kind: "electrician_declaration", statement: "I declare the electrical work is safe." }));
@@ -206,18 +206,18 @@ describe("A · REC business admin without the electrician app role (0115 busines
   });
 });
 
-describe("B · licensed electrician (electrician app role) assigned to the job keeps recording", () => {
-  test("saveAssessment writes the draft", async () => {
+describe("B · licensed electrician (electrician app role) assigned to the job: Mitti-only PIESA (C4)", () => {
+  test("saveAssessment is REFUSED for the electrician and nothing is written (C4)", async () => {
     const r = await outcome(call(portal.saveAssessment, U.licensed, { jobId: JOB.e, patch: { piesa_outcome: "fail", notes: "licensed" } }));
-    expect(r.ok).toBe(true);
-    expect(await draft(JOB.e)).toEqual({ piesa_outcome: "fail", notes: "licensed", assessor_id: U.licensed });
+    expect(r).toEqual({ ok: false, error: NO_PERMISSION });
+    expect(await draft(JOB.e)).toBeNull();
   });
   test("completeAssessment passes the guard (reaches the next business rule)", async () => {
     expect(await outcome(call(portal.completeAssessment, U.licensed, { jobId: JOB.complete }))).toEqual({ ok: false, error: "Start the assessment first." });
   });
-  test("recordPiesa passes the guard (reaches the stage rule)", async () => {
+  test("recordPiesa is REFUSED for the electrician (C4)", async () => {
     const r = await outcome(call(portal.recordPiesa, U.licensed, { jobId: JOB.e, kind: "post_rectification", outcome: "pass", completedDate: "2026-10-01" }));
-    expect(r).toEqual({ ok: false, error: "Electrical fixes must be booked first." });
+    expect(r).toEqual({ ok: false, error: NO_PERMISSION });
   });
   test("submitDeclaration('electrician_declaration') is recorded", async () => {
     const r = await outcome(call(portal.submitDeclaration, U.licensed, { jobId: JOB.e, kind: "electrician_declaration", statement: "I declare the electrical work is safe." }));
@@ -226,6 +226,7 @@ describe("B · licensed electrician (electrician app role) assigned to the job k
   });
   test("Office keeps its access to the same actions", async () => {
     expect((await outcome(call(portal.saveAssessment, U.office, { jobId: JOB.e, patch: { notes: "office" } }))).ok).toBe(true);
+    expect(await outcome(call(portal.recordPiesa, U.office, { jobId: JOB.e, kind: "post_rectification", outcome: "pass", completedDate: "2026-10-01" }))).toEqual({ ok: false, error: "Electrical fixes must be booked first." });
     expect(await outcome(call(portal.completeAssessment, U.office, { jobId: JOB.complete }))).toEqual({ ok: false, error: "Start the assessment first." });
   });
 });
@@ -234,12 +235,12 @@ describe("C · licence validity (characterisation: what HEAD enforces today)", (
   // POLICY_OR_DATA_GAP: no approved rule ties result recording to licence expiry. The only licence-expiry rule
   // (worker-compliance.core workerOfferBlocker) blocks NEW offers; "missing" is deliberately not blocking. These tests pin
   // today's behaviour so any future enforcement is a visible, approved change.
-  test("an electrician whose partner_workers licence expired still passes the recording guard", async () => {
+  test("an electrician whose partner_workers licence expired still passes the recording guard (completeAssessment; saveAssessment is office-only since C4)", async () => {
     expect(await role(U.licensedExpired, JOB.e)).toBe("electrician");
-    expect((await outcome(call(portal.saveAssessment, U.licensedExpired, { jobId: JOB.e, patch: { notes: "expired licence" } }))).ok).toBe(true);
+    expect((await outcome(call(portal.completeAssessment, U.licensedExpired, { jobId: JOB.e }))).error).not.toMatch(new RegExp(`${NO_PERMISSION}|${CLEARANCE_RECORDER_REFUSED}`));
   });
-  test("an electrician with no partner_workers licence record still passes the recording guard", async () => {
-    expect((await outcome(call(portal.saveAssessment, U.licensedNoLicenceRecord, { jobId: JOB.e, patch: { notes: "no record" } }))).ok).toBe(true);
+  test("an electrician with no partner_workers licence record still passes the recording guard (completeAssessment)", async () => {
+    expect((await outcome(call(portal.completeAssessment, U.licensedNoLicenceRecord, { jobId: JOB.e }))).error).not.toMatch(new RegExp(`${NO_PERMISSION}|${CLEARANCE_RECORDER_REFUSED}`));
   });
   test("a PENDING (unapproved) worker with the electrician app role gets no job role through a worker link", async () => {
     expect(await role(U.pendingWorker, JOB.e)).toBeNull();
@@ -287,11 +288,12 @@ describe("E2 · business approval is not part of the job-role SQL (characterisat
   test("an unapproved business's admin without the electrician role reaches its assigned job but cannot record", async () => {
     await db.exec(`INSERT INTO public.job_assignments VALUES ('${JOB.u}', null, '${BIZ.recUnapproved}', 'electrician', true)`);
     expect(await role(U.unapprovedBizAdmin, JOB.u)).toBe("electrician");
-    expect(await outcome(call(portal.saveAssessment, U.unapprovedBizAdmin, { jobId: JOB.u, patch: { piesa_outcome: "pass" } }))).toEqual({ ok: false, error: CLEARANCE_RECORDER_REFUSED });
+    expect(await outcome(call(portal.saveAssessment, U.unapprovedBizAdmin, { jobId: JOB.u, patch: { piesa_outcome: "pass" } }))).toEqual({ ok: false, error: NO_PERMISSION });
+    expect(await outcome(call(portal.completeAssessment, U.unapprovedBizAdmin, { jobId: JOB.u }))).toEqual({ ok: false, error: CLEARANCE_RECORDER_REFUSED });
   });
-  test("POLICY_OR_DATA_GAP: an electrician of a NOT-approved business, assigned to the job, still passes the recording guard", async () => {
+  test("POLICY_OR_DATA_GAP: an electrician of a NOT-approved business, assigned to the job, still passes the recording guard (completeAssessment)", async () => {
     expect(await role(U.unapprovedBizElectrician, JOB.u)).toBe("electrician");
-    expect((await outcome(call(portal.saveAssessment, U.unapprovedBizElectrician, { jobId: JOB.u, patch: { notes: "unapproved business" } }))).ok).toBe(true);
+    expect((await outcome(call(portal.completeAssessment, U.unapprovedBizElectrician, { jobId: JOB.u }))).error).not.toBe(CLEARANCE_RECORDER_REFUSED);
   });
 });
 
@@ -314,7 +316,7 @@ describe("B2 · the electrician app role cannot be self-granted by a partner bus
     expect(await roles(U.recAdmin)).toEqual([]);
     expect((await db.query("select 1 from partner_workers where email = 'recadmin@step80.test' and profile_id is not null")).rows.length).toBe(0);
     // ...so the regulated-result guard still refuses them.
-    expect(await outcome(call(portal.saveAssessment, U.recAdmin, { jobId: JOB.e, patch: { piesa_outcome: "pass" } }))).toEqual({ ok: false, error: CLEARANCE_RECORDER_REFUSED });
+    expect(await outcome(call(portal.completeAssessment, U.recAdmin, { jobId: JOB.e }))).toEqual({ ok: false, error: CLEARANCE_RECORDER_REFUSED });
   });
   test("a REMOVED electrician listing does not give the role either", async () => {
     const r = await outcome(grant(U.recAdmin, "removed@step80.test"));
@@ -333,17 +335,18 @@ describe("B2 · the electrician app role cannot be self-granted by a partner bus
   });
 });
 
-describe("H · electrician manual result path at piesa_scheduled (no Mitti link)", () => {
+describe("H · piesa_scheduled (no Mitti link): no electrician manual entry (C4)", () => {
   const today = melbourneToday();
-  test("saveAssessment writes a draft from piesa_scheduled", async () => {
+  test("saveAssessment is refused for the electrician, still works for office, at piesa_scheduled", async () => {
     // First, set the job stage to piesa_scheduled (no Mitti link, external_mitti_id null)
     await db.exec(`
       UPDATE public.jobs SET stage = 'piesa_scheduled' WHERE id = '${JOB.e}';
     `);
     const r = await outcome(call(portal.saveAssessment, U.licensed, { jobId: JOB.e, patch: { piesa_outcome: "fail", notes: "manual piesa_scheduled draft" } }));
-    expect(r.ok).toBe(true);
-    const d = await draft(JOB.e);
-    expect(d).toEqual({ piesa_outcome: "fail", notes: "manual piesa_scheduled draft", assessor_id: U.licensed });
+    expect(r).toEqual({ ok: false, error: NO_PERMISSION });
+    expect((await draft(JOB.e))?.notes).not.toBe("manual piesa_scheduled draft");
+    expect((await outcome(call(portal.saveAssessment, U.office, { jobId: JOB.e, patch: { notes: "office draft" } }))).ok).toBe(true);
+    expect((await draft(JOB.e))?.notes).toBe("office draft");
   });
 
   test("completeAssessment proceeds past stage gate from piesa_scheduled (may fail validation)", async () => {

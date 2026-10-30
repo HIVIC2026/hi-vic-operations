@@ -14,7 +14,7 @@ const { data: offers } = await admin.from("partner_offers").select("id, status")
 const pending = (offers ?? []).find((o) => o.status !== "accepted"); const accepted = (offers ?? []).find((o) => o.status === "accepted");
 const pages: [string, string][] = [["01-welcome", "/field/welcome"], ["02-my-work", "/field"], ["03-money", "/field/money"], ["04-my-business", "/field/business"],
   ["05-details", "/field/business/details"], ["06-rates", "/field/business/rates"], ["07-bank", "/field/business/bank"], ["08-insurance", "/field/business/insurance"],
-  ["09-agreement", "/field/business/agreement"], ["10-team", "/field/business/team"], ["11-upload-jobs", "/partner/bulk-import"], ["12-add-one-job", "/partner/import"]];
+  ["09-agreement", "/field/business/agreement"], ["10-team", "/field/business/team"], ["12-add-one-job", "/partner/import"]];
 if (pending) pages.push(["13-offer", `/field/offer/${pending.id}`]);
 if (accepted) pages.push(["14-offer-accepted", `/field/offer/${accepted.id}`]);
 if (job) pages.push(["15-job", `/field/${job.id}`], ["16-job-day", `/field/day/${job.id}`]);

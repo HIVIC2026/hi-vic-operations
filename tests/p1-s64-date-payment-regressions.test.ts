@@ -24,62 +24,23 @@ const fnBody = (src: string, marker: string) => {
 
 // ---------- Defect 1: the manual PIESA form is actually wired into the electrician route ----------
 
-describe("S64 manual PIESA form is wired into the electrician portal", () => {
-  test("the route imports and renders ElectricianManualResult", () => {
+describe("C4 (Jo 28 Oct 2026): PIESA result comes from Mitti only", () => {
+  test("no Pass/Fail or manual entry on the Job page", () => {
     const src = routeSrc();
-    expect(src).toContain('import { ElectricianManualResult, manualResultEntry } from "@/components/portal/electrician-manual-result"');
-    expect(src).toContain("<ElectricianManualResult");
+    for (const gone of ["function PiesaForm(", "recordPiesa", "ElectricianManualResult", "manualResultEntry", ">Pass</Button>", ">Fail</Button>", "PIESA window expired"]) expect(src).not.toContain(gone);
   });
-
-  test("the manual branch is taken exactly when no Mitti assessment is linked", () => {
+  test("Mitti result path kept", () => {
     const src = routeSrc();
-    expect(src).toContain("const manualPath = !a?.external_mitti_id;");
-    expect(src).toContain("const canEnter = manualPath && manualResultEntry(a);");
-    expect(src).toContain("const showManual = manualPath && (assessing || locked);");
+    const mitti = src.split("{a?.external_mitti_id && (assessing || locked) && (")[1]!.split("function OtherItems")[0]!;
+    expect(mitti).toContain("MittiSyncedFields"); expect(mitti).toContain("Complete PIESA");
+    expect(src).toContain("<FixesFormCard jobId={jobId}");
+    expect(src).toContain('<MittiOnly jobId={jobId} which="piesa" />'); // no form yet → "Home Insulation Victoria links it"
+    expect(srcText("../src/lib/fixes-day.server.ts")).toContain("applyPiesaRecord(");
+    expect(srcText("../src/lib/piesa-complete.server.ts")).toContain("kind: piesaCompletionKind("); // Task 5: initial or reassessment
   });
+});
 
-  test("the manual branch renders evidence, rectification items, the plan and the Complete PIESA action", () => {
-    const src = routeSrc();
-    const block = src.split("{showManual && (")[1]!.split(")}\n      {")[0]!;
-    expect(block).toContain("<ElectricianManualResult");
-    expect(block).toContain('<EvidencePanel jobId={jobId} role="electrician" gates={["electrical"]} />');
-    expect(block).toContain("<OtherItems jobId={jobId} editable />");
-    expect(block).toContain("{planBlock}");
-    expect(block).toContain("Complete PIESA");
-    expect(block).toContain("Pre Insulation Electrical Safety Assessment (PIESA) complete."); // locked state is still shown
-  });
-
-  test("the Mitti-integrated pathway is preserved for jobs that really use Mitti", () => {
-    const src = routeSrc();
-    expect(src).toContain("{a?.external_mitti_id && (assessing || locked) && (");
-    const mittiBlock = src.split("{a?.external_mitti_id && (assessing || locked) && (")[1]!.split("{showManual && (")[0]!;
-    expect(mittiBlock).toContain("MittiCard");
-    expect(mittiBlock).toContain("MittiSyncedFields");
-    expect(mittiBlock).toContain("Complete PIESA");
-    // the manual form must never appear on top of the Mitti interface
-    expect(mittiBlock).not.toContain("ElectricianManualResult");
-  });
-
-  test("no Mitti-only dead end is left on the electrician PIESA branch", () => {
-    const src = routeSrc();
-    // MittiOnly stays available for the installer Ready Check, but is no longer the PIESA fallback.
-    expect(src).toContain('<MittiOnly jobId={jobId} which="ready_check" />');
-    expect(src).not.toContain('<MittiOnly jobId={jobId} which="piesa" />');
-  });
-
-  test("the dead local form helpers were removed rather than left half-wired", () => {
-    const src = routeSrc();
-    expect(src).not.toContain("const num = (k: string)");
-    expect(src).not.toContain("const Yn = ({ k, label }");
-    expect(src).not.toContain("const Choice = ({ k, label }");
-  });
-
-  test("the assessment-date input is capped at today in the manual form", () => {
-    const src = srcText("../src/components/portal/electrician-manual-result.tsx");
-    expect(src).toContain("max={melbourneToday()}");
-    expect(src).toContain("It cannot be in the future");
-  });
-
+describe("Complete PIESA server rules", () => {
   test("the server stage gate still allows completion from piesa_scheduled", () => {
     const src = srcText("../src/lib/portal.functions.ts");
     // The handler checks the caller, then runs the one Complete PIESA body (piesa-complete.server, shared with the TEST journey).
@@ -137,12 +98,6 @@ describe("PIESA assessment date cannot be in the future", () => {
     expect(block).toContain("safeElectrical");
     expect(src).toContain("...refused.issues");
     expect(src).toContain("mitti_validation_issues");
-  });
-
-  test("the client additionally caps the date input (server remains authoritative)", () => {
-    const route = routeSrc();
-    const piesaForm = route.split("function PiesaForm(")[1]!.split("function InstallerFlow(")[0]!;
-    expect(piesaForm).toContain("max={melbourneToday()}");
   });
 });
 

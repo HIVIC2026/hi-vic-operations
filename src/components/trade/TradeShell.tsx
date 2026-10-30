@@ -1,9 +1,10 @@
 // Phone-first trade frame (Jo-approved; Style A frame per approved mock-ups M1–M3, decision 198): logo + initials
 // circle, bottom tabs My work · Add a job · Money · My business. Presentation only.
+import { clearTradeCache } from "@/lib/trade-cache";
 import * as React from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { currentUser } from "@/lib/route-guards";
 import { useAccess } from "@/hooks/use-me";
@@ -55,8 +56,9 @@ function TradeAvatar() {
   const name = String((data?.user_metadata as { full_name?: string } | undefined)?.full_name ?? data?.email ?? "");
   const ini = name.replace(/[^A-Za-z\s@.]/g, "").split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("");
   const [open, setOpen] = React.useState(false);
+  const qc = useQueryClient();
   // Everyone (business owner and staff) can sign out from the top-right circle on every trade page.
-  const signOut = async () => { await supabase.auth.signOut(); window.location.replace("/portal"); };
+  const signOut = async () => { await qc.cancelQueries(); clearTradeCache(); await supabase.auth.signOut(); window.location.replace("/portal"); };
   return (
     <div className="relative ml-auto shrink-0">
       <button type="button" aria-label="Account menu" aria-expanded={open} onClick={() => setOpen((o) => !o)} className="grid h-9 w-9 place-items-center rounded-full border border-line bg-mist text-[13px] font-semibold text-ink">{ini || "·"}</button>
@@ -69,7 +71,7 @@ function TradeAvatar() {
 }
 
 /** Bottom tabs (mock-up): text only, 13px, active blue bold, 44px tap targets. */
-export function TradeTabBar({ installer, boss }: { installer: boolean; boss: boolean }) {
+function TradeTabBar({ installer, boss }: { installer: boolean; boss: boolean }) {
   const items = useTradeItems(installer, boss);
   return (
     <nav aria-label="Trade menu" className="estimate-brand fixed inset-x-0 bottom-0 z-40 border-t border-line bg-paper pb-[max(22px,env(safe-area-inset-bottom))] pt-2 md:hidden">

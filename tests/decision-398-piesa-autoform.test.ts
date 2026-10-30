@@ -66,6 +66,10 @@ mock.module("../src/lib/mitti.server", () => ({
     return { auditId: "audit_1", reused: false, scope: "ELECTRICAL_ONLY" };
   },
 }));
+// No lapsed 30-day window on these jobs: the repeat-PIESA round reset (Jo 29 Oct 2026) does nothing here; it is covered
+// by tests/repeat-piesa-form.test.ts.
+mock.module("../src/lib/repeat-piesa.server", () => ({ repeatPiesaContext: async () => ({ state: { stage: "none", payer: null, priceIncGst: null, deadline: null }, suggestion: null }) }));
+mock.module("../src/lib/in-house-suppression.server", () => ({ readInHouseDispatchState: async () => ({ held: new Set<string>(), failed: false }) }));
 const { onPiesaBooked } = await import("../src/lib/piesa-autoform.server");
 
 function seed(o: { source?: string; testPartner?: boolean; form?: boolean } = {}) {

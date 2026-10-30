@@ -1,22 +1,31 @@
 // Facts for the trade "where is this job up to?" line and timeline. Scoped to the signed-in trade's own jobs.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
-import { electricianPayState, payState } from "./trade-view.core";
+import { electricianPayState, payState, contactVisible } from "./trade-view.core";
 import { chaseMode, paymentDates, forViewer, jobStatusLine, jobTimeline, reminderRequestMessage, type StatusFacts } from "./job-status.core";
 import { safetyCheckPayState } from "./payment-gate.core";
 import type { DueSettings } from "./waiting.core";
+// Namespace imports: several tests replace these modules with partial mocks; a namespace never fails on a missing export.
+import * as inHouseSuppression from "./in-house-suppression.server";
+import * as payoutGate from "./trade-payout-gate.server";
+import { electricianPayTiming } from "./electrician-pay.core";
 
 const none = ["00000000-0000-0000-0000-000000000000"];
 type Ctx = { biz: { id: string; name: string }; boss: boolean; kind: "installer" | "electrician" };
 
 export async function statusFactsFor(c: Ctx, jobIds: string[]): Promise<Map<string, StatusFacts & { channel: string | null; originating: string | null; jobNumber: string }>> {
   const ids = jobIds.length ? jobIds : none;
-  const [{ data: jobs }, { data: books }, { data: ev }, { data: quotes }, { data: invs }, { data: props }, { data: ws }, { data: aps }, { data: sims }, { data: ovs }, { data: rcw }] = await Promise.all([
+  // Speed (installer screens, Task 5): the in-house read (its own catch: a failure marks the line, never the page) and
+  // the electrician's payout-gate facts start with the eleven fact reads — one round, not three in a row.
+  const gateP = c.kind === "electrician" && jobIds.length ? payoutGate.payoutGateFacts(jobIds) : null;
+  gateP?.catch(() => undefined); // awaited below whenever a job came back; ignored (as before: never read) when none did
+  const [dispatch, { data: jobs }, { data: books }, { data: ev }, { data: quotes }, { data: invs }, { data: props }, { data: ws }, { data: aps }, { data: sims }, { data: ovs }, { data: rcw }] = await Promise.all([
+    inHouseSuppression.readInHouseDispatchState(jobIds),
     admin.from("jobs").select("id, job_number, stage, channel, originating_installer_business_id, created_at").in("id", ids),
     admin.from("bookings").select("job_id, kind, status, scheduled_start, scheduled_end, business_id, businesses(name, trading_name)").in("job_id", ids).in("status", ["confirmed", "completed"]),
     admin.from("workflow_events").select("job_id, event_type, to_stage, created_at").in("job_id", ids).in("event_type", ["stage_changed", "payout_marked_paid", "installer_ready_check_times_delivery", "ready_check_more_times_requested"]).order("created_at", { ascending: false }).limit(5000),
     admin.from("quotes").select("job_id, kind, status, sent_at, accepted_at").in("job_id", ids).in("status", ["issued", "accepted"]),
-    admin.from("invoices").select("id, job_id, kind, status, deposit_paid_at, balance_paid_at, paid_at, total_paid, deposit_paid_amount, deposit_amount").in("job_id", ids),
+    admin.from("invoices").select("id, job_id, kind, status, deposit_paid_at, balance_paid_at, paid_at, total_paid, deposit_paid_amount, deposit_amount, created_at").in("job_id", ids),
     admin.from("appointment_proposals").select("job_id, kind, created_at, proposer_role").in("job_id", ids).eq("kind", "assessment").eq("proposer_role", "owner").order("created_at", { ascending: false }),
     admin.from("workflow_settings").select("due_trade_reply_warn_hours, due_trade_reply_exception_hours, due_owner_reminder_days, due_owner_flag_days").eq("id", 1).maybeSingle(),
     admin.from("assessment_payments").select("job_id, paid_at").in("job_id", ids).eq("status", "paid"),
@@ -30,10 +39,8 @@ export async function statusFactsFor(c: Ctx, jobIds: string[]): Promise<Map<stri
   const now = new Date();
   // Decision 410 (Jo 27 Oct 2026): an electrician's pay follows the office's Approve on their form only (not AP, not the owner).
   const realIds = (jobs ?? []).map((j) => j.id);
-  const elecPay = c.kind === "electrician" && realIds.length ? await Promise.all([
-    (await import("./trade-payout-gate.server")).payoutGateFacts(realIds),
-    import("./electrician-pay.core"),
-  ]) : null;
+  // Decision 318 facts per job: the same per-job entries whether asked for the found jobs or every requested id.
+  const elecPay = c.kind === "electrician" && realIds.length && gateP ? [await gateP, { electricianPayTiming }] as const : null;
   const out = new Map<string, StatusFacts & { channel: string | null; originating: string | null; jobNumber: string }>();
   for (const j of jobs ?? []) {
     const e = (ev ?? []).filter((x) => x.job_id === j.id);
@@ -63,6 +70,7 @@ export async function statusFactsFor(c: Ctx, jobIds: string[]): Promise<Map<stri
     const mineKinds = c.kind === "installer" ? ["installation"] : ["assessment", "rectification"];
     const workDone = bs.some((b) => mineKinds.includes(b.kind) && b.status === "completed");
     out.set(j.id, {
+      inHouseDispatch: dispatch.failed ? "in_house_read_failed" : dispatch.held.has(j.id) ? "in_house" : null,
       jobNumber: j.job_number, channel: j.channel, originating: j.originating_installer_business_id,
       stage: j.stage, stageSince, now, staff: !c.boss, bookings: bs,
       quoteSentAt: inst?.sent_at ?? null, quoteAcceptedAt: inst?.accepted_at ?? null,
@@ -105,7 +113,11 @@ export async function tradeJobStatus(userId: string, jobId: string) {
     contact = { phone: o?.phone ?? null, email: o?.email ?? null };
   }
   const { data: asked } = await admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "trade_reminder_requested").order("created_at", { ascending: false }).limit(1).maybeSingle();
-  return { line: statusView(c, f), timeline: jobTimeline(f), chase: { mode, contact, askedAt: asked?.created_at ?? null } };
+  // Owner contact follows this business's own visits only: gone once every one of them is done (contactVisible).
+  // If this read fails the contact stays hidden (fail closed); only the error code is logged.
+  const { data: mine, error: mineErr } = await admin.from("bookings").select("status").eq("job_id", jobId).eq("business_id", c.biz.id);
+  if (mineErr) console.error("tradeJobStatus: own bookings read failed", mineErr.code ?? "unknown");
+  return { line: statusView(c, f), timeline: jobTimeline(f), chase: { coordinationSuppressed: !!f.inHouseDispatch && !!(await import("./in-house-message.core")).inHouseVisitForStage(f.stage), mode, contact, askedAt: asked?.created_at ?? null }, ownerContactVisible: mineErr ? false : contactVisible(mine ?? []) };
 }
 
 /** "Ask Home Insulation Victoria to send a reminder": recorded for the office's Needs me. Never an automatic send. */

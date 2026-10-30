@@ -25,7 +25,8 @@ async def run(p, w):
         return await pg.inner_text("body")
     try:
         # --- delete menu: More ▾ → "Delete (test jobs only)" → dialog "Reason" + "Delete". Gating only: the menu's Delete
-        # is a PERMANENT delete (bulkJobAction), so it is never confirmed on the QA fixture. The runner soft-deletes the
+        # became a restorable soft delete on 27 Oct 2026, but older published builds still delete PERMANENTLY, so it is
+        # never confirmed on the QA fixture. The runner soft-deletes the
         # job through the deployed deleteJob endpoint before this journey starts (manifest softDeleted=true).
         await pg.goto(job_url, wait_until="networkidle"); await pg.wait_for_timeout(1500)
         t = await body()

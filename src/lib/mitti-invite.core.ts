@@ -124,6 +124,8 @@ export type InvitePerson = {
   mittiAccess: "member" | "not_found" | "unchecked" | "email_changed" | null;
   /** TEST person (test email or TEST partner business). */
   isTest: boolean;
+  /** Installers (Jo 28 Oct): true = Crew, never invited (worker-role.core decides). Absent = Lead. */
+  crew?: boolean;
 };
 /** Latest stored record for this worker (any of MITTI_INVITE_EVENTS), or null. `mittiUserId` = the latest one known. */
 export type PriorInvite = { type: MittiInviteEventType; at: string; mittiUserId?: string | null; email?: string | null } | null;
@@ -142,6 +144,7 @@ export type InviteStep =
 /** One invite per partner worker, ever (seats are billed). */
 export const inviteKey = (workerId: string) => `mitti-invite:${workerId}`;
 
+export const CREW_SKIP = "Crew aren't invited automatically — the office adds them to Mitti by hand.";
 export const TEST_SKIP = "TEST person: TEST forms go to the test assignee and Mitti rejects synthetic emails.";
 
 /** Is this approved partner person someone who should be in Mitti? Installers once their CII is verified (decision 153),
@@ -150,6 +153,7 @@ export function inviteEligibility(p: InvitePerson): string | null {
   if (p.removedAt) return "Removed from the business.";
   if (p.approvalStatus !== "approved") return "Not approved by the office yet.";
   if (p.tradeRole !== "installer" && p.tradeRole !== "electrician") return `No Mitti access for the ${p.tradeRole} role.`;
+  if (p.tradeRole === "installer" && p.crew) return CREW_SKIP;
   if (p.tradeRole === "installer" && !p.ciiCleared) return "Installer's CII certificate is not verified and current yet.";
   if (!p.email?.trim()) return "No email on file — Mitti invites go to an exact email address.";
   return null;

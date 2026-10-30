@@ -50,12 +50,11 @@ function OwnerJob() {
         <OwnerAssignmentCard jobId={jobId} />
         <QuotesPanel jobId={jobId} canRespond />
         <PaymentsPanel jobId={jobId} isAdmin={false} />
-        {(s === "measured_quote_accepted" || s === "piesa_and_install_window_pending") && <PiesaTimesCard jobId={jobId} />}
-        {["ready_check_scheduled", "piesa_scheduled", "rectification_booked", "installation_booked"].includes(s ?? "") && <OwnerVisitChangeCard jobId={jobId} />}
-        {s === "installation_scheduling" && <OwnerInstallDaysCard jobId={jobId} />}
-        {bookKind && bookKind !== "installation" && job.deposit_cleared && <BookingPanel jobId={jobId} kind={bookKind} canBook />}
-        {s === "installation_booked" && job.deposit_cleared && <BookingPanel jobId={jobId} kind="installation" canBook />}
-        {s === "awaiting_deposit_payment" && <p className="rounded-xl border border-danger/30 bg-danger-soft p-3 text-sm font-medium text-danger">Booking opens once your approved payment option is confirmed: minimum upfront deposit, paid in full, or an active 3-instalment plan.</p>}
+        {(s === "measured_quote_accepted" || s === "piesa_and_install_window_pending") && !job.inHouseDispatch && <PiesaTimesCard jobId={jobId} />}
+        {["ready_check_scheduled", "piesa_scheduled", "rectification_booked", "installation_booked"].includes(s ?? "") && !job.inHouseDispatch && <OwnerVisitChangeCard jobId={jobId} />}
+        {s === "installation_scheduling" && !job.inHouseDispatch && <OwnerInstallDaysCard jobId={jobId} />}
+        {bookKind && bookKind !== "installation" && job.deposit_cleared && <BookingPanel jobId={jobId} kind={bookKind} canBook={!job.inHouseDispatch} />}
+        {s === "installation_booked" && job.deposit_cleared && <BookingPanel jobId={jobId} kind="installation" canBook={!job.inHouseDispatch} />}
         {job.installer_name && !["assessment_booking", "assessment_booked", "awaiting_electrician"].includes(s) && <ChangeTrade jobId={jobId} />}
         <DocumentsPanel jobId={jobId} />
         <VisitContactsCard jobId={jobId} />

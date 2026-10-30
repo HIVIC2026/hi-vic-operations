@@ -1,7 +1,7 @@
 // Strict new-installer test — ONE command:  bun run installer-test  [--runs 3] [--no-browser]
 // A. application (all 9 pages) -> sign -> office review -> bad input -> approval (practice database) -> request changes / decline
 // B. what the approved installer sees, as the business owner AND a staff login (server checks + 390/1280 screenshots)
-// C. bulk upload (11 files) and Add one job, through the portal's own server steps
+// C. Add one job, through the portal's own server steps
 // TEST only: TEST businesses, TEST logins (@hivic-test.example / @hivic.test), qa_test jobs. Nothing is sent to anyone.
 // State of the TEST business is saved before each run and put back after; TEST jobs made by a run are archived.
 (globalThis as { AI_SDK_LOG_WARNINGS?: boolean }).AI_SDK_LOG_WARNINGS = false;
@@ -13,7 +13,7 @@ import { ACKNOWLEDGEMENTS, INSTALLER_AGREEMENT_VERSION, INSTALLER_VISIBLE_PAGES,
 import { performInstallerSign, signedData } from "../src/lib/installer-sign.core";
 import { activationBlockers, latestCertifications, mandatoryActivationBlockers, planActivation, approvedRateItems } from "../src/lib/partner-activation.core";
 import { JOURNEY_ACTOR_EMAIL } from "../src/lib/journey.server";
-import { readyCheckBookingOutcome } from './portal-qa-coverage';
+import { readyCheckBookingOutcome } from "./portal-qa-coverage";
 
 const RUNS = Number(process.argv[process.argv.indexOf("--runs") + 1]) || 1;
 const stepIndex = process.argv.indexOf("--step");
@@ -334,14 +334,14 @@ async function sectionB(steps: Step[], screens: Screen[], ids: { owner: string; 
   const { data: job } = await admin.from("jobs").select("id").eq("originating_installer_business_id", BIZ).eq("source", "qa_test").is("qa_archived_at", null).order("created_at", { ascending: false }).limit(1).maybeSingle();
   const { data: offers } = await admin.from("partner_offers").select("id, status, job_id").eq("business_id", BIZ).order("offered_at", { ascending: false });
   const pending = (offers ?? []).find((o) => o.status !== "accepted"); const accepted = (offers ?? []).find((o) => o.status === "accepted");
-  const pages: [string, string][] = [["My work", "/field"], ["Money", "/field/money"], ["My business", "/field/business"], ["Details", "/field/business/details"], ["Rates", "/field/business/rates"], ["Bank", "/field/business/bank"], ["Insurance", "/field/business/insurance"], ["Agreement", "/field/business/agreement"], ["Team", "/field/business/team"], ["Add one job", "/partner/import"], ["Upload jobs", "/partner/bulk-import"], ["Sign-in landing", "/portal"]];
+  const pages: [string, string][] = [["My work", "/field"], ["Money", "/field/money"], ["My business", "/field/business"], ["Details", "/field/business/details"], ["Rates", "/field/business/rates"], ["Bank", "/field/business/bank"], ["Insurance", "/field/business/insurance"], ["Agreement", "/field/business/agreement"], ["Team", "/field/business/team"], ["Add one job", "/partner/import"], ["Sign-in landing", "/portal"]];
   if (job) pages.push(["Job file", `/field/${job.id}`], ["Today's job", `/field/day/${job.id}`]);
   if (pending) pages.push(["Offer (not accepted)", `/field/offer/${pending.id}`]);
   if (accepted) pages.push(["Offer (accepted)", `/field/offer/${accepted.id}`]);
   for (const [, path] of pages) screens.push({ step: "B2", persona: "owner", path, mustNotSee: BANNED });
   for (const p of ["/field", "/portal"]) screens.push({ step: "B1", persona: "owner", path: p, mustSee: ["My work"], mustNotSee: ["calculator", "application"] });
   for (const p of ["/field", "/portal"]) screens.push({ step: "B1", persona: "staff", path: p, mustSee: ["My work"], mustNotSee: ["calculator"] });
-  for (const p of ["/field/money", "/field/business/rates", "/field/business/bank", "/field/business/agreement", "/partner/bulk-import", "/partner/import"]) screens.push({ step: "B4", persona: "staff", path: p, mustNotSee: ["BSB", "per m²", "Account number", "Upload your list", ...BANNED.slice(0, 3)], noPrices: true });
+  for (const p of ["/field/money", "/field/business/rates", "/field/business/bank", "/field/business/agreement", "/partner/import"]) screens.push({ step: "B4", persona: "staff", path: p, mustNotSee: ["BSB", "per m²", "Account number", "Upload your list", ...BANNED.slice(0, 3)], noPrices: true });
 
   await step(steps, "B1", "B1 Approved installer (owner and staff) lands on My work", async (c) => {
     const h = await tv.tradeHome(ids.owner); c("owner's home loads", !!h);
@@ -394,28 +394,9 @@ async function sectionB(steps: Step[], screens: Screen[], ids: { owner: string; 
   });
 }
 
-// ---------- C. bulk upload + add one job ----------
+// ---------- C. add one job ----------
 async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: string, screens: Screen[]) {
-  const bi = await import("../src/lib/bulk-import.server");
-  const { CONTACT_PERMISSION_WORDING } = await import("../src/lib/bulk-import.core");
   const madeJobs: string[] = [];
-  const upload = async (listName: string | null, files: { name: string; mime: string }[] = []) => {
-    const rawRows = listName ? await bi.parseListFile(listName, readFileSync(`${fixtures}/${listName}`).buffer as ArrayBuffer) : [];
-    const documents: { name: string; text: string }[] = [];
-    for (const f of files) { const t = await bi.aiReadMedia(f.name, f.mime, readFileSync(`${fixtures}/${f.name}`).toString("base64")); if (!/^NONE\b/i.test(t)) documents.push({ name: f.name, text: t }); }
-    const manifest = files.map((f) => ({ path: `partners/${BIZ}/bulk/${tag}/${f.name}`, name: f.name, folder: null, type: f.mime }));
-    const { data: batch, error } = await admin.from("bulk_import_batches").insert({ business_id: BIZ, created_by: ownerId, on_behalf: false, list_filename: listName ?? files[0]?.name ?? "files", file_manifest: manifest as never,
-      summary: { raw_rows: rawRows, documents, file_reads: [], permission: { confirmed_by: ownerId, confirmed_at: new Date().toISOString(), wording: CONTACT_PERMISSION_WORDING } } as never }).select("id").single();
-    if (error || !batch) throw new Fail(`upload not saved: ${error?.message}`);
-    await bi.analyseBatch(batch.id, ownerId);
-    const { data: rows } = await admin.from("bulk_import_rows").select("*").eq("batch_id", batch.id).order("row_index");
-    return { batchId: batch.id, rawRows, rows: (rows ?? []) as { id: string; extracted: Record<string, unknown>; import_stage: string; sort_result: string; sort_reasons: string[]; duplicate_note: string | null; status: string; job_id: string | null }[] };
-  };
-  const confirm = async (batchId: string) => {
-    // The installer answers "Quoted?" on every row (Yes when the file has his price, otherwise No), as the review screen requires.
-    const { data: open } = await admin.from("bulk_import_rows").select("id, extracted").eq("batch_id", batchId).eq("status", "pending");
-    for (const o of open ?? []) { const e = o.extracted as Record<string, unknown>; await admin.from("bulk_import_rows").update({ extracted: { ...e, quoted_answer: Number(e["price_inc_gst"] ?? 0) > 0 ? "yes" : null } as never }).eq("id", o.id); }
-    const r = await bi.confirmBatch(batchId, ownerId, []); const { data } = await admin.from("bulk_import_rows").select("job_id").eq("batch_id", batchId).not("job_id", "is", null); madeJobs.push(...(data ?? []).map((x) => x.job_id!)); return r; };
   const jobsOk = async (c: (n: string, ok: boolean, d?: string) => void, ids: string[]) => {
     if (!ids.length) return;
     const { data } = await admin.from("jobs").select("id, source, originating_installer_business_id, installer_quoted_price_inc_gst").in("id", ids);
@@ -423,79 +404,6 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     c("nothing sent to the owner", (await outboundFor(ids)) === 0);
   };
 
-  await step(steps, "C1", "C1 CSV: parses, keeps quoted price, Visited rule, confirm", async (c) => {
-    const u = await upload("plain.csv");
-    c("3 rows read", u.rows.length === 3, String(u.rows.length));
-    const byName = (n: string) => u.rows.find((r) => String(r.extracted["full_name"] ?? "").endsWith(n));
-    c("quoted price kept exactly ($2511.00)", Number(byName("Owner 1")?.extracted["price_inc_gst"]) === 2511, String(byName("Owner 1")?.extracted["price_inc_gst"]));
-    c("site check Yes + quote = Visited/quoted", byName("Owner 1")?.import_stage === "quoted", byName("Owner 1")?.import_stage);
-    c("site check No = Not visited", byName("Owner 2")?.import_stage === "not_visited", byName("Owner 2")?.import_stage);
-    c("blank site check, even with a quote = Not visited, installer is asked (decision 404)", byName("Owner 3")?.import_stage === "not_visited", `${byName("Owner 3")?.extracted["site_check"]}/${byName("Owner 3")?.import_stage}`);
-    await confirm(u.batchId);
-    const again = await confirm(u.batchId).then(() => "ok", (e) => (e as Error).message);
-    const { data: rows } = await admin.from("bulk_import_rows").select("job_id").eq("batch_id", u.batchId).not("job_id", "is", null);
-    c("confirming twice never makes duplicate jobs", new Set((rows ?? []).map((r) => r.job_id)).size === (rows ?? []).length, again);
-    await jobsOk(c, (rows ?? []).map((r) => r.job_id!));
-    screens.push({ step: "C4", persona: "owner", path: `/partner/bulk-import?batch=${u.batchId}`, mustNotSee: BANNED });
-  });
-  await step(steps, "C2", "C2 XLSX: parses and keeps $3,187.55 exactly", async (c) => {
-    const u = await upload("list.xlsx");
-    c("2 rows read", u.rows.length === 2, String(u.rows.length));
-    c("price with comma kept exactly", u.rows.some((r) => Number(r.extracted["price_inc_gst"]) === 3187.55), u.rows.map((r) => r.extracted["price_inc_gst"]).join(", "));
-  });
-  await step(steps, "C3", "C3 PDF of quotes: read, Visited (measured + quoted), price exact", async (c) => {
-    const u = await upload(null, [{ name: "quotes.pdf", mime: "application/pdf" }]);
-    c("2 quotes found", u.rows.length === 2, String(u.rows.length));
-    c("prices kept exactly ($3001, $3002)", [3001, 3002].every((p) => u.rows.some((r) => Number(r.extracted["price_inc_gst"]) === p)), u.rows.map((r) => r.extracted["price_inc_gst"]).join(", "));
-    c("measured + quoted = Visited", u.rows.every((r) => r.import_stage === "quoted" || r.import_stage === "visited"), u.rows.map((r) => r.import_stage).join(", "));
-  });
-  await step(steps, "C4", "C4 PDF with photos + sentences: sentences only = Not visited", async (c) => {
-    const u = await upload(null, [{ name: "photos-and-sentences.pdf", mime: "application/pdf" }]);
-    c("customer found from the sentences", u.rows.length >= 1, String(u.rows.length));
-    c("sentences only ('haven't been out yet') = Not visited", u.rows.every((r) => r.import_stage === "not_visited"), u.rows.map((r) => r.import_stage).join(", "));
-  });
-  await step(steps, "C5", "C5 Photos only: never a dead end, Customer details needed, no guessed customer", async (c) => {
-    const u = await upload(null, [{ name: "ceiling-1.jpg", mime: "image/jpeg" }, { name: "ceiling-2.jpg", mime: "image/jpeg" }]);
-    c("no invented customer details", u.rows.every((r) => !r.extracted["email"] && !r.extracted["phone"]), `${u.rows.length} row(s)`);
-    c("photos with no customer show 'Customer details needed'", u.rows.length > 0 && u.rows.every((r) => r.sort_reasons.some((x) => /^Customer details needed/.test(x))));
-    c("photos only: rows found", u.rows.length > 0, "no row is made from photos alone (no customer) — the photos are kept for matching only");
-    c("photos alone never mean Visited, installer is asked (decision 404)", u.rows.every((r) => r.import_stage !== "visited" && r.import_stage !== "quoted"), u.rows.map((r) => r.import_stage).join(", "));
-  });
-  await step(steps, "C6", "C6 Messy file with missing columns", async (c) => {
-    const u = await upload("messy.csv");
-    c("rows read without crashing", u.rows.length >= 1, String(u.rows.length));
-    c("row with no contact/address shows 'Customer details needed'", u.rows.filter((r) => !r.extracted["address_line"]).every((r) => r.sort_reasons.some((x) => /^Customer details needed/.test(x))));
-  });
-  await step(steps, "C7", "C7 Duplicate rows and an existing customer", async (c) => {
-    const u = await upload("duplicates.csv");
-    c("duplicate row flagged clearly", u.rows.some((r) => !!r.duplicate_note), u.rows.length < u.rawRows.length ? `the two identical rows were silently merged into one (${u.rawRows.length} rows in, ${u.rows.length} out) — the installer isn't told` : u.rows.map((r) => r.duplicate_note ?? "-").join(" | "));
-    await confirm(u.batchId);
-    const again = await upload("duplicates.csv");
-    c("customer already in the portal is flagged", again.rows.every((r) => !!r.duplicate_note), again.rows.map((r) => r.duplicate_note ?? "-").join(" | "));
-    const before = madeJobs.length; await confirm(again.batchId);
-    c("re-upload never creates a duplicate job", madeJobs.length === before, `${madeJobs.length - before} new`);
-  });
-  await step(steps, "C8", "C8 Bad email (gmai.com) is flagged", async (c) => {
-    const u = await upload("bad-email.csv");
-    c("typo flagged with a suggestion", u.rows.some((r) => r.sort_reasons.some((x) => /did you mean gmail\.com/.test(x))), u.rows.flatMap((r) => r.sort_reasons).join(" | "));
-  });
-  await step(steps, "C9", "C9 Missing address: fix the row before Confirm", async (c) => {
-    const u = await upload("missing-address.csv");
-    const r = u.rows[0];
-    c("shows 'Customer details needed' for the address", !!r && r.sort_reasons.some((x) => /^Customer details needed.*address/.test(x)));
-    if (!r) return;
-    await bi.setRowAddress(r.id, { address_line: "41 Fixed St", suburb: "Fraser Rise", postcode: "3336" } as never, ownerId as never);
-    const { data: fixed } = await admin.from("bulk_import_rows").select("extracted, sort_result").eq("id", r.id).single();
-    c("installer's fix saved on the row", (fixed?.extracted as Record<string, unknown>)?.["address_line"] === "41 Fixed St");
-    await confirm(u.batchId);
-    const { data: done } = await admin.from("bulk_import_rows").select("job_id, status").eq("id", r.id).single();
-    c("fixed row confirms (or stays for office review, never lost)", !!done?.job_id || done?.status !== "error", `${done?.status}`);
-  });
-  await step(steps, "C10", "C10 Large file (200 rows)", async (c) => {
-    const t0 = Date.now(); const u = await upload("large.csv");
-    c("all 200 rows read", u.rows.length === 200, `${u.rows.length} in ${Math.round((Date.now() - t0) / 1000)}s`);
-    c("prices kept exactly", u.rows.every((r, i) => Number(r.extracted["price_inc_gst"]) === 2500 + (100 + i) * 11 || r.extracted["price_inc_gst"] == null), "spot check");
-  });
   await step(steps, "C11", "C11 Add one job: price exact, site check, attached to installer, nothing sent", async (c) => {
     const pi = await import("../src/lib/partner-import.server");
     const imp = await pi.createImportFor(ownerId, { businessId: BIZ, sourceSystem: "manual_import", text: `TEST ${tag} Single, 9 ${tag} One Job Rd, Fraser Rise VIC 3336, 0412 999 001, qa.owner.${tag.toLowerCase()}.single@hivic-test.example`, csvRow: 0, files: [] });
@@ -555,63 +463,67 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     await jobsOk(c, [r.jobId]);
   });
   await step(steps, "C13", "C13 Not quoted: Book a Ready Check (installer books it with the owner), never offered to anyone else", async (c) => {
-    const pi = await import("../src/lib/partner-import.server");
+    // Jobs made exactly as the live Add a job screen makes them (partner.import -> add-job-flow -> startOnsiteReadyCheck),
+    // with the offline Mitti stub as C15. Add a job saves installer_quoted/site_check "no" at ready_check_ready_to_schedule,
+    // which is where "Book a Ready Check" applies. TEST owners, qa_test jobs; restore() archives them.
+    const os = await import("../src/lib/onsite-ready-check.server");
     const rc = await import("../src/lib/installer-ready-check.server");
-    const { writeFileSync } = await import("node:fs");
-    writeFileSync(`${fixtures}/rc-not-quoted.csv`, `Name,Address,Suburb,Postcode,Phone,Email,Site check done\nTEST ${tag} RC1,1 ${tag} Ready Rd,Fraser Rise,3336,0412${tag.slice(-4).replace(/\D/g, "7")}01,qa.owner.${tag.toLowerCase()}.rc1@hivic-test.example,No\nTEST ${tag} RC2,2 ${tag} Ready Rd,Fraser Rise,3336,0412${tag.slice(-4).replace(/\D/g, "7")}02,qa.owner.${tag.toLowerCase()}.rc2@hivic-test.example,No\n`);
-    const u = await upload("rc-not-quoted.csv");
-    for (const r of u.rows) await admin.from("bulk_import_rows").update({ extracted: { ...r.extracted, quoted_answer: "no" } as never }).eq("id", r.id); // installer answered Quoted? No
-    await bi.confirmBatch(u.batchId, ownerId, []);
-    const { data: made } = await admin.from("bulk_import_rows").select("job_id, extracted").eq("batch_id", u.batchId).not("job_id", "is", null).order("row_index");
-    // Ready Check jobs are checked inside C13 (nothing is ever sent to these owners).
-    c("both not-quoted customers confirmed", (made ?? []).length === 2, String(made?.length));
-    const mk = async (n: string) => (made ?? [])[Number(n) - 1]!.job_id!;
+    const offline = (async () => { throw new Error("Mitti could not be reached. Try again shortly."); }) as never; // never touches real Mitti
+    let bad = false;
+    const check = (name: string, ok: boolean, detail?: string) => { if (!ok) bad = true; c(name, ok, detail); };
+    const addNotQuoted = async (n: string) => {
+      const r = await os.startOnsiteReadyCheckFor(ownerId, BIZ, { full_name: `TEST ${tag} RC${n}`, address_line: `${n} ${tag} Ready Rd`, suburb: "Fraser Rise", postcode: "3336", phone: `0412 999 13${n}`, email: `qa.owner.${tag.toLowerCase()}.rc${n}@hivic-test.example`, contact_permission: true, consent_by: "installer" }, { mode: "hivic" }, offline, { leadOrigin: "owner_contacted" });
+      madeJobs.push(r.jobId);
+      return r.jobId;
+    };
     let where = "start";
     try {
-      where = 'const j1 = await mk("1");';
-      const j1 = await mk("1");
+      where = 'const j1 = await addNotQuoted("1");';
+      const j1 = await addNotQuoted("1");
       where = 'const s1 = await rc.installerRcState(j1);';
       const s1 = await rc.installerRcState(j1);
-      c("Quoted No + not visited shows 'Book a Ready Check'", s1?.action === "book", String(s1?.action));
+      check("Quoted No + not visited shows 'Book a Ready Check'", s1?.action === "book", String(s1?.action));
       where = 'const when = new Date(Date.now() + 3 * 86_400_000); when.set';
       const when = new Date(Date.now() + 3 * 86_400_000); when.setUTCHours(0, 0, 0, 0);
-      // Existing rule: a Ready Check can't be booked until the owner signs paperwork A. These owners have no way to sign yet — Jo to decide.
       where = 'const own = await rc.bookOwnReadyCheck(j1, ownerId, when.toI';
       const own = await rc.bookOwnReadyCheck(j1, ownerId, when.toISOString()).then(() => "booked", (e) => (e as Error).message);
       where = 'const { data: b1 } = await admin.from("jobs").select("stage,';
       const { data: b1 } = await admin.from("jobs").select("stage, next_action").eq("id", j1).single();
-      const booking = readyCheckBookingOutcome(own === 'booked', b1, own);
-      if (booking.status === 'not_run') throw new NotRun(booking.detail);
-      c("I'll book it: completed booking read back", booking.status === 'passed', booking.detail);
       where = 'const { count: sent1 } = await admin.from("job_communication';
       const { count: sent1 } = await admin.from("job_communications").select("id", { count: "exact", head: true }).eq("job_id", j1);
-      c("I'll book it: nothing sent to the owner", !sent1, String(sent1));
-      // Decision 180 (Jo, 24 Oct 2026): the "ask the owner for times" email/link path is retired — installers arrange their own
-      // customers' visits directly. The second customer only proves nobody else is ever offered the job.
-      where = 'const j2 = await mk("2");';
-      const j2 = await mk("2");
+      check("I'll book it: nothing sent to the owner", !sent1, String(sent1));
+      // Decision 180 (Jo, 24 Oct 2026): installers arrange their own customers' visits directly. The second customer only
+      // proves nobody else is ever offered the job.
+      where = 'const j2 = await addNotQuoted("2");';
+      const j2 = await addNotQuoted("2");
       where = 'const s2 = await rc.installerRcState(j2);';
       const s2 = await rc.installerRcState(j2);
-      c("second not-quoted customer also shows 'Book a Ready Check' (no owner email path)", s2?.action === "book", String(s2?.action));
+      check("second not-quoted customer also shows 'Book a Ready Check' (no owner email path)", s2?.action === "book", String(s2?.action));
       where = 'const { count: offers } = await admin.from("partner_offers")';
-      const { count: offers } = await admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", j2);
-      c("never offered to any other trade (no offers at all)", !offers, String(offers));
+      const { count: offers } = await admin.from("partner_offers").select("id", { count: "exact", head: true }).in("job_id", [j1, j2]);
+      check("never offered to any other trade (no offers at all)", !offers, String(offers));
       where = 'const { assertOfferPairsAllowed } = await import("../src/lib';
       const { assertOfferPairsAllowed } = await import("../src/lib/offer-guard.server");
       where = 'const { data: other } = await admin.from("businesses").selec';
       const { data: other } = await admin.from("businesses").select("id").ilike("onboarding_notes", "%[TEST PARTNER]%").neq("id", BIZ).limit(1).maybeSingle();
-      where = 'if (other) c("an offer to another TEST trade is refused", aw';
-      if (other) c("an offer to another TEST trade is refused", await assertOfferPairsAllowed(j2, [other.id], "ready_check").then(() => false, () => true));
+      where = 'if (other) check("an offer to another TEST trade is refused"';
+      if (other) check("an offer to another TEST trade is refused", await assertOfferPairsAllowed(j2, [other.id], "ready_check").then(() => false, () => true));
       where = 'const { count: sent2 } = await admin.from("job_communication';
       const { count: sent2 } = await admin.from("job_communications").select("id", { count: "exact", head: true }).eq("job_id", j2);
-      c("nothing sent to the second owner either", !sent2, String(sent2));
+      check("nothing sent to the second owner either", !sent2, String(sent2));
+      where = "await jobsOk(c, [j1, j2]);";
+      await jobsOk(check, [j1, j2]);
+      // Booking outcome LAST: its NOT_RUN (no booking-window proof yet) must never hide a failed check above.
+      where = "const booking = readyCheckBookingOutcome(own === \"booked\", b1, own);";
+      const booking = readyCheckBookingOutcome(own === "booked", b1, own);
+      if (booking.status === "not_run" && !bad) throw new NotRun(booking.detail);
+      if (booking.status !== "not_run") c("I'll book it: completed booking read back", booking.status === "passed", booking.detail);
     } catch (e) { if (e instanceof NotRun) throw e; c(`stopped at: ${where}`, false, (e as Error).message); }
   });
-
   await step(steps, "C15", "C15 Add a job (basics only): creates the job, no booking, and prepares (or explains) the Mitti form", async (c) => {
     const os = await import("../src/lib/onsite-ready-check.server");
     const offline = (async () => { throw new Error("Mitti could not be reached. Try again shortly."); }) as never; // never touches real Mitti
-    const r = await os.startOnsiteReadyCheckFor(ownerId, BIZ, { full_name: `TEST ${tag} Onsite`, address_line: `3 ${tag} Onsite Rd`, suburb: "Fraser Rise", postcode: "3336", phone: "0412 000 315", email: `qa.owner.${tag.toLowerCase()}.onsite@hivic-test.example`, contact_permission: true, consent_by: "installer" }, { mode: "hivic" }, offline);
+    const r = await os.startOnsiteReadyCheckFor(ownerId, BIZ, { full_name: `TEST ${tag} Onsite`, address_line: `3 ${tag} Onsite Rd`, suburb: "Fraser Rise", postcode: "3336", phone: "0412 000 315", email: `qa.owner.${tag.toLowerCase()}.onsite@hivic-test.example`, contact_permission: true, consent_by: "installer" }, { mode: "hivic" }, offline, { leadOrigin: "owner_contacted" });
     const { data: j } = await admin.from("jobs").select("stage, source, channel, installer_site_check, installer_site_check_date, originating_installer_business_id").eq("id", r.jobId).single();
     c("job is installer-supplied TEST work for this installer", j?.channel === "installer_sourced" && j?.source === "qa_test" && j?.originating_installer_business_id === BIZ, `${j?.channel} ${j?.source}`);
     c("no visit claimed (decision 34: the Mitti form answers the visit)", j?.installer_site_check === "no" && !j?.installer_site_check_date, `${j?.installer_site_check} ${j?.installer_site_check_date}`);
@@ -619,7 +531,7 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     c("assigned to this installer", asg === 1, String(asg));
     c("screen always says what happens next", ["open", "preparing", "office", "owner_paperwork", "retry"].includes(r.state.kind) && ("message" in r.state ? r.state.message.length > 20 : true), `${r.state.kind}`);
     c("nothing booked by Add a job (decision 115): job waits at Ready Check ready to schedule", r.booking === "none" && j?.stage === "ready_check_ready_to_schedule", `${j?.stage} / ${r.booking}`);
-    const bad = await os.startOnsiteReadyCheckFor(ownerId, BIZ, { full_name: "X Y", address_line: "1 A St", suburb: "Canberra", postcode: "2604", phone: "0412000000", email: "a@b.co", contact_permission: false }, { mode: "hivic" }, offline).then(() => "made", (e) => (e as Error).message);
+    const bad = await os.startOnsiteReadyCheckFor(ownerId, BIZ, { full_name: "X Y", address_line: "1 A St", suburb: "Canberra", postcode: "2604", phone: "0412000000", email: "a@b.co", contact_permission: false }, { mode: "hivic" }, offline, { leadOrigin: "owner_contacted" }).then(() => "made", (e) => (e as Error).message);
     c("no permission / ACT postcode refused", /Victorian/.test(bad) && /permission to contact|consent/.test(bad), bad);
     c("nothing sent to the owner", (await outboundFor([r.jobId])) === 0);
     await jobsOk(c, [r.jobId]);
@@ -627,12 +539,6 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
   screens.push({ step: "C15", persona: "owner", path: "/partner/import", mustSee: ["Owner", "Home Insulation Victoria permission to contact them", "Add job"], mustNotSee: [...BANNED.filter((t) => t !== "optional"), // decisions 115/116: basics only, "Add job" button, one approved "(optional)" visit field
     "I'm at the property now", "Add a job for later", "Where is it from"] });
 
-  await step(steps, "C12", "C12 Results page and past uploads", async (c) => {
-    const { data } = await admin.from("bulk_import_batches").select("id, status").eq("business_id", BIZ).neq("status", "discarded");
-    c("this run's uploads listed in past uploads", (data ?? []).length >= 9, `${(data ?? []).length} listed`);
-    c("nothing sent to any owner across all uploads", (await outboundFor(madeJobs)) === 0, `${madeJobs.length} TEST job(s) checked`);
-  });
-  screens.push({ step: "C12", persona: "owner", path: "/partner/bulk-import", mustNotSee: BANNED });
   screens.push({ step: "C14", persona: "staff", path: "/field", mustSee: ["Action needed", "In progress", "Done"], mustNotSee: [...BANNED, "Moving automatically"] });
 
   await step(steps, "C16", "C16 Add job: preliminary edit allowed; measured area locked to office review; wrong business + staff refused; quote lines follow electrician payer", async (c) => {
@@ -664,7 +570,7 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     const { count: dupes } = await admin.from("jobs").select("id", { count: "exact", head: true }).eq("originating_installer_business_id", BIZ).ilike("job_number", "%").in("id", madeJobs);
     c("later area (preliminary until visited) + quote saved on the same job", (s1.areaM2 ?? s1.preliminaryAreaM2) === 118 && s1.quoteIncGst === 2450, `${s1.areaM2 ?? s1.preliminaryAreaM2} ${s1.quoteIncGst}`);
     c("no duplicate job from the edit", dupes === new Set(madeJobs).size, `${dupes}`);
-    // Decision 421: once measured, only the office measurement review changes area.
+    // Decision 430: once measured, only the office measurement review changes area.
     // Record an onsite measurement on this run's new TEST job, never on an existing job.
     if (j?.source !== "qa_test" || j.originating_installer_business_id !== BIZ) throw new Fail("SAFETY STOP: measurement fixture must be this run's TEST job.");
     const { error: measurementError } = await admin.from("ceiling_measurements").insert({ job_id: a.jobId, is_current: true, source_role: "installer", confidence: "high", provenance: "hivic_onsite", measured_area_m2: 118, created_by: ownerId, raw_snapshot: { source: "C16 TEST onsite measurement" } });

@@ -1,0 +1,28 @@
+{
+  "tradeBusiness": {
+    "kind": "installer",
+    "boss": false,
+    "name": "[TEST PARTNER] Reinsulate",
+    "taking": false,
+    "approvedSince": null,
+    "area": null,
+    "licenceExpires": null,
+    "liabilityExpires": null,
+    "rate": null,
+    "agreementSigned": false,
+    "bankSaved": false,
+    "team": [],
+    "next": null,
+    "usualElectrician": null,
+    "details": null,
+    "ratesAgreedAt": null,
+    "hasRates": false,
+    "bankLine": null,
+    "credentials": [],
+    "agreement": null,
+    "notice": []
+  },
+  "tradeBusinessFile": {
+    "error": "Only the business owner can see this."
+  }
+}

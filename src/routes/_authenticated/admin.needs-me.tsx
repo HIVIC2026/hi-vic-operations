@@ -13,6 +13,7 @@ import { getNeedsMePage } from "@/lib/office-screens.functions";
 import { checkedLabel } from "@/lib/office-needs-snapshot.core";
 import { markOfficeChanged } from "@/lib/office-list-refresh";
 import { BulkMatch, EmailActions } from "@/components/portal/email-match";
+import { CoesActions } from "@/components/portal/coes-actions";
 import { ageLabel, NEEDS_GROUPS, type NeedsRow, type SystemRow } from "@/lib/office-needs.core";
 import { bulkMatchable, needsCards, needsHeadline, systemFoldLabel, unavailableNote, type NeedsCard, type NeedsCardId } from "@/lib/needs-cards.core";
 import { JobPeek, type Peek } from "@/components/portal/job-peek";
@@ -52,6 +53,13 @@ function Row({ row, now, onDone }: { row: NeedsRow; now: number; onDone: () => v
       <EmailActions row={row} onDone={onDone} />
     </li>
   );
+  // A48 batch 1 task 5: the certificate row is decided here (Tick / Reject), with Open job to see the certificate.
+  if (row.kind === "coes_check") return (
+    <li className="grid gap-2 border-b border-line px-4 py-3 last:border-b-0" data-kind={row.kind}>
+      {head}{why}
+      <CoesActions row={row} onDone={onDone} />
+    </li>
+  );
   const open = row.jobId && row.button.to === "job";
   return (
     <li className="border-b border-line last:border-b-0" data-kind={row.kind}>
@@ -76,6 +84,7 @@ function DeskRow({ row, now, onDone, onPeek }: { row: NeedsRow; now: number; onD
       <span className="text-right text-xs text-sub">{ageLabel(row.since, now)}</span>
       <span>
         {email ? <EmailActions row={row} onDone={onDone} />
+          : row.kind === "coes_check" ? <CoesActions row={row} onDone={onDone} />
           : row.jobId && row.button.to === "job"
             ? <button type="button" className={btn("primary")} onClick={() => onPeek({ jobId: row.jobId!, ...(row.button.to === "job" && row.button.section ? { section: row.button.section } : {}) })}>{row.button.label}</button>
             : null}

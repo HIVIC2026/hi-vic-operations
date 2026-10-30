@@ -22,39 +22,20 @@ describe("2. Bulk import owners", () => {
     const { exactLike } = await import("../src/lib/email-match");
     expect(exactLike("a_b%c@x.com")).toBe("a\\_b\\%c@x.com");
   });
-  test("bulk import never reuses an existing owner; duplicates are decided by address only (decision 282)", () => {
-    const src = readFileSync("src/lib/bulk-import.server.ts", "utf8");
-    const fn = src.slice(src.indexOf("async function createBulkJob"), src.indexOf("async function draftQuoteFromImport"));
-    expect(fn).not.toMatch(/ownerId\s*=\s*existing/);
-    expect(fn).toContain("findOpenJobAtAddress");
-    expect(fn).not.toContain("possible_duplicate_owner");
-    expect(src).not.toMatch(/\.ilike\("email"/);
-  });
-});
-
-describe("3. Bulk import stages", () => {
-  test("installed/quoted never land at complete or quote acceptance", () => {
-    const src = readFileSync("src/lib/bulk-import.server.ts", "utf8");
-    const block = src.slice(src.indexOf("export const stagePlacement"), src.indexOf("async function createBulkJob"));
-    expect(block).not.toContain('"complete"');
-    expect(block).not.toContain("awaiting_quote_acceptance");
-    expect(block).toMatch(/installed: \{ stage: "on_hold"/);
-    expect(src).not.toContain("installation_completed_at: new Date()");
-  });
 });
 
 describe("4. Bulk import permission", () => {
   test("every member check requires the business boss", () => {
     const src = readFileSync("src/lib/bulk-import.functions.ts", "utf8");
     const calls = [...src.matchAll(/requireMember\(([^)]*)\)/g)].map((m) => m[1]!);
-    expect(calls.length).toBeGreaterThan(3);
+    expect(calls.length).toBe(3);
     for (const c of calls) expect(c.trim().endsWith("true")).toBe(true);
   });
 });
 
 describe("5–6. Prices and discount from settings, one discount path", () => {
   test("no hard-coded PIESA constant or legacy per-m² credit in code", () => {
-    for (const f of ["src/lib/installer-led.core.ts", "src/lib/installer-quote.server.ts", "src/lib/bulk-import.server.ts", "src/lib/quotes.server.ts"]) {
+    for (const f of ["src/lib/installer-led.core.ts", "src/lib/installer-quote.server.ts", "src/lib/quotes.server.ts"]) {
       const s = readFileSync(f, "utf8");
       expect(s).not.toContain("HIVIC_PIESA_INC_GST");
       expect(s).not.toMatch(/export function priceInstallerOption/);

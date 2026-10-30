@@ -5,11 +5,18 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { buildSwms, swmsRecordText, type SwmsSignature } from "../src/lib/swms.core";
 import { buildSwmsPdf } from "../src/lib/swms-pdf.server";
+import { SWMS_HOUSE_STEPS } from "../src/lib/swms-house.core";
 
 export const SAMPLE_PLAN = buildSwms({
   jobNumber: "HV-TEST-0358", address: "1 Test Street, Testville, 3999", businessName: "TEST Insulation Co Pty Ltd", installDate: "2026-11-03",
   lead: { name: "TEST Lead Installer", workerId: "test-w1" }, crew: [{ name: "TEST Crew Member", workerId: "test-w2" }],
   yearBuilt: 1972, hazardNote: null,
+  houseLines: [
+    "Roof: Tiles", "Ceiling access: Difficult", "Life support equipment at the property",
+    "TEST Kitchen: foil-backed or conductive existing insulation", "TEST Kitchen: 6 recessed downlights",
+    "Ready Check issue (TEST Kitchen): TEST exposed wiring near the manhole", "PIESA: electrical upgrades needed (done)",
+  ],
+  houseSteps: Object.values(SWMS_HOUSE_STEPS),
   siteNote: "TEST site note: manhole is in the laundry ceiling, low clearance at the eaves on the north side, old foil sarking near the hip — walk only on joists. Owner has a dog; keep the side gate closed. Solar inverter on the garage wall: isolate at the inverter and the switchboard before entry. Gas ducted heater flue in the hallway ceiling: keep the AS 3999 clearance. Extreme heat forecast in the afternoon: work from 6am and stop by noon.",
 });
 export const SAMPLE_SIGNATURES: SwmsSignature[] = [

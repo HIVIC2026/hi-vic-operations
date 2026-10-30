@@ -70,7 +70,7 @@ Routes are from `src/routes/**`. Labels are copied from the source; see each cas
 | Your agreement | `/field/business/agreement` | I-24 |
 | ESC privacy notice, acknowledge | `/field/business/esc-notice` | I-25, I-62 |
 | Team, invite link | `/field/business/team` | I-26, I-63 |
-| Staff page | `/partner/workers` | I-27 |
+| Old staff address (opens Team) | `/partner/workers` | I-27 |
 | Installer guide | `/field/guide` | I-28 |
 | Welcome page | `/field/welcome` | I-29 |
 | Old links redirect | `/partner`, `/partner/add`, `/partner/payments`, `/partner/profile`, `/field/setup` | I-30 |

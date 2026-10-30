@@ -9,6 +9,7 @@ import { PIESA_OFFER_TIMES, allowedPiesaTimes, electricianPiesaTimesBlockers, fo
 import { installTimeLabel } from "@/lib/install-days.core";
 import { DayGrid, ErrorLine, PrimaryButton, QuietButton, TimeRows, dayTileLabel } from "@/components/trade/installer-kit";
 import { Section } from "./panels";
+import { PIESA_FULL } from "@/lib/job-wording";
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : "That didn't work. Check your signal and try again.");
 const ymdOf = (iso: string) => new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" }).format(new Date(iso));
@@ -51,7 +52,7 @@ export function ElectricianPiesaTimesCard({ jobId }: { jobId: string }) {
   if (!data || !data.applies || data.turn === "booked" || data.turn === "no_electrician" || data.turn === "legacy_owner_windows") return null;
   const form = <PiesaTimesForm days={data.days} busy={busy} sendLabel="Send these times to the owner" onSend={(picks) => run(() => offer({ data: { jobId, picks } }))} note="The owner picks one or suggests other days." />;
   return (
-    <Section title="Safety check times">
+    <Section title={`${PIESA_FULL} times`}>
       <div data-piesa-times-electrician>
         {data.turn === "electrician_to_offer" && <><p className="text-sm">Offer the owner 3 times within 24 hours: three different days, arriving between 8am and 3pm.</p>{form}</>}
         {data.turn === "owner_to_answer" && <>

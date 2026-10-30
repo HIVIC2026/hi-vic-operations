@@ -2,8 +2,8 @@
 // the rows and job-next-action.core the Next sentence. Read-only: never moves a job, never sends anything.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { loadOffice, type OfficeJob } from "./office.server";
-import { buildNeedsRows, type EmailRowInput, type NeedsFacts, type NeedsRow, type SystemRow } from "./office-needs.core";
-import { FAILED_EMAIL_STATUSES, FAILED_SMS_STATUSES, SUCCESS_EMAIL_STATUSES, SUCCESS_SMS_STATUSES, sendFailedRows } from "./send-failed.core";
+import { buildNeedsRows, duplicatesInvoiceFailed, type EmailRowInput, type NeedsFacts, type NeedsRow, type SystemRow } from "./office-needs.core";
+import { FAILED_EMAIL_STATUSES, FAILED_SMS_STATUSES, SUCCESS_EMAIL_STATUSES, SUCCESS_SMS_STATUSES, UNSURE_EMAIL_STATUSES, UNSURE_SMS_STATUSES, partnerSendFailedRows, sendFailedRows, tradeTextCoveredKeys } from "./send-failed.core";
 import { AUTO_OFFER_RETURNED_EVENT } from "./auto-offer.core";
 import { surnameOf } from "./office-jobs.core";
 import { VEEC_OFFICE_ALERT_EVENT } from "./veec-assignment-form.core";
@@ -16,7 +16,6 @@ import { FIXES_TIMES_GIVEN_EVENT, FIXES_TIMES_LINK_EVENT, fixesTimesMissing } fr
 import { AUTO_FIXES_QUOTE_HELD_EVENT } from "./auto-fixes-quote-send.core";
 import { PIESA_AUTOFORM_FAILED_EVENT, piesaFormFailedOpen } from "./piesa-autoform.core";
 import { prestartFailedFor } from "./prestart.core";
-import type { PaymentStepKey } from "./payments.core";
 
 type Row = Record<string, unknown>;
 const s = (v: unknown) => (v == null ? null : String(v));
@@ -39,6 +38,160 @@ async function byIds(what: string, ids: string[], q: (chunk: string[], from: num
   return (await Promise.all(chunks.map((chunk) => all(what, (f, t) => q(chunk, f, t))))).flat();
 }
 
+/** Only live held jobs enter these read-only stall rules. Page/batch every dependent read. */
+export async function inHouseNeedsFacts(jobIds: string[]): Promise<Map<string, NonNullable<NeedsFacts["inHouse"]>>> {
+  const out = new Map<string, NonNullable<NeedsFacts["inHouse"]>>();
+  if (!jobIds.length) return out;
+  const live = await byIds("in-house live jobs", jobIds, (c, a, b) => admin.from("jobs").select("id").in("id", c).is("deleted_at", null).neq("source", "qa_test").not("stage", "in", "(cancelled,complete)").order("id").range(a, b));
+  const ids = live.map(j => String(j["id"]));
+  if (!ids.length) return out;
+  const { readInHouseDispatchState } = await import("./in-house-suppression.server");
+  const state = await readInHouseDispatchState(ids);
+  if (state.failed) throw new Error("Could not load in-house partner checks");
+  const held = ids.filter(id => state.held.has(id));
+  if (!held.length) return out;
+  const [assignments, batches, bookings, quotes, records, deadlines] = await Promise.all([
+    byIds("in-house partner names", held, (c,a,b) => admin.from("job_assignments").select("job_id,business_id,businesses(name,trading_name,in_house)").in("job_id",c).eq("role","installer").eq("active",true).order("id").range(a,b)),
+    byIds("in-house batch times", held, (c,a,b) => admin.from("workflow_events").select("job_id,created_at,details").in("job_id",c).eq("event_type","in_house_batch_sent").order("created_at").order("id").range(a,b)),
+    byIds("in-house bookings", held, (c,a,b) => admin.from("bookings").select("job_id,kind").in("job_id",c).in("kind",["ready_check","installation"]).neq("status","cancelled").order("id").range(a,b)),
+    byIds("in-house accepted quotes", held, (c,a,b) => admin.from("quotes").select("job_id,accepted_at").in("job_id",c).eq("kind","installation").eq("status","accepted").not("accepted_at","is",null).order("accepted_at").order("id").range(a,b)),
+    byIds("in-house completed PIESA", held, (c,a,b) => admin.from("piesa_records").select("job_id,completed_date").in("job_id",c).neq("kind","post_rectification").not("completed_date","is",null).order("id").range(a,b)),
+    byIds("in-house PIESA days remaining", held, (c,a,b) => admin.from("job_piesa_deadlines").select("job_id,days_remaining,install_deadline").in("job_id",c).order("job_id").range(a,b)),
+  ]);
+  for (const id of held) {
+    const assignment = assignments.find(a => a["job_id"] === id && (a["businesses"] as { in_house?: boolean } | null)?.in_house);
+    if (!assignment) continue;
+    const business = assignment["businesses"] as { name: string; trading_name?: string | null };
+    const batch = batches.filter(e => e["job_id"] === id && (e["details"] as Row | null)?.["business_id"] === assignment["business_id"]).at(-1);
+    const deadline = deadlines.find(d => d["job_id"] === id);
+    out.set(id, { partnerName: business.trading_name || business.name, batchSentAt: s(batch?.["created_at"]),
+      readyCheckBooked: bookings.some(b => b["job_id"] === id && b["kind"] === "ready_check"),
+      installationBooked: bookings.some(b => b["job_id"] === id && b["kind"] === "installation"),
+      quoteAcceptedAt: s(quotes.filter(q => q["job_id"] === id).at(-1)?.["accepted_at"]),
+      piesaCompleted: records.some(r => r["job_id"] === id),
+      daysRemaining: deadline?.["days_remaining"] == null ? null : Number(deadline["days_remaining"]), deadline: s(deadline?.["install_deadline"]) });
+  }
+  return out;
+}
+
+/** Batch 3a: the "new quote asked for" Needs me fact per job (pure rule `newQuoteOfficeFact`). */
+export async function newQuoteOfficeFacts(jobIds: string[]): Promise<Map<string, import("./new-quote-request.core").NewQuoteOfficeFact>> {
+  const out = new Map<string, import("./new-quote-request.core").NewQuoteOfficeFact>();
+  if (!jobIds.length) return out;
+  const { NEW_QUOTE_NEEDS_INSTALLER_EVENT, NEW_QUOTE_UNFINISHED_EVENT, newQuoteOfficeFact } = await import("./new-quote-request.core");
+  const [ev, qs] = await Promise.all([
+    byIds("new quote requests", jobIds, (c, a, b) => admin.from("workflow_events").select("job_id, event_type, created_at, details").in("job_id", c).in("event_type", [NEW_QUOTE_NEEDS_INSTALLER_EVENT, NEW_QUOTE_UNFINISHED_EVENT]).range(a, b)),
+    byIds("quotes of new quote requests", jobIds, (c, a, b) => admin.from("quotes").select("job_id, created_at").in("job_id", c).eq("kind", "installation").range(a, b)),
+  ]);
+  for (const id of jobIds) {
+    const hit = newQuoteOfficeFact(ev.filter((e) => e["job_id"] === id).map((e) => ({ event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as Record<string, unknown> | null })),
+      { quoteCreatedAts: qs.filter((q) => q["job_id"] === id).map((q) => String(q["created_at"])) });
+    if (hit) out.set(id, hit);
+  }
+  return out;
+}
+
+/** Batch 1 + 3b: the failed-invoice fact per job — the newest `invoice_create_failed` per invoice kind (installation,
+ *  electrical fixes or a repeat safety check), shown while that kind's quote is still accepted (a repeat has no quote: its
+ *  own invoice decides) and until a Xero-linked invoice for that quote / repeat appears after the failure (Sync / Create
+ *  invoice). The newest such failure wins. */
+export async function invoiceFailedFacts(jobIds: string[]): Promise<Map<string, NonNullable<NeedsFacts["invoiceFailed"]>>> {
+  const out = new Map<string, NonNullable<NeedsFacts["invoiceFailed"]>>();
+  if (!jobIds.length) return out;
+  const { invoiceFailedFact } = await import("./office-needs.core");
+  const [fails, qs, invs] = await Promise.all([
+    byIds("failed invoices", jobIds, (c, a, b) => admin.from("workflow_events").select("job_id, summary, details, created_at").in("job_id", c).eq("event_type", "invoice_create_failed").range(a, b)),
+    byIds("quotes of failed jobs", jobIds, (c, a, b) => admin.from("quotes").select("id, job_id, kind, status").in("job_id", c).in("kind", ["installation", "rectification"]).range(a, b)),
+    byIds("invoices of failed jobs", jobIds, (c, a, b) => admin.from("invoices").select("job_id, quote_id, kind, repeat_key, xero_invoice_id, last_synced_at, created_at, last_sync_error, status").in("job_id", c).in("kind", ["installation", "rectification", "repeat_safety_check"]).range(a, b)),
+  ]);
+  const quoteById = new Map(qs.map((q) => [String(q["id"]), q]));
+  for (const id of jobIds) {
+    let best: NonNullable<NeedsFacts["invoiceFailed"]> | null = null;
+    for (const kind of ["installation", "rectification", "repeat_safety_check"] as const) {
+      // Older events carry no kind: read it from their quote; unknown = installation (the only kind before batch 3b).
+      const kindOf = (e: Row) => { const d = (e["details"] ?? {}) as Row; const q = quoteById.get(String(d["quote_id"] ?? "")); return String(d["kind"] ?? q?.["kind"] ?? "installation"); };
+      const mine = fails.filter((e) => String(e["job_id"]) === id && kindOf(e) === kind).sort((a, b) => String(a["created_at"]).localeCompare(String(b["created_at"])));
+      const latest = mine.at(-1);
+      if (!latest) continue;
+      const quoteId = s(((latest["details"] ?? {}) as Row)["quote_id"]);
+      if (kind === "repeat_safety_check") {
+        const repeatKey = s(((latest["details"] ?? {}) as Row)["repeat_key"]);
+        const hit = invoiceFailedFact(
+          mine.filter((e) => s(((e["details"] ?? {}) as Row)["repeat_key"]) === repeatKey).map((e) => ({ at: String(e["created_at"]), text: String(e["summary"] ?? "") })),
+          invs.filter((i) => String(i["job_id"]) === id && i["kind"] === kind && s(i["repeat_key"]) === repeatKey)
+            .map((i) => ({ xero_invoice_id: s(i["xero_invoice_id"]), last_synced_at: s(i["last_synced_at"]), created_at: String(i["created_at"]), last_sync_error: s(i["last_sync_error"]), status: s(i["status"]) })),
+        );
+        if (hit && (!best || hit.at > best.at)) best = { ...hit, kind };
+        continue;
+      }
+      const stillAccepted = quoteId && quoteById.has(quoteId) ? quoteById.get(quoteId)!["status"] === "accepted"
+        : qs.some((q) => String(q["job_id"]) === id && q["kind"] === kind && q["status"] === "accepted");
+      if (!stillAccepted) continue;
+      const hit = invoiceFailedFact(
+        mine.map((e) => ({ at: String(e["created_at"]), text: String(e["summary"] ?? "") })),
+        invs.filter((i) => String(i["job_id"]) === id && i["kind"] === kind && (!quoteId || String(i["quote_id"]) === quoteId))
+          .map((i) => ({ xero_invoice_id: s(i["xero_invoice_id"]), last_synced_at: s(i["last_synced_at"]), created_at: String(i["created_at"]), last_sync_error: s(i["last_sync_error"]), status: s(i["status"]) })),
+      );
+      if (hit && (!best || hit.at > best.at)) best = { ...hit, kind };
+    }
+    if (best) out.set(id, best);
+  }
+  return out;
+}
+
+/** Batch 3b: every fixes invoice whose fixes quote a newer one replaced, matched to the jobs here (few rows: no long id
+ *  lists in the URL). Feeds the two "old fixes invoice" rows below from ONE read. */
+async function oldFixesInvoiceRows(jobIds: string[]): Promise<Row[]> {
+  if (!jobIds.length) return [];
+  const want = new Set(jobIds);
+  const rows = await all("old fixes invoices", (a, b) => admin.from("invoices").select("job_id, created_at, total_paid, xero_invoice_id, xero_invoice_status, quotes!inner(status)").eq("kind", "rectification").eq("quotes.status", "superseded").range(a, b));
+  return rows.filter((r) => want.has(String(r["job_id"])));
+}
+
+/** Batch 3b ("superseded fixes"): a fixes invoice linked to Xero whose fixes quote a newer one replaced, nothing paid on it
+ *  and not voided/deleted in Xero → the office voids it in Xero. Clears itself once Sync reads it as voided, or money lands. */
+export async function oldFixesInvoiceFacts(jobIds: string[], pre?: Row[]): Promise<Map<string, NonNullable<NeedsFacts["oldFixesInvoiceUnpaid"]>>> {
+  const out = new Map<string, NonNullable<NeedsFacts["oldFixesInvoiceUnpaid"]>>();
+  for (const r of pre ?? await oldFixesInvoiceRows(jobIds)) {
+    const id = String(r["job_id"]);
+    if (!r["xero_invoice_id"] || Number(r["total_paid"] ?? 0) > 0 || ["VOIDED", "DELETED"].includes(String(r["xero_invoice_status"] ?? "").toUpperCase())) continue;
+    const at = String(r["created_at"]);
+    const had = out.get(id);
+    if (!had || at < had.at) out.set(id, { at });
+  }
+  return out;
+}
+
+/** Final fix I3: money on a fixes invoice whose fixes quote a newer one replaced → the office applies it or refunds it.
+ *  Clears when the paid amount goes back to 0 (refund / reversal: `total_paid` follows the money down). Summed per job. */
+export async function oldFixesInvoicePaidFacts(jobIds: string[], pre?: Row[]): Promise<Map<string, NonNullable<NeedsFacts["oldFixesInvoicePaid"]>>> {
+  const out = new Map<string, NonNullable<NeedsFacts["oldFixesInvoicePaid"]>>();
+  for (const r of pre ?? await oldFixesInvoiceRows(jobIds)) {
+    const paid = Number(r["total_paid"] ?? 0);
+    if (!(paid > 0)) continue;
+    const id = String(r["job_id"]); const at = String(r["created_at"]);
+    const had = out.get(id);
+    out.set(id, { at: had && had.at < at ? had.at : at, paid: Math.round(((had?.paid ?? 0) + paid) * 100) / 100 });
+  }
+  return out;
+}
+
+/** Batch 3a: base facts for jobs still closed by an expired quote ("Quote expired (14 days)"). They are not in the
+ *  open-jobs list, but their expired-quote / new-quote office rows still need to show. Deleted (and, unless asked, TEST)
+ *  jobs are left out. */
+export async function expiryClosedJobFacts(jobIds: string[], includeTest: boolean): Promise<Map<string, NeedsFacts>> {
+  const out = new Map<string, NeedsFacts>();
+  if (!jobIds.length) return out;
+  const { QUOTE_EXPIRED_CANCEL_REASON } = await import("./quote-expiry.core");
+  const rows = await byIds("jobs closed by an expired quote", jobIds, (c, a, b) => admin.from("jobs").select("id, job_number, source, deleted_at, stage, cancelled_reason, owners(full_name), properties(suburb)").in("id", c).range(a, b));
+  for (const j of rows) {
+    if (j["deleted_at"] || j["stage"] !== "cancelled" || j["cancelled_reason"] !== QUOTE_EXPIRED_CANCEL_REASON) continue;
+    if (!includeTest && j["source"] === "qa_test") continue;
+    out.set(String(j["id"]), { jobId: String(j["id"]), jobNumber: String(j["job_number"]), surname: surnameOf((j["owners"] as { full_name?: string } | null)?.full_name), suburb: (j["properties"] as { suburb?: string } | null)?.suburb ?? null, ...(j["source"] === "qa_test" ? { isTest: true } : {}) });
+  }
+  return out;
+}
+
 export type GatheredNeeds = {
   now: number; jobs: OfficeJob[]; facts: Map<string, NeedsFacts>; emails: EmailRowInput[];
   system: SystemRow[];
@@ -56,7 +209,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   const listMode = !opts.onlyIds;
   const { loadQuotesToCheck } = await import("./installer-quote-review.server");
   // Jo 28 Oct 2026 ("Alert after 3 days unpaid"): the plan maths for the unpaid-payment alert.
-  const { paymentPlan, fixesCountedCents, toCents, INSTALL_DEPOSIT_DUE_STAGES, installDepositDueNow } = await import("./payments.core");
+  const { toCents, INSTALL_DEPOSIT_DUE_STAGES, installDepositDueNow } = await import("./payments.core");
   const { openRobotFailureRows } = await import("./esc-registry-robot.server");
   const { PIISA_AUDIT_CREATED_EVENT, PIISA_AUTOSEND_OFFICE_EVENT, piisaFormFailedOpen } = await import("./piisa-autosend.core");
   const { OWNER_REVIEW_FEEDBACK_EVENT, REVIEW_FEEDBACK_ROW_DAYS, reviewFeedbackRows } = await import("./owner-review.core");
@@ -86,12 +239,12 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     all("ESC consents", (a, b) => scoped(admin.from("owner_esc_consents").select("job_id, owner_signed_at, ap_signed_at, status, scheduled_start, created_at")).not("owner_signed_at", "is", null).is("ap_signed_at", null).range(a, b)),
     all("VEEC forms", (a, b) => scoped(admin.from("customer_assignments").select("job_id, installer_signed_at, ap_signed_at, consumer_signed_at, status, created_at")).eq("record_kind", "final_veec_assignment").neq("status", "cancelled").range(a, b)),
     all("ESC notices", (a, b) => scoped(admin.from("esc_notifications").select("job_id, due_by, earliest_send_at, scheduled_start, sent_at, status")).is("sent_at", null).gt("scheduled_start", new Date(t0).toISOString()).range(a, b)),
-    all("failed emails", (a, b) => scoped(admin.from("customer_email_sends").select("job_id, purpose, status, created_at, error")).in("status", [...FAILED_EMAIL_STATUSES, ...SUCCESS_EMAIL_STATUSES]).gte("created_at", since7).order("created_at").order("id").range(a, b)),
-    all("failed texts", (a, b) => scoped(admin.from("sms_messages").select("job_id, message_type, status, created_at, detail")).in("status", [...FAILED_SMS_STATUSES, ...SUCCESS_SMS_STATUSES]).gte("created_at", since7).order("created_at").order("id").range(a, b)),
+    all("failed emails", (a, b) => scoped(admin.from("customer_email_sends").select("job_id, purpose, status, created_at, error")).in("status", [...FAILED_EMAIL_STATUSES, ...UNSURE_EMAIL_STATUSES, ...SUCCESS_EMAIL_STATUSES]).gte("created_at", since7).order("created_at").order("id").range(a, b)),
+    all("failed texts", (a, b) => scoped(admin.from("sms_messages").select("job_id, business_id, message_type, status, created_at, detail")).in("status", [...FAILED_SMS_STATUSES, ...UNSURE_SMS_STATUSES, ...SUCCESS_SMS_STATUSES]).gte("created_at", since7).order("created_at").order("id").range(a, b)),
     all("10-day flags", (a, b) => (opts.onlyIds ? admin.from("jobs").select("id, install_10day_flagged_at, stage").in("id", opts.onlyIds) : admin.from("jobs").select("id, install_10day_flagged_at, stage")).not("install_10day_flagged_at", "is", null).eq("stage", "installation_scheduling").range(a, b)),
     all("no-access reports", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", "trade_couldnt_get_in").contains("details", { visit: "install", needs_office: true }).order("created_at", { ascending: false }).range(a, b)),
     all("VEEC day-10 alerts", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at")).eq("event_type", VEEC_OFFICE_ALERT_EVENT).range(a, b)),
-    all("overdue invoices", (a, b) => scoped(admin.from("invoice_status").select("job_id, effective_status, total_inc_gst, total_paid, deposit_due_date, balance_due_date")).eq("effective_status", "overdue").range(a, b)),
+    all("overdue invoices", (a, b) => scoped(admin.from("invoice_status").select("job_id, kind, xero_invoice_number, effective_status, total_inc_gst, total_paid, deposit_due_date, balance_due_date")).eq("effective_status", "overdue").range(a, b)),
     // Decision 246: automatic offers that came back to the office (2 misses or no covering trade) -> "Choose again".
     all("auto offers returned", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, summary, details")).eq("event_type", AUTO_OFFER_RETURNED_EVENT).order("created_at", { ascending: false }).range(a, b)),
     all("install bookings on hold", (a, b) => scoped(admin.from("bookings").select("job_id, created_at, scheduled_start")).eq("kind", "installation").eq("status", "confirmed").gt("created_at", new Date(t0 - 2 * DAY).toISOString()).gt("scheduled_start", new Date(t0).toISOString()).range(a, b)),
@@ -127,7 +280,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     all("PIESA form failures", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", PIESA_AUTOFORM_FAILED_EVENT).gte("created_at", new Date(t0 - 60 * DAY).toISOString()).range(a, b)),
     // Jo 28 Oct 2026 ("Alert after 3 days unpaid"): the unpaid-payment alert's facts — invoices, accepted quotes, the
     // safety-check setting, current PIESA outcomes and the repeat safety check events. All reads; nothing is stored.
-    all("invoices for unpaid payments", (a, b) => scoped(admin.from("invoice_status").select("id, job_id, total_inc_gst, total_paid, created_at")).range(a, b)),
+    all("invoices for unpaid payments", (a, b) => scoped(admin.from("invoice_status").select("id, job_id, kind, quote_id, xero_invoice_number, total_inc_gst, total_paid, created_at")).range(a, b)),
     all("accepted quotes for unpaid payments", (a, b) => scoped(admin.from("quotes").select("id, job_id, kind, accepted_at, customer_total_inc_gst")).eq("status", "accepted").in("kind", ["installation", "rectification"]).range(a, b)),
     admin.from("workflow_settings").select("safety_check_payment_inc_gst").eq("id", 1).maybeSingle().then((r) => (r.data ?? null) as Row | null),
     all("current PIESA outcomes for deposits", (a, b) => scoped(admin.from("piesa_records").select("job_id, outcome, section_c_signed_at")).eq("is_current", true).range(a, b)),
@@ -141,15 +294,21 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   const facts = new Map<string, NeedsFacts>();
   for (const j of jobs) facts.set(j.id, { jobId: j.id, jobNumber: j.jobNumber, surname: surnameOf(j.owner), suburb: j.suburb, ...(j.source === "qa_test" ? { isTest: true } : {}) });
   const f = (id: string) => facts.get(id);
+  const dispatch = await (await import("./in-house-suppression.server")).readInHouseDispatchState(jobs.map(j => j.id));
+  for (const j of jobs) { const x = f(j.id); if (x) x.inHouseDispatch = dispatch.failed ? "in_house_read_failed" : dispatch.held.has(j.id) ? "in_house" : null; }
+  const inHouse = await inHouseNeedsFacts(jobs.filter(j => j.source !== "qa_test").map(j => j.id));
+  for (const [id, ih] of inHouse) { const x = f(id); if (x) x.inHouse = ih; }
   // Same 48h rule as the legacy exceptions queue; current Needs me must not silently omit it.
   if (ids.length) {
     const releases = await byIds("unconfirmed visit releases", ids, (chunk, a, b) => admin.from("contact_releases").select("job_id, visit_kind, released_at, job_assignments!inner(active, booking_confirmed_at)").in("job_id", chunk).is("revoked_at", null).range(a, b));
-    const { coordinationState, visitIsCurrent } = await import("./allocation.core");
+    const { coordinationState, visitIsCurrent, readyCheckOverdueApplies } = await import("./allocation.core");
     for (const r of releases) {
       const id = String(r["job_id"]), x = f(id), j = jobById.get(id);
       const assignment = r["job_assignments"] as { active?: boolean; booking_confirmed_at?: string | null } | null;
       const visit = String(r["visit_kind"]);
       if (!x || !j || !assignment?.active || !visitIsCurrent(visit, j.stage) || !["ready_check", "piesa", "rectification", "installation"].includes(visit)) continue;
+      // Jo 28 Oct: installers book the Ready Check outside the portal; a done Ready Check never waits on a time.
+      if (!readyCheckOverdueApplies(visit, { stage: j.stage, channel: j.facts.ownJob ? "installer_sourced" : null })) continue;
       if (coordinationState({ releasedAt: s(r["released_at"]), firstProposalAt: null, confirmedAt: assignment.booking_confirmed_at ?? null }, new Date(now)).state === "needs_office") x.bookingOverdue = { at: String(r["released_at"]), visit: visit as "ready_check" | "piesa" | "rectification" | "installation" };
     }
   }
@@ -183,15 +342,11 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   // Jo 28 Oct (decision 158, OFFICE CHOOSES): a lapsed window with no office payer choice for that deadline → one Today row.
   const lapsedIds = [...facts.values()].filter((x) => x.lapsedWindow).map((x) => x.jobId);
   if (lapsedIds.length) {
-    const ev = await byIds("repeat PIESA choices", lapsedIds, (chunk, a, b) => admin.from("workflow_events").select("job_id, event_type, details, created_at").in("job_id", chunk).in("event_type", ["repeat_piesa_payer_chosen", "install_window_expired", "xero_invoice_repeat_piesa_held", "xero_invoice_repeat_piesa_added"]).range(a, b));
+    const ev = await byIds("repeat PIESA choices", lapsedIds, (chunk, a, b) => admin.from("workflow_events").select("job_id, event_type, details, created_at").in("job_id", chunk).in("event_type", ["repeat_piesa_payer_chosen", "install_window_expired"]).range(a, b));
     for (const id of lapsedIds) {
       const x = f(id)!; const dl = x.lapsedWindow!.deadline;
       const mine = ev.filter((e) => String(e["job_id"]) === id && String((e["details"] as { deadline?: string } | null)?.deadline) === dl);
-      if (mine.some((e) => e["event_type"] === "repeat_piesa_payer_chosen")) {
-        const line = mine.filter((e) => String(e["event_type"]).startsWith("xero_invoice_repeat_piesa_")).sort((a, b) => String(a["created_at"]).localeCompare(String(b["created_at"]))).at(-1);
-        if (line?.["event_type"] === "xero_invoice_repeat_piesa_held") x.repeatXeroHeld = { at: String(line["created_at"]), reason: String((line["details"] as { reason?: string } | null)?.reason ?? "held") };
-        continue;
-      }
+      if (mine.some((e) => e["event_type"] === "repeat_piesa_payer_chosen")) continue;
       const sp = String((mine.find((e) => e["event_type"] === "install_window_expired")?.["details"] as { payer?: string } | null)?.payer ?? "");
       x.repeatPiesaChoice = { deadline: dl, suggested: sp && sp !== "undetermined" ? sp : null };
     }
@@ -214,7 +369,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   // Jo 28 Oct 2026 ("Alert after 3 days unpaid"): follow-up reads keyed by wave 1 — the PIESA quote lines, the
   // deposit-gate overrides and the stage entry that started each install-deposit wait.
   const payQuoteIds = payQuotes.filter((x) => x["kind"] === "installation").map((x) => String(x["id"]));
-  const payInvIds = payInvoices.map((x) => String(x["id"]));
+  const payInvIds = payInvoices.filter((x) => x["kind"] === "installation").map((x) => String(x["id"]));
   const depositJobIds = jobs.filter((j) => INSTALL_DEPOSIT_DUE_STAGES.has(j.stage)).map((j) => j.id);
   const [later, partAReasons, consentReasonList, made, payViews, finalFlags, askRows, fbRows, releases, payPiesaLines, payOverrides, payStageEv] = await Promise.all([
     rIds.length ? byIds("offers after return", rIds, (chunk, a, b) => admin.from("partner_offers").select("job_id, kind, offered_at").in("job_id", chunk).range(a, b)) : Promise.resolve([] as Row[]),
@@ -348,10 +503,95 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       }
     }
   } catch { unavailable.push("payment reversals"); }
+  // Batch 2: a STOP reply cancelled the job but releasing the installer failed → one row until `job_cancel_released` is written
+  // (the tick retries). The job is usually already cancelled, so its facts are made here when the open-jobs read dropped it.
+  try {
+    const { stopReleaseNeeds } = await import("./stop-release.server");
+    for (const n of await stopReleaseNeeds(admin, { includeTest: opts.includeTest, ...(opts.onlyIds ? { onlyIds: opts.onlyIds } : {}) })) {
+      const x = f(n.jobId) ?? { jobId: n.jobId, jobNumber: n.jobNumber, surname: n.surname, suburb: n.suburb, ...(n.isTest ? { isTest: true } : {}) };
+      x.stopReleaseFailed = { at: n.at };
+      facts.set(n.jobId, x);
+    }
+  } catch { unavailable.push("STOP clean-up failures"); }
+  /** Batch 3a: the open jobs among `ids`, plus jobs still closed by an expired quote (their facts are made here). */
+  const withExpiryClosedJobs = async (ids: string[]) => {
+    const extra = ids.filter((id) => !facts.has(id));
+    for (const [id, x] of await expiryClosedJobFacts(extra, opts.includeTest)) facts.set(id, x);
+    return ids.filter((id) => facts.has(id));
+  };
+  // Batch 3a: an expired quote could not close the job because the owner can't be emailed → one row until the close completes.
+  try {
+    const { quoteExpiredBlockedFact } = await import("./office-needs.core");
+    const raised = await all("expired quotes not emailable", (a, b) => scoped(admin.from("workflow_events").select("job_id")).eq("event_type", "quote_expired_not_emailable").range(a, b));
+    const raisedIds = await withExpiryClosedJobs([...new Set(raised.map((e) => String(e["job_id"])))]);
+    if (raisedIds.length) {
+      const ev = await byIds("expired quote history", raisedIds, (c, a, b) => admin.from("workflow_events").select("job_id, event_type, created_at, details").in("job_id", c).in("event_type", ["quote_expired_not_emailable", "quote_expired_closed"]).range(a, b));
+      const live = await byIds("open quotes of expired-quote jobs", raisedIds, (c, a, b) => admin.from("quotes").select("job_id").in("job_id", c).eq("kind", "installation").in("status", ["issued", "accepted"]).range(a, b));
+      const liveIds = new Set(live.map((r) => String(r["job_id"])));
+      for (const id of raisedIds) {
+        if (liveIds.has(id)) continue; // a newer quote is out or accepted: nothing to chase
+        const hit = quoteExpiredBlockedFact(ev.filter((e) => e["job_id"] === id).map((e) => ({ event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as Record<string, unknown> | null })));
+        const x = f(id); if (x && hit) x.quoteExpiredBlocked = hit;
+      }
+    }
+  } catch { unavailable.push("expired quotes not emailable"); }
+  // Batch 3a: the owner asked for a new quote but the installer could not be put back, or the reopen half-finished →
+  // one row until an installation quote is created after it.
+  try {
+    const { NEW_QUOTE_NEEDS_INSTALLER_EVENT, NEW_QUOTE_UNFINISHED_EVENT } = await import("./new-quote-request.core");
+    const raised = await all("new quotes needing the office", (a, b) => scoped(admin.from("workflow_events").select("job_id")).in("event_type", [NEW_QUOTE_NEEDS_INSTALLER_EVENT, NEW_QUOTE_UNFINISHED_EVENT]).range(a, b));
+    const raisedIds = await withExpiryClosedJobs([...new Set(raised.map((e) => String(e["job_id"])))]);
+    for (const [id, hit] of await newQuoteOfficeFacts(raisedIds)) { const x = f(id); if (x) x.newQuoteOffice = hit; }
+  } catch { unavailable.push("new quotes needing the office"); }
+  // Batch 1: the owner accepted but the invoice step failed → one Money row until a Xero-linked invoice exists.
+  try {
+    const fails = await all("failed invoices", (a, b) => scoped(admin.from("workflow_events").select("job_id")).eq("event_type", "invoice_create_failed").range(a, b));
+    const failIds = [...new Set(fails.map((e) => String(e["job_id"])).filter((id) => idSet.has(id)))];
+    for (const [id, hit] of await invoiceFailedFacts(failIds)) { const x = f(id); if (x) x.invoiceFailed = hit; }
+  } catch { unavailable.push("failed invoices"); }
+  // Batch 3b: a newer fixes quote replaced an accepted one whose own Xero invoice is still unpaid → one Money row.
+  try {
+    const oldFixes = await oldFixesInvoiceRows([...idSet]);
+    for (const [id, hit] of await oldFixesInvoiceFacts([], oldFixes)) { const x = f(id); if (x) x.oldFixesInvoiceUnpaid = hit; }
+    for (const [id, hit] of await oldFixesInvoicePaidFacts([], oldFixes)) { const x = f(id); if (x) x.oldFixesInvoicePaid = hit; }
+  } catch { unavailable.push("old fixes invoices"); }
   // Decision 315: 24h after the fixes-times link with no times → one "Electrician hasn't given fixes times" row.
   for (const [id, r] of fixesTimesMissing({ links: fixesLinks.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]) })), given: fixesGiven.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]) })), now })) {
     const x = f(id); if (x) x.fixesTimesMissing = { at: r.at };
   }
+  // A48 batch 1: the newest A3 safety check breaks the official rules → one row until a corrected form / signed Section C.
+  try {
+    const { PIESA_RULES_CLEARED_EVENT, PIESA_RULES_FAILED_EVENT, piesaRulesOpen } = await import("./piesa-rules-notice.core");
+    const ev = await all("safety check rule failures", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).in("event_type", [PIESA_RULES_FAILED_EVENT, PIESA_RULES_CLEARED_EVENT]).order("created_at").range(a, b));
+    const byJob = new Map<string, Row[]>();
+    for (const e of ev) { const id = String(e["job_id"]); if (idSet.has(id)) byJob.set(id, [...(byJob.get(id) ?? []), e]); }
+    for (const [id, list] of byJob) {
+      const open = piesaRulesOpen(list.map((e) => ({ event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as Record<string, unknown> | null })));
+      const x = f(id); if (x && open) x.piesaRulesFailed = { at: open.at, reasons: open.reasons };
+    }
+  } catch { unavailable.push("safety check rule failures"); }
+  // A48 batch 1 task 5: the electrical certificate after the repairs waits for the office (AI unsure / not ceiling / error, or rejected).
+  try {
+    const { COES_CHECKED_EVENT, COES_REJECTED_EVENT } = await import("./coes-check.core");
+    const ev = await all("electrical certificate checks", (a, b) => scoped(admin.from("workflow_events").select("id, job_id, event_type, created_at, details")).in("event_type", [COES_CHECKED_EVENT, COES_REJECTED_EVENT]).order("created_at").range(a, b));
+    const byJob = new Map<string, { id: string; event_type: string; created_at: string; details: Record<string, unknown> | null }[]>();
+    for (const e of ev) { const id = String(e["job_id"]); if (idSet.has(id)) byJob.set(id, [...(byJob.get(id) ?? []), { id: String(e["id"]), event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as Record<string, unknown> | null }]); }
+    // Jobs waiting on the install booking read the CURRENT certificate live (the key the install gate checks), so a newer
+    // file after a tick is "not checked yet" with Check again, never no row; other jobs read the newest certificate event.
+    const { coesNeedsForJobs } = await import("./coes-check.server");
+    const facts = await coesNeedsForJobs(jobs.filter((j) => byJob.has(j.id) || j.stage === "installation_scheduling").map((j) => ({ id: j.id, stage: j.stage })), byJob);
+    for (const [id, fact] of facts) { const x = f(id); if (x) x.coesCheck = fact; }
+  } catch { unavailable.push("electrical certificate checks"); }
+  // A48 batch 1 final fix (Jo 29 Oct): life support yes / unknown with no plan on file → one row until the owner's upload or
+  // the office record is on file (the safety check offers and visit wait for it).
+  try {
+    const { lifeSupportPlanRowStage } = await import("./compliance-timeline.core");
+    const { lifeSupportPlanMissingJobs } = await import("./job-records.server");
+    const cands = jobs.filter((j) => lifeSupportPlanRowStage(j.stage));
+    const missing = new Set<string>();
+    for (let i = 0; i < cands.length; i += 150) for (const id of await lifeSupportPlanMissingJobs(cands.slice(i, i + 150).map((j) => j.id))) missing.add(id);
+    for (const j of cands) { const x = f(j.id); if (x && missing.has(j.id)) x.lifeSupportPlanNeeded = { at: j.status?.since ?? j.facts.createdAt }; }
+  } catch { unavailable.push("life support plans"); }
   const unsigned = new Set(veecForms.filter((v) => !v["consumer_signed_at"]).map((v) => String(v["job_id"])));
   for (const e of veecAlerts) { const x = f(String(e["job_id"])); if (x && unsigned.has(String(e["job_id"]))) x.veecDay10 = { at: String(e["created_at"]) }; }
   // Jo 28 Oct 2026 (decision card 04:40 UTC, "Alert after 3 days unpaid"): a job paused on a homeowner payment that
@@ -359,11 +599,12 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   // The row is derived from the paid amount, never stored — recording the payment clears it by itself. Covered: the
   // $349 safety check, the fixes, the 10% install deposit and the repeat safety check (the balance is not — Jo's list).
   {
-    const { paymentStall } = await import("./payment-stall.core");
+    const { jobPaymentStalls } = await import("./payment-stall.core");
     const { safetyCheckCentsFor } = await import("./safety-check-amount.core");
     const { REPEAT_PIESA_ACCEPTED_EVENT, REPEAT_PIESA_PAID_EVENT } = await import("./repeat-piesa.core");
-    const invoiceByJob = new Map<string, Row>();
-    for (const r of payInvoices) { const id = String(r["job_id"]); const cur = invoiceByJob.get(id); if (!cur || String(r["created_at"]) > String(cur["created_at"])) invoiceByJob.set(id, r); }
+    // Batch 3b: every invoice of the job (install, fixes, repeat safety check) — each payment is measured on its own.
+    const invoicesByJob = new Map<string, Row[]>();
+    for (const r of payInvoices) { const id = String(r["job_id"]); const list = invoicesByJob.get(id); if (list) list.push(r); else invoicesByJob.set(id, [r]); }
     const quotesByJob = new Map<string, Row[]>();
     for (const q of payQuotes) { const id = String(q["job_id"]); const list = quotesByJob.get(id); if (list) list.push(q); else quotesByJob.set(id, [q]); }
     const piesaLinesByQuote = new Map<string, { code: string | null; line_total_inc_gst: number | string | null }[]>();
@@ -373,16 +614,23 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     // payStageEv is newest-first: the first row per job is the latest entry into a deposit-due stage.
     const depositSinceByJob = new Map<string, string>();
     for (const e of payStageEv) { const id = String(e["job_id"]); if (!depositSinceByJob.has(id)) depositSinceByJob.set(id, String(e["created_at"])); }
-    const repeatByJob = new Map<string, { price: number; acceptedAt: string | null; paid: boolean }>();
+    const repeatByJob = new Map<string, { deadline: string; price: number; acceptedAt: string | null; paid: boolean }>();
+    const evDeadline = (e: Row) => String((e["details"] as { deadline?: unknown } | null)?.deadline ?? "");
+    // The newest office choice decides the deadline and the price (installer/HIVIC newest → price 0).
     for (const e of payRepeatEv) { // newest-first
-      const id = String(e["job_id"]); const t = String(e["event_type"]);
-      const cur = repeatByJob.get(id) ?? { price: 0, acceptedAt: null, paid: false };
-      if (t === "repeat_piesa_payer_chosen" && cur.price === 0) { const d = e["details"] as { payer?: string; price_inc_gst?: number | null } | null; if (d?.payer === "owner") cur.price = Number(d?.price_inc_gst ?? 0); }
-      else if (t === REPEAT_PIESA_ACCEPTED_EVENT && !cur.acceptedAt) cur.acceptedAt = String(e["created_at"]);
-      else if (t === REPEAT_PIESA_PAID_EVENT) cur.paid = true;
-      repeatByJob.set(id, cur);
+      const id = String(e["job_id"]);
+      if (String(e["event_type"]) !== "repeat_piesa_payer_chosen" || repeatByJob.has(id)) continue;
+      const d = e["details"] as { payer?: string; price_inc_gst?: number | null } | null;
+      repeatByJob.set(id, { deadline: evDeadline(e), price: d?.payer === "owner" ? Number(d?.price_inc_gst ?? 0) : 0, acceptedAt: null, paid: false });
     }
-    for (const [id, inv] of invoiceByJob) {
+    // Only acceptance/payment for that same deadline counts (paid = the repeat invoice paid, Task 3 `repeat_piesa_paid`).
+    for (const e of payRepeatEv) { // newest-first
+      const cur = repeatByJob.get(String(e["job_id"])); const t = String(e["event_type"]);
+      if (!cur || evDeadline(e) !== cur.deadline) continue;
+      if (t === REPEAT_PIESA_ACCEPTED_EVENT && !cur.acceptedAt) cur.acceptedAt = String(e["created_at"]);
+      else if (t === REPEAT_PIESA_PAID_EVENT) cur.paid = true;
+    }
+    for (const [id, invs] of invoicesByJob) {
       const x = f(id); const j = jobById.get(id);
       if (!x || !j || ["complete", "cancelled", "on_hold"].includes(j.stage)) continue;
       const qs = quotesByJob.get(id) ?? [];
@@ -390,24 +638,32 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       const installQ = byAccepted("installation");
       if (!installQ) continue;
       const rectQ = byAccepted("rectification");
-      const installAccepted = String(installQ["accepted_at"]);
-      const paidCents = toCents(inv["total_paid"] as number | null);
-      const safety = safetyCheckCentsFor({ lines: piesaLinesByQuote.get(String(installQ["id"])) ?? [], settingIncGst: (paySettings?.["safety_check_payment_inc_gst"] ?? null) as number | null }).cents;
-      const fixesCents = fixesCountedCents({ rectTotalCents: toCents(rectQ?.["customer_total_inc_gst"] as number | null), rectAcceptedAt: rectQ ? String(rectQ["accepted_at"]) : null, installAcceptedAt: installAccepted });
+      const install = invs.filter((r) => r["kind"] === "installation").sort((a, b) => String(b["created_at"]).localeCompare(String(a["created_at"])))[0];
       const rep = repeatByJob.get(id);
-      const repeatCents = rep && rep.price > 0 && rep.acceptedAt && !rep.paid ? toCents(rep.price) : 0;
-      const plan = paymentPlan({ quoteTotalCents: toCents(installQ["customer_total_inc_gst"] as number | null), safetyCheckCents: safety, fixesCents, repeatCents });
-      const steps: { key: PaymentStepKey; since: string }[] = [];
-      if (!waivedInvoices.has(String(inv["id"])) && paidCents < plan.thresholds.safety_check) steps.push({ key: "safety_check", since: installAccepted });
-      if (fixesCents > 0 && rectQ && paidCents < plan.thresholds.fixes) steps.push({ key: "fixes", since: String(rectQ["accepted_at"]) });
-      const depSince = depositSinceByJob.get(id);
-      if (depSince && INSTALL_DEPOSIT_DUE_STAGES.has(j.stage) && installDepositDueNow(j.stage, piesaByJob.get(id) as { outcome?: string | null; section_c_signed_at?: string | null } | null) && paidCents < plan.thresholds.install_deposit) steps.push({ key: "install_deposit", since: depSince });
-      if (repeatCents > 0 && rep?.acceptedAt && paidCents < plan.thresholds.repeat_safety_check) steps.push({ key: "repeat_safety_check", since: rep.acceptedAt });
-      const stall = paymentStall(steps, now);
-      if (stall) x.paymentStalled = stall;
+      const stalls = jobPaymentStalls({
+        now,
+        invoices: invs.map((r) => ({ id: String(r["id"]), kind: s(r["kind"]), quote_id: s(r["quote_id"]), total_inc_gst: r["total_inc_gst"] as number | null, total_paid: r["total_paid"] as number | null, created_at: s(r["created_at"]), xero_invoice_number: s(r["xero_invoice_number"]) })),
+        installQuote: { accepted_at: String(installQ["accepted_at"]), customer_total_inc_gst: installQ["customer_total_inc_gst"] as number | null },
+        fixesQuote: rectQ ? { id: String(rectQ["id"]), accepted_at: String(rectQ["accepted_at"]), customer_total_inc_gst: rectQ["customer_total_inc_gst"] as number | null } : null,
+        safetyCents: safetyCheckCentsFor({ lines: piesaLinesByQuote.get(String(installQ["id"])) ?? [], settingIncGst: (paySettings?.["safety_check_payment_inc_gst"] ?? null) as number | null }).cents,
+        waived: !!install && waivedInvoices.has(String(install["id"])),
+        depositSince: depositSinceByJob.get(id) ?? null,
+        depositDueNow: INSTALL_DEPOSIT_DUE_STAGES.has(j.stage) && installDepositDueNow(j.stage, piesaByJob.get(id) as { outcome?: string | null; section_c_signed_at?: string | null } | null),
+        repeat: rep && rep.price > 0 ? { cents: toCents(rep.price), acceptedAt: rep.acceptedAt, paid: rep.paid } : null,
+      });
+      if (stalls.length) x.paymentStalls = stalls;
     }
   }
-  for (const i of overdue) { const x = f(String(i["job_id"])); if (x) x.paymentOverdue = { at: String(i["balance_due_date"] ?? i["deposit_due_date"] ?? new Date(now).toISOString()), text: `$${Math.max(0, Number(i["total_inc_gst"] ?? 0) - Number(i["total_paid"] ?? 0)).toLocaleString("en-AU", { maximumFractionDigits: 0 })} owing` }; }
+  // Batch 3b: one overdue row per invoice (install / fixes / repeat safety check), named with that invoice's reference.
+  {
+    const { invoiceSlotOf } = await import("./office-money.core");
+    for (const i of overdue) {
+      const x = f(String(i["job_id"])); if (!x) continue;
+      const invoice = invoiceSlotOf(s(i["kind"]));
+      if ((x.paymentsOverdue ?? []).some((o) => o.invoice === invoice)) continue;
+      (x.paymentsOverdue ??= []).push({ invoice, reference: s(i["xero_invoice_number"]), at: String(i["balance_due_date"] ?? i["deposit_due_date"] ?? new Date(now).toISOString()), text: `$${Math.max(0, Number(i["total_inc_gst"] ?? 0) - Number(i["total_paid"] ?? 0)).toLocaleString("en-AU", { maximumFractionDigits: 0 })} owing` });
+    }
+  }
   if (payViews) provisionalBookings.forEach((b, i) => {
     const x = f(String(b["job_id"])); const v = payViews[i];
     if (!x || v?.provisional.decision !== "provisional") return;
@@ -443,9 +699,21 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   const system: SystemRow[] = [];
   if (listMode) {
     for (const p of office.needs.items.filter((i) => i.rule === "j_partner")) system.push({ key: p.key, tag: /application/i.test(p.what) ? "Application" : /worker|staff/i.test(p.what) ? "Person" : /form/i.test(p.what) ? "Mitti" : "Partner", who: p.what, line: p.why, since: p.dueAt, button: "Review", href: p.href ?? "/admin/partners" });
-    for (const j of jobs) for (const why of j.needs.failures) if (!/^(Email|Text) /.test(why)) system.push({ key: `fail:${j.id}:${why}`, tag: "System", who: `${j.jobNumber} ${surnameOf(j.owner)}`.trim(), line: why, since: null, button: "Open job", href: `/admin/jobs/${j.id}`, jobId: j.id });
+    for (const j of jobs) for (const why of j.needs.failures) if (!/^(Email|Text) /.test(why) && !duplicatesInvoiceFailed(why, facts.get(j.id)?.invoiceFailed)) system.push({ key: `fail:${j.id}:${why}`, tag: "System", who: `${j.jobNumber} ${surnameOf(j.owner)}`.trim(), line: why, since: null, button: "Open job", href: `/admin/jobs/${j.id}`, jobId: j.id });
     // Decision 303: "<REC> onboarded and linked to <installer> — n quote(s) ready to check" (or the conflict the office decides).
     for (const r of recLinks) system.push({ key: r.key, tag: "Partner", who: r.recName, line: r.line, since: r.since, button: r.conflict ? "Decide" : "Quotes to check", href: r.conflict ? "/admin/partners" : "/admin/quotes" });
+    // Batch 2: texts to a trade with no job (e.g. a job offer) that failed or may not have arrived — one row per business, named.
+    {
+      // Job-less daily trade texts already have their own "Daily text to … failed" row (office.server, open trade_text_log
+      // failures): don't show the same failure twice (same business + type).
+      const tradeLog = smsFails.some((m) => !m["job_id"] && /^daily_mitti/.test(String(m["message_type"])))
+        ? await all("trade text failures", (a, b) => (admin as unknown as { from: (t: string) => any }).from("trade_text_log").select("business_id, kind").eq("status", "failed").is("acknowledged_at", null).range(a, b)) // eslint-disable-line @typescript-eslint/no-explicit-any
+        : [];
+      const covered = tradeTextCoveredKeys(tradeLog.map((r: Row) => ({ business_id: s(r["business_id"]), kind: s(r["kind"]) })));
+      const pr = partnerSendFailedRows({ now, covered, sms: smsFails.map((m) => ({ job_id: s(m["job_id"]), business_id: s(m["business_id"]), message_type: String(m["message_type"]), status: String(m["status"]), created_at: String(m["created_at"]), detail: s(m["detail"]) })) });
+      const names = new Map((pr.length ? await byIds("partner text businesses", pr.map((r) => r.businessId), (chunk, a, b) => admin.from("businesses").select("id, name").in("id", chunk).range(a, b)) : []).map((b) => [String(b["id"]), s(b["name"])]));
+      for (const r of pr) system.push({ key: `partner-send:${r.businessId}`, tag: "Partner", who: names.get(r.businessId) ?? "A trade business", line: `Send failed · ${r.text}`, since: r.latestAt, button: "Open", href: `/admin/partners/business/${r.businessId}` });
+    }
     for (const r of [...q.notDrafted, ...(qTest?.notDrafted ?? [])]) if (idSet.has(r.jobId)) system.push({ key: `nodraft:${r.jobId}`, tag: "Quote", who: `${r.jobNumber} ${surnameOf(r.owner)}`.trim(), line: `Quote not drafted yet · ${r.note}`, since: r.at, button: "Open job", href: `/admin/jobs/${r.jobId}`, jobId: r.jobId });
     if (fb.length) {
       const fbJobs = new Map<string, { jobNumber: string; surname: string; isTest?: boolean }>();

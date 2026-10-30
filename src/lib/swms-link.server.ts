@@ -8,7 +8,8 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 
 export const SWMS_LINK_DAYS = 7;
 const DAY_S = 86_400;
-export type SwmsLinkPayload = { jobId: string; key: string; exp: number };
+/** `via: "lead"` (Jo 30 Oct 2026) = issued to the Lead to open on the Lead's phone; part of the signed token. */
+export type SwmsLinkPayload = { jobId: string; key: string; exp: number; via?: "lead" };
 
 /** Derived per-purpose key; throws when the server secret is missing (no link is ever made without it). */
 export function swmsLinkSecret(env: Record<string, string | undefined> = process.env): string {
@@ -20,7 +21,7 @@ export function swmsLinkSecret(env: Record<string, string | undefined> = process
 const sig = (body: string, secret: string) => createHmac("sha256", secret).update(body).digest("base64url");
 
 export function swmsLinkToken(p: SwmsLinkPayload, secret: string): string {
-  const body = Buffer.from(JSON.stringify({ j: p.jobId, k: p.key, e: p.exp })).toString("base64url");
+  const body = Buffer.from(JSON.stringify(p.via ? { j: p.jobId, k: p.key, e: p.exp, v: p.via } : { j: p.jobId, k: p.key, e: p.exp })).toString("base64url");
   return `${body}.${sig(body, secret)}`;
 }
 
@@ -32,19 +33,19 @@ export function verifySwmsLinkToken(token: string, secret: string, nowMs = Date.
   const want = Buffer.from(sig(body, secret)), got = Buffer.from(s);
   if (want.length !== got.length || !timingSafeEqual(want, got)) return null;
   try {
-    const t = JSON.parse(Buffer.from(body, "base64url").toString()) as { j?: unknown; k?: unknown; e?: unknown };
+    const t = JSON.parse(Buffer.from(body, "base64url").toString()) as { j?: unknown; k?: unknown; e?: unknown; v?: unknown };
     if (typeof t.j !== "string" || typeof t.k !== "string" || typeof t.e !== "number" || !t.j || !t.k) return null;
     if (t.e * 1000 <= nowMs) return null;
-    return { jobId: t.j, key: t.k, exp: t.e };
+    return t.v === "lead" ? { jobId: t.j, key: t.k, exp: t.e, via: "lead" } : { jobId: t.j, key: t.k, exp: t.e };
   } catch { return null; }
 }
 
 /** Expiry SWMS_LINK_DAYS ahead, rounded to the UTC day so the same day's texts carry the same link. */
 export const swmsLinkExpiry = (nowMs = Date.now()) => (Math.floor(nowMs / 1000 / DAY_S) + 1 + SWMS_LINK_DAYS) * DAY_S;
 
-export async function swmsSignLink(jobId: string, key: string, nowMs = Date.now()): Promise<string> {
+export async function swmsSignLink(jobId: string, key: string, nowMs = Date.now(), via?: "lead"): Promise<string> {
   const { SET_PASSWORD_BASE } = await import("./set-password-link.core");
-  return `${SET_PASSWORD_BASE}/sp/${swmsLinkToken({ jobId, key, exp: swmsLinkExpiry(nowMs) }, swmsLinkSecret())}`;
+  return `${SET_PASSWORD_BASE}/sp/${swmsLinkToken({ jobId, key, exp: swmsLinkExpiry(nowMs), ...(via ? { via } : {}) }, swmsLinkSecret())}`;
 }
 
 /** Each unsigned person's own link (lead first). Null = the plan can't be read, nobody is chosen yet, or links aren't
@@ -68,7 +69,7 @@ export async function unsignedSwmsSignerLinks(jobId: string): Promise<{ name: st
 export type SwmsLinkDeps = {
   secret: () => string;
   load: (jobId: string) => Promise<{ plan: import("./swms.core").SwmsPlan; signatures: import("./swms.core").SwmsSignature[]; job: { installation_completed_at: string | null; deleted_at: string | null } | null }>;
-  sign: (jobId: string, key: string, typedName: string) => Promise<{ complete: boolean; missing: string[] }>;
+  sign: (jobId: string, key: string, typedName: string, method: import("./swms.core").SwmsSignMethod) => Promise<{ complete: boolean; missing: string[] }>;
 };
 const defaultDeps: SwmsLinkDeps = {
   secret: () => swmsLinkSecret(),
@@ -78,8 +79,9 @@ const defaultDeps: SwmsLinkDeps = {
     const [{ plan, signatures }, { data: job }] = await Promise.all([loadSwms(jobId), admin.from("jobs").select("installation_completed_at, deleted_at").eq("id", jobId).maybeSingle()]);
     return { plan, signatures, job: job ?? null };
   },
-  // The token's own key only, recorded as method "link"; signSwms still checks the typed name and once-only.
-  sign: async (jobId, key, typedName) => (await import("./swms.server")).signSwms(jobId, null, key, typedName, "link"),
+  // The token's own key only, recorded as "link" (or "lead_phone" for a Lead's-phone link); signSwms still checks the
+  // typed name and once-only.
+  sign: async (jobId, key, typedName, method) => (await import("./swms.server")).signSwms(jobId, null, key, typedName, method),
 };
 
 /** The public page's read and sign. The token is the only credential and names one signer key on one job. */
@@ -96,9 +98,11 @@ async function resolve(token: string, deps: SwmsLinkDeps, nowMs: number) {
 
 export async function swmsLinkView(token: string, deps: SwmsLinkDeps = defaultDeps, nowMs = Date.now()) {
   const { plan, signer, signed, open } = await resolve(token, deps, nowMs);
+  const { swmsHouseSection } = await import("./swms.core");
   return {
     jobNumber: plan.jobNumber, address: plan.address, installDate: plan.installDate, businessName: plan.businessName,
     highRiskWork: plan.highRiskWork, hazards: plan.hazards.map((h) => ({ name: h.name, control: h.control })), siteNote: plan.siteNote,
+    house: swmsHouseSection(plan),
     signer: { name: signer.name, role: signer.role }, signedAt: signed?.signedAt ?? null, open,
   };
 }
@@ -106,5 +110,5 @@ export async function swmsLinkView(token: string, deps: SwmsLinkDeps = defaultDe
 export async function swmsLinkSign(token: string, typedName: string, deps: SwmsLinkDeps = defaultDeps, nowMs = Date.now()) {
   const { p, open } = await resolve(token, deps, nowMs);
   if (!open) throw new Error("The installation is recorded; the safety plan can't be changed now.");
-  return deps.sign(p.jobId, p.key, typedName);
+  return deps.sign(p.jobId, p.key, typedName, p.via === "lead" ? "lead_phone" : "link");
 }

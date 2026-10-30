@@ -1,6 +1,7 @@
 // A2 complete route (external review 25 Oct 2026, §6 "Run both complete routes"; Jo approved the fix pass):
-// a website enquiry (our lead) from the calculator through Save my spot, Jo's Release (decision 389), the owner's
-// Confirm, the installer's 3 Ready Check times, the owner's pick, the A2 Ready Check form, the quote and acceptance,
+// a website enquiry (our lead) from the calculator through Save my spot, Jo's area batch Send (A48 batch 2), the owner's
+// quick taps, the day-3 close, Jo's "Send to installer", the installer's run day (Portal books), the owner's confirm,
+// the A2 Ready Check form, the quote and acceptance,
 // against an isolated PGlite database holding every portal table, through the REAL server modules. Only the external
 // providers are faked (Mitti, Resend, Twilio, Xero, Stripe — behind `fetch`, tests/helpers/journey-harness.ts). The
 // steps after the $349 payment (electrician, PIESA, fixes, install day, completion, payouts) run the same server code
@@ -16,7 +17,7 @@ const TPL_A3 = "template_a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3", TPL_A4 = "template_a
 // Both on the TEST send allowlist (test-send.core); the owner's differs from the trades' (owner-verify links by email).
 const OWNER_EMAIL = "jolowexo@hotmail.com", TRADE_EMAIL = "jo@actpropertyinspections.com.au", OWNER_PHONE = "0477 511 901";
 
-for (const [k, v] of Object.entries({ MITTI_API_TOKEN: "test-mitti", LOVABLE_API_KEY: "test-lovable", RESEND_API_KEY: "test-resend", TWILIO_API_KEY: "test-twilio", TWILIO_FROM_NUMBER: "+61400000000", XERO_API_KEY_1: "test-xero", STRIPE_SECRET_KEY: "sk_test_journey", STRIPE_WEBHOOK_SECRET: "whsec_journey", STRIPE_PAYMENTS_ENABLED: "true" })) process.env[k] = v;
+for (const [k, v] of Object.entries({ MITTI_API_TOKEN: "test-mitti", LOVABLE_API_KEY: "test-lovable", RESEND_API_KEY: "test-resend", TWILIO_API_KEY: "test-twilio", TWILIO_FROM_NUMBER: "+61400000000", XERO_API_KEY_1: "test-xero", STRIPE_SECRET_KEY: "sk_test_journey", STRIPE_TEST_SECRET_KEY: "sk_test_journey", STRIPE_WEBHOOK_SECRET: "whsec_journey", STRIPE_PAYMENTS_ENABLED: "true" })) process.env[k] = v;
 
 const tplItem = (item_id: string, label: string, type = "textsingle"): MittiItem => ({ item_id, label, type });
 const providers = fakeProviders({ mittiTemplates: {
@@ -34,6 +35,11 @@ const q = j.q;
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: admin }));
 mock.module("@tanstack/react-start", serverFnStandIn);
 mock.module("@/integrations/supabase/auth-middleware", () => ({ requireSupabaseAuth: {} }));
+// Mitti is faked at the network boundary here (providers.mitti). The trades' TEST address is also the TEST Mitti assignee,
+// which the running portal sends to its persistent simulator (mitti_sim_audits) instead; this harness keeps those calls on
+// the faked Mitti so the A2/A3 forms can be filled and read back like real ones. Nothing else about the route changes.
+const realRoute = await import("../src/lib/mitti-test-route.core");
+mock.module("../src/lib/mitti-test-route.core", () => ({ ...realRoute, isTestMittiEmail: () => false }));
 const pending: Promise<unknown>[] = [];
 const backgroundErrors: string[] = [];
 mock.module("../src/lib/background.server", () => ({ requestContext: { getStore: () => undefined }, runAfterResponse: (task: () => Promise<unknown>) => { pending.push(task().catch((e: Error) => { backgroundErrors.push(e.message); })); return "wait_until"; } }));
@@ -89,7 +95,7 @@ const META = { ip: "127.0.0.1", userAgent: "journey-test" };
 const officeCtx = { userId: OFFICE, supabase: asUser(OFFICE), claims: {} };
 const instCtx = { userId: INST, supabase: asUser(INST), claims: {} };
 
-let JOB = "";
+let JOB = "", BATCH = "", RUN = "";
 afterAll(async () => { await j.db.close(); });
 const ownerToken = async () => (await q<{ token: string }>("select token from customer_estimate_links where job_id=$1 and purpose='step3_estimate' and status='active'", [JOB]))[0]!.token;
 let kept: { token: string; session: string } | null = null;
@@ -131,7 +137,10 @@ describe("A2 step 1 — the website enquiry arrives (TEST job, our lead)", () =>
   });
 });
 
-describe("A2 step 2 — Save my spot (decision 388) and Jo's Release (decision 389)", () => {
+/** Business days from `from` days ahead, as YYYY-MM-DD in Melbourne. */
+const melb = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" }).format(d);
+
+describe("A2 step 2 — Save my spot (decision 388), Jo's area batch Send and the owner's quick taps (A48 batch 2)", () => {
   test("the owner saves their spot on the link (double tap = one spot)", async () => {
     const lc = await import("../src/lib/launch-campaign.functions");
     const token = await ownerToken();
@@ -143,66 +152,114 @@ describe("A2 step 2 — Save my spot (decision 388) and Jo's Release (decision 3
     debug("SPOT", await q("select spot_saved_at from lead_campaign_responses where job_id=$1", [JOB]), await recent(JOB), (await comms(JOB)).map((c) => `${c.channel}:${c.source_event}:${c.delivery_status}`));
     expect(await q("select id from lead_campaign_responses where job_id=$1 and spot_saved_at is not null", [JOB])).toHaveLength(1);
   });
-  test("Jo releases the spot to one installer: the owner is asked 'It's your turn' (email + text once); the installer is NOT contacted yet", async () => {
+  test("the retired one-by-one Release is refused for a website owner (they go in area batches)", async () => {
     const sr = await import("../src/lib/spot-release.functions");
-    // An office user is required.
-    await expect(sr.releaseSpotFn({ data: { jobId: JOB, businessId: BIZ }, context: instCtx })).rejects.toThrow();
-    const r = await sr.releaseSpotFn({ data: { jobId: JOB, businessId: BIZ }, context: officeCtx });
-    await settle();
-    debug("RELEASE", r, await recent(JOB), (await comms(JOB)).map((c) => `${c.channel}:${c.source_event}:${c.delivery_status}`));
-    expect(r.mode).toBe("released");
-    expect(await events(JOB, "spot_released")).toHaveLength(1);
-    expect(await q("select id from partner_offers where job_id=$1", [JOB])).toHaveLength(0);
-    const turn = (await comms(JOB)).filter((c) => /spot_released/.test(c.source_event));
-    expect(turn.map((c) => c.channel).sort()).toEqual(["email", "sms"]);
-    // Pressing Release again while the owner hasn't answered is refused; nothing is sent twice.
-    await expect(sr.releaseSpotFn({ data: { jobId: JOB, businessId: OTHER_BIZ }, context: officeCtx })).rejects.toThrow();
-    expect((await comms(JOB)).filter((c) => /spot_released/.test(c.source_event))).toHaveLength(2);
+    await expect(sr.releaseSpotFn({ data: { jobId: JOB, businessId: BIZ }, context: officeCtx })).rejects.toThrow(/area batches/);
+    expect(await events(JOB, "spot_released")).toHaveLength(0);
   });
-  test("the owner confirms on the link → the ONE installer gets the Ready Check offer; a second tap changes nothing", async () => {
-    const sr = await import("../src/lib/spot-release.functions");
+  test("Jo sends the area batch to one installer: the owner gets the quick taps text once; the installer is NOT contacted yet", async () => {
+    const ab = await import("../src/lib/area-batch.functions");
+    // An office user is required.
+    await expect(ab.sendAreaBatchFn({ data: { jobIds: [JOB], businessId: BIZ }, context: instCtx })).rejects.toThrow();
+    const r = await ab.sendAreaBatchFn({ data: { jobIds: [JOB], businessId: BIZ }, context: officeCtx });
+    await settle();
+    debug("BATCH-SEND", r, await recent(JOB), (await comms(JOB)).map((c) => `${c.channel}:${c.source_event}:${c.delivery_status}`));
+    expect(r).toMatchObject({ homes: 1, held: 0 });
+    BATCH = r.batchId;
+    expect((await events(JOB, "area_batch_sent")).map((e) => e.details["installer_business_id"])).toEqual([BIZ]);
+    expect(await q("select id from partner_offers where job_id=$1", [JOB])).toHaveLength(0);
+    expect((await comms(JOB)).filter((c) => /quick_taps:/.test(c.source_event)).map((c) => c.channel)).toEqual(["sms"]);
+    // Send again (a second batch, another installer) while the owner hasn't answered is refused; nothing is sent twice.
+    await expect(ab.sendAreaBatchFn({ data: { jobIds: [JOB], businessId: OTHER_BIZ }, context: officeCtx })).rejects.toThrow(/already in a batch/);
+    expect((await comms(JOB)).filter((c) => /quick_taps/.test(c.source_event))).toHaveLength(1);
+  });
+  test("the owner confirms their name + address and answers the quick taps on the link → a pass, the share consent recorded; a second save changes nothing", async () => {
+    const qt = await import("../src/lib/quick-taps.functions");
     const token = await ownerToken();
-    const view = await sr.ownerConfirmTurnFn({ data: { token }, context: META });
+    const view = await qt.ownerQuickTapsStateFn({ data: { token }, context: META }) as { kind: string; name: string | null; address: string | null };
+    debug("TAPS-VIEW", JSON.stringify(view));
+    expect(view).toMatchObject({ kind: "ask", name: "Harriet Journey" });
+    expect(view.address).toContain("2 Journey Street");
+    // Tap 1 / Tap 2: "Yes" to the name and address on file (they're sent back as the confirmed answers), then the 4 questions.
+    const answers = { name: view.name, address: view.address, hatch: "yes", roof: "sloped", five_years: "no", go: "yes" } as const;
+    const done = await qt.ownerQuickTapsSaveFn({ data: { token, answers }, context: META });
+    const again = await qt.ownerQuickTapsSaveFn({ data: { token, answers: { ...answers, go: "no_thanks" } }, context: META });
     await settle();
-    const again = await sr.ownerConfirmTurnFn({ data: { token }, context: META });
+    debug("TAPS-DONE", done, again, await recent(JOB));
+    expect(done).toEqual({ kind: "done", outcome: "pass" });
+    expect(again).toEqual({ kind: "done", outcome: "pass" });
+    expect((await events(JOB, "quick_taps_answered")).map((e) => [e.details["outcome"], e.details["consent_share"]])).toEqual([["pass", true]]);
+    expect(await q("select id from owner_gate_signatures where job_id=$1 and doc_key='trade_contact_share'", [JOB])).toHaveLength(1);
+    expect(await stageOf(JOB)).not.toBe("cancelled");
+  });
+  test("day 3: the 15-minute tick closes the batch; the owner who said yes waits for Jo's OK (nothing goes to the installer)", async () => {
+    const abs = await import("../src/lib/area-batch.server");
+    const ab = await import("../src/lib/area-batch.functions");
+    expect((await abs.sweepAreaBatches(new Date(Date.now() + 47 * 3_600_000).toISOString())).closed).toBe(0);
+    const r = await abs.sweepAreaBatches(new Date(Date.now() + 73 * 3_600_000).toISOString());
+    await abs.sweepAreaBatches(new Date(Date.now() + 74 * 3_600_000).toISOString());
     await settle();
-    debug("CONFIRM", view, again, await q("select business_id, status, kind from partner_offers where job_id=$1", [JOB]), await recent(JOB));
-    expect(await events(JOB, "spot_release_confirmed")).toHaveLength(1);
-    expect(await q("select business_id, status from partner_offers where job_id=$1 and kind='ready_check'", [JOB])).toEqual([{ business_id: BIZ, status: "pending" }]);
+    debug("BATCH-CLOSE", r, await recent(JOB));
+    expect(r).toMatchObject({ closed: 1, failed: 0 });
+    expect((await events(JOB, "area_batch_closed")).map((e) => [e.details["batch_id"], e.details["pass_job_ids"]])).toEqual([[BATCH, [JOB]]]);
+    const ready = await ab.getBatchesReadyToSend({ data: { includeTest: true }, context: officeCtx }) as { batchId: string; installer: { id: string }; homes: { jobId: string }[] }[];
+    expect(ready.map((b) => [b.batchId, b.installer.id, b.homes.map((h) => h.jobId)])).toEqual([[BATCH, BIZ, [JOB]]]);
+    expect(await q("select id from partner_offers where job_id=$1", [JOB])).toHaveLength(0);
+    expect(await events(JOB, "run_offered")).toHaveLength(0);
+  });
+  test("Jo taps \"Send to installer\": ONE run for the installer she picked, the installer texted once; a second tap is refused", async () => {
+    const ir = await import("../src/lib/installer-run.functions");
+    await expect(ir.offerRunFn({ data: { batchId: BATCH }, context: instCtx })).rejects.toThrow();
+    const r = await ir.offerRunFn({ data: { batchId: BATCH }, context: officeCtx }) as { runId: string; homes: number; text: { status: string } };
+    await settle();
+    debug("RUN-OFFER", r, await recent(JOB));
+    expect(r).toMatchObject({ homes: 1, text: { status: "sent" } });
+    RUN = r.runId;
+    expect((await events(JOB, "run_offered")).map((e) => [e.details["run_id"], e.details["business_id"]])).toEqual([[RUN, BIZ]]);
+    await expect(ir.offerRunFn({ data: { batchId: BATCH }, context: officeCtx })).rejects.toThrow(/already been sent/);
+    expect(await events(JOB, "run_offered")).toHaveLength(1);
+    // Off Jo's list once sent.
+    const ab = await import("../src/lib/area-batch.functions");
+    expect(await ab.getBatchesReadyToSend({ data: { includeTest: true }, context: officeCtx })).toEqual([]);
   });
 });
 
-/** Business days from `from` days ahead, as YYYY-MM-DD in Melbourne. */
-const melb = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" }).format(d);
-
-describe("A2 step 3 — the installer offers 3 Ready Check times; the owner picks one → booked, the A2 form is made once", () => {
-  test("only the offered installer can answer; 3 times → the owner is asked once; the owner takes one → Ready Check scheduled", async () => {
-    const [offer] = await q<{ id: string }>("select id from partner_offers where job_id=$1 and kind='ready_check' and status='pending'", [JOB]);
-    const tvf = await import("../src/lib/trade-view.functions");
-    const rct = await import("../src/lib/ready-check-times.core");
-    const days = rct.allowedReadyCheckDays().slice(0, 3);
-    // Each time 24h+ ahead (installerTimesBlockers): 10:00 where still allowed, else that day's first allowed time (the test can run at any hour).
-    const picks = days.map((day) => { const ok = rct.allowedReadyCheckTimes(day); return { day, time: ok.includes("10:00") ? "10:00" : ok[0]! }; });
-    // Another installer business cannot answer this offer.
-    await expect(tvf.offerTradeReadyCheckTimes({ data: { offerId: offer!.id, picks }, context: { userId: OTHER, supabase: asUser(OTHER), claims: {} } })).rejects.toThrow();
-    await tvf.offerTradeReadyCheckTimes({ data: { offerId: offer!.id, picks }, context: instCtx });
+describe("A2 step 3 — the installer picks the run day (Portal books); the owner confirms their window → booked, the A2 form is made once", () => {
+  test("only the run's business sees it; the installer picks a day → the owner gets a window; the owner confirms → Ready Check scheduled", async () => {
+    const ir = await import("../src/lib/installer-run.functions");
+    // Another installer business can't see or answer the run.
+    await expect(ir.getTradeRun({ data: { runId: RUN }, context: { userId: OTHER, supabase: asUser(OTHER), claims: {} } })).rejects.toThrow();
+    const page = await ir.getTradeRun({ data: { runId: RUN }, context: instCtx }) as { status: string; homes: { jobId: string; ownerName: string | null }[]; days: string[]; team: { userId: string }[] };
+    debug("RUN-PAGE", JSON.stringify(page));
+    expect(page.status).toBe("offered");
+    expect(page.homes.map((h) => [h.jobId, h.ownerName])).toEqual([[JOB, "Harriet Journey"]]);
+    expect(page.team.map((m) => m.userId)).toContain(INST);
+    await expect(ir.chooseTradeRunDay({ data: { runId: RUN, day: page.days[0]!, start: "09:00", secondDay: null }, context: { userId: OTHER, supabase: asUser(OTHER), claims: {} } })).rejects.toThrow();
+    const chosen = await ir.chooseTradeRunDay({ data: { runId: RUN, day: page.days[0]!, start: "09:00", secondDay: null, personId: INST }, context: instCtx }) as { slots: { jobId: string; day: string; start: string }[] };
     await settle();
-    debug("RC-TIMES", await q("select status from partner_offers where id=$1", [offer!.id]), await q("select id, starts_at, status from appointment_proposals where job_id=$1 and kind='ready_check'", [JOB]), await recent(JOB), (await comms(JOB)).slice(-4).map((c) => `${c.channel}:${c.source_event}:${c.delivery_status}`));
-    expect(await q("select status from partner_offers where id=$1", [offer!.id])).toEqual([{ status: "accepted" }]);
-    // The same offer can't be answered twice.
-    await expect(tvf.offerTradeReadyCheckTimes({ data: { offerId: offer!.id, picks }, context: instCtx })).rejects.toThrow();
+    debug("RUN-DAY", chosen, await recent(JOB));
+    expect(chosen.slots).toEqual([{ jobId: JOB, day: page.days[0]!, start: "09:00", end: "10:00" }]);
+    expect(await events(JOB, "run_slot_proposed")).toHaveLength(1);
+    // The same pick again is refused (the run is answered); nothing more is written.
+    await expect(ir.chooseTradeRunDay({ data: { runId: RUN, day: page.days[1]!, start: "09:00", secondDay: null }, context: instCtx })).rejects.toThrow();
+    expect(await events(JOB, "run_slot_proposed")).toHaveLength(1);
+
     const ol = await import("../src/lib/owner-link.functions");
     const { token, session } = await ownerSession();
-    const st = await ol.ownerReadyCheckTimesFn({ data: { token } }) as { turn: string; open: { id: string }[] };
-    debug("OWNER-RC", JSON.stringify(st));
-    expect(st.open).toHaveLength(3);
-    await ol.ownerTakeReadyCheckTimeFn({ data: { token, session, proposalId: st.open[0]!.id }, context: META });
+    const card = await ol.ownerRunSlotFn({ data: { token } }) as { kind: string; installer?: string };
+    debug("OWNER-RUN", JSON.stringify(card));
+    expect(card).toMatchObject({ kind: "proposed" });
+    await ol.ownerConfirmRunSlotFn({ data: { token, session }, context: META });
     await settle();
-    await expect(ol.ownerTakeReadyCheckTimeFn({ data: { token, session, proposalId: st.open[1]!.id }, context: META })).rejects.toThrow();
+    await ol.ownerConfirmRunSlotFn({ data: { token, session }, context: META }); // a second tap books nothing more
+    await settle();
     debug("RC-BOOKED", await stageOf(JOB), await q("select status, scheduled_start from bookings where job_id=$1", [JOB]), [...providers.mitti.audits.values()].map((a) => a.template_id), await recent(JOB, 14), (await comms(JOB)).slice(-6).map((c) => `${c.channel}:${c.source_event}:${c.delivery_status}`));
     expect(await stageOf(JOB)).toBe("ready_check_scheduled");
     expect(await q("select status from bookings where job_id=$1 and kind='ready_check'", [JOB])).toEqual([{ status: "confirmed" }]);
+    expect(await q("select user_id, business_id from job_assignments where job_id=$1 and role='installer' and active", [JOB])).toEqual([{ user_id: INST, business_id: BIZ }]);
+    expect(await events(JOB, "run_slot_confirmed")).toHaveLength(1);
     expect([...providers.mitti.audits.values()].filter((a) => a.template_id === TPL_A2)).toHaveLength(1);
+    expect(await ol.ownerRunSlotFn({ data: { token } })).toMatchObject({ kind: "confirmed" });
     void melb;
   });
 });
@@ -346,7 +403,7 @@ describe("A2 step 6 — the electrician's safety check (PIESA) with NO repair wo
     expect([...providers.mitti.audits.values()].filter((a) => a.template_id === TPL_A3)).toHaveLength(1);
     expect(await q("select id from workflow_events where job_id=$1 and event_type='piesa_autoform_failed'", [JOB])).toHaveLength(0);
   });
-  test("the A3 says no repair work: the PIESA result is a pass, but Complete PIESA still needs the electrician's own 'No electrical fixes required' tick", async () => {
+  test("the A3 says no repair work: the PIESA result is a pass and Complete PIESA needs no tick (C4)", async () => {
     const forms = await import("./helpers/journey-forms");
     const today = melb(new Date());
     const def = forms.completedA3Pass({ inspectionDate: today, capturedAt: new Date().toISOString(), mediaPrefix: "a2-a3" });
@@ -365,9 +422,8 @@ describe("A2 step 6 — the electrician's safety check (PIESA) with NO repair wo
     expect(a).toMatchObject({ piesa_outcome: "pass", mitti_completed: true });
     expect(a!.no_rectification_confirmed).not.toBe(true);
     const elecCtx = { userId: ELEC, supabase: asUser(ELEC), claims: {} };
-    await expect(pf.completeAssessment({ data: { jobId: JOB }, context: elecCtx })).rejects.toThrow(/No electrical fixes required/);
-    // The electrician ticks it on their job page (the same saveAssessment the page uses), then Complete PIESA.
-    await pf.saveAssessment({ data: { jobId: JOB, patch: { no_rectification_confirmed: true } }, context: elecCtx });
+    // C4: a live A3 pass with no fixes items needs no tick (the portal tick is gone). Set it directly as journey.server.ts does; Complete PIESA must work either way.
+    await admin.from("assessments").update({ no_rectification_confirmed: true }).eq("job_id", JOB);
     await pf.completeAssessment({ data: { jobId: JOB }, context: elecCtx });
     await settle();
     debug("A2-PIESA-DONE", await stageOf(JOB), await recent(JOB, 14), (await comms(JOB)).slice(-6).map((x) => `${x.channel}:${x.source_event}:${x.delivery_status}`));

@@ -29,3 +29,8 @@ export function workCounts(ps: WorkPlacement[]): Record<WorkPlace, number> {
   for (const p of ps) c[p.place]++;
   return c;
 }
+
+/** Electrician "Your jobs" list: only jobs not already shown under Job offers, Your move or Coming up (one list per job). */
+export function electricianYourJobs<T extends { place: WorkPlace }>(jobs: T[]): T[] {
+  return jobs.filter((j) => j.place === "moving");
+}

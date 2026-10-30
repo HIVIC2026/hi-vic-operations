@@ -149,6 +149,18 @@ describe("onPartnerPersonApproved", () => {
     expect(messages).toHaveLength(1);
     expect((await listOpenMittiInvites()).invites).toEqual([]); // nothing left for the office
   });
+  test("Pause all trade messages (Jo 30 Oct 2026): no Mitti user created (Mitti would email them), nothing recorded or sent; unpaused → created as usual", async () => {
+    tables["workflow_settings"] = [{ id: 1, trade_messages_paused: true }];
+    const held = await onPartnerPersonApproved("w-real", "office", { switches: LIVE, call, message, password: () => "throwaway" });
+    expect(held).toMatchObject({ action: "skip" });
+    expect(String((held as { reason: string }).reason)).toContain("Trade messages paused");
+    expect(calls).toEqual(["POST /users/search"]);
+    expect(events()).toEqual([]);
+    expect(messages).toEqual([]);
+    tables["workflow_settings"] = [{ id: 1, trade_messages_paused: false }];
+    expect(await onPartnerPersonApproved("w-real", "office", { switches: LIVE, call, message, password: () => "throwaway" })).toMatchObject({ action: "create", mittiUserId: "user_new" });
+    expect(messages).toEqual(["w-real"]);
+  });
   test("verified: an existing Mitti user is linked and added to the group, no message", async () => {
     found = "user_77";
     expect(await onPartnerPersonApproved("w-real", "office", { switches: LIVE, call, message })).toMatchObject({ action: "record_linked", mittiUserId: "user_77" });

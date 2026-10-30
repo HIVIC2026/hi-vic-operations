@@ -88,9 +88,9 @@ describe("type selection", () => {
 
 describe("owner_status", () => {
   test("spot saved, no booking yet: says how booking works, never invents a date", () => {
-    const d = draft(owner("Hi, when is my free Ready Check? Haven't heard anything.", { stage: "spot_saved" }));
+    const d = draft(owner("Hi, when is my free Ready Check? Haven't heard anything.", { stage: "ready_check_ready_to_schedule" }));
     expect(d.type).toBe("owner_status");
-    expect(d.text).toContain("we book homes in the order people saved their spot");
+    expect(d.text).toContain("Spots are released in the order they were saved.");
     expect(d.text).not.toMatch(/\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/);
     wellFormed(d, "Helen");
   });
@@ -112,15 +112,15 @@ describe("owner_status", () => {
     expect(d.text).not.toMatch(/\$\d/);
     expect(d.checkBeforeSending).toBe(true);
   });
-  test("install booked, deposit due: held-until time, bank transfer only, no card fee", () => {
+  test("install booked, deposit due: held-until time, card or bank transfer, no card fee", () => {
     const d = draft(owner("Any update on our install day?", {
       stage: "installation_booked", install: { start: "2026-11-03T21:30:00Z", end: null },
       paymentDue: { key: "install_deposit", outstanding: 185.1, dueAt: "2026-10-26T00:00:00Z", state: "requested", cardAvailable: false }, installHeldUntil: "2026-10-26T00:00:00Z",
     }));
     expect(d.text).toContain("Your install is booked for Wednesday 4 November at 8:30am.");
     expect(d.text).toContain("booking payment of $185.10");
-    expect(d.text).toContain("by bank transfer or PayID");
-    expect(d.text).not.toMatch(/card/i);
+    expect(d.text).toContain("by card, bank transfer or PayID");
+    expect(d.text).not.toMatch(/card fee/i);
     wellFormed(d, "Helen");
   });
   test("can't make the day: the reply matches the change request and nothing is promised", () => {
@@ -172,7 +172,7 @@ describe("new_enquiry", () => {
       expect(composeReply({ subject: "Ceiling insulation", body, from: "new.person@example.org", fromName: "New Person", fromPartner: false, now: SAMPLE_NOW, owner: null })).toBeNull();
   });
   test("no reply ever carries the calculator or the website eligibility check (matched owners get their own page)", () => {
-    const inputs: ReplyInput[] = [...SAMPLES.map((s) => s.input), owner("Any update?", { stage: "preliminary_estimate_ready", spotSaved: false }), owner("How much is it?", { stage: "spot_saved" })];
+    const inputs: ReplyInput[] = [...SAMPLES.map((s) => s.input), owner("Any update?", { stage: "preliminary_estimate_ready", spotSaved: false }), owner("How much is it?", { stage: "ready_check_ready_to_schedule" })];
     for (const i of inputs) {
       const d = draft(i);
       for (const url of d.text.match(/https:\/\/\S+/g) ?? []) {
@@ -192,7 +192,7 @@ describe("new_enquiry", () => {
 
 describe("price_rebate_eligibility", () => {
   test("estimate only (no quote yet): estimate figures + what isn't included", () => {
-    const d = draft(owner("How much will it cost? And what does the rebate cover?", { stage: "spot_saved" }));
+    const d = draft(owner("How much will it cost? And what does the rebate cover?", { stage: "ready_check_ready_to_schedule" }));
     expect(d.type).toBe("price_rebate_eligibility");
     expect(d.text).toContain("Your estimate is $3,798 incl. GST, and the $1,610 VEU rebate comes straight off, so you'd pay $2,188 for the 137 m² ceiling you told us about.");
     expect(d.text).toContain("Not included, only if needed");

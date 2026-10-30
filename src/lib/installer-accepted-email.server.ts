@@ -1,5 +1,6 @@
-// Jo 24 Oct 2026: once per accepted quote, email the job's installer. Through the office sender, so it pauses with the
-// master switch; TEST jobs / TEST partners go only to Jo's TEST inbox. Never blocks or undoes the acceptance.
+// Jo 24 Oct 2026: once per accepted quote, email the job's installer. Jo 28 Oct 2026: sent once the owner has PAID the
+// safety check (emailInstallerOnSafetyCheckPaid, called from afterPaymentsChanged), not when the quote is accepted. Through the office sender, so it pauses with the
+// master switch; TEST jobs / TEST partners go only to Jo's TEST inbox. Never blocks payment processing.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 
@@ -26,8 +27,30 @@ export async function emailInstallerQuoteAccepted(jobId: string, quoteId: string
     status = r.status; detail = r.detail;
   } else {
     const r = await (await import("./office-email.server")).sendOfficeEmail({ actorId: null as unknown as string, recipient: "partner", to: prof.email, contactName: prof.full_name, subject: mail.subject, message: mail.text, label: "installer_quote_accepted", record: { businessId: asg.business_id }, html: mail.html, text: mail.text });
+    // Jo 30 Oct 2026: a "Pause all trade messages" hold is recorded by the sender but never claims this quote's email.
+    if (r.status === "blocked" && (await import("./trade-pause.core")).isTradePauseHold(r.detail)) return `held: ${r.detail}`;
     status = r.status; detail = r.detail;
   }
   await logEvent(jobId, null, "installer_accepted_email", `Installer told the owner accepted (${status}: ${detail})`, { quote_id: quoteId, status, to: prof.email }, { internal: true });
   return status;
+}
+
+/** Called when the safety-check payment lands: sends the installer email for the invoice's accepted quote (once per quote). */
+export async function emailInstallerOnSafetyCheckPaid(jobId: string, invoiceId: string): Promise<string> {
+  // Same due check as the owner's O22 email: the current invoice, safety check paid, and paid recently.
+  const { jobPaymentView } = await import("./payments.server");
+  const { safetyCheckPaidAt, youreInDue } = await import("./owner-email-triggers.core");
+  const v = await jobPaymentView(jobId);
+  const step = v?.steps.find((s) => s.key === "safety_check");
+  if (!v || v.invoiceId !== invoiceId || step?.state !== "paid") return "not due — safety check not paid on this invoice";
+  const paidAt = safetyCheckPaidAt(v.ledger, v.plan.thresholds.safety_check);
+  const { data: job } = await admin.from("jobs").select("stage, deleted_at").eq("id", jobId).maybeSingle();
+  if (!job || !paidAt || !youreInDue({ paidAt, stage: job.stage as string, deletedAt: job.deleted_at }, new Date())) return "not due — no recent safety check payment";
+  const { data: inv } = await admin.from("invoices").select("quote_id, quotes(status)").eq("id", invoiceId).maybeSingle();
+  const quoteId = (inv?.quote_id as string | null) ?? null;
+  if (!quoteId) return "not due — no quote";
+  const q = inv?.quotes as { status: string | null } | { status: string | null }[] | null;
+  const status = Array.isArray(q) ? q[0]?.status : q?.status;
+  if (status !== "accepted") return "not due — quote not accepted";
+  return emailInstallerQuoteAccepted(jobId, quoteId);
 }

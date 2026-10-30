@@ -6,11 +6,13 @@ type Any = any;
 // by OCCURRENCE (form order), never "first match wins". Stable native item IDs below were READ FROM THE RENDERED
 // EDITOR DOM of the draft (Jo, 8 Oct 2026 12:57 UTC) — draft-observed until the published API definition agrees;
 // any disagreement fails closed (a3MissingFields).
+import { excludedAreaName } from "./excluded-areas.core";
 import { flatten, norm, type Entry, type NativeMapping } from "./mitti.core";
 import { mittiMediaFile, type MittiMediaFile } from "./piesa-evidence.core";
 import type { OfficialAnswers } from "./official-forms.core";
 import { COLLECTION_NOTICE_BLOCK_MESSAGE } from "./esc-collection-notice.core";
-import { WHITE_CARD_BLOCK_MESSAGE, crewClearance, melbourneToday, whiteCardBlocker, whiteCardState, type WhiteCardState } from "./worker-compliance.core";
+import { DECLARATIONS_DUE_MESSAGE, WHITE_CARD_BLOCK_MESSAGE, crewClearance, melbourneToday, whiteCardBlocker, whiteCardState, type WhiteCardState } from "./worker-compliance.core";
+import { effectiveWorkerRole, type WorkerRole } from "./worker-role.core";
 import { INSTALL_EVIDENCE_RELABELS, INSTALL_EVIDENCE_RELABELS_LONG, zoneVideoFiles } from "./install-evidence.core";
 import { INSTALL_DAY_Q, allWithLabel, installDayMedia, installDayMissingQuestions, installDayOfficialAnswers, isInstallDayDoc, labelledItems, readInstallDay } from "./install-day.core";
 
@@ -433,12 +435,16 @@ export function readyCheckPart6Answers(areas: RcArea[], extra: Part6Extra = NO_E
   const answers: Record<string, string | string[]> = {}, missing: string[] = [];
   const none = { conductive: null, conductiveEvidence: null, fullRemoval: false };
   if (!areas.length) return { answers, missing: ["Ready Check: no current measure-up on this job — existing insulation (official Part 6) can't be filled in"], ...none };
-  const pres = areas.map((a) => a.present);
+  // Garage / carport / shed areas are not part of the claim, so they never decide "present" either.
+  const claimAreas = areas.filter((a) => !excludedAreaName(a.name ?? ""));
+  if (!claimAreas.length) return { answers, missing: ["Ready Check: no eligible ceiling area (only a garage, carport or shed) — existing insulation (official Part 6) can't be filled in"], ...none };
+  const pres = claimAreas.map((a) => a.present);
   if (pres.some((x) => x == null)) { missing.push("Ready Check: existing insulation present or not is not recorded for every area"); return { answers, missing, ...none }; }
   const present = pres.some(Boolean);
   answers["p6.present"] = present ? "Yes" : "No";
   if (!present) return { answers, missing, ...none };
-  const withIns = areas.filter((a) => a.present === true);
+  // Garage / carport / shed areas are not part of the claim (Jo 30 Oct 2026).
+  const withIns = claimAreas.filter((a) => a.present === true);
   // Decision 375 (Jo 25 Oct 2026): the official form asks the average height whenever insulation is present (removal
   // included); the Ready Check asks the depth per area with existing insulation. One shared depth is used as is; differing
   // depths become ONE average weighted by each area's m² (nearest mm). A missing depth, or a missing m² when weighting is
@@ -511,6 +517,8 @@ export function readyCheckPart6Answers(areas: RcArea[], extra: Part6Extra = NO_E
 // ---------- crew ----------
 export type StaffOption = {
   workerId: string; name: string; eec: string | null; eecVerified: boolean;
+  /** Lead / Crew. Crew can't be the install-day Lead; they can be crew members. Undefined = not loaded (not blocking). */
+  workerRole?: WorkerRole | null;
   /** Office login approval (shown only; decision 153: it no longer gates the crew — clearance does). */
   approved?: boolean;
   /** Decision 153: cleared for crews = verified CII certificate + recorded level + expiry not passed. Undefined = not derived (legacy shape, not blocking). */
@@ -524,12 +532,14 @@ export type StaffOption = {
   whiteCard?: WhiteCardState;
   /** Decision 319: true = White Card not verified and this installation was booked on/after the cutoff → can't be lead or crew. Undefined = rule not applied (older callers). */
   whiteCardBlocked?: boolean;
+  /** Jo 29 Oct 2026: true = added on Team and not signed the worker declarations yet → can't be Lead or crew. Undefined = not loaded. */
+  declarationsDue?: boolean;
 };
 
 /** Portal lookup only. Native direct-entry schema awaits concrete edited IDs; the observed native choice mapping remains fail closed. */
 export const A3_NATIVE_CREW_LOOKUP = { available: false, note: "Choose from your company’s approved installers, or enter a full legal name and Certified Insulation Installer (CII) certification number. Entered details need office verification." } as const;
 
-type WorkerRow = { id: string; full_legal_name: string; approval_status: string | null; removed_at: string | null; trade_role: string | null; licence_expires_on?: string | null; certification: unknown };
+type WorkerRow = { id: string; full_legal_name: string; approval_status: string | null; removed_at: string | null; trade_role: string | null; worker_role?: string | null; declarations_due?: boolean | null; licence_expires_on?: string | null; certification: unknown };
 type CertRow = { id: string; status: string | null; certificate_number: string | null; issuer: string | null; worker_id?: string | null };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const certificationRef = (c: unknown): string | null => { const v = (c as { verification_id?: unknown } | null)?.verification_id; return typeof v === "string" && UUID.test(v) ? v : null; };
@@ -549,44 +559,42 @@ export function staffFromRecords(workers: WorkerRow[], certs: CertRow[], levels:
     // Decision 153: clearance is derived from the verified check + recorded level/expiry, never from approval_status.
     const cl = crewClearance({ removed_at: w.removed_at, certStatus: ok ? "verified" : c?.status === "rejected" ? "rejected" : null, level, expiresOn }, today);
     const wc = whiteCardState({ trade_role: w.trade_role, certification: w.certification });
-    return { workerId: w.id, name: w.full_legal_name.trim(), eec: ok ? c!.certificate_number!.trim() : null, eecVerified: ok, approved: w.approval_status === "approved", cleared: cl.cleared, clearanceReason: cl.reason, issuer: ok ? c!.issuer?.trim() || null : null, certificationId: ok ? c!.id : null, level, expiresOn, ...(noticeAck ? { noticeAcknowledged: noticeAck.get(w.id) === true } : {}),
-      whiteCard: wc, ...(whiteCardFor ? { whiteCardBlocked: whiteCardBlocker(wc, whiteCardFor.bookingCreatedAt) !== null } : {}) };
+    return { workerId: w.id, name: w.full_legal_name.trim(), workerRole: effectiveWorkerRole({ tradeRole: w.trade_role ?? "", stored: w.worker_role }), eec: ok ? c!.certificate_number!.trim() : null, eecVerified: ok, approved: w.approval_status === "approved", cleared: cl.cleared, clearanceReason: cl.reason, issuer: ok ? c!.issuer?.trim() || null : null, certificationId: ok ? c!.id : null, level, expiresOn, ...(noticeAck ? { noticeAcknowledged: noticeAck.get(w.id) === true } : {}),
+      whiteCard: wc, ...(whiteCardFor ? { whiteCardBlocked: whiteCardBlocker(wc, whiteCardFor.bookingCreatedAt) !== null } : {}), ...(typeof w.declarations_due === "boolean" ? { declarationsDue: w.declarations_due } : {}) };
   }).sort((a, b) => a.name.localeCompare(b.name));
 }
+export const CREW_NOT_LEAD_MESSAGE = "is Crew, so can't be the Lead. Make them Lead on the Team page first.";
 export type CrewPick = { workerId: string } | { other: { name: string; eec: string } };
 /** Lead = a staff workerId, or "Other" (typed name + EEC, office verification required before work starts). */
 export type CrewSelection = { lead: string | { other: { name: string; eec: string } } | null; additional: CrewPick[] };
 export const leadWorkerId = (sel: CrewSelection): string | null => typeof sel.lead === "string" ? sel.lead : null;
+/** Jo 29 Oct 2026: a crew saved before the Lead + 2 / Lead-from-the-Team rules (typed-in Lead, or more than 2 others) must be
+ *  picked again — treated as not picked. The stored record is kept. */
+export const savedCrewNeedsRepick = (sel: CrewSelection): boolean => typeof sel.lead === "object" && sel.lead !== null || sel.additional.length > 2;
 
-/** Lead = cleared staff (decision 153: verified CII + recorded level + not expired) of the assigned installer business; ≤3 additional; no duplicates; "Other" needs name + EEC and office verification. */
+/** Lead = cleared staff (decision 153: verified CII + recorded level + not expired) of the assigned installer business; ≤2 additional (Lead + 2); a crew member may be "Other" (name + EEC, office verification); the Lead may not. */
 export function crewSelectionProblems(sel: CrewSelection, staff: StaffOption[]): { problems: string[]; needsVerification: string[] } {
   const p: string[] = [], nv: string[] = [];
   const byId = new Map(staff.map((s) => [s.workerId, s]));
   const leadId = leadWorkerId(sel);
   const lead = leadId ? byId.get(leadId) : undefined;
-  const leadOther = sel.lead && typeof sel.lead === "object" ? { name: sel.lead.other.name.trim(), eec: sel.lead.other.eec.trim() } : null;
   // Not cleared (derived) blocks; a legacy shape without `cleared` falls through to the EEC check below.
   const notCleared = (s: StaffOption) => s.cleared === false;
   const clearMsg = (s: StaffOption) => `${s.name}: ${s.clearanceReason ?? "not cleared for the crew yet"} — can't go on the safety form yet`;
   const seenIds = new Set<string>(leadId ? [leadId] : []);
   const seenEec = new Set<string>();
   const seenName = new Set<string>();
-  if (leadOther) {
-    if (!leadOther.name || !leadOther.eec) p.push("Other lead installer needs a full name and EEC certification number");
-    else {
-      const known = staff.find((s) => norm(s.name) === norm(leadOther.name) || (s.eec && norm(s.eec) === norm(leadOther.eec)));
-      if (known) p.push(`${known.name} is already on your staff list — choose them instead of Other`);
-      else nv.push(`Lead installer ${leadOther.name} (EEC ${leadOther.eec}) must be verified by the office before work starts`);
-      seenName.add(norm(leadOther.name)); seenEec.add(norm(leadOther.eec));
-    }
-  } else if (leadId && !lead) p.push("The lead installer is not on your staff list");
-  else if (!lead) p.push("Choose the lead installer from your staff, or Other");
+  // Jo 29 Oct 2026: the Lead must come from the Team list (needs a Mitti login); a typed-in or empty Lead is refused.
+  if (!leadId) p.push("Choose the Lead from your Team list");
+  else if (!lead) p.push("The lead installer is not on your staff list");
+  else if (lead.workerRole === "crew") p.push(`${lead.name} ${CREW_NOT_LEAD_MESSAGE}`);
   else if (notCleared(lead)) p.push(clearMsg(lead));
   else if (!lead.eecVerified || !lead.eec) p.push(`${lead.name}: EEC certification not verified`);
   else if (lead.noticeAcknowledged === false) p.push(`${lead.name}: ${COLLECTION_NOTICE_BLOCK_MESSAGE}`);
   else if (lead.whiteCardBlocked) p.push(`${lead.name}: ${WHITE_CARD_BLOCK_MESSAGE}`);
+  else if (lead.declarationsDue === true) p.push(`${lead.name}: ${DECLARATIONS_DUE_MESSAGE}`);
   if (lead) { seenName.add(norm(lead.name)); if (lead.eec) seenEec.add(norm(lead.eec)); }
-  if (sel.additional.length > 3) p.push("The official form has room for 3 additional installers");
+  if (sel.additional.length > 2) p.push("The install form has room for a Lead and 2 more");
   for (const a of sel.additional) {
     if ("workerId" in a) {
       const s = byId.get(a.workerId);
@@ -597,6 +605,7 @@ export function crewSelectionProblems(sel: CrewSelection, staff: StaffOption[]):
       else if (!s.eecVerified || !s.eec) p.push(`${s.name}: EEC certification not verified`);
       else if (s.noticeAcknowledged === false) p.push(`${s.name}: ${COLLECTION_NOTICE_BLOCK_MESSAGE}`);
       else if (s.whiteCardBlocked) p.push(`${s.name}: ${WHITE_CARD_BLOCK_MESSAGE}`);
+      else if (s.declarationsDue === true) p.push(`${s.name}: ${DECLARATIONS_DUE_MESSAGE}`);
     } else {
       const name = a.other.name.trim(), eec = a.other.eec.trim();
       if (!name || !eec) { p.push("Other installer needs a full name and EEC certification number"); continue; }

@@ -8,6 +8,7 @@
 // contactAnswersFromEntries, ready-check-basics, the chase rules) read the portal price FIRST and fall back to the Mitti
 // answers only on old forms that still carry them. No I/O.
 import { ELECTRICIAN_OPTIONS, INCLUDED_OPTIONS, LEAN_Q } from "./ready-check-lean.core";
+import type { ElectricianChoice } from "./electrician-choice.core";
 
 export const INSTALLER_PRICE_EVENT = "installer_price_set";
 /** The auto quote holds with exactly this reason while neither the portal nor an old form carries a price. */
@@ -121,6 +122,11 @@ export function withInstallerPrice<T extends { label: string; value: unknown }>(
   return [...entries.filter((e) => !drop(e.label)), ...priceEntriesFromRecord(record)];
 }
 
+/** Batch 3a: the form snapshot without an old A1 form's own price answers (after an owner's new-quote request). */
+export function withoutFormPrice<T extends { label: string; value: unknown }>(entries: T[]): T[] {
+  return entries.filter((e) => !isPriceOnlyLabel(e.label));
+}
+
 /** An old A1 form that still carries a usable total. */
 export function formHasPrice(entries: { label: string; value: unknown }[]): boolean {
   const v = entries.find((e) => nrm(e.label) === nrm(LEAN_Q.totalPrice) || nrm(e.label) === nrm("Total quoted price $"))?.value;
@@ -163,3 +169,15 @@ export function readyCheckDetailLines(d: { hasReadyCheck: boolean; installAreaM2
     removal: d.removalRequired === false ? "None" : d.removalM2 != null && d.removalM2 > 0 ? `${Math.round(d.removalM2)} m²` : NOT_ON_READY_CHECK,
   };
 }
+
+/** Jo 28 Oct 2026: HIV can't swap an installer's electrician to HIV's without the installer's permission. On a job held
+ *  for a not-onboarded electrician the installer gets their own ONE-WAY switch to HIV's electrician (never back). */
+export function hivSwitchOffered(f: { quoteHeldNotOnboarded: boolean; choice: ElectricianChoice }): boolean {
+  return f.quoteHeldNotOnboarded && f.choice !== "hivic";
+}
+export const HIV_SWITCH = {
+  button: (priceIncGst: number) => `Use Home Insulation Victoria's electrician ($${priceIncGst})`,
+  confirm: "Switch this job to Home Insulation Victoria's electrician? You can't switch back.",
+  yes: "Yes, switch",
+  refused: "This job can't be switched to Home Insulation Victoria's electrician.",
+} as const;

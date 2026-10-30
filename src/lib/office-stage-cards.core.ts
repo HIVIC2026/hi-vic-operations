@@ -72,7 +72,7 @@ export function buildStageCards(f: StageCardFacts): StageCard[] {
     ] },
     { key: "install", n: 5, title: "Install", state: st.install, lines: [
       { label: "Clock", value: i.deadline ? `Must start by ${day(i.deadline)}${i.daysLeft != null ? ` · ${i.daysLeft < 0 ? `${-i.daysLeft} days over` : `${i.daysLeft} days left`}` : ""}` : "30 days start at the PIESA" },
-      { label: "Deposit", value: i.deposit ?? "10% to book · bank transfer" },
+      { label: "Deposit", value: i.deposit ?? "10% to book · card or bank" },
       { label: "Install day", value: i.installAt ? dayTime(i.installAt) : i.daysOffered ? `${i.daysOffered} day${i.daysOffered === 1 ? "" : "s"} offered · owner to pick` : "Installer offers 3 days after the PIESA" },
       { label: "ESC consent", value: i.consent ?? "Signed when the install day is booked" },
       { label: "ESC notice", value: i.escNotice ?? "Submitted in the 24h–5 day window" },

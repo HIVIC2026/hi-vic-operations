@@ -22,6 +22,8 @@ function reset() {
     business_bank_details: [{ business_id: BIZ, account_name: "TEST", bsb: "123456", account_number: "987654321" }],
     business_credentials: [], partner_workers: [], rate_cards: [], partner_change_requests: [], electrician_rates: [],
   });
+  // PostgREST embed read by tradeContext (`business_members → businesses(...)`), kept live against the businesses rows.
+  for (const m of tables["business_members"]!) Object.defineProperty(m, "businesses", { enumerable: true, configurable: true, get: () => (tables["businesses"] ?? []).find((b) => b["id"] === m["business_id"]) ?? null });
 }
 
 function q(table: string) {

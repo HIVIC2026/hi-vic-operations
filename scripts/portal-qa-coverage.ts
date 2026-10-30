@@ -15,7 +15,7 @@ export const READ_ONLY_PATHS = [
   '/admin/money',
   '/field', '/field/money', '/field/business', '/field/business/details', '/field/business/insurance',
   '/field/business/rates', '/field/business/bank', '/field/business/agreement', '/field/business/team',
-  '/partner', '/partner/import', '/partner/bulk-import', '/partner/workers',
+  '/partner', '/partner/import',
   '/admin', '/admin/communications',
   '/admin/electrician-rates', '/admin/interests', '/admin/jobs',
   '/admin/needs-me', '/admin/partners',

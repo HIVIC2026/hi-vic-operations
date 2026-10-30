@@ -192,7 +192,7 @@ try {
   else {
     const storageKey = `sb-${new URL(process.env["SUPABASE_URL"]!).hostname.split(".")[0]}-auth-token`;
     const manifest = `${OUT}/.manifest.json`;
-    // The job page's More ▾ Delete is permanent, so the browser never confirms it on the fixture: soft-delete through the
+    // The job page's More ▾ Delete is permanent on builds published before 27 Oct 2026, so the browser never confirms it on the fixture: soft-delete through the
     // deployed deleteJob endpoint before EACH viewport, then the browser checks the banner, Settings › Deleted and restores
     // through the UI.
     const br: { step: string; ok: boolean; detail: string; shots: string[] }[] = [];

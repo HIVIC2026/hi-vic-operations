@@ -5,7 +5,7 @@
 // kept, one stage_changed, nothing sent), the day-2 reminder, the day-5 lapse (one event, nothing sent) and a confirmed
 // owner going straight to the installer on the next Release.
 import { beforeEach, describe, expect, mock, test } from "bun:test";
-import { SPOT_RELEASE_EVENTS, SPOT_RELEASE_UNAPPROVED } from "../src/lib/spot-release.core";
+import { RELEASE_RETIRED_REASON, SPOT_RELEASE_EVENTS, SPOT_RELEASE_UNAPPROVED } from "../src/lib/spot-release.core";
 
 type Row = Record<string, unknown>;
 const tables: Record<string, Row[]> = {};
@@ -103,14 +103,32 @@ function seed(source: string | null) {
 const events = (type?: string) => (tables["workflow_events"] ?? []).filter((e) => !type || e["event_type"] === type);
 const ON = { email: true, sms: true };
 
+describe("A48 batch 2 (Jo 30 Oct 2026): \"It's your turn\" retired for website owners", () => {
+  beforeEach(() => seed(null));
+  test("Release refuses (REAL and TEST); nothing recorded, sent or offered", async () => {
+    await expect(S.releaseSpot("job-1", "jo", "biz-1", { approved: ON })).rejects.toThrow(RELEASE_RETIRED_REASON);
+    seed("qa_test");
+    await expect(S.releaseSpot("job-1", "jo", "biz-1")).rejects.toThrow(RELEASE_RETIRED_REASON);
+    expect(events().length).toBe(0); expect(sent.length).toBe(0); expect(offers.length).toBe(0); expect(bookingOpened).toEqual([]);
+  });
+  test("an owner who already confirmed (history) still goes straight to the installer", async () => {
+    await S.releaseSpot("job-1", "jo", "biz-1", { retired: false, approved: ON }); await S.confirmSpotRelease("job-1");
+    offers.length = 0; sent.length = 0;
+    expect(await S.releaseSpot("job-1", "jo", "biz-2")).toEqual({ mode: "offered", installer: "Other Co" });
+    expect(offers).toEqual([{ jobId: "job-1", actor: "jo", ids: ["biz-2"] }]);
+    expect(sent).toEqual([]);
+  });
+});
+
+// The old flow (releases made before 30 Oct 2026 stay readable and are still chased): `retired: false`.
 describe("Release", () => {
   beforeEach(() => seed(null));
   test("REAL job while unapproved → refused with the clear message; nothing recorded or sent", async () => {
-    await expect(S.releaseSpot("job-1", "jo", "biz-1", { approved: { email: false, sms: false } })).rejects.toThrow(SPOT_RELEASE_UNAPPROVED);
+    await expect(S.releaseSpot("job-1", "jo", "biz-1", { retired: false, approved: { email: false, sms: false } })).rejects.toThrow(SPOT_RELEASE_UNAPPROVED);
     expect(events().length).toBe(0); expect(sent.length).toBe(0); expect(offers.length).toBe(0);
   });
   test("REAL job approved → ONE pending release, owner email + text, installer NOT offered", async () => {
-    const r = await S.releaseSpot("job-1", "jo", "biz-1", { approved: ON, now: new Date("2026-10-26T00:00:00Z") });
+    const r = await S.releaseSpot("job-1", "jo", "biz-1", { retired: false, approved: ON, now: new Date("2026-10-26T00:00:00Z") });
     expect(r).toMatchObject({ mode: "released", installer: "Sample Insulation" });
     expect(bookingOpened).toContain("job-1"); // Release opens the job's Ready Check booking (decision 389)
     expect(events("spot_released").length).toBe(1);
@@ -120,17 +138,17 @@ describe("Release", () => {
     expect(sent[1]!.body).toContain("my-job/TOKEN?screen=turn");
     expect(sent.map((s) => s.key)).toEqual(["spot-release:v1:job-1:1:released:email", "spot-release:v1:job-1:1:released:sms"]);
     // Pending → not available to release again.
-    await expect(S.releaseSpot("job-1", "jo", "biz-2", { approved: ON })).rejects.toThrow(/Already released to Sample Insulation/);
+    await expect(S.releaseSpot("job-1", "jo", "biz-2", { retired: false, approved: ON })).rejects.toThrow(/Already released to Sample Insulation/);
     expect(events("spot_released").length).toBe(1);
   });
   test("REAL job with customer messages off → refused, nothing recorded", async () => {
     deliveryAllowed = false;
-    await expect(S.releaseSpot("job-1", "jo", "biz-1", { approved: ON })).rejects.toThrow(/switched off/);
+    await expect(S.releaseSpot("job-1", "jo", "biz-1", { retired: false, approved: ON })).rejects.toThrow(/switched off/);
     expect(events().length).toBe(0);
   });
   test("TEST job works end to end while unapproved (test-send only, never the real senders)", async () => {
     seed("qa_test");
-    await S.releaseSpot("job-1", "jo", "biz-1");
+    await S.releaseSpot("job-1", "jo", "biz-1", { retired: false });
     expect(sent.map((s) => s.via)).toEqual(["test-email", "test-sms"]);
     expect((await S.ownerTurnState("job-1")).kind).toBe("ask");
     const v = await S.confirmSpotRelease("job-1");
@@ -139,7 +157,7 @@ describe("Release", () => {
   });
   test("an installer not eligible for the job → refused before the owner is told", async () => {
     bookingOpened.length = 0; tables["rate_cards"]!.push({ id: "rc-x", business_id: "biz-x", kind: "installer", is_active: true });
-    await expect(S.releaseSpot("job-1", "jo", "biz-x", { approved: ON })).rejects.toThrow(/isn't an approved installer/);
+    await expect(S.releaseSpot("job-1", "jo", "biz-x", { retired: false, approved: ON })).rejects.toThrow(/isn't an approved installer/);
     expect(events().length).toBe(0); expect(sent.length).toBe(0); expect(bookingOpened).toEqual([]);
   });
 });
@@ -149,30 +167,30 @@ describe("decision 399: Release needs a rate card", () => {
   const nothingHappened = () => { expect(events().length).toBe(0); expect(sent.length).toBe(0); expect(offers.length).toBe(0); expect(bookingOpened).toEqual([]); };
   test("no rate card at all → refused with Jo's words; nothing recorded or sent", async () => {
     tables["rate_cards"] = tables["rate_cards"]!.filter((r) => r["business_id"] !== "biz-1");
-    await expect(S.releaseSpot("job-1", "jo", "biz-1", { approved: ON })).rejects.toThrow("This installer has no rate card yet");
+    await expect(S.releaseSpot("job-1", "jo", "biz-1", { retired: false, approved: ON })).rejects.toThrow("This installer has no rate card yet");
     nothingHappened();
   });
   test("only an inactive card, or only an electrical card → refused", async () => {
     tables["rate_cards"] = [{ id: "rc-x", business_id: "biz-1", kind: "installer", is_active: false }, { id: "rc-e", business_id: "biz-1", kind: "electrical", is_active: true }];
-    await expect(S.releaseSpot("job-1", "jo", "biz-1", { approved: ON })).rejects.toThrow("This installer has no rate card yet");
+    await expect(S.releaseSpot("job-1", "jo", "biz-1", { retired: false, approved: ON })).rejects.toThrow("This installer has no rate card yet");
     nothingHappened();
   });
   test("TEST job follows the same rule", async () => {
     seed("qa_test"); tables["rate_cards"] = [];
-    await expect(S.releaseSpot("job-1", "jo", "biz-1")).rejects.toThrow("This installer has no rate card yet");
+    await expect(S.releaseSpot("job-1", "jo", "biz-1", { retired: false })).rejects.toThrow("This installer has no rate card yet");
     nothingHappened();
   });
   test("confirmed owner going straight to an installer without a card → refused, no offer", async () => {
-    await S.releaseSpot("job-1", "jo", "biz-1", { approved: ON }); await S.confirmSpotRelease("job-1");
+    await S.releaseSpot("job-1", "jo", "biz-1", { retired: false, approved: ON }); await S.confirmSpotRelease("job-1");
     offers.length = 0; sent.length = 0; const before = events().length;
     tables["rate_cards"] = tables["rate_cards"]!.filter((r) => r["business_id"] !== "biz-2");
-    await expect(S.releaseSpot("job-1", "jo", "biz-2")).rejects.toThrow("This installer has no rate card yet");
+    await expect(S.releaseSpot("job-1", "jo", "biz-2", { retired: false })).rejects.toThrow("This installer has no rate card yet");
     expect(offers.length).toBe(0); expect(sent.length).toBe(0); expect(events().length).toBe(before);
   });
 });
 
 describe("owner answers", () => {
-  beforeEach(async () => { seed(null); await S.releaseSpot("job-1", "jo", "biz-1", { approved: ON }); sent.length = 0; });
+  beforeEach(async () => { seed(null); await S.releaseSpot("job-1", "jo", "biz-1", { retired: false, approved: ON }); sent.length = 0; });
   test("Confirm runs the existing installer offer exactly once (double tap / race → once)", async () => {
     const [a, b] = await Promise.all([S.confirmSpotRelease("job-1"), S.confirmSpotRelease("job-1")]);
     await S.confirmSpotRelease("job-1");
@@ -189,7 +207,7 @@ describe("owner answers", () => {
     expect((await S.confirmSpotRelease("job-1")).kind).toBe("confirmed");
     expect(events("spot_release_offer_failed").length).toBe(1);
     offerFails = false;
-    const r = await S.releaseSpot("job-1", "jo", "biz-2"); // unapproved wording doesn't matter: the owner is not asked again
+    const r = await S.releaseSpot("job-1", "jo", "biz-2", { retired: false }); // unapproved wording doesn't matter: the owner is not asked again
     expect(r).toEqual({ mode: "offered", installer: "Other Co" });
     expect(offers).toEqual([{ jobId: "job-1", actor: "jo", ids: ["biz-2"] }]);
     expect(events("spot_released").length).toBe(1);
@@ -209,7 +227,7 @@ describe("owner answers", () => {
 });
 
 describe("15-minute tick", () => {
-  beforeEach(async () => { seed(null); clock = Date.parse("2026-10-26T00:00:00.000Z"); await S.releaseSpot("job-1", "jo", "biz-1", { approved: ON, now: new Date(clock) }); sent.length = 0; });
+  beforeEach(async () => { seed(null); clock = Date.parse("2026-10-26T00:00:00.000Z"); await S.releaseSpot("job-1", "jo", "biz-1", { retired: false, approved: ON, now: new Date(clock) }); sent.length = 0; });
   const at = (hours: number) => new Date(Date.parse("2026-10-26T00:00:00.000Z") + hours * 3_600_000); // 11am Melbourne + h
   test("day 2: ONE reminder (email + text, 'Just checking'), never twice; day 5: lapse once, nothing sent", async () => {
     expect((await S.sweepSpotReleases(at(24), { approved: ON })).reminded).toBe(0);
@@ -227,7 +245,7 @@ describe("15-minute tick", () => {
     expect((await S.ownerTurnState("job-1")).kind).toBe("closed");
     const st = await S.spotReleaseStateFor("job-1");
     expect(st.state).toBe("lapsed");
-    const r = await S.releaseSpot("job-1", "jo", "biz-2", { approved: ON, now: at(122) });
+    const r = await S.releaseSpot("job-1", "jo", "biz-2", { retired: false, approved: ON, now: at(122) });
     expect(r.mode).toBe("released");
     expect((await S.spotReleaseStateFor("job-1")).state).toBe("pending");
   });

@@ -18,7 +18,7 @@ mock.module("../src/integrations/supabase/client.server", () => ({ supabaseAdmin
   const filters: Record<string, unknown> = {};
   const q: any = {
     select(c: string) { columns = c; return q; }, eq(k: string, v: unknown) { filters[k] = v; return q; },
-    is() { return q; }, in() { return q; }, order() { return q; }, limit() { return q; },
+    is() { return q; }, in() { return q; }, or() { return q; }, order() { return q; }, limit() { return q; },
     upsert(p: Record<string, any>) { op = "upsert"; payload = p; return q; },
     update(p: Record<string, any>) { op = "update"; payload = p; return q; },
     insert(p: Record<string, any>) { op = "insert"; payload = p; return q; },
@@ -75,7 +75,7 @@ test("first save freezes entered size and primary estimate; canonical confirmati
   expect(response?.estimate_link_id).toBe("estimate-link");
   expect(preparations).toBe(1);
   const messages = await buildSpotSavedMessages("job", estimateToken);
-  expect(messages?.email.text).toContain("You pay about: $4,098");
+  expect(messages?.email.text).toContain("Your estimated quote based on what you've told us: $4,098");
   expect(messages?.email.text).toContain("Removal of existing insulation: $1,500 inc GST (100 m²");
   expect(messages?.email.text).toContain("Not included: if the electrical safety check");
   expect(messages?.email.html).toContain("100 m² included in this estimate");

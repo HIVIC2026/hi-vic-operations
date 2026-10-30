@@ -2,8 +2,7 @@ import { tradeBlockerLines } from "@/lib/portal-presentation.core";
 import { RectWindowChoice, useRectWindows } from "./rectification-times";
 import { useRef, useState } from "react";
 import { requiredDepositCents } from "@/lib/payment-gate.core";
-import { paymentPlan } from "@/lib/payments.core";
-import { getJobPayments, refreshPayNowLink } from "@/lib/payments.functions";
+import { getJobPayments, getOwnerPaymentPlan, refreshPayNowLink } from "@/lib/payments.functions";
 import { QUOTE_EXPIRED_OWNER_MESSAGE, quoteExpiresAt, quoteIsExpired } from "@/lib/quote-expiry.core";
 import { ownerPanelQuotes } from "@/lib/owner-quote-visibility.core";
 import { veecDiscountLabel } from "@/lib/estimate.core";
@@ -11,7 +10,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2, FileUp, Lock, Paperclip, ShieldAlert } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { CUSTOMER_INVOICE_COLUMNS } from "@/lib/invoice.lifecycle";
+import { CUSTOMER_INVOICE_COLUMNS, invoicesShownTo } from "@/lib/invoice.lifecycle";
+import { invoiceSlotLabel, invoiceSlotOf } from "@/lib/office-money.core";
 import { getJobOverview } from "@/lib/admin-records.functions";
 
 type CustomerInvoice = { id: string; job_id: string; kind: string; xero_invoice_number: string | null; xero_online_url: string | null; total_inc_gst: number; deposit_amount: number; deposit_paid_at: string | null; balance_amount: number; balance_due_date: string | null; balance_paid_at: string | null; total_paid: number; deposit_cleared: boolean; effective_status: string; created_at: string };
@@ -424,14 +424,14 @@ function PaymentStepsBlock({ jobId, invoiceId, hasXeroInvoice }: { jobId: string
   return (
     <div className="mt-3 rounded border p-2 text-xs" data-testid="payment-steps">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="font-semibold">Payment steps (one invoice{p.reference ? ` · reference ${p.reference}` : ""})</p>
+        <p className="font-semibold">Payment steps (every invoice{p.reference ? ` · install reference ${p.reference}` : ""})</p>
         <span className="text-muted-foreground">Received {aud(p.paidCents / 100)} · remaining {aud(p.due.remainingCents / 100)}</span>
       </div>
       <table className="mt-2 w-full text-left"><thead><tr className="text-muted-foreground"><th className="py-1 pr-2 font-normal">Step</th><th className="py-1 pr-2 font-normal">Amount</th><th className="py-1 pr-2 font-normal">How</th><th className="py-1 font-normal">State</th></tr></thead>
         <tbody>{p.steps.map((s) => <tr key={s.key} data-step={s.key} data-state={s.state} className="border-t"><td className="py-1 pr-2">{s.label}</td><td className="py-1 pr-2 tabular-nums">{aud(s.amountCents / 100)}</td><td className="py-1 pr-2">{s.methods.includes("card") ? "Card or bank" : "Bank / PayID only"}</td><td className={`py-1 font-semibold ${s.state === "paid" ? "text-success" : s.state === "overdue" ? "text-danger" : ""}`}>{STEP_STATE_LABEL[s.state] ?? s.state}{s.dueAt && s.state !== "paid" ? ` · due ${fmtDateTime(s.dueAt)}` : ""}</td></tr>)}</tbody></table>
       {p.provisional.decision === "provisional" && <p className="mt-2 rounded bg-warning-soft px-2 py-1 font-semibold">Install day held provisionally until {fmtDateTime(p.provisional.expiresAt)} – released automatically if the deposit is not received.</p>}
       {!p.bank.configured && <p className="mt-2 rounded bg-warning-soft px-2 py-1">Bank details (BSB / account / PayID) are not configured yet – owners see "to be confirmed". Set HIV_BANK_BSB, HIV_BANK_ACCOUNT_NUMBER, HIV_PAYID.</p>}
-      <p className="mt-2">Card (Stripe, $349 and fixes only): {p.stripe.available ? <span className="font-semibold text-success">available for the step due now</span> : <span className="text-muted-foreground">{p.stripe.blocker}</span>}</p>
+      <p className="mt-2">Card (Stripe, $349, fixes and the install deposit): {p.stripe.available ? <span className="font-semibold text-success">available for the step due now</span> : <span className="text-muted-foreground">{p.stripe.blocker}</span>}</p>
       <div className="mt-2 flex flex-wrap items-center gap-2">
         {p.onlineInvoiceUrl ? <a href={p.onlineInvoiceUrl} target="_blank" rel="noreferrer" className="font-semibold text-primary underline">Xero online invoice (office view)</a> : <span className="text-muted-foreground">No Xero online invoice link yet{hasXeroInvoice ? "" : " – create the Xero invoice first"}.</span>}
         {hasXeroInvoice && <Button size="sm" variant="outline" onClick={() => refresh({ invoiceId }, "Xero invoice link refreshed")}>Refresh Xero link</Button>}
@@ -440,6 +440,21 @@ function PaymentStepsBlock({ jobId, invoiceId, hasXeroInvoice }: { jobId: string
       {p.ledger.length > 0 && <ul className="mt-2 divide-y">{p.ledger.map((r) => <li key={r.id} className="flex flex-wrap justify-between gap-2 py-1"><span>{aud(r.amountCents / 100)} · {SOURCE_LABEL[r.source] ?? r.source}{r.recordedByName ? ` · ${r.recordedByName}` : ""}{r.note ? ` · ${r.note}` : ""}</span><span className="text-muted-foreground">{fmtDateTime(r.paidAt)}</span></li>)}</ul>}
     </div>
   );
+}
+
+/** Install deposit and balance from the server payment plan: 10% of the install price only (quote total minus the PIESA line, never the fixes). Office and owner read the same plan. */
+function AfterSafetyCheckRow({ jobId, invoiceId, isAdmin }: { jobId: string; invoiceId: string; isAdmin: boolean }) {
+  const loadOffice = useServerFn(getJobPayments);
+  const loadOwner = useServerFn(getOwnerPaymentPlan);
+  const { data: p } = useQuery({
+    queryKey: ["after-safety-check", jobId, isAdmin],
+    queryFn: async () => {
+      if (isAdmin) { const v = await loadOffice({ data: { jobId } }); return v ? { invoiceId: v.invoiceId, installDepositCents: v.plan.installDepositCents, balanceCents: v.plan.balanceCents } : null; }
+      return loadOwner({ data: { jobId } });
+    },
+  });
+  if (!p || p.invoiceId !== invoiceId) return null;
+  return <div><dt className="text-xs text-muted-foreground">After the PIESA payment</dt><dd className="font-medium">{aud(p.installDepositCents / 100)} (10%) to book the install · {aud(p.balanceCents / 100)} on install day</dd></div>;
 }
 
 export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: boolean }) {
@@ -452,43 +467,47 @@ export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: bool
     queryFn: async () => ((await supabase.from("invoice_status").select(CUSTOMER_INVOICE_COLUMNS.join(",")).eq("job_id", jobId).order("created_at")).data as unknown as CustomerInvoice[]) ?? [],
   });
   const { data: internals } = useQuery({ queryKey: ["invoice-internals", jobId], enabled: isAdmin, queryFn: () => internalsFn({ data: { jobId } }) });
+  // Batch 3b: an old fixes invoice voided in Xero is closed — the owner doesn't see it, the office does (badge "Voided in Xero").
+  const shown = invoicesShownTo(data ?? [], isAdmin);
   return (
     <Section title={isAdmin ? "Xero invoice & payments" : "Invoices & payments"}>
-      {!data?.length && <p className="text-sm text-muted-foreground">{isAdmin
+      {!shown.length && <p className="text-sm text-muted-foreground">{isAdmin
         ? "No invoice yet – one Xero invoice for the full accepted price is raised when the owner accepts the final installation quote. The Pre Insulation Electrical Safety Assessment (PIESA) payment ($349, set in Settings) must be received before the PIESA can be booked. Then 10% of the rest to book the install day (bank transfer / PayID, held 48h), the balance on install day, or paid in full any time."
         : "No invoice yet – one invoice for the full accepted price is raised once you accept the final installation quote. The Pre Insulation Electrical Safety Assessment (PIESA) payment ($349) must be received before the PIESA can be booked. Then 10% of the rest to book your install day, the balance on install day, or pay in full any time."}</p>}
       <div className="space-y-3">
-        {(data ?? []).map((i) => {
+        {shown.map((i) => {
           const x = internals?.invoices.find((v) => v.id === i.id);
           const ov = internals?.overrides.filter((o) => o.invoice_id === i.id) ?? [];
           // Only the deposit-gate override speaks about the safety check payment.
           const safetyOverrides = ov.filter((o) => o.gate === "deposit");
           const remaining = Math.max(0, Number(i.total_inc_gst) - Number(i.total_paid));
+          // Batch 3b: a job can also have an electrical fixes invoice and a repeat safety check invoice. The office sees
+          // each card labelled with its kind + reference; the safety-check / deposit / install-day rows are install-only.
+          const slot = invoiceSlotOf(i.kind);
+          const install = slot === "install";
           return (
             <div key={i.id} className="rounded-lg border p-3 text-sm">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="font-semibold">Invoice {i.xero_invoice_number && <span className="font-normal text-muted-foreground">· {i.xero_invoice_number}</span>}</div>
+                <div className="font-semibold">{isAdmin ? invoiceSlotLabel(slot, x?.xero_reference) : "Invoice"} {i.xero_invoice_number && <span className="font-normal text-muted-foreground">· {i.xero_invoice_number}</span>}{isAdmin && x?.xero_reference && <span className="font-normal text-muted-foreground"> · {x.xero_reference}</span>}</div>
                 <PaymentBadge status={i.effective_status} />
               </div>
               <dl className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
                 <div><dt className="text-xs text-muted-foreground">Total accepted price (inc GST)</dt><dd className="font-medium">{aud(i.total_inc_gst)}</dd></div>
-                <div><dt className="text-xs text-muted-foreground">Pre Insulation Electrical Safety Assessment (PIESA) payment</dt><dd className="font-medium" data-testid="safety-check-payment">{aud(i.deposit_amount)} {Number(i.total_paid) >= Number(i.deposit_amount) ? <span className="text-xs text-success">Paid</span> : <span className="text-xs text-danger">Not paid</span>}</dd></div>
-                {safetyOverrides.length > 0 && <div className="sm:col-span-3" data-testid="safety-check-payment-override"><p className="rounded bg-warning-soft px-2 py-1 text-xs font-semibold text-warning">Payment block overridden — the Pre Insulation Electrical Safety Assessment (PIESA) payment has not been received. The job is allowed to proceed on the office's recorded override.</p></div>}
-                <div><dt className="text-xs text-muted-foreground">After the PIESA payment</dt><dd className="font-medium">{(() => { const p = paymentPlan({ quoteTotalCents: Math.round(Number(i.total_inc_gst) * 100), safetyCheckCents: Math.round(Number(i.deposit_amount) * 100) }); return `${aud(p.installDepositCents / 100)} (10%) to book the install · ${aud(p.balanceCents / 100)} on install day`; })()}</dd></div>
+                {install && <div><dt className="text-xs text-muted-foreground">Pre Insulation Electrical Safety Assessment (PIESA) payment</dt><dd className="font-medium" data-testid="safety-check-payment">{aud(i.deposit_amount)} {Number(i.total_paid) >= Number(i.deposit_amount) ? <span className="text-xs text-success">Paid</span> : <span className="text-xs text-danger">Not paid</span>}</dd></div>}
+                {install && safetyOverrides.length > 0 && <div className="sm:col-span-3" data-testid="safety-check-payment-override"><p className="rounded bg-warning-soft px-2 py-1 text-xs font-semibold text-warning">Payment block overridden — the Pre Insulation Electrical Safety Assessment (PIESA) payment has not been received. The job is allowed to proceed on the office's recorded override.</p></div>}
+                <AfterSafetyCheckRow jobId={jobId} invoiceId={i.id} isAdmin={isAdmin} />
                 <div><dt className="text-xs text-muted-foreground">Paid to date</dt><dd className="font-medium">{aud(i.total_paid)}</dd></div>
                 <div><dt className="text-xs text-muted-foreground">Remaining balance</dt><dd className="font-medium">{aud(remaining)} {i.balance_paid_at && <span className="text-xs text-success">fully paid {fmtDate(i.balance_paid_at)}</span>}</dd></div>
-                <div><dt className="text-xs text-muted-foreground">Final due date (installation day)</dt><dd className="font-medium">{i.balance_due_date ? fmtDate(i.balance_due_date) : <span className="text-xs text-muted-foreground">Pending – set when installation is booked</span>}</dd></div>
+                {install && <div><dt className="text-xs text-muted-foreground">Final due date (installation day)</dt><dd className="font-medium">{i.balance_due_date ? fmtDate(i.balance_due_date) : <span className="text-xs text-muted-foreground">Pending – set when installation is booked</span>}</dd></div>}
               </dl>
               {i.xero_online_url && <a href={i.xero_online_url} target="_blank" rel="noreferrer" className="mt-2 inline-block text-sm font-semibold text-primary underline">View / pay invoice</a>}
-              {!i.deposit_cleared && <p className="mt-2 flex items-center gap-1 rounded bg-danger-soft px-2 py-1 text-xs font-semibold text-danger"><Lock className="h-3 w-3" /> Pre Insulation Electrical Safety Assessment (PIESA) can't be booked — {aud(i.deposit_amount)} Pre Insulation Electrical Safety Assessment (PIESA) payment not received.</p>}
-              <p className="mt-2 rounded bg-muted px-2 py-1 text-xs">{isAdmin
+              {install && !i.deposit_cleared && <p className="mt-2 flex items-center gap-1 rounded bg-danger-soft px-2 py-1 text-xs font-semibold text-danger"><Lock className="h-3 w-3" /> Pre Insulation Electrical Safety Assessment (PIESA) can't be booked — {aud(i.deposit_amount)} Pre Insulation Electrical Safety Assessment (PIESA) payment not received.</p>}
+              {install && <p className="mt-2 rounded bg-muted px-2 py-1 text-xs">{isAdmin
                 ? "Refunds (office records manually, nothing moves automatically): check never happens → refund everything paid. Check done and job can't go ahead → keep the Pre Insulation Electrical Safety Assessment (PIESA) payment, refund the rest."
-                : "Refunds: if the check never happens, everything you paid is refunded. If the check is done and the job can't go ahead, we keep the Pre Insulation Electrical Safety Assessment (PIESA) payment and refund the rest."}</p>
+                : "Refunds: if the check never happens, everything you paid is refunded. If the check is done and the job can't go ahead, we keep the Pre Insulation Electrical Safety Assessment (PIESA) payment and refund the rest."}</p>}
               {isAdmin && x && (
                 <>
-                  {x.deposit_request_raised_at
-                    ? <p className="mt-2 rounded bg-muted px-2 py-1 text-xs">Native Xero {Number(x.deposit_request_pct ?? 50)}% deposit request raised ({aud(x.deposit_request_amount)}) by {x.deposit_request_raised_by_name ?? "admin"} on {fmtDateTime(x.deposit_request_raised_at)}. Scheduling still waits for Xero to confirm payment.</p>
-                    : <p className="mt-2 rounded bg-warning-soft px-2 py-1 text-xs font-semibold">Deposit request must be raised in Xero (Invoice → Request deposit), then mark it raised here.</p>}
+                  {x.deposit_request_raised_at && <p className="mt-2 rounded bg-muted px-2 py-1 text-xs">Old Xero deposit request recorded on {fmtDateTime(x.deposit_request_raised_at)}. It no longer affects booking.</p>}
                   <dl className="mt-3 grid grid-cols-2 gap-1 rounded bg-muted p-2 text-xs sm:grid-cols-3">
                     <div><dt className="text-muted-foreground">Xero contact</dt><dd className="break-all">{x.xero_contact_id ?? "—"}</dd></div>
                     <div><dt className="text-muted-foreground">Xero invoice ID</dt><dd className="break-all">{x.xero_invoice_id ?? "—"}</dd></div>
@@ -507,7 +526,7 @@ export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: bool
                 <div className="mt-3 flex flex-wrap gap-2">
                   {internals?.xeroAllowed !== false && <Button size="sm" variant="outline" disabled={!!x?.sync_lock_at && Date.now() - Date.parse(x.sync_lock_at) < 120000} onClick={() => sync({ invoiceId: i.id }, "Xero sync finished")}>{x?.xero_invoice_id ? "Sync with Xero" : "Send to Xero (safe retry)"}</Button>}
                   {/* The Xero deposit-request button was removed 24 Oct 2026 (audit removal 4; decisions 139–144: no Xero deposit request step). */}
-                  {!i.deposit_cleared && <Button size="sm" variant="outline" onClick={async () => { const r = await reason.ask({ title: "Override Pre Insulation Electrical Safety Assessment (PIESA) payment block", description: "A reason is required and permanently audited.", placeholder: "Reason for overriding the deposit gate (required, permanently audited)", minLength: 1 }); if (r) override({ invoiceId: i.id, reason: r }, "Override recorded"); }}>Override Pre Insulation Electrical Safety Assessment (PIESA) payment block</Button>}
+                  {install && !i.deposit_cleared && <Button size="sm" variant="outline" onClick={async () => { const r = await reason.ask({ title: "Override Pre Insulation Electrical Safety Assessment (PIESA) payment block", description: "A reason is required and permanently audited.", placeholder: "Reason for overriding the deposit gate (required, permanently audited)", minLength: 1 }); if (r) override({ invoiceId: i.id, reason: r }, "Override recorded"); }}>Override Pre Insulation Electrical Safety Assessment (PIESA) payment block</Button>}
                 </div>
               )}
             </div>

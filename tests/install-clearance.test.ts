@@ -95,8 +95,8 @@ describe("wording (decision 186)", () => {
 
 // ---- in-memory backend for the server module ----
 type Row = Record<string, any>;
-const REAL_BIZ = { name: "Reinsulate", trading_name: null, email: "office@reinsulate.test", phone: "0400 111 222", onboarding_notes: null };
-const TEST_BIZ = { name: "Test Installers", trading_name: null, email: "test@reinsulate.test", phone: "0400 333 444", onboarding_notes: "[TEST PARTNER]" };
+const REAL_BIZ = { in_house: false, pays_own_electricians: true, name: "Reinsulate", trading_name: null, email: "office@reinsulate.test", phone: "0400 111 222", onboarding_notes: null };
+const TEST_BIZ = { in_house: false, name: "Test Installers", trading_name: null, email: "test@reinsulate.test", phone: "0400 333 444", onboarding_notes: "[TEST PARTNER]" };
 const SAM = { full_name: "Sam Lee", email: "sam@reinsulate.test", phone: "0412 345 678" };
 const db: Record<string, Row[]> = {
   workflow_events: [],
@@ -124,7 +124,8 @@ const db: Record<string, Row[]> = {
 function q(table: string) {
   const filters: ((r: Row) => boolean)[] = [];
   const api: any = {
-    select: () => api, order: () => api, limit: () => api,
+    select: () => api, order: () => api, limit: () => api, range: () => api,
+    in: (k: string, v: unknown[]) => { filters.push((r) => v.includes(r[k])); return api; },
     eq: (k: string, v: unknown) => { filters.push((r) => r[k] === v); return api; },
     neq: (k: string, v: unknown) => { filters.push((r) => r[k] !== v); return api; },
     is: (k: string, v: unknown) => { filters.push((r) => (r[k] ?? null) === v); return api; },
@@ -149,6 +150,9 @@ const contexts: Record<string, Row> = {
 const calls = { testEmail: [] as string[], testSms: [] as string[], office: [] as string[], real: [] as string[] };
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: q } }));
 mock.module("../src/lib/workflow.server", () => ({ WorkflowError: class WorkflowError extends Error {}, logEvent: async (job_id: string, _a: unknown, event_type: string, summary: string, details: unknown) => { db.workflow_events!.push({ job_id, event_type, summary, details }); } }));
+// Jo 30 Oct 2026: "Pause all trade messages" off here (its own tests: trade-pause-*.test.ts).
+let tradePaused: string | null = null;
+mock.module("../src/lib/trade-pause.server", () => ({ tradeMessagesPausedNow: async () => tradePaused }));
 mock.module("../src/lib/install-days.server", () => ({ installDayContext: async (jobId: string) => contexts[jobId] ?? { clearance: NOT_CLEARED, deadline: null, asg: null, booked: false } }));
 mock.module("../src/lib/test-send.server", () => ({
   sendTestEmail: async (ctx: { jobSource: string | null; partnerIsTest: boolean; label: string }, to: string, subject: string) => { calls.testEmail.push(`${ctx.jobSource}:${ctx.partnerIsTest}:${ctx.label}:${to}:${subject}`); return { status: "sent", detail: "test" }; },
@@ -162,6 +166,12 @@ const events = (jobId: string) => db.workflow_events!.filter((e) => e["job_id"] 
 
 describe("notifyInstallerClearance (server, mocked backend)", () => {
   test("real job: one event, one partner office email and one real text with the clearance as the trigger; a retry sends nothing", async () => {
+    // Jo 30 Oct 2026: while "Pause all trade messages" is on it is held BEFORE the once-per-clearance event (nothing claimed).
+    tradePaused = "Trade messages paused";
+    expect(await notifyInstallerClearance("job-real", { clearedAt: "2026-10-24T03:10:00.000Z" })).toBe("held: Trade messages paused");
+    expect(events("job-real").length).toBe(0);
+    expect(calls.office.length + calls.real.length).toBe(0);
+    tradePaused = null;
     const r = await notifyInstallerClearance("job-real", { clearedAt: "2026-10-24T03:10:00.000Z" });
     expect(r).toBe("installer email sent: ok; installer sms sent: ok");
     expect(calls.office).toEqual(["partner:sam@reinsulate.test:install_clearance:b-real:HV-3117 is cleared for install – offer 3 install days by 23 November 2026"]);

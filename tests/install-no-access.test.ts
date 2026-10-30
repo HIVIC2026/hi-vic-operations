@@ -84,3 +84,25 @@ describe("decision 215 — owner told at once; office alerted on the second no-a
     expect(html).toContain("couldn't get in today");
   });
 });
+
+import { installNoAccessTextCatchUpDue } from "../src/lib/install-no-access-notice.core";
+import { SMS_QUIET_REASON } from "../src/lib/quote-hold.core";
+describe("D4 held couldn't-get-in text", () => {
+  const at = "2026-10-28T10:30:00Z"; // 9:30pm Melbourne
+  test("goes once after 7am, only for a quiet-hours hold, inside 24h", () => {
+    const held = { claimed: false, heldReasons: [SMS_QUIET_REASON], reportedAt: at };
+    expect(installNoAccessTextCatchUpDue(held, "2026-10-28T19:00:00Z")).toBe(false); // 6am Melbourne
+    expect(installNoAccessTextCatchUpDue(held, "2026-10-28T20:15:00Z")).toBe(true);  // 7:15am
+    expect(installNoAccessTextCatchUpDue({ ...held, claimed: true }, "2026-10-28T20:15:00Z")).toBe(false);
+    expect(installNoAccessTextCatchUpDue({ ...held, heldReasons: [SMS_QUIET_REASON, "switch off"] }, "2026-10-28T20:15:00Z")).toBe(false);
+    expect(installNoAccessTextCatchUpDue({ ...held, heldReasons: [] }, "2026-10-28T20:15:00Z")).toBe(false);
+    expect(installNoAccessTextCatchUpDue(held, "2026-10-29T22:00:00Z")).toBe(false); // over 24h
+  });
+  test("the tick runs the sweep; the sweep skips TEST jobs and reuses the one key", () => {
+    expect(readFileSync("src/routes/api/public/hooks/allocation-tick.ts", "utf8")).toContain("sweepInstallNoAccessTexts()");
+    const s = readFileSync("src/lib/install-no-access-notice.server.ts", "utf8");
+    expect(s).toContain('.neq("source", "qa_test")');
+    expect(s).toContain("installNoAccessKeys(p.bookingId).sms");
+    expect(s).toContain("event: { at: p.reportedAt }");
+  });
+});

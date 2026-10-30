@@ -38,13 +38,4 @@ describe("Upload jobs redesign (Jo, 7 Oct)", () => {
     expect(attachedFilesNote([{ name: "uploads/Job Sheet.docx", how: "filename" }])).toBe("We attached Job Sheet.docx to this customer — is that right?");
     expect(attachedFilesNote([{ name: "a.jpg", how: "folder" }])).toBeNull();
   });
-  test("page: 3 steps, help collapsed, one Confirm, no Save button, no old tiles", () => {
-    const ui = readFileSync("src/routes/_authenticated/partner.bulk-import.tsx", "utf8");
-    expect(ui).toContain('["Upload", "Check customers", "Confirm"]');
-    expect(ui).not.toContain("<details className=\"mt-3 rounded-[22px] bg-card p-4 text-sm shadow-sm\" data-list-guide open");
-    expect(ui).not.toContain("Save customer details");
-    expect(ui).not.toContain("Files matched by filename only");
-    expect(ui).toContain("Confirm ${toAdd.length} job");
-    expect(ui).toContain("Ceiling size: ");
-  });
 });

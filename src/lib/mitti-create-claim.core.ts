@@ -10,8 +10,9 @@
 // automatic path can create a second form. Only an explicit office action may override an old uncertain
 // claim (see mitti-create.server.ts).
 
-/** "fixes" = the decision-293 "A4 – Electrical fixes" form (one per booked fixes visit). */
-export type MittiFormKind = "ready_check" | "piesa" | "fixes";
+/** "fixes" = the decision-293 "A4 – Electrical fixes" form (one per booked fixes visit);
+ *  "install_day" = the A5 install-day / PIISA form created by createPiisaMittiAudit (one per job). */
+export type MittiFormKind = "ready_check" | "piesa" | "fixes" | "install_day";
 
 export const CLAIM_EVENT = "mitti_audit_create_started";
 export const RELEASE_EVENT = "mitti_audit_create_released";
@@ -34,6 +35,12 @@ export async function stableUuid(seed: string): Promise<string> {
   d[8] = (d[8]! & 0x3f) | 0x80;
   const h = [...d].map((b) => b.toString(16).padStart(2, "0")).join("");
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
+/** Claim generation = releases of this kind, plus (PIESA only) each repeat-PIESA round reset (Jo 29 Oct 2026): a repeat
+ *  PIESA gets its own new form, so its claim must not collide with the first check's. */
+export function claimGeneration(f: { releasedKinds: (string | undefined)[]; repeatResets: number; kind: MittiFormKind }): number {
+  return f.releasedKinds.filter((k) => k === f.kind).length + (f.kind === "piesa" ? f.repeatResets : 0);
 }
 
 export const claimEventId = (jobId: string, kind: MittiFormKind, generation: number) => stableUuid(`mitti-create:${jobId}:${kind}:${generation}`);

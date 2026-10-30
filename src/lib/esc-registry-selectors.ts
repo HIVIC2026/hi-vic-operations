@@ -3,12 +3,13 @@
 // The Registry's real DOM is NOT known yet (no public API, no documentation of the form markup). Every selector below
 // is a best guess marked TODO; `scripts/esc-registry-robot-explore.ts` logs in (when the secrets exist), screenshots the
 // install-notification and VEEC-creation forms and dumps every label/name/id so this map can be finished on the first
-// supervised run with Jo. Until SELECTOR_MAP_VERIFIED is flipped to true (a code change after that run), the robot
+// supervised run with Jo. Until SELECTORS_VERIFIED for a task is flipped to true (a code change after that run), the robot
 // refuses live mode and only dry-runs (esc-registry-robot.core robotMode).
 //
 // Field keys for the install notification are the Activity Guide v1.2 Appendix A Table 5 keys from esc.core
 // DEFAULT_REGISTRY_FIELDS; VEEC creation keys are the Section 2 keys from veec-assignment-form.core VEEC_FORM_FIELDS
 // plus `veec_quantity`.
+import type { RobotTask } from "./esc-registry-robot.core";
 import { DEFAULT_REGISTRY_FIELDS, PIESA_REGISTRY_STATUS, VEU_REGISTRY_URL } from "./esc.core";
 
 export type FieldKind = "text" | "date" | "datetime" | "select" | "radio" | "checkbox";
@@ -36,8 +37,9 @@ export type FormSection = {
   confirmation: { selector: string; pattern: RegExp; todo?: string };
 };
 
-/** Flip to true ONLY after the first supervised run confirmed every selector on the real forms (decision 272: Jo watches). */
-export const SELECTOR_MAP_VERIFIED = false;
+/** One mark per task. Flip a task to true ONLY after a supervised run confirmed every selector of THAT form on the real
+ *  Registry (decision 272: Jo watches). A task that is false stays fill-and-screenshot only, whatever the mode. */
+export const SELECTORS_VERIFIED: Record<RobotTask, boolean> = { install_notification: false, veec_creation: false };
 export const SELECTOR_MAP_VERSION = "2026-10-25-unverified";
 
 const base = VEU_REGISTRY_URL.replace(/\/$/, "");

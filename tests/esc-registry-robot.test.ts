@@ -3,9 +3,9 @@
 import { describe, expect, test } from "bun:test";
 import {
   ESC_ROBOT_SWITCH_COLUMN, ROBOT_DOC_KINDS, ROBOT_EVENTS, ROBOT_SUBMISSION_METHOD, failureDetails, failureLine, jobMode, openRobotFailures, planNotification, planVeecCreation,
-  referenceLooksValid, robotHistory, robotMode, runSummary, screenshotPath, screenshotTitle, windowState, type NoticeCandidate, type RobotEvent, type VeecCandidate,
+  referenceLooksValid, robotHistory, robotMode, runSummary, screenshotPath, screenshotTitle, taskMode, windowState, type NoticeCandidate, type RobotEvent, type VeecCandidate,
 } from "../src/lib/esc-registry-robot.core";
-import { INSTALL_NOTIFICATION, LOGIN, SELECTOR_MAP_VERIFIED, VEEC_CREATION, extractReference, formatForRegistry, selectorGaps, unmappedNotificationKeys } from "../src/lib/esc-registry-selectors";
+import { INSTALL_NOTIFICATION, LOGIN, SELECTORS_VERIFIED, VEEC_CREATION, extractReference, formatForRegistry, selectorGaps, unmappedNotificationKeys } from "../src/lib/esc-registry-selectors";
 import { RobotStepError, fillInstallNotification, login, submitAndReadReference, type RobotPage } from "../src/lib/esc-registry-robot.browser";
 import { DEFAULT_REGISTRY_FIELDS, REGISTRY_FIELDS_VERSION, REGISTRY_UPDATABLE_KEYS } from "../src/lib/esc.core";
 import { categoriseDocument } from "../src/lib/jobfile.core";
@@ -15,7 +15,7 @@ import { buildNeedsRows, needsCandidates } from "../src/lib/office-needs.core";
 const H = 3600_000, D = 24 * H;
 const START = "2026-11-04T22:00:00Z"; // Thu 5 Nov 9:00am Melbourne
 const at = (msBefore: number) => new Date(Date.parse(START) - msBefore);
-const ALL_ON = { switchOn: true, envOn: true, modeEnv: "live", credentials: true, selectorsVerified: true };
+const ALL_ON = { switchOn: true, envOn: true, modeEnv: "live", credentials: true };
 
 describe("mode: five locks, all fail closed", () => {
   test("deployment flag off → off, whatever else is set", () => expect(robotMode({ ...ALL_ON, envOn: false }).mode).toBe("off"));
@@ -25,11 +25,19 @@ describe("mode: five locks, all fail closed", () => {
   test("mode env not exactly 'live' → dry run", () => {
     for (const m of [undefined, null, "", "LIVE", "true", "dry_run"]) expect(robotMode({ ...ALL_ON, modeEnv: m }).mode).toBe("dry_run");
   });
-  test("unverified selector map → dry run even when set live", () => expect(robotMode({ ...ALL_ON, selectorsVerified: false })).toMatchObject({ mode: "dry_run", reason: expect.stringContaining("SELECTOR_MAP_VERIFIED") }));
   test("everything in place → live", () => expect(robotMode(ALL_ON).mode).toBe("live"));
   test("the shipped selector map is unverified, so live is impossible until the first supervised run", () => {
-    expect(SELECTOR_MAP_VERIFIED).toBe(false);
+    expect(SELECTORS_VERIFIED).toEqual({ install_notification: false, veec_creation: false });
     expect(selectorGaps().length).toBeGreaterThan(0);
+  });
+  test("taskMode: live only for a task whose form was checked on the real Registry", () => {
+    const v = { install_notification: true, veec_creation: false };
+    expect(taskMode("live", "install_notification", v)).toBe("live");
+    expect(taskMode("live", "veec_creation", v)).toBe("dry_run");
+    expect(taskMode("off", "install_notification", v)).toBe("off");
+    expect(taskMode("off", "veec_creation", v)).toBe("off");
+    expect(taskMode("dry_run", "install_notification", { install_notification: true, veec_creation: true })).toBe("dry_run");
+    expect(taskMode("dry_run", "veec_creation", { install_notification: true, veec_creation: true })).toBe("dry_run");
   });
   test("TEST (qa_test) jobs never go live", () => {
     expect(jobMode("live", "qa_test")).toBe("dry_run");

@@ -51,3 +51,24 @@ describe("spot saved confirmation plan", () => {
     expect(SMS_FRESHNESS.spot_saved).toEqual({ kind: "event", maxAgeMinutes: 24 * 60 });
   });
 });
+
+// Jo 30 Oct 2026: HV-1571/1642/2615/3040/3114 got a second text — the old 'spot-saved:<job>' text must count.
+import { priorSpotSavedTextSent, priorSpotSavedEmailSent } from "../src/lib/spot-saved-send.core";
+describe("earlier spot saved sends under any key", () => {
+  const old = { job_id: "j1", to_number: "+61438318582", message_type: "spot_saved" };
+  test.each(["sent", "delivered", "sending"])("old per-job text %s → no second text", (status) => {
+    expect(priorSpotSavedTextSent([{ ...old, status }], "j1", "+61438318582")).toBe(true);
+  });
+  test("same phone on another job also counts", () => {
+    expect(priorSpotSavedTextSent([{ ...old, job_id: "j9", status: "delivered" }], "j1", "+61438318582")).toBe(true);
+  });
+  test("blocked/failed attempts or other phones/jobs do not count", () => {
+    expect(priorSpotSavedTextSent([{ ...old, status: "blocked" }, { ...old, status: "failed" }], "j1", "+61438318582")).toBe(false);
+    expect(priorSpotSavedTextSent([{ ...old, job_id: "j9", to_number: "+61400000000", status: "delivered" }], "j1", "+61438318582")).toBe(false);
+    expect(priorSpotSavedTextSent([{ ...old, message_type: "spot_released", status: "delivered" }], "j1", "+61438318582")).toBe(false);
+  });
+  test("email: an earlier sent email for the job counts whatever address", () => {
+    expect(priorSpotSavedEmailSent([{ job_id: "j1", status: "sent", purpose: "spot_saved_confirmation" }], "j1")).toBe(true);
+    expect(priorSpotSavedEmailSent([{ job_id: "j1", status: "failed", purpose: "spot_saved_confirmation" }], "j1")).toBe(false);
+  });
+});

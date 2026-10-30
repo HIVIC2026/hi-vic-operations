@@ -51,20 +51,20 @@ describe("state from events (table)", () => {
 describe("Release plan (approval gating; a confirmed owner is never asked again)", () => {
   const none: SpotReleaseState = { state: "none" };
   const st = (events: SpotReleaseEventRow[]) => spotReleaseState(events);
-  test("unapproved: REAL job refuses with the clear message; TEST job releases", () => {
+  test("unapproved: REAL job refuses with the clear message; TEST job releases (old flow, retired 30 Oct 2026)", () => {
     // Jo approved O77 + the text on 25 Oct 2026 (decision 389); the gate itself stays covered below.
     expect(SPOT_RELEASED_APPROVED).toBe(true);
     expect(SMS_MESSAGE_TYPES.spot_released.wordingApproved).toBe(true);
-    expect(releasePlan({ state: none, testJob: false, emailApproved: false, smsApproved: false, hasRateCard: true })).toEqual({ mode: "refused", reason: SPOT_RELEASE_UNAPPROVED });
-    expect(releasePlan({ state: none, testJob: false, emailApproved: true, smsApproved: false, hasRateCard: true })).toEqual({ mode: "refused", reason: SPOT_RELEASE_UNAPPROVED });
+    expect(releasePlan({ state: none, testJob: false, emailApproved: false, smsApproved: false, hasRateCard: true, retired: false })).toEqual({ mode: "refused", reason: SPOT_RELEASE_UNAPPROVED });
+    expect(releasePlan({ state: none, testJob: false, emailApproved: true, smsApproved: false, hasRateCard: true, retired: false })).toEqual({ mode: "refused", reason: SPOT_RELEASE_UNAPPROVED });
     expect(SPOT_RELEASE_UNAPPROVED).toBe("The 'It's your turn' message isn't approved yet");
-    expect(releasePlan({ state: none, testJob: true, emailApproved: false, smsApproved: false, hasRateCard: true })).toEqual({ mode: "release" });
-    expect(releasePlan({ state: none, testJob: false, emailApproved: true, smsApproved: true, hasRateCard: true })).toEqual({ mode: "release" });
+    expect(releasePlan({ state: none, testJob: true, emailApproved: false, smsApproved: false, hasRateCard: true, retired: false })).toEqual({ mode: "release" });
+    expect(releasePlan({ state: none, testJob: false, emailApproved: true, smsApproved: true, hasRateCard: true, retired: false })).toEqual({ mode: "release" });
   });
-  test("pending → refused (not available again); declined → refused; lapsed → release again", () => {
-    expect(releasePlan({ state: st([released(1, T0)]), testJob: true, emailApproved: true, smsApproved: true, hasRateCard: true }).mode).toBe("refused");
-    expect(releasePlan({ state: st([released(1, T0), outcome(SPOT_RELEASE_DECLINED_EVENT, 1, T0)]), testJob: true, emailApproved: true, smsApproved: true, hasRateCard: true }).mode).toBe("refused");
-    expect(releasePlan({ state: st([released(1, T0), outcome(SPOT_RELEASE_LAPSED_EVENT, 1, T0)]), testJob: true, emailApproved: true, smsApproved: true, hasRateCard: true }).mode).toBe("release");
+  test("pending → refused (not available again); declined → refused; lapsed → release again (old flow)", () => {
+    expect(releasePlan({ state: st([released(1, T0)]), testJob: true, emailApproved: true, smsApproved: true, hasRateCard: true, retired: false }).mode).toBe("refused");
+    expect(releasePlan({ state: st([released(1, T0), outcome(SPOT_RELEASE_DECLINED_EVENT, 1, T0)]), testJob: true, emailApproved: true, smsApproved: true, hasRateCard: true, retired: false }).mode).toBe("refused");
+    expect(releasePlan({ state: st([released(1, T0), outcome(SPOT_RELEASE_LAPSED_EVENT, 1, T0)]), testJob: true, emailApproved: true, smsApproved: true, hasRateCard: true, retired: false }).mode).toBe("release");
   });
   test("confirmed owner (offer came back) → straight to the installer offer, even while unapproved", () => {
     expect(releasePlan({ state: st([released(1, T0), outcome(SPOT_RELEASE_CONFIRMED_EVENT, 1, T0)]), testJob: false, emailApproved: false, smsApproved: false, hasRateCard: true })).toEqual({ mode: "direct_offer" });

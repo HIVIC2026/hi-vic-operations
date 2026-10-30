@@ -119,14 +119,16 @@ async function sendTurnMessages(jobId: string, s: Extract<SpotReleaseState, { st
 
 export type ReleaseResult = { mode: "released"; installer: string; detail: string } | { mode: "offered"; installer: string };
 
-/** Jo presses Release for one installer. Tests may pass `approved` (production uses the code constants). */
-export async function releaseSpot(jobId: string, actorId: string | null, businessId: string, opts: { approved?: { email: boolean; sms: boolean }; now?: Date } = {}): Promise<ReleaseResult> {
+/** Jo presses Release for one installer. Since 30 Oct 2026 only an owner who already confirmed can go (straight to the
+ *  installer); "It's your turn" is retired for website owners (`releasePlan`). Tests may pass `approved` / `retired`
+ *  (production uses the code constants). */
+export async function releaseSpot(jobId: string, actorId: string | null, businessId: string, opts: { approved?: { email: boolean; sms: boolean }; now?: Date; retired?: boolean } = {}): Promise<ReleaseResult> {
   const now = opts.now ?? new Date();
   const [job, events, hasRateCard] = await Promise.all([jobFacts(jobId), eventsFor(jobId), installerHasActiveRateCard(businessId)]);
   if (!job || job.deleted_at) throw new WorkflowError("This job is no longer available.");
   const state = spotReleaseState(events);
   const approved = opts.approved ?? { email: SPOT_RELEASED_APPROVED, sms: SMS_MESSAGE_TYPES[SPOT_RELEASED_SMS_TYPE].wordingApproved as boolean };
-  const plan = releasePlan({ state, testJob: job.source === "qa_test", emailApproved: approved.email, smsApproved: approved.sms, hasRateCard });
+  const plan = releasePlan({ state, testJob: job.source === "qa_test", emailApproved: approved.email, smsApproved: approved.sms, hasRateCard, ...(opts.retired === undefined ? {} : { retired: opts.retired }) });
   if (plan.mode === "refused") throw new WorkflowError(plan.reason);
   const offer = (await import("./ready-check-times.server")).officePickReadyCheckInstaller;
   if (plan.mode === "direct_offer") {

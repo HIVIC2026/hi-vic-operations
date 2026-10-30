@@ -2,7 +2,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { PRESS_COMPLETE_LINE, QUOTE_ACCEPTED_LINE, QUOTE_DECLINED_LINE, QUOTE_HELD_LINE, QUOTE_SENT_LINE } from "../src/lib/installer-quote-status.core";
-import { doneLine, doneSub, exactTime, installerHomeGroups, installerNext, monthStripWords, needsFinishingItems, offerPanelWords, sourceLabel, type InstallerHomeJob } from "../src/lib/installer-home.core";
+import { comingForInstaller, doneLine, doneSub, exactTime, installerHomeGroups, installerNext, monthStripWords, needsFinishingItems, offerPanelWords, sourceLabel, type InstallerHomeJob } from "../src/lib/installer-home.core";
 
 const job = (o: Partial<InstallerHomeJob>): InstallerHomeJob => ({
   jobId: "j", jobNumber: "HV-3066", street: "5 Somerset Court, Mulgrave", suburb: "Mulgrave", channel: "installer_sourced", stage: "ready_check_ready_to_schedule",
@@ -49,7 +49,7 @@ describe("Next: line — the installer's own task first (Action needed)", () => 
 describe("Next: line — nothing for the installer yet (In progress)", () => {
   test("booked visit: exact day and arrival time, never a window (decision 43)", () => {
     const j = job({ place: "coming_up", upcoming: { what: "Install", start: "2026-10-26T21:00:00Z" } });
-    expect(installerNext(j)).toEqual({ group: "progress", next: "Next: install Tue 27 Oct at 8:00am" });
+    expect(installerNext(j)).toEqual({ group: "coming", next: "Next: install Tue 27 Oct at 8:00am" });
     expect(installerNext(job({ place: "coming_up", upcoming: { what: "Ready Check", start: "2026-10-25T20:30:00Z" } })).next).toBe("Next: Ready Check Mon 26 Oct at 7:30am");
     expect(exactTime("2026-10-26T21:00:00Z")).toBe("8:00am");
   });
@@ -74,7 +74,7 @@ describe("Next: line — nothing for the installer yet (In progress)", () => {
         const n = installerNext(job({ stage, place, placeTitle: place === "needs_me" ? "Book the install with the owner" : null, upcoming: place === "coming_up" ? { what: "Install", start: "2026-10-26T21:00:00Z" } : null }));
         expect(n.next.startsWith("Next: ")).toBe(true);
         expect(n.next).not.toMatch(/\$|margin|quoted price/i);
-        expect(["action", "progress"]).toContain(n.group);
+        expect(["action", "coming", "progress"]).toContain(n.group);
       }
     }
   });
@@ -90,9 +90,10 @@ describe("groups: every job in exactly one; Done only from a final stage", () =>
       job({ jobId: "e", stage: "ready_for_veec", nextAction: null }),
     ]);
     expect(g.action.map((r) => r.jobId)).toEqual(["a"]);
-    expect(g.progress.map((r) => r.jobId)).toEqual(["b", "e"]);
+    expect(g.coming.map((r) => r.jobId)).toEqual(["b"]);
+    expect(g.progress.map((r) => r.jobId)).toEqual(["e"]);
     expect(g.done.map((r) => r.jobId)).toEqual(["c"]);
-    const all = [...g.action, ...g.progress, ...g.done].map((r) => r.jobId);
+    const all = [...g.action, ...g.coming, ...g.progress, ...g.done].map((r) => r.jobId);
     expect(new Set(all).size).toBe(all.length);
     expect(all).not.toContain("d");
   });
@@ -104,6 +105,23 @@ describe("groups: every job in exactly one; Done only from a final stage", () =>
     expect(doneLine("cancelled", null)).toBe("Cancelled");
     expect(doneSub("installer_sourced", "complete", "2026-10-16T03:00:00Z")).toBe("Your customer · Job complete 16 Oct");
     expect(doneSub("hivic_sourced", "complete", "2026-10-09T03:00:00Z")).toBe("Home Insulation Victoria lead · Job complete 9 Oct");
+  });
+});
+
+describe("one job, one list (B1)", () => {
+  test("action beats coming up", () => {
+    const g = installerHomeGroups([job({ jobId: "a", place: "coming_up", nextAction: "Needs finishing: price on the Mitti form", upcoming: { what: "Ready Check", start: "2026-10-26T21:00:00Z" } })]);
+    expect(g.action.map((r) => r.jobId)).toEqual(["a"]);
+    expect(g.coming).toEqual([]);
+  });
+  test("comingForInstaller keeps only Coming up rows", () => {
+    const g = installerHomeGroups([
+      job({ jobId: "b", place: "coming_up", upcoming: { what: "Install", start: "2026-10-26T21:00:00Z" } }),
+      job({ jobId: "h", place: "coming_up", quoteLine: QUOTE_HELD_LINE, upcoming: { what: "Install", start: "2026-10-26T21:00:00Z" } }),
+    ]);
+    expect(g.progress.map((r) => r.jobId)).toEqual(["h"]);
+    const visits = [{ jobId: "b", start: "x" }, { jobId: "h", start: "y" }, { jobId: "z", start: "w" }];
+    expect(comingForInstaller(visits, g)).toEqual([{ jobId: "b", start: "x" }]);
   });
 });
 
@@ -119,6 +137,14 @@ describe("offer panel and This month strip words", () => {
 });
 
 describe("screen files follow the mock-ups and the audit removals", () => {
+  test("B1/B3: Coming up comes from the groups, and More offers hides no list", () => {
+    const srv = readFileSync("src/lib/trade-view.server.ts", "utf8");
+    expect(srv).toContain("comingForInstaller(coming, home)");
+    const page = readFileSync("src/routes/_authenticated/field.index.tsx", "utf8");
+    expect(page).not.toContain("comingUpFold");
+    expect(page).not.toContain("{!offersList && <>");
+    for (const kept of ['group="action"', 'group="progress"', "<DoneGroup", "data-coming-up"]) expect(page).toContain(kept);
+  });
   test("My work: no windows, no first-to-accept, no intake Q&A, no Add a job button, no bulk upload, groups from the pure core", () => {
     const page = readFileSync("src/routes/_authenticated/field.index.tsx", "utf8");
     for (const gone of ["8–10am", "first to accept", "Quoted?", "Site check?", "InstallerFactsLine", "SourceBadge", "bulk-import", "Upload multiple jobs", "PlusCircle", "Installer customer"]) expect(page).not.toContain(gone);

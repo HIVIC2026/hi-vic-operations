@@ -46,6 +46,9 @@ export async function sendElectricianPiesaCopy(jobId: string): Promise<string> {
       // Paused with the partner-email master switch: not claimed, so the sweep sends it once the switch is on again.
       const { customerCommsEnabled } = await import("./comms.server");
       if (!(await customerCommsEnabled())) return "held: partner emails paused (master switch off)";
+      // Jo 30 Oct 2026: "Pause all trade messages" — held before the claim, so the sweep sends it once unpaused.
+      const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow();
+      if (tradePaused) return `held: ${tradePaused}`;
     }
     const pdf = await (await import("./official-piesa-pdf.server")).officialPiesaPdf(jobId, job.job_number);
     if (!pdf || pdf.copyId !== plan.copyId) return "skipped: official PIESA changed while preparing — next tick";

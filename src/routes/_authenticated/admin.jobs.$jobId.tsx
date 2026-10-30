@@ -61,7 +61,7 @@ function JobPageRoute() {
       {open && <div id="stage-workspace" className="scroll-mt-24"><StageWorkspace jobId={jobId} k={open} page={data} onGo={go} /></div>}
       <MoneyCard jobId={jobId} />
       {!qaOffice && <AiReplyDrafts jobId={jobId} />}
-      <ContactHistory jobId={jobId} rows={data.contacts} waitingFor={data.waitingFor} onLog={() => setLogOpen(true)} />
+      <ContactHistory jobId={jobId} rows={data.contacts} waitingFor={data.waitingFor} emailBounced={data.emailBounced} onLog={() => setLogOpen(true)} />
       {qaOffice ? <p className="text-sm text-sub">Not available for the TEST office login</p> : <FileList jobId={jobId} />}
       <LogNoteDialog h={h} open={logOpen} onOpenChange={setLogOpen} />
     </AppShell>

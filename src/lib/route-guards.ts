@@ -1,8 +1,6 @@
 // Client-side page guards for signed-in areas (UI only — every server function still checks access itself).
 import { redirect } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
-import { INSTALLER_BULK_UPLOAD_ENABLED } from "./bulk-upload-switch.core";
-export { INSTALLER_BULK_UPLOAD_ENABLED };
 
 export type Access = { admin: boolean; qaOffice: boolean; installer: boolean; electrician: boolean; owner: boolean; businessAdmin: boolean; installerBusinessAdmin: boolean };
 
@@ -47,14 +45,13 @@ async function loadAccessFresh(userId: string): Promise<Access> {
   const r = new Set((roles ?? []).map((x) => x.role as string));
   const ids = (members ?? []).map((x) => x.business_id as string);
   // Business type is not read here: trade reads of businesses currently fail (row rule), so the installer role decides.
-  const m = ids.map(() => null);
   const qaRole = r.has("qa_office");
   const user = qaRole ? (await currentUser()).data.user : null;
   const qaOffice = qaRole && r.size === 1 && !!user?.email_confirmed_at && /^[^@\s]+@hivic-test\.example$/i.test(user?.email ?? "");
   return {
     admin: r.has("admin") && !qaRole, qaOffice, installer: r.has("installer"), electrician: r.has("electrician"), owner: r.has("owner"),
-    businessAdmin: m.length > 0,
-    installerBusinessAdmin: m.length > 0 && r.has("installer"),
+    businessAdmin: ids.length > 0,
+    installerBusinessAdmin: ids.length > 0 && r.has("installer"),
   };
 }
 
@@ -66,16 +63,13 @@ export function userIdOf(context: unknown): string {
 
 /** Which partner pages need the business boss, and which are installer-only. */
 const BOSS_ONLY = ["/partner/payments", "/partner/profile", "/partner/workers"];
-const INSTALLER_BOSS_ONLY = ["/partner/add", "/partner/bulk-import", "/partner/import"];
-/** Batch upload: office always; installer business owners/admins only while the switch is on; everyone else goes to Add job (Start in Mitti). */
-export function legacyBulkImportRedirect(a: Pick<Access, "admin" | "installerBusinessAdmin">, enabled = INSTALLER_BULK_UPLOAD_ENABLED): "/partner/import" | null {
-  return a.admin || (enabled && a.installerBusinessAdmin) ? null : "/partner/import";
-}
+const INSTALLER_BOSS_ONLY = ["/partner/add"];
 export function partnerPathAllowed(path: string, a: Access): boolean {
   if (a.admin) return true;
   const p = path.replace(/\/$/, "");
-  if (p.startsWith("/partner/bulk-import")) return INSTALLER_BULK_UPLOAD_ENABLED && a.installerBusinessAdmin;
   if (INSTALLER_BOSS_ONLY.some((x) => p.startsWith(x))) return a.installerBusinessAdmin;
+  // Add a job: installer staff may open it (they are told only the owner can add; saving stays owner-only on the server).
+  if (p.startsWith("/partner/import")) return a.installer;
   if (BOSS_ONLY.some((x) => p.startsWith(x))) return a.businessAdmin;
   return a.installer || a.electrician;
 }

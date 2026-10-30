@@ -1,9 +1,11 @@
 // Decision 246 (Jo 24 Oct 2026): automatic offers by coverage, two switches, both OFF until Jo turns them on.
 // "Automatic installer offers": the Choose installer offer goes to ONE approved installer whose Coverage includes
 // the postcode, picked by fewest active jobs then nearest. "Automatic electrician offers": the PIESA offer goes to
-// the nearest approved REC whose coverage includes the postcode (decision 374, Jo 25 Oct 2026: "we ALWAYS choose the
-// electrician – not the installer choosing" — on our leads the installer's usual electrician no longer gets first go;
-// only installer-supplied jobs (A1) put the electrician chosen at Add a job first, `autoOfferPreferredElectrician`). Each offer is open 24h; on "Not for me"/lapse the next match gets it; after 2 misses the job comes back
+// the nearest approved REC whose coverage includes the postcode — except that a preferred electrician goes first:
+// installer-supplied jobs (A1): the electrician chosen at Add a job (decision 426: if they miss or are blocked the job
+// goes back to the office); our leads (29 Oct 2026, replaces decision 374 for routing): the Ready Check installer's
+// approved usual electrician (lapse → office, "Not for me" → nearest, can't be offered → nearest). See
+// `autoOfferPreferredElectrician` and `preferredRule`. Each offer is open 24h; on "Not for me"/lapse the next match gets it; after 2 misses the job comes back
 // to the office (Needs me "Choose again"). With a switch off the office picks as today (decisions 49, 157, 220).
 // Pure rules only: who gets the next automatic offer, or why nobody does. The existing guarded offer senders
 // (officePickReadyCheckInstaller / startPiesaAllocation) still check every gate before anything is written.
@@ -64,7 +66,11 @@ export type AutoOfferRow = { business_id: string | null; status: string; offered
 export type AutoOfferStep =
   | { action: "none"; reason: "switch_off" | "job_not_ready" | "already_assigned" | "returned_to_office" | "offer_open" | "office_in_charge" }
   | { action: "offer"; businessId: string; name: string; attempt: number; basis: "usual_electrician" | "coverage"; activeJobs: number; distanceKm: number | null }
-  | { action: "return_to_office"; reason: "two_misses" | "no_match"; misses: number; tried: string[] };
+  | { action: "return_to_office"; reason: AutoOfferReturnReason; misses: number; tried: string[] };
+/** Why a job came back to the office. `preferred_missed` / `preferred_blocked`: the installer's chosen electrician
+ *  didn't take it / can't be offered it (decision 426). `switch_off`: "Automatic electrician offers" is off while the
+ *  dispatch mode is Automatic, so nobody else would send the safety check offer (decision 426 fix wave). */
+export type AutoOfferReturnReason = "two_misses" | "no_match" | "preferred_missed" | "preferred_blocked" | "switch_off";
 
 /** Test/live parity (fails closed both ways): a TEST job only to TEST partners, a live job never to a TEST partner. */
 export function autoOfferParityBlocker(c: Pick<AutoOfferCandidate, "testPartner">, jobIsTest: boolean): string | null {
@@ -95,14 +101,21 @@ export function rankAutoInstallers(cands: AutoOfferCandidate[], tried: Set<strin
     .sort((a, b) => a.activeJobs - b.activeJobs || byDistance(a, b) || a.name.localeCompare(b.name));
 }
 
-/** Decision 374: the electrician that goes first. Our leads (A2): nobody — we choose (nearest approved REC covering the
- *  postcode), even when the quoted installer has a usual electrician. Installer-supplied jobs (A1): the electrician the
- *  installer chose for this job (their preferred / usual REC), when eligible. */
-export function autoOfferPreferredElectrician(i: { channel: string | null | undefined; a1PreferredBusinessId: string | null | undefined }): string | null {
-  return i.channel === "installer_sourced" ? i.a1PreferredBusinessId ?? null : null;
+/** Installers' own jobs (A1): which of the installer's chosen electricians is "theirs" for the automatic offer — the first
+ *  one that can be offered, else the first one chosen (who can't be offered, so the job goes back to the office; decision
+ *  426: never another electrician without the installer's say-so). null = the installer chose nobody. */
+export function autoOfferInstallerElectrician(preferredIds: string[], cands: AutoOfferCandidate[], jobIsTest = false): string | null {
+  const ok = preferredIds.find((id) => { const c = cands.find((x) => x.business_id === id); return !!c && !autoOfferExclusion(c, new Set(), jobIsTest); });
+  return ok ?? preferredIds[0] ?? null;
 }
 
-/** Electricians: the preferred electrician first (A1 only, `autoOfferPreferredElectrician`; when eligible), then nearest, then fewest active jobs, then name. */
+/** The electrician that goes first. Installer-supplied jobs (A1): the one the installer chose at Add a job. Our leads
+ *  (29 Oct 2026, replaces decision 374 for routing): the Ready Check installer's approved usual electrician, or null. */
+export function autoOfferPreferredElectrician(i: { channel: string | null | undefined; a1PreferredBusinessId: string | null | undefined; ourLeadUsualBusinessId?: string | null }): string | null {
+  return i.channel === "installer_sourced" ? i.a1PreferredBusinessId ?? null : i.ourLeadUsualBusinessId ?? null;
+}
+
+/** Electricians: the preferred electrician first (`autoOfferPreferredElectrician`; when eligible), then nearest, then fewest active jobs, then name. */
 export function rankAutoElectricians(cands: AutoOfferCandidate[], tried: Set<string> = new Set(), usualBusinessId: string | null = null, jobIsTest = false): AutoOfferCandidate[] {
   return cands.filter((c) => !autoOfferExclusion(c, tried, jobIsTest))
     .sort((a, b) => Number(b.business_id === usualBusinessId) - Number(a.business_id === usualBusinessId) || byDistance(a, b) || a.activeJobs - b.activeJobs || a.name.localeCompare(b.name));
@@ -142,28 +155,66 @@ export function autoOfferBlocked(f: AutoOfferFacts): Extract<AutoOfferStep, { ac
 const tried = (rows: AutoOfferRow[]) => [...new Set(rows.map((r) => r.business_id).filter((x): x is string => !!x))];
 
 /** The next step for one job: offer ONE trade, hand the job back to the office, or do nothing. */
-export function autoOfferStep(f: AutoOfferFacts & { candidates: AutoOfferCandidate[]; usualBusinessId?: string | null }): AutoOfferStep {
+export function autoOfferStep(f: AutoOfferFacts & { candidates: AutoOfferCandidate[]; usualBusinessId?: string | null;
+  /** "installer_job" (default, A1): preferred missed or blocked → office. "our_lead": lapse → office; declined or can't be offered → nearest. */
+  preferredRule?: "installer_job" | "our_lead" }): AutoOfferStep {
   const blocked = autoOfferBlocked(f);
   if (blocked) return blocked;
   const done = new Set(tried(f.rows));
   const jobIsTest = f.jobIsTest === true;
-  const ranked = f.kind === "ready_check" ? rankAutoInstallers(f.candidates, done, jobIsTest) : rankAutoElectricians(f.candidates, done, f.usualBusinessId ?? null, jobIsTest);
+  let usualBusinessId = f.usualBusinessId ?? null;
+  if (f.kind === "piesa" && f.preferredRule === "our_lead" && usualBusinessId) {
+    // Our leads: their electrician's own latest automatic offer lapsing sends it to the office; "Not for me" (declined,
+    // so tried) or an electrician who can't be offered is simply skipped and the nearest gets it.
+    const own = f.rows.filter((r) => r.auto && r.business_id === usualBusinessId).sort((a, b) => a.offered_at.localeCompare(b.offered_at)).at(-1);
+    if (own?.status === "expired") return { action: "return_to_office", reason: "preferred_missed", misses: autoOfferMisses(f.rows), tried: [...done] };
+    const theirs = f.candidates.find((c) => c.business_id === usualBusinessId);
+    if (!theirs || autoOfferExclusion(theirs, done, jobIsTest)) usualBusinessId = null;
+  } else if (f.kind === "piesa" && usualBusinessId) {
+    // Decision 426 (Jo 29 Oct 2026): on an installer's own job their chosen electrician goes first; if they don't take
+    // it, the job goes back to the office — we never swap in another electrician without the installer's say-so.
+    if (done.has(usualBusinessId)) return { action: "return_to_office", reason: "preferred_missed", misses: autoOfferMisses(f.rows), tried: [...done] };
+    // ...and when their electrician can't be offered it (no agreed rate, lapsed papers, not covering the postcode, paused,
+    // not an approved electrician at all), the job goes to the office too — never nearest-first to someone else.
+    const theirs = f.candidates.find((c) => c.business_id === usualBusinessId);
+    if (!theirs || autoOfferExclusion(theirs, done, jobIsTest)) return { action: "return_to_office", reason: "preferred_blocked", misses: autoOfferMisses(f.rows), tried: [...done] };
+  }
+  const ranked = f.kind === "ready_check" ? rankAutoInstallers(f.candidates, done, jobIsTest) : rankAutoElectricians(f.candidates, done, usualBusinessId, jobIsTest);
   const misses = autoOfferMisses(f.rows);
   const pick = ranked[0];
   if (!pick) return { action: "return_to_office", reason: "no_match", misses, tried: [...done] };
   return {
     action: "offer", businessId: pick.business_id, name: pick.name, attempt: misses + 1,
-    basis: f.kind === "piesa" && pick.business_id === (f.usualBusinessId ?? null) ? "usual_electrician" : "coverage",
+    basis: f.kind === "piesa" && pick.business_id === usualBusinessId ? "usual_electrician" : "coverage",
     activeJobs: pick.activeJobs, distanceKm: pick.distanceKm,
   };
 }
 
 /** Office wording for the "Choose again" hand-back (Needs me reads `auto_offer_returned_to_office`). */
-export function autoOfferReturnedSummary(kind: AutoOfferKind, reason: "two_misses" | "no_match", misses: number): string {
+export function autoOfferReturnedSummary(kind: AutoOfferKind, reason: AutoOfferReturnReason, misses: number): string {
   const who = kind === "ready_check" ? "installer" : "electrician";
+  if (reason === "preferred_missed") return "Automatic electrician offers: the installer's electrician didn't take it — choose again";
+  if (reason === "preferred_blocked") return "Automatic electrician offers: the installer's electrician can't be offered this job — choose again";
+  if (reason === "switch_off") return `Automatic ${who} offers are switched off — choose an ${who}`;
   return reason === "two_misses"
     ? `Automatic ${who} offers: ${misses} ${who}s didn't take it — choose again`
     : misses
       ? `Automatic ${who} offers: no other approved ${who} covers this postcode — choose again`
       : `Automatic ${who} offers: no approved ${who} covers this postcode — choose one`;
+}
+
+/** Decision 426 fix wave: a first-time safety check job whose offers have all been answered (none open, nobody
+ *  assigned). Never a new batch. `latest` = the newest PIESA offer since the latest reopen.
+ *  - an automatic (one-at-a-time) offer: the automatic offers carry on — unless the switch is now off, then the office;
+ *  - an office pick: Needs me already shows "Pick another" (unchanged);
+ *  - an older batch (sent before decision 426): the office, once ("No approved electrician coverage"). */
+export type PiesaRanOutStep = "none" | "coverage_exhausted" | "switch_off_hand_back";
+export function piesaRanOutStep(f: {
+  stageWaiting: boolean; anyAccepted: boolean; officePicks: boolean; switchOn: boolean;
+  latest: { auto: boolean; officeChoice: boolean } | null; exhaustedSinceLatestOffer: boolean;
+}): PiesaRanOutStep {
+  if (!f.stageWaiting || f.anyAccepted || !f.latest || f.officePicks) return "none";
+  if (f.latest.auto) return f.switchOn ? "none" : "switch_off_hand_back";
+  if (f.latest.officeChoice) return "none";
+  return f.exhaustedSinceLatestOffer ? "none" : "coverage_exhausted";
 }

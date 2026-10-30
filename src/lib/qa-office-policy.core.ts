@@ -11,6 +11,8 @@ export const QA_OFFICE_FUNCTIONS = {
   "src/lib/offer-dispatch.functions.ts": ["listChooseTrades", "sendChosenOffers"],
   "src/lib/installer-waiting.functions.ts": ["getInstallerWaitingList"],
   "src/lib/coverage.functions.ts": ["getJobCoverage"],
+  // Jo 28 Oct 22:23 UTC: installer quote card on TEST jobs only (server re-checks the job).
+  "src/lib/installer-quote.functions.ts": ["getInstallerQuoteDraft", "sendInstallerQuote"],
 } as const;
 export function qaOfficeFunctionAllowed(filename: string, name: string): boolean {
   const path = filename.replaceAll("\\", "/").replace(/^.*?(?=src\/)/, "");

@@ -44,6 +44,8 @@ export async function textElectricianAboutOffer(offerId: string, now = new Date(
   const { data: prior } = await admin.from("workflow_events").select("id").eq("job_id", c.offer.job_id).eq("event_type", APPROVED_TEXT_EVENT).contains("details", { key }).limit(1).maybeSingle();
   if (prior) return "already handled";
   if ((await import("./quote-hold.core")).smsQuietReason(now.toISOString())) return QUIET_HOURS_WAIT;
+  // Jo 30 Oct 2026: "Pause all trade messages" — held before the once-only event, so the 24h sweep can still send it.
+  if (!c.test) { const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow(); if (tradePaused) return `held: ${tradePaused}`; }
   const body = piesaOfferText({ suburb: c.sum.suburb ?? null, jobNumber: c.sum.job_number ?? null, pay: c.sum.electrician_rate_inc_gst ?? null, link: c.link });
   if (!body) return "missing facts";
   await logEvent(c.offer.job_id, null, APPROVED_TEXT_EVENT, `Electrician texted: new PIESA job offer (decision 93) — text prepared for ${c.biz?.name ?? "electrician"}`, { text: "piesa_offer", key, offer_id: offerId, business_id: c.offer.business_id }, { internal: true });
@@ -72,6 +74,8 @@ export async function emailElectricianAboutOffer(offerId: string): Promise<strin
   const mail = renderElectricianOfferEmail({ suburb: c.sum.suburb ?? null, rate: c.sum.electrician_rate_inc_gst ?? null, areaM2: c.sum.approx_area_m2 ?? null, ownerTimesOpen: c.ownerTimesOpen, offerUrl: c.link, test: c.test });
   if (!mail) return "missing facts";
   if (!c.test && !ELECTRICIAN_OFFER_EMAIL_APPROVED) return "skipped";
+  // Jo 30 Oct 2026: "Pause all trade messages" — held before the once-only event, never claimed.
+  if (!c.test) { const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow(); if (tradePaused) return `held: ${tradePaused}`; }
   await logEvent(c.offer.job_id, null, ELECTRICIAN_OFFER_EMAIL_EVENT, `Electrician offer email (E1) prepared for ${c.biz?.name ?? "electrician"}`, { offer_id: offerId, business_id: c.offer.business_id, to, version: ELECTRICIAN_OFFER_EMAIL_VERSION }, { internal: true });
   try {
     if (c.test) {
@@ -104,6 +108,8 @@ export async function emailApplicationReceived(applicationId: string): Promise<s
   if (!f.to || !f.businessName) return "missing facts";
   const { APPLICATION_RECEIVED_EMAIL_APPROVED, renderApplicationReceivedEmail } = await import("./application-review.core");
   if (!a.test_mode && !APPLICATION_RECEIVED_EMAIL_APPROVED) return "skipped";
+  // Jo 30 Oct 2026: "Pause all trade messages" — held before the once-only event, never claimed.
+  if (!a.test_mode) { const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow(); if (tradePaused) return `held: ${tradePaused}`; }
   const test = !!a.test_mode;
   const mail = renderApplicationReceivedEmail({ contactName: f.contactName, businessName: f.businessName, test });
   const { TEST_ALLOWLIST } = await import("./test-send.core");
@@ -131,7 +137,7 @@ export async function sweepTradeMessages(now = new Date()) {
     admin.from("rec_onboarding_applications").select("id").eq("partner_type", "installer").neq("status", "draft").gte("signed_at", since48).limit(200),
   ]);
   for (const r of [offers, declines, apps]) if (r.error) throw new Error(`trade messages sweep: ${r.error.message}`);
-  const ok = (r: string) => !["skipped", "already handled", "already sent", "missing facts", "no installer email", QUIET_HOURS_WAIT].includes(r);
+  const ok = (r: string) => !["skipped", "already handled", "already sent", "missing facts", "no installer email", QUIET_HOURS_WAIT].includes(r) && !r.startsWith("held:");
   for (const o of offers.data ?? []) {
     try { if (ok(await textElectricianAboutOffer(o.id, now))) out.offerTexts++; } catch (e) { console.error("PIESA offer text failed", (e as Error).message); }
     try { if (ok(await emailElectricianAboutOffer(o.id))) out.offerEmails++; } catch (e) { console.error("PIESA offer email failed", (e as Error).message); }

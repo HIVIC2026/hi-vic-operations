@@ -6,20 +6,28 @@ import { WorkflowError, logEvent } from "./workflow.server";
 import type { MittiCall } from "./mitti.core";
 import {
   CLAIM_EVENT, CLAIM_HELD, OFFICE_OVERRIDE_AFTER_MS, OFFICE_OVERRIDE_EVENT, OUTCOME_UNCERTAIN, RELEASE_EVENT, UNCERTAIN_EVENT,
-  claimEventId, isUniqueViolation, releaseEventId, type MittiFormKind,
+  claimEventId, claimGeneration, isUniqueViolation, releaseEventId, type MittiFormKind,
 } from "./mitti-create-claim.core";
+import { REPEAT_PIESA_FORM_RESET_EVENT } from "./repeat-piesa-form.core";
 
 export class MittiClaimHeld extends WorkflowError { constructor() { super(CLAIM_HELD); this.name = "MittiClaimHeld"; } }
 export class MittiOutcomeUncertain extends WorkflowError { constructor() { super(OUTCOME_UNCERTAIN); this.name = "MittiOutcomeUncertain"; } }
 
 async function generationOf(jobId: string, kind: MittiFormKind): Promise<number> {
-  const { data, error } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", RELEASE_EVENT);
+  const { data, error } = await admin.from("workflow_events").select("event_type, details").eq("job_id", jobId).in("event_type", [RELEASE_EVENT, REPEAT_PIESA_FORM_RESET_EVENT]);
   if (error) throw new Error(error.message);
-  return (data ?? []).filter((r) => (r.details as { kind?: string } | null)?.kind === kind).length;
+  const rows = data ?? [];
+  return claimGeneration({
+    releasedKinds: rows.filter((r) => r.event_type === RELEASE_EVENT).map((r) => (r.details as { kind?: string } | null)?.kind),
+    repeatResets: rows.filter((r) => r.event_type === REPEAT_PIESA_FORM_RESET_EVENT).length,
+    kind,
+  });
 }
 
 async function insertClaim(jobId: string, kind: MittiFormKind, gen: number, actorId: string | null, summary: string, details: Record<string, unknown>) {
-  const id = await claimEventId(jobId, kind, gen);
+  // Only verified in-house creators supply a round; legacy claims remain keyed on jobId.
+  const rectificationScope = kind === "fixes" ? details["rectification_round"] : null;
+  const id = await claimEventId(rectificationScope ? `${jobId}:${rectificationScope}` : jobId, kind, gen);
   const { error } = await admin.from("workflow_events").insert({ id, job_id: jobId, actor_id: actorId, event_type: CLAIM_EVENT, summary, details: { ...details, kind, generation: gen } as never, internal: true });
   if (!error) return { ok: true as const, id };
   if (isUniqueViolation(error)) return { ok: false as const, id };
@@ -122,9 +130,28 @@ export async function readyCheckFormFacts(jobId: string) {
   };
 }
 
-/** Called after a Ready Check booking is confirmed. Schedules creation only when every existing switch allows it. */
+/** Called after a Ready Check booking is confirmed. HV-3542 (Jo 30 Oct): makes the form in the request itself (one
+ *  quick attempt, kept alive with waitUntil) instead of a fire-and-forget step that could be lost. Never throws. */
 export async function onReadyCheckBooked(jobId: string, actorId: string | null, call?: MittiCall): Promise<"scheduled" | "skipped"> {
-  return scheduleReadyCheckFormIfAllowed(jobId, actorId, call, { requireBooking: true });
+  const { bookedSkipReason, bookedNoteSummary, BOOKED_SKIP_EVENT } = await import("./mitti-immediate.core");
+  const note = (reason: string) => logEvent(jobId, actorId, BOOKED_SKIP_EVENT, bookedNoteSummary(reason), { reason }, { internal: true }).catch(() => undefined);
+  const work = (async (): Promise<"scheduled" | "skipped"> => {
+    try {
+      const f = await readyCheckFormFacts(jobId);
+      const skip = bookedSkipReason(f);
+      if (skip || !f) { await note(skip ?? "job not found"); return "skipped"; }
+      const assignee = await testAssignee(f.job.source, f.installerUserId!);
+      await runReadyCheckFormCreation(jobId, actorId, assignee, call, { delaysMs: [] });
+      return "scheduled";
+    } catch (e) {
+      await note(`stopped unexpectedly: ${(e instanceof Error ? e.message : "error").slice(0, 200)}`);
+      return "skipped";
+    }
+  })();
+  // Keep going if the phone drops the connection: the platform keeps this promise alive past the request.
+  const { requestContext } = await import("./background.server");
+  requestContext.getStore()?.waitUntil?.(work);
+  return work;
 }
 
 /** Decisions 34/115 (Jo 24 Oct): Add a job creates the installer's Mitti Ready Check form straight away — no booking
@@ -153,18 +180,9 @@ export async function onReadyCheckJobAdded(jobId: string, actorId: string | null
   return work;
 }
 
-async function testAssignee(source: string | null, installerUserId: string): Promise<ReadyCheckAssignee | null> {
+export async function testAssignee(source: string | null, installerUserId: string): Promise<ReadyCheckAssignee | null> {
   if (source !== "qa_test") return null;
   const { TEST_MITTI_ASSIGNEE } = await import("./onsite-ready-check.core");
   const { data: p } = await admin.from("profiles").select("full_name").eq("id", installerUserId).maybeSingle();
   return { userId: installerUserId, fullName: p?.full_name ?? null, email: TEST_MITTI_ASSIGNEE };
-}
-
-async function scheduleReadyCheckFormIfAllowed(jobId: string, actorId: string | null, call: MittiCall | undefined, opts: { requireBooking: boolean }): Promise<"scheduled" | "skipped"> {
-  const f = await readyCheckFormFacts(jobId);
-  if (!f || (opts.requireBooking && !f.booked) || f.auditId || f.measurementComplete || !f.installerUserId) return "skipped";
-  if (!f.mittiInvited || !f.templateSet || !f.autoSend || !f.gateADone) return "skipped";
-  const assignee = await testAssignee(f.job.source, f.installerUserId);
-  await scheduleReadyCheckFormCreation(jobId, actorId, assignee, call);
-  return "scheduled";
 }

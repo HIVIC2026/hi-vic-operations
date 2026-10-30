@@ -66,7 +66,7 @@ describe("decision 307 source pins", () => {
     const card = readFileSync("src/components/portal/piesa-times.tsx", "utf8");
     const old = card.slice(card.indexOf("export function PiesaTimesCard"));
     expect(old).toContain("data.thirtyDayAck.wording");
-    expect(old).toContain("choose({ jobId, picks, understandsThirtyDays: understands }");
+    expect(old).toContain("choose({ data: { jobId, picks, understandsThirtyDays: understands }");
     expect(old).toContain("disabled={busy || ackBlock || blockers.length > 0}");
   });
   test("server refuses with the plain message and records once per cycle", () => {
@@ -106,7 +106,9 @@ describe("submitOwnerPiesaWindows requires the 30-day acknowledgement (every own
     const b: Record<string, unknown> = {
       select: (_c?: string, o?: { count?: string }) => { if (op === "select") count = o?.count === "exact"; return b; },
       insert: (p: unknown) => { op = "insert"; patch = p; return b; }, update: (p: unknown) => { op = "update"; patch = p; return b; },
-      eq: (c: string, v: unknown) => { f.push((r) => r[c] === v); return b; }, in: () => b, order: () => b, limit: () => b,
+      eq: (c: string, v: unknown) => { f.push((r) => r[c] === v); return b; }, in: () => b, order: () => b, limit: () => b, range: () => b,
+      is: (c: string, v: unknown) => { f.push((r) => (r[c] ?? null) === v); return b; },
+      neq: (c: string, v: unknown) => { f.push((r) => r[c] !== v); return b; },
       not: (c: string, _o: string, v: unknown) => { f.push((r) => (v === null ? r[c] != null : true)); return b; },
       single: () => { one = true; return b; }, maybeSingle: () => { one = true; return b; },
       then: (res: (v: unknown) => unknown) => {

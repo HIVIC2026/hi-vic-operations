@@ -8,8 +8,6 @@ export const M7 = {
   title: "font-display text-[22px] font-semibold leading-[1.2] text-estimate-navy",
   sub: "text-sm text-estimate-sub",
   primary: "flex min-h-12 w-full items-center justify-center rounded-[12px] bg-estimate-blue px-4 text-base font-semibold text-white disabled:opacity-45",
-  secondary: "flex min-h-12 w-full items-center justify-center rounded-[12px] border border-estimate-line bg-white px-4 text-[15px] font-semibold text-estimate-blue disabled:opacity-45",
-  field: "min-h-12 w-full rounded-[10px] border border-estimate-line bg-white px-3 text-base text-estimate-navy",
 } as const;
 
 export function Chevron() { return <span aria-hidden className="text-xl leading-none text-estimate-sub">›</span>; }
@@ -28,19 +26,6 @@ export function FileRow({ to, title, sub, warn, testId }: { to: string; title: s
       </span>
       <Chevron />
     </Link>
-  );
-}
-
-/** NEXT: the one thing and one button. Rendered only when there is something real to do. */
-export function NextPanel({ next }: { next: { title: string; sub: string; button: string; to: string } | null }) {
-  if (!next) return null;
-  return (
-    <section data-next className="rounded-[18px] bg-estimate-panel p-4">
-      <p className="text-[11px] font-bold uppercase tracking-[1.3px] text-estimate-blue">Next</p>
-      <p className="mt-1.5 text-[17px] font-semibold leading-[1.3] text-estimate-navy">{next.title}</p>
-      <p className="mt-1 text-sm text-estimate-sub">{next.sub}</p>
-      <Link to={next.to as never} className={`${M7.primary} mt-3.5`}>{next.button}</Link>
-    </section>
   );
 }
 

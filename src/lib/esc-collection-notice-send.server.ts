@@ -54,7 +54,8 @@ async function recordAcknowledgement(p: { worker: NoticeWorkerRow; actorId: stri
   const { error } = await admin.from("admin_config_events").insert({ actor_id: p.actorId, event_type: COLLECTION_NOTICE_EVENT, summary: ev.summary, details: ev.details });
   if (error) throw new WorkflowError("Could not record the acknowledgement. Please try again.");
   const { data: b } = await admin.from("businesses").select("onboarding_notes").eq("id", p.worker.business_id).maybeSingle();
-  const email = await sendNoticeCopy({ actorId: p.actorId, businessId: p.worker.business_id, partnerIsTest: isTestPartner(b), to: p.worker.email, name: p.worker.full_legal_name, acknowledgedAt: ev.details.at }).catch((e: Error) => ({ status: "failed" as const, detail: e.message }));
+  // Jo 28 Oct: a person with no email simply gets no email copy.
+  const email = !p.worker.email?.trim() ? { status: "blocked" as const, detail: "No email on file." } : await sendNoticeCopy({ actorId: p.actorId, businessId: p.worker.business_id, partnerIsTest: isTestPartner(b), to: p.worker.email, name: p.worker.full_legal_name, acknowledgedAt: ev.details.at }).catch((e: Error) => ({ status: "failed" as const, detail: e.message }));
   return { ok: true, at: ev.details.at, email };
 }
 
@@ -67,6 +68,12 @@ export async function issueAndSendNoticeLink(p: { worker: NoticeWorkerRow; actor
   const now = p.now ?? new Date();
   const { data: b } = await admin.from("businesses").select("name, trading_name, onboarding_notes").eq("id", p.worker.business_id).maybeSingle();
   const test = isTestPartner(b);
+  // Jo 30 Oct 2026: "Pause all trade messages" — no link issued, nothing sent or recorded, so a paused attempt never
+  // counts as one of the 3 tries; the sweep (or the button) sends it once unpaused.
+  if (!test) {
+    const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow();
+    if (tradePaused) return { sms: { status: "blocked", detail: tradePaused }, email: { status: "blocked", detail: tradePaused }, attempt: p.attempt, paused: true as const };
+  }
   const token = newToken();
   const link = noticeLinkDetails({ businessId: p.worker.business_id, workerId: p.worker.id, workerEmail: p.worker.email, tokenHash: await hashToken(token), now });
   const { error } = await admin.from("admin_config_events").insert({ actor_id: p.actorId, event_type: COLLECTION_NOTICE_LINK_EVENT, summary: `ESC notice link issued to ${p.worker.full_legal_name} (attempt ${p.attempt})`, details: link });
@@ -82,7 +89,7 @@ export async function issueAndSendNoticeLink(p: { worker: NoticeWorkerRow; actor
     const { sendTestSms, sendTestEmail } = await import("./test-send.server");
     const ctx = { jobId: null, jobSource: null, partnerIsTest: true, label: `esc_notice_link:${p.attempt}`, actorId: p.actorId };
     sms = p.worker.mobile ? await sendTestSms(ctx, p.worker.mobile, noticeLinkSmsBody(first, url)) : { status: "blocked", detail: "No mobile on the worker record." };
-    email = await sendTestEmail(ctx, p.worker.email, mail.subject, rendered.html, rendered.text);
+    email = p.worker.email?.trim() ? await sendTestEmail(ctx, p.worker.email, mail.subject, rendered.html, rendered.text) : { status: "blocked", detail: "No email on file." };
   } else {
     const { sendRealSms } = await import("./sms.server");
     // Decision 165 (`window` type): attempts 1/2/3 are planned from the recorded send history (held ones included), so a
@@ -90,7 +97,8 @@ export async function issueAndSendNoticeLink(p: { worker: NoticeWorkerRow; actor
     const key = p.manual ? `esc-notice-link:v1:${p.worker.id}:manual:${link.token_hash.slice(0, 16)}` : `esc-notice-link:v1:${p.worker.id}:${p.attempt}`;
     const r = await sendRealSms({ type: COLLECTION_NOTICE_SMS_TYPE, idempotencyKey: key, to: p.worker.mobile, body: noticeLinkSmsBody(first, url), businessId: p.worker.business_id });
     sms = { status: r.status, detail: r.detail };
-    if (!COLLECTION_NOTICE_SEND_APPROVED) email = { status: "blocked", detail: "Email wording waiting for Jo's approval (COLLECTION_NOTICE_SEND_APPROVED)." };
+    if (!p.worker.email?.trim()) email = { status: "blocked", detail: "No email on file." };
+    else if (!COLLECTION_NOTICE_SEND_APPROVED) email = { status: "blocked", detail: "Email wording waiting for Jo's approval (COLLECTION_NOTICE_SEND_APPROVED)." };
     else {
       const r2 = await (await import("./office-email.server")).sendOfficeEmail({ actorId: p.actorId ?? "", recipient: "partner", to: p.worker.email, contactName: p.worker.full_legal_name, subject: mail.subject, message: rendered.text, label: "esc_notice_link", record: { businessId: p.worker.business_id }, html: rendered.html, text: rendered.text });
       email = { status: r2.status, detail: r2.detail };
@@ -136,7 +144,7 @@ export async function sweepCollectionNoticeLinks(now = new Date()) {
   for (const w of pending) {
     const plan = noticeSendPlan(history.get(w.id) ?? [], now);
     if (!plan) continue;
-    try { await issueAndSendNoticeLink({ worker: w, actorId: null, attempt: plan.attempt, reminder: plan.reminder, now }); sent++; }
+    try { const r = await issueAndSendNoticeLink({ worker: w, actorId: null, attempt: plan.attempt, reminder: plan.reminder, now }); if (!("paused" in r)) sent++; }
     catch (e) { failed++; console.error("esc notice link send failed", (e as Error).message); }
   }
   return { checked: workers.length, pending: pending.length, sent, failed };

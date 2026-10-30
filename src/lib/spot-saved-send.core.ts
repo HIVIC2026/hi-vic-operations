@@ -55,3 +55,17 @@ export function planSpotSaved(f: SpotSavedFacts): { email: ChannelPlan; sms: Cha
     : { send: true, to: e164, key: spotSavedSmsKey(e164) };
   return { email, sms };
 }
+
+/** Jo 30 Oct 2026: a spot_saved text already sent, delivered or sending to this JOB or this PHONE — under ANY key format
+ *  (older 'spot-saved:<job id>' or 'spot-saved-confirmation:v1:<phone>') — means the owner already has it. */
+export const SPOT_SAVED_DONE_STATUSES = ["sent", "delivered", "sending"] as const;
+export type PriorSpotSavedRow = { job_id: string | null; to_number: string | null; status: string; message_type: string };
+export function priorSpotSavedTextSent(rows: PriorSpotSavedRow[], jobId: string, e164: string | null): boolean {
+  return rows.some((r) => r.message_type === "spot_saved" && (SPOT_SAVED_DONE_STATUSES as readonly string[]).includes(r.status)
+    && (r.job_id === jobId || (!!e164 && r.to_number === e164)));
+}
+/** Email side: any spot saved confirmation email already sent or being sent for this JOB (whatever address it went to). */
+export const SPOT_SAVED_EMAIL_DONE_STATUSES = ["sent", "sending"] as const;
+export function priorSpotSavedEmailSent(rows: { job_id: string | null; status: string | null; purpose: string | null }[], jobId: string): boolean {
+  return rows.some((r) => r.purpose === SPOT_SAVED_EMAIL_PURPOSE && r.job_id === jobId && (SPOT_SAVED_EMAIL_DONE_STATUSES as readonly string[]).includes(r.status ?? ""));
+}

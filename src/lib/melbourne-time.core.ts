@@ -22,6 +22,13 @@ export function addMelbourneBusinessDays(startIso: string, n: number): string {
   while (left > 0) { ymd = addYmd(ymd, 1); if (isBusinessDay(ymd)) left--; }
   return endOfMelbourneYmd(ymd);
 }
+/** Date-only interface for office stalls; reuse the existing Victorian calendar. */
+export function addVicBusinessDays(fromIso: string, days: number): string {
+  if (!Number.isInteger(days) || days < 0 || !Number.isFinite(Date.parse(fromIso))) throw new Error("Invalid business-day input");
+  let ymd = fromIso.length === 10 ? fromIso : melbourneYmd(new Date(fromIso));
+  for (let left = days; left > 0;) { ymd = addYmd(ymd, 1); if (isBusinessDay(ymd)) left--; }
+  return ymd;
+}
 /** Melbourne midnight at the start of the current Melbourne month, as an ISO instant. */
 export function melbourneMonthStart(now = new Date()): string {
   return new Date(melbourneMidnight(`${melbourneYmd(now).slice(0, 7)}-01`)).toISOString();

@@ -1,0 +1,41 @@
+{
+  "tradeMoneyView": {
+    "kind": "installer",
+    "boss": true,
+    "business": "[TEST PARTNER] Reinsulate",
+    "bankEnding": "0854",
+    "next": null,
+    "month": 0,
+    "allTime": 0,
+    "rows": [],
+    "ownerDirect": [],
+    "paidByInstaller": []
+  },
+  "tradeMoneyExtras": {
+    "accountName": "Infronix pty ltd",
+    "bsbStart": "063",
+    "accountEnding": "0854"
+  },
+  "tradeMoneyJob": {
+    "found": false,
+    "jobId": "05eba075-0e5e-4f96-a584-f45596799e89",
+    "jobNumber": null,
+    "suburb": null,
+    "channel": null,
+    "doneAt": null,
+    "amount": null,
+    "state": {
+      "kind": "checking"
+    },
+    "accountEnding": "0854",
+    "product": null,
+    "areaM2": 120,
+    "removalM2": null,
+    "crew": [],
+    "installerSignedAt": null,
+    "ownerSignedAt": null,
+    "apApprovedAt": null,
+    "ownerPaidInFullAt": null,
+    "held": []
+  }
+}

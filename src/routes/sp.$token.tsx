@@ -43,7 +43,7 @@ function SafetyPlanLink() {
       <section className={`${card} space-y-3 text-sm`} data-swms-link-plan>
         <div><p className="font-medium">High-risk work on this job</p><ul className="list-disc pl-5">{d.highRiskWork.map((h) => <li key={h}>{h}</li>)}</ul></div>
         <div><p className="font-medium">Hazards and the controls you use</p><ul className="space-y-1.5">{d.hazards.map((h) => <li key={h.name}><span className="font-medium">{h.name}:</span> {h.control}.</li>)}</ul><p className="mt-2">{SWMS_HOW_IN_PLACE}</p></div>
-        <div><p className="font-medium">Specific to this house</p><p>{d.siteNote ?? "None recorded"}</p></div>
+        <div><p className="font-medium">Specific to this house</p>{d.house?.length ? <ul className="list-disc space-y-1 pl-5" data-swms-house>{d.house.map((h, i) => <li key={i} className={h.startsWith("Safety step:") ? "font-semibold" : undefined}>{h}</li>)}</ul> : <p>None recorded</p>}</div>
       </section>
       {d.signedAt ? (
         <section className="rounded-[18px] border border-line bg-mint p-5 text-ink" data-swms-link-signed><p className="font-display text-2xl font-bold">You've signed the safety plan.</p><p className="mt-1">Signed {swmsDateTime(d.signedAt)} (Melbourne time).</p></section>

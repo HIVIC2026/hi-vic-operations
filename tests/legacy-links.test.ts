@@ -27,7 +27,6 @@ describe("retired page addresses", () => {
     expect(officeLegacyTarget("toString")).toBeNull();
     expect(officeLegacyTarget("needs-me-typo")).toBeNull();
     expect(OFFICE_HOME_FALLBACK).toEqual({ to: "/admin/needs-me" });
-    expect(partnerLegacyTarget("workers")).toBeNull();
     expect(publicLegacyTarget("anything-else")).toBeNull();
   });
   test("retired partner and public pages land on their replacements", () => {
@@ -36,6 +35,12 @@ describe("retired page addresses", () => {
     expect(partnerLegacyTarget("profile")).toEqual({ to: "/field/business" });
     expect(publicLegacyTarget("installer-preview")).toEqual({ to: "/partner/import" });
     expect(publicLegacyTarget("campaign-preview")).toEqual({ to: "/" });
+  });
+  test("workers redirects to Team", () => {
+    expect(partnerLegacyTarget("workers")).toEqual({ to: "/field/business/team" });
+    expect(partnerLegacyTarget("workers", { sample: "1" })).toEqual({ to: "/field/business/team" });
+    expect(existsSync("src/routes/_authenticated/partner.workers.tsx")).toBe(false);
+    expect(existsSync("src/components/portal/worker-invites.tsx")).toBe(false);
   });
   test("one catch-all route per area serves the table", () => {
     expect(readFileSync("src/routes/_authenticated/admin.$.tsx", "utf8")).toContain("officeLegacyTarget(params._splat");

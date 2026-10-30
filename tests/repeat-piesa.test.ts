@@ -1,5 +1,5 @@
 import { describe, expect, it, test } from "bun:test";
-import { chooseRepeatPayerBlocker, installerRepeatDeduction, ownerRepeatView, repeatPiesaGateBlocker, repeatPiesaState, REPEAT_PRICE_NOT_SET } from "../src/lib/repeat-piesa.core";
+import { chooseRepeatPayerBlocker, installerRepeatDeduction, ownerRepeatView, repeatInvoicePaid, repeatPiesaGateBlocker, repeatPiesaState, REPEAT_ARRANGING_TITLE, REPEAT_PRICE_NOT_SET } from "../src/lib/repeat-piesa.core";
 import { fixesFoundLine, needsCandidates } from "../src/lib/office-needs.core";
 import { jobNext, FIXES_PAUSED_TITLE } from "../src/lib/installer-screens.core";
 
@@ -22,6 +22,14 @@ test("owner-pays is refused while the Repeat safety check price is empty", () =>
   expect(chooseRepeatPayerBlocker(lapsed, "owner", 220)).toBeNull();
   expect(chooseRepeatPayerBlocker(lapsed, "installer", null)).toBeNull();
   expect(chooseRepeatPayerBlocker(chose("hivic"), "owner", 220)).toMatch(/already been chosen/);
+});
+
+test("owner page has no repeat card once accepted (and paid if owed) — normal booking area shows", () => {
+  expect(ownerRepeatView({ stage: "offer", payer: "owner", priceIncGst: 349, deadline: "2026-10-01" })).toBeNull();
+  expect(ownerRepeatView({ stage: "offer", payer: "installer", priceIncGst: 349, deadline: "2026-10-01" })).toBeNull();
+  expect(ownerRepeatView({ stage: "choose", payer: null, priceIncGst: null, deadline: "2026-10-01" })!.title).toBe(REPEAT_ARRANGING_TITLE);
+  expect(ownerRepeatView({ stage: "owner_accept", payer: "owner", priceIncGst: 349, deadline: "2026-10-01" })!.button).toBe("Accept");
+  expect(ownerRepeatView({ stage: "owner_pay", payer: "owner", priceIncGst: 349, deadline: "2026-10-01" })!.body).toContain("Please pay $349 inc GST");
 });
 
 test("owner pays: price shown, Accept, then must be paid before booking", () => {
@@ -91,24 +99,15 @@ test("TEST jobs only ever use STRIPE_TEST_SECRET_KEY; real jobs only STRIPE_SECR
   if (save.l === undefined) delete process.env["STRIPE_SECRET_KEY"]; else process.env["STRIPE_SECRET_KEY"] = save.l;
 });
 
-describe("owner-pays repeat PIESA on the ONE Xero invoice (decision 233, Jo 28 Oct)", () => {
-  it("counts as paid only once payments grow by the repeat price since acceptance", async () => {
-    const { repeatPaidByInvoice } = await import("../src/lib/repeat-piesa.core");
-    expect(repeatPaidByInvoice({ paidCents: 34900, paidAtAddCents: 34900, priceCents: 34900 })).toBe(false); // re-applied $349 fee
-    expect(repeatPaidByInvoice({ paidCents: 69800, paidAtAddCents: 34900, priceCents: 34900 })).toBe(true);
+describe("owner-pays repeat safety check on its OWN invoice (batch 3b)", () => {
+  const inv = (over: Record<string, unknown> = {}) => ({ kind: "repeat_safety_check", repeat_key: "2026-11-20", total_inc_gst: 349, ...over });
+  test("paid only when the current repeat's own invoice is paid in full", () => {
+    expect(repeatInvoicePaid({ invoice: inv(), deadline: "2026-11-20", paidCents: 34_900 })).toBe(true);
+    expect(repeatInvoicePaid({ invoice: inv(), deadline: "2026-11-20", paidCents: 34_899 })).toBe(false);
   });
-  it("adds ONE tagged line to the existing invoice, never a new invoice", async () => {
-    const core = await import("../src/lib/xero-repairs.core");
-    const { repeatLineTag, repeatLineDescription } = await import("../src/lib/repeat-piesa.core");
-    const x = { InvoiceID: "inv1", Status: "AUTHORISED", Reference: "Home Insulation Victoria HV-1", Total: 1000, AmountPaid: 0, LineItems: [{ LineItemID: "l1", Description: "Insulation", LineAmount: 1000 }] };
-    const tag = repeatLineTag("2026-11-20");
-    const d = core.repairsAmendDecision({ enabled: true, repairs: { rectQuoteId: "2026-11-20", amountCents: 34900 }, key: "k", recorded: [], baseTotalCents: 100000, xero: x, tag });
-    expect(d.action).toBe("amend");
-    const u = core.buildRepairsAmendment({ xero: x, jobNumber: "HV-1", rectQuoteId: "2026-11-20", amountCents: 34900, key: "k", mode: "test", description: repeatLineDescription(x.Reference, "2026-11-20") });
-    expect(u.path).toBe("/api.xro/2.0/Invoices/inv1");
-    expect(u.body.Invoices[0]!.LineItems).toHaveLength(2);
-    expect(u.expectedTotalCents).toBe(134900);
-    // Paid invoice → held for the office, not a second invoice.
-    expect(core.repairsAmendDecision({ enabled: true, repairs: { rectQuoteId: "2026-11-20", amountCents: 34900 }, key: "k", recorded: [], baseTotalCents: 100000, xero: { ...x, AmountPaid: 349 }, tag }).action).toBe("hold");
+  test("money on another invoice, or on an older repeat's invoice, never counts", () => {
+    expect(repeatInvoicePaid({ invoice: inv({ kind: "installation", repeat_key: null }), deadline: "2026-11-20", paidCents: 500_000 })).toBe(false);
+    expect(repeatInvoicePaid({ invoice: inv({ repeat_key: "reopen:2026-10-25T01:00:00.000Z" }), deadline: "2026-11-20", paidCents: 34_900 })).toBe(false);
+    expect(repeatInvoicePaid({ invoice: null, deadline: "2026-11-20", paidCents: 34_900 })).toBe(false);
   });
 });

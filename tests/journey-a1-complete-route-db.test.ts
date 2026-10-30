@@ -75,7 +75,7 @@ describe("A1 journey — step 0: harness", () => {
 describe("A1 step 1 — Add a job (decisions 34/115/282/289)", () => {
   test("basics + permission → one job, owner, property, consent, electrician choice, Mitti A1 form created once", async () => {
     const os = await import("../src/lib/onsite-ready-check.server");
-    const r = await os.startOnsiteReadyCheckFor(INST, BIZ, { full_name: "Helen Journey", address_line: "1 Journey Street", suburb: "Frankston", postcode: "3199", phone: OWNER_PHONE, email: OWNER_EMAIL, contact_permission: true, consent_by: "installer", address_verified: true } as never, { mode: "hivic" } as never);
+    const r = await os.startOnsiteReadyCheckFor(INST, BIZ, { full_name: "Helen Journey", address_line: "1 Journey Street", suburb: "Frankston", postcode: "3199", phone: OWNER_PHONE, email: OWNER_EMAIL, contact_permission: true, consent_by: "installer", address_verified: true } as never, { mode: "hivic" } as never, undefined, { leadOrigin: "owner_contacted" });
     JOB = r.jobId;
     await settle();
     expect(backgroundErrors).toEqual([]);
@@ -258,7 +258,7 @@ describe("A1 step 4 — the $349 safety check, paid by card (decisions 139/144/3
     const s = providers.stripe.sessions[0]!;
     expect(s.form["line_items[0][price_data][unit_amount]"]).toBe("34900");
     expect(s.form["metadata[step]"]).toBe("safety_check");
-    expect(s.idempotencyKey).toBe(`hivic-checkout-${JOB}-safety_check-34900`);
+    expect(s.idempotencyKey).toBe(`hivic-checkout-${JOB}-${s.form["metadata[invoice_id]"]}-safety_check-34900`);
     const st = await import("../src/lib/stripe.server");
     // A forged webhook (wrong secret) changes nothing.
     const forged = await stripePaidWebhook(s, "whsec_wrong");

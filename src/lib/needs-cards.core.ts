@@ -26,18 +26,19 @@ export const NEEDS_CARD_TITLE: Record<NeedsCardId, string> = {
 };
 
 const CARD_OF: Record<NeedsKind, NeedsCardId> = {
+  in_house_ready_check_not_booked: "other", in_house_piesa_overdue: "other", in_house_install_not_booked: "clock",
   choose_again: "offers", release_lapsed: "offers",
   sign_consent: "deadlines", esc_window: "deadlines", prestart_failed: "deadlines",
   quote_check: "quotes", fixes_quote_check: "quotes",
   final_check: "final",
-  send_failed: "failed", robot_failed: "failed", piisa_form_failed: "failed", piesa_form_failed: "failed",
+  send_failed: "failed", stop_release_failed: "failed", robot_failed: "failed", piisa_form_failed: "failed", piesa_form_failed: "failed",
   email_change: "emails", email_unmatched: "unmatched",
   choose_installer: "other", choose_electrician: "electrician", eligibility_review: "other",
-  piesa_owner_unsigned: "owner", piesa_fixes_owner_unsigned: "owner", fixes_times_missing: "owner", booking_overdue: "owner",
+  piesa_owner_unsigned: "owner", piesa_fixes_owner_unsigned: "owner", fixes_times_missing: "owner", booking_overdue: "owner", piesa_rules_failed: "owner", life_support_plan: "owner",
   veec_a_held: "veec", veec_day_10: "veec",
-  payment_not_in_xero: "payments", payment_overdue: "payments", payment_reversed: "payments", payment_stalled: "payments", mitti_form_problem: "other",
-  ten_days_left: "clock", lapsed_window: "clock", second_no_access: "clock", repeat_piesa_choose: "clock", repeat_piesa_xero_held: "payments",
-  piesa_fixes_found: "other",
+  invoice_failed: "payments", old_fixes_invoice_unpaid: "payments", old_fixes_invoice_paid: "payments", payment_not_in_xero: "payments", payment_overdue: "payments", payment_reversed: "payments", payment_stalled: "payments", mitti_form_problem: "other",
+  ten_days_left: "clock", lapsed_window: "clock", second_no_access: "clock", repeat_piesa_choose: "clock",
+  piesa_fixes_found: "other", quote_expired_blocked: "owner", new_quote_installer: "other", new_quote_unfinished: "other", coes_check: "other",
 };
 
 export const cardOf = (kind: NeedsKind): NeedsCardId => CARD_OF[kind] ?? "other";

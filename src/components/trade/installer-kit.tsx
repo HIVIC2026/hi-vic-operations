@@ -14,7 +14,7 @@ export function Screen({ children }: { children: React.ReactNode }) {
   return <div className="mx-auto flex w-full max-w-[430px] flex-col gap-5 text-ink md:max-w-[560px]">{children}</div>;
 }
 
-export function BackToWork() {
+function BackToWork() {
   return <Link to="/field" className="inline-flex min-h-9 items-center text-sm font-medium text-hiv-blue">‹ My work</Link>;
 }
 
@@ -46,8 +46,18 @@ export function ContactButtons({ phone, address }: { phone: string | null | unde
   );
 }
 
-/** The one NEXT panel: mist background, eyebrow, title, sub, then whatever the page puts inside. */
-export function NextPanel({ eyebrow = "Next", title, sub, children }: { eyebrow?: string; title: React.ReactNode; sub?: React.ReactNode; children?: React.ReactNode }) {
+/** The one NEXT panel: eyebrow, title, sub, then whatever the page puts inside. `look="job"` (default) is the job pages' mist panel; `look="business"` is My business' panel. */
+export function NextPanel({ eyebrow = "Next", title, sub, children, look = "job" }: { eyebrow?: string; title: React.ReactNode; sub?: React.ReactNode; children?: React.ReactNode; look?: "job" | "business" }) {
+  if (look === "business") {
+    return (
+      <section data-next className="rounded-[18px] bg-estimate-panel p-4">
+        <p className="text-[11px] font-bold uppercase tracking-[1.3px] text-estimate-blue">{eyebrow}</p>
+        <p className="mt-1.5 text-[17px] font-semibold leading-[1.3] text-estimate-navy">{title}</p>
+        {sub && <p className="mt-1 text-sm text-estimate-sub">{sub}</p>}
+        {children}
+      </section>
+    );
+  }
   return (
     <section aria-label="Next" data-next-panel className="rounded-[18px] bg-mist p-4">
       <p className="text-[11px] font-bold uppercase tracking-[1.3px] text-hiv-blue">{eyebrow}</p>

@@ -25,6 +25,7 @@ export function WhoHasTheBall({ jobId, onOpenTab }: { jobId: string; onOpenTab?:
   const { data: w, error } = useQuery({ queryKey: ["job-waiting", jobId], queryFn: () => load({ data: { jobId } }), refetchInterval: 60_000 });
   if (error) return <div role="alert" className="mb-4 rounded-xl border border-danger bg-danger-soft p-3 text-sm text-danger">Couldn't work out who this job is waiting on. Refresh to try again.</div>;
   if (!w) return <div className="mb-4 h-24 animate-pulse rounded-2xl bg-muted" />;
+  if (w.coordinationSuppressed && w.viewerRole === "owner") return null;
   const tone = w.status === "overdue" ? "border-danger bg-danger-soft" : w.status === "warn" ? "border-warning bg-warning-soft" : "border-border bg-card";
   const isAdmin = w.viewerRole === "admin";
   return (
@@ -42,7 +43,7 @@ export function WhoHasTheBall({ jobId, onOpenTab }: { jobId: string; onOpenTab?:
       <div className="mt-1 text-xs text-muted-foreground">
         {w.since && <>Since {fmt(w.since)}</>}{w.status === "overdue" && w.dueAt && <> · was due {fmt(w.dueAt)}</>}
       </div>
-      {isAdmin && !w.terminal && onOpenTab && (
+      {isAdmin && !w.terminal && !w.coordinationSuppressed && onOpenTab && (
         <div className="mt-3 flex flex-wrap gap-2">
           <Button onClick={() => onOpenTab(w.action.tab)}>{w.action.label} <ArrowRight className="ml-1 h-4 w-4" /></Button>
           {w.parties[0] !== "Home Insulation Victoria" && w.action.label !== "Draft a nudge" && <Button variant="outline" onClick={() => onOpenTab("messages")}><MessageSquare className="mr-1 h-4 w-4" />Draft a nudge</Button>}

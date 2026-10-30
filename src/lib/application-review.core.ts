@@ -19,7 +19,7 @@ export function renderApplicationReceivedEmail(i: { contactName?: string | null;
   const intro = `${i.businessName}'s application to install under the VEU program with Home Insulation Victoria is in.`;
   const preview = "Here's what happens next, and how long it usually takes.";
   const steps: K.Step[] = [
-    { title: "We check your details", detail: "CII certification, public liability insurance (min $5 million) and PIISA training. Usually within 2 business days." },
+    { title: "We check your details", detail: "CII certification and public liability insurance (min $5 million). Usually within 2 business days." },
     { title: "You're approved", detail: "You get an email to set your password, plus an invite to Mitti, the app you'll fill forms in." },
     { title: "Start adding jobs", detail: "Add your own customers in about 30 seconds, and take the jobs we send you." },
   ];

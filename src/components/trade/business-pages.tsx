@@ -5,12 +5,12 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ChevronLeft } from "lucide-react";
-import { TradeShell, card } from "@/components/trade/TradeShell";
+import { TradeShell, card, inputCls } from "@/components/trade/TradeShell";
 import { getTradeBusinessFile, sendTradeChangeRequest } from "@/lib/trade-view.functions";
 
 export const greenBtn = "flex h-12 w-full items-center justify-center rounded-[10px] bg-action px-4 text-[13px] font-bold text-action-foreground disabled:opacity-45 md:h-[42px] md:w-auto";
 export const navyBtn = "flex h-12 w-full items-center justify-center rounded-[10px] border border-line bg-paper px-4 text-[13px] font-bold text-hiv-blue disabled:opacity-45 md:h-[42px] md:w-auto";
-export const field = "h-12 w-full rounded-[9px] border border-field-line bg-paper px-3 text-base text-ink md:h-[42px] md:text-sm";
+export const field = inputCls;
 
 export type BizFile = Awaited<ReturnType<typeof getTradeBusinessFile>>;
 

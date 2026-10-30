@@ -73,7 +73,7 @@ export function renderDepositReleasedEmail(f: DepositReleaseFacts): { subject: s
   const hi = `Hi ${first},`;
   const headline = "Your install day was released";
   const body = `We didn't receive your install deposit in time, so ${f.day} has been released. Your installer will offer new days once it's paid.`;
-  const payTitle = f.depositAmount ? `Pay your ${f.depositAmount} deposit by bank transfer or PayID` : "Pay your deposit by bank transfer or PayID";
+  const payTitle = f.depositAmount ? `Pay your ${f.depositAmount} deposit by card, bank transfer or PayID` : "Pay your deposit by card, bank transfer or PayID";
   const preview = `Pay your ${f.depositAmount ? `${f.depositAmount} ` : ""}deposit and your installer will offer new days.`;
   const lands = "Once it lands, your installer offers you new days on your job page.";
   const html = mjEmail({

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { partnerLegacyTarget } from "../src/lib/legacy-links.core";
 import { readFileSync } from "node:fs";
-import { ADD_JOB_LEAD, FORM_WITHIN_15, NEUTRAL_SAVE_ERROR, SAVE_LABEL, VISIT_FIELD_HINT, VISIT_FIELD_LABEL, WHAT_HAPPENS_NEXT, dayOptionLabel, formLabel, outcomeFor, restoreCustomer, saveErrorMessage, visitPayload, visitProblems, visitSummary } from "../src/lib/add-job-flow.core";
+import { ADD_JOB_LEAD, ADD_JOB_STAFF_ONLY, addJobStartState, FORM_WITHIN_15, NEUTRAL_SAVE_ERROR, SAVE_LABEL, TRY_AGAIN_LABEL, VISIT_FIELD_HINT, VISIT_FIELD_LABEL, WHAT_HAPPENS_NEXT, dayOptionLabel, formLabel, outcomeFor, restoreCustomer, saveErrorMessage, visitPayload, visitProblems, visitSummary } from "../src/lib/add-job-flow.core";
 import { onsiteProblems } from "../src/lib/onsite-ready-check.core";
 
 describe("Add job flow (Jo 8 Oct; basics only since decision 34, 24 Oct)", () => {
@@ -51,9 +51,9 @@ describe("Add job flow (Jo 8 Oct; basics only since decision 34, 24 Oct)", () =>
   test("page: basics + permission tick + one optional visit field; no mode choice, measurements, price, files or electrician (decision 34)", () => {
     const ui = readFileSync("src/components/trade/add-job-flow.tsx", "utf8");
     // Decision 289: plus ONE required electrician choice (HIV / my usual electrician), defaulting to the usual one when set.
-    for (const h of ["startOnsiteReadyCheck", "OWNER_CONTACT_PERMISSION", "VisitField", "visitPayload(visit)", "Open Mitti form", "data-electrician-choice", "ELECTRICIAN_CHOICE_QUESTION", "defaultElectricianChoice(usual)"]) expect(ui).toContain(h);
+    for (const h of ["startOnsiteReadyCheck", "OWNER_CONTACT_PERMISSION", "VisitField", "visitPayload(visit)", "Open Mitti form", "data-electrician-choice", "ELECTRICIAN_CHOICE_QUESTION", "defaultElectricianChoice(pickable)"]) expect(ui).toContain(h);
     for (const gone of ["AttachFiles", "ElectricianPicker", "confirmImport", "createImport", "datetime-local", "Ceiling area", "quoted price", 'mode === "onsite"', "I'm at the property now", "A job for later", "A different electrician"]) expect(ui).not.toContain(gone);
-    expect(readFileSync("src/routes/_authenticated/partner.import.tsx", "utf8")).toContain("<AddJobFlow businessId={businessId}");
+    expect(readFileSync("src/routes/_authenticated/partner.import.tsx", "utf8")).toContain("<AddJobFlow businessId={start.businessId}");
   });
   test("old /partner/add still redirects", () => expect(partnerLegacyTarget("add")).toEqual({ to: "/partner/import" }));
 });
@@ -65,4 +65,26 @@ test("consent wording is Jo's exact text and an unticked box blocks progress", (
   expect(c.contact_permission).toBe(false);
   expect(onsiteProblems(c).some((m) => /permission/.test(m))).toBe(true);
   expect(onsiteProblems({ ...c, contact_permission: true, consent_by: "installer" }).some((m) => /permission/.test(m))).toBe(false);
+});
+
+test("A5: staff line is the approved wording", () => {
+  expect(ADD_JOB_STAFF_ONLY).toBe("Only your business owner can add jobs. Ask them to add this customer for you.");
+});
+test("A5: owner of any business → owner of THAT business; staff only → staff; nothing → none", () => {
+  expect(addJobStartState(new Map([["b1", "member"], ["b2", "business_admin"]]))).toEqual({ kind: "owner", businessId: "b2" });
+  expect(addJobStartState(new Map([["b1", "member"]]))).toEqual({ kind: "staff" });
+  expect(addJobStartState(new Map())).toEqual({ kind: "none" });
+});
+test("A5: the page decides before the form renders", () => {
+  const page = readFileSync("src/routes/_authenticated/partner.import.tsx", "utf8");
+  expect(page).toContain("addJobStart");
+  expect(page).not.toContain("getPartnerProfile");
+  expect(page).toContain("ADD_JOB_STAFF_ONLY");
+  expect(page.indexOf('kind === "staff"')).toBeLessThan(page.indexOf("<AddJobFlow"));
+});
+test("A7: plain retry words", () => {
+  expect(TRY_AGAIN_LABEL).toBe("Try again");
+  expect(saveErrorMessage("Failed to fetch")).toBe("The save confirmation was interrupted. Your details are kept; tap Try again to finish the same job. Do not add it again.");
+  const ui = readFileSync("src/components/trade/add-job-flow.tsx", "utf8");
+  expect(ui).not.toContain("Retry submission"); expect(ui).toContain("TRY_AGAIN_LABEL");
 });

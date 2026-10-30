@@ -14,6 +14,8 @@ import {
 } from "./allocation.core";
 import { melbourneYmd } from "./piesa-windows.core";
 import { melbourneToday } from "@/lib/melbourne-time.core";
+import { inHouseDispatchSkip, readInHouseDispatchState, type InHouseDispatchState } from "./in-house-suppression.server";
+import { inHouseSkippedAction } from "./in-house.core";
 
 const NONE = ["00000000-0000-0000-0000-000000000000"];
 
@@ -166,20 +168,24 @@ export async function healStrandedPiesaStage(jobId: string, actorId: string | nu
   }
 }
 
-export async function startPiesaAllocation(jobId: string, actorId: string | null, kind: "piesa" | "rectification" = "piesa", opts: { rateToConfirm?: boolean; onlyBusiness?: string | string[]; adding?: boolean; repeat?: boolean; auto?: import("./ready-check-times.server").AutoOfferMeta } = {}): Promise<PiesaAllocationResult> {
+export async function startPiesaAllocation(jobId: string, actorId: string | null, kind: "piesa" | "rectification" = "piesa", opts: { rateToConfirm?: boolean; onlyBusiness?: string | string[]; adding?: boolean; repeat?: boolean; auto?: import("./ready-check-times.server").AutoOfferMeta } = {}, inHouseState?: InHouseDispatchState): Promise<PiesaAllocationResult> {
+  const skipped = await inHouseDispatchSkip(jobId, inHouseState);
+  if (skipped) return { offered: 0, exhausted: false, ...inHouseSkippedAction(skipped) };
   // Catch up a job whose acceptance was taken but never moved the stage (see healStrandedPiesaStage).
   // Without this the office's next click was refused with "An electrician has already accepted this PIESA."
   // and the job had no way back to piesa_scheduled.
   if (await healStrandedPiesaStage(jobId, actorId)) return { offered: 0, exhausted: false, healed: true };
-  const [facts, { count: elec }, { count: open }] = await Promise.all([
+  const [facts, { count: elec }, { count: open }, planMissing] = await Promise.all([
     piesaRequestFacts(jobId),
     // Only an electrician who actually CONFIRMED a visit counts as "already accepted": a pre-assignment
     // (e.g. a Test Centre persona row) is not a booking, so it must not block new PIESA offers (DEF-07).
     admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("active", true).not("booking_confirmed_at", "is", null),
     admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", kind).eq("status", "pending"),
+    // A48 batch 1 final fix: life support yes / unknown with no plan on file (owner upload or office record) stops the offers.
+    kind === "piesa" ? (await import("./job-records.server")).lifeSupportPlanMissing(jobId) : Promise.resolve(false),
   ]);
   // Jo 28 Oct: a repeat PIESA after a lapsed window goes to electricians again; the first check's electrician does not block it.
-  const blockers = piesaOfferBlockers({ ...facts, hasActiveElectrician: !!elec && !opts.repeat, hasOpenOffers: !!open && !opts.adding });
+  const blockers = piesaOfferBlockers({ ...facts, hasActiveElectrician: !!elec && !opts.repeat, hasOpenOffers: !!open && !opts.adding, lifeSupportPlanMissing: kind === "piesa" && planMissing });
   if (blockers.length) throw new WorkflowError(`${kind === "piesa" ? "PIESA" : "Electrical fixes"} offers cannot start: ${blockers.join(" ")}`);
   if (kind === "piesa") {
     // The job must be able to ENTER the PIESA stage before any offer goes out; otherwise offers are sent and the
@@ -222,7 +228,7 @@ async function claimRecOfferBatch(jobId: string, kind: "piesa" | "rectification"
 /** What one allocation attempt actually did. `reason` explains a zero-offer result (P1 UAT DEF-08). */
 export type OfferBatchResult = { offered: number; exhausted: boolean; reason?: "owner_times" | "coverage" };
 /** `healed` = the call repaired a stranded acceptance instead of sending new offers (P1 UAT DEF-09). */
-export type PiesaAllocationResult = OfferBatchResult & { healed?: boolean };
+export type PiesaAllocationResult = OfferBatchResult & { healed?: boolean; skipped?: "in_house" | "in_house_read_failed"; ok?: false; message?: string };
 
 async function offerNextBatch(jobId: string, actorId: string | null, kind: "piesa" | "rectification", rateToConfirm = false, onlyBusiness?: string | string[], auto?: import("./ready-check-times.server").AutoOfferMeta, repeatSince?: string): Promise<OfferBatchResult> {
   const { businessHours, batchSize } = await settings();
@@ -292,41 +298,52 @@ export async function officePickUnanswered(jobId: string, kind: "piesa" | "recti
 
 /** Expire overdue electrician offers and automatically offer the next batch. Idempotent; safe to call often. */
 export async function sweepRecOffers(actorId: string | null = null) {
+  const inHouseState = await readInHouseDispatchState();
+  if (inHouseState.failed) return { expired: 0, started: 0, healed: 0 };
   const nowIso = new Date().toISOString();
-  const { data: expired } = await admin.from("partner_offers").update({ status: "expired" }).in("kind", ["piesa", "rectification"]).eq("status", "pending").lt("expires_at", nowIso).select("job_id, kind");
+  const { data: due } = await admin.from("partner_offers").select("id, job_id, jobs!inner(deleted_at, source)").in("kind", ["piesa", "rectification"]).eq("status", "pending").lt("expires_at", nowIso).is("jobs.deleted_at", null);
+  const ids = (due ?? []).filter(o => !inHouseState.held.has(o.job_id)).map(o => o.id);
+  const { data: expired } = ids.length ? await admin.from("partner_offers").update({ status: "expired" }).in("id", ids).eq("status", "pending").select("job_id, kind") : { data: [] };
   for (const o of expired ?? []) await logEvent(o.job_id, actorId, "partner_offer_expired", `An electrician ${o.kind} offer expired without a response`, { kind: o.kind }, { internal: true });
   const jobs = new Map((expired ?? []).map((o) => [`${o.job_id}:${o.kind}`, o]));
-  for (const o of jobs.values()) await refillIfNeeded(o.job_id, o.kind as "piesa" | "rectification", actorId);
-  await sweepPiesaWindows(actorId);
-  const started = await autoStartPiesaOffers(actorId);
-  await flagUnapprovedElectricians(actorId);
+  for (const o of jobs.values()) await refillIfNeeded(o.job_id, o.kind as "piesa" | "rectification", actorId, inHouseState);
+  await sweepPiesaWindows(actorId, inHouseState);
+  const started = await autoStartPiesaOffers(actorId, inHouseState);
+  await flagUnapprovedElectricians(actorId, inHouseState);
   // Stranded acceptances (P1 UAT DEF-09): a confirmed PIESA visit on a job still reading "waiting for an electrician".
   // Bounded, idempotent, and only ever moves a job whose visit evidence already exists.
-  const { data: stranded } = await admin.from("bookings").select("job_id, jobs!inner(stage)").eq("kind", "assessment").eq("status", "confirmed").eq("jobs.stage", "piesa_and_install_window_pending").limit(50);
+  const { data: stranded } = await admin.from("bookings").select("job_id, jobs!inner(stage, deleted_at, source)").eq("kind", "assessment").eq("status", "confirmed").eq("jobs.stage", "piesa_and_install_window_pending").is("jobs.deleted_at", null).limit(50);
   let healed = 0;
-  for (const s of stranded ?? []) if (await healStrandedPiesaStage(s.job_id, actorId)) healed++;
+  for (const s of stranded ?? []) if (!inHouseState.held.has(s.job_id) && await healStrandedPiesaStage(s.job_id, actorId)) healed++;
   return { expired: expired?.length ?? 0, started, healed };
 }
 
 /** Jobs that have genuinely reached PIESA (gate cleared) with no electrician and no offers yet get the first batch automatically.
  *  startPiesaAllocation re-checks every upstream gate; any blocker means the job is skipped, never forced. */
-async function autoStartPiesaOffers(actorId: string | null) {
-  const { data: waiting } = await admin.from("jobs").select("id").eq("stage", "piesa_and_install_window_pending").neq("source", "qa_test");
+async function autoStartPiesaOffers(actorId: string | null, inHouseState: InHouseDispatchState) {
+  const { data: waiting } = await admin.from("jobs").select("id").eq("stage", "piesa_and_install_window_pending").is("deleted_at", null).neq("source", "qa_test");
   let started = 0;
   for (const j of waiting ?? []) {
-    const { count: any } = await admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", j.id).eq("kind", "piesa");
-    if (any) continue; // already allocated once; refill/exhaustion handles the rest
+    if (await inHouseDispatchSkip(j.id, inHouseState)) continue;
+    // Already allocated once (since the latest reopen); refill/exhaustion handles the rest.
+    if (await (await import("./repeat-piesa.server")).piesaOffersSinceReopen(j.id)) continue;
     if (await (await import("./offer-dispatch.server")).jobOfficePicks(j.id)) continue; // waits in Needs me: "Choose trades for this job"
-    try { await startPiesaAllocation(j.id, actorId); started++; } catch { /* gate not cleared: stay put */ }
+    // Decision 426 (Jo 29 Oct 2026): one electrician at a time (nearest first, 24 hours each) — never a batch.
+    const ao = await import("./auto-offer.server");
+    const r = await ao.autoOfferForJob(j.id, "piesa", undefined, inHouseState).catch(() => null);
+    if (r?.step === "offer") started++;
+    // "Automatic electrician offers" off in the Automatic dispatch mode: nothing else would send it — the office, once.
+    else if (r?.reason === "switch_off") await ao.handPiesaToOfficeAutoOff(j.id, actorId, inHouseState).catch((e) => console.error("PIESA hand-back skipped", (e as Error).message));
   }
   return started;
 }
 
 /** Assigned electrician who is no longer an approved/eligible REC -> one Needs Home Insulation Victoria event (no silent stall, no auto-swap). */
-async function flagUnapprovedElectricians(actorId: string | null) {
+async function flagUnapprovedElectricians(actorId: string | null, inHouseState: InHouseDispatchState) {
   const stages = ["piesa_and_install_window_pending", "piesa_scheduled", "piesa_complete", "electrical_variation_pending", "rectification_required", "awaiting_owner_rectification_approval", "rectification_scheduling", "rectification_booked"];
-  const { data: asg } = await admin.from("job_assignments").select("job_id, business_id, jobs!inner(stage, source)").eq("role", "electrician").eq("active", true).not("business_id", "is", null).in("jobs.stage", stages as never);
+  const { data: asg } = await admin.from("job_assignments").select("job_id, business_id, jobs!inner(stage, source, deleted_at)").eq("role", "electrician").eq("active", true).not("business_id", "is", null).in("jobs.stage", stages as never).is("jobs.deleted_at", null).neq("jobs.source", "qa_test");
   for (const a of asg ?? []) {
+    if (inHouseState.held.has(a.job_id)) continue;
     if ((a.jobs as { source: string | null }).source === "qa_test") continue;
     const { candidates } = await recCandidatesFor(a.job_id);
     const c = candidates.find((x) => x.business_id === a.business_id);
@@ -338,13 +355,17 @@ async function flagUnapprovedElectricians(actorId: string | null) {
   }
 }
 
-async function refillIfNeeded(jobId: string, kind: "piesa" | "rectification", actorId: string | null) {
+async function refillIfNeeded(jobId: string, kind: "piesa" | "rectification", actorId: string | null, inHouseState?: InHouseDispatchState) {
+  if (await inHouseDispatchSkip(jobId, inHouseState)) return;
   const [{ count: open }, { count: elec }] = await Promise.all([
     admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", kind).eq("status", "pending"),
     admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("active", true),
   ]);
   if (open || elec) return;
   if (kind === "piesa") {
+    // Decision 426: no new batch of safety check offers for a first-time check — the automatic one-at-a-time offers pick
+    // the next electrician, and a job whose older batch has run out goes to the office. Repeat checks keep this refill.
+    if (!(await (await import("./repeat-piesa.server")).inRepeatPiesaRound(jobId))) return piesaOffersRanOut(jobId, actorId);
     // Only re-offer while the job is genuinely waiting for a PIESA electrician and its PIESA gate is still clear.
     const { data: j } = await admin.from("jobs").select("stage").eq("id", jobId).single();
     if (j?.stage !== "piesa_and_install_window_pending") return;
@@ -356,6 +377,39 @@ async function refillIfNeeded(jobId: string, kind: "piesa" | "rectification", ac
   if (await (await import("./offer-dispatch.server")).jobOfficePicks(jobId)) return; // office picks: Needs me shows "add more trades"
   if (!(await claimRecOfferBatch(jobId, kind))) return;
   await offerNextBatch(jobId, actorId, kind);
+}
+
+/** Decision 426 fix wave: a first-time safety check job whose offers have all been answered. Never a new batch.
+ *  An older batch (sent before decision 426) that ran out → ONE "no approved electrician coverage" event + next action
+ *  (the same as a batch running out did before), so it reaches Needs me; an automatic offer that ran out after the
+ *  switch was turned off → the office (`handPiesaToOfficeAutoOff`); anything else is already handled elsewhere. */
+async function piesaOffersRanOut(jobId: string, actorId: string | null) {
+  const since = await (await import("./repeat-piesa.server")).latestReopenAt(jobId);
+  let oq = admin.from("partner_offers").select("business_id, status, offered_at, summary").eq("job_id", jobId).eq("kind", "piesa");
+  if (since) oq = oq.gt("offered_at", since);
+  const [{ data: j }, { data: offers }] = await Promise.all([admin.from("jobs").select("stage").eq("id", jobId).single(), oq.order("offered_at", { ascending: false })]);
+  const latest = (offers ?? [])[0];
+  if (!latest) return;
+  const flags = (latest.summary ?? {}) as Record<string, unknown>;
+  const [{ data: ex }, officePicks, sw] = await Promise.all([
+    admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "rec_coverage_exhausted").contains("details", { kind: "piesa" }).gt("created_at", latest.offered_at).limit(1),
+    (await import("./offer-dispatch.server")).jobOfficePicks(jobId),
+    (await import("./auto-offer.server")).readAutoOfferSwitches(),
+  ]);
+  const { piesaRanOutStep } = await import("./auto-offer.core");
+  const step = piesaRanOutStep({
+    stageWaiting: j?.stage === "piesa_and_install_window_pending", anyAccepted: (offers ?? []).some((o) => o.status === "accepted"), officePicks, switchOn: sw.piesa,
+    latest: { auto: flags["auto_offer"] === true, officeChoice: flags["office_choice"] === true }, exhaustedSinceLatestOffer: (ex ?? []).length > 0,
+  });
+  if (step === "switch_off_hand_back") {
+    // Logged, never thrown: a failure here must not abort the decline or the expiry loop in sweepRecOffers.
+    await (await import("./auto-offer.server")).handPiesaToOfficeAutoOff(jobId, actorId).catch((e) => console.error("PIESA hand-back skipped", (e as Error).message));
+    return;
+  }
+  if (step !== "coverage_exhausted") return;
+  const offered = [...new Set((offers ?? []).map((o) => o.business_id).filter((x): x is string => !!x))];
+  await logEvent(jobId, actorId, "rec_coverage_exhausted", "No approved electrician left to offer the piesa to — needs Home Insulation Victoria", { kind: "piesa", offered }, { internal: true });
+  await admin.from("jobs").update({ next_action: "Needs Home Insulation Victoria: no approved electrician coverage" }).eq("id", jobId);
 }
 
 /** Electrician accepts/declines a PIESA or rectification offer. Acceptance is atomic in SQL. */
@@ -497,6 +551,8 @@ export async function sweepCoordination(actorId: string | null = null, testJobId
   // Speed (26 Oct 2026): read the first proposal and any earlier reminder for ALL released jobs at once (was 2 reads per
   // release on every sweep). Same answers: earliest proposal per job + kind, any reminder per job + assignment + visit.
   const jobIds = [...new Set((rel ?? []).map((r) => r.job_id))];
+  const inHouseState = await readInHouseDispatchState(jobIds);
+  if (inHouseState.failed) return { reminders: 0 };
   const firstProp = new Map<string, string>();
   const reminded = new Map<string, string>();
   for (let i = 0; i < jobIds.length; i += 100) {
@@ -515,6 +571,7 @@ export async function sweepCoordination(actorId: string | null = null, testJobId
     }
   }
   for (const r of rel ?? []) {
+    if ((r.visit_kind === "ready_check" || r.visit_kind === "piesa") && inHouseState.held.has(r.job_id)) continue;
     const a = r.job_assignments as { active: boolean; booking_confirmed_at: string | null };
     if (!a.active) continue;
     const bookingKind = r.visit_kind === "piesa" ? "assessment" : r.visit_kind;
@@ -525,7 +582,7 @@ export async function sweepCoordination(actorId: string | null = null, testJobId
       const { coordinationReminderSends } = await import("./piesa-times-reminder.core");
       const sends = testJobId === undefined && coordinationReminderSends(r.visit_kind);
       await logEvent(r.job_id, actorId, "coordination_reminder", `24h: no ${r.visit_kind} time proposed yet${sends ? " — electrician reminder prepared (E14 + text)" : " (record only)"}`, { assignment_id: r.assignment_id, visit_kind: r.visit_kind }, { internal: true });
-      if (sends) await (await import("./piesa-times-reminder.server")).remindTradeToOfferTimes({ jobId: r.job_id, assignmentId: r.assignment_id, visitKind: r.visit_kind, remindedAt: new Date().toISOString() }).catch((e) => console.error("PIESA times reminder skipped", (e as Error).message));
+      if (sends) await (await import("./piesa-times-reminder.server")).remindTradeToOfferTimes({ jobId: r.job_id, assignmentId: r.assignment_id, visitKind: r.visit_kind, remindedAt: new Date().toISOString() }, inHouseState).catch((e) => console.error("PIESA times reminder skipped", (e as Error).message));
       reminders++;
     }
   }
@@ -571,9 +628,11 @@ async function windowsNoTaker(jobId: string, actorId: string | null, round: numb
 }
 
 /** Timer: close owner times that have passed; if a whole round has passed with no electrician, run the no-taker step. */
-async function sweepPiesaWindows(actorId: string | null) {
+async function sweepPiesaWindows(actorId: string | null, inHouseState: InHouseDispatchState) {
   const nowIso = new Date().toISOString();
-  const { data: passed } = await admin.from("appointment_proposals").update({ status: "superseded" }).not("piesa_window_round", "is", null).eq("status", "proposed").lt("starts_at", nowIso).select("job_id");
+  const { data: due } = await admin.from("appointment_proposals").select("id, job_id, jobs!inner(deleted_at, source)").not("piesa_window_round", "is", null).eq("status", "proposed").lt("starts_at", nowIso).is("jobs.deleted_at", null);
+  const ids = (due ?? []).filter(p => !inHouseState.held.has(p.job_id)).map(p => p.id);
+  const { data: passed } = ids.length ? await admin.from("appointment_proposals").update({ status: "superseded" }).in("id", ids).eq("status", "proposed").select("job_id") : { data: [] };
   const jobs = new Set((passed ?? []).map((p) => p.job_id));
   for (const jobId of jobs) {
     const [{ count: elec }, { data: job }] = await Promise.all([
@@ -589,6 +648,8 @@ async function sweepPiesaWindows(actorId: string | null) {
 /** Owner submits 3–5 PIESA windows — old way only (decision 333): round 2 when asked for more times, or after a reopen
  *  on a job that already had a round. New jobs: the electrician offers 3 times (piesa-times.server.ts). */
 export async function submitOwnerPiesaWindows(jobId: string, userId: string, picks: { date: string; slot: import("./piesa-windows.core").PiesaSlot }[], ack: { understandsThirtyDays: boolean | undefined; ip: string | null; userAgent: string | null }) {
+  const skipped = await inHouseDispatchSkip(jobId);
+  if (skipped) return { round: 0, ...inHouseSkippedAction(skipped) };
   const { piesaWindowBlockers, windowBounds, PIESA_MAX_ROUNDS } = await import("./piesa-windows.core");
   const b = piesaWindowBlockers(picks);
   if (b.length) throw new WorkflowError(b.join(" "));

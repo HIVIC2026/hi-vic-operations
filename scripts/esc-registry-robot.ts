@@ -15,13 +15,13 @@
 //
 // Locks (all fail closed): Settings › Switches › ESC Registry robot (workflow_settings.esc_registry_robot_enabled,
 // pending migration) AND ESC_REGISTRY_ROBOT_ENABLED=true. ESC_REGISTRY_ROBOT_MODE=live submits; anything else dry-runs
-// (fill + screenshot, never Submit). Live is also refused until esc-registry-selectors SELECTOR_MAP_VERIFIED is true.
+// (fill + screenshot, never Submit). Live is also refused per task until esc-registry-selectors SELECTORS_VERIFIED is true for it.
 // TEST (qa_test) jobs are always dry-run. Idempotent: an attempt event is written BEFORE Submit; a sent notice / lodged
 // VEEC / earlier failure / unfinished live attempt is never submitted again. Any failure → screenshot +
 // esc_registry_robot_failed (needs_office) → Needs me row → the office copies the Registry block by hand.
-import { INSTALL_NOTIFICATION, INSTALL_NOTIFICATION_UPDATE, VEEC_CREATION } from "../src/lib/esc-registry-selectors";
+import { INSTALL_NOTIFICATION, INSTALL_NOTIFICATION_UPDATE, SELECTORS_VERIFIED, VEEC_CREATION } from "../src/lib/esc-registry-selectors";
 import { RobotStepError, fillInstallNotification, fillInstallNotificationUpdate, fillVeecCreation, login, submitAndReadReference, type RobotPage } from "../src/lib/esc-registry-robot.browser";
-import { runSummary, type RobotMode, type RobotTask } from "../src/lib/esc-registry-robot.core";
+import { runSummary, taskMode, taskNotVerifiedReason, type RobotMode, type RobotTask } from "../src/lib/esc-registry-robot.core";
 import { melbourneToday } from "../src/lib/melbourne-time.core";
 import type { RobotApiClient } from "./esc-registry-robot.client";
 
@@ -43,6 +43,7 @@ const log = (...a: unknown[]) => console.log(`[esc-registry-robot ${new Date().t
 log(apiMode ? "talking to the portal through the robot API (ESC_ROBOT_TOKEN)" : "direct database mode (no ESC_ROBOT_TOKEN)");
 const settings = await robotSettings();
 log(`mode ${settings.mode}: ${settings.reason}`);
+for (const t of ["install_notification", "veec_creation"] as const) log(`${t}: ${taskMode(settings.mode, t, SELECTORS_VERIFIED)}${settings.mode === "live" && !SELECTORS_VERIFIED[t] ? ` (${taskNotVerifiedReason(t)})` : ""}`);
 const counts = { notices: { planned: 0, submitted: 0, updated: 0, dryRuns: 0, failed: 0, skipped: 0 }, veecs: { planned: 0, submitted: 0, dryRuns: 0, failed: 0, skipped: 0 } };
 
 if (settings.mode === "off") { log(runSummary({ mode: settings.mode, reason: settings.reason, ...counts })); process.exit(0); }

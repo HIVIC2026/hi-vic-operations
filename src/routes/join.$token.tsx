@@ -40,7 +40,7 @@ function Join() {
   useEffect(() => {
     if (previewTrade) {
       const businessName = previewTrade === "electrician" ? "Sample Electrical" : "Sample Insulation";
-      const sample = { ok: true as const, mode: "registration" as const, inviteeName: previewTrade === "electrician" ? "Sample electrician" : "Sample installer", trade: previewTrade, businessName, declarations: workerDeclarations(previewTrade, businessName) };
+      const sample = { ok: true as const, mode: "registration" as const, inviteeName: previewTrade === "electrician" ? "Sample electrician" : "Sample installer", trade: previewTrade, businessName, declarations: workerDeclarations(previewTrade, businessName), needsCert: previewTrade === "installer" };
       setInv(sample); setF((x) => ({ ...x, full_legal_name: sample.inviteeName, mobile: "0400 000 000", email: "sample@example.com", licence_number: previewTrade === "electrician" ? "ESV SAMPLE" : "", qualification: previewTrade === "installer" ? "Sample insulation qualification" : "" })); return;
     }
     load({ data: { token } }).then((r) => { setInv(r); if (r.ok) setF((x) => ({ ...x, full_legal_name: r.inviteeName })); }).catch(() => setInv({ ok: false, message: "We couldn't open this invite. Please try again." }));
@@ -51,7 +51,11 @@ function Join() {
   if (!inv) return wrap(<p className="text-sub">Loading…</p>);
   if (!inv.ok) return wrap(<><h1 className="mb-2 font-display text-2xl font-extrabold">Invite link problem</h1><p className="text-sub">{inv.message}</p></>);
   const completion = inv.mode === "completion";
-  if (done) return wrap(completion
+  // People added on Team sign the worker declarations through their completion link (Jo 29 Oct 2026).
+  const signing = completion && inv.declarations.length > 0;
+  if (done) return wrap(signing
+    ? <><h1 className="mb-2 text-2xl font-bold">Thanks — you've signed.</h1><p className="text-sub">{inv.businessName} can now send you to jobs once our office has checked your details.</p></>
+    : completion
     ? <><h1 className="mb-2 text-2xl font-bold">Thanks — your certificate is uploaded.</h1><p className="text-sub">{inv.businessName} and Home Insulation Victoria will check it. You'll be able to take jobs once it's verified.</p></>
     : <><h1 className="mb-2 text-2xl font-bold">Thanks, {f.full_legal_name.split(" ")[0]} — you're registered.</h1><p className="text-sub">{inv.businessName} and Home Insulation Victoria will check your details. Once you're approved, the business owner can send you to jobs — you'll get a private link for each job.</p></>);
 
@@ -69,6 +73,12 @@ function Join() {
     e.preventDefault(); setBusy(true); setErrors([]);
     try {
       if (preview) { setErrors(["Sample preview only — no staff details were submitted."]); return; }
+      if (signing) {
+        const certificate_path = inv.needsCert ? await uploadCert() : undefined;
+        const r = await submit({ data: { token, full_legal_name: inv.inviteeName, mobile: "", email: "", accepted: ticks, signed_name: f.signed_name, certificate_path, certificate_number: f.certificate_number } });
+        if (r.ok) setDone(true); else { setErrors(r.errors); window.scrollTo({ top: 0 }); }
+        return;
+      }
       if (completion) {
         const certificate_path = await uploadCert();
         const r = await submit({ data: { token, full_legal_name: inv.inviteeName, mobile: "", email: "", accepted: [], signed_name: "", certificate_path, certificate_number: f.certificate_number } });
@@ -81,7 +91,25 @@ function Join() {
     } catch (er) { setErrors([er instanceof Error ? er.message : "Something went wrong. Please try again."]); window.scrollTo({ top: 0 }); } finally { setBusy(false); }
   }}>
     {preview && <div role="status" className="mb-3 rounded-xl bg-secondary p-3 text-sm font-bold">Sample preview only — no data is saved and this invitation cannot be submitted.</div>}
-    {completion ? (<>
+    {signing ? (<>
+      <h1 className="mb-1 text-2xl font-bold">Sign your declarations</h1>
+      <p className="mb-5 text-sm text-sub">{`You're on ${inv.businessName}'s team as ${inv.inviteeName}. Read and tick each one, then sign. You can't be sent to jobs until you do.`}</p>
+      {errors.length > 0 && <div className="mb-4 rounded-xl border border-danger bg-danger-soft p-3 text-sm text-danger">{errors.map((x) => <div key={x}>• {x}</div>)}</div>}
+      {inv.needsCert && <div className="mb-4 grid gap-3">
+        <label className="text-sm font-medium">EEC / Certified Insulation Installer certificate (PDF, JPG or PNG, up to 10 MB)<Input type="file" accept="application/pdf,image/jpeg,image/png,image/heic,image/heif,image/webp" className="mt-1 h-12" onChange={(e) => setCert(e.target.files?.[0] ?? null)} /></label>
+        <label className="text-sm font-medium">Certificate number (if it's on the certificate)<Input value={f.certificate_number} onChange={set("certificate_number")} className="mt-1 h-12" /></label>
+      </div>}
+      <div className="grid gap-2">
+        {inv.declarations.map((d) => (
+          <label key={d.key} className="flex min-h-12 cursor-pointer gap-3 rounded-xl border p-3 text-sm">
+            <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0" checked={ticks.includes(d.key)} onChange={(e) => setTicks(e.target.checked ? [...ticks, d.key] : ticks.filter((k) => k !== d.key))} />
+            <span>{d.text}</span>
+          </label>
+        ))}
+      </div>
+      <label className="mt-5 block text-sm font-medium">Type your full name to sign<Input value={f.signed_name} onChange={set("signed_name")} className="mt-1 h-12" /></label>
+      <Button type="submit" size="field" className="mt-5 w-full" disabled={busy || preview}>{busy ? "Saving…" : "Sign"}</Button>
+    </>) : completion ? (<>
       <h1 className="mb-1 text-2xl font-bold">Upload your certificate</h1>
       <p className="mb-5 text-sm text-sub">You're on {inv.businessName}'s team as <strong>{inv.inviteeName}</strong>. One thing is still missing before you can take Home Insulation Victoria jobs — your EEC / Certified Insulation Installer certificate. Upload it here and our office will check it.</p>
       {errors.length > 0 && <div className="mb-4 rounded-xl border border-danger bg-danger-soft p-3 text-sm text-danger">{errors.map((x) => <div key={x}>• {x}</div>)}</div>}

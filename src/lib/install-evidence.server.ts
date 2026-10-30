@@ -5,7 +5,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { melbourneToday, addYmd } from "./melbourne-time.core";
-import { declaredProductProblems, evaluateInstallEvidence, installEvidenceGateLines, jobProductOptions, readInstallEvidence, type InstallEvidenceCtx, type InstallEvidenceSummary, type InstallPrefillCtx, type JobZone } from "./install-evidence.core";
+import { declaredProductProblems, evaluateInstallEvidence, withJobProduct, installEvidenceGateLines, jobProductOptions, readInstallEvidence, type InstallEvidenceCtx, type InstallEvidenceSummary, type InstallPrefillCtx, type JobZone } from "./install-evidence.core";
 import { AREAS_FIELD_KEY, readAreas } from "./ready-check-areas.core";
 import type { MittiMediaFetch } from "./mitti.server";
 
@@ -23,6 +23,16 @@ const daysBetween = (a: string | null, b: string | null) => { if (!a || !b) retu
 
 /** Upgrade zones the job records: the canonical Ready Check areas, else structured measurement zones, else the one measurement. */
 export async function jobUpgradeZones(jobId: string): Promise<JobZone[]> {
+  const zones = await readyCheckZones(jobId);
+  if (!zones.some((z) => !z.product)) return zones;
+  // Jo 30 Oct 2026: the Ready Check asks the product once per job; areas without their own use it (latest ready answer).
+  const { data: ev } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_product_recorded").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const d = ev?.details as { ready?: boolean; product?: unknown } | null;
+  const { insulationProduct } = await import("./insulation-product.core");
+  return withJobProduct(zones, d?.ready ? insulationProduct(d.product)?.option ?? null : null);
+}
+
+async function readyCheckZones(jobId: string): Promise<JobZone[]> {
   // Canonical Ready Check areas (latest Ready Check, `measure.areas_v1` observation) read directly: this module sits on the
   // autoAdvanceJob import graph, so it must not pull the Ready Check draft module and its intake/Mitti imports.
   const { data: rcRow } = await admin.from("ready_checks").select("id").eq("job_id", jobId).neq("status", "superseded").order("version", { ascending: false }).limit(1).maybeSingle();
@@ -58,6 +68,26 @@ export async function installStartDate(jobId: string, a3StartDate?: string | nul
   if (fromForm) return fromForm;
   const { data: job } = await admin.from("jobs").select("installation_completed_at").eq("id", jobId).maybeSingle();
   return melbourneDateOf(job?.installation_completed_at);
+}
+
+/** `installStartDate` (no form date) for many jobs in one round: the same two facts per job — its first confirmed or
+ *  completed installation booking, else the job's completion record — read side by side for every job at once. A failed
+ *  read counts as no row, exactly as the single lookup's caller treats it. Speed (installer screens, Task 5). */
+export async function installStartDates(jobIds: string[]): Promise<Map<string, string | null>> {
+  const ids = [...new Set(jobIds)];
+  const out = new Map<string, string | null>();
+  for (let i = 0; i < ids.length; i += 100) {
+    const part = ids.slice(i, i + 100);
+    const [{ data: books }, { data: jobs }] = await Promise.all([
+      admin.from("bookings").select("job_id, scheduled_start").in("job_id", part).eq("kind", "installation").in("status", ["confirmed", "completed"]).order("scheduled_start", { ascending: true }),
+      admin.from("jobs").select("id, installation_completed_at").in("id", part),
+    ]);
+    for (const id of part) {
+      const b = (books ?? []).find((x) => x.job_id === id); // ascending: the row the single lookup's limit(1) returns
+      out.set(id, b?.scheduled_start ? melbourneDateOf(b.scheduled_start) : melbourneDateOf((jobs ?? []).find((j) => j.id === id)?.installation_completed_at));
+    }
+  }
+  return out;
 }
 
 export async function latestInstallEvidenceRecord(jobId: string) {

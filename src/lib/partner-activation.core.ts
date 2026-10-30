@@ -24,9 +24,6 @@ export function activationWorkers(type: PartnerType, application: RecData | Inst
       source_application_id: applicationId,
       // Only an office verification counts; the applicant's own answer is kept as "declared".
       certification_status: v?.status ?? "unverified",
-      piisa_status: worker.piisa_done === "yes" ? "done" as const : worker.piisa_done === "no" ? "not_done" as const : null,
-      piisa_completed_on: worker.piisa_done === "yes" ? worker.piisa_date ?? null : null,
-      piisa_certificate_path: ((application as InstData & { piisa_files?: Record<string, string> }).piisa_files ?? {})[email] ?? null,
       certification: {
         declared: { holds: worker.cii_holds ?? null, certificate_number: worker.cii_certificate_number ?? null, issuer: worker.cii_issuer ?? null, issue_date: worker.cii_issue_date ?? null }, verification_id: v?.id ?? null,
         // Decision 319: a White Card uploaded at onboarding goes onto the staff row unverified; the office verifies it once.
@@ -70,7 +67,9 @@ export function certificationRecordErrors(x: { status: string; evidence_source: 
 }
 
 /** Blockers an office override reason may NOT bypass (mandatory qualification). */
-export function mandatoryActivationBlockers(type: PartnerType, data: RecData | InstData, certifications?: Map<string, CertVerification>): string[] {
+export function mandatoryActivationBlockers(type: PartnerType, data: RecData | InstData, certifications?: Map<string, CertVerification>, now = new Date()): string[] {
+  // Guide fix 3 (Jo 29 Oct 2026, decision 424): a missing or expired electrical licence can never be overridden.
+  if (type === "rec") return electricianLicenceBlockers(data as RecData, now);
   if (type !== "installer") return [];
   const emails = ((data as InstData).installers ?? []).map((w) => (w.email ?? "").trim().toLowerCase());
   const verified = emails.filter((e) => certifications?.get(e)?.status === "verified");
@@ -88,13 +87,18 @@ export function activationBlockers(type: PartnerType, data: RecData | InstData, 
 
 /** Decision 415 (Jo 27 Oct 2026): an electrician is stopped at approval for a missing/expired licence, no REC number,
  *  cover under $5m (skipped when they work under another REC, which holds the insurance) or a PIESA price over $349
- *  inc GST. Like insurance, the office may still approve with a written override reason. */
+ *  inc GST. Like insurance, the office may still approve with a written override reason — except the licence, which
+ *  became a hard block on 29 Oct 2026 (decision 424, `electricianLicenceBlockers`). */
 export const PIESA_PRICE_LIMIT_INC_GST = 349;
+/** Decision 424 (Jo 29 Oct 2026): missing licence number, missing expiry or a past expiry. Never overridable. */
+export function electricianLicenceBlockers(d: RecData, now = new Date()): string[] {
+  if (!(d.licence_number ?? "").trim()) return ["Electrical licence is missing."];
+  if (!validCalendarDate(d.licence_expiry) || (d.licence_expiry as string) < melbourneToday(now)) return ["Electrical licence is expired or has no expiry date."];
+  return [];
+}
 export function electricianApprovalBlockers(d: RecData, now = new Date()): string[] {
   const out: string[] = [];
   const underHost = d.works_under_rec === true;
-  if (!(d.licence_number ?? "").trim()) out.push("Electrical licence is missing.");
-  else if (!validCalendarDate(d.licence_expiry) || (d.licence_expiry as string) < melbourneToday(now)) out.push("Electrical licence is expired or has no expiry date.");
   if (!((underHost ? d.host_rec_number : d.rec_registration_number) ?? "").trim()) out.push("REC number is missing.");
   if (!underHost && !(typeof d.public_liability_cover_amount === "number" && d.public_liability_cover_amount >= MIN_REC_PL_COVER)) out.push("Public liability cover is under $5,000,000.");
   if (typeof d.assessment_rate === "number" && d.assessment_rate > PIESA_PRICE_LIMIT_INC_GST) out.push(`PIESA price $${d.assessment_rate} is over the $${PIESA_PRICE_LIMIT_INC_GST} limit.`);

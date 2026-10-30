@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { mittiFormUrl } from "@/lib/mitti-link.core";
 import { MittiFormLink } from "@/components/portal/MittiFormLink";
+import { PIESA_FULL } from "@/lib/job-wording";
 
 export function useMittiState(jobId: string) {
   return useQuery({
@@ -72,7 +73,7 @@ export function MittiCard({ jobId, isAdmin }: { jobId: string; isAdmin: boolean 
   }
   const mittiUrl = a?.external_mitti_id ? mittiFormUrl(a.external_mitti_id) : null;
   return (
-    <Section title={a?.mitti_scope === "MEASURE_UP_ONLY" ? "Mitti installer measurements" : "Mitti electrical assessment · PIESA"} action={<Pill t={tone as never}>{label}</Pill>}>
+    <Section title={a?.mitti_scope === "MEASURE_UP_ONLY" ? "Mitti installer measurements" : `Mitti · ${PIESA_FULL}`} action={<Pill t={tone as never}>{label}</Pill>}>
       <dl className="grid grid-cols-2 gap-1 text-sm">
         <dt className="text-muted-foreground">Audit ID</dt><dd className="break-all">{a?.external_mitti_id ?? "—"}</dd>
         <dt className="text-muted-foreground">Assignee</dt><dd className="break-all">{a?.mitti_assignee_email ?? "—"}</dd>
@@ -112,7 +113,7 @@ export function MittiSyncedFields({ a: raw }: { a: Record<string, unknown> }) {
     ["PIESA outcome", a.piesa_outcome], ["Assessment date", a.assessed_on], ["Hazards", a.hazards], ["Notes", a.notes],
   ];
   return (
-    <Section title="Electrical assessment (from Mitti – read only)">
+    <Section title={`${PIESA_FULL} (from Mitti – read only)`}>
       <dl className="grid grid-cols-2 gap-1 text-sm">{rows.map(([k, v]) => <Fragment key={k}><dt className="text-muted-foreground">{k}</dt><dd>{f(v)}</dd></Fragment>)}</dl>
     </Section>
   );

@@ -11,7 +11,7 @@ import { WorkflowError, logEvent, nextStepBlockers, stageEntryBlockers, piesaSta
 import { adjustQuote as adjustQuoteImpl, generateInstallerQuotes as genInstaller, generateRectificationQuote } from "./quotes.server";
 import { enquirySchema, upsertEnquiry } from "./enquiry.server";
 import { installationDateBlocker, STAGE_LABEL, type Stage } from "./workflow";
-import { applyPaidAmount, createInvoiceForQuote, requireHivicInvoice, requireHivicJob, setInstallDueDate, syncInvoiceFromXero } from "./xero.server";
+import { applyPaidAmount, requireHivicInvoice, requireHivicJob, setInstallDueDate, syncInvoiceFromXero } from "./xero.server";
 import { clearInstallDueDate } from "./install-balance.server";
 import { buildDepositOverride, depositRequestPatch } from "./invoice.lifecycle";
 import { commercialBlocker, paymentOptionCleared } from "./workflow.server";
@@ -237,7 +237,7 @@ async function requireClearanceRecorder(r: Parameters<typeof requireJobRole>[0],
 export const saveAssessment = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, patch: assessmentPatch }).parse(d))
   .handler(async ({ data, context }) => {
-    const jobRole = await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
+    const jobRole = await requireJobRole(context.supabase, data.jobId, ["admin"]);
     await requireClearanceRecorder(context.supabase as never, jobRole, context.userId);
     // Server-side PIESA date rule (same one recordPiesa enforces): no future assessment dates.
     if (data.patch.assessed_on !== undefined && data.patch.assessed_on !== null) {
@@ -260,7 +260,8 @@ export const getJobScope = createServerFn({ method: "POST" }).middleware([requir
     catch (e) { if (e instanceof WorkflowError) return null; throw e; }
     const { jobScope } = await import("./requirements.server");
     const { measurementRow: _m, ...s } = await jobScope(data.jobId);
-    return s;
+    const dispatch = await (await import("./in-house-suppression.server")).inHouseDispatchSkip(data.jobId);
+    return dispatch && /offer|pick|choose|book|arrang|time|visit/i.test(s.nextAction ?? "") ? { ...s, nextAction: "" } : s;
   });
 
 export const saveMeasurement = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -563,7 +564,7 @@ export const recordPiesa = createServerFn({ method: "POST" }).middleware([requir
     sectionCSignedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {
-    const jobRole = await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
+    const jobRole = await requireJobRole(context.supabase, data.jobId, ["admin"]);
     await requireClearanceRecorder(context.supabase as never, jobRole, context.userId);
     const dateBlockers = piesaDateBlockers(data.completedDate); // Melbourne calendar date, not UTC
     if (dateBlockers.length) throw new WorkflowError(dateBlockers[0]!);
@@ -580,12 +581,18 @@ export const recordPiesa = createServerFn({ method: "POST" }).middleware([requir
         if (sc.length) throw new WorkflowError(`Section C: ${sc.join(" ")}`);
       }
     } else {
-      const p = await piesaStatus(data.jobId);
-      if (!p?.piesa_expired && stage !== "assessment_complete") throw new WorkflowError("Reassessment is only needed when the PIESA window has expired.");
+      // Batch 1 task 6: a check superseded by a reopen is redone as a reassessment, like an expired one.
+      const rb = await (await import("./piesa-record.server")).reassessmentBlocker(data.jobId, stage);
+      if (rb) throw new WorkflowError(rb);
     }
     // Decision 293: the same writes the Mitti "A4 – Electrical fixes" completion makes (piesa-record.server.ts).
     const { applyPiesaRecord } = await import("./piesa-record.server");
     await applyPiesaRecord({ jobId: data.jobId, actorId: context.userId, kind: data.kind, outcome: data.outcome, completedDate: data.completedDate, sectionCSignedDate: data.sectionCSignedDate ?? null, notes: data.notes ?? null, source: { kind: "portal" } });
+    // A48 batch 1 task 5: repairs recorded here count too — the fixes evidence uploaded on this page is read by the AI
+    // (time-limited; ticked, or one office row), after the record is written. Never throws.
+    if (data.kind === "post_rectification") await (await import("./coes-check.server")).checkCurrentCoes(data.jobId, context.userId);
+    // A48 batch 1 final fix: repairs signed off here clear the "breaks the official rules" row like a Mitti Section C. Never throws.
+    if (data.kind === "post_rectification") await (await import("./piesa-rules-notice.server")).recheckPiesaRules(data.jobId, context.userId);
     return { ok: true };
   });
 
@@ -620,6 +627,7 @@ export const regenerateRectificationQuote = createServerFn({ method: "POST" }).m
     await requireAdmin(context.supabase);
     const stage = await getStage(data.jobId);
     const quoteId = await generateRectificationQuote(data.jobId, context.userId);
+    if (typeof quoteId !== "string") return { ok: false, skipped: quoteId.skipped, message: "The partner bills rectification directly." };
     const { data: released } = await admin.from("quotes").select("id").eq("id", quoteId).eq("status", "issued").maybeSingle();
     if (stage === "rectification_required" && released) await transition(data.jobId, "awaiting_owner_rectification_approval", context.userId, "Electrical fixes quote released to owner");
     return { ok: true };
@@ -641,14 +649,23 @@ export const adjustQuote = createServerFn({ method: "POST" }).middleware([requir
     return { ok: true };
   });
 
+/** Decision 425 (Jo 29 Oct 2026): My job sends no typed name or 18+ tick; the owner's name on file signs the record. */
+async function signingInput(quoteId: string, s: NonNullable<z.infer<typeof respondToQuoteSchema>["signing"]>) {
+  const { fillSignerFromOwner } = await import("./assignment.core");
+  if (s.signatoryName && s.signatureName) return { signatoryName: s.signatoryName, signatureName: s.signatureName, authorityType: s.authorityType, over18: s.over18 ?? false, readConsumerInfo: s.readConsumerInfo, acceptAgreement: s.acceptAgreement };
+  const pkg = await buildAcceptancePackage(quoteId);
+  return fillSignerFromOwner({ authorityType: s.authorityType, readConsumerInfo: s.readConsumerInfo, acceptAgreement: s.acceptAgreement }, pkg.consumer.name);
+}
+
 export const respondToQuoteSchema = z.object({
     quoteId: uuid, accept: z.boolean(), consent: z.boolean().optional(), reason: z.string().max(1000).optional(),
     windowId: uuid.optional(), noneSuit: z.boolean().optional(), expectedVersion: z.number().int().optional(),
     // Decision 366: My job approves the fixes first, the owner pays them in full, THEN picks the electrician's time.
     pickLater: z.boolean().optional(),
     signing: z.object({
-      signatoryName: z.string().trim().min(2).max(200), authorityType: z.enum(["owner", "authorised_representative"]), over18: z.boolean(),
-      readConsumerInfo: z.boolean(), acceptAgreement: z.boolean(), signatureName: z.string().trim().max(200),
+      // Decision 425: names and the 18+ tick are optional; when left out, the owner's name on file is recorded.
+      signatoryName: z.string().trim().min(2).max(200).optional(), authorityType: z.enum(["owner", "authorised_representative"]), over18: z.boolean().optional(),
+      readConsumerInfo: z.boolean(), acceptAgreement: z.boolean(), signatureName: z.string().trim().max(200).optional(),
       assistance: z.enum(["none", "interpreter", "support_understanding", "both"]),
     }).optional(),
   });
@@ -673,7 +690,8 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
       if (latest?.id !== q.id) throw new WorkflowError("This fixes quote has been replaced. Please review the newest quote on My job.");
       if (data.accept && q.status === "accepted") {
         if (data.expectedVersion != null && data.expectedVersion !== q.version) throw new WorkflowError("Please review the newest fixes quote.");
-        await (await import("./xero.server")).addRepairsToXeroInvoice(q.job_id, context.userId);
+        // Re-tap on an accepted fixes quote: retry its own invoice step (once-only per quote).
+        await invoiceAfterAcceptance(q.id, q.job_id, context.userId);
         return { ok: true };
       }
     }
@@ -709,8 +727,7 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
     if (q.kind === "installation") {
       if (!data.signing) throw new WorkflowError("The customer must review and sign the customer agreement to accept this quote.");
       if (!(await context.isOwner(q.job_id))) throw new WorkflowError("Only the customer can sign the agreement.");
-      const { assistance: _a, ...chk } = data.signing;
-      await assertAgreementCanSign(chk);
+      await assertAgreementCanSign(await signingInput(q.id, data.signing));
     }
     // All gates are checked BEFORE the quote is marked accepted, so a blocked acceptance leaves nothing half-done.
     let priorAccepted: string[] = [];
@@ -738,8 +755,8 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
       if (!rect && p?.piesa_expired) throw new WorkflowError("The Pre Insulation Electrical Safety Assessment (PIESA) has expired. Home Insulation Victoria will arrange a reassessment.");
     }
     if (q.kind === "installation" && data.signing) {
-      const { assistance, ...input } = data.signing;
-      await signCustomerAgreement({ quoteId: q.id, actorId: context.userId, input, assistance, ip: context.ip, userAgent: context.userAgent });
+      const input = await signingInput(q.id, data.signing);
+      await signCustomerAgreement({ quoteId: q.id, actorId: context.userId, input, assistance: data.signing.assistance, ip: context.ip, userAgent: context.userAgent });
     }
     let pickedWindow: string | null = null;
     if (q.kind === "rectification") {
@@ -778,8 +795,8 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
     if (q.kind === "rectification") {
       await logEvent(q.job_id, context.userId, "rectification_scope_approved", `Owner approved electrical fixes scope (${q.customer_total_inc_gst} inc GST)`, { quote_id: q.id });
       // Decision 366 (audit F03): the installation quote is already accepted (Ready Check path), so this stays in the fixes
-      // flow — the fixes are paid in full (their own payment step on the ONE invoice), then the owner picks the
-      // electrician's time and the visit is booked. Installer quotes are never regenerated here.
+      // flow — the fixes are paid in full on their own invoice (batch 3b), then the owner picks the electrician's time and
+      // the visit is booked. Installer quotes are never regenerated here.
       const { count: installAccepted } = await admin.from("quotes").select("id", { count: "exact", head: true }).eq("job_id", q.job_id).eq("kind", "installation").eq("status", "accepted");
       if (installAccepted) {
         const now = await getStage(q.job_id);
@@ -787,27 +804,27 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
           try { await transition(q.job_id, "rectification_scheduling", context.userId, "Owner approved the electrical fixes – the owner pays the fixes in full, then picks the electrician's time"); }
           catch (e) { await logEvent(q.job_id, context.userId, "fixes_approved_stage_held", `Electrical fixes approved, but fixes scheduling could not open yet: ${(e as Error).message}`, { quote_id: q.id, needs_office: true }, { internal: true }); }
         }
-        // Audit R07: the approved fixes go onto the job's ONE Xero invoice (or are held for the office as one Needs me row).
-        // Best-effort: the owner's approval is already committed; every later Sync / webhook / poll retries it.
-        try { await (await import("./xero.server")).addRepairsToXeroInvoice(q.job_id, context.userId); }
-        catch (e) { await logEvent(q.job_id, context.userId, "xero_invoice_repairs_failed", `Electrical fixes approved, but adding them to the Xero invoice failed – Sync retries: ${(e as Error)?.message ?? e}`, { quote_id: q.id }, { internal: true }).catch(() => null); }
+        // Batch 3b: the approved fixes get their OWN Xero invoice (reference "… fixes"); the installation invoice is never
+        // touched. Same once-only step as an installation acceptance; a failure is one Needs me row and Sync retries it.
+        await invoiceAfterAcceptance(q.id, q.job_id, context.userId);
         if (pickedWindow) await (await import("./owner-fixes.server")).bookPickedFixesTime(q.job_id, context.userId).catch(() => undefined);
         return { ok: true };
       }
-      // Old model (no accepted installation quote yet): scope approval only – no invoice. The rectification lines are
-      // folded into the final installation quote.
+      // Old model (no accepted installation quote yet): the fixes still get their own invoice (batch 3b — never folded into
+      // the installation quote), then the final installation quotes are prepared.
+      await invoiceAfterAcceptance(q.id, q.job_id, context.userId);
       await transition(q.job_id, "ready_for_installer_quotes", context.userId, "Electrical fixes scope approved – preparing final installation quotes");
       await genInstaller(q.job_id, context.userId);
       { const { applyCobrand } = await import("./pilot.server"); await applyCobrand(q.job_id); }
-      await transition(q.job_id, "awaiting_quote_acceptance", context.userId, "Final installation quotes (incl. electrical fixes) issued to owner");
+      await transition(q.job_id, "awaiting_quote_acceptance", context.userId, "Final installation quotes issued to owner");
       await autoAdvanceJob(q.job_id, context.userId, "electrical fixes approved");
       return { ok: true };
     }
 
-    await admin.from("declarations").upsert({ job_id: q.job_id, kind: "owner_consent", declared_by: context.userId, statement: `Owner accepted ${q.option_label} (${q.customer_total_inc_gst} inc GST): approved payment option due now (minimum upfront deposit, paid in full, or active 3-instalment plan), balance due on installation day.` }, { onConflict: "job_id,kind" });
+    await admin.from("declarations").upsert({ job_id: q.job_id, kind: "owner_consent", declared_by: context.userId, statement: `Owner accepted ${q.option_label} (${q.customer_total_inc_gst} inc GST): safety check paid at acceptance; electrical fixes in full if needed; 10% install deposit to book the install; balance on installation day.` }, { onConflict: "job_id,kind" });
     await admin.from("compliance_checks").update({ status: "pass", checked_at: new Date().toISOString() }).eq("job_id", q.job_id).eq("check_key", "owner_consent");
     await logEvent(q.job_id, context.userId, ASSIGNMENT_EVENTS.QUOTE_ACCEPTED, `${q.option_label} accepted with signed Customer Agreement / Quote Acceptance`, { quote_id: q.id, total_inc_gst: q.customer_total_inc_gst });
-    // F13: the installer is told by the approved I23 email (emailInstallerQuoteAccepted, in invoiceAfterAcceptance below);
+    // F13: the installer is told by the approved I23 email once the safety check is paid (afterPaymentsChanged in payments.server.ts, Jo 28 Oct 2026);
     // the old partner_notifications outbox row here was never sendable and is gone.
     if (measuredPath) {
       // Ready Check path: next is the safety check payment, then the owner picks safety check times.
@@ -826,14 +843,8 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
  *  owner's completed acceptance into an error they cannot retry (the quote is no longer "issued"); record it for office,
  *  which recovers with Retry Xero push (local invoice row exists) or Sync. */
 async function invoiceAfterAcceptance(quoteId: string, jobId: string, actorId: string) {
-  // Jo 24 Oct: tell the installer (best-effort; never affects the owner's acceptance).
-  try { await (await import("./installer-accepted-email.server")).emailInstallerQuoteAccepted(jobId, quoteId); }
-  catch (e) { console.error("installer accepted email skipped", (e as Error).message); }
-  try { await createInvoiceForQuote(quoteId, actorId); }
-  catch (e) {
-    const { data: inv } = await admin.from("invoices").select("id").eq("quote_id", quoteId).maybeSingle();
-    await logEvent(jobId, actorId, "invoice_create_failed", `Quote accepted but the invoice step failed – office action needed: ${(e as Error)?.message ?? e}`, { quote_id: quoteId, invoice_id: inv?.id ?? null, local_invoice_exists: !!inv }, { internal: true }).catch(() => null);
-  }
+  // The installer is told once the safety check is paid (afterPaymentsChanged, Jo 28 Oct 2026), not here.
+  await (await import("./invoice-after-acceptance.server")).createInvoiceAfterAcceptance(quoteId, jobId, actorId);
 }
 
 // ---------- Payments (Xero mirror + gates) ----------
