@@ -195,20 +195,20 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
       else if (outcome === "created") {
         // Mitti made the form but a later step (share / owner) failed: store it so every retry REUSES it.
         if (measureOnly) {
-          await pointMeasurementAtMitti(jobId, m, seen.createdId!, actorId);
+          await pointMeasurementAtMitti(jobId, m, String(seen.createdId), actorId);
         } else if (a) await admin.from("assessments").update({ external_mitti_id: seen.createdId, mitti_template_id: templateId }).eq("id", a.id);
         else { await admin.from("assessments").insert({ job_id: jobId, assessor_id: asg.user_id, external_mitti_id: seen.createdId, mitti_template_id: templateId, mitti_last_error: msg, mitti_sync_status: "error", mitti_scope: scope.scope }); throw wrap(e); }
       } else {
         await claims.recordMittiCreateUncertain(jobId, kind, claimId, actorId, msg);
         if (!measureOnly) {
-          if (a) await admin.from("assessments").update({ mitti_last_error: msg }).eq("id", a.id);
+          if (a) await admin.from("assessments").update({ mitti_last_error: msg, mitti_sync_status: "error" }).eq("id", a.id);
           else await admin.from("assessments").insert({ job_id: jobId, assessor_id: asg.user_id, mitti_last_error: msg, mitti_sync_status: "error", mitti_scope: scope.scope });
         }
         throw new claims.MittiOutcomeUncertain();
       }
     }
     if (!measureOnly) {
-      if (a) await admin.from("assessments").update({ mitti_last_error: msg }).eq("id", a.id);
+      if (a) await admin.from("assessments").update({ mitti_last_error: msg, mitti_sync_status: "error" }).eq("id", a.id);
       else await admin.from("assessments").insert({ job_id: jobId, assessor_id: asg.user_id, mitti_last_error: msg, mitti_sync_status: "error", mitti_scope: scope.scope });
     }
     throw wrap(e);
@@ -456,9 +456,14 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
           ...(completed ? { mitti_synced_at: now } : {}),
         }).eq("id", a.id).neq("status", "complete");
         if (completed && shortAnswers["rectificationOutcome"] === RECTIFICATION_OUTCOMES[0]) {
-          const { error: closeError } = await admin.from("assessments").update({ no_rectification_confirmed: true }).eq("id", a.id);
+          const { error: closeError } = await admin.from("assessments").update({ no_rectification_confirmed: true }).eq("id", a.id).neq("status", "complete");
           if (closeError) throw new Error(closeError.message);
           await (await import("./fixes-day.server")).closeUnusedRectificationForm(jobId);
+        } else if (shortAnswers["rectificationOutcome"] && shortAnswers["rectificationOutcome"] !== RECTIFICATION_OUTCOMES[0]) {
+          const { error: resetError } = await admin.from("assessments").update({ no_rectification_confirmed: false }).eq("id", a.id).neq("status", "complete");
+          if (resetError) throw new Error(resetError.message);
+          try { await (await import("./fixes-day.server")).reopenRectificationRound(jobId, actorId, call); }
+          catch (e) { const msg = e instanceof Error ? e.message : "Mitti error"; await admin.from("assessments").update({ mitti_sync_status: "error", mitti_last_error: msg }).eq("id", a.id).neq("status", "complete"); throw e; }
         }
         // Printed PIESA rules, checked server-side on every sync (blockers stay as review issues; nothing is completed here).
         // The Mitti form is the short onsite version: answers are expanded into the official items first.

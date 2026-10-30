@@ -271,6 +271,8 @@ export type ClearanceFacts = {
    *  electrical (fixes) charge has been received on top of the safety check payment (payments.core `onsiteChargePaid`,
    *  read by electrical-clearance.server). The safety check payment alone is never enough. Absent = false. */
   fixesPaymentCleared?: boolean;
+  /** Server-verified held in-house business bills the rectification directly. */
+  partnerBilledRectification?: boolean;
 };
 export type ClearanceBasis = "initial_piesa" | "section_c" | "electrician_at_start";
 export type Clearance = { cleared: boolean; timingDate: string | null; basis: ClearanceBasis | null; blocker: string | null; pendingConfirmation: string };
@@ -284,11 +286,11 @@ export function electricalClearance(f: ClearanceFacts): Clearance {
     if (f.piesaOutcome !== "pass") return { ...base, cleared: false, timingDate: null, basis: null, blocker: "PIESA did not pass." };
     return { ...base, cleared: true, timingDate: f.piesaCompletedAt, basis: "initial_piesa", blocker: null };
   }
-  if (!f.rectificationQuoteAccepted) return { ...base, cleared: false, timingDate: null, basis: null, blocker: "Owner has not approved the electrical fixes quote." };
+  if (!f.partnerBilledRectification && !f.rectificationQuoteAccepted) return { ...base, cleared: false, timingDate: null, basis: null, blocker: "Owner has not approved the electrical fixes quote." };
   // Decision 314 follow-up: "Be on site at the start of the install day" alone — the electrician attends the install day
   // instead of a fixes visit, so there is no Section C. Cleared once the owner has accepted the fixes quote AND the payment
   // rule has cleared; the 30 days still run from the official PIESA date (decision 316).
-  if (f.onsiteStartOnly) {
+  if (f.onsiteStartOnly && !f.partnerBilledRectification) {
     if (!f.fixesPaymentCleared) return { ...base, cleared: false, timingDate: null, basis: null, blocker: "Waiting for the owner's payment for the electrician on site at the start of the install day." };
     return { ...base, cleared: true, timingDate: f.piesaCompletedAt, basis: "electrician_at_start", blocker: null };
   }
@@ -337,8 +339,8 @@ export function rectificationSendBlocker(q: RectQuoteFacts, actorIsOffice: boole
   if (q.status !== "draft") return "Only a draft electrical fixes quote can be sent.";
   return null;
 }
-export function rectificationVisitBlocker(f: { quoteAccepted: boolean; recActiveApproved: boolean }): string | null {
-  if (!f.quoteAccepted) return "Owner must approve the electrical fixes quote before the visit is arranged.";
+export function rectificationVisitBlocker(f: { quoteAccepted: boolean; recActiveApproved: boolean; partnerBilledRectification?: boolean }): string | null {
+  if (!f.partnerBilledRectification && !f.quoteAccepted) return "Owner must approve the electrical fixes quote before the visit is arranged.";
   if (!f.recActiveApproved) return "The PIESA electrician is no longer approved/active — office must arrange another REC.";
   return null;
 }

@@ -42,11 +42,13 @@ export async function onsiteChargePaidFor(jobId: string): Promise<boolean> {
 }
 
 export async function clearanceFacts(jobId: string): Promise<ClearanceFacts> {
+  const { partnerBilledRectificationFor } = await import("./in-house-rectification.server");
+  const partnerBilledRectification = await partnerBilledRectificationFor(jobId);
   // Decision 316 (Jo 25 Oct 2026): the 30 days run from the official PIESA. The anchor is the latest official PIESA
   // (initial, or a reassessment after an expired window) — it stays the anchor after a post_rectification row becomes current.
   const [{ data: initial }, { data: rect }, { data: rq }] = await Promise.all([
     admin.from("piesa_records").select("outcome, completed_date, signed_off_by").eq("job_id", jobId).in("kind", ["initial", "reassessment"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    admin.from("piesa_records").select("rectification_completed_at, section_c_signed_at, outcome").eq("job_id", jobId).neq("kind", "initial").eq("is_current", true).maybeSingle(),
+    admin.from("piesa_records").select("rectification_completed_at, section_c_signed_at, outcome").eq("job_id", jobId).eq("kind", "post_rectification").eq("is_current", true).maybeSingle(),
     admin.from("quotes").select("status").eq("job_id", jobId).eq("kind", "rectification").in("status", ["issued", "accepted"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
   const { count: items } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", jobId);
@@ -68,6 +70,7 @@ export async function clearanceFacts(jobId: string): Promise<ClearanceFacts> {
     sectionCSignedAt: rect?.section_c_signed_at ?? null,
     onsiteStartOnly: onsiteOnly,
     fixesPaymentCleared,
+    partnerBilledRectification,
   };
 }
 
