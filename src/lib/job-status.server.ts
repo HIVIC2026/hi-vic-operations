@@ -111,7 +111,7 @@ export async function tradeJobStatus(userId: string, jobId: string) {
   // If this read fails the contact stays hidden (fail closed); only the error code is logged.
   const { data: mine, error: mineErr } = await admin.from("bookings").select("status").eq("job_id", jobId).eq("business_id", c.biz.id);
   if (mineErr) console.error("tradeJobStatus: own bookings read failed", mineErr.code ?? "unknown");
-  return { line: statusView(c, f), timeline: jobTimeline(f), chase: { mode, contact, askedAt: asked?.created_at ?? null }, ownerContactVisible: mineErr ? false : contactVisible(mine ?? []) };
+  return { line: statusView(c, f), timeline: jobTimeline(f), chase: { coordinationSuppressed: !!f.inHouseDispatch && !!(await import("./in-house-message.core")).inHouseVisitForStage(f.stage), mode, contact, askedAt: asked?.created_at ?? null }, ownerContactVisible: mineErr ? false : contactVisible(mine ?? []) };
 }
 
 /** "Ask Home Insulation Victoria to send a reminder": recorded for the office's Needs me. Never an automatic send. */
