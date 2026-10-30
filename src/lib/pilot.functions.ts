@@ -16,6 +16,7 @@ import {
 } from "./pilot.core";
 import { loadBusiness, myBusinesses, requireApprovedPartner, requireMember, sha, sweepPartnerExpiry } from "./pilot.server";
 import { signFile } from "./file-links.server";
+import { inHouseEnableBlockers, newInHouseBlockers } from "./in-house.core";
 
 const uuid = z.string().uuid();
 const isAdmin = async (sb: { rpc: (n: "is_admin") => PromiseLike<{ data: unknown; error?: { message: string } | null }> }) => {
@@ -26,18 +27,20 @@ const isAdmin = async (sb: { rpc: (n: "is_admin") => PromiseLike<{ data: unknown
 const txt = (n: number) => z.string().trim().max(n).nullish();
 
 // ---------- Business file ----------
+// pays_own_electricians is SQL-only: unknown keys are stripped for every caller.
 const businessInput = z.object({
   id: uuid.optional(),
   name: z.string().trim().min(2).max(200), legal_name: txt(200), trading_name: txt(200), abn: txt(20), acn: txt(20), gst_registered: z.boolean().nullish(),
   business_type: z.enum(["eec_installer", "rec", "other"]).optional(), capabilities: z.array(z.enum(["installer", "electrician"])).max(2).optional(),
   email: txt(320), phone: txt(40), address: txt(300), contact_people: z.array(z.object({ name: z.string().max(200), role: z.string().max(100).optional(), phone: z.string().max(40).optional(), email: z.string().max(320).optional() })).max(20).optional(),
-  service_postcodes: z.array(z.string().trim().max(6)).max(500).optional(), service_regions: z.array(z.string().trim().max(100)).max(100).optional(),
+  service_postcodes: z.array(z.string().trim().max(6)).max(750).optional(), service_regions: z.array(z.string().trim().max(100)).max(100).optional(),
   verify_coverage: z.boolean().optional(),
   weekly_capacity: z.number().int().min(0).max(1000).nullish(), daily_capacity_m2: z.number().positive().max(10000).nullish(), lead_time_days: z.number().int().min(0).max(180).nullish(), availability_notes: txt(2000),
   daily_job_limit: z.number({ message: "Daily job limit must be a whole number." }).int("Daily job limit must be a whole number.").min(1, "Daily job limit must be 1 or more. Leave it empty for no limit.").max(50, "Daily job limit can be at most 50.").nullish(),
   rec_number: txt(50), licence_number: txt(50), installer_certification: z.record(z.string(), z.string().max(500)).optional(),
   branding: z.object({ logo_url: z.string().url().max(1000).optional(), colour: z.string().max(20).optional() }).optional(),
   default_comms_owner: z.enum(["installer", "hivic"]).optional(), commercial_route: z.enum(["hivic_full_invoice", "split_invoicing"]).optional(),
+  in_house: z.boolean().optional(), rectification_billed_by: z.enum(["partner", "hivic"]).optional(),
 });
 const CRITICAL_FIELDS = ["legal_name", "abn", "acn", "rec_number", "licence_number", "business_type", "capabilities", "commercial_route"] as const;
 
@@ -48,12 +51,14 @@ export const saveBusiness = createServerFn({ method: "POST" }).middleware([requi
     const sb = splitInvoicingBlocker(data.commercial_route);
     if (sb) throw new WorkflowError(sb);
     const { id, verify_coverage, ...patch } = data;
+    delete (patch as Record<string, unknown>)["pays_own_electricians"]; // Defence in depth, including office creates.
     if (patch.service_postcodes) {
       const invalid = patch.service_postcodes.filter((entry) => !/^3\d{3}$/.test(entry) && !/^3\d{0,2}\*$/.test(entry));
       if (invalid.length) throw new WorkflowError(`Invalid Victorian postcode coverage: ${invalid.join(", ")}`);
     }
     if (!id) {
       if (!adminUser) throw new WorkflowError("Only Home Insulation Victoria can create a partner business.");
+      if (patch.in_house) throw new WorkflowError(newInHouseBlockers().join(" • "));
       const { data: row, error } = await admin.from("businesses").insert({ ...patch, business_type: patch.business_type ?? "eec_installer" } as never).select("id").single();
       if (error) throw new WorkflowError(error.message);
       return { id: row.id };
@@ -61,6 +66,8 @@ export const saveBusiness = createServerFn({ method: "POST" }).middleware([requi
     if (!adminUser) {
       await requireMember(context.userId, id, true);
       delete (patch as Record<string, unknown>)["commercial_route"]; // commercial route is Home Insulation Victoria-controlled
+      delete patch.in_house;
+      delete patch.rectification_billed_by;
     }
     // Trades manage their own diaries: capacity fields are no longer used or saved.
     delete (patch as Record<string, unknown>)["daily_job_limit"];
@@ -68,13 +75,28 @@ export const saveBusiness = createServerFn({ method: "POST" }).middleware([requi
     delete (patch as Record<string, unknown>)["weekly_capacity"];
     const { data: before } = await admin.from("businesses").select("*").eq("id", id).single();
     if (!before) throw new WorkflowError("Business not found");
+    const prior = before as unknown as { in_house?: boolean; rectification_billed_by?: "partner" | "hivic" };
+    const configChanged = (patch.in_house !== undefined && patch.in_house !== (prior.in_house ?? false))
+      || (patch.rectification_billed_by !== undefined && patch.rectification_billed_by !== (prior.rectification_billed_by ?? "hivic"));
+    if (adminUser && patch.in_house === true && prior.in_house !== true) {
+      const facts = await (await import("./installer-paid-electricians.server")).inHouseFactsFor(id);
+      const blockers = inHouseEnableBlockers(facts);
+      if (blockers.length) throw new WorkflowError(blockers.join(" • "));
+    }
+    const { in_house, rectification_billed_by, ...ordinaryPatch } = patch;
     const criticalChanged = CRITICAL_FIELDS.some((k) => k in patch && JSON.stringify((patch as Record<string, unknown>)[k]) !== JSON.stringify((before as Record<string, unknown>)[k]));
     const extra = !adminUser && criticalChanged && before.onboarding_status === "approved" ? { onboarding_status: "submitted", onboarding_notes: "Compliance details changed by partner – Home Insulation Victoria re-approval required" } : {};
     const coverageChanged = "service_postcodes" in patch && JSON.stringify(patch.service_postcodes ?? []) !== JSON.stringify(before.service_postcodes ?? []);
     const coverageStamp = adminUser && verify_coverage && (patch.service_postcodes?.length ?? before.service_postcodes?.length ?? 0) > 0
       ? { coverage_verified_at: new Date().toISOString(), coverage_verified_by: context.userId }
       : coverageChanged ? { coverage_verified_at: null, coverage_verified_by: null } : {};
-    const { error } = await admin.from("businesses").update({ ...patch, ...extra, ...coverageStamp, updated_at: new Date().toISOString() } as never).eq("id", id);
+    if (configChanged) {
+      // Local RPC overlay for the pending migration; generated clients stay untouched.
+      const configDb = admin as unknown as { rpc: (name: "save_in_house_partner", args: { p_business_id: string; p_in_house: boolean | null; p_rectification_billed_by: string | null; p_actor_id: string }) => PromiseLike<{ error: { message: string } | null }> };
+      const { error: configError } = await configDb.rpc("save_in_house_partner", { p_business_id: id, p_in_house: in_house ?? null, p_rectification_billed_by: rectification_billed_by ?? null, p_actor_id: context.userId });
+      if (configError) throw new WorkflowError(configError.message);
+    }
+    const { error } = await admin.from("businesses").update({ ...ordinaryPatch, ...extra, ...coverageStamp, updated_at: new Date().toISOString() } as never).eq("id", id);
     if (error) throw new WorkflowError(error.message);
     return { id, reapprovalRequired: !!Object.keys(extra).length };
   });
@@ -99,6 +121,8 @@ export const setOnboardingStatus = createServerFn({ method: "POST" }).middleware
     // Decision 402: approving the business approves its pending people whose certification is office-verified. Never fails the approval.
     if (data.status === "approved") await import("./worker-approval.server").then((m) => m.autoApproveVerifiedPeople(data.businessId, context.userId)).catch((e) => console.error("Decision 402 auto-approval skipped", (e as Error).message));
     if (data.status === "approved") await (await import("./rec-auto-link.server")).autoLinkApprovedRec(data.businessId, context.userId).catch((e) => console.error("REC auto-link skipped", (e as Error).message));
+    // Installer sign-up: the electrician they named becomes their saved usual electrician. Best-effort; skips itself when the business has no installer application.
+    if (data.status === "approved") await (await import("./signup-electrician.server")).carrySignupElectrician(data.businessId, context.userId).catch((e) => console.error("Sign-up electrician skipped", (e as Error).message));
     return { ok: true };
   });
 
@@ -281,8 +305,9 @@ export const getPartnerProfile = createServerFn({ method: "POST" }).middleware([
     const checklist = onboardingChecklist(business as BusinessLike, credentials, !!agreements?.length);
     // ESC collection notice state per installer worker (office flag "ESC notice not acknowledged"; informs, never blocks).
     const collectionNotice = await (await import("./esc-collection-notice.server")).businessNoticeStatuses(id);
+    const inHouseFacts = adminUser ? await (await import("./installer-paid-electricians.server")).inHouseFactsFor(id) : null;
     const { xero_contact_id: _x, xero_contact_error: _e, ...safe } = business;
-    return { business: adminUser ? business : safe, credentials: creds ?? [], members: members ?? [], workers: workers ?? [], relationships: rels ?? [], agreements: agreements ?? [], rateCards: cards ?? [], electricianBusinesses: adminUser ? (electricians ?? []) : [] /* trades never see HIV's electrician network */, measurementMethods: methods ?? [], checklist, collectionNotice, myRole: adminUser ? "hivic_admin" : mine.get(id) };
+    return { business: adminUser ? business : safe, inHouseFacts, credentials: creds ?? [], members: members ?? [], workers: workers ?? [], relationships: rels ?? [], agreements: agreements ?? [], rateCards: cards ?? [], electricianBusinesses: adminUser ? (electricians ?? []) : [] /* trades never see HIV's electrician network */, measurementMethods: methods ?? [], checklist, collectionNotice, myRole: adminUser ? "hivic_admin" : mine.get(id) };
   });
 
 // ---------- Import ----------
@@ -703,7 +728,8 @@ export const partnerDashboard = createServerFn({ method: "GET" }).middleware([re
       admin.from("jobs").select("id, job_number, stage, next_action, last_activity_at, channel, customer_relationship_owner, owners(full_name), properties(address_line, suburb, postcode)").in("id", jobIds.length ? jobIds : none),
       admin.from("job_assignments").select("job_id, assigned_at, first_response_at, booking_confirmed_at, cannot_attend_at, profiles!job_assignments_user_id_fkey(full_name)").eq("role", "electrician").eq("active", true).in("job_id", jobIds.length ? jobIds : none),
       admin.from("bookings").select("job_id, kind, scheduled_start").eq("status", "confirmed").in("job_id", jobIds.length ? jobIds : none),
-      admin.from("invoice_status" as never).select("job_id, deposit_cleared" as never).in("job_id" as never, (jobIds.length ? jobIds : none) as never),
+      // Batch 3b: the install invoice only (a fixes / repeat safety check invoice never clears the install deposit); newest first.
+      admin.from("invoice_status" as never).select("job_id, deposit_cleared" as never).in("job_id" as never, (jobIds.length ? jobIds : none) as never).eq("kind" as never, "installation" as never).order("created_at" as never, { ascending: false }),
     ]);
     // Owner name / exact address only while this business holds a current, unrevoked visit release (same rule as SQL visit_is_current).
     const { data: rels } = await admin.from("contact_releases").select("job_id, visit_kind, job_assignments!inner(business_id, active)").is("revoked_at", null).in("job_id", jobIds.length ? jobIds : none).eq("job_assignments.business_id", bizId);

@@ -33,6 +33,7 @@ function fakeDeps(over: Partial<Record<keyof Deps, unknown>> = {}, opts: { boss?
     workerLinks: rec("workerLinks", { workers: [], links: [], assignedBusinesses: 1 }),
     price: rec("price", { canSet: true, current: null }),
     ownerQuote: rec("ownerQuote", { applies: false }),
+    crew: rec("crew", { staff: [], selection: null }),
     ...over,
   } as unknown as Deps;
   return { deps, calls };
@@ -42,7 +43,7 @@ describe("tradeJobBundle (server, injected readers)", () => {
   test("business owner: every section asked exactly once, each trade section with the ONE checked context", async () => {
     const { deps, calls } = fakeDeps();
     const b = await tradeJobBundle(SB, USER, JOB, deps);
-    for (const k of ["overview", "access", "page", "installDays", "readyCheckTimes", "allocation", "swms", "workerLinks", "price", "ownerQuote"]) expect(calls[k]?.length, k).toBe(1);
+    for (const k of ["overview", "access", "page", "installDays", "readyCheckTimes", "allocation", "swms", "workerLinks", "price", "ownerQuote", "crew"]) expect(calls[k]?.length, k).toBe(1);
     const pre = (await deps.access(USER, JOB)) as { checkedFor: unknown };
     for (const k of ["page", "readyCheckTimes", "allocation", "swms"]) expect((calls[k]![0]![2] as { checkedFor: unknown }).checkedFor, k).toEqual(pre.checkedFor);
     expect(b.overview).toEqual({ id: JOB, stage: "installation_scheduling", channel: "installer_sourced" });
@@ -62,11 +63,32 @@ describe("tradeJobBundle (server, injected readers)", () => {
     const { deps, calls } = fakeDeps({}, { kind: "electrician", role: "electrician" });
     const b = await tradeJobBundle(SB, USER, JOB, deps);
     expect(b.role).toBe("electrician");
-    for (const k of ["page", "installDays", "readyCheckTimes", "allocation", "swms", "price", "ownerQuote"]) expect(calls[k], k).toBeUndefined();
+    for (const k of ["page", "installDays", "readyCheckTimes", "allocation", "swms", "price", "ownerQuote", "crew"]) expect(calls[k], k).toBeUndefined();
     expect(b.page).toBeUndefined();
     expect(b.price).toBeNull();
     expect(calls.workerLinks?.length).toBe(1);
     expect(seedPlan(b, JOB).map((s) => s.section)).toEqual(["overview", "role", "workerLinks", "price", "mittiInvited"]);
+  });
+  test("speed (Task 6): an installer business's sections start before the overview answers; the overview still decides", async () => {
+    let release!: (v: unknown) => void;
+    const slow = new Promise((r) => { release = r; });
+    const { deps, calls } = fakeDeps({ overview: () => slow });
+    const pending = tradeJobBundle(SB, USER, JOB, deps);
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    for (const k of ["page", "installDays", "readyCheckTimes", "allocation", "swms", "workerLinks", "price", "ownerQuote"]) expect(calls[k]?.length, k).toBe(1);
+    expect(calls.crew).toBeUndefined(); // the crew needs the overview's stage (D6)
+    release({ role: "installer", row: { id: JOB, stage: "installation_scheduling", channel: "installer_sourced" } });
+    const b = await pending;
+    expect(calls.crew?.length).toBe(1);
+    expect(b.page).toEqual({ jobNumber: "HV-1", boss: true });
+  });
+  test("speed (Task 6): an installer business whose role on this job is not installer gets exactly the old answer", async () => {
+    const { deps } = fakeDeps({}, { kind: "installer", role: "owner" });
+    const b = await tradeJobBundle(SB, USER, JOB, deps);
+    for (const k of ["page", "installDays", "readyCheckTimes", "allocation", "swms", "ownerQuote", "crew"] as const) expect(b[k], k).toBeUndefined();
+    expect(b.price).toBeNull();
+    expect(b.workerLinks).toEqual({ workers: [], links: [], assignedBusinesses: 1 });
+    expect(b.role).toBe("owner");
   });
   test("one failing section becomes { error } and every other section still answers (the page never goes blank)", async () => {
     const { deps } = fakeDeps({ swms: () => Promise.reject(new Error("SWMS read failed")), installDays: () => Promise.reject(new Error("no quoted installer")) });
@@ -79,12 +101,12 @@ describe("tradeJobBundle (server, injected readers)", () => {
     const seeded = seedPlan(b, JOB).map((s) => s.section);
     expect(seeded).not.toContain("swms");
     expect(seeded).not.toContain("installDays");
-    expect(seeded).toEqual(expect.arrayContaining(["overview", "role", "page", "readyCheckTimes", "allocation", "workerLinks", "price", "ownerQuote", "mittiInvited"]));
+    expect(seeded).toEqual(expect.arrayContaining(["overview", "role", "page", "readyCheckTimes", "allocation", "workerLinks", "price", "ownerQuote", "crew", "mittiInvited"]));
   });
   test("trade access refused: the refusal reaches every trade section (as the eight separate calls were refused one by one); the overview keeps its own answer", async () => {
     const { deps, calls } = fakeDeps({ access: () => Promise.reject(new Error("This job isn't assigned to you.")) });
     const b = await tradeJobBundle(SB, USER, JOB, deps);
-    for (const k of ["page", "installDays", "readyCheckTimes", "allocation", "swms", "workerLinks", "price", "ownerQuote", "mittiInvited"] as const) expect(b[k], k).toEqual({ error: "This job isn't assigned to you." });
+    for (const k of ["page", "installDays", "readyCheckTimes", "allocation", "swms", "workerLinks", "price", "ownerQuote", "crew", "mittiInvited"] as const) expect(b[k], k).toEqual({ error: "This job isn't assigned to you." });
     expect(b.overview).toMatchObject({ id: JOB });
     for (const k of ["page", "installDays", "swms", "price"]) expect(calls[k], k).toBeUndefined();
   });
@@ -135,6 +157,16 @@ describe("section errors and the seed plan (pure)", () => {
     expect(BUNDLE_QUERY_KEYS.swms(JOB)).toEqual(["trade-swms", JOB]);
     // Seeded cards must consider a fresh answer fresh, or they would refetch on mount and undo the one-call load.
     for (const p of ["src/components/trade/visit-allocation.tsx", "src/components/trade/SafetyPlanCard.tsx", "src/components/portal/workers.tsx", "src/components/trade/InstallerPriceCard.tsx", "src/components/trade/OwnerQuoteCard.tsx"]) expect(src(p), p).toMatch(/staleTime: 20_000/);
+  });
+  test("the job page keeps no second cache copy, and a new job remounts the page (final review I3 + remount check)", () => {
+    const route = readFileSync("src/routes/_authenticated/field.$jobId.tsx", "utf8");
+    // Only the bundle reads/writes the device cache, so its evict/reset cannot be undone by another initialData copy.
+    expect(route).not.toContain("job-page:");
+    expect(route.match(/initialData:/g)?.length).toBe(1);
+    expect(route.match(/writeTradeCache\(/g)?.length).toBe(1);
+    expect(route.match(/readTradeCache</g)?.length).toBe(1);
+    // /field/A -> /field/B must not reuse A's askedOnce/seeded refs.
+    expect(route).toMatch(/createFileRoute\("\/_authenticated\/field\/\$jobId"\)\(\{[\s\S]*?remountDeps: \(\{ params \}\) => params,[\s\S]*?\}\);/);
   });
   test("the server function is a literal chain on the same middleware as getTradeJobPage, and each section reader is the per-section function's own helper", () => {
     const fns = readFileSync("src/lib/trade-view.functions.ts", "utf8");

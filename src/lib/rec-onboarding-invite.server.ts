@@ -42,7 +42,8 @@ export async function sweepRecOnboardingInvites(now = new Date()) {
   const out = { checked: pending.size, sent: 0, skipped: {} as Record<string, number>, failed: 0 };
   if (!pending.size) return out;
   const { customerCommsEnabled } = await import("./comms.server");
-  const commsEnabled = await customerCommsEnabled();
+  // Jo 30 Oct 2026: "Pause all trade messages" counts as paused comms here — nothing claimed or recorded, retried next tick.
+  const commsEnabled = (await customerCommsEnabled()) && !(await (await import("./trade-pause.server")).tradeMessagesPausedNow());
   const { data: issued, error: ie } = await admin.from("admin_config_events").select("details").eq("event_type", REC_ONBOARDING_INVITE_EVENT).in("details->>key", [...pending.keys()]);
   if (ie) throw new Error("Could not read earlier onboarding invites.");
   const issuedKeys = new Set((issued ?? []).map((r) => String((r.details as { key?: string } | null)?.key ?? "")));

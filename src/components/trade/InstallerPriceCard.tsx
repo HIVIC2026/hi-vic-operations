@@ -9,16 +9,19 @@ import { useServerFn } from "@tanstack/react-start";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAction } from "@/hooks/use-me";
-import { getInstallerPriceFn, setInstallerPriceFn } from "@/lib/installer-price.functions";
-import { PRICE_INCLUDED_OPTIONS, PRICE_ISSUES, accessFlagLine, priceCardLines, validateInstallerPrice } from "@/lib/installer-price.core";
+import { getInstallerPriceFn, setInstallerPriceFn, switchToHivElectricianFn } from "@/lib/installer-price.functions";
+import { HIV_SWITCH, PRICE_INCLUDED_OPTIONS, PRICE_ISSUES, accessFlagLine, priceCardLines, validateInstallerPrice } from "@/lib/installer-price.core";
 const REMOVAL_OPTION = PRICE_INCLUDED_OPTIONS[1]; // "Removal of existing insulation"
 import { PRICE_CARD_ANCHOR } from "@/lib/boss-price-link.core";
 import { LinkRow, Note, PrimaryButton, Row } from "@/components/trade/installer-kit";
+import { PIESA_FULL } from "@/lib/job-wording";
+import { OneTapAction } from "@/components/trade/one-tap-action";
 
 export function InstallerPriceCard({ jobId }: { jobId: string }) {
   const load = useServerFn(getInstallerPriceFn);
   const q = useQuery({ queryKey: ["installer-price", jobId], queryFn: () => load({ data: { jobId } }), staleTime: 20_000 });
   const save = useAction(setInstallerPriceFn);
+  const sw = useAction(switchToHivElectricianFn);
   const view = q.data;
   const [editing, setEditing] = useState(false);
   const [price, setPrice] = useState("");
@@ -53,7 +56,8 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
       <Row label="Removal m²" value={view.readyCheck.removal} />
       <Row label="Access" value={view.readyCheck.access} />
       <Row label="Insulation product" value={view.readyCheck.product} />
-      <Row label="Electrician" value={view.electrician} last={!lines || showForm} />
+      <Row label="Electrician" value={view.electrician} last={!lines || showForm && !view.hivSwitch} />
+      {view.hivSwitch && <OneTapAction label={HIV_SWITCH.button(view.hivSwitch.priceIncGst)} busyLabel="Switching…" confirm={HIV_SWITCH.confirm} confirmLabel={HIV_SWITCH.yes} run={async () => { const r = await sw({ jobId }, "Switched to Home Insulation Victoria's electrician"); if (r) await q.refetch(); }} />}
       {lines && !showForm && (
         <>
           <div className="border-b border-line py-3"><p className="text-[15px] text-sub">Your price to the owner (inc GST)</p><p className="text-lg font-semibold">{lines.price}</p></div>
@@ -63,7 +67,7 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
       )}
       {showForm && (
         <form className="space-y-3 py-2" onSubmit={async (e) => { e.preventDefault(); if (!check.ok) return; setBusy(true); try { const r = await save({ jobId, priceIncGst: price, included, includedOther: other || null }, "Price saved"); if (r) { setEditing(false); await q.refetch(); } } finally { setBusy(false); } }}>
-          <Note className="mt-0">Only you see and set this. We add the $349 Accredited Person fee and the electrical safety check, take off the rebate and prepare {" "}the owner's quote.{access ? " Any difficult access is yours to price in." : ""}</Note>
+          <Note className="mt-0">Only you see and set this. We add the $349 Accredited Person fee and the {PIESA_FULL}, take off the rebate and prepare {" "}the owner's quote.{access ? " Any difficult access is yours to price in." : ""}</Note>
           <div><Label htmlFor="ip-price">Your price to the owner (inc GST)</Label><Input id="ip-price" inputMode="decimal" placeholder="e.g. 2400" value={price} onChange={(e) => setPrice(e.target.value)} /></div>
           <fieldset>
             <legend className="text-sm font-medium">What's included</legend>

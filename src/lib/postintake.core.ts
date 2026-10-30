@@ -23,7 +23,7 @@ export function eligibilityFactsKey(i: Input): string {
   return JSON.stringify([
     norm(i.address_line), norm(i.suburb), norm(i.postcode), norm(i.state), norm(i.occupancy),
     i.area_unknown ? null : i.estimated_area_m2 ?? null, !!i.area_unknown, i.life_support_status ?? (i.life_support === true ? "yes" : null),
-    norm(i.declared_property_type), norm(i.declared_over_five_years), norm(i.declared_previous_upgrade),
+    norm(i.declared_property_type), norm(i.declared_over_five_years), "no" /* previous upgrade is always "no" (Jo 29 Oct 2026) */,
     norm(ex.existing_insulation), norm(ex.top_floor), i.property_research ?? null,
   ]);
 }

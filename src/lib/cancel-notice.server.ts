@@ -34,7 +34,7 @@ async function alreadySent(jobId: string, cancelSeq: number, who: CancelNoticeWh
   return !!data;
 }
 
-async function record(jobId: string, actorId: string, o: Outcome, cancelSeq: number, key: string) {
+async function record(jobId: string, actorId: string | null, o: Outcome, cancelSeq: number, key: string) {
   const label = o.who === "owner" ? "Owner job-cancelled email (O69)" : "Installer job-cancelled email (I70)";
   if (o.status === "sent") await logEvent(jobId, actorId, CANCEL_NOTICE_SENT_EVENT, `${label} sent${o.to ? ` to ${o.to}` : ""} (${o.detail})`, { who: o.who, channel: "email", cancel_seq: cancelSeq, key, status: "sent", detail: o.detail, to: o.to, decision: 291 }, { internal: true });
   else if (o.status === "held") await logEvent(jobId, actorId, CANCEL_NOTICE_HELD_EVENT, `${label} held — ${o.detail}`, { who: o.who, channel: "email", cancel_seq: cancelSeq, key, status: "held", detail: o.detail, to: o.to, decision: 291 }, { internal: true });
@@ -45,7 +45,7 @@ async function recordFailedInstallerSend(jobId: string, key: string, detail: str
   await admin.from("customer_email_sends").insert({ job_id: jobId, purpose: CANCEL_NOTICE_PURPOSE.installer, idempotency_key: key, status: "failed", provider: "resend", error: detail.slice(0, 480) });
 }
 
-export async function sendCancelNotices(jobId: string, actorId: string, tell: { owner: boolean; installer: boolean }, i: { cancelSeq: number; installer: InstallerRecipient | null }): Promise<CancelNoticeResult> {
+export async function sendCancelNotices(jobId: string, actorId: string | null, tell: { owner: boolean; installer: boolean }, i: { cancelSeq: number; installer: InstallerRecipient | null }): Promise<CancelNoticeResult> {
   const out: CancelNoticeResult = { owner: null, installer: null };
   if (!tell.owner && !tell.installer) return out;
   const { data: job } = await admin.from("jobs").select("job_number, source, owner_id, property_id").eq("id", jobId).maybeSingle();

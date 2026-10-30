@@ -1,0 +1,421 @@
+{
+  "tradeJobPage": {
+    "jobNumber": "HV-3129",
+    "stage": "ready_check_scheduled",
+    "channel": "installer_sourced",
+    "notes": [],
+    "readyCheck": {
+      "bookedAt": null,
+      "done": false
+    },
+    "install": {
+      "bookedAt": null,
+      "recordedAt": null,
+      "form": {
+        "auditId": null,
+        "complete": false
+      },
+      "rebateSigned": false,
+      "formCompletedAt": null,
+      "evidenceChecked": false,
+      "crew": [
+        "Bhavdeep singh"
+      ],
+      "ownerReady": null
+    },
+    "form": {
+      "linked": true,
+      "auditId": "audit_66a9195c43684adfb51d1bf3bd7c677e",
+      "completed": false,
+      "missing": [],
+      "stops": [],
+      "electrician": "A different electrician · TEST Sparky · TEST-REC-1",
+      "needsFinishing": null,
+      "needsFinishingItems": [],
+      "completedAt": null,
+      "hasAnswers": true
+    },
+    "price": {
+      "entered": true
+    },
+    "boss": true,
+    "quote": {
+      "line": "Your electrician needs to finish onboarding before the quote goes out",
+      "sent": false,
+      "accepted": false,
+      "declined": false,
+      "held": false,
+      "formCompleted": false,
+      "sentAt": null,
+      "acceptedAt": null,
+      "declinedAt": null
+    },
+    "pay": {
+      "amount": null,
+      "areaM2": 120,
+      "removalM2": null
+    },
+    "piesa": {
+      "passedOn": null,
+      "bookedAt": null,
+      "electrician": null,
+      "fixesNote": null,
+      "fixesOpen": false
+    },
+    "clearance": {
+      "cleared": false,
+      "clearedOn": null
+    },
+    "ownerPiesaConfirmed": null,
+    "electricianAttendance": null,
+    "mittiInvited": true,
+    "complete": {
+      "product": null,
+      "piisaSignedAt": null,
+      "installerSignedAt": null,
+      "ownerSignedAt": null,
+      "apSignedAt": null,
+      "pay": null
+    }
+  },
+  "tradeJobBundle": {
+    "overview": {
+      "id": "05eba075-0e5e-4f96-a584-f45596799e89",
+      "job_number": "HV-3129",
+      "stage": "ready_check_scheduled",
+      "next_action": "Assign installer for the free Ready Check – confirm onsite: Confirm the building is over 5 years old; Existing insulation unknown – confirm onsite",
+      "eligibility_outcome": "needs_onsite_confirmation",
+      "life_support": false,
+      "last_activity_at": "2026-10-30T20:15:59.146+00:00",
+      "created_at": "2026-10-23T05:21:35.056779+00:00",
+      "hold_reason": null,
+      "property_id": "861b1373-44d4-4d6d-aa67-5bafa496241f",
+      "property_address": "9 E2E Test Street, Reservoir, VIC 3073",
+      "owner_id": "765fe6bf-964f-42f3-a962-6af0c3aadcc3",
+      "owner_name": "TEST E2E Owner",
+      "owner_phone": "0477511901",
+      "owner_email": "jolowexo@hotmail.com",
+      "electrician_id": null,
+      "electrician_name": null,
+      "installer_id": "16f7dd86-f4df-4ae0-a1af-d18e8d3a2635",
+      "installer_name": "Bhavdeep (TEST)",
+      "piesa_date": null,
+      "install_deadline": null,
+      "days_remaining": null,
+      "urgency": null,
+      "piesa_expired": false,
+      "payment_status": null,
+      "authority_status": null,
+      "authority_expires_at": null,
+      "deposit_cleared": false,
+      "channel": "installer_sourced",
+      "commercial_model": "not_configured",
+      "originating_installer_user_id": "16f7dd86-f4df-4ae0-a1af-d18e8d3a2635",
+      "originating_business_name": "[TEST PARTNER] Reinsulate",
+      "source": "qa_test",
+      "eligibility_review_required": false,
+      "eligibility_flags": [
+        {
+          "key": "life_support_unknown",
+          "type": "safety",
+          "reason": "Life-support status unknown – confirm before electrical work/power interruption",
+          "severity": "medium"
+        },
+        {
+          "key": "measure_required",
+          "type": "operational",
+          "reason": "Ceiling area unknown – measure onsite",
+          "severity": "low"
+        }
+      ],
+      "inHouseDispatch": null
+    },
+    "role": "installer",
+    "page": {
+      "jobNumber": "HV-3129",
+      "stage": "ready_check_scheduled",
+      "channel": "installer_sourced",
+      "notes": [],
+      "readyCheck": {
+        "bookedAt": null,
+        "done": false
+      },
+      "install": {
+        "bookedAt": null,
+        "recordedAt": null,
+        "form": {
+          "auditId": null,
+          "complete": false
+        },
+        "rebateSigned": false,
+        "formCompletedAt": null,
+        "evidenceChecked": false,
+        "crew": [
+          "Bhavdeep singh"
+        ],
+        "ownerReady": null
+      },
+      "form": {
+        "linked": true,
+        "auditId": "audit_66a9195c43684adfb51d1bf3bd7c677e",
+        "completed": false,
+        "missing": [],
+        "stops": [],
+        "electrician": "A different electrician · TEST Sparky · TEST-REC-1",
+        "needsFinishing": null,
+        "needsFinishingItems": [],
+        "completedAt": null,
+        "hasAnswers": true
+      },
+      "price": {
+        "entered": true
+      },
+      "boss": true,
+      "quote": {
+        "line": "Your electrician needs to finish onboarding before the quote goes out",
+        "sent": false,
+        "accepted": false,
+        "declined": false,
+        "held": false,
+        "formCompleted": false,
+        "sentAt": null,
+        "acceptedAt": null,
+        "declinedAt": null
+      },
+      "pay": {
+        "amount": null,
+        "areaM2": 120,
+        "removalM2": null
+      },
+      "piesa": {
+        "passedOn": null,
+        "bookedAt": null,
+        "electrician": null,
+        "fixesNote": null,
+        "fixesOpen": false
+      },
+      "clearance": {
+        "cleared": false,
+        "clearedOn": null
+      },
+      "ownerPiesaConfirmed": null,
+      "electricianAttendance": null,
+      "mittiInvited": true,
+      "complete": {
+        "product": null,
+        "piisaSignedAt": null,
+        "installerSignedAt": null,
+        "ownerSignedAt": null,
+        "apSignedAt": null,
+        "pay": null
+      }
+    },
+    "installDays": {
+      "turn": "not_ready",
+      "deadline": null,
+      "daysLeft": null,
+      "booked": false,
+      "bookedAt": null,
+      "expired": false,
+      "open": [],
+      "electricianDays": null,
+      "days": []
+    },
+    "readyCheckTimes": {
+      "turn": "installer_to_offer",
+      "booked": false,
+      "bookedAt": null,
+      "open": [],
+      "applies": false,
+      "canChange": false,
+      "days": []
+    },
+    "allocation": {
+      "canAllocate": true,
+      "visits": [
+        {
+          "kind": "ready_check",
+          "label": "Ready Check",
+          "current": {
+            "workerId": "c5768235-087a-4601-a7e9-d38d529feb10",
+            "name": "Bhavdeep singh"
+          },
+          "hasForm": true,
+          "options": [
+            {
+              "workerId": "c5768235-087a-4601-a7e9-d38d529feb10",
+              "name": "Bhavdeep singh",
+              "mobile": null,
+              "allowed": true,
+              "reason": null,
+              "note": "No mobile on file – the 6:30am text will go to you."
+            },
+            {
+              "workerId": "04ee2f61-f4e5-4c2c-b969-6755a24a8edc",
+              "name": "Manminder Singh",
+              "mobile": null,
+              "allowed": true,
+              "reason": null,
+              "note": "No mobile on file – the 6:30am text will go to you."
+            }
+          ]
+        }
+      ]
+    },
+    "swms": {
+      "show": false
+    },
+    "workerLinks": {
+      "mittiFlag": null,
+      "assignedBusinesses": 1,
+      "workers": [
+        {
+          "id": "c5768235-087a-4601-a7e9-d38d529feb10",
+          "business_id": "17793408-bf5c-4ddd-9bec-64199f64f9fb",
+          "full_legal_name": "Bhavdeep singh",
+          "email": "test+info.at.reinsulate.com.au@hivic.test",
+          "mobile": null,
+          "trade_role": "installer",
+          "licence_number": null,
+          "qualification": "EEC CII CII-027 (office-verified)",
+          "approval_status": "approved",
+          "approved_at": "2026-10-18T00:59:56.491+00:00",
+          "rejection_reason": null,
+          "removed_at": null,
+          "created_at": "2026-10-06T22:25:02.447669+00:00",
+          "certification_status": "verified",
+          "certification": {
+            "declared": {
+              "holds": "held",
+              "issuer": "EEC",
+              "issue_date": null,
+              "certificate_number": "CII-027"
+            },
+            "verification_id": "x"
+          },
+          "worker_role": null,
+          "profile_id": "16f7dd86-f4df-4ae0-a1af-d18e8d3a2635",
+          "businesses": {
+            "name": "[TEST PARTNER] Reinsulate"
+          },
+          "blocker": null
+        },
+        {
+          "id": "04ee2f61-f4e5-4c2c-b969-6755a24a8edc",
+          "business_id": "17793408-bf5c-4ddd-9bec-64199f64f9fb",
+          "full_legal_name": "Manminder Singh",
+          "email": "test+ngu.auss.at.gmail.com@hivic.test",
+          "mobile": null,
+          "trade_role": "installer",
+          "licence_number": null,
+          "qualification": "EEC CII in training (declared, not verified)",
+          "approval_status": "pending",
+          "approved_at": null,
+          "rejection_reason": null,
+          "removed_at": null,
+          "created_at": "2026-10-06T22:25:02.386685+00:00",
+          "certification_status": "unverified",
+          "certification": {
+            "declared": {
+              "holds": "in_training",
+              "issuer": null,
+              "issue_date": null,
+              "certificate_number": null
+            },
+            "eec_upload": {
+              "path": "worker-invites/ceb6a5a4-ed70-43c5-8e59-e1f6ec39ec91/eec-90e50ce9-dd41-4930-a9e8-769f4e0849d2.pdf",
+              "number": "EEC-TEST-003",
+              "uploaded_at": "2026-10-20T03:46:27.497Z"
+            },
+            "verification_id": null
+          },
+          "worker_role": null,
+          "profile_id": null,
+          "businesses": {
+            "name": "[TEST PARTNER] Reinsulate"
+          },
+          "blocker": "This worker is waiting for Home Insulation Victoria approval."
+        }
+      ],
+      "links": []
+    },
+    "price": {
+      "canSet": true,
+      "current": {
+        "record": {
+          "price_inc_gst": 5000,
+          "included": [
+            "Ceiling insulation - supply & install"
+          ],
+          "included_other": null,
+          "electrician": null
+        },
+        "setAt": "2026-10-27T10:33:37.693656+00:00",
+        "setBy": "16f7dd86-f4df-4ae0-a1af-d18e8d3a2635"
+      },
+      "hivSwitch": {
+        "priceIncGst": 349
+      },
+      "electrician": "A different electrician (TEST Sparky)",
+      "access": {
+        "rating": "Standard",
+        "issues": []
+      },
+      "removalRequired": false,
+      "readyCheck": {
+        "address": "9 E2E Test Street, Reservoir, VIC 3073",
+        "install": "120 m²",
+        "removal": "None",
+        "access": "Ceiling access: Standard",
+        "product": "Bradford Gold R5"
+      }
+    },
+    "ownerQuote": {
+      "applies": true,
+      "priceHidden": false,
+      "quoteId": "3f405c99-8859-40f9-bec9-fe6988ce3d4c",
+      "lines": [
+        {
+          "description": "Supply and install of Bradford Gold R5 ceiling insulation – 120 m²",
+          "explanation": "R5.0 supply and install",
+          "quantity": 1,
+          "unit": "flat",
+          "total": 4201.25
+        },
+        {
+          "description": "Mandatory Pre Insulation Electrical Safety Assessment (PIESA)",
+          "explanation": "Electrician: TEST Sparky; licence: TEST-REC-1 (declared)",
+          "quantity": 1,
+          "unit": "flat",
+          "total": 400
+        },
+        {
+          "description": "Home Insulation Victoria — Accredited Person fee",
+          "explanation": null,
+          "quantity": 1,
+          "unit": "flat",
+          "total": 349
+        }
+      ],
+      "subtotal": 4950.25,
+      "rebate": 1120,
+      "total": 3830.25,
+      "blockers": [
+        "PIESA price not agreed for the chosen electrician.",
+        "Electrician not onboarded: TEST Sparky",
+        "Ready Check electrician details changed or are incomplete — prepare a new quote"
+      ],
+      "sent": false,
+      "held": false,
+      "formCompleted": false,
+      "line": "Your electrician needs to finish onboarding before the quote goes out"
+    },
+    "mittiInvited": {
+      "invited": true
+    }
+  },
+  "tradeMittiInvited": {
+    "invited": true,
+    "newReadyCheckUrl": "https://app.au.mitti.com/inspection/new?templateId=template_01ee0428be6d4435b34d8b738935f099"
+  }
+}

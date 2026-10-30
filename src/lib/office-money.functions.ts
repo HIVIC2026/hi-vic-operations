@@ -40,3 +40,12 @@ export const saveVeecSpotPrice = createServerFn({ method: "POST" }).middleware([
     await requireAdmin(context.supabase);
     return (await import("./office-money.server")).setVeecSpotPrice(Math.round(data.price * 100) / 100, context.userId);
   });
+
+/** Batch 1: the owner accepted but the invoice never reached Xero → the office creates it from the Money card.
+ *  Safe to press twice: one invoice per quote, and a Xero invoice already under the job's reference is adopted, not re-created. */
+export const retryInvoiceFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: z.string().uuid() }).parse(d))
+  .handler(async ({ context, data }) => {
+    await requireAdmin(context.supabase);
+    return (await import("./office-money.server")).createInvoiceForJob(data.jobId, context.userId);
+  });

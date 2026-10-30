@@ -1,7 +1,8 @@
 // Jo 23 Oct 2026: new Mitti Ready Check answers (A1 + A2). Pure — no database, no network.
 // Reads the flat form snapshot ({label, value}); repeated per-area labels are all scanned.
 import { norm, num, yesNo } from "./mitti.core";
-import { isNoSafeAccess, isR2OrAbove, LEAN_Q, LEAN_REMOVE, premisesTypeCode, type PremisesTypeCode } from "./ready-check-lean.core";
+import { excludedAreaName } from "./excluded-areas.core";
+import { isNoSafeAccess, isR2OrAbove, LEAN_ALIASES, LEAN_Q, LEAN_REMOVE, premisesTypeCode, type PremisesTypeCode } from "./ready-check-lean.core";
 
 type E = { label: string; value: unknown };
 const vals = (entries: E[], labels: string[], prefix = false) => {
@@ -47,7 +48,16 @@ export function premisesTypeFromEntries(entries: E[]): { answer: string | null; 
 
 /** Total of every area's removal answer (m²). Null when no area gave one. */
 export function removalTotalM2(entries: E[]): number | null {
-  const ns = vals(entries, ["How much existing insulation needs to be removed? (m²)"]).map((v) => num(v)).filter((n): n is number => n != null && n > 0);
+  // Garage / carport / shed areas are left out: walk the form in order, tracking which area each removal answer belongs to.
+  const nameLabels = [LEAN_Q.areaName, ...(LEAN_ALIASES.areaName ?? [])].map((l) => norm(l.split("\n")[0] ?? l));
+  const removeLabel = norm(LEAN_Q.removeM2);
+  let leftOut = false;
+  const ns: number[] = [];
+  for (const en of entries) {
+    const l = norm(String(en.label ?? "").split("\n")[0] ?? "");
+    if (nameLabels.includes(l)) leftOut = excludedAreaName(String(en.value ?? "").split("\n")[0] ?? "");
+    else if (l === removeLabel && !leftOut) { const n = en.value == null ? null : num(String(en.value).trim()); if (n != null && n > 0) ns.push(n); }
+  }
   return ns.length ? Math.round(ns.reduce((a, b) => a + b, 0) * 100) / 100 : null;
 }
 

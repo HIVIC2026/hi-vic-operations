@@ -91,11 +91,15 @@ describe("TEST / live parity (qa_test jobs are offered too, but only to TEST par
   });
   test("a TEST job gets the automatic offer, to the TEST partner only; with no TEST partner it goes back to the office", () => {
     expect(autoOfferStep({ ...base("ready_check"), jobIsTest: true, candidates: [live, testBiz] })).toMatchObject({ action: "offer", businessId: "test" });
-    expect(autoOfferStep({ ...base("piesa"), jobIsTest: true, candidates: [live, testBiz], usualBusinessId: "live" })).toMatchObject({ action: "offer", businessId: "test", basis: "coverage" });
+    expect(autoOfferStep({ ...base("piesa"), jobIsTest: true, candidates: [live, testBiz] })).toMatchObject({ action: "offer", businessId: "test", basis: "coverage" });
+    // Decision 426 fix wave: an installer's chosen electrician who can't be offered (here: a live one on a TEST job) sends
+    // the job back to the office — never nearest-first to another electrician.
+    expect(autoOfferStep({ ...base("piesa"), jobIsTest: true, candidates: [live, testBiz], usualBusinessId: "live" })).toMatchObject({ action: "return_to_office", reason: "preferred_blocked" });
     expect(autoOfferStep({ ...base("ready_check"), jobIsTest: true, candidates: [live] })).toMatchObject({ action: "return_to_office", reason: "no_match" });
     // Live job: the TEST partner is never the pick, even when it is the nearest or the usual electrician.
     expect(autoOfferStep({ ...base("ready_check"), candidates: [testBiz, live] })).toMatchObject({ action: "offer", businessId: "live" });
-    expect(autoOfferStep({ ...base("piesa"), jobIsTest: false, candidates: [testBiz, live], usualBusinessId: "test" })).toMatchObject({ action: "offer", businessId: "live" });
+    expect(autoOfferStep({ ...base("piesa"), jobIsTest: false, candidates: [testBiz, live] })).toMatchObject({ action: "offer", businessId: "live" });
+    expect(autoOfferStep({ ...base("piesa"), jobIsTest: false, candidates: [testBiz, live], usualBusinessId: "test" })).toMatchObject({ action: "return_to_office", reason: "preferred_blocked" });
     expect(autoOfferStep({ ...base("piesa"), candidates: [testBiz] })).toMatchObject({ action: "return_to_office", reason: "no_match" });
   });
   test("the parity rule is the same one the candidate readers and offer guard use (test-send.core)", () => {
@@ -120,11 +124,12 @@ describe("ready stages", () => {
 });
 
 describe("electrician pick", () => {
-  test("decision 374: an A2 job whose installer has a usual electrician is offered to the NEAREST REC, not the usual one", () => {
+  test("our lead with no approved usual electrician for its Ready Check installer: offered to the NEAREST REC (an A1 pick never carries over)", () => {
     const cs = [cand("near", { distanceKm: 3 }), cand("usual", { distanceKm: 50, activeJobs: 0 }), cand("mid", { distanceKm: 10 })];
-    // our leads: the installer's usual electrician never goes first
-    for (const channel of ["hivic_sourced", "website", null]) expect(autoOfferPreferredElectrician({ channel, a1PreferredBusinessId: "usual" })).toBeNull();
-    const usualBusinessId = autoOfferPreferredElectrician({ channel: "hivic_sourced", a1PreferredBusinessId: "usual" });
+    // our leads (29 Oct 2026): only the Ready Check installer's approved usual electrician (ourLeadUsualBusinessId) goes first;
+    // with none, an A1-style pick is ignored and the nearest goes first
+    for (const channel of ["hivic_sourced", "website", null]) expect(autoOfferPreferredElectrician({ channel, a1PreferredBusinessId: "usual", ourLeadUsualBusinessId: undefined })).toBeNull();
+    const usualBusinessId = autoOfferPreferredElectrician({ channel: "hivic_sourced", a1PreferredBusinessId: "usual", ourLeadUsualBusinessId: undefined });
     expect(autoOfferStep({ ...base("piesa"), candidates: cs, usualBusinessId })).toMatchObject({ action: "offer", businessId: "near", basis: "coverage", attempt: 1 });
     // next match on decline/lapse, then after 2 misses back to the office (unchanged)
     expect(autoOfferStep({ ...base("piesa", [miss("near")]), candidates: cs, usualBusinessId })).toMatchObject({ action: "offer", businessId: "mid", attempt: 2 });
@@ -140,13 +145,47 @@ describe("electrician pick", () => {
     const cs = [cand("near", { distanceKm: 3 }), cand("usual", { distanceKm: 50, activeJobs: 9 }), cand("mid", { distanceKm: 10 })];
     expect(rankAutoElectricians(cs, new Set(), "usual").map((c) => c.business_id)).toEqual(["usual", "near", "mid"]);
     expect(autoOfferStep({ ...base("piesa"), candidates: cs, usualBusinessId: "usual" })).toMatchObject({ action: "offer", businessId: "usual", basis: "usual_electrician" });
-    expect(autoOfferStep({ ...base("piesa", [miss("usual")]), candidates: cs, usualBusinessId: "usual" })).toMatchObject({ action: "offer", businessId: "near", basis: "coverage", attempt: 2 });
+    // Decision 426 (Jo 29 Oct 2026): if the installer's electrician doesn't take it, the job goes back to the office.
+    expect(autoOfferStep({ ...base("piesa", [miss("usual")]), candidates: cs, usualBusinessId: "usual" })).toMatchObject({ action: "return_to_office", reason: "preferred_missed" });
   });
-  test("a blocked usual electrician (e.g. no agreed rate) is skipped", () => {
+  test("installer jobs: a blocked chosen electrician (e.g. no agreed rate) sends the job back to the office, never to someone else", () => {
+    // Decision 426 fix wave (Jo 29 Oct 2026). This is the installer-job rule (default preferredRule). Our leads use
+    // preferredRule "our_lead", where a blocked usual electrician goes to the nearest instead (see the our-lead tests below).
     const cs = [cand("usual", { blocker: "No agreed electrician rate recorded." }), cand("near", { distanceKm: 3 })];
-    expect(autoOfferStep({ ...base("piesa"), candidates: cs, usualBusinessId: "usual" })).toMatchObject({ businessId: "near" });
+    expect(autoOfferStep({ ...base("piesa"), candidates: cs, usualBusinessId: "usual" })).toMatchObject({ action: "return_to_office", reason: "preferred_blocked" });
+    expect(autoOfferPreferredElectrician({ channel: "hivic_sourced", a1PreferredBusinessId: "usual", ourLeadUsualBusinessId: undefined })).toBeNull();
+    expect(autoOfferStep({ ...base("piesa"), candidates: cs, usualBusinessId: null })).toMatchObject({ action: "offer", businessId: "near" });
   });
   test("misses only count automatic offers", () => {
     expect(autoOfferMisses([miss("a"), { ...miss("b"), auto: false }, { ...miss("c"), status: "accepted" }])).toBe(1);
+  });
+});
+
+describe("our lead: installer's usual electrician first (29 Oct 2026)", () => {
+  const lead = (rows: AutoOfferRow[], usual: string | null, cands = [cand("viking", { distanceKm: 40 }), cand("near", { distanceKm: 5 })]) =>
+    autoOfferStep({ ...base("piesa", rows), candidates: cands, usualBusinessId: usual, preferredRule: "our_lead" });
+
+  test("installer's electrician first even when further away", () => {
+    expect(lead([], "viking")).toMatchObject({ action: "offer", businessId: "viking", basis: "usual_electrician" });
+  });
+  test("their electrician lets it lapse → office", () => {
+    expect(lead([miss("viking", "expired")], "viking")).toMatchObject({ action: "return_to_office", reason: "preferred_missed" });
+  });
+  test("their electrician says Not for me → nearest next", () => {
+    expect(lead([miss("viking", "declined")], "viking")).toMatchObject({ action: "offer", businessId: "near", basis: "coverage" });
+  });
+  test("declined then nearest declines → 2 misses → office", () => {
+    expect(lead([miss("viking", "declined"), miss("near", "declined")], "viking")).toMatchObject({ action: "return_to_office", reason: "two_misses" });
+  });
+  test("their electrician can't be offered → nearest, never preferred_blocked", () => {
+    expect(lead([], "viking", [cand("viking", { coversPostcode: false }), cand("near")])).toMatchObject({ action: "offer", businessId: "near" });
+    expect(lead([], "ghost")).toMatchObject({ action: "offer", businessId: "near" });
+  });
+  test("no usual electrician = today's nearest first", () => {
+    expect(lead([], null)).toMatchObject({ action: "offer", businessId: "near" });
+  });
+  test("preferred picks per channel", () => {
+    expect(autoOfferPreferredElectrician({ channel: "hivic_sourced", a1PreferredBusinessId: "x", ourLeadUsualBusinessId: "v" })).toBe("v");
+    expect(autoOfferPreferredElectrician({ channel: "installer_sourced", a1PreferredBusinessId: "x", ourLeadUsualBusinessId: "v" })).toBe("x");
   });
 });

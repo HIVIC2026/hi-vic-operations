@@ -14,8 +14,7 @@ describe("send failed classifier", () => {
       emails: [
         { job_id: "old", purpose: "existing_leads_launch_v1", status: "failed", created_at: ago(8), error: "x" },
         { job_id: "sent", purpose: "existing_leads_launch_v1", status: "sent", created_at: ago(1), error: null },
-        { job_id: "unknown", purpose: "existing_leads_launch_v1", status: "delivered_unrecorded", created_at: ago(1), error: "Delivery result unknown" },
-        { job_id: "sending", purpose: "quote_reminder", status: "sending", created_at: ago(1), error: null },
+        { job_id: "fresh", purpose: "quote_reminder", status: "sending", created_at: new Date(NOW - 60_000).toISOString(), error: null },
       ],
       sms: [
         { job_id: null, message_type: "job_offer", status: "failed", created_at: ago(1), detail: "no job" },
@@ -80,5 +79,61 @@ describe("provider errors in plain words (design review 26 Oct)", () => {
     const [row] = sendFailedRows({ now, emails: [], sms: [{ job_id: "j", message_type: "spot_saved", status: "failed", created_at: new Date(now - 3 * 86_400_000).toISOString(), detail: `Twilio 400: {"code":21614,"message":"x"}` }] });
     expect(row!.text).toBe("Text failed: Spot saved text, 3 days ago — not a mobile number");
     expect(row!.text).not.toContain("{");
+  });
+});
+
+describe("fixed failures are hidden", () => {
+  const fail = (job: string, purpose: string, at: string) => ({ job_id: job, purpose, status: "failed", created_at: at, error: "No approved Jo template applies" });
+  const sent = (job: string, purpose: string, at: string) => ({ job_id: job, purpose, status: "sent", created_at: at, error: null });
+  const smsRow = (status: string, at: string) => ({ job_id: "j", message_type: "spot_saved", status, created_at: at, detail: "x" });
+  test("a failed email later sent OK is hidden (Watkinson case)", () => {
+    expect(sendFailedRows({ now: NOW, emails: [fail("j", "existing_leads_launch_v1", ago(5)), sent("j", "existing_leads_launch_v1", ago(4.9))], sms: [] })).toEqual([]);
+  });
+  test("a sent email of a different kind does not hide it", () => {
+    expect(sendFailedRows({ now: NOW, emails: [fail("j", "existing_leads_launch_v1", ago(5)), sent("j", "quote_reminder", ago(4))], sms: [] })).toHaveLength(1);
+  });
+  test("a success before or at the same time as the failure does not hide it", () => {
+    expect(sendFailedRows({ now: NOW, emails: [fail("j", "existing_leads_launch_v1", ago(5)), sent("j", "existing_leads_launch_v1", ago(6))], sms: [] })).toHaveLength(1);
+    expect(sendFailedRows({ now: NOW, emails: [fail("j", "existing_leads_launch_v1", ago(5)), sent("j", "existing_leads_launch_v1", ago(5))], sms: [] })).toHaveLength(1);
+  });
+  test("a success on another job does not hide it", () => {
+    expect(sendFailedRows({ now: NOW, emails: [fail("j", "existing_leads_launch_v1", ago(5)), sent("k", "existing_leads_launch_v1", ago(4))], sms: [] })).toHaveLength(1);
+  });
+  test("a failed text later delivered is hidden; a later 'sent' text is not enough", () => {
+    expect(sendFailedRows({ now: NOW, emails: [], sms: [smsRow("failed", ago(5)), smsRow("delivered", ago(4))] })).toEqual([]);
+    expect(sendFailedRows({ now: NOW, emails: [], sms: [smsRow("undelivered", ago(5)), smsRow("sent", ago(4))] })).toHaveLength(1);
+  });
+  test("only the unfixed failure stays on a job's row", () => {
+    const rows = sendFailedRows({ now: NOW, emails: [fail("j", "existing_leads_launch_v1", ago(5)), sent("j", "existing_leads_launch_v1", ago(4)), fail("j", "quote_reminder", ago(3))], sms: [] });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.count).toBe(1);
+    expect(rows[0]!.text).toContain("Quote reminder email");
+    expect(rows[0]!.text).not.toContain("Save my spot");
+  });
+});
+
+describe("send failed reads are paged safely", () => {
+  test("failed + successful email and text reads have a fixed order, so no page skips a row", async () => {
+    const src = await Bun.file(new URL("../src/lib/office-needs.server.ts", import.meta.url)).text();
+    expect(src).toMatch(/\.in\("status", \[\.\.\.FAILED_EMAIL_STATUSES, \.\.\.UNSURE_EMAIL_STATUSES, \.\.\.SUCCESS_EMAIL_STATUSES\]\)\.gte\("created_at", since7\)\.order\("created_at"\)\.order\("id"\)\.range/);
+    expect(src).toMatch(/\.in\("status", \[\.\.\.FAILED_SMS_STATUSES, \.\.\.UNSURE_SMS_STATUSES, \.\.\.SUCCESS_SMS_STATUSES\]\)\.gte\("created_at", since7\)\.order\("created_at"\)\.order\("id"\)\.range/);
+  });
+});
+
+describe("A48 batch 2 texts never land in Needs me (Jo, final review m9)", () => {
+  const TYPES = ["quick_taps", "quick_taps_reminder", "run_offered", "run_time", "run_time_reminder", "run_slot_cancelled"];
+  test("failed / not-sure batch and run texts make no job row and no partner row; other texts still do", async () => {
+    const { partnerSendFailedRows } = await import("../src/lib/send-failed.core");
+    const sms = [
+      ...TYPES.flatMap((t) => [
+        { job_id: "j1", message_type: t, status: "failed", created_at: ago(1), detail: "Twilio 400" },
+        { job_id: "j1", message_type: t, status: "sent_unknown", created_at: ago(1), detail: null },
+        { job_id: null, business_id: "biz-1", message_type: t, status: "undelivered", created_at: ago(1), detail: null },
+      ]),
+      { job_id: "j2", message_type: "spot_saved", status: "failed", created_at: ago(1), detail: "Twilio 400" },
+      { job_id: null, business_id: "biz-2", message_type: "job_offer", status: "failed", created_at: ago(1), detail: null },
+    ];
+    expect(sendFailedRows({ now: NOW, emails: [], sms }).map((r) => r.jobId)).toEqual(["j2"]);
+    expect(partnerSendFailedRows({ now: NOW, sms }).map((r) => r.businessId)).toEqual(["biz-2"]);
   });
 });

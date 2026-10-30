@@ -17,7 +17,7 @@ export type InstallBookedInput = {
   payment?: { depositPaid: number; cardLast4?: string | null; balanceDue: number; payInFullUrl?: string | null } | null;
   /** True once the owner has signed the install consent (decision 97). */
   consentSigned?: boolean;
-  /** Decision 139: 10% install deposit by bank transfer / PayID within 48h (day held meanwhile); omitted when already paid or not under the payment rule. */
+  /** Decision 139, Jo 29 Oct 2026: 10% install deposit by card, bank transfer or PayID within 48h (day held meanwhile); omitted when already paid or not under the payment rule. */
   deposit?: { amount: string; holdUntil: string | null; bankLines: string[] } | null;
 };
 
@@ -49,7 +49,7 @@ export function renderInstallBookedEmail(i: InstallBookedInput) {
     `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${esc(headline)}</mj-text><mj-text>${esc(lead)}</mj-text></mj-column></mj-section>`,
     `<mj-section><mj-column mj-class="panel"><mj-text mj-class="eyebrow center" padding="18px 12px 6px">Your install</mj-text><mj-text mj-class="center" font-family="Outfit, Figtree, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif" font-size="24px" line-height="30px" font-weight="800" padding="0 12px 2px">${esc(day)}</mj-text>${time ? `<mj-text mj-class="center" font-weight="700" padding="0 12px ${lines.length ? 8 : 18}px">Arriving ${esc(time)}</mj-text>` : ""}${lines.length ? `<mj-text mj-class="small center" padding="0 16px 18px">${lines.map(esc).join("<br />")}</mj-text>` : ""}</mj-column></mj-section>`,
     pay ? `<mj-section><mj-column mj-class="panel-card"><mj-table padding="8px 18px 0"><tr><td style="padding:10px 0;">Deposit paid${pay.cardLast4 ? ` · card ending ${esc(pay.cardLast4)}` : ""}</td><td align="right" style="padding:10px 0 10px 12px;white-space:nowrap;">${esc(K.cents(pay.depositPaid))}</td></tr><tr><td style="padding:10px 0;border-top:1px solid #E4E9F5;"><strong>Balance due on install day</strong></td><td align="right" style="padding:10px 0 10px 12px;border-top:1px solid #E4E9F5;white-space:nowrap;"><strong>${esc(K.cents(pay.balanceDue))}</strong></td></tr></mj-table><mj-text mj-class="small" padding="4px 18px 16px">Receipt attached.${pay.payInFullUrl ? ` Want to pay the balance now? <a href="${esc(pay.payInFullUrl)}" style="color:#3C51C4;font-weight:700;">Pay in full</a>` : ""}</mj-text></mj-column></mj-section>` : "",
-    owed ? `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 6px">Pay your ${esc(owed.amount)} deposit within 48 hours</mj-text><mj-text padding="0 18px 16px">By bank transfer or PayID.${owed.bankLines.map((l) => `<br />${esc(l)}`).join("")}</mj-text></mj-column></mj-section>` : "",
+    owed ? `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 6px">Pay your ${esc(owed.amount)} deposit within 48 hours</mj-text><mj-text padding="0 18px 16px">By card, bank transfer or PayID.${owed.bankLines.map((l) => `<br />${esc(l)}`).join("")}</mj-text></mj-column></mj-section>` : "",
     `<mj-section><mj-column mj-class="panel-amber"><mj-text mj-class="h2" padding="18px 18px 6px">⚡ Your power will be off</mj-text><mj-text padding="0 18px 16px">${esc(power)}</mj-text></mj-column></mj-section>`,
     `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 10px">On the day</mj-text><mj-table padding="0 18px 6px">${onTheDay.map((t) => TICK(esc(t))).join("")}</mj-table></mj-column></mj-section>`,
     `<mj-section><mj-column><mj-text padding="16px 12px 14px">${esc(happens)}</mj-text><mj-button href="${esc(i.myJobUrl)}">See my job</mj-button><mj-text mj-class="small" padding="0 12px">${esc(change)}</mj-text></mj-column></mj-section>`,
@@ -58,7 +58,7 @@ export function renderInstallBookedEmail(i: InstallBookedInput) {
   const text = K.plainText([
     headline, "", lead, `When: ${i.when}`, ...(i.address ? [`Address: ${i.address}`] : []), ...(installer ? [`Installer: ${installer}${phone ? `, ${phone}` : ""}`] : []),
     ...(pay ? [`Deposit paid: ${K.cents(pay.depositPaid)}${pay.cardLast4 ? ` (card ending ${pay.cardLast4})` : ""}`, `Balance due on install day: ${K.cents(pay.balanceDue)}`, "Receipt attached.", ...(pay.payInFullUrl ? [`Pay in full: ${pay.payInFullUrl}`] : [])] : []), "",
-    ...(owed ? [`PAY YOUR ${owed.amount} DEPOSIT WITHIN 48 HOURS`, "By bank transfer or PayID.", ...owed.bankLines, ""] : []),
+    ...(owed ? [`PAY YOUR ${owed.amount} DEPOSIT WITHIN 48 HOURS`, "By card, bank transfer or PayID.", ...owed.bankLines, ""] : []),
     "YOUR POWER WILL BE OFF", power, "",
     "ON THE DAY", ...onTheDay.map((b) => `✓ ${b}`), "",
     happens, "",

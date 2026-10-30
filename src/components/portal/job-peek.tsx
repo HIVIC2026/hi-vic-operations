@@ -44,7 +44,7 @@ function PeekBody({ peek }: { peek: Peek }) {
           <JobHeader h={data.header} more={<Link to="/admin/jobs/$jobId" params={{ jobId: peek.jobId }} {...(peek.section ? { hash: `stage-${peek.section}` } : {})} className={btn("secondary")}>Open the full job</Link>} />
           <NextPanel next={data.next} onGo={(c) => setK(c)} />
           {k === "money" ? <MoneyCard jobId={peek.jobId} />
-            : k === "contact" ? <ContactHistory jobId={peek.jobId} rows={data.contacts} waitingFor={data.waitingFor} onLog={() => void navigate({ to: "/admin/jobs/$jobId", params: { jobId: peek.jobId }, hash: "stage-contact" })} />
+            : k === "contact" ? <ContactHistory jobId={peek.jobId} rows={data.contacts} waitingFor={data.waitingFor} emailBounced={data.emailBounced} onLog={() => void navigate({ to: "/admin/jobs/$jobId", params: { jobId: peek.jobId }, hash: "stage-contact" })} />
             : k ? <StageWorkspace jobId={peek.jobId} k={k} page={data} onGo={(c) => setK(c)} /> : null}
         </>
       )}

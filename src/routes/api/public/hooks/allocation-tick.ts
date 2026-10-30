@@ -28,6 +28,13 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
         const { sweepRecOffers, sweepCoordination } = await import("@/lib/allocation.server");
         const out: { ok: boolean; offers?: unknown; coordination?: unknown } = { ok: true };
         try {
+          const { sweepSpotSavedConfirmations } = await import('@/lib/spot-saved-recovery.server');
+          (out as Record<string, unknown>)['spotSavedConfirmations'] = await timed('sweepSpotSavedConfirmations', () => sweepSpotSavedConfirmations());
+        } catch (e) {
+          console.error('allocation tick: spot saved confirmation recovery failed', (e as Error).message);
+          (out as Record<string, unknown>)['spotSavedConfirmations'] = 'failed';
+        }
+        try {
           const o = await timed("sweepRecOffers", () => sweepRecOffers());
           out['offers'] = { expired: o.expired, started: Array.isArray(o.started) ? o.started.length : o.started };
         } catch (e) {
@@ -42,6 +49,17 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           console.error("allocation tick: coordination sweep failed", (e as Error).message);
           out['ok'] = false;
           out['coordination'] = "failed";
+        }
+        try {
+          // Batch 2: a STOP cancel whose installer release failed is retried here (max 20 a tick, last 14 days); success writes
+          // `job_cancel_released`, which clears the Needs me row. Counts only.
+          const { retryStopReleases } = await import("@/lib/stop-release.server");
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          const [{ releaseCancelledJob }, { SMS_STOP_CLOSED_REASON }] = await Promise.all([import("@/lib/office-actions.server"), import("@/lib/sms-stop.server")]);
+          (out as Record<string, unknown>)['stopReleases'] = await timed("retryStopReleases", () => retryStopReleases(supabaseAdmin, Date.now(), (id) => releaseCancelledJob(id, SMS_STOP_CLOSED_REASON, null, { owner: false, installer: true })));
+        } catch (e) {
+          console.error("allocation tick: STOP release retry failed", (e as Error).message);
+          (out as Record<string, unknown>)['stopReleases'] = "failed";
         }
         try {
           const { sweepQuoteExpiry } = await import("@/lib/quote-expiry.server");
@@ -121,6 +139,43 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
         } catch (e) {
           console.error("allocation tick: spot release sweep failed", (e as Error).message);
           (out as Record<string, unknown>)['spotReleases'] = "failed";
+        }
+        try {
+          // A48 batch 2 (Jo 30 Oct 2026): area batches — day-2 quick taps reminder (outside quiet hours), day-3 close (owners
+          // who said yes wait for Jo's "Send to installer"; nothing goes to an installer automatically), decline retries,
+          // day-14 no-answer close (nobody told). Nothing lands in Needs me.
+          const { sweepAreaBatches } = await import("@/lib/area-batch.server");
+          (out as Record<string, unknown>)['areaBatches'] = await timed("sweepAreaBatches", () => sweepAreaBatches());
+        } catch (e) {
+          console.error("allocation tick: area batch sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['areaBatches'] = "failed";
+        }
+        try {
+          // A48 batch 2 part 2: a run Jo sent to the installer with no reply in 24 hours → its homes go back to Jo's suggestions
+          // (owners not asked again). Nothing is sent and nothing lands in Needs me. Runs are only ever OFFERED by Jo's tap.
+          const { sweepRunOffers } = await import("@/lib/installer-run.server");
+          (out as Record<string, unknown>)['runOffers'] = await timed("sweepRunOffers", () => sweepRunOffers());
+        } catch (e) {
+          console.error("allocation tick: run offer sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['runOffers'] = "failed";
+        }
+        try {
+          // A48 batch 2 part 2, Portal books: each owner's window text (held overnight until 7am), the 12-hour reminder once,
+          // and no confirm 24 hours after the text → back in the pool. A home closed meanwhile is skipped and never texted.
+          const { sweepRunSlots } = await import("@/lib/installer-run.server");
+          (out as Record<string, unknown>)['runSlots'] = await timed("sweepRunSlots", () => sweepRunSlots());
+        } catch (e) {
+          console.error("allocation tick: run window sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['runSlots'] = "failed";
+        }
+        try {
+          // Plan 2026-10-28 (full address required): website/email enquiries with no street → ask the owner (email + text)
+          // to pick their full address, then ONE reminder 24h later. Off until address_request_live_at is set.
+          const { sweepAddressRequests } = await import("@/lib/address-request.server");
+          (out as Record<string, unknown>)['addressRequests'] = await timed("sweepAddressRequests", () => sweepAddressRequests());
+        } catch (e) {
+          console.error("allocation tick: address request sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['addressRequests'] = "failed";
         }
         try {
           // Decision 330: owner asked to confirm the ELECTRICAL FIXES (email O72 + text) after the A4 fixes form; days 1/3, office day 5.
@@ -228,6 +283,23 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['jobOfferTexts'] = "failed";
         }
         try {
+          // Decision 215 / spec D4: a couldn't-get-in text held after 8pm goes at 7am (same key, never twice).
+          const { sweepInstallNoAccessTexts } = await import("@/lib/install-no-access-notice.server");
+          (out as Record<string, unknown>)['installNoAccessTexts'] = await timed("sweepInstallNoAccessTexts", () => sweepInstallNoAccessTexts());
+        } catch (e) {
+          console.error("allocation tick: couldn't-get-in text catch-up failed", (e as Error).message);
+          (out as Record<string, unknown>)['installNoAccessTexts'] = "failed";
+        }
+        try {
+          // Batch 2 (Jo 29 Oct 2026): other one-off texts held by the 8pm–7am quiet hours go at 7am, each re-checked first
+          // ("still true") and re-sent with its real key; anything no longer true is skipped.
+          const { sweepQuietHeldTexts } = await import("@/lib/quiet-held-texts.server");
+          (out as Record<string, unknown>)['quietHeldTexts'] = await timed("sweepQuietHeldTexts", () => sweepQuietHeldTexts());
+        } catch (e) {
+          console.error("allocation tick: quiet-hours held texts failed", (e as Error).message);
+          (out as Record<string, unknown>)['quietHeldTexts'] = "failed";
+        }
+        try {
           // Decision 238: estimate-only leads get a reminder on day 2, 7 and 21 after the estimate email, then an
           // automatic close a week after the day-21 email (held until the wording is approved; TEST → test sender).
           const { sweepEstimateFollowups } = await import("@/lib/estimate-followup.server");
@@ -235,6 +307,13 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
         } catch (e) {
           console.error("allocation tick: estimate follow-up sweep failed", (e as Error).message);
           (out as Record<string, unknown>)['estimateFollowups'] = "failed";
+        }
+        try {
+          const { sweepInHousePartnerCalls } = await import("@/lib/in-house-batch-email.server");
+          (out as Record<string, unknown>)['inHousePartnerCalls'] = await timed("sweepInHousePartnerCalls", () => sweepInHousePartnerCalls());
+        } catch (e) {
+          console.error("allocation tick: partner call email sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['inHousePartnerCalls'] = "failed";
         }
         try {
           // Decision 158: 20/10-day reminders to owner + installer (held until approved; TEST → test sender) and the
@@ -254,6 +333,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
         } catch (e) {
           console.error("allocation tick: payments sweep failed", (e as Error).message);
           (out as Record<string, unknown>)['payments'] = "failed"; // a Xero outage must not fail the whole tick
+        }
+        try {
+          // Installer sign-up electrician nominations that were never invited (comms were off at sign-up): one invite each.
+          // Runs BEFORE the decision-303 sweep so the 303 sweep sees this nomination as already handled (never two emails).
+          const { sweepSignupNominationInvites } = await import("@/lib/signup-electrician.server");
+          (out as Record<string, unknown>)['signupElectricianInvites'] = await timed("sweepSignupNominationInvites", () => sweepSignupNominationInvites());
+        } catch (e) {
+          console.error("allocation tick: sign-up electrician invite sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['signupElectricianInvites'] = "failed";
         }
         try {
           // Decision 303: ONE REC onboarding invite per electrician an installer named who is not an approved REC
@@ -288,6 +376,16 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
         } catch (e) {
           console.error("allocation tick: automatic offers sweep failed", (e as Error).message);
           (out as Record<string, unknown>)['autoOffers'] = "failed";
+        }
+        try {
+          // Jo 28 Oct: crew reminder email at 2pm Melbourne the day before an install with no crew picked (once per job +
+          // install date). Real installers get nothing until Jo approves the wording; TEST uses the test-send path.
+          const { sweepCrewReminders } = await import("@/lib/crew-reminder.server");
+          const r = await timed("sweepCrewReminders", () => sweepCrewReminders());
+          (out as Record<string, unknown>)['crewReminders'] = { checked: r.checked, sent: r.sent };
+        } catch (e) {
+          console.error("allocation tick: crew reminder sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['crewReminders'] = "failed";
         }
         try {
           const { sweepPrestart } = await import("@/lib/prestart.server");

@@ -1,9 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { AI_EMAIL_AUTO_SEND_ENABLED, AI_SIGN_OFF, aiReplyProblems, aiSendQuietReason, bookingChangeLink, finishAiReply } from "../src/lib/ai-email-reply.core";
+import { AI_SIGN_OFF, aiReplyProblems, aiSendQuietReason, bookingChangeLink, finishAiReply } from "../src/lib/ai-email-reply.core";
 
 const MY = "https://estimate.homeinsulationvictoria.com.au/my-job/TOK";
 describe("AI email replies — Jo 26 Oct rules", () => {
-  test("auto-send stays off until Jo says send", () => expect(AI_EMAIL_AUTO_SEND_ENABLED).toBe(false));
   test("sign-off is added exactly once", () => {
     const out = finishAiReply("Hi Sarah!\nAll good.\n\nCheers,\nThe Home Insulation Victoria team");
     expect(out.endsWith(AI_SIGN_OFF)).toBe(true);
@@ -78,5 +77,48 @@ describe("Jo's tone (27 Oct 2026)", () => {
     expect(AI_REPLY_INSTRUCTIONS).toContain(NO_REPLY_NEEDED);
     expect(AI_REPLY_INSTRUCTIONS).toContain("Keep it relevant");
     expect(AI_BUSINESS_RULES.join(" ")).toContain("$15/m²");
+  });
+});
+
+// Step 3 final review fixes (I2b, I2c, I4).
+describe("final review: Jo sign-offs are stripped", async () => {
+  const { finishAiReply: finish, stripSignOff: strip, AI_SIGN_OFF: S } = await import("../src/lib/ai-email-reply.core");
+  for (const so of ["Kind regards,\nJo", "Cheers, Jo", "Cheers,\n\nJo", "Thanks,\nJo :)", "Cheers Jo!"]) {
+    test(`finishAiReply: ${JSON.stringify(so)}`, () => {
+      const out = finish(`Hi Sam,\n\nAll good.\n\n${so}`);
+      expect(out).toBe(`Hi Sam,\n\nAll good.\n\n${S}`);
+    });
+    test(`stripSignOff: ${JSON.stringify(so)}`, () => expect(strip(`Hi Sam,\n\nAll good.\n\n${so}`)).toBe("Hi Sam,\n\nAll good."));
+  }
+});
+
+describe("final review: placeholders and owner wording", () => {
+  for (const ph of ["<name>", "<address>", "<suburb>", "<postcode>", "<link>", "<email>", "<phone>", "<job>"]) {
+    test(`flags ${ph}`, () => expect(aiReplyProblems(`Hi ${ph},\n\nAll good.`)).toContain(`Take out the placeholder ${ph} — write the real wording`));
+  }
+  test("flags fixes", () => {
+    expect(aiReplyProblems("Hi Sam,\n\nThe fixes are quoted separately.", { aiDraft: true })).toContain("Say “electrical upgrades” instead of “fixes”.");
+    expect(aiReplyProblems("Hi Sam,\n\nThey need fixing first.", { aiDraft: true })).toEqual([]);
+  });
+  test("flags a safety check with no PIESA", () => {
+    expect(aiReplyProblems("Hi Sam,\n\nThe safety check is $349.", { aiDraft: true })).toContain("Say “electrical safety check (PIESA)”.");
+    expect(aiReplyProblems("Hi Sam,\n\nThe electrical safety check (PIESA) is $349. The safety check is quick.", { aiDraft: true })).toEqual([]);
+  });
+});
+
+// Jo 30 Oct 2026: the two wording rules are for the AI's own drafts only; Jo's typed words send as written.
+describe("aiReplyProblems: wording rules only for the AI's own draft", () => {
+  test("without aiDraft, fixes and a bare safety check are not flagged", () => {
+    expect(aiReplyProblems("Hi Sam,\n\nThe fixes are quoted separately.")).toEqual([]);
+    expect(aiReplyProblems("Hi Sam,\n\nThe safety check is $349.")).toEqual([]);
+    expect(aiReplyProblems("Hi Sam,\n\nThe fixes and the safety check.", { preRelease: false, aiDraft: false })).toEqual([]);
+  });
+  test("with aiDraft true both are flagged", () => {
+    const p = aiReplyProblems("Hi Sam,\n\nThe fixes and the safety check.", { aiDraft: true });
+    expect(p).toContain("Say “electrical upgrades” instead of “fixes”.");
+    expect(p).toContain("Say “electrical safety check (PIESA)”.");
+  });
+  test("other rules still apply without aiDraft", () => {
+    expect(aiReplyProblems("Hi Sam,\n\nYour VEEC and fixes. Ring us on 03 9123 4567.").length).toBeGreaterThanOrEqual(2);
   });
 });

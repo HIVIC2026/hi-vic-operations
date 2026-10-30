@@ -50,6 +50,7 @@ export function buildTodos(i: TodoInput): TodoItem[] {
   };
 
   for (const v of i.invoices) {
+    if (v.status === "voided") continue; // batch 3b: an old fixes invoice voided in Xero is closed — nothing to request
     if (v.status === "xero_sync_error" || v.last_sync_error) {
       push(v.job_id, { key: `inv-sync:${v.id}`, category: "Payments", title: "Fix Xero sync error", action: `Xero said: "${v.last_sync_error ?? "sync failed"}". Fix it in Xero or the job, then retry sync on the Quotes tab.`, tab: "quotes", since: v.created_at, urgent: true });
       continue;

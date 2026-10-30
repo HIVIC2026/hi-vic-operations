@@ -146,19 +146,26 @@ describe("reading an Install day audit", () => {
 });
 
 describe("official Part 5 light and cable answers come from the PIESA", () => {
+  // A48 batch 1 task 3: Yes only when the PIESA's Part 4-6 answers are clear (or a signed Section C ticks the item); see a48-b1-piisa-part5.test.ts.
+  const P46 = { "p4.conduit": "Yes", "p4.supported": "Yes", "p4.treatment": "Yes", "p4.tps": "Yes", "p4.terminations": "Yes", "p4.plugBases": "Yes", "p4.foil": "Yes", "p5.nonTps": "No", "p5.splitConduit": "No", "p5.damaged": "No", "p6.prohibited": "No" };
   test("no fixes needed: the PIESA found no defects, so the four confirmations are Yes; lights + count from PIESA Part 6", () => {
-    const r = piesaPart5Answers({ b1: "Electrical rectification work is not required before insulation is installed or upgraded.", "p6.recessed": "Yes", "p6.count": "12" });
+    const r = piesaPart5Answers({ b1: "Electrical rectification work is not required before insulation is installed or upgraded.", "p6.recessed": "Yes", "p6.count": "12", ...P46 });
     expect(r).toEqual({ answers: { "p5.recessed": "Yes", "p5.count": "12", "p5.icConfirmed": "Yes", "p5.safeToCover": "Yes", "p5.rcd": "Yes", "p5.tps": "Yes", "p5.basic": "Yes" }, missing: [] });
   });
-  test("fixes needed: each confirmation needs its Section C tick; a missing tick or answer is listed, never guessed", () => {
-    const r = piesaPart5Answers({ b1: "Electrical rectification work is required before insulation is installed or upgraded.", "p6.recessed": "No", "c.tick2": "Ticked", "c.tick3": "Ticked", "c.tick4": "Ticked" });
-    expect(r.answers).toEqual({ "p5.recessed": "No", "p5.icConfirmed": "Yes", "p5.safeToCover": "Yes", "p5.rcd": "Yes", "p5.tps": "Yes" });
-    expect(r.missing).toEqual(["PIESA Section C: basic protection not confirmed by the electrician"]);
+  test("fixes needed: each confirmation needs a signed Section C tick; without it the answer stays blank, never guessed", () => {
+    const bad = { ...P46, "p4.terminations": "No", "p6.recessed": "No" };
+    const signed = { "c.signature": "E", "c.tick1": "Ticked", "c.tick2": "Ticked", "c.tick3": "Ticked", "c.tick4": "Ticked", "c.tick5": "Ticked", "c.tick6": "Ticked", "c.tick7": "Ticked" };
+    const r = piesaPart5Answers({ b1: "Electrical rectification work is required before insulation is installed or upgraded.", ...bad, ...signed });
+    expect(r).toEqual({ answers: { "p5.recessed": "No", "p5.icConfirmed": "Yes", "p5.safeToCover": "Yes", "p5.rcd": "Yes", "p5.tps": "Yes", "p5.basic": "Yes" }, missing: [] });
+    const unsigned = piesaPart5Answers({ b1: "Electrical rectification work is required before insulation is installed or upgraded.", ...bad, "c.tick3": "Ticked" });
+    expect(unsigned.answers).toMatchObject({ "p5.recessed": "No", "p5.icConfirmed": "Yes", "p5.tps": "Yes" });
+    expect(unsigned.answers["p5.basic"]).toBeUndefined();
+    expect(unsigned.answers["p5.rcd"]).toBeUndefined();
     expect(piesaPart5Answers(null).missing[0]).toContain("No signed PIESA");
     expect(piesaPart5Answers({ "p6.recessed": "Yes" }).missing).toEqual(["PIESA Part 6: number of recessed lights not recorded", "PIESA outcome (B1) not recorded"]);
   });
   test("decision 362: 'electrician at the start' (B1 option 3) → confirmations Yes as for no fixes; present = Yes only from 'Is the electrician here?' = Yes with the photo", () => {
-    const pe = { b1: B1_OPTIONS[2], "p6.recessed": "No" };
+    const pe = { b1: B1_OPTIONS[2], ...P46, "p6.recessed": "No" };
     const ok = piesaPart5Answers(pe, { electricianHere: "Yes", electricianPhoto: true });
     expect(ok).toEqual({ answers: { "p5.recessed": "No", "p5.icConfirmed": "Yes", "p5.safeToCover": "Yes", "p5.rcd": "Yes", "p5.tps": "Yes", "p5.basic": "Yes", "p5.electricianPresent": "Yes" }, missing: [] });
     for (const here of [{ electricianHere: "No" as const, electricianPhoto: true }, { electricianHere: "Yes" as const, electricianPhoto: false }, { electricianHere: null, electricianPhoto: false }, null]) {

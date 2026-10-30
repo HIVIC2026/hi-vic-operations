@@ -1,3 +1,4 @@
+import { clearTradeCache } from "@/lib/trade-cache";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,7 @@ const Shell = ({ children }: { children: React.ReactNode }) => (
 
 function SignOut() {
   const qc = useQueryClient();
-  return <Button variant="outline" size="field" className="mt-4 w-full" onClick={async () => { await qc.cancelQueries(); qc.clear(); await supabase.auth.signOut(); window.location.replace("/portal"); }}>Sign out</Button>;
+  return <Button variant="outline" size="field" className="mt-4 w-full" onClick={async () => { await qc.cancelQueries(); qc.clear(); clearTradeCache(); await supabase.auth.signOut(); window.location.replace("/portal"); }}>Sign out</Button>;
 }
 
 export function NoAccess({ email }: { email: string }) {

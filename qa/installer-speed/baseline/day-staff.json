@@ -1,0 +1,12 @@
+{
+  "tradeDayView": {
+    "error": "This job isn't assigned to you."
+  },
+  "tradeDayExtras": {
+    "error": "This job isn't assigned to you."
+  },
+  "onsiteFormFor": {
+    "kind": "open",
+    "url": "https://app.au.safetyculture.com/inspection/audit_66a9195c43684adfb51d1bf3bd7c677e"
+  }
+}

@@ -34,6 +34,7 @@ describe("failed messages appear in Needs attention", () => {
 
 // Reviewed exceptions: elevated access scoped by token hash or by the caller's own business membership.
 const REVIEWED: Record<string, string> = {
+  registerInterest: "public calculator sign-up; validated input, writes only its own calculator_interests row and starts intake through the website intake path",
   getWorkerInvite: "token-hash scoped invite lookup",
   submitWorkerInvite: "token-hash scoped invite submission",
   listMyWorkers: "scoped to caller's own business via myBusinesses()",

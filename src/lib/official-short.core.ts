@@ -148,6 +148,11 @@ export function fixesWorkWithOnsite(short: Record<string, unknown>): FixesWorkOp
   if (!onsiteQuestionYes(short) || t.includes(FIXES_ONSITE_OPTION)) return t;
   return FIXES_WORK_READ_OPTIONS.filter((o) => o === FIXES_ONSITE_OPTION || t.includes(o));
 }
+/** A48 batch 1 (DEECA PIESA): a Part 4 No / Part 5 Yes (the ceiling cables and fittings answer) or a Part 6 prohibited
+ *  luminaire (a downlight that is not IC / IC-4 rated) — "rectification is required before ceiling insulation work can
+ *  commence", so "on site at the start" (B1 option 3, Parts 2–3 only) can't cover it. */
+export const part4to6Problem = (short: Record<string, unknown>): boolean =>
+  /^\s*no\b/i.test(String(short["ceilingSafe"] ?? "")) || (/^\s*yes\b/i.test(String(short["downlightsPresent"] ?? "")) && /^\s*yes\b/i.test(String(short["downlightsNonIc"] ?? "")));
 /** Decision 314: repair work other than being on site at the start (needs the A4 fixes visit). An answer from before
  *  decision 308 (no ticks and no on-site attendance) counts as repair work, as before. */
 export const repairWorkBesidesOnsite = (short: Record<string, unknown>): boolean => {
@@ -444,8 +449,9 @@ export function deriveRectificationOutcome(out: Record<string, string>): void {
   }
   if (/^no\b/i.test(needed)) out["rectificationOutcome"] = RECTIFICATION_OUTCOMES[0];
   else if (/^yes\b/i.test(needed)) {
-    // Decision 314: "Be on site at the start of the install day" ticked = the official third outcome.
-    if (onsiteStartTicked(out)) { out["rectificationOutcome"] = RECTIFICATION_OUTCOMES[2]; return; }
+    // Decision 314: "Be on site at the start of the install day" ticked = the official third outcome — only for Part 2–3
+    // problems (A48 batch 1): any Part 4–6 problem needs rectification before the install (DEECA PIESA Parts 4–6).
+    if (onsiteStartTicked(out) && !part4to6Problem(out)) { out["rectificationOutcome"] = RECTIFICATION_OUTCOMES[2]; return; }
     out["rectificationOutcome"] = RECTIFICATION_OUTCOMES[1];
     if (/^no\b/i.test(String(out["rectificationPossible"] ?? ""))) out[REPAIR_LEGACY_NOT_BEFORE] = "Yes";
   }

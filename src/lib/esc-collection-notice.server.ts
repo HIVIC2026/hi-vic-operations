@@ -10,8 +10,8 @@ import {
   noticeEmailKey, noticeLinkState, type NoticeAck, type NoticeStatus, type NoticeWorker,
 } from "./esc-collection-notice.core";
 
-export type NoticeWorkerRow = { id: string; business_id: string; email: string; full_legal_name: string; trade_role: string; removed_at: string | null; mobile?: string | null; profile_id?: string | null };
-export const NOTICE_WORKER_COLS = "id, business_id, email, full_legal_name, trade_role, removed_at, mobile, profile_id";
+export type NoticeWorkerRow = { id: string; business_id: string; email: string | null; full_legal_name: string; trade_role: string; removed_at: string | null; mobile?: string | null; profile_id?: string | null; worker_role?: string | null };
+export const NOTICE_WORKER_COLS = "id, business_id, email, full_legal_name, trade_role, removed_at, mobile, profile_id, worker_role";
 
 /** Every current record for the given businesses: onboarding stamps from their activated application(s) plus later events. */
 export async function loadNoticeAcks(businessIds: readonly string[]): Promise<Map<string, NoticeAck[]>> {
@@ -46,9 +46,10 @@ export async function businessNoticeStatuses(businessId: string, workers?: reado
 }
 
 /** worker id → acknowledged?, across businesses, for offer filtering and crew rosters. */
-export async function noticeAckMap(workers: readonly (NoticeWorker & { id: string; business_id: string })[]): Promise<Map<string, boolean>> {
+export async function noticeAckMap(workers: readonly (NoticeWorker & { id: string; business_id: string })[], preloaded?: Map<string, NoticeAck[]>): Promise<Map<string, boolean>> {
   const ids = [...new Set(workers.map((w) => w.business_id))];
-  const acks = await loadNoticeAcks(ids);
+  // `preloaded`: the same records already read for these businesses (speed: read alongside the workers); else read here.
+  const acks = preloaded && ids.every((b) => preloaded.has(b)) ? preloaded : await loadNoticeAcks(ids);
   const out = new Map<string, boolean>();
   for (const b of ids) for (const [id, ok] of noticeAckByWorkerId(collectionNoticeStatus(workers.filter((w) => w.business_id === b), acks.get(b) ?? []))) out.set(id, ok);
   return out;

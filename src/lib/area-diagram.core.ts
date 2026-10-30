@@ -3,6 +3,7 @@
 // R-value, total m²) — and regenerates the final plan from the install-day per-zone confirmations (decision 210 d/e).
 // Pure: no database, no clock (the caller passes generatedAt), deterministic output for the same input.
 import { stableJson } from "./assignment.core";
+import { excludedAreaName } from "./excluded-areas.core";
 import { insulationProduct } from "./insulation-product.core";
 
 export const AREA_DIAGRAM_KIND = "area_diagram";
@@ -166,8 +167,11 @@ export function applyInstallZones(readyCheck: DiagramArea[], zones: InstallZoneC
   return out;
 }
 
+/** Areas that count toward the eligible total (garage / carport / shed areas are drawn but not counted). */
+const countedAreas = (areas: DiagramArea[]): number => areas.filter((a) => !excludedAreaName(a.name)).length;
+
 export function totalAreaM2(areas: DiagramArea[]): number | null {
-  const xs = areas.map((a) => a.areaM2).filter((x): x is number => x != null && Number.isFinite(x));
+  const xs = areas.filter((a) => !excludedAreaName(a.name)).map((a) => a.areaM2).filter((x): x is number => x != null && Number.isFinite(x));
   return xs.length ? r2(xs.reduce((s, x) => s + x, 0)) : null;
 }
 
@@ -227,7 +231,7 @@ export function areaDiagramLayout(input: DiagramInput): DiagramLayout {
   const bottom = (boxes.length ? Math.max(...boxes.map((b) => b.y + b.h)) : y) + GAP;
   const total = totalAreaM2(areas);
   const footer = [
-    `Total area to insulate: ${total == null ? "—" : `${fmtNum(total)} m²`} across ${areas.length} upgrade area${areas.length === 1 ? "" : "s"}`,
+    `Total area to insulate: ${total == null ? "—" : `${fmtNum(total)} m²`} across ${countedAreas(areas)} upgrade area${countedAreas(areas) === 1 ? "" : "s"}`,
     input.basis ?? (input.kind === "final" ? "Installed m² and products as confirmed by the installer on install day" : "Dimensions as measured by the installer at the Ready Check"),
     DIAGRAM_NOTE,
   ];
@@ -265,7 +269,7 @@ export function areaDiagramSvg(input: DiagramInput): string {
 
 /** Short office line, e.g. "3 areas · 86.5 m² · Bradford Gold R5". */
 export function areaDiagramSummary(areas: DiagramArea[]): string {
-  const products = [...new Set(areas.map((a) => a.productOption).filter((x): x is string => !!x))];
+  const products = [...new Set(areas.filter((a) => !excludedAreaName(a.name)).map((a) => a.productOption).filter((x): x is string => !!x))];
   const total = totalAreaM2(areas);
-  return [`${areas.length} area${areas.length === 1 ? "" : "s"}`, total == null ? null : `${fmtNum(total)} m²`, products.join(" / ") || null].filter(Boolean).join(" · ");
+  return [`${countedAreas(areas)} area${countedAreas(areas) === 1 ? "" : "s"}`, total == null ? null : `${fmtNum(total)} m²`, products.join(" / ") || null].filter(Boolean).join(" · ");
 }

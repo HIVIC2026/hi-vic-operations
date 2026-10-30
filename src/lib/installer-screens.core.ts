@@ -47,6 +47,8 @@ export type JobNextFacts = {
   installDeadline: string | null;
   installDaysLeft: number | null;
   clearedOn: string | null;
+  /** Jo 28 Oct: the PIESA found electrical fixes and Section C isn't signed yet. */
+  fixesOpen?: boolean;
   /** The Mitti install form (PIISA) is Complete — decision 196. */
   installFormComplete: boolean;
   /** jobs.installation_completed_at is recorded. */
@@ -109,6 +111,8 @@ const READY_CHECK_STAGES = ["ready_check_ready_to_schedule", "ready_check_schedu
 import { PRESS_COMPLETE_LINE, QUOTE_DECLINED_LINE, QUOTE_HELD_LINE, QUOTE_SENT_LINE } from "./installer-quote-status.core";
 import { isPriceNextAction } from "./ready-check-basics.core";
 import { OWNER_PIESA_CONFIRM_WAITING } from "./piesa-owner-confirm.core";
+import { PIESA_FULL } from "./job-wording";
+import { FIXES_FORM_LINK_LABEL } from "./fixes-day.core";
 
 /** "Needs finishing: price, owner mobile/email/permission on the Mitti form" → the approved M2 list ("Your price", "The owner's email", …). */
 export function needsFinishingList(nextAction: string | null | undefined): string[] {
@@ -142,7 +146,7 @@ export const SIGN_REBATE_FIRST_CONFIRM = "First confirm the install is finished,
 export function quoteNextWords(f: Pick<JobNextFacts, "quoteLine" | "quoteSentAt" | "quoteDeclinedAt" | "formCompletedAt">, owner: string): JobNext | null {
   if (f.quoteLine === QUOTE_SENT_LINE) {
     const named = owner !== "the owner";
-    return { panel: "quote_status", title: `Nothing for you — ${owner} has the quote`, sub: `We sent ${owner} ${named ? "the" : "their"} quote${f.quoteSentAt ? ` on ${shortDay(f.quoteSentAt)}` : ""}. We'll tell you when ${named ? `${owner} accepts` : "they accept"}. Then we arrange the electrical safety check.`, yours: false };
+    return { panel: "quote_status", title: `Nothing for you — ${owner} has the quote`, sub: `We sent ${owner} ${named ? "the" : "their"} quote${f.quoteSentAt ? ` on ${shortDay(f.quoteSentAt)}` : ""}. We'll tell you when ${named ? `${owner} accepts` : "they accept"}. Then we arrange the ${PIESA_FULL}.`, yours: false };
   }
   if (f.quoteLine === QUOTE_HELD_LINE) return { panel: "quote_status", title: "Nothing for you — the office is checking the quote", sub: `${f.formCompletedAt ? `You pressed Complete in Mitti on ${shortDay(f.formCompletedAt)}. ` : ""}We check every quote before it goes to the owner. If we need anything we'll text you.`, yours: false };
   if (f.quoteLine === QUOTE_DECLINED_LINE) return { panel: "quote_status", title: `Nothing for you — ${owner} declined the quote`, sub: `${f.quoteDeclinedAt ? `Declined ${shortDay(f.quoteDeclinedAt)}. ` : ""}The office may follow up with ${owner}. If the job comes back, it shows in Action needed.`, yours: false };
@@ -170,15 +174,30 @@ export function installerStatusLine(f: StatusLineFacts): StatusLine {
 
 /** The one thing on the job page (decisions 36/41/196). Nothing about the install shows until the install is cleared;
  *  nothing about the rebate form until the Mitti install form is Complete. */
+/** Stages after a PIESA found electrical fixes and before Section C is signed (fixes done). */
+export const FIXES_PAUSED_STAGES = new Set(["rectification_required", "awaiting_owner_rectification_approval", "rectification_scheduling", "rectification_booked", "electrical_variation_pending"]);
+/** Jo's answer: the label for the link that sends the job to a staff member. */
+export const STAFF_LINKS_LABEL = "Send this job to a staff member";
+/** Jo's answer 1 (29 Oct 2026, D6): the one name for the install crew picker, on the Job page and Today's job. */
+export const CREW_TITLE = "Who's on the crew today?";
+/** Where the "Open Mitti form" link shows on the Job page: once, in the Next panel when the form is the job, otherwise in Ready Check. */
+export function mittiLinkPlace(f: { panel: JobNextPanel | null; yours: boolean; auditId: string | null; mittiInvited: boolean; formLinked: boolean }): "next" | "ready_check" | null {
+  if (!f.auditId || !f.mittiInvited) return null;
+  if (f.panel === "mitti_form" || (f.panel === "quote_status" && f.yours)) return "next";
+  return f.formLinked ? "ready_check" : null;
+}
+export const FIXES_PAUSED_TITLE = "Paused — waiting on electrical fixes";
 export function jobNext(f: JobNextFacts): JobNext {
   const owner = f.ownerFirstName ?? "the owner";
   const left = f.installDaysLeft != null ? ` · ${f.installDaysLeft} day${f.installDaysLeft === 1 ? "" : "s"} left` : "";
-  const window = f.installDeadline ? `${f.clearedOn ? `Safety check cleared ${shortDate(f.clearedOn)} · ` : ""}Install by ${ymdShort(f.installDeadline, true)}${left}` : null;
+  const window = f.installDeadline ? `${f.clearedOn ? `${PIESA_FULL} cleared ${shortDate(f.clearedOn)} · ` : ""}Install by ${ymdShort(f.installDeadline, true)}${left}` : null;
   if (f.rebateSigned) return { panel: "install_done", title: "All done — your part of the rebate form is signed", sub: "We check the photos and sign it off. Your pay shows under Money.", yours: false };
   if (f.installFormComplete) return { panel: "sign_rebate", title: "Sign the rebate form", sub: f.installationRecorded ? SIGN_REBATE_SUB : SIGN_REBATE_FIRST_CONFIRM, yours: true, checks: signRebateChecks({ installFormCompletedAt: f.installFormCompletedAt ?? null, evidenceChecked: f.evidenceChecked === true, crew: f.crew ?? [] }) };
   // Approved state M2-install-booked: "Install booked · Tue 27 Oct at 7:30am" / "Install by Fri 21 Nov · 25 days left."
-  if (f.installTurn === "booked" && f.installBookedAt) return { panel: "install_booked", title: `Install booked · ${dayAndTime(f.installBookedAt)}`, sub: f.installDeadline ? `Install by ${ymdShort(f.installDeadline, true)}${left}.` : "The install form is in the 6:30am text that morning. Press Complete in Mitti when it's fully finished.", yours: false, note: "The install form is in the 6:30am text that morning. Press Complete in Mitti when it's fully finished.", ownerReady: ownerReadyLine(f.ownerReady) };
-  if (f.installTurn === "expired") return { panel: "install_expired", title: "A new safety check is needed", sub: "The 30-day window after the safety check has passed. Home Insulation Victoria arranges the new check.", yours: false };
+  if (f.installTurn === "booked" && f.installBookedAt) return { panel: "install_booked", title: `Install booked · ${dayAndTime(f.installBookedAt)}`, sub: f.installDeadline ? `Install by ${ymdShort(f.installDeadline, true)}${left}.` : null, yours: false, note: "The install form is in the 6:30am text that morning. Press Complete in Mitti when it's fully finished.", ownerReady: ownerReadyLine(f.ownerReady) };
+  if (f.installTurn === "expired") return { panel: "install_expired", title: `A new ${PIESA_FULL} is needed`, sub: "The 30-day window after the PIESA has passed. Home Insulation Victoria arranges the new PIESA.", yours: false };
+  // Jo 28 Oct: the safety check found electrical fixes — the job is paused until the fixes are done and Section C is signed.
+  if (FIXES_PAUSED_STAGES.has(f.stage ?? "") || (f.fixesOpen === true && !f.clearedOn)) return { panel: "waiting", title: FIXES_PAUSED_TITLE, sub: `The ${PIESA_FULL} found electrical fixes. The electrician does them and signs off Section C. Once that's done, you offer ${owner} 3 install days.`, yours: false };
   // Decision 296: the install day can't be booked until the owner confirms the safety check on their secure link — nothing for the installer until then.
   if (f.ownerPiesaConfirmed === false && ["installer_to_offer", "installer_to_answer", "owner_to_answer"].includes(f.installTurn ?? "")) return { panel: "waiting", title: OWNER_PIESA_CONFIRM_WAITING, sub: `${window ? `${window} · ` : ""}We've asked ${owner} by email and text. Once they confirm, you offer 3 install days.`, yours: false };
   if (f.installTurn === "installer_to_offer") return { panel: "offer_install_days", title: `Offer ${owner} 3 install days`, sub: window, yours: true };
@@ -192,7 +211,7 @@ export function jobNext(f: JobNextFacts): JobNext {
   // Approved state M2-piesa-booked (decisions 27/157/186): nothing for the installer until clearance.
   if (f.piesaBooking && !f.clearedOn) {
     const who = f.piesaBooking.electrician ? `${f.piesaBooking.electrician} (Home Insulation Victoria electrician)` : "The Home Insulation Victoria electrician";
-    return { panel: "waiting", title: "Nothing for you — safety check booked", sub: `${who} does the PIESA on ${dayAndTime(f.piesaBooking.start)}. Once it's cleared, you offer ${owner} 3 install days within 30 days.`, yours: false };
+    return { panel: "waiting", title: `Nothing for you — ${PIESA_FULL} booked`, sub: `${who} does the PIESA on ${dayAndTime(f.piesaBooking.start)}. Once it's cleared, you offer ${owner} 3 install days within 30 days.`, yours: false };
   }
   // Approved states M2-quote-sent / -held / -declined: the plain "Nothing for you" wording, dates only when recorded.
   const quoteState = quoteNextWords(f, owner);
@@ -210,7 +229,7 @@ export function jobNext(f: JobNextFacts): JobNext {
     if (f.needsFinishing) return { panel: "mitti_form", title: f.needsFinishing, sub: "Add it on the Mitti form, then press Complete.", yours: true };
     // Decision 278: the boss enters the price in the portal once the form has answers; staff see nothing about price.
     // Decision 289: price + what it includes only — the electrician was chosen at Add a job.
-    if (status.kind === "price") return { panel: "enter_price", title: status.title, sub: "Your price and what it includes. We add the $349 fee and the electrical safety check, take off the rebate and prepare the owner's quote.", yours: true };
+    if (status.kind === "price") return { panel: "enter_price", title: status.title, sub: `Your price and what it includes. We add the $349 fee and the ${PIESA_FULL}, take off the rebate and prepare the owner's quote.`, yours: true };
     if (status.kind === "waiting_boss") return { panel: "waiting", title: status.title, sub: "Nothing else is needed from you on this job right now.", yours: false };
     if (f.quoteLine) {
       const yours = f.quoteLine.startsWith("You:");
@@ -232,7 +251,7 @@ export function jobNext(f: JobNextFacts): JobNext {
 
 /** Decision 23/137, installer wording (never the owner's box). */
 export function thirtyDayLine(deadline: string | null): string | null {
-  return deadline ? `Install within 30 days of the safety check (by ${ymdShort(deadline)}) or a new check is needed, and whoever's move it was pays for it.` : null;
+  return deadline ? `Install within 30 days of the ${PIESA_FULL} (by ${ymdShort(deadline)}) or a new PIESA is needed, and whoever's move it was pays for it.` : null;
 }
 
 /** Quote group: read-only status (installer-quote-status is the rule; this only shortens it for the row). */
@@ -344,10 +363,13 @@ export function signRebateThen(ownerFirstName: string | null, pay: number | null
 }
 
 // ---------- M5 · accepted + not-for-me ----------
+/** One label for an accepted job and one for a new offer, on every offer screen (B6). */
+export const OFFER_LABEL = { accepted: "Job accepted", new: "New job offer" } as const;
+
 export function offerAcceptedView(f: { ownerFirstName: string | null; suburb: string | null; jobNumber: string | number | null; times: string[] }): { pill: string; title: string; line2: string; next: { title: string; sub: string }; times: string[]; change: string; owner: [string, string][]; what: [string, string][] } {
   const owner = f.ownerFirstName ?? "the owner";
   return {
-    pill: "You've taken this job", title: `Ready Check in ${f.suburb ?? "Victoria"}`, line2: [f.jobNumber, "Home Insulation Victoria lead"].filter(Boolean).join(" · "),
+    pill: OFFER_LABEL.accepted, title: `Ready Check in ${f.suburb ?? "Victoria"}`, line2: [f.jobNumber, "Home Insulation Victoria lead"].filter(Boolean).join(" · "),
     next: { title: "Nothing for you — the owner is picking a time", sub: `We've sent ${owner} your ${f.times.length || 3} times. You get a text with the day, time and address as soon as ${f.ownerFirstName ? `${owner} picks` : "they pick"} one. If none suit, ${f.ownerFirstName ? owner : "they"} suggest${f.ownerFirstName ? "s" : ""} other days and it comes back to you.` },
     times: f.times.map((t) => dayAndTime(t)), change: "Change these times",
     owner: [["Name", f.ownerFirstName ? owner : "Shown once a time is booked"], ["Address", "Shown once a time is booked"]],
@@ -355,6 +377,7 @@ export function offerAcceptedView(f: { ownerFirstName: string | null; suburb: st
   };
 }
 export const NOT_FOR_ME_SHEET = { title: "Not for me?", body: "The offer goes back to the office to pick another installer. It won't come back to you. Nothing counts against you.", yes: "Yes, not for me", keep: "Keep the offer" } as const;
+export const NOT_FOR_ME_SHEET_ELECTRICIAN = { title: "Not for me?", body: "The offer goes back to the office to pick another electrician. It won't come back to you.", yes: "Yes, not for me", keep: "Keep the offer" } as const;
 
 // ---------- M6 · all paid grouped by month, per-job detail ----------
 export type PaidRowFacts = { jobId: string; jobNumber: string | number | null; suburb: string | null; surname: string | null; amount: number | null; paidOn: string; doneAt: string | null; channel: string | null };
@@ -369,8 +392,9 @@ export type MoneyJobFacts = {
   jobNumber: string | number | null; suburb: string | null; channel: string | null; doneAt: string | null; amount: number | null; state: { kind: PayKind; on?: string }; accountEnding: string | null;
   product: string | null; areaM2: number | null; removalM2: number | null; crew: string[];
   installerSignedAt: string | null; ownerSignedAt: string | null; apApprovedAt: string | null; ownerPaidInFullAt: string | null;
+  held: string[];
 };
-export function moneyJobDetail(f: MoneyJobFacts): { heading: string; sub: string; pay: string; pill: { kind: PayKind; on?: string }; payNote: string; work: [string, string][]; timeline: [string, string][]; footnote: string } {
+export function moneyJobDetail(f: MoneyJobFacts): { heading: string; sub: string; pay: string; pill: { kind: PayKind; on?: string }; payNote: string; held: string[]; work: [string, string][]; timeline: [string, string][]; footnote: string } {
   const own = f.channel === "installer_sourced";
   const timeline: [string, string][] = [];
   if (f.doneAt) timeline.push(["Install done", shortDay(f.doneAt)]);
@@ -384,6 +408,7 @@ export function moneyJobDetail(f: MoneyJobFacts): { heading: string; sub: string
     sub: [sourceLabel(f.channel), f.doneAt ? `Install ${shortDay(f.doneAt)}` : null].filter(Boolean).join(" · "),
     pay: f.amount != null ? `$${Math.round(f.amount).toLocaleString("en-AU")}` : "To be confirmed", pill: f.state,
     payNote: `Inc GST${f.accountEnding ? ` · paid to the account ending ${f.accountEnding}` : ""}`,
+    held: f.state.kind === "paid" ? [] : f.held,
     work: [["Installed", [f.product, f.areaM2 ? `${Number(f.areaM2)} m²` : null].filter(Boolean).join(" · ") || "To be confirmed"], ["Removed", f.removalM2 ? `${Number(f.removalM2)} m²` : "None"], ["Crew", f.crew.length ? f.crew.join(", ") : "Not recorded"]],
     timeline,
     footnote: own ? "Your customers are paid once the office approves the paperwork and the owner has paid their balance." : "Our leads are paid within 7 days of the office approving the paperwork.",
@@ -405,8 +430,8 @@ export function readyCheckRows(f: { bookedAt: string | null; done: boolean; form
 }
 
 // ---------- M4 · Today's job ----------
-export type DayKind = "safety_check" | "ready_check" | "install";
-export const DAY_WHAT: Record<DayKind, string> = { safety_check: "Pre Insulation Electrical Safety Assessment (PIESA)", ready_check: "Ready Check", install: "Install" };
+export type DayKind = "safety_check" | "ready_check" | "install" | "fixes";
+export const DAY_WHAT: Record<DayKind, string> = { safety_check: "Pre Insulation Electrical Safety Assessment (PIESA)", ready_check: "Ready Check", install: "Install", fixes: "Electrical fixes" };
 
 /** "Today · Tue 27 Oct · 8:00am" — exact arrival time, never a window (decision 43). */
 export function arrivalPill(startIso: string | null, now: Date = new Date()): string | null {
@@ -425,7 +450,8 @@ export function dayNext(f: { kind: DayKind; channel: string | null; installFormC
   if (f.kind === "install") return { title: "Start the install in Mitti", sub: "PIISA, before and after photos and bag labels all go in the install form. Press Complete when it's fully finished.", button: "Open install form", signRebate: false };
   // Approved state M4-ready-check-day: "Do the Ready Check in Mitti" — our lead: we price the owner's quote from the agreed rates.
   if (f.kind === "ready_check") return { title: "Do the Ready Check in Mitti", sub: f.channel === "hivic_sourced" ? `Measure every ceiling area (length × width), photos, existing insulation, access and hazards. We price ${owner === "the owner" ? "the owner's" : `${owner}'s`} quote from your agreed rates.` : "Measure every ceiling area (length × width), photos, existing insulation, access and hazards. Press Complete when it's fully finished.", button: "Open Mitti form", signRebate: false };
-  return { title: "Start the safety check in Mitti", sub: "Open the PIESA form. We pick it up from there.", button: "Open PIESA form", signRebate: false };
+  if (f.kind === "fixes") return { title: "Do the fixes in Mitti", sub: "Open the fixes form. Press Complete when the repair work is done.", button: FIXES_FORM_LINK_LABEL, signRebate: false };
+  return { title: "Start the PIESA in Mitti", sub: "Open the PIESA form. We pick it up from there.", button: "Open PIESA form", signRebate: false };
 }
 
 /** Decision 199: the three phone checks, short. */
@@ -438,7 +464,7 @@ export function electricianOnSite(f: { required: boolean; name: string | null; a
   const first = f.name ? firstName(f.name) ?? f.name : "the electrician";
   return {
     title: "An electrician must be on site",
-    body: `${f.reason ? `The safety check found ${f.reason}. ` : "The safety check requires an electrician at the start. "}${who}${f.arrival ? ` arrives ${f.arrival}` : " will be there at the start"}. Don't start in the roof until ${first} says the power is off.`,
+    body: `${f.reason ? `The PIESA found ${f.reason}. ` : "The PIESA requires an electrician at the start. "}${who}${f.arrival ? ` arrives ${f.arrival}` : " will be there at the start"}. Don't start in the roof until ${first} says the power is off.`,
     call: f.name ? `Call ${first}` : null,
   };
 }
@@ -491,6 +517,12 @@ export function moneyTotals(rows: MoneyRowFacts[], now: Date = new Date()): { co
     lastMonth: { total: sum(paidIn(lastKey)), installs: paidIn(lastKey).length },
   };
 }
+
+/** Money page words by trade kind. Electricians do visits (safety check, fixes), never installs (Jo, 28 Oct 2026). */
+export function moneyWords(kind: "installer" | "electrician"): { emptyTitle: string; emptyBody: string; count: (n: number) => string } {
+  if (kind === "electrician") return { emptyTitle: "No completed visits yet.", emptyBody: "Your pay for each safety check and fixes visit shows here once the visit is done.", count: (n) => `${n} visit${n === 1 ? "" : "s"}` };
+  return { emptyTitle: "No completed jobs yet.", emptyBody: "Your pay for each install appears here once the install is done.", count: (n) => `${n} install${n === 1 ? "" : "s"}` };
+}
 /** "Home Insulation Victoria lead · Install 27 Oct" */
 export function moneyRowSub(f: { channel: string | null; doneAt: string | null }): string {
   return [sourceLabel(f.channel), f.doneAt ? `Install ${shortDate(f.doneAt)}` : null].filter(Boolean).join(" · ");
@@ -500,7 +532,7 @@ export const HOW_PAY_WORKS = [
   { who: "Our leads", how: "Paid within 7 days of our approval" },
 ] as const;
 export const READY_CHECKS_FREE = "Ready Check visits are free, so they never appear here. Nothing to invoice us.";
-/** "BSB 063-xxx · account ending 471" — never the full numbers. */
+/** "BSB 063-xxx · account ending 4471" — never the full numbers. */
 export function bankLine(f: { bsbStart: string | null; accountEnding: string | null }): string {
   if (!f.bsbStart && !f.accountEnding) return "No bank account saved yet";
   return [f.bsbStart ? `BSB ${f.bsbStart}-xxx` : null, f.accountEnding ? `account ending ${f.accountEnding}` : null].filter(Boolean).join(" · ");

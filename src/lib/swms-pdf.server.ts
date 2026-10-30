@@ -7,7 +7,7 @@ import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf
 import { pdfSafeText } from "./pdf-text.core";
 import {
   SWMS_COMPLIANCE_MEASURES, SWMS_HOW_IMPLEMENTED, SWMS_HOW_IN_PLACE, SWMS_RECORD_TASK, SWMS_REVIEW, SWMS_SIGN_STATEMENT,
-  latestSignatures, swmsDate, swmsDateTime, type SwmsPlan, type SwmsSignature,
+  latestSignatures, swmsDate, swmsDateTime, swmsHouseSection, type SwmsPlan, type SwmsSignature,
 } from "./swms.core";
 
 /** A4 landscape. */
@@ -173,7 +173,9 @@ export async function buildSwmsPdf(plan: SwmsPlan, sigs: SwmsSignature[], opts: 
   gap(12);
 
   // ── Specific to this house ──
-  table(["Specific to this house"], [CW], layout.noteHeaderPages, [[{ text: val(plan.siteNote ?? "None recorded") }]]);
+  // Jo 30 Oct 2026: house facts, then "Safety step:" lines, then the installer's note — one row each (rows split across pages).
+  const house = swmsHouseSection(plan);
+  table(["Specific to this house"], [CW], layout.noteHeaderPages, house.length ? house.map((t) => [{ text: t, bold: t.startsWith("Safety step:") }]) : [[{ text: "None recorded" }]]);
   gap(12);
 
   // ── Sign-off ──

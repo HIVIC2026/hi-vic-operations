@@ -96,7 +96,7 @@ export type PaymentGateInput = {
   enabled: boolean;
   route: PaymentRoute;
   currentQuote: { id: string; customer_total_inc_gst: number | string } | null; // owner-approved current confirmed quote
-  invoice: { quote_id: string; total_inc_gst: number | string; total_paid: number | string } | null;
+  invoice: { quote_id: string | null; total_inc_gst: number | string; total_paid: number | string } | null;
   plan: InstalmentPlan | null;
   overrideCount: number; // audited office overrides for this invoice
   /** TEST journeys only: an audited simulated payment for the current quote. Never true for a real job. */
@@ -206,6 +206,8 @@ export type PiesaRequestFacts = {
   /** Installer-supplied intake route (Jo, 8 Oct 2026): office-checked eligibility + qualifying insulation + measured
    * scope + installer quote. Replaces only the Ready Check/verified-eligibility pair; quote approval and payment stay. */
   installerIntakeQualified?: boolean;
+  /** Jo 28 Oct (decision 158): a lapsed-window repeat PIESA not yet chosen / accepted / paid (repeat-piesa.core). */
+  repeatBlocker?: string | null;
 };
 
 /** PIESA can be requested only when all four approved conditions hold. */
@@ -218,6 +220,7 @@ export function piesaRequestBlockers(f: PiesaRequestFacts): string[] {
   if (!f.currentQuoteApproved)
     out.push("Owner has not approved the current confirmed insulation quote version.");
   if (!f.payment.cleared) out.push(f.payment.blocker);
+  if (f.repeatBlocker) out.push(f.repeatBlocker);
   return out;
 }
 

@@ -112,7 +112,7 @@ export async function loadNeedsHivic() {
   const items = buildNeedsHivic({
     readyCheckReturned,
     recNoLongerApproved,
-    now, jobs: jobRows.map((j) => { const p = j.properties as { suburb: string | null; postcode: string | null } | null; return { id: j.id, job_number: j.job_number, stage: j.stage, suburb: p ? [p.suburb, p.postcode].filter(Boolean).join(" ") : null }; }),
+    now, jobs: jobRows.map((j) => { const p = j.properties as { suburb: string | null; postcode: string | null } | null; return { id: j.id, job_number: j.job_number, stage: j.stage, channel: j.channel, suburb: p ? [p.suburb, p.postcode].filter(Boolean).join(" ") : null }; }),
     coverageExhausted: coverage,
     releases: ok(rel, "contact releases").filter((r) => (r.job_assignments as { active: boolean }).active && !(r.visit_kind === "ready_check" && rcTalking.has(r.job_id))).map((r) => ({ job_id: r.job_id, visit_kind: r.visit_kind as never, released_at: r.released_at, confirmed_at: (r.job_assignments as { booking_confirmed_at: string | null }).booking_confirmed_at })),
     failedComms: ok(comms, "communications"),
@@ -163,7 +163,7 @@ export async function loadNeedsHivic() {
       "quote_auto_send_held", "quote_sent_automatically", "quote_sent_by_office", "xero_invoice_product_unconfirmed", "xero_invoice_product_confirmed",
       "install_deposit_unpaid_at_start", "install_booking_confirmed", "install_booking_released_unpaid",
       "owner_payment_match_unclear", "owner_payment_match_resolved",
-      "xero_invoice_repairs_held", "xero_invoice_repairs_added"];
+      "stop_installer_release_failed", "job_cancel_released"];
     const since = new Date(now.getTime() - 60 * 86_400_000).toISOString();
     const { data: mev, error: me } = await admin.from("workflow_events").select("job_id, event_type, created_at, details, summary").in("event_type", types).gte("created_at", since).order("created_at").limit(5000);
     if (me) throw new Error("Could not load Mitti office items.");

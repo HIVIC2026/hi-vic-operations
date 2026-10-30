@@ -1,14 +1,17 @@
 import { afterEach, beforeEach, expect, mock, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
+import { auditIdentity } from "../src/lib/mitti-retry.core";
 import { fixesDayMissingQuestions, fixesDayPrefillItems, readFixesDay } from "../src/lib/fixes-day.core";
 
 // In-memory stand-in for the mitti_sim_audits table (service-role client).
 const rows = new Map<string, Record<string, unknown>>();
 const table = () => {
-  let filterId: string | null = null; let pending: Record<string, unknown> | null = null;
+  let gteMin = ""; let limitN = 1000; let filterId: string | null = null; let pending: Record<string, unknown> | null = null;
   const q: Record<string, unknown> = {
-    select: () => q, eq: (_c: string, v: string) => { filterId = v; if (pending) { Object.assign(rows.get(v) ?? {}, pending); pending = null; } return q; },
+    select: () => q, gte: (_c: string, v: string) => { gteMin = v; return q; }, order: () => q, limit: (n: number) => { limitN = n; return q; },
+    then: (res: (v: unknown) => void) => res({ data: [...rows.values()].filter((r) => !gteMin || String(r.modified_at) >= gteMin).slice(0, limitN), error: null }),
+    eq: (_c: string, v: string) => { filterId = v; if (pending) { Object.assign(rows.get(v) ?? {}, pending); pending = null; } return q; },
     maybeSingle: async () => ({ data: filterId ? rows.get(filterId) ?? null : null, error: null }),
     insert: async (r: Record<string, unknown>) => { rows.set(String(r.id), { ...r }); return { error: null }; },
     update: (r: Record<string, unknown>) => { pending = r; return q; },
@@ -98,4 +101,24 @@ test("fixes-day TEST flow: template read goes to the simulator, never the networ
   expect(calls.length).toBe(0);
   const src = readFileSync("src/lib/fixes-day.server.ts", "utf8");
   expect(src).toContain("call ?? await mittiCallFor(realMittiCall, email)");
+});
+
+test("simulated GET returns the answers sent at creation so auditIdentity reads job number and address", async () => {
+  const { persistentSimMittiCall: sim } = await import("../src/lib/mitti-sim-store.server");
+  const mk = (header_items: unknown[], items: unknown[] = []) => sim("POST", "/audits", { template_id: "template_x", header_items, items }) as Promise<{ audit_id: string }>;
+  const ans = (item_id: string, label: string, text: string) => ({ item_id, label, type: "textsingle", responses: { text } });
+  const rc = await mk([ans("h1", "Portal Job Number", "HV-1001"), ans("h2", "Site address", "1 Test St, Reid VIC 3000")]);
+  const pi = await mk([], [ans("q1", "Job Reference ID", "HV-1002"), ans("q2", "Address including postcode", "2 Test St, Reid VIC 3000")]);
+  const g = async (id: string) => sim("GET", `/audits/${id}`);
+  expect(auditIdentity("ready_check", await g(rc.audit_id))).toMatchObject({ jobNumber: "HV-1001", siteAddress: "1 Test St, Reid VIC 3000" });
+  expect(auditIdentity("piesa", await g(pi.audit_id))).toMatchObject({ jobNumber: "HV-1002", siteAddress: "2 Test St, Reid VIC 3000" });
+});
+
+test("simulated GET /audits/search lists stored forms modified at or after the time", async () => {
+  const { persistentSimMittiCall: sim } = await import("../src/lib/mitti-sim-store.server");
+  rows.set("sim_old", { id: "sim_old", template_id: "t_old", modified_at: "2026-10-01T00:00:00.000Z" });
+  rows.set("sim_new", { id: "sim_new", template_id: "t_new", modified_at: "2026-10-27T00:00:00.000Z" });
+  const r = (await sim("GET", "/audits/search?modified_after=2026-10-20T00:00:00.000Z&limit=50")) as { audits: { audit_id: string; template_id: string }[] };
+  expect(r).toEqual({ audits: [{ audit_id: "sim_new", template_id: "t_new" }] });
+  expect(calls.length).toBe(0);
 });

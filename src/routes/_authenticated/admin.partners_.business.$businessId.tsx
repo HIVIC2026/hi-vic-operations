@@ -18,11 +18,14 @@ import { useReasonDialog } from "@/components/portal/reason-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAction } from "@/hooks/use-me";
 import { getBusinessFile, resolvePartnerChangeRequest, revealPartnerBank } from "@/lib/office-partners.functions";
-import { getPartnerProfile, partnerFileUrl } from "@/lib/pilot.functions";
+import { getPartnerProfile, partnerFileUrl, saveBusiness } from "@/lib/pilot.functions";
 import { reviewHigherRates } from "@/lib/rate-requests.functions";
+import { inHouseEnableBlockers, type InHouseFacts } from "@/lib/in-house.core";
+import { Switch } from "@/components/ui/switch";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 export const Route = createFileRoute("/_authenticated/admin/partners_/business/$businessId")({
-  head: () => ({ meta: [{ title: "Business file – Home Insulation Victoria" }, { name: "robots", content: "noindex, nofollow" }] }),
+  head: () => ({ meta: [{ title: "Business file – Home Insulation Victoria" }, { name: "description", content: "Office partner business details, approved rates and in-house configuration." }, { property: "og:title", content: "Business file – Home Insulation Victoria" }, { property: "og:description", content: "Office partner business details, approved rates and in-house configuration." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex, nofollow" }] }),
   component: BusinessFile,
 });
 
@@ -73,6 +76,7 @@ function BusinessFile() {
           </dl>
         </Panel>
         <RatesPanel f={f} onDone={refresh} />
+        {p.data?.myRole === "hivic_admin" && p.data.inHouseFacts && <InHousePanel key={JSON.stringify(p.data.business)} businessId={businessId} business={p.data.business as unknown as { name: string; in_house?: boolean; rectification_billed_by?: "partner" | "hivic" }} facts={p.data.inHouseFacts} onDone={refresh} />}
         <Panel title="Insurance & licences">
           <dl data-why="193 PL insurance re-checked yearly; ESC scheme participant requirement">
             {f.credentials.filter((c) => ["public_liability_insurance", "workers_comp_insurance", "electrical_licence", "rec_registration", "installer_certification"].includes(c.kind)).map((c) => (
@@ -119,6 +123,28 @@ function BusinessFile() {
 }
 
 type FileData = NonNullable<Awaited<ReturnType<typeof getBusinessFile>>>;
+
+function InHousePanel({ businessId, business, facts, onDone }: { businessId: string; business: { name: string; in_house?: boolean; rectification_billed_by?: "partner" | "hivic" }; facts: InHouseFacts; onDone: () => Promise<void> }) {
+  const save = useServerFn(saveBusiness);
+  const [enabled, setEnabled] = useState(business.in_house ?? false);
+  const [billing, setBilling] = useState<"partner" | "hivic">(business.rectification_billed_by ?? "hivic");
+  const [busy, setBusy] = useState(false);
+  const blockers = inHouseEnableBlockers(facts);
+  return <Panel title="In-house partner">
+    <label className="flex items-center justify-between gap-3 text-sm font-semibold">In-house partner<Switch checked={enabled} onCheckedChange={setEnabled} disabled={busy || (!enabled && blockers.length > 0)} aria-label="In-house partner" /></label>
+    {blockers.length > 0 && <ul className="mt-3 text-sm text-rose">{blockers.map(b => <li key={b}>{b}</li>)}</ul>}
+    <RadioGroup className="my-4" value={billing} onValueChange={v => { if (v === "partner" || v === "hivic") setBilling(v); }} disabled={busy} aria-label="Rectification billing">
+      <label className="flex items-center gap-3 text-sm"><RadioGroupItem value="partner" />Partner's electrician bills the owner</label>
+      <label className="flex items-center gap-3 text-sm"><RadioGroupItem value="hivic" />HIV bills the owner</label>
+    </RadioGroup>
+    <Btn disabled={busy || (enabled === (business.in_house ?? false) && billing === (business.rectification_billed_by ?? "hivic"))} onClick={async () => {
+      setBusy(true);
+      try { await save({ data: { id: businessId, name: business.name, in_house: enabled, rectification_billed_by: billing } }); await onDone(); toast.success("In-house partner saved"); }
+      catch (e) { toast.error(e instanceof Error ? e.message : "Could not save in-house partner"); }
+      finally { setBusy(false); }
+    }}>Save</Btn>
+  </Panel>;
+}
 
 function RatesPanel({ f, onDone }: { f: FileData; onDone: () => Promise<void> }) {
   const review = useAction(reviewHigherRates);

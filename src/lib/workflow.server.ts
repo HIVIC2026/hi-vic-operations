@@ -168,6 +168,8 @@ export async function paymentGate(jobId: string) {
   const { data: inv } = quote
     ? await admin.from("invoices").select("id, quote_id, total_inc_gst, total_paid").eq("quote_id", quote.id).maybeSingle()
     : { data: null };
+  // Matched on quote_id above, so it is never empty here (only repeat safety check invoices have none).
+  const invForGate = inv ? { ...inv, quote_id: inv.quote_id as string } : null;
   let plan = null; let overrideCount = 0;
   if (inv) {
     const [{ data: p }, { count }] = await Promise.all([
@@ -179,7 +181,7 @@ export async function paymentGate(jobId: string) {
   }
   // Decision 302: the upfront amount is the accepted quote's PIESA line (setting = fallback when the quote has none).
   const safety = await (await import("./safety-check-amount.server")).quoteSafetyCheck(quote?.id ?? null);
-  return evaluatePaymentGate({ enabled, route: paymentRouteFor(job?.channel), currentQuote: quote, invoice: inv, plan, overrideCount, qaSimulated, safetyFeeIncGst: safety.incGst });
+  return evaluatePaymentGate({ enabled, route: paymentRouteFor(job?.channel), currentQuote: quote, invoice: invForGate, plan, overrideCount, qaSimulated, safetyFeeIncGst: safety.incGst });
 }
 
 /** True only when an approved payment option is verified (see paymentGate). */
@@ -197,7 +199,11 @@ export async function piesaRequestFacts(jobId: string) {
     currentApprovedQuote(jobId), paymentGate(jobId),
     installerIntakeQualified(jobId).catch(() => false), // fails closed
   ]);
-  return { readyCheckComplete: (rc ?? 0) > 0, verifiedEligible: eligible, currentQuoteApproved: !!quote, payment, installerIntakeQualified: intake };
+  // Jo 28 Oct: a lapsed window's repeat PIESA waits for the office choice, the owner's acceptance and (owner pays) payment.
+  const { repeatPiesaGateBlocker } = await import("./repeat-piesa.core");
+  const repeat = await (await import("./repeat-piesa.server")).repeatPiesaContext(jobId).catch(() => null);
+  const repeatBlocker = repeat ? repeatPiesaGateBlocker(repeat.state) : "Couldn't read the repeat safety check state.";
+  return { readyCheckComplete: (rc ?? 0) > 0, verifiedEligible: eligible, currentQuoteApproved: !!quote, payment, installerIntakeQualified: intake, repeatBlocker };
 }
 
 /** The one Ready Check entry blocker that depends on the booking row itself (confirmBooking pre-checks everything else). */
@@ -306,15 +312,20 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
   blockers.push(...(await readyCheckBlockers(jobId, to)));
   // Owner paperwork gates A–D (one rule set for every journey).
   blockers.push(...(await (await import("./owner-gates.server")).ownerGateStageBlockers(jobId, to)));
-  if (["assessment_booked", "assessment_complete", "installation_booked", "evidence_outstanding", "ap_review", "ready_for_veec"].includes(to)) {
-    const { complianceRecordBlockers } = await import("./compliance-timeline.core");
-    const [{ data: recs }, { data: job }, { data: invs }] = await Promise.all([
+  if (["piesa_scheduled", "assessment_complete", "installation_booked", "evidence_outstanding", "ap_review", "ready_for_veec"].includes(to)) {
+    const { complianceRecordBlockers, lifeSupportNeedsPlan } = await import("./compliance-timeline.core");
+    const [{ data: recs }, { data: job }, { data: invs }, { data: planFile }] = await Promise.all([
       admin.from("job_compliance_records").select("record_key").eq("job_id", jobId),
-      admin.from("jobs").select("life_support").eq("id", jobId).single(),
-      admin.from("invoices").select("deposit_paid_amount").eq("job_id", jobId),
+      admin.from("jobs").select("life_support, life_support_status").eq("id", jobId).single(),
+      // Batch 3b: the owner's payment on the installation invoice only (fixes / repeat safety check invoices are separate).
+      admin.from("invoices").select("deposit_paid_amount").eq("job_id", jobId).eq("kind", "installation"),
+      // A48 batch 1 final fix (Jo 29 Oct): the owner's uploaded consent / plan file alone counts like the office record (no tick).
+      admin.from("documents").select("id").eq("job_id", jobId).eq("kind", "life_support_plan").limit(1),
     ]);
     const paid = (invs ?? []).reduce((a, i) => a + Number(i.deposit_paid_amount ?? 0), 0);
-    blockers.push(...complianceRecordBlockers(to, new Set((recs ?? []).map((r) => r.record_key as never)), { lifeSupport: !!job?.life_support, ownerPaidIncGst: paid }));
+    const recorded = new Set<string>((recs ?? []).map((r) => r.record_key));
+    if ((planFile ?? []).length) recorded.add("life_support_plan");
+    blockers.push(...complianceRecordBlockers(to, recorded as never, { lifeSupport: lifeSupportNeedsPlan(job ?? {}), ownerPaidIncGst: paid }));
   }
   if (["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked"].includes(to)) {
     const cb = await commercialBlocker(jobId);
@@ -324,6 +335,16 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
   if (to === "installation_booked") {
     const ob = await (await import("./piesa-owner-confirm.server")).ownerPiesaConfirmationBlockerFor(jobId);
     if (ob) blockers.push(ob);
+  }
+  // A48 batch 1: a safety check that breaks the official PIESA rules stops the job until a corrected form or a signed Section C.
+  if (to === "piesa_complete" || to === "installation_scheduling" || to === "installation_booked") {
+    const rb = await (await import("./piesa-rules-notice.server")).piesaRulesBlockerFor(jobId);
+    if (rb) blockers.push(rb);
+  }
+  // A48 batch 1 task 5: where repairs were done, the electrical certificate must be ticked (AI or office) before the install day.
+  if (to === "installation_booked") {
+    const cb = await (await import("./coes-check.server")).coesBlockerFor(jobId);
+    if (cb) blockers.push(cb);
   }
   const piesa = await piesaStatus(jobId);
 
@@ -397,6 +418,11 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
       `PIESA 30-day window expired on ${piesa.install_deadline}. Electrician must record a reassessment before progressing.`,
     );
   }
+  // Batch 1 task 6 (Jo 28 Oct 2026): a PIESA made before the job was reopened no longer counts — it never unlocks install.
+  if (PIESA_WINDOW_STAGES.includes(to) && piesa?.piesa_date && (await (await import("./repeat-piesa.server")).currentPiesaSupersededByReopen(jobId))) {
+    const { PASSING_PIESA_BLOCKER } = await import("./allocation.core");
+    blockers.push(PASSING_PIESA_BLOCKER);
+  }
   const rect = await openRectCount(jobId);
   // Two-requirement model: pre-quote site information = accepted ceiling measure-up + recorded electrical/PIESA.
   if (["assessment_complete", "ready_for_installer_quotes", "awaiting_quote_acceptance"].includes(to)) {
@@ -432,7 +458,13 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
   // Decision 366 (audit F03): no fixes visit is booked until the electrical fixes are paid in full.
   if (to === "rectification_booked") {
     const fb = await (await import("./payments.server")).fixesPaymentBlockerFor(jobId);
-    if (fb) blockers.push(fb);
+    if (fb) {
+      // Resolve the exception only where the legacy quote/payment gate would block.
+      const partnerBilledRectification = await (await import('./in-house-rectification.server')).optionalPartnerBilledRectificationFor(jobId);
+      const { rectificationVisitBlocker } = await import('./allocation.core');
+      const visit = rectificationVisitBlocker({ quoteAccepted: false, recActiveApproved: true, partnerBilledRectification });
+      if (visit) blockers.push(fb);
+    }
   }
   // Jo 26 Oct 2026: no install booking until the 10% install deposit is paid.
   if (to === "installation_booked") {

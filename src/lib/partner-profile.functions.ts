@@ -22,14 +22,6 @@ export const getPartnerProfilePreview = createServerFn({ method: "POST" }).middl
       const s = await signFile("partner-files", inputs.meta.insurance_certificate_path, 3600);
       profile.insurance.file_url = s.data?.signedUrl ?? null;
     }
-    const piisaFiles = ((inputs.data["piisa_files"] ?? {}) as Record<string, string>);
-    const people = ((inputs.meta.partner_type === "installer" ? inputs.data["installers"] : []) as { email?: string }[] | undefined) ?? [];
-    let pi = 0;
-    for (const l of profile.licences) {
-      if (l.kind !== "piisa_training") continue;
-      const path = piisaFiles[(people[pi++]?.email ?? "").trim().toLowerCase()];
-      if (path) { const s = await signFile("partner-files", path, 3600); l.file_url = s.data?.signedUrl ?? null; }
-    }
     return { profile, flags: approvalFlags(profile, inputs.peers, melbourneToday()), isTest: inputs.isTest, existingBusinessId: inputs.existingBusinessId, activatedBusinessId: inputs.activatedBusinessId, approvalMessage: inputs.approvalMessage };
   });
 

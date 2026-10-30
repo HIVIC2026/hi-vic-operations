@@ -124,9 +124,11 @@ export type InvitePerson = {
   mittiAccess: "member" | "not_found" | "unchecked" | "email_changed" | null;
   /** TEST person (test email or TEST partner business). */
   isTest: boolean;
+  /** Installers (Jo 28 Oct): true = Crew, never invited (worker-role.core decides). Absent = Lead. */
+  crew?: boolean;
 };
 /** Latest stored record for this worker (any of MITTI_INVITE_EVENTS), or null. `mittiUserId` = the latest one known. */
-export type PriorInvite = { type: MittiInviteEventType; at: string; mittiUserId?: string | null } | null;
+export type PriorInvite = { type: MittiInviteEventType; at: string; mittiUserId?: string | null; email?: string | null } | null;
 export type InviteSwitches = { enabled: boolean; apiVerified?: boolean; groupId?: string | null };
 
 type Base = { group: string; seat: MittiSeat; key: string };
@@ -142,6 +144,7 @@ export type InviteStep =
 /** One invite per partner worker, ever (seats are billed). */
 export const inviteKey = (workerId: string) => `mitti-invite:${workerId}`;
 
+export const CREW_SKIP = "Crew aren't invited automatically — the office adds them to Mitti by hand.";
 export const TEST_SKIP = "TEST person: TEST forms go to the test assignee and Mitti rejects synthetic emails.";
 
 /** Is this approved partner person someone who should be in Mitti? Installers once their CII is verified (decision 153),
@@ -150,6 +153,7 @@ export function inviteEligibility(p: InvitePerson): string | null {
   if (p.removedAt) return "Removed from the business.";
   if (p.approvalStatus !== "approved") return "Not approved by the office yet.";
   if (p.tradeRole !== "installer" && p.tradeRole !== "electrician") return `No Mitti access for the ${p.tradeRole} role.`;
+  if (p.tradeRole === "installer" && p.crew) return CREW_SKIP;
   if (p.tradeRole === "installer" && !p.ciiCleared) return "Installer's CII certificate is not verified and current yet.";
   if (!p.email?.trim()) return "No email on file — Mitti invites go to an exact email address.";
   return null;
@@ -168,6 +172,8 @@ export function mittiInviteStep(p: InvitePerson, prior: PriorInvite, sw: InviteS
   const role = p.tradeRole as MittiTradeRole;
   const base: Base = { group: MITTI_TRADES_GROUP, seat: MITTI_SEAT_FOR_ROLE[role], key: inviteKey(p.workerId) };
   const group = sw.apiVerified && sw.groupId?.trim() ? sw.groupId.trim() : null;
+  if (prior?.mittiUserId && prior.email?.trim().toLowerCase() !== p.email?.trim().toLowerCase())
+    return { action: "fail", ...base, reason: "This person's email no longer matches the recorded Mitti identity — the office must check their account before reusing it." };
   if (prior?.type === MITTI_INVITE_EVENTS.deactivated) {
     if (!prior.mittiUserId) return { action: "fail", ...base, reason: "Their Mitti user was deactivated earlier but its ID is not on file — reactivate them in Mitti by hand." };
     if (!sw.apiVerified) return { action: "fail", ...base, reason: "Their Mitti user was deactivated earlier — reactivate them in Mitti by hand (the portal's Mitti user calls are not verified yet)." };
@@ -192,6 +198,7 @@ export function mittiRemovalStep(p: RemovalPerson, prior: PriorInvite, sw: Invit
   if (!p.removedAt && p.approvalStatus === "approved") return { action: "skip", reason: "Still active in the portal." };
   if (prior?.type === MITTI_INVITE_EVENTS.deactivated) return { action: "skip", reason: "Already deactivated in Mitti." };
   if (!prior?.mittiUserId) return { action: "skip", reason: "No Mitti user is recorded for this person." };
+  if (prior.email?.trim().toLowerCase() !== p.email?.trim().toLowerCase()) return { action: "fail", mittiUserId: prior.mittiUserId, reason: "This person's email does not match the recorded Mitti identity — the office must check it before deactivation." };
   if (p.stillActiveElsewhere) return { action: "skip", reason: "The same email is still an active trade for another business — Mitti seat kept." };
   if (!sw.apiVerified) return { action: "fail", mittiUserId: prior.mittiUserId, reason: `Deactivate ${p.email ?? "this person"} in Mitti by hand so the seat can be released (the portal's Mitti user calls are not verified yet).` };
   return { action: "deactivate", mittiUserId: prior.mittiUserId };
@@ -223,11 +230,11 @@ export function openInvites(records: InviteRecord[]): OpenInvite[] {
 }
 
 /** The latest stored record for one worker (idempotency input), with the latest Mitti user id the portal knows. */
-export function priorInviteFor(workerId: string, records: Pick<InviteRecord, "workerId" | "type" | "at" | "mittiUserId">[]): PriorInvite {
+export function priorInviteFor(workerId: string, records: Pick<InviteRecord, "workerId" | "type" | "at" | "mittiUserId" | "email">[]): PriorInvite {
   const mine = records.filter((r) => r.workerId === workerId).sort((a, b) => b.at.localeCompare(a.at));
   if (!mine[0]) return null;
   const known = mine.find((r) => r.mittiUserId && (HAS_MITTI_USER.includes(r.type) || r.type === MITTI_INVITE_EVENTS.deactivated || r.type === MITTI_INVITE_EVENTS.failed || r.type === MITTI_INVITE_EVENTS.done));
-  return { type: mine[0].type, at: mine[0].at, mittiUserId: known?.mittiUserId ?? null };
+  return { type: mine[0].type, at: mine[0].at, mittiUserId: known?.mittiUserId ?? null, email: known?.email ?? mine[0].email };
 }
 
 /** Plain reason for an office item from a Mitti error (never a token or a provider body). */

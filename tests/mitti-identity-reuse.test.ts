@@ -1,8 +1,9 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
 import { canonicalMittiTemplateId, sameMittiTemplateId } from "../src/lib/mitti-identity.core";
-import { buildPrefill, createOrReuseAudit, mittiApi, planSync, PIISA_A3_TEMPLATE_ID, type CreateCtx } from "../src/lib/mitti.core";
+import { buildPrefill, createOrReuseAudit, mittiApi, pickUser, planSync, PIISA_A3_TEMPLATE_ID, type CreateCtx } from "../src/lib/mitti.core";
 import { inspectSavedMittiForm } from "../src/lib/mitti-form-health.core";
+import { createOutcome } from "../src/lib/mitti-create-claim.core";
 import { createMittiBoundaryHarness, providerWrites, type DbResult, type ApiOperation } from "./helpers/mitti-boundary-harness";
 
 // The observed A2 spelling is a regression fixture, never a production setting or seed.
@@ -90,13 +91,33 @@ test("an invalid configured template ID makes no provider request", async () => 
 const invalidAudits = [
   null, audit({ audit_id: undefined }), audit({ audit_id: "audit_other" }),
   audit({ template_id: undefined }), audit({ template_id: "invalid" }), audit({ template_id: OTHER }),
-  audit({ header_items: [] }),
   audit({ header_items: [{ item_id: "job", label: "Portal Job Number", responses: { text: "HV-OTHER" } }] }),
   audit({ header_items: [
     { item_id: "job1", label: "Portal Job Number", responses: { text: JOB } },
     { item_id: "job2", label: "Portal Job Number", responses: { text: "HV-OTHER" } },
   ] }),
 ];
+
+test("current A1 without a job question retains exact stored audit and template checks", () => {
+  const result = planSync(audit({ header_items: [] }), { storedAuditId: AUDIT, jobNumber: JOB, assessmentStatus: "draft", templateId: A2_UUID });
+  assert.equal(result.locked, false);
+});
+
+test("every active job-number alias must agree; blank or conflicting duplicates block", () => {
+  const context = { storedAuditId: AUDIT, jobNumber: JOB, assessmentStatus: "draft", templateId: A2_UUID };
+  for (const label of ["Portal Job Number", "Job Reference ID"]) {
+    for (const value of ["", "HV-OTHER"]) {
+      assert.throws(() => planSync(audit({ items: [{ item_id: "duplicate", label, responses: { text: value } }] }), context), /Job Number/);
+    }
+    assert.equal(planSync(audit({ items: [{ item_id: "duplicate", label, responses: { text: JOB } }] }), context).locked, false);
+  }
+  assert.equal(planSync(audit({ items: [{ item_id: "inactive", label: "Portal Job Number", inactive: true, responses: { text: "HV-OTHER" } }] }), context).locked, false);
+});
+
+test("multiple distinct Mitti identities for one email refuse instead of picking a worker", () => {
+  assert.throws(() => pickUser([{ id: "first", email: EMAIL }, { id: "second", email: EMAIL }], EMAIL), /More than one Mitti identity/);
+  assert.equal(pickUser([{ id: "first", email: ` ${EMAIL.toUpperCase()} ` }], EMAIL)?.id, "first");
+});
 
 test("stored audit identity and same-job checks block reuse without share, owner change or replacement", async () => {
   for (const existing of invalidAudits) {
@@ -209,6 +230,7 @@ test("actual health server makes one template GET and preserves an official appr
   const h = createMittiBoundaryHarness({ provider: ordinaryProvider(), dependencies: {
     "./official-forms.core": { officialFormUseBlocker: () => "Fixture approval pending" },
     "./mitti-forms.core": { flattenDefinition: (doc: unknown) => doc, validateTemplate: () => ({ ok: true, issues: [] }) },
+    "./mitti-form-schema.core": { validateSavedDefinition: () => ({ ok: true, issues: [] }) },
   } });
   const result = await h.load("mitti-form-health.server").checkMittiFormHealth("piisa", A2_UUID, h.call);
   assert.equal(result.identity, "verified"); assert.equal(result.ok, false); assert.equal(result.approvalBlocker, "Fixture approval pending");
@@ -217,7 +239,7 @@ test("actual health server makes one template GET and preserves an official appr
 });
 
 function piisaHarness(options: { configured?: string; previous?: string | null; existing?: unknown; previousReadError?: boolean; provider?: (op: ApiOperation) => Promise<unknown> } = {}) {
-  const observed = { apChecks: 0, crewReads: 0 };
+  const observed = { apChecks: 0, crewReads: 0, claims: [] as string[] };
   const h = createMittiBoundaryHarness({
     database: op => {
       if (op.mode !== "read") throw new Error("Unexpected PIISA database mutation");
@@ -239,6 +261,14 @@ function piisaHarness(options: { configured?: string; previous?: string | null; 
       "./piisa-a3.core": {},
       "./piisa-a3.server": { loadCrew: async () => { observed.crewReads++; return { staff: [], selection: null }; } },
       "./piisa-ap.core": { ensurePiisaAp: async () => { observed.apChecks++; } },
+      // The install-day claim guard (writes go to workflow_events in production; recorded here, not executed).
+      "./mitti-create.server": {
+        claimMittiCreate: async (_job: string, kind: string) => { observed.claims.push(`claim:${kind}`); return "claim_fixture"; },
+        releaseMittiCreate: async (_job: string, kind: string) => { observed.claims.push(`release:${kind}`); },
+        recordMittiCreateUncertain: async (_job: string, kind: string) => { observed.claims.push(`uncertain:${kind}`); },
+        MittiOutcomeUncertain: class MittiOutcomeUncertain extends Error {},
+      },
+      "./mitti-create-claim.core": { createOutcome },
     },
   });
   return { ...h, observed, server: h.load("mitti.server") };
@@ -249,7 +279,7 @@ test("PIISA reuses a canonical-equivalent template only after verifying the stor
   const result = await h.server.createPiisaMittiAudit("fixture_job", "test_admin", h.call);
   assert.equal(result.reused, true); assert.equal(result.auditId, AUDIT); assert.equal(h.observed.apChecks, 1);
   assert.deepEqual(h.apiCalls.map(c => c.path), ["/users/search", `/audits/${AUDIT}`, `/audits/${AUDIT}/share`, `/inspections/v1/inspections/${AUDIT}/owner`]);
-  assert.equal(h.eventCalls.length, 1);
+  assert.equal(h.eventCalls.length, 1); assert.deepEqual(h.observed.claims, []);
 });
 
 test("PIISA wrong audit, wrong job or unverifiable template blocks AP updates, sharing and owner changes", async () => {
@@ -281,6 +311,7 @@ test("a UUID A5 selection enters the actual verified-crew branch before any form
     await assert.rejects(h.server.createPiisaMittiAudit("fixture_job", "test_admin", h.call), /Choose the install crew/);
     assert.equal(h.observed.crewReads, 1);
     assert.deepEqual(providerWrites(h.apiCalls), []); assert.deepEqual(h.eventCalls, []);
+    assert.deepEqual(h.observed.claims, ["claim:install_day", "release:install_day"]);
   }
 });
 
@@ -289,6 +320,7 @@ test("new PIISA refuses an unidentifiable or different returned form before any 
     const h = piisaHarness({ configured: A2_UUID, previous: null, provider: ordinaryProvider(definition(id)) });
     await assert.rejects(h.server.createPiisaMittiAudit("fixture_job", "test_admin", h.call), /unexpected or unidentifiable PIISA template/);
     assert.deepEqual(providerWrites(h.apiCalls), []); assert.deepEqual(h.eventCalls, []);
+    assert.deepEqual(h.observed.claims, ["claim:install_day", "release:install_day"]);
   }
 });
 

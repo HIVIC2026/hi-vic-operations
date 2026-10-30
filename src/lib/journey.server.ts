@@ -89,6 +89,10 @@ const s1: StepFn = async (ctx, r) => {
   ctx.jobId = res.job_id; ctx.jobNumber = res.job_number ?? null;
   await assertOwnTestJob(ctx);
   // Website contact consent, recorded exactly as the Base44 intake does (TEST job).
+  const { data: safetyJob, error: safetyRead } = await admin.from("jobs").select("external_refs").eq("id", ctx.jobId).eq("source", "qa_test").single();
+  if (safetyRead || !safetyJob) throw new Error("TEST delivery safety could not be checked.");
+  const { error: safetyWrite } = await admin.from("jobs").update({ external_refs: { ...((safetyJob.external_refs ?? {}) as Record<string, never>), qa_no_delivery: true } }).eq("id", ctx.jobId).eq("source", "qa_test");
+  if (safetyWrite) throw new Error("TEST delivery safety could not be saved.");
   const { data: jo } = await admin.from("jobs").select("owner_id").eq("id", ctx.jobId).single();
   const { recordContactConsent } = await import("./intake.server");
   await recordContactConsent(ctx.jobId, jo!.owner_id!, { contact_consent: true, contact_consent_version: "journey-test", contact_consented_at: new Date().toISOString(), external_enquiry_id: `qa-journey-${ctx.runId}` } as never);
@@ -257,7 +261,9 @@ const s4: StepFn = async (ctx, r) => {
   r.simulated = ["Mitti Ready Check form (Ready Check written as the Mitti sync would)"];
   await admin.from("ceiling_measurements").update({ is_current: false }).eq("job_id", ctx.jobId!).eq("is_current", true);
   const { error: me } = await admin.from("ceiling_measurements").insert({ job_id: ctx.jobId!, status: "complete", is_current: true, source_role: "installer", created_by: ctx.installer.id, measured_area_m2: 120, removal_required: false, insulation_present: false, access_difficulty: "easy", measurement_method: "laser",
-    completed_by: ctx.installer.id, completed_at: new Date().toISOString(), measured_on: melbourneDate(0), external_source: "journey_sim", external_id: `sim-${ctx.runId}`, raw_snapshot: { downlight_count: 6, downlight_type: "LED sealed" } } as never);
+    completed_by: ctx.installer.id, completed_at: new Date().toISOString(), measured_on: melbourneDate(0), external_source: "journey_sim", external_id: `sim-${ctx.runId}`, raw_snapshot: { downlight_count: 6, downlight_type: "LED sealed" },
+    // Jo 30 Oct 2026: one ceiling area as the Mitti sync stores it (m², before video; product is per job, not per area).
+    zones: [{ key: "mitti-1", label: "Main ceiling", name: "Main ceiling", areaM2: 120, existing: "none", present: false, removal: "no", downlights: 6, beforeVideo: true, product: null, scope: null, sources: {} }] } as never);
   check(r, "Ready Check recorded", !me, me?.message);
   // The insulation product answer on the form, recorded the way the Mitti sync records it (declared, not verified).
   await (await import("./insulation-product.server")).mittiProductForJob(ctx.jobId!, ctx.installer.id, [{ label: "What insulation product will you be using on this job?", value: "Bradford Gold R5" }], `sim-${ctx.runId}`);
@@ -289,7 +295,8 @@ function melbourneDate(daysAhead: number) {
 }
 
 /** Pay one owner payment step in full (decisions 139/302/367) as a TEST payment in the Xero Demo Company: the amount is what
- *  the job's own payment plan says is still owing on that step. TEST jobs only (recordDemoTestPayment refuses others). */
+ *  the job's own payment plan says is still owing on that step. TEST jobs only (recordDemoTestPayment refuses others).
+ *  Paid on that step's own invoice (batch 3b, Jo 29 Oct 2026). */
 async function payStep(ctx: JourneyCtx, r: StepResult, step: "safety_check" | "fixes" | "install_deposit" | "balance", label: string) {
   await assertOwnTestJob(ctx);
   const { jobPaymentView } = await import("./payments.server");
@@ -298,7 +305,9 @@ async function payStep(ctx: JourneyCtx, r: StepResult, step: "safety_check" | "f
   const owing = v!.steps.find((s) => s.key === step)?.outstandingCents ?? 0;
   if (owing <= 0) { check(r, `${label} (nothing owing)`, true); return; }
   const x = await import("./xero.server");
-  await act(r, label, () => x.recordDemoTestPayment(v!.invoiceId, owing / 100, ctx.actorId));
+  const { payStepInvoiceId } = await import("./journey.core");
+  const invoiceId = payStepInvoiceId(v!, step);
+  await act(r, label, () => x.recordDemoTestPayment(invoiceId, owing / 100, ctx.actorId));
   const after = (await jobPaymentView(ctx.jobId!))!.steps.find((s) => s.key === step);
   check(r, `${step.replace(/_/g, " ")} step paid`, after?.state === "paid", after?.state);
 }
@@ -371,7 +380,7 @@ const s5: StepFn = async (ctx, r) => {
   // Safety check payment: Xero Demo Company only for TEST jobs.
   const x = await import("./xero.server");
   const inv = await act(r, "invoice created for the accepted quote (Demo Company)", () => x.createInvoiceForQuote(ctx.quoteId!, ctx.actorId)) as { id?: string } | null;
-  const { data: iv } = await admin.from("invoices").select("id, xero_invoice_id").eq("job_id", ctx.jobId!).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const { data: iv } = await admin.from("invoices").select("id, xero_invoice_id").eq("job_id", ctx.jobId!).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).maybeSingle();
   check(r, "invoice row exists", !!iv, JSON.stringify(inv ?? null).slice(0, 80));
   if (!iv!.xero_invoice_id) await act(r, "invoice pushed to the Xero Demo Company", () => x.pushInvoiceToXero(iv!.id, ctx.actorId) as Promise<unknown>);
   { const { data: linked } = await admin.from("invoices").select("xero_invoice_id, last_sync_error").eq("id", iv!.id).single();
@@ -404,7 +413,7 @@ const s6: StepFn = async (ctx, r) => {
   const { data: el } = await admin.from("profiles").select("email, full_name").eq("id", ctx.electrician.id).single();
   if (!el?.email || !ws?.mitti_piesa_template_id) throw new StepFail("TEST PIESA simulator requires template and electrician email");
   const tpl = ws.mitti_piesa_template_id.trim();
-  const pass = sim.simulatedA3PassAnswers({ seed: `${ctx.runId}-a3`, inspectionDate: melbourneDate(0), capturedAt: now, electrician: el.full_name ?? "TEST Delta Electrician" });
+  const pass = sim.simulatedA3PassAnswers({ seed: `${ctx.runId}-a3`, inspectionDate: melbourneDate(0), capturedAt: now, electrician: el.full_name ?? "TEST Delta Electrician", jobNumber: ctx.jobNumber });
   const office = ["Portal Job Number", "Property Address", "Owner name"].map((label, i) => ({ item_id: `sim_a3_office_${i}`, label, type: "textsingle" }));
   const mitti = sim.simulatedMitti({ templates: { [tpl]: sim.templateOfItems([...office, ...pass.items]) }, users: [{ id: "sim-mitti-electrician", email: el.email }] });
   const ms = await import("./mitti.server");
@@ -424,7 +433,8 @@ const s6: StepFn = async (ctx, r) => {
   let auditId = a0?.external_mitti_id ?? null;
   if (auditId) mitti.seed(auditId, tpl);
   else auditId = (await act(r, "office backup: the A3 form is made for the electrician", () => import("./mitti.server").then((m) => m.createAssignMittiAudit(ctx.jobId!, ctx.actorId, mitti.call, { officeOverride: true })))).auditId;
-  mitti.fill(auditId, pass.items);
+  // The real portal prefills Portal Job Number; a blank one fails closed under the identity rule, so fill it as the prefill would.
+  mitti.fill(auditId, [{ item_id: "sim_a3_office_0", label: "Portal Job Number", type: "textsingle", responses: { text: ctx.jobNumber ?? "" } }, ...pass.items] as never);
   const synced = await act(r, "electrician completes the A3 → read by the Mitti sync", async () => { await assertOwnTestJob(ctx); return (await import("./mitti.server")).syncMittiAssessment(ctx.jobId!, ctx.actorId, mitti.call, async () => ({ bytes: TINY_JPEG, contentType: "image/jpeg" })); });
   check(r, "A3 synced as complete with its geotagged evidence", synced.completed, synced.issues.join("; "));
   // The electrician's own "No electrical fixes required" tick on the job page (the same assessment field saveAssessment writes).
@@ -483,7 +493,7 @@ const s7: StepFn = async (ctx, r) => {
     check(r, "PIESA copies not held for another reason", !sent.hold, sent.hold ?? "");
     for (const to of ["owner", "installer"] as const) {
       if (sent.sent.includes(to)) continue;
-      check(r, `PIESA copy to the ${to} held only because the TEST address is not on the allowlist`, /not on the test allowlist/.test(sent.held[to] ?? ""), sent.held[to] ?? "not attempted");
+      check(r, `PIESA copy to the ${to} held only by a TEST hold (allowlist or this run's no-delivery marker)`, /not on the test allowlist|TEST browser run: no delivery/.test(sent.held[to] ?? ""), sent.held[to] ?? "not attempted");
       (r.simulated ??= []).push(`Signed PIESA copy email to the TEST ${to} (held by the TEST sender; recorded as delivered for this TEST job)`);
       await act(r, `signed PIESA copy recorded as delivered to the ${to} (simulated email)`, () => recordTestPiesaCopy(ctx, to, pd.recordDelivery));
     }
@@ -561,7 +571,8 @@ const s8: StepFn = async (ctx, r) => {
     const pack = await act(r, "completion pack emailed to the owner (the tick's sender)", () => cp.sendCompletionPack(ctx.jobId!, ctx.actorId));
     const { count: provided } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("event_type", "warranty_copy_provided");
     if (!provided) {
-      check(r, "completion pack held only because the TEST owner is not on the allowlist", pack.outcome === "not_sent" && /allowlist/.test(pack.detail), `${pack.outcome}: ${pack.detail}`);
+      // Held by a TEST safeguard (the allowlist, or the per-job TEST "no delivery" marker): count as delivered for this TEST job.
+      check(r, "completion pack held only by a TEST safeguard (allowlist or TEST no-delivery marker)", pack.outcome === "not_sent" && (/allowlist/.test(pack.detail) || /TEST browser run: no delivery/.test(pack.detail)), `${pack.outcome}: ${pack.detail}`);
       (r.simulated ??= []).push("Completion pack email to the TEST owner (held by the TEST sender; the warranty copy recorded as given for this TEST job)");
       await act(r, "product warranty copy recorded as given to the owner (simulated email)", async () => {
         await assertOwnTestJob(ctx);
@@ -701,7 +712,10 @@ export async function cleanupJourney(ctx: JourneyCtx) {
     const { data: j } = await admin.from("jobs").select("source, created_at").eq("id", ctx.jobId).maybeSingle();
     // Only archive a TEST job this run created: an older kept TEST job linked by address is left alone.
     if (j?.source === "qa_test" && j.created_at >= ctx.startedAt) {
-      await admin.from("partner_offers").update({ status: "withdrawn" } as never).eq("job_id", ctx.jobId).eq("status", "pending");
+      const { error: offerError } = await admin.from("partner_offers").update({ status: "withdrawn" } as never).eq("job_id", ctx.jobId).eq("status", "pending");
+      if (offerError) throw new Error(`TEST offer cleanup failed: ${offerError.message}`);
+      const { count: remaining, error: remainingError } = await admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId).eq("status", "pending");
+      if (remainingError || remaining !== 0) throw new Error("TEST cleanup refused: a pending offer remains.");
       await admin.from("job_assignments").update({ active: false, ended_at: now, end_reason: "TEST journey archived" }).eq("job_id", ctx.jobId).eq("active", true);
       await admin.from("jobs").update({ qa_archived_at: now, stage: "cancelled", cancelled_reason: "TEST journey archived", next_action: "Archived TEST journey" }).eq("id", ctx.jobId).eq("source", "qa_test");
     }
@@ -771,8 +785,12 @@ export async function runServerJourney(opts: { cleanup?: boolean; afterStep?: (c
   finally { globalThis.fetch = realFetch; ms.disarmJourneyMittiGuard(); }
 }
 
-export async function storeJourneyRun(mode: "browser" | "server", ctx: JourneyCtx, result: JourneyResult) {
-  const { data, error } = await admin.from("journey_runs").insert({ mode, started_at: ctx.startedAt, finished_at: new Date().toISOString(), passed: result.passed, failing_step: result.failingStep, failing_reason: result.failingReason, steps: result.steps as never, test_job_id: ctx.jobId }).select("id").single();
+export async function storeJourneyRun(mode: "browser" | "server", ctx: JourneyCtx, result: JourneyResult, opts?: { path?: string; runGroup?: string; status?: "passed" | "failed" | "blocked" }) {
+  const { data, error } = await admin.from("journey_runs").insert({ mode, started_at: ctx.startedAt, finished_at: new Date().toISOString(), passed: result.passed, failing_step: result.failingStep, failing_reason: result.failingReason, steps: result.steps as never, test_job_id: ctx.jobId,
+    ...(opts?.path !== undefined ? { path: opts.path } : {}),
+    ...(opts?.runGroup !== undefined ? { run_group: opts.runGroup } : {}),
+    ...(opts?.status !== undefined ? { status: opts.status } : {}),
+  }).select("id").single();
   if (error) throw new Error(error.message);
   return data.id;
 }
@@ -783,4 +801,4 @@ export async function latestJourneyRun() {
 }
 
 /** Test-only access for the opt-in hard-case branches (journey-branches.server.ts). Same functions, no behaviour change. */
-export const journeyInternals = { uploadEvidence, assertOwnTestJob, TEST_DOMAIN, stageOf, s1, s2, s3, s4, s5, melbourneDate, TINY_JPEG, payStep };
+export const journeyInternals = { uploadEvidence, assertOwnTestJob, TEST_DOMAIN, stageOf, s1, s2, s3, s4, s5, s6, s7, s8, melbourneDate, TINY_JPEG, payStep };

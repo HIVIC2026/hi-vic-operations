@@ -77,3 +77,8 @@ test("Next panel: same facts as Needs me, else who it waits on", () => {
   expect(nextAction({ facts: null, status: null, stage: null, closed: { kind: "cancelled", reason: "Owner changed mind" }, onHold: null }, NOW).sentence).toBe("Cancelled: Owner changed mind. Reopen it from Jobs › Closed if that was wrong.");
   expect(nextAction({ facts: null, status: null, stage: null, closed: null, onHold: { reason: "Owner overseas", until: "2026-11-10" } }, NOW).sentence).toBe("On hold: Owner overseas · until 2026-11-10. Reminders and texts are paused.");
 });
+
+test("Needs me 48h booking rule uses readyCheckOverdueApplies (Jo 28 Oct: installer jobs and done Ready Checks skip it)", () => {
+  const src = require("node:fs").readFileSync("src/lib/office-needs.server.ts", "utf8") as string;
+  expect(src).toContain("readyCheckOverdueApplies(");
+});

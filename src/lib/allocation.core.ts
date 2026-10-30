@@ -4,6 +4,7 @@ import { rectQuoteUnanswered } from "./rectification.core";
 // directly for the active visit, and a time is booked only when the OTHER party (or office) confirms it.
 // Stage progression stays with the existing guarded workflow (stageEntryBlockers / transition / autoAdvanceJob).
 import { piesaRequestBlockers, type PiesaRequestFacts } from "./payment-gate.core";
+import { complianceRecordBlockers } from "./compliance-timeline.core";
 import { WORKFLOW_DECISIONS } from "@/config/workflow-decisions";
 import { veecQueryOverdue } from "./veec.core";
 import { isBusinessDay, melbourneAt, melbourneYmd } from "./piesa-windows.core";
@@ -18,8 +19,11 @@ export const OFFICE_ALERT_AFTER_H = WORKFLOW_DECISIONS.directContact.officeAlert
 
 // ---------- A. PIESA offers ----------
 /** PIESA allocation can start only when the existing PIESA request gate is fully satisfied. */
-export function piesaOfferBlockers(f: PiesaRequestFacts & { hasActiveElectrician: boolean; hasOpenOffers: boolean }): string[] {
+export function piesaOfferBlockers(f: PiesaRequestFacts & { hasActiveElectrician: boolean; hasOpenOffers: boolean; lifeSupportPlanMissing?: boolean }): string[] {
   const out = piesaRequestBlockers(f);
+  // A48 batch 1 final fix (Jo 29 Oct): no safety check offers while the life support plan is missing — the same blocker
+  // complianceRecordBlockers gives the visit (piesa_scheduled).
+  if (f.lifeSupportPlanMissing) out.push(...complianceRecordBlockers("piesa_scheduled", new Set(), { lifeSupport: true, ownerPaidIncGst: 0 }));
   if (f.hasActiveElectrician) out.push("An electrician has already accepted this PIESA.");
   if (f.hasOpenOffers) out.push("PIESA offers are already open for this job.");
   return out;
@@ -50,6 +54,8 @@ export type RecCandidate = {
   is_active: boolean; onboarding_status: string; accepting_new_jobs: boolean | null; receives_hivic_leads: boolean | null;
   coverage_verified: boolean; covers_postcode: boolean; exact_postcode: boolean;
   has_valid_licence: boolean; approved_workers: number;
+  /** Plain reason when has_valid_licence is false (e.g. which document expired). */
+  licence_blocker?: string | null;
   weekly_capacity: number | null; open_jobs: number; recent_offers_30d: number;
   acceptance_rate: number | null; // 0..1 over recent offers, null = no history
   preferred?: boolean;
@@ -73,7 +79,7 @@ export function recEligibilityBlocker(c: RecCandidate): string | null {
   if (c.accepting_new_jobs === false) return "Partner is not accepting new jobs.";
   if (c.receives_hivic_leads === false) return "Partner does not receive Home Insulation Victoria jobs.";
   if (!c.coverage_verified || !c.covers_postcode) return "Partner does not have verified coverage for this area.";
-  if (!c.has_valid_licence) return "Partner has no current electrical licence/REC registration on file.";
+  if (!c.has_valid_licence) return c.licence_blocker || "Partner has no current electrical licence/REC registration on file.";
   if (c.approved_workers < 1) return "Partner has no approved licensed electrician available.";
   if (c.free_in_window === false) return "Partner is already booked in every one of the owner's times.";
   return null;
@@ -243,6 +249,16 @@ export function coordinationState(f: CoordinationFacts, now = new Date()): Coord
   return { state: "waiting", hours };
 }
 
+/** Jo 28 Oct 2026: a Ready Check is past waiting for a time once it is done. */
+export const READY_CHECK_DONE_STAGES: ReadonlySet<string> = new Set(["ready_check_complete", "measured_estimate_ready", "measured_quote_accepted"]);
+/** Whether the 48h "time not confirmed" office flag applies to this visit. Installers book the Ready Check with the owner
+ *  outside the portal (Jo 28 Oct 2026), so installer jobs never get it; nor does a Ready Check already done. Other visits unchanged. */
+export function readyCheckOverdueApplies(visit: VisitKind | string, job: { stage: string | null | undefined; channel: string | null | undefined }): boolean {
+  if (visit !== "ready_check") return true;
+  if (job.channel === "installer_sourced") return false;
+  return !READY_CHECK_DONE_STAGES.has(job.stage ?? "");
+}
+
 export type ProposalLike = { status: string; proposer_role: string };
 /** Booked only when the recorded proposal is accepted by someone other than the proposer, or by office. */
 export function isConfirmedBooking(p: ProposalLike & { responder_role?: string | null }): boolean {
@@ -265,6 +281,8 @@ export type ClearanceFacts = {
    *  electrical (fixes) charge has been received on top of the safety check payment (payments.core `onsiteChargePaid`,
    *  read by electrical-clearance.server). The safety check payment alone is never enough. Absent = false. */
   fixesPaymentCleared?: boolean;
+  /** Server-verified held in-house business bills the rectification directly. */
+  partnerBilledRectification?: boolean;
 };
 export type ClearanceBasis = "initial_piesa" | "section_c" | "electrician_at_start";
 export type Clearance = { cleared: boolean; timingDate: string | null; basis: ClearanceBasis | null; blocker: string | null; pendingConfirmation: string };
@@ -278,11 +296,11 @@ export function electricalClearance(f: ClearanceFacts): Clearance {
     if (f.piesaOutcome !== "pass") return { ...base, cleared: false, timingDate: null, basis: null, blocker: "PIESA did not pass." };
     return { ...base, cleared: true, timingDate: f.piesaCompletedAt, basis: "initial_piesa", blocker: null };
   }
-  if (!f.rectificationQuoteAccepted) return { ...base, cleared: false, timingDate: null, basis: null, blocker: "Owner has not approved the electrical fixes quote." };
+  if (!f.partnerBilledRectification && !f.rectificationQuoteAccepted) return { ...base, cleared: false, timingDate: null, basis: null, blocker: "Owner has not approved the electrical fixes quote." };
   // Decision 314 follow-up: "Be on site at the start of the install day" alone — the electrician attends the install day
   // instead of a fixes visit, so there is no Section C. Cleared once the owner has accepted the fixes quote AND the payment
   // rule has cleared; the 30 days still run from the official PIESA date (decision 316).
-  if (f.onsiteStartOnly) {
+  if (f.onsiteStartOnly && !f.partnerBilledRectification) {
     if (!f.fixesPaymentCleared) return { ...base, cleared: false, timingDate: null, basis: null, blocker: "Waiting for the owner's payment for the electrician on site at the start of the install day." };
     return { ...base, cleared: true, timingDate: f.piesaCompletedAt, basis: "electrician_at_start", blocker: null };
   }
@@ -331,8 +349,8 @@ export function rectificationSendBlocker(q: RectQuoteFacts, actorIsOffice: boole
   if (q.status !== "draft") return "Only a draft electrical fixes quote can be sent.";
   return null;
 }
-export function rectificationVisitBlocker(f: { quoteAccepted: boolean; recActiveApproved: boolean }): string | null {
-  if (!f.quoteAccepted) return "Owner must approve the electrical fixes quote before the visit is arranged.";
+export function rectificationVisitBlocker(f: { quoteAccepted: boolean; recActiveApproved: boolean; partnerBilledRectification?: boolean }): string | null {
+  if (!f.partnerBilledRectification && !f.quoteAccepted) return "Owner must approve the electrical fixes quote before the visit is arranged.";
   if (!f.recActiveApproved) return "The PIESA electrician is no longer approved/active — office must arrange another REC.";
   return null;
 }
@@ -358,7 +376,7 @@ export type NeedsCode =
   | "owner_no_show_repeat" | "trade_no_show" | "owner_cancelled_visit" | "rectification_new_times" | "installer_usual_electrician_missing"
   | "mitti_fix_form" | "mitti_review_pickup" | "ready_check_held" | "quote_held_review" | "quote_not_delivered" | "mitti_setup_installer" | "ready_check_chase_installer" | "quote_auto_send_held"
   | "xero_invoice_product_unconfirmed" | "veec_assignment_unsigned" | "electrician_install_attendance" | "install_deposit_unpaid_at_start"
-  | "payment_match_unclear" | "xero_invoice_repairs_held";
+  | "payment_match_unclear" | "stop_installer_release_failed";
 export type NeedsUrgency = "urgent" | "today" | "soon";
 export type NeedsItem = { key: string; code: NeedsCode; jobId: string | null; jobNumber: string | null; why: string; next: string; tab: string; since: string | null; urgency: NeedsUrgency; stage: string | null; suburb: string | null };
 
@@ -374,10 +392,10 @@ export const NEEDS_TEXT: Record<NeedsCode, { why: string; next: string; tab: str
   // automatically; this row appears only after 48h with no answer (one reminder sent at 24h) or when they can do no day left.
   electrician_install_attendance: { why: "Electrician can't attend / hasn't confirmed install-day attendance", next: "Office needs to: call the electrician. If they can't do any day left in the 30-day window, arrange another electrician or a new PIESA with the owner.", tab: "overview", urgency: "today" },
   // Decision 367 (Jo 25 Oct 2026): the install day started but the 10% deposit is still unpaid (the pre-start check locks it).
-  install_deposit_unpaid_at_start: { why: "Install day has started but the 10% install deposit is not paid — the install is locked.", next: "Office needs to: call the owner about the deposit (bank transfer / PayID). Once it shows in Xero the install unlocks; otherwise move the install day.", tab: "quotes", urgency: "urgent" },
-  payment_match_unclear: { why: "A card payment and a Xero payment of the same amount have no shared Stripe id, so both are counted (audit R02).", next: "Office needs to: check in Xero. If it is the same card money, remove that Xero payment and apply it again with the Stripe id (pi_… or ch_…) in the Reference – it then counts once. If they are two payments, nothing changes.", tab: "quotes", urgency: "soon" },
-  // Audit R07: the portal counts the approved fixes but the Xero invoice doesn't hold them yet.
-  xero_invoice_repairs_held: { why: "Approved electrical fixes are not on the Xero invoice yet — the portal total and the Xero invoice disagree.", next: "Office needs to: add the fixes to the SAME Xero invoice (if Xero refuses because a payment is on it, remove the payment, add the fixes line, re-apply the payment), then press Sync on the job's Money card.", tab: "quotes", urgency: "today" },
+  install_deposit_unpaid_at_start: { why: "Install day has started but the 10% install deposit is not paid — the install is locked.", next: "Office needs to: call the owner about the deposit (card, bank transfer or PayID). Once it shows in Xero the install unlocks; otherwise move the install day.", tab: "quotes", urgency: "urgent" },
+  payment_match_unclear: { why: "A card payment and a same-amount Xero payment have no shared Stripe id, so they are counted once until you confirm (audit R02).", next: "Office needs to: if it's the same money, add the Stripe id to the Xero payment reference. If they are two separate payments, press 'Two separate payments' on the job's Money card.", tab: "quotes", urgency: "soon" },
+  // Batch 2 (Jo 29 Oct): the owner texted STOP but cancelling the job's installer failed; the office cancels again.
+  stop_installer_release_failed: { why: "STOP received, but releasing the installer failed — retrying automatically; open the job if this stays", next: "Office needs to: the portal retries every 15 minutes; if this stays, open the job and check the installer is released.", tab: "overview", urgency: "today" },
   xero_invoice_product_unconfirmed: { why: "Xero invoice went out without the installed product/m² wording (ESC tax-invoice requirement).", next: "Office needs to: confirm the insulation product and measured area on the job, then add the brand, model, R-value and m² to the Xero invoice line.", tab: "quotes", urgency: "soon" },
   ready_check_chase_installer: { why: "Chase installer: the Ready Check is still missing answers or photos after 24 hours.", next: "Office needs to: call the installer and ask them to finish the Mitti form.", tab: "overview", urgency: "today" },
   installer_usual_electrician_missing: { why: "Installer has no usual electrician saved", next: "Office needs to: ask the installer to add their usual electrician in My business, then sync the Ready Check again.", tab: "quotes", urgency: "today" },
@@ -445,7 +463,7 @@ export function needsItem(code: NeedsCode, jobId: string | null, jobNumber: stri
 
 export type NeedsInput = {
   now: Date;
-  jobs: { id: string; job_number: string | null; stage?: string | null; suburb?: string | null }[];
+  jobs: { id: string; job_number: string | null; stage?: string | null; suburb?: string | null; channel?: string | null }[];
   recNoLongerApproved?: { job_id: string; since: string | null }[];
   coverageExhausted: { job_id: string; created_at: string; detail?: string | undefined }[]; // latest exhaustion with no active electrician since
   releases: { job_id: string; visit_kind: VisitKind; released_at: string; confirmed_at: string | null }[];
@@ -483,6 +501,9 @@ export function buildNeedsHivic(i: NeedsInput): NeedsItem[] {
   for (const e of i.coverageExhausted) add("rec_coverage_exhausted", e.job_id, e.created_at, e.detail);
   for (const r of i.recNoLongerApproved ?? []) add("rec_no_longer_approved", r.job_id, r.since);
   for (const r of i.releases) {
+    // Jo 28 Oct: installers book the Ready Check outside the portal; a done Ready Check never waits on a time.
+    const rj = jobs.get(r.job_id);
+    if (!readyCheckOverdueApplies(r.visit_kind, { stage: rj?.stage ?? null, channel: rj?.channel ?? null })) continue;
     const s = coordinationState({ releasedAt: r.released_at, firstProposalAt: null, confirmedAt: r.confirmed_at }, i.now);
     if (s.state !== "needs_office") continue;
     if (r.visit_kind === "ready_check") add("ready_check_booking_overdue", r.job_id, r.released_at);

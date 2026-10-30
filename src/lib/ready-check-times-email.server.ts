@@ -1,3 +1,4 @@
+import { inHouseDispatchSkip } from "./in-house-suppression.server";
 // Owner "choose a time for your Ready Check" email (Jo 24 Oct 2026). Best-effort: never blocks the installer's offer.
 // TEST jobs get the draft through test-send; real owners only once Jo approves the wording AND customer messages are
 // on, through the one guarded owner-email path. One email per set of offered times.
@@ -5,6 +6,8 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 
 export async function emailOwnerReadyCheckTimes(jobId: string, startsAt: string[]): Promise<string> {
+  const skipped = await inHouseDispatchSkip(jobId);
+  if (skipped) return skipped;
   const { data: job } = await admin.from("jobs").select("owner_id, source").eq("id", jobId).maybeSingle();
   if (!job) return "skipped";
   const [{ data: owner }, { data: asg }, { data: link }, { data: prop }, { data: saved }] = await Promise.all([

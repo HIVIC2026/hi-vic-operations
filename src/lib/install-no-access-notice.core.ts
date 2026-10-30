@@ -8,6 +8,7 @@
 import * as K from "./email-kit.core";
 import { mjEmail, esc } from "./mail-mjml.core";
 import type { ReadyCheckTimeSlot } from "./ready-check-times-email.core";
+import { SMS_QUIET_REASON, smsQuietReason } from "./quote-hold.core";
 
 /** Flip to true only when Jo approves the O65 wording (and the SMS type in sms.core at the same time). */
 export const INSTALL_NO_ACCESS_NOTICE_APPROVED = true as boolean; // Jo approved the text + O65 email wording 24 Oct 2026 (decision 217)
@@ -18,6 +19,16 @@ export const INSTALL_NO_ACCESS_NOTICE_EVENT = "install_no_access_owner_notice";
 /** Decision 215: the office is alerted on the second no-access on the same job, not the first. */
 export function installNoAccessAlertsOffice(priorInstallNoAccessCount: number): boolean {
   return priorInstallNoAccessCount >= 1;
+}
+
+/** Decision 215 / spec D4: the text is held after 8pm (quiet hours; a held text never claims its key). The tick sends it once
+ *  from 7am: key unclaimed, every earlier hold was the quiet-hours hold, and the report is under 24 hours old. */
+export function installNoAccessTextCatchUpDue(f: { claimed: boolean; heldReasons: string[]; reportedAt: string }, nowIso: string): boolean {
+  if (smsQuietReason(nowIso)) return false;
+  if (f.claimed || f.heldReasons.length === 0) return false;
+  const at = Date.parse(f.reportedAt), now = Date.parse(nowIso);
+  if (!Number.isFinite(at) || !Number.isFinite(now) || now - at > 24 * 3600_000) return false;
+  return f.heldReasons.every((r) => r === SMS_QUIET_REASON);
 }
 
 export type InstallNoAccessFacts = {

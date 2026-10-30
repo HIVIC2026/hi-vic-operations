@@ -13,6 +13,8 @@ export type OnsiteInput = {
   /** Jo 24 Oct: true only when the address was picked from the Google address list (street, suburb and postcode
    *  all come from the lookup). Typing anything afterwards clears it. */
   address_verified?: boolean | undefined;
+  /** A8: Google could not find it, so the installer typed it in (still checked by the same address rules). */
+  address_typed?: boolean | undefined;
 };
 
 /** On-site Gate A clears when the installer confirms consent. */
@@ -105,3 +107,19 @@ export function plainMittiError(msg: string): string {
 }
 /** Only network-type errors are worth retrying automatically. */
 export const retryable = (msg: string) => /could not be reached|failed \(5|timeout/i.test(msg);
+
+/** A1 (Jo, 29 Oct 2026): how the installer got this customer. Door-knocked and cold-called jobs can't be added. */
+export type LeadOrigin = "owner_contacted" | "referral" | "door_knock" | "cold_call";
+export const LEAD_ORIGIN_QUESTION = "How did you get this customer?";
+export const LEAD_ORIGINS: { value: LeadOrigin; label: string }[] = [
+  { value: "owner_contacted", label: "The owner contacted me" },
+  { value: "referral", label: "Referral or past customer" },
+  { value: "door_knock", label: "Door-knocking" },
+  { value: "cold_call", label: "Cold call" },
+];
+export const LEAD_ORIGIN_MISSING = "Choose how you got this customer.";
+export const LEAD_ORIGIN_BLOCKED = "Jobs from door-knocking or cold calls can't be added — the VEU Code of Conduct doesn't allow them.";
+export function leadOriginProblem(o: LeadOrigin | null | undefined): string | null {
+  if (!o) return LEAD_ORIGIN_MISSING;
+  return o === "door_knock" || o === "cold_call" ? LEAD_ORIGIN_BLOCKED : null;
+}

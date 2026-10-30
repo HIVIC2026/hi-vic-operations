@@ -430,7 +430,7 @@ describe("T1–T7 render through Jo's one shell with real links", () => {
     expect(r(T).html).toContain(`href="${T}"`);
     const fb = r(JO_RESULT_FALLBACK_URL);
     expect(fb.html).toContain(`href="${JO_RESULT_FALLBACK_URL}"`);
-    expect(fb.html).toContain(`href="${PUBLIC_CALCULATOR_URL}"`);
+    expect(fb.html).toContain(encodeURIComponent(JO_RESULT_FALLBACK_URL)); // the "Send to a friend" email shares the homeowner page (Jo, 27 Oct)
     expect(fb.html).not.toMatch(
       /\[(Review my result|Contact us|Privacy|Remove my enquiry)[^\]]*\]/,
     );

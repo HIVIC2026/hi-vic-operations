@@ -40,12 +40,12 @@ describe("Step 2 refinement: preliminary declared thresholds", () => {
 });
 
 describe("confirmed previous Activity 48 provenance", () => {
-  test("hard-fail cites the confirmed record, not the owner declaration", () => {
+  test("a confirmed record no longer fails or flags (previous upgrade is always no)", () => {
     const p = prop({});
     (p.enrichment as Record<string, unknown>)["previous_activity_48_confirmed"] = true;
     const x = run(p);
-    expect(x.outcome).toBe("does_not_appear_eligible");
-    expect(r(x, "previous_activity")).toMatchObject({ result: "fail", basis: "verified", source: "properties.enrichment.previous_activity_48_confirmed" });
+    expect(x.outcome).not.toBe("does_not_appear_eligible");
+    expect(r(x, "previous_activity").result).toBe("pass");
   });
 });
 

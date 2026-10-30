@@ -50,6 +50,9 @@ export const SMS_MESSAGE_TYPES = {
   // Decision 315 (Jo 25 Oct 2026, route approved): the A3 PIESA says electrical fixes are needed and no fixes times exist →
   // the assigned electrician gets ONE text with the link to pick 3–5 times on their job page. Wording: fixesTimesLinkText (fixes-times.core.ts).
   fixes_times_link: { audience: "partner", label: "Electrical fixes needed – electrician's link to pick 3 to 5 fixes times (decision 315)", wordingApproved: true, quietHours: true },
+  // A48 batch 1 (Jo 29 Oct 2026, wording approved): the A3 safety check breaks the official PIESA rules → the electrician is
+  // told once per form version (text + email). Wording: piesaRulesMessage (piesa-rules-notice.core.ts).
+  piesa_rules_failed: { audience: "partner", label: "Safety check breaks the official rules – electrician asked to correct the form or book the repairs (A48 batch 1)", wordingApproved: true, quietHours: true },
   // Decision 327 (Jo 25 Oct 2026, route approved): the A3 says the electrician must be on site at the start of the install
   // day → once the day is booked (and on every change) the assigned electrician is asked to confirm on their job page.
   // Wording: attendanceSmsText (install-attendance.core.ts).
@@ -93,6 +96,27 @@ export const SMS_MESSAGE_TYPES = {
   // Decision 389 (Jo 25 Oct 2026): Jo released the owner's saved spot → "It's your turn" to the OWNER (release + day-2
   // reminder; spot-release.core spotReleasedText). DRAFT until Jo sees the rendered picture (rendered O77 picture).
   spot_released: { audience: "owner", label: "It's your turn – confirm your free Ready Check, release + day-2 reminder (decision 389, approved)", wordingApproved: true, quietHours: true },
+  // Plan 2026-10-28 (full address required): a website/email enquiry with no street → the owner is asked to pick their
+  // full address on /my-address/{token}, plus ONE reminder 24h later. Wording: addressRequestText (address-request.core.ts),
+  // DRAFT until Jo approves it.
+  address_request: { audience: "owner", label: "We need your full address – owner picks it on their secure page", wordingApproved: true /* approved by Jo 28 Oct 2026 */, quietHours: true },
+  address_request_reminder: { audience: "owner", label: "We need your full address – one reminder 24h later", wordingApproved: true /* approved by Jo 28 Oct 2026 */, quietHours: true },
+  // A48 batch 2 (Jo 29–30 Oct 2026, wording approved in the part 1 spec): Jo taps Send on an area batch → the OWNER gets the
+  // quick taps link (area-batch.core quickTapsText), plus the day-2 reminder. Own switches, off until Jo switches them on.
+  quick_taps: { audience: "owner", label: "Confirm a few quick details for your free Ready Check – area batch sent (A48 batch 2)", wordingApproved: true, quietHours: true },
+  quick_taps_reminder: { audience: "owner", label: "Confirm a few quick details – day-2 reminder (A48 batch 2)", wordingApproved: true, quietHours: true },
+  // A48 batch 2 part 2 (Jo 30 Oct 2026, wording approved in the part 2 spec): Jo taps "Send to installer" on a closed batch →
+  // the INSTALLER gets the run link (run-route.core runOfferedText). Own switch, off until Jo switches it on.
+  run_offered: { audience: "partner", label: "You've got a run of Ready Checks – pick your day (A48 batch 2 runs)", wordingApproved: true, quietHours: true },
+  // A48 batch 2 part 2, Portal books (Jo 30 Oct 2026, wording approved in the part 2 spec): the installer picked the run's day
+  // → each OWNER gets their 1-hour window to confirm (run-portal.core runTimeText), plus ONE reminder at 12 hours. Own
+  // switches, off until Jo switches them on.
+  run_time: { audience: "owner", label: "Your free Ready Check is {day} {time} – tap to confirm (A48 batch 2 runs)", wordingApproved: true, quietHours: true },
+  run_time_reminder: { audience: "owner", label: "Please confirm your free Ready Check – 12-hour reminder (A48 batch 2 runs)", wordingApproved: true, quietHours: true },
+  // A48 batch 2 part 2, Task 8: the owner cancelled a confirmed run window → the INSTALLER is told once, with the run link
+  // ("Fill from nearby waiting owners"; run-portal.core runSlotCancelledText). Own switch, off until Jo switches it on;
+  // wording approved by Jo 30 Oct 2026 (Task 8 fix round 1).
+  run_slot_cancelled: { audience: "partner", label: "An owner cancelled their Ready Check in your run – offer the time to a nearby owner (A48 batch 2 runs)", wordingApproved: true, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 
@@ -148,6 +172,7 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   piesa_owner_confirm: { kind: "window" }, // request / day 1 / day 3: each step recorded once per PIESA record before any send (piesa-owner-confirm-send.server)
   piesa_owner_fixes_confirm: { kind: "window" }, // request / day 1 / day 3: each step recorded once per post_rectification record before any send (piesa-fixes-confirm-send.server)
   fixes_times_link: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the A3 PIESA completed in Mitti; also needs no fixes times given yet (fixes-times.server)
+  piesa_rules_failed: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the `piesa_rules_failed` record for this form version (recorded once before any send; piesa-rules-notice.server)
   electrician_install_attendance: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the request / reminder recorded for this install booking (install-attendance.server); re-offered by the tick only while unanswered
   electrician_cant_attend_installer: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the electrician's "Can't make it" (recorded once per released booking before any send)
   install_day_form_result: { kind: "window" }, // key = job + audit + revision; recorded once before any send, only on an install day (install-day-confirm.server)
@@ -166,6 +191,14 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   piesa_times_reminder: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the 24h coordination point; also needs still no times offered
   installer_planning_notice: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the safety check booking; also needs that start still booked
   spot_released: { kind: "window" }, // key = job + release number + slot (released / reminder / release_text); each slot recorded once before any send (spot-release.server)
+  address_request: { kind: "window" }, // key = job; recorded once as a workflow event; a quiet-hours hold is re-tried by the tick under the same key (address-request.server)
+  address_request_reminder: { kind: "window" }, // key = job; due 24h after the request, recorded once; same quiet-hours retry
+  quick_taps: { kind: "window" }, // key = batch + job + step; the area_batch_sent event is recorded before any send (area-batch.server)
+  quick_taps_reminder: { kind: "window" }, // key = batch + job + reminder; due on day 2, recomputed by the batch sweep
+  run_offered: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = Jo's "Send to installer" tap; the run's 24h reply window
+  run_time: { kind: "window" }, // key = run + job + window; the window is recorded before any send; held → the tick retries
+  run_time_reminder: { kind: "window" }, // key = run + job + window; due 12h after the time text, recomputed by the tick
+  run_slot_cancelled: { kind: "window" }, // key = run + job + window; `run_slot_cancelled` recorded once per window before any send; held → the tick retries while that time is still unfilled and ahead
 };
 
 export type SmsEventInput = {
@@ -226,6 +259,8 @@ export type SmsGateInput = {
   adminSpotReminderBlast?: boolean;
   /** Instant used for the quiet-hours rule; defaults to now. */
   nowIso?: string;
+  /** "Pause all trade messages" hold reason (trade-pause.core.ts); applies to partner-audience types only. */
+  tradeMessagesPaused?: string | null;
 };
 
 /** Decision 328: a same-day text exempt from the 8pm quiet hours still never goes before 7am Melbourne. */
@@ -240,22 +275,36 @@ export function smsBlocker(x: SmsGateInput): string | null {
   const t = SMS_MESSAGE_TYPES[x.type as SmsMessageType];
   if (!t) return "Unknown message type";
   if (x.isTestRecord) return "TEST record – use the test sender";
+  // Jo 30 Oct 2026: "Pause all trade messages" holds every text to installers/electricians (trade-pause.core.ts).
+  if (t.audience === "partner" && x.tradeMessagesPaused) return x.tradeMessagesPaused;
   if (!t.wordingApproved) return "Wording not approved yet";
   if (t.quietHours) { const q = smsQuietReason(x.nowIso ?? new Date().toISOString()); if (q) return q; }
   else if ("notBefore7am" in t && t.notBefore7am) { const q = smsBefore7amReason(x.nowIso ?? new Date().toISOString()); if (q) return q; }
   if (!x.commsEnabled) return "Customer communications are switched off";
   if (!x.typeSwitchOn && !(ONE_OFF_BLAST_TYPES.includes(x.type as SmsMessageType) && x.adminSpotReminderBlast === true)) return `"${t.label}" texts are switched off`;
   if (!x.senderConfigured) return "No Australian sending number set up";
-  if (!toAuE164(x.to)) return "Not an Australian mobile number";
-  if (x.optedOut) return "This number replied STOP";
-  if (!x.consent) return t.audience === "owner" ? "No contact consent from the owner" : "Partner is not approved and active";
+  if (!toAuE164(x.to)) return SMS_NOT_MOBILE;
+  if (x.optedOut) return SMS_REPLIED_STOP;
+  if (!x.consent) return t.audience === "owner" ? SMS_NO_OWNER_CONSENT : "Partner is not approved and active";
   return null;
 }
 
+/** Holds that belong to the RECIPIENT (not a switch, quiet hours or the sender): trying again changes nothing until the
+ *  owner's details change. Callers that retry on a tick record these once instead (A48 batch 2 final review m5). */
+export const SMS_NOT_MOBILE = "Not an Australian mobile number";
+export const SMS_REPLIED_STOP = "This number replied STOP";
+export const SMS_NO_OWNER_CONSENT = "No contact consent from the owner";
+const RECIPIENT_HOLDS: readonly string[] = [SMS_NOT_MOBILE, SMS_REPLIED_STOP, SMS_NO_OWNER_CONSENT];
+/** A real-sender result that was held for the recipient (STOP, no consent, not a mobile). */
+export const smsHeldForRecipient = (r: { status: string; detail: string | null | undefined }): boolean => r.status === "blocked" && RECIPIENT_HOLDS.includes(String(r.detail ?? ""));
+
 /** Brand line at the start of every text the portal sends (Jo, 8 Oct). Visible brand only — never "HI VIC". */
 export const SMS_BRAND_PREFIX = "Home Insulation Victoria: ";
+/** A text Jo approved signed off at the end with " - Home Insulation Victoria" (plain hyphen; A48 batch 2 quick taps)
+ *  already carries the brand. Only that exact ending: older texts ending "– Home Insulation Victoria" keep the prefix. */
+const SIGNED_OFF = / - Home Insulation Victoria$/;
 export function brandSmsBody(body: string): string {
-  return body.trimStart().startsWith(SMS_BRAND_PREFIX) ? body : SMS_BRAND_PREFIX + body.trimStart();
+  return body.trimStart().startsWith(SMS_BRAND_PREFIX) || SIGNED_OFF.test(body) ? body : SMS_BRAND_PREFIX + body.trimStart();
 }
 
 /** STOP / START keywords (Twilio standard set). */

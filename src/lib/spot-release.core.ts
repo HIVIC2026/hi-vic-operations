@@ -115,15 +115,23 @@ export function spotReleaseDue(s: SpotReleaseState, now: Date, job: { waiting: b
  *  installer rate card (the same `rate_cards` row the quote builder prices from); nothing is recorded or sent. */
 export const NO_RATE_CARD_REASON = "This installer has no rate card yet";
 
+/** A48 batch 2 (Jo 30 Oct 2026): website owners are no longer released one by one — "It's your turn" is retired; they go
+ *  in area batches (quick taps) instead. Releases already made stay readable (history, the owner's `?screen=turn` page,
+ *  the sweep for ones still pending), and an owner who already confirmed still goes straight to the installer. */
+export const SPOT_RELEASE_RETIRED = true;
+export const RELEASE_RETIRED_REASON = "Website owners now go in area batches — use Suggested batches on Choose installer.";
+
 export type ReleasePlan = { mode: "release" } | { mode: "direct_offer" } | { mode: "refused"; reason: string };
-/** What pressing Release does. A confirmed owner → straight to the installer offer (never asked twice).
+/** What pressing Release does. A confirmed owner → straight to the installer offer (never asked twice). Anything else is
+ *  refused while "It's your turn" is retired (`retired`, default SPOT_RELEASE_RETIRED; tests of the old flow pass false).
  *  `hasRateCard` = the chosen installer business has an active installer rate card (decision 399); fail closed. */
-export function releasePlan(f: { state: SpotReleaseState; testJob: boolean; emailApproved: boolean; smsApproved: boolean; hasRateCard: boolean; now?: number }): ReleasePlan {
+export function releasePlan(f: { state: SpotReleaseState; testJob: boolean; emailApproved: boolean; smsApproved: boolean; hasRateCard: boolean; now?: number; retired?: boolean }): ReleasePlan {
   const s = f.state;
   if (s.state === "pending") return { mode: "refused", reason: `Already released to ${s.businessName ?? "an installer"} — waiting for the owner to confirm.` };
   if (s.state === "declined") return { mode: "refused", reason: "The owner said they're no longer interested." };
   if (f.hasRateCard !== true) return { mode: "refused", reason: NO_RATE_CARD_REASON };
   if (s.state === "confirmed") return { mode: "direct_offer" };
+  if (f.retired ?? SPOT_RELEASE_RETIRED) return { mode: "refused", reason: RELEASE_RETIRED_REASON };
   if (!f.testJob && !(f.emailApproved && f.smsApproved)) return { mode: "refused", reason: SPOT_RELEASE_UNAPPROVED };
   return { mode: "release" };
 }

@@ -11,6 +11,7 @@ import { useAction } from "@/hooks/use-me";
 import { getTradeFixesTimes, saveTradeFixesTimes } from "@/lib/trade-view.functions";
 import { FIXES_TIMES_ANCHOR } from "@/lib/fixes-times.core";
 import { formatPiesaWindow } from "@/lib/piesa-windows.core";
+import { PIESA_FULL } from "@/lib/job-wording";
 
 export function useTradeFixesTimes(jobId: string) {
   const load = useServerFn(getTradeFixesTimes);
@@ -38,7 +39,7 @@ export function FixesTimesCard({ jobId }: { jobId: string }) {
           </>
         ) : (
           <>
-            <p className="mb-2 text-sm text-sub">The safety check needs electrical fixes. Pick 3 to 5 times you can do the work and how long it will take.</p>
+            <p className="mb-2 text-sm text-sub">The {PIESA_FULL} needs electrical fixes. Pick 3 to 5 times you can do the work and how long it will take.</p>
             <RectPlanFields value={plan} onChange={setPlan} />
             <Button size="field" className="mt-3 w-full" disabled={busy || rectPlanProblems(plan).length > 0} onClick={async () => {
               setBusy(true);

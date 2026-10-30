@@ -1,6 +1,6 @@
 // Installer Add a job (Jo, 8 Oct 2026; basics only since decision 34, 24 Oct 2026; ONE screen per approved mock-up
 // M3, decision 198). Pure presentation/state rules only. Validation comes from the existing validators; no new lifecycle.
-import { PICK_ADDRESS, onsiteProblems, type OnsiteInput, type OnsiteState } from "./onsite-ready-check.core";
+import { LEAD_ORIGIN_BLOCKED, LEAD_ORIGIN_MISSING, PICK_ADDRESS, onsiteProblems, type OnsiteInput, type OnsiteState } from "./onsite-ready-check.core";
 import { installTimeLabel } from "./install-days.core";
 
 /** Mock-up M3 heading lines. */
@@ -9,22 +9,40 @@ export const ADD_JOB_DETAIL = "Enter the details perfectly and in full — they 
 /** Mock-up M3 "what happens next" (decisions 115, 163). */
 export const WHAT_HAPPENS_NEXT = "The Ready Check form appears in your Mitti app within about 15 minutes. Press Complete in Mitti only when it's fully finished — that sends the owner their quote. Your typed details stay on your phone if the signal drops.";
 
+/** A5 (Jo 28 Oct): what staff (not the business owner) are told at the start, instead of the form. */
+export const ADD_JOB_STAFF_ONLY = "Only your business owner can add jobs. Ask them to add this customer for you.";
+/** Same membership rule as the save (`requireMember(…, true)`): owner of any business → that business; staff only → staff. */
+export function addJobStartState(m: Map<string, "business_admin" | "member">): { kind: "owner"; businessId: string } | { kind: "staff" } | { kind: "none" } {
+  for (const [businessId, role] of m) if (role === "business_admin") return { kind: "owner", businessId };
+  return m.size > 0 ? { kind: "staff" } : { kind: "none" };
+}
+
 export const blankCustomer = (): OnsiteInput => ({ full_name: "", address_line: "", suburb: "", postcode: "", phone: "", email: "", contact_permission: false, consent_by: null });
 
 /** A restored phone draft never carries consent forward: it must be ticked again for this job. */
 export const restoreCustomer = (raw: unknown): OnsiteInput => {
   const d = (raw && typeof raw === "object" ? raw : {}) as Partial<Record<keyof OnsiteInput, unknown>>;
   const s = (k: keyof OnsiteInput) => (typeof d[k] === "string" ? (d[k] as string) : "");
-  return { full_name: s("full_name"), address_line: s("address_line"), suburb: s("suburb"), postcode: s("postcode"), phone: s("phone"), email: s("email"), contact_permission: false, consent_by: null, address_verified: d.address_verified === true };
+  return { full_name: s("full_name"), address_line: s("address_line"), suburb: s("suburb"), postcode: s("postcode"), phone: s("phone"), email: s("email"), contact_permission: false, consent_by: null, address_verified: d.address_verified === true, address_typed: d.address_typed === true };
 };
+/** A6: the draft also carries its `request_key` (one per draft), so "Try again" after a reload finishes the same job. */
+export const restoreRequestKey = (raw: unknown): string | null => {
+  const k = raw && typeof raw === "object" ? (raw as Record<string, unknown>)["request_key"] : null;
+  return typeof k === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(k) ? k : null;
+};
+
+/** A8: wording of the two links under the address when Google cannot find it. */
+export const ADDRESS_TYPE_IN = "Can't find the address? Type it in";
+export const ADDRESS_PICK_AGAIN = "Pick from the list instead";
 
 /** On the phone the address must also be picked from the Google list (Jo 24 Oct); sample screens type freely. */
 export const customerProblems = (c: OnsiteInput, opts: { requirePicked?: boolean } = {}) =>
-  opts.requirePicked === false || c.address_verified === true ? onsiteProblems(c) : [PICK_ADDRESS, ...onsiteProblems(c)];
+  opts.requirePicked === false || c.address_verified === true || c.address_typed === true ? onsiteProblems(c) : [PICK_ADDRESS, ...onsiteProblems(c)];
 
 /** Save button wording: says what the tap really does — saving is not booking and not an open form. */
 export const SAVE_LABEL = "Add job";
 export const BUSY_LABEL = "Saving…";
+export const TRY_AGAIN_LABEL = "Try again";
 
 /** Jo 25 Oct: errors say why (decision 273 wording rule). Decision 282: an email is never a reason to refuse, so the
  *  only duplicate message is the server's own "This address already has an open job (HV-xxxx)…" line, shown as is;
@@ -33,7 +51,7 @@ export const NEUTRAL_SAVE_ERROR = "Job not added. Please contact the office for 
 export function saveErrorMessage(msg: string | null | undefined): string {
   const m = msg ?? "";
   if (/already on another customer record|owners_email_uq|duplicate key/i.test(m)) return NEUTRAL_SAVE_ERROR;
-  if (/load failed|failed to fetch|network|timeout|fetch failed/i.test(m)) return "The save confirmation was interrupted. Your details are kept; tap Retry submission to finish the same job. Do not add it again.";
+  if (/load failed|failed to fetch|network|timeout|fetch failed/i.test(m)) return "The save confirmation was interrupted. Your details are kept; tap Try again to finish the same job. Do not add it again.";
   if (!m) return "No signal — your details are kept. Tap again when you have signal.";
   return m;
 }
@@ -96,12 +114,13 @@ export function outcomeFor(r: { booking: AddJobBooking; state: OnsiteState | und
 }
 
 // ---------- Heavier Add a job (approved 24 Oct 2026, decision 237): error state + "Job added" screen. Presentation only. ----------
-export type AddJobField = "full_name" | "address" | "phone" | "email" | "permission" | "visit" | "electrician";
+export type AddJobField = "full_name" | "address" | "phone" | "email" | "permission" | "visit" | "electrician" | "lead_origin";
 /** One short red line per field from the existing validator messages (validation itself is unchanged). */
 export function fieldErrors(problems: string[]): Partial<Record<AddJobField, string>> {
   const out: Partial<Record<AddJobField, string>> = {};
   for (const p of problems) {
-    if (/electrical safety check|usual electrician/i.test(p)) out.electrician ??= p;
+    if (p === LEAD_ORIGIN_BLOCKED || p === LEAD_ORIGIN_MISSING) out.lead_origin ??= p;
+    else if (/electrical safety check|usual electrician/i.test(p)) out.electrician ??= p;
     else if (/full name|first and last|owner's name/i.test(p)) out.full_name ??= "Enter the owner's first and last name.";
     else if (/mobile/i.test(p)) out.phone ??= /Check the mobile/i.test(p) ? "That doesn't look like a mobile number." : "Enter the owner's mobile.";
     else if (/email/i.test(p)) out.email ??= /Check the email/i.test(p) ? "That doesn't look like an email address." : "Enter the owner's email.";
@@ -123,6 +142,7 @@ export const ELECTRICIAN_CARD = {
   title: "Electrical safety check",
   sub: "Who does the Pre Insulation Electrical Safety Assessment (PIESA) once the owner accepts the quote. Your usual electrician is set under My business.",
   noUsual: "To use your own electrician, add them under My business first.",
+  notOnboarded: (name: string) => `${name} can be picked here once they finish onboarding with Home Insulation Victoria.`,
 } as const;
 
 /** The approved "Job added" screen: tick header, Mitti card, what we do now, two links. Every fact comes from the save result. */

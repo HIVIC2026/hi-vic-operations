@@ -34,9 +34,11 @@ export async function mittiElectricianForJob(jobId: string, actorId: string | nu
   // rate); otherwise the quote holds "Electrician not onboarded: <name>" and the tick issues ONE onboarding invite.
   const { onboardedElectricianResolution, ELECTRICIAN_ONBOARDING_NEEDED_EVENT } = await import("./rec-onboarded.core");
   const candidates = legacy.choice === "hivic" || legacy.needsProfile ? [] : await (await import("./rec-onboarded.server")).loadApprovedRecCandidates();
-  // Jo 26 Oct 2026: an installer that pays its own electricians (Reinsulate) → flat owner line, no REC rate needed.
-  const paysOwn = (await import("./installer-paid-electricians.core")).installerPaysOwnElectricians(job.originating_installer_business_id);
-  const resolved = onboardedElectricianResolution({ legacy, usual: saved?.electrician ?? null, candidates, flatPiesaIncGst: paysOwn?.piesaIncGst ?? null });
+  // pays_own_electricians OR in_house → the business's flat PIESA line, no REC rate needed; not a held-visit decision.
+  const paysOwn = await (await import("./installer-paid-electricians.server")).readInstallerPaidElectricians(job.originating_installer_business_id);
+  const resolved = paysOwn?.release_hold_reason
+    ? { ...legacy, ready: false, priceIncGst: null, reasons: [paysOwn.release_hold_reason], needsProfile: false, notOnboarded: null }
+    : onboardedElectricianResolution({ legacy, usual: saved?.electrician ?? null, candidates, flatPiesaIncGst: paysOwn?.piesaIncGst ?? null });
   if (resolved.notOnboarded && job.originating_installer_business_id) {
     const need = { installer_business_id: job.originating_installer_business_id, name: resolved.notOnboarded.name, licence: resolved.notOnboarded.licence, email: resolved.notOnboarded.email, choice: resolved.choice };
     const { data: lastNeed, error: ne } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", ELECTRICIAN_ONBOARDING_NEEDED_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle();
@@ -52,4 +54,16 @@ export async function mittiElectricianForJob(jobId: string, actorId: string | nu
   const signature = (value: unknown) => JSON.stringify(keys.map((k) => [k, (value as Record<string, unknown> | null)?.[k] ?? null]));
   if (signature(previous?.details) !== signature(details)) await logEvent(jobId, actorId, "mitti_electrician_recorded", resolved.ready ? "Ready Check electrician details recorded for compliance (declared, not verified)" : resolved.reasons.join(" · "), details, { internal: true });
   return resolved;
+}
+/** A3: the saved usual electrician and whether they are onboarded (approved REC; flat-paid installers need no rate).
+ *  Reads candidates only when one is saved. */
+export async function readUsualElectricianStatus(businessId: string): Promise<{ electrician: import("./usual-electrician.core").UsualElectrician | null; onboarded: boolean }> {
+  const { electrician } = await readUsualElectrician(businessId);
+  if (!electrician) return { electrician: null, onboarded: false };
+  const candidates = await (await import("./rec-onboarded.server")).loadApprovedRecCandidates();
+  const paysOwn = await (await import("./installer-paid-electricians.server")).readInstallerPaidElectricians(businessId);
+  if (paysOwn?.release_hold_reason) return { electrician, onboarded: false };
+  const flat = paysOwn?.piesaIncGst ?? null;
+  const { usualIsOnboarded } = await import("./rec-onboarded.core");
+  return { electrician, onboarded: usualIsOnboarded(electrician, candidates, flat) };
 }

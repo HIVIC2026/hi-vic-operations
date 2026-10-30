@@ -1,10 +1,12 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { clearTradeCache, readTradeCache, writeTradeCache } from "@/lib/trade-cache";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { TradeShell, card } from "@/components/trade/TradeShell";
-import { Chevron, FileRow, NextPanel, SectionHead, Switch, M7 } from "@/components/trade/business-kit";
+import { Chevron, FileRow, SectionHead, Switch, M7 } from "@/components/trade/business-kit";
+import { NextPanel } from "@/components/trade/installer-kit";
 import { getTradeBusiness, setTradeTaking } from "@/lib/trade-view.functions";
 import { agreementLine, detailsLine, insuranceRowSub, noticeLine, ratesLine, ROLE_LABEL, shortDate, TEAM_RULE, teamCiiLine, teamFactsLine, usualElectricianLine } from "@/lib/trade-view.core";
 import { melbourneToday } from "@/lib/melbourne-time.core";
@@ -20,13 +22,15 @@ function Business() {
   const setTaking = useServerFn(setTradeTaking);
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const { data, error, refetch } = useQuery({ queryKey: ["trade-business"], queryFn: () => load(), staleTime: 30_000 });
+  const uid = Route.useRouteContext().user.id;
+  const seed = useMemo(() => readTradeCache<Awaited<ReturnType<typeof load>>>(uid, "business"), [uid]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { data, error, refetch } = useQuery({ queryKey: ["trade-business"], queryFn: async () => { const d = await load(); if (d) writeTradeCache(uid, "business", d); return d; }, staleTime: 30_000, ...(seed ? { initialData: seed.data, initialDataUpdatedAt: seed.at } : {}) });
   const [busy, setBusy] = useState(false);
   if (error) return <TradeShell installer={false}><p role="alert" className={card}>{(error as Error).message}</p></TradeShell>;
   if (!data) return <TradeShell installer={false}><p className="text-sm">Loading…</p></TradeShell>;
   const installer = data.kind === "installer";
   const today = melbourneToday();
-  const signOut = async () => { await qc.cancelQueries(); qc.clear(); await supabase.auth.signOut(); navigate({ to: "/auth", replace: true }); };
+  const signOut = async () => { await qc.cancelQueries(); qc.clear(); clearTradeCache(); await supabase.auth.signOut(); navigate({ to: "/auth", replace: true }); };
   const since = shortDate(data.approvedSince);
   const ins = insuranceRowSub(data.credentials, today);
   const notice = noticeLine(data.notice);
@@ -41,7 +45,7 @@ function Business() {
         </div>
       </section>
 
-      {data.boss && <NextPanel next={data.next} />}
+      {data.boss && data.next && <NextPanel look="business" title={data.next.title} sub={data.next.sub}><Link to={data.next.to as never} className={`${M7.primary} mt-3.5`}>{data.next.button}</Link></NextPanel>}
 
       {data.boss && <section>
         <SectionHead>Team</SectionHead>
@@ -62,7 +66,7 @@ function Business() {
             );
           })}
         </ul>
-        <Link to="/partner/workers" data-add-team className="flex min-h-12 items-center justify-between text-[15px] font-semibold text-estimate-blue"><span>Add a team member</span><Chevron /></Link>
+        <Link to="/field/business/team" data-add-team className="flex min-h-12 items-center justify-between text-[15px] font-semibold text-estimate-blue"><span>Add a team member</span><Chevron /></Link>
         {installer && <p className="text-[13px] leading-[1.45] text-estimate-sub">{TEAM_RULE}</p>}
       </section>}
 
@@ -75,7 +79,7 @@ function Business() {
         <FileRow to="/field/business/insurance" title="Insurance and licences" sub={ins.text} warn={ins.warn} testId="insurance" />
         <FileRow to="/field/business/agreement" title="Your agreement" sub={agreementLine(data.agreement)} testId="agreement" />
         {installer && <FileRow to="/field/business/esc-notice" title="ESC privacy notice" sub={notice.text} warn={notice.outstanding > 0} testId="notice" />}
-        <FileRow to="/field/guide" title="How it works" sub="The 2-minute guide: every job, the 30 days, getting paid" testId="guide" />
+        <FileRow to="/field/guide" title="How it works" sub={installer ? "The 2-minute guide: every job, the 30 days, getting paid" : "One minute: every job and getting paid"} testId="guide" />
       </section>}
 
       <button type="button" onClick={() => void signOut()} className="flex min-h-11 w-full items-center justify-center text-[15px] font-semibold text-estimate-sub">Sign out</button>

@@ -71,7 +71,7 @@ describe("collectionNoticeStatus", () => {
 describe("enforcement (decision 130): no lead or crew without acknowledgement", () => {
   const T = "2026-10-24";
   test("workerOfferBlocker, approval flags and My business missing items", () => {
-    const base = { trade_role: "installer", piisa_status: "done" as const, piisa_certificate_path: "p", piisa_verified_at: "2026-10-01" };
+    const base = { trade_role: "installer" };
     expect(workerOfferBlocker({ ...base, collection_notice_acknowledged: true }, T)).toBeNull();
     expect(workerOfferBlocker({ ...base, collection_notice_acknowledged: false }, T)).toBe(COLLECTION_NOTICE_BLOCK_MESSAGE);
     expect(workerOfferBlocker({ ...base }, T)).toBeNull(); // not loaded: unchanged behaviour for callers that don't pass it
@@ -189,4 +189,16 @@ describe("onboarding (applicant's own row only) and office surfaces", () => {
     expect(flags).toContain("ESC notice not acknowledged: C D.");
     expect(flags.some((f) => /ESC notice/.test(f) && /block/i.test(f))).toBe(false);
   });
+});
+
+test("G4: lead follows the one Lead/Crew rule — never just the first row", () => {
+  const s = collectionNoticeStatus([{ ...w("a@x.au"), worker_role: "crew" }, w("b@x.au", "C D"), { ...w("c@x.au"), worker_role: "lead" }], []);
+  expect(s.map((x) => x.lead)).toEqual([false, true, true]); // crew → false; null installer → Lead (Jo F answer 1)
+  expect(readFileSync("src/lib/esc-collection-notice.core.ts", "utf8")).toContain("effectiveWorkerRole(");
+  expect(readFileSync("src/lib/esc-collection-notice.core.ts", "utf8")).not.toContain('worker_role === "lead"');
+  expect(readFileSync("src/lib/esc-collection-notice.server.ts", "utf8")).toMatch(/NOTICE_WORKER_COLS = "[^"]*worker_role/);
+  const page = readFileSync("src/routes/_authenticated/field.business_.esc-notice.tsx", "utf8");
+  expect(page).toContain("s.lead ? P5.leadSuffix");
+  expect(page).not.toContain("i === 0");
+  expect(readFileSync("src/routes/notice.$token.tsx", "utf8")).not.toContain("leadSuffix");
 });

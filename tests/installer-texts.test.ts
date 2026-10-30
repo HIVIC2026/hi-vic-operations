@@ -124,9 +124,10 @@ describe("wiring: triggers, tick, guarded senders only", () => {
     expect(suggest.indexOf('"ready_check_days_suggested"')).toBeGreaterThan(0);
     expect(suggest.indexOf("tellInstallerDaysSuggested(")).toBeGreaterThan(suggest.indexOf('"ready_check_days_suggested"'));
     const agreed = s.slice(s.indexOf("async function bookAgreedTime"), s.indexOf("async function claim"));
-    expect(agreed.indexOf("tellInstallerBooked(jobId, startsAt)")).toBeGreaterThan(agreed.indexOf("confirmBooking(jobId"));
+    expect(agreed.indexOf("tellBookedKeepGoing(jobId, startsAt)")).toBeGreaterThan(agreed.indexOf("confirmBooking(jobId"));
+    expect(s.slice(s.indexOf("async function tellBookedKeepGoing"))).toMatch(/tellOwnerBooked\(jobId, startsAt\); await tellInstallerBooked\(jobId, startsAt\)[\s\S]*waitUntil/);
     const change = s.slice(s.indexOf("export async function installerChangeReadyCheck"), s.indexOf("export async function installerOpenReadyCheckDays"));
-    expect(change).toContain("tellInstallerBooked(jobId, start)");
+    expect(change).toContain("tellBookedKeepGoing(jobId, start)");
     expect(s).toContain("export const readyCheckTurnFor");
   });
   test("15-minute tick runs sweepInstallerTexts; the old Mitti-link booked text skips our leads", () => {

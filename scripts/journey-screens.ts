@@ -33,6 +33,11 @@ try {
   ctx.notes["address_line"] = `${Date.now()} Journey Test Street`;
   const r = { key: "s1_calculator", label: "setup", passed: false, checks: [] as { name: string; ok: boolean; detail?: string }[] };
   await J.journeyInternals.s1(ctx, r as never);
+  if (!ctx.jobId) throw new Error("No TEST job to protect.");
+  const { data: protectedJob, error: protectRead } = await admin.from("jobs").select("source,external_refs").eq("id", ctx.jobId).single();
+  if (protectRead || protectedJob?.source !== "qa_test") throw new Error("TEST delivery protection refused.");
+  const { error: protectWrite } = await admin.from("jobs").update({ external_refs: { ...((protectedJob.external_refs ?? {}) as Record<string, never>), qa_no_delivery: true } }).eq("id", ctx.jobId).eq("source", "qa_test");
+  if (protectWrite) throw new Error("TEST delivery protection wasn't saved.");
   add({ step: "Setup: TEST job from journey s1 (website step skipped — covered by portal-qa)", person: "setup", status: "pass", detail: `${ctx.jobNumber} created as qa_test for a TEST-domain owner; ${r.checks.filter(c => c.ok).length} setup checks passed.` });
 } catch (e) { setupError = e instanceof Error ? e.message : String(e); add({ step: "Setup: TEST job from journey s1", person: "setup", status: "fail", severity: "Stop launch", detail: setupError }); }
 finally { ms.disarmJourneyMittiGuard(); }
@@ -76,23 +81,49 @@ if (ctx?.jobId) {
 const ref = new URL(process.env["SUPABASE_URL"]!).hostname.split(".")[0];
 const storageKey = `sb-${ref}-auth-token`;
 const people: Record<string, string> = { office: "qa.office@hivic-test.example", "installer owner": installerEmail, electrician: J.TEST_ELECTRICIAN_EMAIL };
-type Step = { step: string; person: string; path: () => string | null; wait: string; button?: string; scope?: Record<string, string>; expect?: () => Promise<string | null>; severity: Row["severity"]; next: string };
-const offerId = async () => (await admin.from("partner_offers").select("id").eq("job_id", ctx!.jobId!).order("created_at", { ascending: false }).limit(1).maybeSingle()).data?.id as string | undefined;
+/** `blocked`: a step a person can't do from the page in this walk-through — recorded BLOCKED with the reason; nothing is
+ *  manufactured behind the page, so the steps after it are attempted on their pages and marked BLOCKED. */
+type Step = { step: string; person: string; path: () => string | null; wait: string; button?: string; scope?: Record<string, string>; expect?: () => Promise<string | null>; severity: Row["severity"]; next: string; blocked?: string };
+// A48 batch 2: the installer's run for this job (Jo's "Send to installer"), once there is one.
+const runIdOf = async () => ((await admin.from("workflow_events").select("details").eq("job_id", ctx!.jobId!).eq("event_type", "run_offered").order("created_at").limit(1).maybeSingle()).data?.details as { run_id?: string } | null)?.run_id;
 const stageIs = (...s: string[]) => async () => { const st = (await jobState()).stage; return st && s.includes(st) ? null : `stage is ${st}, expected ${s.join(" or ")}`; };
-let offer: string | undefined;
+let run: string | undefined;
+const noticeAcked = async () => {
+  const { data: w } = await admin.from("partner_workers").select("id, business_id, email, trade_role").eq("email", installerEmail).is("removed_at", null);
+  if (!w?.length) return false;
+  const m = await (await import("../src/lib/esc-collection-notice.server")).noticeAckMap(w as never);
+  return w.every((x) => m.get(x.id) === true);
+};
 const STEPS: Step[] = [
   { step: "Save my spot", person: "homeowner", path: () => `/estimate/${ctx!.token}/campaign`, wait: "Save my spot", button: "Save my spot", severity: "Stop launch", next: "spot",
     expect: async () => (await admin.from("lead_campaign_responses").select("spot_saved_at").eq("job_id", ctx!.jobId!).maybeSingle()).data?.spot_saved_at ? null : "no saved spot recorded" },
   { step: "Office sees the job", person: "office", path: () => `/admin/jobs/${ctx!.jobId}`, wait: ctx?.jobNumber ?? "HV-", severity: "Stop launch", next: "Next" },
-  { step: "Office release (Choose installer → Release)", person: "office", path: () => `/admin/jobs/${ctx!.jobId}`, wait: ctx?.jobNumber ?? "HV-", button: "Choose installer|Release", scope: { Release: "TEST Bravo Insulation" }, severity: "Stop launch", next: "Choose installer",
-    expect: async () => (await admin.from("workflow_events").select("id").eq("job_id", ctx!.jobId!).eq("event_type", "spot_released").limit(1).maybeSingle()).data ? null : "no spot release recorded" },
-  { step: "Owner confirms released spot", person: "homeowner", path: () => `/my-job/${ctx!.token}?screen=turn`, wait: "Ready Check", button: "Confirm my free Ready Check", severity: "Stop launch", next: "Ready Check", expect: async () => (offer = await offerId()) ? null : "no installer offer created after owner confirmation" },
-  { step: "Installer acceptance", person: "installer owner", path: () => offer ? `/field/offer/${offer}` : null, wait: "Ready Check", button: "Accept this job", severity: "Stop launch", next: "Ready Check",
-    expect: async () => (await admin.from("partner_offers").select("status").eq("id", offer!).single()).data?.status === "accepted" ? null : "offer not accepted" },
-  { step: "Ready Check booking", person: "homeowner", path: () => `/my-job/${ctx!.token}`, wait: "Your progress", button: "Choose", severity: "Stop launch", next: "time", expect: stageIs("ready_check_booked") },
-  { step: "Ready Check completion", person: "installer owner", path: () => `/field/day/${ctx!.jobId}`, wait: "Ready Check", severity: "Fix soon", next: "Mitti", expect: stageIs("ready_check_complete", "measured_estimate_ready", "quote_sent") },
+  // Decision 130 (Jo 27 Oct): the installer accepts the ESC privacy notice themself, on their phone, through the real page.
+  { step: "Installer accepts the ESC privacy notice (My business → ESC privacy notice)", person: "installer owner", path: () => "/field", wait: "My business", button: "My business|ESC privacy notice|tick:|Save acknowledgements", severity: "Stop launch", next: "acknowledg",
+    expect: async () => (await noticeAcked()) ? null : "no acknowledgement recorded for the TEST Bravo installer" },
+  // A48 batch 2 (Jo 30 Oct): website owners no longer get the one-by-one Release ("It's your turn"). Jo sends an AREA BATCH
+  // (Choose installer → Suggested batches → Send), owners answer the quick taps, the batch closes on day 3, Jo taps "Send to
+  // installer", the installer picks the run day (Portal books) and the owner confirms their window on My job.
+  { step: "Office batch Send (Choose installer → Suggested batches → Send)", person: "office", path: () => `/admin/jobs/${ctx!.jobId}`, wait: ctx?.jobNumber ?? "HV-", severity: "Stop launch", next: "Choose installer",
+    blocked: "The TEST office login doesn't show Suggested batches (A48 batch 2 ruling: no access change without Jo), so a person can't send this TEST home's batch from the page. No batch was made behind the page." },
+  { step: "Owner quick taps (name, address, 4 taps on My job)", person: "homeowner", path: () => `/my-job/${ctx!.token}?screen=taps`, wait: "Is this your full name", button: "Yes|Yes|Yes|Sloped|No|Yes, let's go", severity: "Stop launch", next: "",
+    expect: async () => (await admin.from("workflow_events").select("id").eq("job_id", ctx!.jobId!).eq("event_type", "quick_taps_answered").contains("details", { outcome: "pass" }).limit(1).maybeSingle()).data ? null : "no quick taps pass recorded" },
+  { step: "Day-3 batch close (15-minute tick, 72 hours after Send)", person: "system", path: () => null, wait: "", severity: "Stop launch", next: "",
+    blocked: "Time-based tick 72 hours after Send; the walk-through can't wait or move the clock, and running the sweep directly would make state behind the page. Proven in tests/journey-a2-complete-route-db.test.ts." },
+  { step: "Office Send to installer (Choose installer → Ready to send)", person: "office", path: () => `/admin/jobs/${ctx!.jobId}`, wait: ctx?.jobNumber ?? "HV-", severity: "Stop launch", next: "Choose installer",
+    blocked: "The TEST office login is refused \"Send to installer\" (offerRunFn: TEST office can't send runs). No run was made behind the page." },
+  { step: "Installer picks the run day (run page → Portal books)", person: "installer owner", path: () => run ? `/field/run/${run}` : null, wait: "Pick your day", button: "Portal books", severity: "Stop launch", next: "Pick your day",
+    expect: async () => (await admin.from("workflow_events").select("id").eq("job_id", ctx!.jobId!).eq("event_type", "run_slot_proposed").limit(1).maybeSingle()).data ? null : "no Ready Check window given to the owner (the runner doesn't pick a day tile yet)" },
+  { step: "Owner confirms their Ready Check window (My job → Confirm)", person: "homeowner", path: () => `/my-job/${ctx!.token}`, wait: "Ready Check", button: "Confirm", severity: "Stop launch", next: "Ready Check", expect: stageIs("ready_check_scheduled") },
+  { step: "Ready Check start and simulated form handoff", person: "installer owner", path: () => `/field/day/${ctx!.jobId}`, wait: "Ready Check", button: "prestart:", severity: "Fix soon", next: "Mitti" },
+  // Jo 28 Oct 23:00: the TEST office presses "Check & send", then confirms with "Send quote" (TEST sends stay held).
+  { step: "Office sends the quote (Check & send → Send quote)", person: "office", path: () => `/admin/jobs/${ctx!.jobId}`, wait: ctx?.jobNumber ?? "HV-", button: "Check & send|Send quote", severity: "Stop launch", next: "Quote",
+    expect: async () => (await admin.from("quotes").select("sent_at").eq("job_id", ctx!.jobId!).eq("kind", "installation").not("sent_at", "is", null).limit(1).maybeSingle()).data ? null : "no sent installation quote recorded" },
+  // Jo 28 Oct 23:00: the TEST homeowner ticks the boxes, types their name twice, presses the button and enters the TEST emailed code.
+  { step: "Homeowner says yes (ticks, name twice, code)", person: "homeowner", path: () => `/my-job/${ctx!.token}?screen=quote`, wait: "SAY YES", button: "ownerAccept:", severity: "Stop launch", next: "",
+    expect: async () => (await admin.from("quotes").select("id").eq("job_id", ctx!.jobId!).eq("kind", "installation").eq("status", "accepted").limit(1).maybeSingle()).data ? null : "quote not accepted" },
 ];
-const LATER = ["Office quote release", "Owner acceptance", "PIESA payment and booking", "PIESA completed form approval", "Install deposit and days", "Install day and evidence", "AP final check", "Final payout"];
+const LATER = ["PIESA payment and booking", "PIESA completed form approval", "Install deposit and days", "Install day and evidence", "AP final check", "Final payout"];
 
 const py = String.raw`
 import asyncio, json, re, sys
@@ -115,8 +146,12 @@ async def main():
             await page.goto("http://localhost:8080/auth", wait_until="domcontentloaded")
             await page.evaluate("([k,v]) => window.localStorage.setItem(k,v)", [cfg["key"], cfg["session"]])
         await page.goto("http://localhost:8080" + cfg["path"], wait_until="domcontentloaded")
-        try: await page.get_by_text(re.compile(re.escape(cfg["wait"]), re.I)).first.wait_for(state="visible", timeout=25000); res["loaded"] = True
-        except Exception: res["loaded"] = False
+        # Loaded = the text is VISIBLE somewhere (a hidden desktop copy of the same words must not count as missing).
+        res["loaded"] = False
+        for _ in range(50):
+            ws = page.get_by_text(re.compile(re.escape(cfg["wait"]), re.I))
+            if any([await x.is_visible() for x in await ws.all()]): res["loaded"] = True; break
+            await page.wait_for_timeout(500)
         await page.wait_for_timeout(800)
         s1 = f"screenshots/{cfg['n']:02d}-{cfg['slug']}-before.png"; await page.screenshot(path=str(out / s1)); res["shots"] = [s1]
         res["url"] = urlsplit(page.url).path
@@ -126,6 +161,13 @@ async def main():
         res["clicked"] = None
         async def find(name, scope):
             # Find a control the way a person would: its visible label, inside the card/row/item that shows the scope text, whatever the layout.
+            if name.startswith("tick:"):
+                # A person taps their own tick row (the checkbox is visually hidden inside its label).
+                lab = page.locator("label").filter(has=page.get_by_role("checkbox"))
+                try: await lab.first.wait_for(state="visible", timeout=20000)
+                except Exception: pass
+                ls = [x for x in await lab.all() if await x.is_visible()]
+                return (ls[0] if ls else None), "role"
             rx = re.compile(re.escape(name), re.I)
             loc = page.get_by_role("button", name=rx).or_(page.get_by_role("link", name=rx))
             try: await loc.first.wait_for(state="visible", timeout=35000)
@@ -150,7 +192,30 @@ async def main():
                 cands = [z[1] for z in scored]
             return (cands[0] if cands else None), how
         res["runner_notes"] = []
-        for i, name in enumerate([x for x in (cfg.get("button") or "").split("|") if x]):
+        if re.search(r"Let's check it's you", text, re.I):
+            # Jo 27 Oct 13:15: press the real "Email me a code" (TEST-redirected to Jo), then read the TEST-only stored copy.
+            cr = cfg.get("codeRead")
+            em = page.get_by_role("button", name=re.compile(r"^Email me a code", re.I))
+            if not cr or not await em.count():
+                res["clicked"] = False; res["runner_error"] = "owner code check shown but no Email me a code button / TEST code reader"
+            else:
+                await em.first.click(); await page.wait_for_timeout(2500)
+                import urllib.request
+                code = None
+                for _ in range(20):
+                    rq = urllib.request.Request(cr["url"] + "/rest/v1/qa_owner_codes?select=code&order=created_at.desc&limit=1&job_id=eq." + cr["job"], headers={"apikey": cr["key"], "Authorization": "Bearer " + cr["key"]})
+                    rows_ = json.loads(urllib.request.urlopen(rq, timeout=10).read() or b"[]")
+                    if rows_: code = rows_[0]["code"]; break
+                    await asyncio.sleep(1)
+                if not code: res["clicked"] = False; res["missing"] = "a TEST sign-in code (none stored after pressing Email me a code)"
+                else:
+                    await page.get_by_label("Enter code").fill(code)
+                    await page.get_by_role("button", name="Check my code").click()
+                    await page.wait_for_timeout(3000)
+                    sc = f"screenshots/{cfg['n']:02d}-{cfg['slug']}-code.png"; await page.screenshot(path=str(out / sc)); res["shots"].append(sc)
+                    res["runner_notes"] = []; res["codeUsed"] = True
+                    if re.search(r"Let's check it's you|doesn't match", await page.inner_text("body"), re.I): res["clicked"] = False; res["missing"] = "accepted sign-in code (page still asks for a code)"
+        for i, name in enumerate([x for x in (cfg.get("button") or "").split("|") if x and not res.get("runner_error") and res.get("clicked") is not False]):
             scope = (cfg.get("scope") or {}).get(name)
             if name == "Accept this job":
                 form = page.locator("[data-ready-check-times-form]")
@@ -163,11 +228,55 @@ async def main():
                     for select in await form.locator("select").all():
                         values = await select.locator("option").evaluate_all("xs => xs.map(x => x.value).filter(Boolean)")
                         if values: await select.select_option(values[0])
-            el, how = await find(name, scope)
-            label = name + (f" (in {scope})" if scope else "")
+            if name == "time:":
+                # A person taps the first offered time tile inside "Choose your Ready Check time".
+                tiles = [t for t in await page.get_by_role("button").all() if re.search(r"^(Monday|Tuesday|Wednesday|Thursday|Friday).* at ", await t.inner_text(), re.I) and await t.is_visible()]
+                el, how = (tiles[0] if tiles else None), "time tile"
+            elif name == "prestart:":
+                checks = page.locator("[data-prestart-checks]")
+                if await checks.count():
+                    for control in await checks.get_by_role("button").all():
+                        if await control.is_visible(): await control.click()
+                handoff = page.get_by_role("button", name=re.compile(r"Ready Check|Open.*form", re.I))
+                candidates = [x for x in await handoff.all() if await x.is_visible() and await x.is_enabled()]
+                el, how = (candidates[0] if candidates else None), "prestart button"
+            elif name == "ownerAccept:":
+                sy = page.locator("[data-testid=say-yes]")
+                for lab in await sy.locator("label").filter(has=page.locator("input[type=checkbox]")).all():
+                    if await lab.is_visible() and not await lab.locator("input").is_checked(): await lab.click()
+                await sy.get_by_label(re.compile(r"^Your full name", re.I)).fill("Test Journey")
+                await sy.get_by_label(re.compile(r"Type your name again", re.I)).fill("Test Journey")
+                btn = sy.get_by_role("button", name=re.compile(r"^Sign and pay", re.I))
+                if not await btn.is_enabled(): el, how = btn, "sign button"
+                else:
+                    await btn.click(); await page.wait_for_timeout(1500)
+                    em = sy.get_by_role("button", name=re.compile(r"^Email me a code", re.I))
+                    cr = cfg.get("codeRead")
+                    if await em.count() and cr:
+                        import urllib.request, time
+                        since = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(time.time() - 5))
+                        await em.first.click(); await page.wait_for_timeout(2500)
+                        code = None
+                        for _ in range(20):
+                            rq = urllib.request.Request(cr["url"] + "/rest/v1/qa_owner_codes?select=code&order=created_at.desc&limit=1&job_id=eq." + cr["job"] + "&created_at=gte." + since, headers={"apikey": cr["key"], "Authorization": "Bearer " + cr["key"]})
+                            rows_ = json.loads(urllib.request.urlopen(rq, timeout=10).read() or b"[]")
+                            if rows_: code = rows_[0]["code"]; break
+                            await asyncio.sleep(1)
+                        if not code: res["clicked"] = False; res["missing"] = "a fresh TEST code after Email me a code"; break
+                        await sy.get_by_label("Enter code").fill(code)
+                        await sy.get_by_role("button", name="Check my code").click(); await page.wait_for_timeout(2500)
+                        sc = f"screenshots/{cfg['n']:02d}-{cfg['slug']}-code.png"; await page.screenshot(path=str(out / sc)); res["shots"].append(sc)
+                    el, how = sy.get_by_role("button", name=re.compile(r"^Sign and pay", re.I)), "sign button (after code)"
+            elif name == "practice:":
+                answers = ["Yes", "No", "Easy", "1", "120", "No", "Laser in the ceiling space", "No", "No", "No", "Bradford Gold R5", "No"]
+                for control, value in zip(await page.locator("form input").all(), answers): await control.fill(value)
+                el, how = page.get_by_role("button", name="Complete", exact=True), "TEST Complete button"
+            else:
+                el, how = await find(name, scope)
+            label = (name if name not in ("tick:", "time:") else ("own acknowledgement tick" if name == "tick:" else "an offered Ready Check time")) + (f" (in {scope})" if scope else "")
             if el is None:
                 body = await page.inner_text("body")
-                if re.search(re.escape(name), body, re.I): res["clicked"] = False; res["runner_error"] = f'"{label}" text is on screen but the runner could not locate a pressable control'
+                if name not in ("tick:", "time:") and re.search(re.escape(name), body, re.I): res["clicked"] = False; res["runner_error"] = f'"{label}" text is on screen but the runner could not locate a pressable control'
                 else: res["clicked"] = False; res["missing"] = label
                 break
             if how == "text": res["runner_notes"].append(f'"{label}" found by visible text, not as a button')
@@ -181,6 +290,9 @@ async def main():
             try: await page.wait_for_load_state("networkidle", timeout=15000)
             except Exception: pass
             await page.wait_for_timeout(2000)
+            if name == "practice:":
+                try: await page.get_by_text("Complete", exact=True).wait_for(state="visible", timeout=45000)
+                except Exception: res["missing"] = "completed TEST form readback"; res["clicked"] = False
             s2 = f"screenshots/{cfg['n']:02d}-{cfg['slug']}-after{i+1}.png"; await page.screenshot(path=str(out / s2)); res["shots"].append(s2)
         await b.close()
     Path(cfg["result"]).write_text(json.dumps(res))
@@ -203,7 +315,9 @@ async function browse(o: { n: number; slug: string; path: string; wait: string; 
   const email = people[o.person];
   const session = email ? JSON.stringify(await J.personaSession(email)) : null;
   const cfgFile = `${temp}/cfg-${o.n}.json`, result = `${temp}/res-${o.n}.json`;
-  writeFileSync(cfgFile, JSON.stringify({ ...o, out, result, key: storageKey, session })); chmodSync(cfgFile, 0o600);
+  // TEST code reader only for homeowner steps on this run's qa_test job (service key stays in a 0600 temp file, deleted below).
+  const codeRead = o.person === "homeowner" && ctx?.jobId ? { url: process.env["SUPABASE_URL"], key: process.env["SUPABASE_SERVICE_ROLE_KEY"], job: ctx.jobId } : null;
+  writeFileSync(cfgFile, JSON.stringify({ ...o, out, result, key: storageKey, session, codeRead })); chmodSync(cfgFile, 0o600);
   spawnSync("python3", [`${temp}/walk_step.py`, cfgFile], { encoding: "utf8", timeout: 90_000 });
   rmSync(cfgFile, { force: true });
   return existsSync(result) ? JSON.parse(readFileSync(result, "utf8")) as { loaded: boolean; shots: string[]; next: boolean; clicked: boolean | null; leaks: string[]; errors: string[]; url: string; missing?: string; runner_error?: string; runner_notes?: string[] } : null;
@@ -214,8 +328,11 @@ if (!ctx?.jobId || !safe) {
 } else {
   let broken = false; let n = 1;
   for (const s of STEPS) {
+    if (s.step.startsWith("Installer picks the run day")) run = await runIdOf();
     const path = s.path();
-    if (!path) { add({ step: s.step, person: s.person, status: "blocked", detail: "Prerequisite record missing (no offer)." }); n++; continue; }
+    if (s.step.startsWith("Installer accepts the ESC") && await noticeAcked()) { add({ step: s.step, person: s.person, status: "pass", detail: "Already acknowledged by the installer on an earlier run (append-only record); nothing to press." }); n++; continue; }
+    if (s.blocked) { add({ step: s.step, person: s.person, status: "blocked", detail: s.blocked }); broken = true; n++; continue; }
+    if (!path) { add({ step: s.step, person: s.person, status: "blocked", detail: "Prerequisite record missing (no run sent to the installer)." }); broken = true; n++; continue; }
     const r = await browse({ n, slug: s.step.toLowerCase().replace(/[^a-z]+/g, "-"), path, wait: s.wait, button: s.button, scope: s.scope, person: s.person, next: s.next });
     const st = await jobState();
     const runnerErr = !r ? "browser step crashed" : r.runner_error ?? null;
@@ -226,6 +343,19 @@ if (!ctx?.jobId || !safe) {
     add({ step: s.step, person: s.person, status: why ? (broken ? "blocked" : "fail") : "pass", severity: why && !broken ? s.severity : null, detail: why ? (broken ? `earlier step not done — ${why}` : why) : `loaded ${r!.url}${r!.clicked ? `, pressed "${s.button!.split("|").join('" then "')}"` : ""}`, screenshot: r?.shots ?? [], stage: st.stage, events: st.events, emailRows: st.emails, nextVisible: r?.next ?? null, leaks });
     if (leaks.length) add({ step: `${s.step}: other roles' homes`, person: "visibility", status: "fail", severity: "Stop launch", detail: leaks.join("; ") });
     if (why) broken = true;
+    if (!why && s.button === "prestart:") {
+      const { data: m } = await admin.from("ceiling_measurements").select("external_id").eq("job_id", ctx.jobId).eq("is_current", true).eq("external_source", "mitti").maybeSingle();
+      const auditId = m?.external_id;
+      if (!auditId?.startsWith("sim_")) { add({ step: "Ready Check completion", person: "runner", status: "blocked", detail: "No job-bound simulated Ready Check exists." }); broken = true; }
+      else {
+        const form = await browse({ n: ++n, slug: "simulated-ready-check-complete", path: `/field/practice/${ctx.jobId}/${auditId}`, wait: "TEST Ready Check", person: "installer owner", next: "Complete", button: "practice:" });
+        const st = await jobState();
+        const { data: saved } = await (admin as unknown as import("@supabase/supabase-js").SupabaseClient).from("mitti_sim_audits").select("completed").eq("id", auditId).single();
+        const completed = saved?.completed === true;
+        add({ step: "Ready Check completion", person: "installer owner", status: completed ? "pass" : "fail", detail: completed ? `Filled the TEST form and pressed Complete; normal Mitti pull ran; stage=${st.stage}.` : `TEST form not completed: ${form?.missing ?? form?.runner_error ?? "page interaction failed"}`, screenshot: form?.shots ?? [], stage: st.stage });
+        if (!completed) broken = true;
+      }
+    }
     n++;
   }
   for (const s of LATER) {
@@ -241,6 +371,7 @@ if (!ctx?.jobId || !safe) {
 let archived: string[] = [];
 const { data: communications } = ctx?.jobId ? await admin.from("job_communications").select("subject,recipients,delivery_status,provider_message_id,source_event,source_reference,created_at").eq("job_id", ctx.jobId).eq("channel", "email").order("created_at") : { data: [] };
 const sentEmails = (communications ?? []).filter(c => acceptedTestEmail(c));
+if (ctx?.jobId) await admin.from("qa_owner_codes").delete().eq("job_id", ctx.jobId);
 if (ctx) { await J.cleanupJourney(ctx).catch((e) => add({ step: "Cleanup", person: "setup", status: "fail", severity: "Fix soon", detail: String(e) })); if (ctx.jobNumber) archived = [ctx.jobNumber]; }
 rmSync(temp, { recursive: true, force: true });
 

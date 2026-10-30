@@ -5,7 +5,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { partnerIssues, signedRecRates } from "../src/lib/partner.core";
 import { buildPartnerProfile } from "../src/lib/partner-profile.core";
-import { activationBlockers } from "../src/lib/partner-activation.core";
+import { mandatoryActivationBlockers, activationBlockers } from "../src/lib/partner-activation.core";
 import { applicationChecks } from "../src/lib/office-partners.core";
 import { recSignBlocker, type RecSignApp } from "../src/lib/rec-sign.core";
 import { ACKNOWLEDGEMENTS, REC_AGREEMENT_VERSION, type RecData } from "../src/lib/rec-onboarding.core";
@@ -61,11 +61,14 @@ describe("3. electrical licence blocks approval (Jo 27 Oct 2026)", () => {
   // Merged with the other session's decision 415 (electricianApprovalBlockers): its wording is the one that ships.
   const ok = { public_liability_expiry: "2099-01-01", public_liability_cover_amount: 5_000_000, rec_registration_number: "1", licence_number: "A123", licence_expiry: "2030-01-01" } as RecData;
   const now = new Date("2026-10-27T00:00:00Z");
+  // Decision 424 (Jo 29 Oct 2026): the licence moved to the hard blocks — no override.
   test("missing number, missing expiry or expired licence blocks a REC activation", () => {
-    expect(activationBlockers("rec", ok, REC_AGREEMENT_VERSION, "2026-10-01", now)).toEqual([]);
-    expect(activationBlockers("rec", { ...ok, licence_number: " " }, REC_AGREEMENT_VERSION, "2026-10-01", now)).toEqual(["Electrical licence is missing."]);
-    expect(activationBlockers("rec", { ...ok, licence_expiry: "" }, REC_AGREEMENT_VERSION, "2026-10-01", now)).toEqual(["Electrical licence is expired or has no expiry date."]);
-    expect(activationBlockers("rec", { ...ok, licence_expiry: "2026-10-26" }, REC_AGREEMENT_VERSION, "2026-10-01", now)).toEqual(["Electrical licence is expired or has no expiry date."]);
+    const hard = (d: Partial<RecData>) => mandatoryActivationBlockers("rec", { ...ok, ...d } as RecData, undefined, now);
+    expect(hard({})).toEqual([]);
+    expect(hard({ licence_number: " " })).toEqual(["Electrical licence is missing."]);
+    expect(hard({ licence_expiry: "" })).toEqual(["Electrical licence is expired or has no expiry date."]);
+    expect(hard({ licence_expiry: "2026-10-26" })).toEqual(["Electrical licence is expired or has no expiry date."]);
+    expect(activationBlockers("rec", { ...ok, licence_number: " " }, REC_AGREEMENT_VERSION, "2026-10-01", now)).toEqual([]);
   });
   test("installer applications are not affected", () => {
     expect(activationBlockers("installer", { public_liability_expiry: "2099-01-01" } as never, "HI-VIC-A48-INST-1.13-2026-10-03", "2026-10-03", now)).toEqual([]);

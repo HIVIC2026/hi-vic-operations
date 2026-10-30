@@ -4,8 +4,8 @@
 // job_communications, sms_messages, messages and a few owner actions (enquiry, acceptance, payment). Nothing new is stored.
 import { sendLabel } from "./send-failed.core";
 
-export type ContactChannel = "Email" | "Text" | "Phone" | "Portal" | "Outlook" | "Website";
-export const CONTACT_CHANNELS: ContactChannel[] = ["Email", "Text", "Phone", "Portal", "Outlook", "Website"];
+export type ContactChannel = "Email" | "Text" | "Phone" | "Portal" | "Website";
+export const CONTACT_CHANNELS: ContactChannel[] = ["Email", "Text", "Phone", "Portal", "Website"];
 export type ContactDirection = "sent" | "received" | "call" | "note";
 
 export type ContactRow = {
@@ -13,17 +13,23 @@ export type ContactRow = {
   what: string; status: string; failed: boolean; byOffice: boolean;
 };
 
-export type EmailSendRow = { id: string; purpose: string; status: string; sent_at: string | null; created_at: string; error: string | null; communication_id: string | null };
-export type CommRow = { id: string; channel: string; direction: string; subject: string | null; body: string; delivery_status: string; provider: string; sent_at: string | null; received_at: string | null; created_at: string; visibility: string; source_event: string | null };
+export type EmailSendRow = { id: string; purpose: string; status: string; sent_at: string | null; created_at: string; error: string | null; communication_id: string | null; delivery_result: string | null; delivery_detail: string | null };
+export type CommRow = { id: string; channel: string; direction: string; subject: string | null; body: string; delivery_status: string; provider: string; sent_at: string | null; received_at: string | null; created_at: string; visibility: string; source_event: string | null; delivery_result: string | null; delivery_detail: string | null };
 export type SmsRow = { id: string; message_type: string; status: string; body: string; created_at: string };
 export type PortalMessageRow = { id: string; body: string; created_at: string; internal: boolean; sender_label: string | null; channel: string };
 export type OwnerActionRow = { id: string; at: string; what: string; channel: ContactChannel };
 
 const FAILED = new Set(["failed", "bounced", "undelivered", "complained"]);
+// Emails only: blocked / not-sent sends also count as failed and read "Not sent". Texts and calls keep the old words.
+const EMAIL_FAILED = new Set([...FAILED, "not_sent", "blocked", "blocked_prelaunch", "blocked — not sent"]);
 const clip = (s: string | null | undefined, n = 140) => { const v = (s ?? "").replace(/\s+/g, " ").trim(); return v.length > n ? `${v.slice(0, n - 1)}…` : v; };
-const statusWord = (s: string) => {
+const isBounced = (r: { delivery_result?: string | null }) => r.delivery_result === "bounced";
+const isFailed = (status: string, r: { delivery_result?: string | null }, email: boolean) => (email && isBounced(r)) || (email ? EMAIL_FAILED : FAILED).has(status.toLowerCase());
+const statusWord = (s: string, email = false, deliveryResult?: string | null) => {
   const k = s.toLowerCase();
-  if (FAILED.has(k)) return k === "undelivered" ? "Not delivered" : k === "bounced" ? "Bounced" : "Failed";
+  if (email && deliveryResult === "bounced") return "Bounced";
+  if ((email ? EMAIL_FAILED : FAILED).has(k)) return k === "undelivered" ? "Not delivered" : k === "bounced" ? "Bounced" : k === "complained" || !email ? "Failed" : "Not sent";
+  if (email && deliveryResult === "delivered") return "Delivered";
   if (k === "delivered") return "Delivered";
   if (k === "opened") return "Opened";
   if (k === "sent" || k === "accepted") return "Sent";
@@ -40,13 +46,14 @@ export function mergeContactHistory(i: { emails: EmailSendRow[]; comms: CommRow[
   // (source_event "sms:<type>", same body, seconds later). Show the send once.
   const smsCopy = (c: CommRow) => c.channel === "sms" && c.direction === "outbound" && !!c.source_event?.startsWith("sms:")
     && i.sms.some((s) => `sms:${s.message_type}` === c.source_event && s.body === c.body && Math.abs(Date.parse(s.created_at) - Date.parse(c.created_at)) <= 10 * 60_000);
-  for (const e of i.emails) out.push({ id: `email:${e.id}`, at: e.sent_at ?? e.created_at, direction: "sent", channel: "Email", what: sendLabel(e.purpose, "email") + (e.error && FAILED.has(e.status) ? ` — ${clip(e.error, 80)}` : ""), status: statusWord(e.status), failed: FAILED.has(e.status), byOffice: false });
+  for (const e of i.emails) out.push({ id: `email:${e.id}`, at: e.sent_at ?? e.created_at, direction: "sent", channel: "Email", what: sendLabel(e.purpose, "email") + (isBounced(e) && e.delivery_detail ? ` — ${clip(e.delivery_detail, 80)}` : e.error && EMAIL_FAILED.has(e.status) ? ` — ${clip(e.error, 80)}` : ""), status: statusWord(e.status, true, e.delivery_result), failed: isFailed(e.status, e, true), byOffice: false });
   for (const c of i.comms) {
     if (mirrored.has(c.id) || smsCopy(c)) continue;
     const outbound = c.direction === "outbound";
-    const ch: ContactChannel = c.provider === "outlook" ? "Outlook" : c.channel === "sms" ? "Text" : c.channel === "phone" || c.channel === "call" ? "Phone" : c.channel === "note" ? "Phone" : "Email";
+    const ch: ContactChannel = c.channel === "sms" ? "Text" : c.channel === "phone" || c.channel === "call" ? "Phone" : c.channel === "note" ? "Phone" : "Email";
+    const isEmail = ch === "Email";
     const direction: ContactDirection = c.channel === "phone" || c.channel === "call" ? "call" : c.channel === "note" ? "note" : outbound ? "sent" : "received";
-    out.push({ id: `comm:${c.id}`, at: (outbound ? c.sent_at : c.received_at) ?? c.created_at, direction, channel: ch, what: clip(c.subject ? `${c.subject}${c.body ? ` — ${c.body}` : ""}` : c.body), status: statusWord(c.delivery_status), failed: FAILED.has(c.delivery_status), byOffice: c.source_event === "manual_log" || c.source_event === "office_log" });
+    out.push({ id: `comm:${c.id}`, at: (outbound ? c.sent_at : c.received_at) ?? c.created_at, direction, channel: ch, what: clip(c.subject ? `${c.subject}${c.body ? ` — ${c.body}` : ""}` : c.body) + (isEmail && isBounced(c) && c.delivery_detail ? ` — ${clip(c.delivery_detail, 80)}` : ""), status: statusWord(c.delivery_status, isEmail, c.delivery_result), failed: isFailed(c.delivery_status, c, isEmail), byOffice: c.source_event === "manual_log" || c.source_event === "office_log" });
   }
   for (const s of i.sms) out.push({ id: `sms:${s.id}`, at: s.created_at, direction: "sent", channel: "Text", what: clip(s.body) || sendLabel(s.message_type, "sms"), status: statusWord(s.status), failed: FAILED.has(s.status), byOffice: false });
   for (const m of i.messages) if (!m.internal) out.push({ id: `msg:${m.id}`, at: m.created_at, direction: m.sender_label === "Home Insulation Victoria" ? "sent" : "received", channel: "Portal", what: clip(`${m.sender_label ? `${m.sender_label}: ` : ""}${m.body}`), status: "Recorded", failed: false, byOffice: false });

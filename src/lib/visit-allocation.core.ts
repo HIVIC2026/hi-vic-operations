@@ -1,11 +1,12 @@
 // Visit allocation (decision 161, Jo 24 Oct 2026). PURE: no I/O.
 // The business owner allocates each visit to one of their own staff (My business → Team):
-//   - Ready Check: ANY staff member still on the list (any trade role);
-//   - Install day (PIISA / install): ONLY CII-cleared installers (crewClearance, decision 153).
+//   - Ready Check: anyone still on the list who has a Mitti login (Lead or Crew; the server's addInMittiFirst is the gate);
+//   - Install day (PIISA / install): ONLY CII-cleared installers who are Leads (crewClearance, decision 153; Crew can't be the Lead).
 // Saving is an append-only `visit_allocated` workflow event (latest per visit kind wins); the server re-assigns the
 // Mitti form to that person's own Mitti user (looked up by the email on their staff row) and the 6:30am text goes to
 // their mobile instead of the owner's. Nothing here changes stages, bookings, quotes or pay.
-import { crewClearance, whiteCardBlocker, type CrewClearanceFacts, type WhiteCardState } from "./worker-compliance.core";
+import type { WorkerRole } from "./worker-role.core";
+import { DECLARATIONS_DUE_MESSAGE, crewClearance, whiteCardBlocker, type CrewClearanceFacts, type WhiteCardState } from "./worker-compliance.core";
 
 export type VisitKind = "ready_check" | "install";
 export const VISIT_ALLOCATED_EVENT = "visit_allocated";
@@ -18,17 +19,25 @@ export type AllocationCandidate = {
   tradeRole: string;
   email: string | null;
   mobile: string | null;
+  /** Lead / Crew (null = not an installer role). Crew can't be the install-day Lead. */
+  workerRole?: WorkerRole | null;
+  /** The business's own email, used for the Mitti lookup of a Lead with no email of their own. */
+  businessEmail?: string | null;
   removedAt?: string | null;
   /** Clearance facts for installers (decision 153). Omitted/undefined = not loaded → never cleared for install days. */
   clearance?: CrewClearanceFacts | null;
   /** Decision 319: White Card state (installers). Undefined = not loaded → the White Card rule is not applied. */
   whiteCard?: WhiteCardState | null;
+  /** Jo 29 Oct 2026: added on Team and not signed the worker declarations yet → no visit of either kind. */
+  declarationsDue?: boolean;
 };
 
 export type AllocationOption = { workerId: string; name: string; mobile: string | null; allowed: boolean; reason: string | null; note: string | null };
 
 export const ALLOCATION_REASON = {
   removed: "No longer on the staff list.",
+  unsigned: DECLARATIONS_DUE_MESSAGE,
+  crew: "Crew can't be the install-day Lead — pick a Lead.",
   notInstaller: "Only installers can be given an install day.",
   noMobile: "No mobile on file – the 6:30am text will go to you.",
 } as const;
@@ -38,8 +47,10 @@ export const ALLOCATION_REASON = {
  *  installation was booked before `WHITE_CARD_ENFORCED_FROM` (null = not booked yet = enforced). */
 export function allocationBlocker(kind: VisitKind, c: AllocationCandidate, today: string, install?: { bookingCreatedAt: string | null }): string | null {
   if (c.removedAt) return ALLOCATION_REASON.removed;
+  if (c.declarationsDue) return ALLOCATION_REASON.unsigned;
   if (kind === "ready_check") return null;
   if (c.tradeRole !== "installer") return ALLOCATION_REASON.notInstaller;
+  if (c.workerRole === "crew") return ALLOCATION_REASON.crew;
   const cl = crewClearance(c.clearance ?? { certStatus: null, level: null, expiresOn: null }, today);
   if (!cl.cleared) return cl.reason;
   return install ? whiteCardBlocker(c.whiteCard, install.bookingCreatedAt) : null;
@@ -77,6 +88,13 @@ export function currentAllocation(events: { event_type: string; details: unknown
     .sort((a, b) => b.created_at.localeCompare(a.created_at));
   const d = rows[0]?.details as VisitAllocationDetails | undefined;
   return d && typeof d.worker_id === "string" ? d : null;
+}
+
+/** Jo 29 Oct 2026 (D6): the crew's Lead gets the Mitti install form. A hand-over is needed only when a Lead is chosen and
+ *  they aren't already the person holding the form (the current install allocation, else the assigned installer). */
+export function leadNeedsHandover(f: { leadWorkerId: string | null; allocatedWorkerId: string | null; assigneeWorkerId: string | null }): boolean {
+  const lead = f.leadWorkerId;
+  return !!lead && lead !== (f.allocatedWorkerId ?? f.assigneeWorkerId);
 }
 
 // ---------- daily 6:30am text recipient ----------

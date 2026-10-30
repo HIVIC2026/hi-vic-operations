@@ -1,3 +1,4 @@
+import { inHouseDispatchSkip } from "./in-house-suppression.server";
 // Decision 315 (Jo 25 Oct 2026): the A3 PIESA sync saw the PIESA completed, repair work is needed (not fixed on the same
 // visit, not the decision-314 on-site-only answer) and no electrician fixes windows exist → text the assigned electrician
 // ONE link to their job page to pick 3–5 fixes times + estimated hours. Same shape as the decision-288 boss price link:
@@ -14,6 +15,8 @@ type JobRow = { id: string; source: string | null; deleted_at: string | null; pr
 type AsgRow = { business_id: string | null; profiles: { full_name: string | null; phone: string | null } | null; businesses: { id: string; signer_mobile: string | null; phone: string | null; onboarding_notes: string | null } | null };
 
 export async function textFixesTimesLink(jobId: string, i: { auditId: string; completedAt: string | null; short: Record<string, string | null | undefined> }): Promise<string> {
+  const skipped = await inHouseDispatchSkip(jobId);
+  if (skipped) return skipped;
   try {
     const { data: job } = await admin.from("jobs").select("id, source, deleted_at, properties(address_line, suburb)").eq("id", jobId).maybeSingle();
     const j = job as unknown as JobRow | null;
@@ -30,6 +33,11 @@ export async function textFixesTimesLink(jobId: string, i: { auditId: string; co
     // The assigned electrician's own mobile, else their business's (the same rule as the other trade texts).
     const to = asg?.profiles?.phone ?? asg?.businesses?.signer_mobile ?? asg?.businesses?.phone ?? null;
     const completedAt = i.completedAt ?? new Date().toISOString();
+    // Jo 30 Oct 2026: "Pause all trade messages" — held BEFORE the claim (TEST unchanged), so a later sync can still send it.
+    if (j.source !== "qa_test" && !(await import("./test-send.core")).isTestPartner(asg?.businesses ?? {})) {
+      const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow();
+      if (tradePaused) return `held: ${tradePaused}`;
+    }
     // Claimed once, before any send: a later sync, the tick or a re-sync finds this event and stops.
     await logEvent(jobId, null, FIXES_TIMES_LINK_EVENT, `Electrician texted the link to pick 3 to 5 electrical fixes times (decision 315) — text prepared${to ? "" : " (no electrician mobile on file)"}`, { key, audit_id: i.auditId, completed_at: completedAt, business_id: asg!.business_id, to }, { internal: true });
     if (!to) return "not sent: no electrician mobile";

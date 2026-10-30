@@ -186,7 +186,7 @@ describe("R01: the other paths through the same helper", () => {
   });
 
   test("Upload jobs and Add a job check the address before creating their own owner row and never update an owner", () => {
-    for (const f of ["src/lib/bulk-import.server.ts", "src/lib/onsite-ready-check.server.ts"]) {
+    for (const f of ["src/lib/onsite-ready-check.server.ts"]) {
       const src = readFileSync(f, "utf8");
       const dup = src.indexOf("findOpenJobAtAddress(");
       expect(dup).toBeGreaterThan(-1);

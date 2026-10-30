@@ -9,6 +9,7 @@ import { electricalBillingSource } from "./installer-led.core";
 import { payoutGateFacts } from "./trade-payout-gate.server";
 import { PAYOUT_FORM_NOT_COMPLETE, tradePayoutBlockers } from "./trade-payout-gate.core";
 import { installerPayHeldReasons, ownerPaidInFullAt, payState } from "./trade-view.core";
+import type { RepeatState } from "./repeat-piesa.core";
 
 const db = admin as any; // eslint-disable-line @typescript-eslint/no-explicit-any
 const chunks = <T,>(xs: T[], n = 100) => Array.from({ length: Math.ceil(xs.length / n) }, (_, i) => xs.slice(i * n, i * n + n));
@@ -124,28 +125,36 @@ export async function moneyPayouts(testJobIds?: string[]) {
   if (error) throw new Error(`Could not read jobs: ${error.message}`);
   // Decision 355: electrician pay falls due long before Final check (within 7 days of the office approving the completed form
   // — it never waits for the owner), so jobs with a completed safety check / fixes visit are read too — electrician lines only.
-  let visitsQuery = db.from("bookings").select("job_id, kind").in("kind", ["assessment", "rectification"]).eq("status", "completed");
+  let visitsQuery = db.from("bookings").select("id, job_id, kind, business_id").in("kind", ["assessment", "rectification"]).eq("status", "completed");
   if (testJobIds) visitsQuery = visitsQuery.in("job_id", scope);
   const { data: eb, error: ebe } = await visitsQuery.limit(4000);
   if (ebe) throw new Error(`Could not read completed electrician visits: ${ebe.message}`);
   const finalIds = new Set(((js ?? []) as { id: string }[]).map((j) => j.id));
-  const elecVisits = (eb ?? []) as { job_id: string; kind: string }[];
+  const elecVisits = (eb ?? []) as { id: string; job_id: string; kind: string; business_id: string | null }[];
   const jobs = await liveJobs([...new Set([...finalIds, ...elecVisits.map((b) => b.job_id)])], testJobIds);
   const ids = [...jobs.keys()];
   const [asg, quotes, paidEv, apEv, invs] = await Promise.all([
     inJobs<{ job_id: string; business_id: string; role: string; businesses: { name: string; trading_name: string | null } | null }>("job_assignments", "job_id, business_id, role, businesses(name, trading_name)", ids, (q) => q.eq("active", true)),
     inJobs<{ id: string; job_id: string; kind: string }>("quotes", "id, job_id, kind", ids, (q) => q.eq("status", "accepted")),
-    inJobs<{ job_id: string; details: { kind?: string } | null; created_at: string }>("workflow_events", "job_id, details, created_at", ids, (q) => q.eq("event_type", "payout_marked_paid")),
+    inJobs<{ job_id: string; details: { kind?: string; booking_id?: string } | null; created_at: string }>("workflow_events", "job_id, details, created_at", ids, (q) => q.eq("event_type", "payout_marked_paid")),
     inJobs<{ job_id: string; created_at: string }>("workflow_events", "job_id, created_at", ids, (q) => q.eq("event_type", "stage_changed").eq("to_stage", "ready_for_veec")),
     // Audit F19: owner paid in full (Xero mirror) — installer-supplied jobs wait for it, exactly as the installer's screen.
-    inJobs<{ job_id: string; status: string | null; balance_paid_at: string | null; paid_at: string | null; updated_at: string | null }>("invoices", "job_id, status, balance_paid_at, paid_at, updated_at", ids),
+    inJobs<{ job_id: string; kind: string | null; status: string | null; balance_paid_at: string | null; paid_at: string | null; updated_at: string | null }>("invoices", "job_id, kind, status, balance_paid_at, paid_at, updated_at", ids, (q) => q.eq("kind", "installation")),
   ]);
   const internals: { quote_id: string; cost_ex_gst: number | null }[] = [];
   for (const part of chunks(quotes.map((q) => q.id))) { const { data } = await db.from("quote_internals").select("quote_id, cost_ex_gst").in("quote_id", part); internals.push(...(data ?? [])); }
   const costOf = (jobId: string, kind: string) => { const q = quotes.find((x) => x.job_id === jobId && x.kind === kind); const c = q ? internals.find((i) => i.quote_id === q.id) : null; return c?.cost_ex_gst != null ? Number(c.cost_ex_gst) : null; };
   const { data: pricing } = await db.from("pricing_settings").select("piesa_rec_cost_ex_gst, gst_rate").eq("is_active", true).maybeSingle();
   const gst = 1 + (num(pricing?.gst_rate) ?? 0.1);
-  const elecIds = [...new Set(asg.filter((a) => a.role === "electrician").map((a) => a.business_id))];
+  // Batch 1 F5: one safety check line per completed visit, paid to whoever did it (after a reopen that may be an
+  // electrician no longer assigned) — their name and rate are read too.
+  const { safetyVisitFacts } = await import("./trade-payout-gate.server");
+  const { safetyVisitPaidAt, visitGateFacts } = await import("./trade-payout-gate.core");
+  const safety = await safetyVisitFacts(ids);
+  const visitBiz = [...new Set(elecVisits.filter((b) => b.kind === "assessment" && b.business_id).map((b) => b.business_id as string))];
+  const { data: visitNames } = visitBiz.length ? await db.from("businesses").select("id, name, trading_name").in("id", visitBiz) : { data: [] };
+  const bizName = new Map(((visitNames ?? []) as { id: string; name: string; trading_name: string | null }[]).map((b) => [b.id, b.trading_name || b.name]));
+  const elecIds = [...new Set([...asg.filter((a) => a.role === "electrician").map((a) => a.business_id), ...visitBiz])];
   const { data: rates } = elecIds.length ? await db.from("electrician_rates").select("business_id, rate_inc_gst, effective_from").in("business_id", elecIds).eq("service_type", "piesa").in("status", ["active", "approved"]).order("effective_from", { ascending: false }) : { data: [] };
   const piesaEx = (businessId: string) => { const r = ((rates ?? []) as { business_id: string; rate_inc_gst: number }[]).find((x) => x.business_id === businessId); return r ? Math.round((Number(r.rate_inc_gst) / gst) * 100) / 100 : num(pricing?.piesa_rec_cost_ex_gst); };
   // Jo 26 Oct 2026: the safety check on Reinsulate's own-electrician jobs is paid to Reinsulate, at the flat price.
@@ -174,11 +183,18 @@ export async function moneyPayouts(testJobIds?: string[]) {
     const ownerDirect = electricalBillingSource({ channel: j.channel, choice: j.electrician_choice, committedLineOnAcceptedQuote: null, hivPaidAt: null }) === "owner_direct";
     const visited = (kind: string) => elecVisits.some((b) => b.job_id === id && b.kind === kind);
     const paidToInstaller = installerPaid.get(id);
-    if (paidToInstaller && (atFinal || visited("assessment")))
-      lines.push({ jobId: id, jobNumber: j.job_number, businessId: paidToInstaller.businessId, business: `${paidToInstaller.name} (safety checks by their electricians)`, kind: "assessment", amountEx: Math.round((paidToInstaller.piesaIncGst / gst) * 100) / 100, dueAt: null, paidAt: paidFor("assessment") });
+    // Batch 1 F5: one line per completed safety-check visit (none recorded yet on an older job = one line, as before).
+    const safetyVisits: ({ id: string; business_id: string | null } | null)[] = elecVisits.filter((b) => b.job_id === id && b.kind === "assessment");
+    if (!safetyVisits.length && atFinal) safetyVisits.push(null);
+    const paidVisit = (v: { id: string } | null) => safetyVisitPaidAt(paidEv.filter((e) => e.job_id === id), safety.get(id), v?.id ?? null);
+    if (paidToInstaller) for (const v of safetyVisits)
+      lines.push({ jobId: id, jobNumber: j.job_number, businessId: paidToInstaller.businessId, business: `${paidToInstaller.name} (safety checks by their electricians)`, kind: "assessment", amountEx: Math.round((paidToInstaller.piesaIncGst / gst) * 100) / 100, dueAt: null, paidAt: paidVisit(v), ...(v ? { visitId: v.id } : {}) });
     if (elec && !ownerDirect) {
       // dueAt for electrician lines is set below from the decision-355 rule.
-      if (!paidToInstaller && (atFinal || visited("assessment"))) lines.push({ jobId: id, jobNumber: j.job_number, businessId: elec.business_id, business: name(elec), kind: "assessment", amountEx: piesaEx(elec.business_id), dueAt: null, paidAt: paidFor("assessment") });
+      if (!paidToInstaller) for (const v of safetyVisits) {
+        const biz = v?.business_id ?? elec.business_id;
+        lines.push({ jobId: id, jobNumber: j.job_number, businessId: biz, business: bizName.get(biz) ?? (biz === elec.business_id ? name(elec) : "Not assigned"), kind: "assessment", amountEx: piesaEx(biz), dueAt: null, paidAt: paidVisit(v), ...(v ? { visitId: v.id } : {}) });
+      }
       if (quotes.some((q) => q.job_id === id && q.kind === "rectification") && (atFinal || visited("rectification"))) lines.push({ jobId: id, jobNumber: j.job_number, businessId: elec.business_id, business: name(elec), kind: "rectification", amountEx: costOf(id, "rectification"), dueAt: null, paidAt: paidFor("rectification") });
     }
   }
@@ -189,38 +205,78 @@ export async function moneyPayouts(testJobIds?: string[]) {
   const facts = await payoutGateFacts([...new Set([...unpaidJobs, ...elecJobs])]);
   const { electricianPayTiming } = await import("./electrician-pay.core");
   for (const l of lines) {
-    const t = l.kind === "installation" ? null : electricianPayTiming(l.kind, facts.get(l.jobId));
+    // Batch 1 F5: a later safety-check visit is gated on its own record, never the first visit's completed form.
+    const jf = facts.get(l.jobId);
+    const vf = jf && l.kind === "assessment" ? visitGateFacts(jf, safety.get(l.jobId), l.visitId) : jf;
+    const t = l.kind === "installation" ? null : electricianPayTiming(l.kind, vf);
     if (t) { l.dueAt = t.dueAt; if (t.approvable) l.approvable = true; }
-    if (!l.paidAt) { const f = facts.get(l.jobId); l.held = [...(f ? tradePayoutBlockers(l.kind, f) : [PAYOUT_FORM_NOT_COMPLETE[l.kind]]), ...(t?.waiting ?? []), ...(l.held ?? [])]; }
+    if (!l.paidAt) { const f = vf; l.held = [...(f ? tradePayoutBlockers(l.kind, f) : [PAYOUT_FORM_NOT_COMPLETE[l.kind]]), ...(t?.waiting ?? []), ...(l.held ?? [])]; }
+  }
+  // Jo 28 Oct (decision 158): when the office chose the installer to pay for a repeat safety check, it comes off their install payout.
+  const instJobs = [...new Set(lines.filter((l) => l.kind === "installation").map((l) => l.jobId))];
+  if (instJobs.length) {
+    const { data: rp } = await admin.from("workflow_events").select("job_id, details").in("job_id", instJobs).eq("event_type", "repeat_piesa_payer_chosen");
+    const { repeatDeductionEx } = await import("./repeat-piesa.core");
+    for (const l of lines) {
+      if (l.kind !== "installation" || l.amountEx == null) continue;
+      const off = repeatDeductionEx((rp ?? []).filter((e) => e.job_id === l.jobId).map((e) => e.details as { payer?: string; price_inc_gst?: number | null }), gst);
+      if (off > 0) { l.amountEx = Math.round((l.amountEx - off) * 100) / 100; l.held = [...(l.held ?? []), ...(l.amountEx < 0 ? ["Repeat safety check costs more than this install payout — the office settles the difference."] : [])]; }
+    }
   }
   const g = groupPayouts(lines);
   return { due: g.due, held: g.held, paid: g.paid.slice(0, 30), owedEx: g.due.reduce((a, x) => a + (x.amountEx ?? 0), 0), heldEx: g.held.reduce((a, x) => a + (x.amountEx ?? 0), 0), unknownAmounts: g.due.filter((x) => x.amountEx == null).length };
 }
 
-/** Invoices (decisions 139–144, 240): one Xero invoice per job; steps derived by payments.server jobPaymentView. Read-only. */
+/** Invoices (decisions 139–144, 240): steps derived by payments.server jobPaymentView. Read-only. Batch 3b: a job can have
+ *  an install invoice, an electrical fixes invoice and a repeat safety check invoice — each is its own row, with its own
+ *  total, its own money, its own steps and its reference. */
 export async function moneyInvoices(now = new Date()) {
-  const { data: inv, error } = await db.from("invoices").select("id, job_id, total_inc_gst, total_paid, xero_invoice_number, created_at").eq("kind", "installation").order("created_at", { ascending: false }).limit(400);
+  const { data: inv, error } = await db.from("invoices").select("id, job_id, kind, total_inc_gst, total_paid, xero_invoice_number, xero_reference, created_at").in("kind", ["installation", "rectification", "repeat_safety_check"]).order("created_at", { ascending: false }).limit(600);
   if (error) throw new Error(`Could not read invoices: ${error.message}`);
-  const jobs = await liveJobs([...new Set(((inv ?? []) as { job_id: string }[]).map((i) => i.job_id))]);
-  const live = ((inv ?? []) as { id: string; job_id: string; total_inc_gst: number; total_paid: number; xero_invoice_number: string | null }[]).filter((i) => jobs.has(i.job_id) && jobs.get(i.job_id)!.stage !== "cancelled");
-  const seen = new Set<string>();
-  const latest = live.filter((i) => (seen.has(i.job_id) ? false : (seen.add(i.job_id), true)));
-  const open = latest.filter((i) => Number(i.total_paid ?? 0) < Number(i.total_inc_gst ?? 0)).slice(0, 80);
-  const paid = latest.filter((i) => Number(i.total_paid ?? 0) >= Number(i.total_inc_gst ?? 0)).slice(0, 20);
+  type Inv = { id: string; job_id: string; kind: string; total_inc_gst: number; total_paid: number; xero_invoice_number: string | null; xero_reference: string | null };
+  const all = (inv ?? []) as Inv[];
+  const jobs = await liveJobs([...new Set(all.map((i) => i.job_id))]);
+  const live = all.filter((i) => jobs.has(i.job_id) && jobs.get(i.job_id)!.stage !== "cancelled");
+  // The newest invoice of each kind per job (newest first already). One entry per job: its installation invoice, else
+  // (fixes accepted before any installation quote) its newest fixes / repeat invoice — such a job is listed too.
+  const newest = new Map<string, Inv>();
+  for (const i of live) if (!newest.has(`${i.job_id}:${i.kind}`)) newest.set(`${i.job_id}:${i.kind}`, i);
+  const kinds = ["installation", "rectification", "repeat_safety_check"] as const;
+  const latest = [...new Set(live.map((i) => i.job_id))].map((id) => kinds.map((k) => newest.get(`${id}:${k}`)).find((x): x is Inv => !!x)!);
+  const unpaid = (i: Inv | undefined) => !!i && Number(i.total_paid ?? 0) < Number(i.total_inc_gst ?? 0);
+  const jobOpen = (jobId: string) => ["installation", "rectification", "repeat_safety_check"].some((k) => unpaid(newest.get(`${jobId}:${k}`)));
+  const open = latest.filter((i) => jobOpen(i.job_id)).slice(0, 80);
+  const paid = latest.filter((i) => !jobOpen(i.job_id)).slice(0, 20);
   const { jobPaymentView } = await import("./payments.server");
+  const { stepInvoiceKind } = await import("./payments.core");
+  const { invoiceSlotLabel, invoiceSlotOf } = await import("./office-money.core");
   const rows = [];
   for (const part of chunks([...open, ...paid], 8)) {
-    rows.push(...await Promise.all(part.map(async (i) => {
+    rows.push(...(await Promise.all(part.map(async (i) => {
       const j = jobs.get(i.job_id)!;
       const v = await jobPaymentView(i.job_id, now).catch(() => null);
-      const steps = v?.steps ?? [];
-      const st = invoiceRowState(steps, now.toISOString());
-      return {
-        invoiceId: i.id, invoiceNumber: i.xero_invoice_number, jobId: i.job_id, jobNumber: j.job_number, owner: j.owners?.full_name ?? null, stage: stageWord(j),
-        totalCents: v?.plan.grandTotalCents ?? Math.round(Number(i.total_inc_gst ?? 0) * 100), paidCents: v?.paidCents ?? Math.round(Number(i.total_paid ?? 0) * 100),
-        steps: steps.length ? stepsLine(steps) : "Not in Xero yet", state: st.label, tone: st.tone, chase: st.chase,
+      const job = { jobId: i.job_id, jobNumber: j.job_number, owner: j.owners?.full_name ?? null, stage: stageWord(j) };
+      // One invoice straight from the Xero mirror row (its own total and money).
+      const mirror = (k: (typeof kinds)[number]) => {
+        const r = newest.get(`${i.job_id}:${k}`);
+        if (!r) return [];
+        const slot = invoiceSlotOf(k);
+        const totalCents = Math.round(Number(r.total_inc_gst ?? 0) * 100), paidCents = Math.round(Number(r.total_paid ?? 0) * 100);
+        const st = k === "installation" ? invoiceRowState([], now.toISOString()) : paidCents >= totalCents ? { label: "Paid in full", tone: "green" as const, chase: false } : { label: "On track", tone: "plain" as const, chase: false };
+        return [{ ...job, invoiceId: r.id, invoiceNumber: r.xero_invoice_number, label: invoiceSlotLabel(slot, r.xero_reference), reference: r.xero_reference, totalCents, paidCents, steps: k === "installation" ? "Not in Xero yet" : "—", state: st.label, tone: st.tone, chase: st.chase }];
       };
-    })));
+      // No payment view (no installation invoice yet, or it could not be read): each of the job's invoices from the
+      // Xero mirror, so a fixes / repeat invoice is never missing from the list.
+      if (!v) return kinds.flatMap(mirror);
+      return (["install", "fixes", "repeat"] as const).flatMap((slot) => {
+        const r = v.invoices[slot];
+        // A repeat safety check invoice stays listed once the repeat is no longer owed (paid, check done): from the mirror.
+        if (!r) return slot === "repeat" ? mirror("repeat_safety_check") : [];
+        const steps = v.steps.filter((x) => stepInvoiceKind(x.key) === slot);
+        const st = invoiceRowState(steps, now.toISOString());
+        return [{ ...job, invoiceId: r.id, invoiceNumber: r.xero_invoice_number, label: invoiceSlotLabel(slot, r.xero_reference), reference: r.xero_reference, totalCents: Math.round(Number(r.total_inc_gst ?? 0) * 100), paidCents: v.paid[slot], steps: steps.length ? stepsLine(steps) : "Not in Xero yet", state: st.label, tone: st.tone, chase: st.chase }];
+      });
+    }))).flat());
   }
   const owedCents = rows.reduce((a, r) => a + Math.max(0, r.totalCents - r.paidCents), 0);
   return { rows, owedCents, openCount: open.length, overdue: rows.filter((r) => r.chase).length, bounded: latest.length > open.length + paid.length };
@@ -279,4 +335,41 @@ export async function setVeecSpotPrice(price: number, actorId: string) {
   if (ue) throw new Error(`Spot price recorded, but the current price setting could not be updated: ${ue.message}`);
   await db.from("admin_config_events").insert({ actor_id: actorId, event_type: "current_veec_price_changed", summary: `VEEC spot price set to $${price} (Money › VEECs)`, details: { from: ws.current_veec_price, to: price, priced_on: pricedOn } });
   return { ok: true, pricedOn };
+}
+
+/** Office "Create invoice": the job's accepted installation quote and (batch 3b) its current accepted electrical fixes quote
+ *  each go through the same once-only invoice step the acceptance uses; an invoice already linked is left alone. */
+export async function createInvoiceForJob(jobId: string, actorId: string | null): Promise<{ ok: true }> {
+  const { WorkflowError } = await import("./workflow.server");
+  const { data: job } = await admin.from("jobs").select("stage").eq("id", jobId).maybeSingle();
+  if (job?.stage === "cancelled") throw new WorkflowError("This job is cancelled, so no invoice can be created.");
+  const { data: q, error } = await admin.from("quotes").select("id").eq("job_id", jobId).eq("kind", "installation").eq("status", "accepted").order("accepted_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new WorkflowError(`Could not read the accepted quote: ${error.message}`);
+  let fixes: { id: string; status: string } | null = null;
+  try { fixes = await (await import("./fixes-quote-current.server")).currentFixesQuote(jobId); }
+  catch (e) { throw new WorkflowError((e as Error).message); }
+  const quoteIds = [q?.id, fixes?.status === "accepted" ? fixes.id : null].filter((x): x is string => !!x);
+  // Batch 3b: an owner-paid repeat safety check the owner accepted (not yet paid) gets its own invoice too.
+  // A failure reading it only adds to the errors: the install and fixes retries still run.
+  const errors: string[] = [];
+  let repeat: RepeatState | null = null;
+  try { repeat = (await (await import("./repeat-piesa.server")).repeatPiesaContext(jobId)).state; }
+  catch (e) { errors.push(`Repeat safety check: ${(e as Error)?.message ?? String(e)}`); }
+  const repeatDue = !!repeat && repeat.stage === "owner_pay" && repeat.payer === "owner" && !!repeat.deadline && !!repeat.priceIncGst;
+  if (!quoteIds.length && !repeatDue) throw new WorkflowError(errors.length ? `The invoice still did not reach Xero: ${errors.join(" · ")}` : "This job has no accepted quote, so there is nothing to invoice.");
+  const { createInvoiceAfterAcceptance } = await import("./invoice-after-acceptance.server");
+  for (const id of quoteIds) {
+    const r = await createInvoiceAfterAcceptance(id, jobId, actorId);
+    if (!r.ok) errors.push(`${id === q?.id ? "Invoice" : "Fixes invoice"}: ${r.error ?? "unknown error"}`);
+  }
+  if (repeatDue && repeat) {
+    try {
+      const { createRepeatInvoice } = await import("./xero.server");
+      const { invoiceId } = await createRepeatInvoice(jobId, repeat.deadline!, repeat.priceIncGst!);
+      const { data: inv } = await admin.from("invoices").select("xero_invoice_id, last_sync_error").eq("id", invoiceId).maybeSingle();
+      if (!inv?.xero_invoice_id) errors.push(`Repeat safety check invoice: ${inv?.last_sync_error ?? "not linked to Xero"}`);
+    } catch (e) { errors.push(`Repeat safety check invoice: ${(e as Error).message}`); }
+  }
+  if (errors.length) throw new WorkflowError(`The invoice still did not reach Xero: ${errors.join(" · ")}`);
+  return { ok: true };
 }

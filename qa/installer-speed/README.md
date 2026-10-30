@@ -1,0 +1,3 @@
+# Installer screens timing
+
+Run `bun scripts/installer-speed.ts --base https://portal.homeinsulationvictoria.com.au --label before` (use `after-<screen>` or `after` later; add `--screens home,job` to time only some). It signs in as the TEST owner and TEST staff logins, opens each installer screen 5 times on a throttled phone and writes `qa/installer-speed/<date>-<label>.md`. It only reads, so nothing is sent or changed. It needs `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and the server key, so it runs in Lovable, not on a laptop without them; it also needs at least one active qa_test job on the TEST business for the job and day screens.

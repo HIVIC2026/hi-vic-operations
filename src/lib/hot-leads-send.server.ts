@@ -24,6 +24,7 @@ import { RESEND_FETCH_TIMEOUT_MS, timeoutSignal } from "./network-timeout.core";
 import { AUTO_REPLY_OFF } from "./enquiry-auto-reply.core";
 import { classifyProviderStatus, SENT_UNKNOWN_PREFIX, UNCERTAIN_SEND_DETAIL, type ResendAttempt } from "./save-spot-delivery.core";
 import { testRecipientBoundary } from "./comms-test-recipient.core";
+import { firstResponseOutcome, type StoredAudit } from "./enquiry-groups.core";
 
 export const HOT_SEND_BATCH = 10;
 /** Last TEST send detail per job (Resend id), for reporting. */
@@ -94,10 +95,19 @@ async function followupAllowed(token: string) {
 async function sendOne(jobId: string, actorId: string | null, realOn: boolean, testOpts: TestSendOptions, followup = false): Promise<HotSendResult> {
   const mode = testOpts.mode ?? "send";
   const morePhotos = !!testOpts.morePhotosReviewId;
-  const { data: job, error: jobError } = await admin.from("jobs").select("id, job_number, source, stage, created_at, eligibility_outcome, estimated_area_m2, estimated_area_unknown, owners(full_name, email), properties(address_line, suburb, postcode, enrichment)").eq("id", jobId).maybeSingle();
+  const { data: job, error: jobError } = await admin.from("jobs").select("id, job_number, source, stage, created_at, eligibility_outcome, eligibility_decision_rules, estimated_area_m2, estimated_area_unknown, owners(full_name, email), properties(address_line, suburb, postcode, enrichment)").eq("id", jobId).maybeSingle();
   if (jobError) return { jobId, jobNumber: null, outcome: "blocked", detail: "Could not read the job. Try again; nothing sent." };
   if (!job) return { jobId, jobNumber: null, outcome: "failed", detail: "Job not found" };
   const r = (outcome: HotSendResult["outcome"], detail: string): HotSendResult => ({ jobId, jobNumber: job.job_number, outcome, detail });
+  // Only Save my spot is held (spec): the insulation-details / 3-questions emails (automaticInsulation) and the Office
+  // more-photos request go as before.
+  if (mode === "send" && !testOpts.automaticInsulation && !morePhotos) {
+    // Waiting for the owner's full address: nothing is reserved or sent until they answer.
+    const { loadAddressRequestFacts } = await import("./address-request.server");
+    const { addressRequestOpen, ADDRESS_REQUEST_BLOCK_REASON } = await import("./address-request.core");
+    const facts = await loadAddressRequestFacts(jobId);
+    if (facts && addressRequestOpen(facts)) return r("blocked", ADDRESS_REQUEST_BLOCK_REASON);
+  }
   const isTest = job.source === "qa_test";
   if (mode === "send" && !isTest && !followup && !morePhotos && !realOn) return r("blocked", "Sending is switched off.");
   if (followup && !["base44", "qa_test"].includes(job.source)) return r("blocked", "Follow-up is only for website owner enquiries.");
@@ -188,7 +198,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     declaredExisting = offerFacts.declaredExisting || (!reviewError && !reviewOutcome && !declaredThinPatchy && (tap?.route === "existing_save_spot" || (!tap && !uploadError && (ownerUploads ?? 0) > 0)));
     declaredUnknown = declaredExisting && price.insulation === "unknown" && !tap && !detail.insulation_type && !detail.insulation_thickness && !detail.insulation_coverage;
   }
-  const group = declaredThinPatchy || declaredExisting ? "likely" : launchGroup(job.eligibility_outcome, price.insulation) ?? "likely";
+  const group = declaredThinPatchy || declaredExisting ? "likely" : launchGroup(job.eligibility_outcome, price.insulation, job.eligibility_decision_rules as StoredAudit) ?? "likely";
   if (group !== "likely" && !isTest && !testOpts.automaticInsulation && !followup && !morePhotos) return r("blocked", "Only the approved Group A email can be sent from this list.");
 
   // Once per home, ever: the idempotency key is the job, not the batch.
@@ -305,7 +315,8 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
         const d = (lcr as { desk_check_status?: string | null } | null)?.desk_check_status;
         if (d === "looks_eligible" || d === "not_eligible" || d === "needs_onsite_check") deskCheckStatus = d;
       } catch { deskCheckStatus = null; }
-      const outcome = job.eligibility_outcome === "likely_eligible" ? "likely_eligible"
+      const qualifiedOutcome = firstResponseOutcome(job.eligibility_outcome, price.insulation, job.eligibility_decision_rules as StoredAudit);
+      const outcome = qualifiedOutcome === "likely_eligible" ? "likely_eligible"
         : job.eligibility_outcome === "needs_onsite_confirmation" ? "needs_onsite_confirmation"
         : job.eligibility_outcome === "does_not_appear_eligible" ? "does_not_appear_eligible" : null;
       // This sender never sends the ineligible result (T7 belongs to the ineligible sender).

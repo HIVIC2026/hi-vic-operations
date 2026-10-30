@@ -118,7 +118,7 @@ describe("draft emails O66 / O67 / O68 (kit design, O1 price box, Save my spot b
     expect(html).toContain(">$2,188<");
     expect(html).toContain('class="strike" style="text-decoration:line-through">$3,798');
     expect(html).toContain("Based on what you told us: 137 m² ceiling, no existing insulation.");
-    expect(html).toContain("Try a different ceiling size");
+    expect(html).not.toContain("Try a different ceiling size"); // guide fix 1, Jo 29 Oct 2026
     expect(html).toContain("Save my free spot");
     expect(html).toContain(`href="${SAVE}"`);
     expect(text).toContain(`Save my free spot: ${SAVE}`);

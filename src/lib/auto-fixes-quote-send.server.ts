@@ -44,6 +44,7 @@ export async function maybeAutoSendFixesQuote(jobId: string, opts: { actorId?: s
       const { fixesPriceSource } = await import("./fixes-price.core");
       if (fixesPriceSource(shortAnswersFromEntries("piesa", entries)).path !== "a4_price") return out("waiting", "no electrician repair price on the A3", null);
       const quoteId = await (await import("./quotes.server")).generateRectificationQuote(jobId, opts.actorId ?? null);
+      if (typeof quoteId !== "string") return out("waiting", "in_house_partner_bills", null);
       const { data: fresh, error: fe } = await admin.from("quotes").select("id, job_id, kind, status, sent_at, office_reviewed_at, created_at, quote_internals(calc_snapshot)").eq("id", quoteId).maybeSingle();
       if (fe) throw new Error(fe.message);
       quote = fresh;

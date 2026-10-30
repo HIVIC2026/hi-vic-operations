@@ -67,6 +67,6 @@ describe("trade job status line (Jo 7 Oct)", () => {
     expect(s).toContain('from("partner_change_requests").insert');
     expect(s).not.toMatch(/sendEmail|sendSms|enqueue_external_action/);
     expect(s).toContain('if (mode === "own_customer")');
-    expect(readFileSync("src/routes/_authenticated/field.index.tsx", "utf8")).toContain("Needs chasing");
+    expect(readFileSync("src/routes/_authenticated/field.index.tsx", "utf8")).toContain("ELECTRICIAN_WORK_WORDS.slowFilter");
   });
 });

@@ -9,7 +9,8 @@ import { assignBlocker, certificationBlocker, firstName, hashToken, isTokenShape
 const uuid = z.string().uuid();
 const workerInput = z.object({
   full_legal_name: z.string().trim().min(2).max(200),
-  email: z.string().trim().toLowerCase().email().max(254),
+  // Jo 28 Oct: email is optional — a person can be saved with just a name, trade role and (optional) mobile.
+  email: z.preprocess((v) => (typeof v === "string" && !v.trim() ? null : v), z.string().trim().toLowerCase().email().max(254).nullable().optional()),
   mobile: z.string().trim().min(8).max(30),
   trade_role: z.enum(["electrician", "installer"]),
   licence_number: z.string().trim().max(60).optional().nullable(),
@@ -40,16 +41,16 @@ export const saveWorker = createServerFn({ method: "POST" }).middleware([require
     if (data.trade_role === "electrician" && !data.licence_number) throw new Error("Add the electrician's licence number.");
     if (data.trade_role === "installer" && !data.qualification) throw new Error("Add the installer's qualification (e.g. Cert III or 'Experienced installer').");
     const { id, ...rest } = data;
-    const fields = { ...rest, licence_number: rest.licence_number ?? null, qualification: rest.qualification ?? null };
+    const fields = { ...rest, email: rest.email ?? null, licence_number: rest.licence_number ?? null, qualification: rest.qualification ?? null };
     if (id) {
       const { data: before, error } = await admin.from("partner_workers").select("*").eq("id", id).eq("business_id", data.business_id).maybeSingle();
       if (error || !before) throw new Error("Worker not found.");
       const reapprove = !office && needsReapproval(before as Record<string, unknown>, fields);
-      const { error: ue } = await admin.from("partner_workers").update({ ...fields, ...(reapprove ? { approval_status: "pending", approved_at: null, approved_by: null } : {}) }).eq("id", id);
+      const { error: ue } = await admin.from("partner_workers").update({ ...fields, ...(reapprove ? { approval_status: "pending", approved_at: null, approved_by: null } : {}) } as never).eq("id", id);
       if (ue) throw new Error(ue.message);
       return { ok: true, pending: reapprove || before.approval_status === "pending" };
     }
-    const { error } = await admin.from("partner_workers").insert({ ...fields, added_by: context.userId, approval_status: office ? "approved" : "pending", ...(office ? { approved_by: context.userId, approved_at: new Date().toISOString() } : {}) });
+    const { error } = await admin.from("partner_workers").insert({ ...fields, added_by: context.userId, approval_status: office ? "approved" : "pending", ...(office ? { approved_by: context.userId, approved_at: new Date().toISOString() } : {}) } as never);
     if (error) throw new Error(error.code === "23505" ? "A worker with that email is already listed." : error.message);
     return { ok: true, pending: !office };
   });
@@ -70,6 +71,32 @@ export const removeWorker = createServerFn({ method: "POST" }).middleware([requi
     // Decision 331: removed person → deactivate the Mitti user the portal invited/linked (switch off = no-op). Never fails the removal.
     await import("./mitti-invite.server").then((m) => m.onPartnerPersonRemoved(w.id, context.userId)).catch((e) => console.error("Mitti deactivate skipped", (e as Error).message));
     return { ok: true };
+  });
+
+// ---------- Lead / Crew (Jo 28 Oct 2026) ----------
+/** HIV admins and the business's own business_admin switch an installer person between Lead and Crew. Applies straight
+ *  away, records ONE admin_config_events row (who, person, from → to); to Lead runs the Mitti invite (never fails the
+ *  switch); to Crew does nothing in Mitti (Jo 29 Oct). */
+export const setWorkerRole = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ id: uuid, role: z.enum(["lead", "crew"]) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const { data: w } = await admin.from("partner_workers").select("id, business_id, full_legal_name, trade_role, worker_role, profile_id, removed_at").eq("id", data.id).maybeSingle();
+    if (!w || w.removed_at) throw new Error("Worker not found.");
+    if (w.trade_role !== "installer") throw new Error("Lead and Crew are for installers only.");
+    if (!(await isAdminCaller(context.supabase))) await requireMember(context.userId, w.business_id, true);
+    const { workerRolesFor } = await import("./mitti-invite.server");
+    const from = (await workerRolesFor([w])).get(w.id) ?? "lead";
+    const { WORKER_ROLE_CHANGED_EVENT, roleChangeSummary, roleSwitchMittiAction } = await import("./worker-role.core");
+    if (from === data.role && w.worker_role === data.role) return { ok: true, changed: false, role: data.role };
+    const { error } = await admin.from("partner_workers").update({ worker_role: data.role }).eq("id", w.id);
+    if (error) throw new Error(error.message);
+    if (from === data.role) return { ok: true, changed: false, role: data.role }; // stored the role that already applied; nothing changes
+    await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: WORKER_ROLE_CHANGED_EVENT, summary: roleChangeSummary(w.full_legal_name, from, data.role), details: { worker_id: w.id, business_id: w.business_id, from, to: data.role, stored_before: w.worker_role ?? null } });
+    const action = roleSwitchMittiAction(from, data.role);
+    const m = await import("./mitti-invite.server");
+    if (action === "invite") await m.onPartnerPersonApproved(w.id, context.userId).catch((e) => console.error("Mitti invite after Lead switch skipped", (e as Error).message));
+    return { ok: true, changed: true, role: data.role };
   });
 
 // ---------- Office: approvals ----------
@@ -178,12 +205,14 @@ export const getWorkerJobView = createServerFn({ method: "POST" })
       import("./allocation.core"),
     ]);
     if (!j) throw new Error("This job is no longer available.");
+    const dispatch = await (await import("./in-house-suppression.server")).inHouseDispatchSkip(l.job_id);
+    const heldText = dispatch ? (await import("./in-house-message.core")).inHouseTradeBookingText(j.stage) : null;
     const mittiId = mb?.mitti_account_invited !== true ? null : w.trade_role === "electrician" ? a?.external_mitti_id : (m?.external_source === "mitti" ? m.external_id : null) ?? a?.external_mitti_id;
     const released = (rels ?? []).some((r) => (r.job_assignments as { active: boolean }).active && visitIsCurrent(r.visit_kind, j.stage ?? ""));
     const { data: oc } = released ? await admin.from("job_overview").select("owner_name, owner_phone, owner_email").eq("id", l.job_id).maybeSingle() : { data: null };
     return {
       worker: { name: w.full_legal_name, firstName: firstName(w.full_legal_name), role: w.trade_role, business: bizName },
-      job: { ...j, owner_first_name: firstName(j.owner_name), owner_name: undefined },
+      job: { ...j, ...(heldText ? { next_action: dispatch === "in_house" ? heldText : "Visit booking details unavailable" } : {}), owner_first_name: firstName(j.owner_name), owner_name: undefined },
       ownerContact: oc ? { name: oc.owner_name, phone: oc.owner_phone, email: oc.owner_email } : null,
       mittiUrl: mittiId ? (await import("./mitti-link.core")).mittiFormUrl(mittiId) : null,
       bookings: books ?? [],

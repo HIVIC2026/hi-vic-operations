@@ -1,3 +1,4 @@
+import { inHouseDispatchSkip } from "./in-house-suppression.server";
 // One guarded path for the approved owner emails that have no live sender yet (decision 137: "nothing sent").
 // Mirrors install-booked-email.server.ts: TEST jobs get the rendered email through test-send; real owners only when the
 // template's own *_APPROVED flag is true AND customer messages are on, through the one guarded owner-email path
@@ -17,6 +18,10 @@ export async function sendOwnerTemplateEmail(p: {
   /** Review R04: real owners only — passed to sendGuardedOwnerEmail (re-claim a DEFINITELY failed reservation, same key). */
   retryAfterDefiniteFailure?: boolean;
 }): Promise<string> {
+  if (["quote_accepted", "safety_check_times", "safety_check_booked", "fixes_quote", "install_days", "install_day_changed"].includes(p.purpose)) {
+    const skipped = await inHouseDispatchSkip(p.jobId);
+    if (skipped) return skipped;
+  }
   const { data: job } = await admin.from("jobs").select("owner_id, property_id, source").eq("id", p.jobId).maybeSingle();
   if (!job) return "skipped";
   const [{ data: owner }, { data: prop }, { data: asg }, { data: link }] = await Promise.all([

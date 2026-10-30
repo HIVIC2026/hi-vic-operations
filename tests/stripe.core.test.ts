@@ -10,10 +10,10 @@ const SECRET = "whsec_test_not_real";
 const sign = (t: number, body: string, secret = SECRET) => `t=${t},v1=${createHmac("sha256", secret).update(`${t}.${body}`, "utf8").digest("hex")}`;
 
 describe("who may use card (Stripe) – fails closed", () => {
-  test("card only for the safety check and the fixes", () => {
+  test("card only for the safety check, the fixes and the install deposit", () => {
     expect(stripeCardAllowed("safety_check")).toBe(true);
     expect(stripeCardAllowed("fixes")).toBe(true);
-    expect(stripeCardAllowed("install_deposit")).toBe(false);
+    expect(stripeCardAllowed("install_deposit")).toBe(true);
     expect(stripeCardAllowed("balance")).toBe(false);
     expect(stripeBlocker({ enabled: true, secretKey: "sk_live_x", jobSource: null, step: "balance", amountCents: 100 })).toMatch(/bank transfer or PayID/);
   });
@@ -44,10 +44,17 @@ describe("checkout session", () => {
     expect(form["metadata[step]"]).toBe("fixes");
     expect(form["payment_intent_data[metadata][invoice_id]"]).toBe("inv-1");
     expect(form["customer_email"]).toBe("o@example.com");
-    expect(idempotencyKey).toBe("hivic-checkout-job-1-fixes-45000");
+    expect(idempotencyKey).toBe("hivic-checkout-job-1-inv-1-fixes-45000");
     expect(checkoutSessionParams(i).idempotencyKey).toBe(idempotencyKey);
     expect(encodeForm({ "a[b]": "x y", c: "1" })).toBe("a%5Bb%5D=x%20y&c=1");
     expect(Object.keys(form).some((k) => /fee|surcharge/i.test(k))).toBe(false);
+  });
+  test("batch 3b: same step and amount on a different invoice is a different session (key names the invoice)", () => {
+    const i = { jobId: "job-1", invoiceId: "inv-1", step: "fixes" as const, amountCents: 45_000, jobNumber: "HV-0042", description: "x", successUrl: "https://x/a", cancelUrl: "https://x/b" };
+    const a = checkoutSessionParams(i).idempotencyKey;
+    const b = checkoutSessionParams({ ...i, invoiceId: "inv-2" }).idempotencyKey;
+    expect(a).not.toBe(b);
+    expect(b).toContain("inv-2");
   });
 });
 
@@ -89,7 +96,7 @@ describe("webhook events → payment facts (idempotent)", () => {
     expect(stripePaymentKey(f)).toBe("pi_1");
     expect(parseStripeEvent(EVENT({ payment_status: "unpaid" }))?.fact).toBeNull();
     expect(parseStripeEvent(EVENT({ metadata: { job_id: "job-1" } }))?.fact).toBeNull();
-    expect(parseStripeEvent(EVENT({ metadata: { job_id: "job-1", invoice_id: "inv-1", step: "install_deposit" } }))?.fact).toBeNull();
+    expect(parseStripeEvent(EVENT({ metadata: { job_id: "job-1", invoice_id: "inv-1", step: "balance" } }))?.fact).toBeNull();
     expect(parseStripeEvent(JSON.stringify({ id: "evt_3", type: "charge.refunded", data: { object: {} } }))).toMatchObject({ eventId: "evt_3", fact: null });
     expect(parseStripeEvent("nope")).toBeNull();
     expect(parseStripeEvent(JSON.stringify({ type: "x" }))).toBeNull();

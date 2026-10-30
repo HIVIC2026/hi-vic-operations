@@ -151,8 +151,8 @@ describe("harness integrity (the evidence is only meaningful if these hold)", ()
     expect((await as<{ r: string | null }>(U.sparky, "SELECT public.my_job_role($1) AS r", [JOB.withDraft]))[0]!.r).toBe("electrician");
     expect((await as<{ r: string | null }>(U.stranger, "SELECT public.my_job_role($1) AS r", [JOB.withDraft]))[0]!.r).toBeNull();
   });
-  test("the caller really is authorized on the fixture job (so a refusal cannot be a permission error)", async () => {
-    const r = await outcome(call(U.sparky, { jobId: JOB.withDraft, patch: { notes: "authz probe" } }));
+  test("the caller really is authorized on the fixture job (so a refusal cannot be a permission error); office-only since C4", async () => {
+    const r = await outcome(call(U.office, { jobId: JOB.withDraft, patch: { notes: "authz probe" } }));
     expect(r.ok).toBe(true);
     await db.exec(`DELETE FROM public.assessments WHERE job_id = '${JOB.withDraft}'`);
   });
@@ -165,7 +165,7 @@ describe("FIX #2 · saveAssessment refuses a future PIESA date before any databa
     expect(before?.["assessed_on"]).toBe(YESTERDAY); // fixture recorded
 
     const request = { jobId: JOB.withDraft, patch: { assessed_on: TOMORROW, piesa_outcome: "pass" } };
-    const r = await outcome(call(U.sparky, request));
+    const r = await outcome(call(U.office, request));
     console.log(`\n[Melbourne today]  ${today}`);
     console.log(`[request]          saveAssessment ${JSON.stringify(request)}`);
     console.log(`[response]         ${r.ok ? JSON.stringify(r.value) : r.error}`);
@@ -185,14 +185,14 @@ describe("FIX #2 · saveAssessment refuses a future PIESA date before any databa
 
   test("a date 30 days out is refused too (not just tomorrow)", async () => {
     const before = norm(await row(JOB.withDraft));
-    const r = await outcome(call(U.sparky, { jobId: JOB.withDraft, patch: { assessed_on: NEXT_MONTH } }));
+    const r = await outcome(call(U.office, { jobId: JOB.withDraft, patch: { assessed_on: NEXT_MONTH } }));
     expect(r).toEqual({ ok: false, error: PIESA_DATE_IN_FUTURE });
     expect(norm(await row(JOB.withDraft))).toEqual(before);
   });
 
   test("no assessment row exists: the refusal happens before the INSERT (no row is created)", async () => {
     expect(await row(JOB.noDraft)).toBeNull();
-    const r = await outcome(call(U.sparky, { jobId: JOB.noDraft, patch: { assessed_on: TOMORROW, piesa_outcome: "pass" } }));
+    const r = await outcome(call(U.office, { jobId: JOB.noDraft, patch: { assessed_on: TOMORROW, piesa_outcome: "pass" } }));
     expect(r).toEqual({ ok: false, error: PIESA_DATE_IN_FUTURE });
     expect(await row(JOB.noDraft)).toBeNull();
     expect(await events(JOB.noDraft)).toBe(0);
@@ -201,19 +201,19 @@ describe("FIX #2 · saveAssessment refuses a future PIESA date before any databa
 
 describe("control · the same path ACCEPTS yesterday and today (the refusal is the date rule, not a broken harness)", () => {
   test("yesterday is written", async () => {
-    const r = await outcome(call(U.sparky, { jobId: JOB.withDraft, patch: { assessed_on: YESTERDAY, piesa_outcome: "pass" } }));
+    const r = await outcome(call(U.office, { jobId: JOB.withDraft, patch: { assessed_on: YESTERDAY, piesa_outcome: "pass" } }));
     expect(r.ok).toBe(true);
     expect(norm(await row(JOB.withDraft))?.["assessed_on"]).toBe(YESTERDAY);
     expect((await row(JOB.withDraft))!["piesa_outcome"]).toBe("pass");
   });
   test("today is written", async () => {
-    const r = await outcome(call(U.sparky, { jobId: JOB.withDraft, patch: { assessed_on: today, piesa_outcome: "pass" } }));
+    const r = await outcome(call(U.office, { jobId: JOB.withDraft, patch: { assessed_on: today, piesa_outcome: "pass" } }));
     expect(r.ok).toBe(true);
     expect(norm(await row(JOB.withDraft))?.["assessed_on"]).toBe(today);
   });
   test("a future date is still refused after valid dates were saved", async () => {
     const before = norm(await row(JOB.withDraft));
-    expect((await outcome(call(U.sparky, { jobId: JOB.withDraft, patch: { assessed_on: TOMORROW } }))).error).toBe(PIESA_DATE_IN_FUTURE);
+    expect((await outcome(call(U.office, { jobId: JOB.withDraft, patch: { assessed_on: TOMORROW } }))).error).toBe(PIESA_DATE_IN_FUTURE);
     expect(norm(await row(JOB.withDraft))).toEqual(before);
   });
 });

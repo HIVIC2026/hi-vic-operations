@@ -4,15 +4,18 @@
 // TEST partners → test-send; real electricians → sendOfficeEmail (partner) + the one real SMS sender (customer_comms_enabled
 // + the `piesa_times_reminder` text switch still gate delivery). Best-effort: never throws to the sweep, never changes a stage or a booking.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { inHouseDispatchSkip, type InHouseDispatchState } from "./in-house-suppression.server";
 import {
   PIESA_TIMES_REMINDER_APPROVED, PIESA_TIMES_REMINDER_SMS_TYPE, coordinationReminderSends, piesaTimesReminderKeys, piesaTimesReminderText, renderPiesaTimesReminderEmail,
 } from "./piesa-times-reminder.core";
 
 type Asg = { id: string; active: boolean; booking_confirmed_at: string | null; business_id: string | null; profiles: { full_name: string | null; email: string | null; phone: string | null } | null; businesses: { name: string | null; email: string | null; phone: string | null; signer_mobile: string | null; onboarding_notes: string | null } | null };
 
-export async function remindTradeToOfferTimes(i: { jobId: string; assignmentId: string; visitKind: string; remindedAt: string }): Promise<string> {
+export async function remindTradeToOfferTimes(i: { jobId: string; assignmentId: string; visitKind: string; remindedAt: string }, inHouseState?: InHouseDispatchState): Promise<string> {
   try {
     if (!coordinationReminderSends(i.visitKind)) return "record only";
+    const skipped = await inHouseDispatchSkip(i.jobId, inHouseState);
+    if (skipped) return skipped;
     const [{ data: job }, { data: asgRaw }] = await Promise.all([
       admin.from("jobs").select("job_number, source, stage, deleted_at, properties(address_line, suburb)").eq("id", i.jobId).maybeSingle(),
       admin.from("job_assignments").select("id, active, booking_confirmed_at, business_id, profiles:user_id(full_name, email, phone), businesses(name, email, phone, signer_mobile, onboarding_notes)").eq("id", i.assignmentId).maybeSingle(),

@@ -11,6 +11,7 @@ import { addressLine, estimateDollars, matchesColumnFilters, type ColumnFilters 
 import { savedPriceFromEstimate } from "./launch-campaign.core";
 import { CATEGORY_RANK, categoryCounts, enquiryCategory, inView, ownerWrote, type EnquiryCategory, type EnquiryView } from "./enquiry-categories.core";
 import { FIRST_RESPONSE_PURPOSES } from "./automatic-first-response.core";
+import { bouncedJobIds, bounceTagEmails, EMAIL_BOUNCE_CLEARED_EVENT } from "./email-delivery.core";
 import {
   insulationChip, lastHeardChip, matchesChips, pageOf, rankByPriority, regionChip, sizeChip, sortRows, sourceChip,
   type ChipFilters, type InsulationChip, type LastHeardChip, type RegionChip, type SizeChip, type SortDir, type SourceChip,
@@ -37,6 +38,20 @@ async function byIds(what: string, ids: string[], q: (chunk: string[], from: num
   // At most eight chunks in flight: bounded parallel reads.
   for (let i = 0; i < chunks.length; i += 8) out.push(...(await Promise.all(chunks.slice(i, i + 8).map((c) => all(what, (f, t) => q(c, f, t))))).flat());
   return out;
+}
+
+/** Jobs showing the "Email bounced" tag: owner-facing outbound emails with a delivery result (never trade/installer emails)
+ *  and the newest clear, loaded for all ids at once. */
+export async function emailBouncedSet(ids: string[]): Promise<Set<string>> {
+  const [sends, comms, clears] = await Promise.all([
+    byIds("email results", ids, (c, f, t) => admin.from("customer_email_sends").select("job_id, sent_at, created_at, delivery_at, delivery_result, purpose").in("job_id", c).not("delivery_result", "is", null).range(f, t)),
+    byIds("recorded email results", ids, (c, f, t) => admin.from("job_communications").select("job_id, sent_at, created_at, delivery_at, delivery_result, visibility").in("job_id", c).eq("direction", "outbound").eq("channel", "email").eq("visibility", "customer").not("delivery_result", "is", null).range(f, t)),
+    byIds("bounce clears", ids, (c, f, t) => admin.from("workflow_events").select("job_id, created_at").in("job_id", c).eq("event_type", EMAIL_BOUNCE_CLEARED_EVENT).range(f, t)),
+  ]);
+  return bouncedJobIds(
+    bounceTagEmails(sends as never, comms as never),
+    clears.map((r) => ({ jobId: String(r["job_id"]), at: String(r["created_at"]) })),
+  );
 }
 
 /** "Last heard from us" per job (decision 216): newest email / text / recorded outbound contact that did not fail. */
@@ -90,6 +105,8 @@ export type EnquiryListRow = {
   category: EnquiryCategory;
   /** The owner emailed us and we haven't written since (last 14 days): the "Wrote to us" marker. */
   ownerWroteAt: string | null;
+  /** The newest email to the owner bounced and the office hasn't cleared it (red "Email bounced" tag). */
+  emailBounced: boolean;
 };
 
 /** Estimate column facts (decision 286): the latest issued / accepted installation quote, else the current website estimate. */
@@ -111,14 +128,14 @@ export async function loadEnquiriesList(p: EnquiryListParams, testJobIds?: strin
     .select("id,job_number,created_at,source,channel,owners(full_name,email,phone)").eq("source", "qa_test").eq("channel", "hivic_sourced")
     .in("id", testJobIds.length ? testJobIds : ["00000000-0000-0000-0000-000000000000"])
     .in("stage", ["new_enquiry", "eligibility_review", "preliminary_estimate_ready"]).order("created_at", { ascending: false }).order("id").range(a, b))
-    .then(rows => rows.map(r => { const owner = r["owners"] as { full_name?: string; email?: string; phone?: string } | null; return { ...r, owner_name: owner?.full_name, owner_email: owner?.email, owner_phone: owner?.phone, enquiry_status: null, needs_first_response: false, latest_attempt_status: null }; }))
+    .then(rows => rows.map(r => { const owner = r["owners"] as { full_name?: string; email?: string; phone?: string } | null; return { ...r, owner_name: owner?.full_name, owner_email: owner?.email, owner_phone: owner?.phone, enquiry_status: null, needs_first_response: false, latest_attempt_status: null, latest_attempt_at: null }; }))
     : await all("enquiries", (a, b) => {
-    let q = admin.from("office_enquiry_index").select("id, job_number, created_at, source, channel, enquiry_status, needs_first_response, latest_attempt_status, owner_name, owner_email, owner_phone").eq("office_bucket", "enquiry").eq("channel", "hivic_sourced");
+    let q = admin.from("office_enquiry_index").select("id, job_number, created_at, source, channel, enquiry_status, needs_first_response, latest_attempt_status, latest_attempt_at, owner_name, owner_email, owner_phone").eq("office_bucket", "enquiry").eq("channel", "hivic_sourced");
     q = q.in("source", ["base44", "portal", "email"]);
     return q.order("created_at", { ascending: false }).order("id").range(a, b);
   });
   const ids = index.map((r) => String(r["id"]));
-  const [jobs, heard, answered, covered, estimateOf, inbound, campaignOpt, emailOpt] = await Promise.all([
+  const [jobs, heard, answered, covered, estimateOf, inbound, campaignOpt, emailOpt, bounced] = await Promise.all([
     byIds("enquiry details", ids, (c, f, t) => admin.from("jobs").select("id, estimated_area_m2, properties(address_line, suburb, postcode, answers:enrichment->base44->raw->answers)").in("id", c).range(f, t)),
     lastHeardMap(ids, true),
     byIds("3 questions answers", ids, (c, f, t) => admin.from("workflow_events").select("job_id, created_at").in("job_id", c).eq("event_type", "owner_insulation_details_answered").range(f, t)),
@@ -129,6 +146,7 @@ export async function loadEnquiriesList(p: EnquiryListParams, testJobIds?: strin
     byIds("owner emails", ids, (c, f, t) => admin.from("job_communications").select("job_id, received_at").in("job_id", c).eq("direction", "inbound").not("received_at", "is", null).range(f, t)),
     byIds("opt-outs", ids, (c, f, t) => admin.from("lead_campaign_responses").select("job_id").in("job_id", c).not("opted_out_at", "is", null).range(f, t)),
     byIds("email opt-outs", ids, (c, f, t) => admin.from("customer_email_optouts").select("job_id").in("job_id", c).not("opted_out_at", "is", null).range(f, t)),
+    emailBouncedSet(ids),
   ]);
   const optedOut = new Set([...campaignOpt, ...emailOpt].map((r) => String(r["job_id"])));
   const latest = (rows: Row[], at: string) => { const m = new Map<string, string>(); for (const r of rows) { const k = String(r["job_id"]), a = s(r[at]); if (a && (!m.get(k) || m.get(k)! < a)) m.set(k, a); } return m; };
@@ -138,7 +156,7 @@ export async function loadEnquiriesList(p: EnquiryListParams, testJobIds?: strin
   const jobById = new Map(jobs.map((j) => [String(j["id"]), j]));
   const answeredSet = new Set(answered.map((a) => String(a["job_id"])));
   const REMINDER = /reminder|followup|follow_up/;
-  const rows = index.map((r) => {
+  const allRows = index.map((r) => {
     const id = String(r["id"]);
     const j = jobById.get(id);
     const prop = (j?.["properties"] ?? null) as { address_line: string | null; suburb: string | null; postcode: string | null; answers: Record<string, unknown> | null } | null;
@@ -153,9 +171,9 @@ export async function loadEnquiriesList(p: EnquiryListParams, testJobIds?: strin
     const ans = answeredAt.get(id) ?? null, inb = inboundAt.get(id) ?? null;
     const ownerAt = [ans, inb].filter((x): x is string => !!x).sort().at(-1) ?? null;
     const noResponseYet = !sends.some(x => (FIRST_RESPONSE_PURPOSES as readonly string[]).includes(x.purpose));
-    const category = enquiryCategory({ createdAt: String(r["created_at"]), enquiryStatus: s(r["enquiry_status"]), lastOutboundAt: last?.at ?? null, lastOwnerAt: ownerAt, inboundAt: inb, optedOut: optedOut.has(id), sendFailed: latestFailed, noResponseYet }, now);
+    const category = enquiryCategory({ createdAt: String(r["created_at"]), enquiryStatus: s(r["enquiry_status"]), lastOutboundAt: last?.at ?? null, lastOwnerAt: ownerAt, inboundAt: inb, optedOut: optedOut.has(id), sendFailed: latestFailed, sendFailedAt: latestFailed ? s(r["latest_attempt_at"]) : null, noResponseYet }, now);
     return {
-      category, ownerWroteAt: ownerWrote({ inboundAt: inb, lastOutboundAt: last?.at ?? null }, now),
+      emailBounced: bounced.has(id), category, ownerWroteAt: ownerWrote({ inboundAt: inb, lastOutboundAt: last?.at ?? null }, now),
       id, jobNumber: String(r["job_number"]), ownerName: tidy.fullName, street: tidy.street, suburb: tidy.suburb, postcode: tidy.postcode, address: addressLine(tidy), phone: s(r["owner_phone"]), email: s(r["owner_email"]),
       estimateDollars: est.dollars, estimateKind: est.kind,
       told: [areaM2 ? `~${Math.round(areaM2)} m²` : "No size", ins === "no" ? "no insulation" : ins === "some" ? "some insulation" : "not sure"].join(" · "),
@@ -166,9 +184,11 @@ export async function loadEnquiriesList(p: EnquiryListParams, testJobIds?: strin
       createdAt: String(r["created_at"]), areaM2, covered: covered(tidy.postcode || prop?.postcode || null, tidy.suburb || null),
     };
   });
+  // Failed first emails are on Needs me only (Jo 30 Oct 2026): out of the list, the counts and Close all.
+  const rows = allRows.filter((r) => r.category !== "needs_me");
   // Decision 281: one list. `open` = every enquiry; `incompleteAddresses` = still waiting on the automatic lookup.
   const counts = { open: rows.length, incompleteAddresses: rows.filter((r) => r.problems.length > 0).length, byCategory: categoryCounts(rows.map((r) => r.category)) };
-  const view = p.view ?? "active";
+  const view = p.view ?? "offered";
   const ranked = rankByPriority(rows.map((r) => ({ ...r, insulation: r.insulation, lastHeardAt: r.lastHeardAt })), now);
   const q = p.search.trim().toLowerCase();
   const filtered = ranked.filter((r) => inView(r.category, view) && matchesColumnFilters(r, p.filters ?? {}) && (!q || [r.jobNumber, r.ownerName, r.street, r.suburb, r.postcode, r.email ?? "", r.phone ?? "", r.websiteSaid].join(" ").toLowerCase().includes(q)));
@@ -199,7 +219,7 @@ export async function enquiryCloseBlocker(jobId: string): Promise<string | null>
 export type JobsListRow = {
   id: string; jobNumber: string; owner: string; surname: string; suburb: string | null; stage: JobsStage; status: string; lastHeardAt: string | null; lastHeardChannel: string | null;
   installer: string | null; ownJob: boolean; onHold: boolean; lifeSupport: boolean; isTest: boolean; insulation: InsulationChip; region: RegionChip | null; source: SourceChip; heard: LastHeardChip;
-  createdAt: string; lastActivityAt: string | null;
+  createdAt: string; lastActivityAt: string | null; emailBounced: boolean;
 };
 
 export async function loadActiveJobsList(p: JobsListParams, testJobIds?: string[]) {
@@ -218,9 +238,10 @@ export async function loadActiveJobsList(p: JobsListParams, testJobIds?: string[
     return q.order("created_at", { ascending: false }).order("id").range(a, b);
   });
   const ids = base.map((r) => String(r["id"]));
-  const [extra, heard] = await Promise.all([
+  const [extra, heard, bounced] = await Promise.all([
     byIds("job facts", ids, (c, f, t) => admin.from("jobs").select("id, prior_stage, deleted_at, qa_archived_at, properties(suburb, postcode, answers:enrichment->base44->raw->answers)").in("id", c).range(f, t)),
     lastHeardMap(ids),
+    emailBouncedSet(ids),
   ]);
   const ex = new Map(extra.map((r) => [String(r["id"]), r]));
   const live = base.filter((r) => { const e = ex.get(String(r["id"])); return e && !e["deleted_at"] && !e["qa_archived_at"]; });
@@ -251,7 +272,7 @@ export async function loadActiveJobsList(p: JobsListParams, testJobIds?: string[
       status: "", // filled in below by statusLine (same rule as before)
       lastHeardAt: last?.at ?? null, lastHeardChannel: last?.channel ?? null, installer, ownJob, onHold: r["stage"] === "on_hold", lifeSupport: r["life_support"] === true, isTest: r["source"] === "qa_test",
       insulation: insulationChip(normaliseInsulation(declaredExtras(prop?.answers ?? null).existing_insulation)), region: regionChip(prop?.postcode), source: sourceChip({ source: s(r["source"]), channel: s(r["channel"]) }),
-      heard: lastHeardChip(last?.at ?? null, now), createdAt: String(r["created_at"]), lastActivityAt: s(r["last_activity_at"]),
+      heard: lastHeardChip(last?.at ?? null, now), createdAt: String(r["created_at"]), lastActivityAt: s(r["last_activity_at"]), emailBounced: bounced.has(id),
     });
   }
   const stageCounts = Object.fromEntries((["choose_installer", "ready_check", "quote", "piesa", "install", "final_check"] as JobsStage[]).map((k) => [k, rows.filter((r) => r.stage === k).length])) as Record<JobsStage, number>;

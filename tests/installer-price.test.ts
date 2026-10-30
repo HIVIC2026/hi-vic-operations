@@ -4,14 +4,14 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
-  ELECTRICIAN_CHOICE_LABEL, INSTALLER_PRICE_EVENT, NOT_ON_READY_CHECK, PRICE_FORM_LABELS, PRICE_ISSUES, PRICE_NOT_ENTERED, accessFlagLine, formHasPrice, installerPriceFromEvent, installerPriceState, priceCardLines, priceEntriesFromRecord, readyCheckDetailLines, validateInstallerPrice, withInstallerPrice,
+  ELECTRICIAN_CHOICE_LABEL, INSTALLER_PRICE_EVENT, NOT_ON_READY_CHECK, PRICE_FORM_LABELS, PRICE_ISSUES, PRICE_NOT_ENTERED, accessFlagLine, formHasPrice, installerPriceFromEvent, installerPriceState, priceCardLines, priceFromPortal, priceEntriesFromRecord, readyCheckDetailLines, validateInstallerPrice, withInstallerPrice,
 } from "../src/lib/installer-price.core";
 import { quotedPriceFromEntries } from "../src/lib/installer-led.core";
 import { contactAnswersFromEntries } from "../src/lib/mitti.core";
 import { resolveMittiElectrician } from "../src/lib/usual-electrician.core";
 import { accessFlagFromEntries, readyCheckRemovalRequired } from "../src/lib/ready-check-answers.core";
 import { PRICE_NEXT_ACTION, formHasInstallerAnswers, isPriceNextAction, needsFinishingFromMissing, readyCheckBasics } from "../src/lib/ready-check-basics.core";
-import { needsFinishingList } from "../src/lib/installer-screens.core";
+import { installerStatusLine, needsFinishingList } from "../src/lib/installer-screens.core";
 import { needsFinishingItems } from "../src/lib/installer-home.core";
 import { needsFinishingTask } from "../src/lib/trade-view.core";
 import { FORMS, mittiAiPrompt, validateTemplate } from "../src/lib/mitti-forms.core";
@@ -166,13 +166,14 @@ describe("wiring (source facts)", () => {
   });
   test("functions: literal createServerFn chains, no react-start/server import, no electrician fields", () => {
     const s = read("src/lib/installer-price.functions.ts");
-    expect(s.match(/createServerFn\(\{ method: "POST" \}\)\.middleware\(\[requireSupabaseAuth\]\)/g)?.length).toBe(2);
+    expect(s.match(/createServerFn\(\{ method: "POST" \}\)\.middleware\(\[requireSupabaseAuth\]\)/g)?.length).toBe(3);
     expect(s).not.toContain("@tanstack/react-start/server");
     expect(s).not.toMatch(/electrician: z\.enum|different: z\.object/);
   });
   test("quote pipeline reads the portal price first: draft, basics, chase, auto-send hold, completion", () => {
     expect(read("src/lib/installer-quote.server.ts")).toContain("entriesWithInstallerPrice(jobId, formEntries)");
-    expect(read("src/lib/ready-check-basics.server.ts")).toContain("withInstallerPrice(formEntries, priceRecord?.record ?? null)");
+    // Batch 3a: basics read through entriesWithInstallerPrice (portal price first; old form price dropped after a new-quote request).
+    expect(read("src/lib/ready-check-basics.server.ts")).toContain("entriesWithInstallerPrice(jobId, formEntries)");
     expect(read("src/lib/ready-check-chase.server.ts")).toContain("entriesWithInstallerPrice(p.jobId, p.entries)");
     expect(read("src/lib/auto-quote-send.server.ts")).toContain("await held(jobId, `price:${jobId}`, [PRICE_NOT_ENTERED]);");
     expect(read("src/lib/mitti-complete.server.ts")).toContain("enabled: sendEnabled, entries: i.entries");
@@ -204,6 +205,20 @@ describe("wiring (source facts)", () => {
     // Decision 341: the only access line is the installer's agreed DIFFICULT_ACCESS rate on a "Difficult" rating.
     expect(a2).toContain('installerDifficultAccessExGst: rate("DIFFICULT_ACCESS")');
     expect(read("src/lib/ready-check-answers.core.ts")).toContain("vals(entries, [LEAN_REMOVE.accessCharge])");
+  });
+  test("A9: the price box, price step and price save are for installers' own jobs only; the HIV quote builder refuses them and prices from the installer's agreed rates", () => {
+    expect(priceFromPortal("installer_sourced")).toBe(true);
+    expect(priceFromPortal("hivic_sourced")).toBe(false);
+    expect(installerPriceState({ channel: "hivic_sourced", record: null, entries: [] })).toEqual({ required: false, present: true, source: null });
+    expect(installerStatusLine({ channel: "hivic_sourced", formLinked: true, formCompleted: true, formHasAnswers: true, priceEntered: false, boss: true, quoteLine: null }).kind).not.toBe("price");
+    expect(read("src/routes/_authenticated/field.$jobId.tsx")).toContain('page.boss && page.channel === "installer_sourced" && <InstallerPriceCard');
+    const set = read("src/lib/installer-price-set.server.ts");
+    expect(set).toContain("if (!priceFromPortal(j.channel) || !j.originating_installer_business_id) throw new WorkflowError(\"Only your own customers' jobs take your price here.\");");
+    expect(set).toContain("if (!j || !priceFromPortal(j.channel) || !j.originating_installer_business_id) return null;");
+    const q = read("src/lib/quotes.server.ts");
+    expect(q).toContain('if (jobRow.channel === "installer_sourced" || jobRow.installer_led) throw new WorkflowError(');
+    expect(q).toContain("if (!inst?.business_id) throw new WorkflowError(\"Assign the installer before quoting – the quote uses that installer's agreed rates.\");");
+    expect(q).toContain('const card = await activeRateCard("installer", inst.business_id, false);');
   });
 });
 

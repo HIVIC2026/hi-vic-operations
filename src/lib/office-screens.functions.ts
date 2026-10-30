@@ -110,15 +110,19 @@ export const cancelOfficeJob = createServerFn({ method: "POST" }).middleware([re
 
 /** Decision 227: Cancel under Actions on Jobs and Enquiries (single or bulk). Each job on its own; one failure never hides the rest. */
 export const bulkCancelOfficeJobs = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobIds: z.array(uuid).min(1).max(200), reason, note: z.string().trim().max(500).optional() }).parse(d))
+  .inputValidator((d) => z.object({ jobIds: z.array(uuid).min(1).max(200), reason, note: z.string().trim().max(500).optional(), closeAll: z.boolean().optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const { cancelJobFully } = await import("./office-actions.server");
     const results: { jobId: string; ok: boolean; error?: string }[] = [];
     for (const jobId of data.jobIds) {
       try {
-        const blocker = await (await import("./office-lists.server")).enquiryCloseBlocker(jobId);
-        if (blocker) throw new WorkflowError(blocker);
+        // The unreplied-lead recheck guards only the "Close all" sweep (Jo 27 Oct: unreplied leads are never swept away).
+        // The manual Actions ▾ Cancel carries an explicit, audited reason and must keep working for any enquiry.
+        if (data.closeAll) {
+          const blocker = await (await import("./office-lists.server")).enquiryCloseBlocker(jobId);
+          if (blocker) throw new WorkflowError(blocker);
+        }
         await cancelJobFully(jobId, data.reason, context.userId, { note: data.note ?? null, bulk: true }); results.push({ jobId, ok: true });
       }
       catch (e) { results.push({ jobId, ok: false, error: e instanceof Error ? e.message : "Failed" }); }
@@ -150,6 +154,14 @@ export const markOfficeJobTest = createServerFn({ method: "POST" }).middleware([
     return markJobAsTest(data.jobId, data.reason, context.userId);
   });
 
+export const clearOfficeEmailBounce = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireOfficeJob(context.supabase, data.jobId);
+    const { clearEmailBounce } = await import("./office-actions.server");
+    return clearEmailBounce(data.jobId, context.userId);
+  });
+
 export const logOfficeCallOrNote = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({
     jobId: uuid, what: z.enum(["call", "note", "email_received", "text_received"]), who: z.enum(["owner", "installer", "electrician"]),
@@ -161,3 +173,18 @@ export const logOfficeCallOrNote = createServerFn({ method: "POST" }).middleware
     return logCallOrNote(data.jobId, context.userId, { what: data.what, who: data.who, party: data.party ?? null, said: data.said, waitingFor: data.waitingFor });
   });
 
+/** Active jobs pile "Registry robot couldn't lodge": open robot failures (already minus anything done by hand), with job numbers. */
+export const getRobotFailures = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireAdmin(context.supabase);
+    const { openRobotFailureRows } = await import("./esc-registry-robot.server");
+    const failures = await openRobotFailureRows();
+    if (!failures.length) return { rows: [] as { jobId: string; jobNumber: string; task: "install_notification" | "veec_creation"; at: string; text: string }[] };
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin.from("jobs").select("id, job_number, source").in("id", [...new Set(failures.map((f) => f.jobId))]);
+    if (error) throw new Error(`Could not load job numbers: ${error.message}`);
+    const numbers = new Map((data ?? []).filter((j) => j.source !== "qa_test").map((j) => [String(j.id), String(j.job_number)]));
+    // TEST jobs stay out of the pile; a job we couldn't find at all still shows as "Job".
+    const testIds = new Set((data ?? []).filter((j) => j.source === "qa_test").map((j) => String(j.id)));
+    return { rows: failures.filter((f) => !testIds.has(f.jobId)).map((f) => ({ jobId: f.jobId, jobNumber: numbers.get(f.jobId) ?? "Job", task: f.task, at: f.at, text: f.text })) };
+  });

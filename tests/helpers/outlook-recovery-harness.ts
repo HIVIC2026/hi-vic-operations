@@ -3,6 +3,8 @@
 import { PGlite } from "@electric-sql/pglite";
 import ts from "typescript";
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+const nodeRequire = createRequire(import.meta.url);
 
 export const TEST_MAILBOX = "shared@example.test";
 export const TEST_JOB = "11111111-1111-4111-8111-111111111111";
@@ -53,6 +55,8 @@ export async function outlookHarness() {
   const operations: Operation[] = [];
   const requests: { url: string; options: RequestInit }[] = [];
   const control = {
+    // Test stand-in for email-delivery.server (it touches tables this fixture lacks); tests that care replace it.
+    deliveryStub: { applyDeliveryResult: async (_p: unknown) => 0 } as { applyDeliveryResult: (p: any) => Promise<number> },
     fault: null as ((op: Operation) => Result | null) | null,
     fetch: async (_url: string, _options: RequestInit): Promise<Response> => new Response(JSON.stringify({ value: [] })),
   };
@@ -152,6 +156,9 @@ export async function outlookHarness() {
     const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
     const module = { exports: {} }; modules.set(name, module.exports);
     const require = (path: string) => path === "@/integrations/supabase/client.server" ? { supabaseAdmin: admin }
+      : path === "./email-delivery.server" ? { applyDeliveryResult: (p: unknown) => control.deliveryStub.applyDeliveryResult(p) }
+      : path === "node:crypto" ? nodeRequire("node:crypto")
+      : path === "./email-delivery.core" ? load("email-delivery.core")
       : (path.startsWith("./outlook-") || path === "./owner-email-presentation.core" || path === "./email-intent.core"
         || path === "./new-sender-reply.core" || path === "./new-sender-reply.server" || path === "./engagement.core" || path === "./estimatelink.core") ? load(path.slice(2)) : (() => { throw new Error(`Unexpected dependency ${path}`); })();
     new Function("require", "module", "exports", "process", "fetch", output)(require, module, module.exports,

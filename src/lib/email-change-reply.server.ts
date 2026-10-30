@@ -67,7 +67,7 @@ export async function replyToChangeRequest(p: { jobIds: string[]; message: MailM
       prior(jobId, m.providerMessageId),
     ]);
     const { ownerCanCancel } = await import("./owner-myjob.core");
-    const ownerCanSelfCancel = ownerCanCancel(job.stage, (bk ?? []).map((b) => b.kind));
+    const ownerCanSelfCancel = ownerCanCancel(job.stage, (bk ?? []).map((b) => b.kind), await (await import("./owner-myjob.server")).safetyCheckPaidFor(jobId));
     const senderIsOwner = !!owner?.email && lower(owner.email) === lower(m.from);
     const avail = senderIsOwner && before === "none" ? await availability(jobId, job.stage) : { readyCheck: false, piesa: false, install: false };
     const plan = planChangeReply({ intent: p.intent, jobIds: p.jobIds, senderIsOwner, fromPartner: p.fromPartner, testJob: job.source === "qa_test", stage: job.stage, avail, ownerCanSelfCancel, hasLink: !!link, prior: before });

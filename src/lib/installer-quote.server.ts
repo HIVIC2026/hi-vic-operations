@@ -7,6 +7,7 @@ import { type LocationVariables } from "./activity48.core";
 import { wholeVeecDiscount } from "./estimate.core";
 import { buildInstallerQuoteDraft, quotedPriceFromEntries, piesaChargeIncGst } from "./installer-led.core";
 import { installerQuoteReleaseBlockers, payerFromChoice } from "./installer-intake.core";
+import { IN_HOUSE_PIESA_HOLD_REASON } from "./installer-paid-electricians.core";
 
 export const INSTALLER_QUOTE_CODE = "INSTALLER_A1";
 type SigLine = { code: string | null; line_total_inc_gst: number | string | null; description?: string | null; quantity?: number | string | null; unit?: string | null; unit_price_inc_gst?: number | string | null; explanation?: string | null; is_other?: boolean | null };
@@ -124,10 +125,13 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
       await logEvent(jobId, actorId, "installer_quote_held", notOnboarded ? `Quote held · ${mittiElectrician!.reasons[0]}` : "Owner quote not drafted — needs office review", { audit_id: auditId, blockers: draft.blockers, ...(notOnboarded ? { electrician_not_onboarded: notOnboarded } : {}) });
     // An earlier held DRAFT (e.g. one priced from a free-text electrician) now carries the current hold reason, so the
     // Quote card and Quotes to check say why; `quoteBillingBlocker` refuses Send until a new snapshot is ready.
-    if (notOnboarded) {
-      const holdNow = [...draft.blockers, "Waiting for office review before sending"].join(" · ");
-      for (const q of (open ?? []).filter((q) => q.status === "draft" && q.option_code === INSTALLER_QUOTE_CODE))
-        await admin.from("quotes").update({ release_state: "held", release_hold_reason: holdNow }).eq("id", q.id).eq("status", "draft");
+    const inHousePriceHeld = mittiElectrician?.reasons.includes(IN_HOUSE_PIESA_HOLD_REASON);
+    if (notOnboarded || inHousePriceHeld) {
+      const holdNow = inHousePriceHeld ? IN_HOUSE_PIESA_HOLD_REASON : [...draft.blockers, "Waiting for office review before sending"].join(" · ");
+      for (const q of (open ?? []).filter((q) => q.status === "draft" && q.option_code === INSTALLER_QUOTE_CODE)) {
+        const { error: holdError } = await admin.from("quotes").update({ release_state: "held", release_hold_reason: holdNow }).eq("id", q.id).eq("status", "draft");
+        if (holdError) throw new Error("Quote hold reasons could not be refreshed.");
+      }
     }
     return draft;
   }

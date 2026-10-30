@@ -19,6 +19,8 @@
 // approved REC covering the postcode (decision 246 automatic offers, `auto-offer.core`), the office steps in only if
 // nobody takes it, so on A2 the electrician is always OURS (`electricianSourceForJob` → "ours": owner pays $349 for the
 // PIESA (decision 373) and +$100 on fixes (decision 351), we pay that REC their own `electrician_rates` onboarding rate).
+// 29 Oct 2026 replaces decision 374 for routing: Ready Check installer's approved usual electrician gets the first offer;
+// money unchanged ($349 owner line, the electrician is paid their own onboarding rate).
 // Old offers/quotes made under 157/349 keep their snapshots as history. A1 (installer's own customers) is unchanged:
 // the electrician chosen at Add a job (decision 289), `electricianSourceForA1`, `resolveMittiElectrician`.
 // Pure rules only.
@@ -50,6 +52,17 @@ export function matchUsualElectrician(usual: UsualElectrician, candidates: Usual
   const nm = normaliseName(usual.name);
   if (!nm) return null;
   return candidates.find((c) => normaliseName(c.name) === nm || normaliseName(c.trading_name) === nm) ?? null;
+}
+
+/** Our leads (29 Oct 2026): the approved REC that is the Ready Check installer's usual electrician, else null. */
+export function ourLeadUsualRecId(usual: UsualElectrician | null, candidates: UsualMatchCandidate[]): string | null {
+  return usual ? matchUsualElectrician(usual, candidates)?.business_id ?? null : null;
+}
+
+/** The matched approved REC's id, only when it can actually be offered this job (is in `offerableIds`), else null. */
+export function ourLeadPreferredId(usual: UsualElectrician | null, approved: UsualMatchCandidate[], offerableIds: string[]): string | null {
+  const id = ourLeadUsualRecId(usual, approved);
+  return id && offerableIds.includes(id) ? id : null;
 }
 
 /** Owner-facing safety-check line on an our-lead quote. Decision 373 (Jo 25 Oct 2026: "our leads we always charge

@@ -31,7 +31,7 @@ function gw() {
 export async function sendTestSms(ctx: Ctx, to: string, rawBody: string): Promise<SendResult> {
   const body = brandSmsBody(rawBody);
   const norm = normaliseAuMobile(to) ?? to;
-  const blocked = testSendBlocker({ channel: "sms", to, jobSource: ctx.jobSource, partnerIsTest: ctx.partnerIsTest });
+  const blocked = await (await import("./qa-inbox.server")).qaDeliveryHeld(ctx.jobId) ? "TEST browser run: no delivery" : testSendBlocker({ channel: "sms", to, jobSource: ctx.jobSource, partnerIsTest: ctx.partnerIsTest });
   let r: SendResult;
   if (blocked) r = { channel: "sms", to: norm, status: "blocked", detail: blocked };
   else {
@@ -63,7 +63,7 @@ export async function sendTestEmail(ctx: Ctx, to: string, subject: string, html:
     await (await import("./qa-inbox.server")).auditQaInbox(ctx.jobId!, route, ctx.label, null);
   }
   const norm = normaliseEmail(to);
-  const blocked = testSendBlocker({ channel: "email", to, jobSource: ctx.jobSource, partnerIsTest: ctx.partnerIsTest });
+  const blocked = await (await import("./qa-inbox.server")).qaDeliveryHeld(ctx.jobId) ? "TEST browser run: no delivery" : testSendBlocker({ channel: "email", to, jobSource: ctx.jobSource, partnerIsTest: ctx.partnerIsTest });
   let r: SendResult;
   if (blocked) r = { channel: "email", to: norm, status: "blocked", detail: blocked };
   else {

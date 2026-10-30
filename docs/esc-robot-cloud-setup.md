@@ -21,7 +21,8 @@ That machine **never gets the database key**. The robot talks to the portal only
    shows "waiting for the database change" and every robot run reports `mode off` and does nothing (fails closed).
    Applying it needs Jo's go-ahead. After that Jo turns the switch on in Settings › Switches.
 4. Live submission stays refused until the selector map is checked against the real Registry form and
-   `SELECTOR_MAP_VERIFIED` is set to true in `src/lib/esc-registry-selectors.ts`. That happens after the first run that
+   that task's mark in `SELECTORS_VERIFIED` (one for the install notice, one for VEEC creation) is set to true in
+   `src/lib/esc-registry-selectors.ts`. That happens after the first run that
    Jo watches. Until then every run is a dry run (the robot fills the form, takes a screenshot and never presses Submit).
 
 ## 2. Claude cloud environment
@@ -51,7 +52,7 @@ from its own environment.
 | `VEU_REGISTRY_USERNAME` | the Registry login (Jo provides). Stays here only. |
 | `VEU_REGISTRY_PASSWORD` | the Registry password (Jo provides). Stays here only. It is never logged, stored or sent to the portal. |
 | `ESC_REGISTRY_ROBOT_ENABLED` | `true` (this is one of the two locks; the other is the database switch) |
-| `ESC_REGISTRY_ROBOT_MODE` | **leave unset** = dry run. Set it to `live` only after Jo has watched a dry run and `SELECTOR_MAP_VERIFIED` is true. |
+| `ESC_REGISTRY_ROBOT_MODE` | **leave unset** = dry run. Set it to `live` only after Jo has watched a dry run and that task's `SELECTORS_VERIFIED` mark is true. |
 | `PORTAL_URL` | optional. The default is `https://estimate.homeinsulationvictoria.com.au`. |
 
 Do **not** set `SUPABASE_URL` or `SUPABASE_SERVICE_ROLE_KEY` here. API mode never loads a Supabase module. On Lovable
@@ -90,13 +91,13 @@ Always use a **TEST job** (`source = qa_test`, which is always dry run) for the 
    ```
    The robot logs in, fills the form and takes a screenshot, and does **not** submit. The screenshot is filed on the
    job (Job File, documents `esc_registry_notice` / `esc_veec_creation`) together with an internal dry-run event. Jo
-   compares the screenshot with the Registry block on the job. When the fields match, `SELECTOR_MAP_VERIFIED` is set to
-   true in code.
+   compares the screenshot with the Registry block on the job. When the fields match, that task's `SELECTORS_VERIFIED` mark is set
+   to true in code.
 3. **Schedule.** Once the dry runs look right, schedule the session to run `bun scripts/esc-registry-robot.ts` (for
    example every few hours on weekdays). It only acts on what is due. Each run is idempotent: an attempt is recorded
    before Submit, and a sent notice, lodged VEEC, earlier failure or unfinished live attempt is never submitted again.
-4. **Live.** Set `ESC_REGISTRY_ROBOT_MODE=live` only after step 2 has been done with Jo and `SELECTOR_MAP_VERIFIED` is
-   true. The portal still checks for itself: it refuses any "submitted" record unless the switch is on and the selector
+4. **Live.** Set `ESC_REGISTRY_ROBOT_MODE=live` only after step 2 has been done with Jo and that task's `SELECTORS_VERIFIED` mark
+   is true. The portal still checks for itself: it refuses any "submitted" record unless the switch is on and the selector
    map is verified, and it refuses them for TEST jobs. It also plans with its own clock and only accepts a submission time
    within 15 minutes of its own clock, so a notice can never be back-dated to pass the 24-hour rule.
 

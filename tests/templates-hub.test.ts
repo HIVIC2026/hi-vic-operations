@@ -21,7 +21,7 @@ describe("Templates navigation", () => {
   });
   test("sections are who-gets-it (Jo's choice) with drafts kept apart; old ?cat= bookmarks fall back to Owner", () => {
     expect(TEMPLATE_SECTIONS.map((s) => s.key)).toEqual(["owner", "installer", "electrician", "office", "mitti", "compliance", "invoices", "waiting"]);
-    for (const s of TEMPLATE_SECTIONS.filter((x) => x.key !== "waiting")) expect(entriesFor(s.key).length).toBeGreaterThan(0); // "waiting" is empty since decision 406 (its tab hides when empty)
+    for (const s of TEMPLATE_SECTIONS.filter((x) => x.key !== "waiting")) expect(entriesFor(s.key).length).toBeGreaterThan(0); // "waiting" holds only the plan 2026-10-28 full-address drafts (its tab hides when empty)
     expect(parseTemplateSearch({ cat: "email" })).toEqual({ cat: "owner" });
     expect(parseTemplateSearch({ cat: "mitti", t: "mitti:A5" })).toEqual({ cat: "mitti", t: "mitti:A5" });
     expect(selectTemplate("mitti", "owner:O18").section).toBe("mitti");
@@ -37,6 +37,19 @@ describe("Templates navigation", () => {
   test("drafts waiting for Jo sit only in their own section; everything else is approved", () => {
     for (const e of TEMPLATE_ENTRIES) expect({ id: e.id, waiting: e.section === "waiting" }).toEqual({ id: e.id, waiting: e.approval === "waiting" });
     for (const e of entriesFor("waiting")) expect(templateStatus(e, null).label).toBe("Off — waiting for Jo's approval");
+  });
+  test("plan 2026-10-28: the full-address request email, its reminder and both texts are approved by Jo (28 Oct 2026), listed under owner", () => {
+    const ids = ["owner:address-request", "owner:address-request-reminder", "owner:sms-address_request", "owner:sms-address_request_reminder"];
+    for (const id of ids) {
+      const e = TEMPLATE_ENTRIES.find((x) => x.id === id);
+      expect({ id, section: e?.section, approval: e?.approval }).toEqual({ id, section: "owner", approval: "approved" });
+      expect(templateStatus(e!, { customer_comms: true, "sms:address_request": true, "sms:address_request_reminder": true }).label).not.toBe("Off — waiting for Jo's approval");
+    }
+    const body = (id: string) => { const p = TEMPLATE_ENTRIES.find((x) => x.id === id)!.render(); return p.kind === "text" ? p.body : p.kind === "email" ? p.html : ""; };
+    expect(body("owner:sms-address_request")).toBe("Home Insulation Victoria: we need your full address to check your home. Pick it here: https://estimate.homeinsulationvictoria.com.au/my-address/TEST");
+    expect(body("owner:sms-address_request_reminder")).toBe("Home Insulation Victoria: reminder — we need your full address to check your home. Pick it here: https://estimate.homeinsulationvictoria.com.au/my-address/TEST");
+    expect(body("owner:address-request")).toContain("We need your full address to check your home.");
+    expect(body("owner:address-request-reminder")).toContain("Just a reminder — we need your full address to check your home.");
   });
   test("decision 384: the four decision 376 messages are listed under who gets them, approved, with their designs filed there", () => {
     const where: Record<string, [string, string | null]> = {
@@ -75,7 +88,8 @@ describe("every entry renders EXACTLY from the live code with TEST sample data",
         expect({ id: e.id, subject: p.subject.length > 0, doc: /^<!doctype html/i.test(p.html.trimStart()) }).toEqual({ id: e.id, subject: true, doc: true });
         expect(p.html).not.toContain("TEST — only sent to Jo"); // shown as real recipients see it
       }
-      if (p.kind === "text") expect(p.body.startsWith("Home Insulation Victoria")).toBe(true);
+      // Brand line first, or (A48 batch 2 quick taps, wording approved by Jo 29–30 Oct 2026) signed off " - Home Insulation Victoria".
+      if (p.kind === "text") expect({ id: e.id, branded: p.body.startsWith("Home Insulation Victoria") || / - Home Insulation Victoria$/.test(p.body) }).toEqual({ id: e.id, branded: true });
       if (p.kind === "texts") for (const v of p.variants) expect({ id: e.id, v: v.label, ok: v.body.startsWith("Home Insulation Victoria") && v.body.length > 30 }).toEqual({ id: e.id, v: v.label, ok: true });
       if (p.kind === "questions") expect(p.groups.flatMap((g) => g.items).length).toBeGreaterThan(5);
     }

@@ -15,7 +15,44 @@ export function fullCurrentCert(c: { status: string | null; level: string | null
 
 export type InstallerFacts = Omit<RecCandidate, "has_valid_licence" | "approved_workers"> & {
   credentialsOk: boolean; fullCertifiedInstallers: number; freeMeasureUps: boolean | null;
+  /** The true reason no installer person can be offered (from `installerGapReason`), shown instead of the generic line. */
+  installerGap?: string | null;
+  /** The true document reason (first failing document rule), shown instead of the generic line. */
+  credentialsGap?: string | null;
 };
+
+/** Facts for one installer person, used only to explain WHY nobody at the business can be offered. */
+export type InstallerPersonGap = {
+  noticeAcknowledged: boolean | null;
+  cert: { status: string | null; level: string | null; expiresOn: string | null } | null;
+};
+
+export const INSTALLER_GAP = {
+  none: "The business has no installer person added yet. The installer business must add one.",
+  notice: "The installer hasn't accepted the ESC privacy notice yet. The installer must open their notice link and accept it.",
+  noCert: "No EEC certification recorded for the installer. The office must record it.",
+  certNotVerified: "The installer's EEC certification hasn't been verified. The office must verify it.",
+  notFull: "The installer's EEC certification isn't recorded as Full. The office must record a Full level.",
+  expired: "The installer's EEC certification has expired. The installer must send a current one for the office to record.",
+} as const;
+
+/** One reason per person, in the order a person would fix them; the business shows the reason of the person
+ *  closest to being offerable (notice before certificate gaps). Null = someone can be offered. */
+export function installerGapReason(people: InstallerPersonGap[], today: string): string | null {
+  if (people.length === 0) return INSTALLER_GAP.none;
+  const rank: string[] = [INSTALLER_GAP.notice, INSTALLER_GAP.expired, INSTALLER_GAP.notFull, INSTALLER_GAP.certNotVerified, INSTALLER_GAP.noCert];
+  const reasons = people.map((p) => {
+    const certGap = !p.cert ? INSTALLER_GAP.noCert
+      : p.cert.status !== "verified" ? INSTALLER_GAP.certNotVerified
+      : !p.cert.level || p.cert.level !== "full" ? INSTALLER_GAP.notFull
+      : !p.cert.expiresOn || p.cert.expiresOn < today ? INSTALLER_GAP.expired
+      : null;
+    if (p.noticeAcknowledged === false) return INSTALLER_GAP.notice;
+    return certGap;
+  });
+  if (reasons.some((r) => r === null)) return null;
+  return [...reasons].sort((a, b) => rank.indexOf(a!) - rank.indexOf(b!))[0]!;
+}
 
 /** Map installer facts onto the shared candidate shape so the same eligibility/ranking code applies. */
 export function installerCandidate(f: InstallerFacts): RecCandidate & { freeMeasureUps: boolean | null } {
@@ -24,11 +61,11 @@ export function installerCandidate(f: InstallerFacts): RecCandidate & { freeMeas
 }
 
 /** Why an installer cannot be offered this Ready Check (null = eligible). */
-export function installerEligibilityBlocker(c: RecCandidate & { freeMeasureUps?: boolean | null }): string | null {
-  if (!c.is_active || c.onboarding_status !== "approved") return "Installer business is not approved and active.";
-  if (c.approved_workers < 1) return "No approved installer with a Full, current EEC certification recorded.";
-  if (c.freeMeasureUps !== true) return "Has not agreed to free Ready Checks for Home Insulation Victoria leads.";
-  if (!c.has_valid_licence) return "A required document has expired.";
+export function installerEligibilityBlocker(c: RecCandidate & { freeMeasureUps?: boolean | null; installerGap?: string | null; credentialsGap?: string | null }): string | null {
+  if (!c.is_active || c.onboarding_status !== "approved") return "Installer business is not approved and active. The office must approve it.";
+  if (c.approved_workers < 1) return c.installerGap ?? "No approved installer with a Full, current EEC certification recorded.";
+  if (c.freeMeasureUps !== true) return "Has not agreed to free Ready Checks for Home Insulation Victoria leads. The installer must agree to them in their business settings.";
+  if (!c.has_valid_licence) return c.credentialsGap ?? "A required document has expired.";
   return recEligibilityBlocker(c) ? `Not available: ${recEligibilityBlocker(c)!.replace(/^Partner /, "")}` : null;
 }
 

@@ -27,7 +27,7 @@ CREATE TABLE properties (id uuid primary key default gen_random_uuid(), owner_id
 CREATE TABLE job_assignments (id uuid primary key default gen_random_uuid(), job_id uuid, user_id uuid, role text, business_id uuid, assigned_by uuid, first_response_at timestamptz, active boolean default true, booking_confirmed_at timestamptz, assigned_at timestamptz default now());
 CREATE TABLE business_members (id uuid primary key default gen_random_uuid(), business_id uuid, user_id uuid, member_role text, active boolean default true);
 CREATE TABLE businesses (id uuid primary key, name text, trading_name text, abn text, branding jsonb, business_type text, capabilities text[], base_suburb text, coverage_radius_km int, covers_all_victoria boolean,
-  accepting_new_jobs boolean, onboarding_notes text, mitti_account_invited boolean, onboarding_status text, is_active boolean, approved_at timestamptz, signer_mobile text, phone text);
+  accepting_new_jobs boolean, onboarding_notes text, mitti_account_invited boolean, onboarding_status text, is_active boolean, approved_at timestamptz, signer_mobile text, phone text, rec_number text);
 CREATE TABLE user_roles (user_id uuid, role text, unique (user_id, role));
 CREATE TABLE profiles (id uuid primary key, full_name text, email text, phone text, business_id uuid);
 CREATE TABLE workflow_settings (id int primary key, mitti_ready_check_template_id text, mitti_ready_check_priced_template_id text, mitti_piesa_template_id text, mitti_piisa_template_id text, auto_send_mitti boolean,
@@ -75,16 +75,24 @@ const rels: Rels = {
   jobs: { properties: { table: "properties", fk: "property_id", on: "base" }, owners: { table: "owners", fk: "owner_id", on: "base" } },
   bookings: { jobs: { table: "jobs", fk: "job_id", on: "base" } },
   ceiling_measurements: { jobs: { table: "jobs", fk: "job_id", on: "base" } },
+  quotes: { quote_items: { table: "quote_items", fk: "quote_id", on: "rel" } }, // real FK quote_items.quote_id -> quotes.id; loadInstallerQuote embeds it
   assessments: { jobs: { table: "jobs", fk: "job_id", on: "base" } },
   job_assignments: { businesses: { table: "businesses", fk: "business_id", on: "base" }, profiles: { table: "profiles", fk: "user_id", on: "base" } },
 };
+// A6: the staged one-transaction save (docs/pending-migrations/add-installer-job-atomic.sql) runs here as it will once live;
+// tests/journey-a1-complete-route-db.test.ts keeps covering the step-by-step fallback (function not deployed).
+await db.exec("CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; CREATE ROLE service_role NOLOGIN;");
+await db.exec((await import("node:fs")).readFileSync("docs/pending-migrations/add-installer-job-atomic.sql", "utf8"));
 const q = async <T,>(sql: string, p: unknown[] = []) => (await db.query<T>(sql, p)).rows;
 const shim = embedShim(db, rels);
 let createdUsers = 0;
+let atomicDeployed = true; // A6: false = the staged function is not live yet (PostgREST's answer) → step-by-step save
 const admin = {
   ...shim,
   rpc: async (name: string, a: Record<string, unknown>) => {
     if (name === "has_role") return { data: true, error: null };
+    if (name === "add_installer_job" && !atomicDeployed) return { data: null, error: { code: "PGRST202", message: "Could not find the function public.add_installer_job(_payload) in the schema cache" } };
+    if (name === "add_installer_job") { try { return { data: await q("select * from public.add_installer_job($1::jsonb)", [JSON.stringify(a["_payload"])]), error: null }; } catch (e) { return { data: null, error: { message: (e as Error).message } }; } }
     if (name === "issue_owner_link_code") { const r = await q<{ id: string }>("insert into owner_link_codes (job_id, channel, destination_masked, code_hash, expires_at) values ($1,$2,$3,$4,$5) returning id", [a["_job"], a["_channel"], a["_masked"], a["_hash"], a["_expires"]]); return { data: r[0]!.id, error: null }; }
     if (name === "enqueue_external_action") { await q("insert into external_action_queue (job_id, action, target, payload, key) values ($1,$2,$3,$4,$5) on conflict (key) do nothing", [a["_job"], a["_action"], a["_target"], a["_payload"], a["_key"]]); return { data: null, error: null }; }
     return { data: null, error: { message: `unexpected rpc ${name}` } };
@@ -206,7 +214,7 @@ afterAll(async () => { await db.close(); });
 
 describe("1. Add a job = basics only; the Mitti form is created straight away (decisions 34, 115)", () => {
   test("name, address, mobile, email + permission tick → job at ready_check_ready_to_schedule, consent row, no booking, form created", async () => {
-    const r = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(1), { mode: "hivic" }, call);
+    const r = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(1), { mode: "hivic" }, call, { leadOrigin: "owner_contacted" });
     A = r.jobId;
     expect(r.booking).toBe("none");
     expect(r.formCreation).toBe("scheduled");
@@ -235,16 +243,16 @@ describe("1. Add a job = basics only; the Mitti form is created straight away (d
   });
   test("a refused save leaves nothing behind: missing permission, ACT postcode or a bad visit time create no job", async () => {
     const before = (await q("select id from jobs")).length;
-    await expect(os.startOnsiteReadyCheckFor(INST, BIZ, { ...owner(9), contact_permission: false }, { mode: "hivic" }, call)).rejects.toThrow(/permission to contact/);
-    await expect(os.startOnsiteReadyCheckFor(INST, BIZ, { ...owner(9), postcode: "2604" }, { mode: "hivic" }, call)).rejects.toThrow(/Victorian/);
-    await expect(os.startOnsiteReadyCheckFor(INST, BIZ, owner(9), { mode: "hivic" }, call, { visit: { day: DAY_A, time: "03:00" } })).rejects.toThrow(/time/i);
+    await expect(os.startOnsiteReadyCheckFor(INST, BIZ, { ...owner(9), contact_permission: false }, { mode: "hivic" }, call, { leadOrigin: "owner_contacted" })).rejects.toThrow(/permission to contact/);
+    await expect(os.startOnsiteReadyCheckFor(INST, BIZ, { ...owner(9), postcode: "2604" }, { mode: "hivic" }, call, { leadOrigin: "owner_contacted" })).rejects.toThrow(/Victorian/);
+    await expect(os.startOnsiteReadyCheckFor(INST, BIZ, owner(9), { mode: "hivic" }, call, { leadOrigin: "owner_contacted", visit: { day: DAY_A, time: "03:00" } })).rejects.toThrow(/time/i);
     expect((await q("select id from jobs")).length).toBe(before);
   });
 });
 
 describe("2. Optional visit day + time (decisions 110, 116) and the 6:30am list", () => {
   test("decision 116: Add a job WITH a day → booking confirmed, form created once with the booked date; job C without a day → no booking", async () => {
-    const r = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(2), { mode: "hivic" }, call, { visit: { day: DAY_B, time: "14:00" } });
+    const r = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(2), { mode: "hivic" }, call, { leadOrigin: "owner_contacted", visit: { day: DAY_B, time: "14:00" } });
     B = r.jobId;
     expect(r.booking).toBe("confirmed");
     await settle();
@@ -256,7 +264,7 @@ describe("2. Optional visit day + time (decisions 110, 116) and the 6:30am list"
     expect(await auditOf(B)).toBe("audit_2");
     expect(mitti.calls.filter((c) => c === "POST /audits")).toHaveLength(2);
     expect(mitti.audits.get("audit_2")!.items.map((i) => i.label)).toContain("Assessment date/time");
-    const c = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(3), { mode: "hivic" }, call);
+    const c = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(3), { mode: "hivic" }, call, { leadOrigin: "owner_contacted" });
     C = c.jobId;
     await settle();
     expect(c.booking).toBe("none");
@@ -359,7 +367,7 @@ describe("4. 'My usual electrician' with none saved → held; saved later → th
 });
 
 describe("5. The owner accepts on the secure link (6-digit code, signed agreement)", () => {
-  test("code → session → respondToQuoteImpl: accepted, agreement recorded, installer told, invoice step run, stage moved", async () => {
+  test("code → session → respondToQuoteImpl: accepted, agreement recorded, installer NOT yet told, invoice step run, stage moved", async () => {
     const ov = await import("../src/lib/owner-verify.server");
     const { respondToQuoteImpl } = await import("../src/lib/portal.functions");
     const [{ token }] = await q<{ token: string }>("select token from customer_estimate_links where job_id=$1 and status='active'", [A]);
@@ -382,11 +390,11 @@ describe("5. The owner accepts on the secure link (6-digit code, signed agreemen
     expect(await events(A, "QUOTE_ACCEPTED")).toHaveLength(1);
     expect((await job(A))["stage"]).toBe("measured_quote_accepted");
     // Decision 376 (F13): the dead "quote accepted" outbox enqueue is gone — the installer is told by the approved I23
-    // email below instead, and nothing is queued that the dispatcher could never deliver.
+    // email once the safety check is paid instead, and nothing is queued that the dispatcher could never deliver.
     expect(await q<{ payload: string }>("select payload from external_action_queue where job_id=$1", [A])).toEqual([]);
-    // "You're told when they accept": the installer's email through the TEST path, once.
-    expect(await q<{ source_event: string; recipients: string[] }>("select source_event, recipients from job_communications where job_id=$1 and source_event=$2", [A, `jo_tradie:installer_accepted:${qq!.id}`])).toEqual([{ source_event: `jo_tradie:installer_accepted:${qq!.id}`, recipients: ["deep@hivic-test.example"] }]);
-    expect((await events(A, "installer_accepted_email"))[0]!.details).toMatchObject({ status: "sent", quote_id: qq!.id });
+    // Jo 28 Oct 2026: the installer is NOT told at acceptance — nothing has been paid yet. The email goes once the safety check is paid.
+    expect(await q("select id from job_communications where job_id=$1 and source_event=$2", [A, `jo_tradie:installer_accepted:${qq!.id}`])).toHaveLength(0);
+    expect(await events(A, "installer_accepted_email")).toHaveLength(0);
     expect(xero).toEqual([qq!.id]);
     // Accepting twice is refused; nothing doubles.
     await expect(respondToQuoteImpl({ quoteId: qq!.id, accept: true, consent: true, expectedVersion: qq!.version, signing } as never, ctx)).rejects.toThrow(/no longer open/);
@@ -401,7 +409,7 @@ describe("5. The owner accepts on the secure link (6-digit code, signed agreemen
 describe("6. HV-3151: an installer job parked at 'estimate sent' still gets its form on the next tick", () => {
   test("stage preliminary_estimate_ready + a stage refusal 10 minutes ago → the sweep makes ONE form and the job waits on the installer", async () => {
     await q("update workflow_settings set auto_send_mitti=false where id=1"); // keep Add a job from making the form so the sweep is what's tested
-    const r = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(9), { mode: "hivic" }, call);
+    const r = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(9), { mode: "hivic" }, call, { leadOrigin: "owner_contacted" });
     expect(r.formCreation).toBe("skipped");
     await settle();
     await q("update workflow_settings set auto_send_mitti=true where id=1");
@@ -440,7 +448,7 @@ describe("Jo 27 Oct completed Ready Check edit recovery", () => {
   });
   test("completed 75m² removal edit refreshes current measurement then redrafts a held quote once, without sends", async () => {
     const beforeSends = sent.length;
-    const added = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(20), { mode: "hivic" }, call, { electricianChoice: "hivic" });
+    const added = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(20), { mode: "hivic" }, call, { leadOrigin: "owner_contacted", electricianChoice: "hivic" });
     const auditId = await auditOf(added.jobId);
     if (!auditId) throw new Error("No fixture audit");
     completeForm(auditId, "Home Insulation Victoria electrician");
@@ -477,3 +485,62 @@ describe("Jo 27 Oct completed Ready Check edit recovery", () => {
   });
 });
 
+describe("7. A2 (Jo 28 Oct): Add a job at an HIV-lead address", () => {
+  test("A2 (Jo 28 Oct): an address that is already an HIV lead is saved and flagged on the NEW job; another installer's open job is still refused", async () => {
+    const seed = async (n: number, channel: string) => {
+      const [p] = await q<{ id: string }>("insert into properties (address_line, suburb, postcode, state) values ($1,'Frankston','3199','VIC') returning id", [`${n} Test Street`]);
+      const [j] = await q<{ id: string; job_number: string }>("insert into jobs (property_id, stage, source, channel) values ($1,'enquiry','qa_test',$2) returning id, job_number", [p!.id, channel]);
+      return j!;
+    };
+    const lead = await seed(77, "hivic_sourced");
+    const r = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(77), { mode: "hivic" }, call, { leadOrigin: "owner_contacted" });
+    expect(r.jobId).not.toBe(lead.id);
+    const flags = await q<{ summary: string; details: Record<string, unknown>; internal: boolean }>("select summary, details, internal from workflow_events where job_id=$1 and event_type='duplicate_address_linked'", [r.jobId]);
+    expect(flags).toHaveLength(1);
+    expect(flags[0]!.summary).toBe(`This address is already a Home Insulation Victoria lead (${lead.job_number}) — the installer's job was saved; office to check`);
+    expect(flags[0]!.details).toMatchObject({ from: "add_a_job", existing_job_id: lead.id, existing_job_number: lead.job_number, needs_office: true });
+    expect(flags[0]!.internal).toBe(true);
+    expect(await q("select id from workflow_events where job_id=$1 and event_type='duplicate_address_linked'", [lead.id])).toHaveLength(0);
+
+    const other = await seed(78, "installer_sourced");
+    const before = (await q("select id from jobs")).length;
+    await expect(os.startOnsiteReadyCheckFor(INST, BIZ, owner(78), { mode: "hivic" }, call, { leadOrigin: "owner_contacted" })).rejects.toThrow(/already has an open job/);
+    expect((await q("select id from jobs")).length).toBe(before);
+    expect(await q("select id from workflow_events where job_id=$1 and event_type='duplicate_address_linked'", [other.id])).toHaveLength(1);
+  });
+});
+
+describe("8. A2 fix: a second Add a job at an address that already has an installer job is refused", () => {
+  test("lead + first installer job at the address → a second Add a job is refused, no extra job", async () => {
+    const [p] = await q<{ id: string }>("insert into properties (address_line, suburb, postcode, state) values ('88 Test Street','Frankston','3199','VIC') returning id");
+    await q("insert into jobs (property_id, stage, source, channel) values ($1,'enquiry','qa_test','hivic_sourced')", [p!.id]);
+    await os.startOnsiteReadyCheckFor(INST, BIZ, owner(88), { mode: "hivic" }, call, { leadOrigin: "owner_contacted" }); // A2 save
+    const before = (await q("select id from jobs")).length;
+    await expect(os.startOnsiteReadyCheckFor(INST, BIZ, owner(88), { mode: "hivic" }, call, { leadOrigin: "owner_contacted" })).rejects.toThrow(/already has an open job/);
+    expect((await q("select id from jobs")).length).toBe(before);
+  });
+});
+
+describe("9. A6: the signal drops after the save, then Try again", () => {
+  test("same request key twice → the same job number, no second job, no extra records", async () => {
+    const key = "6f1c2c1e-6a77-4b55-9d0e-2f3b1c9a0a99";
+    const a = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(99), { mode: "hivic" }, call, { leadOrigin: "owner_contacted", requestKey: key });
+    const before = await q("select (select count(*) from jobs) j, (select count(*) from owners) o, (select count(*) from owner_contact_consents) c, (select count(*) from workflow_events where event_type in ('installer_job_added','installer_contact_permission','electrician_choice_set')) e");
+    const b = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(99), { mode: "hivic" }, call, { leadOrigin: "owner_contacted", requestKey: key });
+    expect(b.jobId).toBe(a.jobId); expect(b.jobNumber).toBe(a.jobNumber);
+    expect(await q("select (select count(*) from jobs) j, (select count(*) from owners) o, (select count(*) from owner_contact_consents) c, (select count(*) from workflow_events where event_type in ('installer_job_added','installer_contact_permission','electrician_choice_set')) e")).toEqual(before);
+    expect(await q("select external_enquiry_id from jobs where id=$1", [a.jobId])).toEqual([{ external_enquiry_id: `onsite:${key}` }]);
+  });
+  test("until add_installer_job is live the step-by-step save still saves everything, HIV-lead flag included", async () => {
+    atomicDeployed = false;
+    try {
+      const [p] = await q<{ id: string }>("insert into properties (address_line, suburb, postcode, state) values ('98 Test Street','Frankston','3199','VIC') returning id");
+      await q("insert into jobs (property_id, stage, source, channel) values ($1,'enquiry','qa_test','hivic_sourced')", [p!.id]);
+      const r = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(98), { mode: "hivic" }, call, { leadOrigin: "owner_contacted", requestKey: "6f1c2c1e-6a77-4b55-9d0e-2f3b1c9a0a98" });
+      expect((await q<{ event_type: string }>("select event_type from workflow_events where job_id=$1 and event_type in ('electrician_choice_set','duplicate_address_linked','installer_job_added','installer_contact_permission') order by created_at", [r.jobId])).map((e) => e.event_type))
+        .toEqual(["electrician_choice_set", "duplicate_address_linked", "installer_job_added", "installer_contact_permission"]);
+      expect(await q("select consent_status from owner_contact_consents where job_id=$1", [r.jobId])).toEqual([{ consent_status: "granted" }]);
+      expect(await q("select electrician_choice from jobs where id=$1", [r.jobId])).toEqual([{ electrician_choice: "hivic_organise" }]);
+    } finally { atomicDeployed = true; }
+  });
+});

@@ -6,6 +6,8 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 type Row = Record<string, unknown>;
 let tables: Record<string, Row[]> = {};
 const reads: string[] = [];
+let membershipReadError = false;
+let changeProfileDuringLink = false;
 function from(t: string) {
   reads.push(t);
   let rows = [...(tables[t] ?? [])];
@@ -16,6 +18,10 @@ function from(t: string) {
   Object.assign(q, {
     select: () => q,
     eq: (k: string, v: unknown) => { rows = rows.filter((r) => r[k] === v); return q; },
+    ilike: (k: string, v: string) => {
+      if (t === "profiles" && op === "update" && changeProfileDuringLink) for (const r of rows) r.email = "changed@sparks.com.au";
+      rows = rows.filter(r => String(r[k]).toLowerCase() === v.toLowerCase()); return q;
+    },
     in: (k: string, v: unknown[]) => { rows = rows.filter((r) => v.includes(r[k])); return q; },
     or: () => q,
     contains: (k: string, v: Row) => { rows = rows.filter((r) => Object.entries(v).every(([kk, vv]) => (r[k] as Row | undefined)?.[kk] === vv)); return q; },
@@ -23,7 +29,7 @@ function from(t: string) {
     update: (p: Row) => { op = "update"; patch = p; return q; },
     insert: (r: Row) => { op = "insert"; (tables[t] ??= []).push({ created_at: new Date(Date.now() + (tables[t]?.length ?? 0)).toISOString(), ...r }); return q; },
     maybeSingle: async () => { apply(); return { data: op === "select" ? rows[0] ?? null : null, error: null }; },
-    then: (res: (v: unknown) => unknown) => { apply(); return res({ data: op === "select" ? rows : null, error: null }); },
+    then: (res: (v: unknown) => unknown) => { apply(); return res({ data: op === "insert" ? null : rows, error: t === "partner_workers" && membershipReadError ? { message: "lookup unavailable" } : null }); },
   });
   return q;
 }
@@ -63,6 +69,7 @@ const events = () => (tables["admin_config_events"] ?? []).map((e) => e["event_t
 
 beforeEach(() => {
   reads.length = 0; searches.length = 0; calls.length = 0; messages.length = 0; found = null; failCreate = false;
+  membershipReadError = false; changeProfileDuringLink = false;
   tables = {
     partner_workers: [
       { id: "w-test", email: "sparky@hivic.test", mobile: "0400000000", full_legal_name: "Test Sparky", trade_role: "electrician", approval_status: "approved", removed_at: null, profile_id: "p1", business_id: "b1" },
@@ -78,6 +85,35 @@ beforeEach(() => {
 });
 
 describe("onPartnerPersonApproved", () => {
+  test("email changed during link rejects the zero-row save and sends nothing", async () => {
+    found = "user_77"; changeProfileDuringLink = true;
+    await expect(onPartnerPersonApproved("w-real", "office", { switches: LIVE, call, message })).rejects.toThrow(/email changed/);
+    expect(tables["profiles"]?.find(p => p.id === "p2")?.mitti_user_id).toBeNull();
+    expect(messages).toEqual([]); expect(events()).toEqual([]);
+  });
+  test("wrong linked profile refuses before provider calls or changing another person's identity", async () => {
+    const profile = tables["profiles"]?.find(p => p.id === "p2");
+    if (!profile) throw new Error("profile fixture missing");
+    profile.email = "someone.else@sparks.com.au";
+    expect((await onPartnerPersonApproved("w-real", "office", { switches: LIVE, call, message })).action).toBe("fail");
+    expect(profile.mitti_user_id).toBeNull();
+    expect(calls).toEqual([]); expect(messages).toEqual([]);
+    expect(events()).toEqual(["mitti_access_failed"]);
+  });
+  test("changed email after deactivation never reactivates the old worker identity", async () => {
+    tables["admin_config_events"]?.push({ event_type: "mitti_user_deactivated", created_at: "2026-10-26T00:00:00Z", details: { worker_id: "w-real", email: "old@sparks.com.au", mitti_user_id: "old_user" } });
+    expect((await onPartnerPersonApproved("w-real", "office", { switches: LIVE, call, message })).action).toBe("fail");
+    expect(calls).toEqual([]); expect(messages).toEqual([]);
+  });
+  test("same person still active in another business retains their Mitti seat", async () => {
+    const w = tables["partner_workers"]?.find(p => p.id === "w-real");
+    if (!w) throw new Error("worker fixture missing");
+    w.removed_at = "2026-10-26T00:00:00Z";
+    tables["partner_workers"]?.push({ id: "other-business", email: "REAL@SPARKS.COM.AU", approval_status: "approved", removed_at: null });
+    tables["admin_config_events"]?.push({ event_type: "mitti_user_invited", created_at: "2026-10-25T00:00:00Z", details: { worker_id: "w-real", email: "real@sparks.com.au", mitti_user_id: "same_user" } });
+    expect((await onPartnerPersonRemoved("w-real", "office", { switches: LIVE, call })).action).toBe("skip");
+    expect(calls).toEqual([]);
+  });
   test("switch off (the default) reads and writes nothing", async () => {
     const r = await onPartnerPersonApproved("w-real", "office", { call, message });
     expect(r.action).toBe("skip");
@@ -113,6 +149,18 @@ describe("onPartnerPersonApproved", () => {
     expect(messages).toHaveLength(1);
     expect((await listOpenMittiInvites()).invites).toEqual([]); // nothing left for the office
   });
+  test("Pause all trade messages (Jo 30 Oct 2026): no Mitti user created (Mitti would email them), nothing recorded or sent; unpaused → created as usual", async () => {
+    tables["workflow_settings"] = [{ id: 1, trade_messages_paused: true }];
+    const held = await onPartnerPersonApproved("w-real", "office", { switches: LIVE, call, message, password: () => "throwaway" });
+    expect(held).toMatchObject({ action: "skip" });
+    expect(String((held as { reason: string }).reason)).toContain("Trade messages paused");
+    expect(calls).toEqual(["POST /users/search"]);
+    expect(events()).toEqual([]);
+    expect(messages).toEqual([]);
+    tables["workflow_settings"] = [{ id: 1, trade_messages_paused: false }];
+    expect(await onPartnerPersonApproved("w-real", "office", { switches: LIVE, call, message, password: () => "throwaway" })).toMatchObject({ action: "create", mittiUserId: "user_new" });
+    expect(messages).toEqual(["w-real"]);
+  });
   test("verified: an existing Mitti user is linked and added to the group, no message", async () => {
     found = "user_77";
     expect(await onPartnerPersonApproved("w-real", "office", { switches: LIVE, call, message })).toMatchObject({ action: "record_linked", mittiUserId: "user_77" });
@@ -144,6 +192,11 @@ describe("onPartnerPersonApproved", () => {
 });
 
 describe("onPartnerPersonRemoved", () => {
+  test("unreadable other memberships refuse deactivation", async () => {
+    membershipReadError = true;
+    await expect(onPartnerPersonRemoved("w-real", "office", { switches: LIVE, call })).rejects.toThrow(/could not be checked/);
+    expect(calls).toEqual([]);
+  });
   test("removed → the Mitti user the portal created is deactivated once; approved again → reactivated (same seat)", async () => {
     await onPartnerPersonApproved("w-real", "office", { switches: LIVE, call, message });
     tables["partner_workers"]![1]!["removed_at"] = "2026-10-25T00:00:00Z";

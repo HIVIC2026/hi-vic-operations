@@ -4,7 +4,7 @@
 // `pickLater`), which stays in the fixes flow and never regenerates installer quotes. No senders here.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, getStage, logEvent } from "./workflow.server";
-import { ownerFixesStep, type OwnerFixesStep } from "./owner-fixes.core";
+import { ownerFixesPickRefusal, ownerFixesStep, type OwnerFixesStep } from "./owner-fixes.core";
 import { heldWindowAction, pickableRectWindows } from "./rectification.core";
 
 type QuoteRow = { id: string; status: string; version: number | null; customer_total_inc_gst: number | string | null; created_at: string; quote_items: { description: string | null; line_total_inc_gst: number | string | null; sort: number | null }[] | null };
@@ -16,6 +16,7 @@ export type OwnerFixesState = {
   windows: { id: string; startsAt: string; endsAt: string | null }[];
   pickedAt: string | null;
   bookedAt: string | null;
+  inHouseDispatch?: "in_house" | "in_house_read_failed" | null;
 };
 
 export async function ownerFixesState(jobId: string, now = new Date()): Promise<OwnerFixesState> {
@@ -33,7 +34,9 @@ export async function ownerFixesState(jobId: string, now = new Date()): Promise<
   // Paid = no fixes payment blocker (paid/waived, folded into the installation quote, or no invoice to pay against).
   const paid = q?.status === "accepted" ? !(await (await import("./payments.server")).fixesPaymentBlockerFor(jobId)) : false;
   const step = ownerFixesStep({ quoteStatus: (q?.status ?? null) as "issued" | "accepted" | "declined" | null, paid, pickable: pickable.length, pickedAt: picked?.starts_at ?? null, bookedAt: bk?.scheduled_start ?? null });
+  const inHouseDispatch = await (await import("./in-house-suppression.server")).inHouseDispatchSkip(jobId);
   return {
+    inHouseDispatch,
     step,
     quote: q ? { id: q.id, version: q.version, status: q.status, total: Number(q.customer_total_inc_gst ?? 0), lines: [...(q.quote_items ?? [])].sort((a, b) => Number(a.sort ?? 0) - Number(b.sort ?? 0)).map((l) => ({ description: String(l.description ?? ""), amount: Number(l.line_total_inc_gst ?? 0) })) } : null,
     windows: step === "pick" ? pickable.map((w) => ({ id: w.id, startsAt: w.starts_at, endsAt: w.ends_at })) : [],
@@ -46,8 +49,8 @@ export async function ownerFixesState(jobId: string, now = new Date()): Promise<
  *  approve-with-window path writes) and books it straight away when fixes scheduling is open. */
 export async function ownerPickFixesTime(jobId: string, proposalId: string, userId: string): Promise<{ ok: true; booked: boolean }> {
   const st = await ownerFixesState(jobId);
-  if (st.step === "pay") throw new WorkflowError("Please pay for the electrical fixes first — then you can pick the electrician's time.");
-  if (st.step !== "pick") throw new WorkflowError("There's no electrical fixes time to pick right now.");
+  const refusal = ownerFixesPickRefusal(st.step);
+  if (refusal) throw new WorkflowError(refusal);
   const w = st.windows.find((x) => x.id === proposalId);
   if (!w) throw new WorkflowError("That time is no longer available. Please choose another.");
   const nowIso = new Date().toISOString();

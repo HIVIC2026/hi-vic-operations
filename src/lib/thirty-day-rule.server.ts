@@ -1,3 +1,4 @@
+import { inHouseDispatchSkip } from "./in-house-suppression.server";
 // Decision 158 (Jo, 24 Oct 2026): 20- and 10-day reminders to BOTH the owner and the installer while no install day is
 // agreed inside the 30-day window, and — when the window lapses with nothing booked — an internal record of who pays
 // the repeat PIESA (`repeatPiesaPayer`). Pure rules + DRAFT wording in thirty-day-rule.core.ts.
@@ -24,6 +25,8 @@ export async function doneSteps(jobId: string, deadline: string): Promise<Instal
 
 /** One reminder step (owner text + email, installer text + email). Records the step first; never sends twice per deadline. */
 export async function sendInstallWindowReminder(jobId: string, step: InstallWindowStep, deadline: string, now = new Date()): Promise<string> {
+  const skipped = await inHouseDispatchSkip(jobId);
+  if (skipped) return skipped;
   if ((await doneSteps(jobId, deadline)).includes(step)) return "already handled";
   const daysLeft = installDaysLeft(deadline, now);
   await logEvent(jobId, null, INSTALL_WINDOW_REMINDER_EVENT, `30-day window: ${step === "reminder_20" ? "20" : "10"}-day reminder prepared for the owner and the installer (${daysLeft} days left, last day ${deadline})`, { step, deadline, days_left: daysLeft }, { internal: true });
@@ -127,8 +130,8 @@ export async function sweepInstallWindowRule(now = new Date()): Promise<{ checke
       if (c.expired) { if ((await recordInstallWindowExpiry(j.id, c.deadline, c.clearance.timingDate)) !== "already recorded") expired++; continue; }
       const step = dueInstallWindowReminder({ deadline: c.deadline, booked: c.booked, expired: c.expired, done: await doneSteps(j.id, c.deadline), now, quiet });
       if (!step) continue;
-      await sendInstallWindowReminder(j.id, step, c.deadline, now);
-      reminders++;
+      const result = await sendInstallWindowReminder(j.id, step, c.deadline, now);
+      if (result !== "in_house" && result !== "in_house_read_failed" && result !== "already handled" && result !== "skipped") reminders++;
     } catch (e) { console.error("30-day rule sweep failed", j.id, (e as Error).message); }
   }
   return { checked: (jobs ?? []).length, reminders, expired };

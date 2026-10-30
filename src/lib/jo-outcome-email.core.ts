@@ -166,7 +166,6 @@ const PLACEHOLDER: Record<JoCta, string> = {
   upload_media: "[Tell us about your insulation]",
   review_result: "[Review my result →]",
 };
-const CALCULATOR_LINE = "Want to explore a different ceiling size? Open the calculator →";
 
 /**
  * Bind Jo's placeholders to the real, authorised URLs for this customer.
@@ -186,12 +185,6 @@ function bindLinks(body: string, links: JoOutcomeLinks, ctas: JoCta[]): string {
   }
   // T7: the standalone "Open the calculator →" line is for ANOTHER property, so it opens the public calculator.
   out = out.split("\n").map((l) => (l.trim() === T7_CALCULATOR_LINE ? ctaToken("link", PUBLIC_CALCULATOR_URL, T7_CALCULATOR_LINE) : l)).join("\n");
-  // T1–T6 leave the calculator as plain sentence text.
-  if (out.includes(CALCULATOR_LINE) && links.calculatorUrl) {
-    out = out.split(CALCULATOR_LINE).join(
-      `Want to explore a different ceiling size? ${ctaToken("link", links.calculatorUrl, "Open the calculator →")}`,
-    );
-  }
   return out;
 }
 
@@ -307,15 +300,14 @@ export const mjSubSection = (title: string, text: string, button?: { href: strin
 export const mjSmallEnd = (html: string, padding = "14px 12px 0") => section(`<mj-text mj-class="small" padding="${padding}">${html}</mj-text>`);
 /** The mint rebate box and the blue price box (O1/O2, O66–O68). */
 export function mjRebateAndPrice(i: { rebateLabel: string; rebate: number; priceLabel: string; price: number; fullPrice: number; basis: string; calculatorUrl: string | null }): string {
-  const calc = i.calculatorUrl ? `<br />${mjLink(i.calculatorUrl, "Try a different ceiling size")}` : "";
   return section(`<mj-text mj-class="eyebrow center" padding="18px 12px 6px">${K.esc(i.rebateLabel)}</mj-text><mj-text mj-class="big-green" padding="0 12px 18px">You save ${K.esc(K.whole(i.rebate))}</mj-text>`, "panel-mint")
-    + section(`<mj-text mj-class="eyebrow center" padding="18px 12px 6px">${K.esc(i.priceLabel)}</mj-text><mj-text mj-class="big-blue">${K.esc(K.whole(i.price))}</mj-text><mj-text mj-class="center" font-size="14px" line-height="20px" font-weight="700">incl. GST · full price <span class="strike">${K.esc(K.whole(i.fullPrice))}</span></mj-text><mj-text mj-class="small center" padding="0 16px 18px">${K.esc(i.basis)}${calc}</mj-text>`, "panel");
+    + section(`<mj-text mj-class="eyebrow center" padding="18px 12px 6px">${K.esc(i.priceLabel)}</mj-text><mj-text mj-class="big-blue">${K.esc(K.whole(i.price))}</mj-text><mj-text mj-class="center" font-size="14px" line-height="20px" font-weight="700">incl. GST · full price <span class="strike">${K.esc(K.whole(i.fullPrice))}</span></mj-text><mj-text mj-class="small center" padding="0 16px 18px">${K.esc(i.basis)}</mj-text>`, "panel");
 }
 /** Plain-text twin of the two boxes. */
 export const rebateAndPriceText = (i: { rebateLabel: string; rebate: number; priceLabel: string; price: number; fullPrice: number; basis: string; calculatorUrl: string | null }) => [
   i.rebateLabel.toUpperCase(), `You save ${K.whole(i.rebate)}`,
   `${i.priceLabel}: ${K.whole(i.price)} incl. GST (full price ${K.whole(i.fullPrice)})`,
-  i.basis, i.calculatorUrl ? `Try a different ceiling size: ${i.calculatorUrl}` : null,
+  i.basis,
 ];
 
 /** "What's included in $X" rows (Save my spot O1/O2 and Spot saved O10, all sent before the spot is released).
@@ -416,13 +408,13 @@ function renderNotEligible(input: JoOutcomeEmailInput, subject: string): Estimat
     mjHeadline(headline, O6_INTRO),
     section(`<mj-text mj-class="h2" padding="18px 18px 2px">Why</mj-text><mj-text padding="0 18px 16px">${K.esc(reason)}</mj-text>`, "panel"),
     mjSubSection("Something doesn't look right?", O6_RECHECK, { href: input.links.reviewResultUrl, label: "Review my result" }),
-    // "Send to a friend" opens the public eligibility checker (no customer data in the link).
-    mjLinkCard(FRIEND.title, FRIEND.body, PUBLIC_CALCULATOR_URL, "Send to a friend"),
+    // "Send to a friend" opens a new email to a friend with the public homeowner page link (Jo, 27 Oct) (no customer data in the link).
+    mjLinkCard(FRIEND.title, FRIEND.body, K.friendShareHref(K.HOMEOWNER_PAGE_URL), "Send to a friend"),
   ].join("\n");
   const html = mjEmail({ subject, preview: O6_PREVIEW, body, unsubscribe: "slot" });
   const plainText = K.plainText([
     headline, "", O6_INTRO, "", "WHY", reason, "", "SOMETHING DOESN'T LOOK RIGHT?", O6_RECHECK, `Review my result: ${input.links.reviewResultUrl}`, "",
-    `${FRIEND.title} ${FRIEND.body}`, `Send to a friend: ${PUBLIC_CALCULATOR_URL}`, "",
+    `${FRIEND.title} ${FRIEND.body}`, `Send to a friend: ${K.HOMEOWNER_PAGE_URL}`, "",
     `Reference: ${input.recipient.enquiryReference}`,
   ]) + `\nUnsubscribe: ${REMOVE_ENQUIRY_TEXT_SLOT}`;
   return { subject, previewText: O6_PREVIEW, html, plainText };

@@ -19,7 +19,7 @@ export const getVeecRegister = createServerFn({ method: "POST" }).middleware([re
     admin.from("job_overview").select("id,job_number,property_address,owner_name,stage,source,eligibility_outcome"),
     admin.from("indicative_estimates").select("job_id,veec_value,applied_discount,created_at,superseded_at").is("superseded_at", null),
     admin.from("quotes").select("job_id,status,veec_discount_inc_gst,kind,created_at").eq("kind", "installation"),
-    admin.from("invoice_status").select("job_id,total_inc_gst,total_paid,effective_status"),
+    admin.from("invoice_status").select("job_id,total_inc_gst,total_paid,effective_status,created_at").eq("kind", "installation").order("created_at", { ascending: false }),
     admin.from("veec_lodgements").select("job_id,quantity,status"),
   ]);
   for (const r of [jobs, est, quotes, inv, lodg]) if (r.error) throw new Error(`VEEC register could not be loaded: ${r.error.message}`);

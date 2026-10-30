@@ -10,10 +10,10 @@ import { logEvent, WorkflowError } from "./workflow.server";
 import { registryBlock, registryUpdatePatch, submissionPatch } from "./esc.core";
 import {
   ESC_ROBOT_ENV_FLAG, ESC_ROBOT_MODE_ENV, ESC_ROBOT_PASSWORD_ENV, ESC_ROBOT_SWITCH_COLUMN, ESC_ROBOT_USERNAME_ENV, ROBOT_ACTOR_LABEL, ROBOT_DOC_KINDS, ROBOT_EVENTS, ROBOT_SUBMISSION_METHOD,
-  failureDetails, failureLine, jobMode, openRobotFailures, planNotification, planVeecCreation, referenceLooksValid, robotMode, screenshotPath, screenshotTitle,
+  failureDetails, failureLine, jobMode, openRobotFailures, planNotification, planVeecCreation, referenceLooksValid, robotMode, screenshotPath, screenshotTitle, taskMode,
   type NoticeCandidate, type RobotEvent, type RobotMode, type RobotPlan, type RobotTask, type VeecCandidate,
 } from "./esc-registry-robot.core";
-import { SELECTOR_MAP_VERIFIED } from "./esc-registry-selectors";
+import { SELECTORS_VERIFIED } from "./esc-registry-selectors";
 
 const db = admin as any; // eslint-disable-line @typescript-eslint/no-explicit-any
 const ROBOT_EVENT_TYPES = [ROBOT_EVENTS.attempt, ROBOT_EVENTS.dryRun, ROBOT_EVENTS.failed];
@@ -28,7 +28,7 @@ export async function robotSettings(env: NodeJS.ProcessEnv = process.env): Promi
   const switchOn = await robotSwitch();
   const username = (env[ESC_ROBOT_USERNAME_ENV] ?? "").trim(), password = env[ESC_ROBOT_PASSWORD_ENV] ?? "";
   const credentials = username && password ? { username, password } : null;
-  const m = robotMode({ switchOn, envOn: env[ESC_ROBOT_ENV_FLAG] === "true", modeEnv: env[ESC_ROBOT_MODE_ENV], credentials: !!credentials, selectorsVerified: SELECTOR_MAP_VERIFIED });
+  const m = robotMode({ switchOn, envOn: env[ESC_ROBOT_ENV_FLAG] === "true", modeEnv: env[ESC_ROBOT_MODE_ENV], credentials: !!credentials });
   return { ...m, switchOn, credentials: m.mode === "off" ? null : credentials };
 }
 
@@ -104,7 +104,7 @@ export async function noticeWork(mode: RobotMode, now = new Date()): Promise<Not
     const values: Record<string, string | null> = Object.fromEntries(block.rows.map((r) => [r.key, r.value]));
     values["installation_start"] = String(payload["scheduled_start"] ?? n.scheduled_start);
     values["installation_end"] = payload["scheduled_end"] ? String(payload["scheduled_end"]) : null;
-    out.push({ candidate, plan: planNotification(candidate, now), jobNumber: job.job_number, effectiveMode: jobMode(mode, job.source), values, registryText: block.text });
+    out.push({ candidate, plan: planNotification(candidate, now), jobNumber: job.job_number, effectiveMode: jobMode(taskMode(mode, "install_notification", SELECTORS_VERIFIED), job.source), values, registryText: block.text });
   }
   return out;
 }
@@ -143,7 +143,7 @@ export async function veecWork(mode: RobotMode): Promise<VeecWork[]> {
     if (!values["installation_address"] && ff.property_address) values["installation_address"] = ff.property_address;
     if (!values["date_completed"] && ff.completed_date) values["date_completed"] = ff.completed_date;
     values["veec_quantity"] = candidate.quantity != null ? String(candidate.quantity) : null;
-    out.push({ candidate, plan: planVeecCreation(candidate), jobNumber: j.job_number, effectiveMode: jobMode(mode, j.source), values });
+    out.push({ candidate, plan: planVeecCreation(candidate), jobNumber: j.job_number, effectiveMode: jobMode(taskMode(mode, "veec_creation", SELECTORS_VERIFIED), j.source), values });
   }
   return out;
 }
@@ -171,7 +171,13 @@ export async function recordRobotDryRun(p: { jobId: string; task: RobotTask; not
 /** Any failure: internal event with needs_office so Needs me shows it and the office does the submission by hand. */
 export async function recordRobotFailure(p: { jobId: string; task: RobotTask; notificationId: string | null; mode: RobotMode; step: string; error: string; screenshotPath: string | null; registryUrl: string | null }) {
   const details = failureDetails(p);
+  const failedAt = new Date().toISOString(); // logEvent returns no timestamp; this keeps the alert key fixed for this call
   await logEvent(p.jobId, null, ROBOT_EVENTS.failed, `${failureLine(details)}. Needs Home Insulation Victoria`, details, { internal: true });
+  // Tell the office. Never lets an email problem hide the failure itself.
+  try {
+    const { sendRobotFailureAlert } = await import("./esc-robot-alert.server");
+    await sendRobotFailureAlert({ jobId: p.jobId, eventKey: `${p.task}:${p.notificationId ?? p.jobId}:${failedAt}`, task: p.task, step: p.step });
+  } catch (e) { console.error("robot failure email skipped", (e as Error).message); }
 }
 
 /** Robot submitted a NEW install notification. Same patch as the office record, method "adapter", no profile actor. */

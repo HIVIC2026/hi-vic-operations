@@ -27,7 +27,7 @@ export const OFFICE_HEADINGS: (OfficeTab & { key: Exclude<OfficeSection, "more">
 
 const NEEDS_PATHS = ["/admin/needs-me", "/admin/today", "/admin/todo"];
 const ENQUIRY_PATHS = ["/admin/enquiries", "/admin/enquiry-groups", "/admin/ready-check", "/admin/hot-leads"];
-const EMAIL_PATHS = ["/admin/emails"];
+const EMAIL_PATHS = ["/admin/emails", "/admin/ai-answers"];
 const JOB_PATHS = ["/admin/board", "/admin/ap-queue", "/admin/list", "/admin/pipeline", "/admin/quotes", "/admin/operations", "/admin/operations-preview"];
 const PARTNER_PATHS = ["/admin/partners", "/admin/businesses", "/admin/workers", "/admin/coverage", "/admin/partners-overview", "/admin/team-ups", "/admin/electrician-rates"];
 const MONEY_PATHS = ["/admin/money", "/admin/pricing", "/admin/veec"];

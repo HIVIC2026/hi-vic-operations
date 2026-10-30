@@ -11,12 +11,12 @@ import { Link } from "@tanstack/react-router";
 import { CustomerFields, FieldError } from "./customer-fields";
 import { addJobOptions, onsiteFormStatus, startOnsiteReadyCheck } from "@/lib/onsite-ready-check.functions";
 import { OWNER_CONTACT_PERMISSION } from "@/lib/job-electrician.core";
-import type { OnsiteInput, OnsiteState } from "@/lib/onsite-ready-check.core";
+import { LEAD_ORIGINS, LEAD_ORIGIN_QUESTION, leadOriginProblem, type LeadOrigin, type OnsiteInput, type OnsiteState } from "@/lib/onsite-ready-check.core";
 import { a1ReadyCheckTimeBlockers, allowedReadyCheckDays, allowedReadyCheckTimes } from "@/lib/ready-check-times.core";
 import { installTimeLabel } from "@/lib/install-days.core";
-import { ELECTRICIAN_CHOICE_QUESTION, defaultElectricianChoice, electricianChoiceOptions, electricianChoiceProblem, type ElectricianChoice } from "@/lib/electrician-choice.core";
+import { ELECTRICIAN_CHOICE_QUESTION, defaultElectricianChoice, addJobElectricianProblem, addJobUsual, electricianChoiceOptions, type ElectricianChoice } from "@/lib/electrician-choice.core";
 import {
-  ADD_JOB_OFFLINE_NOTE, BUSY_LABEL, ELECTRICIAN_CARD, OWNER_CARD_TITLE, SAVE_LABEL, VISIT_CARD, VISIT_FIELD_HINT, WHAT_HAPPENS_NEXT, addedView, blankCustomer, customerProblems, dayOptionLabel, errorSummary, fieldErrors, formLabel, outcomeFor, restoreCustomer,
+  ADD_JOB_OFFLINE_NOTE, BUSY_LABEL, ELECTRICIAN_CARD, OWNER_CARD_TITLE, SAVE_LABEL, TRY_AGAIN_LABEL, VISIT_CARD, VISIT_FIELD_HINT, WHAT_HAPPENS_NEXT, addedView, blankCustomer, customerProblems, dayOptionLabel, errorSummary, fieldErrors, formLabel, outcomeFor, restoreCustomer, restoreRequestKey,
   saveErrorMessage, visitPayload, visitProblems, type AddJobBooking, type VisitPick,
 } from "@/lib/add-job-flow.core";
 import { firstName } from "@/lib/installer-screens.core";
@@ -44,24 +44,30 @@ export function AddJobFlow({ businessId, onReset }: { businessId: string; onExit
   const loadOptions = useServerFn(addJobOptions);
   const options = useQuery({ queryKey: ["add-job-options", businessId], queryFn: () => loadOptions({ data: { businessId } }), retry: 1 });
   const usual = options.data?.usualElectrician ?? null;
+  const pickable = addJobUsual(usual); // A3: only an onboarded usual electrician can be picked
   const [electrician, setElectrician] = useState<ElectricianChoice | null>(null);
-  useEffect(() => { if (options.isSuccess && electrician === null) setElectrician(defaultElectricianChoice(usual)); }, [options.isSuccess]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A1: asked fresh every time (not kept in the phone draft).
+  const [leadOrigin, setLeadOrigin] = useState<LeadOrigin | null>(null);
+  // A6: one request key per draft, kept across Try again and reloads (in the phone draft); a new one on "Add another job".
+  const [requestKey, setRequestKey] = useState<string>(() => crypto.randomUUID());
+  useEffect(() => { if (options.isSuccess && electrician === null) setElectrician(defaultElectricianChoice(pickable)); }, [options.isSuccess]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Poor signal on site: typed details stay on the phone (never the consent tick) until saved.
-  useEffect(() => { try { const d = localStorage.getItem(DRAFT_KEY); if (d) setCustomer(restoreCustomer(JSON.parse(d))); } catch { /* ignore */ } }, []);
-  useEffect(() => { try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...customer, contact_permission: false, consent_by: null })); } catch { /* ignore */ } }, [customer]);
+  useEffect(() => { try { const d = localStorage.getItem(DRAFT_KEY); if (d) { const raw = JSON.parse(d); setCustomer(restoreCustomer(raw)); const k = restoreRequestKey(raw); if (k) setRequestKey(k); } } catch { /* ignore */ } }, []);
+  useEffect(() => { try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...customer, contact_permission: false, consent_by: null, request_key: requestKey })); } catch { /* ignore */ } }, [customer, requestKey]);
   useEffect(() => { if (shown.length) bannerRef.current?.focus(); }, [shown]);
   // Fixing an answer clears the old hint list; it is rebuilt on the next tap.
-  useEffect(() => { setShown([]); }, [customer, visit]);
+  useEffect(() => { setShown([]); }, [customer, visit, leadOrigin]);
 
   const start = useServerFn(startOnsiteReadyCheck);
 
-  if (saved) return <SavedResult saved={saved} onAddAnother={() => { setSaved(null); setCustomer(blankCustomer()); setVisit({ day: "", time: "" }); setElectrician(defaultElectricianChoice(usual)); onReset?.(); }} />;
+  if (saved) return <SavedResult saved={saved} onAddAnother={() => { setSaved(null); setCustomer(blankCustomer()); setVisit({ day: "", time: "" }); setElectrician(defaultElectricianChoice(pickable)); setLeadOrigin(null); setRequestKey(crypto.randomUUID()); onReset?.(); }} />;
 
   const problems = (): string[] => {
     const v = visitPayload(visit);
-    const ecp = electricianChoiceProblem(electrician, usual);
-    return [...customerProblems(customer), ...(ecp ? [ecp] : []), ...visitProblems(visit), ...(v ? a1ReadyCheckTimeBlockers(v) : [])];
+    const ecp = addJobElectricianProblem(electrician, usual);
+    const lop = leadOriginProblem(leadOrigin);
+    return [...(lop ? [lop] : []), ...customerProblems(customer), ...(ecp ? [ecp] : []), ...visitProblems(visit), ...(v ? a1ReadyCheckTimeBlockers(v) : [])];
   };
 
   const save = async () => {
@@ -70,10 +76,10 @@ export function AddJobFlow({ businessId, onReset }: { businessId: string; onExit
     if (p.length) return;
     inFlight.current = true; setBusy(true);
     try {
-      const choice: ElectricianChoice = electrician ?? defaultElectricianChoice(usual);
-      const r = await start({ data: { businessId, owner: customer, visit: visitPayload(visit), electricianChoice: choice } });
+      const choice: ElectricianChoice = electrician ?? defaultElectricianChoice(pickable);
+      const r = await start({ data: { businessId, owner: customer, visit: visitPayload(visit), leadOrigin, requestKey, electricianChoice: choice } });
       try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
-      setSaved({ jobId: r.jobId, jobNumber: r.jobNumber ?? null, booking: r.booking, state: r.state, customer, visit, electrician: { choice, usualName: usual?.name ?? null } });
+      setSaved({ jobId: r.jobId, jobNumber: r.jobNumber ?? null, booking: r.booking, state: r.state, customer, visit, electrician: { choice, usualName: pickable?.name ?? null } });
     } catch (e) { setErr(saveErrorMessage(e instanceof Error ? e.message : null)); }
     finally { setBusy(false); inFlight.current = false; }
   };
@@ -83,6 +89,16 @@ export function AddJobFlow({ businessId, onReset }: { businessId: string; onExit
   return (
     <div className="space-y-5" data-add-job-flow data-step="customer">
       {summary && <p ref={bannerRef} tabIndex={-1} role="alert" className="rounded-[12px] border-2 px-3.5 py-3 text-[15px] font-bold leading-[1.4] outline-none" style={{ borderColor: "#8A3B4A", background: "#FBEFF1", color: "#8A3B4A" }} data-step-problems>{summary}</p>}
+      <fieldset className={CARD} data-lead-origin>
+        <legend className="sr-only">{LEAD_ORIGIN_QUESTION}</legend>
+        <p className="text-[15px] font-bold" aria-hidden>{LEAD_ORIGIN_QUESTION}</p>
+        {LEAD_ORIGINS.map((o) => (
+          <label key={o.value} className="flex min-h-12 items-center gap-3 text-[15px]">
+            <input type="radio" name="add-job-lead-origin" value={o.value} checked={leadOrigin === o.value} disabled={busy} onChange={() => { setLeadOrigin(o.value); setErr(null); }} />{o.label}
+          </label>
+        ))}
+        <FieldError>{errors.lead_origin}</FieldError>
+      </fieldset>
       <section className={CARD} data-owner-card>
         <h2 className={CARD_TITLE}>{OWNER_CARD_TITLE}</h2>
         <div className="mt-3.5"><CustomerFields value={customer} consentLabel={OWNER_CONTACT_PERMISSION} errors={errors} onChange={(n) => { setCustomer(n); setErr(null); }} /></div>
@@ -92,17 +108,17 @@ export function AddJobFlow({ businessId, onReset }: { businessId: string; onExit
         <p className={CARD_TITLE} aria-hidden>{ELECTRICIAN_CARD.title}</p>
         <p className="mt-0.5 text-[13px] leading-[1.45] text-sub">{ELECTRICIAN_CARD.sub}</p>
         <p className="mt-3 text-[15px] font-bold">{ELECTRICIAN_CHOICE_QUESTION}</p>
-        {options.isLoading ? <p className="mt-2 text-sm text-sub">Loading…</p> : electricianChoiceOptions(usual).map((o) => (
+        {options.isLoading ? <p className="mt-2 text-sm text-sub">Loading…</p> : electricianChoiceOptions(pickable).map((o) => (
           <label key={o.value} className="flex min-h-12 items-center gap-3 text-[15px]">
             <input type="radio" name="add-job-electrician" value={o.value} checked={electrician === o.value} disabled={busy} onChange={() => { setElectrician(o.value); setErr(null); }} />{o.label}
           </label>
         ))}
-        {options.isSuccess && !usual && <p className="mt-1 text-[13px] leading-[1.45] text-sub">{ELECTRICIAN_CARD.noUsual}</p>}
+        {options.isSuccess && !pickable && <p className="mt-1 text-[13px] leading-[1.45] text-sub">{usual ? ELECTRICIAN_CARD.notOnboarded(usual.name) : ELECTRICIAN_CARD.noUsual}</p>}
         <FieldError>{errors.electrician}</FieldError>
       </fieldset>
       <VisitField value={visit} onChange={setVisit} disabled={busy} error={errors.visit} />
       {err && <p role="status" className="rounded-[12px] border-2 border-line bg-paper p-3 text-sm" data-save-error>{err}</p>}
-      <button type="button" className={PRIMARY_BTN} disabled={busy} aria-busy={busy} onClick={save}>{busy ? BUSY_LABEL : err && !/already has an open job/i.test(err) ? "Retry submission" : SAVE_LABEL}</button>
+      <button type="button" className={PRIMARY_BTN} disabled={busy} aria-busy={busy} onClick={save}>{busy ? BUSY_LABEL : err && !/already has an open job/i.test(err) ? TRY_AGAIN_LABEL : SAVE_LABEL}</button>
       <p className="text-center text-[13px] leading-[1.5] text-sub" data-next-step>{summary ? ADD_JOB_OFFLINE_NOTE : WHAT_HAPPENS_NEXT}</p>
     </div>
   );

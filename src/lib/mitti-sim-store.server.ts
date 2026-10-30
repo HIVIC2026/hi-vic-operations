@@ -40,13 +40,22 @@ export const persistentSimMittiCall: MittiCall = async (method, path, body) => {
   }
   const t = /^\/templates\/v1\/templates\/([^/]+)$/.exec(p);
   if (method === "GET" && t?.[1]) return { template: { template_id: decodeURIComponent(t[1]), name: "Simulated TEST form", items: SIM_ITEMS, response_sets: SIM_FIXES_TEMPLATE.response_sets } };
+  if (method === "GET" && p === "/audits/search") {
+    // Real Mitti's search: forms modified at/after `modified_after`. TEST sweeps (Mitti form retry) read this.
+    const qs = new URLSearchParams(path.split("?")[1] ?? "");
+    const since = qs.get("modified_after") ?? "1970-01-01T00:00:00.000Z";
+    const limit = Math.min(Math.max(Number(qs.get("limit")) || 100, 1), 1000);
+    const { data, error } = await db().select("id, template_id, modified_at").gte("modified_at", since).order("modified_at", { ascending: false }).limit(limit);
+    if (error) throw new Error("Simulated Mitti could not search the TEST forms.");
+    return { audits: ((data ?? []) as { id: string; template_id: string }[]).map((r) => ({ audit_id: r.id, template_id: r.template_id })) };
+  }
   if (method === "POST" && p === "/audits") {
     const b = (body ?? {}) as { template_id: string; items?: Item[]; header_items?: Item[] };
     const given = new Map([...(b.items ?? []), ...(b.header_items ?? [])].map((i) => [i.item_id, i]));
     const items = SIM_ITEMS.map((x) => ({ ...x, ...(given.get(x.item_id) ?? {}) }));
     for (const g of b.items ?? []) if (!items.some((i) => i.item_id === g.item_id)) items.push(g);
     const id = newAuditId(); const now = new Date().toISOString();
-    const { error } = await db().insert({ id, template_id: b.template_id, items, header_items: [], completed: false, request: body ?? null, created_at: now, modified_at: now });
+    const { error } = await db().insert({ id, template_id: b.template_id, items, header_items: b.header_items ?? [], completed: false, request: body ?? null, created_at: now, modified_at: now });
     if (error) throw new Error("Simulated Mitti could not store the TEST form.");
     known.add(id);
     return { audit_id: id, created_at: now };

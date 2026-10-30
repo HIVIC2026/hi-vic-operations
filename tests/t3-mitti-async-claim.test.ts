@@ -169,7 +169,8 @@ describe("3. a confirmed Ready Check booking starts exactly one creation", () =>
   test("booking twice (e.g. two triggers) -> one Mitti create", async () => {
     const m = fakeMitti();
     expect(await C.onReadyCheckBooked(JOB, INSTALLER, m.call)).toBe("scheduled");
-    expect(await C.onReadyCheckBooked(JOB, INSTALLER, m.call)).toBe("scheduled");
+    expect(storedAudit()).not.toBeNull(); // HV-3542: the booking waits for the form, so the second trigger finds it
+    expect(await C.onReadyCheckBooked(JOB, INSTALLER, m.call)).toBe("skipped");
     await waitFor(() => storedAudit() !== null);
     await new Promise((r) => setTimeout(r, 50));
     expect(m.creates()).toBe(1);
@@ -309,6 +310,7 @@ describe("8. existing behaviour kept", () => {
     expect(r).toMatchObject({ auditId: "audit_1", reused: false });
     expect(m.calls).toEqual(["POST /users/search", `GET /templates/v1/templates/${MITTI_TEMPLATE_ID}`, "POST /audits", "POST /audits/audit_1/share", "PUT /inspections/v1/inspections/audit_1/owner"]);
     expect(events("mitti_audit_created").length).toBe(1);
+    expect((events("mitti_audit_created")[0]!.details as { kind?: string }).kind).toBe("ready_check");
     expect((await onsiteFormFor(JOB, INSTALLER, m.call, false)).kind).toBe("open");
   });
   test("switch states still win before anything else (auto_send off -> office; not invited -> office)", async () => {
