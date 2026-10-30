@@ -1,0 +1,56 @@
+{
+  "tradeDayView": {
+    "historicalVisit": true,
+    "kind": "safety_check",
+    "channel": "installer_sourced",
+    "jobNumber": "HV-3129",
+    "owner": "TEST E2E Owner",
+    "surname": "Owner",
+    "phone": "0477511901",
+    "address": "9 E2E Test Street, Reservoir VIC 3073",
+    "contactHidden": false,
+    "start": null,
+    "end": null,
+    "outcome": null,
+    "mittiInvited": true,
+    "mittiId": null
+  },
+  "tradeDayExtras": {
+    "channel": "installer_sourced",
+    "product": null,
+    "areaM2": 120,
+    "removalM2": null,
+    "access": "moderate",
+    "pay": null,
+    "installForm": {
+      "auditId": null,
+      "complete": false,
+      "completedAt": null,
+      "piisaSigned": false,
+      "swmsComplete": false,
+      "evidenceChecked": false,
+      "crew": [
+        "Bhavdeep singh"
+      ]
+    },
+    "installationRecorded": false,
+    "rebateSigned": false,
+    "electrician": {
+      "required": false,
+      "name": null,
+      "phone": null
+    },
+    "installDeadline": null,
+    "allocatedTo": "Bhavdeep singh",
+    "ownerSays": {
+      "areaM2": null,
+      "insulation": null
+    },
+    "ownerFirstName": "TEST",
+    "streetAddress": "9 E2E Test Street, Reservoir"
+  },
+  "onsiteFormFor": {
+    "kind": "open",
+    "url": "https://app.au.safetyculture.com/inspection/audit_66a9195c43684adfb51d1bf3bd7c677e"
+  }
+}

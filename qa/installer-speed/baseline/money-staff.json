@@ -1,0 +1,11 @@
+{
+  "tradeMoneyView": {
+    "error": "Money is only shown to the business owner."
+  },
+  "tradeMoneyExtras": {
+    "error": "Only the business owner can see this."
+  },
+  "tradeMoneyJob": {
+    "error": "Only the business owner can see this."
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "tradeJobPage": {
+    "error": "This job isn't assigned to you."
+  },
+  "tradeJobBundle": {
+    "overview": {
+      "error": "You don't have permission for this action on this job."
+    },
+    "role": {
+      "error": "You don't have permission for this action on this job."
+    },
+    "page": {
+      "error": "This job isn't assigned to you."
+    },
+    "installDays": {
+      "error": "This job isn't assigned to you."
+    },
+    "readyCheckTimes": {
+      "error": "This job isn't assigned to you."
+    },
+    "allocation": {
+      "error": "This job isn't assigned to you."
+    },
+    "swms": {
+      "error": "This job isn't assigned to you."
+    },
+    "workerLinks": {
+      "error": "This job isn't assigned to you."
+    },
+    "price": {
+      "error": "This job isn't assigned to you."
+    },
+    "ownerQuote": {
+      "error": "This job isn't assigned to you."
+    },
+    "crew": {
+      "error": "This job isn't assigned to you."
+    },
+    "mittiInvited": {
+      "error": "This job isn't assigned to you."
+    }
+  },
+  "tradeMittiInvited": {
+    "invited": true,
+    "newReadyCheckUrl": "https://app.au.mitti.com/inspection/new?templateId=template_01ee0428be6d4435b34d8b738935f099"
+  }
+}
