@@ -6,7 +6,7 @@ import * as inHouse from "../src/lib/in-house.core";
 import * as membership from "../src/lib/mitti-membership.core";
 
 // Execute real helper against fixtures, not a hosted client; no provider/network imports are allowed.
-function fixture(failedTable?: string) {
+function fixture(failedTable?: string, failPage = -1) {
   const calls: { table: string; filters: unknown[][] }[] = [];
   const rpcCalls: unknown[] = [];
   const emailCalls: string[] = [];
@@ -23,16 +23,20 @@ function fixture(failedTable?: string) {
     const call = { table, filters: [] as unknown[][] }; calls.push(call);
     const q: any = { then(resolve: (value: unknown) => unknown) {
       let result = data[table] ?? [];
+      for (const [key, column, ids] of call.filters) if (key === "in") result = result.filter((r: any) => (ids as unknown[]).includes(r[column as string]));
+      const range = call.filters.find(([key]) => key === "range");
+      const offset = range ? Number(range[1]) : 0;
+      result = result.slice(offset, range ? Number(range[2]) + 1 : 1000);
       if (table === "businesses" && call.filters.some(([key, col, value]) => key === "eq" && col === "in_house" && value === true)) result = result.filter((b: any) => b.in_house === true);
-      return Promise.resolve({ data: result, error: table === failedTable ? { message: "read unavailable" } : null }).then(resolve); } };
-    for (const key of ["select","in","eq","is","not","neq","order"]) q[key] = (...args: unknown[]) => { call.filters.push([key,...args]); return q; };
+      return Promise.resolve({ data: result, error: (table === failedTable || (table === "jobs" && offset === failPage)) ? { message: "read unavailable" } : null }).then(resolve); } };
+    for (const key of ["select","in","eq","is","not","neq","order","range"]) q[key] = (...args: unknown[]) => { call.filters.push([key,...args]); return q; };
     return q;
   }, async rpc(name: string, input: unknown) { rpcCalls.push({ name, input }); return { data: { sent: true }, error: null }; } };
   const dependencies: Record<string, unknown> = {
     "@/integrations/supabase/client.server": { supabaseAdmin: admin }, "./in-house-batch.core": rules,
     "./in-house-batch-email.server": { sendInHousePartnerCall:async(id:string)=>{expect(rpcCalls.length).toBeGreaterThan(0);emailCalls.push(id);return "draft";} },
     "./in-house.core": inHouse, "./mitti-membership.core": membership, "./melbourne-time.core": { melbourneToday: () => "2026-10-30" },
-    "./installer-paid-electricians.server": { inHouseFactsFor: async () => ({ approvedElectricianWorkers: 1, hasActiveRateCardWithPiesa: true, mittiElectricianLogins: 1 }) },
+    "./installer-paid-electricians.server": { inHouseFactsFor: async () => ({ approvedElectricianWorkers: 1, hasActiveRateCardWithPiesa: true, mittiElectricianLogins: 1, mittiAccountInvited: true }) },
   };
   const output: any = {};
   const source = ts.transpile(readFileSync("src/lib/in-house-batch.server.ts","utf8"), { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 });
@@ -90,4 +94,23 @@ test("payee-only Reinsulate is absent from batch partners/suggestions and send r
   expect(screen.partners).toEqual([]); expect(screen.suggestions).toEqual([]);
   expect(await f.api.sendInHouseBatch({ businessId: "b", jobIds: ["j"], actorId: "office" })).toEqual({ sent: [], refused: [{ jobId: "j", reason: "Partner is not active in-house" }] });
   expect(f.rpcCalls).toEqual([]); expect(f.emailCalls).toEqual([]);
+});
+
+function scaleFixture(failPage = -1) {
+  const f = fixture(undefined, failPage);
+  f.data.jobs = Array.from({ length: 1250 }, (_, i) => ({ id: `j${String(i).padStart(4,"0")}`, job_number: `HV-${i}`, property_id: `p${i}`, stage: "preliminary_estimate_ready", source: "base44", deleted_at: null }));
+  f.data.properties = f.data.jobs.map((j: any) => ({ id: j.property_id, postcode: "3199", address_line: "TEST street" }));
+  f.data.lead_campaign_responses = f.data.jobs.map((j: any) => ({ job_id: j.id, spot_saved_at: "2026-10-30" }));
+  return f;
+}
+test("batch loader considers all 1250 jobs and every id filter is bounded at 200", async () => {
+  const f = scaleFixture(); const screen = await f.api.loadInHouseBatches();
+  expect(screen.jobs).toHaveLength(1250); expect(screen.suggestions[0].jobIds).toHaveLength(1250);
+  expect(screen.suggestions[0].jobIds).toContain("j1249");
+  for (const c of f.calls) for (const [key, _column, ids] of c.filters) if (key === "in") expect((ids as unknown[]).length).toBeLessThanOrEqual(200);
+});
+test("batch loader refuses partial results when the second jobs page fails", async () => {
+  const f = scaleFixture(200);
+  await expect(f.api.loadInHouseBatches()).rejects.toThrow("read unavailable");
+  expect(f.rpcCalls).toEqual([]);
 });
