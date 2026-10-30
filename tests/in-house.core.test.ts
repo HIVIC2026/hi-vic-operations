@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { inHouseEnableBlockers, isInHousePartner, partnerBillsRectification } from "../src/lib/in-house.core";
 import { readFileSync } from "node:fs";
 import { z } from "zod";
+import ts from "typescript";
 
 describe("in-house partner", () => {
   test("reads the stored flag", () => {
@@ -30,7 +31,8 @@ const source = readFileSync("src/lib/pilot.functions.ts", "utf8");
 const handlerBody = source.split("export const saveBusiness =")[1]?.split(".handler(async ({ data, context }) => {")[1]?.split("\n  });")[0];
 if (!handlerBody) throw new Error("Business save handler not found");
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-const runHandler = new AsyncFunction("data", "context", "isAdmin", "splitInvoicingBlocker", "WorkflowError", "admin", "requireMember", "CRITICAL_FIELDS", "inHouseEnableBlockers", "readFacts", handlerBody.replace('await (await import("./installer-paid-electricians.server")).inHouseFactsFor(id)', 'await readFacts(id)'));
+const javascript = ts.transpile(handlerBody.replace('await (await import("./installer-paid-electricians.server")).inHouseFactsFor(id)', 'await readFacts(id)'), { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext });
+const runHandler = new AsyncFunction("data", "context", "isAdmin", "splitInvoicingBlocker", "WorkflowError", "admin", "requireMember", "CRITICAL_FIELDS", "inHouseEnableBlockers", "readFacts", javascript);
 
 function saveFixture(adminUser: boolean, facts = { approvedElectricianWorkers: 1, hasActiveRateCardWithPiesa: true, mittiElectricianLogins: 1 }) {
   const writes: Record<string, unknown>[] = [];
