@@ -86,7 +86,7 @@ test("quote builder persists the exact missing-rate hold on an existing draft", 
   const updates: unknown[] = [];
   const admin = { from: () => ({ select: () => ({ eq: () => ({ eq: () => ({ order: () => ({ limit: () => ({ maybeSingle: async () => ({ data: null }) }) }) }) }) }), update: (patch: unknown) => { updates.push(patch); return { eq: () => ({ eq: async () => ({ error: null }) }) }; } }) };
   const exports: any = {};
-  new Function("exports", "require", "draft", "mittiProduct", "mittiElectrician", "admin", "jobId", "actorId", "auditId", "logEvent", "open", "INSTALLER_QUOTE_CODE", code)(exports, () => { throw new Error("Unexpected import"); }, draft, null, { ready: false, reasons: [reason], needsProfile: false, notOnboarded: null }, admin, "j", null, "audit", async () => {}, [{ id: "q", status: "draft", option_code: "INSTALLER_A1" }], "INSTALLER_A1");
+  new Function("exports", "require", "draft", "mittiProduct", "mittiElectrician", "admin", "jobId", "actorId", "auditId", "logEvent", "open", "INSTALLER_QUOTE_CODE", "IN_HOUSE_PIESA_HOLD_REASON", code)(exports, () => { throw new Error("Unexpected import"); }, draft, null, { ready: false, reasons: [reason], needsProfile: false, notOnboarded: null }, admin, "j", null, "audit", async () => {}, [{ id: "q", status: "draft", option_code: "INSTALLER_A1" }], "INSTALLER_A1", reason);
   expect(await exports.run()).toEqual(draft);
   expect(updates).toEqual([{ release_state: "held", release_hold_reason: reason }]);
 });
@@ -116,7 +116,7 @@ test("trade money display survives both in-house reads throwing and matches non-
       "./trade-payout-gate.core": { tradePayoutBlockers: () => [], safetyVisitPaidAt: () => null, visitGateFacts: () => null },
       "./trade-view.core": { ownerPaidInFullAt: () => null },
     };
-    new Function("exports", "require", "admin", "console", "payState", "installerPayHeldReasons", "VISIT", code)(exports, (name: string) => { if (!(name in dependencies)) throw new Error(name); return dependencies[name]; }, f.admin, { error: (...x: unknown[]) => errors.push(x) }, () => ({ kind: "checking" }), () => [], { installation: "Install" });
+    new Function("exports", "require", "admin", "console", "payState", "installerPayHeldReasons", "VISIT", "surname", code)(exports, (name: string) => { if (!(name in dependencies)) throw new Error(name); return dependencies[name]; }, f.admin, { error: (...x: unknown[]) => errors.push(x) }, () => ({ kind: "checking" }), () => [], { installation: "Install" }, () => "Owner");
     return exports.run("a", "installer", true);
   };
   const errors: unknown[] = [];
