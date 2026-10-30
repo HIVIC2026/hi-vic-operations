@@ -12,6 +12,7 @@ import { QUOTE_EXPIRED_HELD_REASON } from "./quote-expiry.core";
 import { piesaRulesOfficeLine } from "./piesa-rules-notice.core";
 import { coesOfficeLine } from "./coes-check.core";
 import { LIFE_SUPPORT_PLAN_ROW } from "./compliance-timeline.core";
+import { addVicBusinessDays, melbourneToday } from "./melbourne-time.core";
 
 export type NeedsGroup = "today" | "week" | "watch";
 export const NEEDS_GROUPS: { key: NeedsGroup; label: string }[] = [
@@ -21,6 +22,7 @@ export const NEEDS_GROUPS: { key: NeedsGroup; label: string }[] = [
 ];
 
 export type NeedsKind =
+  | "in_house_ready_check_not_booked" | "in_house_piesa_overdue" | "in_house_install_not_booked"
   | "choose_again" | "quote_check" | "fixes_quote_check" | "sign_consent" | "esc_window" | "final_check" | "send_failed" | "email_change" | "email_unmatched" | "robot_failed" | "piisa_form_failed"
   | "choose_installer" | "choose_electrician" | "veec_a_held" | "piesa_owner_unsigned" | "piesa_fixes_owner_unsigned" | "fixes_times_missing"
   | "payment_not_in_xero" | "payment_overdue" | "ten_days_left" | "second_no_access" | "veec_day_10" | "lapsed_window"
@@ -44,6 +46,10 @@ export type NeedsRow = {
 /** Facts per job (any may be absent). Times are ISO strings. */
 export type NeedsFacts = {
   jobId: string; jobNumber: string; surname: string; suburb: string | null; isTest?: boolean;
+  source?: string; deletedAt?: string | null;
+  inHouse?: { partnerName: string; batchSentAt: string | null; readyCheckBooked: boolean;
+    quoteAcceptedAt: string | null; piesaCompleted: boolean; installationBooked: boolean;
+    daysRemaining: number | null; deadline: string | null } | null;
   /** 24-hour installer / electrician offer lapsed or said Not for me (decision 220): "Choose again". */
   offerLapsed?: { role: "installer" | "electrician"; name: string | null; declined: boolean; at: string; note?: string } | null;
   bookingOverdue?: { at: string; visit: "ready_check" | "piesa" | "rectification" | "installation" } | null;
@@ -195,6 +201,12 @@ type Candidate = Omit<NeedsRow, "key" | "jobId" | "jobNumber" | "surname" | "sub
 export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   const out: Candidate[] = [];
   const add = (c: Candidate) => out.push(c);
+  const ih = !f.isTest && f.source !== "qa_test" && !f.deletedAt ? f.inHouse : null;
+  if (ih) {
+    if (!ih.installationBooked && ih.daysRemaining != null && ih.daysRemaining <= 7) add({ rank: 36, group: "today", kind: "in_house_install_not_booked", line: `${ih.partnerName} hasn't booked the install (${ih.daysRemaining < 0 ? "30-day window expired" : `${ih.daysRemaining} days left`})`, since: ih.deadline ?? ih.batchSentAt ?? new Date(now).toISOString(), button: { label: "Open job", to: "job", section: "install" } });
+    if (!ih.piesaCompleted && ih.quoteAcceptedAt && now >= Date.parse(ih.quoteAcceptedAt) + 10 * 86_400_000) add({ rank: 90, group: "week", kind: "in_house_piesa_overdue", line: `${ih.partnerName} hasn't completed the PIESA (quote accepted 10 days ago or more)`, since: ih.quoteAcceptedAt, button: { label: "Open job", to: "job", section: "piesa" } });
+    if (!ih.readyCheckBooked && ih.batchSentAt && melbourneToday(new Date(now)) >= addVicBusinessDays(ih.batchSentAt, 5)) add({ rank: 91, group: "week", kind: "in_house_ready_check_not_booked", line: `${ih.partnerName} hasn't booked the Ready Check (sent 5 business days ago or more)`, since: ih.batchSentAt, button: { label: "Open job", to: "job", section: "ready-check" } });
+  }
   if (f.quoteExpiredBlocked) add({ rank: 9, group: "today", kind: "quote_expired_blocked", line: f.quoteExpiredBlocked.reason === QUOTE_EXPIRED_HELD_REASON ? QUOTE_EXPIRED_HELD_REASON : `Quote expired — owner can't be emailed (${f.quoteExpiredBlocked.reason})`, since: f.quoteExpiredBlocked.at, button: { label: "Open job", to: "job" } });
   if (f.newQuoteOffice) add({ rank: 9, group: "today", kind: f.newQuoteOffice.kind, line: f.newQuoteOffice.line, since: f.newQuoteOffice.at, button: { label: "Open job", to: "job", section: "ready-check" } });
   if (f.stopReleaseFailed) add({ rank: 9, group: "today", kind: "stop_release_failed", line: STOP_RELEASE_FAILED_LINE, since: f.stopReleaseFailed.at, button: { label: "Open job", to: "job" } });
