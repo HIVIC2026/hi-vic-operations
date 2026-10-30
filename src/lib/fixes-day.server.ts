@@ -101,8 +101,8 @@ async function rectificationRound(jobId: string): Promise<string> {
 async function existingRectificationForm(jobId: string, knownHeld = false) {
   if (!knownHeld) {
     // Do not consult dispatch at all without any companion-round history.
-    const { data: companion } = await admin.from('workflow_events').select('details').eq('job_id', jobId).eq('event_type', FIXES_FORM_CREATED_EVENT).not('details->>rectification_round', 'is', null).limit(1).maybeSingle();
-    if (!companion || !(companion.details as { rectification_round?: string } | null)?.rectification_round) return null;
+    const { data: companions } = await admin.from('workflow_events').select('details').eq('job_id', jobId).eq('event_type', FIXES_FORM_CREATED_EVENT).order('created_at', { ascending: false }).limit(50);
+    if (!companions?.some(companion => !!(companion.details as { rectification_round?: string } | null)?.rectification_round)) return null;
   }
   const { readInHouseDispatchState } = await import("./in-house-suppression.server");
   const state = await readInHouseDispatchState([jobId]);
