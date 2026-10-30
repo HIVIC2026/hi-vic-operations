@@ -2,7 +2,7 @@
 // READ-ONLY. Calls the installer screen loaders directly as the TEST owner and TEST staff login and saves what they return to
 // qa/installer-speed/baseline/<screen>-<role>.json (--write), or checks the loaders still return exactly that (--compare).
 // Volatile values (times, signed photo links) are normalised first. Needs SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY and the server key.
-import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
 
 export const SCREENS = ["home", "job", "day", "business", "money"] as const;
 export type Screen = (typeof SCREENS)[number];
@@ -17,14 +17,15 @@ const VOLATILE_KEYS = new Set(["week", "expiresAt", "goneIn"]);
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:?\d{2})$/;
 const SIGNED_URL = /^https?:\/\/\S*\/storage\/v1\/object\/sign\/\S*$/;
 const WINDOW_MS = 2 * 60_000;
+const FUTURE_SKEW_MS = 5_000;
 
 /** Makes two captures of the same information comparable: volatile times and signed photo links become placeholders, jobId lists are ordered. Pure; does not change its input. */
 export function normaliseForParity(value: unknown, now: Date): unknown {
   if (typeof value === "string") {
-    if (SIGNED_URL.test(value)) return "<signed-url>";
+    if (SIGNED_URL.test(value)) return value.replace(/\?.*$/, "?<signed-token>"); // keep bucket and object path (which photo), drop the token
     if (ISO.test(value)) {
       const t = Date.parse(value);
-      if (!Number.isNaN(t) && t <= now.getTime() && t >= now.getTime() - WINDOW_MS) return "<time>";
+      if (!Number.isNaN(t) && t <= now.getTime() + FUTURE_SKEW_MS && t >= now.getTime() - WINDOW_MS) return "<time>";
     }
     return value;
   }
@@ -65,6 +66,11 @@ export function firstDifference(a: unknown, b: unknown, path = ""): string | nul
     if (d) return d;
   }
   return null;
+}
+
+/** Names of loaders in a capture (loader name -> value) whose value is a thrown-error record `{ error }`. */
+export function errorCaptures(captured: Record<string, unknown>): string[] {
+  return Object.entries(captured).filter(([, v]) => typeof v === "object" && v !== null && !Array.isArray(v) && Object.keys(v).length === 1 && typeof (v as { error?: unknown }).error === "string").map(([k]) => k);
 }
 
 export function missingKeyMessage(env: Record<string, string | undefined>): string | null {
@@ -149,21 +155,29 @@ async function main() {
   const who = { owner: { uid: ownerId, email: OWNER_EMAIL }, staff: { uid: staffId, email: STAFF_EMAIL } };
 
   let failed = 0;
+  const captures: { screen: Screen; role: (typeof ROLES)[number]; norm: unknown; file: string; now: Date }[] = [];
+  const ownerErrors: string[] = [];
   for (const screen of args.screens) for (const role of ROLES) {
-    const file = `${BASELINE_DIR}/${screen}-${role}.json`;
-    const now = new Date();
     const captured = JSON.parse(JSON.stringify(await loaders[screen](who[role].uid, who[role].email))); // plain JSON, as a server function would send it
-    const norm = normaliseForParity(captured, now);
-    if (args.mode === "write") {
-      mkdirSync(BASELINE_DIR, { recursive: true });
-      writeFileSync(file, JSON.stringify(norm, null, 2) + "\n");
-      console.log(`Wrote ${file}`);
-    } else {
-      if (!existsSync(file)) { console.error(`DIFFERENT ${screen}-${role}: no baseline file ${file}`); failed++; continue; }
-      const base = normaliseForParity(JSON.parse(readFileSync(file, "utf8")), now);
-      const d = firstDifference(base, norm);
-      if (d) { console.error(`DIFFERENT ${screen}-${role}: first difference at ${d}`); failed++; } else console.log(`Same ${screen}-${role}`);
+    const now = new Date(); // after the loader returns, so times it made itself count as "just now"
+    const errs = errorCaptures(captured);
+    if (errs.length) console.log(`ERROR capture ${screen}-${role}: ${errs.join(", ")}`);
+    if (role === "owner" && ["home", "business", "money"].includes(screen)) ownerErrors.push(...errs.map((e) => `${screen}-owner ${e}`));
+    captures.push({ screen, role, norm: normaliseForParity(captured, now), file: `${BASELINE_DIR}/${screen}-${role}.json`, now });
+  }
+  if (args.mode === "write") {
+    if (ownerErrors.length) { console.error(`STOP: the owner capture failed (${ownerErrors.join("; ")}). Nothing was saved; a baseline of an error proves nothing.`); return 1; }
+    mkdirSync(BASELINE_DIR, { recursive: true });
+    for (const c of captures) { writeFileSync(c.file, JSON.stringify(c.norm, null, 2) + "\n"); console.log(`Wrote ${c.file}`); }
+  } else {
+    for (const c of captures) {
+      const name = `${c.screen}-${c.role}`;
+      let base: unknown;
+      try { base = normaliseForParity(JSON.parse(readFileSync(c.file, "utf8")), c.now); } catch (e) { console.error(`DIFFERENT ${name}: baseline ${c.file} is missing or unreadable (${(e as Error).message})`); failed++; continue; }
+      const d = firstDifference(base, c.norm);
+      if (d) { console.error(`DIFFERENT ${name}: first difference at ${d}`); failed++; } else console.log(`Same ${name}`);
     }
+    if (ownerErrors.length) { console.error(`WARNING: owner captures are errors (${ownerErrors.join("; ")}).`); failed++; }
   }
   return failed ? 1 : 0;
 }
