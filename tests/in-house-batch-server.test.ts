@@ -9,6 +9,7 @@ import * as membership from "../src/lib/mitti-membership.core";
 function fixture(failedTable?: string) {
   const calls: { table: string; filters: unknown[][] }[] = [];
   const rpcCalls: unknown[] = [];
+  const emailCalls: string[] = [];
   const data: Record<string, unknown[]> = {
     jobs: [{ id: "j", job_number: "HV-1", property_id: "p", stage: "preliminary_estimate_ready", source: "base44", deleted_at: null }],
     businesses: [{ id: "b", name: "Rapid", trading_name: "Rapid Insulation", in_house: true, is_active: true, service_postcodes: ["3199"], covers_all_victoria: false }],
@@ -26,14 +27,14 @@ function fixture(failedTable?: string) {
   }, async rpc(name: string, input: unknown) { rpcCalls.push({ name, input }); return { data: { sent: true }, error: null }; } };
   const dependencies: Record<string, unknown> = {
     "@/integrations/supabase/client.server": { supabaseAdmin: admin }, "./in-house-batch.core": rules,
-    "./in-house-batch-email.server": { sendInHousePartnerCall:async()=>"draft" },
+    "./in-house-batch-email.server": { sendInHousePartnerCall:async(id:string)=>{expect(rpcCalls.length).toBeGreaterThan(0);emailCalls.push(id);return "draft";} },
     "./in-house.core": inHouse, "./mitti-membership.core": membership, "./melbourne-time.core": { melbourneToday: () => "2026-10-30" },
     "./installer-paid-electricians.server": { inHouseFactsFor: async () => ({ approvedElectricianWorkers: 1, hasActiveRateCardWithPiesa: true, mittiElectricianLogins: 1 }) },
   };
   const output: any = {};
   const source = ts.transpile(readFileSync("src/lib/in-house-batch.server.ts","utf8"), { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 });
   new Function("exports","require",source)(output,(name: string) => { if (!(name in dependencies)) throw new Error(`Unexpected dependency ${name}`); return dependencies[name]; });
-  return { api: output, data, calls, rpcCalls };
+  return { api: output, data, calls, rpcCalls, emailCalls };
 }
 test("real loader excludes deleted/TEST jobs in its query and maps saved spots with opt-out protection", async () => {
   const f = fixture();
@@ -48,6 +49,7 @@ test("actual send uses same-business approved workers, binds actor and deduplica
   const f = fixture();
   expect(await f.api.sendInHouseBatch({ businessId: "b",jobIds: ["j","j"],actorId: "office" })).toEqual({ sent: ["j"],refused: [] });
   expect(f.rpcCalls).toHaveLength(1);
+  expect(f.emailCalls).toEqual(["j"]);
   expect(f.rpcCalls[0]).toMatchObject({ name: "allocate_in_house_batch_job",input: { _business: "b",_job: "j",_actor: "office",_installer: "i",_electrician: "e" } });
 });
 test("failed reads propagate and never invoke an allocation", async () => {
