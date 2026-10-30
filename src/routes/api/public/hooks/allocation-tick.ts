@@ -28,6 +28,13 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
         const { sweepRecOffers, sweepCoordination } = await import("@/lib/allocation.server");
         const out: { ok: boolean; offers?: unknown; coordination?: unknown } = { ok: true };
         try {
+          const { sweepSpotSavedConfirmations } = await import('@/lib/spot-saved-recovery.server');
+          (out as Record<string, unknown>)['spotSavedConfirmations'] = await timed('sweepSpotSavedConfirmations', () => sweepSpotSavedConfirmations());
+        } catch (e) {
+          console.error('allocation tick: spot saved confirmation recovery failed', (e as Error).message);
+          (out as Record<string, unknown>)['spotSavedConfirmations'] = 'failed';
+        }
+        try {
           const o = await timed("sweepRecOffers", () => sweepRecOffers());
           out['offers'] = { expired: o.expired, started: Array.isArray(o.started) ? o.started.length : o.started };
         } catch (e) {
