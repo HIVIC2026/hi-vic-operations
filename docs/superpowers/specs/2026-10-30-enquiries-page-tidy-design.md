@@ -31,9 +31,23 @@ A design critique of the Enquiries page found things that were in the wrong orde
    - The tap area is at least 44×44px, with the visible box around 20px.
    - The tick box is a separate target from the row button, so a tap on it can't open the job, and a tap on the row can't tick it.
    - The computer row is unchanged.
-6. **Wording**
-   - Count line: "{total} enquiries · updated {time}". Use "1 enquiry" for one, and add " · updating…" while refreshing. Drop "showing N".
-   - "Email didn't send" hint: "The first email failed or hasn't gone out yet. Failed ones are fixed from Needs me." This text is in `enquiry-categories.core.ts`.
+6. **Failed first emails live on Needs me only** (Jo, 30 Oct 2026, one-pile rule).
+   - While an enquiry's first email has failed, it is left out of the Enquiries list and out of every tab count, including "All open". It shows on Needs me only, as it does today.
+   - Once the email is fixed and sent, the enquiry comes back to Enquiries under "Offered a spot", or wherever the normal rules put it.
+   - An owner who opted out stays in "Opted out" even if an email failed. This is today's order and doesn't change.
+   - In code, `enquiryCategory` returns a new `"needs_me"` value when `sendFailed` is true. The list and count code skip that value. `"needs_me"` is never a tab and never a `CLOSABLE` group.
+   - The tab "Email didn't send" is renamed **"Email not sent yet"**. It now only holds enquiries whose first email hasn't gone out, which is today's `noResponseYet`.
+   - Its hint becomes: "The first email hasn't gone out yet. It usually goes on its own shortly. Failed emails are on Needs me."
+   - Keep the tab's rose dot.
+7. **Wording:** the count line becomes "{total} enquiries · updated {time}". Use "1 enquiry" for one, and add " · updating…" while refreshing. Drop "showing N".
+
+## Colours and fonts
+
+No new colours or fonts. Everything uses the portal's existing look:
+
+- **Fonts:** Figtree for text, and Outfit for headings and prices.
+- **Main colour:** HIV blue (#3c51c4) for buttons and links.
+- **Tags:** the existing amber "reply needed" style for the "Wrote to us" tag, and the existing rose style for "Email bounced".
 
 ## Not changing
 
@@ -44,7 +58,8 @@ A design critique of the Enquiries page found things that were in the wrong orde
   - column sorting and filters
   - "Close all" for Gone quiet and Opted out
   - the side panel
-  - server logic and the database
+  - the database
+  - the server logic, except the failed-email change (change 6)
 
 ## Testing
 
@@ -52,6 +67,8 @@ A design critique of the Enquiries page found things that were in the wrong orde
 - Add tests that check:
   - the Close reason picks the right action (a small pure function, `closeRouteFor(reason)` → `"remove" | "cancel"`)
   - the count-line wording
-  - the new hint wording
+  - the new tab name and hint wording
+  - a failed-email enquiry is in no Enquiries tab or count, and comes back to "Offered a spot" once its email is sent
+  - an opted-out owner with a failed email stays in "Opted out"
 - Run the full test suite and the type check.
 - Look at the page at phone width (390px) and at computer width.
