@@ -73,7 +73,11 @@ export const AREA_BATCH_CLOSED_EVENT = "area_batch_closed";
 /** Written per job when the owner's new address is over 10 km from the batch centre (Task 3, Jo 30 Oct): the home is back
  *  in the pool for the next batch, but the owner can still finish the quick taps of this batch (they are not told). */
 export const AREA_BATCH_LEFT_EVENT = "area_batch_left";
-export const AREA_BATCH_EVENTS = [AREA_BATCH_SENT_EVENT, AREA_BATCH_CLOSED_EVENT, AREA_BATCH_LEFT_EVENT] as const;
+/** Written per passer when Jo taps "Back to suggestions" on a closed batch (final review I2): the batch's pass is released
+ *  (keyed by batch_id, like a run release), so the owner is a batch candidate again with their standing pass. */
+export const AREA_BATCH_RETURNED_EVENT = "area_batch_returned";
+export const areaBatchReturnedKey = (batchId: string, jobId: string) => `area-batch-returned:v1:${batchId}:${jobId}`;
+export const AREA_BATCH_EVENTS = [AREA_BATCH_SENT_EVENT, AREA_BATCH_CLOSED_EVENT, AREA_BATCH_LEFT_EVENT, AREA_BATCH_RETURNED_EVENT] as const;
 
 /** New owner texts: each has its own SMS switch, off until Jo switches it on. */
 export const QUICK_TAPS_SMS_TYPE = "quick_taps" as const;
@@ -221,13 +225,16 @@ export function planBatchSweep(jobs: readonly SweepJob[], nowIso: string, quiet:
   return plan;
 }
 
+/** A batch's pass is released by its run letting the home go, or by Jo's "Back to suggestions" (final review I2). */
+const PASS_RELEASE_EVENTS: readonly string[] = [...RUN_RELEASE_EVENTS, AREA_BATCH_RETURNED_EVENT];
 /** The job's pass was handed on: it is in a close's pass list, so it waits for Jo's OK to send it to the installer (or is in
  *  the run she sent) and is never put in another batch. A pass whose run let the home go for that batch (installer removed
- *  the home, declined, or no reply in 24 h — run-route.core RUN_RELEASE_EVENTS, keyed by the run's batch_id) is free again. */
+ *  the home, declined, or no reply in 24 h — run-route.core RUN_RELEASE_EVENTS, keyed by the run's batch_id) or that Jo sent
+ *  back to the suggestions (`area_batch_returned`) is free again. */
 export const passHandedOn = (events: readonly AreaBatchEventRow[], jobId: string): boolean => {
   // Only THIS job's release counts (a list may hold several jobs' rows; a row without job_id is from a per-job list).
   const mine = (e: AreaBatchEventRow) => { const j = (e as { job_id?: unknown }).job_id; return j === undefined || j === null || j === jobId; };
-  const released = new Set(events.filter((e) => (RUN_RELEASE_EVENTS as readonly string[]).includes(e.event_type) && mine(e)).map(bid).filter(Boolean));
+  const released = new Set(events.filter((e) => (PASS_RELEASE_EVENTS as readonly string[]).includes(e.event_type) && mine(e)).map(bid).filter(Boolean));
   return events.some((e) => e.event_type === AREA_BATCH_CLOSED_EVENT && !released.has(bid(e))
     && ((e.details as { pass_job_ids?: unknown } | null)?.pass_job_ids as unknown[] | undefined)?.includes?.(jobId) === true);
 };

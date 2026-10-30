@@ -25,12 +25,13 @@ export const sendAreaBatchFn = createServerFn({ method: "POST" }).middleware([re
     return { batchId: r.batchId, installer: r.installer, homes: r.homes, held: r.texts.filter((t) => t.status !== "sent" && t.status !== "not_texted").length };
   });
 
-/** Office: closed batches whose owners said yes, waiting for Jo's "Send to installer" (Task 6 wires the send). Read only. */
+/** Office: closed batches whose owners said yes, waiting for Jo's "Send to installer" (or "Send again" when the installer's
+ *  text didn't go), with the installers who could take them. Read only. */
 export const getBatchesReadyToSend = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ includeTest: z.boolean().default(false) }).parse(d ?? {}))
   .handler(async ({ data, context }) => {
     const role = await requireOfficeIdentity(context.supabase);
     const { batchesReadyToSend } = await import("./area-batch.server");
-    if (role === "qa_office") return batchesReadyToSend({ includeTest: true, testJobIds: await officeTestJobIds(context.supabase) });
+    if (role === "qa_office") return batchesReadyToSend({ includeTest: true, testJobIds: await officeTestJobIds(context.supabase), testBusinessIds: await officeTestBusinessIds(context.supabase) });
     return batchesReadyToSend({ includeTest: data.includeTest });
   });

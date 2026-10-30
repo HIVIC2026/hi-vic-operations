@@ -10,5 +10,8 @@
 -- Until applied the server checks for an earlier claim first and the earliest row of a generation wins; this index makes
 -- two claims of the same half-hour race-proof (the second insert fails with 23505 and that window is not proposed).
 -- Proven on PGlite: tests/run-window-claims-practice-db.test.ts.
-create unique index if not exists workflow_events_run_window_once_idx on public.workflow_events ((details->>'idempotency_key'))
+-- HOW TO APPLY (live): run this ONE statement on its own, NOT inside BEGIN … COMMIT (CREATE INDEX CONCURRENTLY can't run in
+-- a transaction block) — CONCURRENTLY builds the index without locking writes to workflow_events (like the perf indexes,
+-- perf-2026-10-25-indexes.sql). If a build is interrupted it can leave an INVALID index: drop it (rollback file) and re-run.
+create unique index concurrently if not exists workflow_events_run_window_once_idx on public.workflow_events ((details->>'idempotency_key'))
   where event_type in ('run_window_claimed', 'run_window_freed');

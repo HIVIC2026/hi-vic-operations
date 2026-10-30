@@ -119,3 +119,21 @@ describe("send failed reads are paged safely", () => {
     expect(src).toMatch(/\.in\("status", \[\.\.\.FAILED_SMS_STATUSES, \.\.\.UNSURE_SMS_STATUSES, \.\.\.SUCCESS_SMS_STATUSES\]\)\.gte\("created_at", since7\)\.order\("created_at"\)\.order\("id"\)\.range/);
   });
 });
+
+describe("A48 batch 2 texts never land in Needs me (Jo, final review m9)", () => {
+  const TYPES = ["quick_taps", "quick_taps_reminder", "run_offered", "run_time", "run_time_reminder", "run_slot_cancelled"];
+  test("failed / not-sure batch and run texts make no job row and no partner row; other texts still do", async () => {
+    const { partnerSendFailedRows } = await import("../src/lib/send-failed.core");
+    const sms = [
+      ...TYPES.flatMap((t) => [
+        { job_id: "j1", message_type: t, status: "failed", created_at: ago(1), detail: "Twilio 400" },
+        { job_id: "j1", message_type: t, status: "sent_unknown", created_at: ago(1), detail: null },
+        { job_id: null, business_id: "biz-1", message_type: t, status: "undelivered", created_at: ago(1), detail: null },
+      ]),
+      { job_id: "j2", message_type: "spot_saved", status: "failed", created_at: ago(1), detail: "Twilio 400" },
+      { job_id: null, business_id: "biz-2", message_type: "job_offer", status: "failed", created_at: ago(1), detail: null },
+    ];
+    expect(sendFailedRows({ now: NOW, emails: [], sms }).map((r) => r.jobId)).toEqual(["j2"]);
+    expect(partnerSendFailedRows({ now: NOW, sms }).map((r) => r.businessId)).toEqual(["biz-2"]);
+  });
+});

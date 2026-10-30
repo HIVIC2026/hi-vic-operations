@@ -73,12 +73,18 @@ mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: fak
 // ---- recorded fakes ----------------------------------------------------------------------------------------------
 const sent: { via: string; to: string; body: string; key?: string; type?: string; jobId?: string | null; label?: string }[] = [];
 let smsStatus = "sent";
+/** Every call to the real sender (a held call writes an sms_messages row in the real one). */
+const realAttempts: { type: string; to: string }[] = [];
+/** Numbers held for the recipient (like the real sender: STOP / no consent / not a mobile). */
+const recipientHold = new Map<string, string>();
 mock.module("../src/lib/sms.server", () => ({
   sendRealSms: async (i: { type: string; to: string; body: string; idempotencyKey: string; jobId?: string | null }) => {
+    realAttempts.push({ type: i.type, to: i.to });
     if (smsStatus !== "sent" && i.type === "run_offered") return { status: smsStatus, detail: "held: test", sid: null };
     // Like the real sender: held unless customer messages are on AND this text's own switch is on.
     const ws = (tables["workflow_settings"] ?? [])[0] as { customer_comms_enabled?: boolean; sms_message_switches?: Record<string, boolean> } | undefined;
     if (ws?.customer_comms_enabled !== true || ws?.sms_message_switches?.[i.type] !== true) return { status: "held", detail: "switch off", sid: null };
+    if (recipientHold.has(i.to)) return { status: "blocked", detail: recipientHold.get(i.to)!, sid: null };
     if (sent.some((s) => s.key === i.idempotencyKey)) return { status: "already", detail: "already", sid: null };
     sent.push({ via: "real-sms", to: i.to, body: i.body, key: i.idempotencyKey, type: i.type, jobId: i.jobId ?? null }); return { status: "sent", detail: "ok", sid: "SM1" };
   },
@@ -98,12 +104,15 @@ mock.module("../src/lib/installer-waiting.server", () => ({ installerFacts: asyn
 mock.module("../src/lib/property-coordinates.server", () => ({ ensurePropertyCoordinates: async () => null }));
 const LINK = (j: string) => `https://estimate.homeinsulationvictoria.com.au/my-job/tok-${j}`;
 mock.module("../src/lib/veec-copy-email.server", () => ({ ownerMyJobLink: async (jobId: string) => LINK(jobId) }));
-// The existing Ready Check booking path (bookAgreedTime → confirmBooking + its follow-ons), recorded.
+// The existing Ready Check booking path (bookAgreedTime → confirmBooking + its follow-ons), recorded; it writes the booking
+// like the real one (final review m6: a confirmed run window counts as booked only while its booking stands).
 const booked: { jobId: string; kind: string; start: string; actor: string; role: string }[] = [];
 let bookingRefusal: string | null = null;
 mock.module("../src/lib/booking.server", () => ({
   confirmBooking: async (jobId: string, kind: string, start: string, actor: string, role: string) => {
     if (bookingRefusal) throw new Error(bookingRefusal);
+    for (const bk of (tables["bookings"] ??= [])) if (bk["job_id"] === jobId && bk["status"] === "confirmed") bk["status"] = "cancelled";
+    tables["bookings"]!.push({ id: crypto.randomUUID(), job_id: jobId, kind, status: "confirmed", scheduled_start: start });
     booked.push({ jobId, kind, start, actor, role });
   },
 }));
@@ -141,9 +150,9 @@ function closedBatch(batchId: string, jobIds: string[], installer = "biz-1") {
 }
 function seed() {
   for (const k of Object.keys(tables)) delete tables[k];
-  sent.length = 0; booked.length = 0; followOns.length = 0; smsStatus = "sent"; bookingRefusal = null; failInsert = null; insertGate = null; factOverride = {};
+  sent.length = 0; booked.length = 0; followOns.length = 0; realAttempts.length = 0; recipientHold.clear(); smsStatus = "sent"; bookingRefusal = null; failInsert = null; insertGate = null; factOverride = {};
   tables["workflow_settings"] = [{ id: 1, customer_comms_enabled: true, sms_message_switches: { run_offered: true, run_time: true, run_time_reminder: true } }];
-  for (const t of ["jobs", "lead_campaign_responses", "property_facts", "job_assignments", "partner_offers", "workflow_events", "appointment_proposals"]) tables[t] = [];
+  for (const t of ["jobs", "lead_campaign_responses", "property_facts", "job_assignments", "partner_offers", "workflow_events", "appointment_proposals", "bookings"]) tables[t] = [];
   tables["businesses"] = [
     { id: "biz-1", name: "Sample Insulation", business_type: "eec_installer", signer_name: "Sam Smith", signer_mobile: "0411111111", phone: null, onboarding_notes: null, is_active: true },
     { id: "biz-t", name: "[TEST PARTNER] Co", business_type: "eec_installer", signer_name: null, signer_mobile: "0433333333", phone: null, onboarding_notes: "[TEST PARTNER]", is_active: true },
@@ -792,19 +801,86 @@ describe("fix round 3", () => {
 
 describe("installer's 24 h count from the first run text that went", () => {
   beforeEach(seed);
-  test("held first text → no expiry; re-texted at hour 10 → expires 24 h after that", async () => {
+  test("held first text, re-texted at hour 6 → expires 24 h after the text that went (not 24 h after the offer)", async () => {
     for (const id of ["a", "b"]) addJob(id);
     closedBatch("b1", ["a", "b"]);
     now(1); smsStatus = "blocked";
     const r1 = await R.offerRun("b1", "u-jo", { now: new Date(clock) });
-    now(30); await R.sweepRunOffers(at(30));
-    expect(events("run_expired")).toEqual([]);
     smsStatus = "sent";
-    now(31); await R.offerRun("b1", "u-jo", { now: new Date(clock) });
-    now(54.9); await R.sweepRunOffers(at(54.9));
+    now(6); await R.offerRun("b1", "u-jo", { now: new Date(clock) });
+    now(25.5); await R.sweepRunOffers(at(25.5));
     expect(events("run_expired")).toEqual([]);
-    now(55.1); await R.sweepRunOffers(at(55.1));
+    now(29.9); await R.sweepRunOffers(at(29.9));
+    expect(events("run_expired")).toEqual([]);
+    now(30.1); await R.sweepRunOffers(at(30.1));
     expect(events("run_expired").map((e) => (e["details"] as Row)["run_id"])).toEqual([r1.runId, r1.runId]);
+  });
+  test("final review I1: held and never re-texted → expires 24 h after the offer (owners back in the pool, not stranded)", async () => {
+    for (const id of ["a", "b"]) addJob(id);
+    closedBatch("b1", ["a", "b"]);
+    now(1); smsStatus = "blocked";
+    const r1 = await R.offerRun("b1", "u-jo", { now: new Date(clock) });
+    await R.sweepRunOffers(at(24.9));
+    expect(events("run_expired")).toEqual([]);
+    await R.sweepRunOffers(at(25.1));
+    expect(events("run_expired").map((e) => [(e["details"] as Row)["run_id"], (e["details"] as Row)["reason"]])).toEqual([[r1.runId, "text_not_sent"], [r1.runId, "text_not_sent"]]);
+    expect((await candidates()).map((c) => [c.jobId, c.carriedPass]).sort()).toEqual([["a", true], ["b", true]]);
+  });
+});
+
+// ---- final review m5, m10 --------------------------------------------------------------------------------------------------
+describe("final review m5: owner texts held for the owner (STOP / no consent / not a mobile) aren't retried every tick", () => {
+  beforeEach(seed);
+  const phone = (j: string) => String((tables["jobs"]!.find((x) => x["id"] === j)!["owners"] as Row)["phone"]);
+  test("time text held for the owner → the window is released ONCE (not_textable): back in the pool, the sender isn't called again", async () => {
+    const { runId, order } = await offered(["a", "b"]);
+    const [a, b] = order as [string, string];
+    recipientHold.set(phone(a), "This number replied STOP");
+    now(2);
+    await R.chooseRunDay(runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) });
+    for (const h of [2.25, 2.5, 3, 4]) await R.sweepRunSlots(at(h));
+    expect(realAttempts.filter((x) => x.type === "run_time" && x.to === phone(a)).length).toBe(1);
+    expect(events("run_slot_released").map((e) => [e["job_id"], (e["details"] as Row)["why"]])).toEqual([[a, "not_textable"]]);
+    expect(ownerTexts().map((t) => t.jobId)).toEqual([b]);
+    expect((await candidates()).map((c) => [c.jobId, c.carriedPass])).toEqual([[a, true]]);
+  });
+  test("12-hour reminder held for the owner → recorded once, never retried; the window still releases at 24 h as before", async () => {
+    const { runId, order } = await offered(["a"]);
+    const a = order[0]!;
+    now(2);
+    await R.chooseRunDay(runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) });
+    expect(ownerTexts().length).toBe(1);
+    recipientHold.set(phone(a), "No contact consent from the owner");
+    for (const h of [19.5, 20, 21, 22]) await R.sweepRunSlots(at(h)); // reminder due at 14 h; quiet hours until 19 h (8am)
+    expect(realAttempts.filter((x) => x.type === "run_time_reminder").length).toBe(1);
+    expect(events("run_time_reminded", a).map((e) => (e["details"] as Row)["status"])).toEqual(["not_textable"]);
+    expect(events("run_slot_released")).toEqual([]);
+    await R.sweepRunSlots(at(26.1));
+    expect(events("run_slot_released").map((e) => (e["details"] as Row)["why"])).toEqual(["no_confirm"]);
+  });
+  test("while the reminder switch (or customer messages) is off the tick doesn't call the sender; switched on → sent once", async () => {
+    const { runId } = await offered(["a"]);
+    now(2);
+    await R.chooseRunDay(runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) });
+    const ws = tables["workflow_settings"]![0]!;
+    ws["sms_message_switches"] = { run_offered: true, run_time: true, run_time_reminder: false };
+    for (const h of [19.5, 20]) await R.sweepRunSlots(at(h)); // outside quiet hours (8am Melbourne from 19 h)
+    ws["sms_message_switches"] = { run_offered: true, run_time: true, run_time_reminder: true }; ws["customer_comms_enabled"] = false;
+    await R.sweepRunSlots(at(20.5));
+    expect(realAttempts.filter((x) => x.type === "run_time_reminder")).toEqual([]);
+    ws["customer_comms_enabled"] = true;
+    for (const h of [21, 21.5]) await R.sweepRunSlots(at(h));
+    expect(realAttempts.filter((x) => x.type === "run_time_reminder").length).toBe(1);
+    expect(ownerTexts("run_time_reminder").length).toBe(1);
+  });
+});
+
+describe("final review m10", () => {
+  test("window claim reads are bounded by created_at (SLOT_LOOKBACK_DAYS before the window's day)", () => {
+    const src = readFileSync("src/lib/installer-run.server.ts", "utf8");
+    const fn = src.slice(src.indexOf("const claimEventsFor"), src.indexOf("/** This home's claim in this run"));
+    expect(fn).toMatch(/\.gte\("created_at", /);
+    expect(fn).toContain("SLOT_LOOKBACK_DAYS");
   });
 });
 

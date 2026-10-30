@@ -66,9 +66,12 @@ mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: fak
 // ---- recorded fakes ----------------------------------------------------------------------------------------------
 const sent: { via: string; to: string; body: string; key?: string; type?: string; label?: string }[] = [];
 let smsStatus = "sent"; // what the real sender answers ("blocked" = held: switch off, quiet hours…)
+let smsDetail = "held"; // the hold's reason (e.g. "This number replied STOP" = held for the owner)
+const realAttempts: string[] = [];
 mock.module("../src/lib/sms.server", () => ({
   sendRealSms: async (i: { type: string; to: string; body: string; idempotencyKey: string }) => {
-    if (smsStatus !== "sent") return { status: smsStatus, detail: "held", sid: null };
+    realAttempts.push(i.type);
+    if (smsStatus !== "sent") return { status: smsStatus, detail: smsDetail, sid: null };
     sent.push({ via: "real-sms", to: i.to, body: i.body, key: i.idempotencyKey, type: i.type }); return { status: "sent", detail: "ok", sid: "SM1" };
   },
 }));
@@ -116,7 +119,8 @@ function sendBatch(batchId: string, jobIds: string[], hours = 0, installer = { i
 const answer = (jobId: string, batchId: string, outcome: string, hours = 1) => ev(jobId, "quick_taps_answered", hours, { batch_id: batchId, outcome, consent_share: outcome === "pass" });
 function seed() {
   for (const k of Object.keys(tables)) delete tables[k];
-  sent.length = 0; finished.length = 0; cancels.length = 0; smsStatus = "sent"; finishResult = "finished"; cancelLeavesOpen = false;
+  sent.length = 0; finished.length = 0; cancels.length = 0; realAttempts.length = 0; smsStatus = "sent"; smsDetail = "held"; finishResult = "finished"; cancelLeavesOpen = false;
+  tables["workflow_settings"] = [{ id: 1, customer_comms_enabled: true, sms_message_switches: { quick_taps: true, quick_taps_reminder: true } }];
   for (const t of ["jobs", "lead_campaign_responses", "property_facts", "job_assignments", "partner_offers", "workflow_events"]) tables[t] = [];
   tables["businesses"] = [{ id: "biz-1", name: "Sample Insulation", onboarding_notes: null }, { id: "biz-t", name: "[TEST PARTNER] Co", onboarding_notes: "[TEST PARTNER]" }];
 }
@@ -206,6 +210,7 @@ describe("day-3 close", () => {
     expect(await S.batchesReadyToSend({ now: new Date(at(74)) })).toEqual([{
       batchId: "b1", closedAt: expect.any(String), isTest: false, installer: { id: "biz-1", name: "Sample Insulation" },
       homes: [{ jobId: "a", jobNumber: "HV-a", ownerName: "Owner a", suburb: "Melbourne", postcode: "3000" }],
+      state: "ready", runId: null, installers: [],
     }]);
   });
   test("zero passers → closed, nothing waiting for an installer", async () => {
@@ -374,5 +379,34 @@ describe("day-2 reminder claimed only once it went", () => {
     await S.sweepAreaBatches(at(51));
     expect(sent.map((x) => x.key)).toEqual(["quick-taps:v1:b1:b:reminder"]);
     expect(events("quick_taps_reminded")).toHaveLength(1);
+  });
+  test("final review m5: held for the owner (STOP / no consent / not a mobile) → recorded once, the sender isn't called again", async () => {
+    addJob("b"); sendBatch("b1", ["b"]);
+    smsStatus = "blocked"; smsDetail = "This number replied STOP";
+    for (const h of [49, 50, 51, 60]) await S.sweepAreaBatches(at(h));
+    expect(realAttempts).toEqual(["quick_taps_reminder"]);
+    expect(events("quick_taps_reminded").map((e) => (e["details"] as Row)["status"])).toEqual(["not_textable"]);
+    expect(sent).toEqual([]);
+  });
+  test("final review m5: while the reminder switch or customer messages are off the sender isn't called; on → sent once", async () => {
+    addJob("b"); sendBatch("b1", ["b"]);
+    const ws = tables["workflow_settings"]![0]!;
+    ws["sms_message_switches"] = { quick_taps: true, quick_taps_reminder: false };
+    await S.sweepAreaBatches(at(49));
+    ws["sms_message_switches"] = { quick_taps: true, quick_taps_reminder: true }; ws["customer_comms_enabled"] = false;
+    await S.sweepAreaBatches(at(50));
+    expect(realAttempts).toEqual([]);
+    expect(events("quick_taps_reminded")).toEqual([]);
+    ws["customer_comms_enabled"] = true;
+    await S.sweepAreaBatches(at(51));
+    await S.sweepAreaBatches(at(52));
+    expect(realAttempts).toEqual(["quick_taps_reminder"]);
+    expect(events("quick_taps_reminded")).toHaveLength(1);
+  });
+  test("final review m5: a TEST job's reminder still goes through test-send while the real switch is off", async () => {
+    addJob("t", { source: "qa_test" }); sendBatch("bt", ["t"], 0, { id: "biz-t", name: "[TEST PARTNER] Co" });
+    tables["workflow_settings"]![0]!["sms_message_switches"] = {};
+    await S.sweepAreaBatches(at(49));
+    expect(sent.map((x) => x.via)).toEqual(["test-sms"]);
   });
 });

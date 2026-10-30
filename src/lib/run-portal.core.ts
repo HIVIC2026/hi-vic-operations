@@ -200,7 +200,7 @@ export function slotDue(s: Slot, now: Date): SlotDue {
 
 // ---- owner cancels a confirmed window (Task 8) -------------------------------------------------------------------------------
 /** New INSTALLER text (Task 8): the owner cancelled a confirmed window. Own switch `run_slot_cancelled`, off until Jo switches
- *  it on; DRAFT wording (wordingApproved false) until Jo approves it. */
+ *  it on; wording approved by Jo 30 Oct 2026 (Task 8 fix round 1). */
 export const RUN_SLOT_CANCELLED_SMS_TYPE = "run_slot_cancelled" as const;
 export const runSlotCancelledText = (f: { name: string | null | undefined; day: string; time: string; link: string }) =>
   `Hi ${first(f.name)}, an owner cancelled their Ready Check on ${f.day} ${f.time}. To offer that time to a nearby waiting owner: ${f.link} - Home Insulation Victoria`;

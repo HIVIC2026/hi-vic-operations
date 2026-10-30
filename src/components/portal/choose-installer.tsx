@@ -13,7 +13,7 @@ import { Section } from "@/components/portal/panels";
 import { listChooseTrades } from "@/lib/offer-dispatch.functions";
 import { getSpotRelease, releaseSpotFn } from "@/lib/spot-release.functions";
 import { getAreaBatchSuggestions, getBatchesReadyToSend, sendAreaBatchFn } from "@/lib/area-batch.functions";
-import { offerRunFn } from "@/lib/installer-run.functions";
+import { offerRunFn, returnBatchFn } from "@/lib/installer-run.functions";
 import { Pill, btnClass } from "@/components/portal/kit";
 import { CHOOSE_LOAD_FAILED, choosePanelState } from "@/lib/installer-waiting-columns.core";
 
@@ -159,22 +159,36 @@ export function AreaBatchSuggestions({ includeTest = false }: { includeTest?: bo
 }
 
 /** A48 batch 2 (Jo 30 Oct 2026): closed batches whose owners said yes. Runs never go to an installer automatically — Jo
- *  checks the homes and taps "Send to installer" (wired in Task 6; until then the button is off). Nothing in Needs me. */
+ *  checks the homes, picks the installer (default the one picked at Send; any installer who covers every home) and taps
+ *  "Send to installer". A run whose installer text didn't go shows "Text didn't go — Send again" (same run, same installer).
+ *  "Back to suggestions" puts the owners back in the suggested batches (not asked again). Nothing in Needs me. */
 export function BatchesReadyToSend({ includeTest = false }: { includeTest?: boolean }) {
   const load = useServerFn(getBatchesReadyToSend);
   const offer = useServerFn(offerRunFn);
+  const giveBack = useServerFn(returnBatchFn);
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["area-batches", "ready", includeTest], queryFn: () => load({ data: { includeTest } }), staleTime: 30_000 });
   const [busy, setBusy] = useState<string | null>(null);
+  const [picked, setPicked] = useState<Record<string, string>>({});
   const d = q.data;
-  // Jo's one tap: the run goes to the installer she picked when she sent the batch. One tap at a time.
-  const send = async (batchId: string) => {
+  // Jo's one tap: the run goes to the installer she picked. One tap at a time.
+  const send = async (batchId: string, businessId: string | null) => {
     if (busy) return;
     setBusy(batchId);
     try {
-      const r = await offer({ data: { batchId } });
+      const r = await offer({ data: { batchId, businessId } });
       if (r.text.status === "sent" || r.text.status === "already") toast.success(`Sent to ${r.installer || "the installer"} — ${r.homes} ${r.homes === 1 ? "home" : "homes"}`);
       else toast.warning(`Run sent to ${r.installer || "the installer"}, but the text didn't go: ${r.text.detail}`);
+      void qc.invalidateQueries();
+    } catch (e) { toast.error(e instanceof Error ? e.message : "That didn't work"); }
+    finally { setBusy(null); }
+  };
+  const back = async (batchId: string) => {
+    if (busy) return;
+    setBusy(`back:${batchId}`);
+    try {
+      const r = await giveBack({ data: { batchId } });
+      toast.success(`Back in the suggestions — ${r.homes} ${r.homes === 1 ? "home" : "homes"}`);
       void qc.invalidateQueries();
     } catch (e) { toast.error(e instanceof Error ? e.message : "That didn't work"); }
     finally { setBusy(null); }
@@ -186,19 +200,36 @@ export function BatchesReadyToSend({ includeTest = false }: { includeTest?: bool
       <h2 className="font-display text-[17px] font-bold text-ink">Ready to send to the installer</h2>
       <p className="mt-1 text-[13px] text-sub">These owners said yes. Check the homes, then tap Send to installer.</p>
       <ul className="mt-3 space-y-3">
-        {d.map((b) => (
-          <li key={b.batchId} className="rounded-[14px] border border-line p-3" data-ready-batch={b.batchId}>
-            <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-ink">
-              {b.homes.length} {b.homes.length === 1 ? "home" : "homes"} · {b.installer.name || "Installer"}
-              {b.isTest && <Pill tone="amber">TEST</Pill>}
-            </p>
-            <p className="text-[13px] text-sub">{[...new Set(b.homes.map((h) => [h.suburb, h.postcode].filter(Boolean).join(" ")).filter(Boolean))].sort().join(", ")}</p>
-            <ul className="mt-2 text-[13px] text-sub">
-              {b.homes.map((h) => <li key={h.jobId}>{h.jobNumber} · {h.ownerName || "Owner"} · {h.suburb || h.postcode}</li>)}
-            </ul>
-            <button type="button" className={`mt-2 ${btnClass("primary")}`} disabled={!!busy} onClick={() => void send(b.batchId)}>{busy === b.batchId ? "Sending…" : "Send to installer"}</button>
-          </li>
-        ))}
+        {d.map((b) => {
+          const unsent = b.state === "text_not_sent";
+          const original = b.installers.find((i) => i.id === b.installer.id);
+          const choice = unsent ? b.installer.id : picked[b.batchId] ?? (original ? original.id : b.installers.length === 1 ? b.installers[0]!.id : "");
+          const chosen = unsent ? b.installer : b.installers.find((i) => i.id === choice);
+          return (
+            <li key={b.batchId} className="rounded-[14px] border border-line p-3" data-ready-batch={b.batchId}>
+              <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-ink">
+                {b.homes.length} {b.homes.length === 1 ? "home" : "homes"} · {b.installer.name || "Installer"}
+                {b.isTest && <Pill tone="amber">TEST</Pill>}
+                {unsent && <Pill tone="amber">Text didn't go — Send again</Pill>}
+              </p>
+              <p className="text-[13px] text-sub">{[...new Set(b.homes.map((h) => [h.suburb, h.postcode].filter(Boolean).join(" ")).filter(Boolean))].sort().join(", ")}</p>
+              <ul className="mt-2 text-[13px] text-sub">
+                {b.homes.map((h) => <li key={h.jobId}>{h.jobNumber} · {h.ownerName || "Owner"} · {h.suburb || h.postcode}</li>)}
+              </ul>
+              {!unsent && !original && <p className="mt-2 text-[13px] text-rose">{b.installers.length ? `${b.installer.name || "That installer"} can't take every home now — pick another installer.` : "No installer covers every home now."}</p>}
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {!unsent && b.installers.length > 0 && (
+                  <select aria-label="Installer" className="h-10 min-w-0 flex-1 rounded-[10px] border border-line bg-paper px-2 text-sm" value={choice} onChange={(e) => setPicked({ ...picked, [b.batchId]: e.target.value })}>
+                    {!original && b.installers.length > 1 && <option value="">Pick an installer</option>}
+                    {b.installers.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+                  </select>
+                )}
+                <button type="button" className={btnClass("primary")} disabled={!!busy || !chosen?.id} onClick={() => chosen?.id && void send(b.batchId, chosen.id)}>{busy === b.batchId ? "Sending…" : unsent ? "Send again" : "Send to installer"}</button>
+                <button type="button" className={btnClass("secondary")} disabled={!!busy} onClick={() => void back(b.batchId)}>{busy === `back:${b.batchId}` ? "Saving…" : "Back to suggestions"}</button>
+              </div>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );

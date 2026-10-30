@@ -9,13 +9,23 @@ import { requireOfficeIdentity } from "./qa-office-access.server";
 const uuid = z.string().uuid();
 const plain = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
-/** Office: Jo taps "Send to installer" on a closed batch — the run goes to the installer she picked at Send. */
+/** Office: Jo taps "Send to installer" on a closed batch — the run goes to the installer she picked at Send, or another
+ *  installer she chooses that covers every home (final review I2). Also "Send again" for a run whose text didn't go. */
 export const offerRunFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ batchId: uuid }).parse(d))
+  .inputValidator((d) => z.object({ batchId: uuid, businessId: uuid.nullable().optional() }).parse(d))
   .handler(async ({ data, context }) => {
     const role = await requireOfficeIdentity(context.supabase);
     if (role === "qa_office") throw new Error("The TEST office login can't send runs to installers.");
-    return plain(await (await import("./installer-run.server")).offerRun(data.batchId, context.userId));
+    return plain(await (await import("./installer-run.server")).offerRun(data.batchId, context.userId, { businessId: data.businessId ?? null }));
+  });
+
+/** Office: "Back to suggestions" on a closed batch — its owners can go in a new batch (not asked again). Nothing is sent. */
+export const returnBatchFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ batchId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const role = await requireOfficeIdentity(context.supabase);
+    if (role === "qa_office") throw new Error("The TEST office login can't change batches.");
+    return (await import("./installer-run.server")).returnBatchToSuggestions(data.batchId, context.userId);
   });
 
 /** Installer: the run page (own business only). */

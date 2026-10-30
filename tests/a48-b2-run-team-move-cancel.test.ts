@@ -312,12 +312,25 @@ describe("Our team books", () => {
     sent.length = 0; // (the 12-hour reminder for y went meanwhile)
     await R.sweepRunSlots(at(2 + 5 * 24 + 0.25));
     await R.sweepRunSlots(at(2 + 5 * 24 + 0.5));
-    expect(events("run_slot_released").map((e) => [e["job_id"], (e["details"] as Row)["why"]]).sort()).toEqual([[y, "team_not_booked"], [z, "team_not_booked"]].sort());
-    expect((await candidates()).map((c) => [c.jobId, c.carriedPass]).sort()).toEqual([[y, true], [z, true]].sort());
+    // final review I4: y's texted team time is still ahead → not withdrawn at 5 days (released only once its time passes)
+    expect(events("run_slot_released").map((e) => [e["job_id"], (e["details"] as Row)["why"]])).toEqual([[z, "team_not_booked"]]);
+    expect((await candidates()).map((c) => [c.jobId, c.carriedPass])).toEqual([[z, true]]);
     expect(stage(x)).toBe("ready_check_scheduled");
     expect(sent).toEqual([]);
     // the expired run takes no new times
-    await expect(R.enterTeamTime(runId, "u-sam", y, "2026-11-02", "09:00", { now: new Date(clock) })).rejects.toThrow();
+    await expect(R.enterTeamTime(runId, "u-sam", z, "2026-11-02", "09:00", { now: new Date(clock) })).rejects.toThrow();
+  });
+  test("final review I4: a texted, unconfirmed team time still ahead is never withdrawn by the 5-day expiry; once its time passes it is released (time_passed), once", async () => {
+    const { runId, order } = await team(["a"]);
+    const j = order[0]!;
+    await R.enterTeamTime(runId, "u-sam", j, "2026-10-31", "09:00", { now: new Date(clock) }); // hour 165 (Sat 31 Oct 9am)
+    expect(ownerTexts().length).toBe(1);
+    for (const h of [2 + 5 * 24 + 0.25, 140, 160, 164.9]) await R.sweepRunSlots(at(h));
+    expect(events("run_slot_released")).toEqual([]);
+    expect(await R.ownerRunSlotState(j, { now: new Date(at(150)) })).toMatchObject({ kind: "proposed", time: "at 9am", team: true });
+    await R.sweepRunSlots(at(165.1));
+    await R.sweepRunSlots(at(165.5));
+    expect(events("run_slot_released").map((e) => [e["job_id"], (e["details"] as Row)["why"]])).toEqual([[j, "time_passed"]]);
   });
 });
 
@@ -381,6 +394,62 @@ describe("Move run", () => {
     now(2);
     await R.chooseTeamBooks(t.runId, "u-sam", { now: new Date(clock) });
     await expect(R.moveRun(t.runId, "u-sam", "2026-10-29", "08:00", { now: new Date(clock) })).rejects.toThrow(/no longer open/);
+  });
+});
+
+describe("final review I3: Move run never moves past visits", () => {
+  beforeEach(seed);
+  test("only windows still ahead whose job is still waiting to be / booked for its Ready Check move; past and done visits stay", async () => {
+    const r = await offered(["a", "b", "c"]);
+    now(2);
+    await R.chooseRunDay(r.runId, "u-sam", DAY, "09:00", null, { now: new Date(clock), personId: "u-kim" });
+    const [a, b, c] = r.order as [string, string, string];
+    now(3);
+    for (const j of [a, b, c]) await R.ownerConfirmRunSlot(j, "u-owner", { now: new Date(clock) });
+    // Tue 27 Oct 10:30am: a's 9am visit is done (Ready Check complete), b's 10am window has started, c's 11am is ahead
+    tables["jobs"]!.find((j) => j["id"] === a)!["stage"] = "ready_check_complete";
+    sent.length = 0; moved.length = 0;
+    now(70.5);
+    const res = await R.moveRun(r.runId, "u-sam", "2026-10-29", "08:00", { now: new Date(clock) });
+    expect(res.slots.map((x) => x.jobId)).toEqual([c]);
+    expect(events("run_moved").map((e) => e["job_id"])).toEqual([c]);
+    expect(moved).toEqual([{ jobId: c, to: "ready_check_ready_to_schedule" }]);
+    expect(tables["bookings"]!.filter((bk) => bk["status"] === "confirmed").map((bk) => bk["job_id"]).sort()).toEqual([a, b].sort());
+    expect([stage(a), stage(b)]).toEqual(["ready_check_complete", "ready_check_scheduled"]);
+    expect(ownerTexts().map((t) => t.jobId)).toEqual([c]);
+  });
+  test("nothing ahead to move → refused, nothing written", async () => {
+    const r = await offered(["a"]);
+    now(2);
+    await R.chooseRunDay(r.runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) });
+    now(3);
+    await R.ownerConfirmRunSlot(r.order[0]!, "u-owner", { now: new Date(clock) });
+    now(70);
+    await expect(R.moveRun(r.runId, "u-sam", "2026-10-29", "08:00", { now: new Date(clock) })).rejects.toThrow(/still waiting/);
+    expect(events("run_moved")).toEqual([]);
+    expect(stage(r.order[0]!)).toBe("ready_check_scheduled");
+  });
+});
+
+describe("final review m6: booked only while the Ready Check booking stands", () => {
+  beforeEach(seed);
+  test("owner's Change time cancels the booking → the run card no longer says booked and the window no longer holds the installer's time", async () => {
+    const r = await offered(["a", "b"]);
+    now(2);
+    await R.chooseRunDay(r.runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) });
+    const [a, b] = r.order as [string, string];
+    now(3);
+    await R.ownerConfirmRunSlot(a, "u-owner", { now: new Date(clock) });
+    expect(await R.ownerRunSlotState(a, { now: new Date(clock) })).toMatchObject({ kind: "confirmed" });
+    const before = await R.ownerRunSlotState(b, { now: new Date(clock) });
+    expect(before.kind === "proposed" && before.free.map((w) => w.start)).not.toContain("09:00");
+    // the owner's Change time (existing path): booking cancelled, back to "to schedule"
+    await (await import("../src/lib/ready-check-times.server")).releaseBookedReadyCheck(a, "u-owner", "Ready Check time changed by the owner");
+    expect(await R.ownerRunSlotState(a, { now: new Date(clock) })).toEqual({ kind: "none" });
+    const after = await R.ownerRunSlotState(b, { now: new Date(clock) });
+    expect(after.kind === "proposed" && after.free.map((w) => w.start)).toContain("09:00");
+    await R.ownerPickRunWindow(b, "u-owner-b", "09:00", { now: new Date(clock) });
+    expect(slotOf(b)).toMatchObject({ start: "09:00", seq: 2 });
   });
 });
 

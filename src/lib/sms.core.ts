@@ -111,7 +111,8 @@ export const SMS_MESSAGE_TYPES = {
   run_time: { audience: "owner", label: "Your free Ready Check is {day} {time} – tap to confirm (A48 batch 2 runs)", wordingApproved: true, quietHours: true },
   run_time_reminder: { audience: "owner", label: "Please confirm your free Ready Check – 12-hour reminder (A48 batch 2 runs)", wordingApproved: true, quietHours: true },
   // A48 batch 2 part 2, Task 8: the owner cancelled a confirmed run window → the INSTALLER is told once, with the run link
-  // ("Fill from nearby waiting owners"; run-portal.core runSlotCancelledText). Own switch, off; DRAFT wording until Jo approves.
+  // ("Fill from nearby waiting owners"; run-portal.core runSlotCancelledText). Own switch, off until Jo switches it on;
+  // wording approved by Jo 30 Oct 2026 (Task 8 fix round 1).
   run_slot_cancelled: { audience: "partner", label: "An owner cancelled their Ready Check in your run – offer the time to a nearby owner (A48 batch 2 runs)", wordingApproved: true, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
@@ -274,11 +275,20 @@ export function smsBlocker(x: SmsGateInput): string | null {
   if (!x.commsEnabled) return "Customer communications are switched off";
   if (!x.typeSwitchOn && !(ONE_OFF_BLAST_TYPES.includes(x.type as SmsMessageType) && x.adminSpotReminderBlast === true)) return `"${t.label}" texts are switched off`;
   if (!x.senderConfigured) return "No Australian sending number set up";
-  if (!toAuE164(x.to)) return "Not an Australian mobile number";
-  if (x.optedOut) return "This number replied STOP";
-  if (!x.consent) return t.audience === "owner" ? "No contact consent from the owner" : "Partner is not approved and active";
+  if (!toAuE164(x.to)) return SMS_NOT_MOBILE;
+  if (x.optedOut) return SMS_REPLIED_STOP;
+  if (!x.consent) return t.audience === "owner" ? SMS_NO_OWNER_CONSENT : "Partner is not approved and active";
   return null;
 }
+
+/** Holds that belong to the RECIPIENT (not a switch, quiet hours or the sender): trying again changes nothing until the
+ *  owner's details change. Callers that retry on a tick record these once instead (A48 batch 2 final review m5). */
+export const SMS_NOT_MOBILE = "Not an Australian mobile number";
+export const SMS_REPLIED_STOP = "This number replied STOP";
+export const SMS_NO_OWNER_CONSENT = "No contact consent from the owner";
+const RECIPIENT_HOLDS: readonly string[] = [SMS_NOT_MOBILE, SMS_REPLIED_STOP, SMS_NO_OWNER_CONSENT];
+/** A real-sender result that was held for the recipient (STOP, no consent, not a mobile). */
+export const smsHeldForRecipient = (r: { status: string; detail: string | null | undefined }): boolean => r.status === "blocked" && RECIPIENT_HOLDS.includes(String(r.detail ?? ""));
 
 /** Brand line at the start of every text the portal sends (Jo, 8 Oct). Visible brand only — never "HI VIC". */
 export const SMS_BRAND_PREFIX = "Home Insulation Victoria: ";

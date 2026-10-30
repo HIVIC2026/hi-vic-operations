@@ -5,12 +5,13 @@
 //   text once (TEST job / TEST partner → test-send; real → the one real sender `sendRealSms`, type `run_offered`).
 // - tradeRun / removeRunHome / declineRun: the installer's run page, business-scoped (trade-view ctxOrThrow — only the
 //   run's own business). Owner contact only where the owner agreed to share. Removing / declining sends nothing to owners.
-// - sweepRunOffers (15-minute tick): no reply in 24 h → `run_expired` per home. Released homes are batch candidates again
+// - returnBatchToSuggestions: Jo's office "Back to suggestions" on a closed batch (final review I2) — passers back in the pool.
+// - sweepRunOffers (15-minute tick): no reply in 24 h (or no text went within 24 h of the offer) → `run_expired` per home. Released homes are batch candidates again
 //   with their standing pass (area-batch.core passHandedOn); owners are not asked again. Nothing lands in Needs me.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { WorkflowError } from "./workflow.server";
-import { AREA_BATCH_CLOSED_EVENT, AREA_BATCH_SENT_EVENT, batchInstallers } from "./area-batch.core";
+import { AREA_BATCH_CLOSED_EVENT, AREA_BATCH_RETURNED_EVENT, AREA_BATCH_SENT_EVENT, areaBatchReturnedKey, batchInstallers } from "./area-batch.core";
 import { claimBatchEvent, homePoint, readAll, readByIds } from "./area-batch.server";
 import { QUICK_TAPS_ANSWERED_EVENT, type QuickTapAnswers } from "./quick-taps.core";
 import { jobWaitingForInstaller } from "./spot-release.core";
@@ -24,12 +25,13 @@ import {
 } from "./run-route.core";
 import {
   RUN_DEFAULT_START, RUN_FILL_RADIUS_M, RUN_PICK_TOO_SOON, RUN_PORTAL_MODE, RUN_SLOT_CANCELLED_SMS_TYPE, RUN_TEAM_MODE, RUN_TIME_REMINDER_SMS_TYPE, RUN_TIME_SMS_TYPE, RUN_WINDOW_CLAIMED_EVENT, RUN_WINDOW_EVENTS, RUN_WINDOW_FREED_EVENT,
-  claimHolds, currentClaim, freeWindows, holds, pickTooSoon, planRunDays, runDayBlocker, runDayWords, runDays, runModeKey,
+  addDaysYmd, claimHolds, currentClaim, freeWindows, holds, pickTooSoon, planRunDays, runDayBlocker, runDayWords, runDays, runModeKey,
   runSlotCancelledKey, runSlotCancelledSmsKey, runSlotCancelledText, runSlotFilledKey, runTeamExpired, slotTimeWords,
   runSlotConfirmKey, runSlotKey, runSlotReleaseKey, runTeamTimeText, runTimeReminderSmsKey, runTimeReminderText, runTimeSmsKey, runTimeText, runWindowFreedKey, runWindowKey, slotDue, slotsOf, windowSlots, windowStartAt, windowWords,
   type OwnerRunSlotView, type Slot, type SlotState, type Window, type WindowClaim,
 } from "./run-portal.core";
 import { isReadyCheckTime } from "./ready-check-times.core";
+import { smsHeldForRecipient } from "./sms.core";
 import { isClosedOrArchivedJob } from "./mitti.core";
 import { distanceM } from "./geo.core";
 
@@ -53,7 +55,7 @@ export type OfferRunResult = { runId: string; installer: string; homes: number; 
  *  the installer can still be offered every home; then one run_offered per home; then the installer text once. A batch is
  *  sent to the installer at most once — except that a run whose text never went (failed / held) is re-texted by the same
  *  tap (same run, no new claims). */
-export async function offerRun(batchId: string, actorId: string | null, opts: { now?: Date } = {}): Promise<OfferRunResult> {
+export async function offerRun(batchId: string, actorId: string | null, opts: { now?: Date; businessId?: string | null } = {}): Promise<OfferRunResult> {
   const now = opts.now ?? new Date();
   const closed = await readAll("the closed batch", (f, t) => loose.from("workflow_events").select(EVENT_COLS).eq("event_type", AREA_BATCH_CLOSED_EVENT).contains("details", { batch_id: batchId }).range(f, t));
   const passIds = [...new Set(closed.flatMap((e) => { const p = (e["details"] as { pass_job_ids?: unknown } | null)?.pass_job_ids; return Array.isArray(p) ? p.filter((x): x is string => typeof x === "string") : []; }))].sort();
@@ -79,8 +81,11 @@ export async function offerRun(batchId: string, actorId: string | null, opts: { 
   const existingState = existing ? runState(runIdOf(existing) ?? "", ev) : null;
   const attempts = existingState ? ev.filter((e) => e.event_type === RUN_OFFERED_TEXT_EVENT && runIdOf(e) === existingState.runId) : [];
   if (existing) {
-    const went = attempts.some((e) => (RUN_TEXT_WENT as readonly string[]).includes(String((e.details as { status?: unknown } | null)?.status)));
-    if (!existingState || existingState.status !== "offered" || went) throw new WorkflowError("This batch has already been sent to the installer — nothing was sent.");
+    if (!existingState || existingState.status !== "offered" || existingState.textWent) throw new WorkflowError("This batch has already been sent to the installer — nothing was sent.");
+    // 24 hours from the offer with no text: the run is expiring (the tick puts its owners back in the pool).
+    if (runExpiryDue(existingState, now.toISOString())) throw new WorkflowError("This run's 24 hours are up without the text going, so its owners go back in the suggestions — nothing was sent.");
+    // Send again goes to the run's own installer (final review I2: another installer = Back to suggestions first).
+    if (opts.businessId && opts.businessId !== existingState.businessId) throw new WorkflowError("Send again goes to the installer this run was given to — tap Back to suggestions to choose another installer — nothing was sent.");
   }
 
   const members = existingState ? existingState.memberIds.filter(waiting) : passIds.filter(waiting);
@@ -89,7 +94,8 @@ export async function offerRun(batchId: string, actorId: string | null, opts: { 
   if (testness.size > 1) throw new WorkflowError("TEST and real homes can't be in the same run — nothing was sent.");
 
   const sent = ev.find((e) => e.event_type === AREA_BATCH_SENT_EVENT && forBatch(e));
-  const businessId = existingState?.businessId || s((sent?.details as { installer_business_id?: unknown } | null)?.installer_business_id);
+  // Final review I2: Jo may pick any installer that covers every home (default: the one she picked at Send).
+  const businessId = existingState?.businessId || opts.businessId || s((sent?.details as { installer_business_id?: unknown } | null)?.installer_business_id);
   if (!businessId) throw new WorkflowError("We can't tell which installer this batch was for — nothing was sent.");
   const { data: biz } = await admin.from("businesses").select("id, name, signer_name, signer_mobile, phone, onboarding_notes").eq("id", businessId).maybeSingle();
   const b = biz as { id: string; name: string | null; signer_name: string | null; signer_mobile: string | null; phone: string | null; onboarding_notes: string | null } | null;
@@ -273,12 +279,48 @@ export async function declineRun(runId: string, userId: string): Promise<{ statu
   return { status: "declined" };
 }
 
-async function releaseAll(state: RunState, type: typeof RUN_DECLINED_EVENT | typeof RUN_EXPIRED_EVENT, actorId: string | null, summary: string): Promise<number> {
+async function releaseAll(state: RunState, type: typeof RUN_DECLINED_EVENT | typeof RUN_EXPIRED_EVENT, actorId: string | null, summary: string, extra: Record<string, unknown> = {}): Promise<number> {
   let n = 0;
   await inFours(state.memberIds, async (jobId) => {
-    if (await claimBatchEvent(jobId, actorId, type, summary, { run_id: state.runId, batch_id: state.batchId, business_id: state.businessId, idempotency_key: runReleaseKey(type, state.runId, jobId) })) n++;
+    if (await claimBatchEvent(jobId, actorId, type, summary, { run_id: state.runId, batch_id: state.batchId, business_id: state.businessId, ...extra, idempotency_key: runReleaseKey(type, state.runId, jobId) })) n++;
   });
   return n;
+}
+
+// ---- office: Back to suggestions (final review I2) -------------------------------------------------------------------------
+
+/** Jo taps "Back to suggestions" on a closed batch waiting for Send to installer (e.g. no installer can take the homes): ONE
+ *  `area_batch_returned {batch_id}` per passer still waiting releases the batch's pass, so each owner is a batch candidate
+ *  again with their standing pass (not asked again). A run of this batch whose installer text never went is ended first
+ *  (`run_expired`, reason office_returned). Refused once the run's text went (the installer has it). Nothing is sent. Twice →
+ *  once. */
+export async function returnBatchToSuggestions(batchId: string, actorId: string | null, opts: { now?: Date } = {}): Promise<{ homes: number }> {
+  const now = opts.now ?? new Date();
+  const closed = await readAll("the closed batch", (f, t) => loose.from("workflow_events").select(EVENT_COLS).eq("event_type", AREA_BATCH_CLOSED_EVENT).contains("details", { batch_id: batchId }).range(f, t));
+  const passIds = [...new Set(closed.flatMap((e) => { const p = (e["details"] as { pass_job_ids?: unknown } | null)?.pass_job_ids; return Array.isArray(p) ? p.filter((x): x is string => typeof x === "string") : []; }))].sort();
+  if (!passIds.length) throw new WorkflowError("That batch has no owners who said yes — nothing changed.");
+  const [jobs, assigned, history] = await Promise.all([
+    readByIds("the batch's homes", passIds, (c, f, t) => admin.from("jobs").select("id, stage, channel, deleted_at, qa_archived_at").in("id", c).range(f, t)),
+    readByIds("the batch's installers", passIds, (c, f, t) => admin.from("job_assignments").select("job_id").in("job_id", c).eq("role", "installer").eq("active", true).range(f, t)),
+    readByIds("the batch's history", passIds, (c, f, t) => loose.from("workflow_events").select(EVENT_COLS).in("job_id", c).in("event_type", [...RUN_EVENTS]).range(f, t)),
+  ]);
+  const ev = history as unknown as RunEventRow[];
+  const runIds = [...new Set(ev.filter((e) => e.event_type === RUN_OFFERED_EVENT && !isFillRow(e) && (e.details as { batch_id?: unknown } | null)?.batch_id === batchId).map(runIdOf).filter((x): x is string => !!x))];
+  const runs = runIds.map((r) => runState(r, ev)).filter((x): x is RunState => !!x);
+  if (runs.some((r) => r.status !== "offered" || r.textWent)) throw new WorkflowError("This batch has already been sent to the installer — nothing changed.");
+  for (const r of runs) await releaseAll(r, RUN_EXPIRED_EVENT, actorId, "Run text never went — the office put this home back in the suggestions (owner not asked again)", { reason: "office_returned" });
+  const withInstaller = new Set(assigned.map((a) => String(a["job_id"])));
+  const jobBy = new Map(jobs.map((j) => [String(j["id"]), j]));
+  const waiting = passIds.filter((id) => {
+    const j = jobBy.get(id);
+    return !!j && !j["qa_archived_at"] && jobWaitingForInstaller({ channel: s(j["channel"]), stage: s(j["stage"]), hasInstaller: withInstaller.has(id), deleted: !!j["deleted_at"] });
+  });
+  let homes = 0;
+  for (const jobId of waiting) {
+    if (await claimBatchEvent(jobId, actorId, AREA_BATCH_RETURNED_EVENT, "Office put this home back in the suggestions — it can go in a new batch without the owner being asked again",
+      { batch_id: batchId, returned_by: actorId, returned_at: now.toISOString(), idempotency_key: areaBatchReturnedKey(batchId, jobId) })) homes++;
+  }
+  return { homes };
 }
 
 // ---- 15-minute tick ------------------------------------------------------------------------------------------------------
@@ -303,7 +345,11 @@ export async function sweepRunOffers(nowIso: string = new Date().toISOString()):
   for (const runId of runIds) {
     const st = runState(runId, events);
     if (!st || !runExpiryDue(st, nowIso)) continue;
-    try { out.expired += await releaseAll(st, RUN_EXPIRED_EVENT, null, "No reply from the installer within 24 hours — back on the list for the next batch (owner not asked again)"); }
+    try {
+      out.expired += st.textWent
+        ? await releaseAll(st, RUN_EXPIRED_EVENT, null, "No reply from the installer within 24 hours — back on the list for the next batch (owner not asked again)")
+        : await releaseAll(st, RUN_EXPIRED_EVENT, null, "The installer's run text didn't go within 24 hours — back on the list for the next batch (owner not asked again)", { reason: "text_not_sent" });
+    }
     catch (e) { out.failed++; console.error("run expiry failed", runId, (e as Error).message); }
   }
   return out;
@@ -337,6 +383,9 @@ const RESUME_AFTER_MINUTES = 10;
 type SlotJob = { id: string; job_number: string | null; stage: string | null; source: string | null; channel: string | null; deleted_at: string | null; qa_archived_at: string | null; owners: { full_name: string | null; phone: string | null } | null; properties: { postcode: string | null } | null };
 const slotJobsById = async (ids: string[]) => new Map((ids.length ? (await readByIds("the run's homes", ids, (c, f, t) => admin.from("jobs").select("id, job_number, stage, source, channel, deleted_at, qa_archived_at, owners(full_name, phone), properties(postcode)").in("id", c).range(f, t))) as unknown as SlotJob[] : []).map((j) => [j.id, j]));
 const slotEventsFor = async (jobIds: string[]) => (jobIds.length ? (await readByIds("run windows", jobIds, (c, f, t) => loose.from("workflow_events").select(EVENT_COLS).in("job_id", c).in("event_type", [...RUN_SLOT_EVENTS]).range(f, t))) : []) as unknown as RunEventRow[];
+/** Jobs with a confirmed Ready Check booking now (final review m6: a confirmed run window counts as booked — and holds the
+ *  installer's time — only while that booking stands; the owner's Change time cancels it). */
+const bookedReadyCheckJobs = async (ids: string[]) => new Set((ids.length ? await readByIds("Ready Check bookings", ids, (c, f, t) => admin.from("bookings").select("job_id").in("job_id", c).eq("kind", "ready_check").eq("status", "confirmed").range(f, t)) : []).map((b) => String(b["job_id"])));
 const activeInstallerJobs = async (ids: string[]) => new Set((ids.length ? await readByIds("installers", ids, (c, f, t) => admin.from("job_assignments").select("job_id").in("job_id", c).eq("role", "installer").eq("active", true).range(f, t)) : []).map((a) => String(a["job_id"])));
 
 /** Every window this PERSON has on these days (any run of the business, any state), which of those homes are closed, and
@@ -349,9 +398,11 @@ async function personDays(businessId: string, person: string, days: string[], no
   const jobIds = [...new Set(proposed.map((e) => String(e["job_id"])))];
   if (!jobIds.length) return { slots: [], closed: new Set(), gridStart: null };
   const starts = proposed.filter((e) => (e["details"] as { day?: unknown }).day === days[0]).map((e) => String((e["details"] as { start?: unknown }).start ?? "")).filter(Boolean).sort();
-  const [events, jobs] = await Promise.all([slotEventsFor(jobIds), slotJobsById(jobIds)]);
-  const closed = new Set(jobIds.filter((id) => isClosedOrArchivedJob(jobs.get(id))));
-  return { slots: slotsOf(events).filter((x) => x.businessId === businessId && x.person === person && days.includes(x.day)), closed, gridStart: starts[0] ?? null };
+  const [events, jobs, booked] = await Promise.all([slotEventsFor(jobIds), slotJobsById(jobIds), bookedReadyCheckJobs(jobIds)]);
+  const slots = slotsOf(events).filter((x) => x.businessId === businessId && x.person === person && days.includes(x.day));
+  // A home closed meanwhile, or a confirmed window whose booking was cancelled (owner's Change time), no longer holds its time.
+  const closed = new Set([...jobIds.filter((id) => isClosedOrArchivedJob(jobs.get(id))), ...slots.filter((x) => x.state === "confirmed" && !booked.has(x.jobId)).map((x) => x.jobId)]);
+  return { slots, closed, gridStart: starts[0] ?? null };
 }
 const heldBy = (d: { slots: Slot[]; closed: Set<string> }, keep: (x: Slot) => boolean): Window[] =>
   d.slots.filter((x) => holds(x) && !d.closed.has(x.jobId) && keep(x)).map((x) => ({ day: x.day, start: x.start, end: x.end }));
@@ -360,8 +411,12 @@ const heldBy = (d: { slots: Slot[]; closed: Set<string> }, keep: (x: Slot) => bo
 
 type Holder = { jobId: string; runId: string; batchId: string; businessId: string; seq: number; person: string; day: string; start: string; end: string };
 type SlotRef = { person: string; day: string; slot: string };
+/** A half-hour's claims are written while its day can still be picked (at most the 3-week horizon before it), so reading
+ *  from SLOT_LOOKBACK_DAYS before the window's day never misses one and keeps the read bounded (final review m10). The
+ *  bound is fixed per day, so every read of the same half-hour sees the same rows (generations stay consistent). */
 const claimEventsFor = async (w: SlotRef) =>
-  (await readAll("window claims", (f, t) => loose.from("workflow_events").select(EVENT_COLS).in("event_type", [...RUN_WINDOW_EVENTS]).contains("details", { person: w.person, day: w.day, slot: w.slot }).range(f, t))) as unknown as RunEventRow[];
+  (await readAll("window claims", (f, t) => loose.from("workflow_events").select(EVENT_COLS).in("event_type", [...RUN_WINDOW_EVENTS]).contains("details", { person: w.person, day: w.day, slot: w.slot })
+    .gte("created_at", `${addDaysYmd(w.day, -SLOT_LOOKBACK_DAYS)}T00:00:00.000Z`).range(f, t))) as unknown as RunEventRow[];
 /** This home's claim in this run: the same window, or an earlier window of the same home (an owner moving to an
  *  overlapping window keeps the shared half-hour). */
 const ours = (c: WindowClaim, h: { jobId: string; runId: string; seq: number }) => c.jobId === h.jobId && c.runId === h.runId && c.seq <= h.seq;
@@ -370,9 +425,11 @@ const slotRef = (h: { person: string; day: string }, slot: string): SlotRef => (
 async function slotClaimState(w: SlotRef, now: Date): Promise<{ gen: number; claim: WindowClaim | null; live: boolean }> {
   const { gen, claim } = currentClaim(await claimEventsFor(w), w);
   if (!claim) return { gen, claim: null, live: false };
-  const [ev, jobs] = await Promise.all([slotEventsFor([claim.jobId]), slotJobsById([claim.jobId])]);
+  const [ev, jobs, booked] = await Promise.all([slotEventsFor([claim.jobId]), slotJobsById([claim.jobId]), bookedReadyCheckJobs([claim.jobId])]);
   const slot = slotsOf(ev).find((x) => x.runId === claim.runId && x.jobId === claim.jobId);
-  return { gen, claim, live: claimHolds(claim, slot, isClosedOrArchivedJob(jobs.get(claim.jobId)), now) };
+  // Final review m6: a confirmed window whose booking was cancelled (owner's Change time) no longer holds its half-hours.
+  const unbooked = slot?.state === "confirmed" && !booked.has(claim.jobId);
+  return { gen, claim, live: !unbooked && claimHolds(claim, slot, isClosedOrArchivedJob(jobs.get(claim.jobId)), now) };
 }
 /** Someone else's live claim holds any half-hour of this window. */
 async function windowBlocked(h: Holder, now: Date): Promise<boolean> {
@@ -639,24 +696,46 @@ async function businessOf(id: string) {
   return data as { id: string; name: string | null; trading_name?: string | null; onboarding_notes: string | null } | null;
 }
 
-/** The owner's time text or 12-hour reminder, once per window. Quiet hours / held → nothing recorded (the tick retries). */
-async function textSlot(x: Slot, job: SlotJob, kind: "time" | "reminder", now: Date): Promise<string> {
+/** Real owner time texts / reminders that would only be held now (customer messages off, that text's switch off): the
+ *  real sender isn't called (it would write a held row every tick); retried on the first tick after they're on. */
+type OwnerTextsOff = { time: boolean; reminder: boolean };
+async function ownerTextsOff(): Promise<OwnerTextsOff> {
+  const { data, error } = await loose.from("workflow_settings").select("*").eq("id", 1).maybeSingle();
+  if (error) throw new Error(`Could not read the message switches: ${error.message}`);
+  const w = (data ?? null) as { customer_comms_enabled?: boolean | null; sms_message_switches?: Record<string, boolean> | null } | null;
+  const off = (type: string) => w?.customer_comms_enabled !== true || w?.sms_message_switches?.[type] !== true;
+  return { time: off(RUN_TIME_SMS_TYPE), reminder: off(RUN_TIME_REMINDER_SMS_TYPE) };
+}
+
+/** The owner's time text or 12-hour reminder, once per window. Quiet hours / held → nothing recorded (the tick retries).
+ *  Held for the owner themselves (STOP, no consent, not a mobile — final review m5): never retried — the time text releases
+ *  the window once (`not_textable`, back in the pool with the standing pass); the reminder is recorded once as not sent. */
+async function textSlot(x: Slot, job: SlotJob, kind: "time" | "reminder", now: Date, off: OwnerTextsOff | null = null): Promise<string> {
   if (smsQuietReason(now.toISOString())) return "quiet hours";
   const link = await (await import("./veec-copy-email.server")).ownerMyJobLink(x.jobId);
   if (!link) return "owner link missing";
   const to = job.owners?.phone ?? null;
-  if (!to) return "no mobile";
+  const type = kind === "time" ? RUN_TIME_SMS_TYPE : RUN_TIME_REMINDER_SMS_TYPE;
+  const notTextable = async () => {
+    if (kind === "time") await releaseSlot(x, null, "not_textable");
+    else await claimBatchEvent(x.jobId, null, RUN_TIME_REMINDED_EVENT, "Owner not reminded to confirm their Ready Check window: their number can't be texted (STOP, no consent or not a mobile)",
+      { run_id: x.runId, business_id: x.businessId, seq: x.seq, status: "not_textable", idempotency_key: `${type}-sent:v1:${x.runId}:${x.jobId}:${x.seq}` });
+    return "not_textable";
+  };
+  if (!to) return notTextable();
   const biz = await businessOf(x.businessId);
   const f = { name: job.owners?.full_name ?? null, day: runDayWords(x.day), time: slotTimeWords(x), link };
   // A team-entered time (fix round 1, Jo 30 Oct): its own approved wording — no other times are offered.
   const body = kind === "time" ? (x.by === "team" ? runTeamTimeText : runTimeText)({ ...f, installer: tradeName(biz) }) : runTimeReminderText(f);
-  const type = kind === "time" ? RUN_TIME_SMS_TYPE : RUN_TIME_REMINDER_SMS_TYPE;
   const { isTestPartner } = await import("./test-send.core");
+  const test = job.source === "qa_test" || isTestPartner(biz);
+  if (!test && off?.[kind]) return "held";
   let r: { status: string; detail: string };
   try {
-    if (job.source === "qa_test" || isTestPartner(biz)) r = await (await import("./test-send.server")).sendTestSms({ jobId: x.jobId, jobSource: job.source, partnerIsTest: isTestPartner(biz), label: `${type}:${x.runId}:${x.seq}`, actorId: null }, to, body);
+    if (test) r = await (await import("./test-send.server")).sendTestSms({ jobId: x.jobId, jobSource: job.source, partnerIsTest: isTestPartner(biz), label: `${type}:${x.runId}:${x.seq}`, actorId: null }, to, body);
     else r = await (await import("./sms.server")).sendRealSms({ type, idempotencyKey: kind === "time" ? runTimeSmsKey(x.runId, x.jobId, x.seq) : runTimeReminderSmsKey(x.runId, x.jobId, x.seq), to, body, jobId: x.jobId });
   } catch (e) { r = { status: "failed", detail: (e as Error).message }; }
+  if (!test && smsHeldForRecipient(r)) return notTextable();
   if ((RUN_TEXT_WENT as readonly string[]).includes(r.status)) {
     await claimBatchEvent(x.jobId, null, kind === "time" ? RUN_TIME_TEXTED_EVENT : RUN_TIME_REMINDED_EVENT, kind === "time" ? "Owner texted their Ready Check window to confirm" : "Owner reminded to confirm their Ready Check window (12 hours)",
       { run_id: x.runId, business_id: x.businessId, seq: x.seq, status: r.status, idempotency_key: `${type}-sent:v1:${x.runId}:${x.jobId}:${x.seq}` });
@@ -668,6 +747,7 @@ const RELEASE_SUMMARY = {
   none_suit: "Owner said none of the times suit — back on the list for the next batch (not asked again)",
   no_confirm: "Owner didn't confirm their Ready Check window within 24 hours — back on the list for the next batch (not asked again)",
   time_passed: "The Ready Check time the installer's team entered passed without the owner confirming — back on the list for the next batch (not asked again)",
+  not_textable: "The owner's number can't be texted (STOP, no consent or not a mobile), so they couldn't get their Ready Check window — back on the list for the next batch (not asked again)",
 } as const;
 async function releaseSlot(x: Slot, actorId: string | null, why: keyof typeof RELEASE_SUMMARY): Promise<boolean> {
   const won = await claimBatchEvent(x.jobId, actorId, RUN_SLOT_RELEASED_EVENT, RELEASE_SUMMARY[why],
@@ -720,14 +800,19 @@ export async function sweepRunSlots(nowIso: string = new Date().toISOString(), o
   }
   if (!jobIds.length) return out;
   const [events, jobs] = await Promise.all([slotEventsFor(jobIds), slotJobsById(jobIds)]);
+  let off: OwnerTextsOff | null = null;
   for (const x of slotsOf(events).filter((y) => y.state === "proposed")) {
     const job = jobs.get(x.jobId);
     if (!job || isClosedOrArchivedJob(job)) continue;
     try {
       const due = slotDue(x, now);
       if (due === "release") { if (await releaseSlot(x, null, x.by === "team" ? "time_passed" : "no_confirm")) out.released++; }
-      else if (due === "text") { if ((RUN_TEXT_WENT as readonly string[]).includes(await textSlot(x, job, "time", now))) out.texted++; }
-      else if (due === "remind") { if ((RUN_TEXT_WENT as readonly string[]).includes(await textSlot(x, job, "reminder", now))) out.reminded++; }
+      else if (due === "text" || due === "remind") {
+        off ??= await ownerTextsOff();
+        const st = await textSlot(x, job, due === "text" ? "time" : "reminder", now, off);
+        if ((RUN_TEXT_WENT as readonly string[]).includes(st)) out[due === "text" ? "texted" : "reminded"]++;
+        else if (st === "not_textable" && due === "text") out.released++;
+      }
     } catch (e) { out.failed++; console.error("run window step failed", x.runId, x.jobId, (e as Error).message); }
   }
   return out;
@@ -755,7 +840,7 @@ export async function ownerRunSlotState(jobId: string, opts: { now?: Date } = {}
   const { data: job } = await admin.from("jobs").select("stage, deleted_at, qa_archived_at").eq("id", jobId).maybeSingle();
   if (!job || isClosedOrArchivedJob(job)) return { kind: "none" };
   const base = { day: runDayWords(x.day), time: slotTimeWords(x), installer: tradeName(await businessOf(x.businessId)), team: x.by === "team" };
-  if (x.state === "confirmed") return { kind: "confirmed", ...base };
+  if (x.state === "confirmed") return (await bookedReadyCheckJobs([jobId])).has(jobId) ? { kind: "confirmed", ...base } : { kind: "none" };
   return { kind: "proposed", ...base, free: (await freeFor(x, now)).map((w) => ({ ...w, label: windowWords(w.start, w.end) })) };
 }
 
@@ -919,6 +1004,9 @@ async function sweepTeamBookings(now: Date): Promise<{ released: number; failed:
       const j = jobs.get(id);
       const x = slots.find((y) => y.jobId === id);
       if (!j || isClosedOrArchivedJob(j) || x?.state === "confirmed" || x?.state === "cancelled") continue;
+      // Final review I4: a time the team entered and the owner was texted, not confirmed yet, is never withdrawn here —
+      // slotDue releases it once that time passes unconfirmed (time_passed).
+      if (x?.state === "proposed" && x.by === "team") continue;
       if (!runTeamExpired(teamChosenAt(events, runId, id) ?? first.get(runId)!, now)) continue;
       try {
         if (await claimBatchEvent(id, null, RUN_SLOT_RELEASED_EVENT, "Not booked by the installer's team within 5 days — back on the list for the next batch (owner not asked again)",
@@ -935,6 +1023,9 @@ async function sweepTeamBookings(now: Date): Promise<{ released: number; failed:
 // and 24 hours. The run's window claims move with them (old freed, new claimed, all or nothing). A confirmed owner's booking
 // is released through the existing Ready Check change path (`releaseBookedReadyCheck`: booking cancelled, back to "to
 // schedule", installer kept), and their confirm rebooks through bookAgreedTime → confirmBooking (Mitti + emails as usual).
+
+/** Stages a run home's visit can still be moved at: waiting to be booked, or booked and not done yet. */
+const MOVABLE_STAGES: readonly string[] = ["ready_check_ready_to_schedule", "ready_check_scheduled"];
 
 /** Installer: move a Portal books run to a new day. */
 export async function moveRun(runId: string, userId: string, dayIso: string, startHHMM: string | null | undefined = RUN_DEFAULT_START, opts: { now?: Date; secondDay?: string | null } = {}): Promise<ChooseRunDayResult> {
@@ -954,7 +1045,10 @@ export async function moveRun(runId: string, userId: string, dayIso: string, sta
   }
   const held0 = slotsOf(events).filter((x) => x.runId === runId && holds(x));
   const jobs = await slotJobsById(held0.map((x) => x.jobId));
-  const moving = state.memberIds.map((id) => held0.find((x) => x.jobId === id)).filter((x): x is Slot => !!x && !!jobs.get(x.jobId) && !isClosedOrArchivedJob(jobs.get(x.jobId)));
+  // Final review I3: only visits still ahead (window not started) on jobs still waiting to be booked / booked for their
+  // Ready Check move; a visit that has started, passed or been done stays as it is.
+  const movable = (x: Slot) => { const j = jobs.get(x.jobId); return !!j && !isClosedOrArchivedJob(j) && MOVABLE_STAGES.includes(String(j.stage)) && windowStartAt(x.day, x.start).getTime() > now.getTime(); };
+  const moving = state.memberIds.map((id) => held0.find((x) => x.jobId === id)).filter((x): x is Slot => !!x && movable(x));
   if (!moving.length) throw new WorkflowError("None of the homes in this run are still waiting.");
   if (!(await runTeam(state.businessId)).some((m) => m.userId === c.person)) throw new WorkflowError("Please choose who's doing these Ready Checks.");
   const textsOff = await ownerTextsBlocker(state.businessId, moving.map((x) => ({ isTest: jobs.get(x.jobId)?.source === "qa_test" })));

@@ -15,13 +15,13 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { WorkflowError, logEvent } from "./workflow.server";
 import {
-  AREA_BATCH_CLOSED_EVENT, AREA_BATCH_EVENTS, AREA_BATCH_LEFT_EVENT, AREA_BATCH_SENT_EVENT, NO_ANSWER_CLOSE_REASON, QUICK_TAPS_REMINDED_EVENT,
+  AREA_BATCH_CLOSED_EVENT, AREA_BATCH_EVENTS, AREA_BATCH_LEFT_EVENT, AREA_BATCH_RETURNED_EVENT, AREA_BATCH_SENT_EVENT, NO_ANSWER_CLOSE_REASON, QUICK_TAPS_REMINDED_EVENT,
   QUICK_TAPS_REMINDER_SMS_TYPE, QUICK_TAPS_SMS_TYPE, areaBatchClosedKey, areaBatchKey, batchInstallers, batchSpanKm, likelyEligible, nextBatchSeq,
   openBatchId, outsideBatch, passHandedOn, planBatchSweep, standingPass, STAGE_CHANGED_EVENT, quickTapsLink, quickTapsReminderText, quickTapsSmsKey, quickTapsText, suggestBatches,
   type AreaBatchEventRow, type BatchHome, type SweepJob,
 } from "./area-batch.core";
 import { QUICK_TAPS_ANSWERED_EVENT } from "./quick-taps.core";
-import { RUN_EVENTS, RUN_OFFERED_EVENT, runIdOf, runState, type RunEventRow } from "./run-route.core";
+import { RUN_EVENTS, RUN_OFFERED_EVENT, isFillRow, runExpiryDue, runIdOf, runState, type RunEventRow, type RunState } from "./run-route.core";
 import { installerWaiting } from "./installer-waiting-columns.core";
 import { SPOT_RELEASE_EVENTS, jobWaitingForInstaller, spotReleaseState, type SpotReleaseEventRow } from "./spot-release.core";
 import { declaredExtras, declaredInsulationDetail } from "./enquiry.core";
@@ -29,6 +29,7 @@ import { normaliseInsulation } from "./eligibility.core";
 import { distanceM, propertyPoint, type PropertyPoint } from "./geo.core";
 import { parseStreet } from "./address-complete.core";
 import { smsQuietReason } from "./quote-hold.core";
+import { smsHeldForRecipient } from "./sms.core";
 
 type Row = Record<string, unknown>;
 type Res = PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>;
@@ -411,9 +412,20 @@ export async function sweepAreaBatches(nowIso: string = new Date().toISOString()
   }, "closed"));
 
   // Day 2: the approved reminder. Claimed only once it went (sent / already sent); a held text (switch off, quiet hours…)
-  // stays unclaimed so a later tick tries again — the real sender's own key never sends it twice.
+  // stays unclaimed so a later tick tries again — the real sender's own key never sends it twice. Final review m5: while
+  // customer messages or the reminder switch are off, a real reminder isn't tried at all (no held row per tick); one held
+  // for the owner themselves (STOP, no consent, not a mobile) is recorded once as not sent and never tried again.
+  let remindersOff: boolean | null = null;
+  const realRemindersOff = async () => {
+    if (remindersOff !== null) return remindersOff;
+    const { data, error } = await loose.from("workflow_settings").select("customer_comms_enabled, sms_message_switches").eq("id", 1).maybeSingle();
+    if (error) throw new Error(`Could not read the message switches: ${error.message}`);
+    const w = (data ?? null) as { customer_comms_enabled?: boolean | null; sms_message_switches?: Record<string, boolean> | null } | null;
+    return (remindersOff = w?.customer_comms_enabled !== true || w?.sms_message_switches?.[QUICK_TAPS_REMINDER_SMS_TYPE] !== true);
+  };
   await inFours(plan.reminders, ({ batchId, jobId }) => step("reminder", jobId, async () => {
     const j = rows.get(jobId)!;
+    if (j.source !== "qa_test" && await realRemindersOff()) return false;
     const sent = (eventsBy.get(jobId) ?? []).find((e) => e.event_type === AREA_BATCH_SENT_EVENT && (e.details as { batch_id?: unknown } | null)?.batch_id === batchId);
     const businessId = s((sent?.details as { installer_business_id?: unknown } | null)?.installer_business_id);
     const details = { batch_id: batchId, idempotency_key: quickTapsSmsKey(batchId, jobId, "reminder") };
@@ -424,6 +436,10 @@ export async function sweepAreaBatches(nowIso: string = new Date().toISOString()
       return false;
     }
     const r = await textOwner({ jobId, ownerName: (j.owners?.full_name ?? "").trim(), phone: j.owners?.phone ?? null, isTest: j.source === "qa_test", source: j.source }, batchId, link, businessId, null, "reminder");
+    if (j.source !== "qa_test" && (smsHeldForRecipient(r) || !j.owners?.phone)) {
+      await claim(jobId, null, QUICK_TAPS_REMINDED_EVENT, "Day-2 reminder not sent: the owner's number can't be texted (STOP, no consent or not a mobile)", { ...details, status: "not_textable" });
+      return false;
+    }
     if (!REMINDER_WENT.includes(r.status)) return false;
     return claim(jobId, null, QUICK_TAPS_REMINDED_EVENT, "Day-2 reminder: quick taps text to the owner", { ...details, status: r.status });
   }, "reminded"));
@@ -457,17 +473,28 @@ export async function sweepAreaBatches(nowIso: string = new Date().toISOString()
 // ---- ready for Jo's OK (Choose installer) ----------------------------------------------------------------------------------
 
 export type ReadyHome = { jobId: string; jobNumber: string; ownerName: string; suburb: string; postcode: string };
-export type ReadyBatch = { batchId: string; closedAt: string; isTest: boolean; installer: { id: string; name: string }; homes: ReadyHome[] };
-/** Closed batches whose passers are waiting (closed in the last 60 days). */
-const READY_DAYS = 60;
+/** `state`: "ready" = waiting for Send to installer; "text_not_sent" = sent, but the installer's text didn't go (office label
+ *  "Text didn't go — Send again"; the button re-texts the same run, `runId`). `installer` = the one Jo picked at Send (or the
+ *  run's installer); `installers` = every installer that can be offered every home now, that one first (final review I2). */
+export type ReadyBatch = { batchId: string; closedAt: string; isTest: boolean; installer: { id: string; name: string }; homes: ReadyHome[];
+  state: "ready" | "text_not_sent"; runId: string | null; installers: { id: string; name: string }[] };
 
-/** Closed batches with owners who said yes, still waiting for an installer: the passers, their suburbs and the installer Jo
- *  picked at Send. Nothing is sent from here; "Send to installer" is Jo's tap (installer-run.server). Zero passers
- *  left, or already sent to the installer → not listed. */
-export async function batchesReadyToSend(opts: { includeTest?: boolean; testJobIds?: string[]; now?: Date } = {}): Promise<ReadyBatch[]> {
+/** Closed batches with owners who said yes, still waiting for an installer: the passers, their suburbs, the installer Jo
+ *  picked at Send and the installers who could take them. Nothing is sent from here; "Send to installer" is Jo's tap
+ *  (installer-run.server). Zero passers left, sent back to the suggestions, or already sent to the installer (its text
+ *  went, or the run ended) → not listed; a run whose text never went (and isn't past its 24 hours) is listed as
+ *  "text_not_sent". No age cut-off (final review I2): the read starts from the homes still waiting for an installer (the
+ *  same bounded pool as the suggestions), so a batch stays listed as long as any of its passers waits. */
+export async function batchesReadyToSend(opts: { includeTest?: boolean; testJobIds?: string[]; testBusinessIds?: string[]; now?: Date } = {}): Promise<ReadyBatch[]> {
   const now = opts.now ?? new Date();
-  const since = new Date(now.getTime() - READY_DAYS * 86_400_000).toISOString();
-  const closed = await all("closed batches", (f, t) => loose.from("workflow_events").select("job_id, event_type, created_at, details").eq("event_type", AREA_BATCH_CLOSED_EVENT).gte("created_at", since).order("created_at").range(f, t));
+  const pool = await all("waiting jobs", (a, b) => {
+    let q = admin.from("jobs").select("id").eq("stage", "ready_check_ready_to_schedule").eq("channel", "hivic_sourced").is("deleted_at", null).is("qa_archived_at", null);
+    if (opts.testJobIds) q = q.in("id", opts.testJobIds.length ? opts.testJobIds : ["00000000-0000-0000-0000-000000000000"]);
+    return q.order("created_at").order("id").range(a, b);
+  });
+  const poolIds = [...new Set(pool.map((j) => String(j["id"])))];
+  if (!poolIds.length) return [];
+  const closed = await byIds("closed batches", poolIds, (c, f, t) => loose.from("workflow_events").select("job_id, event_type, created_at, details").in("job_id", c).eq("event_type", AREA_BATCH_CLOSED_EVENT).range(f, t));
   const byBatch = new Map<string, { closedAt: string; pass: string[] }>();
   for (const e of closed) {
     const d = (e["details"] ?? {}) as { batch_id?: unknown; pass_job_ids?: unknown };
@@ -479,27 +506,37 @@ export async function batchesReadyToSend(opts: { includeTest?: boolean; testJobI
     if (!cur || at < cur.closedAt) byBatch.set(b, { closedAt: at, pass: cur ? [...new Set([...cur.pass, ...pass])] : pass });
     else cur.pass = [...new Set([...cur.pass, ...pass])];
   }
-  let passIds = [...new Set([...byBatch.values()].flatMap((b) => b.pass))];
-  if (opts.testJobIds) { const allowed = new Set(opts.testJobIds); passIds = passIds.filter((id) => allowed.has(id)); }
+  const inPool = new Set(poolIds);
+  const passIds = [...new Set([...byBatch.values()].flatMap((b) => b.pass))].filter((id) => inPool.has(id));
   if (!passIds.length) return [];
-  const [jobs, assigned, sentRows, runRows] = await Promise.all([
+  const [jobs, assigned, history, installerFacts] = await Promise.all([
     byIds("waiting passers", passIds, (c, f, t) => admin.from("jobs").select("id, job_number, stage, source, channel, deleted_at, qa_archived_at, owners(full_name), properties(suburb, postcode)").in("id", c).range(f, t)),
     byIds("passers' installers", passIds, (c, f, t) => admin.from("job_assignments").select("job_id").in("job_id", c).eq("role", "installer").eq("active", true).range(f, t)),
-    byIds("sent batches", passIds, (c, f, t) => loose.from("workflow_events").select("job_id, event_type, created_at, details").in("job_id", c).eq("event_type", AREA_BATCH_SENT_EVENT).range(f, t)),
-    byIds("runs sent", passIds, (c, f, t) => loose.from("workflow_events").select("job_id, details").in("job_id", c).eq("event_type", RUN_OFFERED_EVENT).range(f, t)),
+    byIds("sent batches and runs", passIds, (c, f, t) => loose.from("workflow_events").select("job_id, event_type, created_at, details").in("job_id", c).in("event_type", [AREA_BATCH_SENT_EVENT, AREA_BATCH_RETURNED_EVENT, ...RUN_EVENTS]).range(f, t)),
+    (async () => (await import("./installer-waiting.server")).installerFacts(opts.testBusinessIds))(),
   ]);
-  // A batch Jo already sent to the installer (Jo's tap, installer-run.server) is never listed again — even after a decline / no reply,
-  // when its owners are back in the suggestions with their standing pass.
-  const sentToInstaller = new Set(runRows.map((r) => s((r["details"] as { batch_id?: unknown } | null)?.batch_id)).filter(Boolean));
+  const runEvents = history as unknown as RunEventRow[];
+  const batchOf = (e: Row) => s((e["details"] as { batch_id?: unknown } | null)?.batch_id);
+  const returned = new Set(history.filter((e) => e["event_type"] === AREA_BATCH_RETURNED_EVENT).map((e) => `${batchOf(e)}|${String(e["job_id"])}`));
+  // Runs Jo sent per batch (never a Fill row). A batch is sent to the installer once its text went or its run is over — then
+  // it is never listed again, even after a decline / expiry, when its owners are back in the suggestions with their pass.
+  const runsBy = new Map<string, RunState[]>();
+  for (const runId of new Set(runEvents.filter((e) => e.event_type === RUN_OFFERED_EVENT && !isFillRow(e)).map(runIdOf).filter((x): x is string => !!x))) {
+    const st = runState(runId, runEvents);
+    if (st) runsBy.set(st.batchId, [...(runsBy.get(st.batchId) ?? []), st]);
+  }
   const withInstaller = new Set(assigned.map((a) => String(a["job_id"])));
   const jobBy = new Map(jobs.map((j) => [String(j["id"]), j]));
   const out: ReadyBatch[] = [];
   for (const [batchId, b] of byBatch) {
-    if (sentToInstaller.has(batchId)) continue;
+    const runs = runsBy.get(batchId) ?? [];
+    if (runs.some((r) => r.status !== "offered" || r.textWent || runExpiryDue(r, now.toISOString()))) continue;
+    const run = runs[0] ?? null;
+    const members = run ? run.memberIds : b.pass;
     const homes: (ReadyHome & { isTest: boolean })[] = [];
-    for (const id of b.pass) {
+    for (const id of members) {
       const j = jobBy.get(id);
-      if (!j || j["qa_archived_at"]) continue;
+      if (!j || j["qa_archived_at"] || returned.has(`${batchId}|${id}`)) continue;
       if (!jobWaitingForInstaller({ channel: s(j["channel"]), stage: s(j["stage"]), hasInstaller: withInstaller.has(id), deleted: !!j["deleted_at"] })) continue;
       const isTest = j["source"] === "qa_test";
       if (isTest && !opts.includeTest && !opts.testJobIds) continue;
@@ -508,12 +545,18 @@ export async function batchesReadyToSend(opts: { includeTest?: boolean; testJobI
       homes.push({ jobId: id, jobNumber: String(j["job_number"] ?? ""), ownerName: (owner?.full_name ?? "").trim(), suburb: (prop?.suburb ?? "").trim(), postcode: (prop?.postcode ?? "").trim(), isTest });
     }
     if (!homes.length) continue;
-    const sent = sentRows.find((e) => homes.some((h) => h.jobId === String(e["job_id"])) && (e["details"] as { batch_id?: unknown } | null)?.batch_id === batchId);
+    const sent = history.find((e) => e["event_type"] === AREA_BATCH_SENT_EVENT && homes.some((h) => h.jobId === String(e["job_id"])) && batchOf(e) === batchId);
     const d = (sent?.["details"] ?? {}) as { installer_business_id?: unknown; installer_name?: unknown };
+    const runOffer = run ? runEvents.find((e) => e.event_type === RUN_OFFERED_EVENT && runIdOf(e) === run.runId) : null;
+    const covering = batchInstallers(installerFacts, homes).map((i) => ({ id: i.id, name: i.name }));
+    const installer = run
+      ? { id: run.businessId, name: s((runOffer?.details as { business_name?: unknown } | null)?.business_name) ?? covering.find((i) => i.id === run.businessId)?.name ?? "" }
+      : { id: s(d.installer_business_id) ?? "", name: s(d.installer_name) ?? "" };
     out.push({
-      batchId, closedAt: b.closedAt, isTest: homes.every((h) => h.isTest),
-      installer: { id: s(d.installer_business_id) ?? "", name: s(d.installer_name) ?? "" },
+      batchId, closedAt: b.closedAt, isTest: homes.every((h) => h.isTest), installer,
       homes: homes.sort((x, y) => x.jobNumber.localeCompare(y.jobNumber)).map(({ isTest: _t, ...h }) => h),
+      state: run ? "text_not_sent" : "ready", runId: run?.runId ?? null,
+      installers: [...covering.filter((i) => i.id === installer.id), ...covering.filter((i) => i.id !== installer.id)],
     });
   }
   return out.sort((a, b) => a.closedAt.localeCompare(b.closedAt));

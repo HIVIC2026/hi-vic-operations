@@ -110,6 +110,8 @@ export const runIdOf = (e: RunEventRow): string | null => { const v = det(e).run
 export type RunStatus = "offered" | "answered" | "declined" | "expired" | "ended";
 export type RunState = {
   runId: string; batchId: string; businessId: string; offeredAt: string; expiresAt: string;
+  /** An attempt of the installer's run text went (sent / already / sent_unknown). */
+  textWent: boolean;
   /** Route order at the offer. */
   jobIds: string[];
   /** Still in the run (route order). */
@@ -138,19 +140,21 @@ export function runState(runId: string, events: readonly RunEventRow[]): RunStat
   const status: RunStatus = has(RUN_DECLINED_EVENT) ? "declined" : has(RUN_EXPIRED_EVENT) ? "expired" : !memberIds.length ? "ended"
     : mine.some((e) => RUN_REPLY_EVENTS.includes(e.event_type)) ? "answered" : "offered";
   const offeredAt = (base ?? offers[0]!).created_at;
-  // The installer's 24 hours count from the first text that actually went (sent / already / sent_unknown). Attempts recorded
-  // but none went → no clock yet (Jo's tap re-texts the run). No attempt recorded at all → from the offer (stored expiry).
+  // The installer's 24 hours count from the first text that actually went (sent / already / sent_unknown). No text went (held /
+  // failed, or no attempt recorded) → 24 hours from the offer (stored expiry): Jo can tap "Send again" until then, after that
+  // the run expires and its owners are back in the pool with their standing pass (final review I1 — never stranded).
   const attempts = mine.filter((e) => e.event_type === RUN_OFFERED_TEXT_EVENT).sort((a, b) => a.created_at.localeCompare(b.created_at));
   const firstWent = attempts.find((e) => (RUN_TEXT_WENT as readonly string[]).includes(String((e.details as { status?: unknown } | null)?.status)));
   const stored = typeof d.expires_at === "string" ? d.expires_at : new Date(Date.parse(offeredAt) + RUN_REPLY_HOURS * 3_600_000).toISOString();
-  const expiresAt = !base ? NO_EXPIRY : firstWent ? new Date(Date.parse(firstWent.created_at) + RUN_REPLY_HOURS * 3_600_000).toISOString() : attempts.length ? NO_EXPIRY : stored;
-  return { runId, batchId: String(d.batch_id ?? ""), businessId: String(d.business_id ?? ""), offeredAt, expiresAt, jobIds, memberIds, removedIds: jobIds.filter((j) => removed.has(j)), status };
+  const expiresAt = !base ? NO_EXPIRY : firstWent ? new Date(Date.parse(firstWent.created_at) + RUN_REPLY_HOURS * 3_600_000).toISOString() : stored;
+  const textWent = !!firstWent;
+  return { runId, batchId: String(d.batch_id ?? ""), businessId: String(d.business_id ?? ""), offeredAt, expiresAt, textWent, jobIds, memberIds, removedIds: jobIds.filter((j) => removed.has(j)), status };
 }
 
 /** A `run_offered` row written by "Fill from nearby waiting owners" (Task 8), not by Jo's Send to installer. */
 export const isFillRow = (e: RunEventRow) => !!(e.details as { filled_from?: unknown } | null)?.filled_from;
 
-/** expiresAt while no attempt of the installer text has gone: never due. */
+/** expiresAt of a run read from a Fill row alone (never the run's offer): never due. */
 export const NO_EXPIRY = "9999-12-31T00:00:00.000Z";
 /** Still waiting for the installer's reply and 24 hours have passed. */
 export const runExpiryDue = (s: RunState, nowIso: string): boolean => s.status === "offered" && Date.parse(nowIso) >= Date.parse(s.expiresAt);

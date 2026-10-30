@@ -440,8 +440,131 @@ describe("remove, empty run, decline, 24 h expiry", () => {
   });
 });
 
+// ---- final review fixes (I1, I2) -----------------------------------------------------------------------------------------
+describe("final review I1: a run whose installer text never went", () => {
+  beforeEach(seed);
+  const ready = () => { for (const id of ["a", "b"]) addJob(id); closedBatch("b1", ["a", "b"]); now(1); };
+  test("stays listed as \"Text didn't go — Send again\"; the tap re-texts the same run; then it leaves the list", async () => {
+    ready();
+    smsStatus = "blocked";
+    const r1 = await R.offerRun("b1", "u-jo", { now: new Date(clock) });
+    const listed = await A.batchesReadyToSend({ now: now(2) });
+    expect(listed.map((b) => [b.batchId, b.state, b.runId, b.installer.id, b.homes.map((h) => h.jobId).sort()])).toEqual([["b1", "text_not_sent", r1.runId, "biz-1", ["a", "b"]]]);
+    smsStatus = "sent";
+    const r2 = await R.offerRun("b1", "u-jo", { now: new Date(clock) });
+    expect(r2.runId).toBe(r1.runId);
+    expect(sent.length).toBe(1);
+    expect(await A.batchesReadyToSend({ now: now(3) })).toEqual([]);
+  });
+  test("no text went → the sweep expires the run 24 h after the offer: owners back in the pool with their standing pass", async () => {
+    ready();
+    smsStatus = "blocked";
+    const r1 = await R.offerRun("b1", "u-jo", { now: new Date(clock) });
+    await R.sweepRunOffers(at(24.9));
+    expect(events("run_expired")).toEqual([]);
+    // past 24 h but before the sweep: Send again is refused (the run is about to expire), and the batch isn't listed
+    now(25.05);
+    expect(await A.batchesReadyToSend({ now: new Date(clock) })).toEqual([]);
+    smsStatus = "sent";
+    await expect(R.offerRun("b1", "u-jo", { now: new Date(clock) })).rejects.toThrow(/nothing was sent/);
+    expect(sent).toEqual([]);
+    await R.sweepRunOffers(at(25.1));
+    expect(events("run_expired").map((e) => [e["job_id"], (e["details"] as Row)["run_id"]]).sort()).toEqual([["a", r1.runId], ["b", r1.runId]]);
+    expect((await candidates()).map((x) => [x.jobId, x.carriedPass]).sort()).toEqual([["a", true], ["b", true]]);
+    expect(await A.batchesReadyToSend({ now: now(26) })).toEqual([]);
+    expect(sent).toEqual([]);
+  });
+});
+
+describe("final review I2: passers never stuck", () => {
+  beforeEach(seed);
+  const ready = () => { for (const id of ["a", "b"]) addJob(id); closedBatch("b1", ["a", "b"]); now(1); };
+  test("Ready to send lists every installer that covers every home, the batch's original first (the default)", async () => {
+    ready();
+    const [b] = await A.batchesReadyToSend({ now: new Date(clock) });
+    expect(b!.state).toBe("ready");
+    expect(b!.installer.id).toBe("biz-1");
+    expect(b!.installers.map((i) => i.id)).toEqual(["biz-1", "biz-2"]);
+  });
+  test("the original installer can't take the homes → Jo sends to another covering installer; the run and text go to them", async () => {
+    ready();
+    installerFacts = [fact("biz-1", { service_postcodes: ["3000"] }), fact("biz-2")];
+    const [b] = await A.batchesReadyToSend({ now: new Date(clock) });
+    expect(b!.installers.map((i) => i.id)).toEqual(["biz-2"]);
+    await expect(R.offerRun("b1", "u-jo", { now: new Date(clock) })).rejects.toThrow(/can't be offered every home/);
+    const r = await R.offerRun("b1", "u-jo", { now: new Date(clock), businessId: "biz-2" });
+    expect(r.installer).toBe("Other Insulation");
+    expect(sent.map((x) => [x.to, x.businessId])).toEqual([["0422222222", "biz-2"]]);
+    expect(events("run_offered").map((e) => (e["details"] as Row)["business_id"])).toEqual(["biz-2", "biz-2"]);
+    expect((await R.tradeRun(r.runId, "u-olive")).homes.length).toBe(2);
+  });
+  test("an installer that doesn't cover every home is refused, nothing written", async () => {
+    ready();
+    installerFacts = [fact("biz-1"), fact("biz-2", { service_postcodes: ["3000"] })];
+    await expect(R.offerRun("b1", "u-jo", { now: new Date(clock), businessId: "biz-2" })).rejects.toThrow(/can't be offered every home/);
+    expect(events("run_offered")).toEqual([]);
+    expect(sent).toEqual([]);
+  });
+  test("Send again goes to the run's own installer; another installer is refused", async () => {
+    ready();
+    smsStatus = "blocked";
+    await R.offerRun("b1", "u-jo", { now: new Date(clock) });
+    smsStatus = "sent";
+    await expect(R.offerRun("b1", "u-jo", { now: new Date(clock), businessId: "biz-2" })).rejects.toThrow(/nothing was sent/);
+    expect(sent).toEqual([]);
+    await R.offerRun("b1", "u-jo", { now: new Date(clock), businessId: "biz-1" });
+    expect(sent.map((x) => x.to)).toEqual(["0411111111"]);
+  });
+  test("Back to suggestions: the passers are batch candidates again with their standing pass; the batch leaves the list; once", async () => {
+    ready();
+    expect(await candidates()).toEqual([]);
+    const r = await R.returnBatchToSuggestions("b1", "u-jo");
+    expect(r.homes).toBe(2);
+    expect(events("area_batch_returned").map((e) => [e["job_id"], (e["details"] as Row)["batch_id"]]).sort()).toEqual([["a", "b1"], ["b", "b1"]]);
+    expect(await A.batchesReadyToSend({ now: now(2) })).toEqual([]);
+    expect((await candidates()).map((x) => [x.jobId, x.carriedPass]).sort()).toEqual([["a", true], ["b", true]]);
+    await R.returnBatchToSuggestions("b1", "u-jo");
+    expect(events("area_batch_returned").length).toBe(2);
+    expect(sent).toEqual([]);
+  });
+  test("Back to suggestions on a run whose text never went ends that run (nothing sent); refused once the text went", async () => {
+    ready();
+    smsStatus = "blocked";
+    const r1 = await R.offerRun("b1", "u-jo", { now: new Date(clock) });
+    await R.returnBatchToSuggestions("b1", "u-jo");
+    expect((await R.tradeRun(r1.runId, "u-sam")).status).toBe("expired");
+    expect((await candidates()).map((x) => [x.jobId, x.carriedPass]).sort()).toEqual([["a", true], ["b", true]]);
+    expect(await A.batchesReadyToSend({ now: now(2) })).toEqual([]);
+    expect(sent).toEqual([]);
+    // another batch whose run text went: refused, nothing written
+    for (const id of ["c", "d"]) addJob(id);
+    closedBatch("b2", ["c", "d"]);
+    smsStatus = "sent";
+    await R.offerRun("b2", "u-jo", { now: now(3) });
+    await expect(R.returnBatchToSuggestions("b2", "u-jo")).rejects.toThrow(/already been sent to the installer/);
+    expect(events("area_batch_returned").filter((e) => (e["details"] as Row)["batch_id"] === "b2")).toEqual([]);
+  });
+  test("no 60-day cut-off: a batch closed long ago with owners still waiting is still listed", async () => {
+    ready();
+    expect((await A.batchesReadyToSend({ now: now(24 * 120) })).map((b) => b.batchId)).toEqual(["b1"]);
+  });
+});
+
 // ---- wiring -------------------------------------------------------------------------------------------------------------
 describe("wiring", () => {
+  test("final review: Send again / Back to suggestions / installer choice are office-only and wired", () => {
+    const src = (p: string) => readFileSync(p, "utf8");
+    const ui = src("src/components/portal/choose-installer.tsx");
+    for (const s of ["Text didn't go — Send again", "Send again", "Back to suggestions", "returnBatchFn"]) expect(ui).toContain(s);
+    const fns = src("src/lib/installer-run.functions.ts");
+    expect(fns).toMatch(/export const returnBatchFn = createServerFn\(\{ method: "POST" \}\)\.middleware\(\[requireSupabaseAuth\]\)/);
+    expect(fns.slice(fns.indexOf("export const returnBatchFn"))).toMatch(/requireOfficeIdentity[\s\S]*qa_office/);
+    expect(fns).toMatch(/businessId: uuid\.nullable\(\)\.optional\(\)/);
+    expect(src("src/lib/area-batch.server.ts")).not.toMatch(/READY_DAYS/);
+  });
+});
+
+describe("wiring (existing)", () => {
   const src = (p: string) => readFileSync(p, "utf8");
   test("Send to installer is wired to the office-only offerRunFn (never from a sweep); TEST office refused", () => {
     const ui = src("src/components/portal/choose-installer.tsx");
