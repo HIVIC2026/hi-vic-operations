@@ -1,6 +1,6 @@
 ## Jo 30 Oct in-house partner — Task 1 only
 - [x] Task 1 is applied live with Jo's authorisation: columns, guard trigger, save_in_house_partner RPC and two In-house PIESA rate cards. Bounded isolated full suite before Task 1: 874 files, 8758 pass / 219 fail / 36 skip (76 pre-existing failing files); with Task 1: 876 files, 8767 pass / 219 fail / 36 skip (the same 76 failing files with identical per-file counts). Preview build/typecheck clean. No publication or commit.
-- [ ] Review round 1: test-first backfill events and complete practice undo, restore pilot ban, fail-closed PIESA pricing, batched reads and display-only fallback. No live SQL, live undo, other changes or publication.
+- [x] Review round 1: failing tests first; backfill history/idempotency and scoped complete undo proved only on PGlite, pilot ban restored, missing PIESA rates hold quotes, money read errors propagate and trade display logs/falls back. Focused tests pass; automatic build/typecheck clean. No live SQL or live undo, data/settings changes or publication.
 
 ## Jo 30 Oct unknown house age first response
 - [x] Apply the same current-audit age-onsite qualification to likely/no-insulation grouping, automatic routing, campaign links and sender rendering; five-year failures remain blocked. No sends, data/switch changes or publication.
