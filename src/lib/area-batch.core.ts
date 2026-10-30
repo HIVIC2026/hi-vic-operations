@@ -68,7 +68,10 @@ export const excludedAreaName = (name: string): boolean => /\b(garage|car\s?port
 export const AREA_BATCH_SENT_EVENT = "area_batch_sent";
 /** Written per job when its batch closes (Task 4). A sent batch with no close for that job is still open. */
 export const AREA_BATCH_CLOSED_EVENT = "area_batch_closed";
-export const AREA_BATCH_EVENTS = [AREA_BATCH_SENT_EVENT, AREA_BATCH_CLOSED_EVENT] as const;
+/** Written per job when the owner's new address is over 10 km from the batch centre (Task 3, Jo 30 Oct): the home is back
+ *  in the pool for the next batch, but the owner can still finish the quick taps of this batch (they are not told). */
+export const AREA_BATCH_LEFT_EVENT = "area_batch_left";
+export const AREA_BATCH_EVENTS = [AREA_BATCH_SENT_EVENT, AREA_BATCH_CLOSED_EVENT, AREA_BATCH_LEFT_EVENT] as const;
 
 /** New owner texts: each has its own SMS switch, off until Jo switches it on. */
 export const QUICK_TAPS_SMS_TYPE = "quick_taps" as const;
@@ -91,13 +94,19 @@ export const quickTapsSmsKey = (batchId: string, jobId: string, step: "sent" | "
 export type AreaBatchEventRow = { event_type: string; created_at: string; details: unknown };
 const bid = (e: AreaBatchEventRow) => { const v = (e.details as { batch_id?: unknown } | null)?.batch_id; return typeof v === "string" && v ? v : null; };
 
-/** The job's open batch (sent, not closed for this job), or null. One batch per job at a time. */
-export function openBatchId(events: readonly AreaBatchEventRow[]): string | null {
-  const closed = new Set(events.filter((e) => e.event_type === AREA_BATCH_CLOSED_EVENT).map(bid).filter(Boolean));
-  const open = events.filter((e) => e.event_type === AREA_BATCH_SENT_EVENT && bid(e) && !closed.has(bid(e)))
+const latestSentNotIn = (events: readonly AreaBatchEventRow[], endTypes: readonly string[]): string | null => {
+  const ended = new Set(events.filter((e) => endTypes.includes(e.event_type)).map(bid).filter(Boolean));
+  const open = events.filter((e) => e.event_type === AREA_BATCH_SENT_EVENT && bid(e) && !ended.has(bid(e)))
     .sort((a, b) => b.created_at.localeCompare(a.created_at));
   return open.length ? bid(open[0]!) : null;
-}
+};
+/** The job's open batch (sent, not closed for this job, not left), or null. One batch per job at a time. */
+export const openBatchId = (events: readonly AreaBatchEventRow[]): string | null => latestSentNotIn(events, [AREA_BATCH_CLOSED_EVENT, AREA_BATCH_LEFT_EVENT]);
+/** The batch whose quick taps the owner answers: sent and not closed for this job. A home that LEFT its batch (address
+ *  moved) still finishes these taps — it just isn't counted in that batch any more. */
+export const tapsBatchId = (events: readonly AreaBatchEventRow[]): string | null => latestSentNotIn(events, [AREA_BATCH_CLOSED_EVENT]);
+/** Over 10 km from the batch centre (the same radius batches are built with). */
+export const outsideBatch = (centre: { lat: number; lng: number }, home: { lat: number; lng: number }): boolean => distanceM(centre, home) > RADIUS_M;
 export const nextBatchSeq = (events: readonly AreaBatchEventRow[]) => events.filter((e) => e.event_type === AREA_BATCH_SENT_EVENT).length + 1;
 
 /** Widest gap between two homes in the batch, in km (1 decimal). */

@@ -109,7 +109,7 @@ function addJob(id: string, o: { postcode?: string; source?: string | null; chan
     id, job_number: `HV-${id}`, stage: o.stage ?? "ready_check_ready_to_schedule", source: o.source ?? "website", channel: o.channel ?? "hivic_sourced",
     deleted_at: o.deleted ? "2026-10-29T00:00:00Z" : null, qa_archived_at: null, property_id: prop, created_at: daysAgo(30),
     owners: { full_name: `Owner ${id}`, phone: "0400000000" },
-    properties: { suburb: "Melbourne", postcode: o.postcode ?? "3000", ...(o.facts ?? GOOD) },
+    properties: { address_line: "1 Sample Street", suburb: "Melbourne", postcode: o.postcode ?? "3000", ...(o.facts ?? GOOD) },
   });
   if (o.saved !== false) tables["lead_campaign_responses"]!.push({ job_id: id, spot_saved_at: daysAgo(o.waited ?? 1), opted_out_at: null, saved_insulation: null });
   if (o.coords !== null) tables["property_facts"]!.push({ property_id: prop, fact_key: "coordinates", value: o.coords ?? pt(0), is_current: true });
@@ -267,6 +267,8 @@ describe("sendBatch", () => {
     expect(ev.length).toBe(8);
     expect(new Set(ev.map((e) => (e["details"] as Row)["batch_id"])).size).toBe(1);
     for (const e of ev) expect(e["details"]).toMatchObject({ batch_id: r.batchId, installer_business_id: "biz-1", job_ids: ids(8) });
+    // Task 3: the batch centre (first home, as suggestBatches lists it) and its location are kept for a moved address.
+    for (const e of ev) expect(e["details"]).toMatchObject({ centre_job_id: "j1", centre: { lat: -37.8, lng: 145 } });
     expect(ev.map((e) => e["job_id"]).sort()).toEqual(ids(8).sort());
     expect(sent.length).toBe(8);
     expect(sent.every((s) => s.via === "real-sms" && s.type === "quick_taps")).toBe(true);

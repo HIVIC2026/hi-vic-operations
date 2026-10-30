@@ -13,7 +13,7 @@ import { earliestInstall, installDeadline, TWO_HOUR_WINDOWS, visitPill, type Own
 import { SPOT_FREE, SPOT_PRICE_NOTE, SPOT_REGISTERED, SPOT_RELEASE_LINE, SPOT_WAIT_LINE } from "@/lib/spot-only-copy.core";
 import { PAYMENT_OPTION_SUMMARY, paymentOptionSummary } from "@/lib/payment-gate.core";
 import { howYouPayLines, paymentPlan } from "@/lib/payments.core";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { OwnerPaperwork } from "@/components/owner/OwnerPaperwork";
 import { OwnerCodeGate, signBtn } from "@/components/owner/OwnerSign";
@@ -32,13 +32,17 @@ import { ownerConfirmTurnFn, ownerDeclineTurnFn, ownerTurnStateFn } from "@/lib/
 import { SPOT_RELEASE_PAGE, WHAT_HAPPENS_NEXT, type OwnerTurnView } from "@/lib/spot-release.core";
 import { ownerRequestNewQuoteFn } from "@/lib/new-quote-request.functions";
 import { NEW_QUOTE_THANKS } from "@/lib/new-quote-request.core";
+import { ownerQuickTapsAddressSearchFn, ownerQuickTapsDetailsFn, ownerQuickTapsSaveFn, ownerQuickTapsStateFn } from "@/lib/quick-taps.functions";
+import { QUICK_TAPS_COPY, nextTapStep, tapOutcome, websiteQuestions, type FinalOutcome, type QuickTapAnswers, type QuickTapsView } from "@/lib/quick-taps.core";
+import { createAddressPicker, type PickResult } from "@/lib/address-pick.core";
 
 // Owner "My job" — no login. The secure link token is the only credential; nothing fetched during SSR.
 // Decision 335: "review" = the O51 star links (?screen=review&stars=N).
 // Decision 366: "fixes" = the electrical fixes screen (O29's approve link): approve → pay in full → pick the electrician's time.
 // Decision 389: "turn" = "It's your turn" (O77's link): Confirm the free Ready Check, or no longer interested.
 // Batch 3a: "newquote" = O78's "Send me a new quote" button: the request runs on arrival, then the approved thanks line.
-const SCREENS = ["home", "spot", "quote", "book", "done", "review", "fixes", "turn", "newquote"] as const satisfies readonly OwnerScreen[];
+// A48 batch 2: "taps" = the quick taps (the batch text's link): one question per screen, big buttons.
+const SCREENS = ["home", "spot", "quote", "book", "done", "review", "fixes", "turn", "newquote", "taps"] as const satisfies readonly OwnerScreen[];
 
 export const Route = createFileRoute("/my-job/$token")({
   ssr: false,
@@ -87,6 +91,7 @@ function MyJobPage() {
           : !data ? <Unavailable />
           : screen === "review" ? <ReviewScreen token={token} initialStars={stars ?? null} />
           : screen === "turn" ? <TurnScreen token={token} />
+          : screen === "taps" ? <TapsScreen v={data} token={token} />
           : screen === "newquote" ? <NewQuoteScreen v={data} token={token} />
           : screen === "quote" ? <QuoteScreen v={data} token={token} />
           : screen === "fixes" ? <FixesScreen v={data} token={token} />
@@ -265,6 +270,132 @@ function TurnScreen({ token }: { token: string }) {
       {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
     </section>
   );
+}
+
+const tapBtn = "flex min-h-14 w-full items-center justify-center rounded-full border border-estimate-navy bg-card px-5 py-3 text-center text-base font-bold disabled:opacity-50";
+const tapPrimary = "flex min-h-14 w-full items-center justify-center rounded-full bg-estimate-green px-5 py-3 text-center text-base font-bold text-estimate-canvas disabled:opacity-50";
+
+/** A48 batch 2: the quick taps. One question per screen, in order: full name, address, hatch, roof, 5 years, any website
+ *  answer left blank, then "Yes, let's go" / "No thanks". A decline tap ends it. Name/address changes are saved as they
+ *  are given (a typed name waits for the address when there is no full address on file yet); the answers are saved once.
+ *  Not in a batch asking for taps → the normal My job page. The link token is the only credential. */
+function TapsScreen({ v, token }: { v: View; token: string }) {
+  const load = useServerFn(ownerQuickTapsStateFn);
+  const save = useServerFn(ownerQuickTapsSaveFn);
+  const saveDetails = useServerFn(ownerQuickTapsDetailsFn);
+  const qc = useQueryClient();
+  const { data: st, isLoading } = useQuery({ queryKey: ["owner-taps", token], queryFn: () => load({ data: { token } }) as Promise<QuickTapsView>, retry: false, refetchOnWindowFocus: false });
+  const [done, setDone] = useState<FinalOutcome | null>(null);
+  const [a, setA] = useState<QuickTapAnswers>({});
+  const [onFile, setOnFile] = useState<{ name: string | null; address: string | null } | null>(null);
+  const [pendingName, setPendingName] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  if (isLoading && !st) return <p role="status" className="py-10 text-center text-sm">Opening…</p>;
+  const view: QuickTapsView | null = done ? { kind: "done", outcome: done } : st ?? null;
+  if (!view || view.kind === "none") return v.spotSaved ? <SpotSavedHome v={v} token={token} /> : <Home v={v} token={token} />;
+  const card = "space-y-4 rounded-[22px] bg-card p-6 shadow-sm";
+  if (view.kind === "done") return <section data-testid="owner-taps" data-outcome={view.outcome} className={card}><p className="flex items-start gap-2 font-display text-xl font-extrabold">{view.outcome === "pass" && <Check className="mt-1 h-5 w-5 shrink-0 text-estimate-green" aria-hidden />}{QUICK_TAPS_COPY.outcome[view.outcome]}</p></section>;
+
+  const name = onFile?.name ?? view.name;
+  const address = onFile?.address ?? view.address;
+  const blanksFor = (x: QuickTapAnswers) => websiteQuestions(view.website, x.website ?? {});
+  const step = nextTapStep(a, blanksFor(a));
+  const submit = async (x: QuickTapAnswers) => {
+    setErr(""); setBusy(true);
+    try {
+      const r = (await save({ data: { token, answers: x } })) as QuickTapsView;
+      if (r.kind === "done") { setDone(r.outcome); void qc.invalidateQueries({ queryKey: ["my-job", token] }); }
+    } catch (e) { setErr(errText(e)); } finally { setBusy(false); }
+  };
+  const answer = (x: QuickTapAnswers) => {
+    setA(x); setEditing(false); setTyped(""); setErr("");
+    if (tapOutcome(x, blanksFor(x)) !== "incomplete") void submit(x);
+  };
+  const details = async (input: { fullName?: string | null; placeId?: string | null }, then: (r: { name: string; address: string }) => void): Promise<PickResult> => {
+    const r = await saveDetails({ data: { token, fullName: input.fullName ?? null, placeId: input.placeId ?? null } });
+    if (r.ok) { setOnFile({ name: r.name, address: r.address }); then(r); }
+    return r.ok ? { ok: true } : { ok: false, error: r.error };
+  };
+  const options = <T extends string>(list: readonly { value: T; label: string }[], pick: (value: T) => void) =>
+    <div className="space-y-3">{list.map((o) => <button key={o.value} type="button" className={tapBtn} disabled={busy} onClick={() => pick(o.value)}>{o.label}</button>)}</div>;
+  const confirm = (question: string, value: string, yes: () => void) => <>
+    <h1 className="font-display text-2xl font-extrabold">{question}</h1>
+    <p className="rounded-[14px] bg-estimate-panel px-4 py-3.5 text-lg font-bold">{value}</p>
+    <div className="space-y-3">
+      <button type="button" className={tapPrimary} disabled={busy} onClick={yes}>{QUICK_TAPS_COPY.yes}</button>
+      <button type="button" className={tapBtn} disabled={busy} onClick={() => { setEditing(true); setTyped(""); setErr(""); }}>{QUICK_TAPS_COPY.change}</button>
+    </div>
+  </>;
+  const saveName = async () => {
+    const n = typed.trim().replace(/\s+/g, " ");
+    if (n.length < 2) { setErr("Please type your full name."); return; }
+    if (!address) { setPendingName(n); answer({ ...a, name: n }); return; } // saved with the address on the next tap
+    setBusy(true); setErr("");
+    try { const r = await details({ fullName: n }, (d) => answer({ ...a, name: d.name })); if (!r.ok) setErr(r.error); }
+    catch (e) { setErr(errText(e)); } finally { setBusy(false); }
+  };
+
+  let body: ReactNode = null;
+  if (busy && !step) body = <p role="status" className="py-6 text-center text-sm">Saving…</p>;
+  else if (step === "name") body = name && !editing ? confirm(QUICK_TAPS_COPY.nameConfirm, name, () => answer({ ...a, name })) : <>
+    <h1 className="font-display text-2xl font-extrabold">{QUICK_TAPS_COPY.nameAsk}</h1>
+    <input aria-label={QUICK_TAPS_COPY.nameAsk} autoComplete="name" className="h-14 w-full rounded-2xl border border-estimate-line bg-card px-4 text-lg" value={typed} disabled={busy} onChange={(e) => setTyped(e.target.value)} />
+    <button type="button" className={tapPrimary} disabled={busy} onClick={() => void saveName()}>{busy ? "Saving…" : "Save"}</button>
+  </>;
+  else if (step === "address") body = address && !editing ? confirm(QUICK_TAPS_COPY.addressConfirm, address, () => answer({ ...a, address })) : <>
+    <h1 className="font-display text-2xl font-extrabold">{QUICK_TAPS_COPY.addressAsk}</h1>
+    <QuickTapsAddressSearch token={token} save={(placeId) => details({ fullName: pendingName, placeId }, (d) => { setPendingName(null); answer({ ...a, name: d.name, address: d.address }); })} />
+  </>;
+  else if (step === "hatch") body = <><h1 className="font-display text-2xl font-extrabold">{QUICK_TAPS_COPY.hatch.question}</h1>{options(QUICK_TAPS_COPY.hatch.options, (hatch) => answer({ ...a, hatch }))}</>;
+  else if (step === "roof") body = <><h1 className="font-display text-2xl font-extrabold">{QUICK_TAPS_COPY.roof.question}</h1>{options(QUICK_TAPS_COPY.roof.options, (roof) => answer({ ...a, roof }))}</>;
+  else if (step === "five_years") body = <><h1 className="font-display text-2xl font-extrabold">{QUICK_TAPS_COPY.five_years.question}</h1>{options(QUICK_TAPS_COPY.five_years.options, (five_years) => answer({ ...a, five_years }))}</>;
+  else if (step === "go") body = options(QUICK_TAPS_COPY.go.options, (go) => answer({ ...a, go }));
+  else if (step) { const w = QUICK_TAPS_COPY.website[step]; body = <><h1 className="font-display text-2xl font-extrabold">{w.label}</h1>{options(w.options, (value) => answer({ ...a, website: { ...a.website, [step]: value } }))}</>; }
+  else body = <button type="button" className={tapPrimary} disabled={busy} onClick={() => void submit(a)}>Try again</button>;
+  return <section data-testid="owner-taps" data-step={step ?? "saving"} className={card}>{body}{err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}</section>;
+}
+
+/** The address tap's search (the same search-and-pick as the owner's address page, my-address.$token): the address can
+ *  only be picked from the list, never typed in free. */
+function QuickTapsAddressSearch({ token, save }: { token: string; save: (placeId: string) => Promise<PickResult> }) {
+  const searchFn = useServerFn(ownerQuickTapsAddressSearchFn);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<{ id: string; label: string }[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 4) { setResults([]); setSearching(false); return; }
+    let live = true;
+    setSearching(true);
+    const t = setTimeout(async () => {
+      try { const r = (await searchFn({ data: { token, query: q } })) as { id: string; label: string }[]; if (live) { setResults(r); setError(null); } }
+      catch { if (live) setError("We couldn't search right now. Please try again."); }
+      finally { if (live) setSearching(false); }
+    }, 300);
+    return () => { live = false; clearTimeout(t); };
+  }, [query, token, searchFn]);
+  const saveRef = useRef(save);
+  saveRef.current = save;
+  const pickerRef = useRef<ReturnType<typeof createAddressPicker> | null>(null);
+  pickerRef.current ??= createAddressPicker((placeId) => saveRef.current(placeId), { setBusy, onDone: (r) => { if (!r.ok) setError(r.error); } });
+  return <div>
+    <label htmlFor="taps-address" className="block text-sm font-semibold">Start typing your address</label>
+    <input id="taps-address" type="search" inputMode="search" autoComplete="off" enterKeyHint="search" value={query} disabled={busy}
+      onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }}
+      className="mt-2 block h-14 w-full rounded-2xl border border-estimate-line bg-card px-4 text-lg" />
+    {searching && <p className="mt-3 text-sm">Searching…</p>}
+    {results.length > 0 && <ul className="mt-3 divide-y divide-estimate-line overflow-hidden rounded-2xl border border-estimate-line">
+      {results.map((r) => <li key={r.id}><button type="button" disabled={busy} onClick={() => { setError(null); void pickerRef.current!(r.id); }} className="block min-h-14 w-full px-4 py-3 text-left text-base disabled:opacity-60">{r.label}</button></li>)}
+    </ul>}
+    {!searching && query.trim().length >= 4 && results.length === 0 && !error && <p className="mt-3 text-sm">No matches yet. Keep typing.</p>}
+    {busy && <p className="mt-3 text-sm">Saving…</p>}
+    {error && <p role="alert" className="mt-3 text-sm font-semibold text-destructive">{error}</p>}
+  </div>;
 }
 
 /** Batch 3a: O78's "Send me a new quote". The tap is the request (sent once on arrival; a second tap gets the same

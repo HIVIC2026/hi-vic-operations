@@ -1,7 +1,9 @@
 // A48 batch 2 (Jo 29–30 Oct 2026, spec part 1): area batches. I/O only — the rules are in area-batch.core.ts.
 // - batchCandidates: website owners (hivic_sourced) waiting for an installer with a saved spot, most likely eligible,
 //   not in an open batch, not being asked about a released spot. Missing locations are filled once through
-//   ensurePropertyCoordinates (a few per load) before clustering; a home still without a location is left out.
+//   ensurePropertyCoordinates (a few per load) before clustering; a home still without a location is left out. A home
+//   with only a postcode (no full street address) is placed at its postcode's centre until the owner gives the address
+//   (Jo 30 Oct, Task 3).
 // - batchSuggestions: suggestBatches per TEST / real group, plus the installers who can be offered EVERY home.
 // - sendBatch: Jo's one tap. Every check runs first (nothing written if any fails), then ONE `area_batch_sent` claim per
 //   job (append-only workflow_events), then the owner's quick taps text once per job: TEST → test-send, real → the one
@@ -10,14 +12,15 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { WorkflowError } from "./workflow.server";
 import {
-  AREA_BATCH_CLOSED_EVENT, AREA_BATCH_SENT_EVENT, QUICK_TAPS_SMS_TYPE, areaBatchKey, batchInstallers, batchSpanKm, likelyEligible, nextBatchSeq,
-  openBatchId, quickTapsLink, quickTapsSmsKey, quickTapsText, suggestBatches, type AreaBatchEventRow, type BatchHome,
+  AREA_BATCH_CLOSED_EVENT, AREA_BATCH_EVENTS, AREA_BATCH_LEFT_EVENT, AREA_BATCH_SENT_EVENT, QUICK_TAPS_SMS_TYPE, areaBatchKey, batchInstallers, batchSpanKm,
+  likelyEligible, nextBatchSeq, openBatchId, outsideBatch, quickTapsLink, quickTapsSmsKey, quickTapsText, suggestBatches, type AreaBatchEventRow, type BatchHome,
 } from "./area-batch.core";
 import { installerWaiting } from "./installer-waiting-columns.core";
 import { SPOT_RELEASE_EVENTS, spotReleaseState, type SpotReleaseEventRow } from "./spot-release.core";
 import { declaredExtras, declaredInsulationDetail } from "./enquiry.core";
 import { normaliseInsulation } from "./eligibility.core";
-import { propertyPoint } from "./geo.core";
+import { distanceM, propertyPoint, type PropertyPoint } from "./geo.core";
+import { parseStreet } from "./address-complete.core";
 import { smsQuietReason } from "./quote-hold.core";
 
 type Row = Record<string, unknown>;
@@ -54,7 +57,7 @@ const group = <T extends Row>(rows: T[], key: string) => {
 // ---- reads -------------------------------------------------------------------------------------------------------
 
 async function batchEvents(jobIds: string[]): Promise<Map<string, AreaBatchEventRow[]>> {
-  const rows = jobIds.length ? await byIds("batch history", jobIds, (c, f, t) => loose.from("workflow_events").select("job_id, event_type, created_at, details").in("job_id", c).in("event_type", [AREA_BATCH_SENT_EVENT, AREA_BATCH_CLOSED_EVENT]).range(f, t)) : [];
+  const rows = jobIds.length ? await byIds("batch history", jobIds, (c, f, t) => loose.from("workflow_events").select("job_id, event_type, created_at, details").in("job_id", c).in("event_type", [...AREA_BATCH_EVENTS]).range(f, t)) : [];
   return group(rows, "job_id") as unknown as Map<string, AreaBatchEventRow[]>;
 }
 
@@ -62,6 +65,21 @@ async function batchEvents(jobIds: string[]): Promise<Map<string, AreaBatchEvent
 export async function openBatchFor(jobId: string): Promise<string | null> {
   return openBatchId((await batchEvents([jobId])).get(jobId) ?? []);
 }
+/** The job's batch events (sent / closed / left). */
+export async function batchEventsFor(jobId: string): Promise<AreaBatchEventRow[]> {
+  return (await batchEvents([jobId])).get(jobId) ?? [];
+}
+
+/** The postcode's centre (`src/data/vic-postcode-centroids.json`, [lat, lng]), or null for an unknown postcode. */
+export async function postcodeCentre(postcode: string | null | undefined): Promise<PropertyPoint> {
+  const pc = (postcode ?? "").trim();
+  if (!/^\d{4}$/.test(pc)) return null;
+  const { default: centres } = await import("@/data/vic-postcode-centroids.json");
+  const c = (centres as unknown as Record<string, [number, number]>)[pc];
+  return c && Number.isFinite(c[0]) && Number.isFinite(c[1]) ? { lat: c[0], lng: c[1] } : null;
+}
+/** A full street address (number + street name) is on file. */
+export const hasFullStreet = (addressLine: string | null | undefined): boolean => parseStreet(addressLine) !== null;
 
 export type BatchCandidate = BatchHome & { jobNumber: string; propertyId: string; ownerName: string; phone: string | null; suburb: string; isTest: boolean; source: string | null };
 export type CandidateRead = { candidates: BatchCandidate[]; unlocated: number; refused: Map<string, string> };
@@ -69,7 +87,7 @@ export type CandidateRead = { candidates: BatchCandidate[]; unlocated: number; r
 /** Who can be put in a batch now. `jobIds` limits the read (Send re-checks its own homes); `locate` caps location lookups. */
 export async function batchCandidates(opts: { includeTest?: boolean; testJobIds?: string[]; jobIds?: string[]; locate?: number; requireLocation?: boolean; now?: Date } = {}): Promise<CandidateRead> {
   const jobs = (await all("waiting jobs", (a, b) => {
-    let q = admin.from("jobs").select("id, job_number, stage, source, channel, deleted_at, qa_archived_at, property_id, owners(full_name, phone), properties(suburb, postcode, declared:enrichment->base44->declared, answers:enrichment->base44->raw->answers)")
+    let q = admin.from("jobs").select("id, job_number, stage, source, channel, deleted_at, qa_archived_at, property_id, owners(full_name, phone), properties(address_line, suburb, postcode, declared:enrichment->base44->declared, answers:enrichment->base44->raw->answers)")
       .eq("stage", "ready_check_ready_to_schedule").eq("channel", "hivic_sourced").is("deleted_at", null).is("qa_archived_at", null);
     if (opts.jobIds) q = q.in("id", opts.jobIds.length ? opts.jobIds : ["00000000-0000-0000-0000-000000000000"]);
     if (opts.testJobIds) q = q.eq("source", "qa_test").in("id", opts.testJobIds.length ? opts.testJobIds : ["00000000-0000-0000-0000-000000000000"]);
@@ -82,7 +100,7 @@ export async function batchCandidates(opts: { includeTest?: boolean; testJobIds?
     byIds("installers", ids, (c, f, t) => admin.from("job_assignments").select("job_id").in("job_id", c).eq("role", "installer").eq("active", true).range(f, t)),
     byIds("Ready Check offers", ids, (c, f, t) => admin.from("partner_offers").select("job_id, status, offered_at, businesses(name)").in("job_id", c).eq("kind", "ready_check").range(f, t)),
     byIds("saved spots", ids, (c, f, t) => admin.from("lead_campaign_responses").select("job_id, spot_saved_at, opted_out_at, saved_insulation").in("job_id", c).range(f, t)),
-    byIds("batch and release history", ids, (c, f, t) => loose.from("workflow_events").select("job_id, event_type, created_at, details").in("job_id", c).in("event_type", [AREA_BATCH_SENT_EVENT, AREA_BATCH_CLOSED_EVENT, ...SPOT_RELEASE_EVENTS]).range(f, t)),
+    byIds("batch and release history", ids, (c, f, t) => loose.from("workflow_events").select("job_id, event_type, created_at, details").in("job_id", c).in("event_type", [...AREA_BATCH_EVENTS, ...SPOT_RELEASE_EVENTS]).range(f, t)),
     propIds.length ? byIds("property facts", propIds, (c, f, t) => loose.from("property_facts").select("property_id, fact_key, value").in("property_id", c).in("fact_key", ["coordinates", "roof_form"]).eq("is_current", true).range(f, t)) : Promise.resolve([] as Row[]),
   ]) : [[], [], [], [], []];
   const withInstaller = new Set(assigned.map((a) => String(a["job_id"])));
@@ -92,7 +110,7 @@ export async function batchCandidates(opts: { includeTest?: boolean; testJobIds?
   const factsBy = group(facts, "property_id");
   const fact = (propertyId: string | null, key: string) => (propertyId ? factsBy.get(propertyId)?.find((f) => f["fact_key"] === key)?.["value"] : undefined);
 
-  const keep: { j: Row; propertyId: string; point: { lat: number; lng: number } | null }[] = [];
+  const keep: { j: Row; propertyId: string; point: { lat: number; lng: number } | null; fullStreet: boolean }[] = [];
   for (const j of jobs) {
     const id = String(j["id"]);
     const no = (why: string) => { refused.set(id, why); };
@@ -117,10 +135,12 @@ export async function batchCandidates(opts: { includeTest?: boolean; testJobIds?
     });
     if (!likely) { no("its answers don't look likely eligible yet"); continue; }
     const propertyId = s(j["property_id"]) ?? "";
-    keep.push({ j, propertyId, point: propertyPoint(fact(propertyId, "coordinates")) });
+    keep.push({ j, propertyId, point: propertyPoint(fact(propertyId, "coordinates")), fullStreet: hasFullStreet((prop as { address_line?: string | null } | null)?.address_line) });
   }
 
-  // Fill missing locations once (stored as the property's `coordinates` fact), a few at a time.
+  // Fill missing locations once (stored as the property's `coordinates` fact), a few at a time. Only full street addresses
+  // can be looked up; a postcode-only home is placed at its postcode's centre until the owner gives the full address.
+  for (const k of keep) if (!k.point && !k.fullStreet) k.point = await postcodeCentre((k.j["properties"] as { postcode?: string | null } | null)?.postcode);
   const missing = keep.filter((k) => !k.point && k.propertyId).slice(0, opts.locate ?? LOCATE_PER_LOAD);
   if (missing.length) {
     const { ensurePropertyCoordinates } = await import("./property-coordinates.server");
@@ -221,13 +241,16 @@ export async function sendBatch(jobIdsIn: string[], businessId: string, actorId:
   const noLink = homes.filter((h) => !links.get(h.jobId));
   if (noLink.length) throw new WorkflowError(`${noLink.map((h) => h.jobNumber).join(", ")}: the owner has no working My job link — nothing was sent.`);
 
-  // Claims: one area_batch_sent per job, before any text.
+  // Claims: one area_batch_sent per job, before any text. The batch centre is the first home (suggestBatches lists the
+  // centre home first); its location is kept so a home whose address changes can be measured against it (Task 3).
   const batchId = crypto.randomUUID();
+  const centreHome = homes[0]!;
+  const centre = Number.isFinite(centreHome.lat) && Number.isFinite(centreHome.lng) ? { lat: centreHome.lat, lng: centreHome.lng } : null;
   const claimed: BatchCandidate[] = [];
   for (const h of homes) {
     const key = areaBatchKey(h.jobId, nextBatchSeq(evs.get(h.jobId) ?? []));
     const won = await claim(h.jobId, actorId, AREA_BATCH_SENT_EVENT, `Area batch sent (${homes.length} ${homes.length === 1 ? "home" : "homes"}, ${installer.name}) — quick taps texted to the owner`,
-      { batch_id: batchId, installer_business_id: businessId, installer_name: installer.name, job_ids: jobIds, sent_by: actorId, idempotency_key: key });
+      { batch_id: batchId, installer_business_id: businessId, installer_name: installer.name, job_ids: jobIds, centre_job_id: centreHome.jobId, centre, sent_by: actorId, idempotency_key: key });
     if (!won) {
       // Someone else batched this home at the same moment: undo ours (append-only close) and send nothing.
       for (const c of claimed) await claim(c.jobId, actorId, AREA_BATCH_CLOSED_EVENT, "Area batch stopped before any text went (another batch took a home)", { batch_id: batchId, pass_job_ids: [], freed_job_ids: claimed.map((x) => x.jobId), reason: "send_interrupted" });
@@ -272,4 +295,36 @@ async function textOwner(h: BatchCandidate, batchId: string, myJobLink: string, 
   const { sendRealSms } = await import("./sms.server");
   const r = await sendRealSms({ type: QUICK_TAPS_SMS_TYPE, idempotencyKey: quickTapsSmsKey(batchId, h.jobId, "sent"), to: h.phone, body, jobId: h.jobId });
   return { status: r.status, detail: r.detail };
+}
+
+// ---- a home whose address changed (Task 3, Jo 30 Oct) -------------------------------------------------------------------
+
+/** Where the job's home is now: its current `coordinates` fact; with no full street address, its postcode's centre. */
+export async function homePoint(jobId: string): Promise<PropertyPoint> {
+  const { data: job } = await admin.from("jobs").select("property_id, properties(address_line, postcode)").eq("id", jobId).maybeSingle();
+  const propertyId = (job as { property_id?: string | null } | null)?.property_id ?? null;
+  if (!propertyId) return null;
+  const { data: f } = await loose.from("property_facts").select("value").eq("property_id", propertyId).eq("fact_key", "coordinates").eq("is_current", true).limit(1).maybeSingle();
+  const p = propertyPoint((f as { value?: unknown } | null)?.value);
+  if (p) return p;
+  const prop = ((job as { properties?: unknown } | null)?.properties ?? null) as { address_line?: string | null; postcode?: string | null } | null;
+  return hasFullStreet(prop?.address_line) ? null : postcodeCentre(prop?.postcode);
+}
+
+/** The owner's new address is over 10 km from the batch centre → the home leaves this batch (append-only
+ *  `area_batch_left {batch_id, reason: "address_moved"}`), back in the pool for the next one. Nothing is sent. Unknown
+ *  location or unknown centre → stays. Returns true when it left. */
+export async function leaveBatchIfMoved(jobId: string, batchId: string, point: PropertyPoint): Promise<boolean> {
+  if (!point) return false;
+  const sent = (await batchEventsFor(jobId)).find((e) => e.event_type === AREA_BATCH_SENT_EVENT && (e.details as { batch_id?: unknown } | null)?.batch_id === batchId);
+  if (!sent) return false;
+  const d = (sent.details ?? {}) as { centre?: { lat?: unknown; lng?: unknown } | null; centre_job_id?: unknown; job_ids?: unknown };
+  let centre: PropertyPoint = d.centre && Number.isFinite(Number(d.centre.lat)) && Number.isFinite(Number(d.centre.lng)) ? { lat: Number(d.centre.lat), lng: Number(d.centre.lng) } : null;
+  if (!centre) {
+    const centreJob = typeof d.centre_job_id === "string" ? d.centre_job_id : Array.isArray(d.job_ids) && typeof d.job_ids[0] === "string" ? d.job_ids[0] : null;
+    if (centreJob && centreJob !== jobId) centre = await homePoint(centreJob);
+  }
+  if (!centre || !outsideBatch(centre, point)) return false;
+  return claim(jobId, null, AREA_BATCH_LEFT_EVENT, "Owner's new address is over 10 km from the rest of the batch — back on the list for the next batch (owner not told)",
+    { batch_id: batchId, reason: "address_moved", distance_m: Math.round(distanceM(centre, point)), idempotency_key: `area-batch-left:v1:${batchId}:${jobId}` });
 }
