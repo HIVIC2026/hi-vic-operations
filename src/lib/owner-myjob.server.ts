@@ -76,7 +76,7 @@ export async function resolveOwnerJob(token: unknown) {
   const bookingOpen = ["measured_quote_accepted", "piesa_and_install_window_pending", "installation_scheduling"].includes(stage);
   const inHouseDispatch = await (await import("./in-house-suppression.server")).inHouseDispatchSkip(jobId);
   const action = ownerAction({ stage, readyCheckRequested: !!rc?.accepted_at, visit: upcoming?.scheduled_start ? { kind: upcoming.kind, startsAt: upcoming.scheduled_start } : null, quoteOpen, bookingOpen });
-  if (inHouseDispatch && (action.button?.screen === "book" || action.button?.screen === "readycheck")) { action.button = null; action.title = ""; action.body = ""; }
+  if (inHouseDispatch && action.button?.screen === "book") { action.button = null; action.title = ""; action.sentence = ""; }
   const hero = ownerHero(stage, rebate);
   const done = (bookings ?? []).filter((b) => b.status === "completed");
   const doneAt = (kind: string) => done.find((b) => b.kind === kind)?.scheduled_start ?? null;
