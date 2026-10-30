@@ -8,3 +8,9 @@ const REMOVE_REASONS = ["duplicate", "junk / spam", "test"];
 export function closeRouteFor(reason: string): "remove" | "cancel" {
   return REMOVE_REASONS.includes(reason.trim().toLowerCase()) ? "remove" : "cancel";
 }
+
+// Count line under the tabs: "48 enquiries · updated 5 min ago" (the "updated" part only when we know when the list was last checked).
+export function enquiryCountLine(total: number, checked: string | null): string {
+  const base = `${total.toLocaleString("en-AU")} ${total === 1 ? "enquiry" : "enquiries"}`;
+  return checked ? `${base} · updated ${checked}` : base;
+}

@@ -4,9 +4,10 @@
 // not-eligible leads are closed (Jobs › Closed): the screen links there. Emails live in the Inbox, not here. Inside a
 // group the rows sort hottest first (the rank is never shown, 283); on a computer the columns Job · Owner · Address ·
 // Size (m²) · Insulation · Estimate ($) · Last heard sort AND filter from their headings (286); one search box (285).
-// A row opens the job beside the list (the Needs me side panel); "Wrote to us" marks an owner email we haven't
-// answered. Gone quiet and Opted out can be closed in one go (they move to Jobs › Closed with the reason; history
-// kept, reopen any time). New enquiry (phone), Actions ▾ Cancel / Remove.
+// A row opens the job beside the list (the Needs me side panel); the amber "Wrote to us" tag marks an owner email we
+// haven't answered and links to Emails. Gone quiet and Opted out can be closed in one go (they move to Jobs › Closed
+// with the reason; history kept, reopen any time). Actions ▾ Close (the reason files it). No phone-enquiry button
+// (Jo 30 Oct 2026); the count line reads "48 enquiries · updated 5 min ago".
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -15,16 +16,12 @@ import { Mail } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAction } from "@/hooks/use-me";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import { bulkCancelOfficeJobs, getEnquiriesList } from "@/lib/office-screens.functions";
 import { checkedLabel, isDefaultListView } from "@/lib/office-needs-snapshot.core";
 import { readOfficeList } from "@/lib/office-list-refresh";
 import { removeLeadsFn } from "@/lib/enquiry-groups.functions";
-import { CLOSE_REASONS, closeRouteFor } from "@/lib/enquiries-screen.core";
-import { createEnquiry } from "@/lib/portal.functions";
-import { tidyEnquiryDetails } from "@/lib/name-address-tidy.core";
+import { CLOSE_REASONS, closeRouteFor, enquiryCountLine } from "@/lib/enquiries-screen.core";
 import { INSULATION_LABEL, type InsulationChip, type SortDir } from "@/lib/office-filters.core";
 import { ENQUIRY_COLUMNS, activeColumnFilters, estimateLabel, sizeLabel, type ColumnFilters } from "@/lib/enquiry-columns.core";
 import { CLOSABLE, ENQUIRY_CATEGORIES, type CategoryCounts, type EnquiryView } from "@/lib/enquiry-categories.core";
@@ -35,45 +32,6 @@ import { Pill, PillTabs, btnClass, listCard } from "@/components/portal/kit";
 import { ageLabel } from "@/lib/office-needs.core";
 
 const INSULATION_WORDS: Record<InsulationChip, string> = { no: "no insulation", some: "some insulation", not_sure: "insulation not sure" };
-
-/** New enquiry (phone) — the existing guarded createEnquiry (moved here from the retired Pipeline board). */
-function NewEnquiryDialog() {
-  const [open, setOpen] = useState(false);
-  const [f, setF] = useState({ full_name: "", email: "", phone: "", address_line: "", suburb: "", postcode: "", occupancy: "owner_occupied" as "owner_occupied" | "rental", area: "", unknown: false, life: "unknown" as "yes" | "no" | "unknown" });
-  const create = useAction(createEnquiry);
-  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
-  const tidy = tidyEnquiryDetails({ fullName: f.full_name, addressLine: f.address_line, suburb: f.suburb || null, postcode: f.postcode || null });
-  return (
-    <>
-      <button type="button" className={btnClass("primary")} onClick={() => setOpen(true)}>New enquiry (phone)</button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>New enquiry (phone)</DialogTitle><DialogDescription>Name and address are tidied the same way as website enquiries; a missing suburb or postcode is looked up automatically.</DialogDescription></DialogHeader>
-          <form className="grid gap-3 sm:grid-cols-2" onSubmit={async (e) => {
-            e.preventDefault();
-            const out = await create({ full_name: tidy.fullName, email: f.email, phone: f.phone || null, address_line: tidy.street || f.address_line, suburb: tidy.suburb || null, postcode: tidy.postcode || null, occupancy: f.occupancy, estimated_area_m2: f.unknown || !f.area ? null : Number(f.area), area_unknown: f.unknown || !f.area, life_support: f.life === "yes", life_support_status: f.life }, "Enquiry created");
-            if (out) setOpen(false);
-          }}>
-            <label className="text-sm font-semibold">Name<Input value={f.full_name} onChange={set("full_name")} required className="mt-1" /></label>
-            <label className="text-sm font-semibold">Email<Input type="email" value={f.email} onChange={set("email")} required className="mt-1" /></label>
-            <label className="text-sm font-semibold">Phone<Input value={f.phone} onChange={set("phone")} className="mt-1" /></label>
-            <label className="text-sm font-semibold">Occupancy<select className="mt-1 h-10 w-full rounded-[9px] border border-line bg-background px-2 text-sm" value={f.occupancy} onChange={(e) => setF({ ...f, occupancy: e.target.value as "owner_occupied" | "rental" })}><option value="owner_occupied">Owner-occupied</option><option value="rental">Rental</option></select></label>
-            <label className="text-sm font-semibold sm:col-span-2">Street<Input value={f.address_line} onChange={set("address_line")} required className="mt-1" /></label>
-            <label className="text-sm font-semibold">Suburb<Input value={f.suburb} onChange={set("suburb")} className="mt-1" /></label>
-            <label className="text-sm font-semibold">Postcode<Input value={f.postcode} onChange={set("postcode")} className="mt-1" /></label>
-            <label className="text-sm font-semibold">Ceiling area m²<Input type="number" value={f.area} onChange={set("area")} disabled={f.unknown} className="mt-1" /></label>
-            <div className="flex flex-col justify-end gap-2 text-sm">
-              <label className="flex items-center gap-2"><Checkbox checked={f.unknown} onCheckedChange={(v) => setF({ ...f, unknown: !!v })} /> Area not known</label>
-              <label className="font-semibold">Life support<select className="mt-1 h-10 w-full rounded-[9px] border border-line bg-background px-2 text-sm" value={f.life} onChange={(e) => setF({ ...f, life: e.target.value as "yes" | "no" | "unknown" })}><option value="unknown">Not asked</option><option value="yes">Yes</option><option value="no">No</option></select></label>
-            </div>
-            {tidy.problems.length > 0 && f.address_line && <p className="text-xs text-sub sm:col-span-2">Suburb / postcode not given — the portal looks them up from the street once saved.</p>}
-            <button type="submit" className={btnClass("primary", "sm:col-span-2")}>Create enquiry</button>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
 
 /** The groups as one row of pill tabs (tabs start with Offered a spot — Jo 28 Oct 2026: In play removed as a duplicate).
  *  Then each group, then every open enquiry. Saved spots and not-eligible leads are links into Jobs. A failed read shows "–", never 0. */
@@ -139,7 +97,6 @@ export function EnquiriesScreen() {
           <h1 className="font-display text-[30px] font-extrabold leading-tight text-ink">Enquiries</h1>
           <p className="text-sm text-sub">Website leads, by where they're up to · saving a spot makes it a job</p>
         </div>
-        <NewEnquiryDialog />
       </div>
       <Groups view={view} counts={counts} onPick={pick} />
       <section aria-label={meta.label} className="mt-4 min-w-0">
@@ -153,7 +110,7 @@ export function EnquiriesScreen() {
             <p className="w-full text-[13px] text-sub lg:w-auto lg:flex-1">{meta.hint}</p>
             <Input type="search" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Search owner name, address or job number" aria-label="Search enquiries" className="h-11 w-full rounded-[12px] bg-paper sm:max-w-[320px]" />
             <div className="flex items-center gap-3">
-              <span className="text-sm text-sub">{d ? `${d.total.toLocaleString("en-AU")} · showing ${d.rows.length}` : "Loading…"}{d?.fromCopy ? ` · checked ${checkedLabel(d.computedAt, false)}` : ""}{(q.isFetching || d?.refreshing) && d ? " · updating…" : ""}</span>
+              <span className="text-sm text-sub">{d ? enquiryCountLine(d.total, d.fromCopy ? checkedLabel(d.computedAt, false) : null) + ((q.isFetching || d.refreshing) ? " · updating…" : "") : "Loading…"}</span>
               {active.length > 0 && <button type="button" className="text-sm font-semibold text-hiv-blue underline" onClick={() => { setFilters({}); setPage(1); }}>Clear {active.length} filter{active.length === 1 ? "" : "s"}</button>}
               <ActionsMenu selected={picked.size} onPick={setDialog} actions={[{ key: "close", label: "Close", danger: true }]} />
             </div>
@@ -169,30 +126,35 @@ export function EnquiriesScreen() {
                   {d.rows.map((r) => {
                     const open = () => setPeek({ jobId: r.id });
                     // The owner emailed and we haven't written since: the email is on the job (open it to reply).
-                    const wrote = r.ownerWroteAt ? <Pill tone="green" className="shrink-0 gap-1"><Mail className="h-3 w-3" aria-hidden />Wrote to us · {ageLabel(r.ownerWroteAt, Date.now())}</Pill> : null;
+                    const wrote = r.ownerWroteAt ? <Link to="/admin/emails" aria-label="Owner wrote to us — open Emails" className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hiv-blue"><Pill tone="amber" className="gap-1"><Mail className="h-3 w-3" aria-hidden />Wrote to us · {ageLabel(r.ownerWroteAt, Date.now())}</Pill></Link> : null;
                     const bounced = r.emailBounced ? <Pill tone="rose" className="shrink-0">Email bounced</Pill> : null;
                     const est = estimateLabel({ dollars: r.estimateDollars, kind: r.estimateKind });
-                    const sel = (
-                      <input type="checkbox" className="mt-1 h-4 w-4 shrink-0 accent-[var(--hiv-blue)] lg:mt-0" aria-label={`Select ${r.jobNumber}`} checked={picked.has(r.id)} onChange={(e) => { const n = new Set(picked); if (e.target.checked) n.add(r.id); else n.delete(r.id); setPicked(n); }} />
+                    const tick = (cls: string) => (
+                      <input type="checkbox" className={cn("shrink-0 accent-[var(--hiv-blue)]", cls)} aria-label={`Select ${r.jobNumber}`} checked={picked.has(r.id)} onChange={(e) => { const n = new Set(picked); if (e.target.checked) n.add(r.id); else n.delete(r.id); setPicked(n); }} />
                     );
+                    // Phone: a 20px box inside a 44px tap area (the negative margin keeps the row's spacing).
+                    const selPhone = <label className="-m-2.5 flex h-11 w-11 shrink-0 items-center justify-center">{tick("h-5 w-5")}</label>;
+                    const selDesk = tick("h-4 w-4");
                     return (
                       <li key={r.id} className="border-b border-[#eef1f6] last:border-b-0">
                         {/* Phone: name and price, where and what, then where it's up to; the tag only when they wrote. */}
                         <div className="flex gap-3 px-4 py-3.5 lg:hidden">
-                          {sel}
-                          <button type="button" onClick={open} className="grid min-w-0 flex-1 gap-0.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hiv-blue">
+                          {selPhone}
+                          <div className="min-w-0 flex-1">
+                          <button type="button" onClick={open} className="grid w-full min-w-0 gap-0.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hiv-blue">
                             <span className="flex items-baseline gap-2"><strong className="truncate text-[15px] font-semibold text-ink">{r.ownerName || r.jobNumber}</strong><span className="ml-auto shrink-0 font-display text-[16px] font-bold text-ink">{est}</span></span>
                             <span className="truncate text-[13px] text-sub">{[r.suburb || r.address, r.areaM2 ? sizeLabel(r.areaM2) : null, INSULATION_WORDS[r.insulation]].filter(Boolean).join(" · ")}</span>
                             <span className="truncate text-[13px] text-sub">{r.waitingOn}</span>
-                            {(wrote || bounced) && <span className="mt-1 flex flex-wrap gap-1.5">{bounced}{wrote}</span>}
                           </button>
+                          {(wrote || bounced) && <span className="mt-1 flex flex-wrap gap-1.5">{bounced}{wrote}</span>}
+                          </div>
                         </div>
                         {/* Computer: the decision 286 columns; the owner opens the side panel. */}
                         <div className={cn("hidden min-h-[54px] items-center gap-x-3 px-5 py-2.5 text-[14px] hover:bg-mist/50 lg:grid", cols)}>
-                          {sel}
+                          {selDesk}
                           <span className="text-[13px] text-sub">{r.jobNumber}</span>
                           <span className="grid min-w-0"><button type="button" onClick={open} className="truncate text-left font-semibold text-ink underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hiv-blue">{r.ownerName || "—"}</button><span className="flex min-w-0 items-center gap-1.5">{bounced}{wrote}<span className="truncate text-xs text-sub">{r.waitingOn}</span></span></span>
-                          <span className={cn("truncate", r.problems.length > 0 && "text-sub")} title={r.problems.length ? "Suburb / postcode looked up automatically" : undefined}>{r.address || "—"}</span>
+                          <span className="truncate">{r.address || "—"}</span>
                           <span>{sizeLabel(r.areaM2)}</span>
                           <span>{INSULATION_LABEL[r.insulation]}</span>
                           <span className="font-display text-[16px] font-bold">{est}</span>
