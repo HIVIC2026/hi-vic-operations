@@ -149,6 +149,9 @@ const contexts: Record<string, Row> = {
 const calls = { testEmail: [] as string[], testSms: [] as string[], office: [] as string[], real: [] as string[] };
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: q } }));
 mock.module("../src/lib/workflow.server", () => ({ WorkflowError: class WorkflowError extends Error {}, logEvent: async (job_id: string, _a: unknown, event_type: string, summary: string, details: unknown) => { db.workflow_events!.push({ job_id, event_type, summary, details }); } }));
+// Jo 30 Oct 2026: "Pause all trade messages" off here (its own tests: trade-pause-*.test.ts).
+let tradePaused: string | null = null;
+mock.module("../src/lib/trade-pause.server", () => ({ tradeMessagesPausedNow: async () => tradePaused }));
 mock.module("../src/lib/install-days.server", () => ({ installDayContext: async (jobId: string) => contexts[jobId] ?? { clearance: NOT_CLEARED, deadline: null, asg: null, booked: false } }));
 mock.module("../src/lib/test-send.server", () => ({
   sendTestEmail: async (ctx: { jobSource: string | null; partnerIsTest: boolean; label: string }, to: string, subject: string) => { calls.testEmail.push(`${ctx.jobSource}:${ctx.partnerIsTest}:${ctx.label}:${to}:${subject}`); return { status: "sent", detail: "test" }; },
@@ -162,6 +165,12 @@ const events = (jobId: string) => db.workflow_events!.filter((e) => e["job_id"] 
 
 describe("notifyInstallerClearance (server, mocked backend)", () => {
   test("real job: one event, one partner office email and one real text with the clearance as the trigger; a retry sends nothing", async () => {
+    // Jo 30 Oct 2026: while "Pause all trade messages" is on it is held BEFORE the once-per-clearance event (nothing claimed).
+    tradePaused = "Trade messages paused";
+    expect(await notifyInstallerClearance("job-real", { clearedAt: "2026-10-24T03:10:00.000Z" })).toBe("held: Trade messages paused");
+    expect(events("job-real").length).toBe(0);
+    expect(calls.office.length + calls.real.length).toBe(0);
+    tradePaused = null;
     const r = await notifyInstallerClearance("job-real", { clearedAt: "2026-10-24T03:10:00.000Z" });
     expect(r).toBe("installer email sent: ok; installer sms sent: ok");
     expect(calls.office).toEqual(["partner:sam@reinsulate.test:install_clearance:b-real:HV-3117 is cleared for install – offer 3 install days by 23 November 2026"]);

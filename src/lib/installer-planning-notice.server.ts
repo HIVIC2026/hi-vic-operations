@@ -22,6 +22,11 @@ export async function notifyInstallerPlanning(i: { jobId: string; assignmentId: 
     ]);
     const asg = asgRaw as unknown as Asg | null;
     if (!job || job.deleted_at || !asg?.active) return "skipped";
+    // Jo 30 Oct 2026: "Pause all trade messages" — held before the once-only event (TEST unchanged).
+    if (job.source !== "qa_test" && !(await import("./test-send.core")).isTestPartner((asg.businesses ?? {}) as never)) {
+      const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow();
+      if (tradePaused) return `held: ${tradePaused}`;
+    }
     const notifiedAt = new Date().toISOString();
     await logEvent(i.jobId, null, INSTALLER_PLANNING_NOTIFIED_EVENT, "Installer told the safety check date for planning (email I71 + text prepared) — not an install booking", { assignment_id: i.assignmentId, piesa_start: i.piesaStartIso, key: keys.base }, { internal: true });
     const { SET_PASSWORD_BASE } = await import("./set-password-link.core");

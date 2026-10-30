@@ -237,6 +237,8 @@ export type SmsGateInput = {
   adminSpotReminderBlast?: boolean;
   /** Instant used for the quiet-hours rule; defaults to now. */
   nowIso?: string;
+  /** "Pause all trade messages" hold reason (trade-pause.core.ts); applies to partner-audience types only. */
+  tradeMessagesPaused?: string | null;
 };
 
 /** Decision 328: a same-day text exempt from the 8pm quiet hours still never goes before 7am Melbourne. */
@@ -251,6 +253,8 @@ export function smsBlocker(x: SmsGateInput): string | null {
   const t = SMS_MESSAGE_TYPES[x.type as SmsMessageType];
   if (!t) return "Unknown message type";
   if (x.isTestRecord) return "TEST record – use the test sender";
+  // Jo 30 Oct 2026: "Pause all trade messages" holds every text to installers/electricians (trade-pause.core.ts).
+  if (t.audience === "partner" && x.tradeMessagesPaused) return x.tradeMessagesPaused;
   if (!t.wordingApproved) return "Wording not approved yet";
   if (t.quietHours) { const q = smsQuietReason(x.nowIso ?? new Date().toISOString()); if (q) return q; }
   else if ("notBefore7am" in t && t.notBefore7am) { const q = smsBefore7amReason(x.nowIso ?? new Date().toISOString()); if (q) return q; }

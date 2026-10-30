@@ -49,6 +49,8 @@ async function remindOne(b: Booking, now: Date, approved: boolean): Promise<stri
   const test = j.source === "qa_test" || partnerIsTest;
   // Real installers only once Jo approves the rendered email; until then nothing is recorded or sent for them.
   if (!test && !approved) return "skipped: wording not approved yet";
+  // Jo 30 Oct 2026: "Pause all trade messages" — held before the claim below, so a later tick can still send it.
+  if (!test) { const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow(); if (tradePaused) return `held: ${tradePaused}`; }
   const { installerTextAddress } = await import("./installer-texts.core");
   const p = j.properties;
   const short = installerTextAddress(p?.address_line, p?.suburb) ?? j.job_number;

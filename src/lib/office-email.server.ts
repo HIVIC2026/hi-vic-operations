@@ -12,7 +12,11 @@ export async function sendOfficeEmail(p: { actorId: string | null; recipient: Of
   // Jo 24 Oct: partner, applicant and electrician emails pause with the master switch until every template is reviewed.
   const { customerCommsEnabled } = await import("./comms.server");
   const paused = (await customerCommsEnabled()) ? null : PARTNER_EMAILS_PAUSED;
-  const blocked = paused ?? officeEmailBlocker({ origin: "office_manual", recipient: p.recipient, to: p.to, message: p.message });
+  // Jo 30 Oct 2026: "Pause all trade messages" holds every partner/applicant email (Jo's TEST inbox excepted).
+  const { tradeEmailPauseReason } = await import("./trade-pause.core");
+  const tradePaused = p.recipient === "homeowner" ? null
+    : tradeEmailPauseReason({ recipient: p.recipient, to: p.to, paused: await (await import("./trade-pause.server")).tradeMessagesPausedNow() });
+  const blocked = paused ?? tradePaused ?? officeEmailBlocker({ origin: "office_manual", recipient: p.recipient, to: p.to, message: p.message });
   const to = p.to.trim().toLowerCase();
   let mail = p.html && p.text ? { html: p.html, text: p.text } : null;
   const c = officeEmailCopy({ contactName: p.contactName, subject: p.subject, message: p.message });

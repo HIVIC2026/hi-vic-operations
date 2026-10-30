@@ -72,6 +72,8 @@ export async function emailElectricianAboutOffer(offerId: string): Promise<strin
   const mail = renderElectricianOfferEmail({ suburb: c.sum.suburb ?? null, rate: c.sum.electrician_rate_inc_gst ?? null, areaM2: c.sum.approx_area_m2 ?? null, ownerTimesOpen: c.ownerTimesOpen, offerUrl: c.link, test: c.test });
   if (!mail) return "missing facts";
   if (!c.test && !ELECTRICIAN_OFFER_EMAIL_APPROVED) return "skipped";
+  // Jo 30 Oct 2026: "Pause all trade messages" — held before the once-only event, never claimed.
+  if (!c.test) { const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow(); if (tradePaused) return `held: ${tradePaused}`; }
   await logEvent(c.offer.job_id, null, ELECTRICIAN_OFFER_EMAIL_EVENT, `Electrician offer email (E1) prepared for ${c.biz?.name ?? "electrician"}`, { offer_id: offerId, business_id: c.offer.business_id, to, version: ELECTRICIAN_OFFER_EMAIL_VERSION }, { internal: true });
   try {
     if (c.test) {
@@ -104,6 +106,8 @@ export async function emailApplicationReceived(applicationId: string): Promise<s
   if (!f.to || !f.businessName) return "missing facts";
   const { APPLICATION_RECEIVED_EMAIL_APPROVED, renderApplicationReceivedEmail } = await import("./application-review.core");
   if (!a.test_mode && !APPLICATION_RECEIVED_EMAIL_APPROVED) return "skipped";
+  // Jo 30 Oct 2026: "Pause all trade messages" — held before the once-only event, never claimed.
+  if (!a.test_mode) { const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow(); if (tradePaused) return `held: ${tradePaused}`; }
   const test = !!a.test_mode;
   const mail = renderApplicationReceivedEmail({ contactName: f.contactName, businessName: f.businessName, test });
   const { TEST_ALLOWLIST } = await import("./test-send.core");

@@ -36,6 +36,11 @@ export async function notifyInstallerClearance(jobId: string, opts: { clearedAt?
   ]);
   if (!job || !asg) return "skipped";
   const clearedAt = opts.clearedAt ?? new Date().toISOString();
+  // Jo 30 Oct 2026: "Pause all trade messages" — held before the once-per-clearance event (TEST unchanged), so the sweep can send it later.
+  if (job.source !== "qa_test" && !(await import("./test-send.core")).isTestPartner((asg.businesses ?? {}) as never)) {
+    const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow();
+    if (tradePaused) return `held: ${tradePaused}`;
+  }
   await logEvent(jobId, null, INSTALL_CLEARANCE_EVENT, `Installer told the job is cleared for install (${c.clearance.basis === "section_c" ? "fixes signed off" : c.clearance.basis === "electrician_at_start" ? "fixes quote paid, electrician on site at the start" : "PIESA passed"}): offer 3 install days by ${c.deadline} — text + email prepared`, { timing_date: timingDate, basis: c.clearance.basis, deadline: c.deadline, cleared_at: clearedAt, assignment_id: c.asg.id }, { internal: true });
 
   const prof = (asg.profiles ?? null) as { full_name: string | null; email: string | null; phone: string | null } | null;
@@ -103,7 +108,7 @@ export async function sweepInstallClearance(now = new Date()): Promise<{ checked
       if (prior) continue;
       const clearedAt = (await clearanceRecordedAt(j.id, c.clearance.basis)) ?? `${c.clearance.timingDate.slice(0, 10)}T00:00:00+10:00`;
       const r = await notifyInstallerClearance(j.id, { clearedAt });
-      if (r !== "already handled" && r !== "not cleared" && r !== "skipped") notified++;
+      if (r !== "already handled" && r !== "not cleared" && r !== "skipped" && !r.startsWith("held:")) notified++;
     } catch (e) { console.error("install clearance sweep failed", j.id, (e as Error).message); }
   }
   return { checked: (jobs ?? []).length, notified };

@@ -30,6 +30,8 @@ export async function emailInstallerQuoteDeclined(jobId: string, quoteId: string
     status = r.status; detail = r.detail;
   } else {
     const r = await (await import("./office-email.server")).sendOfficeEmail({ actorId: null as unknown as string, recipient: "partner", to: prof.email, contactName: prof.full_name, subject: mail.subject, message: mail.text, label: "installer_quote_declined", record: { businessId: asg.business_id }, html: mail.html, text: mail.text });
+    // Jo 30 Oct 2026: a "Pause all trade messages" hold is recorded by the sender but never claims this quote's email.
+    if (r.status === "blocked" && (await import("./trade-pause.core")).isTradePauseHold(r.detail)) return `held: ${r.detail}`;
     status = r.status; detail = r.detail;
   }
   await logEvent(jobId, null, "installer_declined_email", `Installer told the owner declined (${status}: ${detail})`, { quote_id: quoteId, status, to: prof.email }, { internal: true });

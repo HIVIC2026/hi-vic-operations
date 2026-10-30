@@ -40,6 +40,8 @@ export const prepareTradeLogin = createServerFn({ method: "POST" }).middleware([
       // Review I: invite emails obey the central communications master switch (fails closed when off or missing).
       const { data: ws } = await admin.from("workflow_settings").select("customer_comms_enabled").eq("id", 1).maybeSingle();
       if (ws?.customer_comms_enabled !== true) throw new WorkflowError("Sending is switched off. Copy the link instead.");
+      // Jo 30 Oct 2026: the sign-in invite email goes to a trade, so it waits while "Pause all trade messages" is on.
+      if (await (await import("./trade-pause.server")).tradeMessagesPausedNow()) throw new WorkflowError("Trade messages are paused, so no invite email was sent. Copy the link instead.");
       const { data: inv, error } = await admin.auth.admin.inviteUserByEmail(email, { redirectTo, data: { full_name: w.full_legal_name } });
       if (error && !userId) throw new WorkflowError(`Invite could not be sent: ${error.message}`);
       userId = userId ?? inv?.user?.id ?? null;

@@ -5,6 +5,7 @@
 // is RECORDED (sms_messages status "blocked" under a non-claiming key + job_communications) but never claims the
 // idempotency key, so a later allowed attempt sends exactly once; one-off `event` types carry their trigger time and are
 // held as "too late" instead of coming out as old copies when a switch flips (SMS_FRESHNESS in sms.core.ts).
+// Jo 30 Oct 2026: partner-audience texts are also held while "Pause all trade messages" is on (trade-pause.core.ts).
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { customerCommsEnabled, hasCurrentOwnerContactConsent } from "./comms.server";
 import { SMS_MESSAGE_TYPES, brandSmsBody, heldAttemptKey, smsBlocker, smsStaleReason, toAuE164, type SmsEventInput, type SmsMessageType } from "./sms.core";
@@ -92,12 +93,15 @@ export async function sendRealSms(input: RealSmsInput, blast?: { claimId: string
     blastOptedOut = (opts ?? []).some((r: { phone: string }) => toAuE164(r.phone) === to);
   }
   const nowIso = new Date().toISOString();
+  // Jo 30 Oct 2026: "Pause all trade messages" — read once per partner text (owner texts never read it).
+  const tradeMessagesPaused = SMS_MESSAGE_TYPES[input.type]?.audience === "partner"
+    ? await (await import("./trade-pause.server")).tradeMessagesPausedNow() : null;
   // Every policy hold is decided BEFORE the key is touched (decision 165): switches, quiet hours, wording, consent,
   // STOP list, freshness of the triggering event, deleted job. None of these may consume the idempotency key.
   const blocked = smsBlocker({
     type: input.type, to: input.to, commsEnabled: await customerCommsEnabled(), typeSwitchOn: await typeSwitchOn(input.type),
     senderConfigured: !!from, optedOut: blastAllowed ? blastOptedOut : to ? await isOptedOut(to) : false, consent, isTestRecord: isTest,
-    adminSpotReminderBlast: blastAllowed && blast?.adminSpotReminderBlast === true, nowIso,
+    adminSpotReminderBlast: blastAllowed && blast?.adminSpotReminderBlast === true, nowIso, tradeMessagesPaused,
   }) ?? smsStaleReason(input.type, input.event, nowIso)
     ?? await (async () => { const { jobDeletedBlocker } = await import("./job-live.server"); return jobDeletedBlocker(input.jobId ?? null); })();
   if (blocked) {
