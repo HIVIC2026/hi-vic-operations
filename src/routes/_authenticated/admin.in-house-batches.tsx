@@ -20,7 +20,7 @@ export const Route = createFileRoute("/_authenticated/admin/in-house-batches")({
     { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" },
     { name: "robots", content: "noindex, nofollow" },
   ] }),
-  errorComponent: ({ error }) => <AppShell><PageHeader title="In-house batches" /><p role="alert" className="text-destructive">{error.message}</p></AppShell>,
+  errorComponent: ({ error }) => <AppShell><PageHeader title="In-house batches" /><p role="alert" className="text-destructive">{error instanceof Error ? error.message : "Batches could not be loaded."}</p></AppShell>,
   component: BatchAllocationPage,
 });
 function BatchAllocationPage() {

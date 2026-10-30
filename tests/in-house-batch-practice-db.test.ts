@@ -6,7 +6,7 @@ const id = (n: number) => `00000000-0000-0000-0000-${String(n).padStart(12, "0")
 async function setup() {
   const db = new PGlite();
   await db.exec(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;
-    CREATE SCHEMA auth; CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$ SELECT null::uuid $$;
+    CREATE SCHEMA auth; CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$ SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
     CREATE FUNCTION is_admin() RETURNS boolean LANGUAGE sql AS $$ SELECT false $$;
     CREATE TABLE profiles(id uuid primary key); CREATE TABLE auth.users(id uuid primary key);
     INSERT INTO profiles VALUES ('${id(1)}'),('${id(2)}'),('${id(3)}'),('${id(4)}');
@@ -23,6 +23,7 @@ async function setup() {
     CREATE TABLE lead_campaign_responses(job_id uuid,spot_saved_at timestamptz); INSERT INTO lead_campaign_responses SELECT id,now() FROM jobs;
     CREATE TABLE customer_email_optouts(id uuid primary key default gen_random_uuid(),job_id uuid not null,token text not null,opted_out_at timestamptz,created_at timestamptz not null default now());
     CREATE TABLE job_assignments(id uuid primary key default gen_random_uuid(),job_id uuid not null REFERENCES jobs(id),user_id uuid not null REFERENCES profiles(id),role text not null,business_id uuid REFERENCES businesses(id),active boolean not null default true,assigned_by uuid REFERENCES profiles(id),assigned_at timestamptz not null default now(),ended_at timestamptz,end_reason text);
+    CREATE UNIQUE INDEX job_assignments_active_uq ON job_assignments(job_id,role) WHERE active;
     CREATE TABLE workflow_events(id uuid primary key default gen_random_uuid(),job_id uuid REFERENCES jobs(id),actor_id uuid REFERENCES profiles(id),event_type text not null,summary text not null,details jsonb,internal boolean default true,CONSTRAINT workflow_events_job_required CHECK (job_id IS NOT NULL OR event_type = ANY (ARRAY['email_unmatched','email_unmatched_dismissed','email_new_sender_replied','email_nojob_ai_draft','email_nojob_reply_sent','email_nojob_ai_draft_closed','email_nojob_followup_claim','email_nojob_followup_failed','email_nojob_ai_draft_failed'])));
     CREATE TABLE admin_config_events(id uuid primary key default gen_random_uuid(),actor_id uuid,event_type text not null,summary text not null,details jsonb not null,created_at timestamptz not null default now());
     CREATE TABLE customer_communication_templates(id uuid primary key default gen_random_uuid(),template_key text not null,version text not null,subject text not null,body_markdown text not null,status text not null default 'draft' CHECK(status IN ('draft','approved','superseded')),regulated_copy_locked boolean not null default false,source_note text,created_by uuid not null REFERENCES auth.users(id),created_at timestamptz not null default now(),approved_by uuid REFERENCES auth.users(id),approved_at timestamptz,UNIQUE(template_key,version));
@@ -68,12 +69,21 @@ test("two non-admin identities cannot read batches or call the RPC; undo removes
   const db = await setup(); try {
     await send(db);
     await db.exec("GRANT USAGE ON SCHEMA public,auth TO authenticated; SET ROLE authenticated");
-    for (const actor of [2,4]) { expect((await db.query("SELECT * FROM in_house_batches")).rows).toEqual([]); await expect(send(db,27,10,actor)).rejects.toThrow("permission denied"); }
+    for (const actor of [2,4]) { await db.query("SELECT set_config('request.jwt.claim.sub',$1,false)",[id(actor)]); expect((await db.query("SELECT * FROM in_house_batches")).rows).toEqual([]); await expect(send(db,27,10,actor)).rejects.toThrow("permission denied"); }
     await db.exec("RESET ROLE");
     await db.exec(readFileSync("docs/pending-migrations/2026-10-30_in_house_batch.undo.sql","utf8"));
     expect((await db.query("SELECT * FROM customer_communication_templates")).rows).toHaveLength(0);
     expect((await db.query("SELECT to_regclass('public.in_house_batches') AS name")).rows).toEqual([{ name: null }]);
     expect((await db.query("SELECT proname FROM pg_proc WHERE proname='allocate_in_house_batch_job'")).rows).toEqual([]);
     expect((await db.query("SELECT * FROM workflow_events")).rows).toHaveLength(1);
+  } finally { await db.close(); }
+});
+test("a downstream write failure rolls the whole job transaction back", async () => {
+  const db = await setup(); try {
+    await db.exec("CREATE FUNCTION reject_batch_event() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'simulated audit failure'; END $$; CREATE TRIGGER reject_batch_event BEFORE INSERT ON workflow_events FOR EACH ROW EXECUTE FUNCTION reject_batch_event();");
+    await expect(send(db)).rejects.toThrow("simulated audit failure");
+    expect((await db.query("SELECT * FROM in_house_batches")).rows).toHaveLength(0);
+    expect((await db.query("SELECT * FROM job_assignments")).rows).toHaveLength(0);
+    expect((await db.query("SELECT electrician_choice FROM jobs WHERE id=$1",[id(20)])).rows).toEqual([{ electrician_choice: null }]);
   } finally { await db.close(); }
 });
