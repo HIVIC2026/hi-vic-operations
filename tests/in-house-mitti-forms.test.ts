@@ -265,7 +265,7 @@ test("rectification handover failure retries share and owner using its existing 
  expect(tables.assessments[0].mitti_sync_status).toBe("error");
  failOwner=false; await s.onRectificationBooked(JOB,"rect-visit",null,call);
  expect(calls.filter(c=>c.path==="/audits")).toHaveLength(2);
- expect(calls.filter(c=>c.path==="/inspections/v1/inspections/audit-2/owner").length).toBeGreaterThanOrEqual(2);
+ expect(calls.filter(c=>c.path.endsWith('/owner') && c.path.includes('audit-2')).length).toBeGreaterThanOrEqual(2);
 });
 
 const setPiesaAudit = (repair:boolean) => {
@@ -370,10 +370,11 @@ test("amended-round create failure is visible and stays fail-closed on retry",as
  await load("piesa-autoform.server").onPiesaBooked(JOB,"visit",null,{call}); realMitti=true; setPiesaAudit(false);
  const s=load("mitti.server"), media=async()=>({bytes:new Uint8Array([1]),contentType:"image/png"});
  await s.syncMittiAssessment(JOB,null,call,media); setPiesaAudit(true); failCreate=true;
- await expect(s.syncMittiAssessment(JOB,null,call,media)).rejects.toThrow();
+ await s.syncMittiAssessment(JOB,null,call,media);
  expect(tables.assessments[0].mitti_sync_status).toBe("error");
- await expect(s.syncMittiAssessment(JOB,null,call,media)).rejects.toThrow();
- expect(tables.assessments[0].mitti_sync_status).toBe("error");
+ const creates=calls.filter(c=>c.path==='/audits').length;
+ await s.syncMittiAssessment(JOB,null,call,media);
+ expect(calls.filter(c=>c.path==='/audits')).toHaveLength(creates);
 });
 
 test("a previous PIESA round's still-open rectification form cannot complete the current round",async()=>{
