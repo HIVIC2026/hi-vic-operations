@@ -63,8 +63,10 @@ async function selectWorkers(businessId: string) {
   // Existing picker lives in teaming.core. Honour actual nominated business relationships,
   // never fabricate preferences from worker order. This task requires BOTH assignments in this business.
   const pick = pickTeamElectrician(relationships, [{ id: businessId, eligible: electricians.length > 0, inArea: true }]);
-  const electrician = pick?.id === businessId ? electricians[0] : undefined;
-  if (!installer?.profile_id || !electrician?.profile_id) return { reason: "No preferred in-house electrician with approved active access" };
+  // Team-ups choose businesses, not workers. With no internal self-team, use the business's
+  // own approved worker directly; an external team must never change either assignment's business.
+  const electrician = pick?.id === businessId || !pick ? electricians[0] : undefined;
+  if (!installer?.profile_id || !electrician?.profile_id) return { reason: "No in-house electrician with approved active access" };
   return { installer: installer.profile_id, electrician: electrician.profile_id };
 }
 

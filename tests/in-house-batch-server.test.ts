@@ -57,10 +57,10 @@ test("failed reads propagate and never invoke an allocation", async () => {
     expect(f.rpcCalls).toHaveLength(0);
   }
 });
-test("missing preferred relationship refuses rather than inventing the partner's electrician", async () => {
+test("no self-team uses the partner's own worker without fabricating preferences", async () => {
   const f = fixture(); f.data.partner_relationships = [];
-  expect((await f.api.sendInHouseBatch({ businessId: "b",jobIds: ["j"],actorId: "office" })).refused).toEqual([{ jobId: "j",reason: "No preferred in-house electrician with approved active access" }]);
-  expect(f.rpcCalls).toHaveLength(0);
+  expect((await f.api.sendInHouseBatch({ businessId: "b",jobIds: ["j"],actorId: "office" })).sent).toEqual(["j"]);
+  expect(f.rpcCalls[0]).toMatchObject({ input: { _business: "b", _electrician: "e" } });
 });
 test("out-of-area and missing electrician membership are refused without writes", async () => {
   const f = fixture(); f.data.profiles=[];

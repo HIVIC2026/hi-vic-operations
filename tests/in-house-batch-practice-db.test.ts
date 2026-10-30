@@ -8,16 +8,17 @@ async function setup() {
   await db.exec(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;
     CREATE SCHEMA auth; CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$ SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
     CREATE FUNCTION is_admin() RETURNS boolean LANGUAGE sql AS $$ SELECT false $$;
-    CREATE TABLE profiles(id uuid primary key); CREATE TABLE auth.users(id uuid primary key);
-    INSERT INTO profiles VALUES ('${id(1)}'),('${id(2)}'),('${id(3)}'),('${id(4)}');
+    CREATE TABLE profiles(id uuid primary key,email text,mitti_user_id text,mitti_checked_email text,mitti_checked_at timestamptz); CREATE TABLE auth.users(id uuid primary key);
+    INSERT INTO profiles(id) VALUES ('${id(1)}'),('${id(2)}'),('${id(3)}'),('${id(4)}');
+    UPDATE profiles SET email='electrician@example.invalid',mitti_user_id='m',mitti_checked_email='electrician@example.invalid',mitti_checked_at=now() WHERE id='${id(3)}';
     INSERT INTO auth.users VALUES ('${id(1)}');
     CREATE TABLE user_roles(user_id uuid,role text); INSERT INTO user_roles VALUES ('${id(1)}','admin');
     CREATE TABLE businesses(id uuid primary key,name text,trading_name text,in_house boolean,is_active boolean);
     INSERT INTO businesses VALUES ('${id(10)}','Rapid Insulation','Rapid Insulation',true,true),('${id(11)}','Other','Other',false,true);
     CREATE TABLE business_members(business_id uuid,user_id uuid,active boolean);
     INSERT INTO business_members VALUES ('${id(10)}','${id(2)}',true),('${id(10)}','${id(3)}',true);
-    CREATE TABLE partner_workers(business_id uuid,profile_id uuid,trade_role text,approval_status text,removed_at timestamptz,licence_expires_on date);
-    INSERT INTO partner_workers VALUES ('${id(10)}','${id(2)}','installer','approved',null,null),('${id(10)}','${id(3)}','electrician','approved',null,'2099-01-01');
+    CREATE TABLE partner_workers(business_id uuid,profile_id uuid,trade_role text,approval_status text,removed_at timestamptz,licence_expires_on date,email text);
+    INSERT INTO partner_workers(business_id,profile_id,trade_role,approval_status,removed_at,licence_expires_on) VALUES ('${id(10)}','${id(2)}','installer','approved',null,null),('${id(10)}','${id(3)}','electrician','approved',null,'2099-01-01');
     CREATE TABLE jobs(id uuid primary key,source text not null default 'base44',stage text not null default 'preliminary_estimate_ready',deleted_at timestamptz,electrician_choice text);
     INSERT INTO jobs(id) SELECT ('00000000-0000-0000-0000-' || lpad(n::text,12,'0'))::uuid FROM generate_series(20,29) n;
     CREATE TABLE lead_campaign_responses(job_id uuid,spot_saved_at timestamptz); INSERT INTO lead_campaign_responses SELECT id,now() FROM jobs;
@@ -46,6 +47,13 @@ test("atomic allocation writes two assignments, preferred choice and a job-bound
     expect(await send(db)).toEqual({ sent: false,reason: "Already with Rapid Insulation" });
     expect((await db.query("SELECT * FROM job_assignments")).rows).toHaveLength(2);
     expect((await db.query("SELECT * FROM in_house_batches")).rows).toHaveLength(1);
+  } finally { await db.close(); }
+});
+test("a changed electrician email fails closed inside the transaction", async () => {
+  const db = await setup(); try {
+    await db.exec(`UPDATE profiles SET email='changed@example.invalid' WHERE id='${id(3)}'`);
+    expect(await send(db)).toEqual({ sent: false,reason: "Electrician Mitti access is not current" });
+    expect((await db.query("SELECT * FROM job_assignments")).rows).toHaveLength(0);
   } finally { await db.close(); }
 });
 test("approved template queues exactly one held email without delivery, with approved version recorded", async () => {

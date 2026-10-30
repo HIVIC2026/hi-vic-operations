@@ -68,6 +68,12 @@ BEGIN
     WHERE w.business_id=_business AND w.profile_id=_electrician AND w.trade_role='electrician' AND w.approval_status='approved'
       AND w.removed_at IS NULL AND (w.licence_expires_on IS NULL OR w.licence_expires_on>=current_date) AND m.active FOR SHARE OF w,m;
   IF NOT FOUND THEN RETURN jsonb_build_object('sent',false,'reason','No approved electrician worker'); END IF;
+  PERFORM 1 FROM public.profiles p JOIN public.partner_workers w ON w.profile_id=p.id
+    WHERE p.id=_electrician AND w.business_id=_business AND w.trade_role='electrician' AND w.removed_at IS NULL
+      AND p.mitti_user_id IS NOT NULL AND p.mitti_checked_at IS NOT NULL
+      AND lower(trim(COALESCE(w.email,p.email)))<>''
+      AND lower(trim(p.mitti_checked_email))=lower(trim(COALESCE(w.email,p.email))) FOR SHARE OF p;
+  IF NOT FOUND THEN RETURN jsonb_build_object('sent',false,'reason','Electrician Mitti access is not current'); END IF;
   INSERT INTO public.in_house_batches(id,business_id,job_ids,sent_by) VALUES (_batch,_business,ARRAY[_job],_actor)
     ON CONFLICT(id) DO UPDATE SET job_ids=array_append(in_house_batches.job_ids,_job)
     WHERE in_house_batches.business_id=_business AND in_house_batches.sent_by=_actor;
@@ -78,7 +84,7 @@ BEGIN
   INSERT INTO public.workflow_events(job_id,actor_id,event_type,summary,details,internal)
     VALUES (_job,_actor,'in_house_batch_sent','Ready Check allocated to ' || partner_name,
       jsonb_build_object('batch_id',_batch,'business_id',_business),true);
-    SELECT id INTO approved_template FROM public.customer_communication_templates
+  SELECT id INTO approved_template FROM public.customer_communication_templates
     WHERE template_key='in_house_partner_will_call' AND status='approved' AND approved_by IS NOT NULL AND approved_at IS NOT NULL
     ORDER BY approved_at DESC LIMIT 1;
   IF approved_template IS NOT NULL THEN
