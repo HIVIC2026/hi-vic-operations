@@ -269,7 +269,7 @@ export function areaDiagramSvg(input: DiagramInput): string {
 
 /** Short office line, e.g. "3 areas · 86.5 m² · Bradford Gold R5". */
 export function areaDiagramSummary(areas: DiagramArea[]): string {
-  const products = [...new Set(areas.map((a) => a.productOption).filter((x): x is string => !!x))];
+  const products = [...new Set(areas.filter((a) => !excludedAreaName(a.name)).map((a) => a.productOption).filter((x): x is string => !!x))];
   const total = totalAreaM2(areas);
   return [`${countedAreas(areas)} area${countedAreas(areas) === 1 ? "" : "s"}`, total == null ? null : `${fmtNum(total)} m²`, products.join(" / ") || null].filter(Boolean).join(" · ");
 }

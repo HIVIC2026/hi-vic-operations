@@ -8,6 +8,9 @@ import { weightedDepthMm } from "../src/lib/piisa-a3.core";
 import { EXCLUDED_AREA_EVENT, newExcludedAreas, splitEligibleAreas } from "../src/lib/excluded-areas.core";
 import { buildBase44Evidence } from "../src/lib/enquiry.core";
 import { LEAN_Q } from "../src/lib/ready-check-lean.core";
+import { readyCheckRemovalRequired, removalTotalM2 } from "../src/lib/ready-check-answers.core";
+import { areaDiagramSummary } from "../src/lib/area-diagram.core";
+import { evaluateGate1, resolveGate1Facts } from "../src/lib/eligibility.core";
 
 type Row = Record<string, unknown>;
 const events: Row[] = [];
@@ -123,5 +126,40 @@ describe("previous upgrade is always stored as no", () => {
   test.each(["unknown", "yes", "no", null, undefined] as const)("%s arrives, no is stored", (v) => {
     const e = buildBase44Evidence({ declared_property_type: "house", declared_previous_upgrade: v });
     expect(e.declared.previous_upgrade).toBe("no");
+  });
+});
+
+describe("fix round 1", () => {
+  const e = (label: string, value: string) => ({ label, value });
+  test("a garage marked for removal is not charged and does not switch removal on", () => {
+    const entries = [e(LEAN_Q.areaName, "Lounge"), e(LEAN_Q.removeM2, "10"), e(LEAN_Q.areaName, "Garage\ne.g. help"), e(LEAN_Q.removeM2, "20")];
+    expect(removalTotalM2(entries)).toBe(10);
+    const g = [e(LEAN_Q.areaName, "Lounge"), e(LEAN_Q.areaName, "Garage"), e(LEAN_Q.removeM2, "20")];
+    expect(removalTotalM2(g)).toBeNull();
+    expect(readyCheckRemovalRequired(g, { removal_required: false })).toBe(false);
+    expect(removalTotalM2([e(LEAN_Q.removeM2, "7")])).toBe(7); // no area name: unchanged
+  });
+  test("insulation only in the garage: Part 6 says not present", async () => {
+    const { readyCheckPart6Answers } = await import("../src/lib/piisa-a3.core");
+    const r = readyCheckPart6Answers([{ name: "Lounge", present: false }, { name: "Garage", present: true, depthMm: 100, areaM2: 30, removal: false }] as never);
+    expect(r.answers["p6.present"]).toBe("No");
+    expect(JSON.stringify(r.answers)).not.toContain("NaN");
+  });
+  test("diagram summary leaves the garage's product out", () => {
+    const a = (name: string, productOption: string) => ({ name, lengthM: null, widthM: null, areaM2: 10, productOption, rValue: null, existingNote: null });
+    expect(areaDiagramSummary([a("Lounge", "Bradford R5"), a("Garage", "Other R3")])).toBe("1 area · 10 m² · Bradford R5");
+  });
+  test("previous upgrade never fails or flags, even for old rows that say yes or confirmed", () => {
+    const prop = (declared: Record<string, unknown>, extra: Record<string, unknown> = {}) => ({
+      state: "VIC", postcode: "3058", occupancy: "owner_occupied", is_residential: null, year_built: null,
+      enrichment: { ...extra, base44: { declared: { basis: "owner_declaration", property_type: "house", over_five_years: "yes", ...declared }, research: null, raw: { answers: { insulation: "none" } } } },
+    });
+    const job = { lifeSupportStatus: "no", preliminaryOutcome: null, referenceDate: "2026-10-05" };
+    const intel = [{ fact_key: "address_verified", value: true }, { fact_key: "in_victoria", value: true }, { fact_key: "previous_activity_48_confirmed", value: true }].map((f) => ({ ...f, evidence_kind: "direct", confidence: "high", source_type: "public_gis", source_name: "V", source_url: null, is_current: true, is_stale: false }));
+    for (const x of [prop({ previous_upgrade: "yes" }), prop({ previous_upgrade: "yes" }, { previous_activity_48_confirmed: true, previous_ceiling_insulation_upgrade: true })]) {
+      const d = evaluateGate1(resolveGate1Facts(x as never, job as never, 5, 2026, intel as never));
+      expect(d.rules.find((r) => r.key === "previous_activity")!.result).toBe("pass");
+      expect(d.outcome).not.toBe("does_not_appear_eligible");
+    }
   });
 });

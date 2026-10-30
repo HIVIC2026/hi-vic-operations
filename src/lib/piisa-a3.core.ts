@@ -435,13 +435,16 @@ export function readyCheckPart6Answers(areas: RcArea[], extra: Part6Extra = NO_E
   const answers: Record<string, string | string[]> = {}, missing: string[] = [];
   const none = { conductive: null, conductiveEvidence: null, fullRemoval: false };
   if (!areas.length) return { answers, missing: ["Ready Check: no current measure-up on this job — existing insulation (official Part 6) can't be filled in"], ...none };
-  const pres = areas.map((a) => a.present);
+  // Garage / carport / shed areas are not part of the claim, so they never decide "present" either.
+  const claimAreas = areas.filter((a) => !excludedAreaName(a.name ?? ""));
+  if (!claimAreas.length) return { answers, missing: ["Ready Check: no eligible ceiling area (only a garage, carport or shed) — existing insulation (official Part 6) can't be filled in"], ...none };
+  const pres = claimAreas.map((a) => a.present);
   if (pres.some((x) => x == null)) { missing.push("Ready Check: existing insulation present or not is not recorded for every area"); return { answers, missing, ...none }; }
   const present = pres.some(Boolean);
   answers["p6.present"] = present ? "Yes" : "No";
   if (!present) return { answers, missing, ...none };
   // Garage / carport / shed areas are not part of the claim (Jo 30 Oct 2026).
-  const withIns = areas.filter((a) => a.present === true && !excludedAreaName(a.name ?? ""));
+  const withIns = claimAreas.filter((a) => a.present === true);
   // Decision 375 (Jo 25 Oct 2026): the official form asks the average height whenever insulation is present (removal
   // included); the Ready Check asks the depth per area with existing insulation. One shared depth is used as is; differing
   // depths become ONE average weighted by each area's m² (nearest mm). A missing depth, or a missing m² when weighting is
