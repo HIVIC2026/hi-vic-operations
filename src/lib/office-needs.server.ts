@@ -53,7 +53,7 @@ export async function inHouseNeedsFacts(jobIds: string[]): Promise<Map<string, N
   const [assignments, batches, bookings, quotes, records, deadlines] = await Promise.all([
     byIds("in-house partner names", held, (c,a,b) => admin.from("job_assignments").select("job_id,business_id,businesses(name,trading_name,in_house)").in("job_id",c).eq("role","installer").eq("active",true).order("id").range(a,b)),
     byIds("in-house batch times", held, (c,a,b) => admin.from("workflow_events").select("job_id,created_at,details").in("job_id",c).eq("event_type","in_house_batch_sent").order("created_at").order("id").range(a,b)),
-    byIds("in-house bookings", held, (c,a,b) => admin.from("bookings").select("job_id,kind").in("job_id",c).in("kind",["site_visit","installation"]).neq("status","cancelled").order("id").range(a,b)),
+    byIds("in-house bookings", held, (c,a,b) => admin.from("bookings").select("job_id,kind").in("job_id",c).in("kind",["ready_check","installation"]).neq("status","cancelled").order("id").range(a,b)),
     byIds("in-house accepted quotes", held, (c,a,b) => admin.from("quotes").select("job_id,accepted_at").in("job_id",c).eq("kind","installation").eq("status","accepted").not("accepted_at","is",null).order("accepted_at").order("id").range(a,b)),
     byIds("in-house completed PIESA", held, (c,a,b) => admin.from("piesa_records").select("job_id,completed_date").in("job_id",c).neq("kind","post_rectification").not("completed_date","is",null).order("id").range(a,b)),
     byIds("in-house PIESA days remaining", held, (c,a,b) => admin.from("job_piesa_deadlines").select("job_id,days_remaining,install_deadline").in("job_id",c).order("job_id").range(a,b)),
@@ -65,7 +65,7 @@ export async function inHouseNeedsFacts(jobIds: string[]): Promise<Map<string, N
     const batch = batches.filter(e => e["job_id"] === id && (e["details"] as Row | null)?.["business_id"] === assignment["business_id"]).at(-1);
     const deadline = deadlines.find(d => d["job_id"] === id);
     out.set(id, { partnerName: business.trading_name || business.name, batchSentAt: s(batch?.["created_at"]),
-      readyCheckBooked: bookings.some(b => b["job_id"] === id && b["kind"] === "site_visit"),
+      readyCheckBooked: bookings.some(b => b["job_id"] === id && b["kind"] === "ready_check"),
       installationBooked: bookings.some(b => b["job_id"] === id && b["kind"] === "installation"),
       quoteAcceptedAt: s(quotes.filter(q => q["job_id"] === id).at(-1)?.["accepted_at"]),
       piesaCompleted: records.some(r => r["job_id"] === id),
