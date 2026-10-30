@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { normaliseForParity, firstDifference, errorCaptures, SCREENS, missingKeyMessage } from "../scripts/installer-speed-capture";
+import { normaliseForParity, firstDifference, errorCaptures, SCREENS, missingKeyMessage, fatalOwnerErrors, OWNER_FATAL_SCREENS } from "../scripts/installer-speed-capture";
 
 const now = new Date("2026-10-30T10:00:00.000Z");
 
@@ -60,4 +60,17 @@ describe("errorCaptures", () => {
   test("lists loaders that returned only an error record", () => {
     expect(errorCaptures({ a: { error: "nope" }, b: { error: "x", other: 1 }, c: { rows: [] }, d: null })).toEqual(["a"]);
   });
+});
+
+describe("fatalOwnerErrors", () => {
+  test("owner errors are fatal on every screen, including job and day", () => {
+    expect(OWNER_FATAL_SCREENS).toEqual(["home", "job", "day", "business", "money"]);
+    expect(fatalOwnerErrors("job", "owner", ["tradeJobBundle"])).toEqual(["job-owner tradeJobBundle"]);
+    expect(fatalOwnerErrors("day", "owner", ["tradeDayView", "onsiteFormFor"])).toEqual(["day-owner tradeDayView", "day-owner onsiteFormFor"]);
+    expect(fatalOwnerErrors("money", "owner", ["tradeMoneyJob"])).toEqual(["money-owner tradeMoneyJob"]);
+  });
+  test("staff errors are never fatal (refusals can be expected)", () => {
+    for (const s of SCREENS) expect(fatalOwnerErrors(s, "staff", ["x"])).toEqual([]);
+  });
+  test("no errors, nothing fatal", () => { expect(fatalOwnerErrors("home", "owner", [])).toEqual([]); });
 });

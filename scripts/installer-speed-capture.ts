@@ -73,6 +73,14 @@ export function errorCaptures(captured: Record<string, unknown>): string[] {
   return Object.entries(captured).filter(([, v]) => typeof v === "object" && v !== null && !Array.isArray(v) && Object.keys(v).length === 1 && typeof (v as { error?: unknown }).error === "string").map(([k]) => k);
 }
 
+/** Screens where an owner error stops --write and fails --compare: a baseline of an error proves nothing. */
+export const OWNER_FATAL_SCREENS: readonly Screen[] = ["home", "job", "day", "business", "money"];
+
+/** The owner errors in one capture that are fatal (screen-owner loader labels); none for staff, whose refusals can be expected. */
+export function fatalOwnerErrors(screen: Screen, role: (typeof ROLES)[number], errs: string[]): string[] {
+  return role === "owner" && OWNER_FATAL_SCREENS.includes(screen) ? errs.map((e) => `${screen}-owner ${e}`) : [];
+}
+
 export function missingKeyMessage(env: Record<string, string | undefined>): string | null {
   const missing = ["SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY", "SUPABASE_SERVICE_ROLE_KEY"].filter((k) => !env[k]);
   return missing.length ? `STOP: ${missing.join(", ")} not set. This tool needs the server key, so it runs in Lovable, not on a laptop or here. Nothing was run.` : null;
@@ -105,6 +113,7 @@ async function main() {
   const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
   const tv = await import("@/lib/trade-view.server");
   const { tradeJobBundle } = await import("@/lib/trade-job-bundle.server");
+  const { onsiteFormFor } = await import("@/lib/onsite-ready-check.server");
 
   const idOf = async (email: string) => {
     if (!TEST_EMAIL.test(email)) throw new Error("SAFETY STOP: TEST accounts only.");
@@ -147,9 +156,14 @@ async function main() {
     job: async (uid, email) => ({
       tradeJobPage: await attempt(() => tv.tradeJobPage(J, uid)),
       tradeJobBundle: await attempt(async () => tradeJobBundle((await userClient(email)) as never, uid, J)),
+      tradeMittiInvited: await attempt(() => tv.tradeMittiInvited(uid)),
     }),
-    day: async (uid) => ({ tradeDayView: await attempt(() => tv.tradeDay(J, uid)), tradeDayExtras: await attempt(() => tv.tradeDayExtras(J, uid)) }),
-    business: async (uid) => ({ tradeBusiness: await attempt(() => tv.tradeBusiness(uid)) }),
+    day: async (uid) => ({
+      tradeDayView: await attempt(() => tv.tradeDay(J, uid)),
+      tradeDayExtras: await attempt(() => tv.tradeDayExtras(J, uid)),
+      onsiteFormFor: await attempt(() => onsiteFormFor(J, uid, undefined, false)), // request=false: status read only, never schedules a form
+    }),
+    business: async (uid) => ({ tradeBusiness: await attempt(() => tv.tradeBusiness(uid)), tradeBusinessFile: await attempt(() => tv.tradeBusinessFile(uid)) }),
     money: async (uid) => ({ tradeMoneyView: await attempt(() => tv.tradeMoney(uid)), tradeMoneyExtras: await attempt(() => tv.tradeMoneyExtras(uid)), tradeMoneyJob: await attempt(() => tv.tradeMoneyJob(J, uid)) }),
   };
   const who = { owner: { uid: ownerId, email: OWNER_EMAIL }, staff: { uid: staffId, email: STAFF_EMAIL } };
@@ -162,7 +176,7 @@ async function main() {
     const now = new Date(); // after the loader returns, so times it made itself count as "just now"
     const errs = errorCaptures(captured);
     if (errs.length) console.log(`ERROR capture ${screen}-${role}: ${errs.join(", ")}`);
-    if (role === "owner" && ["home", "business", "money"].includes(screen)) ownerErrors.push(...errs.map((e) => `${screen}-owner ${e}`));
+    ownerErrors.push(...fatalOwnerErrors(screen, role, errs));
     captures.push({ screen, role, norm: normaliseForParity(captured, now), file: `${BASELINE_DIR}/${screen}-${role}.json`, now });
   }
   if (args.mode === "write") {
