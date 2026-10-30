@@ -2,6 +2,8 @@ import { beforeEach, afterAll, expect, test } from "bun:test";
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
 import ts from "typescript";
+import * as React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { embedShim } from "./helpers/pglite-embed-shim";
 import * as inHouse from "../src/lib/in-house.core";
 import * as allocation from "../src/lib/allocation.core";
@@ -34,11 +36,21 @@ const rows = async <T,>(sql: string, args: unknown[] = []) => (await db.query<T>
 const job = async () => (await rows<any>("select * from jobs where id=$1", [JOB]))[0];
 class WorkflowError extends Error {}
 let failHeldRead = false;
+let failBillingRead = false;
 let rectificationGuardCalls = 0;
 const shim = embedShim(db, { job_assignments: { businesses: { table: "businesses", fk: "business_id", on: "base" } } });
 const admin = { from(table: string) {
   if (failHeldRead && table === "job_assignments") throw new Error("read unavailable");
   const query = shim.from(table);
+  if (table === "job_assignments") {
+    const select = query.select;
+    query.select = (columns, ...args) => {
+      if (failBillingRead && columns === "businesses(in_house, rectification_billed_by)") {
+        query.single = async () => ({ data: null, error: { message: "billing read unavailable" } });
+      }
+      return select(columns, ...args);
+    };
+  }
   // PGlite's enum-array parameters need PostgreSQL's literal spelling, unlike text/UUID arrays.
   if (table === "bookings") {
     const originalIn = query.in;
@@ -109,7 +121,7 @@ function load(name: string, cache: Record<string, any> = {}): any {
 const book = async (kind = "installation", actor = MEMBER, start = START) => load("trade-view.server").inHouseBookVisit(actor, { jobId: JOB, kind, start });
 const patch = async (field: string, value: unknown) => db.query(`update jobs set "${field}"=$1 where id=$2`, [value,JOB]);
 beforeEach(async () => {
-  failHeldRead = false; rectificationGuardCalls = 0;
+  failHeldRead = false; failBillingRead = false; rectificationGuardCalls = 0;
   await db.exec("truncate esc_notifications,workflow_events,bookings,job_assignments,business_members,jobs,businesses cascade");
   await db.query("insert into businesses(id,in_house,rectification_billed_by,business_type,onboarding_status,is_active,capabilities) values($1,true,'partner','eec_installer','approved',true,ARRAY['installer','electrician']),($2,false,'hivic','eec_installer','approved',true,ARRAY['installer'])", [BIZ,OTHER]);
   await db.query("insert into business_members(business_id,user_id,member_role) values($1,$2,'member'),($3,$4,'business_admin')", [BIZ,MEMBER,OTHER,OUTSIDER]);
@@ -166,7 +178,25 @@ test("non-in-house partner setting cannot bypass the existing rectification paym
   await patch("stage","rectification_scheduling"); await db.query("update businesses set in_house=false where id=$1",[BIZ]);
   await expect(load("booking.server").confirmBooking(JOB,"rectification",START,MEMBER,"partner")).rejects.toThrow(`Blocked: ${FIXES_NOT_PAID_BLOCKER}`);
   expect(rectificationGuardCalls).toBe(1);
+  expect(await rows("select id from bookings")).toHaveLength(0);
 });
+for (const point of ["held", "billing"] as const) {
+  test(`direct rectification booking fails closed when the ${point} read fails`, async () => {
+    await patch("stage", "rectification_scheduling");
+    failHeldRead = point === "held"; failBillingRead = point === "billing";
+    await expect(load("booking.server").confirmBooking(JOB, "rectification", START, MEMBER, "partner"))
+      .rejects.toThrow("Couldn't check the job's partner — please try again.");
+    expect(await rows("select id from bookings")).toHaveLength(0);
+    expect(await rows("select id from workflow_events")).toHaveLength(0);
+    // Prove the read failure cannot become the partner-billed payment exception.
+    failHeldRead = false; failBillingRead = false;
+    await db.query("update businesses set rectification_billed_by='hivic' where id=$1", [BIZ]);
+    await expect(load("booking.server").confirmBooking(JOB, "rectification", START, MEMBER, "partner"))
+      .rejects.toThrow(`Blocked: ${FIXES_NOT_PAID_BLOCKER}`);
+    expect(rectificationGuardCalls).toBe(1);
+    expect(await rows("select id from bookings")).toHaveLength(0);
+  });
+}
 test("other business member is forbidden and cannot see booking controls", async () => {
   expect(await book("installation",OUTSIDER)).toEqual({ ok: false, blockers: ["forbidden"] });
   expect((await load("trade-view.server").inHouseBookingAccess(OUTSIDER,JOB)).allowed).toBe(false);
@@ -184,4 +214,63 @@ test("TEST and deleted jobs are excluded only from this new booking surface", as
 test("Ready Check also uses the existing booking writer", async () => {
   await patch("stage","ready_check_ready_to_schedule"); expect((await book("ready_check")).ok).toBe(true);
   expect(await rows("select id from bookings where kind='ready_check'")).toHaveLength(1);
+});
+
+// Execute the real page's card-selection conditions, rather than matching source strings.
+function pageCardConditions(component: string, access: unknown, panel = "offer_install_days") {
+  const source = ts.createSourceFile("field.tsx", readFileSync("src/routes/_authenticated/field.$jobId.tsx", "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const conditions: string[] = [];
+  const walk = (node: ts.Node) => {
+    if (ts.isJsxExpression(node) && node.expression && ts.isBinaryExpression(node.expression)) {
+      const e = node.expression;
+      if (e.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken && ts.isJsxSelfClosingElement(e.right) && e.right.tagName.getText(source) === component) conditions.push(e.left.getText(source));
+    }
+    ts.forEachChild(node, walk);
+  };
+  walk(source);
+  return conditions.map(condition => new Function("inHouseAccess", "role", "next", "job", "a1ReadyCheckEntryAllowed", `return ${condition}`)(access, "electrician", { panel }, { channel: "installer_sourced", stage: "ready_check_ready_to_schedule" }, () => true));
+}
+for (const state of ["loading", "error"]) {
+  test(`${state} in-house access keeps legacy scheduling available and hides partner controls`, () => {
+    const access = { data: undefined, isLoading: state === "loading", isError: state === "error" };
+    for (const component of ["ElectricianPiesaTimesCard", "FixesTimesCard", "InstallerInstallDays", "InstallerReadyCheckTimesCard", "A1ReadyCheckTimeCard"]) {
+      const panel = component === "InstallerReadyCheckTimesCard" ? "ready_check_offer_times" : component === "A1ReadyCheckTimeCard" ? "ready_check_set_time" : "offer_install_days";
+      expect(pageCardConditions(component, access, panel)).toEqual([true]);
+    }
+    expect(renderBookingCard(access)).toBe("");
+  });
+}
+test("in-house install keeps its booked panel but not the legacy offer panel", () => {
+  expect(pageCardConditions("InstallerInstallDays", { data: { allowed: true } }, "install_booked")).toEqual([true]);
+  expect(pageCardConditions("InstallerInstallDays", { data: { allowed: true } }, "offer_install_days")).toEqual([false]);
+});
+function renderBookingCard(access: unknown) {
+  const out: any = {};
+  const element = (props: any) => React.createElement("div", props, props.children);
+  const deps: Record<string, any> = {
+    react: React, "react/jsx-runtime": require("react/jsx-runtime"),
+    "@tanstack/react-query": { useQuery: () => access, useQueryClient: () => ({ invalidateQueries: async () => {} }) },
+    "@tanstack/react-start": { useServerFn: (fn: unknown) => fn }, sonner: { toast: {} },
+    "@/lib/trade-view.functions": {}, "@/lib/install-days.core": installDays,
+    "@/lib/office-list-refresh": { markOfficeChanged: () => {} },
+    "@/components/ui/input": { Input: (p: any) => React.createElement("input", p) },
+    "@/components/ui/label": { Label: element }, "@/components/ui/button": { Button: element }, "./installer-kit": { Group: element },
+  };
+  const code = ts.transpile(readFileSync("src/components/trade/InHouseBookingCard.tsx", "utf8"), { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX });
+  new Function("exports", "require", code)(out, (path: string) => deps[path]);
+  return renderToStaticMarkup(React.createElement(out.InHouseBookingCard, { jobId: JOB }));
+}
+test("partner card shows the current booking date, Melbourne time and status for every visit", () => {
+  const bookings = ["ready_check", "assessment", "rectification", "installation"].map(kind => ({ id: kind, kind, scheduled_start: "2026-11-02T22:00:00.000Z", status: "confirmed" }));
+  const html = renderBookingCard({ data: { allowed: true, blockers: [], bookings } });
+  expect(html.match(/3 Nov 2026/g)).toHaveLength(4);
+  expect(html.match(/9:00 am/g)).toHaveLength(4);
+  expect(html.match(/Confirmed/g)).toHaveLength(4);
+});
+test("current bookings are read only for the job's own active in-house member", async () => {
+  await book("installation");
+  const own = await load("trade-view.server").inHouseBookingAccess(MEMBER, JOB);
+  expect(own.bookings).toHaveLength(1);
+  expect(own.bookings[0]).toMatchObject({ kind: "installation", status: "confirmed" });
+  expect((await load("trade-view.server").inHouseBookingAccess(OUTSIDER, JOB)).bookings ?? []).toEqual([]);
 });
