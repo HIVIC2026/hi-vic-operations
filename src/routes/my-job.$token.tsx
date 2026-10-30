@@ -707,7 +707,7 @@ function LifeSupportPlanCard({ token }: { token: string }) {
 function FixesHomeCard({ token }: { token: string }) {
   const load = useServerFn(ownerFixesStateFn);
   const { data } = useQuery({ queryKey: ["owner-fixes", token], queryFn: () => load({ data: { token } }), retry: false });
-  if (!data || !ownerFixesNeedsOwner(data.step)) return null;
+  if (!data || !ownerFixesNeedsOwner(data.step) || (data.inHouseDispatch && data.step === "pick")) return null;
   return <section data-testid="fixes-home" className="rounded-[22px] border-2 border-estimate-blue bg-card p-5">
     <p className="text-xs font-bold uppercase tracking-wide text-estimate-blue">{OWNER_FIXES_COPY.kicker}</p>
     <h2 className="mt-1 font-display text-lg font-extrabold">{OWNER_FIXES_COPY.title}</h2>

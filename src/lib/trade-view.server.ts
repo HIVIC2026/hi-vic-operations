@@ -106,6 +106,17 @@ export async function tradeHome(userId: string) {
     c.kind === "installer" ? loadInstallerQuotes(liveIds).catch(() => new Map<string, InstallerQuote>()) : Promise.resolve(new Map<string, InstallerQuote>()),
     c.boss ? histQ : histQ.eq("user_id", userId),
   ]);
+  const { inHouseTradeBookingText } = await import("./in-house-message.core");
+  for (const j of live) {
+    const held = sf.get(j.id)?.inHouseDispatch;
+    const wording = held ? inHouseTradeBookingText(j.stage) : null;
+    if (!wording) continue;
+    const line = held === "in_house" ? wording : "Visit booking details unavailable";
+    const old = placeOf.get(j.id);
+    if (old) old.title = line;
+    const move = yourMove.find(x => x.jobId === j.id);
+    if (move) move.title = line;
+  }
   // This month (business owner only, own pay only): installs done this month and what was paid to this business this month.
   const money = moneyAll.filter((r) => r.billing === "hivic");
   const m0 = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -150,6 +161,7 @@ export async function tradeHome(userId: string) {
   const upcomingTile = (id: string) => { const b = upcomingOf(id)[0]; return b ? { what: VISIT[b.kind] ?? "Visit", start: b.scheduled_start } : null; };
   const home = c.kind === "installer" ? installerHomeGroups(jobsTabbed.map((j) => ({
     jobId: j.jobId, jobNumber: j.jobNumber, street: j.street, suburb: j.suburb, channel: j.channel, stage: j.stage, place: j.place, placeTitle: placeOf.get(j.jobId)?.title ?? null,
+    inHouseDispatch: sf.get(j.jobId)?.inHouseDispatch,
     nextAction: (byId.get(j.jobId) as { next_action?: string | null } | undefined)?.next_action ?? null, quoteLine: j.quoteLine, status: j.line ? { text: j.line.text, who: j.line.who } : null,
     upcoming: upcomingTile(j.jobId), installDeadline: deadline.get(j.jobId) ?? null, endedAt: byId.get(j.jobId)?.updated_at ?? null,
     formLinked: formFacts.get(j.jobId)?.linked === true, formCompleted: formFacts.get(j.jobId)?.completed === true, formHasAnswers: formFacts.get(j.jobId)?.hasAnswers ?? null,

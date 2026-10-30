@@ -16,6 +16,7 @@ export type OwnerFixesState = {
   windows: { id: string; startsAt: string; endsAt: string | null }[];
   pickedAt: string | null;
   bookedAt: string | null;
+  inHouseDispatch?: "in_house" | "in_house_read_failed" | null;
 };
 
 export async function ownerFixesState(jobId: string, now = new Date()): Promise<OwnerFixesState> {
@@ -33,7 +34,9 @@ export async function ownerFixesState(jobId: string, now = new Date()): Promise<
   // Paid = no fixes payment blocker (paid/waived, folded into the installation quote, or no invoice to pay against).
   const paid = q?.status === "accepted" ? !(await (await import("./payments.server")).fixesPaymentBlockerFor(jobId)) : false;
   const step = ownerFixesStep({ quoteStatus: (q?.status ?? null) as "issued" | "accepted" | "declined" | null, paid, pickable: pickable.length, pickedAt: picked?.starts_at ?? null, bookedAt: bk?.scheduled_start ?? null });
+  const inHouseDispatch = await (await import("./in-house-suppression.server")).inHouseDispatchSkip(jobId);
   return {
+    inHouseDispatch,
     step,
     quote: q ? { id: q.id, version: q.version, status: q.status, total: Number(q.customer_total_inc_gst ?? 0), lines: [...(q.quote_items ?? [])].sort((a, b) => Number(a.sort ?? 0) - Number(b.sort ?? 0)).map((l) => ({ description: String(l.description ?? ""), amount: Number(l.line_total_inc_gst ?? 0) })) } : null,
     windows: step === "pick" ? pickable.map((w) => ({ id: w.id, startsAt: w.starts_at, endsAt: w.ends_at })) : [],

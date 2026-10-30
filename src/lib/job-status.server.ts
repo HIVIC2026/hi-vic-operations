@@ -11,6 +11,7 @@ type Ctx = { biz: { id: string; name: string }; boss: boolean; kind: "installer"
 
 export async function statusFactsFor(c: Ctx, jobIds: string[]): Promise<Map<string, StatusFacts & { channel: string | null; originating: string | null; jobNumber: string }>> {
   const ids = jobIds.length ? jobIds : none;
+  const dispatch = await (await import("./in-house-suppression.server")).readInHouseDispatchState(jobIds);
   const [{ data: jobs }, { data: books }, { data: ev }, { data: quotes }, { data: invs }, { data: props }, { data: ws }, { data: aps }, { data: sims }, { data: ovs }, { data: rcw }] = await Promise.all([
     admin.from("jobs").select("id, job_number, stage, channel, originating_installer_business_id, created_at").in("id", ids),
     admin.from("bookings").select("job_id, kind, status, scheduled_start, scheduled_end, business_id, businesses(name, trading_name)").in("job_id", ids).in("status", ["confirmed", "completed"]),
@@ -63,6 +64,7 @@ export async function statusFactsFor(c: Ctx, jobIds: string[]): Promise<Map<stri
     const mineKinds = c.kind === "installer" ? ["installation"] : ["assessment", "rectification"];
     const workDone = bs.some((b) => mineKinds.includes(b.kind) && b.status === "completed");
     out.set(j.id, {
+      inHouseDispatch: dispatch.failed ? "in_house_read_failed" : dispatch.held.has(j.id) ? "in_house" : null,
       jobNumber: j.job_number, channel: j.channel, originating: j.originating_installer_business_id,
       stage: j.stage, stageSince, now, staff: !c.boss, bookings: bs,
       quoteSentAt: inst?.sent_at ?? null, quoteAcceptedAt: inst?.accepted_at ?? null,
