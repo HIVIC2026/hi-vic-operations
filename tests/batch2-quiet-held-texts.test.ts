@@ -76,6 +76,7 @@ const builder = (t: string) => {
     order: (c: string, o?: { ascending?: boolean }) => { calls.push({ t, op: "order", args: [c, o] }); sort = { c, asc: o?.ascending !== false }; return b; },
     eq: (c: string, v: unknown) => { f.push((r) => r[c] === v); return b; },
     neq: (c: string, v: unknown) => { f.push((r) => r[c] !== v); return b; },
+    or: (expr: string) => { const parts = expr.split(",").map((x) => { const [c, , ...v] = x.split("."); return [c!, v.join(".")] as const; }); f.push((r) => parts.some(([c, v]) => String(r[c]) === v)); return b; },
     in: (c: string, v: unknown[]) => { calls.push({ t, op: "in:" + c, args: [v.length] }); f.push((r) => v.includes(r[c])); return b; },
     gte: (c: string, v: string) => { f.push((r) => String(r[c]) >= v); return b; },
     like: (c: string, v: string) => { const p = v.replace(/^%|%$/g, ""); f.push((r) => String(r[c]).includes(p)); return b; },
@@ -162,6 +163,12 @@ describe("sweepQuietHeldTexts", () => {
   });
   test("still true is false (spot no longer saved) → not sent", async () => {
     tables["lead_campaign_responses"] = [{ job_id: "j1", spot_saved_at: null, opted_out_at: null }];
+    const { sweepQuietHeldTexts } = await import("../src/lib/quiet-held-texts.server");
+    expect(await sweepQuietHeldTexts(SEVEN_05)).toEqual({ sent: 0, skipped: 1 });
+    expect(sent).toEqual([]);
+  });
+  test("Jo 30 Oct: an older 'spot-saved:<job>' text already delivered → held text not resent", async () => {
+    tables["sms_messages"]!.push({ ...held(), idempotency_key: "spot-saved:j1", status: "delivered", detail: "ok" });
     const { sweepQuietHeldTexts } = await import("../src/lib/quiet-held-texts.server");
     expect(await sweepQuietHeldTexts(SEVEN_05)).toEqual({ sent: 0, skipped: 1 });
     expect(sent).toEqual([]);
