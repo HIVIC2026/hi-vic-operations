@@ -74,7 +74,7 @@ export async function applyPiesaRecord(r: PostRectificationRecord): Promise<{ re
     if ((await getStage(r.jobId)) === "piesa_scheduled" && await (await import("./in-house-rectification.server")).optionalPartnerBilledRectificationFor(r.jobId)) {
       await transition(r.jobId, "piesa_complete", r.actorId, "PIESA and Part C rectification completed on the same visit");
     }
-    if (["piesa_complete", "rectification_booked", "assessment_complete", "electrical_variation_pending"].includes(await getStage(r.jobId)))
+    if (!duplicate || ["piesa_complete", "rectification_booked", "assessment_complete", "electrical_variation_pending"].includes(await getStage(r.jobId)))
       await transition(r.jobId, "installation_scheduling", r.actorId, "Rectification complete, PIESA passed – installation scheduling unlocked");
   }
   // Batch 1 task 6: the new safety check after a reopen is a reassessment at PIESA booked — the visit is done, so the job
