@@ -409,7 +409,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
   if (job.business_unit !== "hivic") throw new WorkflowError("Mitti automation is only available for Home Insulation Victoria jobs.");
   // Cancelled / deleted / QA-archived: no sync, no events, no quote draft or hold.
   if ((await import("./mitti.core")).isClosedOrArchivedJob(job)) return { locked: false, completed: false, issues: [] as string[] };
-  const { data: a } = await admin.from("assessments").select("id,status,external_mitti_id,mitti_template_id,mitti_completed,mitti_modified_at,mitti_sync_status").eq("job_id", jobId).maybeSingle();
+  const { data: a } = await admin.from("assessments").select("id,status,external_mitti_id,mitti_template_id,mitti_completed,mitti_modified_at,mitti_sync_status,no_rectification_confirmed").eq("job_id", jobId).maybeSingle();
   const s = await jobScope(jobId);
   const m = s.measurementRow;
   const measureAudit = m?.external_source === "mitti" && m.external_id && m.external_id !== a?.external_mitti_id && m.status !== "complete" ? m.external_id : null;
@@ -455,15 +455,14 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
           mitti_raw_snapshot: snapshot as unknown as Json, mitti_validation_issues: [...plan.issues, ...refused.issues, ...evidenceBlockers.map((b) => `${PIESA_EVIDENCE_ISSUE_PREFIX}${b}`), ...(priceTalk ? [priceTalk] : [])] as unknown as Json, mitti_last_error: null,
           ...(completed ? { mitti_synced_at: now } : {}),
         }).eq("id", a.id).neq("status", "complete");
-        if (completed && shortAnswers["rectificationOutcome"] === RECTIFICATION_OUTCOMES[0]) {
-          const { error: closeError } = await admin.from("assessments").update({ no_rectification_confirmed: true }).eq("id", a.id).neq("status", "complete");
-          if (closeError) throw new Error(closeError.message);
-          await (await import("./fixes-day.server")).closeUnusedRectificationForm(jobId);
-        } else if (shortAnswers["rectificationOutcome"] && shortAnswers["rectificationOutcome"] !== RECTIFICATION_OUTCOMES[0]) {
-          const { error: resetError } = await admin.from("assessments").update({ no_rectification_confirmed: false }).eq("id", a.id).neq("status", "complete");
-          if (resetError) throw new Error(resetError.message);
-          try { await (await import("./fixes-day.server")).reopenRectificationRound(jobId, actorId, call); }
-          catch (e) { const msg = e instanceof Error ? e.message : "Mitti error"; await admin.from("assessments").update({ mitti_sync_status: "error", mitti_last_error: msg }).eq("id", a.id).neq("status", "complete"); throw e; }
+        const outcome = shortAnswers['rectificationOutcome'];
+        if (outcome) {
+          // Optional paired-form work never lets a dispatch outage fail the existing A3 sync.
+          try { await (await import('./fixes-day.server')).syncRectificationCompanion(jobId, actorId, {
+            noRectification: completed && outcome === RECTIFICATION_OUTCOMES[0],
+            needsRectification: outcome !== RECTIFICATION_OUTCOMES[0], previouslyNotNeeded: a.no_rectification_confirmed === true,
+          }, call); }
+          catch (e) { console.error('In-house companion sync failed', e instanceof Error ? e.message : 'Mitti error'); }
         }
         // Printed PIESA rules, checked server-side on every sync (blockers stay as review issues; nothing is completed here).
         // The Mitti form is the short onsite version: answers are expanded into the official items first.

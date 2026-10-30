@@ -34,6 +34,7 @@ function from(table: string) {
     eq: (k: string, v: any) => { filters.push(r => r[k] === v); return q; },
     neq: (k: string, v: any) => { filters.push(r => r[k] !== v); return q; },
     is: (k: string, v: any) => { filters.push(r => (r[k] ?? null) === v); return q; },
+    not: () => q,
     in: (k: string, v: any[]) => { filters.push(r => v.includes(r[k])); return q; },
     contains: (k: string, v: Row) => { filters.push(r => Object.entries(v).every(([key, value]) => r[k]?.[key] === value)); return q; },
     order: (k: string, o?: any) => { sortKey = k; ascending = o?.ascending !== false; return q; }, range: () => q, limit: (n: number) => { limit = n; return q; },
@@ -259,10 +260,10 @@ test("share failure retries both handover operations without creating duplicate 
  expect(calls.filter(c=>c.path.endsWith("/owner")).length).toBeGreaterThanOrEqual(2);
 });
 test("rectification handover failure retries share and owner using its existing identity",async()=>{
- await load("piesa-autoform.server").onPiesaBooked(JOB,"visit",null,{call});
- failShare=true; const s=load("fixes-day.server"); await s.onRectificationBooked(JOB,"rect-visit",null,call);
+ failOwner=true; await load("piesa-autoform.server").onPiesaBooked(JOB,"visit",null,{call});
+ const s=load("fixes-day.server");
  expect(tables.assessments[0].mitti_sync_status).toBe("error");
- failShare=false; await s.onRectificationBooked(JOB,"rect-visit",null,call);
+ failOwner=false; await s.onRectificationBooked(JOB,"rect-visit",null,call);
  expect(calls.filter(c=>c.path==="/audits")).toHaveLength(2);
  expect(calls.filter(c=>c.path==="/inspections/v1/inspections/audit-2/owner").length).toBeGreaterThanOrEqual(2);
 });

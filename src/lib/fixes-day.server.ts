@@ -67,6 +67,26 @@ export type FixesCreateResult = { status: "created" | "reused" | "held" | "not_n
 
 export const RECTIFICATION_FORM_CLOSED_UNUSED = "rectification_form_closed_unused";
 
+/** Only a changed/unfinished companion round can trigger optional in-house operations during A3 sync. */
+export async function syncRectificationCompanion(jobId: string, actorId: string | null, outcome: { noRectification: boolean; needsRectification: boolean; previouslyNotNeeded: boolean }, call?: MittiCall) {
+  const form = await existingRectificationForm(jobId);
+  if (!form) return;
+  if (outcome.noRectification) {
+    if (form.closed) return;
+    const { error } = await admin.from('assessments').update({ no_rectification_confirmed: true }).eq('job_id', jobId).neq('status', 'complete');
+    if (error) throw new Error(error.message);
+    await closeUnusedRectificationForm(jobId);
+  } else if (outcome.needsRectification) {
+    const { data: failed } = await admin.from('workflow_events').select('id').eq('job_id', jobId).eq('event_type', FIXES_FORM_HELD_EVENT).contains('details', { audit_id: form.auditId }).limit(1).maybeSingle();
+    if (!outcome.previouslyNotNeeded && !form.closed && !failed) return;
+    if (outcome.previouslyNotNeeded) {
+      const { error } = await admin.from('assessments').update({ no_rectification_confirmed: false }).eq('job_id', jobId).neq('status', 'complete');
+      if (error) throw new Error(error.message);
+    }
+    await reopenRectificationRound(jobId, actorId, call);
+  }
+}
+
 /** Round identity is the current PIESA audit plus any amended-after-closure round event. */
 async function rectificationRound(jobId: string): Promise<string> {
   const { data: a, error } = await admin.from("assessments").select("external_mitti_id").eq("job_id", jobId).maybeSingle();
