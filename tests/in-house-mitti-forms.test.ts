@@ -195,7 +195,7 @@ Object.assign(overrides, {
  "./safety-check-amount.server": {quoteSafetyCheck:async()=>({incGst:349})},
  "./job-records.server": {applyPiesaLifeSupport:async()=>{}},
  "./fixes-times-link.server": {textFixesTimesLink:async()=>{}},
- "./auto-fixes-quote-send.server": {autoPrepareAndSendFixesQuote:async()=>{}},
+ "./auto-fixes-quote-send.server": {maybeAutoSendFixesQuote:async()=>{}},
  "./installer-quote.server": {draftInstallerQuoteFromReadyCheck:async()=>{}},
  "./pilot.server": {applyCobrand:async()=>{}},
 });
