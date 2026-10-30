@@ -33,6 +33,16 @@ export async function requireQaAdmin(context: Context) {
   if (checked(result, "Could not verify TEST administrator access") !== true) throw new WorkflowError("Admin only.");
 }
 
+/** Test Centre journey actions only (Jo 30 Oct): admin, or the TEST office login on its own. Both together stays blocked,
+ *  as in the office policy. Callers must still call requireQaJob, so only active TEST jobs can be touched. */
+export async function requireQaJourneyActor(context: Context) {
+  const has = async (role: "admin" | "qa_office") =>
+    checked(await context.supabase.rpc("has_role", { _user_id: context.userId, _role: role }), "Could not verify TEST administrator access") === true;
+  const admin = await has("admin");
+  const qaOffice = await has("qa_office");
+  if (admin === qaOffice) throw new WorkflowError("Admin only.");
+}
+
 export async function requireQaJob(admin: Admin, jobId: string) {
   const job = checked(await admin.from("jobs").select("id, owner_id, source, qa_archived_at, deleted_at").eq("id", jobId).maybeSingle(), "Could not read the TEST journey");
   if (!job || job.source !== "qa_test" || job.qa_archived_at || job.deleted_at) throw new WorkflowError("This action is only available for an active TEST journey.");

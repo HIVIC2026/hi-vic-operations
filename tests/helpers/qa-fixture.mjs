@@ -84,7 +84,7 @@ export async function fixture(t,{seed=true}={}) {
    const token=randomUUID()+randomUUID();io.issued.push({email:to,token});return{user:clone(user),properties:{hashed_token:token}};
   })
  }}};
- io.context={userId:id(999),supabase:{rpc:async()=>{io.calls.push('admin:has_role');return io.fail.has('admin:has_role')?{data:null,error:{message:io.fail.get('admin:has_role')}}:{data:io.isAdmin,error:null};}}};
+ io.context={userId:id(999),supabase:{rpc:async(_fn,args)=>{const role=args?._role??'admin';if(role!=='admin'){io.calls.push(role+':has_role');return {data:io.isQaOffice===true&&role==='qa_office',error:null};}io.calls.push('admin:has_role');return io.fail.has('admin:has_role')?{data:null,error:{message:io.fail.get('admin:has_role')}}:{data:io.isAdmin,error:null};}}};
  io.handlers=loadHandlers(admin,io.context);
  io.user=async(n,address,businessId=null,role=null)=>{
   io.users.set(id(n),{id:id(n),email:address,password:'unchanged-secret-'+n,user_metadata:{qa_test:true,full_name:'Existing TEST name '+n}});

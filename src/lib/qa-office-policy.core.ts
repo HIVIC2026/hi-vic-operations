@@ -13,6 +13,9 @@ export const QA_OFFICE_FUNCTIONS = {
   "src/lib/coverage.functions.ts": ["getJobCoverage"],
   // Jo 28 Oct 22:23 UTC: installer quote card on TEST jobs only (server re-checks the job).
   "src/lib/installer-quote.functions.ts": ["getInstallerQuoteDraft", "sendInstallerQuote"],
+  // Jo 30 Oct: cut-down Test Centre for automatic tests. Every action re-checks the job is an active TEST job.
+  "src/lib/test-accounts.functions.ts": ["prepareQaJourneyAccess", "issueQaPersonaLink", "issueQaWorkerLink", "simulateQaJourneyTime", "simulateQaPayment", "archiveQaJourney"],
+  "src/lib/portal.functions.ts": ["createTestEnquiry", "getQaJourneys"],
 } as const;
 export function qaOfficeFunctionAllowed(filename: string, name: string): boolean {
   const path = filename.replaceAll("\\", "/").replace(/^.*?(?=src\/)/, "");

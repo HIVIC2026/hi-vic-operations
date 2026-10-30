@@ -22,7 +22,8 @@ describe("TEST-only payment simulation", () => {
     expect(wf).toContain('job?.source === "qa_test" && !job.qa_archived_at');
     const acc = readFileSync("src/lib/test-accounts.functions.ts", "utf8");
     const body = acc.slice(acc.indexOf("export const simulateQaPayment"));
-    expect(body).toContain("requireTestAdmin(context)");
+    // Jo 30 Oct: admin or the TEST office login, with the full TEST-isolation check on the job.
+    expect(body).toContain("requireTestOfficeOrAdmin(context, data.jobId)");
     expect(body).toContain("testJob(admin, data.jobId)");
     expect(body).not.toContain("xero");
   });
