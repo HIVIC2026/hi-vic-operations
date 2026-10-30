@@ -26,7 +26,7 @@ export function useInHouseBookingAccess(jobId: string) {
 
 type ExistingBooking = { id: string; kind: string; scheduled_start: string | null; status: string };
 
-function VisitPicker({ jobId, kind, label, booking }: { jobId: string; kind: VisitKind; label: string; booking?: ExistingBooking }) {
+function VisitPicker({ jobId, kind, label, booking }: { jobId: string; kind: VisitKind; label: string; booking: ExistingBooking | undefined }) {
   const book = useServerFn(inHouseBookVisit);
   const qc = useQueryClient();
   const [value, setValue] = useState("");
@@ -59,6 +59,7 @@ function VisitPicker({ jobId, kind, label, booking }: { jobId: string; kind: Vis
 
 export function InHouseBookingCard({ jobId }: { jobId: string }) {
   const access = useInHouseBookingAccess(jobId);
-  if (access.isLoading || access.isError || access.data?.allowed !== true) return null;
-  return <Group title="Visit bookings">{visits.map((visit) => <VisitPicker key={visit.kind} jobId={jobId} {...visit} booking={access.data.bookings?.find((booking) => booking.kind === visit.kind)} />)}</Group>;
+  const data = access.data;
+  if (access.isLoading || access.isError || data?.allowed !== true) return null;
+  return <Group title="Visit bookings">{visits.map((visit) => <VisitPicker key={visit.kind} jobId={jobId} {...visit} booking={data.bookings?.find((booking) => booking.kind === visit.kind)} />)}</Group>;
 }
