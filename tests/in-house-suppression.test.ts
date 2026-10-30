@@ -299,3 +299,24 @@ test("payee-only PIESA allocation reaches the normal booked-stage healing, never
   expect(await f.load("allocation.server").startPiesaAllocation("j", "office")).toEqual({ offered: 0, exhausted: false, healed: true });
   expect(f.writes).toEqual(["stage"]);
 });
+
+test("TEST sweep offers unheld jobs but still skips held TEST jobs", async () => {
+  for (const held of [false,true]) {
+    const f = fixture(); f.setFlag(held); f.data.jobs[0].source="qa_test"; f.data.partner_offers=[];
+    f.data.workflow_settings=[{auto_installer_offers:true,auto_electrician_offers:false,ready_check_booking_enabled:true}];
+    f.overrides["./ready-check-times.server"]={officePickReadyCheckInstaller:async()=>{f.writes.push("offer");}};
+    expect((await f.load("auto-offer.server").sweepAutoOffers()).offered).toBe(held ? 0 : 1);
+  }
+});
+test("flag switched off preserves assignments/booked Ready Check and normal PIESA healing", async () => {
+  const f=fixture(); f.setFlag(false); f.data.partner_offers=[];
+  f.data.jobs=[{id:"j",stage:"piesa_and_install_window_pending",channel:"hivic_sourced",source:"base44",deleted_at:null}];
+  f.data.job_assignments=[{id:"asg",job_id:"j",role:"electrician",active:true}];
+  f.data.bookings=[{id:"rc",job_id:"j",kind:"ready_check",status:"confirmed",scheduled_start:"2026-11-04T00:00:00Z"},{id:"p",job_id:"j",kind:"assessment",status:"confirmed",scheduled_start:"2026-11-05T00:00:00Z"}];
+  const before=JSON.stringify({assignments:f.data.job_assignments,bookings:f.data.bookings});
+  f.overrides["./workflow.server"].transition=async()=>{f.writes.push("stage");};
+  expect((await f.load("auto-offer.server").autoOfferForJob("j","ready_check",switches)).step).not.toBe("offer");
+  expect(await f.load("allocation.server").startPiesaAllocation("j","office")).toMatchObject({healed:true});
+  expect(JSON.stringify({assignments:f.data.job_assignments,bookings:f.data.bookings})).toBe(before);
+  expect(f.writes).toEqual(["stage"]);
+});

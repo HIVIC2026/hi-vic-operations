@@ -131,3 +131,13 @@ test("allocation RPC refuses payee-only businesses without assignments or audit 
     expect((await db.query("SELECT * FROM workflow_events")).rows).toEqual([]);
   } finally { await db.close(); }
 });
+
+test("second in-house partner cannot take a job already sent to the first", async () => {
+  const db = await setup(); try {
+    await db.exec("UPDATE businesses SET in_house=true WHERE name='Other'");
+    expect(await send(db)).toEqual({ sent: true });
+    expect(await send(db,20,11)).toEqual({ sent: false, reason: "Already with Rapid Insulation" });
+    expect((await db.query("SELECT * FROM job_assignments")).rows).toHaveLength(2);
+    expect((await db.query("SELECT * FROM in_house_batches")).rows).toHaveLength(1);
+  } finally { await db.close(); }
+});
