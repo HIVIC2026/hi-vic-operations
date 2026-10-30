@@ -302,7 +302,7 @@ test("payee-only PIESA allocation reaches the normal booked-stage healing, never
 
 test("TEST sweep offers unheld jobs but still skips held TEST jobs", async () => {
   for (const held of [false,true]) {
-    const f = fixture(); f.setFlag(held); f.data.jobs[0].source="qa_test"; f.data.partner_offers=[];
+    const f = fixture(); f.setFlag(held); f.data.jobs[0].source="qa_test"; f.data.partner_offers=[]; f.overrides["./test-send.core"]={isTestPartner:()=>true};
     f.data.workflow_settings=[{auto_installer_offers:true,auto_electrician_offers:false,ready_check_booking_enabled:true}];
     f.overrides["./ready-check-times.server"]={officePickReadyCheckInstaller:async()=>{f.writes.push("offer");}};
     expect((await f.load("auto-offer.server").sweepAutoOffers()).offered).toBe(held ? 0 : 1);
