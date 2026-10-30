@@ -317,3 +317,17 @@ test("pre-review companion pointer is reused by its current PIESA booking, never
  expect((await load("fixes-day.server").onRectificationBooked(JOB,"rect-visit",null,call)).auditId).toBe("audit-2");
  expect(calls.filter(c=>c.path==="/audits")).toHaveLength(2);
 });
+
+for(const field of ["rectificationCompletedAt","sectionCSignedAt"]) test(`partner-billed clearance still requires ${field}`,()=>{
+ const facts:any={piesaOutcome:"fail",piesaCompletedAt:"2026-10-30",rectificationRequired:true,rectificationQuoteAccepted:false,rectificationCompletedAt:"2026-11-02",sectionCSignedAt:"2026-11-02",partnerBilledRectification:true}; facts[field]=null;
+ expect(allocation.electricalClearance(facts).cleared).toBe(false);
+});
+test("amended-round create failure is visible and stays fail-closed on retry",async()=>{
+ await load("piesa-autoform.server").onPiesaBooked(JOB,"visit",null,{call}); realMitti=true; setPiesaAudit(false);
+ const s=load("mitti.server"), media=async()=>({bytes:new Uint8Array([1]),contentType:"image/png"});
+ await s.syncMittiAssessment(JOB,null,call,media); setPiesaAudit(true); failCreate=true;
+ await expect(s.syncMittiAssessment(JOB,null,call,media)).rejects.toThrow();
+ expect(tables.assessments[0].mitti_sync_status).toBe("error");
+ await expect(s.syncMittiAssessment(JOB,null,call,media)).rejects.toThrow();
+ expect(tables.assessments[0].mitti_sync_status).toBe("error");
+});
