@@ -213,7 +213,7 @@ test("partner-billed same-visit signed form reaches real install clearance witho
  realWorkflow=true; seedOfficial(); tables.jobs[0].stage="piesa_complete"; auditResponse=signedAudit();
  const server=load("fixes-day.server");
  const result=await server.completeFixesForm(JOB,"audit-2",{call,fetchMedia:async()=>({bytes:new Uint8Array([1]),contentType:"image/png"}),today:"2026-11-03"});
- expect(result.status).toBe("done");
+ expect(result.status, result.detail ?? "completion").toBe("done");
  const facts=await load("electrical-clearance.server").clearanceFacts(JOB);
  const cleared=allocation.electricalClearance(facts);
  expect(cleared.cleared).toBe(true); expect(cleared.timingDate).toBe("2026-10-30");
