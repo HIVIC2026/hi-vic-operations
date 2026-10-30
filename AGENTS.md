@@ -11,6 +11,7 @@
 
 - `docs/HIV_WORKFLOW_SOURCE_OF_TRUTH.md` + `src/config/workflow-decisions.ts` override older prompts/comments/labels; run `bun scripts/scan-retired-terms.ts` before workflow work. Pending DB changes live in `docs/pending-migrations/` and are proven on PGlite (`tests/helpers/pglite-*.ts`) before any live run. Why: stop retired rules returning and keep untested SQL off the live database.
 # Project rules
+- First-response unknown-age qualification uses `firstResponseOutcome` against the current recorded audit without rewriting Gate 1; routing, campaign links and rendering share it. Why: no-insulation age-unknown owners must not fall between offer paths, while failed or missing gates stay blocked.
 - Journey run path/group/status metadata is optional and stored by the existing storeJourneyRun helper; Drizzle SQL migrations own schema changes and drizzle/schema.ts stays the generated placeholder. Why: legacy callers/rows remain compatible and migration metadata has one owner.
 - Declared coverage proposals live in a pure centroid-based core and are office-only suggestions saved through existing saveBusiness verification; matching never reads proposals. Why: partner declarations must not become verified coverage without office confirmation.
 - One-job TEST timing sweeps validate qa_test and suppress senders; browser runs persist a per-job no-delivery marker checked at delivery boundaries. Why: QA must not sweep other jobs or send from the running server.

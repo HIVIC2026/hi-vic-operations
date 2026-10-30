@@ -95,7 +95,7 @@ async function followupAllowed(token: string) {
 async function sendOne(jobId: string, actorId: string | null, realOn: boolean, testOpts: TestSendOptions, followup = false): Promise<HotSendResult> {
   const mode = testOpts.mode ?? "send";
   const morePhotos = !!testOpts.morePhotosReviewId;
-  const { data: job, error: jobError } = await admin.from("jobs").select("id, job_number, source, stage, created_at, eligibility_outcome, estimated_area_m2, estimated_area_unknown, owners(full_name, email), properties(address_line, suburb, postcode, enrichment)").eq("id", jobId).maybeSingle();
+  const { data: job, error: jobError } = await admin.from("jobs").select("id, job_number, source, stage, created_at, eligibility_outcome, eligibility_decision_rules, estimated_area_m2, estimated_area_unknown, owners(full_name, email), properties(address_line, suburb, postcode, enrichment)").eq("id", jobId).maybeSingle();
   if (jobError) return { jobId, jobNumber: null, outcome: "blocked", detail: "Could not read the job. Try again; nothing sent." };
   if (!job) return { jobId, jobNumber: null, outcome: "failed", detail: "Job not found" };
   const r = (outcome: HotSendResult["outcome"], detail: string): HotSendResult => ({ jobId, jobNumber: job.job_number, outcome, detail });
