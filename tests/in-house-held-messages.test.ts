@@ -24,7 +24,7 @@ function fixture(held: boolean, payee = false, failed = false) {
     '@/integrations/supabase/client.server':{supabaseAdmin:admin}, './in-house.core':inHouse,
     './workflow.server':{logEvent:async()=>writes.push('event'), WorkflowError:class extends Error{}, piesaStatus:async()=>({})},
     './install-days.server':{installDayContext:async()=>({clearance:{cleared:true,timingDate:'2026-10-30',basis:'initial_piesa'},asg:{id:'a'},deadline:'2026-11-29',booked:false})},
-    './test-send.server':{sendTestEmail:delivered,sendTestSms:delivered}, './office-email.server':{sendOfficeEmail:delivered}, './sms.server':{sendRealSms:delivered},
+    './test-send.server':{TEST_APP_BASE:'https://example.test',sendTestEmail:delivered,sendTestSms:delivered}, './office-email.server':{sendOfficeEmail:delivered}, './sms.server':{sendRealSms:delivered},
     './test-send.core':{isTestPartner:()=>true}, './set-password-link.core':{SET_PASSWORD_BASE:'https://example.test'},
     './worker-links.core':{firstName:()=> 'Test'}, './estimatelink.core':{linkUsable:()=>true}, './engagement.core':{CUSTOMER_BASE:'https://example.test'},
     './address':{fullAddress:()=> '1 Test St'}, './veec-copy-email.server':{ownerMyJobLink:async()=> 'https://example.test'},
@@ -130,7 +130,6 @@ for(const entry of otherEntries) for(const payee of [false,true]) test(`${entry.
    return q;
  };
  const args=entry.args.map(x=>typeof x==='object'&&x&&'auditId' in x?{...x,short:{}}:x);
- const result = await f.load(entry.file)[entry.fn](...args);
- if(entry.fn === "textFixesTimesLink" && !f.calls.length) console.log("LOCAL RESULT",result);
+ await f.load(entry.file)[entry.fn](...args);
  expect(f.calls.length).toBeGreaterThan(0);
 });
