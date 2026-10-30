@@ -70,3 +70,31 @@ for(const payee of [false,true]) {
 test('clearance sweep skips held partner without a delivery claim',async()=>{
   const f=fixture(true);expect(await f.load('install-clearance.server').sweepInstallClearance(new Date('2026-10-30'))).toMatchObject({notified:0});expect(f.calls).toEqual([]);expect(f.writes).toEqual([]);
 });
+
+const otherEntries = [
+  {file:'install-booked-email.server',fn:'emailOwnerInstallBooked',args:['j','2026-11-04T00:00:00Z']},
+  {file:'installer-planning-notice.server',fn:'notifyInstallerPlanning',args:[{jobId:'j',assignmentId:'a',piesaStartIso:'2026-11-04T00:00:00Z'}]},
+  {file:'thirty-day-rule.server',fn:'sendInstallWindowReminder',args:['j','reminder_20','2026-11-29',new Date('2026-10-30')]},
+  {file:'deposit-release-notice.server',fn:'sendDepositReleaseNotice',args:[{jobId:'j',bookingId:'bk',wasStart:'2026-11-04T00:00:00Z',depositCents:10000,bank:{},reference:'TEST'}]},
+  {file:'install-no-access-notice.server',fn:'sendInstallNoAccessNotice',args:[{jobId:'j',bookingId:'bk',wasStart:'2026-11-04T00:00:00Z',reason:'TEST'}]},
+  {file:'install-no-access-notice.server',fn:'resendInstallNoAccessText',args:[{jobId:'j',bookingId:'bk',wasStart:'2026-11-04T00:00:00Z',reason:'TEST',reportedAt:'2026-10-30'}]},
+  {file:'visit-new-times.server',fn:'notifyOwnerVisitNewTimes',args:[{jobId:'j',bookingId:'bk',kind:'ready_check',wasIso:'2026-11-04T00:00:00Z'}]},
+  {file:'fixes-times-link.server',fn:'textFixesTimesLink',args:['j',{auditId:'audit',completedAt:'2026-10-30',short:{}}]},
+  {file:'approved-texts.server',fn:'textOwnerReadyCheckBooked',args:['j','2026-11-04T00:00:00Z','2026-10-30',new Date('2026-10-30')]},
+  {file:'approved-texts.server',fn:'textOwnerSafetyCheckBooked',args:['j','2026-11-04T00:00:00Z','2026-10-30',new Date('2026-10-30')]},
+  {file:'approved-texts.server',fn:'textOwnerVisitTomorrow',args:['installation','j',{id:'bk',scheduled_start:'2026-10-31T00:00:00Z'},new Date('2026-10-30T06:00:00Z')]},
+  {file:'approved-texts.server',fn:'textOwnerInstallMoved',args:['j',{id:'bk',scheduled_start:'2026-11-04T00:00:00Z',created_at:'2026-10-30'},'2026-11-03',new Date('2026-10-30')]},
+  {file:'owner-email-triggers.server',fn:'onSafetyCheckPaid',args:['j','invoice']},
+  {file:'owner-email-triggers.server',fn:'onFixesQuoteIssued',args:['j','quote']},
+];
+for(const entry of otherEntries) for(const failure of [false,true]) test(`${entry.fn}: ${failure?'failed read':'held'} no ledger or provider`,async()=>{
+  const f=fixture(true,false,failure);expect(await f.load(entry.file)[entry.fn](...entry.args)).toBe(failure?'in_house_read_failed':'in_house');expect(f.calls).toEqual([]);expect(f.writes).toEqual([]);
+});
+for(const purpose of ['quote_accepted','safety_check_times','safety_check_booked','fixes_quote','install_days','install_day_changed']) {
+  test(`direct template ${purpose}: held suppresses before rendering or recording`,async()=>{
+    const f=fixture(true);expect(await f.load('owner-template-send.server').sendOwnerTemplateEmail({jobId:'j',purpose,key:'key',approved:true,label:'test',notSentEvent:'test',render:()=>{throw new Error('must not render');}})).toBe('in_house');expect(f.calls).toEqual([]);expect(f.writes).toEqual([]);
+  });
+  for(const payee of [false,true]) test(`direct template ${purpose}: ${payee?'payee-only':'non-held'} keeps delivery`,async()=>{
+    const f=fixture(false,payee);expect(await f.load('owner-template-send.server').sendOwnerTemplateEmail({jobId:'j',purpose,key:'key',approved:true,label:'test',notSentEvent:'test',render:()=>({subject:'existing',html:'existing',text:'existing'})})).toContain('sent');expect(f.calls).toEqual(['message']);
+  });
+}
