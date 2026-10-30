@@ -88,7 +88,7 @@ function load(name: string, cache: Record<string, any> = {}): any {
   const extra = {};
   new Function("exports", "require", ...Object.keys(extra), ts.transpile(source, { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }))(out, (p: string) => {
     if (p === "./mitti.server" && !realMitti) return {
-      realMittiCall: call, mittiCallFor: async (c: any) => c, findMittiUserByEmail: async () => "mitti-user",
+      saveMittiReport:async()=>{}, realMittiCall: call, mittiCallFor: async (c: any) => c, findMittiUserByEmail: async () => "mitti-user",
       createAssignMittiAudit: async () => {
         const a = tables.assessments[0];
         if (a.external_mitti_id) { await call("POST", `/audits/${a.external_mitti_id}/share`, {shares:[{id:"mitti-user"}]}); await call("POST", `/audits/${a.external_mitti_id}/owner`, {}); return { auditId: a.external_mitti_id, reused: true }; }
