@@ -274,6 +274,13 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['estimateFollowups'] = "failed";
         }
         try {
+          const { sweepInHousePartnerCalls } = await import("@/lib/in-house-batch-email.server");
+          (out as Record<string, unknown>)['inHousePartnerCalls'] = await timed("sweepInHousePartnerCalls", () => sweepInHousePartnerCalls());
+        } catch (e) {
+          console.error("allocation tick: partner call email sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['inHousePartnerCalls'] = "failed";
+        }
+        try {
           // Decision 158: 20/10-day reminders to owner + installer (held until approved; TEST → test sender) and the
           // repeat-PIESA payer record when the 30-day window lapses with nothing booked.
           const { sweepInstallWindowRule } = await import("@/lib/thirty-day-rule.server");

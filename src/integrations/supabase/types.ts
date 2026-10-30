@@ -4971,6 +4971,45 @@ export type Database = {
           },
         ]
       }
+      in_house_batches: {
+        Row: {
+          business_id: string
+          id: string
+          job_ids: string[]
+          sent_at: string
+          sent_by: string
+        }
+        Insert: {
+          business_id: string
+          id?: string
+          job_ids?: string[]
+          sent_at?: string
+          sent_by: string
+        }
+        Update: {
+          business_id?: string
+          id?: string
+          job_ids?: string[]
+          sent_at?: string
+          sent_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "in_house_batches_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "in_house_batches_sent_by_fkey"
+            columns: ["sent_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       indicative_estimates: {
         Row: {
           applied_discount: number
@@ -13642,6 +13681,17 @@ export type Database = {
           job_id: string
           job_number: string
         }[]
+      }
+      allocate_in_house_batch_job: {
+        Args: {
+          _actor: string
+          _batch: string
+          _business: string
+          _electrician: string
+          _installer: string
+          _job: string
+        }
+        Returns: Json
       }
       apply_pre_assessment_test_payment: {
         Args: {
