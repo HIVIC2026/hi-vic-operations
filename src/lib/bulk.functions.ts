@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 // Admin-only bulk job actions. Each job is processed on its own so one failure never hides the rest;
-// every change goes through the normal guarded transition and is logged. Delete is limited to test records.
+// every change goes through the normal guarded transition and is logged. Delete is limited to test records and can be undone.
 export const bulkJobAction = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({
     jobIds: z.array(z.string().uuid()).min(1).max(200),
@@ -29,8 +29,12 @@ export const bulkJobAction = createServerFn({ method: "POST" }).middleware([requ
           const { data: j, error: je } = await admin.from("jobs").select("source").eq("id", jobId).single();
           if (je) throw new Error(je.message);
           if (j.source !== "qa_test") throw new Error("Only test records can be deleted. Mark it as a test record or cancel it instead.");
-          const { error } = await admin.from("jobs").delete().eq("id", jobId);
-          if (error) throw new Error(`Could not delete (linked signed or sent records are kept for audit): ${error.message}`);
+          // Soft delete, like deleteJob: restorable from Settings › Deleted (Jo, 27 Oct 2026).
+          const now = new Date().toISOString();
+          const { data: row, error } = await admin.from("jobs").update({ deleted_at: now, deleted_by: context.userId, deleted_reason: data.reason }).eq("id", jobId).is("deleted_at", null).select("stage").maybeSingle();
+          if (error) throw new Error(`Could not delete: ${error.message}`);
+          if (!row) throw new Error("Job not found or already deleted");
+          await logEvent(jobId, context.userId, "job_deleted", `Job deleted by office: ${data.reason}`, { bulk: true, reason: data.reason, stage_at_delete: row.stage, deleted_at: now }, { internal: true });
         }
         results.push({ jobId, ok: true });
       } catch (e) {

@@ -570,7 +570,7 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     const { count: dupes } = await admin.from("jobs").select("id", { count: "exact", head: true }).eq("originating_installer_business_id", BIZ).ilike("job_number", "%").in("id", madeJobs);
     c("later area (preliminary until visited) + quote saved on the same job", (s1.areaM2 ?? s1.preliminaryAreaM2) === 118 && s1.quoteIncGst === 2450, `${s1.areaM2 ?? s1.preliminaryAreaM2} ${s1.quoteIncGst}`);
     c("no duplicate job from the edit", dupes === new Set(madeJobs).size, `${dupes}`);
-    // Decision 421: once measured, only the office measurement review changes area.
+    // Decision 430: once measured, only the office measurement review changes area.
     // Record an onsite measurement on this run's new TEST job, never on an existing job.
     if (j?.source !== "qa_test" || j.originating_installer_business_id !== BIZ) throw new Fail("SAFETY STOP: measurement fixture must be this run's TEST job.");
     const { error: measurementError } = await admin.from("ceiling_measurements").insert({ job_id: a.jobId, is_current: true, source_role: "installer", confidence: "high", provenance: "hivic_onsite", measured_area_m2: 118, created_by: ownerId, raw_snapshot: { source: "C16 TEST onsite measurement" } });
