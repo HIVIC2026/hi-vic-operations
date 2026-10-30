@@ -40,11 +40,11 @@ BEGIN
   IF actor IS NULL THEN RAISE EXCEPTION 'Office actor is required'; END IF;
   NEW.updated_at := now();
   IF NEW.in_house IS DISTINCT FROM OLD.in_house THEN NEW.in_house_set_at := now(); NEW.in_house_set_by := actor; END IF;
-  INSERT INTO public.workflow_events(actor_id, event_type, summary, details, internal)
+  INSERT INTO public.admin_config_events(actor_id, event_type, summary, details)
   VALUES (actor, 'in_house_partner_changed', 'Office changed in-house partner configuration',
     jsonb_build_object('business_id', NEW.id,
       'old', jsonb_build_object('in_house', OLD.in_house, 'rectification_billed_by', OLD.rectification_billed_by),
-      'new', jsonb_build_object('in_house', NEW.in_house, 'rectification_billed_by', NEW.rectification_billed_by)), true);
+      'new', jsonb_build_object('in_house', NEW.in_house, 'rectification_billed_by', NEW.rectification_billed_by)));
   RETURN NEW;
 END;
 $$;

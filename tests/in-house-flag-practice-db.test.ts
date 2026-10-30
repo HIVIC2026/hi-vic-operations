@@ -11,7 +11,8 @@ test("pending in-house migration backfills only the old list, defaults billing a
       CREATE TABLE public.businesses(id uuid primary key, name text, updated_at timestamptz default now());
       CREATE TABLE public.rate_cards(id uuid primary key default gen_random_uuid(),business_id uuid,kind text,name text,version integer,effective_from date,is_active boolean);
       CREATE TABLE public.rate_card_items(id uuid primary key default gen_random_uuid(),rate_card_id uuid REFERENCES public.rate_cards(id),category text,code text,description text,unit text,unit_price_ex_gst numeric,sort integer);
-      CREATE TABLE public.workflow_events(actor_id uuid,event_type text,summary text,details jsonb,internal boolean);
+      CREATE TABLE public.workflow_events(job_id uuid,actor_id uuid,event_type text,summary text,details jsonb,internal boolean,CONSTRAINT workflow_events_job_required CHECK (job_id IS NOT NULL OR event_type = ANY (ARRAY['email_unmatched','email_unmatched_dismissed','email_new_sender_replied','email_nojob_ai_draft','email_nojob_reply_sent','email_nojob_ai_draft_closed','email_nojob_followup_claim','email_nojob_followup_failed','email_nojob_ai_draft_failed'])));
+      CREATE TABLE public.admin_config_events(id uuid primary key default gen_random_uuid(),actor_id uuid,event_type text not null,summary text not null,details jsonb not null,created_at timestamptz not null default now());
       INSERT INTO public.businesses VALUES
       ('a8304d2d-339b-4cbf-bcf1-fb09ce7935b0','Reinsulate'),
       ('17793408-bf5c-4ddd-9bec-64199f64f9fb','[TEST PARTNER] Reinsulate'),
@@ -25,13 +26,15 @@ test("pending in-house migration backfills only the old list, defaults billing a
     expect((await db.query<{ proconfig: string[] }>("SELECT proconfig FROM pg_proc WHERE proname IN ('guard_in_house_partner','save_in_house_partner')")).rows).toEqual([{ proconfig: ["search_path=public, pg_temp"] }, { proconfig: ["search_path=public, pg_temp"] }]);
     expect((await db.query<{ price: string }>("SELECT round(unit_price_ex_gst*1.1,2)::text AS price FROM rate_card_items")).rows).toEqual([{ price: "350.00" }, { price: "350.00" }]);
     await db.exec("SELECT save_in_house_partner('00000000-0000-0000-0000-000000000001',false,'partner','00000000-0000-0000-0000-000000000002')");
-    const events = (await db.query<{ actor_id: string; details: { old: { rectification_billed_by: string }; new: { rectification_billed_by: string } } }>("SELECT * FROM workflow_events")).rows;
+    const events = (await db.query<{ actor_id: string; details: { old: { rectification_billed_by: string }; new: { rectification_billed_by: string } } }>("SELECT * FROM admin_config_events")).rows;
     expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ event_type: "in_house_partner_changed", details: { business_id: "00000000-0000-0000-0000-000000000001", old: { in_house: false }, new: { in_house: false } } });
+    expect((await db.query("SELECT * FROM workflow_events")).rows).toHaveLength(0);
     expect(events[0]?.actor_id).toBe("00000000-0000-0000-0000-000000000002");
     expect(events[0]?.details.old.rectification_billed_by).toBe("hivic");
     expect(events[0]?.details.new.rectification_billed_by).toBe("partner");
     await db.exec("SELECT save_in_house_partner('00000000-0000-0000-0000-000000000001',false,'partner','00000000-0000-0000-0000-000000000002')");
-    expect((await db.query("SELECT * FROM workflow_events")).rows).toHaveLength(1);
+    expect((await db.query("SELECT * FROM admin_config_events")).rows).toHaveLength(1);
     await db.exec("GRANT USAGE ON SCHEMA public TO authenticated; GRANT SELECT,UPDATE ON businesses TO authenticated; SET ROLE authenticated");
     await expect(db.exec("SELECT save_in_house_partner('00000000-0000-0000-0000-000000000001',true,'partner','00000000-0000-0000-0000-000000000002')")).rejects.toThrow("permission denied");
     await expect(db.exec("UPDATE businesses SET in_house=true WHERE name='RAPID INSULATION'")).rejects.toThrow("Only the office");
@@ -49,6 +52,33 @@ test("pending in-house migration backfills only the old list, defaults billing a
     expect((await db.query("SELECT tgname FROM pg_trigger WHERE tgname='trg_guard_in_house_partner'")).rows).toEqual([]);
     expect((await db.query("SELECT proname FROM pg_proc WHERE proname IN ('guard_in_house_partner','save_in_house_partner')")).rows).toEqual([]);
     // Permanent office-change history survives rollback; it records a real accepted change.
-    expect((await db.query("SELECT * FROM workflow_events WHERE event_type='in_house_partner_changed'")).rows).toHaveLength(1);
+    expect((await db.query("SELECT * FROM admin_config_events WHERE event_type='in_house_partner_changed'")).rows).toHaveLength(1);
+  } finally { await db.close(); }
+});
+
+test("follow-up event-table migration preserves trigger saves with the real job constraint", async () => {
+  const db = new PGlite();
+  try {
+    await db.exec(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;
+      CREATE SCHEMA auth; CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$ SELECT null::uuid $$;
+      CREATE FUNCTION public.is_admin() RETURNS boolean LANGUAGE sql AS $$ SELECT false $$;
+      CREATE TABLE public.businesses(id uuid primary key, name text, updated_at timestamptz default now());
+      CREATE TABLE public.rate_cards(id uuid primary key default gen_random_uuid(),business_id uuid,kind text,name text,version integer,effective_from date,is_active boolean);
+      CREATE TABLE public.rate_card_items(id uuid primary key default gen_random_uuid(),rate_card_id uuid REFERENCES public.rate_cards(id),category text,code text,description text,unit text,unit_price_ex_gst numeric,sort integer);
+      CREATE TABLE public.workflow_events(job_id uuid,actor_id uuid,event_type text,summary text,details jsonb,internal boolean,CONSTRAINT workflow_events_job_required CHECK (job_id IS NOT NULL OR event_type = ANY (ARRAY['email_unmatched','email_unmatched_dismissed','email_new_sender_replied','email_nojob_ai_draft','email_nojob_reply_sent','email_nojob_ai_draft_closed','email_nojob_followup_claim','email_nojob_followup_failed','email_nojob_ai_draft_failed'])));
+      CREATE TABLE public.admin_config_events(id uuid primary key default gen_random_uuid(),actor_id uuid,event_type text not null,summary text not null,details jsonb not null,created_at timestamptz not null default now());
+      INSERT INTO public.businesses VALUES
+      ('a8304d2d-339b-4cbf-bcf1-fb09ce7935b0','Reinsulate'),
+      ('17793408-bf5c-4ddd-9bec-64199f64f9fb','[TEST PARTNER] Reinsulate'),
+      ('00000000-0000-0000-0000-000000000001','RAPID INSULATION');`);
+    await db.exec(readFileSync("docs/pending-migrations/2026-10-30_in_house_partner.sql", "utf8"));
+    await db.exec(readFileSync("docs/pending-migrations/2026-10-30_in_house_partner_fix_events_table.sql", "utf8"));
+    await db.exec("SELECT save_in_house_partner('00000000-0000-0000-0000-000000000001',true,'partner','00000000-0000-0000-0000-000000000002')");
+    expect((await db.query("SELECT actor_id::text,event_type,details FROM admin_config_events")).rows).toEqual([{
+      actor_id: "00000000-0000-0000-0000-000000000002", event_type: "in_house_partner_changed",
+      details: { business_id: "00000000-0000-0000-0000-000000000001", old: { in_house: false, rectification_billed_by: "hivic" }, new: { in_house: true, rectification_billed_by: "partner" } },
+    }]);
+    expect((await db.query("SELECT * FROM workflow_events")).rows).toHaveLength(0);
+    expect((await db.query("SELECT proconfig FROM pg_proc WHERE proname='guard_in_house_partner'")).rows).toEqual([{ proconfig: ["search_path=public, pg_temp"] }]);
   } finally { await db.close(); }
 });
