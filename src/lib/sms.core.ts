@@ -110,6 +110,9 @@ export const SMS_MESSAGE_TYPES = {
   // switches, off until Jo switches them on.
   run_time: { audience: "owner", label: "Your free Ready Check is {day} {time} – tap to confirm (A48 batch 2 runs)", wordingApproved: true, quietHours: true },
   run_time_reminder: { audience: "owner", label: "Please confirm your free Ready Check – 12-hour reminder (A48 batch 2 runs)", wordingApproved: true, quietHours: true },
+  // A48 batch 2 part 2, Task 8: the owner cancelled a confirmed run window → the INSTALLER is told once, with the run link
+  // ("Fill from nearby waiting owners"; run-portal.core runSlotCancelledText). Own switch, off; DRAFT wording until Jo approves.
+  run_slot_cancelled: { audience: "partner", label: "An owner cancelled their Ready Check in your run – offer the time to a nearby owner (A48 batch 2 runs)", wordingApproved: false, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 
@@ -190,6 +193,7 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   run_offered: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = Jo's "Send to installer" tap; the run's 24h reply window
   run_time: { kind: "window" }, // key = run + job + window; the window is recorded before any send; held → the tick retries
   run_time_reminder: { kind: "window" }, // key = run + job + window; due 12h after the time text, recomputed by the tick
+  run_slot_cancelled: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the owner's cancel; `run_slot_cancelled` recorded once per window before any send
 };
 
 export type SmsEventInput = {

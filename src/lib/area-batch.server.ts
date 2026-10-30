@@ -132,6 +132,10 @@ export async function batchCandidates(opts: { includeTest?: boolean; testJobIds?
     if (!sv?.["spot_saved_at"] || sv["opted_out_at"]) { no("the owner hasn't saved a spot"); continue; }
     const ev = eventsBy.get(id) ?? [];
     if (openBatchId(ev as unknown as AreaBatchEventRow[])) { no("it's already in a batch waiting for answers"); continue; }
+    // Task 8: a home added to a run by "Fill from nearby waiting owners" holds no pass of that run's batch — it is still in
+    // an open run while its window holds (until released / the run ends).
+    const ownRuns = [...new Set((ev as unknown as RunEventRow[]).filter((e) => e.event_type === RUN_OFFERED_EVENT).map(runIdOf).filter((x): x is string => !!x))];
+    if (ownRuns.some((r) => { const st = runState(r, ev as unknown as RunEventRow[]); return !!st && st.memberIds.includes(id) && (st.status === "offered" || st.status === "answered"); })) { no("it's in a run sent to the installer"); continue; }
     if (passHandedOn(ev as unknown as AreaBatchEventRow[], id)) {
       const runIds = [...new Set((ev as unknown as RunEventRow[]).filter((e) => e.event_type === RUN_OFFERED_EVENT).map(runIdOf).filter((x): x is string => !!x))];
       const inRun = runIds.some((r) => { const st = runState(r, ev as unknown as RunEventRow[]); return !!st && st.memberIds.includes(id) && (st.status === "offered" || st.status === "answered"); });

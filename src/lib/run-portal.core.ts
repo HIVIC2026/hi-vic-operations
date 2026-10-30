@@ -7,8 +7,9 @@
 import { formatInstallDay, installStartAt } from "./install-days.core";
 import { melbourneYmd } from "./piesa-windows.core";
 import { READY_CHECK_TIME_LEAD_HOURS } from "./ready-check-times.core";
+import { melbourneClock } from "./installer-texts.core";
 import {
-  MAX_PER_DAY, RUN_SLOT_CONFIRMED_EVENT, RUN_SLOT_CONFIRM_FAILED_EVENT, RUN_SLOT_PROPOSED_EVENT, RUN_SLOT_RELEASED_EVENT, RUN_TIME_REMINDED_EVENT,
+  MAX_PER_DAY, RUN_SLOT_CANCELLED_EVENT, RUN_SLOT_CONFIRMED_EVENT, RUN_SLOT_CONFIRM_FAILED_EVENT, RUN_SLOT_PROPOSED_EVENT, RUN_SLOT_RELEASED_EVENT, RUN_TIME_REMINDED_EVENT,
   RUN_TIME_TEXTED_EVENT, runIdOf, windowsFor, type RunEventRow,
 } from "./run-route.core";
 
@@ -19,6 +20,11 @@ export const RUN_HORIZON_DAYS = 21;
 export const RUN_CONFIRM_HOURS = 24;
 export const RUN_REMINDER_HOURS = 12;
 export const RUN_PORTAL_MODE = "portal" as const;
+/** Task 8, "Our team books": the installer's team calls the owners and enters each agreed day + time (no portal limits). */
+export const RUN_TEAM_MODE = "team" as const;
+/** Homes the team hasn't booked within 5 days of choosing "Our team books" go back to Jo's suggestions (once). */
+export const RUN_TEAM_BOOK_DAYS = 5;
+export const runTeamExpired = (chosenAt: string, now: Date) => now.getTime() >= Date.parse(chosenAt) + RUN_TEAM_BOOK_DAYS * 86_400_000;
 
 /** New owner texts: own switches, owner audience, off until Jo switches them on. */
 export const RUN_TIME_SMS_TYPE = "run_time" as const;
@@ -49,6 +55,11 @@ export function windowWords(start: string, end: string): string {
   const a = clock12(start); const b = clock12(end);
   return a.ap === b.ap ? `between ${a.t} and ${b.t}${b.ap}` : `between ${a.t}${a.ap} and ${b.t}${b.ap}`;
 }
+/** A team-entered time is an exact time, not a window: the existing Ready Check time wording ("at 9am", "at 6:15am" —
+ *  as in formatInstallDay / the Ready Check booked text). */
+export const exactTimeWords = (day: string, start: string) => `at ${melbourneClock(installStartAt(day, start).toISOString())}`;
+/** The owner-facing time of a home's window: exact for a team-entered time, else the 1-hour window. */
+export const slotTimeWords = (x: { by: string; day: string; start: string; end: string }) => (x.by === "team" ? exactTimeWords(x.day, x.start) : windowWords(x.start, x.end));
 /** "Tuesday 27 October". */
 export const runDayWords = (ymd: string) => formatInstallDay(installStartAt(ymd, "12:00").toISOString(), false);
 export const windowStartAt = (day: string, start: string) => installStartAt(day, start);
@@ -114,7 +125,7 @@ export function freeWindows(f: { day: string; gridStart: string; held: readonly 
 
 // ---- slot state ---------------------------------------------------------------------------------------------------------
 
-export type SlotState = "proposed" | "confirmed" | "released";
+export type SlotState = "proposed" | "confirmed" | "released" | "cancelled";
 export type Slot = Window & {
   /** The installer person doing it (Jo 30 Oct: "Who's doing these Ready Checks?"); the 8-a-day cap is per person. */
   person: string; by: string;
@@ -143,6 +154,7 @@ export function slotsOf(events: readonly RunEventRow[]): Slot[] {
         textedAt: ownerPick ? cur!.textedAt ?? e.created_at : null, remindedAt: ownerPick ? cur!.remindedAt : null, failedConfirms: 0 });
     } else if (!cur || cur.state === "released") continue;
     else if (e.event_type === RUN_SLOT_RELEASED_EVENT) cur.state = "released";
+    else if (e.event_type === RUN_SLOT_CANCELLED_EVENT) { if (seq === cur.seq) cur.state = "cancelled"; }
     else if (seq !== cur.seq) continue;
     else if (e.event_type === RUN_SLOT_CONFIRMED_EVENT) cur.state = "confirmed";
     else if (e.event_type === RUN_SLOT_CONFIRM_FAILED_EVENT) { cur.state = "proposed"; cur.failedConfirms++; }
@@ -167,12 +179,32 @@ export function slotDue(s: Slot, now: Date): SlotDue {
   if (s.state !== "proposed") return null;
   const t = now.getTime();
   const windowAt = windowStartAt(s.day, s.start).getTime();
+  // A team-entered time (Task 8): the text and the 12-hour reminder only, before the time; never released here — the
+  // 5-day team-booking expiry decides (the team may enter another time meanwhile).
+  if (s.by === "team") {
+    if (t >= windowAt) return null;
+    if (!s.textedAt) return "text";
+    return !s.remindedAt && t >= Date.parse(s.textedAt) + RUN_REMINDER_HOURS * 3_600_000 ? "remind" : null;
+  }
   if (!s.textedAt) return t >= windowAt ? "release" : "text";
   const texted = Date.parse(s.textedAt);
   if (t >= Math.min(texted + RUN_CONFIRM_HOURS * 3_600_000, windowAt)) return "release";
   if (!s.remindedAt && t >= texted + RUN_REMINDER_HOURS * 3_600_000) return "remind";
   return null;
 }
+
+// ---- owner cancels a confirmed window (Task 8) -------------------------------------------------------------------------------
+/** New INSTALLER text (Task 8): the owner cancelled a confirmed window. Own switch `run_slot_cancelled`, off until Jo switches
+ *  it on; DRAFT wording (wordingApproved false) until Jo approves it. */
+export const RUN_SLOT_CANCELLED_SMS_TYPE = "run_slot_cancelled" as const;
+export const runSlotCancelledText = (f: { name: string | null | undefined; day: string; time: string; link: string }) =>
+  `Hi ${first(f.name)}, an owner cancelled their Ready Check on ${f.day} ${f.time}. To offer that time to a nearby waiting owner: ${f.link} - Home Insulation Victoria`;
+export const runSlotCancelledKey = (runId: string, jobId: string, seq: number) => `run-slot-cancelled:v1:${runId}:${jobId}:${seq}`;
+export const runSlotCancelledSmsKey = (runId: string, jobId: string, seq: number) => `run-slot-cancelled-sms:v1:${runId}:${jobId}:${seq}`;
+/** "Fill from nearby waiting owners": the slot goes to ONE owner, once per cancelled window. */
+export const runSlotFilledKey = (runId: string, cancelledJobId: string, seq: number) => `run-slot-filled:v1:${runId}:${cancelledJobId}:${seq}`;
+/** Nearby = within 10 km of the cancelled home (the batch radius). */
+export const RUN_FILL_RADIUS_M = 10_000;
 
 // ---- window claims (no double-booking) ---------------------------------------------------------------------------------------
 // Windows are 1 hour but starts sit on the half-hour grid (READY_CHECK_TIMES), so a window claims EVERY half-hour slot it

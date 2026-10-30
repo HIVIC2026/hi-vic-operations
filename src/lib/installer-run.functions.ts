@@ -37,3 +37,23 @@ export const declineTradeRun = createServerFn({ method: "POST" }).middleware([re
 export const chooseTradeRunDay = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ runId: uuid, day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), start: z.string().regex(/^\d{2}:\d{2}$/), secondDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(), personId: uuid.nullable().optional() }).parse(d))
   .handler(async ({ data, context }) => plain(await (await import("./installer-run.server")).chooseRunDay(data.runId, context.userId, data.day, data.start, data.secondDay, { personId: data.personId ?? null })));
+
+/** Installer (Task 8): "Our team books" — their team calls the owners and enters each agreed time. */
+export const chooseTradeRunTeam = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ runId: uuid, personId: uuid.nullable().optional() }).parse(d))
+  .handler(async ({ data, context }) => (await import("./installer-run.server")).chooseTeamBooks(data.runId, context.userId, { personId: data.personId ?? null }));
+
+/** Installer (Our team books): the day + exact time agreed with this owner (the owner gets the confirm text). */
+export const enterTradeRunTime = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ runId: uuid, jobId: uuid, day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), time: z.string().regex(/^\d{2}:\d{2}$/) }).parse(d))
+  .handler(async ({ data, context }) => (await import("./installer-run.server")).enterTeamTime(data.runId, context.userId, data.jobId, data.day, data.time));
+
+/** Installer (Task 8): move a Portal books run to a new day — every owner gets a new window to confirm. */
+export const moveTradeRun = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ runId: uuid, day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), start: z.string().regex(/^\d{2}:\d{2}$/), secondDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable() }).parse(d))
+  .handler(async ({ data, context }) => plain(await (await import("./installer-run.server")).moveRun(data.runId, context.userId, data.day, data.start, { secondDay: data.secondDay })));
+
+/** Installer (Task 8): "Fill from nearby waiting owners" on a window an owner cancelled. */
+export const fillTradeRunSlot = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ runId: uuid, jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => (await import("./installer-run.server")).fillCancelledSlot(data.runId, context.userId, data.jobId));

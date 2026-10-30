@@ -29,7 +29,13 @@ export const RUN_SLOT_CONFIRM_FAILED_EVENT = "run_slot_confirm_failed";
 export const RUN_SLOT_RELEASED_EVENT = "run_slot_released";
 export const RUN_TIME_TEXTED_EVENT = "run_time_texted";
 export const RUN_TIME_REMINDED_EVENT = "run_time_reminded";
-export const RUN_SLOT_EVENTS = [RUN_SLOT_PROPOSED_EVENT, RUN_SLOT_CONFIRMED_EVENT, RUN_SLOT_CONFIRM_FAILED_EVENT, RUN_SLOT_RELEASED_EVENT, RUN_TIME_TEXTED_EVENT, RUN_TIME_REMINDED_EVENT] as const;
+// Task 8 (own-team booking, move run, cancellations):
+//   run_slot_cancelled {run_id, seq, person, day, start, end, by} — the owner cancelled (their job) after confirming; the
+//     installer is told once and may tap "Fill from nearby waiting owners"
+//   run_moved {run_id, day, second_day, start, by}            — the installer moved the run (every owner gets a new window)
+export const RUN_SLOT_CANCELLED_EVENT = "run_slot_cancelled";
+export const RUN_MOVED_EVENT = "run_moved";
+export const RUN_SLOT_EVENTS = [RUN_SLOT_PROPOSED_EVENT, RUN_SLOT_CONFIRMED_EVENT, RUN_SLOT_CONFIRM_FAILED_EVENT, RUN_SLOT_RELEASED_EVENT, RUN_TIME_TEXTED_EVENT, RUN_TIME_REMINDED_EVENT, RUN_SLOT_CANCELLED_EVENT] as const;
 /** A home leaves the run and its owner's pass is free again (batch candidate, carried pass). */
 export const RUN_RELEASE_EVENTS = [RUN_HOME_REMOVED_EVENT, RUN_DECLINED_EVENT, RUN_EXPIRED_EVENT, RUN_SLOT_RELEASED_EVENT] as const;
 
@@ -44,7 +50,7 @@ export const runOfferedSmsKey = (runId: string, attempt: number) => `run-offered
 export const RUN_OFFERED_TEXT_EVENT = "run_offered_text";
 /** Attempt statuses meaning the text went (or may have gone) — never sent again. */
 export const RUN_TEXT_WENT = ["sent", "already", "sent_unknown"] as const;
-export const RUN_EVENTS = [RUN_OFFERED_EVENT, ...RUN_RELEASE_EVENTS, ...RUN_REPLY_EVENTS, RUN_OFFERED_TEXT_EVENT, ...RUN_SLOT_EVENTS] as const;
+export const RUN_EVENTS = [RUN_OFFERED_EVENT, ...RUN_RELEASE_EVENTS, ...RUN_REPLY_EVENTS, RUN_OFFERED_TEXT_EVENT, ...RUN_SLOT_EVENTS, RUN_MOVED_EVENT] as const;
 export const runReleaseKey = (type: (typeof RUN_RELEASE_EVENTS)[number], runId: string, jobId: string) => `${type}:v1:${runId}:${jobId}`;
 /** The installer's run page (signed in, business-scoped). */
 export const runLink = (base: string, runId: string) => `${base.replace(/\/+$/, "")}/field/run/${runId}`;

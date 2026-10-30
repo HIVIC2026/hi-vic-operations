@@ -54,7 +54,7 @@ import { composeReply } from "./email-reply.core";
 import { brandSmsBody } from "./sms.core";
 import { quickTapsReminderText, quickTapsText } from "./area-batch.core";
 import { runOfferedText } from "./run-route.core";
-import { runTimeReminderText, runTimeText, windowWords } from "./run-portal.core";
+import { runSlotCancelledText, runTimeReminderText, runTimeText, windowWords } from "./run-portal.core";
 import { blastMessage } from "./save-spot-reminder-blast.core";
 import { threeQuestionsSms } from "./three-questions-reminder.core";
 import {
@@ -535,6 +535,10 @@ const INSTALLER: TemplateEntry[] = [
   ENTRY({ id: "installer:sms-run_offered", section: "installer", step: "ready_check", kind: "text", code: "", name: "You've got a run (text)", when: "Jo taps Send to installer on a closed batch (Jobs › Choose installer)", who: "Installer (business owner)", approvalNote: "Jo 30 Oct 2026 (A48 batch 2 part 2 spec)", gate: { kind: "text", smsType: "run_offered" },
     source: { builder: "src/lib/run-route.core.ts", fn: "runOfferedText", sender: "src/lib/installer-run.server.ts" },
     render: () => text(runOfferedText({ name: "Sam Sample", homes: 8, suburb: "Box Hill", link: `${BASE}/field/run/TEST-RUN` })) }),
+  // A48 batch 2 part 2, Task 8: an owner cancelled a confirmed window in the installer's run. DRAFT wording (not approved).
+  ENTRY({ id: "installer:sms-run_slot_cancelled", section: "installer", step: "ready_check", kind: "text", code: "", name: "An owner cancelled — fill the time (text)", when: "An owner in the installer's run cancels after confirming their window", who: "Installer (business owner)", approvalNote: "DRAFT — wording awaiting Jo (A48 batch 2 Task 8)", gate: { kind: "text", smsType: "run_slot_cancelled" },
+    source: { builder: "src/lib/run-portal.core.ts", fn: "runSlotCancelledText", sender: "src/lib/installer-run.server.ts" },
+    render: () => text(runSlotCancelledText({ name: "Sam Sample", day: "Tuesday 27 October", time: windowWords("09:00", "10:00"), link: `${BASE}/field/run/TEST-RUN` })) }),
   // Quote
   ENTRY({ id: "installer:I23", section: "installer", step: "quote", kind: "email", code: "I23", name: "Good news — the owner accepted", when: "The owner pays the safety check", who: "Installer", approvalNote: "Jo 24 Oct 2026", gate: { kind: "email" },
     source: { builder: "src/lib/installer-accepted-email.core.ts", fn: "renderInstallerAcceptedEmail", sender: "src/lib/installer-accepted-email.server.ts" }, design: "docs/templates/mjml/installer_I23.mjml",

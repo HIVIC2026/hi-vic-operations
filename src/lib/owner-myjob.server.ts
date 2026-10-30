@@ -159,6 +159,8 @@ export async function cancelOwnerJob(token: unknown): Promise<{ ok: boolean; rea
   }
   // Stage 5 (Jo 23 Oct): cancelling the job releases its Mitti Ready Check form too.
   if (bk?.some((b) => b.kind === "ready_check")) await (await import("./mitti-pickup.server")).releaseReadyCheckFormOnCancel(l.job_id, null, "owner cancelled the job").catch(() => undefined);
+  // A48 batch 2 Task 8: a confirmed window in an installer's run → the installer is told once and can fill it (best-effort).
+  try { await (await import("./installer-run.server")).runOwnerCancelled(l.job_id); } catch (e) { console.error("run cancel hook skipped", (e as Error).message); }
   const { logEvent } = await import("./workflow.server");
   await logEvent(l.job_id, null, "owner_cancelled_job", "Owner cancelled their job from My job (before the Pre Insulation Electrical Safety Assessment (PIESA) was booked). No charge.", { bookings_cancelled: bk?.length ?? 0, trades_to_notify: true }, { internal: true });
   return { ok: true };
