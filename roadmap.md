@@ -1,3 +1,6 @@
+## Jo 30 Oct in-house partner — Task 1 only
+- [ ] Red-first tests, pending migration + undo proved on PGlite, stored-flag/rate-card readers, admin-only guarded panel and audit, full npm test. No live changes or publication.
+
 ## Jo 30 Oct unknown house age first response
 - [x] Apply the same current-audit age-onsite qualification to likely/no-insulation grouping, automatic routing, campaign links and sender rendering; five-year failures remain blocked. No sends, data/switch changes or publication.
 
