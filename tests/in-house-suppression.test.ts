@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import ts from "typescript";
 import * as inHouse from "../src/lib/in-house.core";
 import * as autoCore from "../src/lib/auto-offer.core";
+import * as decisions from "../src/config/workflow-decisions";
 
 // Real helpers with isolated database/provider doubles. No hosted writes or delivery.
 function fixture() {
@@ -15,6 +16,7 @@ function fixture() {
     jobs: [{ id: "j", stage: "ready_check_ready_to_schedule", channel: "hivic_sourced", source: "base44", deleted_at: null }],
     partner_offers: [{ id: "offer", job_id: "j", kind: "ready_check", status: "pending", business_id: "b", offered_at: "2026-10-30T00:00:00Z", expires_at: "2030-01-01T00:00:00Z" }],
     job_assignments: [],
+    businesses: [{ id: "b", onboarding_notes: null, coverage_lat: null, coverage_lng: null }],
     contact_releases: [{ job_id: "j", visit_kind: "piesa", released_at: "2020-01-01T00:00:00Z", assignment_id: "asg", job_assignments: { active: true, booking_confirmed_at: null } }],
   };
   const admin = { from(table: string) {
@@ -43,6 +45,7 @@ function fixture() {
   const workflow = { WorkflowError: class extends Error {}, logEvent: async () => { writes.push("event"); }, piesaRequestFacts: async () => ({}), stageEntryBlockers: async () => [] };
   const overrides: Record<string, any> = {
     "@/integrations/supabase/client.server": { supabaseAdmin: admin }, "./in-house.core": inHouse,
+    "@/config/workflow-decisions": decisions,
     "./auto-offer.core": autoCore, "./workflow.server": workflow,
     "./spot-release.server": { spotReleaseStateFor: async () => ({ state: "confirmed" }) },
     "./readycheck-booking.server": { installerCandidatesFor: async () => ({ postcode: null, candidates: [{ business_id: "b", name: "Rapid", coverage_verified: true, covers_postcode: true, has_valid_licence: true, approved_workers: 1 }] }) },
