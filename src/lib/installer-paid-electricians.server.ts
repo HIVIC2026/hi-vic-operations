@@ -1,7 +1,7 @@
 // Jo 26 Oct 2026: which jobs' safety check we pay to the INSTALLER instead of the electrician (rules in
 // installer-paid-electricians.core.ts). Read-only, batched by job id; read errors throw (fail closed upstream).
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { installerPaysOwnElectricians, safetyCheckPayee, type InstallerPaidElectricians } from "./installer-paid-electricians.core";
+import { installerPaysOwnElectricians, safetyCheckPayee, type InstallerPaidElectricians, type InstallerPiesaResult } from "./installer-paid-electricians.core";
 import type { InHousePiesaBusiness } from "./installer-paid-electricians.core";
 import { melbourneToday } from "./melbourne-time.core";
 
@@ -9,12 +9,12 @@ import { melbourneToday } from "./melbourne-time.core";
 export async function inHouseBusinessesFor(ids: string[]): Promise<Map<string, InHousePiesaBusiness>> {
   const out = new Map<string, InHousePiesaBusiness>();
   if (!ids.length) return out;
-  const { data: businesses, error } = await admin.from("businesses").select("*").in("id", ids);
+  const { data: businesses, error } = await admin.from("businesses").select("id,name,in_house").in("id", [...new Set(ids)]).eq("in_house", true);
   if (error) throw new Error("Could not read in-house partner configuration.");
   const enabled = (businesses ?? []).filter(b => (b as unknown as { in_house?: boolean }).in_house === true);
   if (!enabled.length) return out;
   const { data: cards, error: ce } = await admin.from("rate_cards").select("id,business_id,version,effective_from")
-    .in("business_id", enabled.map(b => b.id)).eq("is_active", true).lte("effective_from", melbourneToday()).order("version", { ascending: false });
+    .in("business_id", enabled.map(b => b.id)).eq("kind", "electrical").eq("is_active", true).lte("effective_from", melbourneToday()).order("version", { ascending: false });
   if (ce) throw new Error("Could not read the in-house PIESA rate cards.");
   const { data: lines, error: le } = cards?.length ? await admin.from("rate_card_items").select("rate_card_id,code,unit_price_ex_gst").in("rate_card_id", cards.map(c => c.id)).ilike("code", "piesa") : { data: [], error: null };
   if (le) throw new Error("Could not read the in-house PIESA prices.");
@@ -26,7 +26,7 @@ export async function inHouseBusinessesFor(ids: string[]): Promise<Map<string, I
   return out;
 }
 
-export async function readInstallerPaidElectricians(businessId: string | null | undefined): Promise<InstallerPaidElectricians | null> {
+export async function readInstallerPaidElectricians(businessId: string | null | undefined): Promise<InstallerPiesaResult | null> {
   if (!businessId) return null;
   return installerPaysOwnElectricians((await inHouseBusinessesFor([businessId])).get(businessId));
 }
@@ -63,6 +63,10 @@ export async function safetyCheckPayeesFor(jobs: { id: string; originating_insta
   if (error) throw new Error(`Could not read the Ready Check electrician choices: ${error.message}`);
   const choice = new Map<string, string | null>();
   for (const e of (data ?? []) as { job_id: string; details: { choice?: string | null } | null }[]) if (!choice.has(e.job_id)) choice.set(e.job_id, e.details?.choice ?? null);
-  for (const j of candidates) out.set(j.id, safetyCheckPayee({ business: businesses.get(j.originating_installer_business_id ?? ""), electricianChoice: choice.get(j.id) ?? null }));
+  for (const j of candidates) {
+    const payee = safetyCheckPayee({ business: businesses.get(j.originating_installer_business_id ?? ""), electricianChoice: choice.get(j.id) ?? null });
+    if (payee?.release_hold_reason) throw new Error(payee.release_hold_reason);
+    out.set(j.id, payee);
+  }
   return out;
 }

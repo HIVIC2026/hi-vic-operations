@@ -409,7 +409,11 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
   const { data: ownBooks } = await admin.from("bookings").select(sel).is("jobs.deleted_at", null).eq("business_id", bizId).in("status", kind === "electrician" ? ["completed", "confirmed"] : ["completed"]).in("kind", mine as never).order("scheduled_start", { ascending: false });
   // Jo 26 Oct 2026: an installer that pays its own electricians (Reinsulate) is paid for the safety checks they did.
   const { readInstallerPaidElectricians } = await import("./installer-paid-electricians.server");
-  const { data: theirChecks } = kind === "installer" && await readInstallerPaidElectricians(bizId)
+  const displayPayer = kind === "installer" ? await readInstallerPaidElectricians(bizId).catch((error: unknown) => {
+    console.error("In-house partner display read failed", error);
+    return null;
+  }) : null;
+  const { data: theirChecks } = displayPayer && !displayPayer.release_hold_reason
     ? await admin.from("bookings").select(sel).is("jobs.deleted_at", null).eq("jobs.originating_installer_business_id", bizId).eq("kind", "assessment").in("status", ["completed", "confirmed"]).order("scheduled_start", { ascending: false })
     : { data: [] };
   const books = [...(ownBooks ?? []), ...(theirChecks ?? [])];
@@ -418,7 +422,10 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
   const safetyDone = new Set((doneSafety ?? []).map((a) => a.job_id));
   const done = books.filter((b) => b.status === "completed" || (b.kind === "assessment" && safetyDone.has(b.job_id)));
   const checkJobs = [...new Map(done.filter((b) => b.kind === "assessment").map((b) => [b.job_id, { id: b.job_id, originating_installer_business_id: (b.jobs as { originating_installer_business_id?: string | null }).originating_installer_business_id ?? null }])).values()];
-  const payees = await (await import("./installer-paid-electricians.server")).safetyCheckPayeesFor(checkJobs);
+  const payees = await (await import("./installer-paid-electricians.server")).safetyCheckPayeesFor(checkJobs).catch((error: unknown) => {
+    console.error("In-house safety-check display read failed", error);
+    return new Map<string, import("./installer-paid-electricians.core").InstallerPaidElectricians | null>();
+  });
   // One safety check row per job (a completed and a confirmed booking for the same job are one payout).
   const seenSafety = new Set<string>();
   const rows = done.filter((b) => b.kind !== "ready_check" && (!testOnly || (b.jobs as { source: string }).source === "qa_test") && (b.kind !== "assessment" || (seenSafety.has(b.job_id) ? false : (seenSafety.add(b.job_id), true))));

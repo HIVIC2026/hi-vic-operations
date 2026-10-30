@@ -29,7 +29,7 @@ AND NOT EXISTS (SELECT 1 FROM public.rate_card_items i WHERE i.rate_card_id = r.
 -- One transaction for the accepted flag/billing values and their permanent history.
 -- Only the existing admin-checked saveBusiness handler may invoke this privileged write.
 CREATE FUNCTION public.guard_in_house_partner() RETURNS trigger
-LANGUAGE plpgsql SET search_path = public AS $$
+LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
 DECLARE actor uuid;
 BEGIN
   IF NEW.in_house IS NOT DISTINCT FROM OLD.in_house AND NEW.rectification_billed_by IS NOT DISTINCT FROM OLD.rectification_billed_by THEN RETURN NEW; END IF;
@@ -53,7 +53,7 @@ FOR EACH ROW EXECUTE FUNCTION public.guard_in_house_partner();
 
 CREATE FUNCTION public.save_in_house_partner(p_business_id uuid, p_in_house boolean,
   p_rectification_billed_by text, p_actor_id uuid)
-RETURNS void LANGUAGE plpgsql SET search_path = public AS $$
+RETURNS void LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
 DECLARE previous public.businesses%ROWTYPE; next_flag boolean; next_billing text;
 BEGIN
   IF p_actor_id IS NULL THEN RAISE EXCEPTION 'Office actor is required'; END IF;
