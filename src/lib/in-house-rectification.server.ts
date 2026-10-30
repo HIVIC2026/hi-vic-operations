@@ -11,3 +11,9 @@ export async function partnerBilledRectificationFor(jobId: string): Promise<bool
   if (error || !data?.businesses) throw new Error("Couldn't check the job's partner — please try again.");
   return partnerBillsRectification(data.businesses as unknown as InHouseBusiness);
 }
+
+/** Optional sync/clearance extension: uncertainty keeps the legacy gate, never aborts its caller. */
+export async function optionalPartnerBilledRectificationFor(jobId: string): Promise<boolean> {
+  try { return await partnerBilledRectificationFor(jobId); }
+  catch (error) { console.error('In-house rectification extension skipped', error instanceof Error ? error.message : 'Partner read failed'); return false; }
+}

@@ -31,11 +31,11 @@ export async function onPiesaBooked(jobId: string, bookingId: string, actorId: s
   const d = piesaAutoFormDecision({ deleted: !!job.deleted_at, archived: !!job.qa_archived_at, businessUnit: job.business_unit, hasPiesaForm: !!a?.external_mitti_id });
   if (d.action === "skip" && d.reason !== "PIESA form already created") return { outcome: "skipped", reason: d.reason };
 
-  // Only a positively held real job receives the companion rectification form. Failed reads stop creation.
+  // Only a positively held real job receives the companion; outage preserves the original A3 path.
   const { readInHouseDispatchState } = await import("./in-house-suppression.server");
   const state = await readInHouseDispatchState([jobId]);
-  if (state.failed) return failed(jobId, bookingId, actorId, "Couldn't check the job's partner — please try again.");
-  const paired = job.source !== "qa_test" && state.held.has(jobId);
+  if (state.failed) console.error('PIESA companion creation skipped: partner read failed');
+  const paired = !state.failed && job.source !== "qa_test" && state.held.has(jobId);
   if (d.action === "skip" && !paired) return { outcome: "skipped", reason: d.reason };
 
   const assignee = await piesaTestAssignee(job.source, asg as never);
