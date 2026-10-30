@@ -12,6 +12,7 @@ import {
   readyCheckOfferExpiry, readyCheckOfferOverdue, readyCheckOfferStartBlockers, readyCheckStartAt, readyCheckTurn, type ReadyCheckPick,
 } from "./ready-check-times.core";
 import { melbourneYmd } from "./piesa-windows.core";
+import { inHouseDispatchSkip } from "./in-house-suppression.server";
 
 async function context(jobId: string) {
   const [{ data: job }, { data: asg }, { data: booked }, { data: rows }] = await Promise.all([
@@ -72,6 +73,7 @@ async function insertTimes(jobId: string, userId: string, role: "installer" | "o
 const startsOf = (picks: ReadyCheckPick[]) => picks.map((p) => readyCheckStartAt(p.day, p.time).toISOString());
 
 async function tellOwner(jobId: string, starts: string[]) {
+  if (await inHouseDispatchSkip(jobId)) return;
   await (await import("./ready-check-times-email.server")).emailOwnerReadyCheckTimes(jobId, starts).catch((e) => console.error("ready check times email skipped", (e as Error).message));
 }
 
@@ -179,6 +181,8 @@ export async function sweepOfficePickedOffers(actorId: string | null = null, now
 export async function acceptOfferWithTimes(offerId: string, userId: string, picks: ReadyCheckPick[], now = new Date()) {
   const { data: o } = await admin.from("partner_offers").select("id, job_id, kind, status, business_id, offered_at, expires_at").eq("id", offerId).maybeSingle();
   if (!o || o.kind !== "ready_check") throw new WorkflowError("Offer not found.");
+  const skipped = await inHouseDispatchSkip(o.job_id);
+  if (skipped) return { ok: true, skipped };
   if (o.status !== "pending") throw new WorkflowError("This offer is no longer open.");
   if (readyCheckOfferOverdue(o, now)) throw new WorkflowError("This offer has closed (24 hours passed).");
   const c0 = await context(o.job_id);

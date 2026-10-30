@@ -4,6 +4,10 @@ export type InHouseFacts = { approvedElectricianWorkers: number; hasActiveRateCa
 
 export function isInHousePartner(b: { in_house: boolean }): boolean { return b.in_house === true; }
 
+export function jobHeldByInHousePartner(f: { activeInstallerBusiness: { in_house: boolean } | null }): boolean {
+  return f.activeInstallerBusiness !== null && isInHousePartner(f.activeInstallerBusiness);
+}
+
 export function inHouseEnableBlockers(f: InHouseFacts): string[] {
   const blockers: string[] = [];
   if (f.approvedElectricianWorkers < 1) blockers.push("No approved electrician worker");

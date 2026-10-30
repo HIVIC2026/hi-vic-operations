@@ -15,6 +15,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { logEvent, piesaRequestFacts, stageEntryBlockers } from "./workflow.server";
 import { isTestPartner } from "./test-send.core";
 import { ourLeadPreferredId } from "./our-lead-piesa-electrician.core";
+import { inHouseDispatchSkip, readInHouseDispatchState, type InHouseDispatchState } from "./in-house-suppression.server";
 import {
   AUTO_OFFER_FLAG, AUTO_OFFER_READY_STAGES, AUTO_OFFER_RETURNED_EVENT, autoOfferBlocked, autoOfferInstallerElectrician, autoOfferPreferredElectrician, autoOfferReturnedSummary, autoOfferStageReady, autoOfferStep, autoOfferSwitchOn,
   type AutoOfferCandidate, type AutoOfferKind, type AutoOfferRow, type AutoOfferStep,
@@ -113,11 +114,13 @@ async function electricianCandidates(jobId: string, channel: string | null, jobI
   return { usualBusinessId, candidates: mapped };
 }
 
-export type AutoOfferOutcome = { jobId: string; kind: AutoOfferKind; step: AutoOfferStep["action"]; reason?: string; businessId?: string; error?: string };
+export type AutoOfferOutcome = { jobId: string; kind: AutoOfferKind; step: AutoOfferStep["action"]; reason?: string; businessId?: string; error?: string; skipped?: "in_house" | "in_house_read_failed" };
 
 /** One job, one kind: offer the next match, hand the job back to the office, or do nothing. Never throws for a
  *  refused send (the guarded sender's reason is returned); with the switch off it reads the switch and stops. */
-export async function autoOfferForJob(jobId: string, kind: AutoOfferKind, switches?: Awaited<ReturnType<typeof readAutoOfferSwitches>>): Promise<AutoOfferOutcome> {
+export async function autoOfferForJob(jobId: string, kind: AutoOfferKind, switches?: Awaited<ReturnType<typeof readAutoOfferSwitches>>, inHouseState?: InHouseDispatchState): Promise<AutoOfferOutcome> {
+  const skipped = await inHouseDispatchSkip(jobId, inHouseState);
+  if (skipped) return { jobId, kind, step: "none", reason: skipped, skipped };
   const sw = switches ?? await readAutoOfferSwitches();
   if (!sw[kind]) return { jobId, kind, step: "none", reason: "switch_off" };
   if (kind === "ready_check" && !sw.readyCheckBooking) return { jobId, kind, step: "none", reason: "ready_check_booking_off" };
@@ -174,7 +177,8 @@ export async function autoOfferForJob(jobId: string, kind: AutoOfferKind, switch
  *  while a hand-back newer than the job's latest reopen and latest PIESA offer exists. Never offers anything, and never
  *  for a job with an electrician assigned, its PIESA request gate not clear, or not at the PIESA stage.
  *  Callers check the dispatch mode (not office picks). Returns true when it wrote the hand-back. */
-export async function handPiesaToOfficeAutoOff(jobId: string, actorId: string | null = null): Promise<boolean> {
+export async function handPiesaToOfficeAutoOff(jobId: string, actorId: string | null = null, inHouseState?: InHouseDispatchState): Promise<boolean> {
+  if (await inHouseDispatchSkip(jobId, inHouseState)) return false;
   // Only a job genuinely waiting for an electrician: at the PIESA stage, nobody assigned (team-up auto-assign puts an
   // electrician on with no offer row) and its PIESA request gate clear — otherwise there is nothing for the office to choose.
   // An unreadable assignment check fails closed (no hand-back).
@@ -206,13 +210,16 @@ export async function sweepAutoOffers(): Promise<{ enabled: { installer: boolean
   const sw = await readAutoOfferSwitches();
   const out = { enabled: { installer: sw.ready_check, electrician: sw.piesa }, offered: 0, returned: 0, refused: 0 };
   const kinds = (["ready_check", "piesa"] as const).filter((k) => sw[k] && (k !== "ready_check" || sw.readyCheckBooking));
+  if (!kinds.length) return out;
+  const inHouseState = await readInHouseDispatchState();
+  if (inHouseState.failed) return out;
   for (const kind of kinds) {
-    let q = admin.from("jobs").select("id").in("stage", AUTO_OFFER_READY_STAGES[kind] as never[]).is("deleted_at", null);
+    let q = admin.from("jobs").select("id").in("stage", AUTO_OFFER_READY_STAGES[kind] as never[]).is("deleted_at", null).neq("source", "qa_test");
     if (kind === "ready_check") q = q.eq("channel", "hivic_sourced");
     const { data: jobs } = await q.order("created_at").limit(200);
     for (const j of jobs ?? []) {
       try {
-        const r = await autoOfferForJob(j.id, kind, sw);
+        const r = await autoOfferForJob(j.id, kind, sw, inHouseState);
         if (r.step === "offer") out.offered++;
         else if (r.step === "return_to_office") out.returned++;
         else if (r.reason === "sender_refused") out.refused++;
