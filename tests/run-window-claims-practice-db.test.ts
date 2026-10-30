@@ -1,10 +1,12 @@
 import { expect, test } from "bun:test";
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
-import { RUN_WINDOW_CLAIMED_EVENT, RUN_WINDOW_EVENTS, RUN_WINDOW_FREED_EVENT, currentClaim, runWindowFreedKey, runWindowKey } from "../src/lib/run-portal.core";
+import { RUN_WINDOW_CLAIMED_EVENT, RUN_WINDOW_EVENTS, RUN_WINDOW_FREED_EVENT, currentClaim, runWindowFreedKey, runWindowKey, windowSlots } from "../src/lib/run-portal.core";
 
-// Task 7 fix round 1: ONE claim per installer person + day + window start + generation (and one free per generation),
-// across jobs, so two homes can never both take the same window; a freed window is claimed again as the next generation.
+// Task 7 fix round 1: ONE claim per installer person + day + half-hour slot + generation (and one free per generation),
+// across jobs, so two homes can never both take the same time; a freed slot is claimed again as the next generation.
+// Fix round 2: a 1-hour window claims EVERY half-hour slot it covers (08:00 → 08:00 + 08:30), so 08:00 and 08:30 windows
+// collide on the 08:30 slot.
 // Fixture mirrors drizzle 0000 (job_id NOT NULL, append-only trigger).
 const read = (name: string) => readFileSync(new URL(`../docs/pending-migrations/${name}`, import.meta.url), "utf8");
 const JOB = "11111111-1111-4111-8111-111111111111";
@@ -23,10 +25,10 @@ async function fixture() {
     INSERT INTO public.jobs (id) VALUES ('${JOB}'), ('${JOB2}');`);
   return db;
 }
-const W = { person: "u-sam", day: "2026-10-27", start: "09:00" };
-const ins = (db: PGlite, job: string, type: string, gen: number) =>
+const W = { person: "u-sam", day: "2026-10-27", start: "09:00", slot: "09:00" };
+const ins = (db: PGlite, job: string, type: string, gen: number, w: { start: string; slot: string } = W) =>
   db.query(`INSERT INTO public.workflow_events (job_id, event_type, summary, details, internal) VALUES ($1, $2, 's', $3::jsonb, true)`,
-    [job, type, JSON.stringify({ run_id: "r1", seq: 1, ...W, gen, idempotency_key: type === RUN_WINDOW_CLAIMED_EVENT ? runWindowKey(W.person, W.day, W.start, gen) : runWindowFreedKey(W.person, W.day, W.start, gen) })]);
+    [job, type, JSON.stringify({ run_id: "r1", seq: 1, person: W.person, day: W.day, ...w, gen, idempotency_key: type === RUN_WINDOW_CLAIMED_EVENT ? runWindowKey(W.person, W.day, w.slot, gen) : runWindowFreedKey(W.person, W.day, w.slot, gen) })]);
 const code = (p: Promise<unknown>) => p.then(() => null, (e: { code?: string }) => e.code ?? "error");
 
 test("the migration indexes exactly the two window events; no constraint change", () => {
@@ -53,11 +55,23 @@ test("after the migration (applied twice): one claim per window + generation acr
   expect(await code(ins(db, JOB2, RUN_WINDOW_FREED_EVENT, 1))).toBe("23505");
   await ins(db, JOB2, RUN_WINDOW_CLAIMED_EVENT, 2);
   expect(await code(ins(db, JOB, RUN_WINDOW_CLAIMED_EVENT, 2))).toBe("23505");
-  await db.query(`INSERT INTO public.workflow_events (job_id, event_type, summary, details) VALUES ($1, 'stage_changed', 's', $2::jsonb), ($1, 'stage_changed', 's', $2::jsonb)`, [JOB, JSON.stringify({ idempotency_key: runWindowKey(W.person, W.day, W.start, 2) })]);
+  await db.query(`INSERT INTO public.workflow_events (job_id, event_type, summary, details) VALUES ($1, 'stage_changed', 's', $2::jsonb), ($1, 'stage_changed', 's', $2::jsonb)`, [JOB, JSON.stringify({ idempotency_key: runWindowKey(W.person, W.day, W.slot, 2) })]);
   await expect(db.exec(`UPDATE public.workflow_events SET summary = 'x'`)).rejects.toThrow(/append-only/);
   const rows = await db.query<{ job_id: string; event_type: string; created_at: string; details: unknown }>(`SELECT job_id, event_type, created_at::text AS created_at, details FROM public.workflow_events WHERE event_type LIKE 'run_window%' ORDER BY created_at`);
   const st = currentClaim(rows.rows, W);
   expect({ gen: st.gen, job: st.claim?.jobId }).toEqual({ gen: 2, job: JOB2 });
+  await db.close();
+});
+
+test("fix round 2: an 08:00 window and an 08:30 window of the same person collide on the 08:30 slot (one wins)", async () => {
+  const db = await fixture();
+  await db.exec(read("run-window-claims.sql"));
+  expect(windowSlots("08:00", "09:00")).toEqual(["08:00", "08:30"]);
+  expect(windowSlots("08:30", "09:30")).toEqual(["08:30", "09:00"]);
+  for (const slot of windowSlots("08:00", "09:00")) await ins(db, JOB, RUN_WINDOW_CLAIMED_EVENT, 1, { start: "08:00", slot });
+  const results = [];
+  for (const slot of windowSlots("08:30", "09:30")) results.push(await code(ins(db, JOB2, RUN_WINDOW_CLAIMED_EVENT, 1, { start: "08:30", slot })));
+  expect(results).toEqual(["23505", null]); // 08:30 taken; the server then frees the 09:00 it did get (all or nothing)
   await db.close();
 });
 

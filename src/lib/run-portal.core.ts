@@ -175,38 +175,52 @@ export function slotDue(s: Slot, now: Date): SlotDue {
 }
 
 // ---- window claims (no double-booking) ---------------------------------------------------------------------------------------
-// One claim per installer person + day + window start, written BEFORE a window is proposed (installer's day pick or an
-// owner's own pick) and freed when that window is released or moved. Generation n = the n-th claim of that window; the
-// pending migration docs/pending-migrations/run-window-claims.sql makes each key unique (race-proof); until then the
-// server checks first and the earliest row of a generation wins.
+// Windows are 1 hour but starts sit on the half-hour grid (READY_CHECK_TIMES), so a window claims EVERY half-hour slot it
+// covers (08:00–09:00 → 08:00 and 08:30; fix round 2): an 08:00 and an 08:30 window of the same person collide on 08:30.
+// One claim per installer person + day + slot, written BEFORE a window is proposed (installer's day pick or an owner's own
+// pick), all of a window's slots or none, and freed together when that window is released or moved. Generation n = the
+// n-th claim of that slot; the pending migration docs/pending-migrations/run-window-claims.sql makes each key unique
+// (race-proof); until then the server checks first and the earliest row of a generation wins.
 export const RUN_WINDOW_CLAIMED_EVENT = "run_window_claimed";
 export const RUN_WINDOW_FREED_EVENT = "run_window_freed";
 export const RUN_WINDOW_EVENTS = [RUN_WINDOW_CLAIMED_EVENT, RUN_WINDOW_FREED_EVENT] as const;
-export const runWindowKey = (person: string, day: string, start: string, gen: number) => `run-window:v1:${person}:${day}:${start}:${gen}`;
-export const runWindowFreedKey = (person: string, day: string, start: string, gen: number) => `run-window-freed:v1:${person}:${day}:${start}:${gen}`;
+/** v2 (fix round 2): keyed per half-hour slot (v1 keyed the window start). */
+export const runWindowKey = (person: string, day: string, slot: string, gen: number) => `run-window:v2:${person}:${day}:${slot}:${gen}`;
+export const runWindowFreedKey = (person: string, day: string, slot: string, gen: number) => `run-window-freed:v2:${person}:${day}:${slot}:${gen}`;
 /** A claim whose window was never proposed (the writer stopped part way) stops blocking after this long. */
 export const RUN_CLAIM_IN_FLIGHT_MINUTES = 15;
 
-export type WindowClaim = { person: string; day: string; start: string; gen: number; jobId: string; runId: string; seq: number; at: string };
-type CD = { person?: unknown; day?: unknown; start?: unknown; gen?: unknown; seq?: unknown };
-/** The current (latest generation, not freed) claim of one window, or null; `gen` = the latest generation used (0 = none). */
-export function currentClaim(events: readonly RunEventRow[], w: { person: string; day: string; start: string }): { gen: number; claim: WindowClaim | null } {
-  const mine = events.filter((e) => { const d = (e.details ?? {}) as CD; return d.person === w.person && d.day === w.day && d.start === w.start; });
+const mins = (hhmm: string) => { const [h, m] = hhmm.split(":").map(Number) as [number, number]; return h * 60 + m; };
+const hhmmOf = (n: number) => `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
+/** Every half-hour slot a window covers: from its start (rounded down to the half-hour) up to its end. */
+export function windowSlots(start: string, end: string): string[] {
+  const out: string[] = [];
+  for (let t = Math.floor(mins(start) / 30) * 30; t < mins(end); t += 30) out.push(hhmmOf(t));
+  return out;
+}
+
+/** `start` = the claiming window's start; `slot` = the half-hour claimed. */
+export type WindowClaim = { person: string; day: string; slot: string; start: string; gen: number; jobId: string; runId: string; seq: number; at: string };
+type CD = { person?: unknown; day?: unknown; slot?: unknown; start?: unknown; gen?: unknown; seq?: unknown };
+/** The current (latest generation, not freed) claim of one half-hour slot, or null; `gen` = the latest generation used (0 = none). */
+export function currentClaim(events: readonly RunEventRow[], w: { person: string; day: string; slot: string }): { gen: number; claim: WindowClaim | null } {
+  const mine = events.filter((e) => { const d = (e.details ?? {}) as CD; return d.person === w.person && d.day === w.day && d.slot === w.slot; });
   const claimed = new Map<number, WindowClaim>();
   for (const e of [...mine].filter((e) => e.event_type === RUN_WINDOW_CLAIMED_EVENT).sort((a, b) => a.created_at.localeCompare(b.created_at))) {
     const d = (e.details ?? {}) as CD;
     const gen = Number(d.gen ?? 0);
-    if (!claimed.has(gen)) claimed.set(gen, { ...w, gen, jobId: e.job_id, runId: runIdOf(e) ?? "", seq: Number(d.seq ?? 0), at: e.created_at });
+    if (!claimed.has(gen)) claimed.set(gen, { person: w.person, day: w.day, slot: w.slot, start: str(d.start), gen, jobId: e.job_id, runId: runIdOf(e) ?? "", seq: Number(d.seq ?? 0), at: e.created_at });
   }
   const freed = new Set(mine.filter((e) => e.event_type === RUN_WINDOW_FREED_EVENT).map((e) => Number(((e.details ?? {}) as CD).gen ?? 0)));
   const gen = Math.max(0, ...claimed.keys(), ...freed);
   const c = claimed.get(gen);
   return { gen, claim: c && !freed.has(gen) ? c : null };
 }
-/** Does this claim still hold its window? Its home closed → no. Its window proposed (that seq or later) → only while that
- *  home still holds this exact window. Not proposed yet → only for the first 15 minutes (someone may be writing it now). */
+/** Does this claim still hold its half-hour? Its home closed → no. Its window proposed (that seq or later) → only while that
+ *  home's current window (same person + day) still covers this half-hour (an owner's move to an overlapping window keeps
+ *  the shared half-hour). Not proposed yet → only for the first 15 minutes (someone may be writing it now). */
 export function claimHolds(c: WindowClaim, slot: Slot | undefined, jobClosed: boolean, now: Date): boolean {
   if (jobClosed) return false;
-  if (slot && slot.seq >= c.seq) return holds(slot) && slot.day === c.day && slot.start === c.start && slot.person === c.person;
+  if (slot && slot.seq >= c.seq) return holds(slot) && slot.day === c.day && slot.person === c.person && windowSlots(slot.start, slot.end).includes(c.slot);
   return now.getTime() - Date.parse(c.at) < RUN_CLAIM_IN_FLIGHT_MINUTES * 60_000;
 }

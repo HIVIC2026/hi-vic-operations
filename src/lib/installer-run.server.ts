@@ -25,7 +25,7 @@ import {
 import {
   RUN_DEFAULT_START, RUN_PICK_TOO_SOON, RUN_PORTAL_MODE, RUN_TIME_REMINDER_SMS_TYPE, RUN_TIME_SMS_TYPE, RUN_WINDOW_CLAIMED_EVENT, RUN_WINDOW_EVENTS, RUN_WINDOW_FREED_EVENT,
   claimHolds, currentClaim, freeWindows, holds, pickTooSoon, planRunDays, runDayBlocker, runDayWords, runDays, runModeKey,
-  runSlotConfirmKey, runSlotKey, runSlotReleaseKey, runTimeReminderSmsKey, runTimeReminderText, runTimeSmsKey, runTimeText, runWindowFreedKey, runWindowKey, slotDue, slotsOf, windowStartAt, windowWords,
+  runSlotConfirmKey, runSlotKey, runSlotReleaseKey, runTimeReminderSmsKey, runTimeReminderText, runTimeSmsKey, runTimeText, runWindowFreedKey, runWindowKey, slotDue, slotsOf, windowSlots, windowStartAt, windowWords,
   type OwnerRunSlotView, type Slot, type SlotState, type Window, type WindowClaim,
 } from "./run-portal.core";
 import { isReadyCheckTime } from "./ready-check-times.core";
@@ -297,11 +297,12 @@ export async function sweepRunOffers(nowIso: string = new Date().toISOString()):
 // business's team; default the person tapping) on the run page. First every check (nothing written if any fails): the
 // business accept checks of the normal Ready Check accept (approved / can be offered, covers the area — `canTakeHomes`;
 // nobody already assigned), and for a real run that the owner time text can go (customer messages + the `run_time` switch).
-// Then each window is CLAIMED (person + day + start, `run_window_claimed`) → `run_mode_chosen {mode: "portal"}` per home
+// Then each window is CLAIMED (person + day + every half-hour it covers, `run_window_claimed`; fix round 2) → `run_mode_chosen {mode: "portal"}` per home
 // (stops the 24 h installer expiry) → one `run_slot_proposed` per home (1-hour windows in route order, after any windows the
 // SAME PERSON already holds that day; 8 a day per person) → each owner's time text (TEST → test-send; real → the one real
 // sender, type `run_time`; quiet hours → the 15-minute tick sends it after 7am). A pick that stopped part way is finished by
-// the same pick again, or by the tick 10 minutes later. The owner confirms on My job (secure link + code): the window books
+// the same pick again, or by the tick 10 minutes later — only for the homes picked then, and only while the day, the
+// person, the business checks and (real runs) the owner text switch still allow it. The owner confirms on My job (secure link + code): the window books
 // through ready-check-times bookAgreedTime → confirmBooking(job, "ready_check", …) — every existing Ready Check rule,
 // message and Mitti step — with the chosen person assigned to the job first. "Can't make it" → another free window that
 // day, at least 24 hours away (claimed first, the old window freed; booked straight away, never re-texted). None suit / no
@@ -337,81 +338,129 @@ async function personDays(businessId: string, person: string, days: string[], no
 const heldBy = (d: { slots: Slot[]; closed: Set<string> }, keep: (x: Slot) => boolean): Window[] =>
   d.slots.filter((x) => holds(x) && !d.closed.has(x.jobId) && keep(x)).map((x) => ({ day: x.day, start: x.start, end: x.end }));
 
-// ---- window claims: person + day + start, before any window is proposed ---------------------------------------------------
+// ---- window claims: person + day + every half-hour slot of the window, before any window is proposed -------------------
 
 type Holder = { jobId: string; runId: string; batchId: string; businessId: string; seq: number; person: string; day: string; start: string; end: string };
-const claimEventsFor = async (w: { person: string; day: string; start: string }) =>
-  (await readAll("window claims", (f, t) => loose.from("workflow_events").select(EVENT_COLS).in("event_type", [...RUN_WINDOW_EVENTS]).contains("details", { person: w.person, day: w.day, start: w.start }).range(f, t))) as unknown as RunEventRow[];
-const ours = (c: WindowClaim, h: { jobId: string; runId: string; seq: number }) => c.jobId === h.jobId && c.runId === h.runId && c.seq === h.seq;
+type SlotRef = { person: string; day: string; slot: string };
+const claimEventsFor = async (w: SlotRef) =>
+  (await readAll("window claims", (f, t) => loose.from("workflow_events").select(EVENT_COLS).in("event_type", [...RUN_WINDOW_EVENTS]).contains("details", { person: w.person, day: w.day, slot: w.slot }).range(f, t))) as unknown as RunEventRow[];
+/** This home's claim in this run: the same window, or an earlier window of the same home (an owner moving to an
+ *  overlapping window keeps the shared half-hour). */
+const ours = (c: WindowClaim, h: { jobId: string; runId: string; seq: number }) => c.jobId === h.jobId && c.runId === h.runId && c.seq <= h.seq;
+const slotRef = (h: { person: string; day: string }, slot: string): SlotRef => ({ person: h.person, day: h.day, slot });
 
-async function windowClaimState(w: { person: string; day: string; start: string }, now: Date): Promise<{ gen: number; claim: WindowClaim | null; live: boolean }> {
+async function slotClaimState(w: SlotRef, now: Date): Promise<{ gen: number; claim: WindowClaim | null; live: boolean }> {
   const { gen, claim } = currentClaim(await claimEventsFor(w), w);
   if (!claim) return { gen, claim: null, live: false };
   const [ev, jobs] = await Promise.all([slotEventsFor([claim.jobId]), slotJobsById([claim.jobId])]);
   const slot = slotsOf(ev).find((x) => x.runId === claim.runId && x.jobId === claim.jobId);
   return { gen, claim, live: claimHolds(claim, slot, isClosedOrArchivedJob(jobs.get(claim.jobId)), now) };
 }
-/** Someone else's live claim holds this window. */
+/** Someone else's live claim holds any half-hour of this window. */
 async function windowBlocked(h: Holder, now: Date): Promise<boolean> {
-  const st = await windowClaimState(h, now);
-  return !!st.claim && st.live && !ours(st.claim, h);
+  for (const slot of windowSlots(h.start, h.end)) {
+    const st = await slotClaimState(slotRef(h, slot), now);
+    if (st.claim && st.live && !ours(st.claim, h)) return true;
+  }
+  return false;
 }
 async function freeGen(c: WindowClaim, actorId: string | null, why: string): Promise<boolean> {
-  return claimBatchEvent(c.jobId, actorId, RUN_WINDOW_FREED_EVENT, `Ready Check window ${runDayWords(c.day)} from ${c.start} freed (${why.replace(/_/g, " ")})`,
-    { run_id: c.runId, person: c.person, day: c.day, start: c.start, gen: c.gen, seq: c.seq, why, idempotency_key: runWindowFreedKey(c.person, c.day, c.start, c.gen) });
+  return claimBatchEvent(c.jobId, actorId, RUN_WINDOW_FREED_EVENT, `Ready Check time ${runDayWords(c.day)} from ${c.slot} freed (${why.replace(/_/g, " ")})`,
+    { run_id: c.runId, person: c.person, day: c.day, slot: c.slot, start: c.start, gen: c.gen, seq: c.seq, why, idempotency_key: runWindowFreedKey(c.person, c.day, c.slot, c.gen) });
 }
-/** Claim the window for this home (true = it's ours). A stale claim (its window released / moved / never proposed) is freed
- *  first. Race-proof once run-window-claims.sql is applied; before that the earliest row of a generation wins. */
-async function claimWindow(h: Holder, actorId: string | null, now: Date): Promise<boolean> {
-  if (!h.person) return true; // legacy window with no person: nothing to claim
-  const st = await windowClaimState(h, now);
-  if (st.claim && ours(st.claim, h)) return true;
-  if (st.claim && st.live) return false;
+/** Claim one half-hour for this home: "ours" (already held by this home), "won" (claimed now) or "lost". A stale claim
+ *  (its window released / moved / never proposed) is freed first. */
+async function claimSlot(h: Holder, slot: string, actorId: string | null, now: Date): Promise<"ours" | "won" | "lost"> {
+  const w = slotRef(h, slot);
+  const st = await slotClaimState(w, now);
+  if (st.claim && ours(st.claim, h) && st.live) return "ours";
+  if (st.claim && st.claim.jobId === h.jobId && st.claim.runId === h.runId && st.claim.seq === h.seq) return "ours";
+  if (st.claim && st.live) return "lost";
   if (st.claim) await freeGen(st.claim, actorId, "stale");
   const gen = st.gen + 1;
-  const key = runWindowKey(h.person, h.day, h.start, gen);
+  const key = runWindowKey(h.person, h.day, slot, gen);
   const { data: prior, error: pe } = await loose.from("workflow_events").select("id").eq("event_type", RUN_WINDOW_CLAIMED_EVENT).contains("details", { idempotency_key: key }).limit(1);
   if (pe) throw new Error(`Could not check the installer's times: ${pe.message}`);
-  if ((prior ?? []).length) return false;
-  const { error } = await loose.from("workflow_events").insert({ job_id: h.jobId, actor_id: actorId, event_type: RUN_WINDOW_CLAIMED_EVENT, summary: `Ready Check window ${runDayWords(h.day)}, ${windowWords(h.start, h.end)} held for this home`,
-    details: { run_id: h.runId, batch_id: h.batchId, business_id: h.businessId, job_id: h.jobId, seq: h.seq, person: h.person, day: h.day, start: h.start, end: h.end, gen, idempotency_key: key }, internal: true });
-  if (error) { if (error.code === "23505") return false; throw new Error(`Could not hold the time: ${error.message}`); }
-  const after = currentClaim(await claimEventsFor(h), h);
-  return !!after.claim && after.gen === gen && ours(after.claim, h);
+  if ((prior ?? []).length) return "lost";
+  const { error } = await loose.from("workflow_events").insert({ job_id: h.jobId, actor_id: actorId, event_type: RUN_WINDOW_CLAIMED_EVENT, summary: `Ready Check window ${runDayWords(h.day)}, ${windowWords(h.start, h.end)} held for this home (from ${slot})`,
+    details: { run_id: h.runId, batch_id: h.batchId, business_id: h.businessId, job_id: h.jobId, seq: h.seq, person: h.person, day: h.day, start: h.start, end: h.end, slot, gen, idempotency_key: key }, internal: true });
+  if (error) { if (error.code === "23505") return "lost"; throw new Error(`Could not hold the time: ${error.message}`); }
+  const after = currentClaim(await claimEventsFor(w), w);
+  return after.claim && after.gen === gen && after.claim.jobId === h.jobId && after.claim.runId === h.runId && after.claim.seq === h.seq ? "won" : "lost";
 }
-/** Free this home's claim on that window (released / moved / not used). Never throws: a claim left behind goes stale. */
-async function freeWindow(h: { jobId: string; runId: string; person: string; day: string; start: string }, actorId: string | null, why: string): Promise<void> {
+/** Claim EVERY half-hour of the window for this home, all or nothing (true = it's ours): the half-hours won are freed
+ *  again if a later one is lost. Race-proof once run-window-claims.sql is applied; before that the earliest row of a
+ *  generation wins. */
+async function claimWindow(h: Holder, actorId: string | null, now: Date): Promise<boolean> {
+  if (!h.person) return true; // legacy window with no person: nothing to claim
+  const won: string[] = [];
+  for (const slot of windowSlots(h.start, h.end)) {
+    let r: "ours" | "won" | "lost";
+    try { r = await claimSlot(h, slot, actorId, now); }
+    catch (e) { await freeSlots(h, won, actorId, "not_used", true); throw e; }
+    if (r === "lost") { await freeSlots(h, won, actorId, "not_used", true); return false; }
+    if (r === "won") won.push(slot);
+  }
+  return true;
+}
+/** Free this home's claims on these half-hours (exact = only this window's seq; else this seq or earlier). Never throws:
+ *  a claim left behind goes stale. */
+async function freeSlots(h: { jobId: string; runId: string; seq: number; person: string; day: string }, slots: readonly string[], actorId: string | null, why: string, exact: boolean): Promise<void> {
   if (!h.person) return;
-  try {
-    const { claim } = currentClaim(await claimEventsFor(h), h);
-    if (claim && claim.jobId === h.jobId && claim.runId === h.runId) await freeGen(claim, actorId, why);
-  } catch (e) { console.error("run window not freed (it goes stale)", h.runId, h.jobId, (e as Error).message); }
+  for (const slot of slots) {
+    try {
+      const { claim } = currentClaim(await claimEventsFor(slotRef(h, slot)), slotRef(h, slot));
+      if (claim && claim.jobId === h.jobId && claim.runId === h.runId && (exact ? claim.seq === h.seq : claim.seq <= h.seq)) await freeGen(claim, actorId, why);
+    } catch (e) { console.error("run window not freed (it goes stale)", h.runId, h.jobId, slot, (e as Error).message); }
+  }
+}
+/** Free this home's whole window (released / moved / not used), every half-hour together; `keep` = half-hours the home's
+ *  new window still covers (an owner's move to an overlapping window). */
+async function freeWindow(h: { jobId: string; runId: string; seq: number; person: string; day: string; start: string; end: string }, actorId: string | null, why: string, opts: { exact?: boolean; keep?: readonly string[] } = {}): Promise<void> {
+  await freeSlots(h, windowSlots(h.start, h.end).filter((x) => !opts.keep?.includes(x)), actorId, why, !!opts.exact);
 }
 
 // ---- the installer picks the day -------------------------------------------------------------------------------------------
 
 export type ChooseRunDayResult = { slots: { jobId: string; day: string; start: string; end: string }[] };
-type RunChoice = { day: string; second: string | null; start: string; person: string; chosenBy: string | null; at: string };
+/** `jobIds` = the homes picked at the day pick (fix round 2: a home left out then is never given a window later). */
+type RunChoice = { day: string; second: string | null; start: string; person: string; chosenBy: string | null; at: string; jobIds: string[] };
+const pickedIds = (d: { job_ids?: unknown } | null | undefined) => (Array.isArray(d?.job_ids) ? d!.job_ids.filter((x): x is string => typeof x === "string") : null);
 function storedChoice(events: readonly RunEventRow[], runId: string): RunChoice | null {
-  const e = events.filter((x) => x.event_type === RUN_MODE_CHOSEN_EVENT && runIdOf(x) === runId).sort((a, b) => a.created_at.localeCompare(b.created_at))[0];
+  const rows = events.filter((x) => x.event_type === RUN_MODE_CHOSEN_EVENT && runIdOf(x) === runId).sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const e = rows[0];
   if (!e) return null;
-  const d = (e.details ?? {}) as { day?: unknown; second_day?: unknown; start?: unknown; person?: unknown; chosen_by?: unknown };
+  const d = (e.details ?? {}) as { day?: unknown; second_day?: unknown; start?: unknown; person?: unknown; chosen_by?: unknown; job_ids?: unknown };
   const chosenBy = s(d.chosen_by);
-  return { day: String(d.day ?? ""), second: s(d.second_day) || null, start: String(d.start ?? RUN_DEFAULT_START), person: s(d.person) || chosenBy || "", chosenBy, at: e.created_at };
+  // Older picks (no stored list): only the homes that have this pick themselves.
+  const jobIds = pickedIds(d) ?? [...new Set(rows.map((x) => x.job_id))];
+  return { day: String(d.day ?? ""), second: s(d.second_day) || null, start: String(d.start ?? RUN_DEFAULT_START), person: s(d.person) || chosenBy || "", chosenBy, at: e.created_at, jobIds };
+}
+
+/** A real run's owner time texts can't go now (customer messages off / the `run_time` switch off), or null. TEST job /
+ *  TEST partner runs: never blocked. */
+async function ownerTextsBlocker(businessId: string, homes: readonly { isTest: boolean }[]): Promise<string | null> {
+  const { isTestPartner } = await import("./test-send.core");
+  if (homes.some((h) => h.isTest) || isTestPartner(await businessOf(businessId))) return null;
+  const { data: ws } = await loose.from("workflow_settings").select("*").eq("id", 1).maybeSingle();
+  const w = (ws ?? null) as { customer_comms_enabled?: boolean | null; sms_message_switches?: Record<string, boolean> | null } | null;
+  if (w?.customer_comms_enabled !== true) return "Customer messages are switched off — nothing was sent.";
+  if (w?.sms_message_switches?.[RUN_TIME_SMS_TYPE] !== true) return "The owner time texts are switched off — switch them on in Settings first. Nothing was sent.";
+  return null;
 }
 
 /** Claims (all or nothing), then run_mode_chosen per home, then run_slot_proposed per home, then the owners' texts. */
 async function writeChoice(state: RunState, c: RunChoice, slots: readonly { jobId: string; day: string; start: string; end: string }[], actorId: string | null, now: Date, fresh: boolean) {
   const holders: Holder[] = slots.map((x) => ({ jobId: x.jobId, runId: state.runId, batchId: state.batchId, businessId: state.businessId, seq: 1, person: c.person, day: x.day, start: x.start, end: x.end }));
   const won: Holder[] = [];
-  const undo = async () => { for (const h of won) await freeWindow(h, actorId, "not_used"); };
+  const undo = async () => { for (const h of won) await freeWindow(h, actorId, "not_used", { exact: true }); };
   for (const h of holders) {
     if (!(await claimWindow(h, actorId, now))) { await undo(); throw new WorkflowError(TAKEN); }
     won.push(h);
   }
   for (const h of holders) {
     const w = await claimBatchEvent(h.jobId, c.chosenBy ?? actorId, RUN_MODE_CHOSEN_EVENT, `Installer chose Portal books: ${runDayWords(c.day)}${c.second ? ` and ${runDayWords(c.second)}` : ""}, from ${c.start}`,
-      { run_id: state.runId, batch_id: state.batchId, business_id: state.businessId, mode: RUN_PORTAL_MODE, day: c.day, second_day: c.second, start: c.start, person: c.person, chosen_by: c.chosenBy, idempotency_key: runModeKey(state.runId, h.jobId) });
+      { run_id: state.runId, batch_id: state.batchId, business_id: state.businessId, mode: RUN_PORTAL_MODE, day: c.day, second_day: c.second, start: c.start, person: c.person, chosen_by: c.chosenBy, job_ids: c.jobIds, idempotency_key: runModeKey(state.runId, h.jobId) });
     if (!w && fresh) { await undo(); throw new WorkflowError(NOT_OPEN); }
   }
   for (const h of holders) {
@@ -422,20 +471,31 @@ async function writeChoice(state: RunState, c: RunChoice, slots: readonly { jobI
   await sweepRunSlots(now.toISOString(), { jobIds: state.memberIds }).catch((e) => console.error("run time texts deferred to the tick", state.runId, (e as Error).message));
 }
 
-/** Finish a day pick that stopped part way: homes still in the run with no window get theirs (same day, start and person,
- *  after the windows already given). Null = nothing left to do. */
+/** Finish a day pick that stopped part way: homes PICKED at the day pick, still in the run, with no window get theirs
+ *  (same day, start and person, after the windows already given). Null = nothing to do — or not safe to do any more, so
+ *  nothing is proposed: the day is no longer a day the installer may choose, the person has left the team, the business
+ *  can't take the homes, a real run's owner texts are switched off; a window under the owner lead time is skipped. */
 async function completeRunChoice(state: RunState, c: RunChoice, actorId: string | null, now: Date): Promise<ChooseRunDayResult | null> {
-  const [ev, jobs, assigned] = await Promise.all([slotEventsFor(state.memberIds), slotJobsById(state.memberIds), activeInstallerJobs(state.memberIds)]);
+  const picked = c.jobIds.filter((id) => state.memberIds.includes(id));
+  if (!picked.length) return null;
+  if (runDayBlocker(c.day, now) || (c.second && runDayBlocker(c.second, now))) return null;
+  const [ev, jobs, assigned] = await Promise.all([slotEventsFor(picked), slotJobsById(picked), activeInstallerJobs(picked)]);
   const here = slotsOf(ev).filter((x) => x.runId === state.runId);
   const has = new Set(here.map((x) => x.jobId));
-  const missing = state.memberIds.filter((id) => { const j = jobs.get(id); return !has.has(id) && !!j && !j.qa_archived_at && jobWaitingForInstaller({ channel: j.channel, stage: j.stage, hasInstaller: assigned.has(id), deleted: !!j.deleted_at }); });
+  const missing = picked.filter((id) => { const j = jobs.get(id); return !has.has(id) && !!j && !j.qa_archived_at && jobWaitingForInstaller({ channel: j.channel, stage: j.stage, hasInstaller: assigned.has(id), deleted: !!j.deleted_at }); });
   if (!missing.length) return null;
+  if (!(await runTeam(state.businessId)).some((m) => m.userId === c.person)) return null;
+  const homes = missing.map((id) => ({ postcode: (jobs.get(id)?.properties?.postcode ?? "").trim(), isTest: jobs.get(id)?.source === "qa_test" }));
+  if (!(await canTakeHomes(state.businessId, homes))) return null;
+  if (await ownerTextsBlocker(state.businessId, homes)) return null;
   const days = c.second ? [c.day, c.second] : [c.day];
   const held = heldBy(await personDays(state.businessId, c.person, days, now), () => true);
   const plan = planRunDays({ memberIds: missing, day: c.day, start: c.start, secondDay: c.second, held });
   if (!plan.ok) throw new WorkflowError(plan.why);
-  await writeChoice(state, c, plan.slots, actorId, now, false);
-  return { slots: [...here.filter(holds).map((x) => ({ jobId: x.jobId, day: x.day, start: x.start, end: x.end })), ...plan.slots] };
+  const slots = plan.slots.filter((x) => !pickTooSoon(x.day, x.start, now));
+  if (!slots.length) return null;
+  await writeChoice(state, c, slots, actorId, now, false);
+  return { slots: [...here.filter(holds).map((x) => ({ jobId: x.jobId, day: x.day, start: x.start, end: x.end })), ...slots] };
 }
 
 /** Installer, Portal books: pick the day (and a second day when more than 8 homes don't fit), the start time and who is
@@ -479,13 +539,8 @@ export async function chooseRunDay(runId: string, userId: string, dayIso: string
   const homes = members.map((id) => ({ postcode: (jobs.get(id)?.properties?.postcode ?? "").trim(), isTest: jobs.get(id)?.source === "qa_test" }));
   if (!(await canTakeHomes(state.businessId, homes))) throw new WorkflowError("Your business can't take every home in this run right now (not approved, not taking jobs, or the area isn't covered). Nothing was sent.");
   // A real run's owner texts must be able to go (else owners would wait with no text): refuse first.
-  const { isTestPartner } = await import("./test-send.core");
-  if (!homes.some((h) => h.isTest) && !isTestPartner(await businessOf(state.businessId))) {
-    const { data: ws } = await loose.from("workflow_settings").select("*").eq("id", 1).maybeSingle();
-    const w = (ws ?? null) as { customer_comms_enabled?: boolean | null; sms_message_switches?: Record<string, boolean> | null } | null;
-    if (w?.customer_comms_enabled !== true) throw new WorkflowError("Customer messages are switched off — nothing was sent.");
-    if (w?.sms_message_switches?.[RUN_TIME_SMS_TYPE] !== true) throw new WorkflowError("The owner time texts are switched off — switch them on in Settings first. Nothing was sent.");
-  }
+  const textsOff = await ownerTextsBlocker(state.businessId, homes);
+  if (textsOff) throw new WorkflowError(textsOff);
   // Same day twice: windows this person already holds on those days (other runs) come first; 8 a day per person.
   const days = second ? [dayIso, second] : [dayIso];
   const held = heldBy(await personDays(state.businessId, person, days, now), (x) => x.runId !== runId);
@@ -495,24 +550,43 @@ export async function chooseRunDay(runId: string, userId: string, dayIso: string
   for (const x of plan.slots) {
     if (await windowBlocked({ jobId: x.jobId, runId, batchId: state.batchId, businessId: state.businessId, seq: 1, person, day: x.day, start: x.start, end: x.end }, now)) throw new WorkflowError(TAKEN);
   }
-  await writeChoice(state, { day: dayIso, second, start, person, chosenBy: userId, at: now.toISOString() }, plan.slots, userId, now, true);
+  await writeChoice(state, { day: dayIso, second, start, person, chosenBy: userId, at: now.toISOString(), jobIds: members }, plan.slots, userId, now, true);
   return { slots: plan.slots };
 }
 
-/** 15-minute tick: day picks that stopped part way (a home with the choice but no window, or no choice yet) are finished. */
+/** 15-minute tick: day picks that stopped part way (a picked home with the choice but no window, or no choice yet) are
+ *  finished. Runs whose picked homes all have a window, or picked under 10 minutes ago, are skipped before any per-run read. */
 async function resumeRunChoices(now: Date): Promise<{ resumed: number; failed: number }> {
   const out = { resumed: 0, failed: 0 };
   const since = new Date(now.getTime() - SLOT_LOOKBACK_DAYS * 86_400_000).toISOString();
-  const chosen = await readAll("run day picks", (f, t) => loose.from("workflow_events").select("job_id, details").eq("event_type", RUN_MODE_CHOSEN_EVENT).gte("created_at", since).range(f, t));
-  const runIds = [...new Set(chosen.map((e) => runIdOf(e as unknown as RunEventRow)).filter((x): x is string => !!x))];
+  const chosen = (await readAll("run day picks", (f, t) => loose.from("workflow_events").select("job_id, created_at, details").eq("event_type", RUN_MODE_CHOSEN_EVENT).gte("created_at", since).range(f, t))) as unknown as RunEventRow[];
+  const picks = new Map<string, { jobIds: Set<string>; at: string }>();
+  for (const e of chosen) {
+    const runId = runIdOf(e);
+    if (!runId) continue;
+    const p = picks.get(runId) ?? { jobIds: new Set<string>(), at: e.created_at };
+    p.jobIds.add(e.job_id);
+    for (const id of pickedIds(e.details as { job_ids?: unknown } | null) ?? []) p.jobIds.add(id);
+    if (e.created_at < p.at) p.at = e.created_at;
+    picks.set(runId, p);
+  }
+  const fresh = (runId: string) => now.getTime() - Date.parse(picks.get(runId)!.at) < RESUME_AFTER_MINUTES * 60_000;
+  const old = [...picks.keys()].filter((r) => !fresh(r));
+  if (!old.length) return out;
+  const pickedJobs = [...new Set(old.flatMap((r) => [...picks.get(r)!.jobIds]))];
+  const proposed = (await readByIds("run windows", pickedJobs, (c, f, t) => loose.from("workflow_events").select("job_id, details").in("job_id", c).eq("event_type", RUN_SLOT_PROPOSED_EVENT).range(f, t))) as unknown as RunEventRow[];
+  const windowed = new Set(proposed.map((e) => `${runIdOf(e)}|${e.job_id}`));
+  const allHaveWindows = (runId: string) => [...picks.get(runId)!.jobIds].every((id) => windowed.has(`${runId}|${id}`));
+  const runIds = old.filter((r) => !allHaveWindows(r));
   if (!runIds.length) return out;
-  const first = (await readByIds("the runs", [...new Set(chosen.map((e) => String(e["job_id"])))], (c, f, t) => loose.from("workflow_events").select(EVENT_COLS).in("job_id", c).eq("event_type", RUN_OFFERED_EVENT).range(f, t))) as unknown as RunEventRow[];
+  const jobIds = [...new Set(runIds.flatMap((r) => [...picks.get(r)!.jobIds]))];
+  const first = (await readByIds("the runs", jobIds, (c, f, t) => loose.from("workflow_events").select(EVENT_COLS).in("job_id", c).eq("event_type", RUN_OFFERED_EVENT).range(f, t))) as unknown as RunEventRow[];
   const listed = [...new Set(first.flatMap((e) => { const j = (e.details as { job_ids?: unknown } | null)?.job_ids; return Array.isArray(j) ? j.map(String) : [e.job_id]; }))];
   const events = (await readByIds("run history", listed, (c, f, t) => loose.from("workflow_events").select(EVENT_COLS).in("job_id", c).in("event_type", [...RUN_EVENTS]).range(f, t))) as unknown as RunEventRow[];
   for (const runId of runIds) {
     const st = runState(runId, events);
     const c = storedChoice(events, runId);
-    if (!st || st.status !== "answered" || !c || now.getTime() - Date.parse(c.at) < RESUME_AFTER_MINUTES * 60_000) continue;
+    if (!st || st.status !== "answered" || !c) continue;
     try { if (await completeRunChoice(st, c, null, now)) out.resumed++; }
     catch (e) { out.failed++; console.error("run day pick not finished", runId, (e as Error).message); }
   }
@@ -670,8 +744,9 @@ export async function ownerPickRunWindow(jobId: string, userId: string, start: s
   if (!(await claimWindow(h, userId, now))) throw new WorkflowError(TAKEN);
   const won = await claimBatchEvent(jobId, userId, RUN_SLOT_PROPOSED_EVENT, `Owner picked another Ready Check window: ${runDayWords(x.day)}, ${windowWords(w.start, w.end)}`,
     { run_id: x.runId, batch_id: x.batchId, business_id: x.businessId, seq, person: x.person, day: x.day, start: w.start, end: w.end, starts_at: windowStartAt(x.day, w.start).toISOString(), by: "owner", idempotency_key: runSlotKey(x.runId, jobId, seq) });
-  if (!won) { await freeWindow(h, userId, "not_used"); throw new WorkflowError(TAKEN); }
-  await freeWindow(x, userId, "moved");
+  if (!won) { await freeWindow(h, userId, "not_used", { exact: true }); throw new WorkflowError(TAKEN); }
+  // The old window's half-hours, except any the new window still covers.
+  await freeWindow(x, userId, "moved", { keep: windowSlots(w.start, w.end) });
   return bookSlot({ ...x, seq, start: w.start, end: w.end, by: "owner", failedConfirms: 0 }, userId);
 }
 

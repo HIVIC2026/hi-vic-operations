@@ -19,6 +19,10 @@ const subset = (a: unknown, b: unknown): boolean => {
 let clock = Date.parse("2026-10-20T00:00:00.000Z");
 /** Fix round 1: make one insert fail (a half-finished chooseRunDay). */
 let failInsert: ((table: string, row: Row) => boolean) | null = null;
+/** Fix round 2: workflow_events reads by exact event type (to see what the tick reads). */
+const queryLog: string[] = [];
+/** Fix round 2: hold one insert until a promise settles (to interleave two writers at an exact point). */
+let insertGate: ((table: string, row: Row) => Promise<void> | null) | null = null;
 function fakeAdmin() {
   return {
     from(table: string) {
@@ -26,7 +30,7 @@ function fakeAdmin() {
       const preds: ((r: Row) => boolean)[] = [];
       const b: Record<string, unknown> & PromiseLike<unknown> = {
         select(_c?: string, o?: { head?: boolean }) { if (op !== "select") ret = true; if (o?.head) head = true; return b; },
-        eq(c: string, v: unknown) { preds.push((r) => get(r, c) === v); return b; },
+        eq(c: string, v: unknown) { if (table === "workflow_events" && c === "event_type") queryLog.push(`eq:${c}:${String(v)}`); preds.push((r) => get(r, c) === v); return b; },
         neq(c: string, v: unknown) { preds.push((r) => get(r, c) !== v); return b; },
         in(c: string, v: unknown[]) { preds.push((r) => v.includes(get(r, c))); return b; },
         is(c: string, v: unknown) { preds.push((r) => (get(r, c) ?? null) === v); return b; },
@@ -41,6 +45,8 @@ function fakeAdmin() {
         insert(p: Row) { op = "insert"; payload = p; return b; },
         update(p: Row) { op = "update"; payload = p; return b; },
         then(res, rej) {
+          const gate = op === "insert" ? insertGate?.(table, payload!) ?? null : null;
+          if (gate) { insertGate = null; return gate.then(() => (b as PromiseLike<unknown>).then(res, rej)); }
           let out: { data: unknown; error: { message: string; code?: string } | null; count?: number };
           const one = (b as Row)["single1"] === true;
           if (op === "insert" && failInsert?.(table, payload!)) { failInsert = null; out = { data: null, error: { message: "connection reset" } }; return Promise.resolve(out).then(res, rej); }
@@ -135,7 +141,7 @@ function closedBatch(batchId: string, jobIds: string[], installer = "biz-1") {
 }
 function seed() {
   for (const k of Object.keys(tables)) delete tables[k];
-  sent.length = 0; booked.length = 0; followOns.length = 0; smsStatus = "sent"; bookingRefusal = null; failInsert = null; factOverride = {};
+  sent.length = 0; booked.length = 0; followOns.length = 0; smsStatus = "sent"; bookingRefusal = null; failInsert = null; insertGate = null; factOverride = {};
   tables["workflow_settings"] = [{ id: 1, customer_comms_enabled: true, sms_message_switches: { run_offered: true, run_time: true, run_time_reminder: true } }];
   for (const t of ["jobs", "lead_campaign_responses", "property_facts", "job_assignments", "partner_offers", "workflow_events", "appointment_proposals"]) tables[t] = [];
   tables["businesses"] = [
@@ -394,10 +400,11 @@ describe("fix round 1", () => {
   beforeEach(seed);
   const claims = () => events("run_window_claimed").map((e) => e["details"] as Row);
   const frees = () => events("run_window_freed").map((e) => e["details"] as Row);
-  /** Windows still claimed (latest claim per person + day + start not freed). */
+  /** Half-hour slots still claimed (claim per person + day + slot + generation not freed; fix round 2: a window claims
+   *  every half-hour slot it covers). */
   const liveClaims = () => {
-    const freed = new Set(frees().map((d) => `${d["person"]}|${d["day"]}|${d["start"]}|${d["gen"]}`));
-    return claims().filter((d) => !freed.has(`${d["person"]}|${d["day"]}|${d["start"]}|${d["gen"]}`)).map((d) => `${d["person"]} ${d["day"]} ${d["start"]}`).sort();
+    const freed = new Set(frees().map((d) => `${d["person"]}|${d["day"]}|${d["slot"]}|${d["gen"]}`));
+    return claims().filter((d) => !freed.has(`${d["person"]}|${d["day"]}|${d["slot"]}|${d["gen"]}`)).map((d) => `${d["person"]} ${d["day"]} ${d["slot"]}`).sort();
   };
   const nothingWritten = () => {
     expect(events("run_mode_chosen")).toEqual([]);
@@ -489,9 +496,9 @@ describe("fix round 1", () => {
     const r2 = await offered(["c"], { batch: "b2" });
     now(2);
     await R.chooseRunDay(r1.runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) });
-    expect(liveClaims()).toEqual([`u-sam ${DAY} 09:00`, `u-sam ${DAY} 10:00`]);
+    expect(liveClaims()).toEqual([`u-sam ${DAY} 09:00`, `u-sam ${DAY} 09:30`, `u-sam ${DAY} 10:00`, `u-sam ${DAY} 10:30`]);
     // Another run being set up for Sam right now (its claim is in, its window not proposed yet) holds 11:00.
-    ev("z", "run_window_claimed", 2, { run_id: "run-other", job_id: "z", seq: 1, person: "u-sam", day: DAY, start: "11:00", end: "12:00", gen: 1, idempotency_key: `run-window:v1:u-sam:${DAY}:11:00:1` });
+    ev("z", "run_window_claimed", 2, { run_id: "run-other", job_id: "z", seq: 1, person: "u-sam", day: DAY, start: "11:00", end: "12:00", slot: "11:00", gen: 1, idempotency_key: `run-window:v2:u-sam:${DAY}:11:00:1` });
     await expect(R.chooseRunDay(r2.runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) })).rejects.toThrow(/just been taken/);
     expect(events("run_slot_proposed", "c")).toEqual([]);
     expect(events("run_mode_chosen", "c")).toEqual([]);
@@ -508,7 +515,7 @@ describe("fix round 1", () => {
     const [a, b, c] = [order[0]!, order[1]!, order[2]!];
     now(3);
     // another owner's pick of 13:00 is in flight (claimed, not yet proposed)
-    ev(b, "run_window_claimed", 3, { run_id: String(slotOf(b)!["run_id"]), job_id: b, seq: 2, person: "u-sam", day: DAY, start: "13:00", end: "14:00", gen: 1, idempotency_key: `run-window:v1:u-sam:${DAY}:13:00:1` });
+    ev(b, "run_window_claimed", 3, { run_id: String(slotOf(b)!["run_id"]), job_id: b, seq: 2, person: "u-sam", day: DAY, start: "13:00", end: "14:00", slot: "13:00", gen: 1, idempotency_key: `run-window:v2:u-sam:${DAY}:13:00:1` });
     await expect(R.ownerPickRunWindow(a, "u-owner", "13:00", { now: new Date(clock) })).rejects.toThrow(/just been taken/);
     expect(booked).toEqual([]);
     expect(slotOf(a)!["start"]).toBe("09:00");
@@ -520,8 +527,8 @@ describe("fix round 1", () => {
     expect(booked.map((x) => [x.jobId, x.start])).toEqual([[a, "2026-10-27T03:00:00.000Z"], [c, "2026-10-26T22:00:00.000Z"]]);
     // c's old 11:00 freed; b says none suit → 10:00 freed too
     await R.ownerNoRunWindow(b, "u-owner", { now: new Date(clock) });
-    // left: c's 09:00 (claimed again), b's in-flight 13:00, a's 14:00
-    expect(liveClaims()).toEqual([`u-sam ${DAY} 09:00`, `u-sam ${DAY} 13:00`, `u-sam ${DAY} 14:00`]);
+    // left: c's 09:00 (claimed again), b's in-flight 13:00, a's 14:00 (each window = its two half-hour slots)
+    expect(liveClaims()).toEqual([`u-sam ${DAY} 09:00`, `u-sam ${DAY} 09:30`, `u-sam ${DAY} 13:00`, `u-sam ${DAY} 14:00`, `u-sam ${DAY} 14:30`]);
   });
 
   test("4: a half-finished day pick — the retry completes it (same windows, no double texts)", async () => {
@@ -588,6 +595,143 @@ describe("fix round 1", () => {
     expect(booked).toEqual([]);
     await R.ownerConfirmRunSlot(b, "u-owner", { now: new Date(clock) });
     expect(booked.map((x) => x.jobId)).toEqual([b]);
+  });
+});
+
+// ---- Fix round 2: claims per half-hour slot; safe resume ----------------------------------------------------------------------
+describe("fix round 2", () => {
+  beforeEach(seed);
+  const proposedStarts = () => events("run_slot_proposed").map((e) => [e["job_id"], (e["details"] as Row)["start"]] as [unknown, unknown]);
+  const overlaps = () => {
+    const w = events("run_slot_proposed").map((e) => e["details"] as Row).filter((d) => d["person"] === "u-sam" && d["day"] === DAY);
+    return w.some((x, i) => w.some((y, k) => k !== i && String(x["start"]) < String(y["end"]) && String(y["start"]) < String(x["end"])));
+  };
+
+  test("1: two runs for the same person at the same moment, 08:00 and 08:30 → only one gets its window", async () => {
+    const r1 = await offered(["a"], { batch: "b1" });
+    const r2 = await offered(["b"], { batch: "b2" });
+    now(2);
+    const res = await Promise.allSettled([
+      R.chooseRunDay(r1.runId, "u-sam", DAY, "08:00", null, { now: new Date(clock) }),
+      R.chooseRunDay(r2.runId, "u-sam", DAY, "08:30", null, { now: new Date(clock) }),
+    ]);
+    expect(res.filter((x) => x.status === "fulfilled").length).toBe(1);
+    expect(proposedStarts().length).toBe(1);
+    expect(overlaps()).toBe(false);
+  });
+
+  test("1: an owner picking 10:00 on the grid while another run is claiming 10:30 → only one wins", async () => {
+    const r1 = await offered(["a"], { batch: "b1" });
+    const r2 = await offered(["b"], { batch: "b2" });
+    now(2);
+    await R.chooseRunDay(r1.runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) });
+    now(3);
+    const st = await R.ownerRunSlotState("a", { now: new Date(clock) });
+    expect(st.kind === "proposed" && st.free.map((w) => w.start)).toContain("10:00");
+    // The run has planned 10:30–11:30 (after a's 9:00) and is about to claim it; the owner's pick of 10:00 lands first.
+    let owner: Promise<unknown> | null = null;
+    insertGate = (t, row) => (t === "workflow_events" && row["event_type"] === "run_window_claimed" && row["job_id"] === "b"
+      ? (owner = R.ownerPickRunWindow("a", "u-owner", "10:00", { now: new Date(clock) })).then(() => undefined, () => undefined) : null);
+    const run = R.chooseRunDay(r2.runId, "u-sam", DAY, "10:30", null, { now: new Date(clock) });
+    const res = await Promise.allSettled([run, (async () => { await run.catch(() => undefined); return owner; })()]);
+    expect(owner).not.toBeNull();
+    expect(res.map((x) => x.status)).toEqual(["rejected", "fulfilled"]);
+    expect(slotOf("a")!["start"]).toBe("10:00");
+    expect(events("run_slot_proposed", "b")).toEqual([]);
+    expect(overlaps()).toBe(false);
+  });
+
+  test("1: a refused window keeps nothing half-claimed; a released window frees both its half-hours", async () => {
+    const r1 = await offered(["a"], { batch: "b1" });
+    const r2 = await offered(["b"], { batch: "b2" });
+    now(2);
+    await R.chooseRunDay(r1.runId, "u-sam", DAY, "08:00", null, { now: new Date(clock) });
+    // b's window is planned after a's (09:00–10:00); another run holds its second half-hour (09:30):
+    ev("z", "run_window_claimed", 2, { run_id: "run-other", job_id: "z", seq: 1, person: "u-sam", day: DAY, start: "09:30", end: "10:30", slot: "09:30", gen: 1, idempotency_key: `run-window:v2:u-sam:${DAY}:09:30:1` });
+    await expect(R.chooseRunDay(r2.runId, "u-sam", DAY, "08:00", null, { now: new Date(clock) })).rejects.toThrow(/just been taken/);
+    const live = () => events("run_window_claimed").filter((e) => !events("run_window_freed").some((f) => (f["details"] as Row)["slot"] === (e["details"] as Row)["slot"] && (f["details"] as Row)["gen"] === (e["details"] as Row)["gen"])).map((e) => String((e["details"] as Row)["slot"])).sort();
+    expect(live()).toEqual(["08:00", "08:30", "09:30"]);
+    now(3);
+    await R.ownerNoRunWindow("a", "u-owner", { now: new Date(clock) });
+    expect(live()).toEqual(["09:30"]);
+  });
+
+  test("1: an owner moving to a window that overlaps their own keeps the shared half-hour; release frees all of it", async () => {
+    const r1 = await offered(["a"], { batch: "b1" });
+    const r2 = await offered(["b"], { batch: "b2" });
+    now(2);
+    await R.chooseRunDay(r1.runId, "u-sam", DAY, "08:00", null, { now: new Date(clock) });
+    await R.chooseRunDay(r2.runId, "u-sam", DAY, "13:30", null, { now: new Date(clock) });
+    const live = () => events("run_window_claimed").filter((e) => !events("run_window_freed").some((f) => (f["details"] as Row)["slot"] === (e["details"] as Row)["slot"] && (f["details"] as Row)["gen"] === (e["details"] as Row)["gen"])).map((e) => `${e["job_id"]} ${(e["details"] as Row)["slot"]}`).sort();
+    expect(live()).toEqual(["a 08:00", "a 08:30", "b 13:30", "b 14:00"]);
+    now(3);
+    await R.ownerPickRunWindow("b", "u-owner", "14:00", { now: new Date(clock) });
+    expect(live()).toEqual(["a 08:00", "a 08:30", "b 14:00", "b 14:30"]);
+    const st = await R.ownerRunSlotState("a", { now: new Date(clock) });
+    expect(st.kind === "proposed" && st.free.map((w) => w.start)).not.toContain("14:00");
+    await expect(R.ownerPickRunWindow("a", "u-owner", "14:00", { now: new Date(clock) })).rejects.toThrow(/just been taken/);
+    // a released (none suit) → both of a's half-hours go together
+    await R.ownerNoRunWindow("a", "u-owner", { now: new Date(clock) });
+    expect(live()).toEqual(["b 14:00", "b 14:30"]);
+  });
+
+  test("2: a home left out at the pick that later becomes waiting is never proposed a window", async () => {
+    const { runId, order } = await offered(["a", "b", "c"]);
+    now(2);
+    const b = order[1]!;
+    tables["jobs"]!.find((j) => j["id"] === b)!["stage"] = "cancelled";
+    await R.chooseRunDay(runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) });
+    expect(events("run_slot_proposed", b)).toEqual([]);
+    expect((events("run_mode_chosen")[0]!["details"] as Row)["job_ids"]).toEqual([order[0], order[2]]);
+    tables["jobs"]!.find((j) => j["id"] === b)!["stage"] = "ready_check_ready_to_schedule";
+    now(3); await R.sweepRunSlots(at(3));
+    now(200); await R.sweepRunSlots(at(200));
+    expect(events("run_slot_proposed", b)).toEqual([]);
+    expect(events("run_mode_chosen", b)).toEqual([]);
+    expect(ownerTexts().filter((x) => x.jobId === b)).toEqual([]);
+    // the installer repeating the same pick doesn't add it either
+    await expect(R.chooseRunDay(runId, "u-sam", DAY, "09:00", null, { now: new Date(at(3)) })).rejects.toThrow(/no longer open/);
+    expect(events("run_slot_proposed", b)).toEqual([]);
+  });
+
+  test("2: a half-finished pick resumed once the day is too close or has passed proposes nothing", async () => {
+    const { runId, order } = await offered(["a", "b", "c"]);
+    now(2);
+    failInsert = (t, row) => t === "workflow_events" && row["event_type"] === "run_mode_chosen" && row["job_id"] === order[1];
+    await expect(R.chooseRunDay(runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) })).rejects.toThrow();
+    expect(events("run_slot_proposed")).toEqual([]);
+    now(50); await R.sweepRunSlots(at(50)); // Monday 26th 2pm: Tuesday is under 2 days away
+    expect(events("run_slot_proposed")).toEqual([]);
+    now(100); await R.sweepRunSlots(at(100)); // Wednesday: the day has passed
+    expect(events("run_slot_proposed")).toEqual([]);
+    expect(ownerTexts()).toEqual([]);
+    expect(runId).toBeTruthy();
+  });
+
+  test("2: a real run's half-finished pick isn't resumed while the owner time texts are switched off", async () => {
+    const { runId, order } = await offered(["a", "b"]);
+    now(2);
+    failInsert = (t, row) => t === "workflow_events" && row["event_type"] === "run_mode_chosen" && row["job_id"] === order[1];
+    await expect(R.chooseRunDay(runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) })).rejects.toThrow();
+    tables["workflow_settings"]![0]!["sms_message_switches"] = { run_offered: true, run_time: false, run_time_reminder: true };
+    now(2.25); await R.sweepRunSlots(at(2.25));
+    expect(events("run_slot_proposed")).toEqual([]);
+    tables["workflow_settings"]![0]!["sms_message_switches"] = { run_offered: true, run_time: true, run_time_reminder: true };
+    now(2.5); await R.sweepRunSlots(at(2.5));
+    expect(order.map((j) => slotOf(j)?.["start"])).toEqual(["09:00", "10:00"]);
+    expect(runId).toBeTruthy();
+  });
+
+  test("3: the tick skips a run whose picked homes all have a window (no per-run reads)", async () => {
+    const { runId } = await offered(["a", "b"]);
+    now(2);
+    await R.chooseRunDay(runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) });
+    const r = await R.sweepRunSlots(at(3));
+    expect(r.resumed).toBe(0);
+    queryLog.length = 0;
+    await R.sweepRunSlots(at(3.5));
+    // the run's offer + history are never read for the resume check
+    expect(queryLog.filter((q) => q === "eq:event_type:run_offered")).toEqual([]);
   });
 });
 
