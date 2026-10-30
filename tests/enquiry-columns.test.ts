@@ -78,7 +78,9 @@ test("decisions 281/285/286 on the screen and the mock-ups: one list, one search
   expect(screen).toMatch(/placeholder="Search owner name, address or job number"/);
   expect(screen).toMatch(/ENQUIRY_COLUMNS\.map\(\(c\) => <ColumnHead/);
   expect(screen).toMatch(/saving a spot makes it a job/);
-  expect(screen).toMatch(/label: "Cancel"/); expect(screen).toMatch(/Remove \(duplicate \/ junk\)/); expect(screen).toMatch(/New enquiry \(phone\)/);
+  // Jo 30 Oct 2026: one Close action (the reason files it); no Cancel / Remove / phone-enquiry buttons.
+  expect(screen).toMatch(/\{ key: "close", label: "Close", danger: true \}/); expect(screen).toMatch(/presets=\{\[\.\.\.CLOSE_REASONS\]\}/);
+  expect(screen).not.toMatch(/label: "Cancel"/); expect(screen).not.toMatch(/Remove \(duplicate \/ junk\)/); expect(screen).not.toMatch(/New enquiry \(phone\)/);
   const kit = readFileSync("src/components/portal/office-lists.tsx", "utf8");
   expect(kit).toMatch(/export function ColumnHead/); expect(kit).toMatch(/PopoverContent/);
   const fn = readFileSync("src/lib/office-screens.functions.ts", "utf8");

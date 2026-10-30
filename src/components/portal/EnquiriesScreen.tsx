@@ -1,5 +1,5 @@
 // O4 Enquiries (decisions 216, 225, 228, 238, 281, 283, 285, 286; redesigned with Jo 26 Oct 2026): the website leads,
-// grouped by where each one is up to (enquiry-categories.core): offered a spot, email didn't send, opted out, gone
+// grouped by where each one is up to (enquiry-categories.core): offered a spot, email not sent yet, opted out, gone
 // quiet (no questions step: Jo 26 Oct, "we don't ask for answers"). Saved spots are jobs (Jobs › Choose installer) and
 // not-eligible leads are closed (Jobs › Closed): the screen links there. Emails live in the Inbox, not here. Inside a
 // group the rows sort hottest first (the rank is never shown, 283); on a computer the columns Job · Owner · Address ·
@@ -21,7 +21,7 @@ import { bulkCancelOfficeJobs, getEnquiriesList } from "@/lib/office-screens.fun
 import { checkedLabel, isDefaultListView } from "@/lib/office-needs-snapshot.core";
 import { readOfficeList } from "@/lib/office-list-refresh";
 import { removeLeadsFn } from "@/lib/enquiry-groups.functions";
-import { CLOSE_REASONS, closeRouteFor, enquiryCountLine } from "@/lib/enquiries-screen.core";
+import { CLOSE_REASONS, closeRouteFor, enquiryCountLine, keepTicked, removeOutcomeToast, removeReasonText } from "@/lib/enquiries-screen.core";
 import { INSULATION_LABEL, type InsulationChip, type SortDir } from "@/lib/office-filters.core";
 import { ENQUIRY_COLUMNS, activeColumnFilters, estimateLabel, sizeLabel, type ColumnFilters } from "@/lib/enquiry-columns.core";
 import { CLOSABLE, ENQUIRY_CATEGORIES, type CategoryCounts, type EnquiryView } from "@/lib/enquiry-categories.core";
@@ -126,7 +126,7 @@ export function EnquiriesScreen() {
                   {d.rows.map((r) => {
                     const open = () => setPeek({ jobId: r.id });
                     // The owner emailed and we haven't written since: the email is on the job (open it to reply).
-                    const wrote = r.ownerWroteAt ? <Link to="/admin/emails" aria-label="Owner wrote to us — open Emails" className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hiv-blue"><Pill tone="amber" className="gap-1"><Mail className="h-3 w-3" aria-hidden />Wrote to us · {ageLabel(r.ownerWroteAt, Date.now())}</Pill></Link> : null;
+                    const wrote = r.ownerWroteAt ? <Link to="/admin/emails" aria-label="Owner wrote to us — open Emails" className="-my-2 inline-flex shrink-0 items-center rounded-full py-2 lg:my-0 lg:py-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hiv-blue"><Pill tone="amber" className="gap-1"><Mail className="h-3 w-3" aria-hidden />Wrote to us · {ageLabel(r.ownerWroteAt, Date.now())}</Pill></Link> : null;
                     const bounced = r.emailBounced ? <Pill tone="rose" className="shrink-0">Email bounced</Pill> : null;
                     const est = estimateLabel({ dollars: r.estimateDollars, kind: r.estimateKind });
                     const tick = (cls: string) => (
@@ -170,7 +170,21 @@ export function EnquiriesScreen() {
           {d && <Pager page={d.page} totalPages={d.totalPages} total={d.total} shown={d.rows.length} onPage={setPage} />}
         </section>
       <JobPeek peek={peek} onClose={() => { setPeek(null); refresh(); }} />
-      <ReasonDialog open={dialog === "close"} title={`Close ${ids.length} enquir${ids.length === 1 ? "y" : "ies"}`} description="Duplicate, Junk / spam or Test go to Closed › Removed / test. Any other reason goes to Closed. History is kept." action="Close" danger presets={[...CLOSE_REASONS]} onOpenChange={(v) => setDialog(v ? "close" : null)} run={async (reason) => { if (closeRouteFor(reason) === "remove") { const r = await remove({ ids, reason }, "Removed"); refresh(); return !!r; } const r = await cancel({ jobIds: ids, reason }); if (!r) return false; if (r.failed.length) toast.error(`${r.done} cancelled; ${r.failed.length} not: ${r.failed[0]!.error}`); else toast.success(`${r.done} cancelled`); refresh(); return true; }} />
+      <ReasonDialog open={dialog === "close"} title={`Close ${ids.length} enquir${ids.length === 1 ? "y" : "ies"}`} description="Duplicate, Junk / spam or Test go to Closed › Removed / test. Any other reason goes to Closed. History is kept." action="Close" danger presets={[...CLOSE_REASONS]} onOpenChange={(v) => setDialog(v ? "close" : null)} run={async (reason) => {
+        if (closeRouteFor(reason) === "remove") {
+          // Only website enquiries can be removed; the server skips the rest and says how many it removed.
+          const r = await remove({ ids, reason: removeReasonText(reason) });
+          if (!r) return false;
+          const out = removeOutcomeToast(ids.length, r.removed);
+          if (out.ok) { toast.success(out.text); refresh(); return true; }
+          toast.error(out.text);
+          // Keep the ones not done ticked so they can be closed with another reason; the dialog stays open.
+          const before = (d?.rows ?? []).map((x) => x.id);
+          await qc.invalidateQueries({ queryKey: ["office-enquiries"] });
+          const fresh = qc.getQueryData<typeof d>(["office-enquiries", view, search, filters, sort, page]);
+          setPicked(keepTicked(ids, before, (fresh?.rows ?? d?.rows ?? []).map((x) => x.id)));
+          return false;
+        } const r = await cancel({ jobIds: ids, reason }); if (!r) return false; if (r.failed.length) toast.error(`${r.done} cancelled; ${r.failed.length} not: ${r.failed[0]!.error}`); else toast.success(`${r.done} cancelled`); refresh(); return true; }} />
       {closeReason && (
         <ReasonDialog open={dialog === "close-all"} title={`Close all ${(viewCount ?? 0).toLocaleString("en-AU")} in ${meta.label}`} description="Each moves to Jobs › Closed with this reason; reminders stop; history is kept and any can be reopened." action="Close them" danger presets={[closeReason]} onOpenChange={(v) => setDialog(v ? "close-all" : null)} run={async (reason) => {
           // Every id in this group as the server sees it now, closed 200 at a time with the same audited cancel.
