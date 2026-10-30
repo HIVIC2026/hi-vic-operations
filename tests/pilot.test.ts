@@ -191,6 +191,7 @@ describe("existing gates unchanged", () => {
     const b = src("src/lib/booking.server.ts");
     expect(b).toContain("installationDateBlocker"); expect(b).toContain("bookingLeadBlocker"); expect(b).toContain("paymentGate"); expect(b).toContain("commercialBlocker");
     const f = src("src/lib/pilot.functions.ts");
-    expect(f).not.toMatch(/createInvoiceForQuote|pushInvoiceToXero|mitti/i);
+    // In-house enablement reads existing Mitti membership; it must not create forms or call Mitti.
+    expect(f).not.toMatch(/createInvoiceForQuote|pushInvoiceToXero|createAssignMittiAudit|\b(?:realMittiCall|mittiCallFor|mittiCall)\s*\(/i);
   });
 });
