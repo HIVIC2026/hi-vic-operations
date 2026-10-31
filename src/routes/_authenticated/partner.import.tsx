@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { TradeShell } from "@/components/trade/TradeShell";
@@ -16,21 +17,25 @@ export const Route = createFileRoute("/_authenticated/partner/import")({
 // (decision 42), no mode chooser.
 function ImportPage() {
   const navigate = useNavigate();
+  // Jo 31 Oct: once the job is added, the heading and intro lines go so "Job added" sits at the top.
+  const [added, setAdded] = useState(false);
   const loadStart = useServerFn(addJobStart);
   const { data: start, isLoading, isError, isFetching, refetch } = useQuery({ queryKey: ["add-job-start", "mine"], queryFn: () => loadStart(), retry: 1, staleTime: 30_000 });
   return (
     <TradeShell installer redesign>
       {/* Approved heavier design (decision 237): 24px title, bold 15px lead, 14px detail. */}
+      {!added && (
       <div data-add-job-heading>
         <h1 className="font-display text-2xl font-bold leading-[1.2]">Add a job</h1>
         <p className="mt-1.5 text-[15px] font-semibold leading-[1.45]">{ADD_JOB_LEAD}</p>
         <p className="mt-0.5 text-sm leading-[1.45] text-sub">{ADD_JOB_DETAIL}</p>
       </div>
+      )}
       {isLoading ? <p className="text-sm text-sub">Loading…</p>
         : isError ? <div className="space-y-3"><p className="text-sm" role="alert">Your business details couldn't load. Check your signal and try again.</p><button type="button" className={PRIMARY_BTN} disabled={isFetching} onClick={() => refetch()}>{isFetching ? "Retrying…" : "Retry"}</button></div>
         : start?.kind === "staff" ? <div className="space-y-2 rounded-[12px] bg-mist p-4" data-no-business><p className="text-sm">{ADD_JOB_STAFF_ONLY}</p><Link to="/field" className="block min-h-11 py-2 text-sm font-semibold text-hiv-blue">Back to My work</Link></div>
         : start?.kind !== "owner" ? <div className="space-y-2 rounded-[12px] bg-mist p-4" data-no-business><p className="text-sm">This sign-in isn't linked to an approved installer business, so jobs can't be added here.</p><p className="text-sm text-sub">Contact Home Insulation Victoria if you think this is wrong.</p><Link to="/field" className="block min-h-11 py-2 text-sm font-semibold text-hiv-blue">Back to My work</Link></div>
-        : <AddJobFlow businessId={start.businessId} onExit={() => { void navigate({ to: "/field" }); }} />}
+        : <AddJobFlow businessId={start.businessId} onSavedChange={setAdded} onExit={() => { void navigate({ to: "/field" }); }} />}
     </TradeShell>
   );
 }
