@@ -10,10 +10,16 @@ describe("Jo 29 Oct: payment statement matches separate invoices", () => {
   });
   test("opening line names the install invoice, not one invoice", () => {
     expect(PAYMENT_TERMS_BODY).not.toContain("one invoice");
-    expect(PAYMENT_TERMS_BODY.startsWith("How I'll pay for this job. My install invoice is {total} inc GST, and there is no card fee.")).toBe(true);
+    expect(
+      PAYMENT_TERMS_BODY.startsWith(
+        "How I'll pay for this job. My install invoice is {total} inc GST, and there is no card fee.",
+      ),
+    ).toBe(true);
   });
   test("step 2: electrical upgrades paid on their own invoice", () => {
-    expect(PAYMENT_TERMS_BODY).toContain("2. Electrical upgrades, only if the electrician finds they're needed: I'll see the price first, and if I approve them I pay for the electrical upgrades in full then, on their own invoice, by card or bank transfer.");
+    expect(PAYMENT_TERMS_BODY).toContain(
+      "2. Electrical upgrades, only if the electrician finds they're needed: I'll see the price first, and if I approve them I pay for the electrical upgrades in full then, on their own invoice, by card or bank transfer.",
+    );
   });
   test("steps 1, 3, 4 and the last line are unchanged", () => {
     for (const line of [
@@ -21,6 +27,7 @@ describe("Jo 29 Oct: payment statement matches separate invoices", () => {
       "3. Install deposit: {deposit} (10% of the remaining {remaining}) to book my install day, by card, bank transfer or PayID.",
       "4. Balance: {balance} on install day, by bank transfer or PayID.",
       "I can pay whatever is left at any time by bank transfer or PayID.",
-    ]) expect(PAYMENT_TERMS_BODY).toContain(line);
+    ])
+      expect(PAYMENT_TERMS_BODY).toContain(line);
   });
 });
