@@ -23,8 +23,8 @@ HV-3497 (Dad's installer job, Silver Spirit Investments). The Mitti Ready Check 
 1. **Finished Mitti Ready Check → Attended Yes.** In `finishMittiReadyCheck`, for installer-added jobs only
    (`channel = "installer_sourced"`), when the form is complete set `installer_site_check = "yes"` and
    `installer_site_check_date` = the Melbourne date the form was finished in Mitti. Log one internal
-   event saying the attended answer came from the finished Mitti form. Runs once per form (no repeat
-   writes on later syncs).
+   event saying the attended answer came from the finished Mitti form. Runs once per job (no repeat
+   writes on later syncs; a later hand-set answer is never overwritten).
 2. **Typed price → Quote Yes.** When the installer saves their price on the job, if the quote answer isn't
    already "have_quote", set `installer_quoted = "yes"` and log the normal `installer_quote_answer`
    event (`answer: "have_quote"`, `source: "installer_price"`).
@@ -41,6 +41,7 @@ Mitti Ready Check (the installer's own visit record), not from price, area or fi
 - HIV's own website leads — untouched.
 - Quote holds, electrician rules (HV-3497 stays held until "Bright spark" is signed up), prices, emails, texts.
 - An installer can still change either answer by hand on their job page.
+- Owner paperwork — a finished Mitti Ready Check does not add the owner's 'Earlier visit' tick (Jo, 1 Nov 2026).
 
 ## Testing
 

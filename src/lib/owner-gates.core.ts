@@ -133,6 +133,19 @@ export function installerVisitFromSiteCheck(siteCheck: unknown): boolean | null 
   return siteCheck === "yes" ? true : siteCheck === "no" ? false : null;
 }
 
+/** Workflow events that tell who set the attendance answer (read with jobs.installer_site_check). */
+export const ATTENDANCE_SOURCE_EVENTS = ["installer_attended_from_mitti", "installer_attendance_answer"] as const;
+/** Jo 1 Nov 2026: Attended = Yes written by a finished Mitti Ready Check is NOT an earlier installer visit for owner
+ *  paperwork (no "Earlier visit" tick, no office flag) — unless the installer answered attendance by hand after it.
+ *  `events` = this job's ATTENDANCE_SOURCE_EVENTS rows (any order). */
+export function installerVisitFromAttendance(siteCheck: unknown, events: readonly { event_type: unknown; created_at: unknown }[]): boolean | null {
+  const visit = installerVisitFromSiteCheck(siteCheck);
+  if (visit !== true) return visit;
+  const last = (t: string) => Math.max(-Infinity, ...events.filter((e) => e.event_type === t).map((e) => Date.parse(String(e.created_at))).filter((n) => !Number.isNaN(n)));
+  if (!events.some((e) => e.event_type === "installer_attended_from_mitti")) return true;
+  return last("installer_attendance_answer") > last("installer_attended_from_mitti") ? true : null;
+}
+
 export type GateFacts = {
   isTest: boolean;
   signed: Signed[];

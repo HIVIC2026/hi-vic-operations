@@ -18,10 +18,12 @@ export async function finishMittiReadyCheck(jobId: string, i: { auditId: string;
   // when preparation is switched off; never blocks the rest).
   if (i.completed) {
     try {
-      const [{ data: aj }, { data: ev }] = await Promise.all([
+      const [{ data: aj, error: ajErr }, { data: ev, error: evErr }] = await Promise.all([
         admin.from("jobs").select("channel, installer_site_check").eq("id", jobId).maybeSingle(),
         admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "installer_attended_from_mitti").limit(1),
       ]);
+      // A failed read must never look like "not recorded yet" (a hand-set No would be flipped): skip the write.
+      if (ajErr || evErr) throw new Error((ajErr ?? evErr)!.message);
       const patch = aj ? mittiAttendedPatch({ channel: aj.channel as string | null, siteCheck: aj.installer_site_check as string | null, completed: true, modifiedAt: i.modifiedAt, alreadyRecorded: (ev ?? []).length > 0 }) : null;
       if (patch) {
         const { data: upd, error } = await admin.from("jobs").update(patch).eq("id", jobId).or("installer_site_check.is.null,installer_site_check.neq.yes").select("id");

@@ -97,6 +97,8 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
     scoped("Ready Check requests", (c) => admin.from("ready_check_acceptances").select("job_id").in("job_id", c)),
     scoped("measure-ups", (c) => admin.from("ceiling_measurements").select("job_id, created_at").eq("is_current", true).in("job_id", c)),
     skip("owner paperwork signatures", (c) => admin.from("owner_gate_signatures").select("job_id, doc_key, doc_version, doc_draft, answers").in("job_id", c).order("signed_at").order("id")),
+    // Who set the attendance answer: a finished Mitti Ready Check's Yes is not an earlier visit (Jo 1 Nov 2026).
+    skip("attendance answers", (c) => admin.from("workflow_events").select("job_id, event_type, created_at").in("event_type", ["installer_attended_from_mitti", "installer_attendance_answer"]).in("job_id", c)),
     ]);
   };
   const early = statusOnly ? perJob(opts.onlyIds!, [], []) : null;
@@ -130,7 +132,7 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
   const pickJobs = [...new Set(picks.map((p) => String(p["job_id"])))];
   const timed = live.filter((j) => j["stage"] === "ready_check_ready_to_schedule" || j["stage"] === "piesa_and_install_window_pending");
   const tIds = timed.map((j) => String(j["id"]));
-  const [stageEv, camp, links, wins, offers, books, props, quotes, inv, piesa, rcs, ev, veec, payoutEv, deadlines, invErr, esc, outbox, comms, emails, creds, reassigs, pickAll, tOffers, tAsg, emailsSent, messagesSent, acc, meas, gsigRows] = await (early ?? perJob(ids, pickJobs, tIds));
+  const [stageEv, camp, links, wins, offers, books, props, quotes, inv, piesa, rcs, ev, veec, payoutEv, deadlines, invErr, esc, outbox, comms, emails, creds, reassigs, pickAll, tOffers, tAsg, emailsSent, messagesSent, acc, meas, gsigRows, attRows] = await (early ?? perJob(ids, pickJobs, tIds));
   const { chosenTradeNoAnswer } = await import("./trade-choice.core");
   const tradeChoice = new Map<string, NonNullable<NeedsJob["tradeChoice"]>>();
   const pickAllBy = new Map<string, Row[]>(); for (const o of pickAll) { const k = String(o["job_id"]); if (!pickAllBy.has(k)) pickAllBy.set(k, []); pickAllBy.get(k)!.push(o); }
@@ -211,7 +213,9 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
 
   // Owner paperwork: jobs sitting in (or waiting to start) a stage whose gate isn't signed.
   if (!statusOnly) {
-    const { evaluateOwnerGates, gatesForStage, installerVisitFromSiteCheck } = await import("./owner-gates.core");
+    const { evaluateOwnerGates, gatesForStage, installerVisitFromAttendance } = await import("./owner-gates.core");
+    const attBy = new Map<string, Row[]>();
+    for (const x of attRows) { const k = String(x["job_id"]); if (!attBy.has(k)) attBy.set(k, []); attBy.get(k)!.push(x); }
     // Signatures were read with the other per-job reads (bounded id chunks), in signed order.
     type Sig = { job_id: string; doc_key: string; doc_version: string; doc_draft: boolean; answers: unknown };
     const sigsBy = new Map<string, Sig[]>();
@@ -225,7 +229,7 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
       const mine = sigsBy.get(id) ?? [];
       const ans = (k: string) => mine.filter((x) => x.doc_key === k).at(-1)?.answers as Record<string, unknown> | undefined;
       const r = evaluateOwnerGates({ isTest: j["source"] === "qa_test", signed: mine.map((x) => ({ key: x.doc_key, version: x.doc_version, draft: x.doc_draft })), approved: appr,
-        tenant: ans("details_confirmation")?.["role"] === "tenant", lifeSupport: false, visitedByInstaller: installerVisitFromSiteCheck(j["installer_site_check"]),
+        tenant: ans("details_confirmation")?.["role"] === "tenant", lifeSupport: false, visitedByInstaller: installerVisitFromAttendance(j["installer_site_check"], (attBy.get(id) ?? []) as { event_type: unknown; created_at: unknown }[]),
         hasQuote: true, agreementSigned: true, agreementWordingApproved: true, escConsentSigned: true, piesaCopyDelivered: true, piesaDeclarationMappingApproved: false, assignmentEffective: true });
       const g = r.find((x) => need.has(x.gate) && !x.complete);
       if (g) fail(id, `Owner paperwork ${g.gate} not complete: ${g.items.filter((i) => !i.done || (i.draft && j["source"] !== "qa_test")).map((i) => i.label).join(", ")}`);

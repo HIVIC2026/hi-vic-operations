@@ -107,6 +107,8 @@ async function markQuotePrepared(jobId: string, userId: string): Promise<void> {
   try {
     const prev = (await (await import("./installer-intake.server")).intakeQuoteAnswers([jobId])).get(jobId) ?? null;
     if (prev === "have_quote") return;
+    // installer_quoted='yes' while the price lives only in installer_price_set events (installer_quoted_price_inc_gst stays
+    // null): the hidden IntakeDetailsEditor must not be re-enabled without handling that.
     const { error } = await admin.from("jobs").update({ installer_quoted: "yes" }).eq("id", jobId);
     if (error) { console.error("setInstallerPrice: quote answer not saved", error.message); return; }
     await logEvent(jobId, userId, "installer_quote_answer", "Installer answered: quote prepared", { answer: "have_quote", previous: prev, source: "installer_price" }, { internal: true });
