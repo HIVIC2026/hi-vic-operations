@@ -1,3 +1,4 @@
+import { runAfterResponse } from "./background.server";
 import { commitCampaignSpot, repairCampaignSpotStage } from "./campaign-spot-save.server";
 import { SPOT_RANK_LABEL, compareSpots, leadRank, spotSummary, type SpotRankFacts } from "./spot-saved-rank.core";
 import { houseAgeLabel } from "./onsite-assessment.core";
@@ -105,6 +106,12 @@ export async function campaignPage(token: unknown, testMode = false) {
   return estimate ? JSON.stringify({ group: c.group, saveAllowed: campaignPermission(c, response?.desk_check_status), media: c.media, mediaReview: c.mediaReview, ownerQualified: c.ownerQualified, estimate, pricing, response: response ?? null, referralUrl, bookingAvailable: booking.allowed, owner: { firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null }, home: { suburb: property?.suburb ?? null, short: [property?.address_line, property?.suburb].filter(Boolean).join(", ") || null }, initialValues: { address, areaM2: c.job.estimated_area_m2 == null ? null : Number(c.job.estimated_area_m2), insulation } }) : null;
 }
 
+/** The owner sees "saved" at once; the guarded once-only confirmation runs after the reply.
+ *  If it is cut short, sweepSpotSavedConfirmations (allocation tick) is the backstop. */
+function confirmAfterResponse(jobId: string, token: string) {
+  runAfterResponse(() => queueSpotSavedConfirmations(jobId, token));
+}
+
 export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; insulation: "none" | "present" | "unknown" | null } | null) {
   const c = await campaignLink(token);
   if (!c) throw new Error("This link is no longer available.");
@@ -112,7 +119,7 @@ export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; 
   if (reviewError || !campaignPermission(c, review?.desk_check_status)) throw new Error("Our office needs to check your insulation before offering Save my spot.");
   if (review?.spot_saved_at) {
     await commitCampaignSpot(c.job.id, review.estimate_link_id, {}, c.group === "onsite", "Owner saved a place", { campaign: LAUNCH_CAMPAIGN });
-    await queueSpotSavedConfirmations(c.job.id, String(token));
+    confirmAfterResponse(c.job.id, String(token));
     return { ok: true as const };
   }
   const { data: est } = await admin.from("indicative_estimates").select("id, area_source, area_m2, insulation_declared, scenarios").eq("job_id", c.job.id).eq("status", "current").maybeSingle();
@@ -143,7 +150,7 @@ export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; 
     price ? `Owner saved a place for a free Ready Check at $${Math.floor(price.total)} (rebate $${Math.floor(price.discount)})` : "Owner saved a place for a free Ready Check",
     { campaign: LAUNCH_CAMPAIGN, area_assumed: !calc && basis.ok && basis.areaEstimated, ...snapshot });
   // Replays must reach the existing once-only confirmation, not stop at the saved row.
-  await queueSpotSavedConfirmations(c.job.id, String(token));
+  confirmAfterResponse(c.job.id, String(token));
   return { ok: true as const };
 }
 
