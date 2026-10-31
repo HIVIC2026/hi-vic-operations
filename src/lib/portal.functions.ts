@@ -766,8 +766,10 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
       }
       const cb = await commercialBlocker(q.job_id);
       if (cb) throw new WorkflowError(`Blocked: ${cb}`);
-      const p = await piesaStatus(q.job_id);
-      const { count: rect } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", q.job_id).eq("status", "required");
+      const [p, { count: rect }] = await Promise.all([
+        piesaStatus(q.job_id),
+        admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", q.job_id).eq("status", "required"),
+      ]);
       if (!rect && p?.piesa_expired) throw new WorkflowError("The Pre Insulation Electrical Safety Assessment (PIESA) has expired. Home Insulation Victoria will arrange a reassessment.");
     }
     if (q.kind === "installation" && data.signing) {
