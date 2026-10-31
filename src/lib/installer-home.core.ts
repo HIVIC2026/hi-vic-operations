@@ -33,6 +33,8 @@ export type InstallerHomeJob = {
   installDeadline: string | null;
   /** When the job reached its final stage (Done rows). */
   endedAt: string | null;
+  /** When the job record last changed (jobs.updated_at); only orders Action needed, oldest wait first. */
+  waitedSince?: string | null;
   /** Decision 279: the Mitti Ready Check form is linked / marked Complete / has installer answers (null = not known). */
   formLinked?: boolean;
   formCompleted?: boolean;
@@ -133,10 +135,29 @@ export function doneSub(channel: string | null | undefined, stage: string, ended
   return [sourceLabel(channel), doneLine(stage, endedAt)].filter(Boolean).join(" · ");
 }
 
+const timeOf = (iso: string | null | undefined): number | null => { const t = iso ? Date.parse(iso) : NaN; return Number.isNaN(t) ? null : t; };
+/** Ascending, with missing values after every real one. */
+const byTimeNullLast = (a: string | null | undefined, b: string | null | undefined): number => {
+  const x = timeOf(a), y = timeOf(b);
+  return x === y ? 0 : x === null ? 1 : y === null ? -1 : x - y;
+};
+/** Action needed, most urgent first: install deadline (none last), then waited longest (null last), then job number ("HV-99" before "HV-100"). */
+export function actionOrder(a: InstallerHomeJob, b: InstallerHomeJob): number {
+  const byDeadline = byTimeNullLast(a.installDeadline, b.installDeadline);
+  if (byDeadline) return byDeadline;
+  const byWait = byTimeNullLast(a.waitedSince, b.waitedSince);
+  if (byWait) return byWait;
+  const x = a.jobNumber == null ? null : String(a.jobNumber), y = b.jobNumber == null ? null : String(b.jobNumber);
+  if (x === y) return 0;
+  return x === null ? 1 : y === null ? -1 : x.localeCompare(y, "en", { numeric: true });
+}
+
 /** Four groups, every job in exactly one; offers are shown in the offer panel, not in a group. */
 export function installerHomeGroups(jobs: InstallerHomeJob[]): { action: InstallerHomeRow[]; coming: InstallerHomeRow[]; progress: InstallerHomeRow[]; done: InstallerHomeRow[] } {
   const rows = jobs.map((j) => ({ ...j, ...installerNext(j) }));
-  return { action: rows.filter((r) => r.group === "action"), coming: rows.filter((r) => r.group === "coming"), progress: rows.filter((r) => r.group === "progress"), done: rows.filter((r) => r.group === "done") };
+  // waitedSince only orders Action needed; it is not carried into the rows, so the home payload keeps its exact shape.
+  const plain = (r: InstallerHomeRow): InstallerHomeRow => { const { waitedSince: _waited, ...rest } = r; return rest; };
+  return { action: rows.filter((r) => r.group === "action").sort(actionOrder).map(plain), coming: rows.filter((r) => r.group === "coming").map(plain), progress: rows.filter((r) => r.group === "progress").map(plain), done: rows.filter((r) => r.group === "done").map(plain) };
 }
 
 /** Booked visits for the Coming up list: only jobs the groups placed in Coming up, order kept (one job, one list). */
