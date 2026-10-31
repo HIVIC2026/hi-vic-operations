@@ -2,6 +2,7 @@
 // This month / Last month, per-job rows with payPill states, how pay works by job type, bank account on file,
 // Download statement. Pay states come from trade-view.core payPill; totals from installer-screens.core.
 import { readTradeCache, writeTradeCache } from "@/lib/trade-cache";
+import { headStartOr, startTradeScreen } from "@/lib/trade-route-prefetch";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -16,6 +17,8 @@ import { Group, LinkRow, NoFormNoPay, Note, Pill, Screen, outlineLinkClass } fro
 export const Route = createFileRoute("/_authenticated/field/money")({
   validateSearch: (s: Record<string, unknown>): { all?: boolean | undefined } => ({ all: s["all"] === true || s["all"] === "1" ? true : undefined }),
   head: () => ({ meta: [{ title: "Money – Home Insulation Victoria" }, { name: "description", content: "Your pay: what's coming, what's being checked and what's been paid." }, { property: "og:title", content: "Money – Home Insulation Victoria" }, { property: "og:description", content: "Your pay: what's coming, what's being checked and what's been paid." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
+  // Speed: the screen's server call starts as soon as the route matches, while this page's code downloads (trade-route-prefetch).
+  loader: ({ context, params, preload }) => startTradeScreen(context, "money", params, preload),
   component: Money,
 });
 
@@ -29,7 +32,7 @@ function Money() {
   const [monthFilter, setMonthFilter] = useState<string | null>(null);
   const uid = Route.useRouteContext().user.id;
   const seed = useMemo(() => readTradeCache<Awaited<ReturnType<typeof load>>>(uid, "money"), [uid]); // eslint-disable-line react-hooks/exhaustive-deps
-  const { data, error } = useQuery({ queryKey: ["trade-money-v2"], queryFn: async () => { const d = await load(); if (d) writeTradeCache(uid, "money", d); return d; }, retry: false, staleTime: 30_000, ...(seed ? { initialData: seed.data, initialDataUpdatedAt: seed.at } : {}) }); // a refusal (staff) shows at once, not after retries
+  const { data, error } = useQuery({ queryKey: ["trade-money-v2"], queryFn: async () => { const d = await headStartOr(uid, ["trade-money-v2"], () => load()); if (d) writeTradeCache(uid, "money", d); return d; }, retry: false, staleTime: 30_000, ...(seed ? { initialData: seed.data, initialDataUpdatedAt: seed.at } : {}) }); // a refusal (staff) shows at once, not after retries
   const { data: x } = useQuery({ queryKey: ["trade-money-extras"], queryFn: () => loadExtras(), retry: false, staleTime: 30_000 });
   if (error) return <TradeShell installer={false}><p role="alert" className="rounded-[18px] border border-line bg-paper p-4 text-sm">{(error as Error).message}</p></TradeShell>;
   if (!data) return <TradeShell installer={false}><p className="text-sm">Loading…</p></TradeShell>;

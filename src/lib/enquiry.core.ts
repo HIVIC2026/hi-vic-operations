@@ -1,4 +1,5 @@
 // Pure, runtime-agnostic helpers for the Base44 -> portal enquiry handoff (no DB, no env). Tested in tests/enquiry.core.test.ts.
+import { EXISTING_INSULATION_KEYS, answerText, declaredExtras, insulationDetailText, type InsulationDetail } from "./trade-shared-consts.core";
 
 /** Trusted Base44 Ed25519 public key (SPKI DER, base64). Public by design — no secret required. */
 export const BASE44_PUBLIC_KEY_SPKI_B64 = "MCowBQYDK2VwAyEA4ZW3Pv8Mb6v9e684gaMN3HHB8qGLvW6LCMOPU7ki6U0=";
@@ -314,29 +315,12 @@ export function mediaStoragePath(jobId: string, sourceId: string, name: string) 
   return `${jobId}/intake/base44/${sid}-${sanitizeFilename(name)}`;
 }
 
-// Base44 stores the homeowner answers under `answers.insulation` and `answers.top_floor`;
-// older/alternative spellings are kept as fallbacks only.
-export const EXISTING_INSULATION_KEYS = ["insulation", "declared_existing_insulation", "existing_insulation", "has_existing_insulation", "current_insulation"];
-const TOP_FLOOR_KEYS = ["top_floor", "declared_top_floor", "is_top_floor", "top_floor_unit", "top_storey"];
-const answerText = (v: unknown): string | null => {
-  if (v === true) return "yes"; if (v === false) return "no";
-  if (typeof v === "string" && v.trim()) return v.trim().slice(0, 120);
-  return null;
-};
-/** Owner-declared existing insulation / top-floor answers from the Base44 answer snapshot (declared, never verified). */
-export function declaredExtras(answers: Record<string, unknown> | null | undefined) {
-  const pick = (keys: string[]) => { for (const k of keys) { const t = answerText(answers?.[k]); if (t) return t; } return null; };
-  return { existing_insulation: pick(EXISTING_INSULATION_KEYS), top_floor: pick(TOP_FLOOR_KEYS) };
-}
+export { EXISTING_INSULATION_KEYS, declaredExtras };
 
 /** The three follow-up answers for owners who said insulation is present (read by declaredInsulationDetail). */
 export const INSULATION_DETAIL_KEYS = ["insulation_type", "insulation_thickness", "insulation_coverage"] as const;
 
-export type InsulationDetail = {
-  insulation_type: "batts" | "loose_fill" | "foil" | "unknown" | null;
-  insulation_thickness: "thin" | "hand" | "thicker" | "unknown" | null;
-  insulation_coverage: "whole" | "partial" | "unknown" | null;
-};
+export type { InsulationDetail };
 /** Base44 follow-up answers for owners who said insulation is present (declared, never verified). Anything outside
  *  the known values is treated as not answered. */
 export function declaredInsulationDetail(answers: Record<string, unknown> | null | undefined): InsulationDetail {
@@ -351,13 +335,7 @@ export function declaredInsulationDetail(answers: Record<string, unknown> | null
   };
 }
 
-const DETAIL_WORDS: Record<string, string> = { batts: "batts", loose_fill: "loose fill", foil: "foil", thin: "thin", hand: "about a hand thick", thicker: "thicker than a hand", whole: "whole ceiling", partial: "patchy" };
-/** "loose fill, thin, patchy" — null when the owner gave none of the three answers. */
-export function insulationDetailText(d: Partial<InsulationDetail> | null | undefined): string | null {
-  if (!d) return null;
-  const parts = [d.insulation_type, d.insulation_thickness, d.insulation_coverage].map((v) => (v ? (v === "unknown" ? "not sure" : DETAIL_WORDS[v] ?? v) : null));
-  return parts.every((p) => p == null) ? null : parts.map((p) => p ?? "not answered").join(", ");
-}
+export { insulationDetailText };
 
 const ANSWER_WORDS: Record<string, string> = { batts: "Batts", loose_fill: "Loose fill", foil: "Foil", thin: "Thin", hand: "About a hand's width", thicker: "Thicker than a hand", whole: "Whole ceiling", partial: "Only some areas", unknown: "Not sure" };
 /** Jo 28 Oct: the owner's three website answers for the job screen — "Loose fill · Thin · Whole ceiling".

@@ -49,7 +49,19 @@ export function formatTable(rows: Row[]): string {
   return [...head, ...body].join("\n");
 }
 
-export type Args = { base: string; label: string; screens: Screen[] };
+/** Cold and warm ("daily use": the app already on the phone) side by side, one row per screen and role. */
+export function formatColdWarmTable(pairs: { cold: Row; warm: Row }[]): string {
+  const head = [
+    "| screen | role | cold median ms | warm median ms | cold slowest ms | warm slowest ms | server calls (cold / warm) | slowest call cold | slowest call warm |",
+    "|---|---|---|---|---|---|---|---|---|",
+  ];
+  const n = (v: number | null) => (v === null ? "-" : String(Math.round(v)));
+  const last = (r: Row) => r.note ?? (r.slowest ? `${r.slowest.name}, ${Math.round(r.slowest.ms)}` : "none");
+  const body = pairs.map(({ cold: c, warm: w }) => `| ${c.screen} | ${c.role} | ${n(c.medianMs)} | ${n(w.medianMs)} | ${n(c.slowestMs)} | ${n(w.slowestMs)} | ${n(c.calls)} / ${n(w.calls)} | ${last(c)} | ${last(w)} |`);
+  return [...head, ...body].join("\n");
+}
+
+export type Args = { base: string; label: string; screens: Screen[]; warm: boolean };
 
 export function parseArgs(argv: string[]): Args {
   const get = (flag: string) => { const i = argv.indexOf(flag); return i >= 0 ? argv[i + 1] : undefined; };
@@ -60,7 +72,7 @@ export function parseArgs(argv: string[]): Args {
   const raw = get("--screens");
   const screens = raw ? raw.split(",").map((s) => s.trim()) : [...ALL_SCREENS];
   for (const s of screens) if (!(ALL_SCREENS as readonly string[]).includes(s)) throw new Error(`Unknown screen "${s}". Use: ${ALL_SCREENS.join(", ")}`);
-  return { base: base.replace(/\/+$/, ""), label, screens: screens as Screen[] };
+  return { base: base.replace(/\/+$/, ""), label, screens: screens as Screen[], warm: argv.includes("--warm") };
 }
 
 export const reportFileName = (date: string, label: string) => `qa/installer-speed/${date}-${label}.md`;

@@ -4,7 +4,8 @@ import { currentUser } from "@/lib/route-guards";
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
   beforeLoad: async ({ location }) => {
-    // Same check as before (supabase.auth.getUser), remembered briefly per tab so each navigation is not a fresh auth round trip (decision 280).
+    // Who is signed in: the session saved on this phone first, the auth server when there is none (currentUser), remembered
+    // briefly per tab (decision 280). No session = /auth, as before. Screen-only: every server function still checks access.
     const { data, error } = await currentUser();
     if (error || !data.user) throw redirect({ to: "/auth", search: { next: location.href } } as never);
     return { user: data.user };

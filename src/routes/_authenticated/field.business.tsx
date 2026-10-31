@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { clearTradeCache, readTradeCache, writeTradeCache } from "@/lib/trade-cache";
+import { headStartOr, startTradeScreen } from "@/lib/trade-route-prefetch";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
@@ -13,6 +14,8 @@ import { melbourneToday } from "@/lib/melbourne-time.core";
 
 export const Route = createFileRoute("/_authenticated/field/business")({
   head: () => ({ meta: [{ title: "My business – Home Insulation Victoria" }, { name: "description", content: "Your team, paperwork and business file." }, { property: "og:title", content: "My business – Home Insulation Victoria" }, { property: "og:description", content: "Your team, paperwork and business file." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
+  // Speed: the screen's server call starts as soon as the route matches, while this page's code downloads (trade-route-prefetch).
+  loader: ({ context, params, preload }) => startTradeScreen(context, "business", params, preload),
   component: Business,
 });
 
@@ -24,7 +27,7 @@ function Business() {
   const navigate = useNavigate();
   const uid = Route.useRouteContext().user.id;
   const seed = useMemo(() => readTradeCache<Awaited<ReturnType<typeof load>>>(uid, "business"), [uid]); // eslint-disable-line react-hooks/exhaustive-deps
-  const { data, error, refetch } = useQuery({ queryKey: ["trade-business"], queryFn: async () => { const d = await load(); if (d) writeTradeCache(uid, "business", d); return d; }, staleTime: 30_000, ...(seed ? { initialData: seed.data, initialDataUpdatedAt: seed.at } : {}) });
+  const { data, error, refetch } = useQuery({ queryKey: ["trade-business"], queryFn: async () => { const d = await headStartOr(uid, ["trade-business"], () => load()); if (d) writeTradeCache(uid, "business", d); return d; }, staleTime: 30_000, ...(seed ? { initialData: seed.data, initialDataUpdatedAt: seed.at } : {}) });
   const [busy, setBusy] = useState(false);
   if (error) return <TradeShell installer={false}><p role="alert" className={card}>{(error as Error).message}</p></TradeShell>;
   if (!data) return <TradeShell installer={false}><p className="text-sm">Loading…</p></TradeShell>;

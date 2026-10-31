@@ -110,9 +110,8 @@ export function ownerReadyLine(f: OwnerReadyFacts | null | undefined): OwnerRead
 const READY_CHECK_STAGES = ["ready_check_ready_to_schedule", "ready_check_scheduled", "preliminary_estimate_ready", "new_enquiry", "eligibility_review"];
 import { PRESS_COMPLETE_LINE, QUOTE_DECLINED_LINE, QUOTE_HELD_LINE, QUOTE_SENT_LINE } from "./installer-quote-status.core";
 import { isPriceNextAction } from "./ready-check-basics.core";
-import { OWNER_PIESA_CONFIRM_WAITING } from "./piesa-owner-confirm.core";
+import { OWNER_PIESA_CONFIRM_WAITING, FIXES_FORM_LINK_LABEL } from "./trade-shared-consts.core";
 import { PIESA_FULL } from "./job-wording";
-import { FIXES_FORM_LINK_LABEL } from "./fixes-day.core";
 
 /** "Needs finishing: price, owner mobile/email/permission on the Mitti form" → the approved M2 list ("Your price", "The owner's email", …). */
 export function needsFinishingList(nextAction: string | null | undefined): string[] {

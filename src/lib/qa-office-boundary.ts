@@ -5,6 +5,9 @@ import { qaOfficeFunctionBlocker } from "./qa-office-policy.core";
 
 // Global before-handler boundary, including functions that omitted their own office check.
 // Bearer-less public requests retain their existing handler authorization.
+// Every bearer gets both checks: getUser (Auth's record; refuses signed-out sessions) and the persisted
+// user_roles (qa_office on any email). getClaims verifies the token locally first so its `sub` lets the
+// two reads run in one parallel round instead of two sequential ones; the decision is unchanged.
 export const testOfficeBoundary = createMiddleware({ type: "function" }).server(async ({ next, serverFnMeta }) => {
   const { getRequest } = await import("@tanstack/react-start/server");
   const authorization = getRequest().headers.get("authorization");
@@ -21,9 +24,14 @@ export const testOfficeBoundary = createMiddleware({ type: "function" }).server(
       return fetch(input, { ...init, headers });
     } },
   });
-  const { data: auth, error } = await sb.auth.getUser(token);
-  if (error || !auth.user) throw new Error("Office sign-in required.");
-  const { data: rows, error: roleError } = await sb.from("user_roles").select("role").eq("user_id", auth.user.id);
+  const { data: verified, error: claimsError } = await sb.auth.getClaims(token);
+  const sub = verified?.claims?.sub;
+  if (claimsError || typeof sub !== "string" || !sub) throw new Error("Office sign-in required.");
+  const [{ data: auth, error }, { data: rows, error: roleError }] = await Promise.all([
+    sb.auth.getUser(token),
+    sb.from("user_roles").select("role").eq("user_id", sub),
+  ]);
+  if (error || !auth.user || auth.user.id !== sub) throw new Error("Office sign-in required.");
   if (roleError) throw new Error("Office permissions could not be checked.");
   const blocker = qaOfficeFunctionBlocker({ roles: (rows ?? []).map(r => String(r.role)), email: auth.user.email ?? null, emailVerified: !!auth.user.email_confirmed_at }, serverFnMeta.filename, serverFnMeta.name);
   if (blocker) throw new Error(blocker);

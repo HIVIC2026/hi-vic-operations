@@ -12,10 +12,11 @@
 //     row: the electrician can do no day inside the window. (The 10-days-left alert stays as it is.)
 // It replaces the decision-314 "tell the installer and electrician the day" office line. Price unchanged (inside the one total).
 // Pure: decisions, keys, wording, links, answer state, day restriction, reminder and Needs me rules, labels. No I/O.
+import { ATTENDANCE_ANCHOR, ATTENDANCE_MAX_DAYS, ATTENDANCE_YES, ATTENDANCE_NO, ATTENDANCE_REASONS, isAttendanceReason, attendanceReasonLabel, declineBlockers, type AttendanceReason } from "./trade-shared-consts.core";
 import { onsiteStartTicked, RECTIFICATION_OUTCOMES } from "./official-short.core";
 import { melbourneClock, melbourneDayDate } from "./installer-texts.core";
 import { melbourneYmd } from "./piesa-windows.core";
-import { installDayBounds, OWNER_SUGGEST_MAX } from "./install-days.core";
+import { installDayBounds } from "./install-days.core";
 
 /** Recorded once per job + install booking BEFORE anything is sent (details: { key, booking_id, start, business_id, to }). */
 export const ATTENDANCE_REQUESTED_EVENT = "electrician_install_attendance_requested" as const;
@@ -32,13 +33,13 @@ export const ATTENDANCE_EVENTS = [ATTENDANCE_REQUESTED_EVENT, ATTENDANCE_CONFIRM
 export const ATTENDANCE_SMS_TYPE = "electrician_install_attendance" as const;
 export const ATTENDANCE_INSTALLER_SMS_TYPE = "electrician_cant_attend_installer" as const;
 /** The job-page anchor the text link opens on (InstallAttendanceCard). */
-export const ATTENDANCE_ANCHOR = "install-attendance";
+export { ATTENDANCE_ANCHOR };
 /** No answer this long after the request → one reminder text. */
 export const ATTENDANCE_REMIND_AFTER_MS = 24 * 3_600_000;
 /** Still no answer this long after the request → one Needs me row. */
 export const ATTENDANCE_OFFICE_AFTER_MS = 48 * 3_600_000;
 /** The electrician gives 1–5 days they can do (the same limit as an owner's own days). */
-export const ATTENDANCE_MAX_DAYS = OWNER_SUGGEST_MAX;
+export { ATTENDANCE_MAX_DAYS };
 
 /** Does the stored A3 (short answers) need the electrician on site at the start of the install day? The decision-314 tick,
  *  or the official third outcome it produces (`deriveRectificationOutcome`). */
@@ -84,34 +85,8 @@ export function attendanceRequestBlocker(f: AttendanceRequestFacts): string | nu
   return null;
 }
 
-export const ATTENDANCE_YES = "I'll be there";
-export const ATTENDANCE_NO = "Can't make it";
-
-// ---- "Can't make it": reason + the days they can do ----
-export const ATTENDANCE_REASONS = { sick: "Sick", another_job: "Another job", short_notice: "Too short notice", other: "Other" } as const;
-export type AttendanceReason = keyof typeof ATTENDANCE_REASONS;
-export const isAttendanceReason = (x: unknown): x is AttendanceReason => typeof x === "string" && x in ATTENDANCE_REASONS;
-/** What the installer reads in brackets: the label, or the electrician's own words for Other. */
-export function attendanceReasonLabel(reason: AttendanceReason, text: string | null | undefined): string {
-  return reason === "other" ? (text?.trim() || ATTENDANCE_REASONS.other) : ATTENDANCE_REASONS[reason];
-}
-
-/** "Can't make it" input check. `allowed` = install days still inside the 30-day window (install-days.core
- *  `allowedInstallDays`); `bookedDay` = the Melbourne day being released (never offered back). `noDays` = "I can't do any
- *  day before the window closes" (the only path that raises an office row straight away). */
-export function declineBlockers(f: { reason: unknown; otherText?: string | null; days: string[]; noDays: boolean; allowed: string[]; bookedDay: string | null }): string[] {
-  const b: string[] = [];
-  if (!isAttendanceReason(f.reason)) b.push("Please pick a reason.");
-  else if (f.reason === "other" && !f.otherText?.trim()) b.push("Please say why.");
-  if (f.noDays) { if (f.days.length) b.push("Pick days you can do, or tick that you can't do any day — not both."); return b; }
-  const uniq = new Set(f.days);
-  if (uniq.size !== f.days.length) b.push("Each day can only be chosen once.");
-  if (uniq.size < 1) b.push("Please pick at least 1 day you can do.");
-  if (uniq.size > ATTENDANCE_MAX_DAYS) b.push(`Please pick no more than ${ATTENDANCE_MAX_DAYS} days.`);
-  if ([...uniq].some((d) => d === f.bookedDay)) b.push("Pick days other than the day you can't make.");
-  if ([...uniq].some((d) => !f.allowed.includes(d))) b.push("One of those days is outside the 30-day window or too soon. Please choose again.");
-  return b;
-}
+export { ATTENDANCE_YES, ATTENDANCE_NO, ATTENDANCE_REASONS, isAttendanceReason, attendanceReasonLabel, declineBlockers };
+export type { AttendanceReason };
 
 /** "Tuesday 28 October, Wednesday 29 October" (sorted). */
 export const canDoDaysLabel = (days: string[]) => [...days].sort().map((d) => melbourneDayDate(installDayBounds(d).starts_at)).join(", ");

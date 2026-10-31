@@ -5,6 +5,7 @@
 // Pure: the decision, the key, the wording, the link, the quote hold and the 24h Needs me rule. No I/O.
 import { fixesFormNeeded } from "./fixes-day.core";
 import { onsiteStartTicked, part4to6Problem, repairWorkBesidesOnsite } from "./official-short.core";
+import { FIXES_TIMES_ANCHOR } from "./trade-shared-consts.core";
 
 /** Recorded once per job + PIESA (A3 audit) BEFORE anything is sent (details: { key, audit_id, completed_at, business_id, to }). */
 export const FIXES_TIMES_LINK_EVENT = "fixes_times_link_sent" as const;
@@ -13,7 +14,7 @@ export const FIXES_TIMES_GIVEN_EVENT = "rectification_windows_given" as const;
 /** The real-sender message type (sms.core SMS_MESSAGE_TYPES). */
 export const FIXES_TIMES_SMS_TYPE = "fixes_times_link" as const;
 /** The job-page anchor the link opens on (FixesTimesCard). */
-export const FIXES_TIMES_ANCHOR = "fixes-times";
+export { FIXES_TIMES_ANCHOR };
 
 /** One text per job and PIESA form (a re-sync or the 15-minute tick never texts again; a re-done PIESA has a new audit). */
 export const fixesTimesLinkKey = (jobId: string, piesaAuditId: string) => `fixes-times-link:v1:${jobId}:${piesaAuditId}`;

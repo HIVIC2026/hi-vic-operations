@@ -4,6 +4,7 @@
 // "Couldn't get in?" (decisions 214/215). After the install form is Complete the panel reads "Sign the rebate form"
 // (decision 213) with the recorded ticks, the declaration and "Then".
 import { readTradeCache, writeTradeCache } from "@/lib/trade-cache";
+import { headStartOr, startTradeScreen } from "@/lib/trade-route-prefetch";
 import { toast } from "sonner";
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -27,6 +28,8 @@ import { ContactButtons, Group, LinkRow, NextPanel, NoFormNoPay, Note, PrimaryBu
 
 export const Route = createFileRoute("/_authenticated/field/day/$jobId")({
   head: () => ({ meta: [{ title: "Today's job – Home Insulation Victoria" }, { name: "description", content: "Today's visit: the phone checks, then the Mitti form." }, { property: "og:title", content: "Today's job – Home Insulation Victoria" }, { property: "og:description", content: "Today's visit: the phone checks, then the Mitti form." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
+  // Speed: the screen's server call starts as soon as the route matches, while this page's code downloads (trade-route-prefetch).
+  loader: ({ context, params, preload }) => startTradeScreen(context, "day", params, preload),
   component: DayPage,
 });
 
@@ -40,7 +43,7 @@ function DayPage() {
   const uid = Route.useRouteContext().user.id;
   const ck = `day:${jobId}`;
   const seed = useMemo(() => readTradeCache<Awaited<ReturnType<typeof load>>>(uid, ck), [uid, ck]); // eslint-disable-line react-hooks/exhaustive-deps
-  const { data, error, refetch } = useQuery({ queryKey: ["trade-day", jobId], queryFn: async () => { const d = await load({ data: { jobId } }); if (d) writeTradeCache(uid, ck, d); return d; }, refetchInterval: 30_000, staleTime: 15_000, ...(seed ? { initialData: seed.data, initialDataUpdatedAt: seed.at } : {}),
+  const { data, error, refetch } = useQuery({ queryKey: ["trade-day", jobId], queryFn: async () => { const d = await headStartOr(uid, ["trade-day", jobId], () => load({ data: { jobId } })); if (d) writeTradeCache(uid, ck, d); return d; }, refetchInterval: 30_000, staleTime: 15_000, ...(seed ? { initialData: seed.data, initialDataUpdatedAt: seed.at } : {}),
     // Phase 3 path 8: a refusal ("This job isn't available to you.") shows at once instead of "Loading your day…" through retries.
     retry: (n, e) => n < 3 && !/available to you|assigned to you/i.test((e as Error)?.message ?? "") });
   const { data: x } = useQuery({ queryKey: ["trade-day-extras", jobId], queryFn: () => loadExtras({ data: { jobId } }), retry: false, refetchInterval: 60_000, staleTime: 20_000 });

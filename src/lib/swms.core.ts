@@ -3,7 +3,7 @@
 // job page before install day, and the signed copy is filed in the WorkSafe Victoria sample-template layout
 // (Safe-work-method-statements-2023-07). Legal minimum per docs/SWMS_REQUIREMENTS_VIC_2026-10-24.md (OHS Regs 2017
 // r 326–328): high-risk construction work, hazards, control measures, how they are implemented, monitored and reviewed.
-import { norm } from "./mitti.core";
+import { norm } from "./trade-shared-consts.core";
 
 export const SWMS_RULE = "swms-portal-2026-10-24";
 /** Principal contractor printed on every SWMS. */

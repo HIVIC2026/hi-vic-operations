@@ -13,6 +13,7 @@
 //    test assignee.
 import { mjEmail, esc } from "./mail-mjml.core";
 import { plainText } from "./email-kit.core";
+import { CREW_SKIP } from "./trade-shared-consts.core";
 
 /** Default when the env switch is not set. */
 export const MITTI_AUTO_INVITE_ENABLED = false as boolean;
@@ -144,7 +145,7 @@ export type InviteStep =
 /** One invite per partner worker, ever (seats are billed). */
 export const inviteKey = (workerId: string) => `mitti-invite:${workerId}`;
 
-export const CREW_SKIP = "Crew aren't invited automatically — the office adds them to Mitti by hand.";
+export { CREW_SKIP };
 export const TEST_SKIP = "TEST person: TEST forms go to the test assignee and Mitti rejects synthetic emails.";
 
 /** Is this approved partner person someone who should be in Mitti? Installers once their CII is verified (decision 153),

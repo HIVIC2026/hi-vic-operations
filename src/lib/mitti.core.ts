@@ -7,6 +7,7 @@ import { PRE_READY_CHECK_STAGES } from "./installer-new-jobs.core";
 import { splitEligibleAreas, type ExcludedArea } from "./excluded-areas.core";
 import { A3_REPAIR_NEEDED_LABEL, LIFE_SUPPORT_PRESENT } from "./official-short.core";
 import { EXISTING_DEPTH_Q, isNoSafeAccess, isR2OrAbove, isRValueBandAnswer, LEAN_ALIASES, LEAN_Q, premisesTypeOption } from "./ready-check-lean.core";
+import { norm } from "./trade-shared-consts.core";
 
 export const MITTI_TEMPLATE_ID = "template_fd20c6437f4e4db2b49b2d6dbe0d3f91";
 /** Electrical rate codes Lovable can price. Everything else from Mitti is manual office review. */
@@ -71,8 +72,7 @@ export function mittiApi(call: MittiCall) {
 export type MittiApi = ReturnType<typeof mittiApi>;
 
 // ---------- label helpers ----------
-export const norm = (s: unknown) =>
-  String(s ?? "").toLowerCase().replace(/²/g, "2").replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").trim();
+export { norm };
 
 export type Entry = { id: string; label: string; norm: string; type: string; value: string | null; parent: string | null; section: string; header: boolean };
 

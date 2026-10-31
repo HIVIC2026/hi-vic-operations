@@ -1,4 +1,4 @@
-import { declaredExtras } from "./enquiry.core";
+import { declaredExtras } from "./trade-shared-consts.core";
 // THE single, pure, deterministic Gate 1 categoriser (Activity 48 – VEET Amendment (Ceiling Insulation) Regulations 2026,
 // reg 10(9)-(10) / Part 48). Property Intelligence and Base44 only supply FACTS; this file alone decides.
 // Hierarchy (locked): A hard failure -> does_not_appear_eligible; B contradiction/insufficient remote evidence -> internal

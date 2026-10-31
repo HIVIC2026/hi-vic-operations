@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { median, maxOf, serverFnName, summariseRuns, formatTable, parseArgs, reportFileName } from "../scripts/installer-speed.core";
+import { median, maxOf, serverFnName, summariseRuns, formatTable, formatColdWarmTable, parseArgs, reportFileName } from "../scripts/installer-speed.core";
 
 describe("median / max", () => {
   test("median of odd, even, unsorted and empty lists", () => {
@@ -55,13 +55,36 @@ describe("formatTable", () => {
 
 describe("parseArgs / reportFileName", () => {
   test("defaults to all screens and rejects unknown ones", () => {
-    expect(parseArgs(["--base", "https://p.test/", "--label", "before"])).toEqual({ base: "https://p.test", label: "before", screens: ["home", "job", "day", "business", "money"] });
+    expect(parseArgs(["--base", "https://p.test/", "--label", "before"])).toEqual({ base: "https://p.test", label: "before", screens: ["home", "job", "day", "business", "money"], warm: false });
     expect(parseArgs(["--base", "https://p.test", "--label", "after-job", "--screens", "job,day"]).screens).toEqual(["job", "day"]);
     expect(() => parseArgs(["--base", "https://p.test", "--label", "before", "--screens", "nope"])).toThrow(/unknown screen/i);
     expect(() => parseArgs(["--label", "before"])).toThrow(/--base/);
     expect(() => parseArgs(["--base", "https://p.test", "--label", "bad label!"])).toThrow(/--label/);
   });
+  test("--warm turns on the daily-use timing", () => {
+    expect(parseArgs(["--base", "https://p.test", "--label", "after", "--warm"]).warm).toBe(true);
+    expect(parseArgs(["--base", "https://p.test", "--warm", "--label", "after", "--screens", "home"])).toEqual({ base: "https://p.test", label: "after", screens: ["home"], warm: true });
+  });
   test("report file name", () => {
     expect(reportFileName("2026-10-30", "after-job")).toBe("qa/installer-speed/2026-10-30-after-job.md");
+  });
+});
+
+describe("formatColdWarmTable", () => {
+  test("cold and warm side by side, one row per screen and role", () => {
+    const cold = { screen: "home", role: "owner", medianMs: 3400.4, slowestMs: 4100, calls: 2, slowest: { name: "getTradeHome", ms: 1500 }, note: null };
+    const warm = { screen: "home", role: "owner", medianMs: 980, slowestMs: 1210.6, calls: 1, slowest: { name: "getTradeHome", ms: 900 }, note: null };
+    const refusedCold = { screen: "money", role: "staff", medianMs: 450, slowestMs: 500, calls: 1, slowest: null, note: "refused (expected)" };
+    const failedWarm = { screen: "money", role: "staff", medianMs: null, slowestMs: null, calls: null, slowest: null, note: "FAILED: warm-up: timeout" };
+    expect(formatColdWarmTable([{ cold, warm }, { cold: refusedCold, warm: failedWarm }]).split("\n")).toEqual([
+      "| screen | role | cold median ms | warm median ms | cold slowest ms | warm slowest ms | server calls (cold / warm) | slowest call cold | slowest call warm |",
+      "|---|---|---|---|---|---|---|---|---|",
+      "| home | owner | 3400 | 980 | 4100 | 1211 | 2 / 1 | getTradeHome, 1500 | getTradeHome, 900 |",
+      "| money | staff | 450 | - | 500 | - | 1 / - | refused (expected) | FAILED: warm-up: timeout |",
+    ]);
+  });
+  test("no warm runs (an older result file) shows as dashes, not a crash", () => {
+    const md = formatColdWarmTable([{ cold: summariseRuns("job", "owner", [{ ms: 1000, calls: [] }]), warm: summariseRuns("job", "owner", []) }]);
+    expect(md.split("\n")[2]).toBe("| job | owner | 1000 | - | 1000 | - | 0 / - | none | none |");
   });
 });

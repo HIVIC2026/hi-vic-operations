@@ -11,6 +11,7 @@ import { norm } from "./mitti.core";
 import { mittiMediaFile, PIESA_EVIDENCE_BY_ID, type MittiMediaFile } from "./piesa-evidence.core";
 import { RECTIFICATION_OUTCOMES, SHORT_PIESA_FIELDS, repairWorkBesidesOnsite } from "./official-short.core";
 import { B2_OPTIONS } from "./official-forms.core";
+import { FIXES_FORM_LINK_LABEL } from "./trade-shared-consts.core";
 
 export const FIXES_DAY_TEMPLATE_NAME = "A4 – Electrical fixes";
 export const FIXES_DAY_RULE = "fixes-day-2026-10-25";
@@ -304,4 +305,4 @@ export function fixesDayPrefillItems(template: unknown, f: FixesDayPrefillFacts)
 }
 
 /** The short lines the electrician's job page and the office item show. */
-export const FIXES_FORM_LINK_LABEL = "Fixes form in Mitti";
+export { FIXES_FORM_LINK_LABEL };

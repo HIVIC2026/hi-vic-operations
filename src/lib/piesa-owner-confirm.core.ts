@@ -6,7 +6,7 @@
 // the 30-day window) needs a new confirmation.
 // PURE: what the page shows, validation, the append-only record shape, the reminder schedule and the blocker. No I/O.
 
-import { PIESA_FULL } from "./job-wording";
+import { OWNER_PIESA_CONFIRM_WAITING } from "./trade-shared-consts.core";
 
 export const PIESA_OWNER_CONFIRM_VERSION = "piesa-owner-confirm-v1";
 /** Append-only workflow event: one per owner confirmation of one PIESA record. */
@@ -28,7 +28,7 @@ export const CEILING_ENTRY_WARNING = "Anyone going into the ceiling before insta
 /** Blocker text for the office job page / confirmBooking / stageEntryBlockers("installation_booked"). */
 export const OWNER_PIESA_CONFIRMATION_BLOCKER = "Owner confirmation of the electrical safety check (PIESA) not signed yet — the install day can't be booked until the owner confirms it on their secure link.";
 /** Installer job page "Next" line while the owner has not confirmed. */
-export const OWNER_PIESA_CONFIRM_WAITING = `Waiting for the owner to confirm the ${PIESA_FULL}`;
+export { OWNER_PIESA_CONFIRM_WAITING };
 /** Flag the official-form expansion raises when no confirmation record exists for the PIESA being filled. */
 export const OWNER_CONFIRMATION_NOT_SIGNED_FLAG = "Owner confirmation not signed";
 

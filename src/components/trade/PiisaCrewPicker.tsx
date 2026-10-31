@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getPiisaCrew, savePiisaCrew } from "@/lib/piisa-a3.functions";
-import { A3_NATIVE_CREW_LOOKUP, crewSelectionProblems, savedCrewNeedsRepick, type CrewPick, type CrewSelection, type StaffOption } from "@/lib/piisa-a3.core";
+import { A3_NATIVE_CREW_LOOKUP, crewSelectionProblems, savedCrewNeedsRepick, type CrewPick, type CrewSelection, type StaffOption } from "@/lib/piisa-crew.core";
 import { Group, LinkRow, Note, PrimaryButton, QuietButton } from "@/components/trade/installer-kit";
 import { CREW_TITLE } from "@/lib/installer-screens.core";
 
