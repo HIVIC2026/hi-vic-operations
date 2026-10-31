@@ -4,7 +4,7 @@
 
 **Goal:** Make quote open, Send, Accept, Customer agreement and Consumer rights fast (under 2 s), and fix owner paperwork wording ($ on money, no "lawyer", current payment steps).
 
-**Architecture:** Wording fixes in the acceptance package and gate docs, plus one drizzle migration that renames the lawyer version and carries approvals across. Speed: one migration rewrites the two authority SQL functions so `can_access_job` runs once per row only when the caller isn't admin, then independent reads are parallelised in `releaseQuoteToOwner` and `buildAcceptancePackage`.
+**Architecture:** Wording fixes in the acceptance package and gate docs, plus one pending migration (docs/pending-migrations, PGlite-proven, per AGENTS.md) that renames the lawyer version and carries approvals across. Speed: one migration rewrites the two authority SQL functions so `can_access_job` runs once per row only when the caller isn't admin, then independent reads are parallelised in `releaseQuoteToOwner` and `buildAcceptancePackage`.
 
 **Tech Stack:** TypeScript, TanStack Start server fns, Supabase Postgres, drizzle SQL migrations, bun test.
 
@@ -50,7 +50,7 @@
 **Files:**
 - Modify: `src/lib/owner-gates.core.ts:34-38,77` (`LAWYER_V` → `PAPERWORK_V = "2026-10-06-v1"`, `LAWYER_APPROVAL_NOTE` → `PAPERWORK_APPROVAL_NOTE = "Approved by Jo, 6 Oct 2026"`, plus comments)
 - Modify: `src/lib/consent.core.ts:11,127` (comments only)
-- Create: `drizzle/migrations/0181_paperwork_version_rename.sql` (adds `owner_paperwork_approvals` rows for `2026-10-06-v1` copied from `lawyer-2026-10-06-v1`, same body hash. Sets `compliance_templates` consumer_rights `version = '2026-10-06-v1'`, `source_note = 'Approved by Jo, 6 Oct 2026'`. Updates old rows only, no deletes, and doesn't touch signatures.)
+- Create: `docs/pending-migrations/paperwork-version-rename.sql` (+ `.rollback.sql`, proven on PGlite via a new `tests/helpers/pglite-paperwork-rename.ts`` (adds `owner_paperwork_approvals` rows for `2026-10-06-v1` copied from `lawyer-2026-10-06-v1`, same body hash. Sets `compliance_templates` consumer_rights `version = '2026-10-06-v1'`, `source_note = 'Approved by Jo, 6 Oct 2026'`. Updates old rows only, no deletes, and doesn't touch signatures.)
 - Modify: tests referencing `LAWYER_V` (`tests/esc-consent-template*.test.ts`, `tests/owner-gates-scenario-f.test.ts`, `tests/a48-b1-life-support.test.ts`)
 - Test: `tests/paperwork-no-lawyer.test.ts`
 
@@ -67,7 +67,7 @@
 ### Task 3: job_overview authority functions fast
 
 **Files:**
-- Create: `drizzle/migrations/0182_job_authority_fast.sql`
+- Create: `docs/pending-migrations/job-authority-fast.sql` (+ `.rollback.sql`, proven on PGlite; live timing measured read-only`
 - Test: `tests/job-overview-authority-perf-db.test.ts`; keep `tests/job-overview-c3-role.test.ts` green
 
 **Interfaces:**
