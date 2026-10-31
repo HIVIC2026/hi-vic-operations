@@ -129,14 +129,22 @@ if (process.env.OFFICE_QUOTE_SPEED_CHILD !== "1") {
     expect(writes).toEqual(["transition"]);
   });
   test("independent checks overlap; writes retain their order; log step timings", async () => {
+    const started = performance.now();
     await send();
     const checks = ["blockers","permission","commercial","read:jobs:stage, source"].map(name => timings.find(step => step.name === name));
     for (const step of checks) expect(step).toBeDefined();
     const starts = checks.map(step => step?.start ?? Infinity), ends = checks.map(step => step?.end ?? 0);
     expect(Math.max(...starts)).toBeLessThan(Math.min(...ends));
+    expect(timings.filter(step => step.name === "read:jobs:stage, source")).toHaveLength(1);
+    expect(timings.filter(step => step.name === "read:jobs:source")).toHaveLength(0);
+    const partner = timings.find(step => step.name === "read:job_assignments:business_id");
+    const facts = timings.find(step => step.name === "read:quotes:customer_total_inc_gst, veec_discount_inc_gst, subtotal_inc_gst, sent_at, kind");
+    if (!partner || !facts) throw Error("Missing notification timing");
+    expect(Math.max(partner.start,facts.start)).toBeLessThan(Math.min(partner.end,facts.end));
     expect(writes).toEqual(["transition","ensureOwnerLink","applyCobrand","claim","logEvent","unsubscribe","email","sms"]);
     const origin = timings[0]?.start ?? 0;
     for (const step of timings) console.log(`TIMING ${step.name}: start +${(step.start-origin).toFixed(1)}ms, duration ${(step.end-step.start).toFixed(1)}ms`);
+    console.log(`TIMING complete TEST release: ${(performance.now()-started).toFixed(1)}ms (15ms artificial delay per read; no provider)`);
   });
   test("two simultaneous Send presses produce exactly one quote_ready email row", async () => {
     const results = await Promise.allSettled([send(),send()]);
