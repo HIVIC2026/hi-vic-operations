@@ -1,3 +1,7 @@
+## Jo 1 Nov spot-saved confirmation loop
+- [ ] Stop terminal confirmation retries and quiet-hours/no-change history churn; test with mocked delivery.
+- [ ] Prove narrowly scoped completion close-out on PGlite, apply to eligible stuck jobs without sending, retain history.
+
 ## Jo 30 Oct TEST office password reset
 - [x] Jo entered the new password privately; applied only to qa.office@hivic-test.example and verified password sign-in for its exact account. No messages or role changes; value never displayed.
 
