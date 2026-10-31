@@ -394,23 +394,21 @@ export async function signGateDoc(i: SignInput) {
       { signature_id: row.id },
     );
   if (i.key === "contact_privacy" && ownerId) {
-    await admin
-      .from("owner_contact_consents")
-      .upsert(
-        {
-          job_id: i.jobId,
-          owner_id: ownerId,
-          source: "owner_paperwork",
-          consent_key: `gateA:${row.id}`,
-          consent_status: "granted",
-          contact_consent: true,
-          consent_version: d.version,
-          consented_at: row.signed_at,
-          snapshot: { signature_id: row.id, text: signedText },
-          sha256: await sha256(signedText),
-        },
-        { onConflict: "job_id,source,consent_key", ignoreDuplicates: true },
-      );
+    await admin.from("owner_contact_consents").upsert(
+      {
+        job_id: i.jobId,
+        owner_id: ownerId,
+        source: "owner_paperwork",
+        consent_key: `gateA:${row.id}`,
+        consent_status: "granted",
+        contact_consent: true,
+        consent_version: d.version,
+        consented_at: row.signed_at,
+        snapshot: { signature_id: row.id, text: signedText },
+        sha256: await sha256(signedText),
+      },
+      { onConflict: "job_id,source,consent_key", ignoreDuplicates: true },
+    );
   }
 
   // PDF copy in the job file.
@@ -455,18 +453,16 @@ export async function signGateDoc(i: SignInput) {
     });
   if (!up.error) {
     await admin.from("owner_gate_signatures").update({ copy_path: path }).eq("id", row.id);
-    await admin
-      .from("documents")
-      .insert({
-        job_id: i.jobId,
-        kind: "owner_paperwork",
-        title: `${d.title} — signed`,
-        storage_path: path,
-        mime_type: "application/pdf",
-        uploaded_by: i.signedBy,
-        source_system: "portal",
-        original_name: `${d.key}.pdf`,
-      });
+    await admin.from("documents").insert({
+      job_id: i.jobId,
+      kind: "owner_paperwork",
+      title: `${d.title} — signed`,
+      storage_path: path,
+      mime_type: "application/pdf",
+      uploaded_by: i.signedBy,
+      source_system: "portal",
+      original_name: `${d.key}.pdf`,
+    });
   }
   await logEvent(
     i.jobId,
@@ -489,14 +485,12 @@ export async function approvePaperwork(key: GateDocKey, version: string, actorId
     throw new WorkflowError(
       "This is still placeholder DRAFT text. Load Jo's final wording as a new version first, then approve it.",
     );
-  const { error } = await admin
-    .from("owner_paperwork_approvals")
-    .insert({
-      doc_key: key,
-      doc_version: version,
-      body_sha256: await sha256(d.body),
-      approved_by: actorId,
-    });
+  const { error } = await admin.from("owner_paperwork_approvals").insert({
+    doc_key: key,
+    doc_version: version,
+    body_sha256: await sha256(d.body),
+    approved_by: actorId,
+  });
   if (error)
     throw new WorkflowError(
       error.message.includes("duplicate") ? "Already approved." : error.message,

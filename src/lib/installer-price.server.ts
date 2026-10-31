@@ -21,9 +21,7 @@ export type StoredInstallerPrice = {
 const NEW_QUOTE_REQUESTED_EVENT = "new_quote_requested";
 
 /** The latest portal price, and whether a new-quote request is waiting for a price entered after it. */
-export async function readInstallerPriceState(
-  jobId: string,
-): Promise<{
+export async function readInstallerPriceState(jobId: string): Promise<{
   stored: StoredInstallerPrice | null;
   askedAgain: boolean;
   newQuoteRequestedAt: string | null;

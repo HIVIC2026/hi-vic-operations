@@ -183,7 +183,7 @@ function useTradeJobBundle(jobId: string, uid: string) {
       }
     }
     setReady(true);
-  }, [seed, jobId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [seed, jobId]);
   const askedOnce = useRef(false);
   // The server no longer answers for this job (or the section): forget the old copy so the cards fetch themselves and show the usual refusal.
   const evict = (fresh: Bundle | null) => {

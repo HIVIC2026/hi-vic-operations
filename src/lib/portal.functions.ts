@@ -324,15 +324,13 @@ export const submitInstallerJob = createServerFn({ method: "POST" })
       context.userId,
       { channel: "installer_sourced", businessId: prof.business_id, userId: context.userId },
     );
-    await admin
-      .from("job_assignments")
-      .insert({
-        job_id: res.job_id,
-        user_id: context.userId,
-        role: "installer",
-        business_id: prof.business_id,
-        assigned_by: context.userId,
-      });
+    await admin.from("job_assignments").insert({
+      job_id: res.job_id,
+      user_id: context.userId,
+      role: "installer",
+      business_id: prof.business_id,
+      assigned_by: context.userId,
+    });
     await logEvent(
       res.job_id,
       context.userId,
@@ -493,15 +491,13 @@ export const assignContractor = createServerFn({ method: "POST" })
       .eq("job_id", data.jobId)
       .eq("role", data.role)
       .eq("active", true);
-    await admin
-      .from("job_assignments")
-      .insert({
-        job_id: data.jobId,
-        user_id: data.userId,
-        role: data.role,
-        business_id: prof?.business_id ?? null,
-        assigned_by: context.userId,
-      });
+    await admin.from("job_assignments").insert({
+      job_id: data.jobId,
+      user_id: data.userId,
+      role: data.role,
+      business_id: prof?.business_id ?? null,
+      assigned_by: context.userId,
+    });
     await admin
       .from("reassignment_requests")
       .update({
@@ -709,17 +705,15 @@ export const saveMeasurement = createServerFn({ method: "POST" })
         await admin.from("ceiling_measurements").update({ evidence_notes }).eq("id", cur.id);
       else if (evidence_notes === undefined) throw new WorkflowError(plan.reason);
     } else if (plan.action === "create") {
-      await admin
-        .from("ceiling_measurements")
-        .insert({
-          ...plan.values,
-          evidence_notes: evidence_notes ?? null,
-          job_id: data.jobId,
-          status: "draft",
-          is_current: true,
-          source_role: plan.source,
-          created_by: context.userId,
-        });
+      await admin.from("ceiling_measurements").insert({
+        ...plan.values,
+        evidence_notes: evidence_notes ?? null,
+        job_id: data.jobId,
+        status: "draft",
+        is_current: true,
+        source_role: plan.source,
+        created_by: context.userId,
+      });
     } else {
       await admin
         .from("ceiling_measurements")
@@ -1125,17 +1119,15 @@ export const addOtherRectItem = createServerFn({ method: "POST" })
       throw new WorkflowError(
         "Other items can only be added before the owner approves electrical fixes.",
       );
-    await admin
-      .from("rectification_items")
-      .insert({
-        job_id: data.jobId,
-        description: data.description,
-        quantity: data.quantity,
-        is_other: true,
-        other_unit_price_inc_gst: data.unitPriceIncGst,
-        explanation: data.explanation,
-        added_by: context.userId,
-      });
+    await admin.from("rectification_items").insert({
+      job_id: data.jobId,
+      description: data.description,
+      quantity: data.quantity,
+      is_other: true,
+      other_unit_price_inc_gst: data.unitPriceIncGst,
+      explanation: data.explanation,
+      added_by: context.userId,
+    });
     await logEvent(
       data.jobId,
       context.userId,
@@ -1231,17 +1223,15 @@ export const addApprovedRectItem = createServerFn({ method: "POST" })
     )?.find((item) => item.code === data.rateCode);
     if (!approved)
       throw new WorkflowError("That item is not on the assigned REC's approved rate card.");
-    await admin
-      .from("rectification_items")
-      .insert({
-        job_id: data.jobId,
-        rate_code: approved.code,
-        description: approved.description,
-        quantity: data.quantity,
-        is_other: false,
-        explanation: data.explanation ?? null,
-        added_by: context.userId,
-      });
+    await admin.from("rectification_items").insert({
+      job_id: data.jobId,
+      rate_code: approved.code,
+      description: approved.description,
+      quantity: data.quantity,
+      is_other: false,
+      explanation: data.explanation ?? null,
+      added_by: context.userId,
+    });
     await logEvent(
       data.jobId,
       context.userId,
@@ -2043,17 +2033,15 @@ export async function respondToQuoteImpl(
     return { ok: true };
   }
 
-  await admin
-    .from("declarations")
-    .upsert(
-      {
-        job_id: q.job_id,
-        kind: "owner_consent",
-        declared_by: context.userId,
-        statement: `Owner accepted ${q.option_label} (${q.customer_total_inc_gst} inc GST): safety check paid at acceptance; electrical fixes in full if needed; 10% install deposit to book the install; balance on installation day.`,
-      },
-      { onConflict: "job_id,kind" },
-    );
+  await admin.from("declarations").upsert(
+    {
+      job_id: q.job_id,
+      kind: "owner_consent",
+      declared_by: context.userId,
+      statement: `Owner accepted ${q.option_label} (${q.customer_total_inc_gst} inc GST): safety check paid at acceptance; electrical fixes in full if needed; 10% install deposit to book the install; balance on installation day.`,
+    },
+    { onConflict: "job_id,kind" },
+  );
   await admin
     .from("compliance_checks")
     .update({ status: "pass", checked_at: new Date().toISOString() })
@@ -2452,18 +2440,16 @@ export const submitDeclaration = createServerFn({ method: "POST" })
         "Installer declarations are signed in the final VEEC assignment step (approved wording only).",
       );
     await requireClearanceRecorder(context.supabase as never, jobRole, context.userId);
-    await admin
-      .from("declarations")
-      .upsert(
-        {
-          job_id: data.jobId,
-          kind: data.kind,
-          declared_by: context.userId,
-          statement: data.statement,
-          declared_at: new Date().toISOString(),
-        },
-        { onConflict: "job_id,kind" },
-      );
+    await admin.from("declarations").upsert(
+      {
+        job_id: data.jobId,
+        kind: data.kind,
+        declared_by: context.userId,
+        statement: data.statement,
+        declared_at: new Date().toISOString(),
+      },
+      { onConflict: "job_id,kind" },
+    );
     await logEvent(
       data.jobId,
       context.userId,
@@ -2957,15 +2943,13 @@ export const sendMessage = createServerFn({ method: "POST" })
     // Owners and trades talk only through the portal: typed phone numbers/emails are masked.
     const { maskContactDetails } = await import("./messaging.core");
     const body = role === "admin" ? data.body : maskContactDetails(data.body).body;
-    await admin
-      .from("messages")
-      .insert({
-        job_id: data.jobId,
-        sender_id: context.userId,
-        body,
-        internal: role === "admin" ? !!data.internal : false,
-        channel: data.channel ?? "portal",
-      });
+    await admin.from("messages").insert({
+      job_id: data.jobId,
+      sender_id: context.userId,
+      body,
+      internal: role === "admin" ? !!data.internal : false,
+      channel: data.channel ?? "portal",
+    });
     await admin
       .from("jobs")
       .update({ last_activity_at: new Date().toISOString() })
@@ -3799,19 +3783,17 @@ export const recordVeecPrerequisiteFn = createServerFn({ method: "POST" })
       .eq("active", true)
       .maybeSingle();
     if (!a?.business_id) throw new WorkflowError("No active installer business on this job.");
-    const { error } = await admin
-      .from("admin_config_events")
-      .insert({
-        actor_id: context.userId,
-        event_type: "esc_collection_notice_provided",
-        summary: `ESC VEU scheme participant collection notice given to installer business${data.workerId ? " worker" : ""}${data.note ? ` – ${data.note}` : ""}`,
-        details: {
-          business_id: a.business_id,
-          worker_id: data.workerId,
-          job_id: data.jobId,
-          note: data.note,
-        },
-      });
+    const { error } = await admin.from("admin_config_events").insert({
+      actor_id: context.userId,
+      event_type: "esc_collection_notice_provided",
+      summary: `ESC VEU scheme participant collection notice given to installer business${data.workerId ? " worker" : ""}${data.note ? ` – ${data.note}` : ""}`,
+      details: {
+        business_id: a.business_id,
+        worker_id: data.workerId,
+        job_id: data.jobId,
+        note: data.note,
+      },
+    });
     if (error) throw new Error(error.message);
     await logEvent(
       data.jobId,
@@ -4098,14 +4080,12 @@ export const addComplianceTemplate = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const form_fields = parseFormFields(data.form_fields) as unknown as Json;
-    const { error } = await admin
-      .from("compliance_templates")
-      .insert({
-        ...data,
-        form_fields,
-        source_note: data.source_note ?? null,
-        created_by: context.userId,
-      });
+    const { error } = await admin.from("compliance_templates").insert({
+      ...data,
+      form_fields,
+      source_note: data.source_note ?? null,
+      created_by: context.userId,
+    });
     if (error) throw new WorkflowError(error.message);
     return { ok: true };
   });
@@ -4374,14 +4354,12 @@ export const addEscConfig = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    await admin
-      .from("esc_notification_config")
-      .insert({
-        version: data.version,
-        required_fields: data.fields,
-        source_note: data.source_note,
-        created_by: context.userId,
-      });
+    await admin.from("esc_notification_config").insert({
+      version: data.version,
+      required_fields: data.fields,
+      source_note: data.source_note,
+      created_by: context.userId,
+    });
     return { ok: true };
   });
 

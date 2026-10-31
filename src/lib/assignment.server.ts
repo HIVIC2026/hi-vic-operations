@@ -235,26 +235,22 @@ async function storeCopy(
 ) {
   path = path.replace(/\.txt$/, ".pdf");
   const { textToPdf } = await import("./signed-pdf.server");
-  const up = await admin.storage
-    .from("job-files")
-    .upload(
-      path,
-      new Blob([(await textToPdf(`Home Insulation Victoria — ${title}`, text)) as BlobPart], {
-        type: "application/pdf",
-      }),
-      { contentType: "application/pdf", upsert: false },
-    );
+  const up = await admin.storage.from("job-files").upload(
+    path,
+    new Blob([(await textToPdf(`Home Insulation Victoria — ${title}`, text)) as BlobPart], {
+      type: "application/pdf",
+    }),
+    { contentType: "application/pdf", upsert: false },
+  );
   if (up.error) return null;
-  await admin
-    .from("documents")
-    .insert({
-      job_id: jobId,
-      kind,
-      title,
-      storage_path: path,
-      mime_type: "application/pdf",
-      uploaded_by: actorId,
-    });
+  await admin.from("documents").insert({
+    job_id: jobId,
+    kind,
+    title,
+    storage_path: path,
+    mime_type: "application/pdf",
+    uploaded_by: actorId,
+  });
   return path;
 }
 
@@ -483,18 +479,16 @@ export async function signInstallerDecl(p: {
     .select("id")
     .single();
   if (error || !row) throw new Error(error?.message);
-  await admin
-    .from("declarations")
-    .upsert(
-      {
-        job_id: p.jobId,
-        kind: "installer_declaration",
-        declared_by: p.actorId,
-        statement: `${decl.version}: ${decl.body}`,
-        declared_at: now,
-      },
-      { onConflict: "job_id,kind" },
-    );
+  await admin.from("declarations").upsert(
+    {
+      job_id: p.jobId,
+      kind: "installer_declaration",
+      declared_by: p.actorId,
+      statement: `${decl.version}: ${decl.body}`,
+      declared_at: now,
+    },
+    { onConflict: "job_id,kind" },
+  );
   await logEvent(
     p.jobId,
     p.actorId,

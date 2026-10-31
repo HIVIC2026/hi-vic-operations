@@ -61,9 +61,7 @@ async function a1JobOrThrow(jobId: string) {
 
 /** The current Ready Check snapshot's entries (empty when no Mitti form yet) and whether it says removal is needed
  *  (null when there is no current Ready Check at all). Read-only. */
-async function currentReadyCheck(
-  jobId: string,
-): Promise<{
+async function currentReadyCheck(jobId: string): Promise<{
   entries: { label: string; value: string | null }[];
   removalRequired: boolean | null;
   hasReadyCheck: boolean;
