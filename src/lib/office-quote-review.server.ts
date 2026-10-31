@@ -45,23 +45,29 @@ export async function sendOfficeReviewedQuote(jobId: string, quoteId: string, ac
 export async function releaseQuoteToOwner(jobId: string, quoteId: string, actorId: string | null, how: "office" | "auto") {
   const { data: quote, error } = await admin.from("quotes").select("id, job_id, kind, status, sent_at, release_state, release_hold_reason, created_at, option_code").eq("id", quoteId).eq("job_id", jobId).maybeSingle();
   if (error || !quote || !quoteNeedsOfficeReview(quote)) throw new WorkflowError("This quote is no longer available to send.");
-  const blockers = await officeQuoteBlockers(jobId, quote);
-  if (blockers.length) throw new WorkflowError(blockers.join(" • "));
   const { assertCustomerDeliveryAllowed } = await import("./comms.server");
-  await assertCustomerDeliveryAllowed(jobId, "Office Send quote");
-  // Jo 24 Oct: release only when the owner can actually accept it — right stage, invoicing settled, and a secure link.
   const wf = await import("./workflow.server");
-  const { data: st } = await admin.from("jobs").select("stage").eq("id", jobId).single();
+  // Read together, but surface refusals in the original order. Commercial setup
+  // reads channel/model/installer_led only; the quote-stage transition changes none of them.
+  const [blockers, permission, { data: st }, commercial] = await Promise.all([
+    officeQuoteBlockers(jobId, quote),
+    assertCustomerDeliveryAllowed(jobId, "Office Send quote").then(() => ({ allowed: true as const }), error => ({ allowed: false as const, error })),
+    admin.from("jobs").select("stage, source").eq("id", jobId).single(),
+    wf.commercialBlocker(jobId).then(value => ({ ok: true as const, value }), error => ({ ok: false as const, error })),
+  ]);
+  if (blockers.length) throw new WorkflowError(blockers.join(" • "));
+  if (!permission.allowed) throw permission.error;
+  // Jo 24 Oct: release only when the owner can actually accept it — right stage, invoicing settled, and a secure link.
   if (st?.stage === "ready_check_complete") {
     // Sending the quote IS the move to the quote stage; its entry checks (Ready Check complete, eligibility) still apply.
     const sb = await wf.stageEntryBlockers(jobId, "measured_estimate_ready");
     if (sb.length) throw new WorkflowError(sb.join(" • "));
     await wf.transition(jobId, "measured_estimate_ready", actorId, how === "office" ? "Quote stage: office sending the owner's quote" : "Quote stage: Ready Check complete", { quote_id: quoteId });
   } else if (!["measured_estimate_ready", "awaiting_quote_acceptance"].includes(String(st?.stage))) throw new WorkflowError(`The job isn't at the quote stage yet (${st?.stage ?? "unknown"}), so the owner couldn't accept it.`);
-  { const cb = await (await import("./workflow.server")).commercialBlocker(jobId); if (cb) throw new WorkflowError(cb); }
+  if (!commercial.ok) throw commercial.error;
+  if (commercial.value) throw new WorkflowError(commercial.value);
   if (!(await (await import("./estimatelink.server")).ensureOwnerLink(jobId))) throw new WorkflowError("The owner has no secure My job link, so they couldn't open or accept the quote.");
-  const { data: source } = await admin.from("jobs").select("source").eq("id", jobId).single();
-  if (source?.source === "qa_test") {
+  if (st?.source === "qa_test") {
     const { data: link, error: le } = await admin.from("customer_estimate_links").select("status,expires_at").eq("job_id", jobId).eq("purpose", "step3_estimate").eq("status", "active").maybeSingle();
     if (le || !(await import("./estimatelink.core")).linkUsable(link)) throw new WorkflowError("TEST owner quote link must be prepared before Send.");
   }
