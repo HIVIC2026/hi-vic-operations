@@ -10,6 +10,7 @@ Date: 31 Oct 2026 · Asked by Jo · Path: architectural (product change reaches 
 1. A product changed in "Your price" is used **everywhere**: owner quote, SWMS, install form, ESC lodgement.
 2. Notes are **office only** — the office and the boss see them; never on the owner's quote, pages or emails.
 3. The section is **locked once the owner's quote is sent**.
+4. If the quote expires and the owner asks for a new one, the installer **can edit again**.
 
 ## Cause of "1 thing missing"
 `readyCheckBasics` lists `price` as missing on installer-sourced jobs with no price. The list is stored on the
@@ -54,8 +55,8 @@ basics event at the Mitti pull. Saving a price on the job page does not re-run b
 - When the job's owner quote has been sent (`loadInstallerQuote` shows sent), the card is read-only: no Edit,
   with the line "Quote sent — call the office to change this."
 - Server refuses a save in the same state (not only the screen).
-- After an owner's "Send me a new quote" request (29 Oct rule: installer re-prices), the card unlocks again —
-  as today, the old price isn't reused.
+- Jo (31 Oct): after an owner's "Send me a new quote" request (expired quote), the card unlocks again so the
+  installer can update it — as today, the old price isn't reused.
 
 ### 6. Fix "1 thing missing"
 - `price` is never counted as a Mitti item: the job page's Mitti count leaves out `BASIC_PRICE`.
