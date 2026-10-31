@@ -62,6 +62,11 @@ function ErrorComponent({ error, reset }: { error: unknown; reset: () => void })
 // If a reload already happened moments ago, show a refresh message instead of leaving a blank page.
 const EARLY_RECOVERY = "(function(){window.hivEarlyRecoveryInstalled=true;function f(){function s(){if(document.getElementById('hiv-stale-fallback')||!document.body)return;var d=document.createElement('div');d.id='hiv-stale-fallback';d.style.cssText='position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:#FBFCFA;font-family:Figtree,system-ui,sans-serif;padding:24px;text-align:center';d.innerHTML='<div style=\"max-width:360px\"><h1 style=\"font-size:20px;font-weight:600;color:#22376B;margin:0 0 8px\">This page needs a refresh</h1><p style=\"font-size:14px;color:#555;margin:0 0 16px\">A newer version of the portal is available. Nothing has been saved or changed.</p><button onclick=\"var u=new URL(location.href);u.searchParams.set(\\'_v\\',Date.now());location.replace(u.toString())\" style=\"background:#3C51C4;color:#fff;border:0;border-radius:8px;padding:10px 20px;font-size:14px\">Refresh the page</button></div>';document.body.appendChild(d)}if(document.body)s();else document.addEventListener('DOMContentLoaded',s)}function r(){try{var k='hiv-early-reload-at',t=+(sessionStorage.getItem(k)||0);if(Date.now()-t<30000){f();return}sessionStorage.setItem(k,String(Date.now()))}catch(e){}var u=new URL(location.href);u.searchParams.set('_v',String(Date.now()));location.replace(u.toString())}window.addEventListener('error',function(e){var t=e.target;if(t&&t.tagName==='SCRIPT'&&t.type==='module')r();else if(" + STALE_CHUNK_ERROR.toString() + ".test(e.message||''))r()},true);window.addEventListener('unhandledrejection',function(e){var m=String((e.reason&&e.reason.message)||e.reason||'');if(" + STALE_CHUNK_ERROR.toString() + ".test(m))r()})})();";
 
+// Switches the (media="print") Google Fonts stylesheet to "all" once it has loaded; if it fails the page keeps its fallback fonts.
+// Runs right after <HeadContent />, so the link is already in the document. Checks l.sheet in case it loaded first.
+const FONT_SWAP = "(function(){var l=document.querySelector('link[href*=\"fonts.googleapis.com/css2\"]');if(!l)return;function a(){l.media='all'}if(l.sheet)a();else{l.addEventListener('load',a);l.addEventListener('error',a)}})();";
+const FONT_NOSCRIPT = '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Open+Sans:wght@400;600;700&family=Outfit:wght@500;600;700;800&display=swap">';
+
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
     meta: [
@@ -77,7 +82,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "stylesheet", href: appCss },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Open+Sans:wght@400;600;700&family=Outfit:wght@500;600;700;800&display=swap" },
+      // media="print" keeps the font stylesheet from blocking the first paint; FONT_SWAP below (after <HeadContent />) sets media "all" once it has loaded. Same families, display=swap.
+      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Open+Sans:wght@400;600;700&family=Outfit:wght@500;600;700;800&display=swap", media: "print" },
       { rel: "icon", href: "/favicon.png", type: "image/png" },
     ],
   }),
@@ -90,7 +96,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 function RootShell({ children }: { children: ReactNode }) {
   return (
     <html lang="en-AU">
-      <head><script dangerouslySetInnerHTML={{ __html: EARLY_RECOVERY }} /><HeadContent /></head>
+      <head><script dangerouslySetInnerHTML={{ __html: EARLY_RECOVERY }} /><HeadContent /><script dangerouslySetInnerHTML={{ __html: FONT_SWAP }} /><noscript dangerouslySetInnerHTML={{ __html: FONT_NOSCRIPT }} /></head>
       <body>{children}<Scripts /></body>
     </html>
   );
