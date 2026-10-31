@@ -86,6 +86,18 @@ test('quiet hours stay pending without history churn and resume at 7am Melbourne
   await sweepSpotSavedConfirmations(); expect(smsCalls).toBe(1);
   expect(rows.workflow_events.filter(r => r.event_type === 'spot_saved_confirmation_completed')).toHaveLength(1);
 });
+test('a missing mobile completes after email once, without attempting SMS', async () => {
+  home('no-mobile'); rows.jobs[0].owners.phone = null;
+  await sweepSpotSavedConfirmations(); await sweepSpotSavedConfirmations();
+  expect(emailCalls).toBe(1); expect(smsCalls).toBe(0);
+  expect(rows.workflow_events.filter(r => r.event_type === 'spot_saved_confirmation_completed')).toHaveLength(1);
+});
+test('a failed email with an expired text stays pending, not completed', async () => {
+  home('email-failed'); readFailure = 'customer_email_sends';
+  setSystemTime(new Date('2026-10-31T06:30:00Z'));
+  // Policy classifier must never complete a failed email even when the text is terminal.
+  expect(spotSavedConfirmationHandled({ email: { status: 'failed' }, sms: { status: 'blocked', detail: 'Too late to send – the trigger was 25h ago (limit 24h)' } })).toBe(false);
+});
 test('only a missing mobile or expired 24h hold is terminal; switches, STOP, missing link and quiet hours are not', () => {
   const email = { status: 'already' };
   expect(spotSavedConfirmationHandled({ email, sms: { status: 'skipped', detail: 'No valid mobile' } })).toBe(true);
