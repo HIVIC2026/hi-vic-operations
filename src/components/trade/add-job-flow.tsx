@@ -30,13 +30,15 @@ const CARD_TITLE = "font-display text-[17px] font-bold text-ink";
 type Saved = { jobId: string; jobNumber: string | null; booking: AddJobBooking; state?: OnsiteState; customer: OnsiteInput; visit: VisitPick; electrician: { choice: ElectricianChoice; usualName: string | null } };
 
 // `onExit` is kept for existing callers/fixtures; the one-screen mock-up has no Cancel button (My work is a tab).
-export function AddJobFlow({ businessId, onReset }: { businessId: string; onExit?: () => void; onReset?: () => void }) {
+export function AddJobFlow({ businessId, onReset, onSavedChange }: { businessId: string; onExit?: () => void; onReset?: () => void; onSavedChange?: (saved: boolean) => void }) {
   const [customer, setCustomer] = useState<OnsiteInput>(blankCustomer());
   const [visit, setVisit] = useState<VisitPick>({ day: "", time: "" });
   const [shown, setShown] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [saved, setSaved] = useState<Saved | null>(null);
+  // Jo 31 Oct: the page hides its "Add a job" heading while the Job added screen shows.
+  useEffect(() => { onSavedChange?.(saved !== null); }, [saved]); // eslint-disable-line react-hooks/exhaustive-deps
   const bannerRef = useRef<HTMLParagraphElement>(null);
   const inFlight = useRef(false);
   // Decision 289: the one electrician question. "My usual electrician (<name>)" exists only while one is saved in My
