@@ -16,6 +16,13 @@ import * as electricianChoiceServer from "./electrician-choice.server";
 import * as quoteStatusServer from "./installer-quote-status.server";
 const loadInstallerQuote = (jobId: string) => quoteStatusServer.loadInstallerQuote(jobId);
 
+/** Newest sent_at across ALL the job's installation quotes (a later unsent draft must not unlock the card). Throws on a read error: fail closed. */
+export async function latestQuoteSentAt(jobId: string): Promise<string | null> {
+  const { data, error } = await admin.from("quotes").select("sent_at").eq("job_id", jobId).eq("kind", "installation").not("sent_at", "is", null).order("sent_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new WorkflowError("The quote status could not be read.");
+  return (data?.sent_at as string | null | undefined) ?? null;
+}
+
 async function a1JobOrThrow(jobId: string) {
   const { data: j, error } = await admin.from("jobs").select("id, channel, originating_installer_business_id, stage, deleted_at").eq("id", jobId).maybeSingle();
   if (error || !j) throw new WorkflowError("Job not found.");
@@ -49,6 +56,7 @@ export async function installerPriceView(jobId: string, userId: string) {
   const recordedP = early(electricianChoiceServer.readElectricianChoice(jobId).catch(() => null));
   const readyCheckP = early(currentReadyCheck(jobId).catch(() => ({ entries: [] as { label: string; value: string | null }[], removalRequired: null, hasReadyCheck: false, installAreaM2: null, removalM2: null })));
   const quoteP = early(loadInstallerQuote(jobId));
+  const sentAtP = early(latestQuoteSentAt(jobId).then((at) => ({ at, failed: false }), () => ({ at: null as string | null, failed: true })));
   const { data: j } = await jobP;
   if (!j || !priceFromPortal(j.channel) || !j.originating_installer_business_id) return null;
   if ((await mineP).get(j.originating_installer_business_id) !== "business_admin") return null;
@@ -70,7 +78,8 @@ export async function installerPriceView(jobId: string, userId: string) {
   const address = formatPropertyAddress(j.properties);
   const quote = await quoteP;
   const held = quote.electricianNotOnboarded === true;
-  const locked = priceCardLocked({ quoteSentAt: quote.quote?.sent_at ?? null, newQuoteRequestedAt: state.newQuoteRequestedAt });
+  const sent = await sentAtP;
+  const locked = sent.failed || priceCardLocked({ quoteSentAt: sent.at, newQuoteRequestedAt: state.newQuoteRequestedAt });
   const { APPROVED_PRODUCTS } = await import("./insulation-product.core");
   let hivSwitch: { priceIncGst: number } | null = null;
   if (hivSwitchOffered({ quoteHeldNotOnboarded: held, choice: choice === "hivic" ? "hivic" : "usual" })) {
@@ -113,8 +122,8 @@ export async function setInstallerPrice(jobId: string, userId: string, input: In
   const { requireMember } = await import("./pilot.server");
   await requireMember(userId, j.originating_installer_business_id, true);
   // Jo 31 Oct 2026: once the quote has gone to the owner the card is locked (the office reopens it with a new-quote request). Checked before any write.
-  const [state, sentQuote] = await Promise.all([readInstallerPriceState(jobId), loadInstallerQuote(jobId)]);
-  if (priceCardLocked({ quoteSentAt: sentQuote.quote?.sent_at ?? null, newQuoteRequestedAt: state.newQuoteRequestedAt })) throw new WorkflowError(PRICE_LOCKED);
+  const [state, quoteSentAt] = await Promise.all([readInstallerPriceState(jobId), latestQuoteSentAt(jobId)]);
+  if (priceCardLocked({ quoteSentAt, newQuoteRequestedAt: state.newQuoteRequestedAt })) throw new WorkflowError(PRICE_LOCKED);
   // Jo 27 Oct 2026: the server refuses the removal tick when the current Ready Check says there is no removal.
   const rc = await currentReadyCheck(jobId).catch(() => ({ entries: [] as { label: string; value: string | null }[], removalRequired: null, hasReadyCheck: false, installAreaM2: null, removalM2: null }));
   const { removalRequired } = rc;

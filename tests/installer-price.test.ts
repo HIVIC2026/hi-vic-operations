@@ -361,6 +361,27 @@ describe("product + notes (Jo 31 Oct 2026)", () => {
   });
 });
 
+describe("lock reads the newest sent_at across all installation quotes (final review)", () => {
+  const set = readFileSync("src/lib/installer-price-set.server.ts", "utf8");
+  const view = set.slice(set.indexOf("export async function installerPriceView"), set.indexOf("async function prepareQuoteFromPortal"));
+  const save = set.slice(set.indexOf("export async function setInstallerPrice"), set.indexOf("export async function switchToHivElectrician"));
+  test("the reader selects the newest non-null sent_at of installation quotes and throws on error", () => {
+    const reader = set.slice(set.indexOf("export async function latestQuoteSentAt"), set.indexOf("async function a1JobOrThrow"));
+    expect(reader).toContain('.eq("kind", "installation")');
+    expect(reader).toContain('.not("sent_at", "is", null)');
+    expect(reader).toContain('.order("sent_at", { ascending: false })');
+    expect(reader).toContain("if (error) throw");
+  });
+  test("view and save use it; neither derives the lock from loadInstallerQuote's quote?.sent_at", () => {
+    expect(view).toContain("latestQuoteSentAt(jobId)");
+    expect(save).toContain("latestQuoteSentAt(jobId)");
+    expect(view).not.toContain("quote?.sent_at");
+    expect(save).not.toContain("quote?.sent_at");
+    expect(save).not.toContain("loadInstallerQuote");
+    expect(view).toContain("sent.failed ||");
+  });
+});
+
 describe("mittiMissingCount — price is never a Mitti item (decision 278)", () => {
   test("price alone is not a Mitti item, so the Ready Check reads nothing missing", () => {
     expect(mittiMissingCount(["price"], [])).toBe(0);

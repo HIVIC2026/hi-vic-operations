@@ -1,5 +1,6 @@
 // Decision 211: the portal draws the Activity Guide Table 4 area diagram from the measured Ready Check areas.
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import {
   AREA_DIAGRAM_KIND, DIAGRAM_NOTE, FINAL_AREA_DIAGRAM_KIND, applyInstallZones, areaDiagramHash, areaDiagramLayout, areaDiagramSummary, areaDiagramSvg,
   areasFromReadyCheckEntries, areasFromRecordAreas, singleAreaFallback, totalAreaM2, type DiagramInput,
@@ -171,5 +172,17 @@ describe("job file filing", () => {
     expect(f.category).toBe("Installation");
     expect(f.alsoIn).toContain("ESC / VEEC");
     expect(f.status).toBe("final");
+  });
+});
+
+describe("declared product: the boss's pick wins (final review, Jo 31 Oct 2026)", () => {
+  test("declaredProduct reads the boss's product_option first, failing safe to the form / Mitti product", () => {
+    const src = readFileSync("src/lib/area-diagram.server.ts", "utf8");
+    const fn = src.slice(src.indexOf("async function declaredProduct"), src.indexOf("/** The Ready Check areas for this job"));
+    expect(fn).toContain("readInstallerPrice(jobId)");
+    expect(fn).toContain("product_option");
+    expect(fn).toContain("catch");
+    expect(fn.indexOf("readInstallerPrice(jobId)")).toBeLessThan(fn.indexOf("const fromForm"));
+    expect(fn.indexOf("readInstallerPrice(jobId)")).toBeLessThan(fn.indexOf("productForHivQuote"));
   });
 });
