@@ -62,7 +62,14 @@ export async function sweepSpotSavedConfirmations() {
       if (spotSavedConfirmationHandled(result, candidate.emailOnly)) {
         const { data: done, error } = await admin.from('workflow_events').select('id').eq('job_id', candidate.jobId).eq('event_type', 'spot_saved_confirmation_completed').limit(1).maybeSingle();
         if (error) throw new Error(error.message);
-        if (!done) await logEvent(candidate.jobId, null, 'spot_saved_confirmation_completed', 'Spot saved confirmation handled through the guarded sender', { email: result.email, sms: result.sms, recovery: true }, { internal: true });
+        if (!done) {
+          // Stable event id makes overlapping ticks converge without a schema or settings change.
+          const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`spot_saved_confirmation_completed:${candidate.jobId}`));
+          const hex = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+          const id = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+          const { error: writeError } = await admin.from('workflow_events').insert({ id, job_id: candidate.jobId, event_type: 'spot_saved_confirmation_completed', summary: 'Spot saved confirmation handled through the guarded sender', details: { email: result.email, sms: result.sms, recovery: true }, internal: true });
+          if (writeError && writeError.code !== '23505') throw new Error(writeError.message);
+        }
         counts.completed++;
       } else counts.pending++;
     } catch (error) {

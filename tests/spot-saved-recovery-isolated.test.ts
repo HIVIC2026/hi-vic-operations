@@ -23,6 +23,7 @@ const db = { from(table: string) {
     if (readFailure === table) return { data: null, error: { message: 'read failed', code: 'XX000' } };
     const list = rows[table] ?? (rows[table] = []);
     if (op === 'insert') {
+      if (payload.id && list.some(r => r.id === payload.id)) return { data: null, error: { code: '23505', message: 'duplicate' } };
       if (payload.idempotency_key && list.some(r => r.idempotency_key === payload.idempotency_key)) return { data: null, error: { code: '23505', message: 'duplicate' } };
       const r = { id: `row-${list.length}`, ...payload }; list.push(r); return { data: single ? r : [r], error: null };
     }
@@ -103,6 +104,7 @@ test('queued interruption and concurrent recovery share per-owner delivery claim
   home('queued', { queued: true });
   await Promise.all([sweepSpotSavedConfirmations(), sweepSpotSavedConfirmations()]);
   expect(emailCalls).toBe(1); expect(smsCalls).toBe(1);
+  expect(rows.workflow_events.filter(r => r.event_type === 'spot_saved_confirmation_completed')).toHaveLength(1);
 });
 test('partial delivery retries only the channel without a claim', async () => {
   home('partial', { queued: true }); rows.customer_email_sends = [{ id: 'prior', idempotency_key: 'spot_saved_confirmation:v1:partial@example.org.au', status: 'sent' }];

@@ -5,6 +5,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { planSpotSaved, spotSavedDeliveryChanged, SPOT_SAVED_EMAIL_PURPOSE, SPOT_SAVED_EMAIL_SWITCH, SPOT_SAVED_SMS_SWITCH, type ChannelPlan } from "./spot-saved-send.core";
 import { SUPPRESSING_EVENTS } from "./emailsafety.core";
+import { smsQuietReason } from './quote-hold.core';
 
 type Msgs = { job: { source: string | null }; email: { subject: string; text: string; html?: string }; sms: string; optOutUrl: string | null; rebate: number };
 const OWNER_BASE = "https://estimate.homeinsulationvictoria.com.au";
@@ -55,7 +56,7 @@ export async function sendSpotSavedConfirmation(jobId: string, opts: { dry?: boo
   ]);
   const owner = (job?.owners ?? null) as { phone: string | null; email: string | null } | null;
   const token = opts.token ?? (await activeEstimateToken(jobId));
-  const { toAuE164, smsStaleReason, smsQuietReason } = await import("./sms.core");
+  const { toAuE164, smsStaleReason } = await import("./sms.core");
   const e164 = toAuE164(owner?.phone ?? null);
   let smsStopped = false;
   if (e164) {
