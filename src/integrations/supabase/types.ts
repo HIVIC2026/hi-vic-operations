@@ -14050,6 +14050,14 @@ export type Database = {
         Returns: Database["public"]["Enums"]["assignment_role"]
       }
       job_authority_expires_at: { Args: { _job: string }; Returns: string }
+      job_authority_latest: {
+        Args: never
+        Returns: {
+          expires_at: string
+          job_id: string
+          status: string
+        }[]
+      }
       job_authority_status: { Args: { _job: string }; Returns: string }
       job_deposit_cleared: { Args: { _job: string }; Returns: boolean }
       link_confirmed_owner_account: {
