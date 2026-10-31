@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { acceptancePaymentTerms } from "../src/lib/assignment.core";
-import { evaluateOwnerGates, PAYMENT_TERMS_VERSION, type GateFacts } from "../src/lib/owner-gates.core";
+import {
+  evaluateOwnerGates,
+  PAYMENT_TERMS_VERSION,
+  type GateFacts,
+} from "../src/lib/owner-gates.core";
 
 const items = [
   { code: "install", line_total_inc_gst: 5500 },
@@ -29,7 +33,10 @@ describe("acceptance payment terms", () => {
   });
 
   test("a quote without a PIESA line has valid payment amounts", () => {
-    const text = acceptancePaymentTerms(items.filter((item) => item.code !== "PIESA"), 5639);
+    const text = acceptancePaymentTerms(
+      items.filter((item) => item.code !== "PIESA"),
+      5639,
+    );
     expect(text).not.toMatch(/NaN|undefined/);
     expect(text).toContain("$5,639.00");
   });
@@ -37,12 +44,23 @@ describe("acceptance payment terms", () => {
   test("new wording cannot inherit the previous version's approval", () => {
     expect(PAYMENT_TERMS_VERSION).not.toBe("steps-2026-10-29b");
     const facts: GateFacts = {
-      isTest: false, signed: [], approved: { payment_terms: "steps-2026-10-29b" },
-      tenant: false, lifeSupport: false, visitedByInstaller: false, hasQuote: true,
-      agreementSigned: false, agreementWordingApproved: true, escConsentSigned: false,
-      piesaCopyDelivered: false, piesaDeclarationMappingApproved: false, assignmentEffective: false,
+      isTest: false,
+      signed: [],
+      approved: { payment_terms: "steps-2026-10-29b" },
+      tenant: false,
+      lifeSupport: false,
+      visitedByInstaller: false,
+      hasQuote: true,
+      agreementSigned: false,
+      agreementWordingApproved: true,
+      escConsentSigned: false,
+      piesaCopyDelivered: false,
+      piesaDeclarationMappingApproved: false,
+      assignmentEffective: false,
     };
-    const payment = evaluateOwnerGates(facts).find((gate) => gate.gate === "B")?.items.find((item) => item.key === "payment_terms");
+    const payment = evaluateOwnerGates(facts)
+      .find((gate) => gate.gate === "B")
+      ?.items.find((item) => item.key === "payment_terms");
     expect(payment?.draft).toBe(true);
     expect(payment?.done).toBe(false);
   });
