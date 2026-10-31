@@ -113,18 +113,18 @@ describe("Section 2: the four declaration lines must each be ticked", () => {
     expect(
       ownerConsentBlockers({ ...base, input: { ...input, declarations: undefined } }),
     ).toHaveLength(4);
-    // older approved wording keeps the single tick rule
+    // older wording (lawyer text) keeps the single tick rule
     expect(
       ownerConsentBlockers({
         ...base,
-        templateVersion: "2026-10-06-v1",
+        templateVersion: "lawyer-2026-10-06-v1",
         input: { ...input, declarations: undefined },
       }),
     ).toEqual([]);
     expect(
       ownerConsentBlockers({
         ...base,
-        templateVersion: "2026-10-06-v1",
+        templateVersion: "lawyer-2026-10-06-v1",
         input: { ...input, accept: false, declarations: undefined },
       }).join(),
     ).toMatch(/confirm you consent/);
@@ -197,7 +197,7 @@ describe("Section 3: AP Part A details and Part B declaration", () => {
       apConsentBlockers({ ...base, apRep: rep, nowIso: "2026-11-10T00:00:00.000Z" }).join(),
     ).toMatch(/24 hours/);
     // older wording: name + purpose tick only
-    expect(apConsentBlockers({ ...base, templateVersion: "2026-10-06-v1" })).toEqual([]);
+    expect(apConsentBlockers({ ...base, templateVersion: "lawyer-2026-10-06-v1" })).toEqual([]);
   });
   test("consent validity for the booking is unchanged (both signatures ≥24h before start)", () => {
     expect(
@@ -265,10 +265,10 @@ describe("rendering the executed form", () => {
     expect(out).toContain("I <insert name>, am the authorised representative");
   });
   test("older wording keeps its body with {dates} filled from the installation day(s)", () => {
-    expect(isEscTemplateVersion("2026-10-06-v1")).toBe(false);
+    expect(isEscTemplateVersion("lawyer-2026-10-06-v1")).toBe(false);
     expect(isEscTemplateVersion(esc)).toBe(true);
     const out = renderConsentBody({
-      version: "2026-10-06-v1",
+      version: "lawyer-2026-10-06-v1",
       body: "my install day(s) ({dates}), my property address",
       facts,
     });

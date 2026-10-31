@@ -1,6 +1,6 @@
 <mjml lang="en-AU">
   <mj-head>
-    <mj-title>Your ceiling insulation quote is ready, Helen</mj-title>
+    <mj-title>Helen, your quote is ready – save $1,850 on ceiling insulation</mj-title>
     <mj-preview>You pay $2,200.00 after the rebate. Your price is held until 7 November 2026.</mj-preview>
     <mj-include path="./partials/head.mjml" />
   </mj-head>
@@ -11,7 +11,7 @@
       <mj-section>
         <mj-column>
           <mj-text mj-class="hi">Hi Helen, your quote is ready.</mj-text>
-          <mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">Your ceiling insulation quote is ready</mj-text>
+          <mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">You save $1,850 on ceiling insulation</mj-text>
         </mj-column>
       </mj-section>
 
@@ -46,7 +46,8 @@
             <tr><td valign="top" style="border-top:1px solid #E4E9F5;padding:12px 12px 12px 0;"><strong>Old insulation removed and taken away</strong><br /><span class="muted" style="font-size:13px;line-height:19px;">40 m² × $15.00 per m²</span></td><td align="right" valign="top" style="border-top:1px solid #E4E9F5;padding:12px 0;white-space:nowrap;">$600.00</td></tr>
             <tr><td valign="top" style="border-top:1px solid #E4E9F5;padding:12px 12px 12px 0;"><strong>Electrical safety check (PIESA)</strong><br /><span class="muted" style="font-size:13px;line-height:19px;">By a licensed electrician, before any insulation goes in</span></td><td align="right" valign="top" style="border-top:1px solid #E4E9F5;padding:12px 0;white-space:nowrap;">$349.00</td></tr>
             <tr><td valign="top" style="border-top:1px solid #E4E9F5;padding:12px 12px 12px 0;"><strong>Accredited Person fee</strong><br /><span class="muted" style="font-size:13px;line-height:19px;">Home Insulation Victoria (VEU A003654): your quote, compliance checks, paperwork and rebate claim</span></td><td align="right" valign="top" style="border-top:1px solid #E4E9F5;padding:12px 0;white-space:nowrap;">$349.00</td></tr>
-            <tr><td valign="top" style="border-top:1px solid #E4E9F5;padding:12px 12px 12px 0;"><strong>Full price</strong><br /><span class="muted" style="font-size:13px;line-height:19px;">incl. GST · rebate shown above is taken off this price</span></td><td align="right" valign="top" style="border-top:1px solid #E4E9F5;padding:12px 0;white-space:nowrap;"><strong>$4,050.00</strong></td></tr>
+            <tr><td valign="top" style="border-top:1px solid #E4E9F5;padding:12px 12px 12px 0;"><strong>Full price</strong><br /><span class="muted" style="font-size:13px;line-height:19px;">incl. GST</span></td><td align="right" valign="top" style="border-top:1px solid #E4E9F5;padding:12px 0;white-space:nowrap;"><strong>$4,050.00</strong></td></tr>
+            <tr><td valign="top" style="border-top:1px solid #E4E9F5;padding:12px 12px 12px 0;"><strong style="color:#057D40;">VEU rebate</strong><br /><span class="muted" style="font-size:13px;line-height:19px;">Taken off upfront, nothing to claim</span></td><td align="right" valign="top" style="border-top:1px solid #E4E9F5;padding:12px 0;white-space:nowrap;color:#057D40;"><strong>−$1,850.00</strong></td></tr>
             <tr><td valign="middle" style="border-top:2px solid #22376B;padding:12px 12px 12px 0;font-size:18px;"><strong>You pay</strong></td><td align="right" valign="middle" style="border-top:2px solid #22376B;padding:12px 0;white-space:nowrap;font-size:18px;color:#3C51C4;"><strong>$2,200.00</strong></td></tr>
           </mj-table>
           <mj-text mj-class="small" padding="0 18px 18px">Not included: electrical fixes, only if the safety check finds any. They're quoted separately, and nothing is done without your OK.</mj-text>

@@ -1,7 +1,4 @@
 import { melbourneToday } from "./melbourne-time.core";
-import { paymentPlan, toCents } from "./payments.core";
-import { paymentTermsMoney, paymentTermsText } from "./owner-gates.core";
-import { safetyCheckCentsFor } from "./safety-check-amount.core";
 // Pure rules (no I/O) for the Activity 48 signing sequence. Separate events:
 //   1. Quote stage: Customer Agreement / Quote Acceptance (commercial) – unlocks invoice/deposit. The owner's Gate B
 //      `veec_assignment_consent` is their consent-to-assign at acceptance; it is NOT the official form.
@@ -141,18 +138,6 @@ export function templateBlockers(templates: Template[], phase: Phase): string[] 
 }
 
 // ---------- 1. Customer Agreement / Quote Acceptance ----------
-/** New acceptance packages share the owner payment statement; signed snapshots retain their stored text. */
-export function acceptancePaymentTerms(
-  items: Parameters<typeof safetyCheckCentsFor>[0]["lines"],
-  total: number,
-): string {
-  const plan = paymentPlan({
-    quoteTotalCents: toCents(total),
-    safetyCheckCents: safetyCheckCentsFor({ lines: items }).cents,
-  });
-  return paymentTermsText(paymentTermsMoney(plan));
-}
-
 export type AgreementSignInput = {
   signatoryName: string;
   authorityType: "owner" | "authorised_representative";

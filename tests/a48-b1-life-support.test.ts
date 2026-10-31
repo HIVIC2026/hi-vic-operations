@@ -325,7 +325,9 @@ describe("F1: Gate C — the owner's upload replaces the 'I have uploaded it' ti
   test("the tick alone no longer counts; the file or office record does", () => {
     expect(
       lsBlock(
-        facts({ signed: [{ key: "life_support_plan", version: "2026-10-06-v1", draft: false }] }),
+        facts({
+          signed: [{ key: "life_support_plan", version: "lawyer-2026-10-06-v1", draft: false }],
+        }),
       ),
     ).toEqual(["Owner paperwork C: Life support plan not recorded yet."]);
     expect(lsBlock(facts({ lifeSupportPlanOnFile: true }))).toEqual([]);

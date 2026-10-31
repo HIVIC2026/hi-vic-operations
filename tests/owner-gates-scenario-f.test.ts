@@ -170,10 +170,10 @@ describe("Scenario F — owner paperwork gates", () => {
 });
 
 import { GATE_DOCS as __DOCS } from "../src/lib/owner-gates.core";
-test("approved wording (6 Oct) is versioned and noted; cooling-off stays pending", () => {
+test("lawyer-approved wording (6 Oct) is versioned and noted; cooling-off stays pending", () => {
   const d = __DOCS.find((x) => x.key === "veec_assignment_consent")!;
-  expect(d.version).toBe("2026-10-06-v1");
-  expect(d.approvalNote).toBe("Approved by Jo, 6 Oct 2026");
+  expect(d.version).toBe("lawyer-2026-10-06-v1");
+  expect(d.approvalNote).toBe("Jo Lowe — lawyer sign-off 6 Oct 2026");
   const c = __DOCS.find((x) => x.key === "cooling_off_notice")!;
   expect(c.approvalNote).toBeUndefined();
   expect(c.body).toMatch(/^DRAFT/);

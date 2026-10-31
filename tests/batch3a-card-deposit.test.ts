@@ -20,7 +20,6 @@ import {
   paymentTermsMoney,
   paymentTermsText,
 } from "../src/lib/owner-gates.core";
-import { acceptancePaymentTerms } from "../src/lib/assignment.core";
 import { renderInstallBookedEmail } from "../src/lib/install-booked-email.core";
 import { renderDepositReleasedEmail } from "../src/lib/deposit-release-notice.core";
 
@@ -173,15 +172,7 @@ describe("fix round 1", () => {
   const read = (f: string) => readFileSync(`src/lib/${f}`, "utf8");
   test("agreement read-more deposit line says card, bank transfer or PayID", () => {
     const s = read("assignment.server.ts");
-    expect(s).toContain("payment_terms: acceptancePaymentTerms(items, total)");
-    const terms = acceptancePaymentTerms([], 4000);
-    expect(terms).toContain("to book my install day, by card, bank transfer or PayID");
-    expect(
-      terms
-        .split("\n\n")
-        .find((line) => line.startsWith("4. "))
-        ?.toLowerCase(),
-    ).not.toContain("card");
+    expect(s).toContain("to book the install day (card, bank transfer or PayID)");
     expect(s).not.toContain("(bank transfer / PayID) and the balance");
   });
   test("email-reply deposit is card-inclusive whether or not Stripe is available", () => {
