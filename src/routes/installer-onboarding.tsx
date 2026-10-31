@@ -153,7 +153,7 @@ function Choice<T extends string | number | boolean>({ options, value, onChange 
 
 /** One friendly line per page: what it's for and roughly how long it takes. */
 const PAGE_INTRO: Partial<Record<StepKey, string>> = {
-  about: "Who you are and your business. About 3 minutes.",
+  about: "Tell us about your business.",
   insurance: "Your public liability insurance. About 2 minutes.",
   installers: "Everyone who installs on our jobs. About 2 minutes per person.",
   electrician: "The electrician you work with, if any. About 1 minute.",
