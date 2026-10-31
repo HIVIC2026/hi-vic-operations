@@ -93,8 +93,6 @@ test('a missing mobile completes after email once, without attempting SMS', asyn
   expect(rows.workflow_events.filter(r => r.event_type === 'spot_saved_confirmation_completed')).toHaveLength(1);
 });
 test('a failed email with an expired text stays pending, not completed', async () => {
-  home('email-failed'); readFailure = 'customer_email_sends';
-  setSystemTime(new Date('2026-10-31T06:30:00Z'));
   // Policy classifier must never complete a failed email even when the text is terminal.
   expect(spotSavedConfirmationHandled({ email: { status: 'failed' }, sms: { status: 'blocked', detail: 'Too late to send – the trigger was 25h ago (limit 24h)' } })).toBe(false);
 });
