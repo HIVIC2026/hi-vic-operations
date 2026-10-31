@@ -111,20 +111,20 @@ export function intakeJobFacts(input: { estimated_area_m2: number | null | undef
   };
 }
 
-export async function upsertEnquiry(input: Omit<EnquiryInput, "estimated_area_m2" | "email"> & { estimated_area_m2: number | null; email: string | null }, source: string, actorId: string | null, origin: JobOrigin = { channel: "hivic_sourced" }, opts: { mistypedEmail?: string | undefined } = {}) {
+export async function upsertEnquiry(input: Omit<EnquiryInput, "estimated_area_m2" | "email"> & { estimated_area_m2: number | null; email: string | null }, source: string, actorId: string | null, origin: JobOrigin = { channel: "hivic_sourced" }, opts: { mistypedEmail?: string | undefined; testCentreAutoChecks?: boolean } = {}) {
   const facts = intakeJobFacts(input, source, origin);
   // Email may be null only for Mitti pick-ups marked "Needs finishing" (Jo 22 Oct): a fresh owner row, never matched.
   // Also for a website enquiry whose email was mistyped (Jo 23 Oct): kept so the lead isn't lost; office fixes the email.
   const mistyped = source === "base44" && opts.mistypedEmail != null;
   if (input.email == null && !mistyped && source !== "installer_mitti" && !(source === "qa_test" && origin.channel === "installer_sourced")) throw new Error("Owner email is required.");
-  const result = await upsertEnquiryInner(input, source, actorId, origin, facts);
+  const result = await upsertEnquiryInner(input, source, actorId, origin, facts, opts.testCentreAutoChecks === true);
   if (mistyped) await logEvent(result.job_id, actorId, MISTYPED_EMAIL_EVENT, `Website email looked wrong ("${opts.mistypedEmail}") — enquiry kept without an email. Check the owner's email.`, { typed_email: opts.mistypedEmail, needs_office: true }, { internal: true });
   return result;
 }
 
 export const MISTYPED_EMAIL_EVENT = "website_email_invalid";
 
-async function upsertEnquiryInner(input: Omit<EnquiryInput, "estimated_area_m2" | "email"> & { estimated_area_m2: number | null; email: string | null }, source: string, actorId: string | null, origin: JobOrigin, facts: ReturnType<typeof intakeJobFacts>) {
+async function upsertEnquiryInner(input: Omit<EnquiryInput, "estimated_area_m2" | "email"> & { estimated_area_m2: number | null; email: string | null }, source: string, actorId: string | null, origin: JobOrigin, facts: ReturnType<typeof intakeJobFacts>, testCentreAutoChecks = false) {
   const email = input.email?.toLowerCase() ?? null;
   const preserveEntered = origin.channel === "installer_sourced";
   const enteredText = (await import("./mitti-quote-release.core")).installerEnteredText;
@@ -239,8 +239,9 @@ async function upsertEnquiryInner(input: Omit<EnquiryInput, "estimated_area_m2" 
     origin.channel === "installer_sourced" ? { channel: origin.channel, originating_installer_business_id: origin.businessId, originating_installer_user_id: origin.userId, commercial_model: "not_configured" } : { channel: origin.channel });
   await completeAddressAtIntake(job.id, propFields, source, preserveEntered);
   if (source === "base44") await completeIntake(job.id, owner!.id, input as EnquiryInput);
-  // QA records stay permanently isolated from live post-intake automation.
-  if (source === "qa_test") return { job_id: job.id, job_number: job.job_number, created: true, post_intake: "none" as const };
+  // QA records stay isolated from live post-intake automation, except (Jo 31 Oct) new Test Centre journeys, which get the
+  // same automatic eligibility check as real leads. They still never auto-email (automaticLeadEmail: "none" for qa_test).
+  if (source === "qa_test" && !testCentreAutoChecks) return { job_id: job.id, job_number: job.job_number, created: true, post_intake: "none" as const };
   // Durable hand-off: initial Property Intelligence + the first official Gate 1 run in the post-intake processor.
   const queued = await enqueueInitialGate1(job.id, await eligibilityFactsVersion(input), "new enquiry");
   if (queued !== "none") runAfterResponse(() => processPostIntakeWork({ jobId: job.id })); // best-effort; scheduled worker is the durable fallback

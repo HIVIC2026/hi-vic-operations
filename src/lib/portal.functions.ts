@@ -58,7 +58,8 @@ export const createTestEnquiry = createServerFn({ method: "POST" }).middleware([
     }
     const blocker = testEnquiryBlocker(roles, data.email, { emailHasAccount });
     if (blocker) throw new WorkflowError(blocker);
-    return upsertEnquiry({ ...data, external_enquiry_id: `qa-${crypto.randomUUID()}` }, "qa_test", context.userId);
+    // Jo 31 Oct: new Test Centre journeys get the automatic eligibility check like real leads (never auto-email).
+    return upsertEnquiry({ ...data, external_enquiry_id: `qa-${crypto.randomUUID()}` }, "qa_test", context.userId, undefined, { testCentreAutoChecks: true });
   });
 
 export const setEligibility = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
