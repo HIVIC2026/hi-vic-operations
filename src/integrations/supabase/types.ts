@@ -1439,6 +1439,7 @@ export type Database = {
           lead_time_days: number | null
           legal_name: string | null
           licence_number: string | null
+          messages_while_paused: boolean
           mitti_account_invited: boolean
           mitti_account_invited_at: string | null
           mitti_account_invited_by: string | null
@@ -1509,6 +1510,7 @@ export type Database = {
           lead_time_days?: number | null
           legal_name?: string | null
           licence_number?: string | null
+          messages_while_paused?: boolean
           mitti_account_invited?: boolean
           mitti_account_invited_at?: string | null
           mitti_account_invited_by?: string | null
@@ -1579,6 +1581,7 @@ export type Database = {
           lead_time_days?: number | null
           legal_name?: string | null
           licence_number?: string | null
+          messages_while_paused?: boolean
           mitti_account_invited?: boolean
           mitti_account_invited_at?: string | null
           mitti_account_invited_by?: string | null
