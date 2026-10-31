@@ -109,7 +109,8 @@ function quoteRowHtml(r: K.QuoteRow, first: boolean): string {
 
 export function renderOwnerQuoteEmail(i: OwnerQuoteEmailInput): { subject: string; html: string; text: string } {
   const f = quoteFigures(i);
-  const subject = f.rebate ? `${f.name ? `${f.name}, your` : "Your"} quote is ready – save ${K.whole(f.rebate)} on ceiling insulation` : `Your ceiling insulation quote is ready${f.name ? `, ${f.name}` : ""}`;
+  const subject = `Your ceiling insulation quote is ready${f.name ? `, ${f.name}` : ""}`;
+  const headline = "Your ceiling insulation quote is ready";
   const hi = f.name ? `Hi ${f.name}, your quote is ready.` : "Your quote is ready.";
   const area = i.areaM2 != null && i.areaM2 > 0 ? i.areaM2 : null;
   const removal = i.removalM2 != null && i.removalM2 > 0 ? i.removalM2 : null;
@@ -128,7 +129,7 @@ export function renderOwnerQuoteEmail(i: OwnerQuoteEmailInput): { subject: strin
             : null;
     return { title: lineTitle(d), detail, amount: money(l.lineTotalIncGst) };
   });
-  if (f.full && f.rebate) rows.push({ title: "Full price", detail: "incl. GST", amount: money(f.full), bold: true }, { title: "VEU rebate", detail: "Taken off upfront, nothing to claim", amount: `−${money(f.rebate)}`, bold: true, color: "#057D40" });
+  if (f.full && f.rebate) rows.push({ title: "Full price", detail: "incl. GST · rebate shown above is taken off this price", amount: money(f.full), bold: true });
   const next = `<strong>Next:</strong> accept and pay ${safety ? `${esc(safety)} ` : ""}→ electrician safety check → book your install day.`;
   const validity = i.validUntil ? `Your price is held until ${formatQuoteValidUntil(i.validUntil)}.` : null;
   // Jo 26 Oct: no HIV phone number and no "call us" in owner emails — owners reply by email only.
@@ -139,7 +140,7 @@ export function renderOwnerQuoteEmail(i: OwnerQuoteEmailInput): { subject: strin
     ? `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 10px">Your quote</mj-text><mj-table padding="0 18px 6px">${rows.map((r, n) => quoteRowHtml(r, n === 0)).join("")}${youPay}</mj-table><mj-text mj-class="small" padding="0 18px 18px">${esc(NOT_INCLUDED)}</mj-text></mj-column></mj-section>`
     : `<mj-section><mj-column><mj-text mj-class="small" padding="0 12px 0">${esc(NOT_INCLUDED)}</mj-text></mj-column></mj-section>`;
   const body = [
-    `<mj-section><mj-column><mj-text mj-class="hi">${esc(hi)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${esc(f.headline)}</mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column><mj-text mj-class="hi">${esc(hi)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${esc(headline)}</mj-text></mj-column></mj-section>`,
     f.box,
     `<mj-section><mj-column>${mjButton(i.quoteUrl)}</mj-column></mj-section>`,
     quote,
@@ -148,7 +149,7 @@ export function renderOwnerQuoteEmail(i: OwnerQuoteEmailInput): { subject: strin
   const preview = [`You pay ${f.total}${f.rebate ? " after the rebate" : ""}.`, validity].filter(Boolean).join(" ");
   const html = mjEmail({ subject, preview, body, unsubscribe: i.unsubscribeUrl, testLabel: i.test === true });
   const text = K.plainText([
-    hi, "", f.headline, "", ...f.boxText, "", `View and accept your quote: ${i.quoteUrl}`, "",
+    hi, "", headline, "", ...f.boxText, "", `View and accept your quote: ${i.quoteUrl}`, "",
     ...(rows.length ? ["YOUR QUOTE", ...rows.map((r) => `${r.title}${r.detail ? ` (${r.detail})` : ""}: ${r.amount}`), `You pay: ${f.total}`, ""] : []),
     NOT_INCLUDED, "", K.stripTags(next), "", closing,
   ], { unsubscribe: i.unsubscribeUrl, testLabel: i.test === true });
