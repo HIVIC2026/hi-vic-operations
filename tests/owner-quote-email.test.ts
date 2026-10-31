@@ -36,11 +36,11 @@ const base: OwnerQuoteEmailInput = {
 
 test("v2 leads with the saving and says exactly what they get (Jo 24 Oct)", () => {
   const m = renderOwnerQuoteEmail({ ...base, subtotalIncGst: 4197, areaM2: 120, removalM2: 40, product: "Bradford Gold R5.0", installerName: "Reinsulate", installerCertified: true });
-  expect(m.subject).toBe("Courtney, your quote is ready – save $1,850 on ceiling insulation");
+  expect(m.subject).toBe("Your ceiling insulation quote is ready, Courtney");
   // Decision 86 design (O18): greeting, "You save" headline, price box, View and accept, itemised "Your quote", Next line.
   for (const body of [m.html, m.text]) {
     expect(body).toContain("Hi Courtney, your quote is ready.");
-    expect(body).toContain("You save $1,850 on ceiling insulation");
+    expect(body).toContain("Your ceiling insulation quote is ready");
     expect(body).toContain("$2,347.00");
     expect(body).toContain("$4,197.00"); // full price before the rebate
     expect(body).toContain("Taken off upfront. Nothing for you to claim.");
@@ -64,7 +64,7 @@ test("v2 leads with the saving and says exactly what they get (Jo 24 Oct)", () =
   }
   expect(m.html).toContain(">View and accept your quote<");
   expect(m.html).toContain(">You pay<");
-  expect(m.html).toContain("−$1,850.00");
+  expect(m.html).toContain("You save $1,850");
   expect(m.html).toContain(`href="${url}"`);
   expect(m.text).toContain(`View and accept your quote: ${url}`);
   expect(m.html).not.toContain("TEST — only sent to Jo");
@@ -75,7 +75,7 @@ test("quote price cells, including You pay, keep a 110px minimum width and do no
   const rows = [...html.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/g)]
     .map((match) => match[1] ?? "")
     .filter((row) => /<td\b[^>]*align="right"/.test(row));
-  expect(rows).toHaveLength(base.lines.length + 3); // Full price, VEU rebate, You pay.
+  expect(rows).toHaveLength(base.lines.length + 2); // Full price, You pay; rebate stays in the green box.
   expect(rows.some((row) => row.includes("<strong>You pay</strong>"))).toBe(true);
   for (const row of rows) {
     const priceCell = row.match(/<td\b[^>]*align="right"[^>]*>/)?.[0] ?? "";
@@ -245,7 +245,7 @@ test("qa_test notify sends the rendered owner quote email via sendTestEmail", as
   expect(r).toEqual({ email: "sent: TEST accepted", sms: "sent: TEST accepted" });
   expect(sentEmails).toHaveLength(1);
   const m = sentEmails[0]!;
-  expect(m.subject).toMatch(/^Courtney, your quote is ready/);
+  expect(m.subject).toBe("Your ceiling insulation quote is ready, Courtney");
   expect(m.html).toContain(`href="${CUSTOMER_BASE}/my-job/test-token?screen=quote"`);
   expect(m.text).toContain("2A Chatfield Street, Kingsville VIC 3012");
   expect(m.text).toContain("$2,347.00");

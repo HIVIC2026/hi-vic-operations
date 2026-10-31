@@ -3,8 +3,9 @@
 // One email + one text per OWNER (address/number keys), switch-gated, every contact guard re-checked.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
-import { planSpotSaved, SPOT_SAVED_EMAIL_PURPOSE, SPOT_SAVED_EMAIL_SWITCH, SPOT_SAVED_SMS_SWITCH, type ChannelPlan } from "./spot-saved-send.core";
+import { planSpotSaved, spotSavedDeliveryChanged, SPOT_SAVED_EMAIL_PURPOSE, SPOT_SAVED_EMAIL_SWITCH, SPOT_SAVED_SMS_SWITCH, type ChannelPlan } from "./spot-saved-send.core";
 import { SUPPRESSING_EVENTS } from "./emailsafety.core";
+import { smsQuietReason } from './quote-hold.core';
 
 type Msgs = { job: { source: string | null }; email: { subject: string; text: string; html?: string }; sms: string; optOutUrl: string | null; rebate: number };
 const OWNER_BASE = "https://estimate.homeinsulationvictoria.com.au";
@@ -55,7 +56,7 @@ export async function sendSpotSavedConfirmation(jobId: string, opts: { dry?: boo
   ]);
   const owner = (job?.owners ?? null) as { phone: string | null; email: string | null } | null;
   const token = opts.token ?? (await activeEstimateToken(jobId));
-  const { toAuE164 } = await import("./sms.core");
+  const { toAuE164, smsStaleReason } = await import("./sms.core");
   const e164 = toAuE164(owner?.phone ?? null);
   let smsStopped = false;
   if (e164) {
@@ -75,6 +76,16 @@ export async function sendSpotSavedConfirmation(jobId: string, opts: { dry?: boo
   if (plan.email.send && job && await spotSavedEmailAlreadySent(jobId)) { out.email = { status: "already", detail: "Already sent for this job" }; (plan as { email: ChannelPlan }).email = { send: false, reason: "Already sent for this job" }; }
   if (plan.sms.send && job && await spotSavedTextAlreadySent(jobId, plan.sms.to)) { out.sms = { status: "already", detail: "Already sent to this job or phone" }; (plan as { sms: ChannelPlan }).sms = { send: false, reason: "Already sent to this job or phone" }; }
   if (opts.emailOnly) out.sms = { status: "skipped", detail: "Email-only confirmation path" };
+  // These holds never dispatch or write a fresh blocked attempt on each recovery tick.
+  if (plan.sms.send && !opts.emailOnly) {
+    const now = new Date().toISOString();
+    const stale = smsStaleReason('spot_saved', { at: resp?.spot_saved_at ?? null }, now);
+    const quiet = smsQuietReason(now);
+    if (stale || quiet) {
+      out.sms = { status: stale ? 'blocked' : 'pending', detail: stale ?? quiet ?? '' };
+      (plan as { sms: ChannelPlan }).sms = { send: false, reason: out.sms.detail };
+    }
+  }
   if (!job) return out;
   if (opts.dry) {
     if (plan.email.send) out.email = await alreadyCheck("email", plan.email.key) ?? { status: "would_send", detail: plan.email.to };
@@ -96,7 +107,7 @@ export async function sendSpotSavedConfirmation(jobId: string, opts: { dry?: boo
     out.sms = await sendRealSms({ type: "spot_saved", idempotencyKey: plan.sms.key, to: plan.sms.to, body: msgs.sms, jobId, event: { at: resp?.spot_saved_at ?? null } })
       .then((r) => ({ status: r.status, detail: r.detail }), (e) => ({ status: "failed", detail: (e as Error).message }));
   }
-  await logEvent(jobId, null, "spot_saved_confirmation_sent", `Spot saved confirmation – email: ${out.email.status}; text: ${out.sms.status}`, { email: out.email, sms: out.sms }, { internal: true }).catch(() => null);
+  if (spotSavedDeliveryChanged(out)) await logEvent(jobId, null, "spot_saved_confirmation_sent", `Spot saved confirmation – email: ${out.email.status}; text: ${out.sms.status}`, { email: out.email, sms: out.sms }, { internal: true }).catch(() => null);
   return out;
 }
 

@@ -12,6 +12,19 @@ export const SPOT_SAVED_EMAIL_PURPOSE = "spot_saved_confirmation";
 export const spotSavedEmailKey = (email: string) => `spot_saved_confirmation:v1:${email.trim().toLowerCase()}`;
 export const spotSavedSmsKey = (e164: string) => `spot-saved-confirmation:v1:${e164}`;
 
+export type ConfirmationChannel = { status: string; detail?: string };
+export function spotSavedConfirmationHandled(result: { email: ConfirmationChannel; sms: ConfirmationChannel }, emailOnly = false) {
+  const claimed = (status: string) => ['sent', 'already', 'uncertain', 'sent_unknown'].includes(status);
+  const smsFinal = claimed(result.sms.status)
+    || (result.sms.status === 'skipped' && result.sms.detail === 'No valid mobile')
+    || (result.sms.status === 'blocked' && /^Too late to send.*\(limit 24h\)$/.test(result.sms.detail ?? ''));
+  return claimed(result.email.status) && (emailOnly || smsFinal);
+}
+
+export function spotSavedDeliveryChanged(result: { email: ConfirmationChannel; sms: ConfirmationChannel }) {
+  return [result.email, result.sms].some(r => ['sent', 'uncertain', 'sent_unknown', 'failed'].includes(r.status));
+}
+
 /** Jo's own inboxes are TEST recipients, never real owners. */
 const JO_TEST_ADDRESSES = ["jolowexo@hotmail.com"];
 const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

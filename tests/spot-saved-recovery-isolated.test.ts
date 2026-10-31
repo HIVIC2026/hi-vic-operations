@@ -1,4 +1,4 @@
-import { beforeEach, expect, mock, test } from 'bun:test';
+import { afterAll, beforeEach, expect, mock, test, setSystemTime } from 'bun:test';
 
 type Row = Record<string, any>;
 const rows: Record<string, Row[]> = {};
@@ -23,6 +23,7 @@ const db = { from(table: string) {
     if (readFailure === table) return { data: null, error: { message: 'read failed', code: 'XX000' } };
     const list = rows[table] ?? (rows[table] = []);
     if (op === 'insert') {
+      if (payload.id && list.some(r => r.id === payload.id)) return { data: null, error: { code: '23505', message: 'duplicate' } };
       if (payload.idempotency_key && list.some(r => r.idempotency_key === payload.idempotency_key)) return { data: null, error: { code: '23505', message: 'duplicate' } };
       const r = { id: `row-${list.length}`, ...payload }; list.push(r); return { data: single ? r : [r], error: null };
     }
@@ -47,7 +48,7 @@ mock.module('../src/lib/sms.server', () => ({ sendRealSms: async (input: Row) =>
   smsCalls++; return { status: 'sent', detail: 'Mock accepted' };
 } }));
 
-const { sweepSpotSavedConfirmations } = await import('../src/lib/spot-saved-recovery.server');
+const { sweepSpotSavedConfirmations, spotSavedConfirmationHandled } = await import('../src/lib/spot-saved-recovery.server');
 function home(id: string, options: Row = {}) {
   const source = options.source ?? 'base44';
   (rows.jobs ??= []).push({ id, source, stage: 'ready_check_ready_to_schedule', deleted_at: null, qa_archived_at: null, owners: { full_name: 'Test Home', email: `${id}@example.org.au`, phone: '0412345678' }, properties: { suburb: 'Test suburb' } });
@@ -58,9 +59,51 @@ function home(id: string, options: Row = {}) {
   if (options.preliminary) rows.workflow_events.push({ job_id: id, event_type: 'campaign_spot_saved', details: { preliminary_email: true } });
 }
 beforeEach(() => {
+  setSystemTime(new Date('2026-10-30T06:30:00Z'));
   for (const k of Object.keys(rows)) delete rows[k];
   rows.workflow_events = []; rows.workflow_settings = [{ id: 1, customer_comms_enabled: true, sms_message_switches: { spot_saved_email: true, spot_saved: true } }];
   emailCalls = 0; smsCalls = 0; readFailure = null;
+});
+afterAll(() => setSystemTime());
+test('email already and expired 24h SMS complete once without blocked rows or no-change attempts', async () => {
+  home('expired', { queued: true });
+  rows.customer_email_sends = [{ job_id: 'expired', purpose: 'spot_saved_confirmation', status: 'sent' }];
+  setSystemTime(new Date('2026-10-31T06:30:00Z'));
+  await sweepSpotSavedConfirmations(); await sweepSpotSavedConfirmations();
+  expect(emailCalls).toBe(0); expect(smsCalls).toBe(0);
+  expect(rows.sms_messages ?? []).toHaveLength(0);
+  expect(rows.workflow_events.filter(r => r.event_type === 'spot_saved_confirmation_completed')).toHaveLength(1);
+  expect(rows.workflow_events.filter(r => ['spot_saved_confirmation_sent', 'spot_saved_confirmation_recovery_attempted'].includes(r.event_type))).toHaveLength(0);
+});
+test('quiet hours stay pending without history churn and resume at 7am Melbourne', async () => {
+  home('overnight', { queued: true });
+  rows.customer_email_sends = [{ job_id: 'overnight', purpose: 'spot_saved_confirmation', status: 'sent' }];
+  setSystemTime(new Date('2026-10-30T10:00:00Z'));
+  await sweepSpotSavedConfirmations(); await sweepSpotSavedConfirmations();
+  expect(smsCalls).toBe(0); expect(rows.sms_messages ?? []).toHaveLength(0);
+  expect(rows.workflow_events).toHaveLength(1);
+  setSystemTime(new Date('2026-10-30T20:00:00Z'));
+  await sweepSpotSavedConfirmations(); expect(smsCalls).toBe(1);
+  expect(rows.workflow_events.filter(r => r.event_type === 'spot_saved_confirmation_completed')).toHaveLength(1);
+});
+test('a missing mobile completes after email once, without attempting SMS', async () => {
+  home('no-mobile'); rows.jobs[0].owners.phone = null;
+  await sweepSpotSavedConfirmations(); await sweepSpotSavedConfirmations();
+  expect(emailCalls).toBe(1); expect(smsCalls).toBe(0);
+  expect(rows.workflow_events.filter(r => r.event_type === 'spot_saved_confirmation_completed')).toHaveLength(1);
+});
+test('a failed email with an expired text stays pending, not completed', async () => {
+  // Policy classifier must never complete a failed email even when the text is terminal.
+  expect(spotSavedConfirmationHandled({ email: { status: 'failed' }, sms: { status: 'blocked', detail: 'Too late to send – the trigger was 25h ago (limit 24h)' } })).toBe(false);
+});
+test('only a missing mobile or expired 24h hold is terminal; switches, STOP, missing link and quiet hours are not', () => {
+  const email = { status: 'already' };
+  expect(spotSavedConfirmationHandled({ email, sms: { status: 'skipped', detail: 'No valid mobile' } })).toBe(true);
+  expect(spotSavedConfirmationHandled({ email, sms: { status: 'already' } })).toBe(true);
+  expect(spotSavedConfirmationHandled({ email: { status: 'sent' }, sms: { status: 'sent' } })).toBe(true);
+  for (const detail of ['Spot saved texts are switched off', 'Replied STOP', 'No saved estimate link for the approved text', 'Quiet hours: after 8pm']) {
+    expect(spotSavedConfirmationHandled({ email, sms: { status: 'skipped', detail } })).toBe(false);
+  }
 });
 test('saved without a queue is recovered through the real sender, then never sent twice', async () => {
   home('missing'); await sweepSpotSavedConfirmations(); await sweepSpotSavedConfirmations();
@@ -71,6 +114,7 @@ test('queued interruption and concurrent recovery share per-owner delivery claim
   home('queued', { queued: true });
   await Promise.all([sweepSpotSavedConfirmations(), sweepSpotSavedConfirmations()]);
   expect(emailCalls).toBe(1); expect(smsCalls).toBe(1);
+  expect(rows.workflow_events.filter(r => r.event_type === 'spot_saved_confirmation_completed')).toHaveLength(1);
 });
 test('partial delivery retries only the channel without a claim', async () => {
   home('partial', { queued: true }); rows.customer_email_sends = [{ id: 'prior', idempotency_key: 'spot_saved_confirmation:v1:partial@example.org.au', status: 'sent' }];

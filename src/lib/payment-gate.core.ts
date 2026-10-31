@@ -10,7 +10,7 @@ export type PaymentOption =
 export const PAYMENT_RULE_PENDING =
   "Payment rule pending activation – PIESA and scheduling are locked until the approved payment-option gate is switched on.";
 /** Jo 7 Oct 6:40pm: payment rule ON for TEST (qa_test) jobs only. Real jobs follow workflow_settings.payment_option_gate_enabled
- *  and stay locked until Jo's lawyer approves the wording and Jo turns it on for everyone. */
+ *  and stay locked until Jo approves the wording and turns it on for everyone. */
 export const TEST_JOBS_PAYMENT_GATE_ON = true;
 export function paymentGateEnabledFor(f: { globalEnabled: boolean; jobSource: string | null | undefined; qaArchived: boolean }): boolean {
   if (f.globalEnabled) return true;

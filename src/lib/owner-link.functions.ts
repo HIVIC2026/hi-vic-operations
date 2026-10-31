@@ -30,9 +30,13 @@ export const ownerAgreementFn = createServerFn({ method: "POST" }).middleware([w
     if (!v?.quote || v.quote.id !== data.quoteId) throw new Error("Quote not found");
     const { buildAcceptancePackage, loadTemplates } = await import("./assignment.server");
     const { templateBlockers } = await import("./assignment.core");
-    const templates = await loadTemplates();
+    const [templates, packageRead] = await Promise.all([
+      loadTemplates(),
+      buildAcceptancePackage(data.quoteId).then(value => ({ ok: true as const, value }), error => ({ ok: false as const, error })),
+    ]);
     const pick = (k: string) => { const t = templates.find((x) => x.template_key === k && x.approved); return t ? { version: t.version, body: t.body } : null; };
-    const pkg = await buildAcceptancePackage(data.quoteId);
+    if (!packageRead.ok) throw packageRead.error;
+    const pkg = packageRead.value;
     return JSON.parse(JSON.stringify({ signatory: pkg.consumer?.name ?? null, paymentTerms: pkg.payment_terms, consumerRights: pick("consumer_rights"), agreementWording: pick("customer_agreement"), blockers: templateBlockers(templates, "agreement") }));
   });
 

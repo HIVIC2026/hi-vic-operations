@@ -25,6 +25,11 @@ async function currentMeasurement(jobId: string): Promise<MeasurementRow | null>
 }
 
 async function declaredProduct(jobId: string, entries: Entry[] | null): Promise<string | null> {
+  // Jo 31 Oct 2026: the boss's pick on the "Your price" card wins over Mitti's answer. A failed read never breaks the diagram.
+  try {
+    const boss = (await (await import("./installer-price.server")).readInstallerPrice(jobId))?.record.product_option;
+    if (typeof boss === "string" && boss.trim()) return boss.trim();
+  } catch { /* fall back to the form / recorded Mitti product */ }
   const fromForm = (entries ?? []).find((e) => ["insulation product", "what insulation product will you be using on this job?"].includes(String(e.label ?? "").split("\n")[0]!.trim().toLowerCase()))?.value;
   if (typeof fromForm === "string" && fromForm.trim()) return fromForm.trim();
   const { productForHivQuote } = await import("./insulation-product.server");
