@@ -3,8 +3,14 @@ import { readFileSync } from "node:fs";
 
 // Jo 31 Oct 2026: both onboarding forms ask the availability question in the same words.
 const Q = "Are you available to accept Home Insulation Victoria work at the moment?";
-const installer = readFileSync(new URL("../src/routes/installer-onboarding.tsx", import.meta.url), "utf8");
-const electrician = readFileSync(new URL("../src/routes/electrician-onboarding.tsx", import.meta.url), "utf8");
+const installer = readFileSync(
+  new URL("../src/routes/installer-onboarding.tsx", import.meta.url),
+  "utf8",
+);
+const electrician = readFileSync(
+  new URL("../src/routes/electrician-onboarding.tsx", import.meta.url),
+  "utf8",
+);
 
 describe("Jo 31 Oct: availability question wording", () => {
   test("installer onboarding asks Jo's question", () => {
