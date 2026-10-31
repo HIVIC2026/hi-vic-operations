@@ -116,9 +116,8 @@ async function requireTestAdmin(context: { supabase: SupabaseClient<Database>; u
 
 /** Journey actions only (Jo 30 Oct): admin or the TEST office login; trade-account creation stays admin-only. */
 async function requireTestOfficeOrAdmin(context: { supabase: SupabaseClient<Database>; userId: string }, jobId: string) {
-  const { requireQaJourneyActor } = await import("./qa-access.server");
-  await requireQaJourneyActor(context);
-  // Review 30 Oct: the same full TEST-isolation check every other TEST office action uses (admin passes as before).
+  // The same check every other TEST office action uses: admin as before, or the TEST office alone (verified TEST
+  // identity) on a fully isolated TEST job. 31 Oct: no rpc/has_role here — the database wall refuses it for the TEST office.
   const { requireOfficeJob } = await import("./qa-office-access.server");
   await requireOfficeJob(context.supabase, jobId);
 }

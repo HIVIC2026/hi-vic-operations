@@ -44,12 +44,11 @@ export const createTestEnquiry = createServerFn({ method: "POST" }).middleware([
   .handler(async ({ data, context }) => {
     // Jo 30 Oct: admin as before, or the TEST office alone with a @hivic-test.example owner email.
     const { testEnquiryBlocker } = await import("./qa-email.core");
-    const has = async (role: "admin" | "qa_office") => {
-      const { data: yes, error } = await context.supabase.rpc("has_role", { _user_id: context.userId, _role: role });
-      if (error) throw new WorkflowError(`Could not verify TEST access: ${error.message}`);
-      return yes === true;
-    };
-    const roles = { admin: await has("admin"), qaOffice: await has("qa_office") };
+    // 31 Oct: requireOfficeIdentity, not rpc/has_role (the database wall refuses that for the TEST office). It refuses
+    // anyone who is neither admin nor a verified, single-role TEST office login.
+    const { requireOfficeIdentity } = await import("./qa-office-access.server");
+    const who = await requireOfficeIdentity(context.supabase);
+    const roles = { admin: who === "admin", qaOffice: who === "qa_office" };
     let emailHasAccount = false;
     if (roles.qaOffice && !roles.admin) {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -1341,8 +1340,6 @@ export const autoAdvancePipeline = createServerFn({ method: "POST" }).middleware
 
 /** Test Centre list (Jo 30 Oct): active TEST jobs only, for admin or the TEST office login. Never real jobs. */
 export const getQaJourneys = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
-  const { requireQaJourneyActor } = await import("./qa-access.server");
-  await requireQaJourneyActor(context);
   const { activeQaJobsFilter } = await import("./qa-journeys.core");
   const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
   const { requireOfficeIdentity, officeTestJobIds } = await import("./qa-office-access.server");

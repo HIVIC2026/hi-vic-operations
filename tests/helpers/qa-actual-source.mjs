@@ -35,5 +35,6 @@ export function loadHandlers(admin,context) {
     '@/integrations/supabase/auth-middleware':{requireSupabaseAuth:()=>{}},'./workflow.server':workflow,
     '@/integrations/supabase/client.server':{supabaseAdmin:admin},'./qa-access.server':server,
     // Full TEST-isolation check (real one is covered by qa-office-job-scope-practice-db); tests may override via context.officeJob.
-    './qa-office-access.server':{requireOfficeJob:async(_sb,jobId)=>context.officeJob?context.officeJob(jobId):'admin'}});
+    // Mirrors the admin branch of the real one (rpc is_admin -> "Admin only."); TEST office tests override via context.officeJob.
+    './qa-office-access.server':{requireOfficeJob:async(sb,jobId)=>{if(context.officeJob)return context.officeJob(jobId);const r=await sb.rpc('is_admin');if(r.error)throw new Error(r.error.message);if(!r.data)throw new Error('Admin only.');return 'admin';}}});
 }

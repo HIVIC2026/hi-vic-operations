@@ -15,12 +15,8 @@ for (const [file, fn] of [[TA, "createTestTradeAccounts"], [PF, "getAdminPipelin
   test(`TEST office still blocked: ${fn}`, () => expect(qaOfficeFunctionAllowed(file, fn)).toBe(false));
 
 // ---- Task 2: actions accept the TEST office, TEST jobs only ----
-import { requireQaAdmin, requireQaJourneyActor, requireQaJob } from "../src/lib/qa-access.server";
+import { requireQaAdmin, requireQaJob } from "../src/lib/qa-access.server";
 const ctx = (roles: string[]) => ({ userId: "u1", supabase: { rpc: async (_: string, a: { _role: string }) => ({ data: roles.includes(a._role), error: null }) } }) as never;
-test("Test Centre actions: admin allowed", async () => { await expect(requireQaJourneyActor(ctx(["admin"]))).resolves.toBeUndefined(); });
-test("Test Centre actions: TEST office allowed", async () => { await expect(requireQaJourneyActor(ctx(["qa_office"]))).resolves.toBeUndefined(); });
-test("Test Centre actions: no role refused", async () => { await expect(requireQaJourneyActor(ctx([]))).rejects.toThrow("Admin only."); });
-test("Test Centre actions: admin + TEST office together refused", async () => { await expect(requireQaJourneyActor(ctx(["admin", "qa_office"]))).rejects.toThrow("Admin only."); });
 const jobDb = (job: Record<string, unknown>) => ({ from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: job, error: null }) }) }) }) }) as never;
 const base = { id: "j1", owner_id: "o1", source: "qa_test", qa_archived_at: null, deleted_at: null };
 for (const [name, job] of [["real job", { ...base, source: "website" }], ["archived TEST job", { ...base, qa_archived_at: "2026-10-30" }], ["deleted TEST job", { ...base, deleted_at: "2026-10-30" }]] as const)
@@ -59,7 +55,7 @@ test("getQaJourneys applies the filter and checks the caller", () => {
   const src = readFileSync("src/lib/portal.functions.ts", "utf8");
   const body = src.slice(src.indexOf("export const getQaJourneys ="));
   const fn = body.slice(0, body.indexOf("});") + 3);
-  expect(fn).toContain("requireQaJourneyActor(context)");
+  expect(fn).toContain("requireOfficeIdentity(context.supabase)");
   expect(fn).toContain('.eq("source", activeQaJobsFilter.source)');
   expect(fn).toContain('.is("qa_archived_at", null)');
   expect(fn).toContain('.is("deleted_at", null)');
