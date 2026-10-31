@@ -11,7 +11,7 @@ import { contactAnswersFromEntries } from "../src/lib/mitti.core";
 import { resolveMittiElectrician } from "../src/lib/usual-electrician.core";
 import { accessFlagFromEntries, readyCheckRemovalRequired } from "../src/lib/ready-check-answers.core";
 import { PRICE_NEXT_ACTION, formHasInstallerAnswers, isPriceNextAction, needsFinishingFromMissing, readyCheckBasics } from "../src/lib/ready-check-basics.core";
-import { installerStatusLine, needsFinishingList } from "../src/lib/installer-screens.core";
+import { installerStatusLine, mittiMissingCount, needsFinishingList, readyCheckRows } from "../src/lib/installer-screens.core";
 import { needsFinishingItems } from "../src/lib/installer-home.core";
 import { needsFinishingTask } from "../src/lib/trade-view.core";
 import { FORMS, mittiAiPrompt, validateTemplate } from "../src/lib/mitti-forms.core";
@@ -358,5 +358,15 @@ describe("product + notes (Jo 31 Oct 2026)", () => {
     expect(fns).toContain("productOption: z.string().max(80).optional().nullable()");
     expect(fns).toContain("notes: z.string().max(1000).optional().nullable()");
     expect(readFileSync("src/lib/installer-price.server.ts", "utf8")).toContain("export async function readInstallerPriceState");
+  });
+});
+
+describe("mittiMissingCount — price is never a Mitti item (decision 278)", () => {
+  test("price alone is not a Mitti item, so the Ready Check reads nothing missing", () => {
+    expect(mittiMissingCount(["price"], [])).toBe(0);
+    expect(readyCheckRows({ bookedAt: null, done: false, formLinked: true, formCompleted: true, missing: mittiMissingCount(["price"], []) }).form?.label).toBe("Complete · nothing missing");
+  });
+  test("other missing items and stops still count; price is excluded", () => {
+    expect(mittiMissingCount(["price", "area"], ["x"])).toBe(2);
   });
 });
