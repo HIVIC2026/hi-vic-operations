@@ -31,11 +31,11 @@ export const PAYMENT_TERMS_BODY = [
 ].join("\n\n");
 
 /** Placeholder bodies are deliberately marked DRAFT; never present them as approved wording. {placeholders} are filled at signing. */
-export const LAWYER_V = "lawyer-2026-10-06-v1";
-export const LAWYER_APPROVAL_NOTE = "Jo Lowe — lawyer sign-off 6 Oct 2026";
-const L = { version: LAWYER_V, approvalNote: LAWYER_APPROVAL_NOTE } as const;
+export const PAPERWORK_V = "2026-10-06-v1";
+export const PAPERWORK_APPROVAL_NOTE = "Approved by Jo, 6 Oct 2026";
+const L = { version: PAPERWORK_V, approvalNote: PAPERWORK_APPROVAL_NOTE } as const;
 
-/** Lawyer-approved wording is loaded verbatim (Jo, 6 Oct 2026). {placeholders} are filled at signing; [brackets] are links. */
+/** Approved wording is loaded verbatim (Jo, 6 Oct 2026). {placeholders} are filled at signing; [brackets] are links. */
 export const GATE_DOCS: GateDoc[] = [
   { key: "contact_privacy", gate: "A", title: "Contact and privacy", ...L, signer: "owner", tick: "I agree",
     body: "I agree to Home Insulation Victoria (DC Construction Solutions Pty Ltd) contacting me by phone, text and email about my ceiling insulation upgrade. I have read the [Privacy Notice] and the [VEU Scheme Participant Privacy Collection Notice]." },
@@ -74,7 +74,7 @@ export const GATE_DOCS: GateDoc[] = [
 ];
 
 
-/** Lawyer-approved screen copy (version LAWYER_V). Presentation only. */
+/** Approved screen copy (version PAPERWORK_V). Presentation only. */
 export const PAPERWORK_SCREENS = {
   A: { heading: "Before we book anyone in", button: "Confirm and continue",
     tenantNote: "We'll ask your landlord to agree before any work is booked.",

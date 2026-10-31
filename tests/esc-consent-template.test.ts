@@ -53,9 +53,9 @@ describe("Section 2: the four declaration lines must each be ticked", () => {
     expect(ownerConsentBlockers({ ...base, input })).toEqual([]);
     expect(ownerConsentBlockers({ ...base, input: { ...input, declarations: { ...all, owner_or_authorised: false } } }).join()).toMatch(/Please tick: "I am the owner/);
     expect(ownerConsentBlockers({ ...base, input: { ...input, declarations: undefined } })).toHaveLength(4);
-    // older wording (lawyer text) keeps the single tick rule
-    expect(ownerConsentBlockers({ ...base, templateVersion: "lawyer-2026-10-06-v1", input: { ...input, declarations: undefined } })).toEqual([]);
-    expect(ownerConsentBlockers({ ...base, templateVersion: "lawyer-2026-10-06-v1", input: { ...input, accept: false, declarations: undefined } }).join()).toMatch(/confirm you consent/);
+    // older approved wording keeps the single tick rule
+    expect(ownerConsentBlockers({ ...base, templateVersion: "2026-10-06-v1", input: { ...input, declarations: undefined } })).toEqual([]);
+    expect(ownerConsentBlockers({ ...base, templateVersion: "2026-10-06-v1", input: { ...input, accept: false, declarations: undefined } }).join()).toMatch(/confirm you consent/);
   });
   test("every existing timing rule is kept: exact date, approved wording, status, 24h lead, names", () => {
     const base = { templateApproved: true, templateVersion: esc, nowIso: now, input };
@@ -83,7 +83,7 @@ describe("Section 3: AP Part A details and Part B declaration", () => {
     expect(apConsentBlockers({ ...base, apRep: rep, status: "awaiting_owner" })[0]).toMatch(/owner must sign first/);
     expect(apConsentBlockers({ ...base, apRep: rep, nowIso: "2026-11-10T00:00:00.000Z" }).join()).toMatch(/24 hours/);
     // older wording: name + purpose tick only
-    expect(apConsentBlockers({ ...base, templateVersion: "lawyer-2026-10-06-v1" })).toEqual([]);
+    expect(apConsentBlockers({ ...base, templateVersion: "2026-10-06-v1" })).toEqual([]);
   });
   test("consent validity for the booking is unchanged (both signatures ≥24h before start)", () => {
     expect(consentValidityBlockers({ status: "valid", scheduled_start: start, owner_signed_at: now, ap_signed_at: "2026-11-02T00:00:00.000Z" }, start)).toEqual([]);
@@ -121,9 +121,9 @@ describe("rendering the executed form", () => {
     expect(out).toContain("I <insert name>, am the authorised representative");
   });
   test("older wording keeps its body with {dates} filled from the installation day(s)", () => {
-    expect(isEscTemplateVersion("lawyer-2026-10-06-v1")).toBe(false);
+    expect(isEscTemplateVersion("2026-10-06-v1")).toBe(false);
     expect(isEscTemplateVersion(esc)).toBe(true);
-    const out = renderConsentBody({ version: "lawyer-2026-10-06-v1", body: "my install day(s) ({dates}), my property address", facts });
+    const out = renderConsentBody({ version: "2026-10-06-v1", body: "my install day(s) ({dates}), my property address", facts });
     expect(out).toBe("my install day(s) (2026-11-11), my property address");
   });
 });
