@@ -168,7 +168,7 @@ describe("F1: Gate C — the owner's upload replaces the 'I have uploaded it' ti
     agreementSigned: true, agreementWordingApproved: true, escConsentSigned: true, piesaCopyDelivered: true, piesaDeclarationMappingApproved: false, assignmentEffective: false, ...o }) as never;
   const lsBlock = (f: never) => evaluateOwnerGates(f).find((g) => g.gate === "C")!.blockers.filter((b) => b.includes("Life support plan"));
   test("the tick alone no longer counts; the file or office record does", () => {
-    expect(lsBlock(facts({ signed: [{ key: "life_support_plan", version: "2026-10-06-v1", draft: false }] }))).toEqual(["Owner paperwork C: Life support plan not recorded yet."]);
+    expect(lsBlock(facts({ signed: [{ key: "life_support_plan", version: "lawyer-2026-10-06-v1", draft: false }] }))).toEqual(["Owner paperwork C: Life support plan not recorded yet."]);
     expect(lsBlock(facts({ lifeSupportPlanOnFile: true }))).toEqual([]);
   });
   test("the owner is never asked to tick it, and it is retired from the paperwork list", () => {

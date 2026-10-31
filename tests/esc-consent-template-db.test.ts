@@ -8,7 +8,7 @@ import { ESC_AP_FULL_NAME, ESC_CONSENT_TEMPLATE_VERSION, OWNER_DECLARATIONS } fr
 
 const read = (f: string) => readFileSync(new URL(`../docs/pending-migrations/${f}`, import.meta.url), "utf8");
 const JO = "950fa0b6-dc44-49af-a754-6a65f26a661e";
-const PAPERWORK = "2026-10-06-v1";
+const LAWYER = "lawyer-2026-10-06-v1";
 // Live shape of compliance_templates (0014 + 0017/0024 key check + 0019 form_fields/guard) and the columns of
 // owner_esc_consents that 0226 touches (0022).
 const BASE = `
@@ -33,7 +33,7 @@ begin
 end $$;
 CREATE TRIGGER compliance_templates_guard BEFORE UPDATE OR DELETE ON public.compliance_templates FOR EACH ROW EXECUTE FUNCTION public.guard_compliance_template();
 INSERT INTO public.compliance_templates (template_key, version, body, approved, approved_by, approved_at, is_active, source_note)
-VALUES ('esc_consent', '${PAPERWORK}', 'I give written consent ... my install day(s) ({dates}) ...', true, '${JO}', '2026-10-06T00:00:00Z', true, 'Approved by Jo, 6 Oct 2026');
+VALUES ('esc_consent', '${LAWYER}', 'I give written consent ... my install day(s) ({dates}) ...', true, '${JO}', '2026-10-06T00:00:00Z', true, 'lawyer wording');
 CREATE TABLE public.owner_esc_consents (id uuid primary key default gen_random_uuid(), job_id uuid not null, status text not null default 'awaiting_owner', template_version text, snapshot jsonb not null default '{}'::jsonb);`;
 
 type Row = { version: string; approved: boolean; is_active: boolean; approved_by: string | null; body: string; form_fields: unknown; source_note: string | null };
@@ -45,22 +45,22 @@ beforeEach(async () => { db = new PGlite(); await db.exec(BASE); });
 
 describe("0226 ESC owner consent template (practice database)", () => {
   test("before: the lawyer wording is the active esc_consent", async () => {
-    expect(await active()).toEqual([PAPERWORK]);
+    expect(await active()).toEqual([LAWYER]);
   });
 
   test("after: ESC template v1 is the only active, approved row (Jo's admin user); lawyer row kept inactive", async () => {
     await db.exec(read("0226_esc_consent_template_v1.sql"));
     const r = await rows();
-    expect(r.map((x) => x.version).sort()).toEqual([ESC_CONSENT_TEMPLATE_VERSION, PAPERWORK].sort());
+    expect(r.map((x) => x.version).sort()).toEqual([ESC_CONSENT_TEMPLATE_VERSION, LAWYER].sort());
     expect(await active()).toEqual([ESC_CONSENT_TEMPLATE_VERSION]);
     const esc = r.find((x) => x.version === ESC_CONSENT_TEMPLATE_VERSION)!;
     expect(esc.approved).toBe(true);
     expect(esc.approved_by).toBe(JO);
     expect(esc.source_note).toContain("e6458b32666a01a5a3d06718cf0ee33b601077761c6f14f77d20bee5d7753151");
     expect(esc.source_note).toContain("ESC-Owners-Consent-Form-Template-v1-20260414.docx");
-    const paperwork = r.find((x) => x.version === PAPERWORK);
-    expect(paperwork?.is_active).toBe(false);
-    expect(paperwork?.approved).toBe(true);
+    const lawyer = r.find((x) => x.version === LAWYER)!;
+    expect(lawyer.is_active).toBe(false);
+    expect(lawyer.approved).toBe(true);
   });
 
   test("body is Sections 1–3 verbatim with the AP name in the ESC placeholder; no retired lawyer placeholders", async () => {
@@ -106,7 +106,7 @@ describe("0226 ESC owner consent template (practice database)", () => {
   test("rollback reactivates the lawyer wording and keeps the ESC row as history; re-apply restores it", async () => {
     await db.exec(read("0226_esc_consent_template_v1.sql"));
     await db.exec(read("0226_esc_consent_template_v1.rollback.sql"));
-    expect(await active()).toEqual([PAPERWORK]);
+    expect(await active()).toEqual([LAWYER]);
     expect((await rows()).length).toBe(2);
     await db.exec(read("0226_esc_consent_template_v1.sql"));
     expect(await active()).toEqual([ESC_CONSENT_TEMPLATE_VERSION]);

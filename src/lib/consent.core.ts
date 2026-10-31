@@ -8,7 +8,7 @@ export const ESC_AP_LEGAL_NAME = "DC Construction Solutions Pty Ltd t/a Home Ins
 export const ESC_AP_FULL_NAME = "DC Construction Solutions Pty Ltd trading as Home Insulation Victoria (VEU Accredited Person A003654)";
 /** compliance_templates.version of the ESC Owner's Consent Form Template v1 (14 Apr 2026), staged in 0226. */
 export const ESC_CONSENT_TEMPLATE_VERSION = "ESC-Owners-Consent-Template-v1-20260414";
-/** True for the ESC template wording (filled Sections 1–3); false for older approved wording with {dates}. */
+/** True for the ESC template wording (filled Sections 1–3); false for older wording such as the lawyer text with {dates}. */
 export const isEscTemplateVersion = (version: string | null | undefined) => (version ?? "").startsWith("ESC-Owners-Consent-Template-");
 
 /** Section 2 "I declare that:" lines, verbatim from the ESC template. The owner must tick every one. */
@@ -124,7 +124,7 @@ const line = (label: string, v: string | null | undefined) => `${label}: ${dash(
 /**
  * Fills the stored wording. ESC template versions: Section 1 values, the four Section 2 ticks, owner signature + date,
  * Part A details and the Part B declaration with the representative's name, AP signature + date. Older versions keep
- * the body as stored, with {dates} (the older wording's only placeholder) replaced by the installation day(s).
+ * the body as stored, with {dates} (the lawyer wording's only placeholder) replaced by the installation day(s).
  */
 export function renderConsentBody(r: ConsentRender): string {
   if (!isEscTemplateVersion(r.version)) return r.body.replace(/\{dates\}/g, r.facts.installation_days.join(", ") || "—");
