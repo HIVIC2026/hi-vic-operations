@@ -1,3 +1,6 @@
+## Jo 1 Nov quote speed and paperwork — Task 2 only
+- [ ] Rename owner paperwork version/approval metadata; prove pending-only approval-copy migration and rollback on PGlite; run requested tests, wording scan and source grep. No live SQL, signed-record changes, AGENTS edits or publication.
+
 ## Jo 1 Nov spot-saved confirmation loop
 - [x] Stop terminal confirmation retries and quiet-hours/no-change history churn; mocked sender/recovery tests pass.
 - [x] Identical additive close-out passed PGlite; 24 eligible stuck jobs marked completed, zero remaining loop candidates; no messages, settings changes or history deletion. Code not published.
