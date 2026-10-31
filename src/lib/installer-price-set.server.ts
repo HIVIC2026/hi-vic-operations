@@ -253,6 +253,35 @@ async function prepareQuoteFromPortal(jobId: string, userId: string): Promise<vo
   }
 }
 
+/** A typed price means the installer has prepared a quote: answer "Have you prepared a quote?" = Yes once (the answer
+ *  read is the same resolver Add a job uses). Never stops the price saving: a failed read or write is logged and skipped,
+ *  and the event is only written when the update succeeded. */
+async function markQuotePrepared(jobId: string, userId: string): Promise<void> {
+  try {
+    const prev =
+      (await (await import("./installer-intake.server")).intakeQuoteAnswers([jobId])).get(jobId) ??
+      null;
+    if (prev === "have_quote") return;
+    // installer_quoted='yes' while the price lives only in installer_price_set events (installer_quoted_price_inc_gst stays
+    // null): the hidden IntakeDetailsEditor must not be re-enabled without handling that.
+    const { error } = await admin.from("jobs").update({ installer_quoted: "yes" }).eq("id", jobId);
+    if (error) {
+      console.error("setInstallerPrice: quote answer not saved", error.message);
+      return;
+    }
+    await logEvent(
+      jobId,
+      userId,
+      "installer_quote_answer",
+      "Installer answered: quote prepared",
+      { answer: "have_quote", previous: prev, source: "installer_price" },
+      { internal: true },
+    );
+  } catch (e) {
+    console.error("setInstallerPrice: quote answer failed", e);
+  }
+}
+
 /** Business admin only. Append-only; the latest event is the price. Then the guarded paths prepare the draft quote. */
 export async function setInstallerPrice(
   jobId: string,
@@ -302,6 +331,7 @@ export async function setInstallerPrice(
   );
   const stored = (await readInstallerPriceState(jobId)).stored;
   if (!stored) throw new WorkflowError("The price was not saved.");
+  await markQuotePrepared(jobId, userId);
   // Tom 31 Oct 2026: Save answers as soon as the price is stored. The quote (two Mitti reads + draft) is prepared after
   // the reply; if that is cut short the 15-minute tick prepares it, as it always has.
   const { runAfterResponse } = await import("./background.server");

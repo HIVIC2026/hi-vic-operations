@@ -7,12 +7,31 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent, transition, stageEntryBlockers, getStage } from "./workflow.server";
 import { AUTO_QUOTE_SEND_ENABLED, READY_CHECK_AUTO_PREP_ENABLED } from "./auto-quote-send.core";
 import { completionPlan, type CompletionInput } from "./mitti-complete.core";
+import { mittiAttendedPatch } from "./mitti-attended.core";
 
 export type FinishResult = { done: "off" | "waiting" | "held" | "sent" | "stage_ready"; reasons: string[] };
 
 export async function finishMittiReadyCheck(jobId: string, i: { auditId: string; completed: boolean; modifiedAt: string | null; entries: { label: string; value: unknown }[]; ourLead: boolean; enabled?: boolean; sendEnabled?: boolean }): Promise<FinishResult> {
   const enabled = i.enabled ?? READY_CHECK_AUTO_PREP_ENABLED;
   const sendEnabled = i.sendEnabled ?? AUTO_QUOTE_SEND_ENABLED;
+  // The installer finished the Ready Check in Mitti, so they attended: Attended = Yes (installer-added jobs, once; runs even
+  // when preparation is switched off; never blocks the rest).
+  if (i.completed) {
+    try {
+      const [{ data: aj, error: ajErr }, { data: ev, error: evErr }] = await Promise.all([
+        admin.from("jobs").select("channel, installer_site_check").eq("id", jobId).maybeSingle(),
+        admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "installer_attended_from_mitti").limit(1),
+      ]);
+      // A failed read must never look like "not recorded yet" (a hand-set No would be flipped): skip the write.
+      if (ajErr || evErr) throw new Error((ajErr ?? evErr)!.message);
+      const patch = aj ? mittiAttendedPatch({ channel: aj.channel as string | null, siteCheck: aj.installer_site_check as string | null, completed: true, modifiedAt: i.modifiedAt, alreadyRecorded: (ev ?? []).length > 0 }) : null;
+      if (patch) {
+        const { data: upd, error } = await admin.from("jobs").update(patch).eq("id", jobId).or("installer_site_check.is.null,installer_site_check.neq.yes").select("id");
+        if (error) throw new Error(error.message);
+        if ((upd ?? []).length) await logEvent(jobId, null, "installer_attended_from_mitti", "Attended: Yes — from the finished Mitti Ready Check", { audit_id: i.auditId, completed_at: i.modifiedAt }, { internal: true });
+      }
+    } catch (e) { console.error("Attended from Mitti could not be recorded", jobId, e); }
+  }
   if (!enabled) return { done: "off", reasons: [] };
   if (!i.completed) return { done: "waiting", reasons: [] };
   // Decision 288 (Jo 25 Oct 2026): an A1 Ready Check marked Complete with no price yet → the business owner is texted ONE

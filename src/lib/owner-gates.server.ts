@@ -11,7 +11,8 @@ import {
   type PaymentMoney,
   answerVars,
   evaluateOwnerGates,
-  installerVisitFromSiteCheck,
+  installerVisitFromAttendance,
+  ATTENDANCE_SOURCE_EVENTS,
   fillTemplate,
   gateDoc,
   ownerGateBlockers,
@@ -50,6 +51,7 @@ export async function approvedVersions(): Promise<Record<string, string>> {
 export async function gateFacts(jobId: string): Promise<GateFacts> {
   const [
     { data: job, error: jobError },
+    { data: attEv, error: attError },
     { data: sigs },
     approved,
     { data: quotes },
@@ -64,6 +66,11 @@ export async function gateFacts(jobId: string): Promise<GateFacts> {
       .select("source, life_support, life_support_status, installer_site_check")
       .eq("id", jobId)
       .single(),
+    admin
+      .from("workflow_events")
+      .select("event_type, created_at")
+      .eq("job_id", jobId)
+      .in("event_type", [...ATTENDANCE_SOURCE_EVENTS]),
     admin
       .from("owner_gate_signatures")
       .select("doc_key, doc_version, doc_draft, answers, signed_at")
@@ -98,6 +105,7 @@ export async function gateFacts(jobId: string): Promise<GateFacts> {
     throw new WorkflowError(
       "The saved job could not be found. Please retry or contact the office.",
     );
+  if (attError) throw new WorkflowError("The job visit details could not load. Please retry.");
   const { lifeSupportPlansOnFile } = await import("./job-records.server");
   const [{ count: onsite }, plans] = await Promise.all([
     admin
@@ -123,7 +131,7 @@ export async function gateFacts(jobId: string): Promise<GateFacts> {
     tenant: latest("details_confirmation")?.["role"] === "tenant",
     lifeSupport:
       lifeSupportNeedsPlan(job ?? {}) || latest("life_support_answer")?.["life_support"] === "yes",
-    visitedByInstaller: installerVisitFromSiteCheck(job.installer_site_check),
+    visitedByInstaller: installerVisitFromAttendance(job.installer_site_check, attEv ?? []), // Mitti-set Yes is not an earlier visit (Jo 1 Nov)
     hasQuote: (quotes ?? []).length > 0,
     agreementSigned: agreed,
     agreementWordingApproved: keys.has("customer_agreement") && keys.has("consumer_rights"),
