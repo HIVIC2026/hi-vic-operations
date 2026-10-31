@@ -149,7 +149,12 @@ export function matchMessage(m: MailMessage, emails: string[], byNumber: Map<str
   }
   const quotedOnly = [...new Map(extractJobNumbers(m.body).map((n) => byNumber.get(n)).filter((j): j is CandidateJob => !!j && corroborates(j)).map((j) => [j.id, j])).values()];
   if (quotedOnly.length === 1) return asJob(quotedOnly, "job_number");
-  const threaded = m.threadId ? byThread.get(m.threadId) : undefined;
+  const threadedAll = m.threadId ? byThread.get(m.threadId) : undefined;
+  // A shared thread (e.g. one mass email to many owners) must not pull an owner's reply onto someone else's job:
+  // when the sender owns none of the thread's jobs but does own another job, their own job(s) decide below.
+  const senderOwnsElsewhere = !!threadedAll?.length && !threadedAll.some(corroborates)
+    && emails.some((e) => (byEmail.get(e) ?? []).some((j) => !threadedAll.some((t) => t.id === j.id)));
+  const threaded = senderOwnsElsewhere ? undefined : threadedAll;
   if (threaded && threaded.length > 0) {
     if (threaded.length === 1) return asJob(threaded, "thread");
     const confirmed = threaded.filter(corroborates);

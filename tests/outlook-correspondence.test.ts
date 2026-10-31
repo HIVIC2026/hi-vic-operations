@@ -85,6 +85,17 @@ describe("safe matching", () => {
     const m = msg({ from: from("family@test.example"), subject: "Re: insulation" });
     expect(matchMessage(m, ["family@test.example"], new Map(), new Map(), new Map([["t1", [a]]]))).toEqual({ kind: "job", jobIds: ["ja"], how: "thread", visibility: "internal" });
   });
+  test("a shared-thread reply from the owner of a DIFFERENT job files on the sender's own job, not the thread's job", () => {
+    // Bec Shore, 31 Oct 2026: a mass "update" email shared one Outlook thread; another owner's reply put it on HV-2220.
+    const other = job("ja", "HV-2220", "abdul@test.example", "1 Other St"), mine = job("jb", "HV-1025", "bec@test.example", "2 Bec St");
+    const m = msg({ from: from("bec@test.example"), toRecipients: [from(BOX)], subject: "Re: An update on your insulation enquiry" });
+    expect(matchMessage(m, ["bec@test.example"], new Map(), new Map([["bec@test.example", [mine]]]), new Map([["t1", [other]]]))).toEqual({ kind: "job", jobIds: ["jb"], how: "only_job_for_email", visibility: "customer" });
+  });
+  test("a shared-thread reply from an owner of several other jobs goes to review, not the thread's job", () => {
+    const other = job("ja", "HV-2220", "abdul@test.example", "1 Other St"), b1 = job("jb", "HV-1", "bec@test.example", "2 Bec St"), b2 = job("jc", "HV-2", "bec@test.example", "3 Bec St");
+    const m = msg({ from: from("bec@test.example"), toRecipients: [from(BOX)], subject: "Re: An update", body: { contentType: "text", content: "Hi" } });
+    expect(matchMessage(m, ["bec@test.example"], new Map(), new Map([["bec@test.example", [b1, b2]]]), new Map([["t1", [other]]]))).toMatchObject({ kind: "unmatched", candidateJobIds: ["jb", "jc"] });
+  });
   test("a thread stored on two jobs links only a confirmed participant to one job; others go to review", () => {
     const family = msg({ from: from("family@test.example") });
     expect(matchMessage(family, ["family@test.example"], new Map(), new Map(), new Map([["t1", [a, b]]])).kind).toBe("unmatched");
