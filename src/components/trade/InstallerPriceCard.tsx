@@ -47,7 +47,9 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
   const check = validateInstallerPrice({ priceIncGst: price, included, includedOther: other, productOption: productOption || null, notes, removalRequired: view.removalRequired });
   const showForm = !view.locked && (editing || !current);
   const toggle = (o: string) => {
-    if (o === REMOVAL_OPTION && removalBlocked) { setRemovalNote(true); return; }
+    // Tom 31 Oct 2026: tapping Removal again hides the note; any other change hides it too.
+    if (o === REMOVAL_OPTION && removalBlocked) { setRemovalNote((n) => !n); return; }
+    setRemovalNote(false);
     setIncluded((xs) => (xs.includes(o) ? xs.filter((x) => x !== o) : [...xs, o]));
   };
   return (
@@ -76,12 +78,12 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
           <Note className="mt-0">Only you see and set this. We add the $349 Accredited Person fee and the {PIESA_FULL}, take off the rebate and prepare {" "}the owner's quote.{access ? " Any difficult access is yours to price in." : ""}</Note>
           <div>
             <Label htmlFor="ip-product">Insulation product</Label>
-            <select id="ip-product" className="flex min-h-12 w-full rounded-md border border-input bg-transparent px-3 py-2 text-base" value={productOption} onChange={(e) => setProductOption(e.target.value)}>
+            <select id="ip-product" className="flex min-h-12 w-full rounded-md border border-input bg-transparent px-3 py-2 text-base" value={productOption} onChange={(e) => { setRemovalNote(false); setProductOption(e.target.value); }}>
               <option value="">Same as the Ready Check</option>
               {view.productOptions.map((o) => <option key={o} value={o}>{o}</option>)}
             </select>
           </div>
-          <div><Label htmlFor="ip-price">Your price to the owner (inc GST)</Label><Input id="ip-price" inputMode="decimal" placeholder="e.g. 2400" value={price} onChange={(e) => setPrice(e.target.value)} /></div>
+          <div><Label htmlFor="ip-price">Your price to the owner (inc GST)</Label><Input id="ip-price" inputMode="decimal" placeholder="e.g. 2400" value={price} onChange={(e) => { setRemovalNote(false); setPrice(e.target.value); }} /></div>
           <fieldset>
             <legend className="text-sm font-medium">What's included</legend>
             {PRICE_INCLUDED_OPTIONS.map((o) => (
@@ -90,9 +92,9 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
                 {o === REMOVAL_OPTION && removalBlocked && removalNote && <p data-removal-note className="pb-1 pl-7 text-sm text-rose">{PRICE_ISSUES.noRemoval}</p>}
               </Fragment>
             ))}
-            {included.includes("Other") && <Input aria-label="What else is included?" placeholder="What else is included?" value={other} onChange={(e) => setOther(e.target.value)} />}
+            {included.includes("Other") && <Input aria-label="What else is included?" placeholder="What else is included?" value={other} onChange={(e) => { setRemovalNote(false); setOther(e.target.value); }} />}
           </fieldset>
-          <div><Label htmlFor="ip-notes">Notes (only you and the office see these)</Label><Textarea id="ip-notes" maxLength={1000} value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
+          <div><Label htmlFor="ip-notes">Notes (only you and the office see these)</Label><Textarea id="ip-notes" maxLength={1000} value={notes} onChange={(e) => { setRemovalNote(false); setNotes(e.target.value); }} /></div>
           {!check.ok && price && <ul data-price-issues className="space-y-1 text-sm text-rose">{check.issues.map((i) => <li key={i}>{i}</li>)}</ul>}
           <div className="flex gap-2">
             <PrimaryButton type="submit" disabled={busy || !check.ok}>{busy ? "Saving…" : current ? "Save new price" : "Save price"}</PrimaryButton>

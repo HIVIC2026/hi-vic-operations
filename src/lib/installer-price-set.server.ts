@@ -136,7 +136,10 @@ export async function setInstallerPrice(jobId: string, userId: string, input: In
   await logEvent(jobId, userId, INSTALLER_PRICE_EVENT, priceEventSummary({ record: v.record, previousProduct }), { ...v.record, business_id: j.originating_installer_business_id, set_by: userId, declared_not_verified: true }, { internal: true });
   const stored = (await readInstallerPriceState(jobId)).stored;
   if (!stored) throw new WorkflowError("The price was not saved.");
-  await prepareQuoteFromPortal(jobId, userId);
+  // Tom 31 Oct 2026: Save answers as soon as the price is stored. The quote (two Mitti reads + draft) is prepared after
+  // the reply; if that is cut short the 15-minute tick prepares it, as it always has.
+  const { runAfterResponse } = await import("./background.server");
+  runAfterResponse(() => prepareQuoteFromPortal(jobId, userId));
   return stored;
 }
 
