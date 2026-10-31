@@ -1,10 +1,12 @@
 import { createMiddleware } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import { qaOfficeFunctionBlocker } from "./qa-office-policy.core";
+import { qaOfficeClaimsMayBeTestOffice, qaOfficeFunctionBlocker } from "./qa-office-policy.core";
 
 // Global before-handler boundary, including functions that omitted their own office check.
 // Bearer-less public requests retain their existing handler authorization.
+// Every bearer is verified first (getClaims: local ES256 check against the cached JWKS; HS256/unknown kid falls
+// back to Auth's getUser). Only a verified non-TEST email skips the role read; anything else gets the full check.
 export const testOfficeBoundary = createMiddleware({ type: "function" }).server(async ({ next, serverFnMeta }) => {
   const { getRequest } = await import("@tanstack/react-start/server");
   const authorization = getRequest().headers.get("authorization");
@@ -21,6 +23,10 @@ export const testOfficeBoundary = createMiddleware({ type: "function" }).server(
       return fetch(input, { ...init, headers });
     } },
   });
+  const { data: verified, error: claimsError } = await sb.auth.getClaims(token);
+  if (claimsError || !verified?.claims || typeof verified.claims.sub !== "string" || !verified.claims.sub) throw new Error("Office sign-in required.");
+  if (!qaOfficeClaimsMayBeTestOffice(verified.claims)) return next();
+  // Possible TEST office (or claims too thin to tell): unchanged full check on the Auth server record and persisted roles.
   const { data: auth, error } = await sb.auth.getUser(token);
   if (error || !auth.user) throw new Error("Office sign-in required.");
   const { data: rows, error: roleError } = await sb.from("user_roles").select("role").eq("user_id", auth.user.id);
