@@ -17,7 +17,9 @@ async function loadCertifications(admin: AdminDb, applicationId: string) {
 }
 
 export const activatePartnerApplication = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ applicationId: uuid, overrideReason: z.string().trim().min(10).max(2000).optional() }).parse(d))
+  .inputValidator((d) => z.object({ applicationId: uuid, overrideReason: z.string().trim().min(10).max(2000).optional(),
+    // Jo 31 Oct 2026: office may approve as its own business even when the ABN matches another, with a separate login email.
+    separateBusiness: z.boolean().optional(), loginEmail: z.string().trim().toLowerCase().email().max(320).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
@@ -67,10 +69,13 @@ export const activatePartnerApplication = createServerFn({ method: "POST" }).mid
       (plan as { abn: string | null }).abn = await prepareTestBusiness(app.id, plan.business.name, plan.business.business_type);
       plan.business.name = testBusinessName(plan.business.name);
     }
+    const realAbn = (plan as { abn: string | null }).abn;
+    if (data.separateBusiness && !isTest) (plan as { abn: string | null }).abn = null;
     const { data: rows, error: rpcError } = await admin.rpc("activate_partner_application", { _app_id: app.id, _actor: context.userId, _override: data.overrideReason ?? null, _plan: plan as unknown as Json } as never);
     if (rpcError?.message.includes("activate:no_verified_installer")) throw new WorkflowError("No installer on this application has a current office-verified CII certification (a later check may have rejected it). Nothing was approved.");
     if (rpcError) throw new WorkflowError(`Activation did not complete; nothing was approved. (${rpcError.message})`);
     const r = (rows as unknown as { outcome: string; business_id: string; rate_card_id: string }[])[0]!;
+    if (data.separateBusiness && !isTest && realAbn) await admin.from("businesses").update({ abn: realAbn }).eq("id", r.business_id).is("abn", null);
     // One tidy profile on the same business row; the approval message is queued, never sent here.
     const { loadProfileInputs, applyPartnerProfile, queueApprovalMessage } = await import("./partner-profile.server");
     const { buildPartnerProfile } = await import("./partner-profile.core");
@@ -93,7 +98,7 @@ export const activatePartnerApplication = createServerFn({ method: "POST" }).mid
     // Real partners: queued, then sent once below through the guarded office sender (blocked → stays queued).
     await queueApprovalMessage(admin, r.business_id);
     // Jo 27 Oct 2026: the welcome email sends as part of approval, through the normal guarded sender, once per business.
-    const welcome = await sendWelcomeOnApproval(context.supabase, context.userId, app.id, r.business_id, (application as { business_email?: string }).business_email ?? null)
+    const welcome = await sendWelcomeOnApproval(context.supabase, context.userId, app.id, r.business_id, data.loginEmail ?? (application as { business_email?: string }).business_email ?? null, !!data.loginEmail)
       .catch((e) => `Welcome email not sent (stays queued): ${(e as Error).message}`);
     return { business_id: r.business_id, rate_card_id: r.rate_card_id, alreadyActivated: r.outcome === "already_activated", welcome };
   });
@@ -156,7 +161,7 @@ export const listCertificationLevels = createServerFn({ method: "POST" }).middle
   });
 
 type PartnerLoginInput = { applicationId: string; email: string };
-async function makePartnerLogin(sb: Parameters<typeof requireAdmin>[0], actorId: string, data: PartnerLoginInput): Promise<{ email: string; link: string; name: string | null; businessId: string; businessName: string; role: "installer" | "electrician" }> {
+async function makePartnerLogin(sb: Parameters<typeof requireAdmin>[0], actorId: string, data: PartnerLoginInput, officeChosenEmail = false): Promise<{ email: string; link: string; name: string | null; businessId: string; businessName: string; role: "installer" | "electrician" }> {
     await requireAdmin(sb);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { data: act } = await admin.from("partner_activations").select("business_id").eq("application_id", data.applicationId).maybeSingle();
@@ -165,7 +170,7 @@ async function makePartnerLogin(sb: Parameters<typeof requireAdmin>[0], actorId:
     if (!app || app.test_mode) throw new WorkflowError("Not available for test applications.");
     const d = app.data as { business_email?: string; installers?: { email?: string; full_legal_name?: string }[]; primary_contact_name?: string };
     const allowed = [d.business_email, ...(d.installers ?? []).map((w) => w.email)].filter(Boolean).map((e) => e!.trim().replace(/[.,;]+$/, "").toLowerCase());
-    if (!allowed.includes(data.email)) throw new WorkflowError("Use the business email or a nominated worker's email from the signed application.");
+    if (!officeChosenEmail && !allowed.includes(data.email)) throw new WorkflowError("Use the business email or a nominated worker's email from the signed application.");
     const role = app.partner_type === "installer" ? "installer" : "electrician";
     const name = (d.installers ?? []).find((w) => w.email?.trim().toLowerCase() === data.email)?.full_legal_name ?? d.primary_contact_name ?? null;
     const { data: existing } = await admin.from("profiles").select("id, business_id").eq("email", data.email).maybeSingle();
@@ -194,7 +199,7 @@ async function makePartnerLogin(sb: Parameters<typeof requireAdmin>[0], actorId:
 
 /** Claim the queued approval message (once per business), create the login and send the welcome through sendOfficeEmail
  *  (master switch + office email rules). Blocked → back to queued with the reason recorded; an uncertain send is never retried. */
-async function sendWelcomeOnApproval(sb: Parameters<typeof requireAdmin>[0], actorId: string, applicationId: string, businessId: string, businessEmail: string | null): Promise<string> {
+async function sendWelcomeOnApproval(sb: Parameters<typeof requireAdmin>[0], actorId: string, applicationId: string, businessId: string, businessEmail: string | null, officeChosenEmail = false): Promise<string> {
   const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
   const email = (businessEmail ?? "").trim().toLowerCase().replace(/[.,;]+$/, "");
   const note = async (summary: string) => { await admin.from("admin_config_events").insert({ actor_id: actorId, event_type: "partner_welcome_on_approval", summary, details: { business_id: businessId, application_id: applicationId } }); return summary; };
@@ -202,7 +207,7 @@ async function sendWelcomeOnApproval(sb: Parameters<typeof requireAdmin>[0], act
   const { data: claimed } = await admin.from("businesses").update({ approval_message_status: "sent" }).eq("id", businessId).eq("approval_message_status", "queued").select("id");
   if (!claimed?.length) return note("Welcome email not sent: it was already sent or is in progress for this business.");
   try {
-    const r = await makePartnerLogin(sb, actorId, { applicationId, email });
+    const r = await makePartnerLogin(sb, actorId, { applicationId, email }, officeChosenEmail);
     const { sendOfficeEmail } = await import("./office-email.server");
     const { partnerWelcomeEmail } = await import("./partner-email.core");
     const m = partnerWelcomeEmail({ firstName: r.name?.trim().split(/\s+/)[0] ?? null, businessName: r.businessName, trade: r.role, email: r.email, link: r.link, test: false });
