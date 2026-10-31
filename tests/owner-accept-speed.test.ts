@@ -38,7 +38,6 @@ if (process.env.OWNER_ACCEPT_SPEED_CHILD !== "1") {
   // Stable signature timestamps, ids and hashes make exact signed-record parity meaningful.
   const RealDate = Date;
   const instant = "2026-10-31T21:40:00.000Z";
-  globalThis.Date = class extends RealDate { constructor(value?: string | number) { super(value ?? instant); } static now() { return new RealDate(instant).getTime(); } } as DateConstructor;
   const steps: { name:string; start:number; end:number }[]=[];
   const writes: { name:string; value:unknown }[]=[];
   const timed = async <T,>(name:string, fn:()=>Promise<T>) => {
@@ -138,6 +137,7 @@ if (process.env.OWNER_ACCEPT_SPEED_CHILD !== "1") {
     for(const s of steps){const others=steps.filter(x=>x!==s&&x.start<s.end&&s.start<x.end).map(x=>x.name);console.log(`READ ${name} +${(s.start-start).toFixed(1)}ms ${(s.end-s.start).toFixed(1)}ms ${s.name} ${others.length?`WITH ${others.join(" | ")}`:"ALONE"}`);}
   };
   test("measure every owner load and signed acceptance with reserved TEST data only",async()=>{
+    globalThis.Date = class extends RealDate { constructor(value?: string | number) { super(value ?? instant); } static now() { return RealDate.now(); } } as DateConstructor;
     await capture("package",()=>assignment.buildAcceptancePackage(Q),"read:jobs:","read:ceiling_measurements:");
     await capture("loader",()=> (links.ownerAgreementFn as unknown as (x:unknown)=>Promise<unknown>)({data:{token:"practice",quoteId:Q}}),"read:compliance_templates:","read:quotes:");
     await capture("paperwork",()=>gates.ownerPaperworkToSign(J),"read:jobs:source","read:jobs:job_number");
