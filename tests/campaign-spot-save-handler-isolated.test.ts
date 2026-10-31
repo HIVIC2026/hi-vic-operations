@@ -30,8 +30,8 @@ mock.module('../src/lib/sms.server',()=>({sendRealSms:async()=>{sends++;throw Er
 mock.module('../src/lib/hot-leads-send.server',()=>({resendSend:async()=>{sends++;throw Error('No sends allowed');}}));
 const { saveCampaignSpot } = await import('../src/lib/launch-campaign.server');
 test('actual public save retry completes stage and confirmation without estimate recalculation or duplicate delivery',async()=>{
-  expect(await saveCampaignSpot(token)).toEqual({ok:true});
+  expect(await saveCampaignSpot(token)).toEqual({ok:true});await new Promise(r=>setTimeout(r,20));
   expect(stage).toBe('ready_check_ready_to_schedule');expect(commits).toBe(1);expect(confirmations).toBe(1);
   expect(events.filter(e=>e==='campaign_spot_saved')).toHaveLength(1);
-  expect(await saveCampaignSpot(token)).toEqual({ok:true});expect(confirmations).toBe(1);expect(sends).toBe(0);
+  expect(await saveCampaignSpot(token)).toEqual({ok:true});await new Promise(r=>setTimeout(r,20));expect(confirmations).toBe(1);expect(sends).toBe(0);
 });
