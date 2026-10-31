@@ -31,8 +31,8 @@ export type InstallerPriceInput = {
    *  "Removal of existing insulation" tick is refused. true/null/undefined = allowed (nothing changes). */
   removalRequired?: boolean | null;
   /** Jo 31 Oct 2026: the boss's product (an APPROVED_PRODUCTS label) and office-only notes. Both optional. */
-  productOption?: string | null;
-  notes?: string | null;
+  productOption?: string | null | undefined;
+  notes?: string | null | undefined;
 };
 /** Legacy electrician block on records saved before 25 Oct 2026 (decision 289); new records store null. */
 export type LegacyPriceElectrician = { choice: PriceElectricianChoice; name: string | null; licence: string | null; price_inc_gst: number | null };
