@@ -20,11 +20,11 @@ const DRAFT = "DRAFT — wording pending Jo's approval. Not for use on real jobs
 /** Decision 365: the payment steps exactly as `paymentPlan()` charges them (payments.core, decisions 139/140/141/302).
  *  {fee} = the quote's PIESA line, {deposit} = 10% of {remaining} (= total − fee), {balance} = the rest, {total} = quote
  *  total after the VEU discount. Amounts always come from the server, never from owner answers. */
-export const PAYMENT_TERMS_VERSION = "steps-2026-10-29b";
+export const PAYMENT_TERMS_VERSION = "steps-2026-11-01";
 export const PAYMENT_TERMS_BODY = [
   "How I'll pay for this job. My install invoice is {total} inc GST, and there is no card fee.",
   "1. Safety check: {fee} for the Pre Insulation Electrical Safety Assessment (PIESA), now that I accept, by card or bank transfer. I understand it's non-refundable once the PIESA is done, even if it finds the job can't go ahead.",
-  "2. Electrical fixes, only if the electrician finds they're needed: I'll see the price first, and if I approve them I pay for the fixes in full then, on their own invoice, by card or bank transfer.",
+  "2. Electrical upgrades, only if the electrician finds they're needed: I'll see the price first, and if I approve them I pay for the electrical upgrades in full then, on their own invoice, by card or bank transfer.",
   "3. Install deposit: {deposit} (10% of the remaining {remaining}) to book my install day, by card, bank transfer or PayID.",
   "4. Balance: {balance} on install day, by bank transfer or PayID.",
   "I can pay whatever is left at any time by bank transfer or PayID.",
