@@ -1,5 +1,5 @@
 ## Jo 1 Nov quote speed and paperwork — Task 2 only
-- [ ] Rename owner paperwork version/approval metadata; prove pending-only approval-copy migration and rollback on PGlite; run requested tests, wording scan and source grep. No live SQL, signed-record changes, AGENTS edits or publication.
+- [x] Renamed owner paperwork version/approval metadata; pending-only approval-copy migration and rollback passed PGlite (exact hashes, approver/time, repeat-safe, signed history intact, guards restored). Requested tests: 69 pass / 0 fail / 436 assertions. Scan: 0 customer-visible failures. Source grep: only two email keyword lists and installer/REC draft headers. No live SQL, signed-record changes, AGENTS edits or publication.
 
 ## Jo 1 Nov spot-saved confirmation loop
 - [x] Stop terminal confirmation retries and quiet-hours/no-change history churn; mocked sender/recovery tests pass.
