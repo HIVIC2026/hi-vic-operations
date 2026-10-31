@@ -13,7 +13,9 @@ describe("acceptance payment terms", () => {
     const text = acceptancePaymentTerms(items, 5988);
     expect(text).toContain("$5,988.00");
     expect(text).toContain("$349.00");
-    expect(text).not.toMatch(/(?<!\$)\b\d{3,}\.\d{2}\b/);
+    // Ignore entire valid dollar amounts: the requested regex otherwise matches the tail of "$5,988.00".
+    const withoutDollarAmounts = text.replace(/\$\d{1,3}(?:,\d{3})*\.\d{2}\b/g, "");
+    expect(withoutDollarAmounts).not.toMatch(/(?<!\$)\b\d{3,}\.\d{2}\b/);
   });
 
   test("uses current separate-invoice payment steps without retired wording", () => {
