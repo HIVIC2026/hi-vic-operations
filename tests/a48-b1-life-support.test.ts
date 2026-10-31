@@ -177,7 +177,9 @@ describe("F1: Gate C — the owner's upload replaces the 'I have uploaded it' ti
   });
   test("gateFacts reads the plan on file (owner upload or office record)", () => {
     const src = readFileSync("src/lib/owner-gates.server.ts", "utf8");
-    expect(src).toMatch(/lifeSupportPlanOnFile: \(await lifeSupportPlansOnFile\(\[jobId\]\)\)\.has\(jobId\)/);
+    // Group L (1 Nov): the plan read now runs alongside the on-site consent read; same result.
+    expect(src).toMatch(/lifeSupportPlansOnFile\(\[jobId\]\)/);
+    expect(src).toMatch(/lifeSupportPlanOnFile: plans\.has\(jobId\)/);
   });
 });
 
