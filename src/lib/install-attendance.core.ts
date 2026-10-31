@@ -16,7 +16,7 @@ import { ATTENDANCE_ANCHOR, ATTENDANCE_MAX_DAYS, ATTENDANCE_YES, ATTENDANCE_NO, 
 import { onsiteStartTicked, RECTIFICATION_OUTCOMES } from "./official-short.core";
 import { melbourneClock, melbourneDayDate } from "./installer-texts.core";
 import { melbourneYmd } from "./piesa-windows.core";
-import { installDayBounds, OWNER_SUGGEST_MAX } from "./install-days.core";
+import { installDayBounds } from "./install-days.core";
 
 /** Recorded once per job + install booking BEFORE anything is sent (details: { key, booking_id, start, business_id, to }). */
 export const ATTENDANCE_REQUESTED_EVENT = "electrician_install_attendance_requested" as const;

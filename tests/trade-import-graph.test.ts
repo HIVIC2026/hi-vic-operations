@@ -17,11 +17,6 @@ const FORBIDDEN = [
   /^mitti\.core\./, /^mitti-invite\.core\./, /^enquiry\.core\./, /^piesa-owner-confirm\.core\./,
 ];
 
-// Known remaining edge, left on purpose (see the task 2 report): the crew picker needs three crew rules that live inside
-// the big piisa-a3.core.ts, which statically imports mitti.core and install-day.core (-> piesa-rules-notice -> email-kit).
-// Cutting it means moving those rules into their own module. Every other chain is cut. Remove this entry when it is.
-const KNOWN_REMAINING_EDGES = ["src/components/trade/PiisaCrewPicker.tsx -> src/lib/piisa-a3.core.ts"];
-
 const EDGE = /(?:^|\n)[ \t]*(?:import|export)\s+(?!type\b)(?:[^"';]*?\sfrom\s+)?["']([^"']+)["']/g;
 
 function resolveSpec(from: string, spec: string): string | null {
@@ -53,7 +48,6 @@ function walk() {
       const target = resolveSpec(file, m[1]!);
       if (!target || seen.has(target)) continue;
       const name = basename(target);
-      if (KNOWN_REMAINING_EDGES.includes(`${relative(ROOT, file)} -> ${relative(ROOT, target)}`)) continue;
       if (/\.server\.tsx?$/.test(name)) continue;
       seen.add(target);
       parent.set(target, file);
@@ -81,14 +75,6 @@ describe("trade screens import graph", () => {
       return chain.reverse().map((x) => relative(ROOT, x)).join(" -> ");
     });
     expect(chains).toEqual([]);
-  });
-
-  test("the known remaining edge still exists (delete it from the list once it is cut)", () => {
-    for (const e of KNOWN_REMAINING_EDGES) {
-      const [from, to] = e.split(" -> ") as [string, string];
-      const hit = [...readFileSync(join(ROOT, from), "utf8").matchAll(EDGE)].some((m) => resolveSpec(join(ROOT, from), m[1]!) === join(ROOT, to));
-      expect(hit).toBe(true);
-    }
   });
 });
 
@@ -134,5 +120,17 @@ describe("shared trade constants are byte-identical to their old homes", () => {
     const src = readFileSync(join(SRC, "lib", "trade-shared-consts.core.ts"), "utf8");
     expect(src.match(EDGE) ?? []).toEqual([]);
     expect(src).not.toMatch(/\bimport\s*\(/);
+  });
+});
+
+describe("crew rules moved to piisa-crew.core", () => {
+  test("piisa-a3.core re-exports the same functions", async () => {
+    const crew = await import("../src/lib/piisa-crew.core");
+    const a3 = await import("../src/lib/piisa-a3.core");
+    expect(a3.crewSelectionProblems).toBe(crew.crewSelectionProblems);
+    expect(a3.savedCrewNeedsRepick).toBe(crew.savedCrewNeedsRepick);
+    expect(a3.leadWorkerId).toBe(crew.leadWorkerId);
+    expect(a3.A3_NATIVE_CREW_LOOKUP).toBe(crew.A3_NATIVE_CREW_LOOKUP);
+    expect(a3.CREW_NOT_LEAD_MESSAGE).toBe(crew.CREW_NOT_LEAD_MESSAGE);
   });
 });

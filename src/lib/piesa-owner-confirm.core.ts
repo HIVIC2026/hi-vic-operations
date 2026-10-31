@@ -6,7 +6,6 @@
 // the 30-day window) needs a new confirmation.
 // PURE: what the page shows, validation, the append-only record shape, the reminder schedule and the blocker. No I/O.
 
-import { PIESA_FULL } from "./job-wording";
 import { OWNER_PIESA_CONFIRM_WAITING } from "./trade-shared-consts.core";
 
 export const PIESA_OWNER_CONFIRM_VERSION = "piesa-owner-confirm-v1";
