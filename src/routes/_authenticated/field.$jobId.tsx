@@ -3,6 +3,7 @@ import { inHouseTradeBookingText } from "@/lib/in-house-message.core";
 // Who's doing this, More. Decision 277 (Jo 25 Oct 2026): no in-portal Messages section — the installer uses Call/Text
 // and the portal sends its own automatic texts. The electrician's visit flow shares this route unchanged.
 import { dropTradeCache, readTradeCache, writeTradeCache } from "@/lib/trade-cache";
+import { headStartOr, startTradeScreen } from "@/lib/trade-route-prefetch";
 import { RectPlanFields, rectPlanProblems, type RectPlan } from "@/components/portal/rectification-times";
 import { VisitContactsCard } from "@/components/portal/allocation";
 import { TradeVisitCard } from "@/components/portal/visit-changes";
@@ -70,6 +71,8 @@ import { InHouseBookingCard, useInHouseBookingAccess } from "@/components/trade/
 
 export const Route = createFileRoute("/_authenticated/field/$jobId")({
   head: () => ({ meta: [{ title: "Job – Home Insulation Victoria Field" }, { name: "description", content: "Onsite job workflow." }, { property: "og:title", content: "Job – Home Insulation Victoria Field" }, { property: "og:description", content: "Onsite job workflow." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
+  // Speed: the screen's server call starts as soon as the route matches, while this page's code downloads (trade-route-prefetch).
+  loader: ({ context, params, preload }) => startTradeScreen(context, "job", params, preload),
   component: FieldJob,
   // Job A -> job B remounts the page, so B's cached copy is asked once (askedOnce/seeded refs are per job, not reused).
   remountDeps: ({ params }) => params,
@@ -116,7 +119,7 @@ function useTradeJobBundle(jobId: string, uid: string) {
       if (prev && (askedOnce.current || !seed)) return prev;
       askedOnce.current = true;
       let bundle: Bundle;
-      try { bundle = await load({ data: { jobId } }); } catch (e) { if (seed) evict(null); throw e; }
+      try { bundle = await headStartOr(uid, queryKey, () => load({ data: { jobId } })); } catch (e) { if (seed) evict(null); throw e; }
       for (const s of seedPlan(bundle, jobId)) qc.setQueryData([...s.key], s.data);
       if (seed) evict(bundle);
       if (bundleUsable(bundle as { overview?: unknown })) writeTradeCache(uid, ck, bundle); // only a good answer is kept
