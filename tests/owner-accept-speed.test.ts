@@ -1,9 +1,17 @@
 import { expect, test } from "bun:test";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, symlinkSync } from "node:fs";
 
 if (process.env.OWNER_ACCEPT_SPEED_CHILD !== "1") {
   test("TEST-only before/after owner loading, refusal and signing parity", () => {
     const baseline = process.env.OWNER_ACCEPT_SPEED_BASELINE ?? "/tmp/task5-baseline";
+    if (!existsSync(`${baseline}/src/lib/assignment.server.ts`)) {
+      mkdirSync(baseline,{recursive:true});
+      const archive=Bun.spawnSync(["git","archive","c00fca080f09190c582104c84d2951f80bd46538"],{stdout:"pipe",stderr:"pipe"});
+      expect(archive.exitCode).toBe(0);
+      const extract=Bun.spawnSync(["tar","-x","-C",baseline],{stdin:archive.stdout,stdout:"pipe",stderr:"pipe"});
+      expect(extract.exitCode).toBe(0);
+      symlinkSync(`${process.cwd()}/node_modules`,`${baseline}/node_modules`);
+    }
     // The unchanged source copy is captured before any production edits.
     writeFileSync(`${baseline}/tests/owner-accept-speed.test.ts`, readFileSync(import.meta.filename));
     const run = (cwd: string, output: string) => {
@@ -62,6 +70,7 @@ if (process.env.OWNER_ACCEPT_SPEED_CHILD !== "1") {
     CREATE TABLE workflow_settings(id int,safety_check_payment_inc_gst numeric);
     CREATE TABLE assignment_variations(id uuid,job_id uuid,status text,reasons jsonb,raised_at timestamptz);
     CREATE TABLE customer_agreements(id uuid DEFAULT '00000000-0000-4000-8000-000000000010',job_id uuid,status text DEFAULT 'signed', payload jsonb);
+    CREATE TABLE documents(job_id uuid,kind text,title text,storage_path text,mime_type text,uploaded_by uuid);
     CREATE TABLE declarations(job_id uuid,kind text,declared_by uuid,statement text,UNIQUE(job_id,kind));
     CREATE TABLE compliance_checks(job_id uuid,check_key text,status text,checked_at timestamptz);
   `);
@@ -120,7 +129,7 @@ if (process.env.OWNER_ACCEPT_SPEED_CHILD !== "1") {
   const links=await import("../src/lib/owner-link.functions");
   const actions=await import("../src/lib/portal.functions");
   const reset=async()=>{
-    await db.exec("TRUNCATE quotes,jobs,ceiling_measurements,rectification_items,job_assignments,profiles,businesses,compliance_templates,customer_agreements,declarations,compliance_checks,workflow_settings");
+    await db.exec("TRUNCATE quotes,jobs,ceiling_measurements,rectification_items,job_assignments,profiles,businesses,compliance_templates,customer_agreements,documents,declarations,compliance_checks,workflow_settings");
     await db.query("INSERT INTO quotes VALUES ($1,$2,'installation','R5 insulation','INSTALL',1,6198,210,5988,'issued','released',$3,$3,null,null)",[Q,J,instant]);
     await db.query("INSERT INTO jobs VALUES ($1,'TEST-ACCEPT','measured_estimate_ready','qa_test',false,null,null)",[J]);
     await db.query("INSERT INTO ceiling_measurements VALUES ($1,25,true)",[J]);
@@ -167,9 +176,10 @@ if (process.env.OWNER_ACCEPT_SPEED_CHILD !== "1") {
       try{await actions.respondToQuoteImpl(d,actor);throw Error(`Expected refusal: ${name}`);}catch(e){const message=e instanceof Error?e.message:String(e);expect(message).not.toBe(`Expected refusal: ${name}`);refusals[name]=message;}
       expect(writes).toEqual([]);
     }
-    await capture("sign",()=>actions.respondToQuoteImpl(data,actor),"piesaStatus","read:rectification_items:id");
-    const records={agreement:(await db.query("SELECT payload FROM customer_agreements")).rows,quote:(await db.query("SELECT status,accepted_at,accepted_by FROM quotes")).rows,declarations:(await db.query("SELECT * FROM declarations")).rows};
+    await capture("sign",()=> (links.ownerAcceptQuoteFn as unknown as (x:unknown)=>Promise<unknown>)({data:{token:"practice",session:"practice-session",quoteId:Q,expectedVersion:1,signing:sign},context:{ip:null,userAgent:null}}),"piesaStatus","read:rectification_items:id");
+    const records={agreement:(await db.query("SELECT payload FROM customer_agreements")).rows,documents:(await db.query("SELECT * FROM documents")).rows,quote:(await db.query("SELECT status,accepted_at,accepted_by FROM quotes")).rows,declarations:(await db.query("SELECT * FROM declarations")).rows};
     expect(records.agreement).toHaveLength(1);expect(records.quote[0]?.status).toBe("accepted");
+    expect(records.documents).toHaveLength(1);
     const output=process.env.OWNER_ACCEPT_SPEED_OUTPUT;if(!output)throw Error("Missing isolated output path");
     writeFileSync(output,JSON.stringify({outputs,timings,overlaps,refusals,records,writes}));
     await db.close();globalThis.Date=RealDate;
