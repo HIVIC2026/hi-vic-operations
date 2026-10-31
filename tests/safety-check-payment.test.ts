@@ -51,8 +51,12 @@ describe("Pre Insulation Electrical Safety Assessment (PIESA) payment (Jo 7 Oct)
     expect(text).toContain("$3,041.10 on install day, by bank transfer or PayID");
     expect(text).toContain("no card fee");
     expect(text).not.toMatch(/instalment|half|\{/i);
-    // the draft file Jo approves holds exactly this wording
-    expect(readFileSync(new URL(`../docs/templates/owner/owner-payment-terms-${PAYMENT_TERMS_VERSION}.md`, import.meta.url), "utf8")).toContain(PAYMENT_TERMS_BODY);
+    // The current approvable catalogue holds exactly this wording; the new version stays Draft.
+    expect(d.version).toBe("steps-2026-11-01");
+    expect(d.body).toBe(PAYMENT_TERMS_BODY);
+    expect(text).toContain("2. Electrical upgrades, only if the electrician finds they're needed: I'll see the price first, and if I approve them I pay for the electrical upgrades in full then, on their own invoice, by card or bank transfer.");
+    expect(text).not.toMatch(/\bfixes\b/i);
+    expect(text.split("\n\n").filter((line) => /^[1-4]\. /.test(line)).map((line) => line.slice(0, 2))).toEqual(["1.", "2.", "3.", "4."]);
     const v = answerVars({ payment_option: "pay_in_full", total: "$1.00", deposit: "$0.01" }, m);
     expect(v["total"]).toBe("$3,728.00"); expect(v["deposit"]).toBe("$337.90"); expect(v["payment_option"]).toBeUndefined();
   });
