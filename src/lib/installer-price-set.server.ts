@@ -100,6 +100,19 @@ async function prepareQuoteFromPortal(jobId: string, userId: string): Promise<vo
   } catch { /* tick */ }
 }
 
+/** A typed price means the installer has prepared a quote: answer "Have you prepared a quote?" = Yes once (the answer
+ *  read is the same resolver Add a job uses). Never stops the price saving: a failed read or write is logged and skipped,
+ *  and the event is only written when the update succeeded. */
+async function markQuotePrepared(jobId: string, userId: string): Promise<void> {
+  try {
+    const prev = (await (await import("./installer-intake.server")).intakeQuoteAnswers([jobId])).get(jobId) ?? null;
+    if (prev === "have_quote") return;
+    const { error } = await admin.from("jobs").update({ installer_quoted: "yes" }).eq("id", jobId);
+    if (error) { console.error("setInstallerPrice: quote answer not saved", error.message); return; }
+    await logEvent(jobId, userId, "installer_quote_answer", "Installer answered: quote prepared", { answer: "have_quote", previous: prev, source: "installer_price" }, { internal: true });
+  } catch (e) { console.error("setInstallerPrice: quote answer failed", e); }
+}
+
 /** Business admin only. Append-only; the latest event is the price. Then the guarded paths prepare the draft quote. */
 export async function setInstallerPrice(jobId: string, userId: string, input: InstallerPriceInput): Promise<StoredInstallerPrice> {
   const j = await a1JobOrThrow(jobId);
@@ -112,6 +125,7 @@ export async function setInstallerPrice(jobId: string, userId: string, input: In
   await logEvent(jobId, userId, INSTALLER_PRICE_EVENT, `Price entered by the business owner: $${v.record.price_inc_gst.toLocaleString("en-AU")} inc GST`, { ...v.record, business_id: j.originating_installer_business_id, set_by: userId, declared_not_verified: true }, { internal: true });
   const stored = await readInstallerPrice(jobId);
   if (!stored) throw new WorkflowError("The price was not saved.");
+  await markQuotePrepared(jobId, userId);
   await prepareQuoteFromPortal(jobId, userId);
   return stored;
 }
