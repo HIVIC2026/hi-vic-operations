@@ -44,3 +44,9 @@ export function tradeEmailPauseReason(x: { recipient: "applicant" | "partner" | 
   if ((TEST_ALLOWLIST.email as readonly string[]).includes(to)) return null;
   return x.paused;
 }
+
+/** Jo 31 Oct 2026: one named business may still get trade messages while the pause is on
+ *  (`businesses.messages_while_paused`, set by the office only). Only an exact `true` lifts the hold; unknown keeps it. */
+export function businessPauseException(paused: string | null, messagesWhilePaused: boolean | null | undefined): string | null {
+  return paused && messagesWhilePaused === true ? null : paused;
+}
