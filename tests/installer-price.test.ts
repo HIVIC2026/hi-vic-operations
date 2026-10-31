@@ -252,12 +252,21 @@ describe("removal tick refused when the Ready Check says no removal (Jo 27 Oct 2
     const read = (f: string) => readFileSync(f, "utf8");
     const card = read("src/components/trade/InstallerPriceCard.tsx");
     expect(card).toContain("view?.removalRequired === false");
-    expect(card).toContain("setRemovalNote(true)");
     expect(card).toContain("data-removal-note");
+    // Tom 31 Oct 2026: the note never went away. Tapping Removal again hides it; any other change hides it too.
+    expect(card).toContain("setRemovalNote((n) => !n)");
+    expect(card).not.toContain("setRemovalNote(true)");
+    expect(card.match(/setRemovalNote\(false\)/g)?.length ?? 0).toBeGreaterThanOrEqual(3); // other ticks, price, other text
     expect(card).toContain("removalRequired: view.removalRequired");
     const server = read("src/lib/installer-price-set.server.ts");
     expect(server).toContain("removal_required");
     expect(server).toContain("validateInstallerPrice({ ...input, removalRequired })");
+  });
+  test("Save answers at once (Tom 31 Oct 2026): the owner's quote is prepared after the reply, never awaited by Save", () => {
+    const server = readFileSync("src/lib/installer-price-set.server.ts", "utf8");
+    const body = server.slice(server.indexOf("export async function setInstallerPrice"), server.indexOf("export async function switchToHivElectrician"));
+    expect(body).toContain("runAfterResponse(() => prepareQuoteFromPortal(jobId, userId))");
+    expect(body).not.toContain("await prepareQuoteFromPortal(");
   });
 });
 
