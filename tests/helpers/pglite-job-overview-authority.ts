@@ -19,15 +19,9 @@ const start = applied.indexOf("CREATE OR REPLACE VIEW public.job_overview");
 if (start < 0) throw new Error("Missing applied job_overview definition");
 export const currentOverviewSql = applied.slice(start).trim();
 
-/** Candidate for practice comparison only; no policy, function, owner or grants changed. */
-export const inlineOverviewSql = currentOverviewSql
-  .replace("job_authority_status(j.id) AS authority_status", `CASE WHEN (SELECT public.is_admin()) OR public.can_access_job(j.id) THEN
-      CASE WHEN a.id IS NULL THEN 'not_requested'
-        WHEN a.status = 'accepted' AND a.expires_at < now() THEN 'expired'
-        ELSE a.status::text END
-      ELSE NULL::text END AS authority_status`)
-  .replace("job_authority_expires_at(j.id) AS authority_expires_at", "CASE WHEN (SELECT public.is_admin()) OR public.can_access_job(j.id) THEN a.expires_at ELSE NULL::timestamptz END AS authority_expires_at")
-  .replace("FROM jobs j", "FROM jobs j LEFT JOIN LATERAL (SELECT * FROM public.owner_authorities oa WHERE oa.job_id = j.id ORDER BY version DESC LIMIT 1) a ON true");
+/** Execute the pending files themselves, never a test-only implementation. */
+export const inlineOverviewSql = read("docs/pending-migrations/job-overview-authority-inline.sql");
+export const rollbackOverviewSql = read("docs/pending-migrations/job-overview-authority-inline.rollback.sql");
 
 export const CALLERS = {
   admin: "00000000-0000-4000-8000-000000000001",
@@ -35,6 +29,7 @@ export const CALLERS = {
   electrician: "00000000-0000-4000-8000-000000000003",
   owner: "00000000-0000-4000-8000-000000000004",
   unrelated: "00000000-0000-4000-8000-000000000005",
+  qa_office: "00000000-0000-4000-8000-000000000006",
 };
 export type AuthorityRow = { job_number: string; authority_status: string | null; authority_expires_at: Date | null };
 
@@ -43,8 +38,9 @@ export async function jobOverviewAuthorityDb() {
   await db.exec(`
     CREATE ROLE authenticated; CREATE ROLE anon; CREATE ROLE service_role;
     CREATE SCHEMA auth;
+    CREATE TABLE auth.users (id uuid PRIMARY KEY, email text, email_confirmed_at timestamptz);
     CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
-    CREATE TYPE public.app_role AS ENUM ('admin','electrician','installer','owner','property_manager');
+    CREATE TYPE public.app_role AS ENUM ('admin','electrician','installer','owner','property_manager','qa_office');
     CREATE TYPE public.assignment_role AS ENUM ('electrician','installer','property_manager');
     CREATE TYPE public.authority_status AS ENUM ('not_requested','sent','viewed','accepted','declined','expired','revoked');
     CREATE TYPE public.quote_kind AS ENUM ('installation','rectification','repeat_safety_check');
@@ -53,18 +49,22 @@ export async function jobOverviewAuthorityDb() {
     CREATE TYPE public.job_channel AS ENUM ('hivic_sourced','installer_sourced');
     CREATE TABLE public.user_roles (user_id uuid, role public.app_role);
     CREATE TABLE public.owners (id uuid PRIMARY KEY, user_id uuid, full_name text, phone text, email text);
-    CREATE TABLE public.properties (id uuid PRIMARY KEY, address_line text, suburb text, state text, postcode text);
-    CREATE TABLE public.profiles (id uuid PRIMARY KEY, full_name text, business_id uuid);
-    CREATE TABLE public.businesses (id uuid PRIMARY KEY, name text);
+    CREATE TABLE public.properties (id uuid PRIMARY KEY, address_line text, suburb text, state text, postcode text, owner_id uuid, managed_by_business_id uuid);
+    CREATE TABLE public.profiles (id uuid PRIMARY KEY, full_name text, business_id uuid, email text);
+    CREATE TABLE public.businesses (id uuid PRIMARY KEY, name text, email text, signer_email text, onboarding_notes text, contact_people jsonb);
     CREATE TABLE public.business_members (business_id uuid, user_id uuid, member_role text, active boolean);
-    CREATE TABLE public.partner_workers (id uuid, profile_id uuid, trade_role public.assignment_role, approval_status text, removed_at timestamptz);
+    CREATE TABLE public.partner_workers (id uuid, profile_id uuid, trade_role public.assignment_role, approval_status text, removed_at timestamptz, business_id uuid, email text);
+    CREATE TABLE public.partner_offers (job_id uuid, business_id uuid);
+    CREATE TABLE public.bookings (job_id uuid, business_id uuid, contractor_id uuid);
+    CREATE TABLE public.assessments (job_id uuid, assessor_id uuid);
+    CREATE TABLE public.ceiling_measurements (job_id uuid, completed_by uuid, measured_by_business_id uuid);
     CREATE TABLE public.worker_job_links (job_id uuid, worker_id uuid, business_id uuid, revoked_at timestamptz, expires_at timestamptz);
     CREATE TABLE public.jobs (
       id uuid PRIMARY KEY, job_number text, stage public.job_stage, next_action text,
       eligibility_outcome public.eligibility_outcome, life_support boolean, last_activity_at timestamptz, created_at timestamptz, hold_reason text,
       property_id uuid, owner_id uuid, channel public.job_channel, commercial_model text,
       originating_installer_user_id uuid, originating_installer_business_id uuid, source text,
-      eligibility_review_required boolean, eligibility_flags text[], deleted_at timestamptz
+      eligibility_review_required boolean, eligibility_flags text[], deleted_at timestamptz, qa_archived_at timestamptz
     );
     CREATE TABLE public.job_assignments (job_id uuid, user_id uuid, business_id uuid, active boolean, role public.assignment_role);
     CREATE TABLE public.job_piesa_deadlines (job_id uuid, piesa_date date, install_deadline date, days_remaining integer, urgency text, piesa_expired boolean);
@@ -81,6 +81,23 @@ export async function jobOverviewAuthorityDb() {
     if (!source || !name) throw new Error("Missing function input");
     await db.exec(functionSql(source, name));
   }
+  const qaScope = read("drizzle/migrations/0173_qa_office_job_scope.sql");
+  for (const [source, name] of [
+    [read("drizzle/migrations/0172_qa_office_foundation.sql"), "is_qa_office"],
+    [qaScope, "qa_office_reserved_email"], [qaScope, "qa_office_business_allowed"], [qaScope, "qa_office_job_allowed"],
+  ]) {
+    if (!source || !name) throw new Error("Missing TEST-office function input");
+    await db.exec(functionSql(source, name));
+  }
+  // Existing callers retain the original fixture visibility. TEST office gets job
+  // visibility only through the real scoped helper, never can_access_job or admin.
+  await db.exec(`
+    ALTER TABLE public.jobs ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY ordinary_fixture_read ON public.jobs FOR SELECT TO authenticated
+      USING (NOT (SELECT public.is_qa_office()));
+    CREATE POLICY qa_office_read ON public.jobs FOR SELECT TO authenticated
+      USING ((SELECT public.is_qa_office()) AND (SELECT public.qa_office_job_allowed(id)));
+  `);
   // Extract the exact authority RLS policies from the existing migration, rather than granting trades artificial visibility.
   const policiesStart = authorityMigration.indexOf("alter table public.owner_authorities enable row level security;");
   const policiesEnd = authorityMigration.indexOf("-- Immutability:", policiesStart);
@@ -93,10 +110,11 @@ export async function jobOverviewAuthorityDb() {
     GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public, auth TO authenticated, anon, service_role;
     GRANT SELECT ON ALL TABLES IN SCHEMA public TO authenticated;
     GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
-    INSERT INTO user_roles VALUES ('${CALLERS.admin}','admin'),('${CALLERS.installer}','installer'),('${CALLERS.electrician}','electrician'),('${CALLERS.owner}','owner');
-    INSERT INTO owners VALUES ('${CALLERS.owner}','${CALLERS.owner}','Practice Owner',null,null);
-    INSERT INTO properties VALUES ('${CALLERS.owner}','Practice address','Melbourne','VIC','3000');
-    INSERT INTO profiles (id, full_name) VALUES ('${CALLERS.installer}','Practice Installer'),('${CALLERS.electrician}','Practice Electrician');
+    INSERT INTO user_roles VALUES ('${CALLERS.admin}','admin'),('${CALLERS.installer}','installer'),('${CALLERS.electrician}','electrician'),('${CALLERS.owner}','owner'),('${CALLERS.qa_office}','qa_office');
+    INSERT INTO auth.users VALUES ('${CALLERS.qa_office}','office@hivic-test.example',now());
+    INSERT INTO owners VALUES ('${CALLERS.owner}','${CALLERS.owner}','Practice Owner',null,'owner@hivic-test.example');
+    INSERT INTO properties (id,address_line,suburb,state,postcode,owner_id) VALUES ('${CALLERS.owner}','Practice address','Melbourne','VIC','3000','${CALLERS.owner}');
+    INSERT INTO profiles (id, full_name, email) VALUES ('${CALLERS.installer}','Practice Installer','installer@hivic-test.example'),('${CALLERS.electrician}','Practice Electrician','electrician@hivic-test.example'),('${CALLERS.owner}','Practice Owner','owner@hivic-test.example');
   `);
   const cases = ["none", "requested", "accepted", "expired", "versions", "null-expiry"];
   for (const [index, label] of cases.entries()) {
