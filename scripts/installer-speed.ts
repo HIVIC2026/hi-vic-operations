@@ -1,13 +1,15 @@
-// Installer screens timing:  bun scripts/installer-speed.ts --base <url> --label <before|after-<screen>|after> [--screens home,job,day,business,money]
+// Installer screens timing:  bun scripts/installer-speed.ts --base <url> --label <before|after-<screen>|after> [--screens home,job,day,business,money] [--warm]
 // READ-ONLY. Signs in as the TEST business owner and a TEST staff login, finds one active qa_test job on the TEST business,
 // has a throttled phone browser (e2e/installer-speed/time.py) open each installer screen 5 times, and writes the table to
 // qa/installer-speed/<date>-<label>.md. No inserts, updates, sends, Mitti or Xero. Needs SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY and the server key.
 import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { ALL_SCREENS, formatTable, parseArgs, reportFileName, summariseRuns, type Run } from "./installer-speed.core";
+import { ALL_SCREENS, formatColdWarmTable, formatTable, parseArgs, reportFileName, summariseRuns, type Run } from "./installer-speed.core";
 
-const HELP = `Usage: bun scripts/installer-speed.ts --base <url> --label <before|after-<screen>|after> [--screens ${ALL_SCREENS.join(",")}]
+const HELP = `Usage: bun scripts/installer-speed.ts --base <url> --label <before|after-<screen>|after> [--screens ${ALL_SCREENS.join(",")}] [--warm]
 Read-only timing of the installer screens on a throttled phone (390x844, 4G-like). Writes qa/installer-speed/<date>-<label>.md.
+--warm also times "daily use": each run first opens the screen once in the same browser (fills the HTTP cache and the
+phone's last copy), then times a fresh page of that browser. Cold and warm are reported side by side.
 Needs SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY and the server key in the environment (runs in Lovable).`;
 
 if (process.argv.includes("--help") || process.argv.includes("-h")) { console.log(HELP); process.exit(0); }
@@ -67,11 +69,11 @@ mkdirSync(work, { recursive: true });
 const manifest = `${work}/manifest.json`;
 const resultPath = `${work}/result.json`;
 writeFileSync(manifest, JSON.stringify({
-  base: args.base, screens: args.screens, jobId: picked?.jobId ?? "", staffAssigned: picked?.staffAssigned ?? false, resultPath,
+  base: args.base, screens: args.screens, warm: args.warm, jobId: picked?.jobId ?? "", staffAssigned: picked?.staffAssigned ?? false, resultPath,
   storageKey: `sb-${process.env["SUPABASE_PROJECT_ID"] ?? "wvuffpykgnqliikhodzl"}-auth-token`, sessions,
 }), { mode: 0o600 });
 
-console.log(`Timing ${args.screens.join(", ")} on ${args.base} (5 cold loads each, owner and staff)...`);
+console.log(`Timing ${args.screens.join(", ")} on ${args.base} (5 cold loads each${args.warm ? " plus 5 warm" : ""}, owner and staff)...`);
 let py;
 try {
   py = spawnSync("python3", [new URL("../e2e/installer-speed/time.py", import.meta.url).pathname, manifest], { encoding: "utf8", stdio: ["ignore", "inherit", "inherit"], timeout: 60 * 60_000 });
@@ -80,9 +82,14 @@ try {
 }
 if (py.status !== 0) { console.error("The browser timing run failed."); process.exit(1); }
 
-const results = JSON.parse(readFileSync(resultPath, "utf8")) as { screen: string; role: string; runs: Run[] }[];
-const table = formatTable(results.map((r) => summariseRuns(r.screen, r.role, r.runs)));
+const results = JSON.parse(readFileSync(resultPath, "utf8")) as { screen: string; role: string; runs: Run[]; warmRuns?: Run[] }[];
+const table = args.warm
+  ? formatColdWarmTable(results.map((r) => ({ cold: summariseRuns(r.screen, r.role, r.runs), warm: summariseRuns(r.screen, r.role, r.warmRuns ?? []) })))
+  : formatTable(results.map((r) => summariseRuns(r.screen, r.role, r.runs)));
+const how = args.warm
+  ? "5 cold loads and 5 warm loads per screen and role (warm: the screen was opened once in the same browser first, then timed in a fresh page)"
+  : "5 cold loads per screen and role";
 const file = reportFileName(date, args.label);
 mkdirSync("qa/installer-speed", { recursive: true });
-writeFileSync(file, `# Installer screens timing: ${args.label} (${date})\n\nBase: ${args.base}. Phone 390x844, throttled to 1.6 Mbps down / 750 kbps up / 150 ms delay. 5 cold loads per screen and role. Time is from opening the page until the screen's main content shows. Server calls are the \`/_serverFn/\` requests.\n\n${table}\n`);
+writeFileSync(file, `# Installer screens timing: ${args.label} (${date})\n\nBase: ${args.base}. Phone 390x844, throttled to 1.6 Mbps down / 750 kbps up / 150 ms delay. ${how}. Time is from opening the page until the screen's main content shows. Server calls are the \`/_serverFn/\` requests.\n\n${table}\n`);
 console.log("\n" + table + `\n\nWritten to ${file}`);

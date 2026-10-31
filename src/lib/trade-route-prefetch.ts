@@ -37,7 +37,9 @@ function sweep(now: number) {
 // Only the FIRST fetch for a key may take its head start. Query dispatches "fetch" before calling the queryFn (which
 // takes the entry), so when a fetch for that key finishes ("success"/"error", incl. setQueryData) and the entry is
 // still there, that fetch did not take it — drop it, so a later refetch (after an action, a poll) can never get an
-// answer from before.
+// answer from before. Any invalidation means something changed on the server (an action finished): every head start
+// was asked before that, so all are dropped and the screens ask afresh. (`useAction` also forgets them after each
+// action, for a target screen that has no Query entry yet and so gets no invalidate event.)
 const watched = new WeakSet<QueryClient>();
 function watch(qc: QueryClient) {
   if (watched.has(qc)) return;
@@ -45,7 +47,8 @@ function watch(qc: QueryClient) {
   qc.getQueryCache().subscribe((ev) => {
     if (ev.type !== "updated") return;
     const t = (ev.action as { type?: string }).type;
-    if (t === "success" || t === "error") early.delete(keyOf(ev.query.queryKey));
+    if (t === "invalidate") early.clear();
+    else if (t === "success" || t === "error") early.delete(keyOf(ev.query.queryKey));
   });
 }
 

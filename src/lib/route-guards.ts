@@ -15,8 +15,8 @@ type Memo<T> = { key: string; at: number; value: Promise<T> };
 type UserAnswer = Awaited<ReturnType<typeof supabase.auth.getUser>>;
 let userMemo: Memo<UserAnswer> | null = null;
 let accessMemo: Memo<Access> | null = null;
-// Set when the auth server refused a session this phone still holds (401/403): until the next auth change, the guard
-// asks the auth server first again, exactly as before, so that person is sent to /auth.
+// Set when the auth server refused a session this phone still holds (401/403). Normally the local sign-out and reload to
+// /auth follow at once; this only matters if they fail: the next guard check then asks the auth server first.
 let savedSessionRefused = false;
 export function forgetGuardMemo() { userMemo = null; accessMemo = null; savedSessionRefused = false; }
 if (typeof window !== "undefined") supabase.auth.onAuthStateChange((event) => { forgetGuardMemo(); if (event === "SIGNED_OUT") forgetHeadStarts(); });
@@ -67,10 +67,20 @@ function checkSavedSession() {
     if (!authServerRefused(r)) return; // signed in, or the network failed: the saved answer stands
     // The auth server refuses this phone's session (deleted, banned, revoked): sign out on this phone now, as the old
     // up-front check would have. SIGNED_OUT → the root invalidates the router → the signed-in guard sends them to /auth.
+    // Then a hard reload to /auth, like every other sign-out, so nothing of this person survives in memory.
     userMemo = null; accessMemo = null; savedSessionRefused = true;
     clearTradeCache(); forgetHeadStarts();
-    void supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
+    const back = () => reloadToAuth();
+    void supabase.auth.signOut({ scope: "local" }).then(back, back);
   }, () => undefined);
+}
+
+/** Full page load of /auth (fresh JS memory), coming back to this page after sign-in. */
+export function authReloadHref(loc: { pathname: string; search: string; hash: string }): string {
+  return `/auth?next=${encodeURIComponent(`${loc.pathname}${loc.search}${loc.hash}`)}`;
+}
+function reloadToAuth() {
+  try { window.location.replace(authReloadHref(window.location)); } catch { /* not in a browser */ }
 }
 
 /** The auth server's own answer (used where a page guard depends on email details, not just who is signed in). */

@@ -1,6 +1,8 @@
 """Browser half of the installer-screens timing tool. Reads the manifest written by scripts/installer-speed.ts.
 For each screen and role: 5 cold loads on a 390x844 phone throttled like 4G (1.6 Mbps down, 750 kbps up, 150 ms latency),
 timed from navigation start until the screen's main content is visible. Records every /_serverFn/ request and its duration.
+With "warm" in the manifest each run is also timed warm ("daily use"): the screen is opened once in the same browser
+context (filling its HTTP cache and the phone's last copy), then a fresh page of that context is timed the same way.
 Read-only: it only opens pages. Sessions are TEST accounts from the manifest, put in localStorage before the app loads."""
 import asyncio, json, sys, time
 from pathlib import Path
@@ -35,14 +37,19 @@ def refusal_expected(m, screen, role):
     return screen in ("job", "day") and not m.get("staffAssigned", False)
 
 
-async def one_run(browser, m, screen, role):
+async def new_context(browser, m, role):
     ctx = await browser.new_context(viewport={"width": 390, "height": 844})
+    sess = m["sessions"][role]
+    origin = "{u.scheme}://{u.netloc}".format(u=urlparse(m["base"]))
+    # Only the portal's own page gets the TEST token (not other origins or frames).
+    await ctx.add_init_script(f"try{{if(location.origin==={json.dumps(origin)})localStorage.setItem({json.dumps(m['storageKey'])},{json.dumps(json.dumps(sess))})}}catch(e){{}}")
+    return ctx
+
+
+async def timed_load(ctx, m, screen, role):
+    """Open the screen in a new page of ctx on the throttled phone and time it until its main content (or a refusal) shows."""
+    page = await ctx.new_page()
     try:
-        sess = m["sessions"][role]
-        origin = "{u.scheme}://{u.netloc}".format(u=urlparse(m["base"]))
-        # Only the portal's own page gets the TEST token (not other origins or frames).
-        await ctx.add_init_script(f"try{{if(location.origin==={json.dumps(origin)})localStorage.setItem({json.dumps(m['storageKey'])},{json.dumps(json.dumps(sess))})}}catch(e){{}}")
-        page = await ctx.new_page()
         page.set_default_timeout(45000)
         cdp = await ctx.new_cdp_session(page)
         await cdp.send("Network.enable")
@@ -72,10 +79,32 @@ async def one_run(browser, m, screen, role):
             text = (await page.locator(REFUSAL).first.inner_text())[:120]
             return {"ms": ms, "calls": calls, "error": f"unexpected refusal: {text}"}
         return {"ms": ms, "calls": calls}
+    finally:
+        await page.close()
+
+
+async def one_run(browser, m, screen, role, warm=False):
+    """Cold: a brand-new browser context. Warm: open the screen once in the context first, then time a fresh page of it."""
+    ctx = await new_context(browser, m, role)
+    try:
+        if warm:
+            first = await timed_load(ctx, m, screen, role)  # fills the HTTP cache and the phone's last copy; not reported
+            if first.get("error"):
+                return {"ms": 0, "calls": [], "error": f"warm-up: {first['error']}"}
+        return await timed_load(ctx, m, screen, role)
     except Exception as e:  # a timeout or crash is a failed run, reported as such
         return {"ms": 0, "calls": [], "error": f"{type(e).__name__}: {str(e)[:100]}"}
     finally:
         await ctx.close()
+
+
+async def runs_for(browser, m, screen, role, warm):
+    runs = []
+    for _ in range(RUNS):
+        runs.append(await one_run(browser, m, screen, role, warm))
+        if runs[-1].get("error"):
+            break  # no point repeating a broken page
+    return runs
 
 
 async def main(manifest_path):
@@ -85,13 +114,14 @@ async def main(manifest_path):
         browser = await p.chromium.launch(headless=True)
         for screen in m["screens"]:
             for role in ("owner", "staff"):
-                runs = []
-                for _ in range(RUNS):
-                    runs.append(await one_run(browser, m, screen, role))
-                    if runs[-1].get("error"):
-                        break  # no point repeating a broken page
-                results.append({"screen": screen, "role": role, "runs": runs})
-                print(f"{screen}/{role}: " + ", ".join(str(r["ms"]) for r in runs), flush=True)
+                runs = await runs_for(browser, m, screen, role, False)
+                row = {"screen": screen, "role": role, "runs": runs}
+                line = f"{screen}/{role}: " + ", ".join(str(r["ms"]) for r in runs)
+                if m.get("warm"):
+                    row["warmRuns"] = await runs_for(browser, m, screen, role, True)
+                    line += " | warm: " + ", ".join(str(r["ms"]) for r in row["warmRuns"])
+                results.append(row)
+                print(line, flush=True)
         await browser.close()
     Path(m["resultPath"]).write_text(json.dumps(results))
 

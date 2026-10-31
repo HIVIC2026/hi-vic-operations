@@ -40,6 +40,8 @@ const auth = { getSession: 0, getUser: 0, signOut: [] as unknown[] };
 let authListener: ((event: string) => void) | null = null;
 // The guards register their auth-change listener only in a browser.
 (globalThis as { window?: unknown }).window ??= globalThis;
+const replaced: string[] = [];
+(globalThis as { location?: unknown }).location = { pathname: "/field", search: "", hash: "", origin: "https://p.test", replace: (u: string) => void replaced.push(u) };
 let roleRows: () => Promise<{ data: { role: string }[] | null }> = async () => ({ data: [{ role: "installer" }] });
 const rows = (p: () => Promise<unknown>) => { const c: Record<string, unknown> = {}; c.select = () => c; c.eq = () => c; c.then = (ok: (v: unknown) => unknown, bad?: (e: unknown) => unknown) => p().then(ok, bad); return c; };
 mock.module("@/integrations/supabase/client", () => ({
@@ -66,7 +68,7 @@ const tick = () => new Promise((r) => setTimeout(r, 0));
 beforeEach(() => {
   calls.length = 0; mem.clear(); resetTradeCacheSignOut(); pre.forgetHeadStarts(); guards.forgetGuardMemo();
   answer = async (name) => ({ from: name });
-  session = null; auth.getSession = 0; auth.getUser = 0; auth.signOut = [];
+  session = null; auth.getSession = 0; auth.getUser = 0; auth.signOut = []; replaced.length = 0;
   networkUser = async () => ({ data: { user: null }, error: { name: "AuthSessionMissingError", status: 400 } });
   roleRows = async () => ({ data: [{ role: "installer" }] });
 });
@@ -267,7 +269,9 @@ describe("screen-only sign-in guard prefers the saved session", () => {
     expect(auth.signOut).toEqual([{ scope: "local" }]);
     expect(readTradeCache(UID, "home")).toBeNull();
     expect(await pre.headStartOr(UID, ["trade-home"], async () => "own")).toBe("own");
-    // and the signed-in guard now sends them to /auth
+    // then a full reload of /auth (nothing of this person survives in memory), coming back here after sign-in
+    expect(replaced).toEqual(["/auth?next=%2Ffield"]);
+    // and the signed-in guard sends them to /auth too
     const R = (await import("../src/routes/_authenticated/route")).Route as unknown as { options: { beforeLoad: (a: unknown) => Promise<unknown> } };
     const thrown = await R.options.beforeLoad({ location: { href: "/field" } }).then(() => null, (e: unknown) => e);
     expect(thrown).toEqual({ redirect: { to: "/auth", search: { next: "/field" } } });
@@ -294,6 +298,7 @@ describe("screen-only sign-in guard prefers the saved session", () => {
     await tick(); await tick();
     expect((await guards.currentUser()).data.user?.id).toBe(UID);
     expect(auth.signOut).toEqual([]);
+    expect(replaced).toEqual([]);
   });
 });
 
@@ -368,5 +373,70 @@ describe("source pins: every listed route declares the loader for its own screen
     expect(src.indexOf("startTradeScreenForPath(")).toBeLessThan(src.indexOf("await loadAccess("));
     expect(src).toContain("startTradeScreenForPath(context, location.pathname, preload)");
     expect(src).toContain("if (!(a.admin || a.installer || a.electrician)) throw redirect({ to: \"/home\" });");
+  });
+});
+
+describe("sign-out clears everything of the signed-out person in this tab (no cross-user answers)", () => {
+  const B = "00000000-0000-4000-8000-0000000000b2";
+  test("SIGNED_OUT: no query data remains, last copies and head starts are gone, and the next person's first render has none of it", async () => {
+    const { refreshForAuthChange } = await import("../src/lib/auth-change");
+    const qc = new QueryClient();
+    qc.setQueryData(["trade-home"], { jobs: ["A's job"] });
+    qc.setQueryData(["trade-job-bundle", JOB], { overview: { owner: "A's owner" } });
+    writeTradeCache(UID, "home", { jobs: ["A's job"] });
+    pre.startTradeScreen(ctx(qc), "money", {}, false);
+    let invalidated = 0;
+    refreshForAuthChange("SIGNED_OUT", { invalidate: () => { invalidated++; } }, qc);
+    expect(qc.getQueryCache().getAll()).toEqual([]);
+    expect(readTradeCache(UID, "home")).toBeNull();
+    expect(await pre.headStartOr(UID, ["trade-money-v2"], async () => "own")).toBe("own");
+    expect(invalidated).toBe(1);
+    // B signs in in the same tab (no reload): B's home screen starts with nothing from A
+    const obs = new QueryObserver(qc, { queryKey: ["trade-home"], queryFn: async () => ({ jobs: ["B's job"] }), enabled: false });
+    expect(obs.getCurrentResult().data).toBeUndefined();
+    expect(qc.getQueryData(["trade-job-bundle", JOB])).toBeUndefined();
+    void B;
+  });
+  test("SIGNED_IN / USER_UPDATED keep today's refresh: router invalidated and every query invalidated, nothing cleared", async () => {
+    const { refreshForAuthChange } = await import("../src/lib/auth-change");
+    const qc = new QueryClient();
+    qc.setQueryData(["me"], { id: UID });
+    let invalidated = 0;
+    refreshForAuthChange("SIGNED_IN", { invalidate: () => { invalidated++; } }, qc);
+    expect(invalidated).toBe(1);
+    expect(qc.getQueryData(["me"])).toEqual({ id: UID });
+    expect(qc.getQueryState(["me"])?.isInvalidated).toBe(true);
+    refreshForAuthChange("TOKEN_REFRESHED", { invalidate: () => { invalidated++; } }, qc);
+    expect(invalidated).toBe(1);
+  });
+  test("the root listener uses it", () => {
+    const src = readFileSync("src/routes/__root.tsx", "utf8");
+    expect(src).toContain("refreshForAuthChange(event, router, queryClient)");
+  });
+});
+
+describe("a head start asked before an action is never shown after it", () => {
+  test("an invalidation (an action finished) drops every head start, even with the target screen not showing", async () => {
+    const qc = new QueryClient();
+    setSystemTime(new Date("2026-10-31T00:00:00Z"));
+    qc.setQueryData(["trade-home"], { before: true });
+    setSystemTime(new Date(Date.parse("2026-10-31T00:00:00Z") + 30_000)); // stale: the screen will ask on mount
+    pre.startTradeScreen(ctx(qc), "home", {}, false);
+    expect(calls.length).toBe(1);
+    await qc.invalidateQueries(); // useAction after the action returns
+    expect(await pre.headStartOr(UID, ["trade-home"], async () => "fresh after the action")).toBe("fresh after the action");
+  });
+  test("an invalidation of any other query also drops it (the target screen has no entry yet)", async () => {
+    const qc = new QueryClient();
+    qc.setQueryData(["job", JOB], { x: 1 });
+    pre.startTradeScreen(ctx(qc), "day", { jobId: JOB }, false);
+    await qc.invalidateQueries({ queryKey: ["job", JOB] });
+    expect(await pre.headStartOr(UID, ["trade-day", JOB], async () => "own")).toBe("own");
+  });
+  test("useAction forgets head starts after every action, success or failure", () => {
+    const src = readFileSync("src/hooks/use-me.ts", "utf8");
+    const body = src.slice(src.indexOf("export function useAction"), src.indexOf("export function useAccess"));
+    expect(body.indexOf("forgetHeadStarts();")).toBeGreaterThan(body.indexOf("await call({ data })"));
+    expect(body.indexOf("forgetHeadStarts();", body.indexOf("catch (e)"))).toBeGreaterThan(-1);
   });
 });

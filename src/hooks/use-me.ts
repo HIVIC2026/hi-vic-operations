@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { currentUser } from "@/lib/route-guards";
 import { readMyProfile, type ProfileClient } from "@/lib/my-profile";
 import { markOfficeChanged } from "@/lib/office-list-refresh";
+import { forgetHeadStarts } from "@/lib/trade-route-prefetch";
 
 export type AppRole = "admin" | "qa_office" | "electrician" | "installer" | "owner" | "property_manager";
 
@@ -33,11 +34,13 @@ export function useAction<TIn, TOut>(fn: (opts: { data: TIn }) => Promise<TOut>,
   return async (data: TIn, success?: string): Promise<TOut | undefined> => {
     try {
       const out = await call({ data });
+      forgetHeadStarts(); // a screen call started before this action must not be shown after it (trade-route-prefetch)
       markOfficeChanged(); // decision 383: the office lists work themselves out fresh on their next read
       if (success) toast.success(success);
       if (options?.refresh !== false) await qc.invalidateQueries();
       return out;
     } catch (e) {
+      forgetHeadStarts(); // a failed action may still have changed something: screens ask afresh
       // Blocked/failed actions are expected (workflow gates): show them, never crash the page.
       toast.error(e instanceof Error ? e.message : "Something went wrong");
       return undefined;

@@ -4,6 +4,7 @@ import { useEffect, type ReactNode } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { FileViewerHost } from "@/components/portal/file-viewer";
 import { supabase } from "@/integrations/supabase/client";
+import { refreshForAuthChange } from "@/lib/auth-change";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -113,9 +114,7 @@ function RootComponent() {
       const path = window.location.pathname;
       if (event === "PASSWORD_RECOVERY" && path !== "/reset-password") { window.location.replace("/reset-password?next=/portal"); return; }
       if (event === "SIGNED_IN" && ARRIVED_WITH_AUTH && (path === "/" || path === "/calculator")) { window.location.replace("/portal"); return; }
-      if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
-      router.invalidate();
-      if (event !== "SIGNED_OUT") queryClient.invalidateQueries();
+      refreshForAuthChange(event, router, queryClient); // SIGNED_OUT also clears every in-memory answer (auth-change.ts)
     });
     return () => data.subscription.unsubscribe();
   }, [router, queryClient]);
