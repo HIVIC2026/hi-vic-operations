@@ -8,6 +8,7 @@
 // contactAnswersFromEntries, ready-check-basics, the chase rules) read the portal price FIRST and fall back to the Mitti
 // answers only on old forms that still carry them. No I/O.
 import { ELECTRICIAN_OPTIONS, INCLUDED_OPTIONS, LEAN_Q } from "./ready-check-lean.core";
+import { insulationProduct } from "./insulation-product.core";
 import type { ElectricianChoice } from "./electrician-choice.core";
 
 export const INSTALLER_PRICE_EVENT = "installer_price_set";
@@ -29,6 +30,9 @@ export type InstallerPriceInput = {
   /** Jo 27 Oct 2026: does the current Ready Check say removal is needed? false = it positively says none, so the
    *  "Removal of existing insulation" tick is refused. true/null/undefined = allowed (nothing changes). */
   removalRequired?: boolean | null;
+  /** Jo 31 Oct 2026: the boss's product (an APPROVED_PRODUCTS label) and office-only notes. Both optional. */
+  productOption?: string | null;
+  notes?: string | null;
 };
 /** Legacy electrician block on records saved before 25 Oct 2026 (decision 289); new records store null. */
 export type LegacyPriceElectrician = { choice: PriceElectricianChoice; name: string | null; licence: string | null; price_inc_gst: number | null };
@@ -38,6 +42,10 @@ export type InstallerPriceRecord = {
   included: string[];
   included_other: string | null;
   electrician: LegacyPriceElectrician | null;
+  /** Canonical approved product label, or null (records before 31 Oct 2026 read null, never guessed). */
+  product_option: string | null;
+  /** Office-only notes (trimmed, max 1,000 chars), never sent into the form snapshot. */
+  notes: string | null;
 };
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -57,7 +65,10 @@ export const PRICE_ISSUES = {
   other: "Say what else is included.",
   // Jo 27 Oct 2026 (exact wording, shown under the tickbox and refused by the server check alike).
   noRemoval: "Your Ready Check in Mitti says there's no removal on this job. If there is, add the removal area to the Mitti form first, then you can include it here.",
+  product: "Pick a product from the list.",
+  notes: "Keep notes under 1,000 characters.",
 } as const;
+export const NOTES_MAX = 1000;
 
 /** Fails closed: any issue = nothing saved. Price + what is included only (decision 289). */
 export function validateInstallerPrice(i: InstallerPriceInput): { ok: boolean; issues: string[]; record: InstallerPriceRecord | null } {
@@ -75,8 +86,13 @@ export function validateInstallerPrice(i: InstallerPriceInput): { ok: boolean; i
   if (included.includes("Other") && !other) issues.push(PRICE_ISSUES.other);
   // Jo 27 Oct 2026: the Ready Check positively says no removal → the removal tick is refused (server-side, not only the screen).
   if (i.removalRequired === false && included.includes(INCLUDED_REMOVAL)) issues.push(PRICE_ISSUES.noRemoval);
+  const rawProduct = String(i.productOption ?? "").trim();
+  const product = rawProduct ? insulationProduct(rawProduct) : null;
+  if (rawProduct && !product) issues.push(PRICE_ISSUES.product);
+  const notes = String(i.notes ?? "").trim();
+  if (notes.length > NOTES_MAX) issues.push(PRICE_ISSUES.notes);
   if (issues.length || price == null) return { ok: false, issues, record: null };
-  return { ok: true, issues: [], record: { price_inc_gst: r2(price), included, included_other: included.includes("Other") ? other : null, electrician: null } };
+  return { ok: true, issues: [], record: { price_inc_gst: r2(price), included, included_other: included.includes("Other") ? other : null, product_option: product?.option ?? null, notes: notes || null, electrician: null } };
 }
 
 /** Reads a stored `installer_price_set` event's details back; anything malformed → null (never a guessed price).
@@ -91,13 +107,17 @@ export function installerPriceFromEvent(details: unknown): InstallerPriceRecord 
   const electrician: LegacyPriceElectrician | null = choice === "hivic" || choice === "usual" || choice === "different"
     ? { choice, name: e?.["name"] == null ? null : String(e["name"]), licence: e?.["licence"] == null ? null : String(e["licence"]), price_inc_gst: money(e?.["price_inc_gst"]) }
     : null;
-  return { price_inc_gst: r2(price), included: (d["included"] as unknown[]).map(String), included_other: d["included_other"] == null ? null : String(d["included_other"]), electrician };
+  const product = typeof d["product_option"] === "string" ? insulationProduct(d["product_option"]) : null;
+  const notes = typeof d["notes"] === "string" ? d["notes"].trim() : "";
+  return { price_inc_gst: r2(price), included: (d["included"] as unknown[]).map(String), included_other: d["included_other"] == null ? null : String(d["included_other"]), electrician, product_option: product?.option ?? null, notes: notes || null };
 }
 
 /** The labels the old A1 quote page used; the portal price replaces exactly these on the form snapshot. */
 export const PRICE_FORM_LABELS: readonly string[] = [LEAN_Q.included, "What's included in your quote?", "What's included in your price (tick all that apply)", LEAN_Q.includedOther, LEAN_Q.totalPrice, "Total quoted price $", LEAN_Q.electrician, LEAN_Q.electricianName, LEAN_Q.electricianLicence, LEAN_Q.electricianPrice];
 const PRICE_ONLY_LABELS: readonly string[] = [LEAN_Q.included, "What's included in your quote?", "What's included in your price (tick all that apply)", LEAN_Q.includedOther, LEAN_Q.totalPrice, "Total quoted price $"];
 const isPriceLabel = (label: unknown) => PRICE_FORM_LABELS.some((l) => nrm(l) === nrm(label));
+const PRODUCT_LABELS: readonly string[] = [LEAN_Q.product, "Insulation product"];
+const isProductLabel = (label: unknown) => PRODUCT_LABELS.some((l) => nrm(l) === nrm(label));
 const isPriceOnlyLabel = (label: unknown) => PRICE_ONLY_LABELS.some((l) => nrm(l) === nrm(label));
 
 /** The portal price expressed as the Mitti-labelled answers every reader already understands. A record without an
@@ -108,6 +128,7 @@ export function priceEntriesFromRecord(r: InstallerPriceRecord): { label: string
     { label: LEAN_Q.included, value: r.included.join(", ") },
     { label: LEAN_Q.includedOther, value: r.included_other },
     { label: LEAN_Q.totalPrice, value: String(r.price_inc_gst) },
+    ...(r.product_option ? [{ label: LEAN_Q.product, value: r.product_option }] : []),
     ...(e ? [{ label: LEAN_Q.electrician, value: ELECTRICIAN_CHOICE_LABEL[e.choice] }] : []),
     ...(e?.choice === "different" ? [{ label: LEAN_Q.electricianName, value: e.name }, { label: LEAN_Q.electricianLicence, value: e.licence }, { label: LEAN_Q.electricianPrice, value: e.price_inc_gst == null ? null : String(e.price_inc_gst) }] : []),
   ];
@@ -119,7 +140,7 @@ export function priceEntriesFromRecord(r: InstallerPriceRecord): { label: string
 export function withInstallerPrice<T extends { label: string; value: unknown }>(entries: T[], record: InstallerPriceRecord | null): (T | { label: string; value: string | null })[] {
   if (!record) return entries;
   const drop = record.electrician ? isPriceLabel : isPriceOnlyLabel;
-  return [...entries.filter((e) => !drop(e.label)), ...priceEntriesFromRecord(record)];
+  return [...entries.filter((e) => !drop(e.label) && !(record.product_option && isProductLabel(e.label))), ...priceEntriesFromRecord(record)];
 }
 
 /** Batch 3a: the form snapshot without an old A1 form's own price answers (after an owner's new-quote request). */
@@ -144,10 +165,12 @@ export function installerPriceState(i: { channel: string | null | undefined; rec
 
 const aud = (n: number) => `$${n.toLocaleString("en-AU", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`;
 /** Plain lines for the boss's "Your price" card (never shown to staff). Price + what is included (decision 289). */
-export function priceCardLines(r: InstallerPriceRecord): { price: string; included: string } {
+export function priceCardLines(r: InstallerPriceRecord): { price: string; included: string; product: string | null; notes: string | null } {
   return {
     price: `${aud(r.price_inc_gst)} inc GST`,
     included: r.included.map((x) => (x === "Other" && r.included_other ? `Other: ${r.included_other}` : x)).join(" · "),
+    product: r.product_option,
+    notes: r.notes,
   };
 }
 
@@ -181,3 +204,23 @@ export const HIV_SWITCH = {
   yes: "Yes, switch",
   refused: "This job can't be switched to Home Insulation Victoria's electrician.",
 } as const;
+
+/** Jo 31 Oct 2026: once the quote has gone to the owner the boss can't edit the card; the office reopens it with a new
+ *  quote request. Locked = a quote was sent and there is no newer new-quote request. */
+export const PRICE_LOCKED = "Quote sent — call the office to change this.";
+export function priceCardLocked(f: { quoteSentAt: string | null; newQuoteRequestedAt: string | null }): boolean {
+  if (!f.quoteSentAt) return false;
+  if (!f.newQuoteRequestedAt) return true;
+  // Only a request strictly after the send unlocks; anything unreadable stays locked (fail closed).
+  return !(Date.parse(f.newQuoteRequestedAt) > Date.parse(f.quoteSentAt));
+}
+
+/** The office-only history line for a saved price. A product note appears only when the boss picked a product that
+ *  differs from the one in force before (their previous pick, else Mitti's, else none). */
+export function priceEventSummary(f: { record: InstallerPriceRecord; previousProduct: string | null }): string {
+  const r = f.record;
+  const parts = [`Price entered by the business owner: $${r.price_inc_gst.toLocaleString("en-AU")} inc GST`];
+  if (r.product_option && r.product_option !== (f.previousProduct ?? "none")) parts.push(`Product changed from ${f.previousProduct ?? "none"} to ${r.product_option}`);
+  if (r.notes) parts.push(`Notes: ${r.notes}`);
+  return parts.join(" · ");
+}

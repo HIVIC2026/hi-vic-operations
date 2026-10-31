@@ -6,8 +6,8 @@
 // Decision 290 (corrected): the card shows the Ready Check's access rating and issue notes as the flag (no fee question).
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
-import { HIV_SWITCH, INSTALLER_PRICE_EVENT, hivSwitchOffered, priceFromPortal, validateInstallerPrice, type InstallerPriceInput } from "./installer-price.core";
-import { readInstallerPrice, type StoredInstallerPrice } from "./installer-price.server";
+import { HIV_SWITCH, INSTALLER_PRICE_EVENT, PRICE_LOCKED, hivSwitchOffered, priceCardLocked, priceEventSummary, priceFromPortal, validateInstallerPrice, type InstallerPriceInput } from "./installer-price.core";
+import { readInstallerPriceState, type StoredInstallerPrice } from "./installer-price.server";
 import { early } from "./early-read";
 // Namespaces: tests replace these modules with partial mocks; a namespace never fails on a missing export.
 import * as pilotServer from "./pilot.server";
@@ -15,6 +15,13 @@ import * as usualElectricianServer from "./usual-electrician.server";
 import * as electricianChoiceServer from "./electrician-choice.server";
 import * as quoteStatusServer from "./installer-quote-status.server";
 const loadInstallerQuote = (jobId: string) => quoteStatusServer.loadInstallerQuote(jobId);
+
+/** Newest sent_at across ALL the job's installation quotes (a later unsent draft must not unlock the card). Throws on a read error: fail closed. */
+export async function latestQuoteSentAt(jobId: string): Promise<string | null> {
+  const { data, error } = await admin.from("quotes").select("sent_at").eq("job_id", jobId).eq("kind", "installation").not("sent_at", "is", null).order("sent_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new WorkflowError("The quote status could not be read.");
+  return (data?.sent_at as string | null | undefined) ?? null;
+}
 
 async function a1JobOrThrow(jobId: string) {
   const { data: j, error } = await admin.from("jobs").select("id, channel, originating_installer_business_id, stage, deleted_at").eq("id", jobId).maybeSingle();
@@ -44,15 +51,17 @@ export async function installerPriceView(jobId: string, userId: string) {
   // business-owner checks pass, in the same order as before (a refused caller gets null; read errors surface as before).
   const jobP = early(admin.from("jobs").select("channel, originating_installer_business_id, properties(address_line,suburb,state,postcode)").eq("id", jobId).maybeSingle());
   const mineP = early(pilotServer.myBusinesses(userId));
-  const storedP = early(readInstallerPrice(jobId));
+  const stateP = early(readInstallerPriceState(jobId));
   const usualP = early(jobP.then(({ data: jj }) => jj?.originating_installer_business_id ? usualElectricianServer.readUsualElectrician(jj.originating_installer_business_id).catch(() => ({ electrician: null })) : { electrician: null }));
   const recordedP = early(electricianChoiceServer.readElectricianChoice(jobId).catch(() => null));
   const readyCheckP = early(currentReadyCheck(jobId).catch(() => ({ entries: [] as { label: string; value: string | null }[], removalRequired: null, hasReadyCheck: false, installAreaM2: null, removalM2: null })));
   const quoteP = early(loadInstallerQuote(jobId));
+  const sentAtP = early(latestQuoteSentAt(jobId).then((at) => ({ at, failed: false }), () => ({ at: null as string | null, failed: true })));
   const { data: j } = await jobP;
   if (!j || !priceFromPortal(j.channel) || !j.originating_installer_business_id) return null;
   if ((await mineP).get(j.originating_installer_business_id) !== "business_admin") return null;
-  const [stored, usual, recorded, readyCheck] = await Promise.all([storedP, usualP, recordedP, readyCheckP]);
+  const [state, usual, recorded, readyCheck] = await Promise.all([stateP, usualP, recordedP, readyCheckP]);
+  const stored = state.stored;
   const { entries, removalRequired } = readyCheck;
   const { resolveElectricianChoice, electricianChoiceLine } = await import("./electrician-choice.core");
   const { contactAnswersFromEntries } = await import("./mitti.core");
@@ -67,7 +76,11 @@ export async function installerPriceView(jobId: string, userId: string) {
   const { formatPropertyAddress } = await import("./address");
   const product = resolveMittiProduct(contactAnswersFromEntries(entries).productOption).product;
   const address = formatPropertyAddress(j.properties);
-  const held = (await quoteP).electricianNotOnboarded === true;
+  const quote = await quoteP;
+  const held = quote.electricianNotOnboarded === true;
+  const sent = await sentAtP;
+  const locked = sent.failed || priceCardLocked({ quoteSentAt: sent.at, newQuoteRequestedAt: state.newQuoteRequestedAt });
+  const { APPROVED_PRODUCTS } = await import("./insulation-product.core");
   let hivSwitch: { priceIncGst: number } | null = null;
   if (hivSwitchOffered({ quoteHeldNotOnboarded: held, choice: choice === "hivic" ? "hivic" : "usual" })) {
     const { data: rs } = await admin.from("retail_estimator_settings").select("piesa_assessment_inc_gst").eq("is_current", true).maybeSingle();
@@ -75,6 +88,9 @@ export async function installerPriceView(jobId: string, userId: string) {
   }
   return {
     canSet: true as const, current: stored,
+    locked,
+    productOptions: APPROVED_PRODUCTS.map((p) => p.option),
+    mittiProduct: product?.option ?? null,
     hivSwitch,
     electrician: electricianChoiceLine(choice, usual.electrician, stored?.record.electrician?.name ?? contactAnswersFromEntries(entries).electricianName),
     access,
@@ -105,12 +121,20 @@ export async function setInstallerPrice(jobId: string, userId: string, input: In
   const j = await a1JobOrThrow(jobId);
   const { requireMember } = await import("./pilot.server");
   await requireMember(userId, j.originating_installer_business_id, true);
+  // Jo 31 Oct 2026: once the quote has gone to the owner the card is locked (the office reopens it with a new-quote request). Checked before any write.
+  const [state, quoteSentAt] = await Promise.all([readInstallerPriceState(jobId), latestQuoteSentAt(jobId)]);
+  if (priceCardLocked({ quoteSentAt, newQuoteRequestedAt: state.newQuoteRequestedAt })) throw new WorkflowError(PRICE_LOCKED);
   // Jo 27 Oct 2026: the server refuses the removal tick when the current Ready Check says there is no removal.
-  const { removalRequired } = await currentReadyCheck(jobId).catch(() => ({ entries: [] as { label: string; value: string | null }[], removalRequired: null, hasReadyCheck: false, installAreaM2: null, removalM2: null }));
+  const rc = await currentReadyCheck(jobId).catch(() => ({ entries: [] as { label: string; value: string | null }[], removalRequired: null, hasReadyCheck: false, installAreaM2: null, removalM2: null }));
+  const { removalRequired } = rc;
   const v = validateInstallerPrice({ ...input, removalRequired });
   if (!v.ok || !v.record) throw new WorkflowError(v.issues.join(" "));
-  await logEvent(jobId, userId, INSTALLER_PRICE_EVENT, `Price entered by the business owner: $${v.record.price_inc_gst.toLocaleString("en-AU")} inc GST`, { ...v.record, business_id: j.originating_installer_business_id, set_by: userId, declared_not_verified: true }, { internal: true });
-  const stored = await readInstallerPrice(jobId);
+  // Product in force before this save: the boss's previous pick, else Mitti's own product, else none.
+  const { resolveMittiProduct } = await import("./insulation-product.core");
+  const { contactAnswersFromEntries } = await import("./mitti.core");
+  const previousProduct = state.stored?.record.product_option ?? resolveMittiProduct(contactAnswersFromEntries(rc.entries).productOption).product?.option ?? null;
+  await logEvent(jobId, userId, INSTALLER_PRICE_EVENT, priceEventSummary({ record: v.record, previousProduct }), { ...v.record, business_id: j.originating_installer_business_id, set_by: userId, declared_not_verified: true }, { internal: true });
+  const stored = (await readInstallerPriceState(jobId)).stored;
   if (!stored) throw new WorkflowError("The price was not saved.");
   await prepareQuoteFromPortal(jobId, userId);
   return stored;

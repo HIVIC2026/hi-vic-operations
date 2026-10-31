@@ -109,7 +109,7 @@ export function ownerReadyLine(f: OwnerReadyFacts | null | undefined): OwnerRead
 
 const READY_CHECK_STAGES = ["ready_check_ready_to_schedule", "ready_check_scheduled", "preliminary_estimate_ready", "new_enquiry", "eligibility_review"];
 import { PRESS_COMPLETE_LINE, QUOTE_DECLINED_LINE, QUOTE_HELD_LINE, QUOTE_SENT_LINE } from "./installer-quote-status.core";
-import { isPriceNextAction } from "./ready-check-basics.core";
+import { BASIC_PRICE, isPriceNextAction } from "./ready-check-basics.core";
 import { OWNER_PIESA_CONFIRM_WAITING, FIXES_FORM_LINK_LABEL } from "./trade-shared-consts.core";
 import { PIESA_FULL } from "./job-wording";
 
@@ -419,6 +419,11 @@ export function payNote(f: { channel: string | null; areaM2: number | null; remo
   const area = f.areaM2 ? `${Number(f.areaM2)} m² measured at the Ready Check${f.removalM2 ? `, incl. ${Number(f.removalM2)} m² removal` : ""}` : "the area measured at the Ready Check";
   const when = f.channel === "installer_sourced" ? "Paid when the owner pays their balance." : "Paid within 7 days of our approval after the install.";
   return `Your agreed rates × ${area}. ${when}`;
+}
+
+/** Mitti "things missing": the price is entered on the portal card, never in Mitti, so it is not counted (decision 278). */
+export function mittiMissingCount(missing: string[], stops: string[]): number {
+  return missing.filter((m) => m !== BASIC_PRICE).length + stops.length;
 }
 
 /** Ready Check group rows. */
