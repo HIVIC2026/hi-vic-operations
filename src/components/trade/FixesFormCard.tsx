@@ -8,7 +8,7 @@ import { RefreshCw } from "lucide-react";
 import { MittiFormLink } from "@/components/portal/MittiFormLink";
 import { Button, Section } from "@/components/trade/trade-ui";
 import { getFixesForm, refreshFixesForm } from "@/lib/fixes-day.functions";
-import { FIXES_FORM_LINK_LABEL } from "@/lib/fixes-day.core";
+import { FIXES_FORM_LINK_LABEL } from "@/lib/trade-shared-consts.core";
 import { PIESA_FULL } from "@/lib/job-wording";
 
 export function FixesFormCard({ jobId, mittiInvited }: { jobId: string; mittiInvited: boolean }) {

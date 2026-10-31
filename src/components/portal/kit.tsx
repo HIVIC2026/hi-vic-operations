@@ -4,7 +4,7 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Link, type LinkProps } from "@tanstack/react-router";
 import { Plus, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { menuOffset } from "@/lib/portal-presentation.core";
+import { menuOffset } from "@/lib/trade-shared-consts.core";
 import { Button } from "@/components/ui/button";
 
 /* ---------- Page frame ---------- */

@@ -278,7 +278,7 @@ export function needsFinishingTask(nextAction: string | null | undefined): strin
 }
 
 // ---------- My business (approved mock-up M7, decision 204). PURE labels over recorded facts. ----------
-import { MIN_REC_PL_COVER } from "./rec-onboarding.core";
+import { MIN_REC_PL_COVER } from "./trade-shared-consts.core";
 import { isPriceNextAction } from "./ready-check-basics.core";
 import { crewClearance, CREW_CLEARANCE_REASON, WHITE_CARD_TEAM_LABEL, type WhiteCardState } from "./worker-compliance.core";
 import { PIESA_FULL } from "./job-wording";

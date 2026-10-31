@@ -29,6 +29,7 @@
 import { sha256Hex } from "./sha256.core";
 import type { PartnerBlock } from "./partner-email.core";
 import { effectiveWorkerRole } from "./worker-role.core";
+import { COLLECTION_NOTICE_BLOCK_MESSAGE } from "./trade-shared-consts.core";
 
 export const COLLECTION_NOTICE_TITLE = "VEU Scheme Participant Privacy Collection Notice";
 export const COLLECTION_NOTICE_VERSION = "1.0";
@@ -66,7 +67,7 @@ export const COLLECTION_NOTICE_SHA256 = sha256Hex(COLLECTION_NOTICE_TEXT);
 /** The ONE tick, exact wording (decision 130). */
 export const COLLECTION_NOTICE_ACK_TEXT = "I have read the Essential Services Commission's VEU Scheme Participant Privacy Collection Notice and understand my details may be disclosed to the commission and shared with the Energy Efficiency Council.";
 /** Plain message shown wherever an unacknowledged person is refused as lead or crew. */
-export const COLLECTION_NOTICE_BLOCK_MESSAGE = "ESC privacy collection notice not acknowledged — this person can't be listed as lead or crew until they open their link and acknowledge it.";
+export { COLLECTION_NOTICE_BLOCK_MESSAGE };
 
 export const COLLECTION_NOTICE_EVENT = "esc_collection_notice_acknowledged";
 export const COLLECTION_NOTICE_LINK_EVENT = "esc_collection_notice_link_issued";

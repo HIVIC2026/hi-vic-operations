@@ -1,5 +1,5 @@
 import type { AdminTab } from "./waiting.core";
-import { insulationDetailText, type InsulationDetail } from "./enquiry.core";
+import { insulationDetailText, type InsulationDetail } from "./trade-shared-consts.core";
 
 export type PortalTarget =
   | "people"
@@ -205,13 +205,7 @@ export function evidenceRowLabel(status: string, when: "current" | "future" | st
  * flipped to the button's end edge when it would run past the right of the viewport, then clamped so it keeps an
  * 8px gutter on both sides. A button at the left of a 390px phone screen and one at the right both show the whole menu.
  */
-export function menuOffset(i: { anchorLeft: number; anchorWidth: number; menuWidth: number; viewportWidth: number }, gutter = 8): number {
-  const w = Math.min(i.menuWidth, i.viewportWidth - 2 * gutter);
-  let left = 0;
-  if (i.anchorLeft + w > i.viewportWidth - gutter) left = i.anchorWidth - w;
-  if (i.anchorLeft + left < gutter) left = gutter - i.anchorLeft;
-  return Math.round(left);
-}
+export { menuOffset } from "./trade-shared-consts.core";
 
 const NO_OWNER_ANSWER = new Set(["Not answered / unknown", "Not asked (question retired)", "No owner answer stored here", "—", ""]);
 /** One eligibility line (Jo 27 Oct 2026: "messy and dumb" — no "Not answered" filler, and no "Pass" next to "office check

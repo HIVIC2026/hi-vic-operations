@@ -2,7 +2,7 @@
 // worker-links.functions.ts. Stored in the existing partner_workers.worker_role column ('lead' | 'crew' | null).
 // null = Lead (Jo 29 Oct); switching to Crew leaves Mitti alone. Only installers have a Lead/Crew role; electricians
 // keep their existing Mitti rules.
-export { CREW_SKIP as CREW_NO_MITTI } from "./mitti-invite.core";
+export { CREW_SKIP as CREW_NO_MITTI } from "./trade-shared-consts.core";
 
 export type WorkerRole = "lead" | "crew";
 export const WORKER_ROLE_LABEL: Record<WorkerRole, string> = { lead: "Lead", crew: "Crew" };

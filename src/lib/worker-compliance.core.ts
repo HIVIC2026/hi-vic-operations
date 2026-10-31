@@ -1,7 +1,7 @@
 // Worker compliance rules: electrician licence expiry + installer EEC/CII
 // certificate. PURE: no I/O. EEC status is office-verified only; a worker-uploaded file is "awaiting_check"
 // until the office verifies it (certification_status stays 'unverified' until then).
-import { COLLECTION_NOTICE_BLOCK_MESSAGE } from "./esc-collection-notice.core";
+import { COLLECTION_NOTICE_BLOCK_MESSAGE } from "./trade-shared-consts.core";
 
 export type WorkerCompliance = {
   trade_role: "electrician" | "installer" | string;

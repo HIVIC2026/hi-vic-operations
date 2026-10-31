@@ -4,6 +4,7 @@ import { licenceNumberProblem, recNumberProblem } from "./trade-numbers.core";
 // No I/O. Used by the public form (live validation) and the server (authoritative checks).
 import { REC_AGREEMENT_SECTIONS } from "./rec-agreement.text";
 import { activity48AgreementScheduleText } from "./activity48-agreement-schedule.text";
+import { MIN_REC_PL_COVER, isAustralianAddress, isVictorianAddress, keepPickedNumber, type ResolvedAddress } from "./trade-shared-consts.core";
 
 // 2.6 incorporates Guide V1.2 role-owned evidence and retention; commercial and electrical warranty terms unchanged.
 // Decision 397 (Jo 26 Oct 2026): back to 2.6 with Schedule 4; 2.3–2.5 stay activatable.
@@ -13,7 +14,7 @@ export const ACTIVATABLE_REC_VERSIONS: readonly string[] = ["HI-VIC-A48-REC-2.3-
 export const REC_AGREEMENT_TITLE = "Activity 48 Registered Electrical Contractor Partner Agreement";
 export const AP_ENTITY = "DC Construction Solutions Pty Ltd ABN 44 671 613 979 trading as Home Insulation Victoria";
 export const MIN_PL_COVER = 5_000_000;
-export const MIN_REC_PL_COVER = 5_000_000;
+export { MIN_REC_PL_COVER };
 
 export const ACKNOWLEDGEMENTS = [
   { key: "authority", text: "I am authorised to bind the REC to this agreement." },
@@ -60,10 +61,7 @@ export const RADII = [{ v: 25, l: "25 km" }, { v: 50, l: "50 km" }, { v: 75, l: 
 export const CAPACITY_BANDS = [{ v: "1-5", n: 5 }, { v: "6-10", n: 10 }, { v: "11-20", n: 20 }, { v: "20+", n: 25 }] as const;
 
 export type Electrician = { full_legal_name?: string; licence_number?: string; licence_expiry?: string; mobile?: string; email?: string };
-export type ResolvedAddress = {
-  label: string; street?: string | null; suburb?: string | null; postcode?: string | null;
-  state?: string | null; country: "AU"; provider: "google_places_au"; latitude?: number | null; longitude?: number | null;
-};
+export type { ResolvedAddress };
 export type CustomRectificationRate = { id: string; description: string; unit: string; price: number | null };
 export type RecData = {
   how_it_works_acknowledged?: boolean;
@@ -227,29 +225,7 @@ export function validBusinessEmail(e?: string) {
 }
 const txt = (s?: string) => (s ?? "").trim().length > 0;
 const pos = (n?: number | null) => typeof n === "number" && Number.isFinite(n) && n > 0 && n <= 100000;
-const stateCode = (state?: string | null) => (state ?? "").trim().toUpperCase();
-const AU_STATES = new Set(["ACT", "NSW", "NT", "QLD", "SA", "TAS", "VIC", "WA"]);
-export const isAustralianAddress = (address?: ResolvedAddress | null) => !!address && address.provider === "google_places_au" && address.country === "AU" && AU_STATES.has(stateCode(address.state)) && /^\d{4}$/.test(address.postcode ?? "");
-export const isVictorianAddress = (address?: ResolvedAddress | null) => isAustralianAddress(address) && ["VIC", "VICTORIA"].includes(stateCode(address?.state));
-/**
- * The address lookup sometimes returns details without the house/unit number
- * the chosen suggestion showed (e.g. "3/12 Smith St, …" → "Smith St, …").
- * Keep the number from the suggestion the person picked; never add one from free text.
- */
-const STREET_ABBR: Record<string, string> = { street: "st", road: "rd", avenue: "ave", drive: "dr", court: "ct", place: "pl", crescent: "cres", parade: "pde", highway: "hwy", boulevard: "blvd", terrace: "tce", lane: "ln", close: "cl", grove: "gr", circuit: "cct", square: "sq" };
-const normStreet = (v: string) => v.toLowerCase().replace(/[.]/g, "").split(/\s+/).filter(Boolean).map((w) => STREET_ABBR[w] ?? w).join(" ");
-export function keepPickedNumber(suggestionLabel: string, details: ResolvedAddress): ResolvedAddress {
-  const pickedFirst = (suggestionLabel.split(",")[0] ?? "").trim();
-  const detailFirst = (details.label.split(",")[0] ?? "").trim();
-  if (!pickedFirst || !detailFirst || /\d/.test(detailFirst)) return details;
-  const m = pickedFirst.match(/^((?:(?:unit|apt|shop|suite|level|lot)\s*)?\d[\w-]*(?:\s*\/\s*\d[\w-]*)?)\s+(.+)$/i);
-  if (!m) return details;
-  const prefix = m[1]!.trim();
-  if (normStreet(m[2]!) !== normStreet(detailFirst)) return details;
-  const label = `${prefix} ${details.label.trim()}`;
-  const street = details.street && !/\d/.test(details.street) ? `${prefix} ${details.street}` : details.street ?? null;
-  return { ...details, label, street };
-}
+export { isAustralianAddress, isVictorianAddress, keepPickedNumber };
 export const customRateCode = (id: string) => `CUSTOM_${id.replace(/[^A-Za-z0-9]/g, "").toUpperCase()}`.slice(0, 40);
 
 export const MAX_CUSTOM_RECT_ITEMS = 20;

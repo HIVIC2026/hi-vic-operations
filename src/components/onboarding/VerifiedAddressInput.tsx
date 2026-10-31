@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { defaultAddressProvider } from "@/lib/address-provider";
-import { isAustralianAddress, isVictorianAddress, keepPickedNumber, type ResolvedAddress } from "@/lib/rec-onboarding.core";
+import { isAustralianAddress, isVictorianAddress, keepPickedNumber, type ResolvedAddress } from "@/lib/trade-shared-consts.core";
 import type { AddressDetails, AddressSuggestion } from "@/lib/whatif-location";
 
 const DETAILS_TIMEOUT_MS = 10_000;

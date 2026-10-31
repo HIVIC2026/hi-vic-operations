@@ -9,7 +9,7 @@ import { RectPlanFields, rectPlanProblems, type RectPlan } from "@/components/po
 import { Button, Section } from "@/components/trade/trade-ui";
 import { useAction } from "@/hooks/use-me";
 import { getTradeFixesTimes, saveTradeFixesTimes } from "@/lib/trade-view.functions";
-import { FIXES_TIMES_ANCHOR } from "@/lib/fixes-times.core";
+import { FIXES_TIMES_ANCHOR } from "@/lib/trade-shared-consts.core";
 import { formatPiesaWindow } from "@/lib/piesa-windows.core";
 import { PIESA_FULL } from "@/lib/job-wording";
 

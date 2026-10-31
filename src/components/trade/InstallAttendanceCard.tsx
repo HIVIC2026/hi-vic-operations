@@ -8,7 +8,7 @@ import { Check, X } from "lucide-react";
 import { Button, Section } from "@/components/trade/trade-ui";
 import { useAction } from "@/hooks/use-me";
 import { answerTradeInstallAttendance, getTradeInstallAttendance } from "@/lib/trade-view.functions";
-import { ATTENDANCE_ANCHOR, ATTENDANCE_MAX_DAYS, ATTENDANCE_NO, ATTENDANCE_REASONS, ATTENDANCE_YES, declineBlockers, type AttendanceReason } from "@/lib/install-attendance.core";
+import { ATTENDANCE_ANCHOR, ATTENDANCE_MAX_DAYS, ATTENDANCE_NO, ATTENDANCE_REASONS, ATTENDANCE_YES, declineBlockers, type AttendanceReason } from "@/lib/trade-shared-consts.core";
 import { DayGrid, dayTileLabel } from "@/components/trade/installer-kit";
 
 export function InstallAttendanceCard({ jobId }: { jobId: string }) {
