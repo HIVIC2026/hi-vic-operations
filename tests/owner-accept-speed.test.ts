@@ -90,6 +90,7 @@ if (process.env.OWNER_ACCEPT_SPEED_CHILD !== "1") {
   mock.module("../src/integrations/supabase/auth-middleware",()=>({requireSupabaseAuth:{}}));
   let billing:string|null=null,intake:string[]=[],commercial:string|null=null,expired=false,owner=true;
   mock.module("../src/lib/workflow.server",()=>({WorkflowError:Error,
+    nextStepBlockers:async()=>[],stageEntryBlockers:async()=>[],requireAdmin:async()=>{},requireJobRole:async()=>{},paymentOptionCleared:async()=>false,
     agreementSigned:()=>timed("agreementSigned",async()=>false),assignmentStatus:()=>timed("assignmentStatus",async()=>"draft"),
     getStage:()=>timed("getStage",async()=> (await db.query<{stage:string}>("SELECT stage FROM jobs")).rows[0]?.stage),
     commercialBlocker:()=>timed("commercialBlocker",async()=>commercial),piesaStatus:()=>timed("piesaStatus",async()=>({piesa_expired:expired})),
