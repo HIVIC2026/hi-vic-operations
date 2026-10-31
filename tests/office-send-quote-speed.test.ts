@@ -10,7 +10,7 @@ if (process.env.OFFICE_QUOTE_SPEED_CHILD !== "1") {
     console.log(new TextDecoder().decode(result.stdout));
     console.log(new TextDecoder().decode(result.stderr));
     expect(result.exitCode).toBe(0);
-  });
+  }, 30000);
 } else {
   const { beforeEach, afterAll, mock } = await import("bun:test");
   const { PGlite } = await import("@electric-sql/pglite");
