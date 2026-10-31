@@ -4,7 +4,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
-  ELECTRICIAN_CHOICE_LABEL, INSTALLER_PRICE_EVENT, NOT_ON_READY_CHECK, PRICE_FORM_LABELS, PRICE_ISSUES, PRICE_NOT_ENTERED, accessFlagLine, formHasPrice, installerPriceFromEvent, installerPriceState, priceCardLines, priceFromPortal, priceEntriesFromRecord, readyCheckDetailLines, validateInstallerPrice, withInstallerPrice,
+  ELECTRICIAN_CHOICE_LABEL, INSTALLER_PRICE_EVENT, NOT_ON_READY_CHECK, PRICE_FORM_LABELS, PRICE_ISSUES, PRICE_LOCKED, PRICE_NOT_ENTERED, accessFlagLine, formHasPrice, installerPriceFromEvent, installerPriceState, priceCardLines, priceCardLocked, priceFromPortal, priceEntriesFromRecord, readyCheckDetailLines, validateInstallerPrice, withInstallerPrice,
 } from "../src/lib/installer-price.core";
 import { quotedPriceFromEntries } from "../src/lib/installer-led.core";
 import { contactAnswersFromEntries } from "../src/lib/mitti.core";
@@ -22,7 +22,7 @@ const ok = { priceIncGst: "2,400", included: ["Ceiling insulation - supply & ins
 describe("validateInstallerPrice (pure, fails closed) — price + what is included only (decision 289)", () => {
   test("price inc GST > 0, included from the Mitti options; no electrician on the record", () => {
     const r = validateInstallerPrice(ok);
-    expect(r).toEqual({ ok: true, issues: [], record: { price_inc_gst: 2400, included: ["Ceiling insulation - supply & install"], included_other: null, electrician: null } });
+    expect(r).toEqual({ ok: true, issues: [], record: { price_inc_gst: 2400, included: ["Ceiling insulation - supply & install"], included_other: null, electrician: null, product_option: null, notes: null } });
   });
   test("every branch has its own plain issue; there is no electrician issue any more", () => {
     expect(validateInstallerPrice({ ...ok, priceIncGst: "0" }).issues).toEqual([PRICE_ISSUES.price]);
@@ -31,7 +31,7 @@ describe("validateInstallerPrice (pure, fails closed) — price + what is includ
     expect(validateInstallerPrice({ ...ok, included: ["Removal of existing insulation"] }).issues).toEqual([PRICE_ISSUES.base]);
     expect(validateInstallerPrice({ ...ok, included: ["Ceiling insulation - supply & install", "Other"] }).issues).toEqual([PRICE_ISSUES.other]);
     expect(validateInstallerPrice({ ...ok, included: ["Ceiling insulation - supply & install", "Not an option"] }).ok).toBe(true); // unknown ticks are dropped, never invented
-    expect(Object.keys(PRICE_ISSUES)).toEqual(["price", "included", "base", "other", "noRemoval"]);
+    expect(Object.keys(PRICE_ISSUES)).toEqual(["price", "included", "base", "other", "noRemoval", "product", "notes"]);
     expect(validateInstallerPrice({ ...ok, included: ["Ceiling insulation - supply & install", "Other"], includedOther: "Whirlybird" }).record?.included_other).toBe("Whirlybird");
   });
   test("the stored event reads back; malformed events are never a price; a legacy electrician block is kept, a bad one dropped", () => {
@@ -89,8 +89,8 @@ describe("portal price FIRST, old-form answers as the fallback", () => {
     expect(PRICE_NOT_ENTERED).toBe("Price not entered by the business owner");
   });
   test("card lines never guess: price + includes only; no electrician line", () => {
-    expect(priceCardLines(rec)).toEqual({ price: "$3,100 inc GST", included: "Ceiling insulation - supply & install · Removal of existing insulation" });
-    expect(Object.keys(priceCardLines(legacyRec))).toEqual(["price", "included"]);
+    expect(priceCardLines(rec)).toEqual({ price: "$3,100 inc GST", included: "Ceiling insulation - supply & install · Removal of existing insulation", product: null, notes: null });
+    expect(Object.keys(priceCardLines(legacyRec))).toEqual(["price", "included", "product", "notes"]);
   });
 });
 
@@ -282,5 +282,54 @@ describe("Ready Check detail rows above the price box (Jo 27 Oct 2026, redone af
     expect(server).toContain("measured_area_m2");
     expect(server).toContain("readyCheckDetailLines");
     expect(server).toContain("removalTotalM2");
+  });
+});
+
+describe("product + notes (Jo 31 Oct 2026)", () => {
+  const rec = validateInstallerPrice(ok).record!;
+  const form = (e: { label: string; value: string | null }[]) => contactAnswersFromEntries(e);
+  test("product is canonicalised, notes trimmed; bad product / long notes refused; blank notes null; no product null", () => {
+    const r = validateInstallerPrice({ ...ok, productOption: "bradford gold r6", notes: "  side access only " }).record;
+    expect(r).toMatchObject({ product_option: "Bradford Gold R6", notes: "side access only" });
+    expect(validateInstallerPrice({ ...ok, productOption: "Mystery R9" }).issues).toEqual([PRICE_ISSUES.product]);
+    expect(validateInstallerPrice({ ...ok, notes: "x".repeat(1001) }).issues).toEqual([PRICE_ISSUES.notes]);
+    expect(validateInstallerPrice({ ...ok, notes: "x".repeat(1000) }).ok).toBe(true);
+    expect(validateInstallerPrice({ ...ok, notes: "   " }).record?.notes).toBeNull();
+    expect(validateInstallerPrice({ ...ok, notes: "" }).record?.notes).toBeNull();
+    expect(validateInstallerPrice(ok).record?.product_option).toBeNull();
+    expect(PRICE_ISSUES.product).toBe("Pick a product from the list.");
+    expect(PRICE_ISSUES.notes).toBe("Keep notes under 1,000 characters.");
+  });
+  test("old events read product_option/notes as null; a stored bad product reads null; good values read back", () => {
+    const old = { price_inc_gst: 2400, included: ["Ceiling insulation - supply & install"], included_other: null, electrician: null };
+    expect(installerPriceFromEvent(old)).toMatchObject({ product_option: null, notes: null });
+    expect(installerPriceFromEvent({ ...old, product_option: "Mystery R9", notes: "hi" })).toMatchObject({ product_option: null, notes: "hi" });
+    expect(installerPriceFromEvent({ ...old, product_option: "Earthwool R5", notes: "  " })).toMatchObject({ product_option: "Earthwool R5", notes: null });
+  });
+  test("withInstallerPrice swaps the form's product for the portal's (one entry), adds it when absent, keeps the form's when null", () => {
+    const withProd = { ...rec, product_option: "Fletchers Pink Batts R7" };
+    const out = withInstallerPrice([{ label: LEAN_Q.product, value: "Bradford Gold R5" }, { label: "Insulation product", value: "Earthwool R5" }], withProd) as { label: string; value: string | null }[];
+    expect(form(out).productOption).toBe("Fletchers Pink Batts R7");
+    expect(out.filter((e) => e.label === LEAN_Q.product || e.label === "Insulation product")).toHaveLength(1);
+    expect(form(withInstallerPrice([{ label: "Length (m)", value: "10" }], withProd) as { label: string; value: string | null }[]).productOption).toBe("Fletchers Pink Batts R7");
+    const kept = withInstallerPrice([{ label: LEAN_Q.product, value: "Bradford Gold R5" }], rec) as { label: string; value: string | null }[];
+    expect(form(kept).productOption).toBe("Bradford Gold R5");
+  });
+  test("notes are office-only: never emitted as an entry; product only when set", () => {
+    const e = priceEntriesFromRecord({ ...rec, notes: "secret", product_option: "Earthwool R5" });
+    expect(e.some((x) => String(x.value).includes("secret"))).toBe(false);
+    expect(e).toContainEqual({ label: LEAN_Q.product, value: "Earthwool R5" });
+    expect(priceEntriesFromRecord(rec).some((x) => x.label === LEAN_Q.product)).toBe(false);
+    expect(priceCardLines({ ...rec, notes: "n", product_option: "Earthwool R5" })).toMatchObject({ product: "Earthwool R5", notes: "n" });
+    expect(priceCardLines(rec)).toMatchObject({ product: null, notes: null });
+  });
+  test("priceCardLocked: locked once a quote is sent unless a newer new-quote request exists", () => {
+    const sent = "2026-10-31T01:00:00Z";
+    expect(priceCardLocked({ quoteSentAt: null, newQuoteRequestedAt: null })).toBe(false);
+    expect(priceCardLocked({ quoteSentAt: null, newQuoteRequestedAt: sent })).toBe(false);
+    expect(priceCardLocked({ quoteSentAt: sent, newQuoteRequestedAt: null })).toBe(true);
+    expect(priceCardLocked({ quoteSentAt: sent, newQuoteRequestedAt: "2026-10-31T02:00:00Z" })).toBe(false);
+    expect(priceCardLocked({ quoteSentAt: sent, newQuoteRequestedAt: "2026-10-31T00:30:00Z" })).toBe(true);
+    expect(PRICE_LOCKED).toBe("Quote sent — call the office to change this.");
   });
 });
