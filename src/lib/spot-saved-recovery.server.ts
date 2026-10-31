@@ -1,13 +1,11 @@
 import { supabaseAdmin as admin } from '@/integrations/supabase/client.server';
 import { logEvent } from './workflow.server';
 import { sendSpotSavedConfirmation } from './spot-saved-send.server';
+import { spotSavedConfirmationHandled, spotSavedDeliveryChanged } from './spot-saved-send.core';
+export { spotSavedConfirmationHandled } from './spot-saved-send.core';
 
 const PAGE = 200;
-/** A completion means both applicable channels own a delivery claim, not merely that an attempt ran. */
-export function spotSavedConfirmationHandled(result: { email: { status: string }; sms: { status: string } }, emailOnly = false) {
-  const handled = (status: string) => ['sent', 'already', 'uncertain', 'sent_unknown'].includes(status);
-  return handled(result.email.status) && (emailOnly || handled(result.sms.status));
-}
+let lastCheckedJob: string | null = null;
 
 /** Recover durable saved responses, including the gap before the queue event was written.
  * Never changes the save/stage, never retries a claimed/uncertain delivery, and never bypasses sender policy.
@@ -49,15 +47,29 @@ export async function sweepSpotSavedConfirmations() {
   const counts = { checked: candidates.length, attempted: 0, completed: 0, pending: 0, failed: 0 };
   // Old policy-held homes must not occupy every slot on every tick.
   candidates.sort((a, b) => a.lastAttempt.localeCompare(b.lastAttempt));
+  const cursor = candidates.findIndex(c => c.jobId === lastCheckedJob);
+  if (cursor >= 0) candidates.push(...candidates.splice(0, cursor + 1));
   for (const candidate of candidates) {
     if (counts.attempted >= 20) break;
     counts.attempted++;
+    lastCheckedJob = candidate.jobId;
     try {
-      await logEvent(candidate.jobId, null, 'spot_saved_confirmation_recovery_attempted', 'Checking saved confirmation through normal delivery guards', {}, { internal: true });
-      if (!candidate.queued) await logEvent(candidate.jobId, null, 'spot_saved_confirmation_queued', 'Spot saved confirmation recovered for sending', { preliminary_email: candidate.emailOnly, recovery: true }, { internal: true });
       const result = await sendSpotSavedConfirmation(candidate.jobId, { emailOnly: candidate.emailOnly });
+      if (spotSavedDeliveryChanged(result)) {
+        await logEvent(candidate.jobId, null, 'spot_saved_confirmation_recovery_attempted', 'Saved confirmation delivery changed through normal guards', { email: result.email, sms: result.sms }, { internal: true });
+        if (!candidate.queued) await logEvent(candidate.jobId, null, 'spot_saved_confirmation_queued', 'Spot saved confirmation recovered for sending', { preliminary_email: candidate.emailOnly, recovery: true }, { internal: true });
+      }
       if (spotSavedConfirmationHandled(result, candidate.emailOnly)) {
-        await logEvent(candidate.jobId, null, 'spot_saved_confirmation_completed', 'Spot saved confirmation handled through the guarded sender', { email: result.email, sms: result.sms, recovery: true }, { internal: true });
+        const { data: done, error } = await admin.from('workflow_events').select('id').eq('job_id', candidate.jobId).eq('event_type', 'spot_saved_confirmation_completed').limit(1).maybeSingle();
+        if (error) throw new Error(error.message);
+        if (!done) {
+          // Stable event id makes overlapping ticks converge without a schema or settings change.
+          const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`spot_saved_confirmation_completed:${candidate.jobId}`));
+          const hex = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+          const id = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+          const { error: writeError } = await admin.from('workflow_events').insert({ id, job_id: candidate.jobId, event_type: 'spot_saved_confirmation_completed', summary: 'Spot saved confirmation handled through the guarded sender', details: { email: result.email, sms: result.sms, recovery: true }, internal: true });
+          if (writeError && writeError.code !== '23505') throw new Error(writeError.message);
+        }
         counts.completed++;
       } else counts.pending++;
     } catch (error) {
