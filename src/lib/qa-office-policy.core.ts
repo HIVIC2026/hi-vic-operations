@@ -28,23 +28,6 @@ export function qaOfficeRouteAllowed(pathname: string, search = ""): boolean {
   if (path === "/admin/money") return new URLSearchParams(search).get("tab") === "payouts";
   return /^\/admin\/jobs\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(path);
 }
-/**
- * Speed gate for the global boundary, decided from signature-verified JWT claims only.
- * false = the caller provably signed in with a non-TEST email, so the boundary may skip its role read.
- * Anything else (no/odd email, anonymous, explicitly unconfirmed, anything resembling the TEST domain) = full check.
- * Deliberately broader than qaOfficeReservedEmail: a false "may be" only costs two trips.
- */
-export function qaOfficeClaimsMayBeTestOffice(claims: unknown): boolean {
-  if (!claims || typeof claims !== "object") return true;
-  const c = claims as Record<string, unknown>;
-  const email = typeof c["email"] === "string" ? c["email"].trim() : "";
-  if (!/^[^@\s]+@[^@\s]+$/.test(email) || /hivic-test/i.test(email)) return true;
-  if (c["is_anonymous"] === true) return true;
-  const meta = c["user_metadata"];
-  if (meta !== undefined && (meta === null || typeof meta !== "object")) return true;
-  const verified = (meta as Record<string, unknown> | undefined)?.["email_verified"];
-  return verified !== undefined && verified !== true;
-}
 export function qaOfficeFunctionBlocker(identity: QaOfficeIdentity, filename: string, name: string): string | null {
   if (!identity.roles.includes("qa_office")) return null;
   return qaOfficeIdentityBlocker(identity) ?? (qaOfficeFunctionAllowed(filename, name) ? null : TEST_OFFICE_UNAVAILABLE);

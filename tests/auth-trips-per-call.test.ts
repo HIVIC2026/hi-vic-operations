@@ -1,7 +1,8 @@
 // Task 4 (installer one second): network auth/DB trips the middleware chain makes per server function call.
 // Runs the real supabase-js clients of `testOfficeBoundary` + `requireSupabaseAuth` against a fake Supabase that
-// signs ES256 tokens like the live project (one EC key published in the JWKS) and counts every request it serves.
-import { beforeAll, beforeEach, describe, expect, mock, test } from "bun:test";
+// signs ES256 tokens like the live project (one EC key published in the JWKS), counts every request it serves and
+// records how many are in flight at once (sequential rounds vs one parallel round).
+import { beforeAll, describe, expect, mock, test } from "bun:test";
 
 let currentRequest: Request | undefined;
 mock.module("@tanstack/react-start", () => ({
@@ -11,15 +12,18 @@ mock.module("@tanstack/react-start/server", () => ({ getRequest: () => currentRe
 
 const { testOfficeBoundary } = await import("../src/lib/qa-office-boundary");
 const { requireSupabaseAuth } = await import("../src/integrations/supabase/auth-middleware");
-const { TEST_OFFICE_UNAVAILABLE, qaOfficeClaimsMayBeTestOffice } = await import("../src/lib/qa-office-policy.core");
+const { TEST_OFFICE_UNAVAILABLE } = await import("../src/lib/qa-office-policy.core");
 
 type Person = { id: string; email: string | null; confirmed: boolean; roles: string[] };
-type Trips = { jwks: number; user: number; roles: number; other: number };
+type Trips = { jwks: number; user: number; roles: number; other: number; maxInFlight: number; rounds: number };
 const KEY = "sb_publishable_trip_counter";
 const b64url = (bytes: Uint8Array | string) => Buffer.from(bytes).toString("base64url");
+const zero = (): Trips => ({ jwks: 0, user: 0, roles: 0, other: 0, maxInFlight: 0, rounds: 0 });
 
-const issued = new Map<string, Person>();   // tokens the fake Auth server accepts on GET /user
-let trips: Trips = { jwks: 0, user: 0, roles: 0, other: 0 };
+const issued = new Map<string, Person>();   // tokens the fake Auth server issued itself
+const signedOut = new Set<string>();         // sessions ended: GoTrue answers session_not_found
+let userFault: null | "500" | "other-id" = null, rolesFault = false;
+let trips = zero(), inFlight = 0;
 let signer: CryptoKey, publicJwk: JsonWebKey, otherSigner: CryptoKey;
 const KID = "13cbb243-test-kid";
 
@@ -28,36 +32,43 @@ async function token(person: Person, claims: Record<string, unknown> = {}, opts:
   if (opts.kid !== null) header["kid"] = opts.kid ?? KID;
   const now = Math.floor(Date.now() / 1000);
   const payload = {
-    sub: person.id, aud: "authenticated", role: "authenticated", iat: now, exp: opts.exp ?? now + 3600,
+    sub: person.id, aud: "authenticated", role: "authenticated", iat: now, exp: opts.exp ?? now + 3600, session_id: crypto.randomUUID(),
     email: person.email ?? undefined, is_anonymous: false, user_metadata: { email_verified: person.confirmed }, app_metadata: {},
     ...claims,
   };
   const signingInput = `${b64url(JSON.stringify(header))}.${b64url(JSON.stringify(payload))}`;
   const sig = new Uint8Array(await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, opts.key ?? signer, new TextEncoder().encode(signingInput)));
   const jwt = `${signingInput}.${b64url(sig)}`;
-  // The fake Auth server only honours what it issued itself, and never after expiry (like GoTrue).
   if (!opts.key || opts.key === signer) issued.set(jwt, person);
   return jwt;
 }
 
-function fakeSupabase(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+async function fakeSupabase(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
   const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
   const bearer = headers.get("authorization")?.replace(/^Bearer /, "") ?? "";
-  const json = (status: number, body: unknown) => Promise.resolve(new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } }));
+  const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+  if (inFlight === 0) trips.rounds++;
+  inFlight++; trips.maxInFlight = Math.max(trips.maxInFlight, inFlight);
+  await new Promise(resolve => setTimeout(resolve, 5));   // network latency: a sequential caller cannot overlap
+  inFlight--;
   if (url.pathname === "/auth/v1/.well-known/jwks.json") { trips.jwks++; return json(200, { keys: [{ ...publicJwk, kid: KID, alg: "ES256", use: "sig" }] }); }
   if (url.pathname === "/auth/v1/user") {
     trips.user++;
+    if (userFault === "500") return json(500, { code: 500, msg: "upstream down" });
     const person = issued.get(bearer);
     const exp = Number(JSON.parse(Buffer.from(bearer.split(".")[1] ?? "", "base64url").toString() || "{}").exp ?? 0);
     if (!person || exp * 1000 < Date.now()) return json(403, { code: 403, error_code: "bad_jwt", msg: "invalid JWT" });
-    return json(200, { id: person.id, aud: "authenticated", role: "authenticated", email: person.email ?? "", email_confirmed_at: person.confirmed ? "2026-10-01T00:00:00Z" : null, app_metadata: {}, user_metadata: {}, created_at: "2026-10-01T00:00:00Z" });
+    if (signedOut.has(bearer)) return json(403, { code: 403, error_code: "session_not_found", msg: "Session from session_id claim in JWT does not exist" });
+    const id = userFault === "other-id" ? "99999999-9999-4999-8999-999999999999" : person.id;
+    return json(200, { id, aud: "authenticated", role: "authenticated", email: person.email ?? "", email_confirmed_at: person.confirmed ? "2026-10-01T00:00:00Z" : null, app_metadata: {}, user_metadata: {}, created_at: "2026-10-01T00:00:00Z" });
   }
   if (url.pathname === "/rest/v1/user_roles") {
     trips.roles++;
+    if (rolesFault) return json(500, { message: "db down" });
     const person = issued.get(bearer);
     const id = url.searchParams.get("user_id")?.replace(/^eq\./, "");
-    if (!person || person.id !== id) return json(401, { message: "JWT invalid" });
+    if (!person || person.id !== id) return json(200, []);   // RLS: other users' rows invisible
     return json(200, person.roles.map(role => ({ role })));
   }
   trips.other++;
@@ -67,13 +78,18 @@ function fakeSupabase(input: RequestInfo | URL, init?: RequestInit): Promise<Res
 const INSTALLER: Person = { id: "11111111-1111-4111-8111-111111111111", email: "sam@samsinsulation.com.au", confirmed: true, roles: ["installer"] };
 const OFFICE: Person = { id: "22222222-2222-4222-8222-222222222222", email: "jo@homeinsulationvictoria.com.au", confirmed: true, roles: ["admin"] };
 const TEST_OFFICE: Person = { id: "33333333-3333-4333-8333-333333333333", email: "office@hivic-test.example", confirmed: true, roles: ["qa_office"] };
+const REAL_EMAIL_QA: Person = { id: "44444444-4444-4444-8444-444444444444", email: "someone@gmail.com", confirmed: true, roles: ["qa_office", "installer"] };
+const SOLO_REAL_EMAIL_QA: Person = { id: "55555555-5555-4555-8555-555555555555", email: "renamed@gmail.com", confirmed: true, roles: ["qa_office"] };
 const ALLOWED = { filename: "src/lib/office-screens.functions.ts", name: "getNeedsMePage" };
 const NOT_ALLOWED = { filename: "src/lib/trade-view.functions.ts", name: "getTradeHome" };
+const SIGN_IN = "Office sign-in required.";
+const MIXED = "A dedicated qa_office role is required; mixed roles are refused.";
+const NOT_TEST_IDENTITY = "A verified TEST-domain office identity is required.";
 
 type Mw = { server: (ctx: Record<string, unknown>) => Promise<unknown> };
 /** One server function call through the global boundary and then the function's own requireSupabaseAuth. */
 async function call(jwt: string | null, fn = NOT_ALLOWED): Promise<{ trips: Trips; result: "ok" | string }> {
-  trips = { jwks: 0, user: 0, roles: 0, other: 0 };
+  trips = zero();
   currentRequest = new Request("https://portal.example/_serverFn/x", { method: "POST", headers: jwt ? { authorization: `Bearer ${jwt}` } : {} });
   try {
     await (testOfficeBoundary as unknown as Mw).server({
@@ -83,9 +99,9 @@ async function call(jwt: string | null, fn = NOT_ALLOWED): Promise<{ trips: Trip
     return { trips, result: "ok" };
   } catch (error) {
     return { trips, result: error instanceof Error ? error.message : String(error) };
-  }
+  } finally { userFault = null; rolesFault = false; }
 }
-const middlewareTrips = (t: Trips) => t.jwks + t.user + t.roles + t.other;
+const ONE_ROUND = { jwks: 0, user: 1, roles: 1, other: 0, maxInFlight: 2, rounds: 1 };
 
 beforeAll(async () => {
   const pair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
@@ -96,112 +112,90 @@ beforeAll(async () => {
   process.env["SUPABASE_PUBLISHABLE_KEY"] = KEY;
   await call(await token(INSTALLER));  // warm isolate: the JWKS is fetched once and cached for 10 minutes
 });
-beforeEach(() => { trips = { jwks: 0, user: 0, roles: 0, other: 0 }; });
 
-describe("trips per call (warm isolate)", () => {
-  test("normal installer: no Auth or user_roles trip before the handler", async () => {
+describe("every caller: getUser + user_roles both run, in one parallel round (warm isolate)", () => {
+  test("normal installer", async () => {
     const r = await call(await token(INSTALLER));
     expect(r.result).toBe("ok");
-    expect(r.trips).toEqual({ jwks: 0, user: 0, roles: 0, other: 0 });
+    expect(r.trips).toEqual(ONE_ROUND);
   });
-  test("real office user: no Auth or user_roles trip before the handler", async () => {
+  test("real office user", async () => {
     const r = await call(await token(OFFICE), { filename: "src/lib/office-settings.functions.ts", name: "saveOfficeSettings" });
     expect(r.result).toBe("ok");
-    expect(middlewareTrips(r.trips)).toBe(0);
+    expect(r.trips).toEqual(ONE_ROUND);
   });
-  test("TEST office: keeps today's full check (getUser + user_roles) and its allowlist", async () => {
+  test("TEST office: allowlisted passes, everything else refused, same one round", async () => {
     const allowed = await call(await token(TEST_OFFICE), ALLOWED);
     expect(allowed.result).toBe("ok");
-    expect(allowed.trips).toEqual({ jwks: 0, user: 1, roles: 1, other: 0 });
+    expect(allowed.trips).toEqual(ONE_ROUND);
     const denied = await call(await token(TEST_OFFICE), NOT_ALLOWED);
     expect(denied.result).toBe(TEST_OFFICE_UNAVAILABLE);
-    expect(denied.trips).toEqual({ jwks: 0, user: 1, roles: 1, other: 0 });
+    expect(denied.trips).toEqual(ONE_ROUND);
   });
-  test("cold isolate fetches the JWKS once, then verifies locally", async () => {
+  test("cold isolate: one JWKS fetch first, then the same single parallel round", async () => {
     process.env["SUPABASE_URL"] = "https://tripcold.supabase.co";
     try {
       const first = await call(await token(INSTALLER));
       expect(first.result).toBe("ok");
-      expect(first.trips).toEqual({ jwks: 1, user: 0, roles: 0, other: 0 });
-      const second = await call(await token(OFFICE));
-      expect(middlewareTrips(second.trips)).toBe(0);
+      expect(first.trips).toEqual({ jwks: 1, user: 1, roles: 1, other: 0, maxInFlight: 2, rounds: 2 });
+      expect((await call(await token(OFFICE))).trips).toEqual(ONE_ROUND);
     } finally { process.env["SUPABASE_URL"] = "https://tripcount.supabase.co"; }
   });
 });
 
-describe("fail-closed: the claims can only skip the check for a confirmed non-TEST email", () => {
-  test("TEST office spelled in upper case / with spaces still gets the full check and the allowlist", async () => {
-    for (const email of ["OFFICE@HIVIC-TEST.EXAMPLE", " office@hivic-test.example "]) {
-      const r = await call(await token(TEST_OFFICE, { email }), NOT_ALLOWED);
-      expect(r.result).toBe(TEST_OFFICE_UNAVAILABLE);
-      expect(r.trips.user + r.trips.roles).toBe(2);
+describe("same deny outcomes as before", () => {
+  test("signed-out (revoked session) but unexpired token is refused", async () => {
+    for (const person of [INSTALLER, OFFICE, TEST_OFFICE]) {
+      const jwt = await token(person);
+      signedOut.add(jwt);
+      expect((await call(jwt, ALLOWED)).result).toBe(SIGN_IN);
     }
   });
-  test("missing email claim falls back to the full check (TEST office still blocked)", async () => {
-    for (const claims of [{ email: undefined }, { email: "" }, { email: null }, { email: 42 }]) {
-      const r = await call(await token(TEST_OFFICE, claims), NOT_ALLOWED);
-      expect(r.result).toBe(TEST_OFFICE_UNAVAILABLE);
-      expect(r.trips).toEqual({ jwks: 0, user: 1, roles: 1, other: 0 });
+  test("qa_office on a real email is blocked everywhere, even allowlisted functions", async () => {
+    for (const fn of [ALLOWED, NOT_ALLOWED]) {
+      expect((await call(await token(REAL_EMAIL_QA), fn)).result).toBe(MIXED);
+      expect((await call(await token(SOLO_REAL_EMAIL_QA), fn)).result).toBe(NOT_TEST_IDENTITY);
     }
   });
-  test("unconfirmed email claim falls back to the full check", async () => {
-    const r = await call(await token(INSTALLER, { user_metadata: { email_verified: false } }));
-    expect(r.result).toBe("ok");
-    expect(r.trips).toEqual({ jwks: 0, user: 1, roles: 1, other: 0 });
-    const meta = await call(await token(INSTALLER, { user_metadata: "not-an-object" }));
-    expect(meta.trips.user + meta.trips.roles).toBe(2);
+  test("TEST office outside the allowlist, whatever its token claims say", async () => {
+    for (const claims of [{}, { email: undefined }, { email: "boss@homeinsulationvictoria.com.au" }, { user_metadata: { email_verified: false } }]) {
+      // Signed by the project key, so this models stale claims (e.g. an email changed since issue); Auth's record decides.
+      expect((await call(await token(TEST_OFFICE, claims), NOT_ALLOWED)).result).toBe(TEST_OFFICE_UNAVAILABLE);
+    }
   });
-  test("anonymous sign-in falls back to the full check", async () => {
-    const r = await call(await token(INSTALLER, { is_anonymous: true }));
-    expect(r.trips).toEqual({ jwks: 0, user: 1, roles: 1, other: 0 });
+  test("unconfirmed TEST office and mixed roles are refused on allowlisted functions", async () => {
+    expect((await call(await token({ ...TEST_OFFICE, confirmed: false }, { user_metadata: { email_verified: true } }), ALLOWED)).result).toBe(NOT_TEST_IDENTITY);
+    expect((await call(await token({ ...TEST_OFFICE, roles: ["qa_office", "admin"] }), ALLOWED)).result).toBe(MIXED);
   });
-  test("full check still decides on the server record: unconfirmed TEST office refused on allowlisted functions", async () => {
-    const r = await call(await token({ ...TEST_OFFICE, confirmed: false }, { user_metadata: { email_verified: true } }), ALLOWED);
-    expect(r.result).toBe("A verified TEST-domain office identity is required.");
+  test("getUser failure, or a getUser id that differs from the verified sub, is refused", async () => {
+    userFault = "500";
+    expect((await call(await token(INSTALLER))).result).toBe(SIGN_IN);
+    userFault = "other-id";
+    expect((await call(await token(INSTALLER))).result).toBe(SIGN_IN);
   });
-  test("mixed qa_office + admin roles stay refused", async () => {
-    const r = await call(await token({ ...TEST_OFFICE, roles: ["qa_office", "admin"] }), ALLOWED);
-    expect(r.result).toBe("A dedicated qa_office role is required; mixed roles are refused.");
+  test("user_roles failure is refused", async () => {
+    rolesFault = true;
+    expect((await call(await token(INSTALLER))).result).toBe("Office permissions could not be checked.");
   });
-  test("pure predicate", () => {
-    const ok = { sub: "x", email: "a@b.com", user_metadata: { email_verified: true } };
-    expect(qaOfficeClaimsMayBeTestOffice(ok)).toBe(false);
-    expect(qaOfficeClaimsMayBeTestOffice({ ...ok, user_metadata: {} })).toBe(false); // absent flag: not an explicit "unconfirmed"
-    for (const bad of [
-      { ...ok, email: "x@hivic-test.example" }, { ...ok, email: "x@sub.HIVIC-TEST.example" }, { ...ok, email: "hivic-test@gmail.com" },
-      { ...ok, email: undefined }, { ...ok, email: "  " }, { ...ok, email: "no-at-sign" }, { ...ok, is_anonymous: true },
-      { ...ok, user_metadata: { email_verified: false } }, { ...ok, user_metadata: { email_verified: "true" } }, { ...ok, user_metadata: null },
-      null, undefined, "string",
-    ]) expect(qaOfficeClaimsMayBeTestOffice(bad as never)).toBe(true);
-  });
-});
-
-describe("invalid tokens are still refused", () => {
-  test("expired token is refused before any handler runs", async () => {
-    const r = await call(await token(INSTALLER, {}, { exp: Math.floor(Date.now() / 1000) - 60 }));
-    expect(r.result).not.toBe("ok");
-  });
-  test("token signed by another key is refused", async () => {
-    const r = await call(await token(INSTALLER, {}, { key: otherSigner }));
-    expect(r.result).not.toBe("ok");
-  });
-  test("tampered payload is refused", async () => {
-    const good = await token(INSTALLER);
-    const [h, , s] = good.split(".");
-    const forged = `${h}.${b64url(JSON.stringify({ sub: TEST_OFFICE.id, email: "boss@homeinsulationvictoria.com.au", exp: Math.floor(Date.now() / 1000) + 3600 }))}.${s}`;
-    const r = await call(forged);
-    expect(r.result).not.toBe("ok");
-  });
-  test("legacy HS256 / kid-less token falls back to Auth server verification", async () => {
-    const r = await call(await token(INSTALLER, {}, { alg: "HS256", kid: null }));
-    expect(r.trips.user).toBeGreaterThanOrEqual(1);   // getClaims -> getUser fallback, never trusted unverified
-    const forged = await call(await token(INSTALLER, {}, { alg: "HS256", kid: null, key: otherSigner }));
-    expect(forged.result).not.toBe("ok");
-  });
-  test("garbage bearer refused; no bearer leaves the boundary to the handler as today", async () => {
+  test("expired, other-key, tampered and garbage tokens are refused", async () => {
+    expect((await call(await token(INSTALLER, {}, { exp: Math.floor(Date.now() / 1000) - 60 }))).result).toBe(SIGN_IN);
+    expect((await call(await token(INSTALLER, {}, { key: otherSigner }))).result).toBe(SIGN_IN);
+    const [h, , s] = (await token(INSTALLER)).split(".");
+    const forged = `${h}.${b64url(JSON.stringify({ sub: OFFICE.id, email: OFFICE.email, exp: Math.floor(Date.now() / 1000) + 3600 }))}.${s}`;
+    expect((await call(forged)).result).toBe(SIGN_IN);
     expect((await call("not.a.jwt")).result).not.toBe("ok");
+  });
+  test("legacy HS256 / kid-less token is verified by Auth (getClaims -> getUser) and still gets both checks", async () => {
+    const r = await call(await token(INSTALLER, {}, { alg: "HS256", kid: null }));
+    expect(r.result).toBe("ok");
+    expect(r.trips.roles).toBe(1);
+    expect(r.trips.user).toBeGreaterThanOrEqual(2);
+    expect((await call(await token(TEST_OFFICE, {}, { alg: "HS256", kid: null }))).result).toBe(TEST_OFFICE_UNAVAILABLE);
+    expect((await call(await token(INSTALLER, {}, { alg: "HS256", kid: null, key: otherSigner }))).result).toBe(SIGN_IN);
+  });
+  test("no bearer leaves the boundary to the handler as today", async () => {
     const none = await call(null);
-    expect(none.trips).toEqual({ jwks: 0, user: 0, roles: 0, other: 0 });
+    expect(none.trips).toEqual(zero());
     expect(none.result).toBe("Unauthorized: No authorization header provided");
   });
 });
