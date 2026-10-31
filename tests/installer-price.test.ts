@@ -4,7 +4,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
-  ELECTRICIAN_CHOICE_LABEL, INSTALLER_PRICE_EVENT, NOT_ON_READY_CHECK, PRICE_FORM_LABELS, PRICE_ISSUES, PRICE_LOCKED, PRICE_NOT_ENTERED, accessFlagLine, formHasPrice, installerPriceFromEvent, installerPriceState, priceCardLines, priceCardLocked, priceFromPortal, priceEntriesFromRecord, readyCheckDetailLines, validateInstallerPrice, withInstallerPrice,
+  ELECTRICIAN_CHOICE_LABEL, INSTALLER_PRICE_EVENT, NOT_ON_READY_CHECK, PRICE_FORM_LABELS, PRICE_ISSUES, PRICE_LOCKED, PRICE_NOT_ENTERED, accessFlagLine, priceEventSummary, formHasPrice, installerPriceFromEvent, installerPriceState, priceCardLines, priceCardLocked, priceFromPortal, priceEntriesFromRecord, readyCheckDetailLines, validateInstallerPrice, withInstallerPrice,
 } from "../src/lib/installer-price.core";
 import { quotedPriceFromEntries } from "../src/lib/installer-led.core";
 import { contactAnswersFromEntries } from "../src/lib/mitti.core";
@@ -331,5 +331,32 @@ describe("product + notes (Jo 31 Oct 2026)", () => {
     expect(priceCardLocked({ quoteSentAt: sent, newQuoteRequestedAt: "2026-10-31T02:00:00Z" })).toBe(false);
     expect(priceCardLocked({ quoteSentAt: sent, newQuoteRequestedAt: "2026-10-31T00:30:00Z" })).toBe(true);
     expect(PRICE_LOCKED).toBe("Quote sent — call the office to change this.");
+  });
+  test("priceEventSummary: product changed / unchanged / none chosen / notes", () => {
+    const base = "Price entered by the business owner: $2,400 inc GST";
+    expect(priceEventSummary({ record: rec, previousProduct: null })).toBe(base);
+    expect(priceEventSummary({ record: { ...rec, product_option: "Earthwool R5" }, previousProduct: "Bradford Gold R5" })).toBe(`${base} · Product changed from Bradford Gold R5 to Earthwool R5`);
+    expect(priceEventSummary({ record: { ...rec, product_option: "Earthwool R5" }, previousProduct: null })).toBe(`${base} · Product changed from none to Earthwool R5`);
+    expect(priceEventSummary({ record: { ...rec, product_option: "Earthwool R5" }, previousProduct: "Earthwool R5" })).toBe(base);
+    expect(priceEventSummary({ record: { ...rec, notes: "side access only" }, previousProduct: "Earthwool R5" })).toBe(`${base} · Notes: side access only`);
+    expect(priceEventSummary({ record: { ...rec, product_option: "Earthwool R5", notes: "n" }, previousProduct: "Bradford Gold R5" })).toBe(`${base} · Product changed from Bradford Gold R5 to Earthwool R5 · Notes: n`);
+  });
+  test("wiring: lock checked in the view and before writing; product/notes pass through; function validator", () => {
+    const set = readFileSync("src/lib/installer-price-set.server.ts", "utf8");
+    const view = set.slice(set.indexOf("export async function installerPriceView"), set.indexOf("async function prepareQuoteFromPortal"));
+    const save = set.slice(set.indexOf("export async function setInstallerPrice"), set.indexOf("export async function switchToHivElectrician"));
+    expect(view).toContain("priceCardLocked(");
+    expect(view).toContain("locked");
+    expect(view).toContain("productOptions");
+    expect(view).toContain("mittiProduct");
+    expect(save).toContain("priceCardLocked(");
+    expect(save).toContain("throw new WorkflowError(PRICE_LOCKED)");
+    expect(save.indexOf("priceCardLocked(")).toBeLessThan(save.indexOf("logEvent("));
+    expect(save).toContain("priceEventSummary(");
+    expect(save).toContain("internal: true");
+    const fns = readFileSync("src/lib/installer-price.functions.ts", "utf8");
+    expect(fns).toContain("productOption: z.string().max(80).optional().nullable()");
+    expect(fns).toContain("notes: z.string().max(1000).optional().nullable()");
+    expect(readFileSync("src/lib/installer-price.server.ts", "utf8")).toContain("export async function readInstallerPriceState");
   });
 });

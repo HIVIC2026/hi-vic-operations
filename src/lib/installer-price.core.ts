@@ -214,3 +214,13 @@ export function priceCardLocked(f: { quoteSentAt: string | null; newQuoteRequest
   // Only a request strictly after the send unlocks; anything unreadable stays locked (fail closed).
   return !(Date.parse(f.newQuoteRequestedAt) > Date.parse(f.quoteSentAt));
 }
+
+/** The office-only history line for a saved price. A product note appears only when the boss picked a product that
+ *  differs from the one in force before (their previous pick, else Mitti's, else none). */
+export function priceEventSummary(f: { record: InstallerPriceRecord; previousProduct: string | null }): string {
+  const r = f.record;
+  const parts = [`Price entered by the business owner: $${r.price_inc_gst.toLocaleString("en-AU")} inc GST`];
+  if (r.product_option && r.product_option !== (f.previousProduct ?? "none")) parts.push(`Product changed from ${f.previousProduct ?? "none"} to ${r.product_option}`);
+  if (r.notes) parts.push(`Notes: ${r.notes}`);
+  return parts.join(" · ");
+}
