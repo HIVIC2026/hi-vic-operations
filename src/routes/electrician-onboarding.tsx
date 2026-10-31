@@ -426,7 +426,7 @@ function StepBody({ step, d, up, token, setError, preview, onRevision, showError
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{DAYS.map((x) => { const on = days.includes(x); return <button key={x} type="button" onClick={() => up({ typical_days: on ? days.filter((y) => y !== x) : DAYS.filter((y) => days.includes(y) || y === x) })} style={{ minWidth: 56, minHeight: 44, borderRadius: 12, border: `1px solid ${on ? BLUE : "#D7DCE8"}`, background: on ? BLUE : "#fff", color: on ? "#fff" : NAVY, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{x}</button>; })}</div>
         </Field>
         <Field label="Usual lead time" required><Choice options={LEAD_TIMES.map((l) => ({ v: l as string, l }))} value={d.normal_attendance_speed} onChange={(v) => up({ normal_attendance_speed: v })} /></Field>
-         <Field label="Are you accepting new Home Insulation Victoria work now?" required><Choice options={[{ v: true, l: "Yes" }, { v: false, l: "Not right now" }]} value={d.accepting_jobs ?? null} onChange={(v) => up({ accepting_jobs: v })} /></Field>
+         <Field label="Are you available to accept Home Insulation Victoria work at the moment?" required><Choice options={[{ v: true, l: "Yes" }, { v: false, l: "Not right now" }]} value={d.accepting_jobs ?? null} onChange={(v) => up({ accepting_jobs: v })} /></Field>
       </>;
     }
     case "assessment_pricing": {

@@ -11,20 +11,21 @@ export type StoredInstallerPrice = { record: InstallerPriceRecord; setAt: string
 const NEW_QUOTE_REQUESTED_EVENT = "new_quote_requested";
 
 /** The latest portal price, and whether a new-quote request is waiting for a price entered after it. */
-async function readPriceState(jobId: string): Promise<{ stored: StoredInstallerPrice | null; askedAgain: boolean }> {
+export async function readInstallerPriceState(jobId: string): Promise<{ stored: StoredInstallerPrice | null; askedAgain: boolean; newQuoteRequestedAt: string | null }> {
   const [{ data, error }, { data: reset, error: re }] = await Promise.all([
     admin.from("workflow_events").select("details, created_at, actor_id").eq("job_id", jobId).eq("event_type", INSTALLER_PRICE_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", NEW_QUOTE_REQUESTED_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
   if (error || re) throw new WorkflowError("The price could not be read.");
-  if (reset && (!data || String(reset.created_at) >= String(data.created_at))) return { stored: null, askedAgain: true };
+  const newQuoteRequestedAt = reset ? String(reset.created_at) : null;
+  if (reset && (!data || String(reset.created_at) >= String(data.created_at))) return { stored: null, askedAgain: true, newQuoteRequestedAt };
   const record = installerPriceFromEvent(data?.details);
-  return { stored: record ? { record, setAt: String(data!.created_at), setBy: (data!.actor_id as string | null) ?? null } : null, askedAgain: false };
+  return { stored: record ? { record, setAt: String(data!.created_at), setBy: (data!.actor_id as string | null) ?? null } : null, askedAgain: false, newQuoteRequestedAt };
 }
 
 /** Latest portal price on the job, or null when the business owner has not entered one since the last new-quote request. */
 export async function readInstallerPrice(jobId: string): Promise<StoredInstallerPrice | null> {
-  return (await readPriceState(jobId)).stored;
+  return (await readInstallerPriceState(jobId)).stored;
 }
 
 /** Latest portal price per job, batched (home list). Jobs without one are absent from the map. */
@@ -50,7 +51,7 @@ export async function readInstallerPrices(jobIds: string[]): Promise<Map<string,
  *  Batch 3a: after an owner's new-quote request with no portal price since, an old form's own price is dropped too (the
  *  old price is never reused — the business owner enters a new one). */
 export async function entriesWithInstallerPrice<T extends { label: string; value: unknown }>(jobId: string, entries: T[]): Promise<(T | { label: string; value: string | null })[]> {
-  const s = await readPriceState(jobId).catch(() => ({ stored: null, askedAgain: false }));
+  const s = await readInstallerPriceState(jobId).catch(() => ({ stored: null, askedAgain: false, newQuoteRequestedAt: null }));
   if (s.stored) return withInstallerPrice(entries, s.stored.record);
   return s.askedAgain ? withoutFormPrice(entries) : entries;
 }

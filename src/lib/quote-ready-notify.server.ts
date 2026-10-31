@@ -91,12 +91,24 @@ export async function notifyOwnerQuoteReady(jobId: string, quoteId: string, kind
   const { renderOwnerQuoteEmail, ownerQuoteSms, OWNER_QUOTE_EMAIL_APPROVED } = await import("./owner-quote-email.core");
 
   if (job.source === "qa_test") {
-    const { data: assigned, error: ae } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
-    const { data: partner, error: pe } = assigned?.business_id ? await admin.from("businesses").select("onboarding_notes").eq("id", assigned.business_id).maybeSingle() : { data: null, error: null };
-    if (ae || pe) throw new Error("TEST partner could not be checked.");
+    // Partner verification and quote facts are independent reads. Keep partner
+    // refusal first, and keep unsubscribe preparation and both sends sequential.
+    const [partnerRead, factsRead] = await Promise.all([
+      (async () => {
+        const { data: assigned, error: ae } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
+        const { data: partner, error: pe } = assigned?.business_id ? await admin.from("businesses").select("onboarding_notes").eq("id", assigned.business_id).maybeSingle() : { data: null, error: null };
+        if (ae || pe) throw new Error("TEST partner could not be checked.");
+        return partner;
+      })().then(value => ({ ok: true as const, value }), error => ({ ok: false as const, error })),
+      loadOwnerQuoteFacts(jobId, quoteId, owner?.full_name ?? null, job.property_id ?? null)
+        .then(value => ({ ok: true as const, value }), error => ({ ok: false as const, error })),
+    ]);
+    if (!partnerRead.ok) throw partnerRead.error;
+    if (!factsRead.ok) throw factsRead.error;
+    const partner = partnerRead.value;
+    const facts = factsRead.value;
     const { isTestPartner } = await import("./test-send.core");
     const { sendTestEmail, sendTestSms } = await import("./test-send.server");
-    const facts = await loadOwnerQuoteFacts(jobId, quoteId, owner?.full_name ?? null, job.property_id ?? null);
     if (!facts.input) throw new Error("TEST quote total or owner link is unavailable.");
     // TEST may show the draft wording regardless of approval; the unsubscribe link is best-effort here.
     const unsubscribe = await (await import("./emailsafety.server")).unsubscribeUrlForJob(jobId).catch(() => null);
@@ -108,12 +120,16 @@ export async function notifyOwnerQuoteReady(jobId: string, quoteId: string, kind
   }
 
   const { sendRealSms } = await import("./sms.server");
-  let keySuffix: string;
-  try { keySuffix = await currentQuoteReadyKeySuffix(jobId, quoteId); }
-  catch (e) { return { sms: `failed: ${e instanceof Error ? e.message : "error"}`, email: "not sent — quote reopen count unavailable" }; }
+  // The release-state and reopen-key reads do not depend on one another.
+  // Capture the key error so its existing refusal still precedes quote facts/sends.
+  const [suffix, { data: q }] = await Promise.all([
+    currentQuoteReadyKeySuffix(jobId, quoteId).then(value => ({ ok: true as const, value }), error => ({ ok: false as const, error })),
+    admin.from("quotes").select("sent_at, status, release_state").eq("id", quoteId).eq("job_id", jobId).maybeSingle(),
+  ]);
+  if (!suffix.ok) return { sms: `failed: ${suffix.error instanceof Error ? suffix.error.message : "error"}`, email: "not sent — quote reopen count unavailable" };
+  const keySuffix = suffix.value;
   // Decision 165: the trigger is the quote release (sent_at). A switch flipped on days later must not text an old
   // release, and never one that has since been accepted/declined/reopened — so the sender gets the release time and state.
-  const { data: q } = await admin.from("quotes").select("sent_at, status, release_state").eq("id", quoteId).eq("job_id", jobId).maybeSingle();
   // The approved text (decision 87) carries the secure My job link, so the same facts the email uses are read first.
   const loaded = await loadOwnerQuoteFacts(jobId, quoteId, owner?.full_name ?? null, job.property_id ?? null);
   const s = loaded.input

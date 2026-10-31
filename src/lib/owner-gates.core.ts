@@ -20,22 +20,22 @@ const DRAFT = "DRAFT — wording pending Jo's approval. Not for use on real jobs
 /** Decision 365: the payment steps exactly as `paymentPlan()` charges them (payments.core, decisions 139/140/141/302).
  *  {fee} = the quote's PIESA line, {deposit} = 10% of {remaining} (= total − fee), {balance} = the rest, {total} = quote
  *  total after the VEU discount. Amounts always come from the server, never from owner answers. */
-export const PAYMENT_TERMS_VERSION = "steps-2026-10-29b";
+export const PAYMENT_TERMS_VERSION = "steps-2026-11-01";
 export const PAYMENT_TERMS_BODY = [
   "How I'll pay for this job. My install invoice is {total} inc GST, and there is no card fee.",
   "1. Safety check: {fee} for the Pre Insulation Electrical Safety Assessment (PIESA), now that I accept, by card or bank transfer. I understand it's non-refundable once the PIESA is done, even if it finds the job can't go ahead.",
-  "2. Electrical fixes, only if the electrician finds they're needed: I'll see the price first, and if I approve them I pay for the fixes in full then, on their own invoice, by card or bank transfer.",
+  "2. Electrical upgrades, only if the electrician finds they're needed: I'll see the price first, and if I approve them I pay for the electrical upgrades in full then, on their own invoice, by card or bank transfer.",
   "3. Install deposit: {deposit} (10% of the remaining {remaining}) to book my install day, by card, bank transfer or PayID.",
   "4. Balance: {balance} on install day, by bank transfer or PayID.",
   "I can pay whatever is left at any time by bank transfer or PayID.",
 ].join("\n\n");
 
 /** Placeholder bodies are deliberately marked DRAFT; never present them as approved wording. {placeholders} are filled at signing. */
-export const LAWYER_V = "lawyer-2026-10-06-v1";
-export const LAWYER_APPROVAL_NOTE = "Jo Lowe — lawyer sign-off 6 Oct 2026";
-const L = { version: LAWYER_V, approvalNote: LAWYER_APPROVAL_NOTE } as const;
+export const PAPERWORK_V = "2026-10-06-v1";
+export const PAPERWORK_APPROVAL_NOTE = "Approved by Jo, 6 Oct 2026";
+const L = { version: PAPERWORK_V, approvalNote: PAPERWORK_APPROVAL_NOTE } as const;
 
-/** Lawyer-approved wording is loaded verbatim (Jo, 6 Oct 2026). {placeholders} are filled at signing; [brackets] are links. */
+/** Approved wording is loaded verbatim (Jo, 6 Oct 2026). {placeholders} are filled at signing; [brackets] are links. */
 export const GATE_DOCS: GateDoc[] = [
   { key: "contact_privacy", gate: "A", title: "Contact and privacy", ...L, signer: "owner", tick: "I agree",
     body: "I agree to Home Insulation Victoria (DC Construction Solutions Pty Ltd) contacting me by phone, text and email about my ceiling insulation upgrade. I have read the [Privacy Notice] and the [VEU Scheme Participant Privacy Collection Notice]." },
@@ -74,7 +74,7 @@ export const GATE_DOCS: GateDoc[] = [
 ];
 
 
-/** Lawyer-approved screen copy (version LAWYER_V). Presentation only. */
+/** Approved screen copy (version PAPERWORK_V). Presentation only. */
 export const PAPERWORK_SCREENS = {
   A: { heading: "Before we book anyone in", button: "Confirm and continue",
     tenantNote: "We'll ask your landlord to agree before any work is booked.",

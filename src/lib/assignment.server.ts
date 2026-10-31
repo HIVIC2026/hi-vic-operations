@@ -1,5 +1,3 @@
-import { requiredDepositCents } from "./payment-gate.core";
-import { safetyCheckIncGstFor } from "./safety-check-amount.core";
 // CENTRAL signing records (server-only, service role, after caller checks):
 //   customer_agreements  – Customer Agreement / Quote Acceptance (commercial; unlocks invoice/deposit only)
 //   installer_declarations – the installer's Mitti PIISA declaration (piisa-declaration.server.ts); the portal path below
@@ -11,7 +9,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { Json } from "@/integrations/supabase/types";
 import { AP_LEGAL_ENTITY } from "./authority";
 import {
-  ASSIGNMENT_EVENTS as EV, activeTemplate, agreementSignBlockers, buildFinalFacts, evaluateAssignment, finalAssignmentAvailability, finalConsumerSignatureRequired, formFieldBlockers, materialChanges,
+  ASSIGNMENT_EVENTS as EV, acceptancePaymentTerms, activeTemplate, agreementSignBlockers, buildFinalFacts, evaluateAssignment, finalAssignmentAvailability, finalConsumerSignatureRequired, formFieldBlockers, materialChanges,
   parseFormFields, pickFieldValues, resolveInstalledDetails, retainUntil, sha256Hex, signingOrderBlocker, stableJson, templateBlockers,
   type AgreementSignInput, type FieldValue, type FinalFacts, type Party, type Snapshot, type Template,
 } from "./assignment.core";
@@ -62,10 +60,12 @@ async function installerFacts(jobId: string) {
 export async function buildAcceptancePackage(quoteId: string) {
   const { data: q } = await admin.from("quotes").select("id, job_id, kind, option_label, option_code, version, subtotal_inc_gst, veec_discount_inc_gst, customer_total_inc_gst, status, quote_items(description, quantity, unit, unit_price_inc_gst, line_total_inc_gst, code, sort)").eq("id", quoteId).single();
   if (!q) throw new WorkflowError("Quote not found");
-  const { data: job } = await admin.from("jobs").select("job_number, owners(full_name, email, phone), properties(address_line, suburb, state, postcode)").eq("id", q.job_id).single();
-  const { data: m } = await admin.from("ceiling_measurements").select("measured_area_m2").eq("job_id", q.job_id).eq("is_current", true).maybeSingle();
-  const { data: rect } = await admin.from("rectification_items").select("description, status").eq("job_id", q.job_id).neq("status", "cancelled");
-  const inst = await installerFacts(q.job_id);
+  const [{ data: job }, { data: m }, { data: rect }, inst] = await Promise.all([
+    admin.from("jobs").select("job_number, owners(full_name, email, phone), properties(address_line, suburb, state, postcode)").eq("id", q.job_id).single(),
+    admin.from("ceiling_measurements").select("measured_area_m2").eq("job_id", q.job_id).eq("is_current", true).maybeSingle(),
+    admin.from("rectification_items").select("description, status").eq("job_id", q.job_id).neq("status", "cancelled"),
+    installerFacts(q.job_id),
+  ]);
   const o = job?.owners as unknown as { full_name: string; email: string | null; phone: string | null };
   const p = job?.properties as unknown as { address_line: string; suburb: string | null; state: string; postcode: string | null };
   const items = [...(q.quote_items ?? [])].sort((a, b) => a.sort - b.sort);
@@ -80,7 +80,7 @@ export async function buildAcceptancePackage(quoteId: string) {
     quoted_product: product, quoted_area_m2: m?.measured_area_m2 != null ? Number(m.measured_area_m2) : null,
     price_before_benefit_inc_gst: Number(q.subtotal_inc_gst), veu_benefit_inc_gst: Number(q.veec_discount_inc_gst), final_customer_price_inc_gst: total,
     rectification_scope: (rect ?? []).map((r) => r.description),
-    payment_terms: `One Xero invoice for ${total.toFixed(2)} inc GST. The Pre Insulation Electrical Safety Assessment (PIESA) payment of ${(requiredDepositCents(total, safetyCheckIncGstFor({ lines: items })) / 100).toFixed(2)} is required before the PIESA is booked. Then 10% of the remaining balance to book the install day (card, bank transfer or PayID) and the balance on install day, or paid in full at any time.`,
+    payment_terms: acceptancePaymentTerms(items, total),
     ap_legal_entity: AP_LEGAL_ENTITY,
   };
 }

@@ -1,3 +1,10 @@
+## Jo 1 Nov quote speed and paperwork — Task 2 only
+- [x] Renamed owner paperwork version/approval metadata; pending-only approval-copy migration and rollback passed PGlite (exact hashes, approver/time, repeat-safe, signed history intact, guards restored). Requested tests: 69 pass / 0 fail / 436 assertions. Scan: 0 customer-visible failures. Source grep: only two email keyword lists and installer/REC draft headers. No live SQL, signed-record changes, AGENTS edits or publication.
+
+## Jo 1 Nov spot-saved confirmation loop
+- [x] Stop terminal confirmation retries and quiet-hours/no-change history churn; mocked sender/recovery tests pass.
+- [x] Identical additive close-out passed PGlite; 24 eligible stuck jobs marked completed, zero remaining loop candidates; no messages, settings changes or history deletion. Code not published.
+
 ## Jo 30 Oct TEST office password reset
 - [x] Jo entered the new password privately; applied only to qa.office@hivic-test.example and verified password sign-in for its exact account. No messages or role changes; value never displayed.
 

@@ -7,7 +7,8 @@ const db = new PGlite();
 await db.exec(`
 CREATE TABLE workflow_events (id uuid primary key default gen_random_uuid(), job_id uuid, actor_id uuid, event_type text, summary text, details jsonb, created_at timestamptz default clock_timestamp());
 CREATE TABLE jobs (id uuid primary key, channel text, originating_installer_business_id uuid, stage text, deleted_at timestamptz, installer_quoted text);
-CREATE TABLE ceiling_measurements (job_id uuid, is_current boolean, raw_snapshot jsonb, removal_required boolean, measured_area_m2 numeric, external_source text, external_id text, status text);`);
+CREATE TABLE ceiling_measurements (job_id uuid, is_current boolean, raw_snapshot jsonb, removal_required boolean, measured_area_m2 numeric, external_source text, external_id text, status text);
+CREATE TABLE quotes (id uuid primary key default gen_random_uuid(), job_id uuid, kind text, status text, sent_at timestamptz);`);
 const BIZ = "00000000-0000-0000-0000-0000000000b1", USER = "00000000-0000-0000-0000-0000000000u1".replace("u", "a");
 const J1 = "00000000-0000-0000-0000-000000000001", J2 = "00000000-0000-0000-0000-000000000002";
 await db.query("insert into jobs values ($1,'installer_sourced',$3,'enquiry',null,'no'),($2,'installer_sourced',$3,'enquiry',null,'no')", [J1, J2, BIZ]);
@@ -20,7 +21,8 @@ mock.module("../src/lib/workflow.server", () => ({
 }));
 const realPilot = await import("../src/lib/pilot.server");
 mock.module("../src/lib/pilot.server", () => ({ ...realPilot, requireMember: async () => ({}) }));
-mock.module("../src/lib/installer-price.server", () => ({ readInstallerPrice: async () => ({ record: { price_inc_gst: 4000 } }) }));
+const storedPrice = { record: { price_inc_gst: 4000 }, setAt: "2026-11-01T00:00:00.000Z", setBy: null };
+mock.module("../src/lib/installer-price.server", () => ({ readInstallerPrice: async () => storedPrice, readInstallerPriceState: async () => ({ stored: storedPrice, askedAgain: false, newQuoteRequestedAt: null }) }));
 mock.module("../src/lib/mitti.server", () => ({ syncMittiAssessment: async () => {} }));
 const { setInstallerPrice } = await import("../src/lib/installer-price-set.server");
 const { intakeQuoteAnswers } = await import("../src/lib/installer-intake.server");

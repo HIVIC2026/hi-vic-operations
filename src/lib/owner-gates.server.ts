@@ -39,8 +39,11 @@ export async function gateFacts(jobId: string): Promise<GateFacts> {
   if (jobError) throw new WorkflowError("The job visit details could not load. Please retry.");
   if (!job) throw new WorkflowError("The saved job could not be found. Please retry or contact the office.");
   if (attError) throw new WorkflowError("The job visit details could not load. Please retry.");
-  const { count: onsite } = await admin.from("owner_contact_consents").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("source", "onsite_ready_check").eq("consent_status", "granted");
   const { lifeSupportPlansOnFile } = await import("./job-records.server");
+  const [{ count: onsite }, plans] = await Promise.all([
+    admin.from("owner_contact_consents").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("source", "onsite_ready_check").eq("consent_status", "granted"),
+    lifeSupportPlansOnFile([jobId]),
+  ]);
   const latest = (k: string) => (sigs ?? []).filter((s) => s.doc_key === k).at(-1)?.answers as Record<string, unknown> | undefined;
   const keys = new Set((tpl ?? []).map((t) => t.template_key));
   return {
@@ -58,7 +61,7 @@ export async function gateFacts(jobId: string): Promise<GateFacts> {
     piesaDeclarationMappingApproved: !!approved["piesa_owner_declaration"],
     assignmentEffective: assign === "effective_complete",
     onsiteConsent: (onsite ?? 0) > 0,
-    lifeSupportPlanOnFile: (await lifeSupportPlansOnFile([jobId])).has(jobId),
+    lifeSupportPlanOnFile: plans.has(jobId),
   };
 }
 
@@ -87,11 +90,13 @@ export async function gateAComplete(jobId: string) {
 }
 
 async function jobVars(jobId: string) {
-  const { data: j } = await admin.from("jobs").select("job_number, properties(address_line, suburb, postcode), owners(id, full_name, email, phone)").eq("id", jobId).single();
+  const [{ data: j }, { data: inst }, money] = await Promise.all([
+    admin.from("jobs").select("job_number, properties(address_line, suburb, postcode), owners(id, full_name, email, phone)").eq("id", jobId).single(),
+    admin.from("job_assignments").select("businesses(name)").eq("job_id", jobId).eq("role", "installer").eq("active", true).limit(1).maybeSingle(),
+    paymentMoney(jobId),
+  ]);
   const p = j?.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
   const o = j?.owners as { id: string; full_name: string | null; email: string | null; phone: string | null } | null;
-  const { data: inst } = await admin.from("job_assignments").select("businesses(name)").eq("job_id", jobId).eq("role", "installer").eq("active", true).limit(1).maybeSingle();
-  const money = await paymentMoney(jobId);
   return { jobNumber: j?.job_number ?? "", ownerId: o?.id ?? null, money, vars: {
     owner: o?.full_name, email: o?.email, phone: o?.phone,
     address: [p?.address_line, p?.suburb, p?.postcode].filter(Boolean).join(", "),
@@ -116,11 +121,19 @@ async function paymentMoney(jobId: string): Promise<(PaymentMoney & { version: s
 
 /** What the owner still needs to sign now, with the exact text they would sign. */
 export async function ownerPaperworkToSign(jobId: string) {
-  const { facts, gates } = await ownerGates(jobId);
-  const { vars, money } = await jobVars(jobId);
+  // Capture later-read failures so gate refusals still win, just as before.
+  const [{ facts, gates }, varsRead, variationRead] = await Promise.all([
+    ownerGates(jobId),
+    jobVars(jobId).then(value => ({ ok: true as const, value }), error => ({ ok: false as const, error })),
+    Promise.resolve(admin.from("assignment_variations").select("id, reasons").eq("job_id", jobId).eq("status", "pending").order("raised_at", { ascending: false }).limit(1).maybeSingle())
+      .then(value => ({ ok: true as const, value }), error => ({ ok: false as const, error })),
+  ]);
+  if (!varsRead.ok) throw varsRead.error;
+  const { vars, money } = varsRead.value;
   const quoteReady = quoteAcceptanceReady(vars);
   const todo = ownerToSign(gates).filter((t) => t.gate === "A" || (t.gate === "B" && facts.hasQuote && quoteReady) || (t.gate === "C" && facts.agreementSigned));
-  const { data: pv } = await admin.from("assignment_variations").select("id, reasons").eq("job_id", jobId).eq("status", "pending").order("raised_at", { ascending: false }).limit(1).maybeSingle();
+  if (!variationRead.ok) throw variationRead.error;
+  const { data: pv } = variationRead.value;
   return {
     pendingVariation: pv ? { id: pv.id, reasons: (Array.isArray(pv.reasons) ? pv.reasons : []).map(String) } : null,
     gates: gates.filter((g) => g.gate !== "A").map((g) => ({ gate: g.gate, label: g.label, complete: g.complete, items: g.items })),

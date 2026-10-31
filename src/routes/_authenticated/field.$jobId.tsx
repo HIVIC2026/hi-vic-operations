@@ -60,7 +60,7 @@ import { WhosDoingThis } from "@/components/trade/visit-allocation";
 import { PiisaCrewPicker } from "@/components/trade/PiisaCrewPicker";
 import { visitsForStage } from "@/lib/visit-allocation.core";
 import { ContactButtons, Group, LinkRow, NextPanel, NoFormNoPay, Note, PrimaryButton, Row, Screen, ScreenHead, primaryLinkClass } from "@/components/trade/installer-kit";
-import { completeView, electricianRow, firstName, installRow, installerStatusLine, STAFF_LINKS_LABEL, jobNext, mittiLinkPlace, payNote, quoteStatusRow, readyCheckRows, sourceLabel, type ReadyCheckTurn } from "@/lib/installer-screens.core";
+import { completeView, electricianRow, firstName, installRow, installerStatusLine, STAFF_LINKS_LABEL, jobNext, mittiLinkPlace, payNote, quoteStatusRow, mittiMissingCount, readyCheckRows, sourceLabel, type ReadyCheckTurn } from "@/lib/installer-screens.core";
 import { InstallerPriceCard } from "@/components/trade/InstallerPriceCard";
 import { FixesFormCard } from "@/components/trade/FixesFormCard";
 import { FixesTimesCard, useTradeFixesTimes } from "@/components/trade/FixesTimesCard";
@@ -338,7 +338,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
   const heldNext = inHouseAccess.data?.allowed === true && next && ["offer_install_days", "install_answer_owner", "install_waiting_owner", "ready_check_offer_times", "ready_check_answer_owner", "ready_check_waiting_owner", "ready_check_set_time"].includes(next.panel)
     ? `Book the ${next.panel.startsWith("ready_check") ? "Ready Check" : "install"} in the portal` : null;
   const mittiLink = page && next ? mittiLinkPlace({ panel: next.panel, yours: next.yours, auditId: page.form.auditId, mittiInvited, formLinked: page.form.linked }) : null;
-  const readyCheck = page ? readyCheckRows({ bookedAt: page.readyCheck.bookedAt, done: page.readyCheck.done, formLinked: page.form.linked, formCompleted: page.form.completed, missing: page.form.missing.length + page.form.stops.length, hasAnswers: page.form.hasAnswers }) : null;
+  const readyCheck = page ? readyCheckRows({ bookedAt: page.readyCheck.bookedAt, done: page.readyCheck.done, formLinked: page.form.linked, formCompleted: page.form.completed, missing: mittiMissingCount(page.form.missing, page.form.stops), hasAnswers: page.form.hasAnswers }) : null;
   // Decision 279: ONE status line per job. The Quote row shows quote wording only once the form has answers and (A1) the price is in.
   const status = page ? installerStatusLine({ channel: page.channel, formLinked: page.form.linked, formCompleted: page.form.completed, formHasAnswers: page.form.hasAnswers, priceEntered: page.price.entered, boss: page.boss, quoteLine: page.quote?.line ?? null }) : null;
   const quoteRow = quoteStatusRow(page?.quote ? { ...page.quote } : null, { needsFinishing: !!page?.form.needsFinishing, formLinked: !!page?.form.linked });
