@@ -36,13 +36,17 @@ mock.module("@tanstack/react-router", () => ({
 type UserLike = { id: string; email?: string; email_confirmed_at?: string };
 let session: { user: UserLike } | null = null;
 let networkUser: () => Promise<{ data: { user: UserLike | null }; error: unknown }> = async () => ({ data: { user: null }, error: { name: "AuthSessionMissingError", status: 400 } });
-const auth = { getSession: 0, getUser: 0 };
+const auth = { getSession: 0, getUser: 0, signOut: [] as unknown[] };
+let authListener: ((event: string) => void) | null = null;
+// The guards register their auth-change listener only in a browser.
+(globalThis as { window?: unknown }).window ??= globalThis;
 let roleRows: () => Promise<{ data: { role: string }[] | null }> = async () => ({ data: [{ role: "installer" }] });
 const rows = (p: () => Promise<unknown>) => { const c: Record<string, unknown> = {}; c.select = () => c; c.eq = () => c; c.then = (ok: (v: unknown) => unknown, bad?: (e: unknown) => unknown) => p().then(ok, bad); return c; };
 mock.module("@/integrations/supabase/client", () => ({
   supabase: {
     auth: {
-      onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
+      onAuthStateChange: (fn: (event: string) => void) => { authListener = fn; return { data: { subscription: { unsubscribe() {} } } }; },
+      signOut: async (o: unknown) => { auth.signOut.push(o); session = null; authListener?.("SIGNED_OUT"); return { error: null }; },
       getSession: async () => { auth.getSession++; return { data: { session }, error: null }; },
       getUser: () => { auth.getUser++; return networkUser(); },
     },
@@ -54,7 +58,7 @@ const { QueryClient, QueryObserver } = await import("@tanstack/react-query");
 const core = await import("../src/lib/trade-route-prefetch.core");
 const pre = await import("../src/lib/trade-route-prefetch");
 const guards = await import("../src/lib/route-guards");
-const { writeTradeCache, resetTradeCacheSignOut } = await import("../src/lib/trade-cache");
+const { readTradeCache, writeTradeCache, resetTradeCacheSignOut } = await import("../src/lib/trade-cache");
 
 const ctx = (qc = new QueryClient()) => ({ queryClient: qc, user: { id: UID } });
 const tick = () => new Promise((r) => setTimeout(r, 0));
@@ -62,7 +66,7 @@ const tick = () => new Promise((r) => setTimeout(r, 0));
 beforeEach(() => {
   calls.length = 0; mem.clear(); resetTradeCacheSignOut(); pre.forgetHeadStarts(); guards.forgetGuardMemo();
   answer = async (name) => ({ from: name });
-  session = null; auth.getSession = 0; auth.getUser = 0;
+  session = null; auth.getSession = 0; auth.getUser = 0; auth.signOut = [];
   networkUser = async () => ({ data: { user: null }, error: { name: "AuthSessionMissingError", status: 400 } });
   roleRows = async () => ({ data: [{ role: "installer" }] });
 });
@@ -152,6 +156,29 @@ describe("head start: the loader starts the call, the screen's own query uses it
     expect(await pre.headStartOr(UID, ["trade-home"], async () => "own")).toEqual({ from: "getTradeHome" });
     expect(await pre.headStartOr(UID, ["trade-home"], async () => "own")).toBe("own");
   });
+  test("only the FIRST fetch may take it: a fetch that finished without taking it drops it (no pre-action answer later)", async () => {
+    const qc = new QueryClient();
+    pre.startTradeScreen(ctx(qc), "business", {}, false);
+    // another page sharing the key (guide/team) fetches it its own way
+    await qc.fetchQuery({ queryKey: ["trade-business"], queryFn: async () => "team page" });
+    // a later refetch (e.g. after an action) asks the server itself
+    expect(await pre.headStartOr(UID, ["trade-business"], async () => "own")).toBe("own");
+  });
+  test("an error that finished without taking it drops it too", async () => {
+    const qc = new QueryClient();
+    pre.startTradeScreen(ctx(qc), "home", {}, false);
+    await qc.fetchQuery({ queryKey: ["trade-home"], queryFn: async () => { throw new Error("x"); }, retry: false }).catch(() => undefined);
+    expect(await pre.headStartOr(UID, ["trade-home"], async () => "own")).toBe("own");
+  });
+  test("expired head starts are swept on the next start, not kept in memory", async () => {
+    setSystemTime(new Date("2026-10-31T00:00:00Z"));
+    const qc = new QueryClient();
+    pre.startTradeScreen(ctx(qc), "home", {}, false);
+    setSystemTime(new Date(Date.parse("2026-10-31T00:00:00Z") + core.HEAD_START_MS + 1));
+    pre.startTradeScreen(ctx(qc), "money", {}, false); // sweeps the old home entry
+    setSystemTime(new Date("2026-10-31T00:00:00Z")); // even if the clock went back, the swept entry is gone
+    expect(await pre.headStartOr(UID, ["trade-home"], async () => "own")).toBe("own");
+  });
   test("another person's head start is never used", async () => {
     pre.startTradeScreen(ctx(), "home", {}, false);
     expect(await pre.headStartOr("someone-else", ["trade-home"], async () => "own")).toBe("own");
@@ -193,7 +220,7 @@ describe("head start: the loader starts the call, the screen's own query uses it
   });
   test("started twice (the trade area and the screen's own loader): one call", () => {
     const c = ctx();
-    pre.startTradeScreenForPath(c, "/field/money");
+    pre.startTradeScreenForPath(c, "/field/money", false);
     pre.startTradeScreen(c, "money", {}, false);
     expect(calls).toEqual([{ name: "getTradeMoneyView", args: undefined }]);
   });
@@ -228,14 +255,37 @@ describe("screen-only sign-in guard prefers the saved session", () => {
     await guards.currentUser();
     expect(auth.getSession).toBe(2);
   });
-  test("the auth server saying no (401/403) after a saved-session answer: the next check uses the auth server", async () => {
+  test("the auth server refusing the saved session (403, e.g. banned/deleted): signed out on this phone at once, then /auth", async () => {
     session = { user: { id: UID } };
+    writeTradeCache(UID, "home", { live: true });
+    pre.startTradeScreen(ctx(), "home", {}, false);
     networkUser = async () => ({ data: { user: null }, error: { name: "AuthApiError", status: 403 } });
+    const first = await guards.currentUser();
+    expect(first.data.user?.id).toBe(UID); // the screen may start from the saved session…
+    await tick(); await tick();
+    // …but the background refusal signs out locally without waiting for another navigation (SIGNED_OUT drives the redirect)
+    expect(auth.signOut).toEqual([{ scope: "local" }]);
+    expect(readTradeCache(UID, "home")).toBeNull();
+    expect(await pre.headStartOr(UID, ["trade-home"], async () => "own")).toBe("own");
+    // and the signed-in guard now sends them to /auth
+    const R = (await import("../src/routes/_authenticated/route")).Route as unknown as { options: { beforeLoad: (a: unknown) => Promise<unknown> } };
+    const thrown = await R.options.beforeLoad({ location: { href: "/field" } }).then(() => null, (e: unknown) => e);
+    expect(thrown).toEqual({ redirect: { to: "/auth", search: { next: "/field" } } });
+  });
+  test("a 401 refusal also signs out locally", async () => {
+    session = { user: { id: UID } };
+    networkUser = async () => ({ data: { user: null }, error: { name: "AuthApiError", status: 401 } });
     await guards.currentUser();
     await tick(); await tick();
-    const r = await guards.currentUser();
-    expect(r.data.user).toBeNull();
-    expect(r.error).not.toBeNull();
+    expect(auth.signOut).toEqual([{ scope: "local" }]);
+  });
+  test("sign-out (SIGNED_OUT) forgets every head start; other auth events don't", async () => {
+    pre.startTradeScreen(ctx(), "home", {}, false);
+    authListener?.("TOKEN_REFRESHED");
+    pre.startTradeScreen(ctx(), "money", {}, false);
+    authListener?.("SIGNED_OUT");
+    expect(await pre.headStartOr(UID, ["trade-money-v2"], async () => "own")).toBe("own");
+    expect(authListener).not.toBeNull();
   });
   test("a network failure of the background check does not sign anyone out", async () => {
     session = { user: { id: UID } };
@@ -243,6 +293,7 @@ describe("screen-only sign-in guard prefers the saved session", () => {
     await guards.currentUser();
     await tick(); await tick();
     expect((await guards.currentUser()).data.user?.id).toBe(UID);
+    expect(auth.signOut).toEqual([]);
   });
 });
 
@@ -270,6 +321,11 @@ describe("signed-in area and trade area guards", () => {
     expect(calls).toEqual([{ name: "getTradeDayView", args: { data: { jobId: JOB } } }]); // started while the role reads are still out
     release();
     await expect(done).resolves.toBeUndefined();
+  });
+  test("a preload of a trade address starts nothing", async () => {
+    const R = await fieldRoute();
+    await R.options.beforeLoad({ context: ctx(), location: { pathname: "/field" }, preload: true });
+    expect(calls).toEqual([]);
   });
   test("not a trade (an owner): still sent to /home", async () => {
     roleRows = async () => ({ data: [{ role: "owner" }] });
@@ -310,6 +366,7 @@ describe("source pins: every listed route declares the loader for its own screen
     const src = readFileSync("src/routes/_authenticated/field.tsx", "utf8");
     expect(src.indexOf("startTradeScreenForPath(")).toBeGreaterThan(-1);
     expect(src.indexOf("startTradeScreenForPath(")).toBeLessThan(src.indexOf("await loadAccess("));
+    expect(src).toContain("startTradeScreenForPath(context, location.pathname, preload)");
     expect(src).toContain("if (!(a.admin || a.installer || a.electrician)) throw redirect({ to: \"/home\" });");
   });
 });

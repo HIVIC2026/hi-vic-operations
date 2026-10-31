@@ -30,6 +30,25 @@ const keyOf = (queryKey: readonly unknown[]) => JSON.stringify(queryKey);
 /** Sign-out (and tests): drop every head start. */
 export function forgetHeadStarts(): void { early.clear(); }
 
+function sweep(now: number) {
+  for (const [k, e] of early) if (now - e.at > HEAD_START_MS) early.delete(k);
+}
+
+// Only the FIRST fetch for a key may take its head start. Query dispatches "fetch" before calling the queryFn (which
+// takes the entry), so when a fetch for that key finishes ("success"/"error", incl. setQueryData) and the entry is
+// still there, that fetch did not take it — drop it, so a later refetch (after an action, a poll) can never get an
+// answer from before.
+const watched = new WeakSet<QueryClient>();
+function watch(qc: QueryClient) {
+  if (watched.has(qc)) return;
+  watched.add(qc);
+  qc.getQueryCache().subscribe((ev) => {
+    if (ev.type !== "updated") return;
+    const t = (ev.action as { type?: string }).type;
+    if (t === "success" || t === "error") early.delete(keyOf(ev.query.queryKey));
+  });
+}
+
 type LoaderContext = { queryClient?: QueryClient; user?: { id?: string } } | undefined;
 
 /** Route loader: start this screen's call now if the screen will ask for it on mount. Never throws, never blocks. */
@@ -40,6 +59,8 @@ export function startTradeScreen(context: LoaderContext, screen: TradeScreen, pa
     const qc = context?.queryClient;
     if (!uid || !qc) return;
     const now = Date.now();
+    sweep(now);
+    watch(qc);
     const seed = readTradeCache<unknown>(uid, tradeScreenQuery(screen, params, false).cacheKey);
     const q = tradeScreenQuery(screen, params, !!seed);
     const k = keyOf(q.queryKey);
@@ -55,9 +76,9 @@ export function startTradeScreen(context: LoaderContext, screen: TradeScreen, pa
 }
 
 /** Trade area guard: start the screen this address opens (before the role reads), if it is one of the five. */
-export function startTradeScreenForPath(context: LoaderContext, pathname: string): void {
+export function startTradeScreenForPath(context: LoaderContext, pathname: string, preload: boolean | undefined): void {
   const s = tradeScreenForPath(pathname);
-  if (s) startTradeScreen(context, s.screen, s.params, false);
+  if (s) startTradeScreen(context, s.screen, s.params, preload);
 }
 
 /** In the screen's queryFn: the started call for this person and key if there is a fresh one (taken once), else `call()`. */
@@ -65,6 +86,7 @@ export function headStartOr<T>(uid: string, queryKey: readonly unknown[], call: 
   const k = keyOf(queryKey);
   const e = early.get(k);
   early.delete(k);
+  sweep(Date.now());
   if (e && e.uid === uid && Date.now() - e.at <= HEAD_START_MS) return e.promise as Promise<T>;
   return call();
 }
