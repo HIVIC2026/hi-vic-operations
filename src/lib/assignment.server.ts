@@ -60,10 +60,12 @@ async function installerFacts(jobId: string) {
 export async function buildAcceptancePackage(quoteId: string) {
   const { data: q } = await admin.from("quotes").select("id, job_id, kind, option_label, option_code, version, subtotal_inc_gst, veec_discount_inc_gst, customer_total_inc_gst, status, quote_items(description, quantity, unit, unit_price_inc_gst, line_total_inc_gst, code, sort)").eq("id", quoteId).single();
   if (!q) throw new WorkflowError("Quote not found");
-  const { data: job } = await admin.from("jobs").select("job_number, owners(full_name, email, phone), properties(address_line, suburb, state, postcode)").eq("id", q.job_id).single();
-  const { data: m } = await admin.from("ceiling_measurements").select("measured_area_m2").eq("job_id", q.job_id).eq("is_current", true).maybeSingle();
-  const { data: rect } = await admin.from("rectification_items").select("description, status").eq("job_id", q.job_id).neq("status", "cancelled");
-  const inst = await installerFacts(q.job_id);
+  const [{ data: job }, { data: m }, { data: rect }, inst] = await Promise.all([
+    admin.from("jobs").select("job_number, owners(full_name, email, phone), properties(address_line, suburb, state, postcode)").eq("id", q.job_id).single(),
+    admin.from("ceiling_measurements").select("measured_area_m2").eq("job_id", q.job_id).eq("is_current", true).maybeSingle(),
+    admin.from("rectification_items").select("description, status").eq("job_id", q.job_id).neq("status", "cancelled"),
+    installerFacts(q.job_id),
+  ]);
   const o = job?.owners as unknown as { full_name: string; email: string | null; phone: string | null };
   const p = job?.properties as unknown as { address_line: string; suburb: string | null; state: string; postcode: string | null };
   const items = [...(q.quote_items ?? [])].sort((a, b) => a.sort - b.sort);
