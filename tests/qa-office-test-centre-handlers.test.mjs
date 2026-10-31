@@ -1,11 +1,12 @@
 // Review #3 (30 Oct): the REAL Test Centre handlers, called as the TEST office login (qa_office, not admin).
+// officeJob stands in for requireOfficeJob (identity + isolation); the real one is covered by qa-office-job-scope-practice-db.
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { fixture, id } from './helpers/qa-fixture.mjs';
 
 const asTestOffice = (io, isolated = new Set([id(1)])) => {
   io.isAdmin = false; io.isQaOffice = true;
-  io.context.officeJob = async jobId => { if (!isolated.has(jobId)) throw new Error('Only fully isolated TEST jobs are available to TEST office.'); return 'qa_office'; };
+  io.context.officeJob = async jobId => { if (io.isAdmin) throw new Error('Admin only.'); if (!isolated.has(jobId)) throw new Error('Only fully isolated TEST jobs are available to TEST office.'); return 'qa_office'; };
 };
 
 test('TEST office can archive an isolated TEST journey', async t => {
