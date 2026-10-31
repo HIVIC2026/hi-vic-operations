@@ -16,7 +16,7 @@ describe("onboarding fixes", () => {
     expect(recPage).not.toContain("Weekly assessment visits");
   });
   test("accepting new work is a Yes/No choice; No is allowed", () => {
-    expect(page).toContain("Are you accepting new work now?");
+    expect(page).toContain("Are you available to accept Home Insulation Victoria work at the moment?");
     const base: InstData = { typical_days: ["Mon"], normal_attendance_speed: "1-2 weeks" };
     expect(errs({ ...base, accepting_jobs: false }, "availability")).toBe("");
     expect(errs(base, "availability")).toContain("new work");
