@@ -232,7 +232,7 @@ export const createPartnerLogin = createServerFn({ method: "POST" }).middleware(
 
 /** Office approves → creates the login AND emails the one-time set-password link to the partner for real (Jo's manual partner email rule), recorded on their record. */
 export const sendPartnerLoginLink = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ applicationId: uuid, email: z.string().trim().toLowerCase().transform((e) => e.replace(/[.,;]+$/, "")).pipe(z.string().email().max(320)) }).parse(d))
+  .inputValidator((d) => z.object({ applicationId: uuid, email: z.string().trim().toLowerCase().transform((e) => e.replace(/[.,;]+$/, "")).pipe(z.string().email().max(320)), officeChosenEmail: z.boolean().optional() }).parse(d))
   .handler(async ({ data, context }) => {
     {
       const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
@@ -240,7 +240,7 @@ export const sendPartnerLoginLink = createServerFn({ method: "POST" }).middlewar
       const { data: b } = act ? await admin.from("businesses").select("approval_message_status").eq("id", act.business_id).maybeSingle() : { data: null };
       if (b?.approval_message_status && b.approval_message_status === "sent") throw new WorkflowError("The welcome email was already sent for this business, so it isn't sent again. Use Create login to get a fresh link.");
     }
-    const r = await makePartnerLogin(context.supabase, context.userId, data);
+    const r = await makePartnerLogin(context.supabase, context.userId, { applicationId: data.applicationId, email: data.email }, !!data.officeChosenEmail);
     const { sendOfficeEmail } = await import("./office-email.server");
     const { partnerWelcomeEmail } = await import("./partner-email.core");
     const m = partnerWelcomeEmail({ firstName: r.name?.trim().split(/\s+/)[0] ?? null, businessName: r.businessName, trade: r.role, email: r.email, link: r.link, test: false });
