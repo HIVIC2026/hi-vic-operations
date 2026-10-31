@@ -105,7 +105,7 @@ if (process.env.OWNER_ACCEPT_SPEED_CHILD !== "1") {
   mock.module("../src/lib/installer-intake.server",()=>({intakeSendBlockers:()=>timed("intakeSendBlockers",async()=>intake),isIntakeJob:()=>timed("isIntakeJob",async()=>false)}));
   mock.module("../src/lib/signed-pdf.server",()=>({textToPdf:async()=>new Uint8Array()}));
   mock.module("../src/lib/invoice-after-acceptance.server",()=>({createInvoiceAfterAcceptance:async(...args:unknown[])=>{writes.push({name:"invoice",value:args});}}));
-  mock.module("../src/lib/autoadvance.server",()=>({autoAdvanceJob:async(...args:unknown[])=>{writes.push({name:"autoAdvance",value:args});}}));
+  mock.module("../src/lib/autoadvance.server",()=>({autoAdvanceOpenJobs:async()=>{},autoAdvanceJob:async(...args:unknown[])=>{writes.push({name:"autoAdvance",value:args});}}));
   // Other portal exports are not exercised; stub its unrelated server-only imports
   // by their declared names so no live Mitti/Xero/email module can be reached.
   const portal=readFileSync("src/lib/portal.functions.ts","utf8");
