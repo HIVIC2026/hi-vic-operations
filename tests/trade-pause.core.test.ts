@@ -1,6 +1,6 @@
 // "Pause all trade messages" (Jo 30 Oct 2026): pure rules only.
 import { describe, expect, test } from "bun:test";
-import { TRADE_MESSAGES_PAUSED_REASON, isMissingPauseColumn, readTradePause, tradeEmailPauseReason, tradeMessagesPausedReason } from "../src/lib/trade-pause.core";
+import { TRADE_MESSAGES_PAUSED_REASON, isMissingPauseColumn, businessPauseException, readTradePause, tradeEmailPauseReason, tradeMessagesPausedReason } from "../src/lib/trade-pause.core";
 import { smsBlocker } from "../src/lib/sms.core";
 
 describe("tradeMessagesPausedReason", () => {
@@ -69,5 +69,13 @@ describe("smsBlocker: partner texts held while paused", () => {
   });
   test("TEST record keeps its own reason", () => {
     expect(smsBlocker({ ...base, type: "job_offer", isTestRecord: true, tradeMessagesPaused: TRADE_MESSAGES_PAUSED_REASON })).toBe("TEST record – use the test sender");
+  });
+});
+
+describe("businessPauseException (Jo 31 Oct)", () => {
+  test("only an exact true lifts the hold; false/null/unknown stay held", () => {
+    expect(businessPauseException("Trade messages paused", true)).toBeNull();
+    for (const v of [false, null, undefined]) expect(businessPauseException("Trade messages paused", v)).toBe("Trade messages paused");
+    expect(businessPauseException(null, false)).toBeNull();
   });
 });
