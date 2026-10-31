@@ -1,8 +1,17 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { CALLERS, inlineOverviewSql, rollbackOverviewSql, jobOverviewAuthorityDb } from "./helpers/pglite-job-overview-authority";
+import {
+  CALLERS,
+  inlineOverviewSql,
+  rollbackOverviewSql,
+  jobOverviewAuthorityDb,
+} from "./helpers/pglite-job-overview-authority";
 
 const fixture = await jobOverviewAuthorityDb();
-const before = Object.fromEntries(await Promise.all(Object.entries(CALLERS).map(async ([role, id]) => [role, await fixture.rows(id)])));
+const before = Object.fromEntries(
+  await Promise.all(
+    Object.entries(CALLERS).map(async ([role, id]) => [role, await fixture.rows(id)]),
+  ),
+);
 const metadata = await fixture.metadata();
 await fixture.db.exec(inlineOverviewSql);
 afterAll(() => fixture.db.close());
@@ -24,7 +33,8 @@ describe("job overview inline authority — actual authority RLS, PGlite only", 
         "SELECT qa_office_job_allowed(id) AS allowed, can_access_job(id) AS ordinary_access, is_admin() AS admin FROM jobs",
       );
       expect(result.rows).toHaveLength(6);
-      for (const row of result.rows) expect(row).toEqual({ allowed: true, ordinary_access: false, admin: false });
+      for (const row of result.rows)
+        expect(row).toEqual({ allowed: true, ordinary_access: false, admin: false });
       expect((await tx.query("SELECT * FROM job_authority_latest()")).rows).toEqual([]);
     });
     expect(before.qa_office).toHaveLength(6);
@@ -34,7 +44,11 @@ describe("job overview inline authority — actual authority RLS, PGlite only", 
     }
   });
   test("new definer function grants exclude public and anon", async () => {
-    const result = await fixture.db.query<{ anon: boolean; authenticated: boolean; service_role: boolean }>(`
+    const result = await fixture.db.query<{
+      anon: boolean;
+      authenticated: boolean;
+      service_role: boolean;
+    }>(`
       SELECT has_function_privilege('anon','public.job_authority_latest()','EXECUTE') AS anon,
         has_function_privilege('authenticated','public.job_authority_latest()','EXECUTE') AS authenticated,
         has_function_privilege('service_role','public.job_authority_latest()','EXECUTE') AS service_role
@@ -43,8 +57,12 @@ describe("job overview inline authority — actual authority RLS, PGlite only", 
   });
   test("rollback restores the exact current view and each caller's values", async () => {
     await fixture.db.exec(rollbackOverviewSql);
-    for (const [role, user] of Object.entries(CALLERS)) expect(await fixture.rows(user)).toEqual(before[role]);
+    for (const [role, user] of Object.entries(CALLERS))
+      expect(await fixture.rows(user)).toEqual(before[role]);
     expect(await fixture.metadata()).toEqual(metadata);
-    expect((await fixture.db.query("SELECT to_regprocedure('public.job_authority_latest()') AS fn")).rows).toEqual([{ fn: null }]);
+    expect(
+      (await fixture.db.query("SELECT to_regprocedure('public.job_authority_latest()') AS fn"))
+        .rows,
+    ).toEqual([{ fn: null }]);
   });
 });

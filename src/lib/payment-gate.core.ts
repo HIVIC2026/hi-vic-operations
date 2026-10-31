@@ -5,14 +5,23 @@ import { WORKFLOW_DECISIONS, depositPctFor } from "@/config/workflow-decisions";
 
 export type PaymentRoute = "hiv_lead" | "installer_supplied" | "unknown";
 export type PaymentOption =
-  "safety_check_paid" | "deposit_paid" | "paid_in_full" | "instalment_plan_active" | "office_override" | "qa_test_simulated";
+  | "safety_check_paid"
+  | "deposit_paid"
+  | "paid_in_full"
+  | "instalment_plan_active"
+  | "office_override"
+  | "qa_test_simulated";
 
 export const PAYMENT_RULE_PENDING =
   "Payment rule pending activation – PIESA and scheduling are locked until the approved payment-option gate is switched on.";
 /** Jo 7 Oct 6:40pm: payment rule ON for TEST (qa_test) jobs only. Real jobs follow workflow_settings.payment_option_gate_enabled
- *  and stay locked until Jo approves the wording and turns it on for everyone. */
+ *  and stay locked until Jo's lawyer approves the wording and Jo turns it on for everyone. */
 export const TEST_JOBS_PAYMENT_GATE_ON = true;
-export function paymentGateEnabledFor(f: { globalEnabled: boolean; jobSource: string | null | undefined; qaArchived: boolean }): boolean {
+export function paymentGateEnabledFor(f: {
+  globalEnabled: boolean;
+  jobSource: string | null | undefined;
+  qaArchived: boolean;
+}): boolean {
   if (f.globalEnabled) return true;
   return TEST_JOBS_PAYMENT_GATE_ON && f.jobSource === "qa_test" && !f.qaArchived;
 }
@@ -33,7 +42,10 @@ export const SAFETY_CHECK_FEE_DEFAULT = 349;
 const feeCents = (fee?: number | string | null) => cents(fee ?? SAFETY_CHECK_FEE_DEFAULT);
 
 /** Upfront amount in cents = the safety check payment (never more than the total). */
-export function requiredDepositCents(totalIncGst: number | string, safetyFee?: number | string | null): number {
+export function requiredDepositCents(
+  totalIncGst: number | string,
+  safetyFee?: number | string | null,
+): number {
   return Math.min(feeCents(safetyFee), cents(totalIncGst));
 }
 
@@ -43,14 +55,25 @@ export function requiredDepositCents(totalIncGst: number | string, safetyFee?: n
 export function splitForOption(totalIncGst: number | string, safetyFee?: number | string | null) {
   const t = cents(totalIncGst);
   const fee = requiredDepositCents(totalIncGst, safetyFee);
-  return { depositPct: t > 0 ? Math.round((fee / t) * 10000) / 10000 : 0, deposit: fee / 100, balance: (t - fee) / 100 };
+  return {
+    depositPct: t > 0 ? Math.round((fee / t) * 10000) / 10000 : 0,
+    deposit: fee / 100,
+    balance: (t - fee) / 100,
+  };
 }
 
 export type RefundOutcome = "none" | "refund_all" | "refund_except_safety_fee" | "keep_safety_fee";
 /** Office guidance only; no money moves automatically. */
-export function refundOutcome(f: { paidCents: number; safetyFeeCents: number; checkDone: boolean; checkNeverHappening: boolean; canProceed: boolean }): { outcome: RefundOutcome; refundCents: number } {
+export function refundOutcome(f: {
+  paidCents: number;
+  safetyFeeCents: number;
+  checkDone: boolean;
+  checkNeverHappening: boolean;
+  canProceed: boolean;
+}): { outcome: RefundOutcome; refundCents: number } {
   if (f.paidCents <= 0) return { outcome: "none", refundCents: 0 };
-  if (!f.checkDone && f.checkNeverHappening) return { outcome: "refund_all", refundCents: f.paidCents };
+  if (!f.checkDone && f.checkNeverHappening)
+    return { outcome: "refund_all", refundCents: f.paidCents };
   if (f.checkDone && !f.canProceed) {
     const r = Math.max(0, f.paidCents - f.safetyFeeCents);
     return { outcome: r > 0 ? "refund_except_safety_fee" : "keep_safety_fee", refundCents: r };
@@ -59,9 +82,12 @@ export function refundOutcome(f: { paidCents: number; safetyFeeCents: number; ch
 }
 export const REFUND_LABELS: Record<RefundOutcome, string> = {
   none: "No refund due",
-  refund_all: "Refund everything paid (Pre Insulation Electrical Safety Assessment (PIESA) never happened)",
-  refund_except_safety_fee: "Refund everything except the Pre Insulation Electrical Safety Assessment (PIESA) payment (check done, job can't go ahead)",
-  keep_safety_fee: "Keep the Pre Insulation Electrical Safety Assessment (PIESA) payment (check done, job can't go ahead)",
+  refund_all:
+    "Refund everything paid (Pre Insulation Electrical Safety Assessment (PIESA) never happened)",
+  refund_except_safety_fee:
+    "Refund everything except the Pre Insulation Electrical Safety Assessment (PIESA) payment (check done, job can't go ahead)",
+  keep_safety_fee:
+    "Keep the Pre Insulation Electrical Safety Assessment (PIESA) payment (check done, job can't go ahead)",
 };
 
 /** Retired 3-instalment plan (kept read-only for history). */
@@ -96,7 +122,11 @@ export type PaymentGateInput = {
   enabled: boolean;
   route: PaymentRoute;
   currentQuote: { id: string; customer_total_inc_gst: number | string } | null; // owner-approved current confirmed quote
-  invoice: { quote_id: string | null; total_inc_gst: number | string; total_paid: number | string } | null;
+  invoice: {
+    quote_id: string | null;
+    total_inc_gst: number | string;
+    total_paid: number | string;
+  } | null;
   plan: InstalmentPlan | null;
   overrideCount: number; // audited office overrides for this invoice
   /** TEST journeys only: an audited simulated payment for the current quote. Never true for a real job. */
@@ -111,7 +141,12 @@ const aud = (c: number) => `$${(c / 100).toFixed(2)}`;
 
 export function evaluatePaymentGate(i: PaymentGateInput): PaymentGateResult {
   // TEST-only: lets a qa_test journey continue past payment while the real gate and Xero stay off.
-  if (i.qaSimulated && i.qaSimulated.jobSource === "qa_test" && i.currentQuote && i.qaSimulated.quoteId === i.currentQuote.id)
+  if (
+    i.qaSimulated &&
+    i.qaSimulated.jobSource === "qa_test" &&
+    i.currentQuote &&
+    i.qaSimulated.quoteId === i.currentQuote.id
+  )
     return { cleared: true, option: "qa_test_simulated" };
   if (!i.enabled) return { cleared: false, blocker: PAYMENT_RULE_PENDING };
   // Jo 24 Oct 2026: installer-supplied customers follow the same rule — the $349 safety check payment before the PIESA.
@@ -172,29 +207,47 @@ export function safetyCheckPayState(i: SafetyCheckPayInput): SafetyCheckPayState
   if (i.recordedPaidAt) return { kind: "paid", paidAt: i.recordedPaidAt };
   if (i.qaSimulated) return { kind: "test_simulated" };
   if (i.overrideCount > 0) return { kind: "overridden", at: null };
-  if (i.requiredAmount == null && i.recordedPaidAt == null && !i.qaSimulated && i.overrideCount === 0) return { kind: "unknown" };
+  if (
+    i.requiredAmount == null &&
+    i.recordedPaidAt == null &&
+    !i.qaSimulated &&
+    i.overrideCount === 0
+  )
+    return { kind: "unknown" };
   return { kind: "unpaid" };
 }
 
 /** Timeline/step wording. `staff` hides amounts from non-owner staff logins, as before. */
 export function safetyCheckPayLabel(s: SafetyCheckPayState, staff: boolean): string {
   switch (s.kind) {
-    case "paid": return staff ? "PIESA paid" : "$349 paid";
-    case "overridden": return "Payment requirement overridden";
-    case "test_simulated": return "TEST payment (simulated)";
-    case "unpaid": return staff ? "PIESA payment due" : "$349 due";
-    case "unknown": return staff ? "PIESA payment to confirm" : "PIESA payment to confirm";
+    case "paid":
+      return staff ? "PIESA paid" : "$349 paid";
+    case "overridden":
+      return "Payment requirement overridden";
+    case "test_simulated":
+      return "TEST payment (simulated)";
+    case "unpaid":
+      return staff ? "PIESA payment due" : "$349 due";
+    case "unknown":
+      return staff ? "PIESA payment to confirm" : "PIESA payment to confirm";
   }
 }
 
 /** One-line explanation for the Office/owner panels, so the two portals cannot disagree. */
 export function safetyCheckPayNote(s: SafetyCheckPayState, staff: boolean): string | null {
   switch (s.kind) {
-    case "paid": return null;
-    case "overridden": return "Payment block overridden by the office — no money has been received for the Pre Insulation Electrical Safety Assessment (PIESA) payment.";
-    case "test_simulated": return staff ? "TEST simulated payment — no money received." : "TEST simulated payment — no real money has been received.";
-    case "unpaid": return null;
-    case "unknown": return "No payment information yet — an invoice is raised when the owner accepts the quote.";
+    case "paid":
+      return null;
+    case "overridden":
+      return "Payment block overridden by the office — no money has been received for the Pre Insulation Electrical Safety Assessment (PIESA) payment.";
+    case "test_simulated":
+      return staff
+        ? "TEST simulated payment — no money received."
+        : "TEST simulated payment — no real money has been received.";
+    case "unpaid":
+      return null;
+    case "unknown":
+      return "No payment information yet — an invoice is raised when the owner accepts the quote.";
   }
 }
 
@@ -228,7 +281,8 @@ export function piesaRequestBlockers(f: PiesaRequestFacts): string[] {
 /** Jo 24 Oct 2026 (decisions 139/140/141): $349 at acceptance (card or bank, no fee), 10% of the rest to book the install (bank
  *  transfer / PayID, day held 48h), balance on install day (bank transfer / PayID), or pay in full any time. No card fee is ever shown. */
 /** Decision 302: the same sentence with the quote's own safety check figure (e.g. $220 for an approved REC). */
-export const paymentOptionSummary = (safetyCheckIncGst: number) => `The $${safetyCheckIncGst.toLocaleString("en-AU", { maximumFractionDigits: 2 })} Pre Insulation Electrical Safety Assessment (PIESA) payment is needed before the electrician's Pre Insulation Electrical Safety Assessment (PIESA) is booked. Then 10% of the rest to book your install day and the balance on install day, or pay in full any time.`;
+export const paymentOptionSummary = (safetyCheckIncGst: number) =>
+  `The $${safetyCheckIncGst.toLocaleString("en-AU", { maximumFractionDigits: 2 })} Pre Insulation Electrical Safety Assessment (PIESA) payment is needed before the electrician's Pre Insulation Electrical Safety Assessment (PIESA) is booked. Then 10% of the rest to book your install day and the balance on install day, or pay in full any time.`;
 export const PAYMENT_OPTION_SUMMARY =
   "The $349 Pre Insulation Electrical Safety Assessment (PIESA) payment is needed before the electrician's Pre Insulation Electrical Safety Assessment (PIESA) is booked. Then 10% of the rest to book your install day and the balance on install day, or pay in full any time.";
 export const PAYMENT_DECISION_STATUS = "decided_2026_10_26_flat_10_pct" as const;

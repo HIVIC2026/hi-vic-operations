@@ -118,7 +118,7 @@ export const WELCOME_STEPS = {
     "Accept it, then offer the owner 3 times. You'll see their contact details once it's yours.",
     "Do the PIESA using the A3 form in Mitti, on site, and press Complete.",
     "If fixes are needed, put your price on the A3 form and send us 3 to 5 times when we text you. We quote the owner. Once they've paid, they pick one of your times. Use the A4 form on the day.",
-    "Get paid 7 days after we approve your completed PIESA.",
+    "Get paid your agreed rate 7 days after we approve your completed form.",
   ],
 } as const;
 export const WELCOME_MITTI = {
@@ -146,7 +146,7 @@ export function partnerWelcomeEmail(i: { firstName: string | null; businessName:
     : `${i.businessName} can now take VEU electrical safety checks. Set your password to get started.`;
   const benefits = i.trade === "installer"
     ? ["Jobs sent to you, plus add your own customers", "Your price, never marked up. We only add our $349 AP fee", "Quotes, electrician, compliance and rebate paperwork handled by us"]
-    : ["PIESAs sent to you near where you work", "Get paid 7 days after we approve your completed PIESA.", "Bookings, compliance and rebate paperwork handled by us"];
+    : ["PIESAs sent to you near where you work", "Get paid your agreed rate 7 days after we approve your completed form.", "Bookings, compliance and rebate paperwork handled by us"];
   // Link check (Jo 27 Oct 2026): the guide page is the installer guide and only installers can open it, so electricians get no guide box.
   const guide = i.trade === "installer" || i.guideUrl ? { title: "New to how we work?", body: "Read the 2-minute guide: Ready Checks, Mitti, your jobs, our leads and getting paid.", href: i.guideUrl || INSTALLER_GUIDE_URL } : null;
   const steps = WELCOME_STEPS[i.trade];
