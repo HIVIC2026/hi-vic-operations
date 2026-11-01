@@ -6,6 +6,7 @@ import { logEvent, WorkflowError } from "./workflow.server";
 import { activeTemplate, sha256Hex, stableJson } from "./assignment.core";
 import { apConsentBlockers, apRepFullName, buildConsentFacts, ESC_AP_FULL_NAME, consentStaleReasons, isEscTemplateVersion, ownerConsentBlockers, renderConsentBody, splitFullName, type ApRep, type ConsentFacts, type ConsentSignInput, type OwnerDeclarations } from "./consent.core";
 import { formatPropertyAddress } from "./address";
+import { runAfterResponse } from './background.server';
 
 // Migration 0226 adds these fields; keep its types local until the generated schema includes them.
 type ConsentColumns = { owner_declarations: Json | null; ap_rep: Json | null };
@@ -111,7 +112,9 @@ export async function signOwnerConsent(p: { jobId: string; actorId: string; inpu
   if (!won?.length) return;
   await logEvent(p.jobId, p.actorId, "esc_consent_owner_signed", `Owner signed ESC information-sharing consent (${tpl.version})${declarations ? " – all four Section 2 declarations ticked" : ""} – awaiting AP representative`, { consent_id: c.id, declarations });
   // Decision 370: the AP part signs itself straight away when every check passes (held otherwise; the tick retries).
-  try { await (await import("./consent-ap-auto.server")).tryAutoConsentApSignature(p.jobId); } catch (e) { console.error("automatic consent AP signature skipped", (e as Error).message); }
+  // The committed awaiting_ap row is the durable queue consumed by sweepAutoConsentApSignatures.
+  // Never hold the owner's completed signature on AP PDF/email work; absent lifecycle leaves it for that sweep.
+  runAfterResponse(async () => { await (await import("./consent-ap-auto.server")).tryAutoConsentApSignature(p.jobId); });
 }
 
 /** Section 3 Part A prefill for the signing office user (their profile); role is typed by the user. */

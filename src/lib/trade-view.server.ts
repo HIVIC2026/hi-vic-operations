@@ -146,11 +146,8 @@ export async function tradeHome(userId: string) {
       : Promise.resolve({ data: [] as never[] }),
   ]);
   const moneyAll = await moneyP;
-  const installDeposits=new Map<string,boolean|null>();
-  if(c.kind==='installer')for(const j of live.filter(j=>j.stage==='installation_scheduling' && !!sf.get(j.id)?.inHouseDispatch)){
-    const v=await paymentsServer.jobPaymentView(j.id).catch(()=>null);
-    installDeposits.set(j.id,v?isStepPaid(v.steps,'install_deposit'):null);
-  }
+  const depositIds = c.kind === 'installer' ? live.filter(j => j.stage === 'installation_scheduling' && !!sf.get(j.id)?.inHouseDispatch).map(j => j.id) : [];
+  const installDeposits = await (await import('./payment-ledger.server')).installDepositPaidForJobs(depositIds).catch(() => new Map<string, boolean | null>(depositIds.map(id => [id, null])));
   // Decision 396: rows the retired install-day photo chase created are not missing photos.
   const miss = new Map<string, number>(); for (const r of withoutRetiredInstallDayPhotos(missing ?? [])) miss.set(r.job_id, (miss.get(r.job_id) ?? 0) + 1);
   const deadline = new Map<string, string>(); for (const d of deadlines ?? []) if (d.job_id && d.install_deadline) deadline.set(d.job_id, String(d.install_deadline));
