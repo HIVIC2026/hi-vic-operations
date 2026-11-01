@@ -45,7 +45,7 @@ test('SIM all-clear booking/forms/deposit/digest sequence uses one continuing jo
 
 test('SIM rectification holds deposit until work complete; Xero paid notice is email-only to office',async()=>{
   const h=createInHouseSim();await h.bookReadyCheck();h.completeReadyCheck();h.acceptQuote();h.paySafetyCheck();await h.bookSafetyCheck();
-  await h.completePiesa(true);h.assertStep('Rectification needed','rectification_scheduling',['RC','A3','A4'],[]);
+  h.checkpoint();await h.completePiesa(true);h.assertStep('Rectification needed','rectification_scheduling',['RC','A3','A4'],[]);
   await h.tryDeposit();h.assertNoNewMessages();await h.completeRectification();
   h.assertStep('Rectification done','installation_scheduling',['RC','A3','A4'],[['owner','email','install_deposit_request'],['owner','sms','install_deposit_request']]);
   await h.payDeposit('xero');h.assertStep('Xero deposit paid','installation_scheduling',['RC','A3','A4'],[['owner','email','install_deposit_paid'],['owner','sms','install_deposit_paid'],['installer-office','email','install_deposit_paid_office']]);
@@ -64,7 +64,7 @@ test('SIM deposit unpaid day 3/day 7; paid gate never allows installation',async
 
 test('SIM owner cancellation closes unused forms and emails only HIV office, replay safe',async()=>{
  const h=createInHouseSim();await h.bookReadyCheck();h.checkpoint();await h.cancel('Owner changed plans');
- h.assertStep('Owner cancelled','cancelled',['RC','A3','A4'],[['hiv-office','email','in-house-owner-cancelled:job:job_cancel_released']]);
+ h.assertStep('Owner cancelled','cancelled',['RC','A3','A4'],[['hiv-office','email','in_house_owner_cancelled']]);
  expect(h.closedForms().sort()).toEqual(['A3','A4','RC']);expect(h.actorCanRead('electrician')).toBe(false);
  await h.cancel('Owner changed plans');h.assertNoNewMessages();h.assertOfficesEmailOnly();
 });
