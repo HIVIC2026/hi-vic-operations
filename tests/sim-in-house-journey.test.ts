@@ -91,3 +91,23 @@ test('SIM two-business-day flag keeps job assigned and handback preserves reason
  const h=createInHouseSim();h.clock.set('2026-11-05T22:00:00Z');expect(h.bookingOverdue()).toBe(true);expect(h.actorCanRead('installer-office')).toBe(true);
  await h.handBack('Cannot cover this address');expect(h.actorCanRead('installer-office')).toBe(false);expect(h.job.stage).toBe('ready_check_ready_to_schedule');expect(h.handbackReason()).toBe('Cannot cover this address');h.assertOfficesEmailOnly();
 });
+
+test('SIM retained CoES sends exact owner certificate email/attachment once and records current document set',async()=>{
+ const h=createInHouseSim();await h.atInstallBooked();h.checkpoint();await h.uploadCoes();
+ h.assertStep('CoES retained','installation_booked',['RC','A3','A4','A5'],[['owner','email','coes_owner_copy']]);
+ expect(h.messages.at(-1)?.attachments).toEqual([{filename:'Certificate-of-Electrical-Safety-1.pdf',contentType:'application/pdf',content:Buffer.from('SIM certificate').toString('base64')}]);
+ expect(h.tables.job_compliance_records.map(r=>r.record_key)).toEqual(['pre_install_consumer_docs']);
+ await h.uploadCoes();h.assertNoNewMessages();h.assertOfficesEmailOnly();
+});
+
+test('SIM repeat PIESA uses office choice, owner acceptance and only its own fully-paid invoice',async()=>{
+ const h=createInHouseSim();await h.atClearance();h.clock.set('2026-12-03T22:00:00Z');
+ expect((await h.repeatContext()).stage).toBe('choose');
+ expect((await h.chooseRepeat()).stage).toBe('owner_accept');
+ expect((await h.acceptRepeat()).stage).toBe('owner_pay');
+ expect(await h.payRepeat('invoice',34900)).toBe(false);
+ expect(await h.payRepeat('repeat-invoice',34899)).toBe(false);
+ expect(await h.payRepeat('repeat-invoice',34900)).toBe(true);
+ expect((await h.repeatContext()).stage).toBe('offer');
+ expect(await h.payRepeat('repeat-invoice',34900)).toBe(false);
+});
