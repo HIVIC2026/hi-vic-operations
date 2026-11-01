@@ -6,6 +6,14 @@
 - [x] Published safety probe HTTP 404; zero setup/page/domain/provider actions, all 405 role checkpoints NOT RUN; no screenshots. Details docs/published-in-house-harness-results.md.
 - [ ] Full tool remains incomplete: capture/media safeguards, durable fixture snapshot/restore, concrete scenario browser adapters and independent deployed probes. Published execution also requires completed safeguards deployed by Jo; no publishing or real-record changes.
 
+## Queued after current tasks — Jo 2 Nov 10:50am day-one fixes
+- [ ] 1 Approved owner handoff wording in sendInHousePartnerCall; template seed pending-only if needed. Exact copy: mem://features/day-one-in-house-messages.md.
+- [ ] 2 Installer-office batch handoff email once per batch/business with owner/suburb lines and To book link; existing two-business-day flag unchanged.
+- [ ] 3 Real 2pm and late-booking emails explicitly test:false; guard no real partner TEST badge.
+- [ ] 4 In-house offices email only: no self-booked Ready Check notice; missing-answer chase same wording via email; attendance-change email with approved call-owner wording; tomorrow/6:30am/A5 no business-mobile fallback; SMS guard test.
+- [ ] 5 In-house I23 business-office recipient and exact approved copy; non-in-house unchanged.
+- [ ] Related tests, full comparable suite, per-item report and rendered pictures of messages 1, 2, 5. No settings/secrets/live data/sends/publishing; SQL pending-only. QUEUED, implementation not started.
+
 ## Jo 2 Nov approved private Team DOB release
 - [x] Applied only approved d64a63d private_worker_birth_dates SQL as 0186 after 7/0 practice checks; original archived under applied-migrations.
 - [x] Live table, private-read policy and service-only add function read back; empty identity table and unchanged worker/business/workflow fingerprints.
