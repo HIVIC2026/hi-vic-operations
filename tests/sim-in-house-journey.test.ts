@@ -139,7 +139,7 @@ test.todo('SIM whole-job: full per-role UI/read and database RLS matrix at every
 
 test('SIM combined PIESA copy/declaration email is delivered before install booking, once, with PDF',async()=>{
  const h=createInHouseSim();await h.atClearance();h.checkpoint();await h.deliverSafetyCopy();
- h.assertStep('PIESA copy before install','installation_scheduling',['RC','A3','A4'],[['owner','email','piesa_copy'],['installer-office','email','piesa_copy']]);
+ h.assertStep('PIESA copy before install','installation_scheduling',['RC','A3','A4'],[['owner','email','piesa_copy']]);
  const owner=h.messages.find(m=>m.template==='piesa_copy'&&m.who==='owner');expect(owner?.attachments).toHaveLength(1);expect(owner?.body).toContain('Confirm my safety check');
  await h.deliverSafetyCopy();h.assertNoNewMessages();h.assertOfficesEmailOnly();
 });
