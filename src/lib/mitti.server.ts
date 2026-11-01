@@ -915,3 +915,36 @@ export async function reassignMittiFormTo(p: { jobId: string; auditId: string; k
   }
   return { auditId: p.auditId };
 }
+
+/** Update only the recorded crew fields, never onsite answers or signatures. */
+export async function updateMittiInstallCrew(jobId: string, auditId: string, actorId: string | null, call: MittiCall = realMittiCall) {
+  const [{data:job,error:je},{data:ws,error:we}] = await Promise.all([
+    admin.from("jobs").select("job_number").eq("id",jobId).single(),
+    admin.from("workflow_settings").select("mitti_piisa_template_id").eq("id",1).maybeSingle(),
+  ]);
+  if (je || we || !job || !ws?.mitti_piisa_template_id) throw new WorkflowError("The install form could not be checked.");
+  const api = mittiApi(await mittiCallFor(call));
+  const audit = await api.getAudit(auditId);
+  validateStoredMittiAudit(audit,{storedAuditId:auditId,jobNumber:job.job_number,templateId:ws.mitti_piisa_template_id});
+  if (parseAudit(audit).completed) return;
+  const {staff,selection} = await (await import("./piisa-a3.server")).loadCrew(jobId);
+  if (!selection) throw new WorkflowError("Choose the install crew first.");
+  const core = await import("./piisa-a3.core");
+  const checks = core.crewSelectionProblems(selection,staff);
+  if (checks.problems.length || checks.needsVerification.length) throw new WorkflowError([...checks.problems,...checks.needsVerification].join(" • "));
+  const lead = staff.find(w=>w.workerId===core.leadWorkerId(selection));
+  const pick = (p: unknown) => { const workerId = typeof p === "string" ? p : (p as {workerId?:string}|null)?.workerId; const w = staff.find(w=>w.workerId===workerId); const other = (p as {other?:{name?:string}}|null)?.other; return {name:w?.name ?? other?.name ?? null,cii:w?.eecVerified ? w.eec : null}; };
+  const [second,third] = selection.additional.map(pick);
+  const install = await import("./install-day.core");
+  const items = install.installDayPrefillItems(audit,{jobNumber:null,address:null,installDate:null,apName:null,businessName:null,leadName:lead?.name ?? null,leadCii:lead?.eecVerified ? lead.eec : null,secondName:second?.name ?? null,secondCii:second?.cii ?? null,thirdName:third?.name ?? null,thirdCii:third?.cii ?? null,lifeSupport:null,solarPresent:null,electricianAtStart:null},(await import("./mitti.core")).choiceOption);
+  // Clear removed crew's names/certifications as well as replacing current crew.
+  const {flatten} = await import("./mitti.core");
+  const crewLabels = install.INSTALL_DAY_QUESTIONS.filter(q=>q.prefill && ["leadName","leadCii","secondName","secondCii","thirdName","thirdCii"].includes(q.prefill)).map(q=>q.label);
+  const flat = flatten(audit);
+  for (const field of flat.filter(f=>crewLabels.includes(f.label))) if (!items.some(i=>i.item_id===field.id)) items.push({item_id:field.id,type:"text",responses:{text:""}});
+  const headers = new Set(flat.filter(f=>f.header).map(f=>f.id));
+  const h = items.filter(i=>headers.has(i.item_id)), b = items.filter(i=>!headers.has(i.item_id));
+  if (h.length) await api.updateAuditHeader(auditId,h);
+  if (b.length) await api.updateAuditText(auditId,b);
+  await logEvent(jobId,actorId,"mitti_install_crew_updated","Install form updated to the recorded crew",{audit_id:auditId},{internal:true});
+}

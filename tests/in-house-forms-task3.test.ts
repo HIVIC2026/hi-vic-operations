@@ -36,6 +36,7 @@ function fixture() {
       createPiisaMittiAudit: async (_j: string,_a: string,_c: any,o: any) => { creates.push("install"); expect(o.assignee.email).toBe("lead@example.invalid"); tables.workflow_events.push({job_id:"j",event_type:"mitti_piisa_audit_created",details:{audit_id:"A5"}}); return {auditId:"A5"}; },
       findMittiUserByEmail: async (email: string) => email,
       reassignMittiFormTo: async (p: any) => { handovers.push(p); },
+      updateMittiInstallCrew: async () => {},
     },
     "./mitti-pickup.server": { updateMittiFormDate: async (...p: any[]) => { dates.push(p); return {updated:true}; } },
     "./fixes-day.server": { existingRectificationForm: async () => { const e = tables.workflow_events.find(e => e.event_type === "fixes_form_created"); return e ? {auditId:e.details.audit_id,closed:false,round:"A3"} : null; }, createFixesForm: async () => { creates.push("fixes"); tables.workflow_events.push({job_id:"j",event_type:"fixes_form_created",details:{audit_id:"A4",rectification_round:"A3"}}); return {status:"created",auditId:"A4"}; } },

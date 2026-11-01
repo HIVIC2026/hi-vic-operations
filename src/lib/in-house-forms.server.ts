@@ -33,11 +33,11 @@ async function formFacts(jobId: string): Promise<Form[]> {
   if (a?.external_mitti_id) forms.push({kind:"piesa",auditId:a.external_mitti_id,done:a.status === "complete" || a.mitti_completed === true});
   for (const [kind, created, completed] of [["install","mitti_piisa_audit_created","mitti_piisa_completed"],["rectification","fixes_form_created","fixes_form_completed"]] as const) {
     for (const e of history.filter(e => e.event_type === created)) {
-      const id = e.details?.audit_id;
-      if (typeof id === "string" && !forms.some(f=>f.auditId===id)) forms.push({kind,auditId:id,done:history.some(e=>e.event_type===completed && e.details?.audit_id===id)});
+      const id = e.details?.['audit_id'];
+      if (typeof id === "string" && !forms.some(f=>f.auditId===id)) forms.push({kind,auditId:id,done:history.some(e=>e.event_type===completed && e.details?.['audit_id']===id)});
     }
   }
-  return forms.filter(f=>!history.some(e=>["in_house_form_closed_unused","rectification_form_closed_unused"].includes(e.event_type) && e.details?.audit_id===f.auditId));
+  return forms.filter(f=>!history.some(e=>["in_house_form_closed_unused","rectification_form_closed_unused"].includes(e.event_type) && e.details?.['audit_id']===f.auditId));
 }
 async function assignment(jobId: string, role: string) {
   return read<Assignment | null>(db.from("job_assignments").select("user_id,business_id,profiles:user_id(email,full_name)").eq("job_id",jobId).eq("role",role).eq("active",true).maybeSingle());
@@ -60,7 +60,7 @@ async function leadAssignee(jobId: string) {
   const history = await events(jobId);
   const { currentAllocation } = await import("./visit-allocation.core");
   const allocation = currentAllocation(history,"install");
-  const selection = history.find(e=>e.event_type==="piisa_crew_selected")?.details?.selection;
+  const selection = history.find(e=>e.event_type==="piisa_crew_selected")?.details?.['selection'];
   const { leadWorkerId } = await import("./piisa-a3.core");
   const workerId = selection ? leadWorkerId(selection as import("./piisa-a3.core").CrewSelection) : allocation?.worker_id;
   if (!workerId) throw new Error("Choose the install Lead before creating the install form.");
@@ -120,7 +120,7 @@ export async function syncInHouseForms(jobId: string, change: "date"|"person"|"c
       const mittiUserId = await mitti.findMittiUserByEmail(holder.email,call ?? mitti.realMittiCall);
       if (!mittiUserId) throw new Error("Add this person in Mitti first.");
       await mitti.reassignMittiFormTo({jobId,auditId:form.auditId,kind:form.kind,mittiUserId,email:holder.email,actorId},call ?? mitti.realMittiCall);
-      if (change === "crew" && form.kind === "install") await mitti.updateMittiInstallCrew?.(jobId,form.auditId,actorId,call ?? mitti.realMittiCall);
+      if (change === "crew" && form.kind === "install") await mitti.updateMittiInstallCrew(jobId,form.auditId,actorId,call ?? mitti.realMittiCall);
     }
   }
 }
@@ -136,7 +136,7 @@ export async function closeUnneededForms(jobId: string, reason: string, actorId:
     if (!error) count++;
   }
   // Repair a missing note after an interrupted first attempt, without a second note on replay.
-  if (candidates.length || (await events(jobId)).some(e=>e.details?.reason===reason && ["in_house_form_closed_unused","rectification_form_closed_unused"].includes(e.event_type))) {
+  if (candidates.length || (await events(jobId)).some(e=>e.details?.['reason']===reason && ["in_house_form_closed_unused","rectification_form_closed_unused"].includes(e.event_type))) {
     const note = reason === "no_upgrades" ? "Rectification form not needed — you can ignore it in Mitti." : "Unused forms closed in the portal — you can ignore them in Mitti.";
     const {error} = await db.from("workflow_events").insert({id:await stableUuid(`in-house-unused-note:${jobId}:${reason}`),job_id:jobId,actor_id:actorId,event_type:"installer_note",summary:note,details:{note,reason,portal_only:true},internal:false});
     if (error && !isUniqueViolation(error)) throw new Error(error.message);
