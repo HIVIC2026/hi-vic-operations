@@ -57,7 +57,7 @@ export function createInHouseSim(){
  const formMap=new Map<string,{id:string;owner:string;done:boolean;date:string|null;access:Set<string>}>();
  const event=(type:string,details:any)=>{tables.workflow_events.push({id:`event-${tables.workflow_events.length}`,job_id:'job',event_type:type,details,created_at:clock.iso()});};
  const currentSelection=()=>tables.workflow_events.filter(e=>e.event_type==='piisa_crew_selected').at(-1)?.details.selection??{lead:null,additional:[]};
- const staff=()=>tables.partner_workers.map(w=>({workerId:w.id,name:w.full_legal_name,eec:'CII-'+w.id,eecVerified:true,cleared:true,workerRole:w.worker_role,level:'full',expiresOn:'2027-12-31',whiteCard:{state:'verified'}}));
+ const staff=()=>tables.partner_workers.map(w=>({workerId:w.id,name:w.full_legal_name,eec:'CII-'+w.id,eecVerified:true,cleared:true,workerRole:w.worker_role,level:'full',expiresOn:'2027-12-31',whiteCard:'verified'}));
  const loadCrew=async()=>({selection:currentSelection(),staff:staff()});
  const form=(id:string,owner:string)=>{if(!formMap.has(id))formMap.set(id,{id,owner,done:false,date:null,access:new Set([owner])});};
  const mittiCall=async(method:string,path:string)=>{if(method==='DELETE'){const match=/\/inspections\/v1\/inspections\/([^/]+)\/user\/([^/]+)\/access/.exec(path);if(!match)throw Error(`Unsupported SIM Mitti ${path}`);formMap.get(match[1])?.access.delete(decodeURIComponent(match[2]));}return {};};
