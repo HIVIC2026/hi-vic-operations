@@ -9,6 +9,8 @@ import { INSTALL_WINDOW_DAYS, installDaysLeft } from "./install-days.core";
 import * as K from "./email-kit.core";
 import { esc, mjEmail } from "./mail-mjml.core";
 import { mjThirtyDayClock } from "./safety-check-emails.core";
+import { endOfMelbourneYmd, addYmd } from "./melbourne-time.core";
+import { melbourneMidnight } from "./daily-brief.core";
 
 /** Jo must approve the wording below before this turns on. */
 export const THIRTY_DAY_REMINDER_APPROVED = true as boolean; // Jo 24 Oct 2026 (decision 167): texts and emails approved.
@@ -44,14 +46,18 @@ export function dueInstallWindowReminder(x: { deadline: string | null; booked: b
 }
 
 // ---------- Reminder wording (approved by Jo 24 Oct 2026, decision 167) ----------
-const longDate = (ymd: string) => new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", weekday: "long", day: "numeric", month: "long" }).format(new Date(`${ymd}T12:00:00+10:00`));
+const longDate = (ymd: string) => new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", weekday: "long", day: "numeric", month: "long" }).format(new Date(melbourneMidnight(ymd)));
 const dayWord = (n: number) => `${n} day${n === 1 ? "" : "s"}`;
 
-export type ReminderFacts = { step: InstallWindowStep; deadline: string; daysLeft: number; link: string; jobNumber?: string | null; firstName?: string | null; installerName?: string | null; ownerSuburb?: string | null; test?: boolean };
+export type ReminderFacts = { step: InstallWindowStep; deadline: string; daysLeft: number; link: string; jobNumber?: string | null; firstName?: string | null; installerName?: string | null; installerPhone?: string | null; inHouse?: boolean; ownerSuburb?: string | null; test?: boolean };
+
+const inHouseOwnerAsk = (f: ReminderFacts) => `If you haven't paid your deposit yet, please pay it now. If you have, ${f.installerName?.trim() || "your installer"} will call you to book.${f.installerPhone?.trim() ? ` You can call them on ${f.installerPhone.trim()}.` : ""}`;
+const inHouseExpiryRule = "If the 30 days run out, a new safety check is needed and costs $349 inc GST.";
 
 /** Owner text. Under 2 segments; brand prefix is added by brandSmsBody; STOP line last. */
 export function ownerInstallWindowText(f: ReminderFacts): string {
   const by = longDate(f.deadline);
+  if (f.inHouse) return `Your insulation install must happen by ${by} (${dayWord(f.daysLeft)} left). ${inHouseOwnerAsk(f)} ${inHouseExpiryRule} ${f.link} Reply STOP to opt out.`;
   if (f.step === "reminder_20") return `Your insulation install must happen by ${by} (${dayWord(f.daysLeft)} left). Please agree an install day with your installer on your job page: ${f.link} Reply STOP to opt out.`;
   return `Only ${dayWord(f.daysLeft)} left: your install must happen by ${by} or your safety check runs out and a repeat check is charged to whoever caused the delay. Pick a day today: ${f.link} Reply STOP to opt out.`;
 }
@@ -72,21 +78,21 @@ export function ownerInstallWindowEmail(f: ReminderFacts): { subject: string; ht
   const subject = f.step === "reminder_20" ? `${first}, ${dayWord(f.daysLeft)} left to book your install` : `${first}, only ${dayWord(f.daysLeft)} left on your safety check`;
   const introStart = `Your electrical safety check is valid for ${INSTALL_WINDOW_DAYS} days, so your insulation must be installed by`;
   const introEnd = `There ${f.daysLeft === 1 ? "is" : "are"} ${dayWord(f.daysLeft)} left and no day is agreed yet.`;
-  const ask = `Please go to your job page and tap one of the days ${installer} has offered, or suggest days that suit you. It only takes a minute.`;
+  const ask = f.inHouse ? inHouseOwnerAsk(f) : `Please go to your job page and tap one of the days ${installer} has offered, or suggest days that suit you. It only takes a minute.`;
   // [bold part, rest] of the 30-day rule line.
-  const rule: [string, string] = f.step === "reminder_20"
+  const rule: [string, string] = f.inHouse ? [inHouseExpiryRule, ""] : f.step === "reminder_20"
     ? ["If no day is agreed in time, the safety check runs out and a new one is needed before the install can go ahead.", ""]
     : ["If the window passes, a repeat safety check is needed before the install can go ahead.", "It is charged to whoever caused the delay (the owner or the installer)."];
   const ruleText = rule.filter(Boolean).join(" ");
   const questions = "Questions? Just reply to this email.";
   const body = [
-    `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${esc(subject)}</mj-text><mj-text>${esc(introStart)} <strong>${esc(by)}</strong>. ${esc(introEnd)}</mj-text><mj-text>${esc(ask)}</mj-text><mj-button href="${esc(myJobScreen(f.link, "book"))}">Pick my install day</mj-button></mj-column></mj-section>`,
+    `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${esc(subject)}</mj-text><mj-text>${esc(introStart)} <strong>${esc(by)}</strong>. ${esc(introEnd)}</mj-text><mj-text>${esc(ask)}</mj-text><mj-button href="${esc(f.inHouse ? f.link : myJobScreen(f.link, "book"))}">${f.inHouse ? "See my job" : "Pick my install day"}</mj-button></mj-column></mj-section>`,
     mjThirtyDayClock(`<strong>${esc(rule[0])}</strong>${rule[1] ? ` ${esc(rule[1])}` : ""}`),
     `<mj-section><mj-column><mj-text mj-class="small" padding="14px 12px 0">${esc(questions)}</mj-text></mj-column></mj-section>`,
   ].join("");
-  const preview = `Your insulation must be installed by ${by}. Pick your install day – it takes a minute.`;
+  const preview = f.inHouse ? `Your insulation must be installed by ${by}. ${installer} will contact you to book.` : `Your insulation must be installed by ${by}. Pick your install day – it takes a minute.`;
   const html = mjEmail({ subject, preview, body, unsubscribe: null, testLabel: f.test === true });
-  const text = K.plainText([subject, "", `${introStart} ${by}. ${introEnd}`, "", ask, `Pick my install day: ${myJobScreen(f.link, "book")}`, "", ruleText, "", questions], { testLabel: f.test === true });
+  const text = K.plainText([subject, "", `${introStart} ${by}. ${introEnd}`, "", ask, f.inHouse ? `See my job: ${f.link}` : `Pick my install day: ${myJobScreen(f.link, "book")}`, "", ruleText, "", questions], { testLabel: f.test === true });
   return { subject, html, text };
 }
 
@@ -98,7 +104,7 @@ export function installerInstallWindowEmail(f: ReminderFacts): { subject: string
   const subject = `${f.jobNumber ?? "Job"}: ${dayWord(f.daysLeft)} left in the 30-day install window`;
   const hi = `Hi ${first},`;
   const intro = `The PIESA on ${job} is valid until ${by}. ${dayWord(f.daysLeft)} left and no install day is agreed.`;
-  const ask = "Please offer days, or take one of the owner's suggested days, on the job screen now.";
+  const ask = f.inHouse ? "Please contact the owner and book the install in the portal before the deadline, once their deposit is paid." : "Please offer days, or take one of the owner's suggested days, on the job screen now.";
   const rule = f.step === "reminder_20"
     ? "If the window lapses, a repeat PIESA is needed before the install can start."
     : "If the window lapses, a repeat PIESA is needed. Under the partner agreement it's charged to whoever caused the delay — the owner or the installer.";
@@ -147,7 +153,8 @@ const dayOf = (d: unknown): string | null => typeof d === "string" ? d.slice(0, 
 export function repeatPiesaPayer(i: { clearanceDate: string | null; deadline: string | null; expired: boolean; booked: boolean; events: InstallWindowEvent[] }): RepeatPiesaDecision {
   if (!i.expired || i.booked) return { payer: "undetermined", reason: "The 30-day window has not lapsed.", basis: "not_lapsed" };
   if (!i.deadline) return { payer: "undetermined", reason: "No install deadline is recorded for this job.", basis: "no_deadline" };
-  const ev = [...i.events].filter((e) => Date.parse(e.at) <= Date.parse(`${i.deadline}T23:59:59+11:00`) + 86_400_000).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  const deadline = i.deadline;
+  const ev = [...i.events].filter((e) => Date.parse(e.at) <= Date.parse(endOfMelbourneYmd(addYmd(deadline, 1)))).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
   let turn: "installer" | "owner" = "installer";
   let turnSince: string | null = i.clearanceDate ? i.clearanceDate.slice(0, 10) : null;
   let installerOffered = false;
@@ -159,7 +166,7 @@ export function repeatPiesaPayer(i: { clearanceDate: string | null; deadline: st
       case "install_days_offered_by_installer": installerOffered = true; turn = "owner"; turnSince = ymd(e.at); break;
       case "install_days_offered": {
         const days = (e.details?.days ?? []).map(dayOf).filter((d): d is string => !!d);
-        if (days.length && days.every((d) => d > i.deadline!)) return { payer: "owner", reason: `Owner suggested only days after the last allowed day (${i.deadline}) on ${ymd(e.at)}.`, basis: "owner_days_outside_window" };
+        if (days.length && days.every((d) => d > deadline)) return { payer: "owner", reason: `Owner suggested only days after the last allowed day (${i.deadline}) on ${ymd(e.at)}.`, basis: "owner_days_outside_window" };
         turn = "installer"; turnSince = ymd(e.at); break;
       }
       case "install_day_taken": turn = "owner"; turnSince = ymd(e.at); break; // booked by the owner; only a later change reopens it

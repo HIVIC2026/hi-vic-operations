@@ -260,10 +260,10 @@ describe("build sheet = the lean forms exactly (validateTemplate)", () => {
     expect(PRICING_FIELDS[0]!.choices).toEqual([...INCLUDED_OPTIONS]);
     expect(PRICING_FIELDS[0]!.choices).not.toContain("Difficult access");
   });
-  test("options on the build sheet are the lean option lists (8 products, R2.0 or above, No safe access, premises types)", () => {
+  test("options on the build sheet are the lean option lists (7 products, R2.0 or above, No safe access, premises types)", () => {
     const by = (l: string) => FORMS.ready_check_priced.fields.find((f) => f.label === l)!;
     expect(by(LEAN_Q.product).choices).toEqual(APPROVED_PRODUCTS.map((p) => p.option));
-    expect(by(LEAN_Q.product).choices).toHaveLength(8);
+    expect(by(LEAN_Q.product).choices).toHaveLength(7);
     expect(by(LEAN_Q.rValue).choices).toEqual(["Below R2.0", "R2.0 or above"]);
     expect(by(LEAN_Q.access).choices).toEqual(["Easy", "Standard", "Difficult", "No safe access"]);
     expect(by(LEAN_Q.premisesType).choices).toEqual([...PREMISES_TYPE_OPTIONS]);

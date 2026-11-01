@@ -132,7 +132,7 @@ describe("areas from Ready Check answers", () => {
     );
     expect(rec.map((a) => [a.name, a.productOption, a.rValue, a.existingNote])).toEqual([
       ["Front", "Earthwool R5", "R5.0", "Existing insulation: remove 10 m²"],
-      ["Area 2", "ECOWOOL R5", "R5.0", "No existing insulation"],
+      ["Area 2", "ECOWOOL R5", null, "No existing insulation"],
     ]);
     expect(singleAreaFallback(88, "Bradford Gold R7", true, false, null)).toEqual([
       {

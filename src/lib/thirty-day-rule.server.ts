@@ -1,4 +1,4 @@
-import { inHouseDispatchSkip } from "./in-house-suppression.server";
+import { readInHouseDispatchState } from "./in-house-suppression.server";
 // Decision 158 (Jo, 24 Oct 2026): 20- and 10-day reminders to BOTH the owner and the installer while no install day is
 // agreed inside the 30-day window, and — when the window lapses with nothing booked — an internal record of who pays
 // the repeat PIESA (`repeatPiesaPayer`). Pure rules + DRAFT wording in thirty-day-rule.core.ts.
@@ -25,8 +25,9 @@ export async function doneSteps(jobId: string, deadline: string): Promise<Instal
 
 /** One reminder step (owner text + email, installer text + email). Records the step first; never sends twice per deadline. */
 export async function sendInstallWindowReminder(jobId: string, step: InstallWindowStep, deadline: string, now = new Date()): Promise<string> {
-  const skipped = await inHouseDispatchSkip(jobId);
-  if (skipped) return skipped;
+  const partnerState = await readInHouseDispatchState([jobId]);
+  if (partnerState.failed) return "in_house_read_failed";
+  const inHouse = partnerState.held.has(jobId);
   if ((await doneSteps(jobId, deadline)).includes(step)) return "already handled";
   const daysLeft = installDaysLeft(deadline, now);
   await logEvent(jobId, null, INSTALL_WINDOW_REMINDER_EVENT, `30-day window: ${step === "reminder_20" ? "20" : "10"}-day reminder prepared for the owner and the installer (${daysLeft} days left, last day ${deadline})`, { step, deadline, days_left: daysLeft }, { internal: true });
@@ -46,8 +47,8 @@ export async function sendInstallWindowReminder(jobId: string, step: InstallWind
   const test = job.source === "qa_test";
   const partnerTest = test || isTestPartner(biz);
   const installerName = biz?.trading_name || biz?.name || null;
-  const ownerFacts = { step, deadline, daysLeft, link: link ?? "", jobNumber: job.job_number, firstName: firstName(owner?.full_name), installerName, test };
-  const instFacts = { step, deadline, daysLeft, link: `${SET_PASSWORD_BASE}/field/${jobId}`, jobNumber: job.job_number, firstName: firstName(prof?.full_name), ownerSuburb: suburb, test: partnerTest };
+  const ownerFacts = { step, deadline, daysLeft, link: link ?? "", jobNumber: job.job_number, firstName: firstName(owner?.full_name), installerName, installerPhone: biz?.phone ?? null, inHouse, test };
+  const instFacts = { step, deadline, daysLeft, link: `${SET_PASSWORD_BASE}/field/${jobId}`, jobNumber: job.job_number, firstName: firstName(inHouse ? installerName : prof?.full_name), ownerSuburb: suburb, inHouse, test: partnerTest };
   const key = (who: "owner" | "installer", ch: "email" | "sms") => installWindowKey(jobId, deadline, step, who, ch);
   const out: string[] = [];
 
@@ -80,21 +81,26 @@ export async function sendInstallWindowReminder(jobId: string, step: InstallWind
     const { sendTestEmail, sendTestSms } = await import("./test-send.server");
     const ctx = { jobId, jobSource: job.source, partnerIsTest: true, label: `install_window:${step}:installer`, actorId: null };
     const mail = installerInstallWindowEmail(instFacts);
-    const e = await sendTestEmail(ctx, prof?.email ?? biz?.email ?? "", mail.subject, mail.html, mail.text);
-    const s = await sendTestSms(ctx, prof?.phone ?? biz?.phone ?? "", installerInstallWindowText(instFacts));
-    out.push(`installer email ${e.status}: ${e.detail}; installer sms ${s.status}: ${s.detail}`);
+    const e = await sendTestEmail(ctx, inHouse ? biz?.email ?? "" : prof?.email ?? biz?.email ?? "", mail.subject, mail.html, mail.text);
+    out.push(`installer email ${e.status}: ${e.detail}`);
+    if (!inHouse) {
+      const s = await sendTestSms(ctx, prof?.phone ?? biz?.phone ?? "", installerInstallWindowText(instFacts));
+      out.push(`installer sms ${s.status}: ${s.detail}`);
+    }
   } else {
-    const to = prof?.email ?? biz?.email ?? null;
+    const to = inHouse ? biz?.email ?? null : prof?.email ?? biz?.email ?? null;
     if (!THIRTY_DAY_REMINDER_APPROVED) out.push("installer email not sent — wording awaiting approval");
     else if (!to) out.push("installer email not sent — no installer email");
     else {
       const mail = installerInstallWindowEmail(instFacts);
-      const r = await (await import("./office-email.server")).sendOfficeEmail({ actorId: null as unknown as string, recipient: "partner", to, contactName: prof?.full_name ?? null, subject: mail.subject, message: mail.text, label: `install_window_${step}`, record: { businessId: asg.business_id }, html: mail.html, text: mail.text });
+      const r = await (await import("./office-email.server")).sendOfficeEmail({ actorId: null as unknown as string, recipient: "partner", to, contactName: inHouse ? installerName : prof?.full_name ?? null, subject: mail.subject, message: mail.text, label: `install_window_${step}`, record: { businessId: asg.business_id }, html: mail.html, text: mail.text });
       out.push(`installer email ${r.status}: ${r.detail}`);
     }
-    const { sendRealSms } = await import("./sms.server");
-    const s = await sendRealSms({ type: "install_window_reminder_installer", idempotencyKey: key("installer", "sms"), to: prof?.phone ?? biz?.phone ?? null, body: installerInstallWindowText(instFacts), jobId, businessId: asg.business_id });
-    out.push(`installer sms ${s.status}: ${s.detail}`);
+    if (!inHouse) {
+      const { sendRealSms } = await import("./sms.server");
+      const s = await sendRealSms({ type: "install_window_reminder_installer", idempotencyKey: key("installer", "sms"), to: prof?.phone ?? biz?.phone ?? null, body: installerInstallWindowText(instFacts), jobId, businessId: asg.business_id });
+      out.push(`installer sms ${s.status}: ${s.detail}`);
+    }
   }
   return out.join("; ");
 }
@@ -131,7 +137,7 @@ export async function sweepInstallWindowRule(now = new Date()): Promise<{ checke
       const step = dueInstallWindowReminder({ deadline: c.deadline, booked: c.booked, expired: c.expired, done: await doneSteps(j.id, c.deadline), now, quiet });
       if (!step) continue;
       const result = await sendInstallWindowReminder(j.id, step, c.deadline, now);
-      if (result !== "in_house" && result !== "in_house_read_failed" && result !== "already handled" && result !== "skipped") reminders++;
+      if (result !== "in_house_read_failed" && result !== "already handled" && result !== "skipped") reminders++;
     } catch (e) { console.error("30-day rule sweep failed", j.id, (e as Error).message); }
   }
   return { checked: (jobs ?? []).length, reminders, expired };

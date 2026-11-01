@@ -203,7 +203,7 @@ describe("gates, products and the checklist", () => {
     expect(declaredProductProblems("Mystery R9", { installDate: null, veecCreationDate: "2026-11-10" })[0]).toContain("does not match any model");
     expect(jobProductOptions([{ product: "Earthwool R5" }, { product: "Earthwool R5" }, { product: null }], "Bradford Gold R5")).toEqual(["Earthwool R5"]);
     expect(jobProductOptions([], "Bradford Gold R5")).toEqual(["Bradford Gold R5"]);
-    expect(ZONE_PRODUCT_OPTIONS).toHaveLength(8);
+    expect(ZONE_PRODUCT_OPTIONS).toHaveLength(7);
   });
   test("A5 checklist rows carry the office verification text; on the install day form the before video is the Ready Check's", () => {
     const base = { crewCount: 1, electricianRequiredAtStart: false, existingPlanMatchesInstall: false, lifeSupportConsentOnFile: false };

@@ -9,10 +9,10 @@ import { mergeContactHistory, lastHeardFromUs, type CommRow, type EmailSendRow, 
 import { splitAddress } from "./name-address-tidy.core";
 import { ELIGIBILITY_WORDS } from "./job-wording";
 import { withoutRetiredInstallDayPhotos } from "./ready-check-chase.core";
+import { installDaysLeft } from "./install-days.core";
 
 const s = (v: unknown) => (v == null ? null : String(v));
 const n = (v: unknown) => (v == null || v === "" ? null : Number(v));
-const DAY = 86_400_000;
 const day = (iso: string) => new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "short", timeZone: "Australia/Melbourne" });
 const dayTime = (iso: string) => new Date(iso).toLocaleString("en-AU", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "Australia/Melbourne" });
 
@@ -90,7 +90,7 @@ export async function loadJobPage(jobId: string, testOffice = false) {
   const pay = await (await import("./payments.server")).jobPaymentView(jobId).catch(() => null);
   const step = (k: string) => pay?.steps.find((x) => x.key === k) ?? null;
   const deadline = officeJob?.facts.installDeadline ?? null;
-  const daysLeft = deadline ? Math.ceil((Date.parse(`${deadline}T23:59:59+11:00`) - now) / DAY) : null;
+  const daysLeft = deadline ? installDaysLeft(deadline, new Date(now)) : null;
   const b44 = ((prop?.enrichment?.["base44"] ?? {}) as { raw?: { answers?: Record<string, unknown> } }).raw?.answers ?? null;
   const { declaredExtras } = await import("./enquiry.core");
   const { normaliseInsulation } = await import("./eligibility.core");

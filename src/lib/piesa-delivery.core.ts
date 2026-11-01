@@ -7,6 +7,7 @@
 import { escDueBy } from "./esc.core";
 import * as K from "./email-kit.core";
 import { esc, mjEmail } from "./mail-mjml.core";
+import { melbourneMidnight } from "./daily-brief.core";
 
 /** Jo 24 Oct 2026, decision 131 (O28 PIESA copy): approved. Owner copy still behind customer_comms_enabled, installer copy through sendOfficeEmail. */
 export const PIESA_COPY_EMAIL_APPROVED = true as boolean;
@@ -65,7 +66,8 @@ export const piesaCopyKey = (signedCopyId: string, recipient: PiesaCopyRecipient
 
 const fmtDate = (ymd: string | null, weekday = true) => {
   if (!ymd || !/^\d{4}-\d{2}-\d{2}/.test(ymd)) return null;
-  const d = new Date(`${ymd.slice(0, 10)}T00:00:00+10:00`);
+  if (!Number.isFinite(Date.parse(ymd.slice(0, 10)))) return null;
+  const d = new Date(melbourneMidnight(ymd.slice(0, 10)));
   return Number.isFinite(d.getTime()) ? d.toLocaleDateString("en-AU", { timeZone: "Australia/Melbourne", ...(weekday ? { weekday: "long" } : {}), day: "numeric", month: "long", year: "numeric" }) : null;
 };
 const fmtInstall = (iso: string | null) => {

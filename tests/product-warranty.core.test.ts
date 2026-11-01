@@ -14,8 +14,8 @@ const onFile = (paths: string[]) => (p: string) => paths.includes(p);
 const bradford = warrantyForOption("Bradford Gold R6")!, pink = warrantyForOption("Fletchers Pink Batts R5")!, earthwool = warrantyForOption("Earthwool R5")!, ecowool = warrantyForOption("ECOWOOL R5")!;
 
 describe("product warranty map", () => {
-  test("every one of the eight Mitti options maps to a manufacturer warranty with a source and a repo PDF path", () => {
-    expect(APPROVED_PRODUCTS).toHaveLength(8);
+  test("every approved Mitti option maps to a manufacturer warranty with a source and a repo PDF path", () => {
+    expect(APPROVED_PRODUCTS).toHaveLength(7);
     for (const p of APPROVED_PRODUCTS) {
       const w = warrantyForOption(p.option);
       expect(w, p.option).not.toBeNull();

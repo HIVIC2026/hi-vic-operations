@@ -1,4 +1,5 @@
 import { PROVISIONAL_FLAG_REASON, parseMethod, parsePurpose } from "./measurement.core";
+import { endOfMelbourneYmd } from "./melbourne-time.core";
 // Pure rules for the ReInsulate pilot: partner onboarding, job import, electrician choice,
 // appointment SLA, partner offers, relationship owner, partner pricing and co-branded quotes.
 // No I/O here — persistence lives in pilot.server.ts.
@@ -20,7 +21,7 @@ export type BusinessLike = {
 const day = 86_400_000;
 export function credentialState(c: Pick<Credential, "expires_at">, now = new Date()): "valid" | "expiring" | "expired" | "no_expiry" {
   if (!c.expires_at) return "no_expiry";
-  const t = Date.parse(c.expires_at + (c.expires_at.length === 10 ? "T23:59:59+10:00" : ""));
+  const t = Date.parse(c.expires_at.length === 10 ? endOfMelbourneYmd(c.expires_at) : c.expires_at);
   if (t < now.getTime()) return "expired";
   return t - now.getTime() < 30 * day ? "expiring" : "valid";
 }

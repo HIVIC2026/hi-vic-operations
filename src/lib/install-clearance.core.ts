@@ -5,6 +5,7 @@
 // The text is the decision's wording verbatim (one-off partner job text, same shape as `job_offer`: no STOP line).
 import * as K from "./email-kit.core";
 import { mjEmail, esc } from "./mail-mjml.core";
+import { melbourneMidnight } from "./daily-brief.core";
 
 export const INSTALL_CLEARANCE_EMAIL_APPROVED = true as boolean;
 export const INSTALL_CLEARANCE_SMS_TYPE = "install_clearance" as const;
@@ -19,7 +20,7 @@ export function installClearanceKeys(jobId: string, timingDate: string) {
 
 /** "23 November 2026" for a Melbourne calendar date (YYYY-MM-DD) — the install window deadline. */
 export function installClearanceDeadlineLabel(deadlineYmd: string): string {
-  return new Date(`${deadlineYmd.slice(0, 10)}T12:00:00+10:00`).toLocaleDateString("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "long", year: "numeric" });
+  return new Date(melbourneMidnight(deadlineYmd.slice(0, 10))).toLocaleDateString("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "long", year: "numeric" });
 }
 
 export type InstallClearanceTextFacts = { jobNumber: string; deadlineLabel: string; link: string };

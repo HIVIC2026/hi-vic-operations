@@ -7,13 +7,12 @@ export type InsulationProduct = { option: string; rValue: ProductRValue };
 
 /**
  * The exact tap options on both forms. Jo 22 Oct 23:45: Bradford Gold and Fletchers Pink Batts R5/R6/R7; Jo 24 Oct 2026
- * (decision 150): plus Earthwool R5 and ECOWOOL R5, the other ESC-register products at R5.0. R-value is taken from the label.
+ * (decision 150): plus Earthwool R5. Jo 1 Nov: ECOWOOL held until its warranty is on file. R-value is taken from the label.
  */
 export const APPROVED_PRODUCTS: readonly InsulationProduct[] = [
   ...(["Bradford Gold", "Fletchers Pink Batts"] as const).flatMap((name) =>
     ([["R5", "R5.0"], ["R6", "R6.0"], ["R7", "R7.0"]] as const).map(([r, rValue]) => ({ option: `${name} ${r}`, rValue }))),
   { option: "Earthwool R5", rValue: "R5.0" },
-  { option: "ECOWOOL R5", rValue: "R5.0" },
 ];
 /** Shown as-is in the office list. */
 export const PRODUCT_NEEDS_OFFICE = "Office needs to: confirm insulation product";

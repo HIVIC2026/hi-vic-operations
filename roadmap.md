@@ -1,3 +1,7 @@
+## Jo 1 Nov new in-house flow — Task 4 of 7
+- [x] Red-first 6 pass/9 fail, final new files 16/0 plus one added Mitti quote hold test; in-house 20/10-day reminders reach owner and business office (email only), failed lookup blocks before records, replay sends nothing. Existing 10-day office flag remains inclusive. Replaced requested fixed-offset/month-guess paths with shared Melbourne calendar helpers; ECOWOOL no longer approved, historical labels retained without inferred R-value, related seven-product fixtures updated.
+- [x] Related isolated tests: all new/changed tests pass; install-clearance retains its baseline source-string assertion failure. Final bounded 968 files 9920 pass/249 fail, same 98 failing files; comparable before 966 files 9907 pass/249 fail after isolated Outlook timeout recheck (27/1 both). Registration and save-spot uncertain-delivery excluded by basename regardless of extension; historical 261 total not claimed. Automatic build OK. Only mocked delivery/practice tests exercised; no settings, secrets, live data, sends or publishing.
+
 ## Jo 1 Nov new in-house flow — Task 3 of 7
 - [ ] Test-first in-house RC/A3/A4 and Lead A5 creation/replay, date/person/crew sync, portal-only unused closure and cancellation; retain legacy guards.
 - [ ] Related tests and bounded before/after comparison; timeout stalled registration file and disclose exclusions. No settings, secrets, live data, sends or publishing.

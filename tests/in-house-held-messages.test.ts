@@ -74,7 +74,6 @@ test('clearance sweep skips held partner without a delivery claim',async()=>{
 const otherEntries = [
   {file:'install-booked-email.server',fn:'emailOwnerInstallBooked',args:['j','2026-11-04T00:00:00Z']},
   {file:'installer-planning-notice.server',fn:'notifyInstallerPlanning',args:[{jobId:'j',assignmentId:'a',piesaStartIso:'2026-11-04T00:00:00Z'}]},
-  {file:'thirty-day-rule.server',fn:'sendInstallWindowReminder',args:['j','reminder_20','2026-11-29',new Date('2026-10-30')]},
   {file:'deposit-release-notice.server',fn:'sendDepositReleaseNotice',args:[{jobId:'j',bookingId:'bk',wasStart:'2026-11-04T00:00:00Z',depositCents:10000,bank:{},reference:'TEST'}]},
   {file:'install-no-access-notice.server',fn:'sendInstallNoAccessNotice',args:[{jobId:'j',bookingId:'bk',wasStart:'2026-11-04T00:00:00Z',reason:'TEST'}]},
   {file:'install-no-access-notice.server',fn:'resendInstallNoAccessText',args:[{jobId:'j',bookingId:'bk',wasStart:'2026-11-04T00:00:00Z',reason:'TEST',reportedAt:'2026-10-30'}]},
