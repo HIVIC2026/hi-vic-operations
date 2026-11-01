@@ -39,7 +39,7 @@ test("two different non-office users cannot verify or directly forge verificatio
 test("unverified electrician refuses before assignment; another business actor/worker refuses",async()=>{const db=await setup();try{
   await expect(allocate(db)).rejects.toThrow("Electrician not verified"); await verify(db);
   await expect(allocate(db,5)).rejects.toThrow("This job is not assigned to your business");
-  await db.query("INSERT INTO partner_workers SELECT $1,$2,profile_id,full_legal_name,trade_role,licence_number,licence_expires_on,approval_status,removed_at,rec_number,licence_verified_at,licence_verified_by FROM partner_workers",[id(6),id(11)]);
+  await db.query("INSERT INTO partner_workers(id,business_id,profile_id,full_legal_name,trade_role,licence_number,licence_expires_on,approval_status,removed_at,rec_number) SELECT $1,$2,profile_id,full_legal_name,trade_role,licence_number,licence_expires_on,approval_status,removed_at,rec_number FROM partner_workers",[id(6),id(11)]);
   await expect(allocate(db,2,6)).rejects.toThrow("That electrician is not on your Team");
   expect((await db.query("SELECT * FROM job_assignments WHERE role='electrician'")).rows).toEqual([]);
 }finally{await db.close();}});

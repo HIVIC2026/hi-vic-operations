@@ -20,6 +20,8 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
   };
   if (kind === "assessment" && !["piesa_and_install_window_pending", "piesa_scheduled"].includes(stage)) throw new WorkflowError("The PIESA can only be booked after the confirmed quote is approved and the payment option is cleared.");
   if (kind === "assessment") {
+    const teamBlocker = await (await import("./in-house-electrician.server")).inHousePiesaBookingBlockerFor(jobId);
+    if (teamBlocker) throw new WorkflowError(teamBlocker);
     const { piesaRequestFacts } = await import("./workflow.server");
     const { piesaRequestBlockers } = await import("./payment-gate.core");
     const gate = piesaRequestBlockers(await piesaRequestFacts(jobId));
