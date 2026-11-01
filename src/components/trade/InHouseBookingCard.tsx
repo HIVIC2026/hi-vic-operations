@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery,useQueryClient } from '@tanstack/react-query';
 import { useServerFn } from '@tanstack/react-start';
 import { toast } from 'sonner';
-import { getInHouseBookingAccess,getInHouseBookingTeam,inHouseBookVisit,changeInHouseLeadInstaller } from '@/lib/trade-view.functions';
+import { getInHouseBookingAccess,getInHouseBookingTeam,inHouseBookVisit,changeInHouseLeadInstaller,tradeHandBack,tradeOwnerCancelled } from '@/lib/trade-view.functions';
 import { bookingWorkerBlocker,type BookingWorker } from '@/lib/in-house-booking.core';
 import { installStartAt } from '@/lib/install-days.core';
 import { markOfficeChanged } from '@/lib/office-list-refresh';
@@ -34,5 +34,10 @@ export function InHouseBookingCard({jobId}:{jobId:string}){
  if(team.isError)return <p role="alert" className="text-sm text-rose">Could not check your Team or deposit. Booking stays unavailable until those records can be checked.</p>;
  if(!team.data)return <p className="text-sm text-sub">Checking your Team and deposit before booking.</p>;
  const selection=typeof team.data.selection?.lead==='string'?team.data.selection.lead:null;
- return <Group title="Visit bookings">{visits.filter(v=>v.kind!=='installation'||team.data.depositPaid).map(v=><VisitPicker key={v.kind} jobId={jobId} {...v} workers={team.data.workers} selection={v.kind==='installation'?selection:null} booked={access.data?.bookings?.find(b=>b.kind===v.kind)?.scheduled_start}/>)}</Group>;
+ return <><Group title="Visit bookings">{visits.filter(v=>v.kind!=='installation'||team.data.depositPaid).map(v=><VisitPicker key={v.kind} jobId={jobId} {...v} workers={team.data.workers} selection={v.kind==='installation'?selection:null} booked={access.data?.bookings?.find(b=>b.kind===v.kind)?.scheduled_start}/>)}</Group><ReturnActions jobId={jobId}/></>;
+}
+
+function ReturnActions({jobId}:{jobId:string}){
+ const back=useServerFn(tradeHandBack),cancel=useServerFn(tradeOwnerCancelled),qc=useQueryClient();const [action,setAction]=useState<'back'|'cancel'|null>(null),[reason,setReason]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ return <div className="space-y-2 py-3"><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={()=>setAction('back')}>Can't do this one</Button><Button variant="outline" onClick={()=>setAction('cancel')}>Owner cancelled</Button></div>{action&&<><label className="block text-sm">Reason<Input value={reason} onChange={e=>setReason(e.target.value)}/></label>{reason.trim().length<3&&<p className="text-sm text-sub">Enter the reason so Home Insulation Victoria knows why this job is being returned or cancelled.</p>}<Button disabled={busy||reason.trim().length<3} onClick={async()=>{setBusy(true);setError('');try{if(action==='back')await back({data:{jobId,reason}});else await cancel({data:{jobId,reason}});markOfficeChanged();await qc.invalidateQueries();setAction(null);}catch(e){setError(e instanceof Error?e.message:'Could not save.');}finally{setBusy(false);}}}>{busy?'Saving…':action==='back'?'Give back to Home Insulation Victoria':'Confirm owner cancelled'}</Button>{busy&&<p className="text-sm text-sub">Saving the reason; please wait.</p>}{error&&<p role="alert" className="text-sm text-rose">{error}</p>}</>}</div>;
 }
