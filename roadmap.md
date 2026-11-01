@@ -1,3 +1,9 @@
+## Jo 2 Nov published-site TEST whole-flow request
+- [ ] Published-site safety preflight and tooling coverage; no real rows, hold changes or provider delivery.
+- [ ] TEST-only temporary in-house office/electrician/ESC Lead Installer setup with snapshot/restoration after safeguards proven.
+- [ ] Three browser-first qa_test journeys: complete, owner cancelled, handback; screenshots and PASS/FAIL/NOT RUN per role/stage; test-first fixes.
+- Blocker found: journey --screens hardcodes localhost and omits payment-through-close; portal-qa published read-only mode is explicitly refused. Do not run legacy mutations or claim published evidence from preview.
+
 ## Jo 2 Nov morning decisions — test-first, pending only
 - [x] 1 Owner deposit received email only; request/reminder texts unchanged.
 - [x] 2 Exact requested Book blockers.
