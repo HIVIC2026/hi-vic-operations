@@ -91,6 +91,10 @@ export async function regenerateEscNotification(jobId: string, actorId: string |
   };
   if (prev) {
     const why = staleReasons(prev as never, next);
+    if(['sent','accepted'].includes(prev.status)){
+      const leadChange=registryChange(prev,{scheduled_start:b.scheduled_start,payload_json:built.payload},new Date().toISOString());
+      if(leadChange.changed.some(k=>k.startsWith('lead_installer')))why.push('Lead Installer changed');
+    }
     if (!why.length && prev.booking_id === b.id) {
       if (!["sent", "accepted"].includes(prev.status)) await admin.from("esc_notifications").update({ ...fields, updated_at: new Date().toISOString() }).eq("id", prev.id);
       return prev.id;

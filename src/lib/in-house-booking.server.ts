@@ -95,9 +95,19 @@ export async function recordLeadChange(jobId:string,actorId:string,oldWorkerId:s
   if(!oldWorkerId||oldWorkerId===newWorkerId)return;
   const team=await bookingTeam(jobId,actorId);const w=team.workers.find(w=>w.id===newWorkerId);if(!w)throw Error('Not your Team member.');
   const book=await read<{id:string;scheduled_start:string}|null>(db.from('bookings').select('id,scheduled_start').eq('job_id',jobId).eq('kind','installation').eq('status','confirmed').order('created_at',{ascending:false}).limit(1).maybeSingle());if(!book)return;
+  const notices=await read<{id:string;sent_at:string|null;submission_reference:string|null;response:unknown}[]>(db.from('esc_notifications').select('id,sent_at,submission_reference,response').eq('job_id',jobId).not('sent_at','is',null).order('created_at',{ascending:false}));
+  const {isWithdrawn}=await import('./esc.core');
+  const sent=notices.find(n=>n.sent_at&&n.submission_reference&&!isWithdrawn(n));
   const j=await read<{job_number:string}|null>(db.from('jobs').select('job_number').eq('id',jobId).maybeSingle());
   const id=await stableUuid(`lead-change:${jobId}:${book.id}:${oldWorkerId}:${newWorkerId}:${now.toISOString()}`);
-  const {error}=await db.from('workflow_events').insert({id,job_id:jobId,actor_id:actorId,event_type:'in_house_lead_changed',summary:`Update the ESC install notice: Lead Installer changed to ${w.name} for ${j?.job_number??jobId} on ${(await import('./melbourne-time.core')).melbourneToday(new Date(book.scheduled_start))}`,details:{start:book.scheduled_start,worker_id:newWorkerId,name:w.name,old_worker_id:oldWorkerId,booking_id:book.id},internal:true});if(error)throw Error(error.message);
+  const line=`Update ESC: Lead Installer for ${j?.job_number??jobId} is now ${w.name}.`;
+  if(sent){
+    const {error}=await db.from('workflow_events').insert({id,job_id:jobId,actor_id:actorId,event_type:'in_house_lead_changed',summary:line,details:{start:book.scheduled_start,worker_id:newWorkerId,name:w.name,old_worker_id:oldWorkerId,booking_id:book.id,notification_id:sent.id,update_same_id:true},internal:true});if(error&&error.code!=='23505')throw Error(error.message);
+    await (await import('./esc.server')).regenerateEscNotification(jobId,actorId);
+    const {partnerEmailLayout}=await import('./partner-email.core');
+    const {OFFICE_REPLY_TO}=await import('./office-email.core');
+    await (await import('./in-house-office-alert.server')).sendInHouseOfficeAlert({jobId,jobSource:null,actorId,to:OFFICE_REPLY_TO,subject:line,...partnerEmailLayout({subject:line,blocks:[{kind:'p',text:line}]}),idempotencyKey:`esc-lead-alert:${id}`});
+  }
   // SWMS derives its signer list from the newly saved crew; old signatures never authorise the replacement.
   await (await import('./swms.server')).loadSwms(jobId);
   await (await import('./swms-sign-text.server')).textSwmsSignLinks(jobId,book,now);
