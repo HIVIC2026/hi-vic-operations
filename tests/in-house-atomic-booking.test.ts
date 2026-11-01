@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import {paymentPlan,paymentSteps,installDepositBlocker} from '../src/lib/payments.core';
 import {ownerPiesaConfirmationBlocker} from '../src/lib/piesa-owner-confirm.core';
 const id=(n:number)=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
-test('pending atomic save: double click creates one booking, crew change and recorded job; outsider and stale validation write nothing',async()=>{
+test('real stage SQL: atomic clicks and ESC refusal work, but canonical unpaid/unsigned blockers are NOT enforced by pending writer',async()=>{
  const db=new PGlite();try{
  await db.exec(`CREATE ROLE anon;CREATE ROLE authenticated;CREATE ROLE service_role;
  CREATE TYPE booking_kind AS ENUM('ready_check','assessment','rectification','installation');
@@ -34,6 +34,12 @@ test('pending atomic save: double click creates one booking, crew change and rec
  const revision=(await db.query('SELECT in_house_visit_revision($1) AS revision',[id(1)])).rows[0] as any;
  const p=[id(1),id(3),'installation','2026-11-10T22:00:00Z',id(5),'installation_scheduling','2026-11-01T00:00:00Z',null,null,JSON.stringify({lead:id(5),additional:[]}),JSON.stringify({needsVerification:[],staff:[],revision:revision.revision}),id(10)];
  const sql='SELECT commit_in_house_visit($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) AS result';
+ await db.exec(`UPDATE partner_workers SET esc_registered=false WHERE id='${id(5)}'`);
+ const missingEsc=(await db.query('SELECT in_house_visit_revision($1) AS revision',[id(1)])).rows[0] as any;
+ await expect(db.query(sql,[...p.slice(0,10),JSON.stringify({revision:missingEsc.revision}),p[11]])).rejects.toThrow('ESC-registered');
+ expect((await db.query('SELECT * FROM bookings')).rows).toHaveLength(0);
+ expect((await db.query('SELECT * FROM workflow_events')).rows).toHaveLength(0);
+ await db.exec(`UPDATE partner_workers SET esc_registered=true WHERE id='${id(5)}'`);
  await expect(db.query(sql,[...p.slice(0,1),id(9),...p.slice(2)])).rejects.toThrow('Not your in-house job');
  await expect(db.query(sql,[...p.slice(0,6),'2026-10-01T00:00:00Z',...p.slice(7)])).rejects.toThrow('changed');
  // Actual canonical cores expose why a real stage writer is NOT sufficient.
@@ -42,8 +48,13 @@ test('pending atomic save: double click creates one booking, crew change and rec
  expect(plan.installDepositCents).toBe(10000);
  expect(installDepositBlocker(plan,paymentSteps(plan,{install:34900,fixes:0,repeat:0},{},'2026-11-01T00:00:00Z'))).not.toBeNull();
  expect(ownerPiesaConfirmationBlocker({piesaRecordId:id(30),confirmation:null})).not.toBeNull();
+ // Changes to independent money/owner rows are invisible to the current revision.
+ await db.exec(`CREATE TABLE diagnostic_gate_inputs(invoice_paid_cents integer,owner_signed boolean); INSERT INTO diagnostic_gate_inputs VALUES(44900,true); UPDATE diagnostic_gate_inputs SET invoice_paid_cents=34900,owner_signed=false;`);
+ expect((await db.query('SELECT in_house_visit_revision($1) AS revision',[id(1)])).rows[0]).toEqual(revision);
  const [a,b]=await Promise.all([db.query(sql,p),db.query(sql,[p[0],id(4),...p.slice(2)])]);expect((a.rows[0] as any).result.bookingId).toBe((b.rows[0] as any).result.bookingId);
  expect((await db.query('SELECT * FROM bookings')).rows).toHaveLength(1);
+ // This booking succeeded despite the canonical core blockers above: intentional
+ // evidence of the unresolved B gap, NEVER a claim that this migration is ready.
  expect((await db.query("SELECT * FROM workflow_events WHERE event_type='piisa_crew_selected'")).rows).toHaveLength(1);
  expect((await db.query("SELECT * FROM workflow_events WHERE event_type='in_house_saved_work'")).rows).toHaveLength(1);
  await expect(db.query(sql,[...p.slice(0,3),'2026-11-11T22:00:00Z',...p.slice(4)])).rejects.toThrow('changed');
