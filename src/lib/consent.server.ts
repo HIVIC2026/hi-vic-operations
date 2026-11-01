@@ -14,9 +14,9 @@ type ConsentDatabase = Omit<Database, "public"> & {
   public: Omit<Database["public"], "Tables"> & {
     Tables: Omit<Database["public"]["Tables"], "owner_esc_consents"> & {
       owner_esc_consents: Omit<ConsentTable, "Row" | "Insert" | "Update"> & {
-        Row: ConsentTable["Row"] & Partial<ConsentColumns>;
-        Insert: ConsentTable["Insert"] & Partial<ConsentColumns>;
-        Update: ConsentTable["Update"] & Partial<ConsentColumns>;
+        Row: Omit<ConsentTable["Row"], 'scheduled_start'> & { scheduled_start: string | null } & Partial<ConsentColumns>;
+        Insert: Omit<ConsentTable["Insert"], 'scheduled_start'> & { scheduled_start?: string | null } & Partial<ConsentColumns>;
+        Update: Omit<ConsentTable["Update"], 'scheduled_start'> & { scheduled_start?: string | null } & Partial<ConsentColumns>;
       };
     };
   };
@@ -34,12 +34,11 @@ export async function currentConsent(jobId: string) {
 }
 
 async function currentFacts(jobId: string): Promise<{ facts: ConsentFacts | null; bookingId: string | null }> {
-  const { data: b } = await admin.from("bookings").select("id, scheduled_start, scheduled_end").eq("job_id", jobId).eq("kind", "installation").in("status", ["confirmed", "completed"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
   const { data: j } = await admin.from("jobs").select("owners(full_name, email, phone), properties(address_line, suburb, state, postcode)").eq("id", jobId).single();
   const o = j?.owners as { full_name: string | null; email: string | null; phone: string | null } | null;
   const p = j?.properties as { address_line: string; suburb: string | null; state: string; postcode: string | null } | null;
-  const facts = buildConsentFacts({ scheduledStart: b?.scheduled_start ?? null, scheduledEnd: b?.scheduled_end ?? null, premisesAddress: formatPropertyAddress(p), owner: { name: o?.full_name ?? null, email: o?.email ?? null, phone: o?.phone ?? null } });
-  return { facts, bookingId: b?.id ?? null };
+  const facts = buildConsentFacts({ scheduledStart: null, scheduledEnd: null, premisesAddress: formatPropertyAddress(p), owner: { name: o?.full_name ?? null, email: o?.email ?? null, phone: o?.phone ?? null } });
+  return { facts, bookingId: null };
 }
 
 /** Generates / refreshes the owner consent for the CURRENT installation booking. Locked-detail changes stale the old one. */
@@ -47,13 +46,12 @@ export async function syncOwnerConsent(jobId: string, actorId: string | null) {
   const { facts, bookingId } = await currentFacts(jobId);
   const prev = await currentConsent(jobId);
   if (!facts) {
-    if (prev) { await admin.from("owner_esc_consents").update({ status: "cancelled", stale_reason: "Installation booking removed" }).eq("id", prev.id); await logEvent(jobId, actorId, "esc_consent_cancelled", "Owner ESC consent cancelled – installation booking removed", { consent_id: prev.id }, { internal: true }); }
     return null;
   }
   const tplOk = !!activeTemplate(await templates(), "esc_consent");
   if (prev) {
     const why = consentStaleReasons(prev.snapshot as unknown as ConsentFacts, facts);
-    if (!why.length && prev.booking_id === bookingId) {
+    if (!why.length) {
       if (prev.status === "configuration_required" && tplOk) await admin.from("owner_esc_consents").update({ status: "awaiting_owner" }).eq("id", prev.id);
       return prev.id;
     }
@@ -61,13 +59,13 @@ export async function syncOwnerConsent(jobId: string, actorId: string | null) {
     await logEvent(jobId, actorId, "esc_consent_stale", `Owner ESC consent is STALE (${why.join(", ") || "booking replaced"}) – new consent required`, { consent_id: prev.id, reasons: why }, { internal: true });
   }
   const sha = await sha256Hex(stableJson(facts));
-  const { data: ins, error } = await admin.from("owner_esc_consents").insert({
+  const { data: ins, error } = await consentAdmin.from("owner_esc_consents").insert({
     job_id: jobId, booking_id: bookingId, version: (prev?.version ?? 0) + 1, status: tplOk ? "awaiting_owner" : "configuration_required", ap_legal_entity: facts.ap_legal_entity,
-    scheduled_start: facts.scheduled_start, scheduled_end: facts.scheduled_end, installation_days: facts.installation_days as Json, premises_address: facts.premises_address, owner_contact: facts.owner as Json,
+    scheduled_start: null, premises_address: facts.premises_address, owner_contact: facts.owner as Json,
     snapshot: facts as unknown as Json, snapshot_sha256: sha,
   }).select("id").single();
   if (error) throw new Error(error.message);
-  await logEvent(jobId, actorId, "esc_consent_prepared", `Owner ESC consent v${(prev?.version ?? 0) + 1} prepared for ${facts.installation_days.join(", ")}${tplOk ? " – awaiting owner signature" : " – consent form wording not approved (configuration required)"}`, { consent_id: ins?.id }, { internal: true });
+  await logEvent(jobId, actorId, "esc_consent_prepared", `Owner ESC consent v${(prev?.version ?? 0) + 1} prepared${tplOk ? " – awaiting owner signature" : " – consent form wording not approved (configuration required)"}`, { consent_id: ins?.id }, { internal: true });
   return ins?.id ?? null;
 }
 
@@ -84,17 +82,21 @@ export async function signOwnerConsent(p: { jobId: string; actorId: string; inpu
   await syncOwnerConsent(p.jobId, p.actorId);
   const c = await currentConsent(p.jobId);
   const tpl = activeTemplate(await templates(), "esc_consent");
+  if (c?.owner_signed_at && ['awaiting_ap','valid'].includes(c.status)) return;
   const b = ownerConsentBlockers({ status: c?.status ?? null, templateApproved: !!tpl, templateVersion: tpl?.version ?? null, scheduledStart: c?.scheduled_start ?? null, nowIso: new Date().toISOString(), input: p.input });
-  if (!c) b.unshift("No installation date booked yet – consent is generated once the exact date is known.");
+  if (!c) b.unshift("Owner and property details are needed to prepare consent.");
   if (b.length) throw new WorkflowError(b.join(" "));
   if (!c || !tpl) throw new WorkflowError("Owner consent or approved template is unavailable.");
   // ESC template (decision 123): the four Section 2 ticks are recorded with the consent; older wording keeps the single tick.
   const declarations: OwnerDeclarations | null = isEscTemplateVersion(tpl.version) ? { ...p.input.declarations } : null;
-  await consentAdmin.from("owner_esc_consents").update({
+  const signedAt = new Date().toISOString();
+  const { data: won, error: signError } = await consentAdmin.from("owner_esc_consents").update({
     status: "awaiting_ap", template_version: tpl.version, owner_signatory_name: p.input.signatoryName, owner_authority_type: p.input.authorityType,
-    owner_signature_name: p.input.signatureName, owner_signed_at: new Date().toISOString(), owner_signed_by: p.actorId, owner_ip: p.ip, owner_user_agent: p.userAgent,
+    owner_signature_name: p.input.signatureName, owner_signed_at: signedAt, owner_signed_by: p.actorId, owner_ip: p.ip, owner_user_agent: p.userAgent,
     owner_declarations: declarations as Json,
-  }).eq("id", c.id);
+  }).eq("id", c.id).eq('status','awaiting_owner').is('owner_signed_at',null).select('id');
+  if (signError) throw new Error(signError.message);
+  if (!won?.length) return;
   await logEvent(p.jobId, p.actorId, "esc_consent_owner_signed", `Owner signed ESC information-sharing consent (${tpl.version})${declarations ? " – all four Section 2 declarations ticked" : ""} – awaiting AP representative`, { consent_id: c.id, declarations });
   // Decision 370: the AP part signs itself straight away when every check passes (held otherwise; the tick retries).
   try { await (await import("./consent-ap-auto.server")).tryAutoConsentApSignature(p.jobId); } catch (e) { console.error("automatic consent AP signature skipped", (e as Error).message); }
@@ -134,8 +136,7 @@ export async function confirmApConsent(p: { jobId: string; actorId: string | nul
     owner: { signatureName: c.owner_signature_name ?? "", signedAt: c.owner_signed_at ?? now, declarations },
     ap: rep ? { rep, signedAt: now } : null,
   });
-  const text = [`OWNER CONSENT – ESC INFORMATION SHARING (${c.template_version})`, `AP: ${esc ? ESC_AP_FULL_NAME : c.ap_legal_entity}`, `Premises: ${c.premises_address}`, `Installation day(s): ${(c.installation_days as string[]).join(", ")}`, "", form, "",
-    `Owner/authorised representative: ${c.owner_signatory_name} (${c.owner_authority_type}) · typed signature "${c.owner_signature_name}" · ${c.owner_signed_at}`, `AP representative: ${apRepName}${rep?.role ? ` (${rep.role})` : ""} · purpose explained · ${now}`, `SHA-256: ${sha}`, "", json].join("\n");
+  const text = form;
   const method = p.method ?? "manual";
   const { data: claimed, error: claimErr } = await consentAdmin.from("owner_esc_consents").update({ status: "valid", ap_rep_name: apRepName, ap_rep: rep as Json, ap_purpose_explained: true, ap_signed_at: now, ap_signed_by: p.actorId, ap_ip: p.ip, ap_user_agent: p.userAgent, signed_sha256: sha, delivery_status: delivery })
     .eq("id", c.id).eq("status", "awaiting_ap").is("ap_signed_at", null).select("id");
