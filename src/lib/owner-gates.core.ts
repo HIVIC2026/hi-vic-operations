@@ -305,6 +305,11 @@ export function quoteAcceptanceReady(vars: Record<string, string | null | undefi
 }
 
 export type Signed = { key: string; version: string; draft: boolean };
+/** Jo 1 Nov 2026: the owner signs the lawyer-approved quote_acceptance gate doc as the agreement, so the agreement item
+ *  only needs an approved + active consumer_rights template (keys = approved+active template keys). */
+export function agreementWordingApprovedFrom(approvedActiveTemplateKeys: readonly string[]): boolean {
+  return approvedActiveTemplateKeys.includes("consumer_rights");
+}
 /** Only the saved attendance answer describes an earlier visit. Unknown stays unknown. */
 export function installerVisitFromSiteCheck(siteCheck: unknown): boolean | null {
   return siteCheck === "yes" ? true : siteCheck === "no" ? false : null;

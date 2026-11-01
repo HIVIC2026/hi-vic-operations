@@ -9,6 +9,7 @@ import {
   paymentTermsMoney,
   paymentTermsText,
   type PaymentMoney,
+  agreementWordingApprovedFrom,
   answerVars,
   evaluateOwnerGates,
   installerVisitFromSiteCheck,
@@ -126,7 +127,7 @@ export async function gateFacts(jobId: string): Promise<GateFacts> {
     visitedByInstaller: installerVisitFromSiteCheck(job.installer_site_check),
     hasQuote: (quotes ?? []).length > 0,
     agreementSigned: agreed,
-    agreementWordingApproved: keys.has("customer_agreement") && keys.has("consumer_rights"),
+    agreementWordingApproved: agreementWordingApprovedFrom([...keys]),
     escConsentSigned: (esc ?? []).length > 0,
     piesaCopyDelivered: (dels ?? []).some((d) =>
       String(d.recipient).toLowerCase().includes("owner"),
