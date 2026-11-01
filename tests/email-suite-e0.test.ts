@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, dirname, resolve } from 'node:path';
 import { simpleEmail } from '../src/lib/simple-email.core';
 import { alertEmail } from '../src/lib/mitti-retry.core';
 import { robotAlertContent } from '../src/lib/esc-robot-alert.core';
@@ -41,5 +41,30 @@ describe('E0 approved email suite', () => {
       expect(source,path).not.toMatch(/K\.(emailShell|h1|button|priceBox|dateCard|mistBox)\s*\(/);
     }
     expect(readFileSync('src/lib/email-kit.core.ts','utf8')).not.toContain('export function emailShell');
+  });
+  test('every application email delivery entry has an approved renderer in its source graph', () => {
+    const walk=(dir:string):string[]=>readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.isDirectory()?walk(join(dir,e.name)):/\.tsx?$/.test(e.name)?[join(dir,e.name)]:[]);
+    const paths=walk('src');const sources=new Map(paths.map(path=>[resolve(path),readFileSync(path,'utf8')]));
+    const suite=resolve('src/lib/mail-mjml.core.ts');
+    const reachesSuite=(path:string,seen=new Set<string>()):boolean=>{
+      if(path===suite)return true;if(seen.has(path))return false;seen.add(path);
+      const source=sources.get(path);if(!source)return false;
+      for(const match of source.matchAll(/(?:from\s*|import\s*\(\s*)['"]([^'"]+)['"]/g)){
+        const target=match[1];if(!target)continue;
+        const base=target.startsWith('@/')?resolve('src',target.slice(2)):target.startsWith('.')?resolve(dirname(path),target):null;
+        if(!base)continue;
+        for(const candidate of [base,base+'.ts',base+'.tsx',join(base,'index.ts')])if(reachesSuite(candidate,seen))return true;
+      }return false;
+    };
+    const sends=/\b(?:sendGuardedOwnerEmail|sendTestEmail|sendOfficeEmail|resendSend|sendViaOutlook|sendMittiFailureAlert|sendRobotFailureAlert|sendInHouseOfficeAlert)\s*\(/;
+    const transportOnly=new Set(['src/lib/outlook-send.server.ts']);
+    const roots=paths.filter(path=>sends.test(sources.get(resolve(path))??'')&&!transportOnly.has(path));
+    expect(roots.length).toBeGreaterThan(50);
+    for(const path of roots){
+      expect(reachesSuite(resolve(path)),path+' has no approved renderer').toBe(true);
+      expect(sources.get(resolve(path)),path+' builds raw fallback HTML').not.toMatch(/(?:const\s+html\s*=|html\s*:)\s*`<(?:pre|p|div|html|!doctype)\b/i);
+    }
+    // The provider-independent bridge is transport-only; it must continue forwarding the rendered body verbatim.
+    expect(readFileSync('src/lib/delivery.core.ts','utf8')).toContain('html: msg.html');
   });
 });
