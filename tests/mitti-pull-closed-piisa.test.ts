@@ -15,7 +15,9 @@ function from(table: string) {
   const b: Record<string, unknown> = {};
   const chain = () => b;
   Object.assign(b, {
-    select: chain, eq: chain, neq: chain, is: chain, not: chain,
+    select: chain, eq: chain, neq: chain, is: chain, not: chain, order: chain, range: chain, limit: chain, contains: chain,
+    insert: chain,
+    maybeSingle: async () => ({ data: null, error: null }),
     in: (col: string, vals: string[]) => { f.col = col; f.vals = vals; return b; },
     then: (resolve: (v: unknown) => unknown) => {
       if (table === "workflow_events") return resolve({ data: Object.keys(jobs).map((job_id) => ({ job_id })), error: null });

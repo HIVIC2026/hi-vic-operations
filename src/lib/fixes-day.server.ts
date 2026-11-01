@@ -496,23 +496,40 @@ export async function completeFixesForm(jobId: string, auditId: string, opts: { 
 }
 
 /** 15-minute tick: every open fixes form (created, not yet completed) on a live job. Mitti errors are logged per job, never thrown. */
-export async function sweepFixesForms(opts: { call?: MittiCall; fetchMedia?: import("./mitti.server").MittiMediaFetch; limit?: number } = {}): Promise<{ checked: number; done: number; notDone: number; waiting: number; failed: number }> {
+export async function sweepFixesForms(opts: { call?: MittiCall; fetchMedia?: import("./mitti.server").MittiMediaFetch; limit?: number; budgetMs?: number } = {}): Promise<{ checked: number; done: number; notDone: number; waiting: number; failed: number }> {
   const out = { checked: 0, done: 0, notDone: 0, waiting: 0, failed: 0 };
-  const { data: created, error } = await admin.from("workflow_events").select("job_id, details, created_at, jobs!inner(stage, deleted_at, qa_archived_at, business_unit)").eq("event_type", FIXES_FORM_CREATED_EVENT)
-    .eq("jobs.business_unit", "hivic").is("jobs.deleted_at", null).is("jobs.qa_archived_at", null).in("jobs.stage", ["rectification_booked", "piesa_scheduled", "piesa_complete", "electrical_variation_pending", "rectification_scheduling"]).order("created_at", { ascending: false }).limit((opts.limit ?? FIXES_SWEEP_MAX) * 2);
-  if (error) throw new Error(`Fixes forms could not be read: ${error.message}`);
-  const seen = new Set<string>();
-  for (const r of created ?? []) {
-    const auditId = (r.details as { audit_id?: string } | null)?.audit_id;
-    if (!auditId || seen.has(auditId)) continue;
-    try {
-      if (r.jobs.stage !== 'rectification_booked' && !await (await import('./in-house-rectification.server')).optionalPartnerBilledRectificationFor(String(r.job_id))) continue;
-      seen.add(auditId);
-      if (out.checked >= (opts.limit ?? FIXES_SWEEP_MAX)) break;
+  const { runStoredMittiPull, recordMittiPullOutcome } = await import("./mitti-pull-progress.server");
+  const jobForAudit = new Map<string, string>();
+  const batch = await runStoredMittiPull("rectification", {
+    page: async (offset, size) => {
+      const { data, error } = await admin.from("workflow_events").select("job_id, details, created_at, jobs!inner(stage, deleted_at, qa_archived_at, business_unit)").eq("event_type", FIXES_FORM_CREATED_EVENT)
+        .eq("jobs.business_unit", "hivic").is("jobs.deleted_at", null).is("jobs.qa_archived_at", null).in("jobs.stage", ["rectification_booked", "piesa_scheduled", "piesa_complete", "electrical_variation_pending", "rectification_scheduling"])
+        .order("created_at", { ascending: false }).order("id").range(offset, offset + size - 1);
+      if (error) throw new Error(`Rectification forms could not be read: ${error.message}`);
+      return (data ?? []).filter(r => r.job_id && (r.details as { audit_id?: string } | null)?.audit_id).map(r => {
+        const id = String((r.details as { audit_id: string }).audit_id);
+        jobForAudit.set(id, String(r.job_id));
+        return { ...r, id };
+      });
+    },
+    failure: async (id, message) => {
+      const jobId = jobForAudit.get(id);
+      if (!jobId) throw new Error("Rectification sync job could not be identified");
+      await recordMittiPullOutcome(jobId, `rectification:${id}`, false, message);
+    },
+    sync: async r => {
+      const auditId = (r.details as { audit_id?: string } | null)?.audit_id;
+      if (!auditId) return { ok: true };
+      const jobId = String(r.job_id);
+      if (r.jobs.stage !== "rectification_booked" && !await (await import("./in-house-rectification.server")).optionalPartnerBilledRectificationFor(jobId)) return { ok: true };
       out.checked++;
-      const res = await completeFixesForm(String(r.job_id), auditId, { ...(opts.call ? { call: opts.call } : {}), ...(opts.fetchMedia ? { fetchMedia: opts.fetchMedia } : {}) });
+      const res = await completeFixesForm(jobId, auditId, { ...(opts.call ? { call: opts.call } : {}), ...(opts.fetchMedia ? { fetchMedia: opts.fetchMedia } : {}) });
       if (res.status === "done") out.done++; else if (res.status === "not_done") out.notDone++; else out.waiting++;
-    } catch (e) { out.failed++; console.error("fixes form sweep failed", r.job_id, (e as Error).message); }
-  }
+      if (res.status === "missing" || res.status === "held") return { ok: false, message: res.detail ?? "Rectification form could not be synced" };
+      await recordMittiPullOutcome(jobId, `rectification:${auditId}`, true, "synced");
+      return { ok: true };
+    },
+  }, opts.budgetMs ?? 40_000, opts.limit);
+  out.failed = batch.failed;
   return out;
 }

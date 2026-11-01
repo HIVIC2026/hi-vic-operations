@@ -68,21 +68,27 @@ export async function finishMittiReadyCheck(jobId: string, i: { auditId: string;
 
 /** Every tick: retry completed Mitti Ready Checks still short of a sent quote (after the office fixed a held reason),
  *  and watch forms whose quote went out for later edits (the regular sync stops reading a completed form). */
-export async function sweepCompletedMittiReadyChecks(opts: { enabled?: boolean; sendEnabled?: boolean; limit?: number; call?: import("./mitti.core").MittiCall } = {}): Promise<{ retried: number; watched: number }> {
+export async function sweepCompletedMittiReadyChecks(opts: { enabled?: boolean; sendEnabled?: boolean; limit?: number; call?: import("./mitti.core").MittiCall; budgetMs?: number } = {}): Promise<{ retried: number; watched: number; failed?: number }> {
   const enabled = opts.enabled ?? READY_CHECK_AUTO_PREP_ENABLED;
   const sendEnabled = opts.sendEnabled ?? AUTO_QUOTE_SEND_ENABLED;
   if (!enabled) return { retried: 0, watched: 0 };
-  const { data: rows, error } = await admin.from("ceiling_measurements").select("job_id, external_id, completed_at, jobs!inner(stage, channel, deleted_at, qa_archived_at, business_unit)")
-    .eq("is_current", true).eq("external_source", "mitti").eq("status", "complete").eq("jobs.business_unit", "hivic").is("jobs.deleted_at", null)
-    .in("jobs.stage", ["ready_check_scheduled", "ready_check_complete", "measured_estimate_ready", "awaiting_quote_acceptance"]).order("completed_at", { ascending: false }).limit(opts.limit ?? 20);
-  if (error) throw new Error(`Completed Ready Checks could not be read: ${error.message}`);
+  const { runStoredMittiPull, recordMittiPullOutcome } = await import("./mitti-pull-progress.server");
   let retried = 0, watched = 0;
   const { mittiApi, parseAudit } = await import("./mitti.core");
   const call = opts.call ?? (await import("./mitti.server")).realMittiCall;
-  for (const r of rows ?? []) {
+  const batch = await runStoredMittiPull("completed", {
+    page: async (offset, size) => {
+      const { data, error } = await admin.from("ceiling_measurements").select("job_id, external_id, completed_at, jobs!inner(stage, channel, deleted_at, qa_archived_at, business_unit)")
+        .eq("is_current", true).eq("external_source", "mitti").eq("status", "complete").eq("jobs.business_unit", "hivic").is("jobs.deleted_at", null).is("jobs.qa_archived_at", null)
+        .in("jobs.stage", ["ready_check_scheduled", "ready_check_complete", "measured_estimate_ready", "awaiting_quote_acceptance"]).order("job_id").range(offset, offset + size - 1);
+      if (error) throw new Error(`Completed Ready Checks could not be read: ${error.message}`);
+      return (data ?? []).map(r => ({ ...r, id: r.job_id }));
+    },
+    sync: async r => {
     const j = r.jobs as { stage: string; channel: string | null };
-    const { count: auto } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", r.job_id).eq("event_type", "measurement_completed").contains("details", { audit_id: r.external_id, basis: "mitti_complete" });
-    if (!auto) continue; // only Ready Checks this automation completed
+    const { count: auto, error } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", r.job_id).eq("event_type", "measurement_completed").contains("details", { audit_id: r.external_id, basis: "mitti_complete" });
+    if (error) throw new Error(`Ready Check history could not be read: ${error.message}`);
+    if (!auto) return { ok: true }; // only Ready Checks this automation completed
     let modifiedAt: string | null = null;
     let entries: { label: string; value: string | null }[] = [];
     let changed = false;
@@ -91,7 +97,7 @@ export async function sweepCompletedMittiReadyChecks(opts: { enabled?: boolean; 
       const { refreshCompletedReadyCheck } = await import("./mitti-completed-refresh.server");
       changed = await refreshCompletedReadyCheck(r.job_id, String(r.external_id), a);
       modifiedAt = a?.modified_at ?? a?.audit_data?.date_modified ?? null; entries = parseAudit(a).snapshot; watched++;
-    } catch { continue; /* No successful validated refresh: retry next tick, never draft stale facts. */ }
+    } catch (error) { throw error; /* No validated refresh: report failure, never draft stale facts. */ }
     // Decision 113 (Jo 24 Oct): a quote held at Complete (e.g. "My usual electrician" with none saved yet) simply waits.
     // The regular sync stops reading a completed form, so once the missing details are in (usual electrician saved in
     // My business, or the form changed to our electrician) this tick prepares the installer's draft from the form.
@@ -99,18 +105,22 @@ export async function sweepCompletedMittiReadyChecks(opts: { enabled?: boolean; 
       const { completedDraftAllowed } = await import("./mitti-completed-refresh.server");
       // The draft helper deduplicates unchanged scope. Retrying held drafts also repairs a refresh whose
       // subsequent draft attempt was interrupted, without touching issued/accepted quotes.
-      if (await completedDraftAllowed(r.job_id)) await (await import("./installer-quote.server")).draftInstallerQuoteFromReadyCheck(r.job_id, null, entries, String(r.external_id)).catch(() => null);
+      if (await completedDraftAllowed(r.job_id)) await (await import("./installer-quote.server")).draftInstallerQuoteFromReadyCheck(r.job_id, null, entries, String(r.external_id));
     } else if (changed && entries.length && j.channel !== "installer_sourced" && await (await import("./mitti-completed-refresh.server")).completedDraftAllowed(r.job_id)) {
       await (await import("./insulation-product.server")).mittiProductForJob(r.job_id, null, entries, String(r.external_id));
       await (await import("./ready-check-quote.server")).draftHivReadyCheckQuote(r.job_id, null, String(r.external_id), modifiedAt, entries);
     }
     if (j.stage === "awaiting_quote_acceptance") {
       const { maybeAutoSendInstallerQuote } = await import("./auto-quote-send.server");
-      await maybeAutoSendInstallerQuote(r.job_id, { formCompleted: true, formModifiedAt: modifiedAt, enabled: sendEnabled, entries: entries.length ? entries : undefined }).catch(() => undefined);
-      continue;
+      await maybeAutoSendInstallerQuote(r.job_id, { formCompleted: true, formModifiedAt: modifiedAt, enabled: sendEnabled, entries: entries.length ? entries : undefined });
+      await recordMittiPullOutcome(r.job_id, "completed", true, "synced");
+      return { ok: true };
     }
-    await finishMittiReadyCheck(r.job_id, { auditId: String(r.external_id), completed: true, modifiedAt, entries, ourLead: j.channel !== "installer_sourced", enabled, sendEnabled }).catch(() => undefined);
+    await finishMittiReadyCheck(r.job_id, { auditId: String(r.external_id), completed: true, modifiedAt, entries, ourLead: j.channel !== "installer_sourced", enabled, sendEnabled });
     retried++;
-  }
-  return { retried, watched };
+    await recordMittiPullOutcome(r.job_id, "completed", true, "synced");
+    return { ok: true };
+    },
+  }, opts.budgetMs ?? 40_000, opts.limit);
+  return { retried, watched, ...(batch.failed ? { failed: batch.failed } : {}) };
 }
