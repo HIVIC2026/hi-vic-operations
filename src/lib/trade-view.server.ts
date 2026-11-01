@@ -146,6 +146,11 @@ export async function tradeHome(userId: string) {
       : Promise.resolve({ data: [] as never[] }),
   ]);
   const moneyAll = await moneyP;
+  const installDeposits=new Map<string,boolean|null>();
+  if(c.kind==='installer')for(const j of live.filter(j=>j.stage==='installation_scheduling' && !!sf.get(j.id)?.inHouseDispatch)){
+    const v=await paymentsServer.jobPaymentView(j.id).catch(()=>null);
+    installDeposits.set(j.id,v?isStepPaid(v.steps,'install_deposit'):null);
+  }
   // Decision 396: rows the retired install-day photo chase created are not missing photos.
   const miss = new Map<string, number>(); for (const r of withoutRetiredInstallDayPhotos(missing ?? [])) miss.set(r.job_id, (miss.get(r.job_id) ?? 0) + 1);
   const deadline = new Map<string, string>(); for (const d of deadlines ?? []) if (d.job_id && d.install_deadline) deadline.set(d.job_id, String(d.install_deadline));
@@ -212,6 +217,7 @@ export async function tradeHome(userId: string) {
   const home = c.kind === "installer" ? installerHomeGroups(jobsTabbed.map((j) => ({
     jobId: j.jobId, jobNumber: j.jobNumber, street: j.street, suburb: j.suburb, channel: j.channel, stage: j.stage, place: j.place, placeTitle: placeOf.get(j.jobId)?.title ?? null,
     inHouseDispatch: sf.get(j.jobId)?.inHouseDispatch ?? null,
+    installDepositPaid:installDeposits.get(j.jobId)??null,
     nextAction: (byId.get(j.jobId) as { next_action?: string | null } | undefined)?.next_action ?? null, quoteLine: j.quoteLine, status: j.line ? { text: j.line.text, who: j.line.who } : null,
     upcoming: upcomingTile(j.jobId), installDeadline: deadline.get(j.jobId) ?? null, endedAt: byId.get(j.jobId)?.updated_at ?? null, waitedSince: byId.get(j.jobId)?.updated_at ?? null,
     formLinked: formFacts.get(j.jobId)?.linked === true, formCompleted: formFacts.get(j.jobId)?.completed === true, formHasAnswers: formFacts.get(j.jobId)?.hasAnswers ?? null,

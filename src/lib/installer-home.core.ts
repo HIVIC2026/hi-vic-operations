@@ -10,6 +10,8 @@ import { installerStatusLine } from "./installer-screens.core";
 export type HomeGroup = "action" | "coming" | "progress" | "done" | "offer";
 export type InstallerHomeJob = {
   inHouseDispatch?: "in_house" | "in_house_read_failed" | null;
+  /** Canonical paid state only; no amounts leave the business-scoped reader. */
+  installDepositPaid?: boolean | null;
   jobId: string;
   jobNumber: string | number | null;
   /** "5 Somerset Court, Mulgrave" (street + suburb, no postcode). */
@@ -91,6 +93,8 @@ export function installerNext(j: InstallerHomeJob): { group: HomeGroup; next: st
   if (j.quoteLine === QUOTE_SENT_LINE) return { group: "progress", next: "Next: nothing yet — owner has the quote" };
   if (j.quoteLine === QUOTE_DECLINED_LINE) return { group: "progress", next: "Next: nothing yet — owner declined the quote" };
   if (j.place === "coming_up" && j.upcoming) return { group: "coming", next: `Next: ${j.upcoming.what.toLowerCase() === "install" ? "install" : j.upcoming.what} ${fmtWeekdayDayMonth(j.upcoming.start)} at ${exactTime(j.upcoming.start)}` };
+  if(j.inHouseDispatch && j.stage==='installation_scheduling' && j.installDepositPaid!==true)
+    return{group:'progress',next:j.installDepositPaid===false?'Next: owner to pay the 10% install deposit':'Next: install deposit confirmation is being checked'};
   const heldVisit = j.inHouseDispatch ? inHouseTradeBookingText(j.stage) : null;
   if (heldVisit) return { group: "action", next: j.inHouseDispatch === "in_house" ? `Next: ${heldVisit}` : "Visit booking details unavailable" };
   if (j.place === "needs_me") {
