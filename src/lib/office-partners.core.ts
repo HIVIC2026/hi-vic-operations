@@ -4,6 +4,8 @@
 import { licenceNumberProblem, recNumberProblem } from "./trade-numbers.core";
 import { registerCheckLine, type RegisterLookupResult } from "./esv-register.core";
 import type { MittiAccess } from "./mitti-membership.core";
+import { melbourneMidnight } from "./daily-brief.core";
+import { melbourneToday } from "./melbourne-time.core";
 
 export type PersonFacts = {
   role: string;
@@ -25,10 +27,10 @@ export type PersonRow = { ciiLabel: string; ciiTone: "green" | "rose" | "amber" 
 
 const fmt = (ymd: string | null | undefined, withYear = true) => {
   if (!ymd) return "";
-  const d = new Date(`${ymd.slice(0, 10)}T12:00:00+11:00`);
+  const d = new Date(melbourneMidnight(ymd.slice(0, 10)));
   return d.toLocaleDateString("en-AU", { day: "numeric", month: "short", ...(withYear ? { year: "numeric" } : {}), timeZone: "Australia/Melbourne" });
 };
-const days = (fromIso: string, today: string) => Math.max(0, Math.floor((Date.parse(`${today}T12:00:00+11:00`) - Date.parse(fromIso)) / 86_400_000));
+const days = (fromIso: string, today: string) => Math.max(0, Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${melbourneToday(new Date(fromIso))}T00:00:00Z`)) / 86_400_000));
 
 /** One row of Partners › People. The action is the first missing step in decision order: CII (153) → notice (130) → Mitti (22/188). */
 export function personRow(p: PersonFacts, today: string): PersonRow {

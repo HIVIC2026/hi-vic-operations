@@ -16,6 +16,7 @@ import { FIXES_TIMES_GIVEN_EVENT, FIXES_TIMES_LINK_EVENT, fixesTimesMissing } fr
 import { AUTO_FIXES_QUOTE_HELD_EVENT } from "./auto-fixes-quote-send.core";
 import { PIESA_AUTOFORM_FAILED_EVENT, piesaFormFailedOpen } from "./piesa-autoform.core";
 import { prestartFailedFor } from "./prestart.core";
+import { endOfMelbourneYmd } from "./melbourne-time.core";
 
 type Row = Record<string, unknown>;
 const s = (v: unknown) => (v == null ? null : String(v));
@@ -333,7 +334,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     if (FIXES_PAUSED_STAGES.has(j.stage)) x.fixesFound = { at: st?.since ?? j.facts.lastActivityAt ?? j.facts.createdAt, stage: j.stage };
     if (st?.key === "signoff.ap") x.finalCheck = { at: st.since, flags: 0 };
     // 30-day window lapsed with no install (decision 1/2): watch.
-    if (j.facts.installDeadline && !j.facts.installedAt && ["installation_scheduling", "installation_booked", "piesa_complete"].includes(j.stage) && Date.parse(`${j.facts.installDeadline}T23:59:59+11:00`) < now) x.lapsedWindow = { deadline: j.facts.installDeadline };
+    if (j.facts.installDeadline && !j.facts.installedAt && ["installation_scheduling", "installation_booked", "piesa_complete"].includes(j.stage) && Date.parse(endOfMelbourneYmd(j.facts.installDeadline)) < now) x.lapsedWindow = { deadline: j.facts.installDeadline };
   }
   // Jo 28 Oct: a current failed PIESA (fixes found) with no Section C pass yet also tells the office (stage may be piesa_complete).
   if (ids.length) {

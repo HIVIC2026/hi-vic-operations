@@ -37,6 +37,6 @@ describe("waitingOn", () => {
     expect(w.action.tab).toBe("eligibility");
   });
   test("end of Melbourne day", () => {
-    expect(endOfMelbourneDay("2026-10-06T22:00:00Z")).toBe("2026-10-07T12:59:00.000Z");
+    expect(endOfMelbourneDay("2026-10-06T22:00:00Z")).toBe("2026-10-07T12:59:59.999Z");
   });
 });

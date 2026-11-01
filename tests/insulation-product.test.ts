@@ -29,6 +29,12 @@ describe("Insulation product — 6 approved options (Jo 22 Oct 23:45)", () => {
     expect(d.ready).toBe(false); expect(d.blockers).toEqual([PRODUCT_NEEDS_OFFICE]);
     expect(PRODUCT_NEEDS_OFFICE).toBe("Office needs to: confirm insulation product");
   });
+  test("ECOWOOL from Mitti holds the quote, without substituting another product", () => {
+    const resolution = read([{ label: "Insulation product", value: "ECOWOOL R5" }]);
+    const d = applyMittiProduct(draft(), resolution, 150);
+    expect(resolution.product).toBeNull();
+    expect(d.ready).toBe(false); expect(d.blockers).toEqual([PRODUCT_NEEDS_OFFICE]);
+  });
   test("answer not one of the 6 labels holds the quote", () => {
     const d = applyMittiProduct(draft(), read([{ label: "Insulation product", value: "Earthwool R6" }]), 150);
     expect(d.ready).toBe(false); expect(d.blockers).toEqual([PRODUCT_NEEDS_OFFICE]);

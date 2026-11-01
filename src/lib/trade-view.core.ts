@@ -282,9 +282,10 @@ import { MIN_REC_PL_COVER } from "./trade-shared-consts.core";
 import { isPriceNextAction } from "./ready-check-basics.core";
 import { crewClearance, CREW_CLEARANCE_REASON, WHITE_CARD_TEAM_LABEL, type WhiteCardState } from "./worker-compliance.core";
 import { PIESA_FULL } from "./job-wording";
+import { melbourneMidnight } from "./daily-brief.core";
 
 const MEL = "Australia/Melbourne";
-const asDate = (iso: string) => new Date(iso.length === 10 ? `${iso}T00:00:00+10:00` : iso);
+const asDate = (iso: string) => new Date(iso.length === 10 && Number.isFinite(Date.parse(iso)) ? melbourneMidnight(iso) : iso);
 /** "3 Oct 2026" in Melbourne time. */
 export function shortDate(iso: string | null | undefined): string | null {
   if (!iso) return null;

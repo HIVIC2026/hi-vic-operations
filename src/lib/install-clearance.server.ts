@@ -9,6 +9,7 @@ import { inHouseDispatchSkip } from "./in-house-suppression.server";
 // Owner notifications and the install-days turn logic are untouched.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
+import { melbourneMidnight } from "./daily-brief.core";
 import {
   INSTALL_CLEARANCE_EMAIL_APPROVED, INSTALL_CLEARANCE_EVENT, INSTALL_CLEARANCE_SMS_TYPE, installClearanceDeadlineLabel, installClearanceKeys, installClearanceText, renderInstallClearanceEmail,
 } from "./install-clearance.core";
@@ -109,7 +110,7 @@ export async function sweepInstallClearance(now = new Date()): Promise<{ checked
       if (c.clearance.timingDate.slice(0, 10) < since) continue;
       const { data: prior } = await admin.from("workflow_events").select("id").eq("job_id", j.id).eq("event_type", INSTALL_CLEARANCE_EVENT).contains("details", { timing_date: c.clearance.timingDate.slice(0, 10) }).limit(1).maybeSingle();
       if (prior) continue;
-      const clearedAt = (await clearanceRecordedAt(j.id, c.clearance.basis)) ?? `${c.clearance.timingDate.slice(0, 10)}T00:00:00+10:00`;
+      const clearedAt = (await clearanceRecordedAt(j.id, c.clearance.basis)) ?? new Date(melbourneMidnight(c.clearance.timingDate.slice(0, 10))).toISOString();
       const r = await notifyInstallerClearance(j.id, { clearedAt });
       if (r !== "already handled" && r !== "not cleared" && r !== "skipped" && r !== "in_house" && r !== "in_house_read_failed" && !r.startsWith("held:")) notified++;
     } catch (e) { console.error("install clearance sweep failed", j.id, (e as Error).message); }

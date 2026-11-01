@@ -2,6 +2,7 @@
 // Built on nextStep() so stage/next wording never drifts between screens. Pure (no I/O).
 import { nextStep, type NextStepInput } from "./nextstep.core";
 import { stageNext } from "./job-wording";
+import { endOfMelbourneYmd, melbourneToday } from "./melbourne-time.core";
 
 export type Party = "Owner" | "Electrician" | "Installer" | "Home Insulation Victoria";
 export type AdminTab = "overview" | "eligibility" | "assessment" | "quotes" | "piesa" | "installation" | "evidence" | "authority" | "veec" | "messages";
@@ -35,14 +36,9 @@ export type Waiting = {
 
 const H = 3_600_000;
 const addH = (iso: string, h: number) => new Date(new Date(iso).getTime() + h * H).toISOString();
-/** 11:59pm Melbourne on the same calendar day as iso (AEST/AEDT approximated by fixed +10/+11 not needed: use UTC+10 floor, then add DST hour in summer months). */
+/** End of the real Melbourne calendar day containing iso, including DST transition days. */
 export function endOfMelbourneDay(iso: string): string {
-  const d = new Date(iso);
-  const m = d.getUTCMonth(); // Oct–Mar ≈ AEDT (+11), else AEST (+10)
-  const off = m >= 9 || m <= 2 ? 11 : 10;
-  const local = new Date(d.getTime() + off * H);
-  const end = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate(), 23, 59, 0) - off * H;
-  return new Date(end).toISOString();
+  return endOfMelbourneYmd(melbourneToday(new Date(iso)));
 }
 export function humanDuration(ms: number): string {
   const h = Math.floor(ms / H);
