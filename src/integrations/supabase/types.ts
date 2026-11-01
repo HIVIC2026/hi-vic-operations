@@ -7955,7 +7955,7 @@ export type Database = {
           owner_user_agent: string | null
           premises_address: string
           scheduled_end: string | null
-          scheduled_start: string
+          scheduled_start: string | null
           signed_sha256: string | null
           snapshot: Json
           snapshot_sha256: string
@@ -7992,7 +7992,7 @@ export type Database = {
           owner_user_agent?: string | null
           premises_address: string
           scheduled_end?: string | null
-          scheduled_start: string
+          scheduled_start?: string | null
           signed_sha256?: string | null
           snapshot: Json
           snapshot_sha256: string
@@ -8029,7 +8029,7 @@ export type Database = {
           owner_user_agent?: string | null
           premises_address?: string
           scheduled_end?: string | null
-          scheduled_start?: string
+          scheduled_start?: string | null
           signed_sha256?: string | null
           snapshot?: Json
           snapshot_sha256?: string
