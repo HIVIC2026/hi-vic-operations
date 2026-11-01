@@ -302,6 +302,7 @@ const daysUntil = (ymd: string, today: string) => Math.round((Date.parse(`${ymd.
 
 export type MittiLogin = "linked" | "not_set" | "email_changed";
 export type TeamMemberView = {
+  dateOfBirth?:string|null;
   id: string | null; name: string; role: "owner" | "installer" | "electrician"; mobile: string | null; email: string | null;
   hasLogin: boolean; mittiLogin: MittiLogin;
   /** True when the office has a Mitti record for this worker (linked, invited, reactivated or marked done); null = couldn't be read, so unknown. */
