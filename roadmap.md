@@ -1,7 +1,7 @@
 ## Jo 1 Nov deployment compatibility and B — practice only
-- [ ] Missing saved-work functions: preserve canonical inline Book / Change Lead Installer paths; test missing versus real errors.
-- [ ] Prove transaction-bound canonical gates with real functions on PGlite; report SQL readiness and every remaining blocker.
-- [ ] Run related tests; no live changes, sends or publishing.
+- [x] Missing saved-work functions: canonical inline Book / Change Lead Installer fallback; missing dispatch versus deployed-writer error tests pass.
+- [ ] B remains blocked: real PGlite stage writer plus actual deposit/owner readers prove pending SQL accepts a booking they block. Needs canonical gate execution/freshness inside the production transaction; no complete SQL canonical function exists. See docs/in-house-deployment-B-results.md.
+- [x] Related tests run; no live changes, sends or publishing. Existing practice UI failures and SIM TODOs reported separately.
 
 ## Jo 1 Nov outstanding A–E — practice only
 - [x] A/C Recorded booking and crew follow-through, claimed retries, A5/SWMS handover and failure-task resolution; isolated proofs pass.

@@ -49,6 +49,11 @@ test('real stage SQL: atomic clicks and ESC refusal work, but canonical unpaid/u
  expect((await db.query('SELECT * FROM bookings')).rows).toHaveLength(0);
  expect((await db.query('SELECT * FROM workflow_events')).rows).toHaveLength(0);
  await db.exec(`UPDATE partner_workers SET esc_registered=true WHERE id='${id(5)}'`);
+ await db.exec(`INSERT INTO partner_workers(id,business_id,profile_id,full_legal_name,trade_role,approval_status,licence_number,rec_number,licence_expires_on) VALUES('${id(50)}','${id(2)}','${id(51)}','TEST electrician','electrician','approved','TEST-L','TEST-REC','2099-01-01')`);
+ const electricianRevision=(await db.query('SELECT in_house_visit_revision($1) AS revision',[id(1)])).rows[0] as any;
+ await expect(db.query(sql,[p[0],p[1],'assessment',p[3],id(50),...p.slice(5,10),JSON.stringify({revision:electricianRevision.revision}),id(52)])).rejects.toThrow('Electrician not verified');
+ expect((await db.query('SELECT * FROM bookings')).rows).toHaveLength(0);
+ await db.exec(`DELETE FROM partner_workers WHERE id='${id(50)}'`);
  await expect(db.query(sql,[...p.slice(0,1),id(9),...p.slice(2)])).rejects.toThrow('Not your in-house job');
  await expect(db.query(sql,[...p.slice(0,6),'2026-10-01T00:00:00Z',...p.slice(7)])).rejects.toThrow('changed');
  // Actual canonical cores expose why a real stage writer is NOT sufficient.
