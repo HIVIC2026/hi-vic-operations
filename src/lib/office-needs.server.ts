@@ -321,9 +321,9 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     if (n.tradeChoice) x.offerLapsed = { role: n.tradeChoice.kind === "ready_check" ? "installer" : "electrician", name: n.tradeChoice.name, declined: n.tradeChoice.status === "declined", at: j.facts.lastActivityAt ?? st?.since ?? new Date(now).toISOString() };
     else if (n.offerChoice?.state === "no_taker") x.offerLapsed = { role: n.offerChoice.kind === "ready_check" ? "installer" : "electrician", name: null, declined: false, at: st?.since ?? new Date(now).toISOString() };
     else if (n.offerChoice?.state === "choose" && n.offerChoice.kind === "ready_check") x.spotSaved = { at: j.facts.campaign?.spotSavedAt ?? st?.since ?? j.facts.createdAt };
-    else if (n.offerChoice?.state === "choose" && n.offerChoice.kind === "piesa") x.electricianToChoose = { at: st?.since ?? j.facts.createdAt, usual: null };
+    else if (n.offerChoice?.state === "choose" && n.offerChoice.kind === "piesa") x.electricianToChoose = { at: st?.since ?? j.facts.createdAt, usual: null, overridden: !!j.facts.paymentOverridden };
     if (!x.spotSaved && !x.offerLapsed && st && ["enquiry.spot_saved", "enquiry.spot_saved_video"].includes(st.key)) x.spotSaved = { at: j.facts.campaign?.spotSavedAt ?? st.since };
-    if (!x.electricianToChoose && !x.offerLapsed && st?.key === "quote.paid") x.electricianToChoose = { at: st.since, usual: null };
+    if (!x.electricianToChoose && !x.offerLapsed && st?.key === "quote.paid") x.electricianToChoose = { at: st.since, usual: null, overridden: !!j.facts.paymentOverridden };
     if (st?.key === "safety.fix_held") x.fixesQuoteToCheck = { at: st.since, reason: st.detail };
     // Jo 28 Oct: a PIESA that found fixes tells the office once; leaves these stages when the fixes are done and Section C signed.
     if (FIXES_PAUSED_STAGES.has(j.stage)) x.fixesFound = { at: st?.since ?? j.facts.lastActivityAt ?? j.facts.createdAt, stage: j.stage };
