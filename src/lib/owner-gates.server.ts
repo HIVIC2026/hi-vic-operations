@@ -9,6 +9,7 @@ import {
   paymentTermsMoney,
   paymentTermsText,
   type PaymentMoney,
+  agreementWordingApprovedFrom,
   answerVars,
   evaluateOwnerGates,
   installerVisitFromSiteCheck,
