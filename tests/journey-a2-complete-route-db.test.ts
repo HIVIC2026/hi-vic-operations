@@ -350,7 +350,7 @@ describe("A2 step 5 — the office checks and sends the quote; the owner signs a
     expect(s.idempotencyKey).toMatch(/^hivic-checkout-/);
     const st = await import("../src/lib/stripe.server");
     const forged = await stripePaidWebhook(s, "whsec_wrong");
-    expect(await st.handleStripeWebhook(forged.body, forged.signature)).toEqual({ status: 401, outcome: "bad_signature" });
+    expect(await st.handleStripeWebhook(forged.body, forged.signature)).toEqual({ status: 400, outcome: "bad_signature" });
     const wh = await stripePaidWebhook(s, process.env["STRIPE_WEBHOOK_SECRET"]!);
     expect(await st.handleStripeWebhook(wh.body, wh.signature)).toEqual({ status: 200, outcome: "recorded" });
     expect(await st.handleStripeWebhook(wh.body, wh.signature)).toEqual({ status: 200, outcome: "duplicate" }); // Stripe retry
