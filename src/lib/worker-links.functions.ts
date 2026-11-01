@@ -89,10 +89,6 @@ export const setWorkerRole = createServerFn({ method: "POST" }).middleware([requ
     const from = (await workerRolesFor([w])).get(w.id) ?? "lead";
     const { WORKER_ROLE_CHANGED_EVENT, roleChangeSummary, roleSwitchMittiAction } = await import("./worker-role.core");
     if (from === data.role && w.worker_role === data.role) return { ok: true, changed: false, role: data.role };
-    if(data.role==='lead'){
-      const births=await (await import('./worker-identity.server')).privateBirthDates([w.id]);
-      if(!births.has(w.id))throw Error('Add their date of birth for ESC registration before making them a Lead Installer.');
-    }
     const { error } = await admin.from("partner_workers").update({ worker_role: data.role }).eq("id", w.id);
     if (error) throw new Error(error.message);
     if (from === data.role) return { ok: true, changed: false, role: data.role }; // stored the role that already applied; nothing changes
