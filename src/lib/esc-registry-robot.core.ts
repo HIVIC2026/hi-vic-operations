@@ -140,15 +140,15 @@ export function planNotification(c: NoticeCandidate, now: Date): RobotPlan {
   const h = robotHistory(c.robotEvents, "install_notification", c.notificationId);
   if (h.failed) return { action: "skip", reason: "the robot already failed on this notice – the office submits it by hand (copy the Registry block)", office: true };
   if (h.unfinishedAttempt) return { action: "skip", reason: `a live attempt at ${melb(h.unfinishedAttempt.created_at)} did not finish – check the Registry before anything is resubmitted`, office: true };
-  const w = windowState(c.scheduledStart, now);
-  if (w === "early") return { action: "skip", reason: `window opens ${melb(new Date(Date.parse(c.scheduledStart) - EARLIEST_MS).toISOString())}` };
-  if (w === "closed") return { action: "skip", reason: "window closed (less than 24h before the start) – the office must rebook or submit by hand", office: true };
   if (c.previousSent) {
     const ch = registryChange(c.previousSent, { scheduled_start: c.scheduledStart, payload_json: c.payloadJson }, now.toISOString());
     if (ch.action === "update_same_id" && c.previousSent.submission_reference) return { action: "update_same_id", reason: `update the earlier notification (same ID) – changed: ${ch.changed.join(", ")}`, reference: c.previousSent.submission_reference, change: ch };
     if (ch.action === "withdraw_and_resubmit") return { action: "skip", reason: `the earlier notification must be withdrawn by the office first: ${ch.reasons.join(" ")}`, office: true };
     if (ch.action === "none" && !ch.changed.length) return { action: "skip", reason: "nothing changed against the earlier sent notification – record it as the same submission", office: true };
   }
+  const w = windowState(c.scheduledStart, now);
+  if (w === "early") return { action: "skip", reason: `window opens ${melb(new Date(Date.parse(c.scheduledStart) - EARLIEST_MS).toISOString())}` };
+  if (w === "closed") return { action: "skip", reason: "window closed (less than 24h before the start) – the office must rebook or submit by hand", office: true };
   return { action: "submit", reason: "ready, consent valid, inside the 24h–5 day window" };
 }
 

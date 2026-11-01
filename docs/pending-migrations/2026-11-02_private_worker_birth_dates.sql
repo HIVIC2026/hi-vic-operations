@@ -23,7 +23,7 @@ BEGIN
  IF _dob IS NULL OR _dob>=current_date THEN RAISE EXCEPTION 'Date of birth required and must be before today'; END IF;
  IF _role NOT IN ('lead','crew') OR length(trim(_name))<2 THEN RAISE EXCEPTION 'Name and worker role required'; END IF;
  INSERT INTO public.partner_workers(business_id,full_legal_name,trade_role,worker_role,mobile,email,approval_status,declarations_due,added_by,qualification,certification_status)
- VALUES(_business,trim(_name),'installer',_role,_mobile,_email,'pending',true,_actor,'{}'::jsonb,'unverified') RETURNING id INTO worker;
+ VALUES(_business,trim(_name),'installer',_role,_mobile,_email,'pending',true,_actor,'EEC CII not stated (declared, not verified)','unverified') RETURNING id INTO worker;
  INSERT INTO public.partner_worker_identity(worker_id,date_of_birth,updated_by) VALUES(worker,_dob,_actor);
  RETURN worker;
 END $$;
