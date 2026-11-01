@@ -86,13 +86,13 @@ export function ownerInstallWindowEmail(f: ReminderFacts): { subject: string; ht
   const ruleText = rule.filter(Boolean).join(" ");
   const questions = "Questions? Just reply to this email.";
   const body = [
-    `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${esc(subject)}</mj-text><mj-text>${esc(introStart)} <strong>${esc(by)}</strong>. ${esc(introEnd)}</mj-text><mj-text>${esc(ask)}</mj-text><mj-button href="${esc(myJobScreen(f.link, f.inHouse ? "pay" : "book"))}">${f.inHouse ? "See my job" : "Pick my install day"}</mj-button></mj-column></mj-section>`,
+    `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${esc(subject)}</mj-text><mj-text>${esc(introStart)} <strong>${esc(by)}</strong>. ${esc(introEnd)}</mj-text><mj-text>${esc(ask)}</mj-text><mj-button href="${esc(f.inHouse ? f.link : myJobScreen(f.link, "book"))}">${f.inHouse ? "See my job" : "Pick my install day"}</mj-button></mj-column></mj-section>`,
     mjThirtyDayClock(`<strong>${esc(rule[0])}</strong>${rule[1] ? ` ${esc(rule[1])}` : ""}`),
     `<mj-section><mj-column><mj-text mj-class="small" padding="14px 12px 0">${esc(questions)}</mj-text></mj-column></mj-section>`,
   ].join("");
   const preview = f.inHouse ? `Your insulation must be installed by ${by}. ${installer} will contact you to book.` : `Your insulation must be installed by ${by}. Pick your install day – it takes a minute.`;
   const html = mjEmail({ subject, preview, body, unsubscribe: null, testLabel: f.test === true });
-  const text = K.plainText([subject, "", `${introStart} ${by}. ${introEnd}`, "", ask, f.inHouse ? `See my job: ${myJobScreen(f.link, "pay")}` : `Pick my install day: ${myJobScreen(f.link, "book")}`, "", ruleText, "", questions], { testLabel: f.test === true });
+  const text = K.plainText([subject, "", `${introStart} ${by}. ${introEnd}`, "", ask, f.inHouse ? `See my job: ${f.link}` : `Pick my install day: ${myJobScreen(f.link, "book")}`, "", ruleText, "", questions], { testLabel: f.test === true });
   return { subject, html, text };
 }
 

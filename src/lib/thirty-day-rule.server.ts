@@ -47,7 +47,7 @@ export async function sendInstallWindowReminder(jobId: string, step: InstallWind
   const test = job.source === "qa_test";
   const partnerTest = test || isTestPartner(biz);
   const installerName = biz?.trading_name || biz?.name || null;
-  const ownerFacts = { step, deadline, daysLeft, link: link ?? "", jobNumber: job.job_number, firstName: firstName(owner?.full_name), installerName, installerPhone: biz?.phone, inHouse, test };
+  const ownerFacts = { step, deadline, daysLeft, link: link ?? "", jobNumber: job.job_number, firstName: firstName(owner?.full_name), installerName, installerPhone: biz?.phone ?? null, inHouse, test };
   const instFacts = { step, deadline, daysLeft, link: `${SET_PASSWORD_BASE}/field/${jobId}`, jobNumber: job.job_number, firstName: firstName(inHouse ? installerName : prof?.full_name), ownerSuburb: suburb, inHouse, test: partnerTest };
   const key = (who: "owner" | "installer", ch: "email" | "sms") => installWindowKey(jobId, deadline, step, who, ch);
   const out: string[] = [];
