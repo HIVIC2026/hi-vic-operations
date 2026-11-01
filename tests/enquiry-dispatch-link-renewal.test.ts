@@ -19,10 +19,9 @@ describe("link renewal rule", () => {
   const expiredActive = { id: "1", status: "active", expires_at: new Date(NOW - 1).toISOString() };
   const liveActive = { id: "2", status: "active", expires_at: new Date(NOW + 5 * 86_400_000).toISOString() };
 
-  it("re-issues an expired but still-'active' link (and expires the stale row)", () => {
-    const plan = planLink(expiredActive, true, NOW);
-    expect(plan.action).toBe("issue");
-    expect(plan.expire).toEqual(["1"]);
+  // Jo 1 Nov 2026: links have no time limit — an old active link is reused (same token, owner's emails keep working).
+  it("reuses an old still-'active' link instead of re-issuing it", () => {
+    expect(planLink(expiredActive, true, NOW)).toEqual({ action: "reuse" });
   });
 
   it("reuses a live link (no duplicate link spam)", () => {

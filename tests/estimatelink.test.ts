@@ -1,7 +1,7 @@
 // Step 3 secure no-login link: pure rules + static wiring assertions.
 import { describe, expect, it } from "bun:test";
 import { readFileSync } from "fs";
-import { LINK_TTL_DAYS, deliveryState, expiryFrom, isWellFormedToken, linkAllowed, linkUsable, newToken, planLink, publicPayload } from "../src/lib/estimatelink.core";
+import { deliveryState, expiryFrom, isWellFormedToken, linkAllowed, linkUsable, newToken, planLink, publicPayload } from "../src/lib/estimatelink.core";
 
 const worker = readFileSync("src/lib/postintake.server.ts", "utf8");
 const portal = readFileSync("src/lib/portal.functions.ts", "utf8");
@@ -38,13 +38,14 @@ describe("link lifecycle", () => {
     expect(planLink(active, false, NOW).action).toBe("revoke");
     expect(planLink(null, false, NOW).action).toBe("none");
   });
-  it("30-day expiry, expired link is renewed", () => {
-    expect(Date.parse(expiryFrom(NOW)) - NOW).toBe(LINK_TTL_DAYS * 86_400_000);
-    expect(planLink(expired, true, NOW)).toEqual({ action: "issue", expire: ["2"] });
+  // Jo 1 Nov 2026: owner links have no time limit; a past expires_at is ignored and the same link is reused.
+  it("no time limit: an old active link is reused, never re-issued", () => {
+    expect(expiryFrom(NOW)).toBe("9999-12-31T00:00:00.000Z");
+    expect(planLink(expired, true, NOW)).toEqual({ action: "reuse" });
   });
-  it("revoked/expired links fail closed", () => {
+  it("revoked links fail closed; a past date alone does not", () => {
     expect(linkUsable(active, NOW)).toBe(true);
-    expect(linkUsable(expired, NOW)).toBe(false);
+    expect(linkUsable(expired, NOW)).toBe(true);
     expect(linkUsable({ ...active, status: "revoked" }, NOW)).toBe(false);
     expect(linkUsable(null, NOW)).toBe(false);
   });

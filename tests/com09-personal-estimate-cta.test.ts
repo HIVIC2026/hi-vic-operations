@@ -16,7 +16,7 @@ import {
   buildPersonalEstimateView,
   type SavedEstimateCore, type SavedFeeSettings,
 } from "../src/lib/personal-estimate.core";
-import { isWellFormedToken, newToken, expiryFrom, LINK_TTL_DAYS, LINK_PURPOSE } from "../src/lib/estimatelink.core";
+import { isWellFormedToken, newToken, expiryFrom, LINK_PURPOSE } from "../src/lib/estimatelink.core";
 
 // ---------------------------------------------------------------------------
 // Real-DB setup (PGlite) + real resolver under test
@@ -92,16 +92,14 @@ describe("DEP-1/DEP-2 URL binding (pure)", () => {
     // The two are distinct: the saved-estimate view is read-only, booking lives on the existing page.
     expect(personalEstimateUrl(TOKEN_A)).not.toBe(readyCheckBookingUrl(TOKEN_A));
   });
-  test("reuses existing token rules: well-formed + active + within 30-day TTL; never extends validity", () => {
+  test("reuses existing token rules: well-formed + active (no time limit, Jo 1 Nov 2026)", () => {
     const active = { status: "active", expires_at: new Date(NOW + 86_400_000).toISOString() };
     const expired = { status: "active", expires_at: new Date(NOW - 1).toISOString() };
     expect(personalEstimateTokenUsable(active, TOKEN_A, NOW)).toBe(true);
-    expect(personalEstimateTokenUsable(expired, TOKEN_A, NOW)).toBe(false);
+    expect(personalEstimateTokenUsable(expired, TOKEN_A, NOW)).toBe(true); // Jo 1 Nov 2026: no time limit
     expect(personalEstimateTokenUsable({ status: "revoked", expires_at: active.expires_at }, TOKEN_A, NOW)).toBe(false);
     expect(personalEstimateTokenUsable(active, "not-a-token", NOW)).toBe(false);
     expect(personalEstimateTokenUsable(active, undefined, NOW)).toBe(false);
-    // TTL is the existing 30 days — unchanged.
-    expect(LINK_TTL_DAYS).toBe(30);
   });
 });
 
@@ -155,13 +153,16 @@ describe("real resolvePersonalEstimate against Postgres (PGlite)", () => {
     expect(b!.customerTotal).not.toBe(a!.customerTotal);
     expect(b!.readyCheckBookingUrl).toBe(`/estimate/${TOKEN_B}`);
   });
-  test("INT-04/INT-05 invalid, missing, and expired tokens are rejected", async () => {
+  test("INT-04/INT-05 invalid, missing, and revoked tokens are rejected; an old date alone is not (Jo 1 Nov 2026)", async () => {
     expect(await resolvePersonalEstimate("nope")).toBeNull();
     expect(await resolvePersonalEstimate(undefined)).toBeNull();
     expect(await resolvePersonalEstimate(null)).toBeNull();
     const expiredTok = newToken();
     await link("00000000-0000-4000-8000-0000000000f4", JOB_A, expiredTok, new Date(NOW - 86_400_000).toISOString());
-    expect(await resolvePersonalEstimate(expiredTok)).toBeNull(); // expired
+    expect(await resolvePersonalEstimate(expiredTok)).not.toBeNull(); // past date, still active: works
+    const revokedTok = newToken();
+    await link("00000000-0000-4000-8000-0000000000f5", JOB_A, revokedTok, new Date(NOW + 86_400_000).toISOString(), "revoked");
+    expect(await resolvePersonalEstimate(revokedTok)).toBeNull(); // revoked
   });
   test("INT-07 missing saved snapshot fails closed (no calculator fallback)", async () => {
     expect(await resolvePersonalEstimate(TOKEN_NOSAVE)).toBeNull(); // JOB_C never saved a spot
