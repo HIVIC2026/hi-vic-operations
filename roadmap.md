@@ -1,3 +1,8 @@
+## Jo 1 Nov E0 — one approved email look
+- [ ] Inventory every owner, installer-office, worker and Home Insulation Victoria office send path and its builder.
+- [ ] Test-first migrate legacy presentation to the approved 27 Oct MJML suite; preserve wording/links and report generic fallbacks.
+- [ ] Guard all send paths against legacy builders; compare full isolated suite with 97 failing files / 243 failures. No settings, secrets, live data, database changes, sends or publishing.
+
 ## Jo 1 Nov Task 7 — booking and Lead Installer
 - [x] Own-Team booking eligibility, paid-deposit visibility, pending ESC registration and business handback SQL practice-proven (two-user refusal checks).
 - [x] Owner booking mocked replay/link-free SMS and current-booking refusal; latest-change acknowledgment/prestart hold. 12 new tests pass.
