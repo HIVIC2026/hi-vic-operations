@@ -3,6 +3,20 @@
 // until the office verifies it (certification_status stays 'unverified' until then).
 import { COLLECTION_NOTICE_BLOCK_MESSAGE } from "./trade-shared-consts.core";
 
+export type ElectricianVerification = { licence_number?: string | null; rec_number?: string | null; licence_expires_on?: string | null; licence_verified_at?: string | null };
+export function electricianVerified(w: ElectricianVerification, today = melbourneToday()): { ok: boolean; reason: string | null } {
+  if (!w.licence_number?.trim()) return { ok: false, reason: "Licence number missing" };
+  if (!w.rec_number?.trim()) return { ok: false, reason: "REC number missing" };
+  if (!w.licence_expires_on || !/^\d{4}-\d{2}-\d{2}$/.test(w.licence_expires_on) || !Number.isFinite(Date.parse(w.licence_expires_on))) return { ok: false, reason: "Licence expiry missing" };
+  if (w.licence_expires_on < today) return { ok: false, reason: "Licence expired" };
+  if (!w.licence_verified_at) return { ok: false, reason: "Licence + REC not verified by the office" };
+  return { ok: true, reason: null };
+}
+export const IN_HOUSE_ELECTRICIAN_BOOKING_BLOCKER = "Add a verified electrician to your Team before booking the safety check.";
+export function inHouseElectricianBookingBlocker(workers: ElectricianVerification[], today = melbourneToday()): string | null {
+  return workers.some(w => electricianVerified(w, today).ok) ? null : IN_HOUSE_ELECTRICIAN_BOOKING_BLOCKER;
+}
+
 export type WorkerCompliance = {
   trade_role: "electrician" | "installer" | string;
   licence_expires_on?: string | null;
