@@ -1,3 +1,9 @@
+## Jo 2 Nov approved three-migration live release
+- [ ] Apply only date-free ESC consent, Task 7 ESC registration, then Task 7 trade handback, byte-for-byte after practice proofs.
+- [ ] Read back schema/functions/trigger; prove missing saved-work dispatch fallback without live booking or provider calls.
+- [ ] Verify launch hold and all business in-house flags unchanged; file applied SQL and update guidance. Jo publishes separately.
+- Saved-work SQL remains pending, blocked and unapplied.
+
 ## Jo 1 Nov deployment compatibility and B — practice only
 - [x] Missing saved-work functions: canonical inline Book / Change Lead Installer fallback; missing dispatch versus deployed-writer error tests pass.
 - [ ] B remains blocked: real PGlite stage writer plus actual deposit/owner readers prove pending SQL accepts a booking they block. Needs canonical gate execution/freshness inside the production transaction; no complete SQL canonical function exists. See docs/in-house-deployment-B-results.md.
