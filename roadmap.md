@@ -1,4 +1,6 @@
 ## Jo 1 Nov new owner flow — Task 5 of 7
+- [x] Factsheet commit 775c590 is present; mocked O22 attachment test confirms the exact bundled PDF plus signed acceptance (1 pass). No sends or live writes.
+- [ ] BLOCKED: existing ESC consent storage requires a booked installation date; current requested quote-stage signing precedes that booking. Do not invent a date or silently weaken the requirement. Incomplete flow changes withdrawn; existing owner pages, gates and emails retained pending the consent approach.
 - [ ] Test-first: remove home overview, resolve current owner action; quote signing with owner/email tick plus four verbatim ESC ticks and four records; explain identity-code requirement before any change.
 - [ ] Retire PIESA copy receipt; merge PIESA owner copy/declaration request; declaration blocks install booking; CoES copy on recording; info-only owner email buttons removed; O22 factsheet attachment test (775c590 already present).
 - [ ] Related tests and comparable bounded before/after run excluding the two stalled files; no settings, secrets, live data, sends or publishing.

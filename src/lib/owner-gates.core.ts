@@ -375,7 +375,6 @@ export const RETIRED_DOC_KEYS: ReadonlySet<string> = new Set([
   "life_support_answer",
   "cooling_off_notice",
   "life_support_plan",
-  "piesa_copy_receipt",
 ]);
 
 export function evaluateOwnerGates(f: GateFacts): GateResult[] {
