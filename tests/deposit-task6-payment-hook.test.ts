@@ -7,6 +7,7 @@ mock.module('../src/lib/fixes-quote-current.server',()=>({currentFixesQuote:asyn
 mock.module('../src/lib/repeat-piesa.server',()=>({repeatPiesaContext:async()=>null}));
 mock.module('../src/lib/stripe.core',()=>({stripeBlocker:()=>null}));
 mock.module('../src/lib/stripe.server',()=>({stripeKeyFor:()=> 'sk_test_mock'}));
+mock.module('../src/lib/in-house-suppression.server',()=>({readInHouseDispatchState:async()=>({failed:false,held:new Set(['j'])})}));
 mock.module('../src/lib/owner-email-triggers.server',()=>({onSafetyCheckPaid:async()=> 'mocked'}));
 mock.module('../src/lib/installer-accepted-email.server',()=>({emailInstallerOnSafetyCheckPaid:async()=> 'mocked'}));
 mock.module('../src/lib/autoadvance.server',()=>({autoAdvanceJob:async()=>{}}));
@@ -27,6 +28,7 @@ for(const source of ['stripe','xero'])test(`${source} receipt uses shared paymen
  tables.workflow_events?.push({id:'receipt',job_id:'j',event_type:'owner_payment_recorded',created_at:'2026-11-01T00:00:00Z',details:{invoice_id:'i',source,amount_cents:71410,paid_at:'2026-11-01T00:00:00Z',receipt_key:`${source}:receipt`}});
  await afterPaymentsChanged('j','i',null);await afterPaymentsChanged('j','i',null);
  expect(notices).toBe(1);expect(tables.workflow_events?.filter(r=>r.event_type==='install_deposit_received')).toHaveLength(1);
+ expect(tables.jobs?.[0]?.next_action).toBe('Deposit paid – installer to book the install');
 });
 test('unpaid deposit never calls the paid notice',async()=>{
  await afterPaymentsChanged('j','i',null);expect(notices).toBe(0);
