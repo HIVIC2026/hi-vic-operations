@@ -31,7 +31,7 @@ test('SIM all-clear booking/forms/deposit/digest sequence uses one continuing jo
   h.assertStep('Deposit paid','installation_scheduling',['RC','A3','A4'],[
     ['owner','email','install_deposit_paid'],['owner','sms','install_deposit_paid'],['installer-office','email','install_deposit_paid_office'],
   ]);
-  h.confirmPiesa(); await h.bookInstall();
+  await h.confirmPiesa(); await h.bookInstall();
   h.assertStep('Install booked','installation_booked',['RC','A3','A4','A5'],[
     ['owner','email','in_house_booked'],['owner','sms','in_house_booked_owner'],
   ]);
@@ -49,7 +49,7 @@ test('SIM rectification holds deposit until work complete; Xero paid notice is e
   await h.tryDeposit();h.assertNoNewMessages();await h.completeRectification();
   h.assertStep('Rectification done','installation_scheduling',['RC','A3','A4'],[['owner','email','install_deposit_request'],['owner','sms','install_deposit_request']]);
   await h.payDeposit('xero');h.assertStep('Xero deposit paid','installation_scheduling',['RC','A3','A4'],[['owner','email','install_deposit_paid'],['owner','sms','install_deposit_paid'],['installer-office','email','install_deposit_paid_office']]);
-  h.confirmPiesa();await h.bookInstall();h.assertOfficesEmailOnly();
+  await h.confirmPiesa();await h.bookInstall();h.assertOfficesEmailOnly();
 });
 
 test('SIM deposit unpaid day 3/day 7; paid gate never allows installation',async()=>{
@@ -89,7 +89,9 @@ test('SIM thirty-day 20/10 warnings, office flag, expiry repeat choice',async()=
 
 test('SIM two-business-day flag keeps job assigned and handback preserves reason',async()=>{
  const h=createInHouseSim();h.clock.set('2026-11-05T22:00:00Z');expect(h.bookingOverdue()).toBe(true);expect(h.actorCanRead('installer-office')).toBe(true);
- await h.handBack('Cannot cover this address');expect(h.actorCanRead('installer-office')).toBe(false);expect(h.job.stage).toBe('ready_check_ready_to_schedule');expect(h.handbackReason()).toBe('Cannot cover this address');h.assertOfficesEmailOnly();
+ await expect(h.handBack('Cannot cover this address','other-office')).rejects.toThrow('Not your in-house job');
+ expect(h.officeCandidates().map(r=>r.kind)).toContain('in_house_ready_check_not_booked');
+ await h.handBack('Cannot cover this address');expect(h.actorCanRead('installer-office')).toBe(false);expect(h.job.stage).toBe('ready_check_ready_to_schedule');expect(h.handbackReason()).toBe('Cannot cover this address');expect(h.officeCandidates().map(r=>r.kind)).toContain('in_house_handed_back');h.assertOfficesEmailOnly();
 });
 
 test('SIM retained CoES sends exact owner certificate email/attachment once and records current document set',async()=>{
