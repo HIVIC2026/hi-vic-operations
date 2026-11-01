@@ -63,7 +63,7 @@ export async function createStepCheckout(jobId: string, returnUrl: string, actor
 /** Webhook body → ledger. Verified, idempotent on the PaymentIntent / event id, mode-checked against the job. */
 export async function handleStripeWebhook(rawBody: string, signatureHeader: string | null): Promise<{ status: number; outcome: string }> {
   let ok = await verifyStripeSignature(rawBody, signatureHeader, process.env["STRIPE_WEBHOOK_SECRET"]);
-  if (!ok && await verifyStripeSignature(rawBody, signatureHeader, process.env["STRIPE_WEBHOOK_SECRET_TEST"])) {
+  if (!ok && await verifyStripeSignature(rawBody, signatureHeader, process.env["STRIPE_TEST_WEBHOOK_SECRET"])) {
     // Trust mode only after authenticating the unchanged raw body. The optional TEST secret
     // must never authorise live events (or absent/non-boolean modes, even on ignored events).
     try { ok = (JSON.parse(rawBody) as { livemode?: unknown } | null)?.livemode === false; }

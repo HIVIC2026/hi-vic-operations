@@ -38,6 +38,7 @@ import { ownerQuickTapsAddressSearchFn, ownerQuickTapsDetailsFn, ownerQuickTapsS
 import { QUICK_TAPS_COPY, nextTapStep, tapOutcome, websiteQuestions, type FinalOutcome, type QuickTapAnswers, type QuickTapsView } from "@/lib/quick-taps.core";
 import { createAddressPicker, type PickResult } from "@/lib/address-pick.core";
 import { assertInHouseActionSucceeded } from "@/lib/in-house.core";
+import { completeOwnerQuoteAcceptance, ownerQuoteCanAccept } from "@/lib/owner-quote-visibility.core";
 
 // Owner "My job" — no login. The secure link token is the only credential; nothing fetched during SSR.
 // Decision 335: "review" = the O51 star links (?screen=review&stars=N).
@@ -462,7 +463,7 @@ const errText = (e: unknown) => (e instanceof Error ? e.message : "Please try ag
 /** Approved P2 "Say yes" (decisions 126/127; decision 425, Jo 29 Oct 2026): two ticks, owner / acting-for-owner, one
  *  locked button. No typed name and no 18+ tick — the server records the owner's name on file. The 6-digit code is
  *  still asked for when the owner presses the button. */
-function AcceptQuote({ token, quote, rebate, safetyCheck }: { token: string; quote: { id: string; version: number }; rebate: number; safetyCheck: number | null }) {
+function AcceptQuote({ token, quote, rebate, safetyCheck, onAccepted }: { token: string; quote: { id: string; version: number }; rebate: number; safetyCheck: number | null; onAccepted: () => void }) {
   const [session, setSession] = useSession();
   const [needCode, setNeedCode] = useState(false);
   const load = useServerFn(ownerAgreementFn);
@@ -479,7 +480,11 @@ function AcceptQuote({ token, quote, rebate, safetyCheck }: { token: string; quo
   const sign = async () => {
     if (!session) { setNeedCode(true); return; }
     setErr(""); setBusy(true);
-    try { await accept({ data: { token, session, quoteId: quote.id, expectedVersion: quote.version, signing: { authorityType: f.authority, readConsumerInfo: read, acceptAgreement: agree, assistance: "none" } } }); await qc.invalidateQueries({ queryKey: ["my-job", token] }); }
+    try { await completeOwnerQuoteAcceptance(
+      () => accept({ data: { token, session, quoteId: quote.id, expectedVersion: quote.version, signing: { authorityType: f.authority, readConsumerInfo: read, acceptAgreement: agree, assistance: "none" } } }),
+      onAccepted,
+      () => qc.invalidateQueries({ queryKey: ["my-job", token] }),
+    ); }
     catch (e) { setErr(errText(e)); } finally { setBusy(false); }
   };
   return (
@@ -726,6 +731,8 @@ function SpotScreen({ v, token }: { v: View; token: string }) {
 
 /** Approved P2 quote + acceptance page (decision 127): quote as the email, then "Say yes". Facts and guards unchanged. */
 function QuoteScreen({ v, token }: { v: View; token: string }) {
+  const [acknowledged, setAcknowledged] = useState<{ id: string; version: number } | null>(null);
+  const qc = useQueryClient();
   const q = v.quote;
   const rebate = q?.rebate ?? v.numbers.rebate;
   const measured = (v.progress as { at: string | null }[])[0]?.at ?? null;
@@ -773,8 +780,12 @@ function QuoteScreen({ v, token }: { v: View; token: string }) {
         </ul>
         <p className="mt-2 text-xs text-estimate-sub">{q.split ? paymentOptionSummary(q.split.deposit) : PAYMENT_OPTION_SUMMARY}</p>
       </details>
-      {q.status === "issued"
-        ? <div><AcceptQuote token={token} quote={q} rebate={q.rebate} safetyCheck={q.split?.deposit ?? null} /><DeclineQuote token={token} quoteId={q.id} /></div>
+      {ownerQuoteCanAccept(q, acknowledged)
+        ? <div><AcceptQuote token={token} quote={q} rebate={q.rebate} safetyCheck={q.split?.deposit ?? null} onAccepted={() => {
+          setAcknowledged({ id: q.id, version: q.version });
+          qc.setQueryData<View | null>(["my-job", token], (current) => current?.quote?.id === q.id && current.quote.version === q.version
+            ? { ...current, quote: { ...current.quote, status: "accepted" } } : current);
+        }} /><DeclineQuote token={token} quoteId={q.id} /></div>
         : q.status === "declined"
           ? <p data-quote-declined className="rounded-[14px] bg-estimate-mist px-4 py-3 text-sm">{OWNER_DECLINED_SCREEN}</p>
           : <p className="rounded-[14px] bg-estimate-mint px-4 py-3 text-center text-sm font-bold text-estimate-green">You said yes. Thanks!</p>}

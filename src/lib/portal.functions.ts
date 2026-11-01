@@ -67,6 +67,7 @@ import { signFile } from "./file-links.server";
 import { melbourneToday } from "@/lib/melbourne-time.core";
 import { piesaDateBlockers } from "./piesa-date.core";
 import { CLEARANCE_RECORDER_REFUSED, clearanceRecorderAllowed } from "./clearance-guard.core";
+import { requestContext, runAfterResponse } from "./background.server";
 
 const clean = <T extends Record<string, unknown>>(o: T) =>
   Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as never;
@@ -1722,6 +1723,11 @@ export async function respondToQuoteImpl(
   const { data: q } = await admin.from("quotes").select("*").eq("id", data.quoteId).single();
   if (!q) throw new WorkflowError("Quote not found");
   await context.authorize(q.job_id);
+  if (q.kind === "installation" && data.accept && q.status === "accepted") {
+    if (data.expectedVersion != null && data.expectedVersion !== q.version)
+      throw new WorkflowError("This quote has been updated since you opened it. Please review the latest version before accepting.");
+    return { ok: true, outcome: "already accepted" };
+  }
   if (q.kind === "rectification") {
     const latest = await (await import("./fixes-quote-current.server")).currentFixesQuote(q.job_id);
     if (latest?.id !== q.id)
@@ -2064,8 +2070,10 @@ export async function respondToQuoteImpl(
       context.userId,
       "Owner accepted the measured quote – Pre Insulation Electrical Safety Assessment (PIESA) payment due next",
     );
-    await invoiceAfterAcceptance(q.id, q.job_id, context.userId);
-    await autoAdvanceJob(q.job_id, context.userId, "measured quote accepted");
+    await finishInstallationAcceptance(async () => {
+      await invoiceAfterAcceptance(q.id, q.job_id, context.userId);
+      await autoAdvanceJob(q.job_id, context.userId, "measured quote accepted");
+    });
     return { ok: true };
   }
   await transition(
@@ -2074,9 +2082,18 @@ export async function respondToQuoteImpl(
     context.userId,
     "Owner accepted final installation quote – approved payment option due",
   );
-  await invoiceAfterAcceptance(q.id, q.job_id, context.userId);
-  await advanceAfterDeposit(q.job_id, context.userId);
+  await finishInstallationAcceptance(async () => {
+    await invoiceAfterAcceptance(q.id, q.job_id, context.userId);
+    await advanceAfterDeposit(q.job_id, context.userId);
+  });
   return { ok: true };
+}
+
+/** Signature, quote, audit and guarded stage move are committed. Keep the existing invoice recovery path;
+ * only detach follow-through when the actual request lifecycle guarantees it runs after the response. */
+async function finishInstallationAcceptance(task: () => Promise<unknown>) {
+  if (requestContext.getStore()?.waitUntil) { runAfterResponse(task); return; }
+  await task(); // No lifecycle: do not silently drop invoicing or invent a queue.
 }
 
 /** The acceptance (signature + stage move) is already committed here. An invoice / Xero push failure must not turn the
