@@ -176,7 +176,7 @@ const ownerSessionFor = async (jobId: string) => {
   return { token, session };
 };
 const META = { ip: "127.0.0.1", userAgent: "journey-test" };
-const SIGNING = { signatoryName: "Helen Journey", authorityType: "owner", signatureName: "Helen Journey", over18: true, readConsumerInfo: true, acceptAgreement: true, assistance: "none" };
+const SIGNING = { signatoryName: "Helen Journey", authorityType: "owner", signatureName: "Helen Journey", over18: true, readConsumerInfo: true, acceptAgreement: true, assistance: "none", declarations:{owner_or_authorised:true,details_accurate:true,consent_ap_sends:true,consent_commission_shares:true} };
 
 describe("A1 step 3 — the owner signs and accepts on the secure link", () => {
   test("accepting before the paperwork is signed is refused; nothing is accepted", async () => {

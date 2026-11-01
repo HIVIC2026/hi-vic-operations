@@ -22,8 +22,6 @@ import { renderOwnerQuoteEmail, renderQuoteReminderEmail, ownerQuoteSms } from "
 import { renderYoureInEmail } from "./acceptance-email.core";
 import { renderSafetyCheckTimesEmail, renderSafetyCheckBookedEmail } from "./safety-check-emails.core";
 import { renderPiesaCopyEmail } from "./piesa-delivery.core";
-import { renderPiesaOwnerConfirmEmail } from "./piesa-owner-confirm-email.core";
-import { piesaOwnerConfirmReminderText, piesaOwnerConfirmRequestText } from "./piesa-owner-confirm.core";
 import { renderPiesaFixesConfirmEmail } from "./piesa-fixes-confirm-email.core";
 import { piesaFixesConfirmText } from "./piesa-fixes-confirm.core";
 import { ownerInstallWindowEmail, installerInstallWindowEmail, ownerInstallWindowText, installerInstallWindowText } from "./thirty-day-rule.core";
@@ -304,18 +302,9 @@ const OWNER: TemplateEntry[] = [
   ENTRY({ id: "owner:sms-safety_check_booked_owner", section: "owner", step: "safety_check", kind: "text", code: "", name: "Safety check booked (text)", when: "The owner picks a safety check time", who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 93 (text A)", gate: { kind: "text", smsType: "safety_check_booked_owner" },
     source: { builder: "src/lib/approved-texts.core.ts", fn: "piesaBookedOwnerText", sender: "src/lib/approved-texts.server.ts" },
     render: () => text(piesaBookedOwnerText({ startIso: PIESA_ISO, electrician: "Spark Electrical", phone: "0400 111 222", link: JOB })) }),
-  ENTRY({ id: "owner:O71", section: "owner", step: "safety_check", kind: "email", code: "O71", name: "Please confirm your safety check", when: "After the electrician completes the PIESA; reminders days 1 and 3 (O71b)", who: "Owner", approvalNote: "Jo 25 Oct 2026, decisions 296/311", gate: { kind: "email" },
-    source: { builder: "src/lib/piesa-owner-confirm-email.core.ts", fn: "renderPiesaOwnerConfirmEmail", sender: "src/lib/piesa-owner-confirm-send.server.ts" }, design: "docs/templates/mjml/owner_O71.mjml",
-    render: () => email(renderPiesaOwnerConfirmEmail({ firstName: "Helen", assessmentDate: "5 November 2026", electricianLine: "Sam Spark (Spark Electrical Pty Ltd)", outcomeKind: "all_clear", confirmUrl: JOB, unsubscribeUrl: null, reminder: false })) }),
-  ENTRY({ id: "owner:O71b", section: "owner", step: "safety_check", kind: "email", code: "O71b", name: "Safety check still needs your confirmation", when: "Days 1 and 3 after the request when not yet confirmed (day 5 → office)", who: "Owner", approvalNote: "Jo 25 Oct 2026, decisions 296/311", gate: { kind: "email" },
-    source: { builder: "src/lib/piesa-owner-confirm-email.core.ts", fn: "renderPiesaOwnerConfirmEmail", sender: "src/lib/piesa-owner-confirm-send.server.ts" }, design: "docs/templates/mjml/owner_O71b.mjml",
-    render: () => email(renderPiesaOwnerConfirmEmail({ firstName: "Helen", assessmentDate: "5 November 2026", electricianLine: "Sam Spark (Spark Electrical Pty Ltd)", outcomeKind: "all_clear", confirmUrl: JOB, unsubscribeUrl: null, reminder: true })) }),
-  ENTRY({ id: "owner:sms-piesa_owner_confirm", section: "owner", step: "safety_check", kind: "text", code: "", name: "Confirm your safety check (text)", when: "With O71 and its day 1/3 reminders", who: "Owner", approvalNote: "Jo 25 Oct 2026, decision 311", gate: { kind: "text", smsType: "piesa_owner_confirm" },
-    source: { builder: "src/lib/piesa-owner-confirm.core.ts", fn: "piesaOwnerConfirmRequestText", sender: "src/lib/piesa-owner-confirm-send.server.ts" },
-    render: () => texts([{ label: "Request", body: piesaOwnerConfirmRequestText(JOB) }, { label: "Reminder (days 1 and 3)", body: piesaOwnerConfirmReminderText(JOB) }]) }),
-  ENTRY({ id: "owner:O28", section: "owner", step: "safety_check", kind: "email", code: "O28", name: "Your safety check copy (PIESA)", when: "The signed PIESA is filed (at least 24 hours before the install)", who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 131", gate: { kind: "email" },
+  ENTRY({ id: "owner:O28", section: "owner", step: "safety_check", kind: "email", code: "O28", name: "Your safety check copy and declaration", when: "The signed PIESA is filed; confirm the declaration before install booking", who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 131", gate: { kind: "email" },
     source: { builder: "src/lib/piesa-delivery.core.ts", fn: "renderPiesaCopyEmail", sender: "src/lib/piesa-delivery.server.ts" }, design: "docs/templates/mjml/owner_O28.mjml",
-    render: () => email(renderPiesaCopyEmail({ recipient: "owner", firstName: "Helen", address: SHORT_ADDRESS, jobNumber: "HV-TEST", signatureDate: "2026-11-05", installStart: INSTALL_ISO, link: JOB, electrician: { name: "Spark Electrical", licence: "12345", rec: "67890" } })) }),
+    render: () => email(renderPiesaCopyEmail({ recipient: "owner", firstName: "Helen", address: SHORT_ADDRESS, jobNumber: "HV-TEST", signatureDate: "2026-11-05", installStart: INSTALL_ISO, link: `${JOB}?screen=piesa`, electrician: { name: "Spark Electrical", licence: "12345", rec: "67890" } })) }),
   ENTRY({ id: "owner:install-window", section: "owner", step: "safety_check", kind: "email", code: "", name: "Days left to book your install (30-day window)", when: "20 and 10 days left in the 30 days after the safety check, while no install day is booked", who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 167", gate: { kind: "email" },
     source: { builder: "src/lib/thirty-day-rule.core.ts", fn: "ownerInstallWindowEmail", sender: "src/lib/thirty-day-rule.server.ts" },
     render: () => email(ownerInstallWindowEmail({ step: "reminder_10", deadline: "2026-12-04", daysLeft: 10, link: JOB, firstName: "Helen", installerName: "Sample Insulation Co" })) }),
@@ -826,6 +815,7 @@ export function templateStatus(e: TemplateEntry, sw: SwitchStates | null): { lab
  * like a message builder must be listed above — tests/templates-hub.test.ts fails otherwise.
  */
 export const NOT_LISTED_BUILDERS: Record<string, string> = {
+  renderPiesaOwnerConfirmEmail: "Retired by Task 5: combined signed-copy/declaration email is O28",
   renderConsentBody: "Shown inside the ESC Owner's Consent document entry",
   renderJoEstimateEmail: "Internal step of renderJoOutcomeEmail",
   renderJoIneligibleEmail: "Internal step of renderJoOutcomeEmail",
