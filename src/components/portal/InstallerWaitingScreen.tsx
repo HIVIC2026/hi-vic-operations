@@ -17,6 +17,7 @@ import { ColumnHead, Pager, type ColumnFilterValue } from "@/components/portal/o
 import { Pill, PillTabs, listCard } from "@/components/portal/kit";
 import { getInstallerWaitingList } from "@/lib/installer-waiting.functions";
 import { showAreaBatches } from "@/lib/area-batch.core";
+import { InHouseHandoff } from "@/components/portal/in-house-handoff";
 import { useMe } from "@/hooks/use-me";
 import { INSULATION_LABEL, REGION_LABEL, pageOf, type SortDir } from "@/lib/office-filters.core";
 import { estimateLabel, sizeLabel } from "@/lib/enquiry-columns.core";
@@ -145,6 +146,7 @@ export function InstallerWaitingScreen() {
       </div>
       {/* A48 batch 2: not for the TEST office login (its functions are not on the TEST office allowlist). */}
       {showAreaBatches(me?.roles) && <BatchesReadyToSend includeTest={includeTest} />}
+      {showAreaBatches(me?.roles) && <InHouseHandoff />}
       {showAreaBatches(me?.roles) && <AreaBatchSuggestions includeTest={includeTest} />}
       <PillTabs<WaitingTab> label="Saved spots" value={tab} onChange={pickTab} options={[
         { value: "to_release", label: "To release", count: d ? d.rows.length - (waitingOwner ?? 0) : null },
