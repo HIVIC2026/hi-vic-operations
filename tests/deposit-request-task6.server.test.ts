@@ -1,20 +1,20 @@
 import { beforeEach, expect, mock, test } from 'bun:test';
 import { memoryPostgrest, type Tables } from './helpers/memory-postgrest';
 const tables:Tables={};const admin=memoryPostgrest(tables);
-let cleared=true,basis='initial_piesa',paid=false,failed=false,held=true,paused=false;
+let cleared=true,basis='initial_piesa',paid=false,failed=false,held=true,paused=false,invoiceMissing=false,invoiceReadFails=false,officeOutcome='sent';
 const emails:any[]=[],texts:any[]=[],offices:any[]=[];
 const emailKeys=new Set<string>(),smsKeys=new Set<string>();
 mock.module('@/integrations/supabase/client.server',()=>({supabaseAdmin:admin}));
 mock.module('../src/lib/in-house-suppression.server',()=>({readInHouseDispatchState:async()=>({failed,held:new Set(held?['j']:[])})}));
 mock.module('../src/lib/install-days.server',()=>({installDayContext:async()=>({clearance:{cleared,basis},deadline:'2026-11-30',booked:false})}));
-mock.module('../src/lib/payments.server',()=>({jobPaymentView:async()=>({invoiceId:'i',invoices:{install:{id:'i',xero_invoice_id:'x'}},plan:{installDepositCents:36510},steps:[{key:'install_deposit',state:paid?'paid':'due',outstandingCents:paid?0:36510}],bank:{configured:true,accountName:'Practice',bsb:'123456',accountNumber:'12345678'},reference:'INV-1',stripe:{available:true}})}));
+mock.module('../src/lib/payments.server',()=>({jobPaymentView:async()=>{if(invoiceReadFails)throw Error('read failed');return invoiceMissing?null:({invoiceId:'i',invoices:{install:{id:'i',xero_invoice_id:'x'}},plan:{installDepositCents:36510},steps:[{key:'install_deposit',state:paid?'paid':'due',outstandingCents:paid?0:36510}],bank:{configured:true,accountName:'Practice',bsb:'123456',accountNumber:'12345678'},reference:'INV-1',stripe:{available:true}});}}));
 mock.module('../src/lib/veec-copy-email.server',()=>({ownerMyJobLink:async()=> 'https://example.invalid/my-job/token'}));
 mock.module('../src/lib/comms.server',()=>({assertCustomerDeliveryAllowed:async()=>{if(paused)throw Error('held');}}));
 mock.module('../src/lib/trade-pause.server',()=>({tradeMessagesPausedNow:async()=>paused?'paused':null}));
 mock.module('../src/lib/qa-inbox.server',()=>({qaDeliveryHeld:async()=>false}));
 mock.module('../src/lib/owner-email-send.server',()=>({sendGuardedOwnerEmail:async(p:any)=>{if(emailKeys.has(p.key))return 'already attempted';emailKeys.add(p.key);emails.push({...p,mail:p.build(null)});return 'sent';}}));
 mock.module('../src/lib/sms.server',()=>({sendRealSms:async(p:any)=>{if(smsKeys.has(p.idempotencyKey))return{status:'already'};smsKeys.add(p.idempotencyKey);texts.push(p);return {status:'sent'};}}));
-mock.module('../src/lib/office-email.server',()=>({sendOfficeEmail:async(p:any)=>{offices.push(p);return{status:'sent',detail:'mock'};}}));
+mock.module('../src/lib/office-email.server',()=>({sendOfficeEmail:async(p:any)=>{offices.push(p);return{status:officeOutcome,detail:officeOutcome==='failed'?"The email service didn't accept it":'mock'};}}));
 const {requestInstallDeposit,sweepDepositRequests,notifyInstallerDepositPaid}=await import('../src/lib/deposit-request.server');
 beforeEach(()=>{
  for(const k of Object.keys(tables))delete tables[k];
@@ -25,11 +25,12 @@ beforeEach(()=>{
  tables.job_assignments=[{id:'a',job_id:'j',business_id:'b',user_id:'u',role:'installer',active:true}];
  tables.workflow_events=[];tables.customer_email_sends=[];
  emails.length=texts.length=offices.length=0;emailKeys.clear();smsKeys.clear();cleared=held=true;basis='initial_piesa';paid=failed=paused=false;
+ invoiceMissing=invoiceReadFails=false;officeOutcome='sent';
 });
 test('pass requests one owner email and link-free text, replay sends neither again',async()=>{
  await requestInstallDeposit('j',new Date('2026-11-01T00:00:00Z'));await requestInstallDeposit('j',new Date('2026-11-01T00:00:00Z'));
  expect(emails).toHaveLength(1);expect(texts).toHaveLength(1);expect(emails[0].key).toBe('install-deposit:v1:i');expect(offices).toHaveLength(0);
- expect(texts[0].body).not.toMatch(/https?:|www\./);expect(tables.workflow_events).toHaveLength(1);
+ expect(texts[0].body).not.toMatch(/https?:|www\./);expect(tables.workflow_events?.filter(e=>e.event_type==='install_deposit_requested')).toHaveLength(1);
 });
 test('rectification needed requests nothing until completed',async()=>{
  cleared=false;await requestInstallDeposit('j');expect(emails.length+texts.length).toBe(0);
@@ -60,4 +61,17 @@ test('quiet-hour request retries during daytime with one email and one text',asy
 test('a stale recorded request is not released by the tick as an old request',async()=>{
  await requestInstallDeposit('j',new Date('2026-11-01T10:00:00Z'));
  await sweepDepositRequests(new Date('2026-11-03T00:00:00Z'));expect(emails.length+texts.length).toBe(0);
+});
+test('late invoice preserves clearance intent and resumes once invoice exists',async()=>{
+ invoiceMissing=true;await requestInstallDeposit('j',new Date('2026-11-01T00:00:00Z'));expect(tables.workflow_events?.some(e=>e.event_type==='install_deposit_request_pending')).toBe(true);
+ invoiceMissing=false;await sweepDepositRequests(new Date('2026-11-02T00:00:00Z'));await sweepDepositRequests(new Date('2026-11-02T00:00:00Z'));expect(emails).toHaveLength(1);
+});
+test('failed payment reads preserve pending request and repeated failures raise office task',async()=>{
+ invoiceReadFails=true;for(let i=0;i<3;i++)await requestInstallDeposit('j',new Date('2026-11-01T00:00:00Z'));
+ expect(tables.workflow_events?.some(e=>e.event_type==='install_deposit_request_pending')).toBe(true);expect(tables.workflow_events?.some(e=>e.event_type==='install_deposit_request_failed')).toBe(true);
+ invoiceReadFails=false;await sweepDepositRequests(new Date('2026-11-02T00:00:00Z'));expect(emails).toHaveLength(1);
+});
+test('installer deposit rejection retries after 24 hours and successful send never repeats',async()=>{
+ paid=true;tables.workflow_events?.push({job_id:'j',event_type:'install_deposit_received',created_at:'2026-11-01T00:00:00Z',details:{invoice_id:'i'}});
+ officeOutcome='failed';await notifyInstallerDepositPaid('j',new Date('2026-11-01T00:00:00Z'));officeOutcome='sent';await notifyInstallerDepositPaid('j',new Date('2026-11-03T00:00:00Z'));await notifyInstallerDepositPaid('j',new Date('2026-11-03T00:00:00Z'));expect(offices).toHaveLength(2);expect(texts.every(s=>s.to!=='office@example.invalid')).toBe(true);
 });
