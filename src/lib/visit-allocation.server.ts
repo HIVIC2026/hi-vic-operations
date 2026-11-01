@@ -157,10 +157,10 @@ export async function saveCrewWithLead(jobId: string, userId: string, sel: CrewS
   const result = await piisa.saveCrewSelection(jobId, userId, sel);
   const forms = await import("./in-house-forms.server");
   if (await forms.isInHouseFormJob(jobId).catch(e=>{ console.error("In-house crew form extension skipped", e instanceof Error ? e.message : "Partner read failed"); return false; })) {
+    await (await import('./in-house-booking.server')).recordLeadChange(jobId,userId,oldLeadId,leadId??'');
     const { data: booked } = await db.from("bookings").select("id").eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").limit(1).maybeSingle();
     if (booked) await forms.ensureInstallForm(jobId, userId, call);
     await forms.syncInHouseForms(jobId, "crew", userId, call);
-    await (await import('./in-house-booking.server')).recordLeadChange(jobId,userId,oldLeadId,leadId??'');
   }
   return result;
 }
