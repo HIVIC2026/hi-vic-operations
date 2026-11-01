@@ -23,7 +23,10 @@ BEGIN
  WHERE job_id=_job AND event_type='piisa_crew_selected' ORDER BY created_at DESC,id DESC LIMIT 1;
  SELECT * INTO b FROM public.bookings WHERE job_id=_job AND kind::text=CASE WHEN _kind='crew' THEN 'installation' ELSE _kind END AND status::text='confirmed' ORDER BY created_at DESC LIMIT 1 FOR UPDATE;
  -- An exact successful replay is a no-op even when another office user clicked.
- IF EXISTS(SELECT 1 FROM public.workflow_events WHERE id=_work AND job_id=_job AND event_type='in_house_saved_work') THEN
+ IF EXISTS(SELECT 1 FROM public.workflow_events WHERE id=_work AND job_id=_job AND event_type='in_house_saved_work'
+  AND details->>'workerId'=_worker::text AND details->>'kind'=_kind
+  AND (_kind='crew' OR (details->>'start')::timestamptz=_start)
+  AND coalesce(details->'selection','null'::jsonb)=coalesce(_selection,'null'::jsonb)) THEN
   RETURN jsonb_build_object('bookingId',b.id,'already',true,'workId',_work); END IF;
  IF _kind<>'crew' AND b.id IS NOT NULL AND b.scheduled_start=_start AND
   EXISTS(SELECT 1 FROM public.workflow_events WHERE job_id=_job AND event_type='in_house_saved_work' AND details->>'bookingId'=b.id::text AND details->>'workerId'=_worker::text AND coalesce(details->'selection','null'::jsonb)=coalesce(_selection,'null'::jsonb)) THEN

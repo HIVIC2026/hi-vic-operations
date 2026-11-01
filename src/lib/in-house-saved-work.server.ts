@@ -33,7 +33,7 @@ export async function runInHouseSavedWork(id:string,now=new Date()){
    await step('forms',async()=>{
     if(d.kind==='installation')await forms.ensureInstallForm(row.job_id,row.actor_id);
     if(d.kind==='ready_check')await forms.ensureInHouseForms(row.job_id,row.actor_id);
-    await forms.syncInHouseForms(row.job_id,'person',row.actor_id);
+    if(d.kind!=='installation')await forms.syncInHouseForms(row.job_id,'person',row.actor_id);
     if(d.kind==='installation')await forms.syncInHouseForms(row.job_id,'crew',row.actor_id,undefined,d.oldWorkerId);
     await forms.syncInHouseForms(row.job_id,'date',row.actor_id);
    });
