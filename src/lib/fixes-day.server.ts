@@ -514,6 +514,7 @@ export async function sweepFixesForms(opts: { call?: MittiCall; fetchMedia?: imp
       out.checked++;
       const res = await completeFixesForm(r.id, auditId, { ...(opts.call ? { call: opts.call } : {}), ...(opts.fetchMedia ? { fetchMedia: opts.fetchMedia } : {}) });
       if (res.status === "done") out.done++; else if (res.status === "not_done") out.notDone++; else out.waiting++;
+      if (res.status === "missing" || res.status === "held") return { ok: false, message: res.detail ?? "Rectification form could not be synced" };
       await recordMittiPullOutcome(r.id, "rectification", true, "synced");
       return { ok: true };
     },

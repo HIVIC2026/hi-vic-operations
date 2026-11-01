@@ -15,7 +15,7 @@ export async function pullMittiPages<T extends PullRow>(deps: PullDeps<T>, opts:
   const rows = new Map<string, T>();
   for (let offset = 0; ; offset += size) {
     const page = await deps.page(offset, size);
-    for (const row of page) rows.set(row.id, row);
+    for (const row of page) if (!rows.has(row.id)) rows.set(row.id, row);
     if (page.length < size) break;
   }
   const cursor = await deps.cursor();
