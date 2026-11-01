@@ -1,5 +1,6 @@
 // The email to the office when the Registry robot could not lodge. Plain words only: no error text, no login, no Registry link.
 import type { RobotTask } from "./esc-registry-robot.core";
+import { genericMail } from './mail-mjml.core';
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
@@ -16,6 +17,6 @@ export function robotAlertContent(x: { jobNumber: string; address: string | null
   return {
     subject: `Robot couldn't lodge – ${x.jobNumber} (${WHAT[x.task]})`,
     text: [intro, "", ...lines.map(([k, v]) => `${k}: ${v}`), "", next, "", `Open the job: ${x.jobUrl}`].join("\n"),
-    html: `<p>${esc(intro)}</p><p>${lines.map(([k, v]) => `${esc(k)}: ${esc(v)}`).join("<br>")}</p><p>${esc(next)}</p><p><a href="${esc(x.jobUrl)}">Open the job</a></p>`,
+    html: genericMail({subject:`Robot couldn't lodge – ${x.jobNumber} (${WHAT[x.task]})`,bodyHtml:`<p>${esc(intro)}</p><p>${lines.map(([k, v]) => `${esc(k)}: ${esc(v)}`).join("<br>")}</p><p>${esc(next)}</p><p><a href="${esc(x.jobUrl)}">Open the job</a></p>`}),
   };
 }

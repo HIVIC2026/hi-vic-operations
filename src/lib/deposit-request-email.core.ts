@@ -1,5 +1,6 @@
 import { bankDetailLines, type BankDetails } from './payments.core';
-import { emailShell, h1, p, button, cents } from './email-kit.core';
+import { cents } from './email-kit.core';
+import { genericMail } from './mail-mjml.core';
 import { weekdayDayMonthLabel } from './owner-email-triggers.core';
 import type { DepositReminder } from './deposit-request.core';
 
@@ -20,10 +21,10 @@ export function renderInstallDepositOwnerEmail(f:DepositMessageFacts,step:'reque
     `Your installation must start by ${deadline} (30-day limit).`,
     'The rest is due within 7 days of your install.',
   ];
-  return {subject,text:lines.join('\n\n')+(step==='paid'?'':`\n\nPay my deposit: ${f.link}`),html:emailShell({body:h1(subject)+lines.map(line=>p(line)).join('')+(step==='paid'?'':button(f.link,'Pay my deposit')),unsubscribe:'slot'})};
+  return {subject,text:lines.join('\n\n')+(step==='paid'?'':`\n\nPay my deposit: ${f.link}`),html:genericMail({subject,heading:subject,lines,button:step==='paid'?undefined:{url:f.link,label:'Pay my deposit'},unsubscribe:'slot'})};
 }
 export function renderInstallerDepositPaidEmail(f:DepositMessageFacts) {
   const date=weekdayDayMonthLabel(f.deadline)??f.deadline;
   const text=`${f.jobNumber} ${f.name}, ${f.address}: deposit paid. Call the owner and book the install day by ${date} (30-day limit). Phone: ${f.ownerPhone??'not recorded'}.`;
-  return{subject:`${f.jobNumber}: deposit paid`,text,html:emailShell({body:h1('Deposit paid')+p(text)})};
+  return{subject:`${f.jobNumber}: deposit paid`,text,html:genericMail({subject:`${f.jobNumber}: deposit paid`,heading:'Deposit paid',lines:[text]})};
 }

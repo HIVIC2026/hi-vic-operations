@@ -9,6 +9,7 @@
 //    out with no email, instead of a made-up one. TEST jobs always get the rendered draft through test-send.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
+import { genericMail } from './mail-mjml.core';
 
 export const QUOTE_EMAIL_TEMPLATE_KEY = "quote_ready";
 /** The approved quote-ready text (decision 87, B) lives in owner-quote-email.core.ts as ownerQuoteSms. */
@@ -342,10 +343,11 @@ export async function notifyOwnerQuoteReady(
       to: owner.email,
       purpose: "quote_ready",
       key: `quote-ready-email:v1:${quoteId}${keySuffix}`,
-      build: (unsubscribe) =>
-        wording === "rendered" && facts?.input
-          ? renderOwnerQuoteEmail({ ...facts.input, unsubscribeUrl: unsubscribe, test: false })
-          : { subject: tpl!.subject, html: tpl!.body_markdown, text: tpl!.body_markdown },
+      build: (unsubscribe) => {
+        if (wording === "rendered" && facts?.input) return renderOwnerQuoteEmail({ ...facts.input, unsubscribeUrl: unsubscribe, test: false });
+        if (!tpl) throw new Error('Approved quote wording unavailable');
+        return { subject: tpl.subject, html: genericMail({subject:tpl.subject,bodyHtml:tpl.body_markdown,unsubscribe}), text: tpl.body_markdown };
+      },
     });
   }
   if (OWNER_QUOTE_EMAIL_APPROVED && !facts?.input) {

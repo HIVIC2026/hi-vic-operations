@@ -7,6 +7,7 @@ import { linkUsable } from "./estimatelink.core";
 import { planSpotSaved, spotSavedDeliveryChanged, SPOT_SAVED_EMAIL_PURPOSE, SPOT_SAVED_EMAIL_SWITCH, SPOT_SAVED_SMS_SWITCH, type ChannelPlan } from "./spot-saved-send.core";
 import { SUPPRESSING_EVENTS } from "./emailsafety.core";
 import { smsQuietReason } from './quote-hold.core';
+import { genericMail } from './mail-mjml.core';
 
 type Msgs = { job: { source: string | null }; email: { subject: string; text: string; html?: string }; sms: string; optOutUrl: string | null; rebate: number };
 const OWNER_BASE = "https://estimate.homeinsulationvictoria.com.au";
@@ -149,7 +150,7 @@ async function sendEmail(jobId: string, p: Extract<ChannelPlan, { send: true }>,
   const b = testRecipientBoundary(p.to, msgs.job.source);
   if (b.status === "blocked") { await finish("failed", "not_sent", b.reason); return { status: "blocked", detail: b.reason }; }
   const { resendSend } = await import("./hot-leads-send.server");
-  const html = msgs.email.html ?? `<pre>${msgs.email.text.replace(/[<&]/g, (c) => (c === "<" ? "&lt;" : "&amp;"))}</pre>`;
+  const html = msgs.email.html ?? genericMail({subject:msgs.email.subject,lines:[msgs.email.text],unsubscribe:msgs.optOutUrl});
   const d = await resendSend(p.to, msgs.email.subject, html, msgs.email.text, p.key, msgs.optOutUrl);
   if (d.outcome === "rejected" || d.outcome === "not_attempted") { await finish("failed", "resend", d.detail); return { status: "failed", detail: d.detail }; }
   if (d.outcome === "uncertain") { await finish("delivered_unrecorded", "resend", d.detail.slice(0, 300)); return { status: "uncertain", detail: d.detail }; }

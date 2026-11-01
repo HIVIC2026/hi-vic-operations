@@ -259,6 +259,7 @@ export function matchAudits(
 }
 
 // ---- the office alert ----
+import { genericMail } from './mail-mjml.core';
 
 export type AlertInput = {
   jobNumber: string; address: string; kind: MittiFormKind;
@@ -288,6 +289,6 @@ export function alertEmail(i: AlertInput): { subject: string; text: string; html
   return {
     subject: `Mitti form not made: ${i.jobNumber} (${label})`,
     text: [intro, "", ...lines.map(([k, v]) => `${k}: ${v}`), "", `Open the job: ${i.jobUrl}`].join("\n"),
-    html: `<p>${esc(intro)}</p><p>${lines.map(([k, v]) => `${esc(k)}: ${esc(v)}`).join("<br>")}</p><p><a href="${esc(i.jobUrl)}">Open the job</a></p>`,
+    html: genericMail({subject:`Mitti form not made: ${i.jobNumber} (${label})`,bodyHtml:`<p>${esc(intro)}</p><p>${lines.map(([k, v]) => `${esc(k)}: ${esc(v)}`).join("<br>")}</p><p><a href="${esc(i.jobUrl)}">Open the job</a></p>`}),
   };
 }

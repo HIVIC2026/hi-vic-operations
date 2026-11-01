@@ -2,7 +2,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { assertCustomerDeliveryAllowed } from "./comms.server";
 import { sendGuardedOwnerEmail } from "./owner-email-send.server";
-import { emailShell, p as paragraph } from "./email-kit.core";
+import { genericMail } from "./mail-mjml.core";
 
 const PURPOSE = "in_house_partner_call";
 const PENDING = "in_house_partner_call_email_pending";
@@ -41,7 +41,7 @@ export async function sendInHousePartnerCall(jobId: string): Promise<string> {
       const current = await approvedTemplate();
       if (current?.id !== template.id || current.subject !== template.subject || current.body_markdown !== template.body_markdown) throw new Error("Partner call email approval changed.");
     },
-    build: unsubscribeUrl => ({ subject, text, html: emailShell({ body: text.split(/\n\s*\n/).map(line => paragraph(line)).join(""), unsubscribe: unsubscribeUrl }) }),
+    build: unsubscribeUrl => ({ subject, text, html: genericMail({ subject, lines: text.split(/\n\s*\n/), unsubscribe: unsubscribeUrl }) }),
   });
 }
 export async function sweepInHousePartnerCalls(): Promise<{ checked: number; sent: number }> {
