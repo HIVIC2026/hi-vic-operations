@@ -111,6 +111,7 @@ export function nextTapStep(a: QuickTapAnswers, blanks: readonly WebsiteKey[] = 
 export type QuickTapsView =
   | { kind: "none" }
   | { kind: "ask"; name: string | null; address: string | null; website: WebsiteFacts }
+  | { kind: "retry" }
   | { kind: "done"; outcome: FinalOutcome };
 
 export type AddressParts = { address_line: string | null; suburb: string | null; postcode: string | null };

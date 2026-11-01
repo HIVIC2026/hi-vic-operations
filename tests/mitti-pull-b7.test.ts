@@ -10,7 +10,7 @@ function fixture() {
   const deps = {
     page: async (offset: number, size: number) => { reads.push(offset); return forms.slice(offset, offset + size).map(id => ({ id })); },
     cursor: async () => cursor,
-    checkpoint: async (id: string) => { cursor = id; },
+    checkpoint: async (id: string | null) => { cursor = id; },
     sync: async ({ id }: { id: string }) => { time += 10; stored.add(id); return { ok: true }; },
     failure: async (id: string, message: string) => { failures.set(id, message); },
     now: () => time,
@@ -54,7 +54,7 @@ test("failed page/checkpoint reads fail visibly rather than dropping jobs", asyn
   const f = fixture(); f.deps.page = async () => { throw Error("Page failed"); };
   await expect(pullMittiPages(f.deps)).rejects.toThrow("Page failed");
   const g = fixture(); g.deps.checkpoint = async () => { throw Error("Cursor failed"); };
-  await expect(pullMittiPages(g.deps)).rejects.toThrow("Cursor failed");
+  await expect(pullMittiPages(g.deps, { maxJobs: 1 })).rejects.toThrow("Cursor failed");
 });
 test("Mitti API pagination follows all three form pages without network", async () => {
   const calls: string[] = [];

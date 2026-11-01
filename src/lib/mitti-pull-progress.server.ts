@@ -12,7 +12,7 @@ export function mittiPullProgress(stream: string) {
       const id = (data?.details as { cursor?: unknown } | null)?.cursor;
       return typeof id === "string" ? id : null;
     },
-    checkpoint: async (cursor: string) => {
+    checkpoint: async (cursor: string | null) => {
       const { error } = await admin.from("admin_config_events").insert({ event_type: event, summary: "Mitti pull progress", details: { cursor } });
       if (error) throw new Error(`Mitti progress could not be saved: ${error.message}`);
     },

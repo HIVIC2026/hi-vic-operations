@@ -304,6 +304,11 @@ function TapsScreen({ v, token }: { v: View; token: string }) {
   if (!view || view.kind === "none") return v.spotSaved ? <SpotSavedHome v={v} token={token} /> : <Home v={v} token={token} />;
   const card = "space-y-4 rounded-[22px] bg-card p-6 shadow-sm";
   if (view.kind === "done") return <section data-testid="owner-taps" data-outcome={view.outcome} className={card}><p className="flex items-start gap-2 font-display text-xl font-extrabold">{view.outcome === "pass" && <Check className="mt-1 h-5 w-5 shrink-0 text-estimate-green" aria-hidden />}{QUICK_TAPS_COPY.outcome[view.outcome]}</p></section>;
+  if (view.kind === "retry") return <section data-testid="owner-taps" className={card}><button type="button" className={tapPrimary} disabled={busy} onClick={async () => {
+    setErr(""); setBusy(true);
+    try { const r = await save({ data: { token, answers: {} } }); if (r.kind === "done") { setDone(r.outcome); void qc.invalidateQueries({ queryKey: ["my-job", token] }); } }
+    catch (e) { setErr(errText(e)); } finally { setBusy(false); }
+  }}>Try again</button>{err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}</section>;
 
   const name = onFile?.name ?? view.name;
   const address = onFile?.address ?? view.address;
