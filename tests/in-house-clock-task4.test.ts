@@ -4,6 +4,7 @@ const emails: { to: string; label: string }[] = [];
 const texts: { to: string; label: string }[] = [];
 const events: { type: string; details: any }[] = [];
 let failed = false;
+let source = "qa_test";
 const admin = { from(table: string) {
   const filters: Record<string, unknown> = {};
   const q: any = {
@@ -14,7 +15,7 @@ const admin = { from(table: string) {
   };
   function result(single: boolean) {
     if (table === "workflow_events") return { data: events.filter(e => e.type === filters.event_type).map(e => ({ details: e.details })), error: null };
-    if (table === "jobs") return { data: single ? { job_number: "HV-TEST", source: "qa_test", owners: { full_name: "Test Owner", email: "owner@hivic-test.example", phone: "owner-phone" }, properties: { suburb: "Test" } } : [{ id: "job" }], error: null };
+    if (table === "jobs") return { data: single ? { job_number: "HV-TEST", source, owners: { full_name: "Test Owner", email: "owner@hivic-test.example", phone: "owner-phone" }, properties: { suburb: "Test" } } : [{ id: "job" }], error: null };
     const row = { job_id: "job", business_id: "business", user_id: "worker", profiles: { full_name: "Worker", email: "worker@hivic-test.example", phone: "worker-phone" }, businesses: { in_house: true, name: "TEST Installer", email: "office@hivic-test.example", phone: "office-phone" } };
     return { data: failed ? null : single ? row : [row], error: failed ? { message: "read failed" } : null };
   }
@@ -28,8 +29,13 @@ mock.module("../src/lib/test-send.server", () => ({
   sendTestSms: async (ctx: any, to: string) => { texts.push({ to, label: ctx.label }); return { status: "sent", detail: "mock" }; },
 }));
 mock.module("../src/lib/install-days.server", () => ({ installDayContext: async () => ({ deadline: "2026-11-30", booked: false, expired: false, clearance: { timingDate: "2026-10-31" } }) }));
+mock.module("../src/lib/test-send.core", () => ({ isTestPartner: () => false }));
+mock.module("../src/lib/comms.server", () => ({ assertCustomerDeliveryAllowed: async () => {} }));
+mock.module("../src/lib/owner-email-send.server", () => ({ sendGuardedOwnerEmail: async (p: any) => { emails.push({ to: p.to, label: "owner" }); return "sent"; } }));
+mock.module("../src/lib/office-email.server", () => ({ sendOfficeEmail: async (p: any) => { emails.push({ to: p.to, label: "installer" }); return { status: "sent", detail: "mock" }; } }));
+mock.module("../src/lib/sms.server", () => ({ sendRealSms: async (p: any) => { texts.push({ to: p.to, label: p.type }); return { status: "sent", detail: "mock" }; } }));
 const { sweepInstallWindowRule, sendInstallWindowReminder } = await import("../src/lib/thirty-day-rule.server");
-beforeEach(() => { emails.length = 0; texts.length = 0; events.length = 0; failed = false; });
+beforeEach(() => { emails.length = 0; texts.length = 0; events.length = 0; failed = false; source = "qa_test"; });
 describe("in-house official clock delivery (mocked only)", () => {
   for (const [day, step] of [["10", "reminder_20"], ["20", "reminder_10"]] as const) {
     test(`${step} is prepared for an in-house job and emailed to its office, never texted to that office`, async () => {
@@ -46,5 +52,11 @@ describe("in-house official clock delivery (mocked only)", () => {
     failed = true;
     expect(await sendInstallWindowReminder("job", "reminder_20", "2026-11-30")).toBe("in_house_read_failed");
     expect(events).toEqual([]); expect(emails).toEqual([]); expect(texts).toEqual([]);
+  });
+  test("non-TEST delivery branch emails the in-house business office, never texts its office or worker (all providers mocked)", async () => {
+    source = "base44";
+    await sendInstallWindowReminder("job", "reminder_10", "2026-11-30", new Date("2026-11-20T00:00:00Z"));
+    expect(emails.filter(e => e.label === "installer")).toEqual([{ to: "office@hivic-test.example", label: "installer" }]);
+    expect(texts).toEqual([{ to: "owner-phone", label: "install_window_reminder" }]);
   });
 });
