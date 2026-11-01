@@ -330,6 +330,8 @@ export type SignInput = {
   signedBy: string | null;
   ip: string | null;
   userAgent: string | null;
+  /** Internal quick-taps retry identity; only sharing consent may use it. */
+  quickTapsBatchId?: string | undefined;
   verified?: { channel: "sms" | "email"; destination: string; codeId: string };
 };
 
@@ -358,9 +360,15 @@ export async function signGateDoc(i: SignInput) {
     );
   const text = fillTemplate(d.body, { ...vars, ...answerVars(i.answers, money) });
   const signedText = `${d.title} (version ${d.version}${draft ? ", DRAFT" : ""})\n\n${text}\n\n[x] ${d.tick}\nSigned: ${i.signatoryName.trim()}${d.gate === "B" ? (await import("./owner-confirm.core")).signedSummaryNote() : ""}`;
+  let quickTapId: string | null = null;
+  if (i.quickTapsBatchId && i.key === "trade_contact_share") {
+    const h = await sha256(`quick-taps-share:${i.jobId}:${i.quickTapsBatchId}:${d.version}`);
+    quickTapId = `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`;
+  }
   const { data: row, error } = await admin
     .from("owner_gate_signatures")
     .insert({
+      ...(quickTapId ? { id: quickTapId } : {}),
       job_id: i.jobId,
       gate: d.gate,
       doc_key: d.key,
@@ -381,6 +389,10 @@ export async function signGateDoc(i: SignInput) {
     })
     .select("id, signed_at")
     .single();
+  if (error?.code === "23505" && quickTapId) {
+    const prior = await admin.from("owner_gate_signatures").select("id").eq("id", quickTapId).eq("job_id", i.jobId).eq("doc_key", d.key).eq("doc_version", d.version).maybeSingle();
+    if (!prior.error && prior.data) return { id: prior.data.id, draft };
+  }
   if (error || !row) throw new Error(error?.message ?? "Could not save the signature");
 
   // Facts the signature establishes (fail closed: only ever switch life support ON).

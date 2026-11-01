@@ -109,7 +109,31 @@ export async function quickTapsState(token: string): Promise<QuickTapsView> {
   const jobId = await jobForToken(token);
   if (!jobId) return { kind: "none" };
   const c = await load(jobId);
-  return c ? viewOf(c) : { kind: "none" };
+  if (!c) return { kind: "none" };
+  const view = viewOf(c);
+  if (view.kind === "done" && view.outcome === "pass" && !await sharingSignature(jobId)) return { kind: "retry" };
+  return view;
+}
+
+async function sharingSignature(jobId: string) {
+  const { gateDoc } = await import("./owner-gates.core");
+  const { data, error } = await admin.from("owner_gate_signatures").select("id").eq("job_id", jobId).eq("doc_key", "trade_contact_share").eq("doc_version", gateDoc("trade_contact_share").version).limit(1).maybeSingle();
+  if (error) throw new Error(`Could not check sharing consent: ${error.message}`);
+  return data;
+}
+
+async function finishSharing(jobId: string, c: Ctx, meta: { ip: string | null; userAgent: string | null }) {
+  const { answered } = batchOf(c);
+  const d = answered?.details as { consent_share?: boolean; answers?: { name?: string }; batch_id?: string } | null;
+  if (d?.consent_share !== true || !d.answers?.name) throw new WorkflowError("Please answer each question.");
+  if (await sharingSignature(jobId)) return;
+  const { signGateDoc } = await import("./owner-gates.server");
+  try {
+    await signGateDoc({ jobId, key: "trade_contact_share", signatoryName: d.answers.name, ticked: true, answers: {}, method: "link_code", signedBy: null, ip: meta.ip, userAgent: meta.userAgent, quickTapsBatchId: d.batch_id });
+  } catch (error) {
+    await logEvent(jobId, null, "quick_taps_share_not_recorded", `Quick taps: sharing consent could not be saved: ${error instanceof Error ? error.message : "error"}`, { batch_id: d.batch_id }, { internal: true });
+    throw error;
+  }
 }
 
 async function asking(token: string): Promise<{ jobId: string; c: Ctx; batchId: string } | null> {
@@ -237,7 +261,10 @@ export async function saveQuickTaps(token: string, answers: QuickTapAnswers, met
   const c = jobId ? await load(jobId) : null;
   if (!jobId || !c) throw new WorkflowError(DEAD);
   const view = viewOf(c);
-  if (view.kind === "done") return view;
+  if (view.kind === "done") {
+    if (view.outcome === "pass") await finishSharing(jobId, c, meta);
+    return view;
+  }
   if (view.kind !== "ask") throw new WorkflowError(DEAD);
   if (!view.name) throw new WorkflowError(NAME_NEEDED);
   if (!view.address) throw new WorkflowError(FULL_STREET_NEEDED);
@@ -252,16 +279,18 @@ export async function saveQuickTaps(token: string, answers: QuickTapAnswers, met
     ...(Object.keys(website).length ? { website } : {}),
   };
   const won = await claimAnswer(jobId, { batch_id: batchId, answers: stored, consent_share: outcome === "pass", outcome, idempotency_key: `quick-taps:v1:${batchId}:${jobId}:answered` }, SUMMARY[outcome]);
-  if (!won) { const again = await load(jobId); return again ? viewOf(again) : { kind: "none" }; }
+  if (!won) {
+    const again = await load(jobId);
+    if (!again) return { kind: "none" };
+    const result = viewOf(again);
+    if (result.kind === "done" && result.outcome === "pass") await finishSharing(jobId, again, meta);
+    return result;
+  }
 
   if (outcome === "pass") {
-    // The "Yes, let's go — you can share my name and number…" tap is the owner's consent: the existing owner gate record.
-    try {
-      const { signGateDoc } = await import("./owner-gates.server");
-      await signGateDoc({ jobId, key: "trade_contact_share", signatoryName: view.name, ticked: true, answers: {}, method: "link_code", signedBy: null, ip: meta.ip, userAgent: meta.userAgent });
-    } catch (e) {
-      await logEvent(jobId, null, "quick_taps_share_not_recorded", `Quick taps: the owner's consent to share is in their answers, but the "Sharing with your tradies" record could not be saved: ${(e as Error).message}`, { batch_id: batchId, error: (e as Error).message }, { internal: true });
-    }
+    const recorded = await load(jobId);
+    if (!recorded) throw new WorkflowError(DEAD);
+    await finishSharing(jobId, recorded, meta);
     return { kind: "done", outcome };
   }
   await finishDecline(jobId);
