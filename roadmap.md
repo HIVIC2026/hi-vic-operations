@@ -1,3 +1,6 @@
+## Jo 1 Nov B5 (#134 / #136 / #144)
+- [ ] Diagnose silent paid-gate stops; red-first shared Needs me/Next warning with cleared/unpaid tests; minimal read-only fix; related/full bounded comparison to 98 files/261 failures. No settings, secrets, data, sends or publishing.
+
 ## Jo 1 Nov B4 (#139)
 - [x] PDF was printing stableJson snapshot as text and had no logo. Red 0/3, green 3/0; recorded Gate B signed wording/versions plus accepted agreement fallback and consumer rights rendered with existing email logo and Melbourne signed time. Immutable snapshots/hashes and sender unchanged. Related 7 files 81 pass/2 existing failures. Bounded before/after: existing 956 files unchanged, 98 failing files/261 failures; new PDF file 0/3→3/0. Nested owner-accept-speed output counted inconsistently; direct recheck confirms its existing 0/1 failure, no regression. Fixture one-page PDF inspected; tight heading spacing corrected and re-inspected. Automatic build OK. No settings, secrets, live data, sends or publishing.
 
