@@ -111,7 +111,7 @@ export async function ensureInstallForm(jobId: string, actorId: string | null, c
   const mitti = await import("./mitti.server");
   return (await mitti.createPiisaMittiAudit(jobId,actorId,call ?? mitti.realMittiCall,{assignee:lead})).auditId;
 }
-export async function syncInHouseForms(jobId: string, change: "date"|"person"|"crew", actorId: string | null = null, call?: MittiCall) {
+export async function syncInHouseForms(jobId: string, change: "date"|"person"|"crew", actorId: string | null = null, call?: MittiCall, previousWorkerId?:string|null) {
   if (!await isInHouseFormJob(jobId)) return;
   const forms = (await formFacts(jobId)).filter(f=>!f.done && !f.closed);
   const bookings = await read<{kind:string;scheduled_start:string}[]>(db.from("bookings").select("kind,scheduled_start").eq("job_id",jobId).eq("status","confirmed").order("created_at",{ascending:false}));
@@ -129,6 +129,17 @@ export async function syncInHouseForms(jobId: string, change: "date"|"person"|"c
       if (!mittiUserId) throw new Error("Add this person in Mitti first.");
       await mitti.reassignMittiFormTo({jobId,auditId:form.auditId,kind:form.kind,mittiUserId,email:holder.email,actorId},call ?? mitti.realMittiCall);
       if (change === "crew" && form.kind === "install") await mitti.updateMittiInstallCrew(jobId,form.auditId,actorId,call ?? mitti.realMittiCall);
+      if(change==='crew'&&form.kind==='install'&&previousWorkerId){
+        const installer=await assignment(jobId,'installer');
+        const old=await read<{email:string|null}|null>(db.from('partner_workers').select('email').eq('id',previousWorkerId).eq('business_id',installer?.business_id??'').maybeSingle());
+        // A shared office/TEST identity is not a different person: never revoke the new holder's access.
+        if(old?.email&&old.email.trim().toLowerCase()!==holder.email.trim().toLowerCase()){
+          const routed=await mitti.mittiCallFor(call??mitti.realMittiCall,holder.email);
+          const oldUserId=await mitti.findMittiUserByEmail(old.email,routed);
+          if(!oldUserId)throw Error('Could not identify the previous Lead Installer in Mitti; office handover required.');
+          if(oldUserId!==mittiUserId)await (await import('./mitti.core')).mittiApi(routed).removeInspectionUserAccess(form.auditId,oldUserId);
+        }
+      }
     }
   }
 }

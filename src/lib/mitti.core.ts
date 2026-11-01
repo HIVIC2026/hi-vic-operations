@@ -37,7 +37,7 @@ export class MittiError extends Error {
   }
 }
 
-export type MittiCall = (method: "GET" | "POST" | "PUT", path: string, body?: unknown) => Promise<unknown>;
+export type MittiCall = (method: "GET" | "POST" | "PUT" | "DELETE", path: string, body?: unknown) => Promise<unknown>;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Any = any;
@@ -53,6 +53,9 @@ export function mittiApi(call: MittiCall) {
     /** Make the assignee the owner so the form sits in THEIR Inspections list (sharing alone leaves it hidden). */
     setAuditOwner: (auditId: string, userId: string) =>
       call("PUT", `/inspections/v1/inspections/${encodeURIComponent(auditId)}/owner`, { owner_id: userId }),
+    /** Documented individual-access removal, never inspection deletion or group changes. */
+    removeInspectionUserAccess: (auditId: string, userId: string) =>
+      call("DELETE", `/inspections/v1/inspections/${encodeURIComponent(auditId)}/user/${encodeURIComponent(userId)}/access`),
     getAudit: (auditId: string) => call("GET", `/audits/${encodeURIComponent(auditId)}`) as Promise<Any>,
     /** Jo 24 Oct: link that opens THIS form in the Mitti app on a phone (web app otherwise). */
     deepLink: (auditId: string) => call("POST", `/audits/${encodeURIComponent(auditId)}/deep_link`) as Promise<Any>,
