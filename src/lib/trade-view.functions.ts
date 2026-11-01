@@ -135,6 +135,10 @@ export const getInHouseBookingAccess = createServerFn({ method: "POST" }).middle
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).inHouseBookingAccess(context.userId, data.jobId, context.supabase));
 
+export const getInHouseBookingList = createServerFn({method:'POST'}).middleware([requireSupabaseAuth])
+  .inputValidator(z.object({jobIds:z.array(uuid).max(1000)}))
+  .handler(async({data,context})=>(await import('./in-house-booking-list.server')).inHouseBookingList(context.userId,data.jobIds));
+
 export const inHouseBookVisit = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, kind: z.enum(["ready_check", "assessment", "rectification", "installation"]), start: z.string().datetime({ offset: true }), workerId: uuid, crewIds: z.array(uuid).max(2).default([]) }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).inHouseBookVisit(context.userId, data, context.supabase));

@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Group } from './installer-kit';
 export function useInHouseBookingAccess(jobId:string){const load=useServerFn(getInHouseBookingAccess);return useQuery({queryKey:['in-house-booking-access',jobId],queryFn:()=>load({data:{jobId}}),retry:false});}
 export type InHouseBookingKind='ready_check'|'assessment'|'rectification'|'installation';
+export type InHouseBookingListEntry={allowed:boolean;team:{workers:BookingWorker[];depositPaid:boolean;selection:{lead?:unknown}|null}};
 type Kind=InHouseBookingKind;
 const visits=[{kind:'ready_check',label:'Ready Check'},{kind:'assessment',label:'Pre Insulation Electrical Safety Assessment (PIESA)'},{kind:'rectification',label:'Rectification'},{kind:'installation',label:'Install day'}] as const;
 function VisitPicker({jobId,kind,label,workers,booked,selection}:{jobId:string;kind:Kind;label:string;workers:BookingWorker[];booked?:string|null|undefined;selection:string|null}){
@@ -39,7 +40,16 @@ export function InHouseBookingCard({jobId}:{jobId:string}){
 }
 
 /** Same guarded picker, embedded outside the job link on the actual To book row. */
-export function InHouseBookingRow({jobId,kind}:{jobId:string;kind:Kind}){
+export function InHouseBookingRow({jobId,kind,context}:{jobId:string;kind:Kind;context?:InHouseBookingListEntry|undefined}){
+ if(context)return <InHouseBookingRowReady jobId={jobId} kind={kind} context={context}/>;
+ return <InHouseBookingRowLoading jobId={jobId} kind={kind}/>;
+}
+function InHouseBookingRowReady({jobId,kind,context}:{jobId:string;kind:Kind;context:InHouseBookingListEntry}){
+ if(!context.allowed||kind==='installation'&&!context.team.depositPaid)return null;
+ const visit=visits.find(v=>v.kind===kind);if(!visit)return null;
+ return <VisitPicker jobId={jobId} {...visit} workers={context.team.workers} selection={kind==='installation'&&typeof context.team.selection?.lead==='string'?context.team.selection.lead:null}/>;
+}
+function InHouseBookingRowLoading({jobId,kind}:{jobId:string;kind:Kind}){
  const access=useInHouseBookingAccess(jobId),load=useServerFn(getInHouseBookingTeam);
  const team=useQuery({queryKey:['in-house-booking-team',jobId],queryFn:()=>load({data:{jobId}}),enabled:access.data?.allowed===true,retry:false});
  if(access.data?.allowed!==true)return null;
