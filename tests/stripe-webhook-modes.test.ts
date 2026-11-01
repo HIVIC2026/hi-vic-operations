@@ -94,7 +94,9 @@ test("live-secret verification retains existing acceptance of test-mode events",
 });
 test("TEST secret never authorises missing or non-boolean livemode, including ignored events", async () => {
   for (const mode of [undefined, null, "false", 0, true]) {
-    const raw = body(mode, "unhandled.event");
+    const event = JSON.parse(body(mode, "unhandled.event"));
+    if (mode === undefined) delete event.livemode;
+    const raw = JSON.stringify(event);
     expect(await handleStripeWebhook(raw, sign(raw, TEST))).toEqual({ status: 400, outcome: "bad_signature" });
     nothingRecorded();
   }
