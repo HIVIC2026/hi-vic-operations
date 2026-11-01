@@ -21,6 +21,7 @@ test('SIM all-clear booking/forms/deposit/digest sequence uses one continuing jo
   h.completeReadyCheck(); h.acceptQuote(); h.paySafetyCheck();
   await h.bookSafetyCheck();
   h.assertStep('PIESA booked','piesa_scheduled',['RC','A3','A4'],[
+    ['electrician','email','in_house_electrician_booked'],
     ['owner','email','in_house_booked'],['owner','sms','in_house_booked_owner'],
   ]);
   await h.completePiesa(false);
@@ -132,7 +133,6 @@ test('SIM Melbourne clock crosses both DST boundaries without a fixed offset',()
 // Explicit missing whole-job proofs; these must never be counted as scenario PASS.
 test.todo('SIM whole-job: real enquiry → Save my spot → quick taps → five-job in-house handoff');
 test.todo('SIM whole-job: actual Ready Check sync → quote generation → code verification → four signatures → $349 ledger');
-test.todo('SIM whole-job: immediate booked PIESA notification to the selected electrician');
 test.todo('SIM whole-job: actual A3/A4 completion and issued rectification quote/payment progression');
 test.todo('SIM whole-job: completed A5 evidence → VEEC owner signature → AP verification → close');
 test.todo('SIM whole-job: full per-role UI/read and database RLS matrix at every step');
