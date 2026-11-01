@@ -96,7 +96,7 @@ export async function emailOwnerFinalInvoice(jobId: string, invoiceId: string, i
   const { COMPLETION_EMAILS_APPROVED, renderFinalInvoiceEmail } = await import("./completion-emails.core");
   const installed = await installedLineFor(jobId, i.installed);
   return sendOwnerTemplateEmail({ jobId, purpose: "final_invoice", key: ownerEmailKey.finalInvoice(invoiceId), approved: COMPLETION_EMAILS_APPROVED, label: "Final invoice email", notSentEvent: "final_invoice_email_not_sent",
-    render: (f) => renderFinalInvoiceEmail({ ...i, installed, firstName: f.firstName, ownerName: f.ownerName, address: f.address, installer: { name: f.installerName, phone: f.installerPhone }, test: f.test }) });
+    render: (f) => renderFinalInvoiceEmail({ ...i, payUrl:`${f.myJobUrl}?screen=pay`, installed, firstName: f.firstName, ownerName: f.ownerName, address: f.address, installer: { name: f.installerName, phone: f.installerPhone }, test: f.test }) });
 }
 
 /** Workflow caller: completion-pack.server.ts (install complete + invoice paid), which passes the manufacturer warranty PDF(s) for the installed product(s). */

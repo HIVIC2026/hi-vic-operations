@@ -89,7 +89,7 @@ export function renderInstallCompleteEmail(i: InstallCompleteInput) {
 
 export type FinalInvoiceInput = {
   firstName: string | null; ownerName: string | null; address: string | null; installer: Installer | null;
-  invoiceNumber: string; invoiceDate: string;
+  invoiceNumber: string; invoiceDate: string; dueDate?:string;payUrl?:string;
   lines: { description: string; amount: number }[];
   totalIncGst: number; gst: number | null; rebate: number;
   payments: { label: string; amount: number }[];
@@ -127,10 +127,11 @@ export function renderFinalInvoiceEmail(i: FinalInvoiceInput) {
   const first = K.cleanName(i.firstName) ?? "there";
   const installer = i.installer?.name?.trim() || "Your installer";
   const subject = `${first}, your install is done. Here's your final invoice`;
-  const intro = `${installer} finished today. Your balance is due today, as agreed when you booked. Please pay by bank transfer using the details below, with your invoice number as the reference.`;
+  const dueLabel=i.dueDate?`due ${i.dueDate}`:'due 7 days after recorded install completion';
+  const intro = `${installer} finished today. Your balance is ${dueLabel}. Pay by card on My job or by bank transfer using the details below, with your invoice number as the reference.`;
   const balance = K.cents(i.balanceDue);
   const ref = i.invoiceNumber.trim();
-  const preview = `Balance due today: ${balance} by bank transfer, reference ${ref}.`;
+  const preview = `Balance ${dueLabel}: ${balance} by card or bank transfer, reference ${ref}.`;
   const gstNote = i.gst != null ? `(GST ${K.cents(i.gst)})` : null;
   const rows: { label: string; amount: string; bold?: boolean; green?: boolean; note?: string | null }[] = [
     ...i.lines.map((l) => ({ label: apWording(l.description), amount: K.cents(l.amount) })),
@@ -155,20 +156,20 @@ export function renderFinalInvoiceEmail(i: FinalInvoiceInput) {
     const green = r.green ? "color:#057D40;" : "";
     const label = `${r.bold ? `<strong>${esc(r.label)}</strong>` : esc(r.label)}${r.note ? ` <span class="muted">${esc(r.note)}</span>` : ""}`;
     return `<tr><td valign="top" style="padding:9px 0;${top}${green}">${label}</td><td align="right" valign="top" style="padding:9px 0 9px 12px;white-space:nowrap;${top}${green}">${r.bold ? `<strong>${money(r.amount)}</strong>` : money(r.amount)}</td></tr>`;
-  }), `<tr><td valign="top" style="padding:9px 0;border-top:2px solid #22376B;"><strong>Balance due today</strong></td><td align="right" valign="top" style="padding:9px 0 9px 12px;white-space:nowrap;border-top:2px solid #22376B;"><strong>${esc(balance)}</strong></td></tr>`].join("");
+  }), `<tr><td valign="top" style="padding:9px 0;border-top:2px solid #22376B;"><strong>Balance ${dueLabel}</strong></td><td align="right" valign="top" style="padding:9px 0 9px 12px;white-space:nowrap;border-top:2px solid #22376B;"><strong>${esc(balance)}</strong></td></tr>`].join("");
   const bRows = bankRows(bankLines);
   const bankHtml = bRows
     ? `<mj-table padding="0 18px 14px">${bRows.map((r, n) => { const top = n === 0 ? "" : BT; return `<tr><td style="padding:8px 0;${top}color:#5A6785;">${esc(r.k)}</td><td align="right" style="padding:8px 0 8px 12px;${top}${r.k === "Account name" || r.k === "PayID" ? "" : "white-space:nowrap;"}"><strong>${esc(r.v)}</strong></td></tr>`; }).join("")}</mj-table>`
     : `<mj-text padding="0 18px 16px">${bankLines.map(esc).join("<br />")}</mj-text>`;
   const body = [
     `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${esc(subject)}</mj-text><mj-text>${esc(intro)}</mj-text></mj-column></mj-section>`,
-    `<mj-section><mj-column mj-class="panel"><mj-text mj-class="eyebrow center" padding="18px 12px 6px">Balance due today</mj-text><mj-text mj-class="big-blue" padding="0 12px 18px">${esc(balance)}</mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column mj-class="panel"><mj-text mj-class="eyebrow center" padding="18px 12px 6px">Balance ${dueLabel}</mj-text><mj-text mj-class="big-blue" padding="0 12px 18px">${esc(balance)}</mj-text></mj-column></mj-section>`,
     `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 2px">Tax invoice ${esc(ref)}</mj-text><mj-text mj-class="small" padding="0 18px 12px">${esc(i.invoiceDate)}</mj-text><mj-text mj-class="small" padding="0 18px 10px">${esc(BUSINESS_LINE)}</mj-text>${who.length ? `<mj-text font-size="14px" line-height="21px" padding="0 18px 12px">${who.map(([k, v]) => `<strong>${esc(k)}:</strong> ${esc(v)}`).join("<br />")}</mj-text>` : ""}<mj-table padding="0 18px 12px" font-size="14px" line-height="20px">${rowHtml}</mj-table></mj-column></mj-section>`,
-    `<mj-section><mj-column mj-class="panel"><mj-text mj-class="h2" padding="18px 18px 8px">Pay by bank transfer</mj-text>${bankHtml}</mj-column></mj-section>`,
+    `${i.payUrl?`<mj-section><mj-column><mj-button href="${esc(i.payUrl)}">Pay by card</mj-button></mj-column></mj-section>`:''}<mj-section><mj-column mj-class="panel"><mj-text mj-class="h2" padding="18px 18px 8px">Pay by bank transfer</mj-text>${bankHtml}</mj-column></mj-section>`,
     `<mj-section><mj-column>${pdfLine ? `<mj-text mj-class="small center" padding="10px 12px 0">${esc(pdfLine)}</mj-text>` : ""}<mj-text padding="16px 12px 14px">${esc(after)}</mj-text><mj-text mj-class="small" padding="0 12px">${esc(closing)}</mj-text></mj-column></mj-section>`,
   ].join("");
   const html = mjEmail({ subject, preview, body, unsubscribe: null, testLabel: i.test === true });
-  const text = K.plainText([subject, "", intro, "", `Balance due today: ${balance}`, "", `TAX INVOICE ${ref} · ${i.invoiceDate}`, ...meta, ...rows.map((r) => `${r.label}${r.note ? ` ${r.note}` : ""}: ${r.amount}`), `Balance due today: ${balance}`, "", "PAY BY BANK TRANSFER", ...bankLines, ...(pdfLine ? [pdfLine] : []), "", after, "", closing], { testLabel: i.test === true });
+  const text = K.plainText([subject, "", intro, ...(i.payUrl ? [`Pay by card: ${i.payUrl}`] : []), "", `Balance ${dueLabel}: ${balance}`, "", `TAX INVOICE ${ref} · ${i.invoiceDate}`, ...meta, ...rows.map((r) => `${r.label}${r.note ? ` ${r.note}` : ""}: ${r.amount}`), `Balance ${dueLabel}: ${balance}`, "", "PAY BY BANK TRANSFER", ...bankLines, ...(pdfLine ? [pdfLine] : []), "", after, "", closing], { testLabel: i.test === true });
   return { subject, html, text };
 }
 

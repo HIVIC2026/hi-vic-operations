@@ -39,7 +39,7 @@ export function renderInstallDaysEmail(i: InstallDaysEmailInput) {
   const rest = deposit != null ? i.balanceIncGst! - deposit : null;
   // Guide fix 2 (Jo 29 Oct 2026, decision 423): the deposit is paid to book the day — no 48-hour hold.
   const lock1 = `To book your day, sign your install consent and pay your 10% deposit${deposit != null ? ` of ${K.cents(deposit)}` : ""}. Once it's in, your day is locked in.`;
-  const lock2 = `The rest${rest != null ? `, ${K.cents(rest)},` : ""} is due on install day. Or you can pay in full now.`;
+  const lock2 = `The rest${rest != null ? `, ${K.cents(rest)},` : ""} is due 7 days after your install is recorded complete. Or you can pay in full now.`;
   const byHtml = i.installBy ? `<strong>Your install must happen by ${esc(i.installBy)}</strong>, 30 days after your safety check.` : `<strong>Your install must happen within 30 days of your safety check.</strong>`;
   const preview = `Your safety check is all clear. ${installer} has offered ${slots.length === 3 ? "three days" : "these days"} – tap the one that suits you.`;
   const body = [

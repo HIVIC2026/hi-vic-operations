@@ -40,7 +40,7 @@ export const WORKFLOW_DECISIONS = {
       "approved_payment_option_verified",
     ],
     options: ["safety_check_paid", "paid_in_full"] as const,
-    safetyCheck: { settingColumn: "safety_check_payment_inc_gst", defaultIncGst: 349, decided: "2026-10-07", balance: [] as string[], balanceNote: "Decision 365 (Jo 25 Oct 2026): no balance option — one payment statement of the paymentPlan() steps (safety check, fixes if approved, 10% to book, balance on install day)" },
+    safetyCheck: { settingColumn: "safety_check_payment_inc_gst", defaultIncGst: 349, decided: "2026-10-07", balance: [] as string[], balanceNote: "Decision 365 (Jo 25 Oct 2026): no balance option — one payment statement of the paymentPlan() steps (safety check, fixes if approved, 10% to book, balance 7 days after recorded install completion)" },
     // Jo 26 Oct: flat 10% install deposit on the install price only (not the PIESA fee or fixes). 5% tier removed.
     deposit: { installPct: 10, base: "install_price_excluding_piesa_and_fixes" },
     noApprovedRule: "block_piesa_payment_rule_exception",

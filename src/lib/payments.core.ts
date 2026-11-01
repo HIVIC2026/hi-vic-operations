@@ -33,7 +33,7 @@ export const PAYMENT_STEP_LABEL: Record<PaymentStepKey, string> = {
   safety_check: "Pre Insulation Electrical Safety Assessment (PIESA) payment",
   fixes: "Electrical fixes",
   install_deposit: "Install deposit (10%)",
-  balance: "Balance (install day)",
+  balance: "Balance (due 7 days after install completion)",
   repeat_safety_check: "Repeat safety check (PIESA)",
 };
 export type PaymentMethod = "card" | "bank";
@@ -91,9 +91,9 @@ export const totalPaidCents = (p: PaidByInvoice) => Math.max(0, Math.round(p.ins
 export const stepAmountCents = (p: PaymentPlan, k: PaymentStepKey) =>
   k === "safety_check" ? p.safetyCheckCents : k === "fixes" ? p.fixesCents : k === "install_deposit" ? p.installDepositCents : k === "repeat_safety_check" ? p.repeatCents : p.balanceCents;
 
-/** Decision 140/141 + 233, Jo 29 Oct 2026: card for the safety check (including the repeat check), the fixes and the 10% install deposit; the balance is bank transfer / PayID only. */
+/** Q21: existing invoice steps, including balance, support card or bank; amounts and receipts remain invoice-bound. */
 export function paymentMethodsFor(step: PaymentStepKey): PaymentMethod[] {
-  return step === "safety_check" || step === "fixes" || step === "repeat_safety_check" || step === "install_deposit" ? ["card", "bank"] : ["bank"];
+  return ["card", "bank"];
 }
 export const cardAllowedFor = (step: PaymentStepKey) => paymentMethodsFor(step).includes("card");
 
@@ -471,7 +471,7 @@ export function paymentLine(step: PaymentStepKey, reference: string | null, safe
   const ref = reference ? `, reference ${reference}` : "";
   if (step === "safety_check") return safetyCheckCents === SAFETY_CHECK_CENTS ? PAY_LINE_SAFETY_CHECK : `${aud(safetyCheckCents)} by card or bank transfer — no fee`;
   if (step === "fixes" || step === "repeat_safety_check") return PAY_LINE_FIXES;
-  return `${step === "install_deposit" ? PAY_LINE_DEPOSIT : PAY_LINE_BANK_ONLY}${ref}`;
+  return `${step === "install_deposit" ? PAY_LINE_DEPOSIT : "Card, bank transfer or PayID"}${ref}`;
 }
 
 /** The "How you can pay" summary on the quote / acceptance page. */
@@ -480,7 +480,7 @@ export function howYouPayLines(plan: PaymentPlan): string[] {
     `${aud(plan.safetyCheckCents)} now for the electrical safety check (card or bank transfer, no fee)`,
     ...(plan.repeatCents > 0 ? [`${aud(plan.repeatCents)} for the repeat safety check (PIESA) (card or bank transfer, no fee)`] : []),
     `${aud(plan.installDepositCents)} deposit (10% of the install price) before your install day can be booked, by card, bank transfer or PayID`,
-    `${aud(plan.balanceCents)} on install day, by bank transfer or PayID`,
+    `${aud(plan.balanceCents)} due 7 days after your install is recorded complete, by card, bank transfer or PayID`,
     `Or pay the full ${aud(plan.quoteTotalCents)} any time by bank transfer or PayID`,
   ];
 }

@@ -59,6 +59,7 @@ describe("finalInvoiceFacts", () => {
     for (const s of ["PAY BY BANK TRANSFER", "Account name: Home Insulation Victoria", "BSB 082-902 · Account 777966349", "Reference: INV-3117", "Amount: $1,065.90"]) expect(m.text).toContain(s);
     // O45 design: the same bank details as label/value rows in the HTML.
     for (const s of ["Pay by bank transfer", "<strong>Home Insulation Victoria</strong>", "<strong>082-902</strong>", "<strong>777966349</strong>", "<strong>INV-3117</strong>", "<strong>$1,065.90</strong>"]) expect(m.html).toContain(s);
-    for (const s of ["card", "Stripe", "Invoice PDF attached"]) expect(m.text).not.toContain(s);
+    expect(m.text).toContain('Pay by card on My job');
+    for (const s of ["Stripe", "Invoice PDF attached"]) expect(m.text).not.toContain(s);
   });
 });

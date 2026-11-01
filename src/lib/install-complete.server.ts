@@ -50,7 +50,11 @@ export async function recordInstallationComplete(jobId: string, actorId: string 
   }
   const who = source === "mitti_complete" ? "Installation marked complete in the Mitti Install day form (every evidence check passed)" : "Installation marked complete by installer";
   await transition(jobId, "evidence_outstanding", actorId, who);
-  await admin.from("jobs").update({ installation_completed_at: new Date().toISOString() }).eq("id", jobId);
+  const completedAt=new Date().toISOString();
+  const {error:completionError}=await admin.from("jobs").update({ installation_completed_at: completedAt }).eq("id", jobId);
+  if(completionError)throw Error(completionError.message);
+  // Completion must finish even if the local invoice mirror is unavailable; the tick retries the derived date.
+  await (await import('./invoice-dates.server')).setCompletedBalanceDueDate(jobId,completedAt,actorId).catch(e=>console.error('Balance due date held',e instanceof Error?e.message:'read failed'));
   await admin.from("bookings").update({ status: "completed" }).eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed");
   // Gap 4: record exactly which confirmed install booking unlocked installation (AP review requires it completed).
   await logEvent(jobId, actorId, "install_unlocked_by_booking", "Installation recorded against the confirmed install booking", { booking_id: unlockBooking.id, scheduled_start: unlockBooking.scheduled_start, source }, { internal: true });
