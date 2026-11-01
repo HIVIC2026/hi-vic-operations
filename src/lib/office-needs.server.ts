@@ -722,6 +722,9 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   // Partner & system fold (decision 221): partner items from the office rulebook + per-job system failures + quotes not drafted.
   const system: SystemRow[] = [];
   if (listMode) {
+    const registrationRows:Row[]=[];
+    for(let offset=0;;offset+=200){const r=await admin.from('partner_workers').select('id,business_id,full_legal_name,trade_role,worker_role,esc_registered,removed_at').eq('trade_role','installer').is('removed_at',null).order('id').range(offset,offset+199);if(r.error)throw Error('Could not read ESC registration tasks.');registrationRows.push(...r.data as unknown as Row[]);if((r.data?.length??0)<200)break;}
+    system.push(...(await import('./worker-identity.core')).escRegistrationTasks(registrationRows as unknown as Parameters<typeof import('./worker-identity.core').escRegistrationTasks>[0]));
     for (const p of office.needs.items.filter((i) => i.rule === "j_partner")) system.push({ key: p.key, tag: /application/i.test(p.what) ? "Application" : /worker|staff/i.test(p.what) ? "Person" : /form/i.test(p.what) ? "Mitti" : "Partner", who: p.what, line: p.why, since: p.dueAt, button: "Review", href: p.href ?? "/admin/partners" });
     for (const j of jobs) for (const why of j.needs.failures) if (!/^(Email|Text) /.test(why) && !duplicatesInvoiceFailed(why, facts.get(j.id)?.invoiceFailed)) system.push({ key: `fail:${j.id}:${why}`, tag: "System", who: `${j.jobNumber} ${surnameOf(j.owner)}`.trim(), line: why, since: null, button: "Open job", href: `/admin/jobs/${j.id}`, jobId: j.id });
     // Decision 303: "<REC> onboarded and linked to <installer> — n quote(s) ready to check" (or the conflict the office decides).

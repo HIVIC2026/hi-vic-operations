@@ -37,6 +37,8 @@ export async function peopleFor(businessIds: string[]) {
   const { data: biz } = await db.from("businesses").select("id, name, trading_name").in("id", businessIds);
   // Jo 28 Oct: Lead / Crew per installer person (null for electricians).
   const roles = await (await import("./mitti-invite.server")).workerRolesFor(workers);
+  const births=await (await import('./worker-identity.server')).privateBirthDates(workers.map(w=>w.id));
+  const registration=must<{id:string;esc_registered:boolean}[]>(await db.from('partner_workers').select('id,esc_registered').in('business_id',businessIds),'ESC registration');
   return workers.map((w) => {
     const c = certs.find((r) => r.worker_id === w.id || sameWorkerEmail(w.email, r.worker_email)) ?? null;
     const l = c ? levels.find((r) => r.certification_id === c.id) ?? null : null;
@@ -53,6 +55,7 @@ export async function peopleFor(businessIds: string[]) {
     const b = ((biz ?? []) as { id: string; name: string; trading_name: string | null }[]).find((x) => x.id === w.business_id);
     return {
       id: w.id, name: w.full_legal_name, email: w.email, businessId: w.business_id, business: b ? bizName(b) : "—", role: w.trade_role, profileId: w.profile_id,
+      dateOfBirth:births.get(w.id)??null,escRegistered:registration.find(r=>r.id===w.id)?.esc_registered===true,
       licenceNumber: w.licence_number, recNumber: w.rec_number, licenceExpiresOn: w.licence_expires_on, licenceVerifiedAt: w.licence_verified_at,
       whiteCard: whiteCardState(w as never) as string, whiteCardNumber: whiteCardOf(w.certification)?.number ?? null,
       certNumber: ((w.certification as { eec_upload?: { number?: string | null } } | null)?.eec_upload?.number) ?? null, hasCertFile: !!(w.certification as { eec_upload?: { path?: string } } | null)?.eec_upload?.path,

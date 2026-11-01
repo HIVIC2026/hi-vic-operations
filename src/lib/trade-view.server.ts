@@ -911,7 +911,7 @@ export async function tradeSetWorkerMobile(userId: string, workerId: string, raw
 /** Jo 29 Oct: the boss adds a person with no email needed (mobile can come later). Installers start as Lead or Crew with
  *  the CII certificate unchecked; electricians need a licence number. Always pending, and they must sign the worker
  *  declarations (declarations_due) before any job. Sends nothing. */
-export async function tradeAddTeamPerson(userId: string, p: { name: string; workerRole: import("./worker-role.core").WorkerRole; mobile: string | null; email: string | null; licenceNumber: string | null }): Promise<{ workerId: string }> {
+export async function tradeAddTeamPerson(userId: string, p: { name: string; workerRole: import("./worker-role.core").WorkerRole; mobile: string | null; email: string | null; licenceNumber: string | null; dateOfBirth?:string|null }): Promise<{ workerId: string }> {
   const c = await bossOrThrow(userId);
   const name = p.name.trim();
   if (!name) throw new WorkflowError("Add their full name.");
@@ -921,6 +921,13 @@ export async function tradeAddTeamPerson(userId: string, p: { name: string; work
   const v = crewMobileInput(p.mobile);
   if (!v.ok) throw new WorkflowError(v.error);
   const email = p.email?.trim().toLowerCase() || null;
+  if(c.kind==='installer'){
+    const problem=(await import('./worker-identity.core')).dateOfBirthProblem(p.dateOfBirth,(await import('./melbourne-time.core')).melbourneToday());
+    if(problem)throw new WorkflowError(problem);
+    const r=await (admin as unknown as import('@supabase/supabase-js').SupabaseClient).rpc('add_team_installer_with_identity',{_business:c.biz.id,_actor:userId,_name:name,_role:p.workerRole,_mobile:v.mobile,_email:email,_dob:p.dateOfBirth});
+    if(r.error)throw new WorkflowError(['PGRST202','42883'].includes(r.error.code)?'Private ESC registration details need the pending database update before this person can be added.':'Could not add this person and their private ESC details.');
+    return{workerId:r.data as string};
+  }
   const { installerQualification } = await import("./partner-activation.core");
   const row = c.kind === "installer"
     ? { trade_role: c.kind, qualification: installerQualification({}), certification_status: "unverified", worker_role: p.workerRole, licence_number: null }

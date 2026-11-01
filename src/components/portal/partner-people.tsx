@@ -20,6 +20,7 @@ import { whiteCardCell, type PersonAction } from "@/lib/office-partners.core";
 import { WorkerRoleSwitch } from "@/components/portal/worker-role-switch";
 
 export type PersonView = {
+  dateOfBirth?:string|null;escRegistered?:boolean;
   id: string; name: string; email: string | null; businessId: string; business: string; role: string; profileId: string | null; certNumber: string | null; hasCertFile: boolean;
   /** Decision 319: worker-compliance.core whiteCardState + the card number recorded so far. */
   whiteCard?: string | null; whiteCardNumber?: string | null;
@@ -50,7 +51,7 @@ export function PeopleTable({ people, showBusiness = true, invalidate }: { peopl
             <td data-why="decision 130: per-person ESC privacy notice">{p.noticeTone === "plain" ? p.noticeLabel : <Pill tone={p.noticeTone}>{p.noticeLabel}</Pill>}</td>
             <td data-why="decisions 22/188: Mitti membership checked per person">{p.mittiLabel}</td>
             <td>
-              {p.role==='installer'&&<EscRegistration workerId={p.id} onDone={async()=>{for(const k of invalidate)await qc.invalidateQueries({queryKey:[k]});}}/>}
+              {p.role==='installer'&&<><span className="block text-xs text-sub">Date of birth: {p.dateOfBirth??'Not recorded'}</span>{p.escRegistered?<Pill tone="green">ESC registered</Pill>:<EscRegistration workerId={p.id} onDone={async()=>{for(const k of invalidate)await qc.invalidateQueries({queryKey:[k]});await qc.invalidateQueries({queryKey:['needs-me-v2']});}}/>}</>}
               {p.role === "electrician" && <Btn tone="secondary" onClick={() => setElectrician(p)}>Verify licence + REC</Btn>}
               {p.action === "verify_cii" && <Btn tone="secondary" data-why="decision 153: office verifies CII with level + expiry" onClick={() => setVerify(p)}>Verify CII</Btn>}
               {p.action === "send_notice" && <span data-why="decision 130: secure link, guarded senders"><SendNoticeLinkInline workerId={p.id} /></span>}

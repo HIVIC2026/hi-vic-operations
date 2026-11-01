@@ -107,7 +107,7 @@ function MobileInline({ workerId, mobile, onSaved }: { workerId: string; mobile:
 function AddTeamMember({ count, kind, onAdded }: { count: number; kind: "installer" | "electrician"; onAdded: () => void }) {
   const add = useServerFn(addTeamPerson);
   const [open, setOpen] = useState(false);
-  const [f, setF] = useState({ name: "", mobile: "", email: "", licence: "", role: "lead" as "lead" | "crew" });
+  const [f, setF] = useState({ name: "", mobile: "", email: "", licence: "",dateOfBirth:"", role: "lead" as "lead" | "crew" });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const input = "mt-1.5 block min-h-[52px] w-full rounded-[12px] border-2 border-estimate-line bg-white px-3.5 text-base";
@@ -138,6 +138,7 @@ function AddTeamMember({ count, kind, onAdded }: { count: number; kind: "install
               ))}
             </fieldset>
           )}
+          {kind==='installer'&&<label className={label}>Date of birth<input type="date" required max={melbourneToday()} className={input} value={f.dateOfBirth} onChange={e=>setF({...f,dateOfBirth:e.target.value})}/></label>}
           <label className={label}>{TEAM_ADD_SHEET.mobile}
             <input className={input} value={f.mobile} inputMode="tel" autoComplete="tel" onChange={(e) => setF({ ...f, mobile: e.target.value })} />
           </label>
@@ -145,11 +146,11 @@ function AddTeamMember({ count, kind, onAdded }: { count: number; kind: "install
             <input className={input} value={f.email} inputMode="email" autoComplete="email" onChange={(e) => setF({ ...f, email: e.target.value })} />
           </label>
           {err && <p role="alert" className="mt-2 text-sm font-semibold text-[#8A3B4A]">{err}</p>}
-          <button type="button" disabled={busy || f.name.trim().length < 2 || (kind === "electrician" && !f.licence.trim())} className="mt-4 flex min-h-14 w-full items-center justify-center rounded-[14px] bg-estimate-blue text-[17px] font-bold text-white disabled:opacity-45" onClick={async () => {
+          <button type="button" disabled={busy || f.name.trim().length < 2 || (kind === "electrician" && !f.licence.trim()) || (kind==='installer'&&!f.dateOfBirth)} className="mt-4 flex min-h-14 w-full items-center justify-center rounded-[14px] bg-estimate-blue text-[17px] font-bold text-white disabled:opacity-45" onClick={async () => {
             setBusy(true); setErr(null);
             try {
-              await add({ data: { name: f.name.trim(), workerRole: kind === "installer" ? f.role : "lead", mobile: f.mobile.trim() || null, email: f.email.trim() || null, licenceNumber: kind === "electrician" ? f.licence.trim() : null } });
-              setOpen(false); setF({ name: "", mobile: "", email: "", licence: "", role: "lead" }); onAdded();
+              await add({ data: { name: f.name.trim(), workerRole: kind === "installer" ? f.role : "lead", mobile: f.mobile.trim() || null, email: f.email.trim() || null, licenceNumber: kind === "electrician" ? f.licence.trim() : null,dateOfBirth:kind==='installer'?f.dateOfBirth:null } });
+              setOpen(false); setF({ name: "", mobile: "", email: "", licence: "",dateOfBirth:"", role: "lead" }); onAdded();
             } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
           }}>{busy ? "Adding…" : TEAM_ADD_SHEET.button}</button>
           <button type="button" className="mt-2 flex min-h-11 w-full items-center justify-center text-[15px] font-semibold text-estimate-sub" onClick={() => setOpen(false)}>{TEAM_ADD_SHEET.cancel}</button>
