@@ -306,7 +306,7 @@ test("in-house Ready Check schedules its form once; repeated callback retains on
   expect(formAudits).toBe(1);
   if (retry.ok) expect(await rows("select id from bookings where kind='ready_check'")).toHaveLength(1);
   await patch("stage", "installation_scheduling"); await book("installation");
-  expect(formCalls).toBe(1);
+  expect(formCalls).toBe(2); // same-booking retry repairs missing forms but retains the existing audit
 });
 test("Ready Check Mitti failure keeps the confirmed booking and logs without undo", async () => {
   await patch("stage", "ready_check_ready_to_schedule"); failForm = true;
