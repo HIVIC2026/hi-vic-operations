@@ -416,6 +416,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
   if (!a?.external_mitti_id && !measureAudit) throw new WorkflowError("No Mitti assessment has been created for this job.");
   const api = mittiApi(call);
   let issues: string[] = [];
+  let syncFailed = false;
   let completed = false;
   let locked = false;
 
@@ -595,44 +596,72 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
       }
     } catch (e) {
       // Recorded so the office can retry (never auto-retried in a loop); the rest of the sync still lands.
+      syncFailed = true;
       const msg = e instanceof Error ? e.message : "Mitti error";
       await logEvent(jobId, actorId, "mitti_measureup_sync_failed", `Ready Check sync failed: ${msg}`, { audit_id: measureAudit, needs_office: true }, { internal: true }).catch(() => undefined);
       issues = [...issues, `Ready Check sync failed: ${msg}`];
     }
   }
-  return { locked, completed, issues };
+  return { locked, completed, issues, syncFailed };
 }
 
-export async function syncPendingMitti(actorId: string | null, call: MittiCall = realMittiCall) {
+export async function syncPendingMitti(actorId: string | null, call: MittiCall = realMittiCall, opts: { budgetMs?: number } = {}) {
   // Jo 23 Oct: cancelled/held/completed/archived jobs are never synced — their forms stay in Mitti untouched.
   // Same scope as the instant notice (mitti-sync-scope.core.ts).
   const { MITTI_SYNC_SCOPE_SELECT, inMittiSyncScope } = await import("./mitti-sync-scope.core");
-  const [{ data: as }, { data: ms }] = await Promise.all([
-    inMittiSyncScope(admin.from("assessments").select(MITTI_SYNC_SCOPE_SELECT).not("external_mitti_id", "is", null)),
-    inMittiSyncScope(admin.from("ceiling_measurements").select(MITTI_SYNC_SCOPE_SELECT).eq("external_source", "mitti").eq("is_current", true)),
-  ]);
-  const ids = [...new Set([...(as ?? []), ...(ms ?? [])].map((r) => r.job_id))];
   const results: { jobId: string; ok: boolean; message: string }[] = [];
-  for (const jobId of ids) {
-    try {
-      const r = await syncMittiAssessment(jobId, actorId, call);
-      results.push({ jobId, ok: true, message: r.completed ? "synced" : "pending" });
-    } catch (e) {
-      results.push({ jobId, ok: false, message: e instanceof Error ? e.message : "error" });
+  const { runStoredMittiPull, recordMittiPullOutcome } = await import("./mitti-pull-progress.server");
+  // Page each source independently: a short assessment page must not truncate measurements.
+  async function readAll(kind: "assessments" | "ceiling_measurements") {
+    const rows: { job_id: string }[] = [];
+    for (let offset = 0; ; offset += 200) {
+      const q = kind === "assessments"
+        ? admin.from(kind).select(MITTI_SYNC_SCOPE_SELECT).not("external_mitti_id", "is", null)
+        : admin.from(kind).select(MITTI_SYNC_SCOPE_SELECT).eq("external_source", "mitti").eq("is_current", true);
+      const { data, error } = await inMittiSyncScope(q).order("id").range(offset, offset + 199);
+      if (error) throw new Error(`Mitti forms could not be read: ${error.message}`);
+      rows.push(...(data ?? [])); if ((data?.length ?? 0) < 200) return rows;
     }
   }
-  // Installer declarations signed inside the Mitti PIISA.
-  const { data: pe } = await admin.from("workflow_events").select("job_id").eq("event_type", "mitti_piisa_audit_created");
+  const sources = await Promise.all([readAll("assessments"), readAll("ceiling_measurements")]);
+  const ids = [...new Set(sources.flat().map(r => r.job_id))].sort().map(id => ({ id }));
+  await runStoredMittiPull("pending", {
+    page: async (offset, size) => ids.slice(offset, offset + size),
+    sync: async ({ id: jobId }) => {
+      try {
+        const r = await syncMittiAssessment(jobId, actorId, call);
+        const row = { jobId, ok: !r.syncFailed, message: r.syncFailed ? r.issues.filter(s => s.startsWith("Ready Check sync failed:")).join("; ") : r.completed ? "synced" : "pending" };
+        results.push(row); if (row.ok) await recordMittiPullOutcome(jobId, "pending", true, "synced"); return row;
+      } catch (e) { const row = { jobId, ok: false, message: e instanceof Error ? e.message : "error" }; results.push(row); return row; }
+    },
+  }, opts.budgetMs ?? 40_000);
+  // A5 has its own budget and cursor; pending A1/A3 cannot starve it.
   const { syncPiisaDeclaration } = await import("./piisa-declaration.server");
-  const peIds = [...new Set((pe ?? []).map((e) => e.job_id as string).filter(Boolean))];
-  // Same rule as the forms above (Jo 23 Oct): cancelled / deleted / QA-archived jobs are never synced.
   const { isClosedOrArchivedJob } = await import("./mitti.core");
-  const { data: peJobs } = peIds.length ? await admin.from("jobs").select("id,stage,deleted_at,qa_archived_at").in("id", peIds) : { data: [] };
-  const closedIds = new Set((peJobs ?? []).filter((j) => isClosedOrArchivedJob(j)).map((j) => j.id));
-  for (const jobId of peIds.filter((id) => !closedIds.has(id))) {
-    try { const r = await syncPiisaDeclaration(jobId, actorId, call); if (r.status !== "already") results.push({ jobId, ok: r.status === "saved" || r.status === "pending", message: r.message }); }
-    catch (e) { results.push({ jobId, ok: false, message: e instanceof Error ? e.message : "error" }); }
+  const peIds = new Set<string>();
+  for (let offset = 0; ; offset += 200) {
+    const { data, error } = await admin.from("workflow_events").select("job_id").eq("event_type", "mitti_piisa_audit_created").order("id").range(offset, offset + 199);
+    if (error) throw new Error(`Install forms could not be read: ${error.message}`);
+    for (const e of data ?? []) peIds.add(e.job_id);
+    if ((data?.length ?? 0) < 200) break;
   }
+  const open: { id: string }[] = [], all = [...peIds];
+  for (let i = 0; i < all.length; i += 200) {
+    const { data, error } = await admin.from("jobs").select("id,stage,deleted_at,qa_archived_at").in("id", all.slice(i, i + 200));
+    if (error) throw new Error(`Install jobs could not be read: ${error.message}`);
+    open.push(...(data ?? []).filter(j => !isClosedOrArchivedJob(j)).map(j => ({ id: j.id })));
+  }
+  await runStoredMittiPull("install", {
+    page: async (offset, size) => open.slice(offset, offset + size),
+    sync: async ({ id: jobId }) => {
+      try {
+        const r = await syncPiisaDeclaration(jobId, actorId, call);
+        const row = { jobId, ok: ["saved", "pending", "already"].includes(r.status), message: r.message };
+        if (r.status !== "already") results.push(row);
+        if (row.ok) await recordMittiPullOutcome(jobId, "install", true, "synced"); return row;
+      } catch (e) { const row = { jobId, ok: false, message: e instanceof Error ? e.message : "error" }; results.push(row); return row; }
+    },
+  }, opts.budgetMs ?? 40_000);
   return results;
 }
 
