@@ -72,11 +72,20 @@ export function installDueDatePatch(row: InvoiceRow, installDate: string): Parti
 /** Installation cancelled: final due date returns to pending (never invented). */
 export function clearInstallDueDatePatch(row: InvoiceRow): Partial<InvoiceRow> | null {
   if (Number(row.total_paid) >= Number(row.total_inc_gst) || row.balance_due_date === null) return null;
-  return { balance_due_date: null, xero_update_pending: false };
+  // Jo 1 Nov 2026: an invoice already in Xero goes back to acceptance + 30 days there too.
+  return { balance_due_date: null, xero_update_pending: !!row.xero_invoice_id };
 }
 
-/** Xero due date for the invoice: install date once known, otherwise the acceptance date (deposit due immediately). */
-export const xeroDueDate = (row: Pick<InvoiceRow, "balance_due_date" | "deposit_due_date">) => row.balance_due_date ?? row.deposit_due_date;
+/** Days after acceptance the Xero invoice is due while no install day is booked (Jo 1 Nov 2026). */
+export const PRE_INSTALL_DUE_DAYS = 30;
+const addDays = (ymd: string, days: number) => {
+  const [y, m, d] = ymd.slice(0, 10).split("-").map(Number);
+  return new Date(Date.UTC(y!, m! - 1, d! + days)).toISOString().slice(0, 10);
+};
+/** Xero due date for the invoice: the install day once booked, otherwise 30 days after the quote was accepted
+ *  (Jo 1 Nov 2026: the full invoice must not read as all due now; the owner pays each step from My job). */
+export const xeroDueDate = (row: Pick<InvoiceRow, "balance_due_date" | "deposit_due_date">): string | null =>
+  row.balance_due_date ?? (row.deposit_due_date ? addDays(row.deposit_due_date, PRE_INSTALL_DUE_DAYS) : null);
 
 /** Cumulative AmountPaid on the ONE invoice → patch. deposit_paid_at is set once the configured minimum upfront payment is reached (the gate itself is evaluatePaymentGate). */
 export function paymentPatch(row: InvoiceRow, paid: number, depositReachedAt: string | null, nowIso: string) {

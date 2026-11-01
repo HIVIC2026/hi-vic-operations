@@ -106,10 +106,12 @@ describe("deposit gate on the one invoice", () => {
 
 describe("installation date drives the same invoice's due date", () => {
   async function inv() { const m = memStore(); const r = (await ensureInvoice(m.store, quote(3330), "2026-09-28")).row; return { m, r }; }
-  test("before booking, Xero due date = acceptance date and final due is pending", async () => {
+  test("before booking, Xero due date = 30 days after acceptance and final due is pending (Jo 1 Nov 2026)", async () => {
     const { r } = await inv();
     expect(r.balance_due_date).toBeNull();
-    expect(xeroDueDate(r)).toBe("2026-09-28");
+    expect(xeroDueDate(r)).toBe("2026-10-28");
+    expect(xeroDueDate({ balance_due_date: null, deposit_due_date: "2026-12-15" })).toBe("2027-01-14");
+    expect(xeroDueDate({ balance_due_date: null, deposit_due_date: null })).toBeNull();
   });
   test("booking sets the Melbourne-local install date on the same invoice", async () => {
     const { m, r } = await inv();
@@ -137,10 +139,22 @@ describe("installation date drives the same invoice's due date", () => {
     apply(r, installDueDatePatch(r, "2026-10-15"));
     apply(r, clearInstallDueDatePatch(r));
     expect(r.balance_due_date).toBeNull();
+    expect(r.xero_update_pending).toBe(false); // not in Xero yet: nothing to send
+    expect(xeroDueDate(r)).toBe("2026-10-28");
     apply(r, installDueDatePatch(r, "2026-11-02"));
     r.total_paid = 3330;
     expect(installDueDatePatch(r, "2026-12-01")).toBeNull();
     expect(clearInstallDueDatePatch(r)).toBeNull();
+  });
+  test("cancelling the install on an invoice already in Xero sends it back to acceptance + 30 (Jo 1 Nov 2026)", async () => {
+    const { r } = await inv();
+    r.xero_invoice_id = "XI";
+    apply(r, installDueDatePatch(r, "2026-10-15"));
+    r.xero_update_pending = false;
+    apply(r, clearInstallDueDatePatch(r));
+    expect(r.balance_due_date).toBeNull();
+    expect(r.xero_update_pending).toBe(true);
+    expect(xeroDueDate(r)).toBe("2026-10-28");
   });
 });
 
