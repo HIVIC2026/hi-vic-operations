@@ -1,4 +1,5 @@
 import { runAfterResponse } from "./background.server";
+import { genericMail } from './mail-mjml.core';
 import { commitCampaignSpot, repairCampaignSpotStage } from "./campaign-spot-save.server";
 import { SPOT_RANK_LABEL, compareSpots, leadRank, spotSummary, type SpotRankFacts } from "./spot-saved-rank.core";
 import { houseAgeLabel } from "./onsite-assessment.core";
@@ -346,7 +347,7 @@ export async function queueSpotSavedConfirmations(jobId: string, token: string) 
     if (done) return { queued: false as const };
     if (owner?.email) {
       const { sendTestEmail } = await import("./test-send.server");
-      const html = email.html ?? `<pre>${email.text.replace(/[<&]/g, (c) => (c === "<" ? "&lt;" : "&amp;"))}</pre>`;
+      const html = email.html ?? genericMail({subject:email.subject,lines:[email.text],testLabel:true});
       const t = await sendTestEmail({ jobId, jobSource: job.source, partnerIsTest: true, label: "spot_saved_confirmation", actorId: null } as never, owner.email, email.subject, html, email.text).catch((e) => ({ status: "failed", detail: (e as Error).message }));
       await logEvent(jobId, null, "spot_saved_test_email", `Spot saved confirmation (TEST) ${t.status}: ${t.detail}`, {}, { internal: true }).catch(() => null);
     }
