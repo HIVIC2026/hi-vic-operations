@@ -998,40 +998,16 @@ export async function inHouseBookVisit(userId: string, input: { jobId: string; k
   const access = await inHouseBookingAccess(userId, input.jobId, client);
   if (!access.allowed) return { ok: false, blockers: access.blockers };
   if(!input.workerId)return {ok:false,blockers:[input.kind==='installation'?(await import('./in-house-booking.core')).LEAD_INSTALLER_BOOKING_REASON:'Choose the person going before booking.']};
-  // All canonical stage/payment/date/owner gates run before changing worker allocation or crew.
-  try{await (await import('./booking.server')).validateBooking(input.jobId,input.kind,input.start,userId,input.workerId);}
-  catch(e){return {ok:false,blockers:[e instanceof Error?e.message:'Booking validation failed.']};}
-  const service=await import('./in-house-booking.server');
-  let who:import('./in-house-booking.core').BookingWorker;
-  try{who=await service.prepareBookingWorker(input.jobId,userId,input.kind,input.workerId,input.crewIds);}
-  catch(e){return {ok:false,blockers:[e instanceof Error?e.message:'Could not check the person going.']};}
-  const existingReadyCheck = access.bookings?.find(b => b.kind === input.kind && b.status === "confirmed" && b.scheduled_start && new Date(b.scheduled_start).getTime() === new Date(input.start).getTime());
-  if (existingReadyCheck) {
-    await (await import("./mitti-create.server")).onReadyCheckBooked(input.jobId, userId).catch(e=>console.error("ready check form retry failed", e instanceof Error ? e.message : "Form preparation failed"));
-    await service.notifyOwnerBooked(input.jobId,'ready_check',input.start,who).catch(e=>console.error('Booking confirmation held',e instanceof Error?e.message:'Delivery unavailable'));
-    return { ok: true, bookingId: existingReadyCheck.id };
-  }
-  const { confirmBooking } = await import("./booking.server");
   try {
-    await confirmBooking(input.jobId, input.kind, input.start, userId, "in-house partner");
+    const result=await (await import('./in-house-atomic-save.server')).saveInHouseVisit(input.jobId,userId,{
+      kind:input.kind,start:input.start,workerId:input.workerId,
+      ...(input.kind==='installation'?{selection:{lead:input.workerId,additional:(input.crewIds??[]).map(workerId=>({workerId}))}}:{}),
+    });
+    if(!result.bookingId)throw Error('Booking could not be saved.');
+    return {ok:true,bookingId:result.bookingId};
   } catch (error) {
-    if (error instanceof WorkflowError) return { ok: false, blockers: [error.message] };
-    throw error;
+    return {ok:false,blockers:[error instanceof Error?error.message:'Booking could not be saved.']};
   }
-  if (input.kind === "ready_check") {
-    const { READY_CHECK_BOOKED } = await import("./installer-ready-check.core");
-    const { error: nextError } = await admin.from("jobs").update({ next_action: READY_CHECK_BOOKED }).eq("id", input.jobId);
-    if (nextError) throw new Error(nextError.message);
-    await (await import("./mitti-create.server")).onReadyCheckBooked(input.jobId, userId).catch((e) => console.error("ready check form not scheduled", (e as Error).message));
-    const { data: assignment, error: assignmentError } = await admin.from("job_assignments").select("business_id").eq("job_id", input.jobId).eq("role", "installer").eq("active", true).maybeSingle();
-    if (assignmentError) throw new Error(assignmentError.message);
-    await logEvent(input.jobId, userId, "installer_ready_check_time_entered", "Partner entered the Ready Check day and time (nothing sent to the owner)", { starts_at: input.start, business_id: assignment?.business_id ?? null });
-  }
-  const { data: booking, error } = await admin.from("bookings").select("id").eq("job_id", input.jobId).eq("kind", input.kind).eq("status", "confirmed").eq("scheduled_start", input.start).eq("booked_by", userId).order("created_at", { ascending: false }).limit(1).single();
-  if (error || !booking) throw new Error(error?.message ?? "Booking could not be read back.");
-  const noticeKind=input.kind==='installation'?'install':input.kind==='assessment'?'piesa':input.kind==='ready_check'?'ready_check':null;
-  if(noticeKind)await service.notifyOwnerBooked(input.jobId,noticeKind,input.start,who).catch(e=>console.error('Booking confirmation held',e instanceof Error?e.message:'Delivery unavailable'));
-  return { ok: true, bookingId: booking.id };
 }
 
 export async function setMittiInvited(actorId: string, businessId: string, invited: boolean) {

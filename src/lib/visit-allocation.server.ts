@@ -135,9 +135,9 @@ export async function saveCrewWithLead(jobId: string, userId: string, sel: CrewS
   const held=await (await import('./in-house-suppression.server')).readInHouseDispatchState([jobId]);
   if(held.failed)throw new WorkflowError('Could not check the in-house partner. Please try again.');
   if(held.held.has(jobId)){
-    const team=await (await import('./in-house-booking.server')).bookingTeam(jobId,userId);
-    const why=(await import('./in-house-booking.core')).bookingWorkerBlocker('installation',team.workers.find(w=>w.id===leadWorkerId(sel))??null);
-    if(why)throw new WorkflowError(why);
+    const workerId=leadWorkerId(sel);if(!workerId)throw new WorkflowError('Choose the Lead Installer.');
+    const saved=await (await import('./in-house-atomic-save.server')).saveInHouseVisit(jobId,userId,{kind:'crew',workerId,selection:sel});
+    return {needsVerification:saved.needsVerification};
   }
   const piisa = await import("./piisa-a3.server");
   const savedCrew = await piisa.loadCrew(jobId);
