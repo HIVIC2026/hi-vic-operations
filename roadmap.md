@@ -1,3 +1,8 @@
+## Jo 1 Nov new owner flow — Task 5 of 7
+- [ ] Test-first: remove home overview, resolve current owner action; quote signing with owner/email tick plus four verbatim ESC ticks and four records; explain identity-code requirement before any change.
+- [ ] Retire PIESA copy receipt; merge PIESA owner copy/declaration request; declaration blocks install booking; CoES copy on recording; info-only owner email buttons removed; O22 factsheet attachment test (775c590 already present).
+- [ ] Related tests and comparable bounded before/after run excluding the two stalled files; no settings, secrets, live data, sends or publishing.
+
 ## Jo 1 Nov new in-house flow — Task 4 of 7
 - [x] Red-first 6 pass/9 fail, final new files 16/0 plus one added Mitti quote hold test; in-house 20/10-day reminders reach owner and business office (email only), failed lookup blocks before records, replay sends nothing. Existing 10-day office flag remains inclusive. Replaced requested fixed-offset/month-guess paths with shared Melbourne calendar helpers; ECOWOOL no longer approved, historical labels retained without inferred R-value, related seven-product fixtures updated.
 - [x] Related isolated tests: all new/changed tests pass; install-clearance retains its baseline source-string assertion failure. Final bounded 968 files 9920 pass/249 fail, same 98 failing files; comparable before 966 files 9907 pass/249 fail after isolated Outlook timeout recheck (27/1 both). Registration and save-spot uncertain-delivery excluded by basename regardless of extension; historical 261 total not claimed. Automatic build OK. Only mocked delivery/practice tests exercised; no settings, secrets, live data, sends or publishing.
