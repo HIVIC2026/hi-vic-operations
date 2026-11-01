@@ -63,14 +63,14 @@ async function leadAssignee(jobId: string) {
   const selection = history.find(e=>e.event_type==="piisa_crew_selected")?.details?.['selection'];
   const { leadWorkerId } = await import("./piisa-a3.core");
   const workerId = selection ? leadWorkerId(selection as import("./piisa-a3.core").CrewSelection) : allocation?.worker_id;
-  if (!workerId) throw new Error("Choose the install Lead before creating the install form.");
+    if (!workerId) throw new Error("Choose the Lead Installer before creating the install form.");
   const worker = await read<{email:string|null;full_legal_name?:string;worker_role:string|null;trade_role:string} | null>(db.from("partner_workers").select("email,full_legal_name,worker_role,trade_role").eq("id",workerId).eq("business_id",installer.business_id).is("removed_at",null).maybeSingle());
   const {effectiveWorkerRole,mittiEmailFor} = await import("./worker-role.core");
-  if (!worker || effectiveWorkerRole({tradeRole:worker.trade_role,stored:worker.worker_role}) !== "lead") throw new Error("Choose a Lead from your Team.");
+  if (!worker || effectiveWorkerRole({tradeRole:worker.trade_role,stored:worker.worker_role}) !== "lead") throw new Error("Choose a Lead Installer from your Team.");
   const job = await read<{source:string} | null>(db.from("jobs").select("source").eq("id",jobId).maybeSingle());
   const business = await read<{email:string|null}|null>(db.from("businesses").select("email").eq("id",installer.business_id).maybeSingle());
   const email = job?.source === "qa_test" ? (await import("./onsite-ready-check.core")).TEST_MITTI_ASSIGNEE : mittiEmailFor({role:"lead",ownEmail:worker.email,businessEmail:business?.email}).email;
-  if (!email) throw new Error("The Lead needs a Mitti email");
+  if (!email) throw new Error("The Lead Installer needs a Mitti email");
   return {userId:installer.user_id,fullName:worker.full_legal_name ?? null,email};
 }
 export async function ensureInHouseForms(jobId: string, actorId: string | null, call?: MittiCall): Promise<{readyCheck:string|null;piesa:string|null;fixes:string|null}> {
