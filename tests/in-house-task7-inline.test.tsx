@@ -1,8 +1,8 @@
 import { test, expect } from 'bun:test';
 import { GlobalRegistrator } from '@happy-dom/global-registrator';
 GlobalRegistrator.register();
-import React from 'react';
-import { render, fireEvent, cleanup, waitFor } from '@testing-library/react';
+const { default: React } = await import('react');
+const { render, fireEvent, cleanup, waitFor } = await import('@testing-library/react');
 import ts from 'typescript';
 import { readFileSync } from 'node:fs';
 import * as core from '../src/lib/in-house-booking.core';
