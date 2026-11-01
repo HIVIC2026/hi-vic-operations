@@ -20,9 +20,10 @@ export interface InvoiceStore {
   update(id: string, patch: Partial<InvoiceRow>): Promise<void>;
 }
 
-/** Customer-facing invoice columns (owner portal, from `invoice_status`). Never add Xero IDs, errors or internal flags. */
+/** Customer-facing invoice columns (owner portal, from `invoice_status`). Never add Xero IDs, errors or internal flags.
+ *  No Xero online invoice link either (Jo 1 Nov 2026): the full invoice read as all due now; owners pay each step on My job. */
 export const CUSTOMER_INVOICE_COLUMNS = [
-  "id", "job_id", "kind", "xero_invoice_number", "xero_online_url", "total_inc_gst", "deposit_amount", "deposit_paid_at",
+  "id", "job_id", "kind", "xero_invoice_number", "total_inc_gst", "deposit_amount", "deposit_paid_at",
   "balance_amount", "balance_due_date", "balance_paid_at", "total_paid", "deposit_cleared", "effective_status", "created_at",
 ] as const;
 

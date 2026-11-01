@@ -288,7 +288,7 @@ describe("fake Xero: idempotency, contacts, references", () => {
 
 describe("privacy and compliance", () => {
   test("owner-facing invoice columns exclude Xero IDs, errors, internal and deposit-request fields", () => {
-    const forbidden = ["xero_invoice_id", "xero_contact_id", "xero_reference", "xero_invoice_status", "last_sync_error", "sync_lock_at", "xero_update_pending", "xero_tracking_option_id", "status", "deposit_request_raised_at", "deposit_request_raised_by"];
+    const forbidden = ["xero_online_url", "xero_invoice_id", "xero_contact_id", "xero_reference", "xero_invoice_status", "last_sync_error", "sync_lock_at", "xero_update_pending", "xero_tracking_option_id", "status", "deposit_request_raised_at", "deposit_request_raised_by"];
     for (const f of forbidden) expect(CUSTOMER_INVOICE_COLUMNS as readonly string[]).not.toContain(f);
   });
   test("expired PIESA still blocks installation; deadline on Melbourne date", () => {
