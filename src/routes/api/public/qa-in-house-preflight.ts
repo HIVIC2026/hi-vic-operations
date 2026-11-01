@@ -16,4 +16,4 @@ export const Route=createFileRoute('/api/public/qa-in-house-preflight')({server:
  const role=await sb.rpc('has_role',{_user_id:auth.data.user.id,_role:'admin'});
  if(role.error||role.data!==true)return Response.json({error:'Office administrator required.'},{status:403,headers});
  return Response.json(publishedHarnessCapabilities(url.origin,runId),{headers});
-}}});
+}}}});
