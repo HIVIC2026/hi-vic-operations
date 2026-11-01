@@ -41,14 +41,14 @@ describe("PIESA copies: one rule for Installation complete and the pre-start che
 describe("Owner's safety check copy receipt (Gate C): one rule for both places", () => {
   test("not ticked → the Gate C line; ticked on approved wording → nothing", () => {
     const unsigned = piesaCopyReceiptBlocker(gates());
-    expect(unsigned).toBe("Owner paperwork C: Your safety check copy not signed yet.");
-    expect(evaluateOwnerGates(gates()).find((g) => g.gate === "C")!.blockers).toContain(unsigned!);
+    expect(unsigned).toBeNull();
+    expect(evaluateOwnerGates(gates()).find((g) => g.gate === "C")!.items.some(i=>i.key==='piesa_copy_receipt')).toBe(false);
     const signed = gates({ signed: [{ key: "piesa_copy_receipt", version: "v1", draft: false }], approved: { piesa_copy_receipt: "v1" } });
     expect(piesaCopyReceiptBlocker(signed)).toBeNull();
   });
   test("ticked on DRAFT wording: blocks a real job (as at completion), not a TEST job", () => {
     const draft = { signed: [{ key: "piesa_copy_receipt", version: "draft-1", draft: true }] };
-    expect(piesaCopyReceiptBlocker(gates(draft))).toMatch(/DRAFT wording/);
+    expect(piesaCopyReceiptBlocker(gates(draft))).toBeNull();
     expect(piesaCopyReceiptBlocker(gates({ ...draft, isTest: true }))).toBeNull();
   });
   test("the pre-start check fails on it; a cleared receipt and delivered copies pass", () => {

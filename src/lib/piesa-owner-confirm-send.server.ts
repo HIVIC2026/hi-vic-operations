@@ -35,10 +35,13 @@ export async function sendPiesaConfirmStep(jobId: string, step: PiesaConfirmStep
     await logEvent(jobId, null, PIESA_OWNER_CONFIRM_OFFICE_ALERT_EVENT, "5 days since the electrical safety check and the owner has not confirmed it — the install can't be booked. Needs Home Insulation Victoria", { step, piesa_record_id: recordId, completed_date: facts.completedDate });
     return "office alerted";
   }
+  if ((await doneSteps(jobId, recordId)).includes(step)) return "already handled";
   // Task 5: one combined signed-copy/declaration email owns the request. No separate O71 email or text.
   if (step === 'request' || step === 'reminder_1' || step === 'reminder_3') {
     const result = await (await import('./piesa-delivery.server')).deliverPiesaCopies(jobId);
-    if ((result.sent.includes('owner') || result.hold === 'both copies already recorded') && !(await doneSteps(jobId,recordId)).includes(step)) await logEvent(jobId,null,PIESA_OWNER_CONFIRM_STEP_EVENT,'Combined PIESA copy and owner declaration email delivered',{step,piesa_record_id:recordId},{internal:true});
+    const { data: delivered, error } = await admin.from('piesa_deliveries').select('id').eq('job_id',jobId).eq('piesa_record_id',recordId).eq('recipient','owner').limit(1);
+    if (error) throw new Error('Could not confirm owner PIESA copy delivery');
+    if (result.sent.includes('owner') || delivered?.length) await logEvent(jobId,null,PIESA_OWNER_CONFIRM_STEP_EVENT,'Combined PIESA copy and owner declaration email delivered',{step,piesa_record_id:recordId},{internal:true});
     return result.sent.includes('owner') ? 'email sent' : result.hold ?? result.held['owner'] ?? 'already delivered';
   }
   if ((await doneSteps(jobId, recordId)).includes(step)) return "already handled";
@@ -126,8 +129,8 @@ export async function sweepOwnerPiesaConfirmations(now = new Date()): Promise<{ 
     if (!step) continue;
     const j = { id };
     try {
-      await sendPiesaConfirmStep(j.id, step);
-      if (step === "office_alert_5") alerts++; else sent++;
+      const outcome = await sendPiesaConfirmStep(j.id, step);
+      if (outcome === "office alerted") alerts++; else if (outcome === 'email sent') sent++;
     } catch (e) { console.error("PIESA owner confirmation step failed", j.id, (e as Error).message); }
   }
   return { checked: (jobs ?? []).length, sent, alerts };
