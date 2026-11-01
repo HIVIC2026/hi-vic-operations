@@ -8,7 +8,7 @@ import { TradeShell, aud, card } from "@/components/trade/TradeShell";
 import { NowPanel, Pill, btnClass } from "@/components/portal/kit";
 import { useMemo, useState, type ReactNode } from "react";
 import { StatusLineView } from "@/components/trade/job-status";
-import { getTradeHome } from "@/lib/trade-view.functions";
+import { getTradeHome,getInHouseBookingList } from "@/lib/trade-view.functions";
 import { ELECTRICIAN_WORK_WORDS, dayTile, goneIn, tradeGreeting } from "@/lib/trade-view.core";
 import { electricianYourJobs } from "@/lib/work-places.core";
 import { GROUP_LABEL, HOME_EMPTY, doneSub, homeIsEmpty, monthStripWords, offerPanelWords, offersListView, sourceLabel, type InstallerHomeRow } from "@/lib/installer-home.core";
@@ -179,6 +179,9 @@ function MyWork() {
 
 /** Action needed / In progress: address · job number + source label · one "Next:" line (blue when it's the installer's move). */
 function JobGroup({ group, rows, empty, emptyAction }: { group: "action" | "progress"; rows: InstallerHomeRow[]; empty: string; emptyAction?: ReactNode }) {
+  const load=useServerFn(getInHouseBookingList);
+  const ids=rows.filter(j=>group==='action'&&j.boss&&j.inHouseDispatch==='in_house'&&inHouseVisitForStage(j.stage)).map(j=>j.jobId);
+  const context=useQuery({queryKey:['in-house-booking-list',ids],queryFn:()=>load({data:{jobIds:ids}}),enabled:ids.length>0,retry:false});
   return (
     <section data-job-group={group}>
       <h2 className={`${EYEBROW} border-b border-line pb-2`}>{GROUP_LABEL[group]}{rows.length > 0 && <span className="font-medium normal-case tracking-normal"> · {rows.length}</span>}</h2>
@@ -189,7 +192,7 @@ function JobGroup({ group, rows, empty, emptyAction }: { group: "action" | "prog
             <span className="mt-0.5 block text-[13px] text-sub">{[j.jobNumber, sourceLabel(j.channel)].filter(Boolean).join(" · ")}</span>
             <span data-card-line className={`mt-1.5 block text-sm ${group === "action" ? "font-medium text-hiv-blue" : "text-ink"}`}>{j.next}</span>
           </span>{CHEVRON}
-        </Link>{group==='action'&&j.boss&&j.inHouseDispatch==='in_house'&&inHouseVisitForStage(j.stage)&&<InHouseBookingRow jobId={j.jobId} kind={j.stage==='installation_scheduling'?'installation':j.stage==='rectification_scheduling'?'rectification':inHouseVisitForStage(j.stage)==='PIESA'?'assessment':'ready_check'}/>}</div>
+        </Link>{ids.includes(j.jobId)&&(context.isError?<p role="alert">Could not check your Team or deposit. Booking stays unavailable until those records can be checked.</p>:context.data?.[j.jobId]?<InHouseBookingRow jobId={j.jobId} context={context.data[j.jobId]} kind={j.stage==='installation_scheduling'?'installation':j.stage==='rectification_scheduling'?'rectification':inHouseVisitForStage(j.stage)==='PIESA'?'assessment':'ready_check'}/>:<p>Checking your Team and deposit before booking.</p>)}</div>
       )) : <p className="py-3 text-sm text-sub">{empty}</p>}
       {!rows.length && emptyAction}
     </section>

@@ -98,6 +98,7 @@ export function createInHouseSim(){
  const forms=load('src/lib/in-house-forms.server.ts',deps,clock);deps['./in-house-forms.server']=forms;
  db.rpc=async(name:string,p:any)=>{if(name!=='allocate_team_electrician')throw Error(`SIM unmocked RPC ${name}`);tables.job_assignments=tables.job_assignments.filter(a=>a.role!=='electrician');tables.job_assignments.push({id:'electrician-assignment',job_id:'job',user_id:p._worker,business_id:'biz',role:'electrician',active:true});return{data:{ok:true},error:null};};
  const electrician=load('src/lib/in-house-electrician.server.ts',deps,clock);deps['./in-house-electrician.server']=electrician;
+ const electricianBooked=load('src/lib/in-house-electrician-booked.server.ts',deps,clock);deps['./in-house-electrician-booked.server']=electricianBooked;
  const booking=load('src/lib/in-house-booking.server.ts',deps,clock);deps['./in-house-booking.server']=booking;
  const canonicalBook=load('src/lib/booking.server.ts',deps,clock);
  const deposits=load('src/lib/deposit-request.server.ts',deps,clock);

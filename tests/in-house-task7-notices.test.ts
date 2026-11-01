@@ -62,6 +62,12 @@ test('definite rejection retries the identical digest key once, then replay send
   f.outcome('sent'); await f.api.sweepInHouseInstallOfficeEmails(now); await f.api.sweepInHouseInstallOfficeEmails(now);
   expect(f.sends).toHaveLength(2); expect(f.sends[0].idempotencyKey).toBe(f.sends[1].idempotencyKey); expect(f.accepted.size).toBe(1);expect(f.sends[1].to).toBe('office@example.invalid');expect(f.sends[1].html).toBe(f.sends[0].html);
 });
+test('late tomorrow install receives one short office follow-up after frozen digest',async()=>{
+ const f=fixture();await f.api.sweepInHouseInstallOfficeEmails(now);
+ f.rows.jobs.push({id:'late',job_number:'HV-LATE',source:'base44',deleted_at:null});f.rows.job_assignments.push({job_id:'late',role:'installer',business_id:'biz',active:true});f.rows.bookings.push({id:'late-b',job_id:'late',kind:'installation',status:'confirmed',scheduled_start:'2026-11-03T01:00:00Z'});
+ await f.api.sweepInHouseInstallOfficeEmails(now);await f.api.sweepInHouseInstallOfficeEmails(now);
+ expect(f.sends).toHaveLength(2);expect(f.sends[1].text).toContain('HV-LATE');expect(f.sends[1].text).not.toContain('HV-0');expect(f.sends[1].to).toBe('office@example.invalid');
+});
 test('lost response after acceptance is held, never automatically double-sent', async () => {
   const f = fixture(); f.loseResponse(); await expect(f.api.sweepInHouseInstallOfficeEmails(now)).rejects.toThrow('Response lost');
   await f.api.sweepInHouseInstallOfficeEmails(now); expect(f.sends).toHaveLength(1); expect(f.accepted.size).toBe(1);

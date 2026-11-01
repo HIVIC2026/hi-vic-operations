@@ -58,7 +58,17 @@ export async function sweepInHouseInstallOfficeEmails(now=new Date()){
     let deliveryHeld=false;for(const r of g.rows)if(await (await import('./qa-inbox.server')).qaDeliveryHeld(r.jobId)){deliveryHeld=true;break;}if(deliveryHeld)continue;
     const blocks:PartnerBlock[]=g.rows.flatMap(r=>[{kind:'p',text:`${r.jobNumber} · ${new Date(r.start).toLocaleTimeString('en-AU',{timeZone:'Australia/Melbourne',hour:'numeric',minute:'2-digit'})} · Lead Installer: ${r.name}`},{kind:'button',label:'Keep or change Lead Installer',url:r.url}]);
     const subject='Tomorrow’s installs — Lead Installer';const mail=partnerEmailLayout({subject,blocks});
-    if(await deliverOnce(first.jobId,key,{to:g.email,subject,...mail},async frozen=>(await import('./office-email.server')).sendOfficeEmail({actorId:null,recipient:'partner',...frozen,contactName:g.name,message:frozen.text,label:key,record:{businessId},idempotencyKey:key}),now))sent++;
+    const existing=await db.from('workflow_events').select('details').eq('id',await stableUuid(key)).maybeSingle();if(existing.error)throw Error(existing.error.message);
+    const original=existing.data?.details as Claim|null;
+    if(original?.status==='sent'){
+      for(const row of g.rows){
+        if(original.mail.text.includes(row.url))continue;
+        const lateKey=`${key}:late:${row.jobId}:${row.start}`;
+        const lateSubject='Tomorrow’s installs — late booking';
+        const lateMail=partnerEmailLayout({subject:lateSubject,blocks:[{kind:'p',text:`${row.jobNumber} · ${new Date(row.start).toLocaleTimeString('en-AU',{timeZone:'Australia/Melbourne',hour:'numeric',minute:'2-digit'})} · Lead Installer: ${row.name}`},{kind:'button',label:'Keep or change Lead Installer',url:row.url}]});
+        if(await deliverOnce(row.jobId,lateKey,{to:g.email,subject:lateSubject,...lateMail},async frozen=>(await import('./office-email.server')).sendOfficeEmail({actorId:null,recipient:'partner',...frozen,contactName:g.name,message:frozen.text,label:lateKey,record:{businessId},idempotencyKey:lateKey}),now))sent++;
+      }
+    }else if(await deliverOnce(first.jobId,key,{to:g.email,subject,...mail},async frozen=>(await import('./office-email.server')).sendOfficeEmail({actorId:null,recipient:'partner',...frozen,contactName:g.name,message:frozen.text,label:key,record:{businessId},idempotencyKey:key}),now))sent++;
   }
   return{checked:groups.size,sent};
 }

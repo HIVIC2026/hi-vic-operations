@@ -11,8 +11,20 @@ function fixture(){
  const sends:any[]=[];const shim=memoryPostgrest(rows);
  const deps:any={'@/integrations/supabase/client.server':{supabaseAdmin:shim},'./in-house-booking.core':core,'./mitti-create-claim.core':{stableUuid},'./in-house-suppression.server':{readInHouseDispatchState:async()=>({held:new Set(['j']),failed:false})},'./quote-hold.core':{smsQuietReason:()=>null},'./comms.server':{assertCustomerDeliveryAllowed:async()=>{}},'./partner-email.core':{partnerEmailLayout:()=>({html:'body',text:'body'})},'./owner-email-send.server':{sendGuardedOwnerEmail:async(p:any)=>{if(!sends.some(x=>x.key===p.key)){sends.push({channel:'email',key:p.key});}return 'sent';}},'./sms.server':{sendRealSms:async(p:any)=>{if(!sends.some(x=>x.key===p.idempotencyKey))sends.push({channel:'sms',key:p.idempotencyKey,to:p.to,body:p.body});return{status:'sent'};}},'./swms.server':{loadSwms:async()=>{sends.push({channel:'swms'});}},'./swms-sign-text.server':{textSwmsSignLinks:async()=>{sends.push({channel:'worker-usual-messages'});}},'./melbourne-time.core':{melbourneToday:()=> '2026-11-03'}};
  const api:any={};new Function('exports','require',ts.transpile(readFileSync('src/lib/in-house-booking.server.ts','utf8'),{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}))(api,(p:string)=>{if(!(p in deps))throw Error(`Unmocked dependency ${p}`);return deps[p];});
- return{api,rows,sends,now};
+ return{api,rows,sends,now,deps};
 }
 test('actual owner booking helper attempts one email and link-free owner text per booking/person replay',async()=>{const f=fixture();const who={id:'w',name:'Pat',phone:'0411111111'};for(let i=0;i<2;i++)await f.api.notifyOwnerBooked('j','install','2026-11-02T21:00:00Z',who,f.now);expect(f.sends.map(x=>x.channel)).toEqual(['email','sms']);expect(f.sends[1].to).toBe('0400000000');expect(f.sends[1].body).not.toMatch(/https?:/);});
 test('no booking confirmation for a cancelled or no-longer-current booking',async()=>{const f=fixture();f.rows.bookings[0].status='cancelled';await f.api.notifyOwnerBooked('j','install','2026-11-02T21:00:00Z',{id:'w',name:'Pat',phone:null},f.now);expect(f.sends).toEqual([]);});
 test('same-day live block clears only for acknowledgment of latest Lead Installer change',async()=>{const f=fixture();f.rows.workflow_events.push({id:'c',job_id:'j',event_type:'in_house_lead_changed',created_at:'2026-11-02T20:00:00Z',details:{start:'2026-11-02T21:00:00Z',worker_id:'w'}});expect(await f.api.leadNoticeBlocker('j',new Date('2026-11-02T20:30:00Z'))).toBe(core.LEAD_INSTALLER_NOTICE_WAIT);f.rows.workflow_events.push({id:'ack',job_id:'j',event_type:'in_house_esc_notice_updated',details:{change_id:'c'}});expect(await f.api.leadNoticeBlocker('j',new Date('2026-11-02T20:30:00Z'))).toBeNull();});
+test('quiet-hours booking persists intent and sweep delivers at 7am once',async()=>{
+ const f=fixture();let quiet=true;f.deps['./quote-hold.core'].smsQuietReason=()=>quiet?'quiet':null;
+ await f.api.notifyOwnerBooked('j','install','2026-11-02T21:00:00Z',{id:'w',name:'Pat',phone:null},new Date('2026-11-02T10:00:00Z'));
+ expect(f.sends).toHaveLength(0);expect(f.rows.workflow_events.some((e:any)=>e.event_type==='in_house_booked_notice_pending')).toBe(true);
+ quiet=false;await f.api.sweepOwnerBookedNotices(new Date('2026-11-02T20:00:00Z'));await f.api.sweepOwnerBookedNotices(new Date('2026-11-02T20:00:00Z'));
+ expect(f.sends.map((s:any)=>s.channel)).toEqual(['email','sms']);
+});
+test('paused booking notice resumes from recorded intent without rebooking',async()=>{
+ const f=fixture();let paused=true;f.deps['./comms.server'].assertCustomerDeliveryAllowed=async()=>{if(paused)throw Error('paused');};
+ await f.api.notifyOwnerBooked('j','install','2026-11-02T21:00:00Z',{id:'w',name:'Pat',phone:null},f.now);
+ expect(f.sends).toHaveLength(0);paused=false;await f.api.sweepOwnerBookedNotices(f.now);expect(f.sends).toHaveLength(2);expect(f.rows.bookings).toHaveLength(1);
+});

@@ -6,7 +6,7 @@ BEGIN
   IF _reason IS NULL OR length(trim(_reason))<3 THEN RAISE EXCEPTION 'Reason required'; END IF;
   IF EXISTS(SELECT 1 FROM public.user_roles WHERE user_id=_actor AND role::text='qa_office') THEN RAISE EXCEPTION 'Forbidden'; END IF;
   office_admin:=EXISTS(SELECT 1 FROM public.user_roles WHERE user_id=_actor AND role::text='admin');
-  PERFORM 1 FROM public.jobs WHERE id=_job AND deleted_at IS NULL AND source<>'qa_test' FOR UPDATE;
+  PERFORM 1 FROM public.jobs WHERE id=_job AND deleted_at IS NULL FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'Job unavailable'; END IF;
   SELECT a.business_id INTO installer_business FROM public.job_assignments a JOIN public.businesses b ON b.id=a.business_id
     WHERE a.job_id=_job AND a.active AND a.role::text='installer' AND b.in_house FOR UPDATE OF a FOR SHARE OF b;
@@ -15,6 +15,7 @@ BEGIN
     RAISE EXCEPTION 'Not your in-house job';
   END IF;
   IF NOT office_admin AND NOT EXISTS(SELECT 1 FROM public.business_members WHERE business_id=installer_business AND user_id=_actor AND active AND member_role::text='business_admin') THEN RAISE EXCEPTION 'Not your in-house job'; END IF;
+  UPDATE public.bookings SET status='cancelled' WHERE job_id=_job AND status='confirmed' AND kind::text IN ('ready_check','assessment');
   WITH ended AS (UPDATE public.job_assignments SET active=false,ended_at=now(),end_reason='pulled_back'
     WHERE job_id=_job AND active AND business_id=installer_business AND role::text IN ('installer','electrician') RETURNING id)
     SELECT array_agg(id ORDER BY id) INTO assignment_ids FROM ended;

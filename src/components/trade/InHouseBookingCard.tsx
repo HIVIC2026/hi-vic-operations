@@ -3,7 +3,7 @@ import { useQuery,useQueryClient } from '@tanstack/react-query';
 import { useServerFn } from '@tanstack/react-start';
 import { toast } from 'sonner';
 import { getInHouseBookingAccess,getInHouseBookingTeam,inHouseBookVisit,changeInHouseLeadInstaller,tradeHandBack,tradeOwnerCancelled } from '@/lib/trade-view.functions';
-import { bookingWorkerBlocker,type BookingWorker } from '@/lib/in-house-booking.core';
+import { bookingWorkerBlocker,emptyBookingTeamBlocker,type BookingWorker } from '@/lib/in-house-booking.core';
 import { installStartAt } from '@/lib/install-days.core';
 import { markOfficeChanged } from '@/lib/office-list-refresh';
 import { Input } from '@/components/ui/input';
@@ -11,13 +11,14 @@ import { Button } from '@/components/ui/button';
 import { Group } from './installer-kit';
 export function useInHouseBookingAccess(jobId:string){const load=useServerFn(getInHouseBookingAccess);return useQuery({queryKey:['in-house-booking-access',jobId],queryFn:()=>load({data:{jobId}}),retry:false});}
 export type InHouseBookingKind='ready_check'|'assessment'|'rectification'|'installation';
+export type InHouseBookingListEntry={allowed:boolean;team:{workers:BookingWorker[];depositPaid:boolean;selection:{lead?:unknown}|null}};
 type Kind=InHouseBookingKind;
 const visits=[{kind:'ready_check',label:'Ready Check'},{kind:'assessment',label:'Pre Insulation Electrical Safety Assessment (PIESA)'},{kind:'rectification',label:'Rectification'},{kind:'installation',label:'Install day'}] as const;
 function VisitPicker({jobId,kind,label,workers,booked,selection}:{jobId:string;kind:Kind;label:string;workers:BookingWorker[];booked?:string|null|undefined;selection:string|null}){
  const book=useServerFn(inHouseBookVisit),swap=useServerFn(changeInHouseLeadInstaller),qc=useQueryClient();
  const [day,setDay]=useState(''),[arrival,setArrival]=useState(''),[who,setWho]=useState(selection??''),[crew,setCrew]=useState<string[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState('');
- const choices=workers.filter(w=>kind==='installation'?bookingWorkerBlocker(kind,w)===null:kind==='assessment'||kind==='rectification'?w.tradeRole==='electrician':true);
- const reason=bookingWorkerBlocker(kind,workers.find(w=>w.id===who)??null)||(!day||!arrival?'Choose the day and arrival time so the owner knows when to expect you.':null);
+ const choices=workers.filter(w=>kind==='installation'?w.tradeRole==='installer':kind==='assessment'||kind==='rectification'?w.tradeRole==='electrician':true);
+ const reason=emptyBookingTeamBlocker(kind,workers)||bookingWorkerBlocker(kind,workers.find(w=>w.id===who)??null)||(!day||!arrival?'Choose the day and arrival time so the owner knows when to expect you.':null);
  const refresh=async()=>{markOfficeChanged();await qc.invalidateQueries();};
  return <form className="space-y-2 border-b border-line py-4 last:border-b-0" onSubmit={async e=>{e.preventDefault();if(reason)return;setBusy(true);setError('');try{const r=await book({data:{jobId,kind,start:installStartAt(day,arrival).toISOString(),workerId:who,crewIds:crew}});if(!r.ok){setError(r.blockers.join(' '));return;}toast.success(`${label} booked`);await refresh();}catch(e){setError(e instanceof Error?e.message:'Could not book.');}finally{setBusy(false);}}}>
  <p className="font-semibold">{label}</p>{booked&&<p className="text-sm text-sub">{new Date(booked).toLocaleString('en-AU',{timeZone:'Australia/Melbourne',day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true})+' · Confirmed'}</p>}
@@ -39,7 +40,16 @@ export function InHouseBookingCard({jobId}:{jobId:string}){
 }
 
 /** Same guarded picker, embedded outside the job link on the actual To book row. */
-export function InHouseBookingRow({jobId,kind}:{jobId:string;kind:Kind}){
+export function InHouseBookingRow({jobId,kind,context}:{jobId:string;kind:Kind;context?:InHouseBookingListEntry|undefined}){
+ if(context)return <InHouseBookingRowReady jobId={jobId} kind={kind} context={context}/>;
+ return <InHouseBookingRowLoading jobId={jobId} kind={kind}/>;
+}
+function InHouseBookingRowReady({jobId,kind,context}:{jobId:string;kind:Kind;context:InHouseBookingListEntry}){
+ if(!context.allowed||kind==='installation'&&!context.team.depositPaid)return null;
+ const visit=visits.find(v=>v.kind===kind);if(!visit)return null;
+ return <VisitPicker jobId={jobId} {...visit} workers={context.team.workers} selection={kind==='installation'&&typeof context.team.selection?.lead==='string'?context.team.selection.lead:null}/>;
+}
+function InHouseBookingRowLoading({jobId,kind}:{jobId:string;kind:Kind}){
  const access=useInHouseBookingAccess(jobId),load=useServerFn(getInHouseBookingTeam);
  const team=useQuery({queryKey:['in-house-booking-team',jobId],queryFn:()=>load({data:{jobId}}),enabled:access.data?.allowed===true,retry:false});
  if(access.data?.allowed!==true)return null;

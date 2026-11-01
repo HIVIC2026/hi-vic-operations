@@ -74,9 +74,9 @@ describe("30-day reminders (decision 158)", () => {
       const o = ownerInstallWindowText({ ...f, step, daysLeft: step === "reminder_20" ? 20 : 10 });
       const i = installerInstallWindowText({ ...f, step, daysLeft: step === "reminder_20" ? 20 : 10 });
       for (const t of [o, i]) {
-        expect(t.endsWith("Reply STOP to opt out.")).toBe(true);
+        expect(t.endsWith(t===o?"Details in your email.":"Reply STOP to opt out.")).toBe(true);
         expect(t).toContain("Saturday 31 October");
-        expect(t).toContain("https://x.test/j/abc");
+        if(t===o)expect(t).not.toContain("https://x.test/j/abc");else expect(t).toContain("https://x.test/j/abc");
         expect(brandSmsBody(t).length).toBeLessThanOrEqual(SMS_BRAND_PREFIX.length + 306);
       }
       expect(i).toContain("HV-3300");

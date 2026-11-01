@@ -47,10 +47,14 @@ export async function notifyOwnerBooked(jobId:string,kind:'ready_check'|'piesa'|
   const job=await read<{source:string;deleted_at:string|null;stage:string;owners:{email:string|null;phone:string|null}|null}|null>(db.from('jobs').select('source,deleted_at,stage,owners(email,phone)').eq('id',jobId).maybeSingle());
   const a=await read<{businesses:{name:string;trading_name:string|null;phone:string|null}|null}|null>(db.from('job_assignments').select('businesses(name,trading_name,phone)').eq('job_id',jobId).eq('role','installer').eq('active',true).maybeSingle());
   if(!job||job.deleted_at||job.stage==='cancelled'||!job.owners?.email||!a?.businesses)return 'held';
+  const key=`in-house-booked:v1:${booking.id}:${who.id}`;
+  const intentId=await stableUuid(`${key}:intent`);
+  const intent=await db.from('workflow_events').insert({id:intentId,job_id:jobId,actor_id:null,event_type:'in_house_booked_notice_pending',summary:'Booking confirmation awaiting delivery',details:{kind,startIso,who,booking_id:booking.id},internal:true});
+  if(intent.error&&intent.error.code!=='23505')throw Error(intent.error.message);
   if((await import('./quote-hold.core')).smsQuietReason(now.toISOString()))return 'quiet hours';
+  try {
   await (await import('./comms.server')).assertCustomerDeliveryAllowed(jobId,'Booking confirmation');
   const b=a.businesses;const n=bookingNotice({kind,start:startIso,who,installer:b.trading_name||b.name,phone:b.phone});
-  const key=`in-house-booked:v1:${booking.id}:${who.id}`;
   const {partnerEmailLayout}=await import('./partner-email.core');
   const email=await (await import('./owner-email-send.server')).sendGuardedOwnerEmail({jobId,jobSource:job.source,to:job.owners.email,purpose:'in_house_booked',key,retryAfterDefiniteFailure:true,beforeSend:async()=>{
     const current=await read<{id:string}|null>(db.from('bookings').select('id').eq('id',booking.id).eq('job_id',jobId).eq('status','confirmed').eq('scheduled_start',startIso).maybeSingle());
@@ -58,7 +62,19 @@ export async function notifyOwnerBooked(jobId:string,kind:'ready_check'|'piesa'|
     await (await import('./comms.server')).assertCustomerDeliveryAllowed(jobId,'Booking confirmation');
   },build:()=>({subject:n.subject,...partnerEmailLayout({subject:n.subject,blocks:[{kind:'p',text:n.text}],test:job.source==='qa_test'})})});
   const sms=await (await import('./sms.server')).sendRealSms({jobId,type:'in_house_booked_owner',to:job.owners.phone,body:n.sms,idempotencyKey:`${key}:sms`,event:{at:booking.created_at,current:true}});
+  if(email==='sent'&&['sent','already','already_sent'].includes(sms.status)){
+    const result=await db.from('workflow_events').update({event_type:'in_house_booked_notice_delivered'}).eq('id',intentId);if(result.error)throw Error(result.error.message);
+  }
   return `${email}; ${sms.status}`;
+  }catch(e){return `held: ${e instanceof Error?e.message:'delivery unavailable'}`;}
+}
+export async function sweepOwnerBookedNotices(now=new Date()){
+  if((await import('./quote-hold.core')).smsQuietReason(now.toISOString()))return {checked:0};
+  const rows:{job_id:string;details:{kind:'ready_check'|'piesa'|'install';startIso:string;who:Pick<BookingWorker,'id'|'name'|'phone'>}}[]=[];
+  for(let offset=0;;offset+=200){const page=await read<typeof rows>(db.from('workflow_events').select('job_id,details').eq('event_type','in_house_booked_notice_pending').order('id').range(offset,offset+199));rows.push(...page);if(page.length<200)break;}
+  for(const row of rows)await notifyOwnerBooked(row.job_id,row.details.kind,row.details.startIso,row.details.who,now);
+  for(let offset=0;;offset+=200){const pending=await db.from('workflow_events').select('job_id,details').eq('event_type','in_house_electrician_booking_notice').contains('details',{status:'retry'}).order('id').range(offset,offset+199);if(pending.error)throw Error(pending.error.message);for(const row of pending.data??[]){const details=row.details as {booking_id?:string};if(row.job_id&&details.booking_id)await (await import('./in-house-electrician-booked.server')).notifyInHouseElectricianBooked(row.job_id,details.booking_id);}if((pending.data?.length??0)<200)break;}
+  return {checked:rows.length};
 }
 export async function latestLeadNotice(jobId:string){
   const change=await read<{id:string;created_at:string;summary:string;details:{start:string;worker_id:string;name:string}}|null>(db.from('workflow_events').select('id,created_at,summary,details').eq('job_id',jobId).eq('event_type','in_house_lead_changed').order('created_at',{ascending:false}).limit(1).maybeSingle());

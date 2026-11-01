@@ -300,11 +300,22 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   const inHouse = await inHouseNeedsFacts(jobs.filter(j => j.source !== "qa_test").map(j => j.id));
   for (const [id, ih] of inHouse) { const x = f(id); if (x) x.inHouse = ih; }
   if(ids.length){
-    const ev=await byIds('Lead Installer changes and handbacks',ids,(c,a,b)=>admin.from('workflow_events').select('job_id,id,event_type,summary,details,created_at').in('job_id',c).in('event_type',['in_house_lead_changed','in_house_esc_notice_updated','in_house_pulled_back','in_house_batch_sent']).order('created_at',{ascending:false}).range(a,b));
+    const ev=await byIds('Lead Installer changes and handbacks',ids,(c,a,b)=>admin.from('workflow_events').select('job_id,id,event_type,summary,details,created_at').in('job_id',c).in('event_type',['in_house_lead_changed','in_house_esc_notice_updated','in_house_pulled_back','in_house_batch_sent','install_deposit_request_failed','install_deposit_request_recovered','in_house_form_sync_failed','in_house_form_sync_recovered']).order('created_at',{ascending:false}).range(a,b));
     for(const id of ids){const x=f(id);if(!x)continue;const mine=ev.filter(e=>e['job_id']===id);const change=mine.find(e=>e['event_type']==='in_house_lead_changed');
       if(change&&!mine.some(e=>e['event_type']==='in_house_esc_notice_updated'&&(e['details'] as Row|null)?.['change_id']===change['id']))x.inHouseLeadChanged={at:String(change['created_at']),line:String(change['summary'])};
+      for(const [failed,recovered,field] of [['install_deposit_request_failed','install_deposit_request_recovered','depositRequestFailed'],['in_house_form_sync_failed','in_house_form_sync_recovered','inHouseFormSyncFailed']] as const){const failure=mine.find(e=>e['event_type']===failed);if(failure&&!mine.some(e=>e['event_type']===recovered&&String(e['created_at'])>String(failure['created_at'])))x[field]={at:String(failure['created_at']),reason:String((failure['details'] as Row|null)?.['reason']??failure['summary'])};}
       const back=mine.find(e=>e['event_type']==='in_house_pulled_back');
       if(back&&!mine.some(e=>e['event_type']==='in_house_batch_sent'&&String(e['created_at'])>String(back['created_at'])))x.inHouseHandedBack={at:String(back['created_at']),reason:String((back['details'] as Row|null)?.['reason']??'Reason not recorded')};
+    }
+  }
+  if(ids.length){
+    const current=await byIds('in-house pending visit stages',ids,(c,a,b)=>admin.from('jobs').select('id,stage,updated_at').in('id',c).range(a,b));
+    const bookings=await byIds('in-house confirmed visits',ids,(c,a,b)=>admin.from('bookings').select('job_id,kind').in('job_id',c).eq('status','confirmed').range(a,b));
+    const readiness=await byIds('in-house visit readiness',ids,(c,a,b)=>admin.from('workflow_events').select('job_id,event_type,created_at').in('job_id',c).in('event_type',['in_house_batch_sent','install_deposit_received','stage_changed']).order('created_at',{ascending:false}).range(a,b));
+    const {bookingOverdue}=await import('./in-house-booking.core');
+    for(const j of current){const id=String(j['id']),x=f(id);if(x?.inHouseDispatch!=='in_house')continue;const visit=({'ready_check_ready_to_schedule':'ready_check','piesa_and_install_window_pending':'piesa','installation_scheduling':'installation'} as Record<string,string>)[String(j['stage'])];if(!visit)continue;
+      const kind=visit==='piesa'?'assessment':visit;const at=String(readiness.find(e=>e['job_id']===id&&e['event_type']===(visit==='installation'?'install_deposit_received':visit==='ready_check'?'in_house_batch_sent':'stage_changed'))?.['created_at']??j['updated_at']);
+      if(bookingOverdue(at,bookings.some(b=>b['job_id']===id&&b['kind']===kind),new Date(now)))x.bookingOverdue={at,visit:visit as 'ready_check'|'piesa'|'installation'};
     }
   }
   // Paid owners must never be hidden behind a generic automatic status. Same facts feed Needs me and Next.
