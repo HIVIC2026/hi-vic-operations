@@ -1,3 +1,7 @@
+## Jo 1 Nov new in-house flow — Task 4 of 7
+- [ ] Red-first in-house 20/10-day reminders, office email-only channel, Victorian DST deadlines and ECOWOOL hold.
+- [ ] Related and bounded comparable full tests; exclude the two previously stalled files; no settings, secrets, live data, sends or publishing.
+
 ## Jo 1 Nov new in-house flow — Task 3 of 7
 - [ ] Test-first in-house RC/A3/A4 and Lead A5 creation/replay, date/person/crew sync, portal-only unused closure and cancellation; retain legacy guards.
 - [ ] Related tests and bounded before/after comparison; timeout stalled registration file and disclose exclusions. No settings, secrets, live data, sends or publishing.
