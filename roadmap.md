@@ -1,3 +1,8 @@
+## Jo 1 Nov new in-house flow — Task 2 of 7
+- [ ] Apply approved Task 1 SQL verbatim after practice recheck; add and practice-prove electrician REC/office-verification columns, then apply.
+- [ ] Red-first verified electrician core, office-only Team verification, explicit business-scoped picker/assignment and A3/A4 handover; no automatic electrician selection; held PIESA booking blocker.
+- [ ] Related and bounded per-file comparison vs 98 failing files / 261 failures; no settings, secrets, other live data, sends or publishing.
+
 ## Jo 1 Nov new in-house flow — Task 1 of 7
 - [x] Latest quick-taps YES/consent read with installer-source exemption; five distinct jobs only, no age fallback (none existed); Choose installer lists active in-house partners through existing guarded batch action; legacy page remains. Red-first eligibility/missing batch helper/UI and practice SQL, 11 added checks pass, related 54/0. Final bounded before 961 files 9912/261, after 963 files 9923/261: same 98 failing files; only practice +1, server +2, new core 6/0 and UI 2/0 changed counts. Automatic build OK; isolated actual display inspected, mocked action exercised, hosted allocation NOT RUN under no-data/no-sends restriction.
 - [ ] Locked RPC YES/source correction is practice-proven in docs/pending-migrations/2026-11-01_in_house_quick_taps.sql; live application and publication wait for Jo's authorisation. No settings, secrets, live data, sends or publishing changed.
