@@ -63,7 +63,7 @@ async function leadAssignee(jobId: string) {
   const selection = history.find(e=>e.event_type==="piisa_crew_selected")?.details?.['selection'];
   const { leadWorkerId } = await import("./piisa-a3.core");
   const workerId = selection ? leadWorkerId(selection as import("./piisa-a3.core").CrewSelection) : allocation?.worker_id;
-    if (!workerId) throw new Error("Choose the Lead Installer before creating the install form.");
+  if (!workerId) throw new Error("Choose the Lead Installer before creating the install form.");
   const worker = await read<{email:string|null;full_legal_name?:string;worker_role:string|null;trade_role:string} | null>(db.from("partner_workers").select("email,full_legal_name,worker_role,trade_role").eq("id",workerId).eq("business_id",installer.business_id).is("removed_at",null).maybeSingle());
   const {effectiveWorkerRole,mittiEmailFor} = await import("./worker-role.core");
   if (!worker || effectiveWorkerRole({tradeRole:worker.trade_role,stored:worker.worker_role}) !== "lead") throw new Error("Choose a Lead Installer from your Team.");

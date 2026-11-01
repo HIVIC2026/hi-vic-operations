@@ -65,6 +65,14 @@ test('lost response after acceptance is held, never automatically double-sent', 
   const f = fixture(); f.loseResponse(); await expect(f.api.sweepInHouseInstallOfficeEmails(now)).rejects.toThrow('Response lost');
   await f.api.sweepInHouseInstallOfficeEmails(now); expect(f.sends).toHaveLength(1); expect(f.accepted.size).toBe(1);
 });
+test('competing office digest sweeps have one claim winner and one email',async()=>{
+ const f=fixture();
+ // Model the production primary-key and JSON equality protections, not a permissive mock.
+ const original=f.rows.workflow_events.push.bind(f.rows.workflow_events);
+ f.rows.workflow_events.push=(...entries:any[])=>{for(const entry of entries){if(f.rows.workflow_events.some(r=>r.id===entry.id))throw Error('duplicate claim');}return original(...entries);};
+ const results=await Promise.allSettled([f.api.sweepInHouseInstallOfficeEmails(now),f.api.sweepInHouseInstallOfficeEmails(now)]);
+ expect(results.some(r=>r.status==='fulfilled')).toBe(true);expect(f.sends).toHaveLength(1);
+});
 test('owner cancellation emails only the HIV office and replay makes no duplicate', async () => {
   const f = fixture(); await f.api.notifyOfficeOwnerCancelled('j0000', 'Owner changed plans', 'actor');
   await f.api.notifyOfficeOwnerCancelled('j0000', 'Owner changed plans', 'actor');
