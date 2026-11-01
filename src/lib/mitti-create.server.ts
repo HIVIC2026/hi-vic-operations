@@ -138,6 +138,10 @@ export async function onReadyCheckBooked(jobId: string, actorId: string | null, 
   const work = (async (): Promise<"scheduled" | "skipped"> => {
     try {
       const f = await readyCheckFormFacts(jobId);
+      if (f?.booked && await (await import("./in-house-forms.server")).isInHouseFormJob(jobId)) {
+        await (await import("./in-house-forms.server")).ensureInHouseForms(jobId, actorId, call);
+        return "scheduled";
+      }
       const skip = bookedSkipReason(f);
       if (skip || !f) { await note(skip ?? "job not found"); return "skipped"; }
       const assignee = await testAssignee(f.job.source, f.installerUserId!);

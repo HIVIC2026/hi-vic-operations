@@ -144,7 +144,14 @@ export async function saveCrewWithLead(jobId: string, userId: string, sel: CrewS
   if (leadId && leadNeedsHandover({ leadWorkerId: leadId, allocatedWorkerId: cur?.worker_id ?? null, assigneeWorkerId: (own as { id?: string } | null)?.id ?? null })) {
     await allocateVisit(jobId, userId, "install", leadId, call, { crewPicker: true });
   }
-  return piisa.saveCrewSelection(jobId, userId, sel);
+  const result = await piisa.saveCrewSelection(jobId, userId, sel);
+  const forms = await import("./in-house-forms.server");
+  if (await forms.isInHouseFormJob(jobId)) {
+    const { data: booked } = await db.from("bookings").select("id").eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").limit(1).maybeSingle();
+    if (booked) await forms.ensureInstallForm(jobId, userId, call);
+    await forms.syncInHouseForms(jobId, "crew", userId, call);
+  }
+  return result;
 }
 
 /** 6:30am text: the allocated person (if any) for one job + visit kind, with their mobile from the staff row. */

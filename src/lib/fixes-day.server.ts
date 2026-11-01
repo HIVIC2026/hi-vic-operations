@@ -209,18 +209,25 @@ async function handoverRectificationForm(jobId: string, actorId: string | null, 
  * Create the fixes form for the booked rectification visit (one per booking). Never throws on Mitti or setup problems:
  * each becomes the one office item. `bookingId` is the confirmed rectification booking (idempotency key).
  */
-export async function createFixesForm(jobId: string, actorId: string | null, bookingId: string, call?: MittiCall, opts: { atPiesaBooking?: boolean } = {}): Promise<FixesCreateResult> {
+export async function createFixesForm(jobId: string, actorId: string | null, bookingId: string, call?: MittiCall, opts: { atPiesaBooking?: boolean; atReadyCheckBooking?: boolean } = {}): Promise<FixesCreateResult> {
   const { data: job } = await admin.from("jobs").select("id, job_number, business_unit, source, stage, deleted_at, qa_archived_at").eq("id", jobId).maybeSingle();
   if (!job || job.business_unit !== "hivic" || job.deleted_at || job.qa_archived_at) return { status: "not_needed", reason: "job not live" };
   const { count: already } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", FIXES_FORM_CREATED_EVENT).contains("details", { booking_id: bookingId });
   if (already && !opts.atPiesaBooking) return { status: "reused", reason: "form already created for this visit" };
   const need = await fixesFormNeededFor(jobId);
-  if (!need.needed && !opts.atPiesaBooking) return { status: "not_needed", reason: "the PIESA lists no repair work left for a later visit" };
+  if (!need.needed && !opts.atPiesaBooking && !opts.atReadyCheckBooking) return { status: "not_needed", reason: "the PIESA lists no repair work left for a later visit" };
   // The legacy path would act here; a failed optional read must not interrupt it.
   const { readInHouseDispatchState } = await import("./in-house-suppression.server");
   const dispatch = await readInHouseDispatchState([jobId]);
   if (dispatch.failed) console.error('In-house form creation extension skipped: partner read failed');
   const paired = !dispatch.failed && dispatch.held.has(jobId);
+  let preparation: Awaited<ReturnType<typeof import("./in-house-forms.server").inHousePreparationAssignee>> | null = null;
+  if (opts.atReadyCheckBooking) {
+    if (!paired) throw new WorkflowError("In-house preparation requires an in-house partner");
+    const facts = await (await import("./mitti-create.server")).readyCheckFormFacts(jobId);
+    if (!facts?.booked || !facts.mittiInvited || !facts.autoSend) throw new WorkflowError("In-house preparation requires an enabled partner and a confirmed Ready Check booking.");
+    preparation = await (await import("./in-house-forms.server")).inHousePreparationAssignee(jobId);
+  }
   if (opts.atPiesaBooking && (!paired || job.source === 'qa_test')) return { status: 'not_needed', reason: 'not an in-house job' };
   const existing = paired ? await existingRectificationForm(jobId, true) : null;
   if (existing) return existing.closed ? { status: 'not_needed', reason: 'rectification form closed' } : handoverRectificationForm(jobId, actorId, existing, call);
@@ -229,7 +236,7 @@ export async function createFixesForm(jobId: string, actorId: string | null, boo
   if (tpl.pending) { await heldOnce(jobId, `booking:${bookingId}:pending_db`, FIXES_TEMPLATE_PENDING_DB, { booking_id: bookingId }); return { status: "held", reason: FIXES_TEMPLATE_PENDING_DB }; }
   if (!tpl.templateId) { await heldOnce(jobId, `booking:${bookingId}:no_template`, FIXES_TEMPLATE_MISSING, { booking_id: bookingId }); return { status: "held", reason: FIXES_TEMPLATE_MISSING }; }
 
-  const { data: asg } = await admin.from("job_assignments").select("user_id, business_id, profiles:user_id(full_name, email), businesses(name, onboarding_notes)").eq("job_id", jobId).eq("role", "electrician").eq("active", true).maybeSingle();
+  const { data: asg } = await admin.from("job_assignments").select("user_id, business_id, profiles:user_id(full_name, email), businesses(name, onboarding_notes)").eq("job_id", jobId).eq("role", preparation && !preparation.selected ? "installer" : "electrician").eq("active", true).maybeSingle();
   if (!asg) { await heldOnce(jobId, `booking:${bookingId}:no_electrician`, "No electrician is assigned to this job.", { booking_id: bookingId }); return { status: "held", reason: "no electrician assigned" }; }
   const prof = (asg.profiles ?? null) as { full_name: string | null; email: string | null } | null;
   const biz = (asg.businesses ?? null) as { name: string | null; onboarding_notes: string | null } | null;
@@ -237,7 +244,7 @@ export async function createFixesForm(jobId: string, actorId: string | null, boo
   const test = job.source === "qa_test" || isTestPartner(biz as never);
   const { TEST_MITTI_ASSIGNEE } = await import("./onsite-ready-check.core");
   // The PIESA form's assignee is the same electrician: reuse that Mitti login first, then the profile email.
-  const email = test ? TEST_MITTI_ASSIGNEE : (need.assigneeEmail?.trim() || prof?.email?.trim() || "");
+  const email = test ? TEST_MITTI_ASSIGNEE : (preparation?.email || need.assigneeEmail?.trim() || prof?.email?.trim() || "");
   if (!email) { await heldOnce(jobId, `booking:${bookingId}:no_email`, "The assigned electrician has no email address, so no Mitti user could be found.", { booking_id: bookingId }); return { status: "held", reason: "no electrician email" }; }
 
   // TEST flows (TEST job/partner → TEST Mitti user): the whole flow, template read included, uses the simulator.

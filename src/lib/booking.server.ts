@@ -153,6 +153,15 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
   if (kind === "ready_check") {
     await (await import("./mitti-pickup.server")).updateMittiFormDate(jobId, start, actorId).catch((e) => console.error("mitti form date update skipped", (e as Error).message));
   }
+  try {
+    const forms = await import("./in-house-forms.server");
+    if (await forms.isInHouseFormJob(jobId)) {
+      if (kind === "installation") await forms.ensureInstallForm(jobId, actorId);
+      await forms.syncInHouseForms(jobId, "date", actorId);
+    }
+  } catch (e) {
+    await logEvent(jobId, actorId, "in_house_form_sync_failed", "In-house forms need office attention", { reason: e instanceof Error ? e.message : "Form update failed", needs_office: true }, { internal: true });
+  }
   await autoAdvanceJob(jobId, actorId, "booking confirmed");
   return { ok: true };
 }
