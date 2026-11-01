@@ -293,7 +293,7 @@ describe("\"It's your turn\" retired for website owners", () => {
   });
   test("the Choose installer panel shows Release only for an owner who already confirmed", () => {
     const src = readFileSync("src/components/portal/choose-installer.tsx", "utf8");
-    expect(src).toContain("confirmed && (");
+    expect(src).toContain("confirmed ? pick(t.id, t.business) : sendOne(t.id, t.business)");
     expect(src).toContain("Send to installer");
   });
 });
