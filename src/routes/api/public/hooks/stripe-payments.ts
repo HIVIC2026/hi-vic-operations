@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 // Stripe webhook (decision 144): card payments for the $349 safety check and the electrical fixes. The raw body is
-// verified against STRIPE_WEBHOOK_SECRET, or optional STRIPE_WEBHOOK_SECRET_TEST for explicit livemode=false only
+// verified against STRIPE_WEBHOOK_SECRET, or optional STRIPE_TEST_WEBHOOK_SECRET for explicit livemode=false only
 // (Stripe-Signature, 5-minute tolerance); no secret / bad signature = 400 and
 // nothing is touched. Payments are recorded once per PaymentIntent (append-only ledger); TEST jobs accept test-mode
 // events only and real jobs live-mode only. Always answers quickly so Stripe does not retry a handled event.
