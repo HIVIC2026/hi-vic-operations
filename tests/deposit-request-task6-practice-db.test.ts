@@ -1,6 +1,8 @@
 import {afterAll,expect,mock,test} from 'bun:test';
 import {journeyDb} from './helpers/pglite-journey-db';
+import {journeyAdmin} from './helpers/journey-harness';
 const j=await journeyDb();afterAll(()=>j.db.close());
+const {admin}=journeyAdmin(j);
 const JOB='10000000-0000-4000-8000-000000000006',OTHER='10000000-0000-4000-8000-000000000007',OWNER='20000000-0000-4000-8000-000000000006',BIZ='30000000-0000-4000-8000-000000000006',PROP='40000000-0000-4000-8000-000000000006',INV='50000000-0000-4000-8000-000000000006';
 await j.q("insert into owners(id,full_name,email,phone)values($1,'Practice Owner','owner@example.invalid','0412345678')",[OWNER]);
 await j.q("insert into properties(id,address_line,state,suburb,postcode)values($1,'1 Practice St','VIC','Melbourne','3000')",[PROP]);
@@ -8,7 +10,7 @@ await j.q("insert into businesses(id,name,email,in_house)values($1,'Practice Ins
 await j.q("insert into jobs(id,job_number,owner_id,property_id,stage,source)values($1,'HV-TEST-6',$2,$3,'installation_scheduling','website'),($4,'HV-TEST-7',$2,$3,'installation_scheduling','website')",[JOB,OWNER,PROP,OTHER]);
 await j.q("insert into job_assignments(job_id,business_id,role,active)values($1,$2,'installer',true)",[JOB,BIZ]);
 let paid=false;let officeSends=0;const emailKeys=new Set<string>(),textKeys=new Set<string>();
-mock.module('@/integrations/supabase/client.server',()=>({supabaseAdmin:j.admin}));
+mock.module('@/integrations/supabase/client.server',()=>({supabaseAdmin:admin}));
 mock.module('../src/lib/in-house-suppression.server',()=>({readInHouseDispatchState:async()=>({held:new Set([JOB]),failed:false})}));
 mock.module('../src/lib/install-days.server',()=>({installDayContext:async()=>({clearance:{cleared:true,basis:'initial_piesa'},deadline:'2026-11-30',booked:false})}));
 mock.module('../src/lib/payments.server',()=>({jobPaymentView:async()=>({invoiceId:INV,invoices:{install:{id:INV,xero_invoice_id:'xero-practice'}},plan:{installDepositCents:20000},steps:[{key:'install_deposit',state:paid?'paid':'requested',outstandingCents:20000}],bank:{configured:true,accountName:'Practice',bsb:'123456',accountNumber:'12345678'},reference:'INV-TEST',stripe:{available:true}})}));
