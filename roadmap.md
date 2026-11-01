@@ -1,8 +1,9 @@
 ## Jo 1 Nov S1 — practice-only speed
-- [ ] Reconcile Task 7/E0 failure-file discrepancy with independently repeated comparisons.
-- [ ] Measure requested owner/installer actions and page reads using doubles only.
-- [ ] Test-first reduce repeated reads and safely detach recoverable post-commit work.
-- [ ] Comparable full suite; before/after timing report and exact remaining limits.
+- [x] Reproduced extra enquiry-response-scope-practice-db timeout on both archived Task 7/E0; individual 8/0 on both, source unchanged. Normalized comparison 97/243.
+- [x] Test-first batched deposit list facts, overlapping Team reads, reused crew/payment reads, durable awaiting_ap response; six new tests and expanded handover pass.
+- [x] Final full suite 992 files 10023/243, 97 failing files; normalized before 988 files 10017/243, same 97. No new original failures/lost passes. Build OK. Details/partial timings in docs/S1-speed-results.md.
+- [ ] Full code + real quote-sign/PDF, first new spot save and PIESA-confirm controlled timings NOT RUN; need additional isolated fixtures.
+- [ ] Durable deferred booking/Mitti/notice, quick-decline/code/quote-copy follow-through and batch inline Team loaders remain unfinished: existing retry coverage cannot safely replace all awaits; no fire-and-forget claim.
 
 ## Jo 1 Nov E0 — one approved email look
 - [x] Source inventory in docs/email-suite-e0-audit.md includes all registered messages, delegated sends, direct transports and provider Auth exceptions. Hot leads already used the suite; edited-photo branch did not.
