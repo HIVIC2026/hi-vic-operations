@@ -1,0 +1,17 @@
+import {expect,test} from 'bun:test';
+import ts from 'typescript';
+import {readFileSync} from 'node:fs';
+import {memoryPostgrest} from './helpers/memory-postgrest';
+import * as core from '../src/lib/in-house-booking.core';
+import {stableUuid} from '../src/lib/mitti-create-claim.core';
+function fixture(){
+ const now=new Date('2026-11-02T03:00:00Z');
+ const rows:any={bookings:[{id:'b',job_id:'j',kind:'installation',status:'confirmed',scheduled_start:'2026-11-02T21:00:00Z',created_at:now.toISOString()}],jobs:[{id:'j',job_number:'HV-1',source:'base44',stage:'installation_booked',deleted_at:null,owners:{email:'owner@example.invalid',phone:'0400000000'}}],job_assignments:[{job_id:'j',role:'installer',active:true,business_id:'biz',businesses:{name:'Example',trading_name:null,phone:'0399999999'}}],workflow_events:[]};
+ const sends:any[]=[];const shim=memoryPostgrest(rows);let ack=false;
+ const deps:any={'@/integrations/supabase/client.server':{supabaseAdmin:shim},'./in-house-booking.core':core,'./mitti-create-claim.core':{stableUuid},'./in-house-suppression.server':{readInHouseDispatchState:async()=>({held:new Set(['j']),failed:false})},'./quote-hold.core':{smsQuietReason:()=>null},'./comms.server':{assertCustomerDeliveryAllowed:async()=>{}},'./partner-email.core':{partnerEmailLayout:()=>({html:'body',text:'body'})},'./owner-email-send.server':{sendGuardedOwnerEmail:async(p:any)=>{if(!sends.some(x=>x.key===p.key)){sends.push({channel:'email',key:p.key});}return 'sent';}},'./sms.server':{sendRealSms:async(p:any)=>{if(!sends.some(x=>x.key===p.idempotencyKey))sends.push({channel:'sms',key:p.idempotencyKey,to:p.to,body:p.body});return{status:'sent'};}},'./swms.server':{loadSwms:async()=>{sends.push({channel:'swms'});}},'./swms-sign-text.server':{textSwmsSignLinks:async()=>{sends.push({channel:'worker-usual-messages'});}},'./melbourne-time.core':{melbourneToday:()=> '2026-11-03'}};
+ const api:any={};new Function('exports','require',ts.transpile(readFileSync('src/lib/in-house-booking.server.ts','utf8'),{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}))(api,(p:string)=>{if(!(p in deps))throw Error(`Unmocked dependency ${p}`);return deps[p];});
+ return{api,rows,sends,now};
+}
+test('actual owner booking helper attempts one email and link-free owner text per booking/person replay',async()=>{const f=fixture();const who={id:'w',name:'Pat',phone:'0411111111'};for(let i=0;i<2;i++)await f.api.notifyOwnerBooked('j','install','2026-11-02T21:00:00Z',who,f.now);expect(f.sends.map(x=>x.channel)).toEqual(['email','sms']);expect(f.sends[1].to).toBe('0400000000');expect(f.sends[1].body).not.toMatch(/https?:/);});
+test('no booking confirmation for a cancelled or no-longer-current booking',async()=>{const f=fixture();f.rows.bookings[0].status='cancelled';await f.api.notifyOwnerBooked('j','install','2026-11-02T21:00:00Z',{id:'w',name:'Pat',phone:null},f.now);expect(f.sends).toEqual([]);});
+test('same-day live block clears only for acknowledgment of latest Lead Installer change',async()=>{const f=fixture();f.rows.workflow_events.push({id:'c',job_id:'j',event_type:'in_house_lead_changed',created_at:'2026-11-02T20:00:00Z',details:{start:'2026-11-02T21:00:00Z',worker_id:'w'}});expect(await f.api.leadNoticeBlocker('j',new Date('2026-11-02T20:30:00Z'))).toBe(core.LEAD_INSTALLER_NOTICE_WAIT);f.rows.workflow_events.push({id:'ack',job_id:'j',event_type:'in_house_esc_notice_updated',details:{change_id:'c'}});expect(await f.api.leadNoticeBlocker('j',new Date('2026-11-02T20:30:00Z'))).toBeNull();});
