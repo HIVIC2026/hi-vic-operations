@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 const id = (n: number) => `00000000-0000-0000-0000-${String(n).padStart(12,"0")}`;
 async function setup() {
   const db = new PGlite();
-  await db.exec(`CREATE ROLE authenticated; CREATE ROLE service_role; CREATE SCHEMA auth;
+  await db.exec(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role; CREATE SCHEMA auth;
   CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$ SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
   CREATE TABLE user_roles(user_id uuid,role text); INSERT INTO user_roles VALUES ('${id(1)}','admin');
   CREATE TABLE partner_workers(id uuid PRIMARY KEY,business_id uuid,profile_id uuid,full_legal_name text,trade_role text,licence_number text,licence_expires_on date,approval_status text,removed_at timestamptz);
