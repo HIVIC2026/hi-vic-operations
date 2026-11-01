@@ -3,7 +3,7 @@ import { useQuery,useQueryClient } from '@tanstack/react-query';
 import { useServerFn } from '@tanstack/react-start';
 import { toast } from 'sonner';
 import { getInHouseBookingAccess,getInHouseBookingTeam,inHouseBookVisit,changeInHouseLeadInstaller,tradeHandBack,tradeOwnerCancelled } from '@/lib/trade-view.functions';
-import { bookingWorkerBlocker,type BookingWorker } from '@/lib/in-house-booking.core';
+import { bookingWorkerBlocker,emptyBookingTeamBlocker,type BookingWorker } from '@/lib/in-house-booking.core';
 import { installStartAt } from '@/lib/install-days.core';
 import { markOfficeChanged } from '@/lib/office-list-refresh';
 import { Input } from '@/components/ui/input';
@@ -16,8 +16,8 @@ const visits=[{kind:'ready_check',label:'Ready Check'},{kind:'assessment',label:
 function VisitPicker({jobId,kind,label,workers,booked,selection}:{jobId:string;kind:Kind;label:string;workers:BookingWorker[];booked?:string|null|undefined;selection:string|null}){
  const book=useServerFn(inHouseBookVisit),swap=useServerFn(changeInHouseLeadInstaller),qc=useQueryClient();
  const [day,setDay]=useState(''),[arrival,setArrival]=useState(''),[who,setWho]=useState(selection??''),[crew,setCrew]=useState<string[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState('');
- const choices=workers.filter(w=>kind==='installation'?bookingWorkerBlocker(kind,w)===null:kind==='assessment'||kind==='rectification'?w.tradeRole==='electrician':true);
- const reason=bookingWorkerBlocker(kind,workers.find(w=>w.id===who)??null)||(!day||!arrival?'Choose the day and arrival time so the owner knows when to expect you.':null);
+ const choices=workers.filter(w=>kind==='installation'?w.tradeRole==='installer':kind==='assessment'||kind==='rectification'?w.tradeRole==='electrician':true);
+ const reason=emptyBookingTeamBlocker(kind,workers)||bookingWorkerBlocker(kind,workers.find(w=>w.id===who)??null)||(!day||!arrival?'Choose the day and arrival time so the owner knows when to expect you.':null);
  const refresh=async()=>{markOfficeChanged();await qc.invalidateQueries();};
  return <form className="space-y-2 border-b border-line py-4 last:border-b-0" onSubmit={async e=>{e.preventDefault();if(reason)return;setBusy(true);setError('');try{const r=await book({data:{jobId,kind,start:installStartAt(day,arrival).toISOString(),workerId:who,crewIds:crew}});if(!r.ok){setError(r.blockers.join(' '));return;}toast.success(`${label} booked`);await refresh();}catch(e){setError(e instanceof Error?e.message:'Could not book.');}finally{setBusy(false);}}}>
  <p className="font-semibold">{label}</p>{booked&&<p className="text-sm text-sub">{new Date(booked).toLocaleString('en-AU',{timeZone:'Australia/Melbourne',day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true})+' · Confirmed'}</p>}

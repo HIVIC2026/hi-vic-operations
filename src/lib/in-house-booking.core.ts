@@ -1,4 +1,10 @@
 import { addMelbourneBusinessDays, addYmd, melbourneToday } from './melbourne-time.core';
+import { IN_HOUSE_ELECTRICIAN_BOOKING_BLOCKER } from './worker-compliance.core';
+export function emptyBookingTeamBlocker(kind:string,workers:BookingWorker[]):string|null {
+  if((kind==='assessment'||kind==='rectification')&&!workers.some(w=>w.tradeRole==='electrician'&&w.electricianVerified))return IN_HOUSE_ELECTRICIAN_BOOKING_BLOCKER;
+  if(kind==='installation'&&!workers.some(w=>bookingWorkerBlocker(kind,w)===null))return 'No one on your Team is set up as an ESC-registered Lead Installer. Add their ESC registration to book the install.';
+  return null;
+}
 export const LEAD_INSTALLER_BOOKING_REASON = 'Choose the Lead Installer to book. We need to name them on the ESC install notice at least 24 hours before the install.';
 export const LEAD_INSTALLER_NOTICE_WAIT = 'Waiting for Home Insulation Victoria to update the ESC notice for your new Lead Installer.';
 export type BookingWorker = { id:string; name:string; phone:string|null; tradeRole:string; workerRole?:string|null; cleared:boolean; reason:string|null; electricianVerified?:boolean; escRegistered?:boolean; escRegisteredAt?:string|null };

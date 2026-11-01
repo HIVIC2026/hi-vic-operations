@@ -57,9 +57,9 @@ const inHouseExpiryRule = "If the 30 days run out, a new safety check is needed 
 /** Owner text. Under 2 segments; brand prefix is added by brandSmsBody; STOP line last. */
 export function ownerInstallWindowText(f: ReminderFacts): string {
   const by = longDate(f.deadline);
-  if (f.inHouse) return `Your insulation install must happen by ${by} (${dayWord(f.daysLeft)} left). ${inHouseOwnerAsk(f)} ${inHouseExpiryRule} ${f.link} Reply STOP to opt out.`;
-  if (f.step === "reminder_20") return `Your insulation install must happen by ${by} (${dayWord(f.daysLeft)} left). Please agree an install day with your installer on your job page: ${f.link} Reply STOP to opt out.`;
-  return `Only ${dayWord(f.daysLeft)} left: your install must happen by ${by} or your safety check runs out and a repeat check is charged to whoever caused the delay. Pick a day today: ${f.link} Reply STOP to opt out.`;
+  if (f.inHouse) return `Your insulation install must happen by ${by} (${dayWord(f.daysLeft)} left). ${inHouseOwnerAsk(f)} ${inHouseExpiryRule} Reply STOP to opt out. Details in your email.`;
+  if (f.step === "reminder_20") return `Your insulation install must happen by ${by} (${dayWord(f.daysLeft)} left). Please agree an install day with your installer on your job page. Reply STOP to opt out. Details in your email.`;
+  return `Only ${dayWord(f.daysLeft)} left: your install must happen by ${by} or your safety check runs out and a repeat check is charged to whoever caused the delay. Pick a day today. Reply STOP to opt out. Details in your email.`;
 }
 
 /** Installer text. No owner details beyond the job number. */
