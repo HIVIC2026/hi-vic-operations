@@ -128,8 +128,6 @@ export async function syncInHouseForms(jobId: string, change: "date"|"person"|"c
       if (!holder || ("selected" in holder && !holder.selected)) continue;
       const mittiUserId = await mitti.findMittiUserByEmail(holder.email,call ?? mitti.realMittiCall);
       if (!mittiUserId) throw new Error("Add this person in Mitti first.");
-      await mitti.reassignMittiFormTo({jobId,auditId:form.auditId,kind:form.kind,mittiUserId,email:holder.email,actorId},call ?? mitti.realMittiCall);
-      if (change === "crew" && form.kind === "install") await mitti.updateMittiInstallCrew(jobId,form.auditId,actorId,call ?? mitti.realMittiCall);
       if(change==='crew'&&form.kind==='install'&&previousWorkerId){
         const installer=await assignment(jobId,'installer');
         const old=await read<{email:string|null}|null>(db.from('partner_workers').select('email').eq('id',previousWorkerId).eq('business_id',installer?.business_id??'').maybeSingle());
@@ -141,6 +139,10 @@ export async function syncInHouseForms(jobId: string, change: "date"|"person"|"c
           if(oldUserId!==mittiUserId)await (await import('./mitti.core')).mittiApi(routed).removeInspectionUserAccess(form.auditId,oldUserId);
         }
       }
+      // Revoke the previous person's direct access BEFORE sharing. If revocation
+      // fails, no new access is granted; a saved-work retry resumes the handover.
+      await mitti.reassignMittiFormTo({jobId,auditId:form.auditId,kind:form.kind,mittiUserId,email:holder.email,actorId},call ?? mitti.realMittiCall);
+      if (change === "crew" && form.kind === "install") await mitti.updateMittiInstallCrew(jobId,form.auditId,actorId,call ?? mitti.realMittiCall);
     }
   }
 }
