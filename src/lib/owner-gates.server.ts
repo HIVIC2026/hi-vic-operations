@@ -339,7 +339,7 @@ export type SignInput = {
 
 /** Records one signed document: exact text, version, identity, IP; files a PDF copy; queues the owner's emailed copy. */
 export async function signGateDoc(i: SignInput) {
-  if (RETIRED_DOC_KEYS.has(i.key)) throw new WorkflowError('This document is no longer required.');
+  if (i.key === 'piesa_copy_receipt' || i.key === 'veec_assignment_consent') throw new WorkflowError('This document is no longer required.');
   const d = gateDoc(i.key);
   if (!i.ticked) throw new WorkflowError("Please tick the box to sign.");
   if (i.signatoryName.trim().length < 2) throw new WorkflowError("Please type your full name.");
