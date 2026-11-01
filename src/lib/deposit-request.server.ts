@@ -120,7 +120,7 @@ export async function notifyInstallerDepositPaid(jobId:string,now=new Date()):Pr
 }
 export async function sweepDepositRequests(now=new Date()){
   const ids:string[]=[];
-  for(let offset=0;;offset+=200){const pending=await admin.from('workflow_events').select('job_id').eq('event_type','install_deposit_request_pending').order('id').range(offset,offset+199);if(pending.error)throw Error(pending.error.message);for(const row of pending.data??[])if(!ids.includes(row.job_id))ids.push(row.job_id);if((pending.data?.length??0)<200)break;}
+  for(let offset=0;;offset+=200){const pending=await admin.from('workflow_events').select('job_id').eq('event_type','install_deposit_request_pending').order('id').range(offset,offset+199);if(pending.error)throw Error(pending.error.message);for(const row of pending.data??[])if(row.job_id&&!ids.includes(row.job_id))ids.push(row.job_id);if((pending.data?.length??0)<200)break;}
   for(let from=0;;from+=200){
     const r=await admin.from('jobs').select('id').eq('stage','installation_scheduling').is('deleted_at',null).order('id').range(from,from+199);
     if(r.error||!r.data)throw Error('Could not read deposit candidates.');ids.push(...r.data.map(j=>j.id));if(r.data.length<200)break;
