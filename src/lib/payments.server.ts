@@ -313,6 +313,7 @@ export async function afterPaymentsChanged(jobId: string, invoiceId: string, act
     && await once("install_deposit_received", "10% install deposit received – the install day can now be booked", v.invoiceId, { amount_cents: v.plan.installDepositCents })) {
     await admin.from("jobs").update({ next_action: "Deposit paid – installer to offer 3 install days" }).eq("id", jobId);
   }
+  if(isStepPaid(v.steps,'install_deposit'))await (await import('./deposit-request.server')).notifyInstallerDepositPaid(jobId).catch(e=>console.error('Install deposit paid notice held',e instanceof Error?e.message:'read failed'));
   // Decision 325: O22 "You're in!" + safety check receipt once that payment is in (one per accepted quote; best-effort).
   if (isStepPaid(v.steps, "safety_check")) {
     await (await import("./owner-email-triggers.server")).onSafetyCheckPaid(jobId, v.invoiceId).catch((e) => console.error("you're in email skipped", (e as Error).message));
