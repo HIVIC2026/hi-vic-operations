@@ -33,7 +33,7 @@ export const PAYMENT_STEP_LABEL: Record<PaymentStepKey, string> = {
   safety_check: "Pre Insulation Electrical Safety Assessment (PIESA) payment",
   fixes: "Electrical fixes",
   install_deposit: "Install deposit (10%)",
-  balance: "Balance (install day)",
+  balance: "Balance (due 7 days after install completion)",
   repeat_safety_check: "Repeat safety check (PIESA)",
 };
 export type PaymentMethod = "card" | "bank";
@@ -93,7 +93,7 @@ export const stepAmountCents = (p: PaymentPlan, k: PaymentStepKey) =>
 
 /** Decision 140/141 + 233, Jo 29 Oct 2026: card for the safety check (including the repeat check), the fixes and the 10% install deposit; the balance is bank transfer / PayID only. */
 export function paymentMethodsFor(step: PaymentStepKey): PaymentMethod[] {
-  return step === "safety_check" || step === "fixes" || step === "repeat_safety_check" || step === "install_deposit" ? ["card", "bank"] : ["bank"];
+  return ["card", "bank"];
 }
 export const cardAllowedFor = (step: PaymentStepKey) => paymentMethodsFor(step).includes("card");
 

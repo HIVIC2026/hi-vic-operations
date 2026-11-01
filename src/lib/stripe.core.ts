@@ -6,7 +6,7 @@
 import type { PaymentStepKey } from "./payments.core";
 
 export type StripeMode = "test" | "live";
-export const STRIPE_CARD_STEPS: PaymentStepKey[] = ["safety_check", "fixes", "repeat_safety_check", "install_deposit"];
+export const STRIPE_CARD_STEPS: PaymentStepKey[] = ["safety_check", "fixes", "repeat_safety_check", "install_deposit", "balance"];
 export const stripeCardAllowed = (step: PaymentStepKey) => STRIPE_CARD_STEPS.includes(step);
 export const stripeModeForJob = (jobSource: string | null | undefined): StripeMode => (jobSource === "qa_test" ? "test" : "live");
 export const stripeKeyMode = (secretKey: string | null | undefined): StripeMode | null =>
@@ -14,7 +14,7 @@ export const stripeKeyMode = (secretKey: string | null | undefined): StripeMode 
 
 /** Why Stripe may not be used right now (null = allowed). Fails closed on every missing piece. */
 export function stripeBlocker(f: { enabled: boolean; secretKey: string | null | undefined; jobSource: string | null | undefined; step: PaymentStepKey; amountCents: number }): string | null {
-  if (!stripeCardAllowed(f.step)) return "Card payment is only for the safety check, the electrical fixes and the install deposit – the balance is paid by bank transfer or PayID.";
+  if (!stripeCardAllowed(f.step)) return "This payment step cannot be paid by card.";
   if (f.amountCents <= 0) return "Nothing is owing on this step.";
   const keyMode = stripeKeyMode(f.secretKey);
   if (!keyMode) return "Card payments are not set up yet (no Stripe key).";
