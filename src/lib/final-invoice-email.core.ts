@@ -4,6 +4,7 @@
 // card stays only for the safety check and fixes (decisions 140/144). Pure: the due rule and the invoice facts the
 // approved renderer prints. No I/O; owner-email-triggers.server.ts reads the facts and sends.
 import { toCents } from "./payments.core";
+import {balanceDueAt} from './balance-q21.core';
 
 /** No final invoice email for installs recorded complete more than this many days ago (no backlog when wired). */
 export const FINAL_INVOICE_WITHIN_DAYS = 14;
@@ -57,7 +58,7 @@ export function finalInvoiceFacts(i: FinalInvoiceFactsInput) {
   // Xero total paid ahead of the ledger (e.g. a payment not yet in the ledger): one catch-up line so the sums agree.
   if (paidCents > ledgerCents) payments.push({ label: "other payments", amount: (paidCents - ledgerCents) / 100 });
   return {
-    invoiceNumber: i.invoiceNumber.trim(), invoiceDate: longDate(i.completedAt),
+    invoiceNumber: i.invoiceNumber.trim(), invoiceDate: longDate(i.completedAt),dueDate:longDate(balanceDueAt(i.completedAt)??i.completedAt),
     lines: i.items.map((l) => ({ description: String(l.description ?? "").trim(), amount: Number(l.line_total_inc_gst) })),
     totalIncGst: (afterVeecCents + Math.round(rebate * 100)) / 100, gst: null as number | null, rebate,
     payments, balanceDue: Math.max(0, afterVeecCents - paidCents) / 100,

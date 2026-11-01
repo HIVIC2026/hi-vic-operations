@@ -21,7 +21,7 @@ import {
 // without this module's senders); re-exported here unchanged.
 import { PAYMENT_EVENT, PAYMENT_MATCH_SEPARATE_EVENT, PAYMENT_REVERSED_EVENT, rawPaymentLedger } from "./payment-ledger.server";
 import { early } from "./early-read";
-import { endOfMelbourneYmd } from "./melbourne-time.core";
+import { balanceDueAt } from "./balance-q21.core";
 export { PAYMENT_EVENT, PAYMENT_MATCH_SEPARATE_EVENT, PAYMENT_REVERSED_EVENT, rawPaymentLedger };
 /** Owner notice when an unpaid provisional booking is released: approved by Jo 24 Oct 2026 (decision 170; wording in deposit-release-notice.core.ts). */
 export { PROVISIONAL_RELEASE_OWNER_NOTICE_APPROVED } from "./deposit-release-notice.core";
@@ -192,7 +192,7 @@ export async function jobPaymentView(jobId: string, now = new Date()) {
     currentFixesQuote(jobId).then(q => ({ data: q?.status === "accepted" ? q : null })),
     admin.from("bookings").select("id, created_at, scheduled_start").eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("bookings").select("id, scheduled_start").eq("job_id", jobId).eq("kind", "installation").eq("status", "completed").order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
-    admin.from("jobs").select("job_number, stage, source").eq("id", jobId).maybeSingle(),
+    admin.from("jobs").select("job_number, stage, source, installation_completed_at").eq("id", jobId).maybeSingle(),
     admin.from("piesa_records").select("outcome, section_c_signed_at").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
   ]);
   if (invoiceError) throw new Error("The invoice could not be checked.");
@@ -236,7 +236,7 @@ export async function jobPaymentView(jobId: string, now = new Date()) {
     // Jo 26 Oct 2026: the deposit is due BEFORE the install is booked (once the install is next); no booking hold. Jo 29 Oct:
     // never while fixes are still to be done (installDepositDueNow).
     install_deposit: { requestedAt: bookedAt ?? (installDepositDueNow(job?.stage, piesaNow) ? now.toISOString() : null), dueAt: bookedAt ? holdExpiresAt : null },
-    balance: { requestedAt: installDone?.scheduled_start ?? (job?.stage === "complete" ? now.toISOString() : null), dueAt: inv.balance_due_date ? endOfMelbourneYmd(inv.balance_due_date) : null },
+    balance: { requestedAt: job?.installation_completed_at ?? null, dueAt: balanceDueAt(job?.installation_completed_at) },
     repeat_safety_check: { requestedAt: repeatCents > 0 ? now.toISOString() : null, recordedPaid: repeatState?.stage === "offer" },
   };
   const steps = paymentSteps(plan, paid, facts, now.toISOString());
