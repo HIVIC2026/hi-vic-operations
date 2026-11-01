@@ -150,6 +150,6 @@ test('SIM captured owner booking SMS has exact current notice text and no link; 
   ['owner','email','in_house_booked','owner@example.invalid'],
   ['owner','sms','in_house_booked_owner','0400000001'],
  ]);
- expect(h.messages[1].body).toBe("You're booked for your Ready Check: Wednesday, 4 November at 9:00 am. Practice Lead Installer, phone 0400000002 is coming. Details in your email.");
+ expect(h.messages[1].body).toBe("You're booked for your Ready Check: Wednesday 4 November at 9:00 am. Practice Lead Installer, phone 0400000002 is coming. Details in your email.");
  expect(h.messages[1].body).not.toMatch(/https?:|www\./);h.assertOfficesEmailOnly();
 });
