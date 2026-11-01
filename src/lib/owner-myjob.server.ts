@@ -116,7 +116,7 @@ export async function resolveOwnerJob(token: unknown) {
       const confirmation = await (await import('./piesa-owner-confirm.server')).ownerPiesaConfirmFacts(jobId);
       if (confirmation && !confirmation.confirmation) currentAction = 'piesa';
       else {
-        const fixes = await (await import('./owner-fixes.server')).ownerFixesState(jobId);
+        const fixes = ['piesa_complete','electrical_variation_pending','rectification_scheduling','rectification_booked','installation_scheduling'].includes(stage) ? await (await import('./owner-fixes.server')).ownerFixesState(jobId) : {step:'none'};
         if (['approve','pay','pick'].includes(fixes.step) && !(inHouseDispatch && fixes.step === 'pick')) currentAction = 'fixes';
         else if ((payment?.dueNow ?? 0) > 0 || payment?.provisional) currentAction = 'pay';
         else if (veec?.status === 'awaiting_consumer_signature' && !veec.consumer_signed_at) currentAction = 'veec';
