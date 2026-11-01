@@ -1,7 +1,8 @@
 import { expect, mock, test } from "bun:test";
 import { readFileSync } from "node:fs";
 const calls: any[] = [];
-mock.module("../src/integrations/supabase/client.server", () => ({ supabaseAdmin: {} }));
+const query = { select: () => query, eq: () => query, limit: async () => ({ data: [] }) };
+mock.module("../src/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: () => query } }));
 mock.module("../src/lib/workflow.server", () => ({ logEvent: async () => {} }));
 mock.module("../src/lib/owner-template-send.server", () => ({ sendOwnerTemplateEmail: async (p: any) => { calls.push(p); return "not sent — test only"; } }));
 const { emailOwnerYoureIn } = await import("../src/lib/approved-owner-emails.server");

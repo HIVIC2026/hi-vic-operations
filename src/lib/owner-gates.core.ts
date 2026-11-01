@@ -405,6 +405,7 @@ export function evaluateOwnerGates(f: GateFacts): GateResult[] {
       draft: false,
     },
     { key: "piesa_copy", label: "PIESA copy delivered", done: f.piesaCopyDelivered, draft: false },
+    docItem(f, "piesa_copy_receipt"),
   ];
   // A48 batch 1 final fix (Jo 29 Oct): done by the owner's upload or the office record — the tick no longer counts.
   if (f.lifeSupport)
@@ -454,7 +455,8 @@ export function gateItemBlocker(gate: Gate, i: GateItem, isTest: boolean): strin
 
 /** Decision 395: the owner's Gate C "Your safety check copy" receipt ("I have received it") — the same item and wording
  *  Installation complete checks (Gate C), now also part of the day-before pre-start check. */
-export const piesaCopyReceiptBlocker = (_f: GateFacts): string | null => null;
+export const piesaCopyReceiptBlocker = (f: GateFacts): string | null =>
+  gateItemBlocker("C", docItem(f, "piesa_copy_receipt"), !!f.isTest);
 
 /** Which gates must be complete before entering a stage. */
 const ACCEPTED = [
