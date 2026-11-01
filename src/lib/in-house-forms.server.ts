@@ -6,7 +6,7 @@ import { stableUuid, isUniqueViolation } from "./mitti-create-claim.core";
 
 const db = supabaseAdmin as unknown as SupabaseClient;
 type Kind = "ready_check" | "piesa" | "rectification" | "install";
-type Form = { kind: Kind; auditId: string; done: boolean };
+type Form = { kind: Kind; auditId: string; done: boolean; closed?: boolean };
 type Assignment = { user_id: string; business_id: string | null; profiles: { email: string | null; full_name?: string | null } | null };
 async function read<T>(q: PromiseLike<{ data: unknown; error: { message: string } | null }>): Promise<T> {
   const r = await q; if (r.error) throw new Error(r.error.message); return r.data as T;
@@ -37,7 +37,7 @@ async function formFacts(jobId: string): Promise<Form[]> {
       if (typeof id === "string" && !forms.some(f=>f.auditId===id)) forms.push({kind,auditId:id,done:history.some(e=>e.event_type===completed && e.details?.['audit_id']===id)});
     }
   }
-  return forms.filter(f=>!history.some(e=>["in_house_form_closed_unused","rectification_form_closed_unused"].includes(e.event_type) && e.details?.['audit_id']===f.auditId));
+  return forms.map(f=>({...f,closed:history.some(e=>["in_house_form_closed_unused","rectification_form_closed_unused"].includes(e.event_type) && e.details?.['audit_id']===f.auditId)}));
 }
 async function assignment(jobId: string, role: string) {
   return read<Assignment | null>(db.from("job_assignments").select("user_id,business_id,profiles:user_id(email,full_name)").eq("job_id",jobId).eq("role",role).eq("active",true).maybeSingle());
@@ -65,9 +65,11 @@ async function leadAssignee(jobId: string) {
   const workerId = selection ? leadWorkerId(selection as import("./piisa-a3.core").CrewSelection) : allocation?.worker_id;
   if (!workerId) throw new Error("Choose the install Lead before creating the install form.");
   const worker = await read<{email:string|null;full_legal_name?:string;worker_role:string|null;trade_role:string} | null>(db.from("partner_workers").select("email,full_legal_name,worker_role,trade_role").eq("id",workerId).eq("business_id",installer.business_id).is("removed_at",null).maybeSingle());
-  if (!worker || worker.worker_role !== "lead" || worker.trade_role !== "installer") throw new Error("Choose a Lead from your Team.");
+  const {effectiveWorkerRole,mittiEmailFor} = await import("./worker-role.core");
+  if (!worker || effectiveWorkerRole({tradeRole:worker.trade_role,stored:worker.worker_role}) !== "lead") throw new Error("Choose a Lead from your Team.");
   const job = await read<{source:string} | null>(db.from("jobs").select("source").eq("id",jobId).maybeSingle());
-  const email = job?.source === "qa_test" ? (await import("./onsite-ready-check.core")).TEST_MITTI_ASSIGNEE : worker.email?.trim();
+  const business = await read<{email:string|null}|null>(db.from("businesses").select("email").eq("id",installer.business_id).maybeSingle());
+  const email = job?.source === "qa_test" ? (await import("./onsite-ready-check.core")).TEST_MITTI_ASSIGNEE : mittiEmailFor({role:"lead",ownEmail:worker.email,businessEmail:business?.email}).email;
   if (!email) throw new Error("The Lead needs a Mitti email");
   return {userId:installer.user_id,fullName:worker.full_legal_name ?? null,email};
 }
@@ -106,7 +108,7 @@ export async function ensureInstallForm(jobId: string, actorId: string | null, c
 }
 export async function syncInHouseForms(jobId: string, change: "date"|"person"|"crew", actorId: string | null = null, call?: MittiCall) {
   if (!await isInHouseFormJob(jobId)) return;
-  const forms = (await formFacts(jobId)).filter(f=>!f.done);
+  const forms = (await formFacts(jobId)).filter(f=>!f.done && !f.closed);
   const bookings = await read<{kind:string;scheduled_start:string}[]>(db.from("bookings").select("kind,scheduled_start").eq("job_id",jobId).eq("status","confirmed").order("created_at",{ascending:false}));
   const mitti = await import("./mitti.server");
   for (const form of forms) {
@@ -127,7 +129,7 @@ export async function syncInHouseForms(jobId: string, change: "date"|"person"|"c
 /** Portal-only closure: deterministic history IDs keep repeated calls and concurrent retries harmless. */
 export async function closeUnneededForms(jobId: string, reason: string, actorId: string | null = null): Promise<number> {
   if (!await isInHouseFormJob(jobId)) return 0;
-  const candidates = (await formFacts(jobId)).filter(f=>!f.done && (reason !== "no_upgrades" || f.kind === "rectification"));
+  const candidates = (await formFacts(jobId)).filter(f=>!f.done && !f.closed && (reason !== "no_upgrades" || f.kind === "rectification"));
   let count = 0;
   for (const form of candidates) {
     const event_type = form.kind === "rectification" ? "rectification_form_closed_unused" : "in_house_form_closed_unused";

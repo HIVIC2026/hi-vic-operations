@@ -95,6 +95,7 @@ const overrides: Record<string, any> = {
   "./owner-email-triggers.server": { onSafetyCheckBooked: async () => {} }, "./piesa-autoform.server": { onPiesaBooked: async () => {} },
   "./consent.server": { syncOwnerConsent: async () => {}, currentConsent: async () => null },
   "./mitti-create.server": { onReadyCheckBooked: async () => { formCalls++; if (failForm) throw new Error("mock Mitti unavailable"); if (!formAudits) formAudits++; } },
+  "./in-house-forms.server": { isInHouseFormJob: async () => true, ensureInstallForm: async () => "mock-A5", syncInHouseForms: async () => {} },
   "./installer-ready-check.core": { READY_CHECK_BOOKED: "Ready Check booked" },
   "./consent.core": { consentValidityBlockers: () => [] },
 };

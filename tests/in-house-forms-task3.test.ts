@@ -26,7 +26,7 @@ function fixture() {
     "./mitti-create-claim.core": claims,
     "./visit-allocation.core": { currentAllocation: (events: any[], kind: string) => events.find(e => e.details?.visit === kind)?.details ?? null },
     "./piisa-a3.core": { leadWorkerId: (s: any) => s?.lead ?? null },
-    "./worker-role.core": { mittiEmailFor: (p: any) => ({ email: p.ownEmail || p.businessEmail }) },
+    "./worker-role.core": { effectiveWorkerRole: (p:any) => p.tradeRole === "installer" && p.stored !== "crew" ? "lead" : null, mittiEmailFor: (p: any) => ({ email: p.ownEmail || p.businessEmail }) },
     "./onsite-ready-check.core": { TEST_MITTI_ASSIGNEE: "test@example.invalid" },
     "./mitti-create.server": { readyCheckFormFacts: async () => ({ booked: true, mittiInvited: true, autoSend: true, templateSet: true, installerUserId: "installer" }) },
     "./mitti-immediate.core": { bookedSkipReason: () => null },
