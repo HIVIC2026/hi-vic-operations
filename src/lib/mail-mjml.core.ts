@@ -38,6 +38,12 @@ export function mjEmail(i: MailInput): string {
   return renderMjml(src).replace(UNSUB_TOKEN, UNSUBSCRIBE_LINK_SLOT);
 }
 
+/** Suite generic layout for messages without a named design. Copy and link destinations belong to the caller. */
+export function genericMail(i: { subject: string; heading?: string; lines?: string[]; bodyHtml?: string; afterButtonHtml?: string; footerHtml?: string; button?: { label: string; url: string }; preview?: string | null; unsubscribe?: string | "slot" | null; testLabel?: boolean }): string {
+  const body = `<mj-section><mj-column>${i.heading !== undefined ? `<mj-text mj-class="h1" css-class="email-heading">${esc(i.heading)}</mj-text>` : ""}${i.bodyHtml !== undefined ? `<mj-text>${i.bodyHtml}</mj-text>` : (i.lines ?? []).map(line => `<mj-text>${esc(line)}</mj-text>`).join("")}${i.button ? `<mj-button href="${esc(i.button.url)}">${esc(i.button.label)}</mj-button>` : ""}${i.afterButtonHtml ? `<mj-text>${i.afterButtonHtml}</mj-text>` : ""}${i.footerHtml ? `<mj-text mj-class="small">${i.footerHtml}</mj-text>` : ""}</mj-column></mj-section>`;
+  return mjEmail({ subject: i.subject, preview: i.preview, body, unsubscribe: i.unsubscribe, testLabel: i.testLabel });
+}
+
 /* Small helpers for the repeated rows (all return MJML-ready HTML for inside <mj-table>). */
 export const tickRow = (title: string, detail?: string | null, last = false) =>
   `<tr><td width="32" valign="top" style="padding:2px 0 ${last ? 12 : 14}px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 ${last ? 12 : 14}px;"><strong>${title}</strong>${detail ? `<br /><span class="muted">${detail}</span>` : ""}</td></tr>`;
