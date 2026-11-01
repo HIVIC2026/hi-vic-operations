@@ -85,6 +85,7 @@ export async function sweepOwnerBookedNotices(now=new Date()){
 export async function latestLeadNotice(jobId:string){
   const change=await read<{id:string;created_at:string;summary:string;details:{start:string;worker_id:string;name:string}}|null>(db.from('workflow_events').select('id,created_at,summary,details').eq('job_id',jobId).eq('event_type','in_house_lead_changed').order('created_at',{ascending:false}).limit(1).maybeSingle());
   if(!change)return null;
+  if((change.details as {requires_esc_update?:boolean}).requires_esc_update===false)return null;
   const ack=await read<{id:string}|null>(db.from('workflow_events').select('id').eq('job_id',jobId).eq('event_type','in_house_esc_notice_updated').contains('details',{change_id:change.id}).limit(1).maybeSingle());
   return{...change,acknowledged:!!ack};
 }
@@ -101,8 +102,11 @@ export async function recordLeadChange(jobId:string,actorId:string,oldWorkerId:s
   const j=await read<{job_number:string}|null>(db.from('jobs').select('job_number').eq('id',jobId).maybeSingle());
   const id=await stableUuid(`lead-change:${jobId}:${book.id}:${oldWorkerId}:${newWorkerId}:${now.toISOString()}`);
   const line=`Update ESC: Lead Installer for ${j?.job_number??jobId} is now ${w.name}.`;
+  if(!sent){
+    const r=await db.from('workflow_events').insert({id,job_id:jobId,actor_id:actorId,event_type:'in_house_lead_changed',summary:`Lead Installer changed to ${w.name}`,details:{start:book.scheduled_start,worker_id:newWorkerId,name:w.name,old_worker_id:oldWorkerId,booking_id:book.id,requires_esc_update:false},internal:true});if(r.error&&r.error.code!=='23505')throw Error(r.error.message);
+  }
   if(sent){
-    const {error}=await db.from('workflow_events').insert({id,job_id:jobId,actor_id:actorId,event_type:'in_house_lead_changed',summary:line,details:{start:book.scheduled_start,worker_id:newWorkerId,name:w.name,old_worker_id:oldWorkerId,booking_id:book.id,notification_id:sent.id,update_same_id:true},internal:true});if(error&&error.code!=='23505')throw Error(error.message);
+    const {error}=await db.from('workflow_events').insert({id,job_id:jobId,actor_id:actorId,event_type:'in_house_lead_changed',summary:line,details:{start:book.scheduled_start,worker_id:newWorkerId,name:w.name,old_worker_id:oldWorkerId,booking_id:book.id,notification_id:sent.id,update_same_id:true,requires_esc_update:true},internal:true});if(error&&error.code!=='23505')throw Error(error.message);
     await (await import('./esc.server')).regenerateEscNotification(jobId,actorId);
     await (await import('./in-house-booking-notices.server')).notifyOfficeLeadChanged(jobId,id,line,actorId);
   }
