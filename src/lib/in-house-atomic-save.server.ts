@@ -27,6 +27,7 @@ export async function saveInHouseVisit(jobId:string,actorId:string,input:{kind:B
   _stage:job.stage,_version:job.updated_at,_booking:book?.id??null,_crew:crew?.id??null,
   _selection:input.selection??null,_crew_facts:{...crewFacts,revision},_work:id,
  }));
- if(result.workId)void (await import('./in-house-saved-work.server')).startInHouseSavedWork(result.workId);
+ const workId=result.workId;
+ if(workId)void import('./in-house-saved-work.server').then(m=>m.startInHouseSavedWork(workId)).catch(()=>undefined);
  return {...result,needsVerification:crewFacts.needsVerification};
 }
