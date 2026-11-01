@@ -1,6 +1,7 @@
 // Secure no-login homeowner video capture: pure rules (types, sizes, storage paths, page state). No I/O.
 // A video is OPTIONAL evidence for office priority review only: it never confirms eligibility,
 // never replaces the free Ready Check and never moves a job.
+import { linkUsable } from "./estimatelink.core";
 
 export const CAPTURE_SOURCE_SYSTEM = "owner_capture";
 export const CAPTURE_KIND = "intake_media"; // same canonical homeowner media folder as website uploads
@@ -57,7 +58,8 @@ export function parseCapturePath(jobId: string, path: unknown): string | null {
 
 export type CaptureLinkState = "ok" | "invalid" | "closed";
 export function captureLinkState(l: { status: string; expires_at: string } | null, job: { stage: string; outcome: string | null; decisionSource: string | null; reviewRequired: boolean } | null, now = Date.now()): CaptureLinkState {
-  if (!l || l.status !== "active" || Date.parse(l.expires_at) <= now || !job) return "invalid";
+  // Jo 1 Nov 2026: shared link rule — active means usable, no time limit.
+  if (!linkUsable(l, now) || !job) return "invalid";
   if (CAPTURE_CLOSED_STAGES.has(job.stage)) return "closed";
   const official = job.decisionSource === "system" || job.decisionSource === "admin";
   if (!official || job.reviewRequired || (job.outcome !== "likely_eligible" && job.outcome !== "needs_onsite_confirmation")) return "invalid";

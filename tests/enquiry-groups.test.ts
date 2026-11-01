@@ -92,7 +92,9 @@ describe("homeowner video capture", () => {
   const live = { status: "active", expires_at: new Date(Date.now() + 864e5).toISOString() };
   test("link states: valid, expired, revoked, missing, closed job, review", () => {
     expect(captureLinkState(live, job)).toBe("ok");
-    expect(captureLinkState({ ...live, expires_at: "2020-01-01" }, job)).toBe("invalid");
+    // Jo 1 Nov 2026: no time limit — an old date on an active link still works (Chris Machar HV-1083 case).
+    expect(captureLinkState({ ...live, expires_at: "2020-01-01" }, job)).toBe("ok");
+    expect(captureLinkState({ status: "active", expires_at: "2026-10-30T23:10:13Z" }, { stage: "preliminary_estimate_ready", outcome: "needs_onsite_confirmation", decisionSource: "system", reviewRequired: false }, Date.parse("2026-11-01"))).toBe("ok");
     expect(captureLinkState({ ...live, status: "revoked" }, job)).toBe("invalid");
     expect(captureLinkState(null, job)).toBe("invalid");
     expect(captureLinkState(live, { ...job, stage: "cancelled" })).toBe("closed");

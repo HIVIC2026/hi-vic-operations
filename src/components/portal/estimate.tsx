@@ -6,7 +6,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { BadgeCheck, Check, ChevronDown, ClipboardCheck, Flame, Leaf, ShieldCheck, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getAdminEstimate, getAdminEstimateLink, getAdminEstimateLinkUrl, getOwnerEstimate, getAdminJobEmailPreview } from "@/lib/estimate.functions";
-import { LINK_ADMIN_WARNING, LINK_COMMS_OFF } from "@/lib/estimatelink.core";
+import { LINK_ADMIN_WARNING, LINK_COMMS_OFF, linkUsable } from "@/lib/estimatelink.core";
 import { BENCHMARK_LABEL, FEE_DESCRIPTION, FEE_LABEL, dollars, type RetailSettings, type Scenario } from "@/lib/estimate.core";
 import type { LocationVariables } from "@/lib/activity48.core";
 import { CUSTOMER_APPROVAL_REASSURANCE, CUSTOMER_READY_CHECK_PAGE, CUSTOMER_QUOTE_LABELS, CUSTOMER_READY_CHECK, CUSTOMER_READY_CHECK_EMAIL_ACTION, CUSTOMER_WHAT_COULD_CHANGE, customerQuoteRows, discountAmount } from "@/lib/customer-quote-system";
@@ -315,12 +315,12 @@ function EstimateLinkPanel({ jobId }: { jobId: string }) {
   const [url, setUrl] = useState<string | null>(null);
   if (!data) return null;
   const l = data.link;
-  const active = l?.status === "active" && Date.parse(l.expires_at) > Date.now();
+  const active = linkUsable(l ?? null);
   const reveal = async () => { const r = await urlFn({ data: { jobId } }); setUrl(r.path ? `${window.location.origin}${r.path}` : null); };
   return (
     <div className="mb-3 rounded-lg border p-3 text-sm" data-testid="estimate-link-panel">
       <div className="mb-1 flex flex-wrap items-center gap-2"><b>Secure customer estimate link</b>{active ? <Pill t="good">Active</Pill> : <Pill t="warn">{l ? l.status : "Not prepared"}</Pill>}</div>
-      {l && <div className="text-muted-foreground">Created {new Date(l.created_at).toLocaleString("en-AU")} · expires {new Date(l.expires_at).toLocaleDateString("en-AU")} · views {l.view_count}{l.last_viewed_at ? ` (last ${new Date(l.last_viewed_at).toLocaleString("en-AU")})` : ""}{l.revocation_reason ? ` · ${l.revocation_reason}` : ""}</div>}
+      {l && <div className="text-muted-foreground">Created {new Date(l.created_at).toLocaleString("en-AU")} · views {l.view_count}{l.last_viewed_at ? ` (last ${new Date(l.last_viewed_at).toLocaleString("en-AU")})` : ""}{l.revocation_reason ? ` · ${l.revocation_reason}` : ""}</div>}
       <div className="mt-1 font-medium">{data.delivery.commsEnabled ? (data.delivery.ready ? "Delivery allowed (not sent automatically)" : "Owner contact consent missing — delivery not allowed") : LINK_COMMS_OFF}</div>
       {active && <p className="mt-1 text-xs text-warning-foreground">{LINK_ADMIN_WARNING}</p>}
       {active && (url
