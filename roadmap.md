@@ -1,3 +1,9 @@
+## Jo 1 Nov outstanding A–E — practice only
+- [ ] A/C Recorded booking and crew follow-through, claimed retries, A5/SWMS handover and failure-task resolution.
+- [ ] B Pending atomic booking/crew check-and-set RPC, double-click and two-business practice proof.
+- [ ] D Durable blocked electrician email retry; uncertain delivery reconciled without duplicate sending.
+- [ ] E Full comparable run after repairs, exact failures and changed-file report.
+
 ## Jo 1 Nov independent review — test-first, practice only
 - [ ] 1–3 Initial intents/retry tests pass; booked per-channel completion and full blocked/uncertain-send recovery still need hardening.
 - [ ] 4 Quiet handback cleanup, access removal and qa_test pending SQL proof.
