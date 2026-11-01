@@ -68,7 +68,7 @@ export async function installDepositPaidForJobs(jobIds: string[]): Promise<Map<s
     const raw = withSeparateMarks(own.filter(e => e.event_type !== PAYMENT_MATCH_SEPARATE_EVENT).map(e => ({ id: e.id, createdAt: e.created_at, ...ledgerRecordFromEvent(e.event_type, e.created_at, e.actor_id, e.details) })), marks);
     const received = cumulativePaidCents(effectiveLedger(raw));
     const paid = raw.some(r => r.source === 'xero') ? received : Math.max(received, toCents(invoice.total_paid));
-    const safety = safetyCheckCentsFor({ lines: linesByQuote.get(invoice.quote_id ?? '') ?? [], settingIncGst: setting.data?.safety_check_payment_inc_gst });
+    const safety = safetyCheckCentsFor({ lines: linesByQuote.get(invoice.quote_id ?? '') ?? [], settingIncGst: setting.data?.safety_check_payment_inc_gst ?? null });
     const plan = paymentPlan({ quoteTotalCents: toCents(invoice.total_inc_gst), safetyCheckCents: safety.cents });
     result.set(jobId, isStepPaid(paymentSteps(plan, { install: paid, fixes: 0, repeat: 0 }, {}, new Date().toISOString()), 'install_deposit'));
   }
