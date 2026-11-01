@@ -2,7 +2,9 @@
 import type { DisplayMode } from "./estimate.core";
 
 export const LINK_PURPOSE = "step3_estimate" as const;
-export const LINK_TTL_DAYS = 30;
+// Jo 1 Nov 2026: owner links have no time limit. They stop only when revoked (job cancelled, Gate 1 change).
+// expires_at stays a required column, so new links get a far-future date and old dates are ignored.
+export const NO_EXPIRY = "9999-12-31T00:00:00.000Z";
 export const TOKEN_BYTES = 32; // 256 bits
 export const LINK_ADMIN_WARNING = "Anyone with this secure link can view this estimate. Do not post it publicly.";
 export const LINK_COMMS_OFF = "Customer communications OFF — link has not been sent";
@@ -31,21 +33,21 @@ export function linkAllowed(mode: DisplayMode | string): boolean {
 export type LinkRow = { id: string; status: string; expires_at: string };
 export type LinkPlan = { action: "reuse" | "issue" | "revoke" | "none"; expire?: string[] };
 
-/** Idempotent: reuse the one active unexpired link; expire stale ones; issue only when allowed and none usable; revoke when not allowed. */
-export function planLink(active: LinkRow | null, allowed: boolean, now = Date.now()): LinkPlan {
-  const expired = active && Date.parse(active.expires_at) <= now;
+/** Idempotent: reuse the one active link (whatever its date); issue only when allowed and none exists; revoke when not allowed. */
+export function planLink(active: LinkRow | null, allowed: boolean, _now = Date.now()): LinkPlan {
   if (!allowed) return active ? { action: "revoke" } : { action: "none" };
-  if (active && !expired) return { action: "reuse" };
-  return { action: "issue", expire: expired && active ? [active.id] : [] };
+  if (active) return { action: "reuse" };
+  return { action: "issue", expire: [] };
 }
 
-export function expiryFrom(now = Date.now()): string {
-  return new Date(now + LINK_TTL_DAYS * 86_400_000).toISOString();
+/** Stop date stored on new links. No time limit (Jo 1 Nov 2026). */
+export function expiryFrom(_now = Date.now()): string {
+  return NO_EXPIRY;
 }
 
-/** Link usable by the public resolver right now. */
-export function linkUsable(l: { status: string; expires_at: string } | null, now = Date.now()): boolean {
-  return !!l && l.status === "active" && Date.parse(l.expires_at) > now;
+/** Link usable by the public resolver right now: active means usable. expires_at is not checked (Jo 1 Nov 2026). */
+export function linkUsable(l: { status: string; expires_at: string } | null, _now = Date.now()): boolean {
+  return !!l && l.status === "active";
 }
 
 export type DeliveryState = "no_link" | "prepared_delivery_locked" | "prepared_no_consent" | "ready";

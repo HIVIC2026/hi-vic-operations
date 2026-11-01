@@ -146,12 +146,12 @@ describe("owner picks their full address", () => {
     expect(answered()).toHaveLength(1);
   });
 
-  test("bad, unknown, expired or deleted-job token → link unavailable", async () => {
+  test("bad, unknown, revoked or deleted-job token → link unavailable (an old date alone is fine, Jo 1 Nov 2026)", async () => {
     expect(await save("vic", "bad")).toEqual({ ok: false, error: LINK_UNAVAILABLE });
     expect(await save("vic", "b".repeat(43))).toEqual({ ok: false, error: LINK_UNAVAILABLE });
     await expect(search("12 Wattle", "b".repeat(43))).rejects.toThrow(LINK_UNAVAILABLE);
     expect(await getOwnerAddressState({ data: { token: "b".repeat(43) } })).toEqual({ state: "unavailable" });
-    tables["customer_estimate_links"]![0]!["expires_at"] = "2020-01-01T00:00:00Z";
+    tables["customer_estimate_links"]![0]!["status"] = "revoked";
     expect(await save("vic")).toEqual({ ok: false, error: LINK_UNAVAILABLE });
     seed();
     tables["jobs"]![0]!["deleted_at"] = "2026-10-27T05:00:00Z";

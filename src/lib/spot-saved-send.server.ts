@@ -3,6 +3,7 @@
 // One email + one text per OWNER (address/number keys), switch-gated, every contact guard re-checked.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
+import { linkUsable } from "./estimatelink.core";
 import { planSpotSaved, spotSavedDeliveryChanged, SPOT_SAVED_EMAIL_PURPOSE, SPOT_SAVED_EMAIL_SWITCH, SPOT_SAVED_SMS_SWITCH, type ChannelPlan } from "./spot-saved-send.core";
 import { SUPPRESSING_EVENTS } from "./emailsafety.core";
 import { smsQuietReason } from './quote-hold.core';
@@ -39,8 +40,8 @@ export async function buildSpotSavedMessages(jobId: string, token: string) {
 }
 
 async function activeEstimateToken(jobId: string): Promise<string | null> {
-  const { data } = await admin.from("customer_estimate_links").select("token, expires_at").eq("job_id", jobId).eq("purpose", "step3_estimate").eq("status", "active").order("created_at", { ascending: false }).limit(1).maybeSingle();
-  return data && (!data.expires_at || new Date(data.expires_at).getTime() > Date.now()) ? (data.token as string) : null;
+  const { data } = await admin.from("customer_estimate_links").select("token, status, expires_at").eq("job_id", jobId).eq("purpose", "step3_estimate").eq("status", "active").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  return data && linkUsable(data) ? (data.token as string) : null; // Jo 1 Nov 2026: no time limit
 }
 
 export type SpotSavedSendResult = { jobId: string; email: { status: string; detail: string }; sms: { status: string; detail: string } };

@@ -122,7 +122,7 @@ async function queuePreliminarySpotSavedConfirmation(jobId: string) {
   // /my-job only accepts the estimate link purpose, so link it only when the owner already has one;
   // the preliminary token itself would 404 there. Never invent a working link.
   const { data: estLink } = await admin.from("customer_estimate_links").select("token, status, expires_at").eq("job_id", jobId).eq("purpose", "step3_estimate").eq("status", "active").maybeSingle();
-  const usable = estLink && (!estLink.expires_at || new Date(estLink.expires_at).getTime() > Date.now()) ? (estLink.token as string) : null;
+  const usable = estLink && linkUsable(estLink) ? (estLink.token as string) : null; // Jo 1 Nov 2026: no time limit
   const { buildSpotSavedMessages } = await import("./spot-saved-send.server");
   const msgs = usable ? await buildSpotSavedMessages(jobId, usable) : null;
   if (!msgs) throw new Error("The saved estimate confirmation could not be prepared.");

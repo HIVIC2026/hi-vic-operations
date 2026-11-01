@@ -71,9 +71,10 @@ async function loadPlan(jobIds?: string[], automatic = false) {
     if (!c || reviewError || estimateError || !campaignPermission(c,review?.desk_check_status) || !joAreaBasis({ areaSource: estimate?.area_source, areaM2: estimate?.area_m2, ownerAreaM2: c.job.estimated_area_m2 }).ok) {
       plan.skipped.push({ jobId: r.jobId, jobNumber: r.jobNumber, reason: "Current Save My Spot eligibility/estimate requires office review" }); continue;
     }
-    const { data: l } = await db.from("customer_estimate_links").select("expires_at").eq("token",token).maybeSingle();
-    const expiry = Math.min(Date.now()+30*86400000,Date.parse(l?.expires_at ?? ""));
-    if (!Number.isFinite(expiry) || expiry <= Date.now()) { plan.skipped.push({ jobId:r.jobId,jobNumber:r.jobNumber,reason:"Secure link expired" }); continue; }
+    // Jo 1 Nov 2026: links have no time limit — shared rule; the one-tap credential itself lasts 30 days.
+    const { data: l } = await db.from("customer_estimate_links").select("status, expires_at").eq("token",token).maybeSingle();
+    if (!linkUsable(l ?? null)) { plan.skipped.push({ jobId:r.jobId,jobNumber:r.jobNumber,reason:"Secure link no longer active" }); continue; }
+    const expiry = Date.now()+30*86400000;
     const credential = await createOneTapCredential(token,expiry,process.env["SAVE_SPOT_LINK_SECRET"] ?? "");
     const link = `https://estimate.homeinsulationvictoria.com.au/save-spot#c=${credential}`;
     const { blastMessage } = await import("./save-spot-reminder-blast.core");

@@ -63,8 +63,9 @@ test("repeated or uncertain prior follow-up attempts never send again",async()=>
   }
 });
 
-test("inactive or expired secure links remain blocked with no preview or writes",async()=>{
-  for(const invalid of [{status:"revoked",expires_at:new Date(Date.now()+86_400_000).toISOString()},{status:"active",expires_at:new Date(Date.now()-86_400_000).toISOString()}]){
+// Jo 1 Nov 2026: links have no time limit, so only a non-active link blocks (an old date on an active link is fine).
+test("inactive secure links remain blocked with no preview or writes",async()=>{
+  for(const invalid of [{status:"revoked",expires_at:new Date(Date.now()+86_400_000).toISOString()},{status:"expired",expires_at:new Date(Date.now()-86_400_000).toISOString()}]){
     Object.assign(data.customer_estimate_links as Record<string, unknown>,invalid);
     const r=await sendExistingInsulationSaveSpot(id,id,true);
     expect(r.outcome).toBe("blocked");expect(r.detail).toContain("current secure estimate link");expect(r.preview).toBeUndefined();expect(writes).toBe(0);
