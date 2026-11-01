@@ -1289,6 +1289,13 @@
       "when": 1793573262096,
       "tag": "0183_date_free_esc_consent",
       "breakpoints": true
+    },
+    {
+      "idx": 184,
+      "version": "7",
+      "when": 1793573461075,
+      "tag": "0184_task7_esc_registered",
+      "breakpoints": true
     }
   ]
 }
