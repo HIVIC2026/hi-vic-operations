@@ -143,6 +143,23 @@ export const getInHouseBookingTeam = createServerFn({ method: 'POST' }).middlewa
   .inputValidator(z.object({jobId:uuid}))
   .handler(async({data,context})=>(await import('./in-house-booking.server')).bookingTeam(data.jobId,context.userId));
 
+export const tradeHandBack = createServerFn({method:'POST'}).middleware([requireSupabaseAuth])
+  .inputValidator(z.object({jobId:uuid,reason:z.string().trim().min(3).max(480)}))
+  .handler(async({data,context})=>{
+    await (await import('./in-house-booking.server')).bookingTeam(data.jobId,context.userId);
+    await (await import('./in-house-batch.server')).pullBackInHouseJob({jobId:data.jobId,actorId:context.userId,reason:data.reason});
+    return {ok:true};
+  });
+
+export const tradeOwnerCancelled = createServerFn({method:'POST'}).middleware([requireSupabaseAuth])
+  .inputValidator(z.object({jobId:uuid,reason:z.string().trim().min(3).max(480)}))
+  .handler(async({data,context})=>{
+    await (await import('./in-house-booking.server')).bookingTeam(data.jobId,context.userId);
+    const result=await (await import('./office-actions.server')).cancelJobFully(data.jobId,`Owner cancelled: ${data.reason}`,context.userId,{tell:{owner:false,installer:false},suppressRunNotice:true});
+    await (await import('./in-house-booking-notices.server')).notifyOfficeOwnerCancelled(data.jobId,data.reason,context.userId);
+    return result;
+  });
+
 export const changeInHouseLeadInstaller = createServerFn({ method: 'POST' }).middleware([requireSupabaseAuth])
   .inputValidator(z.object({jobId:uuid,workerId:uuid}))
   .handler(async({data,context})=>{
