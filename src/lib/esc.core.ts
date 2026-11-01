@@ -171,8 +171,10 @@ export function registryUpdateTimingReasons(prevStartIso: string, newStartIso: s
   const now = Date.parse(nowIso), oldStart = Date.parse(prevStartIso), newStart = Date.parse(newStartIso);
   const r: string[] = [];
   if (now >= oldStart) r.push("The original installation date and time has passed.");
-  if (newStart > now + EARLIEST_MS) r.push("The new start is more than 5 days away.");
-  if (newStart < now + LEAD_MS) r.push("The new start is less than 24 hours away.");
+  if(oldStart!==newStart){
+    if (newStart > now + EARLIEST_MS) r.push("The new start is more than 5 days away.");
+    if (newStart < now + LEAD_MS) r.push("The new start is less than 24 hours away.");
+  } // Jo 2 Nov / Guide §3.3.3: unchanged start, installer details only, before start.
   return r;
 }
 

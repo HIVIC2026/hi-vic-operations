@@ -1,3 +1,11 @@
+## Jo 2 Nov morning decisions — test-first, pending only
+- [x] 1 Owner deposit received email only; request/reminder texts unchanged.
+- [x] 2 Exact requested Book blockers.
+- [x] 3 Private DOB add/office display/registration task, pending SQL PGlite-proven for two-user isolation. Live activation waits on approved SQL; existing-person DOB entry not added.
+- [x] 4 Post-notice urgent flag/alert and prestart hold at install instant; pre-notice no extra task; captured tests pass.
+- [x] 5 Guide §3.3.3 supports same-start update_same_id; selectors untouched/off; external robot run NOT RUN.
+- [x] Final comparable 1002→1006 files, 10068→10077 pass, 243 failures / 97 failing files unchanged; no new failing files. Build OK. Details docs/jo-2nov-morning-results.md. No live changes/sends/publishing.
+
 ## Jo 2 Nov approved three-migration live release
 - [x] Applied only date-free ESC consent (0183), Task 7 ESC registration (0184), then Task 7 trade handback (0185) after 9/0 practice checks; statements unchanged (tool adds terminal newline).
 - [x] Live columns/functions/enabled registration trigger read back; saved-work functions absent. Captured read-only live GET 404/PGRST202; local replay covers Book and Change Lead Installer without live writes/providers.

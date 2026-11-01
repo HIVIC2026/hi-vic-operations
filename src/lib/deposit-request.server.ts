@@ -55,8 +55,9 @@ async function ownerNotice(jobId:string,c:Facts,step:'request'|'paid'|DepositRem
     const fresh=await factsFor(jobId,new Date());
     if(!fresh || fresh.v.invoiceId!==c.v.invoiceId || (step==='paid'?!fresh.paid:fresh.paid) || fresh.c.booked)throw Error('Deposit state changed; notice held.');
   },build:()=>renderInstallDepositOwnerEmail(c.f,step)});
+  if(step==='paid')return e; // Jo 2 Nov: Deposit received is email only.
   // TEST jobs stay behind the canonical sender's TEST boundary (no real SMS).
-  const s=await (await import('./sms.server')).sendRealSms({type:step==='paid'?'install_deposit_paid':step==='request'?'install_deposit_request':'install_deposit_reminder',jobId,to:c.owner.phone,body:depositOwnerText(c.f,step),idempotencyKey:`${key}:sms`,event:{at,current:step==='paid'?c.paid:!c.paid}});
+  const s=await (await import('./sms.server')).sendRealSms({type:step==='request'?'install_deposit_request':'install_deposit_reminder',jobId,to:c.owner.phone,body:depositOwnerText(c.f,step),idempotencyKey:`${key}:sms`,event:{at,current:!c.paid}});
   return `${e}; sms ${s.status}`;
 }
 /** Clearance intent is recorded before invoice/payment reads; invoice-keyed request time remains unchanged. */

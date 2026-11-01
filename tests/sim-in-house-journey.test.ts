@@ -30,7 +30,7 @@ test('SIM all-clear booking/forms/deposit/digest sequence uses one continuing jo
   ]);
   await h.payDeposit('stripe');
   h.assertStep('Deposit paid','installation_scheduling',['RC','A3','A4'],[
-    ['owner','email','install_deposit_paid'],['owner','sms','install_deposit_paid'],['installer-office','email','install_deposit_paid_office'],
+    ['owner','email','install_deposit_paid'],['installer-office','email','install_deposit_paid_office'],
   ]);
   await h.confirmPiesa(); await h.bookInstall();
   h.assertStep('Install booked','installation_booked',['RC','A3','A4','A5'],[
@@ -49,7 +49,7 @@ test('SIM rectification holds deposit until work complete; Xero paid notice is e
   h.checkpoint();await h.completePiesa(true);h.assertStep('Rectification needed','rectification_scheduling',['RC','A3','A4'],[]);
   await h.tryDeposit();h.assertNoNewMessages();await h.completeRectification();
   h.assertStep('Rectification done','installation_scheduling',['RC','A3','A4'],[['owner','email','install_deposit_request'],['owner','sms','install_deposit_request']]);
-  await h.payDeposit('xero');h.assertStep('Xero deposit paid','installation_scheduling',['RC','A3','A4'],[['owner','email','install_deposit_paid'],['owner','sms','install_deposit_paid'],['installer-office','email','install_deposit_paid_office']]);
+  await h.payDeposit('xero');h.assertStep('Xero deposit paid','installation_scheduling',['RC','A3','A4'],[['owner','email','install_deposit_paid'],['installer-office','email','install_deposit_paid_office']]);
   await h.confirmPiesa();await h.bookInstall();h.assertOfficesEmailOnly();
 });
 
@@ -75,6 +75,7 @@ test('SIM Lead Installer day-before and morning swaps move A5/SWMS; matching ESC
  expect(h.formOwner('A5')).toBe('replacement@example.invalid');expect(h.formAccess('A5','lead@example.invalid')).toBe(false);expect(h.formAccess('A5','replacement@example.invalid')).toBe(true);expect(h.officeCandidates().map(r=>r.kind)).toContain('in_house_esc_lead_changed');expect(await h.canSignSwms('lead')).toBe(false);expect(await h.canSignSwms('replacement')).toBe(true);expect(await h.prestartBlocker()).toBeNull();
  h.clock.set('2026-11-15T21:00:00Z'); // 8am Melbourne on the installation day
  await h.swap('lead');expect(h.formOwner('A5')).toBe('lead@example.invalid');expect(h.formAccess('A5','replacement@example.invalid')).toBe(false);expect(await h.canSignSwms('replacement')).toBe(false);
+ expect(await h.prestartBlocker()).toBeNull();h.clock.set('2026-11-15T22:00:00Z');
  expect(await h.prestartBlocker()).toBe('Waiting for Home Insulation Victoria to update the ESC notice for your new Lead Installer.');
  h.ackEsc();expect(await h.prestartBlocker()).toBeNull();h.assertOfficesEmailOnly();
 });

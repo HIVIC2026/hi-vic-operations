@@ -208,12 +208,13 @@ export async function recordRobotNotificationUpdated(p: { notificationId: string
   if (n.status !== "ready" || !n.consent_id) throw new WorkflowError("Notification is not ready or has no valid consent.");
   const { data: prev } = await admin.from("esc_notifications").select("scheduled_start, sent_at, submission_reference, payload_json").eq("id", p.previousNotificationId).single();
   if (!prev) throw new WorkflowError("The earlier notification could not be read.");
-  const { assertCanSubmit } = await import("./esc.server");
-  await assertCanSubmit(n, p.updatedAt);
+  const { assertCanUpdate } = await import("./esc.server");
+  await assertCanUpdate(n,prev,p.updatedAt);
   const now = new Date().toISOString();
   const { registryChange } = await import("./esc.core");
   let patch;
   try { patch = registryUpdatePatch({ prev, change: registryChange(prev, { scheduled_start: n.scheduled_start, payload_json: n.payload_json }, now), reference: p.reference, updatedAt: p.updatedAt, confirmed: true, actorId: ROBOT_ACTOR_LABEL }, now); } catch (e) { throw new WorkflowError((e as Error).message); }
+  if(Date.parse(prev.scheduled_start)===Date.parse(n.scheduled_start))patch={...patch,sent_at:prev.sent_at??patch.sent_at};
   const response = { ...patch.response, robot: { updated_at: p.updatedAt, screenshot_path: p.screenshotPath, registry_url: p.registryUrl, by: ROBOT_ACTOR_LABEL } };
   const { data: upd, error } = await admin.from("esc_notifications").update({ ...patch, submission_method: ROBOT_SUBMISSION_METHOD, submitted_by: null, response: response as unknown as Json, updated_at: now }).eq("id", n.id).is("sent_at", null).select("id");
   if (error) throw new WorkflowError(error.message);
