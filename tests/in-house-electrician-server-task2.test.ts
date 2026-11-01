@@ -9,7 +9,7 @@ function fixture() {
   const admin = { from(table: string) {
     const q: any = {};
     let filters: unknown[][] = [];
-    for (const key of ["select","eq","is","order","limit"]) q[key] = (...args: unknown[]) => { filters.push([key,...args]); return q; };
+    for (const key of ["select","eq","is","order","limit","range"]) q[key] = (...args: unknown[]) => { filters.push([key,...args]); return q; };
     q.maybeSingle = q.single = async () => ({ error: null, data: table === "partner_workers" ? (filters.some(x => x[1] === "business_id" && x[2] !== worker.business_id) ? null : worker) : table === "business_members" ? (access ? { user_id: "owner" } : null) : table === "assessments" ? { external_mitti_id: "A3" } : table === "job_assignments" ? { business_id: "b", user_id: "electrician" } : {source:"base44"} });
     q.then = (resolve: any) => Promise.resolve({data:[worker],error:null}).then(resolve);
     return q;
