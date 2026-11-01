@@ -1,3 +1,8 @@
+## Jo 1 Nov SIM — isolated fake-clock whole-job scenarios
+- [ ] Shared in-house harness with provider capture, fake Melbourne clock, actual handlers and access assertions.
+- [ ] Eight scenarios with step-by-step stage/form/message evidence; gaps never PASS.
+- [ ] Test-first bugs only, related checks and comparable full run against 97/243; no live writes/sends/publication.
+
 ## Jo 1 Nov S1 — practice-only speed
 - [x] Reproduced extra enquiry-response-scope-practice-db timeout on both archived Task 7/E0; individual 8/0 on both, source unchanged. Normalized comparison 97/243.
 - [x] Test-first batched deposit list facts, overlapping Team reads, reused crew/payment reads, durable awaiting_ap response; six new tests and expanded handover pass.
