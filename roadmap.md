@@ -1,7 +1,7 @@
 ## Jo 1 Nov Task 7 — booking and Lead Installer
 - [x] Own-Team booking eligibility, paid-deposit visibility, pending ESC registration and business handback SQL practice-proven (two-user refusal checks).
 - [x] Owner booking mocked replay/link-free SMS and current-booking refusal; latest-change acknowledgment/prestart hold. 12 new tests pass.
-- [ ] Complete mocked end-to-end A5/SWMS swap, grouped email retry/paging and quiet cancellation/HIV office email proof; inline controls on the To book list remain incomplete (job-page controls implemented). Blocked this turn by bounded QA time; do not claim complete or publish.
+- [x] Task 7 follow-up: actual installer action-list rows reuse inline Day / Arrival / Who's going / Book, retaining the job-page picker and paid-deposit/member checks. Actual crew-save wrapper plus form/SWMS readers prove replacement A5 ownership, old direct-access removal via documented Mitti API and old SWMS signing refusal; history retained. Six mocked notice tests prove 405 installs across 200-row pages, frozen definite-rejection retry, replay/parallel/ambiguous no-double-send, and canonical quiet cancellation/form closure with HIV-office-only mail. Two inline action tests and two handover tests pass; TEST route removal remains simulated (9 routing tests pass). No live/UI delivery exercised under Jo's restrictions.
 - [x] Comparable suite first after run 100/254 vs 97/243; all four changed failures individually fixed/rechecked to their original totals (97/243 normalized), plus 12 new passing tests. Full final rerun NOT RUN. No settings/secrets/live data/database changes/sends/publication; both Task 7 migrations remain pending.
 
 ## Jo 1 Nov Task 6 and signing recovery
