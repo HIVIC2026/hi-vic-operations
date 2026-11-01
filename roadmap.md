@@ -1,8 +1,8 @@
 ## Jo 1 Nov Task 7 — booking and Lead Installer
-- [ ] Test-first own-Team booking, ESC registration office record with pending practice-proven SQL; paid deposit and Lead Installer requirements.
-- [ ] Guarded owner booked notifications, Lead Installer A5/SWMS changes and urgent ESC acknowledgment/prestart block, 2pm grouped installer-office email.
-- [ ] Reasoned member handback, quiet owner cancellation with HIV office email, two-business-day office flag.
-- [ ] Related and isolated comparable suite vs 97/243; no settings/secrets/live data/database changes/sends/publication. Pending migrations NOT applied.
+- [x] Own-Team booking eligibility, paid-deposit visibility, pending ESC registration and business handback SQL practice-proven (two-user refusal checks).
+- [x] Owner booking mocked replay/link-free SMS and current-booking refusal; latest-change acknowledgment/prestart hold. 12 new tests pass.
+- [ ] Complete mocked end-to-end A5/SWMS swap, grouped email retry/paging and quiet cancellation/HIV office email proof; inline controls on the To book list remain incomplete (job-page controls implemented). Blocked this turn by bounded QA time; do not claim complete or publish.
+- [x] Comparable suite first after run 100/254 vs 97/243; all four changed failures individually fixed/rechecked to their original totals (97/243 normalized), plus 12 new passing tests. Full final rerun NOT RUN. No settings/secrets/live data/database changes/sends/publication; both Task 7 migrations remain pending.
 
 ## Jo 1 Nov Task 6 and signing recovery
 - [x] Retry-recovery option: actual PGlite quote sitting interrupted after the two Gate B rows, then retry leaves exactly two gate rows, one agreement and one signed ESC consent; successful replay makes no duplicates. Accepted-version replay now completes missing stable auxiliary records and reuses the agreement. No new SQL required; existing date-free consent SQL remains pending/unapplied.
