@@ -25,7 +25,6 @@ test('saved Lead Installer replacement hands the existing A5 and SWMS to the new
   const safety=load('src/lib/swms.server.ts',{...shared,'node:crypto':{createHash},'./swms.core':swms,'./install-evidence.server':{melbourneDateOf:()=> '2026-11-03'},'./swms-house.core':{swmsHouseFacts:()=>({}),swmsHouseLines:()=>[],swmsHouseSteps:()=>[]}});
   const before=await safety.loadSwms('j');expect(before.plan.signers.map((p:any)=>p.key)).toEqual(['w:old']);
   rows.workflow_events.push({job_id:'j',event_type:'swms_signed',created_at:'2026-11-01T00:00:02Z',details:{key:'w:old',name:'Old Installer',typed_name:'Old Installer',plan_sha256:safety.swmsPlanSha(before.plan)}});
-  rows.workflow_events.push({job_id:'j',event_type:'piisa_crew_selected',created_at:'2026-11-02T00:00:00Z',details:{selection:{lead:'new',additional:[]}}});
   const staff=[{workerId:'old',name:'Old Installer',eec:'CII-old',eecVerified:true,cleared:true,workerRole:'lead',level:'full'},{workerId:'new',name:'New Installer',eec:'CII-new',eecVerified:true,cleared:true,workerRole:'lead',level:'full'}];
   // Drive the actual crew-save wrapper, not a manufactured direct form handover.
   const visits=load('src/lib/visit-allocation.server.ts',{
@@ -37,17 +36,13 @@ test('saved Lead Installer replacement hands the existing A5 and SWMS to the new
     './in-house-booking.core':{bookingWorkerBlocker:()=>null},
     './piisa-a3.server':{crewStaff:async()=>staff,loadCrew:async()=>({staff,selection:rows.workflow_events.filter((e:any)=>e.event_type==='piisa_crew_selected').at(-1)?.details.selection}),saveCrewSelection:async(jobId:string,_actor:string,selection:any)=>{rows.workflow_events.push({job_id:jobId,event_type:'piisa_crew_selected',details:{selection},created_at:new Date().toISOString()});return {needsVerification:[]};}},
     './in-house-forms.server':forms,
+    './schema-compat.core':{isMissingDbObject:()=>false},
+    './mitti.server':{realMittiCall:call,findMittiUserByEmail:async(e:string)=>e,reassignMittiFormTo:async(p:any)=>{owner.set(p.auditId,p.mittiUserId);access.add(p.mittiUserId);}},
   });
-  // Existing allocation matches new identity so wrapper still repairs A5 through its canonical sync.
   rows.workflow_events.push({job_id:'j',event_type:'visit_allocated',created_at:'2026-11-02T00:00:01Z',details:{visit:'install',worker_id:'old',worker_name:'Old Installer'}});
-  // Allocation itself is separately covered; preserve the old allocation for notice comparison, then mock Mitti.
   rows.jobs[0].stage='installation_booked';
-  rows.partner_workers.forEach((w:any)=>{w.full_legal_name=w.id==='old'?'Old Installer':'New Installer';w.mobile=null;w.declarations_due=false;});
-  const mitti={realMittiCall:call,findMittiUserByEmail:async(e:string)=>e,reassignMittiFormTo:async(p:any)=>{owner.set(p.auditId,p.mittiUserId);access.add(p.mittiUserId);}};
-  // Reload with the only external boundary fully mocked.
-  const source=readFileSync('src/lib/visit-allocation.server.ts','utf8');
-  // Keep same exports and dependencies; inject the Mitti mock into the loader used above.
-  await forms.syncInHouseForms('j','crew','office',call,'old');const after=await safety.loadSwms('j');
+  rows.partner_workers.forEach((w:any)=>{w.full_legal_name=w.id==='old'?'Old Installer':'New Installer';w.mobile=null;w.declarations_due=false;w.profile_id=null;});
+  await visits.saveCrewWithLead('j','office',{lead:'new',additional:[]},call);const after=await safety.loadSwms('j');
   expect(owner.get('A5')).toBe('new@example.invalid');expect(owner.get('A5')).not.toBe('old@example.invalid');
   expect(access.has('old@example.invalid')).toBe(false);expect(access.has('new@example.invalid')).toBe(true);
   expect(after.plan.signers.map((p:any)=>p.key)).toEqual(['w:new']);expect(swms.checkSwmsSign(after.plan,after.signatures,'w:old','Old Installer').ok).toBe(false);expect(swms.checkSwmsSign(after.plan,after.signatures,'w:new','New Installer').ok).toBe(true);expect(after.status.complete).toBe(false);
