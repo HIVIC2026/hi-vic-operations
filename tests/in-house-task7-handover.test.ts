@@ -37,13 +37,20 @@ test('saved Lead Installer replacement hands the existing A5 and SWMS to the new
     './in-house-booking.core':{bookingWorkerBlocker:()=>null},
     './piisa-a3.server':{crewStaff:async()=>staff,loadCrew:async()=>{crewReads++;return {staff,selection:rows.workflow_events.filter((e:any)=>e.event_type==='piisa_crew_selected').at(-1)?.details.selection};},saveCrewSelection:async(jobId:string,_actor:string,selection:any)=>{rows.workflow_events.push({job_id:jobId,event_type:'piisa_crew_selected',details:{selection},created_at:new Date().toISOString()});return {needsVerification:[]};}},
     './in-house-forms.server':forms,
+    './in-house-atomic-save.server':{saveInHouseVisit:async(jobId:string,_actor:string,input:any)=>{
+      crewReads++;rows.workflow_events.push({job_id:jobId,event_type:'piisa_crew_selected',details:{selection:input.selection},created_at:new Date().toISOString()});
+      // Saved transaction returns before the recorded work is executed.
+      return {needsVerification:[]};
+    }},
     './schema-compat.core':{isMissingDbObject:()=>false},
     './mitti.server':{realMittiCall:call,findMittiUserByEmail:async(e:string)=>e,reassignMittiFormTo:async(p:any)=>{owner.set(p.auditId,p.mittiUserId);access.add(p.mittiUserId);}},
   });
   rows.workflow_events.push({job_id:'j',event_type:'visit_allocated',created_at:'2026-11-02T00:00:01Z',details:{visit:'install',worker_id:'old',worker_name:'Old Installer'}});
   rows.jobs[0].stage='installation_booked';
   rows.partner_workers.forEach((w:any)=>{w.full_legal_name=w.id==='old'?'Old Installer':'New Installer';w.mobile=null;w.declarations_due=false;w.profile_id=null;});
-  await visits.saveCrewWithLead('j','office',{lead:'new',additional:[]},call);const after=await safety.loadSwms('j');
+  await visits.saveCrewWithLead('j','office',{lead:'new',additional:[]},call);
+  expect(owner.get('A5')).toBe('old@example.invalid');
+  await forms.syncInHouseForms('j','crew','office',call,'old');const after=await safety.loadSwms('j');
   expect(crewReads).toBe(1);
   expect(owner.get('A5')).toBe('new@example.invalid');expect(owner.get('A5')).not.toBe('old@example.invalid');
   expect(access.has('old@example.invalid')).toBe(false);expect(access.has('new@example.invalid')).toBe(true);
