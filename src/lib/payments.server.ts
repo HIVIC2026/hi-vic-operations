@@ -311,7 +311,9 @@ export async function afterPaymentsChanged(jobId: string, invoiceId: string, act
   // email goes only when a day is actually booked (install-days bookAgreedDay), never before the deposit.
   if (v.plan.installDepositCents > 0 && isStepCleared(v.steps, "install_deposit") && !v.provisional.bookedAt
     && await once("install_deposit_received", "10% install deposit received – the install day can now be booked", v.invoiceId, { amount_cents: v.plan.installDepositCents })) {
-    await admin.from("jobs").update({ next_action: "Deposit paid – installer to offer 3 install days" }).eq("id", jobId);
+    const held=await (await import('./in-house-suppression.server')).readInHouseDispatchState([jobId]);
+    if(held.failed)throw Error('Could not check installer booking responsibility.');
+    await admin.from("jobs").update({ next_action: held.held.has(jobId)?"Deposit paid – installer to book the install":"Deposit paid – installer to offer 3 install days" }).eq("id", jobId);
   }
   if(isStepPaid(v.steps,'install_deposit'))await (await import('./deposit-request.server')).notifyInstallerDepositPaid(jobId).catch(e=>console.error('Install deposit paid notice held',e instanceof Error?e.message:'read failed'));
   // Decision 325: O22 "You're in!" + safety check receipt once that payment is in (one per accepted quote; best-effort).

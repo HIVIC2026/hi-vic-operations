@@ -24,7 +24,7 @@ export const NEEDS_GROUPS: { key: NeedsGroup; label: string }[] = [
 
 export type NeedsKind =
   | "in_house_esc_lead_changed" | "in_house_handed_back"
-  | "paid_gate_blocked"
+  | "paid_gate_blocked" | "install_deposit_request_failed" | "in_house_form_sync_failed"
   | "in_house_ready_check_not_booked" | "in_house_piesa_overdue" | "in_house_install_not_booked"
   | "choose_again" | "quote_check" | "fixes_quote_check" | "sign_consent" | "esc_window" | "final_check" | "send_failed" | "email_change" | "email_unmatched" | "robot_failed" | "piisa_form_failed"
   | "choose_installer" | "choose_electrician" | "veec_a_held" | "piesa_owner_unsigned" | "piesa_fixes_owner_unsigned" | "fixes_times_missing"
@@ -52,6 +52,8 @@ export type NeedsFacts = {
   source?: string; deletedAt?: string | null;
   inHouseDispatch?: "in_house" | "in_house_read_failed" | null;
   paidGate?: PaidGateWarning | null;
+  depositRequestFailed?:{at:string;reason:string}|null;
+  inHouseFormSyncFailed?:{at:string;reason:string}|null;
   inHouse?: { partnerName: string; batchSentAt: string | null; readyCheckBooked: boolean;
     quoteAcceptedAt: string | null; piesaCompleted: boolean; installationBooked: boolean;
     daysRemaining: number | null; deadline: string | null } | null;
@@ -209,6 +211,8 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   const out: Candidate[] = [];
   const held = !!f.inHouseDispatch || !!f.inHouse;
   const add = (c: Candidate) => out.push(c);
+  if(f.inHouseFormSyncFailed)add({rank:3,group:'today',kind:'in_house_form_sync_failed',line:`In-house forms need office attention: ${f.inHouseFormSyncFailed.reason}`,since:f.inHouseFormSyncFailed.at,button:{label:'Open job',to:'job',section:'install'}});
+  if(f.depositRequestFailed)add({rank:8,group:'today',kind:'install_deposit_request_failed',line:`Installation deposit request needs office attention: ${f.depositRequestFailed.reason}`,since:f.depositRequestFailed.at,button:{label:'Open job',to:'job',section:'money'}});
   if(f.inHouseLeadChanged)add({rank:1,group:'today',kind:'in_house_esc_lead_changed',line:f.inHouseLeadChanged.line,since:f.inHouseLeadChanged.at,button:{label:'Open job',to:'job',section:'install'}});
   if(f.inHouseHandedBack)add({rank:2,group:'today',kind:'in_house_handed_back',line:`Installer can't do this one: ${f.inHouseHandedBack.reason}`,since:f.inHouseHandedBack.at,button:{label:'Open job',to:'job',section:'ready-check'}});
   const paidLine = paidGateWarningLine(f.paidGate);
@@ -236,10 +240,10 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   if (f.lifeSupportPlanNeeded) add({ rank: 18, group: "today", kind: "life_support_plan", line: LIFE_SUPPORT_PLAN_ROW, since: f.lifeSupportPlanNeeded.at, button: { label: "Open job", to: "job", section: "piesa" } });
   if (f.piisaFormFailed) add({ rank: 14, group: "today", kind: "piisa_form_failed", line: f.piisaFormFailed.text, since: f.piisaFormFailed.at, button: { label: "Open job", to: "job", section: "install" } });
   if (!held && f.offerLapsed) add({ rank: 20, group: "today", kind: "choose_again", line: f.offerLapsed.note ? f.offerLapsed.note : `${f.offerLapsed.role === "installer" ? "Installer" : "Electrician"} offer ${f.offerLapsed.declined ? `declined${f.offerLapsed.name ? ` by ${f.offerLapsed.name}` : ""}` : "lapsed · no reply in 24h"}`, since: f.offerLapsed.at, button: { label: "Choose again", to: "job", section: f.offerLapsed.role === "installer" ? "ready-check" : "piesa" } });
-  if (!held && f.bookingOverdue) {
+  if (f.bookingOverdue) {
     const v = f.bookingOverdue.visit;
     const label = v === "ready_check" ? "Ready Check" : v === "installation" ? "Install" : v === "rectification" ? "Fixes" : "PIESA";
-    add({ rank: 21, group: "today", kind: "booking_overdue", line: `${label} time not confirmed after 48 hours`, since: f.bookingOverdue.at, button: { label: "Open job", to: "job", section: v === "ready_check" ? "ready-check" : v === "installation" ? "install" : "piesa" } });
+    add({ rank: 21, group: "today", kind: "booking_overdue", line: held?`${label} not booked after 2 business days`:`${label} time not confirmed after 48 hours`, since: f.bookingOverdue.at, button: { label: "Open job", to: "job", section: v === "ready_check" ? "ready-check" : v === "installation" ? "install" : "piesa" } });
   }
   if (f.consentToSign) {
     const due = f.consentToSign.dueAt ? Date.parse(f.consentToSign.dueAt) : null;
