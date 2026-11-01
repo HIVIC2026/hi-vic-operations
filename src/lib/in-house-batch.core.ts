@@ -4,7 +4,7 @@ export type BatchJob = {
   id: string; stage: string; source: string; deleted_at: string | null; spot_saved_at: string | null;
   optedOut: boolean; hasActiveInstaller: boolean; postcode: string | null; lat: number | null; lng: number | null;
   job_number?: string; address?: string;
-  channel?: string; quickTapsYes?: boolean; waitingBusinessId?: string | null;
+  channel?: string; quickTapsYes: boolean; waitingBusinessId?: string | null;
 };
 export type InHousePartner = {
   id: string; name: string; in_house: boolean; is_active: boolean; openJobs: number;
