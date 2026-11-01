@@ -14,10 +14,10 @@ describe("PIESA copy auto-delivery (Jo 24 Oct 2026, decision 111)", () => {
     const p = piesaDeliveryPlan(base, now);
     expect(p.hold).toBeNull(); expect(p.send).toEqual(["owner", "installer"]); expect(p.late).toBe(false);
   });
-  test("holds without a signed copy, a PIESA record or an install day, or on a closed job", () => {
+  test("holds missing copies/records and closed jobs; sends the owner copy before install booking", () => {
     expect(piesaDeliveryPlan({ ...base, signedCopyId: null }, now).hold).toBe("no signed PIESA copy yet");
     expect(piesaDeliveryPlan({ ...base, piesaRecordId: null }, now).hold).toBe("no current PIESA record");
-    expect(piesaDeliveryPlan({ ...base, installStart: null }, now).hold).toBe("install day not booked yet");
+    expect(piesaDeliveryPlan({ ...base, installStart: null }, now).send).toEqual(["owner"]);
     expect(piesaDeliveryPlan({ ...base, closed: true }, now).hold).toBe("job closed or archived");
   });
   test("dedupe: a recorded delivery is never repeated; both recorded = nothing to do", () => {

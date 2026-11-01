@@ -13,7 +13,7 @@ test("day and time, installer with phone, what to do, link", () => {
     expect(b).toContain("Installer: Reinsulate, 0400 000 000");
     expect(b).toContain("YOUR POWER WILL BE OFF");
     expect(b).toContain("Clear the area under the ceiling hatch and a path to it");
-    expect(b).toContain("See my job: https://example.test/my-job/t");
+    expect(b).not.toContain("See my job: https://example.test/my-job/t");
     expect(b).not.toContain("expect some dust");
   }
   // Decision 98 design (O35): date card with the arrival time, power-off box, "On the day" ticks, Change day.

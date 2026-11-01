@@ -43,7 +43,7 @@ describe("You're booked email (our leads)", () => {
     expect(m.text).toContain("When: Thursday 29 October at 9:00am");
     expect(m.text).toContain("Installer: Reinsulate");
     expect(m.text).toContain("Change time on your job page");
-    expect(m.text).toContain("See my job: https://example.test/my-job/t");
+    expect(m.text).not.toContain("See my job: https://example.test/my-job/t");
     // Decision 81 design: green date card (day + green time), "Before they arrive".
     expect(m.html).toContain("You're booked, Helen");
     expect(m.html).toContain(">Thursday 29 October<");

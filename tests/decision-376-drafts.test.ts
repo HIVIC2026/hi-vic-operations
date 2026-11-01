@@ -64,7 +64,7 @@ describe("O74 wording (trade cancelled the visit)", () => {
     expect(m.subject).toBe("Your install day is moving");
     expect(m.text).toContain("You don't need to do anything. Your installer will offer you new install days soon, and we'll send you a link to choose one.");
     expect(m.html).toContain("<strong>You don't need to do anything.</strong>");
-    expect(m.html).toContain("See my job</a>");
+    expect(m.html).not.toContain("See my job</a>");
     expect(m.html).toContain("TEST — only sent to Jo");
     expect(visitNewTimesText({ kind: "ready_check", wasIso: was, ownerPicks: false, link: MY_JOB })).toContain("You don't need to do anything – we'll send you new times soon.");
     expect(visitNewTimesKeys("j", "b")).toEqual({ email: "visit-new-times:v1:j:b:email", sms: "visit-new-times:v1:j:b:sms" });

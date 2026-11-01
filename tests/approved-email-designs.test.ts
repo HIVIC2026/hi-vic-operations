@@ -103,7 +103,7 @@ describe("approved owner email designs", () => {
   test("O10 Spot saved", () => {
     const m = renderSpotSavedEmail({ firstName: "Helen", rebate: 1610, suburb: "Glen Waverley", shortAddress: "824 High Street Road, Glen Waverley", myJobUrl: JOB, optOutUrl: "https://estimate.homeinsulationvictoria.com.au/api/public/unsubscribe?t=x", referralUrl: "https://homeinsulationvictoria.com.au/homeowner?ref=r", estimate: { gross: 3798, customer: 2188, areaM2: 137, address: "824 High Street Road, Glen Waverley VIC 3150", calculatorUrl: `${EST}/calculator` } });
     shell(m.html, m.text, true);
-    has(m.html, ["Smart move, Helen. Your spot is saved.", "Your $1,610 rebate is waiting", "You save $1,610", ">$2,188<", "Estimate incl. GST for 137 m². You'll see your exact price before you agree to anything.", "Your place is kept", "<strong>We'll be in touch</strong>", "When your spot is released, we'll tell you your next step.", ">See my job<", "What's included in $2,188", "Have a friend who needs a spot saved?"]);
+    has(m.html, ["Smart move, Helen. Your spot is saved.", "Your $1,610 rebate is waiting", "You save $1,610", ">$2,188<", "Estimate incl. GST for 137 m². You'll see your exact price before you agree to anything.", "Your place is kept", "<strong>We'll be in touch</strong>", "When your spot is released, we'll tell you your next step.", "What's included in $2,188", "Have a friend who needs a spot saved?"]);
   });
   test("O11 Ready Check times", () => {
     const m = renderReadyCheckTimesEmail({ firstName: "Helen", suburb: "Glen Waverley", installerName: "Deep Insulation", times: ["Tuesday 28 October at 8:00am", "Wednesday 29 October at 12:30pm", "Friday 31 October at 7:30am"], myJobUrl: JOB, estimate: { rebate: 1610, price: 2188, areaM2: 137 } });
@@ -114,7 +114,7 @@ describe("approved owner email designs", () => {
   test("O12 Ready Check booked", () => {
     const m = renderReadyCheckBookedEmail({ firstName: "Helen", when: "Tuesday 28 October at 8:00am", installerName: "Deep Insulation", installerPhone: "0400 000 000", address: "824 High Street Road, Glen Waverley", changed: false, myJobUrl: JOB, estimate: { rebate: 1610, price: 2188, areaM2: 137 } });
     shell(m.html, m.text, false);
-    has(m.html, ["You're booked, Helen", "Your free Ready Check is confirmed.", "Your Ready Check</div>", ">Tuesday 28 October<", ">8:00am<", "Installer: Deep Insulation · 0400 000 000", "Before they arrive", "<strong>ceiling hatch</strong>", "<strong>Change time</strong>", "call or text Deep Insulation on 0400 000 000", ">See my job<", "What's included in $2,188"]);
+    has(m.html, ["You're booked, Helen", "Your free Ready Check is confirmed.", "Your Ready Check</div>", ">Tuesday 28 October<", ">8:00am<", "Installer: Deep Insulation · 0400 000 000", "Before they arrive", "<strong>ceiling hatch</strong>", "<strong>Change time</strong>", "call or text Deep Insulation on 0400 000 000", "What's included in $2,188"]);
     expect(READY_CHECK_BOOKED_EMAIL_APPROVED).toBe(true); // approved by Jo 24 Oct 2026 (tests/approved-flags.test.ts lists the decision)
   });
   const quote = { firstName: "Helen", address: "824 High Street Road, Glen Waverley VIC 3150", totalIncGst: 2200, rebateIncGst: 1850, subtotalIncGst: 4050, areaM2: 137.6, removalM2: 40, product: "Bradford Gold R5.0", installerName: "Reinsulate", installerCertified: true, safetyCheckPrice: 349,
@@ -136,7 +136,7 @@ describe("approved owner email designs", () => {
   test("O22 You're in", () => {
     const m = renderYoureInEmail({ firstName: "Helen", rebate: 1850, totalIncGst: 2200, payment: { amount: 349, paidOn: "24 Oct 2026", cardLast4: "4242" }, installerName: "Reinsulate", myJobUrl: JOB });
     shell(m.html, m.text, false);
-    has(m.html, ["You're in, Helen!", "with $1,850 off", "Payment received", ">$349.00<", "Paid 24 Oct 2026 · card ending 4242", "Paid &#10003;", "Still to pay: $1,851.00 (10% to book your install day, the rest on install day)", "Electrical safety check", "Only if something needs fixing", "Book your install day", "Reinsulate offers you 3 days", ">See my job<", "signed acceptance and receipt are attached"]);
+    has(m.html, ["You're in, Helen!", "with $1,850 off", "Payment received", ">$349.00<", "Paid 24 Oct 2026 · card ending 4242", "Paid &#10003;", "Still to pay: $1,851.00 (10% to book your install day, the rest on install day)", "Electrical safety check", "Only if something needs fixing", "Book your install day", "Reinsulate offers you 3 days", "signed acceptance and receipt are attached"]);
     expect(ACCEPTANCE_EMAIL_APPROVED).toBe(true); // approved by Jo 24 Oct 2026 (tests/approved-flags.test.ts lists the decision)
   });
   test("O26 Safety check times (+ the 30-day clock)", () => {
@@ -146,13 +146,13 @@ describe("approved owner email designs", () => {
     expect(m.text).toContain("The 30-day clock");
     const b = renderSafetyCheckBookedEmail({ firstName: "Helen", when: "Wednesday 5 November at 8:00am", electricianName: "Spark Electrical", electricianPhone: "0400 111 222", address: "824 High Street Road, Glen Waverley", changed: false, myJobUrl: JOB });
     shell(b.html, b.text, false);
-    has(b.html, ["You're booked, Helen", "Your electrical safety check is confirmed.", "Electrician: Spark Electrical · 0400 111 222", "&#9200; The 30-day clock", "<strong>switchboard</strong>", ">See my job<"]);
+    has(b.html, ["You're booked, Helen", "Your electrical safety check is confirmed.", "Electrician: Spark Electrical · 0400 111 222", "&#9200; The 30-day clock", "<strong>switchboard</strong>"]);
     expect(SAFETY_CHECK_EMAILS_APPROVED).toBe(true); // approved by Jo 24 Oct 2026 (tests/approved-flags.test.ts lists the decision)
   });
   test("O28 PIESA copy", () => {
-    const m = renderPiesaCopyEmail({ recipient: "owner", firstName: "Helen", address: "824 High Street Road, Glen Waverley", jobNumber: "HV-3117", signatureDate: "2026-11-05", installStart: "2026-11-10T20:30:00Z", link: `${JOB}?doc=piesa`, electrician: { name: "Spark Electrical", licence: "12345", rec: "67890" } });
+    const m = renderPiesaCopyEmail({ recipient: "owner", firstName: "Helen", address: "824 High Street Road, Glen Waverley", jobNumber: "HV-3117", signatureDate: "2026-11-05", installStart: "2026-11-10T20:30:00Z", link: `${JOB}?screen=piesa`, electrician: { name: "Spark Electrical", licence: "12345", rec: "67890" } });
     shell(m.html, m.text, false);
-    has(m.html, ["Helen, your electrical safety check: all clear", "at least 24 hours before your install", "Safety check result", "Safe to insulate &#10003;", "Thursday 5 November 2026", "Spark Electrical · Lic. 12345 · REC 67890", ">None<", "Wednesday 11 November, arriving 7:30am", "<strong>Your signed safety check is attached to this email (PDF).</strong>", ">See my job</a>", `href="${JOB}?doc=piesa"`, "<strong>please don't let anyone into the ceiling before the install.</strong>"]);
+    has(m.html, ["Helen, your electrical safety check: all clear", "at least 24 hours before your install", "Safety check result", "Safe to insulate &#10003;", "Thursday 5 November 2026", "Spark Electrical · Lic. 12345 · REC 67890", ">None<", "Wednesday 11 November, arriving 7:30am", "<strong>Your signed safety check is attached to this email (PDF).</strong>", ">Confirm my safety check</a>", `href="${JOB}?screen=piesa"`, "<strong>please don't let anyone into the ceiling before the install.</strong>"]);
     expect(PIESA_COPY_EMAIL_APPROVED).toBe(true); // approved by Jo 24 Oct 2026 (tests/approved-flags.test.ts lists the decision)
   });
   test("O29 Electrical fixes quote (+ the 30-day clock with the expiry date)", () => {
@@ -170,13 +170,13 @@ describe("approved owner email designs", () => {
   test("O35 Install booked", () => {
     const m = renderInstallBookedEmail({ firstName: "Helen", when: "Tuesday 11 November at 7:30am", address: "824 High Street Road, Glen Waverley", installerName: "Reinsulate", installerPhone: "0400 000 000", removal: true, myJobUrl: JOB, consentSigned: true, payment: { depositPaid: 185.1, cardLast4: "4242", balanceDue: 1665.9, payInFullUrl: `${JOB}?pay=full` } });
     shell(m.html, m.text, false);
-    has(m.html, ["Your install is booked, Helen", "Consent signed and deposit received ✓", ">Arriving 7:30am<", "Installer: Reinsulate · 0400 000 000", "Deposit paid · card ending 4242", "$185.10", "Balance due on install day", "$1,665.90", ">Pay in full<", "Your power will be off", "On the day", "An adult (18+) at home", "so expect some dust", "Use Change day on your job page", ">See my job<"]);
+    has(m.html, ["Your install is booked, Helen", "Consent signed and deposit received ✓", ">Arriving 7:30am<", "Installer: Reinsulate · 0400 000 000", "Deposit paid · card ending 4242", "$185.10", "Balance due on install day", "$1,665.90", ">Pay in full<", "Your power will be off", "On the day", "An adult (18+) at home", "so expect some dust", "Use Change day on your job page"]);
     expect(INSTALL_BOOKED_EMAIL_APPROVED).toBe(true); // approved by Jo 24 Oct 2026 (tests/approved-flags.test.ts lists the decision)
   });
   test("O42 Install day changed", () => {
     const m = renderInstallDayChangedEmail({ firstName: "Helen", installerName: "Reinsulate", installerPhone: "0400 000 000", address: "824 High Street Road, Glen Waverley", when: "Thursday 13 November at 7:30am", was: "Tuesday 11 November at 7:30am", myJobUrl: JOB });
     shell(m.html, m.text, false);
-    has(m.html, ["Helen, your install day has changed", "your deposit still holds your booking", "New install day", ">Thursday 13 November<", ">Arriving 7:30am<", "Was <span class=\"strike\" style=\"text-decoration:line-through\">Tuesday 11 November, 7:30am</span>", "Tap Change day on your job page", ">See my job<"]);
+    has(m.html, ["Helen, your install day has changed", "your deposit still holds your booking", "New install day", ">Thursday 13 November<", ">Arriving 7:30am<", "Was <span class=\"strike\" style=\"text-decoration:line-through\">Tuesday 11 November, 7:30am</span>", "Tap Change day on your job page"]);
     expect(m.subject).toBe("Your install has moved to Thursday 13 November at 7:30am");
   });
   test("O44 Install complete", () => {
@@ -200,10 +200,10 @@ describe("approved owner email designs", () => {
   test("O62 VEEC signed copy matches the approved design line for line", () => {
     const m = renderVeecCopyEmail({ firstName: "Helen", jobNumber: "HV-3117", signedAt: "2026-11-21T03:00:00.000Z", myJobUrl: `${JOB}?screen=done`, unsubscribeUrl: UNSUB });
     shell(m.html, m.text, true);
-    expect(visLines(m.html)).toEqual(designLines("owner_O62", [["HV-TEST", "HV-3117"]]));
-    has(m.html, [">Here's your signed rebate form, Helen</div>", "for HV-3117 is attached", "<strong>Signed on 21 November 2026</strong>", ">See my job</a>", `href="${JOB}?screen=done"`, "veu@esc.vic.gov.au"]);
+    expect(visLines(m.html)).toEqual(designLines("owner_O62", [["HV-TEST", "HV-3117"]]).filter(l=>l!=="See my job"));
+    has(m.html, [">Here's your signed rebate form, Helen</div>", "for HV-3117 is attached", "<strong>Signed on 21 November 2026</strong>", "veu@esc.vic.gov.au"]);
     expect(m.subject).toBe("Here's your signed rebate form, Helen");
-    has(m.text, ["HV-3117", "Signed on 21 November 2026.", `See my job: ${JOB}?screen=done`]);
+    has(m.text, ["HV-3117", "Signed on 21 November 2026."]);
     expect(VEEC_COPY_EMAIL_APPROVED).toBe(true);
   });
   test("O45 Final invoice", () => {
@@ -249,10 +249,10 @@ describe("approved owner email designs", () => {
     const m = renderConsentCopyEmail({ firstName: "Helen", installationDays: ["2026-11-11"], address: "824 High Street Road, Glen Waverley VIC 3150", templateVersion: "esc-2026-10-v1", formText: form, sha256: "e6458b32666a01a5a3d06718cf0ee33b601077761c6f14f77d20bee5d7753151", myJobUrl: JOB, attached: true });
     shell(m.html, m.text, false);
     expect(m.subject).toBe("Your signed consent form");
-    has(m.html, [">Hi Helen,</div>", ">Your signed consent form</div>", "Here's your copy of the owner's consent form you signed for the ceiling insulation at 824 High Street Road, Glen Waverley VIC 3150. The signed form is attached as a PDF.", ">See my job</a>", `href="${JOB}"`, "Your signed form", "Record reference e6458b32666a"]);
+    has(m.html, [">Hi Helen,</div>", ">Your signed consent form</div>", "Here's your copy of the owner's consent form you signed for the ceiling insulation at 824 High Street Road, Glen Waverley VIC 3150. The signed form is attached as a PDF.", "Your signed form", "Record reference e6458b32666a"]);
     // The signed form's own lines, as signed (label | value rows).
     has(vis(m.html), ["Section 1: Information to be shared", "First name | Helen", "Last Name | Yang", "Address of premises | 824 High Street Road, Glen Waverley VIC 3150", "Installation day(s) | Tuesday 11 November 2026", "Section 2: Owner declarations", "☑ I consent to the Accredited Person sharing this information with the Essential Services Commission", "☑ I have read and understood this form", "Owner signature | Helen Yang | Date | 24 October 2026", "AP representative | Jo Carter (Director)", "Form esc-2026-10-v1 · Record reference e6458b32666a"]);
-    has(m.text, ["Hi Helen,", "First name: Helen", "Owner signature: Helen Yang  Date: 24 October 2026", "AP representative: Jo Carter (Director)  Date: 24 October 2026", `See my job: ${JOB}`]);
+    has(m.text, ["Hi Helen,", "First name: Helen", "Owner signature: Helen Yang  Date: 24 October 2026", "AP representative: Jo Carter (Director)  Date: 24 October 2026"]);
     expect(CONSENT_COPY_EMAIL_APPROVED).toBe(true);
   });
   test("O64 Deposit released", () => {

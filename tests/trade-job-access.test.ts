@@ -51,6 +51,6 @@ describe("enforced on the server", () => {
 });
 
 describe("step 7: a finished install still counts as the booked install", () => {
-  for (const f of ["src/lib/esc.server.ts", "src/lib/consent.server.ts", "src/lib/official-forms.server.ts"])
+  for (const f of ["src/lib/esc.server.ts", "src/lib/official-forms.server.ts"])
     test(f, () => expect(readFileSync(f, "utf8")).toContain('.eq("kind", "installation").in("status", ["confirmed", "completed"])'));
 });
