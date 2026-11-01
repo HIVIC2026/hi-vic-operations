@@ -3,6 +3,13 @@ import {PGlite} from '@electric-sql/pglite';
 import {readFileSync} from 'node:fs';
 import {paymentPlan,paymentSteps,installDepositBlocker} from '../src/lib/payments.core';
 import {ownerPiesaConfirmationBlocker} from '../src/lib/piesa-owner-confirm.core';
+import ts from 'typescript';
+import {embedShim} from './helpers/pglite-embed-shim';
+import * as paymentsCore from '../src/lib/payments.core';
+import * as safetyCore from '../src/lib/safety-check-amount.core';
+import * as stripeCore from '../src/lib/stripe.core';
+import * as earlyRead from '../src/lib/early-read';
+import * as melbourneCore from '../src/lib/melbourne-time.core';
 const id=(n:number)=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 test('real stage SQL: atomic clicks and ESC refusal work, but canonical unpaid/unsigned blockers are NOT enforced by pending writer',async()=>{
  const db=new PGlite();try{
@@ -48,6 +55,42 @@ test('real stage SQL: atomic clicks and ESC refusal work, but canonical unpaid/u
  expect(plan.installDepositCents).toBe(10000);
  expect(installDepositBlocker(plan,paymentSteps(plan,{install:34900,fixes:0,repeat:0},{},'2026-11-01T00:00:00Z'))).not.toBeNull();
  expect(ownerPiesaConfirmationBlocker({piesaRecordId:id(30),confirmation:null})).not.toBeNull();
+ // Same PGlite records, actual deposit reader + actual ledger reader. Presentation,
+ // provider configuration and unrelated repeat/rectification branches are isolated.
+ await db.exec(`ALTER TABLE jobs ADD COLUMN source text;
+ CREATE TABLE quotes(id uuid PRIMARY KEY,accepted_at timestamptz,customer_total_inc_gst numeric);
+ CREATE TABLE invoices(id uuid PRIMARY KEY,job_id uuid,kind text,quote_id uuid,repeat_key text,total_inc_gst numeric,total_paid numeric,deposit_amount numeric,xero_invoice_number text,xero_reference text,xero_online_url text,xero_invoice_id text,balance_due_date text,created_at timestamptz DEFAULT now());
+ CREATE TABLE workflow_settings(id integer,safety_check_payment_inc_gst numeric);
+ CREATE TABLE payment_overrides(id uuid,invoice_id uuid,gate text);
+ CREATE TABLE quote_items(quote_id uuid,code text,line_total_inc_gst numeric);
+ CREATE TABLE piesa_records(job_id uuid,is_current boolean,outcome text,section_c_signed_at timestamptz);
+ INSERT INTO quotes VALUES('${id(40)}',now(),1349);
+ INSERT INTO invoices(id,job_id,kind,quote_id,total_inc_gst,total_paid) VALUES('${id(41)}','${id(1)}','installation','${id(40)}',1349,449);
+ INSERT INTO workflow_settings VALUES(1,349);
+ INSERT INTO quote_items VALUES('${id(40)}','PIESA',349);`);
+ const shim=embedShim(db,{invoices:{quotes:{table:'quotes',fk:'quote_id',on:'base'}}});
+ const cache:any={};
+ const deps:any={
+  '@/integrations/supabase/client.server':{supabaseAdmin:shim},
+  './workflow.server':{paymentGateActiveForJob:async()=>true,logEvent:async()=>{throw Error('Unexpected write');}},
+  './fixes-quote-current.server':{currentFixesQuote:async()=>null},
+  './repeat-piesa.server':{repeatPiesaContext:async()=>null},
+  './payments.core':paymentsCore,'./safety-check-amount.core':safetyCore,'./stripe.core':stripeCore,
+  './stripe.server':{stripeKeyFor:()=>null},'./early-read':earlyRead,'./melbourne-time.core':melbourneCore,
+  './deposit-release-notice.core':{PROVISIONAL_RELEASE_OWNER_NOTICE_APPROVED:true},
+ };
+ const load=(name:string):any=>{
+  if(deps[name])return deps[name];if(cache[name])return cache[name];
+  if(!['./payments.server','./payment-ledger.server'].includes(name))throw Error(`Unexpected import ${name}`);
+  const api:any={};cache[name]=api;
+  new Function('exports','require',ts.transpile(readFileSync(`src/lib/${name.slice(2)}.ts`,'utf8'),{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}))(api,load);return api;
+ };
+ const payments=load('./payments.server');
+ expect(await payments.installDepositBlockerFor(id(1))).toBeNull();
+ // Gate changes without job/team version change: the actual reader now blocks.
+ await db.exec(`UPDATE invoices SET total_paid=349 WHERE id='${id(41)}'`);
+ expect(await payments.installDepositBlockerFor(id(1))).toBe(paymentsCore.INSTALL_DEPOSIT_BLOCKER);
+ expect((await db.query('SELECT in_house_visit_revision($1) AS revision',[id(1)])).rows[0]).toEqual(revision);
  const [a,b]=await Promise.all([db.query(sql,p),db.query(sql,[p[0],id(4),...p.slice(2)])]);expect((a.rows[0] as any).result.bookingId).toBe((b.rows[0] as any).result.bookingId);
  expect((await db.query('SELECT * FROM bookings')).rows).toHaveLength(1);
  // This booking succeeded despite the canonical core blockers above: intentional
