@@ -148,8 +148,8 @@ export async function ownerGates(
 
 /** Decision 395: Gate C "Your safety check copy" receipt blocker for the pre-start check (same facts as the gates). */
 export async function piesaCopyReceiptBlockerFor(jobId: string): Promise<string | null> {
-  const { piesaCopyReceiptBlocker } = await import("./owner-gates.core");
-  return piesaCopyReceiptBlocker(await gateFacts(jobId));
+  // Retired Task 5: retain the reader contract for old callers without requiring a receipt or querying signatures.
+  return null;
 }
 
 export async function ownerGateStageBlockers(jobId: string, to: string): Promise<string[]> {
@@ -337,6 +337,7 @@ export type SignInput = {
 
 /** Records one signed document: exact text, version, identity, IP; files a PDF copy; queues the owner's emailed copy. */
 export async function signGateDoc(i: SignInput) {
+  if (RETIRED_DOC_KEYS.has(i.key) && i.key === "piesa_copy_receipt") throw new WorkflowError("This receipt is no longer required.");
   const d = gateDoc(i.key);
   if (!i.ticked) throw new WorkflowError("Please tick the box to sign.");
   if (i.signatoryName.trim().length < 2) throw new WorkflowError("Please type your full name.");

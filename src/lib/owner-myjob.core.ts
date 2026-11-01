@@ -8,7 +8,22 @@ export const OWNER_STEPS = ["Ready Check", "Quote", "PIESA", "Install", "Done"] 
 /** Decision 389: "turn" = the "It's your turn" page (O77's link): confirm the free Ready Check, or no longer interested.
  *  Batch 3a: "newquote" = O78's "Send me a new quote" button (new-quote-request.*).
  *  A48 batch 2: "taps" = the quick taps (quick-taps.*): name, address, hatch, roof, 5 years, "Yes, let's go". */
-export type OwnerScreen = "home" | "spot" | "quote" | "book" | "done" | "review" | "fixes" | "turn" | "newquote" | "taps";
+export type OwnerScreen = "home" | "spot" | "quote" | "pay" | "piesa" | "veec" | "book" | "done" | "review" | "fixes" | "turn" | "newquote" | "taps";
+
+/** Home is a link alias, never an overview. Only recorded, outstanding owner actions select a page. */
+export function resolveOwnerScreen(screen: OwnerScreen | undefined, v: {
+  action?: { button?: { screen: OwnerScreen } | null }; payment?: { dueNow?: number; provisional?: unknown } | null;
+  piesaConfirm?: unknown; veecAssignment?: { status?: string; signedAt?: string | null } | null; spotSaved?: unknown;
+}): Exclude<OwnerScreen, "home"> | "all_set" {
+  if (screen && screen !== "home") return screen;
+  if (v.action?.button?.screen === "quote") return "quote";
+  if (v.piesaConfirm) return "piesa";
+  if ((v.payment?.dueNow ?? 0) > 0 || v.payment?.provisional) return "pay";
+  if (v.veecAssignment && !v.veecAssignment.signedAt && (!v.veecAssignment.status || v.veecAssignment.status === "awaiting_consumer_signature")) return "veec";
+  const action = v.action?.button?.screen;
+  if (action && action !== "home" && !(action === "spot" && v.spotSaved)) return action;
+  return "all_set";
+}
 
 const HEADLINE_BY_LEVEL: OwnerHeadlineStep[] = ["spot_saved", "ready_check_booked", "quote_ready", "booking_visits", "install_booked", "all_done"];
 
