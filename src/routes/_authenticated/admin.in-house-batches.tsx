@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/portal/kit";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { allocateInHouseBatch, getInHouseBatches } from "@/lib/in-house-batch.functions";
+import { readyInHouseBatch } from "@/lib/in-house-batch.core";
 
 const batchesQuery = queryOptions({ queryKey: ["in-house-batches"], queryFn: () => getInHouseBatches() });
 export const Route = createFileRoute("/_authenticated/admin/in-house-batches")({
@@ -53,7 +54,7 @@ function BatchAllocationPage() {
       return <section key={group.businessId} className="mb-8 border-b border-line pb-6">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h2 className="font-display text-xl font-semibold text-ink">{partner?.name}</h2>
-          <Button disabled={busy !== null || checkedIds.length === 0} onClick={() => void allocate(group.businessId, checkedIds)} className="h-auto min-h-11 max-w-full whitespace-normal"><Send className="size-4 shrink-0" />{busy === group.businessId ? "Allocating…" : `Send to ${partner?.name ?? "partner"}`}</Button>
+          <Button disabled={busy !== null || checkedIds.length < 5} onClick={() => void allocate(group.businessId, readyInHouseBatch(checkedIds))} className="h-auto min-h-11 max-w-full whitespace-normal"><Send className="size-4 shrink-0" />{busy === group.businessId ? "Allocating…" : `Send to ${partner?.name ?? "partner"}`}</Button>
         </div>
         <ul className="divide-y divide-line">{group.jobIds.map(id => {
           const job = jobs.find(j => j.id === id);
