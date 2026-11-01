@@ -14,6 +14,11 @@ test('pending atomic save: double click creates one booking, crew change and rec
  CREATE TABLE job_assignments(id uuid DEFAULT gen_random_uuid(),job_id uuid,user_id uuid,business_id uuid,role text,active boolean,ended_at timestamptz,end_reason text,assigned_by uuid,booking_confirmed_at timestamptz);
  CREATE TABLE bookings(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),job_id uuid,kind booking_kind,status text,scheduled_start timestamptz,scheduled_end timestamptz,contractor_id uuid,assignment_id uuid,business_id uuid,booked_by uuid,notes text,created_at timestamptz DEFAULT now());
  CREATE TABLE workflow_events(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),job_id uuid,actor_id uuid,event_type text,summary text,details jsonb,internal boolean,created_at timestamptz DEFAULT now());
+ CREATE TABLE partner_worker_certifications(id uuid,worker_id uuid,status text);
+ CREATE TABLE worker_certification_levels(certification_id uuid,recorded_at timestamptz);
+ CREATE TABLE admin_config_events(id uuid,details jsonb);
+ CREATE TABLE partner_activations(application_id uuid,business_id uuid);
+ CREATE TABLE rec_onboarding_applications(id uuid,data jsonb);
  INSERT INTO jobs VALUES('${id(1)}','installation_scheduling','2026-11-01T00:00:00Z',null,'HV-TEST');
  INSERT INTO businesses VALUES('${id(2)}',true,true);
  INSERT INTO business_members VALUES('${id(2)}','${id(3)}',true,'business_admin'),('${id(2)}','${id(4)}',true,'business_admin');
@@ -21,7 +26,8 @@ test('pending atomic save: double click creates one booking, crew change and rec
  INSERT INTO job_assignments(job_id,user_id,business_id,role,active) VALUES('${id(1)}','${id(3)}','${id(2)}','installer',true);
  CREATE FUNCTION commit_guarded_stage(_job uuid,_expected job_stage,_to job_stage,_actor uuid,_summary text,_details jsonb,_next text) RETURNS boolean LANGUAGE plpgsql AS $$BEGIN UPDATE jobs SET stage=_to,updated_at=now() WHERE id=_job AND stage=_expected; RETURN FOUND;END$$;`);
  await db.exec(readFileSync('docs/pending-migrations/2026-11-01_in_house_saved_work.sql','utf8'));
- const p=[id(1),id(3),'installation','2026-11-10T22:00:00Z',id(5),'installation_scheduling','2026-11-01T00:00:00Z',null,null,JSON.stringify({lead:id(5),additional:[]}),JSON.stringify({needsVerification:[],staff:[]}),id(10)];
+ const revision=(await db.query('SELECT in_house_visit_revision($1) AS revision',[id(1)])).rows[0] as any;
+ const p=[id(1),id(3),'installation','2026-11-10T22:00:00Z',id(5),'installation_scheduling','2026-11-01T00:00:00Z',null,null,JSON.stringify({lead:id(5),additional:[]}),JSON.stringify({needsVerification:[],staff:[],revision:revision.revision}),id(10)];
  const sql='SELECT commit_in_house_visit($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) AS result';
  await expect(db.query(sql,[...p.slice(0,1),id(9),...p.slice(2)])).rejects.toThrow('Not your in-house job');
  await expect(db.query(sql,[...p.slice(0,6),'2026-10-01T00:00:00Z',...p.slice(7)])).rejects.toThrow('changed');

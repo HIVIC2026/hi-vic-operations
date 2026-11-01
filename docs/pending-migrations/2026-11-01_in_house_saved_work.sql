@@ -1,5 +1,24 @@
 -- Pending only. Application canonical gates must succeed before this service-only
 -- check-and-set. Booking, allocation, crew/ESC audit and retry intent commit together.
+CREATE OR REPLACE FUNCTION public.in_house_visit_revision(_job uuid) RETURNS text
+LANGUAGE sql SECURITY DEFINER SET search_path=public,pg_temp AS $$
+ WITH business AS (SELECT business_id FROM public.job_assignments WHERE job_id=_job AND role::text='installer' AND active),
+ workers AS (SELECT w.* FROM public.partner_workers w WHERE w.business_id IN (SELECT business_id FROM business)),
+ certs AS (SELECT c.* FROM public.partner_worker_certifications c WHERE c.worker_id IN (SELECT id FROM workers))
+ SELECT md5(jsonb_build_array(
+  (SELECT jsonb_agg(to_jsonb(a) ORDER BY a.id) FROM public.job_assignments a WHERE a.job_id=_job),
+  (SELECT jsonb_agg(to_jsonb(b) ORDER BY b.id) FROM public.businesses b WHERE b.id IN (SELECT business_id FROM business)),
+  (SELECT jsonb_agg(to_jsonb(m) ORDER BY m.user_id) FROM public.business_members m WHERE m.business_id IN (SELECT business_id FROM business)),
+  (SELECT jsonb_agg(to_jsonb(w) ORDER BY w.id) FROM workers w),
+  (SELECT jsonb_agg(to_jsonb(c) ORDER BY c.id) FROM certs c),
+  (SELECT jsonb_agg(to_jsonb(l) ORDER BY l.recorded_at) FROM public.worker_certification_levels l WHERE l.certification_id IN (SELECT id FROM certs)),
+  (SELECT jsonb_agg(to_jsonb(e) ORDER BY e.id) FROM public.admin_config_events e WHERE e.details->>'business_id' IN (SELECT business_id::text FROM business)),
+  (SELECT jsonb_agg(to_jsonb(a) ORDER BY a.application_id) FROM public.partner_activations a WHERE a.business_id IN (SELECT business_id FROM business)),
+  (SELECT jsonb_agg(to_jsonb(a) ORDER BY a.id) FROM public.rec_onboarding_applications a WHERE a.id IN (SELECT application_id FROM public.partner_activations WHERE business_id IN (SELECT business_id FROM business)))
+ )::text);
+$$;
+REVOKE ALL ON FUNCTION public.in_house_visit_revision(uuid) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.in_house_visit_revision(uuid) TO service_role;
 CREATE OR REPLACE FUNCTION public.commit_in_house_visit(
  _job uuid,_actor uuid,_kind text,_start timestamptz,_worker uuid,
  _stage text,_version timestamptz,_booking uuid,_crew uuid,
@@ -34,6 +53,11 @@ BEGIN
    WHERE job_id=_job AND event_type='in_house_saved_work' AND details->>'bookingId'=b.id::text AND details->>'workerId'=_worker::text ORDER BY created_at DESC LIMIT 1); END IF;
  IF j.stage::text IS DISTINCT FROM _stage OR j.updated_at IS DISTINCT FROM _version OR b.id IS DISTINCT FROM _booking OR current_crew IS DISTINCT FROM _crew THEN
   RAISE EXCEPTION 'Job changed concurrently; reload and re-evaluate blockers'; END IF;
+ PERFORM 1 FROM public.business_members WHERE business_id=business FOR SHARE;
+ PERFORM 1 FROM public.partner_workers WHERE business_id=business FOR SHARE;
+ PERFORM 1 FROM public.partner_worker_certifications WHERE worker_id IN (SELECT id FROM public.partner_workers WHERE business_id=business) FOR SHARE;
+ PERFORM 1 FROM public.worker_certification_levels WHERE certification_id IN (SELECT id FROM public.partner_worker_certifications WHERE worker_id IN (SELECT id FROM public.partner_workers WHERE business_id=business)) FOR SHARE;
+ IF _crew_facts->>'revision' IS DISTINCT FROM public.in_house_visit_revision(_job) THEN RAISE EXCEPTION 'Team changed concurrently; reload and re-evaluate blockers'; END IF;
  IF _kind IN ('installation','crew') THEN
   IF w.trade_role::text<>'installer' OR NOT coalesce(w.esc_registered,false) OR w.esc_registered_at IS NULL THEN
    RAISE EXCEPTION 'The office must record this Lead Installer as an ESC-registered scheme participant before booking'; END IF;
