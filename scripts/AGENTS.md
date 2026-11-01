@@ -1,4 +1,5 @@
 # QA tooling
+- Published in-house QA uses a separate fail-closed preflight via portal-qa; absent deployed evidence means zero setup/page actions, not simulated PASS. Why: local mocks do not protect published requests.
 - Canonical portal QA supports bounded read-only preview route inventory; unvisited routes, unexecuted controls and incomplete booking readbacks remain NOT_RUN. Why: screenshots or gate refusals are not completed workflows.
 - Review-gap QA reuses verified existing TEST sessions without minting; coverage derives from loaded final URL normalized to route family plus role/viewport, and disclosure PASS requires intended panel/data with post-click errors/overflow checks. Why: requested targets and successful clicks alone overstate coverage.
 - Expanded performance QA never invokes legacy mutation journeys or recipient email flags, uses existing isolated TEST personas and 390x844 phones, and records navigation cancellations separately from transport failures. Why: safe, truthful coverage without sends or account changes.
