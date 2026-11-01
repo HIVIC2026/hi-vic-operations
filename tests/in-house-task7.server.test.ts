@@ -28,3 +28,21 @@ test('paused booking notice resumes from recorded intent without rebooking',asyn
  await f.api.notifyOwnerBooked('j','install','2026-11-02T21:00:00Z',{id:'w',name:'Pat',phone:null},f.now);
  expect(f.sends).toHaveLength(0);paused=false;await f.api.sweepOwnerBookedNotices(f.now);expect(f.sends).toHaveLength(2);expect(f.rows.bookings).toHaveLength(1);
 });
+for(const lodged of [false,true])test(`Lead Installer swap ${lodged?'after':'before'} lodged notice raises only required office work`,async()=>{
+ const f=fixture();
+ f.deps['./trade-view.server']={requireTradeJob:async()=>({boss:true,kind:'installer',biz:{id:'biz'}})};
+ f.deps['./visit-allocation.server']={allocationCandidates:async()=>[{workerId:'new',name:'Pat Smith',mobile:null,tradeRole:'installer',workerRole:'lead',clearance:{certStatus:'verified',level:'full',expiresOn:'2027-12-31'}}]};
+ f.deps['./payments.server']={jobPaymentView:async()=>({steps:[]})};f.deps['./piisa-a3.server']={loadCrew:async()=>({selection:null})};
+ f.deps['./worker-compliance.core']={crewClearance:()=>({cleared:true}),melbourneToday:()=> '2026-11-02',electricianVerified:()=>({ok:false})};
+ f.deps['./visit-allocation.core']={allocationBlocker:()=>null};
+ f.rows.partner_workers=[{id:'new',business_id:'biz',trade_role:'installer',esc_registered:true,esc_registered_at:'2026-10-01',removed_at:null}];
+ f.rows.esc_notifications=lodged?[{id:'notice',job_id:'j',sent_at:'2026-11-01T00:00:00Z',submission_reference:'VEU-1',response:null}]:[];
+ f.deps['./esc.core']={isWithdrawn:()=>false};
+ f.deps['./esc.server']={regenerateEscNotification:async()=>f.sends.push({channel:'robot-queue'})};
+ f.deps['./in-house-booking-notices.server']={notifyOfficeLeadChanged:async(_j:string,_c:string,line:string)=>f.sends.push({channel:'office-email',line})};
+ await f.api.recordLeadChange('j','actor','old','new',f.now);
+ expect(f.sends.filter(s=>s.channel==='office-email')).toHaveLength(lodged?1:0);
+ expect(f.sends.filter(s=>s.channel==='robot-queue')).toHaveLength(lodged?1:0);
+ if(lodged)expect(f.sends.find(s=>s.channel==='office-email')?.line).toBe('Update ESC: Lead Installer for HV-1 is now Pat Smith.');
+ else expect(await f.api.leadNoticeBlocker('j',new Date('2026-11-02T21:00:00Z'))).toBeNull();
+});
