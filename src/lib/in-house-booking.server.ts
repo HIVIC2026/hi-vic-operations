@@ -15,7 +15,7 @@ export async function bookingTeam(jobId:string,userId:string){
   for(let from=0;;from+=200){const page=await read<Row[]>(db.from('partner_workers').select('*').eq('business_id',c.biz.id).is('removed_at',null).order('id').range(from,from+199));rows.push(...page);if(page.length<200)break;}
   const {electricianVerified,crewClearance,melbourneToday}=await import('./worker-compliance.core');
   const {allocationBlocker}=await import('./visit-allocation.core');
-  const workers:BookingWorker[]=candidates.map(w=>{const r=rows.find(r=>r.id===w.workerId);return{id:w.workerId,name:w.name,phone:w.mobile,tradeRole:w.tradeRole,workerRole:w.workerRole,cleared:crewClearance(w.clearance??{certStatus:null,level:null,expiresOn:null},melbourneToday()).cleared,reason:w.tradeRole==='installer'?allocationBlocker('install',w,melbourneToday(),{bookingCreatedAt:null}):w.declarationsDue?'Worker declarations must be signed before booking.':null,electricianVerified:r?.trade_role==='electrician'&&electricianVerified(r).ok,escRegistered:r?.esc_registered===true,escRegisteredAt:r?.esc_registered_at??null};});
+  const workers:BookingWorker[]=candidates.map(w=>{const r=rows.find(r=>r.id===w.workerId);return{id:w.workerId,name:w.name,phone:w.mobile,tradeRole:w.tradeRole,workerRole:w.workerRole??null,cleared:crewClearance(w.clearance??{certStatus:null,level:null,expiresOn:null},melbourneToday()).cleared,reason:w.tradeRole==='installer'?allocationBlocker('install',w,melbourneToday(),{bookingCreatedAt:null}):w.declarationsDue?'Worker declarations must be signed before booking.':null,electricianVerified:r?.trade_role==='electrician'&&electricianVerified(r).ok,escRegistered:r?.esc_registered===true,escRegisteredAt:r?.esc_registered_at??null};});
   const view=await (await import('./payments.server')).jobPaymentView(jobId);
   const paid=!!view&&(await import('./payments.core')).isStepPaid(view.steps,'install_deposit');
   const crew=await (await import('./piisa-a3.server')).loadCrew(jobId);
@@ -43,7 +43,8 @@ export async function notifyOwnerBooked(jobId:string,kind:'ready_check'|'piesa'|
   await (await import('./comms.server')).assertCustomerDeliveryAllowed(jobId,'Booking confirmation');
   const b=a.businesses;const n=bookingNotice({kind,start:startIso,who,installer:b.trading_name||b.name,phone:b.phone});
   const key=`in-house-booked:v1:${booking.id}:${who.id}`;
-  const email=await (await import('./owner-email-send.server')).sendGuardedOwnerEmail({jobId,jobSource:job.source,to:job.owners.email,purpose:'in_house_booked',key,retryAfterDefiniteFailure:true,build:async()=>{const {partnerEmailLayout}=await import('./partner-email.core');return partnerEmailLayout({subject:n.subject,blocks:[{kind:'p',text:n.text}],test:job.source==='qa_test'});}});
+  const {partnerEmailLayout}=await import('./partner-email.core');
+  const email=await (await import('./owner-email-send.server')).sendGuardedOwnerEmail({jobId,jobSource:job.source,to:job.owners.email,purpose:'in_house_booked',key,retryAfterDefiniteFailure:true,build:()=>({subject:n.subject,...partnerEmailLayout({subject:n.subject,blocks:[{kind:'p',text:n.text}],test:job.source==='qa_test'})})});
   const sms=await (await import('./sms.server')).sendRealSms({jobId,type:'in_house_booked_owner',to:job.owners.phone,body:n.sms,idempotencyKey:`${key}:sms`,event:{at:booking.created_at,current:true}});
   return `${email}; ${sms.status}`;
 }

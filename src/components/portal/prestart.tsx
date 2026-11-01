@@ -34,7 +34,7 @@ export function OfficePrestartCard({ jobId }: { jobId: string }) {
   return (
     <Section title="ESC install notification and pre-start check (office only)" action={<Button size="sm" variant="outline" onClick={() => regen({ jobId }, "Notification details refreshed")}>Refresh details</Button>}>
       <div className="space-y-2 text-sm">
-        {d.leadChange&&!d.leadChange.acknowledged&&<div className="border border-danger p-2 text-danger"><p>{d.leadChange.summary}</p><Button variant="outline" onClick={async()=>{await recordLeadUpdate({data:{jobId,changeId:d.leadChange.id}});await q.refetch();}}>ESC notice updated</Button></div>}
+        {d.leadChange&&!d.leadChange.acknowledged&&<div className="border border-danger p-2 text-danger"><p>{d.leadChange.summary}</p><Button variant="outline" onClick={async()=>{const change=d.leadChange;if(!change)return;await recordLeadUpdate({data:{jobId,changeId:change.id}});await q.refetch();}}>ESC notice updated</Button></div>}
         <div>Install: <b>{when(d.start)}</b> · pre-start check from {when(d.runAt)}</div>
         {n && <div className="text-xs text-muted-foreground">Registry window: {n.earliest ? when(n.earliest) : "—"} to {when(n.due_by)} (no earlier than 5 days, no later than 24 hours before the start; written owner consent first).</div>}
         {d.sentLine ? <p className="rounded border border-success/40 bg-success-soft p-2 font-medium">{d.sentLine}{n?.method ? ` · ${n.method.replace("_", " ")}` : ""}</p> : null}

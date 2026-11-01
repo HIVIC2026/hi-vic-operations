@@ -12,7 +12,7 @@ import { Group } from './installer-kit';
 export function useInHouseBookingAccess(jobId:string){const load=useServerFn(getInHouseBookingAccess);return useQuery({queryKey:['in-house-booking-access',jobId],queryFn:()=>load({data:{jobId}}),retry:false});}
 type Kind='ready_check'|'assessment'|'rectification'|'installation';
 const visits=[{kind:'ready_check',label:'Ready Check'},{kind:'assessment',label:'Pre Insulation Electrical Safety Assessment (PIESA)'},{kind:'rectification',label:'Rectification'},{kind:'installation',label:'Install day'}] as const;
-function VisitPicker({jobId,kind,label,workers,booked,selection}:{jobId:string;kind:Kind;label:string;workers:BookingWorker[];booked?:string|null;selection:string|null}){
+function VisitPicker({jobId,kind,label,workers,booked,selection}:{jobId:string;kind:Kind;label:string;workers:BookingWorker[];booked?:string|null|undefined;selection:string|null}){
  const book=useServerFn(inHouseBookVisit),swap=useServerFn(changeInHouseLeadInstaller),qc=useQueryClient();
  const [day,setDay]=useState(''),[arrival,setArrival]=useState(''),[who,setWho]=useState(selection??''),[crew,setCrew]=useState<string[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const choices=workers.filter(w=>kind==='installation'?bookingWorkerBlocker(kind,w)===null:kind==='assessment'||kind==='rectification'?w.tradeRole==='electrician':true);
@@ -34,5 +34,5 @@ export function InHouseBookingCard({jobId}:{jobId:string}){
  if(team.isError)return <p role="alert" className="text-sm text-rose">Could not check your Team or deposit. Booking stays unavailable until those records can be checked.</p>;
  if(!team.data)return <p className="text-sm text-sub">Checking your Team and deposit before booking.</p>;
  const selection=typeof team.data.selection?.lead==='string'?team.data.selection.lead:null;
- return <Group title="Visit bookings">{visits.filter(v=>v.kind!=='installation'||team.data.depositPaid).map(v=><VisitPicker key={v.kind} jobId={jobId} {...v} workers={team.data.workers} selection={v.kind==='installation'?selection:null} booked={access.data.bookings?.find(b=>b.kind===v.kind)?.scheduled_start}/>)}</Group>;
+ return <Group title="Visit bookings">{visits.filter(v=>v.kind!=='installation'||team.data.depositPaid).map(v=><VisitPicker key={v.kind} jobId={jobId} {...v} workers={team.data.workers} selection={v.kind==='installation'?selection:null} booked={access.data?.bookings?.find(b=>b.kind===v.kind)?.scheduled_start}/>)}</Group>;
 }

@@ -150,6 +150,7 @@ export const ONE_OFF_BLAST_TYPES: readonly SmsMessageType[] = ["save_spot_remind
  */
 export type SmsFreshness = { kind: "event"; maxAgeMinutes: number } | { kind: "window" };
 export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
+  in_house_booked_owner: {kind:'event',maxAgeMinutes:24*60},
   install_deposit_request: { kind: 'event', maxAgeMinutes: 24 * 60 },
   install_deposit_reminder: { kind: 'window' },
   install_deposit_paid: { kind: 'event', maxAgeMinutes: 24 * 60 },
