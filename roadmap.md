@@ -1,3 +1,9 @@
+## Jo 1 Nov Task 7 — booking and Lead Installer
+- [ ] Test-first own-Team booking, ESC registration office record with pending practice-proven SQL; paid deposit and Lead Installer requirements.
+- [ ] Guarded owner booked notifications, Lead Installer A5/SWMS changes and urgent ESC acknowledgment/prestart block, 2pm grouped installer-office email.
+- [ ] Reasoned member handback, quiet owner cancellation with HIV office email, two-business-day office flag.
+- [ ] Related and isolated comparable suite vs 97/243; no settings/secrets/live data/database changes/sends/publication. Pending migrations NOT applied.
+
 ## Jo 1 Nov Task 6 and signing recovery
 - [x] Retry-recovery option: actual PGlite quote sitting interrupted after the two Gate B rows, then retry leaves exactly two gate rows, one agreement and one signed ESC consent; successful replay makes no duplicates. Accepted-version replay now completes missing stable auxiliary records and reuses the agreement. No new SQL required; existing date-free consent SQL remains pending/unapplied.
 - [x] In-house actual electrical clearance requests the existing-invoice 10% deposit; request/day3/day7 and paid owner notices use guarded email/link-free SMS, office gets independently claimed email only, paid canonical state moves the installer home item into To book. PIESA/Part C hooks, shared card/Xero payment hook and authenticated 15-minute tick wired; 10-day office flag retained. No communication settings changed; new text types still require their own switches. Ambiguous sends are never repeated.
