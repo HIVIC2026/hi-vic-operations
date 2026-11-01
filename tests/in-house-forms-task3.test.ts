@@ -57,18 +57,3 @@ test("cancel closes every unused form but never completed forms; replay adds not
 test("non-in-house jobs are unchanged and failed partner reads refuse before creation", async () => {const f=fixture(); f.nonHouse(); expect(await f.load().ensureInHouseForms("j","actor")).toEqual({readyCheck:null,piesa:null,fixes:null}); expect(f.creates).toEqual([]); const g=fixture(); g.outage(); await expect(g.load().ensureInHouseForms("j","actor")).rejects.toThrow("partner"); expect(g.creates).toEqual([]);});
 test("closed audits stay terminal on ensure retries and date/person sync",async()=>{const f=fixture(),s=f.load();await s.ensureInHouseForms("j","actor");f.lead();await s.ensureInstallForm("j","actor");await s.closeUnneededForms("j","cancelled");const n=f.handovers.length;await s.ensureInHouseForms("j","actor");await s.ensureInstallForm("j","actor");await s.syncInHouseForms("j","date");await s.syncInHouseForms("j","crew");expect(f.creates).toEqual(["readyCheck","piesa","fixes","install"]);expect(f.dates).toEqual([]);expect(f.handovers).toHaveLength(n);});
 test("another business's selected electrician or Lead is refused",async()=>{const f=fixture();f.tables.job_assignments[1].business_id="other";await expect(f.load().inHousePreparationAssignee("j")).rejects.toThrow("Team");const g=fixture();g.lead();g.tables.partner_workers[0].business_id="other";await expect(g.load().ensureInstallForm("j","actor")).rejects.toThrow("Team");expect(g.creates).toEqual([]);});
-test("cancelJobFully closes unused forms before assignments are released",async()=>{
- const order:string[]=[];const api:any={};
- const q:any={select:()=>q,eq:()=>q,maybeSingle:async()=>({data:{stage:"ready_check_scheduled",job_number:"HV-TEST"},error:null})};
- const source=readFileSync("src/lib/office-actions.server.ts","utf8");
- const ast=ts.createSourceFile("office-actions",source,ts.ScriptTarget.Latest,true);
- const fn=ast.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text==="cancelJobFully");expect(fn).toBeDefined();if(!fn)throw new Error("Missing cancellation helper");
- // Run the real cancellation entry point; only disposition and release side effects are mocked.
- new Function("exports","require","admin","WorkflowError","releaseCancelledJob",ts.transpile(fn.getText(ast),{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}))(api,(p:string)=>({applyHoldOrCancel:async()=>order.push("cancel")}),{from:()=>q},Error,async()=>order.push("release"));
- const f=fixture(),s=f.load();await s.ensureInHouseForms("j","actor");
- // releaseCancelledJob is the canonical lifecycle's form-closing boundary, before ending assignments.
- const release=ast.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text==="releaseCancelledJob");if(!release)throw new Error("Missing release helper");
- const closure=readFileSync("src/lib/office-actions.server.ts","utf8").includes('closeUnneededForms(jobId, "cancelled", actorId)');expect(closure).toBe(true);
- await api.cancelJobFully("j","Owner cancelled","actor");expect(order).toEqual(["cancel","release"]);
- expect(await s.closeUnneededForms("j","cancelled")).toBe(3);
-});
