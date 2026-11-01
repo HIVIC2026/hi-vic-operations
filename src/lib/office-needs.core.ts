@@ -59,7 +59,7 @@ export type NeedsFacts = {
   /** Spot saved, no installer chosen yet (decision 239). */
   spotSaved?: { at: string } | null;
   /** Quote accepted and $349 paid, no PIESA offer yet (decisions 157/173). */
-  electricianToChoose?: { at: string; usual: string | null } | null;
+  electricianToChoose?: { at: string; usual: string | null; overridden?: boolean } | null;
   /** Quotes to check (held with reasons, or a ready draft waiting for Send). */
   quoteToCheck?: { at: string; reason: string | null; ready: boolean } | null;
   /** Electrical fixes quote to price / review before it goes to the owner. */
@@ -250,7 +250,7 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   if (f.finalCheck) add({ rank: 50, group: "today", kind: "final_check", line: `Final check · install complete · ${f.finalCheck.flags ? `${f.finalCheck.flags} flag${f.finalCheck.flags === 1 ? "" : "s"}` : "no flags"}`, since: f.finalCheck.at, button: { label: "Approve", to: "job", section: "final-check" } });
   if (!held && f.releaseLapsed) add({ rank: 98, group: "week", kind: "release_lapsed", line: `${LAPSED_NEEDS_LINE}${f.releaseLapsed.name ? ` · released to ${f.releaseLapsed.name}` : ""}`, since: f.releaseLapsed.at, button: { label: "Choose installer", to: "job", section: "ready-check" } });
   if (!held && f.spotSaved) add({ rank: 100, group: "week", kind: "choose_installer", line: "Spot saved · waiting for an installer", since: f.spotSaved.at, button: { label: "Choose installer", to: "job", section: "ready-check" } });
-  if (!held && f.electricianToChoose) add({ rank: 105, group: "week", kind: "choose_electrician", line: `Quote accepted · $349 paid · PIESA next${f.electricianToChoose.usual ? ` · usual electrician ${f.electricianToChoose.usual}` : ""}`, since: f.electricianToChoose.at, button: { label: "Send offer", to: "job", section: "piesa" } });
+  if (!held && f.electricianToChoose) add({ rank: 105, group: "week", kind: "choose_electrician", line: `Quote accepted · $349 ${f.electricianToChoose.overridden ? "overridden" : "paid"} · PIESA next${f.electricianToChoose.usual ? ` · usual electrician ${f.electricianToChoose.usual}` : ""}`, since: f.electricianToChoose.at, button: { label: "Send offer", to: "job", section: "piesa" } });
   if (!held && f.fixesTimesMissing) add({ rank: 117, group: "week", kind: "fixes_times_missing", line: FIXES_TIMES_MISSING_LINE, since: f.fixesTimesMissing.at, button: { label: "Open job", to: "job", section: "piesa" } });
   if (f.piesaOwnerUnsigned) add({ rank: 118, group: "week", kind: "piesa_owner_unsigned", line: `Owner hasn't confirmed the safety check${f.piesaOwnerUnsigned.completedDate ? ` of ${fmtDay(`${f.piesaOwnerUnsigned.completedDate}T12:00:00+10:00`)}` : ""} · 5 days · install can't be booked`, since: f.piesaOwnerUnsigned.at, button: { label: "Open job", to: "job", section: "piesa" } });
   if (f.fixesOwnerUnsigned) add({ rank: 119, group: "week", kind: "piesa_fixes_owner_unsigned", line: `Owner hasn't confirmed the electrical fixes${f.fixesOwnerUnsigned.fixesDate ? ` of ${fmtDay(`${f.fixesOwnerUnsigned.fixesDate}T12:00:00+10:00`)}` : ""} · 5 days · official PIESA owner declaration not ticked`, since: f.fixesOwnerUnsigned.at, button: { label: "Open job", to: "job", section: "piesa" } });

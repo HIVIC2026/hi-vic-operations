@@ -119,6 +119,8 @@ export type JobFacts = {
   quote?: { releaseState: string | null; holdReason: string | null; sentAt: string | null; status: string; acceptedAt: string | null } | null;
   rectQuote?: { releaseState: string | null; sentAt: string | null; status: string } | null;
   paymentCleared?: boolean;
+  /** Cleared only by an admin $349 override (not money received). */
+  paymentOverridden?: boolean;
   piesa?: { completedAt: string | null; passed: boolean; sectionCAt: string | null } | null;
   elecOfferAt?: string | null; elecBookingAt?: string | null; rectBookingAt?: string | null;
   installDeadline?: string | null; installBookingAt?: string | null; installedAt?: string | null; evidenceMissing?: number;

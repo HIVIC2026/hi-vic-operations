@@ -1,4 +1,5 @@
 import { melbourneToday } from "./melbourne-time.core";
+import { depositClearedJobs } from "./deposit-cleared.core";
 import { onsiteOnlyOfficeJobIds } from "./insulation-details-office.server";
 // Gathers facts for the office rulebook in bulk (paged, admin client) and applies the pure rules.
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -72,7 +73,7 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
     scoped("suggested times", (c) => admin.from("appointment_proposals").select("job_id, kind, created_at").eq("status", "proposed").in("job_id", c)),
     scoped("quotes", (c) => admin.from("quotes").select("job_id, kind, status, release_state, release_hold_reason, sent_at, accepted_at, created_at").neq("status", "superseded").in("job_id", c).order("created_at")),
     // Batch 3b: the $349 is on the installation invoice — a paid fixes / repeat invoice never reads as "$349 paid".
-    scoped("payments", (c) => admin.from("invoice_status").select("job_id, deposit_cleared, effective_status").eq("kind", "installation").in("job_id", c)),
+    scoped("payments", (c) => admin.from("invoice_status").select("id, job_id, deposit_cleared, effective_status").eq("kind", "installation").in("job_id", c)),
     scoped("PIESAs", (c) => admin.from("piesa_records").select("job_id, outcome, completed_date, section_c_signed_at").eq("is_current", true).in("job_id", c)),
     scoped("Ready Checks", (c) => admin.from("ready_checks").select("job_id, submitted_at").in("job_id", c)),
     scoped("evidence", (c) => admin.from("evidence_requirements").select("job_id, status, required, category, gate, label").eq("required", true).eq("status", "outstanding").in("job_id", c)),
@@ -97,6 +98,8 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
     scoped("Ready Check requests", (c) => admin.from("ready_check_acceptances").select("job_id").in("job_id", c)),
     scoped("measure-ups", (c) => admin.from("ceiling_measurements").select("job_id, created_at").eq("is_current", true).in("job_id", c)),
     skip("owner paperwork signatures", (c) => admin.from("owner_gate_signatures").select("job_id, doc_key, doc_version, doc_draft, answers").in("job_id", c).order("signed_at").order("id")),
+    // Jo 1 Nov 2026 (HV-3666): an admin $349 override counts as cleared here too (same rule as paymentGate).
+    scoped("deposit overrides", (c) => admin.from("payment_overrides").select("invoice_id, job_id").eq("gate", "deposit").in("job_id", c)),
     ]);
   };
   const early = statusOnly ? perJob(opts.onlyIds!, [], []) : null;
@@ -130,7 +133,7 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
   const pickJobs = [...new Set(picks.map((p) => String(p["job_id"])))];
   const timed = live.filter((j) => j["stage"] === "ready_check_ready_to_schedule" || j["stage"] === "piesa_and_install_window_pending");
   const tIds = timed.map((j) => String(j["id"]));
-  const [stageEv, camp, links, wins, offers, books, props, quotes, inv, piesa, rcs, ev, veec, payoutEv, deadlines, invErr, esc, outbox, comms, emails, creds, reassigs, pickAll, tOffers, tAsg, emailsSent, messagesSent, acc, meas, gsigRows] = await (early ?? perJob(ids, pickJobs, tIds));
+  const [stageEv, camp, links, wins, offers, books, props, quotes, inv, piesa, rcs, ev, veec, payoutEv, deadlines, invErr, esc, outbox, comms, emails, creds, reassigs, pickAll, tOffers, tAsg, emailsSent, messagesSent, acc, meas, gsigRows, depositOverrides] = await (early ?? perJob(ids, pickJobs, tIds));
   const { chosenTradeNoAnswer } = await import("./trade-choice.core");
   const tradeChoice = new Map<string, NonNullable<NeedsJob["tradeChoice"]>>();
   const pickAllBy = new Map<string, Row[]>(); for (const o of pickAll) { const k = String(o["job_id"]); if (!pickAllBy.has(k)) pickAllBy.set(k, []); pickAllBy.get(k)!.push(o); }
@@ -191,7 +194,7 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
   const proposal = new Map(props.map((p) => [String(p["job_id"]), { kind: String(p["kind"]), since: String(p["created_at"]) }]));
   const instQ = new Map<string, Row>(), rectQ = new Map<string, Row>();
   for (const q of quotes) (q["kind"] === "rectification" ? rectQ : instQ).set(String(q["job_id"]), q);
-  const paid = new Set(inv.filter((v) => v["deposit_cleared"]).map((v) => String(v["job_id"])));
+  const { paid, overridden: depositOverridden } = depositClearedJobs(inv, depositOverrides);
   const pie = new Map(piesa.map((p) => [String(p["job_id"]), p]));
   const rcSub = new Map<string, string>(); for (const r of rcs) latest(rcSub, String(r["job_id"]), s(r["submitted_at"]));
   const measAt = new Map<string, string>(); for (const r of meas) { const k = String(r["job_id"]), v = String(r["created_at"]); if (!measAt.has(k) || v < measAt.get(k)!) measAt.set(k, v); }
@@ -245,7 +248,7 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
       proposalPending: proposal.get(id) ?? null,
       quote: q ? { releaseState: s(q["release_state"]), holdReason: s(q["release_hold_reason"]), sentAt: s(q["sent_at"]), status: String(q["status"]), acceptedAt: s(q["accepted_at"]) } : null,
       rectQuote: rq ? { releaseState: s(rq["release_state"]), sentAt: s(rq["sent_at"]), status: String(rq["status"]) } : null,
-      paymentCleared: paid.has(id),
+      paymentCleared: paid.has(id), paymentOverridden: depositOverridden.has(id),
       piesa: p ? { completedAt: s(p["completed_date"]), passed: p["outcome"] === "pass", sectionCAt: s(p["section_c_signed_at"]) } : null,
       elecOfferAt: offerAt.get(`${id}:piesa`) ?? null, elecBookingAt: bookAt.get(`${id}:assessment`) ?? null, rectBookingAt: bookAt.get(`${id}:rectification`) ?? null,
       installDeadline: deadline.get(id) ?? null, installBookingAt: bookAt.get(`${id}:installation`) ?? null, installedAt: s(j["installation_completed_at"]), evidenceMissing: evMissing.get(id)?.length ?? 0,
