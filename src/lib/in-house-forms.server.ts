@@ -83,7 +83,12 @@ export async function ensureInHouseForms(jobId: string, actorId: string | null, 
   let readyCheck = forms.find(f=>f.kind==="ready_check")?.auditId ?? null;
   let piesa = forms.find(f=>f.kind==="piesa")?.auditId ?? null;
   let fixes = (await (await import("./fixes-day.server")).existingRectificationForm(jobId,true))?.auditId ?? null;
-  if (!readyCheck) readyCheck = (await mitti.createAssignMittiAudit(jobId,actorId,call ?? mitti.realMittiCall,{readyCheck:true})).auditId;
+  if (!readyCheck) {
+    const job = await read<{source:string}|null>(db.from("jobs").select("source").eq("id",jobId).maybeSingle());
+    const installer = await assignment(jobId,"installer");
+    const testEmail = job?.source === "qa_test" ? (await import("./onsite-ready-check.core")).TEST_MITTI_ASSIGNEE : null;
+    readyCheck = (await mitti.createAssignMittiAudit(jobId,actorId,call ?? mitti.realMittiCall,{readyCheck:true,...(testEmail && installer ? {assignee:{userId:installer.user_id,fullName:installer.profiles?.full_name ?? null,email:testEmail}} : {})})).auditId;
+  }
   const holder = await inHousePreparationAssignee(jobId);
   if (!piesa) piesa = (await mitti.createAssignMittiAudit(jobId,actorId,call ?? mitti.realMittiCall,{inHousePreparation:true,assignee:holder})).auditId;
   if (!fixes) {
