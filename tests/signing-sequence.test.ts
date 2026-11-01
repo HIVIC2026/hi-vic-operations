@@ -41,13 +41,13 @@ describe("quote acceptance is commercial; VEEC assignment is post-install", () =
 });
 
 describe("owner ESC consent", () => {
-  test("cannot be generated or signed before an exact installation date", () => {
-    expect(buildConsentFacts({ scheduledStart: null, scheduledEnd: null, premisesAddress: "A", owner })).toBeNull();
-    expect(ownerConsentBlockers({ status: null, templateApproved: true, scheduledStart: null, nowIso: "2026-10-01T00:00:00Z", input })[0]).toMatch(/exact installation date/);
+  test("can be generated and signed at quote stage without a booking", () => {
+    expect(buildConsentFacts({ scheduledStart: null, scheduledEnd: null, premisesAddress: "A", owner })).toMatchObject({premises_address:"A",owner});
+    expect(ownerConsentBlockers({ status: null, templateApproved: true, scheduledStart: null, nowIso: "2026-10-01T00:00:00Z", input })).toEqual([]);
   });
-  test("prefills AP legal name and exact day", () => {
+  test("prefills AP legal name without an installation day", () => {
     expect(facts.ap_legal_entity).toBe(ESC_AP_LEGAL_NAME);
-    expect(facts.installation_days).toEqual(["2026-10-10"]);
+    expect(facts.installation_days).toBeUndefined();
   });
   test("unapproved template fails closed; <24h signing rejected; AP must confirm after owner", () => {
     expect(ownerConsentBlockers({ status: "awaiting_owner", templateApproved: false, scheduledStart: start, nowIso: "2026-10-01T00:00:00Z", input }).join()).toMatch(/not been approved/);
@@ -56,12 +56,12 @@ describe("owner ESC consent", () => {
     expect(apConsentBlockers({ status: "awaiting_owner", scheduledStart: start, nowIso: "2026-10-01T00:00:00Z", apRepName: "Al", purposeExplained: true })[0]).toMatch(/owner must sign first/);
     expect(apConsentBlockers({ status: "awaiting_ap", scheduledStart: start, nowIso: "2026-10-01T00:00:00Z", apRepName: "Al", purposeExplained: false }).join()).toMatch(/purpose/);
   });
-  test("stale on date / address / owner identity / contact change", () => {
-    expect(consentStaleReasons(facts, { ...facts, scheduled_start: "2026-10-12T00:00:00.000Z" })).toContain("installation date/time changed");
+  test("date changes retain consent; address, owner and contact changes stale it", () => {
+    expect(consentStaleReasons(facts, { ...facts, scheduled_start: "2026-10-12T00:00:00.000Z" })).toEqual([]);
     expect(consentStaleReasons(facts, { ...facts, premises_address: "2 St" })).toContain("premises address changed");
     expect(consentStaleReasons(facts, { ...facts, owner: { ...owner, name: "Sam" } })).toContain("owner identity changed");
     expect(consentStaleReasons(facts, { ...facts, owner: { ...owner, phone: "0400" } })).toContain("owner contact details changed");
-    expect(consentValidityBlockers(valid, "2026-10-12T00:00:00.000Z").join()).toMatch(/stale/);
+    expect(consentValidityBlockers(valid, "2026-10-12T00:00:00.000Z")).toEqual([]);
   });
 });
 

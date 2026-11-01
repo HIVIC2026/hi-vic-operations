@@ -65,7 +65,7 @@ describe("Scenario F — owner paperwork gates", () => {
       const aDone = sign(...j.extraA);
       // Gate B
       const bStage = "awaiting_deposit_payment";
-      expect(blocked(base({ ...j.f, signed: aDone, hasQuote: true }), bStage).length).toBe(4);
+      expect(blocked(base({ ...j.f, signed: aDone, hasQuote: true }), bStage).length).toBe(3);
       expect(
         blocked(
           base({
@@ -88,7 +88,7 @@ describe("Scenario F — owner paperwork gates", () => {
       expect(blocked(base(bDone), bStage)).toEqual([]);
       // Gate C
       const cStage = "evidence_outstanding";
-      expect(blocked(base(bDone), cStage).length).toBe(j.f.lifeSupport ? 4 : 3);
+      expect(blocked(base(bDone), cStage).length).toBe(j.f.lifeSupport ? 3 : 2);
       // A48 batch 1 final fix: the life support plan is done by the owner's upload or the office record (no tick).
       const cDone = {
         ...bDone,
@@ -105,15 +105,13 @@ describe("Scenario F — owner paperwork gates", () => {
       expect(blocked(base({ ...cDone, assignmentEffective: true }), "ready_for_veec")).toEqual([]);
     });
   }
-  test("Gate B requires the owner's VEEC assignment at quote acceptance", () => {
+  test("Gate B no longer requires the retired conditional VEEC signature", () => {
     const f = base({
       signed: [...sign(...A), ...sign("quote_acceptance", "payment_terms")],
       hasQuote: true,
       agreementSigned: true,
     });
-    expect(blocked(f, "awaiting_deposit_payment")).toEqual([
-      "Owner paperwork B: Your rebate (VEEC assignment) not signed yet.",
-    ]);
+    expect(blocked(f, "awaiting_deposit_payment")).toEqual([]);
   });
   test("Life support plan only required when life support applies", () => {
     expect(
@@ -160,7 +158,6 @@ describe("Scenario F — owner paperwork gates", () => {
     expect(g.find((x) => x.gate === "B")!.items.map((i) => i.key)).toEqual([
       "customer_agreement",
       "quote_acceptance",
-      "veec_assignment_consent",
       "payment_terms",
       "tenancy_details",
       "landlord_consent",
