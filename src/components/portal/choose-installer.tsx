@@ -1,7 +1,7 @@
 // Office job page: "Choose installer" for an our-lead Ready Check (Jo 24 Oct 2026, decisions 49–51).
 // Nearby approved installers with their area and rates. Decision 389 (Jo 25 Oct 2026): tapping Release recorded the
 // installer as a PENDING release and sent the OWNER "It's your turn". A48 batch 2 (Jo 30 Oct 2026): website owners are
-// no longer released one by one — they go in area batches (Suggested batches) — so Release now shows only for an owner
+// sent through area batches (including a batch of one) — so Release now shows only for an owner
 // who already confirmed (it goes straight to the installer); old releases stay readable. Installers' own customers never
 // show this.
 import { useState } from "react";
@@ -16,6 +16,8 @@ import { getAreaBatchSuggestions, getBatchesReadyToSend, sendAreaBatchFn } from 
 import { offerRunFn, returnBatchFn } from "@/lib/installer-run.functions";
 import { Pill, btnClass } from "@/components/portal/kit";
 import { CHOOSE_LOAD_FAILED, choosePanelState } from "@/lib/installer-waiting-columns.core";
+import { useJobFile } from "@/components/portal/jobfile";
+import { AREA_BATCH_SENT_EVENT, openBatchId } from "@/lib/area-batch.core";
 
 const money = (n: number) => `$${n.toLocaleString("en-AU", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`;
 const when = (iso: string | null) => iso ? new Date(iso).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "";
@@ -26,11 +28,14 @@ export function ChooseInstallerPanel({ jobId, reportLoad = false }: { jobId: str
   const qc = useQueryClient();
   const list = useServerFn(listChooseTrades);
   const release = useServerFn(releaseSpotFn);
+  const send = useServerFn(sendAreaBatchFn);
   const loadRelease = useServerFn(getSpotRelease);
+  const file = useJobFile(jobId);
   const q = useQuery({ queryKey: ["choose-trades", jobId, "ready_check"], queryFn: () => list({ data: { jobId, kind: "ready_check" } }) });
   const rq = useQuery({ queryKey: ["spot-release", jobId], queryFn: () => loadRelease({ data: { jobId } }) });
   const [busy, setBusy] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const [sentTo, setSentTo] = useState<string | null>(null);
   const d = q.data;
   const state = choosePanelState({ isError: q.isError, hasData: !!d });
   if (reportLoad && state === "error") return (
@@ -58,6 +63,22 @@ export function ChooseInstallerPanel({ jobId, reportLoad = false }: { jobId: str
   const rel = rq.data;
   const pending = rel?.state === "pending";
   const confirmed = rel?.state === "confirmed";
+  const batchEvents = (file.data?.timeline ?? []).map((t) => ({ event_type: String(t.detail?.event_type ?? ""), created_at: t.at, details: t.detail }));
+  const batchId = openBatchId(batchEvents);
+  const batch = batchEvents.find((e) => e.event_type === AREA_BATCH_SENT_EVENT && e.details?.batch_id === batchId);
+  const batchSent = !!batchId || !!sentTo;
+  const waiting = !pending && !confirmed && !batchSent && !rq.isPending && !rq.isError && !file.isPending && !file.isError;
+  const sendOne = async (businessId: string, name: string) => {
+    if (busy) return;
+    setBusy(businessId);
+    try {
+      const r = await send({ data: { jobIds: [jobId], businessId } });
+      toast.success(`Sent to ${r.homes} ${r.homes === 1 ? "owner" : "owners"} for ${name}${r.held ? ` · ${r.held} text${r.held === 1 ? "" : "s"} held (see the job)` : ""}`);
+      setSentTo(name);
+      void qc.invalidateQueries();
+    } catch (e) { toast.error(e instanceof Error ? e.message : "That didn't work"); }
+    finally { setBusy(null); }
+  };
   return (
     <div id="choose-installer">
       <Section title="Choose installer">
@@ -66,8 +87,9 @@ export function ChooseInstallerPanel({ jobId, reportLoad = false }: { jobId: str
             ? <p className="rounded-md border px-3 py-2">Offer sent to <span className="font-semibold">{d.openOffer.business ?? "the installer"}</span>. Waiting for them to offer the owner 3 times{d.openOffer.expiresAt ? ` (closes ${when(d.openOffer.expiresAt)})` : ""}.</p>
             : pending ? <p className="rounded-md border px-3 py-2" data-release="pending">{rel?.line}. The installer is offered the job only once the owner confirms.</p>
             : confirmed ? <p className="rounded-md border px-3 py-2" data-release="confirmed"><span className="font-semibold">{rel?.line}.</span> Release sends the offer straight to the installer (the owner isn't asked again).</p>
-            : <p className="text-muted-foreground">{rel?.state === "lapsed" ? `${rel.line}. ` : ""}Website owners now go in area batches — use Suggested batches on Choose installer.</p>}
-          {!d.openOffer && confirmed && (
+            : batchSent ? <p className="rounded-md border px-3 py-2" data-release="batch-sent">Sent to the owner for <span className="font-semibold">{sentTo ?? batch?.details?.installer_name ?? "the installer"}</span>. Waiting for the owner to confirm a few quick details.</p>
+            : rel?.state === "lapsed" ? <p className="text-muted-foreground">{rel.line}.</p> : null}
+          {!d.openOffer && (confirmed || waiting) && (
             <ul className="divide-y rounded-md border">
               {shown.length === 0 && <li className="px-3 py-3 text-muted-foreground">No installer can be offered {d.suburb || "this area"} right now{d.others.length ? " — show the others to see why" : ""}.</li>}
               {shown.map((t) => {
@@ -81,13 +103,13 @@ export function ChooseInstallerPanel({ jobId, reportLoad = false }: { jobId: str
                       {t.alreadyOffered === "expired" && <p className="text-xs text-muted-foreground">Didn't answer in 24 hours last time</p>}
                       {t.blocker && <p className="text-xs text-destructive">Can't be offered: {t.blocker}</p>}
                     </div>
-                    <Button size="sm" variant={blocked ? "outline" : "default"} disabled={blocked || !!busy} onClick={() => void pick(t.id, t.business)}>{busy === t.id ? "Releasing…" : "Release"}</Button>
+                    <Button size="sm" variant={blocked ? "outline" : "default"} disabled={blocked || !!busy} onClick={() => void (confirmed ? pick(t.id, t.business) : sendOne(t.id, t.business))}>{busy === t.id ? confirmed ? "Releasing…" : "Sending…" : confirmed ? "Release" : "Send"}</Button>
                   </li>
                 );
               })}
             </ul>
           )}
-          {!d.openOffer && confirmed && d.others.length > 0 && <button type="button" className="text-xs font-semibold text-primary" onClick={() => setShowAll((v) => !v)}>{showAll ? "Show nearby only" : `Show ${d.others.length} more installer${d.others.length === 1 ? "" : "s"}`}</button>}
+          {!d.openOffer && (confirmed || waiting) && d.others.length > 0 && <button type="button" className="text-xs font-semibold text-primary" onClick={() => setShowAll((v) => !v)}>{showAll ? "Show nearby only" : `Show ${d.others.length} more installer${d.others.length === 1 ? "" : "s"}`}</button>}
           {q.error && <p className="text-destructive">{(q.error as Error).message}</p>}
         </div>
       </Section>
