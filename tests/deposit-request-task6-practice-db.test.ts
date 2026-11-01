@@ -24,7 +24,8 @@ mock.module('../src/lib/office-email.server',()=>({sendOfficeEmail:async()=>{off
 const {requestInstallDeposit,notifyInstallerDepositPaid}=await import('../src/lib/deposit-request.server');
 test('concurrent requests persist one real practice event and use identical per-channel keys',async()=>{
  await Promise.all([requestInstallDeposit(JOB,new Date('2026-11-01T00:00:00Z')),requestInstallDeposit(JOB,new Date('2026-11-01T00:00:00Z'))]);
- expect(await j.q("select event_type from workflow_events where job_id=$1",[JOB])).toEqual([{event_type:'install_deposit_requested'}]);
+ expect(await j.q("select event_type from workflow_events where job_id=$1 and event_type='install_deposit_requested'",[JOB])).toEqual([{event_type:'install_deposit_requested'}]);
+ expect(await j.q("select id from workflow_events where job_id=$1 and event_type='install_deposit_request_pending'",[JOB])).toHaveLength(0);
  expect(emailKeys.size).toBe(1);expect(textKeys.size).toBe(1);
  expect(await j.q('select id from workflow_events where job_id=$1',[OTHER])).toHaveLength(0);
 });
