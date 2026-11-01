@@ -66,7 +66,7 @@ test('SIM owner cancellation closes unused forms and emails only HIV office, rep
  const h=createInHouseSim();await h.bookReadyCheck();h.checkpoint();await h.cancel('Owner changed plans');
  h.assertStep('Owner cancelled','cancelled',['RC','A3','A4'],[['hiv-office','email','in_house_owner_cancelled']]);
  expect(h.closedForms().sort()).toEqual(['A3','A4','RC']);expect(h.actorCanRead('electrician')).toBe(false);
- await h.cancel('Owner changed plans');h.assertNoNewMessages();h.assertOfficesEmailOnly();
+ await expect(h.cancel('Owner changed plans')).rejects.toThrow('already cancelled');h.assertNoNewMessages();h.assertOfficesEmailOnly();
 });
 
 test('SIM Lead Installer day-before and morning swaps move A5/SWMS; matching ESC acknowledgement unlocks',async()=>{
