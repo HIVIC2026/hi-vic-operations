@@ -676,6 +676,11 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
         repeat: rep && rep.price > 0 ? { cents: toCents(rep.price), acceptedAt: rep.acceptedAt, paid: rep.paid } : null,
       });
       if (stalls.length) x.paymentStalls = stalls;
+      const completedAt=j.facts.installedAt;
+      const {balanceOverdue,balanceDueAt}=await import('./balance-q21.core');
+      if(install&&balanceOverdue(completedAt,Number(install['total_paid']??0)>=Number(install['total_inc_gst']??0),new Date(now))){
+        (x.paymentsOverdue??=[]).push({invoice:'install',reference:s(install['xero_invoice_number']),at:balanceDueAt(completedAt)??completedAt??'',text:'Installation balance overdue'});
+      }
     }
   }
   // Batch 3b: one overdue row per invoice (install / fixes / repeat safety check), named with that invoice's reference.
@@ -683,6 +688,10 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     const { invoiceSlotOf } = await import("./office-money.core");
     for (const i of overdue) {
       const x = f(String(i["job_id"])); if (!x) continue;
+      if(i['kind']==='installation'){
+        const completed=jobById.get(String(i['job_id']))?.facts.installedAt??null;
+        if(!(await import('./balance-q21.core')).balanceOverdue(completed,Number(i['total_paid']??0)>=Number(i['total_inc_gst']??0),new Date(now)))continue;
+      }
       const invoice = invoiceSlotOf(s(i["kind"]));
       if ((x.paymentsOverdue ?? []).some((o) => o.invoice === invoice)) continue;
       (x.paymentsOverdue ??= []).push({ invoice, reference: s(i["xero_invoice_number"]), at: String(i["balance_due_date"] ?? i["deposit_due_date"] ?? new Date(now).toISOString()), text: `$${Math.max(0, Number(i["total_inc_gst"] ?? 0) - Number(i["total_paid"] ?? 0)).toLocaleString("en-AU", { maximumFractionDigits: 0 })} owing` });

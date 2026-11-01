@@ -50,6 +50,7 @@ export function dedupeAnswers<T extends AiAnswer>(rows: T[]): T[] {
 
 /** The answers as prompt lines. No rows saved (null/empty) → the seed. Blank answers are left out. */
 export function rulesFromAnswers(rows: AiAnswer[] | null): string[] {
-  const own = (rows ?? []).map((r) => r.answer.trim()).filter(Boolean);
+  // Q21 supersedes saved old balance answers without rewriting their audit history.
+  const own = (rows ?? []).map((r) => r.answer.trim().replace(/the rest on install day/gi,'the rest 7 days after the install is recorded complete').replace(/(?:The )?balance is (?:paid )?by bank transfer or PayID\.?/gi,'The balance is due 7 days after the install is recorded complete and can be paid by card, bank transfer or PayID.')).filter(Boolean);
   return own.length ? own : AI_SEED_ANSWERS.map((r) => r.answer.trim());
 }

@@ -471,7 +471,7 @@ export function paymentLine(step: PaymentStepKey, reference: string | null, safe
   const ref = reference ? `, reference ${reference}` : "";
   if (step === "safety_check") return safetyCheckCents === SAFETY_CHECK_CENTS ? PAY_LINE_SAFETY_CHECK : `${aud(safetyCheckCents)} by card or bank transfer — no fee`;
   if (step === "fixes" || step === "repeat_safety_check") return PAY_LINE_FIXES;
-  return `${step === "install_deposit" ? PAY_LINE_DEPOSIT : PAY_LINE_BANK_ONLY}${ref}`;
+  return `${step === "install_deposit" ? PAY_LINE_DEPOSIT : "Card, bank transfer or PayID"}${ref}`;
 }
 
 /** The "How you can pay" summary on the quote / acceptance page. */
