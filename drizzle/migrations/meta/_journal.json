@@ -1303,6 +1303,13 @@
       "when": 1793573622264,
       "tag": "0185_task7_trade_hand_back",
       "breakpoints": true
+    },
+    {
+      "idx": 186,
+      "version": "7",
+      "when": 1793576606145,
+      "tag": "0186_private_worker_birth_dates",
+      "breakpoints": true
     }
   ]
 }

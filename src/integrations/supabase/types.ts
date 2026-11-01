@@ -9177,6 +9177,35 @@ export type Database = {
           },
         ]
       }
+      partner_worker_identity: {
+        Row: {
+          date_of_birth: string
+          updated_at: string
+          updated_by: string
+          worker_id: string
+        }
+        Insert: {
+          date_of_birth: string
+          updated_at?: string
+          updated_by: string
+          worker_id: string
+        }
+        Update: {
+          date_of_birth?: string
+          updated_at?: string
+          updated_by?: string
+          worker_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_worker_identity_worker_id_fkey"
+            columns: ["worker_id"]
+            isOneToOne: true
+            referencedRelation: "partner_workers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       partner_worker_invites: {
         Row: {
           business_id: string
@@ -13717,6 +13746,18 @@ export type Database = {
           job_id: string
           job_number: string
         }[]
+      }
+      add_team_installer_with_identity: {
+        Args: {
+          _actor: string
+          _business: string
+          _dob: string
+          _email: string
+          _mobile: string
+          _name: string
+          _role: string
+        }
+        Returns: string
       }
       allocate_in_house_batch_job: {
         Args: {
