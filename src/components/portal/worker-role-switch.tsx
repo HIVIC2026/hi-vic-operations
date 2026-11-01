@@ -22,9 +22,9 @@ export function WorkerRoleSwitch({ workerId, role, onDone, tone = "trade" }: { w
   };
   return (
     <span data-worker-role={role} className="inline-flex flex-col">
-      <span role="group" aria-label="Lead or Crew" className={`inline-flex overflow-hidden rounded-[10px] border ${trade ? "border-estimate-line" : "border-line"}`}>
+      <span role="group" aria-label="Lead Installer or Crew" className={`inline-flex overflow-hidden rounded-[10px] border ${trade ? "border-estimate-line" : "border-line"}`}>
         {(["lead", "crew"] as const).map((r) => (
-          <button key={r} type="button" aria-pressed={role === r} disabled={busy} onClick={() => void pick(r)} className={`${base} ${role === r ? on : off} disabled:opacity-60`}>{WORKER_ROLE_LABEL[r]}</button>
+          <button key={r} type="button" aria-pressed={role === r} disabled={busy} onClick={() => void pick(r)} className={`${base} ${role === r ? on : off} disabled:opacity-60`}>{r==='lead'?'Lead Installer':WORKER_ROLE_LABEL[r]}</button>
         ))}
       </span>
       {err && <span role="alert" className="mt-1 text-xs font-semibold text-destructive">{err}</span>}

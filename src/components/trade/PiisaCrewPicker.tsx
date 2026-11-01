@@ -34,8 +34,8 @@ export function PiisaCrewPicker({ jobId }: { jobId: string }) {
     <div className="mt-2" data-piisa-crew-form>
       <p className="text-[13px] text-sub" data-native-lookup-note>{A3_NATIVE_CREW_LOOKUP.note}</p>
       {!data.staff.some(ready) && <p className="mt-2 text-sm font-semibold" data-no-staff>No CII-cleared installer is on your Team list yet. Add them under My business → Team.</p>}
-      <label className="mt-3 block text-sm font-semibold">Lead installer
-        <select aria-label="Lead installer" className={`${sel} mt-1`} value={lead ?? ""} onChange={(e) => setLead(e.target.value || null)}>
+      <label className="mt-3 block text-sm font-semibold">Lead Installer
+        <select aria-label="Lead Installer" className={`${sel} mt-1`} value={lead ?? ""} onChange={(e) => setLead(e.target.value || null)}>
           <option value="">Choose</option>
           {data.staff.map((s) => <option key={s.workerId} value={s.workerId} disabled={!ready(s)}>{s.name}{tag(s)}</option>)}
         </select>
@@ -65,15 +65,15 @@ export function PiisaCrewPicker({ jobId }: { jobId: string }) {
       <div data-piisa-crew>
         {rows.map((r, i) => { const s = status(r.pick); return (
           <div key={i} className="flex min-h-12 items-center justify-between gap-3 border-b border-line text-[15px]">
-            <span className="font-medium">{name(r.pick)}{r.lead && <span className="text-[13px] text-sub"> · lead</span>}</span>
+            <span className="font-medium">{name(r.pick)}{r.lead && <span className="text-[13px] text-sub"> · Lead Installer</span>}</span>
             <span className={`text-[13px] font-semibold ${s.ok ? "text-hiv-green" : "text-sub"}`}>{s.t}</span>
           </div>
         ); })}
         {!editing && !saved && form}
-        {saved && !editing && <LinkRow onClick={() => setEditing(true)}>Change</LinkRow>}
+        {saved && !editing && <LinkRow onClick={() => setEditing(true)}>Change Lead Installer</LinkRow>}
         {saved && editing && form}
         {msg && <p role="status" className="mt-2 text-sm font-semibold">{msg}</p>}
-        <Note>{`The Mitti install form and the 6:30am text go to ${leadName ?? "the Lead"}. Only CII-cleared staff can be on an install. The crew goes on the PIISA.`}</Note>
+        <Note>{`The Mitti install form and the 6:30am text go to ${leadName ?? "the Lead Installer"}. Only CII-cleared staff can be on an install. The crew goes on the PIISA.`}</Note>
       </div>
     </Group>
   );

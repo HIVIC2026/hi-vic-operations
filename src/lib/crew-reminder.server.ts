@@ -26,6 +26,8 @@ export async function sweepCrewReminders(now = new Date(), opts: { approved?: bo
 }
 
 async function remindOne(b: Booking, now: Date, approved: boolean): Promise<string> {
+  const held=await (await import('./in-house-suppression.server')).readInHouseDispatchState([b.job_id]);
+  if(held.failed||held.held.has(b.job_id))return 'held: in-house grouped office email';
   const day = installYmd(b.scheduled_start);
   const key = crewReminderKey(b.job_id, day);
   const [{ data: job }, { data: crew }, { data: prior }, { data: asg }] = await Promise.all([
