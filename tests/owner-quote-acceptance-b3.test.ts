@@ -88,3 +88,13 @@ test("quote action model never permits Accept for an accepted timestamp or ackno
   expect(fn(q, { id: "q1", version: 2 })).toBe(true);
   expect(fn({ ...q, release_state: "held" })).toBe(false);
 });
+test("successful acceptance acknowledges the version before a stalled refresh and does not wait for it", async () => {
+  const fn = (core as Record<string, unknown>).completeOwnerQuoteAcceptance as ((accept: () => Promise<unknown>, acknowledge: () => void, refresh: () => Promise<unknown>) => Promise<void>) | undefined;
+  expect(typeof fn).toBe("function");
+  if (!fn) return;
+  const order: string[] = [];
+  await fn(async () => { order.push("accepted"); }, () => { order.push("acknowledged"); }, () => { order.push("refresh"); return new Promise(() => {}); });
+  expect(order).toEqual(["accepted", "acknowledged", "refresh"]);
+  await expect(fn(async () => { throw Error("refused"); }, () => order.push("wrong"), async () => undefined)).rejects.toThrow("refused");
+  expect(order).not.toContain("wrong");
+});
