@@ -3,7 +3,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
 
 const id = (n: number) => `00000000-0000-0000-0000-${String(n).padStart(12, "0")}`;
-async function setup() {
+async function setup(newFlow = false) {
   const db = new PGlite();
   await db.exec(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;
     CREATE SCHEMA auth; CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$ SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
@@ -33,6 +33,10 @@ async function setup() {
     CREATE TABLE customer_email_sends(id uuid primary key default gen_random_uuid(),job_id uuid not null REFERENCES jobs(id),purpose text not null,idempotency_key text not null unique,status text not null default 'sending' CHECK(status IN ('sending','sent','failed','delivered_unrecorded')),error text,created_at timestamptz not null default now());`);
   await db.exec(readFileSync("docs/pending-migrations/2026-10-30_in_house_batch.sql", "utf8"));
   await db.exec(readFileSync("docs/pending-migrations/2026-10-30_in_house_batch_coverage.sql", "utf8"));
+  if (newFlow) {
+    await db.exec("ALTER TABLE jobs ADD COLUMN channel text DEFAULT 'hivic_sourced'; ALTER TABLE workflow_events ADD COLUMN created_at timestamptz DEFAULT now();");
+    await db.exec(readFileSync("docs/pending-migrations/2026-11-01_in_house_quick_taps.sql", "utf8"));
+  }
   return db;
 }
 async function send(db: PGlite, job = 20, business = 10, actor = 1, installer = 2, electrician = 3) {
@@ -51,6 +55,18 @@ test("atomic allocation writes two assignments, preferred choice and a job-bound
     expect(await send(db)).toEqual({ sent: false,reason: "Already with Rapid Insulation" });
     expect((await db.query("SELECT * FROM job_assignments")).rows).toHaveLength(2);
     expect((await db.query("SELECT * FROM in_house_batches")).rows).toHaveLength(1);
+  } finally { await db.close(); }
+});
+
+test("new handoff RPC refuses a lead without YES and accepts YES or installer source without saved spot", async () => {
+  const db = await setup(true); try {
+    expect(await send(db)).toEqual({ sent: false, reason: "Owner has not said yes in quick taps" });
+    expect((await db.query("SELECT * FROM job_assignments")).rows).toEqual([]);
+    await db.query("INSERT INTO workflow_events(job_id,event_type,summary,details) VALUES ($1,'quick_taps_answered','TEST yes','{\"outcome\":\"pass\",\"consent_share\":true}')", [id(20)]);
+    expect(await send(db)).toEqual({ sent: true });
+    await db.query("UPDATE jobs SET channel='installer_sourced' WHERE id=$1", [id(21)]);
+    await db.query("DELETE FROM lead_campaign_responses WHERE job_id=$1", [id(21)]);
+    expect(await send(db,21)).toEqual({ sent: true });
   } finally { await db.close(); }
 });
 test("a changed electrician email fails closed inside the transaction", async () => {

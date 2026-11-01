@@ -95,7 +95,7 @@ test("out-of-area and missing electrician membership are refused without writes"
   expect((await f.api.sendInHouseBatch({ businessId: "b",jobIds: f.five(),actorId: "office" })).refused).toHaveLength(5);
   expect(f.rpcCalls).toHaveLength(0);
   const outside = fixture(); outside.data.properties=[{ id: "p",postcode: "3000" }];
-  expect((await outside.api.sendInHouseBatch({ businessId: "b",jobIds: f.five(),actorId: "office" })).refused).toEqual([{ jobId: "j",reason: "Outside this partner's coverage" }]);
+  expect((await outside.api.sendInHouseBatch({ businessId: "b",jobIds: ["j"],actorId: "office" })).refused).toEqual([{ jobId: "j",reason: "Waiting for 5 eligible jobs for this installer" }]);
   expect(outside.rpcCalls).toHaveLength(0);
 });
 test("payee-only Reinsulate is absent from batch partners/suggestions and send refuses before any allocation", async () => {
