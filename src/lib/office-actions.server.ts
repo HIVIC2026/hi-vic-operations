@@ -49,7 +49,7 @@ async function installerRecipientFor(jobId: string, originatingBusinessId: strin
  * keeps history (nothing deleted). Decision 291: when ticked, the owner gets email O69 and the installer email I70
  * through the guarded senders (`cancel-notice.server.ts`), one event per send, never twice for the same cancellation.
  */
-export async function cancelJobFully(jobId: string, reason: string, actorId: string | null, opts: { note?: string | null; tell?: TellTicks; bulk?: boolean } = {}) {
+export async function cancelJobFully(jobId: string, reason: string, actorId: string | null, opts: { note?: string | null; tell?: TellTicks; bulk?: boolean; suppressRunNotice?: boolean } = {}) {
   if (!reason || reason.trim().length < 3) throw new WorkflowError("A reason is required.");
   const { data: job, error } = await admin.from("jobs").select("stage, job_number, originating_installer_business_id").eq("id", jobId).maybeSingle();
   if (error || !job) throw new WorkflowError("Job not found.");
@@ -59,7 +59,7 @@ export async function cancelJobFully(jobId: string, reason: string, actorId: str
   const full = opts.note?.trim() ? `${reason.trim()} · ${opts.note.trim()}` : reason.trim();
   const { applyHoldOrCancel } = await import("./job-disposition.server");
   await applyHoldOrCancel(jobId, "cancel", full, actorId, { decision: 227, reason: reason.trim(), note: opts.note?.trim() || null, ...(opts.bulk ? { bulk: true } : {}) });
-  return releaseCancelledJob(jobId, reason, actorId, tell);
+  return releaseCancelledJob(jobId, reason, actorId, tell, {suppressRunNotice:opts.suppressRunNotice});
 }
 
 /**
@@ -68,7 +68,7 @@ export async function cancelJobFully(jobId: string, reason: string, actorId: str
  * (each update only touches rows still open, so a repeat is harmless), writes `job_cancel_released`, then sends the
  * ticked cancel notices through their existing once-only keys (same cancel number on a retry).
  */
-export async function releaseCancelledJob(jobId: string, reason: string, actorId: string | null, tell: TellTicks) {
+export async function releaseCancelledJob(jobId: string, reason: string, actorId: string | null, tell: TellTicks, opts:{suppressRunNotice?:boolean}={}) {
   const { data: job } = await admin.from("jobs").select("originating_installer_business_id").eq("id", jobId).maybeSingle();
   const { data: priorCancels } = await admin.from("workflow_events").select("id, created_at").eq("job_id", jobId).eq("event_type", "job_cancel_released");
   const cancelSeq = priorCancels?.length ?? 0;
@@ -95,7 +95,7 @@ export async function releaseCancelledJob(jobId: string, reason: string, actorId
   await logEvent(jobId, actorId, "job_cancel_released", `Cancelled: released ${released.bookings} booking(s), ${released.trades} trade(s), ${released.tradeOffers} open offer(s); reminders and texts stop. History kept.`, { ...released, cancel_seq: cancelSeq, decision: 227 }, { internal: true });
   // A48 batch 2 Task 8 fix round 1: every cancel (office, email, quick taps, quote expiry, My job) of a home with a CONFIRMED
   // window in an installer's run runs the same hook — the installer is told once and can fill the time. Best-effort.
-  try { await (await import("./installer-run.server")).runOwnerCancelled(jobId); } catch (e) { console.error("run cancel hook skipped", (e as Error).message); }
+  try { await (await import("./installer-run.server")).runOwnerCancelled(jobId,{silent:opts.suppressRunNotice}); } catch (e) { console.error("run cancel hook skipped", (e as Error).message); }
   let notices: import("./cancel-notice.server").CancelNoticeResult = { owner: null, installer: null };
   if (tell.owner || tell.installer) {
     // History: the ticks themselves (decision 227), then one event per send / hold (decision 291).

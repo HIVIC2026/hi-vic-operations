@@ -23,6 +23,7 @@ export const NEEDS_GROUPS: { key: NeedsGroup; label: string }[] = [
 ];
 
 export type NeedsKind =
+  | "in_house_esc_lead_changed" | "in_house_handed_back"
   | "paid_gate_blocked"
   | "in_house_ready_check_not_booked" | "in_house_piesa_overdue" | "in_house_install_not_booked"
   | "choose_again" | "quote_check" | "fixes_quote_check" | "sign_consent" | "esc_window" | "final_check" | "send_failed" | "email_change" | "email_unmatched" | "robot_failed" | "piisa_form_failed"
@@ -108,6 +109,8 @@ export type NeedsFacts = {
   piesaFormFailed?: { at: string; text: string } | null;
   /** Decision 395: the day-before pre-start check (12pm Melbourne) failed for the booked install — what is missing. */
   prestartFailed?: { at: string; reasons: string[] } | null;
+  inHouseLeadChanged?:{at:string;line:string}|null;
+  inHouseHandedBack?:{at:string;reason:string}|null;
   /** Payment watch rows (decision 240): never "Record payment". */
   paymentNotInXero?: { at: string; text: string } | null;
   /** Batch 3b: one overdue row per invoice (install / fixes / repeat safety check), with that invoice's reference. */
@@ -206,13 +209,15 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   const out: Candidate[] = [];
   const held = !!f.inHouseDispatch || !!f.inHouse;
   const add = (c: Candidate) => out.push(c);
+  if(f.inHouseLeadChanged)add({rank:1,group:'today',kind:'in_house_esc_lead_changed',line:f.inHouseLeadChanged.line,since:f.inHouseLeadChanged.at,button:{label:'Open job',to:'job',section:'install'}});
+  if(f.inHouseHandedBack)add({rank:2,group:'today',kind:'in_house_handed_back',line:`Installer can't do this one: ${f.inHouseHandedBack.reason}`,since:f.inHouseHandedBack.at,button:{label:'Open job',to:'job',section:'ready-check'}});
   const paidLine = paidGateWarningLine(f.paidGate);
   if (paidLine && f.paidGate) add({ rank: 19, group: "today", kind: "paid_gate_blocked", line: paidLine, since: f.paidGate.at, button: { label: "Open job", to: "job", section: "piesa" } });
   const ih = !f.isTest && f.source !== "qa_test" && !f.deletedAt ? f.inHouse : null;
   if (ih) {
     if (!ih.installationBooked && ih.daysRemaining != null && ih.daysRemaining <= 7) add({ rank: 36, group: "today", kind: "in_house_install_not_booked", line: `${ih.partnerName} hasn't booked the install (${ih.daysRemaining < 0 ? "30-day window expired" : `${ih.daysRemaining} days left`})`, since: ih.deadline ?? ih.batchSentAt ?? new Date(now).toISOString(), button: { label: "Open job", to: "job", section: "install" } });
     if (!ih.piesaCompleted && ih.quoteAcceptedAt && now >= Date.parse(ih.quoteAcceptedAt) + 10 * 86_400_000) add({ rank: 90, group: "week", kind: "in_house_piesa_overdue", line: `${ih.partnerName} hasn't completed the PIESA (quote accepted 10 days ago or more)`, since: ih.quoteAcceptedAt, button: { label: "Open job", to: "job", section: "piesa" } });
-    if (!ih.readyCheckBooked && ih.batchSentAt && melbourneToday(new Date(now)) >= addVicBusinessDays(ih.batchSentAt, 5)) add({ rank: 91, group: "week", kind: "in_house_ready_check_not_booked", line: `${ih.partnerName} hasn't booked the Ready Check (sent 5 business days ago or more)`, since: ih.batchSentAt, button: { label: "Open job", to: "job", section: "ready-check" } });
+    if (!ih.readyCheckBooked && ih.batchSentAt && melbourneToday(new Date(now)) > addVicBusinessDays(ih.batchSentAt, 2)) add({ rank: 91, group: "week", kind: "in_house_ready_check_not_booked", line: `${ih.partnerName} hasn't booked the Ready Check (sent 2 business days ago or more)`, since: ih.batchSentAt, button: { label: "Open job", to: "job", section: "ready-check" } });
   }
   if (f.quoteExpiredBlocked) add({ rank: 9, group: "today", kind: "quote_expired_blocked", line: f.quoteExpiredBlocked.reason === QUOTE_EXPIRED_HELD_REASON ? QUOTE_EXPIRED_HELD_REASON : `Quote expired — owner can't be emailed (${f.quoteExpiredBlocked.reason})`, since: f.quoteExpiredBlocked.at, button: { label: "Open job", to: "job" } });
   if (f.newQuoteOffice) add({ rank: 9, group: "today", kind: f.newQuoteOffice.kind, line: f.newQuoteOffice.line, since: f.newQuoteOffice.at, button: { label: "Open job", to: "job", section: "ready-check" } });

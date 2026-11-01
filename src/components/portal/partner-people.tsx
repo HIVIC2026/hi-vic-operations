@@ -13,7 +13,7 @@ import { Btn, Pill, fieldInput } from "@/components/portal/kit";
 import { OfficeTable } from "@/components/portal/office-tabs";
 import { SendNoticeLinkInline, WhiteCardOfficeInline } from "@/components/portal/worker-compliance";
 import { openFileViewer } from "@/components/portal/file-viewer";
-import { officeEecFileUrl, officeVerifyEec, officeVerifyElectrician } from "@/lib/worker-compliance.functions";
+import { officeEecFileUrl, officeVerifyEec, officeVerifyElectrician, officeRecordEscRegistered } from "@/lib/worker-compliance.functions";
 import { checkMittiAccess } from "@/lib/mitti-membership.functions";
 import { mittiInviteLine } from "@/lib/mitti-membership.core";
 import { whiteCardCell, type PersonAction } from "@/lib/office-partners.core";
@@ -50,6 +50,7 @@ export function PeopleTable({ people, showBusiness = true, invalidate }: { peopl
             <td data-why="decision 130: per-person ESC privacy notice">{p.noticeTone === "plain" ? p.noticeLabel : <Pill tone={p.noticeTone}>{p.noticeLabel}</Pill>}</td>
             <td data-why="decisions 22/188: Mitti membership checked per person">{p.mittiLabel}</td>
             <td>
+              {p.role==='installer'&&<EscRegistration workerId={p.id} onDone={async()=>{for(const k of invalidate)await qc.invalidateQueries({queryKey:[k]});}}/>}
               {p.role === "electrician" && <Btn tone="secondary" onClick={() => setElectrician(p)}>Verify licence + REC</Btn>}
               {p.action === "verify_cii" && <Btn tone="secondary" data-why="decision 153: office verifies CII with level + expiry" onClick={() => setVerify(p)}>Verify CII</Btn>}
               {p.action === "send_notice" && <span data-why="decision 130: secure link, guarded senders"><SendNoticeLinkInline workerId={p.id} /></span>}
@@ -63,6 +64,11 @@ export function PeopleTable({ people, showBusiness = true, invalidate }: { peopl
       {invite && <MittiInviteDialog person={invite} invalidate={invalidate} onClose={() => setInvite(null)} />}
     </>
   );
+}
+
+function EscRegistration({workerId,onDone}:{workerId:string;onDone:()=>Promise<void>}){
+  const save=useServerFn(officeRecordEscRegistered);const [date,setDate]=useState('');const [busy,setBusy]=useState(false);
+  return <div className="space-y-1"><label className="text-xs">ESC registration date<input type="date" className={fieldInput} value={date} onChange={e=>setDate(e.target.value)}/></label><Btn tone="secondary" disabled={!date||busy} onClick={async()=>{setBusy(true);try{await save({data:{workerId,registered:true,date}});await onDone();toast.success('ESC registration recorded');}catch(e){toast.error(e instanceof Error?e.message:'Could not record registration.');}finally{setBusy(false);}}}>Record ESC registered</Btn>{(!date||busy)&&<p className="text-xs text-sub">{busy?'Saving the ESC registration; please wait.':'Enter the recorded registration date. Only ESC-registered scheme participants can be the Lead Installer.'}</p>}</div>;
 }
 
 function VerifyElectricianDialog({ person, invalidate, onClose }: { person: PersonView; invalidate: string[]; onClose: () => void }) {
