@@ -95,7 +95,7 @@ test("out-of-area and missing installer membership are refused without writes", 
   expect((await f.api.sendInHouseBatch({ businessId: "b",jobIds: f.five(),actorId: "office" })).refused).toHaveLength(5);
   expect(f.rpcCalls).toHaveLength(0);
   const outside = fixture(); outside.data.properties=[{ id: "p",postcode: "3000" }];
-  expect((await outside.api.sendInHouseBatch({ businessId: "b",jobIds: ["j"],actorId: "office" })).refused).toEqual([{ jobId: "j",reason: "Waiting for 5 eligible jobs for this installer" }]);
+  expect((await outside.api.sendInHouseBatch({ businessId: "b",jobIds: ["j"],actorId: "office" })).refused).toEqual([{ jobId: "j",reason: "No eligible jobs for this installer" }]);
   expect(outside.rpcCalls).toHaveLength(0);
 });
 test("payee-only Reinsulate is absent from batch partners/suggestions and send refuses before any allocation", async () => {
@@ -127,13 +127,14 @@ test("batch loader refuses partial results when the second jobs page fails", asy
   expect(f.rpcCalls).toEqual([]);
 });
 
-test("four eligible waiting jobs never allocate; fifth gives exactly five once", async () => {
+test("one eligible job is given on its own; four eligible give four", async () => {
+  const one = fixture(); const oneIds = one.five();
+  expect((await one.api.sendInHouseBatch({ businessId: "b", jobIds: [oneIds[0] as string], actorId: "office" })).sent).toEqual([oneIds[0]]);
+  expect(one.rpcCalls).toHaveLength(1);
   const f = fixture(); const ids = f.five(); f.data.jobs.pop();
-  expect((await f.api.sendInHouseBatch({ businessId: "b", jobIds: ids, actorId: "office" })).sent).toEqual([]);
-  expect(f.rpcCalls).toEqual([]); expect(f.emailCalls).toEqual([]);
-  f.data.jobs.push({ ...(f.data.jobs[0] as object), id: "j4" });
-  expect((await f.api.sendInHouseBatch({ businessId: "b", jobIds: ids, actorId: "office" })).sent).toEqual(ids);
-  expect(f.rpcCalls).toHaveLength(5);
+  const sent = (await f.api.sendInHouseBatch({ businessId: "b", jobIds: ids, actorId: "office" })).sent;
+  expect(sent).toHaveLength(4);
+  expect(f.rpcCalls).toHaveLength(4);
   expect(new Set(f.rpcCalls.map((c: any) => c.input._batch)).size).toBe(1);
 });
 test("loader fails closed without YES and reads installer channel exemption", async () => {

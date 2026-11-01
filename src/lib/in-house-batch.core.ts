@@ -17,8 +17,8 @@ export function batchJobEligible(job: BatchJob): boolean {
 }
 /** No age fallback: hand off exactly five distinct waiting jobs. */
 export function readyInHouseBatch(jobIds: string[]): string[] {
-  const ids = [...new Set(jobIds)];
-  return ids.length >= 5 ? ids.slice(0, 5) : [];
+  // Jo 2 Nov 2026: give any number of ticked jobs (was exactly 5).
+  return [...new Set(jobIds)];
 }
 export function batchPartnerCovers(job: BatchJob, partner: InHousePartner): boolean {
   if (partner.covers_all_victoria || (job.postcode && partner.service_postcodes.includes(job.postcode))) return true;
