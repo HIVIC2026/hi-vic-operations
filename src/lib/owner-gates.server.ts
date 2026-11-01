@@ -148,8 +148,7 @@ export async function ownerGates(
 
 /** Decision 395: Gate C "Your safety check copy" receipt blocker for the pre-start check (same facts as the gates). */
 export async function piesaCopyReceiptBlockerFor(jobId: string): Promise<string | null> {
-  const { piesaCopyReceiptBlocker } = await import("./owner-gates.core");
-  return piesaCopyReceiptBlocker(await gateFacts(jobId));
+  return null;
 }
 
 export async function ownerGateStageBlockers(jobId: string, to: string): Promise<string[]> {

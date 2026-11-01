@@ -86,9 +86,9 @@ export function renderVisitNewTimesEmail(i: VisitNewTimesEmailInput) {
   const body = [
     `<mj-section><mj-column><mj-text mj-class="hi">${esc(hi)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${esc(c.headline)}</mj-text><mj-text>${esc(c.lead)}</mj-text></mj-column></mj-section>`,
     `<mj-section><mj-column mj-class="panel-red"><mj-text mj-class="eyebrow center" padding="18px 12px 6px">No longer going ahead</mj-text><mj-text mj-class="center" font-weight="700" padding="0 12px 16px"><span class="strike">${esc(c.was)}</span></mj-text></mj-column></mj-section>`,
-    `<mj-section><mj-column><mj-text padding="16px 12px 14px">${nextHtml}</mj-text><mj-button href="${esc(i.link)}">${esc(c.button)}</mj-button><mj-text mj-class="small" padding="0 12px">Questions? Just reply to this email.</mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column><mj-text padding="16px 12px 14px">${nextHtml}</mj-text>${i.ownerPicks ? `<mj-button href="${esc(i.link)}">${esc(c.button)}</mj-button>` : ''}<mj-text mj-class="small" padding="0 12px">Questions? Just reply to this email.</mj-text></mj-column></mj-section>`,
   ].join("");
   const html = mjEmail({ subject: c.subject, preview: c.preview, body, unsubscribe: i.unsubscribeUrl, testLabel: i.test === true });
-  const text = K.plainText([hi, "", c.headline, "", c.lead, `No longer going ahead: ${c.was}`, "", c.next, "", `${c.button}: ${i.link}`, "", "Questions? Just reply to this email."], { unsubscribe: i.unsubscribeUrl, testLabel: i.test === true });
+  const text = K.plainText([hi, "", c.headline, "", c.lead, `No longer going ahead: ${c.was}`, "", c.next, "", ...(i.ownerPicks ? [`${c.button}: ${i.link}`] : []), "", "Questions? Just reply to this email."], { unsubscribe: i.unsubscribeUrl, testLabel: i.test === true });
   return { subject: c.subject, html, text };
 }
