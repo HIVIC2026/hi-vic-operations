@@ -292,7 +292,7 @@ describe("A2 step 4 — the installer completes the A2 Ready Check in Mitti → 
   });
 });
 
-const SIGNING = { signatoryName: "Harriet Journey", authorityType: "owner", signatureName: "Harriet Journey", over18: true, readConsumerInfo: true, acceptAgreement: true, assistance: "none" };
+const SIGNING = { signatoryName: "Harriet Journey", authorityType: "owner", signatureName: "Harriet Journey", over18: true, readConsumerInfo: true, acceptAgreement: true, assistance: "none", declarations:{owner_or_authorised:true,details_accurate:true,consent_ap_sends:true,consent_commission_shares:true} };
 
 describe("A2 step 5 — the office checks and sends the quote; the owner signs and accepts; the $349 safety check is paid", () => {
   test("only the office can send the held quote; Send issues it once and the owner gets it by email + text", async () => {

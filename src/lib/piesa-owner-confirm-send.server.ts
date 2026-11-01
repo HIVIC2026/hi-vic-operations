@@ -40,7 +40,7 @@ export async function sendPiesaConfirmStep(jobId: string, step: PiesaConfirmStep
     if (result.sent.includes('owner') || delivered?.length) await logEvent(jobId,null,PIESA_OWNER_CONFIRM_STEP_EVENT,'Combined PIESA copy and owner declaration email delivered',{step,piesa_record_id:recordId},{internal:true});
     return result.sent.includes('owner') ? 'email sent' : result.hold ?? result.held['owner'] ?? 'already delivered';
   }
-
+  return "no action";
 }
 
 /** 15-minute tick: one due step per unconfirmed PIESA on jobs that have not booked the install yet. */

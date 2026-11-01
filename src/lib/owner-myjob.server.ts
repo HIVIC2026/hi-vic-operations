@@ -34,7 +34,7 @@ export async function resolveOwnerJob(token: unknown) {
   const jobId = l.job_id;
   // At most six reads per wave: the published runtime has six outbound slots.
   const [{ data: j }, { data: quotes }, { data: bookings }, { data: invoices }, { data: est }, { data: ws }] = await Promise.all([
-    admin.from("jobs").select("job_number, stage, deleted_at, channel, external_refs, cancel_reason, installation_completed_at, owners(full_name, email, phone), properties(address_line, suburb, state, postcode)").eq("id", jobId).single(),
+    admin.from("jobs").select("job_number, stage, deleted_at, channel, external_refs, cancelled_reason, installation_completed_at, owners(full_name, email, phone), properties(address_line, suburb, state, postcode)").eq("id", jobId).single(),
     admin.from("quotes").select("id, kind, status, release_state, option_label, customer_total_inc_gst, veec_discount_inc_gst, subtotal_inc_gst, sent_at, accepted_at, version, quote_items(code, description, quantity, line_total_inc_gst, sort)").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted", "declined", "expired"]).order("created_at", { ascending: false }),
     admin.from("bookings").select("kind, status, scheduled_start, contractor_id, business_id").eq("job_id", jobId).in("status", ["confirmed", "completed"]).order("scheduled_start"),
     // "Paid" next to the install price: the installation invoice (batch 3b: fixes / repeat check have their own invoices).
@@ -109,13 +109,13 @@ export async function resolveOwnerJob(token: unknown) {
   const limits = (ws?.office_time_limits ?? {}) as Record<string, unknown>;
   let currentAction: Exclude<import('./owner-myjob.core').OwnerScreen,'home'|'done'> | null = null;
   const {QUOTE_EXPIRED_CANCEL_REASON,quoteIsExpired}=await import('./quote-expiry.core');
-  if (stage === 'cancelled' && j.cancel_reason === QUOTE_EXPIRED_CANCEL_REASON) currentAction='newquote';
+  if (stage === 'cancelled' && j.cancelled_reason === QUOTE_EXPIRED_CANCEL_REASON) currentAction='newquote';
   if (!['cancelled','on_hold'].includes(stage)) {
     const taps = await (await import('./quick-taps.server')).quickTapsState(String(token));
     const turn = stage === 'ready_check_ready_to_schedule' && !inHouseDispatch ? await (await import('./spot-release.server')).ownerTurnState(jobId) : {kind:'closed'};
     if (turn.kind === 'ask') currentAction='turn';
     else if (taps.kind === 'ask' || taps.kind === 'retry') currentAction = 'taps';
-    else if (quoteOpen) currentAction = quoteIsExpired({kind:'installation',sent_at:quote?.sent_at}) ? 'newquote' : 'quote';
+    else if (quoteOpen) currentAction = quoteIsExpired({kind:'installation',sent_at:quote?.sent_at ?? null}) ? 'newquote' : 'quote';
     else {
       const confirmation = await (await import('./piesa-owner-confirm.server')).ownerPiesaConfirmFacts(jobId);
       if ((payment?.dueNow ?? 0) > 0 || payment?.provisional) currentAction='pay';
