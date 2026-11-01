@@ -38,9 +38,10 @@ export async function notifyOfficeOwnerCancelled(jobId:string,reason:string,acto
 }
 export async function notifyOfficeLeadChanged(jobId:string,changeId:string,line:string,actorId:string){
  const r=await admin.from('jobs').select('source').eq('id',jobId).maybeSingle();if(r.error||!r.data)throw Error('Could not read office alert safeguards.');
+ const source=r.data.source;
  const key=`esc-lead-alert:${changeId}`;
  const mail={to:'info@homeinsulationvictoria.com.au',subject:line,...partnerEmailLayout({subject:line,blocks:[{kind:'p',text:line}],test:r.data.source==='qa_test'})};
- return deliverOnce(jobId,key,mail,frozen=>(import('./in-house-office-alert.server').then(m=>m.sendInHouseOfficeAlert({...frozen,jobId,jobSource:r.data.source,actorId,idempotencyKey:key}))));
+ return deliverOnce(jobId,key,mail,frozen=>(import('./in-house-office-alert.server').then(m=>m.sendInHouseOfficeAlert({...frozen,jobId,jobSource:source,actorId,idempotencyKey:key}))));
 }
 export async function sweepInHouseInstallOfficeEmails(now=new Date()){
   const bookings:{id:string;job_id:string;scheduled_start:string}[]=[];
