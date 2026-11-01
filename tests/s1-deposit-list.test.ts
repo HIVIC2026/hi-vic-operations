@@ -6,7 +6,7 @@ let reads=0;
 const db=memoryPostgrest(rows),from=db.from.bind(db);
 db.from=(table:string)=>{const q=from(table),run=q.run.bind(q);q.run=async()=>{reads++;await new Promise(r=>setTimeout(r,5));return run();};return q;};
 mock.module('@/integrations/supabase/client.server',()=>({supabaseAdmin:db}));
-const api=await import('../src/lib/payment-ledger.server');
+const api=await import('../src/lib/install-deposit-list.server');
 const batch=()=> (api as unknown as {installDepositPaidForJobs?:(ids:string[])=>Promise<Map<string,boolean|null>>}).installDepositPaidForJobs;
 test('30 To book deposits use bounded shared reads, preserving invoice-only thresholds and reversal reconciliation',async()=>{
  const ids=Array.from({length:30},(_,i)=>`j${i}`);

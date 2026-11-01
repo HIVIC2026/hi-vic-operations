@@ -147,7 +147,7 @@ export async function tradeHome(userId: string) {
   ]);
   const moneyAll = await moneyP;
   const depositIds = c.kind === 'installer' ? live.filter(j => j.stage === 'installation_scheduling' && !!sf.get(j.id)?.inHouseDispatch).map(j => j.id) : [];
-  const installDeposits = await (await import('./payment-ledger.server')).installDepositPaidForJobs(depositIds).catch(() => new Map<string, boolean | null>(depositIds.map(id => [id, null])));
+  const installDeposits = await (await import('./install-deposit-list.server')).installDepositPaidForJobs(depositIds).catch(() => new Map<string, boolean | null>(depositIds.map(id => [id, null])));
   // Decision 396: rows the retired install-day photo chase created are not missing photos.
   const miss = new Map<string, number>(); for (const r of withoutRetiredInstallDayPhotos(missing ?? [])) miss.set(r.job_id, (miss.get(r.job_id) ?? 0) + 1);
   const deadline = new Map<string, string>(); for (const d of deadlines ?? []) if (d.job_id && d.install_deadline) deadline.set(d.job_id, String(d.install_deadline));
