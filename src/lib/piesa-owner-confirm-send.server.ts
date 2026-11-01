@@ -1,10 +1,8 @@
 // Task 5: one signed-copy/declaration email replaces the separate O71 email and SMS. Retain timing markers on
 // days 1 and 3, alert the office on day 5 (Needs me `piesa_owner_unsigned`). Runs from the 15-minute allocation tick.
-// Every step is recorded once as a `piesa_owner_confirm_reminder` workflow event (keyed to the PIESA record) BEFORE anything
-// is sent, so a tick never repeats a step and a re-done PIESA gets its own request. Wording is a DRAFT: real owners get
-// nothing until PIESA_OWNER_CONFIRM_EMAIL_APPROVED / the `piesa_owner_confirm` SMS type are approved by Jo; TEST jobs use
-// test-send. Real delivery still goes through the guarded owner email path (customer_comms_enabled + consent) and the one
-// real SMS sender. Reads/sign/gate live in piesa-owner-confirm.server.ts (no senders there).
+// Delivery is claimed once by the canonical signed-copy sender. Timing markers follow recorded owner delivery;
+// no separate O71 message or SMS is sent. Holds remain retryable without reporting success. TEST routing,
+// consent and customer-message switches remain at the existing delivery boundary.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { PIESA_OWNER_CONFIRM_OFFICE_ALERT_EVENT, PIESA_OWNER_CONFIRM_STEP_EVENT, nextPiesaConfirmStep, type PiesaConfirmStep } from "./piesa-owner-confirm.core";

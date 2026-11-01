@@ -41,7 +41,7 @@ async function currentFacts(jobId: string): Promise<{ facts: ConsentFacts | null
   return { facts, bookingId: null };
 }
 
-/** Generates / refreshes the owner consent for the CURRENT installation booking. Locked-detail changes stale the old one. */
+/** Generates / refreshes owner/premises consent. Booking changes do not alter the official form. */
 export async function syncOwnerConsent(jobId: string, actorId: string | null) {
   const { facts, bookingId } = await currentFacts(jobId);
   const prev = await currentConsent(jobId);
@@ -64,9 +64,21 @@ export async function syncOwnerConsent(jobId: string, actorId: string | null) {
     scheduled_start: null, premises_address: facts.premises_address, owner_contact: facts.owner as Json,
     snapshot: facts as unknown as Json, snapshot_sha256: sha,
   }).select("id").single();
+  if(error?.code==='23505'){
+    const current=await currentConsent(jobId);
+    if(current && !consentStaleReasons(current.snapshot as unknown as ConsentFacts,facts).length)return current.id;
+  }
   if (error) throw new Error(error.message);
   await logEvent(jobId, actorId, "esc_consent_prepared", `Owner ESC consent v${(prev?.version ?? 0) + 1} prepared${tplOk ? " – awaiting owner signature" : " – consent form wording not approved (configuration required)"}`, { consent_id: ins?.id }, { internal: true });
   return ins?.id ?? null;
+}
+
+/** Preflight all official owner-signature rules before creating any quote-sitting signatures. */
+export async function prepareQuoteConsent(p:{jobId:string;actorId:string;input:ConsentSignInput}) {
+  const tpl=activeTemplate(await templates(),'esc_consent');
+  const blockers=ownerConsentBlockers({status:'awaiting_owner',templateApproved:!!tpl,templateVersion:tpl?.version??null,scheduledStart:null,nowIso:new Date().toISOString(),input:p.input});
+  if(blockers.length)throw new WorkflowError(blockers.join(' '));
+  if(!(await syncOwnerConsent(p.jobId,p.actorId)))throw new WorkflowError('Owner and property details are needed to prepare consent.');
 }
 
 async function storeCopy(jobId: string, path: string, text: string, title: string, actorId: string | null) {

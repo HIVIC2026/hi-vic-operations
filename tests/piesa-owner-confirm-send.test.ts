@@ -157,6 +157,7 @@ describe("facts + gate", () => {
 });
 
 describe("Task 5 combined PIESA email and timing sweep", () => {
+ test("missing PIESA record never invokes a sender",async()=>{tables.piesa_records=[];expect(await sendPiesaConfirmStep(J,'request')).toBe('no PIESA record');expect(copyCalls).toEqual([]);});
  test("request uses the canonical PDF email, no separate SMS, and records delivery", async()=>{
   expect(await sendPiesaConfirmStep(J,"request")).toBe("email sent");
   expect(copyCalls).toEqual([J]);expect(sms).toEqual([]);expect(tests).toEqual([]);
