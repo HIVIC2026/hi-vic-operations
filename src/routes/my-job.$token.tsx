@@ -102,7 +102,7 @@ function MyJobPage() {
           : screen === "quote" ? <QuoteScreen v={data} token={token} />
           : screen === "pay" ? <><RepeatPiesaCard token={token} /><PayNowCard v={data} token={token} /></>
           : screen === "piesa" ? <PiesaConfirmCard v={data} token={token} />
-          : screen === "veec" ? <VeecCard v={data} token={token} />
+          : screen === "veec" ? <VeecAssignmentCard v={data} token={token} />
           : screen === "fixes" ? <FixesScreen v={data} token={token} />
           : screen === "book" ? <BookScreen v={data} token={token} />
           : screen === "done" ? <DoneScreen v={data} token={token} />

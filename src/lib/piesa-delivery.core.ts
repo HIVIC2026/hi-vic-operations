@@ -49,12 +49,11 @@ export function piesaDeliveryPlan(f: PiesaDeliveryFacts, now = new Date()): Pies
   if (f.closed) return none("job closed or archived");
   if (!f.signedCopyId) return none("no signed PIESA copy yet");
   if (!f.piesaRecordId) return none("no current PIESA record");
-  if (!f.installStart) return none("install day not booked yet");
-  const start = Date.parse(f.installStart);
-  if (!Number.isFinite(start)) return none("install start unreadable");
-  if (start <= now.getTime()) return none("install day has already started");
-  const late = now.getTime() > Date.parse(escDueBy(f.installStart));
-  const pending = (["owner", "installer"] as const).filter((r) => !f.delivered[r]);
+  const start = f.installStart ? Date.parse(f.installStart) : null;
+  if (start !== null && !Number.isFinite(start)) return none("install start unreadable");
+  if (start !== null && start <= now.getTime()) return none("install day has already started");
+  const late = !!f.installStart && now.getTime() > Date.parse(escDueBy(f.installStart));
+  const pending = (["owner", "installer"] as const).filter((r) => !f.delivered[r] && (r === 'owner' || !!f.installStart));
   if (!pending.length) return { ...none("both copies already recorded"), late };
   const send = pending.filter((r) => !!f.email[r]?.trim());
   const noAddress = pending.filter((r) => !f.email[r]?.trim());
@@ -120,7 +119,7 @@ export function renderPiesaCopyEmail(i: PiesaCopyEmailInput) {
   const questions = owner ? "Questions about the safety check? Just reply to this email." : "Questions? Just reply to this email.";
   // Link check (Jo 27 Oct 2026): the signed PIESA travels as the attached PDF; the button opens My job / the job page.
   const attached = "Your signed safety check is attached to this email (PDF).";
-  const label = owner ? "See my job" : "Open the job";
+  const label = owner ? "Confirm my safety check" : "Open the job";
   const button = (pad: string) => (i.link ? `<mj-button href="${esc(i.link)}"${pad}>${label}</mj-button>` : "");
   const body = owner
     ? [

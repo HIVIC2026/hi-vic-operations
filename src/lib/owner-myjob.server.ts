@@ -107,7 +107,30 @@ export async function resolveOwnerJob(token: unknown) {
     provisional: pay.provisional.decision === "provisional" ? { expiresAt: pay.provisional.expiresAt, deposit: pay.plan.installDepositCents / 100 } : null,
   } : null;
   const limits = (ws?.office_time_limits ?? {}) as Record<string, unknown>;
+  let currentAction: Exclude<import('./owner-myjob.core').OwnerScreen,'home'|'done'> | null = null;
+  if (!['cancelled','on_hold'].includes(stage)) {
+    const taps = await (await import('./quick-taps.server')).quickTapsState(String(token));
+    if (taps.kind === 'ask' || taps.kind === 'retry') currentAction = 'taps';
+    else if (quoteOpen) currentAction = 'quote';
+    else {
+      const confirmation = await (await import('./piesa-owner-confirm.server')).ownerPiesaConfirmFacts(jobId);
+      if (confirmation && !confirmation.confirmation) currentAction = 'piesa';
+      else {
+        const fixes = await (await import('./owner-fixes.server')).ownerFixesState(jobId);
+        if (['approve','pay','pick'].includes(fixes.step) && !(inHouseDispatch && fixes.step === 'pick')) currentAction = 'fixes';
+        else if ((payment?.dueNow ?? 0) > 0 || payment?.provisional) currentAction = 'pay';
+        else if (veec?.status === 'awaiting_consumer_signature' && !veec.consumer_signed_at) currentAction = 'veec';
+        else if (action.button?.screen === 'spot' && !spot?.spot_saved_at) currentAction = 'spot';
+        else if (!inHouseDispatch && bookingOpen) {
+          const times = await (await import('./piesa-times.server')).ownerPiesaTimesState(jobId);
+          const days = await (await import('./install-days.server')).ownerInstallDayState(jobId);
+          if (times.turn === 'owner_to_answer' || days.turn === 'owner_to_answer') currentAction = 'book';
+        }
+      }
+    }
+  }
   return {
+    currentAction,
     inHouseDispatch,
     jobNumber: j.job_number, firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null,
     address: formatPropertyAddress(j.properties as never) || null, stage, hero, action, trade: upcoming ? trade : null,
