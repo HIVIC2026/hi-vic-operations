@@ -70,3 +70,21 @@ test('owner cancellation emails only the HIV office and replay makes no duplicat
   await f.api.notifyOfficeOwnerCancelled('j0000', 'Owner changed plans', 'actor');
   expect(f.sends).toHaveLength(1); expect(f.sends[0].to).toBe('info@homeinsulationvictoria.com.au'); expect(f.sends[0].text).toContain('Owner changed plans');
 });
+test('actual cancelJobFully releases forms quietly; only the HIV office gets a cancellation email',async()=>{
+  const f=fixture();f.rows.jobs[0].stage='installation_booked';
+  const db=memoryPostgrest(f.rows),calls:string[]=[],closed:string[]=[];
+  const deps:Record<string,any>={
+    '@/integrations/supabase/client.server':{supabaseAdmin:db},
+    './workflow.server':{WorkflowError:Error,logEvent:async(jobId:string,_actor:string,type:string,summary:string,details:any)=>{f.rows.workflow_events.push({id:type,job_id:jobId,event_type:type,summary,details});}},
+    './name-address-tidy.core':{},'./office-jobs.core':{},
+    './job-disposition.server':{applyHoldOrCancel:async()=>{f.rows.jobs[0].stage='cancelled';}},
+    './in-house-forms.server':{closeUnneededForms:async(id:string)=>{closed.push(id);return 1;}},
+    './installer-run.server':{runOwnerCancelled:async(_id:string,opts:any)=>{if(!opts.silent)calls.push('installer text');return {told:false};}},
+    './cancel-notice.server':{sendCancelNotices:async()=>{calls.push('owner and installer email');return {};}}
+  };
+  const api:any={};new Function('exports','require',ts.transpile(readFileSync('src/lib/office-actions.server.ts','utf8'),{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}))(api,(p:string)=>{if(!(p in deps))throw Error(`Unmocked ${p}`);return deps[p];});
+  const result=await api.cancelJobFully('j0000','Owner cancelled: changed plans','actor',{tell:{owner:false,installer:false},suppressRunNotice:true});
+  await f.api.notifyOfficeOwnerCancelled('j0000','changed plans','actor');
+  expect(result.notices).toEqual({owner:null,installer:null});expect(calls).toEqual([]);expect(closed).toEqual(['j0000']);expect(f.rows.job_assignments[0].active).toBe(false);
+  expect(f.sends.map(p=>p.to)).toEqual(['info@homeinsulationvictoria.com.au']);
+});
