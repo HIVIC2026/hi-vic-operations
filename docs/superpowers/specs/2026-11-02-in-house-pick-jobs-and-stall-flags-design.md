@@ -32,24 +32,27 @@ While writing the guide for Rapid, Reinsulate and No Gap, we checked it against 
 - `src/lib/in-house-batch.server.ts` `sendInHouseBatch`: with no eligible jobs, the refusal reads "No eligible jobs for this installer". All the other checks stay as they are (coverage, opted out, quick taps "yes", another installer waiting).
 - `src/routes/_authenticated/admin.in-house-batches.tsx`: the `checkedIds.length < 5` limit becomes `< 1`, so this page can't still demand 5.
 
-### 2. New stall flags for in-house jobs
+### 2. Stall flags for in-house jobs
 
-New pure function in `src/lib/in-house-booking.core.ts`, replacing `bookingOverdue` for in-house jobs:
+**Found while planning:** in-house jobs already get two sets of stall flags in `src/lib/office-needs.core.ts`:
+- the `ih` block (around line 220): install not booked with ≤7 days left (`in_house_install_not_booked`), PIESA not *completed* 10 *calendar* days after quote acceptance (`in_house_piesa_overdue`), and Ready Check not booked after 2 business days (`in_house_ready_check_not_booked`)
+- the `bookingOverdue` row ("… not booked after 2 business days"), fed from `office-needs.server.ts` around line 312
 
-`inHouseStall({ visit, anchorAt, booked, deadline, depositPaid, now })` → null, or `{ visit, at, line }`
+The change makes the `ih` block follow Jo's rules and removes the duplicate in-house `bookingOverdue` flag:
 
-- `ready_check`: anchor = the `in_house_batch_sent` time. Flags when not booked and now is after the anchor + 5 Melbourne business days (`addMelbourneBusinessDays`).
-- `piesa`: anchor = when the job entered `piesa_and_install_window_pending` (the same date the code uses now). Flags when not booked and now is after the anchor + 10 Melbourne business days.
-- `installation`: deadline = `installWindowDeadline(clearance timing date, stored install deadline)`. Flags when no install is booked and the Melbourne date today is on or after deadline − 7 days. Checked at every stage from `piesa_complete` up to and including `installation_scheduling` (not on hold or cancelled), so jobs still waiting on electrical upgrades or the deposit are covered.
+- **Ready Check** (`in_house_ready_check_not_booked`): not booked and the Melbourne date today is after `addVicBusinessDays(batchSentAt, 5)` (was 2).
+- **PIESA** (`in_house_piesa_overdue`): not **booked** (no non-cancelled `assessment` booking) and the Melbourne date today is after `addVicBusinessDays(quoteAcceptedAt, 10)` (was: not completed, 10 calendar days). `inHouseNeedsFacts` adds `piesaBooked`, and its bookings read includes `"assessment"`.
+- **Install** (`in_house_install_not_booked`): rule unchanged (not booked, ≤7 days left on the 30-day clock, from `job_piesa_deadlines`). It flags whether or not the deposit is paid. `inHouseNeedsFacts` adds `depositPaid: boolean | null` from `installDepositPaidForJobs`.
 
-Office lines (in `src/lib/office-needs.core.ts`, used only when the job is with an in-house partner):
+Office lines:
 - "Ready Check not booked after 5 business days"
 - "PIESA not booked 10 business days after quote accepted"
-- "Install not booked · 7 days left · deposit paid" / "… · deposit not paid"
+- "Install not booked · N days left · deposit paid" / "… · deposit not paid" (and "30-day window expired" in place of "N days left" once it's below 0, as now). If the deposit can't be read, the deposit part is left off.
 
-The flag keeps its current rank, group and "Open job" button. `src/lib/office-needs.server.ts` (the in-house block around line 312) gathers the anchor, booking, deadline and deposit facts and calls `inHouseStall`. Jobs not with an in-house partner keep the 48-hour rule as it is today.
+Each flag keeps its current kind, rank, group and "Open job" button.
 
-`bookingOverdue` is removed if nothing else uses it.
+- `office-needs.server.ts`: the block that sets `bookingOverdue` for in-house jobs (around line 312) is removed, so in-house jobs never get the 2-business-day row. Jobs not with an in-house partner keep the 48-hour `bookingOverdue` rule as it is today.
+- `bookingOverdue` in `in-house-booking.core.ts` is removed if nothing else uses it.
 
 ## Not changing
 
@@ -62,8 +65,8 @@ The flag keeps its current rank, group and "Open job" button. `src/lib/office-ne
 ## Testing
 
 - Unit tests for `readyInHouseBatch` (0, 1, 3, 7 ids; duplicates).
-- Unit tests for `inHouseStall`: each visit just before and just after its limit, weekends and public holidays for the business-day rules, install with the deposit paid and not paid, booked visits never flag, and a missing deadline never flags.
-- Unit test for the office lines.
+- `buildNeedsRows` tests for the `ih` block: each rule just before and just after its limit, weekends and public holidays for the business-day rules, install with the deposit paid / not paid / unknown, booked visits never flag, and no deadline never flags.
+- Test that an in-house job with an unbooked visit gets no "not booked after 2 business days" row.
 - Component test: the button is greyed out with nothing ticked, the label counts the ticks, and ticking 1 job sends 1 id.
 - The existing in-house tests still pass. TEST jobs stay excluded, as now.
 
