@@ -58,8 +58,9 @@ test('2pm digest pages all 405 installs into one office email and never sends ag
 });
 test('definite rejection retries the identical digest key once, then replay sends nothing', async () => {
   const f = fixture(); f.outcome('failed'); await f.api.sweepInHouseInstallOfficeEmails(now);
+  f.rows.businesses[0].email='changed-office@example.invalid';
   f.outcome('sent'); await f.api.sweepInHouseInstallOfficeEmails(now); await f.api.sweepInHouseInstallOfficeEmails(now);
-  expect(f.sends).toHaveLength(2); expect(f.sends[0].idempotencyKey).toBe(f.sends[1].idempotencyKey); expect(f.accepted.size).toBe(1);
+  expect(f.sends).toHaveLength(2); expect(f.sends[0].idempotencyKey).toBe(f.sends[1].idempotencyKey); expect(f.accepted.size).toBe(1);expect(f.sends[1].to).toBe('office@example.invalid');expect(f.sends[1].html).toBe(f.sends[0].html);
 });
 test('lost response after acceptance is held, never automatically double-sent', async () => {
   const f = fixture(); f.loseResponse(); await expect(f.api.sweepInHouseInstallOfficeEmails(now)).rejects.toThrow('Response lost');
