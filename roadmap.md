@@ -1,3 +1,8 @@
+## Jo 2 Nov approved private Team DOB release
+- [x] Applied only approved d64a63d private_worker_birth_dates SQL as 0186 after 7/0 practice checks; original archived under applied-migrations.
+- [x] Live table, private-read policy and service-only add function read back; empty identity table and unchanged worker/business/workflow fingerprints.
+- [ ] Final related checks and live-schema-compatible practice insertion proof; no live Team creation permitted, so actual live/UI add remains NOT RUN. No settings, records, sends or publishing.
+
 ## Jo 2 Nov Q21 balance — test-first, no live changes
 - [ ] Completion +7 days Melbourne EOD; shared balance reads and existing invoice due-date lifecycle.
 - [ ] Same-invoice remaining card/bank payment with webhook/Xero progression and duplicate/TEST safeguards.
@@ -14,7 +19,7 @@
 ## Jo 2 Nov morning decisions — test-first, pending only
 - [x] 1 Owner deposit received email only; request/reminder texts unchanged.
 - [x] 2 Exact requested Book blockers.
-- [x] 3 Private DOB add/office display/registration task, pending SQL PGlite-proven for two-user isolation. Live activation waits on approved SQL; existing-person DOB entry not added.
+- [x] 3 Private DOB add/office display/registration task, SQL applied separately as 0186 at Jo's 10:35am approval after PGlite two-user isolation proof; existing-person DOB entry not added.
 - [x] 4 Post-notice urgent flag/alert and prestart hold at install instant; pre-notice no extra task; captured tests pass.
 - [x] 5 Guide §3.3.3 supports same-start update_same_id; selectors untouched/off; external robot run NOT RUN.
 - [x] Final comparable 1002→1006 files, 10068→10077 pass, 243 failures / 97 failing files unchanged; no new failing files. Build OK. Details docs/jo-2nov-morning-results.md. No live changes/sends/publishing.
