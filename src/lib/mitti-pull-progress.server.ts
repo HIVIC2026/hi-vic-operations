@@ -29,5 +29,5 @@ export async function recordMittiPullOutcome(jobId: string, stream: string, ok: 
 }
 
 export async function runStoredMittiPull<T extends PullRow>(stream: string, deps: Pick<PullDeps<T>, "page" | "sync">, budgetMs = 40_000, maxJobs?: number) {
-  return pullMittiPages({ ...deps, ...mittiPullProgress(stream), failure: (jobId, message) => recordMittiPullOutcome(jobId, stream, false, message) }, { budgetMs, maxJobs });
+  return pullMittiPages({ ...deps, ...mittiPullProgress(stream), failure: (jobId, message) => recordMittiPullOutcome(jobId, stream, false, message) }, { budgetMs, ...(maxJobs === undefined ? {} : { maxJobs }) });
 }
