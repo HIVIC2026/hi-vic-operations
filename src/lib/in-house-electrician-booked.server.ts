@@ -14,7 +14,7 @@ export async function notifyInHouseElectricianBooked(jobId:string,bookingId:stri
  if(await (await import('./trade-pause.server')).tradeMessagesPausedNow({businessId:worker.data.business_id}))return;
  if(await (await import('./qa-inbox.server')).qaDeliveryHeld(jobId))return;
  const claim=old?await db.from('workflow_events').update({details:{status:'sending'}}).eq('id',id).contains('details',{status:'retry'}).select('id'):await db.from('workflow_events').insert({id,job_id:jobId,actor_id:null,event_type:'in_house_electrician_booking_notice',summary:'PIESA booking email for the selected electrician',details:{status:'sending'},internal:true}).select('id');if(claim.error?.code==='23505')return;if(claim.error)throw Error(claim.error.message);if(!claim.data?.length)return;
- const j=job.data as {job_number:string;source:string;owners:{phone:string|null}|null;properties:{address_line:string;suburb:string|null;postcode:string|null}|null};
+ const j=job.data as unknown as {job_number:string;source:string;owners:{phone:string|null}|null;properties:{address_line:string;suburb:string|null;postcode:string|null}|null};
  const when=new Date(book.data.scheduled_start).toLocaleString('en-AU',{timeZone:'Australia/Melbourne',weekday:'long',day:'numeric',month:'long',hour:'numeric',minute:'2-digit'});
  const address=[j.properties?.address_line,j.properties?.suburb,j.properties?.postcode].filter(Boolean).join(', ');
  const subject=`${j.job_number}: Pre Insulation Electrical Safety Assessment (PIESA) booked`;
@@ -22,5 +22,5 @@ export async function notifyInHouseElectricianBooked(jobId:string,bookingId:stri
  const mail=partnerEmailLayout({subject,blocks:[{kind:'p',text}],test:j.source==='qa_test'});
  const result=j.source==='qa_test'?await (await import('./test-send.server')).sendTestEmail({jobId,jobSource:j.source,partnerIsTest:true,label:key,actorId:null},worker.data.email,subject,mail.html,mail.text):await (await import('./office-email.server')).sendOfficeEmail({actorId:null,recipient:'partner',to:worker.data.email,contactName:worker.data.full_legal_name,subject,message:text,...mail,label:'in_house_electrician_booked',record:{businessId:worker.data.business_id},idempotencyKey:key});
  const status=result.status==='sent'?'sent':result.status==='blocked'||result.status==='failed'&&/didn't accept|refused/i.test(result.detail??'')?'retry':'unknown';
- const saved=await db.from('workflow_events').update({details:{status}}).eq('id',id);if(saved.error)throw Error(saved.error.message);
+ const saved=await db.from('workflow_events').update({details:{status,booking_id:bookingId}}).eq('id',id);if(saved.error)throw Error(saved.error.message);
 }

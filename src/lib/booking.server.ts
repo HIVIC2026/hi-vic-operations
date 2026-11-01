@@ -121,6 +121,9 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
   }
   if (kind === "assessment") {
     // Installer planning visibility only — never an installation booking.
+    const held=await (await import('./in-house-suppression.server')).readInHouseDispatchState([jobId]);
+    if(held.failed)throw new WorkflowError('Could not check electrician booking notice.');
+    if(held.held.has(jobId))await (await import('./in-house-electrician-booked.server')).notifyInHouseElectricianBooked(jobId,inserted.id).catch(e=>console.error('Electrician booked notice pending',e));
     const { INSTALLER_PLANNING_NOTICE } = await import("./allocation.core");
     const { data: inst } = await admin.from("job_assignments").select("id, user_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
     // F13: no outbox row. Decision 376: the installer is told the date once per PIESA time (I71 + text, approved by Jo
