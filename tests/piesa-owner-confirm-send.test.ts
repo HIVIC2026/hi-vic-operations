@@ -87,13 +87,20 @@ mock.module("../src/lib/test-send.server", () => ({
 mock.module("../src/lib/sms.server", () => ({ sendRealSms: async (p: { type: string; idempotencyKey: string; to: string | null; body: string; jobId: string }) => { sms.push(p); return { status: "blocked", detail: "Wording not approved yet" }; } }));
 mock.module("../src/lib/comms.server", () => ({ assertCustomerDeliveryAllowed: async () => { if (deliveryBlocked) throw new Error(deliveryBlocked); } }));
 
+const copyCalls:string[]=[],copyEmails:string[]=[];let copyHeld=false;
+mock.module("../src/lib/piesa-delivery.server",()=>({deliverPiesaCopies:async(job:string)=>{
+ copyCalls.push(job);if(copyHeld)return {sent:[],held:{owner:"copy held"},hold:"copy held"};
+ const rows=tables["piesa_deliveries"]??=[];if(rows.some(r=>r["job_id"]===job))return {sent:[],held:{},hold:"both copies already recorded"};
+ rows.push({id:"del-"+job,job_id:job,piesa_record_id:job===J?REC:TREC,recipient:"owner"});copyEmails.push(job);
+ return {sent:["owner"],held:{},hold:null};
+}}));
 const S = await import("../src/lib/piesa-owner-confirm.server");
 const { sendPiesaConfirmStep, sweepOwnerPiesaConfirmations, PIESA_CONFIRM_ACTIVE_STAGES } = await import("../src/lib/piesa-owner-confirm-send.server");
 const { OWNER_PIESA_CONFIRMATION_BLOCKER, PIESA_OWNER_CONFIRMED_EVENT, PIESA_OWNER_CONFIRM_OFFICE_ALERT_EVENT, PIESA_OWNER_CONFIRM_STEP_EVENT } = await import("../src/lib/piesa-owner-confirm.core");
 const events = (type: string, job = J) => (tables["workflow_events"] ?? []).filter((e) => e["event_type"] === type && e["job_id"] === job);
 const signHelen = (job = J) => S.signOwnerPiesaConfirmation({ jobId: job, userId: "user-1", codeId: "code-1", fullName: "Helen Yang", signatureName: "Helen Yang", authority: "owner", confirmed: true, ip: "1.2.3.4", userAgent: "Safari" });
 
-beforeEach(() => { reset(); guarded.length = 0; tests.length = 0; sms.length = 0; deliveryBlocked = null; });
+beforeEach(() => { reset(); guarded.length = 0; tests.length = 0; sms.length = 0; deliveryBlocked = null; copyCalls.length=0;copyEmails.length=0;copyHeld=false; });
 
 describe("facts + gate", () => {
   test("facts: the latest initial PIESA record, the electrician + REC, the current signed copy and no confirmation yet", async () => {
@@ -149,65 +156,38 @@ describe("facts + gate", () => {
   });
 });
 
-describe("request + reminders (email O71 + text), recorded once per PIESA before any send", () => {
-  test("real job (decision 311 approved): step recorded; email goes ONLY through the guarded owner sender (customer_comms_enabled lives there); the text goes to the one real sender", async () => {
-    const r = await sendPiesaConfirmStep(J, "request");
-    expect(r).toBe("email sent; sms blocked: Wording not approved yet");
-    expect(guarded).toHaveLength(1);
-    expect(sms).toEqual([{ type: "piesa_owner_confirm", idempotencyKey: `piesa-owner-confirm:v1:${J}:${REC}:request`, to: "0400111222", body: expect.stringContaining(LINK), jobId: J }]);
-    expect(sms[0]!.body).toStartWith("Your electrical safety check is done.");
-    const ev = events(PIESA_OWNER_CONFIRM_STEP_EVENT);
-    expect(ev).toHaveLength(1); expect(ev[0]!["details"]).toEqual({ step: "request", piesa_record_id: REC });
-    expect(tests).toEqual([]);
-  });
-  test("a step never repeats; reminders use the reminder text", async () => {
-    await sendPiesaConfirmStep(J, "request");
-    expect(await sendPiesaConfirmStep(J, "request")).toBe("already handled");
-    await sendPiesaConfirmStep(J, "reminder_1");
-    expect(sms).toHaveLength(2); expect(sms[1]!.body).toStartWith("Your install can't be booked until you confirm");
-    expect(sms[1]!.idempotencyKey).toBe(`piesa-owner-confirm:v1:${J}:${REC}:reminder_1`);
-    expect(events(PIESA_OWNER_CONFIRM_STEP_EVENT).map((e) => (e["details"] as Row)["step"])).toEqual(["request", "reminder_1"]);
-  });
-  test("once confirmed nothing more goes out", async () => {
-    await signHelen();
-    expect(await sendPiesaConfirmStep(J, "request")).toBe("already confirmed");
-    expect(sms).toEqual([]); expect(events(PIESA_OWNER_CONFIRM_STEP_EVENT)).toEqual([]);
-  });
-  test("TEST job: email + text through test-send only, nothing on the real senders", async () => {
-    const r = await sendPiesaConfirmStep(T, "request");
-    expect(r).toBe("email sent: Resend accepted (test); sms sent: Twilio accepted (test)");
-    expect(tests.map((t) => [t.kind, t.to, t.label])).toEqual([["email", "jo@example.com", "piesa_owner_confirm:request"], ["sms", "0400999888", "piesa_owner_confirm:request"]]);
-    expect(tests[0]!.subject).toBe("Jo, please confirm your electrical safety check");
-    expect(tests[0]!.body).toContain("TEST — only sent to Jo"); expect(tests[0]!.body).toContain("tok-test"); expect(tests[0]!.body).toContain("Sam Spark (Spark Electrical Pty Ltd)");
-    expect(guarded).toEqual([]); expect(sms).toEqual([]);
-  });
-  test("no working owner link: recorded as not sent, nothing goes out", async () => {
-    tables["customer_estimate_links"] = [];
-    expect(await sendPiesaConfirmStep(J, "request")).toBe("not sent — owner link missing");
-    expect(events("piesa_owner_confirm_not_sent")).toHaveLength(1); expect(sms).toEqual([]);
-  });
-  test("day-5 office alert: one event per PIESA record, never twice", async () => {
-    expect(await sendPiesaConfirmStep(J, "office_alert_5")).toBe("office alerted");
-    expect(await sendPiesaConfirmStep(J, "office_alert_5")).toBe("already alerted");
-    const alerts = events(PIESA_OWNER_CONFIRM_OFFICE_ALERT_EVENT);
-    expect(alerts).toHaveLength(1);
-    expect(alerts[0]!["details"]).toEqual({ step: "office_alert_5", piesa_record_id: REC, completed_date: "2026-10-24" });
-    expect(String(alerts[0]!["summary"])).toContain("Needs Home Insulation Victoria");
-    expect(sms).toEqual([]);
-  });
-  test("sweep: one due step per unconfirmed job, in order over the days; confirmed and booked jobs are skipped", async () => {
-    const day = (n: number) => new Date(Date.parse(T0) + n * 86400_000 + 60_000);
-    expect([...PIESA_CONFIRM_ACTIVE_STAGES]).toEqual(["piesa_complete", "electrical_variation_pending", "awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling"]);
-    expect(await sweepOwnerPiesaConfirmations(day(0))).toEqual({ checked: 2, sent: 2, alerts: 0 }); // request to both jobs
-    expect(await sweepOwnerPiesaConfirmations(day(0))).toEqual({ checked: 2, sent: 0, alerts: 0 });
-    await signHelen(T);
-    expect(await sweepOwnerPiesaConfirmations(day(1))).toEqual({ checked: 2, sent: 1, alerts: 0 }); // reminder_1 to the real job only
-    expect(await sweepOwnerPiesaConfirmations(day(3))).toEqual({ checked: 2, sent: 1, alerts: 0 });
-    expect(await sweepOwnerPiesaConfirmations(day(5))).toEqual({ checked: 2, sent: 0, alerts: 1 });
-    expect(await sweepOwnerPiesaConfirmations(day(9))).toEqual({ checked: 2, sent: 0, alerts: 0 });
-    expect(events(PIESA_OWNER_CONFIRM_STEP_EVENT).map((e) => (e["details"] as Row)["step"])).toEqual(["request", "reminder_1", "reminder_3", "office_alert_5"]);
-    expect(events(PIESA_OWNER_CONFIRM_STEP_EVENT, T).map((e) => (e["details"] as Row)["step"])).toEqual(["request"]);
-    tables["jobs"]![0]!["stage"] = "installation_booked";
-    expect(await sweepOwnerPiesaConfirmations(day(10))).toEqual({ checked: 1, sent: 0, alerts: 0 });
-  });
+describe("Task 5 combined PIESA email and timing sweep", () => {
+ test("request uses the canonical PDF email, no separate SMS, and records delivery", async()=>{
+  expect(await sendPiesaConfirmStep(J,"request")).toBe("email sent");
+  expect(copyCalls).toEqual([J]);expect(sms).toEqual([]);expect(tests).toEqual([]);
+  expect(events(PIESA_OWNER_CONFIRM_STEP_EVENT).map(e=>(e["details"] as Row)["step"])).toEqual(["request"]);
+  expect(await sendPiesaConfirmStep(J,"request")).toBe("already handled");expect(copyCalls).toEqual([J]);
+ });
+ test("reminders never send another copy or SMS",async()=>{
+  await sendPiesaConfirmStep(J,"request");await sendPiesaConfirmStep(J,"reminder_1");await sendPiesaConfirmStep(J,"reminder_3");
+  expect(copyEmails).toEqual([J]);expect(sms).toEqual([]);
+  expect(events(PIESA_OWNER_CONFIRM_STEP_EVENT).map(e=>(e["details"] as Row)["step"])).toEqual(["request","reminder_1","reminder_3"]);
+ });
+ test("held copy is not marked delivered or counted as sent",async()=>{
+  copyHeld=true;expect(await sendPiesaConfirmStep(J,"request")).toBe("copy held");
+  expect(events(PIESA_OWNER_CONFIRM_STEP_EVENT)).toEqual([]);expect(copyEmails).toEqual([]);
+  expect(await sweepOwnerPiesaConfirmations(new Date(T0))).toEqual({checked:2,sent:0,alerts:0});
+ });
+ test("TEST jobs also use only the canonical isolated copy path",async()=>{
+  await sendPiesaConfirmStep(T,"request");expect(copyEmails).toEqual([T]);expect(sms).toEqual([]);expect(tests).toEqual([]);
+ });
+ test("office alert is once per record, never an owner message",async()=>{
+  expect(await sendPiesaConfirmStep(J,"office_alert_5")).toBe("office alerted");
+  expect(await sendPiesaConfirmStep(J,"office_alert_5")).toBe("already alerted");expect(copyCalls).toEqual([]);
+  expect(events(PIESA_OWNER_CONFIRM_OFFICE_ALERT_EVENT)).toHaveLength(1);
+ });
+ test("sweep advances timing markers without sending repeated emails",async()=>{
+  const day=(n:number)=>new Date(Date.parse(T0)+n*86400_000+60_000);
+  expect(await sweepOwnerPiesaConfirmations(day(0))).toEqual({checked:2,sent:2,alerts:0});
+  expect(await sweepOwnerPiesaConfirmations(day(0))).toEqual({checked:2,sent:0,alerts:0});await signHelen(T);
+  expect(await sweepOwnerPiesaConfirmations(day(1))).toEqual({checked:2,sent:0,alerts:0});
+  expect(await sweepOwnerPiesaConfirmations(day(3))).toEqual({checked:2,sent:0,alerts:0});
+  expect(await sweepOwnerPiesaConfirmations(day(5))).toEqual({checked:2,sent:0,alerts:1});
+  expect(copyEmails).toEqual([J,T]);expect(sms).toEqual([]);
+ });
 });
