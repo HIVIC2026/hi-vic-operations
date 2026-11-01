@@ -71,7 +71,8 @@ export const ownerAgreementFn = createServerFn({ method: "POST" })
         paymentTerms: pkg.payment_terms,
         consumerRights: pick("consumer_rights"),
         agreementWording: pick("customer_agreement"),
-        blockers: templateBlockers(templates, "agreement"),
+        blockers: [...templateBlockers(templates, "agreement"), ...templateBlockers(templates, 'consent')],
+        section1: (await import('./consent.core')).section1FromFacts({ owner: pkg.consumer, premises_address: pkg.property_address }),
       }),
     );
   });
@@ -90,6 +91,7 @@ export const ownerAcceptQuoteFn = createServerFn({ method: "POST" })
           authorityType: z.enum(["owner", "authorised_representative"]),
           readConsumerInfo: z.boolean(),
           acceptAgreement: z.boolean(),
+          declarations: z.object({ owner_or_authorised:z.boolean(), details_accurate:z.boolean(), consent_ap_sends:z.boolean(), consent_commission_shares:z.boolean() }),
           assistance: z.enum(["none", "interpreter", "support_understanding", "both"]),
         }),
       })
@@ -98,6 +100,9 @@ export const ownerAcceptQuoteFn = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { ownerSession } = await import("./owner-verify.server");
     const s = await ownerSession(data.token, data.session);
+    const { quoteSittingBlockers } = await import('./owner-quote-sign.core');
+    const errors = quoteSittingBlockers({ ownerTick:data.signing.acceptAgreement && data.signing.readConsumerInfo, declarations:data.signing.declarations });
+    if (errors.length) throw new Error(errors.join(' '));
     const { respondToQuoteImpl } = await import("./portal.functions");
     const { WorkflowError } = await import("./workflow.server");
     return respondToQuoteImpl(
@@ -116,6 +121,14 @@ export const ownerAcceptQuoteFn = createServerFn({ method: "POST" })
           if (jobId !== s.jobId) throw new WorkflowError("This quote isn't on your job.");
         },
         isOwner: async (jobId) => jobId === s.jobId,
+        signQuoteSitting: async (jobId,quoteId,version) => {
+          if (jobId !== s.jobId) throw new WorkflowError('This quote is not on your job.');
+          const { buildAcceptancePackage } = await import('./assignment.server');
+          const pkg = await buildAcceptancePackage(quoteId);
+          const { signGateDoc } = await import('./owner-gates.server');
+          for (const key of ['quote_acceptance','payment_terms'] as const) await signGateDoc({jobId,key,signatoryName:pkg.consumer.name,ticked:true,answers:{},method:'link_code',signedBy:s.userId,ip:context.ip,userAgent:context.userAgent,verified:{channel:s.channel,destination:s.destination,codeId:s.codeId},quoteSittingKey:`${quoteId}:${version}`});
+          await (await import('./consent.server')).signOwnerConsent({jobId,actorId:s.userId,ip:context.ip,userAgent:context.userAgent,input:{signatoryName:pkg.consumer.name,signatureName:pkg.consumer.name,authorityType:data.signing.authorityType,accept:true,declarations:data.signing.declarations}});
+        },
       },
     );
   });
