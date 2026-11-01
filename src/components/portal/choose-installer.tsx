@@ -63,9 +63,9 @@ export function ChooseInstallerPanel({ jobId, reportLoad = false }: { jobId: str
   const rel = rq.data;
   const pending = rel?.state === "pending";
   const confirmed = rel?.state === "confirmed";
-  const batchEvents = (file.data?.timeline ?? []).map((t) => ({ event_type: String(t.detail?.event_type ?? ""), created_at: t.at, details: t.detail }));
+  const batchEvents = (file.data?.timeline ?? []).map((t) => ({ event_type: String(t.detail?.["event_type"] ?? ""), created_at: t.at, details: t.detail }));
   const batchId = openBatchId(batchEvents);
-  const batch = batchEvents.find((e) => e.event_type === AREA_BATCH_SENT_EVENT && e.details?.batch_id === batchId);
+  const batch = batchEvents.find((e) => e.event_type === AREA_BATCH_SENT_EVENT && e.details?.["batch_id"] === batchId);
   const batchSent = !!batchId || !!sentTo;
   const waiting = !pending && !confirmed && !batchSent && !rq.isPending && !rq.isError && !file.isPending && !file.isError;
   const sendOne = async (businessId: string, name: string) => {
@@ -87,7 +87,7 @@ export function ChooseInstallerPanel({ jobId, reportLoad = false }: { jobId: str
             ? <p className="rounded-md border px-3 py-2">Offer sent to <span className="font-semibold">{d.openOffer.business ?? "the installer"}</span>. Waiting for them to offer the owner 3 times{d.openOffer.expiresAt ? ` (closes ${when(d.openOffer.expiresAt)})` : ""}.</p>
             : pending ? <p className="rounded-md border px-3 py-2" data-release="pending">{rel?.line}. The installer is offered the job only once the owner confirms.</p>
             : confirmed ? <p className="rounded-md border px-3 py-2" data-release="confirmed"><span className="font-semibold">{rel?.line}.</span> Release sends the offer straight to the installer (the owner isn't asked again).</p>
-            : batchSent ? <p className="rounded-md border px-3 py-2" data-release="batch-sent">Sent to the owner for <span className="font-semibold">{sentTo ?? batch?.details?.installer_name ?? "the installer"}</span>. Waiting for the owner to confirm a few quick details.</p>
+            : batchSent ? <p className="rounded-md border px-3 py-2" data-release="batch-sent">Sent to the owner for <span className="font-semibold">{sentTo ?? batch?.details?.["installer_name"] ?? "the installer"}</span>. Waiting for the owner to confirm a few quick details.</p>
             : rel?.state === "lapsed" ? <p className="text-muted-foreground">{rel.line}.</p> : null}
           {!d.openOffer && (confirmed || waiting) && (
             <ul className="divide-y rounded-md border">
