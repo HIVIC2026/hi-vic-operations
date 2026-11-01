@@ -35,6 +35,8 @@ export async function runInHouseSavedWork(id:string,now=new Date()){
    if(book)await step('worker-notices',()=>import('./swms-sign-text.server').then(m=>m.textSwmsSignLinks(row.job_id,book,now)));
   }else{
    await step('forms',async()=>{
+    if(d.kind==='assessment'&&d.bookingId)await (await import('./piesa-autoform.server')).onPiesaBooked(row.job_id,d.bookingId,row.actor_id??'');
+    if(d.kind==='rectification'&&d.bookingId)await (await import('./fixes-day.server')).onRectificationBooked(row.job_id,d.bookingId,row.actor_id??'');
     if(d.kind==='installation')await forms.ensureInstallForm(row.job_id,row.actor_id);
     if(d.kind==='ready_check')await forms.ensureInHouseForms(row.job_id,row.actor_id);
     if(d.kind!=='installation')await forms.syncInHouseForms(row.job_id,'person',row.actor_id);
@@ -44,10 +46,13 @@ export async function runInHouseSavedWork(id:string,now=new Date()){
    if(d.kind==='installation'){
     await step('invoice-date',()=>import('./invoice-dates.server').then(m=>m.setInstallDueDate(row.job_id,d.start??book?.scheduled_start??'',row.actor_id??'')));
     await step('esc',()=>import('./esc.server').then(m=>m.regenerateEscNotification(row.job_id,row.actor_id??'')));
+    await step('attendance',()=>import('./install-attendance.server').then(m=>m.onInstallBooked(row.job_id,row.actor_id??'')));
     await step('swms',()=>import('./swms.server').then(m=>m.loadSwms(row.job_id)));
     if(book)await step('worker-notices',()=>import('./swms-sign-text.server').then(m=>m.textSwmsSignLinks(row.job_id,book,now)));
    }
    if(d.kind==='assessment'&&d.bookingId){await step('electrician-intent',()=>import('./in-house-electrician-booked.server').then(m=>m.notifyInHouseElectricianBooked(row.job_id,d.bookingId??'')));}
+   if((d.kind==='assessment'||d.kind==='rectification')&&d.start){await step('install-hold',async()=>{const holds=await import('./install-holds.server');await (d.kind==='assessment'?holds.moveHoldForPiesa:holds.moveHoldForRectification)(row.job_id,d.start??'',row.actor_id??'');});}
+   if(d.kind==='assessment')await step('engagement',()=>import('./engagement.server').then(m=>m.recordBookingCompleted(row.job_id)));
    const kind=d.kind==='installation'?'install':d.kind==='assessment'?'piesa':d.kind==='ready_check'?'ready_check':null;
    if(kind&&book&&d.who){await step('owner-intent',()=>import('./in-house-booking.server').then(m=>m.notifyOwnerBooked(row.job_id,kind,book.scheduled_start,d.who??{id:d.workerId,name:'',phone:null},now)));}
    await step('progress',()=>import('./autoadvance.server').then(m=>m.autoAdvanceJob(row.job_id,row.actor_id,'booking confirmed')));
