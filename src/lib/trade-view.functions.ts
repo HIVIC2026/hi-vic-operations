@@ -152,6 +152,7 @@ export const tradeHandBack = createServerFn({method:'POST'}).middleware([require
   .handler(async({data,context})=>{
     await (await import('./in-house-booking.server')).bookingTeam(data.jobId,context.userId);
     await (await import('./in-house-batch.server')).pullBackInHouseJob({jobId:data.jobId,actorId:context.userId,reason:data.reason});
+    await (await import('./in-house-handback-cleanup.server')).finishInHouseHandback(data.jobId,context.userId).catch(e=>console.error('Handback cleanup pending',e));
     return {ok:true};
   });
 

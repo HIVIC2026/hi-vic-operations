@@ -39,6 +39,7 @@ async function formFacts(jobId: string): Promise<Form[]> {
   }
   return forms.map(f=>({...f,closed:history.some(e=>["in_house_form_closed_unused","rectification_form_closed_unused"].includes(e.event_type) && e.details?.['audit_id']===f.auditId)}));
 }
+export async function handbackFormIds(jobId:string){return (await formFacts(jobId)).map(f=>f.auditId);}
 async function assignment(jobId: string, role: string) {
   return read<Assignment | null>(db.from("job_assignments").select("user_id,business_id,profiles:user_id(email,full_name)").eq("job_id",jobId).eq("role",role).eq("active",true).maybeSingle());
 }
@@ -145,7 +146,10 @@ export async function syncInHouseForms(jobId: string, change: "date"|"person"|"c
 }
 /** Portal-only closure: deterministic history IDs keep repeated calls and concurrent retries harmless. */
 export async function closeUnneededForms(jobId: string, reason: string, actorId: string | null = null): Promise<number> {
-  if (!await isInHouseFormJob(jobId)) return 0;
+  if (!await isInHouseFormJob(jobId)) {
+    const back=await db.from('workflow_events').select('id').eq('job_id',jobId).eq('event_type','in_house_pulled_back').limit(1).maybeSingle();
+    if(back.error)throw Error(back.error.message);if(reason!=='handed_back'||!back.data)return 0;
+  }
   const candidates = (await formFacts(jobId)).filter(f=>!f.done && !f.closed && (reason !== "no_upgrades" || f.kind === "rectification"));
   let count = 0;
   for (const form of candidates) {
