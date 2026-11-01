@@ -1,3 +1,6 @@
+## Jo 1 Nov new in-house flow — Task 1 of 7
+- [ ] Test-first YES eligibility for Home Insulation Victoria leads, installer-sourced exemption, five-only batches without timers, Choose installer existing guarded handoff; related and bounded full comparison against 98 failing files / 261 failures. No settings, secrets, live data, sends or publishing.
+
 ## Jo 1 Nov B7b + B8
 - [x] Progress red 1/4 then 5/0; writes zero on full fresh run, one on early stop/reset, resume preserved. Existing history readers are event-allowlisted; no cursor display/filter change needed. Read-only: customer_delivery_settings.enabled=false (preliminary sender), customer_comms_enabled=true and COM04 mode production (verified sender instead uses master/consent). Removed contact-only calculator precheck; canonical open-address matcher unchanged; closed/replay PGlite tests 13/0. Sharing failure no longer returns false success, reload shows existing Try again, recorded consent retries with stable signature id and approval guard. Ten added tests pass; related 125 pass/1 baseline paperwork-template failure. Bounded before 959 files 9902/261, after 961 files 9912/261: same 98 failing files; only added tests/counts changed (quick-taps +1, intake +2, progress +5, registration +2). No settings, secrets, live data, sends or publishing.
 
