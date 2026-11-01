@@ -15,7 +15,7 @@ export async function practiceHandback(reason:string,ownOffice:boolean,source='b
  INSERT INTO job_assignments(job_id,role,business_id,active) VALUES('${job}','installer','${biz}',true),('${job}','electrician','${biz}',true);`);
  if(ownOffice)await db.query("INSERT INTO business_members VALUES($1,$2,true,'business_admin')",[biz,actor]);
  await db.query('UPDATE jobs SET source=$1 WHERE id=$2',[source,job]);
- await db.exec(readFileSync('docs/pending-migrations/2026-11-01_task7_trade_hand_back.sql','utf8'));
+ await db.exec(readFileSync('drizzle/migrations/0185_task7_trade_hand_back.sql','utf8'));
  await db.query('SELECT pull_back_in_house_job($1,$2,$3)',[job,reason,actor]);
  return{assignments:(await db.query<{role:string;active:boolean}>('SELECT role,active FROM job_assignments ORDER BY role')).rows,bookings:(await db.query<{kind:string;status:string}>('SELECT kind,status FROM bookings')).rows,events:(await db.query<{event_type:string;details:{reason:string}}>('SELECT event_type,details FROM workflow_events')).rows};
  }finally{await db.close();}

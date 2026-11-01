@@ -32,7 +32,7 @@ await loadPendingFunctions(j);
 const { admin, asUser, storage } = journeyAdmin(j);
 providers.storageFiles.map = storage;
 const q = j.q;
-await j.db.exec(readFileSync("docs/pending-migrations/2026-11-01_date_free_esc_consent.sql","utf8"));
+await j.db.exec(readFileSync("drizzle/migrations/0183_date_free_esc_consent.sql","utf8"));
 
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: admin }));
 mock.module("@tanstack/react-start", serverFnStandIn);
