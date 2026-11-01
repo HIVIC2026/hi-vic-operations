@@ -390,6 +390,7 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           // install date). Real installers get nothing until Jo approves the wording; TEST uses the test-send path.
           const { sweepCrewReminders } = await import("@/lib/crew-reminder.server");
           const r = await timed("sweepCrewReminders", () => sweepCrewReminders());
+          await timed('sweepInHouseInstallOfficeEmails',async()=> (await import('@/lib/in-house-booking-notices.server')).sweepInHouseInstallOfficeEmails());
           (out as Record<string, unknown>)['crewReminders'] = { checked: r.checked, sent: r.sent };
         } catch (e) {
           console.error("allocation tick: crew reminder sweep failed", (e as Error).message);

@@ -80,6 +80,8 @@ export type PrestartResult = { status: "captured" | "already" | "not_signed" | "
 
 /** Capture once per audit; later calls return the stored immutable record. Signature changed after capture = error. */
 export async function capturePiisaPrestart(jobId: string, actorId: string | null, auditId: string, audit: unknown, fetchMedia: MittiMediaFetch): Promise<PrestartResult> {
+  const leadBlocker=await (await import('./in-house-booking.server')).leadNoticeBlocker(jobId);
+  if(leadBlocker)return {status:'error',message:leadBlocker};
   const p = parseAudit(audit);
   const { isInstallDayDoc } = await import("./install-day.core");
   const portal = isInstallDayDoc(audit) ? await installDayPortalAnswers(jobId, audit) : undefined;

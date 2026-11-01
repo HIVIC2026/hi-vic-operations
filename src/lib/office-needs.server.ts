@@ -299,6 +299,14 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   for (const j of jobs) { const x = f(j.id); if (x) x.inHouseDispatch = dispatch.failed ? "in_house_read_failed" : dispatch.held.has(j.id) ? "in_house" : null; }
   const inHouse = await inHouseNeedsFacts(jobs.filter(j => j.source !== "qa_test").map(j => j.id));
   for (const [id, ih] of inHouse) { const x = f(id); if (x) x.inHouse = ih; }
+  if(ids.length){
+    const ev=await byIds('Lead Installer changes and handbacks',ids,(c,a,b)=>admin.from('workflow_events').select('job_id,id,event_type,summary,details,created_at').in('job_id',c).in('event_type',['in_house_lead_changed','in_house_esc_notice_updated','in_house_pulled_back','in_house_batch_sent']).order('created_at',{ascending:false}).range(a,b));
+    for(const id of ids){const x=f(id);if(!x)continue;const mine=ev.filter(e=>e['job_id']===id);const change=mine.find(e=>e['event_type']==='in_house_lead_changed');
+      if(change&&!mine.some(e=>e['event_type']==='in_house_esc_notice_updated'&&(e['details'] as Row|null)?.['change_id']===change['id']))x.inHouseLeadChanged={at:String(change['created_at']),line:String(change['summary'])};
+      const back=mine.find(e=>e['event_type']==='in_house_pulled_back');
+      if(back&&!mine.some(e=>e['event_type']==='in_house_batch_sent'&&String(e['created_at'])>String(back['created_at'])))x.inHouseHandedBack={at:String(back['created_at']),reason:String((back['details'] as Row|null)?.['reason']??'Reason not recorded')};
+    }
+  }
   // Paid owners must never be hidden behind a generic automatic status. Same facts feed Needs me and Next.
   const { paidGateWarnings } = await import("./paid-gate-warning.server");
   const paidGates = await paidGateWarnings(jobs.map(j => ({ id: j.id, stage: j.stage, at: j.status?.since ?? j.facts.createdAt })));

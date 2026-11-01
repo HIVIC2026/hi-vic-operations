@@ -7,6 +7,7 @@
 // sits in its own section. Retired templates are simply not listed (their files stay in git).
 // tests/templates-hub.test.ts proves every entry comes from a live code path and every live builder / text type is here.
 import { renderQuoteExpiredEmail } from "./quote-expired-email.core";
+import { bookingNotice } from './in-house-booking.core';
 import { renderJoOutcomeEmail } from "./jo-outcome-email.core";
 import { withUnsubscribe } from "./emailsafety.core";
 import { renderCoverageUnavailableEmail } from "./coverage-email";
@@ -327,6 +328,7 @@ const OWNER: TemplateEntry[] = [
     source: { builder: "src/lib/piesa-fixes-confirm.core.ts", fn: "piesaFixesConfirmText", sender: "src/lib/piesa-fixes-confirm-send.server.ts" },
     render: () => text(piesaFixesConfirmText(JOB)) }),
   // Install
+  ENTRY({id:'owner:sms-in-house-booked',section:'owner',step:'install',kind:'text',code:'',name:"You're booked (in-house)",when:'A current in-house visit is booked',who:'Owner',approvalNote:'Jo 1 Nov Task 7',gate:{kind:'text',smsType:'in_house_booked_owner'},source:{builder:'src/lib/in-house-booking.core.ts',fn:'bookingNotice',sender:'src/lib/in-house-booking.server.ts'},render:()=>text(bookingNotice({kind:'install',start:'2026-11-05T21:00:00Z',who:{name:'Sample Lead Installer',phone:'0399999999'},installer:'Sample Insulation Co',phone:'0399999999'}).sms)}),
   ...(['request','day3','day7','paid'] as const).flatMap(step=>[
     ENTRY({id:`owner:install-deposit-${step}`,section:'owner',step:'install',kind:'email',code:'',name:step==='paid'?'Install deposit received':'10% install deposit'+(step==='request'?' request':` reminder (${step})`),when:step==='paid'?'Deposit confirmed on the installation invoice':step==='request'?'In-house PIESA passed or rectification completed':`${step} after the recorded deposit request, if unpaid`,who:'Owner',approvalNote:'Jo 1 Nov Task 6',gate:{kind:'email'},source:{builder:'src/lib/deposit-request-email.core.ts',fn:'renderInstallDepositOwnerEmail',sender:'src/lib/deposit-request.server.ts'},render:()=>email(renderInstallDepositOwnerEmail(DEPOSIT_SAMPLE,step))}),
     ENTRY({id:`owner:sms-install-deposit-${step}`,section:'owner',step:'install',kind:'text',code:'',name:'Install deposit '+step+' (text)',when:'With the matching deposit email, during daytime',who:'Owner',approvalNote:'Jo 1 Nov Task 6',gate:{kind:'text',smsType:step==='paid'?'install_deposit_paid':step==='request'?'install_deposit_request':'install_deposit_reminder'},source:{builder:'src/lib/deposit-request-email.core.ts',fn:'depositOwnerText',sender:'src/lib/deposit-request.server.ts'},render:()=>text(depositOwnerText(DEPOSIT_SAMPLE,step))}),

@@ -1,3 +1,9 @@
+## Jo 1 Nov Task 7 — booking and Lead Installer
+- [x] Own-Team booking eligibility, paid-deposit visibility, pending ESC registration and business handback SQL practice-proven (two-user refusal checks).
+- [x] Owner booking mocked replay/link-free SMS and current-booking refusal; latest-change acknowledgment/prestart hold. 12 new tests pass.
+- [ ] Complete mocked end-to-end A5/SWMS swap, grouped email retry/paging and quiet cancellation/HIV office email proof; inline controls on the To book list remain incomplete (job-page controls implemented). Blocked this turn by bounded QA time; do not claim complete or publish.
+- [x] Comparable suite first after run 100/254 vs 97/243; all four changed failures individually fixed/rechecked to their original totals (97/243 normalized), plus 12 new passing tests. Full final rerun NOT RUN. No settings/secrets/live data/database changes/sends/publication; both Task 7 migrations remain pending.
+
 ## Jo 1 Nov Task 6 and signing recovery
 - [x] Retry-recovery option: actual PGlite quote sitting interrupted after the two Gate B rows, then retry leaves exactly two gate rows, one agreement and one signed ESC consent; successful replay makes no duplicates. Accepted-version replay now completes missing stable auxiliary records and reuses the agreement. No new SQL required; existing date-free consent SQL remains pending/unapplied.
 - [x] In-house actual electrical clearance requests the existing-invoice 10% deposit; request/day3/day7 and paid owner notices use guarded email/link-free SMS, office gets independently claimed email only, paid canonical state moves the installer home item into To book. PIESA/Part C hooks, shared card/Xero payment hook and authenticated 15-minute tick wired; 10-day office flag retained. No communication settings changed; new text types still require their own switches. Ambiguous sends are never repeated.

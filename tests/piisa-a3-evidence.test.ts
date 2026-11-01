@@ -117,6 +117,7 @@ describe("AP gate", () => {
 
 // ---- persistence boundary: capture stores the real image bytes and an immutable once-per-audit record ----
 const events: { type: string; details: unknown }[] = []; const uploads: { path: string; size: number }[] = [];
+mock.module('../src/lib/in-house-booking.server',()=>({leadNoticeBlocker:async()=>null}));
 const q = (rows: unknown[]) => { const o: Record<string, unknown> = {}; for (const m of ["select", "eq", "ilike", "order", "limit", "in", "is"]) o[m] = () => o; o.then = (r: (v: unknown) => unknown) => r({ data: rows, error: null }); o.maybeSingle = async () => ({ data: rows[0] ?? null }); return o; };
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: {
   from: (t: string) => q(t === "workflow_events" ? events.filter((e) => e.type === "piisa_prestart_captured").map((e) => ({ details: e.details })) : []),

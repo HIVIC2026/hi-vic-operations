@@ -131,12 +131,22 @@ export async function allocateVisit(jobId: string, userId: string, kind: VisitKi
  * crew picker / CII / "Add them in Mitti first" guards refuse before anything is recorded) → record `piisa_crew_selected` (the 2pm crew reminder reads it).
  */
 export async function saveCrewWithLead(jobId: string, userId: string, sel: CrewSelection, call?: MittiCall): Promise<{ needsVerification: string[] }> {
+  await (await import('./trade-view.server')).requireTradeJob(userId,jobId);
+  const held=await (await import('./in-house-suppression.server')).readInHouseDispatchState([jobId]);
+  if(held.failed)throw new WorkflowError('Could not check the in-house partner. Please try again.');
+  if(held.held.has(jobId)){
+    const team=await (await import('./in-house-booking.server')).bookingTeam(jobId,userId);
+    const why=(await import('./in-house-booking.core')).bookingWorkerBlocker('installation',team.workers.find(w=>w.id===leadWorkerId(sel))??null);
+    if(why)throw new WorkflowError(why);
+  }
   const piisa = await import("./piisa-a3.server");
   const { staff } = await piisa.loadCrew(jobId);
   const { problems } = crewSelectionProblems(sel, staff);
   if (problems.length) throw new WorkflowError(problems.join(" • "));
   const leadId = leadWorkerId(sel);
   const cur = currentAllocation(await allocationEvents(jobId), "install");
+  const previousSelection=(await piisa.loadCrew(jobId)).selection;
+  const oldLeadId=cur?.worker_id??(previousSelection?leadWorkerId(previousSelection):null);
   const { data: asg } = await db.from("job_assignments").select("user_id, business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
   const { data: own } = asg?.user_id
     ? await db.from("partner_workers").select("id").eq("profile_id", asg.user_id).eq("business_id", asg.business_id ?? "").is("removed_at", null).limit(1).maybeSingle()
@@ -147,6 +157,7 @@ export async function saveCrewWithLead(jobId: string, userId: string, sel: CrewS
   const result = await piisa.saveCrewSelection(jobId, userId, sel);
   const forms = await import("./in-house-forms.server");
   if (await forms.isInHouseFormJob(jobId).catch(e=>{ console.error("In-house crew form extension skipped", e instanceof Error ? e.message : "Partner read failed"); return false; })) {
+    await (await import('./in-house-booking.server')).recordLeadChange(jobId,userId,oldLeadId,leadId??'');
     const { data: booked } = await db.from("bookings").select("id").eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").limit(1).maybeSingle();
     if (booked) await forms.ensureInstallForm(jobId, userId, call);
     await forms.syncInHouseForms(jobId, "crew", userId, call);

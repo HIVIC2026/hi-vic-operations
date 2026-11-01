@@ -80,6 +80,7 @@ const clearanceFacts = async () => {
     rectificationQuoteAccepted: true, rectificationCompletedAt: j.rectification_required ? START : null, sectionCSignedAt: j.part_c_signed ? START : null };
 };
 const overrides: Record<string, any> = {
+  './in-house-booking.server':{prepareBookingWorker:async()=>({id:MEMBER,name:'TEST worker',phone:null}),notifyOwnerBooked:async()=>{}},
   "@/integrations/supabase/client.server": { supabaseAdmin: admin },
   "./workflow.server": workflow, "./workflow": workflowCore, "./in-house.core": inHouse,
   "./allocation.core": allocation, "./allocation.server": { clearanceFacts }, "./install-days.core": installDays,
@@ -124,7 +125,7 @@ function load(name: string, cache: Record<string, any> = {}): any {
   new Function("exports","require",...Object.keys(extra),ts.transpile(source,{ module: ts.ModuleKind.CommonJS,target: ts.ScriptTarget.ES2022 }))(out,req,...Object.values(extra));
   return out;
 }
-const book = async (kind = "installation", actor = MEMBER, start = START) => load("trade-view.server").inHouseBookVisit(actor, { jobId: JOB, kind, start });
+const book = async (kind = "installation", actor = MEMBER, start = START) => load("trade-view.server").inHouseBookVisit(actor, { jobId: JOB, kind, start,workerId:MEMBER });
 const patch = async (field: string, value: unknown) => db.query(`update jobs set "${field}"=$1 where id=$2`, [value,JOB]);
 beforeEach(async () => {
   failHeldRead = false; failBillingRead = false; rectificationGuardCalls = 0; formCalls = 0; formAudits = 0; failForm = false;
@@ -256,9 +257,9 @@ function renderBookingCard(access: unknown) {
   const element = (props: any) => React.createElement("div", props, props.children);
   const deps: Record<string, any> = {
     react: React, "react/jsx-runtime": require("react/jsx-runtime"),
-    "@tanstack/react-query": { useQuery: () => access, useQueryClient: () => ({ invalidateQueries: async () => {} }) },
+    "@tanstack/react-query": { useQuery: (o:any) => o.queryKey[0]==="in-house-booking-team" ? {data:{workers:[],depositPaid:true,selection:null}} : access, useQueryClient: () => ({ invalidateQueries: async () => {} }) },
     "@tanstack/react-start": { useServerFn: (fn: unknown) => fn }, sonner: { toast: {} },
-    "@/lib/trade-view.functions": {}, "@/lib/install-days.core": installDays,
+    "@/lib/trade-view.functions": {}, "@/lib/in-house-booking.core": require("../src/lib/in-house-booking.core"), "@/lib/install-days.core": installDays,
     "@/lib/office-list-refresh": { markOfficeChanged: () => {} },
     "@/components/ui/input": { Input: (p: any) => React.createElement("input", p) },
     "@/components/ui/label": { Label: element }, "@/components/ui/button": { Button: element }, "./installer-kit": { Group: element },

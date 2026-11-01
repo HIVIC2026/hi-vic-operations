@@ -124,7 +124,7 @@ describe("D6 one crew picker", () => {
     expect(CREW_TITLE).toBe("Who's on the crew today?");
     const picker = src("src/components/trade/PiisaCrewPicker.tsx");
     expect(picker).toContain("title={CREW_TITLE}");
-    expect(picker).toContain(">Change</LinkRow>");
+    expect(picker).toContain(">Change Lead Installer</LinkRow>");
     expect(picker).toContain("staleTime: 20_000");
     expect(picker).not.toContain('"Crew today"');
     expect(src("src/routes/_authenticated/field.$jobId.tsx")).toContain('{visitsForStage(job.stage).includes("install") && <PiisaCrewPicker jobId={jobId} />}');

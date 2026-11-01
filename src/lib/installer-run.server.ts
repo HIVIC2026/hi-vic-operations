@@ -1102,14 +1102,15 @@ async function ownOldClaimOnly(h: Holder, now: Date): Promise<boolean> {
 // that window through the portal window flow (claim → text → confirm / can't make it / none suit). Not tapped → nothing.
 
 /** Hook after the owner's own cancel. Only a CONFIRMED run window counts; once per window. Never texts the owner. */
-export async function runOwnerCancelled(jobId: string, opts: { now?: Date } = {}): Promise<{ told: boolean; text?: string }> {
+export async function runOwnerCancelled(jobId: string, opts: { now?: Date; silent?:boolean } = {}): Promise<{ told: boolean; text?: string }> {
   const now = opts.now ?? new Date();
   const x = await ownerSlot(jobId);
   if (!x || x.state !== "confirmed") return { told: false };
-  const won = await claimBatchEvent(jobId, null, RUN_SLOT_CANCELLED_EVENT, `Owner cancelled their confirmed Ready Check (${runDayWords(x.day)}, ${slotTimeWords(x)}) — the installer is told and can fill the time from nearby waiting owners`,
+  const won = await claimBatchEvent(jobId, null, opts.silent?'run_slot_cancelled_silent':RUN_SLOT_CANCELLED_EVENT, `Owner cancelled their confirmed Ready Check (${runDayWords(x.day)}, ${slotTimeWords(x)})${opts.silent?' — no notices requested':' — the installer is told and can fill the time from nearby waiting owners'}`,
     { run_id: x.runId, batch_id: x.batchId, business_id: x.businessId, seq: x.seq, person: x.person, day: x.day, start: x.start, end: x.end, by: "owner", idempotency_key: runSlotCancelledKey(x.runId, jobId, x.seq) });
   if (!won) return { told: false };
   await freeWindow(x, null, "cancelled");
+  if(opts.silent)return {told:false};
   return { told: true, text: await textInstallerCancelled(x, now) };
 }
 

@@ -997,12 +997,18 @@ export async function inHouseBookingAccess(userId: string, jobId: string, client
 }
 
 /** A thin member-scoped wrapper: all booking rules and writes stay in confirmBooking. */
-export async function inHouseBookVisit(userId: string, input: { jobId: string; kind: import("./booking.server").BookingKind; start: string }, client = admin): Promise<{ ok: true; bookingId: string } | { ok: false; blockers: string[] }> {
+export async function inHouseBookVisit(userId: string, input: { jobId: string; kind: import("./booking.server").BookingKind; start: string; workerId?: string; crewIds?: string[] }, client = admin): Promise<{ ok: true; bookingId: string } | { ok: false; blockers: string[] }> {
   const access = await inHouseBookingAccess(userId, input.jobId, client);
   if (!access.allowed) return { ok: false, blockers: access.blockers };
+  if(!input.workerId)return {ok:false,blockers:[input.kind==='installation'?(await import('./in-house-booking.core')).LEAD_INSTALLER_BOOKING_REASON:'Choose the person going before booking.']};
+  const service=await import('./in-house-booking.server');
+  let who:import('./in-house-booking.core').BookingWorker;
+  try{who=await service.prepareBookingWorker(input.jobId,userId,input.kind,input.workerId,input.crewIds);}
+  catch(e){return {ok:false,blockers:[e instanceof Error?e.message:'Could not check the person going.']};}
   const existingReadyCheck = input.kind === "ready_check" ? access.bookings?.find(b => b.kind === "ready_check" && b.status === "confirmed" && b.scheduled_start && new Date(b.scheduled_start).getTime() === new Date(input.start).getTime()) : undefined;
   if (existingReadyCheck) {
     await (await import("./mitti-create.server")).onReadyCheckBooked(input.jobId, userId).catch(e=>console.error("ready check form retry failed", e instanceof Error ? e.message : "Form preparation failed"));
+    await service.notifyOwnerBooked(input.jobId,'ready_check',input.start,who).catch(e=>console.error('Booking confirmation held',e instanceof Error?e.message:'Delivery unavailable'));
     return { ok: true, bookingId: existingReadyCheck.id };
   }
   const { confirmBooking } = await import("./booking.server");
@@ -1023,6 +1029,8 @@ export async function inHouseBookVisit(userId: string, input: { jobId: string; k
   }
   const { data: booking, error } = await admin.from("bookings").select("id").eq("job_id", input.jobId).eq("kind", input.kind).eq("status", "confirmed").eq("scheduled_start", input.start).eq("booked_by", userId).order("created_at", { ascending: false }).limit(1).single();
   if (error || !booking) throw new Error(error?.message ?? "Booking could not be read back.");
+  const noticeKind=input.kind==='installation'?'install':input.kind==='assessment'?'piesa':input.kind==='ready_check'?'ready_check':null;
+  if(noticeKind)await service.notifyOwnerBooked(input.jobId,noticeKind,input.start,who).catch(e=>console.error('Booking confirmation held',e instanceof Error?e.message:'Delivery unavailable'));
   return { ok: true, bookingId: booking.id };
 }
 

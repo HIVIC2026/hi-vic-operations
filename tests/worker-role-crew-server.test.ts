@@ -30,6 +30,7 @@ function from(t: string) {
   return q;
 }
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from } }));
+mock.module('../src/lib/in-house-suppression.server',()=>({readInHouseDispatchState:async()=>({held:new Set(),failed:false})}));
 const sent: { via: string; to: string; subject?: string }[] = [];
 mock.module("../src/lib/test-send.server", () => ({ TEST_APP_BASE: "https://test", sendTestEmail: async (_c: unknown, to: string, subject: string) => { sent.push({ via: "test", to, subject }); return { status: "sent", detail: "fake" }; } }));
 mock.module("../src/lib/office-email.server", () => ({ sendOfficeEmail: async (p: { to: string; subject: string }) => { sent.push({ via: "real", to: p.to, subject: p.subject }); return { status: "blocked", detail: "fake" }; } }));

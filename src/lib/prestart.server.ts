@@ -15,7 +15,12 @@ export async function leadInstallerCert(jobId: string): Promise<LeadCert & { ema
   const none = { found: false, status: null, level: null, expiresOn: null, name: null, email: null, certificateNumber: null, mobile: null, whiteCard: null };
   const { data: a } = await admin.from("job_assignments").select("user_id, business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
   if (!a) return none;
-  const { data: w } = await admin.from("partner_workers").select("id, email, full_legal_name, mobile, business_id, trade_role, removed_at, certification").eq("profile_id", a.user_id).eq("business_id", a.business_id ?? "").is("removed_at", null).limit(1).maybeSingle();
+  const {data:selected}=await admin.from('workflow_events').select('details').eq('job_id',jobId).eq('event_type','piisa_crew_selected').order('created_at',{ascending:false}).limit(1).maybeSingle();
+  const selection=(selected?.details as {selection?:{lead?:unknown}}|null)?.selection;
+  const selectedWorkerId=typeof selection?.lead==='string'?selection.lead:null;
+  let workerQuery=admin.from("partner_workers").select("id, email, full_legal_name, mobile, business_id, trade_role, removed_at, certification").eq("business_id", a.business_id ?? "").is("removed_at", null);
+  workerQuery=selectedWorkerId?workerQuery.eq('id',selectedWorkerId):workerQuery.eq('profile_id',a.user_id);
+  const {data:w}=await workerQuery.limit(1).maybeSingle();
   if (!w) return none;
   const email = (w.email ?? "").trim().toLowerCase() || null;
   // Decision 130: the lead must have acknowledged the ESC collection notice (own secure link / My business).
@@ -121,6 +126,8 @@ export async function runPrestart(jobId: string, trigger: string, now = new Date
 
 /** Server-side lock for the PIISA send and installation evidence. */
 export async function prestartGate(jobId: string, now = new Date()) {
+  const leadBlocker=await (await import('./in-house-booking.server')).leadNoticeBlocker(jobId,now);
+  if(leadBlocker)return {locked:true,reasons:[leadBlocker]};
   const b = await upcomingBooking(jobId);
   if (!b) return { locked: false, reasons: [] as string[] };
   return prestartLocked({ start: b.scheduled_start, latest: await latestCheck(jobId), now });
@@ -192,6 +199,7 @@ export async function prestartSummary(jobId: string) {
   }
   return {
     change,
+    leadChange: await (await import('./in-house-booking.server')).latestLeadNotice(jobId),
     start: b.scheduled_start, runAt: prestartRunAt(b.scheduled_start),
     task: escTask({ start: b.scheduled_start, current: n.current, previousSent: prev, now: new Date() }),
     notification: cur ? { id: cur.id, version: cur.version, status: cur.status, payload: cur.payload_json, due_by: cur.due_by, earliest: cur.earliest_send_at, sent_at: cur.sent_at, reference: cur.submission_reference, method: cur.submission_method, last_error: cur.last_error, canRecord: ["ready", "pending_submission", "error"].includes(cur.status) } : null,

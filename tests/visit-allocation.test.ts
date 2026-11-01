@@ -120,6 +120,7 @@ await db.query(`INSERT INTO ready_checks (job_id, external_mitti_id) VALUES ($1,
 await db.query(`INSERT INTO workflow_events (job_id, event_type, summary, details) VALUES ($1, 'mitti_piisa_audit_created', 'PIISA', '{"audit_id":"audit_piisa1"}')`, [J_INST]);
 
 let boss = true;
+mock.module('../src/lib/in-house-suppression.server',()=>({readInHouseDispatchState:async()=>({held:new Set(),failed:false})}));
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: postgrestShim(db) }));
 const OUTSIDER = "00000000-0000-0000-0000-0000000000e9";
 mock.module("../src/lib/trade-view.server", () => ({ requireTradeJob: async (userId: string) => { if (userId === OUTSIDER) throw new Error("This job isn't assigned to you."); return { biz: { id: BIZ, name: "Reinsulate" }, boss, kind: "installer", isTest: false }; } }));
