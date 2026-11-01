@@ -2,10 +2,15 @@ import { addMelbourneBusinessDays, addYmd, melbourneToday } from './melbourne-ti
 import { IN_HOUSE_ELECTRICIAN_BOOKING_BLOCKER } from './worker-compliance.core';
 export function emptyBookingTeamBlocker(kind:string,workers:BookingWorker[]):string|null {
   if((kind==='assessment'||kind==='rectification')&&!workers.some(w=>w.tradeRole==='electrician'&&w.electricianVerified))return IN_HOUSE_ELECTRICIAN_BOOKING_BLOCKER;
-  if(kind==='installation'&&!workers.some(w=>bookingWorkerBlocker(kind,w)===null))return 'No one on your Team is set up as an ESC-registered Lead Installer. Add their ESC registration to book the install.';
+  if(kind==='installation'&&!workers.some(w=>bookingWorkerBlocker(kind,w)===null)){
+    const waiting=workers.find(w=>w.tradeRole==='installer'&&w.workerRole==='lead'&&w.cleared&&!w.reason&&(!w.escRegistered||!w.escRegisteredAt));
+    return waiting?registrationWaitingReason(waiting.name):NO_ELIGIBLE_LEAD_REASON;
+  }
   return null;
 }
 export const LEAD_INSTALLER_BOOKING_REASON = 'Choose the Lead Installer to book. We need to name them on the ESC install notice at least 24 hours before the install.';
+export const NO_ELIGIBLE_LEAD_REASON = 'Add a Lead Installer to your Team to book the install. ESC needs us to name a registered Lead Installer on the install notice at least 24 hours before.';
+export const registrationWaitingReason=(name:string)=>`Waiting for Home Insulation Victoria to register ${name} with ESC. Every Lead Installer must be registered with ESC before we can lodge the install notice.`;
 export const LEAD_INSTALLER_NOTICE_WAIT = 'Waiting for Home Insulation Victoria to update the ESC notice for your new Lead Installer.';
 export type BookingWorker = { id:string; name:string; phone:string|null; tradeRole:string; workerRole?:string|null; cleared:boolean; reason:string|null; electricianVerified?:boolean; escRegistered?:boolean; escRegisteredAt?:string|null };
 export function bookingWorkerBlocker(kind:string,w:BookingWorker|null):string|null {
@@ -14,12 +19,12 @@ export function bookingWorkerBlocker(kind:string,w:BookingWorker|null):string|nu
   if(kind!=='installation')return w.reason;
   if(w.tradeRole!=='installer'||w.workerRole!=='lead')return LEAD_INSTALLER_BOOKING_REASON;
   if(!w.cleared)return w.reason||'The office must verify this Lead Installer’s current CII certificate before booking.';
-  if(!w.escRegistered||!w.escRegisteredAt)return 'The office must record this Lead Installer as an ESC-registered scheme participant before booking.';
+  if(!w.escRegistered||!w.escRegisteredAt)return registrationWaitingReason(w.name);
   return w.reason;
 }
 export type LeadChange = {id:string;start:string;at:string};
 export function leadNoticePending(change:LeadChange|null,ack:string|null,now=new Date()):boolean {
-  return !!change&&ack!==change.id&&melbourneToday(new Date(change.at))===melbourneToday(new Date(change.start))&&melbourneToday(now)>=melbourneToday(new Date(change.start));
+  return !!change&&ack!==change.id&&now.getTime()>=Date.parse(change.start);
 }
 export function bookingNotice(i:{kind:'ready_check'|'piesa'|'install';start:string;who:Pick<BookingWorker,'name'|'phone'>;installer:string;phone:string|null}) {
   const label={ready_check:'Ready Check',piesa:'Pre Insulation Electrical Safety Assessment (PIESA)',install:'install'}[i.kind];
