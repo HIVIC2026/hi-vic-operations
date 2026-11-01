@@ -1,6 +1,7 @@
 // Pure Xero logic (no database). Every Xero call goes through the injected `XeroCall`,
 // so tests can mock it and never hit the live Xero API.
 import { currentFeeWording } from "./hiv-quote.core";
+import { xeroDueDate } from "./invoice.lifecycle";
 
 export type XeroCall = (path: string, init?: { method?: string; body?: unknown; headers?: Record<string, string> }) => Promise<any>;
 
@@ -49,8 +50,8 @@ export function assertHivicPayload(payload: { Invoices: { Reference?: string | u
 export function assertHivicReference(reference: string | null | undefined) {
   if (!reference?.startsWith(XERO_REFERENCE_PREFIX)) throw new Error("Xero write blocked: stored invoice reference is not a Home Insulation Victoria reference.");
 }
-/** Due-date updates to existing Xero invoices are prepared but switched off until explicitly enabled. */
-export const XERO_DUE_DATE_UPDATES_ENABLED = false;
+/** Due-date updates to existing Xero invoices (install day booked / cancelled). On since Jo 1 Nov 2026. */
+export const XERO_DUE_DATE_UPDATES_ENABLED = true;
 export const contactIdemKey = (ownerId: string) => `hivic-contact-${ownerId}`;
 export const invoiceIdemKey = (invoiceId: string) => `hivic-invoice-${invoiceId}`;
 
@@ -149,6 +150,14 @@ export function buildInvoicePayload(a: {
 /** Prepared (not sent while disabled) Xero due-date update for an existing invoice. Idempotent: same input, same request. */
 export function buildDueDateUpdate(xeroInvoiceId: string, dueDate: string, invoiceId: string) {
   return { path: `/api.xro/2.0/Invoices/${xeroInvoiceId}`, method: "POST", headers: { "Idempotency-Key": `hivic-due-${invoiceId}-${dueDate}` }, body: { Invoices: [{ InvoiceID: xeroInvoiceId, DueDate: dueDate }] } };
+}
+
+/** The pending Xero due-date update for a linked invoice (install day, else acceptance + 30 days), or null when nothing
+ *  is pending or no date is known (Jo 1 Nov 2026). */
+export function pendingDueDateUpdate(inv: { id: string; kind?: string | null; xero_invoice_id: string | null; xero_update_pending: boolean | null; balance_due_date: string | null; deposit_due_date: string | null }) {
+  if (!inv.xero_update_pending || !inv.xero_invoice_id) return null;
+  const due = xeroDueDate(inv, inv.kind ?? "installation");
+  return due ? buildDueDateUpdate(inv.xero_invoice_id, due, inv.id) : null;
 }
 
 /** Translate a Xero invoice into portal payment facts. Voided/deleted never clears the deposit. */

@@ -83,9 +83,13 @@ const addDays = (ymd: string, days: number) => {
   return new Date(Date.UTC(y!, m! - 1, d! + days)).toISOString().slice(0, 10);
 };
 /** Xero due date for the invoice: the install day once booked, otherwise 30 days after the quote was accepted
- *  (Jo 1 Nov 2026: the full invoice must not read as all due now; the owner pays each step from My job). */
-export const xeroDueDate = (row: Pick<InvoiceRow, "balance_due_date" | "deposit_due_date">): string | null =>
-  row.balance_due_date ?? (row.deposit_due_date ? addDays(row.deposit_due_date, PRE_INSTALL_DUE_DAYS) : null);
+ *  (Jo 1 Nov 2026: the full invoice must not read as all due now; the owner pays each step from My job). Installation
+ *  invoices only. */
+export const xeroDueDate = (row: Pick<InvoiceRow, "balance_due_date" | "deposit_due_date">, kind: string = "installation"): string | null =>
+  row.balance_due_date ?? (row.deposit_due_date
+    // Electrical upgrades / repeat safety check invoices are paid in full before their visit: due when raised.
+    ? (kind === "installation" ? addDays(row.deposit_due_date, PRE_INSTALL_DUE_DAYS) : row.deposit_due_date)
+    : null);
 
 /** Cumulative AmountPaid on the ONE invoice → patch. deposit_paid_at is set once the configured minimum upfront payment is reached (the gate itself is evaluatePaymentGate). */
 export function paymentPatch(row: InvoiceRow, paid: number, depositReachedAt: string | null, nowIso: string) {

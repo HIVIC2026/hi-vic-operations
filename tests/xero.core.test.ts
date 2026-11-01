@@ -132,7 +132,7 @@ describe("installation date drives the same invoice's due date", () => {
     expect(installDueDatePatch(r, "2026-10-22")).toBeNull();
     expect(buildDueDateUpdate("XI", "2026-10-22", r.id)).toEqual(buildDueDateUpdate("XI", "2026-10-22", r.id));
     expect(buildDueDateUpdate("XI", "2026-10-22", r.id).body.Invoices[0]).toEqual({ InvoiceID: "XI", DueDate: "2026-10-22" });
-    expect(XERO_DUE_DATE_UPDATES_ENABLED).toBe(false);
+    expect(XERO_DUE_DATE_UPDATES_ENABLED).toBe(true);
   });
   test("cancellation returns final due date to pending; fully paid is untouched", async () => {
     const { r } = await inv();
