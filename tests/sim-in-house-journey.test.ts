@@ -143,3 +143,13 @@ test('SIM combined PIESA copy/declaration email is delivered before install book
  const owner=h.messages.find(m=>m.template==='piesa_copy'&&m.who==='owner');expect(owner?.attachments).toHaveLength(1);expect(owner?.body).toContain('Confirm my safety check');
  await h.deliverSafetyCopy();h.assertNoNewMessages();h.assertOfficesEmailOnly();
 });
+
+test('SIM captured owner booking SMS has exact current notice text and no link; office addresses never receive SMS',async()=>{
+ const h=createInHouseSim();await h.bookReadyCheck();
+ expect(h.messages.map(m=>[m.who,m.channel,m.template,m.to])).toEqual([
+  ['owner','email','in_house_booked','owner@example.invalid'],
+  ['owner','sms','in_house_booked_owner','0400000001'],
+ ]);
+ expect(h.messages[1].body).toBe("You're booked for your Ready Check: Wednesday, 4 November at 9:00 am. Practice Lead Installer, phone 0400000002 is coming. Details in your email.");
+ expect(h.messages[1].body).not.toMatch(/https?:|www\./);h.assertOfficesEmailOnly();
+});
