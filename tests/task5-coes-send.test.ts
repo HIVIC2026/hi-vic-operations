@@ -1,12 +1,16 @@
-import {expect,mock,test} from 'bun:test';
-const sent:any[]=[];const records:any[]=[];
-mock.module('../src/integrations/supabase/client.server',()=>({supabaseAdmin:{from:(table:string)=>{let event='';const q:any={select:()=>q,eq:(k:string,v:string)=>{if(k==='event_type')event=v;return q;},contains:()=>q,limit:()=>q,maybeSingle:async()=>({data:table==='jobs'?{source:'real',owners:{email:'owner@example.invalid'},deleted_at:null}:null}),insert:async(p:any)=>{records.push({table,p});return {error:null};},then:(resolve:any)=>resolve({data:event==='coes_owner_copy_delivered'?[]:[{id:'record'}]})};return q;},storage:{from:()=>({download:async()=>({data:new Blob(['certificate'])})})}}}));
+import {beforeEach,expect,mock,test} from 'bun:test';
+import {memoryPostgrest,type Tables} from './helpers/memory-postgrest';
+const tables:Tables={};const sent:Record<string,any>[]=[];let failRecord=false;
+const db=memoryPostgrest(tables);
+mock.module('../src/integrations/supabase/client.server',()=>({supabaseAdmin:{from:(t:string)=>{if(t==='job_compliance_records'&&failRecord)return {insert:async()=>({error:{message:'failed'}})};return db.from(t);},storage:{from:()=>({download:async()=>({data:new Blob(['certificate'])})})}}}));
 mock.module('../src/lib/comms.server',()=>({assertCustomerDeliveryAllowed:async()=>{}}));
 mock.module('../src/lib/owner-email-send.server',()=>({sendGuardedOwnerEmail:async(p:any)=>{sent.push(p);return 'sent';}}));
-mock.module('../src/lib/workflow.server',()=>({logEvent:async()=>{}}));
+mock.module('../src/lib/workflow.server',()=>({logEvent:async(job:string,actor:string|null,type:string,summary:string,details:any)=>{tables.workflow_events?.push({id:'event',job_id:job,event_type:type,summary,details});}}));
 const {sendCoesOwnerCopy}=await import('../src/lib/coes-owner-copy.server');
-test('recorded CoES sends its attachment and records pre-install consumer delivery',async()=>{
- await sendCoesOwnerCopy('job',{key:'certificate1',files:[{storagePath:'job/certificate.pdf',mimeType:'application/pdf'}]});
- expect(sent).toHaveLength(1);expect(sent[0].build(null).attachments[0].contentType).toBe('application/pdf');
- expect(records.find(r=>r.table==='job_compliance_records').p.record_key).toBe('pre_install_consumer_docs');
-});
+const ref={key:'certificate1',files:[{storagePath:'job/certificate.pdf',mimeType:'application/pdf'}]};
+beforeEach(()=>{sent.length=0;failRecord=false;Object.assign(tables,{jobs:[{id:'job',source:'qa_test',owners:{email:'owner@example.invalid'},deleted_at:null}],workflow_events:[{job_id:'job',event_type:'veu_factsheet_provided'}],customer_agreements:[{id:'agreement',job_id:'job',status:'signed'}],piesa_deliveries:[{job_id:'job',recipient:'owner',piesa_record_id:'piesa'}],piesa_records:[{id:'piesa',job_id:'job',is_current:true}],job_compliance_records:[]});});
+test('retained CoES sends its PDF and records the complete current consumer document set',async()=>{await sendCoesOwnerCopy('job',ref);expect(sent).toHaveLength(1);expect(sent[0]?.build(null).attachments[0].contentType).toBe('application/pdf');expect(tables.job_compliance_records?.[0]?.record_key).toBe('pre_install_consumer_docs');});
+test('unsigned agreement cannot prove consumer document completion',async()=>{tables.customer_agreements=[{job_id:'job',status:'draft'}];await sendCoesOwnerCopy('job',ref);expect(sent).toHaveLength(1);expect(tables.job_compliance_records).toEqual([]);});
+test('old PIESA delivery cannot prove current consumer documents',async()=>{tables.piesa_deliveries=[{job_id:'job',recipient:'owner',piesa_record_id:'old'}];await sendCoesOwnerCopy('job',ref);expect(tables.job_compliance_records).toEqual([]);});
+test('retry repairs failed compliance recording without another email',async()=>{failRecord=true;await expect(sendCoesOwnerCopy('job',ref)).rejects.toThrow();failRecord=false;await sendCoesOwnerCopy('job',ref);await sendCoesOwnerCopy('job',ref);expect(sent).toHaveLength(1);expect(tables.job_compliance_records).toHaveLength(1);});
+test('another job certificate is never sent',async()=>{await sendCoesOwnerCopy('job',{...ref,files:[{storagePath:'other/cert.pdf',mimeType:'application/pdf'}]});expect(sent).toEqual([]);});
