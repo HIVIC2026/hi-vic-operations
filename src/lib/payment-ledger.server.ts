@@ -35,3 +35,4 @@ export async function invoicePaidCents(jobId: string, invoiceId: string, totalPa
   const ledger = effectiveLedger(raw);
   return raw.some((r) => r.source === "xero") ? cumulativePaidCents(ledger) : Math.max(cumulativePaidCents(ledger), toCents(totalPaid ?? 0));
 }
+

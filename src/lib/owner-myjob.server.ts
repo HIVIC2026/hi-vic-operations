@@ -162,7 +162,7 @@ export async function resolveOwnerJob(token: unknown) {
       optOutUrl: await (await import("./emailsafety.server")).unsubscribeUrlForJob(jobId),
     } : null,
     piesaInstallGapDays: n(limits["piesa_install_gap_days"] ?? DEFAULT_PIESA_INSTALL_GAP_DAYS),
-    canCancel: ownerCanCancel(stage, (cancellableBookings ?? []).map((b) => b.kind), await safetyCheckPaidFor(jobId, paid > 0)),
+    canCancel: ownerCanCancel(stage, (cancellableBookings ?? []).map((b) => b.kind), paid > 0 && pay ? (await import('./payments.core')).isStepPaid(pay.steps, 'safety_check') : await safetyCheckPaidFor(jobId, paid > 0)),
     // Decision 119: after the install the owner signs the official VEEC assignment form here (never before install).
     veecAssignment: ["evidence_outstanding", "ap_review", "ready_for_veec", "complete"].includes(stage) ? { status: veec?.status ?? "not_prepared", signedAt: veec?.consumer_signed_at ?? null } : null,
     // Decision 296: between the electrician's PIESA and the install day the owner confirms the PIESA here (the card reads its own facts via ownerPiesaConfirmFn).

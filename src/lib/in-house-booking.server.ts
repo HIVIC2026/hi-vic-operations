@@ -9,16 +9,24 @@ export async function bookingTeam(jobId:string,userId:string){
   if(!c.boss||c.kind!=='installer')throw Error('Only the installer office can book these visits.');
   const held=await (await import('./in-house-suppression.server')).readInHouseDispatchState([jobId]);
   if(held.failed||!held.held.has(jobId))throw Error('This job is not assigned to your in-house business.');
-  const candidates=await (await import('./visit-allocation.server')).allocationCandidates(c.biz.id);
   type Row={id:string;trade_role:string;licence_number:string|null;rec_number:string|null;licence_expires_on:string|null;licence_verified_at:string|null;esc_registered?:boolean;esc_registered_at?:string|null};
-  let rows:Row[]=[];
-  for(let from=0;;from+=200){const page=await read<Row[]>(db.from('partner_workers').select('*').eq('business_id',c.biz.id).is('removed_at',null).order('id').range(from,from+199));rows.push(...page);if(page.length<200)break;}
+  const readWorkers = async () => {
+    const rows: Row[] = [];
+    for(let from=0;;from+=200){const page=await read<Row[]>(db.from('partner_workers').select('*').eq('business_id',c.biz.id).is('removed_at',null).order('id').range(from,from+199));rows.push(...page);if(page.length<200)break;}
+    return rows;
+  };
+  // All depend only on the already checked job/business; no shared cross-user cache.
+  const [candidates, rows, view, crew] = await Promise.all([
+    import('./visit-allocation.server').then(m => m.allocationCandidates(c.biz.id)),
+    readWorkers(),
+    import('./payments.server').then(m => m.jobPaymentView(jobId)),
+    import('./piisa-a3.server').then(m => m.loadCrew(jobId)),
+  ]);
+  const rowsById = new Map(rows.map(row => [row.id, row]));
   const {electricianVerified,crewClearance,melbourneToday}=await import('./worker-compliance.core');
   const {allocationBlocker}=await import('./visit-allocation.core');
-  const workers:BookingWorker[]=candidates.map(w=>{const r=rows.find(r=>r.id===w.workerId);return{id:w.workerId,name:w.name,phone:w.mobile,tradeRole:w.tradeRole,workerRole:w.workerRole??null,cleared:crewClearance(w.clearance??{certStatus:null,level:null,expiresOn:null},melbourneToday()).cleared,reason:w.tradeRole==='installer'?allocationBlocker('install',w,melbourneToday(),{bookingCreatedAt:null}):w.declarationsDue?'Worker declarations must be signed before booking.':null,electricianVerified:r?.trade_role==='electrician'&&electricianVerified(r).ok,escRegistered:r?.esc_registered===true,escRegisteredAt:r?.esc_registered_at??null};});
-  const view=await (await import('./payments.server')).jobPaymentView(jobId);
+  const workers:BookingWorker[]=candidates.map(w=>{const r=rowsById.get(w.workerId);return{id:w.workerId,name:w.name,phone:w.mobile,tradeRole:w.tradeRole,workerRole:w.workerRole??null,cleared:crewClearance(w.clearance??{certStatus:null,level:null,expiresOn:null},melbourneToday()).cleared,reason:w.tradeRole==='installer'?allocationBlocker('install',w,melbourneToday(),{bookingCreatedAt:null}):w.declarationsDue?'Worker declarations must be signed before booking.':null,electricianVerified:r?.trade_role==='electrician'&&electricianVerified(r).ok,escRegistered:r?.esc_registered===true,escRegisteredAt:r?.esc_registered_at??null};});
   const paid=!!view&&(await import('./payments.core')).isStepPaid(view.steps,'install_deposit');
-  const crew=await (await import('./piisa-a3.server')).loadCrew(jobId);
   return{workers,depositPaid:paid,selection:crew.selection};
 }
 export async function prepareBookingWorker(jobId:string,userId:string,kind:string,workerId:string,crewIds:string[]=[]){

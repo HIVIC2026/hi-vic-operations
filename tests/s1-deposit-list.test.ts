@@ -1,0 +1,22 @@
+import { expect, mock, test } from 'bun:test';
+import { memoryPostgrest, type Tables } from './helpers/memory-postgrest';
+import * as payments from '../src/lib/payments.core';
+const rows:Tables={invoices:[],quote_items:[],workflow_events:[],workflow_settings:[{id:1,safety_check_payment_inc_gst:349}]};
+let reads=0;
+const db=memoryPostgrest(rows),from=db.from.bind(db);
+db.from=(table:string)=>{const q=from(table),run=q.run.bind(q);q.run=async()=>{reads++;await new Promise(r=>setTimeout(r,5));return run();};return q;};
+mock.module('@/integrations/supabase/client.server',()=>({supabaseAdmin:db}));
+const api=await import('../src/lib/install-deposit-list.server');
+const batch=()=> (api as unknown as {installDepositPaidForJobs?:(ids:string[])=>Promise<Map<string,boolean|null>>}).installDepositPaidForJobs;
+test('30 To book deposits use bounded shared reads, preserving invoice-only thresholds and reversal reconciliation',async()=>{
+ const ids=Array.from({length:30},(_,i)=>`j${i}`);
+ rows.invoices=ids.flatMap((id,i)=>[{id:`old${i}`,job_id:id,kind:'installation',quote_id:`oldq${i}`,total_inc_gst:5349,total_paid:5349,created_at:'2026-01-01'},{id:`i${i}`,job_id:id,kind:'installation',quote_id:`q${i}`,total_inc_gst:5349,total_paid:i%2?849:349,created_at:'2026-11-01'}]);
+ rows.quote_items=ids.map((_,i)=>({quote_id:`q${i}`,code:'PIESA',line_total_inc_gst:349}));
+ rows.workflow_events=[{id:'p',job_id:'j0',event_type:'owner_payment_recorded',created_at:'2026-11-01',actor_id:null,details:{invoice_id:'i0',amount_cents:84900,source:'xero',xero_payment_id:'xp'}},{id:'rev',job_id:'j0',event_type:'owner_payment_reversed',created_at:'2026-11-02',actor_id:null,details:{invoice_id:'i0',amount_cents:84900,source:'xero',xero_payment_id:'xp'}},{id:'repeat',job_id:'j2',event_type:'owner_payment_recorded',created_at:'2026-11-01',actor_id:null,details:{invoice_id:'repeat2',amount_cents:84900,source:'stripe'}}];
+ expect(typeof batch()).toBe('function');const fn=batch();if(!fn)return;
+ const start=performance.now(),result=await fn([...ids,'missing']);console.log(`S1 To book deposit batch 31 jobs: ${(performance.now()-start).toFixed(1)}ms / ${reads} reads (5ms/read doubles)`);
+ for(let i=0;i<30;i++)expect(result.get(ids[i]??'')).toBe(i%2===1);
+ expect(result.get('missing')).toBeNull();expect(reads).toBeLessThanOrEqual(4);
+ const plan=payments.paymentPlan({quoteTotalCents:534900,safetyCheckCents:34900});expect(plan.thresholds.install_deposit).toBe(84900);
+});
+test('no ids does not query, and different job scopes cannot leak deposits',async()=>{const fn=batch();expect(typeof fn).toBe('function');if(!fn)return;reads=0;expect((await fn([])).size).toBe(0);expect(reads).toBe(0);expect([...((await fn(['missing'])).keys())]).toEqual(['missing']);});

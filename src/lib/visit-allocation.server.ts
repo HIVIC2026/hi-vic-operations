@@ -140,12 +140,13 @@ export async function saveCrewWithLead(jobId: string, userId: string, sel: CrewS
     if(why)throw new WorkflowError(why);
   }
   const piisa = await import("./piisa-a3.server");
-  const { staff } = await piisa.loadCrew(jobId);
+  const savedCrew = await piisa.loadCrew(jobId);
+  const { staff } = savedCrew;
   const { problems } = crewSelectionProblems(sel, staff);
   if (problems.length) throw new WorkflowError(problems.join(" • "));
   const leadId = leadWorkerId(sel);
   const cur = currentAllocation(await allocationEvents(jobId), "install");
-  const previousSelection=(await piisa.loadCrew(jobId)).selection;
+  const previousSelection = savedCrew.selection;
   const oldLeadId=cur?.worker_id??(previousSelection?leadWorkerId(previousSelection):null);
   const { data: asg } = await db.from("job_assignments").select("user_id, business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
   const { data: own } = asg?.user_id
