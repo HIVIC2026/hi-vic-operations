@@ -7,7 +7,7 @@ const LIVE = "whsec_fixture_live_only", TEST = "whsec_fixture_test_only";
 const ledger: Record<string, unknown>[] = [];
 const effects: string[] = [];
 let source = "qa_test", reads = 0;
-const envNames = ["STRIPE_WEBHOOK_SECRET", "STRIPE_WEBHOOK_SECRET_TEST"] as const;
+const envNames = ["STRIPE_WEBHOOK_SECRET", "STRIPE_TEST_WEBHOOK_SECRET"] as const;
 const savedEnv = Object.fromEntries(envNames.map((name) => [name, process.env[name]]));
 const savedFetch = globalThis.fetch;
 globalThis.fetch = (async () => { throw new Error("Network forbidden in webhook tests"); }) as typeof fetch;
@@ -53,7 +53,7 @@ const sign = (raw: string, secret: string, age = 0) => {
 beforeEach(() => {
   ledger.length = 0; effects.length = 0; reads = 0; source = "qa_test";
   process.env["STRIPE_WEBHOOK_SECRET"] = LIVE;
-  process.env["STRIPE_WEBHOOK_SECRET_TEST"] = TEST;
+  process.env["STRIPE_TEST_WEBHOOK_SECRET"] = TEST;
 });
 const nothingRecorded = () => { expect(ledger).toHaveLength(0); expect(effects).toHaveLength(0); expect(reads).toBe(0); };
 
@@ -81,13 +81,13 @@ test("bad signature returns 400 and records nothing", async () => {
   nothingRecorded();
 });
 test("optional TEST secret unset still rejects the test-endpoint signature", async () => {
-  delete process.env["STRIPE_WEBHOOK_SECRET_TEST"];
+  delete process.env["STRIPE_TEST_WEBHOOK_SECRET"];
   const raw = body();
   expect(await handleStripeWebhook(raw, sign(raw, TEST))).toEqual({ status: 400, outcome: "bad_signature" });
   nothingRecorded();
 });
 test("live-secret verification retains existing acceptance of test-mode events", async () => {
-  delete process.env["STRIPE_WEBHOOK_SECRET_TEST"];
+  delete process.env["STRIPE_TEST_WEBHOOK_SECRET"];
   const raw = body();
   expect(await handleStripeWebhook(raw, sign(raw, LIVE))).toEqual({ status: 200, outcome: "recorded" });
   expect(ledger).toHaveLength(1);

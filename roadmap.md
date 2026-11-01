@@ -1,3 +1,6 @@
+## Jo 1 Nov B2b + B3 (#104 / #112)
+- [ ] Correct existing TEST webhook-secret name test-first; diagnose and prove acceptance replay, stale Accept view and hanging completion; minimal repair, related tests and bounded full-suite comparison against B2. No settings, secrets, data, sends or publication.
+
 ## Jo 1 Nov B2 (#131) TEST Stripe webhook
 - [x] Red first 2 pass / 7 fail; final 9 new tests and 9 existing Stripe tests pass. Optional TEST-secret verification requires authenticated boolean livemode=false; live path/writer unchanged; requested rejection 400 reflected in one existing journey assertion. Full bounded isolated run: before 954 files 9,870 pass / 262 fail / 36 skip; final 955 files 9,879 pass / 262 fail / 36 skip, identical 99 failing files and per-file counts. Standard reporter overflows unchanged. Automatic build OK; no settings, secrets, live data, sends or publication changes. Exact requested optional secret is not configured (different existing name); hosted activation not claimed.
 
