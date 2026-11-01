@@ -316,6 +316,7 @@ export type GateFacts = {
   /** Approved catalogue versions (key -> version). */
   approved: Record<string, string>;
   tenant: boolean;
+  /** See agreementWordingApprovedFrom. */
   lifeSupport: boolean;
   visitedByInstaller: boolean | null; // null is an unanswered visit, never inferred from quote/files
   hasQuote: boolean;
