@@ -13,7 +13,7 @@ export async function sendCoesOwnerCopy(jobId: string, ref: CoesFileRef): Promis
  const key=`coes-owner-copy:v1:${jobId}:${ref.key}`;
  const {data:prior,error:pe}=await admin.from('workflow_events').select('id').eq('job_id',jobId).eq('event_type','coes_owner_copy_delivered').contains('details',{key}).limit(1);
  if(pe) throw new Error('Could not check earlier certificate delivery');
- if(prior?.length) return 'already delivered';
+ if(prior?.length) {await recordConsumerDocs(jobId,key);return 'already delivered';}
  const attachments:EmailAttachment[]=[];
  let size=0;
  for(const f of ref.files){
@@ -31,17 +31,26 @@ export async function sendCoesOwnerCopy(jobId: string, ref: CoesFileRef): Promis
  const result=await (await import('./owner-email-send.server')).sendGuardedOwnerEmail({jobId,jobSource:job.source,to:owner.email,purpose:'coes_owner_copy',key,build,retryAfterDefiniteFailure:true});
  if(result==='sent'){
   await logEvent(jobId,null,'coes_owner_copy_delivered','Certificate of Electrical Safety emailed to the owner',{key,certificate_key:ref.key,paths:ref.files.map(f=>f.storagePath)});
-  // A certificate alone cannot prove the whole pre-install document set. Only record the consolidated check after
-  // the factsheet, accepted consumer information and PIESA copy have independently been provided.
-  const [{data:given,error:ge},{data:agreement,error:ae},{data:piesa,error:de}]=await Promise.all([
-   admin.from('workflow_events').select('id').eq('job_id',jobId).eq('event_type','veu_factsheet_provided').limit(1),
-   admin.from('customer_agreements').select('id').eq('job_id',jobId).limit(1),
-   admin.from('piesa_deliveries').select('id').eq('job_id',jobId).eq('recipient','owner').limit(1),
-  ]);
-  if(!ge&&!ae&&!de&&given?.length&&agreement?.length&&piesa?.length){
-   const {error}=await admin.from('job_compliance_records').insert({job_id:jobId,record_key:'pre_install_consumer_docs',occurred_at:new Date().toISOString(),reference:key,notes:'Factsheet, accepted consumer information and PIESA delivery already recorded; CoES copy now emailed.',recorded_by:null});
-   if(error) throw new Error('Certificate delivered; consolidated document record needs retry');
-  }
+  await recordConsumerDocs(jobId,key);
  }
  return result;
+}
+async function recordConsumerDocs(jobId:string,key:string) {
+ const [{data:given,error:ge},{data:agreement,error:ae},{data:current,error:ce},{data:prior,error:re}]=await Promise.all([
+  admin.from('workflow_events').select('id').eq('job_id',jobId).eq('event_type','veu_factsheet_provided').limit(1),
+  admin.from('customer_agreements').select('id').eq('job_id',jobId).eq('status','signed').limit(1),
+  admin.from('piesa_records').select('id').eq('job_id',jobId).eq('is_current',true).order('created_at',{ascending:false}).limit(1).maybeSingle(),
+  admin.from('job_compliance_records').select('id').eq('job_id',jobId).eq('record_key','pre_install_consumer_docs').eq('reference',key).limit(1),
+ ]);
+ if(ge||ae||ce||re)throw new Error('Current consumer documents could not be checked');
+ if(prior?.length||!given?.length||!agreement?.length||!current)return;
+ const {data:delivery,error:de}=await admin.from('piesa_deliveries').select('id').eq('job_id',jobId).eq('piesa_record_id',current.id).eq('recipient','owner').limit(1);
+ if(de)throw new Error('Current safety check delivery could not be checked');
+ if(!delivery?.length)return;
+ // Stable primary key allows parallel repairs to converge without duplicating the permanent record.
+ const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('consumer-docs:'+key));
+ const h=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
+ const id=`${h.slice(0,8)}-${h.slice(8,12)}-4${h.slice(13,16)}-8${h.slice(17,20)}-${h.slice(20,32)}`;
+ const {error}=await admin.from('job_compliance_records').insert({id,job_id:jobId,record_key:'pre_install_consumer_docs',occurred_at:new Date().toISOString(),reference:key,notes:'Factsheet, signed consumer agreement, current PIESA copy and CoES copy delivery recorded.',recorded_by:null});
+ if(error && error.code!=='23505')throw new Error('Certificate delivered; consolidated document record needs retry');
 }
