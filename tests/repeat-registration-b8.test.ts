@@ -1,6 +1,7 @@
 import { expect, mock, test } from "bun:test";
 
 mock.module("@tanstack/react-start", () => ({ createServerFn: () => ({ inputValidator() { return this; }, handler(fn: unknown) { return fn; } }) }));
+mock.module("@/integrations/supabase/auth-middleware", () => ({ requireSupabaseAuth: {} }));
 mock.module("@supabase/supabase-js", () => ({ createClient: () => ({ rpc: async () => ({ data: true, error: null }) }) }));
 let registrations = 0, starts = 0, open = false;
 const jobs = new Set<string>();
