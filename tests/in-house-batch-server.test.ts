@@ -4,6 +4,7 @@ import ts from "typescript";
 import * as rules from "../src/lib/in-house-batch.core";
 import * as inHouse from "../src/lib/in-house.core";
 import * as membership from "../src/lib/mitti-membership.core";
+import { QUICK_TAPS_ANSWERED_EVENT } from "../src/lib/quick-taps.core";
 
 // Execute real helper against fixtures, not a hosted client; no provider/network imports are allowed.
 function fixture(failedTable?: string, failPage = -1) {
@@ -13,6 +14,7 @@ function fixture(failedTable?: string, failPage = -1) {
   const data: Record<string, unknown[]> = {
     jobs: [{ id: "j", job_number: "HV-1", property_id: "p", stage: "preliminary_estimate_ready", source: "base44", deleted_at: null }],
     businesses: [{ id: "b", name: "Rapid", trading_name: "Rapid Insulation", in_house: true, is_active: true, service_postcodes: ["3199"], covers_all_victoria: false }],
+    workflow_events: [{ job_id: "j", event_type: QUICK_TAPS_ANSWERED_EVENT, details: { outcome: "pass", consent_share: true } }],
     lead_campaign_responses: [{ job_id: "j", spot_saved_at: "2026-10-30" }], properties: [{ id: "p", address_line: "1 Example Street", postcode: "3199" }],
     partner_workers: [{ profile_id: "i", trade_role: "installer",created_at:"2026-10-01" },{ profile_id: "e", trade_role: "electrician", email: "e@example.invalid",created_at:"2026-10-01" }],
     business_members: [{ user_id: "i" }, { user_id: "e" }],
@@ -36,13 +38,21 @@ function fixture(failedTable?: string, failPage = -1) {
     "@/integrations/supabase/client.server": { supabaseAdmin: admin }, "./in-house-batch.core": rules,
     "./in-house-batch-email.server": { sendInHousePartnerCall:async(id:string)=>{expect(rpcCalls.length).toBeGreaterThan(0);emailCalls.push(id);return "draft";} },
     "./sweep-batch.core": { chunkIds: (ids: unknown[], n: number) => Array.from({length:Math.ceil(ids.length/n)},(_,i)=>ids.slice(i*n,(i+1)*n)) },
-    "./in-house.core": inHouse, "./mitti-membership.core": membership, "./melbourne-time.core": { melbourneToday: () => "2026-10-30" },
+    "./quick-taps.core": { QUICK_TAPS_ANSWERED_EVENT }, "./in-house.core": inHouse, "./mitti-membership.core": membership, "./melbourne-time.core": { melbourneToday: () => "2026-10-30" },
     "./installer-paid-electricians.server": { inHouseFactsFor: async () => ({ approvedElectricianWorkers: 1, hasActiveRateCardWithPiesa: true, mittiElectricianLogins: 1, mittiAccountInvited: true }) },
   };
   const output: any = {};
   const source = ts.transpile(readFileSync("src/lib/in-house-batch.server.ts","utf8"), { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 });
   new Function("exports","require",source)(output,(name: string) => { if (!(name in dependencies)) throw new Error(`Unexpected dependency ${name}`); return dependencies[name]; });
-  return { api: output, data, calls, rpcCalls, emailCalls };
+  const five = () => {
+    for (let i = 1; i < 5; i++) {
+      data.jobs.push({ ...(data.jobs[0] as object), id: `j${i}` });
+      data.lead_campaign_responses.push({ job_id: `j${i}`, spot_saved_at: "2026-10-30" });
+      data.workflow_events.push({ job_id: `j${i}`, event_type: QUICK_TAPS_ANSWERED_EVENT, details: { outcome: "pass", consent_share: true } });
+    }
+    return ["j", "j1", "j2", "j3", "j4"];
+  };
+  return { api: output, data, calls, rpcCalls, emailCalls, five };
 }
 test("real loader excludes deleted/TEST jobs in its query and maps saved spots with opt-out protection", async () => {
   const f = fixture();
@@ -55,15 +65,15 @@ test("real loader excludes deleted/TEST jobs in its query and maps saved spots w
 });
 test("actual send uses same-business approved workers, binds actor and deduplicates job input", async () => {
   const f = fixture();
-  expect(await f.api.sendInHouseBatch({ businessId: "b",jobIds: ["j","j"],actorId: "office" })).toEqual({ sent: ["j"],refused: [] });
-  expect(f.rpcCalls).toHaveLength(1);
-  expect(f.emailCalls).toEqual(["j"]);
+  expect(await f.api.sendInHouseBatch({ businessId: "b",jobIds: [...f.five(), "j"],actorId: "office" })).toEqual({ sent: ["j", "j1", "j2", "j3", "j4"],refused: [] });
+  expect(f.rpcCalls).toHaveLength(5);
+  expect(f.emailCalls).toEqual(["j", "j1", "j2", "j3", "j4"]);
   expect(f.rpcCalls[0]).toMatchObject({ name: "allocate_in_house_batch_job",input: { _business: "b",_job: "j",_actor: "office",_installer: "i",_electrician: "e" } });
 });
 test("failed reads propagate and never invoke an allocation", async () => {
-  for (const table of ["jobs","businesses","job_assignments","lead_campaign_responses","customer_email_optouts","partner_workers","profiles"]) {
+  for (const table of ["jobs","businesses","job_assignments","lead_campaign_responses","customer_email_optouts","workflow_events","partner_workers","profiles"]) {
     const f = fixture(table);
-    await expect(f.api.sendInHouseBatch({ businessId: "b",jobIds: ["j"],actorId: "office" })).rejects.toThrow("read unavailable");
+    await expect(f.api.sendInHouseBatch({ businessId: "b",jobIds: f.five(),actorId: "office" })).rejects.toThrow("read unavailable");
     expect(f.rpcCalls).toHaveLength(0);
   }
 });
@@ -71,21 +81,21 @@ test("electrician is earliest created approved worker; business relationship mar
   const f=fixture();
   f.data.partner_workers=[{profile_id:"i",trade_role:"installer",created_at:"2026-10-01"},{profile_id:"new",trade_role:"electrician",created_at:"2026-10-29",email:"new@example.invalid"},{profile_id:"e",trade_role:"electrician",created_at:"2026-10-01",email:"e@example.invalid"}];
   f.data.business_members?.push({user_id:"new"});f.data.profiles?.push({id:"new",email:"new@example.invalid",mitti_checked_email:"new@example.invalid",mitti_user_id:"n",mitti_checked_at:"2026-10-30"});
-  await f.api.sendInHouseBatch({businessId:"b",jobIds:["j"],actorId:"office"});
+  await f.api.sendInHouseBatch({businessId:"b",jobIds:f.five(),actorId:"office"});
   expect(f.rpcCalls[0]).toMatchObject({input:{_electrician:"e"}});
   expect(f.calls.some(c=>c.table==="partner_relationships")).toBe(false);
 });
 test("no self-team uses the partner's own worker without fabricating preferences", async () => {
   const f = fixture(); f.data.partner_relationships = [];
-  expect((await f.api.sendInHouseBatch({ businessId: "b",jobIds: ["j"],actorId: "office" })).sent).toEqual(["j"]);
+  expect((await f.api.sendInHouseBatch({ businessId: "b",jobIds: f.five(),actorId: "office" })).sent).toEqual(["j", "j1", "j2", "j3", "j4"]);
   expect(f.rpcCalls[0]).toMatchObject({ input: { _business: "b", _electrician: "e" } });
 });
 test("out-of-area and missing electrician membership are refused without writes", async () => {
   const f = fixture(); f.data.profiles=[];
-  expect((await f.api.sendInHouseBatch({ businessId: "b",jobIds: ["j"],actorId: "office" })).refused).toHaveLength(1);
+  expect((await f.api.sendInHouseBatch({ businessId: "b",jobIds: f.five(),actorId: "office" })).refused).toHaveLength(5);
   expect(f.rpcCalls).toHaveLength(0);
   const outside = fixture(); outside.data.properties=[{ id: "p",postcode: "3000" }];
-  expect((await outside.api.sendInHouseBatch({ businessId: "b",jobIds: ["j"],actorId: "office" })).refused).toEqual([{ jobId: "j",reason: "Outside this partner's coverage" }]);
+  expect((await outside.api.sendInHouseBatch({ businessId: "b",jobIds: f.five(),actorId: "office" })).refused).toEqual([{ jobId: "j",reason: "Outside this partner's coverage" }]);
   expect(outside.rpcCalls).toHaveLength(0);
 });
 test("payee-only Reinsulate is absent from batch partners/suggestions and send refuses before any allocation", async () => {
@@ -101,6 +111,7 @@ function scaleFixture(failPage = -1) {
   const f = fixture(undefined, failPage);
   f.data.jobs = Array.from({ length: 1250 }, (_, i) => ({ id: `j${String(i).padStart(4,"0")}`, job_number: `HV-${i}`, property_id: `p${i}`, stage: "preliminary_estimate_ready", source: "base44", deleted_at: null }));
   f.data.properties = f.data.jobs.map((j: any) => ({ id: j.property_id, postcode: "3199", address_line: "TEST street" }));
+  f.data.workflow_events = f.data.jobs.map((j: any) => ({ job_id: j.id, event_type: QUICK_TAPS_ANSWERED_EVENT, details: { outcome: "pass", consent_share: true } }));
   f.data.lead_campaign_responses = f.data.jobs.map((j: any) => ({ job_id: j.id, spot_saved_at: "2026-10-30" }));
   return f;
 }
@@ -114,4 +125,20 @@ test("batch loader refuses partial results when the second jobs page fails", asy
   const f = scaleFixture(200);
   await expect(f.api.loadInHouseBatches()).rejects.toThrow("read unavailable");
   expect(f.rpcCalls).toEqual([]);
+});
+
+test("four eligible waiting jobs never allocate; fifth gives exactly five once", async () => {
+  const f = fixture(); const ids = f.five(); f.data.jobs.pop();
+  expect((await f.api.sendInHouseBatch({ businessId: "b", jobIds: ids, actorId: "office" })).sent).toEqual([]);
+  expect(f.rpcCalls).toEqual([]); expect(f.emailCalls).toEqual([]);
+  f.data.jobs.push({ ...(f.data.jobs[0] as object), id: "j4" });
+  expect((await f.api.sendInHouseBatch({ businessId: "b", jobIds: ids, actorId: "office" })).sent).toEqual(ids);
+  expect(f.rpcCalls).toHaveLength(5);
+  expect(new Set(f.rpcCalls.map((c: any) => c.input._batch)).size).toBe(1);
+});
+test("loader fails closed without YES and reads installer channel exemption", async () => {
+  const f = fixture(); f.data.workflow_events = [];
+  expect((await f.api.loadInHouseBatches()).jobs).toEqual([]);
+  f.data.jobs = [{ ...(f.data.jobs[0] as object), channel: "installer_sourced" }]; f.data.lead_campaign_responses = [];
+  expect((await f.api.loadInHouseBatches()).jobs[0]).toMatchObject({ quickTapsYes: false, channel: "installer_sourced" });
 });
