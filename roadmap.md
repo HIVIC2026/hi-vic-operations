@@ -1,3 +1,8 @@
+## Jo 1 Nov Task 6 and signing recovery
+- [ ] Test-first interrupted quote sitting retry: exactly four records, no duplicates, authorised identity/version unchanged; any SQL stays pending.
+- [ ] In-house clearance deposit request, day 3/7 reminders, paid owner + installer-office email, canonical payment/tick integration and 10-day flag unchanged.
+- [ ] Related and bounded comparable tests against 98 failing files / 249 failures; no settings/secrets/live data/DB changes/sends/publication.
+
 ## Jo 1 Nov new owner flow — Task 5 of 7
 - [x] Factsheet commit 775c590 is present; mocked O22 attachment test confirms the exact bundled PDF plus signed acceptance (1 pass). No sends or live writes.
 - [x] Related factsheet/compliance checks 10/0. Bounded comparable run excludes registration/save-spot stalling files; baseline timeout rechecks Outlook 27/1 and REC 40/0; owner-accept-speed isolated recheck 0/1 on both. Normalized before 968 files 9934/243, after 969 files 9935/243, same 98 failing files; only new O22 test adds one pass. Automatic build OK. Exact historical 261 total not claimed.
