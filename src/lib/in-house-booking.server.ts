@@ -104,9 +104,7 @@ export async function recordLeadChange(jobId:string,actorId:string,oldWorkerId:s
   if(sent){
     const {error}=await db.from('workflow_events').insert({id,job_id:jobId,actor_id:actorId,event_type:'in_house_lead_changed',summary:line,details:{start:book.scheduled_start,worker_id:newWorkerId,name:w.name,old_worker_id:oldWorkerId,booking_id:book.id,notification_id:sent.id,update_same_id:true},internal:true});if(error&&error.code!=='23505')throw Error(error.message);
     await (await import('./esc.server')).regenerateEscNotification(jobId,actorId);
-    const {partnerEmailLayout}=await import('./partner-email.core');
-    const {OFFICE_REPLY_TO}=await import('./office-email.core');
-    await (await import('./in-house-office-alert.server')).sendInHouseOfficeAlert({jobId,jobSource:null,actorId,to:OFFICE_REPLY_TO,subject:line,...partnerEmailLayout({subject:line,blocks:[{kind:'p',text:line}]}),idempotencyKey:`esc-lead-alert:${id}`});
+    await (await import('./in-house-booking-notices.server')).notifyOfficeLeadChanged(jobId,id,line,actorId);
   }
   // SWMS derives its signer list from the newly saved crew; old signatures never authorise the replacement.
   await (await import('./swms.server')).loadSwms(jobId);

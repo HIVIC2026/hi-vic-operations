@@ -119,6 +119,13 @@ export async function assertCanSubmit(n: { job_id: string; scheduled_start: stri
   const b = submissionBlockers({ consent: await currentConsent(n.job_id), scheduledStart: n.scheduled_start, sentAt });
   if (b.length) throw new WorkflowError(b.join(" "));
 }
+export async function assertCanUpdate(n:{job_id:string;scheduled_start:string},prev:{scheduled_start:string},updatedAt:string){
+ if(Date.parse(n.scheduled_start)!==Date.parse(prev.scheduled_start))return assertCanSubmit(n,updatedAt);
+ const consent=await (await import('./consent.server')).currentConsent(n.job_id);
+ const blockers=consentValidityBlockers(consent,n.scheduled_start);
+ if(Date.parse(updatedAt)>=Date.parse(prev.scheduled_start))blockers.push('The original installation date and time has passed.');
+ if(blockers.length)throw new WorkflowError(blockers.join(' '));
+}
 
 export async function submitEscViaAdapter(notificationId: string, actorId: string) {
   const adapter = configuredEscAdapter();
@@ -159,10 +166,11 @@ export async function recordEscRegistryUpdate(p: { notificationId: string; refer
   if (!prevRef) throw new WorkflowError("There is no earlier recorded notification to update — record this as a new submission.");
   const { data: prev } = await admin.from("esc_notifications").select("scheduled_start, sent_at, submission_reference, payload_json").eq("id", prevRef.id).single();
   if (!prev) throw new WorkflowError("The earlier notification could not be read.");
-  await assertCanSubmit(n, p.updatedAt);
+  await assertCanUpdate(n,prev,p.updatedAt);
   const now = new Date().toISOString();
   let patch;
   try { patch = registryUpdatePatch({ prev, change: registryChange(prev, { scheduled_start: n.scheduled_start, payload_json: n.payload_json }, now), reference: p.reference, updatedAt: p.updatedAt, confirmed: p.confirmed, actorId: p.actorId }, now); } catch (e) { throw new WorkflowError((e as Error).message); }
+  if(Date.parse(prev.scheduled_start)===Date.parse(n.scheduled_start))patch={...patch,sent_at:prev.sent_at??patch.sent_at};
   const { error } = await admin.from("esc_notifications").update({ ...patch, response: patch.response as unknown as Json, updated_at: now }).eq("id", n.id);
   if (error) throw new WorkflowError(error.message);
   await import("./prestart.server").then((m) => m.runPrestart(n.job_id, "esc_submitted")).catch((e) => console.error("pre-start re-run skipped", (e as Error).message));
