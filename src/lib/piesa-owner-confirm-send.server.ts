@@ -38,7 +38,7 @@ export async function sendPiesaConfirmStep(jobId: string, step: PiesaConfirmStep
   // Task 5: one combined signed-copy/declaration email owns the request. No separate O71 email or text.
   if (step === 'request' || step === 'reminder_1' || step === 'reminder_3') {
     const result = await (await import('./piesa-delivery.server')).deliverPiesaCopies(jobId);
-    return result.sent.includes('owner') ? 'email sent' : result.hold ?? result.held.owner ?? 'already delivered';
+    return result.sent.includes('owner') ? 'email sent' : result.hold ?? result.held['owner'] ?? 'already delivered';
   }
   if ((await doneSteps(jobId, recordId)).includes(step)) return "already handled";
   const request = step === "request";
