@@ -29,12 +29,16 @@ export async function bookingTeam(jobId:string,userId:string){
   const paid=!!view&&(await import('./payments.core')).isStepPaid(view.steps,'install_deposit');
   return{workers,depositPaid:paid,selection:crew.selection};
 }
-export async function prepareBookingWorker(jobId:string,userId:string,kind:string,workerId:string,crewIds:string[]=[]){
+export async function prepareBookingWorker(jobId:string,userId:string,kind:string,workerId:string,crewIds:string[]=[],options?:{inline?:boolean}){
   const team=await bookingTeam(jobId,userId);const w=team.workers.find(w=>w.id===workerId)??null;
   const reason=bookingWorkerBlocker(kind,w);if(reason||!w)throw Error(reason??'Choose the person going.');
   if(kind==='installation'&&!team.depositPaid)throw Error('The owner must pay the 10% installation deposit before the install can be booked.');
   if(kind==='assessment'||kind==='rectification')await (await import('./in-house-electrician.server')).allocateElectrician(jobId,userId,workerId);
-  else if(kind==='installation')await (await import('./visit-allocation.server')).saveCrewWithLead(jobId,userId,{lead:workerId,additional:crewIds.map(workerId=>({workerId}))});
+  else if(kind==='installation'){
+    const allocation=await import('./visit-allocation.server');
+    const save=options?.inline?allocation.saveCrewWithLeadInline:allocation.saveCrewWithLead;
+    await save(jobId,userId,{lead:workerId,additional:crewIds.map(workerId=>({workerId}))});
+  }
   else await (await import('./visit-allocation.server')).allocateVisit(jobId,userId,'ready_check',workerId);
   return w;
 }

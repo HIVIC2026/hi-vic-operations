@@ -8,7 +8,7 @@ test('actual inline booking path validates before allocation and calls the canon
  const deps:any={
   '@/integrations/supabase/client.server':{supabaseAdmin:db},
   './booking.server':{validateBooking:async()=>{calls.push('validate');if(blocked)throw Error('Owner not signed');},confirmBooking:async(j:string,kind:string,start:string)=>{calls.push('confirm');tables.bookings.push({id:'b',job_id:j,kind,scheduled_start:start,status:'confirmed'});}},
-  './in-house-booking.server':{prepareBookingWorker:async(_j:string,actor:string)=>{if(actor!=='own-office')throw Error('Not your in-house job');calls.push('allocate');return{id:'w',name:'TEST'};},notifyOwnerBooked:async()=>{calls.push('notice captured');}},
+  './in-house-booking.server':{prepareBookingWorker:async(_j:string,actor:string,_k:string,_w:string,_c:string[],options:any)=>{expect(options).toEqual({inline:true});if(actor!=='own-office')throw Error('Not your in-house job');calls.push('allocate');return{id:'w',name:'TEST'};},notifyOwnerBooked:async()=>{calls.push('notice captured');}},
   './visit-allocation.server':{saveCrewWithLeadInline:async(_j:string,actor:string)=>{if(actor!=='own-office')throw Error('Not your in-house job');calls.push('crew and forms captured');return{needsVerification:[]};}},
  };
  const api:any={};new Function('exports','require',ts.transpile(readFileSync('src/lib/in-house-inline-save.server.ts','utf8'),{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}))(api,(p:string)=>{if(!(p in deps))throw Error(`Unmocked ${p}`);return deps[p];});
