@@ -30,7 +30,7 @@ test('SIM all-clear booking/forms/deposit/digest sequence uses one continuing jo
   ]);
   await h.payDeposit('stripe');
   h.assertStep('Deposit paid','installation_scheduling',['RC','A3','A4'],[
-    ['owner','email','install_deposit_paid'],['owner','sms','install_deposit_paid'],['installer-office','email','install_deposit_paid_office'],
+    ['owner','email','install_deposit_paid'],['installer-office','email','install_deposit_paid_office'],
   ]);
   await h.confirmPiesa(); await h.bookInstall();
   h.assertStep('Install booked','installation_booked',['RC','A3','A4','A5'],[
@@ -49,7 +49,7 @@ test('SIM rectification holds deposit until work complete; Xero paid notice is e
   h.checkpoint();await h.completePiesa(true);h.assertStep('Rectification needed','rectification_scheduling',['RC','A3','A4'],[]);
   await h.tryDeposit();h.assertNoNewMessages();await h.completeRectification();
   h.assertStep('Rectification done','installation_scheduling',['RC','A3','A4'],[['owner','email','install_deposit_request'],['owner','sms','install_deposit_request']]);
-  await h.payDeposit('xero');h.assertStep('Xero deposit paid','installation_scheduling',['RC','A3','A4'],[['owner','email','install_deposit_paid'],['owner','sms','install_deposit_paid'],['installer-office','email','install_deposit_paid_office']]);
+  await h.payDeposit('xero');h.assertStep('Xero deposit paid','installation_scheduling',['RC','A3','A4'],[['owner','email','install_deposit_paid'],['installer-office','email','install_deposit_paid_office']]);
   await h.confirmPiesa();await h.bookInstall();h.assertOfficesEmailOnly();
 });
 

@@ -7,7 +7,7 @@ test('empty electrician Team explains verification required',()=>{
  expect(emptyBookingTeamBlocker('assessment',[])).toBe(IN_HOUSE_ELECTRICIAN_BOOKING_BLOCKER);
 });
 test('empty eligible Lead Installer Team explains ESC registration required',()=>{
- expect(emptyBookingTeamBlocker('installation',[])).toBe('No one on your Team is set up as an ESC-registered Lead Installer. Add their ESC registration to book the install.');
+ expect(emptyBookingTeamBlocker('installation',[])).toBe('Add a Lead Installer to your Team to book the install. ESC needs us to name a registered Lead Installer on the install notice at least 24 hours before.');
 });
 for(const inHouse of [true,false]) test(`30-day owner text has no pay/sign link (${inHouse})`,()=>{
  const text=ownerInstallWindowText({inHouse,step:'reminder_10',deadline:'2026-11-30',daysLeft:10,link:'https://example.invalid/my-job/token?screen=pay'});
