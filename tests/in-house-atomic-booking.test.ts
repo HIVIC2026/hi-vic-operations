@@ -1,38 +1,115 @@
 import {expect,test} from 'bun:test';
 import {PGlite} from '@electric-sql/pglite';
 import {readFileSync} from 'node:fs';
+import {paymentPlan,paymentSteps,installDepositBlocker} from '../src/lib/payments.core';
+import {ownerPiesaConfirmationBlocker} from '../src/lib/piesa-owner-confirm.core';
+import ts from 'typescript';
+import {embedShim} from './helpers/pglite-embed-shim';
+import * as paymentsCore from '../src/lib/payments.core';
+import * as safetyCore from '../src/lib/safety-check-amount.core';
+import * as stripeCore from '../src/lib/stripe.core';
+import * as earlyRead from '../src/lib/early-read';
+import * as melbourneCore from '../src/lib/melbourne-time.core';
+import * as ownerConfirmCore from '../src/lib/piesa-owner-confirm.core';
+import * as officialShort from '../src/lib/official-short.core';
 const id=(n:number)=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
-test('pending atomic save: double click creates one booking, crew change and recorded job; outsider and stale validation write nothing',async()=>{
+test('real stage SQL: atomic clicks and ESC refusal work, but canonical unpaid/unsigned blockers are NOT enforced by pending writer',async()=>{
  const db=new PGlite();try{
  await db.exec(`CREATE ROLE anon;CREATE ROLE authenticated;CREATE ROLE service_role;
  CREATE TYPE booking_kind AS ENUM('ready_check','assessment','rectification','installation');
- CREATE TYPE job_stage AS ENUM('installation_scheduling','installation_booked');
- CREATE TABLE jobs(id uuid PRIMARY KEY,stage job_stage,updated_at timestamptz,deleted_at timestamptz,job_number text);
+ CREATE TYPE job_stage AS ENUM('installation_scheduling','installation_booked','cancelled','complete','on_hold');
+ CREATE TABLE jobs(id uuid PRIMARY KEY,stage job_stage,updated_at timestamptz,deleted_at timestamptz,job_number text,next_action text,last_activity_at timestamptz,prior_stage job_stage,hold_reason text,cancelled_reason text);
+ CREATE TABLE user_roles(user_id uuid,role text);
  CREATE TABLE businesses(id uuid PRIMARY KEY,in_house boolean,is_active boolean);
  CREATE TABLE business_members(business_id uuid,user_id uuid,active boolean,member_role text);
  CREATE TABLE partner_workers(id uuid PRIMARY KEY,business_id uuid,profile_id uuid,full_legal_name text,trade_role text,removed_at timestamptz,approval_status text,esc_registered boolean,esc_registered_at timestamptz,licence_number text,rec_number text,licence_expires_on date,licence_verified_at timestamptz);
  CREATE TABLE job_assignments(id uuid DEFAULT gen_random_uuid(),job_id uuid,user_id uuid,business_id uuid,role text,active boolean,ended_at timestamptz,end_reason text,assigned_by uuid,booking_confirmed_at timestamptz);
  CREATE TABLE bookings(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),job_id uuid,kind booking_kind,status text,scheduled_start timestamptz,scheduled_end timestamptz,contractor_id uuid,assignment_id uuid,business_id uuid,booked_by uuid,notes text,created_at timestamptz DEFAULT now());
- CREATE TABLE workflow_events(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),job_id uuid,actor_id uuid,event_type text,summary text,details jsonb,internal boolean,created_at timestamptz DEFAULT now());
+ CREATE TABLE workflow_events(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),job_id uuid,actor_id uuid,event_type text,summary text,details jsonb,internal boolean,created_at timestamptz DEFAULT now(),from_stage job_stage,to_stage job_stage);
  CREATE TABLE partner_worker_certifications(id uuid,worker_id uuid,status text);
  CREATE TABLE worker_certification_levels(certification_id uuid,recorded_at timestamptz);
  CREATE TABLE admin_config_events(id uuid,details jsonb);
  CREATE TABLE partner_activations(application_id uuid,business_id uuid);
  CREATE TABLE rec_onboarding_applications(id uuid,data jsonb);
- INSERT INTO jobs VALUES('${id(1)}','installation_scheduling','2026-11-01T00:00:00Z',null,'HV-TEST');
+ INSERT INTO jobs(id,stage,updated_at,deleted_at,job_number) VALUES('${id(1)}','installation_scheduling','2026-11-01T00:00:00Z',null,'HV-TEST');
  INSERT INTO businesses VALUES('${id(2)}',true,true);
  INSERT INTO business_members VALUES('${id(2)}','${id(3)}',true,'business_admin'),('${id(2)}','${id(4)}',true,'business_admin');
  INSERT INTO partner_workers(id,business_id,profile_id,full_legal_name,trade_role,approval_status,esc_registered,esc_registered_at) VALUES('${id(5)}','${id(2)}','${id(6)}','New Installer','installer','approved',true,now());
  INSERT INTO job_assignments(job_id,user_id,business_id,role,active) VALUES('${id(1)}','${id(3)}','${id(2)}','installer',true);
- CREATE FUNCTION commit_guarded_stage(_job uuid,_expected job_stage,_to job_stage,_actor uuid,_summary text,_details jsonb,_next text) RETURNS boolean LANGUAGE plpgsql AS $$BEGIN UPDATE jobs SET stage=_to,updated_at=now() WHERE id=_job AND stage=_expected; RETURN FOUND;END$$;`);
+ `);
+ // Real production stage writer, not a permissive test replacement.
+ await db.exec(readFileSync('drizzle/migrations/0073_guarded_stage_commit.sql','utf8'));
  await db.exec(readFileSync('docs/pending-migrations/2026-11-01_in_house_saved_work.sql','utf8'));
  const revision=(await db.query('SELECT in_house_visit_revision($1) AS revision',[id(1)])).rows[0] as any;
  const p=[id(1),id(3),'installation','2026-11-10T22:00:00Z',id(5),'installation_scheduling','2026-11-01T00:00:00Z',null,null,JSON.stringify({lead:id(5),additional:[]}),JSON.stringify({needsVerification:[],staff:[],revision:revision.revision}),id(10)];
  const sql='SELECT commit_in_house_visit($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) AS result';
+ await db.exec(`UPDATE partner_workers SET esc_registered=false WHERE id='${id(5)}'`);
+ const missingEsc=(await db.query('SELECT in_house_visit_revision($1) AS revision',[id(1)])).rows[0] as any;
+ await expect(db.query(sql,[...p.slice(0,10),JSON.stringify({revision:missingEsc.revision}),p[11]])).rejects.toThrow('ESC-registered');
+ expect((await db.query('SELECT * FROM bookings')).rows).toHaveLength(0);
+ expect((await db.query('SELECT * FROM workflow_events')).rows).toHaveLength(0);
+ await db.exec(`UPDATE partner_workers SET esc_registered=true WHERE id='${id(5)}'`);
+ await db.exec(`INSERT INTO partner_workers(id,business_id,profile_id,full_legal_name,trade_role,approval_status,licence_number,rec_number,licence_expires_on) VALUES('${id(50)}','${id(2)}','${id(51)}','TEST electrician','electrician','approved','TEST-L','TEST-REC','2099-01-01')`);
+ const electricianRevision=(await db.query('SELECT in_house_visit_revision($1) AS revision',[id(1)])).rows[0] as any;
+ await expect(db.query(sql,[p[0],p[1],'assessment',p[3],id(50),...p.slice(5,10),JSON.stringify({revision:electricianRevision.revision}),id(52)])).rejects.toThrow('Electrician not verified');
+ expect((await db.query('SELECT * FROM bookings')).rows).toHaveLength(0);
+ await db.exec(`DELETE FROM partner_workers WHERE id='${id(50)}'`);
  await expect(db.query(sql,[...p.slice(0,1),id(9),...p.slice(2)])).rejects.toThrow('Not your in-house job');
  await expect(db.query(sql,[...p.slice(0,6),'2026-10-01T00:00:00Z',...p.slice(7)])).rejects.toThrow('changed');
+ // Actual canonical cores expose why a real stage writer is NOT sufficient.
+ // No invoice/signature is seeded: these are diagnostic gap assertions, not gate-parity PASS.
+ const plan=paymentPlan({quoteTotalCents:134900,safetyCheckCents:34900});
+ expect(plan.installDepositCents).toBe(10000);
+ expect(installDepositBlocker(plan,paymentSteps(plan,{install:34900,fixes:0,repeat:0},{},'2026-11-01T00:00:00Z'))).not.toBeNull();
+ expect(ownerPiesaConfirmationBlocker({piesaRecordId:id(30),confirmation:null})).not.toBeNull();
+ // Same PGlite records, actual deposit reader + actual ledger reader. Presentation,
+ // provider configuration and unrelated repeat/rectification branches are isolated.
+ await db.exec(`ALTER TABLE jobs ADD COLUMN source text;
+ CREATE TABLE quotes(id uuid PRIMARY KEY,accepted_at timestamptz,customer_total_inc_gst numeric);
+ CREATE TABLE invoices(id uuid PRIMARY KEY,job_id uuid,kind text,quote_id uuid,repeat_key text,total_inc_gst numeric,total_paid numeric,deposit_amount numeric,xero_invoice_number text,xero_reference text,xero_online_url text,xero_invoice_id text,balance_due_date text,created_at timestamptz DEFAULT now());
+ CREATE TABLE workflow_settings(id integer,safety_check_payment_inc_gst numeric);
+ CREATE TABLE payment_overrides(id uuid,invoice_id uuid,gate text);
+ CREATE TABLE quote_items(quote_id uuid,code text,line_total_inc_gst numeric);
+ CREATE TABLE piesa_records(job_id uuid,is_current boolean,outcome text,section_c_signed_at timestamptz);
+ INSERT INTO quotes VALUES('${id(40)}',now(),1349);
+ INSERT INTO invoices(id,job_id,kind,quote_id,total_inc_gst,total_paid) VALUES('${id(41)}','${id(1)}','installation','${id(40)}',1349,449);
+ INSERT INTO workflow_settings VALUES(1,349);
+ INSERT INTO quote_items VALUES('${id(40)}','PIESA',349);`);
+ const shim=embedShim(db,{invoices:{quotes:{table:'quotes',fk:'quote_id',on:'base'}}});
+ const cache:any={};
+ const deps:any={
+  '@/integrations/supabase/client.server':{supabaseAdmin:shim},
+  './workflow.server':{paymentGateActiveForJob:async()=>true,logEvent:async()=>{throw Error('Unexpected write');}},
+  './fixes-quote-current.server':{currentFixesQuote:async()=>null},
+  './repeat-piesa.server':{repeatPiesaContext:async()=>null},
+  './payments.core':paymentsCore,'./safety-check-amount.core':safetyCore,'./stripe.core':stripeCore,
+  './stripe.server':{stripeKeyFor:()=>null},'./early-read':earlyRead,'./melbourne-time.core':melbourneCore,
+  './deposit-release-notice.core':{PROVISIONAL_RELEASE_OWNER_NOTICE_APPROVED:true},
+ };
+ const load=(name:string):any=>{
+  if(deps[name])return deps[name];if(cache[name])return cache[name];
+  if(!['./payments.server','./payment-ledger.server'].includes(name))throw Error(`Unexpected import ${name}`);
+  const api:any={};cache[name]=api;
+  new Function('exports','require',ts.transpile(readFileSync(`src/lib/${name.slice(2)}.ts`,'utf8'),{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}))(api,load);return api;
+ };
+ const payments=load('./payments.server');
+ expect(await payments.installDepositBlockerFor(id(1))).toBeNull();
+ // Gate changes without job/team version change: the actual reader now blocks.
+ await db.exec(`UPDATE invoices SET total_paid=349 WHERE id='${id(41)}'`);
+ expect(await payments.installDepositBlockerFor(id(1))).toBe(paymentsCore.INSTALL_DEPOSIT_BLOCKER);
+ expect((await db.query('SELECT in_house_visit_revision($1) AS revision',[id(1)])).rows[0]).toEqual(revision);
+ await db.exec(`ALTER TABLE piesa_records ADD COLUMN id uuid,ADD COLUMN kind text,ADD COLUMN completed_date text,ADD COLUMN created_at timestamptz DEFAULT now(),ADD COLUMN signed_off_by uuid;
+ CREATE TABLE rectification_items(id uuid,job_id uuid,status text);
+ CREATE TABLE assessments(job_id uuid,mitti_raw_snapshot jsonb);
+ INSERT INTO piesa_records(id,job_id,kind,outcome,completed_date,signed_off_by,is_current) VALUES('${id(30)}','${id(1)}','initial','pass','2026-11-01','${id(6)}',true);`);
+ deps['./piesa-owner-confirm.core']=ownerConfirmCore;deps['./official-short.core']=officialShort;
+ deps['./worker-links.core']={};deps['./official-forms.server']={currentCopy:async()=>({copy:null})};
+ const ownerApi:any={};new Function('exports','require',ts.transpile(readFileSync('src/lib/piesa-owner-confirm.server.ts','utf8'),{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}))(ownerApi,load);
+ expect(await ownerApi.ownerPiesaConfirmationBlockerFor(id(1))).toBe(ownerConfirmCore.OWNER_PIESA_CONFIRMATION_BLOCKER);
  const [a,b]=await Promise.all([db.query(sql,p),db.query(sql,[p[0],id(4),...p.slice(2)])]);expect((a.rows[0] as any).result.bookingId).toBe((b.rows[0] as any).result.bookingId);
  expect((await db.query('SELECT * FROM bookings')).rows).toHaveLength(1);
+ // This booking succeeded despite the canonical core blockers above: intentional
+ // evidence of the unresolved B gap, NEVER a claim that this migration is ready.
  expect((await db.query("SELECT * FROM workflow_events WHERE event_type='piisa_crew_selected'")).rows).toHaveLength(1);
  expect((await db.query("SELECT * FROM workflow_events WHERE event_type='in_house_saved_work'")).rows).toHaveLength(1);
  await expect(db.query(sql,[...p.slice(0,3),'2026-11-11T22:00:00Z',...p.slice(4)])).rejects.toThrow('changed');

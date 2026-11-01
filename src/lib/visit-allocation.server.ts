@@ -139,6 +139,12 @@ export async function saveCrewWithLead(jobId: string, userId: string, sel: CrewS
     const saved=await (await import('./in-house-atomic-save.server')).saveInHouseVisit(jobId,userId,{kind:'crew',workerId,selection:sel});
     return {needsVerification:saved.needsVerification};
   }
+  return saveCrewWithLeadInline(jobId,userId,sel,call);
+}
+
+/** The original guarded inline crew path, also used before saved-work RPC deployment. */
+export async function saveCrewWithLeadInline(jobId:string,userId:string,sel:CrewSelection,call?:MittiCall):Promise<{needsVerification:string[]}> {
+  await (await import('./trade-view.server')).requireTradeJob(userId,jobId);
   const piisa = await import("./piisa-a3.server");
   const savedCrew = await piisa.loadCrew(jobId);
   const { staff } = savedCrew;
