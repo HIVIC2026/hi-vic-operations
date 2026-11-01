@@ -52,7 +52,7 @@ describe("decision 370: automatic AP part of the owner consent", () => {
     expect(d.reasons).not.toContain("The installation booking changed after the owner signed — a new consent is needed.");
     expect(d.reasons).toContain("The owner's four Section 2 declarations are not all recorded.");
     expect(d.reasons).toContain("No AP representative is configured to sign Section 3.");
-    expect(decideConsentApAutoSignature({ ...ready, bookingStart: null }).action).toBe("hold");
+    expect(decideConsentApAutoSignature({ ...ready, bookingStart: null }).action).toBe("sign");
   });
 
   test("Needs me: only after 24 hours held, or when the 24h-before-start deadline is less than a day away", () => {

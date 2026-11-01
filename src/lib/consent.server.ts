@@ -121,7 +121,9 @@ export async function confirmApConsent(p: { jobId: string; actorId: string | nul
   const esc = isEscTemplateVersion(c.template_version);
   const rep: ApRep | null = p.apRep ? { first_name: p.apRep.first_name.trim(), last_name: p.apRep.last_name.trim(), role: p.apRep.role.trim(), phone: p.apRep.phone?.trim() || null, email: p.apRep.email?.trim() || null } : null;
   const apRepName = (rep ? apRepFullName(rep) : p.apRepName ?? "").trim();
-  const b = apConsentBlockers({ status: c.status, scheduledStart: c.scheduled_start, nowIso: new Date().toISOString(), apRepName, purposeExplained: p.purposeExplained, templateVersion: c.template_version, apRep: rep });
+  const { data: booking, error: bookingError } = await admin.from("bookings").select("scheduled_start").eq("job_id", p.jobId).eq("kind", "installation").in("status", ["confirmed", "completed"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (bookingError) throw new WorkflowError("The current installation timing could not be checked.");
+  const b = apConsentBlockers({ status: c.status, scheduledStart: booking?.scheduled_start ?? null, nowIso: new Date().toISOString(), apRepName, purposeExplained: p.purposeExplained, templateVersion: c.template_version, apRep: rep });
   if (b.length) throw new WorkflowError(b.join(" "));
   const tpl = (await admin.from("compliance_templates").select("version, body").eq("template_key", "esc_consent").eq("version", c.template_version ?? "").maybeSingle()).data;
   const now = new Date().toISOString();
