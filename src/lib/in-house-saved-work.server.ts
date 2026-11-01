@@ -19,11 +19,15 @@ export async function runInHouseSavedWork(id:string,now=new Date()){
  const lease=crypto.randomUUID();const claim=await db.rpc('claim_in_house_saved_work',{_id:id,_lease:lease,_now:now.toISOString()});if(claim.error)throw Error(claim.error.message);if(!claim.data)return;
  const row=await checked<{job_id:string;actor_id:string|null;details:SavedWork}|null>(db.from('workflow_events').select('job_id,actor_id,details').eq('id',id).maybeSingle());if(!row)return;
  const d=row.details;const done=new Set(d.completed??[]);const attempts=(d.attempts??0)+1;
- const save=async(status:string)=>{await checked(db.from('workflow_events').update({details:{...d,completed:[...done],attempts,status,lease}}).eq('id',id).contains('details',{lease}));};
- const step=async(name:string,task:()=>Promise<unknown>)=>{if(done.has(name))return;await task();done.add(name);await save('running');};
+ const save=async(status:string)=>{const matched=await checked<{id:string}[]>(db.from('workflow_events').update({details:{...d,completed:[...done],attempts,status,lease,leaseUntil:new Date(Date.now()+5*60000).toISOString()}}).eq('id',id).contains('details',{lease}).select('id'));if(!matched.length)throw Error('Saved-work claim changed');};
+ const step=async(name:string,task:()=>Promise<unknown>)=>{if(done.has(name))return;await save('running');await task();done.add(name);await save('running');};
  try{
   const book=d.bookingId?await checked<{id:string;scheduled_start:string;kind:string}|null>(db.from('bookings').select('id,scheduled_start,kind').eq('id',d.bookingId).eq('job_id',row.job_id).eq('status','confirmed').maybeSingle()):null;
   if(d.bookingId&&!book){await save('done');return;}
+  if(d.type==='crew'){
+   const current=await checked<{details:{selection?:{lead?:string}}}|null>(db.from('workflow_events').select('details').eq('job_id',row.job_id).eq('event_type','piisa_crew_selected').order('created_at',{ascending:false}).order('id',{ascending:false}).limit(1).maybeSingle());
+   if(current?.details.selection?.lead&&current.details.selection.lead!==d.workerId){await save('done');return;}
+  }
   const forms=await import('./in-house-forms.server');
   if(d.type==='crew'){
    await step('forms',async()=>{if(book)await forms.ensureInstallForm(row.job_id,row.actor_id);await forms.syncInHouseForms(row.job_id,'crew',row.actor_id,undefined,d.oldWorkerId);});
@@ -54,6 +58,6 @@ export async function runInHouseSavedWork(id:string,now=new Date()){
 }
 export function startInHouseSavedWork(id:string){return import('./background.server').then(m=>m.runAfterResponse(()=>runInHouseSavedWork(id)));}
 export async function sweepInHouseSavedWork(now=new Date()){
- const rows:{id:string}[]=[];for(let from=0;;from+=200){const page=await checked<typeof rows>(db.from('workflow_events').select('id').eq('event_type','in_house_saved_work').order('id').range(from,from+199));rows.push(...page);if(page.length<200)break;}
+ const rows:{id:string;details:{status?:string}}[]=[];for(let from=0;;from+=200){const page=await checked<typeof rows>(db.from('workflow_events').select('id,details').eq('event_type','in_house_saved_work').or('details->>status.eq.pending,details->>status.eq.retry,details->>status.eq.running').order('id').range(from,from+199));rows.push(...page);if(page.length<200)break;}
  for(const r of rows)await runInHouseSavedWork(r.id,now);return{checked:rows.length};
 }

@@ -30,7 +30,8 @@ BEGIN
   RETURN jsonb_build_object('bookingId',b.id,'already',true,'workId',_work); END IF;
  IF _kind<>'crew' AND b.id IS NOT NULL AND b.scheduled_start=_start AND
   EXISTS(SELECT 1 FROM public.workflow_events WHERE job_id=_job AND event_type='in_house_saved_work' AND details->>'bookingId'=b.id::text AND details->>'workerId'=_worker::text AND coalesce(details->'selection','null'::jsonb)=coalesce(_selection,'null'::jsonb)) THEN
-  RETURN jsonb_build_object('bookingId',b.id,'already',true); END IF;
+  RETURN (SELECT jsonb_build_object('bookingId',b.id,'already',true,'workId',id) FROM public.workflow_events
+   WHERE job_id=_job AND event_type='in_house_saved_work' AND details->>'bookingId'=b.id::text AND details->>'workerId'=_worker::text ORDER BY created_at DESC LIMIT 1); END IF;
  IF j.stage::text IS DISTINCT FROM _stage OR j.updated_at IS DISTINCT FROM _version OR b.id IS DISTINCT FROM _booking OR current_crew IS DISTINCT FROM _crew THEN
   RAISE EXCEPTION 'Job changed concurrently; reload and re-evaluate blockers'; END IF;
  IF _kind IN ('installation','crew') THEN
