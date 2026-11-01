@@ -1,8 +1,8 @@
 ## Jo 2 Nov published-site TEST whole-flow request
-- [ ] Published-site safety preflight and tooling coverage; no real rows, hold changes or provider delivery.
+- [x] Published-site tooling preflight executed: portal-qa read-only published target refuses before setup. No browser/data/provider actions. Findings docs/published-in-house-test-preflight.md.
 - [ ] TEST-only temporary in-house office/electrician/ESC Lead Installer setup with snapshot/restoration after safeguards proven.
 - [ ] Three browser-first qa_test journeys: complete, owner cancelled, handback; screenshots and PASS/FAIL/NOT RUN per role/stage; test-first fixes.
-- Blocker found: journey --screens hardcodes localhost and omits payment-through-close; portal-qa published read-only mode is explicitly refused. Do not run legacy mutations or claim published evidence from preview.
+- Blocker: safe published in-house harness and TEST snapshot/restore/provider-boundary preflight absent; journey --screens hardcodes localhost and omits payment-through-close. All three requested flows NOT RUN; no business changes to restore. Do not bypass guards or claim published evidence from preview.
 
 ## Jo 2 Nov morning decisions — test-first, pending only
 - [x] 1 Owner deposit received email only; request/reminder texts unchanged.
