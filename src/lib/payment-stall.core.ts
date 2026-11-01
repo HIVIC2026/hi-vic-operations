@@ -3,8 +3,8 @@
 // has been outstanding for 3 full days; the row says plainly which payment and since when. The row is derived from
 // the paid amount, never stored — the moment the payment is recorded it clears by itself.
 // Covered (Jo's list): the $349 safety check (PIESA) at quote acceptance, the 10% install deposit, the electrical
-// fixes, and the repeat safety check. The balance is NOT covered — it is due on install day and the install-day
-// locks already handle it.
+// fixes, and the repeat safety check. Q21 balance has its own next-day overdue rule after completion +7 days;
+// it must never inherit this three-day pre-payment stall rule.
 
 import { PAYMENT_STEP_LABEL, paymentPlan, stepInvoiceKind, toCents, type InvoiceSlot, type PaymentStepKey } from "./payments.core";
 

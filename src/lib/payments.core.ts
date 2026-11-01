@@ -91,7 +91,7 @@ export const totalPaidCents = (p: PaidByInvoice) => Math.max(0, Math.round(p.ins
 export const stepAmountCents = (p: PaymentPlan, k: PaymentStepKey) =>
   k === "safety_check" ? p.safetyCheckCents : k === "fixes" ? p.fixesCents : k === "install_deposit" ? p.installDepositCents : k === "repeat_safety_check" ? p.repeatCents : p.balanceCents;
 
-/** Decision 140/141 + 233, Jo 29 Oct 2026: card for the safety check (including the repeat check), the fixes and the 10% install deposit; the balance is bank transfer / PayID only. */
+/** Q21: existing invoice steps, including balance, support card or bank; amounts and receipts remain invoice-bound. */
 export function paymentMethodsFor(step: PaymentStepKey): PaymentMethod[] {
   return ["card", "bank"];
 }
