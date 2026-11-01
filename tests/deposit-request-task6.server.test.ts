@@ -11,6 +11,7 @@ mock.module('../src/lib/payments.server',()=>({jobPaymentView:async()=>({invoice
 mock.module('../src/lib/veec-copy-email.server',()=>({ownerMyJobLink:async()=> 'https://example.invalid/my-job/token'}));
 mock.module('../src/lib/comms.server',()=>({assertCustomerDeliveryAllowed:async()=>{if(paused)throw Error('held');}}));
 mock.module('../src/lib/trade-pause.server',()=>({tradeMessagesPausedNow:async()=>paused?'paused':null}));
+mock.module('../src/lib/qa-inbox.server',()=>({qaDeliveryHeld:async()=>false}));
 mock.module('../src/lib/owner-email-send.server',()=>({sendGuardedOwnerEmail:async(p:any)=>{if(emailKeys.has(p.key))return 'already attempted';emailKeys.add(p.key);emails.push({...p,mail:p.build(null)});return 'sent';}}));
 mock.module('../src/lib/sms.server',()=>({sendRealSms:async(p:any)=>{if(smsKeys.has(p.idempotencyKey))return{status:'already'};smsKeys.add(p.idempotencyKey);texts.push(p);return {status:'sent'};}}));
 mock.module('../src/lib/office-email.server',()=>({sendOfficeEmail:async(p:any)=>{offices.push(p);return{status:'sent',detail:'mock'};}}));
@@ -49,6 +50,14 @@ test('failed in-house lookup and non-in-house jobs produce no records or sends',
  failed=true;await requestInstallDeposit('j');failed=false;held=false;await requestInstallDeposit('j');expect(emails.length+texts.length).toBe(0);expect(tables.workflow_events).toHaveLength(0);
 });
 test('paused communications are not claimed and paid notice can resume without duplicates',async()=>{
- paid=true;tables.workflow_events?.push({job_id:'j',event_type:'install_deposit_received',created_at:'2026-11-01T00:00:00Z',details:{invoice_id:'i'}});paused=true;await expect(notifyInstallerDepositPaid('j',new Date('2026-11-01T00:00:00Z'))).rejects.toThrow('held');expect(emails.length+texts.length+offices.length).toBe(0);
+ paid=true;tables.workflow_events?.push({job_id:'j',event_type:'install_deposit_received',created_at:'2026-11-01T00:00:00Z',details:{invoice_id:'i'}});paused=true;await notifyInstallerDepositPaid('j',new Date('2026-11-01T00:00:00Z'));expect(emails.length+texts.length+offices.length).toBe(0);
  paused=false;await notifyInstallerDepositPaid('j',new Date('2026-11-01T00:00:00Z'));expect(offices).toHaveLength(1);
+});
+test('quiet-hour request retries during daytime with one email and one text',async()=>{
+ await requestInstallDeposit('j',new Date('2026-11-01T10:00:00Z'));expect(emails.length+texts.length).toBe(0);
+ await requestInstallDeposit('j',new Date('2026-11-01T20:00:00Z'));expect(emails).toHaveLength(1);expect(texts).toHaveLength(1);
+});
+test('a stale recorded request is not released by the tick as an old request',async()=>{
+ await requestInstallDeposit('j',new Date('2026-11-01T10:00:00Z'));
+ await sweepDepositRequests(new Date('2026-11-03T00:00:00Z'));expect(emails.length+texts.length).toBe(0);
 });

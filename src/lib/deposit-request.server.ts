@@ -45,6 +45,7 @@ type Facts=NonNullable<Awaited<ReturnType<typeof factsFor>>>;
 async function ownerNotice(jobId:string,c:Facts,step:'request'|'paid'|DepositReminder,at:string,now:Date){
   // Quiet hours are checked before either channel; no deferred text at a different time to its email.
   if((await import('./quote-hold.core')).smsQuietReason(now.toISOString()))return 'quiet hours';
+  if((step==='request'||step==='paid') && now.getTime()-Date.parse(at)>86_400_000)return 'stale notice held';
   await (await import('./comms.server')).assertCustomerDeliveryAllowed(jobId,'Install deposit notice');
   const key=step==='request'?installDepositRequestKey(c.v.invoiceId):`install-deposit-${step}:v1:${c.v.invoiceId}`;
   if(!c.owner.email||(step!=='paid'&&!c.f.link))return 'owner email or link missing';
@@ -67,11 +68,14 @@ export async function notifyInstallerDepositPaid(jobId:string,now=new Date()):Pr
   const c=await factsFor(jobId,now);if(!c||!c.paid||!c.c.clearance.cleared||c.c.booked)return 'not due';
   const r=await admin.from('workflow_events').select('created_at').eq('job_id',jobId).eq('event_type','install_deposit_received').contains('details',{invoice_id:c.v.invoiceId}).limit(1).maybeSingle();
   if(r.error)throw Error('Could not read deposit receipt.');if(!r.data)return 'receipt not recorded';
-  const owner=await ownerNotice(jobId,c,'paid',r.data.created_at,now);
+  // Independent channels: owner consent holds must not prevent an authorised trade-office notice.
+  let owner:string;
+  try{owner=await ownerNotice(jobId,c,'paid',r.data.created_at,now);}catch(e){owner=`owner held: ${e instanceof Error?e.message:'delivery unavailable'}`;}
+  if(now.getTime()-Date.parse(r.data.created_at)>86_400_000)return `${owner}; stale installer notice held`;
   // Office email only. Trade pause remains independent of the allowed in-house exception.
   if(await (await import('./trade-pause.server')).tradeMessagesPausedNow({businessId:c.assignment.business_id}))return `${owner}; installer held`;
   if(!c.biz.email)return `${owner}; installer email missing`;
-  if(c.job.source==='qa_test')return `${owner}; TEST installer email held`;
+  if(await (await import('./qa-inbox.server')).qaDeliveryHeld(jobId))return `${owner}; TEST browser delivery held`;
   const key=`install-deposit-paid-office:v1:${c.v.invoiceId}`;
   const prior=await admin.from('customer_email_sends').select('id').eq('job_id',jobId).eq('idempotency_key',key).maybeSingle();
   if(prior.error)throw Error('Could not read installer deposit email history.');
@@ -80,7 +84,9 @@ export async function notifyInstallerDepositPaid(jobId:string,now=new Date()):Pr
   if(claim.error?.code==='23505')return `${owner}; installer already attempted`;
   if(claim.error||!claim.data)throw Error('Could not reserve installer deposit email.');
   const m=renderInstallerDepositPaidEmail({...c.f,name:c.owner.full_name||c.f.name});
-  const e=await (await import('./office-email.server')).sendOfficeEmail({actorId:null,recipient:'partner',to:c.biz.email,contactName:c.f.installer,subject:m.subject,message:m.text,label:'install_deposit_paid_office',record:{businessId:c.assignment.business_id},html:m.html,text:m.text,idempotencyKey:key});
+  const e=c.job.source==='qa_test'
+    ?await (await import('./test-send.server')).sendTestEmail({jobId,jobSource:c.job.source,partnerIsTest:true,label:key,actorId:null},c.biz.email,m.subject,m.html,m.text)
+    :await (await import('./office-email.server')).sendOfficeEmail({actorId:null,recipient:'partner',to:c.biz.email,contactName:c.f.installer,subject:m.subject,message:m.text,label:'install_deposit_paid_office',record:{businessId:c.assignment.business_id},html:m.html,text:m.text,idempotencyKey:key});
   await admin.from('customer_email_sends').update({status:e.status==='sent'?'sent':e.status==='blocked'?'failed':'delivered_unrecorded',sent_at:e.status==='sent'?now.toISOString():null,error:e.status==='sent'?null:e.detail}).eq('id',claim.data.id);
   return `${owner}; installer ${e.status}`;
 }

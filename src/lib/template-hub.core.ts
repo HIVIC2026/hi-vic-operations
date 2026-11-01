@@ -88,6 +88,7 @@ import { renderSpotReleasedEmail } from "./spot-release-email.core";
 import { spotReleasedText } from "./spot-release.core";
 import { renderAddressRequestEmail } from "./address-request-email.core";
 import { addressRequestText } from "./address-request.core";
+import { renderInstallDepositOwnerEmail, renderInstallerDepositPaidEmail, depositOwnerText, type DepositMessageFacts } from './deposit-request-email.core';
 
 /* ---------------------------------------------------------------- types */
 
@@ -208,6 +209,7 @@ const SAMPLE_VARS: Record<string, string> = {
 };
 
 const ENTRY = (e: Omit<TemplateEntry, "approval" | "approvalNote"> & { approval?: TemplateEntry["approval"]; approvalNote: string }): TemplateEntry => ({ approval: "approved", ...e });
+const DEPOSIT_SAMPLE:DepositMessageFacts={name:'Helen',installer:'Sample Insulation Co',jobNumber:'HV-TEST',address:SHORT_ADDRESS,ownerPhone:'0400 000 000',deadline:'2026-12-04',amountCents:18510,link:`${JOB}?screen=pay`,bank:{...HIV_BANK_DETAILS,configured:true},reference:'INV-TEST',card:true};
 
 /* ---------------------------------------------------------------- OWNER */
 
@@ -325,6 +327,10 @@ const OWNER: TemplateEntry[] = [
     source: { builder: "src/lib/piesa-fixes-confirm.core.ts", fn: "piesaFixesConfirmText", sender: "src/lib/piesa-fixes-confirm-send.server.ts" },
     render: () => text(piesaFixesConfirmText(JOB)) }),
   // Install
+  ...(['request','day3','day7','paid'] as const).flatMap(step=>[
+    ENTRY({id:`owner:install-deposit-${step}`,section:'owner',step:'install',kind:'email',code:'',name:step==='paid'?'Install deposit received':'10% install deposit'+(step==='request'?' request':` reminder (${step})`),when:step==='paid'?'Deposit confirmed on the installation invoice':step==='request'?'In-house PIESA passed or rectification completed':`${step} after the recorded deposit request, if unpaid`,who:'Owner',approvalNote:'Jo 1 Nov Task 6',gate:{kind:'email'},source:{builder:'src/lib/deposit-request-email.core.ts',fn:'renderInstallDepositOwnerEmail',sender:'src/lib/deposit-request.server.ts'},render:()=>email(renderInstallDepositOwnerEmail(DEPOSIT_SAMPLE,step))}),
+    ENTRY({id:`owner:sms-install-deposit-${step}`,section:'owner',step:'install',kind:'text',code:'',name:'Install deposit '+step+' (text)',when:'With the matching deposit email, during daytime',who:'Owner',approvalNote:'Jo 1 Nov Task 6',gate:{kind:'text',smsType:step==='paid'?'install_deposit_paid':step==='request'?'install_deposit_request':'install_deposit_reminder'},source:{builder:'src/lib/deposit-request-email.core.ts',fn:'depositOwnerText',sender:'src/lib/deposit-request.server.ts'},render:()=>text(depositOwnerText(DEPOSIT_SAMPLE,step))}),
+  ]),
   ENTRY({ id: "owner:O33", section: "owner", step: "install", kind: "email", code: "O33", name: "Pick your install day", when: "The installer offers 3 install days after clearance", who: "Owner", approvalNote: "Jo 24 Oct 2026", gate: { kind: "email" },
     source: { builder: "src/lib/install-days-email.core.ts", fn: "renderInstallDaysEmail", sender: "src/lib/approved-owner-emails.server.ts" }, design: "docs/templates/mjml/owner_O33.mjml",
     render: () => email(renderInstallDaysEmail({ firstName: "Helen", installerName: "Sample Insulation Co", days: ["Wednesday 11 November at 7:30am", "Thursday 12 November at 12:30pm", "Monday 16 November at 7:30am"], myJobUrl: JOB, balanceIncGst: 1851, installBy: "4 December" })) }),
@@ -564,6 +570,7 @@ const INSTALLER: TemplateEntry[] = [
     source: { builder: "src/lib/thirty-day-rule.core.ts", fn: "installerInstallWindowText", sender: "src/lib/thirty-day-rule.server.ts" },
     render: () => text(installerInstallWindowText({ step: "reminder_10", deadline: "2026-12-04", daysLeft: 10, link: FIELD, jobNumber: "HV-TEST", firstName: "Sam", ownerSuburb: "Glen Waverley" })) }),
   // Install
+  ENTRY({id:'installer:install-deposit-paid',section:'installer',step:'install',kind:'email',code:'',name:'Deposit paid — book the install day',when:'In-house installation deposit confirmed, once per invoice',who:'Installer office (email only)',approvalNote:'Jo 1 Nov Task 6',gate:{kind:'email'},source:{builder:'src/lib/deposit-request-email.core.ts',fn:'renderInstallerDepositPaidEmail',sender:'src/lib/deposit-request.server.ts'},render:()=>email(renderInstallerDepositPaidEmail(DEPOSIT_SAMPLE))}),
   ENTRY({ id: "installer:sms-install_tomorrow", section: "installer", step: "install", kind: "text", code: "", name: "Install tomorrow (text)", when: "The afternoon before the install (with safety plan links while unsigned)", who: "Lead installer", approvalNote: "Jo 24 Oct 2026, decision 99", gate: { kind: "text", smsType: "install_tomorrow" },
     source: { builder: "src/lib/installer-texts.core.ts", fn: "installTomorrowText", sender: "src/lib/installer-texts.server.ts" },
     render: () => text(installTomorrowText({ startIso: INSTALL_ISO, address: SHORT_ADDRESS, jobNumber: "HV-TEST", link: FIELD })) }),
