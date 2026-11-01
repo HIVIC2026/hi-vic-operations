@@ -261,6 +261,21 @@ export type MittiSyncProblem = { jobId: string; jobNumber: string; owner: string
 /** Office list: jobs whose Mitti sync last failed (assessment error recorded on the row, or a Ready Check
  *  sync failure event with no later successful sync for the same audit). Read-only. */
 export async function listMittiSyncProblems(): Promise<{ rows: MittiSyncProblem[] }> {
+  const pullStates = new Map<string, { jobId: string; message: string; since: string }>();
+  const resolved = new Set<string>();
+  for (let offset = 0; ; offset += 200) {
+    const { data, error } = await admin.from("workflow_events").select("job_id,summary,created_at,details").eq("event_type", "mitti_pull_sync_state").order("created_at", { ascending: false }).order("id", { ascending: false }).range(offset, offset + 199);
+    if (error) throw new Error(`Could not check Mitti sync problems: ${error.message}`);
+    for (const e of data ?? []) {
+      if (!e.job_id) continue;
+      const d = e.details as { stream?: string; ok?: boolean; message?: string } | null;
+      const key = `${e.job_id}:${d?.stream}`;
+      if (resolved.has(key)) continue;
+      resolved.add(key);
+      if (d?.ok === false) pullStates.set(key, { jobId: e.job_id, message: d.message ?? e.summary, since: e.created_at });
+    }
+    if ((data?.length ?? 0) < 200) break;
+  }
   const [{ data: aerr, error: e1 }, { data: fails, error: e2 }, { data: okays, error: e3 }] = await Promise.all([
     admin.from("assessments").select("job_id, mitti_last_error, mitti_synced_at, jobs!inner(job_number, business_unit, stage, deleted_at, owners(full_name), properties(address_line, suburb))")
       .not("mitti_last_error", "is", null).neq("status", "complete").eq("jobs.business_unit", "hivic").is("jobs.deleted_at", null).limit(100),
@@ -284,7 +299,9 @@ export async function listMittiSyncProblems(): Promise<{ rows: MittiSyncProblem[
 
   const rows: MittiSyncProblem[] = [];
   const seen = new Set<string>();
-  const info = await jobInfo([...new Set([...(aerr ?? []).map((r) => r.job_id as string), ...(fails ?? []).map((r) => r.job_id as string)])]);
+  const allIds = [...new Set([...(aerr ?? []).map((r) => r.job_id as string), ...(fails ?? []).map((r) => r.job_id as string), ...[...pullStates.values()].map(r => r.jobId)])];
+  const info = new Map<string, { job_number: string; owner: string | null; address: string | null; skip: boolean }>();
+  for (let i = 0; i < allIds.length; i += 200) for (const [id, j] of await jobInfo(allIds.slice(i, i + 200))) info.set(id, j);
   for (const r of aerr ?? []) {
     const j = info.get(r.job_id as string);
     if (!j || j.skip) continue;
@@ -311,6 +328,12 @@ export async function listMittiSyncProblems(): Promise<{ rows: MittiSyncProblem[
     const ok = latestOk.get(jobId);
     if (ok && ok.audit === f.audit && ok.created_at > f.created_at) continue; // fixed since
     rows.push({ jobId, jobNumber: j.job_number, owner: j.owner, address: j.address, message: f.summary, since: f.created_at });
+  }
+  for (const f of pullStates.values()) {
+    const j = info.get(f.jobId);
+    if (!j || j.skip || seen.has(f.jobId)) continue;
+    rows.push({ jobId: f.jobId, jobNumber: j.job_number, owner: j.owner, address: j.address, message: f.message, since: f.since });
+    seen.add(f.jobId);
   }
   return { rows };
 }

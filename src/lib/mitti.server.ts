@@ -642,7 +642,7 @@ export async function syncPendingMitti(actorId: string | null, call: MittiCall =
   for (let offset = 0; ; offset += 200) {
     const { data, error } = await admin.from("workflow_events").select("job_id").eq("event_type", "mitti_piisa_audit_created").order("id").range(offset, offset + 199);
     if (error) throw new Error(`Install forms could not be read: ${error.message}`);
-    for (const e of data ?? []) peIds.add(e.job_id);
+    for (const e of data ?? []) if (e.job_id) peIds.add(e.job_id);
     if ((data?.length ?? 0) < 200) break;
   }
   const open: { id: string }[] = [], all = [...peIds];
