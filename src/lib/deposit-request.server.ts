@@ -49,7 +49,11 @@ async function ownerNotice(jobId:string,c:Facts,step:'request'|'paid'|DepositRem
   await (await import('./comms.server')).assertCustomerDeliveryAllowed(jobId,'Install deposit notice');
   const key=step==='request'?installDepositRequestKey(c.v.invoiceId):`install-deposit-${step}:v1:${c.v.invoiceId}`;
   if(!c.owner.email||(step!=='paid'&&!c.f.link))return 'owner email or link missing';
-  const e=await (await import('./owner-email-send.server')).sendGuardedOwnerEmail({jobId,jobSource:c.job.source,to:c.owner.email,purpose:`install_deposit_${step}`,key,retryAfterDefiniteFailure:true,beforeSend:()=> (import('./comms.server').then(m=>m.assertCustomerDeliveryAllowed(jobId,'Install deposit notice'))),build:()=>renderInstallDepositOwnerEmail(c.f,step)});
+  const e=await (await import('./owner-email-send.server')).sendGuardedOwnerEmail({jobId,jobSource:c.job.source,to:c.owner.email,purpose:`install_deposit_${step}`,key,retryAfterDefiniteFailure:true,beforeSend:async()=>{
+    await (await import('./comms.server')).assertCustomerDeliveryAllowed(jobId,'Install deposit notice');
+    const fresh=await factsFor(jobId,new Date());
+    if(!fresh || fresh.v.invoiceId!==c.v.invoiceId || (step==='paid'?!fresh.paid:fresh.paid) || fresh.c.booked)throw Error('Deposit state changed; notice held.');
+  },build:()=>renderInstallDepositOwnerEmail(c.f,step)});
   // TEST jobs stay behind the canonical sender's TEST boundary (no real SMS).
   const s=await (await import('./sms.server')).sendRealSms({type:step==='paid'?'install_deposit_paid':step==='request'?'install_deposit_request':'install_deposit_reminder',jobId,to:c.owner.phone,body:depositOwnerText(c.f,step),idempotencyKey:`${key}:sms`,event:{at,current:step==='paid'?c.paid:!c.paid}});
   return `${e}; sms ${s.status}`;

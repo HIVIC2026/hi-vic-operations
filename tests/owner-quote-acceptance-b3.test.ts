@@ -4,6 +4,7 @@ import { memoryPostgrest, type Tables } from "./helpers/memory-postgrest";
 
 const tables: Tables = {};
 let signed = 0, invoice = 0, advances = 0;
+let sittingRecords:Set<string>|null=null;
 let invoiceWait: Promise<void> = Promise.resolve();
 const queued: Promise<unknown>[] = [];
 const admin = memoryPostgrest(tables);
@@ -30,7 +31,7 @@ mock.module("../src/lib/assignment.server", () => ({
   ...Object.fromEntries(["assignmentEffective", "currentAgreement", "currentAssignment", "currentInstallerDeclaration", "loadTemplates", "prepareFinalAssignment", "raiseVariation", "reconfirmVariation", "signFinalAssignment", "signInstallerDecl"].map(n => [n, async () => null])),
   assertAgreementCanSign: async () => undefined,
   buildAcceptancePackage: async () => ({ consumer: { name: "Practice Owner" } }),
-  signCustomerAgreement: async () => { if(!signed)signed++; },
+  signCustomerAgreement: async () => { if(!signed)signed++; sittingRecords?.add('customer_agreement'); },
 }));
 mock.module("../src/lib/installer-quote.server", () => ({ quoteBillingBlocker: async () => null }));
 mock.module("../src/lib/installer-intake.server", () => ({ intakeSendBlockers: async () => [], isIntakeJob: async () => false }));
@@ -53,6 +54,7 @@ beforeEach(() => {
   tables.quotes = [{ id: "quote-1", job_id: "job-1", kind: "installation", status: "issued", release_state: "released", version: 3, sent_at: new Date().toISOString() }];
   tables.jobs = [{ id: "job-1", stage: "measured_estimate_ready" }];
   signed = invoice = advances = 0; queued.length = 0; invoiceWait = Promise.resolve();
+  sittingRecords=null;
 });
 test("same accepted quote version is an authorised no-op, not another signature/event/invoice/send", async () => {
   const q = tables.quotes?.[0]; if (q) q.status = "accepted";
@@ -67,6 +69,7 @@ test("accepted replay still rejects a different version and another owner's job"
 });
 test('interrupted quote sitting after two records retries to exactly four without double recording', async () => {
   const records = new Set<string>(); let interrupt = true;
+  sittingRecords=records;
   const recoveryActor = { ...actor, signQuoteSitting: async () => {
     for (const key of ['quote_acceptance', 'payment_terms', 'esc_consent']) {
       records.add(key);
@@ -75,7 +78,7 @@ test('interrupted quote sitting after two records retries to exactly four withou
   }};
   await expect(respondToQuoteImpl(data,recoveryActor)).rejects.toThrow('interrupted after record 2');
   expect(records.size).toBe(2); expect(signed).toBe(0);
-  await respondToQuoteImpl(data,recoveryActor); records.add('customer_agreement');
+  await respondToQuoteImpl(data,recoveryActor);
   expect([...records].sort()).toEqual(['customer_agreement','esc_consent','payment_terms','quote_acceptance']);
   // Also recover a committed quote whose auxiliary signing write was interrupted, rather than blindly no-op.
   records.delete('esc_consent');
