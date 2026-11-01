@@ -390,12 +390,17 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           // install date). Real installers get nothing until Jo approves the wording; TEST uses the test-send path.
           const { sweepCrewReminders } = await import("@/lib/crew-reminder.server");
           const r = await timed("sweepCrewReminders", () => sweepCrewReminders());
-          await timed('sweepInHouseInstallOfficeEmails',async()=> (await import('@/lib/in-house-booking-notices.server')).sweepInHouseInstallOfficeEmails());
           (out as Record<string, unknown>)['crewReminders'] = { checked: r.checked, sent: r.sent };
         } catch (e) {
           console.error("allocation tick: crew reminder sweep failed", (e as Error).message);
           (out as Record<string, unknown>)['crewReminders'] = "failed";
         }
+        try {
+          (out as Record<string,unknown>)['inHouseOfficeEmails']=await timed('sweepInHouseInstallOfficeEmails',async()=> (await import('@/lib/in-house-booking-notices.server')).sweepInHouseInstallOfficeEmails());
+        }catch(e){console.error('allocation tick: in-house office digest failed',(e as Error).message);(out as Record<string,unknown>)['inHouseOfficeEmails']='failed';}
+        try {
+          (out as Record<string,unknown>)['inHouseBookedNotices']=await timed('sweepOwnerBookedNotices',async()=> (await import('@/lib/in-house-booking.server')).sweepOwnerBookedNotices());
+        }catch(e){console.error('allocation tick: booked notices failed',(e as Error).message);(out as Record<string,unknown>)['inHouseBookedNotices']='failed';}
         try {
           const { sweepPrestart } = await import("@/lib/prestart.server");
           (out as Record<string, unknown>)['prestart'] = await timed("sweepPrestart", () => sweepPrestart());
