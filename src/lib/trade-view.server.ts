@@ -911,7 +911,7 @@ export async function tradeSetWorkerMobile(userId: string, workerId: string, raw
 /** Jo 29 Oct: the boss adds a person with no email needed (mobile can come later). Installers start as Lead or Crew with
  *  the CII certificate unchecked; electricians need a licence number. Always pending, and they must sign the worker
  *  declarations (declarations_due) before any job. Sends nothing. */
-export async function tradeAddTeamPerson(userId: string, p: { name: string; workerRole: import("./worker-role.core").WorkerRole; mobile: string | null; email: string | null; licenceNumber: string | null; dateOfBirth?:string|null }): Promise<{ workerId: string }> {
+export async function tradeAddTeamPerson(userId: string, p: { name: string; workerRole: import("./worker-role.core").WorkerRole; mobile: string | null; email: string | null; licenceNumber: string | null; dateOfBirth?:string|null|undefined }): Promise<{ workerId: string }> {
   const c = await bossOrThrow(userId);
   const name = p.name.trim();
   if (!name) throw new WorkflowError("Add their full name.");
@@ -928,10 +928,7 @@ export async function tradeAddTeamPerson(userId: string, p: { name: string; work
     if(r.error)throw new WorkflowError(['PGRST202','42883'].includes(r.error.code)?'Private ESC registration details need the pending database update before this person can be added.':'Could not add this person and their private ESC details.');
     return{workerId:r.data as string};
   }
-  const { installerQualification } = await import("./partner-activation.core");
-  const row = c.kind === "installer"
-    ? { trade_role: c.kind, qualification: installerQualification({}), certification_status: "unverified", worker_role: p.workerRole, licence_number: null }
-    : { trade_role: c.kind, licence_number: licence, worker_role: null };
+  const row = { trade_role: c.kind, licence_number: licence, worker_role: null };
   const { data, error } = await admin.from("partner_workers").insert({ business_id: c.biz.id, full_legal_name: name, email, mobile: v.mobile, ...row, approval_status: "pending", declarations_due: true, added_by: userId } as never).select("id").single();
   if (error) {
     const needsDbUpdate = "Adding someone without an email needs the office's database update first.";
