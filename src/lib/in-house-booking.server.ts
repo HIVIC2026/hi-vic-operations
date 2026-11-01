@@ -44,7 +44,11 @@ export async function notifyOwnerBooked(jobId:string,kind:'ready_check'|'piesa'|
   const b=a.businesses;const n=bookingNotice({kind,start:startIso,who,installer:b.trading_name||b.name,phone:b.phone});
   const key=`in-house-booked:v1:${booking.id}:${who.id}`;
   const {partnerEmailLayout}=await import('./partner-email.core');
-  const email=await (await import('./owner-email-send.server')).sendGuardedOwnerEmail({jobId,jobSource:job.source,to:job.owners.email,purpose:'in_house_booked',key,retryAfterDefiniteFailure:true,build:()=>({subject:n.subject,...partnerEmailLayout({subject:n.subject,blocks:[{kind:'p',text:n.text}],test:job.source==='qa_test'})})});
+  const email=await (await import('./owner-email-send.server')).sendGuardedOwnerEmail({jobId,jobSource:job.source,to:job.owners.email,purpose:'in_house_booked',key,retryAfterDefiniteFailure:true,beforeSend:async()=>{
+    const current=await read<{id:string}|null>(db.from('bookings').select('id').eq('id',booking.id).eq('job_id',jobId).eq('status','confirmed').eq('scheduled_start',startIso).maybeSingle());
+    if(!current)throw Error('Booking changed; confirmation held.');
+    await (await import('./comms.server')).assertCustomerDeliveryAllowed(jobId,'Booking confirmation');
+  },build:()=>({subject:n.subject,...partnerEmailLayout({subject:n.subject,blocks:[{kind:'p',text:n.text}],test:job.source==='qa_test'})})});
   const sms=await (await import('./sms.server')).sendRealSms({jobId,type:'in_house_booked_owner',to:job.owners.phone,body:n.sms,idempotencyKey:`${key}:sms`,event:{at:booking.created_at,current:true}});
   return `${email}; ${sms.status}`;
 }
