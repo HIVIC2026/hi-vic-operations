@@ -131,6 +131,7 @@ export async function allocateVisit(jobId: string, userId: string, kind: VisitKi
  * crew picker / CII / "Add them in Mitti first" guards refuse before anything is recorded) → record `piisa_crew_selected` (the 2pm crew reminder reads it).
  */
 export async function saveCrewWithLead(jobId: string, userId: string, sel: CrewSelection, call?: MittiCall): Promise<{ needsVerification: string[] }> {
+  await (await import('./trade-view.server')).requireTradeJob(userId,jobId);
   const held=await (await import('./in-house-suppression.server')).readInHouseDispatchState([jobId]);
   if(held.failed)throw new WorkflowError('Could not check the in-house partner. Please try again.');
   if(held.held.has(jobId)){
@@ -144,6 +145,8 @@ export async function saveCrewWithLead(jobId: string, userId: string, sel: CrewS
   if (problems.length) throw new WorkflowError(problems.join(" • "));
   const leadId = leadWorkerId(sel);
   const cur = currentAllocation(await allocationEvents(jobId), "install");
+  const previousSelection=(await piisa.loadCrew(jobId)).selection;
+  const oldLeadId=cur?.worker_id??(previousSelection?leadWorkerId(previousSelection):null);
   const { data: asg } = await db.from("job_assignments").select("user_id, business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
   const { data: own } = asg?.user_id
     ? await db.from("partner_workers").select("id").eq("profile_id", asg.user_id).eq("business_id", asg.business_id ?? "").is("removed_at", null).limit(1).maybeSingle()
@@ -157,7 +160,7 @@ export async function saveCrewWithLead(jobId: string, userId: string, sel: CrewS
     const { data: booked } = await db.from("bookings").select("id").eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").limit(1).maybeSingle();
     if (booked) await forms.ensureInstallForm(jobId, userId, call);
     await forms.syncInHouseForms(jobId, "crew", userId, call);
-    await (await import('./in-house-booking.server')).recordLeadChange(jobId,userId,cur?.worker_id??null,leadId??'');
+    await (await import('./in-house-booking.server')).recordLeadChange(jobId,userId,oldLeadId,leadId??'');
   }
   return result;
 }
