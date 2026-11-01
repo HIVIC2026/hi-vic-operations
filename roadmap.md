@@ -1,10 +1,10 @@
 ## Jo 2 Nov morning decisions — test-first, pending only
-- [ ] 1 Owner deposit received email only; keep request/reminder texts.
-- [ ] 2 Exact Book blockers for no eligible Lead Installer / awaiting HIV ESC registration.
-- [ ] 3 Required private Lead Installer DOB, own-business-admin/HIV-office access, office row and Register with ESC Needs me; SQL pending/PGlite only.
-- [ ] 4 Any post-notice Lead Installer swap urgent office flag/alert; prestart hold at start only until acknowledged; pre-notice none.
-- [ ] 5 Quote guide §3.3.3, same-start installer-only update timing and robot update_same_id queue; selectors off.
-- [ ] Related tests and full comparable suite; report each item with limitations. No settings/secrets/live writes/sends/publishing.
+- [x] 1 Owner deposit received email only; request/reminder texts unchanged.
+- [x] 2 Exact requested Book blockers.
+- [x] 3 Private DOB add/office display/registration task, pending SQL PGlite-proven for two-user isolation. Live activation waits on approved SQL; existing-person DOB entry not added.
+- [x] 4 Post-notice urgent flag/alert and prestart hold at install instant; pre-notice no extra task; captured tests pass.
+- [x] 5 Guide §3.3.3 supports same-start update_same_id; selectors untouched/off; external robot run NOT RUN.
+- [x] Final comparable 1002→1006 files, 10068→10077 pass, 243 failures / 97 failing files unchanged; no new failing files. Build OK. Details docs/jo-2nov-morning-results.md. No live changes/sends/publishing.
 
 ## Jo 2 Nov approved three-migration live release
 - [x] Applied only date-free ESC consent (0183), Task 7 ESC registration (0184), then Task 7 trade handback (0185) after 9/0 practice checks; statements unchanged (tool adds terminal newline).
