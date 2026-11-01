@@ -298,6 +298,10 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   for (const j of jobs) { const x = f(j.id); if (x) x.inHouseDispatch = dispatch.failed ? "in_house_read_failed" : dispatch.held.has(j.id) ? "in_house" : null; }
   const inHouse = await inHouseNeedsFacts(jobs.filter(j => j.source !== "qa_test").map(j => j.id));
   for (const [id, ih] of inHouse) { const x = f(id); if (x) x.inHouse = ih; }
+  // Paid owners must never be hidden behind a generic automatic status. Same facts feed Needs me and Next.
+  const { paidGateWarnings } = await import("./paid-gate-warning.server");
+  const paidGates = await paidGateWarnings(jobs.map(j => ({ id: j.id, stage: j.stage, at: j.status?.since ?? j.facts.createdAt })));
+  for (const [id, paidGate] of paidGates) { const x = f(id); if (x) x.paidGate = paidGate; }
   // Same 48h rule as the legacy exceptions queue; current Needs me must not silently omit it.
   if (ids.length) {
     const releases = await byIds("unconfirmed visit releases", ids, (chunk, a, b) => admin.from("contact_releases").select("job_id, visit_kind, released_at, job_assignments!inner(active, booking_confirmed_at)").in("job_id", chunk).is("revoked_at", null).range(a, b));
