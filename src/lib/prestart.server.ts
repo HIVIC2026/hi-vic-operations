@@ -121,6 +121,8 @@ export async function runPrestart(jobId: string, trigger: string, now = new Date
 
 /** Server-side lock for the PIISA send and installation evidence. */
 export async function prestartGate(jobId: string, now = new Date()) {
+  const leadBlocker=await (await import('./in-house-booking.server')).leadNoticeBlocker(jobId,now);
+  if(leadBlocker)return {locked:true,reasons:[leadBlocker]};
   const b = await upcomingBooking(jobId);
   if (!b) return { locked: false, reasons: [] as string[] };
   return prestartLocked({ start: b.scheduled_start, latest: await latestCheck(jobId), now });
@@ -192,6 +194,7 @@ export async function prestartSummary(jobId: string) {
   }
   return {
     change,
+    leadChange: await (await import('./in-house-booking.server')).latestLeadNotice(jobId),
     start: b.scheduled_start, runAt: prestartRunAt(b.scheduled_start),
     task: escTask({ start: b.scheduled_start, current: n.current, previousSent: prev, now: new Date() }),
     notification: cur ? { id: cur.id, version: cur.version, status: cur.status, payload: cur.payload_json, due_by: cur.due_by, earliest: cur.earliest_send_at, sent_at: cur.sent_at, reference: cur.submission_reference, method: cur.submission_method, last_error: cur.last_error, canRecord: ["ready", "pending_submission", "error"].includes(cur.status) } : null,

@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useAction } from "@/hooks/use-me";
 import { getPrestartSummary, rerunPrestart } from "@/lib/allocation.functions";
+import { recordInHouseEscNoticeUpdated } from '@/lib/trade-view.functions';
 import { recordEscRegistryUpdateFn, recordEscSubmissionFn, regenerateEscNotificationFn, withdrawEscNotificationFn } from "@/lib/portal.functions";
 import { VEU_REGISTRY_URL } from "@/lib/esc.core";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +22,7 @@ export function OfficePrestartCard({ jobId }: { jobId: string }) {
   const record = useAction(recordEscSubmissionFn);
   const withdraw = useAction(withdrawEscNotificationFn);
   const recordUpdate = useAction(recordEscRegistryUpdateFn);
+  const recordLeadUpdate=useServerFn(recordInHouseEscNoticeUpdated);
   const q = useQuery({ queryKey: ["prestart", jobId], queryFn: () => load({ data: { jobId } }) });
   const [ref, setRef] = useState(""); const [at, setAt] = useState(""); const [confirm, setConfirm] = useState(false);
   const [reason, setReason] = useState(""); const [withdrawing, setWithdrawing] = useState(false);
@@ -32,6 +34,7 @@ export function OfficePrestartCard({ jobId }: { jobId: string }) {
   return (
     <Section title="ESC install notification and pre-start check (office only)" action={<Button size="sm" variant="outline" onClick={() => regen({ jobId }, "Notification details refreshed")}>Refresh details</Button>}>
       <div className="space-y-2 text-sm">
+        {d.leadChange&&!d.leadChange.acknowledged&&<div className="border border-danger p-2 text-danger"><p>{d.leadChange.summary}</p><Button variant="outline" onClick={async()=>{await recordLeadUpdate({data:{jobId,changeId:d.leadChange.id}});await q.refetch();}}>ESC notice updated</Button></div>}
         <div>Install: <b>{when(d.start)}</b> · pre-start check from {when(d.runAt)}</div>
         {n && <div className="text-xs text-muted-foreground">Registry window: {n.earliest ? when(n.earliest) : "—"} to {when(n.due_by)} (no earlier than 5 days, no later than 24 hours before the start; written owner consent first).</div>}
         {d.sentLine ? <p className="rounded border border-success/40 bg-success-soft p-2 font-medium">{d.sentLine}{n?.method ? ` · ${n.method.replace("_", " ")}` : ""}</p> : null}

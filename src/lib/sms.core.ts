@@ -8,6 +8,7 @@ import { melbourneHour, smsQuietReason } from "./quote-hold.core";
  * so an owner can always get in to their job.
  */
 export const SMS_MESSAGE_TYPES = {
+  in_house_booked_owner: { audience:'owner',label:'In-house visit booking confirmation (Jo 1 Nov Task 7)',wordingApproved:true,quietHours:true },
   install_deposit_request: { audience: 'owner', label: 'In-house 10% install deposit request (Jo 1 Nov Task 6)', wordingApproved: true, quietHours: true },
   install_deposit_reminder: { audience: 'owner', label: 'In-house unpaid install deposit day 3/7 reminder (Jo 1 Nov Task 6)', wordingApproved: true, quietHours: true },
   install_deposit_paid: { audience: 'owner', label: 'In-house install deposit received (Jo 1 Nov Task 6)', wordingApproved: true, quietHours: true },

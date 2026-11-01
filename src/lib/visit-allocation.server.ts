@@ -131,6 +131,13 @@ export async function allocateVisit(jobId: string, userId: string, kind: VisitKi
  * crew picker / CII / "Add them in Mitti first" guards refuse before anything is recorded) → record `piisa_crew_selected` (the 2pm crew reminder reads it).
  */
 export async function saveCrewWithLead(jobId: string, userId: string, sel: CrewSelection, call?: MittiCall): Promise<{ needsVerification: string[] }> {
+  const held=await (await import('./in-house-suppression.server')).readInHouseDispatchState([jobId]);
+  if(held.failed)throw new WorkflowError('Could not check the in-house partner. Please try again.');
+  if(held.held.has(jobId)){
+    const team=await (await import('./in-house-booking.server')).bookingTeam(jobId,userId);
+    const why=(await import('./in-house-booking.core')).bookingWorkerBlocker('installation',team.workers.find(w=>w.id===leadWorkerId(sel))??null);
+    if(why)throw new WorkflowError(why);
+  }
   const piisa = await import("./piisa-a3.server");
   const { staff } = await piisa.loadCrew(jobId);
   const { problems } = crewSelectionProblems(sel, staff);
@@ -150,6 +157,7 @@ export async function saveCrewWithLead(jobId: string, userId: string, sel: CrewS
     const { data: booked } = await db.from("bookings").select("id").eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").limit(1).maybeSingle();
     if (booked) await forms.ensureInstallForm(jobId, userId, call);
     await forms.syncInHouseForms(jobId, "crew", userId, call);
+    await (await import('./in-house-booking.server')).recordLeadChange(jobId,userId,cur?.worker_id??null,leadId??'');
   }
   return result;
 }

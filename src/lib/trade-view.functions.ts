@@ -136,8 +136,38 @@ export const getInHouseBookingAccess = createServerFn({ method: "POST" }).middle
   .handler(async ({ data, context }) => (await import("./trade-view.server")).inHouseBookingAccess(context.userId, data.jobId, context.supabase));
 
 export const inHouseBookVisit = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid, kind: z.enum(["ready_check", "assessment", "rectification", "installation"]), start: z.string().datetime({ offset: true }) }).parse(d))
+  .inputValidator((d) => z.object({ jobId: uuid, kind: z.enum(["ready_check", "assessment", "rectification", "installation"]), start: z.string().datetime({ offset: true }), workerId: uuid, crewIds: z.array(uuid).max(2).default([]) }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).inHouseBookVisit(context.userId, data, context.supabase));
+
+export const getInHouseBookingTeam = createServerFn({ method: 'POST' }).middleware([requireSupabaseAuth])
+  .inputValidator(z.object({jobId:uuid}))
+  .handler(async({data,context})=>(await import('./in-house-booking.server')).bookingTeam(data.jobId,context.userId));
+
+export const changeInHouseLeadInstaller = createServerFn({ method: 'POST' }).middleware([requireSupabaseAuth])
+  .inputValidator(z.object({jobId:uuid,workerId:uuid}))
+  .handler(async({data,context})=>{
+    const m=await import('./in-house-booking.server');
+    const team=await m.bookingTeam(data.jobId,context.userId);
+    const w=team.workers.find(w=>w.id===data.workerId)??null;
+    const why=(await import('./in-house-booking.core')).bookingWorkerBlocker('installation',w);
+    if(why)throw Error(why);
+    return (await import('./visit-allocation.server')).saveCrewWithLead(data.jobId,context.userId,{lead:data.workerId,additional:team.selection?.additional??[]});
+  });
+
+export const recordInHouseEscNoticeUpdated = createServerFn({ method:'POST' }).middleware([requireSupabaseAuth])
+  .inputValidator(z.object({jobId:uuid,changeId:uuid}))
+  .handler(async({data,context})=>{
+    await (await import('./workflow.server')).requireAdmin(context.supabase);
+    const m=await import('./in-house-booking.server');
+    const n=await m.latestLeadNotice(data.jobId);
+    if(!n||n.id!==data.changeId)throw Error('The Lead Installer changed again. Refresh and update the current ESC notice.');
+    if(n.acknowledged)return {ok:true};
+    const {supabaseAdmin}=await import('@/integrations/supabase/client.server');
+    const {stableUuid}=await import('./mitti-create-claim.core');
+    const {error}=await supabaseAdmin.from('workflow_events').insert({id:await stableUuid(`esc-lead-updated:${n.id}`),job_id:data.jobId,actor_id:context.userId,event_type:'in_house_esc_notice_updated',summary:'Office confirmed ESC notice updated for the new Lead Installer',details:{change_id:n.id,worker_id:n.details.worker_id,start:n.details.start},internal:true});
+    if(error&&error.code!=='23505')throw Error(error.message);
+    return {ok:true};
+  });
 
 export const getMyMittiInvited = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
   .handler(async ({ context }) => (await import("./trade-view.server")).tradeMittiInvited(context.userId));

@@ -10,6 +10,16 @@ const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" });
 const COLS = "id, business_id, profile_id, trade_role, full_legal_name, email, licence_expires_on, approval_status, removed_at, certification_status, certification";
 
+export const officeRecordEscRegistered = createServerFn({method:'POST'}).middleware([requireSupabaseAuth])
+  .inputValidator(z.object({workerId:uuid,registered:z.boolean(),date:ymd.nullable()}))
+  .handler(async({data,context})=>{
+    await (await import('./workflow.server')).requireAdmin(context.supabase);
+    const {supabaseAdmin}=await import('@/integrations/supabase/client.server');
+    const {error}=await supabaseAdmin.rpc('record_worker_esc_registration' as never,{_worker:data.workerId,_registered:data.registered,_date:data.date,_actor:context.userId} as never);
+    if(error)throw Error(['42883','PGRST202'].includes(error.code)?'ESC registration is awaiting the pending database change.':error.message);
+    return {ok:true};
+  });
+
 export const officeVerifyElectrician = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator(z.object({ workerId: uuid, licenceNumber: z.string().trim().min(1).max(60), recNumber: z.string().trim().min(1).max(60), expiresOn: ymd }))
   .handler(async ({ data, context }) => {
