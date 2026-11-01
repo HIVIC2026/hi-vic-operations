@@ -7,6 +7,7 @@
 // steps after the $349 payment (electrician, PIESA, fixes, install day, completion, payouts) run the same server code
 // as the A1 route and are proven in tests/journey-a1-complete-route-db.test.ts.
 import { afterAll, describe, expect, mock, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { fakeProviders, journeyAdmin, journeyDb, loadPendingFunctions, serverFnStandIn, fillAudit, stripePaidWebhook, type MittiItem } from "./helpers/journey-harness";
 
 const BIZ = "30000000-0000-4000-8000-0000000000a2", INST = "40000000-0000-4000-8000-0000000000a2";
@@ -31,6 +32,7 @@ await loadPendingFunctions(j);
 const { admin, asUser, storage } = journeyAdmin(j);
 providers.storageFiles.map = storage;
 const q = j.q;
+await j.db.exec(readFileSync("docs/pending-migrations/2026-11-01_date_free_esc_consent.sql","utf8"));
 
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: admin }));
 mock.module("@tanstack/react-start", serverFnStandIn);
@@ -316,6 +318,8 @@ describe("A2 step 5 — the office checks and sends the quote; the owner signs a
       const [t] = await q<{ id: string }>("select id from compliance_templates where template_key=$1 and version='journey-1'", [key]);
       await pf.approveComplianceTemplate({ data: { id: t!.id }, context: officeCtx });
     }
+    const {ESC_CONSENT_TEMPLATE_VERSION}=await import("../src/lib/consent.core");
+    await q("insert into compliance_templates(template_key,version,body,approved,is_active) values('esc_consent',$1,'Official consent fixture',true,true)",[ESC_CONSENT_TEMPLATE_VERSION]);
     const ol = await import("../src/lib/owner-link.functions");
     const ogf = await import("../src/lib/owner-gates.functions");
     const { token, session } = await ownerSession();
