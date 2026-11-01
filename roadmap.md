@@ -1,3 +1,6 @@
+## Jo 1 Nov B2 (#131) TEST Stripe webhook
+- [ ] Prove TEST-secret failure first; minimally add strict test-mode verification, preserve the live path and payment writer, run whole suite and compare failing files. No settings, secrets, data, delivery or publication changes.
+
 ## Jo 1 Nov quote speed and paperwork — Task 2 only (UNDONE, Jo 1 Nov)
 - [x] Undone before publishing: owner paperwork stays on `lawyer-2026-10-06-v1` (matches the live approvals) and payment terms stay on `steps-2026-10-29b`. The rename SQL was withdrawn and must not be run.
 
