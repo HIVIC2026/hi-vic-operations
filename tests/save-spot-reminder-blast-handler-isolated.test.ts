@@ -12,7 +12,7 @@ const tables: Record<string, unknown[]> = {
   lead_campaign_responses: [],
 };
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: (table: string) => {
-  const q = { select: () => q, eq: () => q, not: () => q, like: () => q, order: () => q, in: () => q, maybeSingle: async () => ({ data: table === "customer_estimate_links" ? { expires_at:"2099-01-01" } : table === "indicative_estimates" ? { area_source:"owner_estimate",area_m2:150 } : null,error:null }), insert: () => { writes++; throw new Error("dry run wrote"); }, update: () => { writes++; throw new Error("dry run wrote"); }, range: async () => ({ data: tables[table] ?? [], error: null }) }; return q;
+  const q = { select: () => q, eq: () => q, not: () => q, like: () => q, order: () => q, in: () => q, maybeSingle: async () => ({ data: table === "customer_estimate_links" ? { status:"active", expires_at:"2099-01-01" } : table === "indicative_estimates" ? { area_source:"owner_estimate",area_m2:150 } : null,error:null }), insert: () => { writes++; throw new Error("dry run wrote"); }, update: () => { writes++; throw new Error("dry run wrote"); }, range: async () => ({ data: tables[table] ?? [], error: null }) }; return q;
 } } }));
 mock.module("../src/lib/comms.server", () => ({ customerCommsEnabled: async () => true }));
 mock.module("../src/lib/twilio-au1.server", () => ({ au1Configured: () => true }));
