@@ -13,6 +13,12 @@ export function InHouseHandoff() {
   const q = useQuery({ queryKey: ["in-house-batches"], queryFn: () => load() });
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
+  // Jo 2 Nov 2026: tick which jobs to give (any number); nothing ticked to start.
+  const [ticked, setTicked] = useState<Record<string, string[]>>({});
+  const toggle = (businessId: string, id: string) => setTicked(prev => {
+    const mine = prev[businessId] ?? [];
+    return { ...prev, [businessId]: mine.includes(id) ? mine.filter(x => x !== id) : [...mine, id] };
+  });
   const screen = q.data;
   async function give(businessId: string, jobIds: string[]) {
     if (busy) return;
@@ -20,6 +26,7 @@ export function InHouseHandoff() {
     try {
       const result = await send({ data: { businessId, jobIds } });
       setNotice(result.refused.length ? result.refused.map(r => r.reason).join("; ") : `${result.sent.length} jobs allocated.`);
+      setTicked(prev => ({ ...prev, [businessId]: [] }));
       await qc.invalidateQueries();
     } catch (e) { setNotice(e instanceof Error ? e.message : "Allocation could not be saved."); }
     finally { setBusy(null); }
@@ -30,13 +37,18 @@ export function InHouseHandoff() {
     {q.isError ? <p role="alert" className="mt-2 text-sm text-danger">{q.error instanceof Error ? q.error.message : "Installers could not be loaded."}</p> : !screen ? <p className="text-sm text-sub">Loading installers…</p> :
       <ul className="divide-y divide-line">{screen.partners.map(partner => {
         const waiting = screen.suggestions.find(g => g.businessId === partner.id)?.jobIds ?? [];
-        const ready = readyInHouseBatch(waiting);
+        const mine = ticked[partner.id] ?? [];
+        const ready = readyInHouseBatch(waiting.filter(id => mine.includes(id)));
+        const n = ready.length;
         return <li key={partner.id} className="py-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div><p className="font-semibold text-ink">{partner.name}</p><p className="text-sm text-sub">{waiting.length} waiting</p></div>
-            <Button disabled={!!busy || ready.length === 0} onClick={() => void give(partner.id, ready)}>{busy === partner.id ? "Allocating…" : `Give 5 jobs to ${partner.name}`}</Button>
+            <div className="text-right">
+              <Button disabled={!!busy || n === 0} onClick={() => void give(partner.id, ready)}>{busy === partner.id ? "Allocating…" : `Give ${n} ${n === 1 ? "job" : "jobs"} to ${partner.name}`}</Button>
+              {n === 0 && <p className="mt-1 text-sm text-sub">Tick at least one job to give.</p>}
+            </div>
           </div>
-          <ul className="mt-2 text-sm text-sub">{ready.map(id => { const job = screen.jobs.find(j => j.id === id); return <li key={id}>{job?.job_number} · {job?.address}</li>; })}</ul>
+          <ul className="mt-2 text-sm text-sub">{waiting.map(id => { const job = screen.jobs.find(j => j.id === id); const label = `${job?.job_number ?? id} · ${job?.address ?? ""}`; return <li key={id}><label className="flex min-h-11 cursor-pointer items-center gap-3"><input type="checkbox" aria-label={label} checked={mine.includes(id)} disabled={!!busy} onChange={() => toggle(partner.id, id)} />{label}</label></li>; })}</ul>
         </li>;
       })}</ul>}
   </section>;
