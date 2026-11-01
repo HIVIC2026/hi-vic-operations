@@ -20,8 +20,9 @@ Provider-managed invitations, password reset and email sign-in are outside the a
 | `jo-tradie.server` practice welcome/job/booked/reminder/clear messages | `simple-email` old shell | Suite generic; compatibility function preserved |
 | `spot-saved-send.server::sendEmail` missing-HTML fallback | raw `<pre>` | Suite generic; existing text |
 | `launch-campaign.server::queueSpotSavedConfirmations` TEST fallback | raw `<pre>` | Suite generic; existing text |
+| `quote-ready-notify.server::notifyOwnerQuoteReady` dormant database-template fallback | raw `body_markdown` as HTML | Suite generic, existing trusted body markup and text; current O18 branch unchanged |
 
-No matching named designs: in-house partner-call, edited photo-request copy, all four owner deposit steps, installer deposit-paid notice, Mitti failure, Registry failure, TEST utility variants, missing-HTML fallback. Existing generic uses (booking notices/digests, crew reminder, CoES, AI/manual replies and PIESA-rule notices) already reach MJML and were left unchanged.
+No matching named designs: in-house partner-call, edited photo-request copy, all four owner deposit steps, installer deposit-paid notice, Mitti failure, Registry failure, TEST utility variants, missing-HTML fallback and dormant database quote copy. Existing generic uses (booking notices/digests, crew reminder, CoES, AI/manual replies and PIESA-rule notices) already reach MJML and were left unchanged.
 
 ## All registered messages (unchanged unless listed above)
 
@@ -145,4 +146,34 @@ Paths below are relative to `src/lib/`. Each named design is the existing live r
 
 ## Results
 
-Pending final comparable test reconciliation.
+Four new E0 checks pass, including 84 registered email entries, migrated generic messages, source graph reachability and retired-builder import prohibition. The existing simple-email snapshot test was deliberately changed: it pinned the retired shell; existing message text and button destination remain asserted.
+
+Comparable full isolated run, with identical exclusions for register-interest-validation and save-spot-uncertain-delivery:
+- Before: 987 files, 9,985 passing tests / 243 failures, 98 failing files.
+- After plus final individual rechecks: 988 files, 9,989 passing tests / 243 failures, 98 failing files.
+- No original file lost passes or gained failures; only the four added passing tests changed totals.
+- Requested historical 97/243 was not reproduced: current before-run already has 98 failing files. No claim of matching 97 files.
+- Initial baseline staging omitted SQL/config/report fixtures; those comparison results were discarded. Complete fixtures and generous individual rechecks confirm the final numbers above.
+- Targeted sender checks: 19/0 (quote TEST routing, in-house call, Mitti-office alert); Registry alert 11/0, deposit server 9/0, campaign 8/0, Spot saved 18/0.
+- 78 approved MJML designs compile; retired-term scan has zero customer-visible failures; automatic checks show build OK.
+- Nine migrated fixture samples preserve subject/plain text/preview and ordered button/link labels and destinations exactly. Existing 84-entry comparison changed only the five deposit layouts; other registered layouts unchanged.
+
+No sends or live delivery verification. No settings, secrets, live records, database changes, migrations or publishing. Provider-managed Auth mail remains outside scope; TEST banner, unsubscribe substitution and tracking pixel remain existing post-render decorations.
+
+## Changed files
+- `src/lib/mail-mjml.core.ts`
+- `src/lib/email-kit.core.ts`
+- `src/lib/simple-email.core.ts`
+- `src/lib/in-house-batch-email.server.ts`
+- `src/lib/deposit-request-email.core.ts`
+- `src/lib/enquiry-review-custom.core.ts`
+- `src/lib/mitti-retry.core.ts`
+- `src/lib/esc-robot-alert.core.ts`
+- `src/lib/spot-saved-send.server.ts`
+- `src/lib/launch-campaign.server.ts`
+- `src/lib/quote-ready-notify.server.ts`
+- `tests/email-suite-e0.test.ts`
+- `tests/simple-email.test.ts`
+- `src/lib/AGENTS.md`
+- `roadmap.md`
+- `docs/email-suite-e0-audit.md`

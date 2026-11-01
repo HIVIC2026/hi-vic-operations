@@ -1,7 +1,8 @@
 ## Jo 1 Nov E0 — one approved email look
-- [ ] Inventory every owner, installer-office, worker and Home Insulation Victoria office send path and its builder.
-- [ ] Test-first migrate legacy presentation to the approved 27 Oct MJML suite; preserve wording/links and report generic fallbacks.
-- [ ] Guard all send paths against legacy builders; compare full isolated suite with 97 failing files / 243 failures. No settings, secrets, live data, database changes, sends or publishing.
+- [x] Source inventory in docs/email-suite-e0-audit.md includes all registered messages, delegated sends, direct transports and provider Auth exceptions. Hot leads already used the suite; edited-photo branch did not.
+- [x] Red-first migrated remaining legacy shells/raw fallbacks to genericMail, retaining content/links; retired unused email-kit HTML presentation only. Nine fixture copies preserve subject/text/preview and ordered links; 84 registered entries compared. Four new guard tests pass; old simple-email shell snapshot intentionally updated.
+- [x] Comparable complete-fixture before 987 files 9985/243, after plus final individual rechecks 988 files 9989/243: same 98 failing files, no new original failures/lost passes. Historical 97/243 not reproduced (98 already before). Two known stallers excluded identically; initial incomplete-fixture baseline discarded. 78 designs compile; build OK. No settings, secrets, live data, database changes, migrations, sends or publishing.
+- [ ] Provider-managed invitation/sign-in/reset email look remains unchanged: requires settings changes forbidden for E0. Hosted/inbox delivery not exercised because sends prohibited.
 
 ## Jo 1 Nov Task 7 — booking and Lead Installer
 - [x] Own-Team booking eligibility, paid-deposit visibility, pending ESC registration and business handback SQL practice-proven (two-user refusal checks).
