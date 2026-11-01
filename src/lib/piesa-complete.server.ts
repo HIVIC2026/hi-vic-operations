@@ -109,10 +109,10 @@ export async function completePiesaAssessment(data: CompletePiesaInput, userId: 
     // The same shared write as the decision-315 job-page card (rectification.server recordRectificationWindows).
     await (await import("./rectification.server")).recordRectificationWindows(data.jobId, userId, data.rectHours, data.rectWindows);
   }
+  if(a.piesa_outcome==='pass'&&!rectCount)await (await import('./deposit-request.server')).requestInstallDeposit(data.jobId).catch(e=>console.error('Install deposit request held',e instanceof Error?e.message:'read failed'));
   await autoAdvanceJob(data.jobId, userId, "assessment completed");
   if (a.piesa_outcome === "pass" && !rectCount) {
     await (await import("./in-house-forms.server")).closeUnneededForms(data.jobId, "no_upgrades", userId).catch(e=>console.error("Unused in-house rectification closure failed", e instanceof Error ? e.message : "Form read failed"));
-    await (await import('./deposit-request.server')).requestInstallDeposit(data.jobId).catch(e=>console.error('Install deposit request held',e instanceof Error?e.message:'read failed'));
   }
   // Decision 186: a pass with no fixes is electrical clearance — tell the installer once (nothing when not cleared).
   try { await (await import("./install-clearance.server")).notifyInstallerClearance(data.jobId); } catch (e) { console.error("install clearance notice failed", (e as Error).message); }

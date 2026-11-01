@@ -67,6 +67,8 @@ export async function applyPiesaRecord(r: PostRectificationRecord): Promise<{ re
   recordId = rec?.id ?? null;
   }
   if (post && r.outcome === "pass") {
+    // Electrical work is recorded done even when the separate owner-declaration stage guard holds scheduling.
+    await (await import('./deposit-request.server')).requestInstallDeposit(r.jobId).catch(e=>console.error('Install deposit request held',e instanceof Error?e.message:'read failed'));
     if (!duplicate) {
     await admin.from("compliance_checks").update({ status: "pass", checked_at: new Date().toISOString() }).eq("job_id", r.jobId).in("check_key", ["rectification", "electrical_assessment"]);
     await admin.from("bookings").update({ status: "completed" }).eq("job_id", r.jobId).eq("kind", "rectification").eq("status", "confirmed");
@@ -86,7 +88,7 @@ export async function applyPiesaRecord(r: PostRectificationRecord): Promise<{ re
     catch (e) { if (!(e instanceof WorkflowError)) throw e; await admin.from("jobs").update({ next_action: e.message.replace(/^Blocked:\s*/, "") }).eq("id", r.jobId); }
   }
   await autoAdvanceJob(r.jobId, r.actorId, "PIESA recorded");
-  if(r.outcome==='pass')await (await import('./deposit-request.server')).requestInstallDeposit(r.jobId).catch(e=>console.error('Install deposit request held',e instanceof Error?e.message:'read failed'));
+  if(r.kind==='reassessment' && r.outcome==='pass')await (await import('./deposit-request.server')).requestInstallDeposit(r.jobId).catch(e=>console.error('Install deposit request held',e instanceof Error?e.message:'read failed'));
   // Decision 186: fixes complete + Section C signed is electrical clearance — tell the installer once (nothing when not cleared).
   try { await (await import("./install-clearance.server")).notifyInstallerClearance(r.jobId); } catch (e) { console.error("install clearance notice failed", (e as Error).message); }
   return { recordId };

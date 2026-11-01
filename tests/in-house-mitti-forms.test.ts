@@ -81,6 +81,8 @@ const overrides: Record<string, any> = {
   "./eligibility.server": { todayMelbourne: () => "2026-10-30" },
   "./autoadvance.server": { autoAdvanceJob: async () => {} },
   "./install-clearance.server": { notifyInstallerClearance: async () => {} },
+  // Delivery is unrelated to this Mitti lifecycle fixture; never load its payment/sender graph here.
+  './deposit-request.server': { requestInstallDeposit: async () => 'mocked deposit boundary' },
   "./fixes-quote-save.server": { saveFixesQuote: async () => { quoteWrites++; return { id: "quote", already: true }; } },
   "./our-lead-piesa-electrician.server": { electricianSourceForJob: async () => "installer_usual" },
 };
