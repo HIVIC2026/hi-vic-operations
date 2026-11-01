@@ -1,3 +1,11 @@
+## Jo 1 Nov independent review — test-first, practice only
+- [ ] 1–3 Durable booked/deposit intent and failed/blocked office mail retries.
+- [ ] 4 Quiet handback cleanup, access removal and qa_test pending SQL proof.
+- [ ] 5–7 Explicit Team blockers, link-free 30-day texts, batched To book reads.
+- [ ] 8–10 Validate before allocation, immediate saved response, retried form/SWMS sync and office failure task.
+- [ ] 11–14 Late-install office follow-up, independent digest sweep, overdue visits, in-house next action and booked-electrician email only.
+- [ ] Focused proofs and full comparable suite against 97/243; per-item report and pending SQL list.
+
 ## Jo 1 Nov SIM — isolated fake-clock whole-job scenarios
 - [x] Shared scoped Melbourne clock, actual booking/form/crew/SWMS/deposit/cancel/certificate/repeat handlers with captured recipients/channels/ids; DST and own-office refusal tests. Pending handback SQL practice-only.
 - [x] Real PIESA copy before-booking crash fixed test-first; wording/guards unchanged. 14 new tests pass, six TODO groups explicitly not whole-job PASS. Related 84/0.
