@@ -1,10 +1,10 @@
 ## Jo 1 Nov independent review — test-first, practice only
-- [ ] 1–3 Durable booked/deposit intent and failed/blocked office mail retries.
+- [ ] 1–3 Initial intents/retry tests pass; booked per-channel completion and full blocked/uncertain-send recovery still need hardening.
 - [ ] 4 Quiet handback cleanup, access removal and qa_test pending SQL proof.
-- [ ] 5–7 Explicit Team blockers, link-free 30-day texts, batched To book reads.
+- [x] 5–7 Explicit Team blockers, link-free 30-day texts, batched To book reads; focused tests pass.
 - [ ] 8–10 Validate before allocation, immediate saved response, retried form/SWMS sync and office failure task.
 - [ ] 11–14 Late-install office follow-up, independent digest sweep, overdue visits, in-house next action and booked-electrician email only.
-- [ ] Focused proofs and full comparable suite against 97/243; per-item report and pending SQL list.
+- [x] Focused proofs and comparable suite completed; new failures repaired individually. Raw before 993 files 10045/243/98; after 997 files 10052/253/100, corrected individual reruns 10062/243/98. Details: docs/in-house-review-results.md. Remaining implementation items above are not complete.
 
 ## Jo 1 Nov SIM — isolated fake-clock whole-job scenarios
 - [x] Shared scoped Melbourne clock, actual booking/form/crew/SWMS/deposit/cancel/certificate/repeat handlers with captured recipients/channels/ids; DST and own-office refusal tests. Pending handback SQL practice-only.
