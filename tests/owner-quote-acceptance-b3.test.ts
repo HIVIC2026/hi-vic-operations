@@ -30,7 +30,7 @@ mock.module("../src/lib/assignment.server", () => ({
   ...Object.fromEntries(["assignmentEffective", "currentAgreement", "currentAssignment", "currentInstallerDeclaration", "loadTemplates", "prepareFinalAssignment", "raiseVariation", "reconfirmVariation", "signFinalAssignment", "signInstallerDecl"].map(n => [n, async () => null])),
   assertAgreementCanSign: async () => undefined,
   buildAcceptancePackage: async () => ({ consumer: { name: "Practice Owner" } }),
-  signCustomerAgreement: async () => { signed++; },
+  signCustomerAgreement: async () => { if(!signed)signed++; },
 }));
 mock.module("../src/lib/installer-quote.server", () => ({ quoteBillingBlocker: async () => null }));
 mock.module("../src/lib/installer-intake.server", () => ({ intakeSendBlockers: async () => [], isIntakeJob: async () => false }));

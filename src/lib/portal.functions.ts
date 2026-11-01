@@ -1733,6 +1733,7 @@ export async function respondToQuoteImpl(
       if (!data.signing || !data.consent || !(await context.isOwner(q.job_id)))
         throw new WorkflowError('Only the verified customer can complete this signing.');
       await context.signQuoteSitting(q.job_id, q.id, q.version);
+      await signCustomerAgreement({quoteId:q.id,actorId:context.userId,input:await signingInput(q.id,data.signing),assistance:data.signing.assistance,ip:context.ip,userAgent:context.userAgent});
     }
     return { ok: true, outcome: "already accepted" };
   }
