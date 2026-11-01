@@ -35,6 +35,12 @@ export async function sendPiesaConfirmStep(jobId: string, step: PiesaConfirmStep
     await logEvent(jobId, null, PIESA_OWNER_CONFIRM_OFFICE_ALERT_EVENT, "5 days since the electrical safety check and the owner has not confirmed it — the install can't be booked. Needs Home Insulation Victoria", { step, piesa_record_id: recordId, completed_date: facts.completedDate });
     return "office alerted";
   }
+  // Task 5: one combined signed-copy/declaration email owns the request. No separate O71 email or text.
+  if (step === 'request' || step === 'reminder_1' || step === 'reminder_3') {
+    const result = await (await import('./piesa-delivery.server')).deliverPiesaCopies(jobId);
+    if ((result.sent.includes('owner') || result.hold === 'both copies already recorded') && !(await doneSteps(jobId,recordId)).includes(step)) await logEvent(jobId,null,PIESA_OWNER_CONFIRM_STEP_EVENT,'Combined PIESA copy and owner declaration email delivered',{step,piesa_record_id:recordId},{internal:true});
+    return result.sent.includes('owner') ? 'email sent' : result.hold ?? result.held['owner'] ?? 'already delivered';
+  }
   if ((await doneSteps(jobId, recordId)).includes(step)) return "already handled";
   const request = step === "request";
   await logEvent(jobId, null, PIESA_OWNER_CONFIRM_STEP_EVENT, request ? "PIESA owner confirmation request prepared for the owner (email O71 + text)" : `PIESA owner confirmation reminder (${step}) prepared for the owner (email O71 + text)`, { step, piesa_record_id: recordId }, { internal: true });

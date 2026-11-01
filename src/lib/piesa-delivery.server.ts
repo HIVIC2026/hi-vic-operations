@@ -72,7 +72,8 @@ export async function deliverPiesaCopies(jobId: string, now = new Date()): Promi
   const test = job.source === "qa_test" || isTestPartner(biz as never);
   const p = job.properties as { address_line: string | null; suburb: string | null } | null;
   const address = [p?.address_line, p?.suburb].filter(Boolean).join(", ") || null;
-  const ownerLink = link && linkUsable(link) ? `${CUSTOMER_BASE}/my-job/${link.token}` : null;
+  const ownerLink = link && linkUsable(link) ? `${CUSTOMER_BASE}/my-job/${link.token}?screen=piesa` : null;
+  if (plan.send.includes('owner') && !ownerLink) return {...out,hold:'owner confirmation link not ready'};
   // The signed PIESA itself goes as the attached PDF (link check, Jo 27 Oct 2026): neither My job nor the installer's job page shows it.
   if (!plan.send.length) return out;
   const officialPdf = await (await import("./official-piesa-pdf.server")).officialPiesaPdf(jobId, job.job_number);
@@ -116,7 +117,9 @@ export async function deliverPiesaCopies(jobId: string, now = new Date()): Promi
 export async function sweepPiesaCopyDeliveries(now = new Date()) {
   const { data: bks, error } = await admin.from("bookings").select("job_id, scheduled_start").eq("kind", "installation").eq("status", "confirmed").gt("scheduled_start", now.toISOString()).order("scheduled_start").limit(PIESA_COPY_MAX_PER_TICK * 2);
   if (error) throw new Error(`PIESA copy sweep could not read bookings: ${error.message}`);
-  const ids = [...new Set((bks ?? []).map((b) => b.job_id))].slice(0, PIESA_COPY_MAX_PER_TICK);
+  const {data:ready,error:readyError} = await admin.from('jobs').select('id').in('stage',['piesa_complete','electrical_variation_pending','awaiting_deposit_payment','rectification_scheduling','rectification_booked','installation_scheduling']).is('deleted_at',null).limit(PIESA_COPY_MAX_PER_TICK);
+  if(readyError) throw new Error('Could not read completed safety checks');
+  const ids = [...new Set([...(ready ?? []).map(j=>j.id), ...(bks ?? []).map((b) => b.job_id)])].slice(0, PIESA_COPY_MAX_PER_TICK);
   const out = { checked: ids.length, sent: 0, held: 0, failed: 0 };
   for (const jobId of ids) {
     try {

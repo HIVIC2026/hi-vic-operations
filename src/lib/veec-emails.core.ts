@@ -46,10 +46,10 @@ export function renderVeecCopyEmail(i: VeecCopyEmailInput) {
   const body = [
     `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${esc(subject)}</mj-text><mj-text>${esc(copy)}</mj-text></mj-column></mj-section>`,
     `<mj-section><mj-column mj-class="panel"><mj-text mj-class="center" padding="16px 12px 16px"><strong>${esc(signed)}</strong></mj-text></mj-column></mj-section>`,
-    `<mj-section><mj-column><mj-button href="${esc(i.myJobUrl)}" padding="18px 12px 18px">${esc(label)}</mj-button><mj-text mj-class="small" padding="0 12px">${esc(escLine)}</mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column><mj-text mj-class="small" padding="0 12px">${esc(escLine)}</mj-text></mj-column></mj-section>`,
   ].join("");
   const html = mjEmail({ subject, preview, body, unsubscribe: i.unsubscribeUrl, testLabel: i.test === true });
-  const text = K.plainText([subject, "", copy, "", `${signed}.`, "", `${label}: ${i.myJobUrl}`, "", escLine], { unsubscribe: i.unsubscribeUrl, testLabel: i.test === true });
+  const text = K.plainText([subject, "", copy, "", `${signed}.`, "",  "", escLine], { unsubscribe: i.unsubscribeUrl, testLabel: i.test === true });
   return { subject, html, text };
 }
 

@@ -59,15 +59,12 @@ export function decideConsentApAutoSignature(f: ConsentApAutoFacts): ConsentApAu
   if (!f.ownerSignedAt) return { action: "skip", reason: "owner has not signed yet" };
   if (f.status !== "awaiting_ap") return { action: "skip", reason: `consent is ${f.status.replace(/_/g, " ")}` };
   const reasons: string[] = [];
-  if (!f.scheduledStart) reasons.push("The consent has no installation start recorded.");
-  if (!f.bookingStart) reasons.push("No confirmed installation booking — the consent can't be checked against the install day.");
-  else if (f.scheduledStart && Date.parse(f.bookingStart) !== Date.parse(f.scheduledStart)) reasons.push("The installation booking changed after the owner signed — a new consent is needed.");
   if (isEscTemplateVersion(f.templateVersion) && !allDeclarationsTicked(f.ownerDeclarations)) reasons.push("The owner's four Section 2 declarations are not all recorded.");
   if (!f.rep) reasons.push("No AP representative is configured to sign Section 3.");
   // The existing manual rules, unchanged: status, ≥24h before start, Part B declaration, representative details.
-  if (f.scheduledStart) {
+  {
     const rep = f.rep ?? { first_name: "", last_name: "", role: "", phone: null, email: null };
-    for (const b of apConsentBlockers({ status: f.status, scheduledStart: f.scheduledStart, nowIso: f.nowIso, apRepName: `${rep.first_name} ${rep.last_name}`.trim(), purposeExplained: true, templateVersion: f.templateVersion, apRep: f.rep }))
+    for (const b of apConsentBlockers({ status: f.status, scheduledStart: f.bookingStart, nowIso: f.nowIso, apRepName: `${rep.first_name} ${rep.last_name}`.trim(), purposeExplained: true, templateVersion: f.templateVersion, apRep: f.rep }))
       if (!f.rep && /AP representative/.test(b)) continue; // already said once above
       else reasons.push(b);
   }

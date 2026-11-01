@@ -8,7 +8,8 @@ import { OwnerHouse } from "@/components/owner/OwnerHouse";
 import { PIESA_FIXES_NOTE, agreedWithLabel, ownerPriceTitle } from "@/lib/owner-confirm.core";
 import { HOUSE_LEVEL } from "@/lib/owner-house.core";
 import { ownerHeadline } from "@/lib/owner-headlines.core";
-import { gateACard, SPOT_SAVED_PROGRESS, spotSavedLayout } from "@/lib/owner-myjob.core";
+import { gateACard, SPOT_SAVED_PROGRESS, spotSavedLayout, resolveOwnerScreen } from "@/lib/owner-myjob.core";
+import { OWNER_EMAIL_DOCUMENT_CONSENT, quoteSittingBlockers } from '@/lib/owner-quote-sign.core';
 import { ownerPaperworkFn } from "@/lib/owner-gates.functions";
 import { earliestInstall, installDeadline, TWO_HOUR_WINDOWS, visitPill, type OwnerScreen } from "@/lib/owner-myjob.core";
 import { SPOT_FREE, SPOT_PRICE_NOTE, SPOT_REGISTERED, SPOT_RELEASE_LINE, SPOT_WAIT_LINE } from "@/lib/spot-only-copy.core";
@@ -46,7 +47,7 @@ import { completeOwnerQuoteAcceptance, ownerQuoteCanAccept } from "@/lib/owner-q
 // Decision 389: "turn" = "It's your turn" (O77's link): Confirm the free Ready Check, or no longer interested.
 // Batch 3a: "newquote" = O78's "Send me a new quote" button: the request runs on arrival, then the approved thanks line.
 // A48 batch 2: "taps" = the quick taps (the batch text's link): one question per screen, big buttons.
-const SCREENS = ["home", "spot", "quote", "book", "done", "review", "fixes", "turn", "newquote", "taps"] as const satisfies readonly OwnerScreen[];
+const SCREENS = ["home", "spot", "quote", "pay", "piesa", "veec", "book", "done", "review", "fixes", "turn", "newquote", "taps"] as const satisfies readonly OwnerScreen[];
 
 export const Route = createFileRoute("/my-job/$token")({
   ssr: false,
@@ -83,9 +84,10 @@ const day = (iso: string) => new Date(iso).toLocaleDateString("en-AU", { weekday
 
 function MyJobPage() {
   const { token } = Route.useParams();
-  const { screen = "home", stars } = Route.useSearch();
+  const { screen: requestedScreen, stars } = Route.useSearch();
   const load = useServerFn(getOwnerMyJob);
   const { data, isLoading } = useQuery({ queryKey: ["my-job", token], queryFn: () => load({ data: { token } }) as Promise<View | null>, staleTime: 30_000, retry: false, refetchOnWindowFocus: false });
+  const screen = resolveOwnerScreen(requestedScreen, data ?? {});
   return (
     <div className="estimate-brand min-h-screen bg-estimate-canvas pb-10 text-estimate-navy">
       {/* Approved pages P2–P4 (Jo 24 Oct): white bar, logo left, job number right. */}
@@ -98,12 +100,14 @@ function MyJobPage() {
           : screen === "taps" ? <TapsScreen v={data} token={token} />
           : screen === "newquote" ? <NewQuoteScreen v={data} token={token} />
           : screen === "quote" ? <QuoteScreen v={data} token={token} />
+          : screen === "pay" ? <><RepeatPiesaCard token={token} /><PayNowCard v={data} token={token} /></>
+          : screen === "piesa" ? <PiesaConfirmCard v={data} token={token} />
+          : screen === "veec" ? <VeecAssignmentCard v={data} token={token} />
           : screen === "fixes" ? <FixesScreen v={data} token={token} />
           : screen === "book" ? <BookScreen v={data} token={token} />
-          : screen === "done" || data.stage === "complete" ? <DoneScreen v={data} token={token} />
+          : screen === "done" ? <DoneScreen v={data} token={token} />
           : screen === "spot" ? <SpotScreen v={data} token={token} />
-          : data.spotSaved ? <SpotSavedHome v={data} token={token} />
-          : <Home v={data} token={token} />}
+          : <section className="py-8"><h1 className="font-display text-2xl font-bold">You're all set{data.firstName ? `, ${data.firstName}` : ''}.</h1><p className="mt-3">We'll email you when there's a next step.</p></section>}
       </main>
     </div>
   );
@@ -236,7 +240,13 @@ function StatusSnapshot({ v }: { v: View }) {
   );
 }
 
-function useSession() { return useState<string | null>(null); }
+function useSession(): [string | null, (value: string | null) => void] {
+  const { token } = Route.useParams();
+  const [value,setValue] = useState<string | null>(null);
+  const key = `owner-verified-visit:${token}`;
+  useEffect(() => { try { const saved=JSON.parse(sessionStorage.getItem(key) ?? 'null'); if (saved?.expires > Date.now() && typeof saved.value === 'string') setValue(saved.value); } catch { /* verification remains required */ } }, [key]);
+  return [value,(next) => {setValue(next); try {if(next) sessionStorage.setItem(key,JSON.stringify({value:next,expires:Date.now()+30*60*1000}));else sessionStorage.removeItem(key);}catch{/* memory-only session */}}];
+}
 
 /** Decision 389: "It's your turn". Two buttons, the link token only (it signs nothing). Confirm offers the Ready Check to the
  *  installer Jo chose; "I'm no longer interested" closes the spot and nothing else is sent. */
@@ -477,16 +487,17 @@ function AcceptQuote({ token, quote, rebate, safetyCheck, onAccepted }: { token:
   const { data: ag } = useQuery({ queryKey: ["owner-agreement", quote.id], queryFn: () => load({ data: { token, quoteId: quote.id } }) });
   const [f, setF] = useState({ authority: "owner" as "owner" | "authorised_representative" });
   const [read, setRead] = useState(false); const [agree, setAgree] = useState(false);
+  const [ticks,setTicks] = useState<Partial<Record<OwnerDeclarationKey,boolean>>>({});
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
   const blocked = (ag?.blockers ?? []) as string[];
   const fee = safetyCheck != null ? shortAud(safetyCheck) : "$349";
   const feeCents = safetyCheck != null ? centsAud(safetyCheck) : "$349.00";
-  const ready = blocked.length === 0 && read && agree;
+  const ready = !!ag && blocked.length === 0 && quoteSittingBlockers({ownerTick:agree,declarations:ticks}).length === 0;
   const sign = async () => {
     if (!session) { setNeedCode(true); return; }
     setErr(""); setBusy(true);
     try { await completeOwnerQuoteAcceptance(
-      () => accept({ data: { token, session, quoteId: quote.id, expectedVersion: quote.version, signing: { authorityType: f.authority, readConsumerInfo: read, acceptAgreement: agree, assistance: "none" } } }),
+      () => accept({ data: { token, session, quoteId: quote.id, expectedVersion: quote.version, signing: { authorityType: f.authority, readConsumerInfo: agree, acceptAgreement: agree, assistance: "none", declarations:{owner_or_authorised:ticks.owner_or_authorised === true,details_accurate:ticks.details_accurate === true,consent_ap_sends:ticks.consent_ap_sends === true,consent_commission_shares:ticks.consent_commission_shares === true} } } }),
       onAccepted,
       () => qc.invalidateQueries({ queryKey: ["my-job", token] }),
     ); }
@@ -495,17 +506,20 @@ function AcceptQuote({ token, quote, rebate, safetyCheck, onAccepted }: { token:
   return (
     <div data-testid="say-yes" className="mt-7 border-t-2 border-estimate-navy pt-5">
       <p className="text-xs font-bold tracking-[0.1em] text-estimate-logo-green">{P2.sayYes}</p>
-      <h2 className="mt-1 font-display text-[21px] font-extrabold">{P2.twoThings}</h2>
-      <p className="mt-1.5 text-sm leading-relaxed text-estimate-sub">{P2.tapEach}</p>
-      <TickCard on={agree} set={setAgree} title={P2.tick1} sub={P2.tick1Sub(shortAud(rebate))} read={P2.tick1Read} readBody={ag?.agreementWording ? <>{`The agreement (${ag.agreementWording.version})`}{"\n\n"}{ag.agreementWording.body}</> : "Loading…"} />
-      <TickCard on={read} set={setRead} title={P2.tick2} sub={P2.tick2Sub(fee)} read={P2.tick2Read} readBody={ag ? <>{ag.consumerRights ? `Your consumer information (${ag.consumerRights.version})\n\n${ag.consumerRights.body}` : ""}{ag.paymentTerms ? `\n\nPayment terms\n\n${typeof ag.paymentTerms === "string" ? ag.paymentTerms : JSON.stringify(ag.paymentTerms, null, 1)}` : ""}</> : "Loading…"} />
+      <h2 className="mt-1 font-display text-[21px] font-extrabold">Sign your quote and consent</h2>
+      <TickCard on={agree} set={setAgree} title={`${P2.tick1} ${OWNER_EMAIL_DOCUMENT_CONSENT}`} sub={P2.tick2Sub(fee)} read="Quote, terms and consumer information" readBody={ag ? <>{ag.agreementWording?.body ?? ''}{'\n\n'}{ag.consumerRights?.body ?? ''}{'\n\n'}{ag.paymentTerms ?? ''}</> : 'Loading…'} />
+      <SectionTitle>Section 1: Information to be shared</SectionTitle>
+      {ag?.section1 && <FactRows rows={P3.rows.map(([k,label]) => ({label,value:ag.section1[k] || '—'}))} />}
+      <SectionTitle>Section 2: Declaration by owner</SectionTitle>
+      <p>I declare that:</p>
+      {OWNER_DECLARATIONS.map(d => <TickCard key={d.key} on={ticks[d.key] === true} set={b=>setTicks({...ticks,[d.key]:b})} title={d.text} bold={false} />)}
       {blocked.length > 0 && <p role="alert" className="mt-3 rounded-[12px] bg-estimate-blush p-3 text-sm font-semibold">{blocked.join(" ")}</p>}
       <section className="mt-[18px] rounded-[14px] border border-estimate-line bg-card px-4 py-3.5">
         <AuthorityChoice value={f.authority} onChange={(authority) => setF({ ...f, authority })} />
       </section>
       {needCode && !session && <div className="mt-4"><OwnerCodeGate token={token} onVerified={(s) => { setSession(s); setNeedCode(false); }} /></div>}
       {err && <p role="alert" className="mt-3 text-sm font-semibold text-destructive">{err}</p>}
-      <LockedButton ready={ready} busy={busy} busyLabel={P2.signing} onClick={() => void sign()}>{P2.button(feeCents)}</LockedButton>
+      <LockedButton ready={ready} busy={busy} busyLabel={P2.signing} onClick={() => void sign()}>Sign</LockedButton>
       {!ready && <LockHint>{P2.lockHint}</LockHint>}
       <SmallNote>{P2.payNote(fee)}</SmallNote>
     </div>

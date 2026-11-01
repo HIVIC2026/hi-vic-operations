@@ -274,11 +274,14 @@ export async function signCustomerAgreement(p: {
   const b = agreementSignBlockers(p.input, templates);
   if (b.length) throw new WorkflowError(b.join(" "));
   const pkg = await buildAcceptancePackage(p.quoteId);
-  if (await currentAgreement(pkg.job_id))
+  const existing = await currentAgreement(pkg.job_id);
+  if (existing?.quote_id === p.quoteId && existing.quote_version === pkg.quote.version && existing.signed_by === p.actorId) return existing.id;
+  if (existing)
     throw new WorkflowError(
       "A signed customer agreement already exists for this job – use a variation.",
     );
-  const rights = activeTemplate(templates, "consumer_rights")!;
+  const rights = activeTemplate(templates, "consumer_rights");
+  if (!rights) throw new WorkflowError('Approved consumer information is unavailable.');
   const agreement = activeTemplate(templates, "customer_agreement");
   const now = new Date();
   const snapshot = {
@@ -301,7 +304,7 @@ export async function signCustomerAgreement(p: {
       user_id: p.actorId,
     },
     scope_note:
-      "Commercial agreement only. ESC information-sharing consent and the post-installation VEEC assignment are separate later forms.",
+      "Commercial agreement only. ESC information-sharing consent is a separate record; the VEEC assignment is signed after installation.",
   };
   const json = stableJson(snapshot);
   const hash = await sha256Hex(json);

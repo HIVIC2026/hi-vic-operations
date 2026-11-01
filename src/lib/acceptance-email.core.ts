@@ -48,13 +48,13 @@ export function renderYoureInEmail(i: AcceptanceEmailInput) {
   const body = [
     `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${esc(headline)}</mj-text><mj-text>${esc(intro)}</mj-text></mj-column></mj-section>`,
     payCard,
-    `<mj-section><mj-column><mj-text mj-class="h2" css-class="email-sub" padding="18px 12px 12px">What happens next</mj-text><mj-table padding="0 12px 6px">${stepRows}</mj-table><mj-button href="${esc(i.myJobUrl)}">See my job</mj-button><mj-text mj-class="small" padding="0 12px 0">${esc(closing)}</mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column><mj-text mj-class="h2" css-class="email-sub" padding="18px 12px 12px">What happens next</mj-text><mj-table padding="0 12px 6px">${stepRows}</mj-table><mj-text mj-class="small" padding="0 12px 0">${esc(closing)}</mj-text></mj-column></mj-section>`,
   ].join("");
   const html = mjEmail({ subject, preview, body, unsubscribe: null, testLabel: i.test === true });
   const text = K.plainText([
     headline, "", intro, "",
     ...(pay ? ["PAYMENT RECEIVED", `${payLabel}: ${K.cents(pay.amount)} — Paid ${pay.paidOn}${pay.cardLast4 ? ` (card ending ${pay.cardLast4})` : ""}`, remainingLine, ""] : []),
-    "WHAT HAPPENS NEXT", ...steps.map((s, n) => `${n + 1}. ${s.title}: ${s.detail}`), "", `See my job: ${i.myJobUrl}`, "", closing,
+    "WHAT HAPPENS NEXT", ...steps.map((s, n) => `${n + 1}. ${s.title}: ${s.detail}`), "",  "", closing,
   ], { testLabel: i.test === true });
   return { subject, html, text };
 }

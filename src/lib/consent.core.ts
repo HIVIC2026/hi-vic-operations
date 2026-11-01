@@ -68,9 +68,9 @@ export type ConsentFacts = {
   ap_legal_entity: string;
   owner: { name: string | null; email: string | null; phone: string | null };
   premises_address: string;
-  installation_days: string[];
-  scheduled_start: string;
-  scheduled_end: string | null;
+  installation_days?: string[];
+  scheduled_start?: string | null;
+  scheduled_end?: string | null;
 };
 
 export function melbourneDay(iso: string) {
@@ -79,31 +79,24 @@ export function melbourneDay(iso: string) {
   );
 }
 
-/** Returns null when no exact installation date exists – consent cannot be generated yet. */
+/** The official consent identifies the owner and premises, not an installation booking. */
 export function buildConsentFacts(i: {
   scheduledStart: string | null;
   scheduledEnd: string | null;
   premisesAddress: string;
   owner: ConsentFacts["owner"];
 }): ConsentFacts | null {
-  if (!i.scheduledStart || Number.isNaN(Date.parse(i.scheduledStart))) return null;
+  if (!i.premisesAddress.trim() || !i.owner.name?.trim()) return null;
   return {
     ap_legal_entity: ESC_AP_LEGAL_NAME,
     owner: i.owner,
     premises_address: i.premisesAddress,
-    installation_days: [melbourneDay(i.scheduledStart)],
-    scheduled_start: i.scheduledStart,
-    scheduled_end: i.scheduledEnd,
   };
 }
 
 /** Locked details whose change makes a prior consent stale. */
 export function consentStaleReasons(prev: ConsentFacts, next: ConsentFacts): string[] {
   const r: string[] = [];
-  if (new Date(prev.scheduled_start).getTime() !== new Date(next.scheduled_start).getTime())
-    r.push("installation date/time changed");
-  if ((prev.scheduled_end ?? null) !== (next.scheduled_end ?? null))
-    r.push("installation end changed");
   if (prev.premises_address !== next.premises_address) r.push("premises address changed");
   if ((prev.owner.name ?? "") !== (next.owner.name ?? "")) r.push("owner identity changed");
   if (
@@ -135,8 +128,6 @@ export function ownerConsentBlockers(i: {
   input: ConsentSignInput;
 }): string[] {
   const b: string[] = [];
-  if (!i.scheduledStart)
-    b.push("Owner consent can only be signed once an exact installation date is booked.");
   if (!i.templateApproved)
     b.push("ESC owner consent is not ready: the consent form wording has not been approved.");
   if (i.status && i.status !== "awaiting_owner")
@@ -162,7 +153,7 @@ export function ownerConsentBlockers(i: {
 
 export function apConsentBlockers(i: {
   status: string | null;
-  scheduledStart: string;
+  scheduledStart: string | null;
   nowIso: string;
   apRepName: string;
   purposeExplained: boolean;
@@ -176,7 +167,7 @@ export function apConsentBlockers(i: {
         ? "The owner must sign first."
         : "This consent is not awaiting AP confirmation.",
     );
-  if (new Date(i.nowIso).getTime() > new Date(latestConsentAt(i.scheduledStart)).getTime())
+  if (i.scheduledStart && new Date(i.nowIso).getTime() > new Date(latestConsentAt(i.scheduledStart)).getTime())
     b.push("Consent must be complete at least 24 hours before the installation starts.");
   if (!i.purposeExplained)
     b.push(
@@ -244,7 +235,7 @@ const line = (label: string, v: string | null | undefined) => `${label}: ${dash(
  */
 export function renderConsentBody(r: ConsentRender): string {
   if (!isEscTemplateVersion(r.version))
-    return r.body.replace(/\{dates\}/g, r.facts.installation_days.join(", ") || "—");
+    return r.body.replace(/\{dates\}/g, r.facts.installation_days?.join(", ") || "—");
   const s1 = section1FromFacts(r.facts);
   const tick = (k: OwnerDeclarationKey) => (r.owner?.declarations?.[k] === true ? "[x]" : "[ ]");
   const ownerDay = r.owner ? melbourneDay(r.owner.signedAt) : "";
@@ -275,7 +266,7 @@ export function renderConsentBody(r: ConsentRender): string {
 
 export type ConsentRecord = {
   status: string;
-  scheduled_start: string;
+  scheduled_start?: string | null;
   owner_signed_at: string | null;
   ap_signed_at: string | null;
 } | null;
@@ -285,16 +276,14 @@ export function consentValidityBlockers(c: ConsentRecord, scheduledStart: string
   const due = new Date(latestConsentAt(scheduledStart)).getTime();
   const fmt = new Date(due).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" });
   if (!c) return [`Owner ESC consent not generated – must be signed by ${fmt} (24h before start)`];
-  if (
-    c.status === "stale" ||
-    new Date(c.scheduled_start).getTime() !== new Date(scheduledStart).getTime()
-  )
+  if (c.status === "stale" || c.status === "cancelled")
     return ["Owner ESC consent is stale for the current booking – new consent required"];
   if (c.status !== "valid" || !c.owner_signed_at || !c.ap_signed_at)
     return [
       `Owner ESC consent not complete (owner + AP representative) – must be signed by ${fmt}`,
     ];
   const done = Math.max(new Date(c.owner_signed_at).getTime(), new Date(c.ap_signed_at).getTime());
+  if (!Number.isFinite(done)) return ["Owner ESC consent signature dates are unreadable"];
   if (done > due)
     return ["Owner ESC consent was completed less than 24h before start – reschedule"];
   return [];

@@ -1713,6 +1713,7 @@ export type QuoteActor = {
   userAgent: string | null;
   authorize: (jobId: string) => Promise<void>;
   isOwner: (jobId: string) => Promise<boolean>;
+  signQuoteSitting?: (jobId: string, quoteId: string, version: number) => Promise<void>;
 };
 
 /** Shared by the signed-in owner page and the no-login secure link (after a verified 6-digit code). */
@@ -1868,6 +1869,7 @@ export async function respondToQuoteImpl(
   }
   if (q.kind === "installation" && data.signing) {
     const input = await signingInput(q.id, data.signing);
+    if (context.signQuoteSitting) await context.signQuoteSitting(q.job_id, q.id, q.version);
     await signCustomerAgreement({
       quoteId: q.id,
       actorId: context.userId,

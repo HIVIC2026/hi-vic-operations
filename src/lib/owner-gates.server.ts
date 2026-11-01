@@ -148,8 +148,7 @@ export async function ownerGates(
 
 /** Decision 395: Gate C "Your safety check copy" receipt blocker for the pre-start check (same facts as the gates). */
 export async function piesaCopyReceiptBlockerFor(jobId: string): Promise<string | null> {
-  const { piesaCopyReceiptBlocker } = await import("./owner-gates.core");
-  return piesaCopyReceiptBlocker(await gateFacts(jobId));
+  return null;
 }
 
 export async function ownerGateStageBlockers(jobId: string, to: string): Promise<string[]> {
@@ -332,11 +331,14 @@ export type SignInput = {
   userAgent: string | null;
   /** Internal quick-taps retry identity; only sharing consent may use it. */
   quickTapsBatchId?: string | undefined;
+  /** Server-derived quote/version identity, never supplied by the browser. */
+  quoteSittingKey?: string;
   verified?: { channel: "sms" | "email"; destination: string; codeId: string };
 };
 
 /** Records one signed document: exact text, version, identity, IP; files a PDF copy; queues the owner's emailed copy. */
 export async function signGateDoc(i: SignInput) {
+  if (i.key === 'piesa_copy_receipt' || i.key === 'veec_assignment_consent') throw new WorkflowError('This document is no longer required.');
   const d = gateDoc(i.key);
   if (!i.ticked) throw new WorkflowError("Please tick the box to sign.");
   if (i.signatoryName.trim().length < 2) throw new WorkflowError("Please type your full name.");
@@ -359,11 +361,16 @@ export async function signGateDoc(i: SignInput) {
       "Your quote isn't ready yet, so the payment amounts can't be shown. Please try again shortly.",
     );
   const text = fillTemplate(d.body, { ...vars, ...answerVars(i.answers, money) });
-  const signedText = `${d.title} (version ${d.version}${draft ? ", DRAFT" : ""})\n\n${text}\n\n[x] ${d.tick}\nSigned: ${i.signatoryName.trim()}${d.gate === "B" ? (await import("./owner-confirm.core")).signedSummaryNote() : ""}`;
+  const emailConsent = i.quoteSittingKey ? `\n[x] ${(await import('./owner-quote-sign.core')).OWNER_EMAIL_DOCUMENT_CONSENT}` : '';
+  const signedText = `${d.title} (version ${d.version}${draft ? ", DRAFT" : ""})\n\n${text}\n\n[x] ${d.tick}${emailConsent}\nSigned: ${i.signatoryName.trim()}${d.gate === "B" ? (await import("./owner-confirm.core")).signedSummaryNote() : ""}`;
   let quickTapId: string | null = null;
   if (i.quickTapsBatchId && i.key === "trade_contact_share") {
     const h = await sha256(`quick-taps-share:${i.jobId}:${i.quickTapsBatchId}:${d.version}`);
     quickTapId = `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`;
+  }
+  if (i.quoteSittingKey) {
+    const h = await sha256(`quote-sitting:${i.jobId}:${i.quoteSittingKey}:${d.key}:${d.version}`);
+    quickTapId = `${h.slice(0,8)}-${h.slice(8,12)}-4${h.slice(13,16)}-8${h.slice(17,20)}-${h.slice(20,32)}`;
   }
   const { data: row, error } = await admin
     .from("owner_gate_signatures")

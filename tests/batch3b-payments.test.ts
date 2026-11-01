@@ -25,7 +25,7 @@ mock.module("../src/lib/workflow.server", () => ({
 }));
 mock.module("../src/lib/install-days.server", () => ({ installDayContext: async () => null }));
 const fixesBooked: string[] = [], offers: string[] = [];
-mock.module("../src/lib/owner-fixes.server", () => ({ bookPickedFixesTime: async (id: string) => { fixesBooked.push(id); return false; } }));
+mock.module("../src/lib/owner-fixes.server", () => ({ ownerFixesState: async () => ({ step: 'none' }), bookPickedFixesTime: async (id: string) => { fixesBooked.push(id); return false; } }));
 mock.module("../src/lib/allocation.server", () => ({ startPiesaAllocation: async (id: string) => { offers.push(id); return { offered: 1, exhausted: false }; } }));
 mock.module("../src/lib/autoadvance.server", () => ({ autoAdvanceJob: async () => undefined }));
 mock.module("../src/lib/owner-email-triggers.server", () => ({ onSafetyCheckPaid: async () => undefined }));

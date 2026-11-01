@@ -59,9 +59,9 @@ export function renderPaperworkCopyEmail(i: PaperworkCopyEmailInput) {
   const body = [
     `<mj-section><mj-column><mj-text mj-class="hi">${esc(hi)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${esc(PAPERWORK_COPY_SUBJECT)}</mj-text><mj-text>${esc(lead)}</mj-text></mj-column></mj-section>`,
     titles.length ? `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 10px">What you signed</mj-text><mj-table padding="0 18px 6px">${titles.map((t) => `<tr><td width="32" valign="top" style="padding:2px 0 12px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 12px;">${esc(t)}</td></tr>`).join("")}</mj-table></mj-column></mj-section>` : "",
-    `<mj-section><mj-column><mj-text padding="16px 12px 14px">${esc(where)}</mj-text>${i.myJobUrl ? `<mj-button href="${esc(i.myJobUrl)}">See my job</mj-button>` : ""}<mj-text mj-class="small" padding="0 12px">Questions? Just reply to this email.</mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column><mj-text padding="16px 12px 14px">${esc(where)}</mj-text><mj-text mj-class="small" padding="0 12px">Questions? Just reply to this email.</mj-text></mj-column></mj-section>`,
   ].join("");
   const html = mjEmail({ subject: PAPERWORK_COPY_SUBJECT, preview, body, unsubscribe: i.unsubscribeUrl, testLabel: i.test === true });
-  const text = K.plainText([hi, "", PAPERWORK_COPY_SUBJECT, "", lead, "", "What you signed:", ...titles.map((t) => `- ${t}`), "", where, ...(i.myJobUrl ? [`See my job: ${i.myJobUrl}`] : []), "", "Questions? Just reply to this email."], { unsubscribe: i.unsubscribeUrl, testLabel: i.test === true });
+  const text = K.plainText([hi, "", PAPERWORK_COPY_SUBJECT, "", lead, "", "What you signed:", ...titles.map((t) => `- ${t}`), "", where,  "", "Questions? Just reply to this email."], { unsubscribe: i.unsubscribeUrl, testLabel: i.test === true });
   return { subject: PAPERWORK_COPY_SUBJECT, html, text };
 }
