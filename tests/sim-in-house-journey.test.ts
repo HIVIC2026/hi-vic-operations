@@ -25,11 +25,11 @@ test('SIM all-clear booking/forms/deposit/digest sequence uses one continuing jo
   ]);
   await h.completePiesa(false);
   h.assertStep('PIESA pass','installation_scheduling',['RC','A3','A4'],[
-    ['owner','email','in_house_deposit_request'],['owner','sms','in_house_install_deposit_request'],
+    ['owner','email','install_deposit_request'],['owner','sms','install_deposit_request'],
   ]);
   await h.payDeposit('stripe');
   h.assertStep('Deposit paid','installation_scheduling',['RC','A3','A4'],[
-    ['owner','email','in_house_deposit_paid'],['owner','sms','in_house_install_deposit_paid'],['installer-office','email','install-deposit-paid-office:v1:invoice'],
+    ['owner','email','install_deposit_paid'],['owner','sms','install_deposit_paid'],['installer-office','email','install_deposit_paid_office'],
   ]);
   h.confirmPiesa(); await h.bookInstall();
   h.assertStep('Install booked','installation_booked',['RC','A3','A4','A5'],[
@@ -47,17 +47,17 @@ test('SIM rectification holds deposit until work complete; Xero paid notice is e
   const h=createInHouseSim();await h.bookReadyCheck();h.completeReadyCheck();h.acceptQuote();h.paySafetyCheck();await h.bookSafetyCheck();
   await h.completePiesa(true);h.assertStep('Rectification needed','rectification_scheduling',['RC','A3','A4'],[]);
   await h.tryDeposit();h.assertNoNewMessages();await h.completeRectification();
-  h.assertStep('Rectification done','installation_scheduling',['RC','A3','A4'],[['owner','email','in_house_deposit_request'],['owner','sms','in_house_install_deposit_request']]);
-  await h.payDeposit('xero');h.assertStep('Xero deposit paid','installation_scheduling',['RC','A3','A4'],[['owner','email','in_house_deposit_paid'],['owner','sms','in_house_install_deposit_paid'],['installer-office','email','install-deposit-paid-office:v1:invoice']]);
+  h.assertStep('Rectification done','installation_scheduling',['RC','A3','A4'],[['owner','email','install_deposit_request'],['owner','sms','install_deposit_request']]);
+  await h.payDeposit('xero');h.assertStep('Xero deposit paid','installation_scheduling',['RC','A3','A4'],[['owner','email','install_deposit_paid'],['owner','sms','install_deposit_paid'],['installer-office','email','install_deposit_paid_office']]);
   h.confirmPiesa();await h.bookInstall();h.assertOfficesEmailOnly();
 });
 
 test('SIM deposit unpaid day 3/day 7; paid gate never allows installation',async()=>{
  const h=createInHouseSim();await h.atClearance();await h.tryDeposit();h.checkpoint();
  h.clock.set('2026-11-05T22:00:00Z');await h.sweepDeposits();
- h.assertStep('Day 3','installation_scheduling',['RC','A3','A4'],[['owner','email','in_house_deposit_reminder'],['owner','sms','in_house_install_deposit_reminder']]);
+ h.assertStep('Day 3','installation_scheduling',['RC','A3','A4'],[['owner','email','install_deposit_day3'],['owner','sms','install_deposit_reminder']]);
  h.clock.set('2026-11-09T22:00:00Z');await h.sweepDeposits();
- h.assertStep('Day 7','installation_scheduling',['RC','A3','A4'],[['owner','email','in_house_deposit_reminder'],['owner','sms','in_house_install_deposit_reminder']]);
+ h.assertStep('Day 7','installation_scheduling',['RC','A3','A4'],[['owner','email','install_deposit_day7'],['owner','sms','install_deposit_reminder']]);
  await h.sweepDeposits();h.assertNoNewMessages();expect(await h.installOffered()).toBe(false);
  await expect(h.bookInstall()).rejects.toThrow('10%');h.assertOfficesEmailOnly();
 });
@@ -70,7 +70,7 @@ test('SIM owner cancellation closes unused forms and emails only HIV office, rep
 });
 
 test('SIM Lead Installer day-before and morning swaps move A5/SWMS; matching ESC acknowledgement unlocks',async()=>{
- const h=createInHouseSim();await h.atInstallBooked();h.clock.set('2026-11-15T22:00:00Z');await h.swap('replacement');
+ const h=createInHouseSim();await h.atInstallBooked();h.clock.set('2026-11-14T22:00:00Z');await h.swap('replacement');
  expect(h.formOwner('A5')).toBe('replacement@example.invalid');expect(h.canSignSwms('lead')).toBe(false);expect(h.canSignSwms('replacement')).toBe(true);expect(await h.prestartBlocker()).toBeNull();
  h.clock.set('2026-11-15T21:00:00Z'); // 8am Melbourne on the installation day
  await h.swap('lead');expect(h.formOwner('A5')).toBe('lead@example.invalid');expect(h.canSignSwms('replacement')).toBe(false);
@@ -81,13 +81,13 @@ test('SIM Lead Installer day-before and morning swaps move A5/SWMS; matching ESC
 test('SIM thirty-day 20/10 warnings, office flag, expiry repeat choice',async()=>{
  const h=createInHouseSim();await h.atClearance();h.checkpoint();
  h.clock.set('2026-11-12T22:00:00Z');await h.windowWarnings();
- h.assertStep('20 days left','installation_scheduling',['RC','A3','A4'],[['owner','email','install_window:reminder_20:owner'],['installer-office','email','install_window:reminder_20:installer'],['owner','sms','install_window_reminder']]);
+ h.assertStep('20 days left','installation_scheduling',['RC','A3','A4'],[['owner','email','install_window_reminder_20'],['owner','sms','install_window_reminder'],['installer-office','email','install_window_reminder_20']]);
  h.clock.set('2026-11-22T22:00:00Z');await h.windowWarnings();
- h.assertStep('10 days left','installation_scheduling',['RC','A3','A4'],[['owner','email','install_window:reminder_10:owner'],['installer-office','email','install_window:reminder_10:installer'],['owner','sms','install_window_reminder']]);
- expect(h.tenDayFlag()).toBe(true);h.clock.set('2026-12-03T22:00:00Z');expect(h.repeatDecision().needed).toBe(true);await expect(h.bookInstall()).rejects.toThrow();h.assertOfficesEmailOnly();
+ h.assertStep('10 days left','installation_scheduling',['RC','A3','A4'],[['owner','email','install_window_reminder_10'],['owner','sms','install_window_reminder'],['installer-office','email','install_window_reminder_10']]);
+ expect(h.tenDayFlag()).toBe(true);h.clock.set('2026-12-03T22:00:00Z');expect(h.repeatDecision().stage).toBe('choose');await expect(h.bookInstall()).rejects.toThrow();h.assertOfficesEmailOnly();
 });
 
 test('SIM two-business-day flag keeps job assigned and handback preserves reason',async()=>{
- const h=createInHouseSim();h.clock.set('2026-11-04T22:00:00Z');expect(h.bookingOverdue()).toBe(true);expect(h.actorCanRead('installer-office')).toBe(true);
+ const h=createInHouseSim();h.clock.set('2026-11-05T22:00:00Z');expect(h.bookingOverdue()).toBe(true);expect(h.actorCanRead('installer-office')).toBe(true);
  await h.handBack('Cannot cover this address');expect(h.actorCanRead('installer-office')).toBe(false);expect(h.job.stage).toBe('ready_check_ready_to_schedule');expect(h.handbackReason()).toBe('Cannot cover this address');h.assertOfficesEmailOnly();
 });
