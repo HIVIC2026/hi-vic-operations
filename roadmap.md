@@ -3,7 +3,7 @@
 - [ ] Same-invoice remaining card/bank payment with webhook/Xero progression and duplicate/TEST safeguards.
 - [ ] Day5/due reminders and next-day overdue office task.
 - [ ] Only requested wording updates across quote/booked/deposit/O45/My job/stall/replies; changed-copy report.
-- [ ] Related tests, full comparable suite, changed-file report; pending SQL only, no sends/publish/settings/live data.
+- [ ] Full comparable run completed: before 10077/243/97 failing files, provisional after 10068/258/103. Eight files increased (includes retired copy expectations and missing isolated mock dependency). Q21 NOT complete: repair failures, durable retry/uncertain reminder proof, authentic payment/UI and two-user proof remain. No live changes/sends/publishing.
 
 ## Jo 2 Nov published-site TEST whole-flow request
 - [x] Published-site tooling preflight executed: portal-qa read-only published target refuses before setup. No browser/data/provider actions. Findings docs/published-in-house-test-preflight.md.

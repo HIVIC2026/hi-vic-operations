@@ -18,7 +18,7 @@ export async function sweepBalanceQ21(now=new Date()){
     await (await import('./owner-template-send.server')).sendOwnerTemplateEmail({jobId:job.id,purpose:'balance_reminder',key:`balance-q21:${inv.id}:${due}:${reminder}`,approved:true,label:'Balance reminder',notSentEvent:'balance_reminder_not_sent',retryAfterDefiniteFailure:true,render:f=>{
      const subject=reminder==='day5'?'Your balance is due in 2 days':'Your balance is due today';
      const lines=[`Your remaining balance is due ${dueLabel}. Pay by card or bank transfer on My job.`];
-     return {subject,text:`${subject}\n\n${lines.join('\n\n')}\n\nPay my balance: ${f.myJobUrl}?screen=payment`,html:(requireMail)(subject,lines,`${f.myJobUrl}?screen=payment`,f.unsubscribeUrl)};
+     return {subject,text:`${subject}\n\n${lines.join('\n\n')}\n\nPay my balance: ${f.myJobUrl}?screen=pay`,html:(requireMail)(subject,lines,`${f.myJobUrl}?screen=pay`,f.unsubscribeUrl)};
     }});
    }catch(error){console.error('Balance reminder held',job.id,error instanceof Error?error.message:'read failed');}
   }

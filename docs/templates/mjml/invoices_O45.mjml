@@ -1,7 +1,7 @@
 <mjml lang="en-AU">
   <mj-head>
     <mj-title>Helen, your install is done. Here's your final invoice</mj-title>
-    <mj-preview>Balance due today: $1,665.90 by bank transfer, reference HIV-TEST.</mj-preview>
+    <mj-preview>Balance due 18 November 2026: $1,665.90 by bank transfer, reference HIV-TEST.</mj-preview>
     <mj-include path="./partials/head.mjml" />
   </mj-head>
   <mj-body>
@@ -11,13 +11,13 @@
       <mj-section>
         <mj-column>
           <mj-text mj-class="h1" css-class="email-heading">Helen, your install is done. Here's your final invoice</mj-text>
-          <mj-text>Sample Insulation Co finished today. Your balance is due today, as agreed when you booked. Please pay by bank transfer using the details below, with your invoice number as the reference.</mj-text>
+          <mj-text>Sample Insulation Co finished today. Your balance is due 18 November 2026. Pay by card on My job or by bank transfer using the details below, with your invoice number as the reference.</mj-text>
         </mj-column>
       </mj-section>
 
       <mj-section>
         <mj-column mj-class="panel">
-          <mj-text mj-class="eyebrow center" padding="18px 12px 6px">Balance due today</mj-text>
+          <mj-text mj-class="eyebrow center" padding="18px 12px 6px">Balance due 18 November 2026</mj-text>
           <mj-text mj-class="big-blue" padding="0 12px 18px">$1,665.90</mj-text>
         </mj-column>
       </mj-section>
@@ -38,7 +38,7 @@
             <tr><td valign="top" style="padding:9px 0;border-top:1px solid #E4E9F5;"><strong>Amount after VEEC incentive</strong></td><td align="right" valign="top" style="padding:9px 0 9px 12px;white-space:nowrap;border-top:1px solid #E4E9F5;"><strong>$2,200.00</strong></td></tr>
             <tr><td valign="top" style="padding:9px 0;border-top:1px solid #E4E9F5;">Paid: safety check (24 Oct)</td><td align="right" valign="top" style="padding:9px 0 9px 12px;white-space:nowrap;border-top:1px solid #E4E9F5;">&#8722;$349.00</td></tr>
             <tr><td valign="top" style="padding:9px 0;border-top:1px solid #E4E9F5;">Paid: deposit (4 Nov)</td><td align="right" valign="top" style="padding:9px 0 9px 12px;white-space:nowrap;border-top:1px solid #E4E9F5;">&#8722;$185.10</td></tr>
-            <tr><td valign="top" style="padding:9px 0;border-top:2px solid #22376B;"><strong>Balance due today</strong></td><td align="right" valign="top" style="padding:9px 0 9px 12px;white-space:nowrap;border-top:2px solid #22376B;"><strong>$1,665.90</strong></td></tr>
+            <tr><td valign="top" style="padding:9px 0;border-top:2px solid #22376B;"><strong>Balance due 18 November 2026</strong></td><td align="right" valign="top" style="padding:9px 0 9px 12px;white-space:nowrap;border-top:2px solid #22376B;"><strong>$1,665.90</strong></td></tr>
           </mj-table>
         </mj-column>
       </mj-section>
