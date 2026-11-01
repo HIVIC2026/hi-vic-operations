@@ -1,5 +1,5 @@
 // No-login owner "My job" view. The secure estimate link token is the only credential. Read-only.
-import { isSpotSavedStage, spotReleasedForPage } from "./owner-myjob.core";
+import { currentOwnerAction, isSpotSavedStage, spotReleasedForPage } from "./owner-myjob.core";
 import { currentFeeWording } from "./hiv-quote.core";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { isWellFormedToken, LINK_PURPOSE, linkUsable } from "./estimatelink.core";
@@ -34,8 +34,8 @@ export async function resolveOwnerJob(token: unknown) {
   const jobId = l.job_id;
   // At most six reads per wave: the published runtime has six outbound slots.
   const [{ data: j }, { data: quotes }, { data: bookings }, { data: invoices }, { data: est }, { data: ws }] = await Promise.all([
-    admin.from("jobs").select("job_number, stage, deleted_at, channel, external_refs, owners(full_name, email, phone), properties(address_line, suburb, state, postcode)").eq("id", jobId).single(),
-    admin.from("quotes").select("id, kind, status, release_state, option_label, customer_total_inc_gst, veec_discount_inc_gst, subtotal_inc_gst, sent_at, accepted_at, version, quote_items(code, description, quantity, line_total_inc_gst, sort)").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted", "declined"]).order("created_at", { ascending: false }).order("created_at", { ascending: false }),
+    admin.from("jobs").select("job_number, stage, deleted_at, channel, external_refs, cancelled_reason, installation_completed_at, owners(full_name, email, phone), properties(address_line, suburb, state, postcode)").eq("id", jobId).single(),
+    admin.from("quotes").select("id, kind, status, release_state, option_label, customer_total_inc_gst, veec_discount_inc_gst, subtotal_inc_gst, sent_at, accepted_at, version, quote_items(code, description, quantity, line_total_inc_gst, sort)").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted", "declined", "expired"]).order("created_at", { ascending: false }),
     admin.from("bookings").select("kind, status, scheduled_start, contractor_id, business_id").eq("job_id", jobId).in("status", ["confirmed", "completed"]).order("scheduled_start"),
     // "Paid" next to the install price: the installation invoice (batch 3b: fixes / repeat check have their own invoices).
     admin.from("invoices").select("total_paid, amount_paid").eq("job_id", jobId).eq("kind", "installation"),
@@ -46,7 +46,7 @@ export async function resolveOwnerJob(token: unknown) {
   const [{ data: rc }, { data: spot }, { data: consent }, { data: cancellableBookings }, { data: veecRows }, released] = await Promise.all([
     admin.from("ready_check_acceptances").select("accepted_at").eq("job_id", jobId).limit(1).maybeSingle(),
     admin.from("lead_campaign_responses").select("spot_saved_at, opted_out_at, media_received_at, video_requested, saved_veu_discount, saved_total").eq("job_id", jobId).maybeSingle(),
-    admin.from("owner_esc_consents").select("status, scheduled_start").eq("job_id", jobId).eq("status", "awaiting_owner").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("owner_esc_consents").select("status").eq("job_id", jobId).eq("status", "awaiting_owner").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("bookings").select("kind").eq("job_id", jobId).in("status", ["proposed", "confirmed"]),
     admin.from("customer_assignments").select("status, consumer_signed_at").eq("job_id", jobId).eq("record_kind", "final_veec_assignment").order("created_at", { ascending: false }),
     // Jo 29 Oct (HV-3542): once the spot is released the spot-saved page stops saying "we'll be in touch". Lapsed = back in the queue. A failed read = not released. (Six reads in this wave: at the cap.)
@@ -99,7 +99,7 @@ export async function resolveOwnerJob(token: unknown) {
   // Decisions 139/140/141: what is due now, how to pay it (card for the card steps), bank details + reference. Batch 3b:
   // each step shows its own amount, and the reference is the due step's own invoice (fixes / repeat check have their own).
   // Owner-safe: amounts, state, the Xero online-invoice link and the invoice reference only – never Xero IDs or errors.
-  const pay = quote?.status === "accepted" ? await (await import("./payments.server")).jobPaymentView(jobId).catch(() => null) : null;
+  const pay = quote?.status === "accepted" ? await (await import("./payments.server")).jobPaymentView(jobId) : null;
   const payment = pay ? {
     steps: pay.steps.map((s) => ({ key: s.key, label: s.label, amount: s.amountCents / 100, state: s.state, card: s.methods.includes("card") })),
     dueNow: pay.due.dueNowCents / 100, remaining: pay.due.remainingCents / 100, paid: pay.paidCents / 100,
@@ -108,18 +108,23 @@ export async function resolveOwnerJob(token: unknown) {
   } : null;
   const limits = (ws?.office_time_limits ?? {}) as Record<string, unknown>;
   let currentAction: Exclude<import('./owner-myjob.core').OwnerScreen,'home'|'done'> | null = null;
+  const {QUOTE_EXPIRED_CANCEL_REASON,quoteIsExpired}=await import('./quote-expiry.core');
+  if (stage === 'cancelled' && j.cancelled_reason === QUOTE_EXPIRED_CANCEL_REASON) currentAction='newquote';
   if (!['cancelled','on_hold'].includes(stage)) {
     const taps = await (await import('./quick-taps.server')).quickTapsState(String(token));
-    if (taps.kind === 'ask' || taps.kind === 'retry') currentAction = 'taps';
-    else if (quoteOpen) currentAction = 'quote';
+    const turn = stage === 'ready_check_ready_to_schedule' && !inHouseDispatch ? await (await import('./spot-release.server')).ownerTurnState(jobId) : {kind:'closed'};
+    if (turn.kind === 'ask') currentAction='turn';
+    else if (taps.kind === 'ask' || taps.kind === 'retry') currentAction = 'taps';
+    else if (quoteOpen) currentAction = quoteIsExpired({kind:'installation',sent_at:quote?.sent_at ?? null}) ? 'newquote' : 'quote';
     else {
       const confirmation = await (await import('./piesa-owner-confirm.server')).ownerPiesaConfirmFacts(jobId);
-      if (confirmation && !confirmation.confirmation) currentAction = 'piesa';
+      if ((payment?.dueNow ?? 0) > 0 || payment?.provisional) currentAction='pay';
+      else if (confirmation && !confirmation.confirmation) currentAction = 'piesa';
       else {
         const fixes = ['piesa_complete','electrical_variation_pending','rectification_scheduling','rectification_booked','installation_scheduling'].includes(stage) ? await (await import('./owner-fixes.server')).ownerFixesState(jobId) : {step:'none'};
         if (['approve','pay','pick'].includes(fixes.step) && !(inHouseDispatch && fixes.step === 'pick')) currentAction = 'fixes';
         else if ((payment?.dueNow ?? 0) > 0 || payment?.provisional) currentAction = 'pay';
-        else if (veec?.status === 'awaiting_consumer_signature' && !veec.consumer_signed_at) currentAction = 'veec';
+        else if (j.installation_completed_at && veec?.status === 'awaiting_consumer_signature' && !veec.consumer_signed_at) currentAction = 'veec';
         else if (action.button?.screen === 'spot' && !spot?.spot_saved_at) currentAction = 'spot';
         else if (!inHouseDispatch && bookingOpen) {
           const times = await (await import('./piesa-times.server')).ownerPiesaTimesState(jobId);
@@ -128,7 +133,14 @@ export async function resolveOwnerJob(token: unknown) {
         }
       }
     }
+    if (!currentAction && j.installation_completed_at) {
+      const {OWNER_EMAIL_TRIGGER_EVENT}=await import('./owner-email-triggers.core');
+      const {data:invited,error}=await admin.from('workflow_events').select('id').eq('job_id',jobId).eq('event_type',OWNER_EMAIL_TRIGGER_EVENT).contains('details',{code:'O51'}).limit(1);
+      if(error)throw new Error('Your next step could not be checked. Please retry.');
+      if(invited?.length){const review=await (await import('./owner-review.server')).ownerReviewState(jobId);if(review.open && (!review.latestStars || review.latestStars<=3&&!review.feedbackSent))currentAction='review';}
+    }
   }
+  currentAction=currentOwnerAction({taps:currentAction==='taps',spot:currentAction==='spot',quote:currentAction==='quote',pay:currentAction==='pay',piesa:currentAction==='piesa',veec:currentAction==='veec',book:currentAction==='book',fixes:currentAction==='fixes',newquote:currentAction==='newquote',review:currentAction==='review',turn:currentAction==='turn'});
   return {
     currentAction,
     inHouseDispatch,
@@ -140,7 +152,7 @@ export async function resolveOwnerJob(token: unknown) {
     quote: quote ? { id: quote.id, status: quote.status, accepted_at: quote.accepted_at, label: quote.option_label, total, rebate: n(quote.veec_discount_inc_gst), version: quote.version, heldUntil: quoteOpen?.expiresAt ?? null, lines: [...(quote.quote_items ?? [])].sort((a, b) => a.sort - b.sort).map((i) => ({ description: currentFeeWording(i.description), amount: n(i.line_total_inc_gst) })), split: total != null ? splitForOption(total, safetyCheckIncGstFor({ lines: quote.quote_items ?? [], settingIncGst: ws?.safety_check_payment_inc_gst ?? null })) : null } : null,
     payment,
     // Approved P3 page (decision 128): Section 1 is prefilled from the owner + property, never typed again by the owner.
-    consent: consent ? { scheduledStart: consent.scheduled_start, section1: section1FromFacts({ owner: { name: owner?.full_name ?? null, email: owner?.email ?? null, phone: owner?.phone ?? null }, premises_address: formatPropertyAddress(j.properties as never) }) } : null,
+    consent: consent ? { scheduledStart: null, section1: section1FromFacts({ owner: { name: owner?.full_name ?? null, email: owner?.email ?? null, phone: owner?.phone ?? null }, premises_address: formatPropertyAddress(j.properties as never) }) } : null,
     spotSaved: isSpotSavedStage(stage, spot ?? null, !!upcoming || (bookings ?? []).some((b) => b.kind === "ready_check")) ? {
       rebate: spot?.saved_veu_discount != null ? n(spot.saved_veu_discount) : rebate,
       cost: spot?.saved_total != null ? n(spot.saved_total) : null,

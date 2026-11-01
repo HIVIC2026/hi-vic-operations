@@ -41,7 +41,7 @@ async function currentFacts(jobId: string): Promise<{ facts: ConsentFacts | null
   return { facts, bookingId: null };
 }
 
-/** Generates / refreshes the owner consent for the CURRENT installation booking. Locked-detail changes stale the old one. */
+/** Generates / refreshes owner/premises consent. Booking changes do not alter the official form. */
 export async function syncOwnerConsent(jobId: string, actorId: string | null) {
   const { facts, bookingId } = await currentFacts(jobId);
   const prev = await currentConsent(jobId);
@@ -64,9 +64,21 @@ export async function syncOwnerConsent(jobId: string, actorId: string | null) {
     scheduled_start: null, premises_address: facts.premises_address, owner_contact: facts.owner as Json,
     snapshot: facts as unknown as Json, snapshot_sha256: sha,
   }).select("id").single();
+  if(error?.code==='23505'){
+    const current=await currentConsent(jobId);
+    if(current && !consentStaleReasons(current.snapshot as unknown as ConsentFacts,facts).length)return current.id;
+  }
   if (error) throw new Error(error.message);
   await logEvent(jobId, actorId, "esc_consent_prepared", `Owner ESC consent v${(prev?.version ?? 0) + 1} prepared${tplOk ? " – awaiting owner signature" : " – consent form wording not approved (configuration required)"}`, { consent_id: ins?.id }, { internal: true });
   return ins?.id ?? null;
+}
+
+/** Preflight all official owner-signature rules before creating any quote-sitting signatures. */
+export async function prepareQuoteConsent(p:{jobId:string;actorId:string;input:ConsentSignInput}) {
+  const tpl=activeTemplate(await templates(),'esc_consent');
+  const blockers=ownerConsentBlockers({status:'awaiting_owner',templateApproved:!!tpl,templateVersion:tpl?.version??null,scheduledStart:null,nowIso:new Date().toISOString(),input:p.input});
+  if(blockers.length)throw new WorkflowError(blockers.join(' '));
+  if(!(await syncOwnerConsent(p.jobId,p.actorId)))throw new WorkflowError('Owner and property details are needed to prepare consent.');
 }
 
 async function storeCopy(jobId: string, path: string, text: string, title: string, actorId: string | null) {
@@ -121,7 +133,9 @@ export async function confirmApConsent(p: { jobId: string; actorId: string | nul
   const esc = isEscTemplateVersion(c.template_version);
   const rep: ApRep | null = p.apRep ? { first_name: p.apRep.first_name.trim(), last_name: p.apRep.last_name.trim(), role: p.apRep.role.trim(), phone: p.apRep.phone?.trim() || null, email: p.apRep.email?.trim() || null } : null;
   const apRepName = (rep ? apRepFullName(rep) : p.apRepName ?? "").trim();
-  const b = apConsentBlockers({ status: c.status, scheduledStart: c.scheduled_start, nowIso: new Date().toISOString(), apRepName, purposeExplained: p.purposeExplained, templateVersion: c.template_version, apRep: rep });
+  const { data: booking, error: bookingError } = await admin.from("bookings").select("scheduled_start").eq("job_id", p.jobId).eq("kind", "installation").in("status", ["confirmed", "completed"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (bookingError) throw new WorkflowError("The current installation timing could not be checked.");
+  const b = apConsentBlockers({ status: c.status, scheduledStart: booking?.scheduled_start ?? null, nowIso: new Date().toISOString(), apRepName, purposeExplained: p.purposeExplained, templateVersion: c.template_version, apRep: rep });
   if (b.length) throw new WorkflowError(b.join(" "));
   const tpl = (await admin.from("compliance_templates").select("version, body").eq("template_key", "esc_consent").eq("version", c.template_version ?? "").maybeSingle()).data;
   const now = new Date().toISOString();

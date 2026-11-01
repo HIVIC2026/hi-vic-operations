@@ -45,14 +45,14 @@ describe("decision 370: automatic AP part of the owner consent", () => {
     expect(late).toEqual({ action: "hold", reasons: ["Consent must be complete at least 24 hours before the installation starts."] });
   });
 
-  test("holds with every reason: booking moved, missing Section 2 ticks, no configured representative", () => {
+  test("booking changes do not stale consent; missing ticks and representative still hold", () => {
     const d = decideConsentApAutoSignature({ ...ready, bookingStart: "2026-11-05T22:00:00Z", ownerDeclarations: { ...ticks, consent_commission_shares: false }, rep: null });
     expect(d.action).toBe("hold");
     if (d.action !== "hold") throw new Error("expected hold");
-    expect(d.reasons[0]).toBe("The installation booking changed after the owner signed — a new consent is needed.");
+    expect(d.reasons).not.toContain("The installation booking changed after the owner signed — a new consent is needed.");
     expect(d.reasons).toContain("The owner's four Section 2 declarations are not all recorded.");
     expect(d.reasons).toContain("No AP representative is configured to sign Section 3.");
-    expect(decideConsentApAutoSignature({ ...ready, bookingStart: null }).action).toBe("hold");
+    expect(decideConsentApAutoSignature({ ...ready, bookingStart: null }).action).toBe("sign");
   });
 
   test("Needs me: only after 24 hours held, or when the 24h-before-start deadline is less than a day away", () => {

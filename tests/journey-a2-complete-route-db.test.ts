@@ -7,6 +7,7 @@
 // steps after the $349 payment (electrician, PIESA, fixes, install day, completion, payouts) run the same server code
 // as the A1 route and are proven in tests/journey-a1-complete-route-db.test.ts.
 import { afterAll, describe, expect, mock, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { fakeProviders, journeyAdmin, journeyDb, loadPendingFunctions, serverFnStandIn, fillAudit, stripePaidWebhook, type MittiItem } from "./helpers/journey-harness";
 
 const BIZ = "30000000-0000-4000-8000-0000000000a2", INST = "40000000-0000-4000-8000-0000000000a2";
@@ -31,6 +32,7 @@ await loadPendingFunctions(j);
 const { admin, asUser, storage } = journeyAdmin(j);
 providers.storageFiles.map = storage;
 const q = j.q;
+await j.db.exec(readFileSync("docs/pending-migrations/2026-11-01_date_free_esc_consent.sql","utf8"));
 
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: admin }));
 mock.module("@tanstack/react-start", serverFnStandIn);
@@ -292,7 +294,7 @@ describe("A2 step 4 — the installer completes the A2 Ready Check in Mitti → 
   });
 });
 
-const SIGNING = { signatoryName: "Harriet Journey", authorityType: "owner", signatureName: "Harriet Journey", over18: true, readConsumerInfo: true, acceptAgreement: true, assistance: "none" };
+const SIGNING = { signatoryName: "Harriet Journey", authorityType: "owner", signatureName: "Harriet Journey", over18: true, readConsumerInfo: true, acceptAgreement: true, assistance: "none", declarations:{owner_or_authorised:true,details_accurate:true,consent_ap_sends:true,consent_commission_shares:true} };
 
 describe("A2 step 5 — the office checks and sends the quote; the owner signs and accepts; the $349 safety check is paid", () => {
   test("only the office can send the held quote; Send issues it once and the owner gets it by email + text", async () => {
@@ -316,26 +318,28 @@ describe("A2 step 5 — the office checks and sends the quote; the owner signs a
       const [t] = await q<{ id: string }>("select id from compliance_templates where template_key=$1 and version='journey-1'", [key]);
       await pf.approveComplianceTemplate({ data: { id: t!.id }, context: officeCtx });
     }
+    const {ESC_CONSENT_TEMPLATE_VERSION}=await import("../src/lib/consent.core");
+    await q("insert into compliance_templates(template_key,version,body,approved,is_active) values('esc_consent',$1,'Official consent fixture',true,true)",[ESC_CONSENT_TEMPLATE_VERSION]);
     const ol = await import("../src/lib/owner-link.functions");
     const ogf = await import("../src/lib/owner-gates.functions");
     const { token, session } = await ownerSession();
-    const signed: string[] = [];
-    for (let i = 0; i < 15; i++) {
-      const p = await ogf.ownerPaperworkFn({ data: { token } }) as { todo: { key: string; gate: string }[] };
-      const next = p.todo.find((t) => t.gate === "A" || t.gate === "B");
-      if (!next) break;
-      await ogf.ownerSignPaperworkFn({ data: { token, session, key: next.key, signatoryName: "Harriet Journey", ticked: true, answers: { role: "owner", life_support: "no" } }, context: META });
-      signed.push(next.key);
-    }
-    debug("SIGNED", signed);
+    // Task 5: this one Sign creates all four records; no separate paperwork signatures.
+    expect(await q("select id from owner_gate_signatures where job_id=$1 and gate='B'",[JOB])).toHaveLength(0);
     const [qq] = await q<{ id: string; version: number }>("select id, version from quotes where job_id=$1 and status='issued'", [JOB]);
     await expect(ol.ownerAcceptQuoteFn({ data: { token, session, quoteId: qq!.id, expectedVersion: qq!.version + 1, signing: SIGNING }, context: META })).rejects.toThrow(/updated since/);
+    await expect(ol.ownerAcceptQuoteFn({ data: { token, session, quoteId: qq!.id, expectedVersion: qq!.version, signing: {...SIGNING,declarations:{...SIGNING.declarations,details_accurate:false}} }, context: META })).rejects.toThrow();
+    expect(await q("select id from owner_gate_signatures where job_id=$1 and gate='B'",[JOB])).toHaveLength(0);
     await ol.ownerAcceptQuoteFn({ data: { token, session, quoteId: qq!.id, expectedVersion: qq!.version, signing: SIGNING }, context: META });
     await settle();
     expect(await ol.ownerAcceptQuoteFn({ data: { token, session, quoteId: qq!.id, expectedVersion: qq!.version, signing: SIGNING }, context: META })).toEqual({ ok: true, outcome: "already accepted" });
     debug("ACCEPTED", await stageOf(JOB), await q("select status from quotes where id=$1", [qq!.id]), await recent(JOB, 12));
     expect(await q("select status from quotes where id=$1", [qq!.id])).toEqual([{ status: "accepted" }]);
     expect(await q("select id from customer_agreements where job_id=$1", [JOB])).toHaveLength(1);
+    expect(await q("select doc_key from owner_gate_signatures where job_id=$1 and gate='B' order by doc_key",[JOB])).toEqual([{doc_key:"payment_terms"},{doc_key:"quote_acceptance"}]);
+    const [consent]=await q<{scheduled_start:string|null;owner_signed_at:string|null;owner_declarations:Record<string,boolean>}>("select scheduled_start,owner_signed_at,owner_declarations from owner_esc_consents where job_id=$1",[JOB]);
+    expect(consent?.scheduled_start).toBeNull();expect(consent?.owner_signed_at).toBeTruthy();expect(consent?.owner_declarations).toEqual(SIGNING.declarations);
+    expect(await q("select signed_text from owner_gate_signatures where job_id=$1 and doc_key='quote_acceptance'",[JOB])).toEqual([expect.objectContaining({signed_text:expect.stringContaining("I agree to receive my documents by email.")})]);
+
     expect(await events(JOB, "QUOTE_ACCEPTED")).toHaveLength(1);
   });
   test("$349 by card: Stripe checkout once per amount, forged webhook refused, the paid webhook recorded once", async () => {

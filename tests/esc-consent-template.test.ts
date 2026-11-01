@@ -129,11 +129,9 @@ describe("Section 2: the four declaration lines must each be ticked", () => {
       }).join(),
     ).toMatch(/confirm you consent/);
   });
-  test("every existing timing rule is kept: exact date, approved wording, status, 24h lead, names", () => {
+  test("quote-stage consent needs no date; approval, status, known-booking 24h lead and names remain guarded", () => {
     const base = { templateApproved: true, templateVersion: esc, nowIso: now, input };
-    expect(ownerConsentBlockers({ ...base, status: null, scheduledStart: null })[0]).toMatch(
-      /exact installation date/,
-    );
+    expect(ownerConsentBlockers({ ...base, status: null, scheduledStart: null })).toEqual([]);
     expect(
       ownerConsentBlockers({
         ...base,
@@ -270,7 +268,7 @@ describe("rendering the executed form", () => {
     const out = renderConsentBody({
       version: "lawyer-2026-10-06-v1",
       body: "my install day(s) ({dates}), my property address",
-      facts,
+      facts: {...facts, installation_days:["2026-11-11"]},
     });
     expect(out).toBe("my install day(s) (2026-11-11), my property address");
   });
@@ -309,7 +307,7 @@ describe("executed copy to the owner (ESC recommends providing a copy)", () => {
         sha256: "abc",
         myJobUrl: "https://estimate.homeinsulationvictoria.com.au/my-job/t",
       }).html,
-    ).toContain(">See my job<");
+    ).not.toContain(">See my job<");
   });
   test("server wiring: AP signing renders the template, stores ticks/rep and emails through the guarded owner path", () => {
     const server = readFileSync("src/lib/consent.server.ts", "utf8");

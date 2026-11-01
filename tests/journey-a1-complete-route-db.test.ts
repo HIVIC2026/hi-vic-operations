@@ -5,6 +5,7 @@
 // stage, its workflow_events, the sends recorded with their idempotency keys, and that the next step is refused when
 // tried too early.
 import { afterAll, describe, expect, mock, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { fakeProviders, journeyAdmin, journeyDb, loadPendingFunctions, serverFnStandIn, fillAudit, stripePaidWebhook, type MittiItem } from "./helpers/journey-harness";
 
 // ---- fixed TEST data ----------------------------------------------------------------------------------------------
@@ -32,6 +33,7 @@ const fns = await loadPendingFunctions(j);
 const { admin, asUser, storage } = journeyAdmin(j);
 providers.storageFiles.map = storage;
 const q = j.q;
+await j.db.exec(readFileSync("docs/pending-migrations/2026-11-01_date_free_esc_consent.sql","utf8"));
 
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: admin }));
 mock.module("@tanstack/react-start", serverFnStandIn);
@@ -176,7 +178,7 @@ const ownerSessionFor = async (jobId: string) => {
   return { token, session };
 };
 const META = { ip: "127.0.0.1", userAgent: "journey-test" };
-const SIGNING = { signatoryName: "Helen Journey", authorityType: "owner", signatureName: "Helen Journey", over18: true, readConsumerInfo: true, acceptAgreement: true, assistance: "none" };
+const SIGNING = { signatoryName: "Helen Journey", authorityType: "owner", signatureName: "Helen Journey", over18: true, readConsumerInfo: true, acceptAgreement: true, assistance: "none", declarations:{owner_or_authorised:true,details_accurate:true,consent_ap_sends:true,consent_commission_shares:true} };
 
 describe("A1 step 3 — the owner signs and accepts on the secure link", () => {
   test("accepting before the paperwork is signed is refused; nothing is accepted", async () => {
@@ -203,10 +205,12 @@ describe("A1 step 3 — the owner signs and accepts on the secure link", () => {
     // Finding (not changed here): the Gate B owner documents in code are not approved in a fresh database. A TEST job can
     // sign them (recorded as DRAFT); a real owner is refused until Jo approves each version in Settings › Owner documents.
     const cat = await (await import("../src/lib/owner-gates.server")).paperworkCatalogue() as { key: string; gate: string; version: string | null; status: string; managedIn: string }[];
-    expect(cat.filter((d) => d.gate === "B" && d.managedIn === "Here" && d.status !== "Approved").map((d) => d.key).sort()).toEqual(["landlord_consent", "payment_terms", "quote_acceptance", "tenancy_details", "veec_assignment_consent", "visit_permission"]);
+    expect(cat.filter((d) => d.gate === "B" && d.managedIn === "Here" && d.status !== "Approved").map((d) => d.key).sort()).toEqual(["landlord_consent", "payment_terms", "quote_acceptance", "tenancy_details", "visit_permission"]);
     void ogf;
   });
   test("Gate B paperwork signed on the link, then the quote is accepted with the signed agreement; installer told once; invoice raised", async () => {
+    const {ESC_CONSENT_TEMPLATE_VERSION}=await import("../src/lib/consent.core");
+    await q("insert into compliance_templates(template_key,version,body,approved,is_active) values('esc_consent',$1,'Official consent fixture',true,true)",[ESC_CONSENT_TEMPLATE_VERSION]);
     const ol = await import("../src/lib/owner-link.functions");
     const ogf = await import("../src/lib/owner-gates.functions");
     const { token, session } = await ownerSessionFor(JOB);
@@ -218,7 +222,7 @@ describe("A1 step 3 — the owner signs and accepts on the secure link", () => {
       await ogf.ownerSignPaperworkFn({ data: { token, session, key: next.key, signatoryName: "Helen Journey", ticked: true, answers: { role: "owner", life_support: "no" } }, context: META });
       signedKeys.push(next.key);
     }
-    expect(signedKeys).toEqual(["quote_acceptance", "veec_assignment_consent", "payment_terms"]);
+    expect(signedKeys).toEqual(["quote_acceptance", "payment_terms"]);
     expect(await q("select doc_key, doc_draft, method from owner_gate_signatures where job_id=$1 order by signed_at", [JOB])).toEqual(signedKeys.map((doc_key) => ({ doc_key, doc_draft: true, method: "link_code" })));
     const [qq] = await q<{ id: string; version: number }>("select id, version from quotes where job_id=$1 and status='issued'", [JOB]);
     // A stale version on the owner's screen is refused (exact-version acceptance).

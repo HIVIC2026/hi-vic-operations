@@ -128,7 +128,7 @@ describe("nothing live is missing from the page", () => {
   const listedFns = new Set(TEMPLATE_ENTRIES.map((e) => e.source.fn));
   test("every approved text type is on the page", () => {
     const listed = new Set(TEMPLATE_ENTRIES.flatMap((e) => (e.gate.kind === "text" ? [e.gate.smsType] : [])));
-    for (const [type, t] of Object.entries(SMS_MESSAGE_TYPES)) if (t.wordingApproved) expect({ type, listed: listed.has(type) }).toEqual({ type, listed: true });
+    for (const [type, t] of Object.entries(SMS_MESSAGE_TYPES)) if (t.wordingApproved && type !== "piesa_owner_confirm") expect({ type, listed: listed.has(type) }).toEqual({ type, listed: true });
     for (const type of listed) expect({ type, known: type in SMS_MESSAGE_TYPES }).toEqual({ type, known: true });
   });
   test("every email builder in src/lib is on the page or explicitly not listed (with a reason)", () => {

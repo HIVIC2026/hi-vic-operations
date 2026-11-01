@@ -377,6 +377,10 @@ export async function signCustomerAgreement(p: {
     })
     .select("id")
     .single();
+  if(error?.code==='23505'){
+    const prior=await currentAgreement(pkg.job_id);
+    if(prior?.quote_id===p.quoteId && prior.quote_version===pkg.quote.version && prior.signed_by===p.actorId)return prior.id;
+  }
   if (error || !row) throw new Error(error?.message ?? "Could not record agreement");
   await logEvent(
     pkg.job_id,

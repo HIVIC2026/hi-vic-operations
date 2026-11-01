@@ -125,7 +125,10 @@ export const ownerAcceptQuoteFn = createServerFn({ method: "POST" })
           if (jobId !== s.jobId) throw new WorkflowError('This quote is not on your job.');
           const { buildAcceptancePackage } = await import('./assignment.server');
           const pkg = await buildAcceptancePackage(quoteId);
-          const { signGateDoc } = await import('./owner-gates.server');
+          const { signGateDoc,assertQuoteSittingWording } = await import('./owner-gates.server');
+          await assertQuoteSittingWording(jobId);
+          // Prepare date-free consent before any signature writes: pending-schema failures leave the quote unsigned.
+          await (await import('./consent.server')).prepareQuoteConsent({jobId,actorId:s.userId,input:{signatoryName:pkg.consumer.name,signatureName:pkg.consumer.name,authorityType:data.signing.authorityType,accept:true,declarations:data.signing.declarations}});
           for (const key of ['quote_acceptance','payment_terms'] as const) await signGateDoc({jobId,key,signatoryName:pkg.consumer.name,ticked:true,answers:{},method:'link_code',signedBy:s.userId,ip:context.ip,userAgent:context.userAgent,verified:{channel:s.channel,destination:s.destination,codeId:s.codeId},quoteSittingKey:`${quoteId}:${version}`});
           await (await import('./consent.server')).signOwnerConsent({jobId,actorId:s.userId,ip:context.ip,userAgent:context.userAgent,input:{signatoryName:pkg.consumer.name,signatureName:pkg.consumer.name,authorityType:data.signing.authorityType,accept:true,declarations:data.signing.declarations}});
         },
