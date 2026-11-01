@@ -103,7 +103,7 @@ BEGIN
  END IF;
  visit:=CASE _kind WHEN 'installation' THEN 'install' WHEN 'crew' THEN 'install' WHEN 'assessment' THEN 'piesa' WHEN 'rectification' THEN 'rectification' ELSE 'ready_check' END;
  INSERT INTO public.workflow_events(job_id,actor_id,event_type,summary,details,internal) VALUES(_job,_actor,'visit_allocated','Visit allocated to '||w.full_legal_name,jsonb_build_object('visit',visit,'worker_id',_worker,'worker_name',w.full_legal_name,'business_id',business),true);
- work_details:=jsonb_build_object('type',CASE WHEN _kind='crew' THEN 'crew' ELSE 'booking' END,'kind',_kind,'bookingId',new_booking,'workerId',_worker,'oldWorkerId',old_worker,'start',coalesce(_start,b.scheduled_start),'oldStart',old_start,'selection',selected,'who',jsonb_build_object('id',w.id,'name',w.full_legal_name),'status','pending','attempts',0);
+ work_details:=jsonb_build_object('type',CASE WHEN _kind='crew' THEN 'crew' ELSE 'booking' END,'kind',_kind,'bookingId',new_booking,'workerId',_worker,'oldWorkerId',old_worker,'start',coalesce(_start,b.scheduled_start),'oldStart',old_start,'selection',selected,'who',jsonb_build_object('id',w.id,'name',w.full_legal_name,'phone',to_jsonb(w)->>'mobile'),'status','pending','attempts',0);
  INSERT INTO public.workflow_events(id,job_id,actor_id,event_type,summary,details,internal) VALUES(_work,_job,_actor,'in_house_saved_work','Saved visit follow-through pending',work_details,true);
  RETURN jsonb_build_object('bookingId',new_booking,'workId',_work,'already',false);
 END $$;
@@ -113,6 +113,9 @@ GRANT EXECUTE ON FUNCTION public.commit_in_house_visit(uuid,uuid,text,timestampt
 CREATE OR REPLACE FUNCTION public.claim_in_house_saved_work(_id uuid,_lease uuid,_now timestamptz) RETURNS boolean
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $$
 BEGIN
+ PERFORM 1 FROM public.jobs WHERE id=(SELECT job_id FROM public.workflow_events WHERE id=_id) FOR UPDATE;
+ IF EXISTS(SELECT 1 FROM public.workflow_events e WHERE e.job_id=(SELECT job_id FROM public.workflow_events WHERE id=_id)
+  AND e.id<>_id AND e.event_type='in_house_saved_work' AND e.details->>'status'='running' AND (e.details->>'leaseUntil')::timestamptz>=_now) THEN RETURN false; END IF;
  UPDATE public.workflow_events SET details=details||jsonb_build_object('status','running','lease',_lease,'leaseUntil',_now+interval '5 minutes')
  WHERE id=_id AND event_type='in_house_saved_work' AND (details->>'status' IN ('pending','retry') OR (details->>'status'='running' AND (details->>'leaseUntil')::timestamptz<_now));
  RETURN FOUND;

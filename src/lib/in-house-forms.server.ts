@@ -128,15 +128,19 @@ export async function syncInHouseForms(jobId: string, change: "date"|"person"|"c
       if (!holder || ("selected" in holder && !holder.selected)) continue;
       const mittiUserId = await mitti.findMittiUserByEmail(holder.email,call ?? mitti.realMittiCall);
       if (!mittiUserId) throw new Error("Add this person in Mitti first.");
-      if(change==='crew'&&form.kind==='install'&&previousWorkerId){
+      if(change==='crew'&&form.kind==='install'){
         const installer=await assignment(jobId,'installer');
-        const old=await read<{email:string|null}|null>(db.from('partner_workers').select('email').eq('id',previousWorkerId).eq('business_id',installer?.business_id??'').maybeSingle());
+        const changes=await read<{details:{old_worker_id?:string}}[]>(db.from('workflow_events').select('details').eq('job_id',jobId).eq('event_type','in_house_lead_changed').order('created_at',{ascending:false}));
+        const previousIds=new Set([previousWorkerId,...changes.map(e=>e.details.old_worker_id)].filter((id):id is string=>!!id));
+        for(const previousId of previousIds){
+        const old=await read<{email:string|null}|null>(db.from('partner_workers').select('email').eq('id',previousId).eq('business_id',installer?.business_id??'').maybeSingle());
         // A shared office/TEST identity is not a different person: never revoke the new holder's access.
         if(old?.email&&old.email.trim().toLowerCase()!==holder.email.trim().toLowerCase()){
           const routed=await mitti.mittiCallFor(call??mitti.realMittiCall,holder.email);
           const oldUserId=await mitti.findMittiUserByEmail(old.email,routed);
           if(!oldUserId)throw Error('Could not identify the previous Lead Installer in Mitti; office handover required.');
           if(oldUserId!==mittiUserId)await (await import('./mitti.core')).mittiApi(routed).removeInspectionUserAccess(form.auditId,oldUserId);
+        }
         }
       }
       // Revoke the previous person's direct access BEFORE sharing. If revocation
