@@ -24,6 +24,8 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
     const { piesaRequestBlockers } = await import("./payment-gate.core");
     const gate = piesaRequestBlockers(await piesaRequestFacts(jobId));
     if (gate.length) throw new WorkflowError(`The PIESA cannot be booked yet: ${gate.join(" ")}`);
+    const teamBlocker = await (await import("./in-house-electrician.server")).inHousePiesaBookingBlockerFor(jobId);
+    if (teamBlocker) throw new WorkflowError(teamBlocker);
   }
   const [allowed, target] = map[kind];
   if (!allowed.includes(stage)) throw new WorkflowError(`A ${kind} booking can't be made at ${STAGE_LABEL[stage]}.`);

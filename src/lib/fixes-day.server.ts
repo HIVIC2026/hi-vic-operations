@@ -103,7 +103,7 @@ function companionRounds(jobId: string) {
   return admin.from('workflow_events').select('details').eq('job_id', jobId).eq('event_type', FIXES_FORM_CREATED_EVENT).order('created_at', { ascending: false }).limit(50);
 }
 
-async function existingRectificationForm(jobId: string, knownHeld = false, companionsRead?: ReturnType<typeof companionRounds> | Promise<Awaited<ReturnType<typeof companionRounds>>>) {
+export async function existingRectificationForm(jobId: string, knownHeld = false, companionsRead?: ReturnType<typeof companionRounds> | Promise<Awaited<ReturnType<typeof companionRounds>>>) {
   if (!knownHeld) {
     // Do not consult dispatch at all without any companion-round history.
     const { data: companions } = await (companionsRead ?? companionRounds(jobId));

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Group } from "./installer-kit";
+import { TeamElectricianPicker } from "./TeamElectricianPicker";
 
 const visits = [
   { kind: "ready_check", label: "Ready Check" },
@@ -61,5 +62,5 @@ export function InHouseBookingCard({ jobId }: { jobId: string }) {
   const access = useInHouseBookingAccess(jobId);
   const data = access.data;
   if (access.isLoading || access.isError || data?.allowed !== true) return null;
-  return <Group title="Visit bookings">{visits.map((visit) => <VisitPicker key={visit.kind} jobId={jobId} {...visit} booking={data.bookings?.find((booking) => booking.kind === visit.kind)} />)}</Group>;
+  return <><TeamElectricianPicker jobId={jobId} /><Group title="Visit bookings">{visits.map((visit) => <VisitPicker key={visit.kind} jobId={jobId} {...visit} booking={data.bookings?.find((booking) => booking.kind === visit.kind)} />)}</Group></>;
 }

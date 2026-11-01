@@ -6,8 +6,6 @@ import { QUICK_TAPS_ANSWERED_EVENT } from "./quick-taps.core";
 import { sendInHousePartnerCall } from "./in-house-batch-email.server";
 import { inHouseFactsFor } from "./installer-paid-electricians.server";
 import { inHouseEnableBlockers } from "./in-house.core";
-import { mittiAccessOf } from "./mitti-membership.core";
-import { melbourneToday } from "./melbourne-time.core";
 import { chunkIds } from "./sweep-batch.core";
 
 // Pending tables/columns are deliberately a local overlay, not generated schema edits.
@@ -78,19 +76,11 @@ async function selectWorkers(businessId: string) {
     pagedRows<{ profile_id: string | null; trade_role: string; email: string | null; licence_expires_on: string | null; created_at: string }>((a,b) => db.from("partner_workers").select("profile_id,trade_role,email,licence_expires_on,created_at").eq("business_id", businessId).eq("approval_status", "approved").is("removed_at", null).order("created_at").order("id").range(a,b)),
     pagedRows<{ user_id: string }>((a,b) => db.from("business_members").select("user_id").eq("business_id", businessId).eq("active", true).order("id").range(a,b)),
   ]);
-  const ids = workers.flatMap(w => w.profile_id ? [w.profile_id] : []);
-  const profiles = await byIds<{ id: string; email: string | null; mitti_user_id: string | null; mitti_checked_email: string | null; mitti_checked_at: string | null }>(ids, (c,a,b) => db.from("profiles").select("id,email,mitti_user_id,mitti_checked_email,mitti_checked_at").in("id", c).order("id").range(a,b));
   const live = workers.filter(w => !!w.profile_id && members.some(m => m.user_id === w.profile_id)).sort((a,b) => a.created_at.localeCompare(b.created_at) || (a.profile_id ?? "").localeCompare(b.profile_id ?? ""));
   const installer = live.find(w => w.trade_role === "installer");
-  const electricians = live.filter(w => {
-    const profile = profiles.find(p => p.id === w.profile_id);
-    return w.trade_role === "electrician" && (!w.licence_expires_on || w.licence_expires_on >= melbourneToday()) && !!profile && mittiAccessOf({ ...profile, email: w.email ?? profile.email }) === "member";
-  });
-  // Choose the business's primary/approved electrician first if a worker marker exists, else the earliest created_at.
-  // Live partner_workers has no primary marker; partner_relationships.is_primary identifies a BUSINESS, not a worker.
-  const electrician = electricians[0];
-  if (!installer?.profile_id || !electrician?.profile_id) return { reason: "No in-house electrician with approved active access" };
-  return { installer: installer.profile_id, electrician: electrician.profile_id };
+  if (!installer?.profile_id) return { reason: "No approved installer worker with active Team access" };
+  // The business explicitly chooses its verified Team electrician after handoff.
+  return { installer: installer.profile_id, electrician: null };
 }
 
 export async function sendInHouseBatch(input: { businessId: string; jobIds: string[]; actorId: string }): Promise<{ sent: string[]; refused: { jobId: string; reason: string }[] }> {

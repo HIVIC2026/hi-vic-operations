@@ -6,6 +6,13 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 const uuid = z.string().uuid();
 const plain = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
+export const getTeamElectricians = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ jobId: uuid }))
+  .handler(async ({ data, context }) => (await import("./in-house-electrician.server")).electricianPicker(data.jobId, context.userId));
+export const allocateElectricianFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ jobId: uuid, workerId: uuid }))
+  .handler(async ({ data, context }) => (await import("./in-house-electrician.server")).allocateElectrician(data.jobId, context.userId, data.workerId));
+
 export const getVisitAllocation = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => plain(await (await import("./visit-allocation.server")).visitAllocationView(data.jobId, context.userId)));

@@ -13,7 +13,7 @@ import { Btn, Pill, fieldInput } from "@/components/portal/kit";
 import { OfficeTable } from "@/components/portal/office-tabs";
 import { SendNoticeLinkInline, WhiteCardOfficeInline } from "@/components/portal/worker-compliance";
 import { openFileViewer } from "@/components/portal/file-viewer";
-import { officeEecFileUrl, officeVerifyEec } from "@/lib/worker-compliance.functions";
+import { officeEecFileUrl, officeVerifyEec, officeVerifyElectrician } from "@/lib/worker-compliance.functions";
 import { checkMittiAccess } from "@/lib/mitti-membership.functions";
 import { mittiInviteLine } from "@/lib/mitti-membership.core";
 import { whiteCardCell, type PersonAction } from "@/lib/office-partners.core";
@@ -25,6 +25,7 @@ export type PersonView = {
   whiteCard?: string | null; whiteCardNumber?: string | null;
   /** Jo 28 Oct: Lead / Crew for installers; null = not applicable. */
   workerRole?: "lead" | "crew" | null;
+  licenceNumber?: string | null; recNumber?: string | null; licenceExpiresOn?: string | null; licenceVerifiedAt?: string | null;
   ciiLabel: string; ciiTone: "green" | "rose" | "amber" | "plain"; noticeLabel: string; noticeTone: "green" | "rose" | "plain"; mittiLabel: string; inMitti: boolean; action: PersonAction; clearedReason: string | null;
 };
 
@@ -32,6 +33,7 @@ const ROLE: Record<string, string> = { installer: "Installer", electrician: "Ele
 
 export function PeopleTable({ people, showBusiness = true, invalidate }: { people: PersonView[]; showBusiness?: boolean; invalidate: string[] }) {
   const [verify, setVerify] = useState<PersonView | null>(null);
+  const [electrician, setElectrician] = useState<PersonView | null>(null);
   const qc = useQueryClient();
   const [invite, setInvite] = useState<PersonView | null>(null);
   return (
@@ -48,6 +50,7 @@ export function PeopleTable({ people, showBusiness = true, invalidate }: { peopl
             <td data-why="decision 130: per-person ESC privacy notice">{p.noticeTone === "plain" ? p.noticeLabel : <Pill tone={p.noticeTone}>{p.noticeLabel}</Pill>}</td>
             <td data-why="decisions 22/188: Mitti membership checked per person">{p.mittiLabel}</td>
             <td>
+              {p.role === "electrician" && <Btn tone="secondary" onClick={() => setElectrician(p)}>Verify licence + REC</Btn>}
               {p.action === "verify_cii" && <Btn tone="secondary" data-why="decision 153: office verifies CII with level + expiry" onClick={() => setVerify(p)}>Verify CII</Btn>}
               {p.action === "send_notice" && <span data-why="decision 130: secure link, guarded senders"><SendNoticeLinkInline workerId={p.id} /></span>}
               {p.action === "invite_mitti" && <Btn tone="secondary" data-why="decisions 22/188: Mitti invite per person (office confirm)" onClick={() => setInvite(p)}>Invite to Mitti</Btn>}
@@ -56,9 +59,33 @@ export function PeopleTable({ people, showBusiness = true, invalidate }: { peopl
         ))}
       </OfficeTable>
       {verify && <VerifyCiiDialog person={verify} invalidate={invalidate} onClose={() => setVerify(null)} />}
+      {electrician && <VerifyElectricianDialog person={electrician} invalidate={invalidate} onClose={() => setElectrician(null)} />}
       {invite && <MittiInviteDialog person={invite} invalidate={invalidate} onClose={() => setInvite(null)} />}
     </>
   );
+}
+
+function VerifyElectricianDialog({ person, invalidate, onClose }: { person: PersonView; invalidate: string[]; onClose: () => void }) {
+  const verify = useServerFn(officeVerifyElectrician);
+  const qc = useQueryClient();
+  const [number, setNumber] = useState(person.licenceNumber ?? "");
+  const [rec, setRec] = useState(person.recNumber ?? "");
+  const [expiry, setExpiry] = useState(person.licenceExpiresOn ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  return <Dialog open onOpenChange={o => !o && onClose()}><DialogContent>
+    <DialogHeader><DialogTitle>Verify licence + REC · {person.name}</DialogTitle><DialogDescription>{person.business}</DialogDescription></DialogHeader>
+    <label className="text-xs font-semibold">Licence number<input className={`${fieldInput} mt-1`} value={number} onChange={e => setNumber(e.target.value)} /></label>
+    <label className="text-xs font-semibold">REC number<input className={`${fieldInput} mt-1`} value={rec} onChange={e => setRec(e.target.value)} /></label>
+    <label className="text-xs font-semibold">Licence expiry<input type="date" className={`${fieldInput} mt-1`} value={expiry} onChange={e => setExpiry(e.target.value)} /></label>
+    {error && <p role="alert" className="text-sm text-rose">{error}</p>}
+    <DialogFooter><Btn tone="secondary" onClick={onClose}>Cancel</Btn><Btn disabled={busy || !number.trim() || !rec.trim() || !expiry} onClick={async () => {
+      setBusy(true); setError(null);
+      try { await verify({ data: { workerId: person.id, licenceNumber: number.trim(), recNumber: rec.trim(), expiresOn: expiry } }); for (const k of invalidate) await qc.invalidateQueries({ queryKey: [k] }); toast.success("Licence + REC verified"); onClose(); }
+      catch (e) { setError(e instanceof Error ? e.message : "Couldn't verify"); }
+      finally { setBusy(false); }
+    }}>{busy ? "Saving…" : "Record verified"}</Btn></DialogFooter>
+  </DialogContent></Dialog>;
 }
 
 function VerifyCiiDialog({ person, invalidate, onClose }: { person: PersonView; invalidate: string[]; onClose: () => void }) {

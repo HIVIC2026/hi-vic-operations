@@ -8,9 +8,9 @@
 import type { WorkerRole } from "./worker-role.core";
 import { DECLARATIONS_DUE_MESSAGE, crewClearance, whiteCardBlocker, type CrewClearanceFacts, type WhiteCardState } from "./worker-compliance.core";
 
-export type VisitKind = "ready_check" | "install";
+export type VisitKind = "ready_check" | "install" | "piesa";
 export const VISIT_ALLOCATED_EVENT = "visit_allocated";
-export const VISIT_LABEL: Record<VisitKind, string> = { ready_check: "Ready Check", install: "Install day" };
+export const VISIT_LABEL: Record<VisitKind, string> = { ready_check: "Ready Check", install: "Install day", piesa: "Pre Insulation Electrical Safety Assessment (PIESA)" };
 
 /** One staff row as the picker sees it (from partner_workers + the derived clearance facts for installers). */
 export type AllocationCandidate = {

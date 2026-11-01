@@ -10,6 +10,17 @@ const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" });
 const COLS = "id, business_id, profile_id, trade_role, full_legal_name, email, licence_expires_on, approval_status, removed_at, certification_status, certification";
 
+export const officeVerifyElectrician = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ workerId: uuid, licenceNumber: z.string().trim().min(1).max(60), recNumber: z.string().trim().min(1).max(60), expiresOn: ymd }))
+  .handler(async ({ data, context }) => {
+    const { requireAdmin } = await import("./workflow.server");
+    await requireAdmin(context.supabase);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin.rpc("verify_team_electrician" as never, { _worker: data.workerId, _licence: data.licenceNumber, _rec: data.recNumber, _expiry: data.expiresOn, _actor: context.userId } as never);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
 /** Decision 130: attach each installer's ESC collection notice state so flags, prompts and offer blocking share one rule. */
 async function withNoticeAck<T extends { id: string; business_id: string; email: string | null; full_legal_name: string; trade_role: string; removed_at: string | null }>(rows: T[]) {
   const map = await (await import("./esc-collection-notice.server")).noticeAckMap(rows);

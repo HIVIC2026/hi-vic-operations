@@ -879,13 +879,13 @@ export async function findMittiUserByEmail(email: string, call: MittiCall = real
  * this visit kind), then the same share + set-owner calls every creation path uses. Never creates a form, never
  * touches the create claim (nothing non-idempotent happens here); repeating it is harmless.
  */
-export async function reassignMittiFormTo(p: { jobId: string; auditId: string; kind: "ready_check" | "install"; mittiUserId: string; email: string; actorId: string | null }, call: MittiCall = realMittiCall) {
+export async function reassignMittiFormTo(p: { jobId: string; auditId: string; kind: "ready_check" | "install" | "piesa" | "rectification"; mittiUserId: string; email: string; actorId: string | null }, call: MittiCall = realMittiCall) {
   const [{ data: job }, { data: ws }] = await Promise.all([
     admin.from("jobs").select("job_number").eq("id", p.jobId).single(),
-    admin.from("workflow_settings").select("mitti_ready_check_template_id,mitti_ready_check_priced_template_id,mitti_piisa_template_id").eq("id", 1).maybeSingle(),
+    admin.from("workflow_settings").select("mitti_ready_check_template_id,mitti_ready_check_priced_template_id,mitti_piisa_template_id,mitti_piesa_template_id,mitti_fixes_template_id").eq("id", 1).maybeSingle(),
   ]);
   if (!job) throw new WorkflowError("Job not found.");
-  const allowed = (p.kind === "install" ? [ws?.mitti_piisa_template_id] : [ws?.mitti_ready_check_template_id, ws?.mitti_ready_check_priced_template_id]).filter((t): t is string => !!t?.trim());
+  const allowed = (p.kind === "piesa" ? [ws?.mitti_piesa_template_id] : p.kind === "rectification" ? [ws?.mitti_fixes_template_id] : p.kind === "install" ? [ws?.mitti_piisa_template_id] : [ws?.mitti_ready_check_template_id, ws?.mitti_ready_check_priced_template_id]).filter((t): t is string => !!t?.trim());
   if (!allowed.length) throw new WorkflowError(p.kind === "install" ? PIESA_TEMPLATE_MISSING.replace("PIESA", "PIISA") : MEASUREUP_TEMPLATE_MISSING);
   const api = mittiApi(await mittiCallFor(call, p.email));
   let audit: Any;
@@ -898,7 +898,12 @@ export async function reassignMittiFormTo(p: { jobId: string; auditId: string; k
     await api.shareAudit(p.auditId, p.mittiUserId);
     await api.setAuditOwner(p.auditId, p.mittiUserId);
   } catch (e) { throw wrap(e); }
-  await logEvent(p.jobId, p.actorId, p.kind === "install" ? "mitti_piisa_audit_reshared" : "mitti_audit_reshared",
-    `${p.kind === "install" ? "Installer safety form" : "Mitti Ready Check form"} handed to ${p.email} (visit allocation)`, { audit_id: p.auditId, mitti_user_id: p.mittiUserId, reason: "visit_allocated", ...(p.kind === "install" ? {} : { kind: "ready_check" as const }) });
+  if (p.kind === "piesa" || p.kind === "rectification") {
+    await logEvent(p.jobId, p.actorId, p.kind === "rectification" ? "rectification_form_reshared" : "mitti_audit_reshared",
+      `${p.kind === "piesa" ? "PIESA form" : "Rectification form"} handed to ${p.email} (visit allocation)`, { audit_id: p.auditId, mitti_user_id: p.mittiUserId, reason: "visit_allocated", kind: p.kind });
+  } else {
+    await logEvent(p.jobId, p.actorId, p.kind === "install" ? "mitti_piisa_audit_reshared" : "mitti_audit_reshared",
+      `${p.kind === "install" ? "Installer safety form" : "Mitti Ready Check form"} handed to ${p.email} (visit allocation)`, { audit_id: p.auditId, mitti_user_id: p.mittiUserId, reason: "visit_allocated", ...(p.kind === "install" ? {} : { kind: "ready_check" as const }) });
+  }
   return { auditId: p.auditId };
 }

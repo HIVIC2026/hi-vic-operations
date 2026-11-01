@@ -16,8 +16,8 @@ const isTestBiz = (b: { name?: string | null; onboarding_notes?: string | null }
 const bizName = (b: { trading_name?: string | null; name: string }) => b.trading_name || b.name;
 const must = <T,>(r: { data: T | null; error: { message: string } | null }, what: string): T => { if (r.error) throw new Error(`Could not read ${what}: ${r.error.message}`); return (r.data ?? []) as T; };
 
-type Worker = { id: string; business_id: string; profile_id: string | null; trade_role: string; full_legal_name: string; email: string | null; worker_role?: string | null; mobile: string | null; licence_number: string | null; licence_expires_on: string | null; certification_status: string | null; certification: Record<string, unknown> | null; removed_at: string | null; approval_status: string };
-const WORKER_COLS = "id, business_id, profile_id, trade_role, full_legal_name, email, mobile, licence_number, licence_expires_on, certification_status, certification, removed_at, approval_status, worker_role";
+type Worker = { id: string; business_id: string; profile_id: string | null; trade_role: string; full_legal_name: string; email: string | null; worker_role?: string | null; mobile: string | null; licence_number: string | null; licence_expires_on: string | null; rec_number: string | null; licence_verified_at: string | null; certification_status: string | null; certification: Record<string, unknown> | null; removed_at: string | null; approval_status: string };
+const WORKER_COLS = "id, business_id, profile_id, trade_role, full_legal_name, email, mobile, licence_number, licence_expires_on, rec_number, licence_verified_at, certification_status, certification, removed_at, approval_status, worker_role";
 
 /** People rows for the given businesses: CII (153), ESC privacy notice (130), Mitti (22/188), one next action. */
 export async function peopleFor(businessIds: string[]) {
@@ -53,6 +53,7 @@ export async function peopleFor(businessIds: string[]) {
     const b = ((biz ?? []) as { id: string; name: string; trading_name: string | null }[]).find((x) => x.id === w.business_id);
     return {
       id: w.id, name: w.full_legal_name, email: w.email, businessId: w.business_id, business: b ? bizName(b) : "—", role: w.trade_role, profileId: w.profile_id,
+      licenceNumber: w.licence_number, recNumber: w.rec_number, licenceExpiresOn: w.licence_expires_on, licenceVerifiedAt: w.licence_verified_at,
       whiteCard: whiteCardState(w as never) as string, whiteCardNumber: whiteCardOf(w.certification)?.number ?? null,
       certNumber: ((w.certification as { eec_upload?: { number?: string | null } } | null)?.eec_upload?.number) ?? null, hasCertFile: !!(w.certification as { eec_upload?: { path?: string } } | null)?.eec_upload?.path,
       clearedReason: cl?.reason ?? null, workerRole: roles.get(w.id) ?? null, ...row,

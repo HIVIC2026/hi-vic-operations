@@ -27,6 +27,7 @@ CREATE TYPE booking_kind AS ENUM ('assessment','ready_check','rectification','in
 CREATE TYPE booking_status AS ENUM ('proposed','confirmed','completed','cancelled');
 CREATE TABLE businesses(id uuid primary key, in_house boolean not null default false, pays_own_electricians boolean not null default false, rectification_billed_by text not null default 'hivic' CHECK(rectification_billed_by IN ('partner','hivic')), business_type text, onboarding_status text, is_active boolean, capabilities text[]);
 CREATE TABLE business_members(id uuid primary key default gen_random_uuid(), business_id uuid references businesses(id), user_id uuid, active boolean not null default true, member_role text CHECK(member_role IN ('business_admin','member')));
+CREATE TABLE partner_workers(id uuid primary key default gen_random_uuid(),business_id uuid,profile_id uuid,full_legal_name text,email text,trade_role text,approval_status text,removed_at timestamptz,licence_number text,rec_number text,licence_expires_on text,licence_verified_at timestamptz);
 CREATE TABLE jobs(id uuid primary key, stage text, next_action text, source text, deleted_at timestamptz, signed boolean, fee_paid boolean, deposit_paid boolean, rectification_paid boolean, piesa_completed boolean, rectification_required boolean, part_c_signed boolean, install_deadline text);
 CREATE TABLE job_assignments(id uuid primary key default gen_random_uuid(), job_id uuid references jobs(id), business_id uuid references businesses(id), user_id uuid, role text, active boolean not null default true, booking_confirmed_at timestamptz);
 CREATE TABLE bookings(id uuid primary key default gen_random_uuid(), job_id uuid not null references jobs(id), kind booking_kind not null, contractor_id uuid, assignment_id uuid references job_assignments(id), business_id uuid references businesses(id), scheduled_start timestamptz, scheduled_end timestamptz, booked_by uuid, notes text, status booking_status not null, created_at timestamptz not null default now());
@@ -126,11 +127,12 @@ const book = async (kind = "installation", actor = MEMBER, start = START) => loa
 const patch = async (field: string, value: unknown) => db.query(`update jobs set "${field}"=$1 where id=$2`, [value,JOB]);
 beforeEach(async () => {
   failHeldRead = false; failBillingRead = false; rectificationGuardCalls = 0; formCalls = 0; formAudits = 0; failForm = false;
-  await db.exec("truncate esc_notifications,workflow_events,bookings,job_assignments,business_members,jobs,businesses cascade");
+  await db.exec("truncate partner_workers,esc_notifications,workflow_events,bookings,job_assignments,business_members,jobs,businesses cascade");
   await db.query("insert into businesses(id,in_house,rectification_billed_by,business_type,onboarding_status,is_active,capabilities) values($1,true,'partner','eec_installer','approved',true,ARRAY['installer','electrician']),($2,false,'hivic','eec_installer','approved',true,ARRAY['installer'])", [BIZ,OTHER]);
   await db.query("insert into business_members(business_id,user_id,member_role) values($1,$2,'member'),($3,$4,'business_admin')", [BIZ,MEMBER,OTHER,OUTSIDER]);
   await db.query("insert into jobs(id,stage,source,deleted_at,signed,fee_paid,deposit_paid,rectification_paid,piesa_completed,rectification_required,part_c_signed,install_deadline) values($1,'installation_scheduling','base44',null,true,true,true,false,true,false,true,$2)",[JOB,DEADLINE]);
   for (const role of ["installer","electrician"]) await db.query("insert into job_assignments(job_id,business_id,user_id,role) values($1,$2,$3,$4)",[JOB,BIZ,MEMBER,role]);
+  await db.query("INSERT INTO partner_workers(business_id,profile_id,full_legal_name,email,trade_role,approval_status,licence_number,rec_number,licence_expires_on,licence_verified_at) VALUES ($1,$2,'TEST electrician','e@example.invalid','electrician','approved','A123','REC456','2099-01-01',now())",[BIZ,MEMBER]);
 });
 afterAll(async () => db.close());
 
@@ -259,6 +261,7 @@ function renderBookingCard(access: unknown) {
     "@/lib/office-list-refresh": { markOfficeChanged: () => {} },
     "@/components/ui/input": { Input: (p: any) => React.createElement("input", p) },
     "@/components/ui/label": { Label: element }, "@/components/ui/button": { Button: element }, "./installer-kit": { Group: element },
+    "./TeamElectricianPicker": { TeamElectricianPicker: () => null },
   };
   const code = ts.transpile(readFileSync("src/components/trade/InHouseBookingCard.tsx", "utf8"), { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX });
   new Function("exports", "require", code)(out, (path: string) => deps[path]);
@@ -277,6 +280,12 @@ test("current bookings are read only for the job's own active in-house member", 
   expect(own.bookings).toHaveLength(1);
   expect(own.bookings[0]).toMatchObject({ kind: "installation", status: "confirmed" });
   expect((await load("trade-view.server").inHouseBookingAccess(OUTSIDER, JOB)).bookings ?? []).toEqual([]);
+});
+test("actual PIESA booking refuses unverified Team electrician with Jo's message and no booking", async () => {
+  await patch("stage","piesa_and_install_window_pending");
+  await db.query("UPDATE partner_workers SET licence_verified_at=null WHERE business_id=$1",[BIZ]);
+  expect(await book("assessment")).toEqual({ok:false,blockers:["Add a verified electrician to your Team before booking the safety check."]});
+  expect(await rows("SELECT id FROM bookings")).toEqual([]);
 });
 test("payee-only Reinsulate member has no in-house access/card and cannot use the in-house booking writer", async () => {
   await db.query("update businesses set in_house=false,pays_own_electricians=true where id=$1", [BIZ]);
