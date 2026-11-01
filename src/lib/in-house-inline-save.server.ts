@@ -15,7 +15,7 @@ export async function saveInHouseVisitInline(jobId:string,actorId:string,input:{
  // Refuse before any allocation/crew write, then confirmBooking rechecks before booking.
  await booking.validateBooking(jobId,input.kind,start,actorId,input.workerId);
  const service=await import('./in-house-booking.server');
- const who=await service.prepareBookingWorker(jobId,actorId,input.kind,input.workerId,input.selection?.additional.map(w=>w.workerId)??[]);
+ const who=await service.prepareBookingWorker(jobId,actorId,input.kind,input.workerId,input.selection?.additional.flatMap(w=>'workerId' in w?[w.workerId]:[])??[]);
  const {data:existing,error:existingError}=await admin.from('bookings').select('id').eq('job_id',jobId).eq('kind',input.kind).eq('status','confirmed').eq('scheduled_start',start).order('created_at',{ascending:false}).limit(1).maybeSingle();
  if(existingError)throw Error(existingError.message);
  if(!existing)await booking.confirmBooking(jobId,input.kind,start,actorId,'in-house partner');

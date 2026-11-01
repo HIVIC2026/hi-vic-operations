@@ -8,7 +8,7 @@ test('pending atomic save: double click creates one booking, crew change and rec
  const db=new PGlite();try{
  await db.exec(`CREATE ROLE anon;CREATE ROLE authenticated;CREATE ROLE service_role;
  CREATE TYPE booking_kind AS ENUM('ready_check','assessment','rectification','installation');
- CREATE TYPE job_stage AS ENUM('installation_scheduling','installation_booked');
+ CREATE TYPE job_stage AS ENUM('installation_scheduling','installation_booked','cancelled','complete','on_hold');
  CREATE TABLE jobs(id uuid PRIMARY KEY,stage job_stage,updated_at timestamptz,deleted_at timestamptz,job_number text,next_action text,last_activity_at timestamptz,prior_stage job_stage,hold_reason text,cancelled_reason text);
  CREATE TABLE user_roles(user_id uuid,role text);
  CREATE TABLE businesses(id uuid PRIMARY KEY,in_house boolean,is_active boolean);
