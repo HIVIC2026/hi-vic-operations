@@ -14,7 +14,7 @@ import { CUSTOMER_INVOICE_COLUMNS, invoicesShownTo } from "@/lib/invoice.lifecyc
 import { invoiceSlotLabel, invoiceSlotOf } from "@/lib/office-money.core";
 import { getJobOverview } from "@/lib/admin-records.functions";
 
-type CustomerInvoice = { id: string; job_id: string; kind: string; xero_invoice_number: string | null; xero_online_url: string | null; total_inc_gst: number; deposit_amount: number; deposit_paid_at: string | null; balance_amount: number; balance_due_date: string | null; balance_paid_at: string | null; total_paid: number; deposit_cleared: boolean; effective_status: string; created_at: string };
+type CustomerInvoice = { id: string; job_id: string; kind: string; xero_invoice_number: string | null; total_inc_gst: number; deposit_amount: number; deposit_paid_at: string | null; balance_amount: number; balance_due_date: string | null; balance_paid_at: string | null; total_paid: number; deposit_cleared: boolean; effective_status: string; created_at: string };
 import { useAction } from "@/hooks/use-me";
 import {
   confirmEvidenceUpload, createBooking, getAuthorityDocUrl, getEvidenceUrl, getInvoiceInternals,
@@ -500,7 +500,6 @@ export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: bool
                 <div><dt className="text-xs text-muted-foreground">Remaining balance</dt><dd className="font-medium">{aud(remaining)} {i.balance_paid_at && <span className="text-xs text-success">fully paid {fmtDate(i.balance_paid_at)}</span>}</dd></div>
                 {install && <div><dt className="text-xs text-muted-foreground">Final due date (installation day)</dt><dd className="font-medium">{i.balance_due_date ? fmtDate(i.balance_due_date) : <span className="text-xs text-muted-foreground">Pending – set when installation is booked</span>}</dd></div>}
               </dl>
-              {i.xero_online_url && <a href={i.xero_online_url} target="_blank" rel="noreferrer" className="mt-2 inline-block text-sm font-semibold text-primary underline">View / pay invoice</a>}
               {install && !i.deposit_cleared && <p className="mt-2 flex items-center gap-1 rounded bg-danger-soft px-2 py-1 text-xs font-semibold text-danger"><Lock className="h-3 w-3" /> Pre Insulation Electrical Safety Assessment (PIESA) can't be booked — {aud(i.deposit_amount)} Pre Insulation Electrical Safety Assessment (PIESA) payment not received.</p>}
               {install && <p className="mt-2 rounded bg-muted px-2 py-1 text-xs">{isAdmin
                 ? "Refunds (office records manually, nothing moves automatically): check never happens → refund everything paid. Check done and job can't go ahead → keep the Pre Insulation Electrical Safety Assessment (PIESA) payment, refund the rest."

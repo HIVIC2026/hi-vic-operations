@@ -118,7 +118,7 @@ export function buildDocumentIndex(src: JobSources): DocItem[] {
       relatedEntity: "quotes", relatedId: String(q["id"]), audience: st === "draft" ? [] : ["owner"] }));
   }
   for (const i of src.invoices) out.push(base({ id: `invoices:${i["id"]}`, title: `Xero invoice ${i["xero_invoice_number"] ?? "(not yet created)"} · ${i["xero_reference"] ?? ""}`.trim(), category: "Payments", alsoIn: ["Quotes"],
-    docType: "invoice_reference", sourceSystem: "xero", at: s(i["created_at"]), status: "current", sourceUrl: s(i["xero_online_url"]), relatedEntity: "invoices", relatedId: String(i["id"]), audience: ["owner"] }));
+    docType: "invoice_reference", sourceSystem: "xero", at: s(i["created_at"]), status: "current", relatedEntity: "invoices", /* no Xero online link: owners see this list (Jo 1 Nov 2026) */ relatedId: String(i["id"]), audience: ["owner"] }));
   for (const a of src.assignments) {
     const signed = !!a["consumer_signed_at"];
     if (signed && !(a["consumer_copy_path"] && seenPaths.has(String(a["consumer_copy_path"]))))
