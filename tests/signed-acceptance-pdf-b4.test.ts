@@ -13,7 +13,7 @@ async function generate() {
   const fn = (renderer as Record<string, unknown>).signedAcceptancePdf as ((v: typeof fixture) => Promise<Uint8Array>) | undefined;
   return fn ? fn(fixture) : renderer.textToPdf("Home Insulation Victoria", `Machine-readable snapshot:\n${JSON.stringify(fixture)}`);
 }
-const extract = (bytes: Uint8Array) => execFileSync("pdftotext", ["-", "-"], { input: bytes }).toString();
+const extract = (bytes: Uint8Array) => execFileSync("pdftotext", ["-", "-"], { input: bytes }).toString().replace(/\s+/g, " ");
 test("acceptance PDF contains readable owner, address, total, signed Melbourne date and brand", async () => {
   const text = extract(await generate());
   for (const expected of [fixture.ownerName, fixture.address, "$2,349.00", "1 November 2026", "6:16 pm", "AEDT", "Home Insulation Victoria", "Your signed acceptance", "fixture-v1", fixture.items[0]?.text ?? ""]) expect(text).toContain(expected);
