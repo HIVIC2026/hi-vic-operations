@@ -229,6 +229,7 @@ export async function officeTickCoes(jobId: string, eventId: string | null, acto
   if (!r.ref.files.length) throw new Error("No certificate file is on the job yet — get it uploaded, then press Check again.");
   if (coesState(await coesEvents(jobId), r.key).state === "ticked") throw new Error("This certificate is already ticked.");
   await logEvent(jobId, actorId, COES_CHECKED_EVENT, "Electrical certificate ticked by the office", { by: "office", verdict: "ceiling_work", quote: null, key: r.key, check_event_id: r.checkEventId }, { internal: true });
+  try {await (await import('./coes-owner-copy.server')).sendCoesOwnerCopy(jobId,r.ref);} catch(e){console.error('Certificate owner copy held',jobId,e instanceof Error?e.message:'Delivery unavailable');}
   return { ok: true };
 }
 

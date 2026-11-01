@@ -38,7 +38,7 @@ describe("wiring", () => {
     expect(readFileSync("src/lib/portal.functions.ts", "utf8")).toContain('"quote_declined", `${q.option_label} declined by the owner');
   });
   test("owner page keeps showing a declined quote with a clear message", () => {
-    expect(readFileSync("src/lib/owner-myjob.server.ts", "utf8")).toContain('.in("status", ["issued", "accepted", "declined"])');
+    expect(readFileSync("src/lib/owner-myjob.server.ts", "utf8")).toContain('.in("status", ["issued", "accepted", "declined", "expired"])');
     const page = readFileSync("src/routes/my-job.$token.tsx", "utf8");
     expect(page).toContain("<DeclineQuote token={token} quoteId={q.id} />");
     expect(page).toContain("OWNER_DECLINED_SCREEN");

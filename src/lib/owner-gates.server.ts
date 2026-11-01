@@ -48,6 +48,15 @@ export async function approvedVersions(): Promise<Record<string, string>> {
   return out;
 }
 
+/** Read-only preflight: no document is signed until both quote-stage wording versions are available. */
+export async function assertQuoteSittingWording(jobId:string) {
+  const facts=await gateFacts(jobId);
+  if(facts.isTest)return;
+  for(const key of ['quote_acceptance','payment_terms'] as const){
+    if(facts.approved[key]!==gateDoc(key).version)throw new WorkflowError(`"${gateDoc(key).title}" is still DRAFT wording.`);
+  }
+}
+
 export async function gateFacts(jobId: string): Promise<GateFacts> {
   const [
     { data: job, error: jobError },
