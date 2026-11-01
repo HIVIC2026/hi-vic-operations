@@ -1,3 +1,9 @@
+## Jo 1 Nov S1 — practice-only speed
+- [ ] Reconcile Task 7/E0 failure-file discrepancy with independently repeated comparisons.
+- [ ] Measure requested owner/installer actions and page reads using doubles only.
+- [ ] Test-first reduce repeated reads and safely detach recoverable post-commit work.
+- [ ] Comparable full suite; before/after timing report and exact remaining limits.
+
 ## Jo 1 Nov E0 — one approved email look
 - [x] Source inventory in docs/email-suite-e0-audit.md includes all registered messages, delegated sends, direct transports and provider Auth exceptions. Hot leads already used the suite; edited-photo branch did not.
 - [x] Red-first migrated remaining legacy shells/raw fallbacks to genericMail, retaining content/links; retired unused email-kit HTML presentation only. Nine fixture copies preserve subject/text/preview and ordered links; 84 registered entries compared. Four new guard tests pass; old simple-email shell snapshot intentionally updated.
