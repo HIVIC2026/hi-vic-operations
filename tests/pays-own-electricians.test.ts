@@ -23,7 +23,7 @@ test("in-house alone enables the flat PIESA payee AND held workflows; neither fl
 });
 
 test("batch suggestions ignore payee-only partners even with capacity and coverage", () => {
-  const job = { id: "j", source: "base44", deleted_at: null, stage: "preliminary_estimate_ready", spot_saved_at: "2026-10-30", optedOut: false, hasActiveInstaller: false, postcode: "3199", lat: null, lng: null };
+  const job = { id: "j", source: "base44", quickTapsYes: true, deleted_at: null, stage: "preliminary_estimate_ready", spot_saved_at: "2026-10-30", optedOut: false, hasActiveInstaller: false, postcode: "3199", lat: null, lng: null };
   const partner = { id: "b", name: "Reinsulate", in_house: false, pays_own_electricians: true, is_active: true, openJobs: 0, service_postcodes: ["3199"], covers_all_victoria: false, coverage_lat: null, coverage_lng: null, coverage_radius_km: null };
   expect(suggestBatches([job], [partner])).toEqual([]);
   expect(suggestBatches([job], [{ ...partner, in_house: true, pays_own_electricians: false }])).toEqual([{ businessId: "b", jobIds: ["j"] }]);

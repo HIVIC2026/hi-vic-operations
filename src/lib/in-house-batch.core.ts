@@ -4,6 +4,7 @@ export type BatchJob = {
   id: string; stage: string; source: string; deleted_at: string | null; spot_saved_at: string | null;
   optedOut: boolean; hasActiveInstaller: boolean; postcode: string | null; lat: number | null; lng: number | null;
   job_number?: string; address?: string;
+  channel?: string; quickTapsYes: boolean; waitingBusinessId?: string | null;
 };
 export type InHousePartner = {
   id: string; name: string; in_house: boolean; is_active: boolean; openJobs: number;
@@ -11,8 +12,13 @@ export type InHousePartner = {
   coverage_lat: number | null; coverage_lng: number | null; coverage_radius_km: number | null;
 };
 export function batchJobEligible(job: BatchJob): boolean {
-  return !job.deleted_at && job.source !== "qa_test" && !!job.spot_saved_at && !job.optedOut && !job.hasActiveInstaller
+  return !job.deleted_at && job.source !== "qa_test" && (job.channel === "installer_sourced" || (!!job.spot_saved_at && job.quickTapsYes === true)) && !job.optedOut && !job.hasActiveInstaller
     && ["preliminary_estimate_ready", "ready_check_ready_to_schedule"].includes(job.stage);
+}
+/** No age fallback: hand off exactly five distinct waiting jobs. */
+export function readyInHouseBatch(jobIds: string[]): string[] {
+  const ids = [...new Set(jobIds)];
+  return ids.length >= 5 ? ids.slice(0, 5) : [];
 }
 export function batchPartnerCovers(job: BatchJob, partner: InHousePartner): boolean {
   if (partner.covers_all_victoria || (job.postcode && partner.service_postcodes.includes(job.postcode))) return true;
@@ -31,7 +37,7 @@ export function suggestBatches(jobs: BatchJob[], partners: InHousePartner[]): { 
   for (const job of jobs) {
     if (seen.has(job.id) || !batchJobEligible(job)) continue;
     seen.add(job.id);
-    const partner = partners.filter(p => isInHousePartner(p) && p.is_active && batchPartnerCovers(job, p))
+    const partner = partners.filter(p => isInHousePartner(p) && p.is_active && batchPartnerCovers(job, p) && (!job.waitingBusinessId || p.id === job.waitingBusinessId))
       .sort((a, b) => (load.get(a.id) ?? 0) - (load.get(b.id) ?? 0) || a.id.localeCompare(b.id))[0];
     if (!partner) continue;
     const ids = batches.get(partner.id) ?? [];
