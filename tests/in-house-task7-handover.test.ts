@@ -19,7 +19,8 @@ test('documented Mitti access removal revokes old direct access without changing
 test('saved Lead Installer replacement hands the existing A5 and SWMS to the new person; old person loses ownership and signing rights',async()=>{
   const rows:any={jobs:[{id:'j',job_number:'HV-1',source:'base44',property_id:'p'}],properties:[{id:'p',address_line:'1 Practice St',suburb:'Test',postcode:'3000',year_built:1990}],businesses:[{id:'b',name:'Practice',email:'office@example.invalid'}],job_assignments:[{job_id:'j',business_id:'b',user_id:'office',role:'installer',active:true}],partner_workers:[{id:'old',business_id:'b',email:'old@example.invalid',worker_role:'lead',trade_role:'installer',removed_at:null},{id:'new',business_id:'b',email:'new@example.invalid',worker_role:'lead',trade_role:'installer',removed_at:null}],bookings:[{job_id:'j',kind:'installation',status:'confirmed',scheduled_start:'2026-11-03T00:00:00Z'}],workflow_events:[{job_id:'j',event_type:'mitti_piisa_audit_created',created_at:'2026-11-01T00:00:00Z',details:{audit_id:'A5'}},{job_id:'j',event_type:'piisa_crew_selected',created_at:'2026-11-01T00:00:01Z',details:{selection:{lead:'old',additional:[]}}}]};
   const db=memoryPostgrest(rows),owner=new Map([['A5','old@example.invalid']]),access=new Set(['old@example.invalid']);
-  const call:any=async(method:string,path:string)=>{if(method==='DELETE'&&path.endsWith('/user/old%40example.invalid/access'))access.delete('old@example.invalid');return {};};
+  let failRevoke=true;
+  const call:any=async(method:string,path:string)=>{if(method==='DELETE'&&path.endsWith('/user/old%40example.invalid/access')){if(failRevoke)throw Error('Mitti access removal failed');access.delete('old@example.invalid');}return {};};
   const shared:any={'@/integrations/supabase/client.server':{supabaseAdmin:db},'./workflow.server':{WorkflowError:Error},'./early-read':{early:(p:any)=>Promise.resolve(p)},'./piisa-a3.server':{loadCrew:async()=>({selection:rows.workflow_events.filter((e:any)=>e.event_type==='piisa_crew_selected').at(-1)?.details.selection,staff:[{workerId:'old',name:'Old Installer'},{workerId:'new',name:'New Installer'}]})}};
   const forms=load('src/lib/in-house-forms.server.ts',{...shared,'./mitti.core':{mittiApi},'./mitti-create-claim.core':claims,'./in-house-suppression.server':{readInHouseDispatchState:async()=>({held:new Set(['j']),failed:false})},'./visit-allocation.core':allocation,'./piisa-a3.core':crew,'./worker-role.core':roles,'./mitti.server':{mittiCallFor:async()=>call,findMittiUserByEmail:async(e:string)=>e,reassignMittiFormTo:async(p:any)=>{owner.set(p.auditId,p.mittiUserId);access.add(p.mittiUserId);},updateMittiInstallCrew:async()=>{}}});
   const safety=load('src/lib/swms.server.ts',{...shared,'node:crypto':{createHash},'./swms.core':swms,'./install-evidence.server':{melbourneDateOf:()=> '2026-11-03'},'./swms-house.core':{swmsHouseFacts:()=>({}),swmsHouseLines:()=>[],swmsHouseSteps:()=>[]}});
@@ -50,6 +51,9 @@ test('saved Lead Installer replacement hands the existing A5 and SWMS to the new
   rows.partner_workers.forEach((w:any)=>{w.full_legal_name=w.id==='old'?'Old Installer':'New Installer';w.mobile=null;w.declarations_due=false;w.profile_id=null;});
   await visits.saveCrewWithLead('j','office',{lead:'new',additional:[]},call);
   expect(owner.get('A5')).toBe('old@example.invalid');
+  await expect(forms.syncInHouseForms('j','crew','office',call,'old')).rejects.toThrow('Mitti access removal failed');
+  expect(access.has('new@example.invalid')).toBe(false);expect(access.has('old@example.invalid')).toBe(true);
+  failRevoke=false;
   await forms.syncInHouseForms('j','crew','office',call,'old');const after=await safety.loadSwms('j');
   expect(crewReads).toBe(1);
   expect(owner.get('A5')).toBe('new@example.invalid');expect(owner.get('A5')).not.toBe('old@example.invalid');

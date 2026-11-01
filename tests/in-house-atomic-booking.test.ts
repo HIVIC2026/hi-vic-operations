@@ -36,5 +36,17 @@ test('pending atomic save: double click creates one booking, crew change and rec
  expect((await db.query("SELECT * FROM workflow_events WHERE event_type='piisa_crew_selected'")).rows).toHaveLength(1);
  expect((await db.query("SELECT * FROM workflow_events WHERE event_type='in_house_saved_work'")).rows).toHaveLength(1);
  await expect(db.query(sql,[...p.slice(0,3),'2026-11-11T22:00:00Z',...p.slice(4)])).rejects.toThrow('changed');
+ const snapshot=(await db.query('SELECT updated_at FROM jobs WHERE id=$1',[id(1)])).rows[0] as any;
+ const currentCrew=(await db.query("SELECT id FROM workflow_events WHERE event_type='piisa_crew_selected' ORDER BY created_at DESC LIMIT 1")).rows[0] as any;
+ const book=(a.rows[0] as any).result.bookingId;
+ await db.exec(`INSERT INTO partner_workers(id,business_id,profile_id,full_legal_name,trade_role,approval_status,esc_registered,esc_registered_at) VALUES('${id(7)}','${id(2)}','${id(8)}','Replacement Installer','installer','approved',true,now())`);
+ const rev2=(await db.query('SELECT in_house_visit_revision($1) AS revision',[id(1)])).rows[0] as any;
+ const swap=[id(1),id(3),'crew',null,id(7),'installation_booked',snapshot.updated_at,book,currentCrew.id,JSON.stringify({lead:id(7),additional:[]}),JSON.stringify({revision:rev2.revision}),id(11)];
+ await Promise.all([db.query(sql,swap),db.query(sql,[swap[0],id(4),...swap.slice(2)])]);
+ expect((await db.query("SELECT * FROM workflow_events WHERE event_type='in_house_lead_changed'")).rows).toHaveLength(1);
+ expect((await db.query('SELECT * FROM bookings')).rows).toHaveLength(1);
+ const c=(await db.query('SELECT claim_in_house_saved_work($1,$2,now()) AS claimed',[id(11),id(20)])).rows[0] as any;
+ const again=(await db.query('SELECT claim_in_house_saved_work($1,$2,now()) AS claimed',[id(11),id(21)])).rows[0] as any;
+ expect(c.claimed).toBe(true);expect(again.claimed).toBe(false);
  }finally{await db.close();}
 },30000);
