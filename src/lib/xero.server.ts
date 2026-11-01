@@ -5,7 +5,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import {
-  assertHivicInvoice, assertHivicJob, assertHivicPayload, assertHivicReference, buildInvoicePayload, pendingDueDateUpdate, evaluateXeroInvoice, findInvoiceByReference, findOrCreateContact, findTrackingOption,
+  assertHivicInvoice, assertHivicJob, assertHivicPayload, assertHivicReference, buildInvoicePayload, dueDateUpdateAllowed, pendingDueDateUpdate, evaluateXeroInvoice, findInvoiceByReference, findOrCreateContact, findTrackingOption,
   invoiceIdemKey, LOCK_STALE_MS, pickXeroTenant, describeXeroRouting, type XeroMode, type XeroTenant, melbourneDate, quoteGuard, XERO_DUE_DATE_UPDATES_ENABLED, xeroReference, type XeroCall,
 } from "./xero.core";
 import { clearInstallDueDatePatch, ensureInvoice, installDueDatePatch, paymentPatch, xeroDueDate, type InvoiceRow, type InvoiceStore } from "./invoice.lifecycle";
@@ -286,18 +286,24 @@ export async function syncInvoiceFromXero(invoiceId: string, actorId: string | n
   if (!(await claimLock(invoiceId))) throw new Error("A Xero sync for this invoice is already running – try again shortly.");
   try {
     const call = callOverride ?? (await tenantCall(await modeForInvoice(invoiceId)));
-    const u = XERO_DUE_DATE_UPDATES_ENABLED ? pendingDueDateUpdate(inv) : null;
-    if (u) {
-      assertHivicReference(inv.xero_reference);
-      await call(u.path, { method: u.method, headers: u.headers, body: u.body });
-      await admin.from("invoices").update({ xero_update_pending: false }).eq("id", invoiceId);
-      const due = u.body.Invoices[0]!.DueDate;
-      await logEvent(inv.job_id, actorId, "xero_due_date_updated", `Xero due date updated to ${due}`, { invoice_id: invoiceId, due_date: due }, { internal: true });
-    } else if (inv.xero_update_pending && XERO_DUE_DATE_UPDATES_ENABLED) {
-      await admin.from("invoices").update({ xero_update_pending: false }).eq("id", invoiceId); // no date known: nothing to send
-    }
     const r = await call(`/api.xro/2.0/Invoices/${inv.xero_invoice_id}`);
     const x = r.Invoices[0] ?? {};
+    // Jo 1 Nov 2026: the due date (install day, else acceptance + 30) is sent AFTER reading the invoice, only while it is
+    // open in Xero, and a refusal is recorded without stopping this payment sync. Tried once per change (flag cleared).
+    if (inv.xero_update_pending && XERO_DUE_DATE_UPDATES_ENABLED) {
+      const u = dueDateUpdateAllowed(x.Status) ? pendingDueDateUpdate(inv) : null;
+      if (u) {
+        const due = u.body.Invoices[0]!.DueDate;
+        try {
+          assertHivicReference(inv.xero_reference);
+          await call(u.path, { method: u.method, headers: u.headers, body: u.body });
+          await logEvent(inv.job_id, actorId, "xero_due_date_updated", `Xero due date updated to ${due}`, { invoice_id: invoiceId, due_date: due }, { internal: true });
+        } catch (e) {
+          await logEvent(inv.job_id, actorId, "xero_due_date_update_failed", `Xero refused the due date ${due}: ${(e as Error).message}`.slice(0, 300), { invoice_id: invoiceId, due_date: due }, { internal: true });
+        }
+      }
+      await admin.from("invoices").update({ xero_update_pending: false }).eq("id", invoiceId);
+    }
     const ev = evaluateXeroInvoice(x, Number(inv.deposit_amount));
     if (ev.voided && inv.kind === "rectification" && inv.quote_id) {
       // Batch 3b: an old fixes invoice whose fixes quote a newer one replaced is voided in Xero on purpose (Needs me "Old
@@ -362,7 +368,7 @@ export async function syncInvoiceFromXero(invoiceId: string, actorId: string | n
   }
 }
 
-/** Decision 139: Xero's online invoice page is the owner's "Pay now" (card) link. GET /Invoices/{id}/OnlineInvoice, stored on the
+/** Decision 139 (owner link removed 1 Nov 2026 — office view only): Xero's online invoice page. GET /Invoices/{id}/OnlineInvoice, stored on the
  *  ONE invoice. Read-only in Xero; behind the same tenant routing and business-unit barrier as every other Xero call. */
 export async function fetchOnlineInvoiceUrl(call: XeroCall, xeroInvoiceId: string): Promise<string | null> {
   const r = await call(`/api.xro/2.0/Invoices/${xeroInvoiceId}/OnlineInvoice`);

@@ -148,16 +148,21 @@ export function buildInvoicePayload(a: {
 }
 
 /** Prepared (not sent while disabled) Xero due-date update for an existing invoice. Idempotent: same input, same request. */
-export function buildDueDateUpdate(xeroInvoiceId: string, dueDate: string, invoiceId: string) {
-  return { path: `/api.xro/2.0/Invoices/${xeroInvoiceId}`, method: "POST", headers: { "Idempotency-Key": `hivic-due-${invoiceId}-${dueDate}` }, body: { Invoices: [{ InvoiceID: xeroInvoiceId, DueDate: dueDate }] } };
+export function buildDueDateUpdate(xeroInvoiceId: string, dueDate: string, invoiceId: string, version?: string | null) {
+  // `version` (the invoice row's updated_at) makes a date that comes back (A → B → A) a new request, not a replay.
+  const key = `hivic-due-${invoiceId}-${dueDate}${version ? `-${version.replace(/[^0-9]/g, "")}` : ""}`;
+  return { path: `/api.xro/2.0/Invoices/${xeroInvoiceId}`, method: "POST", headers: { "Idempotency-Key": key }, body: { Invoices: [{ InvoiceID: xeroInvoiceId, DueDate: dueDate }] } };
 }
+
+/** A due date is only sent to an invoice that is open in Xero (not paid, voided, deleted or draft). */
+export const dueDateUpdateAllowed = (xeroStatus: string | null | undefined) => String(xeroStatus ?? "").toUpperCase() === "AUTHORISED";
 
 /** The pending Xero due-date update for a linked invoice (install day, else acceptance + 30 days), or null when nothing
  *  is pending or no date is known (Jo 1 Nov 2026). */
-export function pendingDueDateUpdate(inv: { id: string; kind?: string | null; xero_invoice_id: string | null; xero_update_pending: boolean | null; balance_due_date: string | null; deposit_due_date: string | null }) {
+export function pendingDueDateUpdate(inv: { id: string; kind?: string | null; updated_at?: string | null; xero_invoice_id: string | null; xero_update_pending: boolean | null; balance_due_date: string | null; deposit_due_date: string | null }) {
   if (!inv.xero_update_pending || !inv.xero_invoice_id) return null;
   const due = xeroDueDate(inv, inv.kind ?? "installation");
-  return due ? buildDueDateUpdate(inv.xero_invoice_id, due, inv.id) : null;
+  return due ? buildDueDateUpdate(inv.xero_invoice_id, due, inv.id, inv.updated_at) : null;
 }
 
 /** Translate a Xero invoice into portal payment facts. Voided/deleted never clears the deposit. */
