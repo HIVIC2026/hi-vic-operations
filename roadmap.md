@@ -1,5 +1,8 @@
+## Jo 1 Nov B7b + B8
+- [ ] Test-first cap progress at one write per run; hide internal progress from history; read-only not-eligible email holds; diagnose/fix closed repeat enquiry and share-details tap; related and bounded comparison against 98 failing files / 261 failures. No settings, secrets, live data, sends or publishing.
+
 ## Jo 1 Nov B7 (#93)
-- [ ] Diagnose Mitti paging, failure isolation and pull budget; mocked red-first coverage; minimal fix; related and bounded full comparison against 98 failing files / 261 failures. No settings, secrets, live data, providers, sends or publishing.
+- [x] Paged independent pull streams with failure isolation and durable rotation, same guarded writers; 9 new tests pass, related 160/160, full 98 failing files / 261 failures unchanged. No settings, secrets, live data, sends or publishing.
 
 ## Jo 1 Nov B5 (#134 / #136 / #144)
 - [x] Diagnosed auto-offer readiness/suppression/switch/assigned/open-offer/returned/sender skips and autoAdvance planned/entry/site/refused stops; Office never read their reasons. Added canonical safety-step paid + PIESA entry gate read-only warning for accepted/pre-PIESA jobs to shared Needs facts and card mapping; one row, identical Next reason, fresh clears and unpaid excluded. Red 1 pass/3 fail; final 5/0; related 5 files 39/0. Browser-loaded fixture rules show identical line and clearing (no real job/session action). Bounded before 957 files 9,888 pass/261 fail/36 skip, after 958 files 9,893 pass/261 fail/36 skip: same 98 failing files, no existing file result changed. Automatic build OK; no settings, secrets, live data, sends or publishing.
