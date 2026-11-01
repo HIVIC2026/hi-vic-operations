@@ -70,7 +70,7 @@ export const ownerAgreementFn = createServerFn({ method: "POST" })
         signatory: pkg.consumer?.name ?? null,
         paymentTerms: pkg.payment_terms,
         consumerRights: pick("consumer_rights"),
-        agreementWording: pick("customer_agreement"),
+        agreementWording: pick("customer_agreement") ?? {version:(await import('./owner-gates.core')).gateDoc('quote_acceptance').version,body:(await import('./owner-gates.core')).fillTemplate((await import('./owner-gates.core')).gateDoc('quote_acceptance').body,{quote_version:String(pkg.quote.version),total:`$${pkg.final_customer_price_inc_gst.toFixed(2)}`,address:pkg.property_address})},
         blockers: [...templateBlockers(templates, "agreement"), ...templateBlockers(templates, 'consent')],
         section1: (await import('./consent.core')).section1FromFacts({ owner: pkg.consumer, premises_address: pkg.property_address }),
       }),
