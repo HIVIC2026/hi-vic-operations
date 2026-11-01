@@ -1,7 +1,8 @@
 ## Jo 2 Nov approved three-migration live release
-- [ ] Apply only date-free ESC consent, Task 7 ESC registration, then Task 7 trade handback, byte-for-byte after practice proofs.
-- [ ] Read back schema/functions/trigger; prove missing saved-work dispatch fallback without live booking or provider calls.
-- [ ] Verify launch hold and all business in-house flags unchanged; file applied SQL and update guidance. Jo publishes separately.
+- [x] Applied only date-free ESC consent (0183), Task 7 ESC registration (0184), then Task 7 trade handback (0185) after 9/0 practice checks; statements unchanged (tool adds terminal newline).
+- [x] Live columns/functions/enabled registration trigger read back; saved-work functions absent. Captured read-only live GET 404/PGRST202; local replay covers Book and Change Lead Installer without live writes/providers.
+- [x] Settings/business/old worker/consent fingerprints unchanged; launch hold on, all 25 businesses in-house off. Approved originals archived; applied proof paths updated. Jo publishes separately.
+- [x] Final related tests: 27 passed / 0 failed / 5 existing SIM TODOs; automatic build OK. Report docs/applied-migrations/2026-11-02_release.md.
 - Saved-work SQL remains pending, blocked and unapplied.
 
 ## Jo 1 Nov deployment compatibility and B — practice only

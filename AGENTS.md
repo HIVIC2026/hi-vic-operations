@@ -11,6 +11,7 @@
 
 - `docs/HIV_WORKFLOW_SOURCE_OF_TRUTH.md` + `src/config/workflow-decisions.ts` override older prompts/comments/labels; run `bun scripts/scan-retired-terms.ts` before workflow work. Pending DB changes live in `docs/pending-migrations/` and are proven on PGlite (`tests/helpers/pglite-*.ts`) before any live run. Why: stop retired rules returning and keep untested SQL off the live database.
 # Project rules
+- Applied SQL is journaled in `drizzle/migrations/`; archive approved pending originals in `docs/applied-migrations/` and point practice proofs at the journaled files. The 2 Nov release applied only 0183–0185; saved-work SQL remains blocked/pending. Why: prevent accidental reapplication while keeping staged booking fallback intact.
 - SIM tests capture providers with a scoped clock; mocks never count as whole-job proof. Why: honest evidence.
 - Held visit messages use the fail-closed shared lookup before records/sends; suppress approved templates and adapt authorized scheduling displays, never domain writers. Why: no legacy time negotiation alongside partner booking.
 - In-house office Book/crew saves use the original canonical inline path only when saved-work RPC dispatch explicitly reports the named function absent; never fall back after a deployed-writer error. Pending atomic SQL remains practice-only until transaction-bound canonical gates are implemented and proven. Why: staged deployment must not break booking or mistake prevalidation for atomic payment/signature safety.

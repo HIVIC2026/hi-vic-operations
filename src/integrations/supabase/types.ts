@@ -7955,7 +7955,7 @@ export type Database = {
           owner_user_agent: string | null
           premises_address: string
           scheduled_end: string | null
-          scheduled_start: string
+          scheduled_start: string | null
           signed_sha256: string | null
           snapshot: Json
           snapshot_sha256: string
@@ -7992,7 +7992,7 @@ export type Database = {
           owner_user_agent?: string | null
           premises_address: string
           scheduled_end?: string | null
-          scheduled_start: string
+          scheduled_start?: string | null
           signed_sha256?: string | null
           snapshot: Json
           snapshot_sha256: string
@@ -8029,7 +8029,7 @@ export type Database = {
           owner_user_agent?: string | null
           premises_address?: string
           scheduled_end?: string | null
-          scheduled_start?: string
+          scheduled_start?: string | null
           signed_sha256?: string | null
           snapshot?: Json
           snapshot_sha256?: string
@@ -9268,6 +9268,9 @@ export type Database = {
           created_at: string
           declarations_due: boolean
           email: string | null
+          esc_registered: boolean
+          esc_registered_at: string | null
+          esc_registered_by: string | null
           full_legal_name: string
           id: string
           licence_expires_on: string | null
@@ -9304,6 +9307,9 @@ export type Database = {
           created_at?: string
           declarations_due?: boolean
           email?: string | null
+          esc_registered?: boolean
+          esc_registered_at?: string | null
+          esc_registered_by?: string | null
           full_legal_name: string
           id?: string
           licence_expires_on?: string | null
@@ -9340,6 +9346,9 @@ export type Database = {
           created_at?: string
           declarations_due?: boolean
           email?: string | null
+          esc_registered?: boolean
+          esc_registered_at?: string | null
+          esc_registered_by?: string | null
           full_legal_name?: string
           id?: string
           licence_expires_on?: string | null
@@ -14194,6 +14203,15 @@ export type Database = {
           _status: string
         }
         Returns: string
+      }
+      record_worker_esc_registration: {
+        Args: {
+          _actor: string
+          _date: string
+          _registered: boolean
+          _worker: string
+        }
+        Returns: undefined
       }
       release_bulk_import_row: {
         Args: {

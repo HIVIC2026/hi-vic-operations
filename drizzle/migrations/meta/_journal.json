@@ -1282,6 +1282,27 @@
       "when": 1793534033781,
       "tag": "0182_in_house_team_electrician",
       "breakpoints": true
+    },
+    {
+      "idx": 183,
+      "version": "7",
+      "when": 1793573262096,
+      "tag": "0183_date_free_esc_consent",
+      "breakpoints": true
+    },
+    {
+      "idx": 184,
+      "version": "7",
+      "when": 1793573461075,
+      "tag": "0184_task7_esc_registered",
+      "breakpoints": true
+    },
+    {
+      "idx": 185,
+      "version": "7",
+      "when": 1793573622264,
+      "tag": "0185_task7_trade_hand_back",
+      "breakpoints": true
     }
   ]
 }

@@ -22,6 +22,14 @@ function fixture(error:{code:string;message:string},missingAt='in_house_visit_re
  const api:any={};new Function('exports','require',ts.transpile(readFileSync('src/lib/in-house-atomic-save.server.ts','utf8'),{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}))(api,(p:string)=>{if(!(p in deps))throw Error(`Unmocked ${p}`);return deps[p];});
  return {api,calls,invalidate:()=>{invalid=true;}};
 }
+for(const kind of ['installation','crew'])test(`recorded live missing-function response uses inline ${kind} path without providers`,async()=>{
+ const evidence=JSON.parse(readFileSync('docs/applied-migrations/2026-11-02_saved-work-dispatch.json','utf8'));
+ expect(evidence.status).toBe(404);
+ expect(evidence.code).toBe('PGRST202');
+ const f=fixture(evidence);
+ expect(await f.api.saveInHouseVisit('j','a',{kind,start:'2026-11-10',workerId:'new'})).toMatchObject({bookingId:'old-booking'});
+ expect(f.calls).toEqual([kind==='crew'?'inline crew':'inline book']);
+});
 for(const kind of ['installation','crew'])test(`missing saved-work function uses inline ${kind} path`,async()=>{
  const f=fixture({code:'PGRST202',message:'Could not find the function public.in_house_visit_revision'});
  expect(await f.api.saveInHouseVisit('j','a',{kind,start:'2026-11-10',workerId:'new'})).toMatchObject({bookingId:'old-booking'});
