@@ -39,6 +39,7 @@ export async function signedAcceptancePdf(copy: SignedAcceptanceCopy): Promise<U
     }
   };
   print("Home Insulation Victoria", 11, true);
+  y -= 8;
   print("Your signed acceptance", 20, true); y -= 12;
   print(`Owner: ${copy.ownerName}`);
   print(`Property: ${copy.address}`);
