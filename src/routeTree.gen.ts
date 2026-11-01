@@ -72,6 +72,7 @@ import { Route as ApiFilesSplatRouteImport } from './routes/api/files/$'
 import { Route as ApiPublicAddressSearchRouteImport } from './routes/api/public/address-search'
 import { Route as ApiPublicEnquiryRouteImport } from './routes/api/public/enquiry'
 import { Route as ApiPublicPartnerEnquiryRouteImport } from './routes/api/public/partner-enquiry'
+import { Route as ApiPublicQaInHousePreflightRouteImport } from './routes/api/public/qa-in-house-preflight'
 import { Route as ApiPublicSaveSpotRemindersRouteImport } from './routes/api/public/save-spot-reminders'
 import { Route as ApiPublicUnsubscribeRouteImport } from './routes/api/public/unsubscribe'
 import { Route as EstimateTokenCalculatorRouteImport } from './routes/estimate_.$token.calculator'
@@ -453,6 +454,12 @@ const ApiPublicPartnerEnquiryRoute = ApiPublicPartnerEnquiryRouteImport.update({
   path: '/api/public/partner-enquiry',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicQaInHousePreflightRoute =
+  ApiPublicQaInHousePreflightRouteImport.update({
+    id: '/api/public/qa-in-house-preflight',
+    path: '/api/public/qa-in-house-preflight',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicSaveSpotRemindersRoute =
   ApiPublicSaveSpotRemindersRouteImport.update({
     id: '/api/public/save-spot-reminders',
@@ -779,6 +786,7 @@ export interface FileRoutesByFullPath {
   '/api/public/address-search': typeof ApiPublicAddressSearchRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
   '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
+  '/api/public/qa-in-house-preflight': typeof ApiPublicQaInHousePreflightRoute
   '/api/public/save-spot-reminders': typeof ApiPublicSaveSpotRemindersRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
   '/estimate/$token/calculator': typeof EstimateTokenCalculatorRoute
@@ -885,6 +893,7 @@ export interface FileRoutesByTo {
   '/api/public/address-search': typeof ApiPublicAddressSearchRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
   '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
+  '/api/public/qa-in-house-preflight': typeof ApiPublicQaInHousePreflightRoute
   '/api/public/save-spot-reminders': typeof ApiPublicSaveSpotRemindersRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
   '/estimate/$token/calculator': typeof EstimateTokenCalculatorRoute
@@ -997,6 +1006,7 @@ export interface FileRoutesById {
   '/api/public/address-search': typeof ApiPublicAddressSearchRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
   '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
+  '/api/public/qa-in-house-preflight': typeof ApiPublicQaInHousePreflightRoute
   '/api/public/save-spot-reminders': typeof ApiPublicSaveSpotRemindersRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
   '/estimate_/$token/calculator': typeof EstimateTokenCalculatorRoute
@@ -1109,6 +1119,7 @@ export interface FileRouteTypes {
     | '/api/public/address-search'
     | '/api/public/enquiry'
     | '/api/public/partner-enquiry'
+    | '/api/public/qa-in-house-preflight'
     | '/api/public/save-spot-reminders'
     | '/api/public/unsubscribe'
     | '/estimate/$token/calculator'
@@ -1215,6 +1226,7 @@ export interface FileRouteTypes {
     | '/api/public/address-search'
     | '/api/public/enquiry'
     | '/api/public/partner-enquiry'
+    | '/api/public/qa-in-house-preflight'
     | '/api/public/save-spot-reminders'
     | '/api/public/unsubscribe'
     | '/estimate/$token/calculator'
@@ -1326,6 +1338,7 @@ export interface FileRouteTypes {
     | '/api/public/address-search'
     | '/api/public/enquiry'
     | '/api/public/partner-enquiry'
+    | '/api/public/qa-in-house-preflight'
     | '/api/public/save-spot-reminders'
     | '/api/public/unsubscribe'
     | '/estimate_/$token/calculator'
@@ -1406,6 +1419,7 @@ export interface RootRouteChildren {
   ApiPublicAddressSearchRoute: typeof ApiPublicAddressSearchRoute
   ApiPublicEnquiryRoute: typeof ApiPublicEnquiryRoute
   ApiPublicPartnerEnquiryRoute: typeof ApiPublicPartnerEnquiryRoute
+  ApiPublicQaInHousePreflightRoute: typeof ApiPublicQaInHousePreflightRoute
   ApiPublicSaveSpotRemindersRoute: typeof ApiPublicSaveSpotRemindersRoute
   ApiPublicUnsubscribeRoute: typeof ApiPublicUnsubscribeRoute
   EstimateTokenCalculatorRoute: typeof EstimateTokenCalculatorRoute
@@ -1874,6 +1888,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/partner-enquiry'
       fullPath: '/api/public/partner-enquiry'
       preLoaderRoute: typeof ApiPublicPartnerEnquiryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/qa-in-house-preflight': {
+      id: '/api/public/qa-in-house-preflight'
+      path: '/api/public/qa-in-house-preflight'
+      fullPath: '/api/public/qa-in-house-preflight'
+      preLoaderRoute: typeof ApiPublicQaInHousePreflightRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/save-spot-reminders': {
@@ -2413,6 +2434,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicAddressSearchRoute: ApiPublicAddressSearchRoute,
   ApiPublicEnquiryRoute: ApiPublicEnquiryRoute,
   ApiPublicPartnerEnquiryRoute: ApiPublicPartnerEnquiryRoute,
+  ApiPublicQaInHousePreflightRoute: ApiPublicQaInHousePreflightRoute,
   ApiPublicSaveSpotRemindersRoute: ApiPublicSaveSpotRemindersRoute,
   ApiPublicUnsubscribeRoute: ApiPublicUnsubscribeRoute,
   EstimateTokenCalculatorRoute: EstimateTokenCalculatorRoute,

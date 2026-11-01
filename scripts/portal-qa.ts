@@ -14,6 +14,13 @@ import { createHash } from "node:crypto";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { READ_ONLY_PATHS, uiRouteInventory, completedRouteCoverage } from './portal-qa-coverage';
 
+// Published journey mode has its own fail-closed preflight; never enters legacy setup/sweeps.
+if(process.argv.includes('--published-in-house')){
+  const {publishedInHousePreflight}=await import('./published-in-house');
+  await publishedInHousePreflight(process.argv.slice(2));
+  process.exit(0);
+}
+
 type Status = "passed" | "failed" | "blocked" | "not_run";
 type Result = { area: string; route_or_action: string; persona: string; status: Status; detail: string; steps: string; screenshots: string[]; environment: string };
 const arg = (k: string, d: string) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1]! : d; };
