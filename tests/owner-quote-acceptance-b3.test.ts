@@ -65,6 +65,23 @@ test("accepted replay still rejects a different version and another owner's job"
   await expect(respondToQuoteImpl(data, { ...actor, authorize: async () => { throw Error("Forbidden"); } })).rejects.toThrow("Forbidden");
   expect(signed + invoice + advances).toBe(0);
 });
+test('interrupted quote sitting after two records retries to exactly four without double recording', async () => {
+  const records = new Set<string>(); let interrupt = true;
+  const recoveryActor = { ...actor, signQuoteSitting: async () => {
+    for (const key of ['quote_acceptance', 'payment_terms', 'esc_consent']) {
+      records.add(key);
+      if (records.size === 2 && interrupt) { interrupt=false; throw Error('interrupted after record 2'); }
+    }
+  }};
+  await expect(respondToQuoteImpl(data,recoveryActor)).rejects.toThrow('interrupted after record 2');
+  expect(records.size).toBe(2); expect(signed).toBe(0);
+  await respondToQuoteImpl(data,recoveryActor); records.add('customer_agreement');
+  expect([...records].sort()).toEqual(['customer_agreement','esc_consent','payment_terms','quote_acceptance']);
+  // Also recover a committed quote whose auxiliary signing write was interrupted, rather than blindly no-op.
+  records.delete('esc_consent');
+  await respondToQuoteImpl(data,recoveryActor);
+  expect(records.size).toBe(4); expect(invoice).toBe(1);
+});
 test("a stalled post-commit invoice does not hold the owner response when the request lifecycle keeps it alive", async () => {
   let release = () => {}; invoiceWait = new Promise<void>(r => { release = r; });
   const acceptance = requestContext.run({ waitUntil: p => queued.push(p) }, () => respondToQuoteImpl(data, actor));
