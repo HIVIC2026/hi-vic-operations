@@ -9272,6 +9272,8 @@ export type Database = {
           id: string
           licence_expires_on: string | null
           licence_number: string | null
+          licence_verified_at: string | null
+          licence_verified_by: string | null
           linked_at: string | null
           linked_by: string | null
           mobile: string | null
@@ -9282,6 +9284,7 @@ export type Database = {
           piisa_verified_by: string | null
           profile_id: string | null
           qualification: string | null
+          rec_number: string | null
           rejection_reason: string | null
           removed_at: string | null
           source_application_id: string | null
@@ -9305,6 +9308,8 @@ export type Database = {
           id?: string
           licence_expires_on?: string | null
           licence_number?: string | null
+          licence_verified_at?: string | null
+          licence_verified_by?: string | null
           linked_at?: string | null
           linked_by?: string | null
           mobile?: string | null
@@ -9315,6 +9320,7 @@ export type Database = {
           piisa_verified_by?: string | null
           profile_id?: string | null
           qualification?: string | null
+          rec_number?: string | null
           rejection_reason?: string | null
           removed_at?: string | null
           source_application_id?: string | null
@@ -9338,6 +9344,8 @@ export type Database = {
           id?: string
           licence_expires_on?: string | null
           licence_number?: string | null
+          licence_verified_at?: string | null
+          licence_verified_by?: string | null
           linked_at?: string | null
           linked_by?: string | null
           mobile?: string | null
@@ -9348,6 +9356,7 @@ export type Database = {
           piisa_verified_by?: string | null
           profile_id?: string | null
           qualification?: string | null
+          rec_number?: string | null
           rejection_reason?: string | null
           removed_at?: string | null
           source_application_id?: string | null
@@ -13711,6 +13720,10 @@ export type Database = {
         }
         Returns: Json
       }
+      allocate_team_electrician: {
+        Args: { _actor: string; _job: string; _worker: string }
+        Returns: Json
+      }
       apply_pre_assessment_test_payment: {
         Args: {
           _idempotency_key: string
@@ -14307,6 +14320,16 @@ export type Database = {
           quote_status: Database["public"]["Enums"]["quote_status"]
           sort: number
         }[]
+      }
+      verify_team_electrician: {
+        Args: {
+          _actor: string
+          _expiry: string
+          _licence: string
+          _rec: string
+          _worker: string
+        }
+        Returns: undefined
       }
       visit_is_current: {
         Args: {
