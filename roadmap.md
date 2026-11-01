@@ -1,3 +1,11 @@
+## Jo 1 Nov SIM — isolated fake-clock whole-job scenarios
+- [x] Shared scoped Melbourne clock, actual booking/form/crew/SWMS/deposit/cancel/certificate/repeat handlers with captured recipients/channels/ids; DST and own-office refusal tests. Pending handback SQL practice-only.
+- [x] Real PIESA copy before-booking crash fixed test-first; wording/guards unchanged. 14 new tests pass, six TODO groups explicitly not whole-job PASS. Related 84/0.
+- [x] Full comparable: raw before 992 files 10032/242/97; final 993 files 10046/242/97. Same nested owner-speed individual 0/1 normalization yields 10031/243/97 → 10045/243/97. Zero original regressions. Report docs/SIM-scenario-results.md.
+- [ ] Whole-job intake/spot/taps/five-job handoff and actual quote/code/four-doc/ledger chain not integrated (fixture prerequisites only).
+- [ ] Actual A3/A4 completion, rectification quote/payments, A5/evidence/VEEC/AP close and full per-role/RLS reads not integrated.
+- [ ] Selected-electrician immediate PIESA-booking notice absent; do not unhold installer I71 coordination or invent approved wording. Worker swap messages/full office action and list read still need integrated capture.
+
 ## Jo 1 Nov S1 — practice-only speed
 - [x] Reproduced extra enquiry-response-scope-practice-db timeout on both archived Task 7/E0; individual 8/0 on both, source unchanged. Normalized comparison 97/243.
 - [x] Test-first batched deposit list facts, overlapping Team reads, reused crew/payment reads, durable awaiting_ap response; six new tests and expanded handover pass.

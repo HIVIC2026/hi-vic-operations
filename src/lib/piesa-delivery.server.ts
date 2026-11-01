@@ -82,7 +82,7 @@ export async function deliverPiesaCopies(jobId: string, now = new Date()): Promi
   for (const recipient of plan.send) {
     const to = recipient === "owner" ? owner!.email!.trim() : installerEmail!;
     const name = recipient === "owner" ? owner?.full_name : prof?.full_name;
-    const mail = renderPiesaCopyEmail({ recipient, firstName: name?.trim().split(/\s+/)[0] ?? null, address, jobNumber: job.job_number, signatureDate: pe.copy!.signatureDate, installStart: bk!.scheduled_start, link: recipient === "owner" ? ownerLink : `${SET_PASSWORD_BASE}/field/${jobId}`, test });
+    const mail = renderPiesaCopyEmail({ recipient, firstName: name?.trim().split(/\s+/)[0] ?? null, address, jobNumber: job.job_number, signatureDate: pe.copy?.signatureDate ?? null, installStart: bk?.scheduled_start ?? null, link: recipient === "owner" ? ownerLink : `${SET_PASSWORD_BASE}/field/${jobId}`, test });
     const key = piesaCopyKey(copyId!, recipient);
     if (test) {
       const r = await (await import("./test-send.server")).sendTestEmail({ jobId, jobSource: job.source, partnerIsTest: isTestPartner(biz as never), label: key, actorId: null }, to, mail.subject, mail.html, mail.text, { attachments });
