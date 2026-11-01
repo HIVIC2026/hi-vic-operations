@@ -998,11 +998,14 @@ export async function inHouseBookVisit(userId: string, input: { jobId: string; k
   const access = await inHouseBookingAccess(userId, input.jobId, client);
   if (!access.allowed) return { ok: false, blockers: access.blockers };
   if(!input.workerId)return {ok:false,blockers:[input.kind==='installation'?(await import('./in-house-booking.core')).LEAD_INSTALLER_BOOKING_REASON:'Choose the person going before booking.']};
+  // All canonical stage/payment/date/owner gates run before changing worker allocation or crew.
+  try{await (await import('./booking.server')).validateBooking(input.jobId,input.kind,input.start,userId,input.workerId);}
+  catch(e){return {ok:false,blockers:[e instanceof Error?e.message:'Booking validation failed.']};}
   const service=await import('./in-house-booking.server');
   let who:import('./in-house-booking.core').BookingWorker;
   try{who=await service.prepareBookingWorker(input.jobId,userId,input.kind,input.workerId,input.crewIds);}
   catch(e){return {ok:false,blockers:[e instanceof Error?e.message:'Could not check the person going.']};}
-  const existingReadyCheck = input.kind === "ready_check" ? access.bookings?.find(b => b.kind === "ready_check" && b.status === "confirmed" && b.scheduled_start && new Date(b.scheduled_start).getTime() === new Date(input.start).getTime()) : undefined;
+  const existingReadyCheck = access.bookings?.find(b => b.kind === input.kind && b.status === "confirmed" && b.scheduled_start && new Date(b.scheduled_start).getTime() === new Date(input.start).getTime());
   if (existingReadyCheck) {
     await (await import("./mitti-create.server")).onReadyCheckBooked(input.jobId, userId).catch(e=>console.error("ready check form retry failed", e instanceof Error ? e.message : "Form preparation failed"));
     await service.notifyOwnerBooked(input.jobId,'ready_check',input.start,who).catch(e=>console.error('Booking confirmation held',e instanceof Error?e.message:'Delivery unavailable'));

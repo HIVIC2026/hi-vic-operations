@@ -8,7 +8,7 @@ import { autoAdvanceJob } from "./autoadvance.server";
 
 export type BookingKind = "assessment" | "ready_check" | "rectification" | "installation";
 
-export async function confirmBooking(jobId: string, kind: BookingKind, start: string, actorId: string, roleLabel: string, notes?: string | null) {
+export async function validateBooking(jobId: string, kind: BookingKind, start: string, actorId: string, proposedWorkerId?: string) {
   const need = kind === "installation" || kind === "ready_check" ? "installer" : "electrician";
   const stage = await getStage(jobId);
   const map: Record<BookingKind, [Stage[], Stage]> = {
@@ -24,14 +24,15 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
     const { piesaRequestBlockers } = await import("./payment-gate.core");
     const gate = piesaRequestBlockers(await piesaRequestFacts(jobId));
     if (gate.length) throw new WorkflowError(`The PIESA cannot be booked yet: ${gate.join(" ")}`);
-    const teamBlocker = await (await import("./in-house-electrician.server")).inHousePiesaBookingBlockerFor(jobId);
-    if (teamBlocker) throw new WorkflowError(teamBlocker);
+    if(!proposedWorkerId){const teamBlocker = await (await import("./in-house-electrician.server")).inHousePiesaBookingBlockerFor(jobId);
+    if (teamBlocker) throw new WorkflowError(teamBlocker);}
   }
   const [allowed, target] = map[kind];
   if (!allowed.includes(stage)) throw new WorkflowError(`A ${kind} booking can't be made at ${STAGE_LABEL[stage]}.`);
   const { data: contractor } = await admin.from("job_assignments").select("id, user_id, business_id, businesses(business_type, onboarding_status, is_active, capabilities)").eq("job_id", jobId).eq("role", need).eq("active", true).maybeSingle();
-  if (!contractor) throw new WorkflowError(`No ${need} assigned yet.`);
+  if (!contractor && !proposedWorkerId) throw new WorkflowError(`No ${need} assigned yet.`);
   if (kind === "ready_check") {
+    if(!contractor)throw new WorkflowError('No installer assigned yet.');
     const business = contractor.businesses as { business_type: string; onboarding_status: string; is_active: boolean; capabilities: string[] | null } | null;
     if (!contractor.business_id || !business?.is_active || business.onboarding_status !== "approved" || (business.business_type !== "eec_installer" && !business.capabilities?.includes("installer")))
       throw new WorkflowError("The Ready Check must be assigned to an approved installer.");
@@ -84,6 +85,13 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
     const pre = (await stageEntryBlockers(jobId, target, actorId)).filter((b) => b !== READY_CHECK_BOOKING_RECORD_BLOCKER);
     if (pre.length) throw new WorkflowError(`Blocked: ${pre.join(" • ")}`);
   }
+  return {stage,target};
+}
+export async function confirmBooking(jobId: string, kind: BookingKind, start: string, actorId: string, roleLabel: string, notes?: string | null) {
+  const {stage,target}=await validateBooking(jobId,kind,start,actorId);
+  const need=kind==='installation'||kind==='ready_check'?'installer':'electrician';
+  const {data:contractor,error:contractorError}=await admin.from('job_assignments').select('id,user_id,business_id').eq('job_id',jobId).eq('role',need).eq('active',true).maybeSingle();
+  if(contractorError||!contractor)throw new WorkflowError('Assigned contractor could not be read.');
   // Decision 325: a direct reschedule of a booked install day (O42) needs the start it replaces.
   const priorInstallStart = kind === "installation" && stage === target
     ? (await admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").order("created_at", { ascending: false }).limit(1).maybeSingle()).data?.scheduled_start ?? null
