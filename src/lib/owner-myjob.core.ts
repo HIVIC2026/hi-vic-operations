@@ -9,6 +9,10 @@ export const OWNER_STEPS = ["Ready Check", "Quote", "PIESA", "Install", "Done"] 
  *  Batch 3a: "newquote" = O78's "Send me a new quote" button (new-quote-request.*).
  *  A48 batch 2: "taps" = the quick taps (quick-taps.*): name, address, hatch, roof, 5 years, "Yes, let's go". */
 export type OwnerScreen = "home" | "spot" | "quote" | "pay" | "piesa" | "veec" | "book" | "done" | "review" | "fixes" | "turn" | "newquote" | "taps";
+export function currentOwnerAction(facts: Record<Exclude<OwnerScreen,'home'|'done'>,boolean>): Exclude<OwnerScreen,'home'|'done'> | null {
+  const priority = ['newquote','turn','taps','quote','fixes','pay','piesa','veec','book','spot','review'] as const;
+  return priority.find(action=>facts[action]) ?? null;
+}
 export function resolveOwnerScreen(screen: OwnerScreen | undefined, facts: { currentAction?: Exclude<OwnerScreen, 'home' | 'done'> | null }): Exclude<OwnerScreen, 'home'> | 'all_set' {
   if (screen && screen !== 'home') return screen;
   return facts.currentAction ?? 'all_set';
