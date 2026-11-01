@@ -13,6 +13,7 @@ import { piesaRulesOfficeLine } from "./piesa-rules-notice.core";
 import { coesOfficeLine } from "./coes-check.core";
 import { LIFE_SUPPORT_PLAN_ROW } from "./compliance-timeline.core";
 import { addVicBusinessDays, melbourneToday } from "./melbourne-time.core";
+import { paidGateWarningLine, type PaidGateWarning } from "./paid-gate-warning.core";
 
 export type NeedsGroup = "today" | "week" | "watch";
 export const NEEDS_GROUPS: { key: NeedsGroup; label: string }[] = [
@@ -22,6 +23,7 @@ export const NEEDS_GROUPS: { key: NeedsGroup; label: string }[] = [
 ];
 
 export type NeedsKind =
+  | "paid_gate_blocked"
   | "in_house_ready_check_not_booked" | "in_house_piesa_overdue" | "in_house_install_not_booked"
   | "choose_again" | "quote_check" | "fixes_quote_check" | "sign_consent" | "esc_window" | "final_check" | "send_failed" | "email_change" | "email_unmatched" | "robot_failed" | "piisa_form_failed"
   | "choose_installer" | "choose_electrician" | "veec_a_held" | "piesa_owner_unsigned" | "piesa_fixes_owner_unsigned" | "fixes_times_missing"
@@ -48,6 +50,7 @@ export type NeedsFacts = {
   jobId: string; jobNumber: string; surname: string; suburb: string | null; isTest?: boolean;
   source?: string; deletedAt?: string | null;
   inHouseDispatch?: "in_house" | "in_house_read_failed" | null;
+  paidGate?: PaidGateWarning | null;
   inHouse?: { partnerName: string; batchSentAt: string | null; readyCheckBooked: boolean;
     quoteAcceptedAt: string | null; piesaCompleted: boolean; installationBooked: boolean;
     daysRemaining: number | null; deadline: string | null } | null;
@@ -203,6 +206,8 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   const out: Candidate[] = [];
   const held = !!f.inHouseDispatch || !!f.inHouse;
   const add = (c: Candidate) => out.push(c);
+  const paidLine = paidGateWarningLine(f.paidGate);
+  if (paidLine && f.paidGate) add({ rank: 19, group: "today", kind: "paid_gate_blocked", line: paidLine, since: f.paidGate.at, button: { label: "Open job", to: "job", section: "piesa" } });
   const ih = !f.isTest && f.source !== "qa_test" && !f.deletedAt ? f.inHouse : null;
   if (ih) {
     if (!ih.installationBooked && ih.daysRemaining != null && ih.daysRemaining <= 7) add({ rank: 36, group: "today", kind: "in_house_install_not_booked", line: `${ih.partnerName} hasn't booked the install (${ih.daysRemaining < 0 ? "30-day window expired" : `${ih.daysRemaining} days left`})`, since: ih.deadline ?? ih.batchSentAt ?? new Date(now).toISOString(), button: { label: "Open job", to: "job", section: "install" } });
