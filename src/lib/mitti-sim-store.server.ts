@@ -65,6 +65,7 @@ export const persistentSimMittiCall: MittiCall = async (method, path, body) => {
     const { data: row } = await db().select("*").eq("id", id).maybeSingle();
     if (!row) throw new Error(`Simulated Mitti: no TEST form ${id}`);
     if (/\/(share|owner)$/.test(p)) return {};
+    if (method === 'DELETE' && /\/user\/[^/]+\/access$/.test(p)) return {};
     if (method === "GET") return { audit_id: row.id, template_id: row.template_id, created_at: row.created_at, modified_at: row.modified_at, audit_data: { date_completed: row.completed ? row.modified_at : null }, items: row.items, header_items: row.header_items };
     if (method === "PUT") {
       const items: Item[] = row.items ?? [];

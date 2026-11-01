@@ -160,7 +160,7 @@ export async function saveCrewWithLead(jobId: string, userId: string, sel: CrewS
     await (await import('./in-house-booking.server')).recordLeadChange(jobId,userId,oldLeadId,leadId??'');
     const { data: booked } = await db.from("bookings").select("id").eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").limit(1).maybeSingle();
     if (booked) await forms.ensureInstallForm(jobId, userId, call);
-    await forms.syncInHouseForms(jobId, "crew", userId, call);
+    await forms.syncInHouseForms(jobId, "crew", userId, call, oldLeadId!==leadId?oldLeadId:null);
   }
   return result;
 }

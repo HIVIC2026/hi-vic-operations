@@ -12,6 +12,8 @@ import { getTradeHome } from "@/lib/trade-view.functions";
 import { ELECTRICIAN_WORK_WORDS, dayTile, goneIn, tradeGreeting } from "@/lib/trade-view.core";
 import { electricianYourJobs } from "@/lib/work-places.core";
 import { GROUP_LABEL, HOME_EMPTY, doneSub, homeIsEmpty, monthStripWords, offerPanelWords, offersListView, sourceLabel, type InstallerHomeRow } from "@/lib/installer-home.core";
+import { InHouseBookingRow } from '@/components/trade/InHouseBookingCard';
+import { inHouseVisitForStage } from '@/lib/in-house-message.core';
 
 export const Route = createFileRoute("/_authenticated/field/")({
   head: () => ({ meta: [{ title: "My work – Home Insulation Victoria" }, { name: "description", content: "New job offers, what needs you and what's coming up." }, { property: "og:title", content: "My work – Home Insulation Victoria" }, { property: "og:description", content: "New job offers, what needs you and what's coming up." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
@@ -181,13 +183,13 @@ function JobGroup({ group, rows, empty, emptyAction }: { group: "action" | "prog
     <section data-job-group={group}>
       <h2 className={`${EYEBROW} border-b border-line pb-2`}>{GROUP_LABEL[group]}{rows.length > 0 && <span className="font-medium normal-case tracking-normal"> · {rows.length}</span>}</h2>
       {rows.length ? rows.map((j) => (
-        <Link key={j.jobId} to="/field/$jobId" params={{ jobId: j.jobId }} data-job-card className={ROW}>
+        <div key={j.jobId}><Link to="/field/$jobId" params={{ jobId: j.jobId }} data-job-card className={ROW}>
           <span className="min-w-0 flex-1">
             <span className="block text-base font-semibold">{j.street ?? j.suburb ?? "Address to come"}</span>
             <span className="mt-0.5 block text-[13px] text-sub">{[j.jobNumber, sourceLabel(j.channel)].filter(Boolean).join(" · ")}</span>
             <span data-card-line className={`mt-1.5 block text-sm ${group === "action" ? "font-medium text-hiv-blue" : "text-ink"}`}>{j.next}</span>
           </span>{CHEVRON}
-        </Link>
+        </Link>{group==='action'&&j.boss&&j.inHouseDispatch==='in_house'&&inHouseVisitForStage(j.stage)&&<InHouseBookingRow jobId={j.jobId} kind={j.stage==='installation_scheduling'?'installation':j.stage==='rectification_scheduling'?'rectification':inHouseVisitForStage(j.stage)==='PIESA'?'assessment':'ready_check'}/>}</div>
       )) : <p className="py-3 text-sm text-sub">{empty}</p>}
       {!rows.length && emptyAction}
     </section>

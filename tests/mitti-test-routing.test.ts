@@ -65,6 +65,7 @@ test("a TEST flow (search, template, create, share, owner, read) stays simulated
   // later calls through the plain boundary route by id / sim user
   await ms.realMittiCall("POST", `/audits/${audit_id}/share`, { shares: [{ id: u!.id, permission: "edit" }] });
   await ms.realMittiCall("PUT", `/inspections/v1/inspections/${audit_id}/owner`, { owner_id: u!.id });
+  await ms.realMittiCall('DELETE', `/inspections/v1/inspections/${audit_id}/user/sim_old_user/access`);
   const got = await ms.realMittiCall("GET", `/audits/${audit_id}`);
   expect((got as { audit_id: string }).audit_id).toBe(audit_id);
   expect(calls.length).toBe(0);
