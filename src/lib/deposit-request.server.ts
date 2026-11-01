@@ -9,7 +9,8 @@ import { fullAddress } from './address';
 
 async function factsFor(jobId:string,now:Date) {
   const held=await readInHouseDispatchState([jobId]);
-  if(held.failed || !held.held.has(jobId))return null;
+  if(held.failed)throw Error('Could not check deposit partner.');
+  if(!held.held.has(jobId))return null;
   const [{data:job,error:je},{data:assignment,error:ae},c,v]=await Promise.all([
     admin.from('jobs').select('id,job_number,source,stage,deleted_at,qa_archived_at,owners(full_name,email,phone),properties(address_line,suburb,postcode)').eq('id',jobId).maybeSingle(),
     admin.from('job_assignments').select('business_id,businesses(name,trading_name,email)').eq('job_id',jobId).eq('role','installer').eq('active',true).maybeSingle(),
@@ -58,14 +59,34 @@ async function ownerNotice(jobId:string,c:Facts,step:'request'|'paid'|DepositRem
   const s=await (await import('./sms.server')).sendRealSms({type:step==='paid'?'install_deposit_paid':step==='request'?'install_deposit_request':'install_deposit_reminder',jobId,to:c.owner.phone,body:depositOwnerText(c.f,step),idempotencyKey:`${key}:sms`,event:{at,current:step==='paid'?c.paid:!c.paid}});
   return `${e}; sms ${s.status}`;
 }
+/** Clearance intent is recorded before invoice/payment reads; invoice-keyed request time remains unchanged. */
 export async function requestInstallDeposit(jobId:string,now=new Date()):Promise<string>{
-  const c=await factsFor(jobId,now);if(!c)return 'not applicable';
-  if(!depositRequestEligible({cleared:c.c.clearance.cleared,basis:c.c.clearance.basis,paid:c.paid,booked:c.c.booked,deadline:c.c.deadline,now}))return 'not due';
-  const prior=await requestRecord(jobId,c.v.invoiceId);
-  if(!prior)await recordRequest(jobId,c.v.invoiceId,now,c.f.deadline);
-  const record=prior??await requestRecord(jobId,c.v.invoiceId);
-  if(!record)throw Error('Deposit request was not recorded.');
-  return ownerNotice(jobId,c,'request',record.created_at,now);
+  const {stableUuid}=await import('./mitti-create-claim.core');
+  const id=await stableUuid(`install-deposit-pending:v1:${jobId}`);
+  const pending=await admin.from('workflow_events').insert({id,job_id:jobId,actor_id:null,event_type:'install_deposit_request_pending',summary:'Installation deposit request awaiting invoice and clearance checks',internal:true,details:{attempts:0}});
+  if(pending.error&&pending.error.code!=='23505')throw Error(pending.error.message);
+  try{
+    const c=await factsFor(jobId,now);
+    if(!c)throw Error('Installation invoice or deposit facts not available yet.');
+    if(!depositRequestEligible({cleared:c.c.clearance.cleared,basis:c.c.clearance.basis,paid:c.paid,booked:c.c.booked,deadline:c.c.deadline,now}))return 'not due';
+    const prior=await requestRecord(jobId,c.v.invoiceId);
+    if(!prior)await recordRequest(jobId,c.v.invoiceId,now,c.f.deadline);
+    const record=prior??await requestRecord(jobId,c.v.invoiceId);
+    if(!record)throw Error('Deposit request was not recorded.');
+    const result=await ownerNotice(jobId,c,'request',record.created_at,now);
+    if(result.startsWith('sent')){
+      const done=await admin.from('workflow_events').update({event_type:'install_deposit_request_resolved'}).eq('id',id);if(done.error)throw Error(done.error.message);
+      await admin.from('workflow_events').update({event_type:'install_deposit_request_recovered'}).eq('job_id',jobId).eq('event_type','install_deposit_request_failed');
+    }
+    return result;
+  }catch(e){
+    const old=await admin.from('workflow_events').select('details').eq('id',id).maybeSingle();if(old.error)throw Error(old.error.message);
+    const attempts=Number((old.data?.details as {attempts?:number}|null)?.attempts??0)+1;
+    const details={attempts,reason:e instanceof Error?e.message:'Deposit facts unavailable'};
+    const update=await admin.from('workflow_events').update({details}).eq('id',id);if(update.error)throw Error(update.error.message);
+    if(attempts>=3){const alert=await admin.from('workflow_events').insert({id:await stableUuid(`install-deposit-failed:v1:${jobId}`),job_id:jobId,actor_id:null,event_type:'install_deposit_request_failed',summary:'Installation deposit request needs office attention',details,internal:true});if(alert.error&&alert.error.code!=='23505')throw Error(alert.error.message);}
+    return `pending: ${details.reason}`;
+  }
 }
 /** Shared by card and Xero receipt handling; each channel owns a durable once-only claim. */
 export async function notifyInstallerDepositPaid(jobId:string,now=new Date()):Promise<string>{
@@ -75,27 +96,29 @@ export async function notifyInstallerDepositPaid(jobId:string,now=new Date()):Pr
   // Independent channels: owner consent holds must not prevent an authorised trade-office notice.
   let owner:string;
   try{owner=await ownerNotice(jobId,c,'paid',r.data.created_at,now);}catch(e){owner=`owner held: ${e instanceof Error?e.message:'delivery unavailable'}`;}
-  if(now.getTime()-Date.parse(r.data.created_at)>86_400_000)return `${owner}; stale installer notice held`;
   // Office email only. Trade pause remains independent of the allowed in-house exception.
   if(await (await import('./trade-pause.server')).tradeMessagesPausedNow({businessId:c.assignment.business_id}))return `${owner}; installer held`;
   if(!c.biz.email)return `${owner}; installer email missing`;
   if(await (await import('./qa-inbox.server')).qaDeliveryHeld(jobId))return `${owner}; TEST browser delivery held`;
   const key=`install-deposit-paid-office:v1:${c.v.invoiceId}`;
-  const prior=await admin.from('customer_email_sends').select('id').eq('job_id',jobId).eq('idempotency_key',key).maybeSingle();
+  const prior=await admin.from('customer_email_sends').select('id,status,error').eq('job_id',jobId).eq('idempotency_key',key).maybeSingle();
   if(prior.error)throw Error('Could not read installer deposit email history.');
-  if(prior.data)return `${owner}; installer already attempted`;
-  const claim=await admin.from('customer_email_sends').insert({job_id:jobId,purpose:'install_deposit_paid_office',idempotency_key:key}).select('id').maybeSingle();
+  if(prior.data&&prior.data.status!=='failed')return `${owner}; installer already attempted`;
+  const claim=prior.data
+    ?await admin.from('customer_email_sends').update({status:'sending',error:null}).eq('id',prior.data.id).eq('status','failed').select('id').maybeSingle()
+    :await admin.from('customer_email_sends').insert({job_id:jobId,purpose:'install_deposit_paid_office',idempotency_key:key}).select('id').maybeSingle();
   if(claim.error?.code==='23505')return `${owner}; installer already attempted`;
   if(claim.error||!claim.data)throw Error('Could not reserve installer deposit email.');
   const m=renderInstallerDepositPaidEmail({...c.f,name:c.owner.full_name||c.f.name});
   const e=c.job.source==='qa_test'
     ?await (await import('./test-send.server')).sendTestEmail({jobId,jobSource:c.job.source,partnerIsTest:true,label:key,actorId:null},c.biz.email,m.subject,m.html,m.text)
     :await (await import('./office-email.server')).sendOfficeEmail({actorId:null,recipient:'partner',to:c.biz.email,contactName:c.f.installer,subject:m.subject,message:m.text,label:'install_deposit_paid_office',record:{businessId:c.assignment.business_id},html:m.html,text:m.text,idempotencyKey:key});
-  await admin.from('customer_email_sends').update({status:e.status==='sent'?'sent':e.status==='blocked'?'failed':'delivered_unrecorded',sent_at:e.status==='sent'?now.toISOString():null,error:e.status==='sent'?null:e.detail}).eq('id',claim.data.id);
+  await admin.from('customer_email_sends').update({status:e.status==='sent'?'sent':e.status==='blocked'||e.status==='failed'&&/didn't accept|refused this address or message/i.test(e.detail??'')?'failed':'delivered_unrecorded',sent_at:e.status==='sent'?now.toISOString():null,error:e.status==='sent'?null:e.detail}).eq('id',claim.data.id);
   return `${owner}; installer ${e.status}`;
 }
 export async function sweepDepositRequests(now=new Date()){
   const ids:string[]=[];
+  for(let offset=0;;offset+=200){const pending=await admin.from('workflow_events').select('job_id').eq('event_type','install_deposit_request_pending').order('id').range(offset,offset+199);if(pending.error)throw Error(pending.error.message);for(const row of pending.data??[])if(!ids.includes(row.job_id))ids.push(row.job_id);if((pending.data?.length??0)<200)break;}
   for(let from=0;;from+=200){
     const r=await admin.from('jobs').select('id').eq('stage','installation_scheduling').is('deleted_at',null).order('id').range(from,from+199);
     if(r.error||!r.data)throw Error('Could not read deposit candidates.');ids.push(...r.data.map(j=>j.id));if(r.data.length<200)break;
@@ -103,6 +126,8 @@ export async function sweepDepositRequests(now=new Date()){
   let checked=0;
   for(const jobId of ids){
     try{
+      const pending=await admin.from('workflow_events').select('id').eq('job_id',jobId).eq('event_type','install_deposit_request_pending').limit(1).maybeSingle();if(pending.error)throw Error(pending.error.message);
+      if(pending.data)await requestInstallDeposit(jobId,now);
       const c=await factsFor(jobId,now);if(!c)continue;checked++;
       if(c.paid){await notifyInstallerDepositPaid(jobId,now);continue;}
       if(!depositRequestEligible({cleared:c.c.clearance.cleared,basis:c.c.clearance.basis,paid:c.paid,booked:c.c.booked,deadline:c.c.deadline,now}))continue;
