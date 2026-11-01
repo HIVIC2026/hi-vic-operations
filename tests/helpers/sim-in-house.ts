@@ -96,7 +96,9 @@ export function createInHouseSim(){
  './name-address-tidy.core':{},'./office-jobs.core':{},'./job-disposition.server':{applyHoldOrCancel:async()=>{job.stage='cancelled';}},'./installer-run.server':{runOwnerCancelled:async(_id:string,o:any)=>{if(!o.silent)throw Error('Unexpected installer notice');return{told:false};}},'./cancel-notice.server':{sendCancelNotices:async()=>{throw Error('Unexpected owner/installer notice');}},
  };
  const forms=load('src/lib/in-house-forms.server.ts',deps,clock);deps['./in-house-forms.server']=forms;
- db.rpc=async(name:string,p:any)=>{if(name!=='allocate_team_electrician')throw Error(`SIM unmocked RPC ${name}`);tables.job_assignments=tables.job_assignments.filter(a=>a.role!=='electrician');tables.job_assignments.push({id:'electrician-assignment',job_id:'job',user_id:p._worker,business_id:'biz',role:'electrician',active:true});return{data:{ok:true},error:null};};
+ db.rpc=async(name:string,p:any)=>{
+  if(name==='claim_in_house_saved_work'){const e=tables.workflow_events.find(e=>e.id===p._id);if(!e||['done','running'].includes(e.details.status))return{data:false,error:null};e.details={...e.details,status:'running',lease:p._lease};return{data:true,error:null};}
+  if(name!=='allocate_team_electrician')throw Error(`SIM unmocked RPC ${name}`);tables.job_assignments=tables.job_assignments.filter(a=>a.role!=='electrician');tables.job_assignments.push({id:'electrician-assignment',job_id:'job',user_id:p._worker,business_id:'biz',role:'electrician',active:true});return{data:{ok:true},error:null};};
  const electrician=load('src/lib/in-house-electrician.server.ts',deps,clock);deps['./in-house-electrician.server']=electrician;
  const electricianBooked=load('src/lib/in-house-electrician-booked.server.ts',deps,clock);deps['./in-house-electrician-booked.server']=electricianBooked;
  const booking=load('src/lib/in-house-booking.server.ts',deps,clock);deps['./in-house-booking.server']=booking;
@@ -106,6 +108,16 @@ export function createInHouseSim(){
  const windows=load('src/lib/thirty-day-rule.server.ts',deps,clock);
  const cancelApi=load('src/lib/office-actions.server.ts',deps,clock);
  const safety=load('src/lib/swms.server.ts',deps,clock);deps['./swms.server']=safety;
+ const savedWork=load('src/lib/in-house-saved-work.server.ts',deps,clock);deps['./in-house-saved-work.server']=savedWork;
+ // SQL atomicity is PGlite-proven separately. SIM models its committed crew +
+ // notice + durable work, then drives the real retry runner for Mitti/SWMS.
+ deps['./in-house-atomic-save.server']={saveInHouseVisit:async(_job:string,_actor:string,input:any)=>{
+  const old=currentSelection().lead;event('piisa_crew_selected',{selection:input.selection});
+  const book=tables.bookings.find(b=>b.kind==='installation'&&b.status==='confirmed');
+  if(book&&old&&old!==input.workerId){const name=tables.partner_workers.find(w=>w.id===input.workerId)?.full_legal_name;await logEvent('job','installer-office','in_house_lead_changed',`Update the ESC install notice: Lead Installer changed to ${name}`,{start:book.scheduled_start,worker_id:input.workerId,name,old_worker_id:old,booking_id:book.id});}
+  const id=await savedWork.recordInHouseSavedWork('job','installer-office',{type:'crew',bookingId:book?.id??null,workerId:input.workerId,oldWorkerId:old},clock.iso()+input.workerId);
+  await savedWork.runInHouseSavedWork(id,clock.now());return{needsVerification:[]};
+ }};
  const visits=load('src/lib/visit-allocation.server.ts',deps,clock);deps['./visit-allocation.server']=visits;
  const disposition=load('src/lib/job-disposition.server.ts',deps,clock);deps['./job-disposition.server']=disposition;
  db.storage={from:()=>({download:async()=>({data:new Blob(['SIM certificate']),error:null})})};
