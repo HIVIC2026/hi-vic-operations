@@ -148,6 +148,15 @@ describe("R01: an ACCEPTED installer intake never changes an existing owner's co
 });
 
 describe("R01: the other paths through the same helper", () => {
+  for (const stage of ["cancelled", "complete"]) test(`B8 repeat at a ${stage} house starts a new job; its replay never duplicates it`, async () => {
+    const old = await seedJob({ name: "Jane Citizen", email: "jane@example.com", phone: "0411 111 111", address: "12 Smith St", suburb: "Bundoora", postcode: "3083", channel: "hivic_sourced", stage });
+    const input = request({ external_enquiry_id: `new-after-${stage}`, full_name: "Jane Citizen", phone: "0411 111 111" });
+    const result = await upsertEnquiry(input, "base44", null);
+    expect(result.created).toBe(true); expect(result.job_id).not.toBe(old.jobId);
+    expect((await q<{ stage: string }>("select stage from jobs where id=$1", [old.jobId]))[0]?.stage).toBe(stage);
+    const replay = await upsertEnquiry(input, "base44", null);
+    expect(replay.job_id).toBe(result.job_id); expect(replay.created).toBe(false); expect(await count("jobs")).toBe(2);
+  });
   test("website duplicate at an open job's address → that job back with the office flag, owner untouched (contact was overwritten before the fix)", async () => {
     const i = await seedJob({ name: "Sam Shared", email: "sam@example.com", phone: "0422 222 222", address: "7 Oak Ave", suburb: "Reservoir", postcode: "3073", channel: "installer_sourced", business: BIZ_A });
     const before = await ownerBytes(i.ownerId);
