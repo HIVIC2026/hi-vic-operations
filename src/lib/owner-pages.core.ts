@@ -65,7 +65,7 @@ export const P2 = {
   tick1Sub: (rebate: string) => `Your contract with Home Insulation Victoria for this job. The ${rebate} rebate comes off your price now; you'll sign the official rebate form after the install.`,
   tick1Read: "Read the agreement ›",
   tick2: "I've read my consumer rights and the payment terms",
-  tick2Sub: (safetyCheck: string) => `${safetyCheck} now for the electrical safety check, 10% to book your install day, the rest on install day. Or pay in full any time.`,
+  tick2Sub: (safetyCheck: string) => `${safetyCheck} now for the electrical safety check, 10% to book your install day, the rest 7 days after your install is recorded complete. Or pay in full any time.`,
   tick2Read: "Read in full ›",
   signTitle: "Sign",
   signSub: "Typing your name here is your signature. We record the time and the exact document you signed.",

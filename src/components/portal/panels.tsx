@@ -386,7 +386,7 @@ export function QuotesPanel({ jobId, canRespond }: { jobId: string; canRespond: 
               {q.discount_note && <li className="text-xs text-muted-foreground">{q.discount_note}</li>}
             </ul>
             <div className="mt-2 border-t pt-2 text-lg font-bold">{aud(q.customer_total_inc_gst)} <span className="text-xs font-normal text-muted-foreground">inc GST</span></div>
-            <div className="text-xs text-muted-foreground">{q.kind === "rectification" ? "Scope approval – included in your final installation quote (no payment yet)" : `Pre Insulation Electrical Safety Assessment (PIESA) payment ${aud(requiredDepositCents(q.customer_total_inc_gst) / 100)} before PIESA · 10% to book the install · balance on install day · or paid in full`}</div>
+            <div className="text-xs text-muted-foreground">{q.kind === "rectification" ? "Scope approval – included in your final installation quote (no payment yet)" : `Pre Insulation Electrical Safety Assessment (PIESA) payment ${aud(requiredDepositCents(q.customer_total_inc_gst) / 100)} before PIESA · 10% to book the install · balance 7 days after recorded install completion · or paid in full`}</div>
             {q.kind === "installation" && q.status === "issued" && q.sent_at && <div className="text-xs text-muted-foreground">Valid until {fmtDate(new Date(quoteExpiresAt(q.sent_at).getTime() - 1).toISOString())}</div>}
             {(q.status === "expired" || (q.status === "issued" && quoteIsExpired(q))) && (
               <p className="mt-3 rounded-md bg-muted p-2 text-sm">{QUOTE_EXPIRED_OWNER_MESSAGE}{q.expired_at && <span className="block text-xs text-muted-foreground">Expired on {fmtDate(q.expired_at)}</span>}</p>
@@ -472,8 +472,8 @@ export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: bool
   return (
     <Section title={isAdmin ? "Xero invoice & payments" : "Invoices & payments"}>
       {!shown.length && <p className="text-sm text-muted-foreground">{isAdmin
-        ? "No invoice yet – one Xero invoice for the full accepted price is raised when the owner accepts the final installation quote. The Pre Insulation Electrical Safety Assessment (PIESA) payment ($349, set in Settings) must be received before the PIESA can be booked. Then 10% of the rest to book the install day (bank transfer / PayID, held 48h), the balance on install day, or paid in full any time."
-        : "No invoice yet – one invoice for the full accepted price is raised once you accept the final installation quote. The Pre Insulation Electrical Safety Assessment (PIESA) payment ($349) must be received before the PIESA can be booked. Then 10% of the rest to book your install day, the balance on install day, or pay in full any time."}</p>}
+        ? "No invoice yet – one Xero invoice for the full accepted price is raised when the owner accepts the final installation quote. The Pre Insulation Electrical Safety Assessment (PIESA) payment ($349, set in Settings) must be received before the PIESA can be booked. Then 10% of the rest to book the install day (bank transfer / PayID, held 48h), the balance 7 days after recorded install completion, or paid in full any time."
+        : "No invoice yet – one invoice for the full accepted price is raised once you accept the final installation quote. The Pre Insulation Electrical Safety Assessment (PIESA) payment ($349) must be received before the PIESA can be booked. Then 10% of the rest to book your install day, the balance 7 days after recorded install completion, or pay in full any time."}</p>}
       <div className="space-y-3">
         {shown.map((i) => {
           const x = internals?.invoices.find((v) => v.id === i.id);
