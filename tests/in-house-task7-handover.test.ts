@@ -25,7 +25,7 @@ test('saved Lead Installer replacement hands the existing A5 and SWMS to the new
   const safety=load('src/lib/swms.server.ts',{...shared,'node:crypto':{createHash},'./swms.core':swms,'./install-evidence.server':{melbourneDateOf:()=> '2026-11-03'},'./swms-house.core':{swmsHouseFacts:()=>({}),swmsHouseLines:()=>[],swmsHouseSteps:()=>[]}});
   const before=await safety.loadSwms('j');expect(before.plan.signers.map((p:any)=>p.key)).toEqual(['w:old']);
   rows.workflow_events.push({job_id:'j',event_type:'swms_signed',created_at:'2026-11-01T00:00:02Z',details:{key:'w:old',name:'Old Installer',typed_name:'Old Installer',plan_sha256:safety.swmsPlanSha(before.plan)}});
-  const staff=[{workerId:'old',name:'Old Installer',eec:'CII-old',eecVerified:true,cleared:true,workerRole:'lead',level:'full'},{workerId:'new',name:'New Installer',eec:'CII-new',eecVerified:true,cleared:true,workerRole:'lead',level:'full'}];
+  const staff=[{workerId:'old',name:'Old Installer',eec:'CII-old',eecVerified:true,cleared:true,workerRole:'lead',level:'full',expiresOn:'2027-11-01'},{workerId:'new',name:'New Installer',eec:'CII-new',eecVerified:true,cleared:true,workerRole:'lead',level:'full',expiresOn:'2027-11-01'}];
   // Drive the actual crew-save wrapper, not a manufactured direct form handover.
   const visits=load('src/lib/visit-allocation.server.ts',{
     ...shared,'./worker-role.core':roles,'./worker-compliance.core':{melbourneToday:()=> '2026-11-02',CREW_CLEARANCE_REASON:{}},'./visit-allocation.core':allocation,'./piisa-a3.core':crew,

@@ -13,7 +13,7 @@ export function useInHouseBookingAccess(jobId:string){const load=useServerFn(get
 export type InHouseBookingKind='ready_check'|'assessment'|'rectification'|'installation';
 type Kind=InHouseBookingKind;
 const visits=[{kind:'ready_check',label:'Ready Check'},{kind:'assessment',label:'Pre Insulation Electrical Safety Assessment (PIESA)'},{kind:'rectification',label:'Rectification'},{kind:'installation',label:'Install day'}] as const;
-function VisitPicker({jobId,kind,label,workers,booked,selection,inline=false}:{jobId:string;kind:Kind;label:string;workers:BookingWorker[];booked?:string|null|undefined;selection:string|null;inline?:boolean}){
+function VisitPicker({jobId,kind,label,workers,booked,selection}:{jobId:string;kind:Kind;label:string;workers:BookingWorker[];booked?:string|null|undefined;selection:string|null}){
  const book=useServerFn(inHouseBookVisit),swap=useServerFn(changeInHouseLeadInstaller),qc=useQueryClient();
  const [day,setDay]=useState(''),[arrival,setArrival]=useState(''),[who,setWho]=useState(selection??''),[crew,setCrew]=useState<string[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const choices=workers.filter(w=>kind==='installation'?bookingWorkerBlocker(kind,w)===null:kind==='assessment'||kind==='rectification'?w.tradeRole==='electrician':true);
@@ -47,7 +47,7 @@ export function InHouseBookingRow({jobId,kind}:{jobId:string;kind:Kind}){
  if(!team.data)return <p>Checking your Team and deposit before booking.</p>;
  if(kind==='installation'&&!team.data.depositPaid)return null;
  const visit=visits.find(v=>v.kind===kind);if(!visit)return null;
- return <VisitPicker jobId={jobId} {...visit} workers={team.data.workers} selection={kind==='installation'&&typeof team.data.selection?.lead==='string'?team.data.selection.lead:null} inline/>;
+ return <VisitPicker jobId={jobId} {...visit} workers={team.data.workers} selection={kind==='installation'&&typeof team.data.selection?.lead==='string'?team.data.selection.lead:null}/>;
 }
 
 function ReturnActions({jobId}:{jobId:string}){
