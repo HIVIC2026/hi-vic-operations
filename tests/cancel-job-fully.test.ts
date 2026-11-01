@@ -98,6 +98,8 @@ function q(table: string) {
 }
 
 class WorkflowError extends Error {}
+const closedForms: string[] = [];
+mock.module("../src/lib/in-house-forms.server", () => ({ closeUnneededForms: async (jobId: string) => { closedForms.push(jobId); return 3; } }));
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: q } }));
 mock.module("../src/lib/workflow.server", () => ({
   WorkflowError,
@@ -138,12 +140,16 @@ mock.module("../src/lib/test-send.server", () => ({
 }));
 const { cancelJobFully, reopenJob, releaseCancelledJob } = await import("../src/lib/office-actions.server");
 
-beforeEach(() => { seed(); updates.length = 0; deletes.length = 0; comms.enabled = true; calls.owner.length = 0; calls.office.length = 0; calls.test.length = 0; });
+beforeEach(() => { seed(); closedForms.length = 0; updates.length = 0; deletes.length = 0; comms.enabled = true; calls.owner.length = 0; calls.office.length = 0; calls.test.length = 0; });
 const job = (id: string) => db.jobs!.find((j) => j.id === id)!;
 const byId = (t: string, id: string) => db[t]!.find((r) => r.id === id)!;
 const events = (type: string) => db.workflow_events!.filter((e) => e.event_type === type);
 
 describe("cancelJobFully (decision 227, mocked DB)", () => {
+  test("Task 3 cancellation invokes portal-only unused-form closure for this job", async () => {
+    await cancelJobFully("j1", "Owner cancelled", "admin");
+    expect(closedForms).toEqual(["j1"]);
+  });
   test("moves the job to Closed with the reason and keeps the stage it was at", async () => {
     const r = await cancelJobFully("j1", "Owner changed their mind", "admin-1");
     expect(job("j1")).toMatchObject({ stage: "cancelled", prior_stage: "installation_booked", cancelled_reason: "Owner changed their mind", next_action: null });
