@@ -97,7 +97,7 @@ let shareFails = false;
 mock.module("../src/lib/owner-gates.server", () => ({ signGateDoc: async (i: Row) => {
   if (shareFails) throw new Error("Sharing wording is not approved");
   gates.push(i);
-  (tables["owner_gate_signatures"] ??= []).push({ id: "sig-1", job_id: i["jobId"], doc_key: "trade_contact_share", doc_version: "2026-10-06-v1", doc_draft: false });
+  (tables["owner_gate_signatures"] ??= []).push({ id: "sig-1", job_id: i["jobId"], doc_key: "trade_contact_share", doc_version: "lawyer-2026-10-06-v1", doc_draft: false });
   return { id: "sig-1", draft: false };
 } }));
 const mails: { via: string; to: string; subject: string; text: string; key?: string }[] = [];

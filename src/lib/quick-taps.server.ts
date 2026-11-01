@@ -129,7 +129,7 @@ async function finishSharing(jobId: string, c: Ctx, meta: { ip: string | null; u
   if (await sharingSignature(jobId)) return;
   const { signGateDoc } = await import("./owner-gates.server");
   try {
-    await signGateDoc({ jobId, key: "trade_contact_share", signatoryName: d.answers.name, ticked: true, answers: {}, method: "link_code", signedBy: null, ip: meta.ip, userAgent: meta.userAgent, quickTapsBatchId: d.batch_id });
+    await signGateDoc({ jobId, key: "trade_contact_share", signatoryName: d.answers.name, ticked: true, answers: {}, method: "link_code", signedBy: null, ip: meta.ip, userAgent: meta.userAgent, ...(d.batch_id ? { quickTapsBatchId: d.batch_id } : {}) });
   } catch (error) {
     await logEvent(jobId, null, "quick_taps_share_not_recorded", `Quick taps: sharing consent could not be saved: ${error instanceof Error ? error.message : "error"}`, { batch_id: d.batch_id }, { internal: true });
     throw error;
