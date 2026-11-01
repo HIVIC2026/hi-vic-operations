@@ -2,6 +2,7 @@ import {expect,test} from "bun:test";
 import {readFileSync} from "node:fs";
 import ts from "typescript";
 import * as core from "../src/lib/mitti.core";
+import {sameMittiTemplateId} from "../src/lib/mitti-identity.core";
 
 function fixture() {
  const writes:any[]=[];let completed=false;let wrong=false;
@@ -13,7 +14,7 @@ function fixture() {
  // Execute the production date writer with a mocked Mitti API.
  const source=readFileSync("src/lib/mitti-pickup.server.ts","utf8");const ast=ts.createSourceFile("pickup",source,ts.ScriptTarget.Latest,true);
  const functions=ast.statements.filter(n=>ts.isFunctionDeclaration(n)&&["dateItemOf","updateMittiFormDate"].includes(n.name?.text??"")).map(n=>n.getText(ast)).join("\n");
- const api:any={};new Function("exports","require","admin","jobScope","mittiApi","realMittiCall","parseAudit","validateStoredMittiAudit","norm","WorkflowError","logEvent",ts.transpile(functions,{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}))(api,(p:string)=>{if(!(p in deps))throw Error(p);return deps[p];},admin,deps["./requirements.server"].jobScope,core.mittiApi,call,core.parseAudit,core.validateStoredMittiAudit,core.norm,Error,async()=>{});
+ const api:any={};new Function("exports","require","admin","jobScope","mittiApi","realMittiCall","parseAudit","validateStoredMittiAudit","norm","WorkflowError","logEvent","sameMittiTemplateId",ts.transpile(functions,{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}))(api,(p:string)=>{if(!(p in deps))throw Error(p);return deps[p];},admin,deps["./requirements.server"].jobScope,core.mittiApi,call,core.parseAudit,core.validateStoredMittiAudit,core.norm,Error,async()=>{},sameMittiTemplateId);
  return {api,call,writes,done:()=>{completed=true;},wrong:()=>{wrong=true;}};
 }
 test("moving an installation changes the A5 Install date through Mitti, not the Ready Check date",async()=>{const f=fixture();expect(await f.api.updateMittiFormDate("j","2026-11-17T00:00:00Z","actor",f.call,{auditId:"A5",kind:"install"})).toEqual({updated:true});expect(f.writes).toEqual([{method:"PUT",path:"/audits/A5",body:{items:[{item_id:"date",type:"datetime",responses:{datetime:"2026-11-17T00:00:00Z"}}]}}]);});

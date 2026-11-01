@@ -122,6 +122,7 @@ export async function syncInHouseForms(jobId: string, change: "date"|"person"|"c
       const start = bookings.find(b=>b.kind===bookingKind)?.scheduled_start;
       if (start) await (await import("./mitti-pickup.server")).updateMittiFormDate(jobId,start,actorId,call ?? mitti.realMittiCall,{auditId:form.auditId,kind:form.kind});
     } else {
+      if (change === "crew" && form.kind !== "install") continue;
       const holder = form.kind === "install" ? await leadAssignee(jobId) : form.kind === "piesa" || form.kind === "rectification" ? await inHousePreparationAssignee(jobId) : await assignment(jobId,"installer").then(a=>a?.profiles?.email ? {email:a.profiles.email} : null);
       if (!holder || ("selected" in holder && !holder.selected)) continue;
       const mittiUserId = await mitti.findMittiUserByEmail(holder.email,call ?? mitti.realMittiCall);
