@@ -1,3 +1,6 @@
+## Jo 1 Nov B4 (#139)
+- [ ] Prove signed acceptance PDF text/branding failure with fixtures; render readable recorded wording and Melbourne signature time; related and bounded full tests against 98 files/261 failures; fixture PDF visually inspected. No settings, secrets, data, sends or publishing.
+
 ## Jo 1 Nov B2b + B3 (#104 / #112)
 - [x] B2b red 7 pass/2 fail then 9/0 using STRIPE_TEST_WEBHOOK_SECRET. B3 replay/stalled invoice/stale-version tests red first, final 5/0; actual browser pure-action check hides Accept despite stalled refresh. Same-version installation retry is authorised no-op; acknowledgement precedes refetch; post-commit invoice/progression detaches only with actual waitUntil, otherwise inline. Related 8 files: 48 pass/30 fail; bounded full 956 files 9,885 pass/261 fail/36 skip, 98 failing files, no new failing files. Only existing file count change vs B2: enquiry-response-scope-practice-db 7/1→8/0 (baseline timeout; recheck 8/0). Existing owner-accept-speed still fails 0/1; its historical closed=accepted refusal assertion is now incompatible with requested replay. Automatic build OK. No settings, secrets, live data, sends or publication; exact historical HV-3682 slow request unavailable and hosted owner mutation not run.
 
