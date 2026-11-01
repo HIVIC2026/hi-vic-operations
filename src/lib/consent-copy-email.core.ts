@@ -83,14 +83,14 @@ export function renderConsentCopyEmail(i: ConsentCopyInput) {
   const html = mjEmail({
     subject: CONSENT_COPY_SUBJECT, preview,
     body: [
-      `<mj-section><mj-column><mj-text mj-class="hi">${esc(hi)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${esc(headline)}</mj-text><mj-text>${esc(body)}</mj-text>${i.myJobUrl ? `<mj-button href="${esc(i.myJobUrl)}">See my job</mj-button>` : ""}</mj-column></mj-section>`,
+      `<mj-section><mj-column><mj-text mj-class="hi">${esc(hi)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${esc(headline)}</mj-text><mj-text>${esc(body)}</mj-text></mj-column></mj-section>`,
       `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px ${blocks.length ? 4 : 16}px">Your signed form</mj-text>${formHtml(blocks)}</mj-column></mj-section>`,
       `<mj-section><mj-column><mj-text mj-class="small" padding="14px 12px 6px">${esc(meta)}</mj-text><mj-text mj-class="small" padding="0 12px">Questions? Just reply to this email.</mj-text></mj-column></mj-section>`,
     ].join(""),
     unsubscribe: null, testLabel: i.test === true,
   });
   const text = K.plainText([
-    hi, "", headline, "", body, ...(i.myJobUrl ? [`See my job: ${i.myJobUrl}`] : []), "",
+    hi, "", headline, "", body,  "",
     "YOUR SIGNED FORM", ...formLines.map((l) => l.replace(/^First Name: /, "First name: ")), "", meta, "", "Questions? Just reply to this email.",
   ], { testLabel: i.test === true });
   return { subject: CONSENT_COPY_SUBJECT, html, text };

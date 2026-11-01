@@ -52,7 +52,7 @@ export function renderInstallBookedEmail(i: InstallBookedInput) {
     owed ? `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 6px">Pay your ${esc(owed.amount)} deposit within 48 hours</mj-text><mj-text padding="0 18px 16px">By card, bank transfer or PayID.${owed.bankLines.map((l) => `<br />${esc(l)}`).join("")}</mj-text></mj-column></mj-section>` : "",
     `<mj-section><mj-column mj-class="panel-amber"><mj-text mj-class="h2" padding="18px 18px 6px">⚡ Your power will be off</mj-text><mj-text padding="0 18px 16px">${esc(power)}</mj-text></mj-column></mj-section>`,
     `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 10px">On the day</mj-text><mj-table padding="0 18px 6px">${onTheDay.map((t) => TICK(esc(t))).join("")}</mj-table></mj-column></mj-section>`,
-    `<mj-section><mj-column><mj-text padding="16px 12px 14px">${esc(happens)}</mj-text><mj-button href="${esc(i.myJobUrl)}">See my job</mj-button><mj-text mj-class="small" padding="0 12px">${esc(change)}</mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column><mj-text padding="16px 12px 14px">${esc(happens)}</mj-text><mj-text mj-class="small" padding="0 12px">${esc(change)}</mj-text></mj-column></mj-section>`,
   ].join("");
   const html = mjEmail({ subject, preview, body, unsubscribe: null, testLabel: i.test === true });
   const text = K.plainText([
@@ -62,7 +62,7 @@ export function renderInstallBookedEmail(i: InstallBookedInput) {
     "YOUR POWER WILL BE OFF", power, "",
     "ON THE DAY", ...onTheDay.map((b) => `✓ ${b}`), "",
     happens, "",
-    `See my job: ${i.myJobUrl}`, change,
+     change,
   ], { testLabel: i.test === true });
   return { subject, html, text };
 }

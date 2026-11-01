@@ -75,7 +75,7 @@ export function renderSafetyCheckBookedEmail(i: SafetyCheckBookedInput) {
     `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${esc(headline)}</mj-text><mj-text>${esc(lead)}</mj-text></mj-column></mj-section>`,
     mjBookingBox({ label: i.changed ? "Your new safety check time" : "Your electrical safety check", day, time, lines }),
     mjThirtyDayClock(thirtyDayClockHtml()),
-    `<mj-section><mj-column><mj-text mj-class="h2" css-class="email-sub" padding="18px 12px 10px">Before they arrive</mj-text><mj-table padding="0 12px 6px">${mjBeforeRows(before)}</mj-table><mj-text>${change}</mj-text><mj-button href="${esc(i.myJobUrl)}" padding="6px 12px 0">See my job</mj-button></mj-column></mj-section>`,
+    `<mj-section><mj-column><mj-text mj-class="h2" css-class="email-sub" padding="18px 12px 10px">Before they arrive</mj-text><mj-table padding="0 12px 6px">${mjBeforeRows(before)}</mj-table><mj-text>${change}</mj-text></mj-column></mj-section>`,
   ].join("");
   const html = mjEmail({ subject, preview, body, unsubscribe: null, testLabel: i.test === true });
   const text = K.plainText([headline, "", lead, `When: ${i.when}`, ...lines, "", K.THIRTY_DAY_CLOCK_TEXT(), "", "BEFORE THEY ARRIVE", ...before.map((b) => `✓ ${K.stripTags(b)}`), "", K.stripTags(change), `See my job: ${i.myJobUrl}`], { testLabel: i.test === true });
