@@ -28,6 +28,6 @@ export async function recordMittiPullOutcome(jobId: string, stream: string, ok: 
   await logEvent(jobId, null, "mitti_pull_sync_state", ok ? "Mitti sync recovered" : `Mitti sync failed: ${message}`, { stream, ok, message, needs_office: !ok }, { internal: true });
 }
 
-export async function runStoredMittiPull<T extends PullRow>(stream: string, deps: Pick<PullDeps<T>, "page" | "sync">, budgetMs = 40_000) {
-  return pullMittiPages({ ...deps, ...mittiPullProgress(stream), failure: (jobId, message) => recordMittiPullOutcome(jobId, stream, false, message) }, { budgetMs });
+export async function runStoredMittiPull<T extends PullRow>(stream: string, deps: Pick<PullDeps<T>, "page" | "sync">, budgetMs = 40_000, maxJobs?: number) {
+  return pullMittiPages({ ...deps, ...mittiPullProgress(stream), failure: (jobId, message) => recordMittiPullOutcome(jobId, stream, false, message) }, { budgetMs, maxJobs });
 }

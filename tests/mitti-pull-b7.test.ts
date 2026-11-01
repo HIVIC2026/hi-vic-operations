@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { pullMittiPages } from "../src/lib/mitti-pull-batch.core";
 import { mittiApi } from "../src/lib/mitti.core";
+import { runMittiPullWorker } from "../src/lib/mitti-pull-worker.server";
 
 function fixture() {
   const forms = ["a", "b", "c", "d", "e", "f"];
@@ -65,4 +66,15 @@ test("Mitti API pagination follows all three form pages without network", async 
   const result = await api.searchAudits("2026-11-01T00:00:00Z");
   expect(result.audits.map((a: { audit_id: string }) => a.audit_id)).toEqual(["form-1", "form-2", "form-3"]);
   expect(calls.length).toBe(3);
+});
+test("completed form failures are reflected in the authenticated pull result", async () => {
+  const r = await runMittiPullWorker({ pending: async () => [], completed: async () => ({ retried: 1, watched: 2, failed: 1 }) });
+  expect(r.ok).toBe(false); expect(r.errors).toEqual(["Completed Mitti forms could not all be pulled"]);
+});
+test("a failed job consumes an attempt and the next invocation reaches later jobs", async () => {
+  const f = fixture(), sync = f.deps.sync;
+  f.deps.sync = async row => { const r = await sync(row); if (row.id === "b") throw Error("Broken form"); return r; };
+  await pullMittiPages(f.deps, { pageSize: 2, budgetMs: 20 });
+  await pullMittiPages(f.deps, { pageSize: 2, budgetMs: 20 });
+  expect([...f.stored]).toEqual(["a", "b", "c", "d"]); expect(f.failures.get("b")).toBe("Broken form");
 });

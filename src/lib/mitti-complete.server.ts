@@ -68,7 +68,7 @@ export async function finishMittiReadyCheck(jobId: string, i: { auditId: string;
 
 /** Every tick: retry completed Mitti Ready Checks still short of a sent quote (after the office fixed a held reason),
  *  and watch forms whose quote went out for later edits (the regular sync stops reading a completed form). */
-export async function sweepCompletedMittiReadyChecks(opts: { enabled?: boolean; sendEnabled?: boolean; limit?: number; call?: import("./mitti.core").MittiCall; budgetMs?: number } = {}): Promise<{ retried: number; watched: number }> {
+export async function sweepCompletedMittiReadyChecks(opts: { enabled?: boolean; sendEnabled?: boolean; limit?: number; call?: import("./mitti.core").MittiCall; budgetMs?: number } = {}): Promise<{ retried: number; watched: number; failed?: number }> {
   const enabled = opts.enabled ?? READY_CHECK_AUTO_PREP_ENABLED;
   const sendEnabled = opts.sendEnabled ?? AUTO_QUOTE_SEND_ENABLED;
   if (!enabled) return { retried: 0, watched: 0 };
@@ -76,7 +76,7 @@ export async function sweepCompletedMittiReadyChecks(opts: { enabled?: boolean; 
   let retried = 0, watched = 0;
   const { mittiApi, parseAudit } = await import("./mitti.core");
   const call = opts.call ?? (await import("./mitti.server")).realMittiCall;
-  await runStoredMittiPull("completed", {
+  const batch = await runStoredMittiPull("completed", {
     page: async (offset, size) => {
       const { data, error } = await admin.from("ceiling_measurements").select("job_id, external_id, completed_at, jobs!inner(stage, channel, deleted_at, qa_archived_at, business_unit)")
         .eq("is_current", true).eq("external_source", "mitti").eq("status", "complete").eq("jobs.business_unit", "hivic").is("jobs.deleted_at", null).is("jobs.qa_archived_at", null)
@@ -86,7 +86,8 @@ export async function sweepCompletedMittiReadyChecks(opts: { enabled?: boolean; 
     },
     sync: async r => {
     const j = r.jobs as { stage: string; channel: string | null };
-    const { count: auto } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", r.job_id).eq("event_type", "measurement_completed").contains("details", { audit_id: r.external_id, basis: "mitti_complete" });
+    const { count: auto, error } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", r.job_id).eq("event_type", "measurement_completed").contains("details", { audit_id: r.external_id, basis: "mitti_complete" });
+    if (error) throw new Error(`Ready Check history could not be read: ${error.message}`);
     if (!auto) return { ok: true }; // only Ready Checks this automation completed
     let modifiedAt: string | null = null;
     let entries: { label: string; value: string | null }[] = [];
@@ -120,6 +121,6 @@ export async function sweepCompletedMittiReadyChecks(opts: { enabled?: boolean; 
     await recordMittiPullOutcome(r.job_id, "completed", true, "synced");
     return { ok: true };
     },
-  }, opts.budgetMs ?? 40_000);
-  return { retried, watched };
+  }, opts.budgetMs ?? 40_000, opts.limit);
+  return { retried, watched, ...(batch.failed ? { failed: batch.failed } : {}) };
 }

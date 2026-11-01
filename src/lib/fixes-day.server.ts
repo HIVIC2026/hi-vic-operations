@@ -518,7 +518,7 @@ export async function sweepFixesForms(opts: { call?: MittiCall; fetchMedia?: imp
       await recordMittiPullOutcome(r.id, "rectification", true, "synced");
       return { ok: true };
     },
-  }, opts.budgetMs ?? 40_000);
+  }, opts.budgetMs ?? 40_000, opts.limit);
   out.failed = batch.failed;
   return out;
 }

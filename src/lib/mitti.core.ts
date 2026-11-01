@@ -68,7 +68,10 @@ export function mittiApi(call: MittiCall) {
         last = await call("GET", path);
         audits.push(...(last?.audits ?? []));
         const next = last?.next_page ?? last?.metadata?.next_page;
-        if (!next) { path = null; continue; }
+        if (!next) {
+          if (last?.next_page_token || last?.metadata?.next_page_token || Number(last?.metadata?.remaining_records ?? 0) > 0) throw new MittiError("Mitti returned unsupported paging; search is incomplete.");
+          path = null; continue;
+        }
         // Follow only provider-supplied URLs on the configured search endpoint, never an arbitrary host.
         if (typeof next !== "string") throw new MittiError("Mitti returned unsupported paging; search is incomplete.");
         const url = new URL(next, "https://api.mitti.com");
