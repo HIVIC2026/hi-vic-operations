@@ -1,14 +1,32 @@
-HV-3682 card payment: the owner paid, but the portal was never told
+# HV-3682: why no PIESA offer went out (read-only findings)
 
-Findings (read-only):
-- Stripe: checkout session is complete and paid, $349.00, live. Payment intent succeeded, $349.00 received.
-- Stripe live account has 0 webhook endpoints. The event (checkout.session.completed, 06:34:43 UTC) had 0 pending deliveries, so it went nowhere.
-- Portal: no requests to /api/public/hooks/stripe-payments in the server logs. The only job event since 06:25 UTC is stripe_checkout_started. The invoice is still deposit_due with $0 paid.
+1. **Allocation tick at 17:45 / 18:00:** I couldn't confirm it. I'm not allowed to read the timer history, and the server log has no lines at all for the last hour. That's expected here: when a job isn't ready, the tick skips it quietly ("job_not_ready") and logs nothing. No offer or hand-back event was written for HV-3682.
 
-Cause: the webhook Jo set up earlier is on the Stripe TEST account only. The live account has none.
+2. **Automatic offer decision:** it stops before looking at any electricians, with the reason **job_not_ready**. The job is still at "quote accepted", so the tick first checks whether it can move into the PIESA stage. That check fails (see 3), so no candidates are ranked and nothing is sent.
+   Candidates for postcode 3141 (none were actually ranked). I didn't work out distances, so I can't give km:
+   - Tom Lowe Electrical Services: eligible. Covers 3141, licence/REC OK, 1 approved worker, not paused, PIESA rate on file.
+   - All Powered Electrical: not eligible. No current licence/REC on file.
+   - Western Suburbs Electrical: not eligible. No current licence/REC on file.
+   - Spark Right Electrical: not eligible. Not an approved, active REC.
+   - ORLANDO POWERED: not eligible. Not accepting new jobs.
 
-Safe fix (needs Jo's approval):
-1. Jo adds a webhook on the LIVE Stripe account. URL: https://portal.homeinsulationvictoria.com.au/api/public/hooks/stripe-payments. Events: checkout.session.completed and payment_intent.succeeded.
-2. Jo saves that endpoint's signing secret as STRIPE_WEBHOOK_SECRET in Project Settings → Secrets (replacing the current value).
-3. Jo uses Stripe's "Resend" on event evt_1UWsLo2mHMOLFdyfAM2pWK7A. The existing handler records the $349 once; duplicates are ignored.
-4. Read-only check that HV-3682 shows $349 paid and can move to PIESA booking. No manual marking as paid, no refund, nothing re-charged.
+3. **Blockers:**
+   - The PIESA request check is clear (nothing blocking there).
+   - The check for moving into the PIESA stage fails on **Owner paperwork B**:
+     - "Customer agreement + consumer rights was signed on DRAFT wording — real jobs need Jo-approved wording."
+     - "The agreement not signed yet."
+     - "Your rebate (VEEC assignment) not signed yet."
+     - "Payment not signed yet."
+   - Likely cause (not confirmed): today's new payment wording version was never marked approved. The rule is that it doesn't approve itself.
+
+4. **Tom Lowe Electrical:** yes on both. Tom is an approved worker, and the business is offerable for 3141 with no blocker. Nothing is wrong with the electrician.
+
+5. **Smallest safe fix (to describe only, not done):**
+   - First confirm which wording version the owner signed and whether that version is approved.
+   - Then Jo picks one:
+     - (a) Approve the current owner paperwork wording through the normal admin approval, then have the owner sign the remaining Paperwork B items.
+     - (b) Treat this as a live test only and use an admin override with a reason, which leaves a permanent audit entry.
+   - After that, the next 15-minute tick would offer the job to Tom Lowe Electrical automatically.
+   - No code change is needed. Office could also use "Choose electrician", but the same paperwork check would still block it.
+
+No changes were made.
