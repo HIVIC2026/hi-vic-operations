@@ -57,8 +57,26 @@ export function mittiApi(call: MittiCall) {
     /** Jo 24 Oct: link that opens THIS form in the Mitti app on a phone (web app otherwise). */
     deepLink: (auditId: string) => call("POST", `/audits/${encodeURIComponent(auditId)}/deep_link`) as Promise<Any>,
     /** List recently modified audits (Mitti/SafetyCulture listing route); template-filtered by the caller. */
-    searchAudits: (modifiedAfterIso: string) =>
-      call("GET", `/audits/search?modified_after=${encodeURIComponent(modifiedAfterIso)}&limit=200`) as Promise<Any>,
+    searchAudits: async (modifiedAfterIso: string) => {
+      const first = `/audits/search?modified_after=${encodeURIComponent(modifiedAfterIso)}&limit=200`;
+      let path: string | null = first;
+      const seen = new Set<string>(), audits: Any[] = [];
+      let last: Any = {};
+      while (path) {
+        if (seen.has(path)) throw new MittiError("Mitti repeated a form page; search is incomplete.");
+        seen.add(path);
+        last = await call("GET", path);
+        audits.push(...(last?.audits ?? []));
+        const next = last?.next_page ?? last?.metadata?.next_page;
+        if (!next) { path = null; continue; }
+        // Follow only provider-supplied URLs on the configured search endpoint, never an arbitrary host.
+        if (typeof next !== "string") throw new MittiError("Mitti returned unsupported paging; search is incomplete.");
+        const url = new URL(next, "https://api.mitti.com");
+        if (url.origin !== "https://api.mitti.com" || url.pathname !== "/audits/search") throw new MittiError("Mitti returned an invalid form page.");
+        path = `${url.pathname}${url.search}`;
+      }
+      return { ...last, audits };
+    },
     /** Documented partial text update for header items (Portal Job Number write-back); omitted fields untouched. */
     updateAuditHeader: (auditId: string, headerItems: { item_id: string; type: string; responses: { text?: string; datetime?: string } }[]) =>
       call("PUT", `/audits/${encodeURIComponent(auditId)}`, { header_items: headerItems }) as Promise<Any>,
