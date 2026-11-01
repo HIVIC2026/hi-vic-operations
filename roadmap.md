@@ -1,3 +1,11 @@
+## Jo 2 Nov morning decisions — test-first, pending only
+- [ ] 1 Owner deposit received email only; keep request/reminder texts.
+- [ ] 2 Exact Book blockers for no eligible Lead Installer / awaiting HIV ESC registration.
+- [ ] 3 Required private Lead Installer DOB, own-business-admin/HIV-office access, office row and Register with ESC Needs me; SQL pending/PGlite only.
+- [ ] 4 Any post-notice Lead Installer swap urgent office flag/alert; prestart hold at start only until acknowledged; pre-notice none.
+- [ ] 5 Quote guide §3.3.3, same-start installer-only update timing and robot update_same_id queue; selectors off.
+- [ ] Related tests and full comparable suite; report each item with limitations. No settings/secrets/live writes/sends/publishing.
+
 ## Jo 2 Nov approved three-migration live release
 - [x] Applied only date-free ESC consent (0183), Task 7 ESC registration (0184), then Task 7 trade handback (0185) after 9/0 practice checks; statements unchanged (tool adds terminal newline).
 - [x] Live columns/functions/enabled registration trigger read back; saved-work functions absent. Captured read-only live GET 404/PGRST202; local replay covers Book and Change Lead Installer without live writes/providers.
