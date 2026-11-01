@@ -233,12 +233,13 @@ async function storeCopy(
   title: string,
   kind: string,
   actorId: string | null,
+  renderedPdf?: Uint8Array,
 ) {
   path = path.replace(/\.txt$/, ".pdf");
   const { textToPdf } = await import("./signed-pdf.server");
   const up = await admin.storage.from("job-files").upload(
     path,
-    new Blob([(await textToPdf(`Home Insulation Victoria — ${title}`, text)) as BlobPart], {
+    new Blob([(renderedPdf ?? await textToPdf(`Home Insulation Victoria — ${title}`, text)) as BlobPart], {
       type: "application/pdf",
     }),
     { contentType: "application/pdf", upsert: false },
@@ -304,38 +305,35 @@ export async function signCustomerAgreement(p: {
   };
   const json = stableJson(snapshot);
   const hash = await sha256Hex(json);
-  const copyText = [
-    `CUSTOMER AGREEMENT / QUOTE ACCEPTANCE – ${pkg.ap_legal_entity}`,
-    `Job ${pkg.job_number} · Quote ${pkg.quote.option_label} v${pkg.quote.version}`,
-    snapshot.scope_note,
-    "",
-    `Consumer rights information (${rights.version}):`,
-    rights.body,
-    "",
-    ...(agreement ? [`Agreement (${agreement.version}):`, agreement.body, ""] : []),
-    `Property: ${pkg.property_address}`,
-    `Signatory: ${p.input.signatoryName} (${p.input.authorityType})`,
-    `Product/scope: ${pkg.quoted_product} · Quoted area: ${pkg.quoted_area_m2 ?? "TBC"} m²`,
-    ...(pkg.rectification_scope.length
-      ? [`Approved electrical fixes scope: ${pkg.rectification_scope.join("; ")}`]
-      : []),
-    `Price before VEU benefit: ${pkg.price_before_benefit_inc_gst.toFixed(2)} · VEU benefit: ${pkg.veu_benefit_inc_gst.toFixed(2)} · Final price: ${pkg.final_customer_price_inc_gst.toFixed(2)} (inc GST)`,
-    pkg.payment_terms,
-    `Installer: ${pkg.installer.name ?? "To be confirmed"} ${pkg.installer.business ? `(${pkg.installer.business})` : ""}`,
-    "",
-    `Typed signature: ${p.input.signatureName} · ${now.toISOString()} · IP ${p.ip ?? "unknown"}`,
-    `SHA-256 of signed record: ${hash}`,
-    "",
-    "Machine-readable snapshot:",
-    json,
-  ].join("\n");
+  // Print recorded Gate B wording, never the serialised signing snapshot or unsigned items.
+  const { data: signedItems, error: signedItemsError } = await admin.from("owner_gate_signatures")
+    .select("doc_key, doc_version, signed_text, signed_at")
+    .eq("job_id", pkg.job_id).eq("gate", "B").order("signed_at", { ascending: false });
+  if (signedItemsError) throw new Error(signedItemsError.message);
+  const { gateDoc, fillTemplate } = await import("./owner-gates.core");
+  const { signedAcceptancePdf } = await import("./signed-pdf.server");
+  const keys = ["quote_acceptance", "veec_assignment_consent", "payment_terms"] as const;
+  const items = keys.flatMap(key => {
+    const row = signedItems?.find(s => s.doc_key === key);
+    return row ? [{ title: gateDoc(key).title, version: row.doc_version, text: row.signed_text }] : [];
+  });
+  if (!items.some(item => item.title === gateDoc("quote_acceptance").title)) {
+    const doc = gateDoc("quote_acceptance");
+    items.unshift({ title: doc.title, version: agreement?.version ?? doc.version, text: agreement?.body ?? fillTemplate(doc.body, {
+      quote_version: String(pkg.quote.version), total: `$${pkg.final_customer_price_inc_gst.toFixed(2)}`, address: pkg.property_address,
+    }) });
+  }
+  items.push({ title: "Consumer rights information", version: rights.version, text: rights.body });
+  const renderedPdf = await signedAcceptancePdf({ ownerName: p.input.signatoryName, address: pkg.property_address,
+    totalIncGst: pkg.final_customer_price_inc_gst, signedAt: now.toISOString(), jobNumber: pkg.job_number, items });
   const path = await storeCopy(
     pkg.job_id,
     `${pkg.job_id}/agreement/quote-v${pkg.quote.version}-${hash.slice(0, 12)}.txt`,
-    copyText,
+    "",
     "Customer Agreement / Quote Acceptance (signed copy)",
     "customer_agreement",
     p.actorId,
+    renderedPdf,
   );
   const { data: row, error } = await admin
     .from("customer_agreements")
