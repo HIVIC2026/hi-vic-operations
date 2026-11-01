@@ -20,12 +20,14 @@ mock.module("@tanstack/react-start", () => ({ createServerFn: () => {
 mock.module("@/integrations/supabase/auth-middleware", () => ({ requireSupabaseAuth: {} }));
 mock.module("../src/lib/request-meta", () => ({ withRequestMeta: {} }));
 mock.module("../src/lib/workflow.server", () => ({
+  ...Object.fromEntries(["nextStepBlockers", "stageEntryBlockers", "requireAdmin", "requireJobRole", "paymentOptionCleared"].map(n => [n, async () => null])),
   WorkflowError: Error, getStage: async () => tables.jobs?.[0]?.stage,
   commercialBlocker: async () => null, piesaStatus: async () => null,
   transition: async (_job: string, stage: string) => { const j = tables.jobs?.[0]; if (j) j.stage = stage; },
   logEvent: async (_job: string, _actor: string, type: string) => { (tables.workflow_events ??= []).push({ event_type: type }); },
 }));
 mock.module("../src/lib/assignment.server", () => ({
+  ...Object.fromEntries(["assignmentEffective", "currentAgreement", "currentAssignment", "currentInstallerDeclaration", "loadTemplates", "prepareFinalAssignment", "raiseVariation", "reconfirmVariation", "signFinalAssignment", "signInstallerDecl"].map(n => [n, async () => null])),
   assertAgreementCanSign: async () => undefined,
   buildAcceptancePackage: async () => ({ consumer: { name: "Practice Owner" } }),
   signCustomerAgreement: async () => { signed++; },
