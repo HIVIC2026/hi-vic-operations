@@ -50,15 +50,15 @@ describe("payment methods (decisions 140/141: never a card fee; card only for $3
     expect(paymentMethodsFor("safety_check")).toEqual(["card", "bank"]);
     expect(paymentMethodsFor("fixes")).toEqual(["card", "bank"]);
     expect(paymentMethodsFor("install_deposit")).toEqual(["card", "bank"]);
-    expect(paymentMethodsFor("balance")).toEqual(["bank"]);
-    expect(cardAllowedFor("balance")).toBe(false);
+    expect(paymentMethodsFor("balance")).toEqual(["card","bank"]);
+    expect(cardAllowedFor("balance")).toBe(true);
   });
   test("plain-English lines never mention a fee or surcharge", () => {
     const lines = [paymentLine("safety_check", "INV-0042"), paymentLine("fixes", "INV-0042"), paymentLine("install_deposit", "INV-0042"), paymentLine("balance", "INV-0042"), ...howYouPayLines(paymentPlan({ quoteTotalCents: 400_000 })), FINAL_INVOICE_PAY_LINE];
     for (const l of lines) expect(l).not.toMatch(/fee shown|surcharge|card fee/i);
     expect(paymentLine("safety_check", null)).toBe(PAY_LINE_SAFETY_CHECK);
     expect(paymentLine("install_deposit", "INV-0042")).toBe("Card, bank transfer or PayID, reference INV-0042");
-    expect(paymentLine("balance", null)).toBe("Bank transfer or PayID");
+    expect(paymentLine("balance", null)).toBe("Card, bank transfer or PayID");
     expect(howYouPayLines(paymentPlan({ quoteTotalCents: 400_000 }))[1]).toContain("$365.10 deposit (10% of the install price)");
     expect(howYouPayLines(paymentPlan({ quoteTotalCents: 400_000 }))[1]).not.toContain("48 hours") // Jo 26 Oct: deposit before booking, no hold;
   });

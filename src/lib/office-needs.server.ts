@@ -676,7 +676,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
         repeat: rep && rep.price > 0 ? { cents: toCents(rep.price), acceptedAt: rep.acceptedAt, paid: rep.paid } : null,
       });
       if (stalls.length) x.paymentStalls = stalls;
-      const completedAt=j.facts.installedAt;
+      const completedAt=j.facts.installedAt??null;
       const {balanceOverdue,balanceDueAt}=await import('./balance-q21.core');
       if(install&&balanceOverdue(completedAt,Number(install['total_paid']??0)>=Number(install['total_inc_gst']??0),new Date(now))){
         (x.paymentsOverdue??=[]).push({invoice:'install',reference:s(install['xero_invoice_number']),at:balanceDueAt(completedAt)??completedAt??'',text:'Installation balance overdue'});
