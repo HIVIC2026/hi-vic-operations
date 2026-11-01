@@ -61,6 +61,8 @@ async function ownerNotice(jobId:string,c:Facts,step:'request'|'paid'|DepositRem
 }
 /** Clearance intent is recorded before invoice/payment reads; invoice-keyed request time remains unchanged. */
 export async function requestInstallDeposit(jobId:string,now=new Date()):Promise<string>{
+  const partner=await readInHouseDispatchState([jobId]);
+  if(!partner.failed&&!partner.held.has(jobId))return 'not applicable';
   const {stableUuid}=await import('./mitti-create-claim.core');
   const id=await stableUuid(`install-deposit-pending:v1:${jobId}`);
   const pending=await admin.from('workflow_events').insert({id,job_id:jobId,actor_id:null,event_type:'install_deposit_request_pending',summary:'Installation deposit request awaiting invoice and clearance checks',internal:true,details:{attempts:0}});

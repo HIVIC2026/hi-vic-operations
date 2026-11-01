@@ -47,8 +47,8 @@ for(const source of ['stripe','xero'])test(`${source} confirmed deposit tells ow
  await notifyInstallerDepositPaid('j',new Date('2026-11-01T00:00:00Z'));await notifyInstallerDepositPaid('j',new Date('2026-11-01T00:00:00Z'));
  expect(emails).toHaveLength(1);expect(offices).toHaveLength(1);expect(offices[0].to).toBe('office@example.invalid');expect(texts).toHaveLength(1);expect(texts[0].to).toBe('0412345678');
 });
-test('failed in-house lookup and non-in-house jobs produce no records or sends',async()=>{
- failed=true;await requestInstallDeposit('j');failed=false;held=false;await requestInstallDeposit('j');expect(emails.length+texts.length).toBe(0);expect(tables.workflow_events).toHaveLength(0);
+test('failed in-house lookup preserves intent without sends; non-in-house jobs do not send',async()=>{
+ failed=true;await requestInstallDeposit('j');failed=false;held=false;await requestInstallDeposit('j');expect(emails.length+texts.length).toBe(0);expect(tables.workflow_events?.filter(e=>e.event_type==='install_deposit_request_pending')).toHaveLength(1);
 });
 test('paused communications are not claimed and paid notice can resume without duplicates',async()=>{
  paid=true;tables.workflow_events?.push({job_id:'j',event_type:'install_deposit_received',created_at:'2026-11-01T00:00:00Z',details:{invoice_id:'i'}});paused=true;await notifyInstallerDepositPaid('j',new Date('2026-11-01T00:00:00Z'));expect(emails.length+texts.length+offices.length).toBe(0);
