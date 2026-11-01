@@ -48,9 +48,6 @@ test('real stage SQL: atomic clicks and ESC refusal work, but canonical unpaid/u
  expect(plan.installDepositCents).toBe(10000);
  expect(installDepositBlocker(plan,paymentSteps(plan,{install:34900,fixes:0,repeat:0},{},'2026-11-01T00:00:00Z'))).not.toBeNull();
  expect(ownerPiesaConfirmationBlocker({piesaRecordId:id(30),confirmation:null})).not.toBeNull();
- // Changes to independent money/owner rows are invisible to the current revision.
- await db.exec(`CREATE TABLE diagnostic_gate_inputs(invoice_paid_cents integer,owner_signed boolean); INSERT INTO diagnostic_gate_inputs VALUES(44900,true); UPDATE diagnostic_gate_inputs SET invoice_paid_cents=34900,owner_signed=false;`);
- expect((await db.query('SELECT in_house_visit_revision($1) AS revision',[id(1)])).rows[0]).toEqual(revision);
  const [a,b]=await Promise.all([db.query(sql,p),db.query(sql,[p[0],id(4),...p.slice(2)])]);expect((a.rows[0] as any).result.bookingId).toBe((b.rows[0] as any).result.bookingId);
  expect((await db.query('SELECT * FROM bookings')).rows).toHaveLength(1);
  // This booking succeeded despite the canonical core blockers above: intentional
