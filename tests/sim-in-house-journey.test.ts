@@ -113,3 +113,26 @@ test('SIM repeat PIESA uses office choice, owner acceptance and only its own ful
  expect((await h.repeatContext()).stage).toBe('offer');
  expect(await h.payRepeat('repeat-invoice',34900)).toBe(false);
 });
+
+test('SIM actual booking Team refuses another business and unsigned PIESA refuses installation despite deposit paid',async()=>{
+ const h=createInHouseSim();await h.atClearance();await h.payDeposit('stripe');
+ await expect(h.readTeam('other-office')).rejects.toThrow('Not your job');
+ expect((await h.readTeam('installer-office')).depositPaid).toBe(true);
+ await expect(h.bookInstall()).rejects.toThrow('confirm');
+ await h.confirmPiesa();await h.bookInstall();expect(h.job.stage).toBe('installation_booked');
+});
+
+test('SIM Melbourne clock crosses both DST boundaries without a fixed offset',()=>{
+ const h=createInHouseSim();h.clock.set('2026-04-04T14:00:00Z');expect(h.clock.day()).toBe('2026-04-05');expect(h.clock.hour()).toBe(1);
+ h.clock.set('2026-04-05T13:00:00Z');expect(h.clock.day()).toBe('2026-04-05');expect(h.clock.hour()).toBe(23);
+ h.clock.set('2026-10-03T15:00:00Z');expect(h.clock.day()).toBe('2026-10-04');expect(h.clock.hour()).toBe(1);
+ h.clock.set('2026-10-04T12:00:00Z');expect(h.clock.day()).toBe('2026-10-04');expect(h.clock.hour()).toBe(23);
+});
+
+// Explicit missing whole-job proofs; these must never be counted as scenario PASS.
+test.todo('SIM whole-job: real enquiry → Save my spot → quick taps → five-job in-house handoff');
+test.todo('SIM whole-job: actual Ready Check sync → quote generation → code verification → four signatures → $349 ledger');
+test.todo('SIM whole-job: immediate booked PIESA notification to the selected electrician');
+test.todo('SIM whole-job: actual A3/A4 completion and issued rectification quote/payment progression');
+test.todo('SIM whole-job: completed A5 evidence → VEEC owner signature → AP verification → close');
+test.todo('SIM whole-job: full per-role UI/read and database RLS matrix at every step');
