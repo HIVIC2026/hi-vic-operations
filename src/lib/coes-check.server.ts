@@ -167,6 +167,7 @@ export async function checkCurrentCoes(jobId: string, actorId: string | null, op
   try {
     const c = await currentCoes(jobId);
     if (!c.needed || !c.ref) return "skipped: no repairs, no certificate needed";
+    try {await (await import('./coes-owner-copy.server')).sendCoesOwnerCopy(jobId,c.ref);} catch(e){console.error('Certificate owner copy held',jobId,e instanceof Error?e.message:'Delivery unavailable');}
     return await checkCoes(jobId, c.ref, actorId, opts);
   } catch (e) {
     console.error("electrical certificate not checked", jobId, (e as Error).message);

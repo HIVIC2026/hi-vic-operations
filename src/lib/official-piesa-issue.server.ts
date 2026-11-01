@@ -55,5 +55,6 @@ export async function issueOfficialPiesa(jobId: string, actorId: string | null):
     docx = ` (${r.filled} items filled${r.missed.length ? `, ${r.missed.length} not placed` : ""})`;
   } catch (e) { docx = ` (Word form not stored yet: ${(e as Error).message})`; }
   await logEvent(jobId, actorId, OFFICIAL_PIESA_ISSUED_EVENT, `Official PIESA filed from the electrician's Mitti PIESA form${docx}`, { signed_copy_id: id, audit_id: a.external_mitti_id }, { internal: true });
+  try {await (await import('./piesa-delivery.server')).deliverPiesaCopies(jobId);} catch(e){console.error('Combined PIESA owner email held',jobId,e instanceof Error?e.message:'Delivery unavailable');}
   return { status: "issued", detail: `signed copy ${id}` };
 }

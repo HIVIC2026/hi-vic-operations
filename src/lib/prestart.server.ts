@@ -74,7 +74,7 @@ export async function prestartFacts(jobId: string, start: string) {
     // Decision 395: the PIESA copies (owner + installer, 24h before) and the owner's Gate C receipt — the same readers and
     // rules Installation complete uses (esc.server installReadiness / owner-gates), so both places agree.
     piesaCopyBlockers: (await import("./esc.core")).piesaCopyDeliveryBlockers(start, await (await import("./esc.server")).piesaCopyDeliveries(jobId)),
-    piesaCopyReceiptBlocker: await (await import("./owner-gates.server")).piesaCopyReceiptBlockerFor(jobId),
+    piesaCopyReceiptBlocker: null, // Retired owner receipt; recorded PIESA delivery remains independently checked.
   };
 }
 
