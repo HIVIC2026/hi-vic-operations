@@ -402,6 +402,9 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string,unknown>)['inHouseBookedNotices']=await timed('sweepOwnerBookedNotices',async()=> (await import('@/lib/in-house-booking.server')).sweepOwnerBookedNotices());
         }catch(e){console.error('allocation tick: booked notices failed',(e as Error).message);(out as Record<string,unknown>)['inHouseBookedNotices']='failed';}
         try {
+          (out as Record<string,unknown>)['inHouseSavedWork']=await timed('sweepInHouseSavedWork',async()=> (await import('@/lib/in-house-saved-work.server')).sweepInHouseSavedWork());
+        }catch(e){console.error('allocation tick: saved visit follow-through failed',(e as Error).message);(out as Record<string,unknown>)['inHouseSavedWork']='failed';}
+        try {
           (out as Record<string,unknown>)['inHouseHandbacks']=await timed('sweepInHouseHandbacks',async()=> (await import('@/lib/in-house-handback-cleanup.server')).sweepInHouseHandbacks());
         }catch(e){console.error('allocation tick: handback cleanup failed',(e as Error).message);}
         try {

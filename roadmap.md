@@ -1,3 +1,9 @@
+## Jo 1 Nov outstanding A–E — practice only
+- [x] A/C Recorded booking and crew follow-through, claimed retries, A5/SWMS handover and failure-task resolution; isolated proofs pass.
+- [ ] B Pending atomic booking/crew check-and-set and double-click practice proofs pass; full transaction-bound canonical gate parity and authenticated UI verification remain unproven. Pending SQL must remain unapplied.
+- [x] D Durable blocked/uncertain electrician email retry with stable provider key inside validity window; expired uncertainty goes to office, never blind resend.
+- [x] E Complete comparable rerun: current start 997 files 10053/244/98; final 1000 files 10058/244/98. Reconstructed Task7 987 files 10012/244/98. No new failing files or existing-file lost passes against either; historical 97/243 not reproduced.
+
 ## Jo 1 Nov independent review — test-first, practice only
 - [ ] 1–3 Initial intents/retry tests pass; booked per-channel completion and full blocked/uncertain-send recovery still need hardening.
 - [ ] 4 Quiet handback cleanup, access removal and qa_test pending SQL proof.

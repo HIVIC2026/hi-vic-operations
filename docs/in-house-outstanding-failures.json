@@ -1,0 +1,1772 @@
+{
+  "start": [
+    {
+      "file": "a3-a4-role-isolation-db.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "a4-clearance-guard.test.ts",
+      "pass": 9,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "address-complete.test.ts",
+      "pass": 10,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "admin-pipeline-visibility.test.ts",
+      "pass": 2,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "ap-flags.test.ts",
+      "pass": 10,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "batch3b-fixes-invoice.test.ts",
+      "pass": 17,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "brief-e-silent-action-feedback.test.tsx",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "brief-n-ready-check-success.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "brief-o-ready-check-delivery.test.ts",
+      "pass": 0,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "brief-x-piesa-stage-gate.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "comms.test.ts",
+      "pass": 4,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "document-read-refresh.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "dummy-journey.test.ts",
+      "pass": 12,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "email-buttons.test.ts",
+      "pass": 81,
+      "fail": 4,
+      "code": 1
+    },
+    {
+      "file": "email-change-reply.test.ts",
+      "pass": 20,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "engagement.test.ts",
+      "pass": 20,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "enquiries-page-performance.test.ts",
+      "pass": 0,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "enquiry-dispatch-link-renewal.test.ts",
+      "pass": 7,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "enquiry-read-concurrency.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "enquiry-search-postgrest-or.test.ts",
+      "pass": 4,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "esc-collection-notice.test.ts",
+      "pass": 18,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "estimate.test.ts",
+      "pass": 34,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "ffs-field-access.step36.test.ts",
+      "pass": 14,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "ffs-minimum-results.p1-s23b.test.ts",
+      "pass": 29,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "field-job-one-call.test.tsx",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "fixes-quote-a4-isolated.test.ts",
+      "pass": 0,
+      "fail": 13,
+      "code": 1
+    },
+    {
+      "file": "fixes-times.test.ts",
+      "pass": 19,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "group-b-declaration-routing.test.ts",
+      "pass": 14,
+      "fail": 9,
+      "code": 1
+    },
+    {
+      "file": "group-b-prehandoff.test.ts",
+      "pass": 7,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "in-house-booking-practice-db.test.ts",
+      "pass": 23,
+      "fail": 3,
+      "code": 1
+    },
+    {
+      "file": "install-clearance.test.ts",
+      "pass": 10,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "installer-onboarding-pages.test.ts",
+      "pass": 9,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "installer-own-job-e2e-db.test.ts",
+      "pass": 8,
+      "fail": 9,
+      "code": 1
+    },
+    {
+      "file": "installer-part1-job-page.test.ts",
+      "pass": 10,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "installer-payer-quote-db.test.ts",
+      "pass": 10,
+      "fail": 6,
+      "code": 1
+    },
+    {
+      "file": "installer-payout-mark-paid.test.ts",
+      "pass": 1,
+      "fail": 6,
+      "code": 1
+    },
+    {
+      "file": "installer-price.test.ts",
+      "pass": 39,
+      "fail": 4,
+      "code": 1
+    },
+    {
+      "file": "installer-states.test.ts",
+      "pass": 26,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "installer-warranty-signing.test.ts",
+      "pass": 2,
+      "fail": 5,
+      "code": 1
+    },
+    {
+      "file": "intake-sequence.test.ts",
+      "pass": 11,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "journey-a1-complete-route-db.test.ts",
+      "pass": 4,
+      "fail": 26,
+      "code": 1
+    },
+    {
+      "file": "journey-a2-complete-route-db.test.ts",
+      "pass": 13,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "journey-live-runner-db.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "manual-communication.links.test.ts",
+      "pass": 1,
+      "fail": 5,
+      "code": 1
+    },
+    {
+      "file": "manual-communication.render.test.ts",
+      "pass": 6,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "manual-communication.server.test.ts",
+      "pass": 23,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "measured-quote-accept.test.ts",
+      "pass": 1,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "mitti-autoform.test.ts",
+      "pass": 27,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "new-sender-reply.server.test.ts",
+      "pass": 13,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "no-lead-fee.test.ts",
+      "pass": 4,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "no-size-save-journey.test.ts",
+      "pass": 2,
+      "fail": 5,
+      "code": 1
+    },
+    {
+      "file": "office-enquiry-page-concurrency.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "office-final-uat.test.ts",
+      "pass": 6,
+      "fail": 3,
+      "code": 1
+    },
+    {
+      "file": "office-job-load-failed.test.tsx",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "office-page-id-only.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "office-read-budget.test.ts",
+      "pass": 4,
+      "fail": 3,
+      "code": 1
+    },
+    {
+      "file": "office-review-read.test.ts",
+      "pass": 1,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "office-status.test.ts",
+      "pass": 60,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "onboarding-fixes-oct4.test.ts",
+      "pass": 5,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "one-status-line.test.ts",
+      "pass": 14,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "operations-preview-loader.test.ts",
+      "pass": 5,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "outlook-recovery.test.ts",
+      "pass": 27,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "owner-accept-speed.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "owner-calculator.test.ts",
+      "pass": 2,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "owner-email-auto-reply.test.ts",
+      "pass": 58,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "owner-email-triggers.test.ts",
+      "pass": 16,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "owner-fixes-flow.test.ts",
+      "pass": 10,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "owner-job-route-terminal.test.tsx",
+      "pass": 5,
+      "fail": 3,
+      "code": 1
+    },
+    {
+      "file": "owner-paperwork-templates.test.ts",
+      "pass": 4,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "p1-r1-s104-unified-integration.test.ts",
+      "pass": 26,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "p1-s64-date-payment-regressions.test.ts",
+      "pass": 12,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "partner-email.test.ts",
+      "pass": 2,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "partner.core.test.ts",
+      "pass": 12,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "payer-bypass-db.test.ts",
+      "pass": 6,
+      "fail": 5,
+      "code": 1
+    },
+    {
+      "file": "payment-receipt-once-practice-db.test.ts",
+      "pass": 6,
+      "fail": 8,
+      "code": 1
+    },
+    {
+      "file": "piesa-complete-live-a3-no-fixes.test.ts",
+      "pass": 0,
+      "fail": 4,
+      "code": 1
+    },
+    {
+      "file": "piesa-fee-onboarded-rec.test.ts",
+      "pass": 11,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "piesa-future-date-runtime.test.ts",
+      "pass": 9,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "postintake-health.test.ts",
+      "pass": 3,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "pricing-cohort.test.ts",
+      "pass": 31,
+      "fail": 4,
+      "code": 1
+    },
+    {
+      "file": "quote-answer-db.test.ts",
+      "pass": 7,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "quote-decline.test.ts",
+      "pass": 7,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "ready-check-change.core.test.ts",
+      "pass": 12,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "review-practice-persistence.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "reviewed-insulation-routing.test.ts",
+      "pass": 2,
+      "fail": 5,
+      "code": 1
+    },
+    {
+      "file": "s20r01-automatic-enquiry-emails.test.ts",
+      "pass": 30,
+      "fail": 21,
+      "code": 1
+    },
+    {
+      "file": "save-spot-delivery.core.test.ts",
+      "pass": 17,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "status-label-unify.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "t3-mitti-async-claim.test.ts",
+      "pass": 19,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "t7-offline-asset.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "templates-hub.test.ts",
+      "pass": 17,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "thirty-day-ack.test.ts",
+      "pass": 11,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "three-questions-reminder-db.test.ts",
+      "pass": 3,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "trade-job-speed.test.ts",
+      "pass": 18,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "trade-route-prefetch.test.ts",
+      "pass": 49,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "transfer-reconcile.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "visit-events.test.ts",
+      "pass": 13,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "worker-cert-onboarding.test.ts",
+      "pass": 10,
+      "fail": 1,
+      "code": 1
+    }
+  ],
+  "final": [
+    {
+      "file": "a3-a4-role-isolation-db.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "a4-clearance-guard.test.ts",
+      "pass": 9,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "address-complete.test.ts",
+      "pass": 10,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "admin-pipeline-visibility.test.ts",
+      "pass": 2,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "ap-flags.test.ts",
+      "pass": 10,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "batch3b-fixes-invoice.test.ts",
+      "pass": 17,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "brief-e-silent-action-feedback.test.tsx",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "brief-n-ready-check-success.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "brief-o-ready-check-delivery.test.ts",
+      "pass": 0,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "brief-x-piesa-stage-gate.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "comms.test.ts",
+      "pass": 4,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "document-read-refresh.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "dummy-journey.test.ts",
+      "pass": 12,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "email-buttons.test.ts",
+      "pass": 81,
+      "fail": 4,
+      "code": 1
+    },
+    {
+      "file": "email-change-reply.test.ts",
+      "pass": 20,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "engagement.test.ts",
+      "pass": 20,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "enquiries-page-performance.test.ts",
+      "pass": 0,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "enquiry-dispatch-link-renewal.test.ts",
+      "pass": 7,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "enquiry-read-concurrency.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "enquiry-search-postgrest-or.test.ts",
+      "pass": 4,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "esc-collection-notice.test.ts",
+      "pass": 18,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "estimate.test.ts",
+      "pass": 34,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "ffs-field-access.step36.test.ts",
+      "pass": 14,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "ffs-minimum-results.p1-s23b.test.ts",
+      "pass": 29,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "field-job-one-call.test.tsx",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "fixes-quote-a4-isolated.test.ts",
+      "pass": 0,
+      "fail": 13,
+      "code": 1
+    },
+    {
+      "file": "fixes-times.test.ts",
+      "pass": 19,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "group-b-declaration-routing.test.ts",
+      "pass": 14,
+      "fail": 9,
+      "code": 1
+    },
+    {
+      "file": "group-b-prehandoff.test.ts",
+      "pass": 7,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "in-house-booking-practice-db.test.ts",
+      "pass": 23,
+      "fail": 3,
+      "code": 1
+    },
+    {
+      "file": "install-clearance.test.ts",
+      "pass": 10,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "installer-onboarding-pages.test.ts",
+      "pass": 9,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "installer-own-job-e2e-db.test.ts",
+      "pass": 8,
+      "fail": 9,
+      "code": 1
+    },
+    {
+      "file": "installer-part1-job-page.test.ts",
+      "pass": 10,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "installer-payer-quote-db.test.ts",
+      "pass": 10,
+      "fail": 6,
+      "code": 1
+    },
+    {
+      "file": "installer-payout-mark-paid.test.ts",
+      "pass": 1,
+      "fail": 6,
+      "code": 1
+    },
+    {
+      "file": "installer-price.test.ts",
+      "pass": 39,
+      "fail": 4,
+      "code": 1
+    },
+    {
+      "file": "installer-states.test.ts",
+      "pass": 26,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "installer-warranty-signing.test.ts",
+      "pass": 2,
+      "fail": 5,
+      "code": 1
+    },
+    {
+      "file": "intake-sequence.test.ts",
+      "pass": 11,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "journey-a1-complete-route-db.test.ts",
+      "pass": 4,
+      "fail": 26,
+      "code": 1
+    },
+    {
+      "file": "journey-a2-complete-route-db.test.ts",
+      "pass": 13,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "journey-live-runner-db.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "manual-communication.links.test.ts",
+      "pass": 1,
+      "fail": 5,
+      "code": 1
+    },
+    {
+      "file": "manual-communication.render.test.ts",
+      "pass": 6,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "manual-communication.server.test.ts",
+      "pass": 23,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "measured-quote-accept.test.ts",
+      "pass": 1,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "mitti-autoform.test.ts",
+      "pass": 27,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "new-sender-reply.server.test.ts",
+      "pass": 13,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "no-lead-fee.test.ts",
+      "pass": 4,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "no-size-save-journey.test.ts",
+      "pass": 2,
+      "fail": 5,
+      "code": 1
+    },
+    {
+      "file": "office-enquiry-page-concurrency.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "office-final-uat.test.ts",
+      "pass": 6,
+      "fail": 3,
+      "code": 1
+    },
+    {
+      "file": "office-job-load-failed.test.tsx",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "office-page-id-only.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "office-read-budget.test.ts",
+      "pass": 4,
+      "fail": 3,
+      "code": 1
+    },
+    {
+      "file": "office-review-read.test.ts",
+      "pass": 1,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "office-status.test.ts",
+      "pass": 60,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "onboarding-fixes-oct4.test.ts",
+      "pass": 5,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "one-status-line.test.ts",
+      "pass": 14,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "operations-preview-loader.test.ts",
+      "pass": 5,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "outlook-recovery.test.ts",
+      "pass": 27,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "owner-accept-speed.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "owner-calculator.test.ts",
+      "pass": 2,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "owner-email-auto-reply.test.ts",
+      "pass": 58,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "owner-email-triggers.test.ts",
+      "pass": 16,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "owner-fixes-flow.test.ts",
+      "pass": 10,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "owner-job-route-terminal.test.tsx",
+      "pass": 5,
+      "fail": 3,
+      "code": 1
+    },
+    {
+      "file": "owner-paperwork-templates.test.ts",
+      "pass": 4,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "p1-r1-s104-unified-integration.test.ts",
+      "pass": 26,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "p1-s64-date-payment-regressions.test.ts",
+      "pass": 12,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "partner-email.test.ts",
+      "pass": 2,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "partner.core.test.ts",
+      "pass": 12,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "payer-bypass-db.test.ts",
+      "pass": 6,
+      "fail": 5,
+      "code": 1
+    },
+    {
+      "file": "payment-receipt-once-practice-db.test.ts",
+      "pass": 6,
+      "fail": 8,
+      "code": 1
+    },
+    {
+      "file": "piesa-complete-live-a3-no-fixes.test.ts",
+      "pass": 0,
+      "fail": 4,
+      "code": 1
+    },
+    {
+      "file": "piesa-fee-onboarded-rec.test.ts",
+      "pass": 11,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "piesa-future-date-runtime.test.ts",
+      "pass": 9,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "postintake-health.test.ts",
+      "pass": 3,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "pricing-cohort.test.ts",
+      "pass": 31,
+      "fail": 4,
+      "code": 1
+    },
+    {
+      "file": "quote-answer-db.test.ts",
+      "pass": 7,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "quote-decline.test.ts",
+      "pass": 7,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "ready-check-change.core.test.ts",
+      "pass": 12,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "review-practice-persistence.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "reviewed-insulation-routing.test.ts",
+      "pass": 2,
+      "fail": 5,
+      "code": 1
+    },
+    {
+      "file": "s20r01-automatic-enquiry-emails.test.ts",
+      "pass": 30,
+      "fail": 21,
+      "code": 1
+    },
+    {
+      "file": "save-spot-delivery.core.test.ts",
+      "pass": 17,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "status-label-unify.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "t3-mitti-async-claim.test.ts",
+      "pass": 19,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "t7-offline-asset.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "templates-hub.test.ts",
+      "pass": 17,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "thirty-day-ack.test.ts",
+      "pass": 11,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "three-questions-reminder-db.test.ts",
+      "pass": 3,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "trade-job-speed.test.ts",
+      "pass": 18,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "trade-route-prefetch.test.ts",
+      "pass": 49,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "transfer-reconcile.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "visit-events.test.ts",
+      "pass": 13,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "worker-cert-onboarding.test.ts",
+      "pass": 10,
+      "fail": 1,
+      "code": 1
+    }
+  ],
+  "task7": [
+    {
+      "file": "a3-a4-role-isolation-db.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "a4-clearance-guard.test.ts",
+      "pass": 9,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "address-complete.test.ts",
+      "pass": 10,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "admin-pipeline-visibility.test.ts",
+      "pass": 2,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "ap-flags.test.ts",
+      "pass": 10,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "batch3b-fixes-invoice.test.ts",
+      "pass": 17,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "brief-e-silent-action-feedback.test.tsx",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "brief-n-ready-check-success.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "brief-o-ready-check-delivery.test.ts",
+      "pass": 0,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "brief-x-piesa-stage-gate.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "comms.test.ts",
+      "pass": 4,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "document-read-refresh.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "dummy-journey.test.ts",
+      "pass": 12,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "email-buttons.test.ts",
+      "pass": 81,
+      "fail": 4,
+      "code": 1
+    },
+    {
+      "file": "email-change-reply.test.ts",
+      "pass": 20,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "engagement.test.ts",
+      "pass": 20,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "enquiries-page-performance.test.ts",
+      "pass": 0,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "enquiry-dispatch-link-renewal.test.ts",
+      "pass": 7,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "enquiry-read-concurrency.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "enquiry-search-postgrest-or.test.ts",
+      "pass": 4,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "esc-collection-notice.test.ts",
+      "pass": 18,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "estimate.test.ts",
+      "pass": 34,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "ffs-field-access.step36.test.ts",
+      "pass": 14,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "ffs-minimum-results.p1-s23b.test.ts",
+      "pass": 29,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "field-job-one-call.test.tsx",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "fixes-quote-a4-isolated.test.ts",
+      "pass": 0,
+      "fail": 13,
+      "code": 1
+    },
+    {
+      "file": "fixes-times.test.ts",
+      "pass": 19,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "group-b-declaration-routing.test.ts",
+      "pass": 14,
+      "fail": 9,
+      "code": 1
+    },
+    {
+      "file": "group-b-prehandoff.test.ts",
+      "pass": 7,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "in-house-booking-practice-db.test.ts",
+      "pass": 23,
+      "fail": 3,
+      "code": 1
+    },
+    {
+      "file": "install-clearance.test.ts",
+      "pass": 10,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "installer-onboarding-pages.test.ts",
+      "pass": 9,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "installer-own-job-e2e-db.test.ts",
+      "pass": 8,
+      "fail": 9,
+      "code": 1
+    },
+    {
+      "file": "installer-part1-job-page.test.ts",
+      "pass": 10,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "installer-payer-quote-db.test.ts",
+      "pass": 10,
+      "fail": 6,
+      "code": 1
+    },
+    {
+      "file": "installer-payout-mark-paid.test.ts",
+      "pass": 1,
+      "fail": 6,
+      "code": 1
+    },
+    {
+      "file": "installer-price.test.ts",
+      "pass": 39,
+      "fail": 4,
+      "code": 1
+    },
+    {
+      "file": "installer-states.test.ts",
+      "pass": 26,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "installer-warranty-signing.test.ts",
+      "pass": 2,
+      "fail": 5,
+      "code": 1
+    },
+    {
+      "file": "intake-sequence.test.ts",
+      "pass": 11,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "journey-a1-complete-route-db.test.ts",
+      "pass": 4,
+      "fail": 26,
+      "code": 1
+    },
+    {
+      "file": "journey-a2-complete-route-db.test.ts",
+      "pass": 13,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "journey-live-runner-db.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "manual-communication.links.test.ts",
+      "pass": 1,
+      "fail": 5,
+      "code": 1
+    },
+    {
+      "file": "manual-communication.render.test.ts",
+      "pass": 6,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "manual-communication.server.test.ts",
+      "pass": 23,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "measured-quote-accept.test.ts",
+      "pass": 1,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "mitti-autoform.test.ts",
+      "pass": 27,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "new-sender-reply.server.test.ts",
+      "pass": 13,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "no-lead-fee.test.ts",
+      "pass": 4,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "no-size-save-journey.test.ts",
+      "pass": 2,
+      "fail": 5,
+      "code": 1
+    },
+    {
+      "file": "office-enquiry-page-concurrency.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "office-final-uat.test.ts",
+      "pass": 6,
+      "fail": 3,
+      "code": 1
+    },
+    {
+      "file": "office-job-load-failed.test.tsx",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "office-page-id-only.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "office-read-budget.test.ts",
+      "pass": 4,
+      "fail": 3,
+      "code": 1
+    },
+    {
+      "file": "office-review-read.test.ts",
+      "pass": 1,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "office-status.test.ts",
+      "pass": 60,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "onboarding-fixes-oct4.test.ts",
+      "pass": 5,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "one-status-line.test.ts",
+      "pass": 14,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "operations-preview-loader.test.ts",
+      "pass": 5,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "outlook-recovery.test.ts",
+      "pass": 27,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "owner-accept-speed.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "owner-calculator.test.ts",
+      "pass": 2,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "owner-email-auto-reply.test.ts",
+      "pass": 58,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "owner-email-triggers.test.ts",
+      "pass": 16,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "owner-fixes-flow.test.ts",
+      "pass": 10,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "owner-job-route-terminal.test.tsx",
+      "pass": 5,
+      "fail": 3,
+      "code": 1
+    },
+    {
+      "file": "owner-paperwork-templates.test.ts",
+      "pass": 4,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "p1-r1-s104-unified-integration.test.ts",
+      "pass": 26,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "p1-s64-date-payment-regressions.test.ts",
+      "pass": 12,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "partner-email.test.ts",
+      "pass": 2,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "partner.core.test.ts",
+      "pass": 12,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "payer-bypass-db.test.ts",
+      "pass": 6,
+      "fail": 5,
+      "code": 1
+    },
+    {
+      "file": "payment-receipt-once-practice-db.test.ts",
+      "pass": 6,
+      "fail": 8,
+      "code": 1
+    },
+    {
+      "file": "piesa-complete-live-a3-no-fixes.test.ts",
+      "pass": 0,
+      "fail": 4,
+      "code": 1
+    },
+    {
+      "file": "piesa-fee-onboarded-rec.test.ts",
+      "pass": 11,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "piesa-future-date-runtime.test.ts",
+      "pass": 9,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "postintake-health.test.ts",
+      "pass": 3,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "pricing-cohort.test.ts",
+      "pass": 31,
+      "fail": 4,
+      "code": 1
+    },
+    {
+      "file": "quote-answer-db.test.ts",
+      "pass": 7,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "quote-decline.test.ts",
+      "pass": 7,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "ready-check-change.core.test.ts",
+      "pass": 12,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "review-practice-persistence.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "reviewed-insulation-routing.test.ts",
+      "pass": 2,
+      "fail": 5,
+      "code": 1
+    },
+    {
+      "file": "s20r01-automatic-enquiry-emails.test.ts",
+      "pass": 30,
+      "fail": 21,
+      "code": 1
+    },
+    {
+      "file": "save-spot-delivery.core.test.ts",
+      "pass": 17,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "status-label-unify.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "t3-mitti-async-claim.test.ts",
+      "pass": 19,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "t7-offline-asset.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "templates-hub.test.ts",
+      "pass": 17,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "thirty-day-ack.test.ts",
+      "pass": 11,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "three-questions-reminder-db.test.ts",
+      "pass": 3,
+      "fail": 2,
+      "code": 1
+    },
+    {
+      "file": "trade-job-speed.test.ts",
+      "pass": 18,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "trade-route-prefetch.test.ts",
+      "pass": 49,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "transfer-reconcile.test.ts",
+      "pass": 0,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "visit-events.test.ts",
+      "pass": 13,
+      "fail": 1,
+      "code": 1
+    },
+    {
+      "file": "worker-cert-onboarding.test.ts",
+      "pass": 10,
+      "fail": 1,
+      "code": 1
+    }
+  ]
+}

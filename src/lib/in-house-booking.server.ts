@@ -73,7 +73,9 @@ export async function sweepOwnerBookedNotices(now=new Date()){
   const rows:{job_id:string;details:{kind:'ready_check'|'piesa'|'install';startIso:string;who:Pick<BookingWorker,'id'|'name'|'phone'>}}[]=[];
   for(let offset=0;;offset+=200){const page=await read<typeof rows>(db.from('workflow_events').select('job_id,details').eq('event_type','in_house_booked_notice_pending').order('id').range(offset,offset+199));rows.push(...page);if(page.length<200)break;}
   for(const row of rows)await notifyOwnerBooked(row.job_id,row.details.kind,row.details.startIso,row.details.who,now);
-  for(let offset=0;;offset+=200){const pending=await db.from('workflow_events').select('job_id,details').eq('event_type','in_house_electrician_booking_notice').contains('details',{status:'retry'}).order('id').range(offset,offset+199);if(pending.error)throw Error(pending.error.message);for(const row of pending.data??[]){const details=row.details as {booking_id?:string};if(row.job_id&&details.booking_id)await (await import('./in-house-electrician-booked.server')).notifyInHouseElectricianBooked(row.job_id,details.booking_id);}if((pending.data?.length??0)<200)break;}
+  const workers:{job_id:string;details:{booking_id?:string;status?:string}}[]=[];
+  for(let offset=0;;offset+=200){const pending=await db.from('workflow_events').select('job_id,details').eq('event_type','in_house_electrician_booking_notice').order('id').range(offset,offset+199);if(pending.error)throw Error(pending.error.message);workers.push(...(pending.data??[]) as typeof workers);if((pending.data?.length??0)<200)break;}
+  for(const row of workers)if(row.job_id&&row.details.booking_id&&row.details.status!=='sent')await (await import('./in-house-electrician-booked.server')).notifyInHouseElectricianBooked(row.job_id,row.details.booking_id,now);
   return {checked:rows.length};
 }
 export async function latestLeadNotice(jobId:string){

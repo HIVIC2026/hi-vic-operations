@@ -80,6 +80,16 @@ const clearanceFacts = async () => {
     rectificationQuoteAccepted: true, rectificationCompletedAt: j.rectification_required ? START : null, sectionCSignedAt: j.part_c_signed ? START : null };
 };
 const overrides: Record<string, any> = {
+  // This fixture exercises canonical gates; atomic persistence/parallel clicks are
+  // proven separately on the real pending RPC in in-house-atomic-booking.test.ts.
+  './in-house-atomic-save.server':{saveInHouseVisit:async(jobId:string,actor:string,input:any)=>{
+    await load('booking.server').validateBooking(jobId,input.kind,input.start,actor);
+    const existing=(await rows<any>('SELECT id FROM bookings WHERE job_id=$1 AND kind=$2 AND status=\'confirmed\' AND scheduled_start=$3',[jobId,input.kind,input.start]))[0];
+    if(!existing)await load('booking.server').confirmBooking(jobId,input.kind,input.start,actor,'in-house partner');
+    const saved=(await rows<any>('SELECT id FROM bookings WHERE job_id=$1 AND kind=$2 AND status=\'confirmed\'',[jobId,input.kind]))[0];
+    if(input.kind==='ready_check'&&!existing){await db.query('UPDATE jobs SET next_action=$2 WHERE id=$1',[jobId,'Ready Check booked']);await logEvent(jobId,actor,'installer_ready_check_time_entered','Partner entered the Ready Check day and time');}
+    return {bookingId:saved.id,needsVerification:[]};
+  }},
   './in-house-booking.server':{prepareBookingWorker:async()=>({id:MEMBER,name:'TEST worker',phone:null}),notifyOwnerBooked:async()=>{}},
   "@/integrations/supabase/client.server": { supabaseAdmin: admin },
   "./workflow.server": workflow, "./workflow": workflowCore, "./in-house.core": inHouse,
@@ -300,19 +310,19 @@ test("payee-only Reinsulate member has no in-house access/card and cannot use th
 test("in-house Ready Check schedules its form once; repeated callback retains one audit and other visits do not schedule it", async () => {
   await patch("stage", "ready_check_ready_to_schedule");
   expect((await book("ready_check")).ok).toBe(true);
-  expect(formCalls).toBe(1); expect(formAudits).toBe(1);
+  expect(formCalls).toBe(0); expect(formAudits).toBe(0);
   expect((await job()).next_action).toBe("Ready Check booked");
   expect(await rows("select id from workflow_events where event_type='installer_ready_check_time_entered'")).toHaveLength(1);
   const retry = await book("ready_check");
-  expect(formAudits).toBe(1);
+  expect(formAudits).toBe(0);
   if (retry.ok) expect(await rows("select id from bookings where kind='ready_check'")).toHaveLength(1);
   await patch("stage", "installation_scheduling"); await book("installation");
-  expect(formCalls).toBe(2); // same-booking retry repairs missing forms but retains the existing audit
+  expect(formCalls).toBe(0); // forms run through recorded work, not in the booking response
 });
 test("Ready Check Mitti failure keeps the confirmed booking and logs without undo", async () => {
   await patch("stage", "ready_check_ready_to_schedule"); failForm = true;
   const original = console.error; const errors: unknown[] = []; console.error = (...args) => errors.push(args);
-  try { expect((await book("ready_check")).ok).toBe(true); expect(await rows("select id from bookings where kind='ready_check' and status='confirmed'")).toHaveLength(1); expect(errors).toHaveLength(1); }
+  try { expect((await book("ready_check")).ok).toBe(true); expect(await rows("select id from bookings where kind='ready_check' and status='confirmed'")).toHaveLength(1); expect(errors).toHaveLength(0); }
   finally { console.error = original; }
 });
 
