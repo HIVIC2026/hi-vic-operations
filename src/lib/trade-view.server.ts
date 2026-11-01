@@ -925,7 +925,12 @@ export async function tradeAddTeamPerson(userId: string, p: { name: string; work
     const problem=(await import('./worker-identity.core')).dateOfBirthProblem(p.dateOfBirth,(await import('./melbourne-time.core')).melbourneToday());
     if(problem)throw new WorkflowError(problem);
     const r=await (admin as unknown as import('@supabase/supabase-js').SupabaseClient).rpc('add_team_installer_with_identity',{_business:c.biz.id,_actor:userId,_name:name,_role:p.workerRole,_mobile:v.mobile,_email:email,_dob:p.dateOfBirth});
-    if(r.error)throw new WorkflowError(['PGRST202','42883'].includes(r.error.code)?'Private ESC registration details need the pending database update before this person can be added.':'Could not add this person and their private ESC details.');
+    if(r.error){
+      if(['PGRST202','42883'].includes(r.error.code))throw new WorkflowError('Private ESC registration details need the pending database update before this person can be added.');
+      if(['23502','PGRST204','42703'].includes(r.error.code))throw new WorkflowError("Adding someone without an email needs the office's database update first.");
+      if(r.error.code==='23505')throw new WorkflowError('Someone with that email is already on your team.');
+      throw new WorkflowError("Couldn't add them. Please try again.");
+    }
     return{workerId:r.data as string};
   }
   const row = { trade_role: c.kind, licence_number: licence, worker_role: null };
