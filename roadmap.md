@@ -1,3 +1,8 @@
+## Jo 1 Nov deployment compatibility and B — practice only
+- [ ] Missing saved-work functions: preserve canonical inline Book / Change Lead Installer paths; test missing versus real errors.
+- [ ] Prove transaction-bound canonical gates with real functions on PGlite; report SQL readiness and every remaining blocker.
+- [ ] Run related tests; no live changes, sends or publishing.
+
 ## Jo 1 Nov outstanding A–E — practice only
 - [x] A/C Recorded booking and crew follow-through, claimed retries, A5/SWMS handover and failure-task resolution; isolated proofs pass.
 - [ ] B Pending atomic booking/crew check-and-set and double-click practice proofs pass; full transaction-bound canonical gate parity and authenticated UI verification remain unproven. Pending SQL must remain unapplied.
