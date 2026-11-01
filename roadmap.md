@@ -1,3 +1,9 @@
+## Jo 2 Nov full published in-house test tool
+- [ ] Test-first published-target preflight proving server-side provider boundaries before setup/page action, run-bound TEST scope and unchanged launch hold.
+- [ ] Browser-first scenarios: complete through close, owner cancelled, Can't do this one, post-notice Lead Installer swap, electrical rectification; per-role screenshots and honest results.
+- [ ] TEST-only snapshot/restore with interrupted-run recovery, scoped provider captures, Mitti simulator and Stripe TEST.
+- [ ] Run published target only after deployed safeguards pass; no publishing or real-record changes. Stop and report deployment/safety gaps instead of bypassing them.
+
 ## Jo 2 Nov approved private Team DOB release
 - [x] Applied only approved d64a63d private_worker_birth_dates SQL as 0186 after 7/0 practice checks; original archived under applied-migrations.
 - [x] Live table, private-read policy and service-only add function read back; empty identity table and unchanged worker/business/workflow fingerprints.
