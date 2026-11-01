@@ -111,16 +111,23 @@ async function templateIds() {
 export const PIESA_BOOKING_MISSING = "The PIESA form can only be created once a PIESA visit is confirmed in the portal.";
 
 /** opts.assignee: hand the Ready Check to this specific approved worker (auto-assign); opts.readyCheck forces the installer Ready Check form. */
-export async function createAssignMittiAudit(jobId: string, actorId: string | null, call: MittiCall = realMittiCall, opts: { assignee?: { userId: string; fullName: string | null; email: string }; readyCheck?: boolean; officeOverride?: boolean } = {}) {
+export async function createAssignMittiAudit(jobId: string, actorId: string | null, call: MittiCall = realMittiCall, opts: { assignee?: { userId: string; fullName: string | null; email: string }; readyCheck?: boolean; officeOverride?: boolean; inHousePreparation?: boolean } = {}) {
   const { data: job } = await admin.from("jobs").select("id,job_number,business_unit,stage,estimated_area_m2,life_support,life_support_status,property_id,owner_id,channel").eq("id", jobId).single();
   if (!job) throw new WorkflowError("Job not found.");
   const scope = await jobScope(jobId);
   if (scope.scope === "COMPLETE") throw new WorkflowError("Both site requirements are already complete – no Mitti audit needed.");
+  if (opts.inHousePreparation) {
+    const forms = await import("./in-house-forms.server");
+    if (!await forms.isInHouseFormJob(jobId)) throw new WorkflowError("Not an in-house job");
+    const facts = await (await import("./mitti-create.server")).readyCheckFormFacts(jobId);
+    if (!facts?.booked || !facts.mittiInvited || !facts.autoSend) throw new WorkflowError("In-house preparation requires an enabled partner and a confirmed Ready Check booking.");
+    opts = { ...opts, assignee: await forms.inHousePreparationAssignee(jobId) };
+  }
   // The Ready Check comes before any PIESA, so in Ready Check stages the installer form is sent even though no PIESA exists yet.
   // Jo 24 Oct (HV-3151): an installer's own customer gets the Ready Check form in every pre-Ready-Check stage, so the
   // office button and the automatic sweep agree with each other whatever stage the website checks left the job in.
   const readyCheckStage = readyCheckFormStageAllowed(job.stage, job.channel);
-  const measureOnly = !!opts.readyCheck || readyCheckStage || scope.scope === "MEASURE_UP_ONLY";
+  const measureOnly = !opts.inHousePreparation && (!!opts.readyCheck || readyCheckStage || scope.scope === "MEASURE_UP_ONLY");
   const role = measureOnly ? "installer" : "electrician";
   // Role-specific forms only; the old combined template is never used for new audits.
   // Ready Check variant: installer-sourced jobs get the priced form (A1), our leads the evidence-only form (A2).
@@ -146,7 +153,7 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
     throw new WorkflowError("Electrical assessment is already complete and locked.");
   }
   // Gap 1: no PIESA form until the PIESA visit is confirmed in the portal.
-  if (!measureOnly && !booking) throw new WorkflowError(PIESA_BOOKING_MISSING);
+  if (!measureOnly && !booking && !opts.inHousePreparation) throw new WorkflowError(PIESA_BOOKING_MISSING);
   const asg = opts.assignee ? { user_id: opts.assignee.userId, profiles: { full_name: opts.assignee.fullName, email: opts.assignee.email } } : asgRow;
   if (!asg) throw new WorkflowError(`Assign an ${role} before creating the Mitti assessment.`);
   const m = scope.measurementRow;
@@ -173,7 +180,7 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
   } };
   try {
     r = await createOrReuseAudit(api, {
-      businessUnit: job.business_unit, stage: job.stage, jobNumber: job.job_number, existingAuditId, channel: job.channel,
+      businessUnit: job.business_unit, stage: job.stage, jobNumber: job.job_number, existingAuditId, channel: job.channel, inHousePreparation: opts.inHousePreparation === true,
       electricianEmail: prof?.email ?? null, templateId, assigneeRole: role,
       prefill: {
         jobNumber: job.job_number, address, titleAddress: address, ownerName: owner?.full_name ?? "", ownerEmail: owner?.email ?? null, ownerPhone: owner?.phone ?? null,
@@ -667,7 +674,7 @@ export async function syncPendingMitti(actorId: string | null, call: MittiCall =
 
 /** Sends the official PIISA to the assigned installer in Mitti with the LR-003 pre-fills (Installation Booked only).
  * Fails closed while the PIISA is locked or its Mitti form isn't configured. Reminders stay in the portal. */
-export async function createPiisaMittiAudit(jobId: string, actorId: string | null, call: MittiCall = realMittiCall, opts: { officeOverride?: boolean } = {}) { // actorId null = the 15-minute tick (piisa-autosend.server.ts)
+export async function createPiisaMittiAudit(jobId: string, actorId: string | null, call: MittiCall = realMittiCall, opts: { officeOverride?: boolean; assignee?: {userId:string;fullName:string|null;email:string} } = {}) { // actorId null = the 15-minute tick (piisa-autosend.server.ts)
   const { buildOfficialPrefill, missingKnownFields, PIISA_A3_TEMPLATE_ID } = await import("./mitti.core");
   const a3 = await import("./piisa-a3.core");
   const { OFFICIAL_ITEMS } = await import("./official-forms.core");
@@ -687,7 +694,8 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string | nul
   { const { count } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("to_stage", "ready_check_complete");
     if (!count) throw new WorkflowError("Complete this job's Ready Check before the installer safety form (PIISA) is sent."); }
   const { data: asg } = await admin.from("job_assignments").select("user_id, profiles:user_id(email)").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
-  const email = (asg as unknown as { profiles: { email: string | null } | null } | null)?.profiles?.email?.trim();
+  if (opts.assignee && !await (await import("./in-house-forms.server")).isInHouseFormJob(jobId)) throw new WorkflowError("Not an in-house job");
+  const email = opts.assignee?.email.trim() ?? (asg as unknown as { profiles: { email: string | null } | null } | null)?.profiles?.email?.trim();
   if (!asg || !email) throw new WorkflowError("Assign an installer with an email address before sending the safety form.");
   const { data: prev, error: previousError } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_piisa_audit_created").order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (previousError) throw new WorkflowError("The existing PIISA audit could not be checked. Try again; no replacement form was created.");
@@ -906,4 +914,40 @@ export async function reassignMittiFormTo(p: { jobId: string; auditId: string; k
       `${p.kind === "install" ? "Installer safety form" : "Mitti Ready Check form"} handed to ${p.email} (visit allocation)`, { audit_id: p.auditId, mitti_user_id: p.mittiUserId, reason: "visit_allocated", ...(p.kind === "install" ? {} : { kind: "ready_check" as const }) });
   }
   return { auditId: p.auditId };
+}
+
+/** Update only the recorded crew fields, never onsite answers or signatures. */
+export async function updateMittiInstallCrew(jobId: string, auditId: string, actorId: string | null, call: MittiCall = realMittiCall) {
+  const [{data:job,error:je},{data:ws,error:we}] = await Promise.all([
+    admin.from("jobs").select("job_number").eq("id",jobId).single(),
+    admin.from("workflow_settings").select("mitti_piisa_template_id").eq("id",1).maybeSingle(),
+  ]);
+  if (je || we || !job || !ws?.mitti_piisa_template_id) throw new WorkflowError("The install form could not be checked.");
+  const {data:source,error:se} = await admin.from("jobs").select("source").eq("id",jobId).single();
+  if (se) throw new WorkflowError("The install form's job could not be checked.");
+  const routingEmail = source?.source === "qa_test" ? (await import("./onsite-ready-check.core")).TEST_MITTI_ASSIGNEE : null;
+  const api = mittiApi(await mittiCallFor(call,routingEmail));
+  const audit = await api.getAudit(auditId);
+  validateStoredMittiAudit(audit,{storedAuditId:auditId,jobNumber:job.job_number,templateId:ws.mitti_piisa_template_id});
+  if (parseAudit(audit).completed) return;
+  const {staff,selection} = await (await import("./piisa-a3.server")).loadCrew(jobId);
+  if (!selection) throw new WorkflowError("Choose the install crew first.");
+  const core = await import("./piisa-a3.core");
+  const checks = core.crewSelectionProblems(selection,staff);
+  if (checks.problems.length || checks.needsVerification.length) throw new WorkflowError([...checks.problems,...checks.needsVerification].join(" • "));
+  const lead = staff.find(w=>w.workerId===core.leadWorkerId(selection));
+  const pick = (p: unknown) => { const workerId = typeof p === "string" ? p : (p as {workerId?:string}|null)?.workerId; const w = staff.find(w=>w.workerId===workerId); const other = (p as {other?:{name?:string}}|null)?.other; return {name:w?.name ?? other?.name ?? null,cii:w?.eecVerified ? w.eec : null}; };
+  const [second,third] = selection.additional.map(pick);
+  const install = await import("./install-day.core");
+  const items = install.installDayPrefillItems(audit,{jobNumber:null,address:null,installDate:null,apName:null,businessName:null,leadName:lead?.name ?? null,leadCii:lead?.eecVerified ? lead.eec : null,secondName:second?.name ?? null,secondCii:second?.cii ?? null,thirdName:third?.name ?? null,thirdCii:third?.cii ?? null,lifeSupport:null,solarPresent:null,electricianAtStart:null},(await import("./mitti.core")).choiceOption);
+  // Clear removed crew's names/certifications as well as replacing current crew.
+  const {flatten} = await import("./mitti.core");
+  const crewLabels = install.INSTALL_DAY_QUESTIONS.filter(q=>q.prefill && ["leadName","leadCii","secondName","secondCii","thirdName","thirdCii"].includes(q.prefill)).map(q=>q.label);
+  const flat = flatten(audit);
+  for (const field of flat.filter(f=>crewLabels.includes(f.label))) if (!items.some(i=>i.item_id===field.id)) items.push({item_id:field.id,type:"text",responses:{text:""}});
+  const headers = new Set(flat.filter(f=>f.header).map(f=>f.id));
+  const h = items.filter(i=>headers.has(i.item_id)), b = items.filter(i=>!headers.has(i.item_id));
+  if (h.length) await api.updateAuditHeader(auditId,h);
+  if (b.length) await api.updateAuditText(auditId,b);
+  await logEvent(jobId,actorId,"mitti_install_crew_updated","Install form updated to the recorded crew",{audit_id:auditId},{internal:true});
 }

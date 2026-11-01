@@ -74,6 +74,11 @@ export async function releaseCancelledJob(jobId: string, reason: string, actorId
   const cancelSeq = priorCancels?.length ?? 0;
   const lastReleasedAt = (priorCancels ?? []).map((e) => (e as { created_at?: string | null }).created_at ?? "").filter(Boolean).sort().at(-1) ?? null;
   const installerRecipient = tell.installer ? await installerRecipientFor(jobId, (job as { originating_installer_business_id?: string | null } | null)?.originating_installer_business_id ?? null, lastReleasedAt) : null;
+  // Before assignments end: the held lookup still positively identifies this partner.
+  await (await import("./in-house-forms.server")).closeUnneededForms(jobId, "cancelled", actorId).catch(async e=>{
+    console.error("Unused in-house form closure failed", e instanceof Error ? e.message : "Form read failed");
+    await logEvent(jobId, actorId, "in_house_form_close_failed", "Unused forms need office attention", { reason: e instanceof Error ? e.message : "Form closure failed", needs_office: true }, { internal: true });
+  });
   const now = new Date().toISOString();
   const [books, props, offers, asg, esc, holds] = await Promise.all([
     admin.from("bookings").update({ status: "cancelled" }).eq("job_id", jobId).in("status", ["proposed", "confirmed"]).gt("scheduled_start", now).select("id, kind"),

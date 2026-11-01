@@ -95,6 +95,7 @@ const overrides: Record<string, any> = {
   "./owner-email-triggers.server": { onSafetyCheckBooked: async () => {} }, "./piesa-autoform.server": { onPiesaBooked: async () => {} },
   "./consent.server": { syncOwnerConsent: async () => {}, currentConsent: async () => null },
   "./mitti-create.server": { onReadyCheckBooked: async () => { formCalls++; if (failForm) throw new Error("mock Mitti unavailable"); if (!formAudits) formAudits++; } },
+  "./in-house-forms.server": { isInHouseFormJob: async () => true, ensureInstallForm: async () => "mock-A5", syncInHouseForms: async () => {} },
   "./installer-ready-check.core": { READY_CHECK_BOOKED: "Ready Check booked" },
   "./consent.core": { consentValidityBlockers: () => [] },
 };
@@ -305,7 +306,7 @@ test("in-house Ready Check schedules its form once; repeated callback retains on
   expect(formAudits).toBe(1);
   if (retry.ok) expect(await rows("select id from bookings where kind='ready_check'")).toHaveLength(1);
   await patch("stage", "installation_scheduling"); await book("installation");
-  expect(formCalls).toBe(1);
+  expect(formCalls).toBe(2); // same-booking retry repairs missing forms but retains the existing audit
 });
 test("Ready Check Mitti failure keeps the confirmed booking and logs without undo", async () => {
   await patch("stage", "ready_check_ready_to_schedule"); failForm = true;

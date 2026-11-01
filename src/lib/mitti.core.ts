@@ -327,6 +327,8 @@ export type CreateCtx = {
   templateId?: string; assigneeRole?: "electrician" | "installer";
   /** jobs.channel — installer-sourced jobs may receive the Ready Check form in any pre-Ready-Check stage. */
   channel?: string | null;
+  /** Server-validated in-house preparation after a confirmed Ready Check booking. */
+  inHousePreparation?: boolean;
 };
 export type CreateResult = { auditId: string; reused: boolean; mittiUserId: string; assigneeEmail: string; prefillCount: number | null; createdAt: string | null };
 
@@ -341,7 +343,7 @@ export function pickUser(res: Any, email: string): Any | null {
 export async function createOrReuseAudit(api: MittiApi, ctx: CreateCtx): Promise<CreateResult> {
   if (ctx.businessUnit !== "hivic") throw new MittiError("Mitti automation is only available for Home Insulation Victoria jobs.");
   const readyCheckSend = ctx.assigneeRole === "installer" && readyCheckFormStageAllowed(ctx.stage, ctx.channel);
-  if (!readyCheckSend && !(MITTI_ASSIGN_STAGES as readonly string[]).includes(ctx.stage)) throw new MittiError(MITTI_STAGE_GUARD_MESSAGE);
+  if (!readyCheckSend && !ctx.inHousePreparation && !(MITTI_ASSIGN_STAGES as readonly string[]).includes(ctx.stage)) throw new MittiError(MITTI_STAGE_GUARD_MESSAGE);
   const who = ctx.assigneeRole ?? "electrician";
   const templateId = ctx.templateId ?? MITTI_TEMPLATE_ID;
   if (!canonicalMittiTemplateId(templateId)) throw new MittiError("The Mitti template for this scope is not configured with a valid form ID.");

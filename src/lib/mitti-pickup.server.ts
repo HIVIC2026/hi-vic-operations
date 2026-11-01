@@ -9,6 +9,7 @@ import { WorkflowError, logEvent } from "./workflow.server";
 import { mittiApi, norm, parseAudit, validateStoredMittiAudit, type MittiCall } from "./mitti.core";
 import { pointMeasurementAtMitti, realMittiCall, syncMittiAssessment } from "./mitti.server";
 import { provisionalGivesWayToMitti } from "./measurement.core";
+import { sameMittiTemplateId } from "./mitti-identity.core";
 import { jobScope } from "./requirements.server";
 import {
   classifyPortalJobNumber, parsePickupAudit, pickupAddressKey, pickupDuplicates, portalJobNumberItem,
@@ -213,10 +214,11 @@ export type { ReadyCheckPickup };
 // ---------- Stage 5 (Jo 23 Oct): reschedule updates the form; cancel releases it ----------
 
 /** The form's booked-date item, wherever it lives (header or body), for the in-place date write-back. */
-function dateItemOf(audit: unknown): { itemId: string; type: string; header: boolean } | null {
+function dateItemOf(audit: unknown, kind: "ready_check" | "piesa" | "rectification" | "install" = "ready_check"): { itemId: string; type: string; header: boolean } | null {
+  const labels = kind === "install" ? ["Install date", "Installation start date"] : kind === "rectification" ? ["Booked rectification date", "Rectification visit date"] : ["Assessment date/time", "Assessment date time", "Booked assessment date", "Date of inspection"];
   const list = (header: boolean) => ((audit as { header_items?: unknown[]; items?: unknown[] } | null)?.[header ? "header_items" : "items"] ?? []) as { item_id?: string; label?: string; type?: string }[];
   for (const header of [true, false]) {
-    const it = list(header).find((i) => i.item_id && ["Assessment date/time", "Assessment date time", "Booked assessment date", "Date of inspection"].some((l) => norm(l) === norm(i.label)));
+    const it = list(header).find((i) => i.item_id && labels.some((l) => norm(l) === norm(i.label)));
     if (it) return { itemId: String(it.item_id), type: String(it.type || "datetime"), header };
   }
   return null;
@@ -224,20 +226,35 @@ function dateItemOf(audit: unknown): { itemId: string; type: string; header: boo
 
 /** Reschedule write-back: the booked date on the job's Mitti form follows the new booking. Never creates or
  *  sends anything; a form without a date field is left untouched and reported. */
-export async function updateMittiFormDate(jobId: string, start: string, actorId: string | null, call: MittiCall = realMittiCall): Promise<{ updated: boolean; reason?: string }> {
-  const scope = await jobScope(jobId);
-  const m = scope.measurementRow;
-  const auditId = m?.external_source === "mitti" && m.status !== "complete" ? m.external_id : null;
+export async function updateMittiFormDate(jobId: string, start: string, actorId: string | null, call: MittiCall = realMittiCall, form?: {auditId:string;kind:"ready_check"|"piesa"|"rectification"|"install"}): Promise<{ updated: boolean; reason?: string }> {
+  const scope = form ? null : await jobScope(jobId);
+  const m = scope?.measurementRow;
+  const auditId = form?.auditId ?? (m?.external_source === "mitti" && m.status !== "complete" ? m.external_id : null);
   if (!auditId) return { updated: false, reason: "no open Mitti form for this job" };
-  const api = mittiApi(call);
+  const jobSource = form ? await admin.from("jobs").select("source").eq("id",jobId).single() : null;
+  if (jobSource?.error) throw new WorkflowError("The form's job could not be checked.");
+  const routingEmail = jobSource?.data?.source === "qa_test" ? (await import("./onsite-ready-check.core")).TEST_MITTI_ASSIGNEE : null;
+  const api = mittiApi(form ? await (await import("./mitti.server")).mittiCallFor(call, routingEmail) : call);
   const audit = await api.getAudit(auditId);
   if (audit?.archived) return { updated: false, reason: "form is archived in Mitti" };
-  const item = dateItemOf(audit);
+  if (form) {
+    const [{data:job,error:je},{data:ws,error:we}] = await Promise.all([
+      admin.from("jobs").select("job_number").eq("id",jobId).single(),
+      admin.from("workflow_settings").select("mitti_ready_check_template_id,mitti_ready_check_priced_template_id,mitti_piesa_template_id,mitti_fixes_template_id,mitti_piisa_template_id").eq("id",1).maybeSingle(),
+    ]);
+    if (je || we || !job) throw new WorkflowError("The form's job and template could not be checked.");
+    const allowed = form.kind === "install" ? [ws?.mitti_piisa_template_id] : form.kind === "piesa" ? [ws?.mitti_piesa_template_id] : form.kind === "rectification" ? [ws?.mitti_fixes_template_id] : [ws?.mitti_ready_check_template_id,ws?.mitti_ready_check_priced_template_id];
+    const templateId = allowed.find(t=>t && sameMittiTemplateId(parseAudit(audit).templateId, t));
+    if (!templateId) throw new WorkflowError("The form does not match this job's configured template.");
+    validateStoredMittiAudit(audit,{storedAuditId:auditId,jobNumber:job.job_number,templateId});
+    if (parseAudit(audit).completed) return {updated:false,reason:"form is complete"};
+  }
+  const item = dateItemOf(audit, form?.kind);
   if (!item) return { updated: false, reason: "form has no booked-date field" };
   const payload = [{ item_id: item.itemId, type: item.type, responses: { datetime: start } }];
   if (item.header) { try { await api.updateAuditHeader(auditId, payload); } catch { await api.updateAuditText(auditId, payload); } }
   else await api.updateAuditText(auditId, payload);
-  await logEvent(jobId, actorId, "mitti_form_date_updated", "Mitti form's booked date updated to match the new Ready Check booking", { audit_id: auditId, scheduled_start: start }, { internal: true });
+  await logEvent(jobId, actorId, "mitti_form_date_updated", form ? "Mitti form's booked date updated to match the current visit" : "Mitti form's booked date updated to match the new Ready Check booking", { audit_id: auditId, scheduled_start: start }, { internal: true });
   return { updated: true };
 }
 

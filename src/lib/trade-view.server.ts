@@ -995,7 +995,10 @@ export async function inHouseBookVisit(userId: string, input: { jobId: string; k
   const access = await inHouseBookingAccess(userId, input.jobId, client);
   if (!access.allowed) return { ok: false, blockers: access.blockers };
   const existingReadyCheck = input.kind === "ready_check" ? access.bookings?.find(b => b.kind === "ready_check" && b.status === "confirmed" && b.scheduled_start && new Date(b.scheduled_start).getTime() === new Date(input.start).getTime()) : undefined;
-  if (existingReadyCheck) return { ok: true, bookingId: existingReadyCheck.id };
+  if (existingReadyCheck) {
+    await (await import("./mitti-create.server")).onReadyCheckBooked(input.jobId, userId).catch(e=>console.error("ready check form retry failed", e instanceof Error ? e.message : "Form preparation failed"));
+    return { ok: true, bookingId: existingReadyCheck.id };
+  }
   const { confirmBooking } = await import("./booking.server");
   try {
     await confirmBooking(input.jobId, input.kind, input.start, userId, "in-house partner");

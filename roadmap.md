@@ -1,3 +1,7 @@
+## Jo 1 Nov new in-house flow — Task 3 of 7
+- [ ] Test-first in-house RC/A3/A4 and Lead A5 creation/replay, date/person/crew sync, portal-only unused closure and cancellation; retain legacy guards.
+- [ ] Related tests and bounded before/after comparison; timeout stalled registration file and disclose exclusions. No settings, secrets, live data, sends or publishing.
+
 ## Jo 1 Nov new in-house flow — Task 2 of 7
 - [x] Task 1 SQL applied verbatim as 0181 after 11/0 practice recheck; Team schema/security/atomic assignment SQL applied as 0182 after practice proof. No worker/job records or settings changed by these DDL migrations.
 - [x] Red-first 17 new tests pass (9 pure, 4 practice security/assignment, 4 mocked handover); one new installer-only batch practice test and one actual booking blocker test pass. Office People verification and member-scoped Team picker added; canonical booking refuses without selected verified electrician; existing A3/A4 identities reused, no automatic electrician selection.
