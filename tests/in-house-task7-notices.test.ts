@@ -26,6 +26,7 @@ function fixture(count = 1) {
   const deps: Record<string, any> = {
     '@/integrations/supabase/client.server': { supabaseAdmin: { from: (table: string) => {
       const q = db.from(table);
+      const eq=q.eq;q.eq=(column:string,value:unknown)=>column==='details'&&typeof value==='string'?q.contains(column,JSON.parse(value)):eq(column,value);
       if (table === 'bookings') { const range = q.range; q.range = (a: number, b: number) => { pages.push(a); return range(a, b); }; }
       return q;
     } } },
