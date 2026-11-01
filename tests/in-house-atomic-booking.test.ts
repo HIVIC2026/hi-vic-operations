@@ -10,6 +10,8 @@ import * as safetyCore from '../src/lib/safety-check-amount.core';
 import * as stripeCore from '../src/lib/stripe.core';
 import * as earlyRead from '../src/lib/early-read';
 import * as melbourneCore from '../src/lib/melbourne-time.core';
+import * as ownerConfirmCore from '../src/lib/piesa-owner-confirm.core';
+import * as officialShort from '../src/lib/official-short.core';
 const id=(n:number)=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 test('real stage SQL: atomic clicks and ESC refusal work, but canonical unpaid/unsigned blockers are NOT enforced by pending writer',async()=>{
  const db=new PGlite();try{
@@ -91,6 +93,14 @@ test('real stage SQL: atomic clicks and ESC refusal work, but canonical unpaid/u
  await db.exec(`UPDATE invoices SET total_paid=349 WHERE id='${id(41)}'`);
  expect(await payments.installDepositBlockerFor(id(1))).toBe(paymentsCore.INSTALL_DEPOSIT_BLOCKER);
  expect((await db.query('SELECT in_house_visit_revision($1) AS revision',[id(1)])).rows[0]).toEqual(revision);
+ await db.exec(`ALTER TABLE piesa_records ADD COLUMN id uuid,ADD COLUMN kind text,ADD COLUMN completed_date text,ADD COLUMN created_at timestamptz DEFAULT now(),ADD COLUMN signed_off_by uuid;
+ CREATE TABLE rectification_items(id uuid,job_id uuid,status text);
+ CREATE TABLE assessments(job_id uuid,mitti_raw_snapshot jsonb);
+ INSERT INTO piesa_records(id,job_id,kind,outcome,completed_date,signed_off_by,is_current) VALUES('${id(30)}','${id(1)}','initial','pass','2026-11-01','${id(6)}',true);`);
+ deps['./piesa-owner-confirm.core']=ownerConfirmCore;deps['./official-short.core']=officialShort;
+ deps['./worker-links.core']={};deps['./official-forms.server']={currentCopy:async()=>({copy:null})};
+ const ownerApi:any={};new Function('exports','require',ts.transpile(readFileSync('src/lib/piesa-owner-confirm.server.ts','utf8'),{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}))(ownerApi,load);
+ expect(await ownerApi.ownerPiesaConfirmationBlockerFor(id(1))).toBe(ownerConfirmCore.OWNER_PIESA_CONFIRMATION_BLOCKER);
  const [a,b]=await Promise.all([db.query(sql,p),db.query(sql,[p[0],id(4),...p.slice(2)])]);expect((a.rows[0] as any).result.bookingId).toBe((b.rows[0] as any).result.bookingId);
  expect((await db.query('SELECT * FROM bookings')).rows).toHaveLength(1);
  // This booking succeeded despite the canonical core blockers above: intentional
