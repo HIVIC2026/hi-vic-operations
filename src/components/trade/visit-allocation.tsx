@@ -19,7 +19,7 @@ export function WhosDoingThis({ jobId, readyCheckDone = false, visitAt = null, s
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<Record<string, string>>({});
   if (!data) return null;
-  const visits = data.visits.flatMap(v => v.kind === "ready_check" ? [{ ...v, kind: "ready_check" as const }] : []);
+  const visits = data.visits.filter((v) => v.kind === "ready_check").map(v => ({ ...v, kind: "ready_check" as const }));
   if (!visits.length) return null;
   return (
     <Group title="Who's doing this">
