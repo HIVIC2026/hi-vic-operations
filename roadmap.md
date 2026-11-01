@@ -1,3 +1,10 @@
+## Jo 2 Nov Q21 balance — test-first, no live changes
+- [ ] Completion +7 days Melbourne EOD; shared balance reads and existing invoice due-date lifecycle.
+- [ ] Same-invoice remaining card/bank payment with webhook/Xero progression and duplicate/TEST safeguards.
+- [ ] Day5/due reminders and next-day overdue office task.
+- [ ] Only requested wording updates across quote/booked/deposit/O45/My job/stall/replies; changed-copy report.
+- [ ] Related tests, full comparable suite, changed-file report; pending SQL only, no sends/publish/settings/live data.
+
 ## Jo 2 Nov published-site TEST whole-flow request
 - [x] Published-site tooling preflight executed: portal-qa read-only published target refuses before setup. No browser/data/provider actions. Findings docs/published-in-house-test-preflight.md.
 - [ ] TEST-only temporary in-house office/electrician/ESC Lead Installer setup with snapshot/restoration after safeguards proven.
