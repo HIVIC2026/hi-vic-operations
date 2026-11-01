@@ -1,7 +1,7 @@
 ## Jo 2 Nov approved private Team DOB release
 - [x] Applied only approved d64a63d private_worker_birth_dates SQL as 0186 after 7/0 practice checks; original archived under applied-migrations.
 - [x] Live table, private-read policy and service-only add function read back; empty identity table and unchanged worker/business/workflow fingerprints.
-- [ ] Final related checks and live-schema-compatible practice insertion proof; no live Team creation permitted, so actual live/UI add remains NOT RUN. No settings, records, sends or publishing.
+- [x] Final related checks 8/0: live-schema-compatible lead/crew insertion as service_role, forced identity-write rollback, two-user isolation and normal Team path tests. Live/UI add NOT RUN because records must remain unchanged. No settings, records, sends or publishing. Report docs/applied-migrations/2026-11-02_private-worker-release.md.
 
 ## Jo 2 Nov Q21 balance — test-first, no live changes
 - [ ] Completion +7 days Melbourne EOD; shared balance reads and existing invoice due-date lifecycle.
