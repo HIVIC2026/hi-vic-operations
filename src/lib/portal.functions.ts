@@ -1727,6 +1727,14 @@ export async function respondToQuoteImpl(
   if (q.kind === "installation" && data.accept && q.status === "accepted") {
     if (data.expectedVersion != null && data.expectedVersion !== q.version)
       throw new WorkflowError("This quote has been updated since you opened it. Please review the latest version before accepting.");
+    // A secure-link retry may complete missing auxiliary signatures after an interrupted sitting.
+    // No invoice, quote event or commercial agreement is recreated on an accepted-version replay.
+    if (context.signQuoteSitting) {
+      if (!data.signing || !data.consent || !(await context.isOwner(q.job_id)))
+        throw new WorkflowError('Only the verified customer can complete this signing.');
+      await context.signQuoteSitting(q.job_id, q.id, q.version);
+      await signCustomerAgreement({quoteId:q.id,actorId:context.userId,input:await signingInput(q.id,data.signing),assistance:data.signing.assistance,ip:context.ip,userAgent:context.userAgent});
+    }
     return { ok: true, outcome: "already accepted" };
   }
   if (q.kind === "rectification") {

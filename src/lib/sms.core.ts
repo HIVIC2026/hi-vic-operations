@@ -8,6 +8,9 @@ import { melbourneHour, smsQuietReason } from "./quote-hold.core";
  * so an owner can always get in to their job.
  */
 export const SMS_MESSAGE_TYPES = {
+  install_deposit_request: { audience: 'owner', label: 'In-house 10% install deposit request (Jo 1 Nov Task 6)', wordingApproved: true, quietHours: true },
+  install_deposit_reminder: { audience: 'owner', label: 'In-house unpaid install deposit day 3/7 reminder (Jo 1 Nov Task 6)', wordingApproved: true, quietHours: true },
+  install_deposit_paid: { audience: 'owner', label: 'In-house install deposit received (Jo 1 Nov Task 6)', wordingApproved: true, quietHours: true },
   // Decision 388 (Jo 25 Oct 2026, "we are saving spots, not offering Ready Checks"): save_spot_reminder and spot_saved were
   // reworded spot-only and are HELD (wordingApproved=false) until Jo approves docs/decision-388-spot-only-wording.md.
   save_spot_reminder: { audience: "owner", label: "One-off Save My Spot reminder", wordingApproved: true /* spot-only wording approved by Jo 25 Oct 2026, decision 388 */, quietHours: true },
@@ -146,6 +149,9 @@ export const ONE_OFF_BLAST_TYPES: readonly SmsMessageType[] = ["save_spot_remind
  */
 export type SmsFreshness = { kind: "event"; maxAgeMinutes: number } | { kind: "window" };
 export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
+  install_deposit_request: { kind: 'event', maxAgeMinutes: 24 * 60 },
+  install_deposit_reminder: { kind: 'window' },
+  install_deposit_paid: { kind: 'event', maxAgeMinutes: 24 * 60 },
   save_spot_reminder: { kind: "window" }, // own plan: activation timestamp + shared phone/job claims, recomputed per run
   spot_saved: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the owner saving their spot
   owner_code: { kind: "event", maxAgeMinutes: 10 }, // the code itself expires in 10 minutes

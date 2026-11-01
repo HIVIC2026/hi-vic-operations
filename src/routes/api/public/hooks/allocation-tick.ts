@@ -336,6 +336,14 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
         }
         try {
           // Installer sign-up electrician nominations that were never invited (comms were off at sign-up): one invite each.
+          const { sweepDepositRequests } = await import('@/lib/deposit-request.server');
+          (out as Record<string,unknown>)['depositRequests'] = await timed('sweepDepositRequests',()=>sweepDepositRequests());
+        } catch(e) {
+          console.error('allocation tick: deposit request sweep failed',(e as Error).message);
+          (out as Record<string,unknown>)['depositRequests']='failed';
+        }
+        try {
+          // Installer sign-up electrician nominations that were never invited (comms were off at sign-up): one invite each.
           // Runs BEFORE the decision-303 sweep so the 303 sweep sees this nomination as already handled (never two emails).
           const { sweepSignupNominationInvites } = await import("@/lib/signup-electrician.server");
           (out as Record<string, unknown>)['signupElectricianInvites'] = await timed("sweepSignupNominationInvites", () => sweepSignupNominationInvites());
