@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { pullMittiPages } from "../src/lib/mitti-pull-batch.core";
+import { mittiApi } from "../src/lib/mitti.core";
 
 function fixture() {
   const forms = ["a", "b", "c", "d", "e", "f"];
@@ -53,4 +54,15 @@ test("failed page/checkpoint reads fail visibly rather than dropping jobs", asyn
   await expect(pullMittiPages(f.deps)).rejects.toThrow("Page failed");
   const g = fixture(); g.deps.checkpoint = async () => { throw Error("Cursor failed"); };
   await expect(pullMittiPages(g.deps)).rejects.toThrow("Cursor failed");
+});
+test("Mitti API pagination follows all three form pages without network", async () => {
+  const calls: string[] = [];
+  const api = mittiApi(async (_method, path) => {
+    calls.push(path);
+    const n = Number(new URL(path, "https://api.mitti.com").searchParams.get("page")) || 1;
+    return { audits: [{ audit_id: `form-${n}` }], next_page: n < 3 ? `/audits/search?page=${n + 1}` : null };
+  });
+  const result = await api.searchAudits("2026-11-01T00:00:00Z");
+  expect(result.audits.map((a: { audit_id: string }) => a.audit_id)).toEqual(["form-1", "form-2", "form-3"]);
+  expect(calls.length).toBe(3);
 });
