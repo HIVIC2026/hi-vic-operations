@@ -8287,6 +8287,18 @@ export type Database = {
           },
         ]
       }
+      owner_links_cleanup_20261101: {
+        Row: {
+          link_id: string
+        }
+        Insert: {
+          link_id: string
+        }
+        Update: {
+          link_id?: string
+        }
+        Relationships: []
+      }
       owner_paperwork_approvals: {
         Row: {
           approved_at: string
