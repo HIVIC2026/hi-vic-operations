@@ -5,11 +5,12 @@ import {memoryPostgrest} from './helpers/memory-postgrest';
 import {stableUuid} from '../src/lib/mitti-create-claim.core';
 import * as crewCore from '../src/lib/piisa-a3.core';
 import * as bookingCore from '../src/lib/in-house-booking.core';
+import * as schemaCompat from '../src/lib/schema-compat.core';
 test('Book and Change Lead Installer return saved results without awaiting any form or notice task; failed validation performs zero writes',async()=>{
  const tables:any={jobs:[{id:'j',stage:'installation_scheduling',updated_at:'2026-11-01T00:00:00Z',deleted_at:null}],bookings:[],workflow_events:[]};
  const raw:any=memoryPostgrest(tables);let writes=0,scheduled=0,invalid=false;
  raw.rpc=async(name:string)=>{if(name==='in_house_visit_revision')return{data:'revision',error:null};writes++;return{data:{bookingId:'saved-booking',workId:'saved-work',already:false},error:null};};
- const deps:any={'@/integrations/supabase/client.server':{supabaseAdmin:raw},'./mitti-create-claim.core':{stableUuid},'./piisa-a3.core':crewCore,'./in-house-booking.core':bookingCore,
+ const deps:any={'@/integrations/supabase/client.server':{supabaseAdmin:raw},'./schema-compat.core':schemaCompat,'./mitti-create-claim.core':{stableUuid},'./piisa-a3.core':crewCore,'./in-house-booking.core':bookingCore,
  './booking.server':{validateBooking:async()=>{if(invalid)throw Error('Deposit not paid');}},
  './in-house-booking.server':{bookingTeam:async()=>({workers:[{id:'new',name:'Pat',tradeRole:'installer',workerRole:'lead',cleared:true,escRegistered:true,escRegisteredAt:'2026-11-01',reason:null}]})},
  './piisa-a3.server':{loadCrew:async()=>({staff:[{workerId:'new',name:'Pat',eecVerified:true,cleared:true,workerRole:'lead'}]})},
