@@ -19,7 +19,7 @@ export async function isInHouseFormJob(jobId: string): Promise<boolean> {
 async function events(jobId: string) {
   const rows: { event_type: string; details: Record<string, unknown> | null; created_at: string }[] = [];
   for (let offset = 0; ; offset += 200) {
-    const page = await read<typeof rows>(db.from("workflow_events").select("event_type,details,created_at").eq("job_id", jobId).in("event_type", ["mitti_piisa_audit_created", "mitti_piisa_completed", "fixes_form_created", "fixes_form_completed", "in_house_form_closed_unused", "rectification_form_closed_unused", "visit_allocated", "piisa_crew_selected"]).order("created_at", { ascending: false }).range(offset, offset + 199));
+    const page = await read<typeof rows>(db.from("workflow_events").select("event_type,details,created_at").eq("job_id", jobId).in("event_type", ["mitti_piisa_audit_created", "INSTALLER_DECLARATION_SIGNED", "fixes_form_created", "fixes_form_completed", "in_house_form_closed_unused", "rectification_form_closed_unused", "visit_allocated", "piisa_crew_selected"]).order("created_at", { ascending: false }).range(offset, offset + 199));
     rows.push(...page); if (page.length < 200) return rows;
   }
 }
@@ -31,7 +31,7 @@ async function formFacts(jobId: string): Promise<Form[]> {
   const forms: Form[] = [];
   if (m?.external_source === "mitti" && m.external_id) forms.push({kind:"ready_check",auditId:m.external_id,done:m.status === "complete"});
   if (a?.external_mitti_id) forms.push({kind:"piesa",auditId:a.external_mitti_id,done:a.status === "complete" || a.mitti_completed === true});
-  for (const [kind, created, completed] of [["install","mitti_piisa_audit_created","mitti_piisa_completed"],["rectification","fixes_form_created","fixes_form_completed"]] as const) {
+  for (const [kind, created, completed] of [["install","mitti_piisa_audit_created","INSTALLER_DECLARATION_SIGNED"],["rectification","fixes_form_created","fixes_form_completed"]] as const) {
     for (const e of history.filter(e => e.event_type === created)) {
       const id = e.details?.['audit_id'];
       if (typeof id === "string" && !forms.some(f=>f.auditId===id)) forms.push({kind,auditId:id,done:history.some(e=>e.event_type===completed && e.details?.['audit_id']===id)});

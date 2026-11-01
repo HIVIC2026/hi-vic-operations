@@ -923,7 +923,10 @@ export async function updateMittiInstallCrew(jobId: string, auditId: string, act
     admin.from("workflow_settings").select("mitti_piisa_template_id").eq("id",1).maybeSingle(),
   ]);
   if (je || we || !job || !ws?.mitti_piisa_template_id) throw new WorkflowError("The install form could not be checked.");
-  const api = mittiApi(await mittiCallFor(call));
+  const {data:source,error:se} = await admin.from("jobs").select("source").eq("id",jobId).single();
+  if (se) throw new WorkflowError("The install form's job could not be checked.");
+  const routingEmail = source?.source === "qa_test" ? (await import("./onsite-ready-check.core")).TEST_MITTI_ASSIGNEE : null;
+  const api = mittiApi(await mittiCallFor(call,routingEmail));
   const audit = await api.getAudit(auditId);
   validateStoredMittiAudit(audit,{storedAuditId:auditId,jobNumber:job.job_number,templateId:ws.mitti_piisa_template_id});
   if (parseAudit(audit).completed) return;

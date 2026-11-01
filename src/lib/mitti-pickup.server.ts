@@ -230,7 +230,10 @@ export async function updateMittiFormDate(jobId: string, start: string, actorId:
   const m = scope?.measurementRow;
   const auditId = form?.auditId ?? (m?.external_source === "mitti" && m.status !== "complete" ? m.external_id : null);
   if (!auditId) return { updated: false, reason: "no open Mitti form for this job" };
-  const api = mittiApi(form ? await (await import("./mitti.server")).mittiCallFor(call) : call);
+  const jobSource = form ? await admin.from("jobs").select("source").eq("id",jobId).single() : null;
+  if (jobSource?.error) throw new WorkflowError("The form's job could not be checked.");
+  const routingEmail = jobSource?.data?.source === "qa_test" ? (await import("./onsite-ready-check.core")).TEST_MITTI_ASSIGNEE : null;
+  const api = mittiApi(form ? await (await import("./mitti.server")).mittiCallFor(call, routingEmail) : call);
   const audit = await api.getAudit(auditId);
   if (audit?.archived) return { updated: false, reason: "form is archived in Mitti" };
   if (form) {
