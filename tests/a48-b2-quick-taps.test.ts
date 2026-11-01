@@ -93,7 +93,13 @@ mock.module("../src/lib/office-actions.server", () => ({
   },
 }));
 const gates: Row[] = [];
-mock.module("../src/lib/owner-gates.server", () => ({ signGateDoc: async (i: Row) => { gates.push(i); return { id: "sig-1", draft: false }; } }));
+let shareFails = false;
+mock.module("../src/lib/owner-gates.server", () => ({ signGateDoc: async (i: Row) => {
+  if (shareFails) throw new Error("Sharing wording is not approved");
+  gates.push(i);
+  (tables["owner_gate_signatures"] ??= []).push({ id: "sig-1", job_id: i["jobId"], doc_key: "trade_contact_share", doc_version: "2026-10-06-v1", doc_draft: false });
+  return { id: "sig-1", draft: false };
+} }));
 const mails: { via: string; to: string; subject: string; text: string; key?: string }[] = [];
 mock.module("../src/lib/test-send.server", () => ({
   sendTestEmail: async (_c: Row, to: string, subject: string, _html: string, text: string) => { mails.push({ via: "test-email", to, subject, text }); return { status: "sent", detail: "ok" }; },
@@ -158,7 +164,7 @@ function seed() {
   for (const k of Object.keys(tables)) delete tables[k];
   for (const k of Object.keys(lookupCoords)) delete lookupCoords[k];
   for (const k of Object.keys(places)) delete places[k];
-  cancelFails = false; failUpdates.clear();
+  cancelFails = false; shareFails = false; failUpdates.clear();
   cancels.length = 0; detailSaves.length = 0; gates.length = 0; mails.length = 0; located.length = 0;
   for (const t of ["jobs", "owners", "properties", "customer_estimate_links", "lead_campaign_responses", "property_facts", "job_assignments", "partner_offers", "workflow_events"]) tables[t] = [];
   tables["businesses"] = [{ id: "biz-1", name: "Sample Insulation", trading_name: null, onboarding_notes: null }];
@@ -315,6 +321,17 @@ describe("quickTapsState", () => {
 // ---- saving -------------------------------------------------------------------------------------------------------
 describe("saveQuickTaps: pass", () => {
   beforeEach(seed);
+  test("B8 share save refuses false success, survives reload and retries the recorded consent once", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]); shareFails = true;
+    await expect(S.saveQuickTaps(tok("a"), ALL_GOOD())).rejects.toThrow("Sharing wording is not approved");
+    expect(events("quick_taps_answered", "a")).toHaveLength(1);
+    expect((await S.quickTapsState(tok("a"))).kind).not.toBe("done");
+    shareFails = false;
+    expect(await S.saveQuickTaps(tok("a"), {})).toEqual({ kind: "done", outcome: "pass" });
+    expect(await S.saveQuickTaps(tok("a"), {})).toEqual({ kind: "done", outcome: "pass" });
+    expect(gates).toHaveLength(1); expect(events("quick_taps_answered", "a")).toHaveLength(1);
+    expect(mails).toEqual([]); expect(cancels).toEqual([]);
+  });
   test("records quick_taps_answered {answers, consent_share, outcome} and the trade_contact_share owner gate; nothing cancelled or sent", async () => {
     addJob("a"); sendBatchEvent("b1", ["a"]);
     const r = await S.saveQuickTaps(tok("a"), ALL_GOOD({ hatch: "not_sure", roof: "not_sure", five_years: "not_sure" }), { ip: "1.2.3.4", userAgent: "ua" });

@@ -6,7 +6,7 @@
  * Jo 27 Oct: each new registration then starts the normal website enquiry journey (calculator-intake.server).
  */
 import { createServerFn } from "@tanstack/react-start";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database } from "@/integrations/supabase/types";
 import {
@@ -40,22 +40,6 @@ export type InterestRow = {
   source: string;
 };
 
-/** Publishable-key client for the anon insert. Opaque sb_ keys need apikey only. */
-function publishableClient() {
-  const key = process.env["SUPABASE_PUBLISHABLE_KEY"]!;
-  return createClient<Database>(process.env["SUPABASE_URL"]!, key, {
-    auth: { persistSession: false, autoRefreshToken: false, storage: undefined },
-    global: {
-      fetch: (input, init) => {
-        const headers = new Headers(init?.headers);
-        if (key.startsWith("sb_") && headers.get("Authorization") === `Bearer ${key}`) headers.delete("Authorization");
-        headers.set("apikey", key);
-        return fetch(input, { ...init, headers });
-      },
-    },
-  });
-}
-
 async function requireAdmin(supabase: SupabaseClient<Database>) {
   const { data, error } = await supabase.rpc("is_admin");
   if (error) throw new Error("We could not check your access. Please sign in again.");
@@ -67,13 +51,8 @@ export const registerInterest = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<InterestResult> => {
     const parsed = parseInterest(data);
     if (!parsed.ok) return { ok: false, errors: parsed.errors as InterestErrors };
-    const supabasePublic = publishableClient();
-    const dup = await supabasePublic.rpc("calculator_interest_is_duplicate", {
-      _email: parsed.value.email,
-      _mobile: parsed.value.mobile,
-    });
-    if (dup.error) return { ok: false, errors: { submit: "We could not save your details just now. Please try again." } };
-    if (dup.data === true) return { ok: true, duplicate: true };
+    // Each genuine registration reaches the normal OPEN-address matcher. A contact-only 24h
+    // precheck hid repeat enquiries after closure and enquiries for another home.
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row, error } = await supabaseAdmin.from("calculator_interests").insert({
       full_name: parsed.value.fullName,
