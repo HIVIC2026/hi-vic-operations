@@ -1,7 +1,7 @@
 import { beforeEach, expect, mock, test } from 'bun:test';
 import { memoryPostgrest, type Tables } from './helpers/memory-postgrest';
 const tables:Tables={};const admin=memoryPostgrest(tables);
-let cleared=true,basis='piesa_pass',paid=false,failed=false,held=true,paused=false;
+let cleared=true,basis='initial_piesa',paid=false,failed=false,held=true,paused=false;
 const emails:any[]=[],texts:any[]=[],offices:any[]=[];
 const emailKeys=new Set<string>(),smsKeys=new Set<string>();
 mock.module('@/integrations/supabase/client.server',()=>({supabaseAdmin:admin}));
@@ -23,7 +23,7 @@ beforeEach(()=>{
  tables.businesses=[{id:'b',name:'Practice Insulation',email:'office@example.invalid',in_house:true}];
  tables.job_assignments=[{id:'a',job_id:'j',business_id:'b',user_id:'u',role:'installer',active:true}];
  tables.workflow_events=[];tables.customer_email_sends=[];
- emails.length=texts.length=offices.length=0;emailKeys.clear();smsKeys.clear();cleared=held=true;basis='piesa_pass';paid=failed=paused=false;
+ emails.length=texts.length=offices.length=0;emailKeys.clear();smsKeys.clear();cleared=held=true;basis='initial_piesa';paid=failed=paused=false;
 });
 test('pass requests one owner email and link-free text, replay sends neither again',async()=>{
  await requestInstallDeposit('j',new Date('2026-11-01T00:00:00Z'));await requestInstallDeposit('j',new Date('2026-11-01T00:00:00Z'));
@@ -38,7 +38,7 @@ test('recorded request gets day 3/day 7 once, none after paid',async()=>{
  await requestInstallDeposit('j',new Date('2026-11-01T00:00:00Z'));
  await sweepDepositRequests(new Date('2026-11-04T00:00:00Z'));await sweepDepositRequests(new Date('2026-11-04T00:00:00Z'));
  await sweepDepositRequests(new Date('2026-11-08T00:00:00Z'));expect(emails).toHaveLength(3);expect(texts).toHaveLength(3);
- paid=true;await sweepDepositRequests(new Date('2026-11-09T00:00:00Z'));expect(emails).toHaveLength(4);expect(texts).toHaveLength(4);expect(offices).toHaveLength(1);
+ paid=true;tables.workflow_events?.push({job_id:'j',event_type:'install_deposit_received',created_at:'2026-11-09T00:00:00Z',details:{invoice_id:'i'}});await sweepDepositRequests(new Date('2026-11-09T00:00:00Z'));expect(emails).toHaveLength(4);expect(texts).toHaveLength(4);expect(offices).toHaveLength(1);
 });
 for(const source of ['stripe','xero'])test(`${source} confirmed deposit tells owner and installer office once, never texts office`,async()=>{
  paid=true;tables.workflow_events?.push({job_id:'j',event_type:'install_deposit_received',created_at:'2026-11-01T00:00:00Z',details:{invoice_id:'i',source}});
@@ -49,6 +49,6 @@ test('failed in-house lookup and non-in-house jobs produce no records or sends',
  failed=true;await requestInstallDeposit('j');failed=false;held=false;await requestInstallDeposit('j');expect(emails.length+texts.length).toBe(0);expect(tables.workflow_events).toHaveLength(0);
 });
 test('paused communications are not claimed and paid notice can resume without duplicates',async()=>{
- paid=true;paused=true;await notifyInstallerDepositPaid('j');expect(emails.length+texts.length+offices.length).toBe(0);
+ paid=true;tables.workflow_events?.push({job_id:'j',event_type:'install_deposit_received',created_at:'2026-11-01T00:00:00Z',details:{invoice_id:'i'}});paused=true;await expect(notifyInstallerDepositPaid('j',new Date('2026-11-01T00:00:00Z'))).rejects.toThrow('held');expect(emails.length+texts.length+offices.length).toBe(0);
  paused=false;await notifyInstallerDepositPaid('j',new Date('2026-11-01T00:00:00Z'));expect(offices).toHaveLength(1);
 });

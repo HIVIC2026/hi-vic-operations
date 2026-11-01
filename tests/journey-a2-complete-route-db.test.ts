@@ -329,6 +329,25 @@ describe("A2 step 5 — the office checks and sends the quote; the owner signs a
     await expect(ol.ownerAcceptQuoteFn({ data: { token, session, quoteId: qq!.id, expectedVersion: qq!.version + 1, signing: SIGNING }, context: META })).rejects.toThrow(/updated since/);
     await expect(ol.ownerAcceptQuoteFn({ data: { token, session, quoteId: qq!.id, expectedVersion: qq!.version, signing: {...SIGNING,declarations:{...SIGNING.declarations,details_accurate:false}} }, context: META })).rejects.toThrow();
     expect(await q("select id from owner_gate_signatures where job_id=$1 and gate='B'",[JOB])).toHaveLength(0);
+    // Fault at the real persistence boundary after record 2: leave gate signatures but no signed ESC/agreement.
+    const originalFrom=admin.from.bind(admin);let interruptConsent=true;
+    admin.from=((table:string)=>{
+      const query=originalFrom(table);
+      if(table==='owner_esc_consents'){
+        const update=query.update.bind(query);
+        query.update=(values:Record<string,unknown>)=>{
+          if(interruptConsent && values.owner_signed_at){interruptConsent=false;throw Error('TEST interruption after record 2');}
+          return update(values);
+        };
+      }
+      return query;
+    }) as typeof admin.from;
+    try {
+      await expect(ol.ownerAcceptQuoteFn({ data: { token, session, quoteId: qq!.id, expectedVersion: qq!.version, signing: SIGNING }, context: META })).rejects.toThrow('TEST interruption after record 2');
+    } finally { admin.from=originalFrom; }
+    expect(await q("select doc_key from owner_gate_signatures where job_id=$1 and gate='B' order by doc_key",[JOB])).toEqual([{doc_key:'payment_terms'},{doc_key:'quote_acceptance'}]);
+    expect(await q("select id from customer_agreements where job_id=$1",[JOB])).toHaveLength(0);
+    expect(await q("select id from owner_esc_consents where job_id=$1 and owner_signed_at is not null",[JOB])).toHaveLength(0);
     await ol.ownerAcceptQuoteFn({ data: { token, session, quoteId: qq!.id, expectedVersion: qq!.version, signing: SIGNING }, context: META });
     await settle();
     expect(await ol.ownerAcceptQuoteFn({ data: { token, session, quoteId: qq!.id, expectedVersion: qq!.version, signing: SIGNING }, context: META })).toEqual({ ok: true, outcome: "already accepted" });

@@ -6,7 +6,7 @@ test('deposit request uses the existing installation invoice once', () => {
   expect(installDepositRequestKey('invoice-1')).toBe('install-deposit:v1:invoice-1');
 });
 test('PIESA pass enables deposit request', () => {
-  expect(depositRequestEligible({ cleared:true, basis:'piesa_pass', paid:false, booked:false, deadline:'2026-11-30', now:new Date(requestedAt) })).toBe(true);
+  expect(depositRequestEligible({ cleared:true, basis:'initial_piesa', paid:false, booked:false, deadline:'2026-11-30', now:new Date(requestedAt) })).toBe(true);
 });
 test('rectification needed or electrician at install start cannot request deposit', () => {
   expect(depositRequestEligible({ cleared:false, basis:null, paid:false, booked:false, deadline:'2026-11-30', now:new Date(requestedAt) })).toBe(false);

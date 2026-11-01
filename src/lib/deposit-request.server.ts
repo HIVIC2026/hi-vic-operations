@@ -73,6 +73,9 @@ export async function notifyInstallerDepositPaid(jobId:string,now=new Date()):Pr
   if(!c.biz.email)return `${owner}; installer email missing`;
   if(c.job.source==='qa_test')return `${owner}; TEST installer email held`;
   const key=`install-deposit-paid-office:v1:${c.v.invoiceId}`;
+  const prior=await admin.from('customer_email_sends').select('id').eq('job_id',jobId).eq('idempotency_key',key).maybeSingle();
+  if(prior.error)throw Error('Could not read installer deposit email history.');
+  if(prior.data)return `${owner}; installer already attempted`;
   const claim=await admin.from('customer_email_sends').insert({job_id:jobId,purpose:'install_deposit_paid_office',idempotency_key:key}).select('id').maybeSingle();
   if(claim.error?.code==='23505')return `${owner}; installer already attempted`;
   if(claim.error||!claim.data)throw Error('Could not reserve installer deposit email.');
