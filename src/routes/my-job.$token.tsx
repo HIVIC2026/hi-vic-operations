@@ -783,7 +783,7 @@ function QuoteScreen({ v, token }: { v: View; token: string }) {
       {ownerQuoteCanAccept(q, acknowledged)
         ? <div><AcceptQuote token={token} quote={q} rebate={q.rebate} safetyCheck={q.split?.deposit ?? null} onAccepted={() => {
           setAcknowledged({ id: q.id, version: q.version });
-          qc.setQueryData<View | null>(["my-job", token], (current) => current?.quote?.id === q.id && current.quote.version === q.version
+          qc.setQueryData<View | null>(["my-job", token], (current: View | null | undefined) => current?.quote?.id === q.id && current.quote.version === q.version
             ? { ...current, quote: { ...current.quote, status: "accepted" } } : current);
         }} /><DeclineQuote token={token} quoteId={q.id} /></div>
         : q.status === "declined"

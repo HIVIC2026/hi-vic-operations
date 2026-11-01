@@ -332,7 +332,7 @@ describe("A2 step 5 — the office checks and sends the quote; the owner signs a
     await expect(ol.ownerAcceptQuoteFn({ data: { token, session, quoteId: qq!.id, expectedVersion: qq!.version + 1, signing: SIGNING }, context: META })).rejects.toThrow(/updated since/);
     await ol.ownerAcceptQuoteFn({ data: { token, session, quoteId: qq!.id, expectedVersion: qq!.version, signing: SIGNING }, context: META });
     await settle();
-    await expect(ol.ownerAcceptQuoteFn({ data: { token, session, quoteId: qq!.id, expectedVersion: qq!.version, signing: SIGNING }, context: META })).rejects.toThrow(/no longer open/);
+    expect(await ol.ownerAcceptQuoteFn({ data: { token, session, quoteId: qq!.id, expectedVersion: qq!.version, signing: SIGNING }, context: META })).toEqual({ ok: true, outcome: "already accepted" });
     debug("ACCEPTED", await stageOf(JOB), await q("select status from quotes where id=$1", [qq!.id]), await recent(JOB, 12));
     expect(await q("select status from quotes where id=$1", [qq!.id])).toEqual([{ status: "accepted" }]);
     expect(await q("select id from customer_agreements where job_id=$1", [JOB])).toHaveLength(1);

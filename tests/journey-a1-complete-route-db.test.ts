@@ -231,8 +231,8 @@ describe("A1 step 3 — the owner signs and accepts on the secure link", () => {
     expect(await events(JOB, "QUOTE_ACCEPTED")).toHaveLength(1);
     expect(await stageOf(JOB)).toBe("measured_quote_accepted");
     if (process.env["JOURNEY_DEBUG"]) console.log("ACCEPT", await q("select id, kind, total_inc_gst, deposit_amount, status, xero_invoice_id, xero_invoice_number, last_sync_error from invoices where job_id=$1", [JOB]), (await comms(JOB)).map((c) => c.source_event), providers.log.filter((l) => l.provider === "xero").map((l) => `${l.method} ${l.path}`), (await q<{ event_type: string; summary: string }>("select event_type, summary from workflow_events where job_id=$1 order by created_at desc limit 12", [JOB])).map((e) => `${e.event_type}: ${e.summary}`));
-    // Accepting twice is refused; nothing doubles.
-    await expect(ol.ownerAcceptQuoteFn({ data: { token, session, quoteId: qq!.id, expectedVersion: qq!.version, signing: SIGNING }, context: META })).rejects.toThrow(/no longer open/);
+    // Same accepted version is a no-op; nothing doubles.
+    expect(await ol.ownerAcceptQuoteFn({ data: { token, session, quoteId: qq!.id, expectedVersion: qq!.version, signing: SIGNING }, context: META })).toEqual({ ok: true, outcome: "already accepted" });
     expect(await q("select id from customer_agreements where job_id=$1", [JOB])).toHaveLength(1);
   });
 });
