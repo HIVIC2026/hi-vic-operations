@@ -7,6 +7,7 @@ import { activeTemplate, sha256Hex, stableJson } from "./assignment.core";
 import { apConsentBlockers, apRepFullName, buildConsentFacts, ESC_AP_FULL_NAME, consentStaleReasons, isEscTemplateVersion, ownerConsentBlockers, renderConsentBody, splitFullName, type ApRep, type ConsentFacts, type ConsentSignInput, type OwnerDeclarations } from "./consent.core";
 import { formatPropertyAddress } from "./address";
 import { runAfterResponse } from './background.server';
+import { PDF_LOOK_APPROVED } from "./pdf-approvals.core";
 
 // Migration 0226 adds these fields; keep its types local until the generated schema includes them.
 type ConsentColumns = { owner_declarations: Json | null; ap_rep: Json | null };
@@ -82,13 +83,27 @@ export async function prepareQuoteConsent(p:{jobId:string;actorId:string;input:C
   if(!(await syncOwnerConsent(p.jobId,p.actorId)))throw new WorkflowError('Owner and property details are needed to prepare consent.');
 }
 
-async function storeCopy(jobId: string, path: string, text: string, title: string, actorId: string | null) {
+async function storeCopy(jobId: string, path: string, text: string, title: string, actorId: string | null, renderedPdf?: Uint8Array | null) {
   path = path.replace(/\.txt$/, ".pdf");
   const { textToPdf } = await import("./signed-pdf.server");
-  const up = await admin.storage.from("job-files").upload(path, new Blob([await textToPdf(`Home Insulation Victoria — ${title}`, text) as BlobPart], { type: "application/pdf" }), { contentType: "application/pdf", upsert: false });
+  const up = await admin.storage.from("job-files").upload(path, new Blob([(renderedPdf ?? await textToPdf(`Home Insulation Victoria — ${title}`, text)) as BlobPart], { type: "application/pdf" }), { contentType: "application/pdf", upsert: false });
   if (up.error) return null;
   await admin.from("documents").insert({ job_id: jobId, kind: "esc_consent", title, storage_path: path, mime_type: "application/pdf", uploaded_by: actorId });
   return path;
+}
+
+/** The website-look consent PDF, or null (with an internal event) when it cannot be made: the old text copy is stored instead. */
+async function escConsentPdfOrNull(jobId: string, actorId: string | null, facts: ConsentFacts, signed: import("./consent-pdf.server").EscConsentSignatures): Promise<Uint8Array | null> {
+  try {
+    const { data: job } = await admin.from("jobs").select("job_number").eq("id", jobId).maybeSingle();
+    const { escConsentPdf } = await import("./consent-pdf.server");
+    const r = await escConsentPdf(facts, signed, { jobNumber: job?.job_number ?? null });
+    if (r.layout.split.length) throw new Error(`consent form split across pages: ${r.layout.split.join(", ")}`);
+    return r.bytes;
+  } catch (e) {
+    await logEvent(jobId, actorId, "esc_consent_pdf_fallback", "Owner ESC consent used the previous layout (internal)", { reason: e instanceof Error ? e.message : String(e) }, { internal: true }).catch(() => undefined);
+    return null;
+  }
 }
 
 export async function signOwnerConsent(p: { jobId: string; actorId: string; input: ConsentSignInput; ip: string | null; userAgent: string | null }) {
@@ -159,7 +174,10 @@ export async function confirmApConsent(p: { jobId: string; actorId: string | nul
     .eq("id", c.id).eq("status", "awaiting_ap").is("ap_signed_at", null).select("id");
   if (claimErr) throw new Error(claimErr.message);
   if (!claimed?.length) throw new WorkflowError("This consent is not awaiting AP confirmation.");
-  const path = await storeCopy(p.jobId, `${p.jobId}/consent/esc-consent-v${c.version}-${sha.slice(0, 12)}.txt`, text, `Owner ESC consent v${c.version} (signed)`, p.actorId);
+  const renderedPdf = PDF_LOOK_APPROVED.escConsent && esc && rep && c.owner_signature_name && c.owner_signed_at
+    ? await escConsentPdfOrNull(p.jobId, p.actorId, { ...facts, premises_address: c.premises_address }, { owner: { name: c.owner_signature_name, at: c.owner_signed_at }, ap: { name: apRepName, role: rep.role, at: now, phone: rep.phone, email: rep.email } })
+    : null;
+  const path = await storeCopy(p.jobId, `${p.jobId}/consent/esc-consent-v${c.version}-${sha.slice(0, 12)}.txt`, text, `Owner ESC consent v${c.version} (signed)`, p.actorId, renderedPdf);
   if (path) await consentAdmin.from("owner_esc_consents").update({ copy_path: path }).eq("id", c.id);
   await logEvent(p.jobId, p.actorId, "esc_consent_valid", `Owner ESC consent complete – AP representative ${apRepName}${method === "automatic" ? " (signed automatically)" : ""} confirmed purpose explained (copy stored; delivery ${delivery === "ready_to_send" ? "ready" : delivery === "not_ready" ? "blocked – no owner contact consent" : "pending – communications locked"})`, { consent_id: c.id, sha256: sha, method });
   // The ESC recommends providing the owner a copy of the executed form: best-effort through the guarded owner path.

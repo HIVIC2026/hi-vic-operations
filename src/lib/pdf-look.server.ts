@@ -115,6 +115,7 @@ function measure(b: PdfBlock, w: number, F: Fonts): number {
     case "sigRow": return SIG_ROW_TOP + sigRowH(b.cells, w, F);
     case "group": return b.children.reduce((s, c) => s + measure(c, w, F), 0);
     case "pageBreak": return 0;
+    case "spacer": return b.height;
   }
 }
 const BOX_PAD = 7.5;
@@ -536,7 +537,7 @@ async function draw(b: PdfBlock, page: PDFPage, pageNo: number, x: number, top: 
       return;
     }
     case "group": { await drawGroup(b, page, pageNo, x, top, w, X, imgs, 0, b.children.length - 1); return; }
-    case "pageBreak": return;
+    case "pageBreak": case "spacer": return;
   }
 }
 

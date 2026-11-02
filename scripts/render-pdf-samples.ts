@@ -4,6 +4,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { CUSTOMER_AGREEMENT_V1_3, type AgreementFacts } from "../src/lib/customer-agreement.core";
 import { customerAgreementPdf } from "../src/lib/customer-agreement-pdf.server";
+import { escConsentPdf } from "../src/lib/consent-pdf.server";
 import { officialFormPdf } from "../src/lib/official-form-pdf.server";
 import { fullAnswers } from "./official-form-samples";
 import { sampleSignaturePng } from "./sample-signature-png";
@@ -19,6 +20,15 @@ const RENDERERS: Record<string, () => Promise<{ file: string; bytes: Uint8Array 
   agreement: async () => ({
     file: "customer-agreement.pdf",
     bytes: (await customerAgreementPdf({ version: "1.3", body: CUSTOMER_AGREEMENT_V1_3 }, AGREEMENT_SAMPLE_FACTS)).bytes,
+  }),
+  // Task 15: the ESC owner consent, signed by both (the unsigned copy is esc-consent-unsigned.pdf).
+  "esc-consent": async () => ({
+    file: "esc-consent.pdf",
+    bytes: (await escConsentPdf(
+      { ap_legal_entity: "DC Construction Solutions Pty Ltd t/a Home Insulation Victoria", owner: { name: "Sarah Brown", email: "sarah@example.com", phone: "0400 000 000" }, premises_address: "12 Example St, Box Hill VIC 3128" },
+      { owner: { name: "Sarah Brown", at: "2026-11-10T09:00:00+11:00" }, ap: { name: "Chris Lowe", role: "Director", at: "2026-11-10T09:00:00+11:00" } },
+      { jobNumber: "HV-1234" },
+    )).bytes,
   }),
   // Task 12: the filled DEECA forms, with made-up Mitti signature pictures (sample-signature-png.ts).
   piesa: async () => ({

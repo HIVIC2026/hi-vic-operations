@@ -157,4 +157,9 @@ describe("pdf-look kit: split box geometry", () => {
     const boxLowest = Math.min(...body[lastPage]!.filter((x) => !x.str.includes("AFTERBOX")).map((x) => x.y));
     expect(boxLowest - afterY).toBeGreaterThan(7.5 + 5);
   });
+  test("spacer moves the next block by its height (negative pulls up) and draws nothing", async () => {
+    const ys = async (gap: number) => { const d = await getDocument({ data: (await renderPdf({ title: "T", blocks: [{ id: "a", kind: "para", text: "FIRSTLINE" }, { id: "s", kind: "spacer", height: gap }, { id: "b", kind: "para", text: "SECONDLINE" }] })).bytes }).promise; const t = (await (await d.getPage(1)).getTextContent()).items as any[]; return t.find((x) => x.str.includes("FIRSTLINE")).transform[5] - t.find((x) => x.str.includes("SECONDLINE")).transform[5]; };
+    expect((await ys(10)) - (await ys(0))).toBeCloseTo(10, 1);
+    expect((await ys(0)) - (await ys(-4))).toBeCloseTo(4, 1);
+  });
 });

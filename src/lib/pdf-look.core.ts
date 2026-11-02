@@ -36,6 +36,8 @@ export type PdfBlock = { id: string; keepTogether?: boolean; /** Page-1 sizes of
   /** Plain run of blocks (no chrome) that stays on one page; flows between children only when taller than a page. */
   | { kind: "group"; children: PdfBlock[] }
   | { kind: "pageBreak" }
+  /** Vertical space in pt; negative pulls the next block up (CSS-style collapsed margins in the approved samples). Draws nothing. */
+  | { kind: "spacer"; height: number }
 );
 export type PdfDoc = { title: string; blocks: PdfBlock[] };
 export type PdfLayoutReport = {
