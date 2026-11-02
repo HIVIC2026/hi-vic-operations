@@ -7,7 +7,9 @@
 // - batchSuggestions: suggestBatches per TEST / real group, plus the installers who can be offered EVERY home.
 // - sendBatch: Jo's one tap. Every check runs first (nothing written if any fails), then ONE `area_batch_sent` claim per
 //   job (append-only workflow_events), then the owner's quick taps text once per job: TEST → test-send, real → the one
-//   real SMS sender (`quick_taps` switch, consent, STOP). Never automatic: only the office Send calls this.
+//   real SMS sender (`quick_taps` switch, consent, STOP). Never automatic: only the office Send calls this. The quick
+//   taps email goes with the text (Jo 2 Nov 2026): TEST → test-send, real → the guarded owner email sender; the text
+//   and the email are independent (one failing never stops the other or the batch). The day-2 reminder does the same.
 // - sweepAreaBatches (15-minute tick, Task 4): day-2 reminder, day-3 close, decline retries, day-14 no-answer close (rules
 //   in area-batch.core planBatchSweep). Passers wait for Jo's OK ("Send to installer" on Choose installer,
 //   batchesReadyToSend): a run NEVER goes to an installer automatically (Jo 30 Oct). Nothing lands in Needs me.
@@ -91,13 +93,13 @@ export const hasFullStreet = (addressLine: string | null | undefined): boolean =
 
 /** `carriedPass`: the owner already passed the quick taps in a batch they left (or as it closed) — put in a new batch
  *  without being asked again (Task 4 fix round 1). */
-export type BatchCandidate = BatchHome & { jobNumber: string; propertyId: string; ownerName: string; phone: string | null; suburb: string; isTest: boolean; source: string | null; carriedPass: boolean };
+export type BatchCandidate = BatchHome & { jobNumber: string; propertyId: string; ownerName: string; phone: string | null; email: string | null; suburb: string; isTest: boolean; source: string | null; carriedPass: boolean };
 export type CandidateRead = { candidates: BatchCandidate[]; unlocated: number; refused: Map<string, string> };
 
 /** Who can be put in a batch now. `jobIds` limits the read (Send re-checks its own homes); `locate` caps location lookups. */
 export async function batchCandidates(opts: { includeTest?: boolean; testJobIds?: string[]; jobIds?: string[]; locate?: number; requireLocation?: boolean; now?: Date } = {}): Promise<CandidateRead> {
   const jobs = (await all("waiting jobs", (a, b) => {
-    let q = admin.from("jobs").select("id, job_number, stage, source, channel, deleted_at, qa_archived_at, property_id, owners(full_name, phone), properties(address_line, suburb, postcode, declared:enrichment->base44->declared, answers:enrichment->base44->raw->answers)")
+    let q = admin.from("jobs").select("id, job_number, stage, source, channel, deleted_at, qa_archived_at, property_id, owners(full_name, phone, email), properties(address_line, suburb, postcode, declared:enrichment->base44->declared, answers:enrichment->base44->raw->answers)")
       .eq("stage", "ready_check_ready_to_schedule").eq("channel", "hivic_sourced").is("deleted_at", null).is("qa_archived_at", null);
     if (opts.jobIds) q = q.in("id", opts.jobIds.length ? opts.jobIds : ["00000000-0000-0000-0000-000000000000"]);
     if (opts.testJobIds) q = q.eq("source", "qa_test").in("id", opts.testJobIds.length ? opts.testJobIds : ["00000000-0000-0000-0000-000000000000"]);
@@ -174,11 +176,11 @@ export async function batchCandidates(opts: { includeTest?: boolean; testJobIds?
     const id = String(j["id"]);
     if (!point) { unlocated++; if (opts.requireLocation !== false) { refused.set(id, "we don't have its location yet"); continue; } }
     const prop = (j["properties"] ?? null) as { suburb?: string | null; postcode?: string | null } | null;
-    const owner = (j["owners"] ?? null) as { full_name?: string | null; phone?: string | null } | null;
+    const owner = (j["owners"] ?? null) as { full_name?: string | null; phone?: string | null; email?: string | null } | null;
     candidates.push({
       jobId: id, jobNumber: String(j["job_number"] ?? ""), propertyId, lat: point?.lat ?? Number.NaN, lng: point?.lng ?? Number.NaN,
       postcode: (prop?.postcode ?? "").trim(), suburb: (prop?.suburb ?? "").trim(), spotSavedAt: String(savedBy.get(id)?.["spot_saved_at"]),
-      ownerName: (owner?.full_name ?? "").trim(), phone: owner?.phone ?? null, isTest: j["source"] === "qa_test", source: s(j["source"]),
+      ownerName: (owner?.full_name ?? "").trim(), phone: owner?.phone ?? null, email: owner?.email ?? null, isTest: j["source"] === "qa_test", source: s(j["source"]),
       carriedPass: standingPass((eventsBy.get(id) ?? []) as unknown as AreaBatchEventRow[], id),
     });
   }
@@ -215,9 +217,10 @@ export async function batchSuggestions(opts: { includeTest?: boolean; testJobIds
 
 // ---- Send (office, one tap) ------------------------------------------------------------------------------------------
 
-export type SendBatchResult = { batchId: string; installer: string; homes: number; texts: { jobId: string; status: string; detail: string }[] };
+export type SendResult = { status: string; detail: string };
+export type SendBatchResult = { batchId: string; installer: string; homes: number; texts: (SendResult & { jobId: string; email: SendResult })[] };
 
-/** Jo taps Send. Every check first; then one claim per job; then one text per job. Refuses if any home is already in an
+/** Jo taps Send. Every check first; then one claim per job; then one text and one email per job. Refuses if any home is already in an
  *  open batch (one batch at a time) or can't be batched any more. */
 export async function sendBatch(jobIdsIn: string[], businessId: string, actorId: string | null, opts: { now?: Date } = {}): Promise<SendBatchResult> {
   const now = opts.now ?? new Date();
@@ -283,11 +286,17 @@ export async function sendBatch(jobIdsIn: string[], businessId: string, actorId:
   const texts: SendBatchResult["texts"] = [];
   const send = async (h: BatchCandidate) => {
     // Already said yes in a batch they left: recorded in this batch, never asked again.
-    if (h.carriedPass) { texts.push({ jobId: h.jobId, status: "not_texted", detail: "the owner already said yes — not asked again" }); return; }
-    try {
-      const r = await textOwner(h, batchId, links.get(h.jobId)!, businessId, actorId);
-      texts.push({ jobId: h.jobId, ...r });
-    } catch (e) { texts.push({ jobId: h.jobId, status: "failed", detail: (e as Error).message }); }
+    if (h.carriedPass) {
+      texts.push({ jobId: h.jobId, status: "not_texted", detail: "the owner already said yes — not asked again", email: { status: "not_emailed", detail: "the owner already said yes — not asked again" } });
+      return;
+    }
+    const link = links.get(h.jobId)!;
+    // Text and email each in their own try/catch: one failing never stops the other (or the batch).
+    const [text, email] = await Promise.all([
+      textOwner(h, batchId, link, businessId, actorId).catch((e: unknown): SendResult => ({ status: "failed", detail: (e as Error).message })),
+      emailOwner(h, batchId, link, businessId, actorId, "sent").catch((e: unknown): SendResult => ({ status: "failed", detail: (e as Error).message })),
+    ]);
+    texts.push({ jobId: h.jobId, ...text, email });
   };
   for (let i = 0; i < homes.length; i += 4) await Promise.all(homes.slice(i, i + 4).map(send));
   return { batchId, installer: installer.name, homes: homes.length, texts };
@@ -305,7 +314,7 @@ async function claim(jobId: string, actorId: string | null, type: string, summar
   return true;
 }
 
-type TextTo = Pick<BatchCandidate, "jobId" | "ownerName" | "phone" | "isTest" | "source">;
+type TextTo = Pick<BatchCandidate, "jobId" | "ownerName" | "phone" | "email" | "isTest" | "source">;
 /** The quick taps text (or the day-2 reminder), once per job + batch (TEST → test-send; real → the one real sender with
  *  its own switch). */
 async function textOwner(h: TextTo, batchId: string, myJobLink: string, businessId: string | null, actorId: string | null, step: "sent" | "reminder" = "sent"): Promise<{ status: string; detail: string }> {
@@ -323,6 +332,35 @@ async function textOwner(h: TextTo, batchId: string, myJobLink: string, business
   const type = step === "reminder" ? QUICK_TAPS_REMINDER_SMS_TYPE : QUICK_TAPS_SMS_TYPE;
   const r = await sendRealSms({ type, idempotencyKey: quickTapsSmsKey(batchId, h.jobId, step), to: h.phone, body, jobId: h.jobId });
   return { status: r.status, detail: r.detail };
+}
+
+/** The quick taps email (or the day-2 reminder email), with the same quick taps link as the text (Jo 2 Nov 2026). TEST →
+ *  test-send only; real → the guarded owner email sender (opt-outs, suppression, once only per batch + job + step).
+ *  Status: sent | no_email | held (no consent / customer messages off) | unsubscribed | blocked | already | uncertain | failed. */
+async function emailOwner(h: TextTo, batchId: string, myJobLink: string, businessId: string | null, actorId: string | null, step: "sent" | "reminder"): Promise<SendResult> {
+  const to = (h.email ?? "").trim();
+  if (!to) return { status: "no_email", detail: "no email on file" };
+  const link = quickTapsLink(myJobLink);
+  const { renderQuickTapsEmail } = await import("./quick-taps-email.core");
+  const { firstName } = await import("./worker-links.core");
+  const build = (unsubscribeUrl: string | null, test: boolean) => renderQuickTapsEmail({ firstName: firstName(h.ownerName), link, unsubscribeUrl, reminder: step === "reminder", test });
+  if (h.isTest) {
+    const { data: biz } = businessId ? await admin.from("businesses").select("onboarding_notes").eq("id", businessId).maybeSingle() : { data: null };
+    const { isTestPartner } = await import("./test-send.core");
+    const { sendTestEmail } = await import("./test-send.server");
+    const mail = build(null, true);
+    const r = await sendTestEmail({ jobId: h.jobId, jobSource: h.source, partnerIsTest: isTestPartner(biz ?? null), label: `quick_taps:${step}:email:${batchId}`, actorId }, to, mail.subject, mail.html, mail.text);
+    return r.status === "sent" ? { status: "sent", detail: r.detail } : { status: "failed", detail: r.detail };
+  }
+  // Final review 1: owner contact consent (and the global switch) first, like the decline/pass emails; held = nothing sent.
+  try {
+    await (await import("./comms.server")).assertCustomerDeliveryAllowed(h.jobId, "Quick taps email");
+  } catch (e) { return { status: "held", detail: (e as Error).message }; }
+  const { sendGuardedOwnerEmail } = await import("./owner-email-send.server");
+  const r = await sendGuardedOwnerEmail({ jobId: h.jobId, jobSource: h.source, to, purpose: `quick_taps:${step}`, key: `quick-taps-email:v1:${batchId}:${h.jobId}:${step}`, explainBlock: true, build: (u) => build(u, false) });
+  const status = r === "sent" ? "sent" : r === "blocked — unsubscribed" ? "unsubscribed" : r.startsWith("blocked") ? "blocked"
+    : r.startsWith("already") ? "already" : r.startsWith("delivery uncertain") ? "uncertain" : "failed";
+  return { status, detail: r };
 }
 
 // ---- a home whose address changed (Task 3, Jo 30 Oct) -------------------------------------------------------------------
@@ -367,8 +405,8 @@ const DECLINE_RETRIED_EVENT = "quick_taps_decline_retried";
 const NO_ANSWER_CLOSED_EVENT = "quick_taps_no_answer_closed";
 /** Batches sent in the last 21 days (closed at day 3; a home with no answer is closed at day 14 from its first send). */
 const SWEEP_DAYS = 21;
-const sweepJobFields = "id, stage, source, channel, deleted_at, qa_archived_at, owners(full_name, phone)";
-type SweepRow = { id: string; stage: string; source: string | null; channel: string | null; deleted_at: string | null; qa_archived_at: string | null; owners: { full_name?: string | null; phone?: string | null } | null };
+const sweepJobFields = "id, stage, source, channel, deleted_at, qa_archived_at, owners(full_name, phone, email)";
+type SweepRow = { id: string; stage: string; source: string | null; channel: string | null; deleted_at: string | null; qa_archived_at: string | null; owners: { full_name?: string | null; phone?: string | null; email?: string | null } | null };
 
 async function inFours<T>(items: T[], run: (t: T) => Promise<void>) {
   for (let i = 0; i < items.length; i += 4) await Promise.all(items.slice(i, i + 4).map(run));
@@ -435,7 +473,16 @@ export async function sweepAreaBatches(nowIso: string = new Date().toISOString()
       if (won) await logEvent(jobId, null, "quick_taps_reminder_not_sent", "No working owner job link, so the owner could not be reminded about their quick taps", { batch_id: batchId }, { internal: true });
       return false;
     }
-    const r = await textOwner({ jobId, ownerName: (j.owners?.full_name ?? "").trim(), phone: j.owners?.phone ?? null, isTest: j.source === "qa_test", source: j.source }, batchId, link, businessId, null, "reminder");
+    const to: TextTo = { jobId, ownerName: (j.owners?.full_name ?? "").trim(), phone: j.owners?.phone ?? null, email: j.owners?.email ?? null, isTest: j.source === "qa_test", source: j.source };
+    // Text and email each in their own try/catch (Jo 2 Nov 2026). The email's own key (real) sends it once only, even
+    // when a held text makes a later tick try the reminder again. A thrown text still fails this step (tried again).
+    const [text, email] = await Promise.all([
+      textOwner(to, batchId, link, businessId, null, "reminder").then((r) => ({ r }), (e: unknown) => ({ e })),
+      emailOwner(to, batchId, link, businessId, null, "reminder").catch((e: unknown): SendResult => ({ status: "failed", detail: (e as Error).message })),
+    ]);
+    if (email.status === "failed") console.error("area batch reminder email failed", jobId, email.detail);
+    if ("e" in text) throw text.e;
+    const r = text.r;
     if (j.source !== "qa_test" && (smsHeldForRecipient(r) || !j.owners?.phone)) {
       await claim(jobId, null, QUICK_TAPS_REMINDED_EVENT, "Day-2 reminder not sent: the owner's number can't be texted (STOP, no consent or not a mobile)", { ...details, status: "not_textable" });
       return false;

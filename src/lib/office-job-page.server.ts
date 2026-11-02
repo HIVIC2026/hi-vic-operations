@@ -10,6 +10,7 @@ import { splitAddress } from "./name-address-tidy.core";
 import { ELIGIBILITY_WORDS } from "./job-wording";
 import { withoutRetiredInstallDayPhotos } from "./ready-check-chase.core";
 import { installDaysLeft } from "./install-days.core";
+import { readJobAccess } from "./quick-taps-access.server";
 
 const s = (v: unknown) => (v == null ? null : String(v));
 const n = (v: unknown) => (v == null || v === "" ? null : Number(v));
@@ -43,7 +44,7 @@ export async function loadJobPage(jobId: string, testOffice = false) {
   const prop = job.properties as { address_line: string | null; suburb: string | null; postcode: string | null; state: string | null; occupancy: string | null; enrichment: Record<string, unknown> | null } | null;
   const addr = splitAddress(prop?.address_line, prop?.suburb, prop?.postcode);
 
-  const [gathered, consent, asg, offers, bookings, meas, diagram, quotes, piesa, rect, escConsent, escNotice, assignment, evidence, veec, campaign, links, media, readyForVeec, originBiz, proposals, contacts] = await Promise.all([
+  const [gathered, consent, asg, offers, bookings, meas, diagram, quotes, piesa, rect, escConsent, escNotice, assignment, evidence, veec, campaign, links, media, readyForVeec, originBiz, proposals, contacts, access] = await Promise.all([
     gatherNeedsFacts({ includeTest: true, onlyIds: [jobId], testOffice }),
     admin.from("owner_contact_consents").select("consent_status, consented_at, created_at").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("job_assignments").select("role, business_id, assigned_at, active, businesses(name)").eq("job_id", jobId).eq("active", true),
@@ -66,6 +67,8 @@ export async function loadJobPage(jobId: string, testOffice = false) {
     job.originating_installer_business_id ? admin.from("businesses").select("name").eq("id", job.originating_installer_business_id).maybeSingle() : Promise.resolve({ data: null as { name: string } | null }),
     admin.from("appointment_proposals").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("install_day", true).eq("status", "proposed"),
     contactRows(jobId, { created_at: job.created_at, source: job.source, channel: job.channel }),
+    // Quick taps (Jo 2 Nov 2026): who will be at the home; fails closed (a failed read shows nothing).
+    readJobAccess(jobId),
   ]);
   const bizOf = (role: string) => ((asg.data ?? []).find((a) => a.role === role)?.businesses as { name?: string } | null)?.name ?? null;
   const ownJob = job.channel === "installer_sourced";
@@ -128,6 +131,7 @@ export async function loadJobPage(jobId: string, testOffice = false) {
       jobId, jobNumber: job.job_number, isTest: job.source === "qa_test", ownJob, installerName: installer, stage: job.stage, deleted: !!job.deleted_at,
       inHouseHeld: !testOffice && !!facts?.inHouse,
       ownerName: owner?.full_name ?? null, surname: surnameOf(owner?.full_name), phone: owner?.phone ?? null, email: owner?.email ?? null,
+      access: access.line,
       street: addr.street || prop?.address_line || null, suburb: addr.suburb || null, postcode: addr.postcode || null,
       sourceLabel: ownJob ? `Installer's own customer · ${installer ?? "installer"}` : job.source === "base44" ? "Website enquiry" : job.source === "qa_test" ? "TEST job" : "Phone / office enquiry",
       receivedAt: job.created_at, permissionAt: consent.data?.consent_status === "granted" ? s(consent.data.consented_at ?? consent.data.created_at) : null, permissionState: consent.data?.consent_status ?? null,

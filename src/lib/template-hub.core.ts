@@ -7,6 +7,7 @@
 // sits in its own section. Retired templates are simply not listed (their files stay in git).
 // tests/templates-hub.test.ts proves every entry comes from a live code path and every live builder / text type is here.
 import { renderQuoteExpiredEmail } from "./quote-expired-email.core";
+import { renderQuickTapsEmail } from "./quick-taps-email.core";
 import { bookingNotice } from './in-house-booking.core';
 import { renderJoOutcomeEmail } from "./jo-outcome-email.core";
 import { withUnsubscribe } from "./emailsafety.core";
@@ -433,6 +434,13 @@ const OWNER: TemplateEntry[] = [
   ENTRY({ id: "owner:O77", section: "owner", step: "ready_check", kind: "email", code: "O77", name: "It's your turn — confirm your free Ready Check", when: "Jo presses Release on Jobs › Choose installer (and the day-2 reminder); the installer is offered the job only after the owner confirms", who: "Owner", approvalNote: "Jo 25 Oct 2026, decision 389", gate: { kind: "email" },
     source: { builder: "src/lib/spot-release-email.core.ts", fn: "renderSpotReleasedEmail", sender: "src/lib/spot-release.server.ts" }, design: "docs/templates/mjml/owner_O77.mjml",
     render: () => email(renderSpotReleasedEmail({ firstName: "Helen", confirmUrl: `${JOB}?screen=turn`, unsubscribeUrl: UNSUB, reminder: false })) }),
+  // Jo 2 Nov 2026: the quick taps email (and day-2 reminder) goes out with the quick taps text.
+  ENTRY({ id: "owner:quick-taps-email", section: "owner", step: "ready_check", kind: "email", code: "", name: "It's almost time for your free Ready Check", when: "Jo presses Send on Jobs › Choose installer (and the day-2 reminder), with the quick taps text", who: "Owner", approvalNote: "Jo 2 Nov 2026", gate: { kind: "email" },
+    source: { builder: "src/lib/quick-taps-email.core.ts", fn: "renderQuickTapsEmail", sender: "src/lib/area-batch.server.ts" },
+    render: () => email(renderQuickTapsEmail({ firstName: "Helen", link: `${JOB}?screen=taps`, unsubscribeUrl: UNSUB, reminder: false })) }),
+  ENTRY({ id: "owner:quick-taps-reminder-email", section: "owner", step: "ready_check", kind: "email", code: "", name: "Just a reminder - confirm your details", when: "2 days after Send if the owner hasn't answered, with the reminder text", who: "Owner", approvalNote: "Jo 2 Nov 2026", gate: { kind: "email" },
+    source: { builder: "src/lib/quick-taps-email.core.ts", fn: "renderQuickTapsEmail", sender: "src/lib/area-batch.server.ts" },
+    render: () => email(renderQuickTapsEmail({ firstName: "Helen", link: `${JOB}?screen=taps`, unsubscribeUrl: UNSUB, reminder: true })) }),
   // Batch 3a: an expired installation quote closes the job; the owner gets one email with "Send me a new quote". Approved by Jo 29 Oct 2026.
   ENTRY({ id: "owner:O78", section: "owner", step: "quote", kind: "email", code: "O78", name: "Your quote has expired", when: "The day-14 quote timer expires an installation quote and the job has no other live quote (the job closes; sent once)", who: "Owner", approvalNote: "Jo 29 Oct 2026", gate: { kind: "email" },
     source: { builder: "src/lib/quote-expired-email.core.ts", fn: "renderQuoteExpiredEmail", sender: "src/lib/quote-expired-email.server.ts" }, design: "docs/templates/mjml/owner_O78.mjml",

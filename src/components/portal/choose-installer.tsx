@@ -17,9 +17,19 @@ import { offerRunFn, returnBatchFn } from "@/lib/installer-run.functions";
 import { Pill, btnClass } from "@/components/portal/kit";
 import { CHOOSE_LOAD_FAILED, choosePanelState } from "@/lib/installer-waiting-columns.core";
 import { useJobFile } from "@/components/portal/jobfile";
-import { AREA_BATCH_SENT_EVENT, openBatchId } from "@/lib/area-batch.core";
+import { AREA_BATCH_SENT_EVENT, openBatchId, sendResultWords } from "@/lib/area-batch.core";
 
 const money = (n: number) => `$${n.toLocaleString("en-AU", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`;
+type SendResults = { jobId: string; text: { status: string; detail: string }; email: { status: string; detail: string } }[];
+/** After Send (Jo 2 Nov 2026): each home's text and email result in plain words. */
+function SendResultList({ results, label }: { results: SendResults; label: (jobId: string) => string }) {
+  return (
+    <ul className="space-y-1 rounded-md border px-3 py-2 text-[13px]" data-send-results>
+      {results.map((r) => <li key={r.jobId}><span className="font-semibold">{label(r.jobId)}</span> · Text: {sendResultWords("text", r.text)} · Email: {sendResultWords("email", r.email)}</li>)}
+    </ul>
+  );
+}
+
 const when = (iso: string | null) => iso ? new Date(iso).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "";
 
 /** `reportLoad`: the Choose installer pop-up (the job is known to be waiting) says when the list is loading or failed,
@@ -36,6 +46,7 @@ export function ChooseInstallerPanel({ jobId, reportLoad = false }: { jobId: str
   const [busy, setBusy] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [sentTo, setSentTo] = useState<string | null>(null);
+  const [results, setResults] = useState<SendResults | null>(null);
   const d = q.data;
   const state = choosePanelState({ isError: q.isError, hasData: !!d });
   if (reportLoad && state === "error") return (
@@ -75,6 +86,7 @@ export function ChooseInstallerPanel({ jobId, reportLoad = false }: { jobId: str
       const r = await send({ data: { jobIds: [jobId], businessId } });
       toast.success(`Sent to ${r.homes} ${r.homes === 1 ? "owner" : "owners"} for ${name}${r.held ? ` · ${r.held} text${r.held === 1 ? "" : "s"} held (see the job)` : ""}`);
       setSentTo(name);
+      setResults(r.results);
       void qc.invalidateQueries();
     } catch (e) { toast.error(e instanceof Error ? e.message : "That didn't work"); }
     finally { setBusy(null); }
@@ -89,6 +101,7 @@ export function ChooseInstallerPanel({ jobId, reportLoad = false }: { jobId: str
             : confirmed ? <p className="rounded-md border px-3 py-2" data-release="confirmed"><span className="font-semibold">{rel?.line}.</span> Release sends the offer straight to the installer (the owner isn't asked again).</p>
             : batchSent ? <p className="rounded-md border px-3 py-2" data-release="batch-sent">Sent to the owner for <span className="font-semibold">{sentTo ?? batch?.details?.["installer_name"] ?? "the installer"}</span>. Waiting for the owner to confirm a few quick details.</p>
             : rel?.state === "lapsed" ? <p className="text-muted-foreground">{rel.line}.</p> : null}
+          {results && <SendResultList results={results} label={() => "This owner"} />}
           {!d.openOffer && (confirmed || waiting) && (
             <ul className="divide-y rounded-md border">
               {shown.length === 0 && <li className="px-3 py-3 text-muted-foreground">No installer can be offered {d.suburb || "this area"} right now{d.others.length ? " — show the others to see why" : ""}.</li>}
@@ -118,7 +131,7 @@ export function ChooseInstallerPanel({ jobId, reportLoad = false }: { jobId: str
 }
 
 /** A48 batch 2 (Jo 29–30 Oct 2026): suggested batches of nearby homes that look likely to qualify. Jo picks an installer
- *  who covers every home and taps Send; each owner gets a text to confirm a few quick details. Nothing is ever sent automatically. */
+ *  who covers every home and taps Send; each owner gets a text and an email to confirm a few quick details. Nothing is ever sent automatically. */
 export function AreaBatchSuggestions({ includeTest = false }: { includeTest?: boolean }) {
   const qc = useQueryClient();
   const load = useServerFn(getAreaBatchSuggestions);
@@ -126,13 +139,15 @@ export function AreaBatchSuggestions({ includeTest = false }: { includeTest?: bo
   const q = useQuery({ queryKey: ["area-batches", includeTest], queryFn: () => load({ data: { includeTest } }), staleTime: 30_000 });
   const [picked, setPicked] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  const [last, setLast] = useState<{ results: SendResults; numbers: Record<string, string> } | null>(null);
   const d = q.data;
-  const go = async (key: string, jobIds: string[], businessId: string, name: string) => {
+  const go = async (key: string, jobIds: string[], businessId: string, name: string, numbers: Record<string, string>) => {
     if (busy) return;
     setBusy(key);
     try {
       const r = await send({ data: { jobIds, businessId } });
       toast.success(`Sent to ${r.homes} ${r.homes === 1 ? "owner" : "owners"} for ${name}${r.held ? ` · ${r.held} text${r.held === 1 ? "" : "s"} held (see the job)` : ""}`);
+      setLast({ results: r.results, numbers });
       void qc.invalidateQueries({ queryKey: ["area-batches"] });
       void qc.invalidateQueries({ queryKey: ["installer-waiting"] });
     } catch (e) { toast.error(e instanceof Error ? e.message : "That didn't work"); }
@@ -141,7 +156,8 @@ export function AreaBatchSuggestions({ includeTest = false }: { includeTest?: bo
   return (
     <section aria-label="Suggested batches" className="mb-4 rounded-[18px] border border-line bg-paper p-4">
       <h2 className="font-display text-[17px] font-bold text-ink">Suggested batches</h2>
-      <p className="mt-1 text-[13px] text-sub">Nearby homes that look likely to qualify. Pick an installer and tap Send — each owner gets a text to confirm a few quick details.</p>
+      <p className="mt-1 text-[13px] text-sub">Nearby homes that look likely to qualify. Pick an installer and tap Send — each owner gets a text and an email to confirm a few quick details.</p>
+      {last && <div className="mt-3"><p className="mb-1 text-[13px] font-semibold text-ink">Last Send</p><SendResultList results={last.results} label={(id) => last.numbers[id] ?? "Home"} /></div>}
       {q.isError ? (
         <p role="alert" className="mt-3 text-sm text-danger">Couldn't load the batches. {(q.error as Error).message} <button type="button" className="font-semibold underline" onClick={() => void q.refetch()}>Try again</button></p>
       ) : !d ? <p className="mt-3 text-sm text-sub">Loading…</p> : d.batches.length === 0 ? (
@@ -168,7 +184,7 @@ export function AreaBatchSuggestions({ includeTest = false }: { includeTest?: bo
                       {b.installers.length > 1 && <option value="">Pick an installer</option>}
                       {b.installers.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
                     </select>
-                    <button type="button" className={btnClass("primary")} disabled={!chosen || !!busy} onClick={() => chosen && void go(key, b.homes.map((h) => h.jobId), chosen.id, chosen.name)}>{busy === key ? "Sending…" : "Send"}</button>
+                    <button type="button" className={btnClass("primary")} disabled={!chosen || !!busy} onClick={() => chosen && void go(key, b.homes.map((h) => h.jobId), chosen.id, chosen.name, Object.fromEntries(b.homes.map((h) => [h.jobId, h.jobNumber])))}>{busy === key ? "Sending…" : "Send"}</button>
                   </div>
                 )}
               </li>

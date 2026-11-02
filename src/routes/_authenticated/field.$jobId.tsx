@@ -321,6 +321,7 @@ function FieldJobBody({ jobId }: { jobId: string }) {
               : []
           }
           action={
+            <div className="space-y-2">
             <div className="flex flex-wrap gap-2">
               {showOwnerContact && job.owner_phone && (
                 <a href={`tel:${job.owner_phone}`} className={btnClass("primary")}>
@@ -337,6 +338,7 @@ function FieldJobBody({ jobId }: { jobId: string }) {
                   Directions
                 </a>
               )}
+            </div>
             </div>
           }
         />
@@ -768,6 +770,10 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
   });
   const { data: days } = useInstallerInstallDays(jobId);
   const { data: rc } = useInstallerReadyCheckTimes(jobId);
+  // Quick taps (Jo 2 Nov 2026): who will be at the home. Read only while the owner's phone is shown, and shown only while
+  // owner contact is shown (fails closed: hidden while loading or on error).
+  const jobStatus = useTradeJobStatus(jobId, !!job.owner_phone);
+  const showOwnerContact = !!job.owner_phone && jobStatus.data?.ownerContactVisible === true;
   const done = useAction(completeInstallation);
   const mittiInvited = useMittiInvited();
   const owner = firstName(job.owner_name);
@@ -954,6 +960,11 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
           phone={job.owner_phone}
           address={job.owner_name ? job.property_address : null}
         />
+        {showOwnerContact && jobStatus.data?.access && (
+          <p className="mt-2 text-sm text-ink" data-at-the-home>
+            {jobStatus.data.access}
+          </p>
+        )}
       </ScreenHead>
 
       {page && next && (

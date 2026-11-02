@@ -12,6 +12,12 @@ const answers = z.object({
   roof: z.enum(["sloped", "flat", "some", "not_sure"]).optional(),
   five_years: z.enum(["no", "yes", "not_sure"]).optional(),
   go: z.enum(["yes", "no_thanks"]).optional(),
+  // Who lets the installer in. The tenant's details are for the installer only (never contacted by us); the server
+  // checks and normalises the mobile.
+  access: z.discriminatedUnion("who", [
+    z.object({ who: z.literal("owner") }),
+    z.object({ who: z.literal("tenant"), name: z.string().trim().max(100), mobile: z.string().max(30) }),
+  ]).optional(),
   website: z.object({ property_type: z.string().max(40), top_floor: z.string().max(40), over_five_years: z.string().max(40), insulation: z.string().max(40) }).partial().optional(),
 });
 

@@ -7,7 +7,7 @@
 // reservation 'failed' (nothing was handed to the email service) instead of leaving it 'sending' forever.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 
-export async function sendGuardedOwnerEmail(p: { jobId: string; jobSource: string | null; to: string; purpose: string; key: string; build: (unsubscribeUrl: string | null) => { subject: string; html: string; text: string; attachments?: import("./email-kit.core").EmailAttachment[] }; retryAfterDefiniteFailure?: boolean; beforeSend?: () => Promise<void>; transport?: "resend" | { kind: "outlook"; replyToMessageId: string | null }; onSent?: (r: { provider: "outlook" | "resend"; messageId: string | null; internetMessageId: string | null }) => void }): Promise<string> {
+export async function sendGuardedOwnerEmail(p: { jobId: string; jobSource: string | null; to: string; purpose: string; key: string; build: (unsubscribeUrl: string | null) => { subject: string; html: string; text: string; attachments?: import("./email-kit.core").EmailAttachment[] }; retryAfterDefiniteFailure?: boolean; explainBlock?: boolean; beforeSend?: () => Promise<void>; transport?: "resend" | { kind: "outlook"; replyToMessageId: string | null }; onSent?: (r: { provider: "outlook" | "resend"; messageId: string | null; internetMessageId: string | null }) => void }): Promise<string> {
   if (await (await import("./qa-inbox.server")).qaDeliveryHeld(p.jobId)) return "blocked — TEST browser run: no delivery";
   const [{ data: opt, error: oe }, { data: response, error: re }, { count: suppressed, error: se }] = await Promise.all([
     admin.from("customer_email_optouts").select("opted_out_at").eq("job_id", p.jobId).maybeSingle(),
@@ -17,10 +17,15 @@ export async function sendGuardedOwnerEmail(p: { jobId: string; jobSource: strin
   // Jo 27 Oct 08:58: a persisted qa_test job's email goes to the TEST inbox, marked; real jobs unchanged (route null).
   const route = await (await import("./qa-inbox.server")).qaInboxRouteForJob(p.jobId, p.to);
   // Final review 1: fail closed — a qa_test job with no TEST route (e.g. jobs.source unreadable) never reaches p.to.
-  if (p.jobSource === "qa_test" && !route) return "blocked — not sent";
+  // Quick taps final review 2: a caller that opts in to `explainBlock` gets the reason; every other caller's answer is unchanged.
+  const blocked = (why: string) => (p.explainBlock ? `blocked — ${why}` : "blocked — not sent");
+  if (p.jobSource === "qa_test" && !route) return blocked("TEST job with no test inbox");
   const to = route?.to ?? p.to;
   const boundary = (await import("./comms-test-recipient.core")).testRecipientBoundary(to, p.jobSource);
-  if (oe || re || se || suppressed == null || opt?.opted_out_at || response?.opted_out_at || suppressed > 0 || boundary.status === "blocked") return "blocked — not sent";
+  if (oe || re || se || suppressed == null) return blocked("could not check opt-outs");
+  if (opt?.opted_out_at || response?.opted_out_at) return blocked("unsubscribed");
+  if (suppressed > 0) return blocked("suppressed (bounce, complaint or a later step)");
+  if (boundary.status === "blocked") return blocked("test recipient boundary");
   let { data: reserved, error } = await admin.from("customer_email_sends").insert({ job_id: p.jobId, purpose: p.purpose, idempotency_key: p.key }).select("id").single();
   if ((error || !reserved) && p.retryAfterDefiniteFailure) {
     // Conditional claim: only a row whose last attempt definitely failed, and only one caller wins it.

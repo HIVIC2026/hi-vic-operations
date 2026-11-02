@@ -15,14 +15,16 @@ export const getAreaBatchSuggestions = createServerFn({ method: "POST" }).middle
     return batchSuggestions({ includeTest: data.includeTest });
   });
 
-/** Office: Send — texts every owner in the batch their quick taps link. Refused (nothing sent) if any home is already in a batch. */
+/** Office: Send — texts and emails every owner in the batch their quick taps link (`results`: each home's text and email
+ *  result). Refused (nothing sent) if any home is already in a batch. */
 export const sendAreaBatchFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobIds: z.array(z.string().uuid()).min(1).max(10), businessId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     for (const id of data.jobIds) await requireOfficeJob(context.supabase, id);
     await requireOfficeBusiness(context.supabase, data.businessId);
     const r = await (await import("./area-batch.server")).sendBatch(data.jobIds, data.businessId, context.userId);
-    return { batchId: r.batchId, installer: r.installer, homes: r.homes, held: r.texts.filter((t) => t.status !== "sent" && t.status !== "not_texted").length };
+    return { batchId: r.batchId, installer: r.installer, homes: r.homes, held: r.texts.filter((t) => t.status !== "sent" && t.status !== "not_texted").length,
+      results: r.texts.map((t) => ({ jobId: t.jobId, text: { status: t.status, detail: t.detail }, email: t.email })) };
   });
 
 /** Office: closed batches whose owners said yes, waiting for Jo's "Send to installer" (or "Send again" when the installer's

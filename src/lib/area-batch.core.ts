@@ -244,3 +244,16 @@ export const standingPass = (events: readonly AreaBatchEventRow[], jobId: string
   const latest = events.filter((e) => e.event_type === ANSWERED).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
   return !!latest && outcomeOf(latest) === PASS && !passHandedOn(events, jobId);
 };
+
+/** Choose installer, after Send (Jo 2 Nov 2026): one home's text or email result in plain words. */
+export function sendResultWords(kind: "text" | "email", r: { status: string; detail: string }): string {
+  if (r.status === "sent") return "sent";
+  if (r.status === "already") return "already sent";
+  if (r.status === "not_texted" || r.status === "not_emailed") return "not sent — the owner already said yes";
+  if (kind === "email" && r.status === "no_email") return "no email on file";
+  if (kind === "email" && r.status === "unsubscribed") return "not sent — unsubscribed";
+  if (kind === "email" && r.status === "held") return r.detail.startsWith("No contact consent") ? "not sent — no permission to contact" : `not sent — blocked: ${r.detail}`;
+  if (kind === "email" && r.status === "blocked") return `not sent — blocked: ${r.detail.replace(/^blocked — /, "")}`;
+  if (kind === "email" && r.status === "uncertain") return "may have gone — not resent";
+  return `didn't go — ${r.detail || r.status}`;
+}

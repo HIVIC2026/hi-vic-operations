@@ -36,7 +36,7 @@ import { SPOT_RELEASE_PAGE, WHAT_HAPPENS_NEXT, type OwnerTurnView } from "@/lib/
 import { ownerRequestNewQuoteFn } from "@/lib/new-quote-request.functions";
 import { NEW_QUOTE_THANKS } from "@/lib/new-quote-request.core";
 import { ownerQuickTapsAddressSearchFn, ownerQuickTapsDetailsFn, ownerQuickTapsSaveFn, ownerQuickTapsStateFn } from "@/lib/quick-taps.functions";
-import { QUICK_TAPS_COPY, nextTapStep, quickTapsPassLine, tapOutcome, websiteQuestions, type QuickTapAnswers, type QuickTapsView } from "@/lib/quick-taps.core";
+import { QUICK_TAPS_COPY, nextTapStep, quickTapsPassLine, tapOutcome, validAccess, websiteQuestions, type QuickTapAnswers, type QuickTapsView } from "@/lib/quick-taps.core";
 import { createAddressPicker, type PickResult } from "@/lib/address-pick.core";
 import { assertInHouseActionSucceeded } from "@/lib/in-house.core";
 import { completeOwnerQuoteAcceptance, ownerQuoteCanAccept } from "@/lib/owner-quote-visibility.core";
@@ -292,7 +292,7 @@ const tapBtn = "flex min-h-14 w-full items-center justify-center rounded-full bo
 const tapPrimary = "flex min-h-14 w-full items-center justify-center rounded-full bg-estimate-green px-5 py-3 text-center text-base font-bold text-estimate-canvas disabled:opacity-50";
 
 /** A48 batch 2: the quick taps. One question per screen, in order: full name, address, hatch, roof, 5 years, any website
- *  answer left blank, then "Yes, let's go" / "No thanks". A decline tap ends it. Name/address changes are saved as they
+ *  answer left blank, who lets the installer in (Me / My tenant + their name and mobile), then "Yes, let's go" / "No thanks". A decline tap ends it. Name/address changes are saved as they
  *  are given (a typed name waits for the address when there is no full address on file yet); the answers are saved once.
  *  Not in a batch asking for taps → the normal My job page. The link token is the only credential. */
 function TapsScreen({ v, token }: { v: View; token: string }) {
@@ -309,6 +309,9 @@ function TapsScreen({ v, token }: { v: View; token: string }) {
   const [typed, setTyped] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [askTenant, setAskTenant] = useState(false);
+  const [tenantName, setTenantName] = useState("");
+  const [tenantMobile, setTenantMobile] = useState("");
   if (isLoading && !st) return <p role="status" className="py-10 text-center text-sm">Opening…</p>;
   const view: QuickTapsView | null = done ?? st ?? null;
   if (!view || view.kind === "none") return v.spotSaved ? <SpotSavedHome v={v} token={token} /> : <Home v={v} token={token} />;
@@ -373,6 +376,24 @@ function TapsScreen({ v, token }: { v: View; token: string }) {
   else if (step === "hatch") body = <><h1 className="font-display text-2xl font-extrabold">{QUICK_TAPS_COPY.hatch.question}</h1>{options(QUICK_TAPS_COPY.hatch.options, (hatch) => answer({ ...a, hatch }))}</>;
   else if (step === "roof") body = <><h1 className="font-display text-2xl font-extrabold">{QUICK_TAPS_COPY.roof.question}</h1>{options(QUICK_TAPS_COPY.roof.options, (roof) => answer({ ...a, roof }))}</>;
   else if (step === "five_years") body = <><h1 className="font-display text-2xl font-extrabold">{QUICK_TAPS_COPY.five_years.question}</h1>{options(QUICK_TAPS_COPY.five_years.options, (five_years) => answer({ ...a, five_years }))}</>;
+  else if (step === "access") {
+    // Who lets the installer in. A tenant's name and mobile are for the installer only; we never contact the tenant.
+    const tenant = { who: "tenant" as const, name: tenantName, mobile: tenantMobile };
+    const tenantOk = validAccess(tenant);
+    const field = "h-14 w-full rounded-2xl border border-estimate-line bg-card px-4 text-lg";
+    body = <>
+      <h1 className="font-display text-2xl font-extrabold">{QUICK_TAPS_COPY.access.question}</h1>
+      {!askTenant ? options(QUICK_TAPS_COPY.access.options, (who) => { if (who === "owner") answer({ ...a, access: { who: "owner" } }); else { setAskTenant(true); setErr(""); } }) : <>
+        <label className="block space-y-1.5"><span className="text-sm font-bold">{QUICK_TAPS_COPY.access.tenantName}</span>
+          <input className={field} autoComplete="off" maxLength={100} value={tenantName} disabled={busy} onChange={(e) => setTenantName(e.target.value)} /></label>
+        <label className="block space-y-1.5"><span className="text-sm font-bold">{QUICK_TAPS_COPY.access.tenantMobile}</span>
+          <input className={field} type="tel" inputMode="tel" autoComplete="off" maxLength={30} value={tenantMobile} disabled={busy} onChange={(e) => setTenantMobile(e.target.value)} /></label>
+        <button type="button" className={tapPrimary} disabled={busy || !tenantOk} onClick={() => answer({ ...a, access: tenant })}>Next</button>
+        {!tenantOk && <p className="text-sm text-muted-foreground">{QUICK_TAPS_COPY.access.needBoth}</p>}
+        <button type="button" className="block w-full text-center text-sm font-semibold underline" disabled={busy} onClick={() => { setAskTenant(false); setTenantName(""); setTenantMobile(""); setErr(""); }}>{QUICK_TAPS_COPY.access.back}</button>
+      </>}
+    </>;
+  }
   else if (step === "go") body = options(QUICK_TAPS_COPY.go.options, (go) => answer({ ...a, go }));
   else if (step) { const w = QUICK_TAPS_COPY.website[step]; body = <><h1 className="font-display text-2xl font-extrabold">{w.label}</h1>{options(w.options, (value) => answer({ ...a, website: { ...a.website, [step]: value } }))}</>; }
   else body = <button type="button" className={tapPrimary} disabled={busy} onClick={() => void submit(a)}>Try again</button>;

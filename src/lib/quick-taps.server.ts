@@ -9,6 +9,8 @@
 //   batch (area-batch.server leaveBatchIfMoved) and goes back in the pool — the owner is not told and carries on.
 // - saveQuickTaps: the answers. ONE `quick_taps_answered {batch_id, answers, consent_share, outcome}` per job + batch,
 //   claimed before anything else happens (a second save, or a second device, gets the same outcome and nothing more).
+//   `answers.access` = who lets the installer in, normalised (tenant name trimmed, mobile +61…), stored on a pass only;
+//   a given but invalid answer is refused (even on a decline) and nothing is saved. The tenant is never texted or emailed.
 //   Blank website answers are written onto enrichment.base44.declared (blanks only, never overwriting). Pass → the
 //   existing `trade_contact_share` owner gate (the "Yes, let's go" tap is the consent). Declines → cancelJobFully with the
 //   matching reason (no O69 cancel notice: the owner gets this decline email instead) + the matching approved email
@@ -22,7 +24,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { WorkflowError, logEvent } from "./workflow.server";
 import { AREA_BATCH_EVENTS, AREA_BATCH_SENT_EVENT, tapsBatchId, type AreaBatchEventRow } from "./area-batch.core";
 import {
-  QUICK_TAPS_ANSWERED_EVENT, QUICK_TAPS_DECLINE_REASON, locationAddress, locationNeedsRefresh, tapOutcome, websiteQuestions,
+  QUICK_TAPS_ANSWERED_EVENT, QUICK_TAPS_COPY, QUICK_TAPS_DECLINE_REASON, locationAddress, normaliseAccess, locationNeedsRefresh, tapOutcome, websiteQuestions,
   type AddressParts, type FinalOutcome, type QuickTapAnswers, type QuickTapsView, type WebsiteAnswers, type WebsiteFacts, type WebsiteKey,
 } from "./quick-taps.core";
 import { formatPropertyAddress } from "./address";
@@ -37,6 +39,7 @@ const loose = admin as unknown as SupabaseClient;
 const DEAD = "This link isn't working any more. Please reply to our email.";
 const NAME_NEEDED = "Please type your full name.";
 const NOT_FOUND = "We couldn't find that address. Please try again.";
+const TENANT_NEEDED = QUICK_TAPS_COPY.access.needBoth;
 
 type Owner = { full_name: string | null; email: string | null } | null;
 type Prop = { id: string; address_line: string | null; suburb: string | null; state: string | null; postcode: string | null; enrichment: Record<string, unknown> | null } | null;
@@ -296,14 +299,20 @@ export async function saveQuickTaps(token: string, answers: QuickTapAnswers, met
   if (!view.name) throw new WorkflowError(NAME_NEEDED);
   if (!view.address) throw new WorkflowError(FULL_STREET_NEEDED);
   const batchId = batchOf(c).batchId!;
+  // Who lets the installer in: a given answer must be valid (a bad tenant name or mobile saves nothing), and is saved
+  // normalised (name trimmed, mobile +61…). The tenant is never texted or emailed.
+  const access = answers.access === undefined ? null : normaliseAccess(answers.access);
+  if (answers.access !== undefined && !access) throw new WorkflowError(TENANT_NEEDED);
   const blanks = websiteQuestions(view.website, answers.website ?? {});
-  const outcome = tapOutcome(answers, blanks);
+  const outcome = tapOutcome({ ...answers, access: access ?? undefined }, blanks);
   if (outcome === "incomplete") throw new WorkflowError("Please answer each question.");
   const website = Object.fromEntries(blanks.filter((k) => answers.website?.[k]).map((k) => [k, answers.website![k]!]));
   await storeWebsiteAnswers(c, website, blanks);
   const stored = {
     name: view.name, address: view.address, hatch: answers.hatch ?? null, roof: answers.roof ?? null, five_years: answers.five_years ?? null, go: answers.go ?? null,
     ...(Object.keys(website).length ? { website } : {}),
+    // Final review 4: kept only on a pass (the installer needs it); a decline never stores the tenant's details.
+    ...(access && outcome === "pass" ? { access } : {}),
   };
   const won = await claimAnswer(jobId, { batch_id: batchId, answers: stored, consent_share: outcome === "pass", outcome, idempotency_key: `quick-taps:v1:${batchId}:${jobId}:answered` }, SUMMARY[outcome]);
   if (!won) {

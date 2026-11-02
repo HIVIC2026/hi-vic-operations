@@ -157,3 +157,29 @@ describe("guarded send, Outlook transport", () => {
     expect(got).toEqual({ provider: "resend", messageId: "re_1", internetMessageId: null });
   });
 });
+
+// Final review 2 (quick taps, 2 Nov 2026): a caller may ask for the reason a send was blocked. Default answers unchanged.
+describe("guarded send, explainBlock", () => {
+  const sendX = (o: { jobId?: string; jobSource?: string } = {}) => sendGuardedOwnerEmail({
+    jobId: o.jobId ?? "J", jobSource: o.jobSource ?? "website", to: "owner@example.com", purpose: "p", key: "kx",
+    build: () => ({ subject: "s", html: "<p>h</p>", text: "t" }), explainBlock: true,
+  });
+  test("opted out → blocked — unsubscribed (the default still says blocked — not sent)", async () => {
+    tables["customer_email_optouts"] = [{ job_id: "J", opted_out_at: "2026-10-01" }];
+    expect(await sendX()).toBe("blocked — unsubscribed");
+    expect(await send()).toBe("blocked — not sent");
+    expect(resendCalls).toEqual([]);
+  });
+  test("campaign opt-out → blocked — unsubscribed", async () => {
+    tables["lead_campaign_responses"] = [{ job_id: "J", opted_out_at: "2026-10-01" }];
+    expect(await sendX()).toBe("blocked — unsubscribed");
+  });
+  test("a suppressing event → blocked — suppressed", async () => {
+    tables["customer_engagement_events"] = [{ id: "e1", job_id: "J", event_type: "email_bounced" }];
+    expect(await sendX()).toBe("blocked — suppressed (bounce, complaint or a later step)");
+  });
+  test("a qa_test job with no TEST route → blocked — TEST job with no test inbox", async () => {
+    expect(await sendX({ jobId: "QX", jobSource: "qa_test" })).toBe("blocked — TEST job with no test inbox");
+    expect(resendCalls).toEqual([]);
+  });
+});
