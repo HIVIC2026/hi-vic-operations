@@ -68,6 +68,9 @@ describe("decision 372: the Final check list", () => {
     expect(keys({ ...ok, esc: { sentAt: null, installStart: start } })).toEqual(["esc_notice"]);
     expect(keys({ ...ok, consentBlockers: ["Owner ESC consent is stale for the current booking – new consent required"] })).toEqual(["consent"]);
     expect(finalCheckList({ ...ok, warranty: { providedAt: null, productsNotOnFile: ["Earthwool R4.1"] } }).find((i) => i.key === "warranty")!.why).toEqual(["Warranty copy for Earthwool R4.1 not on file."]);
+    // Bradford with no building class: the reason is the class, not a missing file.
+    expect(finalCheckList({ ...ok, warranty: { providedAt: null, productsNotOnFile: ["Bradford Gold R6"], buildingClass: null } }).find((i) => i.key === "warranty")!.why).toEqual(["Building class not recorded — can't choose the Bradford warranty"]);
+    expect(finalCheckList({ ...ok, warranty: { providedAt: null, productsNotOnFile: ["Bradford Gold R6"], buildingClass: "Class 1" } }).find((i) => i.key === "warranty")!.why).toEqual(["Warranty copy for Bradford Gold R6 not on file."]);
   });
 
   test("VEEC assignment: all three signatures, in order installer → AP → owner", () => {

@@ -6,6 +6,7 @@
 import type { CardKey } from "./office-stage-cards.core";
 import { ASSIGNMENT_VEEC_BLOCKER } from "./assignment.core";
 import { MISSING_INSTALLER_DECLARATION } from "./piisa-declaration.core";
+import { BRADFORD_CLASS_HOLD, warrantyNeedsBuildingClass } from "./product-warranty.core";
 
 export type FinalCheckKey =
   | "piesa" | "fixes" | "swms" | "piisa" | "install_evidence" | "esc_notice" | "consent" | "warranty" | "veec_assignment" | "payments" | "photos" | "other";
@@ -30,7 +31,8 @@ export type FinalCheckFacts = {
   esc: { sentAt: string | null; installStart: string | null };
   /** consentValidityBlockers for the booked start (empty = valid, owner + AP ≥24h before). */
   consentBlockers: string[];
-  warranty: { providedAt: string | null; productsNotOnFile: string[] };
+  /** buildingClass: the job's NCC class (Bradford's warranty depends on it); null/omitted = not recorded. */
+  warranty: { providedAt: string | null; productsNotOnFile: string[]; buildingClass?: string | null };
   veec: { status: string | null; installerSignedAt: string | null; apSignedAt: string | null; consumerSignedAt: string | null };
   /** Installation invoice (null = none raised). Amounts inc GST. */
   payments: { totalIncGst: number; totalPaid: number } | null;
@@ -94,7 +96,7 @@ export function finalCheckList(f: FinalCheckFacts): FinalCheckItem[] {
   // 8. Owner ESC consent (owner + AP ≥24h before).
   items.push(item("consent", "Owner ESC consent", f.consentBlockers, f.consentBlockers.length ? null : "Owner and AP signed ≥24h before the start", { label: "Install card · owner consent", card: "install" }));
   // 9. Warranty copy sent (G1 / decision 321).
-  items.push(item("warranty", "Product warranty sent to the owner", f.warranty.providedAt ? [] : f.warranty.productsNotOnFile.length ? f.warranty.productsNotOnFile.map((p) => `Warranty copy for ${p} not on file.`) : ["Warranty copy not recorded as sent."], f.warranty.providedAt ? `Sent ${ymd(f.warranty.providedAt)}` : null, { label: "Job file · warranty", card: "final-check" }));
+  items.push(item("warranty", "Product warranty sent to the owner", f.warranty.providedAt ? [] : f.warranty.productsNotOnFile.length ? f.warranty.productsNotOnFile.map((p) => (warrantyNeedsBuildingClass(p, f.warranty.buildingClass) ? BRADFORD_CLASS_HOLD : `Warranty copy for ${p} not on file.`)) : ["Warranty copy not recorded as sent."], f.warranty.providedAt ? `Sent ${ymd(f.warranty.providedAt)}` : null, { label: "Job file · warranty", card: "final-check" }));
   // 10. VEEC assignment signatures in order.
   items.push(item("veec_assignment", "VEEC assignment signed in order (installer → AP → owner)", veecOrderProblems(f.veec), f.veec.consumerSignedAt ? `Owner signed ${ymd(f.veec.consumerSignedAt)}` : null, { label: "Final check · VEEC form", card: "final-check" }));
   // 11. Payments: the one installation invoice paid in full.

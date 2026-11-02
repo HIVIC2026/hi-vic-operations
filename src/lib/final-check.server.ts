@@ -33,7 +33,7 @@ export async function finalCheckFacts(jobId: string, actorId: string | null): Pr
     (await import("./install-evidence.server")).installEvidenceStageExtras(jobId).catch(failed("install evidence")),
     (await import("./consent.server")).currentConsent(jobId),
     (await import("./assignment.server")).currentAssignment(jobId),
-    warranty.data ? Promise.resolve([] as string[]) : (await import("./product-warranty.server")).warrantyGapsFor(jobId).catch(() => [] as string[]),
+    warranty.data ? Promise.resolve({ products: [] as string[], buildingClass: null }) : (await import("./product-warranty.server")).warrantyGapFactsFor(jobId).catch(() => ({ products: [] as string[], buildingClass: null })),
     stageEntryBlockers(jobId, "ready_for_veec", actorId).catch((e: Error) => [`The Ready for VEEC checks could not be read (${e.message}).`]),
   ]);
   const { a3EvidenceGate } = await import("./piisa-a3.core");
@@ -55,7 +55,7 @@ export async function finalCheckFacts(jobId: string, actorId: string | null): Pr
     photos: evidenceStageBlockers("ready_for_veec", evidence.data ?? null, !!evidence.error),
     esc: { sentAt: esc.data?.sent_at ?? null, installStart: start },
     consentBlockers: consentValidityBlockers(consent as never, start),
-    warranty: { providedAt: warranty.data?.created_at ?? null, productsNotOnFile: gaps },
+    warranty: { providedAt: warranty.data?.created_at ?? null, productsNotOnFile: gaps.products, buildingClass: gaps.buildingClass },
     veec: { status: a?.status ?? null, installerSignedAt: a?.installer_signed_at ?? null, apSignedAt: a?.ap_signed_at ?? null, consumerSignedAt: a?.consumer_signed_at ?? null },
     payments: invoice.data ? { totalIncGst: Number(invoice.data.total_inc_gst ?? 0), totalPaid: Number(invoice.data.total_paid ?? 0) } : null,
     guards,

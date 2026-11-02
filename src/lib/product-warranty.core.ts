@@ -4,7 +4,8 @@
  *
  * The ESC requires the consumer to hold a copy of the product warranty against defects (minimum 5 years from installation)
  * BEFORE the AP signs Section 3 Part A of the VEEC assignment form (FAQ Q8; assignment form Part A bullet 7). This module
- * maps each of the seven Mitti product options (insulation-product.core `APPROVED_PRODUCTS`) to its manufacturer warranty:
+ * maps each of the seven Mitti product options (insulation-product.core `APPROVED_PRODUCTS`) to its manufacturer warranty
+ * (Bradford: by the job's building class, Class 1 or Class 2 to 10 — CSR issues one certificate for each):
  * who issues it, how long it runs, where the public document lives and which repo file under `docs/product-warranties/`
  * holds the copy that is attached to the completion pack (O47) and filed on the job (documents kind `product_warranty`).
  *
@@ -23,6 +24,21 @@ export const PRODUCT_WARRANTY_DOC_KIND = "product_warranty";
 export const WARRANTY_COPY_PROVIDED_EVENT = "warranty_copy_provided";
 
 export type WarrantyFamily = "bradford_gold" | "pink_batts" | "earthwool";
+/** NCC building class groups a manufacturer's warranty can depend on (CSR Bradford: one certificate per group). */
+export type WarrantyBuildingClass = "class_1" | "class_2_10";
+
+/** Hold reason when a Bradford product went in but the job has no building class to pick its certificate. */
+export const BRADFORD_CLASS_HOLD = "Building class not recorded — can't choose the Bradford warranty";
+
+/** The job's NCC building class ("Class 1", "Class 2 sole-occupancy unit" — installer-led.core classFromPropertyType or the
+ *  building_class answer) as a warranty class group; null when not recorded or not Class 1 to 10. */
+export function warrantyClassOf(buildingClass: string | null | undefined): WarrantyBuildingClass | null {
+  const m = /^\s*class\s+(\d+)/i.exec(String(buildingClass ?? ""));
+  const n = m ? Number(m[1]) : NaN;
+  if (n === 1) return "class_1";
+  if (n >= 2 && n <= 10) return "class_2_10";
+  return null;
+}
 
 export type ProductWarranty = {
   family: WarrantyFamily;
@@ -41,14 +57,23 @@ export type ProductWarranty = {
   attachmentName: string;
   /** How to obtain the document when no public copy exists (none at present). */
   requestFrom: string | null;
+  /** Set when the document only covers one building class group (Bradford); absent = any class. */
+  buildingClass?: WarrantyBuildingClass;
 };
 
 export const PRODUCT_WARRANTIES: readonly ProductWarranty[] = [
+  // CSR's current certificates (Jo, 3 Nov 2026). Each says it does not apply to the other class; ceiling batts are un-faced.
   {
-    family: "bradford_gold", productName: "Bradford Gold", manufacturer: "CSR Bradford (CSR Building Products Ltd)",
-    documentTitle: "Bradford Home Insulation lifetime warranty (life of the home = 70 years)", warranty: { kind: "years", years: 70 },
+    family: "bradford_gold", productName: "Bradford Gold", manufacturer: "CSR Bradford (CSR Building Products Ltd)", buildingClass: "class_1",
+    documentTitle: "Bradford Glasswool Insulation Warranty — Class 1 buildings (houses and townhouses), 70 years", warranty: { kind: "years", years: 70 },
     sourceUrls: ["https://www.csrbradford.com.au/products/ceiling-insulation/insulation/goldceilingbatts"],
-    pdfPath: `${WARRANTY_DIR}/bradford-au-lifetime-warranty.pdf`, attachmentName: "Bradford-Gold-product-warranty.pdf", requestFrom: null,
+    pdfPath: `${WARRANTY_DIR}/bradford-glasswool-warranty-class-1.pdf`, attachmentName: "Bradford-Gold-product-warranty.pdf", requestFrom: null,
+  },
+  {
+    family: "bradford_gold", productName: "Bradford Gold", manufacturer: "CSR Bradford (CSR Building Products Ltd)", buildingClass: "class_2_10",
+    documentTitle: "Bradford Glasswool Insulation Warranty — Class 2 to 10 buildings (units), 25 years", warranty: { kind: "years", years: 25 },
+    sourceUrls: ["https://www.csrbradford.com.au/products/ceiling-insulation/insulation/goldceilingbatts"],
+    pdfPath: `${WARRANTY_DIR}/bradford-glasswool-warranty-class-2-10.pdf`, attachmentName: "Bradford-Gold-product-warranty.pdf", requestFrom: null,
   },
   {
     family: "pink_batts", productName: "Fletchers Pink Batts", manufacturer: "Fletcher Insulation Pty Ltd",
@@ -88,9 +113,19 @@ export function confirmedProductNames(p7Products: string | null | undefined): st
   return [...new Set(out)];
 }
 
-export const warrantyForOption = (option: string | null | undefined): ProductWarranty | null => {
+/** True when this product's warranty depends on the building class (Bradford) and the job has none recorded. */
+export function warrantyNeedsBuildingClass(option: string | null | undefined, buildingClass: string | null | undefined): boolean {
   const f = warrantyFamilyForOption(option);
-  return f ? PRODUCT_WARRANTIES.find((w) => w.family === f) ?? null : null;
+  return !!f && PRODUCT_WARRANTIES.some((w) => w.family === f && w.buildingClass) && warrantyClassOf(buildingClass) === null;
+}
+
+/** The warranty document for one product option on a job of this building class. Bradford needs the class (null without it);
+ *  Pink Batts and Earthwool ignore it. */
+export const warrantyForOption = (option: string | null | undefined, buildingClass?: string | null): ProductWarranty | null => {
+  const f = warrantyFamilyForOption(option);
+  if (!f) return null;
+  const cls = warrantyClassOf(buildingClass);
+  return PRODUCT_WARRANTIES.find((w) => w.family === f && (!w.buildingClass || w.buildingClass === cls)) ?? null;
 };
 
 /** "70 years" / "lifetime" / "not confirmed" for display. */
@@ -119,7 +154,7 @@ export function installedProductOptions(x: { installDayProducts: readonly (strin
 }
 
 export type WarrantyAttachDecision = {
-  /** Warranty documents to attach to the completion pack and file on the job (one per manufacturer, even when two options share it). */
+  /** Warranty documents to attach to the completion pack and file on the job (one per document, even when two options share it). */
   attach: ProductWarranty[];
   /** Installed products whose warranty document is NOT on file, with the reason the owner cannot be given a copy yet. */
   missing: { product: string; reason: string }[];
@@ -131,23 +166,25 @@ export type WarrantyAttachDecision = {
  * What the completion pack can do about warranties. `onFile(pdfPath)` says whether the repo copy is bundled. The pack still
  * sends when something is missing; nothing is recorded then and the AP signature holds (see `warrantyHoldReason`).
  */
-export function decideWarrantyAttachment(products: readonly string[], onFile: (pdfPath: string) => boolean): WarrantyAttachDecision {
+export function decideWarrantyAttachment(products: readonly string[], onFile: (pdfPath: string) => boolean, buildingClass?: string | null): WarrantyAttachDecision {
   const attach: ProductWarranty[] = [];
   const missing: { product: string; reason: string }[] = [];
   for (const p of products) {
-    const w = warrantyForOption(p);
+    if (warrantyNeedsBuildingClass(p, buildingClass)) { missing.push({ product: p, reason: BRADFORD_CLASS_HOLD }); continue; }
+    const w = warrantyForOption(p, buildingClass);
     if (!w) { missing.push({ product: p, reason: `${p} is not one of the approved product options, so no warranty document is mapped to it.` }); continue; }
-    if (!onFile(w.pdfPath)) { missing.push({ product: p, reason: warrantyHoldReason(p) }); continue; }
+    if (!onFile(w.pdfPath)) { missing.push({ product: p, reason: warrantyHoldReason(p, buildingClass) }); continue; }
     if (!meetsEscMinimum(w)) { missing.push({ product: p, reason: `${w.manufacturer}'s warranty term for ${p} is not confirmed to reach the ESC minimum of ${ESC_MIN_WARRANTY_YEARS} years.` }); continue; }
-    if (!attach.some((a) => a.family === w.family)) attach.push(w);
+    if (!attach.some((a) => a.pdfPath === w.pdfPath)) attach.push(w);
   }
   return { attach, missing, recordProvided: products.length > 0 && missing.length === 0 && attach.length > 0 };
 }
 
 /** The AP-signature hold reason for a product whose warranty copy could not be given to the consumer. */
-export function warrantyHoldReason(product: string): string {
+export function warrantyHoldReason(product: string, buildingClass?: string | null): string {
   if (/ecowool/i.test(product)) return "ECOWOOL is an excluded product — no warranty copy on file.";
-  const w = warrantyForOption(product);
+  if (warrantyNeedsBuildingClass(product, buildingClass)) return BRADFORD_CLASS_HOLD;
+  const w = warrantyForOption(product, buildingClass);
   const how = w?.requestFrom ? ` (${w.requestFrom})` : w ? ` (${w.manufacturer}: ${w.sourceUrls[0]})` : "";
   return `Warranty copy for ${product} not on file${how}.`;
 }

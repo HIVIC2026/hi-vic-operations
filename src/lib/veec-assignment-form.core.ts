@@ -244,6 +244,8 @@ export type ApPrerequisiteFacts = {
   warrantyCopyProvidedAt: string | null;
   /** VEU checklist G1: installed product option(s) whose manufacturer warranty PDF is not on file, so the completion pack could not give the consumer a copy (product-warranty.core). Omitted/[] = not known or all on file. */
   warrantyProductsNotOnFile?: string[];
+  /** The job's NCC building class ("Class 1", …) — Bradford's warranty depends on it; null/omitted = not recorded. */
+  warrantyBuildingClass?: string | null;
   /** Installer names on the form → when their collection notice was recorded (null = not recorded). */
   collectionNotices: { installer: string; providedAt: string | null }[];
 };
@@ -261,7 +263,7 @@ export function apPrerequisiteBlockers(x: ApPrerequisiteFacts): string[] {
   if (!x.warrantyCopyProvidedAt) {
     // G1 + decision 321: the All done email (install complete) records the copy itself when the manufacturer's PDF is on file; name the product that stops it.
     const gaps = (x.warrantyProductsNotOnFile ?? []).filter(Boolean);
-    if (gaps.length) for (const p of gaps) b.push(warrantyHoldReason(p));
+    if (gaps.length) for (const p of gaps) b.push(warrantyHoldReason(p, x.warrantyBuildingClass));
     else b.push("Product warranty copy (minimum 5 years) given to the consumer is not recorded.");
   }
   if (!x.collectionNotices.length) b.push("No installer is listed on the form yet.");

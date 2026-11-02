@@ -922,12 +922,12 @@ export async function apPrerequisites(jobId: string): Promise<string[]> {
     })),
   };
   // G1 (Jo 25 Oct) + decision 321: when no copy is recorded, say which installed product's warranty PDF is not on file (the All done email at install complete — or the completion pack — would have recorded it otherwise).
-  if (!f.warrantyCopyProvidedAt)
-    f.warrantyProductsNotOnFile = await (
-      await import("./product-warranty.server")
-    )
-      .warrantyGapsFor(jobId)
-      .catch(() => []);
+  // Bradford: the hold reason depends on the job's building class (no class → "Building class not recorded …").
+  if (!f.warrantyCopyProvidedAt) {
+    const gaps = await (await import("./product-warranty.server")).warrantyGapFactsFor(jobId).catch(() => ({ products: [] as string[], buildingClass: null }));
+    f.warrantyProductsNotOnFile = gaps.products;
+    f.warrantyBuildingClass = gaps.buildingClass;
+  }
   return apPrerequisiteBlockers(f);
 }
 

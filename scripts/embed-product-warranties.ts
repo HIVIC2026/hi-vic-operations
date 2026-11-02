@@ -11,7 +11,11 @@ import { PRODUCT_WARRANTIES, looksLikePdf } from "../src/lib/product-warranty.co
 const ROOT = new URL("..", import.meta.url).pathname;
 const entries: string[] = [];
 const report: string[] = [];
+// One entry per file: a manufacturer can have several documents (Bradford: Class 1 and Class 2 to 10), each its own path.
+const seen = new Set<string>();
 for (const w of PRODUCT_WARRANTIES) {
+  if (seen.has(w.pdfPath)) continue;
+  seen.add(w.pdfPath);
   const abs = join(ROOT, w.pdfPath);
   if (!existsSync(abs)) { report.push(`MISSING  ${w.pdfPath} — ${w.requestFrom ?? `download from ${w.sourceUrls.join(" or ")}`}`); continue; }
   const bytes = new Uint8Array(readFileSync(abs));
@@ -32,4 +36,4 @@ ${entries.join("\n")}
 `;
 writeFileSync(join(ROOT, "src/lib/product-warranty.data.ts"), out);
 console.log(report.join("\n"));
-console.log(`\nEmbedded ${entries.length} of ${PRODUCT_WARRANTIES.length} warranty documents → src/lib/product-warranty.data.ts`);
+console.log(`\nEmbedded ${entries.length} of ${seen.size} warranty documents → src/lib/product-warranty.data.ts`);
