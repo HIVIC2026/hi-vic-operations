@@ -1,3 +1,6 @@
+## Jo 3 Nov 10:39am Rapid recorded price
+- [ ] Add only Rapid live PIESA line $250 ex GST / $275 inc via normal recorded path, reason `Jo 3 Nov: Rapid PIESA $275 inc`; verify quote and whole-fee pass-through. No other data changes, sends or publishing.
+
 ## Jo 3 Nov 10:30am installer safety-check correction
 - [x] Test-first restored installer-owned price-list owner fee and whole-fee pass-through, preserving recorded quote/payout values; website owner/payout unchanged. Requested examples and related focused tests pass. Broader historical suites have identical baseline failures (13/16/4). Rapid has no saved PIESA line; Reinsulate still $350 pending approved recorded saves. No data, sends or publishing.
 - [ ] Authenticated pricing flow proof: BLOCKED by unavailable Jo admin session; no new TEST/live data created to bypass it.
