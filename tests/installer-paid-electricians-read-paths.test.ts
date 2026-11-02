@@ -175,3 +175,15 @@ test("actual installer resolver uses Rapid's $275 list instead of the REC's $999
   const m = usualModule(async () => ({ businessId: "a", name: "Rapid", piesaIncGst: 275 }), candidates);
   expect(await m.mittiElectricianForJob("j", null, [], "audit")).toMatchObject({ ready: true, priceIncGst: 275 });
 });
+
+test("installer-source payout passes Rapid's whole $275 even with both payee flags off", async () => {
+  const f = reads({ businesses: [{ id: "rapid", name: "Rapid", in_house: false, pays_own_electricians: false }], rate_cards: [{ id: "cr", business_id: "rapid" }], rate_card_items: [{ rate_card_id: "cr", unit_price_ex_gst: 250 }], workflow_events: [] });
+  const payees = await priceModule(f).safetyCheckPayeesFor([{ id: "j", channel: "installer_sourced", originating_installer_business_id: "rapid" }]);
+  expect(payees.get("j")).toEqual({ businessId: "rapid", name: "Rapid", piesaIncGst: 275 });
+});
+
+test("installer-source payout preserves the recorded quote fee rather than today's list", async () => {
+  const f = reads({ businesses: [{ id: "rapid", name: "Rapid", in_house: false, pays_own_electricians: false }], rate_cards: [{ id: "cr", business_id: "rapid" }], rate_card_items: [{ rate_card_id: "cr", unit_price_ex_gst: 250 }], quotes: [{ job_id: "j", quote_items: [{ code: "PIESA", line_total_inc_gst: 300 }] }] });
+  const payees = await priceModule(f).safetyCheckPayeesFor([{ id: "j", channel: "installer_sourced", originating_installer_business_id: "rapid" }]);
+  expect(payees.get("j")?.piesaIncGst).toBe(300);
+});
