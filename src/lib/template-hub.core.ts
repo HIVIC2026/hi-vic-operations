@@ -438,7 +438,7 @@ const OWNER: TemplateEntry[] = [
   ENTRY({ id: "owner:quick-taps-email", section: "owner", step: "ready_check", kind: "email", code: "", name: "It's almost time for your free Ready Check", when: "Jo presses Send on Jobs › Choose installer (and the day-2 reminder), with the quick taps text", who: "Owner", approvalNote: "Jo 2 Nov 2026", gate: { kind: "email" },
     source: { builder: "src/lib/quick-taps-email.core.ts", fn: "renderQuickTapsEmail", sender: "src/lib/area-batch.server.ts" },
     render: () => email(renderQuickTapsEmail({ firstName: "Helen", link: `${JOB}?screen=taps`, unsubscribeUrl: UNSUB, reminder: false })) }),
-  ENTRY({ id: "owner:quick-taps-reminder-email", section: "owner", step: "ready_check", kind: "email", code: "", name: "Just a reminder - confirm your details", when: "Jo presses Send on Jobs › Choose installer (and the day-2 reminder), with the quick taps text", who: "Owner", approvalNote: "Jo 2 Nov 2026", gate: { kind: "email" },
+  ENTRY({ id: "owner:quick-taps-reminder-email", section: "owner", step: "ready_check", kind: "email", code: "", name: "Just a reminder - confirm your details", when: "2 days after Send if the owner hasn't answered, with the reminder text", who: "Owner", approvalNote: "Jo 2 Nov 2026", gate: { kind: "email" },
     source: { builder: "src/lib/quick-taps-email.core.ts", fn: "renderQuickTapsEmail", sender: "src/lib/area-batch.server.ts" },
     render: () => email(renderQuickTapsEmail({ firstName: "Helen", link: `${JOB}?screen=taps`, unsubscribeUrl: UNSUB, reminder: true })) }),
   // Batch 3a: an expired installation quote closes the job; the owner gets one email with "Send me a new quote". Approved by Jo 29 Oct 2026.

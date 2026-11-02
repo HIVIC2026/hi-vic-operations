@@ -40,4 +40,7 @@ describe("template hub", () => {
       expect(e!.render().kind).toBe("email");
     });
   }
+  test("final review 5: the reminder email says when it goes", () => {
+    expect(TEMPLATE_ENTRIES.find((x) => x.id === "owner:quick-taps-reminder-email")!.when).toBe("2 days after Send if the owner hasn't answered, with the reminder text");
+  });
 });
