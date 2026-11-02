@@ -334,7 +334,8 @@ export type SignInput = {
   signatoryName: string;
   ticked: boolean;
   answers: Record<string, string>;
-  method: "link_code" | "login" | "office";
+  /** quick_tap_link = owner tapped their own quick-taps link (no code); only for trade_contact_share (Jo 2 Nov 2026). */
+  method: "link_code" | "login" | "office" | "quick_tap_link";
   signedBy: string | null;
   ip: string | null;
   userAgent: string | null;
@@ -348,6 +349,8 @@ export type SignInput = {
 /** Records one signed document: exact text, version, identity, IP; files a PDF copy; queues the owner's emailed copy. */
 export async function signGateDoc(i: SignInput) {
   if (i.key === 'piesa_copy_receipt' || i.key === 'veec_assignment_consent') throw new WorkflowError('This document is no longer required.');
+  if (i.method === "quick_tap_link" && (i.key !== "trade_contact_share" || !i.quickTapsBatchId))
+    throw new WorkflowError("This can only be confirmed from the owner's own link.");
   const d = gateDoc(i.key);
   if (!i.ticked) throw new WorkflowError("Please tick the box to sign.");
   if (i.signatoryName.trim().length < 2) throw new WorkflowError("Please type your full name.");
