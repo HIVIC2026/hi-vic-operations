@@ -112,16 +112,11 @@ describe("Pre Insulation Electrical Safety Assessment (PIESA) payment (Jo 7 Oct)
       total: "$3,728.00",
     });
     const text = paymentTermsText(m);
-    expect(text).toContain(
-      "$349.00 for the Pre Insulation Electrical Safety Assessment (PIESA), now that I accept, by card or bank transfer",
-    );
-    expect(text).toContain("non-refundable once the PIESA is done");
-    expect(text).toContain("only if the electrician finds they're needed");
-    expect(text).toContain(
-      "$337.90 (10% of the remaining $3,379.00) to book my install day, by card, bank transfer or PayID",
-    );
-    expect(text).toContain("$3,041.10 on install day, by bank transfer or PayID");
-    expect(text).toContain("no card fee");
+    expect(text).toContain("Electrical safety check (PIESA): $349.00");
+    expect(text).toContain("10% deposit to book your install day: $337.90");
+    expect(text).toContain("The rest: $3,041.10");
+    expect(text).toContain("Your price (incl. GST): $3,728.00");
+    expect(text).toContain("No fees.");
     expect(text).not.toMatch(/instalment|half|\{/i);
     // the draft file Jo approves holds exactly this wording
     expect(

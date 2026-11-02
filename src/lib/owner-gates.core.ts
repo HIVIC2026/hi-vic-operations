@@ -1,6 +1,8 @@
 // Owner paperwork gates A–D. Pure: one catalogue + one evaluator shared by every journey (web, installer single, bulk J1, bulk J2).
 // Wording that Jo has not approved is a clearly marked DRAFT slot: usable on TEST jobs only, blocks real jobs.
 
+import { CUSTOMER_AGREEMENT_V1_3, paymentTermsPart } from "./customer-agreement.core";
+
 export type Gate = "A" | "B" | "C" | "D";
 export const GATE_LABEL: Record<Gate, string> = {
   A: "Before any visit",
@@ -40,18 +42,36 @@ export type GateDoc = {
 
 const DRAFT = "DRAFT — wording pending Jo's approval. Not for use on real jobs.";
 
-/** Decision 365: the payment steps exactly as `paymentPlan()` charges them (payments.core, decisions 139/140/141/302).
- *  {fee} = the quote's PIESA line, {deposit} = 10% of {remaining} (= total − fee), {balance} = the rest, {total} = quote
- *  total after the VEU discount. Amounts always come from the server, never from owner answers. */
-export const PAYMENT_TERMS_VERSION = "steps-2026-10-29b";
-export const PAYMENT_TERMS_BODY = [
-  "How I'll pay for this job. My install invoice is {total} inc GST, and there is no card fee.",
-  "1. Safety check: {fee} for the Pre Insulation Electrical Safety Assessment (PIESA), now that I accept, by card or bank transfer. I understand it's non-refundable once the PIESA is done, even if it finds the job can't go ahead.",
-  "2. Electrical fixes, only if the electrician finds they're needed: I'll see the price first, and if I approve them I pay for the fixes in full then, on their own invoice, by card or bank transfer.",
-  "3. Install deposit: {deposit} (10% of the remaining {remaining}) to book my install day, by card, bank transfer or PayID.",
-  "4. Balance: {balance} on install day, by bank transfer or PayID.",
-  "I can pay whatever is left at any time by bank transfer or PayID.",
-].join("\n\n");
+/** The payment terms page of Customer Agreement v1.3 (approved 2 Nov 2026), as plain owner-readable text: the agreement's
+ *  markup ("## " headings, "$ " money rows, " | " separators, literal "\\n") is turned into plain lines, every approved word kept.
+ *  Agreement placeholders map to the amounts `paymentPlan()` charges: {safety_check} = {fee}, {deposit} = {deposit} (10% of
+ *  total − fee), {rest} = {balance}, {your_price} = {total}. The "Job … · owner · address" line is left out (job details are
+ *  not a payment-terms placeholder). Amounts always come from the server, never from owner answers. */
+export const PAYMENT_TERMS_VERSION = "customer-agreement-1.3";
+const PT_PLACEHOLDERS: Record<string, string> = { safety_check: "{fee}", deposit: "{deposit}", rest: "{balance}", your_price: "{total}" };
+export function paymentTermsPlain(markup: string): string {
+  const blocks: string[] = [];
+  let heading = false;
+  for (const raw of markup.split("\n")) {
+    const line = raw.trim().replace(/\{(\w+)\}/g, (m, k: string) => PT_PLACEHOLDERS[k] ?? m);
+    if (!line || /^Job \{/.test(line)) continue;
+    if (line.startsWith("## ")) {
+      blocks.push(line.slice(3).replace(/^[^\p{L}\p{N}]+/u, ""));
+      heading = true;
+      continue;
+    }
+    if (line.startsWith("$ ")) {
+      const [label = "", amount = ""] = line.slice(2).split(" | ");
+      const parts = label.split("\\n");
+      const last = parts.pop() ?? "";
+      blocks.push([...parts, `${last}: ${amount}`].join("\n"));
+    } else if (heading || (line.startsWith("- ") && /(^|\n)- /.test(blocks.at(-1) ?? ""))) blocks[blocks.length - 1] += `\n${line}`;
+    else blocks.push(line);
+    heading = false;
+  }
+  return blocks.join("\n\n");
+}
+export const PAYMENT_TERMS_BODY = paymentTermsPlain(paymentTermsPart(CUSTOMER_AGREEMENT_V1_3));
 
 /** Placeholder bodies are deliberately marked DRAFT; never present them as approved wording. {placeholders} are filled at signing. */
 export const LAWYER_V = "lawyer-2026-10-06-v1";
@@ -156,7 +176,7 @@ export const GATE_DOCS: GateDoc[] = [
   // the retired 50/50 instalment choice of "jo-2026-10-21" (signed copies keep their stored text as history). No option is
   // chosen. New wording = NEW version, so it stays unapproved (DRAFT: TEST jobs only) until Jo approves it in Settings ›
   // Owner paperwork (owner_paperwork_approvals row for this exact version + body). Draft copy:
-  // docs/templates/owner/owner-payment-terms-steps-2026-10-29b.md.
+  // docs/templates/owner/owner-payment-terms-customer-agreement-1.3.md.
   {
     key: "payment_terms",
     gate: "B",
