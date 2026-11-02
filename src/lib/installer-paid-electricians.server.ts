@@ -6,33 +6,28 @@ import type { InHousePiesaBusiness } from "./installer-paid-electricians.core";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { chunkIds } from "./sweep-batch.core";
 import { melbourneToday } from "./melbourne-time.core";
-import { ownerSafetyCheckIncGst } from "./safety-check-price.core";
 
 /** Pending schema uses a local read overlay; a missing flag never enables the arrangement. */
-export async function ownElectricianBusinessesFor(ids: string[]): Promise<Map<string, InHousePiesaBusiness>> {
+export async function installerSafetyCheckBusinessesFor(ids: string[]): Promise<Map<string, InHousePiesaBusiness>> {
   const out = new Map<string, InHousePiesaBusiness>();
   if (!ids.length) return out;
   // Local schema overlay until Jo applies the pending SQL; generated types are not deployment proof.
   const db = admin as unknown as SupabaseClient;
-  const { data: businesses, error } = await db.from("businesses").select("id,name,in_house,pays_own_electricians").in("id", [...new Set(ids)]).or("in_house.eq.true,pays_own_electricians.eq.true");
+  const { data: businesses, error } = await db.from("businesses").select("id,name,in_house,pays_own_electricians").in("id", [...new Set(ids)]);
   if (error) throw new Error("Could not read installer electrician-payment configuration.");
-  const enabled = ((businesses ?? []) as InHousePiesaBusiness[]).filter(paysOwnElectricians);
+  const enabled = (businesses ?? []) as InHousePiesaBusiness[];
   if (!enabled.length) return out;
   // Speed (installer screens, Task 5): the cards and their PIESA lines are read side by side (the lines through the same
   // card filters) — one round instead of two. Lines are kept only for the cards read; errors fail as before.
   const today = melbourneToday();
   const enabledIds = enabled.map(b => b.id);
-  const [{ data: cards, error: ce }, { data: cardLines, error: le }, { data: standard, error: se }] = await Promise.all([
+  const [{ data: cards, error: ce }, { data: cardLines, error: le }] = await Promise.all([
     admin.from("rate_cards").select("id,business_id,version,effective_from")
       .in("business_id", enabledIds).eq("is_active", true).lte("effective_from", today).order("version", { ascending: false }),
     db.from("rate_card_items").select("rate_card_id,code,unit_price_ex_gst,rate_cards!inner(business_id)")
       .in("rate_cards.business_id", enabledIds).eq("rate_cards.is_active", true).lte("rate_cards.effective_from", today).ilike("code", "piesa"),
-    admin.from("retail_estimator_settings").select("piesa_assessment_inc_gst").eq("is_current", true).maybeSingle(),
   ]);
-  if (se) throw new Error("Could not read the standard safety check price.");
-  // Jo 3 Nov 2026: the active PIESA line only shows the partner is set up; the owner price and the installer's pay are
-  // always the single standard price (no Home Insulation Victoria markup), never the line's own figure.
-  const ownerPrice = ownerSafetyCheckIncGst(standard?.piesa_assessment_inc_gst ?? null);
+  // Jo's 10:30am correction: the installer's active list owns the installer-source fee, without markup.
   if (ce) throw new Error("Could not read the in-house PIESA rate cards.");
   if (cards?.length && le) throw new Error("Could not read the in-house PIESA prices.");
   const cardIds = new Set((cards ?? []).map(c => c.id));
@@ -40,9 +35,19 @@ export async function ownElectricianBusinessesFor(ids: string[]): Promise<Map<st
   for (const b of enabled) {
     const card = (cards ?? []).find(c => c.business_id === b.id && (lines ?? []).some(l => l.rate_card_id === c.id));
     const line = card ? (lines ?? []).find(l => l.rate_card_id === card.id) : null;
-    out.set(b.id, { id: b.id, name: b.name, in_house: b.in_house === true, pays_own_electricians: b.pays_own_electricians === true, piesaIncGst: line && Number(line.unit_price_ex_gst) > 0 ? ownerPrice : null });
+    const ex = Number(line?.unit_price_ex_gst);
+    out.set(b.id, { id: b.id, name: b.name, in_house: b.in_house === true, pays_own_electricians: b.pays_own_electricians === true, piesaIncGst: Number.isFinite(ex) && ex > 0 ? Math.round(ex * 1.1 * 100) / 100 : null });
   }
   return out;
+}
+
+export async function ownElectricianBusinessesFor(ids: string[]): Promise<Map<string, InHousePiesaBusiness>> {
+  return new Map([...(await installerSafetyCheckBusinessesFor(ids))].filter(([, b]) => paysOwnElectricians(b)));
+}
+
+export async function installerSafetyCheckPrice(businessId: string | null | undefined): Promise<number | null> {
+  if (!businessId) return null;
+  return (await installerSafetyCheckBusinessesFor([businessId])).get(businessId)?.piesaIncGst ?? null;
 }
 
 /** Compatibility alias for payment readers only; held readers must use in-house.core. */
