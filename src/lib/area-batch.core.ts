@@ -1,4 +1,5 @@
 // Area batches (A48 batch 2). PURE: no I/O. Owner answers and the roof fact come in as plain values.
+import { displayName } from "./display-name.core";
 import { distanceM } from "./geo.core";
 import { installerCanBeOffered, type WaitingInstaller } from "./installer-waiting-columns.core";
 import { QUICK_TAPS_ANSWERED_EVENT, QUICK_TAPS_DECLINE_REASON } from "./quick-taps.core";
@@ -85,7 +86,7 @@ export const QUICK_TAPS_REMINDER_SMS_TYPE = "quick_taps_reminder" as const;
 
 /** The owner's own My job link, on the quick taps screen. */
 export const quickTapsLink = (myJobLink: string) => `${myJobLink}?screen=taps`;
-const hiName = (fullName: string | null | undefined) => (fullName ?? "").trim().split(/\s+/)[0] || "there";
+const hiName = (fullName: string | null | undefined) => displayName(fullName).split(" ")[0] || "there";
 /** Jo approved 30 Oct 2026 (replaces the spec's first wording). Verbatim. No name → "Hi there," (Jo approved). */
 export const quickTapsText = (fullName: string | null | undefined, link: string) =>
   `Hi ${hiName(fullName)}, great news - it's almost time for your free Ready Check! Please confirm a few quick details for your quote: ${link} - Home Insulation Victoria`;

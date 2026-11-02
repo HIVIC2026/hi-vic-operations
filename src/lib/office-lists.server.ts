@@ -7,6 +7,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { loadOffice } from "./office.server";
 import { jobsStage, surnameOf, waitingOnLine, type JobsStage } from "./office-jobs.core";
 import { tidyEnquiryDetails, type DetailsProblem } from "./name-address-tidy.core";
+import { displayName } from "./display-name.core";
 import { addressLine, estimateDollars, matchesColumnFilters, type ColumnFilters } from "./enquiry-columns.core";
 import { savedPriceFromEstimate } from "./launch-campaign.core";
 import { CATEGORY_RANK, categoryCounts, enquiryCategory, inView, ownerWrote, type EnquiryCategory, type EnquiryView } from "./enquiry-categories.core";
@@ -88,7 +89,7 @@ async function coveredFn(testOnly = false) {
   if (be || ce) throw new Error(`Coverage could not be loaded: ${(be ?? ce)!.message}`);
   const { tradeCoverage } = await import("./coverage.core");
   type P = import("./coverage.core").CoveragePartner;
-  const partners = (businesses ?? []).map((b) => ({ ...b, name: b.trading_name || b.name, credentials: (credentials ?? []).filter((c) => c.business_id === b.id) })) as unknown as P[];
+  const partners = (businesses ?? []).map((b) => ({ ...b, name: displayName(b.trading_name || b.name), credentials: (credentials ?? []).filter((c) => c.business_id === b.id) })) as unknown as P[];
   const cache = new Map<string, boolean>();
   return (postcode: string | null, suburb: string | null) => {
     const k = `${postcode ?? ""}|${suburb ?? ""}`;
@@ -299,7 +300,7 @@ export async function loadActiveJobsList(p: JobsListParams, testJobIds?: string[
     const e = ex.get(id)!;
     const prop = e["properties"] as { suburb: string | null; postcode: string | null; answers: Record<string, unknown> | null } | null;
     const ownJob = r["channel"] === "installer_sourced";
-    const installer = activeJobInstaller(s(r["channel"]), s(r["installer_name"]), s(r["originating_business_name"]));
+    const installer = displayName(activeJobInstaller(s(r["channel"]), s(r["installer_name"]), s(r["originating_business_name"]))) || null;
     const stage = jobsStage({ stage: s(r["stage"]), priorStage: s(e["prior_stage"]), hasInstaller: !!installer });
     if (!stage) continue;
     const last = heard.last.get(id) ?? null;
@@ -307,7 +308,7 @@ export async function loadActiveJobsList(p: JobsListParams, testJobIds?: string[
     const st = statusOf.get(id);
     const t = totals(id);
     rows.push({
-      id, jobNumber: String(r["job_number"]), owner: s(r["owner_name"]) ?? "", surname: surnameOf(s(r["owner_name"])), suburb: prop?.suburb ?? null, stage,
+      id, jobNumber: String(r["job_number"]), owner: displayName(s(r["owner_name"])), surname: surnameOf(s(r["owner_name"])), suburb: prop?.suburb ?? null, stage,
       next: nextStep(st?.status ?? null, { onHold, readyCheckBookingOn: switches.readyCheckBooking, release: releases.get(id)?.state ?? null }),
       days: daysAtStage(st?.enteredStageAt ?? null, String(e["created_at"] ?? r["created_at"]), now),
       areaM2: areaCell(measured.get(id) ?? null, e["estimated_area_m2"] == null ? null : Number(e["estimated_area_m2"])),

@@ -7,6 +7,7 @@ import { savedPriceFromEstimate } from "./launch-campaign.core";
 import { insulationChip } from "./office-filters.core";
 import { selectAgreedRate } from "./allocation.core";
 import { melbourneToday } from "./melbourne-time.core";
+import { displayName } from "./display-name.core";
 import { coverageLookup, installerWaiting, waitingSize, type InstallerWaitingRow, type WaitingInstaller, type WaitingPartner } from "./installer-waiting-columns.core";
 
 type Row = Record<string, unknown>;
@@ -111,7 +112,7 @@ export async function loadInstallerWaitingList(opts: { includeTest: boolean }, t
 
   const hasInstaller = new Set(assigned.map((a) => String(a["job_id"])));
   const offersBy = new Map<string, { status: string; offered_at: string; business_name: string | null }[]>();
-  for (const o of offers) { const k = String(o["job_id"]); offersBy.set(k, [...(offersBy.get(k) ?? []), { status: String(o["status"]), offered_at: String(o["offered_at"]), business_name: (o["businesses"] as { name?: string } | null)?.name ?? null }]); }
+  for (const o of offers) { const k = String(o["job_id"]); offersBy.set(k, [...(offersBy.get(k) ?? []), { status: String(o["status"]), offered_at: String(o["offered_at"]), business_name: displayName((o["businesses"] as { name?: string } | null)?.name) || null }]); }
   const savedBy = new Map(saved.map((r) => [String(r["job_id"]), r]));
   const measuredBy = new Map<string, number>();
   for (const m of measured) { const v = n(m["measured_area_m2"]); if (v != null) measuredBy.set(String(m["job_id"]), v); }
@@ -136,7 +137,7 @@ export async function loadInstallerWaitingList(opts: { includeTest: boolean }, t
     const postcode = (prop?.postcode ?? "").trim();
     const declared = s(sv?.["saved_insulation"]) ?? normaliseInsulation(declaredExtras(prop?.answers ?? null).existing_insulation);
     rows.push({
-      id, jobNumber: String(j["job_number"]), ownerName: ((j["owners"] as { full_name?: string | null } | null)?.full_name ?? "").trim(),
+      id, jobNumber: String(j["job_number"]), ownerName: displayName((j["owners"] as { full_name?: string | null } | null)?.full_name),
       suburb: (prop?.suburb ?? "").trim(), postcode,
       ...waitingSize({ measuredM2: measuredBy.get(id) ?? null, savedM2: n(sv?.["saved_area_m2"]), estimatedM2: n(j["estimated_area_m2"]) }),
       insulation: insulationChip(declared),

@@ -29,7 +29,7 @@ export const ymdShort = (ymd: string, withWeekday = false) =>
     .format(new Date(`${ymd}T12:00:00Z`))
     .replace(",", "");
 export const firstName = (full: string | null | undefined): string | null =>
-  (full ?? "").trim().split(/\s+/)[0] || null;
+  displayName(full).split(" ")[0] || null;
 
 /** Decision 48: the quiet source label. Never the installer's own business name repeated back. */
 export function sourceLabel(channel: string | null | undefined): string | null {
@@ -178,6 +178,7 @@ import {
 import { BASIC_PRICE, isPriceNextAction } from "./ready-check-basics.core";
 import { OWNER_PIESA_CONFIRM_WAITING, FIXES_FORM_LINK_LABEL } from "./trade-shared-consts.core";
 import { PIESA_FULL } from "./job-wording";
+import { displayName } from "./display-name.core";
 
 /** "Needs finishing: price, owner mobile/email/permission on the Mitti form" → the approved M2 list ("Your price", "The owner's email", …). */
 export function needsFinishingList(nextAction: string | null | undefined): string[] {

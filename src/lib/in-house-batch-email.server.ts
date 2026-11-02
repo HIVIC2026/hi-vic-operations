@@ -3,6 +3,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { assertCustomerDeliveryAllowed } from "./comms.server";
 import { sendGuardedOwnerEmail } from "./owner-email-send.server";
 import { genericMail } from "./mail-mjml.core";
+import { displayName } from "./display-name.core";
 
 const PURPOSE = "in_house_partner_call";
 const PENDING = "in_house_partner_call_email_pending";
@@ -30,7 +31,7 @@ export async function sendInHousePartnerCall(jobId: string): Promise<string> {
     || !assignments.data?.some(a => a.business_id === details.business_id)) return "not applicable";
   if (ledger.data?.length) return "already attempted";
   try { await assertCustomerDeliveryAllowed(jobId, "Ready Check partner call email"); } catch { return "messages held"; }
-  const replace = (text: string) => text.replaceAll("{{partner_trading_name}}", details.partner_trading_name ?? "");
+  const replace = (text: string) => text.replaceAll("{{partner_trading_name}}", displayName(details.partner_trading_name));
   const subject = replace(template.subject), text = replace(template.body_markdown);
   // Unsupported placeholders fail closed; approved text is escaped, never executed as HTML.
   if (/\{\{[^}]+\}\}/.test(subject + text)) return "template needs review";

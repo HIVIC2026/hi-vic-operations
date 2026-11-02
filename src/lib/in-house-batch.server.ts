@@ -7,6 +7,7 @@ import { sendInHousePartnerCall } from "./in-house-batch-email.server";
 import { inHouseFactsFor } from "./installer-paid-electricians.server";
 import { inHouseEnableBlockers } from "./in-house.core";
 import { chunkIds } from "./sweep-batch.core";
+import { displayName } from "./display-name.core";
 
 // Pending tables/columns are deliberately a local overlay, not generated schema edits.
 const db = supabaseAdmin as unknown as SupabaseClient;
@@ -52,7 +53,7 @@ export async function loadInHouseBatches() {
     byIds<{ property_id: string; value: unknown }>(propertyIds, (c,a,b) => db.from("property_facts").select("property_id,value").in("property_id", c).eq("fact_key", "coordinates").eq("is_current", true).order("id").range(a,b)),
     byIds<{ job_id: string; event_type: string; details: Record<string, unknown> | null; created_at: string }>(ids, (c,a,b) => db.from("workflow_events").select("job_id,event_type,details,created_at").in("job_id", c).in("event_type", [QUICK_TAPS_ANSWERED_EVENT, "area_batch_sent"]).order("created_at", { ascending: false }).order("id", { ascending: false }).range(a,b)),
   ]) : [[], [], [], [], [], []];
-  const partners: InHousePartner[] = businesses.map(b => ({ ...b, name: b.trading_name || b.name, openJobs: assignments.filter(a => a.business_id === b.id && a.role === "installer").length }));
+  const partners: InHousePartner[] = businesses.map(b => ({ ...b, name: displayName(b.trading_name || b.name), openJobs: assignments.filter(a => a.business_id === b.id && a.role === "installer").length }));
   const batchJobs: BatchJob[] = jobs.map(j => {
     const p = properties.find(p => p.id === j.property_id), coords = facts.find(f => f.property_id === j.property_id)?.value;
     const answer = events.find(e => e.job_id === j.id && e.event_type === QUICK_TAPS_ANSWERED_EVENT)?.details;

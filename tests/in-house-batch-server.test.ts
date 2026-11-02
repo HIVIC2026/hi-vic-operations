@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import ts from "typescript";
 import * as rules from "../src/lib/in-house-batch.core";
+import * as displayName from "../src/lib/display-name.core";
 import * as inHouse from "../src/lib/in-house.core";
 import * as membership from "../src/lib/mitti-membership.core";
 import { QUICK_TAPS_ANSWERED_EVENT } from "../src/lib/quick-taps.core";
@@ -38,7 +39,7 @@ function fixture(failedTable?: string, failPage = -1) {
     "@/integrations/supabase/client.server": { supabaseAdmin: admin }, "./in-house-batch.core": rules,
     "./in-house-batch-email.server": { sendInHousePartnerCall:async(id:string)=>{expect(rpcCalls.length).toBeGreaterThan(0);emailCalls.push(id);return "draft";} },
     "./sweep-batch.core": { chunkIds: (ids: unknown[], n: number) => Array.from({length:Math.ceil(ids.length/n)},(_,i)=>ids.slice(i*n,(i+1)*n)) },
-    "./quick-taps.core": { QUICK_TAPS_ANSWERED_EVENT }, "./in-house.core": inHouse, "./mitti-membership.core": membership, "./melbourne-time.core": { melbourneToday: () => "2026-10-30" },
+    "./display-name.core": displayName, "./quick-taps.core": { QUICK_TAPS_ANSWERED_EVENT }, "./in-house.core": inHouse, "./mitti-membership.core": membership, "./melbourne-time.core": { melbourneToday: () => "2026-10-30" },
     "./installer-paid-electricians.server": { inHouseFactsFor: async () => ({ approvedElectricianWorkers: 1, hasActiveRateCardWithPiesa: true, mittiElectricianLogins: 1, mittiAccountInvited: true }) },
   };
   const output: any = {};
