@@ -53,38 +53,39 @@ Changing HV-3722 is a live data change, so I'll do it only after you approve it 
 # Part 2: Ask the installer about the electrician after a Mitti pickup
 
 ## What's happening now
-Jobs created automatically from a Mitti form skip Add a job, so the installer is never asked "Your electrician or ours?". The job has no preferred electrician, so the safety check (PIESA) goes back to the office. Reinsulate already has an approved usual electrician, ORLANDO POWERED, but nothing ever asks them to use it.
+Jobs created automatically from a Mitti form skip Add a job, so the installer is never asked which electrician to use. The job has no preferred electrician, so the safety check (PIESA) goes back to the office. Home Insulation Victoria has no electricians of its own, so the installer's own electrician has to do it. Reinsulate already has an approved usual electrician, ORLANDO POWERED.
 
 ## 1. Where and when the installer sees the question
-- When the job is picked up from Mitti, it shows on the installer's **My jobs** card and in their **Needs finishing** list, labelled "Choose your electrician".
-- Tapping it opens the same question and options as Add a job:
-  - their usual electrician (when they have one approved and saved), or
-  - "Home Insulation Victoria arranges it".
-- The answer is saved the same way Add a job saves it. A chosen electrician is offered the owner's times first; they are never assigned directly.
-- Once answered, the question disappears and won't be asked again.
-- No text or email is sent. Trade texts are paused, and you haven't approved any new message wording. If you want a reminder later, that would be a separate decision for you.
+- When a job is picked up from Mitti, it appears on the installer's **My jobs** card and in their **Needs finishing** list as "Choose your electrician".
+- The question uses only Add a job's own-electrician options:
+  - their usual electrician, when one is approved and saved, or
+  - name and invite another electrician.
+- There is no "Home Insulation Victoria arranges it" option.
+- The answer is saved the same way Add a job saves it. It is asked once, then disappears.
+- No text or email is sent. Trade texts are paused, and you haven't approved any wording.
 
 ## 2. If they don't answer before the safety check is due
-- Nothing waits on the answer.
-- When the safety check comes up, the job goes to the office as it does today: Home Insulation Victoria arranges it.
-- Once the office has picked or offered an electrician, the question closes. The installer can't change the choice after that.
+- **If they have an approved usual electrician:** the portal uses that electrician automatically. It records "Usual electrician used: no answer given" in the job history.
+- **If they don't have one:** the job waits, and the office gets a Needs me row, "Installer to choose electrician". No electrician is picked for them.
 
 ## 3. HV-3722
-- After this is built and published, the question shows on Reinsulate's HV-3722 card like any new pickup.
-- If you'd rather not wait for Reinsulate to answer, the office can set ORLANDO POWERED on HV-3722 itself. That's a live data change, so it needs your separate approval first.
-- Either way, only HV-3722 is touched.
+- Once this is built and published, the question shows on Reinsulate's HV-3722 card.
+- If Reinsulate doesn't answer by the time the safety check is due, ORLANDO POWERED is used automatically, because they're Reinsulate's approved usual electrician.
+- If you want ORLANDO POWERED set on HV-3722 now instead, that's a live data change and needs your separate approval. Only HV-3722 is touched.
 
 ## 4. Tests (written first)
-- A Mitti pickup with no electrician choice shows "Choose your electrician" on My jobs and in Needs finishing. A job created through Add a job doesn't show it.
-- Both options save exactly as Add a job saves them. After choosing the usual electrician, the safety check offers that electrician first.
-- If there's no approved usual electrician, only "Home Insulation Victoria arranges it" is offered.
-- A second answer, or a double tap, is refused once the choice is saved or the office has picked an electrician.
-- No answer means the safety check goes to the office, unchanged.
+- A Mitti pickup with no electrician choice shows the question. A job created through Add a job doesn't.
+- The only options are the usual electrician or an invited electrician. "HIV arranges it" never appears.
+- An answer saves exactly as Add a job saves it, and the safety check then offers that electrician first.
+- No answer, with an approved usual electrician: that electrician is used, and it's recorded once.
+- No answer, without one: the job is held with the office Needs me row, and no electrician is picked.
+- Double taps and late answers are refused once a choice is saved.
 - Another business can't see or answer the question on this job (checked as two different users).
-- Nothing is sent. TEST jobs stay TEST only.
+- Nothing is sent, and TEST jobs stay TEST only.
 - Then the related tests and the full comparable test run.
 
 ## Technical details (Part 2)
-- Pure helper `needsElectricianChoice(job)`: true when the job is from a Mitti pickup, installer-sourced, has no electrician choice event and no electrician offer or assignment yet.
-- The installer screen reuses the existing `ElectricianPicker`, and the save goes through the existing `recordJobElectricianChoice`, scoped to the installer's own business.
+- Pure helper `needsElectricianChoice(job)`, plus a fallback `electricianFallback(job, usual)` that returns either the usual electrician or a hold.
+- The installer screen reuses `ElectricianPicker`, with the "later" and HIV options hidden. The save uses the existing `recordJobElectricianChoice`.
+- The auto-offer step uses the usual electrician when no choice exists on a Mitti job. Otherwise it records a Needs me row.
 - No database changes and no new settings.
