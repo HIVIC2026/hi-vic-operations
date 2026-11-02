@@ -36,7 +36,7 @@ import { SPOT_RELEASE_PAGE, WHAT_HAPPENS_NEXT, type OwnerTurnView } from "@/lib/
 import { ownerRequestNewQuoteFn } from "@/lib/new-quote-request.functions";
 import { NEW_QUOTE_THANKS } from "@/lib/new-quote-request.core";
 import { ownerQuickTapsAddressSearchFn, ownerQuickTapsDetailsFn, ownerQuickTapsSaveFn, ownerQuickTapsStateFn } from "@/lib/quick-taps.functions";
-import { QUICK_TAPS_COPY, nextTapStep, tapOutcome, websiteQuestions, type FinalOutcome, type QuickTapAnswers, type QuickTapsView } from "@/lib/quick-taps.core";
+import { QUICK_TAPS_COPY, nextTapStep, quickTapsPassLine, tapOutcome, websiteQuestions, type QuickTapAnswers, type QuickTapsView } from "@/lib/quick-taps.core";
 import { createAddressPicker, type PickResult } from "@/lib/address-pick.core";
 import { assertInHouseActionSucceeded } from "@/lib/in-house.core";
 import { completeOwnerQuoteAcceptance, ownerQuoteCanAccept } from "@/lib/owner-quote-visibility.core";
@@ -301,7 +301,7 @@ function TapsScreen({ v, token }: { v: View; token: string }) {
   const saveDetails = useServerFn(ownerQuickTapsDetailsFn);
   const qc = useQueryClient();
   const { data: st, isLoading } = useQuery({ queryKey: ["owner-taps", token], queryFn: () => load({ data: { token } }) as Promise<QuickTapsView>, retry: false, refetchOnWindowFocus: false });
-  const [done, setDone] = useState<FinalOutcome | null>(null);
+  const [done, setDone] = useState<Extract<QuickTapsView, { kind: "done" }> | null>(null);
   const [a, setA] = useState<QuickTapAnswers>({});
   const [onFile, setOnFile] = useState<{ name: string | null; address: string | null } | null>(null);
   const [pendingName, setPendingName] = useState<string | null>(null);
@@ -310,13 +310,13 @@ function TapsScreen({ v, token }: { v: View; token: string }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   if (isLoading && !st) return <p role="status" className="py-10 text-center text-sm">Opening…</p>;
-  const view: QuickTapsView | null = done ? { kind: "done", outcome: done } : st ?? null;
+  const view: QuickTapsView | null = done ?? st ?? null;
   if (!view || view.kind === "none") return v.spotSaved ? <SpotSavedHome v={v} token={token} /> : <Home v={v} token={token} />;
   const card = "space-y-4 rounded-[22px] bg-card p-6 shadow-sm";
-  if (view.kind === "done") return <section data-testid="owner-taps" data-outcome={view.outcome} className={card}><p className="flex items-start gap-2 font-display text-xl font-extrabold">{view.outcome === "pass" && <Check className="mt-1 h-5 w-5 shrink-0 text-estimate-green" aria-hidden />}{QUICK_TAPS_COPY.outcome[view.outcome]}</p></section>;
+  if (view.kind === "done") return <section data-testid="owner-taps" data-outcome={view.outcome} className={card}><p className="flex items-start gap-2 font-display text-xl font-extrabold">{view.outcome === "pass" && <Check className="mt-1 h-5 w-5 shrink-0 text-estimate-green" aria-hidden />}{view.outcome === "pass" ? quickTapsPassLine(view.installer) : QUICK_TAPS_COPY.outcome[view.outcome]}</p></section>;
   if (view.kind === "retry") return <section data-testid="owner-taps" className={card}><button type="button" className={tapPrimary} disabled={busy} onClick={async () => {
     setErr(""); setBusy(true);
-    try { const r = await save({ data: { token, answers: {} } }); if (r.kind === "done") { setDone(r.outcome); void qc.invalidateQueries({ queryKey: ["my-job", token] }); } }
+    try { const r = await save({ data: { token, answers: {} } }); if (r.kind === "done") { setDone(r); void qc.invalidateQueries({ queryKey: ["my-job", token] }); } }
     catch (e) { setErr(errText(e)); } finally { setBusy(false); }
   }}>Try again</button>{err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}</section>;
 
@@ -328,7 +328,7 @@ function TapsScreen({ v, token }: { v: View; token: string }) {
     setErr(""); setBusy(true);
     try {
       const r = (await save({ data: { token, answers: x } })) as QuickTapsView;
-      if (r.kind === "done") { setDone(r.outcome); void qc.invalidateQueries({ queryKey: ["my-job", token] }); }
+      if (r.kind === "done") { setDone(r); void qc.invalidateQueries({ queryKey: ["my-job", token] }); }
     } catch (e) { setErr(errText(e)); } finally { setBusy(false); }
   };
   const answer = (x: QuickTapAnswers) => {

@@ -641,3 +641,14 @@ describe("My job ?screen=taps", () => {
     expect((fns.match(/createServerFn\(\{ method: "POST" \}\)\.middleware\(\[withRequestMeta\]\)/g) ?? []).length).toBe(4);
   });
 });
+
+describe("My job pass screen (Jo 2 Nov 2026)", () => {
+  const src = readFileSync(new URL("../src/routes/my-job.$token.tsx", import.meta.url), "utf8");
+  test("shows quickTapsPassLine with the installer from the server's view", () => {
+    expect(src).toContain("quickTapsPassLine(view.installer)");
+  });
+  test("keeps the view the server returned after Save (not a locally built one)", () => {
+    expect(src).not.toContain('{ kind: "done", outcome: done }');
+    expect(src).not.toContain("setDone(r.outcome)");
+  });
+});
