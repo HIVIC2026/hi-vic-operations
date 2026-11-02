@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { exGst, hivElectricianPayoutIncGst, ownerSafetyCheckIncGst, safetyCheckPayoutIncGst } from "../src/lib/safety-check-price.core";
-import { onboardedElectricianResolution } from "../src/lib/rec-onboarded.core";
+import { exGst, hivElectricianPayoutIncGst, ownerSafetyCheckIncGst, safetyCheckPayoutIncGst, withOwnerSafetyCheckPrice } from "../src/lib/safety-check-price.core";
 
 describe("Jo 3 Nov: owner always pays $349 for the safety check", () => {
   it("uses the single $349 setting, and $349 when unset", () => {
@@ -36,14 +35,14 @@ describe("Jo 3 Nov: installer jobs pass the whole $349 to the installer", () => 
   });
 });
 
-describe("Jo 3 Nov: an electrician's own $350 rate no longer sets the owner's price", () => {
-  it("approved usual electrician with $350 rate resolves ready; owner price is then the standard", () => {
-    const res = onboardedElectricianResolution({
-      legacy: { ready: true, choice: "usual", priceIncGst: 350, name: "ORLANDO POWERED", licence: "A63151", source: "installer_profile", reasons: [], needsProfile: false },
-      usual: null, candidates: [], flatPiesaIncGst: 350,
-    } as never);
-    // The resolution may carry the electrician's figure; the quote path overrides it with ownerSafetyCheckIncGst.
-    const owner = res.ready ? ownerSafetyCheckIncGst(349) : null;
-    expect(owner === null || owner === 349).toBe(true);
+describe("Jo 3 Nov: an electrician's own price no longer sets the owner's price", () => {
+  it("Orlando's $350 resolution becomes $349 for the owner", () => {
+    expect(withOwnerSafetyCheckPrice({ ready: true, priceIncGst: 350 }, 349).priceIncGst).toBe(349);
+  });
+  it("a typed $420 different-electrician price becomes $349", () => {
+    expect(withOwnerSafetyCheckPrice({ ready: true, priceIncGst: 420 }, null).priceIncGst).toBe(349);
+  });
+  it("a not-ready (held) electrician stays unpriced", () => {
+    expect(withOwnerSafetyCheckPrice({ ready: false, priceIncGst: null }, 349).priceIncGst).toBeNull();
   });
 });

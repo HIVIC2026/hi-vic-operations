@@ -35,4 +35,9 @@ export function safetyCheckPayoutIncGst(i: {
   return i.channel === "installer_sourced" ? r2(i.ownerPriceIncGst) : r2(i.hivPayoutIncGst);
 }
 
+/** A ready electrician resolution always charges the owner the standard price (typed / rate-card / REC figures ignored). */
+export function withOwnerSafetyCheckPrice<T extends { ready: boolean; priceIncGst: number | null }>(r: T, standardSettingIncGst: number | string | null | undefined): T {
+  return r.ready ? { ...r, priceIncGst: ownerSafetyCheckIncGst(standardSettingIncGst) } : r;
+}
+
 export const exGst = (inc: number, gstRate = 0.1) => r2(inc / (1 + gstRate));
