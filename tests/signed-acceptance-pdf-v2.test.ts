@@ -105,3 +105,13 @@ describe("signed acceptance helpers", () => {
     expect(formatValidUntil(new Date("2026-12-08T12:00:00Z"))).toBe("Tue 8 Dec 2026");
   });
 });
+
+describe("legacy PDF path stays light (I2)", () => {
+  test("signed-pdf.server has no static import of the new PDF kit (pdf-look.server, customer-agreement-pdf.server, fontkit)", () => {
+    const src = readFileSync(new URL("../src/lib/signed-pdf.server.ts", import.meta.url), "utf8");
+    const staticImports = src.split("\n").filter((l) => /^\s*import\s(?!type\b)/.test(l));
+    for (const mod of ["pdf-look.server", "customer-agreement-pdf.server", "@pdf-lib/fontkit"]) {
+      expect(staticImports.filter((l) => l.includes(mod)), mod).toEqual([]);
+    }
+  });
+});
