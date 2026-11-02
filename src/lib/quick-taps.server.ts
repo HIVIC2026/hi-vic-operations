@@ -136,11 +136,34 @@ async function finishSharing(jobId: string, c: Ctx, meta: { ip: string | null; u
   if (await sharingSignature(jobId)) return;
   const { signGateDoc } = await import("./owner-gates.server");
   try {
-    await signGateDoc({ jobId, key: "trade_contact_share", signatoryName: d.answers.name, ticked: true, answers: {}, method: "link_code", signedBy: null, ip: meta.ip, userAgent: meta.userAgent, ...(d.batch_id ? { quickTapsBatchId: d.batch_id } : {}) });
+    await signGateDoc({ jobId, key: "trade_contact_share", signatoryName: d.answers.name, ticked: true, answers: {}, method: "quick_tap_link", signedBy: null, ip: meta.ip, userAgent: meta.userAgent, ...(d.batch_id ? { quickTapsBatchId: d.batch_id } : {}) });
   } catch (error) {
     await logEvent(jobId, null, "quick_taps_share_not_recorded", `Quick taps: sharing consent could not be saved: ${error instanceof Error ? error.message : "error"}`, { batch_id: d.batch_id }, { internal: true });
     throw error;
   }
+}
+
+/** Jo 2 Nov 2026 (HV-2730): owners whose "Yes, let's go" was saved but whose OK to share details was refused by the
+ *  database before the quick_tap_link fix. Lists them (dry run) or saves each OK once from the recorded answer, through
+ *  the same finishSharing path as the owner's own tap. Never touches declines, cancelled/deleted jobs or saved OKs. */
+export async function repairQuickTapsSharing(opts: { apply: boolean }): Promise<{ jobId: string; name: string; batchId: string }[]> {
+  const { data, error } = await loose.from("workflow_events").select("job_id, details").eq("event_type", QUICK_TAPS_ANSWERED_EVENT).contains("details", { outcome: "pass", consent_share: true });
+  if (error) throw new Error(`Could not read quick taps answers: ${error.message}`);
+  const out: { jobId: string; name: string; batchId: string }[] = [];
+  for (const jobId of [...new Set((data ?? []).map((r) => str((r as { job_id?: unknown }).job_id)).filter((j): j is string => !!j))]) {
+    if (await sharingSignature(jobId)) continue;
+    const c = await load(jobId);
+    if (!c || c.job.stage === "cancelled" || c.job.deleted_at) continue;
+    const { answered } = batchOf(c);
+    const d = answered?.details as { outcome?: unknown; consent_share?: unknown; answers?: { name?: unknown }; batch_id?: unknown } | null;
+    const name = str(d?.answers?.name); const batchId = str(d?.batch_id);
+    if (d?.outcome !== "pass" || d.consent_share !== true || !name || !batchId) continue;
+    out.push({ jobId, name, batchId });
+    if (!opts.apply) continue;
+    await finishSharing(jobId, c, { ip: null, userAgent: "quick-taps repair" });
+    await logEvent(jobId, null, "quick_taps_share_repaired", "Quick taps: owner's OK to share details saved from their recorded yes", { batch_id: batchId }, { internal: true });
+  }
+  return out;
 }
 
 async function asking(token: string): Promise<{ jobId: string; c: Ctx; batchId: string } | null> {
