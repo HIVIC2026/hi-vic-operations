@@ -1310,6 +1310,13 @@
       "when": 1793576606145,
       "tag": "0186_private_worker_birth_dates",
       "breakpoints": true
+    },
+    {
+      "idx": 187,
+      "version": "7",
+      "when": 1793611481531,
+      "tag": "0187_quick_tap_link_signing",
+      "breakpoints": true
     }
   ]
 }

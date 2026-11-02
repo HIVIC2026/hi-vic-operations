@@ -1,4 +1,4 @@
-// Practice-database proof for docs/pending-migrations/quick-tap-link-signing.sql (Jo 2 Nov 2026):
+// Practice-database proof for drizzle/migrations/0187_quick_tap_link_signing.sql (applied live 2 Nov 2026) (Jo 2 Nov 2026):
 // the quick-taps "Yes, let's go" OK to share details is a tapped-link signature with no code, allowed only for
 // trade_contact_share; code sign-ins (link_code) still need their verified code.
 import { describe, expect, test } from "bun:test";
@@ -6,8 +6,8 @@ import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
 
 const BASE = readFileSync(new URL("../drizzle/migrations/0121_owner_paperwork.sql", import.meta.url), "utf8");
-const SQL = readFileSync(new URL("../docs/pending-migrations/quick-tap-link-signing.sql", import.meta.url), "utf8");
-const ROLLBACK = readFileSync(new URL("../docs/pending-migrations/quick-tap-link-signing.rollback.sql", import.meta.url), "utf8");
+const SQL = readFileSync(new URL("../drizzle/migrations/0187_quick_tap_link_signing.sql", import.meta.url), "utf8");
+const ROLLBACK = readFileSync(new URL("../docs/applied-migrations/2026-11-02_quick_tap_link_signing.rollback.sql", import.meta.url), "utf8");
 const JOB = "00000000-0000-4000-8000-0000000000c1";
 
 async function db(withFix = true) {
