@@ -1,6 +1,5 @@
-// Safety check (PIESA) money rules — Jo 3 Nov 2026, 9:56am Sydney. Pure; shared by quotes, offers, payouts and profit.
-// 1) The owner always pays the single standard safety-check setting ($349 inc GST) on every quote — installer price
-//    lists, electrician rates and typed prices never change it.
+// Safety check (PIESA) money rules — Jo 3 Nov 2026, corrected 10:30am Sydney. Pure; shared by quotes, offers, payouts and profit.
+// 1) Website leads use the standard owner setting; installer-sourced leads use the installer's own price-list fee.
 // 2) Installer jobs: no Home Insulation Victoria markup — the whole owner price goes to the installer, who pays their
 //    own electrician.
 // 3) Home Insulation Victoria website-lead jobs: we pay the electrician one office setting ($275 inc GST), whoever does it.
@@ -35,9 +34,14 @@ export function safetyCheckPayoutIncGst(i: {
   return i.channel === "installer_sourced" ? r2(i.ownerPriceIncGst) : r2(i.hivPayoutIncGst);
 }
 
-/** A ready electrician resolution always charges the owner the standard price (typed / rate-card / REC figures ignored). */
-export function withOwnerSafetyCheckPrice<T extends { ready: boolean; priceIncGst: number | null }>(r: T, standardSettingIncGst: number | string | null | undefined): T {
-  return r.ready ? { ...r, priceIncGst: ownerSafetyCheckIncGst(standardSettingIncGst) } : r;
+/** Installer-source pricing never falls back to a REC/typed/global fee. Missing list price holds the quote. */
+export function withOwnerSafetyCheckPrice<T extends { ready: boolean; priceIncGst: number | null }>(r: T, standardSettingIncGst: number | string | null | undefined, channel?: string | null, installerListIncGst?: number | null): T {
+  if (!r.ready) return r;
+  if (channel === "installer_sourced") {
+    const price = positive(installerListIncGst);
+    return { ...r, ready: price != null, priceIncGst: price == null ? null : r2(price) };
+  }
+  return { ...r, priceIncGst: ownerSafetyCheckIncGst(standardSettingIncGst) };
 }
 
 export const exGst = (inc: number, gstRate = 0.1) => r2(inc / (1 + gstRate));

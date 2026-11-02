@@ -41,8 +41,11 @@ export async function mittiElectricianForJob(jobId: string, actorId: string | nu
   const resolvedRaw = paysOwn?.release_hold_reason
     ? { ...legacy, ready: false, priceIncGst: null, reasons: [paysOwn.release_hold_reason], needsProfile: false, notOnboarded: null }
     : onboardedElectricianResolution({ legacy, usual: saved?.electrician ?? null, candidates, flatPiesaIncGst: paysOwn?.piesaIncGst ?? null });
-  // Jo 3 Nov 2026: the owner always pays the single standard safety-check price, whoever the electrician is.
-  const resolved = (await import("./safety-check-price.core")).withOwnerSafetyCheckPrice(resolvedRaw, rs?.piesa_assessment_inc_gst ?? null);
+  const listPrice = await (await import("./installer-paid-electricians.server")).installerSafetyCheckPrice(job.originating_installer_business_id);
+  const priced = (await import("./safety-check-price.core")).withOwnerSafetyCheckPrice(resolvedRaw, rs?.piesa_assessment_inc_gst ?? null, job.channel, listPrice);
+  const resolved = listPrice == null
+    ? { ...priced, ready: false, priceIncGst: null, reasons: [(await import("./installer-paid-electricians.core")).IN_HOUSE_PIESA_HOLD_REASON] }
+    : priced;
   if (resolved.notOnboarded && job.originating_installer_business_id) {
     const need = { installer_business_id: job.originating_installer_business_id, name: resolved.notOnboarded.name, licence: resolved.notOnboarded.licence, email: resolved.notOnboarded.email, choice: resolved.choice };
     const { data: lastNeed, error: ne } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", ELECTRICIAN_ONBOARDING_NEEDED_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle();

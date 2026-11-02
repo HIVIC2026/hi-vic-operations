@@ -153,8 +153,8 @@ export async function loadJobMoney(jobId: string, testOffice = false) {
   const db = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
   const [view, job, quote, rect, offers, payouts, lodg, ws, inv, elecAsg, acceptedQ] = await Promise.all([
     jobPaymentView(jobId),
-    admin.from("jobs").select("stage, channel, installer_led, electrician_choice, estimated_area_m2").eq("id", jobId).maybeSingle(),
-    admin.from("quotes").select("id, subtotal_inc_gst, gst_amount, veec_count, veec_discount_inc_gst, veec_unit_value_inc_gst, status, quote_items(code), quote_internals(cost_ex_gst)").eq("job_id", jobId).eq("kind", "installation").in("status", ["accepted", "issued", "draft"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("jobs").select("stage, channel, installer_led, electrician_choice, originating_installer_business_id, estimated_area_m2").eq("id", jobId).maybeSingle(),
+    admin.from("quotes").select("id, subtotal_inc_gst, gst_amount, veec_count, veec_discount_inc_gst, veec_unit_value_inc_gst, status, quote_items(code,line_total_inc_gst), quote_internals(cost_ex_gst)").eq("job_id", jobId).eq("kind", "installation").in("status", ["accepted", "issued", "draft"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("quotes").select("customer_total_inc_gst, quote_internals(calc_snapshot)").eq("job_id", jobId).eq("kind", "rectification").eq("status", "accepted").order("accepted_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("partner_offers").select("kind, summary, business_id").eq("job_id", jobId).eq("status", "accepted"),
     admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "payout_marked_paid"),
@@ -200,7 +200,11 @@ export async function loadJobMoney(jobId: string, testOffice = false) {
   if (rsErr || psErr) throw new Error("Could not read the safety check price settings.");
   const scp = await import("./safety-check-price.core");
   const gstJ = pset?.gst_rate != null ? Number(pset.gst_rate) : 0.1;
-  const defaultPiesaInc = scp.safetyCheckPayoutIncGst({ channel: job.data?.channel ?? null, ownerPriceIncGst: scp.ownerSafetyCheckIncGst(rsStd?.piesa_assessment_inc_gst ?? null), hivPayoutIncGst: scp.hivElectricianPayoutIncGst(pset?.piesa_rec_cost_ex_gst ?? null, gstJ) });
+  const recordedFee = q?.quote_items?.find(i => i.code === "PIESA")?.line_total_inc_gst;
+  const ownerFee = job.data?.channel === "installer_sourced" ? recordedFee != null ? Number(recordedFee)
+    : await (await import("./installer-paid-electricians.server")).installerSafetyCheckPrice(job.data.originating_installer_business_id)
+    : scp.ownerSafetyCheckIncGst(rsStd?.piesa_assessment_inc_gst ?? null);
+  const defaultPiesaInc = ownerFee == null ? null : scp.safetyCheckPayoutIncGst({ channel: job.data?.channel ?? null, ownerPriceIncGst: ownerFee, hivPayoutIncGst: scp.hivElectricianPayoutIncGst(pset?.piesa_rec_cost_ex_gst ?? null, gstJ) });
   const piesaCostEx = piesaCostExFor({ ownerDirect: piesaOwnerDirect, paidOutInc: paidOut("assessment"), offerRateInc: sum("piesa").electrician_rate_inc_gst ?? null, rateCardInc: electricianChosen || job.data?.channel === "installer_sourced" ? defaultPiesaInc : null, gstRate: gstJ });
   const fixesPrice = rect.data ? Number(rect.data.customer_total_inc_gst) : null;
   // The $100 on fixes stays ours (decision 142) — only with OUR electrician (decision 349: the installer's own electrician

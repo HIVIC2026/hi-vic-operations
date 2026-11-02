@@ -1,10 +1,34 @@
 import { describe, expect, it } from "vitest";
 import { exGst, hivElectricianPayoutIncGst, ownerSafetyCheckIncGst, safetyCheckPayoutIncGst, withOwnerSafetyCheckPrice } from "../src/lib/safety-check-price.core";
+import { buildInstallerQuoteDraft } from "../src/lib/installer-led.core";
 
-describe("Jo 3 Nov: owner always pays $349 for the safety check", () => {
+describe("Jo 3 Nov: website owner pays the standard $349 for the safety check", () => {
   it("uses the single $349 setting, and $349 when unset", () => {
     expect(ownerSafetyCheckIncGst(349)).toBe(349);
     expect(ownerSafetyCheckIncGst(null)).toBe(349);
+  });
+});
+
+describe("Jo 3 Nov 10:30am: installer-source price lists own the owner fee", () => {
+  it("Rapid installer job charges $275 and passes all $275 to Rapid", () => {
+    const owner = withOwnerSafetyCheckPrice({ ready: true, priceIncGst: 275 }, 349, "installer_sourced", 275).priceIncGst;
+    expect(owner).toBe(275);
+    const quote = buildInstallerQuoteDraft({ price: { ok: true, issues: [], price: { totalIncGst: 3000, included: ["Insulation"], otherDescription: "", agreedWithOwner: false } }, measuredM2: 100, wholeVeec: { veecs: 0, raw: 0 }, piesaIncGst: owner, apFeeIncGst: 349, caps: { metropolitan: true, minCopay: 200 } });
+    expect(quote.lines.find(l => l.code === "PIESA")?.line_total_inc_gst).toBe(275);
+    const payout = safetyCheckPayoutIncGst({ channel: "installer_sourced", ownerPriceIncGst: owner ?? 0, hivPayoutIncGst: 275 });
+    expect(payout).toBe(275);
+    expect((owner ?? 0) - payout).toBe(0);
+  });
+  it("Reinsulate installer job charges its corrected $349 list price", () => {
+    expect(withOwnerSafetyCheckPrice({ ready: true, priceIncGst: 420 }, 349, "installer_sourced", 349).priceIncGst).toBe(349);
+  });
+  it("HIV lead charges $349 and pays the electrician $275 despite Rapid's price", () => {
+    const owner = withOwnerSafetyCheckPrice({ ready: true, priceIncGst: 275 }, 349, "hivic_sourced", 275).priceIncGst;
+    expect(owner).toBe(349);
+    expect(safetyCheckPayoutIncGst({ channel: "hivic_sourced", ownerPriceIncGst: owner ?? 0, hivPayoutIncGst: 275 })).toBe(275);
+  });
+  it("missing installer price holds instead of falling back to $349 or typed price", () => {
+    expect(withOwnerSafetyCheckPrice({ ready: true, priceIncGst: 420 }, 349, "installer_sourced", null).ready).toBe(false);
   });
 });
 

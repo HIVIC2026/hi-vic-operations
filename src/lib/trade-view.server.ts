@@ -503,7 +503,7 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
     const safetyDone = new Set(books.filter((b) => b.status === "confirmed" && b.kind === "assessment" && formComplete(b)).map((b) => b.job_id));
     return books.filter((b) => b.status === "completed" || (b.kind === "assessment" && safetyDone.has(b.job_id)));
   };
-  const checkJobsOf = (done: Book[]) => [...new Map(done.filter((b) => b.kind === "assessment").map((b) => [b.job_id, { id: b.job_id, originating_installer_business_id: (b.jobs as { originating_installer_business_id?: string | null }).originating_installer_business_id ?? null }])).values()];
+  const checkJobsOf = (done: Book[]) => [...new Map(done.filter((b) => b.kind === "assessment").map((b) => [b.job_id, { id: b.job_id, channel: (b.jobs as { channel?: string | null }).channel ?? null, originating_installer_business_id: (b.jobs as { originating_installer_business_id?: string | null }).originating_installer_business_id ?? null }])).values()];
   // Jo 26 Oct 2026: an installer that pays its own electricians (Reinsulate) is paid for the safety checks they did.
   const displayP = kind === "installer" ? readInstallerPaidElectricians(bizId).catch((error: unknown) => {
     console.error("In-house partner display read failed", error);
@@ -522,8 +522,9 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
     theirP,
     kind === "electrician" ? admin.from("electrician_rates").select("rate_inc_gst, effective_from").eq("business_id", bizId).eq("service_type", "piesa").in("status", ["active", "approved"]).order("effective_from", { ascending: false }).limit(1) : Promise.resolve({ data: [] as { rate_inc_gst: number | string | null }[] }),
   ]);
-  const keepTheirs = !!displayPayer && !displayPayer.release_hold_reason;
-  const books = [...(ownBooks ?? []), ...(keepTheirs ? theirAll ?? [] : [])];
+  const theirSourceJobs = (theirAll ?? []).filter(b => b.kind === "assessment" && (b.jobs as { channel?: string | null }).channel === "installer_sourced");
+  const keepTheirs = (!!displayPayer && !displayPayer.release_hold_reason) || theirSourceJobs.length > 0;
+  const books = [...(ownBooks ?? []), ...(displayPayer && !displayPayer.release_hold_reason ? theirAll ?? [] : theirSourceJobs)];
   const done = doneOf(books);
   const checkJobs = checkJobsOf(done);
   // One safety check row per job (a completed and a confirmed booking for the same job are one payout).
@@ -585,7 +586,8 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
     const of = (offers ?? []).find((o) => o.job_id === b.job_id && (o.kind === "piesa" ? "assessment" : o.kind === "installer" ? "installation" : o.kind) === b.kind);
     const sum = (of?.summary ?? {}) as { electrician_rate_inc_gst?: number; installer_pay_inc_gst?: number; fixes_pay_inc_gst?: number };
     const payee = b.kind === "assessment" ? payees.get(b.job_id) ?? null : null;
-    const amount = payee ? payee.piesaIncGst : Number((pe?.details as { amount?: number })?.amount ?? (b.kind === "assessment" ? sum.electrician_rate_inc_gst ?? piesaRate : b.kind === "rectification" ? sum.fixes_pay_inc_gst ?? fixesPay(b.job_id) : sum.installer_pay_inc_gst ?? ((b.jobs as { channel?: string }).channel === "hivic_sourced" ? ratePay(b.job_id) : null)) ?? 0) || null;
+    const recordedAmount = (pe?.details as { amount?: number })?.amount;
+    const amount = recordedAmount != null ? Number(recordedAmount) : payee ? payee.piesaIncGst : Number((b.kind === "assessment" ? sum.electrician_rate_inc_gst ?? piesaRate : b.kind === "rectification" ? sum.fixes_pay_inc_gst ?? fixesPay(b.job_id) : sum.installer_pay_inc_gst ?? ((b.jobs as { channel?: string }).channel === "hivic_sourced" ? ratePay(b.job_id) : null)) ?? 0) || null;
     const gf0 = gate.get(b.job_id);
     const gf = gf0 && b.kind === "assessment" ? visitGateFacts(gf0, safety.get(b.job_id), b.id) : gf0;
     const elecKind = b.kind === "assessment" || b.kind === "rectification" ? b.kind : null;

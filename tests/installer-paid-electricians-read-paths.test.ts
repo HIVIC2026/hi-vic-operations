@@ -4,6 +4,7 @@ import ts from "typescript";
 import * as pricing from "../src/lib/installer-paid-electricians.core";
 import * as rec from "../src/lib/rec-onboarded.core";
 import * as usual from "../src/lib/usual-electrician.core";
+import * as safetyPrice from "../src/lib/safety-check-price.core";
 
 // Evaluate the actual server code against local read fixtures. No hosted clients or delivery imports.
 function moduleAt(path: string, dependencies: Record<string, unknown>) {
@@ -37,7 +38,6 @@ test("payee batch reads both flags and any active effective card with a PIESA li
   expect(result.get("a").piesaIncGst).toBe(110);
   expect(result.get("b").piesaIncGst).toBe(220);
   expect(f.calls.map(c => c.table)).toEqual(["businesses", "rate_cards", "rate_card_items"]);
-  expect(f.calls[0]?.filters).toContainEqual(["or", "in_house.eq.true,pays_own_electricians.eq.true"]);
   expect(f.calls[1]?.filters).not.toContainEqual(["eq", "kind", "electrical"]);
   expect(f.calls[1]?.filters).toContainEqual(["eq", "is_active", true]);
   expect(f.calls[1]?.filters).toContainEqual(["lte", "effective_from", "2026-10-30"]);
@@ -61,7 +61,8 @@ function usualModule(priceRead: () => Promise<unknown>, candidates: rec.Approved
     "./mitti.core": { contactAnswersFromEntries: () => ({}) }, "./workflow.server": { logEvent: async () => {} },
     "./electrician-choice.core": { resolveElectricianChoice: () => "usual" }, "./electrician-choice.server": { readElectricianChoice: async () => "usual" },
     "./rec-onboarded.core": rec, "./rec-onboarded.server": { loadApprovedRecCandidates: async () => candidates },
-    "./installer-paid-electricians.server": { readInstallerPaidElectricians: priceRead },
+    "./installer-paid-electricians.server": { readInstallerPaidElectricians: priceRead, installerSafetyCheckPrice: async () => (await priceRead() as { piesaIncGst?: number } | null)?.piesaIncGst ?? 999 },
+    "./safety-check-price.core": safetyPrice, "./installer-paid-electricians.core": pricing,
   });
 }
 test("usual-electrician refuses a failed configuration read instead of pricing", async () => {
@@ -158,4 +159,31 @@ test("actual in-house facts read the business Mitti invitation, failing closed w
     expect(f.calls.find(c=>c.table==="businesses")?.filters).toContainEqual(["select","mitti_account_invited"]);
   }
   await expect(priceModule(reads({},"businesses")).inHouseFactsFor("a")).rejects.toThrow("Mitti invitation");
+});
+
+test("actual price-list reader prices Rapid $275 and Reinsulate $349 independently of payee flags", async () => {
+  const f = reads({ businesses: [{ id: "rapid", name: "Rapid", in_house: false, pays_own_electricians: false }, { id: "reinsulate", name: "Reinsulate", in_house: false, pays_own_electricians: true }],
+    rate_cards: [{ id: "cr", business_id: "rapid" }, { id: "cs", business_id: "reinsulate" }],
+    rate_card_items: [{ rate_card_id: "cr", unit_price_ex_gst: 250 }, { rate_card_id: "cs", unit_price_ex_gst: 317.27 }] });
+  const result = await priceModule(f).installerSafetyCheckBusinessesFor(["rapid", "reinsulate"]);
+  expect(result.get("rapid").piesaIncGst).toBe(275);
+  expect(result.get("reinsulate").piesaIncGst).toBe(349);
+});
+
+test("actual installer resolver uses Rapid's $275 list instead of the REC's $999 rate", async () => {
+  const candidates = [{ business_id: "rec", name: "REC", rec_number: "A1", worker_licences: [], onboarding_status: "approved", is_active: true, approved_electricians: 1, piesa_rate: { id: "rate", rate_inc_gst: 999 } }];
+  const m = usualModule(async () => ({ businessId: "a", name: "Rapid", piesaIncGst: 275 }), candidates);
+  expect(await m.mittiElectricianForJob("j", null, [], "audit")).toMatchObject({ ready: true, priceIncGst: 275 });
+});
+
+test("installer-source payout passes Rapid's whole $275 even with both payee flags off", async () => {
+  const f = reads({ businesses: [{ id: "rapid", name: "Rapid", in_house: false, pays_own_electricians: false }], rate_cards: [{ id: "cr", business_id: "rapid" }], rate_card_items: [{ rate_card_id: "cr", unit_price_ex_gst: 250 }], workflow_events: [] });
+  const payees = await priceModule(f).safetyCheckPayeesFor([{ id: "j", channel: "installer_sourced", originating_installer_business_id: "rapid" }]);
+  expect(payees.get("j")).toEqual({ businessId: "rapid", name: "Rapid", piesaIncGst: 275 });
+});
+
+test("installer-source payout preserves the recorded quote fee rather than today's list", async () => {
+  const f = reads({ businesses: [{ id: "rapid", name: "Rapid", in_house: false, pays_own_electricians: false }], rate_cards: [{ id: "cr", business_id: "rapid" }], rate_card_items: [{ rate_card_id: "cr", unit_price_ex_gst: 250 }], quotes: [{ job_id: "j", quote_items: [{ code: "PIESA", line_total_inc_gst: 300 }] }] });
+  const payees = await priceModule(f).safetyCheckPayeesFor([{ id: "j", channel: "installer_sourced", originating_installer_business_id: "rapid" }]);
+  expect(payees.get("j")?.piesaIncGst).toBe(300);
 });
