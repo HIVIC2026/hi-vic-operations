@@ -33,7 +33,7 @@ export const PAYMENT_STEP_LABEL: Record<PaymentStepKey, string> = {
   safety_check: "Pre Insulation Electrical Safety Assessment (PIESA) payment",
   fixes: "Electrical fixes",
   install_deposit: "Install deposit (10%)",
-  balance: "Balance (due 7 days after install completion)",
+  balance: "Balance (due on install day)",
   repeat_safety_check: "Repeat safety check (PIESA)",
 };
 export type PaymentMethod = "card" | "bank";
@@ -480,7 +480,7 @@ export function howYouPayLines(plan: PaymentPlan): string[] {
     `${aud(plan.safetyCheckCents)} now for the electrical safety check (card or bank transfer, no fee)`,
     ...(plan.repeatCents > 0 ? [`${aud(plan.repeatCents)} for the repeat safety check (PIESA) (card or bank transfer, no fee)`] : []),
     `${aud(plan.installDepositCents)} deposit (10% of the install price) before your install day can be booked, by card, bank transfer or PayID`,
-    `${aud(plan.balanceCents)} due 7 days after your install is recorded complete, by card, bank transfer or PayID`,
+    `${aud(plan.balanceCents)} on install day, by card, bank transfer or PayID`,
     `Or pay the full ${aud(plan.quoteTotalCents)} any time by bank transfer or PayID`,
   ];
 }

@@ -127,7 +127,7 @@ export function renderFinalInvoiceEmail(i: FinalInvoiceInput) {
   const first = K.cleanName(i.firstName) ?? "there";
   const installer = i.installer?.name?.trim() || "Your installer";
   const subject = `${first}, your install is done. Here's your final invoice`;
-  const dueLabel=i.dueDate?`due ${i.dueDate}`:'due 7 days after recorded install completion';
+  const dueLabel=i.dueDate?`due ${i.dueDate}`:'due on install day';
   const intro = `${installer} finished today. Your balance is ${dueLabel}. Pay by card on My job or by bank transfer using the details below, with your invoice number as the reference.`;
   const balance = K.cents(i.balanceDue);
   const ref = i.invoiceNumber.trim();
