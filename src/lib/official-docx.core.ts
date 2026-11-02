@@ -27,7 +27,7 @@
 // each with "Signed in Mitti on DD/MM/YYYY" written as the box's text under the picture. Part B3 of the PIESA prints no
 // signature box, so the A3 signature is placed in a paragraph of its own straight after the B3 declaration (no form wording
 // changes). A signature without a usable image keeps the typed text (the caller flags it). Owner boxes stay typed e-signatures.
-import { answerItems, splitSelections, type OfficialAnswers, type OfficialItem, type OfficialKey, type Value } from "./official-forms.core";
+import { answerItems, officialItemActive, splitSelections, type OfficialAnswers, type OfficialItem, type OfficialKey, type Value } from "./official-forms.core";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
 const unesc = (s: string) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#160;|&nbsp;/g, " ").replace(/&amp;/g, "&");
@@ -214,7 +214,7 @@ function textRunsXml(xml: string, f: DocxField, value: string): string {
   return value.split(/\r?\n/).map((line, i) => `<w:r>${rPr}${i ? "<w:br/>" : ""}<w:t xml:space="preserve">${esc(line)}</w:t></w:r>`).join("");
 }
 
-export type FillResult = { xml: string; filled: string[]; missed: string[]; notOnForm: string[]; /** Decision 336. */ signatures?: string[] };
+export type FillResult = { xml: string; filled: string[]; missed: string[]; /** Answered follow-ups whose condition is false: not printed. */ skipped: string[]; notOnForm: string[]; /** Decision 336. */ signatures?: string[] };
 
 // ---------- decision 336: signature pictures ----------
 /** Where a signature picture goes: a signature item's own box, or (PIESA B3, which has no box) after the B3 declaration. */
@@ -270,6 +270,57 @@ export function pictureRunXml(p: DocxPicture): string {
   return `<w:r><w:rPr><w:noProof/></w:rPr><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${p.cx}" cy="${p.cy}"/><wp:docPr id="${p.docPrId}" name="${name}" descr="${name}"/><wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${p.docPrId}" name="${name}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${p.rId}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${p.cx}" cy="${p.cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;
 }
 
+export type OfficialFieldValues = { boxes: Map<number, boolean>; texts: Map<number, string>; filled: string[]; missed: string[]; skipped: string[]; notOnForm: string[] };
+/**
+ * The placement rule shared by the Word fill and the PDF fill: which field (by its document order `n`) gets which value.
+ * Only items whose follow-up condition applies (`officialItemActive`) are placed; an answered item whose condition is false is
+ * reported in `skipped`, never silently dropped. Answered items the layout could not place go in `missed`, derived items with
+ * no field of their own in `notOnForm`.
+ */
+export function officialFieldValues(key: OfficialKey, layout: DocxLayout, answers: OfficialAnswers): OfficialFieldValues {
+  const boxes = new Map<number, boolean>(), texts = new Map<number, string>();
+  const filled: string[] = [], missed: string[] = [], skipped: string[] = [], notOnForm: string[] = [];
+  const place = (item: OfficialItem, id: string, value: Value) => {
+    if (layout.notOnForm.includes(item.id)) { notOnForm.push(id); return; }
+    const slot = layout.slots.get(id);
+    if (!slot) { missed.push(id); return; }
+    const k = item.kind;
+    if (k === "text" || k === "number" || k === "date" || k === "signature") {
+      const v = k === "date" ? dateOut(value) : txt(value);
+      if (!v) return;
+      texts.set(slot.fields[0]!.n, v);
+    } else if (k === "yesno" || k === "yesno_na") {
+      const v = txt(value);
+      const chosen = slot.fields.find((f) => f.option && f.option.toLowerCase() === v.toLowerCase());
+      if (!chosen) { missed.push(id); return; }
+      for (const f of slot.fields) boxes.set(f.n, f === chosen);
+    } else if (k === "tick") {
+      if (!ticked(value)) return;
+      boxes.set(slot.fields[0]!.n, true);
+    } else if (k === "choice" || k === "ticks") {
+      const { selected, unknown } = splitSelections(value, item.options ?? []);
+      if (!selected.length || unknown.length || (k === "choice" && selected.length !== 1)) { missed.push(id); return; }
+      for (const f of slot.fields) boxes.set(f.n, selected.includes(f.option ?? ""));
+    } else return;
+    filled.push(id);
+  };
+  for (const item of answerItems(key)) {
+    const active = officialItemActive(key, item, answers);
+    if (item.row) {
+      for (let r = 0; r < item.row.rows; r++) {
+        const id = `${item.id}#${r}`, v = answers[id];
+        if (!txt(v)) continue;
+        if (active) place(item, id, v); else skipped.push(id);
+      }
+      continue;
+    }
+    const v = answers[item.id];
+    if (v == null || txt(v) === "" || (item.kind === "tick" && !ticked(v))) continue;
+    if (active) place(item, item.id, v); else skipped.push(item.id);
+  }
+  return { boxes, texts, filled, missed, skipped, notOnForm };
+}
+
 /**
  * Fills word/document.xml for `key` with `answers`. Items are placed through the form's layout map (officialDocxLayout).
  * Answered items the map could not place are reported in `missed`, never guessed; derived items with no field of their own
@@ -279,46 +330,9 @@ export function fillOfficialDocxXml(input: string, key: OfficialKey, answers: Of
   const layout = officialDocxLayout(input, key);
   const fields = docxFields(input);
   const edits: Edit[] = [];
-  const filled: string[] = [];
-  const missed: string[] = [];
-  const notOnForm: string[] = [];
-  const setBox = (n: number, on: boolean) => { const f = fields[n]!; edits.push({ start: f.cbStart, end: f.cbEnd, text: checkBoxXml(input.slice(f.cbStart, f.cbEnd), on) }); };
-  const setText = (n: number, value: string) => { const f = fields[n]!; edits.push({ start: f.resStart, end: f.resEnd, text: textRunsXml(input, f, value) }); };
-
-  const place = (item: OfficialItem, id: string, value: Value) => {
-    if (layout.notOnForm.includes(item.id)) { notOnForm.push(id); return; }
-    const slot = layout.slots.get(id);
-    if (!slot) { missed.push(id); return; }
-    const k = item.kind;
-    if (k === "text" || k === "number" || k === "date" || k === "signature") {
-      const v = k === "date" ? dateOut(value) : txt(value);
-      if (!v) return;
-      setText(slot.fields[0]!.n, v);
-    } else if (k === "yesno" || k === "yesno_na") {
-      const v = txt(value);
-      const chosen = slot.fields.find((f) => f.option && f.option.toLowerCase() === v.toLowerCase());
-      if (!chosen) { missed.push(id); return; }
-      for (const f of slot.fields) setBox(f.n, f === chosen);
-    } else if (k === "tick") {
-      if (!ticked(value)) return;
-      setBox(slot.fields[0]!.n, true);
-    } else if (k === "choice" || k === "ticks") {
-      const { selected, unknown } = splitSelections(value, item.options ?? []);
-      if (!selected.length || unknown.length || (k === "choice" && selected.length !== 1)) { missed.push(id); return; }
-      for (const f of slot.fields) setBox(f.n, selected.includes(f.option ?? ""));
-    } else return;
-    filled.push(id);
-  };
-
-  for (const item of answerItems(key)) {
-    if (item.row) {
-      for (let r = 0; r < item.row.rows; r++) { const v = answers[`${item.id}#${r}`]; if (txt(v)) place(item, `${item.id}#${r}`, v); }
-      continue;
-    }
-    const v = answers[item.id];
-    if (v == null || txt(v) === "" || (item.kind === "tick" && !ticked(v))) continue;
-    place(item, item.id, v);
-  }
+  const { boxes, texts, filled, missed, skipped, notOnForm } = officialFieldValues(key, layout, answers);
+  for (const [n, on] of boxes) { const f = fields[n]!; edits.push({ start: f.cbStart, end: f.cbEnd, text: checkBoxXml(input.slice(f.cbStart, f.cbEnd), on) }); }
+  for (const [n, value] of texts) { const f = fields[n]!; edits.push({ start: f.resStart, end: f.resEnd, text: textRunsXml(input, f, value) }); }
   // Decision 336: signature pictures (+ "Signed in Mitti on …" as the box's text), or B3's own paragraph.
   const signatures: string[] = [];
   for (const [slot, sp] of Object.entries(opts.signatures ?? {}) as [SignatureSlot, DocxSignaturePlacement][]) {
@@ -350,7 +364,7 @@ export function fillOfficialDocxXml(input: string, key: OfficialKey, answers: Of
   edits.sort((a, b) => b.start - a.start || b.end - a.end);
   let xml = input;
   for (const e of edits) xml = xml.slice(0, e.start) + e.text + xml.slice(e.end);
-  return { xml, filled, missed, notOnForm, ...(opts.signatures ? { signatures } : {}) };
+  return { xml, filled, missed, skipped, notOnForm, ...(opts.signatures ? { signatures } : {}) };
 }
 
 /**
@@ -400,7 +414,7 @@ export function fillOfficialDocxParts(parts: Record<string, Uint8Array>, key: Of
     out["word/_rels/document.xml.rels"] = new TextEncoder().encode(rels);
     out["[Content_Types].xml"] = new TextEncoder().encode(types);
   }
-  return { parts: out, xml: r.xml, filled: r.filled, missed: r.missed, notOnForm: r.notOnForm, embedded, notEmbedded, rels, types };
+  return { parts: out, xml: r.xml, filled: r.filled, missed: r.missed, skipped: r.skipped, notOnForm: r.notOnForm, embedded, notEmbedded, rels, types };
 }
 
 /** What a filled Word form SHOWS for each item, read back from the XML (tests + the sample read-back). */

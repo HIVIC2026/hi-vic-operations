@@ -83,7 +83,7 @@ const full: OfficialAnswers = {
   "p5.nonTps": "No", "p5.splitConduit": "No", "p5.damaged": "No", "p6.recessed": "Yes", "p6.count": "4", "p6.prohibited": "Yes",
   "p7.appliances": "Yes", "p7.flues": "No", "p7.appliance#0": "Exhaust fan", "p7.location#0": "Bathroom ceiling", "p7.hazard#0": "None", "p7.appliance#1": "Heat lamp", "p7.location#1": "Ensuite", "p7.hazard#1": "Clearance",
   "p7.actions": "Keep 50 mm clear", "p7.effective": "Yes", "p7.otherHazard#0": "Rotten joist", "p7.otherAction#0": "Replace joist",
-  b1: B1_OPTIONS[1], b2: [B2_OPTIONS[0], B2_OPTIONS[2]], "b2.other": "n/a",
+  b1: B1_OPTIONS[1], b2: [B2_OPTIONS[0], B2_OPTIONS[2], B2_OPTIONS[5]], "b2.other": "n/a",
   "b3.licence": "A 1", "b3.name": "Sam Spark", "b3.recName": "Spark", "b3.recNo": "REC 1", "b3.phone": "0400", "b3.declaration": true,
   "c.licence": "A 1", "c.name": "Sam Spark", "c.recName": "Spark", "c.recNo": "REC 1", "c.phone": "0400",
   "c.tick1": true, "c.tick2": true, "c.tick3": true, "c.tick4": true, "c.tick5": true, "c.tick6": true, "c.tick7": true,
@@ -117,12 +117,12 @@ describe("PIESA Word form: every box/cell by its position in the official form",
   test("N/A box (p4.tps)", () => expect([f[37]!.checked, f[38]!.checked, f[39]!.checked]).toEqual([false, false, true]));
   test("B1 (one option) and B2 (two options) boxes are ticked", () => {
     expect([122, 123, 124].map((i) => f[i]!.checked)).toEqual([false, true, false]);
-    expect([125, 126, 127, 128, 129, 130].map((i) => f[i]!.checked)).toEqual([true, false, true, false, false, false]);
+    expect([125, 126, 127, 128, 129, 130].map((i) => f[i]!.checked)).toEqual([true, false, true, false, false, true]);
   });
   test("Section C declaration (w:checked=\"0\" in the original) shows ticked; all seven C ticks + B3 + four owner ticks", () => {
     expect(PIESA).toContain('<w:checked w:val="0"/>');
     expect([137, 143, 144, 145, 146, 147, 148, 149, 154, 155, 156, 157].every((i) => f[i]!.checked)).toBe(true);
-    expect(checkedIdx(r.xml).length).toBe(39); // 24 Yes/No + 1 B1 + 2 B2 + 12 declarations
+    expect(checkedIdx(r.xml).length).toBe(40); // 24 Yes/No + 1 B1 + 3 B2 + 12 declarations
   });
   test("Part 7 table: Appliance / Location / Hazard each in its own cell, row by row; other-hazard table too", () => {
     expect([61, 62, 63, 64, 65, 66].map((i) => f[i]!.text)).toEqual(["Exhaust fan", "Bathroom ceiling", "None", "Heat lamp", "Ensuite", "Clearance"]);
@@ -155,9 +155,9 @@ describe("PIESA Word form: every box/cell by its position in the official form",
   });
   test("a blank answer leaves the form exactly as it was", () => expect(fillOfficialDocxXml(PIESA, "piesa", {}).xml).toBe(PIESA));
   test("an unknown B2 option is reported missed, never half-ticked", () => {
-    const x = fillOfficialDocxXml(PIESA, "piesa", { b2: ["Paint the ceiling"] });
+    const x = fillOfficialDocxXml(PIESA, "piesa", { b1: B1_OPTIONS[1], b2: ["Paint the ceiling"] });
     expect(x.missed).toEqual(["b2"]);
-    expect(checkedIdx(x.xml)).toEqual([]);
+    expect(checkedIdx(x.xml)).toEqual([123]); // only B1 itself; no B2 box
   });
 });
 

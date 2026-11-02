@@ -44,7 +44,7 @@ describe("decision 336 A: signature pictures in the official Word forms", () => 
   });
 
   test("PIESA: B3 (A3) and Section C (A4) pictures — parts present, relationships referenced, content types, XML well-formed", () => {
-    const answers = { "b3.name": "Sam Spark", "b3.declaration": true, "c.signature": electronicSignature("Sam Spark", "2026-11-03") };
+    const answers = { b1: B1_OPTIONS[1], "b3.name": "Sam Spark", "b3.declaration": true, "c.signature": electronicSignature("Sam Spark", "2026-11-03") };
     const r = fillOfficialDocxParts(PIESA, "piesa", answers, {
       "b3.signature": { images: [{ bytes: PNG, contentType: "image/png", signedOn: "2026-10-28" }] },
       "c.signature": { images: [{ bytes: JPEG, contentType: "image/jpeg", signedOn: "2026-11-03" }] },
@@ -82,7 +82,7 @@ describe("decision 336 A: signature pictures in the official Word forms", () => 
   });
 
   test("no usable image: nothing embedded, the box keeps the typed name, B3 gets the typed fallback line, parts untouched", () => {
-    const answers = { "b3.name": "Sam Spark", "b3.declaration": true, "c.signature": electronicSignature("Sam Spark", "2026-11-03") };
+    const answers = { b1: B1_OPTIONS[1], "b3.name": "Sam Spark", "b3.declaration": true, "c.signature": electronicSignature("Sam Spark", "2026-11-03") };
     const r = fillOfficialDocxParts(PIESA, "piesa", answers, {
       "b3.signature": { images: [], fallbackText: "Sam Spark (signed in Mitti on 28/10/2026; electrician signature image not available)" },
       "c.signature": { images: [{ bytes: new TextEncoder().encode("garbage"), contentType: "image/png", signedOn: "2026-11-03" }] },

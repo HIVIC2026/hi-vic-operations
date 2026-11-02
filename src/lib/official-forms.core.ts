@@ -434,6 +434,39 @@ export type PiisaContext = { piesaCompletionDate?: string | null; piesaReceivedA
   /** Explicit recorded answer only — a blank is never treated as "No". */ conductiveExistingInsulation?: boolean | null;
   /** Home Insulation Victoria supporting evidence (photo/file id), outside the official form. */ conductivityEvidence?: string | null };
 
+/** Every `when` string used by PIESA_ITEMS / PIISA_ITEMS. A new one must be added here AND handled in `officialItemActive` (a test pins this). */
+export const KNOWN_WHENS: readonly string[] = [
+  "lifeSupport = Yes", "p3.present = Yes", "p6.recessed = Yes", "p7.appliances = Yes or p7.flues = Yes", "hazard identified", RECT, "b2 includes Other",
+  "p4.present = Yes", "p5.recessed = Yes", "p6.present = Yes", "p6.treatment excludes Removed", "p6.treatment includes Topped Up",
+];
+/** Does this item's follow-up condition apply to these answers? Shared by the evaluators and the Word/PDF fills, so a follow-up whose
+ *  condition is false (e.g. life support "No" → the consent option) is never printed. An unknown `when` returns false (fails closed). */
+export function officialItemActive(key: OfficialKey, i: OfficialItem, a: OfficialAnswers): boolean {
+  if (i.when === undefined) return true;
+  if (key === "piesa") {
+    switch (i.when) {
+      case "lifeSupport = Yes": return isYes(a["lifeSupport"]);
+      case "p3.present = Yes": return isYes(a["p3.present"]);
+      case "p6.recessed = Yes": return isYes(a["p6.recessed"]);
+      case "p7.appliances = Yes or p7.flues = Yes": return isYes(a["p7.appliances"]) || isYes(a["p7.flues"]);
+      case "hazard identified": return rows(a, ["p7.appliance", "p7.location", "p7.hazard"], 10).length > 0;
+      case RECT: return s(a["b1"]) === B1_OPTIONS[1];
+      case "b2 includes Other": return list(a["b2"], B2_OPTIONS).includes(B2_OPTIONS[5]);
+      default: return false;
+    }
+  }
+  const present = isYes(a["p6.present"]), treatment = list(a["p6.treatment"]);
+  switch (i.when) {
+    case "lifeSupport = Yes": return isYes(a["lifeSupport"]);
+    case "p4.present = Yes": return isYes(a["p4.present"]);
+    case "p5.recessed = Yes": return isYes(a["p5.recessed"]);
+    case "p6.present = Yes": return present;
+    case "p6.treatment excludes Removed": return present && !treatment.includes("Removed");
+    case "p6.treatment includes Topped Up": return present && treatment.includes("Topped Up");
+    default: return false;
+  }
+}
+
 function requiredMissing(key: OfficialKey, a: OfficialAnswers, active: (i: OfficialItem) => boolean): RuleResult[] {
   const out: RuleResult[] = [];
   for (const i of answerItems(key)) {
@@ -490,18 +523,7 @@ export function evaluatePiesa(a: OfficialAnswers, ctx: PiesaContext = {}): Evalu
   const applianceRows = rows(a, ["p7.appliance", "p7.location", "p7.hazard"], 10);
   const hazardIdentified = applianceRows.length > 0;
   const b2 = list(a["b2"], B2_OPTIONS);
-  const active = (i: OfficialItem) => {
-    switch (i.when) {
-      case undefined: return true;
-      case "lifeSupport = Yes": return isYes(a["lifeSupport"]);
-      case "p3.present = Yes": return solar;
-      case "p6.recessed = Yes": return recessed;
-      case "hazard identified": return hazardIdentified;
-      case RECT: return rect;
-      case "b2 includes Other": return b2.includes(B2_OPTIONS[5]);
-      default: return true;
-    }
-  };
+  const active = (i: OfficialItem) => officialItemActive("piesa", i, a);
   blockers.push(...requiredMissing("piesa", a, active));
   if (b1 && !(B1_OPTIONS as readonly string[]).includes(b1)) blockers.push({ rule: "B1-ONE", message: "B1: \"Check ONE option only\" — the answer must be exactly one of the three printed options." });
 
@@ -555,18 +577,7 @@ export function evaluatePiisa(a: OfficialAnswers, ctx: PiisaContext = {}): Evalu
   const blockers: RuleResult[] = [], nextActions: RuleResult[] = [];
   const solar = isYes(a["p4.present"]), present = isYes(a["p6.present"]), recessed = isYes(a["p5.recessed"]);
   const treatment = list(a["p6.treatment"]);
-  const active = (i: OfficialItem) => {
-    switch (i.when) {
-      case undefined: return true;
-      case "lifeSupport = Yes": return isYes(a["lifeSupport"]);
-      case "p4.present = Yes": return solar;
-      case "p5.recessed = Yes": return recessed;
-      case "p6.present = Yes": return present;
-      case "p6.treatment excludes Removed": return present && !treatment.includes("Removed");
-      case "p6.treatment includes Topped Up": return present && treatment.includes("Topped Up");
-      default: return true;
-    }
-  };
+  const active = (i: OfficialItem) => officialItemActive("piisa", i, a);
   blockers.push(...requiredMissing("piisa", a, active));
   if (isYes(a["lifeSupport"]) && (!LS_OPTIONS.includes(s(a["lifeSupportConsent"])) || !s(a["lifeSupportAttachment"])))
     blockers.push({ rule: "P1-LIFE-SUPPORT", message: LS_STOP });
