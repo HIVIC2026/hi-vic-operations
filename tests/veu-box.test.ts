@@ -13,7 +13,7 @@ const VARIANTS = {
   none: { outcome: "likely_eligible", insulation: "none", ...base },
   some: { outcome: "likely_eligible", insulation: "present", declaredThinPatchy: true, ...base },
   questions: { outcome: "needs_onsite_confirmation", insulation: "unknown", insulationQuestions: true, ...base },
-  received: { outcome: "needs_onsite_confirmation", insulation: "unknown", insulationQuestions: true, mediaReceived: true, ...base },
+  received: { outcome: "needs_onsite_confirmation", insulation: "unknown", insulationQuestions: true, mediaAlreadyReceived: true, ...base },
 } as const;
 
 describe("VEU box", () => {
@@ -37,4 +37,9 @@ describe("VEU box", () => {
       expect(lines.findIndex((l) => l.startsWith("Reference:"))).toBeGreaterThan(i + 2);
     });
   }
+  test("received fixture really is the received variant", () => {
+    const q = renderJoOutcomeEmail(VARIANTS.questions as never)!;
+    const r = renderJoOutcomeEmail(VARIANTS.received as never)!;
+    expect(r.plainText).not.toBe(q.plainText);
+  });
 });
