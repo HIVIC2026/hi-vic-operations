@@ -190,7 +190,18 @@ export async function loadJobMoney(jobId: string, testOffice = false) {
   if (rateRes.error) throw new Error(`Could not read the electrician's rate card: ${rateRes.error.message}`);
   const rateRow = rateRes.data;
   const { piesaCostExFor } = await import("./job-margin.core");
-  const piesaCostEx = piesaCostExFor({ ownerDirect: piesaOwnerDirect, paidOutInc: paidOut("assessment"), offerRateInc: sum("piesa").electrician_rate_inc_gst ?? null, rateCardInc: rateRow?.rate_inc_gst != null ? Number(rateRow.rate_inc_gst) : null });
+  // Jo 3 Nov 2026: a recorded payout/offer rate wins; otherwise installer jobs pass the owner's $349 to the installer and
+  // our leads pay the office safety-check payout ($275) — the electrician's own saved rate no longer sets it.
+  void rateRow;
+  const [{ data: rsStd, error: rsErr }, { data: pset, error: psErr }] = await Promise.all([
+    db.from("retail_estimator_settings").select("piesa_assessment_inc_gst").eq("is_current", true).maybeSingle(),
+    db.from("pricing_settings").select("piesa_rec_cost_ex_gst, gst_rate").eq("is_active", true).maybeSingle(),
+  ]);
+  if (rsErr || psErr) throw new Error("Could not read the safety check price settings.");
+  const scp = await import("./safety-check-price.core");
+  const gstJ = pset?.gst_rate != null ? Number(pset.gst_rate) : 0.1;
+  const defaultPiesaInc = scp.safetyCheckPayoutIncGst({ channel: job.data?.channel ?? null, ownerPriceIncGst: scp.ownerSafetyCheckIncGst(rsStd?.piesa_assessment_inc_gst ?? null), hivPayoutIncGst: scp.hivElectricianPayoutIncGst(pset?.piesa_rec_cost_ex_gst ?? null, gstJ) });
+  const piesaCostEx = piesaCostExFor({ ownerDirect: piesaOwnerDirect, paidOutInc: paidOut("assessment"), offerRateInc: sum("piesa").electrician_rate_inc_gst ?? null, rateCardInc: electricianChosen || job.data?.channel === "installer_sourced" ? defaultPiesaInc : null, gstRate: gstJ });
   const fixesPrice = rect.data ? Number(rect.data.customer_total_inc_gst) : null;
   // The $100 on fixes stays ours (decision 142) — only with OUR electrician (decision 349: the installer's own electrician
   // is passed through, margin 0). Without a recorded payout the electrician's cost is the price less the margin the

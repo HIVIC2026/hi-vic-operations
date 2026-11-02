@@ -905,3 +905,7 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] Mitti pickup electrician question (built 3 Nov, not published)
 - [ ] HV-3722 address check: show result only, save waits for Jo OK
 - [x] HV-3722: saved verified address 9 Shelley Street, Spring Gully VIC 3550 via normal recorded path (Jo OK 3 Nov)
+
+## Safety check $349 / $275 (Jo 3 Nov 9:56am Sydney)
+- [x] Owner always $349 on new quotes; installer jobs pass $349 to installer; HIV leads pay electrician $275; recorded offers/quotes unchanged (built, not published)
+- [ ] Data step: Orlando rate $350→$349, Orlando + Reinsulate PIESA lines $350→$349, office payout setting empty→$275 — waits for Jo's OK

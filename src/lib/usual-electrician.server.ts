@@ -38,9 +38,11 @@ export async function mittiElectricianForJob(jobId: string, actorId: string | nu
   const candidates = legacy.choice === "hivic" || legacy.needsProfile ? [] : await (await import("./rec-onboarded.server")).loadApprovedRecCandidates();
   // pays_own_electricians OR in_house → the business's flat PIESA line, no REC rate needed; not a held-visit decision.
   const paysOwn = await (await import("./installer-paid-electricians.server")).readInstallerPaidElectricians(job.originating_installer_business_id);
-  const resolved = paysOwn?.release_hold_reason
+  const resolvedRaw = paysOwn?.release_hold_reason
     ? { ...legacy, ready: false, priceIncGst: null, reasons: [paysOwn.release_hold_reason], needsProfile: false, notOnboarded: null }
     : onboardedElectricianResolution({ legacy, usual: saved?.electrician ?? null, candidates, flatPiesaIncGst: paysOwn?.piesaIncGst ?? null });
+  // Jo 3 Nov 2026: the owner always pays the single standard safety-check price, whoever the electrician is.
+  const resolved = (await import("./safety-check-price.core")).withOwnerSafetyCheckPrice(resolvedRaw, rs?.piesa_assessment_inc_gst ?? null);
   if (resolved.notOnboarded && job.originating_installer_business_id) {
     const need = { installer_business_id: job.originating_installer_business_id, name: resolved.notOnboarded.name, licence: resolved.notOnboarded.licence, email: resolved.notOnboarded.email, choice: resolved.choice };
     const { data: lastNeed, error: ne } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", ELECTRICIAN_ONBOARDING_NEEDED_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle();

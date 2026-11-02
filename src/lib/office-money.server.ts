@@ -6,6 +6,7 @@ import { melbourneMonthStart, melbourneToday } from "./melbourne-time.core";
 import { installerPayExFor, jobMargin, marginTotal, veecValueReceived, type JobMargin } from "./job-margin.core";
 import { groupPayouts, invoiceRowState, stepsLine, veecRegistryLabel, type PayoutLine } from "./office-money.core";
 import { electricalBillingSource } from "./installer-led.core";
+import { hivElectricianPayoutIncGst, ownerSafetyCheckIncGst, safetyCheckPayoutIncGst } from "./safety-check-price.core";
 import { payoutGateFacts } from "./trade-payout-gate.server";
 import { PAYOUT_FORM_NOT_COMPLETE, tradePayoutBlockers } from "./trade-payout-gate.core";
 import { installerPayHeldReasons, ownerPaidInFullAt, payState } from "./trade-view.core";
@@ -79,6 +80,8 @@ export async function moneyMargins(now = new Date()) {
   const piesaRate = new Map<string, number>();
   for (const r of (rates ?? []) as { business_id: string; rate_inc_gst: number }[]) if (!piesaRate.has(r.business_id)) piesaRate.set(r.business_id, Number(r.rate_inc_gst) / (1 + gstRate));
   const fallbackPiesa = num(pricing.data?.piesa_rec_cost_ex_gst);
+  const hivPayout = hivElectricianPayoutIncGst(pricing.data?.piesa_rec_cost_ex_gst ?? null, gstRate);
+  const [ownerPiesa, offerRate] = await Promise.all([standardOwnerPiesa(), acceptedPiesaOfferRates(ids)]);
   // Jo 26 Oct 2026: on Reinsulate's jobs with their own electrician we pay Reinsulate the flat safety check price.
   const installerPaid = await (await import("./installer-paid-electricians.server")).safetyCheckPayeesFor(ids.map((id) => jobs.get(id)!));
   // Installer's own jobs: the portal price is their pay when the quote has no agreed cost (Jo 27 Oct 2026, HV-3385).
@@ -99,7 +102,10 @@ export async function moneyMargins(now = new Date()) {
     const usualPiesa = inst ? internals.find((x) => x.quote_id === inst.id)?.calc_snapshot?.piesa_electrician : null;
     const usualPiesaEx = usualPiesa?.source === "installer_usual" && Number(usualPiesa.rate_inc_gst) > 0 ? Number(usualPiesa.rate_inc_gst) / (1 + gstRate) : null;
     const paidToInstaller = installerPaid.get(id);
-    const piesaCostEx = ownerDirect ? 0 : paidToInstaller ? paidToInstaller.piesaIncGst / (1 + gstRate) : (elec && piesaRate.has(elec) ? piesaRate.get(elec)! : usualPiesaEx ?? fallbackPiesa);
+    // Jo 3 Nov 2026: installer jobs pass the owner's $349 to the installer; our leads pay the electrician the office payout.
+    void piesaRate; void usualPiesaEx; void fallbackPiesa; void elec;
+    const piesaCostEx = ownerDirect ? 0 : paidToInstaller ? paidToInstaller.piesaIncGst / (1 + gstRate)
+      : safetyCheckPayoutIncGst({ channel: j.channel, offerRateInc: offerRate.get(id) ?? null, ownerPriceIncGst: ownerPiesa, hivPayoutIncGst: hivPayout }) / (1 + gstRate);
     const l = lodg.find((x) => x.job_id === id);
     const v = veecValueReceived({ lodgedQty: num(l?.quantity), salePrice: num(l?.sale_price_per_veec), quoteCount: num(inst?.veec_count), spotPrice: spot.price });
     const m = jobMargin({
@@ -156,7 +162,12 @@ export async function moneyPayouts(testJobIds?: string[]) {
   const bizName = new Map(((visitNames ?? []) as { id: string; name: string; trading_name: string | null }[]).map((b) => [b.id, b.trading_name || b.name]));
   const elecIds = [...new Set([...asg.filter((a) => a.role === "electrician").map((a) => a.business_id), ...visitBiz])];
   const { data: rates } = elecIds.length ? await db.from("electrician_rates").select("business_id, rate_inc_gst, effective_from").in("business_id", elecIds).eq("service_type", "piesa").in("status", ["active", "approved"]).order("effective_from", { ascending: false }) : { data: [] };
-  const piesaEx = (businessId: string) => { const r = ((rates ?? []) as { business_id: string; rate_inc_gst: number }[]).find((x) => x.business_id === businessId); return r ? Math.round((Number(r.rate_inc_gst) / gst) * 100) / 100 : num(pricing?.piesa_rec_cost_ex_gst); };
+  // Jo 3 Nov 2026: our leads pay the electrician the office payout ($275), unless the accepted offer recorded a rate
+  // (HV-3682 stays $349); installer jobs pass the owner's $349 through.
+  void rates;
+  const hivPayoutInc = hivElectricianPayoutIncGst(pricing?.piesa_rec_cost_ex_gst ?? null, gst - 1);
+  const [ownerPiesaInc, offerRates] = await Promise.all([standardOwnerPiesa(), acceptedPiesaOfferRates(ids)]);
+  const piesaExFor = (jobId: string, businessId: string) => Math.round((safetyCheckPayoutIncGst({ channel: jobs.get(jobId)?.channel ?? null, offerRateInc: offerRates.get(`${jobId}:${businessId}`) ?? offerRates.get(jobId) ?? null, ownerPriceIncGst: ownerPiesaInc, hivPayoutIncGst: hivPayoutInc }) / gst) * 100) / 100;
   // Jo 26 Oct 2026: the safety check on Reinsulate's own-electrician jobs is paid to Reinsulate, at the flat price.
   const installerPaid = await (await import("./installer-paid-electricians.server")).safetyCheckPayeesFor(ids.map((id) => jobs.get(id)!));
   const lines: PayoutLine[] = [];
@@ -193,7 +204,7 @@ export async function moneyPayouts(testJobIds?: string[]) {
       // dueAt for electrician lines is set below from the decision-355 rule.
       if (!paidToInstaller) for (const v of safetyVisits) {
         const biz = v?.business_id ?? elec.business_id;
-        lines.push({ jobId: id, jobNumber: j.job_number, businessId: biz, business: bizName.get(biz) ?? (biz === elec.business_id ? name(elec) : "Not assigned"), kind: "assessment", amountEx: piesaEx(biz), dueAt: null, paidAt: paidVisit(v), ...(v ? { visitId: v.id } : {}) });
+        lines.push({ jobId: id, jobNumber: j.job_number, businessId: biz, business: bizName.get(biz) ?? (biz === elec.business_id ? name(elec) : "Not assigned"), kind: "assessment", amountEx: piesaExFor(id, biz), dueAt: null, paidAt: paidVisit(v), ...(v ? { visitId: v.id } : {}) });
       }
       if (quotes.some((q) => q.job_id === id && q.kind === "rectification") && (atFinal || visited("rectification"))) lines.push({ jobId: id, jobNumber: j.job_number, businessId: elec.business_id, business: name(elec), kind: "rectification", amountEx: costOf(id, "rectification"), dueAt: null, paidAt: paidFor("rectification") });
     }
@@ -372,4 +383,27 @@ export async function createInvoiceForJob(jobId: string, actorId: string | null)
   }
   if (errors.length) throw new WorkflowError(`The invoice still did not reach Xero: ${errors.join(" · ")}`);
   return { ok: true };
+}
+
+/** The single standard owner safety-check price ($349). */
+async function standardOwnerPiesa(): Promise<number> {
+  const { data, error } = await db.from("retail_estimator_settings").select("piesa_assessment_inc_gst").eq("is_current", true).maybeSingle();
+  if (error) throw new Error(`Could not read the standard safety check price: ${error.message}`);
+  return ownerSafetyCheckIncGst((data as { piesa_assessment_inc_gst?: number | null } | null)?.piesa_assessment_inc_gst ?? null);
+}
+
+/** Recorded rate snapshots on accepted safety-check offers, keyed by job and by "job:business". */
+async function acceptedPiesaOfferRates(jobIds: string[]): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  for (const part of chunks(jobIds)) {
+    const { data, error } = await db.from("partner_offers").select("job_id, business_id, summary").in("job_id", part).eq("kind", "piesa").eq("status", "accepted");
+    if (error) throw new Error(`Could not read safety check offers: ${error.message}`);
+    for (const o of (data ?? []) as { job_id: string; business_id: string; summary: { electrician_rate_inc_gst?: number | null } | null }[]) {
+      const r = Number(o.summary?.electrician_rate_inc_gst);
+      if (!(Number.isFinite(r) && r > 0)) continue;
+      out.set(`${o.job_id}:${o.business_id}`, r);
+      if (!out.has(o.job_id)) out.set(o.job_id, r);
+    }
+  }
+  return out;
 }
