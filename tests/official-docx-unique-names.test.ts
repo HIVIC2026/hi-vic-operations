@@ -73,11 +73,20 @@ for (const key of ["piesa", "piisa"] as const) {
   });
 }
 
-test("the 4 PIISA ticks that vanished are set and uniquely named", () => {
+test("a filled PIISA keeps every tick set, with unique field names", () => {
   const answers = { ...sample("piisa"), "p5.recessed": "Yes", "p5.icConfirmed": "Yes", "p6.present": "Yes", "p6.suitable": "Yes" };
   const r = renderOfficialDocx("piisa", answers as never);
   const xml = strFromU8(unzipSync(r.bytes)["word/document.xml"]!);
   for (const id of ["p5.recessed", "p5.icConfirmed", "p6.present", "p6.suitable"]) expect(checkedOptionFor(xml, "piisa", id)).toBe("Yes");
   const names = fieldNames(xml);
   expect(new Set(names).size).toBe(names.length);
+});
+
+test("a bookmark whose name only ends with the old name is left alone", () => {
+  const xml = '<w:r><w:fldChar w:fldCharType="begin"><w:ffData><w:name w:val="Check1"/><w:checkBox><w:default w:val="0"/></w:checkBox></w:ffData></w:fldChar></w:r>'
+    + '<w:bookmarkStart w:id="1" xw:name="Check1"/><w:bookmarkStart w:id="2" w:name="Check1"/>'
+    + '<w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r>';
+  const out = uniqueFieldNames(xml);
+  expect(out).toContain('xw:name="Check1"');
+  expect(out).toContain('<w:bookmarkStart w:id="2" w:name="hiv0"/>');
 });
