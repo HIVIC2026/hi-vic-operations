@@ -25,7 +25,7 @@ const SAMPLE: SignedAcceptanceInput = {
       owner_name: "Sarah Brown", address: "12 Example St, Box Hill VIC 3128", job_number: "HV-1234", installer_name: "Rapid Insulation",
       installer_phone: "03 9000 0000", installer_email: "office@rapidinsulation.com.au", product: "Bradford Gold R5.0 ceiling batts", area_m2: "137",
       price_before_rebate: "$3,798.00", rebate: "$1,610.00", your_price: "$2,188.00", valid_until: "Mon 8 Dec 2026",
-      safety_check: "$349", deposit: "$218.80", rest: "$1,620.20",
+      safety_check: "$349", deposit: "$183.90", rest: "$1,655.10",
     },
   },
 };

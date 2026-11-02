@@ -27,6 +27,8 @@ export type PdfBlock = { id: string; keepTogether?: boolean; /** Page-1 sizes of
   | { kind: "heading"; text: string }
   | { kind: "signatures"; cells: { label: string; name: string; line: string }[] }
   | { kind: "noteBox"; label: string; text: string; sub?: string }
+  | { kind: "paid"; label: string; line: string; amount: string }
+  | { kind: "ledger"; head: { label: string; amount: string }; rows: { label: string; amount: string }[]; total: { label: string; amount: string; /** Draw a tick after the amount. */ tick?: boolean }; note?: string }
   | { kind: "pageBreak" }
 );
 export type PdfDoc = { title: string; blocks: PdfBlock[] };

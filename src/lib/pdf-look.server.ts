@@ -23,10 +23,20 @@ const HEAD_TOP = 8.4, HEAD_LINE = 16.6, BADGE = 15.4;
 // Page-1 sizes of the signed acceptance, measured from the approved sample (type px x 0.7, spacing px x 0.75).
 const K = {
   body: 7.2, bodyLh: 9.6, gap: 3.75, h1: 13.3, h1Lh: 15.3, h1Top: 3, sub: 7.35, subLh: 9.8, subGap: 1.5, titleBottom: 9,
-  label: 6.3, labelLh: 8.4, fact: 7.2, factLh: 9.6, padX: 7.5, padY: 3.75, headGap: 5, eyebrowLh: 9.8, gridGap: 4.5,
+  label: 6.3, labelLh: 8.4, fact: 7.2, factLh: 9.6, padX: 7.5, padY: 3.75, headGap: 8, eyebrowLh: 9.8, gridGap: 4.5,
   head: 9.1, headLh: 9.6, headTop: 7.5, headPad: 2.6, headRule: 1.1, headBottom: 0.8, sigName: 10.5, sigNameLh: 14, sigNameGap: 1.5,
   rowPad: 4.5, totLh: 12.1, tot: 9.1, tickPadX: 9, tickPadY: 5.25, tickBadge: 12, tickGap: 6.75, tickMargin: 4.5,
 } as const;
+// Receipt blocks (the approved receipt samples: type px x 0.7, spacing px x 0.7).
+const R = {
+  paidTop: 7.6, paidPadY: 9.8, paidPadX: 12.6, paidRadius: 8.4, paidL1: 9.8, paidL1Lh: 14.2, paidL2: 8.4, paidL2Lh: 12.2, amt: 19.6, amtLh: 26.1,
+  tblTop: 9.5, thSize: 6.3, thLh: 8.4, thPad: 2.8, thRule: 1.05, rowSize: 8.05, rowLh: 10.35, rowPad: 4.9, rowLine: 0.7, totSize: 9.1, totLh: 12.1, noteSize: 7.35, noteLh: 9.8,
+} as const;
+const K_BIZ = 7, K_BIZ_LH = 10.5; // page-1 business block of the compact documents (10px / 1.5 in their samples)
+const R_INSET = 2.2; // the sample's body has 3px (2.25pt) of right padding
+const PAID_FILL = hex("#e8f9ef");
+const paidH = () => R.paidTop + 2 * R.paidPadY + Math.max(R.paidL1Lh + R.paidL2Lh, R.amtLh);
+const ledgerH = (b: { rows: unknown[]; note?: string }) => R.tblTop + 2 * R.thPad + R.thLh + R.thRule + b.rows.length * (2 * R.rowPad + R.rowLh + R.rowLine) + 2 * R.rowPad + R.totLh + (b.note ? R.noteLh + R.rowPad : 0);
 const CONTENT_W = PDF_PAGE.width - 2 * PDF_PAGE.side;
 const PAGE_BOTTOM = PDF_PAGE.bottom;
 
@@ -73,7 +83,7 @@ function measure(b: PdfBlock, w: number, F: Fonts): number {
   switch (b.kind) {
     case "header": {
       const n = BUSINESS_LINES.length + (b.withAddress ? 1 : 0);
-      return Math.max(LOGO_H, n * BIZ_LH) + (b.compact ? K.headGap + K.eyebrowLh : 18.2 + 11.4);
+      return Math.max(LOGO_H, n * (b.compact ? K_BIZ_LH : BIZ_LH)) + (b.compact ? K.headGap + K.eyebrowLh : 18.2 + 11.4);
     }
     case "title": if (b.compact) return K.h1Top + lines(F.x, K.h1, b.text, w).length * K.h1Lh + (b.sub ? K.subGap + lines(F.r, K.sub, b.sub, w).length * K.subLh : 0) + K.titleBottom;
       return 2.8 + lines(F.x, H1, b.text, w).length * H1_LH + (b.sub ? 2.8 + lines(F.r, SUB, b.sub, w).length * SUB_LH : 0) + 11.2;
@@ -93,6 +103,8 @@ function measure(b: PdfBlock, w: number, F: Fonts): number {
     case "heading": return K.headTop + K.headLh + K.headPad + K.headRule + K.headBottom;
     case "signatures": return gridRowH(sigCells(b.cells), w, F);
     case "noteBox": return noteH(b, w, F);
+    case "paid": return paidH();
+    case "ledger": return ledgerH(b);
     case "pageBreak": return 0;
   }
 }
@@ -202,8 +214,9 @@ async function draw(b: PdfBlock, page: PDFPage, pageNo: number, x: number, top: 
       const logo = await X.logo();
       page.drawImage(logo, { x, y: top - LOGO_H, width: LOGO_W, height: LOGO_H });
       const biz = b.withAddress ? [...BUSINESS_LINES, BUSINESS_ADDRESS] : [...BUSINESS_LINES];
-      biz.forEach((l, i) => text(page, l, x + w, base(top - i * BIZ_LH, BIZ_LH, BIZ), F.r, BIZ, C.muted, { right: true }));
-      const rowH = Math.max(LOGO_H, biz.length * BIZ_LH);
+      const bizSize = b.compact ? K_BIZ : BIZ, bizLh = b.compact ? K_BIZ_LH : BIZ_LH;
+      biz.forEach((l, i) => text(page, l, x + w - (b.compact ? R_INSET : 0), base(top - i * bizLh, bizLh, bizSize), F.r, bizSize, C.muted, { right: true }));
+      const rowH = Math.max(LOGO_H, biz.length * bizLh);
       if (b.compact) text(page, b.eyebrow, x, base(top - rowH - K.headGap, K.eyebrowLh, 7.35), F.b, 7.35, C.blue, { spacing: 1.1 });
       else text(page, b.eyebrow, x, base(top - rowH - 18.2, 11.4, EYEBROW), F.b, EYEBROW, C.blue, { spacing: 1.23 });
       return;
@@ -374,6 +387,46 @@ async function draw(b: PdfBlock, page: PDFPage, pageNo: number, x: number, top: 
       if (b.sub) drawLines(page, lines(F.r, BODY, b.sub, iw), x + NOTE_PAD_X + 0.75, ty, F.r, BODY, BODY_LH, C.muted);
       return;
     }
+    case "paid": {
+      const top0 = top - R.paidTop;
+      const h = paidH() - R.paidTop;
+      w -= R_INSET;
+      roundRect(page, x, top0, w, h, R.paidRadius, { fill: PAID_FILL });
+      const inner = top0 - R.paidPadY;
+      text(page, b.label, x + R.paidPadX, base(inner, R.paidL1Lh, R.paidL1), F.b, R.paidL1, C.ink);
+      text(page, b.line, x + R.paidPadX, base(inner - R.paidL1Lh, R.paidL2Lh, R.paidL2), F.r, R.paidL2, C.ink);
+      text(page, b.amount, x + w - R.paidPadX, base(top0 - h / 2 + R.amtLh / 2, R.amtLh, R.amt), F.x, R.amt, C.dgreen, { right: true });
+      return;
+    }
+    case "ledger": {
+      w -= R_INSET;
+      let y = top - R.tblTop;
+      const thH = 2 * R.thPad + R.thLh;
+      text(page, b.head.label.toUpperCase(), x, base(y - R.thPad, R.thLh, R.thSize), F.b, R.thSize, C.muted, { spacing: 0.5 });
+      text(page, b.head.amount.toUpperCase(), x + w, base(y - R.thPad, R.thLh, R.thSize), F.b, R.thSize, C.muted, { spacing: 0.5, right: true });
+      y -= thH;
+      page.drawLine({ start: { x, y: y - R.thRule / 2 }, end: { x: x + w, y: y - R.thRule / 2 }, thickness: R.thRule, color: C.ink });
+      y -= R.thRule;
+      for (const r of b.rows) {
+        const bl = base(y - R.rowPad, R.rowLh, R.rowSize);
+        text(page, r.label, x, bl, F.r, R.rowSize, C.ink);
+        text(page, r.amount, x + w, bl, F.r, R.rowSize, C.ink, { right: true });
+        y -= 2 * R.rowPad + R.rowLh + R.rowLine;
+        page.drawLine({ start: { x, y: y + R.rowLine / 2 }, end: { x: x + w, y: y + R.rowLine / 2 }, thickness: R.rowLine, color: C.line });
+      }
+      const tl = base(y - R.rowPad, R.totLh, R.totSize);
+      const tickW = b.total.tick ? 9 : 0;
+      text(page, b.total.label, x, tl, F.x, R.totSize, C.ink);
+      text(page, b.total.amount, x + w - tickW, tl, F.x, R.totSize, C.ink, { right: true });
+      if (b.total.tick) {
+        const cx = x + w - 6.2, cy = tl + R.totSize * 0.3;
+        page.drawLine({ start: { x: cx, y: cy }, end: { x: cx + 2, y: cy - 2.3 }, thickness: 0.8, color: C.ink });
+        page.drawLine({ start: { x: cx + 2, y: cy - 2.3 }, end: { x: cx + 6.2, y: cy + 3.6 }, thickness: 0.8, color: C.ink });
+      }
+      y -= 2 * R.rowPad + R.totLh;
+      if (b.note) text(page, b.note, x, base(y, R.noteLh, R.noteSize), F.r, R.noteSize, C.muted);
+      return;
+    }
     case "pageBreak": return;
   }
 }
@@ -433,7 +486,7 @@ export async function renderPdf(input: PdfDoc): Promise<{ bytes: Uint8Array; lay
   const pageSpace = H - topM - bottom;
   const blocks = doc.blocks;
   // The signed acceptance's first page (compact) sits closer to the bar than the other documents (18px in the approved sample).
-  const barGap = blocks[0]?.compact ? 13.5 : BAR_GAP;
+  const barGap = blocks[0]?.compact ? 12.6 : BAR_GAP;
   const firstSpace = H - firstTop - BAR_H - barGap - bottom;
   const heights = blocks.map((b) => measure(b, CONTENT_W, fonts));
   const items = blocks.map((b, i) => {
