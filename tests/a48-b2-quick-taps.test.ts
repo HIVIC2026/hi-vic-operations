@@ -228,6 +228,7 @@ describe("access question", () => {
     expect(QUICK_TAPS_COPY.access.tenantName).toBe("Tenant's name");
     expect(QUICK_TAPS_COPY.access.tenantMobile).toBe("Tenant's mobile");
     expect(QUICK_TAPS_COPY.access.needBoth).toBe("Add your tenant's name and mobile so the installer can call them");
+    expect(QUICK_TAPS_COPY.access.back).toBe("Back");
   });
   test("asked after the taps (and after blank website answers), before go", () => {
     expect(nextTapStep(base, [])).toBe("access");
@@ -801,6 +802,11 @@ describe("My job access screen (Task 4)", () => {
     expect(block).toContain("validAccess(");
     expect(block).toContain("QUICK_TAPS_COPY.access.needBoth");
     expect(block).toMatch(/disabled=\{[^}]*!tenantOk/);
+  });
+  test("the tenant view has a Back link that returns to Me / My tenant and clears the tenant fields (Jo 2 Nov)", () => {
+    const tenantView = block.slice(block.indexOf("tenantName}"));
+    expect(tenantView).toContain("QUICK_TAPS_COPY.access.back");
+    expect(tenantView).toMatch(/onClick=\{\(\) => \{[^}]*setAskTenant\(false\)[^}]*setTenantName\(""\)[^}]*setTenantMobile\(""\)/);
   });
 });
 

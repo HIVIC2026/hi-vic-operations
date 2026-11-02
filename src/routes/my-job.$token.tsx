@@ -390,6 +390,7 @@ function TapsScreen({ v, token }: { v: View; token: string }) {
           <input className={field} type="tel" inputMode="tel" autoComplete="off" maxLength={30} value={tenantMobile} disabled={busy} onChange={(e) => setTenantMobile(e.target.value)} /></label>
         <button type="button" className={tapPrimary} disabled={busy || !tenantOk} onClick={() => answer({ ...a, access: tenant })}>Next</button>
         {!tenantOk && <p className="text-sm text-muted-foreground">{QUICK_TAPS_COPY.access.needBoth}</p>}
+        <button type="button" className="block w-full text-center text-sm font-semibold underline" disabled={busy} onClick={() => { setAskTenant(false); setTenantName(""); setTenantMobile(""); setErr(""); }}>{QUICK_TAPS_COPY.access.back}</button>
       </>}
     </>;
   }

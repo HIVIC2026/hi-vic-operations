@@ -55,6 +55,7 @@ export const QUICK_TAPS_COPY = {
     tenantName: "Tenant's name",
     tenantMobile: "Tenant's mobile",
     needBoth: "Add your tenant's name and mobile so the installer can call them",
+    back: "Back",
   },
   go: { options: opts<GoAhead>([["yes", "Yes, let's go — you can share my name and number with the installer to book it"], ["no_thanks", "No thanks"]]) },
   /** Website answers left blank. Values are what the website stores (`apartment`, not the eligibility link's `unit`). */
