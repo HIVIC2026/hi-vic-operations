@@ -29,9 +29,26 @@ end $$;
 CREATE TRIGGER compliance_templates_guard BEFORE UPDATE OR DELETE ON public.compliance_templates FOR EACH ROW EXECUTE FUNCTION public.guard_compliance_template();`;
 let db: PGlite;
 const q = (s: string) => db.query<Record<string, unknown>>(s);
-beforeEach(async () => { db = new PGlite(); await db.exec(BASE); await db.exec(read("customer-agreement-v1-3.sql")); });
+const SEED_OLD = `INSERT INTO public.compliance_templates (template_key, version, body, approved, approved_by, approved_at, is_active)
+  VALUES ('customer_agreement', '1.2', 'older body text long enough', true, '${JO}', '2026-10-01', true);`;
+beforeEach(async () => { db = new PGlite(); await db.exec(BASE); });
+const apply = () => db.exec(read("customer-agreement-v1-3.sql"));
 
 describe("Customer Agreement v1.3 template (practice database)", () => {
+  beforeEach(async () => { await apply(); });
+  test("an older active row is retired first and kept as history", async () => {
+    db = new PGlite(); await db.exec(BASE); await db.exec(SEED_OLD); await apply();
+    const r = await q("select version, approved, is_active from compliance_templates where template_key='customer_agreement' order by version");
+    expect(r.rows).toEqual([{ version: "1.2", approved: true, is_active: false }, { version: "1.3", approved: true, is_active: true }]);
+  });
+  test("fails closed (nothing changed) when v1.3 exists but is not approved and active", async () => {
+    db = new PGlite(); await db.exec(BASE); await db.exec(SEED_OLD);
+    await db.exec("INSERT INTO public.compliance_templates (template_key, version, body) VALUES ('customer_agreement','1.3','draft body text long enough')");
+    await expect(apply()).rejects.toThrow(/not approved and active/);
+    await db.exec("ROLLBACK"); // a real session ends the aborted transaction; PGlite exec leaves it open
+    const r = await q("select version, is_active from compliance_templates where template_key='customer_agreement' order by version");
+    expect(r.rows).toEqual([{ version: "1.2", is_active: true }, { version: "1.3", is_active: false }]);
+  });
   test("v1.3 is the one approved, active customer_agreement", async () => {
     const r = await q("select version, approved, is_active, approved_by, body from compliance_templates where template_key='customer_agreement'");
     expect(r.rows).toHaveLength(1);
@@ -42,7 +59,7 @@ describe("Customer Agreement v1.3 template (practice database)", () => {
     expect(JSON.stringify(r.rows)).not.toMatch(/lawyer/i);
   });
   test("running twice is safe", async () => {
-    await db.exec(read("customer-agreement-v1-3.sql"));
+    await apply();
     expect((await q("select 1 from compliance_templates where template_key='customer_agreement'")).rows).toHaveLength(1);
   });
   test("approved wording is immutable", async () => {

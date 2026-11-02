@@ -4,6 +4,12 @@
 -- Idempotent; one transaction. Proven on PGlite: tests/customer-agreement-template-db.test.ts.
 -- ROLLBACK: customer-agreement-v1-3.rollback.sql. NEVER run live without Jo's go-ahead.
 BEGIN;
+
+-- One active customer_agreement at a time (compliance_templates_one_active): retire any older active wording first, keep the row.
+UPDATE public.compliance_templates
+   SET is_active = false
+ WHERE template_key = 'customer_agreement' AND is_active AND version <> '1.3';
+
 INSERT INTO public.compliance_templates (template_key, version, body, approved, approved_by, approved_at, is_active, source_note)
 VALUES ('customer_agreement', '1.3', $body$# CUSTOMER AGREEMENT | Your ceiling insulation upgrade
 This is our agreement with you for job {job_number}. Please read it. Take your time and ask us anything.
@@ -76,4 +82,14 @@ If you need electrical upgrades, you pay your electrician directly. They're not 
 - Deposit: refunded if you cancel at least 2 business days before your install day.
 $body$, true, '950fa0b6-dc44-49af-a754-6a65f26a661e'::uuid, '2026-11-02', true, 'Approved 2 Nov 2026 (customer-agreement-v1.3-final.pdf)')
 ON CONFLICT (template_key, version) DO NOTHING;
+
+-- Fail closed: if v1.3 already existed in another state, DO NOTHING would leave it unused; abort the whole transaction.
+DO $check$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.compliance_templates
+                  WHERE template_key = 'customer_agreement' AND version = '1.3' AND approved AND is_active) THEN
+    RAISE EXCEPTION 'customer_agreement v1.3 is not approved and active; nothing changed';
+  END IF;
+END
+$check$;
 COMMIT;
