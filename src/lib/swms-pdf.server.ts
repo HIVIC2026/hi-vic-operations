@@ -5,6 +5,7 @@
 // for `fileSwms`. No database, no network: pdf-lib standard fonts only, every string through `pdfSafeText`.
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { pdfSafeText } from "./pdf-text.core";
+import { wrapText } from "./pdf-look.core";
 import {
   SWMS_COMPLIANCE_MEASURES, SWMS_HOW_IMPLEMENTED, SWMS_HOW_IN_PLACE, SWMS_RECORD_TASK, SWMS_REVIEW, SWMS_SIGN_STATEMENT,
   latestSignatures, swmsDate, swmsDateTime, swmsHouseSection, type SwmsPlan, type SwmsSignature,
@@ -29,28 +30,7 @@ const HEAD_FILL = rgb(0.86, 0.9, 0.95);
 const LABEL_FILL = rgb(0.95, 0.96, 0.98);
 const BAND = rgb(0.11, 0.23, 0.4);
 
-/** Pure word wrap: explicit newlines kept, words wider than the cell broken by character. */
-export function wrapText(text: string, width: (s: string) => number, max: number): string[] {
-  const out: string[] = [];
-  for (const para of text.split("\n")) {
-    let line = "";
-    for (const word of para.split(/\s+/).filter(Boolean)) {
-      const cand = line ? `${line} ${word}` : word;
-      if (width(cand) <= max) { line = cand; continue; }
-      if (line) out.push(line);
-      line = "";
-      let w = word;
-      while (width(w) > max && w.length > 1) {
-        let n = w.length - 1;
-        while (n > 1 && width(w.slice(0, n)) > max) n--;
-        out.push(w.slice(0, n)); w = w.slice(n);
-      }
-      line = w;
-    }
-    out.push(line);
-  }
-  return out;
-}
+export { wrapText };
 
 /** Pure: how many body lines of a row fit in `space` points (cell padding top+bottom included); 0 = start a new page. */
 export function linesThatFit(space: number, lineH = LH, pad = PAD): number {
