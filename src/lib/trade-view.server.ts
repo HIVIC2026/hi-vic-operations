@@ -213,12 +213,12 @@ export async function tradeHome(userId: string) {
   const upcomingTile = (id: string) => { const b = upcomingOf(id)[0]; return b ? { what: VISIT[b.kind] ?? "Visit", start: b.scheduled_start } : null; };
   // Jo 3 Nov 2026: Mitti pickups still waiting for the installer's one electrician answer (own electricians only).
   const askElectrician = c.kind === "installer" ? await (await import("./mitti-electrician.server")).openMittiElectricianQuestions(jobsTabbed.map((j) => j.jobId)).catch(() => new Set<string>()) : new Set<string>();
-  const withAsk = (id: string, next: string | null) => askElectrician.has(id) ? (next?.startsWith("Needs finishing") ? `${next} · Choose your electrician` : "Choose your electrician") : next;
   const home = c.kind === "installer" ? installerHomeGroups(jobsTabbed.map((j) => ({
     jobId: j.jobId, jobNumber: j.jobNumber, street: j.street, suburb: j.suburb, channel: j.channel, stage: j.stage, place: j.place, placeTitle: placeOf.get(j.jobId)?.title ?? null,
     inHouseDispatch: sf.get(j.jobId)?.inHouseDispatch ?? null,
     ...(installDeposits.has(j.jobId)?{installDepositPaid:installDeposits.get(j.jobId)??null}:{}),
-    nextAction: withAsk(j.jobId, (byId.get(j.jobId) as { next_action?: string | null } | undefined)?.next_action ?? null), quoteLine: j.quoteLine, status: j.line ? { text: j.line.text, who: j.line.who } : null,
+    ...(askElectrician.has(j.jobId) ? { chooseElectrician: true } : {}),
+    nextAction: (byId.get(j.jobId) as { next_action?: string | null } | undefined)?.next_action ?? null, quoteLine: j.quoteLine, status: j.line ? { text: j.line.text, who: j.line.who } : null,
     upcoming: upcomingTile(j.jobId), installDeadline: deadline.get(j.jobId) ?? null, endedAt: byId.get(j.jobId)?.updated_at ?? null, waitedSince: byId.get(j.jobId)?.updated_at ?? null,
     formLinked: formFacts.get(j.jobId)?.linked === true, formCompleted: formFacts.get(j.jobId)?.completed === true, formHasAnswers: formFacts.get(j.jobId)?.hasAnswers ?? null,
     priceEntered: j.channel === "installer_sourced" ? priced.has(j.jobId) : null, boss: c.boss,
