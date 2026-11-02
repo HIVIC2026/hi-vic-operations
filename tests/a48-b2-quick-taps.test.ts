@@ -700,6 +700,22 @@ describe("saveQuickTaps: who lets the installer in", () => {
     await expect(S.saveQuickTaps(tok("a"), ALL_GOOD({ go: "no_thanks", access: { ...TENANT, mobile: "nope" } }))).rejects.toThrow();
     expect(events("quick_taps_answered")).toEqual([]); expect(cancels).toEqual([]); expect(mails).toEqual([]);
   });
+  test("final review 4: tenant details + No thanks → the decline is saved without access", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]);
+    expect(await S.saveQuickTaps(tok("a"), ALL_GOOD({ go: "no_thanks", access: TENANT }))).toEqual({ kind: "done", outcome: "no_thanks" });
+    const ev = events("quick_taps_answered", "a");
+    expect(ev).toHaveLength(1);
+    const answers = (ev[0]!["details"] as Row)["answers"] as Row;
+    expect("access" in answers).toBe(false);
+    expect(JSON.stringify(ev[0])).not.toContain("Sam Lee");
+    expect(JSON.stringify(ev[0])).not.toContain("+61412345678");
+  });
+  test("final review 4: a decline on the roof or 5-year question saves no access either", async () => {
+    addJob("a"); addJob("b"); sendBatchEvent("b1", ["a", "b"]);
+    await S.saveQuickTaps(tok("a"), ALL_GOOD({ hatch: "no", roof: undefined, five_years: undefined, go: undefined, access: TENANT }));
+    await S.saveQuickTaps(tok("b"), ALL_GOOD({ five_years: "yes", go: undefined, access: TENANT }));
+    for (const id of ["a", "b"]) expect("access" in (((events("quick_taps_answered", id)[0]!["details"] as Row)["answers"]) as Row)).toBe(false);
+  });
   test("the tenant is never texted or emailed (real job and TEST job, pass and decline)", async () => {
     addJob("a"); addJob("t", { source: "qa_test" }); addJob("d"); sendBatchEvent("b1", ["a", "t", "d"]);
     await S.saveQuickTaps(tok("a"), ALL_GOOD({ access: TENANT }));

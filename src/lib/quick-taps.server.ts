@@ -9,8 +9,8 @@
 //   batch (area-batch.server leaveBatchIfMoved) and goes back in the pool — the owner is not told and carries on.
 // - saveQuickTaps: the answers. ONE `quick_taps_answered {batch_id, answers, consent_share, outcome}` per job + batch,
 //   claimed before anything else happens (a second save, or a second device, gets the same outcome and nothing more).
-//   `answers.access` = who lets the installer in, normalised (tenant name trimmed, mobile +61…); a given but invalid
-//   answer is refused and nothing is saved. The tenant is never texted or emailed.
+//   `answers.access` = who lets the installer in, normalised (tenant name trimmed, mobile +61…), stored on a pass only;
+//   a given but invalid answer is refused (even on a decline) and nothing is saved. The tenant is never texted or emailed.
 //   Blank website answers are written onto enrichment.base44.declared (blanks only, never overwriting). Pass → the
 //   existing `trade_contact_share` owner gate (the "Yes, let's go" tap is the consent). Declines → cancelJobFully with the
 //   matching reason (no O69 cancel notice: the owner gets this decline email instead) + the matching approved email
@@ -288,7 +288,8 @@ export async function saveQuickTaps(token: string, answers: QuickTapAnswers, met
   const stored = {
     name: view.name, address: view.address, hatch: answers.hatch ?? null, roof: answers.roof ?? null, five_years: answers.five_years ?? null, go: answers.go ?? null,
     ...(Object.keys(website).length ? { website } : {}),
-    ...(access ? { access } : {}),
+    // Final review 4: kept only on a pass (the installer needs it); a decline never stores the tenant's details.
+    ...(access && outcome === "pass" ? { access } : {}),
   };
   const won = await claimAnswer(jobId, { batch_id: batchId, answers: stored, consent_share: outcome === "pass", outcome, idempotency_key: `quick-taps:v1:${batchId}:${jobId}:answered` }, SUMMARY[outcome]);
   if (!won) {
