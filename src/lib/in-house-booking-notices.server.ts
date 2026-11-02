@@ -6,7 +6,7 @@ import { stableUuid } from './mitti-create-claim.core';
 const db=admin as unknown as SupabaseClient;
 type Mail={to:string;subject:string;html:string;text:string};
 type Claim={key:string;status:string;attempt:number;at:string;mail:Mail};
-async function deliverOnce(jobId:string,key:string,mail:Mail,send:(mail:Mail)=>Promise<{status:string;detail?:string}>,now=new Date()){
+export async function deliverOnce(jobId:string,key:string,mail:Mail,send:(mail:Mail)=>Promise<{status:string;detail?:string}>,now=new Date()){
   const id=await stableUuid(key);
   const {data:prior,error:readError}=await db.from('workflow_events').select('details').eq('id',id).maybeSingle();
   if(readError)throw Error(readError.message);
