@@ -200,7 +200,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
           measured_required: true, electrician_payer: payer, ...(d.removal ? { removal_quote: removalPayload(d.removal, d.quoteStatus === "have_quote", d.attended === "attended") } : {}),
           ...(d.quoteStatus === "have_quote" ? { commercial: commercialPayload(d.commercial ?? blankCommercialInput(), live.includes || null, d.removal?.answer === "yes") } : {}),
           ...(d.quoteStatus === "have_quote" && feeAck && feeText ? { fee_awareness: { declared: true, payer: payer, text: feeText, version: FEE_AWARENESS_VERSION } } : {}) },
-      }, electrician: payer === "undecided" ? { mode: "later" } : payer === "own" && plan?.mode === "mine" ? { mode: "mine", business_id: plan.business_id ?? null, nomination_id: plan.nomination_id ?? null } : { mode: "hivic" } } as never });
+      }, electrician: payer === "own" && plan?.mode === "mine" ? { mode: "mine", business_id: plan.business_id ?? null, nomination_id: plan.nomination_id ?? null } : { mode: "later" } } as never });
       try { if (userId) localStorage.removeItem(resumeKey(userId, businessId)); } catch { /* ignore */ }
       setSaved({ jobId: res.jobId, jobNumber: res.jobNumber ?? null, insulation: d.insulation ?? "unknown", quoted: d.quoteStatus === "have_quote", attended: d.attended ?? null, next: intakeNextAction(coord, d.quoteStatus === "have_quote", d.attended ?? null), feeHeld: d.quoteStatus === "have_quote" && !(feeAck && feeText) });
     } catch (e) { setErr(saveErrorMessage(e instanceof Error ? e.message : null)); }
@@ -326,12 +326,12 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         <p className="pt-1 text-xs font-bold uppercase tracking-wide text-sub" data-section-electrician>Electrician & owner fees</p>
         <fieldset data-electrician-payer><legend className="text-sm font-bold">Electrician (PIESA)</legend>
           <div className="mt-2 grid gap-2" role="radiogroup" aria-label="Electrician">
-            {ELECTRICIAN_PAYER_CHOICES.map((c) => <button key={c.value} type="button" role="radio" aria-checked={payer === c.value} onClick={() => { setPayer(c.value); if (c.value === "hivic") setPlan({ mode: "hivic" }); }} className={`w-full rounded-[14px] border p-3 text-left ${payer === c.value ? "border-primary bg-primary/5" : "border-line bg-paper"}`}>
+            {ELECTRICIAN_PAYER_CHOICES.map((c) => <button key={c.value} type="button" role="radio" aria-checked={payer === c.value} onClick={() => { setPayer(c.value); if (c.value === "own") setPlan({ mode: "mine" }); }} className={`w-full rounded-[14px] border p-3 text-left ${payer === c.value ? "border-primary bg-primary/5" : "border-line bg-paper"}`}>
               <span className="block text-sm font-bold">{c.label}</span><span className="mt-1 block text-xs text-sub">{c.body}</span>
             </button>)}
           </div>
         </fieldset>
-        {payer === "own" && plan && <ElectricianPicker ownOnly value={plan} onChange={(n) => { setPlan(n); if (n.mode !== "mine") setPayer("hivic"); }} note={false} approved={el?.approved ?? []} pending={el?.pending ?? []} onAdd={async (x) => { const r = await addEl({ data: { businessId, name: x.name, mobile: x.mobile, email: x.email, business: x.business } }); await refetch(); setPlan({ mode: "mine", ...(r.businessId ? { business_id: r.businessId } : { nomination_id: r.nominationId }) }); return { message: inviteResultMessage(r) }; }} />}
+        {payer === "own" && plan && <ElectricianPicker ownOnly value={plan} onChange={setPlan} note={false} approved={el?.approved ?? []} pending={el?.pending ?? []} onAdd={async (x) => { const r = await addEl({ data: { businessId, name: x.name, mobile: x.mobile, email: x.email, business: x.business } }); await refetch(); setPlan({ mode: "mine", ...(r.businessId ? { business_id: r.businessId } : { nomination_id: r.nominationId }) }); return { message: inviteResultMessage(r) }; }} />}
         {d.quoteStatus === "have_quote" && feeText && <label className="flex items-start gap-3 text-sm" data-fee-ack><Checkbox className="mt-0.5" checked={feeAck} onCheckedChange={(c) => setFeeAck(c === true)} aria-label={feeText} /><span>{feeText}<span className="block text-xs text-sub">Not ticked? You can still submit — the owner quote waits until this is recorded.</span></span></label>}
       </section>}
 

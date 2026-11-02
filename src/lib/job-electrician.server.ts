@@ -12,6 +12,8 @@ export async function recordJobElectricianChoice(jobId: string, installerBusines
     return { choice: null };
   }
   if (!plan || plan.mode !== "mine") {
+    const { data: job, error } = await admin.from("jobs").select("channel").eq("id", jobId).single();
+    if (error || !job || job.channel === "installer_sourced") throw new WorkflowError("Use one of your own electricians.");
     await admin.from("jobs").update({ electrician_choice: "hivic_organise" }).eq("id", jobId);
     return { choice: "hivic_organise" as const };
   }
@@ -79,6 +81,8 @@ export async function switchJobToHivic(jobId: string, userId: string) {
 
 /** Internal: callers must already have applied the guards (legacy switch above, or installerUpdateIntake). */
 export async function applyHivicArrangement(jobId: string, userId: string) {
+  const { data: job, error } = await admin.from("jobs").select("channel").eq("id", jobId).single();
+  if (error || !job || job.channel === "installer_sourced") throw new WorkflowError("Use one of your own electricians.");
   const { data: mine } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("user_id", userId).eq("active", true).maybeSingle();
   if (!mine?.business_id) throw new WorkflowError("Only the installer on this job can change this.");
   const { data: biz } = await admin.from("business_members").select("member_role").eq("business_id", mine.business_id).eq("user_id", userId).eq("active", true).maybeSingle();

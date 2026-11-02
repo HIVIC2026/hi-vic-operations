@@ -420,6 +420,9 @@ export const chooseElectrician = createServerFn({ method: "POST" }).middleware([
   }).parse(d))
   .handler(async ({ data, context }) => {
     const role = await requireJobRole(context.supabase, data.jobId, ["admin", "installer"]);
+    const { data: jobChannel, error: channelError } = await context.supabase.from("jobs").select("channel").eq("id", data.jobId).single();
+    if (channelError || !jobChannel) throw new WorkflowError("Couldn't check this job.");
+    if (jobChannel.channel === "installer_sourced" && data.choice === "hivic_organise") throw new WorkflowError("Use one of your own electricians.");
     const { cands } = await electricianCandidates(data.jobId);
     const cand = data.businessId ? cands.find((c) => c.id === data.businessId) ?? null : null;
     const blocker = electricianSelectionBlocker(data.choice, cand);

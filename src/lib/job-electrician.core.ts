@@ -24,7 +24,7 @@ export type ElectricianPlan = { mode: "mine" | "hivic" | "job_by_job"; nominatio
 
 /** "My electrician" needs a pick; the other choices never block. */
 export function electricianPlanBlocker(p: ElectricianPlan | null | undefined): string | null {
-  if (!p || p.mode !== "mine") return null;
+  if (!p || p.mode !== "mine") return "Choose your electrician";
   return p.business_id || p.nomination_id ? null : "Choose your electrician";
 }
 
@@ -48,7 +48,7 @@ export function jobElectricianLabel(s: { choice: string | null; assignedName?: s
   if (s.assignedName) return `Electrician: ${s.assignedName}`;
   if (s.invitedName) return ELECTRICIAN_INVITED_LABEL;
   if (s.chosenName) return `Your electrician: ${s.chosenName}`;
-  return HIV_ARRANGES_LABEL;
+  return "Choose your own electrician";
 }
 
 /** Invite email to the installer's new electrician (a one-off partner email: follows the manual-email rule). */

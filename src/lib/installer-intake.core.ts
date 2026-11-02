@@ -351,7 +351,6 @@ export const NOT_MEASURED_NOTE = "That’s fine — we’ll save the job now. Ad
 /** Who arranges/pays the electrician on an installer-supplied job (separate from who manages the job). */
 export type ElectricianPayer = "hivic" | "own" | "undecided";
 export const ELECTRICIAN_PAYER_CHOICES: { value: ElectricianPayer; label: string; body: string }[] = [
-  { value: "hivic", label: "Home Insulation Victoria arranges — $349 including GST", body: "We arrange an approved electrician. The $349 PIESA fee is on the owner’s quote." },
   { value: "own", label: "I’ll use my own electrician", body: "Your electrician must sign up with us first. Their safety check price goes on the owner’s quote instead of our $349, the owner pays us, and we pay the electrician. The office still verifies the electrician, the PIESA, any conditions, evidence and notices before work." },
   { value: "undecided", label: "To be arranged", body: "You can save now. The owner quote waits until the electrician and their cost are known." },
 ];
@@ -425,6 +424,7 @@ export function pickIntakeChanges(cur: IntakeCurrent, next: { areaM2: number | n
 export function planPayerChange(x: { currentPayer: ElectricianPayer; requested: ElectricianPayer | undefined; electricianAccepted: boolean; fee?: { payer: ElectricianPayer; text: string } | undefined }):
   { ok: true; change: boolean; nextPayer: ElectricianPayer } | { ok: false; error: string } {
   const change = x.requested !== undefined && x.requested !== x.currentPayer;
+  if (x.requested === "hivic") return { ok: false, error: "Use one of your own electricians." };
   if (change && x.electricianAccepted) return { ok: false, error: "An electrician has already accepted this job. Ask Home Insulation Victoria to change it." };
   const nextPayer = change ? x.requested! : x.currentPayer;
   if (x.fee && (x.fee.payer !== nextPayer || x.fee.text !== feeAwarenessText(nextPayer))) return { ok: false, error: "The fee confirmation doesn't match the electrician arrangement you chose — tick it again." };

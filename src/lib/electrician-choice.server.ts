@@ -15,10 +15,17 @@ export async function readElectricianChoice(jobId: string): Promise<ElectricianC
 /** Records the choice (validated against the business's saved usual electrician). `choice` null = the default rule
  *  (usual when saved, else Home Insulation Victoria's) — bulk upload and legacy callers. Append-only; never sends. */
 export async function recordElectricianChoice(jobId: string, businessId: string, actorId: string | null, choice: ElectricianChoice | null | undefined, source: ElectricianChoiceRecord["source"]): Promise<ElectricianChoiceRecord> {
-  const usual = (await (await import("./usual-electrician.server")).readUsualElectrician(businessId)).electrician;
+  const status = await (await import("./usual-electrician.server")).readUsualElectricianStatus(businessId);
+  const usual = status.onboarded ? status.electrician : null;
   const chosen = choice ?? defaultElectricianChoice(usual);
+  // Upload jobs with no approved usual electrician stays undecided, never defaults to HIV.
+  if (!chosen && !choice && source === "bulk_upload") {
+    await logEvent(jobId, actorId, "electrician_to_be_arranged", "Installer to choose electrician", { business_id: businessId }, { internal: true });
+    return { choice: null, usual_name: null, usual_licence: null, source };
+  }
   const problem = electricianChoiceProblem(chosen, usual);
   if (problem) throw new WorkflowError(problem);
+  if (!chosen) throw new WorkflowError("Choose your own electrician.");
   const record = electricianChoiceRecord(chosen, usual, choice ? source : "default");
   await logEvent(jobId, actorId, ELECTRICIAN_CHOICE_EVENT, electricianChoiceSummary(record), { ...record, business_id: businessId, declared_not_verified: true }, { internal: true });
   return record;
