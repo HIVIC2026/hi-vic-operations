@@ -1,3 +1,4 @@
+-- Run with psql -v ON_ERROR_STOP=1
 -- customer-agreement-v1-3.sql (2 Nov 2026): loads Customer Agreement v1.3 as the approved, active customer_agreement wording.
 -- Source: docs/approved-samples/2026-11-02/agreement-web.html and customer-agreement-v1.3-final.pdf.
 -- Later versions go through the Settings path (add version, approve), no code change.

@@ -72,7 +72,15 @@ describe("Customer Agreement v1.3 template (practice database)", () => {
     const r = await q("select version from compliance_templates where template_key='customer_agreement' and approved and is_active");
     expect(r.rows).toEqual([{ version: "1.4" }]);
   });
-  test("rollback removes only the v1.3 row", async () => {
+  test("rollback re-activates the older approved row the forward script retired", async () => {
+    db = new PGlite(); await db.exec(BASE); await db.exec(SEED_OLD); await apply();
+    await db.exec(read("customer-agreement-v1-3.rollback.sql"));
+    const r = await q("select version, approved, is_active from compliance_templates where template_key='customer_agreement' order by version");
+    expect(r.rows).toEqual([{ version: "1.2", approved: true, is_active: true }]);
+    const t = await q("select tgenabled from pg_trigger where tgname='compliance_templates_guard'");
+    expect(t.rows).toEqual([{ tgenabled: "O" }]);
+  });
+  test("rollback with no older row leaves no customer_agreement", async () => {
     await db.exec(read("customer-agreement-v1-3.rollback.sql"));
     expect((await q("select 1 from compliance_templates where template_key='customer_agreement'")).rows).toHaveLength(0);
   });
