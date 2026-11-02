@@ -1,7 +1,7 @@
 // Jo 24 Oct 2026 (decisions 80–81): on our leads the owner gets "You're booked" for the free Ready Check, and an updated
 // one when either side changes the time. Our leads only (installers' own customers have no portal booking).
 // Design: docs/templates/mjml/owner_O12.mjml (MJML email refresh, Jo 27 Oct 2026) — blue date/time box with address
-// and installer name + phone; "Before they arrive"; Change time line; See my job; rebate and price boxes; included / not included.
+// and installer name + phone; "Before they arrive"; Change time line; rebate and price boxes; included / not included.
 // Flag on (decisions 81/82); real delivery still needs customer_comms_enabled through the guarded owner-email path. Pure.
 import * as K from "./email-kit.core";
 import { esc, mjEmail } from "./mail-mjml.core";

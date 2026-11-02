@@ -1,7 +1,7 @@
 // "Spot saved" confirmation (text + email), sent once when an owner first saves their spot.
 // Email design APPROVED by Jo 24 Oct 2026 (decision 70), refreshed as MJML 27 Oct 2026 (docs/templates/mjml/owner_O10):
 // "Smart move, {First}. Your spot is saved." + "Your {rebate} rebate is waiting"; demand line; rebate and price boxes;
-// "What happens next" steps with See my job; the Save my spot included / not included cards (+ the existing-insulation
+// "What happens next" steps; the Save my spot included / not included cards (+ the existing-insulation
 // card for those owners); friend card. The text message keeps its earlier approved wording (task scope: emails only).
 // Decision 388 (Jo 25 Oct 2026): both are sent BEFORE the spot is released, so they are spot-only — no Ready Check,
 // installer times, measuring, quote timing or speed ("as soon as"). Changed directly (the email has no approval flag);

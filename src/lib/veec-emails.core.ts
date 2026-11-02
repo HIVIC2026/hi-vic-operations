@@ -41,7 +41,6 @@ export function renderVeecCopyEmail(i: VeecCopyEmailInput) {
   const copy = `Thanks for signing. Your copy of the rebate form for ${i.jobNumber} is attached. Keep it with your home records.`;
   const signed = `Signed on ${melbourneLongDate(i.signedAt)}`;
   const escLine = "Questions about the rebate scheme? The Essential Services Commission is at veu@esc.vic.gov.au.";
-  const label = "See my job";
   const preview = `${signed}. Keep it with your home records.`;
   const body = [
     `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${esc(subject)}</mj-text><mj-text>${esc(copy)}</mj-text></mj-column></mj-section>`,

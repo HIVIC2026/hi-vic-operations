@@ -259,10 +259,10 @@ describe("approved owner email designs", () => {
     const m = renderDepositReleasedEmail({ firstName: "Helen", day: "Tuesday 11 November", link: JOB, depositAmount: "$185.10", bankLines: bankDetailLines(HIV_BANK_DETAILS, "Home Insulation Victoria HV-3117") });
     shell(m.html, m.text, false);
     expect(m.subject).toBe("Helen, your install day was released");
-    has(m.html, [">Hi Helen,</div>", ">Your install day was released</div>", "We didn't receive your install deposit in time, so Tuesday 11 November has been released. Your installer will offer new days once it's paid.", "Pay your $185.10 deposit by card, bank transfer or PayID", ">See my job</a>", `href="${JOB}"`]);
+    has(m.html, [">Hi Helen,</div>", ">Your install day was released</div>", "We didn't receive your install deposit in time, so Tuesday 11 November has been released. Your installer will offer new days once it's paid.", "Pay your $185.10 deposit by card, bank transfer or PayID"]);
     has(vis(m.html), ["Account name | Home Insulation Victoria | BSB | 082-902 | Account | 777966349 | Reference | Home Insulation Victoria HV-3117"]);
     has(m.text, ["Account name: Home Insulation Victoria", "BSB 082-902 · Account 777966349", "Reference: Home Insulation Victoria HV-3117"]);
-    expect(visLines(m.html)).toEqual(designLines("owner_O64", [["Wednesday 11 November", "Tuesday 11 November"], ["HV-TEST", "HV-3117"]]));
+    expect(visLines(m.html)).toEqual(designLines("owner_O64", [["Wednesday 11 November", "Tuesday 11 November"], ["HV-TEST", "HV-3117"]]).filter(l=>l!=="See my job"));
     expect(PROVISIONAL_RELEASE_OWNER_NOTICE_APPROVED).toBe(true);
   });
   // Decision 291 (Jo 25 Oct 2026): the samples in docs/templates/owner and installer are written by scripts/render-decision-291-samples.ts from this data.

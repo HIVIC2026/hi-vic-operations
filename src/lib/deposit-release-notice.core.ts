@@ -66,7 +66,7 @@ function bankTableHtml(lines: string[]): string {
   return `<mj-table padding="0 18px 14px">${rows.map((r, n) => `<tr><td style="${ROW_K(n === 0)}">${esc(r.k)}</td><td align="right" style="${ROW_V(n === 0, r.k === "BSB" || r.k === "Account")}"><strong>${cell(r)}</strong></td></tr>`).join("")}</mj-table>`;
 }
 
-/** Owner email: headline, the same message, bank details, See my job. */
+/** Owner email: headline, the same message, bank details. */
 export function renderDepositReleasedEmail(f: DepositReleaseFacts): { subject: string; html: string; text: string } {
   const first = K.cleanName(f.firstName) ?? "there";
   const subject = `${first}, your install day was released`;
@@ -81,12 +81,12 @@ export function renderDepositReleasedEmail(f: DepositReleaseFacts): { subject: s
     body: [
       `<mj-section><mj-column><mj-text mj-class="hi">${esc(hi)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${esc(headline)}</mj-text><mj-text>${esc(body)}</mj-text></mj-column></mj-section>`,
       `<mj-section><mj-column mj-class="panel"><mj-text mj-class="h2" padding="18px 18px 8px">${esc(payTitle)}</mj-text>${bankTableHtml(f.bankLines)}</mj-column></mj-section>`,
-      `<mj-section><mj-column><mj-text padding="16px 12px 14px">${esc(lands)}</mj-text><mj-button href="${esc(f.link)}">See my job</mj-button><mj-text mj-class="small" padding="0 12px">Questions? Just reply to this email.</mj-text></mj-column></mj-section>`,
+      `<mj-section><mj-column><mj-text padding="16px 12px 14px">${esc(lands)}</mj-text><mj-text mj-class="small" padding="0 12px">Questions? Just reply to this email.</mj-text></mj-column></mj-section>`,
     ].join(""),
     unsubscribe: null, testLabel: f.test === true,
   });
   const text = K.plainText([
-    hi, "", headline, "", body, "", payTitle.toUpperCase(), ...f.bankLines, "", lands, `See my job: ${f.link}`, "", "Questions? Just reply to this email.",
+    hi, "", headline, "", body, "", payTitle.toUpperCase(), ...f.bankLines, "", lands, "", "Questions? Just reply to this email.",
   ], { testLabel: f.test === true });
   return { subject, html, text };
 }

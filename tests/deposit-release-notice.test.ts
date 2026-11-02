@@ -16,7 +16,7 @@ describe("wording (decision 170)", () => {
     expect(brandSmsBody(t).length).toBeLessThanOrEqual(SMS_BRAND_PREFIX.length + 306);
     expect(depositReleaseText({ firstName: null, day: "Monday 3 November", link: LINK })).toContain("Hi there, we didn't");
   });
-  test("email: headline, same message, bank details and See my job", () => {
+  test("email: headline, same message and bank details, no My job button", () => {
     const m = renderDepositReleasedEmail({ firstName: "Helen", day: "Tuesday 11 November", link: LINK, depositAmount: "$185.10", bankLines: bankDetailLines(HIV_BANK_DETAILS, "Home Insulation Victoria HV-3117") });
     expect(m.subject).toBe("Helen, your install day was released");
     expect(m.html).toContain("Hi Helen,");
@@ -29,9 +29,9 @@ describe("wording (decision 170)", () => {
     expect(m.html).toContain('Home Insulation Victoria <span style="white-space:nowrap;">HV-3117</span>');
     expect(m.text).toContain("BSB 082-902 · Account 777966349");
     expect(m.text).toContain("Reference: Home Insulation Victoria HV-3117");
-    expect(m.html).toContain(">See my job<");
+    expect(m.html).not.toContain("See my job");
     expect(m.text).toContain("Account name: Home Insulation Victoria");
-    expect(m.text).toContain(`See my job: ${LINK}`);
+    expect(m.text).not.toContain("See my job");
   });
   test("flags: owner notice approved; SMS type deposit_release is an approved owner type under quiet hours", () => {
     expect(PROVISIONAL_RELEASE_OWNER_NOTICE_APPROVED).toBe(true);

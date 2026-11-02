@@ -85,11 +85,11 @@ export function renderInstallNoAccessEmail(f: InstallNoAccessFacts): { subject: 
     `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${esc(headline)}</mj-text><mj-text>${esc(intro1)}</mj-text><mj-text>${esc(intro2)}</mj-text></mj-column></mj-section>`,
     daysPanel,
     `<mj-section><mj-column mj-class="panel-amber"><mj-text mj-class="h2" padding="18px 18px 6px">The 30-day clock keeps running</mj-text><mj-text padding="0 18px 16px">${clock}</mj-text></mj-column></mj-section>`,
-    `<mj-section><mj-column><mj-button href="${esc(f.link)}" padding="18px 12px 18px">See my job</mj-button><mj-text mj-class="small" padding="0 12px">Questions? Just reply to this email.</mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column><mj-text mj-class="small" padding="18px 12px 0">Questions? Just reply to this email.</mj-text></mj-column></mj-section>`,
   ].join("");
   const html = mjEmail({ subject, preview, body, unsubscribe: null, testLabel: f.test === true });
   const text = K.plainText([
-    headline, "", intro1, intro2, "", daysTitle.toUpperCase(), daysBody, ...days.map((d) => `• ${d.day}${d.time ? ` ${d.time}` : ""}`), ...(days.length ? [`None suit? Suggest other days: ${f.link}`] : []), "", "THE 30-DAY CLOCK KEEPS RUNNING", K.stripTags(clock), "", `See my job: ${f.link}`, "", "Questions? Just reply to this email.",
+    headline, "", intro1, intro2, "", daysTitle.toUpperCase(), daysBody, ...days.map((d) => `• ${d.day}${d.time ? ` ${d.time}` : ""}`), ...(days.length ? [`None suit? Suggest other days: ${f.link}`] : []), "", "THE 30-DAY CLOCK KEEPS RUNNING", K.stripTags(clock), "", "Questions? Just reply to this email.",
   ], { testLabel: f.test === true });
   return { subject, html, text };
 }

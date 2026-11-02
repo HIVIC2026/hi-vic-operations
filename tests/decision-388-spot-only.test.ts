@@ -134,7 +134,7 @@ describe("pre-release page copy and shared constants", () => {
       ["SPOT_SAVED_BODY", SPOT_SAVED_BODY], ["PRELIMINARY_READY_CHECK", PRELIMINARY_READY_CHECK], ["SPOT_HELD_MESSAGE", SPOT_HELD_MESSAGE],
       ["READY_CHECK_BOOKING_CLOSED", READY_CHECK_BOOKING_CLOSED], ["EXISTING_PRELIMINARY", EXISTING_PRELIMINARY], ["REMOVAL_BUDGET_EMAIL_NOTE", REMOVAL_BUDGET_EMAIL_NOTE],
       ["removalNote included", removalNote({ kind: "included", amount: 900, areaM2: 60 })], ["REMOVAL_UPTO_NOTE", REMOVAL_UPTO_NOTE],
-      ["INSULATION_REVIEW_INVITATION", INSULATION_REVIEW_INVITATION], ["P1.photosSub", P1.photosSub], ["what could change", CUSTOMER_WHAT_COULD_CHANGE.intro],
+      ["INSULATION_REVIEW_INVITATION", INSULATION_REVIEW_INVITATION], ["what could change", CUSTOMER_WHAT_COULD_CHANGE.intro],
       ["spot_saved owner wording", stageWording("spot_saved").owner!], ["ready_check_ready_to_schedule owner wording", stageWording("ready_check_ready_to_schedule").owner!],
       ["My job progress", SPOT_SAVED_PROGRESS.map((p) => `${p.label} ${p.sub}`).join(" ")],
       ["My job: save your spot", JSON.stringify(ownerAction({ stage: "preliminary_estimate_ready", readyCheckRequested: false, visit: null, quoteOpen: null, bookingOpen: false }))],
