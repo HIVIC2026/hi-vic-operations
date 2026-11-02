@@ -336,7 +336,7 @@ async function textOwner(h: TextTo, batchId: string, myJobLink: string, business
 
 /** The quick taps email (or the day-2 reminder email), with the same quick taps link as the text (Jo 2 Nov 2026). TEST →
  *  test-send only; real → the guarded owner email sender (opt-outs, suppression, once only per batch + job + step).
- *  Status: sent | no_email | blocked | already | failed. */
+ *  Status: sent | no_email | held (no consent / customer messages off) | unsubscribed | blocked | already | uncertain | failed. */
 async function emailOwner(h: TextTo, batchId: string, myJobLink: string, businessId: string | null, actorId: string | null, step: "sent" | "reminder"): Promise<SendResult> {
   const to = (h.email ?? "").trim();
   if (!to) return { status: "no_email", detail: "no email on file" };
@@ -352,9 +352,14 @@ async function emailOwner(h: TextTo, batchId: string, myJobLink: string, busines
     const r = await sendTestEmail({ jobId: h.jobId, jobSource: h.source, partnerIsTest: isTestPartner(biz ?? null), label: `quick_taps:${step}:email:${batchId}`, actorId }, to, mail.subject, mail.html, mail.text);
     return r.status === "sent" ? { status: "sent", detail: r.detail } : { status: "failed", detail: r.detail };
   }
+  // Final review 1: owner contact consent (and the global switch) first, like the decline/pass emails; held = nothing sent.
+  try {
+    await (await import("./comms.server")).assertCustomerDeliveryAllowed(h.jobId, "Quick taps email");
+  } catch (e) { return { status: "held", detail: (e as Error).message }; }
   const { sendGuardedOwnerEmail } = await import("./owner-email-send.server");
-  const r = await sendGuardedOwnerEmail({ jobId: h.jobId, jobSource: h.source, to, purpose: `quick_taps:${step}`, key: `quick-taps-email:v1:${batchId}:${h.jobId}:${step}`, build: (u) => build(u, false) });
-  const status = r.startsWith("sent") ? "sent" : r.startsWith("blocked") ? "blocked" : r.startsWith("already") ? "already" : "failed";
+  const r = await sendGuardedOwnerEmail({ jobId: h.jobId, jobSource: h.source, to, purpose: `quick_taps:${step}`, key: `quick-taps-email:v1:${batchId}:${h.jobId}:${step}`, explainBlock: true, build: (u) => build(u, false) });
+  const status = r === "sent" ? "sent" : r === "blocked — unsubscribed" ? "unsubscribed" : r.startsWith("blocked") ? "blocked"
+    : r.startsWith("already") ? "already" : r.startsWith("delivery uncertain") ? "uncertain" : "failed";
   return { status, detail: r };
 }
 

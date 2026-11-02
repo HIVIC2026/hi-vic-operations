@@ -75,8 +75,10 @@ mock.module("../src/lib/test-send.server", () => ({
 // Real owner emails: the one guarded sender, recorded (its once-only key, opt-outs and suppression are its own job).
 const emails: { to: string; purpose: string; key: string; subject: string; html: string; text: string }[] = [];
 let guarded: string | Error = "sent";
+let guardedOpts: { explainBlock?: boolean }[] = [];
 mock.module("../src/lib/owner-email-send.server", () => ({
-  sendGuardedOwnerEmail: async (p: { to: string; purpose: string; key: string; build: (u: string | null) => { subject: string; html: string; text: string } }) => {
+  sendGuardedOwnerEmail: async (p: { to: string; purpose: string; key: string; explainBlock?: boolean; build: (u: string | null) => { subject: string; html: string; text: string } }) => {
+    guardedOpts.push({ explainBlock: p.explainBlock });
     if (guarded instanceof Error) throw guarded;
     const m = p.build("https://unsub.example/u");
     emails.push({ to: p.to, purpose: p.purpose, key: p.key, ...m });
@@ -115,7 +117,7 @@ const daysAgo = (d: number) => new Date(NOW.getTime() - d * 86_400_000).toISOStr
 const pt = (northKm: number): [number, number] => [145, -37.8 + northKm / 111.19]; // stored [lng, lat]
 const GOOD = { declared: { property_type: "house", over_five_years: "yes" }, answers: { insulation: "none" } };
 
-function addJob(id: string, o: { email?: string | null; postcode?: string; source?: string | null; channel?: string; stage?: string; facts?: Row; coords?: [number, number] | null; waited?: number; saved?: boolean; roof?: string; deleted?: boolean } = {}) {
+function addJob(id: string, o: { consent?: boolean; email?: string | null; postcode?: string; source?: string | null; channel?: string; stage?: string; facts?: Row; coords?: [number, number] | null; waited?: number; saved?: boolean; roof?: string; deleted?: boolean } = {}) {
   const prop = `p-${id}`;
   tables["jobs"]!.push({
     id, job_number: `HV-${id}`, stage: o.stage ?? "ready_check_ready_to_schedule", source: o.source ?? "website", channel: o.channel ?? "hivic_sourced",
@@ -123,6 +125,8 @@ function addJob(id: string, o: { email?: string | null; postcode?: string; sourc
     owners: { full_name: `Owner ${id}`, phone: "0400000000", email: o.email ?? null },
     properties: { address_line: "1 Sample Street", suburb: "Melbourne", postcode: o.postcode ?? "3000", ...(o.facts ?? GOOD) },
   });
+  // Final review 1: owner contact consent on record (real jobs need it before any email).
+  if (o.consent !== false) (tables["owner_contact_consents"] ??= []).push({ job_id: id, consent_status: "granted", created_at: daysAgo(30) });
   if (o.saved !== false) tables["lead_campaign_responses"]!.push({ job_id: id, spot_saved_at: daysAgo(o.waited ?? 1), opted_out_at: null, saved_insulation: null });
   if (o.coords !== null) tables["property_facts"]!.push({ property_id: prop, fact_key: "coordinates", value: o.coords ?? pt(0), is_current: true });
   if (o.roof) tables["property_facts"]!.push({ property_id: prop, fact_key: "roof_form", value: o.roof, is_current: true });
@@ -130,7 +134,7 @@ function addJob(id: string, o: { email?: string | null; postcode?: string; sourc
 function seed() {
   for (const k of Object.keys(tables)) delete tables[k];
   for (const k of Object.keys(lookupCoords)) delete lookupCoords[k];
-  sent.length = 0; located.length = 0; emails.length = 0; guarded = "sent";
+  sent.length = 0; located.length = 0; emails.length = 0; guarded = "sent"; guardedOpts = [];
   for (const t of ["jobs", "lead_campaign_responses", "property_facts", "job_assignments", "partner_offers", "workflow_events", "rate_cards"]) tables[t] = [];
   tables["workflow_settings"] = [{ id: 1, customer_comms_enabled: true, sms_message_switches: { quick_taps: true } }];
   tables["businesses"] = [{ id: "biz-1", name: "Sample Insulation", trading_name: null, onboarding_notes: null }, { id: "biz-t", name: "[TEST PARTNER] Co", trading_name: null, onboarding_notes: "[TEST PARTNER]" }];
@@ -452,10 +456,34 @@ describe("sendBatch: quick taps email with the text", () => {
   });
   test("opted-out owner gets no email", async () => {
     addJob("j1", { email: "one@example.com" });
-    guarded = "blocked — not sent";
+    guarded = "blocked — unsubscribed";
     const r = await S.sendBatch(["j1"], "biz-1", "jo", { now: NOW });
     expect(r.texts[0]!.status).toBe("sent");
-    expect(r.texts[0]!.email.status).toBe("blocked");
+    expect(r.texts[0]!.email.status).toBe("unsubscribed");
+    expect(guardedOpts).toEqual([{ explainBlock: true }]);
+  });
+  test("final review 1: no consent → no email, text result unchanged, batch still sent", async () => {
+    addJob("j1", { email: "one@example.com", consent: false });
+    const r = await S.sendBatch(["j1"], "biz-1", "jo", { now: NOW });
+    expect(emails).toEqual([]);
+    expect(guardedOpts).toEqual([]);
+    expect(events("area_batch_sent").length).toBe(1);
+    expect(sent.length).toBe(1);
+    expect(r.texts[0]!.status).toBe("sent");
+    expect(r.texts[0]!.email.status).toBe("held");
+    expect(r.texts[0]!.email.detail).toContain("No contact consent from the owner on record");
+  });
+  test("final review 2: each guarded sender answer gets its own status", async () => {
+    const cases: [string, string][] = [
+      ["blocked — unsubscribed", "unsubscribed"], ["blocked — could not check opt-outs", "blocked"], ["blocked — TEST browser run: no delivery", "blocked"],
+      ["delivery uncertain — not retried", "uncertain"], ["already attempted — not resent", "already"], ["failed: send error", "failed"], ["sent", "sent"],
+    ];
+    for (const [answer, status] of cases) {
+      seed(); addJob("j1", { email: "one@example.com" }); guarded = answer;
+      const r = await S.sendBatch(["j1"], "biz-1", "jo", { now: NOW });
+      expect([answer, r.texts[0]!.email.status]).toEqual([answer, status]);
+      expect(r.texts[0]!.email.detail).toBe(answer);
+    }
   });
   test("already attempted → already", async () => {
     addJob("j1", { email: "one@example.com" });
@@ -491,8 +519,18 @@ describe("Choose installer result words", () => {
     expect(sendResultWords("text", { status: "blocked", detail: "quiet hours" })).toBe("didn't go — quiet hours");
     expect(sendResultWords("email", { status: "sent", detail: "sent" })).toBe("sent");
     expect(sendResultWords("email", { status: "no_email", detail: "" })).toBe("no email on file");
-    expect(sendResultWords("email", { status: "blocked", detail: "blocked — not sent" })).toBe("not sent — unsubscribed");
     expect(sendResultWords("email", { status: "failed", detail: "email service down" })).toBe("didn't go — email service down");
+    expect(sendResultWords("email", { status: "already", detail: "already attempted — not resent" })).toBe("already sent");
+  });
+  test("final review 2: each email reason in its own words", async () => {
+    const { sendResultWords } = await import("../src/lib/area-batch.core");
+    expect(sendResultWords("email", { status: "unsubscribed", detail: "blocked — unsubscribed" })).toBe("not sent — unsubscribed");
+    expect(sendResultWords("email", { status: "held", detail: "No contact consent from the owner on record – nothing was sent to the customer. (Quick taps email)" })).toBe("not sent — no permission to contact");
+    expect(sendResultWords("email", { status: "held", detail: "PRE-LAUNCH: customer communications are disabled – nothing was sent to the customer or trade. (Quick taps email)" })).toBe("not sent — blocked: PRE-LAUNCH: customer communications are disabled – nothing was sent to the customer or trade. (Quick taps email)");
+    expect(sendResultWords("email", { status: "blocked", detail: "blocked — could not check opt-outs" })).toBe("not sent — blocked: could not check opt-outs");
+    expect(sendResultWords("email", { status: "blocked", detail: "blocked — test recipient boundary" })).toBe("not sent — blocked: test recipient boundary");
+    expect(sendResultWords("email", { status: "blocked", detail: "blocked — TEST browser run: no delivery" })).toBe("not sent — blocked: TEST browser run: no delivery");
+    expect(sendResultWords("email", { status: "uncertain", detail: "delivery uncertain — not retried" })).toBe("may have gone — not resent");
   });
   test("both Send lines say a text and an email", () => {
     const src = readFileSync("src/components/portal/choose-installer.tsx", "utf8");

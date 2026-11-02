@@ -110,7 +110,7 @@ const T0 = Date.parse("2026-10-20T01:00:00.000Z"); // 12pm Melbourne
 const at = (hours: number) => new Date(T0 + hours * H).toISOString();
 const GOOD = { declared: { property_type: "house", over_five_years: "yes" }, answers: { insulation: "none" } };
 
-function addJob(id: string, o: { source?: string; stage?: string; name?: string; email?: string | null } = {}) {
+function addJob(id: string, o: { source?: string; stage?: string; name?: string; email?: string | null; consent?: boolean } = {}) {
   tables["jobs"]!.push({
     id, job_number: `HV-${id}`, stage: o.stage ?? "ready_check_ready_to_schedule", source: o.source ?? "website", channel: "hivic_sourced",
     deleted_at: null, qa_archived_at: null, property_id: `p-${id}`, created_at: "2026-10-01T00:00:00Z",
@@ -118,6 +118,8 @@ function addJob(id: string, o: { source?: string; stage?: string; name?: string;
     properties: { address_line: "1 Sample Street", suburb: "Melbourne", postcode: "3000", ...GOOD },
   });
   tables["lead_campaign_responses"]!.push({ job_id: id, spot_saved_at: "2026-10-01T00:00:00Z", opted_out_at: null, saved_insulation: null });
+  // Final review 1: owner contact consent on record (real jobs need it before any email).
+  if (o.consent !== false) (tables["owner_contact_consents"] ??= []).push({ job_id: id, consent_status: "granted", created_at: "2026-10-01T00:00:00Z" });
   tables["property_facts"]!.push({ property_id: `p-${id}`, fact_key: "coordinates", value: [145, -37.8], is_current: true });
 }
 const ev = (jobId: string, type: string, hours: number, details: Row) => tables["workflow_events"]!.push({ id: crypto.randomUUID(), job_id: jobId, event_type: type, created_at: at(hours), details });
@@ -442,6 +444,13 @@ describe("day-2 reminder email", () => {
     await S.sweepAreaBatches(at(49));
     expect(sent.length).toBe(1);
     expect(emails).toEqual([]);
+  });
+  test("final review 1: no consent → no reminder email, reminder text unchanged", async () => {
+    addJob("b", { email: "b@example.com", consent: false }); sendBatch("b1", ["b"]);
+    await S.sweepAreaBatches(at(49));
+    expect(emails).toEqual([]);
+    expect(sent.map((x) => x.key)).toEqual(["quick-taps:v1:b1:b:reminder"]);
+    expect(events("quick_taps_reminded", "b").length).toBe(1);
   });
   test("owner who can't be texted (STOP) still gets the reminder email", async () => {
     addJob("b", { email: "b@example.com" }); sendBatch("b1", ["b"]);
