@@ -67,3 +67,12 @@ describe("wiring", () => {
     expect(readFileSync("src/lib/office-needs.server.ts", "utf8")).toContain("mitti_electrician_choice_needed");
   });
 });
+
+describe("installer home line", () => {
+  test("a Mitti pickup waiting for the answer is in the installer's action list", async () => {
+    const { installerNext } = await import("../src/lib/installer-home.core");
+    const j = { jobId: "j", jobNumber: "HV-1", street: null, suburb: null, channel: "installer_sourced", stage: "ready_check_complete", place: "progress", placeTitle: null, nextAction: null, quoteLine: null, status: null, upcoming: null, installDeadline: null, endedAt: null, waitedSince: null, formLinked: true, formCompleted: true, formHasAnswers: true, priceEntered: true, boss: true } as never;
+    expect(installerNext({ ...(j as object), chooseElectrician: true } as never)).toEqual({ group: "action", next: "Next: choose your electrician" });
+    expect(installerNext(j).next).not.toBe("Next: choose your electrician");
+  });
+});
