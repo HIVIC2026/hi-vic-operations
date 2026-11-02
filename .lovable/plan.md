@@ -1,47 +1,46 @@
-# Ask the installer for their own electrician after a Mitti pickup
+# Remove "Home Insulation Victoria arranges" for the electrician, everywhere
 
-## Your question: does Add a job offer a "we arrange it" option?
-**Yes.** It happens in three places:
-- **Add a job** asks "Electrical safety check by" and always offers **"Home Insulation Victoria's electrician"**. When the installer has no approved usual electrician, that option is the one picked by default.
-- **Upload jobs** (bulk) uses the same default, so jobs from installers with no usual electrician are set to Home Insulation Victoria's electrician without anyone choosing it.
-- **The installer's job page** has an electrician picker with a **"Home Insulation Victoria arranges"** button. It's available until an electrician accepts.
+## Your Add a job question
+Yes, Add a job currently offers **"Home Insulation Victoria's electrician"** for the safety check. When the installer has no approved usual electrician, that option is picked by default. Upload jobs uses the same default. The installer's job page also has a **"Home Insulation Victoria arranges"** button.
 
-Removing these is a separate change. It's listed below as an option, and nothing changes there unless you approve it.
+## Assumption to confirm
+This covers **installer jobs only** (jobs the installer brings). For Home Insulation Victoria's own website leads, the safety check still goes to an approved partner electrician from the list, as it does today. Tell me if that should change too.
 
-## 1. Where and when the installer sees the question
-- When a job is picked up from Mitti, it shows on the installer's **My jobs** card and in their **Needs finishing** list as "Choose your electrician".
-- The question offers only the installer's own electricians:
-  - **Their usual electrician**, picked by default when one is approved and saved (for example, ORLANDO POWERED for Reinsulate).
-  - **Another of their electricians:** another approved electrician, one they've already invited, or "+ Add another electrician", which uses the same invite as Add a job.
-- There's no "Home Insulation Victoria" option.
-- The answer is saved the same way Add a job saves it. It's asked once, then disappears.
-- No text or email is sent. Trade texts are paused, and you haven't approved any wording.
+## 1. Where the option still appears, and what changes
+| Where | Today | After |
+|---|---|---|
+| Add a job: "Electrical safety check by" | "Home Insulation Victoria's electrician", picked by default when there's no usual electrician | Only "My usual electrician (name)". With no approved usual electrician, the installer is told to add one under My business › Electrician first. |
+| Add a job confirmation | "We arrange the electrical safety check…" | Removed. The usual electrician line stays. |
+| Upload jobs | Defaults to Home Insulation Victoria's electrician | Defaults to the usual electrician. With none, the job is saved and asks the installer to choose, the same as Mitti pickups. |
+| Installer job page and job details editor | "Your electrician or ours?" with a "Home Insulation Victoria arranges" button | Own electricians only |
+| Installer price card | Button "Switch to Home Insulation Victoria's electrician" | Button removed |
+| Older payer choice in the installer's job details (`hivic`) | Selectable | No longer selectable. Old records still read correctly. |
+| Owner quote and price wording ("HIV electrician $349") | Shown for `hivic` jobs | Shows the installer's electrician and price |
+| Installer agreement text | Mentions Home Insulation Victoria's electrician and fee pathways | **Not changed.** This is signed legal wording. Before I touch it, you'd need to approve new wording. Existing signed copies always stay as they are. |
+| Installer screens hint: "Home Insulation Victoria arranges the new PIESA" (repeat safety check) | Shown | Needs a decision from you: the repeat safety check would go to the installer's own electrician. Wording to be approved. |
 
-## 2. If they don't answer before the safety check is due
-- **If they have an approved usual electrician:** the portal uses that electrician automatically. The job history records "Usual electrician used: no answer given".
-- **If they have none, or only an invited electrician who hasn't signed up yet:** the job waits, and the office gets a Needs me row, "Installer to choose electrician". The portal never picks an electrician for them.
+## 2. Live jobs that already have Home Insulation Victoria chosen
+I checked this read-only. **17 open live jobs**, all Reinsulate's:
+- HV-3136 to HV-3150 (15 jobs from Upload jobs, all at "Ready Check booking"). These were set by the old default, not chosen by Reinsulate.
+- HV-3193 ("quote ready"), from an installer import.
+- HV-3724 ("Ready Check booking"), from an onsite Add a job.
 
-## 3. HV-3722 (Reinsulate)
-- After publishing, the question shows on Reinsulate's HV-3722 card, with ORLANDO POWERED picked by default.
-- If Reinsulate doesn't answer by the time the safety check is due, ORLANDO POWERED is used automatically.
-- Setting it on HV-3722 straight away would be a live data change, so it needs your separate approval. Only HV-3722 would be touched.
+There are also 53 TEST jobs; I'd leave those alone.
 
-## 4. Tests (written first)
-- A Mitti pickup with no electrician choice shows the question. A job created through Add a job doesn't.
-- The options never include Home Insulation Victoria. The usual electrician is picked by default when one is approved.
-- Choosing an electrician, or inviting a new one, saves exactly as Add a job does. The safety check then offers the chosen electrician first.
-- No answer, with an approved usual electrician: that electrician is used, and it's recorded only once.
-- No answer, without one: the job waits with the office Needs me row, and no electrician is picked.
-- A double tap or a late answer is refused once a choice is saved.
-- Another business can't see or answer the question on this job (checked as two different users).
+**What I'd do (only after your separate OK):** switch each of the 17 jobs to Reinsulate's approved usual electrician, ORLANDO POWERED. Each switch is recorded in the job history with your reason, and nothing is sent. HV-3193 already has a quote ready, so its price shown to the owner may change. I'll show you its before and after before saving anything.
+
+Until then, these jobs follow the new rule when their safety check comes up. The approved usual electrician is used; if there isn't one, the job waits and the office gets a Needs me row.
+
+## 3. Tests (written first)
+- Add a job, Upload jobs, the job page, the details editor and the price card never offer Home Insulation Victoria. The server also refuses `hivic` / `hivic_organise` if anything sends it.
+- With no approved usual electrician, Add a job asks the installer to add one, and Upload jobs saves the job with the question open.
+- Old jobs with `hivic` still open and display, and the safety check uses the usual electrician or holds the job.
+- The installer agreement text is unchanged, byte for byte.
+- Home Insulation Victoria's website-lead safety check offers are unchanged.
 - Nothing is sent, and TEST jobs stay TEST only.
-- Then the related tests and the full comparable test run.
-
-## Optional follow-up (only if you approve it separately)
-Remove the "Home Insulation Victoria's electrician" / "arranges" option from Add a job, Upload jobs and the job page too. This needs a decision from you on what happens when an installer has no electrician of their own yet. For example: Add a job could ask them to add one first, or the job could wait with an office row.
+- Then the related tests, the typecheck and the full comparable test run.
 
 ## Technical details
-- New pure helper `mittiElectricianQuestion(job, usual, choices)`. It shows only for `source = installer_mitti` jobs with no `electrician_choice_set` event and no electrician offer or assignment. The options come from the installer's own approved and invited electricians.
-- The screen reuses `ElectricianPicker` with `ownOnly`, so it has no HIV button. The save uses the existing `recordJobElectricianChoice` and the `electrician_choice_set` event, scoped to the installer's own business.
-- In the auto-offer step, a Mitti job with no choice uses the approved usual electrician (and records that once). Otherwise it adds the office row and makes no offer.
-- No database changes, no new settings and no wording changes elsewhere.
+- Remove the `hivic` option from `electrician-choice.core`, the `ElectricianPicker` buttons in job-intake, intake-details-editor and installer-intake-flow, `switchJobToHivic` and its functions and price-card button, the `add-job-flow.core` line, and the installer-intake/price payer `hivic` paths. Keep the read-side handling for old rows.
+- The server-side guard in `recordElectricianChoice`, `recordJobElectricianChoice` and `chooseElectrician` refuses `hivic` / `hivic_organise` for installer-sourced jobs.
+- No database or settings changes. Changing the 17 jobs is a separate, approved data step.
