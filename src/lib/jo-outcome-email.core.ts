@@ -32,6 +32,7 @@ import {
 } from "./estimate-email";
 import { REMOVE_ENQUIRY_TEXT_SLOT } from "./emailsafety.core";
 import * as K from "./email-kit.core";
+import { veuBoxMj, veuBoxText } from "./owner-wording.core";
 import { mjEmail, plusRow, tickRow } from "./mail-mjml.core";
 
 /** T7 "Review my result" when the customer has no secure estimate link (ineligible jobs never keep one): the same
@@ -373,6 +374,7 @@ function renderSaveMySpot(input: JoOutcomeEmailInput, f: JoEstimateFigures, vari
     action,
     mjIncludedCards({ price: f.customerTotal, rebate: f.veuRebate, someInsulation: some }),
     mjSmallEnd(`${K.esc(closing)}${input.links.reviewResultUrl ? ` ${mjLink(input.links.reviewResultUrl, "See your full estimate")}` : ""}`),
+    veuBoxMj(),
   ].join("\n");
   const html = mjEmail({ subject, preview, body, unsubscribe: "slot" });
   const plainText = K.plainText([
@@ -389,6 +391,7 @@ function renderSaveMySpot(input: JoOutcomeEmailInput, f: JoEstimateFigures, vari
     ...includedCardsText({ price: f.customerTotal, rebate: f.veuRebate, someInsulation: some }), "",
     closing,
     input.links.reviewResultUrl ? `See your full estimate: ${input.links.reviewResultUrl}` : null,
+    "", ...veuBoxText(),
     "", `Reference: ${input.recipient.enquiryReference}`,
   ]) + `\nUnsubscribe: ${REMOVE_ENQUIRY_TEXT_SLOT}`;
   return { subject, previewText: preview, html, plainText };
