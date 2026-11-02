@@ -1,3 +1,6 @@
+## Jo 3 Nov 10:20am safety-check recorded data saves
+- [ ] Save the four approved values through normal recorded office paths with reason `Jo 3 Nov: safety check $349`: ORLANDO POWERED rate $349; Orlando and Reinsulate v2 safety-check lines $317.27 ex GST; office electrician payout $250 ex GST. BLOCKED: Jo's own session has no matching account and minting Jo Lowe's explicit admin account was refused. No SQL bypass, data changes, sends or publishing; TEST businesses, HV-3193 and HV-3682 unchanged.
+
 ## Jo 3 Nov installer-only electrician correction
 - [x] Red-first own-only rules; installer intake/editor/job/price inputs and server guards updated; website-lead route and agreement unchanged. Unanswered/legacy defaults use approved usual or office hold.
 - [x] Automatic type/build checks clean; practice recorded-writer two-business nomination isolation passes. Related results documented in docs/installer-own-electrician-results.md; authenticated browser flow NOT RUN (Jo's session unavailable).
