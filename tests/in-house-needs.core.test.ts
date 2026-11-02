@@ -14,11 +14,11 @@ test("Ready Check: not flagged Mon 9 Nov, flagged Tue 10 Nov (Cup Day skipped)",
   expect(rows(job({ readyCheckBooked: true }), "2026-11-09T13:30:00Z")).toHaveLength(0);
 });
 test("PIESA: 10 business days after acceptance", () => {
-  const f = job({ readyCheckBooked: true, quoteAcceptedAt: "2026-10-30T06:00:00Z" });
+  const f = job({ readyCheckBooked: true, quoteAcceptedAt: "2026-10-30T06:00:00Z", piesaUnlockedAt: "2026-10-30T06:00:00Z" });
   expect(rows(f, "2026-11-16T12:00:00Z")).toHaveLength(0);
   expect(lines(f, "2026-11-16T13:30:00Z")).toEqual([["in_house_piesa_overdue", "PIESA not booked 10 business days after quote accepted"]]);
-  expect(rows(job({ readyCheckBooked: true, quoteAcceptedAt: "2026-10-30T06:00:00Z", piesaBooked: true }), "2026-11-16T13:30:00Z")).toHaveLength(0);
-  expect(rows(job({ readyCheckBooked: true, quoteAcceptedAt: "2026-10-30T06:00:00Z", piesaCompleted: true }), "2026-11-16T13:30:00Z").map(r => r.kind)).toEqual(["in_house_piesa_overdue"]);
+  expect(rows(job({ readyCheckBooked: true, quoteAcceptedAt: "2026-10-30T06:00:00Z", piesaUnlockedAt: "2026-10-30T06:00:00Z", piesaBooked: true }), "2026-11-16T13:30:00Z")).toHaveLength(0);
+  expect(rows(job({ readyCheckBooked: true, quoteAcceptedAt: "2026-10-30T06:00:00Z", piesaUnlockedAt: "2026-10-30T06:00:00Z", piesaCompleted: true }), "2026-11-16T13:30:00Z").map(r => r.kind)).toEqual(["in_house_piesa_overdue"]);
 });
 test("Install line: deposit paid / not paid / unknown", () => {
   const at = "2026-11-09T00:00:00Z", base = { readyCheckBooked: true, daysRemaining: 5, deadline: "2026-11-14" };
@@ -41,4 +41,9 @@ test("one pile per job and no in-house alert once assignments ended", () => {
   const g = buildNeedsRows({ now: Date.parse("2026-11-09T06:00:00Z"), jobs: [f] });
   expect([...g.today, ...g.week, ...g.watch]).toHaveLength(1);
   expect(rows({ ...f, inHouse: null }, "2026-11-09T06:00:00Z")).toHaveLength(0);
+});test("PIESA clock starts when the $349 clears, not at quote acceptance", () => {
+  const f = job({ readyCheckBooked: true, quoteAcceptedAt: "2026-10-20T06:00:00Z", piesaUnlockedAt: "2026-10-30T06:00:00Z" });
+  expect(rows(f, "2026-11-16T12:00:00Z")).toHaveLength(0);
+  expect(rows(f, "2026-11-16T13:30:00Z").map(r => r.kind)).toEqual(["in_house_piesa_overdue"]);
+  expect(rows(job({ readyCheckBooked: true, quoteAcceptedAt: "2026-10-01T06:00:00Z", piesaUnlockedAt: null }), "2026-11-16T13:30:00Z")).toHaveLength(0);
 });

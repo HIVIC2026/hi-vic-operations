@@ -65,3 +65,8 @@ test("deposit read throwing → depositPaid null, facts still returned",async()=
   const f=fixture(); f.deposit.throws=true; const ih=(await f.api.inHouseNeedsFacts(["j"])).get("j");
   expect(ih.depositPaid).toBeNull(); expect(ih.readyCheckBooked).toBe(true);
 });
+test("piesaUnlockedAt is the latest move into the PIESA stage",async()=>{
+  const f=fixture(); f.data.workflow_events.push({ id:"st1",job_id:"j",event_type:"stage_changed",to_stage:"piesa_and_install_window_pending",created_at:"2026-10-29T06:00:00Z",details:{} },{ id:"st2",job_id:"j",event_type:"stage_changed",to_stage:"piesa_and_install_window_pending",created_at:"2026-10-31T06:00:00Z",details:{} });
+  expect((await f.api.inHouseNeedsFacts(["j"])).get("j").piesaUnlockedAt).toBe("2026-10-31T06:00:00Z");
+  const g=fixture(); expect((await g.api.inHouseNeedsFacts(["j"])).get("j").piesaUnlockedAt).toBeNull();
+});

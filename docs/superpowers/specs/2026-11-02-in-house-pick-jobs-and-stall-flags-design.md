@@ -41,7 +41,7 @@ While writing the guide for Rapid, Reinsulate and No Gap, we checked it against 
 The change makes the `ih` block follow Jo's rules and removes the duplicate in-house `bookingOverdue` flag:
 
 - **Ready Check** (`in_house_ready_check_not_booked`): not booked and the Melbourne date today is after `addVicBusinessDays(batchSentAt, 5)` (was 2).
-- **PIESA** (`in_house_piesa_overdue`): not **booked** (no non-cancelled `assessment` booking) and the Melbourne date today is after `addVicBusinessDays(quoteAcceptedAt, 10)` (was: not completed, 10 calendar days). `inHouseNeedsFacts` adds `piesaBooked`, and its bookings read includes `"assessment"`.
+- **PIESA** (`in_house_piesa_overdue`): not **booked** (no non-cancelled `assessment` booking) and the Melbourne date today is after `addVicBusinessDays(piesaUnlockedAt, 10)` (was: not completed, 10 calendar days from `quotes.accepted_at`). `piesaUnlockedAt` is when the job last moved into `piesa_and_install_window_pending`, which only happens once the $349 clears, so a slow-paying owner doesn't flag the partner. `inHouseNeedsFacts` adds `piesaBooked` and `piesaUnlockedAt`, and its bookings read includes `"assessment"`.
 - **Install** (`in_house_install_not_booked`): rule unchanged (not booked, ≤7 days left on the 30-day clock, from `job_piesa_deadlines`). It flags whether or not the deposit is paid. `inHouseNeedsFacts` adds `depositPaid: boolean | null` from `installDepositPaidForJobs`.
 
 Office lines:
