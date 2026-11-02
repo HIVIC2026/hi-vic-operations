@@ -2,6 +2,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { PdfBlock } from "./pdf-look.core";
 import { renderPdf } from "./pdf-look.server";
+import { PDF_LOOK_APPROVED } from "./pdf-approvals.core";
 import { BUSINESS_NAME_LINE, REBATE_LABEL, removalM2ForInvoice, taxInvoiceModel, taxInvoicePayments, taxInvoiceProductLine, type TaxInvoiceFacts, type TaxInvoiceModel } from "./tax-invoice-pdf.core";
 
 export type { TaxInvoiceFacts } from "./tax-invoice-pdf.core";
@@ -39,6 +40,8 @@ const cents = (v: number | string | null | undefined) => Math.round(Number(v ?? 
 /** Reads the installation invoice, ledger, completion date and confirmed product (existing readers), builds the tax invoice and
  *  files it as documents kind `tax_invoice`, once per invoice and amount received. Anything missing returns `{ held }`; Xero is never written. */
 export async function fileTaxInvoicePdf(jobId: string): Promise<{ path: string } | { held: string }> {
+  // Held until Jo approves the tax invoice sample (pdf-approvals.core).
+  if (!PDF_LOOK_APPROVED.taxInvoice) return { held: "Tax invoice not made: the new tax invoice layout is awaiting approval" };
   const [{ jobPaymentView }, { reachedOn }, { installedProductFacts }, { insulationLine }, { formatPropertyAddress }] = await Promise.all([
     import("./payments.server"), import("./receipt-pdf.core"), import("./invoice-itemisation.server"), import("./invoice-itemisation.core"), import("./address"),
   ]);

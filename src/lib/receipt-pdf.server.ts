@@ -3,6 +3,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { aud } from "./payments.core";
 import type { PdfBlock } from "./pdf-look.core";
 import { renderPdf } from "./pdf-look.server";
+import { PDF_LOOK_APPROVED } from "./pdf-approvals.core";
 import { buildReceiptInput, receiptModel, type ReceiptInput, type ReceiptStep } from "./receipt-pdf.core";
 
 export type { ReceiptInput, ReceiptStep } from "./receipt-pdf.core";
@@ -38,6 +39,8 @@ const STEP_TITLE: Record<ReceiptStep, string> = { safety_check: "Receipt - elect
 /** Reads the job, the owner and the ledger (existing readers), builds the receipt and files it once per `receiptKey`.
  *  Anything missing returns `{ held }`; nothing is guessed. */
 export async function fileReceiptPdf(jobId: string, step: ReceiptStep, receiptKey: string): Promise<{ path: string } | { held: string }> {
+  // Held until Jo approves the receipt sample (pdf-approvals.core).
+  if (!PDF_LOOK_APPROVED.receipts) return { held: "Receipt not made: the new receipt layout is awaiting approval" };
   const { data: have, error: haveErr } = await admin.from("documents").select("storage_path").eq("job_id", jobId).eq("kind", RECEIPT_KIND).eq("external_id", receiptKey).limit(1).maybeSingle();
   if (haveErr) return { held: "Receipt not made: the job file could not be checked" };
   if (have?.storage_path) return { path: have.storage_path };
