@@ -1,46 +1,42 @@
-# Remove "Home Insulation Victoria arranges" for the electrician, everywhere
+# Safety check: owner always $349, HIV pays electrician $275
 
-## Your Add a job question
-Yes, Add a job currently offers **"Home Insulation Victoria's electrician"** for the safety check. When the installer has no approved usual electrician, that option is picked by default. Upload jobs uses the same default. The installer's job page also has a **"Home Insulation Victoria arranges"** button.
+## a) Where Orlando's $350 comes from
+Two saved prices, both $350:
+- **Reinsulate's own price list** (version 2, from 30 Oct) has a safety-check line of $318.18 + GST = **$350**. Because Reinsulate pays its own electricians, the owner's quote uses this line. This is what HV-3193's preview used.
+- **ORLANDO POWERED's saved electrician rate** is **$350** ("Agreed with Reinsulate 29 Oct – PIESA paid to Reinsulate"). Orlando's own price list also has $318.18 + GST = $350.
 
-## Assumption to confirm
-This covers **installer jobs only** (jobs the installer brings). For Home Insulation Victoria's own website leads, the safety check still goes to an approved partner electrician from the list, as it does today. Tell me if that should change too.
+Every way the owner's safety-check price can differ from $349 today:
+1. Installer pays its own electricians (or in-house) → the installer's own price-list safety-check line (Reinsulate $350).
+2. Installer's usual / approved electrician → that electrician's saved rate (Orlando $350).
+3. Installer typed a "different electrician" price on a Mitti/older job → that typed price.
+4. HIV website leads → the $349 site setting (correct; could be changed by editing the setting).
 
-## 1. Where the option still appears, and what changes
-| Where | Today | After |
-|---|---|---|
-| Add a job: "Electrical safety check by" | "Home Insulation Victoria's electrician", picked by default when there's no usual electrician | Only "My usual electrician (name)". With no approved usual electrician, the installer is told to add one under My business › Electrician first. |
-| Add a job confirmation | "We arrange the electrical safety check…" | Removed. The usual electrician line stays. |
-| Upload jobs | Defaults to Home Insulation Victoria's electrician | Defaults to the usual electrician. With none, the job is saved and asks the installer to choose, the same as Mitti pickups. |
-| Installer job page and job details editor | "Your electrician or ours?" with a "Home Insulation Victoria arranges" button | Own electricians only |
-| Installer price card | Button "Switch to Home Insulation Victoria's electrician" | Button removed |
-| Older payer choice in the installer's job details (`hivic`) | Selectable | No longer selectable. Old records still read correctly. |
-| Owner quote and price wording ("HIV electrician $349") | Shown for `hivic` jobs | Shows the installer's electrician and price |
-| Installer agreement text | Mentions Home Insulation Victoria's electrician and fee pathways | **Not changed.** This is signed legal wording. Before I touch it, you'd need to approve new wording. Existing signed copies always stay as they are. |
-| Installer screens hint: "Home Insulation Victoria arranges the new PIESA" (repeat safety check) | Shown | Needs a decision from you: the repeat safety check would go to the installer's own electrician. Wording to be approved. |
+## b) What the electrician is paid now
+- **HIV jobs:** each electrician's own saved rate — Tom Lowe $349, Orlando $350 (TEST electricians $200/$205). The fallback "standard electrician cost" setting is **empty**. **Nothing pays $275 today.**
+- **Installer jobs:** the same saved rate is used if HIV pays; if the installer pays its own electrician, HIV pays the installer and the installer pays the electrician (no amount set by us).
+- Set in: the office electrician-rates screen (one rate per electrician) and each business's price list.
 
-## 2. Live jobs that already have Home Insulation Victoria chosen
-I checked this read-only. **17 open live jobs**, all Reinsulate's:
-- HV-3136 to HV-3150 (15 jobs from Upload jobs, all at "Ready Check booking"). These were set by the old default, not chosen by Reinsulate.
-- HV-3193 ("quote ready"), from an installer import.
-- HV-3724 ("Ready Check booking"), from an onsite Add a job.
+## c) The fix
+1. **One owner price:** the safety-check line on every owner quote (installer jobs and HIV jobs) always comes from the single $349 setting. Installer price lists, electrician rates and typed prices no longer change what the owner pays.
+2. **HIV jobs payout $275:** on HIV website-lead jobs, the electrician payout and the Money/profit screens use $275 inc GST, whichever electrician does it. Stored as one office setting (filled with $275), not per electrician.
+3. **Orlando's fee:** correct Orlando's saved rate and the $350 lines (Orlando's and Reinsulate's price lists) through the normal office rate screens, with reason "Jo 3 Nov: safety check $349". Separate data step after the build, only with Jo's OK, showing before/after.
 
-There are also 53 TEST jobs; I'd leave those alone.
+**Question for Jo (not decided) — installer jobs:**
+- My assumption: owner pays $349 to HIV; HIV passes the full $349 to the installer, who pays their own electrician (Reinsulate → Orlando). 
+- Alternatives: HIV pays the electrician $275 directly on installer jobs too; or HIV pays the electrician their agreed rate. I will ask with choice boxes before building that part.
 
-**What I'd do (only after your separate OK):** switch each of the 17 jobs to Reinsulate's approved usual electrician, ORLANDO POWERED. Each switch is recorded in the job history with your reason, and nothing is sent. HV-3193 already has a quote ready, so its price shown to the owner may change. I'll show you its before and after before saving anything.
+## d) Live jobs and quotes affected (no changes made)
+- Open real quotes with a safety-check line other than $349: **none**.
+- **HV-3193** (Reinsulate) preview would show $350 — stays unchanged as Jo asked; the fix would make any new draft show $349.
+- Pending safety-check offer: **HV-3682** (Tom Lowe, $349 rate shown, HIV job) — under the new rule his payout would be $275, not $349. Flag for Jo: this offer was already shown to Tom at $349.
+- Price lists with $350: Reinsulate (real), [TEST PARTNER] Reinsulate (test, left alone), ORLANDO POWERED.
 
-Until then, these jobs follow the new rule when their safety check comes up. The approved usual electrician is used; if there isn't one, the job waits and the office gets a Needs me row.
+## e) Tests (written first)
+- Owner safety check = $349 for: HIV lead; installer job with own electricians (Reinsulate $350 list); usual electrician with $350 rate; typed different-electrician price.
+- HIV job payout = $275 whatever the electrician's saved rate; Money/profit screens agree.
+- Installer job payout follows Jo's answer.
+- Accepted/issued quotes keep their recorded amounts (no silent change).
+- TEST jobs and two-business separation unchanged.
 
-## 3. Tests (written first)
-- Add a job, Upload jobs, the job page, the details editor and the price card never offer Home Insulation Victoria. The server also refuses `hivic` / `hivic_organise` if anything sends it.
-- With no approved usual electrician, Add a job asks the installer to add one, and Upload jobs saves the job with the question open.
-- Old jobs with `hivic` still open and display, and the safety check uses the usual electrician or holds the job.
-- The installer agreement text is unchanged, byte for byte.
-- Home Insulation Victoria's website-lead safety check offers are unchanged.
-- Nothing is sent, and TEST jobs stay TEST only.
-- Then the related tests, the typecheck and the full comparable test run.
-
-## Technical details
-- Remove the `hivic` option from `electrician-choice.core`, the `ElectricianPicker` buttons in job-intake, intake-details-editor and installer-intake-flow, `switchJobToHivic` and its functions and price-card button, the `add-job-flow.core` line, and the installer-intake/price payer `hivic` paths. Keep the read-side handling for old rows.
-- The server-side guard in `recordElectricianChoice`, `recordJobElectricianChoice` and `chooseElectrician` refuses `hivic` / `hivic_organise` for installer-sourced jobs.
-- No database or settings changes. Changing the 17 jobs is a separate, approved data step.
+## Not included
+No sends, publishing, or data changes. Installer agreement wording unchanged. HV-3193 untouched.
