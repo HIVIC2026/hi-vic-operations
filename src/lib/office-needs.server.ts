@@ -293,6 +293,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     admin.from("workflow_settings").select("safety_check_payment_inc_gst").eq("id", 1).maybeSingle().then((r) => (r.data ?? null) as Row | null),
     all("current PIESA outcomes for deposits", (a, b) => scoped(admin.from("piesa_records").select("job_id, outcome, section_c_signed_at")).eq("is_current", true).range(a, b)),
     all("repeat safety check events", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).in("event_type", ["repeat_piesa_payer_chosen", "repeat_piesa_accepted", "repeat_piesa_paid"]).order("created_at", { ascending: false }).range(a, b)),
+    all("address to confirm", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", "address_lookup_unresolved").contains("details", { mitti_pickup: true, needs_office: true }).order("created_at", { ascending: false }).range(a, b)),
   ]);
   const now = office.now;
   const jobs = office.jobs.filter((j) => j.status?.stage !== "ended" || j.stage === "on_hold");
