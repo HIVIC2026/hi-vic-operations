@@ -3,7 +3,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { strFromU8, unzipSync } from "fflate";
-import { OFFICIAL_ITEMS, OFFICIAL_TEMPLATES, type OfficialKey } from "../src/lib/official-forms.core";
+import { B1_OPTIONS, OFFICIAL_ITEMS, OFFICIAL_TEMPLATES, electronicSignature, type OfficialKey } from "../src/lib/official-forms.core";
 import { docxFields, officialDocxLayout, uniqueFieldNames } from "../src/lib/official-docx.core";
 import { renderOfficialDocx } from "../src/lib/official-docx.server";
 
@@ -89,4 +89,21 @@ test("a bookmark whose name only ends with the old name is left alone", () => {
   const out = uniqueFieldNames(xml);
   expect(out).toContain('xw:name="Check1"');
   expect(out).toContain('<w:bookmarkStart w:id="2" w:name="hiv0"/>');
+});
+
+describe("renderOfficialDocx reports skipped follow-ups", () => {
+  test("life support No lists the consent option as skipped, not printed", () => {
+    const r = renderOfficialDocx("piesa", { lifeSupport: "No", lifeSupportConsent: "Yes – received Consent" } as never);
+    expect(r.skipped).toContain("lifeSupportConsent");
+    expect(r.filled).not.toContain("lifeSupportConsent");
+  });
+  test("Section C signature prints only when B1 is rectification required", () => {
+    const sig = electronicSignature("Sam Spark", "2026-11-03");
+    const off = renderOfficialDocx("piesa", { b1: B1_OPTIONS[0], "c.signature": sig } as never);
+    expect(off.skipped).toContain("c.signature");
+    expect(off.filled).not.toContain("c.signature");
+    const on = renderOfficialDocx("piesa", { b1: B1_OPTIONS[1], "c.signature": sig } as never);
+    expect(on.skipped).not.toContain("c.signature");
+    expect(on.filled).toContain("c.signature");
+  });
 });
