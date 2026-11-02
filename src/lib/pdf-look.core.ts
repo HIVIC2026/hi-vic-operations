@@ -16,7 +16,7 @@ export type PdfBlock = { id: string; keepTogether?: boolean; /** Page-1 sizes of
   | { kind: "header"; eyebrow: string; withAddress?: boolean }
   | { kind: "title"; text: string; sub?: string }
   | { kind: "para"; text: string; muted?: boolean; small?: boolean; /** Bold lead-in drawn before `text` (wraps together). */ lead?: string }
-  | { kind: "facts"; rows: [string, string][]; /** One cell per row, full width (compact grids only). */ full?: boolean }
+  | { kind: "facts"; rows: [string, string][]; /** One cell per row, full width (compact grids only). */ full?: boolean; /** Compact grids: cells from this index on are full width (the first ones stay two to a row). */ fullFrom?: number }
   | { kind: "section"; number?: string; title: string; children: PdfBlock[] }
   | { kind: "bullets"; items: string[]; /** Bold lead-in per item (same index; "" or missing = none). */ leads?: string[] }
   | { kind: "money"; rows: { label: string; amount: string; strong?: boolean; green?: boolean }[] }
@@ -28,7 +28,7 @@ export type PdfBlock = { id: string; keepTogether?: boolean; /** Page-1 sizes of
   | { kind: "signatures"; cells: { label: string; name: string; line: string }[] }
   | { kind: "noteBox"; label: string; text: string; sub?: string }
   | { kind: "paid"; label: string; line: string; amount: string }
-  | { kind: "ledger"; head: { label: string; amount: string }; rows: { label: string; amount: string }[]; total: { label: string; amount: string; /** Draw a tick after the amount. */ tick?: boolean }; note?: string }
+  | { kind: "ledger"; head: { label: string; amount: string }; rows: { label: string; amount: string; /** Bold row (e.g. a subtotal). */ strong?: boolean }[]; total: { label: string; amount: string; /** Draw a tick after the amount. */ tick?: boolean }; note?: string }
   | { kind: "pageBreak" }
 );
 export type PdfDoc = { title: string; blocks: PdfBlock[] };

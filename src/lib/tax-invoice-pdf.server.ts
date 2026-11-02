@@ -1,0 +1,107 @@
+// Tax invoice PDF (website look, approved sample tax-invoice-sample.pdf). Server-only. Xero stays the book of record: nothing here writes to Xero.
+import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import type { PdfBlock } from "./pdf-look.core";
+import { renderPdf } from "./pdf-look.server";
+import { BUSINESS_NAME_LINE, REBATE_LABEL, taxInvoiceModel, type TaxInvoiceFacts, type TaxInvoiceModel } from "./tax-invoice-pdf.core";
+
+export type { TaxInvoiceFacts } from "./tax-invoice-pdf.core";
+
+export function taxInvoiceBlocks(f: TaxInvoiceFacts, m: TaxInvoiceModel): PdfBlock[] {
+  const tick = m.balance.includes("✓");
+  return [
+    { id: "t-head", kind: "header", eyebrow: `TAX INVOICE${f.jobNumber ? ` · JOB ${f.jobNumber}` : ""}`, compact: true, withAddress: true },
+    { id: "t-title", kind: "title", text: "Tax invoice", sub: `Invoice ${f.invoiceNumber} · Date ${f.invoiceDate}`, compact: true },
+    { id: "t-facts", kind: "facts", compact: true, fullFrom: 2, rows: [
+      ["Bill to", f.ownerName], ["Installation address", f.installAddress],
+      ["Contracting business (Accredited Person)", BUSINESS_NAME_LINE], ["Installed by", `${f.installerName}, on ${f.installedOn}`],
+    ] },
+    { id: "t-items", kind: "ledger", head: { label: "Installed", amount: "Amount" }, note: m.gstLine,
+      rows: [...m.rows, { label: "Price before VEU rebate", amount: m.priceBeforeRebate, strong: true }, { label: REBATE_LABEL, amount: m.rebate }],
+      total: { label: "Amount payable after rebate (incl. GST)", amount: m.payable } },
+    { id: "t-paid", kind: "ledger", head: { label: "Payments", amount: "" }, rows: m.payments,
+      total: { label: "Balance", amount: m.balance.replace(/\s*✓$/, ""), ...(tick ? { tick } : {}) } },
+  ];
+}
+
+export async function taxInvoicePdf(f: TaxInvoiceFacts): Promise<{ held: string } | { bytes: Uint8Array }> {
+  const m = taxInvoiceModel(f);
+  if ("held" in m) return m;
+  const { bytes } = await renderPdf({ title: "Tax invoice", blocks: taxInvoiceBlocks(f, m) });
+  return { bytes };
+}
+
+const TAX_INVOICE_KIND = "tax_invoice";
+const MELB = (o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", ...o });
+const fmtLong = (iso: string) => MELB({ weekday: "short", day: "numeric", month: "short", year: "numeric" }).format(new Date(iso)).replace(",", "");
+const fmtShort = (iso: string) => MELB({ day: "numeric", month: "short" }).format(new Date(iso));
+const cents = (v: number | string | null | undefined) => Math.round(Number(v ?? 0) * 100);
+
+/** Reads the installation invoice, ledger, completion date and confirmed product (existing readers), builds the tax invoice and
+ *  files it as documents kind `tax_invoice`, once per invoice and amount received. Anything missing returns `{ held }`; Xero is never written. */
+export async function fileTaxInvoicePdf(jobId: string): Promise<{ path: string } | { held: string }> {
+  const [{ jobPaymentView }, { reachedOn }, { installedProductFacts }, { insulationLine }, { formatPropertyAddress }] = await Promise.all([
+    import("./payments.server"), import("./receipt-pdf.core"), import("./invoice-itemisation.server"), import("./invoice-itemisation.core"), import("./address"),
+  ]);
+  const [{ data: job, error: jobErr }, view, { data: asg, error: asgErr }] = await Promise.all([
+    admin.from("jobs").select("job_number, installation_completed_at, owners(full_name), properties(address_line, suburb, state, postcode)").eq("id", jobId).maybeSingle(),
+    jobPaymentView(jobId),
+    admin.from("job_assignments").select("businesses(name, trading_name)").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle(),
+  ]);
+  if (jobErr || asgErr) return { held: "Tax invoice not made: the job could not be read" };
+  if (!job) return { held: "Tax invoice not made: the job was not found" };
+  const inv = view?.invoices.install;
+  if (!view || !inv) return { held: "Tax invoice not made: the job has no installation invoice yet" };
+  if (!inv.quote_id) return { held: "Tax invoice not made: the installation invoice has no quote" };
+  const [{ data: q, error: qErr }, { data: items, error: iErr }, { data: invRow, error: dErr }] = await Promise.all([
+    admin.from("quotes").select("veec_discount_inc_gst").eq("id", inv.quote_id).maybeSingle(),
+    admin.from("quote_items").select("code, line_total_inc_gst").eq("quote_id", inv.quote_id),
+    admin.from("invoices").select("created_at").eq("id", inv.id).maybeSingle(),
+  ]);
+  if (qErr || iErr || dErr) return { held: "Tax invoice not made: the quote or invoice could not be read" };
+  if (!q || !items?.length) return { held: "Tax invoice not made: the quote lines are missing" };
+  const piesaCents = items.filter((r) => r.code === "PIESA").reduce((s, r) => s + cents(r.line_total_inc_gst), 0);
+  const productCents = items.filter((r) => r.code !== "PIESA" && cents(r.line_total_inc_gst) > 0).reduce((s, r) => s + cents(r.line_total_inc_gst), 0);
+  const rebateCents = cents(q.veec_discount_inc_gst);
+  if (productCents + piesaCents - rebateCents !== cents(inv.total_inc_gst)) return { held: "Tax invoice not made: the quote lines do not add up to the invoice total" };
+
+  const line = insulationLine(await installedProductFacts(jobId, { afterInstall: true }));
+  const o = job.owners as unknown as { full_name: string | null } | null;
+  const biz = (asg?.businesses ?? null) as { name: string | null; trading_name: string | null } | null;
+  // Payments: the steps the ledger has reached (as the receipts do), plus any part-payment towards the next one.
+  const plan = view.plan;
+  const steps = [
+    { label: "Electrical safety check (PIESA)", cents: plan.safetyCheckCents, at: reachedOn(view.ledger, plan.thresholds.safety_check) },
+    { label: "10% deposit", cents: plan.installDepositCents, at: reachedOn(view.ledger, plan.thresholds.install_deposit) },
+    { label: "Final payment", cents: plan.balanceCents, at: reachedOn(view.ledger, plan.thresholds.balance) },
+  ];
+  const payments = steps.filter((s) => s.at).map((s) => ({ label: s.label, paidOn: fmtShort(s.at!), cents: s.cents }));
+  const received = view.ledger.reduce((s, r) => s + (r.kind === "reversal" ? -1 : 1) * Math.max(0, Math.round(r.amountCents)), 0);
+  const rest = received - payments.reduce((s, p) => s + p.cents, 0);
+  const lastAt = [...view.ledger].sort((a, b) => Date.parse(b.paidAt) - Date.parse(a.paidAt))[0]?.paidAt;
+  if (rest > 0 && lastAt) payments.push({ label: "Payment received", paidOn: fmtShort(lastAt), cents: rest });
+
+  const facts: TaxInvoiceFacts = {
+    invoiceNumber: inv.xero_invoice_number, invoiceDate: invRow?.created_at ? fmtLong(invRow.created_at) : "", jobNumber: job.job_number,
+    ownerName: o?.full_name ?? "", installAddress: formatPropertyAddress(job.properties as never), installerName: (biz?.trading_name ?? biz?.name ?? "").replace(/^\[TEST PARTNER\]\s*/, ""),
+    installedOn: job.installation_completed_at ? fmtLong(job.installation_completed_at) : "",
+    productLine: line ? `${line.brand} ${line.model} · ${line.rValue} · ${line.areaM2} m² · supplied and installed` : null,
+    productCents, piesaCents, rebateCents, payments,
+  };
+  const made = await taxInvoicePdf(facts);
+  if ("held" in made) return made;
+
+  const key = `${inv.id}:${received}`;
+  const { data: have, error: haveErr } = await admin.from("documents").select("storage_path").eq("job_id", jobId).eq("kind", TAX_INVOICE_KIND).eq("external_id", key).limit(1).maybeSingle();
+  if (haveErr) return { held: "Tax invoice not made: the job file could not be checked" };
+  if (have?.storage_path) return { path: have.storage_path };
+  const path = `${jobId}/tax-invoices/${key.replace(/[^A-Za-z0-9._-]/g, "_")}.pdf`;
+  const up = await admin.storage.from("job-files").upload(path, new Blob([made.bytes as BlobPart], { type: "application/pdf" }), { contentType: "application/pdf", upsert: false });
+  if (up.error && !/exist|duplicate/i.test(up.error.message)) return { held: "Tax invoice not made: the file could not be saved" };
+  const ins = await admin.from("documents").insert({ job_id: jobId, kind: TAX_INVOICE_KIND, title: `Tax invoice ${facts.invoiceNumber}`, storage_path: path, mime_type: "application/pdf", uploaded_by: null, source_system: "portal", external_id: key, size_bytes: made.bytes.byteLength });
+  if (ins.error) {
+    const { data: again } = await admin.from("documents").select("storage_path").eq("job_id", jobId).eq("kind", TAX_INVOICE_KIND).eq("external_id", key).limit(1).maybeSingle();
+    if (again?.storage_path) return { path: again.storage_path };
+    return { held: "Tax invoice not made: the file could not be recorded" };
+  }
+  return { path };
+}

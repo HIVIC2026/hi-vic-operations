@@ -36,7 +36,12 @@ const K_BIZ = 7, K_BIZ_LH = 10.5; // page-1 business block of the compact docume
 const R_INSET = 2.2; // the sample's body has 3px (2.25pt) of right padding
 const PAID_FILL = hex("#e8f9ef");
 const paidH = () => R.paidTop + 2 * R.paidPadY + Math.max(R.paidL1Lh + R.paidL2Lh, R.amtLh);
-const ledgerH = (b: { rows: unknown[]; note?: string }) => R.tblTop + 2 * R.thPad + R.thLh + R.thRule + b.rows.length * (2 * R.rowPad + R.rowLh + R.rowLine) + 2 * R.rowPad + R.totLh + (b.note ? R.noteLh + R.rowPad : 0);
+// Ledger rows wrap their label beside the amount (long product lines) and the note wraps under the total.
+type LedgerShape = { rows: { label: string; amount: string; strong?: boolean }[]; note?: string };
+const LEDGER_GAP = 6;
+const ledgerLabelLines = (F: Fonts, w: number, r: LedgerShape["rows"][number]) => lines(r.strong ? F.b : F.r, R.rowSize, r.label, w - R_INSET - tw(r.strong ? F.b : F.r, R.rowSize, r.amount) - LEDGER_GAP);
+const ledgerNoteLines = (F: Fonts, w: number, note: string) => lines(F.r, R.noteSize, note, w - R_INSET);
+const ledgerH = (b: LedgerShape, w: number, F: Fonts) => R.tblTop + 2 * R.thPad + R.thLh + R.thRule + b.rows.reduce((s, r) => s + 2 * R.rowPad + ledgerLabelLines(F, w, r).length * R.rowLh + R.rowLine, 0) + 2 * R.rowPad + R.totLh + (b.note ? ledgerNoteLines(F, w, b.note).length * R.noteLh + R.rowPad : 0);
 const CONTENT_W = PDF_PAGE.width - 2 * PDF_PAGE.side;
 const PAGE_BOTTOM = PDF_PAGE.bottom;
 
@@ -89,7 +94,7 @@ function measure(b: PdfBlock, w: number, F: Fonts): number {
       return 2.8 + lines(F.x, H1, b.text, w).length * H1_LH + (b.sub ? 2.8 + lines(F.r, SUB, b.sub, w).length * SUB_LH : 0) + 11.2;
     case "para": { if (b.compact) return (b.lead ? runLines(F, K.body, b.lead, b.text, w) : lines(F.r, K.body, b.text, w)).length * K.bodyLh + K.gap;
       const s = b.small ? SMALL : BODY; const lh = b.small ? SMALL_LH : BODY_LH; return (b.lead ? runLines(F, s, b.lead, b.text, w) : lines(F.r, s, b.text, w)).length * lh + GAP; }
-    case "facts": if (b.compact) return gridRows(b.rows.map((r) => ({ label: r[0], text: r[1] })), b.full).reduce((sum, r) => sum + gridRowH(r, w, F), 0) + K.gridGap;
+    case "facts": if (b.compact) return gridRows(b.rows.map((r) => ({ label: r[0], text: r[1] })), b.full, b.fullFrom).reduce((sum, r) => sum + gridRowH(r, w, F), 0) + K.gridGap;
       return factRows(b.rows).reduce((s, r) => s + factRowH(r, w, F), 0) + 4.2;
     case "section": return sectionHead(b) + b.children.reduce((s, c) => s + measure(c, w, F), 0);
     case "bullets": return b.items.reduce((s, t, i) => s + runLines(F, BODY, b.leads?.[i] ?? "", t, w - BULLET_INDENT).length * BODY_LH + BULLET_GAP, 0);
@@ -104,7 +109,7 @@ function measure(b: PdfBlock, w: number, F: Fonts): number {
     case "signatures": return gridRowH(sigCells(b.cells), w, F);
     case "noteBox": return noteH(b, w, F);
     case "paid": return paidH();
-    case "ledger": return ledgerH(b);
+    case "ledger": return ledgerH(b, w, F);
     case "pageBreak": return 0;
   }
 }
@@ -167,7 +172,12 @@ function sigH(b: { name: string; label: string; at: string }, w: number, F: Font
 
 // ---- page-1 grids (compact) -----------------------------------------------------------------------------------------
 type GridCell = { label: string; text: string; name?: string };
-const gridRows = (cells: GridCell[], full?: boolean) => { const out: GridCell[][] = []; const n = full ? 1 : 2; for (let i = 0; i < cells.length; i += n) out.push(cells.slice(i, i + n)); return out; };
+const gridRows = (cells: GridCell[], full?: boolean, fullFrom?: number) => {
+  const out: GridCell[][] = []; const split = full ? 0 : fullFrom ?? cells.length;
+  for (let i = 0; i < Math.min(split, cells.length); i += 2) out.push(cells.slice(i, Math.min(i + 2, split)));
+  for (let i = split; i < cells.length; i++) out.push([cells[i]!]);
+  return out;
+};
 const sigCells = (cs: { label: string; name: string; line: string }[]): GridCell[] => cs.map((c) => ({ label: c.label, name: c.name, text: c.line }));
 function gridCellH(c: GridCell, cw: number, F: Fonts) {
   const nameH = c.name == null ? 0 : 2 * K.sigNameGap + Math.max(1, lines(F.i, K.sigName, c.name, cw - 2 * K.padX).length) * K.sigNameLh;
@@ -213,7 +223,7 @@ async function draw(b: PdfBlock, page: PDFPage, pageNo: number, x: number, top: 
     case "header": {
       const logo = await X.logo();
       page.drawImage(logo, { x, y: top - LOGO_H, width: LOGO_W, height: LOGO_H });
-      const biz = b.withAddress ? [...BUSINESS_LINES, BUSINESS_ADDRESS] : [...BUSINESS_LINES];
+      const biz = b.withAddress ? [...BUSINESS_LINES.slice(0, 3), BUSINESS_ADDRESS, ...BUSINESS_LINES.slice(3)] : [...BUSINESS_LINES];
       const bizSize = b.compact ? K_BIZ : BIZ, bizLh = b.compact ? K_BIZ_LH : BIZ_LH;
       biz.forEach((l, i) => text(page, l, x + w - (b.compact ? R_INSET : 0), base(top - i * bizLh, bizLh, bizSize), F.r, bizSize, C.muted, { right: true }));
       const rowH = Math.max(LOGO_H, biz.length * bizLh);
@@ -247,7 +257,7 @@ async function draw(b: PdfBlock, page: PDFPage, pageNo: number, x: number, top: 
       return;
     }
     case "facts": {
-      if (b.compact) { drawGrid(page, gridRows(b.rows.map((r) => ({ label: r[0], text: r[1] })), b.full), x, top, w, F); return; }
+      if (b.compact) { drawGrid(page, gridRows(b.rows.map((r) => ({ label: r[0], text: r[1] })), b.full, b.fullFrom), x, top, w, F); return; }
       const rows = factRows(b.rows);
       const hs = rows.map((r) => factRowH(r, w, F));
       const total = hs.reduce((s, h) => s + h, 0);
@@ -408,10 +418,12 @@ async function draw(b: PdfBlock, page: PDFPage, pageNo: number, x: number, top: 
       page.drawLine({ start: { x, y: y - R.thRule / 2 }, end: { x: x + w, y: y - R.thRule / 2 }, thickness: R.thRule, color: C.ink });
       y -= R.thRule;
       for (const r of b.rows) {
-        const bl = base(y - R.rowPad, R.rowLh, R.rowSize);
-        text(page, r.label, x, bl, F.r, R.rowSize, C.ink);
-        text(page, r.amount, x + w, bl, F.r, R.rowSize, C.ink, { right: true });
-        y -= 2 * R.rowPad + R.rowLh + R.rowLine;
+        const f = r.strong ? F.b : F.r;
+        const ls = ledgerLabelLines(F, w + R_INSET, r);
+        drawLines(page, ls, x, y - R.rowPad, f, R.rowSize, R.rowLh, C.ink);
+        const rowH = ls.length * R.rowLh;
+        text(page, r.amount, x + w, base(y - R.rowPad - rowH / 2 + R.rowLh / 2, R.rowLh, R.rowSize), f, R.rowSize, C.ink, { right: true });
+        y -= 2 * R.rowPad + rowH + R.rowLine;
         page.drawLine({ start: { x, y: y + R.rowLine / 2 }, end: { x: x + w, y: y + R.rowLine / 2 }, thickness: R.rowLine, color: C.line });
       }
       const tl = base(y - R.rowPad, R.totLh, R.totSize);
@@ -424,7 +436,7 @@ async function draw(b: PdfBlock, page: PDFPage, pageNo: number, x: number, top: 
         page.drawLine({ start: { x: cx + 2, y: cy - 2.3 }, end: { x: cx + 6.2, y: cy + 3.6 }, thickness: 0.8, color: C.ink });
       }
       y -= 2 * R.rowPad + R.totLh;
-      if (b.note) text(page, b.note, x, base(y, R.noteLh, R.noteSize), F.r, R.noteSize, C.muted);
+      if (b.note) drawLines(page, ledgerNoteLines(F, w + R_INSET, b.note), x, y, F.r, R.noteSize, R.noteLh, C.muted);
       return;
     }
     case "pageBreak": return;
