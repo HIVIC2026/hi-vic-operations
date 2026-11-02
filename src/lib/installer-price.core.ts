@@ -312,7 +312,7 @@ export function hivSwitchOffered(f: {
   quoteHeldNotOnboarded: boolean;
   choice: ElectricianChoice;
 }): boolean {
-  return f.quoteHeldNotOnboarded && f.choice !== "hivic";
+  return false;
 }
 export const HIV_SWITCH = {
   button: (priceIncGst: number) => `Use Home Insulation Victoria's electrician ($${priceIncGst})`,

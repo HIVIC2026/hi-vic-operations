@@ -7,10 +7,8 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
 import {
-  HIV_SWITCH,
   INSTALLER_PRICE_EVENT,
   PRICE_LOCKED,
-  hivSwitchOffered,
   priceCardLocked,
   priceEventSummary,
   priceFromPortal,
@@ -168,8 +166,7 @@ export async function installerPriceView(jobId: string, userId: string) {
   const { formatPropertyAddress } = await import("./address");
   const product = resolveMittiProduct(contactAnswersFromEntries(entries).productOption).product;
   const address = formatPropertyAddress(j.properties);
-  const quote = await quoteP;
-  const held = quote.electricianNotOnboarded === true;
+  await quoteP;
   const sent = await sentAtP;
   const locked =
     sent.failed ||

@@ -106,8 +106,8 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
           if (r.customer) setCustomer(restoreCustomer(r.customer as never));
           if (r.d) setD({ area: r.d.area ?? "", amount: r.d.amount ?? "", includes: r.d.includes ?? "", proposedR: r.d.proposedR ?? "", insulation: r.d.insulation ?? null, quoteStatus: r.d.quoteStatus ?? null, attended: r.d.attended ?? null, attendedOn: r.d.attendedOn ?? "", ...(r.d.removal ? { removal: r.d.removal } : {}), ...(r.d.commercial ? { commercial: r.d.commercial } : {}) });
           if (r.coord) setCoord(r.coord);
-          if (r.payer) setPayer(r.payer);
-          if (r.plan) setPlan(r.plan);
+          if (r.payer && r.payer !== "hivic") setPayer(r.payer);
+          if (r.plan?.mode === "mine") setPlan(r.plan);
           typed.current = new Set(r.typed ?? Object.keys(r.d ?? {}));
           if (r.step && r.step !== "review" && ORDER.includes(r.step)) setStep(r.step);
           if (r.draftId) {

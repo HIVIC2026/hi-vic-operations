@@ -164,7 +164,11 @@ export async function confirmClaimed(userId: string, data: ConfirmImportInput, i
     const { feeAwarenessBlocker } = await import("./owner-confirm.core"); const fb = feeAwarenessBlocker(data.installer?.fee_awareness); if (fb) blockers.push(fb);
     if (data.installer?.existing_below_r2 !== true) blockers.push("Confirm any existing insulation is below R2.0");
   }
-  { const { electricianPlanBlocker } = await import("./job-electrician.core"); const eb = electricianPlanBlocker(data.electrician as never); if (eb) blockers.push(eb); }
+  { const { electricianPlanBlocker } = await import("./job-electrician.core");
+    const mode = data.electrician?.mode;
+    const eb = mode === "hivic" ? "Use one of your own electricians." : mode === "mine" ? electricianPlanBlocker(data.electrician as never) : null;
+    if (eb) blockers.push(eb);
+  }
   if (blockers.length) throw new WorkflowError(blockers.join(" • "));
   const area = c.measured_area_m2 == null || c.measured_area_m2 === "" ? null : Number(c.measured_area_m2);
   if (!intake && (area == null || !Number.isFinite(area) || area <= 0 || area > 5000)) throw new WorkflowError("Enter the ceiling area (m²) before confirming — every job needs an area estimate.");
