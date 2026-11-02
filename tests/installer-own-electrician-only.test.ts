@@ -3,6 +3,7 @@ import { electricianChoiceOptions, defaultElectricianChoice, electricianChoicePr
 import { ELECTRICIAN_PAYER_CHOICES, planPayerChange } from "../src/lib/installer-intake.core";
 import { electricianPlanBlocker, jobElectricianLabel } from "../src/lib/job-electrician.core";
 import { mittiElectricianQuestionOpen } from "../src/lib/mitti-electrician.core";
+import { installerLedOwnerPrice } from "../src/lib/installer-led.core";
 
 describe("Jo 3 Nov installer jobs use own electricians only", () => {
   it("never offers the HIV payer for installer intake", () => {
@@ -39,5 +40,10 @@ describe("Jo 3 Nov installer jobs use own electricians only", () => {
   it("website-lead arrangement label is unchanged while installer legacy rows ask for their own", () => {
     expect(jobElectricianLabel({ choice: "hivic_organise", installerSourced: false })).toBe("Home Insulation Victoria arranges");
     expect(jobElectricianLabel({ choice: "hivic_organise", installerSourced: true })).toBe("Choose your own electrician");
+  });
+  it("HV-3193 preview preserves every other price line and uses Reinsulate's approved $350 PIESA", () => {
+    const price = { installerQuoteIncGst: 2500, rectificationIncGst: 0, apFeeIncGst: 349, veecDiscountIncGst: 1120 };
+    expect(installerLedOwnerPrice({ ...price, piesaIncGst: 349 }).afterDiscount).toBe(2078);
+    expect(installerLedOwnerPrice({ ...price, piesaIncGst: 350 }).afterDiscount).toBe(2079);
   });
 });

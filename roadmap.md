@@ -1,8 +1,8 @@
 ## Jo 3 Nov installer-only electrician correction
-- [ ] Test first; remove HIV-arranged installer inputs and guard server writes; preserve website leads and agreement.
-- [ ] Related tests and automatic type/build checks; two-business isolation proof.
-- [ ] Separate recorded data step: HV-3136–HV-3150 only, ORLANDO POWERED, Jo's reason, no sends; TEST untouched.
-- [ ] HV-3193 price preview only; save waits for Jo's separate OK and is LAST.
+- [x] Red-first own-only rules; installer intake/editor/job/price inputs and server guards updated; website-lead route and agreement unchanged. Unanswered/legacy defaults use approved usual or office hold.
+- [x] Automatic type/build checks clean; practice recorded-writer two-business nomination isolation passes. Related results documented in docs/installer-own-electrician-results.md; authenticated browser flow NOT RUN (Jo's session unavailable).
+- [ ] Separate recorded data step HV-3136–HV-3150: BLOCKED, Jo admin session unavailable; no direct SQL bypass. All live/TEST records untouched.
+- [ ] HV-3193 LAST, save awaits Jo's approval AND available normal authenticated recorded path. Read-only price preview: $2,078 → $2,079 inc GST; PIESA $349 → $350 from Reinsulate active rate; other lines unchanged.
 - [ ] Repeat safety-check hint remains open by Jo's decision; no change.
 
 ## Jo 2 Nov full published in-house test tool
