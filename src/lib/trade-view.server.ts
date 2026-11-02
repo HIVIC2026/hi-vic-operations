@@ -522,7 +522,7 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
     theirP,
     kind === "electrician" ? admin.from("electrician_rates").select("rate_inc_gst, effective_from").eq("business_id", bizId).eq("service_type", "piesa").in("status", ["active", "approved"]).order("effective_from", { ascending: false }).limit(1) : Promise.resolve({ data: [] as { rate_inc_gst: number | string | null }[] }),
   ]);
-  const theirSourceJobs = (theirAll ?? []).filter(b => (b.jobs as { channel?: string | null }).channel === "installer_sourced");
+  const theirSourceJobs = (theirAll ?? []).filter(b => b.kind === "assessment" && (b.jobs as { channel?: string | null }).channel === "installer_sourced");
   const keepTheirs = (!!displayPayer && !displayPayer.release_hold_reason) || theirSourceJobs.length > 0;
   const books = [...(ownBooks ?? []), ...(displayPayer && !displayPayer.release_hold_reason ? theirAll ?? [] : theirSourceJobs)];
   const done = doneOf(books);
