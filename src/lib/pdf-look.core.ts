@@ -16,9 +16,11 @@ export type PdfBlock = { id: string; keepTogether?: boolean; /** Page-1 sizes of
   | { kind: "header"; eyebrow: string; withAddress?: boolean }
   | { kind: "title"; text: string; sub?: string }
   | { kind: "para"; text: string; muted?: boolean; small?: boolean; /** Bold lead-in drawn before `text` (wraps together). */ lead?: string }
-  | { kind: "facts"; rows: [string, string][]; /** One cell per row, full width (compact grids only). */ full?: boolean; /** Compact grids: cells from this index on are full width (the first ones stay two to a row). */ fullFrom?: number }
+  | { kind: "facts"; rows: [string, string][]; /** One cell per row, full width (compact grids only). */ full?: boolean; /** Compact grids: cells from this index on are full width (the first ones stay two to a row). */ fullFrom?: number;
+      /** Compact grids: these cell indexes are full width, the others pair up in order between them. */ fullAt?: number[];
+      /** Compact grids: "[x]" and "[ ]" inside a cell's text are drawn as ticked and empty check boxes. */ boxes?: boolean }
   | { kind: "section"; number?: string; title: string; children: PdfBlock[] }
-  | { kind: "bullets"; items: string[]; /** Bold lead-in per item (same index; "" or missing = none). */ leads?: string[] }
+  | { kind: "bullets"; items: string[]; /** Bold lead-in per item (same index; "" or missing = none). */ leads?: string[]; /** Compact bullets: nesting per item (0 = bullet, 1 = hollow sub-bullet). */ levels?: number[] }
   | { kind: "money"; rows: { label: string; amount: string; strong?: boolean; green?: boolean }[] }
   | { kind: "ticks"; items: string[] }
   | { kind: "signature"; label: string; name: string; at: string; sub?: string }
@@ -29,6 +31,10 @@ export type PdfBlock = { id: string; keepTogether?: boolean; /** Page-1 sizes of
   | { kind: "noteBox"; label: string; text: string; sub?: string }
   | { kind: "paid"; label: string; line: string; amount: string }
   | { kind: "ledger"; head: { label: string; amount: string }; rows: { label: string; amount: string; /** Bold row (e.g. a subtotal). */ strong?: boolean }[]; total: { label: string; amount: string; /** Draw a tick after the amount. */ tick?: boolean }; note?: string }
+  | { kind: "subheading"; text: string }
+  | { kind: "sigRow"; cells: { label: string; weight: number; name?: string; text?: string; image?: { bytes: Uint8Array; width: number; height: number } }[] }
+  /** Plain run of blocks (no chrome) that stays on one page; flows between children only when taller than a page. */
+  | { kind: "group"; children: PdfBlock[] }
   | { kind: "pageBreak" }
 );
 export type PdfDoc = { title: string; blocks: PdfBlock[] };

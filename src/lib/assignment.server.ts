@@ -234,7 +234,7 @@ async function storeCopy(
   title: string,
   kind: string,
   actorId: string | null,
-  renderedPdf?: Uint8Array,
+  renderedPdf?: Uint8Array | null,
 ) {
   path = path.replace(/\.txt$/, ".pdf");
   const { textToPdf } = await import("./signed-pdf.server");
@@ -1459,6 +1459,20 @@ export async function reconfirmVariation(p: {
   await evaluateAndApply(v.job_id, p.actorId);
 }
 
+/** Flag-on final copy: the signed ESC form in the website look. Returns null (and logs internally) on any problem, so the text copy is stored instead and signing never fails on the PDF. */
+async function veecFinalPdfOrNull(a: NonNullable<Awaited<ReturnType<typeof currentAssignment>>>, values: Record<string, FieldValue>, jobNumber: string | null, jobId: string, actorId: string | null): Promise<Uint8Array | null> {
+  try {
+    const { veecFormPdf } = await import("./veec-form-pdf.server");
+    const at = (name: string | null, when: string | null) => (name && when ? { name, at: when } : undefined);
+    const installer = at(a.installer_signature_name, a.installer_signed_at), ap = at(a.ap_signature_name, a.ap_signed_at), consumer = at(a.consumer_signature_name, a.consumer_signed_at);
+    // The Lead Installer's drawn Mitti signature image is added to `installer.image` by the Mitti signature reader (a later part); until then the typed name is printed.
+    return (await veecFormPdf(values, { ...(installer ? { installer } : {}), ...(ap ? { ap } : {}), ...(consumer ? { consumer } : {}) }, { jobNumber })).bytes;
+  } catch (e) {
+    await logEvent(jobId, actorId, "veec_form_pdf_fallback", "VEEC form used the previous layout (internal)", { reason: e instanceof Error ? e.message : String(e) }, { internal: true }).catch(() => undefined);
+    return null;
+  }
+}
+
 /** Recomputes the staged status from facts; effective only when every signature and final fact is complete.
  *  Decision 119: the owner's Gate B consent-to-assign is never applied as the form signature – the owner signs Section 4 Part B. */
 export async function evaluateAndApply(jobId: string, actorId: string | null) {
@@ -1522,6 +1536,8 @@ export async function evaluateAndApply(jobId: string, actorId: string | null) {
     stableJson(f),
   ].join("\n");
   const hash = await sha256Hex(finalText);
+  // Flag on: the website-look form (the text record, hash and facts above are unchanged). Flag off: the old text copy, byte for byte.
+  const renderedPdf = PDF_LOOK_APPROVED.veecForm ? await veecFinalPdfOrNull(a, f.form_values, job?.job_number ?? null, jobId, actorId) : undefined;
   const path = await storeCopy(
     jobId,
     `${jobId}/assignment/final-${hash.slice(0, 12)}.txt`,
@@ -1529,6 +1545,7 @@ export async function evaluateAndApply(jobId: string, actorId: string | null) {
     "Final Activity 48 VEEC Assignment (signed copy)",
     "veec_assignment_final",
     actorId ?? a.consumer_signed_by ?? null,
+    renderedPdf,
   );
   const { customerDeliveryState } = await import("./comms.server");
   const delivery = await customerDeliveryState(jobId); // global lock first, then owner contact consent

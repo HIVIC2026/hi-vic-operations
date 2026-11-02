@@ -49,7 +49,7 @@ export const AP_DECLARATION = fill([
   "all scheme participants (i.e. installers) involved in undertaking this activity meet the relevant training and competency requirements as specified in the VEET Guidelines",
   "a licensed electrician has completed and signed a VEU pre-installation electrical safety assessment form prior to the installation commencing",
   "a copy of the completed VEU pre-installation electrical safety assessment form was provided to the lead installer and owner at least 24 hours prior to the installation commencing",
-  "where electrical hazards were identified during the VEU pre-installation electrical safety assessment:”",
+  "where electrical hazards were identified during the VEU pre-installation electrical safety assessment:",
   "a licensed electrician rectified hazards before the installation commenced; and/or",
   "a licensed electrician was present at the start of the installation to confirm work area is electrically safe for entry",
   "written consent has been obtained from the owner of the premises to share relevant information with the commission and for the commission to share that information with the Victorian WorkCover Authority and Energy Safe Victoria.",
