@@ -56,7 +56,9 @@ export type NeedsFacts = {
   inHouseFormSyncFailed?:{at:string;reason:string}|null;
   inHouse?: { partnerName: string; batchSentAt: string | null; readyCheckBooked: boolean;
     quoteAcceptedAt: string | null; piesaCompleted: boolean; installationBooked: boolean;
-    daysRemaining: number | null; deadline: string | null } | null;
+    daysRemaining: number | null; deadline: string | null;
+    /** Jo 2 Nov 2026 stall rules: missing reads as not booked / deposit unknown. */
+    piesaBooked?: boolean; depositPaid?: boolean | null } | null;
   /** 24-hour installer / electrician offer lapsed or said Not for me (decision 220): "Choose again". */
   offerLapsed?: { role: "installer" | "electrician"; name: string | null; declined: boolean; at: string; note?: string } | null;
   bookingOverdue?: { at: string; visit: "ready_check" | "piesa" | "rectification" | "installation" } | null;
