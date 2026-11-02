@@ -3,6 +3,9 @@
 Version 2026-10-05. Owner-approved. **This file and `src/config/workflow-decisions.ts` override older prompts, comments and stale implementation text. `docs/STATUS.md` is the only implementation-status register.** Conflicts are found by `bun scripts/scan-retired-terms.ts`.
 
 ## Branding
+### Safety-check pricing correction — Jo 3 Nov 2026, 10:30am Sydney
+This overrides older safety-check pricing and payout rules below. On installer-sourced jobs the owner pays the installer's own active price-list PIESA fee, with no Home Insulation Victoria markup; the whole fee goes to the installer, who pays their own electrician. Rapid example: $275 inc GST; Reinsulate: $349 after the separately approved data correction. Missing list rates hold new quotes, never fall back to the website or REC price. Website leads retain the single $349 owner setting and $275 electrician payout. Issued/accepted quote lines and recorded payouts/offers remain unchanged, including HV-3682's $349 offer; HV-3193 remains untouched. Agreement wording and repeat hint remain unchanged. Four approved data saves remain a separate recorded step, not part of this correction.
+
 Visible name everywhere: **Home Insulation Victoria**. Retired visible names: HI VIC, HI VIC!, HIVIC. Internal identifiers (e.g. `business_unit = 'hivic'`, the locked Xero reference) stay unchanged where renaming risks functionality; renaming needs separate approval.
 
 ## Approved workflow order

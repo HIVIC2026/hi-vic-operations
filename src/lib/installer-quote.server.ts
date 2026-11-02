@@ -5,7 +5,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { type LocationVariables } from "./activity48.core";
 import { wholeVeecDiscount } from "./estimate.core";
-import { buildInstallerQuoteDraft, quotedPriceFromEntries, piesaChargeIncGst } from "./installer-led.core";
+import { buildInstallerQuoteDraft, quotedPriceFromEntries } from "./installer-led.core";
 import { installerQuoteReleaseBlockers, payerFromChoice } from "./installer-intake.core";
 import { IN_HOUSE_PIESA_HOLD_REASON } from "./installer-paid-electricians.core";
 
