@@ -1,7 +1,8 @@
 // Tax invoice wording and maths (ESC Ceiling Insulation Activity Guide v1.2, Table 4). PURE (no pdf-lib, no database).
 // GST is one eleventh of the FULL price before the VEEC rebate (accountant, decision 391); nothing is guessed: a missing fact
 // returns `{ held }`.
-import { aud } from "./payments.core";
+import { aud, cumulativePaidCents, type PaymentPlan } from "./payments.core";
+import { reachedOn, type ReceiptPayment } from "./receipt-pdf.core";
 
 /** GST inside a GST-inclusive price (one eleventh), rounded half up to the cent. */
 export const gstOnFullPriceCents = (priceBeforeRebateCents: number) => Math.round(priceBeforeRebateCents / 11);
@@ -52,4 +53,30 @@ export function taxInvoiceModel(f: TaxInvoiceFacts): { held: string } | TaxInvoi
     balance: left === 0 ? "$0.00 · Paid in full ✓" : `${aud(left)} still to pay`,
     payments: f.payments.map((p) => ({ label: `${p.label}, ${p.paidOn}`, amount: `– ${aud(p.cents)}` })),
   };
+}
+
+// ---- facts from what the readers return (pure; the server only reads and files) ------------------------------------------
+/** Removal m²: the sent quote's snapshot (so the invoice matches the quote); the current measurement only when the snapshot has none. */
+export function removalM2ForInvoice(snapshot: { removal_m2?: unknown } | null | undefined, measurement: { removal_required?: boolean | null; removal_m2?: unknown } | null | undefined): number | null {
+  const snap = snapshot?.removal_m2;
+  const n = snap != null && snap !== "" ? Number(snap) : measurement?.removal_required ? Number(measurement.removal_m2) : NaN;
+  return Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : null;
+}
+export function taxInvoiceProductLine(line: { brand: string; model: string; rValue: string; areaM2: number } | null, removalM2: number | null): string | null {
+  if (!line) return null;
+  return `${line.brand} ${line.model} · ${line.rValue} · ${line.areaM2} m² · supplied and installed${removalM2 && removalM2 > 0 ? ` (includes removal of ${removalM2} m² of old insulation)` : ""}`;
+}
+/** Payments on THIS installation invoice only: `ledger` must be that invoice's own effective ledger (never fixes or repeat PIESA). */
+export function taxInvoicePayments(plan: Pick<PaymentPlan, "safetyCheckCents" | "installDepositCents" | "balanceCents" | "thresholds">, ledger: ReceiptPayment[], shortDate: (iso: string) => string) {
+  const steps = [
+    { label: "Electrical safety check (PIESA)", cents: plan.safetyCheckCents, at: reachedOn(ledger, plan.thresholds.safety_check) },
+    { label: "10% deposit", cents: plan.installDepositCents, at: reachedOn(ledger, plan.thresholds.install_deposit) },
+    { label: "Final payment", cents: plan.balanceCents, at: reachedOn(ledger, plan.thresholds.balance) },
+  ];
+  const payments = steps.filter((x) => x.at).map((x) => ({ label: x.label, paidOn: shortDate(x.at!), cents: x.cents }));
+  const received = cumulativePaidCents(ledger);
+  const rest = received - payments.reduce((a, p) => a + p.cents, 0);
+  const lastAt = [...ledger].sort((a, b) => Date.parse(b.paidAt) - Date.parse(a.paidAt))[0]?.paidAt;
+  if (rest > 0 && lastAt) payments.push({ label: "Payment received", paidOn: shortDate(lastAt), cents: rest });
+  return { payments, received };
 }

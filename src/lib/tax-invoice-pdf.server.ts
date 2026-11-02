@@ -2,7 +2,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { PdfBlock } from "./pdf-look.core";
 import { renderPdf } from "./pdf-look.server";
-import { BUSINESS_NAME_LINE, REBATE_LABEL, taxInvoiceModel, type TaxInvoiceFacts, type TaxInvoiceModel } from "./tax-invoice-pdf.core";
+import { BUSINESS_NAME_LINE, REBATE_LABEL, removalM2ForInvoice, taxInvoiceModel, taxInvoicePayments, taxInvoiceProductLine, type TaxInvoiceFacts, type TaxInvoiceModel } from "./tax-invoice-pdf.core";
 
 export type { TaxInvoiceFacts } from "./tax-invoice-pdf.core";
 
@@ -52,12 +52,14 @@ export async function fileTaxInvoicePdf(jobId: string): Promise<{ path: string }
   const inv = view?.invoices.install;
   if (!view || !inv) return { held: "Tax invoice not made: the job has no installation invoice yet" };
   if (!inv.quote_id) return { held: "Tax invoice not made: the installation invoice has no quote" };
-  const [{ data: q, error: qErr }, { data: items, error: iErr }, { data: invRow, error: dErr }] = await Promise.all([
+  const [{ data: q, error: qErr }, { data: items, error: iErr }, { data: invRow, error: dErr }, { data: internals, error: nErr }, { data: meas, error: mErr }] = await Promise.all([
     admin.from("quotes").select("veec_discount_inc_gst").eq("id", inv.quote_id).maybeSingle(),
     admin.from("quote_items").select("code, line_total_inc_gst").eq("quote_id", inv.quote_id),
     admin.from("invoices").select("created_at").eq("id", inv.id).maybeSingle(),
+    admin.from("quote_internals").select("calc_snapshot").eq("quote_id", inv.quote_id).maybeSingle(),
+    admin.from("ceiling_measurements").select("removal_required, removal_m2").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
   ]);
-  if (qErr || iErr || dErr) return { held: "Tax invoice not made: the quote or invoice could not be read" };
+  if (qErr || iErr || dErr || nErr || mErr) return { held: "Tax invoice not made: the quote or invoice could not be read" };
   if (!q || !items?.length) return { held: "Tax invoice not made: the quote lines are missing" };
   const piesaCents = items.filter((r) => r.code === "PIESA").reduce((s, r) => s + cents(r.line_total_inc_gst), 0);
   const productCents = items.filter((r) => r.code !== "PIESA" && cents(r.line_total_inc_gst) > 0).reduce((s, r) => s + cents(r.line_total_inc_gst), 0);
@@ -67,24 +69,16 @@ export async function fileTaxInvoicePdf(jobId: string): Promise<{ path: string }
   const line = insulationLine(await installedProductFacts(jobId, { afterInstall: true }));
   const o = job.owners as unknown as { full_name: string | null } | null;
   const biz = (asg?.businesses ?? null) as { name: string | null; trading_name: string | null } | null;
-  // Payments: the steps the ledger has reached (as the receipts do), plus any part-payment towards the next one.
-  const plan = view.plan;
-  const steps = [
-    { label: "Electrical safety check (PIESA)", cents: plan.safetyCheckCents, at: reachedOn(view.ledger, plan.thresholds.safety_check) },
-    { label: "10% deposit", cents: plan.installDepositCents, at: reachedOn(view.ledger, plan.thresholds.install_deposit) },
-    { label: "Final payment", cents: plan.balanceCents, at: reachedOn(view.ledger, plan.thresholds.balance) },
-  ];
-  const payments = steps.filter((s) => s.at).map((s) => ({ label: s.label, paidOn: fmtShort(s.at!), cents: s.cents }));
-  const received = view.ledger.reduce((s, r) => s + (r.kind === "reversal" ? -1 : 1) * Math.max(0, Math.round(r.amountCents)), 0);
-  const rest = received - payments.reduce((s, p) => s + p.cents, 0);
-  const lastAt = [...view.ledger].sort((a, b) => Date.parse(b.paidAt) - Date.parse(a.paidAt))[0]?.paidAt;
-  if (rest > 0 && lastAt) payments.push({ label: "Payment received", paidOn: fmtShort(lastAt), cents: rest });
+  // `view.ledger` is the effective ledger of THIS installation invoice only (rawPaymentLedger filters by invoice id), so fixes and repeat PIESA payments never count.
+  const { payments, received } = taxInvoicePayments(view.plan, view.ledger, fmtShort);
+  const removalM2 = removalM2ForInvoice(internals?.calc_snapshot as { removal_m2?: unknown } | null, meas);
 
   const facts: TaxInvoiceFacts = {
-    invoiceNumber: inv.xero_invoice_number, invoiceDate: invRow?.created_at ? fmtLong(invRow.created_at) : "", jobNumber: job.job_number,
+    invoiceNumber: inv.xero_invoice_number, // invoiceDate = invoices.created_at: no Xero invoice date is stored; use that column instead if one is added.
+    invoiceDate: invRow?.created_at ? fmtLong(invRow.created_at) : "", jobNumber: job.job_number,
     ownerName: o?.full_name ?? "", installAddress: formatPropertyAddress(job.properties as never), installerName: (biz?.trading_name ?? biz?.name ?? "").replace(/^\[TEST PARTNER\]\s*/, ""),
     installedOn: job.installation_completed_at ? fmtLong(job.installation_completed_at) : "",
-    productLine: line ? `${line.brand} ${line.model} · ${line.rValue} · ${line.areaM2} m² · supplied and installed` : null,
+    productLine: taxInvoiceProductLine(line, removalM2),
     productCents, piesaCents, rebateCents, payments,
   };
   const made = await taxInvoicePdf(facts);

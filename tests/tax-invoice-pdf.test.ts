@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { PDFDocument } from "pdf-lib";
 import { gstOnFullPriceCents, taxInvoiceModel, type TaxInvoiceFacts } from "../src/lib/tax-invoice-pdf.core";
@@ -54,4 +54,46 @@ describe("other missing facts hold, never a blank", () => {
     test(k, () => expect(taxInvoiceModel({ ...SAMPLE, [k]: "" })).toEqual({ held: `Tax invoice not made: ${why} is missing` }));
   test("rebate bigger than the price", () => expect(taxInvoiceModel({ ...SAMPLE, rebateCents: 400000 })).toEqual({ held: "Tax invoice not made: the rebate is more than the price" }));
   test("paid more than payable", () => expect(taxInvoiceModel({ ...SAMPLE, payments: [{ label: "x", paidOn: "1 Nov", cents: 300000 }] })).toEqual({ held: "Tax invoice not made: payments are more than the amount payable" }));
+});
+
+import { paymentPlan } from "../src/lib/payments.core";
+import { removalM2ForInvoice, taxInvoicePayments, taxInvoiceProductLine } from "../src/lib/tax-invoice-pdf.core";
+describe("product line with old-insulation removal", () => {
+  const line = { brand: "Bradford", model: "Gold Hi-Performance Ceiling Batts", rValue: "R5.0", areaM2: 137 };
+  test("with removal, from the quote snapshot (wins over the measurement)", () => {
+    const n = removalM2ForInvoice({ removal_m2: 40 }, { removal_required: true, removal_m2: 55 });
+    expect(taxInvoiceProductLine(line, n)).toBe("Bradford Gold Hi-Performance Ceiling Batts · R5.0 · 137 m² · supplied and installed (includes removal of 40 m² of old insulation)");
+  });
+  test("snapshot without removal falls back to the current measurement", () => {
+    expect(removalM2ForInvoice({}, { removal_required: true, removal_m2: 25 })).toBe(25);
+    expect(removalM2ForInvoice(null, { removal_required: false, removal_m2: 25 })).toBeNull();
+  });
+  test("without removal nothing is appended", () => {
+    for (const n of [removalM2ForInvoice({ removal_m2: 0 }, { removal_required: true, removal_m2: 25 }), removalM2ForInvoice(null, null)])
+      expect(taxInvoiceProductLine(line, n)).toBe("Bradford Gold Hi-Performance Ceiling Batts · R5.0 · 137 m² · supplied and installed");
+  });
+  test("no product, no line", () => expect(taxInvoiceProductLine(null, 40)).toBeNull());
+});
+describe("payments are this installation invoice's only", () => {
+  const plan = paymentPlan({ quoteTotalCents: 218800, safetyCheckCents: 34900 });
+  const own = [{ amountCents: 34900, paidAt: "2026-11-08T01:00:00Z", source: "card" }, { amountCents: 18390, paidAt: "2026-11-10T01:00:00Z", source: "card" }];
+  test("list and total from the own ledger", () => {
+    const r = taxInvoicePayments(plan, own, (iso) => iso.slice(5, 10));
+    expect(r.received).toBe(53290);
+    expect(r.payments.map((p) => p.cents)).toEqual([34900, 18390]);
+  });
+  test("a repeat-PIESA payment recorded on its own invoice is not in the invoice's ledger", async () => {
+    const events = [
+      { id: "1", event_type: "owner_payment_recorded", created_at: "2026-11-08T01:00:00Z", actor_id: null, details: { invoice_id: "inst", amount_cents: 34900, source: "card", receipt_key: "a" } },
+      { id: "2", event_type: "owner_payment_recorded", created_at: "2026-11-09T01:00:00Z", actor_id: null, details: { invoice_id: "repeat", amount_cents: 34900, source: "card", receipt_key: "b" } },
+    ];
+    const chain: any = { select: () => chain, eq: () => chain, in: () => chain, order: async () => ({ data: events }), then: (r: any) => r({ data: [] }) };
+    mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: () => chain } }));
+    const { rawPaymentLedger } = await import("../src/lib/payment-ledger.server");
+    const ledger = await rawPaymentLedger("job", "inst");
+    expect(ledger.length).toBe(1);
+    const r = taxInvoicePayments(plan, ledger, () => "8 Nov");
+    expect(r.received).toBe(34900);
+    expect(r.payments).toEqual([{ label: "Electrical safety check (PIESA)", paidOn: "8 Nov", cents: 34900 }]);
+  });
 });
