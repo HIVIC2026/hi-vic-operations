@@ -116,7 +116,7 @@ export function uniqueFieldNames(xml: string): string {
     const old = nm[1]!;
     if (!old) return;
     const stop = i + 1 < fields.length ? fields[i + 1]!.begin : xml.length;
-    const bmRe = new RegExp(`<w:bookmarkStart([^>]*?\s)w:name="${old.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`, "g");
+    const bmRe = new RegExp(`<w:bookmarkStart([^>]*?\\s)w:name="${old.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`, "g");
     bmRe.lastIndex = ffEnd;
     const bm = bmRe.exec(xml);
     if (bm && bm.index < stop) edits.push({ start: bm.index, end: bm.index + bm[0].length, text: `<w:bookmarkStart${bm[1]}w:name="${name}"` });
