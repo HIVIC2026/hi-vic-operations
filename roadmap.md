@@ -1,3 +1,10 @@
+## Jo 3 Nov installer-only electrician correction
+- [ ] Test first; remove HIV-arranged installer inputs and guard server writes; preserve website leads and agreement.
+- [ ] Related tests and automatic type/build checks; two-business isolation proof.
+- [ ] Separate recorded data step: HV-3136–HV-3150 only, ORLANDO POWERED, Jo's reason, no sends; TEST untouched.
+- [ ] HV-3193 price preview only; save waits for Jo's separate OK and is LAST.
+- [ ] Repeat safety-check hint remains open by Jo's decision; no change.
+
 ## Jo 2 Nov full published in-house test tool
 - [x] Test-first fail-closed runner/published probe scaffolding: 5 new tests and related 18/0; separate canonical portal-qa dispatch. Endpoint returns incomplete capabilities, not permission to run.
 - [ ] Implement/prove complete deployed provider capture, run-bound TEST scope and unchanged launch hold.
