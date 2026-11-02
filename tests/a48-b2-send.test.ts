@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 import {
   AREA_BATCH_EVENTS, batchInstallers, openBatchId, quickTapsReminderText, quickTapsText, type BatchInstaller,
 } from "../src/lib/area-batch.core";
+import { readFileSync } from "node:fs";
 import { SMS_FRESHNESS, SMS_MESSAGE_TYPES, brandSmsBody } from "../src/lib/sms.core";
 
 type Row = Record<string, unknown>;
@@ -71,6 +72,17 @@ mock.module("../src/lib/test-send.server", () => ({
   sendTestEmail: async () => { throw new Error("no email in Task 2"); },
   sendTestSms: async (_c: Row, to: string, body: string) => { sent.push({ via: "test-sms", to, body }); return { status: "sent", detail: "ok" }; },
 }));
+// Real owner emails: the one guarded sender, recorded (its once-only key, opt-outs and suppression are its own job).
+const emails: { to: string; purpose: string; key: string; subject: string; html: string; text: string }[] = [];
+let guarded: string | Error = "sent";
+mock.module("../src/lib/owner-email-send.server", () => ({
+  sendGuardedOwnerEmail: async (p: { to: string; purpose: string; key: string; build: (u: string | null) => { subject: string; html: string; text: string } }) => {
+    if (guarded instanceof Error) throw guarded;
+    const m = p.build("https://unsub.example/u");
+    emails.push({ to: p.to, purpose: p.purpose, key: p.key, ...m });
+    return guarded;
+  },
+}));
 mock.module("../src/lib/veec-copy-email.server", () => ({ ownerMyJobLink: async (jobId: string) => `https://estimate.homeinsulationvictoria.com.au/my-job/T-${jobId}` }));
 // Coordinates lookup (Vicmap → Google Places) is stubbed: it records the call and stores the fact like the real one.
 const located: string[] = [];
@@ -103,12 +115,12 @@ const daysAgo = (d: number) => new Date(NOW.getTime() - d * 86_400_000).toISOStr
 const pt = (northKm: number): [number, number] => [145, -37.8 + northKm / 111.19]; // stored [lng, lat]
 const GOOD = { declared: { property_type: "house", over_five_years: "yes" }, answers: { insulation: "none" } };
 
-function addJob(id: string, o: { postcode?: string; source?: string | null; channel?: string; stage?: string; facts?: Row; coords?: [number, number] | null; waited?: number; saved?: boolean; roof?: string; deleted?: boolean } = {}) {
+function addJob(id: string, o: { email?: string | null; postcode?: string; source?: string | null; channel?: string; stage?: string; facts?: Row; coords?: [number, number] | null; waited?: number; saved?: boolean; roof?: string; deleted?: boolean } = {}) {
   const prop = `p-${id}`;
   tables["jobs"]!.push({
     id, job_number: `HV-${id}`, stage: o.stage ?? "ready_check_ready_to_schedule", source: o.source ?? "website", channel: o.channel ?? "hivic_sourced",
     deleted_at: o.deleted ? "2026-10-29T00:00:00Z" : null, qa_archived_at: null, property_id: prop, created_at: daysAgo(30),
-    owners: { full_name: `Owner ${id}`, phone: "0400000000" },
+    owners: { full_name: `Owner ${id}`, phone: "0400000000", email: o.email ?? null },
     properties: { address_line: "1 Sample Street", suburb: "Melbourne", postcode: o.postcode ?? "3000", ...(o.facts ?? GOOD) },
   });
   if (o.saved !== false) tables["lead_campaign_responses"]!.push({ job_id: id, spot_saved_at: daysAgo(o.waited ?? 1), opted_out_at: null, saved_insulation: null });
@@ -118,7 +130,7 @@ function addJob(id: string, o: { postcode?: string; source?: string | null; chan
 function seed() {
   for (const k of Object.keys(tables)) delete tables[k];
   for (const k of Object.keys(lookupCoords)) delete lookupCoords[k];
-  sent.length = 0; located.length = 0;
+  sent.length = 0; located.length = 0; emails.length = 0; guarded = "sent";
   for (const t of ["jobs", "lead_campaign_responses", "property_facts", "job_assignments", "partner_offers", "workflow_events", "rate_cards"]) tables[t] = [];
   tables["workflow_settings"] = [{ id: 1, customer_comms_enabled: true, sms_message_switches: { quick_taps: true } }];
   tables["businesses"] = [{ id: "biz-1", name: "Sample Insulation", trading_name: null, onboarding_notes: null }, { id: "biz-t", name: "[TEST PARTNER] Co", trading_name: null, onboarding_notes: "[TEST PARTNER]" }];
@@ -383,5 +395,108 @@ describe("sendBatch review fixes", () => {
     failRead = "jobs";
     await expect(S.sendBatch(["j1"], "biz-1", "jo", { now: NOW })).rejects.toThrow(/Could not read the jobs: db down/);
     expect(events().length).toBe(0); expect(sent.length).toBe(0);
+  });
+});
+
+// ---- Jo 2 Nov 2026: the quick taps email goes with the text --------------------------------------------------------------
+describe("sendBatch: quick taps email with the text", () => {
+  const testEmails: { to: string; subject: string; text: string; label: string }[] = [];
+  beforeEach(() => {
+    seed(); testEmails.length = 0;
+    mock.module("../src/lib/test-send.server", () => ({
+      sendTestEmail: async (c: { label: string }, to: string, subject: string, _html: string, text: string) => { testEmails.push({ to, subject, text, label: c.label }); return { status: "sent", detail: "ok" }; },
+      sendTestSms: async (_c: Row, to: string, body: string) => { sent.push({ via: "test-sms", to, body }); return { status: "sent", detail: "ok" }; },
+    }));
+  });
+  test("sendBatch emails and texts each home", async () => {
+    addJob("j1", { email: "one@example.com" }); addJob("j2", { email: "two@example.com" });
+    const r = await S.sendBatch(["j1", "j2"], "biz-1", "jo", { now: NOW });
+    expect(sent.length).toBe(2);
+    expect(emails.map((e) => e.key).sort()).toEqual([`quick-taps-email:v1:${r.batchId}:j1:sent`, `quick-taps-email:v1:${r.batchId}:j2:sent`]);
+    const e1 = emails.find((e) => e.to === "one@example.com")!;
+    expect(e1.purpose).toBe("quick_taps:sent");
+    expect(e1.subject).toBe("It's almost time for your free Ready Check");
+    const link = "https://estimate.homeinsulationvictoria.com.au/my-job/T-j1?screen=taps";
+    expect(sent.find((x) => x.body.includes("T-j1"))!.body).toContain(link);
+    expect(e1.text).toContain(link);
+    expect(e1.text).toContain("Hi Owner, great news - it's almost time for your free Ready Check! Please confirm a few quick details for your quote.");
+    expect(r.texts.map((t) => [t.jobId, t.status, t.email.status]).sort()).toEqual([["j1", "sent", "sent"], ["j2", "sent", "sent"]]);
+  });
+  test("no email on file → text only", async () => {
+    addJob("j1", { email: null }); addJob("j2", { email: "  " });
+    const r = await S.sendBatch(["j1", "j2"], "biz-1", "jo", { now: NOW });
+    expect(sent.length).toBe(2);
+    expect(emails).toEqual([]);
+    for (const t of r.texts) { expect(t.status).toBe("sent"); expect(t.email.status).toBe("no_email"); }
+  });
+  test("email throw does not stop the text or batch", async () => {
+    addJob("j1", { email: "one@example.com" }); addJob("j2", { email: "two@example.com" });
+    guarded = new Error("email service down");
+    const r = await S.sendBatch(["j1", "j2"], "biz-1", "jo", { now: NOW });
+    expect(events("area_batch_sent").length).toBe(2);
+    expect(sent.length).toBe(2);
+    for (const t of r.texts) { expect(t.status).toBe("sent"); expect(t.email).toEqual({ status: "failed", detail: "email service down" }); }
+  });
+  test("a text throw does not stop the email", async () => {
+    addJob("j1", { email: "one@example.com" });
+    mock.module("../src/lib/sms.server", () => ({ sendRealSms: async () => { throw new Error("sms down"); } }));
+    try {
+      const r = await S.sendBatch(["j1"], "biz-1", "jo", { now: NOW });
+      expect(r.texts[0]).toMatchObject({ status: "failed", detail: "sms down", email: { status: "sent" } });
+      expect(emails.length).toBe(1);
+    } finally {
+      mock.module("../src/lib/sms.server", () => ({
+        sendRealSms: async (i: { type: string; to: string; body: string; idempotencyKey: string }) => { sent.push({ via: "real-sms", to: i.to, body: i.body, key: i.idempotencyKey, type: i.type }); return { status: "sent", detail: "ok", sid: "SM1" }; },
+      }));
+    }
+  });
+  test("opted-out owner gets no email", async () => {
+    addJob("j1", { email: "one@example.com" });
+    guarded = "blocked — not sent";
+    const r = await S.sendBatch(["j1"], "biz-1", "jo", { now: NOW });
+    expect(r.texts[0]!.status).toBe("sent");
+    expect(r.texts[0]!.email.status).toBe("blocked");
+  });
+  test("already attempted → already", async () => {
+    addJob("j1", { email: "one@example.com" });
+    guarded = "already attempted — not resent";
+    const r = await S.sendBatch(["j1"], "biz-1", "jo", { now: NOW });
+    expect(r.texts[0]!.email.status).toBe("already");
+  });
+  test("TEST home → sendTestEmail only", async () => {
+    addJob("t1", { source: "qa_test", email: "owner@test.example" });
+    installers = [installer({ id: "biz-t", name: "[TEST PARTNER] Co", onboarding_notes: "[TEST PARTNER]" })];
+    const r = await S.sendBatch(["t1"], "biz-t", "jo", { now: NOW });
+    expect(emails).toEqual([]);
+    expect(testEmails.map((e) => [e.to, e.subject])).toEqual([["owner@test.example", "It's almost time for your free Ready Check"]]);
+    expect(testEmails[0]!.text).toContain("/my-job/T-t1?screen=taps");
+    expect(r.texts[0]!.email.status).toBe("sent");
+  });
+  test("an owner carrying a pass is neither texted nor emailed", async () => {
+    addJob("d", { email: "d@example.com" });
+    const old = (t: string, details: Row) => tables["workflow_events"]!.push({ job_id: "d", event_type: t, created_at: daysAgo(5), details });
+    old("area_batch_sent", { batch_id: "b0", job_ids: ["d"] });
+    old("area_batch_left", { batch_id: "b0", reason: "address_moved" });
+    old("quick_taps_answered", { batch_id: "b0", outcome: "pass" });
+    const r = await S.sendBatch(["d"], "biz-1", "jo", { now: NOW });
+    expect(emails).toEqual([]); expect(sent).toEqual([]);
+    expect(r.texts[0]!.email.status).toBe("not_emailed");
+  });
+});
+
+describe("Choose installer result words", () => {
+  test("plain words for each text and email result", async () => {
+    const { sendResultWords } = await import("../src/lib/area-batch.core");
+    expect(sendResultWords("text", { status: "sent", detail: "ok" })).toBe("sent");
+    expect(sendResultWords("text", { status: "blocked", detail: "quiet hours" })).toBe("didn't go — quiet hours");
+    expect(sendResultWords("email", { status: "sent", detail: "sent" })).toBe("sent");
+    expect(sendResultWords("email", { status: "no_email", detail: "" })).toBe("no email on file");
+    expect(sendResultWords("email", { status: "blocked", detail: "blocked — not sent" })).toBe("not sent — unsubscribed");
+    expect(sendResultWords("email", { status: "failed", detail: "email service down" })).toBe("didn't go — email service down");
+  });
+  test("both Send lines say a text and an email", () => {
+    const src = readFileSync("src/components/portal/choose-installer.tsx", "utf8");
+    expect(src).not.toMatch(/each owner gets a text to/);
+    expect(src.match(/each owner gets a text and an email/g)?.length).toBe(2);
   });
 });
