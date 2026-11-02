@@ -27,7 +27,7 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   const now = opts.now ?? new Date();
   const problems = onsiteProblems(input);
   const { electricianPlanBlocker, OWNER_CONTACT_PERMISSION } = await import("./job-electrician.core");
-  const eb = electricianPlanBlocker(electrician); if (eb) problems.push(eb);
+  const eb = electrician ? electricianPlanBlocker(electrician) : null; if (eb) problems.push(eb);
   const lop = (await import("./onsite-ready-check.core")).leadOriginProblem(opts.leadOrigin); if (lop) problems.push(lop);
   // Decision 289: "Electrical safety check by" is chosen once here; "my usual electrician" needs one saved in My business.
   // A3: "my usual electrician" can be picked only once that electrician is onboarded (checked here as well as on the form).
@@ -40,6 +40,7 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   // checked BEFORE anything is saved, so a bad time never leaves a job behind.
   if (opts.visit) problems.push(...(await import("./ready-check-times.core")).a1ReadyCheckTimeBlockers(opts.visit, now));
   if (problems.length) throw new WorkflowError(problems.join(" • "));
+  if (!electricianChoice) throw new WorkflowError("Choose your own electrician.");
 
   // A6: one request key per phone draft. A key an earlier tap already saved means the signal dropped after the save:
   // finish THAT job (visit + form steps below) instead of checking the address or saving again.

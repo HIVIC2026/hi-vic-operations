@@ -36,5 +36,5 @@ export async function electricianSourceForJob(jobId: string, electricianBusiness
   const lastDetails = (last?.details ?? null) as { choice?: string | null; recBusinessId?: string | null } | null;
   const { resolveElectricianChoice } = await import("./electrician-choice.core");
   const choice = resolveElectricianChoice({ recorded, legacy: lastDetails?.choice ?? null, usual });
-  return electricianSourceForA1({ choice, usual, nominatedBusinessIds: [lastDetails?.recBusinessId ?? null], assigned });
+  return electricianSourceForA1({ choice: choice ?? "usual", usual, nominatedBusinessIds: [lastDetails?.recBusinessId ?? null], assigned });
 }

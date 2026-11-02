@@ -133,7 +133,8 @@ export async function confirmClaimed(userId: string, data: ConfirmImportInput, i
     }
     // Electrician payer must agree with the electrician plan; a fee declaration must use the exact wording for that payer.
     if (intake.electrician_payer) {
-      const mode = (data.electrician as { mode?: string } | undefined)?.mode ?? "hivic";
+      const mode = (data.electrician as { mode?: string } | undefined)?.mode ?? "later";
+      if (intake.electrician_payer === "hivic") blockers.push("Use one of your own electricians.");
       const expect = intake.electrician_payer === "hivic" ? "hivic" : intake.electrician_payer === "own" ? "mine" : "later";
       if (mode !== expect) blockers.push("The electrician choice doesn't match — choose it again");
     }
@@ -204,7 +205,7 @@ export async function confirmClaimed(userId: string, data: ConfirmImportInput, i
     if (!ha) chk(await admin.from("job_assignments").insert({ job_id: res.job_id, user_id: context.userId, role: "installer", business_id: imp.business_id, assigned_by: context.userId, first_response_at: new Date().toISOString() }), "Installer assignment");
     else if (!resumeJobId) throw new WorkflowError("This job already has an installer assignment."); }
   if (!resumeJobId || !(await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", res.job_id).ilike("event_type", "%electrician%")).count)
-    await (await import("./job-electrician.server")).recordJobElectricianChoice(res.job_id, imp.business_id, (data.electrician ?? { mode: "hivic" }) as never, context.userId);
+    await (await import("./job-electrician.server")).recordJobElectricianChoice(res.job_id, imp.business_id, (data.electrician ?? { mode: "later" }) as never, context.userId);
   // Decision 289: Upload jobs / Add one job never ask — the default rule (usual electrician when saved, else Home
   // Insulation Victoria's) is recorded once per job; no new column.
   if (!resumeJobId || !(await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", res.job_id).eq("event_type", "electrician_choice_set")).count)

@@ -175,22 +175,7 @@ export async function installerPriceView(jobId: string, userId: string) {
     sent.failed ||
     priceCardLocked({ quoteSentAt: sent.at, newQuoteRequestedAt: state.newQuoteRequestedAt });
   const { APPROVED_PRODUCTS } = await import("./insulation-product.core");
-  let hivSwitch: { priceIncGst: number } | null = null;
-  if (
-    hivSwitchOffered({
-      quoteHeldNotOnboarded: held,
-      choice: choice === "hivic" ? "hivic" : "usual",
-    })
-  ) {
-    const { data: rs } = await admin
-      .from("retail_estimator_settings")
-      .select("piesa_assessment_inc_gst")
-      .eq("is_current", true)
-      .maybeSingle();
-    hivSwitch = {
-      priceIncGst: rs?.piesa_assessment_inc_gst == null ? 349 : Number(rs.piesa_assessment_inc_gst),
-    };
-  }
+  const hivSwitch: { priceIncGst: number } | null = null;
   return {
     canSet: true as const,
     current: stored,
@@ -315,26 +300,5 @@ export async function switchToHivElectrician(jobId: string, userId: string): Pro
   const j = await a1JobOrThrow(jobId);
   const { requireMember } = await import("./pilot.server");
   await requireMember(userId, j.originating_installer_business_id, true);
-  const held =
-    (await (await import("./installer-quote-status.server")).loadInstallerQuote(jobId))
-      .electricianNotOnboarded === true;
-  const recorded = await (await import("./electrician-choice.server")).readElectricianChoice(jobId);
-  if (
-    !hivSwitchOffered({
-      quoteHeldNotOnboarded: held,
-      choice: recorded === "hivic" ? "hivic" : "usual",
-    })
-  )
-    throw new WorkflowError(HIV_SWITCH.refused);
-  await (
-    await import("./electrician-choice.server")
-  ).recordElectricianChoice(
-    jobId,
-    j.originating_installer_business_id,
-    userId,
-    "hivic",
-    "installer_switch",
-  );
-  await prepareQuoteFromPortal(jobId, userId);
-  return { ok: true };
+  throw new WorkflowError("Use one of your own electricians.");
 }
