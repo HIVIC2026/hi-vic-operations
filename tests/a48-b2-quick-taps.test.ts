@@ -346,7 +346,7 @@ describe("saveQuickTaps: pass", () => {
     expect(ev).toHaveLength(1);
     expect(ev[0]!["details"]).toMatchObject({ batch_id: "b1", consent_share: true, outcome: "pass", answers: { hatch: "not_sure", roof: "not_sure", five_years: "not_sure", go: "yes", name: "Helen a" } });
     expect(gates).toHaveLength(1);
-    expect(gates[0]).toMatchObject({ jobId: "a", key: "trade_contact_share", signatoryName: "Helen a", ticked: true, method: "link_code", ip: "1.2.3.4" });
+    expect(gates[0]).toMatchObject({ jobId: "a", key: "trade_contact_share", signatoryName: "Helen a", ticked: true, method: "quick_tap_link", ip: "1.2.3.4" });
     expect(cancels).toEqual([]); expect(mails).toEqual([]);
     expect(await S.quickTapsState(tok("a"))).toEqual({ kind: "done", outcome: "pass", installer: "Sample Insulation" });
   });
@@ -354,7 +354,7 @@ describe("saveQuickTaps: pass", () => {
     addJob("t", { source: "qa_test" }); sendBatchEvent("b1", ["t"]);
     expect(await S.saveQuickTaps(tok("t"), ALL_GOOD(), { ip: null, userAgent: null })).toEqual({ kind: "done", outcome: "pass", installer: "Sample Insulation" });
     expect(gates).toHaveLength(1);
-    expect(gates[0]).toMatchObject({ jobId: "t", key: "trade_contact_share", signatoryName: "Helen t", method: "link_code" });
+    expect(gates[0]).toMatchObject({ jobId: "t", key: "trade_contact_share", signatoryName: "Helen t", method: "quick_tap_link" });
     expect(mails).toEqual([]); expect(cancels).toEqual([]);
     expect(events("quick_taps_answered", "t")[0]!["details"]).toMatchObject({ outcome: "pass", consent_share: true });
   });
