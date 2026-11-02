@@ -3,7 +3,9 @@
 // poppler's pdftotext); never import this under src/. Task 12 draws text/ticks into the boxes with pdf-lib at run time.
 //
 // Method (LibreOffice 24.2 exports no PDF widgets for the legacy FORMTEXT/FORMCHECKBOX fields, so positions are measured):
-//  1. Blank PDF  = soffice --convert-to pdf of the untouched DEECA .docx (wording/layout exactly as published).
+//  1. Blank PDF  = soffice --convert-to pdf of the DEECA .docx "build copy": the untouched form with only the anchored
+//     footer label and last-page logo frame repositioned (official-form-pdf-build.ts buildCopy, fix round 2 ruling).
+//     Guard: its pdftotext -raw word sequence must equal the untouched form's conversion, word for word.
 //  2. Marker PDF = the same .docx after uniqueFieldNames, every field shown as a short unique text marker "#n#" of about
 //     the field's own width (text: the field's result replaced; checkbox: the box replaced by the marker squeezed to box
 //     width with Word character scaling, so line height and wrapping stay the same), converted the same way.
@@ -12,7 +14,7 @@
 //  4. Writes nothing if any field has no marker, a marker is found twice, or the page counts differ.
 // Usage: bun scripts/official-form-blank-pdf.ts
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -20,6 +22,7 @@ import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 import { PDFDocument } from "pdf-lib";
 import { OFFICIAL_TEMPLATES, type OfficialKey } from "../src/lib/official-forms.core";
 import { docxFields, uniqueFieldNames } from "../src/lib/official-docx.core";
+import { buildCopy, buildCopyDocument, rawWords, soffice } from "./official-form-pdf-build";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 /** Word character scale (%) for checkbox markers: "#nnn#" squeezed to about the width of the box LibreOffice draws. */
@@ -29,44 +32,7 @@ const MARKER_EM = 2.78;
 /** The form's own words may move at most this much (pt) between the blank and marker PDFs, else the boxes are not trusted. */
 const MAX_SHIFT_PT = 1;
 
-/**
- * LibreOffice font replacement table for the conversion profile (fonts the DEECA forms name but this machine lacks; the
- * default fallback is Inter, which is wider and wraps the footer "OFFICIAL" label to "OFFICIA / L"). Metric-compatible
- * faces where one exists (Carlito = Calibri, Caladea = Cambria, Liberation Sans = Arial).
- */
-const FONT_REPLACEMENTS: [string, string][] = [
-  ["Aptos", "Carlito"], // the "OFFICIAL" classification label in every footer
-  ["Calibri", "Carlito"],
-  ["Cambria", "Caladea"],
-  ["Arial Bold", "Liberation Sans"], // "Bold Body Text" style, e.g. PIISA Table 1 "WorkSafe guidance:"
-  ["VIC SemiBold", "Liberation Sans"],
-  ["Tahoma", "DejaVu Sans"],
-  ["Lucida Handwriting", "DejaVu Sans"],
-];
-
-function profileXcu(): string {
-  const pair = ([from, to]: [string, string], i: number) =>
-    `<item oor:path="/org.openoffice.Office.Common/Font/Substitution/FontPairs"><node oor:name="_${i}" oor:op="replace">` +
-    `<prop oor:name="Always" oor:op="fuse"><value>true</value></prop><prop oor:name="OnScreenOnly" oor:op="fuse"><value>false</value></prop>` +
-    `<prop oor:name="ReplaceFont" oor:op="fuse"><value>${from}</value></prop><prop oor:name="SubstituteFont" oor:op="fuse"><value>${to}</value></prop></node></item>`;
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<oor:items xmlns:oor="http://openoffice.org/2001/registry" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-<item oor:path="/org.openoffice.Office.Common/Font/Substitution"><prop oor:name="Replacement" oor:op="fuse"><value>true</value></prop></item>
-${FONT_REPLACEMENTS.map(pair).join("\n")}
-</oor:items>
-`;
-}
-
 type FieldBox = { name: string; kind: "text" | "check"; page: number; x: number; y: number; w: number; h: number };
-
-/** Converts with a throwaway profile in `dir` carrying FONT_REPLACEMENTS. */
-function soffice(dir: string, file: string): Uint8Array {
-  mkdirSync(join(dir, "profile/user"), { recursive: true });
-  writeFileSync(join(dir, "profile/user/registrymodifications.xcu"), profileXcu());
-  const r = spawnSync("soffice", ["--headless", `-env:UserInstallation=file://${dir}/profile`, "--convert-to", "pdf", "--outdir", dir, join(dir, file)], { encoding: "utf8" });
-  if (r.status !== 0) throw new Error(`soffice failed on ${file}: ${r.stderr || r.stdout}`);
-  return new Uint8Array(readFileSync(join(dir, file.replace(/\.docx$/, ".pdf"))));
-}
 
 const runStart = (xml: string, idx: number) => {
   for (let i = xml.lastIndexOf("<w:r", idx); i >= 0; i = xml.lastIndexOf("<w:r", i - 1)) if (xml[i + 4] === ">" || xml[i + 4] === " ") return i;
@@ -170,9 +136,14 @@ for (const key of ["piesa", "piisa"] as OfficialKey[]) {
   const fields = docxFields(named);
   const dir = mkdtempSync(join(tmpdir(), `blank-${key}-`));
   try {
-    writeFileSync(join(dir, "blank.docx"), bytes);
+    writeFileSync(join(dir, "untouched.docx"), bytes);
+    soffice(dir, "untouched.docx");
+    const copy = buildCopy(parts, strToU8, strFromU8);
+    writeFileSync(join(dir, "blank.docx"), zipSync(copy));
     const blank = soffice(dir, "blank.docx");
-    writeFileSync(join(dir, "marker.docx"), zipSync({ ...parts, "word/document.xml": strToU8(markerXml(named)) }));
+    const before = rawWords(join(dir, "untouched.pdf")), after = rawWords(join(dir, "blank.pdf"));
+    if (before.join(" ") !== after.join(" ")) throw new Error(`${key}: STOP — build-copy tweaks changed the form's words (${before.length} vs ${after.length})`);
+    writeFileSync(join(dir, "marker.docx"), zipSync({ ...copy, "word/document.xml": strToU8(buildCopyDocument(markerXml(named))) }));
     soffice(dir, "marker.docx");
     const markerText = pdfWords(join(dir, "marker.pdf"));
     const blankText = pdfWords(join(dir, "blank.pdf"));
@@ -193,7 +164,7 @@ for (const key of ["piesa", "piisa"] as OfficialKey[]) {
     for (const n of found.keys()) if (n >= fields.length) problems.push(`unexpected marker #${n}#`);
     if (problems.length) throw new Error(`${key}: STOP — not writing anything:\n  ${problems.join("\n  ")}`);
     const out = `// GENERATED by \`bun scripts/official-form-blank-pdf.ts\` from the bundled DEECA ${key.toUpperCase()} Word form — do not edit by hand.
-// ${key.toUpperCase()} blank PDF (LibreOffice conversion of the untouched form) and the measured box of every form field hiv{n}.
+// ${key.toUpperCase()} blank PDF (LibreOffice conversion of the form's build copy: footer label + last-page logos repositioned, words unchanged) and the measured box of every form field hiv{n}.
 // sourceSha256 = SHA-256 of the DEECA .docx. Boxes are in pt, PDF coordinates (origin bottom-left of the page), page 0-based.
 export type FieldBox = { name: string; kind: "text" | "check"; page: number; x: number; y: number; w: number; h: number };
 export const OFFICIAL_BLANK_PDF: { sourceSha256: string; fieldCount: number; pdfBase64: string; fields: FieldBox[] } = {

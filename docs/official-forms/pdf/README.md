@@ -4,7 +4,7 @@
 
 Each exports `OFFICIAL_BLANK_PDF = { sourceSha256, fieldCount, pdfBase64, fields }`:
 
-- `pdfBase64`: the blank form. LibreOffice converts the untouched DEECA `.docx` from `docs/official-forms/`, so the wording is DEECA's.
+- `pdfBase64`: the blank form. LibreOffice converts a build copy of the DEECA `.docx` from `docs/official-forms/` (see "Build copy" below). The wording is DEECA's, word for word.
 - `sourceSha256`: the SHA-256 of that `.docx`. It must match `OFFICIAL_TEMPLATES[key].sha256`.
 - `fields`: one box per Word form field, in `docxFields` order, named `hiv{n}` as in `uniqueFieldNames`. Each box is `{ name, kind: "text" | "check", page, x, y, w, h }`. Sizes are in pt and use PDF coordinates: the origin is the bottom-left of the page, and `page` counts from 0.
 
@@ -16,7 +16,7 @@ LibreOffice 24.2 does not turn the forms' old Word fields (FORMTEXT and FORMCHEC
 
 ## How the script measures the fields
 
-1. **Blank PDF.** `soffice --headless --convert-to pdf` runs on the untouched `.docx`. It uses a throwaway LibreOffice profile with a font replacement table (`FONT_REPLACEMENTS` in the script) for fonts the forms name but this machine lacks:
+1. **Blank PDF.** `soffice --headless --convert-to pdf` runs on the build copy of the `.docx`. It uses a throwaway LibreOffice profile with a font replacement table (`FONT_REPLACEMENTS` in the script) for fonts the forms name but this machine lacks:
    - Aptos (the footer "OFFICIAL" label) and Calibri → Carlito
    - Cambria → Caladea
    - "Arial Bold" and "VIC SemiBold" → Liberation Sans
@@ -37,6 +37,15 @@ LibreOffice 24.2 does not turn the forms' old Word fields (FORMTEXT and FORMCHEC
 
    Each word is compared with the nearest word with the same text. The last run moved words by at most 0.2 pt.
 
+## Build copy
+
+The `.docx` in the repo stays untouched. Before converting, the script (`buildCopy` in `scripts/official-form-pdf-build.ts`) moves only two anchored boxes:
+
+- **"OFFICIAL" label** (footer for pages 2 onward): moved from the page centre to the left margin, so it no longer prints over "VEU Pre-installation …". It is also stacked above the white panel on the last page, which used to hide it on the PIESA.
+- **Last-page logos** (the `xVicLogo` frame): set 768 pt from the top of the page, instead of the style's 782 pt, so they sit above the footer line.
+
+Nothing else changes: no wording, tables or content. The script stops if the build copy's words (from `pdftotext -raw`) differ from the untouched form's conversion in any way, including order. The test checks the same thing whenever `soffice` is installed.
+
 ## How to regenerate
 
 You need LibreOffice (`soffice`) and poppler (`pdftotext`). Run:
@@ -54,8 +63,5 @@ Regenerate after any change to the bundled DEECA `.docx` or to the LibreOffice v
   - Part 2 starts on page 2.
   - B1 sits alone on page 5.
 
-  The font replacements do not change this; the cause is layout, not fonts. The PIISA matches Word at 5 pages. The test pins both counts.
-- **"OFFICIAL" label overlaps the footer line.** "OFFICIAL" now prints whole on every page, and the test checks this. But on every page after page 1 it overlaps the start of "VEU Pre-installation …". On the last page it is hidden behind the logos.
-  - The label is a bottom-anchored text box. The footer line runs through the page centre, so the two share a line.
-  - By the form's own geometry, the label would touch the footer text in Word too, but LibreOffice draws it about 5 pt higher.
-  - On the last page, the footer text also overlaps the DEECA logos.
+  This is accepted. The cause is layout, not fonts. The PIISA matches Word at 5 pages. The test pins both counts.
+- **Footer label and last-page logos** are moved in the build copy (see above). Page 1 is unchanged.
