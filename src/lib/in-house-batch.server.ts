@@ -1,7 +1,7 @@
 // Office-authorised callers only. Allocation is atomic; approved owner notices use the guarded sender afterwards.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { batchJobEligible, batchPartnerCovers, suggestBatches, readyInHouseBatch, type BatchJob, type InHousePartner } from "./in-house-batch.core";
+import { batchJobEligible, batchPartnerCovers, jobGiveOffer, suggestBatches, readyInHouseBatch, type BatchJob, type InHousePartner } from "./in-house-batch.core";
 import { QUICK_TAPS_ANSWERED_EVENT } from "./quick-taps.core";
 import { sendInHousePartnerCall } from "./in-house-batch-email.server";
 import { sendInHouseGiveEmail } from "./in-house-give-email.server";
@@ -41,9 +41,10 @@ async function pagedRows<T>(query: (from: number, to: number) => PromiseLike<{ d
 async function byIds<T>(ids: string[], query: (ids: string[], from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>): Promise<T[]> {
   return (await Promise.all(chunkIds([...new Set(ids)], 200).map(ids => pagedRows<T>((from, to) => query(ids, from, to))))).flat();
 }
-export async function loadInHouseBatches() {
+export async function loadInHouseBatches(opts: { jobIds?: string[] } = {}) {
+  const scoped = (q: any) => opts.jobIds ? q.in("id", opts.jobIds) : q;
   const [jobs, businesses] = await Promise.all([
-    pagedRows<Job>((a,b) => db.from("jobs").select("id,job_number,property_id,owners(full_name,phone),stage,source,channel,originating_installer_business_id,deleted_at").is("deleted_at", null).neq("source", "qa_test").not("stage", "in", "(complete,cancelled)").order("id").range(a,b)),
+    pagedRows<Job>((a,b) => scoped(db.from("jobs").select("id,job_number,property_id,owners(full_name,phone),stage,source,channel,originating_installer_business_id,deleted_at").is("deleted_at", null).neq("source", "qa_test").not("stage", "in", "(complete,cancelled)")).order("id").range(a,b)),
     pagedRows<Omit<InHousePartner, "openJobs"> & { trading_name: string | null }>((a,b) => db.from("businesses").select("id,name,trading_name,in_house,is_active,service_postcodes,covers_all_victoria,coverage_lat,coverage_lng,coverage_radius_km").eq("in_house", true).eq("is_active", true).order("id").range(a,b)),
   ]);
   const ids = jobs.map(j => j.id), propertyIds = [...new Set(jobs.map(j => j.property_id))];
@@ -71,6 +72,12 @@ export async function loadInHouseBatches() {
   });
   const eligibleJobs = batchJobs.filter(batchJobEligible);
   return { jobs: eligibleJobs, partners, suggestions: suggestBatches(eligibleJobs, partners) };
+}
+
+/** Job page offer (office only): null unless this job can be given to its nominated in-house partner right now. */
+export async function inHouseGiveForJob(jobId: string) {
+  const screen = await loadInHouseBatches({ jobIds: [jobId] });
+  return jobGiveOffer(screen.jobs.find(j => j.id === jobId), screen.partners);
 }
 
 async function selectWorkers(businessId: string) {

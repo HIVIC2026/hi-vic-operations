@@ -17,6 +17,14 @@ export type InHousePartner = {
 export function saidYesLabel(job: Pick<BatchJob, "ownerName" | "quickTapsYes" | "channel">): string | null {
   return job.quickTapsYes === true ? `${displayName(job.ownerName) || "Owner"} said yes · free Ready Check` : null;
 }
+/** Job page: the owner said yes and the nominated installer is an active in-house partner covering the home. */
+export function jobGiveOffer(job: BatchJob | undefined, partners: InHousePartner[]): { businessId: string; partnerName: string; label: string } | null {
+  const said = job ? saidYesLabel(job) : null;
+  if (!job || !said || !job.waitingBusinessId) return null;
+  const partner = partners.find(p => p.id === job.waitingBusinessId && isInHousePartner(p) && p.is_active);
+  if (!partner || !batchPartnerCovers(job, partner)) return null;
+  return { businessId: partner.id, partnerName: partner.name, label: `${said}. Give to ${partner.name}` };
+}
 export function batchJobEligible(job: BatchJob): boolean {
   return !job.deleted_at && job.source !== "qa_test" && (job.channel === "installer_sourced" || (!!job.spot_saved_at && job.quickTapsYes === true)) && !job.optedOut && !job.hasActiveInstaller
     && ["preliminary_estimate_ready", "ready_check_ready_to_schedule"].includes(job.stage);

@@ -202,3 +202,21 @@ test("installer email failure keeps the Give and says not_sent", async () => {
   expect(result.sent).toHaveLength(3);
   expect(result.installerEmail).toEqual({ status: "not_sent" });
 });
+
+test("job-scoped loader filters jobs by id", async () => {
+  const f = fixture(); f.five();
+  const result = await f.api.loadInHouseBatches({ jobIds: ["j2"] });
+  expect(result.jobs.map((j: any) => j.id)).toEqual(["j2"]);
+  expect(f.calls.find(c => c.table === "jobs")?.filters).toContainEqual(["in", "id", ["j2"]]);
+  expect((await f.api.loadInHouseBatches()).jobs).toHaveLength(5);
+});
+test("give offer for a job: said yes and nominated in-house partner; null otherwise", async () => {
+  const f = fixture();
+  f.data.workflow_events.push({ job_id: "j", event_type: "area_batch_sent", details: { batch_id: "x", installer_business_id: "b" } });
+  f.data.workflow_events[0] = { job_id: "j", event_type: QUICK_TAPS_ANSWERED_EVENT, details: { outcome: "pass", consent_share: true, batch_id: "x" } };
+  f.data.jobs[0] = { ...(f.data.jobs[0] as object), owners: { full_name: "WAYNE WILSON", phone: "0400" }, channel: "website" };
+  expect(await f.api.inHouseGiveForJob("j")).toEqual({ businessId: "b", partnerName: "Rapid Insulation", label: "Wayne Wilson said yes · free Ready Check. Give to Rapid Insulation" });
+  expect(await f.api.inHouseGiveForJob("nope")).toBeNull();
+  f.data.businesses = [];
+  expect(await f.api.inHouseGiveForJob("j")).toBeNull();
+});
