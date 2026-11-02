@@ -311,7 +311,7 @@ describe("Mitti pickup address verification (Jo 2 Nov)", () => {
 
 describe("Address to confirm office row (Jo 2 Nov)", () => {
   test("shows while unresolved and clears with a full address", async () => {
-    const { needsRows } = await import("../src/lib/office-needs.core");
+    const { needsCandidates: needsRows } = await import("../src/lib/office-needs.core");
     const base = { jobId: "j", jobNumber: "HV-1", surname: "Owner", suburb: null };
     const rows = needsRows({ ...base, addressToConfirm: { at: "2026-11-02T00:00:00Z", candidates: ["9 Shelley Street, Spring Gully VIC"] } } as never, Date.parse("2026-11-02T01:00:00Z"));
     expect(rows.find((r) => r.kind === "address_to_confirm")?.line).toBe("Address to confirm · 9 Shelley Street, Spring Gully VIC");
