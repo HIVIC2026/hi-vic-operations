@@ -2,7 +2,7 @@
 - [x] Jo reports approved direct save 3 Nov 10:42am Sydney; read-only verified Rapid's new active electrical `In-house PIESA` v1 (effective 3 Nov), PIESA $250 ex / $275 inc, and `safety_check_prices_jo_3nov` audit. Local actual-reader → owner quote → payee regression added using those card facts; full $275 to Rapid, zero markup. No data changes, sends or publishing in this check; authenticated live job UI proof remains NOT RUN.
 
 ## Jo 3 Nov 10:30am installer safety-check correction
-- [x] Test-first restored installer-owned price-list owner fee and whole-fee pass-through, preserving recorded quote/payout values; website owner/payout unchanged. Requested examples and related focused tests pass. Broader historical suites have identical baseline failures (13/16/4). Rapid has no saved PIESA line; Reinsulate still $350 pending approved recorded saves. No data, sends or publishing.
+- [x] Test-first restored installer-owned price-list owner fee and whole-fee pass-through, preserving recorded quote/payout values; website owner/payout unchanged. Requested examples and related focused tests pass. Broader historical suites have identical baseline failures (13/16/4). Subsequent 10:42am approved saves verified below; Rapid saved-card regression passes (17/17 reader tests plus 14/14 pricing tests). No data changes, sends or publishing during verification.
 - [ ] Authenticated pricing flow proof: BLOCKED by unavailable Jo admin session; no new TEST/live data created to bypass it.
 
 ## Jo 3 Nov 10:20am safety-check recorded data saves
