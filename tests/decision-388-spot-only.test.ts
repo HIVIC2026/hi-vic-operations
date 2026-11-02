@@ -47,7 +47,7 @@ describe("the rule itself", () => {
     for (const bad of ["your free Ready Check", "an installer will offer you times", "they'll offer you times", "We measure your roof space", "a free onsite check",
       "we'll text you as soon as an installer is free", "Spots open soon", "we'll call shortly", "booked this week", "Want to jump the queue?", "so you could move up"])
       expect({ bad, hit: PRE_RELEASE_FORBIDDEN.test(bad) }).toEqual({ bad, hit: true });
-    for (const ok of ["Save your spot, it's free", SPOT_RELEASE_LINE, "Thousands of Victorians have registered.", "Fitted by an EEC-certified installer"]) clean(ok, ok);
+    for (const ok of ["Save your spot, it's free", SPOT_RELEASE_LINE, "Fitted by an EEC-certified installer"]) clean(ok, ok);
   });
 });
 

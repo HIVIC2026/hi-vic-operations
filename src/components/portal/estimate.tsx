@@ -192,14 +192,14 @@ function PriceProtection({ settings, fees }: { settings: RetailSettings | undefi
     `${CUSTOMER_QUOTE_LABELS.piesa}: ${dollars(fees.piesa)} inc GST`,
     `${CUSTOMER_QUOTE_LABELS.apManagement}: ${dollars(fees.ap)} inc GST`,
     ...(settings ? [`Access adjustments: fixed +${pct(settings.access_moderate_multiplier)} moderate / +${pct(settings.access_difficult_multiplier)} difficult on the installation component`] : []),
-    "electrical fixes: separately itemised and approved before work",
+    "electrical upgrades: separately itemised and approved before work",
   ];
   return <section aria-labelledby={id} className="border-y border-estimate-blue-soft py-7">
     <p className="text-xs font-semibold uppercase tracking-wider text-estimate-green">Price protection</p>
     <h3 id={id} className="mt-2 text-xl font-bold leading-snug text-estimate-navy sm:text-2xl">Transparent Home Insulation Victoria pricing — no installer mark-up surprises.</h3>
     <p className="mt-3 text-sm leading-relaxed">Home Insulation Victoria sets the customer pricing. Once your home’s details are confirmed, your final price is calculated from our set customer rate card. Our partner electricians and insulation installers do not decide what you pay.</p>
     <ul className="mt-5 grid gap-x-7 gap-y-3 text-sm sm:grid-cols-2">{rows.map((r) => <li key={r} className="flex items-start gap-2 leading-snug"><Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-estimate-green" />{r}</li>)}</ul>
-    <p className="mt-4 text-xs leading-relaxed">Your final total still depends on your actual ceiling area, whether removal is needed, access and any electrical fixes.</p>
+    <p className="mt-4 text-xs leading-relaxed">Your final total still depends on your actual ceiling area, whether removal is needed, access and any electrical upgrades.</p>
   </section>;
 }
 

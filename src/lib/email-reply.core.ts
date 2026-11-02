@@ -365,8 +365,8 @@ function priceRebate(f: OwnerFacts): Built {
   const pre = isPreRelease(f);
   lines.push(`That includes ${pre ? "" : "the free Ready Check, "}the licensed electrician's safety check, premium R5.0 ceiling batts fitted by an EEC-certified installer, and all the rebate paperwork.`);
   const extras = q
-    ? "Electrical fixes aren't included and are only needed if the safety check finds any; they're quoted separately and nothing is done without your OK."
-    : `Not included, only if needed: removing old insulation, a ceiling access fee, electrical fixes, or a bigger ceiling than you told us${pre ? "." : ", and you'll know the exact price before you agree to anything."}`;
+    ? "Electrical upgrades aren't included and are only needed if the safety check finds any; they're quoted separately and nothing is done without your OK."
+    : `Not included, only if needed: removing old insulation, a ceiling access fee, electrical upgrades, or a bigger ceiling than you told us${pre ? "." : ", and you'll know the exact price before you agree to anything."}`;
   const rule = "The rebate is for homes over 5 years old where any insulation already in the ceiling is below R2.0.";
   let linkLine: string | null = null;
   lines.push(extras, rule);

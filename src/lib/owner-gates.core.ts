@@ -150,6 +150,7 @@ export const GATE_DOCS: GateDoc[] = [
     ...L,
     signer: "owner",
     tick: "I accept",
+    // Signed wording: any change needs a new version that Jo approves.
     body: "I accept this quote (version {quote_version}, {total} inc GST after the VEU discount) and the [Customer Agreement] with DC Construction Solutions Pty Ltd trading as Home Insulation Victoria.\n\nI am the owner of the property, or I have the owner's authority to sign. I am 18 or older.",
   },
   {
@@ -159,6 +160,7 @@ export const GATE_DOCS: GateDoc[] = [
     ...L,
     signer: "owner",
     tick: "I assign my VEECs",
+    // Signed wording: any change needs a new version that Jo approves.
     body: "I assign to DC Construction Solutions Pty Ltd trading as Home Insulation Victoria the right to create all Victorian energy efficiency certificates (VEECs) for this Activity 48 ceiling insulation upgrade at {address}. I understand this assignment takes effect only once the work has been done. If the installer, product, installed area, VEU discount, scope or price changes, I'll be asked to reconfirm. I'll receive a copy of the completed form after install.",
   },
   // PENDING: two cooling-off variants await Jo's answer. Stays DRAFT and blocks real jobs.

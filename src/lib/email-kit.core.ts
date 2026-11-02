@@ -43,7 +43,7 @@ export function notIncludedItems(someInsulation = false): string[] {
   return [
     someInsulation ? "<strong>Removing old insulation</strong>, only if it can't stay ($15 per m², see above)" : "<strong>Removing old insulation</strong>, if any needs to come out",
     "<strong>Ceiling access fee</strong>, if your ceiling is hard to get into",
-    "<strong>Electrical fixes</strong>, if the safety check finds any",
+    "<strong>Electrical upgrades</strong>, if the electrical safety check (PIESA) finds any",
     "<strong>A bigger ceiling</strong> than you told us",
   ];
 }

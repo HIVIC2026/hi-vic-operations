@@ -110,7 +110,7 @@ const RETAINED: { file: RegExp; re: RegExp; why: string }[] = [
   },
   // Signed texts: any wording change needs a new version so earlier signatures keep their exact text.
   { file: /^src\/lib\/(installer|rec)-agreement\.text\.ts$/, re: /VEU discount/, why: "Signed partner agreement text (new version needed)" },
-  { file: /^src\/lib\/owner-gates\.core\.ts$/, re: /VEU discount/, why: "Signed owner gate wording (new version needed)" },
+  { file: /^src\/lib\/owner-gates\.core\.ts$/, re: /^\s*body: "I (?:accept this quote|assign to DC Construction).*VEU discount/, why: "Signed owner gate bodies quote_acceptance and veec_assignment_consent (new version needed)" },
 ];
 const SKIP_DIRS = new Set([
   "node_modules",

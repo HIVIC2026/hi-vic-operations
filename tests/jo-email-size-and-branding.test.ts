@@ -195,7 +195,7 @@ describe("F. the approved wording (decisions 66, 67, 69, 73) is what renders", (
       // Decision 388 (Jo 25 Oct 2026): spot-only — no Ready Check, times or measuring before release.
       "Spots are released in the order they were saved. There's no cost and no obligation, and we'll be in touch when yours is released.",
       "Save my free spot", "What's included in $1,900", "Electrical safety check (PIESA) by a licensed electrician", "Premium R5.0 ceiling batts", "AS/NZS 4859.1",
-      "Fitted by an EEC-certified installer", "AS 3999", "We handle the rebate", "A003654", "Not included – only if needed", "Removing old insulation", "Ceiling access fee", "Electrical fixes", "A bigger ceiling",
+      "Fitted by an EEC-certified installer", "AS 3999", "We handle the rebate", "A003654", "Not included – only if needed", "Removing old insulation", "Ceiling access fee", "Electrical upgrades", "A bigger ceiling",
       "You'll see your exact price before you agree to anything.", "See your full estimate",
     ]) expect(m.html).toContain(t);
     expect(m.html).not.toContain("Ready Check");

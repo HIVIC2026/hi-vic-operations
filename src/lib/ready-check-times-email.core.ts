@@ -45,7 +45,7 @@ const INCLUDED = (rebate: number) => [
 const NOT_INCLUDED: [string, string][] = [
   ["Removing old insulation", ", if any needs to come out"],
   ["Ceiling access fee", ", if your ceiling is hard to get into"],
-  ["Electrical fixes", ", if the safety check finds any"],
+  ["Electrical upgrades", ", if the electrical safety check (PIESA) finds any"],
   ["A bigger ceiling", " than you told us"],
 ];
 const CLOSING = "You'll know your exact price before you agree to anything.";

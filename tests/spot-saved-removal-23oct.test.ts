@@ -27,11 +27,11 @@ describe("Spot saved email removal (Jo 23 Oct; decision 70 design since 24 Oct)"
     expect(e.text).not.toMatch(/Removal of existing insulation|budget \$15/i);
     expect(e.html).not.toMatch(/budget \$15/);
   });
-  test("electrical fixes are 'not included' for everyone, html and text", () => {
+  test("electrical upgrades are 'not included' for everyone, html and text", () => {
     for (const r of [null, { kind: "excluded" as const }]) {
       const e = renderSpotSavedEmail({ ...base, removal: r });
-      expect(e.text).toContain("+ Electrical fixes, if the safety check finds any");
-      expect(e.html).toContain("<strong>Electrical fixes</strong>, if the safety check finds any");
+      expect(e.text).toContain("+ Electrical upgrades, if the electrical safety check (PIESA) finds any");
+      expect(e.html).toContain("<strong>Electrical upgrades</strong>, if the electrical safety check (PIESA) finds any");
     }
     // Owners without a saved estimate still get the sentence.
     const noEst = renderSpotSavedEmail({ ...base, estimate: null });

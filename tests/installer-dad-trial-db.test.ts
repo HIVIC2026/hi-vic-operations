@@ -34,7 +34,6 @@ const JOB = "00000000-0000-0000-0000-00000000e001", BIZ = "00000000-0000-0000-00
 const base = { areaM2: 120, insulation: "below_r2" as const, quoteStatus: "have_quote" as const, quoteIncGst: 3000, includes: "R5.0 batts supply and install", proposedR: 5, files: [], attended: "attended" as const };
 const good = { basis: "before_discount" as const, gst: "inc_gst" as const, inclusions: "R5.0 batts supply and install", exclusions: null, originalStatus: "sent" as const, removalPricing: null, removalAmountIncGst: null, extras: [] as { description: string; pricing: "included" | "additional" | "not_priced"; amountIncGst: number | null }[] };
 const evs = async (t: string) => (await db.query<{ details: Record<string, unknown> }>("select details from workflow_events where job_id=$1 and event_type=$2 order by created_at", [JOB, t])).rows;
-const comBlockers = async () => (await installerIntakeState(JOB)).readiness.blockers.filter((b) => /VEU discount|GST|Removal is required|removal price|Extra|Clarify the installer quote/.test(b));
 
 beforeEach(async () => {
   drafted.length = 0;
