@@ -23,9 +23,12 @@ const PAGE_BOTTOM = PDF_PAGE.bottom;
 type Fonts = { r: PDFFont; b: PDFFont; x: PDFFont; i: PDFFont };
 type Ctx = { pdf: PDFDocument; fonts: Fonts; logo: () => Promise<PDFImage>; images: Map<string, PDFImage> };
 
+/** Section numbers drawn as little vector icons (the Open Sans files have no glyph for them). */
+const ICON_NUMBERS = new Set(["✓", "⚡", "↩"]);
+
 /** Every string in the document goes through the Open Sans character set (ids, kinds and image bytes are left alone). */
 function sanitize<T>(v: T, safe: (s: string) => string, key = ""): T {
-  if (typeof v === "string") return (key === "id" || key === "kind" ? v : safe(v)) as T;
+  if (typeof v === "string") return (key === "id" || key === "kind" || (key === "number" && ICON_NUMBERS.has(v)) ? v : safe(v)) as T;
   if (Array.isArray(v)) return v.map((x) => sanitize(x, safe)) as T;
   if (v && typeof v === "object" && !(v instanceof Uint8Array)) {
     return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, sanitize(x, safe, k)])) as T;
@@ -77,11 +80,15 @@ function measure(b: PdfBlock, w: number, F: Fonts): number {
 }
 const BOX_PAD = 7.5;
 const sectionHead = (b: { number?: string }) => 7.5 + 13 + 3 + 1.1 + 4;
-const moneyRowH = (r: { strong?: boolean }) => (r.strong ? 19 : 14);
-const factRows = (rows: [string, string][]) => { const out: [string, string][][] = []; for (let i = 0; i < rows.length; i += 2) out.push(rows.slice(i, i + 2)); return out; };
+const moneyRowH = (r: { strong?: boolean; label?: string }) => {
+  const n = r.label ? r.label.split("\n").length : 1;
+  return r.strong ? 19 : n > 1 ? 8 + 10.6 + (n - 1) * 9.4 : 14;
+};
+/** Three cells sit side by side in one row (as in the approved agreement); otherwise two per row. */
+const factRows = (rows: [string, string][]) => { const out: [string, string][][] = []; const n = rows.length === 3 ? 3 : 2; for (let i = 0; i < rows.length; i += n) out.push(rows.slice(i, i + n)); return out; };
 const FACT_PAD_X = 7.5, FACT_PAD_Y = 3.75;
 function factCellH(c: [string, string], w: number, F: Fonts) { return FACT_PAD_Y * 2 + 8.5 + lines(F.r, BODY, c[1], w - 2 * FACT_PAD_X).length * BODY_LH; }
-function factRowH(r: [string, string][], w: number, F: Fonts) { const cw = r.length === 2 ? w / 2 : w; return Math.max(...r.map((c) => factCellH(c, cw, F))); }
+function factRowH(r: [string, string][], w: number, F: Fonts) { const cw = w / r.length; return Math.max(...r.map((c) => factCellH(c, cw, F))); }
 function sigH(b: { name: string; label: string; at: string }, w: number, F: Fonts) {
   const nameW = w * 0.62 - 15;
   return 5 + 8.5 + Math.max(lines(F.i, 11.25, b.name, nameW).length * 14, 14) + 5;
@@ -121,10 +128,10 @@ async function draw(b: PdfBlock, page: PDFPage, pageNo: number, x: number, top: 
       let y = top;
       rows.forEach((r, ri) => {
         r.forEach((c, ci) => {
-          const cw = r.length === 2 ? w / 2 : w; const cx = x + ci * cw;
+          const cw = w / r.length; const cx = x + ci * cw;
           text(page, c[0].toUpperCase(), cx + FACT_PAD_X, base(y - FACT_PAD_Y, 8.5, LABEL), F.b, LABEL, C.muted, { spacing: 0.5 });
           drawLines(page, lines(F.r, BODY, c[1], cw - 2 * FACT_PAD_X), cx + FACT_PAD_X, y - FACT_PAD_Y - 8.5, F.r, BODY, BODY_LH, C.ink);
-          if (ci === 0 && r.length === 2) page.drawLine({ start: { x: cx + cw, y }, end: { x: cx + cw, y: y - hs[ri]! }, thickness: 0.75, color: C.line });
+          if (ci < r.length - 1) page.drawLine({ start: { x: cx + cw, y }, end: { x: cx + cw, y: y - hs[ri]! }, thickness: 0.75, color: C.line });
         });
         y -= hs[ri]!;
         if (ri < rows.length - 1) page.drawLine({ start: { x, y }, end: { x: x + w, y }, thickness: 0.75, color: C.line });
@@ -152,7 +159,12 @@ async function draw(b: PdfBlock, page: PDFPage, pageNo: number, x: number, top: 
         const size = r.strong ? 9.75 : 8.6; const f = r.strong ? F.x : F.r;
         const col = r.green ? C.dgreen : C.ink;
         const bl = base(y, h, size);
-        text(page, r.label, x, bl, r.strong ? F.b : F.r, size, r.green ? C.dgreen : C.ink);
+        const parts = r.label.split("\n");
+        if (parts.length > 1 && !r.strong) {
+          // Multi-line label: bold first line, muted detail lines under it.
+          text(page, parts[0]!, x, base(y - 4, 10.6, size), F.b, size, C.ink);
+          parts.slice(1).forEach((l, li) => text(page, l, x, base(y - 4 - 10.6 - li * 9.4, 9.4, SMALL), F.r, SMALL, C.muted));
+        } else text(page, r.label, x, bl, r.strong ? F.b : F.r, size, r.green ? C.dgreen : C.ink);
         text(page, r.amount, x + w, bl, f, size, col, { right: true });
         y -= h;
         if (!r.strong && i < b.rows.length - 1) page.drawLine({ start: { x, y }, end: { x: x + w, y }, thickness: 0.75, color: C.line });
@@ -209,6 +221,14 @@ async function embedImage(pdf: PDFDocument, bytes: Uint8Array): Promise<PDFImage
   return png ? pdf.embedPng(bytes) : pdf.embedJpg(bytes);
 }
 
+/** White vector icon centred on (cx, cy) inside a section badge. */
+function drawIcon(page: PDFPage, icon: string, cx: number, cy: number) {
+  const seg = (a: number, b: number, c: number, d: number) => page.drawLine({ start: { x: cx + a, y: cy + b }, end: { x: cx + c, y: cy + d }, thickness: 1.1, color: C.white });
+  if (icon === "✓") { seg(-2.4, 0, -0.8, -1.8); seg(-0.8, -1.8, 2.4, 2); }
+  else if (icon === "↩") { seg(2.4, 2, 2.4, -0.6); seg(2.4, -0.6, -2, -0.6); seg(-2, -0.6, -0.4, 0.8); seg(-2, -0.6, -0.4, -2); }
+  else page.drawSvgPath("M 1.3 -3.4 L -1.9 0.5 L -0.1 0.5 L -1.1 3.4 L 2.1 -0.7 L 0.3 -0.7 Z", { x: cx, y: cy, color: C.white });
+}
+
 /** Draws a section's heading (first part only) and children[from..to]; returns nothing, caller advances. */
 async function drawSection(b: Extract<PdfBlock, { kind: "section" }>, page: PDFPage, pageNo: number, x: number, top: number, w: number, X: Ctx, imgs: Img[], from: number, to: number, head: boolean) {
   const F = X.fonts;
@@ -218,8 +238,11 @@ async function drawSection(b: Extract<PdfBlock, { kind: "section" }>, page: PDFP
     let tx = x;
     if (b.number) {
       page.drawCircle({ x: x + 6, y: hy - 6.5, size: 6, color: C.blue });
-      const nw = tw(F.b, 7, b.number);
-      text(page, b.number, x + 6 - nw / 2, hy - 6.5 - 2.4, F.b, 7, C.white);
+      if (ICON_NUMBERS.has(b.number)) drawIcon(page, b.number, x + 6, hy - 6.5);
+      else {
+        const nw = tw(F.b, 7, b.number);
+        text(page, b.number, x + 6 - nw / 2, hy - 6.5 - 2.4, F.b, 7, C.white);
+      }
       tx = x + 17;
     }
     text(page, b.title, tx, base(hy, 13, 9.75), F.b, 9.75, C.ink);
