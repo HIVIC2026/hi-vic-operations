@@ -896,3 +896,4 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [ ] Silver Spirit: Chris added on TEMPORARY TEST CII (Dom's C11-083) — replace with Chris's own CII when Jo has it
 
 - [ ] Mitti pickup electrician question (Part 2 of approved 2 Nov plan) — waiting for Jo to check Part 1 first (one change at a time)
+- [ ] HV-3722 address check: show result only, save waits for Jo OK
