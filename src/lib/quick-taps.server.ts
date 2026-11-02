@@ -67,7 +67,7 @@ async function load(jobId: string): Promise<Ctx | null> {
 }
 
 /** The batch the taps belong to, and the stored answer for it (if any). */
-function batchOf(c: Ctx): { batchId: string | null; answered: Ev | null } {
+function batchOf(c: Ctx): { batchId: string | null; answered: Ev | null; installer: string | null } {
   const batchId = tapsBatchId(c.events);
   const latestSent = c.events.filter((e) => e.event_type === AREA_BATCH_SENT_EVENT).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
   const forBatch = batchId ?? (latestSent ? bid(latestSent) : null);
@@ -75,7 +75,10 @@ function batchOf(c: Ctx): { batchId: string | null; answered: Ev | null } {
   // Put in this batch carrying a pass from a batch they left (Task 4 fix round 1): not asked again — the pass stands.
   const carried = forBatch && c.events.some((e) => e.event_type === AREA_BATCH_SENT_EVENT && bid(e) === forBatch && (e.details as { carried_pass?: unknown } | null)?.carried_pass === true);
   if (!answered && carried) answered = c.events.filter((e) => e.event_type === QUICK_TAPS_ANSWERED_EVENT).sort((a, b) => b.created_at.localeCompare(a.created_at))[0] ?? null;
-  return { batchId, answered };
+  // Jo 2 Nov 2026: the installer the owner's current batch was sent for (shown on the pass screen).
+  const sentFor = forBatch ? c.events.find((e) => e.event_type === AREA_BATCH_SENT_EVENT && bid(e) === forBatch) : undefined;
+  const installer = str((sentFor?.details as { installer_name?: unknown } | null)?.installer_name);
+  return { batchId, answered, installer };
 }
 
 const fullStreet = (p: Prop) => parseStreet(p?.address_line) !== null && /^\d{4}$/.test((p?.postcode ?? "").trim());
@@ -94,9 +97,10 @@ function websiteFacts(c: Ctx): WebsiteFacts {
 }
 
 function viewOf(c: Ctx): QuickTapsView {
-  const { batchId, answered } = batchOf(c);
+  const { batchId, answered, installer } = batchOf(c);
   if (answered) {
     const o = str((answered.details as { outcome?: unknown } | null)?.outcome);
+    if (o === "pass") return { kind: "done", outcome: "pass", installer };
     if (o) return { kind: "done", outcome: o as FinalOutcome };
   }
   const j = c.job;
@@ -291,7 +295,7 @@ export async function saveQuickTaps(token: string, answers: QuickTapAnswers, met
     const recorded = await load(jobId);
     if (!recorded) throw new WorkflowError(DEAD);
     await finishSharing(jobId, recorded, meta);
-    return { kind: "done", outcome };
+    return { kind: "done", outcome, installer: batchOf(recorded).installer };
   }
   await finishDecline(jobId);
   return { kind: "done", outcome };

@@ -7,7 +7,7 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
-  QUICK_TAPS_COPY, QUICK_TAPS_DECLINE_REASON, nextTapStep, tapOutcome, websiteQuestions, type QuickTapAnswers,
+  QUICK_TAPS_COPY, QUICK_TAPS_DECLINE_REASON, nextTapStep, quickTapsPassLine, tapOutcome, websiteQuestions, type QuickTapAnswers,
 } from "../src/lib/quick-taps.core";
 import { AREA_BATCH_EVENTS, AREA_BATCH_LEFT_EVENT, openBatchId, tapsBatchId } from "../src/lib/area-batch.core";
 import { renderQuickTapsDeclineEmail } from "../src/lib/quick-taps-email.core";
@@ -251,10 +251,16 @@ describe("wording (Jo approved 29–30 Oct 2026), verbatim", () => {
     expect(QUICK_TAPS_COPY.go.options.map((o) => o.label)).toEqual(["Yes, let's go — you can share my name and number with the installer to book it", "No thanks"]);
   });
   test("pass and decline screens", () => {
-    expect(QUICK_TAPS_COPY.outcome.pass).toBe("Thanks! We're lining up your free Ready Check with an installer in your area. We'll text you your time soon.");
+    expect(QUICK_TAPS_COPY.outcome.pass).toBe("Thanks! Your installer will call you soon to book your free Ready Check.");
     expect(QUICK_TAPS_COPY.outcome.decline_access).toBe("Unfortunately we can't help with this one, as we need access into the roof space. Please contact another installer, they may be able to assist.");
     expect(QUICK_TAPS_COPY.outcome.decline_5yr).toBe("Thanks for letting us know. Unfortunately homes built, or with a ceiling replaced, in the last 5 years don't qualify for the Victorian Energy Upgrades program, so we can't help with this one.");
     expect(QUICK_TAPS_COPY.outcome.no_thanks).toBe("No worries, thanks for letting us know. If you change your mind, just get in touch.");
+  });
+  test("pass line names the installer who will call (Jo 2 Nov 2026)", () => {
+    expect(quickTapsPassLine("RAPID INSULATION")).toBe("Thanks! RAPID INSULATION will call you soon to book your free Ready Check.");
+    expect(quickTapsPassLine("  ")).toBe("Thanks! Your installer will call you soon to book your free Ready Check.");
+    expect(quickTapsPassLine(null)).toBe("Thanks! Your installer will call you soon to book your free Ready Check.");
+    expect(quickTapsPassLine(undefined)).toBe("Thanks! Your installer will call you soon to book your free Ready Check.");
   });
   test("cancel reasons", () => {
     expect(QUICK_TAPS_DECLINE_REASON).toEqual({ decline_access: "Quick taps: no roof access", decline_5yr: "Quick taps: built or ceiling replaced in last 5 years", no_thanks: "Quick taps: owner not going ahead" });
@@ -327,26 +333,26 @@ describe("saveQuickTaps: pass", () => {
     expect(events("quick_taps_answered", "a")).toHaveLength(1);
     expect((await S.quickTapsState(tok("a"))).kind).not.toBe("done");
     shareFails = false;
-    expect(await S.saveQuickTaps(tok("a"), {})).toEqual({ kind: "done", outcome: "pass" });
-    expect(await S.saveQuickTaps(tok("a"), {})).toEqual({ kind: "done", outcome: "pass" });
+    expect(await S.saveQuickTaps(tok("a"), {})).toEqual({ kind: "done", outcome: "pass", installer: "Sample Insulation" });
+    expect(await S.saveQuickTaps(tok("a"), {})).toEqual({ kind: "done", outcome: "pass", installer: "Sample Insulation" });
     expect(gates).toHaveLength(1); expect(events("quick_taps_answered", "a")).toHaveLength(1);
     expect(mails).toEqual([]); expect(cancels).toEqual([]);
   });
   test("records quick_taps_answered {answers, consent_share, outcome} and the trade_contact_share owner gate; nothing cancelled or sent", async () => {
     addJob("a"); sendBatchEvent("b1", ["a"]);
     const r = await S.saveQuickTaps(tok("a"), ALL_GOOD({ hatch: "not_sure", roof: "not_sure", five_years: "not_sure" }), { ip: "1.2.3.4", userAgent: "ua" });
-    expect(r).toEqual({ kind: "done", outcome: "pass" });
+    expect(r).toEqual({ kind: "done", outcome: "pass", installer: "Sample Insulation" });
     const ev = events("quick_taps_answered", "a");
     expect(ev).toHaveLength(1);
     expect(ev[0]!["details"]).toMatchObject({ batch_id: "b1", consent_share: true, outcome: "pass", answers: { hatch: "not_sure", roof: "not_sure", five_years: "not_sure", go: "yes", name: "Helen a" } });
     expect(gates).toHaveLength(1);
     expect(gates[0]).toMatchObject({ jobId: "a", key: "trade_contact_share", signatoryName: "Helen a", ticked: true, method: "link_code", ip: "1.2.3.4" });
     expect(cancels).toEqual([]); expect(mails).toEqual([]);
-    expect(await S.quickTapsState(tok("a"))).toEqual({ kind: "done", outcome: "pass" });
+    expect(await S.quickTapsState(tok("a"))).toEqual({ kind: "done", outcome: "pass", installer: "Sample Insulation" });
   });
   test("TEST job passing → the gate is recorded, nothing real is sent", async () => {
     addJob("t", { source: "qa_test" }); sendBatchEvent("b1", ["t"]);
-    expect(await S.saveQuickTaps(tok("t"), ALL_GOOD(), { ip: null, userAgent: null })).toEqual({ kind: "done", outcome: "pass" });
+    expect(await S.saveQuickTaps(tok("t"), ALL_GOOD(), { ip: null, userAgent: null })).toEqual({ kind: "done", outcome: "pass", installer: "Sample Insulation" });
     expect(gates).toHaveLength(1);
     expect(gates[0]).toMatchObject({ jobId: "t", key: "trade_contact_share", signatoryName: "Helen t", method: "link_code" });
     expect(mails).toEqual([]); expect(cancels).toEqual([]);
@@ -438,9 +444,22 @@ describe("saveQuickTaps: declines", () => {
   test("an owner carried into a new batch with a standing pass sees the pass screen, not the taps again", async () => {
     addJob("a"); sendBatchEvent("b1", ["a"]);
     tables["workflow_events"]!.push({ id: "l", job_id: "a", event_type: "area_batch_left", created_at: new Date(++clock).toISOString(), details: { batch_id: "b1", reason: "address_moved" } });
-    expect(await S.saveQuickTaps(tok("a"), ALL_GOOD())).toEqual({ kind: "done", outcome: "pass" });
+    expect(await S.saveQuickTaps(tok("a"), ALL_GOOD())).toEqual({ kind: "done", outcome: "pass", installer: "Sample Insulation" });
     tables["workflow_events"]!.push({ id: "s2", job_id: "a", event_type: "area_batch_sent", created_at: new Date(++clock).toISOString(), details: { batch_id: "b2", job_ids: ["a"], carried_pass: true } });
-    expect(await S.quickTapsState(tok("a"))).toEqual({ kind: "done", outcome: "pass" });
+    expect(await S.quickTapsState(tok("a"))).toEqual({ kind: "done", outcome: "pass", installer: null });
+  });
+  test("a carried pass shows the installer of the batch the owner is in now", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]);
+    tables["workflow_events"]!.push({ id: "l", job_id: "a", event_type: "area_batch_left", created_at: new Date(++clock).toISOString(), details: { batch_id: "b1", reason: "address_moved" } });
+    await S.saveQuickTaps(tok("a"), ALL_GOOD());
+    tables["workflow_events"]!.push({ id: "s2", job_id: "a", event_type: "area_batch_sent", created_at: new Date(++clock).toISOString(), details: { batch_id: "b2", job_ids: ["a"], carried_pass: true, installer_name: "RAPID INSULATION" } });
+    expect(await S.quickTapsState(tok("a"))).toEqual({ kind: "done", outcome: "pass", installer: "RAPID INSULATION" });
+  });
+  test("a batch with a blank installer name gives installer null (fallback line)", async () => {
+    addJob("a");
+    tables["workflow_events"]!.push({ id: "s0", job_id: "a", event_type: "area_batch_sent", created_at: new Date(++clock).toISOString(), details: { batch_id: "b0", job_ids: ["a"], installer_name: "  " } });
+    expect(await S.saveQuickTaps(tok("a"), ALL_GOOD())).toEqual({ kind: "done", outcome: "pass", installer: null });
+    expect(mails).toEqual([]);
   });
   test("finishDecline on a TEST job sends the test email once only", async () => {
     addJob("t", { source: "qa_test" }); sendBatchEvent("b1", ["t"]);
@@ -531,7 +550,7 @@ describe("saveQuickTapsDetails", () => {
     expect(await B.openBatchFor("c")).toBe("b1");
     expect(mails).toEqual([]);
     expect((await S.quickTapsState(tok("a"))).kind).toBe("ask");
-    expect(await S.saveQuickTaps(tok("a"), ALL_GOOD())).toEqual({ kind: "done", outcome: "pass" });
+    expect(await S.saveQuickTaps(tok("a"), ALL_GOOD())).toEqual({ kind: "done", outcome: "pass", installer: "Sample Insulation" });
   });
   test("the old location can't be superseded → stops (no look-up with the old location, no batch change)", async () => {
     addJob("a"); addJob("c"); sendBatchEvent("b1", ["c", "a"], { lat: -37.8, lng: 145 });
@@ -620,5 +639,16 @@ describe("My job ?screen=taps", () => {
     expect(fns).not.toContain("jobId: z");
     expect(fns).not.toContain("@tanstack/react-start/server");
     expect((fns.match(/createServerFn\(\{ method: "POST" \}\)\.middleware\(\[withRequestMeta\]\)/g) ?? []).length).toBe(4);
+  });
+});
+
+describe("My job pass screen (Jo 2 Nov 2026)", () => {
+  const src = readFileSync(new URL("../src/routes/my-job.$token.tsx", import.meta.url), "utf8");
+  test("shows quickTapsPassLine with the installer from the server's view", () => {
+    expect(src).toContain("quickTapsPassLine(view.installer)");
+  });
+  test("keeps the view the server returned after Save (not a locally built one)", () => {
+    expect(src).not.toContain('{ kind: "done", outcome: done }');
+    expect(src).not.toContain("setDone(r.outcome)");
   });
 });

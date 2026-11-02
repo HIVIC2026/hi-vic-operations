@@ -54,12 +54,19 @@ export const QUICK_TAPS_COPY = {
     insulation: { label: q("insulation").label, options: q("insulation").options.map(([value, label]) => ({ value, label })) },
   } as Record<WebsiteKey, { label: string; options: { value: string; label: string }[] }>,
   outcome: {
-    pass: "Thanks! We're lining up your free Ready Check with an installer in your area. We'll text you your time soon.",
+    pass: "Thanks! Your installer will call you soon to book your free Ready Check.",
     decline_access: "Unfortunately we can't help with this one, as we need access into the roof space. Please contact another installer, they may be able to assist.",
     decline_5yr: "Thanks for letting us know. Unfortunately homes built, or with a ceiling replaced, in the last 5 years don't qualify for the Victorian Energy Upgrades program, so we can't help with this one.",
     no_thanks: "No worries, thanks for letting us know. If you change your mind, just get in touch.",
   } satisfies Record<FinalOutcome, string>,
 } as const;
+
+/** Jo 2 Nov 2026: the installer rings the owner to book, so the pass screen names the installer the batch was sent
+ *  for; no name → the general line (QUICK_TAPS_COPY.outcome.pass). */
+export function quickTapsPassLine(installer: string | null | undefined): string {
+  const name = (installer ?? "").trim();
+  return name ? `Thanks! ${name} will call you soon to book your free Ready Check.` : QUICK_TAPS_COPY.outcome.pass;
+}
 
 /** cancelJobFully reasons (plan Task 3). */
 export const QUICK_TAPS_DECLINE_REASON: Record<Exclude<FinalOutcome, "pass">, string> = {
@@ -112,7 +119,7 @@ export type QuickTapsView =
   | { kind: "none" }
   | { kind: "ask"; name: string | null; address: string | null; website: WebsiteFacts }
   | { kind: "retry" }
-  | { kind: "done"; outcome: FinalOutcome };
+  | { kind: "done"; outcome: FinalOutcome; installer?: string | null };
 
 export type AddressParts = { address_line: string | null; suburb: string | null; postcode: string | null };
 const addrNorm = (v: string | null | undefined) => (v ?? "").trim().toLowerCase().replace(/\s+/g, " ");
