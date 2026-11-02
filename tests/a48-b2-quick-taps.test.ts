@@ -7,7 +7,7 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
-  QUICK_TAPS_COPY, QUICK_TAPS_DECLINE_REASON, nextTapStep, quickTapsPassLine, tapOutcome, websiteQuestions, type QuickTapAnswers,
+  QUICK_TAPS_COPY, QUICK_TAPS_DECLINE_REASON, accessLine, normaliseAuMobile, validAccess, nextTapStep, quickTapsPassLine, tapOutcome, websiteQuestions, type QuickTapAnswers,
 } from "../src/lib/quick-taps.core";
 import { AREA_BATCH_EVENTS, AREA_BATCH_LEFT_EVENT, openBatchId, tapsBatchId } from "../src/lib/area-batch.core";
 import { renderQuickTapsDeclineEmail } from "../src/lib/quick-taps-email.core";
@@ -171,7 +171,7 @@ function seed() {
   tables["workflow_settings"] = [{ id: 1, customer_comms_enabled: true, sms_message_switches: { quick_taps: true } }];
 }
 const events = (type?: string, jobId?: string) => (tables["workflow_events"] ?? []).filter((e) => (!type || e["event_type"] === type) && (!jobId || e["job_id"] === jobId));
-const ALL_GOOD = (o: Partial<QuickTapAnswers> = {}): QuickTapAnswers => ({ name: "Helen a", address: "1 Sample Street, Melbourne, VIC 3000", hatch: "yes", roof: "sloped", five_years: "no", go: "yes", ...o });
+const ALL_GOOD = (o: Partial<QuickTapAnswers> = {}): QuickTapAnswers => ({ name: "Helen a", address: "1 Sample Street, Melbourne, VIC 3000", hatch: "yes", roof: "sloped", five_years: "no", access: { who: "owner" }, go: "yes", ...o });
 
 // ---- pure ---------------------------------------------------------------------------------------------------------
 describe("tapOutcome", () => {
@@ -200,6 +200,55 @@ describe("tapOutcome", () => {
   });
 });
 
+describe("access question", () => {
+  const base: QuickTapAnswers = { name: "H", address: "A", hatch: "yes", roof: "sloped", five_years: "no" };
+  test("copy", () => {
+    expect(QUICK_TAPS_COPY.access.question).toBe("Who will be at the home to let the installer in?");
+    expect(QUICK_TAPS_COPY.access.options).toEqual([{ value: "owner", label: "Me" }, { value: "tenant", label: "My tenant" }]);
+    expect(QUICK_TAPS_COPY.access.tenantName).toBe("Tenant's name");
+    expect(QUICK_TAPS_COPY.access.tenantMobile).toBe("Tenant's mobile");
+    expect(QUICK_TAPS_COPY.access.needBoth).toBe("Add your tenant's name and mobile so the installer can call them");
+  });
+  test("asked after the taps (and after blank website answers), before go", () => {
+    expect(nextTapStep(base, [])).toBe("access");
+    expect(nextTapStep({ ...base, access: { who: "owner" } }, [])).toBe("go");
+    expect(nextTapStep({ ...base, access: { who: "tenant", name: " ", mobile: "0412345678" } }, [])).toBe("access");
+    const order: string[] = [];
+    const a: QuickTapAnswers = { ...base };
+    const answer: Record<string, () => void> = { property_type: () => (a.website = { property_type: "house" }), access: () => (a.access = { who: "owner" }), go: () => (a.go = "yes") };
+    for (let s = nextTapStep(a, ["property_type"]); s; s = nextTapStep(a, ["property_type"])) { order.push(s); answer[s]!(); }
+    expect(order).toEqual(["property_type", "access", "go"]);
+  });
+  test("pass needs a valid access; declines are unchanged with or without it", () => {
+    expect(tapOutcome({ ...base, go: "yes" })).toBe("incomplete");
+    expect(tapOutcome({ ...base, go: "yes", access: { who: "owner" } })).toBe("pass");
+    for (const access of [undefined, { who: "owner" } as const]) {
+      expect(tapOutcome({ ...base, hatch: "no", access })).toBe("decline_access");
+      expect(tapOutcome({ ...base, five_years: "yes", access })).toBe("decline_5yr");
+      expect(tapOutcome({ ...base, go: "no_thanks", access })).toBe("no_thanks");
+    }
+  });
+  test("normaliseAuMobile", () => {
+    expect(normaliseAuMobile("0412 345 678")).toBe("+61412345678");
+    expect(normaliseAuMobile("+61 412 345 678")).toBe("+61412345678");
+    expect(normaliseAuMobile("03 9123 4567")).toBeNull();
+    expect(normaliseAuMobile("0412")).toBeNull();
+  });
+  test("validAccess", () => {
+    expect(validAccess(undefined)).toBe(false);
+    expect(validAccess({ who: "owner" })).toBe(true);
+    expect(validAccess({ who: "tenant", name: " ", mobile: "0412345678" })).toBe(false);
+    expect(validAccess({ who: "tenant", name: "Sam Lee", mobile: "0412" })).toBe(false);
+    expect(validAccess({ who: "tenant", name: "Sam Lee", mobile: "0412345678" })).toBe(true);
+  });
+  test("accessLine", () => {
+    expect(accessLine({ who: "owner" })).toBe("At the home: owner");
+    expect(accessLine({ who: "tenant", name: "Sam Lee", mobile: "+61412345678" })).toBe("At the home: tenant — Sam Lee, +61412345678");
+    expect(accessLine(undefined)).toBeNull();
+    expect(accessLine(null)).toBeNull();
+  });
+});
+
 describe("step order and blank website answers", () => {
   const facts = { property_type: "house", top_floor: null, over_five_years: "yes", insulation: "none" };
   test("name, address, hatch, roof, 5 years, then \"let's go\"", () => {
@@ -207,10 +256,10 @@ describe("step order and blank website answers", () => {
     const order: string[] = [];
     const answer: Record<string, () => void> = {
       name: () => (a.name = "Helen"), address: () => (a.address = "1 Sample Street"), hatch: () => (a.hatch = "yes"),
-      roof: () => (a.roof = "sloped"), five_years: () => (a.five_years = "no"), go: () => (a.go = "yes"),
+      roof: () => (a.roof = "sloped"), five_years: () => (a.five_years = "no"), access: () => (a.access = { who: "owner" }), go: () => (a.go = "yes"),
     };
     for (let s = nextTapStep(a, []); s; s = nextTapStep(a, [])) { order.push(s); answer[s]!(); }
-    expect(order).toEqual(["name", "address", "hatch", "roof", "five_years", "go"]);
+    expect(order).toEqual(["name", "address", "hatch", "roof", "five_years", "access", "go"]);
   });
   test("a decline tap ends the questions", () => {
     expect(nextTapStep({ name: "H", address: "A", hatch: "no" }, [])).toBeNull();
@@ -220,7 +269,7 @@ describe("step order and blank website answers", () => {
     expect(websiteQuestions(facts, {})).toEqual([]);
     expect(websiteQuestions({ ...facts, property_type: null }, {})).toEqual(["property_type"]);
     expect(nextTapStep({ name: "H", address: "A", hatch: "yes", roof: "sloped", five_years: "no" }, ["property_type"])).toBe("property_type");
-    expect(nextTapStep({ name: "H", address: "A", hatch: "yes", roof: "sloped", five_years: "no", website: { property_type: "house" } }, ["property_type"])).toBe("go");
+    expect(nextTapStep({ name: "H", address: "A", hatch: "yes", roof: "sloped", five_years: "no", website: { property_type: "house" } }, ["property_type"])).toBe("access");
   });
   test("a unit or apartment with no top-floor answer is asked it (also when the owner just said unit)", () => {
     expect(websiteQuestions({ ...facts, property_type: "apartment" }, {})).toEqual(["top_floor"]);
