@@ -4,8 +4,8 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { QUICK_TAPS_ANSWERED_EVENT, accessLine, normaliseAccess } from "./quick-taps.core";
 
-export type JobAccess = { line: string | null; tenantMobile: string | null };
-const NONE: JobAccess = { line: null, tenantMobile: null };
+export type JobAccess = { line: string | null };
+const NONE: JobAccess = { line: null };
 
 export async function readJobAccess(jobId: string): Promise<JobAccess> {
   try {
@@ -16,7 +16,7 @@ export async function readJobAccess(jobId: string): Promise<JobAccess> {
     const answers = (newest?.details as { answers?: { access?: unknown } } | null)?.answers;
     const a = normaliseAccess(answers?.access);
     const line = accessLine(a);
-    return line ? { line, tenantMobile: a?.who === "tenant" ? a.mobile : null } : NONE;
+    return line ? { line } : NONE;
   } catch {
     console.error("readJobAccess: read failed", "exception");
     return NONE;

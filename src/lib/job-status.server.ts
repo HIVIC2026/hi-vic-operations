@@ -123,7 +123,7 @@ export async function tradeJobStatus(userId: string, jobId: string) {
   ]);
   if (mineErr) console.error("tradeJobStatus: own bookings read failed", mineErr.code ?? "unknown");
   const out = { line: statusView(c, f), timeline: jobTimeline(f), chase: { coordinationSuppressed: !!f.inHouseDispatch && !!(await import("./in-house-message.core")).inHouseVisitForStage(f.stage), mode, contact, askedAt: asked?.created_at ?? null }, ownerContactVisible: mineErr ? false : contactVisible(mine ?? []) };
-  return { ...out, access: out.ownerContactVisible ? access.line : null, accessTenantMobile: out.ownerContactVisible ? access.tenantMobile : null };
+  return { ...out, access: out.ownerContactVisible ? access.line : null };
 }
 
 /** "Ask Home Insulation Victoria to send a reminder": recorded for the office's Needs me. Never an automatic send. */

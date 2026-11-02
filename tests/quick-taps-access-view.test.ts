@@ -1,5 +1,5 @@
 // Quick taps, Task 5 (Jo 2 Nov 2026): who will be at the home, shown to the installer (only while owner contact is
-// shown) and to the office. Read from the newest quick_taps_answered event; older events without an answer, no event or
+// shown, as text only — final review 3: not in the electrician view, no "Call tenant") and to the office. Read from the newest quick_taps_answered event; older events without an answer, no event or
 // a failed read show nothing. Runs tradeJobStatus on an in-memory fake database.
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { readFileSync } from "node:fs";
@@ -59,20 +59,18 @@ describe("tradeJobStatus access", () => {
     const s = await tradeJobStatus("u1", JOB);
     expect(s.ownerContactVisible).toBe(true);
     expect(s.access).toBe("At the home: tenant — Sam Lee, +61412345678");
-    expect(s.accessTenantMobile).toBe("+61412345678");
+    expect("accessTenantMobile" in s).toBe(false); // final review 3: shown as text only, no separate number
   });
   test("owner answer", async () => {
     tables["workflow_events"]!.push(answered("2026-11-01T00:00:00Z", { access: { who: "owner" } }));
     const s = await tradeJobStatus("u1", JOB);
     expect(s.access).toBe("At the home: owner");
-    expect(s.accessTenantMobile).toBeNull();
   });
   test("old event without access, or no event", async () => {
     expect((await tradeJobStatus("u1", JOB)).access).toBeNull();
     tables["workflow_events"]!.push(answered("2026-11-01T00:00:00Z", { hatch: "yes" }));
     const s = await tradeJobStatus("u1", JOB);
     expect(s.access).toBeNull();
-    expect(s.accessTenantMobile).toBeNull();
   });
   test("two answers: the newest wins", async () => {
     tables["workflow_events"]!.push(answered("2026-11-01T00:00:00Z", { access: { who: "tenant", name: "Sam Lee", mobile: "+61412345678" } }));
@@ -87,7 +85,6 @@ describe("tradeJobStatus access", () => {
     const s = await tradeJobStatus("u1", JOB);
     expect(s.ownerContactVisible).toBe(false);
     expect(s.access).toBeNull();
-    expect(s.accessTenantMobile).toBeNull();
   });
   test("a failed read shows nothing and never breaks the page", async () => {
     tables["workflow_events"]!.push(answered("2026-11-01T00:00:00Z", { access: { who: "owner" } }));
@@ -105,24 +102,32 @@ describe("tradeJobStatus access", () => {
 describe("readJobAccess (office)", () => {
   test("same line for the office", async () => {
     tables["workflow_events"]!.push(answered("2026-11-01T00:00:00Z", { access: { who: "tenant", name: "Sam Lee", mobile: "+61412345678" } }));
-    expect(await readJobAccess(JOB)).toEqual({ line: "At the home: tenant — Sam Lee, +61412345678", tenantMobile: "+61412345678" });
+    expect(await readJobAccess(JOB)).toEqual({ line: "At the home: tenant — Sam Lee, +61412345678" });
   });
   test("nothing answered", async () => {
-    expect(await readJobAccess(JOB)).toEqual({ line: null, tenantMobile: null });
+    expect(await readJobAccess(JOB)).toEqual({ line: null });
   });
 });
 
 describe("pages", () => {
   const read = (p: string) => readFileSync(p, "utf8");
-  test("installer page: line + Call tenant only when owner contact is shown", () => {
+  test("installer page: line (text only) only when owner contact is shown", () => {
     const r = read("src/routes/_authenticated/field.$jobId.tsx");
-    // electrician view (status query already loaded) and the installer's own view
-    expect(r).toContain("showOwnerContact && status.data?.access &&");
-    expect(r).toContain("showOwnerContact && status.data?.accessTenantMobile && <a href={`tel:${status.data.accessTenantMobile}`}");
     expect(r).toContain("const showOwnerContact = !!job.owner_phone && jobStatus.data?.ownerContactVisible === true;");
     expect(r).toContain("showOwnerContact && jobStatus.data?.access &&");
-    expect(r).toContain("showOwnerContact && jobStatus.data?.accessTenantMobile && <a href={`tel:${jobStatus.data.accessTenantMobile}`}");
-    expect(r.match(/Call tenant/g)?.length).toBe(2);
+    // Final review 3: no "Call tenant" link and no tenant tel: link anywhere on the trade job page.
+    expect(r).not.toContain("Call tenant");
+    expect(r).not.toContain("accessTenantMobile");
+  });
+  test("final review 3: the electrician view (FieldJobBody) has no access line", () => {
+    const r = read("src/routes/_authenticated/field.$jobId.tsx");
+    const body = r.slice(r.indexOf("function FieldJobBody("), r.indexOf("function InstallerFlow("));
+    expect(body.length).toBeGreaterThan(100);
+    expect(body).not.toContain(".access");
+    expect(body).not.toContain("data-at-the-home");
+    expect(body).not.toContain("Call tenant");
+    const installer = r.slice(r.indexOf("function InstallerFlow("));
+    expect(installer).toContain("data-at-the-home");
   });
   test("office job page: header shows the line", () => {
     expect(read("src/lib/office-job-page.server.ts")).toContain("access: access.line");

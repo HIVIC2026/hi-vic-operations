@@ -339,13 +339,6 @@ function FieldJobBody({ jobId }: { jobId: string }) {
                 </a>
               )}
             </div>
-              {/* Quick taps (Jo 2 Nov 2026): who will be at the home, only while owner contact is shown. Nothing goes to the tenant. */}
-              {showOwnerContact && status.data?.access && (
-                <p className="text-sm text-ink" data-at-the-home>
-                  {status.data.access}
-                  {showOwnerContact && status.data?.accessTenantMobile && <a href={`tel:${status.data.accessTenantMobile}`} className="ml-2 font-semibold text-hiv-blue underline">Call tenant</a>}
-                </p>
-              )}
             </div>
           }
         />
@@ -970,7 +963,6 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
         {showOwnerContact && jobStatus.data?.access && (
           <p className="mt-2 text-sm text-ink" data-at-the-home>
             {jobStatus.data.access}
-            {showOwnerContact && jobStatus.data?.accessTenantMobile && <a href={`tel:${jobStatus.data.accessTenantMobile}`} className="ml-2 font-semibold text-hiv-blue underline">Call tenant</a>}
           </p>
         )}
       </ScreenHead>
