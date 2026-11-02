@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { suggestBatches, type BatchJob, type InHousePartner } from "../src/lib/in-house-batch.core";
+import { saidYesLabel, suggestBatches, type BatchJob, type InHousePartner } from "../src/lib/in-house-batch.core";
 
 const job: BatchJob = { id: "j", stage: "preliminary_estimate_ready", source: "base44", quickTapsYes: true, deleted_at: null, spot_saved_at: "2026-10-30", optedOut: false, hasActiveInstaller: false, postcode: "3199", lat: -38.14, lng: 145.12 };
 const partner: InHousePartner = { id: "p", name: "Rapid Insulation", in_house: true, is_active: true, service_postcodes: ["3199"], covers_all_victoria: false, coverage_lat: null, coverage_lng: null, coverage_radius_km: null, openJobs: 0 };
@@ -18,4 +18,10 @@ test("ties choose fewest open jobs and account for this batch's suggestions", ()
 });
 test("inactive and non-in-house partners never match", () => {
   expect(suggestBatches([job], [{ ...partner, in_house: false }, { ...partner, is_active: false }])).toEqual([]);
+});
+test("said-yes label uses the owner name in normal case, or Owner when blank", () => {
+  expect(saidYesLabel({ ownerName: "WAYNE WILSON", quickTapsYes: true, channel: "website" })).toBe("Wayne Wilson said yes · free Ready Check");
+  expect(saidYesLabel({ ownerName: "  ", quickTapsYes: true })).toBe("Owner said yes · free Ready Check");
+  expect(saidYesLabel({ quickTapsYes: true })).toBe("Owner said yes · free Ready Check");
+  expect(saidYesLabel({ ownerName: "Wayne Wilson", quickTapsYes: false })).toBeNull();
 });

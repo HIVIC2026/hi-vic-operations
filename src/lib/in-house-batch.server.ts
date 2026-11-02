@@ -21,7 +21,7 @@ export async function pullBackInHouseJob(input: { jobId: string; reason: string;
   }
 }
 type Property = { id: string; postcode: string | null; address_line: string; suburb: string | null };
-type Job = { id: string; job_number: string; property_id: string; stage: string; source: string; channel: string; originating_installer_business_id: string | null; deleted_at: string | null };
+type Job = { owners?: { full_name: string | null; phone: string | null } | null; id: string; job_number: string; property_id: string; stage: string; source: string; channel: string; originating_installer_business_id: string | null; deleted_at: string | null };
 type Assignment = { job_id: string; business_id: string | null; role: string };
 async function rows<T>(query: PromiseLike<{ data: unknown; error: { message: string } | null }>): Promise<T[]> {
   const result = await query;
@@ -41,7 +41,7 @@ async function byIds<T>(ids: string[], query: (ids: string[], from: number, to: 
 }
 export async function loadInHouseBatches() {
   const [jobs, businesses] = await Promise.all([
-    pagedRows<Job>((a,b) => db.from("jobs").select("id,job_number,property_id,stage,source,channel,originating_installer_business_id,deleted_at").is("deleted_at", null).neq("source", "qa_test").not("stage", "in", "(complete,cancelled)").order("id").range(a,b)),
+    pagedRows<Job>((a,b) => db.from("jobs").select("id,job_number,property_id,owners(full_name,phone),stage,source,channel,originating_installer_business_id,deleted_at").is("deleted_at", null).neq("source", "qa_test").not("stage", "in", "(complete,cancelled)").order("id").range(a,b)),
     pagedRows<Omit<InHousePartner, "openJobs"> & { trading_name: string | null }>((a,b) => db.from("businesses").select("id,name,trading_name,in_house,is_active,service_postcodes,covers_all_victoria,coverage_lat,coverage_lng,coverage_radius_km").eq("in_house", true).eq("is_active", true).order("id").range(a,b)),
   ]);
   const ids = jobs.map(j => j.id), propertyIds = [...new Set(jobs.map(j => j.property_id))];
@@ -58,7 +58,8 @@ export async function loadInHouseBatches() {
     const p = properties.find(p => p.id === j.property_id), coords = facts.find(f => f.property_id === j.property_id)?.value;
     const answer = events.find(e => e.job_id === j.id && e.event_type === QUICK_TAPS_ANSWERED_EVENT)?.details;
     const batch = events.find(e => e.job_id === j.id && e.event_type === "area_batch_sent" && e.details?.["batch_id"] === answer?.["batch_id"])?.details;
-    return { ...j, spot_saved_at: saved.find(s => s.job_id === j.id)?.spot_saved_at ?? null,
+    const { owners, ...jobFields } = j;
+    return { ...jobFields, ownerName: owners?.full_name ?? null, ownerPhone: owners?.phone ?? null, spot_saved_at: saved.find(s => s.job_id === j.id)?.spot_saved_at ?? null,
       quickTapsYes: answer?.["outcome"] === "pass" && answer?.["consent_share"] === true,
       waitingBusinessId: j.channel === "installer_sourced" ? j.originating_installer_business_id : typeof batch?.["installer_business_id"] === "string" ? batch["installer_business_id"] : null,
       optedOut: optouts.some(o => o.job_id === j.id), hasActiveInstaller: assignments.some(a => a.job_id === j.id && a.role === "installer"),

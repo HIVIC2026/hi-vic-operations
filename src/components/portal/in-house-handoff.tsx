@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Button } from "@/components/ui/button";
 import { allocateInHouseBatch, getInHouseBatches } from "@/lib/in-house-batch.functions";
-import { giveNotice, readyInHouseBatch } from "@/lib/in-house-batch.core";
+import { giveNotice, readyInHouseBatch, saidYesLabel } from "@/lib/in-house-batch.core";
 
 /** Same admin boundary and guarded batch writer as the legacy in-house page. */
 export function InHouseHandoff() {
@@ -48,7 +48,7 @@ export function InHouseHandoff() {
               {n === 0 && <p className="mt-1 text-sm text-sub">Tick at least one job to give.</p>}
             </div>
           </div>
-          <ul className="mt-2 text-sm text-sub">{waiting.map(id => { const job = screen.jobs.find(j => j.id === id); const label = `${job?.job_number ?? id} · ${job?.address ?? ""}`; return <li key={id}><label className="flex min-h-11 cursor-pointer items-center gap-3"><input type="checkbox" aria-label={label} checked={mine.includes(id)} disabled={!!busy} onChange={() => toggle(partner.id, id)} />{label}</label></li>; })}</ul>
+          <ul className="mt-2 text-sm text-sub">{waiting.map(id => { const job = screen.jobs.find(j => j.id === id); const label = `${job?.job_number ?? id} · ${job?.address ?? ""}`; const yes = job ? saidYesLabel(job) : null; return <li key={id}><label className="flex min-h-11 cursor-pointer items-center gap-3"><input type="checkbox" aria-label={label} checked={mine.includes(id)} disabled={!!busy} onChange={() => toggle(partner.id, id)} /><span>{label}{yes && <span className="block text-ink">{yes}</span>}</span></label></li>; })}</ul>
         </li>;
       })}</ul>}
   </section>;

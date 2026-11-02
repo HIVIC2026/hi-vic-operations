@@ -1,9 +1,10 @@
 import { isInHousePartner } from "./in-house.core";
+import { displayName } from "./display-name.core";
 
 export type BatchJob = {
   id: string; stage: string; source: string; deleted_at: string | null; spot_saved_at: string | null;
   optedOut: boolean; hasActiveInstaller: boolean; postcode: string | null; lat: number | null; lng: number | null;
-  job_number?: string; address?: string;
+  job_number?: string; address?: string; ownerName?: string | null; ownerPhone?: string | null;
   channel?: string; quickTapsYes: boolean; waitingBusinessId?: string | null;
 };
 export type InHousePartner = {
@@ -11,6 +12,10 @@ export type InHousePartner = {
   service_postcodes: string[]; covers_all_victoria: boolean;
   coverage_lat: number | null; coverage_lng: number | null; coverage_radius_km: number | null;
 };
+/** Second line on a row when the owner tapped "Yes, let's go". */
+export function saidYesLabel(job: Pick<BatchJob, "ownerName" | "quickTapsYes" | "channel">): string | null {
+  return job.quickTapsYes === true ? `${displayName(job.ownerName) || "Owner"} said yes · free Ready Check` : null;
+}
 export function batchJobEligible(job: BatchJob): boolean {
   return !job.deleted_at && job.source !== "qa_test" && (job.channel === "installer_sourced" || (!!job.spot_saved_at && job.quickTapsYes === true)) && !job.optedOut && !job.hasActiveInstaller
     && ["preliminary_estimate_ready", "ready_check_ready_to_schedule"].includes(job.stage);
