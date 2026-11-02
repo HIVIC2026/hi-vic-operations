@@ -1,4 +1,4 @@
-import { addMelbourneBusinessDays, addYmd, melbourneToday } from './melbourne-time.core';
+import { addYmd, melbourneToday } from './melbourne-time.core';
 import { IN_HOUSE_ELECTRICIAN_BOOKING_BLOCKER } from './worker-compliance.core';
 export function emptyBookingTeamBlocker(kind:string,workers:BookingWorker[]):string|null {
   if((kind==='assessment'||kind==='rectification')&&!workers.some(w=>w.tradeRole==='electrician'&&w.electricianVerified))return IN_HOUSE_ELECTRICIAN_BOOKING_BLOCKER;
@@ -39,7 +39,4 @@ export function tomorrowInstallDigest(rows:DigestInstall[],now=new Date()):Diges
   if(hour<14)return [];
   const tomorrow=addYmd(melbourneToday(now),1);
   return rows.filter(r=>melbourneToday(new Date(r.start))===tomorrow).sort((a,b)=>a.start.localeCompare(b.start));
-}
-export function bookingOverdue(givenAt:string|null,booked:boolean,now=new Date()):boolean {
-  return !!givenAt&&!booked&&Number.isFinite(Date.parse(givenAt))&&now.getTime()>Date.parse(addMelbourneBusinessDays(givenAt,2));
 }

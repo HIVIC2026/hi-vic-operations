@@ -312,16 +312,6 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       if(back&&!mine.some(e=>e['event_type']==='in_house_batch_sent'&&String(e['created_at'])>String(back['created_at'])))x.inHouseHandedBack={at:String(back['created_at']),reason:String((back['details'] as Row|null)?.['reason']??'Reason not recorded')};
     }
   }
-  if(ids.length){
-    const current=await byIds('in-house pending visit stages',ids,(c,a,b)=>admin.from('jobs').select('id,stage,updated_at').in('id',c).range(a,b));
-    const bookings=await byIds('in-house confirmed visits',ids,(c,a,b)=>admin.from('bookings').select('job_id,kind').in('job_id',c).eq('status','confirmed').range(a,b));
-    const readiness=await byIds('in-house visit readiness',ids,(c,a,b)=>admin.from('workflow_events').select('job_id,event_type,created_at').in('job_id',c).in('event_type',['in_house_batch_sent','install_deposit_received','stage_changed']).order('created_at',{ascending:false}).range(a,b));
-    const {bookingOverdue}=await import('./in-house-booking.core');
-    for(const j of current){const id=String(j['id']),x=f(id);if(x?.inHouseDispatch!=='in_house')continue;const visit=({'ready_check_ready_to_schedule':'ready_check','piesa_and_install_window_pending':'piesa','installation_scheduling':'installation'} as Record<string,string>)[String(j['stage'])];if(!visit)continue;
-      const kind=visit==='piesa'?'assessment':visit;const at=String(readiness.find(e=>e['job_id']===id&&e['event_type']===(visit==='installation'?'install_deposit_received':visit==='ready_check'?'in_house_batch_sent':'stage_changed'))?.['created_at']??j['updated_at']);
-      if(bookingOverdue(at,bookings.some(b=>b['job_id']===id&&b['kind']===kind),new Date(now)))x.bookingOverdue={at,visit:visit as 'ready_check'|'piesa'|'installation'};
-    }
-  }
   // Paid owners must never be hidden behind a generic automatic status. Same facts feed Needs me and Next.
   const { paidGateWarnings } = await import("./paid-gate-warning.server");
   const paidGates = await paidGateWarnings(jobs.map(j => ({ id: j.id, stage: j.stage, at: j.status?.since ?? j.facts.createdAt })));
