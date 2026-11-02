@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Button } from "@/components/ui/button";
 import { allocateInHouseBatch, getInHouseBatches } from "@/lib/in-house-batch.functions";
-import { readyInHouseBatch } from "@/lib/in-house-batch.core";
+import { giveNotice, readyInHouseBatch } from "@/lib/in-house-batch.core";
 
 /** Same admin boundary and guarded batch writer as the legacy in-house page. */
 export function InHouseHandoff() {
@@ -25,7 +25,7 @@ export function InHouseHandoff() {
     setBusy(businessId); setNotice("");
     try {
       const result = await send({ data: { businessId, jobIds } });
-      setNotice(result.refused.length ? result.refused.map(r => r.reason).join("; ") : `${result.sent.length} jobs allocated.`);
+      setNotice(giveNotice(result, screen?.partners.find(p => p.id === businessId)?.name ?? "the partner", id => screen?.jobs.find(j => j.id === id)?.job_number ?? id));
       setTicked(prev => ({ ...prev, [businessId]: [] }));
       await qc.invalidateQueries();
     } catch (e) { setNotice(e instanceof Error ? e.message : "Allocation could not be saved."); }

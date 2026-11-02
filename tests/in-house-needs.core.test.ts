@@ -18,7 +18,7 @@ test("PIESA: 10 business days after acceptance", () => {
   expect(rows(f, "2026-11-16T12:00:00Z")).toHaveLength(0);
   expect(lines(f, "2026-11-16T13:30:00Z")).toEqual([["in_house_piesa_overdue", "PIESA not booked 10 business days after quote accepted"]]);
   expect(rows(job({ readyCheckBooked: true, quoteAcceptedAt: "2026-10-30T06:00:00Z", piesaUnlockedAt: "2026-10-30T06:00:00Z", piesaBooked: true }), "2026-11-16T13:30:00Z")).toHaveLength(0);
-  expect(rows(job({ readyCheckBooked: true, quoteAcceptedAt: "2026-10-30T06:00:00Z", piesaUnlockedAt: "2026-10-30T06:00:00Z", piesaCompleted: true }), "2026-11-16T13:30:00Z").map(r => r.kind)).toEqual(["in_house_piesa_overdue"]);
+  expect(rows(job({ readyCheckBooked: true, quoteAcceptedAt: "2026-10-30T06:00:00Z", piesaUnlockedAt: "2026-10-30T06:00:00Z", piesaCompleted: true }), "2026-11-16T13:30:00Z")).toHaveLength(0);
 });
 test("Install line: deposit paid / not paid / unknown", () => {
   const at = "2026-11-09T00:00:00Z", base = { readyCheckBooked: true, daysRemaining: 5, deadline: "2026-11-14" };

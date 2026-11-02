@@ -54,6 +54,15 @@ Each flag keeps its current kind, rank, group and "Open job" button.
 - `office-needs.server.ts`: the block that sets `bookingOverdue` for in-house jobs (around line 312) is removed, so in-house jobs never get the 2-business-day row. Jobs not with an in-house partner keep the 48-hour `bookingOverdue` rule as it is today.
 - `bookingOverdue` in `in-house-booking.core.ts` is removed if nothing else uses it.
 
+### 3. Follow-up fixes (Jo, 2 Nov 2026)
+
+- **Finished PIESA:** `in_house_piesa_overdue` never shows once the PIESA is completed (`piesaCompleted`), even with no booking row.
+- **Message after giving jobs** (`in-house-handoff.tsx`):
+  - all given: "3 jobs given to Rapid." ("1 job given to Rapid.")
+  - some refused: "2 jobs given to Rapid. Not given: HV-1234 (Outside this partner's coverage)." (several refused are joined with "; ")
+  - none given: "Not given: HV-1234 (…)."
+- The stale "exactly five" comment on `readyInHouseBatch` is corrected.
+
 ## Not changing
 
 - Owner messages: the owner still gets the email only when a job goes to a partner.
