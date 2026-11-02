@@ -1,0 +1,236 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+@font-face{font-family:OS;font-weight:400;src:url(node_modules/@fontsource/open-sans/files/open-sans-latin-400-normal.woff2)}
+@font-face{font-family:OS;font-weight:600;src:url(node_modules/@fontsource/open-sans/files/open-sans-latin-600-normal.woff2)}
+@font-face{font-family:OS;font-weight:700;src:url(node_modules/@fontsource/open-sans/files/open-sans-latin-700-normal.woff2)}
+@font-face{font-family:OS;font-weight:800;src:url(node_modules/@fontsource/open-sans/files/open-sans-latin-800-normal.woff2)}
+@page{size:600px 849px;margin:30px 40px 46px}
+@page:first{margin-top:0}
+:root{--ink:#22376b;--blue:#3c51c4;--green:#07bf61;--dgreen:#07a554;--box:#eef0fc;--muted:#5d6785;--line:#e3e8f2}
+*{box-sizing:border-box;margin:0;padding:0}
+body{padding-right:3px;font-family:OS;color:var(--ink);font-size:10.3px;line-height:1.33;-webkit-print-color-adjust:exact}
+.band{height:8px;background:var(--blue);margin:0 -40px 18px}
+.head{display:flex;justify-content:space-between;align-items:flex-start}
+.logo{font-family:OS;font-weight:800;font-size:17px;line-height:1.05}
+.logo b{color:var(--blue)} .logo i{font-style:normal;color:var(--green)}
+.biz{font-size:10px;color:var(--muted);text-align:right;line-height:1.5}
+.doc{margin-top:12px;font-family:OS;font-weight:700;font-size:10.5px;letter-spacing:.14em;color:var(--dgreen)}
+h1{font-family:OS;font-weight:800;font-size:19px;line-height:1.15;margin:4px 0 2px}
+.sub{font-size:10.5px;color:var(--muted);margin-bottom:12px}
+h2{font-family:OS;font-weight:700;font-size:13px;margin:10px 0 5px;padding-bottom:4px;border-bottom:1.5px solid var(--ink)}
+h3{font-family:OS;font-weight:700;font-size:12px;margin:10px 0 5px}
+.grid{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.grid div{padding:5px 10px;border-bottom:1px solid var(--line);border-right:1px solid var(--line)}
+.grid div:nth-child(2n){border-right:0}
+.grid .full{grid-column:1/3;border-right:0}
+.grid span{display:block;font-size:9px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+ul{padding-left:16px;margin-top:2px} li{margin-bottom:1px}
+.sig{display:flex;border:1px solid var(--line);border-radius:10px;margin-top:8px;overflow:hidden}
+.sig div{flex:1;padding:6px 10px;border-right:1px solid var(--line)} .sig div:last-child{border-right:0;flex:.5}
+.sig span{display:block;font-size:9px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+.sig .name{font-family:OS;font-weight:700;font-size:15px;font-style:italic;text-transform:none;letter-spacing:0;color:var(--ink)}
+.note{font-size:9.5px;color:var(--muted);margin-top:10px}
+.logoimg{height:46px}
+.doc{color:var(--blue)!important}
+h2 .n{background:var(--blue)!important}
+.meta,.grid,.sig{background:var(--box)}
+
+.tick{display:flex;gap:9px;background:var(--box);border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin-bottom:7px}
+.tick .b{flex:0 0 16px;height:16px;border-radius:4px;background:var(--green);color:#fff;font-size:11px;text-align:center;line-height:16px;font-weight:700;margin-top:1px}
+table.q{width:100%;border-collapse:collapse;margin:4px 0}
+table.q td{padding:6px 0;border-bottom:1px solid var(--line)} table.q td:last-child{text-align:right}
+table.q tr.t td{font-weight:800;font-size:13px;border-bottom:0}
+p{margin-bottom:5px}
+
+.ag{font-family:OS;color:var(--ink);font-size:12px;line-height:1.48;-webkit-print-color-adjust:exact}
+.ag .band{height:8px;background:var(--blue);margin:0 -40px 28px}
+.ag .head{display:flex;justify-content:space-between;align-items:flex-start}
+.ag .logo{font-family:OS;font-weight:800;font-size:20px;line-height:1.05}
+.ag .logo b{color:var(--blue)}
+.ag .logo i{font-style:normal;color:var(--green)}
+.ag .biz{font-size:10.5px;color:var(--muted);text-align:right;line-height:1.5}
+.ag .doc{margin-top:26px;font-family:OS;font-weight:700;font-size:11px;letter-spacing:.16em;color:var(--dgreen)}
+.ag h1{font-family:OS;font-weight:800;font-size:30px;line-height:1.1;margin:4px 0 4px}
+.ag .sub{font-size:13px;color:var(--muted);margin-bottom:16px}
+.ag .meta{display:flex;border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:18px}
+.ag .meta div{flex:1;padding:10px 13px;font-size:11.5px;line-height:1.45;border-right:1px solid var(--line)}
+.ag .meta div:last-child{border-right:0}
+.ag .meta span,.ag .lab{display:block;font-size:9.5px;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;margin-bottom:2px}
+.ag h2{font-family:OS;font-weight:700;font-size:16px;margin:16px 0 5px;display:flex;gap:9px;align-items:center;break-after:avoid}
+.ag h2 .n{flex:0 0 22px;height:22px;border-radius:50%;background:var(--ink);color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center}
+.ag ul{padding-left:17px}
+.ag li{margin-bottom:3px}
+.ag p{margin-bottom:5px}
+.ag table{width:100%;border-collapse:collapse;margin:6px 0 8px}
+.ag td{padding:7px 0;border-bottom:1px solid var(--line)}
+.ag td:last-child{text-align:right}
+.ag tr.tot td{font-family:OS;font-weight:700;font-size:14px;border-bottom:0}
+.ag .law{background:#fff8d6;border:1.5px solid #e6c33a;border-radius:10px;padding:8px 12px;margin:7px 0;font-size:11.5px;break-inside:avoid}
+.ag .law b{font-family:OS}
+.ag .sec{break-inside:avoid}
+.ag .pb{break-before:page}
+.ag .sign{margin-top:14px;border:1px solid var(--line);border-radius:12px;padding:12px 14px;break-inside:avoid}
+.ag .logoimg{height:46px}
+.ag .doc{color:var(--blue)!important}
+.ag h2 .n{background:var(--blue)!important}
+.ag .meta,.ag .grid,.ag .sig{background:var(--box)}
+.ag{break-before:page}
+.ag h2{border-bottom:0;padding-bottom:0}.sig{margin-bottom:8px}
+.q+p{margin-top:8px}
+.ag .head.pb{padding-top:26px;border-top:8px solid var(--blue);margin:0 -40px;padding-left:40px;padding-right:40px}
+.name2{display:block!important;font-size:15px!important;font-weight:700;font-style:italic;letter-spacing:0!important;text-transform:none!important;color:var(--ink)!important;margin:2px 0}
+.tick{padding:7px 12px;margin-bottom:6px}
+.ag > .band{display:none}
+.ag .head.pb{margin-top:0!important;border-top:0!important;padding-top:0!important}
+</style></head><body>
+<div class="band"></div>
+<div class="head">
+ <img class="logoimg" src="logo.png">
+ <div class="biz">DC Construction Solutions Pty Ltd<br>trading as Home Insulation Victoria<br>ABN 44 671 613 979 · Accredited Person A003654<br>info@homeinsulationvictoria.com.au</div>
+</div>
+
+<div class="doc">SIGNED ACCEPTANCE · JOB HV-1234</div>
+<h1>Signed acceptance of your quote</h1>
+<p class="sub">Signed online on Sat 8 Nov 2026, 7:42pm (Melbourne time)</p>
+<div class="grid">
+ <div><span>Owner</span>Sarah Brown</div><div><span>Job</span>HV-1234 · Installer: Rapid Insulation</div>
+ <div><span>Property</span>12 Example St, Box Hill VIC 3128</div><div><span>Quote valid until</span>Mon 8 Dec 2026</div>
+</div>
+<h2>The quote</h2>
+<table class="q">
+ <tr><td>Bradford Gold R5.0 ceiling batts, 137 m², supplied and installed</td><td></td></tr>
+ <tr><td>Price before rebate</td><td>$3,798.00</td></tr>
+ <tr><td>Rebate</td><td>– $1,610.00</td></tr>
+ <tr class="t"><td>Your price (incl. GST)</td><td>$2,188.00</td></tr>
+</table>
+<div class="grid" style="margin-top:6px;margin-bottom:6px">
+ <div><span>Old insulation removal</span>Yes, 40 m²</div>
+ <div><span>Electrical upgrades</span>Not included. Your electrician quotes these if the safety check finds any.</div>
+</div>
+<p><b>How you pay:</b> $349 now for the electrical safety check (PIESA). 10% to book your install day. The rest on install day.</p>
+<h2>What Sarah agreed to</h2>
+<div class="tick"><div class="b">✓</div><div>I accept this quote, the Customer Agreement and the payment terms, and I've been given my Statement of rights under the VEU program. I'm 18 or over, I own this home (or I'm allowed to sign for the owner), and I'm happy to get my documents by email.</div></div>
+<div class="tick"><div class="b">✓</div><div>I understand my install must be done within 30 days of my electrical safety check (PIESA), as the rebate rules require.</div></div>
+<div class="grid sigs" style="margin-bottom:0">
+ <div><span>Owner signature (typed online)</span><span class="name2">Sarah Brown</span>8 Nov 2026, 7:42pm</div>
+ <div><span>Signed for Home Insulation Victoria</span><span class="name2">Chris Lowe</span>8 Nov 2026, 7:42pm · Director, DC Construction Solutions Pty Ltd</div>
+</div>
+<div style="break-inside:avoid"><h2>Documents accepted</h2>
+<div class="grid">
+ <div class="full"><span>Customer Agreement and payment terms</span>Version 1.0, 2 Nov 2026 (full text on the next pages)</div>
+ <div class="full"><span>Statement of rights</span>Essential Services Commission, Victorian Energy Upgrades program (attached to the quote email)</div>
+</div></div>
+<div class="ag">
+
+<div class="band"></div>
+<div class="head">
+ <img class="logoimg" src="logo.png">
+ <div class="biz">DC Construction Solutions Pty Ltd<br>trading as Home Insulation Victoria<br>ABN 44 671 613 979 · Accredited Person A003654<br>info@homeinsulationvictoria.com.au</div>
+</div>
+<div class="doc">CUSTOMER AGREEMENT</div>
+<h1>Your ceiling insulation upgrade</h1>
+<p class="sub">This is our agreement with you for job HV-1234. Please read it. Take your time and ask us anything.</p>
+<div class="meta">
+ <div><span>You</span>Sarah Brown<br>12 Example St, Box Hill VIC 3128</div>
+ <div><span>Us</span>Home Insulation Victoria<br>info@homeinsulationvictoria.com.au</div>
+ <div><span>Your installer</span>Rapid Insulation<br>03 9000 0000<br>office@rapidinsulation.com.au<br>Does the work for us</div>
+</div>
+
+<div class="sec"><h2><span class="n">1</span>What we'll do</h2>
+<ul>
+ <li>Install Bradford Gold R5.0 ceiling batts across 137 m² of your ceiling, as in your quote.</li>
+ <li>Remove your old insulation, if your quote says so.</li>
+ <li>Take away all removed insulation and rubbish.</li>
+ <li>Arrange an electrical safety check (PIESA) by a licensed electrician before the install.</li>
+ <li>Create the rebate certificates for your job and take the rebate off your price.</li>
+</ul></div>
+
+<div class="sec"><h2><span class="n">2</span>What's not included</h2>
+<p>Electrical upgrades, only if the electrical safety check (PIESA) finds any. Your electrician quotes these directly, and nothing is done without your OK. You pay the electrician, not us.</p></div>
+
+<div class="sec"><h2><span class="n">3</span>When things happen</h2>
+<ul>
+ <li><b>Electrical safety check (PIESA):</b> your installer calls you to book it within 2 business days of you accepting.</li>
+ <li><b>Electrical upgrades (only if needed):</b> booked directly with your electrician.</li>
+ <li><b>Install:</b> booked once your deposit is paid, and done within 30 days of the electrical safety check (PIESA). Your installer will confirm the day with you. Most installs are finished on the day they start.</li>
+</ul>
+<p>We confirm every visit by email and text. If a visit can't go ahead as booked, we'll tell you as soon as we can.</p>
+<p><b>The 30-day rule:</b> the rebate rules say your insulation must be installed within 30 days of the electrical safety check (PIESA). If it isn't, the check has to be done again. Whoever caused the delay pays for the new check: you, if the delay was yours, or your installer, if it was theirs. If it was both, or nobody's fault, we'll decide fairly and tell you why.</p></div>
+
+<div class="sec"><h2><span class="n">4</span>Your price</h2>
+<table>
+ <tr><td>Price before rebate</td><td>$3,798.00</td></tr>
+ <tr><td>Rebate</td><td>– $1,610.00</td></tr>
+ <tr class="tot"><td>Your price (incl. GST)</td><td>$2,188.00</td></tr>
+</table>
+<p>How and when you pay is in your payment terms (attached). In short: $349 now for the electrical safety check (PIESA), 10% to book your install day, and the rest on install day. There are no other fees.</p>
+<p>Once your install is done, the rebate rules say you must have paid at least $200 (incl. GST). None of that $200 can be given back to you in any way.</p>
+<p>Your quote is valid for 30 days, until Mon 8 Dec 2026.</p>
+<p><b>Cooling-off:</b> no cooling-off period applies. You asked for a quote and accepted it online in your own time.</p></div>
+
+<div class="sec"><h2><span class="n">5</span>What we need from you</h2>
+<ul>
+ <li>Clear access to your switchboard and ceiling hatch.</li>
+ <li>Someone 18 or over at home for each visit.</li>
+ <li>Pets kept away, and the power off while they work in the ceiling.</li>
+ <li>Sign your rebate form on install day. This hands the rebate certificates to us so we can take the rebate off your price.</li>
+</ul>
+<p><b>If your home isn't eligible:</b> if we find your home can't get the rebate (for example, downlights that can't be covered), we'll cancel your job and you won't owe anything more. If your electrical safety check (PIESA) has already been done, the $349 isn't refunded.</p></div>
+
+<div class="sec"><h2><span class="n">6</span>Warranties</h2>
+<ul>
+ <li><b>The insulation:</b> covered by the manufacturer's warranty for at least 5 years. We send you a copy after your install.</li>
+ <li><b>The workmanship:</b> your installer fixes any fault in their work for 1 year from your install day.</li>
+ <li>Your rights under the Australian Consumer Law always apply.</li>
+</ul></div>
+
+<div class="sec"><h2><span class="n">7</span>If something's not right</h2>
+<p>Reply to any of our emails or write to info@homeinsulationvictoria.com.au. We'll reply within 5 business days and aim to sort it within 20 business days. If it's still not sorted, you can contact the Essential Services Commission (esc.vic.gov.au) or Consumer Affairs Victoria.</p>
+<p>If we find out later that something about your install doesn't meet the rebate rules, we'll tell you straight away and fix it.</p></div>
+
+<div class="sec"><h2><span class="n">8</span>Changing or cancelling</h2>
+<p>To change a visit time, call your installer on their office number. To cancel, reply to any of our emails or write to info@homeinsulationvictoria.com.au.</p>
+<ul><li><b>$349 electrical safety check:</b> refunded if you cancel before the check is done. Not refunded once it's done.</li><li><b>10% deposit:</b> refunded if you cancel at least 2 business days before your install day. Not refunded after that.</li></ul></div>
+
+<div class="sec"><h2><span class="n">9</span>Your information</h2>
+<p>To run the rebate program, we share your details and job information with the Essential Services Commission, which may share them with WorkSafe and Energy Safe Victoria. You'll sign a separate consent form for this before your install.</p></div>
+
+<div class="sec"><h2><span class="n">10</span>Your documents</h2>
+<ul>
+ <li><b>Now:</b> this agreement, your payment terms and your Statement of rights under the Victorian Energy Upgrades program.</li>
+ <li><b>Before your install:</b> a copy of your electrical safety check, the consent form and the Victorian Energy Upgrades consumer factsheet.</li>
+ <li><b>After your install:</b> your tax invoice, rebate form, product warranty and the manufacturer's instructions.</li>
+</ul>
+<p>We send everything by email.</p></div>
+
+<div class="sign"><span class="lab">Signed</span>Signed by Sarah Brown (typed name: Sarah Brown) on the quote page on 8 Nov 2026, 7:42pm.<br><span style="color:var(--muted)">Version 1.0, 2 Nov 2026</span></div>
+
+
+<!-- PAYMENT TERMS -->
+<div class="head pb">
+ <img class="logoimg" src="logo.png">
+ <div class="biz">DC Construction Solutions Pty Ltd<br>trading as Home Insulation Victoria<br>ABN 44 671 613 979<br>info@homeinsulationvictoria.com.au</div>
+</div>
+<div class="doc">PAYMENT TERMS</div>
+<h1>How you pay</h1>
+<p class="sub">Job HV-1234 · Sarah Brown · 12 Example St, Box Hill</p>
+
+<table>
+ <tr><td><b>1. When you accept your quote</b><br><span style="color:var(--muted)">Electrical safety check (PIESA)</span></td><td>$349.00</td></tr>
+ <tr><td><b>2. Once you're clear to install</b><br><span style="color:var(--muted)">10% deposit to book your install day</span></td><td>$218.80</td></tr>
+ <tr><td><b>3. On install day</b><br><span style="color:var(--muted)">The rest</span></td><td>$1,620.20</td></tr>
+ <tr class="tot"><td>Your price (incl. GST)</td><td>$2,188.00</td></tr>
+</table>
+
+<div class="sec"><h2><span class="n">✓</span>How to pay</h2>
+<p>By card or bank transfer. No fees. Each payment has its own link in our email, and we email you a receipt each time.</p></div>
+
+<div class="sec"><h2><span class="n">!</span>If your balance isn't paid</h2>
+<p>We'll remind you 1, 3 and 7 days after install day. After 7 days, your balance is overdue and we may pass it to a debt collector.</p>
+<p>If your balance is overdue, we charge interest at the Victorian penalty interest rate (currently 10% a year), worked out daily from the day it becomes overdue until it's paid. We don't charge collection costs. If we have to take you to court or VCAT to recover an overdue balance, you may have to pay the legal costs the court or VCAT orders.</p></div>
+
+<div class="sec"><h2><span class="n">⚡</span>Electrical upgrades</h2>
+<p>If you need electrical upgrades, you pay your electrician directly. They're not part of our price.</p></div>
+
+<div class="sec"><h2><span class="n">↩</span>Refunds</h2>
+<ul><li><b>$349:</b> refunded if you cancel before your electrical safety check is done.</li><li><b>Deposit:</b> refunded if you cancel at least 2 business days before your install day.</li></ul></div>
+</div></body></html>

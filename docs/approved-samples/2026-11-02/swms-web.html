@@ -1,0 +1,93 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+@font-face{font-family:OS;font-weight:400;src:url(node_modules/@fontsource/open-sans/files/open-sans-latin-400-normal.woff2)}
+@font-face{font-family:OS;font-weight:600;src:url(node_modules/@fontsource/open-sans/files/open-sans-latin-600-normal.woff2)}
+@font-face{font-family:OS;font-weight:700;src:url(node_modules/@fontsource/open-sans/files/open-sans-latin-700-normal.woff2)}
+@font-face{font-family:OS;font-weight:800;src:url(node_modules/@fontsource/open-sans/files/open-sans-latin-800-normal.woff2)}
+@page{size:600px 849px;margin:0 40px 46px}
+:root{--ink:#22376b;--blue:#3c51c4;--green:#07bf61;--dgreen:#07a554;--box:#eef0fc;--muted:#5d6785;--line:#e3e8f2}
+*{box-sizing:border-box;margin:0;padding:0}
+body{padding-right:3px;font-family:OS;color:var(--ink);font-size:10.3px;line-height:1.33;-webkit-print-color-adjust:exact}
+.band{height:8px;background:var(--blue);margin:0 -40px 18px}
+.head{display:flex;justify-content:space-between;align-items:flex-start}
+.logo{font-family:OS;font-weight:800;font-size:17px;line-height:1.05}
+.logo b{color:var(--blue)} .logo i{font-style:normal;color:var(--green)}
+.biz{font-size:10px;color:var(--muted);text-align:right;line-height:1.5}
+.doc{margin-top:12px;font-family:OS;font-weight:700;font-size:10.5px;letter-spacing:.14em;color:var(--dgreen)}
+h1{font-family:OS;font-weight:800;font-size:19px;line-height:1.15;margin:4px 0 2px}
+.sub{font-size:10.5px;color:var(--muted);margin-bottom:12px}
+h2{font-family:OS;font-weight:700;font-size:13px;margin:10px 0 5px;padding-bottom:4px;border-bottom:1.5px solid var(--ink)}
+h3{font-family:OS;font-weight:700;font-size:12px;margin:10px 0 5px}
+.grid{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.grid div{padding:5px 10px;border-bottom:1px solid var(--line);border-right:1px solid var(--line)}
+.grid div:nth-child(2n){border-right:0}
+.grid .full{grid-column:1/3;border-right:0}
+.grid span{display:block;font-size:9px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+ul{padding-left:16px;margin-top:2px} li{margin-bottom:1px}
+.sig{display:flex;border:1px solid var(--line);border-radius:10px;margin-top:8px;overflow:hidden}
+.sig div{flex:1;padding:6px 10px;border-right:1px solid var(--line)} .sig div:last-child{border-right:0;flex:.5}
+.sig span{display:block;font-size:9px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+.sig .name{font-family:OS;font-weight:700;font-size:15px;font-style:italic;text-transform:none;letter-spacing:0;color:var(--ink)}
+.note{font-size:9.5px;color:var(--muted);margin-top:10px}
+.logoimg{height:46px}
+.doc{color:var(--blue)!important}
+h2 .n{background:var(--blue)!important}
+.meta,.grid,.sig{background:var(--box)}
+
+.hz{border:1px solid var(--line);border-radius:10px;background:var(--box);padding:7px 11px;margin-bottom:6px;break-inside:avoid}
+.hz b{margin-bottom:2px;font-weight:700;display:block;font-size:11px}
+.hz .n{display:inline-block;width:16px;height:16px;border-radius:50%;background:var(--blue);color:#fff;font-size:9.5px;text-align:center;line-height:16px;margin-right:6px;font-weight:700}
+.once{border-left:4px solid var(--blue);background:#fff;padding:6px 11px;margin:6px 0 10px;border-radius:0 8px 8px 0}
+.house li{margin-bottom:2px}
+.step{color:var(--ink);font-weight:700}
+table.sg{width:100%;border-collapse:collapse;margin-top:6px;font-size:10.5px}
+table.sg th{text-align:left;font-size:9px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;border-bottom:1.5px solid var(--ink);padding:4px 6px}
+table.sg td{padding:6px;border-bottom:1px solid var(--line)}
+.ok{color:var(--green);font-weight:700}
+.keep{break-inside:avoid}
+p{margin-bottom:5px}
+</style></head><body>
+<div class="band"></div>
+<div class="head">
+ <img class="logoimg" src="logo.png">
+ <div class="biz">DC Construction Solutions Pty Ltd<br>trading as Home Insulation Victoria<br>ABN 44 671 613 979 · Accredited Person A003654<br>info@homeinsulationvictoria.com.au</div>
+</div>
+
+<div class="doc">SAFETY PLAN · JOB HV-1234</div>
+<h1>Safe Work Method Statement</h1>
+<p class="sub">Ceiling insulation (VEU Activity 48)</p>
+<div class="grid">
+ <div><span>Direct employer</span>Rapid Insulation</div><div><span>Principal contractor</span>Home Insulation Victoria (DC Construction Solutions Pty Ltd)</div>
+ <div><span>Work supervisor</span>John Smith</div><div><span>Install date</span>13/11/2026</div>
+ <div class="full"><span>Site location/address</span>12 Example St, Box Hill VIC 3128</div>
+ <div class="full"><span>Work activity</span>Ceiling insulation removal (if required) and installation of bulk ceiling insulation – VEU Activity 48</div>
+ <div class="full"><span>High-risk construction work</span>Risk of a person falling more than 2 metres (ladder, manhole, roof, ceiling joists); Work on or near energised electrical installations or services (ceiling cables, switchboard, solar/battery)</div>
+</div>
+<h2>Compliance</h2>
+<div class="grid">
+ <div class="full"><span>Person responsible for ensuring compliance with SWMS</span>John Smith</div>
+ <div class="full"><span>Measures to ensure compliance</span>Direct supervision by the Lead Installer; every control checked before first entry and at the start of each day</div>
+ <div class="full"><span>How control measures will be reviewed</span>The Lead Installer re-checks every control at the start of each day before work, and the plan is reviewed if anything on site changes</div>
+</div>
+<h2>Specific to this house</h2>
+<ul class="house">
+ <li>Roof: Tile</li><li>Ceiling access: Easy</li><li>Main house: 4 recessed downlights</li><li>PIESA: passed</li>
+ <li class="step">Safety step: Recessed downlights: every downlight is IC or IC&#8209;4 rated (checked at the PIESA). Insulate over and around them as rated.</li>
+</ul>
+<h2>Hazards and control measures</h2>
+<p><b>Task:</b> Ceiling insulation removal (if required) and installation in the ceiling space</p>
+<div class="once"><b>For every hazard below</b><br><b>How implemented:</b> Lead Installer directly supervises the crew, checks the control before anyone enters the ceiling and again at the start of each day, and stops work if it cannot be followed<br><b>Responsible:</b> John Smith (Lead Installer)</div>
+<div class="hz"><b><span class="n">1</span>Live electrical hazards</b>Power isolated, locked out and tagged before entry (solar, battery and generator too, following their instructions); PIESA read and its conditions followed; electrician on site when the PIESA requires; test for dead before touching cables.</div><div class="hz"><b><span class="n">2</span>Hazardous substances (friable asbestos, harmful chemicals)</b>If asbestos is suspected, do not disturb it — stop work; it is a licensed asbestos removalist's job before work continues; no chemicals or solvents used in the ceiling.</div><div class="hz"><b><span class="n">3</span>Biological hazards (mould, animal waste)</b>Do not disturb droppings or mould dry; P2 mask and gloves; wash hands before eating.</div><div class="hz"><b><span class="n">4</span>High temperatures and heat exhaustion</b>Work early, water and a break every 30 minutes, stop in extreme heat.</div><div class="hz"><b><span class="n">5</span>Unsafe noise and vibration levels</b>Hearing protection for blowers and power tools.</div><div class="hz"><b><span class="n">6</span>Respiratory hazards and irritants (dust, odours)</b>P2 mask, goggles, gloves and long sleeves in the ceiling; removed material bagged in the ceiling.</div><div class="hz"><b><span class="n">7</span>Working in enclosed spaces</b>Exits kept clear, lighting set up first, stay in contact with someone outside the ceiling.</div><div class="hz"><b><span class="n">8</span>Working at height (inside and outside the ceiling space)</b>Walk only on joists or crawl boards, never on plasterboard; ladder secured and footed with three points of contact; no roof access in wind or rain.</div><div class="hz"><b><span class="n">9</span>Fire hazards and ignition sources (flues, chimneys, gas heaters, heat lamps, exhaust fans, downlights, cables over 400 mm surrounded by insulation)</b>AS 3999 clearances kept to flues, chimneys, gas heaters, heat lamps and exhaust fans; downlights are IC or IC&#8209;4 rated and insulated as rated; cables over 400 mm in insulation as the PIESA directs.</div>
+<div class="keep">
+<h2>Changes during the job</h2>
+<p>If anything on site changes, or a control isn't working, stop work. Record the change and the new control here before work starts again.</p>
+<table class="sg"><tr><th>What changed</th><th>New control</th><th>Lead Installer, date and time</th></tr>
+<tr><td>None recorded</td><td>–</td><td>–</td></tr></table></div>
+<div class="keep">
+<h2>Worker sign-off</h2>
+<p>I have read the safety plan and will follow it.</p>
+<table class="sg"><tr><th>Name</th><th>Signature</th><th>Date</th></tr>
+<tr><td>John Smith (Lead Installer)</td><td class="ok">✓ signed — typed "John Smith"</td><td>12/11/2026 6:42pm</td></tr>
+<tr><td>Sam Lee (Crew)</td><td class="ok">✓ signed — typed "Sam Lee"</td><td>12/11/2026 7:05pm</td></tr>
+<tr><td>Ali Khan (Crew)</td><td class="ok">✓ signed — typed "Ali Khan"</td><td>13/11/2026 6:58am</td></tr>
+</table></div>
+</body></html>
