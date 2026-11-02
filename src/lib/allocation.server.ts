@@ -237,7 +237,18 @@ async function offerNextBatch(jobId: string, actorId: string | null, kind: "pies
     admin.from("partner_offers").select("business_id, batch, offered_at").eq("job_id", jobId).eq("kind", kind),
   ]);
   const batchNo = Math.max(0, ...(prior ?? []).map((o) => o.batch)) + 1;
-  const rates = await agreedElectricianRates(candidates.map((c) => c.business_id), kind);
+  const agreed = await agreedElectricianRates(candidates.map((c) => c.business_id), kind);
+  // Jo 3 Nov 2026: on our own website leads we pay every electrician the one office safety-check payout ($275 inc GST),
+  // whoever they are. Installer jobs and electrical rectification offers keep their agreed rates. Existing offers keep
+  // their recorded snapshot (HV-3682 stays $349).
+  let rates = agreed;
+  if (kind === "piesa" && !installerSourced) {
+    const { data: pricing, error: pe } = await admin.from("pricing_settings").select("piesa_rec_cost_ex_gst, gst_rate").eq("is_active", true).maybeSingle();
+    if (pe) throw new Error("Could not read the safety check payout setting.");
+    const { hivElectricianPayoutIncGst } = await import("./safety-check-price.core");
+    const payout = hivElectricianPayoutIncGst(pricing?.piesa_rec_cost_ex_gst ?? null, pricing?.gst_rate != null ? Number(pricing.gst_rate) : 0.1);
+    rates = new Map(candidates.map((c) => [c.business_id, { id: agreed.get(c.business_id)?.id ?? null, rate: payout }] as const)) as typeof agreed;
+  }
   // Decision 374: no usual-electrician preference on our leads — every electrician is paid their own agreed onboarding rate.
   const { offerRateBlocker } = await import("./allocation.core");
   const summary = await offerFacts(jobId);
