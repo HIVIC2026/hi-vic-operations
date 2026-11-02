@@ -34,6 +34,8 @@ def shown_text(operands):
     return "".join(parts)
 
 
+if os.path.realpath(src) == os.path.realpath(dst):
+    fail("output path is the same file as the input; the original is never overwritten")
 pdf = pikepdf.open(src)
 if len(pdf.pages) != 2:
     fail(f"expected 2 pages, found {len(pdf.pages)}")
