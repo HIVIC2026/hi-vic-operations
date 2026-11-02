@@ -40,9 +40,9 @@ export function installerEmailWords(o: GiveEmailOutcome, partner: string | null 
   switch (o.status) {
     case "sent": return `Emailed ${name} the job list.`;
     case "test_sent": return `TEST email sent for ${name}.`;
-    case "not_approved": return `No email to ${name} yet — the email is waiting for your OK in Templates.`;
+    case "not_approved": return `No email sent to ${name} — the email isn't approved yet. Call ${name} with the job list.`;
     case "no_email": return `No email to ${name} — no office email on file.`;
-    case "held": return `Email to ${name} is held — trade messages are paused.`;
+    case "held": return `No email sent to ${name} — trade messages are paused. Call ${name} with the job list.`;
     case "not_sent": return `Email to ${name} didn't send — call them with the job list.`;
   }
 }

@@ -29,7 +29,7 @@ test("said-yes label uses the owner name in normal case, or Owner when blank", (
 test("give notice adds the installer email words", () => {
   const sent = ["a", "b", "c"];
   expect(giveNotice({ sent, refused: [], installerEmail: { status: "not_approved" } }, "Rapid Insulation", id => id))
-    .toBe("3 jobs given to Rapid Insulation. No email to Rapid Insulation yet — the email is waiting for your OK in Templates.");
+    .toBe("3 jobs given to Rapid Insulation. No email sent to Rapid Insulation — the email isn't approved yet. Call Rapid Insulation with the job list.");
   expect(giveNotice({ sent: ["a"], refused: [{ jobId: "z", reason: "Booked" }], installerEmail: { status: "sent" } }, "Rapid Insulation", id => id.toUpperCase()))
     .toBe("1 job given to Rapid Insulation. Emailed Rapid Insulation the job list. Not given: Z (Booked).");
   expect(giveNotice({ sent: [], refused: [{ jobId: "z", reason: "Booked" }] }, "Rapid", id => id)).toBe("Not given: z (Booked).");

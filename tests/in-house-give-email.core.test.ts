@@ -37,11 +37,11 @@ describe("in-house Give email builder", () => {
   });
   test("notice words for each outcome, installer name in normal case", () => {
     const p = "RAPID INSULATION";
-    expect(installerEmailWords({ status: "not_approved" }, p)).toBe("No email to Rapid Insulation yet — the email is waiting for your OK in Templates.");
+    expect(installerEmailWords({ status: "not_approved" }, p)).toBe("No email sent to Rapid Insulation — the email isn't approved yet. Call Rapid Insulation with the job list.");
     expect(installerEmailWords({ status: "sent" }, p)).toBe("Emailed Rapid Insulation the job list.");
     expect(installerEmailWords({ status: "test_sent" }, p)).toBe("TEST email sent for Rapid Insulation.");
     expect(installerEmailWords({ status: "no_email" }, p)).toBe("No email to Rapid Insulation — no office email on file.");
-    expect(installerEmailWords({ status: "held" }, p)).toBe("Email to Rapid Insulation is held — trade messages are paused.");
+    expect(installerEmailWords({ status: "held" }, p)).toBe("No email sent to Rapid Insulation — trade messages are paused. Call Rapid Insulation with the job list.");
     expect(installerEmailWords({ status: "not_sent" }, p)).toBe("Email to Rapid Insulation didn't send — call them with the job list.");
     expect(installerEmailWords({ status: "sent" }, "INSolation")).toBe("Emailed INSolation the job list.");
     expect(installerEmailWords({ status: "sent" }, "")).toBe("Emailed the installer the job list.");
