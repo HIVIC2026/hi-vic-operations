@@ -149,13 +149,13 @@ export const getJobProfit = createServerFn({ method: "POST" }).middleware([requi
     await requireAdmin(context.supabase);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const db = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
-    const { data: job, error } = await admin.from("jobs").select("channel, installer_led, electrician_choice, estimated_area_m2, ap_fee_override_inc_gst, properties(postcode)").eq("id", data.jobId).single();
+    const { data: job, error } = await admin.from("jobs").select("channel, installer_led, electrician_choice, originating_installer_business_id, estimated_area_m2, ap_fee_override_inc_gst, properties(postcode)").eq("id", data.jobId).single();
     if (error || !job) throw new Error("Job not found.");
     const [m, asg, rs, ps, ws, quote, lodg] = await Promise.all([
       admin.from("ceiling_measurements").select("measured_area_m2, removal_required, removal_m2, access_difficulty, status").eq("job_id", data.jobId).eq("is_current", true).maybeSingle(),
       admin.from("job_assignments").select("business_id, role").eq("job_id", data.jobId).eq("active", true),
       admin.from("retail_estimator_settings").select("r5_install_inc_gst_per_m2, removal_inc_gst_per_m2, piesa_assessment_inc_gst, ap_management_inc_gst, veec_buy_price").eq("is_current", true).maybeSingle(),
-      admin.from("pricing_settings").select("gst_rate").eq("is_active", true).maybeSingle(),
+      admin.from("pricing_settings").select("gst_rate,piesa_rec_cost_ex_gst").eq("is_active", true).maybeSingle(),
       db.from("workflow_settings").select("current_veec_price").limit(1).maybeSingle(),
       admin.from("quotes").select("id, quote_items(code, line_total_inc_gst), quote_internals(ap_margin_ex_gst, calc_snapshot)").eq("job_id", data.jobId).eq("kind", "installation").eq("status", "accepted").order("created_at", { ascending: false }).limit(1).maybeSingle(),
       db.from("veec_lodgements").select("quantity, sale_price_per_veec").eq("job_id", data.jobId).maybeSingle(),
@@ -189,7 +189,10 @@ export const getJobProfit = createServerFn({ method: "POST" }).middleware([requi
     // when they do it, else $349), and with the installer's usual electrician we pay exactly that (pass-through, no margin).
     const { piesaLineCents } = await import("./safety-check-amount.core");
     const quotedPiesaCents = piesaLineCents((qItems ?? []) as { code: string | null; line_total_inc_gst: number | null }[]);
-    const piesaCustomerInc = quotedPiesaCents != null ? quotedPiesaCents / 100 : Number(rs.data.piesa_assessment_inc_gst);
+    const scp = await import("./safety-check-price.core");
+    const piesaCustomerInc = quotedPiesaCents != null ? quotedPiesaCents / 100 : job.channel === "installer_sourced"
+      ? await (await import("./installer-paid-electricians.server")).installerSafetyCheckPrice(job.originating_installer_business_id)
+      : scp.ownerSafetyCheckIncGst(rs.data.piesa_assessment_inc_gst);
     const usualPiesaRate = snap?.piesa_electrician?.source === "installer_usual" && Number(snap.piesa_electrician.rate_inc_gst) > 0 ? Number(snap.piesa_electrician.rate_inc_gst) : null;
     return {
       hivJob,
@@ -203,7 +206,8 @@ export const getJobProfit = createServerFn({ method: "POST" }).middleware([requi
         apFeeInc: job.ap_fee_override_inc_gst != null ? Number(job.ap_fee_override_inc_gst) : Number(rs.data.ap_management_inc_gst),
         // Decisions 352/353: we pay whoever does the PIESA THEIR own onboarding rate (the assigned electrician's
         // electrician_rates row); the quoted usual-electrician rate is only the fallback before anyone is assigned.
-        piesaCustomerInc, electricianPiesaRateInc: piesaRate ?? usualPiesaRate, piesaOwnerDirect, veecBuyPrice: Number(rs.data.veec_buy_price),
+        piesaCustomerInc, electricianPiesaRateInc: job.channel === "installer_sourced" ? piesaCustomerInc
+          : scp.hivElectricianPayoutIncGst(ps.data.piesa_rec_cost_ex_gst, gst), piesaOwnerDirect, veecBuyPrice: Number(rs.data.veec_buy_price),
         currentVeecPrice: Number(ws.data?.current_veec_price ?? 83),
         acceptedQuoteMarkupInc: hivJob ? acceptedMarkup : null, acceptedQuoteLegacy: !!qi && !snap?.pricing_rule,
         lodgedVeecs: lodg.data?.quantity != null ? Number(lodg.data.quantity) : null,
