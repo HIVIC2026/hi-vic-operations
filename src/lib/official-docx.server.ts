@@ -6,8 +6,9 @@ import { unzipSync, zipSync } from "fflate";
 import piesaDocx from "./official-docx-piesa.data";
 import piisaDocx from "./official-docx-piisa.data";
 import { OFFICIAL_TEMPLATES, officialFormUseBlocker, type OfficialKey } from "./official-forms.core";
-import { fillOfficialDocxParts, type SignatureInput, type SignatureSlot } from "./official-docx.core";
+import { fillOfficialDocxParts, officialDocxLayout, type DocxLayout, type SignatureInput, type SignatureSlot } from "./official-docx.core";
 import { signFile } from "./file-links.server";
+import { PDF_LOOK_APPROVED } from "./pdf-approvals.core";
 
 const DATA_PREFIX = "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,";
 
@@ -15,6 +16,14 @@ function bundledDocx(key: OfficialKey): Uint8Array {
   const uri = key === "piesa" ? piesaDocx : piisaDocx;
   const b64 = uri.startsWith(DATA_PREFIX) ? uri.slice(DATA_PREFIX.length) : uri.replace(/^data:[^,]*,/, "");
   return new Uint8Array(Buffer.from(b64, "base64"));
+}
+
+const layouts = new Map<OfficialKey, DocxLayout>();
+/** The bundled Word form's layout map (item id → field numbers), read once per form. Shared by the Word fill and the PDF fill. */
+export function officialDocxLayoutFor(key: OfficialKey): DocxLayout {
+  let l = layouts.get(key);
+  if (!l) { l = officialDocxLayout(new TextDecoder().decode(unzipSync(bundledDocx(key))["word/document.xml"]!), key); layouts.set(key, l); }
+  return l;
 }
 
 /** Fills the official Word form. Returns the filled docx bytes, the fill report, and the source SHA-256.
@@ -46,7 +55,15 @@ export async function storeOfficialDocx(jobId: string, key: OfficialKey) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const up = await supabaseAdmin.storage.from(OFFICIAL_BUCKET).upload(path, new Blob([bytes.buffer as ArrayBuffer], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }), { upsert: true, contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
   if (up.error) throw new Error(up.error.message);
-  return { path, filled: filled.length, missed, skipped, sourceSha256: sha256, signaturesEmbedded: embedded, signatureFlags: sig.flags };
+  // Task 12: with PDF_LOOK_APPROVED.officialFormPdf on, the filled DEECA form as a PDF too, next to the Word file.
+  let pdfPath: string | null = null;
+  if (PDF_LOOK_APPROVED.officialFormPdf) {
+    const pdf = await (await import("./official-form-pdf.server")).officialFormPdf(key, answers as never, sig.signatures);
+    pdfPath = `jobs/${jobId}/${key}/${copy.snapshot.hash}.pdf`;
+    const upPdf = await supabaseAdmin.storage.from(OFFICIAL_BUCKET).upload(pdfPath, new Blob([pdf.bytes.buffer as ArrayBuffer], { type: "application/pdf" }), { upsert: true, contentType: "application/pdf" });
+    if (upPdf.error) throw new Error(upPdf.error.message);
+  }
+  return { path, pdfPath, filled: filled.length, missed, skipped, sourceSha256: sha256, signaturesEmbedded: embedded, signatureFlags: sig.flags };
 }
 
 /** Short-lived signed URL for a stored filled Word form. Visibility decided by RLS on the caller's client. */

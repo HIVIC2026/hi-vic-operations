@@ -4,6 +4,9 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { CUSTOMER_AGREEMENT_V1_3, type AgreementFacts } from "../src/lib/customer-agreement.core";
 import { customerAgreementPdf } from "../src/lib/customer-agreement-pdf.server";
+import { officialFormPdf } from "../src/lib/official-form-pdf.server";
+import { fullAnswers } from "./official-form-samples";
+import { sampleSignaturePng } from "./sample-signature-png";
 
 export const AGREEMENT_SAMPLE_FACTS: AgreementFacts = {
   owner_name: "Sarah Brown", address: "12 Example St, Box Hill VIC 3128", job_number: "HV-1234", installer_name: "Rapid Insulation",
@@ -16,6 +19,20 @@ const RENDERERS: Record<string, () => Promise<{ file: string; bytes: Uint8Array 
   agreement: async () => ({
     file: "customer-agreement.pdf",
     bytes: (await customerAgreementPdf({ version: "1.3", body: CUSTOMER_AGREEMENT_V1_3 }, AGREEMENT_SAMPLE_FACTS)).bytes,
+  }),
+  // Task 12: the filled DEECA forms, with made-up Mitti signature pictures (sample-signature-png.ts).
+  piesa: async () => ({
+    file: "official-piesa.pdf",
+    bytes: (await officialFormPdf("piesa", fullAnswers("piesa"), {
+      "b3.signature": { images: [{ bytes: sampleSignaturePng("Sam Sparks"), contentType: "image/png", signedOn: "2026-11-07" }] },
+      "c.signature": { images: [{ bytes: sampleSignaturePng("Sam Sparks C"), contentType: "image/png", signedOn: "2026-11-12" }] },
+    })).bytes,
+  }),
+  piisa: async () => ({
+    file: "official-piisa.pdf",
+    bytes: (await officialFormPdf("piisa", fullAnswers("piisa"), {
+      "p8.signature": { images: [{ bytes: sampleSignaturePng("Will Casdorff"), contentType: "image/png", signedOn: "2026-11-20" }] },
+    })).bytes,
   }),
 };
 
