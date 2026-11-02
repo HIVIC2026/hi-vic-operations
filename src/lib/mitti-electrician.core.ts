@@ -28,7 +28,7 @@ export function mittiElectricianQuestionOpen(f: MittiQuestionFacts): boolean {
 /** Only an own electrician is an answer: an approved one, or one already invited by the installer. */
 export function mittiElectricianPlanProblem(plan: ElectricianPlan | null | undefined): string | null {
   if (!plan || plan.mode !== "mine") return "Choose one of your own electricians.";
-  if (!plan.business_id && !plan.nomination_id) return "Choose one of your own electrictians.".replace("electrictians", "electricians");
+  if (!plan.business_id && !plan.nomination_id) return "Choose one of your own electricians.";
   return null;
 }
 
