@@ -44,11 +44,11 @@ export function newElectricianProblems(d: { name: string; business: string; mobi
 }
 
 /** What the job shows for the electrician. */
-export function jobElectricianLabel(s: { choice: string | null; assignedName?: string | null; chosenName?: string | null; invitedName?: string | null }): string {
+export function jobElectricianLabel(s: { choice: string | null; installerSourced?: boolean; assignedName?: string | null; chosenName?: string | null; invitedName?: string | null }): string {
   if (s.assignedName) return `Electrician: ${s.assignedName}`;
   if (s.invitedName) return ELECTRICIAN_INVITED_LABEL;
   if (s.chosenName) return `Your electrician: ${s.chosenName}`;
-  return "Choose your own electrician";
+  return s.installerSourced === false ? HIV_ARRANGES_LABEL : "Choose your own electrician";
 }
 
 /** Invite email to the installer's new electrician (a one-off partner email: follows the manual-email rule). */

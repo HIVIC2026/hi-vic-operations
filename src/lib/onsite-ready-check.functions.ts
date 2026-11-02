@@ -21,7 +21,8 @@ export const startOnsiteReadyCheck = createServerFn({ method: "POST" }).middlewa
   }).parse(d))
   .handler(async ({ data, context }) => {
     const { startOnsiteReadyCheckFor } = await import("./onsite-ready-check.server");
-    return startOnsiteReadyCheckFor(context.userId, data.businessId, data.owner, data.electrician ?? null, undefined, { visit: data.visit ?? null, electricianChoice: data.electricianChoice ?? null, leadOrigin: data.leadOrigin ?? null, requestKey: data.requestKey ?? null });
+    const electrician = data.electrician ? { mode: data.electrician.mode, business_id: data.electrician.business_id ?? null, nomination_id: data.electrician.nomination_id ?? null } : null;
+    return startOnsiteReadyCheckFor(context.userId, data.businessId, data.owner, electrician, undefined, { visit: data.visit ?? null, electricianChoice: data.electricianChoice ?? null, leadOrigin: data.leadOrigin ?? null, requestKey: data.requestKey ?? null });
   });
 
 /** Decision 289: what Add a job needs before it renders — the business's usual electrician (My business), if any. Read-only. */

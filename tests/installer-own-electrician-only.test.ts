@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { electricianChoiceOptions, defaultElectricianChoice, electricianChoiceProblem, addJobElectricianProblem } from "../src/lib/electrician-choice.core";
 import { ELECTRICIAN_PAYER_CHOICES, planPayerChange } from "../src/lib/installer-intake.core";
-import { electricianPlanBlocker } from "../src/lib/job-electrician.core";
+import { electricianPlanBlocker, jobElectricianLabel } from "../src/lib/job-electrician.core";
 import { mittiElectricianQuestionOpen } from "../src/lib/mitti-electrician.core";
 
 describe("Jo 3 Nov installer jobs use own electricians only", () => {
@@ -35,5 +35,9 @@ describe("Jo 3 Nov installer jobs use own electricians only", () => {
     expect(mittiElectricianQuestionOpen({ ...facts, channel: "installer_sourced" })).toBe(true);
     expect(mittiElectricianQuestionOpen({ ...facts, channel: "hivic_sourced" })).toBe(false);
     expect(mittiElectricianQuestionOpen({ ...facts, channel: "installer_sourced", hasElectricianAssigned: true })).toBe(false);
+  });
+  it("website-lead arrangement label is unchanged while installer legacy rows ask for their own", () => {
+    expect(jobElectricianLabel({ choice: "hivic_organise", installerSourced: false })).toBe("Home Insulation Victoria arranges");
+    expect(jobElectricianLabel({ choice: "hivic_organise", installerSourced: true })).toBe("Choose your own electrician");
   });
 });
