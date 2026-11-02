@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 import {
   ANSWER_CODES, ANSWER_SAMPLES, ANSWER_TYPES, EMAIL_AUTO_REPLIED_EVENT, EMAIL_AUTO_REPLY_FILED_EVENT, EMAIL_AUTO_REPLY_HELD_EVENT, LONG_LIST,
   OWNER_EMAIL_AUTO_REPLY_APPROVED, REPLY_NEEDED_INTENT, answerText, autoReplyKey, autoReplyMode, decideOwnerAutoReply, quoteScreenLink,
-  renderAnswerSample, renderOwnerAutoReplyEmail, type AnswerType, type AutoReplyInput, type OwnerJobFacts,
+  answerDesign, answerNeedsInstaller, renderAnswerSample, renderOwnerAutoReplyEmail, type AnswerType, type AutoReplyInput, type OwnerJobFacts,
 } from "../src/lib/owner-email-auto-reply.core";
 import { ARCHIVE_FOLDER, assertArchiveMoveRequest, assertDraftOnlyRequest } from "../src/lib/email-reply.core";
 import { OUTLOOK_ARCHIVE_AFTER_REPLY_ENABLED } from "../src/lib/outlook-reply-drafts.core";
@@ -125,11 +125,11 @@ describe("decision 386 wording (DRAFT O76a–O76j)", () => {
     expect(m.text).toContain("Hi Helen,");
     expect(m.text).toContain("Cheers, the Home Insulation Victoria team");
     expect(m.html).toContain("Cheers,<br />the Home Insulation Victoria team");
-    expect(m.html).toContain(`href="${MY_JOB}"`);
+    expect(m.html).not.toContain(MY_JOB); // decisions 54–58 item 4: no My job home button
     expect(m.html).toContain("https://homeinsulationvictoria.com.au/home-insulation-victoria-logo.png");
     expect(m.html).not.toContain("data:image");
     for (const a of ["save_spot", "answers_save_spot", "spot_saved", "answers_received"] as AnswerType[]) expect(answerText(a, { firstName: null, link: MY_JOB })).toContain(LONG_LIST);
-    expect(LONG_LIST).toBe("Thousands of Victorians have registered. Spots are released in the order they were saved."); // decision 388
+    expect(LONG_LIST).toBe("Spots are released in the order they were saved."); // decisions 54–58 item 1: "Thousands…" removed
     const booked = answerText("visit_booked", { firstName: null, link: MY_JOB, visit: RC });
     expect(booked).toContain("Your free Ready Check is booked");
     expect(booked).toContain("It's on Wednesday 28 October at 8am.");
@@ -146,8 +146,61 @@ describe("decision 386 wording (DRAFT O76a–O76j)", () => {
       const file = `docs/templates/drafts/${ANSWER_CODES[a].file}`;
       expect({ file, same: renderAnswerSample(a).html === read(file) }).toEqual({ file, same: true });
       expect(read(file)).toContain("VEU Accredited Person A003654");
-      expect(read(file)).toContain(ANSWER_SAMPLES[a].facts.link.replace(/\?.*$/, ""));
+      // Only the answers that keep one page carry a link (decisions 54–58 item 4).
+      const hasButton = answerDesign(a, ANSWER_SAMPLES[a].facts).button !== null;
+      expect({ file, link: read(file).includes(ANSWER_SAMPLES[a].facts.link.replace(/\?.*$/, "")) }).toEqual({ file, link: hasButton });
     }
+  });
+});
+
+describe("decisions 54–58 (O76): installer office phone, no My job links, no long-list line", () => {
+  test("spot saved answer (54-58 item 1)", () => {
+    const d = answerDesign("spot_saved", { firstName: "Sarah", link: "L" });
+    expect(d.body.join(" ")).not.toContain("Thousands");
+    expect(d.body.at(-1)).toBe("Spots are released in the order they were saved. When an EEC-certified installer is available, they'll call you to book your free Ready Check.");
+    expect(d.button).toBeNull();
+  });
+  test("pick-a-time answers now say who calls (item 2)", () => {
+    const d = answerDesign("pick_times", { firstName: "Sarah", link: "L", installer: { name: "Rapid Insulation", officePhone: "03 9000 0000" } });
+    expect(d.body).toContain("Rapid Insulation will call you from 03 9000 0000 to book it.");
+    expect(d.button).toBeNull();
+    const q = answerDesign("quote_after_ready_check", { firstName: "Sarah", link: "L", installer: { name: "Rapid Insulation", officePhone: "03 9000 0000" } });
+    expect(q.body).toContain("Rapid Insulation will call you from 03 9000 0000 to book it.");
+    expect(q.button).toBeNull();
+  });
+  test("pick-a-time without an office phone is held", () => {
+    expect(() => answerDesign("pick_times", { firstName: null, link: "L", installer: null })).toThrow(/office phone/);
+    expect(() => answerDesign("pick_times", { firstName: null, link: "L" })).toThrow(/office phone/);
+    expect(() => answerDesign("pick_times", { firstName: null, link: "L", installer: { name: "Rapid Insulation", officePhone: " " } })).toThrow(/office phone/);
+    expect(() => answerDesign("quote_after_ready_check", { firstName: null, link: "L", installer: null })).toThrow(/office phone/);
+    // A booked Ready Check needs no phone (the date is given instead).
+    expect(() => answerDesign("quote_after_ready_check", { firstName: null, link: "L", visit: RC, installer: null })).not.toThrow();
+    expect(answerNeedsInstaller("pick_times", { firstName: null, link: "L" })).toBe(true);
+    expect(answerNeedsInstaller("quote_after_ready_check", { firstName: null, link: "L", visit: RC })).toBe(false);
+    expect(answerNeedsInstaller("quote_after_ready_check", { firstName: null, link: "L", visit: null })).toBe(true);
+    expect(answerNeedsInstaller("spot_saved", { firstName: null, link: "L" })).toBe(false);
+  });
+  test("no See where you're up to anywhere (item 4)", () => {
+    expect(readFileSync("src/lib/owner-email-auto-reply.core.ts", "utf8")).not.toContain("See where you're up to");
+  });
+  test("quote and pay answers keep their one page link", () => {
+    expect(answerDesign("quote_ready", { firstName: null, link: "https://x/my-job/t" }).href).toContain("screen=quote");
+    const pay = answerDesign("how_to_pay", { firstName: null, link: "https://x/my-job/t" });
+    expect(pay.href).toBe("https://x/my-job/t?screen=pay");
+    expect(pay.button).not.toBeNull();
+  });
+  test("no button: spot saved, answers received, quote preparing, quote after the Ready Check, visit booked — and no link line or button rendered", () => {
+    const I = { name: "Rapid Insulation", officePhone: "03 9000 0000" };
+    for (const [a, f] of [["spot_saved", {}], ["answers_received", {}], ["quote_preparing", {}], ["quote_after_ready_check", { visit: RC }], ["quote_after_ready_check", { installer: I }], ["visit_booked", { visit: RC }], ["visit_booked", {}], ["pick_times", { installer: I }]] as [AnswerType, object][]) {
+      const facts = { firstName: "Helen", link: MY_JOB, ...f };
+      expect({ a, button: answerDesign(a, facts).button }).toEqual({ a, button: null });
+      const m = renderOwnerAutoReplyEmail({ answer: a, facts, theirSubject: null });
+      expect({ a, btn: m.html.includes(MY_JOB) }).toEqual({ a, btn: false });
+      expect({ a, link: m.text.includes(MY_JOB) }).toEqual({ a, link: false });
+    }
+    // The answers that keep one page still render it.
+    expect(renderOwnerAutoReplyEmail({ answer: "how_to_pay", facts: { firstName: null, link: MY_JOB }, theirSubject: null }).text).toContain(`${MY_JOB}?screen=pay`);
+    expect(renderOwnerAutoReplyEmail({ answer: "save_spot", facts: { firstName: null, link: QUESTIONS }, theirSubject: null }).html).toContain(`href="${QUESTIONS}"`);
   });
 });
 
@@ -248,7 +301,7 @@ function q(table: string) {
   };
   return api;
 }
-const calls = { testEmail: [] as string[], owner: [] as string[], archive: [] as string[], claimsAtSend: [] as number[] };
+const calls = { testEmail: [] as string[], owner: [] as string[], archive: [] as string[], claimsAtSend: [] as number[], lastText: "" };
 let commsOn = true;
 let ownerSendResult = "sent";
 let archiveResult: "archived" | "failed" = "archived";
@@ -262,6 +315,7 @@ mock.module("../src/lib/owner-email-send.server", () => ({
   sendGuardedOwnerEmail: async (p: { purpose: string; key: string; to: string; build: (u: string | null) => { subject: string; text: string } }) => {
     calls.claimsAtSend.push(claims());
     const mail = p.build("https://u");
+    calls.lastText = mail.text;
     calls.owner.push(`${p.purpose}:${p.key}:${p.to}:${mail.subject}:${mail.text.includes("my-job/tokreal")}`);
     return ownerSendResult;
   },
@@ -281,7 +335,7 @@ const msg = (o: Partial<{ id: string; from: string; body: string; subject: strin
   from: o.from ?? "helen@example.com", fromName: "Helen", to: [MAILBOX], cc: [], subject: o.subject ?? "Spot", body: o.body ?? "Hi, is my spot saved?",
   at: new Date().toISOString(), hasAttachments: o.hasAttachments ?? false, attachments: (o.attachments ?? []) as never[],
 });
-const reset = () => { db = fresh(); calls.testEmail = []; calls.owner = []; calls.archive = []; calls.claimsAtSend = []; commsOn = true; ownerSendResult = "sent"; archiveResult = "archived"; };
+const reset = () => { db = fresh(); calls.testEmail = []; calls.owner = []; calls.archive = []; calls.claimsAtSend = []; calls.lastText = ""; commsOn = true; ownerSendResult = "sent"; archiveResult = "archived"; };
 const ev = (type: string) => db.workflow_events!.filter((e) => e["event_type"] === type);
 const rows = () => db.workflow_events!.filter((e) => e["event_type"] === "email_change_request" && e["details"]?.intent === REPLY_NEEDED_INTENT);
 const run = (o: Parameters<typeof msg>[0] = {}, jobIds = ["job-real"], switches: { approved: boolean; archive: boolean } | null = { approved: true, archive: true }) => // null = the code constants
@@ -304,7 +358,8 @@ describe("server (mocked): guards, idempotency, TEST routing, approval gate, fil
     reset();
     const r = await run();
     expect(r).toMatchObject({ status: "sent", suppressDraft: true, officeRow: false });
-    expect(calls.owner).toEqual([`owner_email_auto_reply:${autoReplyKey("m1")}:Helen@Example.com:Re: Spot:true`]);
+    // The spot-saved answer has no button any more (decisions 54–58 item 4), so the link is not in the email.
+    expect(calls.owner).toEqual([`owner_email_auto_reply:${autoReplyKey("m1")}:Helen@Example.com:Re: Spot:false`]);
     expect(calls.claimsAtSend).toEqual([1]);
     expect(ev(EMAIL_AUTO_REPLIED_EVENT)[0]!["details"]).toMatchObject({ answer: "spot_saved", template: "O76c", mode: "live", idempotency_key: autoReplyKey("m1"), link: "https://estimate.homeinsulationvictoria.com.au/my-job/tokreal" });
     expect(calls.archive).toEqual([`${MAILBOX}:m1`]);
@@ -381,6 +436,35 @@ describe("server (mocked): guards, idempotency, TEST routing, approval gate, fil
     expect(r.status).toBe("skip");
     expect(r.detail).toContain("245/337");
     expect(calls.owner.length + rows().length).toBe(0);
+  });
+  test("pick-a-time: the installer's office phone from businessContactForJob (injected); none on file → held event, draft + row, nothing sent", async () => {
+    reset();
+    db.jobs!.push({ id: "job-pick", stage: "ready_check_awaiting_acceptance", source: "website", owner_id: "o5", deleted_at: null });
+    db.owners!.push({ id: "o5", full_name: "Pat Kim", email: "pat@example.com" });
+    db.lead_campaign_responses!.push({ job_id: "job-pick", spot_saved_at: "2026-10-20T00:00:00Z", opted_out_at: null });
+    db.customer_estimate_links!.push({ job_id: "job-pick", purpose: "step3_estimate", status: "active", token: "tokpick", expires_at: FUTURE });
+    const asked: string[] = [];
+    const contact = (c: { name: string; tradingName: string | null; officePhone: string | null; email: string | null } | null) =>
+      async (jobId: string, role: "installer" | "electrician") => { asked.push(`${jobId}:${role}`); return c; };
+    const go = (id: string, c: Parameters<typeof contact>[0]) => autoReplyToOwner({ jobIds: ["job-pick"], message: msg({ id, from: "pat@example.com", body: "What's next?" }), mailbox: MAILBOX,
+      switches: { approved: true, archive: false }, deps: { businessContact: contact(c) } });
+    for (const [id, c] of [["p1", null], ["p2", { name: "Rapid Pty Ltd", tradingName: "Rapid Insulation", officePhone: null, email: "o@r.test" }]] as const) {
+      const r = await go(id, c);
+      expect(r).toMatchObject({ status: "held", suppressDraft: false, officeRow: true });
+      expect(r.detail).toMatch(/office phone/);
+    }
+    expect(asked).toEqual(["job-pick:installer", "job-pick:installer"]);
+    expect(calls.owner.length + calls.testEmail.length).toBe(0);
+    expect(ev(EMAIL_AUTO_REPLIED_EVENT).length).toBe(0); // nothing claimed
+    expect(ev(EMAIL_AUTO_REPLY_HELD_EVENT).length).toBe(2);
+    expect((await go("p1", { name: "Rapid Pty Ltd", tradingName: "Rapid Insulation", officePhone: "03 9000 0000", email: null })).status).toBe("already"); // held stays held
+    const ok = await go("p3", { name: "Rapid Pty Ltd", tradingName: "Rapid Insulation", officePhone: "03 9000 0000", email: null });
+    expect(ok.status).toBe("sent");
+    expect(calls.lastText).toContain("Rapid Insulation will call you from 03 9000 0000 to book it.");
+    expect(calls.lastText).not.toContain("my-job/tokpick");
+    const n = asked.length;
+    await run({ id: "s9" }); // spot saved answer: no installer lookup at all
+    expect(asked.length).toBe(n);
   });
   test("archive switch off → sent, nothing moved, nothing recorded about filing", async () => {
     reset();

@@ -15,7 +15,7 @@ import { renderFollowupEmail } from "./followup-email";
 import { renderEstimateFollowupEmail } from "./estimate-followup.core";
 import { renderSpotSavedEmail, renderSpotSavedSms } from "./spot-saved-messages.core";
 import { renderNewSenderReplyEmail } from "./new-sender-reply-email.core";
-import { renderChangeReplyEmail, cancelNote } from "./email-change-reply.core";
+import { renderChangeReplyEmail } from "./email-change-reply.core";
 import { ownerCodeEmail, ownerCodeSmsBody } from "./owner-code-delivery.core";
 import { renderReadyCheckTimesEmail } from "./ready-check-times-email.core";
 import { renderReadyCheckBookedEmail } from "./ready-check-booked-email.core";
@@ -387,9 +387,9 @@ const OWNER: TemplateEntry[] = [
     source: { builder: "src/lib/completion-emails.core.ts", fn: "renderReviewRequestEmail", sender: "src/lib/approved-owner-emails.server.ts" }, design: "docs/templates/mjml/owner_O51.mjml",
     render: () => email(renderReviewRequestEmail({ firstName: "Helen", installer: REINSULATE, starUrl: (n) => `${JOB}?screen=review&stars=${n}`, googleReviewUrl: "https://g.page/r/TEST/review", referralUrl: "https://homeinsulationvictoria.com.au/homeowner?ref=TEST" })) }),
   // Any time
-  ENTRY({ id: "owner:change-reply", section: "owner", step: "any", kind: "email", code: "", name: "Change or cancel reply", when: "A matched owner emails to change a visit day/time or cancel: ONE reply with their My job link", who: "Owner", approvalNote: "Jo 25 Oct 2026, decision 337", gate: { kind: "email" },
+  ENTRY({ id: "owner:change-reply", section: "owner", step: "any", kind: "email", code: "", name: "Change or cancel reply", when: "A matched owner emails to change a visit day/time or cancel: ONE reply with the installer's or electrician's office phone", who: "Owner", approvalNote: "Jo 25 Oct 2026, decision 337; wording Jo 2 Nov 2026, decisions 54–58", gate: { kind: "email" },
     source: { builder: "src/lib/email-change-reply.core.ts", fn: "renderChangeReplyEmail", sender: "src/lib/email-change-reply.server.ts" },
-    render: () => email(renderChangeReplyEmail({ firstName: "Helen", visit: "install", link: `${JOB}?screen=book`, cancelNote: cancelNote(false), theirSubject: "Change of install day", unsubscribe: null })) }),
+    render: () => email(renderChangeReplyEmail({ firstName: "Helen", visit: "install", business: "Rapid Insulation", officePhone: "03 9000 0000", theirSubject: "Change of install day", unsubscribe: null })) }),
   ENTRY({ id: "owner:O69", section: "owner", step: "any", kind: "email", code: "O69", name: "Job cancelled", when: "The office cancels the job with the owner tick on", who: "Owner", approvalNote: "Jo 25 Oct 2026, decision 291", gate: { kind: "email" },
     source: { builder: "src/lib/cancel-notice.core.ts", fn: "renderOwnerCancelledEmail", sender: "src/lib/cancel-notice.server.ts" }, design: "docs/templates/mjml/owner_O69.mjml",
     render: () => email(renderOwnerCancelledEmail({ firstName: "Helen", jobNumber: "HV-TEST", address: ADDRESS, officePhone: "03 9000 0000" })) }),

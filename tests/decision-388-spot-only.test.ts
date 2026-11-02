@@ -6,7 +6,7 @@
 // Run: bun test tests/decision-388-spot-only.test.ts
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { PRE_RELEASE_FORBIDDEN, SPOT_PROCESS_STATEMENT, SPOT_RELEASE_LINE, preReleaseViolations } from "../src/lib/spot-only-copy.core";
+import { PRE_RELEASE_FORBIDDEN, SPOT_INSTALLER_CALLS, SPOT_PROCESS_STATEMENT, SPOT_RELEASE_LINE, preReleaseViolations, preReleaseViolationsAllowing } from "../src/lib/spot-only-copy.core";
 import { O2_DONT_KNOW_INTRO, renderJoOutcomeEmail, type JoOutcomeEmailInput } from "../src/lib/jo-outcome-email.core";
 import { renderSpotSavedEmail, renderSpotSavedSms } from "../src/lib/spot-saved-messages.core";
 import { ESTIMATE_FOLLOWUP_APPROVED, ESTIMATE_FOLLOWUP_STEPS, renderEstimateFollowupEmail } from "../src/lib/estimate-followup.core";
@@ -99,15 +99,32 @@ describe("pre-release emails and texts are spot-only", () => {
     clean("O7", renderCoverageUnavailableEmail({ firstName: "Helen", suburb: "Mildura", postcode: "3500", missing: ["installer"], reference: "HV-TEST" }).plainText);
   });
   test("O76 auto-replies before release: wording and routing (a waiting owner asking for the quote gets the spot-saved answer)", () => {
-    for (const a of ["save_spot", "answers_save_spot", "spot_saved", "answers_received"] as const) clean(a, answerText(a, { firstName: "Helen", link: "https://x/my-job/t" }));
-    expect(LONG_LIST).toBe("Thousands of Victorians have registered. Spots are released in the order they were saved.");
+    // Decisions 19 + 54–58 (Jo 2 Nov 2026): the spot-saved answers may say SPOT_INSTALLER_CALLS — that one sentence only.
+    const allowedFor = (a: string) => (a === "spot_saved" || a === "answers_received" ? [SPOT_INSTALLER_CALLS] : []);
+    const cleanO76 = (a: string, text: string) => expect({ a, found: preReleaseViolationsAllowing(text, allowedFor(a)) }).toEqual({ a, found: [] });
+    for (const a of ["save_spot", "answers_save_spot", "spot_saved", "answers_received"] as const) cleanO76(a, answerText(a, { firstName: "Helen", link: "https://x/my-job/t" }));
+    expect(LONG_LIST).toBe("Spots are released in the order they were saved.");
     for (const a of ["save_spot", "answers_save_spot", "spot_saved", "answers_received"] as const) {
       const m = renderOwnerAutoReplyEmail({ answer: a, facts: { firstName: "Helen", link: "https://x/my-job/t" }, theirSubject: "Quote" });
-      clean(`${a} html`, m.html.replace(/<[^>]+>/g, " "));
+      cleanO76(`${a}`, m.html.replace(/<[^>]+>/g, " "));
     }
     const f: OwnerJobFacts = { stage: "spot_saved", ownerFullName: "Helen Yang", spotSaved: true, questionsAnswered: false, nextVisit: null, quoteStatus: null, myJobLink: "https://x/my-job/t", questionsLink: "https://x/estimate/t/video" };
     const d = decideOwnerAutoReply({ subject: "Quote", body: "Where is my quote?", fromName: "Helen", hasAttachments: false, attachments: [], jobCount: 1, senderIsOwner: true, senderIsPartnerOrStaff: false, job: f });
     expect(d).toMatchObject({ kind: "send", answer: "spot_saved" });
+  });
+});
+
+describe("the decision-19 opening is narrow", () => {
+  test("only the exact sentence is allowed, only where a caller passes it; everything else stays forbidden", () => {
+    expect(SPOT_INSTALLER_CALLS).toBe("When an EEC-certified installer is available, they'll call you to book your free Ready Check.");
+    // The ordinary scanner (AI drafts, every other renderer) is NOT widened.
+    expect(preReleaseViolations(SPOT_INSTALLER_CALLS).length).toBeGreaterThan(0);
+    expect(PRE_RELEASE_FORBIDDEN.test(SPOT_INSTALLER_CALLS)).toBe(true);
+    expect(preReleaseViolationsAllowing(SPOT_INSTALLER_CALLS, [SPOT_INSTALLER_CALLS])).toEqual([]);
+    // Other forbidden content beside it, or a changed copy of it, is still caught.
+    for (const bad of [`${SPOT_INSTALLER_CALLS} We'll call shortly.`, `${SPOT_INSTALLER_CALLS} An installer will offer you times.`,
+      "When an EEC-certified installer is available, they'll call you to book your free Ready Check soon.", "They'll call you to book your free Ready Check.", "Book your free Ready Check this week."])
+      expect({ bad, found: preReleaseViolationsAllowing(bad, [SPOT_INSTALLER_CALLS]).length > 0 }).toEqual({ bad, found: true });
   });
 });
 

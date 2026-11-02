@@ -76,23 +76,22 @@ describe("wording (approved route)", () => {
     expect(changeReplySubject("Install day")).toBe("Re: Install day");
     expect(changeReplySubject("RE: Install day")).toBe("RE: Install day");
     expect(changeReplySubject(null)).toBe("Re: Your email");
-    // MJML refresh (docs/templates/mjml/owner_change-reply.mjml): the approved words in short sentences, link on its own line.
-    expect(changeReplyText({ firstName: "Jane", visit: "install", link: `${LINK}?screen=book`, cancelNote: CANCEL_NOTE_REPLY })).toBe(
-      `Hi Jane,\n\nNo problem\n\nYou can change your install day on your job page. Your installer will be told straight away.\nChange my install day: ${LINK}?screen=book\n\nIf you'd rather cancel, you can do that on the same page. Or reply to this email and we'll sort it out with you.\n\n— Home Insulation Victoria`);
-    expect(changeReplyText({ firstName: null, visit: "piesa", link: LINK, cancelNote: "" })).toBe(
-      `Hi there,\n\nNo problem\n\nYou can change your electrical safety check on your job page. Your electrician will be told straight away.\nChange my electrical safety check: ${LINK}\n\nIf you'd rather cancel, you can do that on the same page.\n\n— Home Insulation Victoria`);
-    expect(changeReplyText({ firstName: "Sam", visit: "ready_check", link: LINK, cancelNote: "" })).toContain("change your Ready Check visit on your job page. Your installer will be told");
+    // Decisions 54–58 item 3 (Jo 2 Nov 2026) replace the job page wording: the trade's office phone, no link.
+    expect(changeReplyText({ firstName: "Jane", visit: "install", business: "Rapid Insulation", officePhone: "03 9000 0000" })).toBe(
+      "Hi Jane,\n\nNo problem\n\nCall Rapid Insulation on 03 9000 0000 to change it. To cancel, just reply to this email.\n\n— Home Insulation Victoria");
+    expect(changeReplyText({ firstName: null, visit: "piesa", business: "Sparky Co", officePhone: "03 9111 1111" })).toBe(
+      "Hi there,\n\nNo problem\n\nCall Sparky Co on 03 9111 1111 to change it. To cancel, just reply to this email.\n\n— Home Insulation Victoria");
   });
   test("first name: owner on file first, then the From name; never an address", () => {
     expect(changeReplyFirstName("jane smith", "Someone Else")).toBe("Jane");
     expect(changeReplyFirstName(null, "Smith, Bob")).toBe("Bob");
     expect(changeReplyFirstName(null, "bob@example.com")).toBeNull();
   });
-  test("the email carries the link and the same words, plus the TEST label only for test-send", () => {
-    const f = { firstName: "Jane", visit: "install" as const, link: `${LINK}?screen=book`, cancelNote: "", theirSubject: "Change of plans" };
+  test("the email carries the same words and no link, plus the TEST label only for test-send", () => {
+    const f = { firstName: "Jane", visit: "install" as const, business: "Rapid Insulation", officePhone: "03 9000 0000", theirSubject: "Change of plans" };
     const live = renderChangeReplyEmail({ ...f, unsubscribe: "https://u.example/x" });
     expect(live.subject).toBe("Re: Change of plans");
-    expect(live.html).toContain(`href="${LINK}?screen=book"`);
+    expect(live.html).not.toContain("my-job");
     expect(live.html).not.toContain("TEST — only sent to Jo");
     expect(live.text).toContain(changeReplyText(f));
     expect(renderChangeReplyEmail({ ...f, test: true }).html).toContain("TEST — only sent to Jo");

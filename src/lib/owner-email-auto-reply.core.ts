@@ -14,8 +14,11 @@
 //   link that is missing = draft. Never an invented link, date or price. Never the calculator: a NEW enquirer (no
 //   job) is pointed only to the website's homeowner page (Jo 25 Oct) — and this module never answers one at all
 //   (non-owner = skip, no link = draft, so no O76 answer ever carries a non-owner link).
-// - Jo asked that owners waiting for an installer are told there is a long list and spots are released in the order
-//   they were saved (`LONG_LIST`).
+// - Owners waiting are told spots are released in the order they were saved (`LONG_LIST`; "Thousands…" removed, decisions
+//   54–58, Jo 2 Nov 2026) and that an EEC-certified installer will call to book the free Ready Check (decision 19 wording).
+// - Decisions 54–58: "pick a time" answers say who calls, from the installer's business OFFICE phone (`AnswerFacts.installer`,
+//   filled by the server from `businessContactForJob`); no office phone → the answer throws → held. No "See where you're up
+//   to" / My job home buttons: only the one relevant page (quote, pay) or no button.
 // Wording (O76a–O76j in docs/templates/drafts/) approved by Jo 27 Oct 2026 (decision 406): OWNER_EMAIL_AUTO_REPLY_APPROVED = true;
 // real sends still need the customer messages switch + consent; TEST jobs → test-send.
 import * as K from "./email-kit.core";
@@ -24,6 +27,7 @@ import { classifyEmailIntents, type EmailIntent } from "./email-intent.core";
 import { classifyIntent, latestReplyText } from "./outlook-correspondence.core";
 import { firstNameOf, isEnquiryStage, slotText, type Slot } from "./email-reply.core";
 import { newSenderReplySubject } from "./new-sender-reply.core";
+import { SPOT_INSTALLER_CALLS } from "./spot-only-copy.core";
 
 /** Jo approved the O76 wording on 27 Oct 2026 (decision 406). Real delivery also needs customer_comms_enabled + consent. */
 export const OWNER_EMAIL_AUTO_REPLY_APPROVED: boolean = true;
@@ -37,7 +41,7 @@ export const OWNER_EMAIL_AUTO_REPLY_PURPOSE = "owner_email_auto_reply";
 /** The Needs me row reuses the decision-245 email row (`email_change_request`) with this intent: "reply needed". */
 export const REPLY_NEEDED_INTENT = "reply";
 export const SIGN_OFF = "Cheers, the Home Insulation Victoria team";
-export const LONG_LIST = "Thousands of Victorians have registered. Spots are released in the order they were saved.";
+export const LONG_LIST = "Spots are released in the order they were saved.";
 
 /** Idempotency: one automatic reply per Outlook message, ever. */
 export function autoReplyKey(providerMessageId: string): string {
@@ -107,7 +111,9 @@ export type AutoReplyDecision =
   | { kind: "draft"; reason: string }
   | { kind: "skip"; reason: string };
 
-export type AnswerFacts = { firstName: string | null; link: string; visit?: { kind: VisitKind; slot: Slot } | null };
+/** `installer`: the installer's business name + OFFICE phone (`businesses.phone`, never a worker's mobile), for the
+ *  answers where the installer calls to book (`answerNeedsInstaller`). */
+export type AnswerFacts = { firstName: string | null; link: string; visit?: { kind: VisitKind; slot: Slot } | null; installer?: { name: string; officePhone: string } | null };
 
 // ---------------------------------------------------------------- topic detection (latest reply text only)
 
@@ -276,57 +282,77 @@ export function quoteScreenLink(myJobLink: string): string {
   return `${myJobLink.replace(/[?#].*$/, "").replace(/\/+$/, "")}?screen=quote`;
 }
 
-export type AnswerParagraphs = { greeting: string; lines: string[]; linkLine: string; signOff: string };
+export type AnswerParagraphs = { greeting: string; lines: string[]; linkLine: string | null; signOff: string };
 
-/** The approved MJML design per answer (docs/templates/mjml/waiting_O76a–j.mjml): heading, body lines, one button. */
-type AnswerDesign = { heading: string; body: string[]; bold: string | null; button: string; href: string; preview: string | null };
+/** The pay screen of the owner's own My job link. */
+export function payScreenLink(myJobLink: string): string {
+  return `${myJobLink.replace(/[?#].*$/, "").replace(/\/+$/, "")}?screen=pay`;
+}
 
-function answerDesign(answer: AnswerType, f: AnswerFacts): AnswerDesign {
+/** The approved MJML design per answer (docs/templates/mjml/waiting_O76a–j.mjml): heading, body lines, one button or none. */
+export type AnswerDesign = { heading: string; body: string[]; bold: string | null; button: string | null; href: string; preview: string | null };
+
+/** The answers where the installer calls to book: pick a time, and "quote after the Ready Check" with no booked time. */
+export function answerNeedsInstaller(answer: AnswerType, f: { visit?: AnswerFacts["visit"] }): boolean {
+  return answer === "pick_times" || (answer === "quote_after_ready_check" && !f.visit);
+}
+
+/** Decisions 54–58 item 2. Throws when there is no installer office phone: the server holds the reply. */
+function installerCalls(f: AnswerFacts): string {
+  const i = f.installer;
+  const name = i?.name.trim(), phone = i?.officePhone.trim();
+  if (!name || !phone) throw new Error("no installer office phone on file — the automatic reply is held");
+  return `${name} will call you from ${phone} to book it.`;
+}
+
+export function answerDesign(answer: AnswerType, f: AnswerFacts): AnswerDesign {
   const v = f.visit ?? null;
   const when = v ? slotText(v.slot) : null;
-  // Decision 388: before release, never an installer, times or a Ready Check — only that we'll be in touch.
-  const waitingNext = `${LONG_LIST} We'll be in touch when yours is released.`;
-  const pickTimes = "Your installer has offered some times. Just pick the one that suits you.";
-  const d = (heading: string, body: string[], button: string, preview: string | null, href = f.link, bold: string | null = null): AnswerDesign => ({ heading, body, bold, button, href, preview });
+  // Decisions 54–58 item 1 (decision 19 wording, which opens the decision-388 ban for this one sentence).
+  const waitingNext = `${LONG_LIST} ${SPOT_INSTALLER_CALLS}`;
+  const d = (heading: string, body: string[], button: string | null, preview: string | null, href = f.link, bold: string | null = null): AnswerDesign => ({ heading, body, bold, button, href, preview });
   switch (answer) {
     case "save_spot":
       return d("It only takes a few seconds", ["Answer three quick questions about your ceiling (just tap, no typing), then press Save my spot.", `${LONG_LIST} No payment, no obligation.`], "Answer & save my spot", "Three quick taps, then one button. No payment needed.");
     case "answers_save_spot":
       return d("One more tap to save your spot", ["Thanks, we've got your answers. Now just press Save my spot.", `${LONG_LIST} No payment, no obligation.`], "Save my spot", "Thanks for answering. Your spot isn't saved until you press the button.");
     case "spot_saved":
-      return d("Yes, your spot is saved", ["There's nothing more you need to do right now.", waitingNext], "See where you're up to", "There's nothing more you need to do right now.");
+      return d("Yes, your spot is saved", ["There's nothing more you need to do right now.", waitingNext], null, "There's nothing more you need to do right now.");
     case "answers_received":
-      return d("Thanks, your spot is saved", ["We've got your answers.", waitingNext], "See where you're up to", "We've got your answers and there's nothing more to do right now.");
+      return d("Thanks, your spot is saved", ["We've got your answers.", waitingNext], null, "We've got your answers and there's nothing more to do right now.");
     case "visit_booked":
       return v && when
-        ? d(`Your ${VISIT_WORDS[v.kind]} is booked`, [`It's on ${when}.`], "See the details", `It's on ${when}.`, f.link, when)
-        : d("Your visit is booked", [], "See the details", null);
-    case "pick_times":
-      return d("Pick a time for your free Ready Check", [pickTimes], "Pick your time", "Your installer has offered some times. Pick the one that suits you.");
+        ? d(`Your ${VISIT_WORDS[v.kind]} is booked`, [`It's on ${when}.`], null, `It's on ${when}.`, f.link, when)
+        : d("Your visit is booked", [], null, null);
+    case "pick_times": {
+      const calls = installerCalls(f);
+      return d("Pick a time for your free Ready Check", [calls], null, calls);
+    }
     case "quote_ready":
       return d("Your quote is ready", ["You can read it and accept it on your page."], "See your quote", "You can read it and accept it on your page.", quoteScreenLink(f.link));
     case "quote_preparing":
-      return d("Your quote is being prepared", ["Your Ready Check is done. We'll email you as soon as your quote is ready."], "See where you're up to", "Your Ready Check is done. We'll email you when your quote is ready.");
-    case "quote_after_ready_check":
+      return d("Your quote is being prepared", ["Your Ready Check is done. We'll email you as soon as your quote is ready."], null, "Your Ready Check is done. We'll email you when your quote is ready.");
+    case "quote_after_ready_check": {
       // Only after release (times offered or a Ready Check booked); waiting owners get the spot-saved answer.
-      return when
-        ? d("Your quote comes after your free Ready Check", ["That's when the installer measures your ceiling.", `Your Ready Check is booked for ${when}.`], "See where you're up to", `Your Ready Check is booked for ${when}.`, f.link, when)
-        : d("Your quote comes after your free Ready Check", ["That's when the installer measures your ceiling.", pickTimes], "See where you're up to", "Your installer has offered some times. Pick the one that suits you.");
+      if (when) return d("Your quote comes after your free Ready Check", ["That's when the installer measures your ceiling.", `Your Ready Check is booked for ${when}.`], null, `Your Ready Check is booked for ${when}.`, f.link, when);
+      const calls = installerCalls(f);
+      return d("Your quote comes after your free Ready Check", ["That's when the installer measures your ceiling.", calls], null, calls);
+    }
     case "how_to_pay":
-      return d("How to pay", ["Everything you need is on your page, including the amount and the ways to pay."], "See what's due and how to pay", "The amount and the ways to pay are on your page.");
+      return d("How to pay", ["Everything you need is on your page, including the amount and the ways to pay."], "See what's due and how to pay", "The amount and the ways to pay are on your page.", payScreenLink(f.link));
   }
 }
 
 /** Plain-text parts in the order of the email: greeting, heading + lines, the button's link, the team sign-off. */
 export function answerParagraphs(answer: AnswerType, f: AnswerFacts): AnswerParagraphs {
   const d = answerDesign(answer, f);
-  return { greeting: `Hi ${f.firstName ?? "there"},`, lines: [d.heading, ...d.body], linkLine: `${d.button}: ${d.href}`, signOff: SIGN_OFF };
+  return { greeting: `Hi ${f.firstName ?? "there"},`, lines: [d.heading, ...d.body], linkLine: d.button ? `${d.button}: ${d.href}` : null, signOff: SIGN_OFF };
 }
 
 /** The reply as one plain-text body (also what the tests and the Templates page read). */
 export function answerText(answer: AnswerType, f: AnswerFacts): string {
   const p = answerParagraphs(answer, f);
-  return [p.greeting, "", ...p.lines, "", p.linkLine, "", p.signOff].join("\n");
+  return [p.greeting, "", ...p.lines, "", ...(p.linkLine ? [p.linkLine, ""] : []), p.signOff].join("\n");
 }
 
 export type OwnerAutoReplyEmail = { subject: string; html: string; text: string };
@@ -336,7 +362,7 @@ export function renderOwnerAutoReplyEmail(i: { answer: AnswerType; facts: Answer
   const d = answerDesign(i.answer, i.facts);
   const subject = newSenderReplySubject(i.theirSubject);
   const line = (l: string) => (d.bold && l.includes(d.bold) ? l.split(d.bold).map(esc).join(`<strong>${esc(d.bold)}</strong>`) : esc(l));
-  const body = `<mj-section><mj-column><mj-text mj-class="hi">${esc(`Hi ${i.facts.firstName ?? "there"},`)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${esc(d.heading)}</mj-text>${d.body.map((l) => `<mj-text>${line(l)}</mj-text>`).join("")}<mj-button href="${esc(d.href)}">${esc(d.button)}</mj-button><mj-text padding="0 12px 6px">Cheers,<br />the Home Insulation Victoria team</mj-text></mj-column></mj-section>`;
+  const body = `<mj-section><mj-column><mj-text mj-class="hi">${esc(`Hi ${i.facts.firstName ?? "there"},`)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${esc(d.heading)}</mj-text>${d.body.map((l) => `<mj-text>${line(l)}</mj-text>`).join("")}${d.button ? `<mj-button href="${esc(d.href)}">${esc(d.button)}</mj-button>` : ""}<mj-text padding="0 12px 6px">Cheers,<br />the Home Insulation Victoria team</mj-text></mj-column></mj-section>`;
   return {
     subject,
     html: mjEmail({ subject, preview: d.preview, body, unsubscribe: i.unsubscribe ?? null, testLabel: i.test === true }),
@@ -355,7 +381,7 @@ export const ANSWER_SAMPLES: Record<AnswerType, { theirSubject: string; facts: A
   spot_saved: { theirSubject: "Is my spot saved?", facts: { firstName: "Helen", link: SAMPLE_MY_JOB } },
   answers_received: { theirSubject: "Answered the questions", facts: { firstName: "Helen", link: SAMPLE_MY_JOB } },
   visit_booked: { theirSubject: "Ready Check", facts: { firstName: "Helen", link: SAMPLE_MY_JOB, visit: { kind: "ready_check", slot: SAMPLE_RC } } },
-  pick_times: { theirSubject: "What happens next?", facts: { firstName: "Helen", link: SAMPLE_MY_JOB } },
+  pick_times: { theirSubject: "What happens next?", facts: { firstName: "Helen", link: SAMPLE_MY_JOB, installer: { name: "Rapid Insulation", officePhone: "03 9000 0000" } } },
   quote_ready: { theirSubject: "Where is my quote?", facts: { firstName: "Helen", link: SAMPLE_MY_JOB } },
   quote_preparing: { theirSubject: "Quote", facts: { firstName: "Helen", link: SAMPLE_MY_JOB } },
   quote_after_ready_check: { theirSubject: "Quote", facts: { firstName: "Helen", link: SAMPLE_MY_JOB, visit: { kind: "ready_check", slot: SAMPLE_RC } } },
