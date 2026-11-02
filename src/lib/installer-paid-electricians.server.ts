@@ -82,21 +82,46 @@ export async function inHouseFactsFor(businessId: string) {
 }
 
 /** Per job: the installer we pay for the safety check, or null (we pay the electrician as usual). */
-export async function safetyCheckPayeesFor(jobs: { id: string; originating_installer_business_id: string | null }[]): Promise<Map<string, InstallerPaidElectricians | null>> {
+export async function safetyCheckPayeesFor(jobs: { id: string; channel?: string | null; originating_installer_business_id: string | null }[]): Promise<Map<string, InstallerPaidElectricians | null>> {
   const out = new Map<string, InstallerPaidElectricians | null>(jobs.map((j) => [j.id, null]));
-  const originating = [...new Set(jobs.flatMap(j => j.originating_installer_business_id ? [j.originating_installer_business_id] : []))];
+  const ownJobs = jobs.filter(j => j.channel === "installer_sourced");
+  if (ownJobs.length) {
+    const ids = [...new Set(ownJobs.flatMap(j => j.originating_installer_business_id ? [j.originating_installer_business_id] : []))];
+    const businesses = await installerSafetyCheckBusinessesFor(ids);
+    const recorded = new Map<string, number>();
+    for (const part of chunkIds(ownJobs.map(j => j.id), 200)) {
+      const { data, error } = await admin.from("quotes").select("job_id,quote_items(code,line_total_inc_gst)").in("job_id", part).eq("kind", "installation").in("status", ["accepted", "issued"]).order("created_at", { ascending: false });
+      if (error) throw new Error("Could not read recorded safety check quote prices.");
+      for (const q of data ?? []) {
+        const lines = (q.quote_items ?? []).filter(l => l.code === "PIESA");
+        const inc = lines.length === 1 ? Number(lines[0]?.line_total_inc_gst) : NaN;
+        if (!recorded.has(q.job_id) && Number.isFinite(inc) && inc > 0) recorded.set(q.job_id, inc);
+      }
+    }
+    for (const j of ownJobs) {
+      const b = businesses.get(j.originating_installer_business_id ?? "");
+      const inc = recorded.get(j.id) ?? b?.piesaIncGst;
+      if (!b || inc == null || !Number.isFinite(inc) || inc <= 0) throw new Error("Installer business has no PIESA rate on its rate card");
+      out.set(j.id, { businessId: b.id, name: b.name, piesaIncGst: inc });
+    }
+  }
+  // Preserve the existing flag-driven legacy path; explicit website leads never receive an installer-source payee.
+  const legacyJobs = jobs.filter(j => j.channel == null);
+  if (!legacyJobs.length) return out;
+  const originating = [...new Set(legacyJobs.flatMap(j => j.originating_installer_business_id ? [j.originating_installer_business_id] : []))];
   // Speed (installer screens, Task 5): the electrician choices are read alongside the business configuration (for the
   // jobs that have an originating installer) and used only for the candidates, as before. A failed choice read still
   // fails only when there is a candidate.
-  const withInstaller = [...new Set(jobs.filter((j) => j.originating_installer_business_id).map((j) => j.id))];
+  const withInstaller = [...new Set(legacyJobs.filter((j) => j.originating_installer_business_id).map((j) => j.id))];
   const choicesP = withInstaller.length
     ? Promise.all(chunkIds(withInstaller, 200).map((ids) => Promise.resolve(admin.from("workflow_events").select("job_id, details, created_at").in("job_id", ids).eq("event_type", "mitti_electrician_recorded").order("created_at", { ascending: false }))))
     : null;
   choicesP?.catch(() => undefined);
   const businesses = await ownElectricianBusinessesFor(originating);
-  const candidates = jobs.filter((j) => installerPaysOwnElectricians(businesses.get(j.originating_installer_business_id ?? "")));
+  const candidates = legacyJobs.filter((j) => installerPaysOwnElectricians(businesses.get(j.originating_installer_business_id ?? "")));
   if (!candidates.length) return out;
-  const parts = await choicesP!;
+  if (!choicesP) return out;
+  const parts = await choicesP;
   const failed = parts.find((r) => r.error);
   if (failed?.error) throw new Error(`Could not read the Ready Check electrician choices: ${failed.error.message}`);
   const candidateIds = new Set(candidates.map((j) => j.id));

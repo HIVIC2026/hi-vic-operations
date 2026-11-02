@@ -12,7 +12,7 @@ export const getInstallerLedInvoice = createServerFn({ method: "POST" }).middlew
     await requireAdmin(context.supabase);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { data: job, error } = await admin.from("jobs")
-      .select("installer_led, electrician_choice, ap_fee_override_inc_gst, ap_fee_override_reason, ap_fee_override_at")
+      .select("installer_led, channel, originating_installer_business_id, electrician_choice, ap_fee_override_inc_gst, ap_fee_override_reason, ap_fee_override_at")
       .eq("id", data.jobId).single();
     if (error) throw new Error(error.message);
     const [{ data: s, error: se }, { data: quote, error: qe }] = await Promise.all([
@@ -29,7 +29,10 @@ export const getInstallerLedInvoice = createServerFn({ method: "POST" }).middlew
     const standardApFee = s ? Number(s.ap_management_inc_gst) : null;
     const override = job.ap_fee_override_inc_gst != null ? Number(job.ap_fee_override_inc_gst) : null;
     const apFee = override ?? standardApFee;
-    const piesa = piesaChargeIncGst((job.electrician_choice as ElectricianChoice | null) ?? null, s ? Number(s.piesa_assessment_inc_gst) : null);
+    const recordedPiesa = quote?.quote_items?.find(i => i.code === "PIESA")?.line_total_inc_gst;
+    const piesa = recordedPiesa != null ? Number(recordedPiesa) : job.channel === "installer_sourced"
+      ? await (await import("./installer-paid-electricians.server")).installerSafetyCheckPrice(job.originating_installer_business_id)
+      : piesaChargeIncGst((job.electrician_choice as ElectricianChoice | null) ?? null, s ? Number(s.piesa_assessment_inc_gst) : null);
     const price = installerLedOwnerPrice({
       // The quote already carries an AP_FEE line; strip it so the installer's price isn't counted twice.
       installerQuoteIncGst: quote ? Number(quote.subtotal_inc_gst) - (quote.quote_items ?? []).filter((i) => i.code === "AP_FEE" || i.code === "PIESA").reduce((a, i) => a + Number(i.line_total_inc_gst), 0) : 0,

@@ -503,7 +503,7 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
     const safetyDone = new Set(books.filter((b) => b.status === "confirmed" && b.kind === "assessment" && formComplete(b)).map((b) => b.job_id));
     return books.filter((b) => b.status === "completed" || (b.kind === "assessment" && safetyDone.has(b.job_id)));
   };
-  const checkJobsOf = (done: Book[]) => [...new Map(done.filter((b) => b.kind === "assessment").map((b) => [b.job_id, { id: b.job_id, originating_installer_business_id: (b.jobs as { originating_installer_business_id?: string | null }).originating_installer_business_id ?? null }])).values()];
+  const checkJobsOf = (done: Book[]) => [...new Map(done.filter((b) => b.kind === "assessment").map((b) => [b.job_id, { id: b.job_id, channel: (b.jobs as { channel?: string | null }).channel ?? null, originating_installer_business_id: (b.jobs as { originating_installer_business_id?: string | null }).originating_installer_business_id ?? null }])).values()];
   // Jo 26 Oct 2026: an installer that pays its own electricians (Reinsulate) is paid for the safety checks they did.
   const displayP = kind === "installer" ? readInstallerPaidElectricians(bizId).catch((error: unknown) => {
     console.error("In-house partner display read failed", error);
@@ -522,8 +522,9 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
     theirP,
     kind === "electrician" ? admin.from("electrician_rates").select("rate_inc_gst, effective_from").eq("business_id", bizId).eq("service_type", "piesa").in("status", ["active", "approved"]).order("effective_from", { ascending: false }).limit(1) : Promise.resolve({ data: [] as { rate_inc_gst: number | string | null }[] }),
   ]);
-  const keepTheirs = !!displayPayer && !displayPayer.release_hold_reason;
-  const books = [...(ownBooks ?? []), ...(keepTheirs ? theirAll ?? [] : [])];
+  const theirSourceJobs = (theirAll ?? []).filter(b => (b.jobs as { channel?: string | null }).channel === "installer_sourced");
+  const keepTheirs = (!!displayPayer && !displayPayer.release_hold_reason) || theirSourceJobs.length > 0;
+  const books = [...(ownBooks ?? []), ...(displayPayer && !displayPayer.release_hold_reason ? theirAll ?? [] : theirSourceJobs)];
   const done = doneOf(books);
   const checkJobs = checkJobsOf(done);
   // One safety check row per job (a completed and a confirmed booking for the same job are one payout).

@@ -98,8 +98,10 @@ export const getProfitRegister = createServerFn({ method: "POST" }).middleware([
     const hasLine = (items.data ?? []).some((l) => qids.includes(l.quote_id) && /\(PIESA\)/.test(l.description ?? ""));
     // Jo 3 Nov 2026: installer jobs pass the owner's $349 to the installer; our leads pay the office payout ($275),
     // unless the accepted offer recorded its own rate (HV-3682 stays $349).
-    const inc = scp.safetyCheckPayoutIncGst({ channel: c.channel, offerRateInc: offerRates.get(c.id) ?? null, ownerPriceIncGst: ownerPiesa, hivPayoutIncGst: hivPayout });
-    cur.piesaCostEx = Math.round((inc / gst) * 100) / 100; cur.piesaCostMissing = false;
+    const recordedFee = (items.data ?? []).find(l => qids.includes(l.quote_id) && /\(PIESA\)/.test(l.description ?? ""))?.line_total_inc_gst;
+    const ownerFee = c.channel === "installer_sourced" ? recordedFee != null ? Number(recordedFee) : null : ownerPiesa;
+    const inc = ownerFee == null ? null : scp.safetyCheckPayoutIncGst({ channel: c.channel, offerRateInc: c.channel === "installer_sourced" ? null : offerRates.get(c.id) ?? null, ownerPriceIncGst: ownerFee, hivPayoutIncGst: hivPayout });
+    cur.piesaCostEx = inc == null ? null : Math.round((inc / gst) * 100) / 100; cur.piesaCostMissing = inc == null;
     if (electricalBillingSource({ channel: c.channel, choice: (c as { electrician_choice?: string | null }).electrician_choice ?? null, committedLineOnAcceptedQuote: hasLine, hivPaidAt: null }) === "owner_direct") { cur.piesaCostEx = 0; cur.piesaCostMissing = false; }
   }
   const rows = (jobs.data ?? []).filter((j) => j.id && byJob.has(j.id) && j.source !== "qa_test" && j.stage !== "cancelled").map((j) => ({
