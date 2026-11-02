@@ -60,3 +60,32 @@ describe("embed script inputs", () => {
     expect(decideInstructionsAttachment(["Mystery R4", "Mystery R4"], () => true).missing).toEqual(["Mystery R4"]);
   });
 });
+
+describe("embed script run", () => {
+  const { mkdtempSync, mkdirSync, writeFileSync, copyFileSync } = require("node:fs");
+  const { tmpdir } = require("node:os");
+  const { join } = require("node:path");
+  const setup = (bradford: "valid" | "bad") => {
+    const root = mkdtempSync(join(tmpdir(), "embed-"));
+    mkdirSync(join(root, "docs/product-instructions"), { recursive: true });
+    mkdirSync(join(root, "src/lib"), { recursive: true });
+    const target = join(root, "docs/product-instructions/bradford-ceiling-batt-B0328-rev3.pdf");
+    if (bradford === "valid") copyFileSync("docs/product-instructions/bradford-ceiling-batt-B0328-rev3.pdf", target);
+    else writeFileSync(target, "<html>error page</html>");
+    writeFileSync(join(root, "src/lib/product-instructions.data.ts"), "// untouched\n");
+    return root;
+  };
+  const run = (root: string) => Bun.spawnSync(["bun", "scripts/embed-product-instructions.ts"], { env: { ...process.env, INSTRUCTIONS_ROOT: root + "/" }, stdout: "pipe", stderr: "pipe" });
+  test("a rejected file exits 1 and leaves the data file unchanged", () => {
+    const root = setup("bad");
+    const r = run(root);
+    expect(r.exitCode).toBe(1);
+    expect(readFileSync(join(root, "src/lib/product-instructions.data.ts"), "utf8")).toBe("// untouched\n");
+  });
+  test("a valid file exits 0 and writes the data file", () => {
+    const root = setup("valid");
+    const r = run(root);
+    expect(r.exitCode).toBe(0);
+    expect(readFileSync(join(root, "src/lib/product-instructions.data.ts"), "utf8")).toContain("bradford-ceiling-batt-B0328-rev3.pdf");
+  });
+});

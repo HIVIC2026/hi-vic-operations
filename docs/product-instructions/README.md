@@ -7,7 +7,7 @@ right one to the "All done" email. Code: `src/lib/product-instructions.core.ts`.
 ## Add or replace a document
 
 1. Drop the real manufacturer PDF in this folder using the exact file name below.
-2. Run `bun scripts/embed-product-instructions.ts` (skips and reports non-PDFs and reseller hosts).
+2. Run `bun scripts/embed-product-instructions.ts` (skips and reports non-PDFs and reseller hosts; if any present file is rejected it exits non-zero and writes nothing).
 3. Commit the PDF and the regenerated `src/lib/product-instructions.data.ts`.
 
 ## Status (3 Nov 2026)

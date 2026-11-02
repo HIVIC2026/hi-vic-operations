@@ -9,9 +9,11 @@ import { looksLikePdf } from "../src/lib/product-warranty.core";
 import { PRODUCT_INSTRUCTIONS } from "../src/lib/product-instructions.list";
 
 const entries0 = PRODUCT_INSTRUCTIONS;
+if (entries0.length === 0) { console.error("No instruction documents listed in product-instructions.list.ts"); process.exit(1); }
 const RESELLER = /(bunnings|bunnings\.com|amazon|ebay|bigw|mitre10|reece|totaltools)/i;
 
-const ROOT = new URL("..", import.meta.url).pathname;
+// INSTRUCTIONS_ROOT is for tests only (a temp dir holding docs/product-instructions and src/lib).
+const ROOT = process.env.INSTRUCTIONS_ROOT ?? new URL("..", import.meta.url).pathname;
 const entries: string[] = [];
 const report: string[] = [];
 let rejected = 0;
@@ -33,7 +35,8 @@ export const PRODUCT_INSTRUCTION_PDFS: Readonly<Record<string, string>> = {
 ${entries.join("\n")}
 };
 `;
-writeFileSync(join(ROOT, "src/lib/product-instructions.data.ts"), out);
 console.log(report.join("\n"));
-if (rejected) { console.error(`\n${rejected} file(s) rejected — fix before committing.`); process.exit(1); }
+// Validate everything first: on any rejection exit 1 and leave the data file untouched.
+if (rejected) { console.error(`\n${rejected} file(s) rejected — data file NOT written. Fix before committing.`); process.exit(1); }
+writeFileSync(join(ROOT, "src/lib/product-instructions.data.ts"), out);
 console.log(`\nEmbedded ${entries.length} of ${entries0.length} instruction documents → src/lib/product-instructions.data.ts`);
