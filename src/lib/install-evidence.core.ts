@@ -16,7 +16,7 @@ import { norm } from "./mitti.core";
 import { melbourneToday } from "./melbourne-time.core";
 import type { MittiMediaFile } from "./piesa-evidence.core";
 import { INSTALL_DAY_Q as ID, INSTALL_DAY_RULER_Q, INSTALL_DAY_SOLAR_BACK_OPTIONS, allWithLabel, installDayRulerPhotos, isInstallDayDoc, labelKey as key, labelledItems, NO_SIGNATURE, type InstallDayRulerRead, type Labelled, type ReadSignature } from "./install-day.core";
-import { activity48ProductProblems, modelsForMittiOption } from "./esc-approved-products.core";
+import { activity48ProductProblems, modelsForStoredOption } from "./esc-approved-products.core";
 import { APPROVED_PRODUCTS } from "./insulation-product.core";
 import { FINAL_TICK_MISSING } from "./install-day-confirm.core";
 
@@ -553,7 +553,7 @@ export function declaredProductProblems(option: string | null | undefined, dates
   if (!option && !recordedCodes.length) return [];
   let codes = [...recordedCodes];
   if (!codes.length) {
-    const models = modelsForMittiOption(option!);
+    const models = modelsForStoredOption(option!);
     if (!models.length) return [`Product "${option}" does not match any model on the ESC approved list — office must confirm the model from the packaging photo.`];
     codes = [models[0]!.code]; // one representative model per option: every model of the option shares the R-value
   }

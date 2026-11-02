@@ -76,9 +76,9 @@ describe("Bradford warranty is the Australian CSR document", () => {
     expect(createHash("sha256").update(bytes).digest("hex")).toBe(createHash("sha256").update(proof).digest("hex"));
     expect(bradford.pdfPath).toBe("docs/product-warranties/bradford-au-lifetime-warranty.pdf");
   });
-  test("no ECOWOOL anywhere under src/", () => {
+  test("ECOWOOL appears in src only as the historic ESC list and the hold wording (never an offered product)", () => {
     const hits = Bun.spawnSync(["grep", "-rli", "ecowool", "src"], { cwd: new URL("..", import.meta.url).pathname }).stdout.toString().trim();
-    expect(hits).toBe("");
+    expect(hits.split("\n").sort()).toEqual(["src/lib/esc-approved-products.core.ts", "src/lib/product-warranty.core.ts"]);
   });
 });
 
@@ -119,7 +119,7 @@ describe("completion pack attach / record decision", () => {
     expect(eco.attach).toEqual([]);
     expect(eco.recordProvided).toBe(false);
     expect(eco.missing).toEqual([{ product: "ECOWOOL R5", reason: "ECOWOOL R5 is not one of the approved product options, so no warranty document is mapped to it." }]);
-    expect(warrantyHoldReason("ECOWOOL R5")).toBe("Warranty copy for ECOWOOL R5 not on file.");
+    expect(warrantyHoldReason("ECOWOOL R5")).toBe("ECOWOOL is an excluded product — no warranty copy on file.");
     expect(decideWarrantyAttachment(["Bradford Gold R6", "ECOWOOL R5"], onFile([bradford.pdfPath])).recordProvided).toBe(false);
     expect(decideWarrantyAttachment([], onFile([bradford.pdfPath])).recordProvided).toBe(false);
     const unknown = decideWarrantyAttachment(["Knauf Jetstream"], onFile([]));
@@ -140,7 +140,7 @@ describe("AP signature hold (decision 271 prerequisite)", () => {
   };
   test("holds with 'warranty copy for <product> not on file' when the installed product's PDF is missing", () => {
     expect(apPrerequisiteBlockers({ ...base, warrantyProductsNotOnFile: ["ECOWOOL R5"] })).toEqual([warrantyHoldReason("ECOWOOL R5")]);
-    expect(warrantyHoldReason("ECOWOOL R5")).toBe("Warranty copy for ECOWOOL R5 not on file.");
+    expect(warrantyHoldReason("ECOWOOL R5")).toBe("ECOWOOL is an excluded product — no warranty copy on file.");
     expect(warrantyHoldReason("Bradford Gold R6")).toContain("https://www.csrbradford.com.au/");
   });
   test("keeps the generic wording when no product gap is known, and clears once the copy is recorded", () => {

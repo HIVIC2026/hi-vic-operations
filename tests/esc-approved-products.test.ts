@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { ESC_APPROVED_PRODUCTS, activity48ProductProblems, modelsForMittiOption, productByCode, productLabel } from "../src/lib/esc-approved-products.core";
+import { HISTORIC_APPROVED_PRODUCTS, modelsForStoredOption, ESC_APPROVED_PRODUCTS, activity48ProductProblems, modelsForMittiOption, productByCode, productLabel } from "../src/lib/esc-approved-products.core";
+import { declaredProductProblems } from "../src/lib/install-evidence.core";
 import { APPROVED_PRODUCTS } from "../src/lib/insulation-product.core";
 
 describe("ESC Activity 48 register, 19 Oct 2026 (decision 149)", () => {
@@ -26,5 +27,19 @@ describe("ESC Activity 48 register, 19 Oct 2026 (decision 149)", () => {
       expect(m.every((p) => `R${p.rValue.toFixed(1)}` === o.rValue)).toBe(true);
     }
     expect(modelsForMittiOption("Fletchers Pink Batts R5").map((p) => p.code)).toEqual(["4006041", "4020598", "4006042", "4020599"]);
+  });
+});
+
+describe("ECOWOOL: excluded for new jobs, still valid for existing jobs (Jo 2 Nov 2026)", () => {
+  test("historic models validate by code and stored option; new-job paths never offer them", () => {
+    expect(HISTORIC_APPROVED_PRODUCTS.map((p) => p.code)).toEqual(["602009", "602010"]);
+    expect(productByCode("602009")?.brand).toBe("ECOWOOL");
+    expect(activity48ProductProblems(["602009"], "2026-10-30")).toEqual([]);
+    expect(modelsForStoredOption("ECOWOOL R5").length).toBe(2);
+    expect(declaredProductProblems("ECOWOOL R5", { installDate: "2026-10-30", veecCreationDate: "2026-11-05" })).toEqual([]);
+    expect(declaredProductProblems("ECOWOOL R5", { installDate: "2026-10-30", veecCreationDate: "2026-11-05" }, ["602009"])).toEqual([]);
+    expect(modelsForMittiOption("ECOWOOL R5")).toEqual([]);
+    expect(ESC_APPROVED_PRODUCTS.some((p) => p.brand === "ECOWOOL")).toBe(false);
+    expect(APPROVED_PRODUCTS.some((p) => /ecowool/i.test(p.option))).toBe(false);
   });
 });

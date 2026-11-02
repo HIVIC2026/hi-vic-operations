@@ -146,6 +146,7 @@ export function decideWarrantyAttachment(products: readonly string[], onFile: (p
 
 /** The AP-signature hold reason for a product whose warranty copy could not be given to the consumer. */
 export function warrantyHoldReason(product: string): string {
+  if (/ecowool/i.test(product)) return "ECOWOOL is an excluded product — no warranty copy on file.";
   const w = warrantyForOption(product);
   const how = w?.requestFrom ? ` (${w.requestFrom})` : w ? ` (${w.manufacturer}: ${w.sourceUrls[0]})` : "";
   return `Warranty copy for ${product} not on file${how}.`;

@@ -2,8 +2,9 @@
  * ESC VEU Activity 48 approved ceiling insulation products — pure.
  *
  * Source: ESC published register extract dated 19 October 2026, supplied by Jo 24 Oct 2026 (decision 149): 33 models,
- * of which 31 are kept (10 Bradford, 3 Earthwool, 18 Pink Batts); the 2 PGF models are left out because that brand is excluded (Jo 2 Nov 2026). Every entry: product category 48A, "Bulk insulation batt or
- * blanket", status Approved, effective from 14 April 2026. `code` is the manufacturer model code (the extract has no
+ * of which 31 are offered for new jobs (10 Bradford, 3 Earthwool, 18 Pink Batts). The 2 ECOWOOL models are excluded
+ * for new jobs (Jo 2 Nov 2026) and kept only in `HISTORIC_APPROVED_PRODUCTS` so existing jobs still validate.
+ * Every entry: product category 48A, "Bulk insulation batt or blanket", status Approved, effective from 14 April 2026. `code` is the manufacturer model code (the extract has no
  * separate ESC product ID). `family` is the product name as listed; when the register changes, replace this list and
  * bump REGISTER_SOURCE_DATE.
  *
@@ -16,7 +17,7 @@ export const PRODUCT_TYPE = "Bulk insulation batt or blanket";
 export const ACTIVITY_48_MIN_R = 5.0;
 
 export type EscProduct = {
-  family: string; brand: "Bradford" | "Earthwool" | "Pink Batts"; code: string;
+  family: string; brand: "Bradford" | "Earthwool" | "Pink Batts" | "ECOWOOL"; code: string;
   rValue: number; lengthMm: number; widthMm: number; thicknessMm: number | null; effectiveTo: string;
 };
 
@@ -54,12 +55,22 @@ export const ESC_APPROVED_PRODUCTS: readonly EscProduct[] = [
   { family: "PINK® Batts Ceiling Insulation", brand: "Pink Batts", code: "4006046", rValue: 7.0, lengthMm: 1160, widthMm: 580, thicknessMm: null, effectiveTo: "2029-08-02" },
 ];
 
+/** Excluded for new jobs by Jo 2 Nov 2026; kept so existing jobs validate (ESC still lists them). Never offered: `modelsForMittiOption` ignores this list. */
+export const HISTORIC_APPROVED_PRODUCTS: readonly EscProduct[] = [
+  { family: "ECOWOOL ® Insulation", brand: "ECOWOOL", code: "602009", rValue: 5.0, lengthMm: 1160, widthMm: 430, thicknessMm: 230, effectiveTo: "2029-05-08" },
+  { family: "ECOWOOL ® Insulation", brand: "ECOWOOL", code: "602010", rValue: 5.0, lengthMm: 1160, widthMm: 580, thicknessMm: 230, effectiveTo: "2029-05-08" },
+];
+
+/** Models of a stored (existing-job) option, including historic ones. For validating old jobs only, never for offering products. */
+export const modelsForStoredOption = (option: string): EscProduct[] =>
+  modelsForMittiOption(option).concat(/ecowool/i.test(option) ? HISTORIC_APPROVED_PRODUCTS.filter((p) => { const m = option.match(/R(\d+(?:\.\d+)?)\s*$/i); return m && Math.abs(p.rValue - Number(m[1])) < 1e-9; }) : []);
+
 const rText = (r: number) => `R${r.toFixed(1)}`;
 
 /** Dropdown label, e.g. "CSR Bradford Gold Ceiling Batt — R5.0 — 1160 × 430 mm — 467911". */
 export const productLabel = (p: EscProduct) => `${p.family} — ${rText(p.rValue)} — ${p.lengthMm} × ${p.widthMm} mm — ${p.code}`;
 
-export const productByCode = (code: string | null | undefined) => ESC_APPROVED_PRODUCTS.find((p) => p.code === String(code ?? "").trim()) ?? null;
+export const productByCode = (code: string | null | undefined) => [...ESC_APPROVED_PRODUCTS, ...HISTORIC_APPROVED_PRODUCTS].find((p) => p.code === String(code ?? "").trim()) ?? null;
 
 /** Approved on that day (inclusive of both ends), using the register's effective dates. */
 export function approvedOn(p: EscProduct, isoDate: string): boolean {
