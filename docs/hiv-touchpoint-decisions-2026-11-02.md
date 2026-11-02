@@ -293,3 +293,4 @@ Still to decide: 3-month phone consent expiry; work schedule in the contract; Re
 - Rentals: owner answers in the quick taps after "It's your turn" (rented? tenant name/mobile/email, who lets us in). Not in the Ready Check form.
 - Real runs: no trade pay; Xero invoices created then voided.
 - Own customers rentals (Jo, 2 Nov): owner gets the rental quick taps by text after the installer adds the job.
+- Jo (2 Nov 21:40): no owner-facing document may say "lawyer approved" or similar.
