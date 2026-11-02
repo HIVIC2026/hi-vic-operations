@@ -49,8 +49,11 @@ export function dedupeAnswers<T extends AiAnswer>(rows: T[]): T[] {
 }
 
 /** The answers as prompt lines. No rows saved (null/empty) → the seed. Blank answers are left out. */
+/** Old seed wording: the balance was due 7 days after the install was recorded. One-way rewrite to install day. */
+const OLD_BALANCE_7_DAYS = /(?:within |in )?7 days after (?:your |the )?install(?:ation)? (?:is )?recorded complete(?:d)?|7 days after recorded install complet(?:ion|ed)|7 days after install(?:ation)? complet(?:ion|ed)/gi;
+
 export function rulesFromAnswers(rows: AiAnswer[] | null): string[] {
   // Q21 supersedes saved old balance answers without rewriting their audit history.
-  const own = (rows ?? []).map((r) => r.answer.trim().replace(/(?:The )?balance is (?:paid )?by bank transfer or PayID\.?/gi,'The balance is due on install day and can be paid by card, bank transfer or PayID.')).filter(Boolean);
+  const own = (rows ?? []).map((r) => r.answer.trim().replace(OLD_BALANCE_7_DAYS,'on install day').replace(/(?:The )?balance is (?:paid )?by bank transfer or PayID\.?/gi,'The balance is due on install day and can be paid by card, bank transfer or PayID.')).filter(Boolean);
   return own.length ? own : AI_SEED_ANSWERS.map((r) => r.answer.trim());
 }
