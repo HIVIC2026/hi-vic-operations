@@ -8,6 +8,27 @@ describe("Jo 3 Nov: owner always pays $349 for the safety check", () => {
   });
 });
 
+describe("Jo 3 Nov 10:30am: installer-source price lists own the owner fee", () => {
+  it("Rapid installer job charges $275 and passes all $275 to Rapid", () => {
+    const owner = withOwnerSafetyCheckPrice({ ready: true, priceIncGst: 275 }, 349, "installer_sourced", 275).priceIncGst;
+    expect(owner).toBe(275);
+    const payout = safetyCheckPayoutIncGst({ channel: "installer_sourced", ownerPriceIncGst: owner ?? 0, hivPayoutIncGst: 275 });
+    expect(payout).toBe(275);
+    expect((owner ?? 0) - payout).toBe(0);
+  });
+  it("Reinsulate installer job charges its corrected $349 list price", () => {
+    expect(withOwnerSafetyCheckPrice({ ready: true, priceIncGst: 420 }, 349, "installer_sourced", 349).priceIncGst).toBe(349);
+  });
+  it("HIV lead charges $349 and pays the electrician $275 despite Rapid's price", () => {
+    const owner = withOwnerSafetyCheckPrice({ ready: true, priceIncGst: 275 }, 349, "hivic_sourced", 275).priceIncGst;
+    expect(owner).toBe(349);
+    expect(safetyCheckPayoutIncGst({ channel: "hivic_sourced", ownerPriceIncGst: owner ?? 0, hivPayoutIncGst: 275 })).toBe(275);
+  });
+  it("missing installer price holds instead of falling back to $349 or typed price", () => {
+    expect(withOwnerSafetyCheckPrice({ ready: true, priceIncGst: 420 }, 349, "installer_sourced", null).ready).toBe(false);
+  });
+});
+
 describe("Jo 3 Nov: HIV website-lead jobs pay the electrician $275", () => {
   it("defaults to $275 when the office setting is empty", () => {
     expect(hivElectricianPayoutIncGst(null)).toBe(275);
