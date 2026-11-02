@@ -160,12 +160,16 @@ async function signedAcceptanceAttachment(jobId: string, jobNumber: string | nul
 }
 
 /** Receipt PDF for the safety check payment (Task 3): only with PDF_LOOK_APPROVED.receipts on; nothing is attached otherwise or when it cannot be made. */
-async function safetyCheckReceiptAttachment(jobId: string, invoiceId: string, paidAt: string, jobNumber: string | null): Promise<import("./email-kit.core").EmailAttachment[]> {
+async function safetyCheckReceiptAttachment(jobId: string, invoiceId: string, paidAt: string, safetyCheckCents: number, jobNumber: string | null): Promise<import("./email-kit.core").EmailAttachment[]> {
   const { PDF_LOOK_APPROVED } = await import("./pdf-approvals.core");
-  if (!PDF_LOOK_APPROVED.receipts) return [];
-  const { data: evs } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "owner_payment_recorded").contains("details", { invoice_id: invoiceId }).order("created_at", { ascending: true });
-  const rows = (evs ?? []).map((e) => e.details as { receipt_key?: string; paid_at?: string } | null).filter((d): d is { receipt_key: string; paid_at?: string } => !!d?.receipt_key);
-  const key = (rows.find((d) => d.paid_at && Date.parse(d.paid_at) === Date.parse(paidAt)) ?? rows[0])?.receipt_key;
+  const { safetyCheckReceiptKey } = await import("./safety-check-receipt.core");
+  type Ev = import("./safety-check-receipt.core").ReceiptEvent;
+  const load = async (type: string) => {
+    const { data } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", type).contains("details", { invoice_id: invoiceId }).order("created_at", { ascending: true });
+    return (data ?? []).map((e) => (e.details ?? {}) as Ev);
+  };
+  // Exactly one matching, un-reversed safety check payment or nothing is attached (the email still goes).
+  const key = await safetyCheckReceiptKey({ receiptsApproved: PDF_LOOK_APPROVED.receipts, loadEvents: async () => ({ recorded: await load("owner_payment_recorded"), reversed: await load("owner_payment_reversed") }) }, { paidAt, safetyCheckCents });
   if (!key) return [];
   const { fileReceiptPdf } = await import("./receipt-pdf.server");
   const filed = await fileReceiptPdf(jobId, "safety_check", key);
@@ -201,7 +205,7 @@ export async function onSafetyCheckPaid(jobId: string, invoiceId: string): Promi
     return fireOwnerEmailOnce(jobId, "O22", ownerEmailKey.youreIn(quoteId), async () => {
       const attachments = [
         ...await signedAcceptanceAttachment(jobId, job?.job_number ?? null).catch(() => []),
-        ...await safetyCheckReceiptAttachment(jobId, invoiceId, paidAt, job?.job_number ?? null).catch(() => []),
+        ...await safetyCheckReceiptAttachment(jobId, invoiceId, paidAt, v.plan.safetyCheckCents, job?.job_number ?? null).catch(() => []),
       ];
       const { emailOwnerYoureIn } = await import("./approved-owner-emails.server");
       return emailOwnerYoureIn(jobId, quoteId, {
