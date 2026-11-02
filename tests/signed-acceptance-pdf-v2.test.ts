@@ -104,6 +104,22 @@ describe("signed acceptance helpers", () => {
     expect(paymentSplitCents(20000, 34900)).toEqual({ safety: 20000, deposit: 0, rest: 0 });
     expect(formatValidUntil(new Date("2026-12-08T12:00:00Z"))).toBe("Tue 8 Dec 2026");
   });
+  test("payment split matches the payments plan (one rule, no drift)", async () => {
+    const { paymentSplitCents } = await import("../src/lib/signed-acceptance.core");
+    const { paymentPlan } = await import("../src/lib/payments.core");
+    for (const [total, safety] of [[218800, 34900], [218805, 22050], [20000, 34900], [100000, 0], [100001, 22000]] as const) {
+      const p = paymentPlan({ quoteTotalCents: total, safetyCheckCents: safety });
+      expect(paymentSplitCents(total, safety)).toEqual({ safety: p.safetyCheckCents, deposit: p.installDepositCents, rest: p.balanceCents });
+    }
+  });
+  test("'How you pay' prints the job's own safety check amount, not a fixed $349", async () => {
+    const { acceptancePage1 } = await import("../src/lib/signed-acceptance.core");
+    const pay = (i: SignedAcceptanceInput) => acceptancePage1(i).find((b) => b.id === "a-pay") as { text: string };
+    expect(pay(SAMPLE).text).toStartWith("$349 now for the electrical safety check (PIESA).");
+    const rec = { ...SAMPLE, agreement: { ...SAMPLE.agreement, facts: { ...SAMPLE.agreement.facts, safety_check: "$220" } } };
+    expect(pay(rec).text).toStartWith("$220 now for the electrical safety check (PIESA).");
+    expect(pay(rec).text).not.toContain("349");
+  });
 });
 
 describe("legacy PDF path stays light (I2)", () => {

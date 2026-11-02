@@ -2,6 +2,7 @@
 // Part 3's quote page imports ACCEPTANCE_TICKS so the page and the PDF cannot drift.
 import type { AgreementFacts } from "./customer-agreement.core";
 import type { PdfBlock } from "./pdf-look.core";
+import { paymentPlan } from "./payments.core";
 
 export const AP_COUNTERSIGNER = { name: "Chris Lowe", role: "Director, DC Construction Solutions Pty Ltd" } as const;
 
@@ -38,6 +39,9 @@ const firstName = (full: string) => full.trim().split(/\s+/)[0] || full;
 /** Page 1 of the signed acceptance, in the order of the approved sample (accept-full.html). */
 export function acceptancePage1(i: SignedAcceptanceInput): PdfBlock[] {
   const at = formatSignedAt(i.signedAt);
+  // The job's own safety check amount (the same figure the agreement's payment terms print), never a fixed $349.
+  const safety = (i.agreement.facts.safety_check ?? "").trim();
+  if (!safety) throw new Error("Signed acceptance is missing the safety check amount");
   const c = true;
   return [
     { id: "a-head", kind: "header", eyebrow: `SIGNED ACCEPTANCE · JOB ${i.jobNumber}`, compact: c },
@@ -54,7 +58,7 @@ export function acceptancePage1(i: SignedAcceptanceInput): PdfBlock[] {
       ["Old insulation removal", i.removalM2 == null ? "No" : `Yes, ${i.removalM2} m²`],
       ["Electrical upgrades", "Not included. Your electrician quotes these if the safety check finds any."],
     ] },
-    { id: "a-pay", kind: "para", compact: c, lead: "How you pay:", text: "$349 now for the electrical safety check (PIESA). 10% to book your install day. The rest on install day." },
+    { id: "a-pay", kind: "para", compact: c, lead: "How you pay:", text: `${safety} now for the electrical safety check (PIESA). 10% to book your install day. The rest on install day.` },
     { id: "a-h-agreed", kind: "heading", text: `What ${firstName(i.ownerName)} agreed to` },
     { id: "a-ticks", kind: "ticks", compact: c, items: [...ACCEPTANCE_TICKS] },
     { id: "a-sigs", kind: "signatures", cells: [
@@ -76,9 +80,9 @@ export function agreementSignedLine(i: Pick<SignedAcceptanceInput, "ownerName" |
 
 /** The three payments printed in the agreement's payment terms: safety check, 10% of the rest to book, then the remainder. Cents in, cents out. */
 export function paymentSplitCents(totalCents: number, safetyCents: number): { safety: number; deposit: number; rest: number } {
-  const safety = Math.min(Math.max(safetyCents, 0), totalCents);
-  const deposit = Math.round((totalCents - safety) * 0.1);
-  return { safety, deposit, rest: totalCents - safety - deposit };
+  // One rule: the payments plan (payments.core) decides the split, so the agreement and the money cards can't drift.
+  const p = paymentPlan({ quoteTotalCents: totalCents, safetyCheckCents: safetyCents });
+  return { safety: p.safetyCheckCents, deposit: p.installDepositCents, rest: p.balanceCents };
 }
 
 /** "Mon 8 Dec 2026" in Melbourne time (the agreement's valid-until wording). */
