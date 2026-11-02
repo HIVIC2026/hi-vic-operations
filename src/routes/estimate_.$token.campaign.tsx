@@ -12,7 +12,7 @@ import { EXISTING_PRELIMINARY, removalNote, type EstimateRemoval } from "@/lib/e
 import { REMOVAL_UPTO_NOTE, priceRangeLine, removalUpToLine } from "@/lib/estimate-removal-upto.core";
 // Decision 388: this page is shown BEFORE the spot is released, so it is spot-only (no Ready Check, times, measuring,
 // quote timing, speed or queue-jumping promises). Changed directly — no approval flag holds page copy.
-import { SPOT_FREE, SPOT_IN_TOUCH, SPOT_ORDER, SPOT_PRICE_NOTE, SPOT_REGISTERED, SPOT_RELEASE_LINE } from "@/lib/spot-only-copy.core";
+import { SPOT_FREE, SPOT_IN_TOUCH, SPOT_ORDER, SPOT_PRICE_NOTE, SPOT_RELEASE_LINE } from "@/lib/spot-only-copy.core";
 
 export const Route = createFileRoute("/estimate_/$token/campaign")({
   ssr: false,
@@ -68,7 +68,7 @@ function Result({ group, videoPriority, token, rebate, customer, suburb, home, r
     <div className="mt-5 rounded-xl bg-estimate-heads-up p-4 text-estimate-navy">
       <p className="font-bold">Smart move{firstName ? `, ${firstName}` : ""}. Your spot is saved.</p>
       <p className="mt-0.5 font-bold text-estimate-logo-green">Your {$(rebate)} rebate is waiting.</p>
-      <p className="mt-2 text-sm">{SPOT_REGISTERED} {SPOT_ORDER} You've locked in your place, so there's nothing more you need to do.</p>
+      <p className="mt-2 text-sm">{SPOT_ORDER} You've locked in your place, so there's nothing more you need to do.</p>
       <p className="mt-2 text-sm">{SPOT_IN_TOUCH}</p>
     </div>
     <dl className="mt-4 grid gap-2 rounded-xl border border-estimate-line p-4 text-sm text-estimate-navy">
@@ -106,8 +106,8 @@ function CampaignDesign({ saveAllowed, ownerQualified, reviewStatus, group, toke
     <section className="mt-7">
       <p className={`text-[11px] font-extrabold uppercase tracking-[0.13em] ${onsite ? "text-estimate-green" : "text-estimate-logo-green"}`}>{onsite ? "Check your insulation" : "🎉 Your rebate is waiting"}</p>
       <h1 className="mt-2 font-display text-[32px] font-extrabold leading-[1.15]">{onsite ? <>{name ? `${name}, take` : "Take"} <span className="text-estimate-logo-green">{rebate}</span> off your ceiling insulation</> : <>Great news{name ? `, ${name}` : ""}! You could take <span className="text-estimate-logo-green">{rebate}</span> off your ceiling insulation</>}</h1>
-      <p className="mt-4 text-[15px] leading-relaxed">Your {suburb ? `${suburb} ` : ""}home {onsite ? "could be eligible" : "looks eligible"} for the Victorian Energy Upgrades rebate. That means your estimated quote, based on what you've told us, is <strong>{money(p.total)}</strong> instead of {money(p.gross)}, and enjoy lower power bills for years to come.</p>
-      <p className="mt-3 text-sm font-extrabold">{onsite ? "Help us check your insulation so you can save your spot." : `${SPOT_REGISTERED} ${SPOT_ORDER}`}</p>
+      <p className="mt-4 text-[15px] leading-relaxed">Your {suburb ? `${suburb} ` : ""}home {onsite ? "could be eligible" : "looks eligible"} for the Victorian Energy Upgrades rebate. That means your estimated quote, based on what you've told us, is <strong>{money(p.total)}</strong> instead of {money(p.gross)}.</p>
+      <p className="mt-3 text-sm font-extrabold">{onsite ? "Help us check your insulation so you can save your spot." : SPOT_ORDER}</p>
       <div className="mt-5">{ownerQualified && <p className="mb-3 text-sm">Your owner declaration qualifies you to save your spot. Your eligibility and any removal costs are confirmed before you agree to anything.</p>}{onsite ? videoBtn : saveBtn}</div>
       {onsite ? <p className="mt-3 text-center text-sm">Answer either question Yes to qualify for the preliminary queue, or send photos or video for office review.</p> : <p className="mt-3 text-center text-sm">Free · no payment · no obligation</p>}
       {error && <p role="alert" className="mt-2 text-center text-sm text-danger">{error}</p>}
@@ -119,7 +119,7 @@ function CampaignDesign({ saveAllowed, ownerQualified, reviewStatus, group, toke
         <p className="mt-1 font-display text-[38px] font-extrabold leading-[42px] text-estimate-green">You could save {rebate}</p>
       </div>
       <div className="pb-3 pt-[18px] text-center">
-        <p className="text-[10px] font-extrabold uppercase tracking-[0.13em]">Your estimated cost after rebate</p>
+        <p className="text-[10px] font-extrabold uppercase tracking-[0.13em]">Your estimated quote based on what you've told us</p>
         <p className="mt-1 font-display text-[46px] font-extrabold leading-[50px] text-estimate-blue">{money(p.total)}</p>
         <p className="mt-1 text-xs font-bold">incl. GST · before rebate {money(p.gross)}</p>
       </div>
@@ -148,7 +148,7 @@ function CampaignDesign({ saveAllowed, ownerQualified, reviewStatus, group, toke
       {onsite ? <><p className="mt-3 text-sm leading-relaxed">{INSULATION_REVIEW_INVITATION}</p><p className="mt-2 text-xs">Only if you can do it safely. Please don’t climb into or walk through the roof space.</p><div className="mt-4">{videoBtn}</div><p className="mt-3 text-center text-sm">{reviewStatus === "pending" ? "Your insulation details are awaiting office review." : reviewStatus === "not_eligible" ? "Our office has assessed your insulation as not eligible. Please contact us with any questions." : reviewStatus === "needs_onsite_check" ? "Our office needs to check a few more details before we can offer Save my spot." : "Photos and video need office review. No payment. No obligation."}</p></>
         : <><p className="mt-3 text-sm leading-relaxed">One tap and you're in. {SPOT_FREE} {SPOT_RELEASE_LINE}</p><div className="mt-4">{ownerQualified && <p className="mb-3 text-sm text-estimate-navy">Your Yes answer qualifies you to save your spot. Your existing insulation and any removal needs are confirmed before you agree to a final price.</p>}{saveBtn}</div></>}
     </section>
-    <p className="mt-5 text-xs leading-relaxed text-estimate-navy/70">Estimate only. Your price can change if your ceiling is a different size, old insulation needs removing, access is tricky, or the electrician finds something to fix. We never add work or cost without showing you first and getting your OK.</p>
+    <p className="mt-5 text-xs leading-relaxed text-estimate-navy/70">Estimate only. Your price can change if your ceiling is a different size, old insulation needs removing, access is tricky, or the electrical safety check (PIESA) finds electrical upgrades are needed. We never add work or cost without showing you first and getting your OK.</p>
     <footer className="mt-6 border-t border-estimate-line pt-4 text-center text-xs text-estimate-navy/70">
       <p className="font-bold text-estimate-navy">Home Insulation Victoria</p>
       <p className="mt-1">DC Construction Solutions Pty Ltd trading as Home Insulation Victoria.</p>

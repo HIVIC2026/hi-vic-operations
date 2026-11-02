@@ -134,7 +134,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string | n
   const subtotal = ownSubtotal;
   // Jo, 5 Oct 2026: same basis as the calculator — whole VEECs (Eq 48.1 rounded down, property postcode) × consumer
   // $/VEEC, then the $200 minimum rule. The old flat per-m² credit is no longer used for new/redrafted quotes.
-  if (!loc) throw new WorkflowError("VEU discount can't be worked out: the property postcode isn't in the official VEU location list. Quote this job manually.");
+  if (!loc) throw new WorkflowError("Rebate can't be worked out: the property postcode isn't in the official VEU location list. Quote this job manually.");
   const wv = wholeVeecDiscount(qi.areaM2, loc, Number(rs.indicative_veec_value));
   const rules = applyDiscountRules(wv.raw, subtotal, metro, rs);
   const veec = r2(rules.discount);

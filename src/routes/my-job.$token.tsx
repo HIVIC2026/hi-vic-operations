@@ -12,7 +12,7 @@ import { gateACard, SPOT_SAVED_PROGRESS, spotSavedLayout, resolveOwnerScreen } f
 import { OWNER_EMAIL_DOCUMENT_CONSENT, quoteSittingBlockers } from '@/lib/owner-quote-sign.core';
 import { ownerPaperworkFn } from "@/lib/owner-gates.functions";
 import { earliestInstall, installDeadline, TWO_HOUR_WINDOWS, visitPill, type OwnerScreen } from "@/lib/owner-myjob.core";
-import { SPOT_FREE, SPOT_PRICE_NOTE, SPOT_REGISTERED, SPOT_RELEASE_LINE, SPOT_WAIT_LINE } from "@/lib/spot-only-copy.core";
+import { SPOT_FREE, SPOT_PRICE_NOTE, SPOT_RELEASE_LINE, SPOT_WAIT_LINE } from "@/lib/spot-only-copy.core";
 import { PAYMENT_OPTION_SUMMARY, paymentOptionSummary } from "@/lib/payment-gate.core";
 import { howYouPayLines, paymentPlan } from "@/lib/payments.core";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -1142,7 +1142,7 @@ function SpotSavedHome({ v, token }: { v: View; token: string }) {
     </section>
     <OwnerRunTime token={token} />
     <OwnerReadyCheckTimes token={token} />
-    {L.showWaitingBox && <p className="rounded-[18px] bg-estimate-heads-up p-4 text-sm"><strong>{SPOT_REGISTERED}</strong> {SPOT_RELEASE_LINE}</p>}
+    {L.showWaitingBox && <p className="rounded-[18px] bg-estimate-heads-up p-4 text-sm">{SPOT_RELEASE_LINE}</p>}
     {card === "todo" && <section data-testid="gate-a-todo" className="rounded-[22px] border-2 border-estimate-green bg-card p-5">
       <p className="text-xs font-bold uppercase tracking-wide text-estimate-green">While you wait · 2 minutes</p>
       <h2 className="mt-1 font-display text-xl font-extrabold">Get your paperwork out of the way</h2>

@@ -96,8 +96,8 @@ export const SPOT_SAVED_PROGRESS = [
   { label: "Spot released", sub: "Spots are released in the order they were saved. We'll be in touch when your spot is released." },
   { label: "Your quote", sub: "Rebate taken off" },
   { label: "PIESA", sub: "Pre Insulation Electrical Safety Assessment by a licensed electrician" },
-  { label: "Install", sub: "About 4 hours" },
-  { label: "Done", sub: "Lower bills for years" },
+  { label: "Install", sub: "" },
+  { label: "Done", sub: "" },
 ] as const;
 /** Spot-saved page once the spot is released (Jo, 29 Oct, HV-3542): no "waiting" lines, "Spot released" ticked, quote is current. */
 /** Released for the page = the latest release is waiting on the owner or confirmed. Lapsed = back on the waiting list. */

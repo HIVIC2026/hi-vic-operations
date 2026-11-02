@@ -83,7 +83,7 @@ describe("approved owner email designs", () => {
   test("O2 Save my spot, some insulation", () => {
     const m = renderJoOutcomeEmail({ outcome: "likely_eligible", insulation: "present", ceilingSizeKnown: true, declaredThinPatchy: true, recipient: HELEN, figures: { ...FIG, removalUpTo: 2055 }, links: LINKS })!;
     shell(m.html, m.plainText, true);
-    has(m.html, ["Helen, you may qualify for $1,610 off ceiling insulation", "Your potential rebate", "Your cost if eligible", "Your existing insulation", "Up to $2,055 for your 137 m² ceiling.", "$15/m²", "Save my free spot", "already R2.0 or above"]);
+    has(m.html, ["Helen, you may qualify for $1,610 off ceiling insulation", "Your potential rebate", "Your estimated quote based on what you've told us", "Your existing insulation", "Up to $2,055 for your 137 m² ceiling.", "$15/m²", "Save my free spot", "already R2.0 or above"]);
   });
   test("O2 insulation questions", () => {
     const m = renderJoOutcomeEmail({ outcome: "needs_onsite_confirmation", insulation: "unknown", ceilingSizeKnown: true, insulationQuestions: true, recipient: HELEN, figures: { ...FIG, removalUpTo: 2055 }, links: LINKS })!;
@@ -123,7 +123,7 @@ describe("approved owner email designs", () => {
   test("O18 Quote ready", () => {
     const m = renderOwnerQuoteEmail(quote);
     shell(m.html, m.text, true);
-    has(m.html, ["Hi Helen, your quote is ready.", "You save $1,850 on ceiling insulation", "Taken off upfront. Nothing for you to claim.", ">$2,200.00<", "$4,050.00", "Measured at your Ready Check", ">View and accept your quote<", ">Your quote</div>", "137.6 m² × $20.00 per m²", "installed by Reinsulate, EEC-certified (AS 3999)", "40 m² × $15.00 per m²", "By a licensed electrician, before any insulation goes in", "Home Insulation Victoria (VEU A003654)", ">Full price<", "−$1,850.00", ">You pay<", "Not included: electrical fixes", "accept and pay $349.00", "held until 7 November 2026"]);
+    has(m.html, ["Hi Helen, your quote is ready.", "You save $1,850 on ceiling insulation", "Taken off upfront. Nothing for you to claim.", ">$2,200.00<", "$4,050.00", "Measured at your Ready Check", ">View and accept your quote<", ">Your quote</div>", "137.6 m² × $20.00 per m²", "installed by Reinsulate, EEC-certified (AS 3999)", "40 m² × $15.00 per m²", "By a licensed electrician, before any insulation goes in", "Home Insulation Victoria (VEU A003654)", ">Full price<", "−$1,850.00", ">You pay<", "Not included: electrical upgrades", "accept and pay $349.00", "held until 7 November 2026"]);
     expect(OWNER_QUOTE_EMAIL_APPROVED).toBe(true);
   });
   test("O19 Quote reminder", () => {

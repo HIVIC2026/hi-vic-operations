@@ -10,7 +10,7 @@
 import { esc, mjEmail } from "./mail-mjml.core";
 import { changeVisitLink, visitGroupForStage, type ChangeVisit } from "./email-change-reply.core";
 import { smsQuietReason } from "./quote-hold.core";
-import { SPOT_FREE, SPOT_PRICE_NOTE, SPOT_REGISTERED, SPOT_RELEASE_LINE, isPreReleaseStage } from "./spot-only-copy.core";
+import { SPOT_FREE, SPOT_PRICE_NOTE, SPOT_RELEASE_LINE, isPreReleaseStage } from "./spot-only-copy.core";
 import { rulesFromAnswers, type AiAnswer } from "./ai-answers.core";
 import type { StyleExample } from "./ai-style.core";
 import type { SpotReleaseState } from "./spot-release.core";
@@ -129,7 +129,7 @@ export const aiReplyInstructions = (o: AiPromptOpts = {}): string => (o.preRelea
 export const AI_BUSINESS_RULES = rulesFromAnswers(null);
 
 /** Before release: the same answers plus Jo's spot-only, release and wait lines. Nothing may give a date, timeframe or speed. */
-const preReleaseExtras = [SPOT_FREE, SPOT_REGISTERED, SPOT_RELEASE_LINE, AI_RELEASE_MEANS, AI_WAIT_LINE, SPOT_PRICE_NOTE];
+const preReleaseExtras = [SPOT_FREE, SPOT_RELEASE_LINE, AI_RELEASE_MEANS, AI_WAIT_LINE, SPOT_PRICE_NOTE];
 
 export function buildAiReplyInput(c: AiReplyContext, o: AiPromptOpts = {}): string {
   const pre = o.preRelease === true;

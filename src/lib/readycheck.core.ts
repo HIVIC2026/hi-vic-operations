@@ -190,7 +190,7 @@ export type AllowanceSnapshot = {
 };
 
 export const UNPRICEABLE_COPY = "Additional electrical work may be required — unable to estimate from the preliminary observations.";
-export const ALLOWANCE_COPY = "Based on the observable electrical items recorded during your Ready Check and Home Insulation Victoria’s agreed electrician rate card. Your mandatory PIESA is completed later by a licensed electrician and confirms the actual Pre Insulation Electrical Safety Assessment (PIESA) requirements before installation.";
+export const ALLOWANCE_COPY = "Based on the observable electrical items recorded during your Ready Check and Home Insulation Victoria’s agreed electrician rate card. Your electrical safety check (PIESA) is completed later by a licensed electrician and confirms the actual Pre Insulation Electrical Safety Assessment (PIESA) requirements before installation.";
 
 function triggered(item: RateCardItem, obs: Observations): boolean {
   const v = obs[item.triggerKey];

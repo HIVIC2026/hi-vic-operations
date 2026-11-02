@@ -12,7 +12,7 @@ import { EXISTING_PRELIMINARY, REMOVAL_BUDGET_EMAIL_NOTE, removalNote, type Esti
 import * as K from "./email-kit.core";
 import { mjEmail } from "./mail-mjml.core";
 import { includedCardsText, mjExistingInsulation, mjIncludedCards, mjLinkCard, mjSmallEnd } from "./jo-outcome-email.core";
-import { SPOT_FREE, SPOT_IN_TOUCH, SPOT_ORDER, SPOT_PRICE_NOTE, SPOT_REGISTERED } from "./spot-only-copy.core";
+import { SPOT_FREE, SPOT_IN_TOUCH, SPOT_ORDER, SPOT_PRICE_NOTE } from "./spot-only-copy.core";
 
 /** Jo 23 Oct 2026: shown to everyone in both Spot saved confirmations. */
 export const SPOT_SAVED_NOT_INCLUDED = "Not included: if the electrical safety check finds anything that needs fixing, that work is extra and will be quoted separately.";
@@ -27,7 +27,7 @@ export type SpotSavedInput = { firstName: string | null; rebate: number; suburb:
   removal?: EstimateRemoval | null };
 
 // Decision 70 layout, decision 388 wording.
-export const SPOT_SAVED_BATCH_TEXT = `${SPOT_REGISTERED} ${SPOT_ORDER} You've locked in your place, so there's nothing more you need to do right now.`;
+export const SPOT_SAVED_BATCH_TEXT = `${SPOT_ORDER} You've locked in your place, so there's nothing more you need to do right now.`;
 /** Kept for callers; the suburb is no longer used (no promise about installers near the owner). */
 export const spotSavedTeamText = (_suburb: string | null) => `${SPOT_IN_TOUCH.replace(/\.$/, "")}, with your next step.`;
 
@@ -40,7 +40,7 @@ export function addressBits(addressLine: string | null, suburb: string | null) {
 
 export function renderSpotSavedSms(i: SpotSavedInput) {
   const name = i.firstName?.trim() ? `, ${i.firstName.trim()}` : "";
-  return `Spot saved${name}! 🎉 Smart move: your ${wholeDollars(i.rebate)} rebate is waiting. ${SPOT_REGISTERED} ${SPOT_ORDER} ${SPOT_IN_TOUCH} Your job: ${i.myJobUrl} – Home Insulation Victoria`;
+  return `Spot saved${name}! 🎉 Smart move: your ${wholeDollars(i.rebate)} rebate is waiting. ${SPOT_ORDER} ${SPOT_IN_TOUCH} Your job: ${i.myJobUrl} – Home Insulation Victoria`;
 }
 
 /** O10 step 2 (MJML refresh, Jo 27 Oct 2026). */

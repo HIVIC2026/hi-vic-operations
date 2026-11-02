@@ -7,7 +7,33 @@ const ROOT = new URL("..", import.meta.url).pathname;
 type Kind = "customer-visible" | "test-only" | "doc-only" | "internal-identifier";
 type Hit = { file: string; line: number; term: string; kind: Kind; action: string };
 
-const TERMS: { term: string; re: RegExp; action: string; strict?: boolean }[] = [
+type Term = { term: string; re: RegExp; action: string; strict?: boolean };
+// Global owner wording rules (Jo 2 Nov 2026, docs/hiv-touchpoint-decisions-2026-11-02.md). Strict in all src, comments included.
+export const OWNER_WORDING_TERMS: Term[] = [
+  { term: "Thousands of Victorians", re: /Thousands of Victorians/g, action: 'Delete; keep "Spots are released in the order they were saved."', strict: true },
+  { term: "lower power bills", re: /lower (?:power )?bills/gi, action: "Delete the claim", strict: true },
+  { term: "VEU discount", re: /VEU discount/g, action: 'Say "rebate" ("Rebate" as a label)', strict: true },
+  { term: "old price label", re: /Your cost if eligible|Your estimated cost after rebate/g, action: "Your estimated quote based on what you've told us", strict: true },
+  {
+    term: "fixes wording to owners",
+    re: /Electrical fixes, if the safety check finds any|electrical fixes, only if the safety check finds any|finds something to fix|Only if something needs fixing|Licensed electrician safety check/g,
+    action: 'Say "electrical upgrades" and "electrical safety check (PIESA)"',
+    strict: true,
+  },
+  { term: "mandatory PIESA", re: /mandatory PIESA/g, action: "electrical safety check (PIESA)", strict: true },
+  { term: "install duration", re: /About 4 hours|takes? (?:about )?a few hours|takes about 4 hours|How long:/g, action: "Delete (no install duration)", strict: true },
+  { term: "Wrong time link", re: /Wrong time\?/g, action: "Delete (no change links)", strict: true },
+  { term: "See where you're up to", re: /See where you're up to/g, action: "Delete the button (no My job home links)", strict: true },
+  {
+    term: "7-day balance",
+    re: /7 days after (?:your |the )?install(?:ation)? (?:is )?recorded complete|7 days after recorded install completion|due 7 days after install(?:ation)? completion/g,
+    action: "The rest of your payment is due on install day (overdue still after 7 days)",
+    strict: true,
+  },
+];
+
+const TERMS: Term[] = [
+  ...OWNER_WORDING_TERMS,
   { term: "Retired Ready Check service name", re: /measure[- ]up (?:&amp;|&|and) eligibility check/gi, action: "Use Ready Check", strict: true },
   {
     term: "HI VIC / HI VIC! / HIVIC",
@@ -82,6 +108,9 @@ const RETAINED: { file: RegExp; re: RegExp; why: string }[] = [
     re: /HI VIC/,
     why: "Mitti label matched by sync parser",
   },
+  // Signed texts: any wording change needs a new version so earlier signatures keep their exact text.
+  { file: /^src\/lib\/(installer|rec)-agreement\.text\.ts$/, re: /VEU discount/, why: "Signed partner agreement text (new version needed)" },
+  { file: /^src\/lib\/owner-gates\.core\.ts$/, re: /VEU discount/, why: "Signed owner gate wording (new version needed)" },
 ];
 const SKIP_DIRS = new Set([
   "node_modules",

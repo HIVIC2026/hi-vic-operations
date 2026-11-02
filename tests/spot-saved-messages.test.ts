@@ -7,7 +7,7 @@ describe("spot saved confirmations", () => {
     const s = renderSpotSavedSms(i);
     expect(s.startsWith("Spot saved, Sarah! 🎉 Smart move: your $1,470 rebate is waiting.")).toBe(true);
     // Decision 388: spot-only — no installer, times or "as soon as" before release.
-    expect(s).toContain("Thousands of Victorians have registered. Spots are released in the order they were saved. We'll be in touch when your spot is released.");
+    expect(s).toContain("Spots are released in the order they were saved. We'll be in touch when your spot is released.");
     expect(s).not.toMatch(/installer|as soon as|Ready Check/);
     expect(s).toContain("Your job: https://estimate.homeinsulationvictoria.com.au/my-job/abc – Home Insulation Victoria");
   });

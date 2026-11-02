@@ -173,7 +173,7 @@ describe("A6. the correct pricing values reach the renderer", () => {
     expect(belowR2.plainText).toContain("If some needs removing: $15/m², only the areas that need it.");
     expect(belowR2.plainText).toContain("If it can stay: $0.");
     // It is never added to the quoted total.
-    expect(belowR2.plainText).toContain("Your cost if eligible: $3,697 incl. GST (full price $5,179)");
+    expect(belowR2.plainText).toContain("Your estimated quote based on what you've told us: $3,697 incl. GST (full price $5,179)");
   });
   test("the included card states the customer price and rebate supplied, and no unsupplied figure is invented", () => {
     const mail = renderJoOutcomeEmail(base({}))!;

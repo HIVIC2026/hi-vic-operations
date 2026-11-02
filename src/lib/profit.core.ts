@@ -1,6 +1,6 @@
 import { melbourneToday } from "./melbourne-time.core";
 // Pure Home Insulation Victoria profit + VEEC spot-price rules. Admin-only; never shown to owners or trades.
-export const OWNER_VEEC_RATE = 70; // $ per VEEC passed to the owner as the VEU discount
+export const OWNER_VEEC_RATE = 70; // $ per VEEC passed to the owner as the rebate
 
 export type SpotPoint = { price: number; priced_on: string };
 export type SellSignal = { latest: number | null; avg90: number | null; change: number | null; good: boolean; reason: string };

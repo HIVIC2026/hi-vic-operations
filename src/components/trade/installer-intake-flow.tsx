@@ -319,7 +319,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         <AttachFiles businessId={businessId} files={files.filter((f) => f.purpose === "quote")} disabled={busy || fileBusy} label="Upload your quote" onAdd={(picked) => changeFiles(() => addPicked(picked, "quote"))} onRemove={(path) => changeFiles(() => removeAttached(path))} />
         <p className="text-xs text-sub">No quote file? Enter the amount and what it includes.</p>
         <label className="block text-sm font-bold">Total installer quote inc GST<Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 3,450" value={d.amount} onChange={(e) => { typed.current.add("amount"); setD({ ...d, amount: e.target.value }); }} /></label>
-        <p className="text-xs text-sub">Your works price before the VEU discount. Removal or extras you priced separately go below — never include them twice.</p>
+        <p className="text-xs text-sub">Your works price before the rebate. Removal or extras you priced separately go below — never include them twice.</p>
         <label className="block text-sm font-bold">What the quote includes<Textarea className="mt-1" rows={3} maxLength={1000} value={d.includes} onChange={(e) => { typed.current.add("includes"); setD({ ...d, includes: e.target.value }); }} /></label>
         <QuoteCommercialFields value={d.commercial ?? blankCommercialInput()} removalRequired={d.removal?.answer === "yes"} disabled={busy || fileBusy} onChange={(commercial) => setD({ ...d, commercial })} />
         </div>}

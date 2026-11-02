@@ -32,11 +32,11 @@ function Choice<T extends string>({ label, value, options, onChange }: { label: 
 }
 const PRICING_OPTS = [["included", "In works total"], ["additional", "Additional price"], ["not_priced", "Not priced"]] as const;
 
-/** The installer's OWN quote facts (before VEU discount). Missing answers save as a draft; the office can't send until clear. */
+/** The installer's OWN quote facts (before the rebate). Missing answers save as a draft; the office can't send until clear. */
 export function QuoteCommercialFields({ value, onChange, removalRequired, disabled = false }: { value: CommercialInput; onChange: (v: CommercialInput) => void; removalRequired: boolean; disabled?: boolean }) {
   const set = (p: Partial<CommercialInput>) => onChange({ ...value, ...p });
   return <fieldset disabled={disabled} className="space-y-3" data-commercial-fields>
-    <Choice label="Is your price before the VEU discount?" value={value.basis} options={[["before_discount", "Before discount"], ["after_discount", "Already discounted"], ["unsure", "Not sure"]]} onChange={(basis) => set({ basis })} />
+    <Choice label="Is your price before the rebate?" value={value.basis} options={[["before_discount", "Before discount"], ["after_discount", "Already discounted"], ["unsure", "Not sure"]]} onChange={(basis) => set({ basis })} />
     {value.basis === "after_discount" && <p className="text-xs text-sub">Saved for review. The office needs your price before the discount so the discount is applied once.</p>}
     <Choice label="Does the amount include GST?" value={value.gst} options={[["inc_gst", "Includes GST"], ["ex_gst", "Excludes GST"], ["unsure", "Not sure"]]} onChange={(gst) => set({ gst })} />
     {value.gst === "ex_gst" && <p className="text-xs text-sub">Saved for review. Please enter the amount including GST — we never calculate GST for you.</p>}

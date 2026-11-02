@@ -158,9 +158,6 @@ export function RegisterInterest({ address, suburb, postcode, ceilingM2, insulat
             <span aria-hidden="true" className="size-1.5 animate-pulse rounded-full bg-estimate-green" />
             Free, no obligation
           </span>
-          <h2 className="mt-3 text-[1.35rem] font-extrabold leading-snug text-estimate-navy sm:text-[1.55rem]">
-            Thousands of Victorians have registered.
-          </h2>
           <p className="mt-2 text-[0.8rem] leading-relaxed text-estimate-navy/75">
             Spots are released in the order they were saved. We'll be in touch when your spot is released.
           </p>

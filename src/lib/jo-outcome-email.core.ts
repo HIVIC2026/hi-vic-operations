@@ -273,9 +273,9 @@ const O2_INTRO = "You told us there's some insulation in your ceiling already. I
 export const O2_DONT_KNOW_INTRO = "You weren't sure if there's insulation in your ceiling. If there's none, or it's thin or patchy (below R2.0), you can still get the Victorian Energy Upgrades (VEU) rebate. You need a certified installer, a licensed electrician and an Accredited Person. We bring them together and run the whole job for you.";
 // Decision 388 (Jo 25 Oct 2026: "we are saving spots, not offering Ready Checks"): spot-only wording. No Ready Check,
 // installer visit, times, measuring or quote timing.
-const O1_SAVE = "Thousands of Victorians have registered. Spots are released in the order they were saved. There's no cost and no obligation, and we'll be in touch when yours is released.";
+const O1_SAVE = "Spots are released in the order they were saved. There's no cost and no obligation, and we'll be in touch when yours is released.";
 const O2_SAVE = O1_SAVE;
-const O2Q_SAVE = "Thousands of Victorians have registered. Spots are released in the order they were saved. Tell us about your insulation and your spot is saved straight away. Just tap, no typing.";
+const O2Q_SAVE = "Spots are released in the order they were saved. Tell us about your insulation and your spot is saved straight away. Just tap, no typing.";
 const O2Q_PHOTOS = "Got photos or a video? You can add them too, only if it's safe. Please don't climb into the roof space.";
 const RECEIVED_ACK = "Thank you for sending your photos or video. We already have your media — you do not need to upload it again. Our Office will review it and contact you about the next step. If you want or need to add more evidence, you can optionally add multiple photos and/or videos using the link below.";
 const RECEIVED_SAFETY = "Only take photos or video if you can do so safely, and don’t enter the roof space.";
@@ -314,7 +314,7 @@ export const rebateAndPriceText = (i: { rebateLabel: string; rebate: number; pri
 /** "What's included in $X" rows (Save my spot O1/O2 and Spot saved O10, all sent before the spot is released).
  *  Decision 388: no Ready Check row before release. */
 export const includedRows = (rebate: number) => [
-  { title: "Licensed electrician safety check", detail: "Done before any insulation goes in, to make sure wiring, downlights and cables are safe." },
+  { title: "Electrical safety check (PIESA) by a licensed electrician", detail: "Done before any insulation goes in, to make sure wiring, downlights and cables are safe." },
   { title: "Premium R5.0 ceiling batts", detail: "VEU-approved and made to Australian Standard AS/NZS 4859.1." },
   { title: "Fitted by an EEC-certified installer", detail: "A Certified Insulation Installer, working to Australian Standard AS 3999." },
   { title: "We handle the rebate", detail: `As a VEU Accredited Person (${K.AP_NUMBER}), we do the paperwork. The ${K.whole(rebate)} comes straight off your price.` },
@@ -359,7 +359,7 @@ function renderSaveMySpot(input: JoOutcomeEmailInput, f: JoEstimateFigures, vari
   const intro = dontKnow ? O2_DONT_KNOW_INTRO : some ? O2_INTRO : O1_INTRO;
   const removal = removalCard(f);
   const saveUrl = input.links.saveMySpotUrl, answerUrl = input.links.uploadMediaUrl;
-  const box = { rebateLabel: some ? "Your potential rebate" : "Your estimated rebate", rebate: f.veuRebate, priceLabel: some ? "Your cost if eligible" : "You pay after the rebate", price: f.customerTotal, fullPrice: f.totalBeforeRebate, basis, calculatorUrl: input.links.calculatorUrl || null };
+  const box = { rebateLabel: some ? "Your potential rebate" : "Your estimated rebate", rebate: f.veuRebate, priceLabel: some ? "Your estimated quote based on what you've told us" : "You pay after the rebate", price: f.customerTotal, fullPrice: f.totalBeforeRebate, basis, calculatorUrl: input.links.calculatorUrl || null };
   const closing = some ? O2_CLOSING : O1_CLOSING;
   const action = variant === "questions"
     ? section(`<mj-text mj-class="h2" css-class="email-sub" padding="18px 12px 6px">Save your spot: answer 3 quick questions</mj-text><mj-text>${K.esc(O2Q_SAVE)}</mj-text>`)

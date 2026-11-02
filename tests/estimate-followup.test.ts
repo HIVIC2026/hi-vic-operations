@@ -149,7 +149,7 @@ describe("draft emails O66 / O67 / O68 (kit design, O1 price box, Save my spot b
   test("some-insulation owners get the O2 price labels; unknown names fall back to 'there'", () => {
     const m = render("day_2", { someInsulation: true, firstName: null });
     expect(m.html).toContain("Your potential rebate");
-    expect(m.html).toContain("Your cost if eligible");
+    expect(m.html).toContain("Your estimated quote based on what you've told us");
     expect(m.subject).toBe("there, your $1,610 rebate spot is still open");
   });
   test("TEST label on test renders; copy helper gives every step a subject, intro and save line", () => {

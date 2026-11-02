@@ -58,7 +58,7 @@ test("v2 leads with the saving and says exactly what they get (Jo 24 Oct)", () =
     expect(body).toContain("accept and pay $349.00");
     expect(body).toContain("VEU Accredited Person A003654");
     expect(body).toContain("ABN 44 671 613 979");
-    expect(body).toContain("Not included: electrical fixes, only if the safety check finds any.");
+    expect(body).toContain("Not included: electrical upgrades, only if the electrical safety check (PIESA) finds any.");
     expect(body).not.toContain("Who we are"); // v3: shorter, no repeats
     expect(body).not.toMatch(/6-digit|code/i); // no signing code in the email
   }
@@ -256,7 +256,7 @@ test("qa_test notify sends the rendered owner quote email via sendTestEmail", as
 
 test("Jo 24 Oct (decision 86): fixes are quoted separately, nothing done without the owner's OK", () => {
   for (const body of [renderOwnerQuoteEmail(base).html, renderOwnerQuoteEmail(base).text]) {
-    expect(body).toContain("They're quoted separately, and nothing is done without your OK.");
+    expect(body).toContain("Your electrician quotes these directly, and nothing is done without your OK.");
   }
 });
 

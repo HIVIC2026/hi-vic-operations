@@ -4,7 +4,7 @@ import { CUSTOMER_BRAND } from "@/lib/customer-quote-system";
 
 const title = "Ceiling insulation rebate calculator Victoria (VEU) — Home Insulation Victoria";
 const description =
-  "Work out an indicative price for ceiling insulation in your Victorian home — including the VEU discount you're likely to qualify for. Free, no obligation, nothing saved.";
+  "Work out an indicative price for ceiling insulation in your Victorian home — including the rebate you're likely to qualify for. Free, no obligation, nothing saved.";
 
 export const publicCalculatorHead = () => ({
   meta: [

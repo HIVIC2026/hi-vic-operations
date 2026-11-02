@@ -222,7 +222,7 @@ export function veecPrefill(x: VeecFacts, overrides: Record<string, FieldValue> 
   return { values, missing };
 }
 
-/** The co-payment figures come from the accepted quote: price before = subtotal, after = customer total, benefit = VEU discount. */
+/** The co-payment figures come from the accepted quote: price before = subtotal, after = customer total, benefit = rebate. */
 export function coPaymentFromQuote(q: { subtotalIncGst: number | null; customerTotalIncGst: number | null; veecDiscountIncGst: number | null }) {
   return { priceBeforeIncentive: q.subtotalIncGst, consumerPaymentAfter: q.customerTotalIncGst, benefitAmount: q.veecDiscountIncGst };
 }

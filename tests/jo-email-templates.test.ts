@@ -136,7 +136,7 @@ describe("removal allowance", () => {
     const f = liveFigures({ customerTotal: 3800 });
     const out = renderJoEstimateEmail("eligible_below_r2_reviewed_size_known", recipient, { ...f, areaEstimated: false, ceilingAreaM2: 180 });
     // The displayed total equals the input total; no removal math applied to it.
-    expect(out.body).toContain("Your estimated cost after rebate: $3,800 including GST");
+    expect(out.body).toContain("Your estimated quote based on what you've told us: $3,800 including GST");
   });
   test("eligible-no-insulation templates exclude removal (no $15 budget line)", () => {
     const out = renderJoEstimateEmail("eligible_no_insulation_size_known", recipient, liveFigures({ areaEstimated: false, ceilingAreaM2: 200 }));

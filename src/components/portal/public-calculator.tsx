@@ -32,7 +32,7 @@ const CHANGE_FACTORS = [
   "Your actual ceiling size",
   "Existing insulation, and whether any has to be removed",
   "Ceiling access conditions",
-  "Any electrical fixes found during the mandatory PIESA",
+  "Electrical upgrades, if the electrical safety check (PIESA) finds any",
 ];
 
 function Question({ id, n, label, children }: { id: string; n: number; label: string; children: React.ReactNode }) {
@@ -174,7 +174,7 @@ export function PublicCalculator({ settings, initialValues, heading, resultActio
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="max-w-xl">
             <h1 className="text-[1.6rem] font-extrabold leading-tight tracking-tight text-estimate-navy sm:text-[2rem]">{heading ?? "How much could you save on ceiling insulation?"}</h1>
-            <p className="mt-1.5 text-[0.85rem] leading-relaxed text-estimate-navy/85">Three quick answers — your estimate and VEU discount appear instantly.</p>
+            <p className="mt-1.5 text-[0.85rem] leading-relaxed text-estimate-navy/85">Three quick answers — your estimate and rebate appear instantly.</p>
           </div>
           {touched && (
             <Button type="button" variant="outline" onClick={startAgain} className="min-h-8 gap-1.5 border-transparent bg-estimate-white px-3 text-[0.7rem] font-extrabold text-estimate-navy/85 shadow-none hover:text-estimate-blue">
@@ -315,7 +315,7 @@ export function PublicCalculator({ settings, initialValues, heading, resultActio
 
                 {/* The number they actually pay. */}
                 <div className="mt-4 text-center">
-                  <p className="text-[0.65rem] font-extrabold uppercase tracking-[0.14em] text-estimate-navy/70">Your estimated cost after rebate</p>
+                  <p className="text-[0.65rem] font-extrabold uppercase tracking-[0.14em] text-estimate-navy/70">Your estimated quote based on what you've told us</p>
                   <p className="mt-1 text-[2.6rem] font-extrabold leading-none tracking-tight text-estimate-blue sm:text-[3rem]" data-testid="public-calculator-final">
                     {dollars(standard.estimated_customer_total)}
                   </p>

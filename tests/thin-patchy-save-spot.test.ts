@@ -35,7 +35,7 @@ describe("Jo 22 Oct thin/patchy Save my spot (decision 67 design since 24 Oct)",
     // The "up to" removal allowance is shown separately (the card) and never added to the price.
     expect(e!.plainText).toContain("Up to $1,650 for your 110 m² ceiling.");
     expect(e!.plainText).toContain("$15/m²");
-    expect(e!.plainText).toContain("Your cost if eligible: $2,948 incl. GST");
+    expect(e!.plainText).toContain("Your estimated quote based on what you've told us: $2,948 incl. GST");
     expect(e!.html).toContain("Save my free spot");
   });
   test("no-insulation owners get the no-insulation design", () => {

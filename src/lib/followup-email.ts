@@ -8,7 +8,7 @@ import { mjEmail } from "./mail-mjml.core";
 export type FollowupEmailInput = { kind: ActiveFollowupKind; estimateUrl: string; trackingClickUrl?: string | null; trackingPixelUrl?: string | null; referralUrl?: string | null };
 
 const HELPER = "Your secure estimate link is personal to your property. No payment needed. No obligation to go ahead with installation.";
-const DEMAND = "Thousands of Victorians have registered. Spots are released in the order they were saved."; // decision 388
+const DEMAND = "Spots are released in the order they were saved."; // decision 388
 const CONTACT_URL = "https://homeinsulationvictoria.com.au/contact";
 const REASON = "You're getting this because you asked for a ceiling insulation estimate.";
 const REFER = "Know someone else thinking about ceiling insulation? They can check their own eligibility.";

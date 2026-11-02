@@ -37,7 +37,7 @@ export function mjTimeButtons(times: { day: string; time: string; href: string }
 export type ReadyCheckEstimate = { rebate: number; price: number; areaM2: number };
 const estimateNote = (e: ReadyCheckEstimate) => `Estimate incl. GST for ${K.m2(e.areaM2)}. Confirmed at your free Ready Check.`;
 const INCLUDED = (rebate: number) => [
-  { title: "Licensed electrician safety check", detail: "Needed before any insulation goes in. They check your wiring, downlights and cables are safe." },
+  { title: "Electrical safety check (PIESA) by a licensed electrician", detail: "Needed before any insulation goes in. They check your wiring, downlights and cables are safe." },
   { title: "Premium R5.0 ceiling batts", detail: "VEU-approved and made to Australian Standard AS/NZS 4859.1." },
   { title: "Fitted by an EEC-certified installer", detail: "A Certified Insulation Installer (CII) through the Energy Efficiency Council, working to Australian Standard AS 3999." },
   { title: "We handle the rebate", detail: `As a VEU Accredited Person (${K.AP_NUMBER}), we do the government paperwork. The ${K.whole(rebate)} comes straight off your price.` },

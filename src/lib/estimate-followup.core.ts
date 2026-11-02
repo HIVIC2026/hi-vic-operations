@@ -150,7 +150,7 @@ export function estimateFollowupCopy(step: EstimateFollowupStep, first: string, 
       preview: price ? `Your price could be ${price} after the rebate. Saving your spot takes a few seconds.` : "Saving your spot takes a few seconds.",
       intro: `A couple of days ago we sent your ceiling insulation estimate. Nothing has changed: the ${rebate} Victorian Energy Upgrades rebate is still available and your spot is still open.`,
       saveTitle: SAVE_TITLE,
-      save: "Thousands of Victorians have registered. Spots are released in the order they were saved. It takes a few seconds. No payment, no obligation.",
+      save: "Spots are released in the order they were saved. It takes a few seconds. No payment, no obligation.",
       after: null,
       closing: REPLY,
     };
@@ -180,7 +180,7 @@ export function renderEstimateFollowupEmail(i: EstimateFollowupEmailInput): { su
   const rebate = K.whole(i.rebate), price = K.whole(i.price);
   const c = estimateFollowupCopy(i.step, first, rebate, price);
   const some = i.someInsulation === true;
-  const box = { rebateLabel: some ? "Your potential rebate" : "Your estimated rebate", rebate: i.rebate, priceLabel: some ? "Your cost if eligible" : "You pay after the rebate", price: i.price, fullPrice: i.fullPrice, basis: i.basis, calculatorUrl: i.calculatorUrl };
+  const box = { rebateLabel: some ? "Your potential rebate" : "Your estimated rebate", rebate: i.rebate, priceLabel: some ? "Your estimated quote based on what you've told us" : "You pay after the rebate", price: i.price, fullPrice: i.fullPrice, basis: i.basis, calculatorUrl: i.calculatorUrl };
   const afterHtml = c.after ? K.esc(c.after).replace(COME_BACK_LABEL, `<a href="${COME_BACK_URL}" style="color:#3C51C4;font-weight:700;">${COME_BACK_LABEL}</a>`) : null;
   const body = [
     mjHeadline(c.subject, c.intro),

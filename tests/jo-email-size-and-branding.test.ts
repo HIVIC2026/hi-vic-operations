@@ -193,8 +193,8 @@ describe("F. the approved wording (decisions 66, 67, 69, 73) is what renders", (
       "Your estimated rebate", "You save $2,600", "You pay after the rebate", "$1,900", "full price", "$4,500",
       "Save your spot – it's free",
       // Decision 388 (Jo 25 Oct 2026): spot-only — no Ready Check, times or measuring before release.
-      "Thousands of Victorians have registered. Spots are released in the order they were saved. There's no cost and no obligation, and we'll be in touch when yours is released.",
-      "Save my free spot", "What's included in $1,900", "Licensed electrician safety check", "Premium R5.0 ceiling batts", "AS/NZS 4859.1",
+      "Spots are released in the order they were saved. There's no cost and no obligation, and we'll be in touch when yours is released.",
+      "Save my free spot", "What's included in $1,900", "Electrical safety check (PIESA) by a licensed electrician", "Premium R5.0 ceiling batts", "AS/NZS 4859.1",
       "Fitted by an EEC-certified installer", "AS 3999", "We handle the rebate", "A003654", "Not included – only if needed", "Removing old insulation", "Ceiling access fee", "Electrical fixes", "A bigger ceiling",
       "You'll see your exact price before you agree to anything.", "See your full estimate",
     ]) expect(m.html).toContain(t);
@@ -207,7 +207,7 @@ describe("F. the approved wording (decisions 66, 67, 69, 73) is what renders", (
   test("O2 some insulation (T3/T4): 'may qualify', potential rebate, the existing-insulation card and the R2.0 line", () => {
     const m = render({ outcome: "likely_eligible", insulation: "present", deskCheckStatus: "looks_eligible", ceilingSizeKnown: true, figures: { ...figures(137, false), removalUpTo: 2055 } });
     for (const t of [
-      "Alex, you may qualify for $2,600 off ceiling insulation", "If it's thin or patchy (below R2.0)", "Your potential rebate", "Your cost if eligible",
+      "Alex, you may qualify for $2,600 off ceiling insulation", "If it's thin or patchy (below R2.0)", "Your potential rebate", "Your estimated quote based on what you've told us",
       "Your existing insulation", "it may be able to stay.", "If it can stay", "New batts go straight over the top", ">$0<", "If some needs removing", "Up to $2,055 for your 137 m² ceiling.", "$15/m²",
       "only if it can't stay ($15 per m², see above)", // decision 388: no "where they'll also check" Ready Check line
       "If your existing insulation is already R2.0 or above, the rebate isn't available and we'll let you know.",
