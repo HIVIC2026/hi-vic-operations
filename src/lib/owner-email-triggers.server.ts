@@ -159,6 +159,25 @@ async function signedAcceptanceAttachment(jobId: string, jobNumber: string | nul
   return [{ filename: `Signed acceptance${jobNumber ? ` ${jobNumber}` : ""}.pdf`, content: bytesToBase64(bytes), contentType: "application/pdf" }];
 }
 
+/** Receipt PDF for the safety check payment (Task 3): only with PDF_LOOK_APPROVED.receipts on; nothing is attached otherwise or when it cannot be made. */
+async function safetyCheckReceiptAttachment(jobId: string, invoiceId: string, paidAt: string, jobNumber: string | null): Promise<import("./email-kit.core").EmailAttachment[]> {
+  const { PDF_LOOK_APPROVED } = await import("./pdf-approvals.core");
+  if (!PDF_LOOK_APPROVED.receipts) return [];
+  const { data: evs } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "owner_payment_recorded").contains("details", { invoice_id: invoiceId }).order("created_at", { ascending: true });
+  const rows = (evs ?? []).map((e) => e.details as { receipt_key?: string; paid_at?: string } | null).filter((d): d is { receipt_key: string; paid_at?: string } => !!d?.receipt_key);
+  const key = (rows.find((d) => d.paid_at && Date.parse(d.paid_at) === Date.parse(paidAt)) ?? rows[0])?.receipt_key;
+  if (!key) return [];
+  const { fileReceiptPdf } = await import("./receipt-pdf.server");
+  const filed = await fileReceiptPdf(jobId, "safety_check", key);
+  if ("held" in filed) return [];
+  const { data, error } = await admin.storage.from("job-files").download(filed.path);
+  if (error || !data) return [];
+  const bytes = new Uint8Array(await data.arrayBuffer());
+  if (!bytes.length) return [];
+  const { bytesToBase64 } = await import("./veec-emails.core");
+  return [{ filename: `Receipt${jobNumber ? `-${jobNumber}` : ""}.pdf`, content: bytesToBase64(bytes), contentType: "application/pdf" }];
+}
+
 /**
  * O22 (decision 90): once the safety check payment on the accepted quote's invoice is received (payments.server.ts
  * afterPaymentsChanged — Xero sync, Stripe webhook or office record). Receipt = amount + the day the ledger reached
@@ -180,7 +199,10 @@ export async function onSafetyCheckPaid(jobId: string, invoiceId: string): Promi
     const { data: job } = await admin.from("jobs").select("job_number, stage, deleted_at").eq("id", jobId).maybeSingle();
     if (!job || !paidAt || !youreInDue({ paidAt, stage: job.stage as string, deletedAt: job.deleted_at }, new Date())) return "not due — no recent safety check payment";
     return fireOwnerEmailOnce(jobId, "O22", ownerEmailKey.youreIn(quoteId), async () => {
-      const attachments = await signedAcceptanceAttachment(jobId, job?.job_number ?? null).catch(() => []);
+      const attachments = [
+        ...await signedAcceptanceAttachment(jobId, job?.job_number ?? null).catch(() => []),
+        ...await safetyCheckReceiptAttachment(jobId, invoiceId, paidAt, job?.job_number ?? null).catch(() => []),
+      ];
       const { emailOwnerYoureIn } = await import("./approved-owner-emails.server");
       return emailOwnerYoureIn(jobId, quoteId, {
         rebate: quote.veec_discount_inc_gst == null ? null : Number(quote.veec_discount_inc_gst),

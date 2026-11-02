@@ -136,7 +136,7 @@ describe("approved owner email designs", () => {
   test("O22 You're in", () => {
     const m = renderYoureInEmail({ firstName: "Helen", rebate: 1850, totalIncGst: 2200, payment: { amount: 349, paidOn: "24 Oct 2026", cardLast4: "4242" }, installerName: "Reinsulate", myJobUrl: JOB });
     shell(m.html, m.text, false);
-    has(m.html, ["You're in, Helen!", "with $1,850 off", "Payment received", ">$349.00<", "Paid 24 Oct 2026 · card ending 4242", "Paid &#10003;", "Still to pay: $1,851.00 (10% to book your install day, the rest on install day)", "Electrical safety check", "Only if something needs fixing", "Book your install day", "Reinsulate offers you 3 days", "signed acceptance and receipt are attached"]);
+    has(m.html, ["You're in, Helen!", "with $1,850 off", "Payment received", ">$349.00<", "Paid 24 Oct 2026 · card ending 4242", "Paid &#10003;", "Still to pay: $1,851.00 (10% to book your install day, the rest on install day)", "Electrical safety check (PIESA)", "Only if electrical upgrades are needed", "Book your install day", "Reinsulate will call you to book it", "signed acceptance and receipt are attached"]);
     expect(ACCEPTANCE_EMAIL_APPROVED).toBe(true); // approved by Jo 24 Oct 2026 (tests/approved-flags.test.ts lists the decision)
   });
   test("O26 Safety check times (+ the 30-day clock)", () => {
