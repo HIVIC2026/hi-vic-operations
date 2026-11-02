@@ -11,17 +11,17 @@ const usual = { name: "Sam Lee", licence: "A12345", priceIncGst: 300 };
 
 describe("Add a job: one required choice, usual electrician only when set, default = usual when set", () => {
   test("options and default with a usual electrician saved", () => {
-    expect(electricianChoiceOptions(usual)).toEqual([{ value: "usual", label: "My usual electrician (Sam Lee)" }, { value: "hivic", label: "Home Insulation Victoria's electrician" }]);
+    expect(electricianChoiceOptions(usual)).toEqual([{ value: "usual", label: "My usual electrician (Sam Lee)" }]);
     expect(defaultElectricianChoice(usual)).toBe("usual");
     expect(ELECTRICIAN_CHOICE_QUESTION).toBe("Electrical safety check by");
     expect(ELECTRICIAN_CHOICE_HIVIC).toBe("Home Insulation Victoria's electrician");
   });
   test("options and default without one: HIV only, and 'usual' is refused (set them in My business first)", () => {
-    expect(electricianChoiceOptions(null)).toEqual([{ value: "hivic", label: "Home Insulation Victoria's electrician" }]);
-    expect(defaultElectricianChoice(null)).toBe("hivic");
+    expect(electricianChoiceOptions(null)).toEqual([]);
+    expect(defaultElectricianChoice(null)).toBeNull();
     expect(electricianChoiceProblem("usual", null)).toBe(ELECTRICIAN_CHOICE_ISSUES.usual);
-    expect(electricianChoiceProblem(null, usual)).toBe(ELECTRICIAN_CHOICE_ISSUES.missing);
-    expect(electricianChoiceProblem("hivic", null)).toBeNull();
+    expect(electricianChoiceProblem(null, usual)).toBe(ELECTRICIAN_CHOICE_ISSUES.usual);
+    expect(electricianChoiceProblem("hivic", null)).toBe(ELECTRICIAN_CHOICE_ISSUES.usual);
     expect(electricianChoiceProblem("usual", usual)).toBeNull();
     // No "a different electrician" path any more.
     expect(electricianChoiceOptions(usual).map((o) => o.value)).not.toContain("different");
@@ -34,8 +34,8 @@ describe("Add a job: one required choice, usual electrician only when set, defau
   test("the 'Job added' screen names the usual electrician when chosen", () => {
     const base = { jobNumber: "HV-1", address: "1 St", ownerName: "Ann Lee", phone: "04", ownerFirstName: "Ann", booking: "none" as const, visit: { day: "", time: "" }, state: undefined };
     expect(addedView({ ...base, electrician: { choice: "usual", usualName: "Sam Lee" } }).steps[2]).toBe("Sam Lee does the electrical safety check once Ann accepts.");
-    expect(addedView({ ...base, electrician: { choice: "hivic", usualName: "Sam Lee" } }).steps[2]).toBe("We arrange the electrical safety check once Ann accepts.");
-    expect(addedView(base).steps[2]).toBe("We arrange the electrical safety check once Ann accepts.");
+    expect(addedView({ ...base, electrician: { choice: "hivic", usualName: "Sam Lee" } }).steps[2]).toBe("Choose your own electrician on the job.");
+    expect(addedView(base).steps[2]).toBe("Choose your own electrician on the job.");
   });
 });
 
@@ -53,12 +53,12 @@ describe("the event and the one resolver the quote pipeline reads", () => {
     expect(resolveElectricianChoice({ recorded: null, legacy: "different", usual })).toBe("different");
     expect(resolveElectricianChoice({ recorded: null, legacy: "own", usual })).toBe("usual"); // unknown legacy wording → the default rule
     expect(resolveElectricianChoice({ recorded: null, legacy: null, usual })).toBe("usual");
-    expect(resolveElectricianChoice({ recorded: null, legacy: null, usual: null })).toBe("hivic");
+    expect(resolveElectricianChoice({ recorded: null, legacy: null, usual: null })).toBeNull();
   });
   test("read-only line", () => {
     expect(electricianChoiceLine("usual", usual)).toBe("My usual electrician (Sam Lee)");
     expect(electricianChoiceLine("usual", null)).toContain("not saved yet");
-    expect(electricianChoiceLine("hivic", usual)).toBe("Home Insulation Victoria's electrician");
+    expect(electricianChoiceLine("hivic", usual)).toBe("Choose your own electrician");
     expect(electricianChoiceLine("different", usual, "Jo Volt")).toBe("A different electrician (Jo Volt)");
   });
 });
@@ -97,8 +97,8 @@ describe("wiring (source facts)", () => {
 
 test("A3: a saved but not-onboarded usual electrician is not offered, not the default, and refused", () => {
   const off = { name: "Sam Lee", onboarded: false }, on = { name: "Sam Lee", onboarded: true };
-  expect(electricianChoiceOptions(addJobUsual(off)).map((o) => o.value)).toEqual(["hivic"]);
-  expect(defaultElectricianChoice(addJobUsual(off))).toBe("hivic");
+  expect(electricianChoiceOptions(addJobUsual(off)).map((o) => o.value)).toEqual([]);
+  expect(defaultElectricianChoice(addJobUsual(off))).toBeNull();
   expect(addJobElectricianProblem("usual", off)).toBe(ELECTRICIAN_CHOICE_ISSUES.notOnboarded);
   expect(addJobElectricianProblem("usual", on)).toBeNull();
   expect(addJobElectricianProblem("usual", null)).toBe(ELECTRICIAN_CHOICE_ISSUES.usual);
