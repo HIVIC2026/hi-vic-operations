@@ -1,13 +1,13 @@
 # Manufacturer's installation instructions
 
-The owner must be given the manufacturer's installation instructions on completion (VEU Code cl 26 / Activity Guide). Part 4 attaches the
+The owner must be given the manufacturer's installation instructions on completion (VEU Code of Conduct (completion information) / ESC Activity Guide Table 3). Part 4 attaches the
 right one to the "All done" email. Code: `src/lib/product-instructions.core.ts`. A missing file never blocks or fakes anything:
 `instructionsForOption` returns null and `instructionsHoldReason(product)` gives the reason.
 
 ## Add or replace a document
 
 1. Drop the real manufacturer PDF in this folder using the exact file name below.
-2. Run `bun scripts/embed-product-instructions.ts` (refuses non-PDFs and reseller hosts).
+2. Run `bun scripts/embed-product-instructions.ts` (skips and reports non-PDFs and reseller hosts).
 3. Commit the PDF and the regenerated `src/lib/product-instructions.data.ts`.
 
 ## Status (3 Nov 2026)

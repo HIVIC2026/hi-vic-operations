@@ -1,4 +1,4 @@
-// Task 14: manufacturer's installation instructions on file (VEU Code cl 26 / Activity Guide: given on completion). Pure.
+// Task 14: manufacturer's installation instructions on file (VEU Code of Conduct (completion information) / ESC Activity Guide Table 3: given on completion). Pure.
 import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import {
@@ -47,5 +47,16 @@ describe("decideInstructionsAttachment", () => {
   });
   test("hold reason wording", () => {
     expect(instructionsHoldReason("Earthwool R5")).toBe("Manufacturer's instructions for Earthwool R5 not on file");
+  });
+});
+
+describe("embed script inputs", () => {
+  test("the script and the core share one list", async () => {
+    const list = await import("../src/lib/product-instructions.list");
+    expect(list.PRODUCT_INSTRUCTIONS).toBe(PRODUCT_INSTRUCTIONS);
+    expect(readFileSync("scripts/embed-product-instructions.ts", "utf8")).toContain("product-instructions.list");
+  });
+  test("duplicate unknown products are listed once", () => {
+    expect(decideInstructionsAttachment(["Mystery R4", "Mystery R4"], () => true).missing).toEqual(["Mystery R4"]);
   });
 });

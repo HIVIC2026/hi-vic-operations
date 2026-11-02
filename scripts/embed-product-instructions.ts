@@ -6,23 +6,21 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { looksLikePdf } from "../src/lib/product-warranty.core";
+import { PRODUCT_INSTRUCTIONS } from "../src/lib/product-instructions.list";
 
-// The core imports the data file, so read the map without importing it (the data file may be stale or empty).
-const core = readFileSync(new URL("../src/lib/product-instructions.core.ts", import.meta.url), "utf8");
-const dir = /INSTRUCTIONS_DIR = "([^"]+)"/.exec(core)![1]!;
-const entries0 = [...core.matchAll(/pdfPath: `\$\{INSTRUCTIONS_DIR\}\/([^`]+)`[\s\S]*?sourceUrl: "([^"]+)"/g)].map((m) => ({ pdfPath: `${dir}/${m[1]}`, sourceUrl: m[2]! }));
-if (entries0.length === 0) throw new Error("No instructions found in product-instructions.core.ts");
+const entries0 = PRODUCT_INSTRUCTIONS;
 const RESELLER = /(bunnings|bunnings\.com|amazon|ebay|bigw|mitre10|reece|totaltools)/i;
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const entries: string[] = [];
 const report: string[] = [];
+let rejected = 0;
 for (const e of entries0) {
   const abs = join(ROOT, e.pdfPath);
-  if (RESELLER.test(e.sourceUrl)) { report.push(`REJECTED ${e.pdfPath} — reseller host in sourceUrl ${e.sourceUrl}`); continue; }
+  if (RESELLER.test(e.sourceUrl)) { rejected++; report.push(`REJECTED ${e.pdfPath} — reseller host in sourceUrl ${e.sourceUrl}`); continue; }
   if (!existsSync(abs)) { report.push(`MISSING  ${e.pdfPath} — download from ${e.sourceUrl}`); continue; }
   const bytes = new Uint8Array(readFileSync(abs));
-  if (!looksLikePdf(bytes)) { report.push(`REJECTED ${e.pdfPath} — not a PDF (header ${JSON.stringify(Buffer.from(bytes.slice(0, 8)).toString("latin1"))})`); continue; }
+  if (!looksLikePdf(bytes)) { rejected++; report.push(`REJECTED ${e.pdfPath} — not a PDF (header ${JSON.stringify(Buffer.from(bytes.slice(0, 8)).toString("latin1"))})`); continue; }
   const sha = createHash("sha256").update(bytes).digest("hex");
   entries.push(`  ${JSON.stringify(e.pdfPath)}: ${JSON.stringify(`data:application/pdf;base64,${Buffer.from(bytes).toString("base64")}`)}, // sha256 ${sha} (${bytes.length} bytes)`);
   report.push(`OK       ${e.pdfPath} — ${bytes.length} bytes, sha256 ${sha.slice(0, 16)}…`);
@@ -37,4 +35,5 @@ ${entries.join("\n")}
 `;
 writeFileSync(join(ROOT, "src/lib/product-instructions.data.ts"), out);
 console.log(report.join("\n"));
+if (rejected) { console.error(`\n${rejected} file(s) rejected — fix before committing.`); process.exit(1); }
 console.log(`\nEmbedded ${entries.length} of ${entries0.length} instruction documents → src/lib/product-instructions.data.ts`);
