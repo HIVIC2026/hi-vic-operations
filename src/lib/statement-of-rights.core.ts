@@ -7,7 +7,7 @@
 import { STATEMENT_OF_RIGHTS_PDF } from "./statement-of-rights.data";
 import { looksLikePdf } from "./product-warranty.core";
 
-export const STATEMENT_OF_RIGHTS_PATH = "docs/esc-forms/veu-statement-of-rights.pdf";
+export const STATEMENT_OF_RIGHTS_PATH = "docs/esc-forms/veu-statement-of-rights-clean.pdf";
 export const STATEMENT_OF_RIGHTS_FILENAME = "VEU-Statement-of-rights.pdf";
 
 /** The real ESC PDF bytes, or null when it is not on file (or not a PDF). */

@@ -440,7 +440,9 @@ export const KNOWN_WHENS: readonly string[] = [
   "p4.present = Yes", "p5.recessed = Yes", "p6.present = Yes", "p6.treatment excludes Removed", "p6.treatment includes Topped Up",
 ];
 /** Does this item's follow-up condition apply to these answers? Shared by the evaluators and the Word/PDF fills, so a follow-up whose
- *  condition is false (e.g. life support "No" → the consent option) is never printed. An unknown `when` returns false (fails closed). */
+ *  condition is false (e.g. life support "No" → the consent option) is never printed. An unknown `when` returns false: that fails
+ *  closed for printing (the item is left off the form) but, in `requiredMissing`, it also makes the item NOT required, so an
+ *  unknown condition can never block on its own. KNOWN_WHENS (and its test) is what stops a new `when` slipping through. */
 export function officialItemActive(key: OfficialKey, i: OfficialItem, a: OfficialAnswers): boolean {
   if (i.when === undefined) return true;
   if (key === "piesa") {

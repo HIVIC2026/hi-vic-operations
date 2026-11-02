@@ -4,7 +4,7 @@ import { existsSync, readFileSync, mkdtempSync, symlinkSync, writeFileSync } fro
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
-import { STATEMENT_OF_RIGHTS_FILENAME, statementOfRightsPdf } from "../src/lib/statement-of-rights.core";
+import { STATEMENT_OF_RIGHTS_FILENAME, STATEMENT_OF_RIGHTS_PATH, statementOfRightsPdf } from "../src/lib/statement-of-rights.core";
 import { looksLikePdf } from "../src/lib/product-warranty.core";
 
 const ORIGINAL = "docs/esc-forms/veu-statement-of-rights.pdf";
@@ -27,6 +27,9 @@ test("the Statement of rights is the cleaned ESC file, byte for byte", () => {
   expect(sha(bytes)).toBe(SHA);
   expect(Buffer.from(bytes).equals(readFileSync(FILE))).toBe(true);
   expect(STATEMENT_OF_RIGHTS_FILENAME).toBe("VEU-Statement-of-rights.pdf");
+  // The path the code names is the clean file it embeds (not the original with the hidden "xx").
+  expect(STATEMENT_OF_RIGHTS_PATH).toBe(FILE);
+  expect(sha(readFileSync(STATEMENT_OF_RIGHTS_PATH))).toBe(SHA);
 });
 
 test("its text is the VEU consumer statement of rights", async () => {
