@@ -86,6 +86,7 @@ export function JobHeader({ h, more }: { h: Header; more: ReactNode }) {
             {h.phone && <><span>{h.phone}</span><a href={`tel:${h.phone}`} className="font-semibold text-hiv-blue underline">Call</a><a href={`sms:${h.phone}`} className="font-semibold text-hiv-blue underline">Text</a></>}
             {h.email && <><span className="ml-2 truncate">{h.email}</span><a href={`mailto:${h.email}`} className="font-semibold text-hiv-blue underline">Email</a></>}
           </div>
+          {h.access && <p className="mt-1 text-sm text-ink" data-at-the-home>{h.access}</p>}
           <p className="mt-2 text-xs text-sub">
             {h.sourceLabel} {day(h.receivedAt)} · {h.permissionAt ? `permission to contact given ${day(h.permissionAt)}` : h.permissionState === "declined" ? "permission to contact NOT given" : "no permission to contact recorded"} · Last heard from us: {h.lastHeard ? `${dayTime(h.lastHeard.at)} · ${h.lastHeard.channel.toLowerCase()}` : "never"}
           </p>
