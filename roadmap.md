@@ -894,3 +894,5 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] Journey not-eligible 1.4: T7 only from office close on early enquiries; never sent after a Ready Check
 - [x] Mitti Ready Check form switch ON (Jo 27 Oct), checked on TEST HV-3346
 - [ ] Silver Spirit: Chris added on TEMPORARY TEST CII (Dom's C11-083) — replace with Chris's own CII when Jo has it
+
+- [ ] Mitti pickup electrician question (Part 2 of approved 2 Nov plan) — waiting for Jo to check Part 1 first (one change at a time)

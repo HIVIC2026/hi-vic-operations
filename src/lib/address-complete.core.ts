@@ -94,7 +94,7 @@ export const addressMissing = (s: StoredAddress) => !(s.suburb ?? "").trim() || 
  * Decide the completion. Fills only the blanks: the stored suburb and postcode win when given; the street keeps the
  * owner's words (only the suburb/postcode/VIC baked into the line are split off, capitalisation tidied as decision 216).
  */
-export function decideAddressCompletion(stored: StoredAddress, candidates: AddressCandidate[]): AddressCompletion {
+export function decideAddressCompletion(stored: StoredAddress, candidates: AddressCandidate[], opts: { useCandidateStreet?: boolean } = {}): AddressCompletion {
   if (!addressMissing(stored)) return { kind: "nothing_missing" };
   const labels = candidates.map((c) => (c.label ?? [c.street, c.suburb, c.postcode].filter(Boolean).join(" ")).trim()).filter(Boolean);
   if (!parseStreet(stored.addressLine)) return { kind: "unresolved", reason: "no_street", candidates: labels };
@@ -108,7 +108,8 @@ export function decideAddressCompletion(stored: StoredAddress, candidates: Addre
   const suburb = (stored.suburb ?? "").trim() || (c.suburb ?? "").trim();
   const postcode = isVicPostcode(stored.postcode) ? (stored.postcode ?? "").trim() : (c.postcode ?? "").trim();
   const split = splitAddress(stored.addressLine, suburb, postcode);
-  const street = split.street || (stored.addressLine ?? "").trim();
+  // Jo 2 Nov 2026: Mitti pickup addresses take the verified street (it agrees on number and name) instead of the typed words.
+  const street = (opts.useCandidateStreet && (c.street ?? "").trim()) || split.street || (stored.addressLine ?? "").trim();
   const filled: ("suburb" | "postcode" | "street")[] = [];
   if (!(stored.suburb ?? "").trim()) filled.push("suburb");
   if (!isVicPostcode(stored.postcode)) filled.push("postcode");
