@@ -5,6 +5,7 @@ import * as pricing from "../src/lib/installer-paid-electricians.core";
 import * as rec from "../src/lib/rec-onboarded.core";
 import * as usual from "../src/lib/usual-electrician.core";
 import * as safetyPrice from "../src/lib/safety-check-price.core";
+import { buildInstallerQuoteDraft } from "../src/lib/installer-led.core";
 
 // Evaluate the actual server code against local read fixtures. No hosted clients or delivery imports.
 function moduleAt(path: string, dependencies: Record<string, unknown>) {
@@ -26,10 +27,10 @@ function reads(rows: Record<string, unknown[]>, failedTable?: string) {
     return q;
   } } };
 }
-function priceModule(fixture: ReturnType<typeof reads>) {
+function priceModule(fixture: ReturnType<typeof reads>, today = "2026-10-30") {
   return moduleAt("src/lib/installer-paid-electricians.server.ts", {
     "@/integrations/supabase/client.server": { supabaseAdmin: fixture.admin },
-    "./sweep-batch.core": { chunkIds: (ids: unknown[], n: number) => Array.from({length:Math.ceil(ids.length/n)},(_,i)=>ids.slice(i*n,(i+1)*n)) }, "./mitti-membership.core": { mittiAccessOf: () => "member" }, "./installer-paid-electricians.core": pricing, "./melbourne-time.core": { melbourneToday: () => "2026-10-30" },
+    "./sweep-batch.core": { chunkIds: (ids: unknown[], n: number) => Array.from({length:Math.ceil(ids.length/n)},(_,i)=>ids.slice(i*n,(i+1)*n)) }, "./mitti-membership.core": { mittiAccessOf: () => "member" }, "./installer-paid-electricians.core": pricing, "./melbourne-time.core": { melbourneToday: () => today },
   });
 }
 test("payee batch reads both flags and any active effective card with a PIESA line", async () => {
@@ -186,4 +187,25 @@ test("installer-source payout preserves the recorded quote fee rather than today
   const f = reads({ businesses: [{ id: "rapid", name: "Rapid", in_house: false, pays_own_electricians: false }], rate_cards: [{ id: "cr", business_id: "rapid" }], rate_card_items: [{ rate_card_id: "cr", unit_price_ex_gst: 250 }], quotes: [{ job_id: "j", quote_items: [{ code: "PIESA", line_total_inc_gst: 300 }] }] });
   const payees = await priceModule(f).safetyCheckPayeesFor([{ id: "j", channel: "installer_sourced", originating_installer_business_id: "rapid" }]);
   expect(payees.get("j")?.piesaIncGst).toBe(300);
+});
+
+test("Rapid's saved 3 Nov electrical card feeds a $275 owner quote and $275 Rapid payee", async () => {
+  // Read-only verified live card facts; all execution stays local and cannot write or send.
+  const rapid = "e7efa7b8-8f5a-486e-b439-de1b39b911b5";
+  const card = "73d15d0d-11e0-448d-bcd1-dc045f49dda1";
+  const f = reads({
+    businesses: [{ id: rapid, name: "RAPID INSULATION", in_house: true }],
+    rate_cards: [{ id: card, business_id: rapid, name: "In-house PIESA", kind: "electrical", version: 1, is_active: true, effective_from: "2026-11-03" }],
+    rate_card_items: [{ rate_card_id: card, code: "PIESA", unit_price_ex_gst: 250 }],
+    quotes: [],
+  });
+  const api = priceModule(f, "2026-11-03");
+  const fee = await api.installerSafetyCheckPrice(rapid);
+  expect(fee).toBe(275);
+  const quote = buildInstallerQuoteDraft({ price: { ok: true, issues: [], price: { totalIncGst: 3000, included: ["Insulation"], otherDescription: "", agreedWithOwner: false } }, measuredM2: 100, wholeVeec: { veecs: 0, raw: 0 }, piesaIncGst: fee, apFeeIncGst: 349, caps: { metropolitan: true, minCopay: 200 } });
+  const ownerFee = quote.lines.find(l => l.code === "PIESA")?.line_total_inc_gst;
+  expect(ownerFee).toBe(275);
+  const payee = (await api.safetyCheckPayeesFor([{ id: "rapid-local-fixture", channel: "installer_sourced", originating_installer_business_id: rapid }])).get("rapid-local-fixture");
+  expect(payee).toEqual({ businessId: rapid, name: "RAPID INSULATION", piesaIncGst: 275 });
+  expect(Number(ownerFee) - Number(payee?.piesaIncGst)).toBe(0);
 });

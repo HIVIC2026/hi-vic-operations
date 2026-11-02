@@ -1,12 +1,12 @@
 ## Jo 3 Nov 10:39am Rapid recorded price
-- [ ] Add only Rapid live PIESA line $250 ex GST / $275 inc via normal recorded path, reason `Jo 3 Nov: Rapid PIESA $275 inc`; verify quote and whole-fee pass-through. BLOCKED: Jo's own session has no matching account; explicit Jo office-account mint requires unavailable approval. Read-only confirmed live active installer v1 has no PIESA line. No data changes, sends or publishing; live quote confirmation NOT RUN.
+- [x] Jo reports approved direct save 3 Nov 10:42am Sydney; read-only verified Rapid's new active electrical `In-house PIESA` v1 (effective 3 Nov), PIESA $250 ex / $275 inc, and `safety_check_prices_jo_3nov` audit. Local actual-reader → owner quote → payee regression added using those card facts; full $275 to Rapid, zero markup. No data changes, sends or publishing in this check; authenticated live job UI proof remains NOT RUN.
 
 ## Jo 3 Nov 10:30am installer safety-check correction
-- [x] Test-first restored installer-owned price-list owner fee and whole-fee pass-through, preserving recorded quote/payout values; website owner/payout unchanged. Requested examples and related focused tests pass. Broader historical suites have identical baseline failures (13/16/4). Rapid has no saved PIESA line; Reinsulate still $350 pending approved recorded saves. No data, sends or publishing.
+- [x] Test-first restored installer-owned price-list owner fee and whole-fee pass-through, preserving recorded quote/payout values; website owner/payout unchanged. Requested examples and related focused tests pass. Broader historical suites have identical baseline failures (13/16/4). Subsequent 10:42am approved saves verified below; Rapid saved-card regression passes (17/17 reader tests plus 14/14 pricing tests). No data changes, sends or publishing during verification.
 - [ ] Authenticated pricing flow proof: BLOCKED by unavailable Jo admin session; no new TEST/live data created to bypass it.
 
 ## Jo 3 Nov 10:20am safety-check recorded data saves
-- [ ] Save the four approved values through normal recorded office paths with reason `Jo 3 Nov: safety check $349`: ORLANDO POWERED rate $349; Orlando and Reinsulate v2 safety-check lines $317.27 ex GST; office electrician payout $250 ex GST. BLOCKED: Jo's own session has no matching account and minting Jo Lowe's explicit admin account was refused. No SQL bypass, data changes, sends or publishing; TEST businesses, HV-3193 and HV-3682 unchanged.
+- [x] Jo reports approved direct saves 3 Nov 10:42am Sydney, logged in `admin_config_events` as `safety_check_prices_jo_3nov`; read-only verified ORLANDO POWERED new active rate $349 (old $350 superseded), Orlando and Reinsulate PIESA list lines $317.27 ex, office payout setting $250 ex. TEST Reinsulate line remains $318.18 ex. No repeat saves; Rapid fifth value verified above.
 
 ## Jo 3 Nov installer-only electrician correction
 - [x] Red-first own-only rules; installer intake/editor/job/price inputs and server guards updated; website-lead route and agreement unchanged. Unanswered/legacy defaults use approved usual or office hold.
