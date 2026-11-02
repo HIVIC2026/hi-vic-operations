@@ -17,8 +17,9 @@ const docxText = (k: OfficialKey) => flat([...strFromU8(docx(k)["word/document.x
 /** Page count Word recorded when DEECA saved the form (docProps/app.xml). */
 const wordPages = (k: OfficialKey) => Number(strFromU8(docx(k)["docProps/app.xml"]!).match(/<Pages>(\d+)<\/Pages>/)![1]);
 
-// LibreOffice paginates the PIESA one page longer than Word did (Part 1 alone on page 1, B1 alone on page 5): 8 vs Word's
-// recorded 7. Wording and boxes are unaffected; recorded here so a change in either count fails loudly. PIISA matches.
+// LibreOffice paginates the PIESA one page longer than Word did (Part 2 starts page 2, B1 alone on page 5): 8 vs Word's
+// recorded 7, with or without the font replacements (the gap is layout, not fonts). Wording and boxes are unaffected;
+// pinned so a change in either count fails loudly. PIISA matches Word.
 const LIBREOFFICE_EXTRA_PAGES: Record<OfficialKey, number> = { piesa: 1, piisa: 0 };
 
 const HEADINGS: Record<OfficialKey, string[]> = {
@@ -58,6 +59,12 @@ for (const [key, data] of [["piesa", piesa], ["piisa", piisa]] as const) {
     expect(doc.numPages).toBe(wordPages(key) + LIBREOFFICE_EXTRA_PAGES[key]);
     let text = "";
     for (let p = 1; p <= doc.numPages; p++) text += " " + (await (await doc.getPage(p)).getTextContent()).items.map((i) => ("str" in i ? i.str + (i.hasEOL ? " " : "") : "")).join("");
+    // The footer classification label prints whole on every page (Inter, the default fallback for Aptos, wrapped it to "OFFICIA / L").
+    for (let p = 1; p <= doc.numPages; p++) {
+      const items = (await (await doc.getPage(p)).getTextContent()).items.map((i) => ("str" in i ? i.str.trim() : ""));
+      expect(items).toContain("OFFICIAL");
+      expect(items).not.toContain("OFFICIA");
+    }
     for (const h of HEADINGS[key]) {
       expect(docxText(key)).toContain(h);
       expect(flat(text)).toContain(h);

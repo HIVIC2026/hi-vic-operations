@@ -16,7 +16,13 @@ LibreOffice 24.2 does not turn the forms' old Word fields (FORMTEXT and FORMCHEC
 
 ## How the script measures the fields
 
-1. **Blank PDF.** `soffice --headless --convert-to pdf` runs on the untouched `.docx`.
+1. **Blank PDF.** `soffice --headless --convert-to pdf` runs on the untouched `.docx`. It uses a throwaway LibreOffice profile with a font replacement table (`FONT_REPLACEMENTS` in the script) for fonts the forms name but this machine lacks:
+   - Aptos (the footer "OFFICIAL" label) and Calibri → Carlito
+   - Cambria → Caladea
+   - "Arial Bold" and "VIC SemiBold" → Liberation Sans
+   - Tahoma and Lucida Handwriting → DejaVu Sans
+
+   Without the table, LibreOffice falls back to Inter, which wraps "OFFICIAL" to "OFFICIA / L".
 2. **Marker PDF.** The script makes a copy of the `.docx` with `uniqueFieldNames` applied. Every field becomes a marker `#nnn#`, where `nnn` is the field number with leading zeros. Each marker is squeezed with Word character scaling to about the width of its field:
    - A text field's blank result is 5 en spaces, so its marker is scaled to the same width.
    - A checkbox is replaced by its marker, scaled to the width of the box LibreOffice draws.
@@ -45,8 +51,11 @@ Regenerate after any change to the bundled DEECA `.docx` or to the LibreOffice v
 ## Known differences from Word
 
 - **PIESA page count.** LibreOffice lays out the PIESA on 8 pages. Word recorded 7 when DEECA saved it:
-  - Part 1 sits alone on page 1.
+  - Part 2 starts on page 2.
   - B1 sits alone on page 5.
 
-  The PIISA matches Word at 5 pages. The test pins both counts.
-- **Footer.** In the footer, "OFFICIAL" wraps to "OFFICIA / L". On the last page, the footer text overlaps the logos. Both are in LibreOffice's rendering of the original.
+  The font replacements do not change this; the cause is layout, not fonts. The PIISA matches Word at 5 pages. The test pins both counts.
+- **"OFFICIAL" label overlaps the footer line.** "OFFICIAL" now prints whole on every page, and the test checks this. But on every page after page 1 it overlaps the start of "VEU Pre-installation …". On the last page it is hidden behind the logos.
+  - The label is a bottom-anchored text box. The footer line runs through the page centre, so the two share a line.
+  - By the form's own geometry, the label would touch the footer text in Word too, but LibreOffice draws it about 5 pt higher.
+  - On the last page, the footer text also overlaps the DEECA logos.

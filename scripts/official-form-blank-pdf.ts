@@ -12,7 +12,7 @@
 //  4. Writes nothing if any field has no marker, a marker is found twice, or the page counts differ.
 // Usage: bun scripts/official-form-blank-pdf.ts
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -29,9 +29,40 @@ const MARKER_EM = 2.78;
 /** The form's own words may move at most this much (pt) between the blank and marker PDFs, else the boxes are not trusted. */
 const MAX_SHIFT_PT = 1;
 
+/**
+ * LibreOffice font replacement table for the conversion profile (fonts the DEECA forms name but this machine lacks; the
+ * default fallback is Inter, which is wider and wraps the footer "OFFICIAL" label to "OFFICIA / L"). Metric-compatible
+ * faces where one exists (Carlito = Calibri, Caladea = Cambria, Liberation Sans = Arial).
+ */
+const FONT_REPLACEMENTS: [string, string][] = [
+  ["Aptos", "Carlito"], // the "OFFICIAL" classification label in every footer
+  ["Calibri", "Carlito"],
+  ["Cambria", "Caladea"],
+  ["Arial Bold", "Liberation Sans"], // "Bold Body Text" style, e.g. PIISA Table 1 "WorkSafe guidance:"
+  ["VIC SemiBold", "Liberation Sans"],
+  ["Tahoma", "DejaVu Sans"],
+  ["Lucida Handwriting", "DejaVu Sans"],
+];
+
+function profileXcu(): string {
+  const pair = ([from, to]: [string, string], i: number) =>
+    `<item oor:path="/org.openoffice.Office.Common/Font/Substitution/FontPairs"><node oor:name="_${i}" oor:op="replace">` +
+    `<prop oor:name="Always" oor:op="fuse"><value>true</value></prop><prop oor:name="OnScreenOnly" oor:op="fuse"><value>false</value></prop>` +
+    `<prop oor:name="ReplaceFont" oor:op="fuse"><value>${from}</value></prop><prop oor:name="SubstituteFont" oor:op="fuse"><value>${to}</value></prop></node></item>`;
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<oor:items xmlns:oor="http://openoffice.org/2001/registry" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<item oor:path="/org.openoffice.Office.Common/Font/Substitution"><prop oor:name="Replacement" oor:op="fuse"><value>true</value></prop></item>
+${FONT_REPLACEMENTS.map(pair).join("\n")}
+</oor:items>
+`;
+}
+
 type FieldBox = { name: string; kind: "text" | "check"; page: number; x: number; y: number; w: number; h: number };
 
+/** Converts with a throwaway profile in `dir` carrying FONT_REPLACEMENTS. */
 function soffice(dir: string, file: string): Uint8Array {
+  mkdirSync(join(dir, "profile/user"), { recursive: true });
+  writeFileSync(join(dir, "profile/user/registrymodifications.xcu"), profileXcu());
   const r = spawnSync("soffice", ["--headless", `-env:UserInstallation=file://${dir}/profile`, "--convert-to", "pdf", "--outdir", dir, join(dir, file)], { encoding: "utf8" });
   if (r.status !== 0) throw new Error(`soffice failed on ${file}: ${r.stderr || r.stdout}`);
   return new Uint8Array(readFileSync(join(dir, file.replace(/\.docx$/, ".pdf"))));
