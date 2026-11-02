@@ -13,8 +13,8 @@ export const ELECTRICIAN_CHOICE_HIVIC = "Home Insulation Victoria's electrician"
 export const usualElectricianOptionLabel = (name: string) => `My usual electrician (${name})`;
 export const ELECTRICIAN_CHOICE_ISSUES = {
   missing: "Choose who does the electrical safety check.",
-  usual: "You have no usual electrician saved — add them under My business first, or choose Home Insulation Victoria's electrician.",
-  notOnboarded: "Your usual electrician isn't onboarded with Home Insulation Victoria yet — choose Home Insulation Victoria's electrician.",
+  usual: "Add your usual electrician under My business › Electrician first.",
+  notOnboarded: "Your usual electrician must be approved before they can be chosen.",
 } as const;
 
 /** A3: the usual electrician as Add a job sees it — saved, and whether they are onboarded. */
@@ -31,17 +31,17 @@ export function addJobElectricianProblem(choice: ElectricianChoice | null | unde
 
 /** The radio options Add a job shows: HIV always; "My usual electrician (<name>)" only when one is saved. */
 export function electricianChoiceOptions(usual: Pick<UsualElectrician, "name"> | null | undefined): { value: ElectricianChoice; label: string }[] {
-  const out: { value: ElectricianChoice; label: string }[] = [{ value: "hivic", label: ELECTRICIAN_CHOICE_HIVIC }];
+  const out: { value: ElectricianChoice; label: string }[] = [];
   if (usual?.name) out.unshift({ value: "usual", label: usualElectricianOptionLabel(usual.name) });
   return out;
 }
 
 /** Default = the usual electrician when one is set, else Home Insulation Victoria's (also the bulk-upload rule). */
-export const defaultElectricianChoice = (usual: Pick<UsualElectrician, "name"> | null | undefined): ElectricianChoice => (usual?.name ? "usual" : "hivic");
+export const defaultElectricianChoice = (usual: Pick<UsualElectrician, "name"> | null | undefined): ElectricianChoice | null => (usual?.name ? "usual" : null);
 
 /** Why the choice cannot be saved (null = fine). Required; "usual" needs a saved usual electrician. */
 export function electricianChoiceProblem(choice: ElectricianChoice | null | undefined, usual: Pick<UsualElectrician, "name"> | null | undefined): string | null {
-  if (choice !== "hivic" && choice !== "usual") return ELECTRICIAN_CHOICE_ISSUES.missing;
+  if (choice !== "usual") return ELECTRICIAN_CHOICE_ISSUES.usual;
   if (choice === "usual" && !usual?.name) return ELECTRICIAN_CHOICE_ISSUES.usual;
   return null;
 }
@@ -62,15 +62,15 @@ export function electricianChoiceFromEvent(details: unknown): ElectricianChoice 
 /** The ONE rule the quote pipeline uses: the job's recorded choice first; an old Mitti/price-card answer next (forms and
  *  `installer_price_set` records from before 25 Oct may still carry one, including "a different electrician"); otherwise
  *  the usual electrician when saved, else Home Insulation Victoria's. Never undecided. */
-export function resolveElectricianChoice(i: { recorded: ElectricianChoice | null; legacy: "hivic" | "usual" | "different" | string | null | undefined; usual: UsualElectrician | null }): "hivic" | "usual" | "different" {
+export function resolveElectricianChoice(i: { recorded: ElectricianChoice | null; legacy: "hivic" | "usual" | "different" | string | null | undefined; usual: UsualElectrician | null }): "hivic" | "usual" | "different" | null {
   if (i.recorded) return i.recorded;
   if (i.legacy === "hivic" || i.legacy === "usual" || i.legacy === "different") return i.legacy;
   return defaultElectricianChoice(i.usual);
 }
 
 /** Plain read-only line for the job page / price card. */
-export function electricianChoiceLine(choice: "hivic" | "usual" | "different", usual: Pick<UsualElectrician, "name"> | null | undefined, legacyName?: string | null): string {
-  if (choice === "hivic") return ELECTRICIAN_CHOICE_HIVIC;
+export function electricianChoiceLine(choice: "hivic" | "usual" | "different" | null, usual: Pick<UsualElectrician, "name"> | null | undefined, legacyName?: string | null): string {
+  if (choice === "hivic" || choice === null) return "Choose your own electrician";
   if (choice === "usual") return usual?.name ? usualElectricianOptionLabel(usual.name) : "My usual electrician (not saved yet — add them under My business)";
   return `A different electrician${legacyName ? ` (${legacyName})` : ""}`;
 }

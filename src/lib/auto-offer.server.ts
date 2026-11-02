@@ -98,7 +98,7 @@ async function electricianCandidates(jobId: string, channel: string | null, jobI
     const chosen = await (await import("./job-electrician.server")).jobChosenElectrician(jobId);
     preferredIds = chosen ? [chosen] : candidates.filter((c) => c.preferred).map((c) => c.business_id);
     // Jo 3 Nov 2026: a Mitti pickup the installer never answered uses their approved usual electrician; none → hold.
-    if (!chosen && source === "installer_mitti") {
+    if (!chosen) {
       const m = await (await import("./mitti-electrician.server")).mittiElectricianAtSafetyCheck(jobId);
       if (m.action === "hold") return { candidates: mapped, usualBusinessId: null, held: true };
       if (m.action === "use_usual") preferredIds = [m.businessId];

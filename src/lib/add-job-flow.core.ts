@@ -162,7 +162,7 @@ export function addedView(r: { jobNumber: string | null; address: string; ownerN
     line2: [r.ownerName, r.phone].filter(Boolean).join(" · "),
     card,
     steps: [`Nothing is sent to ${owner} until you press Complete.`, "We prepare the quote from your Ready Check and the price you enter on the job page, plus our $349 fee.",
-      r.electrician?.choice === "usual" ? `${r.electrician.usualName ?? "Your usual electrician"} does the electrical safety check once ${owner} accepts.` : `We arrange the electrical safety check once ${owner} accepts.`],
+      r.electrician?.choice === "usual" ? `${r.electrician.usualName ?? "Your usual electrician"} does the electrical safety check once ${owner} accepts.` : "Choose your own electrician on the job."],
     goToJob: "Go to the job", addAnother: "Add another job",
   };
 }

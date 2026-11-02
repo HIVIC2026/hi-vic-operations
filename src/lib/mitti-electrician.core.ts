@@ -12,6 +12,7 @@ export const MITTI_ELECTRICIAN_HELD_EVENT = "mitti_electrician_choice_needed";
 
 export type MittiQuestionFacts = {
   source: string | null | undefined;
+  channel?: string | null;
   /** jobs.electrician_choice — any recorded value means a choice exists. */
   electricianChoice: string | null | undefined;
   hasNomination: boolean;
@@ -22,7 +23,9 @@ export type MittiQuestionFacts = {
 
 /** Open only for a Mitti pickup that has no electrician chosen, nominated, offered, assigned or defaulted yet. */
 export function mittiElectricianQuestionOpen(f: MittiQuestionFacts): boolean {
-  return f.source === "installer_mitti" && !f.electricianChoice && !f.hasNomination && !f.hasElectricianAssigned && !f.hasPiesaOffer && !f.usualUsed;
+  const installer = f.source === "installer_mitti" || f.channel === "installer_sourced";
+  const unanswered = !f.electricianChoice || ["hivic_organise", "hivic_matched", "hivic"].includes(f.electricianChoice);
+  return installer && unanswered && !f.hasNomination && !f.hasElectricianAssigned && !f.hasPiesaOffer && !f.usualUsed;
 }
 
 /** Only an own electrician is an answer: an approved one, or one already invited by the installer. */

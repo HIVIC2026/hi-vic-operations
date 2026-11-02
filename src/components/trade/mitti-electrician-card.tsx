@@ -16,7 +16,10 @@ export function MittiElectricianCard({ jobId }: { jobId: string }) {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["mitti-electrician-question", jobId], queryFn: () => get({ data: { jobId } }), retry: false });
   const biz = q.data?.open ? q.data.businessId : null;
-  const el = useQuery({ queryKey: ["bulk-electricians", biz], queryFn: () => getEl({ data: { businessId: biz! } }), enabled: !!biz });
+  const el = useQuery({ queryKey: ["bulk-electricians", biz], queryFn: () => {
+    if (!biz) throw new Error("Couldn't check this job's installer.");
+    return getEl({ data: { businessId: biz } });
+  }, enabled: !!biz });
   const [plan, setPlan] = useState<ElectricianPlan | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);

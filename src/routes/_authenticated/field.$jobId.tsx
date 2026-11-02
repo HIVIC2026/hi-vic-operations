@@ -1084,6 +1084,8 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
 
       <InHouseBookingCard jobId={jobId} />
 
+      {page?.channel === "installer_sourced" && <MittiElectricianCard jobId={jobId} />}
+
       {/* AI replies step 2: notes the office saved for the installer (e.g. the owner wants R7.0). Older answers carry none. */}
       {page && (page.notes ?? []).length > 0 && (
         <Group title="Notes from the office">

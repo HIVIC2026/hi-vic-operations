@@ -24,7 +24,9 @@ export async function mittiElectricianForJob(jobId: string, actorId: string | nu
   const { resolveElectricianChoice } = await import("./electrician-choice.core");
   const recorded = await (await import("./electrician-choice.server")).readElectricianChoice(jobId);
   const saved = job.originating_installer_business_id ? await readUsualElectrician(job.originating_installer_business_id) : null;
-  const choice = resolveElectricianChoice({ recorded, legacy: answers.electricianChoice, usual: saved?.electrician ?? null });
+  const resolvedChoice = resolveElectricianChoice({ recorded, legacy: answers.electricianChoice, usual: saved?.electrician ?? null });
+  // Old HIV defaults are kept as history only. Installer quotes use their own usual electrician, or hold.
+  const choice = resolvedChoice === "hivic" ? (saved?.electrician ? "usual" : null) : resolvedChoice;
   // Decision 302: HIV's electrician = the standard owner PIESA line from retail settings (349 when unset).
   const { data: rs } = await admin.from("retail_estimator_settings").select("piesa_assessment_inc_gst").eq("is_current", true).maybeSingle();
   const legacy = resolveMittiElectrician({ choice, usual: saved?.electrician ?? null,

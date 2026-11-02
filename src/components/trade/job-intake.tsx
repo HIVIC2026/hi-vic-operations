@@ -86,7 +86,7 @@ export type ElectricianOption = { businessId?: string; nominationId?: string; na
 export type NewElectrician = { name: string; business: string; mobile: string; email: string };
 
 /** "Your electrician or ours?" — My electrician (usual one preselected) / + Add another electrician / Home Insulation Victoria arranges. */
-export function ElectricianPicker({ value, onChange, approved, pending, onAdd, compact = false, note = true, title = "Your electrician or ours?", ownOnly = false }: {
+export function ElectricianPicker({ value, onChange, approved, pending, onAdd, compact = false, note = true, title = "Choose your electrician", ownOnly = true }: {
   value: ElectricianPlan; onChange: (v: ElectricianPlan) => void; approved: ElectricianOption[]; pending: ElectricianOption[];
   onAdd?: (d: NewElectrician) => Promise<{ message: string }>; compact?: boolean; note?: boolean; title?: string;
   /** Own-electrician picker only (approved / invited / add) — used beneath a separate who-arranges choice. */
@@ -113,9 +113,8 @@ export function ElectricianPicker({ value, onChange, approved, pending, onAdd, c
       {!ownOnly && <><div className="flex items-center gap-1.5 text-sm font-semibold"><Zap className="h-4 w-4 text-hiv-blue" />{title}</div>
       <div role="group" aria-label="Electrician" className="grid grid-cols-2 gap-1 rounded-[11px] bg-mist p-1">
         <button type="button" aria-pressed={value.mode === "mine"} className={opt(value.mode === "mine")} onClick={pickMine}>My electrician</button>
-        <button type="button" aria-pressed={value.mode !== "mine"} className={opt(value.mode !== "mine")} onClick={() => { setAdding(false); onChange({ mode: "hivic" }); }}>Home Insulation Victoria arranges</button>
       </div></>}
-      {value.mode === "mine" && (
+      {(value.mode === "mine" || ownOnly) && (
         <select aria-label="My electrician" className="h-9 w-full rounded-[9px] border border-line bg-paper px-2 text-sm" value={selected} onChange={(e) => { const [k, id] = e.target.value.split(":"); if (!id) return; onChange(k === "b" ? { mode: "mine", business_id: id } : { mode: "mine", nomination_id: id }); }}>
           <option value="">Choose your electrician</option>
           {options.map((x) => <option key={x.key} value={x.key}>{x.name}{x.nominationId ? " · invited" : ""}</option>)}
@@ -159,7 +158,7 @@ export function JobElectricianCard({ jobId }: { jobId: string }) {
   useEffect(() => { get({ data: { jobId } }).then(setS).catch(() => {}); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [jobId]);
   if (!s || s.intake) return null; // Add job jobs: one guarded editor (job details) owns the electrician choice
   const label = jobElectricianLabel(s);
-  const canSwitch = !s.assignedName && (s.invitedName || s.chosenName);
+  const canSwitch = !s.installerSourced && !s.assignedName && (s.invitedName || s.chosenName);
   return (
     <section className="rounded-[18px] border border-line bg-paper p-4 shadow-card" data-job-electrician>
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">

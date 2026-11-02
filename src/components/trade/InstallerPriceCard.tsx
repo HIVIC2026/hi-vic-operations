@@ -13,10 +13,8 @@ import { useAction } from "@/hooks/use-me";
 import {
   getInstallerPriceFn,
   setInstallerPriceFn,
-  switchToHivElectricianFn,
 } from "@/lib/installer-price.functions";
 import {
-  HIV_SWITCH,
   PRICE_INCLUDED_OPTIONS,
   PRICE_ISSUES,
   PRICE_LOCKED,
@@ -28,7 +26,6 @@ const REMOVAL_OPTION = PRICE_INCLUDED_OPTIONS[1]; // "Removal of existing insula
 import { PRICE_CARD_ANCHOR } from "@/lib/boss-price-link.core";
 import { LinkRow, Note, PrimaryButton, Row } from "@/components/trade/installer-kit";
 import { PIESA_FULL } from "@/lib/job-wording";
-import { OneTapAction } from "@/components/trade/one-tap-action";
 
 export function InstallerPriceCard({ jobId }: { jobId: string }) {
   const load = useServerFn(getInstallerPriceFn);
@@ -38,7 +35,6 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
     staleTime: 20_000,
   });
   const save = useAction(setInstallerPriceFn);
-  const sw = useAction(switchToHivElectricianFn);
   const view = q.data;
   const [editing, setEditing] = useState(false);
   const [price, setPrice] = useState("");
@@ -98,20 +94,8 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
       <Row
         label="Electrician"
         value={view.electrician}
-        last={!lines || (showForm && !view.hivSwitch)}
+        last={!lines || showForm}
       />
-      {view.hivSwitch && (
-        <OneTapAction
-          label={HIV_SWITCH.button(view.hivSwitch.priceIncGst)}
-          busyLabel="Switching…"
-          confirm={HIV_SWITCH.confirm}
-          confirmLabel={HIV_SWITCH.yes}
-          run={async () => {
-            const r = await sw({ jobId }, "Switched to Home Insulation Victoria's electrician");
-            if (r) await q.refetch();
-          }}
-        />
-      )}
       {lines && !showForm && (
         <>
           <div className="border-b border-line py-3">

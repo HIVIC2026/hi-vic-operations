@@ -84,17 +84,16 @@ test("C5: electricians don't see the install deadline", () => {
 });
 
 test("C2: one-way switch only on a job held for a not-onboarded electrician", () => {
-  expect(hivSwitchOffered({ quoteHeldNotOnboarded: true, choice: "usual" })).toBe(true);
+  expect(hivSwitchOffered({ quoteHeldNotOnboarded: true, choice: "usual" })).toBe(false);
   expect(hivSwitchOffered({ quoteHeldNotOnboarded: true, choice: "hivic" })).toBe(false); // already switched: no way back
   expect(hivSwitchOffered({ quoteHeldNotOnboarded: false, choice: "usual" })).toBe(false);
   expect(HIV_SWITCH.button(349)).toBe("Use Home Insulation Victoria's electrician ($349)");
   const srv = read("src/lib/installer-price-set.server.ts");
   const fn = srv.slice(srv.indexOf("export async function switchToHivElectrician"));
   expect(fn).toMatch(/requireMember\(userId, [^,]+, true\)/);
-  expect(fn).toContain('recordElectricianChoice(jobId, ');
-  expect(fn).toContain('"hivic", "installer_switch")');
+  expect(fn).toContain('throw new WorkflowError("Use one of your own electricians.")');
   const card = read("src/components/trade/InstallerPriceCard.tsx");
-  expect(card).toContain("confirm={HIV_SWITCH.confirm}");
+  expect(card).not.toContain("switchToHivElectricianFn");
   for (const f of readdirSync("src/routes/_authenticated").filter((n: string) => n.startsWith("admin"))) expect(read(`src/routes/_authenticated/${f}`)).not.toContain("switchToHivElectrician");
 });
 

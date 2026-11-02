@@ -12,6 +12,8 @@ export async function recordJobElectricianChoice(jobId: string, installerBusines
     return { choice: null };
   }
   if (!plan || plan.mode !== "mine") {
+    const { data: job, error } = await admin.from("jobs").select("channel").eq("id", jobId).single();
+    if (error || !job || job.channel === "installer_sourced") throw new WorkflowError("Use one of your own electricians.");
     await admin.from("jobs").update({ electrician_choice: "hivic_organise" }).eq("id", jobId);
     return { choice: "hivic_organise" as const };
   }
@@ -37,7 +39,7 @@ export async function recordJobElectricianChoice(jobId: string, installerBusines
 /** The job's current electrician choice, for the job page. */
 export async function jobElectricianState(jobId: string) {
   const [{ data: job }, { data: noms }, { data: asg }] = await Promise.all([
-    admin.from("jobs").select("electrician_choice").eq("id", jobId).maybeSingle(),
+    admin.from("jobs").select("electrician_choice,channel").eq("id", jobId).maybeSingle(),
     admin.from("electrician_nominations").select("id, contact_name, business_id, status").eq("job_id", jobId).is("ended_at", null).order("created_at", { ascending: false }).limit(1),
     admin.from("job_assignments").select("business_id, businesses(name, trading_name)").eq("job_id", jobId).eq("role", "electrician").eq("active", true).limit(1),
   ]);
@@ -46,6 +48,7 @@ export async function jobElectricianState(jobId: string) {
   const { isIntakeJob } = await import("./installer-intake.server");
   return {
     intake: await isIntakeJob(jobId),
+    installerSourced: job?.channel === "installer_sourced",
     choice: (job?.electrician_choice as string | null) ?? null,
     assignedName: a ? a.businesses?.trading_name || a.businesses?.name || "Electrician" : null,
     chosenName: n?.business_id ? n.contact_name : null,
@@ -79,6 +82,8 @@ export async function switchJobToHivic(jobId: string, userId: string) {
 
 /** Internal: callers must already have applied the guards (legacy switch above, or installerUpdateIntake). */
 export async function applyHivicArrangement(jobId: string, userId: string) {
+  const { data: job, error } = await admin.from("jobs").select("channel").eq("id", jobId).single();
+  if (error || !job || job.channel === "installer_sourced") throw new WorkflowError("Use one of your own electricians.");
   const { data: mine } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("user_id", userId).eq("active", true).maybeSingle();
   if (!mine?.business_id) throw new WorkflowError("Only the installer on this job can change this.");
   const { data: biz } = await admin.from("business_members").select("member_role").eq("business_id", mine.business_id).eq("user_id", userId).eq("active", true).maybeSingle();

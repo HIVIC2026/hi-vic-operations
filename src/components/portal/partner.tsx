@@ -43,7 +43,7 @@ export function ElectricianChoicePanel({ jobId }: { jobId: string }) {
   return (
     <Section title="Choose the electrician">
       <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {([["preferred", "My preferred electrician"], ["approved_other", "Another Home Insulation Victoria electrician"], ["nominated", "Nominate an electrician"], ["hivic_organise", "Home Insulation Victoria organise one"]] as const).map(([k, l]) => (
+        {([["preferred", "My preferred electrician"], ["approved_other", "Another Home Insulation Victoria electrician"], ["nominated", "Nominate an electrician"], ["hivic_organise", "Home Insulation Victoria organise one"]] as const).filter(([k]) => !data.installerSourced || (k !== "hivic_organise" && k !== "approved_other")).map(([k, l]) => (
           <Button key={k} size="field" variant={mode === k ? "default" : "outline"} className="h-auto whitespace-normal py-2 text-sm" onClick={() => { setMode(k); setPick(null); }}>{l}</Button>
         ))}
       </div>

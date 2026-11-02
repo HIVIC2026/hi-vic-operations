@@ -78,7 +78,8 @@ export function AddJobFlow({ businessId, onReset, onSavedChange }: { businessId:
     if (p.length) return;
     inFlight.current = true; setBusy(true);
     try {
-      const choice: ElectricianChoice = electrician ?? defaultElectricianChoice(pickable);
+      const choice = electrician ?? defaultElectricianChoice(pickable);
+      if (!choice) throw new Error("Add your usual electrician under My business › Electrician first.");
       const r = await start({ data: { businessId, owner: customer, visit: visitPayload(visit), leadOrigin, requestKey, electricianChoice: choice } });
       try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
       setSaved({ jobId: r.jobId, jobNumber: r.jobNumber ?? null, booking: r.booking, state: r.state, customer, visit, electrician: { choice, usualName: pickable?.name ?? null } });
