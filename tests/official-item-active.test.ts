@@ -2,7 +2,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { strFromU8, unzipSync } from "fflate";
-import { KNOWN_WHENS, OFFICIAL_ITEMS, OFFICIAL_TEMPLATES, officialItemActive, type OfficialKey } from "../src/lib/official-forms.core";
+import { B1_OPTIONS, B2_OPTIONS, KNOWN_WHENS, OFFICIAL_ITEMS, OFFICIAL_TEMPLATES, officialItemActive, type OfficialKey } from "../src/lib/official-forms.core";
 import { fillOfficialDocxXml, officialDocxLayout, officialFieldValues, readOfficialDocx } from "../src/lib/official-docx.core";
 
 const xmlOf = (k: OfficialKey) => strFromU8(unzipSync(readFileSync(OFFICIAL_TEMPLATES[k].originalFile))["word/document.xml"]!);
@@ -59,5 +59,17 @@ describe("officialFieldValues", () => {
   test("PIISA top-up reason is skipped when only Removed", () => {
     const r = officialFieldValues("piisa", layoutOf("piisa"), { "p6.present": "Yes", "p6.treatment": ["Removed"], "p6.reason": "x" });
     expect(r.skipped).toEqual(["p6.reason"]);
+  });
+  test("b2.other is skipped when B2 itself is inactive (B1 not rectification)", () => {
+    const a = { b1: B1_OPTIONS[0], b2: [B2_OPTIONS[5]], "b2.other": "Junction box" };
+    const v = officialFieldValues("piesa", layoutOf("piesa"), a);
+    expect(v.skipped).toEqual(expect.arrayContaining(["b2", "b2.other"]));
+    expect(v.filled).not.toContain("b2.other");
+    const xml = xmlOf("piesa");
+    const r = fillOfficialDocxXml(xml, "piesa", a);
+    expect(r.skipped).toEqual(expect.arrayContaining(["b2", "b2.other"]));
+    const shown = readOfficialDocx(r.xml, "piesa", xml);
+    expect(shown["b2.other"] ?? null).toBeNull();
+    expect(shown["b2"] ?? null).toBeNull();
   });
 });

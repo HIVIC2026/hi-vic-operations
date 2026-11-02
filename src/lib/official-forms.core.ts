@@ -451,7 +451,8 @@ export function officialItemActive(key: OfficialKey, i: OfficialItem, a: Officia
       case "p7.appliances = Yes or p7.flues = Yes": return isYes(a["p7.appliances"]) || isYes(a["p7.flues"]);
       case "hazard identified": return rows(a, ["p7.appliance", "p7.location", "p7.hazard"], 10).length > 0;
       case RECT: return s(a["b1"]) === B1_OPTIONS[1];
-      case "b2 includes Other": return list(a["b2"], B2_OPTIONS).includes(B2_OPTIONS[5]);
+      // A follow-up is inactive when its parent is: B2 only applies when B1 is "rectification required".
+      case "b2 includes Other": return s(a["b1"]) === B1_OPTIONS[1] && list(a["b2"], B2_OPTIONS).includes(B2_OPTIONS[5]);
       default: return false;
     }
   }

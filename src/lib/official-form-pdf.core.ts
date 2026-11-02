@@ -1,6 +1,6 @@
 // Task 12: where filled text goes on the DEECA blank PDFs. PURE (measuring is passed in).
 // Rule (controller ruling, 3 Nov 2026): a value is drawn on its field's own line at the form's field size; if it is too long
-// it shrinks, down to 6 pt; if it still does not fit on one line it wraps inside the field's free area (the right edge of its
+// it wraps inside the field's free area when that area has room for 2+ lines, else it shrinks (6 pt minimum) and then wraps (the right edge of its
 // table cell or the page margin, never over DEECA's printed text, see official-pdf-areas.data.ts). Text is never cut: if even
 // 6 pt wrapped does not fit, it is drawn anyway at 6 pt and reported as overflow.
 import { wrapText } from "./pdf-look.core";
@@ -22,7 +22,9 @@ export function fitText(text: string, box: FieldRect, area: Rect, width: (s: str
   const W = area.x1 - area.x0, H = area.y1 - area.y0;
   const sizes: number[] = [];
   for (let s = Math.max(start, MIN_TEXT_SIZE); s >= MIN_TEXT_SIZE - 1e-9; s -= 0.5) sizes.push(s);
-  if (!text.includes("\n")) {
+  // One-line rows: shrink first. Areas with room for 2+ lines at the starting size: wrap first (below), then shrink.
+  const multiLine = H >= 2 * LINE * Math.max(start, MIN_TEXT_SIZE);
+  if (!multiLine && !text.includes("\n")) {
     for (const s of sizes) {
       if (width(text, s) > W) continue;
       let y = boxBaseline(box);

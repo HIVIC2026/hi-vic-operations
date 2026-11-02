@@ -99,6 +99,11 @@ test("skipped and unset answers draw nothing", async () => {
   const { v, d } = await expectPlacement("piesa", a);
   expect(v.skipped).toEqual(expect.arrayContaining(["c.signature", "c.tick1", "c.licence", "b2"]));
   for (let n = 138; n <= 153; n++) expect(d[pageOf("piesa", n)]!.paint.filter((p) => inside(p, fieldBox("piesa", n)))).toEqual([]);
+  // B2 inactive: neither b2 nor its "Other" details print, even when answered.
+  const b2 = { b1: "Electrical rectification work is not required before insulation is installed or upgraded.", b2: ["Other (indicate below):"], "b2.other": "Junction box above the kitchen" };
+  const p = await expectPlacement("piesa", b2);
+  expect(p.v.skipped).toEqual(expect.arrayContaining(["b2", "b2.other"]));
+  expect(p.d[5]!.text.some((t) => t.str.includes("Junction"))).toBe(false);
   for (const key of KEYS) {
     const empty = await drawn(key, (await officialFormPdf(key, {})).bytes);
     expect(empty.every((p) => p.text.length === 0 && p.paint.length === 0)).toBe(true);
@@ -141,6 +146,14 @@ test("long text shrinks (6 pt minimum), then wraps inside its cell; it is never 
   expect(squash(items.map((i) => i.str).join(""))).toBe(squash(address));
   expect(items.every((i) => i.size >= 6 && i.size < 9)).toBe(true);
   expect(r.overflow).toEqual([]);
+  // Big box (Part 7 actions): a sentence wider than the line wraps at the normal size instead of shrinking.
+  const actions = FULL.piesa["p7.actions"] as string;
+  const ra = await officialFormPdf("piesa", FULL.piesa);
+  const actN = officialDocxLayoutFor("piesa").slots.get("p7.actions")!.fields[0]!.n;
+  const act = textIn(await drawn("piesa", ra.bytes), pageOf("piesa", actN), areaOf("piesa", `hiv${actN}`));
+  expect(squash(act.map((i) => i.str).join(""))).toBe(squash(actions));
+  expect(new Set(act.map((i) => i.y.toFixed(1))).size).toBeGreaterThan(1);
+  expect(act.every((i) => i.size >= 9)).toBe(true);
   // Table cell (Part 7 Appliance column): wraps within its own column, never into Location.
   const cell = "Ducted gas heating unit with a long flexible duct running across the whole ceiling space to the bedrooms";
   const r2 = await officialFormPdf("piesa", { "p7.appliances": "Yes", "p7.appliance#0": cell });
