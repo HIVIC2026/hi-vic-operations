@@ -80,7 +80,7 @@ export function veecFormBlocks(values: Values, sigs: VeecSignatures | null, o: {
   const v = values;
   const out: PdfBlock[] = [];
 
-  out.push({ id: "head", kind: "header", eyebrow: `OFFICIAL FORM${o.jobNumber ? ` · JOB ${o.jobNumber}` : ""}`, compact: true, withAddress: true });
+  out.push({ id: "head", kind: "header", eyebrow: `OFFICIAL FORM${o.jobNumber ? ` · JOB ${o.jobNumber}` : ""}`, compact: true });
   out.push({ id: "title", kind: "title", text: VEEC_FORM_TITLE.replace(" Template:", ":"), sub: `Essential Services Commission template, ${VEEC_FORM_EDITION}`, compact: true });
 
   // ---- Section 1 (verbatim)

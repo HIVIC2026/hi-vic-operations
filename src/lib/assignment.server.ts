@@ -1466,7 +1466,10 @@ async function veecFinalPdfOrNull(a: NonNullable<Awaited<ReturnType<typeof curre
     const at = (name: string | null, when: string | null) => (name && when ? { name, at: when } : undefined);
     const installer = at(a.installer_signature_name, a.installer_signed_at), ap = at(a.ap_signature_name, a.ap_signed_at), consumer = at(a.consumer_signature_name, a.consumer_signed_at);
     // The Lead Installer's drawn Mitti signature image is added to `installer.image` by the Mitti signature reader (a later part); until then the typed name is printed.
-    return (await veecFormPdf(values, { ...(installer ? { installer } : {}), ...(ap ? { ap } : {}), ...(consumer ? { consumer } : {}) }, { jobNumber })).bytes;
+    const r = await veecFormPdf(values, { ...(installer ? { installer } : {}), ...(ap ? { ap } : {}), ...(consumer ? { consumer } : {}) }, { jobNumber });
+    // A section split across pages is kept (signing never fails on the PDF) but made visible to the office.
+    if (r.layout.split.length) await logEvent(jobId, actorId, "veec_form_pdf_fallback", "VEEC form split across pages (internal)", { reason: "veec form split across pages", blocks: r.layout.split }, { internal: true }).catch(() => undefined);
+    return r.bytes;
   } catch (e) {
     await logEvent(jobId, actorId, "veec_form_pdf_fallback", "VEEC form used the previous layout (internal)", { reason: e instanceof Error ? e.message : String(e) }, { internal: true }).catch(() => undefined);
     return null;

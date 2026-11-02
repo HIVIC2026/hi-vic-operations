@@ -68,6 +68,15 @@ describe("VEEC form PDF (website look)", () => {
     expect(t).toContain("$3,798.00"); expect(t).toContain("$2,188.00"); expect(t).toContain("$1,610.00"); expect(t).toContain("137");
     expect(t).not.toContain("14 Nov 2026");
   });
+  test("AP is named as in the approved sample, in Section 1, Section 3 Part A and Section 4; header has no address line", async () => {
+    const t = await pdfText((await veecFormPdf(SAMPLE_VALUES, SAMPLE_SIGS)).bytes);
+    const flat = (i: number) => t[i]!.replace(/\s+/g, " ");
+    expect(flat(0)).toContain("trading as Home Insulation Victoria, the accredited provider");
+    expect(flat(2)).toContain("authorised representative of DC Construction Solutions Pty Ltd trading as Home Insulation Victoria and declare");
+    expect(flat(4)).toContain("benefit from DC Construction Solutions Pty Ltd trading as Home Insulation Victoria in exchange");
+    expect(t.join(" ")).not.toMatch(/ABN 44 671 613 979, VEU Accredited/);
+    expect(flat(0).split("Section 1")[0]).not.toContain("Altree Court");
+  });
   test("no 'lawyer' anywhere in the owner-facing PDF", async () => {
     const r = await veecFormPdf(SAMPLE_VALUES, SAMPLE_SIGS);
     expect((await pdfText(r.bytes)).join(" ")).not.toMatch(/lawyer/i);
