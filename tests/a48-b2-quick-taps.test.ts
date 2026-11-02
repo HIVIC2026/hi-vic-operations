@@ -652,3 +652,39 @@ describe("My job pass screen (Jo 2 Nov 2026)", () => {
     expect(src).not.toContain("setDone(r.outcome)");
   });
 });
+
+describe("repairQuickTapsSharing (Jo 2 Nov 2026, HV-2730)", () => {
+  beforeEach(seed);
+  const failedYes = async (id: string, o: Partial<QuickTapAnswers> = {}) => {
+    addJob(id); sendBatchEvent(`b-${id}`, [id]); shareFails = true;
+    await expect(S.saveQuickTaps(tok(id), ALL_GOOD({ name: `Helen ${id}`, ...o }))).rejects.toThrow();
+    shareFails = false;
+  };
+  test("dry run lists a saved yes with no OK and writes nothing", async () => {
+    await failedYes("a");
+    expect(await S.repairQuickTapsSharing({ apply: false })).toEqual([{ jobId: "a", name: "Helen a", batchId: "b-a" }]);
+    expect(gates).toHaveLength(0); expect(events("quick_taps_share_repaired")).toHaveLength(0);
+  });
+  test("apply saves the OK as a tapped link from the recorded answer, once", async () => {
+    await failedYes("a");
+    await S.repairQuickTapsSharing({ apply: true });
+    expect(gates).toHaveLength(1);
+    expect(gates[0]).toMatchObject({ jobId: "a", key: "trade_contact_share", signatoryName: "Helen a", method: "quick_tap_link", quickTapsBatchId: "b-a" });
+    expect(events("quick_taps_share_repaired", "a")).toHaveLength(1);
+    expect(await S.repairQuickTapsSharing({ apply: true })).toEqual([]);
+    expect(gates).toHaveLength(1);
+    expect(mails).toEqual([]); expect(cancels).toEqual([]);
+  });
+  test("skips owners who already have their OK saved", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]);
+    await S.saveQuickTaps(tok("a"), ALL_GOOD());
+    expect(await S.repairQuickTapsSharing({ apply: true })).toEqual([]);
+    expect(gates).toHaveLength(1);
+  });
+  test("skips owners who said no", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]);
+    await S.saveQuickTaps(tok("a"), ALL_GOOD({ go: "no_thanks" }));
+    expect(await S.repairQuickTapsSharing({ apply: true })).toEqual([]);
+    expect(gates).toHaveLength(0);
+  });
+});
