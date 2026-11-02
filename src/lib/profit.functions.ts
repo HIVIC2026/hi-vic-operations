@@ -82,10 +82,24 @@ export const getProfitRegister = createServerFn({ method: "POST" }).middleware([
   const channelByJob = new Map((channels.data ?? []).map((c) => [c.id, c.channel]));
   // Owner-direct electrician (installer's own REC): zero PIESA cost/markup, never "rate missing". Accepted quotes carrying a PIESA line stay as committed.
   const { electricalBillingSource } = await import("./installer-led.core");
+  const scp = await import("./safety-check-price.core");
+  const [{ data: rsStd, error: rsErr }, { data: offerRows, error: offErr }] = await Promise.all([
+    admin.from("retail_estimator_settings").select("piesa_assessment_inc_gst").eq("is_current", true).maybeSingle(),
+    admin.from("partner_offers").select("job_id, summary").eq("kind", "piesa").eq("status", "accepted"),
+  ]);
+  if (rsErr || offErr) throw new Error("Safety check prices could not be loaded.");
+  const ownerPiesa = scp.ownerSafetyCheckIncGst(rsStd?.piesa_assessment_inc_gst ?? null);
+  const hivPayout = scp.hivElectricianPayoutIncGst(piesaRecCost);
+  const offerRates = new Map<string, number>();
+  for (const o of (offerRows ?? []) as { job_id: string; summary: { electrician_rate_inc_gst?: number | null } | null }[]) { const r = Number(o.summary?.electrician_rate_inc_gst); if (Number.isFinite(r) && r > 0 && !offerRates.has(o.job_id)) offerRates.set(o.job_id, r); }
   for (const c of channels.data ?? []) {
     const cur = byJob.get(c.id); if (!cur) continue;
     const qids = (quotes.data ?? []).filter((q) => q.job_id === c.id).map((q) => q.id);
     const hasLine = (items.data ?? []).some((l) => qids.includes(l.quote_id) && /\(PIESA\)/.test(l.description ?? ""));
+    // Jo 3 Nov 2026: installer jobs pass the owner's $349 to the installer; our leads pay the office payout ($275),
+    // unless the accepted offer recorded its own rate (HV-3682 stays $349).
+    const inc = scp.safetyCheckPayoutIncGst({ channel: c.channel, offerRateInc: offerRates.get(c.id) ?? null, ownerPriceIncGst: ownerPiesa, hivPayoutIncGst: hivPayout });
+    cur.piesaCostEx = Math.round((inc / gst) * 100) / 100; cur.piesaCostMissing = false;
     if (electricalBillingSource({ channel: c.channel, choice: (c as { electrician_choice?: string | null }).electrician_choice ?? null, committedLineOnAcceptedQuote: hasLine, hivPaidAt: null }) === "owner_direct") { cur.piesaCostEx = 0; cur.piesaCostMissing = false; }
   }
   const rows = (jobs.data ?? []).filter((j) => j.id && byJob.has(j.id) && j.source !== "qa_test" && j.stage !== "cancelled").map((j) => ({
