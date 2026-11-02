@@ -47,3 +47,44 @@ Changing HV-3722 is a live data change, so I'll do it only after you approve it 
 - Let the 15-minute address sweep also include `installer_mitti` jobs at the Ready Check stages, using the same 7-day once-only rule.
 - Add the "Address to confirm" Needs me row to office-needs, driven by `address_lookup_unresolved` while the address is still incomplete.
 - No database changes and no new settings.
+
+---
+
+# Part 2: Ask the installer about the electrician after a Mitti pickup
+
+## What's happening now
+Jobs created automatically from a Mitti form skip Add a job, so the installer is never asked "Your electrician or ours?". The job has no preferred electrician, so the safety check (PIESA) goes back to the office. Reinsulate already has an approved usual electrician, ORLANDO POWERED, but nothing ever asks them to use it.
+
+## 1. Where and when the installer sees the question
+- When the job is picked up from Mitti, it shows on the installer's **My jobs** card and in their **Needs finishing** list, labelled "Choose your electrician".
+- Tapping it opens the same question and options as Add a job:
+  - their usual electrician (when they have one approved and saved), or
+  - "Home Insulation Victoria arranges it".
+- The answer is saved the same way Add a job saves it. A chosen electrician is offered the owner's times first; they are never assigned directly.
+- Once answered, the question disappears and won't be asked again.
+- No text or email is sent. Trade texts are paused, and you haven't approved any new message wording. If you want a reminder later, that would be a separate decision for you.
+
+## 2. If they don't answer before the safety check is due
+- Nothing waits on the answer.
+- When the safety check comes up, the job goes to the office as it does today: Home Insulation Victoria arranges it.
+- Once the office has picked or offered an electrician, the question closes. The installer can't change the choice after that.
+
+## 3. HV-3722
+- After this is built and published, the question shows on Reinsulate's HV-3722 card like any new pickup.
+- If you'd rather not wait for Reinsulate to answer, the office can set ORLANDO POWERED on HV-3722 itself. That's a live data change, so it needs your separate approval first.
+- Either way, only HV-3722 is touched.
+
+## 4. Tests (written first)
+- A Mitti pickup with no electrician choice shows "Choose your electrician" on My jobs and in Needs finishing. A job created through Add a job doesn't show it.
+- Both options save exactly as Add a job saves them. After choosing the usual electrician, the safety check offers that electrician first.
+- If there's no approved usual electrician, only "Home Insulation Victoria arranges it" is offered.
+- A second answer, or a double tap, is refused once the choice is saved or the office has picked an electrician.
+- No answer means the safety check goes to the office, unchanged.
+- Another business can't see or answer the question on this job (checked as two different users).
+- Nothing is sent. TEST jobs stay TEST only.
+- Then the related tests and the full comparable test run.
+
+## Technical details (Part 2)
+- Pure helper `needsElectricianChoice(job)`: true when the job is from a Mitti pickup, installer-sourced, has no electrician choice event and no electrician offer or assignment yet.
+- The installer screen reuses the existing `ElectricianPicker`, and the save goes through the existing `recordJobElectricianChoice`, scoped to the installer's own business.
+- No database changes and no new settings.
