@@ -1,12 +1,12 @@
 // Website-look PDF renderer (Open Sans, blue top bar, business block, footer with "Page N of M"). No database, no network.
 // Layout rules are pure (pdf-look.core.ts); this file measures with the embedded fonts, paginates, draws, then writes the footers.
-import { PDFDocument, rgb, setCharacterSpacing, degrees, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
+import { PDFDocument, rgb, setCharacterSpacing, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import { LOGO_PNG } from "./email-hero-assets";
-import { OPEN_SANS_400, OPEN_SANS_700, OPEN_SANS_800 } from "./pdf-fonts.data";
+import { OPEN_SANS_400, OPEN_SANS_700, OPEN_SANS_700_ITALIC, OPEN_SANS_800 } from "./pdf-fonts.data";
 import { pdfSafeText } from "./pdf-text.core";
 import {
-  BUSINESS_ADDRESS, BUSINESS_LINES, PDF_COLOURS, PDF_FOOTER_LEFT, PDF_PAGE, packChildren, paginate, wrapText,
+  BUSINESS_ADDRESS, BUSINESS_LINES, PDF_COLOURS, PDF_FOOTER_LEFT, PDF_PAGE, paginateDetailed, wrapText,
   type PdfBlock, type PdfDoc, type PdfLayoutReport,
 } from "./pdf-look.core";
 
@@ -20,7 +20,7 @@ const BAR_H = 6, BAR_GAP = 13.5, LOGO_H = 34.5, LOGO_W = 34.5 * (400 / 171);
 const CONTENT_W = PDF_PAGE.width - 2 * PDF_PAGE.side;
 const PAGE_BOTTOM = PDF_PAGE.bottom;
 
-type Fonts = { r: PDFFont; b: PDFFont; x: PDFFont };
+type Fonts = { r: PDFFont; b: PDFFont; x: PDFFont; i: PDFFont };
 type Ctx = { pdf: PDFDocument; fonts: Fonts; logo: () => Promise<PDFImage>; images: Map<string, PDFImage> };
 
 /** Every string in the document goes through the Open Sans character set (ids, kinds and image bytes are left alone). */
@@ -46,7 +46,7 @@ function text(page: PDFPage, s: string, x: number, baseline: number, f: PDFFont,
   const sp = o.spacing ?? 0;
   const px = o.right ? x - tw(f, size, s, sp) : x;
   if (sp) page.pushOperators(setCharacterSpacing(sp));
-  page.drawText(s, { x: px, y: baseline, font: f, size, color, ...(o.skew ? { xSkew: degrees(0), ySkew: degrees(12) } : {}) });
+  page.drawText(s, { x: px, y: baseline, font: f, size, color });
   if (sp) page.pushOperators(setCharacterSpacing(0));
 }
 /** Baseline for a line of height `lh` whose top is `top`. */
@@ -76,7 +76,7 @@ function measure(b: PdfBlock, w: number, F: Fonts): number {
   }
 }
 const BOX_PAD = 7.5;
-const sectionHead = (b: { number?: string }) => 7.5 + 13 + 3 + 1.1 + 4 + (b.number ? 0 : 0);
+const sectionHead = (b: { number?: string }) => 7.5 + 13 + 3 + 1.1 + 4;
 const moneyRowH = (r: { strong?: boolean }) => (r.strong ? 19 : 14);
 const factRows = (rows: [string, string][]) => { const out: [string, string][][] = []; for (let i = 0; i < rows.length; i += 2) out.push(rows.slice(i, i + 2)); return out; };
 const FACT_PAD_X = 7.5, FACT_PAD_Y = 3.75;
@@ -84,7 +84,7 @@ function factCellH(c: [string, string], w: number, F: Fonts) { return FACT_PAD_Y
 function factRowH(r: [string, string][], w: number, F: Fonts) { const cw = r.length === 2 ? w / 2 : w; return Math.max(...r.map((c) => factCellH(c, cw, F))); }
 function sigH(b: { name: string; label: string; at: string }, w: number, F: Fonts) {
   const nameW = w * 0.62 - 15;
-  return 5 + 8.5 + Math.max(lines(F.b, 11.25, b.name, nameW).length * 14, 14) + 5;
+  return 5 + 8.5 + Math.max(lines(F.i, 11.25, b.name, nameW).length * 14, 14) + 5;
 }
 
 // ---- drawing --------------------------------------------------------------------------------------------------------
@@ -150,7 +150,7 @@ async function draw(b: PdfBlock, page: PDFPage, pageNo: number, x: number, top: 
       b.rows.forEach((r, i) => {
         const h = moneyRowH(r);
         const size = r.strong ? 9.75 : 8.6; const f = r.strong ? F.x : F.r;
-        const col = r.green ? C.dgreen : r.strong ? C.ink : C.ink;
+        const col = r.green ? C.dgreen : C.ink;
         const bl = base(y, h, size);
         text(page, r.label, x, bl, r.strong ? F.b : F.r, size, r.green ? C.dgreen : C.ink);
         text(page, r.amount, x + w, bl, f, size, col, { right: true });
@@ -180,7 +180,7 @@ async function draw(b: PdfBlock, page: PDFPage, pageNo: number, x: number, top: 
       page.drawLine({ start: { x: x + w1, y: y0 }, end: { x: x + w1, y: y0 - h }, thickness: 0.75, color: C.line });
       text(page, b.label.toUpperCase(), x + 7.5, base(y0 - 5, 8.5, LABEL), F.b, LABEL, C.muted, { spacing: 0.5 });
       text(page, "DATE", x + w1 + 7.5, base(y0 - 5, 8.5, LABEL), F.b, LABEL, C.muted, { spacing: 0.5 });
-      drawLines(page, lines(F.b, 11.25, b.name, w1 - 15), x + 7.5, y0 - 5 - 8.5, F.b, 11.25, 14, C.ink);
+      drawLines(page, lines(F.i, 11.25, b.name, w1 - 15), x + 7.5, y0 - 5 - 8.5, F.i, 11.25, 14, C.ink);
       drawLines(page, lines(F.r, BODY, b.at, w - w1 - 15), x + w1 + 7.5, y0 - 5 - 8.5, F.r, BODY, 14, C.ink);
       if (b.sub) drawLines(page, lines(F.r, SMALL, b.sub, w), x, y0 - h - 2, F.r, SMALL, SMALL_LH, C.muted);
       return;
@@ -234,7 +234,7 @@ export async function renderPdf(input: PdfDoc): Promise<{ bytes: Uint8Array; lay
   const pdf = await PDFDocument.create();
   pdf.registerFontkit(fontkit);
   const embed = (b64: string) => pdf.embedFont(Buffer.from(b64, "base64"), { subset: true });
-  const fonts: Fonts = { r: await embed(OPEN_SANS_400), b: await embed(OPEN_SANS_700), x: await embed(OPEN_SANS_800) };
+  const fonts: Fonts = { r: await embed(OPEN_SANS_400), b: await embed(OPEN_SANS_700), x: await embed(OPEN_SANS_800), i: await embed(OPEN_SANS_700_ITALIC) };
   const charset = new Set(fonts.r.getCharacterSet());
   const safe = (s: string) => s.split("\n").map((l) => pdfSafeText(l, charset)).join("\n");
   const doc = sanitize(input, safe);
@@ -257,7 +257,7 @@ export async function renderPdf(input: PdfDoc): Promise<{ bytes: Uint8Array; lay
     } else if (kids) childHeights = kids.map((c) => measure(c, CONTENT_W - 2 * BOX_PAD, fonts));
     return { id: b.id, height: heights[i]!, keepTogether: b.keepTogether !== false, ...(childHeights ? { childHeights } : {}), ...(b.kind === "pageBreak" ? { pageBreak: true } : {}) };
   });
-  const placed = paginate(items, firstSpace, pageSpace);
+  const placed = paginateDetailed(items, firstSpace, pageSpace);
 
   const layout: PdfLayoutReport = { pages: 0, blockPage: {}, split: [], topBarPages: [], images: [] };
   const pages: PDFPage[] = [];
@@ -272,7 +272,6 @@ export async function renderPdf(input: PdfDoc): Promise<{ bytes: Uint8Array; lay
     return p;
   };
   newPage();
-  const splitGroups = new Map<string, number[][]>();
   const byId = new Map(blocks.map((b, i) => [b.id, i]));
   for (const pl of placed) {
     while (pages.length < pl.page) newPage();
@@ -284,10 +283,10 @@ export async function renderPdf(input: PdfDoc): Promise<{ bytes: Uint8Array; lay
       y -= heights[i]!;
       continue;
     }
-    // Split block: this page's share of children (groups are worked out once, at part 0, from the space left there).
+    // Split block: the page's share of children comes straight from paginate (one source of truth).
     const kids = items[i]!.childHeights!;
-    if (pl.part === 0) { splitGroups.set(b.id, packChildren(kids, y - bottom, pageSpace)); layout.split.push(b.id); }
-    const g = splitGroups.get(b.id)![pl.part]!;
+    const g = pl.children!;
+    if (pl.part === 0) layout.split.push(b.id);
     if (b.kind === "section") await drawSection(b, page, pl.page, side, y, CONTENT_W, X, layout.images, g[0]!, g[g.length - 1]!, pl.part === 0);
     else if (b.kind === "box") {
       const inner = CONTENT_W - 2 * BOX_PAD;

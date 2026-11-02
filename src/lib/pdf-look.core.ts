@@ -76,14 +76,18 @@ export function packChildren(childHeights: number[], firstSpace: number, pageSpa
 
 export type PaginateItem = { id: string; height: number; keepTogether: boolean; childHeights?: number[]; pageBreak?: boolean };
 export type PaginateResult = { page: number; id: string; part?: number };
+/** Same as PaginateResult, plus the child indexes drawn on this page for a split block (the renderer draws exactly these). */
+export type PaginatePlacement = PaginateResult & { children?: number[] };
 
 /**
- * Pure page assignment. A block that does not fit the rest of the page moves whole to the next page (keep-together first).
- * A block taller than a full page splits only between its children (one entry per page, `part` 0..n-1). `pageBreak` items
- * start a new page (unless already at the top of one) and produce no entry.
+ * Pure page assignment. A block that does not fit the rest of the page moves whole to the next page when `keepTogether`
+ * is true (the default); with `keepTogether: false` it starts on the current page and flows onto the next ones between
+ * its children. A block taller than a full page always splits only between its children (one entry per page, `part`
+ * 0..n-1). `pageBreak` items start a new page (unless already at the top of one) and produce no entry.
+ * The renderer uses this function so layout and drawing cannot drift.
  */
-export function paginate(items: PaginateItem[], firstPageSpace: number, pageSpace: number): PaginateResult[] {
-  const out: PaginateResult[] = [];
+export function paginateDetailed(items: PaginateItem[], firstPageSpace: number, pageSpace: number): PaginatePlacement[] {
+  const out: PaginatePlacement[] = [];
   let page = 1;
   let left = firstPageSpace;
   const fresh = () => { page++; left = pageSpace; };
@@ -92,20 +96,25 @@ export function paginate(items: PaginateItem[], firstPageSpace: number, pageSpac
     if (it.pageBreak) { if (!atTop()) fresh(); continue; }
     if (it.height <= left + EPS) { out.push({ page, id: it.id }); left -= it.height; continue; }
     const kids = it.childHeights;
-    if (it.height <= pageSpace + EPS || !kids || kids.length === 0) {
-      // Fits a whole page (or cannot be split): move it whole.
+    const canSplit = !!kids && kids.length > 0;
+    if (!canSplit || (it.keepTogether && it.height <= pageSpace + EPS)) {
+      // Cannot be split, or fits a whole page and must stay together: move it whole.
       if (!atTop()) fresh();
       out.push({ page, id: it.id }); left -= it.height;
       continue;
     }
-    // Taller than a page: split between children, starting here unless the first child does not fit.
-    if (kids[0]! > left + EPS && !atTop()) fresh();
-    const groups = packChildren(kids, left, pageSpace);
+    // Flows over pages: split between children, starting here unless the first child does not fit.
+    if (kids![0]! > left + EPS && !atTop()) fresh();
+    const groups = packChildren(kids!, left, pageSpace);
     groups.forEach((g, p) => {
       if (p > 0) fresh();
-      out.push({ page, id: it.id, part: p });
-      left -= g.reduce((s, i) => s + kids[i]!, 0);
+      out.push({ page, id: it.id, part: p, children: g });
+      left -= g.reduce((s, i) => s + kids![i]!, 0);
     });
   }
   return out;
+}
+
+export function paginate(items: PaginateItem[], firstPageSpace: number, pageSpace: number): PaginateResult[] {
+  return paginateDetailed(items, firstPageSpace, pageSpace).map(({ children: _c, ...r }) => r);
 }
