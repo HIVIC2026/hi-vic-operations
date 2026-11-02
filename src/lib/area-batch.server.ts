@@ -17,7 +17,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { WorkflowError, logEvent } from "./workflow.server";
 import {
-  AREA_BATCH_CLOSED_EVENT, AREA_BATCH_EVENTS, AREA_BATCH_LEFT_EVENT, AREA_BATCH_RETURNED_EVENT, AREA_BATCH_SENT_EVENT, NO_ANSWER_CLOSE_REASON, QUICK_TAPS_REMINDED_EVENT,
+  AREA_BATCH_CLOSED_EVENT, AREA_BATCH_EVENTS, AREA_BATCH_MAX_HOMES, AREA_BATCH_LEFT_EVENT, AREA_BATCH_RETURNED_EVENT, AREA_BATCH_SENT_EVENT, NO_ANSWER_CLOSE_REASON, QUICK_TAPS_REMINDED_EVENT,
   QUICK_TAPS_REMINDER_SMS_TYPE, QUICK_TAPS_SMS_TYPE, areaBatchClosedKey, areaBatchKey, batchInstallers, batchSpanKm, likelyEligible, nextBatchSeq,
   openBatchId, outsideBatch, passHandedOn, planBatchSweep, standingPass, STAGE_CHANGED_EVENT, quickTapsLink, quickTapsReminderText, quickTapsSmsKey, quickTapsText, suggestBatches,
   type AreaBatchEventRow, type BatchHome, type SweepJob,
@@ -38,7 +38,7 @@ type Row = Record<string, unknown>;
 type Res = PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>;
 const loose = admin as unknown as SupabaseClient;
 const s = (v: unknown) => (v == null ? null : String(v));
-const MAX_SEND = 10;
+const MAX_SEND = AREA_BATCH_MAX_HOMES;
 /** Location lookups per page load (each is a Vicmap / Google call); the rest are filled on later loads. */
 const LOCATE_PER_LOAD = 25;
 
@@ -214,6 +214,26 @@ export async function batchSuggestions(opts: { includeTest?: boolean; testJobIds
     }
   }
   return { batches, candidates: candidates.length, unlocated };
+}
+
+/** Task 6 (Jo 2 Nov 2026), Choose installer › To release: the installers who can be offered EVERY ticked home (the same
+ *  `batchInstallers` rule Send re-checks), names in normal case. Read only. `testBusinessIds` scopes the TEST office login
+ *  to its TEST partners. A ticked job that can't be read refuses (never a list for fewer homes). */
+export async function installersForHomes(jobIdsIn: string[], testBusinessIds?: string[]): Promise<{ id: string; name: string }[]> {
+  const jobIds = [...new Set(jobIdsIn)];
+  if (!jobIds.length) return [];
+  if (jobIds.length > AREA_BATCH_MAX_HOMES) throw new WorkflowError(`Up to ${AREA_BATCH_MAX_HOMES} homes per Send.`);
+  const [jobs, installers] = await Promise.all([
+    byIds("ticked homes", jobIds, (c, f, t) => admin.from("jobs").select("id, source, properties(postcode)").in("id", c).range(f, t)),
+    (await import("./installer-waiting.server")).installerFacts(testBusinessIds),
+  ]);
+  const byId = new Map(jobs.map((j) => [String(j["id"]), j]));
+  if (jobIds.some((id) => !byId.has(id))) throw new WorkflowError("Some ticked homes couldn't be read — refresh the list and try again.");
+  const homes = jobIds.map((id) => {
+    const j = byId.get(id)!;
+    return { postcode: String((j["properties"] as { postcode?: string | null } | null)?.postcode ?? "").trim(), isTest: j["source"] === "qa_test" };
+  });
+  return batchInstallers(installers, homes).map((i) => ({ id: i.id, name: displayName(i.name) }));
 }
 
 // ---- Send (office, one tap) ------------------------------------------------------------------------------------------

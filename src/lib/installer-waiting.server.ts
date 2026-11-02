@@ -8,6 +8,8 @@ import { insulationChip } from "./office-filters.core";
 import { selectAgreedRate } from "./allocation.core";
 import { melbourneToday } from "./melbourne-time.core";
 import { displayName } from "./display-name.core";
+import { AREA_BATCH_EVENTS, batchRowState, type AreaBatchEventRow } from "./area-batch.core";
+import { QUICK_TAPS_ANSWERED_EVENT } from "./quick-taps.core";
 import { coverageLookup, installerWaiting, waitingSize, type InstallerWaitingRow, type WaitingInstaller, type WaitingPartner } from "./installer-waiting-columns.core";
 
 type Row = Record<string, unknown>;
@@ -102,13 +104,15 @@ export async function loadInstallerWaitingList(opts: { includeTest: boolean }, t
     installerFacts(testBusinessIds),
   ]);
   const ids = jobs.map((j) => String(j["id"]));
-  const [assigned, offers, saved, measured, estimates] = ids.length ? await Promise.all([
+  const [assigned, offers, saved, measured, estimates, batchHistory] = ids.length ? await Promise.all([
     byIds("installers", ids, (c, f, t) => admin.from("job_assignments").select("job_id").in("job_id", c).eq("role", "installer").eq("active", true).range(f, t)),
     byIds("Ready Check offers", ids, (c, f, t) => admin.from("partner_offers").select("job_id, status, offered_at, businesses(name)").in("job_id", c).eq("kind", "ready_check").range(f, t)),
     byIds("saved spots", ids, (c, f, t) => admin.from("lead_campaign_responses").select("job_id, spot_saved_at, opted_out_at, saved_total, saved_area_m2, saved_insulation").in("job_id", c).range(f, t)),
     byIds("measurements", ids, (c, f, t) => admin.from("ceiling_measurements").select("job_id, measured_area_m2").in("job_id", c).eq("is_current", true).not("measured_area_m2", "is", null).range(f, t)),
     byIds("website estimates", ids, (c, f, t) => admin.from("indicative_estimates").select("id, job_id, area_m2, insulation_declared, scenarios, created_at").in("job_id", c).eq("status", "current").order("created_at", { ascending: false }).range(f, t)),
-  ]) : [[], [], [], [], []];
+    // Task 6 (Jo 2 Nov 2026): area batch sends and the owners' quick-taps answers, for the row's batch status.
+    byIds("batch history", ids, (c, f, t) => loose.from("workflow_events").select("job_id, event_type, created_at, details").in("job_id", c).in("event_type", [...AREA_BATCH_EVENTS, QUICK_TAPS_ANSWERED_EVENT]).order("created_at").order("id").range(f, t)),
+  ]) : [[], [], [], [], [], []];
 
   const hasInstaller = new Set(assigned.map((a) => String(a["job_id"])));
   const offersBy = new Map<string, { status: string; offered_at: string; business_name: string | null }[]>();
@@ -118,6 +122,8 @@ export async function loadInstallerWaitingList(opts: { includeTest: boolean }, t
   for (const m of measured) { const v = n(m["measured_area_m2"]); if (v != null) measuredBy.set(String(m["job_id"]), v); }
   const websiteTotal = new Map<string, number | null>();
   for (const e of estimates) { const k = String(e["job_id"]); if (!websiteTotal.has(k)) websiteTotal.set(k, savedPriceFromEstimate(e as never)?.total ?? null); }
+  const batchBy = new Map<string, AreaBatchEventRow[]>();
+  for (const e of batchHistory) { const k = String(e["job_id"]); batchBy.set(k, [...(batchBy.get(k) ?? []), e as unknown as AreaBatchEventRow]); }
   const covered = coverageLookup(partners, new Date(now), installers);
   // Decision 389: each job's release state (batched by job id).
   const releases = ids.length ? await (await import("./spot-release.server")).spotReleaseStates(ids) : new Map();
@@ -146,6 +152,7 @@ export async function loadInstallerWaitingList(opts: { includeTest: boolean }, t
       coverage: covered(postcode || null, isTest),
       lastOffer: member.lastOffer, isTest,
       ...(() => { const r = releases.get(id); return r ? { release: { state: r.state, line: releaseStatusLine(r, now), releasable: releasable(r) } } : {}; })(),
+      batch: batchRowState(batchBy.get(id) ?? []),
     });
   }
   return { now, rows };

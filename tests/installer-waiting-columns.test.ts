@@ -203,3 +203,22 @@ test("areas to recruit in: one line per suburb with a gap, most jobs first, sayi
     { place: "Rosebud 3939", n: 1, missing: "No installer" },
   ]);
 });
+
+// Task 6 (Jo 2 Nov 2026): only plain, releasable saved spots can be ticked for Send.
+test("tickableForSend: texted, said-yes and not-releasable rows can't be ticked", async () => {
+  const { tickableForSend } = await import("../src/lib/installer-waiting-columns.core");
+  expect(tickableForSend(row())).toBe(true);
+  expect(tickableForSend(row({ batch: null }))).toBe(true);
+  expect(tickableForSend(row({ batch: { kind: "waiting", installerName: "Rapid Insulation" } }))).toBe(false);
+  expect(tickableForSend(row({ batch: { kind: "said_yes" } }))).toBe(false);
+  expect(tickableForSend(row({ release: { state: "pending", line: "Released", releasable: false } }))).toBe(false);
+  expect(tickableForSend(row({ release: { state: "lapsed", line: "Didn't confirm", releasable: true } }))).toBe(true);
+});
+test("To release screen: tick column, status line, Send via the existing batch Send, results reused", () => {
+  const src = readFileSync("src/components/portal/InstallerWaitingScreen.tsx", "utf8");
+  for (const s of ["tickableForSend(", "tickSendBlocker(", "batchRowLine(", "getInstallersForHomesFn", "sendAreaBatchFn", "<SendResultList", 'invalidateQueries({ queryKey: ["installer-waiting"] })'])
+    expect(src).toContain(s);
+  expect(src).toContain('"lg:grid-cols-[76px_minmax(0,1fr)_minmax(0,1.1fr)_96px_78px_88px_minmax(0,1fr)_minmax(0,1fr)_auto]"');
+  expect(src).toContain('"lg:grid-cols-[28px_76px_minmax(0,1fr)_minmax(0,1.1fr)_96px_78px_88px_minmax(0,1fr)_minmax(0,1fr)_auto]"');
+  expect(readFileSync("src/components/portal/choose-installer.tsx", "utf8")).toContain("export function SendResultList");
+});

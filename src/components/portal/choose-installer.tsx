@@ -20,9 +20,9 @@ import { useJobFile } from "@/components/portal/jobfile";
 import { AREA_BATCH_SENT_EVENT, openBatchId, sendResultWords } from "@/lib/area-batch.core";
 
 const money = (n: number) => `$${n.toLocaleString("en-AU", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`;
-type SendResults = { jobId: string; text: { status: string; detail: string }; email: { status: string; detail: string } }[];
-/** After Send (Jo 2 Nov 2026): each home's text and email result in plain words. */
-function SendResultList({ results, label }: { results: SendResults; label: (jobId: string) => string }) {
+export type SendResults = { jobId: string; text: { status: string; detail: string }; email: { status: string; detail: string } }[];
+/** After Send (Jo 2 Nov 2026): each home's text and email result in plain words. Also used by To release (Task 6). */
+export function SendResultList({ results, label }: { results: SendResults; label: (jobId: string) => string }) {
   return (
     <ul className="space-y-1 rounded-md border px-3 py-2 text-[13px]" data-send-results>
       {results.map((r) => <li key={r.jobId}><span className="font-semibold">{label(r.jobId)}</span> · Text: {sendResultWords("text", r.text)} · Email: {sendResultWords("email", r.email)}</li>)}

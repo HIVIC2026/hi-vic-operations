@@ -27,6 +27,19 @@ export const sendAreaBatchFn = createServerFn({ method: "POST" }).middleware([re
       results: r.texts.map((t) => ({ jobId: t.jobId, text: { status: t.status, detail: t.detail }, email: t.email })) };
   });
 
+/** Office (Task 6, Choose installer › To release): the installers who cover every ticked home. Read only. The same checks
+ *  as sendAreaBatchFn: each job is an office job (a TEST office login only its TEST jobs); a TEST office login only sees
+ *  its TEST partners. */
+export const getInstallersForHomesFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobIds: z.array(z.string().uuid()).min(1).max(10) }).parse(d))
+  .handler(async ({ data, context }) => {
+    for (const id of data.jobIds) await requireOfficeJob(context.supabase, id);
+    const role = await requireOfficeIdentity(context.supabase);
+    const { installersForHomes } = await import("./area-batch.server");
+    if (role === "qa_office") return { installers: await installersForHomes(data.jobIds, await officeTestBusinessIds(context.supabase)) };
+    return { installers: await installersForHomes(data.jobIds) };
+  });
+
 /** Office: closed batches whose owners said yes, waiting for Jo's "Send to installer" (or "Send again" when the installer's
  *  text didn't go), with the installers who could take them. Read only. */
 export const getBatchesReadyToSend = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

@@ -95,3 +95,42 @@ describe("excludedAreaName", () => {
   test.each(["Garage", "double carport", "Shed 1", "Car port", "the SHED", "Garage/workshop"])("%s is excluded", (n) => expect(excludedAreaName(n)).toBe(true));
   test.each(["Shedding room", "Lounge", "", "Garaged"])("%s is not excluded", (n) => expect(excludedAreaName(n)).toBe(false));
 });
+
+// ---- Task 6 (Jo 2 Nov 2026): To release shows batch status; tick to Send ------------------------------------------------
+describe("To release: batch status per row", async () => {
+  const { AREA_BATCH_MAX_HOMES, batchRowState, batchRowLine, tickSendBlocker } = await import("../src/lib/area-batch.core");
+  const ev = (event_type: string, batch_id: string, created_at: string, extra: Record<string, unknown> = {}) => ({ event_type, created_at, details: { batch_id, ...extra } });
+  const sent = (b = "b1", at = "2026-11-01T01:00:00Z") => ev("area_batch_sent", b, at, { installer_name: "RAPID INSULATION" });
+  test("texted, no answer → waiting for owner with the installer's name in normal case", () => {
+    const s = batchRowState([sent()]);
+    expect(s).toEqual({ kind: "waiting", installerName: "Rapid Insulation" });
+    expect(batchRowLine(s, "WAYNE WILSON")).toBe("Waiting for owner (sent for Rapid Insulation)");
+  });
+  test("said yes before the batch closes → said yes", () => {
+    const s = batchRowState([sent(), ev("quick_taps_answered", "b1", "2026-11-01T02:00:00Z", { outcome: "pass" })]);
+    expect(s).toEqual({ kind: "said_yes" });
+    expect(batchRowLine(s, "WAYNE WILSON")).toBe("Wayne Wilson said yes · free Ready Check");
+  });
+  test("said yes and the batch closed → still said yes; blank owner name → Owner", () => {
+    const s = batchRowState([sent(), ev("quick_taps_answered", "b1", "2026-11-01T02:00:00Z", { outcome: "pass" }), ev("area_batch_closed", "b1", "2026-11-04T02:00:00Z", { pass_job_ids: ["j1"] })]);
+    expect(s).toEqual({ kind: "said_yes" });
+    expect(batchRowLine(s, "  ")).toBe("Owner said yes · free Ready Check");
+    expect(batchRowLine(s, null)).toBe("Owner said yes · free Ready Check");
+  });
+  test("declined or never texted → plain row (null)", () => {
+    expect(batchRowState([])).toBeNull();
+    expect(batchRowState([sent(), ev("quick_taps_answered", "b1", "2026-11-01T02:00:00Z", { outcome: "decline_5yr" })])).toBeNull();
+    expect(batchRowLine(null, "Wayne")).toBeNull();
+  });
+  test("texted, closed with no answer (freed back to the pool) → plain row", () =>
+    expect(batchRowState([sent(), ev("area_batch_closed", "b1", "2026-11-04T02:00:00Z", { pass_job_ids: [], freed_job_ids: ["j1"] })])).toBeNull());
+  test("no installer name on the batch → 'the installer'", () =>
+    expect(batchRowLine(batchRowState([ev("area_batch_sent", "b1", "2026-11-01T01:00:00Z")]), "x")).toBe("Waiting for owner (sent for the installer)"));
+  test("tick to Send: at least one, at most 10", () => {
+    expect(AREA_BATCH_MAX_HOMES).toBe(10);
+    expect(tickSendBlocker(0)).toBe("Tick at least one saved spot.");
+    expect(tickSendBlocker(1)).toBeNull();
+    expect(tickSendBlocker(10)).toBeNull();
+    expect(tickSendBlocker(11)).toBe("Up to 10 homes per Send.");
+  });
+});

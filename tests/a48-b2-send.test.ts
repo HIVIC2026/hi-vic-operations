@@ -538,3 +538,47 @@ describe("Choose installer result words", () => {
     expect(src.match(/each owner gets a text and an email/g)?.length).toBe(2);
   });
 });
+
+// ---- Task 6 (Jo 2 Nov 2026): To release — tick up to 10 saved spots and Send ---------------------------------------------
+describe("To release tick-to-Send", () => {
+  beforeEach(seed);
+  test("3 ticked → each owner texted once; a repeat Send of the same homes is refused", async () => {
+    for (const id of ids(3)) addJob(id);
+    await S.sendBatch(ids(3), "biz-1", "jo", { now: NOW });
+    expect(sent.length).toBe(3);
+    expect(new Set(sent.map((x) => x.key)).size).toBe(3);
+    expect(events("area_batch_sent").length).toBe(3);
+    await expect(S.sendBatch(ids(3), "biz-1", "jo", { now: NOW })).rejects.toThrow(/already in a batch/);
+    expect(sent.length).toBe(3);
+    expect(events("area_batch_sent").length).toBe(3);
+  });
+  test("11 homes → refused, nothing recorded or sent", async () => {
+    for (const id of ids(11)) addJob(id);
+    await expect(S.sendBatch(ids(11), "biz-1", "jo", { now: NOW })).rejects.toThrow(/at most 10/);
+    expect(events().length).toBe(0); expect(sent.length).toBe(0);
+  });
+  test("installersForHomes: only installers covering every ticked home, names in normal case", async () => {
+    addJob("j1", { postcode: "3000" }); addJob("j2", { postcode: "3001" });
+    installers = [
+      installer({ id: "biz-1", name: "RAPID INSULATION PTY LTD" }),
+      installer({ id: "biz-2", name: "Only 3000", service_postcodes: ["3000"] }),
+      installer({ id: "biz-3", name: "INSolation", service_postcodes: ["3000", "3001"] }),
+    ];
+    expect(await S.installersForHomes(["j1", "j2"])).toEqual([{ id: "biz-1", name: "Rapid Insulation PTY LTD" }, { id: "biz-3", name: "INSolation" }]);
+    expect((await S.installersForHomes(["j1"])).map((i) => i.id)).toEqual(["biz-1", "biz-2", "biz-3"]);
+  });
+  test("installersForHomes: a TEST home only gets TEST partners; a missing job refuses", async () => {
+    addJob("t1", { source: "qa_test" });
+    installers = [installer(), installer({ id: "biz-t", name: "[TEST PARTNER] Co", onboarding_notes: "[TEST PARTNER]" })];
+    expect((await S.installersForHomes(["t1"])).map((i) => i.id)).toEqual(["biz-t"]);
+    await expect(S.installersForHomes(["t1", "gone"])).rejects.toThrow(/couldn't be read/);
+  });
+  test("getInstallersForHomesFn mirrors sendAreaBatchFn's checks (office job per id, TEST office scoped to TEST businesses)", () => {
+    const src = readFileSync("src/lib/area-batch.functions.ts", "utf8");
+    const fn = src.slice(src.indexOf("export const getInstallersForHomesFn"));
+    expect(fn).toMatch(/^export const getInstallersForHomesFn = createServerFn\(\{ method: "POST" \}\)\.middleware\(\[requireSupabaseAuth\]\)\s*\.inputValidator\(/);
+    expect(fn).toContain("z.array(z.string().uuid()).min(1).max(10)");
+    expect(fn).toContain("for (const id of data.jobIds) await requireOfficeJob(context.supabase, id);");
+    expect(fn).toContain("officeTestBusinessIds(context.supabase)");
+  });
+});

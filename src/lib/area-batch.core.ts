@@ -258,3 +258,33 @@ export function sendResultWords(kind: "text" | "email", r: { status: string; det
   if (kind === "email" && r.status === "uncertain") return "may have gone — not resent";
   return `didn't go — ${r.detail || r.status}`;
 }
+
+// ---- To release: batch status per row, tick to Send (Task 6, Jo 2 Nov 2026). PURE. ------------------------------------
+/** Most homes one To release Send can carry (the same cap as the batch Send). */
+export const AREA_BATCH_MAX_HOMES = 10;
+/** A saved spot's batch status on Choose installer › To release: texted and no answer yet, said yes (before or after the
+ *  batch closed), or null = plain (never texted, declined, or freed with no answer). */
+export type BatchRowState = { kind: "waiting"; installerName: string } | { kind: "said_yes" } | null;
+/** `events` = the job's batch events and quick-taps answers. A yes (latest answer "pass") wins; otherwise the batch whose
+ *  quick taps the owner answers (`tapsBatchId`) with no answer for it yet = waiting. */
+export function batchRowState(events: readonly AreaBatchEventRow[]): BatchRowState {
+  const latest = events.filter((e) => e.event_type === ANSWERED).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+  if (latest && outcomeOf(latest) === PASS) return { kind: "said_yes" };
+  const open = tapsBatchId(events);
+  if (!open || events.some((e) => e.event_type === ANSWERED && bid(e) === open)) return null;
+  const sent = events.find((e) => e.event_type === AREA_BATCH_SENT_EVENT && bid(e) === open);
+  const name = (sent?.details as { installer_name?: unknown } | null)?.installer_name;
+  return { kind: "waiting", installerName: displayName(typeof name === "string" ? name : null) };
+}
+/** The row's status line (verbatim copy), or null for a plain row. */
+export function batchRowLine(state: BatchRowState, ownerName: string | null | undefined): string | null {
+  if (!state) return null;
+  if (state.kind === "waiting") return `Waiting for owner (sent for ${state.installerName || "the installer"})`;
+  return `${displayName(ownerName) || "Owner"} said yes · free Ready Check`;
+}
+/** Why Send can't go with this many ticked homes, or null. */
+export function tickSendBlocker(ticked: number): string | null {
+  if (ticked < 1) return "Tick at least one saved spot.";
+  if (ticked > AREA_BATCH_MAX_HOMES) return `Up to ${AREA_BATCH_MAX_HOMES} homes per Send.`;
+  return null;
+}
