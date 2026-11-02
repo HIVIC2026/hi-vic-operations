@@ -1,4 +1,5 @@
 -- Run with psql -v ON_ERROR_STOP=1
+-- DO NOT RUN until Part 3 renders the agreement through fillAgreement/parseAgreement — the owner My job quote page (src/routes/my-job.$token.tsx ~510 via owner-link.functions.ts:73), portal assignment.tsx:115 and the flag-off signed acceptance (assignment.server.ts ~369) print the stored body raw.
 -- customer-agreement-v1-3.sql (2 Nov 2026): loads Customer Agreement v1.3 as the approved, active customer_agreement wording.
 -- Source: docs/approved-samples/2026-11-02/agreement-web.html and customer-agreement-v1.3-final.pdf.
 -- Later versions go through the Settings path (add version, approve), no code change.
