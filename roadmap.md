@@ -897,4 +897,4 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 
 - [x] Mitti pickup electrician question (built 3 Nov, not published)
 - [ ] HV-3722 address check: show result only, save waits for Jo OK
-- [ ] HV-3722: save verified address 9 Shelley Street, Spring Gully VIC 3550 via normal recorded path (Jo OK 3 Nov)
+- [x] HV-3722: saved verified address 9 Shelley Street, Spring Gully VIC 3550 via normal recorded path (Jo OK 3 Nov)
