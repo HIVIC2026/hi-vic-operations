@@ -96,6 +96,36 @@ export function docxFields(xml: string): DocxField[] {
   return out;
 }
 
+/**
+ * Gives every legacy form field its own name, `hiv{n}` (n = `docxFields` order), in its `<w:ffData><w:name>` and in the
+ * field's own `<w:bookmarkStart>` (the one carrying the old name, between this field and the next). The originals name every
+ * checkbox "Check1", and a converter such as LibreOffice then treats them as one field and drops ticks. Pure; field count,
+ * order and everything else are untouched; running it twice changes nothing more. Task 11 uses the same names for PDF widgets.
+ */
+export function uniqueFieldNames(xml: string): string {
+  const fields = docxFields(xml);
+  const edits: Edit[] = [];
+  fields.forEach((f, i) => {
+    const ffEnd = xml.indexOf("</w:fldChar>", f.begin);
+    const nameRe = /<w:name w:val="([^"]*)"\/>/g;
+    nameRe.lastIndex = f.begin;
+    const nm = nameRe.exec(xml);
+    if (!nm || nm.index > ffEnd) return;
+    const name = `hiv${f.n}`;
+    edits.push({ start: nm.index, end: nm.index + nm[0].length, text: `<w:name w:val="${name}"/>` });
+    const old = nm[1]!;
+    if (!old) return;
+    const stop = i + 1 < fields.length ? fields[i + 1]!.begin : xml.length;
+    const bmRe = new RegExp(`<w:bookmarkStart ([^>]*?)w:name="${old.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`, "g");
+    bmRe.lastIndex = ffEnd;
+    const bm = bmRe.exec(xml);
+    if (bm && bm.index < stop) edits.push({ start: bm.index, end: bm.index + bm[0].length, text: `<w:bookmarkStart ${bm[1]}w:name="${name}"` });
+  });
+  let out = xml;
+  for (const e of edits.sort((a, b) => b.start - a.start)) out = out.slice(0, e.start) + e.text + out.slice(e.end);
+  return out;
+}
+
 /** Item id (or `id#row` for table cells) → the field numbers that carry it. Yes/No groups map option → field. */
 export type DocxSlot = { id: string; fields: { option: string | null; n: number }[] };
 export type DocxLayout = { slots: Map<string, DocxSlot>; unplaced: string[]; notOnForm: string[] };
@@ -364,7 +394,7 @@ export function fillOfficialDocxParts(parts: Record<string, Uint8Array>, key: Of
       if (slot === "b3.signature" && sig.fallbackText) placements[slot] = { pictures: [], caption: sig.fallbackText };
     }
   }
-  const r = fillOfficialDocxXml(dec("word/document.xml"), key, answers, { signatures: placements });
+  const r = fillOfficialDocxXml(uniqueFieldNames(dec("word/document.xml")), key, answers, { signatures: placements });
   out["word/document.xml"] = new TextEncoder().encode(r.xml);
   if (embedded.length) {
     out["word/_rels/document.xml.rels"] = new TextEncoder().encode(rels);
