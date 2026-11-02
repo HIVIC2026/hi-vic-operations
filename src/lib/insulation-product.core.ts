@@ -7,7 +7,7 @@ export type InsulationProduct = { option: string; rValue: ProductRValue };
 
 /**
  * The exact tap options on both forms. Jo 22 Oct 23:45: Bradford Gold and Fletchers Pink Batts R5/R6/R7; Jo 24 Oct 2026
- * (decision 150): plus Earthwool R5. Jo 1 Nov: ECOWOOL held until its warranty is on file. R-value is taken from the label.
+ * (decision 150): plus Earthwool R5. The PGF brand is excluded (Jo 2 Nov 2026). R-value is taken from the label.
  */
 export const APPROVED_PRODUCTS: readonly InsulationProduct[] = [
   ...(["Bradford Gold", "Fletchers Pink Batts"] as const).flatMap((name) =>
@@ -43,7 +43,6 @@ export function productBrandModel(p: Pick<InsulationProduct, "option">): { brand
   if (/^bradford gold/i.test(p.option)) return { brand: "CSR Bradford", model: "Gold Ceiling Batt" };
   if (/pink batts/i.test(p.option)) return { brand: "PINK® Batts", model: "Ceiling Insulation" };
   if (/^earthwool/i.test(p.option)) return { brand: "Earthwool", model: "Ceiling batt" };
-  if (/^ecowool/i.test(p.option)) return { brand: "ECOWOOL ®", model: "Insulation" };
   const [brand, ...rest] = p.option.replace(/\s+R\d+(\.\d+)?$/i, "").split(" ");
   return { brand: brand ?? p.option, model: rest.join(" ") };
 }

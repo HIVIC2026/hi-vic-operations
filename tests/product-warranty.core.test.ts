@@ -1,6 +1,8 @@
 // VEU checklist G1 (Jo 25 Oct 2026): product warranty documents for the eight Mitti product options, the completion-pack
 // attach/record decision and the AP-signature hold wording. Pure: nothing is sent or read from a database.
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import {
   ESC_MIN_WARRANTY_YEARS, PRODUCT_WARRANTIES, PRODUCT_WARRANTY_DOC_KIND, WARRANTY_COPY_PROVIDED_EVENT, WARRANTY_DIR, decideWarrantyAttachment, installedProductOptions,
   looksLikePdf, meetsEscMinimum, warrantyFamilyForOption, warrantyForOption, warrantyHoldReason, warrantyProvidedSummary, warrantyTermText,
@@ -11,7 +13,7 @@ import { AP_PREREQ_EVENTS, apPrerequisiteBlockers, type ApPrerequisiteFacts } fr
 import { renderCompletionPackEmail } from "../src/lib/completion-emails.core";
 
 const onFile = (paths: string[]) => (p: string) => paths.includes(p);
-const bradford = warrantyForOption("Bradford Gold R6")!, pink = warrantyForOption("Fletchers Pink Batts R5")!, earthwool = warrantyForOption("Earthwool R5")!, ecowool = warrantyForOption("ECOWOOL R5")!;
+const bradford = warrantyForOption("Bradford Gold R6")!, pink = warrantyForOption("Fletchers Pink Batts R5")!, earthwool = warrantyForOption("Earthwool R5")!;
 
 describe("product warranty map", () => {
   test("every approved Mitti option maps to a manufacturer warranty with a source and a repo PDF path", () => {
@@ -27,24 +29,24 @@ describe("product warranty map", () => {
     expect(warrantyFamilyForOption("Bradford Gold R7")).toBe("bradford_gold");
     expect(warrantyFamilyForOption("Fletchers Pink Batts R7")).toBe("pink_batts");
     expect(warrantyFamilyForOption("Earthwool R5")).toBe("earthwool");
-    expect(warrantyFamilyForOption("ECOWOOL R5")).toBe("ecowool");
+    expect(warrantyFamilyForOption("ECOWOOL R5")).toBeNull(); // excluded (Jo 2 Nov 2026)
+    expect(warrantyFamilyForOption("ecowool")).toBeNull();
     expect(warrantyFamilyForOption("Knauf something")).toBeNull();
     expect(warrantyFamilyForOption(null)).toBeNull();
   });
 
-  test("terms: Bradford 70 years, Pink Batts lifetime, Earthwool 50 years all exceed the ESC 5-year minimum; ECOWOOL is unconfirmed and to be requested", () => {
+  test("terms: Bradford 70 years, Pink Batts lifetime, Earthwool 50 years all exceed the ESC 5-year minimum; ECOWOOL is excluded", () => {
     expect(ESC_MIN_WARRANTY_YEARS).toBe(5);
     expect(warrantyTermText(bradford)).toBe("70 years");
     expect(warrantyTermText(pink)).toBe("lifetime");
     expect(warrantyTermText(earthwool)).toBe("50 years");
-    expect(warrantyTermText(ecowool)).toBe("not confirmed");
     expect([bradford, pink, earthwool].every(meetsEscMinimum)).toBe(true);
-    expect(meetsEscMinimum(ecowool)).toBe(false);
-    expect(ecowool.requestFrom).toContain("sales@pgfinsulation.com.au");
     expect([bradford, pink, earthwool].every((w) => w.requestFrom === null)).toBe(true);
     expect(pink.sourceUrls[0]).toBe("https://insulation.com.au/wp-content/uploads/2024/Warranty-Consumer-Lifetime-Product-Pink-Batts-Rev2-290424.pdf");
-    expect(PRODUCT_WARRANTIES.map((w) => w.family)).toEqual(["bradford_gold", "pink_batts", "earthwool", "ecowool"]);
-    expect(new Set(PRODUCT_WARRANTIES.map((w) => w.attachmentName)).size).toBe(4);
+    expect(PRODUCT_WARRANTIES.map((w) => w.family)).toEqual(["bradford_gold", "pink_batts", "earthwool"]);
+    expect(new Set(PRODUCT_WARRANTIES.map((w) => w.attachmentName)).size).toBe(3);
+    // Bradford: Australian CSR source only (no NZ eboss mirror).
+    expect(bradford.sourceUrls).toEqual(["https://www.csrbradford.com.au/products/ceiling-insulation/insulation/goldceilingbatts"]);
   });
 
   test("bundled data: every embedded entry is a known path holding a real PDF (nothing fabricated)", () => {
@@ -63,11 +65,28 @@ describe("product warranty map", () => {
   });
 });
 
+describe("Bradford warranty is the Australian CSR document", () => {
+  test("bundled Bradford PDF is the CSR Australia lifetime warranty (life of home = 70 years), not the NZ certificate", () => {
+    const uri = PRODUCT_WARRANTY_PDFS[bradford.pdfPath]!;
+    expect(uri, "Bradford PDF embedded").toBeDefined();
+    const bytes = Buffer.from(uri.slice("data:application/pdf;base64,".length), "base64");
+    expect(bytes.toString("latin1")).not.toContain("eboss.co.nz");
+    // Interim copy: Jo's 2010 CSR print proof, kept byte-for-byte (page text checked with pdftotext 3 Nov 2026: "ABN 55 008 631 356", "life of the home ... 70 years"; streams are compressed so it cannot be grepped here).
+    const proof = readFileSync(new URL("../docs/product-warranties/_incoming/bradford-lifetime-warranty-proof-2010.pdf", import.meta.url));
+    expect(createHash("sha256").update(bytes).digest("hex")).toBe(createHash("sha256").update(proof).digest("hex"));
+    expect(bradford.pdfPath).toBe("docs/product-warranties/bradford-au-lifetime-warranty.pdf");
+  });
+  test("no ECOWOOL anywhere under src/", () => {
+    const hits = Bun.spawnSync(["grep", "-rli", "ecowool", "src"], { cwd: new URL("..", import.meta.url).pathname }).stdout.toString().trim();
+    expect(hits).toBe("");
+  });
+});
+
 describe("installed products", () => {
   test("install day per-area answers win over the Ready Check product; blanks dropped; no duplicates", () => {
     expect(installedProductOptions({ installDayProducts: ["Bradford Gold R6", null, "Bradford Gold R6", " "], readyCheckProduct: "Earthwool R5" })).toEqual(["Bradford Gold R6"]);
     expect(installedProductOptions({ installDayProducts: ["Bradford Gold R6", "Fletchers Pink Batts R5"], readyCheckProduct: null })).toEqual(["Bradford Gold R6", "Fletchers Pink Batts R5"]);
-    expect(installedProductOptions({ installDayProducts: [], readyCheckProduct: "ECOWOOL R5" })).toEqual(["ECOWOOL R5"]);
+    expect(installedProductOptions({ installDayProducts: [], readyCheckProduct: "ECOWOOL R5" })).toEqual(["ECOWOOL R5"]); // old stored answer still readable
     expect(installedProductOptions({ installDayProducts: [null], readyCheckProduct: null })).toEqual([]);
   });
 });
@@ -89,18 +108,19 @@ describe("completion pack attach / record decision", () => {
   });
 
   test("two products, one missing → the available one is attached but nothing is recorded (the AP declaration covers every product)", () => {
-    const d = decideWarrantyAttachment(["Fletchers Pink Batts R5", "ECOWOOL R5"], onFile([pink.pdfPath]));
+    const d = decideWarrantyAttachment(["Fletchers Pink Batts R5", "Knauf Jetstream"], onFile([pink.pdfPath]));
     expect(d.attach.map((w) => w.family)).toEqual(["pink_batts"]);
-    expect(d.missing.map((m) => m.product)).toEqual(["ECOWOOL R5"]);
+    expect(d.missing.map((m) => m.product)).toEqual(["Knauf Jetstream"]);
     expect(d.recordProvided).toBe(false);
-    expect(d.missing[0]!.reason).toContain("to be requested from PGF Australia (sales@pgfinsulation.com.au)");
   });
 
-  test("ECOWOOL with a PDF but an unconfirmed term is still not recorded; no product → nothing recorded; unknown option → missing", () => {
-    const eco = decideWarrantyAttachment(["ECOWOOL R5"], onFile([ecowool.pdfPath]));
+  test("an old job whose stored product is ECOWOL is held with a clear reason, never crashes; no product → nothing recorded", () => {
+    const eco = decideWarrantyAttachment(["ECOWOOL R5"], onFile([bradford.pdfPath, pink.pdfPath, earthwool.pdfPath]));
     expect(eco.attach).toEqual([]);
     expect(eco.recordProvided).toBe(false);
-    expect(eco.missing[0]!.reason).toContain("ESC minimum of 5 years");
+    expect(eco.missing).toEqual([{ product: "ECOWOOL R5", reason: "ECOWOOL R5 is not one of the approved product options, so no warranty document is mapped to it." }]);
+    expect(warrantyHoldReason("ECOWOOL R5")).toBe("Warranty copy for ECOWOOL R5 not on file.");
+    expect(decideWarrantyAttachment(["Bradford Gold R6", "ECOWOOL R5"], onFile([bradford.pdfPath])).recordProvided).toBe(false);
     expect(decideWarrantyAttachment([], onFile([bradford.pdfPath])).recordProvided).toBe(false);
     const unknown = decideWarrantyAttachment(["Knauf Jetstream"], onFile([]));
     expect(unknown.missing[0]!.reason).toContain("not one of the approved product options");
@@ -120,7 +140,7 @@ describe("AP signature hold (decision 271 prerequisite)", () => {
   };
   test("holds with 'warranty copy for <product> not on file' when the installed product's PDF is missing", () => {
     expect(apPrerequisiteBlockers({ ...base, warrantyProductsNotOnFile: ["ECOWOOL R5"] })).toEqual([warrantyHoldReason("ECOWOOL R5")]);
-    expect(warrantyHoldReason("ECOWOOL R5")).toBe("Warranty copy for ECOWOOL R5 not on file (to be requested from PGF Australia (sales@pgfinsulation.com.au)).");
+    expect(warrantyHoldReason("ECOWOOL R5")).toBe("Warranty copy for ECOWOOL R5 not on file.");
     expect(warrantyHoldReason("Bradford Gold R6")).toContain("https://www.csrbradford.com.au/");
   });
   test("keeps the generic wording when no product gap is known, and clears once the copy is recorded", () => {

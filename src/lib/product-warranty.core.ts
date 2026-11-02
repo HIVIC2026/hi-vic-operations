@@ -4,7 +4,7 @@
  *
  * The ESC requires the consumer to hold a copy of the product warranty against defects (minimum 5 years from installation)
  * BEFORE the AP signs Section 3 Part A of the VEEC assignment form (FAQ Q8; assignment form Part A bullet 7). This module
- * maps each of the eight Mitti product options (insulation-product.core `APPROVED_PRODUCTS`) to its manufacturer warranty:
+ * maps each of the seven Mitti product options (insulation-product.core `APPROVED_PRODUCTS`) to its manufacturer warranty:
  * who issues it, how long it runs, where the public document lives and which repo file under `docs/product-warranties/`
  * holds the copy that is attached to the completion pack (O47) and filed on the job (documents kind `product_warranty`).
  *
@@ -22,7 +22,7 @@ export const PRODUCT_WARRANTY_DOC_KIND = "product_warranty";
 /** Workflow event written when the completion pack carried every installed product's warranty (same event the office records by hand). */
 export const WARRANTY_COPY_PROVIDED_EVENT = "warranty_copy_provided";
 
-export type WarrantyFamily = "bradford_gold" | "pink_batts" | "earthwool" | "ecowool";
+export type WarrantyFamily = "bradford_gold" | "pink_batts" | "earthwool";
 
 export type ProductWarranty = {
   family: WarrantyFamily;
@@ -39,16 +39,16 @@ export type ProductWarranty = {
   pdfPath: string;
   /** Filename the owner sees on the email attachment / job file. */
   attachmentName: string;
-  /** How to obtain the document when no public copy exists (ECOWOOL). */
+  /** How to obtain the document when no public copy exists (none at present). */
   requestFrom: string | null;
 };
 
 export const PRODUCT_WARRANTIES: readonly ProductWarranty[] = [
   {
     family: "bradford_gold", productName: "Bradford Gold", manufacturer: "CSR Bradford (CSR Building Products Ltd)",
-    documentTitle: "Bradford Insulation 70-year product performance warranty", warranty: { kind: "years", years: 70 },
-    sourceUrls: ["https://www.csrbradford.com.au/", "https://www.eboss.co.nz/assets/literature/25/24959/125414-BRI-Product-Lifetime-Warranty-PRESS.pdf"],
-    pdfPath: `${WARRANTY_DIR}/bradford-gold-70-year-warranty.pdf`, attachmentName: "Bradford-Gold-product-warranty.pdf", requestFrom: null,
+    documentTitle: "Bradford Home Insulation lifetime warranty (life of the home = 70 years)", warranty: { kind: "years", years: 70 },
+    sourceUrls: ["https://www.csrbradford.com.au/products/ceiling-insulation/insulation/goldceilingbatts"],
+    pdfPath: `${WARRANTY_DIR}/bradford-au-lifetime-warranty.pdf`, attachmentName: "Bradford-Gold-product-warranty.pdf", requestFrom: null,
   },
   {
     family: "pink_batts", productName: "Fletchers Pink Batts", manufacturer: "Fletcher Insulation Pty Ltd",
@@ -62,13 +62,6 @@ export const PRODUCT_WARRANTIES: readonly ProductWarranty[] = [
     sourceUrls: ["https://www.knauf.com/en-AU", "https://media.bunnings.com.au/api/public/content/00dae20abf0b4b2dafd88941ae435043"],
     pdfPath: `${WARRANTY_DIR}/earthwool-unfaced-50-year-warranty.pdf`, attachmentName: "Earthwool-product-warranty.pdf", requestFrom: null,
   },
-  {
-    family: "ecowool", productName: "ECOWOOL", manufacturer: "PGF Insulation (PGF Australia)",
-    documentTitle: "ECOWOOL product warranty (no public document found)", warranty: { kind: "years", years: 0 },
-    sourceUrls: ["https://pgfinsulation.com.au/"],
-    pdfPath: `${WARRANTY_DIR}/ecowool-product-warranty.pdf`, attachmentName: "ECOWOOL-product-warranty.pdf",
-    requestFrom: "to be requested from PGF Australia (sales@pgfinsulation.com.au)",
-  },
 ];
 
 /** The warranty family for one Mitti option ("Bradford Gold R6", "Earthwool R5"); null for anything that is not an approved option. */
@@ -78,11 +71,9 @@ export function warrantyFamilyForOption(option: string | null | undefined): Warr
   if (/^bradford gold/i.test(o)) return "bradford_gold";
   if (/pink batts/i.test(o)) return "pink_batts";
   if (/^earthwool/i.test(o)) return "earthwool";
-  if (/^ecowool/i.test(o)) return "ecowool";
   // An office-confirmed actual product from the label review ("Bradford Gold Ceiling Batt R5.0", "Knauf Earthwool …").
   if (/\bbradford\b/i.test(o) && /\bgold\b/i.test(o)) return "bradford_gold";
   if (/\bearthwool\b/i.test(o)) return "earthwool";
-  if (/\becowool\b/i.test(o)) return "ecowool";
   return null;
 }
 

@@ -1,8 +1,8 @@
 /**
  * ESC VEU Activity 48 approved ceiling insulation products — pure.
  *
- * Source: ESC published register extract dated 19 October 2026, supplied by Jo 24 Oct 2026 (decision 149): 33 models
- * (10 Bradford, 3 Earthwool, 2 ECOWOOL, 18 Pink Batts). Every entry: product category 48A, "Bulk insulation batt or
+ * Source: ESC published register extract dated 19 October 2026, supplied by Jo 24 Oct 2026 (decision 149): 33 models,
+ * of which 31 are kept (10 Bradford, 3 Earthwool, 18 Pink Batts); the 2 PGF models are left out because that brand is excluded (Jo 2 Nov 2026). Every entry: product category 48A, "Bulk insulation batt or
  * blanket", status Approved, effective from 14 April 2026. `code` is the manufacturer model code (the extract has no
  * separate ESC product ID). `family` is the product name as listed; when the register changes, replace this list and
  * bump REGISTER_SOURCE_DATE.
@@ -16,7 +16,7 @@ export const PRODUCT_TYPE = "Bulk insulation batt or blanket";
 export const ACTIVITY_48_MIN_R = 5.0;
 
 export type EscProduct = {
-  family: string; brand: "Bradford" | "Earthwool" | "ECOWOOL" | "Pink Batts"; code: string;
+  family: string; brand: "Bradford" | "Earthwool" | "Pink Batts"; code: string;
   rValue: number; lengthMm: number; widthMm: number; thicknessMm: number | null; effectiveTo: string;
 };
 
@@ -34,8 +34,6 @@ export const ESC_APPROVED_PRODUCTS: readonly EscProduct[] = [
   { family: "Earthwool Ceiling batt", brand: "Earthwool", code: "731840", rValue: 3.5, lengthMm: 1160, widthMm: 430, thicknessMm: 175, effectiveTo: "2027-02-23" },
   { family: "Earthwool Ceiling batt", brand: "Earthwool", code: "731832", rValue: 4.0, lengthMm: 1160, widthMm: 430, thicknessMm: 195, effectiveTo: "2027-02-23" },
   { family: "Earthwool Ceiling batt", brand: "Earthwool", code: "2437543", rValue: 5.0, lengthMm: 1160, widthMm: 430, thicknessMm: 210, effectiveTo: "2027-02-23" },
-  { family: "ECOWOOL ® Insulation", brand: "ECOWOOL", code: "602009", rValue: 5.0, lengthMm: 1160, widthMm: 430, thicknessMm: 230, effectiveTo: "2029-05-08" },
-  { family: "ECOWOOL ® Insulation", brand: "ECOWOOL", code: "602010", rValue: 5.0, lengthMm: 1160, widthMm: 580, thicknessMm: 230, effectiveTo: "2029-05-08" },
   { family: "PINK® Batts Ceiling Insulation", brand: "Pink Batts", code: "4006098", rValue: 2.5, lengthMm: 1160, widthMm: 430, thicknessMm: null, effectiveTo: "2029-08-02" },
   { family: "PINK® Batts Ceiling Insulation", brand: "Pink Batts", code: "4006099", rValue: 2.5, lengthMm: 1160, widthMm: 580, thicknessMm: null, effectiveTo: "2029-08-02" },
   { family: "PINK® Batts Ceiling Insulation", brand: "Pink Batts", code: "4006100", rValue: 3.0, lengthMm: 1160, widthMm: 430, thicknessMm: null, effectiveTo: "2029-08-02" },
@@ -91,6 +89,6 @@ export function activity48ProductProblems(codes: readonly string[], installDate:
 export function modelsForMittiOption(option: string): EscProduct[] {
   const m = option.match(/R(\d+(?:\.\d+)?)\s*$/i);
   const r = m ? Number(m[1]) : NaN;
-  const brand = /bradford/i.test(option) ? "Bradford" : /pink batts/i.test(option) ? "Pink Batts" : /earthwool/i.test(option) ? "Earthwool" : /ecowool/i.test(option) ? "ECOWOOL" : null;
+  const brand = /bradford/i.test(option) ? "Bradford" : /pink batts/i.test(option) ? "Pink Batts" : /earthwool/i.test(option) ? "Earthwool" : null;
   return ESC_APPROVED_PRODUCTS.filter((p) => p.brand === brand && Math.abs(p.rValue - r) < 1e-9);
 }

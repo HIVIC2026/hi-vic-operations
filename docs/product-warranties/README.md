@@ -20,19 +20,22 @@ The PDFs are bundled for the server by `bun scripts/embed-product-warranties.ts`
 The script refuses anything that is not a real PDF (`%PDF-` header) and warns when the text does not mention a warranty.
 **Run it after adding or replacing any file here.**
 
-## Status (25 Oct 2026)
+## Status (2 Nov 2026)
 
-Three PDFs are on file and embedded (fetched through the Lovable sandbox on 25 Oct 2026; the build container's proxy
-blocks the manufacturer hosts): Pink Batts (insulation.com.au Rev2 29 Apr 2024), Earthwool unfaced (Knauf via the Bunnings
-media mirror, KIAU08181747WA), Bradford (eboss.co.nz NZ-issued lifetime warranty certificate — replace with the current
-Australian CSR Bradford 70-year document when the office has it). ECOWOOL is still missing (PGF to supply).
+Three PDFs are on file and embedded: Pink Batts (insulation.com.au Rev2 29 Apr 2024), Earthwool unfaced (Knauf via the Bunnings
+media mirror, KIAU08181747WA) and Bradford (CSR Australia lifetime warranty, life of the home = 70 years, ABN 55 008 631 356).
+ECOWOOL is excluded (Jo, 2 Nov 2026): no warranty file, not in the product map. An old job that still holds an ECOWOOL answer
+sends the completion pack without a warranty and the AP signature holds with "Warranty copy for <product> not on file".
+
+**Bradford is interim:** `bradford-au-lifetime-warranty.pdf` is the 2010 print proof supplied by Jo on 2 Nov 2026 (crop marks, colour
+bars, blanks; kept byte-for-byte, original in `_incoming/bradford-lifetime-warranty-proof-2010.pdf`). Replace it with CSR's current clean
+copy when received: same file name, then re-run `bun scripts/embed-product-warranties.ts`.
 
 | Product option(s) | Manufacturer | Warranty | Expected file (exact name) | Source |
 |---|---|---|---|---|
-| Bradford Gold R5 / R6 / R7 | CSR Bradford (CSR Building Products Ltd) | 70-year product performance warranty (decision 148) | `bradford-gold-70-year-warranty.pdf` | Current CSR Bradford Australia warranty PDF from https://www.csrbradford.com.au/ (search "Bradford Gold warranty"); fallback certificate https://www.eboss.co.nz/assets/literature/25/24959/125414-BRI-Product-Lifetime-Warranty-PRESS.pdf (NZ-issued — prefer the Australian document) |
+| Bradford Gold R5 / R6 / R7 | CSR Bradford (CSR Building Products Ltd) | Lifetime warranty, life of the home = 70 years (decision 148) | `bradford-au-lifetime-warranty.pdf` | https://www.csrbradford.com.au/products/ceiling-insulation/insulation/goldceilingbatts (Australian document only) |
 | Fletchers Pink Batts R5 / R6 / R7 | Fletcher Insulation Pty Ltd | Consumer lifetime product warranty (Rev 2, 29 Apr 2024) | `pink-batts-consumer-lifetime-warranty.pdf` | https://insulation.com.au/wp-content/uploads/2024/Warranty-Consumer-Lifetime-Product-Pink-Batts-Rev2-290424.pdf |
 | Earthwool R5 | Knauf Insulation Pty Ltd | 50-year warranty — Earthwool unfaced products | `earthwool-unfaced-50-year-warranty.pdf` | https://www.knauf.com/en-AU → Earthwool Ceiling Batts → "Knauf Insulation Warranty - Earthwool unfaced products.PDF"; mirror https://media.bunnings.com.au/api/public/content/00dae20abf0b4b2dafd88941ae435043 |
-| ECOWOOL R5 | PGF Insulation (PGF Australia) | **Not confirmed — no public warranty document found** | `ecowool-product-warranty.pdf` | To be requested from PGF Australia (sales@pgfinsulation.com.au). The term is recorded as unconfirmed, so ECOWOOL jobs hold on the warranty prerequisite until the office records a copy by hand; once the document arrives, set `warranty` in `product-warranty.core.ts` to the stated term (must be ≥ 5 years), add the file and run the embed script. |
 
 Checks to make when adding a file: it opens as a PDF, it is the manufacturer's own document (not a reseller summary),
 the warranty term is stated and is at least 5 years, and it covers the ceiling batt range we install. Record the download

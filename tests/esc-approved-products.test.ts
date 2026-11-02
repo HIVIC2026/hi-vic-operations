@@ -3,11 +3,12 @@ import { ESC_APPROVED_PRODUCTS, activity48ProductProblems, modelsForMittiOption,
 import { APPROVED_PRODUCTS } from "../src/lib/insulation-product.core";
 
 describe("ESC Activity 48 register, 19 Oct 2026 (decision 149)", () => {
-  test("33 unique models: 10 Bradford, 3 Earthwool, 2 ECOWOOL, 18 Pink Batts", () => {
-    expect(ESC_APPROVED_PRODUCTS.length).toBe(33);
-    expect(new Set(ESC_APPROVED_PRODUCTS.map((p) => p.code)).size).toBe(33);
+  test("31 unique models: 10 Bradford, 3 Earthwool, 18 Pink Batts (ECOWOOL excluded, Jo 2 Nov 2026)", () => {
+    expect(ESC_APPROVED_PRODUCTS.length).toBe(31);
+    expect(new Set(ESC_APPROVED_PRODUCTS.map((p) => p.code)).size).toBe(31);
     const count = (b: string) => ESC_APPROVED_PRODUCTS.filter((p) => p.brand === b).length;
-    expect([count("Bradford"), count("Earthwool"), count("ECOWOOL"), count("Pink Batts")]).toEqual([10, 3, 2, 18]);
+    expect([count("Bradford"), count("Earthwool"), count("Pink Batts")]).toEqual([10, 3, 18]);
+    expect(modelsForMittiOption("ECOWOOL R5")).toEqual([]);
     expect(productLabel(productByCode("467911")!)).toBe("CSR Bradford Gold Ceiling Batt — R5.0 — 1160 × 430 mm — 467911");
   });
   test("R5.0 minimum, combinations, register and dates", () => {
