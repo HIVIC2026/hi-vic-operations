@@ -1,6 +1,6 @@
 /**
  * Manufacturer's installation instructions on file (VEU Code of Conduct (completion information) / ESC Activity Guide Table 3: given to the consumer on completion).
- * Part 4 attaches the right one to the owner's "All done" email. Families come from product-warranty.core (ECOWOOL excluded).
+ * Part 4 attaches the right one to the owner's "All done" email. Families come from product-warranty.core (products with no warranty family are skipped).
  *
  * A family only counts as "on file" when its real PDF is bundled in `product-instructions.data.ts` (regenerated from
  * docs/product-instructions/ by `bun scripts/embed-product-instructions.ts`). A missing file returns null plus a hold
