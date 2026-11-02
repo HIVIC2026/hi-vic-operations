@@ -20,16 +20,27 @@ export async function officialPiesaPdf(jobId: string, jobNumber: string): Promis
   const { answersFromDocument } = await import("./official-forms.core");
   const answers = answersFromDocument(pe.copy.snapshot.document) as Record<string, unknown>;
   const sig = await (await import("./official-signature.server")).officialSignatureImages(jobId, "piesa", answers).catch(() => null);
-  const bytes = await officialPiesaPdfBytes(pe.copy.snapshot, jobNumber, answers, sig?.signatures ?? {});
+  const bytes = await officialPiesaPdfBytes(pe.copy.snapshot, jobNumber, answers, sig?.signatures ?? {}, jobId);
   return { copyId: pe.copy.id, signatureDate: pe.copy.signatureDate, fileName: officialPiesaPdfFilename(jobNumber), bytes };
 }
 
 /**
  * The PDF for a signed PIESA copy. Task 12: with PDF_LOOK_APPROVED.officialFormPdf on (after Jo approves the sample), the
  * filled DEECA form (official-form-pdf.server); off (default), today's plain-text copy, unchanged.
+ * If the DEECA fill fails with the flag on, an internal event is logged (when `jobId` is given) and today's plain-text
+ * copy is returned, so the PIESA copy email and the electrician's download never break.
  */
-export async function officialPiesaPdfBytes(snapshot: SignedSnapshot, jobNumber: string, answers: Record<string, unknown>, signatures: Partial<Record<SignatureSlot, SignatureInput>>): Promise<Uint8Array> {
-  if (PDF_LOOK_APPROVED.officialFormPdf) return (await (await import("./official-form-pdf.server")).officialFormPdf("piesa", answers as OfficialAnswers, signatures)).bytes;
+export async function officialPiesaPdfBytes(snapshot: SignedSnapshot, jobNumber: string, answers: Record<string, unknown>, signatures: Partial<Record<SignatureSlot, SignatureInput>>, jobId?: string): Promise<Uint8Array> {
+  if (PDF_LOOK_APPROVED.officialFormPdf) {
+    try {
+      return (await (await import("./official-form-pdf.server")).officialFormPdf("piesa", answers as OfficialAnswers, signatures)).bytes;
+    } catch (e) {
+      if (jobId) {
+        const { logEvent } = await import("./workflow.server");
+        await logEvent(jobId, null, "official_form_pdf_fallback", "PIESA copy used the previous layout (internal)", { form: "piesa", reason: e instanceof Error ? e.message : String(e) }, { internal: true }).catch(() => undefined);
+      }
+    }
+  }
   const { textToPdf } = await import("./signed-pdf.server");
   const marks: PdfSignatureMarks = {};
   const images: Record<string, { bytes: Uint8Array; contentType: string }> = {};

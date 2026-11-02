@@ -57,11 +57,18 @@ export async function storeOfficialDocx(jobId: string, key: OfficialKey) {
   if (up.error) throw new Error(up.error.message);
   // Task 12: with PDF_LOOK_APPROVED.officialFormPdf on, the filled DEECA form as a PDF too, next to the Word file.
   let pdfPath: string | null = null;
+  // If the PDF can't be made or stored, the Word file still stands (as with the flag off) and an internal event is logged.
   if (PDF_LOOK_APPROVED.officialFormPdf) {
-    const pdf = await (await import("./official-form-pdf.server")).officialFormPdf(key, answers as never, sig.signatures);
-    pdfPath = `jobs/${jobId}/${key}/${copy.snapshot.hash}.pdf`;
-    const upPdf = await supabaseAdmin.storage.from(OFFICIAL_BUCKET).upload(pdfPath, new Blob([pdf.bytes.buffer as ArrayBuffer], { type: "application/pdf" }), { upsert: true, contentType: "application/pdf" });
-    if (upPdf.error) throw new Error(upPdf.error.message);
+    try {
+      const pdf = await (await import("./official-form-pdf.server")).officialFormPdf(key, answers as never, sig.signatures);
+      const target = `jobs/${jobId}/${key}/${copy.snapshot.hash}.pdf`;
+      const upPdf = await supabaseAdmin.storage.from(OFFICIAL_BUCKET).upload(target, new Blob([pdf.bytes.buffer as ArrayBuffer], { type: "application/pdf" }), { upsert: true, contentType: "application/pdf" });
+      if (upPdf.error) throw new Error(upPdf.error.message);
+      pdfPath = target;
+    } catch (e) {
+      const { logEvent } = await import("./workflow.server");
+      await logEvent(jobId, null, "official_form_pdf_fallback", `${key.toUpperCase()} form PDF not made; Word copy kept (internal)`, { form: key, reason: e instanceof Error ? e.message : String(e) }, { internal: true }).catch(() => undefined);
+    }
   }
   return { path, pdfPath, filled: filled.length, missed, skipped, sourceSha256: sha256, signaturesEmbedded: embedded, signatureFlags: sig.flags };
 }
