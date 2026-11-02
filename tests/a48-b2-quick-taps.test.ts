@@ -103,8 +103,27 @@ mock.module("../src/lib/owner-gates.server", () => ({ signGateDoc: async (i: Row
 const mails: { via: string; to: string; subject: string; text: string; key?: string }[] = [];
 mock.module("../src/lib/test-send.server", () => ({
   sendTestEmail: async (_c: Row, to: string, subject: string, _html: string, text: string) => { mails.push({ via: "test-email", to, subject, text }); return { status: "sent", detail: "ok" }; },
-  sendTestSms: async () => { throw new Error("no texts in Task 3"); },
+  sendTestSms: async (_c: Row, to: string) => { texts.push({ via: "test-sms", to }); return { status: "sent", detail: "ok" }; },
 }));
+// Quick taps send no texts at all; recorded so a test can prove the tenant's number is never texted.
+const texts: { via: string; to: string }[] = [];
+mock.module("../src/lib/sms.server", () => ({
+  sendRealSms: async (i: { to?: string; phone?: string }) => { texts.push({ via: "real-sms", to: String(i.to ?? i.phone ?? "") }); return { status: "sent", detail: "ok", sid: "s" }; },
+}));
+// Server fns run their handler directly (same stand-in as other server-fn tests), so the input validator is exercised.
+mock.module("@tanstack/react-start", () => ({
+  createServerFn: () => {
+    let validate: (d: unknown) => unknown = (d) => d;
+    const b = {
+      middleware: () => b,
+      inputValidator: (f: typeof validate) => { validate = f; return b; },
+      handler: (h: (a: { data: unknown; context: unknown }) => Promise<unknown>) => (a: { data: unknown }) => h({ data: validate(a.data), context: { ip: null, userAgent: null } }),
+    };
+    return b;
+  },
+  createMiddleware: () => ({ server: () => ({}) }),
+}));
+mock.module("../src/lib/request-meta", () => ({ withRequestMeta: {} }));
 mock.module("../src/lib/owner-email-send.server", () => ({
   sendGuardedOwnerEmail: async (p: { to: string; key: string; build: (u: string | null) => { subject: string; text: string } }) => {
     if (mails.some((m) => m.key === p.key)) return "already attempted — not resent";
@@ -135,6 +154,7 @@ mock.module("../src/lib/property-coordinates.server", () => ({
 
 const S = await import("../src/lib/quick-taps.server");
 const B = await import("../src/lib/area-batch.server");
+const F = await import("../src/lib/quick-taps.functions");
 
 // ---- fixtures -------------------------------------------------------------------------------------------------------
 const NOW = new Date("2026-10-30T01:00:00.000Z");
@@ -165,7 +185,7 @@ function seed() {
   for (const k of Object.keys(lookupCoords)) delete lookupCoords[k];
   for (const k of Object.keys(places)) delete places[k];
   cancelFails = false; shareFails = false; failUpdates.clear();
-  cancels.length = 0; detailSaves.length = 0; gates.length = 0; mails.length = 0; located.length = 0;
+  cancels.length = 0; detailSaves.length = 0; gates.length = 0; mails.length = 0; located.length = 0; texts.length = 0;
   for (const t of ["jobs", "owners", "properties", "customer_estimate_links", "lead_campaign_responses", "property_facts", "job_assignments", "partner_offers", "workflow_events"]) tables[t] = [];
   tables["businesses"] = [{ id: "biz-1", name: "Sample Insulation", trading_name: null, onboarding_notes: null }];
   tables["workflow_settings"] = [{ id: 1, customer_comms_enabled: true, sms_message_switches: { quick_taps: true } }];
@@ -650,6 +670,65 @@ describe("saveQuickTapsDetails", () => {
   });
 });
 
+// ---- who lets the installer in (Task 4) ---------------------------------------------------------------------------------
+describe("saveQuickTaps: who lets the installer in", () => {
+  beforeEach(seed);
+  const TENANT = { who: "tenant" as const, name: " Sam Lee ", mobile: "0412 345 678" };
+  test("a tenant is saved trimmed, with the mobile as +61…, on the quick_taps_answered event", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]);
+    expect(await S.saveQuickTaps(tok("a"), ALL_GOOD({ access: TENANT }))).toMatchObject({ kind: "done", outcome: "pass" });
+    const ev = events("quick_taps_answered", "a");
+    expect(ev).toHaveLength(1);
+    expect((ev[0]!["details"] as Row)["answers"]).toMatchObject({ access: { who: "tenant", name: "Sam Lee", mobile: "+61412345678" } });
+  });
+  test("the owner themselves → { who: owner } saved", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]);
+    await S.saveQuickTaps(tok("a"), ALL_GOOD());
+    expect(((events("quick_taps_answered", "a")[0]!["details"] as Row)["answers"] as Row)["access"]).toEqual({ who: "owner" });
+  });
+  test("a pass with a bad tenant mobile, a blank tenant name or no access is refused and nothing is saved", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]);
+    for (const access of [{ ...TENANT, mobile: "03 9123 4567" }, { ...TENANT, mobile: "12" }, { ...TENANT, name: "  " }, undefined]) {
+      await expect(S.saveQuickTaps(tok("a"), ALL_GOOD({ access }))).rejects.toThrow();
+    }
+    await expect(S.saveQuickTaps(tok("a"), ALL_GOOD({ access: { who: "tenant", name: "Sam", mobile: 412345678 } as never }))).rejects.toThrow();
+    await expect(S.saveQuickTaps(tok("a"), ALL_GOOD({ access: { who: "landlord" } as never }))).rejects.toThrow();
+    expect(events("quick_taps_answered")).toEqual([]); expect(gates).toEqual([]);
+  });
+  test("a bad tenant is refused even on a decline answer (nothing saved, nothing closed)", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]);
+    await expect(S.saveQuickTaps(tok("a"), ALL_GOOD({ go: "no_thanks", access: { ...TENANT, mobile: "nope" } }))).rejects.toThrow();
+    expect(events("quick_taps_answered")).toEqual([]); expect(cancels).toEqual([]); expect(mails).toEqual([]);
+  });
+  test("the tenant is never texted or emailed (real job and TEST job, pass and decline)", async () => {
+    addJob("a"); addJob("t", { source: "qa_test" }); addJob("d"); sendBatchEvent("b1", ["a", "t", "d"]);
+    await S.saveQuickTaps(tok("a"), ALL_GOOD({ access: TENANT }));
+    await S.saveQuickTaps(tok("t"), ALL_GOOD({ access: TENANT }));
+    await S.saveQuickTaps(tok("d"), ALL_GOOD({ go: "no_thanks", access: TENANT }));
+    expect(texts).toEqual([]);
+    const all = JSON.stringify(mails);
+    for (const n of ["0412345678", "412345678", "+61412345678", "0412 345 678", "Sam Lee"]) expect(all).not.toContain(n);
+    expect(mails.map((m) => m.to)).toEqual(["d@example.com"]);
+  });
+  test("the server function keeps access (not stripped) and trims the tenant name", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]);
+    await F.ownerQuickTapsSaveFn({ data: { token: tok("a"), answers: ALL_GOOD({ access: TENANT }) } } as never);
+    expect(((events("quick_taps_answered", "a")[0]!["details"] as Row)["answers"] as Row)["access"]).toEqual({ who: "tenant", name: "Sam Lee", mobile: "+61412345678" });
+  });
+  test("the server function refuses a non-string or over-long tenant", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]);
+    const call = async (access: unknown) => F.ownerQuickTapsSaveFn({ data: { token: tok("a"), answers: ALL_GOOD({ access: access as never }) } } as never);
+    await expect(call({ who: "tenant", name: "Sam", mobile: 412345678 })).rejects.toThrow();
+    await expect(call({ who: "tenant", name: "x".repeat(101), mobile: "0412345678" })).rejects.toThrow();
+    await expect(call({ who: "tenant", name: "Sam", mobile: "0".repeat(31) })).rejects.toThrow();
+    await expect(call({ who: "nobody" })).rejects.toThrow();
+    expect(events("quick_taps_answered")).toEqual([]);
+  });
+  test("normaliseAuMobile is safe on non-string input", () => {
+    for (const v of [undefined, null, 412345678, {}]) expect(normaliseAuMobile(v as never)).toBeNull();
+  });
+});
+
 // ---- postcode-only homes in batch suggestions ---------------------------------------------------------------------------
 describe("postcode-only homes are batched by their postcode's centre", () => {
   beforeEach(seed);
@@ -688,6 +767,24 @@ describe("My job ?screen=taps", () => {
     expect(fns).not.toContain("jobId: z");
     expect(fns).not.toContain("@tanstack/react-start/server");
     expect((fns.match(/createServerFn\(\{ method: "POST" \}\)\.middleware\(\[withRequestMeta\]\)/g) ?? []).length).toBe(4);
+  });
+});
+
+describe("My job access screen (Task 4)", () => {
+  const src = readFileSync(new URL("../src/routes/my-job.$token.tsx", import.meta.url), "utf8");
+  const block = src.slice(src.indexOf('step === "access"'), src.indexOf('step === "go"'));
+  test("its own screen before the website branch, with Me / My tenant big buttons and the approved copy", () => {
+    expect(src.indexOf('step === "access"')).toBeGreaterThan(0);
+    expect(src.indexOf('step === "access"')).toBeLessThan(src.indexOf("QUICK_TAPS_COPY.website[step]"));
+    expect(block).toContain("QUICK_TAPS_COPY.access.question");
+    expect(block).toContain("QUICK_TAPS_COPY.access.options");
+    expect(block).toContain("QUICK_TAPS_COPY.access.tenantName");
+    expect(block).toContain("QUICK_TAPS_COPY.access.tenantMobile");
+  });
+  test("Next is greyed out until validAccess, and says what's needed while it is", () => {
+    expect(block).toContain("validAccess(");
+    expect(block).toContain("QUICK_TAPS_COPY.access.needBoth");
+    expect(block).toMatch(/disabled=\{[^}]*!tenantOk/);
   });
 });
 

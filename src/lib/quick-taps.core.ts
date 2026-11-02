@@ -98,14 +98,22 @@ export function websiteQuestions(onFile: WebsiteFacts, given: WebsiteAnswers = {
 
 /** An Australian mobile as `+614XXXXXXXX`, or null if it isn't one (landlines and short numbers are refused). */
 export function normaliseAuMobile(v: string): string | null {
+  if (typeof v !== "string") return null; // the page's answers arrive from the network
   const d = v.replace(/[\s\-().]/g, "");
   const m = /^(?:\+?61|0)(4\d{8})$/.exec(d);
   return m ? `+61${m[1]}` : null;
 }
 export function validAccess(a: Access | undefined): boolean {
-  if (!a) return false;
+  if (!a || typeof a !== "object") return false;
   if (a.who === "owner") return true;
-  return a.who === "tenant" && !blank(a.name) && normaliseAuMobile(a.mobile ?? "") !== null;
+  return a.who === "tenant" && typeof a.name === "string" && !blank(a.name) && normaliseAuMobile(a.mobile) !== null;
+}
+/** The access answer as saved: `{who:"owner"}`, or the tenant with the name trimmed and the mobile as `+614XXXXXXXX`.
+ *  Null when it isn't a valid answer. */
+export function normaliseAccess(a: unknown): Access | null {
+  const x = a as Access | undefined;
+  if (!validAccess(x)) return null;
+  return x!.who === "owner" ? { who: "owner" } : { who: "tenant", name: x!.name.trim(), mobile: normaliseAuMobile(x!.mobile)! };
 }
 /** The one line shown to the installer, or null when nothing valid was answered. */
 export function accessLine(a: Access | undefined | null): string | null {
