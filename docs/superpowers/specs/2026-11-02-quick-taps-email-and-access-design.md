@@ -18,7 +18,7 @@
     **Confirm my details** button (the quick taps link). Signed **Home Insulation Victoria**.
   - Reminder email: subject **"Just a reminder - confirm your details"**. Body: **"Hi {first name}, just a
     reminder - please confirm a few quick details so we can book your free Ready Check."** Same button, same sign-off.
-  - No first name → "Hi," with no name (same as other owner emails).
+  - No first name → "Hi there," (same as the quick taps decline emails).
 - No email on file → text only (the Send still works).
 - Unsubscribed / suppressed / bounced-suppressed → no email (the existing guarded owner email sender decides).
 - Email and text are independent: if one fails, the other still goes, and the batch is still sent.
