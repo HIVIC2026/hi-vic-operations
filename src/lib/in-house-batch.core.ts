@@ -15,10 +15,10 @@ export function batchJobEligible(job: BatchJob): boolean {
   return !job.deleted_at && job.source !== "qa_test" && (job.channel === "installer_sourced" || (!!job.spot_saved_at && job.quickTapsYes === true)) && !job.optedOut && !job.hasActiveInstaller
     && ["preliminary_estimate_ready", "ready_check_ready_to_schedule"].includes(job.stage);
 }
-/** No age fallback: hand off exactly five distinct waiting jobs. */
+/** No age fallback: hand off the distinct ticked jobs, any number (Jo 2 Nov 2026). */
 export function readyInHouseBatch(jobIds: string[]): string[] {
-  const ids = [...new Set(jobIds)];
-  return ids.length >= 5 ? ids.slice(0, 5) : [];
+  // Jo 2 Nov 2026: give any number of ticked jobs (was exactly 5).
+  return [...new Set(jobIds)];
 }
 export function batchPartnerCovers(job: BatchJob, partner: InHousePartner): boolean {
   if (partner.covers_all_victoria || (job.postcode && partner.service_postcodes.includes(job.postcode))) return true;
@@ -44,4 +44,12 @@ export function suggestBatches(jobs: BatchJob[], partners: InHousePartner[]): { 
     ids.push(job.id); batches.set(partner.id, ids); load.set(partner.id, (load.get(partner.id) ?? 0) + 1);
   }
   return [...batches].map(([businessId, jobIds]) => ({ businessId, jobIds }));
+}
+
+/** Jo 2 Nov 2026: say how many went and which weren't given (job number + reason). */
+export function giveNotice(result: { sent: string[]; refused: { jobId: string; reason: string }[] }, partner: string, jobNumber: (id: string) => string): string {
+  const n = result.sent.length;
+  const given = n ? `${n} ${n === 1 ? "job" : "jobs"} given to ${partner}.` : "";
+  const notGiven = result.refused.length ? `Not given: ${result.refused.map(r => `${jobNumber(r.jobId)} (${r.reason})`).join("; ")}.` : "";
+  return [given, notGiven].filter(Boolean).join(" ");
 }

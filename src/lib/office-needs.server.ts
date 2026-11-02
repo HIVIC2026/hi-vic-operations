@@ -51,14 +51,18 @@ export async function inHouseNeedsFacts(jobIds: string[]): Promise<Map<string, N
   if (state.failed) throw new Error("Could not load in-house partner checks");
   const held = ids.filter(id => state.held.has(id));
   if (!held.length) return out;
-  const [assignments, batches, bookings, quotes, records, deadlines] = await Promise.all([
+  const [assignments, batches, bookings, quotes, records, deadlines, unlocked] = await Promise.all([
     byIds("in-house partner names", held, (c,a,b) => admin.from("job_assignments").select("job_id,business_id,businesses(name,trading_name,in_house)").in("job_id",c).eq("role","installer").eq("active",true).order("id").range(a,b)),
     byIds("in-house batch times", held, (c,a,b) => admin.from("workflow_events").select("job_id,created_at,details").in("job_id",c).eq("event_type","in_house_batch_sent").order("created_at").order("id").range(a,b)),
-    byIds("in-house bookings", held, (c,a,b) => admin.from("bookings").select("job_id,kind").in("job_id",c).in("kind",["ready_check","installation"]).neq("status","cancelled").order("id").range(a,b)),
+    byIds("in-house bookings", held, (c,a,b) => admin.from("bookings").select("job_id,kind").in("job_id",c).in("kind",["ready_check","assessment","installation"]).neq("status","cancelled").order("id").range(a,b)),
     byIds("in-house accepted quotes", held, (c,a,b) => admin.from("quotes").select("job_id,accepted_at").in("job_id",c).eq("kind","installation").eq("status","accepted").not("accepted_at","is",null).order("accepted_at").order("id").range(a,b)),
     byIds("in-house completed PIESA", held, (c,a,b) => admin.from("piesa_records").select("job_id,completed_date").in("job_id",c).neq("kind","post_rectification").not("completed_date","is",null).order("id").range(a,b)),
     byIds("in-house PIESA days remaining", held, (c,a,b) => admin.from("job_piesa_deadlines").select("job_id,days_remaining,install_deadline").in("job_id",c).order("job_id").range(a,b)),
+    // Jo 2 Nov 2026: the PIESA clock starts when the job moved into the PIESA step (only after the $349 clears).
+    byIds("in-house PIESA unlocked", held, (c,a,b) => admin.from("workflow_events").select("job_id,created_at").in("job_id",c).eq("to_stage","piesa_and_install_window_pending").order("created_at").order("id").range(a,b)),
   ]);
+  // Jo 2 Nov 2026: the install stall line says whether the 10% deposit is paid; unknown when the read fails.
+  const deposits: Map<string, boolean | null> = await (await import("./install-deposit-list.server")).installDepositPaidForJobs(held).catch(() => new Map());
   for (const id of held) {
     const assignment = assignments.find(a => a["job_id"] === id && (a["businesses"] as { in_house?: boolean } | null)?.in_house);
     if (!assignment) continue;
@@ -68,6 +72,9 @@ export async function inHouseNeedsFacts(jobIds: string[]): Promise<Map<string, N
     out.set(id, { partnerName: business.trading_name || business.name, batchSentAt: s(batch?.["created_at"]),
       readyCheckBooked: bookings.some(b => b["job_id"] === id && b["kind"] === "ready_check"),
       installationBooked: bookings.some(b => b["job_id"] === id && b["kind"] === "installation"),
+      piesaBooked: bookings.some(b => b["job_id"] === id && b["kind"] === "assessment"),
+      piesaUnlockedAt: s(unlocked.filter(e => e["job_id"] === id).at(-1)?.["created_at"]),
+      depositPaid: deposits.get(id) ?? null,
       quoteAcceptedAt: s(quotes.filter(q => q["job_id"] === id).at(-1)?.["accepted_at"]),
       piesaCompleted: records.some(r => r["job_id"] === id),
       daysRemaining: deadline?.["days_remaining"] == null ? null : Number(deadline["days_remaining"]), deadline: s(deadline?.["install_deadline"]) });
@@ -306,16 +313,6 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       for(const [failed,recovered,field] of [['install_deposit_request_failed','install_deposit_request_recovered','depositRequestFailed'],['in_house_form_sync_failed','in_house_form_sync_recovered','inHouseFormSyncFailed']] as const){const failure=mine.find(e=>e['event_type']===failed&&!mine.some(r=>r['event_type']===recovered&&String(r['created_at'])>=String(e['created_at'])&&(!(e['details'] as Row|null)?.['work_id']||(r['details'] as Row|null)?.['work_id']===(e['details'] as Row|null)?.['work_id'])));if(failure)x[field]={at:String(failure['created_at']),reason:String((failure['details'] as Row|null)?.['reason']??failure['summary'])};}
       const back=mine.find(e=>e['event_type']==='in_house_pulled_back');
       if(back&&!mine.some(e=>e['event_type']==='in_house_batch_sent'&&String(e['created_at'])>String(back['created_at'])))x.inHouseHandedBack={at:String(back['created_at']),reason:String((back['details'] as Row|null)?.['reason']??'Reason not recorded')};
-    }
-  }
-  if(ids.length){
-    const current=await byIds('in-house pending visit stages',ids,(c,a,b)=>admin.from('jobs').select('id,stage,updated_at').in('id',c).range(a,b));
-    const bookings=await byIds('in-house confirmed visits',ids,(c,a,b)=>admin.from('bookings').select('job_id,kind').in('job_id',c).eq('status','confirmed').range(a,b));
-    const readiness=await byIds('in-house visit readiness',ids,(c,a,b)=>admin.from('workflow_events').select('job_id,event_type,created_at').in('job_id',c).in('event_type',['in_house_batch_sent','install_deposit_received','stage_changed']).order('created_at',{ascending:false}).range(a,b));
-    const {bookingOverdue}=await import('./in-house-booking.core');
-    for(const j of current){const id=String(j['id']),x=f(id);if(x?.inHouseDispatch!=='in_house')continue;const visit=({'ready_check_ready_to_schedule':'ready_check','piesa_and_install_window_pending':'piesa','installation_scheduling':'installation'} as Record<string,string>)[String(j['stage'])];if(!visit)continue;
-      const kind=visit==='piesa'?'assessment':visit;const at=String(readiness.find(e=>e['job_id']===id&&e['event_type']===(visit==='installation'?'install_deposit_received':visit==='ready_check'?'in_house_batch_sent':'stage_changed'))?.['created_at']??j['updated_at']);
-      if(bookingOverdue(at,bookings.some(b=>b['job_id']===id&&b['kind']===kind),new Date(now)))x.bookingOverdue={at,visit:visit as 'ready_check'|'piesa'|'installation'};
     }
   }
   // Paid owners must never be hidden behind a generic automatic status. Same facts feed Needs me and Next.

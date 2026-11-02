@@ -92,7 +92,7 @@ export async function sendInHouseBatch(input: { businessId: string; jobIds: stri
   if (partner) {
     const eligible = requested.filter(id => screen.jobs.some(j => j.id === id && batchPartnerCovers(j, partner) && (!j.waitingBusinessId || j.waitingBusinessId === partner.id)));
     const ready = readyInHouseBatch(eligible);
-    if (!ready.length) return { sent, refused: requested.map(jobId => ({ jobId, reason: "Waiting for 5 eligible jobs for this installer" })) };
+    if (!ready.length) return { sent, refused: requested.map(jobId => ({ jobId, reason: "No eligible jobs for this installer" })) };
     input = { ...input, jobIds: ready };
   }
   const workers = partner ? await selectWorkers(input.businessId) : { reason: "Partner is not active in-house" };

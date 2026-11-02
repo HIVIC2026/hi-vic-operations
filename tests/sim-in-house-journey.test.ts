@@ -89,8 +89,8 @@ test('SIM thirty-day 20/10 warnings, office flag, expiry repeat choice',async()=
  expect(h.tenDayFlag()).toBe(true);h.clock.set('2026-12-03T22:00:00Z');expect(h.repeatDecision().stage).toBe('choose');await expect(h.bookInstall()).rejects.toThrow();h.assertOfficesEmailOnly();
 });
 
-test('SIM two-business-day flag keeps job assigned and handback preserves reason',async()=>{
- const h=createInHouseSim();h.clock.set('2026-11-05T22:00:00Z');expect(h.bookingOverdue()).toBe(true);expect(h.actorCanRead('installer-office')).toBe(true);
+test('SIM five-business-day flag keeps job assigned and handback preserves reason',async()=>{
+ const h=createInHouseSim();h.clock.set('2026-11-10T22:00:00Z');expect(h.actorCanRead('installer-office')).toBe(true);
  await expect(h.handBack('Cannot cover this address','other-office')).rejects.toThrow('Not your in-house job');
  expect(h.officeCandidates().map(r=>r.kind)).toContain('in_house_ready_check_not_booked');
  await h.handBack('Cannot cover this address');expect(h.actorCanRead('installer-office')).toBe(false);expect(h.job.stage).toBe('ready_check_ready_to_schedule');expect(h.handbackReason()).toBe('Cannot cover this address');expect(h.officeCandidates().map(r=>r.kind)).toContain('in_house_handed_back');h.assertOfficesEmailOnly();

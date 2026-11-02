@@ -5,9 +5,12 @@ const partner: InHousePartner = { id: "p", name: "Rapid", in_house: true, is_act
 test("lead cannot be given without recorded quick-taps YES", () => expect(batchJobEligible({ ...job, quickTapsYes: false })).toBe(false));
 test("lead with recorded quick-taps YES can be given", () => expect(batchJobEligible(job)).toBe(true));
 test("installer-sourced does not require quick taps or a saved spot", () => expect(batchJobEligible({ ...job, channel: "installer_sourced", quickTapsYes: false, spot_saved_at: null })).toBe(true));
-test("four waiting owners have no ready five-job batch, regardless of age", () => {
+test("four waiting owners can be given as four, regardless of age", () => {
   const groups = suggestBatches(Array.from({ length: 4 }, (_, i) => ({ ...job, id: String(i), spot_saved_at: "2020-01-01" })), [partner]);
-  expect(groups.flatMap(g => readyInHouseBatch(g.jobIds))).toEqual([]);
+  expect(groups.flatMap(g => readyInHouseBatch(g.jobIds)).sort()).toEqual(["0", "1", "2", "3"]);
 });
-test("five waiting owners make exactly one batch of five", () => expect(readyInHouseBatch(["1", "2", "3", "4", "5"])).toEqual(["1", "2", "3", "4", "5"]));
-test("six waiting owners send only five and leave one waiting", () => expect(readyInHouseBatch(["1", "2", "3", "4", "5", "6"])).toEqual(["1", "2", "3", "4", "5"]));
+test("no ids gives nothing", () => expect(readyInHouseBatch([])).toEqual([]));
+test("one job can be given on its own", () => expect(readyInHouseBatch(["1"])).toEqual(["1"]));
+test("three jobs stay three", () => expect(readyInHouseBatch(["1", "2", "3"])).toEqual(["1", "2", "3"]));
+test("seven jobs are not cut down to five", () => expect(readyInHouseBatch(["1", "2", "3", "4", "5", "6", "7"])).toEqual(["1", "2", "3", "4", "5", "6", "7"]));
+test("duplicates are sent once, in order", () => expect(readyInHouseBatch(["1", "1", "2"])).toEqual(["1", "2"]));

@@ -15,6 +15,7 @@ function fixture() {
     job_piesa_deadlines: [{ job_id: "j", days_remaining: 7, install_deadline: "2026-11-16" }],
   };
   let failedTable = "";
+  const deposit: { map: Map<string, boolean | null> | null; throws: boolean } = { map: null, throws: false };
   const scoped: string[][] = [];
   const admin = { from(table: string) {
     let selected = [...(data[table] ?? [])]; let from = 0, to = 999;
@@ -34,10 +35,11 @@ function fixture() {
   const js = ts.transpile(part,{ module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022 });
   const output: any = {};
   new Function("exports","admin","require",js)(output,admin,(name:string) => {
+    if (name === "./install-deposit-list.server") return { installDepositPaidForJobs: async (ids: string[]) => { if (deposit.throws) throw new Error("deposit read failed"); return deposit.map ?? new Map(ids.map(id => [id, null])); } };
     if (name !== "./in-house-suppression.server") throw new Error(`Unexpected import ${name}`);
     return { readInHouseDispatchState: async(ids:string[]) => { scoped.push(ids); return { failed:false, held:new Set(ids) }; } };
   });
-  return { api:output, data, scoped, fail:(table:string)=>{failedTable=table;} };
+  return { api:output, data, scoped, deposit, fail:(table:string)=>{failedTable=table;} };
 }
 test("real gather reader honours ready_check bookings, completed PIESA and recorded seven-day deadline",async()=>{
   const f=fixture(); const result=await f.api.inHouseNeedsFacts(["j","test","deleted"]);
@@ -50,4 +52,21 @@ test("real gather reader honours ready_check bookings, completed PIESA and recor
 });
 test("failed fact reads propagate instead of claiming a visit is absent",async()=>{
   const f=fixture(); f.fail("bookings"); await expect(f.api.inHouseNeedsFacts(["j"])).rejects.toThrow("read failed");
+});test("assessment booking confirmed → piesaBooked true; cancelled → false",async()=>{
+  const f=fixture(); f.data.bookings=[{ id:"pa",job_id:"j",kind:"assessment",status:"confirmed" }];
+  expect((await f.api.inHouseNeedsFacts(["j"])).get("j").piesaBooked).toBe(true);
+  f.data.bookings=[{ id:"pa",job_id:"j",kind:"assessment",status:"cancelled" }];
+  expect((await f.api.inHouseNeedsFacts(["j"])).get("j").piesaBooked).toBe(false);
+});
+test("depositPaid comes from installDepositPaidForJobs: true / false / null",async()=>{
+  for (const v of [true,false,null] as const) { const f=fixture(); f.deposit.map=new Map([["j",v]]); expect((await f.api.inHouseNeedsFacts(["j"])).get("j").depositPaid).toBe(v); }
+});
+test("deposit read throwing → depositPaid null, facts still returned",async()=>{
+  const f=fixture(); f.deposit.throws=true; const ih=(await f.api.inHouseNeedsFacts(["j"])).get("j");
+  expect(ih.depositPaid).toBeNull(); expect(ih.readyCheckBooked).toBe(true);
+});
+test("piesaUnlockedAt is the latest move into the PIESA stage",async()=>{
+  const f=fixture(); f.data.workflow_events.push({ id:"st1",job_id:"j",event_type:"stage_changed",to_stage:"piesa_and_install_window_pending",created_at:"2026-10-29T06:00:00Z",details:{} },{ id:"st2",job_id:"j",event_type:"stage_changed",to_stage:"piesa_and_install_window_pending",created_at:"2026-10-31T06:00:00Z",details:{} });
+  expect((await f.api.inHouseNeedsFacts(["j"])).get("j").piesaUnlockedAt).toBe("2026-10-31T06:00:00Z");
+  const g=fixture(); expect((await g.api.inHouseNeedsFacts(["j"])).get("j").piesaUnlockedAt).toBeNull();
 });

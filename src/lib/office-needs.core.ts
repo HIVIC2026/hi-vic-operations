@@ -56,7 +56,9 @@ export type NeedsFacts = {
   inHouseFormSyncFailed?:{at:string;reason:string}|null;
   inHouse?: { partnerName: string; batchSentAt: string | null; readyCheckBooked: boolean;
     quoteAcceptedAt: string | null; piesaCompleted: boolean; installationBooked: boolean;
-    daysRemaining: number | null; deadline: string | null } | null;
+    daysRemaining: number | null; deadline: string | null;
+    /** Jo 2 Nov 2026 stall rules: missing reads as not booked / deposit unknown. */
+    piesaBooked?: boolean; depositPaid?: boolean | null; piesaUnlockedAt?: string | null } | null;
   /** 24-hour installer / electrician offer lapsed or said Not for me (decision 220): "Choose again". */
   offerLapsed?: { role: "installer" | "electrician"; name: string | null; declined: boolean; at: string; note?: string } | null;
   bookingOverdue?: { at: string; visit: "ready_check" | "piesa" | "rectification" | "installation" } | null;
@@ -219,9 +221,13 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   if (paidLine && f.paidGate) add({ rank: 19, group: "today", kind: "paid_gate_blocked", line: paidLine, since: f.paidGate.at, button: { label: "Open job", to: "job", section: "piesa" } });
   const ih = !f.isTest && f.source !== "qa_test" && !f.deletedAt ? f.inHouse : null;
   if (ih) {
-    if (!ih.installationBooked && ih.daysRemaining != null && ih.daysRemaining <= 7) add({ rank: 36, group: "today", kind: "in_house_install_not_booked", line: `${ih.partnerName} hasn't booked the install (${ih.daysRemaining < 0 ? "30-day window expired" : `${ih.daysRemaining} days left`})`, since: ih.deadline ?? ih.batchSentAt ?? new Date(now).toISOString(), button: { label: "Open job", to: "job", section: "install" } });
-    if (!ih.piesaCompleted && ih.quoteAcceptedAt && now >= Date.parse(ih.quoteAcceptedAt) + 10 * 86_400_000) add({ rank: 90, group: "week", kind: "in_house_piesa_overdue", line: `${ih.partnerName} hasn't completed the PIESA (quote accepted 10 days ago or more)`, since: ih.quoteAcceptedAt, button: { label: "Open job", to: "job", section: "piesa" } });
-    if (!ih.readyCheckBooked && ih.batchSentAt && melbourneToday(new Date(now)) > addVicBusinessDays(ih.batchSentAt, 2)) add({ rank: 91, group: "week", kind: "in_house_ready_check_not_booked", line: `${ih.partnerName} hasn't booked the Ready Check (sent 2 business days ago or more)`, since: ih.batchSentAt, button: { label: "Open job", to: "job", section: "ready-check" } });
+    // Jo 2 Nov 2026 stall rules: Ready Check not booked 5 business days after handover, PIESA not booked 10 business days
+    // after the $349 clears (the job enters the PIESA step), install not booked with 7 days or fewer left (flags whether or not the deposit is paid).
+    const today = melbourneToday(new Date(now));
+    const deposit = ih.depositPaid === true ? " · deposit paid" : ih.depositPaid === false ? " · deposit not paid" : "";
+    if (!ih.installationBooked && ih.daysRemaining != null && ih.daysRemaining <= 7) add({ rank: 36, group: "today", kind: "in_house_install_not_booked", line: `Install not booked · ${ih.daysRemaining < 0 ? "30-day window expired" : `${ih.daysRemaining} days left`}${deposit}`, since: ih.deadline ?? ih.batchSentAt ?? new Date(now).toISOString(), button: { label: "Open job", to: "job", section: "install" } });
+    if (!ih.piesaBooked && !ih.piesaCompleted && ih.piesaUnlockedAt && today > addVicBusinessDays(ih.piesaUnlockedAt, 10)) add({ rank: 90, group: "week", kind: "in_house_piesa_overdue", line: "PIESA not booked 10 business days after quote accepted", since: ih.piesaUnlockedAt, button: { label: "Open job", to: "job", section: "piesa" } });
+    if (!ih.readyCheckBooked && ih.batchSentAt && today > addVicBusinessDays(ih.batchSentAt, 5)) add({ rank: 91, group: "week", kind: "in_house_ready_check_not_booked", line: "Ready Check not booked after 5 business days", since: ih.batchSentAt, button: { label: "Open job", to: "job", section: "ready-check" } });
   }
   if (f.quoteExpiredBlocked) add({ rank: 9, group: "today", kind: "quote_expired_blocked", line: f.quoteExpiredBlocked.reason === QUOTE_EXPIRED_HELD_REASON ? QUOTE_EXPIRED_HELD_REASON : `Quote expired — owner can't be emailed (${f.quoteExpiredBlocked.reason})`, since: f.quoteExpiredBlocked.at, button: { label: "Open job", to: "job" } });
   if (f.newQuoteOffice) add({ rank: 9, group: "today", kind: f.newQuoteOffice.kind, line: f.newQuoteOffice.line, since: f.newQuoteOffice.at, button: { label: "Open job", to: "job", section: "ready-check" } });
@@ -240,10 +246,11 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   if (f.lifeSupportPlanNeeded) add({ rank: 18, group: "today", kind: "life_support_plan", line: LIFE_SUPPORT_PLAN_ROW, since: f.lifeSupportPlanNeeded.at, button: { label: "Open job", to: "job", section: "piesa" } });
   if (f.piisaFormFailed) add({ rank: 14, group: "today", kind: "piisa_form_failed", line: f.piisaFormFailed.text, since: f.piisaFormFailed.at, button: { label: "Open job", to: "job", section: "install" } });
   if (!held && f.offerLapsed) add({ rank: 20, group: "today", kind: "choose_again", line: f.offerLapsed.note ? f.offerLapsed.note : `${f.offerLapsed.role === "installer" ? "Installer" : "Electrician"} offer ${f.offerLapsed.declined ? `declined${f.offerLapsed.name ? ` by ${f.offerLapsed.name}` : ""}` : "lapsed · no reply in 24h"}`, since: f.offerLapsed.at, button: { label: "Choose again", to: "job", section: f.offerLapsed.role === "installer" ? "ready-check" : "piesa" } });
-  if (f.bookingOverdue) {
+  // Jo 2 Nov 2026: in-house jobs use the 5/10/7 stall rows above, never this 48-hour / 2-business-day row.
+  if (f.bookingOverdue && !held) {
     const v = f.bookingOverdue.visit;
     const label = v === "ready_check" ? "Ready Check" : v === "installation" ? "Install" : v === "rectification" ? "Fixes" : "PIESA";
-    add({ rank: 21, group: "today", kind: "booking_overdue", line: held?`${label} not booked after 2 business days`:`${label} time not confirmed after 48 hours`, since: f.bookingOverdue.at, button: { label: "Open job", to: "job", section: v === "ready_check" ? "ready-check" : v === "installation" ? "install" : "piesa" } });
+    add({ rank: 21, group: "today", kind: "booking_overdue", line: `${label} time not confirmed after 48 hours`, since: f.bookingOverdue.at, button: { label: "Open job", to: "job", section: v === "ready_check" ? "ready-check" : v === "installation" ? "install" : "piesa" } });
   }
   if (f.consentToSign) {
     const due = f.consentToSign.dueAt ? Date.parse(f.consentToSign.dueAt) : null;
