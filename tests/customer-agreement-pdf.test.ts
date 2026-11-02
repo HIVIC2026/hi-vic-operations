@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { PDFDocument } from "pdf-lib";
 import { CUSTOMER_AGREEMENT_V1_3, type AgreementFacts } from "../src/lib/customer-agreement.core";
-import { customerAgreementPdf } from "../src/lib/customer-agreement-pdf.server";
+import { AGREEMENT_BOLD_LEADS, customerAgreementPdf } from "../src/lib/customer-agreement-pdf.server";
 
 const pdfText = async (b: Uint8Array) => {
   const d = await getDocument({ data: b.slice() }).promise; const out: string[] = [];
@@ -46,5 +46,42 @@ describe("Customer Agreement PDF", () => {
   });
   test("a missing detail stops the document", async () => {
     await expect(customerAgreementPdf(T, { ...SAMPLE_FACTS, rest: "" })).rejects.toThrow(/Missing agreement detail: rest/);
+  });
+
+  test("every bold lead-in is in the body and is drawn in the Bold font", async () => {
+    const lines = CUSTOMER_AGREEMENT_V1_3.split("\n").map((l) => l.replace(/^- /, ""));
+    for (const lead of AGREEMENT_BOLD_LEADS) expect(lines.some((l) => l.startsWith(`${lead} `))).toBe(true);
+    const r = await customerAgreementPdf(T, SAMPLE_FACTS);
+    const d = await getDocument({ data: r.bytes.slice() }).promise;
+    const bold: string[] = []; const regular: string[] = [];
+    for (let i = 1; i <= d.numPages; i++) {
+      const pg = await d.getPage(i);
+      const tc = await pg.getTextContent();
+      await pg.getOperatorList(); // loads the fonts
+      for (const it of tc.items as any[]) {
+        const name: string = (pg.commonObjs.has(it.fontName) ? pg.commonObjs.get(it.fontName).name : "") ?? "";
+        (/Bold/i.test(name) && !/Extra/i.test(name) ? bold : regular).push(it.str);
+      }
+    }
+    const boldText = bold.join(" ");
+    for (const lead of AGREEMENT_BOLD_LEADS) {
+      for (const word of lead.split(" ")) expect(boldText).toContain(word);
+    }
+    // The text after a lead-in is not bold.
+    expect(boldText).not.toContain("your installer calls you");
+    expect(regular.join(" ")).toContain("your installer calls you");
+  });
+  test("no email address is split across lines and sections land on the approved pages", async () => {
+    const r = await customerAgreementPdf(T, SAMPLE_FACTS);
+    const d = await getDocument({ data: r.bytes.slice() }).promise;
+    const items: string[] = [];
+    for (let i = 1; i <= d.numPages; i++) for (const it of (await (await d.getPage(i)).getTextContent()).items as any[]) items.push(it.str);
+    const joined = items.join("\n");
+    for (const e of ["info@homeinsulationvictoria.com.au", "office@rapidinsulation.com.au"]) expect(items.some((t) => t.includes(e))).toBe(true);
+    expect(joined).not.toMatch(/\.co\s+m\.au/);
+    // Sections 1-10 are the 10 numbered sections in order: 1-3 on page 1, 4-7 on page 2, 8-10 on page 3 (as the approved sample).
+    const secs = Object.entries(r.layout.blockPage).filter(([id]) => id.startsWith("sec")).slice(0, 10).map(([, p]) => p);
+    expect(secs).toEqual([1, 1, 1, 2, 2, 2, 2, 3, 3, 3]);
+    expect(r.layout.blockPage["payment-terms"]).toBe(4);
   });
 });

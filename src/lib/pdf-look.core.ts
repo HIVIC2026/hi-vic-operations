@@ -15,10 +15,10 @@ export const BUSINESS_ADDRESS = "1/33 Altree Court, Phillip ACT 2606";
 export type PdfBlock = { id: string; keepTogether?: boolean } & (
   | { kind: "header"; eyebrow: string; withAddress?: boolean }
   | { kind: "title"; text: string; sub?: string }
-  | { kind: "para"; text: string; muted?: boolean; small?: boolean }
+  | { kind: "para"; text: string; muted?: boolean; small?: boolean; /** Bold lead-in drawn before `text` (wraps together). */ lead?: string }
   | { kind: "facts"; rows: [string, string][] }
   | { kind: "section"; number?: string; title: string; children: PdfBlock[] }
-  | { kind: "bullets"; items: string[] }
+  | { kind: "bullets"; items: string[]; /** Bold lead-in per item (same index; "" or missing = none). */ leads?: string[] }
   | { kind: "money"; rows: { label: string; amount: string; strong?: boolean; green?: boolean }[] }
   | { kind: "ticks"; items: string[] }
   | { kind: "signature"; label: string; name: string; at: string; sub?: string }

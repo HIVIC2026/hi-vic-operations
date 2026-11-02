@@ -5,6 +5,27 @@ import { renderPdf } from "./pdf-look.server";
 
 export const PAYMENT_TERMS_BLOCK_ID = "payment-terms";
 
+/** Lead-ins the approved sample prints in bold. The stored body stays plain; a line that starts with one gets it in bold. */
+export const AGREEMENT_BOLD_LEADS: readonly string[] = [
+  "Electrical safety check (PIESA):", "Electrical upgrades (only if needed):", "Install:", "The 30-day rule:", "Cooling-off:",
+  "If your home isn't eligible:", "The insulation:", "The workmanship:", "$349 electrical safety check:", "10% deposit:",
+  "Now:", "Before your install:", "After your install:", "$349:", "Deposit:",
+];
+const leadOf = (line: string) => AGREEMENT_BOLD_LEADS.find((l) => line.startsWith(`${l} `));
+
+function boldLeads(blocks: PdfBlock[]): void {
+  for (const b of blocks) {
+    if (b.kind === "section") boldLeads(b.children);
+    else if (b.kind === "para") {
+      const l = leadOf(b.text);
+      if (l) { b.lead = l; b.text = b.text.slice(l.length + 1); }
+    } else if (b.kind === "bullets") {
+      const leads = b.items.map((t) => leadOf(t) ?? "");
+      if (leads.some(Boolean)) { b.leads = leads; b.items = b.items.map((t, i) => (leads[i] ? t.slice(leads[i]!.length + 1) : t)); }
+    }
+  }
+}
+
 /** A value with " | " or a line break would be read as markup by parseAgreement, so it stops the document. */
 function assertSafeFacts(facts: AgreementFacts): void {
   for (const [k, v] of Object.entries(facts)) {
@@ -20,6 +41,7 @@ export async function customerAgreementPdf(
 ): Promise<{ bytes: Uint8Array; layout: PdfLayoutReport; fileName: string }> {
   assertSafeFacts(facts);
   const blocks: PdfBlock[] = parseAgreement(fillAgreement(t.body, facts, t.version));
+  boldLeads(blocks);
   // The first header after the page break is the payment terms page.
   const br = blocks.findIndex((b) => b.kind === "pageBreak");
   const head = br < 0 ? undefined : blocks.slice(br + 1).find((b) => b.kind === "header");
