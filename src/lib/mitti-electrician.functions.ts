@@ -16,6 +16,6 @@ export const answerMittiElectrician = createServerFn({ method: "POST" }).middlew
   .inputValidator((d) => z.object({ jobId: uuid, plan: z.object({ mode: z.literal("mine"), business_id: uuid.nullish(), nomination_id: uuid.nullish() }) }).parse(d))
   .handler(async ({ data, context }) => {
     const { answerMittiElectricianQuestion } = await import("./mitti-electrician.server");
-    await answerMittiElectricianQuestion(data.jobId, context.userId, data.plan);
+    await answerMittiElectricianQuestion(data.jobId, context.userId, { mode: "mine", business_id: data.plan.business_id ?? null, nomination_id: data.plan.nomination_id ?? null });
     return { ok: true as const };
   });
