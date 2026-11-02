@@ -2,6 +2,10 @@
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { pdfSafeText } from "./pdf-text.core";
 import { LOGO_PNG } from "./email-hero-assets";
+import { agreementBlocks } from "./customer-agreement-pdf.server";
+import type { PdfBlock, PdfLayoutReport } from "./pdf-look.core";
+import { renderPdf } from "./pdf-look.server";
+import { acceptancePage1, agreementSignedLine, type SignedAcceptanceInput } from "./signed-acceptance.core";
 
 export type SignedAcceptanceCopy = {
   ownerName: string; address: string; totalIncGst: number; signedAt: string; jobNumber: string;
@@ -96,4 +100,17 @@ export async function textToPdf(header: string, text: string, images: Record<str
     flush();
   }
   return pdf.save();
+}
+
+/** Website-look signed acceptance: page 1 (quote, scope, ticks, both signatures) then the full agreement with its "Signed" box. */
+export async function signedAcceptancePdfV2(i: SignedAcceptanceInput): Promise<{ bytes: Uint8Array; layout: PdfLayoutReport }> {
+  const agr = agreementBlocks({ version: i.agreement.version, body: i.agreement.body }, i.agreement.facts);
+  // The plain "Version x" line closes section 10 of the unsigned agreement; here the signed box carries it.
+  const versionLine = `Version ${i.agreement.version}`;
+  const strip = (bs: PdfBlock[]): PdfBlock[] => bs.map((b) => (b.kind === "section" ? { ...b, children: strip(b.children).filter((c) => !(c.kind === "para" && c.text === versionLine)) } : b));
+  const body = strip(agr);
+  const note: PdfBlock = { id: "signed-note", kind: "noteBox", label: "Signed", text: agreementSignedLine(i), sub: `Version ${i.agreement.version}, ${i.agreement.approvedOn}` };
+  const br = body.findIndex((b) => b.kind === "pageBreak");
+  body.splice(br < 0 ? body.length : br, 0, note);
+  return renderPdf({ title: "Signed acceptance of your quote", blocks: [...acceptancePage1(i), { id: "a-pb", kind: "pageBreak" }, ...body] });
 }

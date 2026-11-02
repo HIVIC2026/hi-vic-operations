@@ -12,11 +12,11 @@ export const BUSINESS_LINES: readonly string[] = [
 ];
 export const BUSINESS_ADDRESS = "1/33 Altree Court, Phillip ACT 2606";
 
-export type PdfBlock = { id: string; keepTogether?: boolean } & (
+export type PdfBlock = { id: string; keepTogether?: boolean; /** Page-1 sizes of the signed acceptance (the approved sample prints its first page smaller than the agreement). */ compact?: boolean } & (
   | { kind: "header"; eyebrow: string; withAddress?: boolean }
   | { kind: "title"; text: string; sub?: string }
   | { kind: "para"; text: string; muted?: boolean; small?: boolean; /** Bold lead-in drawn before `text` (wraps together). */ lead?: string }
-  | { kind: "facts"; rows: [string, string][] }
+  | { kind: "facts"; rows: [string, string][]; /** One cell per row, full width (compact grids only). */ full?: boolean }
   | { kind: "section"; number?: string; title: string; children: PdfBlock[] }
   | { kind: "bullets"; items: string[]; /** Bold lead-in per item (same index; "" or missing = none). */ leads?: string[] }
   | { kind: "money"; rows: { label: string; amount: string; strong?: boolean; green?: boolean }[] }
@@ -24,6 +24,9 @@ export type PdfBlock = { id: string; keepTogether?: boolean } & (
   | { kind: "signature"; label: string; name: string; at: string; sub?: string }
   | { kind: "box"; children: PdfBlock[] }
   | { kind: "image"; bytes: Uint8Array; width: number; height: number }
+  | { kind: "heading"; text: string }
+  | { kind: "signatures"; cells: { label: string; name: string; line: string }[] }
+  | { kind: "noteBox"; label: string; text: string; sub?: string }
   | { kind: "pageBreak" }
 );
 export type PdfDoc = { title: string; blocks: PdfBlock[] };

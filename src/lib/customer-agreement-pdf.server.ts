@@ -35,10 +35,8 @@ function assertSafeFacts(facts: AgreementFacts): void {
   }
 }
 
-export async function customerAgreementPdf(
-  t: { version: string; body: string },
-  facts: AgreementFacts,
-): Promise<{ bytes: Uint8Array; layout: PdfLayoutReport; fileName: string }> {
+/** The filled, parsed agreement blocks (bold lead-ins set, payment terms header tagged). Shared with the signed acceptance PDF. */
+export function agreementBlocks(t: { version: string; body: string }, facts: AgreementFacts): PdfBlock[] {
   assertSafeFacts(facts);
   const blocks: PdfBlock[] = parseAgreement(fillAgreement(t.body, facts, t.version));
   boldLeads(blocks);
@@ -46,6 +44,13 @@ export async function customerAgreementPdf(
   const br = blocks.findIndex((b) => b.kind === "pageBreak");
   const head = br < 0 ? undefined : blocks.slice(br + 1).find((b) => b.kind === "header");
   if (head) head.id = PAYMENT_TERMS_BLOCK_ID;
-  const { bytes, layout } = await renderPdf({ title: "Customer Agreement and payment terms", blocks });
+  return blocks;
+}
+
+export async function customerAgreementPdf(
+  t: { version: string; body: string },
+  facts: AgreementFacts,
+): Promise<{ bytes: Uint8Array; layout: PdfLayoutReport; fileName: string }> {
+  const { bytes, layout } = await renderPdf({ title: "Customer Agreement and payment terms", blocks: agreementBlocks(t, facts) });
   return { bytes, layout, fileName: `Customer-Agreement-and-payment-terms-v${t.version}.pdf` };
 }

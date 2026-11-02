@@ -20,6 +20,13 @@ const BODY = 8.4, BODY_LH = 12.6, SMALL = 7.75, SMALL_LH = 11.4, LABEL = 6.65, G
 const FACT = 8.05, FACT_LH = 11.7, H1 = 21, H1_LH = 23.1, SUB = 9.1, SUB_LH = 14, H2 = 11.2, BIZ = 7.35, BIZ_LH = 11.2, EYEBROW = 7.7;
 const BAR_H = 5.6, BAR_GAP = 19.6, LOGO_H = 32.2, LOGO_W = 32.2 * (400 / 171);
 const HEAD_TOP = 8.4, HEAD_LINE = 16.6, BADGE = 15.4;
+// Page-1 sizes of the signed acceptance, measured from the approved sample (type px x 0.7, spacing px x 0.75).
+const K = {
+  body: 7.2, bodyLh: 9.6, gap: 3.75, h1: 13.3, h1Lh: 15.3, h1Top: 3, sub: 7.35, subLh: 9.8, subGap: 1.5, titleBottom: 9,
+  label: 6.3, labelLh: 8.4, fact: 7.2, factLh: 9.6, padX: 7.5, padY: 3.75, headGap: 5, eyebrowLh: 9.8, gridGap: 4.5,
+  head: 9.1, headLh: 9.6, headTop: 7.5, headPad: 2.6, headRule: 1.1, headBottom: 0.8, sigName: 10.5, sigNameLh: 14, sigNameGap: 1.5,
+  rowPad: 4.5, totLh: 12.1, tot: 9.1, tickPadX: 9, tickPadY: 5.25, tickBadge: 12, tickGap: 6.75, tickMargin: 4.5,
+} as const;
 const CONTENT_W = PDF_PAGE.width - 2 * PDF_PAGE.side;
 const PAGE_BOTTOM = PDF_PAGE.bottom;
 
@@ -66,18 +73,26 @@ function measure(b: PdfBlock, w: number, F: Fonts): number {
   switch (b.kind) {
     case "header": {
       const n = BUSINESS_LINES.length + (b.withAddress ? 1 : 0);
-      return Math.max(LOGO_H, n * BIZ_LH) + 18.2 + 11.4;
+      return Math.max(LOGO_H, n * BIZ_LH) + (b.compact ? K.headGap + K.eyebrowLh : 18.2 + 11.4);
     }
-    case "title": return 2.8 + lines(F.x, H1, b.text, w).length * H1_LH + (b.sub ? 2.8 + lines(F.r, SUB, b.sub, w).length * SUB_LH : 0) + 11.2;
-    case "para": { const s = b.small ? SMALL : BODY; const lh = b.small ? SMALL_LH : BODY_LH; return (b.lead ? runLines(F, s, b.lead, b.text, w) : lines(F.r, s, b.text, w)).length * lh + GAP; }
-    case "facts": return factRows(b.rows).reduce((s, r) => s + factRowH(r, w, F), 0) + 4.2;
+    case "title": if (b.compact) return K.h1Top + lines(F.x, K.h1, b.text, w).length * K.h1Lh + (b.sub ? K.subGap + lines(F.r, K.sub, b.sub, w).length * K.subLh : 0) + K.titleBottom;
+      return 2.8 + lines(F.x, H1, b.text, w).length * H1_LH + (b.sub ? 2.8 + lines(F.r, SUB, b.sub, w).length * SUB_LH : 0) + 11.2;
+    case "para": { if (b.compact) return (b.lead ? runLines(F, K.body, b.lead, b.text, w) : lines(F.r, K.body, b.text, w)).length * K.bodyLh + K.gap;
+      const s = b.small ? SMALL : BODY; const lh = b.small ? SMALL_LH : BODY_LH; return (b.lead ? runLines(F, s, b.lead, b.text, w) : lines(F.r, s, b.text, w)).length * lh + GAP; }
+    case "facts": if (b.compact) return gridRows(b.rows.map((r) => ({ label: r[0], text: r[1] })), b.full).reduce((sum, r) => sum + gridRowH(r, w, F), 0) + K.gridGap;
+      return factRows(b.rows).reduce((s, r) => s + factRowH(r, w, F), 0) + 4.2;
     case "section": return sectionHead(b) + b.children.reduce((s, c) => s + measure(c, w, F), 0);
     case "bullets": return b.items.reduce((s, t, i) => s + runLines(F, BODY, b.leads?.[i] ?? "", t, w - BULLET_INDENT).length * BODY_LH + BULLET_GAP, 0);
-    case "money": return b.rows.reduce((s, r) => s + moneyRowH(r), 0) + 1 + 5.6;
-    case "ticks": return b.items.reduce((s, t) => s + Math.max(11, lines(F.r, BODY, t, w - 16).length * BODY_LH) + 2, 0) + GAP;
+    case "money": if (b.compact) return b.rows.reduce((sum, r) => sum + (r.strong ? 2 * K.rowPad + K.totLh : 2 * K.rowPad + K.bodyLh + 0.75), 0) + 4.5;
+      return b.rows.reduce((s, r) => s + moneyRowH(r), 0) + 1 + 5.6;
+    case "ticks": if (b.compact) return b.items.reduce((sum, t) => sum + tickH(t, w, F), 0);
+      return b.items.reduce((s, t) => s + Math.max(11, lines(F.r, BODY, t, w - 16).length * BODY_LH) + 2, 0) + GAP;
     case "signature": return 3 + sigH(b, w, F) + (b.sub ? 2 + lines(F.r, SMALL, b.sub, w).length * SMALL_LH : 0) + GAP;
     case "box": return BOX_PAD * 2 + b.children.reduce((s, c) => s + measure(c, w - 2 * BOX_PAD, F), 0) + GAP;
     case "image": return b.height + GAP;
+    case "heading": return K.headTop + K.headLh + K.headPad + K.headRule + K.headBottom;
+    case "signatures": return gridRowH(sigCells(b.cells), w, F);
+    case "noteBox": return noteH(b, w, F);
     case "pageBreak": return 0;
   }
 }
@@ -138,6 +153,46 @@ function sigH(b: { name: string; label: string; at: string }, w: number, F: Font
   return 5 + 8.5 + Math.max(lines(F.i, 11.25, b.name, nameW).length * 14, 14) + 5;
 }
 
+// ---- page-1 grids (compact) -----------------------------------------------------------------------------------------
+type GridCell = { label: string; text: string; name?: string };
+const gridRows = (cells: GridCell[], full?: boolean) => { const out: GridCell[][] = []; const n = full ? 1 : 2; for (let i = 0; i < cells.length; i += n) out.push(cells.slice(i, i + n)); return out; };
+const sigCells = (cs: { label: string; name: string; line: string }[]): GridCell[] => cs.map((c) => ({ label: c.label, name: c.name, text: c.line }));
+function gridCellH(c: GridCell, cw: number, F: Fonts) {
+  const nameH = c.name == null ? 0 : 2 * K.sigNameGap + Math.max(1, lines(F.i, K.sigName, c.name, cw - 2 * K.padX).length) * K.sigNameLh;
+  return 2 * K.padY + K.labelLh + nameH + (c.text ? lines(F.r, K.fact, c.text, cw - 2 * K.padX).length * K.factLh : 0);
+}
+function gridRowH(r: GridCell[], w: number, F: Fonts) { const cw = w / (r.length === 1 ? 1 : 2); return Math.max(...r.map((c) => gridCellH(c, cw, F))); }
+function drawGrid(page: PDFPage, rows: GridCell[][], x: number, top: number, w: number, F: Fonts) {
+  const hs = rows.map((r) => gridRowH(r, w, F));
+  const total = hs.reduce((s, h) => s + h, 0);
+  roundRect(page, x, top, w, total, 7.5, { fill: C.box, stroke: C.line });
+  let y = top;
+  rows.forEach((r, ri) => {
+    const cw = w / (r.length === 1 ? 1 : 2);
+    r.forEach((c, ci) => {
+      const cx = x + ci * cw;
+      text(page, c.label.toUpperCase(), cx + K.padX, base(y - K.padY, K.labelLh, K.label), F.b, K.label, C.muted, { spacing: 0.5 });
+      let ty = y - K.padY - K.labelLh;
+      if (c.name != null) {
+        ty -= K.sigNameGap;
+        drawLines(page, lines(F.i, K.sigName, c.name, cw - 2 * K.padX), cx + K.padX, ty, F.i, K.sigName, K.sigNameLh, C.ink);
+        ty -= Math.max(1, lines(F.i, K.sigName, c.name, cw - 2 * K.padX).length) * K.sigNameLh + K.sigNameGap;
+      }
+      if (c.text) drawLines(page, lines(F.r, K.fact, c.text, cw - 2 * K.padX), cx + K.padX, ty, F.r, K.fact, K.factLh, C.ink);
+      if (ci < r.length - 1) page.drawLine({ start: { x: cx + cw, y }, end: { x: cx + cw, y: y - hs[ri]! }, thickness: 0.75, color: C.line });
+    });
+    y -= hs[ri]!;
+    if (ri < rows.length - 1) page.drawLine({ start: { x, y }, end: { x: x + w, y }, thickness: 0.75, color: C.line });
+  });
+}
+const tickH = (t: string, w: number, F: Fonts) => 2 * K.tickPadY + 1.5 + Math.max(K.tickBadge, lines(F.r, K.body, t, w - 2 * K.tickPadX - K.tickBadge - K.tickGap - 1.5).length * K.bodyLh) + K.tickMargin;
+/** The agreement's "Signed" box: label, the signed line, then a muted version line. */
+const NOTE_PAD_X = 10.5, NOTE_PAD_Y = 9, NOTE_TOP = 10.5;
+function noteH(b: { text: string; sub?: string }, w: number, F: Fonts) {
+  const iw = w - 2 * NOTE_PAD_X - 1.5;
+  return NOTE_TOP + 2 * NOTE_PAD_Y + 1.5 + 9.84 + 1.5 + lines(F.r, BODY, b.text, iw).length * BODY_LH + (b.sub ? lines(F.r, BODY, b.sub, iw).length * BODY_LH : 0) + GAP;
+}
+
 // ---- drawing --------------------------------------------------------------------------------------------------------
 type Img = { block: string; page: number };
 async function draw(b: PdfBlock, page: PDFPage, pageNo: number, x: number, top: number, w: number, X: Ctx, imgs: Img[]): Promise<void> {
@@ -149,10 +204,18 @@ async function draw(b: PdfBlock, page: PDFPage, pageNo: number, x: number, top: 
       const biz = b.withAddress ? [...BUSINESS_LINES, BUSINESS_ADDRESS] : [...BUSINESS_LINES];
       biz.forEach((l, i) => text(page, l, x + w, base(top - i * BIZ_LH, BIZ_LH, BIZ), F.r, BIZ, C.muted, { right: true }));
       const rowH = Math.max(LOGO_H, biz.length * BIZ_LH);
-      text(page, b.eyebrow, x, base(top - rowH - 18.2, 11.4, EYEBROW), F.b, EYEBROW, C.blue, { spacing: 1.23 });
+      if (b.compact) text(page, b.eyebrow, x, base(top - rowH - K.headGap, K.eyebrowLh, 7.35), F.b, 7.35, C.blue, { spacing: 1.1 });
+      else text(page, b.eyebrow, x, base(top - rowH - 18.2, 11.4, EYEBROW), F.b, EYEBROW, C.blue, { spacing: 1.23 });
       return;
     }
     case "title": {
+      if (b.compact) {
+        let cy = top - K.h1Top;
+        const ct = lines(F.x, K.h1, b.text, w);
+        drawLines(page, ct, x, cy, F.x, K.h1, K.h1Lh, C.ink); cy -= ct.length * K.h1Lh;
+        if (b.sub) { cy -= K.subGap; drawLines(page, lines(F.r, K.sub, b.sub, w), x, cy, F.r, K.sub, K.subLh, C.muted); }
+        return;
+      }
       let y = top - 2.8;
       const t = lines(F.x, H1, b.text, w);
       drawLines(page, t, x, y, F.x, H1, H1_LH, C.ink); y -= t.length * H1_LH;
@@ -160,12 +223,18 @@ async function draw(b: PdfBlock, page: PDFPage, pageNo: number, x: number, top: 
       return;
     }
     case "para": {
+      if (b.compact) {
+        if (b.lead) drawRuns(page, runLines(F, K.body, b.lead, b.text, w), x, top, F, K.body, K.bodyLh, C.ink);
+        else drawLines(page, lines(F.r, K.body, b.text, w), x, top, F.r, K.body, K.bodyLh, C.ink);
+        return;
+      }
       const s = b.small ? SMALL : BODY; const lh = b.small ? SMALL_LH : BODY_LH;
       if (b.lead) drawRuns(page, runLines(F, s, b.lead, b.text, w), x, top, F, s, lh, b.muted || b.small ? C.muted : C.ink);
       else drawLines(page, lines(F.r, s, b.text, w), x, top, F.r, s, lh, b.muted || b.small ? C.muted : C.ink);
       return;
     }
     case "facts": {
+      if (b.compact) { drawGrid(page, gridRows(b.rows.map((r) => ({ label: r[0], text: r[1] })), b.full), x, top, w, F); return; }
       const rows = factRows(b.rows);
       const hs = rows.map((r) => factRowH(r, w, F));
       const total = hs.reduce((s, h) => s + h, 0);
@@ -199,6 +268,19 @@ async function draw(b: PdfBlock, page: PDFPage, pageNo: number, x: number, top: 
       return;
     }
     case "money": {
+      if (b.compact) {
+        let cy = top - 1.5;
+        b.rows.forEach((r, i) => {
+          const h = r.strong ? 2 * K.rowPad + K.totLh : 2 * K.rowPad + K.bodyLh + 0.75;
+          const size = r.strong ? K.tot : K.body; const f = r.strong ? F.x : F.r;
+          const bl = base(cy - K.rowPad, r.strong ? K.totLh : K.bodyLh, size);
+          text(page, r.label, x, bl, f, size, C.ink);
+          text(page, r.amount, x + w, bl, f, size, C.ink, { right: true });
+          cy -= h;
+          if (!r.strong && i < b.rows.length - 1) page.drawLine({ start: { x, y: cy + 0.4 }, end: { x: x + w, y: cy + 0.4 }, thickness: 0.75, color: C.line });
+        });
+        return;
+      }
       let y = top - 1;
       b.rows.forEach((r, i) => {
         const h = moneyRowH(r);
@@ -218,6 +300,20 @@ async function draw(b: PdfBlock, page: PDFPage, pageNo: number, x: number, top: 
       return;
     }
     case "ticks": {
+      if (b.compact) {
+        let cy = top;
+        for (const t of b.items) {
+          const h = tickH(t, w, F) - K.tickMargin;
+          roundRect(page, x, cy, w, h, 7.5, { fill: C.box, stroke: C.line });
+          const bx = x + K.tickPadX + 0.75, by = cy - K.tickPadY - 0.75;
+          roundRect(page, bx, by, K.tickBadge, K.tickBadge, 3, { fill: C.green });
+          page.drawLine({ start: { x: bx + 3, y: by - 6.2 }, end: { x: bx + 5.2, y: by - 8.6 }, thickness: 1.2, color: C.white });
+          page.drawLine({ start: { x: bx + 5.2, y: by - 8.6 }, end: { x: bx + 9, y: by - 3.4 }, thickness: 1.2, color: C.white });
+          drawLines(page, lines(F.r, K.body, t, w - 2 * K.tickPadX - K.tickBadge - K.tickGap - 1.5), x + K.tickPadX + 0.75 + K.tickBadge + K.tickGap, cy - K.tickPadY - 0.75, F.r, K.body, K.bodyLh, C.ink);
+          cy -= h + K.tickMargin;
+        }
+        return;
+      }
       let y = top;
       for (const t of b.items) {
         const ls = lines(F.r, BODY, t, w - 16);
@@ -256,6 +352,26 @@ async function draw(b: PdfBlock, page: PDFPage, pageNo: number, x: number, top: 
       if (!img) { img = await embedImage(X.pdf, b.bytes); X.images.set(b.id, img); }
       page.drawImage(img, { x, y: top - b.height, width: b.width, height: b.height });
       imgs.push({ block: b.id, page: pageNo });
+      return;
+    }
+    case "heading": {
+      const hy = top - K.headTop;
+      text(page, b.text, x, base(hy, K.headLh, K.head), F.b, K.head, C.ink);
+      const ry = hy - K.headLh - K.headPad;
+      page.drawLine({ start: { x, y: ry - K.headRule / 2 }, end: { x: x + w, y: ry - K.headRule / 2 }, thickness: K.headRule, color: C.ink });
+      return;
+    }
+    case "signatures": { drawGrid(page, gridRows(sigCells(b.cells)), x, top, w, F); return; }
+    case "noteBox": {
+      const iw = w - 2 * NOTE_PAD_X - 1.5;
+      const h = noteH(b, w, F) - NOTE_TOP - GAP;
+      const y0 = top - NOTE_TOP;
+      roundRect(page, x, y0, w, h, 9, { fill: C.white, stroke: C.line });
+      text(page, b.label.toUpperCase(), x + NOTE_PAD_X + 0.75, base(y0 - NOTE_PAD_Y - 0.75, 9.84, LABEL), F.b, LABEL, C.muted, { spacing: 0.67 });
+      let ty = y0 - NOTE_PAD_Y - 0.75 - 9.84 - 1.5;
+      const tl = lines(F.r, BODY, b.text, iw);
+      drawLines(page, tl, x + NOTE_PAD_X + 0.75, ty, F.r, BODY, BODY_LH, C.ink); ty -= tl.length * BODY_LH;
+      if (b.sub) drawLines(page, lines(F.r, BODY, b.sub, iw), x + NOTE_PAD_X + 0.75, ty, F.r, BODY, BODY_LH, C.muted);
       return;
     }
     case "pageBreak": return;
@@ -315,8 +431,10 @@ export async function renderPdf(input: PdfDoc): Promise<{ bytes: Uint8Array; lay
 
   const { width: W, height: H, side, top: topM, bottom, firstTop } = PDF_PAGE;
   const pageSpace = H - topM - bottom;
-  const firstSpace = H - firstTop - BAR_H - BAR_GAP - bottom;
   const blocks = doc.blocks;
+  // The signed acceptance's first page (compact) sits closer to the bar than the other documents (18px in the approved sample).
+  const barGap = blocks[0]?.compact ? 13.5 : BAR_GAP;
+  const firstSpace = H - firstTop - BAR_H - barGap - bottom;
   const heights = blocks.map((b) => measure(b, CONTENT_W, fonts));
   const items = blocks.map((b, i) => {
     const kids = b.kind === "section" || b.kind === "box" ? b.children : undefined;
@@ -337,7 +455,7 @@ export async function renderPdf(input: PdfDoc): Promise<{ bytes: Uint8Array; lay
     if (pages.length === 1) {
       p.drawRectangle({ x: 0, y: H - firstTop - BAR_H, width: W, height: BAR_H, color: C.blue });
       layout.topBarPages.push(1);
-      y = H - firstTop - BAR_H - BAR_GAP;
+      y = H - firstTop - BAR_H - barGap;
     } else y = H - topM;
     return p;
   };

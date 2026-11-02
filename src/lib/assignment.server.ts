@@ -49,6 +49,7 @@ import {
   type VeecInstaller,
 } from "./veec-assignment-form.core";
 import { melbourneToday } from "./melbourne-time.core";
+import { PDF_LOOK_APPROVED } from "./pdf-approvals.core";
 
 export async function loadTemplates(): Promise<Template[]> {
   const { data, error } = await admin
@@ -261,6 +262,49 @@ export async function assertAgreementCanSign(input: AgreementSignInput) {
   if (b.length) throw new WorkflowError(b.join(" "));
 }
 
+/** Flag-on signed acceptance: page 1 + the full agreement. Returns null (and logs) when anything is missing, so signing never fails on the PDF. */
+async function signedAcceptancePdfV2OrNull(pkg: AcceptancePackage, p: { signatoryName: string; signatureName: string }, signedAt: string, jobId: string, actorId: string | null): Promise<Uint8Array | null> {
+  try {
+    const { activeCustomerAgreement } = await import("./customer-agreement.server");
+    const tpl = await activeCustomerAgreement();
+    if (!tpl) throw new Error("No approved Customer Agreement wording is active");
+    const [{ data: q }, { data: m }, { data: prof }] = await Promise.all([
+      admin.from("quotes").select("sent_at").eq("id", pkg.quote.id).maybeSingle(),
+      admin.from("ceiling_measurements").select("removal_required, removal_m2").eq("job_id", pkg.job_id).eq("is_current", true).maybeSingle(),
+      pkg.installer.user_id ? admin.from("profiles").select("phone, email").eq("id", pkg.installer.user_id).maybeSingle() : Promise.resolve({ data: null }),
+    ]);
+    if (!q?.sent_at) throw new Error("Quote has no sent date");
+    const { quoteExpiresAt } = await import("./quote-expiry.core");
+    const core = await import("./signed-acceptance.core");
+    const validUntil = core.formatValidUntil(new Date(quoteExpiresAt(q.sent_at).getTime() - 1));
+    const totalC = Math.round(pkg.final_customer_price_inc_gst * 100);
+    const split = core.paymentSplitCents(totalC, Math.round(safetyCheckIncGstFor({ lines: pkg.quote.items }) * 100));
+    const { safetyCheckShort } = await import("./safety-check-amount.core");
+    const { signedAcceptancePdfV2 } = await import("./signed-pdf.server");
+    const removalM2 = m?.removal_required ? Number(m.removal_m2) || null : null;
+    const r = await signedAcceptancePdfV2({
+      jobNumber: pkg.job_number, installerName: pkg.installer.business ?? pkg.installer.name ?? "", ownerName: p.signatoryName, ownerTypedName: p.signatureName,
+      address: pkg.property_address, signedAt, validUntil,
+      quoteLine: `${pkg.quoted_product}${pkg.quoted_area_m2 != null ? `, ${pkg.quoted_area_m2} m²` : ""}, supplied and installed`,
+      priceBeforeRebate: pkg.price_before_benefit_inc_gst, rebate: pkg.veu_benefit_inc_gst, yourPrice: pkg.final_customer_price_inc_gst, removalM2,
+      agreement: {
+        version: tpl.version, approvedOn: tpl.approvedAt ? core.formatSignedAt(tpl.approvedAt).short.replace(/,.*$/, "") : "", body: tpl.body,
+        facts: {
+          owner_name: p.signatoryName, address: pkg.property_address, job_number: pkg.job_number, installer_name: pkg.installer.business ?? pkg.installer.name ?? "",
+          installer_phone: prof?.phone ?? "", installer_email: prof?.email ?? "", product: pkg.quoted_product, area_m2: String(pkg.quoted_area_m2 ?? ""),
+          price_before_rebate: core.aud(pkg.price_before_benefit_inc_gst), rebate: core.aud(pkg.veu_benefit_inc_gst), your_price: core.aud(pkg.final_customer_price_inc_gst),
+          valid_until: validUntil, safety_check: safetyCheckShort(split.safety), deposit: core.aud(split.deposit / 100), rest: core.aud(split.rest / 100),
+        },
+      },
+    });
+    return r.bytes;
+  } catch (e) {
+    // Internal only: the owner still gets the signed copy from the previous builder.
+    await logEvent(jobId, actorId, "signed_acceptance_pdf_fallback", "Signed acceptance used the previous layout (internal)", { reason: e instanceof Error ? e.message : String(e) }, { internal: true }).catch(() => undefined);
+    return null;
+  }
+}
+
 /** Quote-stage signing: Customer Agreement / Quote Acceptance (commercial) only. It is not ESC consent or VEEC assignment. */
 export async function signCustomerAgreement(p: {
   quoteId: string;
@@ -327,8 +371,9 @@ export async function signCustomerAgreement(p: {
     }) });
   }
   items.push({ title: "Consumer rights information", version: rights.version, text: rights.body });
-  const renderedPdf = await signedAcceptancePdf({ ownerName: p.input.signatoryName, address: pkg.property_address,
-    totalIncGst: pkg.final_customer_price_inc_gst, signedAt: now.toISOString(), jobNumber: pkg.job_number, items });
+  const legacyPdf = { ownerName: p.input.signatoryName, address: pkg.property_address,
+    totalIncGst: pkg.final_customer_price_inc_gst, signedAt: now.toISOString(), jobNumber: pkg.job_number, items };
+  const renderedPdf = PDF_LOOK_APPROVED.signedAcceptance ? ((await signedAcceptancePdfV2OrNull(pkg, { signatoryName: p.input.signatoryName, signatureName: p.input.signatureName }, now.toISOString(), pkg.job_id, p.actorId)) ?? await signedAcceptancePdf(legacyPdf)) : await signedAcceptancePdf(legacyPdf);
   const path = await storeCopy(
     pkg.job_id,
     `${pkg.job_id}/agreement/quote-v${pkg.quote.version}-${hash.slice(0, 12)}.txt`,
