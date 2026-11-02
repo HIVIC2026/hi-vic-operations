@@ -12,6 +12,9 @@ function fixture(failedTable?: string, failPage = -1) {
   const calls: { table: string; filters: unknown[][] }[] = [];
   const rpcCalls: unknown[] = [];
   const emailCalls: string[] = [];
+  const giveCalls: any[] = [];
+  const refuseJobs = new Set<string>();
+  const giveMode: { fail: boolean; outcome: any } = { fail: false, outcome: { status: "not_approved" } };
   const data: Record<string, unknown[]> = {
     jobs: [{ id: "j", job_number: "HV-1", property_id: "p", stage: "preliminary_estimate_ready", source: "base44", deleted_at: null }],
     businesses: [{ id: "b", name: "Rapid", trading_name: "Rapid Insulation", in_house: true, is_active: true, service_postcodes: ["3199"], covers_all_victoria: false }],
@@ -34,10 +37,11 @@ function fixture(failedTable?: string, failPage = -1) {
       return Promise.resolve({ data: result, error: (table === failedTable || (table === "jobs" && offset === failPage)) ? { message: "read unavailable" } : null }).then(resolve); } };
     for (const key of ["select","in","eq","is","not","neq","order","range"]) q[key] = (...args: unknown[]) => { call.filters.push([key,...args]); return q; };
     return q;
-  }, async rpc(name: string, input: unknown) { rpcCalls.push({ name, input }); return { data: { sent: true }, error: null }; } };
+  }, async rpc(name: string, input: unknown) { rpcCalls.push({ name, input }); return { data: refuseJobs.has((input as any)._job) ? { sent: false, reason: "Already booked" } : { sent: true }, error: null }; } };
   const dependencies: Record<string, unknown> = {
     "@/integrations/supabase/client.server": { supabaseAdmin: admin }, "./in-house-batch.core": rules,
     "./in-house-batch-email.server": { sendInHousePartnerCall:async(id:string)=>{expect(rpcCalls.length).toBeGreaterThan(0);emailCalls.push(id);return "draft";} },
+    "./in-house-give-email.server": { sendInHouseGiveEmail: async (p: any) => { giveCalls.push(p); if (giveMode.fail) throw new Error("boom"); return giveMode.outcome; } },
     "./sweep-batch.core": { chunkIds: (ids: unknown[], n: number) => Array.from({length:Math.ceil(ids.length/n)},(_,i)=>ids.slice(i*n,(i+1)*n)) },
     "./display-name.core": displayName, "./quick-taps.core": { QUICK_TAPS_ANSWERED_EVENT }, "./in-house.core": inHouse, "./mitti-membership.core": membership, "./melbourne-time.core": { melbourneToday: () => "2026-10-30" },
     "./installer-paid-electricians.server": { inHouseFactsFor: async () => ({ approvedElectricianWorkers: 1, hasActiveRateCardWithPiesa: true, mittiElectricianLogins: 1, mittiAccountInvited: true }) },
@@ -53,7 +57,7 @@ function fixture(failedTable?: string, failPage = -1) {
     }
     return ["j", "j1", "j2", "j3", "j4"];
   };
-  return { api: output, data, calls, rpcCalls, emailCalls, five };
+  return { api: output, data, calls, rpcCalls, emailCalls, giveCalls, giveMode, refuseJobs, five };
 }
 test("real loader excludes deleted/TEST jobs in its query and maps saved spots with opt-out protection", async () => {
   const f = fixture();
@@ -66,7 +70,7 @@ test("real loader excludes deleted/TEST jobs in its query and maps saved spots w
 });
 test("actual send uses same-business approved workers, binds actor and deduplicates job input", async () => {
   const f = fixture();
-  expect(await f.api.sendInHouseBatch({ businessId: "b",jobIds: [...f.five(), "j"],actorId: "office" })).toEqual({ sent: ["j", "j1", "j2", "j3", "j4"],refused: [] });
+  expect(await f.api.sendInHouseBatch({ businessId: "b",jobIds: [...f.five(), "j"],actorId: "office" })).toEqual({ sent: ["j", "j1", "j2", "j3", "j4"],refused: [],installerEmail: { status: "not_approved" } });
   expect(f.rpcCalls).toHaveLength(5);
   expect(f.emailCalls).toEqual(["j", "j1", "j2", "j3", "j4"]);
   expect(f.rpcCalls[0]).toMatchObject({ name: "allocate_in_house_batch_job",input: { _business: "b",_job: "j",_actor: "office",_installer: "i",_electrician: null } });
@@ -153,4 +157,48 @@ test("loader maps owner name and phone, selects owners(full_name,phone), and sho
   expect(result.suggestions).toEqual([{ businessId: "b", jobIds: ["j"] }]);
   const select = f.calls.find(c => c.table === "jobs")?.filters.find(([key]) => key === "select")?.[1] as string;
   expect(select).toContain("owners(full_name,phone)");
+});
+
+function three(f: ReturnType<typeof fixture>) {
+  const all = f.five().slice(0, 3);
+  (f.data.jobs as any[]).forEach((j, i) => { j.job_number = `HV-${i + 1}`; j.owners = { full_name: `Owner ${i + 1}`, phone: `040000000${i}` }; });
+  return all;
+}
+test("Give sends ONE installer email listing only given jobs, with the Give's batch id; owner emails stay per job", async () => {
+  const f = fixture();
+  const ids = three(f);
+  const result = await f.api.sendInHouseBatch({ businessId: "b", jobIds: ids, actorId: "office" });
+  expect(result.installerEmail).toEqual({ status: "not_approved" });
+  expect(f.emailCalls).toEqual(ids);
+  expect(f.giveCalls).toHaveLength(1);
+  const call = f.giveCalls[0];
+  expect(call.batchId).toBe((f.rpcCalls[0] as any).input._batch);
+  expect(call.businessId).toBe("b");
+  expect(call.actorId).toBe("office");
+  expect("approved" in call).toBe(false);
+  expect(call.jobs.map((j: any) => j.jobNumber)).toEqual(["HV-1", "HV-2", "HV-3"]);
+  expect(call.jobs[0]).toEqual({ jobId: "j", jobNumber: "HV-1", ownerName: "Owner 1", ownerMobile: "0400000000", address: "1 Example Street, 3199" });
+});
+test("refused job is left out of the installer email; none given means no email", async () => {
+  const f = fixture();
+  const ids = three(f);
+  f.refuseJobs.add("j1");
+  const result = await f.api.sendInHouseBatch({ businessId: "b", jobIds: ids, actorId: "office" });
+  expect(result.refused).toEqual([{ jobId: "j1", reason: "Already booked" }]);
+  expect(f.giveCalls).toHaveLength(1);
+  expect(f.giveCalls[0].jobs.map((j: any) => j.jobNumber)).toEqual(["HV-1", "HV-3"]);
+  const g = fixture();
+  const ids2 = three(g);
+  ids2.forEach(id => g.refuseJobs.add(id));
+  const none = await g.api.sendInHouseBatch({ businessId: "b", jobIds: ids2, actorId: "office" });
+  expect(none.sent).toEqual([]);
+  expect("installerEmail" in none).toBe(false);
+  expect(g.giveCalls).toHaveLength(0);
+});
+test("installer email failure keeps the Give and says not_sent", async () => {
+  const f = fixture();
+  f.giveMode.fail = true;
+  const result = await f.api.sendInHouseBatch({ businessId: "b", jobIds: three(f), actorId: "office" });
+  expect(result.sent).toHaveLength(3);
+  expect(result.installerEmail).toEqual({ status: "not_sent" });
 });

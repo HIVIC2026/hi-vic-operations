@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { saidYesLabel, suggestBatches, type BatchJob, type InHousePartner } from "../src/lib/in-house-batch.core";
+import { giveNotice, saidYesLabel, suggestBatches, type BatchJob, type InHousePartner } from "../src/lib/in-house-batch.core";
 
 const job: BatchJob = { id: "j", stage: "preliminary_estimate_ready", source: "base44", quickTapsYes: true, deleted_at: null, spot_saved_at: "2026-10-30", optedOut: false, hasActiveInstaller: false, postcode: "3199", lat: -38.14, lng: 145.12 };
 const partner: InHousePartner = { id: "p", name: "Rapid Insulation", in_house: true, is_active: true, service_postcodes: ["3199"], covers_all_victoria: false, coverage_lat: null, coverage_lng: null, coverage_radius_km: null, openJobs: 0 };
@@ -24,4 +24,12 @@ test("said-yes label uses the owner name in normal case, or Owner when blank", (
   expect(saidYesLabel({ ownerName: "  ", quickTapsYes: true })).toBe("Owner said yes · free Ready Check");
   expect(saidYesLabel({ quickTapsYes: true })).toBe("Owner said yes · free Ready Check");
   expect(saidYesLabel({ ownerName: "Wayne Wilson", quickTapsYes: false })).toBeNull();
+});
+test("give notice adds the installer email words", () => {
+  const sent = ["a", "b", "c"];
+  expect(giveNotice({ sent, refused: [], installerEmail: { status: "not_approved" } }, "Rapid Insulation", id => id))
+    .toBe("3 jobs given to Rapid Insulation. No email to Rapid Insulation yet — the email is waiting for your OK in Templates.");
+  expect(giveNotice({ sent: ["a"], refused: [{ jobId: "z", reason: "Booked" }], installerEmail: { status: "sent" } }, "Rapid Insulation", id => id.toUpperCase()))
+    .toBe("1 job given to Rapid Insulation. Emailed Rapid Insulation the job list. Not given: Z (Booked).");
+  expect(giveNotice({ sent: [], refused: [{ jobId: "z", reason: "Booked" }] }, "Rapid", id => id)).toBe("Not given: z (Booked).");
 });

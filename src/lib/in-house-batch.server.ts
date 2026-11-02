@@ -4,6 +4,8 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { batchJobEligible, batchPartnerCovers, suggestBatches, readyInHouseBatch, type BatchJob, type InHousePartner } from "./in-house-batch.core";
 import { QUICK_TAPS_ANSWERED_EVENT } from "./quick-taps.core";
 import { sendInHousePartnerCall } from "./in-house-batch-email.server";
+import { sendInHouseGiveEmail } from "./in-house-give-email.server";
+import type { GiveEmailOutcome } from "./in-house-give-email.core";
 import { inHouseFactsFor } from "./installer-paid-electricians.server";
 import { inHouseEnableBlockers } from "./in-house.core";
 import { chunkIds } from "./sweep-batch.core";
@@ -85,7 +87,7 @@ async function selectWorkers(businessId: string) {
   return { installer: installer.profile_id, electrician: null };
 }
 
-export async function sendInHouseBatch(input: { businessId: string; jobIds: string[]; actorId: string }): Promise<{ sent: string[]; refused: { jobId: string; reason: string }[] }> {
+export async function sendInHouseBatch(input: { businessId: string; jobIds: string[]; actorId: string }): Promise<{ sent: string[]; refused: { jobId: string; reason: string }[]; installerEmail?: GiveEmailOutcome }> {
   const sent: string[] = [], refused: { jobId: string; reason: string }[] = [];
   const batchId = crypto.randomUUID();
   const screen = await loadInHouseBatches();
@@ -118,5 +120,19 @@ export async function sendInHouseBatch(input: { businessId: string; jobIds: stri
       try { await sendInHousePartnerCall(jobId); } catch (error) { console.error("Partner call email after allocation failed", error instanceof Error ? error.message : "unknown"); }
     } else refused.push({ jobId, reason: outcome.reason ?? "Job unavailable" });
   }
-  return { sent, refused };
+  if (!sent.length) return { sent, refused };
+  // ONE installer email for this Give, listing only the jobs actually given. Never undoes the allocation; `approved` is
+  // never passed, so the sender's own switch decides.
+  let installerEmail: GiveEmailOutcome;
+  try {
+    const jobs = sent.map(id => {
+      const j = screen.jobs.find(x => x.id === id);
+      return { jobId: id, jobNumber: j?.job_number ?? "", ownerName: j?.ownerName ?? null, ownerMobile: j?.ownerPhone ?? null, address: j?.address ?? null };
+    });
+    installerEmail = await sendInHouseGiveEmail({ batchId, businessId: input.businessId, jobs, actorId: input.actorId });
+  } catch (error) {
+    console.error("Installer email after Give failed", error instanceof Error ? error.message : "unknown");
+    installerEmail = { status: "not_sent" };
+  }
+  return { sent, refused, installerEmail };
 }

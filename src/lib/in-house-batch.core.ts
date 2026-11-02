@@ -1,5 +1,6 @@
 import { isInHousePartner } from "./in-house.core";
 import { displayName } from "./display-name.core";
+import { installerEmailWords, type GiveEmailOutcome } from "./in-house-give-email.core";
 
 export type BatchJob = {
   id: string; stage: string; source: string; deleted_at: string | null; spot_saved_at: string | null;
@@ -52,9 +53,10 @@ export function suggestBatches(jobs: BatchJob[], partners: InHousePartner[]): { 
 }
 
 /** Jo 2 Nov 2026: say how many went and which weren't given (job number + reason). */
-export function giveNotice(result: { sent: string[]; refused: { jobId: string; reason: string }[] }, partner: string, jobNumber: (id: string) => string): string {
+export function giveNotice(result: { sent: string[]; refused: { jobId: string; reason: string }[]; installerEmail?: GiveEmailOutcome }, partner: string, jobNumber: (id: string) => string): string {
   const n = result.sent.length;
   const given = n ? `${n} ${n === 1 ? "job" : "jobs"} given to ${partner}.` : "";
+  const emailed = n && result.installerEmail ? installerEmailWords(result.installerEmail, partner) : "";
   const notGiven = result.refused.length ? `Not given: ${result.refused.map(r => `${jobNumber(r.jobId)} (${r.reason})`).join("; ")}.` : "";
-  return [given, notGiven].filter(Boolean).join(" ");
+  return [given, emailed, notGiven].filter(Boolean).join(" ");
 }
