@@ -133,3 +133,28 @@ describe("pdf-look kit: rendered multi-page", () => {
     expect(names.some((n) => /Bold-?Italic/i.test(n))).toBe(true);
   });
 });
+
+describe("pdf-look kit: split box geometry", () => {
+  test("paginate counts the per-part overhead", () => {
+    const r = paginate([{ id: "b", height: 900, keepTogether: true, childHeights: [200, 200, 200, 200], partOverhead: 30 }], 500, 500);
+    // 2 x 200 + 30 = 430 per part; a third child would make 630 > 500.
+    expect(r).toEqual([{ page: 1, id: "b", part: 0 }, { page: 2, id: "b", part: 1 }]);
+    const next = paginate([{ id: "b", height: 900, keepTogether: true, childHeights: [240, 240], partOverhead: 30 }, { id: "n", height: 100, keepTogether: true }], 500, 500);
+    expect(next.map((x) => `${x.page}${x.id}`)).toEqual(["1b", "2b", "2n"]);
+  });
+
+  test("rendered box taller than a page stays inside the margins and the next block does not overlap it", async () => {
+    const { bytes, layout } = await renderPdf({ title: "B", blocks: [
+      { id: "bx", kind: "box", children: Array.from({ length: 9 }, (_, i) => para(`c${i}`, `BXCHILD${i}`)) },
+      { id: "after", kind: "para", text: "AFTERBOX" },
+    ] });
+    expect(layout.split).toEqual(["bx"]);
+    const pages = await pageItems(bytes);
+    const body = pages.map((items) => items.filter((x) => x.y > 20 && x.str.trim() !== ""));
+    for (const items of body) expect(Math.min(...items.map((x) => x.y))).toBeGreaterThanOrEqual(PDF_PAGE.bottom + 7.5);
+    const lastPage = body.length - 1;
+    const afterY = body[lastPage]!.find((x) => x.str.includes("AFTERBOX"))!.y;
+    const boxLowest = Math.min(...body[lastPage]!.filter((x) => !x.str.includes("AFTERBOX")).map((x) => x.y));
+    expect(boxLowest - afterY).toBeGreaterThan(7.5 + 5);
+  });
+});

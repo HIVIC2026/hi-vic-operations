@@ -255,7 +255,7 @@ export async function renderPdf(input: PdfDoc): Promise<{ bytes: Uint8Array; lay
       childHeights = b.children.map((c) => measure(c, CONTENT_W, fonts));
       if (childHeights.length) childHeights[0]! += sectionHead(b);
     } else if (kids) childHeights = kids.map((c) => measure(c, CONTENT_W - 2 * BOX_PAD, fonts));
-    return { id: b.id, height: heights[i]!, keepTogether: b.keepTogether !== false, ...(childHeights ? { childHeights } : {}), ...(b.kind === "pageBreak" ? { pageBreak: true } : {}) };
+    return { id: b.id, height: heights[i]!, keepTogether: b.keepTogether !== false, ...(childHeights ? { childHeights } : {}), ...(b.kind === "box" ? { partOverhead: BOX_PAD * 2 + GAP } : {}), ...(b.kind === "pageBreak" ? { pageBreak: true } : {}) };
   });
   const placed = paginateDetailed(items, firstSpace, pageSpace);
 
@@ -294,7 +294,7 @@ export async function renderPdf(input: PdfDoc): Promise<{ bytes: Uint8Array; lay
       let yy = y - BOX_PAD;
       for (const ci of g) { await draw(b.children[ci]!, page, pl.page, side + BOX_PAD, yy, inner, X, layout.images); yy -= kids[ci]!; }
     }
-    y -= g.reduce((s, ci) => s + kids[ci]!, 0);
+    y -= g.reduce((s, ci) => s + kids[ci]!, 0) + (items[i]!.partOverhead ?? 0);
   }
 
   // Second pass: footer on every page now that the page count is known.

@@ -62,19 +62,20 @@ export function wrapText(text: string, width: (s: string) => number, max: number
 const EPS = 0.01;
 
 /** Pure: groups of child indexes per page. The first group has `firstSpace`, later ones `pageSpace`; a child taller than a page sits alone. */
-export function packChildren(childHeights: number[], firstSpace: number, pageSpace: number): number[][] {
+export function packChildren(childHeights: number[], firstSpace: number, pageSpace: number, partOverhead = 0): number[][] {
   const groups: number[][] = [];
   let cur: number[] = [];
-  let left = firstSpace;
+  let left = firstSpace - partOverhead;
   childHeights.forEach((h, i) => {
-    if (cur.length > 0 && h > left + EPS) { groups.push(cur); cur = []; left = pageSpace; }
+    if (cur.length > 0 && h > left + EPS) { groups.push(cur); cur = []; left = pageSpace - partOverhead; }
     cur.push(i); left -= h;
   });
   if (cur.length > 0) groups.push(cur);
   return groups;
 }
 
-export type PaginateItem = { id: string; height: number; keepTogether: boolean; childHeights?: number[]; pageBreak?: boolean };
+export type PaginateItem = { id: string; height: number; keepTogether: boolean; childHeights?: number[]; pageBreak?: boolean;
+  /** Extra height every split part takes besides its children (a box's padding and trailing gap). */ partOverhead?: number };
 export type PaginateResult = { page: number; id: string; part?: number };
 /** Same as PaginateResult, plus the child indexes drawn on this page for a split block (the renderer draws exactly these). */
 export type PaginatePlacement = PaginateResult & { children?: number[] };
@@ -104,12 +105,13 @@ export function paginateDetailed(items: PaginateItem[], firstPageSpace: number, 
       continue;
     }
     // Flows over pages: split between children, starting here unless the first child does not fit.
-    if (kids![0]! > left + EPS && !atTop()) fresh();
-    const groups = packChildren(kids!, left, pageSpace);
+    const oh = it.partOverhead ?? 0;
+    if (kids![0]! + oh > left + EPS && !atTop()) fresh();
+    const groups = packChildren(kids!, left, pageSpace, oh);
     groups.forEach((g, p) => {
       if (p > 0) fresh();
       out.push({ page, id: it.id, part: p, children: g });
-      left -= g.reduce((s, i) => s + kids![i]!, 0);
+      left -= g.reduce((s, i) => s + kids![i]!, 0) + oh;
     });
   }
   return out;
