@@ -15,3 +15,10 @@ test("My job home never shows", () => { expect(resolveOwnerScreen("home", {})).t
 test("no owner message links to My job home", () => {
   for (const f of ["veec-emails", "visit-new-times", "deposit-release-notice", "install-no-access-notice", "thirty-day-rule", "spot-saved-messages", "ready-check-booked-email", "safety-check-emails"]) expect(code(`src/lib/${f}.core.ts`)).not.toMatch(/See my job|See where you're up to/);
 });
+test("on-the-way SMS has no My job link (decisions 54-58 item 4)", async () => {
+  const { visitNewTimesText } = await import("../src/lib/visit-new-times.core");
+  const t = visitNewTimesText({ kind: "ready_check", wasIso: "2026-11-10T00:00:00Z", ownerPicks: false, link: "https://x/my-job/t" } as never);
+  expect(t).not.toContain("https://x/my-job/t");
+  expect(visitNewTimesText({ kind: "ready_check", wasIso: "2026-11-10T00:00:00Z", ownerPicks: true, link: "https://x/my-job/t" } as never)).toContain("https://x/my-job/t");
+});
+

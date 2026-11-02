@@ -57,7 +57,7 @@ export function visitNewTimesText(f: VisitNewTimesFacts): string {
   const lead = `Sorry, ${v.who} can't make your ${v.name} on ${melbourneDayDate(f.wasIso)} any more.`;
   return f.ownerPicks
     ? `${lead} Please choose new times here: ${f.link} Reply STOP to opt out.`
-    : `${lead} You don't need to do anything – we'll send you new times soon. Your job: ${f.link} Reply STOP to opt out.`;
+    : `${lead} You don't need to do anything – we'll send you new times soon. Reply STOP to opt out.`;
 }
 
 export type VisitNewTimesEmailInput = VisitNewTimesFacts & { firstName: string | null; unsubscribeUrl: string | null; test?: boolean };
