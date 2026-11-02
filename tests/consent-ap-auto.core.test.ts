@@ -19,7 +19,7 @@ const ready: ConsentApAutoFacts = {
 describe("decision 370: automatic AP part of the owner consent", () => {
   test("the signer is the AP representative named on the forms (same as decision 271), with complete Part A details", () => {
     expect(apRepFullName(rep)).toBe(AP_DETAILS.fullName!);
-    expect(rep.role).toBe("AP representative");
+    expect(rep.role).toBe("Director");
     expect(rep.phone).toBe(AP_DETAILS.phone);
     expect(rep.email).toContain("@");
     expect(consentAutoApRep({ fullName: null, phone: null })).toBeNull();

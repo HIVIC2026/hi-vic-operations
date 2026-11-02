@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { ESC_AP_FULL_NAME, OWNER_DECLARATIONS, apDeclarationText, type ConsentFacts } from "../src/lib/consent.core";
+import { consentAutoApRep } from "../src/lib/consent-ap-auto.core";
 import { escConsentPdf } from "../src/lib/consent-pdf.server";
 
 const pdfText = async (b: Uint8Array) => { const d = await getDocument({ data: b.slice() }).promise; const out: string[] = []; for (let i = 1; i <= d.numPages; i++) out.push((await (await d.getPage(i)).getTextContent()).items.map((x: any) => x.str).join(" ")); return out.join(" ").replace(/\s+/g, " "); };
@@ -40,5 +41,13 @@ describe("ESC owner consent PDF (website look)", () => {
   });
   test("flag off keeps the text copy", () => {
     expect(readFileSync("src/lib/consent.server.ts", "utf8")).toMatch(/PDF_LOOK_APPROVED\.escConsent/);
+  });
+  test("the automatic AP signer is Chris Lowe, Director, and the signed PDF prints Director", async () => {
+    const rep = consentAutoApRep()!;
+    expect(rep.role).toBe("Director");
+    const text = await pdfText((await escConsentPdf(SAMPLE_FACTS, { owner: SIGNED.owner, ap: { name: `${rep.first_name} ${rep.last_name}`, role: rep.role, at: SIGNED.ap.at, phone: rep.phone, email: rep.email } })).bytes);
+    expect(text).toContain("Director");
+    expect(text).toContain("Chris Lowe");
+    expect(text).not.toContain("AP representative,");
   });
 });
