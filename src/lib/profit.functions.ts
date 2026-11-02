@@ -193,6 +193,7 @@ export const getJobProfit = createServerFn({ method: "POST" }).middleware([requi
     const piesaCustomerInc = quotedPiesaCents != null ? quotedPiesaCents / 100 : job.channel === "installer_sourced"
       ? await (await import("./installer-paid-electricians.server")).installerSafetyCheckPrice(job.originating_installer_business_id)
       : scp.ownerSafetyCheckIncGst(rs.data.piesa_assessment_inc_gst);
+    if (piesaCustomerInc == null) throw new Error("Installer business has no PIESA rate on its rate card");
     const usualPiesaRate = snap?.piesa_electrician?.source === "installer_usual" && Number(snap.piesa_electrician.rate_inc_gst) > 0 ? Number(snap.piesa_electrician.rate_inc_gst) : null;
     return {
       hivJob,

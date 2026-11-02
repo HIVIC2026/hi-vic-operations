@@ -102,7 +102,7 @@ export async function moneyMargins(now = new Date()) {
     const usualPiesa = inst ? internals.find((x) => x.quote_id === inst.id)?.calc_snapshot?.piesa_electrician : null;
     const usualPiesaEx = usualPiesa?.source === "installer_usual" && Number(usualPiesa.rate_inc_gst) > 0 ? Number(usualPiesa.rate_inc_gst) / (1 + gstRate) : null;
     const paidToInstaller = installerPaid.get(id);
-    // Jo 3 Nov 2026: installer jobs pass the owner's $349 to the installer; our leads pay the electrician the office payout.
+    // Jo 3 Nov correction: installer-source jobs pass their full recorded/list fee to the installer; website leads use the office payout.
     void piesaRate; void usualPiesaEx; void fallbackPiesa; void elec;
     const piesaCostEx = ownerDirect ? 0 : paidToInstaller ? paidToInstaller.piesaIncGst / (1 + gstRate)
       : safetyCheckPayoutIncGst({ channel: j.channel, offerRateInc: offerRate.get(id) ?? null, ownerPriceIncGst: ownerPiesa, hivPayoutIncGst: hivPayout }) / (1 + gstRate);

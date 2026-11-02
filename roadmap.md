@@ -1,5 +1,6 @@
 ## Jo 3 Nov 10:30am installer safety-check correction
-- [ ] Test-first restore installer-owned price-list owner fee and whole-fee pass-through; website owner/payout unchanged; related tests and automatic checks; read-only Rapid saved-price confirmation. No data, sends or publishing; four approved saves remain pending under their existing blocker.
+- [x] Test-first restored installer-owned price-list owner fee and whole-fee pass-through, preserving recorded quote/payout values; website owner/payout unchanged. Requested examples and related focused tests pass. Broader historical suites have identical baseline failures (13/16/4). Rapid has no saved PIESA line; Reinsulate still $350 pending approved recorded saves. No data, sends or publishing.
+- [ ] Authenticated pricing flow proof: BLOCKED by unavailable Jo admin session; no new TEST/live data created to bypass it.
 
 ## Jo 3 Nov 10:20am safety-check recorded data saves
 - [ ] Save the four approved values through normal recorded office paths with reason `Jo 3 Nov: safety check $349`: ORLANDO POWERED rate $349; Orlando and Reinsulate v2 safety-check lines $317.27 ex GST; office electrician payout $250 ex GST. BLOCKED: Jo's own session has no matching account and minting Jo Lowe's explicit admin account was refused. No SQL bypass, data changes, sends or publishing; TEST businesses, HV-3193 and HV-3682 unchanged.
