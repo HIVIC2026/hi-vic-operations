@@ -248,7 +248,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
           };
 
   const idx = ADD_JOB_STEPS.findIndex((s) => s.key === step);
-  const elName = elLater ? "To be arranged" : plan?.mode === "mine" ? (([...(el?.approved ?? []), ...(el?.pending ?? [])] as { businessId?: string; nominationId?: string; name: string }[]).find((x) => (plan.business_id && x.businessId === plan.business_id) || (plan.nomination_id && x.nominationId === plan.nomination_id))?.name ?? "your electrician") : "Home Insulation Victoria arranges";
+  const elName = elLater ? "To be arranged" : plan?.mode === "mine" ? (([...(el?.approved ?? []), ...(el?.pending ?? [])] as { businessId?: string; nominationId?: string; name: string }[]).find((x) => (plan.business_id && x.businessId === plan.business_id) || (plan.nomination_id && x.nominationId === plan.nomination_id))?.name ?? "your electrician") : "Choose your own electrician";
 
   return (
     <div className="mt-3 space-y-4 pb-24" data-installer-intake data-step={step}>

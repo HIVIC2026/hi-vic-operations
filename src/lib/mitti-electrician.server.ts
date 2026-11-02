@@ -13,7 +13,7 @@ import {
 export async function openMittiElectricianQuestions(jobIds: string[]): Promise<Set<string>> {
   const open = new Set<string>();
   if (!jobIds.length) return open;
-  const { data: jobs, error } = await admin.from("jobs").select("id, source, electrician_choice").in("id", jobIds.slice(0, 200)).eq("source", "installer_mitti");
+  const { data: jobs, error } = await admin.from("jobs").select("id, source, channel, electrician_choice").in("id", jobIds.slice(0, 200)).eq("channel", "installer_sourced");
   if (error || !jobs?.length) return open;
   const ids = jobs.map((j) => String(j.id));
   const [noms, asg, offers, used] = await Promise.all([
@@ -26,7 +26,7 @@ export async function openMittiElectricianQuestions(jobIds: string[]): Promise<S
   const has = (rows: { job_id: string | null }[] | null, id: string) => (rows ?? []).some((r) => r.job_id === id);
   for (const j of jobs) {
     const id = String(j.id);
-    if (mittiElectricianQuestionOpen({ source: j.source, electricianChoice: j.electrician_choice as string | null, hasNomination: has(noms.data, id), hasElectricianAssigned: has(asg.data, id), hasPiesaOffer: has(offers.data, id), usualUsed: has(used.data, id) })) open.add(id);
+    if (mittiElectricianQuestionOpen({ source: j.source, channel: j.channel, electricianChoice: j.electrician_choice as string | null, hasNomination: has(noms.data, id), hasElectricianAssigned: has(asg.data, id), hasPiesaOffer: has(offers.data, id), usualUsed: has(used.data, id) })) open.add(id);
   }
   return open;
 }
@@ -37,7 +37,7 @@ async function installerBusinessFor(jobId: string, userId: string): Promise<stri
   if (error) throw new WorkflowError("Couldn't check this job. Please try again.");
   const ids = [...new Set((asg ?? []).map((a) => a.business_id).filter((x): x is string => !!x))];
   if (!ids.length) throw new WorkflowError("This isn't one of your jobs.");
-  const { data: mem } = await admin.from("business_members").select("business_id").eq("user_id", userId).in("business_id", ids).limit(1);
+  const { data: mem } = await admin.from("business_members").select("business_id").eq("user_id", userId).eq("active", true).in("business_id", ids).limit(1);
   const biz = mem?.[0]?.business_id;
   if (!biz) throw new WorkflowError("This isn't one of your jobs.");
   return biz;
@@ -57,14 +57,17 @@ export async function answerMittiElectricianQuestion(jobId: string, userId: stri
   const biz = await installerBusinessFor(jobId, userId);
   if (!(await openMittiElectricianQuestions([jobId])).has(jobId)) throw new WorkflowError("The electrician for this job is already chosen.");
   const claim = plan.business_id ? "preferred" : "nominated";
-  const { data: claimed, error } = await admin.from("jobs").update({ electrician_choice: claim }).eq("id", jobId).eq("source", "installer_mitti").is("electrician_choice", null).select("id");
+  const { data: before } = await admin.from("jobs").select("electrician_choice").eq("id", jobId).single();
+  const current = before?.electrician_choice ?? null;
+  const claimQuery = admin.from("jobs").update({ electrician_choice: claim }).eq("id", jobId).eq("channel", "installer_sourced");
+  const { data: claimed, error } = await (current === null ? claimQuery.is("electrician_choice", null) : claimQuery.eq("electrician_choice", current)).select("id");
   if (error) throw new WorkflowError("Couldn't save your electrician. Please try again.");
   if (!claimed?.length) throw new WorkflowError("The electrician for this job is already chosen.");
   try {
     const { recordJobElectricianChoice } = await import("./job-electrician.server");
     return await recordJobElectricianChoice(jobId, biz, plan, userId);
   } catch (e) {
-    await admin.from("jobs").update({ electrician_choice: null }).eq("id", jobId).eq("electrician_choice", claim);
+    await admin.from("jobs").update({ electrician_choice: current }).eq("id", jobId).eq("electrician_choice", claim);
     throw e;
   }
 }
