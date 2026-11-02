@@ -20,6 +20,7 @@ import { partnerAllowedForJob } from "./test-send.core";
 import { readyCheckOfficeItem, type OfficeOfferRow } from "./ready-check-times.core";
 import type { NeedsRow } from "./office-needs.core";
 import type { SpotReleaseStateName } from "./spot-release.core";
+import type { BatchRowState } from "./area-batch.core";
 
 export const INSTALLER_WAITING_PATH = "/admin/jobs/choose-installer" as const;
 
@@ -57,6 +58,9 @@ export type InstallerWaitingRow = {
   /** Decision 389: the release state — "Released to X · waiting for owner since …", "Owner confirmed — choose installer",
    *  "Didn't confirm after release…". A pending release is NOT available to release again. */
   release?: { state: SpotReleaseStateName; line: string | null; releasable: boolean } | undefined;
+  /** Task 6 (Jo 2 Nov 2026): area batch status — texted and waiting for the owner, or the owner said yes (area-batch.core
+   *  `batchRowState`). Absent / null = a plain saved spot. */
+  batch?: BatchRowState | undefined;
 };
 
 export type WaitingFilters = {
@@ -273,6 +277,8 @@ export function waitingCountLine(c: ReturnType<typeof waitingCounts>): string {
 export type WaitingTab = "to_release" | "waiting_owner";
 export const isWaitingOwner = (r: InstallerWaitingRow) => !!r.release && !r.release.releasable;
 export const inWaitingTab = (r: InstallerWaitingRow, t: WaitingTab) => (t === "waiting_owner") === isWaitingOwner(r);
+/** Task 6: To release rows Jo can tick for Send — plain saved spots only (not texted, not said yes) that can be released. */
+export const tickableForSend = (r: InstallerWaitingRow) => !r.batch && (!r.release || r.release.releasable);
 
 /** The area a job sits in, from its postcode (the same areas as Jobs › Active's Suburb / area filter). */
 export const areaOf = (r: { postcode: string }): RegionChip | null => regionChip(r.postcode || null);

@@ -13,6 +13,8 @@ import { Section } from "@/components/portal/panels";
 import { listChooseTrades } from "@/lib/offer-dispatch.functions";
 import { getSpotRelease, releaseSpotFn } from "@/lib/spot-release.functions";
 import { getAreaBatchSuggestions, getBatchesReadyToSend, sendAreaBatchFn } from "@/lib/area-batch.functions";
+import { allocateInHouseBatch, getInHouseGiveForJob } from "@/lib/in-house-batch.functions";
+import { giveNotice } from "@/lib/in-house-batch.core";
 import { offerRunFn, returnBatchFn } from "@/lib/installer-run.functions";
 import { Pill, btnClass } from "@/components/portal/kit";
 import { CHOOSE_LOAD_FAILED, choosePanelState } from "@/lib/installer-waiting-columns.core";
@@ -20,9 +22,9 @@ import { useJobFile } from "@/components/portal/jobfile";
 import { AREA_BATCH_SENT_EVENT, openBatchId, sendResultWords } from "@/lib/area-batch.core";
 
 const money = (n: number) => `$${n.toLocaleString("en-AU", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`;
-type SendResults = { jobId: string; text: { status: string; detail: string }; email: { status: string; detail: string } }[];
-/** After Send (Jo 2 Nov 2026): each home's text and email result in plain words. */
-function SendResultList({ results, label }: { results: SendResults; label: (jobId: string) => string }) {
+export type SendResults = { jobId: string; text: { status: string; detail: string }; email: { status: string; detail: string } }[];
+/** After Send (Jo 2 Nov 2026): each home's text and email result in plain words. Also used by To release (Task 6). */
+export function SendResultList({ results, label }: { results: SendResults; label: (jobId: string) => string }) {
   return (
     <ul className="space-y-1 rounded-md border px-3 py-2 text-[13px]" data-send-results>
       {results.map((r) => <li key={r.jobId}><span className="font-semibold">{label(r.jobId)}</span> · Text: {sendResultWords("text", r.text)} · Email: {sendResultWords("email", r.email)}</li>)}
@@ -40,10 +42,14 @@ export function ChooseInstallerPanel({ jobId, reportLoad = false }: { jobId: str
   const release = useServerFn(releaseSpotFn);
   const send = useServerFn(sendAreaBatchFn);
   const loadRelease = useServerFn(getSpotRelease);
+  const loadGive = useServerFn(getInHouseGiveForJob);
+  const give = useServerFn(allocateInHouseBatch);
   const file = useJobFile(jobId);
   const q = useQuery({ queryKey: ["choose-trades", jobId, "ready_check"], queryFn: () => list({ data: { jobId, kind: "ready_check" } }) });
   const rq = useQuery({ queryKey: ["spot-release", jobId], queryFn: () => loadRelease({ data: { jobId } }) });
+  const gq = useQuery({ queryKey: ["in-house-give", jobId], queryFn: () => loadGive({ data: { jobId } }) });
   const [busy, setBusy] = useState<string | null>(null);
+  const [giveDone, setGiveDone] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [results, setResults] = useState<SendResults | null>(null);
@@ -79,6 +85,19 @@ export function ChooseInstallerPanel({ jobId, reportLoad = false }: { jobId: str
   const batch = batchEvents.find((e) => e.event_type === AREA_BATCH_SENT_EVENT && e.details?.["batch_id"] === batchId);
   const batchSent = !!batchId || !!sentTo;
   const waiting = !pending && !confirmed && !batchSent && !rq.isPending && !rq.isError && !file.isPending && !file.isError;
+  // Owner said yes and the nominated installer is an in-house partner: Jo gives the job with one tap (nothing sent before).
+  const offer = gq.data ?? null;
+  const giveNow = async () => {
+    if (busy || !offer) return;
+    setBusy("give");
+    try {
+      const r = await give({ data: { businessId: offer.businessId, jobIds: [jobId] } });
+      const words = giveNotice(r, offer.partnerName, () => "This job");
+      if (r.sent.length) { toast.success(words); setGiveDone(words); } else toast.error(words || "That didn't work");
+      void qc.invalidateQueries();
+    } catch (e) { toast.error(e instanceof Error ? e.message : "That didn't work"); }
+    finally { setBusy(null); }
+  };
   const sendOne = async (businessId: string, name: string) => {
     if (busy) return;
     setBusy(businessId);
@@ -97,6 +116,13 @@ export function ChooseInstallerPanel({ jobId, reportLoad = false }: { jobId: str
         <div className="space-y-3 text-sm">
           {d.openOffer
             ? <p className="rounded-md border px-3 py-2">Offer sent to <span className="font-semibold">{d.openOffer.business ?? "the installer"}</span>. Waiting for them to offer the owner 3 times{d.openOffer.expiresAt ? ` (closes ${when(d.openOffer.expiresAt)})` : ""}.</p>
+            : giveDone ? <p className="rounded-md border px-3 py-2" data-give="done">{giveDone}</p>
+            : offer ? (
+              <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2" data-give="offer">
+                <p className="min-w-0">{offer.label}</p>
+                <Button size="sm" disabled={!!busy} onClick={() => void giveNow()}>{busy === "give" ? "Giving…" : `Give to ${offer.partnerName}`}</Button>
+              </div>
+            )
             : pending ? <p className="rounded-md border px-3 py-2" data-release="pending">{rel?.line}. The installer is offered the job only once the owner confirms.</p>
             : confirmed ? <p className="rounded-md border px-3 py-2" data-release="confirmed"><span className="font-semibold">{rel?.line}.</span> Release sends the offer straight to the installer (the owner isn't asked again).</p>
             : batchSent ? <p className="rounded-md border px-3 py-2" data-release="batch-sent">Sent to the owner for <span className="font-semibold">{sentTo ?? batch?.details?.["installer_name"] ?? "the installer"}</span>. Waiting for the owner to confirm a few quick details.</p>

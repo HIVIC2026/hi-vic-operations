@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin, WorkflowError, logEvent } from "./workflow.server";
 import { requireOfficeJob, requireOfficeBusiness, officeTestBusinessIds, officeTestJobIds } from "./qa-office-access.server";
+import { displayName } from "./display-name.core";
 
 const kind = z.enum(["ready_check", "piesa"]);
 const NONE = ["00000000-0000-0000-0000-000000000000"];
@@ -93,7 +94,7 @@ export const listChooseTrades = createServerFn({ method: "POST" }).middleware([r
       const rate = rates.get(c.business_id) ?? null;
       const accepted = c.acceptance_rate;
       return {
-        id: c.business_id, business: b?.trading_name || c.name, contact: b?.signer_name ?? null,
+        id: c.business_id, business: displayName(b?.trading_name || c.name), contact: b?.signer_name ?? null,
         distanceKm: distanceKm({ lat: null, lng: null }, { lat: b?.coverage_lat ?? null, lng: b?.coverage_lng ?? null }),
         areaNote: c.exact_postcode ? `Covers ${r.postcode}` : b?.base_suburb ? `Based in ${b.base_suburb}` : "Nearby",
         rate, rateUnit: isRc ? "per m²" : "per visit",

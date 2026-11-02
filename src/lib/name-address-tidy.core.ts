@@ -15,7 +15,7 @@ const STREET_TYPE_SET = new Set(STREET_TYPES);
 const STATE_WORDS = new Set(["vic", "victoria"]);
 
 /** One word with the first letter up; Mc/Mac, O', hyphenated and apostrophe parts handled. */
-function capWord(word: string, index: number): string {
+export function capWord(word: string, index: number): string {
   if (!word) return word;
   if (/\d/.test(word)) return word.toUpperCase(); // "12a" → "12A", "3/22" unchanged
   const lower = word.toLowerCase();

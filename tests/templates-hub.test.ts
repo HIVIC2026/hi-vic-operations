@@ -51,6 +51,14 @@ describe("Templates navigation", () => {
     expect(body("owner:address-request")).toContain("We need your full address to check your home.");
     expect(body("owner:address-request-reminder")).toContain("Just a reminder — we need your full address to check your home.");
   });
+  test("plan 2026-11-02: the in-house Give email waits for Jo, off by its code switch, rendered from the live builder", () => {
+    const e = TEMPLATE_ENTRIES.find((x) => x.id === "waiting:in-house-give");
+    expect({ section: e?.section, approval: e?.approval, gate: e?.gate, who: e?.who, when: e?.when }).toEqual({ section: "waiting", approval: "waiting", gate: { kind: "code_off", flag: "IN_HOUSE_GIVE_EMAIL_APPROVED" }, who: "Installer office", when: "Jo taps Give on ticked jobs — one email per tap" });
+    expect(templateStatus(e!, null).label).toBe("Off — waiting for Jo's approval");
+    const p = e!.render();
+    expect(p.kind === "email" && p.subject).toBe("New free Ready Check jobs from Home Insulation Victoria");
+    expect(p.kind === "email" && p.html).toContain("Call each owner to book their free Ready Check.");
+  });
   test("decision 384: the four decision 376 messages are listed under who gets them, approved, with their designs filed there", () => {
     const where: Record<string, [string, string | null]> = {
       "owner:O74": ["owner", "docs/templates/mjml/owner_O74.mjml"], "owner:O74b": ["owner", "docs/templates/mjml/owner_O74b.mjml"],

@@ -17,7 +17,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { WorkflowError, logEvent } from "./workflow.server";
 import {
-  AREA_BATCH_CLOSED_EVENT, AREA_BATCH_EVENTS, AREA_BATCH_LEFT_EVENT, AREA_BATCH_RETURNED_EVENT, AREA_BATCH_SENT_EVENT, NO_ANSWER_CLOSE_REASON, QUICK_TAPS_REMINDED_EVENT,
+  AREA_BATCH_CLOSED_EVENT, AREA_BATCH_EVENTS, AREA_BATCH_MAX_HOMES, AREA_BATCH_LEFT_EVENT, AREA_BATCH_RETURNED_EVENT, AREA_BATCH_SENT_EVENT, NO_ANSWER_CLOSE_REASON, QUICK_TAPS_REMINDED_EVENT,
   QUICK_TAPS_REMINDER_SMS_TYPE, QUICK_TAPS_SMS_TYPE, areaBatchClosedKey, areaBatchKey, batchInstallers, batchSpanKm, likelyEligible, nextBatchSeq,
   openBatchId, outsideBatch, passHandedOn, planBatchSweep, standingPass, STAGE_CHANGED_EVENT, quickTapsLink, quickTapsReminderText, quickTapsSmsKey, quickTapsText, suggestBatches,
   type AreaBatchEventRow, type BatchHome, type SweepJob,
@@ -32,12 +32,13 @@ import { distanceM, propertyPoint, type PropertyPoint } from "./geo.core";
 import { parseStreet } from "./address-complete.core";
 import { smsQuietReason } from "./quote-hold.core";
 import { smsHeldForRecipient } from "./sms.core";
+import { displayName } from "./display-name.core";
 
 type Row = Record<string, unknown>;
 type Res = PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>;
 const loose = admin as unknown as SupabaseClient;
 const s = (v: unknown) => (v == null ? null : String(v));
-const MAX_SEND = 10;
+const MAX_SEND = AREA_BATCH_MAX_HOMES;
 /** Location lookups per page load (each is a Vicmap / Google call); the rest are filled on later loads. */
 const LOCATE_PER_LOAD = 25;
 
@@ -128,7 +129,7 @@ export async function batchCandidates(opts: { includeTest?: boolean; testJobIds?
     const no = (why: string) => { refused.set(id, why); };
     const member = installerWaiting({
       channel: s(j["channel"]), stage: String(j["stage"]), deleted: !!j["deleted_at"], archived: !!j["qa_archived_at"], hasInstaller: withInstaller.has(id),
-      offers: (offersBy.get(id) ?? []).map((o) => ({ status: String(o["status"]), offered_at: String(o["offered_at"]), business_name: (o["businesses"] as { name?: string } | null)?.name ?? null })),
+      offers: (offersBy.get(id) ?? []).map((o) => ({ status: String(o["status"]), offered_at: String(o["offered_at"]), business_name: displayName((o["businesses"] as { name?: string } | null)?.name) || null })),
     });
     if (!member) { no("it isn't waiting for an installer"); continue; }
     const sv = savedBy.get(id);
@@ -180,7 +181,7 @@ export async function batchCandidates(opts: { includeTest?: boolean; testJobIds?
     candidates.push({
       jobId: id, jobNumber: String(j["job_number"] ?? ""), propertyId, lat: point?.lat ?? Number.NaN, lng: point?.lng ?? Number.NaN,
       postcode: (prop?.postcode ?? "").trim(), suburb: (prop?.suburb ?? "").trim(), spotSavedAt: String(savedBy.get(id)?.["spot_saved_at"]),
-      ownerName: (owner?.full_name ?? "").trim(), phone: owner?.phone ?? null, email: owner?.email ?? null, isTest: j["source"] === "qa_test", source: s(j["source"]),
+      ownerName: displayName(owner?.full_name), phone: owner?.phone ?? null, email: owner?.email ?? null, isTest: j["source"] === "qa_test", source: s(j["source"]),
       carriedPass: standingPass((eventsBy.get(id) ?? []) as unknown as AreaBatchEventRow[], id),
     });
   }
@@ -208,11 +209,31 @@ export async function batchSuggestions(opts: { includeTest?: boolean; testJobIds
         homes: homes.map((h) => ({ jobId: h.jobId, jobNumber: h.jobNumber, ownerName: h.ownerName, suburb: h.suburb, postcode: h.postcode, spotSavedAt: h.spotSavedAt, isTest: h.isTest })),
         suburbs: [...new Set(homes.map((h) => [h.suburb, h.postcode].filter(Boolean).join(" ")).filter(Boolean))].sort(),
         spanKm: batchSpanKm(homes), isTest,
-        installers: batchInstallers(installers, homes).map((i) => ({ id: i.id, name: i.name })),
+        installers: batchInstallers(installers, homes).map((i) => ({ id: i.id, name: displayName(i.name) })),
       });
     }
   }
   return { batches, candidates: candidates.length, unlocated };
+}
+
+/** Task 6 (Jo 2 Nov 2026), Choose installer › To release: the installers who can be offered EVERY ticked home (the same
+ *  `batchInstallers` rule Send re-checks), names in normal case. Read only. `testBusinessIds` scopes the TEST office login
+ *  to its TEST partners. A ticked job that can't be read refuses (never a list for fewer homes). */
+export async function installersForHomes(jobIdsIn: string[], testBusinessIds?: string[]): Promise<{ id: string; name: string }[]> {
+  const jobIds = [...new Set(jobIdsIn)];
+  if (!jobIds.length) return [];
+  if (jobIds.length > AREA_BATCH_MAX_HOMES) throw new WorkflowError(`Up to ${AREA_BATCH_MAX_HOMES} homes per Send.`);
+  const [jobs, installers] = await Promise.all([
+    byIds("ticked homes", jobIds, (c, f, t) => admin.from("jobs").select("id, source, properties(postcode)").in("id", c).range(f, t)),
+    (await import("./installer-waiting.server")).installerFacts(testBusinessIds),
+  ]);
+  const byId = new Map(jobs.map((j) => [String(j["id"]), j]));
+  if (jobIds.some((id) => !byId.has(id))) throw new WorkflowError("Some ticked homes couldn't be read — refresh the list and try again.");
+  const homes = jobIds.map((id) => {
+    const j = byId.get(id)!;
+    return { postcode: String((j["properties"] as { postcode?: string | null } | null)?.postcode ?? "").trim(), isTest: j["source"] === "qa_test" };
+  });
+  return batchInstallers(installers, homes).map((i) => ({ id: i.id, name: displayName(i.name) }));
 }
 
 // ---- Send (office, one tap) ------------------------------------------------------------------------------------------
@@ -247,10 +268,10 @@ export async function sendBatch(jobIdsIn: string[], businessId: string, actorId:
   const isTest = testness.has(true);
 
   const installer = (await (await import("./installer-waiting.server")).installerFacts([businessId])).find((i) => i.id === businessId);
-  if (!installer || !batchInstallers([installer], homes).length) throw new WorkflowError(`${installer?.name || "That installer"} doesn't cover every home in this batch — nothing was sent.`);
+  if (!installer || !batchInstallers([installer], homes).length) throw new WorkflowError(`${displayName(installer?.name) || "That installer"} doesn't cover every home in this batch — nothing was sent.`);
   const { count: cards, error: rce } = await loose.from("rate_cards").select("id", { count: "exact", head: true }).eq("business_id", businessId).eq("kind", "installer").eq("is_active", true);
   if (rce) throw new WorkflowError(`Could not check the installer's rate card: ${rce.message}`);
-  if (!(cards ?? 0)) throw new WorkflowError(`${installer.name}: this installer has no rate card yet — nothing was sent.`);
+  if (!(cards ?? 0)) throw new WorkflowError(`${displayName(installer.name)}: this installer has no rate card yet — nothing was sent.`);
 
   if (!isTest) {
     const { data: ws } = await admin.from("workflow_settings").select("customer_comms_enabled, sms_message_switches").eq("id", 1).maybeSingle();
@@ -299,7 +320,7 @@ export async function sendBatch(jobIdsIn: string[], businessId: string, actorId:
     texts.push({ jobId: h.jobId, ...text, email });
   };
   for (let i = 0; i < homes.length; i += 4) await Promise.all(homes.slice(i, i + 4).map(send));
-  return { batchId, installer: installer.name, homes: homes.length, texts };
+  return { batchId, installer: displayName(installer.name), homes: homes.length, texts };
 }
 
 async function claim(jobId: string, actorId: string | null, type: string, summary: string, details: Record<string, unknown>): Promise<boolean> {
@@ -473,7 +494,7 @@ export async function sweepAreaBatches(nowIso: string = new Date().toISOString()
       if (won) await logEvent(jobId, null, "quick_taps_reminder_not_sent", "No working owner job link, so the owner could not be reminded about their quick taps", { batch_id: batchId }, { internal: true });
       return false;
     }
-    const to: TextTo = { jobId, ownerName: (j.owners?.full_name ?? "").trim(), phone: j.owners?.phone ?? null, email: j.owners?.email ?? null, isTest: j.source === "qa_test", source: j.source };
+    const to: TextTo = { jobId, ownerName: displayName(j.owners?.full_name), phone: j.owners?.phone ?? null, email: j.owners?.email ?? null, isTest: j.source === "qa_test", source: j.source };
     // Text and email each in their own try/catch (Jo 2 Nov 2026). The email's own key (real) sends it once only, even
     // when a held text makes a later tick try the reminder again. A thrown text still fails this step (tried again).
     const [text, email] = await Promise.all([
@@ -589,16 +610,16 @@ export async function batchesReadyToSend(opts: { includeTest?: boolean; testJobI
       if (isTest && !opts.includeTest && !opts.testJobIds) continue;
       const owner = (j["owners"] ?? null) as { full_name?: string | null } | null;
       const prop = (j["properties"] ?? null) as { suburb?: string | null; postcode?: string | null } | null;
-      homes.push({ jobId: id, jobNumber: String(j["job_number"] ?? ""), ownerName: (owner?.full_name ?? "").trim(), suburb: (prop?.suburb ?? "").trim(), postcode: (prop?.postcode ?? "").trim(), isTest });
+      homes.push({ jobId: id, jobNumber: String(j["job_number"] ?? ""), ownerName: displayName(owner?.full_name), suburb: (prop?.suburb ?? "").trim(), postcode: (prop?.postcode ?? "").trim(), isTest });
     }
     if (!homes.length) continue;
     const sent = history.find((e) => e["event_type"] === AREA_BATCH_SENT_EVENT && homes.some((h) => h.jobId === String(e["job_id"])) && batchOf(e) === batchId);
     const d = (sent?.["details"] ?? {}) as { installer_business_id?: unknown; installer_name?: unknown };
     const runOffer = run ? runEvents.find((e) => e.event_type === RUN_OFFERED_EVENT && runIdOf(e) === run.runId) : null;
-    const covering = batchInstallers(installerFacts, homes).map((i) => ({ id: i.id, name: i.name }));
+    const covering = batchInstallers(installerFacts, homes).map((i) => ({ id: i.id, name: displayName(i.name) }));
     const installer = run
-      ? { id: run.businessId, name: s((runOffer?.details as { business_name?: unknown } | null)?.business_name) ?? covering.find((i) => i.id === run.businessId)?.name ?? "" }
-      : { id: s(d.installer_business_id) ?? "", name: s(d.installer_name) ?? "" };
+      ? { id: run.businessId, name: displayName(s((runOffer?.details as { business_name?: unknown } | null)?.business_name)) || (covering.find((i) => i.id === run.businessId)?.name ?? "") }
+      : { id: s(d.installer_business_id) ?? "", name: displayName(s(d.installer_name)) };
     out.push({
       batchId, closedAt: b.closedAt, isTest: homes.every((h) => h.isTest), installer,
       homes: homes.sort((x, y) => x.jobNumber.localeCompare(y.jobNumber)).map(({ isTest: _t, ...h }) => h),

@@ -7,6 +7,7 @@ import { jobsStage, surnameOf } from "./office-jobs.core";
 import { buildStageCards, type StageCardFacts } from "./office-stage-cards.core";
 import { mergeContactHistory, lastHeardFromUs, type CommRow, type EmailSendRow, type OwnerActionRow, type PortalMessageRow, type SmsRow } from "./contact-history.core";
 import { splitAddress } from "./name-address-tidy.core";
+import { displayName } from "./display-name.core";
 import { ELIGIBILITY_WORDS } from "./job-wording";
 import { withoutRetiredInstallDayPhotos } from "./ready-check-chase.core";
 import { installDaysLeft } from "./install-days.core";
@@ -72,7 +73,7 @@ export async function loadJobPage(jobId: string, testOffice = false) {
   ]);
   const bizOf = (role: string) => ((asg.data ?? []).find((a) => a.role === role)?.businesses as { name?: string } | null)?.name ?? null;
   const ownJob = job.channel === "installer_sourced";
-  const installer = bizOf("installer") ?? (ownJob ? originBiz.data?.name ?? null : null);
+  const installer = displayName(bizOf("installer") ?? (ownJob ? originBiz.data?.name ?? null : null)) || null;
   const officeJob = gathered.jobs.find((j) => j.id === jobId) ?? null;
   const status = officeJob?.status ?? null;
   const facts = gathered.facts.get(jobId) ?? null;
@@ -110,7 +111,7 @@ export async function loadJobPage(jobId: string, testOffice = false) {
     quote: { sentAt: s(instQ?.sent_at), held: instQ?.release_state === "held" ? instQ.release_hold_reason ?? "held" : null, subtotal: n(instQ?.subtotal_inc_gst), incentive: n(instQ?.veec_discount_inc_gst), ownerPays: n(instQ?.customer_total_inc_gst), acceptedAt: s(instQ?.accepted_at), signer: null,
       // The $349 is the first step, so it was paid by the earliest recorded payment (append-only ledger).
       safetyPaidAt: step("safety_check")?.state === "paid" ? ([...(pay?.ledger ?? [])].map((l) => l.paidAt).sort()[0] ?? null) : null, safetyCheckCents: step("safety_check")?.amountCents ?? null, declined: instQ?.status === "declined" ? "owner said not for them" : null },
-    piesa: { electrician: bizOf("electrician"), offer: piesaOffer ? `${(piesaOffer.businesses as { name?: string } | null)?.name ?? "Electrician"} · ${piesaOffer.status === "pending" ? `offered ${day(piesaOffer.offered_at)}` : piesaOffer.status}` : null, visitAt: book("assessment"),
+    piesa: { electrician: displayName(bizOf("electrician")) || null, offer: piesaOffer ? `${displayName((piesaOffer.businesses as { name?: string } | null)?.name) || "Electrician"} · ${piesaOffer.status === "pending" ? `offered ${day(piesaOffer.offered_at)}` : piesaOffer.status}` : null, visitAt: book("assessment"),
       outcome: piesa.data ? `${piesa.data.outcome === "pass" ? "Passed" : piesa.data.outcome === "fail" ? "Fixes needed" : String(piesa.data.outcome)} ${day(String(piesa.data.completed_date))}` : null,
       fixes: rect.data ? `${rect.data.status === "accepted" ? "Approved" : rect.data.sent_at ? "Quote sent" : "Quote being checked"} · $${Number(rect.data.customer_total_inc_gst).toLocaleString("en-AU", { maximumFractionDigits: 0 })}` : null },
     install: { deadline, daysLeft, deposit: deposit ? `$${(deposit.amountCents / 100).toLocaleString("en-AU", { maximumFractionDigits: 0 })} (10%) · ${deposit.state === "paid" ? "paid" : deposit.state === "requested" ? `held until ${pay?.provisional.expiresAt ? dayTime(pay.provisional.expiresAt) : "paid"}` : deposit.state === "overdue" ? "overdue" : "to book · bank transfer"}` : null,
@@ -130,7 +131,7 @@ export async function loadJobPage(jobId: string, testOffice = false) {
     header: {
       jobId, jobNumber: job.job_number, isTest: job.source === "qa_test", ownJob, installerName: installer, stage: job.stage, deleted: !!job.deleted_at,
       inHouseHeld: !testOffice && !!facts?.inHouse,
-      ownerName: owner?.full_name ?? null, surname: surnameOf(owner?.full_name), phone: owner?.phone ?? null, email: owner?.email ?? null,
+      ownerName: displayName(owner?.full_name) || null, surname: surnameOf(owner?.full_name), phone: owner?.phone ?? null, email: owner?.email ?? null,
       access: access.line,
       street: addr.street || prop?.address_line || null, suburb: addr.suburb || null, postcode: addr.postcode || null,
       sourceLabel: ownJob ? `Installer's own customer · ${installer ?? "installer"}` : job.source === "base44" ? "Website enquiry" : job.source === "qa_test" ? "TEST job" : "Phone / office enquiry",

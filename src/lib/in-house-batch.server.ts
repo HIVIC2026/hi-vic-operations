@@ -1,12 +1,15 @@
 // Office-authorised callers only. Allocation is atomic; approved owner notices use the guarded sender afterwards.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { batchJobEligible, batchPartnerCovers, suggestBatches, readyInHouseBatch, type BatchJob, type InHousePartner } from "./in-house-batch.core";
+import { batchJobEligible, batchPartnerCovers, jobGiveOffer, suggestBatches, readyInHouseBatch, type BatchJob, type InHousePartner } from "./in-house-batch.core";
 import { QUICK_TAPS_ANSWERED_EVENT } from "./quick-taps.core";
 import { sendInHousePartnerCall } from "./in-house-batch-email.server";
+import { sendInHouseGiveEmail } from "./in-house-give-email.server";
+import type { GiveEmailOutcome } from "./in-house-give-email.core";
 import { inHouseFactsFor } from "./installer-paid-electricians.server";
 import { inHouseEnableBlockers } from "./in-house.core";
 import { chunkIds } from "./sweep-batch.core";
+import { displayName } from "./display-name.core";
 
 // Pending tables/columns are deliberately a local overlay, not generated schema edits.
 const db = supabaseAdmin as unknown as SupabaseClient;
@@ -20,7 +23,7 @@ export async function pullBackInHouseJob(input: { jobId: string; reason: string;
   }
 }
 type Property = { id: string; postcode: string | null; address_line: string; suburb: string | null };
-type Job = { id: string; job_number: string; property_id: string; stage: string; source: string; channel: string; originating_installer_business_id: string | null; deleted_at: string | null };
+type Job = { owners?: { full_name: string | null; phone: string | null } | null; id: string; job_number: string; property_id: string; stage: string; source: string; channel: string; originating_installer_business_id: string | null; deleted_at: string | null };
 type Assignment = { job_id: string; business_id: string | null; role: string };
 async function rows<T>(query: PromiseLike<{ data: unknown; error: { message: string } | null }>): Promise<T[]> {
   const result = await query;
@@ -38,9 +41,10 @@ async function pagedRows<T>(query: (from: number, to: number) => PromiseLike<{ d
 async function byIds<T>(ids: string[], query: (ids: string[], from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>): Promise<T[]> {
   return (await Promise.all(chunkIds([...new Set(ids)], 200).map(ids => pagedRows<T>((from, to) => query(ids, from, to))))).flat();
 }
-export async function loadInHouseBatches() {
+export async function loadInHouseBatches(opts: { jobIds?: string[] } = {}) {
+  const scoped = (q: any) => opts.jobIds ? q.in("id", opts.jobIds) : q;
   const [jobs, businesses] = await Promise.all([
-    pagedRows<Job>((a,b) => db.from("jobs").select("id,job_number,property_id,stage,source,channel,originating_installer_business_id,deleted_at").is("deleted_at", null).neq("source", "qa_test").not("stage", "in", "(complete,cancelled)").order("id").range(a,b)),
+    pagedRows<Job>((a,b) => scoped(db.from("jobs").select("id,job_number,property_id,owners(full_name,phone),stage,source,channel,originating_installer_business_id,deleted_at").is("deleted_at", null).neq("source", "qa_test").not("stage", "in", "(complete,cancelled)")).order("id").range(a,b)),
     pagedRows<Omit<InHousePartner, "openJobs"> & { trading_name: string | null }>((a,b) => db.from("businesses").select("id,name,trading_name,in_house,is_active,service_postcodes,covers_all_victoria,coverage_lat,coverage_lng,coverage_radius_km").eq("in_house", true).eq("is_active", true).order("id").range(a,b)),
   ]);
   const ids = jobs.map(j => j.id), propertyIds = [...new Set(jobs.map(j => j.property_id))];
@@ -52,12 +56,13 @@ export async function loadInHouseBatches() {
     byIds<{ property_id: string; value: unknown }>(propertyIds, (c,a,b) => db.from("property_facts").select("property_id,value").in("property_id", c).eq("fact_key", "coordinates").eq("is_current", true).order("id").range(a,b)),
     byIds<{ job_id: string; event_type: string; details: Record<string, unknown> | null; created_at: string }>(ids, (c,a,b) => db.from("workflow_events").select("job_id,event_type,details,created_at").in("job_id", c).in("event_type", [QUICK_TAPS_ANSWERED_EVENT, "area_batch_sent"]).order("created_at", { ascending: false }).order("id", { ascending: false }).range(a,b)),
   ]) : [[], [], [], [], [], []];
-  const partners: InHousePartner[] = businesses.map(b => ({ ...b, name: b.trading_name || b.name, openJobs: assignments.filter(a => a.business_id === b.id && a.role === "installer").length }));
+  const partners: InHousePartner[] = businesses.map(b => ({ ...b, name: displayName(b.trading_name || b.name), openJobs: assignments.filter(a => a.business_id === b.id && a.role === "installer").length }));
   const batchJobs: BatchJob[] = jobs.map(j => {
     const p = properties.find(p => p.id === j.property_id), coords = facts.find(f => f.property_id === j.property_id)?.value;
     const answer = events.find(e => e.job_id === j.id && e.event_type === QUICK_TAPS_ANSWERED_EVENT)?.details;
     const batch = events.find(e => e.job_id === j.id && e.event_type === "area_batch_sent" && e.details?.["batch_id"] === answer?.["batch_id"])?.details;
-    return { ...j, spot_saved_at: saved.find(s => s.job_id === j.id)?.spot_saved_at ?? null,
+    const { owners, ...jobFields } = j;
+    return { ...jobFields, ownerName: owners?.full_name ?? null, ownerPhone: owners?.phone ?? null, spot_saved_at: saved.find(s => s.job_id === j.id)?.spot_saved_at ?? null,
       quickTapsYes: answer?.["outcome"] === "pass" && answer?.["consent_share"] === true,
       waitingBusinessId: j.channel === "installer_sourced" ? j.originating_installer_business_id : typeof batch?.["installer_business_id"] === "string" ? batch["installer_business_id"] : null,
       optedOut: optouts.some(o => o.job_id === j.id), hasActiveInstaller: assignments.some(a => a.job_id === j.id && a.role === "installer"),
@@ -67,6 +72,12 @@ export async function loadInHouseBatches() {
   });
   const eligibleJobs = batchJobs.filter(batchJobEligible);
   return { jobs: eligibleJobs, partners, suggestions: suggestBatches(eligibleJobs, partners) };
+}
+
+/** Job page offer (office only): null unless this job can be given to its nominated in-house partner right now. */
+export async function inHouseGiveForJob(jobId: string) {
+  const screen = await loadInHouseBatches({ jobIds: [jobId] });
+  return jobGiveOffer(screen.jobs.find(j => j.id === jobId), screen.partners);
 }
 
 async function selectWorkers(businessId: string) {
@@ -83,7 +94,7 @@ async function selectWorkers(businessId: string) {
   return { installer: installer.profile_id, electrician: null };
 }
 
-export async function sendInHouseBatch(input: { businessId: string; jobIds: string[]; actorId: string }): Promise<{ sent: string[]; refused: { jobId: string; reason: string }[] }> {
+export async function sendInHouseBatch(input: { businessId: string; jobIds: string[]; actorId: string }): Promise<{ sent: string[]; refused: { jobId: string; reason: string }[]; installerEmail?: GiveEmailOutcome }> {
   const sent: string[] = [], refused: { jobId: string; reason: string }[] = [];
   const batchId = crypto.randomUUID();
   const screen = await loadInHouseBatches();
@@ -116,5 +127,19 @@ export async function sendInHouseBatch(input: { businessId: string; jobIds: stri
       try { await sendInHousePartnerCall(jobId); } catch (error) { console.error("Partner call email after allocation failed", error instanceof Error ? error.message : "unknown"); }
     } else refused.push({ jobId, reason: outcome.reason ?? "Job unavailable" });
   }
-  return { sent, refused };
+  if (!sent.length) return { sent, refused };
+  // ONE installer email for this Give, listing only the jobs actually given. Never undoes the allocation; `approved` is
+  // never passed, so the sender's own switch decides.
+  let installerEmail: GiveEmailOutcome;
+  try {
+    const jobs = sent.map(id => {
+      const j = screen.jobs.find(x => x.id === id);
+      return { jobId: id, jobNumber: j?.job_number ?? "", ownerName: j?.ownerName ?? null, ownerMobile: j?.ownerPhone ?? null, address: j?.address ?? null };
+    });
+    installerEmail = await sendInHouseGiveEmail({ batchId, businessId: input.businessId, jobs, actorId: input.actorId });
+  } catch (error) {
+    console.error("Installer email after Give failed", error instanceof Error ? error.message : "unknown");
+    installerEmail = { status: "not_sent" };
+  }
+  return { sent, refused, installerEmail };
 }

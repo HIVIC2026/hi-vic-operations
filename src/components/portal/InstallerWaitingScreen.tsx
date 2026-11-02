@@ -5,6 +5,9 @@
 // Release — the owner confirms first; a pending release shows its status and can't be released again). On a
 // phone each row is a card with the same fields and the same heading buttons sit above the cards. Needs me folds its
 // "Spot saved · waiting for an installer" rows into one link here, so a job is in one Needs me pile only.
+// Task 6 (Jo 2 Nov 2026): To release shows each saved spot's area batch status ("Waiting for owner (sent for X)" /
+// "X said yes · free Ready Check"); Jo ticks up to 10 plain saved spots, picks an installer who covers them all and taps
+// Send — the existing batch Send (each owner gets the quick taps text and email). Not for the TEST office login.
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -12,17 +15,19 @@ import { useServerFn } from "@tanstack/react-start";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { AreaBatchSuggestions, BatchesReadyToSend, ChooseInstallerPanel } from "@/components/portal/choose-installer";
+import { toast } from "sonner";
+import { AreaBatchSuggestions, BatchesReadyToSend, ChooseInstallerPanel, SendResultList, type SendResults } from "@/components/portal/choose-installer";
 import { ColumnHead, Pager, type ColumnFilterValue } from "@/components/portal/office-lists";
-import { Pill, PillTabs, listCard } from "@/components/portal/kit";
+import { Pill, PillTabs, btnClass, listCard } from "@/components/portal/kit";
 import { getInstallerWaitingList } from "@/lib/installer-waiting.functions";
-import { showAreaBatches } from "@/lib/area-batch.core";
+import { batchRowLine, showAreaBatches, tickSendBlocker } from "@/lib/area-batch.core";
+import { getInstallersForHomesFn, sendAreaBatchFn } from "@/lib/area-batch.functions";
 import { InHouseHandoff } from "@/components/portal/in-house-handoff";
 import { useMe } from "@/hooks/use-me";
 import { INSULATION_LABEL, REGION_LABEL, pageOf, type SortDir } from "@/lib/office-filters.core";
 import { estimateLabel, sizeLabel } from "@/lib/enquiry-columns.core";
 import {
-  INSTALLER_WAITING_COLUMNS, NO_INSTALLER_NOTE, activeWaitingFilters, areaCounts, coverageGap, inArea, inWaitingTab, isWaitingOwner, noInstallerExplain, recruitAreas,
+  INSTALLER_WAITING_COLUMNS, NO_INSTALLER_NOTE, activeWaitingFilters, areaCounts, coverageGap, inArea, inWaitingTab, isWaitingOwner, noInstallerExplain, recruitAreas, tickableForSend,
   suburbLabel, waitingCountLine, waitingCounts, waitingSinceLabel, waitingView,
   type InstallerWaitingRow, type WaitingArea, type WaitingCoverage, type WaitingFilters, type WaitingTab,
 } from "@/lib/installer-waiting-columns.core";
@@ -89,6 +94,65 @@ function ChooseDialog({ row, onClose }: { row: InstallerWaitingRow | null; onClo
   );
 }
 
+/** Task 6: the To release Send bar — how many are ticked, the installers who cover every ticked home, Send. Nothing goes
+ *  until Jo taps Send; 0 or more than 10 ticked says why and sends nothing. */
+function TickSendBar({ ticked, numbers, onSent }: { ticked: string[]; numbers: Record<string, string>; onSent: () => void }) {
+  const qc = useQueryClient();
+  const loadInstallers = useServerFn(getInstallersForHomesFn);
+  const send = useServerFn(sendAreaBatchFn);
+  const [picked, setPicked] = useState("");
+  const [note, setNote] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [last, setLast] = useState<{ results: SendResults; numbers: Record<string, string> } | null>(null);
+  const jobIds = [...ticked].sort();
+  const blocker = tickSendBlocker(jobIds.length);
+  const iq = useQuery({ queryKey: ["installers-for-homes", jobIds], queryFn: () => loadInstallers({ data: { jobIds } }), enabled: !blocker, staleTime: 30_000 });
+  const installers = blocker ? [] : iq.data?.installers ?? [];
+  const choice = installers.some((i) => i.id === picked) ? picked : installers.length === 1 ? installers[0]!.id : "";
+  const chosen = installers.find((i) => i.id === choice);
+  useEffect(() => setNote(null), [jobIds.length]);
+  const go = async () => {
+    if (busy) return;
+    const why = tickSendBlocker(jobIds.length);
+    if (why) { setNote(why); return; }
+    if (!chosen) return;
+    setNote(null);
+    setBusy(true);
+    const sentNumbers = Object.fromEntries(jobIds.map((id) => [id, numbers[id] ?? "Home"]));
+    try {
+      const r = await send({ data: { jobIds, businessId: chosen.id } });
+      toast.success(`Sent to ${r.homes} ${r.homes === 1 ? "owner" : "owners"} for ${chosen.name}${r.held ? ` · ${r.held} text${r.held === 1 ? "" : "s"} held (see the job)` : ""}`);
+      setLast({ results: r.results, numbers: sentNumbers });
+      setPicked("");
+      onSent();
+      void qc.invalidateQueries({ queryKey: ["installer-waiting"] });
+      void qc.invalidateQueries({ queryKey: ["area-batches"] });
+    } catch (e) { toast.error(e instanceof Error ? e.message : "That didn't work"); }
+    finally { setBusy(false); }
+  };
+  const shownNote = note ?? (jobIds.length > 10 ? blocker : null);
+  return (
+    <div className="mb-3 rounded-[14px] border border-line bg-paper p-3" aria-label="Send ticked saved spots" data-tick-send>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-semibold text-ink">{jobIds.length} ticked</span>
+        {!blocker && (iq.isError
+          ? <span role="alert" className="text-[13px] text-danger">Couldn't load installers. {(iq.error as Error).message} <button type="button" className="font-semibold underline" onClick={() => void iq.refetch()}>Try again</button></span>
+          : !iq.data ? <span className="text-[13px] text-sub">Loading installers…</span>
+          : installers.length === 0 ? <span className="text-[13px] text-rose">No installer covers every ticked home.</span>
+          : (
+            <select aria-label="Installer" className="h-10 min-w-0 flex-1 rounded-[10px] border border-line bg-paper px-2 text-sm" value={choice} onChange={(e) => setPicked(e.target.value)}>
+              {installers.length > 1 && <option value="">Pick an installer</option>}
+              {installers.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+            </select>
+          ))}
+        <button type="button" className={btnClass("primary")} disabled={busy || (!blocker && !chosen)} onClick={() => void go()}>{busy ? "Sending…" : "Send"}</button>
+      </div>
+      {shownNote && <p role="alert" className="mt-2 text-[13px] font-semibold text-rose">{shownNote}</p>}
+      {last && <div className="mt-3"><p className="mb-1 text-[13px] font-semibold text-ink">Last Send</p><SendResultList results={last.results} label={(id) => last.numbers[id] ?? "Home"} /></div>}
+    </div>
+  );
+}
+
 function fieldsOf(r: InstallerWaitingRow, now: number) {
   const w = waitingSinceLabel(r.waitingFrom, now);
   return {
@@ -113,6 +177,7 @@ export function InstallerWaitingScreen() {
   const [tab, setTab] = useState<WaitingTab>("to_release");
   const [area, setArea] = useState<WaitingArea>("everywhere");
   const [choosing, setChoosing] = useState<InstallerWaitingRow | null>(null);
+  const [ticked, setTicked] = useState<string[]>([]);
   useEffect(() => { const t = setTimeout(() => { setSearch(typed.trim()); setPage(1); }, 200); return () => clearTimeout(t); }, [typed]);
   const q = useQuery({ queryKey: ["installer-waiting", includeTest], queryFn: () => load({ data: { includeTest } }), staleTime: 30_000 });
   const d = q.data;
@@ -127,11 +192,19 @@ export function InstallerWaitingScreen() {
   const waitingOwner = d?.rows.filter(isWaitingOwner).length;
   const onFilter = (k: string, v: ColumnFilterValue) => { setFilters({ ...filters, [k]: v } as WaitingFilters); setPage(1); };
   const onSort = (k: string, dd: SortDir) => { setSort({ k, d: dd }); setPage(1); };
+  // Task 6: ticks only on To release, and not for the TEST office login (the batch Send isn't on its allowlist). A tick
+  // whose row is no longer a plain, releasable saved spot (after a refresh) drops out.
+  const ticks = tab === "to_release" && showAreaBatches(me?.roles);
+  const tickable = new Map((d?.rows ?? []).filter((r) => inWaitingTab(r, "to_release") && tickableForSend(r)).map((r) => [r.id, r.jobNumber]));
+  const tickedNow = ticked.filter((id) => tickable.has(id));
+  const toggleTick = (id: string) => setTicked(tickedNow.includes(id) ? tickedNow.filter((x) => x !== id) : [...tickedNow, id]);
   const pickTab = (t: WaitingTab) => { setTab(t); setArea("everywhere"); setPage(1); };
   const pickArea = (a: WaitingArea) => { setArea(a); setPage(1); };
   const heads = (className?: string) => INSTALLER_WAITING_COLUMNS.map((c) => <ColumnHead key={c.key} col={c} sort={sort.k} dir={sort.d} value={filters[c.key] as ColumnFilterValue} onSort={onSort} onFilter={onFilter} {...(className ? { className } : {})} />);
   // Literal class names (Tailwind only sees whole strings).
-  const cols = "lg:grid-cols-[76px_minmax(0,1fr)_minmax(0,1.1fr)_96px_78px_88px_minmax(0,1fr)_minmax(0,1fr)_auto]";
+  const plainCols = "lg:grid-cols-[76px_minmax(0,1fr)_minmax(0,1.1fr)_96px_78px_88px_minmax(0,1fr)_minmax(0,1fr)_auto]";
+  const tickCols = "lg:grid-cols-[28px_76px_minmax(0,1fr)_minmax(0,1.1fr)_96px_78px_88px_minmax(0,1fr)_minmax(0,1fr)_auto]";
+  const cols = ticks ? tickCols : plainCols;
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
@@ -170,15 +243,22 @@ export function InstallerWaitingScreen() {
           </div>
           {/* Phone: the same heading buttons (sort + filter) above the cards. */}
           <div className="mb-2 flex flex-wrap gap-x-4 gap-y-2 rounded-[12px] border border-line bg-paper px-3 py-2 lg:hidden" aria-label="Sort or filter">{heads()}</div>
+          {ticks && d && <TickSendBar ticked={tickedNow} numbers={Object.fromEntries(tickable)} onSent={() => setTicked([])} />}
           {q.isError ? <div role="alert" className="rounded-[14px] border border-danger/40 bg-danger-soft p-4 text-sm">The list could not load — this does not mean no job is waiting. {(q.error as Error).message} <button type="button" className="font-semibold underline" onClick={() => void q.refetch()}>Try again</button></div> : (
             <div className={listCard}>
-              <div className={cn("hidden gap-x-3 border-b border-line bg-[#fafbfe] px-5 py-2.5 lg:grid", cols)}>{heads()}<span /></div>
+              <div className={cn("hidden gap-x-3 border-b border-line bg-[#fafbfe] px-5 py-2.5 lg:grid", cols)}>{ticks && <span />}{heads()}<span /></div>
               {!d ? <p className="p-6 text-center text-sm text-sub">Loading…</p> : shown.rows.length === 0 ? <p className="p-6 text-center text-sm text-sub">{search || active.length || area !== "everywhere" ? "No job matches that search." : tab === "waiting_owner" ? "No released spot is waiting for the owner." : "No saved spot is waiting for an installer."}</p> : (
                 <ul>
                   {shown.rows.map((r) => {
                     const f = fieldsOf(r, now);
+                    const batchLine = batchRowLine(r.batch ?? null, r.ownerName);
                     return (
                       <li key={r.id} className={cn("grid grid-cols-[96px_minmax(0,1fr)] gap-x-3 gap-y-1 border-b border-[#eef1f6] px-4 py-3.5 text-[14px] last:border-b-0 lg:min-h-[54px] lg:items-center lg:gap-y-0 lg:px-5 lg:py-2.5", cols)} data-job={r.jobNumber}>
+                        {ticks && (
+                          <span className="col-span-2 flex items-center lg:col-span-1">
+                            <input type="checkbox" className="h-5 w-5 accent-hiv-green disabled:opacity-40" aria-label={`Tick ${r.jobNumber} for Send`} disabled={!tickableForSend(r)} checked={tickedNow.includes(r.id)} onChange={() => toggleTick(r.id)} />
+                          </span>
+                        )}
                         <span className="col-span-2 flex items-center gap-2 text-sub lg:col-span-1">
                           <Link to="/admin/jobs/$jobId" params={{ jobId: r.id }} className="hover:underline">{r.jobNumber}</Link>
                           {r.isTest && <span className="rounded bg-warning-soft px-1 text-[10px] font-bold text-foreground">TEST</span>}
@@ -188,7 +268,7 @@ export function InstallerWaitingScreen() {
                         <span className="text-sub lg:hidden">Size</span><span>{f.size}</span>
                         <span className="text-sub lg:hidden">Insulation</span><span>{f.insulation}</span>
                         <span className="text-sub lg:hidden">Estimate</span><span className="font-display text-[16px] font-bold text-ink">{f.estimate}</span>
-                        <span className="text-sub lg:hidden">Waiting since</span><span className="text-[13px] text-sub">{f.waiting}{r.lastOffer && <span className="block text-[12px]">Last offer {r.lastOffer.status === "declined" ? `declined${r.lastOffer.name ? ` by ${r.lastOffer.name}` : ""}` : `lapsed${r.lastOffer.name ? ` (${r.lastOffer.name})` : ""}`}</span>}{r.release?.line && <span className={cn("block text-[12px] font-semibold", r.release.state === "lapsed" ? "text-rose" : "text-hiv-blue")} data-release={r.release.state}>{r.release.line}</span>}</span>
+                        <span className="text-sub lg:hidden">Waiting since</span><span className="text-[13px] text-sub">{f.waiting}{r.lastOffer && <span className="block text-[12px]">Last offer {r.lastOffer.status === "declined" ? `declined${r.lastOffer.name ? ` by ${r.lastOffer.name}` : ""}` : `lapsed${r.lastOffer.name ? ` (${r.lastOffer.name})` : ""}`}</span>}{r.release?.line && <span className={cn("block text-[12px] font-semibold", r.release.state === "lapsed" ? "text-rose" : "text-hiv-blue")} data-release={r.release.state}>{r.release.line}</span>}{batchLine && <span className={cn("block text-[12px] font-semibold", r.batch?.kind === "said_yes" ? "text-hiv-green" : "text-hiv-blue")} data-batch={r.batch?.kind}>{batchLine}</span>}</span>
                         <span className="text-sub lg:hidden">Nearby</span>
                         <span><CoverageTag c={r.coverage} /></span>
                         <span className="col-span-2 mt-1 lg:col-span-1 lg:mt-0">
