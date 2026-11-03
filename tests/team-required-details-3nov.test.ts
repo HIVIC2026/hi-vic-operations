@@ -44,3 +44,36 @@ test("every business add path uses the shared rule", () => {
   expect(form).toContain("teamMemberDetails(");
   expect(form).toContain("teamMissingPrompt(");
 });
+
+// Jo 3 Nov ~3pm follow-ups: fill missing details on the Team page; sign-up link asks date of birth.
+import { describe, it } from "bun:test";
+import { teamFillMissing, joinDateOfBirthProblem } from "../src/lib/team-required.core";
+describe("Team page fills missing details (Jo 3 Nov 3pm)", () => {
+  const today = "2026-11-03";
+  it("saves a missing date of birth for an installer", () => {
+    expect(teamFillMissing("installer", { hasDateOfBirth: false, email: null }, { dateOfBirth: "1990-05-01" }, today)).toEqual({ ok: true, dateOfBirth: "1990-05-01", email: null });
+  });
+  it("refuses a bad or future date of birth", () => {
+    expect(teamFillMissing("installer", { hasDateOfBirth: false, email: null }, { dateOfBirth: "2027-01-01" }, today).ok).toBe(false);
+  });
+  it("never overwrites a date of birth already saved", () => {
+    expect(teamFillMissing("electrician", { hasDateOfBirth: true, email: "a@b.co" }, { dateOfBirth: "1990-05-01" }, today)).toEqual({ ok: false, error: "Their date of birth is already saved." });
+  });
+  it("saves a missing email for an electrician", () => {
+    expect(teamFillMissing("electrician", { hasDateOfBirth: true, email: null }, { email: " Pete@Orlando.com.au " }, today)).toEqual({ ok: true, dateOfBirth: null, email: "pete@orlando.com.au" });
+  });
+  it("installers are never asked for an email here", () => {
+    expect(teamFillMissing("installer", { hasDateOfBirth: true, email: null }, { email: "x@y.co" }, today).ok).toBe(false);
+  });
+  it("refuses a bad email", () => {
+    expect(teamFillMissing("electrician", { hasDateOfBirth: true, email: null }, { email: "nope" }, today).ok).toBe(false);
+  });
+});
+describe("Sign-up link asks date of birth (Jo 3 Nov 3pm)", () => {
+  it("is required", () => { expect(joinDateOfBirthProblem("", "2026-11-03")).toBe("Add your date of birth."); });
+  it("must be valid and before today", () => {
+    expect(joinDateOfBirthProblem("2026-11-03", "2026-11-03")).toBe("Your date of birth must be before today.");
+    expect(joinDateOfBirthProblem("1990-02-30", "2026-11-03")).toBe("Enter a valid date of birth.");
+    expect(joinDateOfBirthProblem("1990-02-28", "2026-11-03")).toBeNull();
+  });
+});

@@ -5,7 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
 import { TradeShell, card } from "@/components/trade/TradeShell";
 import { BackToBusiness, Chevron, M7, SectionHead } from "@/components/trade/business-kit";
-import { addTeamPerson, getTradeBusiness, requestTeamLoginInvite, setTeamMemberMobile } from "@/lib/trade-view.functions";
+import { addTeamPerson, getTradeBusiness, requestTeamLoginInvite, setTeamMemberMissing, setTeamMemberMobile } from "@/lib/trade-view.functions";
 import { removeWorker } from "@/lib/worker-links.functions";
 import { ROLE_LABEL, TEAM_ADD_SHEET, TEAM_LOGIN, TEAM_MOBILE_NOTE, TEAM_RULE, TEAM_SIGN, teamMobileButton, teamCiiLine, teamCountLine, teamFactsLine, teamWhiteCardLine } from "@/lib/trade-view.core";
 import { melbourneToday } from "@/lib/melbourne-time.core";
@@ -57,6 +57,8 @@ function Team() {
                   {id && <div className="mt-2 flex flex-wrap items-center gap-2">
                     {m.workerRole && <WorkerRoleSwitch workerId={id} role={m.workerRole} onDone={() => { void qc.invalidateQueries({ queryKey: ["trade-business"] }); }} />}
                     <MobileInline workerId={id} mobile={m.mobile} onSaved={() => { void qc.invalidateQueries({ queryKey: ["trade-business"] }); }} />
+                    {(m.missingDetails ?? []).includes("date of birth") && <MissingInline workerId={id} field="dateOfBirth" onSaved={() => { void qc.invalidateQueries({ queryKey: ["trade-business"] }); }} />}
+                    {(m.missingDetails ?? []).includes("email") && <MissingInline workerId={id} field="email" onSaved={() => { void qc.invalidateQueries({ queryKey: ["trade-business"] }); }} />}
                     {!m.hasLogin && (asked[id] ? <span className="text-[13px] font-semibold text-estimate-green">{asked[id]}</span> : <button type="button" className="min-h-11 rounded-[10px] border border-estimate-line bg-white px-3 text-[13px] font-semibold text-estimate-blue" onClick={async () => { try { await invite({ data: { workerId: id } }); setAsked((a) => ({ ...a, [id]: TEAM_LOGIN.asked })); } catch (e) { setAsked((a) => ({ ...a, [id]: (e as Error).message })); } }}>{TEAM_LOGIN.button}</button>)}
                     {m.declarationsDue && (m.mobile?.trim() || m.email?.trim() ? <CertLinkInline workerId={id} name={m.name} label={TEAM_SIGN.link} /> : <span className="text-[13px] text-estimate-sub">{TEAM_SIGN.needContact}</span>)}
                     {m.noticeAcknowledged === false && <SendNoticeLinkInline workerId={id} />}
@@ -78,6 +80,35 @@ function Team() {
 }
 
 /** Decision 377: the business owner saves each person's mobile once; their own safety plan sign link is texted there. */
+/** Jo 3 Nov ~3pm: fill a missing date of birth (kept private) or electrician email, next to the prompt. */
+function MissingInline({ workerId, field, onSaved }: { workerId: string; field: "dateOfBirth" | "email"; onSaved: () => void }) {
+  const save = useServerFn(setTeamMemberMissing);
+  const [open, setOpen] = useState(false);
+  const [v, setV] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const dob = field === "dateOfBirth";
+  if (!open) return (
+    <button type="button" data-team-fill={field} className="min-h-11 rounded-[10px] border border-estimate-line bg-white px-3 text-[13px] font-semibold text-estimate-blue" onClick={() => { setV(""); setMsg(null); setOpen(true); }}>{dob ? "Add date of birth" : "Add email"}</button>
+  );
+  return (
+    <div className="w-full">
+      <label className="block text-[13px] font-semibold text-estimate-navy">{dob ? "Date of birth" : "Email"}
+        <input className="mt-1 block min-h-11 w-full rounded-[10px] border-2 border-estimate-line bg-white px-3 text-base" value={v} type={dob ? "date" : "email"} autoComplete={dob ? "off" : "email"} onChange={(e) => setV(e.target.value)} />
+      </label>
+      {dob && <p className="mt-1 text-[13px] text-estimate-sub">Kept private. Used only for ESC registration.</p>}
+      {msg && <p role="alert" className="mt-1 text-[13px] font-semibold text-[#8A3B4A]">{msg}</p>}
+      <div className="mt-2 flex gap-2">
+        <button type="button" disabled={busy} className="min-h-11 rounded-[10px] bg-estimate-blue px-4 text-[13px] font-semibold text-white" onClick={async () => {
+          setBusy(true); setMsg(null);
+          try { await save({ data: { workerId, [field]: v } }); setOpen(false); onSaved(); } catch (e) { setMsg((e as Error).message); } finally { setBusy(false); }
+        }}>Save</button>
+        <button type="button" className="min-h-11 px-3 text-[13px] font-semibold text-estimate-blue" onClick={() => setOpen(false)}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
 function MobileInline({ workerId, mobile, onSaved }: { workerId: string; mobile: string | null; onSaved: () => void }) {
   const save = useServerFn(setTeamMemberMobile);
   const [open, setOpen] = useState(false);

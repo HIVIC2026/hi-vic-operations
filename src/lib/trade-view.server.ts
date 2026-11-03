@@ -746,7 +746,7 @@ export async function tradeBusiness(userId: string) {
   // Jo 3 Nov: which required details each person is missing (owner row excluded). Date of birth is read as yes/no only.
   {
     const staffIds = team.filter((m) => m.role !== "owner" && m.id).map((m) => m.id!);
-    const { data: ids, error: idErr } = staffIds.length ? await admin.from("partner_worker_identity" as never).select("worker_id").in("worker_id", staffIds) : { data: [], error: null };
+    const { data: ids, error: idErr } = staffIds.length ? await admin.from("partner_worker_identity" as never).select("worker_id").in("worker_id", staffIds).not("date_of_birth", "is", null) : { data: [], error: null };
     if (idErr) console.error("tradeBusiness: date of birth facts could not be read", (idErr as { code?: string }).code ?? "unknown");
     else {
       const has = new Set(((ids ?? []) as { worker_id: string }[]).map((r) => r.worker_id));
@@ -922,6 +922,31 @@ export async function tradeSetWorkerMobile(userId: string, workerId: string, raw
   const { error } = await admin.from("partner_workers").update({ mobile: v.mobile }).eq("id", w.id).eq("business_id", c.biz.id);
   if (error) throw new WorkflowError("The mobile couldn't be saved. Try again.");
   return { ok: true, mobile: v.mobile };
+}
+
+/** Jo 3 Nov ~3pm: own-business boss fills a MISSING date of birth (private identity table) or a MISSING email
+ *  (electricians only). Never overwrites saved values; sends nothing. Rules in `team-required.core`. */
+export async function tradeFillWorkerMissing(userId: string, workerId: string, p: { dateOfBirth: string | null; email: string | null }) {
+  const c = await bossOrThrow(userId);
+  const { data: w } = await admin.from("partner_workers").select("id, business_id, email").eq("id", workerId).is("removed_at", null).maybeSingle();
+  if (!w || w.business_id !== c.biz.id) throw new WorkflowError("Team member not found.");
+  const { data: idRow, error: idErr } = await admin.from("partner_worker_identity" as never).select("worker_id, date_of_birth").eq("worker_id", w.id).maybeSingle();
+  if (idErr) throw new WorkflowError("Their details couldn't be checked. Try again.");
+  const row = idRow as { date_of_birth: string | null } | null;
+  const { teamFillMissing } = await import("./team-required.core");
+  const v = teamFillMissing(c.kind, { hasDateOfBirth: !!row?.date_of_birth, email: w.email ?? null }, p, (await import("./melbourne-time.core")).melbourneToday());
+  if (!v.ok) throw new WorkflowError(v.error);
+  if (v.dateOfBirth) {
+    const { error } = row
+      ? await admin.from("partner_worker_identity" as never).update({ date_of_birth: v.dateOfBirth, updated_by: userId } as never).eq("worker_id", w.id).is("date_of_birth", null)
+      : await admin.from("partner_worker_identity" as never).insert({ worker_id: w.id, date_of_birth: v.dateOfBirth, updated_by: userId } as never);
+    if (error) throw new WorkflowError("The date of birth couldn't be saved. Try again.");
+  }
+  if (v.email) {
+    const { error } = await admin.from("partner_workers").update({ email: v.email }).eq("id", w.id).eq("business_id", c.biz.id).is("email", null);
+    if (error) throw new WorkflowError(error.code === "23505" ? "Someone in your team already uses that email." : "The email couldn't be saved. Try again.");
+  }
+  return { ok: true };
 }
 
 /** Jo 3 Nov 2:37pm (replaces 29 Oct): installers need an Australian mobile + date of birth (email optional); electricians
