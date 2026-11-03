@@ -20,9 +20,14 @@ const defaultDeps=():BookedDeps=>({approved:PIESA_BOOKED_EMAIL_APPROVED,accessRo
 export async function notifyInHouseElectricianBooked(jobId:string,bookingId:string,now=new Date(),over:Partial<BookedDeps>={}){
  const d={...defaultDeps(),...over};
  const book=await db.from('bookings').select('contractor_id,scheduled_start').eq('id',bookingId).eq('job_id',jobId).eq('kind','assessment').eq('status','confirmed').maybeSingle();if(book.error)throw Error(book.error.message);if(!book.data)return;
- const worker=await db.from('partner_workers').select('id,email,full_legal_name,business_id').eq('profile_id',book.data.contractor_id).is('removed_at',null).maybeSingle();if(worker.error)throw Error(worker.error.message);if(!worker.data||(!d.approved&&!worker.data.email))return;
+ // The electrician: the worker named by the latest allocation event (electricians never log in, so the booking's contractor_id is usually NULL);
+ // a legacy booking with a contractor_id still finds them by profile.
+ const alloc=await db.from('workflow_events').select('details').eq('job_id',jobId).eq('event_type','in_house_electrician_allocated').order('created_at',{ascending:false}).limit(1).maybeSingle();if(alloc.error)throw Error(alloc.error.message);
+ const allocatedRaw=(alloc.data?.details as {worker_id?:unknown}|null)?.worker_id;const allocatedId=typeof allocatedRaw==='string'&&allocatedRaw?allocatedRaw:null;
+ const worker=allocatedId?await db.from('partner_workers').select('id,email,full_legal_name,business_id').eq('id',allocatedId).is('removed_at',null).maybeSingle():book.data.contractor_id?await db.from('partner_workers').select('id,email,full_legal_name,business_id').eq('profile_id',book.data.contractor_id).is('removed_at',null).maybeSingle():{data:null,error:null};
+ if(worker.error)throw Error(worker.error.message);if(!worker.data||(!d.approved&&!worker.data.email))return;
  const job=await db.from('jobs').select('job_number,source,owners(full_name,phone),properties(address_line,suburb,postcode)').eq('id',jobId).is('deleted_at',null).maybeSingle();if(job.error)throw Error(job.error.message);if(!job.data)return;
- const key=`in-house-electrician-booked:v1:${bookingId}:${book.data.contractor_id}`;const id=await stableUuid(key);
+ const key=`in-house-electrician-booked:v1:${bookingId}:${book.data.contractor_id??worker.data.id}`;const id=await stableUuid(key);
  const prior=await db.from('workflow_events').select('details').eq('id',id).maybeSingle();if(prior.error)throw Error(prior.error.message);
  type State={status:string;booking_id:string;attempts:number;firstAttempt?:string;attemptAt?:string};
  let old=prior.data?.details as State|null;

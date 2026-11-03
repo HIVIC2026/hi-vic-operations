@@ -136,9 +136,18 @@ async function isTest(job: Job, ...bizzes: (Biz | null)[]): Promise<{ test: bool
   return { test: job.source === "qa_test" || partnerIsTest, partnerIsTest };
 }
 
-/** The electrician on the upgrades booking: the booked person, else the business's approved electrician with a mobile. */
+/** The electrician on the upgrades booking: the worker named by the latest Team allocation event (electricians never log
+ *  in, so the booking usually has no contractor), else the booked person by profile, else the business's approved electrician. */
 async function electricianWorker(b: Booking): Promise<{ id: string; mobile: string | null; business_id: string } | null> {
   const sel = "id, mobile, business_id";
+  const { data: ev, error: ee } = await admin.from("workflow_events").select("details").eq("job_id", b.job_id).eq("event_type", "in_house_electrician_allocated").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (ee) throw new Error(`Could not read the electrician allocation: ${ee.message}`);
+  const allocated = (ev?.details as { worker_id?: unknown } | null)?.worker_id;
+  if (typeof allocated === "string" && allocated) {
+    const { data, error } = await admin.from("partner_workers").select(sel).eq("id", allocated).is("removed_at", null).maybeSingle();
+    if (error) throw new Error(`Could not read the electrician: ${error.message}`);
+    if (data) return data as never;
+  }
   if (b.contractor_id) {
     const { data, error } = await admin.from("partner_workers").select(sel).eq("profile_id", b.contractor_id).eq("trade_role", "electrician").is("removed_at", null).limit(1).maybeSingle();
     if (error) throw new Error(`Could not read the electrician: ${error.message}`);

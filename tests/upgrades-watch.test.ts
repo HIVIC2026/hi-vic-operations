@@ -129,6 +129,17 @@ describe("sweepUpgradesWatch: the electrician nudge", () => {
     expect(i).toMatchObject({ type: "upgrades_nudge", idempotencyKey: `upgrades-nudge:v1:${J}:2026-11-11`, to: "0422 222 222", jobId: J, businessId: ELEC });
     expect(i["storedBody"]).toContain("/e/••••");
   });
+  test("C1: an allocated electrician with no profile (booking contractor NULL) is the one nudged, not the first worker of the business", async () => {
+    tables["bookings"]![0]!["contractor_id"] = null;
+    tables["partner_workers"] = [
+      { id: "w-first", business_id: ELEC, full_legal_name: "First Listed", mobile: "0400 000 001", trade_role: "electrician", approval_status: "approved", removed_at: null, profile_id: null, created_at: "2026-01-01T00:00:00Z" },
+      { id: W, business_id: ELEC, full_legal_name: "Sam Spark", mobile: "0422 222 222", trade_role: "electrician", approval_status: "approved", removed_at: null, profile_id: null, created_at: "2026-06-01T00:00:00Z" },
+    ];
+    tables["workflow_events"]!.push({ id: "al", job_id: J, event_type: "in_house_electrician_allocated", summary: "", details: { worker_id: W, business_id: ELEC }, created_at: "2026-11-02T00:00:00Z" });
+    expect(await server.sweepUpgradesWatch(THU, deps())).toEqual({ nudges: 1, officeEmails: 0, redFlags: 0 });
+    expect(calls.link[0]!.slice(0, 2)).toEqual([J, W]);
+    expect(calls.testSms[0]![1]).toBe("0422 222 222");
+  });
   test("form already in: no nudge", async () => {
     seed({ formDone: true });
     expect(await server.sweepUpgradesWatch(THU, deps())).toEqual({ nudges: 0, officeEmails: 0, redFlags: 0 });

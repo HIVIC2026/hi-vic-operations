@@ -132,5 +132,6 @@ test("flag on, TEST job: goes to test-send, not the office sender", async () => 
 });
 
 test("source: the sender keeps the same key", () => {
-  expect(readFileSync("src/lib/in-house-electrician-booked.server.ts", "utf8")).toContain("in-house-electrician-booked:v1:${bookingId}:${book.data.contractor_id}");
+  // C1: a no-login electrician has no profile, so the booking's contractor_id is NULL; the key then names the worker (legacy bookings keep the contractor key).
+  expect(readFileSync("src/lib/in-house-electrician-booked.server.ts", "utf8")).toContain("in-house-electrician-booked:v1:${bookingId}:${book.data.contractor_id??worker.data.id}");
 });

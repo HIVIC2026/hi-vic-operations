@@ -36,14 +36,22 @@ async function installerOf(jobId: string): Promise<{ id: string | null; name: st
   return { id: a.business_id, name: bizName(b) ?? "the installer" };
 }
 
-type AssignedElectrician = { id: string; business_id: string; user_id: string | null };
+type AssignedElectrician = { id: string; business_id: string; user_id: string | null; /** The worker named by the latest Team allocation event (electricians never log in, so user_id is usually NULL). */ worker_id: string | null };
 async function electricianAssignment(jobId: string, businessId: string): Promise<AssignedElectrician | null> {
-  const { data, error } = await admin.from("job_assignments").select("id, business_id, user_id").eq("job_id", jobId).eq("role", "electrician").eq("active", true).eq("business_id", businessId).maybeSingle();
+  const [{ data, error }, { data: ev, error: ee }] = await Promise.all([
+    admin.from("job_assignments").select("id, business_id, user_id").eq("job_id", jobId).eq("role", "electrician").eq("active", true).eq("business_id", businessId).maybeSingle(),
+    admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "in_house_electrician_allocated").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+  ]);
   if (error) throw dbErr("the electrician assignment", error);
-  return (data as AssignedElectrician | null) ?? null;
+  if (ee) throw dbErr("the electrician allocation", ee);
+  if (!data) return null;
+  const wid = (ev?.details as { worker_id?: unknown } | null)?.worker_id;
+  return { ...(data as Omit<AssignedElectrician, "worker_id">), worker_id: typeof wid === "string" && wid ? wid : null };
 }
-/** The assignment names a person (Team allocation): the link's person must be that person. No person on it: the business is enough. */
-const sameElectrician = (a: AssignedElectrician, w: { profile_id: string | null }) => !a.user_id || !w.profile_id || a.user_id === w.profile_id;
+/** The assignment names ONE person: by the allocation event's worker (two electricians of one business may both have no
+ *  profile, so a NULL user_id never matches anyone), else by the profile on a legacy assignment. Neither on it: the business is enough. */
+const sameElectrician = (a: AssignedElectrician, w: { id: string; profile_id: string | null }) =>
+  a.worker_id ? a.worker_id === w.id : a.user_id ? a.user_id === w.profile_id : true;
 
 // ---------- minting ----------
 export async function mintElectricianLink(jobId: string, workerId: string, actorId: string | null, now = Date.now()): Promise<{ token: string; url: string }> {
@@ -235,7 +243,7 @@ async function readElectricianLinkView(token: string, now: number): Promise<Elec
   if (state === "revoked") throw new Error(electricianLinkSwitchedOff(installer.name));
   if (state === "expired") throw new Error(electricianLinkExpired(installer.name));
   const [{ data: w, error: we }, { data: eb, error: ebe }, { data: job, error: je }] = await Promise.all([
-    admin.from("partner_workers").select("full_legal_name, trade_role, approval_status, certification_status, removed_at, profile_id").eq("id", l.worker_id).maybeSingle(),
+    admin.from("partner_workers").select("id, full_legal_name, trade_role, approval_status, certification_status, removed_at, profile_id").eq("id", l.worker_id).maybeSingle(),
     admin.from("businesses").select("name, trading_name").eq("id", l.business_id).maybeSingle(),
     admin.from("jobs").select("job_number, stage, deleted_at, updated_at").eq("id", l.job_id).maybeSingle(),
   ]);
