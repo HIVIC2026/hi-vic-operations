@@ -121,7 +121,7 @@ describe("Mitti reader on the 4 Nov wording", () => {
     ],
   });
   it("taking out → removal with that m², and old R2.0 or more is flagged", () => {
-    const r = parseAudit(audit([[LAYOUT_Q.areaM2, "80"], [LAYOUT_Q.old, LAYOUT_A.out], [LAYOUT_Q.oldR, "R2.0 or more (failed answer)"], [LAYOUT_Q.removeM2, "80"], ["What type of existing insulation is installed? Select all that apply", "Batts"]]));
+    const r = parseAudit(audit([[LAYOUT_Q.areaM2, "80"], [LAYOUT_Q.old, LAYOUT_A.out], [LAYOUT_Q.oldR, "R2.0 or more"], [LAYOUT_Q.removeM2, "80"], ["What type of existing insulation is installed? Select all that apply", "Batts"]]));
     expect(r.patch.removal_required).toBe(true);
     expect(r.patch.removal_m2).toBe(80);
     expect(r.issues.join(" ")).toMatch(/R2\.0 or more – fails/);
