@@ -196,15 +196,17 @@ function answer(t: FactTable, nested: readonly Nest[], ops: readonly QueryOp[], 
   // Does a column exist? A row says so (a column missing live is missing from the row, so that query goes to the database
   // and errors as before). With no rows, only the table's column list (when given) and the scope column are known —
   // the database would still refuse a column that doesn't exist, so an unknown one goes to the database.
+  // A fact row carries its embeds as keys (quote_items, properties…): those are not columns, so they are never "known".
   const sample = all[0];
-  const known = new Set(sample ? Object.keys(sample) : [...(t.columns ?? []), scopeCol]);
+  const embedNames = new Set(nested.map((n) => n.name));
+  const known = new Set(sample ? Object.keys(sample).filter((k) => !embedNames.has(k)) : [...(t.columns ?? []), scopeCol]);
   const has = (c: string) => shapeOnly || known.has(c);
   if (!sel.cols.every(has)) return null;
   for (const e of sel.embeds) {
     const nest = nested.find((n) => n.name === e.name)!;
     if (sample) {
       // Embedded rows: their columns must exist too (checked on the first embedded row met).
-      if (!has(e.name)) return null;
+      if (!Object.prototype.hasOwnProperty.call(sample, e.name)) return null;
       const inner = all.flatMap((r) => { const v = r[e.name]; return Array.isArray(v) ? v : v ? [v] : []; })[0] as Row | undefined;
       if (inner && !e.sel.cols.every((c) => Object.prototype.hasOwnProperty.call(inner, c))) return null;
     } else if (!shapeOnly && nest.cols === "*" && !e.sel.cols.every((c) => t.embedColumns?.[nest.name]?.includes(c))) return null; // an embed read whole: only its column list can vouch for a column

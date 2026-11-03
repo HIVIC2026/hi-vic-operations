@@ -123,6 +123,14 @@ describe("answerFromFacts: anything it can't be sure of goes to the database (nu
     const whole = Object.values(NESTED).flat().filter((n) => n.cols === "*").map((n) => n.name);
     for (const t of [...JOB_FACT_TABLES, ...BUSINESS_FACT_TABLES, ...whole]) expect([t, FACT_COLUMNS[t]]).toEqual([t, columnsOf(t)]);
   });
+  test("an embed's name used as a bare column (select or filter) is not a column: the database refuses it, so it goes there", () => {
+    // I1b: the fact rows carry their embeds as keys; PostgREST does not know `quote_internals` as a column of quotes.
+    no("quotes", ["select", "*, quote_internals"], ["eq", "job_id", J]);
+    no("quotes", ["select", "id, quote_internals"], ["eq", "job_id", J]);
+    no("jobs", ["select", "*, properties"], ["eq", "id", J], ["maybeSingle"]);
+    no("quotes", ["select", "id"], ["eq", "job_id", J], ["not", "quote_internals", "is", null]);
+    no("job_assignments", ["select", "id"], ["eq", "job_id", J], ["order", "profiles"]);
+  });
   test("text order (collation), dates compared by eq, JSON path filters, or(), unknown methods", () => {
     no("workflow_events", ["select", "id"], ["eq", "job_id", J], ["order", "event_type"]);
     no("workflow_events", ["select", "id"], ["eq", "job_id", J], ["eq", "created_at", "2026-10-28T01:00:00+00:00"]);
