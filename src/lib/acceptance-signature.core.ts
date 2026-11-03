@@ -17,3 +17,15 @@ export function acceptanceSignatureRecord(i: { quoteId: string; version: number;
     documentsConsent: { quote_id: i.quoteId, version: i.version, wording: P2.tick1, at: i.signedAt },
   };
 }
+
+/** The owner name on file stays the signatory (an authorised person may sign for the owner); only the signature is the typed name. */
+export function resolveAcceptanceSigner(i: { signatoryName?: string | undefined; signatureName: string }, ownerOnFile: string | null) {
+  const signatureName = tidyTypedName(i.signatureName);
+  const signatoryName = i.signatoryName?.trim() || (ownerOnFile ?? "").trim() || signatureName;
+  return { signatoryName, signatureName };
+}
+
+/** Name and time shown on the signed PDF: the recorded counter-signature, else the agreement signature's own (never the current time). */
+export function acceptancePdfSignature(rec: { ownerTypedName: string; signedAt: string } | null, agreement: { signedAt: string; signatureName: string }) {
+  return rec ? { signedAt: rec.signedAt, signatureName: rec.ownerTypedName } : { signedAt: agreement.signedAt, signatureName: agreement.signatureName };
+}

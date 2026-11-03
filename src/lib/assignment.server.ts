@@ -268,7 +268,7 @@ export async function assertAgreementCanSign(input: AgreementSignInput) {
 }
 
 /** Flag-on signed acceptance: page 1 + the full agreement. Returns null (and logs) when anything is missing, so signing never fails on the PDF. */
-async function signedAcceptancePdfV2OrNull(pkg: AcceptancePackage, p: { signatoryName: string; signatureName: string }, signedAt: string, jobId: string, actorId: string | null): Promise<Uint8Array | null> {
+async function signedAcceptancePdfV2OrNull(pkg: AcceptancePackage, p: { signatoryName: string; signatureName: string }, agreementSignedAt: string, jobId: string, actorId: string | null): Promise<Uint8Array | null> {
   try {
     const { activeCustomerAgreement } = await import("./customer-agreement.server");
     const tpl = await activeCustomerAgreement();
@@ -289,7 +289,11 @@ async function signedAcceptancePdfV2OrNull(pkg: AcceptancePackage, p: { signator
     // Typed name and time recorded with the counter-signature at acceptance (same moment for both signatures).
     const { readAcceptanceCountersignature } = await import("./acceptance-signature.server");
     const rec = await readAcceptanceCountersignature(jobId, pkg.quote.id, pkg.quote.version).catch(() => null);
-    if (rec) { p = { ...p, signatureName: rec.ownerTypedName }; signedAt = rec.signedAt; }
+    // No counter-signature recorded: use the agreement signature's own time and name, never the current time.
+    const { acceptancePdfSignature } = await import("./acceptance-signature.core");
+    const sig = acceptancePdfSignature(rec, { signedAt: agreementSignedAt, signatureName: p.signatureName });
+    p = { ...p, signatureName: sig.signatureName };
+    const signedAt = sig.signedAt;
     const removalM2 = m?.removal_required ? Number(m.removal_m2) || null : null;
     const r = await signedAcceptancePdfV2({
       jobNumber: pkg.job_number, installerName: pkg.installer.business ?? pkg.installer.name ?? "", ownerName: p.signatoryName, ownerTypedName: p.signatureName,

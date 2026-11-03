@@ -137,7 +137,7 @@ export const ownerAcceptQuoteFn = createServerFn({ method: "POST" })
         consent: true,
         expectedVersion: data.expectedVersion,
         // Tick 1 is the old "read" + "accept" in one (it covers the agreement, payment terms, rights and documents by email).
-        signing: { authorityType: data.signing.authorityType, signatoryName: data.signing.typedName, signatureName: data.signing.typedName, readConsumerInfo: data.signing.tick1, acceptAgreement: data.signing.tick1, assistance: data.signing.assistance },
+        signing: { authorityType: data.signing.authorityType, signatureName: data.signing.typedName, readConsumerInfo: data.signing.tick1, acceptAgreement: data.signing.tick1, assistance: data.signing.assistance },
       },
       {
         userId: s.userId,

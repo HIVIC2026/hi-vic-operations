@@ -62,3 +62,30 @@ test("wiring: gate docs signed with the typed name, no ESC consent at acceptance
   const pdf = readFileSync("src/lib/assignment.server.ts", "utf8");
   expect(pdf).toContain("readAcceptanceCountersignature");
 });
+
+test("signer: owner name on file stays the signatory; only the signature name is the typed name", () => {
+  const s = core.resolveAcceptanceSigner({ signatureName: "  Sam   Brown " }, "Sarah Brown");
+  expect(s).toEqual({ signatoryName: "Sarah Brown", signatureName: "Sam Brown" });
+  // no name on file: do not block the owner, use the typed name
+  expect(core.resolveAcceptanceSigner({ signatureName: "Sam Brown" }, null).signatoryName).toBe("Sam Brown");
+  // an explicit signatory (older callers) is kept
+  expect(core.resolveAcceptanceSigner({ signatoryName: "A B", signatureName: "C D" }, "Sarah Brown")).toEqual({ signatoryName: "A B", signatureName: "C D" });
+});
+
+test("wiring: the secure-link accept does not turn the typed name into the owner name", () => {
+  const src = readFileSync("src/lib/owner-link.functions.ts", "utf8");
+  const accept = src.slice(src.indexOf("export const ownerAcceptQuoteFn"), src.indexOf("signQuoteSitting: async"));
+  expect(accept).not.toMatch(/signatoryName:\s*data\.signing\.typedName/);
+  expect(accept).toMatch(/signatureName:\s*data\.signing\.typedName/);
+  expect(readFileSync("src/lib/portal.functions.ts", "utf8")).toContain("resolveAcceptanceSigner");
+});
+
+test("pdf facts: no countersigned event falls back to the agreement signature's own time and name, never now", () => {
+  const agreement = { signedAt: "2026-11-08T09:42:00.000Z", signatureName: "Sam Brown" };
+  expect(core.acceptancePdfSignature(null, agreement)).toEqual(agreement);
+  expect(core.acceptancePdfSignature({ ownerTypedName: "Sarah Brown", signedAt: "2026-11-08T09:41:00.000Z" }, agreement)).toEqual({ signedAt: "2026-11-08T09:41:00.000Z", signatureName: "Sarah Brown" });
+  const fn = readFileSync("src/lib/assignment.server.ts", "utf8");
+  const body = fn.slice(fn.indexOf("async function signedAcceptancePdfV2OrNull"), fn.indexOf("/** Quote-stage signing"));
+  expect(body).not.toContain("new Date()");
+  expect(body).toContain("acceptancePdfSignature");
+});

@@ -1647,15 +1647,21 @@ async function signingInput(
   s: NonNullable<z.infer<typeof respondToQuoteSchema>["signing"]>,
 ) {
   const { fillSignerFromOwner } = await import("./assignment.core");
-  if (s.signatoryName && s.signatureName)
+  if (s.signatureName) {
+    // Typed name signs; the owner's name on file stays the signatory unless one was given.
+    const { resolveAcceptanceSigner } = await import("./acceptance-signature.core");
+    const names = resolveAcceptanceSigner(
+      { signatoryName: s.signatoryName, signatureName: s.signatureName },
+      s.signatoryName ? null : (await buildAcceptancePackage(quoteId)).consumer.name,
+    );
     return {
-      signatoryName: s.signatoryName,
-      signatureName: s.signatureName,
+      ...names,
       authorityType: s.authorityType,
       over18: s.over18 ?? false,
       readConsumerInfo: s.readConsumerInfo,
       acceptAgreement: s.acceptAgreement,
     };
+  }
   const pkg = await buildAcceptancePackage(quoteId);
   return fillSignerFromOwner(
     {
