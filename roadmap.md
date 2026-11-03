@@ -921,6 +921,6 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [ ] Data step: Orlando rate $350→$349, Orlando + Reinsulate PIESA lines $350→$349, office payout setting empty→$275 — waits for Jo's OK
 
 ## Team required details (Jo 3 Nov 2:37pm) — DONE
-- [ ] Jo 3 Nov 7:46pm: optional installer Add email box, shared missing-only save, own-team/duplicate/no-overwrite tests; no live data, sends or publishing.
+- [x] Jo 3 Nov 7:46pm: optional installer Add email box and shared missing-only save; email still optional with no required-detail prompt. Red-first rules and actual-handler two-boss/duplicate/no-overwrite tests passed; related Team/privacy tests 80/0, automatic checks clean. Authenticated live save not run because data changes prohibited; no live data, sends or publishing.
 - Installers: Australian mobile + date of birth required, email optional. Electricians: mobile + date of birth + email. Form + Team add + office/boss add enforce it; Team page shows "Add X's …" prompts. No data changed.
 - [x] Jo 3 Nov ~3pm: Team page boxes to fill a missing date of birth (anyone, private) and missing email (electricians only); sign-up link asks date of birth (required, private). Tests pass; no data changed.
