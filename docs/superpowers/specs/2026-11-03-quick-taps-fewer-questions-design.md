@@ -40,9 +40,10 @@ and 5-year lines only when there is an answer, so new owners just don't have the
 
 Jo is asked again right before each live step.
 
-1. Her "Flat" answer is set aside (marked replaced, not deleted) so her link asks her the questions again.
-2. Her job goes back to "Ready Check ready to schedule", still in Rapid's batch, so the same link works.
-3. She gets this text (from the normal sender, inside 7am–8pm):
+1. Her job is reopened ("Ready Check ready to schedule").
+2. Her old "Flat" answer stays in the history (the portal won't let history be changed), and she's put in a fresh
+   batch for Rapid on her own, so her same link asks her the questions again. No email goes, just the text.
+3. She gets this text (from the normal sender, inside 7am–8pm), word for word — no "Home Insulation Victoria:" added in front:
 
    > Hi Mia, it's Home Insulation Victoria. Sorry, we think you may have tapped "flat roof" by mistake.
    > We've fixed it – if you'd still like your free Ready Check, tap here to carry on: [her link]
