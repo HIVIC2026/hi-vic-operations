@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { NO_LOGIN_NEEDED, seesMoney, seesPrices, tradeRoleOf } from "../src/lib/trade-access-role.core";
+import { NO_LOGIN_NEEDED, noLoginFor, seesMoney, seesPrices, tradeRoleOf } from "../src/lib/trade-access-role.core";
 import { memberRoleFor, tradeAccessBlocker } from "../src/lib/trade-access.core";
 
 const src = (p: string) => readFileSync(p, "utf8");
@@ -29,6 +29,10 @@ describe("trade roles", () => {
     expect(memberRoleFor("mia@x.com", "boss@x.com")).toBe("member");
     expect(tradeAccessBlocker({ ...worker }, true)).toBe(NO_LOGIN_NEEDED);
     expect(tradeAccessBlocker({ ...worker, trade_role: "electrician", certification_status: null }, true)).toBe(NO_LOGIN_NEEDED);
+    expect(tradeAccessBlocker({ ...worker, profile_id: null }, true)).toBe(NO_LOGIN_NEEDED);
+    // existing logins stay recoverable
+    expect(tradeAccessBlocker({ ...worker, profile_id: "p1" }, true)).toBeNull();
+    expect(tradeAccessBlocker({ ...worker, trade_role: "electrician", profile_id: "p2" }, true)).toBeNull();
     expect(tradeAccessBlocker({ ...worker, trade_role: "office", certification_status: null }, true)).toBeNull();
     expect(tradeAccessBlocker({ ...worker, trade_role: "office", email: null }, true)).toBe("This person needs a valid email.");
   });
@@ -53,5 +57,14 @@ describe("Money is guarded by the Money rule, not the boss rule", () => {
     const f = src("src/components/trade/FieldLayout.tsx");
     expect(f).toContain("NO_LOGIN_NEEDED");
     expect(f).toContain("TradePublicShell");
+  });
+  test("the no-login page shows only with no active membership at all (a legacy 'member' keeps the normal layout)", () => {
+    const f = src("src/components/trade/FieldLayout.tsx");
+    expect(f).toContain("noLogin");
+    expect(f).not.toContain('role !== "none"');
+    expect(noLoginFor([])).toBe(true);
+    expect(noLoginFor([{ member_role: "member" }])).toBe(false);
+    expect(noLoginFor([{ member_role: "office" }])).toBe(false);
+    expect(noLoginFor([{ member_role: "business_admin" }])).toBe(false);
   });
 });

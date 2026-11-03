@@ -21,5 +21,10 @@ export function seesMoney(r: TradeRole, canSeeMoney: boolean): boolean {
   return r === "boss" || (r === "office" && canSeeMoney);
 }
 
+/** The no-login page shows only when the sign-in has no active business membership at all (any role, even a legacy 'member', keeps the normal layout). */
+export function noLoginFor(activeMemberships: { member_role: string | null }[]): boolean {
+  return activeMemberships.length === 0;
+}
+
 /** DRAFT wording (Jo hasn't seen it): shown if a Lead Installer, Crew member or Electrician somehow reaches the portal. */
 export const NO_LOGIN_NEEDED = "You don't need to sign in. Your jobs come to you by text.";

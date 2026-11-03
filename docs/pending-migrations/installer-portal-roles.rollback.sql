@@ -1,5 +1,6 @@
 -- Rollback for installer-portal-roles.sql. Office people lose access (kept as history, switched off); the checks go back to
 -- how they were. The 'office' value stays in the assignment_role enum (Postgres cannot drop an enum value; it is harmless).
+-- partner_workers rows with trade_role='office' remain after rollback; the NOT VALID check below tolerates them.
 DROP FUNCTION IF EXISTS public.set_member_can_see_money(uuid,uuid,uuid,boolean);
 DROP FUNCTION IF EXISTS public.add_team_person_with_identity(uuid,uuid,text,text,text,text,date,text,text);
 UPDATE public.business_members SET active=false WHERE member_role='office';

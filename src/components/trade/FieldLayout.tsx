@@ -8,12 +8,12 @@ import { clearTradeCache } from "@/lib/trade-cache";
 import { supabase } from "@/integrations/supabase/client";
 
 /** Lead Installers, Crew and Electricians never log in: if one gets here, say so plainly. The screens draw meanwhile
- *  (the server decides what they may read); only a confirmed "none" swaps to this page. */
+ *  (the server decides what they may read); only a confirmed "no active membership at all" (noLogin) swaps to this page. */
 export default function FieldLayout() {
   const loadRole = useServerFn(getTradeRole);
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ["trade-role"], queryFn: () => loadRole(), staleTime: 300_000, retry: false });
-  if (data?.role !== "none") return <Outlet />;
+  if (data?.noLogin !== true) return <Outlet />;
   const signOut = async () => { await qc.cancelQueries(); clearTradeCache(); await supabase.auth.signOut(); window.location.replace("/portal"); };
   return (
     <TradePublicShell>

@@ -38,7 +38,7 @@ export function renderTradeInviteEmail(i: { firstName: string | null; business: 
   return { subject: D.subject, html, text };
 }
 
-export type WorkerForAccess = { email: string | null; approval_status: string; removed_at: string | null; trade_role: string; certification_status: string | null };
+export type WorkerForAccess = { email: string | null; approval_status: string; removed_at: string | null; trade_role: string; certification_status: string | null; profile_id?: string | null };
 
 /** Why this worker can't get a sign-in yet, or null. */
 export function tradeAccessBlocker(w: WorkerForAccess, businessApproved: boolean): string | null {
@@ -46,8 +46,9 @@ export function tradeAccessBlocker(w: WorkerForAccess, businessApproved: boolean
   if (w.removed_at) return "This person has been removed from the business.";
   if (w.approval_status !== "approved") return "Approve this person first.";
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test((w.email ?? "").trim())) return "This person needs a valid email.";
-  // Lead Installers, Crew and Electricians never get a login; only Office people do.
-  if (w.trade_role === "installer" || w.trade_role === "electrician") return NO_LOGIN_NEEDED;
+  // Lead Installers, Crew and Electricians never get a new login; only Office people do.
+  // A worker already linked to a login stays recoverable (re-prepare the sign-in link).
+  if (!w.profile_id && (w.trade_role === "installer" || w.trade_role === "electrician")) return NO_LOGIN_NEEDED;
   return null;
 }
 

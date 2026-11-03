@@ -18,7 +18,7 @@ import { installerQuoteLine } from "./installer-quote-status.core";
 import { inHouseTradeBookingText } from "./in-house-message.core";
 import { withoutRetiredInstallDayPhotos } from "./ready-check-chase.core";
 import { early } from "./early-read";
-import { seesMoney, seesPrices, tradeRoleOf } from "./trade-access-role.core";
+import { noLoginFor, seesMoney, seesPrices, tradeRoleOf } from "./trade-access-role.core";
 import { isMissingDbObject } from "./schema-compat.core";
 // Speed (installer screens, Task 6): the job page's modules, imported at module scope (namespaces, as above).
 import * as allocationServer from "./allocation.server";
@@ -86,7 +86,9 @@ export async function tradeContext(userId: string) {
 /** Which kind of person this sign-in is for the trade area (null when it isn't linked to a business: office staff). */
 export async function tradeRoleFor(userId: string) {
   const c = await tradeContext(userId);
-  return c ? { role: c.role, money: c.money } : null;
+  if (c) return { role: c.role, money: c.money, noLogin: false };
+  const { data: mem } = await admin.from("business_members").select("member_role").eq("user_id", userId).eq("active", true);
+  return { role: "none" as const, money: false, noLogin: noLoginFor(mem ?? []) };
 }
 
 /** Review D: bosses see every active assignment for the business; workers only their own. */
