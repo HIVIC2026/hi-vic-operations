@@ -125,7 +125,8 @@ export async function loadOwnerQuoteFacts(
         .from("lead_campaign_responses")
         .select("saved_total, saved_area_m2")
         .eq("job_id", jobId)
-        .maybeSingle(),
+        .maybeSingle()
+        .then((r) => r, () => ({ data: null, error: null })),
     ]))().catch(() => [{ data: null }, { data: null }, { data: null }, { data: null }] as const);
   const [{ data: m }, { data: prod }, { data: asg }, savedRead] = extra as unknown as [
     {
