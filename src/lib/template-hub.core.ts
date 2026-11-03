@@ -435,7 +435,7 @@ const OWNER: TemplateEntry[] = [
     ["P6", "safety_check", "Confirm your safety check", "The O71 link after the electrician completes the PIESA", "P6-piesa-confirm-page.html"],
     ["P3", "install", "Owner's consent form (ESC)", "After the install day is agreed, at least 24 hours before work", "P3-owner-consent-page.html"],
     ["P4", "rebate", "Sign your rebate form (VEEC assignment)", "The O44 / O61 link after the install", "P4-veec-sign-page.html"]] as const).map(([code, step, name, when, file]) =>
-    ENTRY({ id: `owner:${code}`, section: "owner", step, kind: "page", code, name, when, who: "Owner (My job link)", approvalNote: "Jo 24 Oct 2026, decisions 125–130", gate: { kind: "always" },
+    ENTRY({ id: `owner:${code}`, section: "owner", step, kind: "page", code, name, when, who: "Owner (My job link)", approvalNote: code === "P2" ? "Jo 2 Nov 2026, decisions #29/#33 (two ticks, typed name, 30-day line; design mock-up updated to match)" : "Jo 24 Oct 2026, decisions 125–130", gate: { kind: "always" },
       source: { builder: "src/lib/owner-pages.core.ts", fn: code, sender: "src/routes/my-job.$token.tsx" }, design: `docs/templates/owner/${file}`,
       render: () => ({ kind: "file", path: `docs/templates/owner/${file}`, as: "html", note: "Jo's approved page design. The live My job page uses this wording byte-for-byte (owner-pages.core.ts, tested by tests/owner-pages.core.test.ts)." }) })),
   // Owner paperwork (Gate B, current versions)

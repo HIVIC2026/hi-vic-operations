@@ -17,10 +17,12 @@ test('moving an installation does not stale the five-field consent', () => {
 test('all four declarations allow signing before booking', () => {
  expect(ownerConsentBlockers({ status:'awaiting_owner', templateApproved:true, templateVersion:ESC_CONSENT_TEMPLATE_VERSION, scheduledStart:null, nowIso:'2026-11-01T00:00:00Z', input:{signatoryName:owner.name,signatureName:owner.name,authorityType:'owner',accept:true,declarations} })).toEqual([]);
 });
-for (const d of OWNER_DECLARATIONS) test(`quote sitting refuses missing ${d.key}`, () => {
- expect(quoteSittingBlockers({ ownerTick:true, declarations:{...declarations,[d.key]:false} })).toHaveLength(1);
+test('quote sitting refuses a missing tick or a blank name (ESC declarations are no longer asked on the quote page)', () => {
+ expect(quoteSittingBlockers({ tick1:false, tick2:true, typedName:'Jo Owner' })).toHaveLength(1);
+ expect(quoteSittingBlockers({ tick1:true, tick2:false, typedName:'Jo Owner' })).toHaveLength(1);
+ expect(quoteSittingBlockers({ tick1:true, tick2:true, typedName:' ' })).toHaveLength(1);
+ expect(quoteSittingBlockers({ tick1:true, tick2:true, typedName:'Jo Owner' })).toEqual([]);
 });
-test('quote sitting refuses the missing owner tick', () => expect(quoteSittingBlockers({ownerTick:false,declarations})).toHaveLength(1));
 test('date-free consent still requires BOTH signatures 24 hours before installation', () => {
  const c={status:'valid', scheduled_start:null, owner_signed_at:'2026-11-01T00:00:00Z',ap_signed_at:'2026-11-01T01:00:00Z'};
  expect(consentValidityBlockers(c,'2026-11-02T01:00:00Z')).toEqual([]);

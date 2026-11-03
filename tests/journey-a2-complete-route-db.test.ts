@@ -294,7 +294,7 @@ describe("A2 step 4 — the installer completes the A2 Ready Check in Mitti → 
   });
 });
 
-const SIGNING = { signatoryName: "Harriet Journey", authorityType: "owner", signatureName: "Harriet Journey", over18: true, readConsumerInfo: true, acceptAgreement: true, assistance: "none", declarations:{owner_or_authorised:true,details_accurate:true,consent_ap_sends:true,consent_commission_shares:true} };
+const SIGNING = { authorityType: "owner" as const, tick1: true, tick2: true, typedName: "Helen Journey", assistance: "none" as const };
 
 describe("A2 step 5 — the office checks and sends the quote; the owner signs and accepts; the $349 safety check is paid", () => {
   test("only the office can send the held quote; Send issues it once and the owner gets it by email + text", async () => {
@@ -327,27 +327,9 @@ describe("A2 step 5 — the office checks and sends the quote; the owner signs a
     expect(await q("select id from owner_gate_signatures where job_id=$1 and gate='B'",[JOB])).toHaveLength(0);
     const [qq] = await q<{ id: string; version: number }>("select id, version from quotes where job_id=$1 and status='issued'", [JOB]);
     await expect(ol.ownerAcceptQuoteFn({ data: { token, session, quoteId: qq!.id, expectedVersion: qq!.version + 1, signing: SIGNING }, context: META })).rejects.toThrow(/updated since/);
-    await expect(ol.ownerAcceptQuoteFn({ data: { token, session, quoteId: qq!.id, expectedVersion: qq!.version, signing: {...SIGNING,declarations:{...SIGNING.declarations,details_accurate:false}} }, context: META })).rejects.toThrow();
+    await expect(ol.ownerAcceptQuoteFn({ data: { token, session, quoteId: qq!.id, expectedVersion: qq!.version, signing: {...SIGNING,tick2:false} }, context: META })).rejects.toThrow();
     expect(await q("select id from owner_gate_signatures where job_id=$1 and gate='B'",[JOB])).toHaveLength(0);
-    // Fault at the real persistence boundary after record 2: leave gate signatures but no signed ESC/agreement.
-    const originalFrom=admin.from.bind(admin);let interruptConsent=true;
-    admin.from=((table:string)=>{
-      const query=originalFrom(table);
-      if(table==='owner_esc_consents'){
-        const update=query.update.bind(query);
-        query.update=(values:Record<string,unknown>)=>{
-          if(interruptConsent && values.owner_signed_at){interruptConsent=false;throw Error('TEST interruption after record 2');}
-          return update(values);
-        };
-      }
-      return query;
-    }) as typeof admin.from;
-    try {
-      await expect(ol.ownerAcceptQuoteFn({ data: { token, session, quoteId: qq!.id, expectedVersion: qq!.version, signing: SIGNING }, context: META })).rejects.toThrow('TEST interruption after record 2');
-    } finally { admin.from=originalFrom; }
-    expect(await q("select doc_key from owner_gate_signatures where job_id=$1 and gate='B' order by doc_key",[JOB])).toEqual([{doc_key:'payment_terms'},{doc_key:'quote_acceptance'}]);
-    expect(await q("select id from customer_agreements where job_id=$1",[JOB])).toHaveLength(0);
-    expect(await q("select id from owner_esc_consents where job_id=$1 and owner_signed_at is not null",[JOB])).toHaveLength(0);
+    // Task 11: the ESC consent is no longer signed on the quote page (it moves to the confirm-and-pay page, Part 4).
     await ol.ownerAcceptQuoteFn({ data: { token, session, quoteId: qq!.id, expectedVersion: qq!.version, signing: SIGNING }, context: META });
     await settle();
     expect(await ol.ownerAcceptQuoteFn({ data: { token, session, quoteId: qq!.id, expectedVersion: qq!.version, signing: SIGNING }, context: META })).toEqual({ ok: true, outcome: "already accepted" });
@@ -355,8 +337,7 @@ describe("A2 step 5 — the office checks and sends the quote; the owner signs a
     expect(await q("select status from quotes where id=$1", [qq!.id])).toEqual([{ status: "accepted" }]);
     expect(await q("select id from customer_agreements where job_id=$1", [JOB])).toHaveLength(1);
     expect(await q("select doc_key from owner_gate_signatures where job_id=$1 and gate='B' order by doc_key",[JOB])).toEqual([{doc_key:"payment_terms"},{doc_key:"quote_acceptance"}]);
-    const [consent]=await q<{scheduled_start:string|null;owner_signed_at:string|null;owner_declarations:Record<string,boolean>}>("select scheduled_start,owner_signed_at,owner_declarations from owner_esc_consents where job_id=$1",[JOB]);
-    expect(consent?.scheduled_start).toBeNull();expect(consent?.owner_signed_at).toBeTruthy();expect(consent?.owner_declarations).toEqual(SIGNING.declarations);
+    expect(await q("select id from owner_esc_consents where job_id=$1 and owner_signed_at is not null",[JOB])).toHaveLength(0);
     expect(await q("select signed_text from owner_gate_signatures where job_id=$1 and doc_key='quote_acceptance'",[JOB])).toEqual([expect.objectContaining({signed_text:expect.stringContaining("I agree to receive my documents by email.")})]);
 
     expect(await events(JOB, "QUOTE_ACCEPTED")).toHaveLength(1);

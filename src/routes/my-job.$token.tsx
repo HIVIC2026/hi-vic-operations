@@ -9,17 +9,17 @@ import { PIESA_FIXES_NOTE, agreedWithLabel, ownerPriceTitle } from "@/lib/owner-
 import { HOUSE_LEVEL } from "@/lib/owner-house.core";
 import { ownerHeadline } from "@/lib/owner-headlines.core";
 import { gateACard, SPOT_SAVED_PROGRESS, spotSavedLayout, resolveOwnerScreen } from "@/lib/owner-myjob.core";
-import { OWNER_EMAIL_DOCUMENT_CONSENT, quoteSittingBlockers } from '@/lib/owner-quote-sign.core';
+import { quoteSittingBlockers } from '@/lib/owner-quote-sign.core';
 import { ownerPaperworkFn } from "@/lib/owner-gates.functions";
 import { earliestInstall, installDeadline, TWO_HOUR_WINDOWS, visitPill, type OwnerScreen } from "@/lib/owner-myjob.core";
 import { SPOT_FREE, SPOT_PRICE_NOTE, SPOT_RELEASE_LINE, SPOT_WAIT_LINE } from "@/lib/spot-only-copy.core";
-import { PAYMENT_OPTION_SUMMARY, paymentOptionSummary } from "@/lib/payment-gate.core";
-import { howYouPayLines, paymentPlan } from "@/lib/payments.core";
+import { paymentPlan } from "@/lib/payments.core";
+import { QUOTE_CHANGES_FOOTNOTE, QUOTE_CHANGES_HEADING } from "@/lib/quote-changes.core";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { OwnerPaperwork } from "@/components/owner/OwnerPaperwork";
 import { OwnerCodeGate, signBtn } from "@/components/owner/OwnerSign";
-import { ownerAcceptQuoteFn, ownerAgreementFn, ownerBookingStateFn, ownerCardCheckoutFn, ownerChoosePiesaFn, ownerDeclineQuoteFn, ownerChangeInstallDayFn, ownerChangePiesaFn, ownerSignConsentFn, ownerSuggestInstallDaysFn, ownerTakeInstallDayFn, ownerVeecAssignmentFn, ownerSignVeecAssignmentFn, ownerPiesaConfirmFn, ownerSignPiesaConfirmFn, ownerFixesConfirmFn, ownerSignFixesConfirmFn, ownerTakePiesaTimeLinkFn, ownerSuggestPiesaDaysLinkFn, ownerReviewStateFn, ownerReviewStarsFn, ownerReviewFeedbackFn, ownerFixesStateFn, ownerApproveFixesFn, ownerPickFixesTimeFn, ownerRepeatPiesaFn, ownerAcceptRepeatPiesaFn } from "@/lib/owner-link.functions";
+import { ownerAcceptQuoteFn, ownerAgreementFn, ownerQuoteDocumentFn, ownerBookingStateFn, ownerCardCheckoutFn, ownerChoosePiesaFn, ownerDeclineQuoteFn, ownerChangeInstallDayFn, ownerChangePiesaFn, ownerSignConsentFn, ownerSuggestInstallDaysFn, ownerTakeInstallDayFn, ownerVeecAssignmentFn, ownerSignVeecAssignmentFn, ownerPiesaConfirmFn, ownerSignPiesaConfirmFn, ownerFixesConfirmFn, ownerSignFixesConfirmFn, ownerTakePiesaTimeLinkFn, ownerSuggestPiesaDaysLinkFn, ownerReviewStateFn, ownerReviewStarsFn, ownerReviewFeedbackFn, ownerFixesStateFn, ownerApproveFixesFn, ownerPickFixesTimeFn, ownerRepeatPiesaFn, ownerAcceptRepeatPiesaFn } from "@/lib/owner-link.functions";
 import { OWNER_FIXES_COPY, ownerFixesNeedsOwner } from "@/lib/owner-fixes.core";
 import { REVIEW_COPY, REVIEW_FEEDBACK_MAX, parseStars, reviewScreen } from "@/lib/owner-review.core";
 import { DECLINE_REASONS, OWNER_DECLINED_SCREEN, type DeclineReason } from "@/lib/quote-decline.core";
@@ -476,53 +476,65 @@ function ReviewScreen({ token, initialStars }: { token: string; initialStars: nu
 }
 const errText = (e: unknown) => (e instanceof Error ? e.message : "Please try again.");
 
-/** Approved P2 "Say yes" (decisions 126/127; decision 425, Jo 29 Oct 2026): two ticks, owner / acting-for-owner, one
- *  locked button. No typed name and no 18+ tick — the server records the owner's name on file. The 6-digit code is
- *  still asked for when the owner presses the button. */
-function AcceptQuote({ token, quote, rebate, safetyCheck, onAccepted }: { token: string; quote: { id: string; version: number }; rebate: number; safetyCheck: number | null; onAccepted: () => void }) {
+/** Quote page "Say yes" (touchpoints #33, Fix 3, lawyer Q8; Jo 2 Nov 2026): two ticks, a typed name, one locked button.
+ *  The ESC declarations are not asked here (they move to the confirm-and-pay page). The 6-digit code is still asked for
+ *  when the owner presses the button. */
+function AcceptQuote({ token, quote, safetyCheck, onAccepted }: { token: string; quote: { id: string; version: number }; safetyCheck: number | null; onAccepted: () => void }) {
   const [session, setSession] = useSession();
   const [needCode, setNeedCode] = useState(false);
   const load = useServerFn(ownerAgreementFn);
   const accept = useServerFn(ownerAcceptQuoteFn);
+  const getDoc = useServerFn(ownerQuoteDocumentFn);
   const qc = useQueryClient();
   const { data: ag } = useQuery({ queryKey: ["owner-agreement", quote.id], queryFn: () => load({ data: { token, quoteId: quote.id } }) });
   const [f, setF] = useState({ authority: "owner" as "owner" | "authorised_representative" });
-  const [read, setRead] = useState(false); const [agree, setAgree] = useState(false);
-  const [ticks,setTicks] = useState<Partial<Record<OwnerDeclarationKey,boolean>>>({});
+  const [tick1, setTick1] = useState(false); const [tick2, setTick2] = useState(false);
+  const [typedName, setTypedName] = useState("");
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
   const blocked = (ag?.blockers ?? []) as string[];
   const fee = safetyCheck != null ? shortAud(safetyCheck) : "$349";
-  const feeCents = safetyCheck != null ? centsAud(safetyCheck) : "$349.00";
-  const ready = !!ag && blocked.length === 0 && quoteSittingBlockers({ownerTick:agree,declarations:ticks}).length === 0;
+  const ready = !!ag && blocked.length === 0 && quoteSittingBlockers({ tick1, tick2, typedName }).length === 0;
+  const openDoc = async (doc: "agreement" | "rights") => {
+    setErr("");
+    try {
+      const d = await getDoc({ data: { token, quoteId: quote.id, doc } });
+      if (!d) { setErr("That document isn't ready yet. Please try again soon."); return; }
+      const bytes = Uint8Array.from(atob(d.base64), (c) => c.charCodeAt(0));
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+      a.target = "_blank"; a.download = d.filename; a.rel = "noopener"; a.click();
+    } catch (e) { setErr(errText(e)); }
+  };
   const sign = async () => {
     if (!session) { setNeedCode(true); return; }
     setErr(""); setBusy(true);
     try { await completeOwnerQuoteAcceptance(
-      () => accept({ data: { token, session, quoteId: quote.id, expectedVersion: quote.version, signing: { authorityType: f.authority, readConsumerInfo: agree, acceptAgreement: agree, assistance: "none", declarations:{owner_or_authorised:ticks.owner_or_authorised === true,details_accurate:ticks.details_accurate === true,consent_ap_sends:ticks.consent_ap_sends === true,consent_commission_shares:ticks.consent_commission_shares === true} } } }),
+      () => accept({ data: { token, session, quoteId: quote.id, expectedVersion: quote.version, signing: { authorityType: f.authority, tick1, tick2, typedName: typedName.trim(), assistance: "none" } } }),
       onAccepted,
       () => qc.invalidateQueries({ queryKey: ["my-job", token] }),
     ); }
     catch (e) { setErr(errText(e)); } finally { setBusy(false); }
   };
+  const link = "font-bold text-estimate-blue underline-offset-2";
   return (
     <div data-testid="say-yes" className="mt-7 border-t-2 border-estimate-navy pt-5">
       <p className="text-xs font-bold tracking-[0.1em] text-estimate-logo-green">{P2.sayYes}</p>
-      <h2 className="mt-1 font-display text-[21px] font-extrabold">Sign your quote and consent</h2>
-      <TickCard on={agree} set={setAgree} title={`${P2.tick1} ${OWNER_EMAIL_DOCUMENT_CONSENT}`} sub={P2.tick2Sub(fee)} read="Quote, terms and consumer information" readBody={ag ? <>{ag.agreementWording?.body ?? ''}{'\n\n'}{ag.consumerRights?.body ?? ''}{'\n\n'}{ag.paymentTerms ?? ''}</> : 'Loading…'} />
-      <SectionTitle>Section 1: Information to be shared</SectionTitle>
-      {ag?.section1 && <FactRows rows={P3.rows.map(([k,label]) => ({label,value:ag.section1[k] || '—'}))} />}
-      <SectionTitle>Section 2: Declaration by owner</SectionTitle>
-      <p>I declare that:</p>
-      {OWNER_DECLARATIONS.map(d => <TickCard key={d.key} on={ticks[d.key] === true} set={b=>setTicks({...ticks,[d.key]:b})} title={d.text} bold={false} />)}
-      {blocked.length > 0 && <p role="alert" className="mt-3 rounded-[12px] bg-estimate-blush p-3 text-sm font-semibold">{blocked.join(" ")}</p>}
+      <h2 className="mt-1 font-display text-[21px] font-extrabold">{P2.twoTicks}</h2>
+      <TickCard on={tick1} set={setTick1} title={<>{P2.tick1} <span className="font-normal text-estimate-sub">{P2.attachedNote}</span></>}
+        sub={<><button type="button" className={link} onClick={(e) => { e.preventDefault(); void openDoc("agreement"); }}>{P2.agreementLink}</button> · <button type="button" className={link} onClick={(e) => { e.preventDefault(); void openDoc("agreement"); }}>{P2.paymentTermsLink}</button> · <button type="button" className={link} onClick={(e) => { e.preventDefault(); void openDoc("rights"); }}>{P2.rightsLink}</button></>} />
+      <TickCard on={tick2} set={setTick2} title={P2.tick2} bold={false} />
       <section className="mt-[18px] rounded-[14px] border border-estimate-line bg-card px-4 py-3.5">
         <AuthorityChoice value={f.authority} onChange={(authority) => setF({ ...f, authority })} />
       </section>
+      <TypedField label={P2.signLabel} value={typedName} onChange={setTypedName} placeholder={P2.typeHere} italic autoComplete="name" />
+      <SmallNote>{P2.signSub}</SmallNote>
+      <p className="mt-4 text-[13px] leading-relaxed text-estimate-sub">{P2.howYouPayFor(fee)}</p>
+      <p className="mt-2 text-[13px] leading-relaxed text-estimate-sub">{P2.timing}</p>
+      {blocked.length > 0 && <p role="alert" className="mt-3 rounded-[12px] bg-estimate-blush p-3 text-sm font-semibold">{blocked.join(" ")}</p>}
       {needCode && !session && <div className="mt-4"><OwnerCodeGate token={token} onVerified={(s) => { setSession(s); setNeedCode(false); }} /></div>}
       {err && <p role="alert" className="mt-3 text-sm font-semibold text-destructive">{err}</p>}
-      <LockedButton ready={ready} busy={busy} busyLabel={P2.signing} onClick={() => void sign()}>Sign</LockedButton>
+      <LockedButton ready={ready} busy={busy} busyLabel={P2.signing} onClick={() => void sign()}>{P2.button(fee)}</LockedButton>
       {!ready && <LockHint>{P2.lockHint}</LockHint>}
-      <SmallNote>{P2.payNote(fee)}</SmallNote>
     </div>
   );
 }
@@ -781,6 +793,13 @@ function QuoteScreen({ v, token }: { v: View; token: string }) {
           <p className="mt-3 border-t border-estimate-line pt-3 text-[13px] leading-relaxed text-estimate-sub">{v.address && <>{v.address}<br /></>}{P2.measured}</p>
         </div>
       </section>
+      {q.validLine && <p data-testid="quote-valid-line" className="text-center text-[13px] font-semibold text-estimate-sub">{q.validLine}</p>}
+      {q.changes.length > 0 && <section data-testid="quote-changes" className="rounded-[14px] bg-estimate-mist px-4 py-3.5">
+        <h2 className="text-[15px] font-bold">{QUOTE_CHANGES_HEADING}</h2>
+        <p className="mt-1 text-right text-xs text-estimate-sub">Estimate → Quote</p>
+        <ul>{q.changes.map((r: { label: string; estimate: string; quote: string }) => <li key={r.label} className="flex items-baseline justify-between gap-2.5 border-t border-estimate-line py-2.5 text-sm"><span>{r.label}</span><span className="tabular-nums">{r.estimate} → <b>{r.quote}</b></span></li>)}</ul>
+        <p className="mt-1 text-[13px] text-estimate-sub">{QUOTE_CHANGES_FOOTNOTE}</p>
+      </section>}
       <section className="rounded-[14px] border border-estimate-line bg-card px-4 pt-3.5 pb-1.5">
         <h2 className="mb-1 text-[15px] font-bold">{P2.itemsTitle}</h2>
         <ul data-testid="quote-lines">
@@ -793,15 +812,8 @@ function QuoteScreen({ v, token }: { v: View; token: string }) {
         <p className="border-t border-estimate-line py-2 text-[13px] leading-relaxed text-estimate-sub">{P2.notIncluded}</p>
       </section>
       <FixesNote />
-      <details className="rounded-[14px] border border-estimate-line bg-card px-4 py-3">
-        <summary className="cursor-pointer text-sm font-bold">How you can pay</summary>
-        <ul className="mt-2 space-y-1 text-sm" data-testid="how-you-pay">
-          {howYouPayLines(paymentPlan({ quoteTotalCents: Math.round(q.total * 100), safetyCheckCents: q.split ? Math.round(q.split.deposit * 100) : null })).map((l) => <li key={l}>{l}</li>)}
-        </ul>
-        <p className="mt-2 text-xs text-estimate-sub">{q.split ? paymentOptionSummary(q.split.deposit) : PAYMENT_OPTION_SUMMARY}</p>
-      </details>
       {ownerQuoteCanAccept(q, acknowledged)
-        ? <div><AcceptQuote token={token} quote={q} rebate={q.rebate} safetyCheck={q.split?.deposit ?? null} onAccepted={() => {
+        ? <div><AcceptQuote token={token} quote={q} safetyCheck={q.split?.deposit ?? null} onAccepted={() => {
           setAcknowledged({ id: q.id, version: q.version });
           qc.setQueryData<View | null>(["my-job", token], (current: View | null | undefined) => current?.quote?.id === q.id && current.quote.version === q.version
             ? { ...current, quote: { ...current.quote, status: "accepted" } } : current);

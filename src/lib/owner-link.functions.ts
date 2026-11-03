@@ -77,6 +77,30 @@ export const ownerAgreementFn = createServerFn({ method: "POST" })
     );
   });
 
+/** The quote page's PDF links (decision #33): the Customer Agreement + payment terms (one PDF) or the Statement of rights, the
+ *  same files attached to the quote email. Read-only, link token only. `null` = not ready (the page says so; nothing is guessed). */
+export const ownerQuoteDocumentFn = createServerFn({ method: "POST" })
+  .middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token, quoteId: z.string().uuid(), doc: z.enum(["agreement", "rights"]) }).parse(d))
+  .handler(async ({ data }) => {
+    const { resolveOwnerJob } = await import("./owner-myjob.server");
+    const v = await resolveOwnerJob(data.token);
+    if (!v?.quote || v.quote.id !== data.quoteId) throw new Error("Quote not found");
+    const jobId = await ownerJobId(data.token);
+    if (!jobId) return null;
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const { data: job } = await admin.from("jobs").select("job_number, property_id, owners(full_name)").eq("id", jobId).single();
+    if (!job) return null;
+    const { loadOwnerQuoteFacts, quoteEmailDocuments } = await import("./quote-ready-notify.server");
+    const ownerName = (job.owners as { full_name: string | null } | null)?.full_name ?? null;
+    const facts = await loadOwnerQuoteFacts(jobId, data.quoteId, ownerName, job.property_id ?? null);
+    if (!facts.input) return null;
+    const docs = await quoteEmailDocuments(jobId, data.quoteId, facts.input, ownerName, job.job_number ?? null);
+    if (!docs.attachments) return null;
+    const a = docs.attachments[data.doc === "agreement" ? 0 : 1];
+    return a ? { filename: a.filename, base64: a.content } : null;
+  });
+
 export const ownerAcceptQuoteFn = createServerFn({ method: "POST" })
   .middleware([withRequestMeta])
   .inputValidator((d) =>
@@ -86,12 +110,13 @@ export const ownerAcceptQuoteFn = createServerFn({ method: "POST" })
         session,
         quoteId: z.string().uuid(),
         expectedVersion: z.number().int(),
-        // Decision 425 (Jo 29 Oct 2026): no typed name and no 18+ tick — the owner's name on file is recorded.
+        // Touchpoint #33 + lawyer Q8 (Jo 2 Nov 2026): two ticks and a typed name. The ESC consent ticks move to the
+        // confirm-and-pay page (Part 4); the typed name is recorded by Task 12.
         signing: z.object({
           authorityType: z.enum(["owner", "authorised_representative"]),
-          readConsumerInfo: z.boolean(),
-          acceptAgreement: z.boolean(),
-          declarations: z.object({ owner_or_authorised:z.boolean(), details_accurate:z.boolean(), consent_ap_sends:z.boolean(), consent_commission_shares:z.boolean() }),
+          tick1: z.boolean(),
+          tick2: z.boolean(),
+          typedName: z.string().max(200),
           assistance: z.enum(["none", "interpreter", "support_understanding", "both"]),
         }),
       })
@@ -101,7 +126,7 @@ export const ownerAcceptQuoteFn = createServerFn({ method: "POST" })
     const { ownerSession } = await import("./owner-verify.server");
     const s = await ownerSession(data.token, data.session);
     const { quoteSittingBlockers } = await import('./owner-quote-sign.core');
-    const errors = quoteSittingBlockers({ ownerTick:data.signing.acceptAgreement && data.signing.readConsumerInfo, declarations:data.signing.declarations });
+    const errors = quoteSittingBlockers({ tick1: data.signing.tick1, tick2: data.signing.tick2, typedName: data.signing.typedName });
     if (errors.length) throw new Error(errors.join(' '));
     const { respondToQuoteImpl } = await import("./portal.functions");
     const { WorkflowError } = await import("./workflow.server");
@@ -111,7 +136,8 @@ export const ownerAcceptQuoteFn = createServerFn({ method: "POST" })
         accept: true,
         consent: true,
         expectedVersion: data.expectedVersion,
-        signing: data.signing,
+        // Tick 1 is the old "read" + "accept" in one (it covers the agreement, payment terms, rights and documents by email).
+        signing: { authorityType: data.signing.authorityType, readConsumerInfo: data.signing.tick1, acceptAgreement: data.signing.tick1, assistance: data.signing.assistance },
       },
       {
         userId: s.userId,
@@ -127,10 +153,7 @@ export const ownerAcceptQuoteFn = createServerFn({ method: "POST" })
           const pkg = await buildAcceptancePackage(quoteId);
           const { signGateDoc,assertQuoteSittingWording } = await import('./owner-gates.server');
           await assertQuoteSittingWording(jobId);
-          // Prepare date-free consent before any signature writes: pending-schema failures leave the quote unsigned.
-          await (await import('./consent.server')).prepareQuoteConsent({jobId,actorId:s.userId,input:{signatoryName:pkg.consumer.name,signatureName:pkg.consumer.name,authorityType:data.signing.authorityType,accept:true,declarations:data.signing.declarations}});
           for (const key of ['quote_acceptance','payment_terms'] as const) await signGateDoc({jobId,key,signatoryName:pkg.consumer.name,ticked:true,answers:{},method:'link_code',signedBy:s.userId,ip:context.ip,userAgent:context.userAgent,verified:{channel:s.channel,destination:s.destination,codeId:s.codeId},quoteSittingKey:`${quoteId}:${version}`});
-          await (await import('./consent.server')).signOwnerConsent({jobId,actorId:s.userId,ip:context.ip,userAgent:context.userAgent,input:{signatoryName:pkg.consumer.name,signatureName:pkg.consumer.name,authorityType:data.signing.authorityType,accept:true,declarations:data.signing.declarations}});
         },
       },
     );

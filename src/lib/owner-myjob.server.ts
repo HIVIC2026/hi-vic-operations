@@ -95,6 +95,19 @@ export async function resolveOwnerJob(token: unknown) {
     agreed = { agreed: true, installerName: b?.trading_name || b?.name || null };
   }
   const owner = j.owners as { full_name: string | null; email?: string | null; phone?: string | null } | null;
+  // Quote page (#29/#33): the "What's changed" rows and the 30-day valid line. Best-effort presentation: a failed read shows
+  // neither (never a wrong date or number); 14-day quotes keep "price held until" and have no valid line.
+  let quoteChanges: { label: string; estimate: string; quote: string }[] = [];
+  let quoteValid: { line: string; until: string } | null = null;
+  if (quote && quoteOpen) {
+    try {
+      const { loadOwnerQuoteFacts } = await import("./quote-ready-notify.server");
+      const { quoteValidLine } = await import("./quote-expiry.core");
+      const facts = await loadOwnerQuoteFacts(jobId, quote.id, owner?.full_name ?? null, null);
+      quoteChanges = facts.input?.changes ?? [];
+      if (facts.input?.validDays === 30 && facts.input.validUntil) quoteValid = { line: quoteValidLine(facts.input.validUntil), until: facts.input.validUntil.toISOString() };
+    } catch (e) { console.error("owner quote page: changes/valid line unavailable", (e as Error).message); }
+  }
   const total = quote ? n(quote.customer_total_inc_gst) : null;
   // Decisions 139/140/141: what is due now, how to pay it (card for the card steps), bank details + reference. Batch 3b:
   // each step shows its own amount, and the reference is the due step's own invoice (fixes / repeat check have their own).
@@ -148,8 +161,8 @@ export async function resolveOwnerJob(token: unknown) {
     address: formatPropertyAddress(j.properties as never) || null, stage, hero, action, trade: upcoming ? trade : null,
     visit: upcoming ? { kind: upcoming.kind, startsAt: upcoming.scheduled_start } : null, progress,
     numbers: { rebate, cost: total, paid }, agreed,
-    // heldUntil: the same 14-day "price held" date the action card already uses (approved P2 page shows it in the sub line).
-    quote: quote ? { id: quote.id, status: quote.status, accepted_at: quote.accepted_at, label: quote.option_label, total, rebate: n(quote.veec_discount_inc_gst), version: quote.version, heldUntil: quoteOpen?.expiresAt ?? null, lines: [...(quote.quote_items ?? [])].sort((a, b) => a.sort - b.sort).map((i) => ({ description: currentFeeWording(i.description), amount: n(i.line_total_inc_gst) })), split: total != null ? splitForOption(total, safetyCheckIncGstFor({ lines: quote.quote_items ?? [], settingIncGst: ws?.safety_check_payment_inc_gst ?? null })) : null } : null,
+    // heldUntil: the "price held" date (30 days for a 30-day quote, else the 14-day date the action card already uses (approved P2 page shows it in the sub line).
+    quote: quote ? { id: quote.id, status: quote.status, accepted_at: quote.accepted_at, label: quote.option_label, total, rebate: n(quote.veec_discount_inc_gst), version: quote.version, heldUntil: quoteValid?.until ?? quoteOpen?.expiresAt ?? null, validLine: quoteValid?.line ?? null, changes: quoteChanges, lines: [...(quote.quote_items ?? [])].sort((a, b) => a.sort - b.sort).map((i) => ({ description: currentFeeWording(i.description), amount: n(i.line_total_inc_gst) })), split: total != null ? splitForOption(total, safetyCheckIncGstFor({ lines: quote.quote_items ?? [], settingIncGst: ws?.safety_check_payment_inc_gst ?? null })) : null } : null,
     payment,
     // Approved P3 page (decision 128): Section 1 is prefilled from the owner + property, never typed again by the owner.
     consent: consent ? { scheduledStart: null, section1: section1FromFacts({ owner: { name: owner?.full_name ?? null, email: owner?.email ?? null, phone: owner?.phone ?? null }, premises_address: formatPropertyAddress(j.properties as never) }) } : null,

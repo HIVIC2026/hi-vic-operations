@@ -87,6 +87,15 @@ export const WORKFLOW_DECISIONS = {
     documentsMissing: "held_with_office_note_never_sent_without_them",
     onlyThirtyDayQuotes: true,
   },
+  // Decisions #29/#33, Fix 3, lawyer Q8 (Jo 2 Nov 2026): the quote page (owner-pages.core P2, my-job.$token.tsx AcceptQuote).
+  quotePage: {
+    ticks: 2,
+    typedNameRequired: true,
+    escDeclarationsOnQuotePage: false,
+    buttonLockedUntil: "both_ticks_and_typed_name",
+    payLine: "$349 now (PIESA), 10% to book the install day, the rest on install day",
+    whatsChangedBox: "only_changed_rows_hidden_when_none",
+  },
   quoteValidity: {
     validDays: 30,
     beforeChangeValidDays: 14,
