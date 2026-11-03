@@ -121,10 +121,12 @@ export async function loadJobPage(jobId: string, testOffice = false) {
   const lastHeard = lastHeardFromUs(contacts);
   const { emailBouncedSet } = await import("./office-lists.server");
   const emailBounced = (await emailBouncedSet([jobId])).has(jobId);
+  const dnc = await (await import("./do-not-contact.server")).readDoNotContact(jobId);
   return {
     now,
     emailBounced,
     header: {
+      doNotContact: dnc.on, doNotContactStop: dnc.source === "sms_stop",
       jobId, jobNumber: job.job_number, isTest: job.source === "qa_test", ownJob, installerName: installer, stage: job.stage, deleted: !!job.deleted_at,
       inHouseHeld: !testOffice && !!facts?.inHouse,
       ownerName: owner?.full_name ?? null, surname: surnameOf(owner?.full_name), phone: owner?.phone ?? null, email: owner?.email ?? null,

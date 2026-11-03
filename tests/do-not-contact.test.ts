@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, mock, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { doNotContactOn, doNotContactBlocks, unsubscribeBlocks } from "../src/lib/do-not-contact.core";
 import { smsBlocker, SMS_DO_NOT_CONTACT } from "../src/lib/sms.core";
@@ -32,4 +32,56 @@ test("smsBlocker refuses owner texts, not partner texts", () => {
 });
 test("guarded owner email reads the flag before sending", () => {
   expect(readFileSync("src/lib/owner-email-send.server.ts", "utf8")).toContain("doNotContactBlocks(");
+});
+
+// ---- Task 2: the office sets / clears the flag (fake database) ----
+type Ev = { job_id: string; actor_id: string | null; event_type: string; summary: string; details: Record<string, unknown>; created_at: string };
+const events: Ev[] = [];
+const admins = new Set(["office-1"]);
+let tick = 0;
+const fake = {
+  rpc: async (fn: string, a: { _user_id: string; _role: string }) => ({ data: fn === "has_role" && a._role === "admin" && admins.has(a._user_id), error: null }),
+  from: (t: string) => {
+    const preds: ((r: Ev) => boolean)[] = [];
+    const b: Record<string, unknown> & PromiseLike<unknown> = {
+      select: () => b, order: () => b, limit: () => b,
+      eq: (c: string, v: unknown) => { preds.push((r) => (r as never as Record<string, unknown>)[c] === v); return b; },
+      in: (c: string, v: unknown[]) => { preds.push((r) => v.includes((r as never as Record<string, unknown>)[c])); return b; },
+      insert: (p: Omit<Ev, "created_at">) => { if (t === "workflow_events") events.push({ ...p, created_at: new Date(Date.parse("2026-11-10T00:00:00Z") + ++tick * 1000).toISOString() }); return b; },
+      update: () => b,
+      then: (res: (v: unknown) => unknown) => res({ data: t === "workflow_events" ? events.filter((e) => preds.every((p) => p(e))) : [], error: null }),
+    };
+    return b;
+  },
+};
+mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: fake }));
+mock.module("../src/integrations/supabase/client.server", () => ({ supabaseAdmin: fake }));
+
+test("office sets once, clears once, repeat is a no-op", async () => {
+  const { setDoNotContact } = await import("../src/lib/do-not-contact.server");
+  expect(await setDoNotContact("job-1", "office-1", true, "Rang to say stop")).toEqual({ on: true });
+  expect(events.filter((e) => e.event_type === "owner_do_not_contact_set")).toHaveLength(1);
+  expect(events[0].details.note).toBe("Rang to say stop");
+  await setDoNotContact("job-1", "office-1", true, null);
+  expect(events).toHaveLength(1);
+  expect(await setDoNotContact("job-1", "office-1", false, null)).toEqual({ on: false });
+  expect(events.map((e) => e.event_type)).toEqual(["owner_do_not_contact_set", "owner_do_not_contact_cleared"]);
+  await setDoNotContact("job-1", "office-1", false, null);
+  expect(events).toHaveLength(2);
+});
+test("only the office can change it", async () => {
+  const { setDoNotContact } = await import("../src/lib/do-not-contact.server");
+  await expect(setDoNotContact("job-1", "someone-else", true, null)).rejects.toThrow("Only the office can change this.");
+  expect(events).toHaveLength(2);
+});
+test("the server function is a literal office-only chain", () => {
+  const src = readFileSync("src/lib/do-not-contact.functions.ts", "utf8");
+  expect(src).toContain("createServerFn({ method: \"POST\" }).middleware([requireSupabaseAuth])");
+  expect(src).toContain("requireAdmin(");
+});
+test("the office job page reads the flag and shows the button", () => {
+  expect(readFileSync("src/lib/office-job-page.server.ts", "utf8")).toContain("doNotContact");
+  const ui = readFileSync("src/components/portal/office-job.tsx", "utf8");
+  expect(ui).toContain("Allow contact again");
+  expect(ui).toContain("owner replied STOP");
 });

@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { MenuPanel } from "@/components/portal/kit";
+import { Btn, MenuPanel } from "@/components/portal/kit";
 import { useAction } from "@/hooks/use-me";
 import { CARD_STATE_LABEL, type CardKey, type StageCard } from "@/lib/office-stage-cards.core";
 import { CONTACT_CHANNELS, channelCounts, filterContacts, type ContactChannel, type ContactRow } from "@/lib/contact-history.core";
@@ -19,6 +19,7 @@ import { fileChecklist } from "@/lib/job-file-checklist.core";
 import { PAYMENT_STEP_LABEL, type PaymentStep } from "@/lib/payments.core";
 import { safetyCheckShort } from "@/lib/safety-check-amount.core";
 import { cancelOfficeJob, clearOfficeEmailBounce, getOfficeJobMoney, holdOfficeJob, logOfficeCallOrNote, markOfficeJobTest, reopenOfficeJob } from "@/lib/office-screens.functions";
+import { setDoNotContactFn } from "@/lib/do-not-contact.functions";
 import { bulkJobAction } from "@/lib/bulk.functions";
 import { retryInvoiceFn } from "@/lib/office-money.functions";
 import { invoiceSlotLabel } from "@/lib/office-money.core";
@@ -66,6 +67,7 @@ const card = "rounded-[18px] border border-line bg-paper p-5 shadow-card";
 
 /* ---------------- Header (decision 223) ---------------- */
 export function JobHeader({ h, more }: { h: Header; more: ReactNode }) {
+  const setDnc = useAction(setDoNotContactFn);
   return (
     <header className={cn(card, "mb-4")} data-why="decision 218 header; 216 split address + Last heard from us; 207 permission wording">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -76,6 +78,7 @@ export function JobHeader({ h, more }: { h: Header; more: ReactNode }) {
             <span className="rounded-full bg-mist px-2.5 py-0.5 text-[11px] font-semibold text-hiv-blue">{h.ownJob ? `Installer's own · ${h.installerName ?? "installer"}` : "Our lead"}</span>
             {h.statusPill && <span className={cn("rounded-full px-2.5 py-0.5 text-[11px] font-semibold", h.stage === "cancelled" ? "bg-pink text-rose" : "bg-mint text-hiv-green")}>{h.statusPill}</span>}
             {h.isTest && <span className="rounded-full bg-warning-soft px-2.5 py-0.5 text-[11px] font-bold">TEST</span>}
+            {h.doNotContact && <span className="rounded-full bg-pink px-2.5 py-0.5 text-[11px] font-semibold text-rose">Do not contact{h.doNotContactStop ? " · owner replied STOP" : ""}</span>}
             {h.lifeSupport && <span className="rounded-full bg-pink px-2.5 py-0.5 text-[11px] font-semibold text-rose">Life support</span>}
             {h.installBy && <span className="rounded-full bg-pink px-2.5 py-0.5 text-[11px] font-semibold text-rose">Install by {day(h.installBy)}</span>}
             {h.escDue && <span className="rounded-full bg-warning-soft px-2.5 py-0.5 text-[11px] font-semibold">ESC notice due {dayTime(h.escDue)}</span>}
@@ -89,6 +92,7 @@ export function JobHeader({ h, more }: { h: Header; more: ReactNode }) {
           <p className="mt-2 text-xs text-sub">
             {h.sourceLabel} {day(h.receivedAt)} · {h.permissionAt ? `permission to contact given ${day(h.permissionAt)}` : h.permissionState === "declined" ? "permission to contact NOT given" : "no permission to contact recorded"} · Last heard from us: {h.lastHeard ? `${dayTime(h.lastHeard.at)} · ${h.lastHeard.channel.toLowerCase()}` : "never"}
           </p>
+          <div className="mt-2"><Btn tone="secondary" onClick={() => void setDnc({ jobId: h.jobId, on: !h.doNotContact }, h.doNotContact ? "Contact allowed again" : "Marked do not contact")}>{h.doNotContact ? "Allow contact again" : "Do not contact"}</Btn></div>
           {h.deleted && <p role="status" className="mt-2 rounded-[10px] bg-pink px-3 py-2 text-sm font-semibold text-rose">This job is deleted. It is hidden from every list; restore it from More › Settings › Deleted jobs.</p>}
         </div>
         {more}
