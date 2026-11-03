@@ -6,14 +6,20 @@ import { useServerFn } from "@tanstack/react-start";
 import { ChevronRight } from "lucide-react";
 import { TradeShell, aud, card } from "@/components/trade/TradeShell";
 import { NowPanel, Pill, btnClass } from "@/components/portal/kit";
-import { useMemo, useState, type ReactNode } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState, type ReactNode } from "react";
 import { StatusLineView } from "@/components/trade/job-status";
 import { getTradeHome,getInHouseBookingList } from "@/lib/trade-view.functions";
-import { ELECTRICIAN_WORK_WORDS, dayTile, goneIn, tradeGreeting } from "@/lib/trade-view.core";
+// Speed (portal speed step 2B): the home's words come from a small import-free module (trade-view.core re-exports them).
+import { ELECTRICIAN_WORK_WORDS, dayTile, goneIn, tradeGreeting } from "@/lib/trade-home-words.core";
 import { electricianYourJobs } from "@/lib/work-places.core";
 import { GROUP_LABEL, HOME_EMPTY, doneSub, homeIsEmpty, monthStripWords, offerPanelWords, offersListView, sourceLabel, type InstallerHomeRow } from "@/lib/installer-home.core";
-import { InHouseBookingRow } from '@/components/trade/InHouseBookingCard';
 import { inHouseVisitForStage } from '@/lib/in-house-message.core';
+// Speed (portal speed step 2B): the in-house booking row (and its booking, team and date rules) is fetched only when an
+// in-house business owner has a job to book — after the Team/deposit check below comes back, which already shows
+// "Checking your Team and deposit before booking." until then; the same line stands in while the row's code arrives.
+const loadInHouseBookingRow = () => import('@/components/trade/InHouseBookingCard');
+const InHouseBookingRow = lazy(() => loadInHouseBookingRow().then((m) => ({ default: m.InHouseBookingRow })));
+const CHECKING_TEAM = <p>Checking your Team and deposit before booking.</p>;
 
 export const Route = createFileRoute("/_authenticated/field/")({
   head: () => ({ meta: [{ title: "My work – Home Insulation Victoria" }, { name: "description", content: "New job offers, what needs you and what's coming up." }, { property: "og:title", content: "My work – Home Insulation Victoria" }, { property: "og:description", content: "New job offers, what needs you and what's coming up." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
@@ -182,6 +188,7 @@ function JobGroup({ group, rows, empty, emptyAction }: { group: "action" | "prog
   const load=useServerFn(getInHouseBookingList);
   const ids=rows.filter(j=>group==='action'&&j.boss&&j.inHouseDispatch==='in_house'&&inHouseVisitForStage(j.stage)).map(j=>j.jobId);
   const context=useQuery({queryKey:['in-house-booking-list',ids],queryFn:()=>load({data:{jobIds:ids}}),enabled:ids.length>0,retry:false});
+  useEffect(() => { if (ids.length) loadInHouseBookingRow().catch(() => undefined); }, [ids.length]); // the row's code starts loading alongside the check
   return (
     <section data-job-group={group}>
       <h2 className={`${EYEBROW} border-b border-line pb-2`}>{GROUP_LABEL[group]}{rows.length > 0 && <span className="font-medium normal-case tracking-normal"> · {rows.length}</span>}</h2>
@@ -192,7 +199,7 @@ function JobGroup({ group, rows, empty, emptyAction }: { group: "action" | "prog
             <span className="mt-0.5 block text-[13px] text-sub">{[j.jobNumber, sourceLabel(j.channel)].filter(Boolean).join(" · ")}</span>
             <span data-card-line className={`mt-1.5 block text-sm ${group === "action" ? "font-medium text-hiv-blue" : "text-ink"}`}>{j.next}</span>
           </span>{CHEVRON}
-        </Link>{ids.includes(j.jobId)&&(context.isError?<p role="alert">Could not check your Team or deposit. Booking stays unavailable until those records can be checked.</p>:context.data?.[j.jobId]?<InHouseBookingRow jobId={j.jobId} context={context.data[j.jobId]} kind={j.stage==='installation_scheduling'?'installation':j.stage==='rectification_scheduling'?'rectification':inHouseVisitForStage(j.stage)==='PIESA'?'assessment':'ready_check'}/>:<p>Checking your Team and deposit before booking.</p>)}</div>
+        </Link>{ids.includes(j.jobId)&&(context.isError?<p role="alert">Could not check your Team or deposit. Booking stays unavailable until those records can be checked.</p>:context.data?.[j.jobId]?<Suspense fallback={CHECKING_TEAM}><InHouseBookingRow jobId={j.jobId} context={context.data[j.jobId]} kind={j.stage==='installation_scheduling'?'installation':j.stage==='rectification_scheduling'?'rectification':inHouseVisitForStage(j.stage)==='PIESA'?'assessment':'ready_check'}/></Suspense>:CHECKING_TEAM)}</div>
       )) : <p className="py-3 text-sm text-sub">{empty}</p>}
       {!rows.length && emptyAction}
     </section>
