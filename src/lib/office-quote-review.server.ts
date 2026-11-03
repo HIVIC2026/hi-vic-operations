@@ -80,8 +80,8 @@ export async function officeQuoteBlockers(
 }
 
 /** Office "Send quote" (an authenticated button). */
-export async function sendOfficeReviewedQuote(jobId: string, quoteId: string, actorId: string) {
-  return releaseQuoteToOwner(jobId, quoteId, actorId, "office");
+export async function sendOfficeReviewedQuote(jobId: string, quoteId: string, actorId: string, mainOnly = false) {
+  return releaseQuoteToOwner(jobId, quoteId, actorId, "office", mainOnly);
 }
 
 /** One guarded release for both triggers: the Office button and (Jo 24 Oct) the installer marking the Mitti
@@ -91,6 +91,7 @@ export async function releaseQuoteToOwner(
   quoteId: string,
   actorId: string | null,
   how: "office" | "auto",
+  mainOnly = false,
 ) {
   const { data: quote, error } = await admin
     .from("quotes")
@@ -118,20 +119,19 @@ export async function releaseQuoteToOwner(
       (error) => ({ ok: false as const, error }),
     ),
   ]);
-  if (blockers.length) throw new WorkflowError(blockers.join(" • "));
-  // Jo 4 Nov follow-up: the main option and its held "thicker too" companion go to the owner together; each passes
-  // the same checks first, then ONE owner notification.
-  const { optionGroupFor } = await import("./ceiling-layout.core");
+  // Jo 4 Nov: the main option and its "thicker too" companion go to the owner together; a held companion blocks Send
+  // unless the office clearly chose "Send main only" (the companion then stays held). ONE owner notification.
+  const { optionGroupFor, optionSendDecision } = await import("./ceiling-layout.core");
   const group = optionGroupFor(quote.option_code).filter((c) => c !== quote.option_code);
   const { data: siblingRows, error: sbe } = group.length
-    ? await admin.from("quotes").select("id, job_id, kind, status, sent_at, release_state, release_hold_reason, created_at, option_code").eq("job_id", jobId).eq("kind", quote.kind).eq("status", "draft").is("sent_at", null).in("option_code", group)
+    ? await admin.from("quotes").select("id, job_id, kind, status, sent_at, release_state, release_hold_reason, created_at, option_code, option_label").eq("job_id", jobId).eq("kind", quote.kind).eq("status", "draft").is("sent_at", null).in("option_code", group)
     : { data: [], error: null };
   if (sbe) throw new WorkflowError("The other quote option could not be checked.");
-  const siblings = (siblingRows ?? []).filter((s) => quoteNeedsOfficeReview(s));
-  for (const s of siblings) {
-    const sbl = await officeQuoteBlockers(jobId, s);
-    if (sbl.length) throw new WorkflowError(`${s.option_code}: ${sbl.join(" • ")}`);
-  }
+  const candidates = (siblingRows ?? []).filter((s) => quoteNeedsOfficeReview(s));
+  const companions = await Promise.all(candidates.map(async (s) => ({ row: s, label: s.option_label ?? s.option_code ?? "Other option", blockers: await officeQuoteBlockers(jobId, s) })));
+  const decision = optionSendDecision({ mainBlockers: blockers, companions, mainOnly: mainOnly && how === "office" });
+  if (!decision.ok) throw new WorkflowError(decision.reason);
+  const siblings = decision.releaseCompanions ? companions.map((c) => c.row) : [];
   if (!permission.allowed) throw permission.error;
   // Jo 24 Oct: release only when the owner can actually accept it — right stage, invoicing settled, and a secure link.
   if (st?.stage === "ready_check_complete") {
@@ -200,7 +200,7 @@ export async function releaseQuoteToOwner(
       actorId,
       "quote_sent_by_office",
       "Office checked the draft and pressed Send quote",
-      { quote_id: quoteId },
+      { quote_id: quoteId, released_with: siblings.map((x) => x.id), ...(companions.length && !siblings.length ? { main_only: true, kept_held: companions.map((c) => c.row.id) } : {}) },
       { internal: true },
     );
   else

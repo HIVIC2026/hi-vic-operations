@@ -302,3 +302,13 @@ export const A1_THICKER_CODE = "INSTALLER_A1_THICKER";
 const OPTION_GROUPS: readonly (readonly string[])[] = [["INSTALLER_A1", A1_THICKER_CODE], ["LAYOUT_R5", "LAYOUT_R6", "LAYOUT_R7"]];
 export const optionGroupFor = (code: string | null | undefined): readonly string[] => OPTION_GROUPS.find((g) => g.includes(String(code ?? ""))) ?? [String(code ?? "")];
 export const isThickerOptionCode = (code: string | null | undefined) => code === A1_THICKER_CODE || code === "LAYOUT_R6" || code === "LAYOUT_R7";
+
+/** Jo 4 Nov: Send releases the main option and every companion together. A held companion blocks Send unless the
+ *  office clearly chooses "Send main only"; a held main option always blocks. */
+export function optionSendDecision(i: { mainBlockers: string[]; companions: { label: string; blockers: string[] }[]; mainOnly: boolean }): { ok: true; releaseCompanions: boolean } | { ok: false; reason: string } {
+  if (i.mainBlockers.length) return { ok: false, reason: i.mainBlockers.join(" • ") };
+  const held = i.companions.filter((c) => c.blockers.length);
+  if (i.mainOnly) return { ok: true, releaseCompanions: false };
+  if (held.length) return { ok: false, reason: `${held.map((c) => `${c.label} is held: ${c.blockers.join(" • ")}`).join(" ")} Fix it, or choose "Send main only".` };
+  return { ok: true, releaseCompanions: true };
+}
