@@ -31,8 +31,8 @@ export function BizPage({ title, intro, children }: { title: string; intro?: str
     <TradeShell installer={installer} boss={data?.boss}>
       <Link to="/field/business" className="inline-flex items-center gap-1 text-sm font-bold text-estimate-blue"><ChevronLeft className="h-4 w-4" />My business</Link>
       <div><h1 className="font-display text-[26px] font-bold leading-tight">{title}</h1>{intro && <p className="mt-1 text-sm text-sub">{intro}</p>}</div>
-      {updating && <p data-last-copy-updating className="text-xs text-sub">Updating…</p>}
-      {error ? <p role="alert" className={card}>{(error as Error).message}</p> : !data ? <p className="text-sm">Loading…</p> : children(data, () => void refetch())}
+      {updating && !error && <p data-last-copy-updating className="text-xs text-sub">Updating…</p>}
+      {error ? <p role="alert" className={card}>{(error as Error).message}</p> : !data ? <p className="text-sm">Loading…</p> : <fieldset disabled={updating} className="contents">{children(data, () => void refetch())}</fieldset>}
     </TradeShell>
   );
 }

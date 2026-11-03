@@ -21,7 +21,7 @@ function read<T>(prefix: string, userId: string, key: string): { data: T; at: nu
     if (!raw) return null;
     const v = JSON.parse(raw) as { at?: unknown; data?: unknown };
     if (typeof v.at !== "number" || v.data === undefined) return null;
-    if (Date.now() - v.at > MAX_AGE_MS) return null;
+    if (Date.now() - v.at > MAX_AGE_MS || v.at > Date.now()) return null; // too old, or stamped in the future (clock set back)
     return { data: v.data as T, at: v.at };
   } catch { return null; }
 }
@@ -49,6 +49,11 @@ export function dropTradeCache(userId: string, key: string): void {
 
 export function clearTradeCache(): void {
   signedOut = true;
+  clearLastCopies();
+}
+
+/** Remove every kept copy (both prefixes) without blocking later writes: signing in over an existing session. */
+export function clearLastCopies(): void {
   try {
     const s = store();
     if (!s) return;

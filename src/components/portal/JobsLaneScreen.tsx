@@ -4,7 +4,7 @@
 // (only when there are some). Computer: a table
 // whose headings sort AND filter (the Enquiries pop-up). Phone: one card per job and a Filter button that opens the same
 // headings in a sheet. Filters, sort and Needs us are kept in this browser per page (saved view; storage may be blocked).
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -97,7 +97,8 @@ export function JobsLaneScreen({ lane, initialStage }: { lane: JobsLane; initial
   // Task 9: the last copy kept on this device (put in the cache by the route's loader) shows at once; "Updating…" until the fresh one arrives.
   const listKey = jobsListKey(lane, view, search, page);
   useRememberLastCopy(me?.user.id, `jobs:${lane}`, search === "" && page === 1, listKey, q);
-  const showingLastCopy = !!q.data && !q.isError && isLastCopy(listKey, q.dataUpdatedAt);
+  const copyShown = !!q.data && isLastCopy(listKey, q.dataUpdatedAt); // actions and ticks wait while true
+  const showingLastCopy = copyShown && !q.isError; // the "Updating…" line
   // The TEST office never sees the Mitti line (it is real-job data).
   const sync = useQuery({ queryKey: ["mitti-sync-problems"], queryFn: () => syncFn(), staleTime: 60_000, enabled: !!me && !testOffice });
   const syncCount = sync.data?.rows.length ?? 0;
@@ -111,6 +112,14 @@ export function JobsLaneScreen({ lane, initialStage }: { lane: JobsLane; initial
   const cancel = useAction(bulkCancelOfficeJobs);
   const bulk = useAction(bulkJobAction);
   const d = q.data;
+  // Task 9 fix: while the old copy shows, ticks and bulk actions wait; when the fresh rows arrive, ticks not in them are dropped.
+  const wasCopy = useRef(false);
+  useEffect(() => {
+    const was = wasCopy.current; wasCopy.current = copyShown;
+    if (!was || copyShown || !d) return;
+    const fresh = new Set(d.rows.map((r) => r.id));
+    setPicked((p) => ([...p].every((i) => fresh.has(i)) ? p : new Set([...p].filter((i) => fresh.has(i)))));
+  }, [copyShown, d]); // eslint-disable-line react-hooks/exhaustive-deps
   const ids = [...picked];
   const cols = JOBS_COLUMNS({ nextSteps: d?.nextSteps ?? [], installers: d?.installers ?? [] });
   const anyFilter = Object.values(view.filters).some(filterOn);
@@ -135,7 +144,7 @@ export function JobsLaneScreen({ lane, initialStage }: { lane: JobsLane; initial
         <span className="ml-auto flex items-center gap-3">
           {anyFilter && <button type="button" className="hidden text-sm font-semibold text-hiv-blue underline md:inline" onClick={clearFilters}>Clear filters</button>}
           <button type="button" className="inline-flex min-h-[38px] items-center rounded-[10px] border border-line bg-paper px-3 text-[13px] font-bold text-hiv-blue md:hidden" onClick={() => setSheetOpen(true)}>Filter</button>
-          <ActionsMenu selected={picked.size} onPick={setDialog} actions={[{ key: "cancel", label: "Cancel", danger: true }, { key: "hold", label: "Put on hold" }, { key: "mark_test", label: "Mark as test" }, { key: "delete", label: "Delete (test jobs only)", danger: true }]} />
+          <ActionsMenu disabled={copyShown} selected={picked.size} onPick={setDialog} actions={[{ key: "cancel", label: "Cancel", danger: true }, { key: "hold", label: "Put on hold" }, { key: "mark_test", label: "Mark as test" }, { key: "delete", label: "Delete (test jobs only)", danger: true }]} />
         </span>
       </div>
       {!testOffice && syncCount > 0 && (
@@ -162,7 +171,7 @@ export function JobsLaneScreen({ lane, initialStage }: { lane: JobsLane; initial
       {q.isError ? <div role="alert" className="rounded-[14px] border border-danger/40 bg-danger-soft p-4 text-sm">Jobs could not be loaded. {(q.error as Error).message} <button type="button" className="font-semibold underline" onClick={() => void q.refetch()}>Try again</button></div> : (
         <div className={listCard}>
           <div className={cn("hidden items-start gap-x-1.5 border-b border-line bg-mist px-2 py-2 md:grid", COLS)}>
-            <input type="checkbox" aria-label="Select all on this page" checked={!!d?.rows.length && d.rows.every((r) => picked.has(r.id))} onChange={(e) => setPicked(e.target.checked ? new Set(d?.rows.map((r) => r.id)) : new Set())} />
+            <input type="checkbox" aria-label="Select all on this page" disabled={copyShown} checked={!!d?.rows.length && d.rows.every((r) => picked.has(r.id))} onChange={(e) => setPicked(e.target.checked ? new Set(d?.rows.map((r) => r.id)) : new Set())} />
             {cols.map((c) => <ColumnHead key={c.key} col={c} sort={view.sort || "heard"} dir={view.sort ? view.dir : "desc"} value={view.filters[c.key as keyof JobsColumnFilters]} onSort={onSort} onFilter={onFilter} className={HEAD} />)}
           </div>
           {!d ? <p role="status" className="p-6 text-center text-sm text-sub">Loading jobs…</p> : d.rows.length === 0 ? <p className="p-6 text-center text-sm text-sub">No jobs match. {anyFilter && <button type="button" className="font-semibold text-hiv-blue underline" onClick={clearFilters}>Clear filters</button>}</p> : (
@@ -176,7 +185,7 @@ export function JobsLaneScreen({ lane, initialStage }: { lane: JobsLane; initial
                 const lifeSupport = r.lifeSupport && <span className="ml-1.5 inline-block whitespace-nowrap rounded-full bg-danger-soft px-1.5 py-px align-middle text-[10px] font-bold leading-4 text-danger">Life support</span>;
                 // Main f34ace02: the newest email to the owner bounced and the office hasn't cleared it.
                 const bounced = r.emailBounced && <span className="ml-1.5 inline-block whitespace-nowrap rounded-full bg-pink px-1.5 py-px align-middle text-[10px] font-bold leading-4 text-rose">Email bounced</span>;
-                const tick = <input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0 md:mt-0" aria-label={`Select ${r.jobNumber}`} checked={picked.has(r.id)} onClick={(e) => e.stopPropagation()} onChange={(e) => toggle(r.id, e.target.checked)} />;
+                const tick = <input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0 md:mt-0" aria-label={`Select ${r.jobNumber}`} disabled={copyShown} checked={picked.has(r.id)} onClick={(e) => e.stopPropagation()} onChange={(e) => toggle(r.id, e.target.checked)} />;
                 return (
                   <li key={r.id} className="border-b border-line last:border-b-0">
                     {/* Phone: one card per job — Next step on top, then the facts in the spec's order. */}

@@ -18,7 +18,7 @@ mock.module("@/lib/installer-waiting.functions", () => ({
   getInstallerWaitingList: async () => { calls.push("waiting"); if (fail) throw new Error("no"); return fresh; },
 }));
 
-const { clearTradeCache, readLastCopy, writeLastCopy, readTradeCache, writeTradeCache, resetTradeCacheSignOut } = await import("../src/lib/trade-cache");
+const { clearLastCopies, clearTradeCache, readLastCopy, writeLastCopy, readTradeCache, writeTradeCache, resetTradeCacheSignOut } = await import("../src/lib/trade-cache");
 const { startJobsList, startEnquiriesList, startInstallerWaitingList } = await import("../src/lib/office-route-prefetch");
 const { isLastCopy, useRememberLastCopy } = await import("../src/lib/office-last-copy");
 const { jobsListKey, enquiriesListKey, installerWaitingKey } = await import("../src/lib/office-list-keys.core");
@@ -206,5 +206,51 @@ describe("installer pages draw from their last copy", () => {
     expect(s).toContain(`useTradeSeed`);
     expect(s).toContain(`writeTradeCache(uid, ${name}, d)`);
     expect(s).toMatch(/if \(d\) writeTradeCache/);
+  });
+});
+
+describe("fix round 1", () => {
+  const src = (f: string) => readFileSync(`src/${f}`, "utf8");
+  test("a copy stamped in the future (clock set back) is expired, and a fresh one can replace it", () => {
+    localStorage.setItem("hiv-last:v1:u1:jobs", JSON.stringify({ at: Date.now() + 3600_000, data: 1 }));
+    expect(readLastCopy("u1", "jobs")).toBeNull();
+    writeLastCopy("u1", "jobs", 2);
+    expect(readLastCopy("u1", "jobs")?.data).toBe(2);
+  });
+  test("signing in clears the copies but does not block the new person's writes", () => {
+    writeLastCopy("u1", "jobs", 1); writeTradeCache("u1", "home", 1);
+    clearLastCopies();
+    expect(localStorage.length).toBe(0);
+    writeLastCopy("u2", "jobs", 3);
+    expect(readLastCopy("u2", "jobs")?.data).toBe(3);
+    expect(src("components/portal/SignInCard.tsx")).toMatch(/clearLastCopies\(\);[^\n]*\n\s*const res = await supabase\.auth\.signInWithPassword/);
+  });
+  test.each(["JobsLaneScreen.tsx", "EnquiriesScreen.tsx"])("%s: ticks and bulk actions wait while the old copy shows; stale ticks drop when fresh rows arrive", (f) => {
+    const s = src(`components/portal/${f}`);
+    expect(s).toContain("<ActionsMenu disabled={copyShown}");
+    expect(s).toContain('aria-label="Select all on this page" disabled={copyShown}');
+    expect(s).toContain("aria-label={`Select ${r.jobNumber}`} disabled={copyShown}");
+    expect(s).toMatch(/fresh\.has\(i\)/);
+  });
+  test("Enquiries: Close all waits too", () => {
+    expect(src("components/portal/EnquiriesScreen.tsx")).toMatch(/disabled=\{copyShown\} onClick=\{\(\) => setDialog\("close-all"\)\}/);
+  });
+  test("My business pages: buttons are disabled while updating, and no 'Updating…' beside an error", () => {
+    const s = src("components/trade/business-pages.tsx");
+    expect(s).toContain("<fieldset disabled={updating}");
+    expect(s).toContain("{updating && !error && <p data-last-copy-updating");
+  });
+});
+
+describe("ActionsMenu while the old copy shows", () => {
+  test("every action is disabled even with rows ticked; enabled once fresh", async () => {
+    const { ActionsMenu } = await import("../src/components/portal/office-lists");
+    const { render, fireEvent, cleanup } = await import("@testing-library/react");
+    for (const [disabled, expected] of [[true, true], [false, false]] as const) {
+      const r = render(createElement(ActionsMenu, { selected: 2, onPick: () => {}, disabled, actions: [{ key: "cancel", label: "Cancel" }, { key: "hold", label: "Put on hold" }] }));
+      fireEvent.click(r.getByRole("button", { name: /Actions/ }));
+      for (const b of r.getAllByRole("menuitem")) expect((b as HTMLButtonElement).disabled).toBe(expected);
+      cleanup();
+    }
   });
 });
