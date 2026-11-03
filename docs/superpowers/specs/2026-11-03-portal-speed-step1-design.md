@@ -1,0 +1,42 @@
+# Portal speed — Step 1 (quick wins) — design
+
+Date: 3 Nov 2026 · Agreed in chat by Jo ("Yes, but finish saved spots first" — saved spots shipped as #132)
+
+## Why
+
+Jo: the portal is "incredibly slow … not usable". Measured on 3 Nov (read-only):
+- The database is in **AWS Ireland (eu-west-1)**; users are in Australia, so every database round trip costs ~300 ms. Lovable can't move an existing project's region.
+- The database is idle and small (2,709 jobs) — not overloaded.
+- **First open: 12–18 s**, loading 137–170 separate code files. The sign-in page loads code for Mitti, trade jobs, allocation, etc.
+- **Each page's data: 2–4 s** (installer My work, Money, My business, job page; office lists 0.6–1.8 s per database request, several in a row).
+- Login token is ES256 (checked locally) — not a cause.
+
+## What Step 1 changes (no new features, nothing users see except speed)
+
+### 1. First open loads only what the page needs
+- `src/routes/__root.tsx` imports `isStaleChunkError` from `../router`; the same function lives in `@/lib/page-recovery.core`. Import it from there, so the root no longer pulls the whole route tree into the first load.
+- The root's auth-change path (`lib/auth-change.ts` → `lib/trade-route-prefetch.ts`) imports every trade server function; make that import lazy (dynamic) so it loads only when a trade page is opened.
+- `SignInCard` imports `TradeShell` only for class strings; copy the three class strings so the sign-in page doesn't pull the trade shell.
+- Router: `defaultPreload: "intent"` so a page's code and data start loading when a finger/mouse touches the link.
+
+### 2. Office pages check who you are once
+- Every server call already runs the office boundary middleware, which fetches the user and their roles. `requireOfficeIdentity` then fetches them again in 3 sequential round trips. Reuse the boundary's result (pass it through the request context); fall back to the current check only if it's missing.
+
+### 3. Run lookups at the same time, not one after another
+- **Choose installer › To release** (`installer-waiting.server.ts`): rounds that need only job ids start alongside `installerFacts`; `spotReleaseStates` and the saved-spot facts read join the same round.
+- **Installer My work** (`trade-view.server.ts` `tradeHome`): the deposits and Mitti electrician questions start with the main rounds, not after.
+- **Installer job page** (`trade-job-bundle`): sections reuse the bundle's one access check instead of re-checking (`requireJobRole`, install-days, my-owner-quote, installer price).
+
+### 4. Office pages start fetching straight away
+- Office list routes (Active jobs, Enquiries, Choose installer) get a route `loader` that starts the server call when the route matches, like the trade routes already do — not after the screen draws.
+
+## Rules
+- Behaviour must not change: same data, same permissions, same wording. Every access check that exists today still happens (reused, not removed).
+- Measured before and after with the same Playwright script (installer account Jo provided, read-only): first open, My work, Money, My business, a job page; office pages with the TEST office login if Jo provides it.
+- Ships as its own pull request; Jo chooses who merges. Another chat is building "Deep's first job" — check open PRs/branches for file overlap before starting and before the PR.
+
+## Out of scope (Step 2, only if still slow)
+- Bundle/chunk packaging (`vite.config` manualChunks), server rendering for signed-in pages, moving to an Asia-Pacific Lovable project.
+
+## Success
+- First open well under half of today's 12–18 s; page data ~1–1.5 s (from 2–4 s). Reported to Jo as before/after numbers.
