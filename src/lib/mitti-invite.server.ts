@@ -10,7 +10,7 @@ import type { MittiCall } from "./mitti.core";
 import {
   MITTI_AUTO_INVITE_ENV, MITTI_INVITE_EVENTS, MITTI_INVITE_MESSAGE, MITTI_INVITE_SUBJECT, renderMittiInviteEmail, MITTI_TEMPLATE_ACCESS_NOTE, MITTI_TRADES_GROUP_ENV, MITTI_USER_API, MITTI_USER_API_VERIFIED,
   addToGroupBody, autoInviteEnabled, createUserBody, createdUserId, groupPath, mittiInviteMessageKey, mittiInviteStep, mittiRemovalStep, openInvites, plainMittiReason,
-  priorInviteFor, userPath, userStatusBody, type InvitePerson, type InviteRecord, type InviteSwitches, type MittiInviteEventType,
+  priorInviteFor, userPath, inviteEligibility, mittiWaitingPauseItems, MITTI_WAITING_EMAIL, MITTI_WAITING_PAUSE, NO_EMAIL_SKIP, userStatusBody, type InvitePerson, type InviteRecord, type InviteSwitches, type MittiInviteEventType,
 } from "./mitti-invite.core";
 
 const EVENT_TYPES = Object.values(MITTI_INVITE_EVENTS);
@@ -48,14 +48,13 @@ async function loadPerson(workerId: string) {
     admin.from("businesses").select("name, email, onboarding_notes").eq("id", w.business_id).maybeSingle(),
     w.profile_id ? admin.from("profiles").select("email, mitti_user_id, mitti_checked_email, mitti_checked_at").eq("id", w.profile_id).maybeSingle() : Promise.resolve({ data: null }),
   ]);
-  const { workerEmailKey, effectiveWorkerRole, mittiEmailFor, certOrFilter } = await import("./worker-role.core");
+  const { workerEmailKey, effectiveWorkerRole, certOrFilter } = await import("./worker-role.core");
   const own = workerEmailKey(w.email) || null;
   const { mittiAccessOf } = await import("./mitti-membership.core");
   const mittiAccess = p ? mittiAccessOf(p) : null;
   // Jo 29 Oct: Lead / Crew. A null role counts as Lead; Crew only when stored.
   const role = effectiveWorkerRole({ tradeRole: w.trade_role, stored: (w as { worker_role?: string | null }).worker_role });
   // Jo 3 Nov 8:11pm (replaces 28 Oct): invites use the person's OWN email only — a Lead without one waits for it.
-  void mittiEmailFor;
   const target = { email: own, source: own ? "own" as const : null };
   const email = target.email;
   // Decision 153: an installer counts once the office-verified CII check is recorded with level + unexpired expiry.
