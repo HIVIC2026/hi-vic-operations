@@ -10,7 +10,10 @@ await db.exec(`
 CREATE TABLE businesses (id uuid primary key default gen_random_uuid(), business_type text, capabilities jsonb default '[]', name text, email text, phone text, rec_number text,
   onboarding_status text not null default 'draft' CHECK (onboarding_status IN ('draft','submitted','needs_info','approved','suspended','expired')), is_active boolean, public_liability_cover_amount numeric,
   approved_by uuid, approved_at timestamptz, updated_at timestamptz, added_by_installer_business_id uuid references businesses(id), workcover_exempt_declared_at timestamptz, installer_added_rejected_reason text, onboarding_notes text);
-CREATE TABLE partner_workers (id uuid primary key default gen_random_uuid(), business_id uuid, trade_role text, full_legal_name text, email text, mobile text, rec_number text, licence_number text, licence_expires_on date, approval_status text, added_by uuid, removed_at timestamptz, approved_by uuid, approved_at timestamptz, rejection_reason text);
+CREATE TABLE partner_workers (id uuid primary key default gen_random_uuid(), business_id uuid, profile_id uuid, account_status text not null default 'unlinked', linked_by uuid, linked_at timestamptz, trade_role text, full_legal_name text, email text, mobile text, rec_number text, licence_number text, licence_expires_on date, approval_status text, added_by uuid, removed_at timestamptz, approved_by uuid, approved_at timestamptz, rejection_reason text);
+CREATE TABLE profiles (id uuid primary key, email text, full_name text, business_id uuid);
+CREATE TABLE user_roles (id uuid primary key default gen_random_uuid(), user_id uuid not null, role text not null, UNIQUE (user_id, role));
+CREATE TABLE business_members (id uuid primary key default gen_random_uuid(), business_id uuid not null, user_id uuid not null, member_role text not null, active boolean not null default true, added_by uuid, UNIQUE (business_id, user_id));
 CREATE TABLE business_credentials (id uuid primary key default gen_random_uuid(), business_id uuid, kind text, label text, number text, expires_at date, document_path text, verification text not null default 'pending' CHECK (verification IN ('pending','verified','rejected')), critical boolean, created_by uuid, verified_by uuid, verified_at timestamptz, created_at timestamptz default now());
 CREATE TABLE partner_relationships (id uuid primary key default gen_random_uuid(), installer_business_id uuid not null, electrician_business_id uuid not null, active boolean not null default true, preferred boolean default false, is_primary boolean default false, source text, notes text, created_by uuid, UNIQUE (installer_business_id, electrician_business_id));
 CREATE TABLE admin_config_events (id uuid primary key default gen_random_uuid(), actor_id uuid, event_type text, summary text, details jsonb, created_at timestamptz default now());
@@ -27,7 +30,16 @@ mock.module("../src/lib/trade-view.server", () => ({
   bossOrThrow: async (u: string) => { const p = people[u]; if (!p) throw new WorkflowErr("Your sign-in isn't linked to an approved business yet."); if (!p.boss) throw new WorkflowErr("Only the business owner can see this."); return { biz: { id: p.biz, onboarding_notes: null }, kind: p.kind, boss: true }; },
 }));
 const storage = { from: () => ({ createSignedUploadUrl: async (p: string) => ({ data: { signedUrl: `https://s.test/${p}`, token: "t" }, error: null }) }) };
-mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { ...postgrestShim(db), storage } }));
+// The auth admin (PGlite has no auth): createUser mints an id and records every call, so the tests can count sign-ups. It
+// sends nothing, like the real one with email_confirm.
+const authUsers: { email: string; email_confirm: boolean; full_name: string | null }[] = [];
+let authUserN = 0;
+const auth = { admin: { createUser: async (u: { email: string; email_confirm?: boolean; password?: string; user_metadata?: { full_name?: string | null } }) => {
+  if (authUsers.some((x) => x.email === u.email)) return { data: { user: null }, error: { message: "A user with this email address has already been registered" } };
+  authUsers.push({ email: u.email, email_confirm: !!u.email_confirm, full_name: u.user_metadata?.full_name ?? null });
+  return { data: { user: { id: `70000000-0000-4000-8000-${String(++authUserN).padStart(12, "0")}`, email: u.email } }, error: null };
+} } };
+mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { ...postgrestShim(db), storage, auth } }));
 mock.module("../src/lib/upload-safety.server", () => ({ verifyStoredUpload: async () => undefined }));
 const smsCalls: { type: string; businessId: string | null; jobId: string | null; to: string | null; body: string; idempotencyKey: string }[] = [];
 let smsThrowOnce = false;
@@ -132,6 +144,39 @@ describe("officeApproveInstallerElectrician", () => {
     expect(await reject(els.officeApproveInstallerElectrician(OFFICE, SAM))).toBe("Already approved.");
     expect(smsCalls).toHaveLength(1);
   });
+
+  test("approval gives the electrician a portal profile (no login email): exactly one auth user, profile, role, membership; a retry makes none", async () => {
+    // Controller ruling 3 Nov 2026: installer-added electricians get a portal PROFILE at approval so the own-job hand-over
+    // and the swap can assign them (job_assignments.user_id is NOT NULL). They still never log in and nothing is sent.
+    expect(authUsers).toEqual([{ email: "sam@sparks.test", email_confirm: true, full_name: "Sam Sparks" }]);
+    const w = await worker(SAM);
+    expect(w.profile_id).toBeTruthy();
+    expect(w).toMatchObject({ account_status: "linked", linked_by: OFFICE });
+    expect(w.linked_at).toBeTruthy();
+    expect((await db.query<Record<string, unknown>>("select email, full_name, business_id from profiles where id=$1", [w.profile_id])).rows).toEqual([{ email: "sam@sparks.test", full_name: "Sam Sparks", business_id: SAM }]);
+    expect((await db.query<Record<string, unknown>>("select role from user_roles where user_id=$1", [w.profile_id])).rows).toEqual([{ role: "electrician" }]);
+    expect((await db.query<Record<string, unknown>>("select member_role, active, added_by from business_members where user_id=$1 and business_id=$2", [w.profile_id, SAM])).rows).toEqual([{ member_role: "business_admin", active: true, added_by: OFFICE }]);
+    // A retry (the "vanished link" repair below runs one too) never creates a second user.
+    await db.query("update partner_relationships set active=false where electrician_business_id=$1", [SAM]);
+    await els.officeApproveInstallerElectrician(OFFICE, SAM);
+    expect(authUsers).toHaveLength(1);
+    expect((await db.query<{ n: string }>("select count(*)::text as n from profiles where email='sam@sparks.test'")).rows[0]!.n).toBe("1");
+    expect((await worker(SAM)).profile_id).toBe(w.profile_id);
+  });
+
+  test("a half-done approval with no profile yet stays 'unfinished' and the next click repairs it", async () => {
+    await db.query("update partner_workers set profile_id=null, account_status='unlinked', linked_by=null, linked_at=null where business_id=$1", [SAM]);
+    expect(await els.installerElectricianReview(SAM)).toMatchObject({ status: "approved", unfinished: true });
+    expect((await els.pendingInstallerElectricianItems()).find((i) => i.businessId === SAM)).toMatchObject({ line: "Finish approving electrician Sam Sparks — added by Insul One", unfinished: true });
+    await els.officeApproveInstallerElectrician(OFFICE, SAM);
+    // The existing profile (same email) is reused: still one auth user.
+    expect(authUsers).toHaveLength(1);
+    expect((await worker(SAM))).toMatchObject({ profile_id: (await db.query<{ id: string }>("select id from profiles where email='sam@sparks.test'")).rows[0]!.id, account_status: "linked" });
+    expect(await els.installerElectricianReview(SAM)).toMatchObject({ unfinished: false });
+    expect((await els.pendingInstallerElectricianItems()).find((i) => i.businessId === SAM)).toBeUndefined();
+    expect(smsCalls).toHaveLength(1);
+  });
+
 
   test("retry-safe: a run that fails after the business flips is finished by the next click, with ONE welcome text", async () => {
     failWorkerApprovalOnce = true;
@@ -305,5 +350,28 @@ describe("after approval", () => {
       expect(at).toBeGreaterThan(-1);
       expect(fns.slice(at, fns.indexOf(".handler", at) + 400)).toContain("requireAdmin(context.supabase)");
     }
+  });
+});
+
+describe("profile at approval: an email that already belongs to another business", () => {
+  test("is refused with the existing message, the approval stays unfinished, and the next click (clash gone) finishes it without a login email", async () => {
+    const { businessId: CARL } = await els.installerAddElectrician(U_BOSS, input({ name: "Carl Clash", email: "carl@clash.test", mobile: "0455666777", licenceNumber: "L-4444" }));
+    await db.query("insert into profiles (id, email, full_name, business_id) values ($1,'carl@clash.test','Someone Else',$2)", [id(99), INST2]);
+    const before = authUsers.length, texts = smsCalls.length;
+    expect(await reject(els.officeApproveInstallerElectrician(OFFICE, CARL))).toMatch(/^Approved, but .*That email already belongs to another business/);
+    expect(await biz(CARL)).toMatchObject({ onboarding_status: "approved", is_active: true });
+    expect(await worker(CARL)).toMatchObject({ approval_status: "approved", profile_id: null });
+    expect(authUsers).toHaveLength(before);
+    expect(smsCalls).toHaveLength(texts); // nothing sent while the approval is unfinished
+    expect(await els.installerElectricianReview(CARL)).toMatchObject({ status: "approved", unfinished: true });
+    expect((await els.pendingInstallerElectricianItems()).find((i) => i.businessId === CARL)).toMatchObject({ unfinished: true });
+    await db.query("delete from profiles where id=$1", [id(99)]);
+    await els.officeApproveInstallerElectrician(OFFICE, CARL);
+    expect(authUsers).toHaveLength(before + 1);
+    expect(authUsers.at(-1)).toEqual({ email: "carl@clash.test", email_confirm: true, full_name: "Carl Clash" });
+    expect((await worker(CARL)).profile_id).toBeTruthy();
+    expect(await link(CARL)).toEqual({ active: true });
+    expect(smsCalls).toHaveLength(texts + 1);
+    expect(await els.installerElectricianReview(CARL)).toMatchObject({ unfinished: false });
   });
 });

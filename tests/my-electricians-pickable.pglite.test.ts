@@ -11,7 +11,7 @@ await db.exec(`
 CREATE TABLE businesses (id uuid primary key default gen_random_uuid(), business_type text, capabilities jsonb default '[]', name text, trading_name text, email text, phone text, rec_number text,
   onboarding_status text not null default 'draft' CHECK (onboarding_status IN ('draft','submitted','needs_info','approved','suspended','expired')), is_active boolean, public_liability_cover_amount numeric,
   approved_by uuid, approved_at timestamptz, updated_at timestamptz, added_by_installer_business_id uuid references businesses(id), workcover_exempt_declared_at timestamptz, installer_added_rejected_reason text, onboarding_notes text, mitti_account_invited boolean default false);
-CREATE TABLE partner_workers (id uuid primary key default gen_random_uuid(), business_id uuid, profile_id uuid, trade_role text, full_legal_name text, email text, mobile text, rec_number text, licence_number text, licence_expires_on date, approval_status text, added_by uuid, removed_at timestamptz, approved_by uuid, approved_at timestamptz, rejection_reason text, created_at timestamptz default clock_timestamp());
+CREATE TABLE partner_workers (id uuid primary key default gen_random_uuid(), business_id uuid, profile_id uuid, account_status text not null default 'unlinked', linked_by uuid, linked_at timestamptz, trade_role text, full_legal_name text, email text, mobile text, rec_number text, licence_number text, licence_expires_on date, approval_status text, added_by uuid, removed_at timestamptz, approved_by uuid, approved_at timestamptz, rejection_reason text, created_at timestamptz default clock_timestamp());
 CREATE TABLE business_credentials (id uuid primary key default gen_random_uuid(), business_id uuid, kind text, label text, number text, expires_at date, document_path text, verification text not null default 'pending' CHECK (verification IN ('pending','verified','rejected')), critical boolean, created_by uuid, verified_by uuid, verified_at timestamptz, created_at timestamptz default now());
 CREATE TABLE partner_relationships (id uuid primary key default gen_random_uuid(), installer_business_id uuid not null, electrician_business_id uuid not null, active boolean not null default true, preferred boolean default false, is_primary boolean default false, source text, notes text, created_by uuid, UNIQUE (installer_business_id, electrician_business_id));
 CREATE TABLE admin_config_events (id uuid primary key default gen_random_uuid(), actor_id uuid, event_type text, summary text, details jsonb, created_at timestamptz default now());
@@ -32,7 +32,10 @@ INSERT INTO workflow_settings VALUES (1, 'tpl', true);
 CREATE TABLE ceiling_measurements (id uuid primary key default gen_random_uuid(), job_id uuid, external_source text, external_id text, status text, is_current boolean);
 CREATE TABLE bookings (id uuid primary key default gen_random_uuid(), job_id uuid, kind text, status text, scheduled_start timestamptz, business_id uuid);
 CREATE TABLE piesa_records (id uuid primary key default gen_random_uuid(), job_id uuid, created_at timestamptz default clock_timestamp());
-CREATE TABLE profiles (id uuid primary key, full_name text, email text);
+CREATE TABLE profiles (id uuid primary key, full_name text, email text, business_id uuid);
+CREATE TABLE user_roles (id uuid primary key default gen_random_uuid(), user_id uuid not null, role text not null, UNIQUE (user_id, role));
+CREATE TABLE business_members (id uuid primary key default gen_random_uuid(), business_id uuid not null, user_id uuid not null, member_role text not null, active boolean not null default true, added_by uuid, UNIQUE (business_id, user_id));
+CREATE TABLE partner_offers (id uuid primary key default gen_random_uuid(), job_id uuid, business_id uuid, kind text, status text);
 `);
 const id = (n: number) => `00000000-0000-0000-0000-${String(n).padStart(12, "0")}`;
 const INST = id(1), U_BOSS = id(11), OFFICE = id(50), USUAL = id(60), U_USUAL = id(61);
@@ -46,13 +49,20 @@ await db.query(`insert into admin_config_events (actor_id, event_type, summary, 
 const people: Record<string, { biz: string; kind: string; boss: boolean }> = { [U_BOSS]: { biz: INST, kind: "installer", boss: true } };
 const WorkflowErr = class extends Error {};
 const realWf = await import("../src/lib/workflow.server");
-mock.module("../src/lib/workflow.server", () => ({ ...realWf, WorkflowError: WorkflowErr }));
+// Real logEvent (rows land in workflow_events); the stage gate and the guarded move are stubbed for the hand-over test.
+mock.module("../src/lib/workflow.server", () => ({ ...realWf, WorkflowError: WorkflowErr,
+  stageEntryBlockers: async () => [],
+  transition: async (job: string, to: string) => { await db.query("update jobs set stage=$2 where id=$1", [job, to]); },
+}));
 mock.module("../src/lib/trade-view.server", () => ({
   bossOrThrow: async (u: string) => { const p = people[u]; if (!p) throw new WorkflowErr("Your sign-in isn't linked to an approved business yet."); return { biz: { id: p.biz, onboarding_notes: null }, kind: p.kind, boss: true }; },
   tradeSetReadyCheckTime: async () => { throw new Error("not used"); },
 }));
 const storage = { from: () => ({ createSignedUploadUrl: async (p: string) => ({ data: { signedUrl: `https://s.test/${p}`, token: "t" }, error: null }) }) };
-mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { ...postgrestShim(db), storage } }));
+// The auth admin (PGlite has no auth): approval creates the electrician's portal profile through it; nothing is sent.
+const authUsers: string[] = [];
+const auth = { admin: { createUser: async (u: { email: string }) => { authUsers.push(u.email); return { data: { user: { id: id(700 + authUsers.length), email: u.email } }, error: null }; } } };
+mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { ...postgrestShim(db), storage, auth } }));
 mock.module("../src/lib/upload-safety.server", () => ({ verifyStoredUpload: async () => undefined }));
 mock.module("../src/lib/sms.server", () => ({ smsHoldReason: async () => null, sendRealSms: async (i: { type: string; idempotencyKey: string; businessId: string | null; jobId: string | null }) => { await db.query("insert into sms_messages (message_type, idempotency_key, business_id, job_id, status) values ($1,$2,$3,$4,'blocked')", [i.type, `${i.idempotencyKey}#held`, i.businessId, i.jobId]); return { status: "blocked", detail: "wording not approved", sid: null }; } }));
 mock.module("../src/lib/office-email.server", () => ({ sendOfficeEmail: async () => ({ channel: "email", status: "sent", detail: "" }) }));
@@ -72,6 +82,12 @@ mock.module("../src/lib/mitti-create.server", () => ({ onReadyCheckJobAdded: asy
 const realSuppression = await import("../src/lib/in-house-suppression.server");
 mock.module("../src/lib/in-house-suppression.server", () => ({ ...realSuppression, readInHouseDispatchState: async () => ({ held: new Set(), failed: false }), inHouseDispatchSkip: async () => null }));
 mock.module("../src/lib/repeat-piesa.server", () => ({ latestReopenAt: async () => null }));
+// Own-job hand-over seams: the safety check fee is paid for the jobs in `paid`; the notices are counted, not sent.
+const paid = new Set<string>();
+const realPayments = await import("../src/lib/payments.server");
+mock.module("../src/lib/payments.server", () => ({ ...realPayments, jobPaymentView: async (jobId: string) => ({ steps: [{ key: "safety_check", state: paid.has(jobId) ? "paid" : "requested" }] }) }));
+const notices: string[] = [];
+mock.module("../src/lib/own-job-piesa-notices.server", () => ({ sendOwnJobPiesaNotices: async (j: string) => { notices.push(j); return "stub"; } }));
 // The installer pays its own electricians (Reinsulate-style flat PIESA line), so no REC rate is needed anywhere.
 const realPaid = await import("../src/lib/installer-paid-electricians.server");
 mock.module("../src/lib/installer-paid-electricians.server", () => ({ ...realPaid, readInstallerPaidElectricians: async () => ({ businessId: INST, name: "Insul One", piesaIncGst: 350 }), installerSafetyCheckPrice: async () => 350 }));
@@ -157,25 +173,37 @@ describe("Add a job", () => {
   });
 });
 
-describe("job-page swap", () => {
-  const JOB = id(500), U_SAM = id(70);
-  test("OPEN QUESTION (Task 5 report): an installer-added electrician has no portal profile, so the swap's `eligibility` says not onboarded", async () => {
-    // Part 2b creates the electrician person without a profile (they never log in); `job_assignments.user_id` is NOT NULL,
-    // so the swap and the own-job hand-over need a profile id. Until that is decided, the approved electrician is linked but
-    // not offered in the swap. This test pins the fact; flip it once the decision lands.
-    expect(await swap.eligibility(INST, SAM)).toEqual({ linkedActive: true, onboarded: false, userId: null });
+describe("job-page swap and the own-job hand-over (controller ruling 3 Nov 2026: a portal profile at approval)", () => {
+  const JOB = id(500);
+  test("approval gave the electrician's person a portal profile, so the swap's `eligibility` says onboarded; the waiting one is not", async () => {
+    const w = (await db.query<{ profile_id: string | null; account_status: string }>("select profile_id, account_status from partner_workers where business_id=$1", [SAM])).rows[0]!;
+    expect(w.profile_id).toBe(id(701));
+    expect(w.account_status).toBe("linked");
+    expect(authUsers).toEqual(["sam@sparks.test"]);
+    expect(await swap.eligibility(INST, SAM)).toEqual({ linkedActive: true, onboarded: true, userId: id(701) });
     expect(await swap.eligibility(INST, WAITING)).toEqual({ linkedActive: false, onboarded: false, userId: null });
   });
-  test("once the approved electrician's person has a profile they are a swap option; the waiting one never is", async () => {
-    await db.query("update partner_workers set profile_id=$2 where business_id=$1", [SAM, U_SAM]);
+  test("the approved electrician is a swap option; the waiting one never is; a lapsed licence drops them", async () => {
     await db.query("insert into jobs (id, stage, channel, source, originating_installer_business_id) values ($1,'piesa_and_install_window_pending','installer_sourced','real',$2)", [JOB, INST]);
     const opts = await swap.swapOptions(JOB, INST);
     expect(opts.allowed).toBe(true);
     expect(opts.options.map((o) => o.businessId).sort()).toEqual([SAM, USUAL].sort());
     expect(opts.options.map((o) => o.businessId)).not.toContain(WAITING);
-    // A lapsed licence drops them from the swap too (ownJobDocsBlocker is wired into eligibility).
     await db.query("update business_credentials set expires_at='2020-01-01' where business_id=$1 and kind='electrical_licence'", [SAM]);
     expect((await swap.swapOptions(JOB, INST)).options.map((o) => o.businessId)).toEqual([USUAL]);
     await db.query("update business_credentials set expires_at='2099-01-01' where business_id=$1 and kind='electrical_licence'", [SAM]);
+  });
+  test("paid own job with the installer-added electrician picked at Add a job: handed over (assignment on their profile), not held", async () => {
+    const { handOwnJobPiesa } = await import("../src/lib/own-job-piesa.server");
+    const r = await onsite.startOnsiteReadyCheckFor(U_BOSS, INST, { ...owner, address_line: "4 Example St" }, { mode: "mine", business_id: SAM }, undefined, { electricianChoice: "usual", leadOrigin: "owner_contacted" });
+    await db.query("update jobs set stage='measured_quote_accepted' where id=$1", [r.jobId]);
+    paid.add(r.jobId);
+    expect(await handOwnJobPiesa(r.jobId)).toBe("handed");
+    const a = (await db.query<{ business_id: string; user_id: string; active: boolean }>("select business_id, user_id, active from job_assignments where job_id=$1 and role='electrician'", [r.jobId])).rows;
+    expect(a).toEqual([{ business_id: SAM, user_id: id(701), active: true }]);
+    expect((await db.query<{ stage: string }>("select stage from jobs where id=$1", [r.jobId])).rows[0]!.stage).toBe("piesa_and_install_window_pending");
+    expect((await db.query<{ n: string }>("select count(*)::text as n from workflow_events where job_id=$1 and event_type='own_job_piesa_handed'", [r.jobId])).rows[0]!.n).toBe("1");
+    expect((await db.query<{ n: string }>("select count(*)::text as n from workflow_events where job_id=$1 and event_type='own_job_piesa_held'", [r.jobId])).rows[0]!.n).toBe("0");
+    expect(notices).toEqual([r.jobId]);
   });
 });

@@ -45,7 +45,7 @@ export async function myElectricianUploadUrl(userId: string, kind: "licence" | "
 }
 
 type BizRow = { onboarding_notes: string | null; workcover_exempt_declared_at: string | null; installer_added_rejected_reason: string | null; id: string; business_type: string | null; capabilities: string[] | null; onboarding_status: string | null; is_active: boolean | null; added_by_installer_business_id: string | null };
-type WorkerRow = { licence_expires_on: string | null; id: string; business_id: string; email: string | null; licence_number: string | null; approval_status: string };
+type WorkerRow = { licence_expires_on: string | null; id: string; business_id: string; email: string | null; licence_number: string | null; approval_status: string; profile_id?: string | null; full_legal_name?: string | null };
 
 /** Every live electrician person whose licence or email is this one (keyset-paged, never the 1000-row cap). */
 async function matchingWorkers(licence: string, email: string): Promise<WorkerRow[]> {
@@ -275,7 +275,7 @@ async function loadInstallerElectrician(businessId: string): Promise<{ biz: Full
   if (b.error) throw new WorkflowError(READ_FAIL);
   if (!b.data?.added_by_installer_business_id) return null;
   const [ws, cr, inst] = await Promise.all([
-    admin.from("partner_workers").select("id, business_id, email, licence_number, licence_expires_on, approval_status").eq("business_id", businessId).eq("trade_role", "electrician").is("removed_at", null),
+    admin.from("partner_workers").select("id, business_id, email, full_legal_name, licence_number, licence_expires_on, approval_status, profile_id").eq("business_id", businessId).eq("trade_role", "electrician").is("removed_at", null),
     admin.from("business_credentials").select("id, kind, expires_at, verification, document_path").eq("business_id", businessId).in("kind", [...CRED_KINDS, "rec_registration"]),
     admin.from("businesses").select("id, name, email, onboarding_notes").eq("id", b.data.added_by_installer_business_id).maybeSingle(),
   ]);
@@ -316,32 +316,67 @@ async function logOffice(actorId: string | null, eventType: string, summary: str
   if (error) console.error(`${eventType} event not logged`, error.message);
 }
 
-/** What an approved installer-added electrician still lacks. "Finished" = every live person approved AND the installer's
- *  link on; the welcome text's state is whatever sms_messages says (one row per electrician, held or sent). */
-export type ApprovalGaps = { workerPending: boolean; linkInactive: boolean; welcomeMissing: boolean };
+/** What an approved installer-added electrician still lacks. "Finished" = every live person approved, every not-rejected
+ *  person has a portal profile (the own-job hand-over and the swap assign jobs to it) AND the installer's link on; the
+ *  welcome text's state is whatever sms_messages says (one row per electrician, held or sent). */
+export type ApprovalGaps = { workerPending: boolean; profileMissing: boolean; linkInactive: boolean; welcomeMissing: boolean };
 async function approvalGaps(rows: { id: string; installerId: string }[]): Promise<Map<string, ApprovalGaps>> {
   const out = new Map<string, ApprovalGaps>();
   if (!rows.length) return out;
   const ids = rows.map((r) => r.id);
   const [ws, rels, sms] = await Promise.all([
-    admin.from("partner_workers").select("business_id").in("business_id", ids).eq("trade_role", "electrician").eq("approval_status", "pending").is("removed_at", null),
+    admin.from("partner_workers").select("business_id, approval_status, profile_id").in("business_id", ids).eq("trade_role", "electrician").is("removed_at", null),
     admin.from("partner_relationships").select("installer_business_id, electrician_business_id").in("electrician_business_id", ids).eq("active", true),
     admin.from("sms_messages").select("business_id").eq("message_type", "installer_added_electrician_welcome").in("business_id", ids),
   ]);
   if (ws.error || rels.error || sms.error) throw new WorkflowError(READ_FAIL);
-  for (const r of rows) out.set(r.id, {
-    workerPending: (ws.data ?? []).some((w) => w.business_id === r.id),
-    linkInactive: !(rels.data ?? []).some((l) => l.electrician_business_id === r.id && l.installer_business_id === r.installerId),
-    welcomeMissing: !(sms.data ?? []).some((m) => m.business_id === r.id),
-  });
+  for (const r of rows) {
+    const people = (ws.data ?? []).filter((w) => w.business_id === r.id);
+    out.set(r.id, {
+      workerPending: people.some((w) => w.approval_status === "pending"),
+      profileMissing: people.some((w) => w.approval_status !== "rejected" && !w.profile_id),
+      linkInactive: !(rels.data ?? []).some((l) => l.electrician_business_id === r.id && l.installer_business_id === r.installerId),
+      welcomeMissing: !(sms.data ?? []).some((m) => m.business_id === r.id),
+    });
+  }
   return out;
 }
-const anyGap = (g: ApprovalGaps | undefined) => !!g && (g.workerPending || g.linkInactive || g.welcomeMissing);
+const anyGap = (g: ApprovalGaps | undefined) => !!g && (g.workerPending || g.profileMissing || g.linkInactive || g.welcomeMissing);
+
+/**
+ * A portal PROFILE for an installer-added electrician person (controller ruling 3 Nov 2026): `job_assignments.user_id`
+ * is NOT NULL, so the own-job hand-over and the job-page swap need one. They still never log in — `email_confirm`
+ * means no confirmation email, the password is random and no login or reset link is ever sent. Same steps as the
+ * office's `makePartnerLogin` (partner-activation.functions): reuse the profile with that email unless it belongs to
+ * another business; else create the auth user; then profile, role, membership and the person's link. Idempotent.
+ */
+async function ensureElectricianProfile(actorId: string, businessId: string, w: WorkerRow, fallbackEmail: string | null, fallbackName: string | null): Promise<void> {
+  const email = (w.email ?? fallbackEmail ?? "").trim().replace(/[.,;]+$/, "").toLowerCase();
+  if (!email) throw new WorkflowError("the electrician has no email");
+  const name = (w.full_legal_name ?? fallbackName ?? "").trim() || null;
+  const ex = await admin.from("profiles").select("id, business_id").eq("email", email).maybeSingle();
+  if (ex.error) throw new WorkflowError(ex.error.message);
+  if (ex.data?.business_id && ex.data.business_id !== businessId) throw new WorkflowError("That email already belongs to another business. Nothing was changed.");
+  let uid = ex.data?.id as string | undefined;
+  if (!uid) {
+    const { data: cu, error } = await admin.auth.admin.createUser({ email, email_confirm: true, password: crypto.randomUUID() + "Aa1!", user_metadata: { full_name: name } });
+    if (error || !cu?.user) throw new WorkflowError(`the profile could not be created: ${error?.message ?? "no user returned"}`);
+    uid = cu.user.id;
+  }
+  const steps = [
+    await admin.from("profiles").upsert({ id: uid, email, full_name: name, business_id: businessId }),
+    await admin.from("user_roles").upsert({ user_id: uid, role: "electrician" }, { onConflict: "user_id,role" }),
+    await admin.from("business_members").upsert({ business_id: businessId, user_id: uid, member_role: "business_admin", active: true, added_by: actorId }, { onConflict: "business_id,user_id" }),
+    await admin.from("partner_workers").update({ profile_id: uid, account_status: "linked", linked_by: actorId, linked_at: new Date().toISOString() }).eq("id", w.id).is("profile_id", null),
+  ];
+  const bad = steps.find((s) => s.error);
+  if (bad?.error) throw new WorkflowError(`the profile was made but linking failed: ${bad.error.message}`);
+}
 
 /**
  * Office approval of an installer-added electrician (admin only — the server function checks). The checklist is a hard
  * block with no override. Approval = credentials verified, business approved + active, the pending people approved (Mitti
- * hook), the installer's link switched ON (the installer's list hides inactive approved rows), ONE welcome text (held
+ * hook), a portal profile for each person (no login email; see ensureElectricianProfile), the installer's link switched ON (the installer's list hides inactive approved rows), ONE welcome text (held
  * wording; once-only by the sender's own key). No agreement and no service areas are needed: they never get our leads.
  * Retry-safe: a run that failed after the business flipped is FINISHED by the next click (pending people, link, text);
  * only a fully finished electrician gets "Already approved.".
@@ -368,6 +403,11 @@ export async function officeApproveInstallerElectrician(actorId: string, busines
   for (const w of r.workers.filter((x) => x.approval_status === "pending")) {
     try { await approvePartnerWorker(w.id, actorId, { kind: "office", reason: "Installer-added electrician approved by the office" }); }
     catch (e) { throw new WorkflowError(`Approved, but the electrician's login could not be approved (${(e as Error).message}). Click Approve again to finish.`); }
+  }
+  // A portal profile for every approved person without one (a rejected person gets none). No login email is sent.
+  for (const w of r.workers.filter((x) => x.approval_status !== "rejected" && !x.profile_id)) {
+    try { await ensureElectricianProfile(actorId, businessId, w, r.biz.email, r.biz.name); }
+    catch (e) { throw new WorkflowError(`Approved, but the electrician's portal profile could not be set up (${(e as Error).message}). Click Approve again to finish.`); }
   }
   const rel = await admin.from("partner_relationships").upsert({ installer_business_id: r.installer.id, electrician_business_id: businessId, active: true, source: "installer_added", created_by: actorId } as never, { onConflict: "installer_business_id,electrician_business_id" });
   if (rel.error) throw new WorkflowError("Approved, but the installer's link could not be switched on. Click Approve again to finish.");
