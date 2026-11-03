@@ -8,9 +8,9 @@ trade who fills a form needs a Mitti user in our organisation, with the exact em
 
 | When (in the portal) | What the portal does in Mitti | Record (`admin_config_events`) |
 |---|---|---|
-| Office approves an electrician, or verifies an installer's CII | Searches Mitti by email (`POST /users/search`) | — |
-| …found | Links the user on the profile (`mitti_user_id`), adds them to the **HIV trades** group | `mitti_user_linked` |
-| …not found | Creates the user (seat from `MITTI_SEAT_FOR_ROLE`, lite), adds the group, then sends ONE message (text if they have a mobile, else email) | `mitti_user_invited` (recorded before the message) |
+| Office newly approves a Lead (with current verified CII) | Searches Mitti by email (`POST /users/search`) | — |
+| …found | Links the user on the profile (`mitti_user_id`); no group | `mitti_user_linked` |
+| …not found | Creates the user (seat from `MITTI_SEAT_FOR_ROLE`, lite), no group, then sends ONE message (text if they have a mobile, else email) | `mitti_user_invited` (recorded before the message) |
 | Person removed from the business, or rejected | Deactivates the Mitti user the portal invited or linked (not if the same email is an active trade elsewhere) | `mitti_user_deactivated` |
 | Approved again later | Reactivates the same Mitti user (never a second seat) | `mitti_user_reactivated` |
 | Anything fails | Nothing else is tried; ONE item on Staff approvals with the plain reason | `mitti_access_failed` |
@@ -27,14 +27,14 @@ Code: `src/lib/mitti-invite.core.ts` (pure rules), `src/lib/mitti-invite.server.
 and remove (`worker-links.functions.ts`) and CII verify (`worker-compliance.functions.ts`). Tests:
 `tests/mitti-invite.core.test.ts`, `tests/mitti-invite.server.test.ts` (the Mitti client is mocked).
 
-## Switches (all off today)
+## Switches — Jo approved activation 3 Nov 9:56pm Sydney
 
 - `MITTI_AUTO_INVITE_ENABLED=true` (env) turns it on. When it is off, approvals and removals do nothing in Mitti.
-- `MITTI_TRADES_GROUP_ID` (env) is the Mitti ID of the "HIV trades" group. Without it, people are not added to a group,
-  and the Staff approvals item says so.
-- `MITTI_USER_API_VERIFIED` (constant in `mitti-invite.core.ts`, false). Until a developer has run one probe with the real
-  token, the portal only searches and links. No user is created, added to a group or deactivated: the office gets
-  "invite needed" or "deactivate by hand" items instead.
+- `MITTI_USER_API_VERIFIED` is true following the successful find, Lite creation and deactivation check.
+- There is no trades group. No group setting, calls, office tasks or template-group requirement.
+- Only approvals recorded from 3 Nov 10:56 UTC qualify. Already-approved people are not caught up by edits, certificate renewals or role changes.
+- Leads only, never Crew or automatic electrician invites. A Lead without their own email waits; no business-email fallback.
+- Paused Leads wait in Needs me; unpausing alone never sends. Jo must confirm using Send Mitti invite.
 
 ## The Mitti API (sources)
 
@@ -63,7 +63,7 @@ pages, read through search, and must be confirmed on the probe:
 1. Create the user and check the seat type in Mitti.
 2. Check that Mitti emails them to set a password. If it does not, switch to the upsert job or the "Require password
    reset" option.
-3. Add them to the group.
+3. Group addition is not used (Jo 3 Nov).
 4. Share one test form and complete it on the lite seat.
 5. Deactivate the user.
 
@@ -90,8 +90,7 @@ Then set `MITTI_USER_API_VERIFIED = true`.
   the licence count fails, and the office sees a "could not create" item. **Deactivating a user frees the seat but does
   NOT reduce the seat count or the bill** (https://help.safetyculture.com/000046). Jo or the office must lower the licence
   count in the Mitti admin if the seat will not be reused.
-- **Templates:** share the A1–A5 templates once with the **HIV trades** group, so group members can open them (needed for
-  installers who start A1 themselves).
+- **Templates:** form sharing stays on the existing direct-user path; no trades group.
 
 ## Decided — Decision 340 (Jo, 25 Oct 2026)
 
@@ -102,4 +101,4 @@ Then set `MITTI_USER_API_VERIFIED = true`.
 ## Still for Jo
 
 1. **Licence count / auto-purchase:** whether new trades may buy seats automatically, or the office keeps a fixed count.
-2. When the probe has passed, switch on `MITTI_AUTO_INVITE_ENABLED` and set `MITTI_TRADES_GROUP_ID`.
+2. Activation approved 3 Nov: auto-invite switch ON, verified API true, no group. Jo publishes; no catch-up.
