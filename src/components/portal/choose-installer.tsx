@@ -159,7 +159,7 @@ export function ChooseInstallerPanel({ jobId, reportLoad = false }: { jobId: str
 /** A48 batch 2 (Jo 30 Oct 2026): closed batches whose owners said yes. Runs never go to an installer automatically — Jo
  *  checks the homes, picks the installer (default the one picked at Send; any installer who covers every home) and taps
  *  "Send to installer". A run whose installer text didn't go shows "Text didn't go — Send again" (same run, same installer).
- *  "Back to suggestions" puts the owners back in the suggested batches (not asked again). Nothing in Needs me. */
+ *  "Back to To release" puts the owners back on To release (not asked again). Nothing in Needs me. */
 export function BatchesReadyToSend({ includeTest = false }: { includeTest?: boolean }) {
   const load = useServerFn(getBatchesReadyToSend);
   const offer = useServerFn(offerRunFn);
@@ -186,7 +186,7 @@ export function BatchesReadyToSend({ includeTest = false }: { includeTest?: bool
     setBusy(`back:${batchId}`);
     try {
       const r = await giveBack({ data: { batchId } });
-      toast.success(`Back in the suggestions — ${r.homes} ${r.homes === 1 ? "home" : "homes"}`);
+      toast.success(`Back on To release — ${r.homes} ${r.homes === 1 ? "home" : "homes"}`);
       void qc.invalidateQueries();
     } catch (e) { toast.error(e instanceof Error ? e.message : "That didn't work"); }
     finally { setBusy(null); }
@@ -223,7 +223,7 @@ export function BatchesReadyToSend({ includeTest = false }: { includeTest?: bool
                   </select>
                 )}
                 <button type="button" className={btnClass("primary")} disabled={!!busy || !chosen?.id} onClick={() => chosen?.id && void send(b.batchId, chosen.id)}>{busy === b.batchId ? "Sending…" : unsent ? "Send again" : "Send to installer"}</button>
-                <button type="button" className={btnClass("secondary")} disabled={!!busy} onClick={() => void back(b.batchId)}>{busy === `back:${b.batchId}` ? "Saving…" : "Back to suggestions"}</button>
+                <button type="button" className={btnClass("secondary")} disabled={!!busy} onClick={() => void back(b.batchId)}>{busy === `back:${b.batchId}` ? "Saving…" : "Back to To release"}</button>
               </div>
             </li>
           );

@@ -85,7 +85,7 @@ export async function offerRun(batchId: string, actorId: string | null, opts: { 
     // 24 hours from the offer with no text: the run is expiring (the tick puts its owners back in the pool).
     if (runExpiryDue(existingState, now.toISOString())) throw new WorkflowError("This run's 24 hours are up without the text going, so its owners go back in the suggestions — nothing was sent.");
     // Send again goes to the run's own installer (final review I2: another installer = Back to suggestions first).
-    if (opts.businessId && opts.businessId !== existingState.businessId) throw new WorkflowError("Send again goes to the installer this run was given to — tap Back to suggestions to choose another installer — nothing was sent.");
+    if (opts.businessId && opts.businessId !== existingState.businessId) throw new WorkflowError("Send again goes to the installer this run was given to — tap Back to To release to choose another installer — nothing was sent.");
   }
 
   const members = existingState ? existingState.memberIds.filter(waiting) : passIds.filter(waiting);

@@ -14,10 +14,7 @@ import {
   tickableForSend,
   type InstallerWaitingRow,
 } from "@/lib/installer-waiting-columns.core";
-import type { AreaGroup } from "@/lib/saved-spot-areas.core";
-
-/** What the To release loader returns (installer-waiting.server `InstallerWaitingList`). */
-export type InstallerWaitingList = { now: number; rows: InstallerWaitingRow[]; areas: AreaGroup[] };
+import type { InstallerWaitingList } from "@/lib/installer-waiting.server";
 
 const BAND_LABEL: Record<SpotBand, string> = { best: "Best", good: "Good", ok: "OK", weak: "Weak" };
 const BAND_TONE: Record<SpotBand, PillTone> = {
