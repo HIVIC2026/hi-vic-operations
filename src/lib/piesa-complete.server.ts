@@ -179,30 +179,42 @@ async function recordSameDayPartC(jobId: string, userId: string | null, auditId:
 
 /** Fix 1/2: write a same-day Part C record whose write failed. The portal retries it each tick (sweepSameDayPartCRetries);
  *  the sync of a completed A3 and a repeat Complete PIESA press also call it (harmless, not relied on). Runs ONLY while a
- *  `same_day_part_c_failed` row is open for this job and form (fix 2: no backfill — older same-day A3s are left alone), the
- *  stored A3 is a live same-day form (upgrades needed, done today with Part C) and the job is past PIESA complete but before
- *  installation scheduling. A safety check superseded by a reopen closes the row with that reason and writes nothing.
- *  Signed off by whoever signed the PIESA. Fail-closed (an unreadable read does nothing) and never throws. */
-export async function retrySameDayPartC(jobId: string, actorId: string | null): Promise<"recorded" | "failed" | "superseded" | "none"> {
+ *  `same_day_part_c_failed` row is open for this job (fix 2: no backfill — older same-day A3s are left alone) and the job is
+ *  past PIESA complete but before installation scheduling. Fix 3: a retry that can never succeed closes the row (an
+ *  internal `same_day_part_c_recovered` event with the reason) so the tick stops picking it — Part C already recorded
+ *  another way ("Part C recorded another way"), or the stored A3 is no longer the failed form or no longer a same-day form
+ *  ("form superseded"). A safety check superseded by a reopen closes the row with that reason too. Nothing is written in
+ *  those cases. Signed off by whoever signed the PIESA. Fail-closed (an unreadable read does nothing and closes nothing)
+ *  and never throws. */
+export async function retrySameDayPartC(jobId: string, actorId: string | null): Promise<"recorded" | "failed" | "superseded" | "closed" | "none"> {
   try {
     const { data: a, error } = await admin.from("assessments").select("status, external_mitti_id, mitti_raw_snapshot, assessed_on").eq("job_id", jobId).maybeSingle();
     if (error || !a || a.status !== "complete" || !a.external_mitti_id || !a.assessed_on) return "none";
-    const { isLiveA3Snapshot, shortAnswersFromEntries } = await import("./official-short.core");
-    if (!electricianBillsUpgrades() || !isLiveA3Snapshot(a.mitti_raw_snapshot)) return "none";
-    const short = shortAnswersFromEntries("piesa", (a.mitti_raw_snapshot as { label: string; value: string | null }[] | null) ?? []);
-    if (!/^yes\b/i.test(String(short["rectificationNeeded"] ?? "").trim()) || !piesaRectificationDone(short)) return "none";
+    if (!electricianBillsUpgrades()) return "none";
     const core = await import("./same-day-part-c.core");
     const stage = await getStage(jobId);
     if (!(core.SAME_DAY_PART_C_RETRY_STAGES as readonly string[]).includes(stage)) return "none";
-    const auditId = a.external_mitti_id;
     const [{ data: post, error: postErr }, { data: evs, error: evErr }, { data: signer, error: sErr }] = await Promise.all([
       admin.from("piesa_records").select("id").eq("job_id", jobId).eq("kind", "post_rectification").eq("outcome", "pass").eq("is_current", true).limit(1),
       admin.from("workflow_events").select("event_type, created_at, details").eq("job_id", jobId).in("event_type", [core.SAME_DAY_PART_C_FAILED_EVENT, core.SAME_DAY_PART_C_RECOVERED_EVENT]),
       admin.from("piesa_records").select("signed_off_by").eq("job_id", jobId).in("kind", ["initial", "reassessment"]).order("created_at", { ascending: false }).limit(1),
     ]);
     if (postErr || evErr || sErr) return "none";
-    const failedOpen = core.sameDayPartCFailedOpen(((evs ?? []) as { event_type: string; created_at: string; details: Record<string, unknown> | null }[]).filter((e) => e.details?.["audit_id"] === auditId), { stage, postRecord: (post ?? []).length > 0 });
-    if (!failedOpen) return "none";
+    // The job's open failure row, whichever form it was for (the office row and the tick are per job too).
+    const evList = (evs ?? []) as { event_type: string; created_at: string; details: Record<string, unknown> | null }[];
+    if (!core.sameDayPartCFailedOpen(evList, { stage, postRecord: false })) return "none";
+    const failedAudit = String(evList.filter((e) => e.event_type === core.SAME_DAY_PART_C_FAILED_EVENT).sort((x, y) => y.created_at.localeCompare(x.created_at))[0]?.details?.["audit_id"] ?? "");
+    const close = async (reason: string, summary: string) => {
+      await logEvent(jobId, actorId, core.SAME_DAY_PART_C_RECOVERED_EVENT, summary, { audit_id: failedAudit || null, reason }, { internal: true });
+    };
+    // Fix 3: Part C is already recorded (by hand on the portal or an A4) — nothing left to write.
+    if ((post ?? []).length > 0) { await close("Part C recorded another way", "Same-day Part C record not needed — Part C recorded another way"); return "closed"; }
+    // Fix 3: the stored A3 is no longer the form that failed, or no longer says the upgrades were done that day with Part C.
+    const auditId = a.external_mitti_id;
+    const { isLiveA3Snapshot, shortAnswersFromEntries } = await import("./official-short.core");
+    const short = shortAnswersFromEntries("piesa", (a.mitti_raw_snapshot as { label: string; value: string | null }[] | null) ?? []);
+    const sameDayForm = isLiveA3Snapshot(a.mitti_raw_snapshot) && /^yes\b/i.test(String(short["rectificationNeeded"] ?? "").trim()) && piesaRectificationDone(short);
+    if (failedAudit !== auditId || !sameDayForm) { await close("form superseded", "Same-day Part C record not written — form superseded"); return "closed"; }
     // Fix 2: like the Complete PIESA press, a safety check a reopen superseded no longer counts — close the row, write nothing.
     if (await (await import("./repeat-piesa.server")).currentPiesaSupersededByReopen(jobId)) {
       await logEvent(jobId, actorId, core.SAME_DAY_PART_C_RECOVERED_EVENT, "Same-day Part C record not written — safety check superseded by a reopen", { audit_id: auditId, reason: "safety check superseded by a reopen" }, { internal: true });
@@ -229,8 +241,8 @@ export async function retrySameDayPartC(jobId: string, actorId: string | null): 
  *  most SAME_DAY_PART_C_RETRY_MAX_PER_TICK jobs, oldest failure first. Never throws: a read error returns zero counts, and
  *  one job's error is logged and the loop carries on. Counts only. */
 export const SAME_DAY_PART_C_RETRY_MAX_PER_TICK = 20;
-export async function sweepSameDayPartCRetries(_now: Date = new Date()): Promise<{ open: number; tried: number; recorded: number; failed: number; superseded: number; none: number }> {
-  const out = { open: 0, tried: 0, recorded: 0, failed: 0, superseded: 0, none: 0 };
+export async function sweepSameDayPartCRetries(_now: Date = new Date()): Promise<{ open: number; tried: number; recorded: number; failed: number; superseded: number; closed: number; none: number }> {
+  const out = { open: 0, tried: 0, recorded: 0, failed: 0, superseded: 0, closed: 0, none: 0 };
   try {
     const core = await import("./same-day-part-c.core");
     const { data: evs, error } = await admin.from("workflow_events").select("job_id, event_type, created_at, details").in("event_type", [core.SAME_DAY_PART_C_FAILED_EVENT, core.SAME_DAY_PART_C_RECOVERED_EVENT]).order("created_at", { ascending: false }).limit(1000);

@@ -72,6 +72,8 @@ await db.exec(`
   CREATE TABLE public.assessments (id uuid primary key default gen_random_uuid(), job_id uuid unique, status text default 'draft', piesa_outcome text default 'pending',
     switchboard_condition text, notes text, assessor_id uuid, external_mitti_id text);
   CREATE TABLE public.piesa_records (id uuid primary key default gen_random_uuid(), job_id uuid references public.jobs(id), assessment_id uuid references public.assessments(id), outcome text not null, completed_date date not null, signed_off_by uuid, is_current boolean default true, notes text, created_at timestamptz default now());
+  -- The live one-current-record-per-job index (drizzle/migrations/0000_hivic_core_schema.sql:176).
+  create unique index if not exists piesa_current_uq on public.piesa_records(job_id) where is_current;
   CREATE TABLE public.declarations (id uuid primary key default gen_random_uuid(), job_id uuid, kind text, declared_by uuid, statement text, declared_at timestamptz, unique (job_id, kind));
   CREATE TABLE public.workflow_events (id uuid primary key default gen_random_uuid(), job_id uuid, actor_id uuid, event_type text, summary text, details jsonb, from_stage text, to_stage text, internal boolean);
   CREATE TABLE public.job_overview (id uuid primary key, job_number text, owner_name text, owner_phone text, owner_email text, property_address text, property_id uuid, stage text, channel text);

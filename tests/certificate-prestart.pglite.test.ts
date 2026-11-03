@@ -22,6 +22,8 @@ CREATE TABLE job_assignments (id uuid primary key default gen_random_uuid(), job
 CREATE TABLE bookings (id uuid primary key default gen_random_uuid(), job_id uuid, kind text, status text, scheduled_start timestamptz, created_at timestamptz default clock_timestamp());
 CREATE TABLE assessments (id uuid primary key default gen_random_uuid(), job_id uuid, mitti_raw_snapshot jsonb, completed_at timestamptz);
 CREATE TABLE piesa_records (id uuid primary key default gen_random_uuid(), job_id uuid, kind text, outcome text, completed_date date, signed_off_by uuid, rectification_completed_at timestamptz, section_c_signed_at timestamptz, is_current boolean default true, created_at timestamptz default clock_timestamp());
+-- The live one-current-record-per-job index (drizzle/migrations/0000_hivic_core_schema.sql:176).
+create unique index if not exists piesa_current_uq on piesa_records(job_id) where is_current;
 CREATE TABLE evidence_requirements (id uuid primary key default gen_random_uuid(), job_id uuid, category text);
 CREATE TABLE evidence_files (id uuid primary key default gen_random_uuid(), requirement_id uuid, job_id uuid, storage_path text, mime_type text, uploaded_at timestamptz default clock_timestamp());
 CREATE TABLE documents (id uuid primary key default gen_random_uuid(), job_id uuid, kind text, title text, storage_path text, mime_type text, external_id text, source_system text, created_at timestamptz default clock_timestamp());
@@ -119,7 +121,8 @@ async function seedJob(j: string, o: { snap: unknown; record?: boolean; file?: b
   await db.query("insert into jobs values ($1,'installation_scheduling','qa_test')", [j]);
   await db.query("insert into job_assignments (job_id, role, business_id, user_id) values ($1,'electrician',$2,$3)", [j, ELEC, U1]);
   await db.query("insert into assessments (job_id, mitti_raw_snapshot, completed_at) values ($1,$2,now())", [j, JSON.stringify(o.snap)]);
-  await db.query("insert into piesa_records (job_id, kind, outcome, completed_date, signed_off_by) values ($1,'initial','fail','2026-11-01',$2)", [j, U1]);
+  // One current record per job (piesa_current_uq): the initial record stops being current once Part C is recorded.
+  await db.query("insert into piesa_records (job_id, kind, outcome, completed_date, signed_off_by, is_current) values ($1,'initial','fail','2026-11-01',$2,$3)", [j, U1, !o.record]);
   if (o.item) await db.query("insert into rectification_items (job_id, description, status) values ($1,'Replace split conduit','required')", [j]);
   if (o.record) await db.query("insert into piesa_records (job_id, kind, outcome, completed_date, rectification_completed_at, section_c_signed_at) values ($1,'post_rectification','pass','2026-11-03','2026-11-03','2026-11-03')", [j]);
   if (o.file) {

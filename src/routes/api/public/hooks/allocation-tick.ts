@@ -123,6 +123,8 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['sameDayPartC'] = await timed("sweepSameDayPartCRetries", () => sweepSameDayPartCRetries());
         } catch (e) {
           console.error("allocation tick: same-day Part C retry sweep failed", (e as Error).message);
+          // Unlike its neighbours this does not set ok=false: the sweep never throws, and an open failure row stays on the
+          // office Needs list (and is retried next tick), so one bad tick here isn't a failed tick.
           (out as Record<string, unknown>)['sameDayPartC'] = "failed";
         }
         try {
