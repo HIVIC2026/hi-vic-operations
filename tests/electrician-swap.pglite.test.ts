@@ -8,7 +8,7 @@ import { addMelbourneBusinessDays } from "../src/lib/melbourne-time.core";
 const db = new PGlite();
 await db.exec(`
 CREATE TABLE businesses (id uuid primary key, name text, trading_name text, email text, phone text, onboarding_notes text);
-CREATE TABLE jobs (id uuid primary key, stage text, deleted_at timestamptz, originating_installer_business_id uuid, channel text, source text, electrician_choice text, created_at timestamptz default clock_timestamp());
+CREATE TABLE jobs (id uuid primary key, stage text, deleted_at timestamptz, originating_installer_business_id uuid, channel text, source text, owner_id uuid, external_refs jsonb, electrician_choice text, created_at timestamptz default clock_timestamp());
 CREATE VIEW job_overview AS SELECT id, 'HV-1'::text AS job_number, '1 Example St, Clayton 3168'::text AS property_address FROM jobs;
 CREATE TABLE workflow_events (id uuid primary key default gen_random_uuid(), job_id uuid, actor_id uuid, event_type text, summary text, details jsonb, internal boolean, created_at timestamptz default clock_timestamp());
 CREATE TABLE partner_workers (id uuid primary key default gen_random_uuid(), business_id uuid, profile_id uuid, full_legal_name text, mobile text, email text, trade_role text default 'electrician', approval_status text default 'approved', created_at timestamptz default clock_timestamp(), removed_at timestamptz);
@@ -20,6 +20,12 @@ CREATE TABLE electrician_job_links (id uuid primary key default gen_random_uuid(
 CREATE TABLE electrician_nominations (id uuid primary key default gen_random_uuid(), job_id uuid, business_id uuid, nominating_business_id uuid, nominated_by uuid, nominated_for text, contact_name text, business_name text, email text, phone text, status text, created_at timestamptz default clock_timestamp(), updated_at timestamptz, ended_at timestamptz);
 CREATE TABLE partner_relationships (id uuid primary key default gen_random_uuid(), installer_business_id uuid, electrician_business_id uuid, active boolean default true);
 CREATE TABLE piesa_records (id uuid primary key default gen_random_uuid(), job_id uuid, created_at timestamptz default clock_timestamp());
+CREATE TABLE owners (id uuid primary key, full_name text, email text);
+CREATE TABLE customer_email_optouts (job_id uuid, opted_out_at timestamptz);
+CREATE TABLE lead_campaign_responses (job_id uuid, opted_out_at timestamptz);
+CREATE TABLE customer_engagement_events (id uuid primary key default gen_random_uuid(), job_id uuid, event_type text);
+CREATE TABLE customer_email_sends (id uuid primary key default gen_random_uuid(), job_id uuid, purpose text, idempotency_key text unique, status text default 'sending', provider text, sent_at timestamptz, error text, provider_message_id text);
+CREATE TABLE admin_config_events (id uuid primary key default gen_random_uuid(), actor_id uuid, event_type text, summary text, details jsonb);
 CREATE TABLE assessments (id uuid primary key default gen_random_uuid(), job_id uuid, external_mitti_id text);
 `);
 const id = (n: number) => `00000000-0000-0000-0000-${String(n).padStart(12, "0")}`;
@@ -30,8 +36,10 @@ for (const [b, n, e] of [[INST, "Reinsulate", "office@reinsulate.test"], [OLD, "
   await db.query("insert into businesses values ($1,$2,$2,$3,null,null)", [b, n, e]);
 await db.query("insert into partner_workers (business_id, profile_id, full_legal_name, email) values ($1,$2,'Old Sam','oldsam@x.test'), ($3,$4,'New Nic','newnic@x.test'), ($5,$6,'Second Sue','sue@x.test')", [OLD, UOLD, NEW, UNEW, NEW2, UNEW2]);
 await db.query("insert into partner_relationships (installer_business_id, electrician_business_id) values ($1,$2), ($1,$3), ($1,$4), ($1,$5)", [INST, OLD, NEW, UNBOARDED, NEW2]);
-const seed = async (job: string, o: { stage?: string; channel?: string; booked?: boolean } = {}) => {
-  await db.query("insert into jobs (id, stage, originating_installer_business_id, channel, source) values ($1,$2,$3,$4,'real')", [job, o.stage ?? "piesa_and_install_window_pending", INST, o.channel ?? "installer_sourced"]);
+const OWNER = id(30), J_TEST = id(201), J_OPTOUT = id(202), J_RETRY = id(203), J_HELD = id(204), J_OLDHELD = id(205), J_OB = id(206), J_NB = id(207);
+await db.query("insert into owners values ($1,'Olive Owner','olive@owner.test')", [OWNER]);
+const seed = async (job: string, o: { stage?: string; channel?: string; booked?: boolean; source?: string } = {}) => {
+  await db.query("insert into jobs (id, stage, originating_installer_business_id, channel, source, owner_id) values ($1,$2,$3,$4,$5,$6)", [job, o.stage ?? "piesa_and_install_window_pending", INST, o.channel ?? "installer_sourced", o.source ?? "real", OWNER]);
   await db.query("insert into job_assignments (job_id, role, business_id, user_id, booking_confirmed_at) values ($1,'electrician',$2,$3,$4)", [job, OLD, UOLD, o.booked ? new Date().toISOString() : null]);
   await db.query("insert into electrician_nominations (job_id, business_id, nominating_business_id, status) values ($1,$2,$3,'approved')", [job, OLD, INST]);
   await db.query("insert into workflow_events (job_id, event_type, summary, details, internal) values ($1,'own_job_piesa_handed','handed',$2,true)", [job, JSON.stringify({ key: `own_job_piesa:${job}:first`, due_at: "2026-01-01T00:00:00Z" })]);
@@ -42,6 +50,12 @@ for (const j of [J_TOBOOK, J_REC, J_LEAD, J_FORM, J_RESUME, J_RACE, J_FORM2]) aw
 await seed(J_BOOKED, { stage: "piesa_scheduled", booked: true });
 await db.query("insert into bookings (job_id, kind, status, scheduled_start, business_id) values ($1,'assessment','confirmed',now() + interval '3 days',$2)", [J_BOOKED, OLD]);
 await db.query("insert into appointment_proposals (job_id, kind, status) values ($1,'assessment','proposed')", [J_BOOKED]);
+for (const [j, source] of [[J_TEST, "qa_test"], [J_OPTOUT, "real"], [J_RETRY, "real"], [J_HELD, "real"], [J_OLDHELD, "real"], [J_OB, "real"]] as const) {
+  await seed(j, { stage: "piesa_scheduled", booked: true, source });
+  await db.query("insert into bookings (job_id, kind, status, scheduled_start, business_id) values ($1,'assessment','confirmed',now() + interval '3 days',$2)", [j, OLD]);
+}
+await db.query("insert into customer_email_optouts (job_id, opted_out_at) values ($1, now())", [J_OPTOUT]);
+await seed(J_NB);
 await seed(J_DONE, { stage: "piesa_complete" });
 await db.query("insert into jobs (id, stage, originating_installer_business_id, channel, source) values ($1,'measured_quote_accepted',$2,'installer_sourced','real')", [J_EARLY, INST]);
 await db.query("insert into electrician_nominations (job_id, business_id, nominating_business_id, status) values ($1,$2,$3,'approved')", [J_EARLY, OLD, INST]);
@@ -49,7 +63,12 @@ await db.query("insert into assessments (job_id, external_mitti_id) values ($1,'
 
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: postgrestShim(db) }));
 let commsOn = true;
-mock.module("../src/lib/comms.server", () => ({ customerCommsEnabled: async () => commsOn, hasCurrentOwnerContactConsent: async () => true }));
+mock.module("../src/lib/comms.server", () => ({ customerCommsEnabled: async () => commsOn, hasCurrentOwnerContactConsent: async () => true, assertCustomerDeliveryAllowed: async () => { if (!commsOn) throw new Error("Customer messages are off"); } }));
+// The REAL guarded owner sender runs (opt-outs, TEST routing, one reservation per key); only the provider call is stubbed.
+const providerCalls: { to: string; subject: string; html: string; text: string; key: string }[] = [];
+let providerFails = false;
+mock.module("../src/lib/hot-leads-send.server", () => ({ resendSend: async (to: string, subject: string, html: string, text: string, key: string) => { providerCalls.push({ to, subject, html, text, key }); return providerFails ? { outcome: "rejected", status: 422, detail: "bad" } : { outcome: "accepted", id: "re_1", detail: "ok" }; } }));
+mock.module("../src/lib/emailsafety.server", () => ({ unsubscribeUrlForJob: async () => "https://example.test/u/1" }));
 let failLog: string | null = null;
 const realWorkflow = await import("../src/lib/workflow.server");
 mock.module("../src/lib/workflow.server", () => ({
@@ -111,11 +130,17 @@ describe("installerSwapElectrician", () => {
     expect(emails).toHaveLength(1);
     expect(emails[0]).toEqual({ to: "old@sparky.test", subject: "You're no longer on 1 Example St, Clayton 3168", record: { businessId: OLD }, pauseJobId: J_TOBOOK });
   });
-  test("the wording is held until approved: no email goes by default", async () => {
+  test("approved by Jo 3 Nov 2026: the old electrician's email goes by default (no flag passed)", async () => {
     emails.length = 0;
     await swap.installerSwapElectrician(J_REC, INST, NEW, BOSS);
+    expect(emails).toHaveLength(1);
+    expect((await events(J_REC, "own_job_electrician_swapped"))[0]!.details.old_electrician_email).toBe("sent");
+  });
+  test("the held path still works when the flag is false: nothing sent, outcome recorded", async () => {
+    emails.length = 0;
+    await swap.installerSwapElectrician(J_OLDHELD, INST, NEW, BOSS, { oldEmailApproved: false });
     expect(emails).toHaveLength(0);
-    expect((await events(J_REC, "own_job_electrician_swapped"))[0]!.details.old_electrician_email).toBe("not_approved");
+    expect((await events(J_OLDHELD, "own_job_electrician_swapped"))[0]!.details.old_electrician_email).toBe("not_approved");
   });
   test("a booked safety check is cancelled, the job goes back to 'to book', the new electrician books fresh", async () => {
     await swap.installerSwapElectrician(J_BOOKED, INST, NEW, BOSS, APPROVED);
@@ -266,5 +291,58 @@ describe("after 'Can't do this one' (final review)", () => {
       await expect(els.createElectricianLink(J, NEW)).rejects.toThrow(); // so the text is held, never sent
       expect(await els.revokeElectricianLinks(J, "x")).toBe(0);
     } finally { await db.exec("alter table electrician_job_links_hidden rename to electrician_job_links"); }
+  });
+});
+
+describe("owner email when a swap cancels a booked safety check (message 7)", () => {
+  test("a swap of a booked safety check sends exactly one owner email, with the approved wording", async () => {
+    providerCalls.length = 0;
+    await swap.installerSwapElectrician(J_OB, INST, NEW, BOSS, APPROVED);
+    expect(providerCalls).toHaveLength(1);
+    const m = providerCalls[0]!;
+    expect(m.to).toBe("olive@owner.test");
+    expect(m.subject).toBe("Your safety check needs a new time");
+    expect(m.text).toContain("Hi Olive,\n\nYour installer has changed the electrician for your safety check (PIESA) at 1 Example St, Clayton 3168, so the time we booked is cancelled.\n\nYour new electrician will call you soon to book a new time. You don't need to do anything.\n\nCheers,\nthe Home Insulation Victoria team");
+    expect(m.html).toContain("Your new electrician will call you soon");
+    const ev = (await events(J_OB, "own_job_electrician_swapped"))[0]!.details;
+    expect(ev.owner_email).toEqual(["sent"]);
+    expect((await db.query("select 1 from customer_email_sends where job_id=$1 and purpose='own_job_swap_booking_cancelled' and status='sent'", [J_OB])).rows).toHaveLength(1);
+  });
+  test("a retry that finishes an interrupted swap still sends the owner email only once", async () => {
+    providerCalls.length = 0;
+    failLog = "own_job_electrician_swapped";
+    await expect(swap.installerSwapElectrician(J_RETRY, INST, NEW, BOSS, APPROVED)).rejects.toThrow("log blip");
+    expect(providerCalls).toHaveLength(1);
+    await swap.installerSwapElectrician(J_RETRY, INST, NEW, BOSS, APPROVED);
+    expect(providerCalls).toHaveLength(1);
+  });
+  test("a swap with no booking sends no owner email", async () => {
+    providerCalls.length = 0;
+    await swap.installerSwapElectrician(J_NB, INST, NEW, BOSS, APPROVED);
+    expect(providerCalls).toHaveLength(0);
+    expect((await events(J_NB, "own_job_electrician_swapped"))[0]!.details.owner_email).toBe("no_booking_cancelled");
+  });
+  test("a TEST job goes only to the test route, marked", async () => {
+    providerCalls.length = 0;
+    process.env["HIVIC_COM04_TEST_RECIPIENTS"] = "jolowexo@hotmail.com"; // the non-production boundary: only the TEST inbox is allowed
+    await swap.installerSwapElectrician(J_TEST, INST, NEW, BOSS, APPROVED);
+    expect(providerCalls).toHaveLength(1);
+    expect(providerCalls[0]!.to).toBe("jolowexo@hotmail.com");
+    expect(providerCalls[0]!.subject).toBe("[TEST] Your safety check needs a new time");
+    expect(providerCalls.some((c) => c.to === "olive@owner.test")).toBe(false);
+  });
+  test("an opted-out owner is not emailed, and the swap still completes", async () => {
+    providerCalls.length = 0;
+    await swap.installerSwapElectrician(J_OPTOUT, INST, NEW, BOSS, APPROVED);
+    expect(providerCalls).toHaveLength(0);
+    expect((await active(J_OPTOUT)).map((r) => r.business_id)).toEqual([NEW]);
+    expect((await events(J_OPTOUT, "own_job_electrician_swapped"))[0]!.details.owner_email).toEqual(["blocked — unsubscribed"]);
+  });
+  test("the held path: with the flag false nothing is sent and the outcome is recorded", async () => {
+    providerCalls.length = 0;
+    await swap.installerSwapElectrician(J_HELD, INST, NEW, BOSS, { ...APPROVED, ownerEmailApproved: false });
+    expect(providerCalls).toHaveLength(0);
+    expect((await events(J_HELD, "own_job_electrician_swapped"))[0]!.details.owner_email).toEqual(["not_approved"]);
+    expect((await active(J_HELD)).map((r) => r.business_id)).toEqual([NEW]);
   });
 });

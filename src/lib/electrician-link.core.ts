@@ -88,15 +88,15 @@ export function cantDoReasonLabel(reason: CantDoReason, note?: string | null): s
 export const OWN_JOB_PIESA_INSTALLER_NOT_TOLD_EVENT = "own_job_piesa_installer_not_told";
 export const OWN_JOB_PIESA_HANDED_BACK_EVENT = "own_job_piesa_handed_back";
 
-// ---------- Held wording (Task 6 collects it for Jo; nothing real goes until she approves) ----------
+// ---------- Wording approved by Jo 3 Nov 2026 (flags kept so a message can be switched off) ----------
 
-/** Off until Jo approves the "Safety check to book" office email. */
-export const OWN_JOB_PIESA_TO_BOOK_EMAIL_APPROVED: boolean = false;
-/** Off until Jo approves the "Can't do the safety check" office email. */
-export const OWN_JOB_PIESA_CANT_DO_EMAIL_APPROVED: boolean = false;
+/** "Safety check to book" office email: approved by Jo 3 Nov 2026. */
+export const OWN_JOB_PIESA_TO_BOOK_EMAIL_APPROVED: boolean = true;
+/** "Can't do the safety check" office email: approved by Jo 3 Nov 2026. */
+export const OWN_JOB_PIESA_CANT_DO_EMAIL_APPROVED: boolean = true;
 
-/** Off until Jo approves the "Not booked yet" office email. */
-export const OWN_JOB_PIESA_NOT_BOOKED_EMAIL_APPROVED: boolean = false;
+/** "Not booked yet" office email: approved by Jo 3 Nov 2026. */
+export const OWN_JOB_PIESA_NOT_BOOKED_EMAIL_APPROVED: boolean = true;
 
 /** The electrician's text (SMS type own_job_piesa_link, wordingApproved:false). */
 export function electricianLinkText(i: { installer: string; address: string; url: string }): string {

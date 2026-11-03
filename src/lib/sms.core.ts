@@ -10,7 +10,7 @@ import { melbourneHour, smsQuietReason } from "./quote-hold.core";
 export const SMS_MESSAGE_TYPES = {
   in_house_booked_owner: { audience:'owner',label:'In-house visit booking confirmation (Jo 1 Nov Task 7)',wordingApproved:true,quietHours:true },
   // Part 2 (Jo 3 Nov 2026): an installer's own job — the electrician's no-login link to call the owner and book the safety check. HELD until Jo approves.
-  own_job_piesa_link: { audience: "partner", label: "Own job: electrician's link to book the safety check (Part 2)", wordingApproved: false, quietHours: true },
+  own_job_piesa_link: { audience: "partner", label: "Own job: electrician's link to book the safety check (Part 2)", wordingApproved: true, quietHours: true },
   install_deposit_request: { audience: 'owner', label: 'In-house 10% install deposit request (Jo 1 Nov Task 6)', wordingApproved: true, quietHours: true },
   install_deposit_reminder: { audience: 'owner', label: 'In-house unpaid install deposit day 3/7 reminder (Jo 1 Nov Task 6)', wordingApproved: true, quietHours: true },
   install_deposit_paid: { audience: 'owner', label: 'In-house install deposit received (Jo 1 Nov Task 6)', wordingApproved: true, quietHours: true },

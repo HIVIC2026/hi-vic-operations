@@ -174,11 +174,15 @@ describe("double tap and paid time", () => {
 });
 
 describe("can't do this one", () => {
-  test("ends the assignment, revokes the link, logs it, emails the office once (held wording: not sent)", async () => {
+  test("ends the assignment, revokes the link, logs it, emails the office once (approved wording: sent)", async () => {
     const t = await tokenFor(J_CANT);
     await expect(els.linkCantDo(t, "other", "  ")).rejects.toThrow("Tell us why");
+    const sentBefore = officeEmails.length;
     const r = await els.linkCantDo(t, "busy");
-    expect(r.officeEmail).toBe("not_approved"); // wording held until Jo approves
+    expect(r.officeEmail).toBe("sent"); // approved by Jo 3 Nov 2026
+    expect(officeEmails).toHaveLength(sentBefore + 1);
+    expect(officeEmails[sentBefore]!.subject).toContain("can't do the safety check");
+    expect(officeEmails[sentBefore]!.record).toEqual({ businessId: INST });
     expect((await db.query<{ active: boolean }>("select active from job_assignments where job_id=$1", [J_CANT])).rows[0]!.active).toBe(false);
     expect((await db.query<{ revoked_reason: string }>("select revoked_reason from electrician_job_links where job_id=$1 and revoked_at is not null", [J_CANT])).rows[0]!.revoked_reason).toBe("cant_do");
     const ev = (await db.query<{ details: { reason: string } }>("select details from workflow_events where job_id=$1 and event_type='own_job_piesa_handed_back'", [J_CANT])).rows;
@@ -221,11 +225,14 @@ describe("can't do this one", () => {
     await els.linkCantDo(t, "busy");
     expect((await db.query("select 1 from workflow_events where job_id=$1 and event_type='own_job_piesa_handed_back'", [J])).rows).toHaveLength(1);
   });
-  test("once the wording is approved the office email goes (recorded against the installer)", async () => {
+  test("the held path still works: with approved=false nothing is sent; with approved=true it goes (recorded against the installer)", async () => {
     const { emailInstallerOffice } = await import("../src/lib/own-job-piesa-notices.server");
+    const before = officeEmails.length;
+    expect((await emailInstallerOffice({ jobId: J_CANT, businessId: INST, key: "k0", subject: "s", text: "t", jobUrl: "https://x/field/j", approved: false })).status).toBe("not_approved");
+    expect(officeEmails).toHaveLength(before);
     const out = await emailInstallerOffice({ jobId: J_CANT, businessId: INST, key: "k1", subject: "s", text: "t", jobUrl: "https://x/field/j", approved: true });
     expect(out.status).toBe("sent");
-    expect(officeEmails).toHaveLength(1);
-    expect(officeEmails[0]!.record).toEqual({ businessId: INST });
+    expect(officeEmails).toHaveLength(before + 1);
+    expect(officeEmails[before]!.record).toEqual({ businessId: INST });
   });
 });
