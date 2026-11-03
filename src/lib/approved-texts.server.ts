@@ -176,8 +176,8 @@ export async function sweepApprovedTexts(now = new Date()) {
   for (const b of upcoming.data ?? []) {
     await run("see you tomorrow", () => textOwnerVisitTomorrow(b.kind as VisitTextKind, b.job_id, b, now), "tomorrow");
     // Part 4 Task 15 (answer 7): the tenant / property manager who lets the trades in gets their own day-before text for the
-    // safety check and the install (own flag, own key; nothing for a Ready Check). Not inside textOwnerVisitTomorrow: that
-    // one skips in-house jobs, and this is a new-flow message (Task 8 ruling), so it runs for every confirmed booking.
+    // safety check and the install (own flag, own key; nothing for a Ready Check). Kept outside textOwnerVisitTomorrow so it
+    // has its own flag/key and recipient; both run for every confirmed booking (in-house included, Part 4 Task 16).
     if (b.kind === "assessment" || b.kind === "installation") await run("access person tomorrow", async () => (await import("./access-person-texts.server")).textAccessPersonTomorrow(b.job_id, b.id, now, { readBooking: async () => b }), "accessTomorrow");
   }
   for (const q of (quotes.data ?? []) as QuoteRow[]) await run("quote reminder", () => textOwnerQuoteReminder(q, now), "quoteReminders");

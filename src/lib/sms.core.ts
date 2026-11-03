@@ -9,7 +9,8 @@ import { melbourneHour, smsQuietReason } from "./quote-hold.core";
  */
 export const SMS_MESSAGE_TYPES = {
   in_house_booked_owner: { audience:'owner',label:'In-house visit booking confirmation (Jo 1 Nov Task 7)',wordingApproved:true,quietHours:true },
-  after_install_reminder: { audience: 'owner', label: 'After-install reminder: what is still undone, days 1/3/7 (Jo 2 Nov, touchpoint 53; wording is a draft behind AFTER_INSTALL_REMINDERS_APPROVED)', wordingApproved: true, quietHours: true },
+  // DRAFT (Part 4 Task 10): held by AFTER_INSTALL_REMINDERS_APPROVED; flip both together when Jo approves the wording.
+  after_install_reminder: { audience: 'owner', label: 'After-install reminder: what is still undone, days 1/3/7 (Jo 2 Nov, touchpoint 53; wording is a draft behind AFTER_INSTALL_REMINDERS_APPROVED)', wordingApproved: false, quietHours: true },
   upgrades_needed: { audience: 'owner', label: 'Your safety check found electrical upgrades needed (Jo 2 Nov, touchpoint 42)', wordingApproved: true, quietHours: true },
   install_deposit_request: { audience: 'owner', label: 'In-house 10% install deposit request (Jo 1 Nov Task 6)', wordingApproved: true, quietHours: true },
   install_deposit_reminder: { audience: 'owner', label: 'In-house unpaid install deposit day 3/7 reminder (Jo 1 Nov Task 6)', wordingApproved: true, quietHours: true },
