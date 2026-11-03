@@ -41,6 +41,19 @@ Every rule below is one Jo has already decided (dates in brackets). Nothing new 
 - The electrician's link shows only the next step: book the PIESA → do it in Mitti → add the upgrades day if needed → add the certificate → done. Electricians never log in.
 - The electrician can be changed until the PIESA is done. **The installer does it from the job page** (Jo, 3 Nov), picking from their onboarded electricians linked to them. The new electrician gets the text link and a fresh 2 business days. A swapped-out electrician gets one email. This replaces "only the office can change an installer's electrician".
 
+### Part 2b — Installers add their own electricians (Jo, 3 Nov)
+
+- **My business › My electricians** lists every electrician linked to the installer, showing each one's status (Waiting for approval / Approved / Expired).
+- "Add an electrician": the installer boss enters:
+  - name, email, mobile, REC number;
+  - electrical licence: number, expiry and a photo;
+  - public liability: certificate, cover amount (must be $5m or more) and expiry;
+  - WorkCover: "Does this electrician employ anyone, including themselves through a company?" If Yes, the WorkCover certificate and expiry are required. If No, the installer ticks "Sole trader with no staff — no WorkCover needed". (Claude's advice, Jo agreed: this follows the Victorian rule — compulsory only when the business employs workers, including the owner through their own company.)
+- That creates the electrician (business + person) as **waiting for approval**, linked to the installer. Our office checks the documents and approves. Then the electrician is linked to the installer and gets a welcome text. The electrician fills nothing in.
+- If the same person is already approved with us (matching licence or email), they're simply linked — no re-upload.
+- A missing or expired licence or insurance is a hard block, the same as for other electricians, until the office approves new documents.
+- Approved, linked electricians can be picked at Add a job and in the swap on the job page.
+
 ## Part 3 — Upgrades billed by the electrician; certificate can come later (2 Nov, 3 Nov)
 
 **Today:** the portal builds an HIV upgrades quote from the electrician's price on the PIESA form and sends it to the owner.
