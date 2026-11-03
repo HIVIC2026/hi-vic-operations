@@ -44,6 +44,7 @@ export async function listingQueue(limit: number, nowMs = Date.now()): Promise<L
       .select("id, job_number, source, property_id, properties(address_line, suburb, postcode)")
       .in("id", c)
       .eq("stage", "ready_check_ready_to_schedule")
+      .eq("channel", "hivic_sourced") // our leads only, as To release shows
       .is("deleted_at", null)
       .is("qa_archived_at", null);
     if (error) throw new Error(`Could not load saved spot homes: ${error.message}`);

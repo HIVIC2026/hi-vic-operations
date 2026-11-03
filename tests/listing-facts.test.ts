@@ -90,7 +90,13 @@ const ago = (d: number) => new Date(NOW - d * 86_400_000).toISOString();
 
 function addSpot(
   id: string,
-  o: { band: "best" | "weak"; savedDaysAgo: number; address?: string; test?: boolean },
+  o: {
+    band: "best" | "weak";
+    savedDaysAgo: number;
+    address?: string;
+    test?: boolean;
+    channel?: string;
+  },
 ) {
   BANDS[id] = o.band;
   tables["jobs"]!.push({
@@ -98,6 +104,7 @@ function addSpot(
     job_number: `HV-${id}`,
     stage: "ready_check_ready_to_schedule",
     source: o.test ? "qa_test" : "website",
+    channel: o.channel ?? "hivic_sourced",
     deleted_at: null,
     qa_archived_at: null,
     property_id: `p-${id}`,
@@ -236,6 +243,7 @@ describe("listing facts endpoint", () => {
     addSpot("checked", { band: "best", savedDaysAgo: 8 });
     addSpot("test", { band: "best", savedDaysAgo: 8, test: true });
     addSpot("nostreet", { band: "best", savedDaysAgo: 8, address: "Brunswick" });
+    addSpot("installer", { band: "best", savedDaysAgo: 8, channel: "installer_sourced" });
     tables["property_facts"]!.push({
       property_id: "p-checked",
       fact_key: "listing_check",

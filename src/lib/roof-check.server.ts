@@ -180,7 +180,7 @@ export async function runRoofCheck(
   return "done";
 }
 
-/** Saved spots still waiting, newest saved first, with a street address, no roof_form yet, and no failed try in the last 24 h. */
+/** Saved spots still waiting (our leads only), newest saved first, with a street address, no roof_form yet, and no failed try in the last 24 h. */
 async function pickJobs(): Promise<string[]> {
   const saved: { job_id: string; spot_saved_at: string }[] = [];
   for (let from = 0; ; from += 1000) {
@@ -206,6 +206,7 @@ async function pickJobs(): Promise<string[]> {
       .select("id, property_id, properties(address_line)")
       .in("id", c)
       .eq("stage", "ready_check_ready_to_schedule")
+      .eq("channel", "hivic_sourced") // our leads only, as To release shows
       .is("deleted_at", null)
       .is("qa_archived_at", null)
       .neq("source", "qa_test");

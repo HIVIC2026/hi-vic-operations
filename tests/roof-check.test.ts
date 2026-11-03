@@ -37,6 +37,7 @@ const jobRow = (id: string, extra: Record<string, unknown> = {}) => ({
   id,
   property_id: "p" + id,
   stage: "ready_check_ready_to_schedule",
+  channel: "hivic_sourced",
   source: "real",
   deleted_at: null,
   qa_archived_at: null,
@@ -100,6 +101,11 @@ test("missing key is skipped with no event and no call", async () => {
   expect(await runRoofCheck("a", ok)).toBe("skipped");
   expect(calls).toBe(0);
   expect(tables.workflow_events).toHaveLength(0);
+});
+test("installer-sourced homes are not picked (our leads only)", async () => {
+  tables.jobs![0]!.channel = "installer_sourced";
+  expect(await roofCheckTick({ limit: 2, http: ok })).toEqual({ done: 0, failed: 0 });
+  expect(calls).toBe(0);
 });
 test("postcode-only home is not picked", async () => {
   tables.properties![0]!.address_line = "Melbourne 3141";
