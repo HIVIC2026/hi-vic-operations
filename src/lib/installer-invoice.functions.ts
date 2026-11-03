@@ -28,8 +28,11 @@ export const getInstallerLedInvoice = createServerFn({ method: "POST" }).middlew
     if (qe) throw new Error(qe.message);
     const standardApFee = s ? Number(s.ap_management_inc_gst) : null;
     const override = job.ap_fee_override_inc_gst != null ? Number(job.ap_fee_override_inc_gst) : null;
-    const apFee = override ?? standardApFee;
-    const piesa = piesaChargeIncGst((job.electrician_choice as ElectricianChoice | null) ?? null, s ? Number(s.piesa_assessment_inc_gst) : null);
+    // Part 10 (final review M1): when the quote carries the lines, the preview shows THEM — own customers' $349 fee and $349
+    // PIESA (Jo 2 Nov 2026) — and only falls back to the settings / electrician choice when the quote has no such line.
+    const lineAmount = (code: string) => { const l = (quote?.quote_items ?? []).find((i) => i.code === code); return l && Number(l.line_total_inc_gst) > 0 ? Number(l.line_total_inc_gst) : null; };
+    const apFee = lineAmount("AP_FEE") ?? override ?? standardApFee;
+    const piesa = lineAmount("PIESA") ?? piesaChargeIncGst((job.electrician_choice as ElectricianChoice | null) ?? null, s ? Number(s.piesa_assessment_inc_gst) : null);
     const price = installerLedOwnerPrice({
       // The quote already carries an AP_FEE line; strip it so the installer's price isn't counted twice.
       installerQuoteIncGst: quote ? Number(quote.subtotal_inc_gst) - (quote.quote_items ?? []).filter((i) => i.code === "AP_FEE" || i.code === "PIESA").reduce((a, i) => a + Number(i.line_total_inc_gst), 0) : 0,

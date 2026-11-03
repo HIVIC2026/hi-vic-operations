@@ -194,3 +194,32 @@ describe("own-customer draft without a Mitti electrician (intake fallback) — s
     expect(fn).not.toContain("piesaChargeIncGst(");
   });
 });
+
+// Final review M2: the legacy intake release check (electricalLineBlocker, used by quoteBillingBlocker when no Mitti snapshot
+// exists) also checks the amounts — exactly one AP_FEE at $349 and one PIESA at $349 — so an old $275 intake draft holds.
+describe("M2: electricalLineBlocker checks the $349 amounts", () => {
+  test("$349 + $349 passes; a $275 PIESA, a $200 fee, a missing fee or a doubled line holds", async () => {
+    const { electricalLineBlocker } = await import("../src/lib/installer-intake.core");
+    const ok = [{ code: "INSTALLER_PRICE", line_total_inc_gst: 2000 }, { code: "AP_FEE", line_total_inc_gst: 349 }, { code: "PIESA", line_total_inc_gst: "349.00" }];
+    expect(electricalLineBlocker(ok, "hivic")).toBeNull();
+    expect(electricalLineBlocker(ok, "own")).toBeNull();
+    expect(electricalLineBlocker([ok[0]!, ok[1]!, { code: "PIESA", line_total_inc_gst: 275 }], "own")).toBe("This quote's electrical safety check (PIESA) line is $275.00, not $349 — prepare a fresh quote first");
+    expect(electricalLineBlocker([ok[0]!, { code: "AP_FEE", line_total_inc_gst: 200 }, ok[2]!], "hivic")).toBe("This quote's Home Insulation Victoria fee line is $200.00, not $349 — prepare a fresh quote first");
+    expect(electricalLineBlocker([ok[0]!, ok[2]!], "hivic")).toBe("This quote has no Home Insulation Victoria fee line — prepare a fresh quote first");
+    expect(electricalLineBlocker([...ok, ok[2]!], "hivic")).toBe("This quote's electrical safety check (PIESA) line is doubled — prepare a fresh quote first");
+    // the old reasons are kept
+    expect(electricalLineBlocker([ok[0]!, ok[1]!], "hivic")).toBe("This quote has no PIESA line but Home Insulation Victoria is arranging the electrician — prepare a fresh quote first");
+    expect(electricalLineBlocker([ok[0]!, ok[1]!], "own")).toBe("This quote has no electrical safety check (PIESA) line for the installer's electrician — prepare a fresh quote first");
+    expect(electricalLineBlocker(ok, "undecided")).toBe("Electrician arrangement not decided yet — this quote can't go to the owner");
+    // plain codes (old callers) still work for the presence checks
+    expect(electricalLineBlocker(["INSTALLER_PRICE", "AP_FEE", "PIESA"], "hivic")).toBeNull();
+  });
+});
+
+describe("M1: the office invoice preview shows the quote's own fee and PIESA lines", () => {
+  test("installer-invoice.functions reads AP_FEE / PIESA amounts from the quote lines first, settings only as the fallback", () => {
+    const src = require("node:fs").readFileSync("src/lib/installer-invoice.functions.ts", "utf8") as string;
+    expect(src).toContain('const apFee = lineAmount("AP_FEE") ?? override ?? standardApFee;');
+    expect(src).toContain('const piesa = lineAmount("PIESA") ?? piesaChargeIncGst(');
+  });
+});
