@@ -88,7 +88,9 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
         const { data: job, error: je } = await admin.from("jobs").insert({
           owner_id: owner.id, property_id: prop.id, stage: "ready_check_ready_to_schedule", source, business_unit: "hivic", installer_led: true,
           channel: "installer_sourced", originating_installer_business_id: businessId, originating_installer_user_id: userId,
-          external_enquiry_id: `onsite:${crypto.randomUUID()}`, customer_relationship_owner: "installer",
+          // A6 (join fix, 4 Nov 2026): the phone's request key is the job's key on this path too — main's Part 2 makes "mine"
+          // the only electrician plan on an installer's own job, which keeps this save, and Try again must find THIS job.
+          external_enquiry_id: `onsite:${requestKey}`, customer_relationship_owner: "installer",
           installer_site_check: "no", installer_site_check_date: null, installer_quoted: "no",
           next_action: READY_CHECK_FORM_COMING,
         }).select("id, job_number").single();
