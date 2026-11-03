@@ -1,5 +1,6 @@
 // Pure, runtime-agnostic helpers for the Base44 -> portal enquiry handoff (no DB, no env). Tested in tests/enquiry.core.test.ts.
 import { EXISTING_INSULATION_KEYS, answerText, declaredExtras, insulationDetailText, type InsulationDetail } from "./trade-shared-consts.core";
+import { contactConsentSnapshot, websiteConsentWording } from "./contact-consent-record.core";
 
 /** Trusted Base44 Ed25519 public key (SPKI DER, base64). Public by design — no secret required. */
 export const BASE44_PUBLIC_KEY_SPKI_B64 = "MCowBQYDK2VwAyEA4ZW3Pv8Mb6v9e684gaMN3HHB8qGLvW6LCMOPU7ki6U0=";
@@ -202,7 +203,7 @@ export type Base44Snapshots = {
   base44_screening?: Record<string, unknown> | null | undefined;
   base44_ai_observations?: Record<string, unknown> | null | undefined;
   property_research_raw?: Record<string, unknown> | null | undefined;
-  contact_consent?: boolean | null | undefined; contact_consent_version?: string | null | undefined; contact_consented_at?: string | null | undefined;
+  contact_consent?: boolean | null | undefined; contact_consent_wording?: string | null | undefined; contact_consent_version?: string | null | undefined; contact_consented_at?: string | null | undefined;
   age_confirmed?: boolean | null | undefined; assistance?: string | null | undefined; contact_preference?: string | null | undefined;
 };
 
@@ -255,6 +256,10 @@ export function planContactConsent(i: Base44Snapshots & { source_reference?: str
     contact_consent: i.contact_consent ?? null, contact_consent_version: i.contact_consent_version ?? null, contact_consented_at: i.contact_consented_at ?? null,
     age_confirmed: i.age_confirmed ?? null, assistance: i.assistance ?? null, contact_preference: i.contact_preference ?? null,
     external_enquiry_id: i.external_enquiry_id ?? null, source_reference: i.source_reference ?? null,
+    // Record of who may call: website leads have no installer yet (named at the Task 5 tap).
+    ...(status === "granted" && i.contact_consented_at && Number.isFinite(Date.parse(i.contact_consented_at))
+      ? contactConsentSnapshot({ who: ["Home Insulation Victoria"], givenAt: i.contact_consented_at, wording: websiteConsentWording(i.contact_consented_at, i.contact_consent_wording) })
+      : { who: ["Home Insulation Victoria"] }),
   };
   // Stable identity: same status/version/timestamp/assistance/preference => same row (retries never duplicate).
   const consent_key = [status, i.contact_consent_version ?? "-", i.contact_consented_at ?? "-", i.age_confirmed ?? "-", i.assistance ?? "-", i.contact_preference ?? "-"].join("|");
