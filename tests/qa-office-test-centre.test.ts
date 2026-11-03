@@ -55,7 +55,7 @@ test("getQaJourneys applies the filter and checks the caller", () => {
   const src = readFileSync("src/lib/portal.functions.ts", "utf8");
   const body = src.slice(src.indexOf("export const getQaJourneys ="));
   const fn = body.slice(0, body.indexOf("});") + 3);
-  expect(fn).toContain("requireOfficeIdentity(context.supabase)");
+  expect(fn).toContain("requireOfficeIdentity(context.supabase, context)");
   expect(fn).toContain('.eq("source", activeQaJobsFilter.source)');
   expect(fn).toContain('.is("qa_archived_at", null)');
   expect(fn).toContain('.is("deleted_at", null)');
@@ -81,12 +81,12 @@ test("review #1: every journey action runs the full isolation check on its job",
   const body = (name: string) => src.slice(src.indexOf(`export const ${name} =`), src.indexOf("});", src.indexOf(`export const ${name} =`)));
   for (const fn of ["prepareQaJourneyAccess", "issueQaPersonaLink", "issueQaWorkerLink", "simulateQaJourneyTime", "simulateQaPayment", "archiveQaJourney"]) expect(body(fn)).toContain("await requireTestOfficeOrAdmin(context, data.jobId)");
   const helper = src.slice(src.indexOf("async function requireTestOfficeOrAdmin("), src.indexOf("async function testJob("));
-  expect(helper).toContain("requireOfficeJob(context.supabase, jobId)");
+  expect(helper).toContain("requireOfficeJob(context.supabase, jobId, context)");
 });
 test("review #1: TEST office list comes from officeTestJobIds", () => {
   const src = readFileSync("src/lib/portal.functions.ts", "utf8");
   const fn = src.slice(src.indexOf("export const getQaJourneys ="), src.indexOf("export const getAdminPipeline ="));
-  expect(fn).toContain("officeTestJobIds(context.supabase)");
+  expect(fn).toContain("officeTestJobIds(context.supabase, context)");
 });
 // #2: the TEST office can't create a journey with an email that already belongs to a portal account.
 test("review #2: TEST office refused an email that already has a portal account", () =>

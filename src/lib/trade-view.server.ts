@@ -18,6 +18,7 @@ import { installerQuoteLine } from "./installer-quote-status.core";
 import { inHouseTradeBookingText } from "./in-house-message.core";
 import { withoutRetiredInstallDayPhotos } from "./ready-check-chase.core";
 import { early } from "./early-read";
+import { sharedFor, type SharedJobReads } from "./job-shared-reads";
 import { PIESA_BOOKERS, type PiesaBooker } from "./piesa-booker.core";
 import { isMissingDbObject } from "./schema-compat.core";
 import { readPiesaBooker } from "./piesa-booker.server";
@@ -104,7 +105,8 @@ type HomeJob = { id: string; job_number: string; stage: string; source: string; 
 export async function tradeHome(userId: string) {
   // Speed (installer screens, Task 5): three rounds of reads — (1) sign-in context, (2) everything that needs only the
   // business (offers, assignments with their jobs embedded, ended assignments, owner money rows), (3) everything that
-  // needs the job ids. The owner's money rows run their own short chain alongside rounds 2–3. Same reads, same value.
+  // needs the job ids. The owner's money rows run their own short chain alongside rounds 2–4, and the deposit facts and the
+  // Mitti electrician question (round 3) need one more round each (round 4). Same reads, same value.
   const c = await ctxOrThrow(userId);
   const now = new Date();
   // Business owner only, own pay only. Started now, awaited after round 3; a failure still fails the page (money path).
@@ -133,6 +135,15 @@ export async function tradeHome(userId: string) {
   // Decisions 278/279: the one status line needs two more facts per installer job — has the Mitti form any installer
   // answers (latest ready_check_basics event) and, on the installer's own jobs, has the boss entered the price.
   const formReads = c.kind === "installer" && live.length > 0;
+  // Speed (portal speed step 1, Task 5): the install-deposit facts and the Mitti electrician question start with round 3
+  // instead of after it. The deposit facts are read for every live job at install scheduling and kept only for the jobs held
+  // by an in-house partner (known from round 3), as before. Both keep their display catch; a failed module load still fails.
+  const depositCandidates = c.kind === "installer" ? live.filter((j) => j.stage === "installation_scheduling").map((j) => j.id) : [];
+  const depositsP = import("./install-deposit-list.server").then((m) => m.installDepositPaidForJobs(depositCandidates).catch(() => null));
+  depositsP.catch(() => undefined); // awaited below; this only stops an early rejection being reported as unhandled
+  // Jo 3 Nov 2026: Mitti pickups still waiting for the installer's one electrician answer (own electricians only).
+  const askElectricianP = c.kind === "installer" ? import("./mitti-electrician.server").then((m) => m.openMittiElectricianQuestions(live.map((j) => j.id)).catch(() => new Set<string>())) : Promise.resolve(new Set<string>());
+  askElectricianP.catch(() => undefined);
   // Round 3: every read that needs the job ids, together.
   const [{ data: books }, { data: missing }, { data: deadlines }, sf, rcQuotes, { data: ms }, { data: basics }, prices, { data: histJobs }] = await Promise.all([
     admin.from("bookings").select("job_id, kind, status, scheduled_start, scheduled_end").in("job_id", ids).in("status", ["confirmed", "completed"]).order("scheduled_start"),
@@ -150,7 +161,8 @@ export async function tradeHome(userId: string) {
   ]);
   const moneyAll = await moneyP;
   const depositIds = c.kind === 'installer' ? live.filter(j => j.stage === 'installation_scheduling' && !!sf.get(j.id)?.inHouseDispatch).map(j => j.id) : [];
-  const installDeposits = await (await import('./install-deposit-list.server')).installDepositPaidForJobs(depositIds).catch(() => new Map<string, boolean | null>(depositIds.map(id => [id, null])));
+  const depositFacts = await depositsP;
+  const installDeposits = new Map<string, boolean | null>(depositIds.map((id) => [id, depositFacts?.get(id) ?? null]));
   // Decision 396: rows the retired install-day photo chase created are not missing photos.
   const miss = new Map<string, number>(); for (const r of withoutRetiredInstallDayPhotos(missing ?? [])) miss.set(r.job_id, (miss.get(r.job_id) ?? 0) + 1);
   const deadline = new Map<string, string>(); for (const d of deadlines ?? []) if (d.job_id && d.install_deadline) deadline.set(d.job_id, String(d.install_deadline));
@@ -214,8 +226,7 @@ export async function tradeHome(userId: string) {
   ];
   // Installer home (mock-up M1): one "Next:" line and one group per job, from the pure rules only.
   const upcomingTile = (id: string) => { const b = upcomingOf(id)[0]; return b ? { what: VISIT[b.kind] ?? "Visit", start: b.scheduled_start } : null; };
-  // Jo 3 Nov 2026: Mitti pickups still waiting for the installer's one electrician answer (own electricians only).
-  const askElectrician = c.kind === "installer" ? await (await import("./mitti-electrician.server")).openMittiElectricianQuestions(jobsTabbed.map((j) => j.jobId)).catch(() => new Set<string>()) : new Set<string>();
+  const askElectrician = await askElectricianP;
   const home = c.kind === "installer" ? installerHomeGroups(jobsTabbed.map((j) => ({
     jobId: j.jobId, jobNumber: j.jobNumber, street: j.street, suburb: j.suburb, channel: j.channel, stage: j.stage, place: j.place, placeTitle: placeOf.get(j.jobId)?.title ?? null,
     inHouseDispatch: sf.get(j.jobId)?.inHouseDispatch ?? null,
@@ -655,12 +666,16 @@ export async function tradeMoney(userId: string) {
  * insurance expiries, agreement, notice summary. The NEXT panel is derived by pure `businessNext`. Never quotes,
  * prices or other partners.
  */
+/** Speed (portal speed step 1, Task 7): set once this server has seen `partner_workers.declarations_due` missing, so later
+ *  loads read the team once, without it, instead of failing first and reading again. A new server instance checks again. */
+let declarationsDueMissing = false;
 /** The team rows with `declarations_due`. Until 0230 is live the column is missing: re-read without it (nobody is due). */
 async function loadTeamWorkers(businessId: string): Promise<{ data: { id: string; full_legal_name: string; trade_role: string; profile_id: string | null; email: string | null; mobile: string | null; certification: unknown; worker_role?: string | null; declarations_due?: boolean; licence_expires_on: string | null }[] | null; error?: { code?: string } | null }> {
   const load = (cols: string) => (admin as unknown as { from: (t: string) => any }).from("partner_workers").select(cols).eq("business_id", businessId).is("removed_at", null); // eslint-disable-line @typescript-eslint/no-explicit-any
   const base = "id, full_legal_name, trade_role, approval_status, licence_expires_on, profile_id, email, mobile, certification_status, certification, worker_role";
+  if (declarationsDueMissing) return await load(base);
   const first = await load(`${base}, declarations_due`);
-  if (first.error && schemaCompatCore.isMissingDbObject(first.error)) return await load(base);
+  if (first.error && schemaCompatCore.isMissingDbObject(first.error)) { declarationsDueMissing = true; return await load(base); }
   return first;
 }
 
@@ -673,7 +688,7 @@ export async function tradeBusiness(userId: string) {
   if (!c.boss) return staffOnly;
   // Speed (installer screens, Task 9): three rounds — (1) sign-in context and the owner check above, (2) every owner read that
   // needs only the business (started only after the owner check, as before), (3) the reads that need the team rows (profiles,
-  // Mitti records) alongside the second step of the CII and notice records. Same reads, same value, same failure rules.
+  // Mitti records, dates of birth) alongside the second step of the CII and notice records. Same reads, same value, same failure rules.
   const r = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
   type CiiRow = { workerId: string; eecVerified: boolean; clearanceReason?: string | null; level?: string | null; expiresOn?: string | null };
   type NoticeRow = { workerId: string | null; name: string; state: string };
@@ -708,11 +723,14 @@ export async function tradeBusiness(userId: string) {
   const staffRows = (workers ?? []) as { id: string; full_legal_name: string; trade_role: string; profile_id: string | null; email: string | null; mobile: string | null; certification: unknown; worker_role?: string | null; declarations_due?: boolean }[];
   const needCrew = c.kind === "installer" || staffRows.some((w) => w.trade_role === "installer");
   // Round 3. Office Mitti records (linked, invited, reactivated, marked done) per worker: Crew show "Mitti ✓" once the office has added them.
-  const [{ data: profs }, recsRes, cii, notice] = await Promise.all([
+  // Speed (portal speed step 1, Task 7): the dates of birth (yes/no) are read here for every team row and used only for the
+  // staff rows (owner rows excluded, below), instead of in a round of their own.
+  const [{ data: profs }, recsRes, cii, notice, dobRes] = await Promise.all([
     profileIds.length ? admin.from("profiles").select("id, full_name, phone, email, mitti_user_id, mitti_checked_email, mitti_checked_at").in("id", profileIds) : Promise.resolve({ data: [] as never[] }),
     staffRows.length ? admin.from("admin_config_events").select("details").in("event_type", ["mitti_user_linked", "mitti_user_invited", "mitti_invite_linked", "mitti_user_reactivated", "mitti_invite_office_done"]).in("details->>worker_id", staffRows.map((w) => w.id)) : Promise.resolve(null),
     needCrew ? crewEarly ?? crewRead() : Promise.resolve([] as CiiRow[]),
     needCrew ? noticeEarly ?? noticeRead() : Promise.resolve([] as NoticeRow[]),
+    staffRows.length ? admin.from("partner_worker_identity" as never).select("worker_id").in("worker_id", staffRows.map((w) => w.id)).not("date_of_birth", "is", null) : Promise.resolve({ data: [], error: null }),
   ]);
   const profile = (id: string | null | undefined) => (profs ?? []).find((p) => p.id === id) ?? null;
   const mittiLogin = (id: string | null | undefined): MittiLogin => { const p = profile(id); if (!p) return "not_set"; const a = mittiAccessOf(p as never); return a === "member" ? "linked" : a === "email_changed" ? "email_changed" : "not_set"; };
@@ -750,7 +768,7 @@ export async function tradeBusiness(userId: string) {
   // Jo 3 Nov: which required details each person is missing (owner row excluded). Date of birth is read as yes/no only.
   {
     const staffIds = team.filter((m) => m.role !== "owner" && m.id).map((m) => m.id!);
-    const { data: ids, error: idErr } = staffIds.length ? await admin.from("partner_worker_identity" as never).select("worker_id").in("worker_id", staffIds).not("date_of_birth", "is", null) : { data: [], error: null };
+    const { data: ids, error: idErr } = staffIds.length ? dobRes : { data: [], error: null };
     if (idErr) console.error("tradeBusiness: date of birth facts could not be read", (idErr as { code?: string }).code ?? "unknown");
     else {
       const has = new Set(((ids ?? []) as { worker_id: string }[]).map((r) => r.worker_id));
@@ -1153,8 +1171,10 @@ async function ownerReadyFacts(jobId: string): Promise<import("./installer-scree
   return { consent: consent ? (consent.owner_signed_at ? "signed" : "waiting") : null, deposit };
 }
 
-export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJobAccess) {
+export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJobAccess, sharedReads?: SharedJobReads) {
   const c = await requireTradeJob(userId, jobId, pre);
+  // Speed (Task 6): the job page bundle's one quote read and one clearance read, when they were taken for this caller and job.
+  const shared = sharedFor(sharedReads, userId, jobId);
   // Speed (installer screens, Task 6): every read that needs only the job id starts in ONE round — the page facts, the
   // panel dates/names, the notes and the boss's own pay rows. The reads that are gated on another fact keep their gate and
   // start the moment that fact is in: the owner's side once the install booking is read (decision 251), the PIESA owner
@@ -1162,7 +1182,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   // channel is read. Modules are imported at module scope.
   const jobP = early(admin.from("jobs").select("job_number, stage, channel, next_action, installation_completed_at").eq("id", jobId).single());
   const inBookP = early(admin.from("bookings").select("scheduled_start, status").eq("job_id", jobId).eq("kind", "installation").neq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle());
-  const clearanceP = early(allocationServer.clearanceFacts(jobId).then(electricalClearance));
+  const clearanceP = early(shared ? shared.clearance() : allocationServer.clearanceFacts(jobId).then(electricalClearance));
   // Decision 251: the owner's side is read only once the install is booked (the M2-install-booked state); nothing is read before that.
   const ownerReadyP = early(inBookP.then(async ({ data: inBook }) => inBook?.status === "confirmed" ? await ownerReadyFacts(jobId).catch(() => null) : null));
   // Decision 278: only whether the boss has entered the price (true/false on the installer's own jobs, null otherwise).
@@ -1179,11 +1199,11 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     admin.from("ceiling_measurements").select("measured_area_m2, removal_m2, removal_required").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
     admin.from("assessments").select("status, piesa_outcome, completed_at").eq("job_id", jobId).maybeSingle(),
     rebateSignedByInstaller(jobId),
-    loadInstallerQuote(jobId),
+    shared ? shared.quote() : loadInstallerQuote(jobId),
     installerPayForJob(jobId),
     installFormFacts(jobId),
     clearanceP,
-    c.kind === "installer" ? mittiJobPresentationServer.mittiJobPresentation(jobId, userId, c).catch(() => ({ applies: false as const })) : Promise.resolve({ applies: false as const }),
+    c.kind === "installer" ? mittiJobPresentationServer.mittiJobPresentation(jobId, userId, c, shared).catch(() => ({ applies: false as const })) : Promise.resolve({ applies: false as const }),
     c.boss ? tradeMoneyRows(c.biz.id, c.kind, c.isTest).then((rows) => rows.filter((r) => r.jobId === jobId && r.kind === "installation")) : Promise.resolve([] as Awaited<ReturnType<typeof tradeMoneyRows>>),
     // Approved states (decision 234): the dates and names each panel prints, every one a recorded fact.
     admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "quote_declined").order("created_at", { ascending: false }).limit(1).maybeSingle(),

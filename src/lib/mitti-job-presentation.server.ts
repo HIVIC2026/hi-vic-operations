@@ -1,9 +1,10 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { installerQuoteLine } from "./installer-quote-status.core";
 import { needsFinishingTask, jobCardLine } from "./trade-view.core";
+import { sharedFor, type SharedJobReads } from "./job-shared-reads";
 
 /** Presentation only; reads the linked form, the quote status and existing next-action rules. */
-export async function mittiJobPresentation(jobId: string, userId: string, pre?: import("./trade-view.server").TradeJobAccess) {
+export async function mittiJobPresentation(jobId: string, userId: string, pre?: import("./trade-view.server").TradeJobAccess, sharedReads?: SharedJobReads) {
   const c = await (await import("./trade-view.server")).requireTradeJob(userId, jobId, pre);
   const [{ data: m, error: me }, { data: j, error: je }, { data: e, error: ee }, { data: basics, error: be }] = await Promise.all([
     admin.from("ceiling_measurements").select("external_source,external_id").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
@@ -15,7 +16,8 @@ export async function mittiJobPresentation(jobId: string, userId: string, pre?: 
   if (m?.external_source !== "mitti" || !m.external_id) return { applies: false as const };
   // Speed (decision 280): the quote facts and the status facts are independent reads — one round trip, not two.
   const [{ loadInstallerQuote }, { statusFactsFor, statusView }] = await Promise.all([import("./installer-quote-status.server"), import("./job-status.server")]);
-  const [a, facts] = await Promise.all([loadInstallerQuote(jobId), statusFactsFor(c, [jobId])]);
+  const shared = sharedFor(sharedReads, userId, jobId);
+  const [a, facts] = await Promise.all([shared ? shared.quote() : loadInstallerQuote(jobId), statusFactsFor(c, [jobId])]);
   const f = facts.get(jobId);
   const next = a.applies ? installerQuoteLine(a)
     : needsFinishingTask(j?.next_action ?? "") ?? (f ? jobCardLine(statusView(c, f)) : "You: finish the Ready Check in Mitti");

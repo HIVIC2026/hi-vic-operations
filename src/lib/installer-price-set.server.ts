@@ -17,6 +17,7 @@ import {
 } from "./installer-price.core";
 import { readInstallerPriceState, type StoredInstallerPrice } from "./installer-price.server";
 import { early } from "./early-read";
+import { sharedFor, type SharedJobReads } from "./job-shared-reads";
 // Namespaces: tests replace these modules with partial mocks; a namespace never fails on a missing export.
 import * as pilotServer from "./pilot.server";
 import * as usualElectricianServer from "./usual-electrician.server";
@@ -93,7 +94,8 @@ async function currentReadyCheck(jobId: string): Promise<{
 }
 
 /** The boss's "Your price" card: the saved price, the job's electrician choice (read-only) and the access flag. Team members: null (nothing shown). */
-export async function installerPriceView(jobId: string, userId: string) {
+export async function installerPriceView(jobId: string, userId: string, sharedReads?: SharedJobReads) {
+  const shared = sharedFor(sharedReads, userId, jobId);
   // Speed (installer screens, Task 6): the job, the caller's memberships and every card read that needs only the job id
   // start together; the usual electrician follows the job's business. Nothing is used or returned until the job and the
   // business-owner checks pass, in the same order as before (a refused caller gets null; read errors surface as before).
@@ -127,7 +129,7 @@ export async function installerPriceView(jobId: string, userId: string) {
       removalM2: null,
     })),
   );
-  const quoteP = early(loadInstallerQuote(jobId));
+  const quoteP = early(shared ? shared.quote() : loadInstallerQuote(jobId));
   const sentAtP = early(
     latestQuoteSentAt(jobId).then(
       (at) => ({ at, failed: false }),

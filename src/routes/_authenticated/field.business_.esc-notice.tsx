@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { writeTradeCache } from "@/lib/trade-cache";
+import { useTradeSeed } from "@/lib/use-trade-seed";
 import { useState } from "react";
 import { ChevronLeft } from "lucide-react";
 import { TradeShell, card, greenBtn } from "@/components/trade/TradeShell";
@@ -19,7 +21,10 @@ export const Route = createFileRoute("/_authenticated/field/business_/esc-notice
 function EscNotice() {
   const load = useServerFn(getTradeCollectionNotice);
   const ack = useServerFn(acknowledgeTradeCollectionNotice);
-  const { data, error, refetch } = useQuery({ queryKey: ["trade-esc-notice"], queryFn: () => load() });
+  const uid = Route.useRouteContext().user.id;
+  const seed = useTradeSeed<Awaited<ReturnType<typeof load>>>(uid, "esc-notice", ["trade-esc-notice"]);
+  const { data, error, refetch, dataUpdatedAt } = useQuery({ queryKey: ["trade-esc-notice"], queryFn: async () => { const d = await load(); if (d) writeTradeCache(uid, "esc-notice", d); return d; }, ...seed.options });
+  const updating = seed.isCopy(dataUpdatedAt);
   const [ticked, setTicked] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -33,6 +38,7 @@ function EscNotice() {
       <Link to="/field/business" className="inline-flex min-h-11 items-center text-sm text-hiv-blue"><ChevronLeft className="h-4 w-4" />My business</Link>
       <div><h1 className="font-display text-[22px] font-semibold leading-tight">{P5.title}</h1><p className="mt-1.5 text-sm leading-relaxed text-sub">{P5.sub}</p></div>
       {error ? <p role="alert" className={card}>{(error as Error).message}</p> : !data ? <p className="text-sm">Loading…</p> : (<>
+        {updating && <p data-last-copy-updating className="text-xs text-sub">Updating…</p>}
         <NoticeBody paragraphs={COLLECTION_NOTICE_PARAGRAPHS} />
         {(data.boss || mine) && <section data-esc-ack>
           <h2 className="font-display text-[15px] font-semibold">{P5.yourInstallers}</h2>
@@ -47,7 +53,7 @@ function EscNotice() {
             {!data.statuses.length && <li className={`${card} mt-2 text-sm text-sub`}>No installers listed yet.</li>}
           </ul>
           <p className="mt-3 text-[13px] leading-relaxed text-sub">{P5.note}<b>{P5.noteTeam}</b>{P5.noteEnd}</p>
-          {mineOpen && <button type="button" className={`${greenBtn} mt-[18px] md:w-full`} disabled={!ticked || busy} onClick={async () => { setBusy(true); setMsg(null); try { const r = await ack(); setMsg(r.email.status === "sent" ? "Acknowledged. A copy has been emailed to you." : "Acknowledged and recorded."); await refetch(); } catch (e) { setMsg((e as Error).message); } finally { setBusy(false); } }}>{busy ? P5.saving : P5.button}</button>}
+          {mineOpen && <button type="button" className={`${greenBtn} mt-[18px] md:w-full`} disabled={!ticked || busy || updating} onClick={async () => { setBusy(true); setMsg(null); try { const r = await ack(); setMsg(r.email.status === "sent" ? "Acknowledged. A copy has been emailed to you." : "Acknowledged and recorded."); await refetch(); } catch (e) { setMsg((e as Error).message); } finally { setBusy(false); } }}>{busy ? P5.saving : P5.button}</button>}
           {msg && <p role="status" className="mt-2 text-sm font-bold text-estimate-green">{msg}</p>}
         </section>}
         {!mine && !data.boss && <p className="text-sm text-sub">You're not listed as an installer for this business, so there's nothing to acknowledge.</p>}

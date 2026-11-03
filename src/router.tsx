@@ -3,6 +3,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
 import { isStaleChunkError } from "./lib/page-recovery.core";
+import { createStaleChunkRecovery } from "./lib/stale-chunk-recovery";
 export { isStaleChunkError } from "./lib/page-recovery.core";
 
 // After a new version goes live, an already-open tab can ask for page files that no longer exist.
@@ -63,10 +64,11 @@ function reloadForNewVersion(): boolean {
   return false;
 }
 
+// Hover/touch preloads that hit a stale file wait for the next real navigation to reload (stale-chunk-recovery.ts).
+const staleChunkRecovery = createStaleChunkRecovery(reloadForNewVersion);
+
 if (typeof window !== "undefined") {
-  window.addEventListener("vite:preloadError", (ev) => {
-    if (reloadForNewVersion()) ev.preventDefault();
-  });
+  window.addEventListener("vite:preloadError", (ev) => staleChunkRecovery.onPreloadError(ev));
   // The document's early recovery owns these events, including failures before React starts.
   // Register a fallback only when the document has no early handler; two owners race reloads.
   const earlyRecovery = (window as Window & { hivEarlyRecoveryInstalled?: boolean }).hivEarlyRecoveryInstalled === true;
@@ -92,11 +94,14 @@ export const getRouter = () => {
     routeTree,
     context: { queryClient },
     scrollRestoration: true,
-    defaultPreloadStaleTime: 0,
+    // Fetch a page's code (and run its loader) when a link is hovered or touched, and reuse that preload for 30 s.
+    defaultPreload: "intent",
+    defaultPreloadStaleTime: 30_000,
     defaultOnCatch: (e) => {
       if (typeof window !== "undefined" && isStaleChunkError(e)) reloadForNewVersion();
     },
   });
 
+  if (typeof window !== "undefined") staleChunkRecovery.attach(router);
   return router;
 };

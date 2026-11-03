@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { writeTradeCache } from "@/lib/trade-cache";
+import { useTradeSeed } from "@/lib/use-trade-seed";
 import { useServerFn } from "@tanstack/react-start";
 import { TradeShell } from "@/components/trade/TradeShell";
 import { ELECTRICIAN_GUIDE_STEPS, ELECTRICIAN_GUIDE_WORDS, GUIDE_STEPS, GUIDE_WORDS, guideTabTitle } from "@/lib/trade-view.core";
@@ -16,7 +18,9 @@ export const Route = createFileRoute("/_authenticated/field/guide")({
 // wording only from pure GUIDE_STEPS / GUIDE_WORDS: no job data, no onboarding checklist (collected at onboarding).
 function Guide() {
   const load = useServerFn(getTradeBusiness);
-  const { data, error } = useQuery({ queryKey: ["trade-business"], queryFn: () => load(), staleTime: 30_000 });
+  const uid = Route.useRouteContext().user.id;
+  const seed = useTradeSeed<Awaited<ReturnType<typeof load>>>(uid, "business", ["trade-business"]); // the same copy My business keeps
+  const { data, error } = useQuery({ queryKey: ["trade-business"], queryFn: async () => { const d = await load(); if (d) writeTradeCache(uid, "business", d); return d; }, staleTime: 30_000, ...seed.options });
   if (error) return <TradeShell installer={false}><p role="alert" className="text-sm">{(error as Error).message}</p></TradeShell>;
   if (!data) return <TradeShell installer={false}><p className="text-sm">Loading…</p></TradeShell>;
   return data.kind === "electrician" ? <ElectricianGuide /> : <InstallerGuide />;

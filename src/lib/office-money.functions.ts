@@ -16,8 +16,8 @@ export const getMoneyMargins = createServerFn({ method: "POST" }).middleware([re
 
 export const getMoneyPayouts = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const role = await requireOfficeIdentity(context.supabase);
-    const ids = role === "qa_office" ? await officeTestJobIds(context.supabase) : undefined;
+    const role = await requireOfficeIdentity(context.supabase, context);
+    const ids = role === "qa_office" ? await officeTestJobIds(context.supabase, context) : undefined;
     return plain(await (await import("./office-money.server")).moneyPayouts(ids));
   });
 

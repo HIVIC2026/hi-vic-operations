@@ -48,7 +48,7 @@ mock.module("@/components/portal/jobfile", () => ({
   useJobFile: () => ({ data: { timeline: [] }, isError: false, isPending: false }),
 }));
 mock.module("@/components/portal/in-house-handoff", () => ({ InHouseHandoff: () => null }));
-mock.module("@/hooks/use-me", () => ({ useMe: () => ({ data: { roles: ["admin"] } }) }));
+mock.module("@/hooks/use-me", () => ({ useMe: () => ({ data: { roles: ["admin"], user: { id: "u1" } } }) }));
 mock.module("sonner", () => ({ toast: { success: () => {}, error: () => {}, warning: () => {} } }));
 mock.module("@tanstack/react-start", () => ({
   useServerFn: (fn: { id: string }) => async () => ({ fn: fn.id }),
@@ -100,13 +100,17 @@ const list = {
     { key: "b", heading: "Knox (2)", jobIds: ["hv-4", "hv-5"], locationKnown: true },
   ],
 };
+let waitingUpdatedAt = 0; // the list's dataUpdatedAt (a last copy is shown while it equals the seeded time)
 mock.module("@tanstack/react-query", () => ({
   useQuery: ({ queryKey }: { queryKey: unknown[] }) => ({
+    dataUpdatedAt: queryKey[0] === "installer-waiting" ? waitingUpdatedAt : 0,
+    isSuccess: true,
+    isPlaceholderData: false,
     data:
       queryKey[0] === "installer-waiting"
         ? list
         : queryKey[0] === "installers-for-homes"
-          ? { installers: [] }
+          ? { installers: [{ id: "b1", name: "Sample Co" }] }
           : queryKey[0] === "area-batches"
             ? []
             : undefined,
@@ -188,4 +192,56 @@ test("Table shows the existing column headings and keeps the ticks", () => {
   expect(
     (r.getByRole("checkbox", { name: "Tick HV-3 for Send" }) as HTMLInputElement).checked,
   ).toBe(true);
+});
+
+// Task 9: the last copy on this device draws at once; Send waits for the fresh copy.
+const { seedLastCopy } = await import("../src/lib/office-last-copy");
+const { writeLastCopy } = await import("../src/lib/trade-cache");
+const { installerWaitingKey } = await import("../src/lib/office-list-keys.core");
+
+function showLastCopy() {
+  localStorage.clear();
+  const key = installerWaitingKey(false);
+  writeLastCopy("u1", "installer-waiting", { k: JSON.stringify(key), d: list });
+  let stored: unknown;
+  const qc = { getQueryData: () => undefined, setQueryData: (_k: unknown, d: unknown) => { stored = d; } };
+  expect(seedLastCopy(qc as never, "u1", "installer-waiting", key)).toBe(true);
+  expect(stored).toEqual(list);
+  waitingUpdatedAt = JSON.parse(localStorage.getItem("hiv-last:v1:u1:installer-waiting")!).at;
+}
+
+test("from the last copy: the list draws, 'Updating…' shows, and Send is disabled saying 'Updating…'", () => {
+  showLastCopy();
+  const r = mount();
+  expect(r.container.querySelectorAll("[data-spot]").length).toBe(5);
+  expect(r.container.querySelector("[data-last-copy-updating]")?.textContent).toBe("Updating…");
+  fireEvent.click(r.getByRole("checkbox", { name: "Tick HV-3 for Send" }));
+  const send = r.getByRole("button", { name: "Updating…" }) as HTMLButtonElement;
+  expect(send.disabled).toBe(true);
+  expect(r.queryByRole("button", { name: "Send" })).toBeNull();
+});
+
+test("once the fresh copy has arrived: no 'Updating…' line and Send is enabled", () => {
+  showLastCopy();
+  waitingUpdatedAt += 1000; // fresh data replaced the copy
+  const r = mount();
+  expect(r.container.querySelector("[data-last-copy-updating]")).toBeNull();
+  fireEvent.click(r.getByRole("checkbox", { name: "Tick HV-3 for Send" }));
+  expect((r.getByRole("button", { name: "Send" }) as HTMLButtonElement).disabled).toBe(false);
+});
+
+test("no last copy (first visit): today's behaviour, Send enabled", () => {
+  waitingUpdatedAt = 0;
+  const r = mount();
+  expect(r.container.querySelector("[data-last-copy-updating]")).toBeNull();
+  fireEvent.click(r.getByRole("checkbox", { name: "Tick HV-3 for Send" }));
+  expect((r.getByRole("button", { name: "Send" }) as HTMLButtonElement).disabled).toBe(false);
+});
+
+test("the same screen in the Table view also holds Send until fresh", () => {
+  showLastCopy();
+  const r = mount();
+  fireEvent.click(r.getByRole("checkbox", { name: "Tick HV-3 for Send" }));
+  fireEvent.click(r.getByRole("button", { name: "Table" }));
+  expect((r.getByRole("button", { name: "Updating…" }) as HTMLButtonElement).disabled).toBe(true);
 });

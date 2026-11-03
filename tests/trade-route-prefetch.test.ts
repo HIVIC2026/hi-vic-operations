@@ -133,12 +133,13 @@ describe("shouldStartEarly: only when the screen is going to ask the server on m
 });
 
 describe("head start: the loader starts the call, the screen's own query uses it", () => {
-  test("the call starts in the loader, before anything renders, with the screen's own arguments", () => {
+  test("the call starts in the loader, before anything renders, with the screen's own arguments", async () => {
     pre.startTradeScreen(ctx(), "home", {}, false);
     pre.startTradeScreen(ctx(), "job", { jobId: JOB }, false);
     pre.startTradeScreen(ctx(), "day", { jobId: JOB }, false);
     pre.startTradeScreen(ctx(), "business", {}, false);
     pre.startTradeScreen(ctx(), "money", {}, false);
+    await tick(); // the server-call module loads at use time (first-load speed), then the call goes out
     expect(calls).toEqual([
       { name: "getTradeHome", args: undefined }, { name: "getTradeJobBundle", args: { data: { jobId: JOB } } },
       { name: "getTradeDayView", args: { data: { jobId: JOB } } }, { name: "getTradeBusiness", args: undefined }, { name: "getTradeMoneyView", args: undefined },
@@ -197,13 +198,15 @@ describe("head start: the loader starts the call, the screen's own query uses it
     await tick(); // nothing awaits it yet: must not surface as an unhandled rejection
     await expect(pre.headStartOr(UID, ["trade-job-bundle", JOB], async () => "own")).rejects.toThrow("This job isn't assigned to you.");
   });
-  test("a loader that cannot work (no signed-in id, storage throws) starts nothing and never throws", () => {
+  test("a loader that cannot work (no signed-in id, storage throws) starts nothing and never throws", async () => {
     expect(() => pre.startTradeScreen({ queryClient: new QueryClient() }, "home", {}, false)).not.toThrow();
     expect(() => pre.startTradeScreen(undefined, "home", {}, false)).not.toThrow();
+    await tick();
     expect(calls.length).toBe(0);
   });
-  test("hover preloads start nothing", () => {
+  test("hover preloads start nothing", async () => {
     pre.startTradeScreen(ctx(), "home", {}, true);
+    await tick();
     expect(calls.length).toBe(0);
   });
   test("the screen already showing (an observer) or already fetching: no second call", async () => {
@@ -212,18 +215,21 @@ describe("head start: the loader starts the call, the screen's own query uses it
     const off = obs.subscribe(() => undefined);
     await tick();
     pre.startTradeScreen(ctx(qc), "home", {}, false);
+    await tick();
     expect(calls.length).toBe(0);
     off();
   });
-  test("a fresh last copy on the phone (the screen won't ask on mount): no call", () => {
+  test("a fresh last copy on the phone (the screen won't ask on mount): no call", async () => {
     writeTradeCache(UID, "home", { cached: true });
     pre.startTradeScreen(ctx(), "home", {}, false);
+    await tick();
     expect(calls.length).toBe(0);
   });
-  test("started twice (the trade area and the screen's own loader): one call", () => {
+  test("started twice (the trade area and the screen's own loader): one call", async () => {
     const c = ctx();
     pre.startTradeScreenForPath(c, "/field/money", false);
     pre.startTradeScreen(c, "money", {}, false);
+    await tick();
     expect(calls).toEqual([{ name: "getTradeMoneyView", args: undefined }]);
   });
   test("sign-out forgets every head start", async () => {
@@ -422,6 +428,7 @@ describe("a head start asked before an action is never shown after it", () => {
     qc.setQueryData(["trade-home"], { before: true });
     setSystemTime(new Date(Date.parse("2026-10-31T00:00:00Z") + 30_000)); // stale: the screen will ask on mount
     pre.startTradeScreen(ctx(qc), "home", {}, false);
+    await tick();
     expect(calls.length).toBe(1);
     await qc.invalidateQueries(); // useAction after the action returns
     expect(await pre.headStartOr(UID, ["trade-home"], async () => "fresh after the action")).toBe("fresh after the action");

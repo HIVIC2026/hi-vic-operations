@@ -12,6 +12,7 @@ import { READY_CHECK_WINDOW_STAGES, fullCurrentCert, installerCandidate, install
 import { publicLiabilityBlocker } from "./worker-compliance.core";
 import { latestExpiry } from "./trade-view.core";
 import { expiredBusinessDocsBlocker } from "./trade-expiry.core";
+import { early } from "./early-read";
 
 const NONE = ["00000000-0000-0000-0000-000000000000"];
 type Pick = { date: string; slot: import("./piesa-windows.core").PiesaSlot };
@@ -80,6 +81,11 @@ export async function ownerReadyCheckWindowState(jobId: string) {
 export async function installerOfferFacts(bizs: { id: string }[]): Promise<{ credentialsOk: (b: { id: string }) => boolean; fullCertified: (businessId: string) => number; installerGap: (businessId: string) => string | null; credentialsGap: (b: { id: string }) => string | null }> {
   const ids = bizs.map((b) => b.id);
   const inIds = ids.length ? ids : NONE;
+  // Speed (portal speed step 1, Task 4): the ESC notice records need only the business ids, so they are read with the
+  // documents and workers (used, and their errors raised, only when there are workers, as before); each certification's
+  // levels come embedded in the certifications read. Three rounds instead of five.
+  const notice = await import("./esc-collection-notice.server");
+  const acksP = early(notice.loadNoticeAcks(ids));
   const [{ data: creds }, { data: workers }] = await Promise.all([
     admin.from("business_credentials").select("business_id,kind,label,expires_at,critical,verification").in("business_id", inIds),
     // Decision 153: clearance is derived below from the verified certification + recorded level/expiry; approval_status (logins only) is not a filter.
@@ -88,17 +94,19 @@ export async function installerOfferFacts(bizs: { id: string }[]): Promise<{ cre
   // Certification: latest record per worker (by id or email) + latest office-recorded level.
   // ESC collection notice (decision 130): a person who has not acknowledged it is not offered work either.
   const { workerOfferBlocker } = await import("./worker-compliance.core");
-  const noticeAck = await (await import("./esc-collection-notice.server")).noticeAckMap((workers ?? []) as never);
-  const wk = (workers ?? []).filter((x) => !workerOfferBlocker({ ...x, collection_notice_acknowledged: noticeAck.get(x.id) ?? null } as never, melbourneYmd(new Date())));
   const all = workers ?? [];
   const { certOrFilter, sameWorkerEmail } = await import("./worker-role.core");
-  const { data: certs } = all.length
-    ? await admin.from("partner_worker_certifications").select("id, worker_id, worker_email, status, recorded_at").or(certOrFilter(all)).order("recorded_at", { ascending: false })
-    : { data: [] as { id: string; worker_id: string | null; worker_email: string; status: string; recorded_at: string }[] };
-  const certIds = (certs ?? []).map((c) => c.id);
-  const { data: levels } = certIds.length
-    ? await admin.from("worker_certification_levels").select("certification_id, level, expires_on, recorded_at").in("certification_id", certIds).order("recorded_at", { ascending: false })
-    : { data: [] as { certification_id: string; level: string; expires_on: string; recorded_at: string }[] };
+  type Level = { level: string; expires_on: string; recorded_at: string };
+  const [noticeAck, { data: certs }] = await Promise.all([
+    (async () => notice.noticeAckMap(all as never, all.length ? await acksP : undefined))(),
+    all.length
+      ? admin.from("partner_worker_certifications").select("id, worker_id, worker_email, status, recorded_at, worker_certification_levels(level, expires_on, recorded_at)").or(certOrFilter(all)).order("recorded_at", { ascending: false })
+      : { data: [] as { id: string; worker_id: string | null; worker_email: string; status: string; recorded_at: string; worker_certification_levels: Level[] }[] },
+  ]);
+  const wk = all.filter((x) => !workerOfferBlocker({ ...x, collection_notice_acknowledged: noticeAck.get(x.id) ?? null } as never, melbourneYmd(new Date())));
+  // Every level of these certifications, newest first (as the separate levels read returned them).
+  const levels = (certs ?? []).flatMap((c) => (c.worker_certification_levels ?? []).map((l: Level) => ({ certification_id: c.id, ...l })))
+    .sort((a, b) => (a.recorded_at < b.recorded_at ? 1 : a.recorded_at > b.recorded_at ? -1 : 0));
   const today = melbourneYmd(new Date());
   const fullWorker = (x: { id: string; email: string | null }) => {
     const c = (certs ?? []).find((r) => r.worker_id === x.id || sameWorkerEmail(x.email, r.worker_email));

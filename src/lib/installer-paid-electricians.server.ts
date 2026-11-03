@@ -84,13 +84,20 @@ export async function inHouseFactsFor(businessId: string) {
 /** Per job: the installer we pay for the safety check, or null (we pay the electrician as usual). */
 export async function safetyCheckPayeesFor(jobs: { id: string; channel?: string | null; originating_installer_business_id: string | null }[]): Promise<Map<string, InstallerPaidElectricians | null>> {
   const out = new Map<string, InstallerPaidElectricians | null>(jobs.map((j) => [j.id, null]));
+  // Speed (portal speed step 1, Task 7): the installer-supplied jobs' reads (business configuration, recorded quote prices)
+  // and the older jobs' reads all start together — two rounds instead of up to five. Errors are raised in the same order as
+  // before: the installer-supplied jobs' first, then the older jobs'.
+  const legacyP = legacyPayeesFor(jobs.filter(j => j.channel == null));
+  legacyP.catch(() => undefined); // awaited (and its error raised) only after the installer-supplied jobs, as before
   const ownJobs = jobs.filter(j => j.channel === "installer_sourced");
   if (ownJobs.length) {
     const ids = [...new Set(ownJobs.flatMap(j => j.originating_installer_business_id ? [j.originating_installer_business_id] : []))];
-    const businesses = await installerSafetyCheckBusinessesFor(ids);
+    const businessesP = installerSafetyCheckBusinessesFor(ids);
+    const quotesP = Promise.all(chunkIds(ownJobs.map(j => j.id), 200).map((part) => Promise.resolve(admin.from("quotes").select("job_id,quote_items(code,line_total_inc_gst)").in("job_id", part).eq("kind", "installation").in("status", ["accepted", "issued"]).order("created_at", { ascending: false }))));
+    quotesP.catch(() => undefined); // read errors are answers ({ error }), checked below after the business configuration
+    const businesses = await businessesP;
     const recorded = new Map<string, number>();
-    for (const part of chunkIds(ownJobs.map(j => j.id), 200)) {
-      const { data, error } = await admin.from("quotes").select("job_id,quote_items(code,line_total_inc_gst)").in("job_id", part).eq("kind", "installation").in("status", ["accepted", "issued"]).order("created_at", { ascending: false });
+    for (const { data, error } of await quotesP) {
       if (error) throw new Error("Could not read recorded safety check quote prices.");
       for (const q of data ?? []) {
         const lines = (q.quote_items ?? []).filter(l => l.code === "PIESA");
@@ -105,8 +112,13 @@ export async function safetyCheckPayeesFor(jobs: { id: string; channel?: string 
       out.set(j.id, { businessId: b.id, name: b.name, piesaIncGst: inc });
     }
   }
-  // Preserve the existing flag-driven legacy path; explicit website leads never receive an installer-source payee.
-  const legacyJobs = jobs.filter(j => j.channel == null);
+  for (const [id, payee] of await legacyP) out.set(id, payee);
+  return out;
+}
+
+/** Older jobs (no channel): the existing flag-driven path. Explicit website leads never receive an installer-source payee. */
+async function legacyPayeesFor(legacyJobs: { id: string; originating_installer_business_id: string | null }[]): Promise<Map<string, InstallerPaidElectricians | null>> {
+  const out = new Map<string, InstallerPaidElectricians | null>();
   if (!legacyJobs.length) return out;
   const originating = [...new Set(legacyJobs.flatMap(j => j.originating_installer_business_id ? [j.originating_installer_business_id] : []))];
   // Speed (installer screens, Task 5): the electrician choices are read alongside the business configuration (for the

@@ -16,7 +16,7 @@ test("the database wall still refuses rpc/has_role for the TEST office (why this
 test("Test Centre journey actions check the caller with requireOfficeJob only (no has_role)", () => {
   const src = readFileSync("src/lib/test-accounts.functions.ts", "utf8");
   const helper = slice(src, "async function requireTestOfficeOrAdmin(", "async function testJob(");
-  expect(helper).toContain("requireOfficeJob(context.supabase, jobId)");
+  expect(helper).toContain("requireOfficeJob(context.supabase, jobId, context)");
   expect(helper).not.toContain('rpc("has_role"');
   expect(helper).not.toContain("requireQaJourneyActor");
 });
@@ -24,7 +24,7 @@ test("Test Centre journey actions check the caller with requireOfficeJob only (n
 test("getQaJourneys checks the caller with requireOfficeIdentity (no has_role)", () => {
   const src = readFileSync("src/lib/portal.functions.ts", "utf8");
   const fn = slice(src, "export const getQaJourneys =", "export const getAdminPipeline =");
-  expect(fn).toContain("requireOfficeIdentity(context.supabase)");
+  expect(fn).toContain("requireOfficeIdentity(context.supabase, context)");
   expect(fn).not.toContain('rpc("has_role"');
   expect(fn).not.toContain("requireQaJourneyActor");
 });
@@ -32,6 +32,6 @@ test("getQaJourneys checks the caller with requireOfficeIdentity (no has_role)",
 test("createTestEnquiry checks the caller with requireOfficeIdentity (no has_role)", () => {
   const src = readFileSync("src/lib/portal.functions.ts", "utf8");
   const fn = slice(src, "export const createTestEnquiry =", "export const setEligibility");
-  expect(fn).toContain("requireOfficeIdentity(context.supabase)");
+  expect(fn).toContain("requireOfficeIdentity(context.supabase, context)");
   expect(fn).not.toContain('rpc("has_role"');
 });

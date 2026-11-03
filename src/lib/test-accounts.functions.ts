@@ -119,7 +119,7 @@ async function requireTestOfficeOrAdmin(context: { supabase: SupabaseClient<Data
   // The same check every other TEST office action uses: admin as before, or the TEST office alone (verified TEST
   // identity) on a fully isolated TEST job. 31 Oct: no rpc/has_role here — the database wall refuses it for the TEST office.
   const { requireOfficeJob } = await import("./qa-office-access.server");
-  await requireOfficeJob(context.supabase, jobId);
+  await requireOfficeJob(context.supabase, jobId, context);
 }
 
 async function testJob(admin: SupabaseClient<Database>, jobId: string) {

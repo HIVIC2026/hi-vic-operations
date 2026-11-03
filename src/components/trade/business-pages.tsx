@@ -1,6 +1,8 @@
 // My business section pages (Jo, 7 Oct): trade-style, read-only facts; changes go to the office as requests.
-import { Link } from "@tanstack/react-router";
+import { Link, useRouteContext } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { writeTradeCache } from "@/lib/trade-cache";
+import { useTradeSeed } from "@/lib/use-trade-seed";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -16,17 +18,21 @@ export type BizFile = Awaited<ReturnType<typeof getTradeBusinessFile>>;
 
 export function useBizFile() {
   const load = useServerFn(getTradeBusinessFile);
-  return useQuery({ queryKey: ["trade-business-file"], queryFn: () => load() });
+  const uid = useRouteContext({ from: "/_authenticated" }).user.id;
+  const seed = useTradeSeed<BizFile>(uid, "business-file", ["trade-business-file"]);
+  const q = useQuery({ queryKey: ["trade-business-file"], queryFn: async () => { const d = await load(); if (d) writeTradeCache(uid, "business-file", d); return d; }, ...seed.options });
+  return Object.assign(q, { updating: seed.isCopy(q.dataUpdatedAt) });
 }
 
 export function BizPage({ title, intro, children }: { title: string; intro?: string; children: (d: BizFile, refetch: () => void) => React.ReactNode }) {
-  const { data, error, refetch } = useBizFile();
+  const { data, error, refetch, updating } = useBizFile();
   const installer = data?.kind !== "electrician";
   return (
     <TradeShell installer={installer} boss={data?.boss}>
       <Link to="/field/business" className="inline-flex items-center gap-1 text-sm font-bold text-estimate-blue"><ChevronLeft className="h-4 w-4" />My business</Link>
       <div><h1 className="font-display text-[26px] font-bold leading-tight">{title}</h1>{intro && <p className="mt-1 text-sm text-sub">{intro}</p>}</div>
-      {error ? <p role="alert" className={card}>{(error as Error).message}</p> : !data ? <p className="text-sm">Loading…</p> : children(data, () => void refetch())}
+      {updating && !error && <p data-last-copy-updating className="text-xs text-sub">Updating…</p>}
+      {error ? <p role="alert" className={card}>{(error as Error).message}</p> : !data ? <p className="text-sm">Loading…</p> : <fieldset disabled={updating} className="contents">{children(data, () => void refetch())}</fieldset>}
     </TradeShell>
   );
 }

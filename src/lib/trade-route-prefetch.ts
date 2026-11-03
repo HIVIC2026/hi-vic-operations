@@ -10,17 +10,21 @@
 // today. Nothing is written to the Query cache here, and nothing here ever throws into the router.
 // Every server function still checks access itself.
 import type { QueryClient } from "@tanstack/react-query";
-import * as trade from "./trade-view.functions";
 import { readTradeCache } from "./trade-cache";
 import { HEAD_START_MS, shouldStartEarly, tradeScreenForPath, tradeScreenQuery, type TradeScreen, type TradeScreenParams } from "./trade-route-prefetch.core";
 
+// The installer server calls are loaded only when a head start is made (a trade screen opening), never by the pages
+// that import this file just to forget head starts on sign-out (sign-in page, root, guards) — keeps them off first load.
+type Trade = typeof import("./trade-view.functions");
+const loadTrade = (): Promise<Trade> => import("./trade-view.functions");
+
 /** Each screen's first call, exactly as its component makes it. */
-const CALLS: Record<TradeScreen, (p: TradeScreenParams) => Promise<unknown>> = {
-  home: () => trade.getTradeHome(),
-  job: (p) => trade.getTradeJobBundle({ data: { jobId: p.jobId! } }),
-  day: (p) => trade.getTradeDayView({ data: { jobId: p.jobId! } }),
-  business: () => trade.getTradeBusiness(),
-  money: () => trade.getTradeMoneyView(),
+const CALLS: Record<TradeScreen, (t: Trade, p: TradeScreenParams) => Promise<unknown>> = {
+  home: (t) => t.getTradeHome(),
+  job: (t, p) => t.getTradeJobBundle({ data: { jobId: p.jobId! } }),
+  day: (t, p) => t.getTradeDayView({ data: { jobId: p.jobId! } }),
+  business: (t) => t.getTradeBusiness(),
+  money: (t) => t.getTradeMoneyView(),
 };
 
 type Early = { uid: string; at: number; promise: Promise<unknown> };
@@ -72,7 +76,7 @@ export function startTradeScreen(context: LoaderContext, screen: TradeScreen, pa
     const query = qc.getQueryCache().find({ queryKey: [...q.queryKey], exact: true });
     const state = query ? { hasData: query.state.data !== undefined, dataUpdatedAt: query.state.dataUpdatedAt, isInvalidated: query.state.isInvalidated, fetching: query.state.fetchStatus === "fetching", observers: query.getObserversCount() } : null;
     if (!shouldStartEarly(q, state, seed?.at ?? null, now)) return;
-    const promise = CALLS[screen](params);
+    const promise = loadTrade().then((t) => CALLS[screen](t, params));
     promise.catch(() => undefined); // the screen surfaces the error when it takes the promise; never an unhandled rejection
     early.set(k, { uid, at: now, promise });
   } catch { /* a head start is only ever a speed-up: the screen asks for itself */ }

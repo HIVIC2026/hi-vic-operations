@@ -1,6 +1,8 @@
 // Last copy of an installer screen, kept on this phone so a return visit draws at once while a fresh copy loads.
 // Speed only: keyed per signed-in user, ignored after 24 hours, cleared on sign-out. Any storage failure = no cache.
+// Office lists keep theirs the same way under "hiv-last:v1:" (readLastCopy / writeLastCopy); sign-out clears both.
 const PREFIX = "hiv-trade:v1:";
+const LAST_PREFIX = "hiv-last:v1:";
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 // Set by clearTradeCache (sign-out): a fetch still in flight must not write the old user's answer back. Sign-out reloads the page.
@@ -12,22 +14,33 @@ const store = (): Storage | null => {
   try { return (globalThis as { localStorage?: Storage }).localStorage ?? null; } catch { return null; }
 };
 
-export function readTradeCache<T>(userId: string, key: string): { data: T; at: number } | null {
+function read<T>(prefix: string, userId: string, key: string): { data: T; at: number } | null {
+  if (!userId) return null;
   try {
-    const raw = store()?.getItem(`${PREFIX}${userId}:${key}`);
+    const raw = store()?.getItem(`${prefix}${userId}:${key}`);
     if (!raw) return null;
     const v = JSON.parse(raw) as { at?: unknown; data?: unknown };
     if (typeof v.at !== "number" || v.data === undefined) return null;
-    if (Date.now() - v.at > MAX_AGE_MS) return null;
+    if (Date.now() - v.at > MAX_AGE_MS || v.at > Date.now()) return null; // too old, or stamped in the future (clock set back)
     return { data: v.data as T, at: v.at };
   } catch { return null; }
 }
 
-/** Call only after a successful fetch, so an error is never kept. */
-export function writeTradeCache(userId: string, key: string, data: unknown): void {
-  if (signedOut) return;
-  try { store()?.setItem(`${PREFIX}${userId}:${key}`, JSON.stringify({ at: Date.now(), data })); } catch { /* no cache is fine */ }
+function write(prefix: string, userId: string, key: string, data: unknown): void {
+  if (signedOut || !userId) return;
+  try { store()?.setItem(`${prefix}${userId}:${key}`, JSON.stringify({ at: Date.now(), data })); } catch { /* no cache is fine */ }
 }
+
+export function readTradeCache<T>(userId: string, key: string): { data: T; at: number } | null { return read<T>(PREFIX, userId, key); }
+
+/** Call only after a successful fetch, so an error is never kept. */
+export function writeTradeCache(userId: string, key: string, data: unknown): void { write(PREFIX, userId, key, data); }
+
+/** Last copy of an office list or other screen (same rules as the installer cache, own prefix). */
+export function readLastCopy<T>(userId: string, key: string): { data: T; at: number } | null { return read<T>(LAST_PREFIX, userId, key); }
+
+/** Call only after a successful fetch, so an error is never kept. */
+export function writeLastCopy(userId: string, key: string, data: unknown): void { write(LAST_PREFIX, userId, key, data); }
 
 /** Drop one entry (a screen the server no longer answers for this user). */
 export function dropTradeCache(userId: string, key: string): void {
@@ -36,11 +49,16 @@ export function dropTradeCache(userId: string, key: string): void {
 
 export function clearTradeCache(): void {
   signedOut = true;
+  clearLastCopies();
+}
+
+/** Remove every kept copy (both prefixes) without blocking later writes: signing in over an existing session. */
+export function clearLastCopies(): void {
   try {
     const s = store();
     if (!s) return;
     const keys: string[] = [];
-    for (let i = 0; i < s.length; i++) { const k = s.key(i); if (k && k.startsWith(PREFIX)) keys.push(k); }
+    for (let i = 0; i < s.length; i++) { const k = s.key(i); if (k && (k.startsWith(PREFIX) || k.startsWith(LAST_PREFIX))) keys.push(k); }
     for (const k of keys) s.removeItem(k);
   } catch { /* nothing to clear */ }
 }

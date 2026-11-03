@@ -43,9 +43,9 @@ export const setJobOfficePicks = createServerFn({ method: "POST" }).middleware([
 export const listChooseTrades = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid(), kind }).parse(d))
   .handler(async ({ data, context }) => {
-    const officeRole = await requireOfficeJob(context.supabase, data.jobId);
-    const testBusinesses = officeRole === "qa_office" ? await officeTestBusinessIds(context.supabase) : null;
-    const testJobs = officeRole === "qa_office" ? await officeTestJobIds(context.supabase) : null;
+    const officeRole = await requireOfficeJob(context.supabase, data.jobId, context);
+    const testBusinesses = officeRole === "qa_office" ? await officeTestBusinessIds(context.supabase, context) : null;
+    const testJobs = officeRole === "qa_office" ? await officeTestJobIds(context.supabase, context) : null;
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { chooseWarnings, distanceKm, officePicks } = await import("./offer-dispatch.core");
     const { installerOfferable } = await import("./readycheck-booking.core");
@@ -132,8 +132,8 @@ export const listChooseTrades = createServerFn({ method: "POST" }).middleware([r
 export const sendChosenOffers = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid(), kind, businessIds: z.array(z.string().uuid()).min(1).max(50) }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireOfficeJob(context.supabase, data.jobId);
-    for (const businessId of data.businessIds) await requireOfficeBusiness(context.supabase, businessId);
+    await requireOfficeJob(context.supabase, data.jobId, context);
+    for (const businessId of data.businessIds) await requireOfficeBusiness(context.supabase, businessId, context);
     // Decision 389: a Ready Check is never offered to an installer before the owner confirms — the office Releases the
     // spot (owner "It's your turn"), and the offer runs on the owner's Confirm (or straight away for a confirmed owner).
     if (data.kind === "ready_check") {

@@ -8,8 +8,7 @@ import { refreshForAuthChange } from "@/lib/auth-change";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { isRecoverableTransportError, STALE_CHUNK_ERROR } from "@/lib/page-recovery.core";
-import { isStaleChunkError } from "../router";
+import { isRecoverableTransportError, isStaleChunkError, STALE_CHUNK_ERROR } from "@/lib/page-recovery.core";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 
 function NotFoundComponent() {

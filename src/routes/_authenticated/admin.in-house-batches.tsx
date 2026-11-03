@@ -7,10 +7,11 @@ import { AppShell } from "@/components/portal/AppShell";
 import { PageHeader } from "@/components/portal/kit";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { allocateInHouseBatch, getInHouseBatches } from "@/lib/in-house-batch.functions";
+import { allocateInHouseBatch } from "@/lib/in-house-batch.functions";
 import { readyInHouseBatch } from "@/lib/in-house-batch.core";
 
-const batchesQuery = queryOptions({ queryKey: ["in-house-batches"], queryFn: () => getInHouseBatches() });
+// The loader is part of the app's first download, so the server call module is fetched only when the page opens.
+const batchesQuery = queryOptions({ queryKey: ["in-house-batches"], queryFn: async () => (await import("@/lib/in-house-batch.functions")).getInHouseBatches() });
 export const Route = createFileRoute("/_authenticated/admin/in-house-batches")({
   loader: ({ context }) => context.queryClient.ensureQueryData(batchesQuery),
   head: () => ({ meta: [

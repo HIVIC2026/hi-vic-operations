@@ -1,0 +1,3084 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`Money (Task 7): same value as before Money, the job money detail and pay states: owner, staff and electrician (ordinary, in-house, TEST) 1`] = `
+{
+  "{\\"inHouse\\":true}": {
+    "job electrician 1": {
+      "refused": "This job isn't assigned to you.",
+    },
+    "job electrician 3": {
+      "ok": {
+        "accountEnding": "7766",
+        "amount": 220,
+        "apApprovedAt": null,
+        "areaM2": null,
+        "channel": "installer_sourced",
+        "crew": [],
+        "doneAt": "2026-10-25T03:00:00.000Z",
+        "found": true,
+        "held": [
+          "Mitti electrical fixes form (A4) not marked Complete",
+        ],
+        "installerSignedAt": null,
+        "jobId": "00000000-0000-4000-8000-000000000003",
+        "jobNumber": "HV-1003",
+        "ownerPaidInFullAt": null,
+        "ownerSignedAt": null,
+        "product": null,
+        "removalM2": null,
+        "state": {
+          "kind": "checking",
+        },
+        "suburb": "Suburb3",
+      },
+    },
+    "job electrician 4": {
+      "ok": {
+        "accountEnding": "7766",
+        "amount": null,
+        "apApprovedAt": null,
+        "areaM2": null,
+        "channel": null,
+        "crew": [],
+        "doneAt": null,
+        "found": false,
+        "held": [],
+        "installerSignedAt": null,
+        "jobId": "00000000-0000-4000-8000-000000000004",
+        "jobNumber": null,
+        "ownerPaidInFullAt": null,
+        "ownerSignedAt": null,
+        "product": null,
+        "removalM2": null,
+        "state": {
+          "kind": "checking",
+        },
+        "suburb": null,
+      },
+    },
+    "job electrician staff 1": {
+      "refused": "Only the business owner can see this.",
+    },
+    "job electrician staff 3": {
+      "refused": "Only the business owner can see this.",
+    },
+    "job electrician staff 4": {
+      "refused": "Only the business owner can see this.",
+    },
+    "job owner 1": {
+      "ok": {
+        "accountEnding": "5678",
+        "amount": 1150,
+        "apApprovedAt": "2026-10-26T03:00:00.000Z",
+        "areaM2": 90,
+        "channel": "hivic_sourced",
+        "crew": [
+          "Sam Staff",
+        ],
+        "doneAt": "2026-10-23T03:00:00.000Z",
+        "found": true,
+        "held": [],
+        "installerSignedAt": "2026-10-24T03:00:00.000Z",
+        "jobId": "00000000-0000-4000-8000-000000000001",
+        "jobNumber": "HV-1001",
+        "ownerPaidInFullAt": null,
+        "ownerSignedAt": "2026-10-25T03:00:00.000Z",
+        "product": "Batts R4.0",
+        "removalM2": 10,
+        "state": {
+          "kind": "paid",
+          "on": "2026-10-28T05:00:00.000Z",
+        },
+        "suburb": "Suburb1",
+      },
+    },
+    "job owner 3": {
+      "ok": {
+        "accountEnding": "5678",
+        "amount": 360,
+        "apApprovedAt": null,
+        "areaM2": null,
+        "channel": "installer_sourced",
+        "crew": [],
+        "doneAt": "2026-10-21T03:00:00.000Z",
+        "found": true,
+        "held": [
+          "Safety check form: PIESA form answers have not been read from Mitti yet — sync the form first.",
+        ],
+        "installerSignedAt": null,
+        "jobId": "00000000-0000-4000-8000-000000000003",
+        "jobNumber": "HV-1003",
+        "ownerPaidInFullAt": null,
+        "ownerSignedAt": null,
+        "product": null,
+        "removalM2": null,
+        "state": {
+          "kind": "checking",
+        },
+        "suburb": "Suburb3",
+      },
+    },
+    "job owner 4": {
+      "ok": {
+        "accountEnding": "5678",
+        "amount": 330,
+        "apApprovedAt": null,
+        "areaM2": null,
+        "channel": null,
+        "crew": [],
+        "doneAt": "2026-10-24T03:00:00.000Z",
+        "found": true,
+        "held": [
+          "Mitti safety check form (A3) not marked Complete",
+        ],
+        "installerSignedAt": null,
+        "jobId": "00000000-0000-4000-8000-000000000004",
+        "jobNumber": "HV-1004",
+        "ownerPaidInFullAt": null,
+        "ownerSignedAt": null,
+        "product": null,
+        "removalM2": null,
+        "state": {
+          "kind": "checking",
+        },
+        "suburb": "Suburb4",
+      },
+    },
+    "job staff 1": {
+      "refused": "Only the business owner can see this.",
+    },
+    "job staff 3": {
+      "refused": "Only the business owner can see this.",
+    },
+    "job staff 4": {
+      "refused": "Only the business owner can see this.",
+    },
+    "money electrician": {
+      "ok": {
+        "allTime": 220,
+        "bankEnding": "7766",
+        "boss": true,
+        "business": "Sparky Co",
+        "kind": "electrician",
+        "month": 220,
+        "next": null,
+        "ownerDirect": [],
+        "paidByInstaller": [
+          {
+            "doneAt": "2026-10-24T03:00:00.000Z",
+            "jobId": "00000000-0000-4000-8000-000000000004",
+            "jobNumber": "HV-1004",
+            "suburb": "Suburb4",
+            "surname": "Number4",
+            "what": "Pre Insulation Electrical Safety Assessment (PIESA)",
+          },
+          {
+            "doneAt": "2026-10-21T03:00:00.000Z",
+            "jobId": "00000000-0000-4000-8000-000000000003",
+            "jobNumber": "HV-1003",
+            "suburb": "Suburb3",
+            "surname": "Number3",
+            "what": "Pre Insulation Electrical Safety Assessment (PIESA)",
+          },
+        ],
+        "rows": [
+          {
+            "amount": 220,
+            "approvedAt": null,
+            "billing": "hivic",
+            "channel": "installer_sourced",
+            "doneAt": "2026-10-25T03:00:00.000Z",
+            "held": [
+              "Mitti electrical fixes form (A4) not marked Complete",
+            ],
+            "jobId": "00000000-0000-4000-8000-000000000003",
+            "jobNumber": "HV-1003",
+            "kind": "rectification",
+            "state": {
+              "kind": "checking",
+            },
+            "suburb": "Suburb3",
+            "surname": "Number3",
+            "what": "Fixes",
+          },
+        ],
+      },
+    },
+    "money electrician staff": {
+      "refused": "Money is only shown to the business owner.",
+    },
+    "money owner": {
+      "ok": {
+        "allTime": 3490,
+        "bankEnding": "5678",
+        "boss": true,
+        "business": "Inst Co",
+        "kind": "installer",
+        "month": 3490,
+        "next": null,
+        "ownerDirect": [],
+        "paidByInstaller": [],
+        "rows": [
+          {
+            "amount": 1650,
+            "approvedAt": null,
+            "billing": "hivic",
+            "channel": "hivic_sourced",
+            "doneAt": "2026-10-27T03:00:00.000Z",
+            "held": [
+              "Install day form: Sync the current A5 Install day form — its ruler photos have not been checked yet",
+              "Waiting for Final check (AP approval) — installer pay falls due 7 days after it",
+            ],
+            "jobId": "00000000-0000-4000-8000-000000000002",
+            "jobNumber": "HV-1002",
+            "kind": "installation",
+            "state": {
+              "kind": "checking",
+            },
+            "suburb": "Suburb2",
+            "surname": "Number2",
+            "what": "Install",
+          },
+          {
+            "amount": 1150,
+            "approvedAt": "2026-10-26T03:00:00.000Z",
+            "billing": "hivic",
+            "channel": "hivic_sourced",
+            "doneAt": "2026-10-23T03:00:00.000Z",
+            "held": [],
+            "jobId": "00000000-0000-4000-8000-000000000001",
+            "jobNumber": "HV-1001",
+            "kind": "installation",
+            "state": {
+              "kind": "paid",
+              "on": "2026-10-28T05:00:00.000Z",
+            },
+            "suburb": "Suburb1",
+            "surname": "Number1",
+            "what": "Install",
+          },
+          {
+            "amount": 330,
+            "approvedAt": null,
+            "billing": "hivic",
+            "channel": null,
+            "doneAt": "2026-10-24T03:00:00.000Z",
+            "held": [
+              "Mitti safety check form (A3) not marked Complete",
+            ],
+            "jobId": "00000000-0000-4000-8000-000000000004",
+            "jobNumber": "HV-1004",
+            "kind": "assessment",
+            "state": {
+              "kind": "checking",
+            },
+            "suburb": "Suburb4",
+            "surname": "Number4",
+            "what": "Safety check by Sparky",
+          },
+          {
+            "amount": 360,
+            "approvedAt": null,
+            "billing": "hivic",
+            "channel": "installer_sourced",
+            "doneAt": "2026-10-21T03:00:00.000Z",
+            "held": [
+              "Safety check form: PIESA form answers have not been read from Mitti yet — sync the form first.",
+            ],
+            "jobId": "00000000-0000-4000-8000-000000000003",
+            "jobNumber": "HV-1003",
+            "kind": "assessment",
+            "state": {
+              "kind": "checking",
+            },
+            "suburb": "Suburb3",
+            "surname": "Number3",
+            "what": "Safety check by Sparky",
+          },
+        ],
+      },
+    },
+    "money staff": {
+      "refused": "Money is only shown to the business owner.",
+    },
+    "pay states electrician": {
+      "ok": [
+        {
+          "channel": "installer_sourced",
+          "jobNumber": "HV-1003",
+          "state": {
+            "kind": "checking",
+          },
+          "what": "Fixes",
+        },
+      ],
+    },
+    "pay states installer": {
+      "ok": [
+        {
+          "channel": "hivic_sourced",
+          "jobNumber": "HV-1002",
+          "state": {
+            "kind": "checking",
+          },
+          "what": "Install",
+        },
+        {
+          "channel": "hivic_sourced",
+          "jobNumber": "HV-1001",
+          "state": {
+            "kind": "paid",
+            "on": "2026-10-28T05:00:00.000Z",
+          },
+          "what": "Install",
+        },
+        {
+          "channel": null,
+          "jobNumber": "HV-1004",
+          "state": {
+            "kind": "checking",
+          },
+          "what": "Safety check by Sparky",
+        },
+        {
+          "channel": "installer_sourced",
+          "jobNumber": "HV-1003",
+          "state": {
+            "kind": "checking",
+          },
+          "what": "Safety check by Sparky",
+        },
+      ],
+    },
+  },
+  "{\\"test\\":true,\\"inHouse\\":true}": {
+    "job electrician 1": {
+      "refused": "This job isn't assigned to you.",
+    },
+    "job electrician 3": {
+      "ok": {
+        "accountEnding": "7766",
+        "amount": null,
+        "apApprovedAt": null,
+        "areaM2": null,
+        "channel": null,
+        "crew": [],
+        "doneAt": null,
+        "found": false,
+        "held": [],
+        "installerSignedAt": null,
+        "jobId": "00000000-0000-4000-8000-000000000003",
+        "jobNumber": null,
+        "ownerPaidInFullAt": null,
+        "ownerSignedAt": null,
+        "product": null,
+        "removalM2": null,
+        "state": {
+          "kind": "checking",
+        },
+        "suburb": null,
+      },
+    },
+    "job electrician 4": {
+      "ok": {
+        "accountEnding": "7766",
+        "amount": null,
+        "apApprovedAt": null,
+        "areaM2": null,
+        "channel": null,
+        "crew": [],
+        "doneAt": null,
+        "found": false,
+        "held": [],
+        "installerSignedAt": null,
+        "jobId": "00000000-0000-4000-8000-000000000004",
+        "jobNumber": null,
+        "ownerPaidInFullAt": null,
+        "ownerSignedAt": null,
+        "product": null,
+        "removalM2": null,
+        "state": {
+          "kind": "checking",
+        },
+        "suburb": null,
+      },
+    },
+    "job electrician staff 1": {
+      "refused": "Only the business owner can see this.",
+    },
+    "job electrician staff 3": {
+      "refused": "Only the business owner can see this.",
+    },
+    "job electrician staff 4": {
+      "refused": "Only the business owner can see this.",
+    },
+    "job owner 1": {
+      "ok": {
+        "accountEnding": "5678",
+        "amount": 1150,
+        "apApprovedAt": "2026-10-26T03:00:00.000Z",
+        "areaM2": 90,
+        "channel": "hivic_sourced",
+        "crew": [
+          "Sam Staff",
+        ],
+        "doneAt": "2026-10-23T03:00:00.000Z",
+        "found": true,
+        "held": [],
+        "installerSignedAt": "2026-10-24T03:00:00.000Z",
+        "jobId": "00000000-0000-4000-8000-000000000001",
+        "jobNumber": "HV-1001",
+        "ownerPaidInFullAt": null,
+        "ownerSignedAt": "2026-10-25T03:00:00.000Z",
+        "product": "Batts R4.0",
+        "removalM2": 10,
+        "state": {
+          "kind": "paid",
+          "on": "2026-10-28T05:00:00.000Z",
+        },
+        "suburb": "Suburb1",
+      },
+    },
+    "job owner 3": {
+      "ok": {
+        "accountEnding": "5678",
+        "amount": null,
+        "apApprovedAt": null,
+        "areaM2": null,
+        "channel": null,
+        "crew": [],
+        "doneAt": null,
+        "found": false,
+        "held": [],
+        "installerSignedAt": null,
+        "jobId": "00000000-0000-4000-8000-000000000003",
+        "jobNumber": null,
+        "ownerPaidInFullAt": null,
+        "ownerSignedAt": null,
+        "product": null,
+        "removalM2": null,
+        "state": {
+          "kind": "checking",
+        },
+        "suburb": null,
+      },
+    },
+    "job owner 4": {
+      "ok": {
+        "accountEnding": "5678",
+        "amount": 330,
+        "apApprovedAt": null,
+        "areaM2": null,
+        "channel": null,
+        "crew": [],
+        "doneAt": "2026-10-24T03:00:00.000Z",
+        "found": true,
+        "held": [
+          "Mitti safety check form (A3) not marked Complete",
+        ],
+        "installerSignedAt": null,
+        "jobId": "00000000-0000-4000-8000-000000000004",
+        "jobNumber": "HV-1004",
+        "ownerPaidInFullAt": null,
+        "ownerSignedAt": null,
+        "product": null,
+        "removalM2": null,
+        "state": {
+          "kind": "checking",
+        },
+        "suburb": "Suburb4",
+      },
+    },
+    "job staff 1": {
+      "refused": "Only the business owner can see this.",
+    },
+    "job staff 3": {
+      "refused": "Only the business owner can see this.",
+    },
+    "job staff 4": {
+      "refused": "Only the business owner can see this.",
+    },
+    "money electrician": {
+      "ok": {
+        "allTime": 0,
+        "bankEnding": "7766",
+        "boss": true,
+        "business": "Sparky Co",
+        "kind": "electrician",
+        "month": 0,
+        "next": null,
+        "ownerDirect": [],
+        "paidByInstaller": [
+          {
+            "doneAt": "2026-10-24T03:00:00.000Z",
+            "jobId": "00000000-0000-4000-8000-000000000004",
+            "jobNumber": "HV-1004",
+            "suburb": "Suburb4",
+            "surname": "Number4",
+            "what": "Pre Insulation Electrical Safety Assessment (PIESA)",
+          },
+        ],
+        "rows": [],
+      },
+    },
+    "money electrician staff": {
+      "refused": "Money is only shown to the business owner.",
+    },
+    "money owner": {
+      "ok": {
+        "allTime": 1480,
+        "bankEnding": "5678",
+        "boss": true,
+        "business": "Inst Co",
+        "kind": "installer",
+        "month": 1480,
+        "next": null,
+        "ownerDirect": [],
+        "paidByInstaller": [],
+        "rows": [
+          {
+            "amount": 1150,
+            "approvedAt": "2026-10-26T03:00:00.000Z",
+            "billing": "hivic",
+            "channel": "hivic_sourced",
+            "doneAt": "2026-10-23T03:00:00.000Z",
+            "held": [],
+            "jobId": "00000000-0000-4000-8000-000000000001",
+            "jobNumber": "HV-1001",
+            "kind": "installation",
+            "state": {
+              "kind": "paid",
+              "on": "2026-10-28T05:00:00.000Z",
+            },
+            "suburb": "Suburb1",
+            "surname": "Number1",
+            "what": "Install",
+          },
+          {
+            "amount": 330,
+            "approvedAt": null,
+            "billing": "hivic",
+            "channel": null,
+            "doneAt": "2026-10-24T03:00:00.000Z",
+            "held": [
+              "Mitti safety check form (A3) not marked Complete",
+            ],
+            "jobId": "00000000-0000-4000-8000-000000000004",
+            "jobNumber": "HV-1004",
+            "kind": "assessment",
+            "state": {
+              "kind": "checking",
+            },
+            "suburb": "Suburb4",
+            "surname": "Number4",
+            "what": "Safety check by Sparky",
+          },
+        ],
+      },
+    },
+    "money staff": {
+      "refused": "Money is only shown to the business owner.",
+    },
+    "pay states electrician": {
+      "ok": [],
+    },
+    "pay states installer": {
+      "ok": [
+        {
+          "channel": "hivic_sourced",
+          "jobNumber": "HV-1001",
+          "state": {
+            "kind": "paid",
+            "on": "2026-10-28T05:00:00.000Z",
+          },
+          "what": "Install",
+        },
+        {
+          "channel": null,
+          "jobNumber": "HV-1004",
+          "state": {
+            "kind": "checking",
+          },
+          "what": "Safety check by Sparky",
+        },
+      ],
+    },
+  },
+  "{\\"test\\":true}": {
+    "job electrician 1": {
+      "refused": "This job isn't assigned to you.",
+    },
+    "job electrician 3": {
+      "ok": {
+        "accountEnding": "7766",
+        "amount": null,
+        "apApprovedAt": null,
+        "areaM2": null,
+        "channel": null,
+        "crew": [],
+        "doneAt": null,
+        "found": false,
+        "held": [],
+        "installerSignedAt": null,
+        "jobId": "00000000-0000-4000-8000-000000000003",
+        "jobNumber": null,
+        "ownerPaidInFullAt": null,
+        "ownerSignedAt": null,
+        "product": null,
+        "removalM2": null,
+        "state": {
+          "kind": "checking",
+        },
+        "suburb": null,
+      },
+    },
+    "job electrician 4": {
+      "ok": {
+        "accountEnding": "7766",
+        "amount": 330,
+        "apApprovedAt": null,
+        "areaM2": null,
+        "channel": null,
+        "crew": [],
+        "doneAt": "2026-10-24T03:00:00.000Z",
+        "found": true,
+        "held": [
+          "Mitti safety check form (A3) not marked Complete",
+        ],
+        "installerSignedAt": null,
+        "jobId": "00000000-0000-4000-8000-000000000004",
+        "jobNumber": "HV-1004",
+        "ownerPaidInFullAt": null,
+        "ownerSignedAt": null,
+        "product": null,
+        "removalM2": null,
+        "state": {
+          "kind": "checking",
+        },
+        "suburb": "Suburb4",
+      },
+    },
+    "job electrician staff 1": {
+      "refused": "Only the business owner can see this.",
+    },
+    "job electrician staff 3": {
+      "refused": "Only the business owner can see this.",
+    },
+    "job electrician staff 4": {
+      "refused": "Only the business owner can see this.",
+    },
+    "job owner 1": {
+      "ok": {
+        "accountEnding": "5678",
+        "amount": 1150,
+        "apApprovedAt": "2026-10-26T03:00:00.000Z",
+        "areaM2": 90,
+        "channel": "hivic_sourced",
+        "crew": [
+          "Sam Staff",
+        ],
+        "doneAt": "2026-10-23T03:00:00.000Z",
+        "found": true,
+        "held": [],
+        "installerSignedAt": "2026-10-24T03:00:00.000Z",
+        "jobId": "00000000-0000-4000-8000-000000000001",
+        "jobNumber": "HV-1001",
+        "ownerPaidInFullAt": null,
+        "ownerSignedAt": "2026-10-25T03:00:00.000Z",
+        "product": "Batts R4.0",
+        "removalM2": 10,
+        "state": {
+          "kind": "paid",
+          "on": "2026-10-28T05:00:00.000Z",
+        },
+        "suburb": "Suburb1",
+      },
+    },
+    "job owner 3": {
+      "ok": {
+        "accountEnding": "5678",
+        "amount": null,
+        "apApprovedAt": null,
+        "areaM2": null,
+        "channel": null,
+        "crew": [],
+        "doneAt": null,
+        "found": false,
+        "held": [],
+        "installerSignedAt": null,
+        "jobId": "00000000-0000-4000-8000-000000000003",
+        "jobNumber": null,
+        "ownerPaidInFullAt": null,
+        "ownerSignedAt": null,
+        "product": null,
+        "removalM2": null,
+        "state": {
+          "kind": "checking",
+        },
+        "suburb": null,
+      },
+    },
+    "job owner 4": {
+      "ok": {
+        "accountEnding": "5678",
+        "amount": null,
+        "apApprovedAt": null,
+        "areaM2": null,
+        "channel": null,
+        "crew": [],
+        "doneAt": null,
+        "found": false,
+        "held": [],
+        "installerSignedAt": null,
+        "jobId": "00000000-0000-4000-8000-000000000004",
+        "jobNumber": null,
+        "ownerPaidInFullAt": null,
+        "ownerSignedAt": null,
+        "product": null,
+        "removalM2": null,
+        "state": {
+          "kind": "checking",
+        },
+        "suburb": null,
+      },
+    },
+    "job staff 1": {
+      "refused": "Only the business owner can see this.",
+    },
+    "job staff 3": {
+      "refused": "Only the business owner can see this.",
+    },
+    "job staff 4": {
+      "refused": "Only the business owner can see this.",
+    },
+    "money electrician": {
+      "ok": {
+        "allTime": 330,
+        "bankEnding": "7766",
+        "boss": true,
+        "business": "Sparky Co",
+        "kind": "electrician",
+        "month": 330,
+        "next": null,
+        "ownerDirect": [],
+        "paidByInstaller": [],
+        "rows": [
+          {
+            "amount": 330,
+            "approvedAt": null,
+            "billing": "hivic",
+            "channel": null,
+            "doneAt": "2026-10-24T03:00:00.000Z",
+            "held": [
+              "Mitti safety check form (A3) not marked Complete",
+            ],
+            "jobId": "00000000-0000-4000-8000-000000000004",
+            "jobNumber": "HV-1004",
+            "kind": "assessment",
+            "state": {
+              "kind": "checking",
+            },
+            "suburb": "Suburb4",
+            "surname": "Number4",
+            "what": "Pre Insulation Electrical Safety Assessment (PIESA)",
+          },
+        ],
+      },
+    },
+    "money electrician staff": {
+      "refused": "Money is only shown to the business owner.",
+    },
+    "money owner": {
+      "ok": {
+        "allTime": 1150,
+        "bankEnding": "5678",
+        "boss": true,
+        "business": "Inst Co",
+        "kind": "installer",
+        "month": 1150,
+        "next": null,
+        "ownerDirect": [],
+        "paidByInstaller": [],
+        "rows": [
+          {
+            "amount": 1150,
+            "approvedAt": "2026-10-26T03:00:00.000Z",
+            "billing": "hivic",
+            "channel": "hivic_sourced",
+            "doneAt": "2026-10-23T03:00:00.000Z",
+            "held": [],
+            "jobId": "00000000-0000-4000-8000-000000000001",
+            "jobNumber": "HV-1001",
+            "kind": "installation",
+            "state": {
+              "kind": "paid",
+              "on": "2026-10-28T05:00:00.000Z",
+            },
+            "suburb": "Suburb1",
+            "surname": "Number1",
+            "what": "Install",
+          },
+        ],
+      },
+    },
+    "money staff": {
+      "refused": "Money is only shown to the business owner.",
+    },
+    "pay states electrician": {
+      "ok": [
+        {
+          "channel": null,
+          "jobNumber": "HV-1004",
+          "state": {
+            "kind": "checking",
+          },
+          "what": "Pre Insulation Electrical Safety Assessment (PIESA)",
+        },
+      ],
+    },
+    "pay states installer": {
+      "ok": [
+        {
+          "channel": "hivic_sourced",
+          "jobNumber": "HV-1001",
+          "state": {
+            "kind": "paid",
+            "on": "2026-10-28T05:00:00.000Z",
+          },
+          "what": "Install",
+        },
+      ],
+    },
+  },
+  "{}": {
+    "job electrician 1": {
+      "refused": "This job isn't assigned to you.",
+    },
+    "job electrician 3": {
+      "ok": {
+        "accountEnding": "7766",
+        "amount": 220,
+        "apApprovedAt": null,
+        "areaM2": null,
+        "channel": "installer_sourced",
+        "crew": [],
+        "doneAt": "2026-10-25T03:00:00.000Z",
+        "found": true,
+        "held": [
+          "Mitti electrical fixes form (A4) not marked Complete",
+        ],
+        "installerSignedAt": null,
+        "jobId": "00000000-0000-4000-8000-000000000003",
+        "jobNumber": "HV-1003",
+        "ownerPaidInFullAt": null,
+        "ownerSignedAt": null,
+        "product": null,
+        "removalM2": null,
+        "state": {
+          "kind": "checking",
+        },
+        "suburb": "Suburb3",
+      },
+    },
+    "job electrician 4": {
+      "ok": {
+        "accountEnding": "7766",
+        "amount": 330,
+        "apApprovedAt": null,
+        "areaM2": null,
+        "channel": null,
+        "crew": [],
+        "doneAt": "2026-10-24T03:00:00.000Z",
+        "found": true,
+        "held": [
+          "Mitti safety check form (A3) not marked Complete",
+        ],
+        "installerSignedAt": null,
+        "jobId": "00000000-0000-4000-8000-000000000004",
+        "jobNumber": "HV-1004",
+        "ownerPaidInFullAt": null,
+        "ownerSignedAt": null,
+        "product": null,
+        "removalM2": null,
+        "state": {
+          "kind": "checking",
+        },
+        "suburb": "Suburb4",
+      },
+    },
+    "job electrician staff 1": {
+      "refused": "Only the business owner can see this.",
+    },
+    "job electrician staff 3": {
+      "refused": "Only the business owner can see this.",
+    },
+    "job electrician staff 4": {
+      "refused": "Only the business owner can see this.",
+    },
+    "job owner 1": {
+      "ok": {
+        "accountEnding": "5678",
+        "amount": 1150,
+        "apApprovedAt": "2026-10-26T03:00:00.000Z",
+        "areaM2": 90,
+        "channel": "hivic_sourced",
+        "crew": [
+          "Sam Staff",
+        ],
+        "doneAt": "2026-10-23T03:00:00.000Z",
+        "found": true,
+        "held": [],
+        "installerSignedAt": "2026-10-24T03:00:00.000Z",
+        "jobId": "00000000-0000-4000-8000-000000000001",
+        "jobNumber": "HV-1001",
+        "ownerPaidInFullAt": null,
+        "ownerSignedAt": "2026-10-25T03:00:00.000Z",
+        "product": "Batts R4.0",
+        "removalM2": 10,
+        "state": {
+          "kind": "paid",
+          "on": "2026-10-28T05:00:00.000Z",
+        },
+        "suburb": "Suburb1",
+      },
+    },
+    "job owner 3": {
+      "ok": {
+        "accountEnding": "5678",
+        "amount": 360,
+        "apApprovedAt": null,
+        "areaM2": null,
+        "channel": "installer_sourced",
+        "crew": [],
+        "doneAt": "2026-10-21T03:00:00.000Z",
+        "found": true,
+        "held": [
+          "Safety check form: PIESA form answers have not been read from Mitti yet — sync the form first.",
+        ],
+        "installerSignedAt": null,
+        "jobId": "00000000-0000-4000-8000-000000000003",
+        "jobNumber": "HV-1003",
+        "ownerPaidInFullAt": null,
+        "ownerSignedAt": null,
+        "product": null,
+        "removalM2": null,
+        "state": {
+          "kind": "checking",
+        },
+        "suburb": "Suburb3",
+      },
+    },
+    "job owner 4": {
+      "ok": {
+        "accountEnding": "5678",
+        "amount": null,
+        "apApprovedAt": null,
+        "areaM2": null,
+        "channel": null,
+        "crew": [],
+        "doneAt": null,
+        "found": false,
+        "held": [],
+        "installerSignedAt": null,
+        "jobId": "00000000-0000-4000-8000-000000000004",
+        "jobNumber": null,
+        "ownerPaidInFullAt": null,
+        "ownerSignedAt": null,
+        "product": null,
+        "removalM2": null,
+        "state": {
+          "kind": "checking",
+        },
+        "suburb": null,
+      },
+    },
+    "job staff 1": {
+      "refused": "Only the business owner can see this.",
+    },
+    "job staff 3": {
+      "refused": "Only the business owner can see this.",
+    },
+    "job staff 4": {
+      "refused": "Only the business owner can see this.",
+    },
+    "money electrician": {
+      "ok": {
+        "allTime": 550,
+        "bankEnding": "7766",
+        "boss": true,
+        "business": "Sparky Co",
+        "kind": "electrician",
+        "month": 550,
+        "next": null,
+        "ownerDirect": [],
+        "paidByInstaller": [
+          {
+            "doneAt": "2026-10-21T03:00:00.000Z",
+            "jobId": "00000000-0000-4000-8000-000000000003",
+            "jobNumber": "HV-1003",
+            "suburb": "Suburb3",
+            "surname": "Number3",
+            "what": "Pre Insulation Electrical Safety Assessment (PIESA)",
+          },
+        ],
+        "rows": [
+          {
+            "amount": 220,
+            "approvedAt": null,
+            "billing": "hivic",
+            "channel": "installer_sourced",
+            "doneAt": "2026-10-25T03:00:00.000Z",
+            "held": [
+              "Mitti electrical fixes form (A4) not marked Complete",
+            ],
+            "jobId": "00000000-0000-4000-8000-000000000003",
+            "jobNumber": "HV-1003",
+            "kind": "rectification",
+            "state": {
+              "kind": "checking",
+            },
+            "suburb": "Suburb3",
+            "surname": "Number3",
+            "what": "Fixes",
+          },
+          {
+            "amount": 330,
+            "approvedAt": null,
+            "billing": "hivic",
+            "channel": null,
+            "doneAt": "2026-10-24T03:00:00.000Z",
+            "held": [
+              "Mitti safety check form (A3) not marked Complete",
+            ],
+            "jobId": "00000000-0000-4000-8000-000000000004",
+            "jobNumber": "HV-1004",
+            "kind": "assessment",
+            "state": {
+              "kind": "checking",
+            },
+            "suburb": "Suburb4",
+            "surname": "Number4",
+            "what": "Pre Insulation Electrical Safety Assessment (PIESA)",
+          },
+        ],
+      },
+    },
+    "money electrician staff": {
+      "refused": "Money is only shown to the business owner.",
+    },
+    "money owner": {
+      "ok": {
+        "allTime": 3160,
+        "bankEnding": "5678",
+        "boss": true,
+        "business": "Inst Co",
+        "kind": "installer",
+        "month": 3160,
+        "next": null,
+        "ownerDirect": [],
+        "paidByInstaller": [],
+        "rows": [
+          {
+            "amount": 1650,
+            "approvedAt": null,
+            "billing": "hivic",
+            "channel": "hivic_sourced",
+            "doneAt": "2026-10-27T03:00:00.000Z",
+            "held": [
+              "Install day form: Sync the current A5 Install day form — its ruler photos have not been checked yet",
+              "Waiting for Final check (AP approval) — installer pay falls due 7 days after it",
+            ],
+            "jobId": "00000000-0000-4000-8000-000000000002",
+            "jobNumber": "HV-1002",
+            "kind": "installation",
+            "state": {
+              "kind": "checking",
+            },
+            "suburb": "Suburb2",
+            "surname": "Number2",
+            "what": "Install",
+          },
+          {
+            "amount": 1150,
+            "approvedAt": "2026-10-26T03:00:00.000Z",
+            "billing": "hivic",
+            "channel": "hivic_sourced",
+            "doneAt": "2026-10-23T03:00:00.000Z",
+            "held": [],
+            "jobId": "00000000-0000-4000-8000-000000000001",
+            "jobNumber": "HV-1001",
+            "kind": "installation",
+            "state": {
+              "kind": "paid",
+              "on": "2026-10-28T05:00:00.000Z",
+            },
+            "suburb": "Suburb1",
+            "surname": "Number1",
+            "what": "Install",
+          },
+          {
+            "amount": 360,
+            "approvedAt": null,
+            "billing": "hivic",
+            "channel": "installer_sourced",
+            "doneAt": "2026-10-21T03:00:00.000Z",
+            "held": [
+              "Safety check form: PIESA form answers have not been read from Mitti yet — sync the form first.",
+            ],
+            "jobId": "00000000-0000-4000-8000-000000000003",
+            "jobNumber": "HV-1003",
+            "kind": "assessment",
+            "state": {
+              "kind": "checking",
+            },
+            "suburb": "Suburb3",
+            "surname": "Number3",
+            "what": "Safety check by Sparky",
+          },
+        ],
+      },
+    },
+    "money staff": {
+      "refused": "Money is only shown to the business owner.",
+    },
+    "pay states electrician": {
+      "ok": [
+        {
+          "channel": "installer_sourced",
+          "jobNumber": "HV-1003",
+          "state": {
+            "kind": "checking",
+          },
+          "what": "Fixes",
+        },
+        {
+          "channel": null,
+          "jobNumber": "HV-1004",
+          "state": {
+            "kind": "checking",
+          },
+          "what": "Pre Insulation Electrical Safety Assessment (PIESA)",
+        },
+      ],
+    },
+    "pay states installer": {
+      "ok": [
+        {
+          "channel": "hivic_sourced",
+          "jobNumber": "HV-1002",
+          "state": {
+            "kind": "checking",
+          },
+          "what": "Install",
+        },
+        {
+          "channel": "hivic_sourced",
+          "jobNumber": "HV-1001",
+          "state": {
+            "kind": "paid",
+            "on": "2026-10-28T05:00:00.000Z",
+          },
+          "what": "Install",
+        },
+        {
+          "channel": "installer_sourced",
+          "jobNumber": "HV-1003",
+          "state": {
+            "kind": "checking",
+          },
+          "what": "Safety check by Sparky",
+        },
+      ],
+    },
+  },
+}
+`;
+
+exports[`Money (Task 7): same value as before the shared payee readers (ordinary and in-house) 1`] = `
+{
+  "{\\"inHouse\\":true}": {
+    "businesses B1,B2,unknown": {
+      "ok": [
+        [
+          "00000000-0000-4000-8000-0000000000b1",
+          {
+            "id": "00000000-0000-4000-8000-0000000000b1",
+            "in_house": true,
+            "name": "Inst Co",
+            "pays_own_electricians": true,
+            "piesaIncGst": 330,
+          },
+        ],
+        [
+          "00000000-0000-4000-8000-0000000000b2",
+          {
+            "id": "00000000-0000-4000-8000-0000000000b2",
+            "in_house": false,
+            "name": "Sparky Co",
+            "pays_own_electricians": false,
+            "piesaIncGst": null,
+          },
+        ],
+      ],
+    },
+    "businesses none": {
+      "ok": [],
+    },
+    "own electrician businesses": {
+      "ok": [
+        [
+          "00000000-0000-4000-8000-0000000000b1",
+          {
+            "id": "00000000-0000-4000-8000-0000000000b1",
+            "in_house": true,
+            "name": "Inst Co",
+            "pays_own_electricians": true,
+            "piesaIncGst": 330,
+          },
+        ],
+      ],
+    },
+    "payees J3 (installer-supplied) + J4 (older) + J1 (ours)": {
+      "ok": [
+        [
+          "00000000-0000-4000-8000-000000000003",
+          {
+            "businessId": "00000000-0000-4000-8000-0000000000b1",
+            "name": "Inst Co",
+            "piesaIncGst": 360,
+          },
+        ],
+        [
+          "00000000-0000-4000-8000-000000000004",
+          {
+            "businessId": "00000000-0000-4000-8000-0000000000b1",
+            "name": "Inst Co",
+            "piesaIncGst": 330,
+          },
+        ],
+        [
+          "00000000-0000-4000-8000-000000000001",
+          null,
+        ],
+      ],
+    },
+    "payees J4 only": {
+      "ok": [
+        [
+          "00000000-0000-4000-8000-000000000004",
+          {
+            "businessId": "00000000-0000-4000-8000-0000000000b1",
+            "name": "Inst Co",
+            "piesaIncGst": 330,
+          },
+        ],
+      ],
+    },
+    "payees installer-supplied, no originating installer": {
+      "refused": "Installer business has no PIESA rate on its rate card",
+    },
+    "readInstallerPaidElectricians B1": {
+      "ok": {
+        "businessId": "00000000-0000-4000-8000-0000000000b1",
+        "name": "Inst Co",
+        "piesaIncGst": 330,
+      },
+    },
+  },
+  "{}": {
+    "businesses B1,B2,unknown": {
+      "ok": [
+        [
+          "00000000-0000-4000-8000-0000000000b1",
+          {
+            "id": "00000000-0000-4000-8000-0000000000b1",
+            "in_house": false,
+            "name": "Inst Co",
+            "pays_own_electricians": false,
+            "piesaIncGst": 330,
+          },
+        ],
+        [
+          "00000000-0000-4000-8000-0000000000b2",
+          {
+            "id": "00000000-0000-4000-8000-0000000000b2",
+            "in_house": false,
+            "name": "Sparky Co",
+            "pays_own_electricians": false,
+            "piesaIncGst": null,
+          },
+        ],
+      ],
+    },
+    "businesses none": {
+      "ok": [],
+    },
+    "own electrician businesses": {
+      "ok": [],
+    },
+    "payees J3 (installer-supplied) + J4 (older) + J1 (ours)": {
+      "ok": [
+        [
+          "00000000-0000-4000-8000-000000000003",
+          {
+            "businessId": "00000000-0000-4000-8000-0000000000b1",
+            "name": "Inst Co",
+            "piesaIncGst": 360,
+          },
+        ],
+        [
+          "00000000-0000-4000-8000-000000000004",
+          null,
+        ],
+        [
+          "00000000-0000-4000-8000-000000000001",
+          null,
+        ],
+      ],
+    },
+    "payees J4 only": {
+      "ok": [
+        [
+          "00000000-0000-4000-8000-000000000004",
+          null,
+        ],
+      ],
+    },
+    "payees installer-supplied, no originating installer": {
+      "refused": "Installer business has no PIESA rate on its rate card",
+    },
+    "readInstallerPaidElectricians B1": {
+      "ok": null,
+    },
+  },
+}
+`;
+
+exports[`Money (Task 7): same value as before with each read failing: the same value or the same refusal (Money, My work's money rows, payee readers) 1`] = `
+{
+  "bank: money electrician": {
+    "ok": {
+      "allTime": 220,
+      "bankEnding": null,
+      "boss": true,
+      "business": "Sparky Co",
+      "kind": "electrician",
+      "month": 220,
+      "next": null,
+      "ownerDirect": [],
+      "paidByInstaller": [
+        {
+          "doneAt": "2026-10-24T03:00:00.000Z",
+          "jobId": "00000000-0000-4000-8000-000000000004",
+          "jobNumber": "HV-1004",
+          "suburb": "Suburb4",
+          "surname": "Number4",
+          "what": "Pre Insulation Electrical Safety Assessment (PIESA)",
+        },
+        {
+          "doneAt": "2026-10-21T03:00:00.000Z",
+          "jobId": "00000000-0000-4000-8000-000000000003",
+          "jobNumber": "HV-1003",
+          "suburb": "Suburb3",
+          "surname": "Number3",
+          "what": "Pre Insulation Electrical Safety Assessment (PIESA)",
+        },
+      ],
+      "rows": [
+        {
+          "amount": 220,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": "installer_sourced",
+          "doneAt": "2026-10-25T03:00:00.000Z",
+          "held": [
+            "Mitti electrical fixes form (A4) not marked Complete",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000003",
+          "jobNumber": "HV-1003",
+          "kind": "rectification",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb3",
+          "surname": "Number3",
+          "what": "Fixes",
+        },
+      ],
+    },
+  },
+  "bank: money owner": {
+    "ok": {
+      "allTime": 3490,
+      "bankEnding": null,
+      "boss": true,
+      "business": "Inst Co",
+      "kind": "installer",
+      "month": 3490,
+      "next": null,
+      "ownerDirect": [],
+      "paidByInstaller": [],
+      "rows": [
+        {
+          "amount": 1650,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": "hivic_sourced",
+          "doneAt": "2026-10-27T03:00:00.000Z",
+          "held": [
+            "Install day form: Sync the current A5 Install day form — its ruler photos have not been checked yet",
+            "Waiting for Final check (AP approval) — installer pay falls due 7 days after it",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000002",
+          "jobNumber": "HV-1002",
+          "kind": "installation",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb2",
+          "surname": "Number2",
+          "what": "Install",
+        },
+        {
+          "amount": 1150,
+          "approvedAt": "2026-10-26T03:00:00.000Z",
+          "billing": "hivic",
+          "channel": "hivic_sourced",
+          "doneAt": "2026-10-23T03:00:00.000Z",
+          "held": [],
+          "jobId": "00000000-0000-4000-8000-000000000001",
+          "jobNumber": "HV-1001",
+          "kind": "installation",
+          "state": {
+            "kind": "paid",
+            "on": "2026-10-28T05:00:00.000Z",
+          },
+          "suburb": "Suburb1",
+          "surname": "Number1",
+          "what": "Install",
+        },
+        {
+          "amount": 330,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": null,
+          "doneAt": "2026-10-24T03:00:00.000Z",
+          "held": [
+            "Mitti safety check form (A3) not marked Complete",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000004",
+          "jobNumber": "HV-1004",
+          "kind": "assessment",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb4",
+          "surname": "Number4",
+          "what": "Safety check by Sparky",
+        },
+        {
+          "amount": 360,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": "installer_sourced",
+          "doneAt": "2026-10-21T03:00:00.000Z",
+          "held": [
+            "Safety check form: PIESA form answers have not been read from Mitti yet — sync the form first.",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000003",
+          "jobNumber": "HV-1003",
+          "kind": "assessment",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb3",
+          "surname": "Number3",
+          "what": "Safety check by Sparky",
+        },
+      ],
+    },
+  },
+  "bank: payee reads": {
+    "businesses B1,B2,unknown": {
+      "ok": [
+        [
+          "00000000-0000-4000-8000-0000000000b1",
+          {
+            "id": "00000000-0000-4000-8000-0000000000b1",
+            "in_house": true,
+            "name": "Inst Co",
+            "pays_own_electricians": true,
+            "piesaIncGst": 330,
+          },
+        ],
+        [
+          "00000000-0000-4000-8000-0000000000b2",
+          {
+            "id": "00000000-0000-4000-8000-0000000000b2",
+            "in_house": false,
+            "name": "Sparky Co",
+            "pays_own_electricians": false,
+            "piesaIncGst": null,
+          },
+        ],
+      ],
+    },
+    "businesses none": {
+      "ok": [],
+    },
+    "own electrician businesses": {
+      "ok": [
+        [
+          "00000000-0000-4000-8000-0000000000b1",
+          {
+            "id": "00000000-0000-4000-8000-0000000000b1",
+            "in_house": true,
+            "name": "Inst Co",
+            "pays_own_electricians": true,
+            "piesaIncGst": 330,
+          },
+        ],
+      ],
+    },
+    "payees J3 (installer-supplied) + J4 (older) + J1 (ours)": {
+      "ok": [
+        [
+          "00000000-0000-4000-8000-000000000003",
+          {
+            "businessId": "00000000-0000-4000-8000-0000000000b1",
+            "name": "Inst Co",
+            "piesaIncGst": 360,
+          },
+        ],
+        [
+          "00000000-0000-4000-8000-000000000004",
+          {
+            "businessId": "00000000-0000-4000-8000-0000000000b1",
+            "name": "Inst Co",
+            "piesaIncGst": 330,
+          },
+        ],
+        [
+          "00000000-0000-4000-8000-000000000001",
+          null,
+        ],
+      ],
+    },
+    "payees J4 only": {
+      "ok": [
+        [
+          "00000000-0000-4000-8000-000000000004",
+          {
+            "businessId": "00000000-0000-4000-8000-0000000000b1",
+            "name": "Inst Co",
+            "piesaIncGst": 330,
+          },
+        ],
+      ],
+    },
+    "payees installer-supplied, no originating installer": {
+      "refused": "Installer business has no PIESA rate on its rate card",
+    },
+    "readInstallerPaidElectricians B1": {
+      "ok": {
+        "businessId": "00000000-0000-4000-8000-0000000000b1",
+        "name": "Inst Co",
+        "piesaIncGst": 330,
+      },
+    },
+  },
+  "electrician choices: money electrician": {
+    "ok": {
+      "allTime": 880,
+      "bankEnding": "7766",
+      "boss": true,
+      "business": "Sparky Co",
+      "kind": "electrician",
+      "month": 880,
+      "next": null,
+      "ownerDirect": [],
+      "paidByInstaller": [],
+      "rows": [
+        {
+          "amount": 220,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": "installer_sourced",
+          "doneAt": "2026-10-25T03:00:00.000Z",
+          "held": [
+            "Mitti electrical fixes form (A4) not marked Complete",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000003",
+          "jobNumber": "HV-1003",
+          "kind": "rectification",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb3",
+          "surname": "Number3",
+          "what": "Fixes",
+        },
+        {
+          "amount": 330,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": null,
+          "doneAt": "2026-10-24T03:00:00.000Z",
+          "held": [
+            "Mitti safety check form (A3) not marked Complete",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000004",
+          "jobNumber": "HV-1004",
+          "kind": "assessment",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb4",
+          "surname": "Number4",
+          "what": "Pre Insulation Electrical Safety Assessment (PIESA)",
+        },
+        {
+          "amount": 330,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": "installer_sourced",
+          "doneAt": "2026-10-21T03:00:00.000Z",
+          "held": [
+            "Safety check form: PIESA form answers have not been read from Mitti yet — sync the form first.",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000003",
+          "jobNumber": "HV-1003",
+          "kind": "assessment",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb3",
+          "surname": "Number3",
+          "what": "Pre Insulation Electrical Safety Assessment (PIESA)",
+        },
+      ],
+    },
+  },
+  "electrician choices: money owner": {
+    "ok": {
+      "allTime": 2800,
+      "bankEnding": "5678",
+      "boss": true,
+      "business": "Inst Co",
+      "kind": "installer",
+      "month": 2800,
+      "next": null,
+      "ownerDirect": [],
+      "paidByInstaller": [],
+      "rows": [
+        {
+          "amount": 1650,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": "hivic_sourced",
+          "doneAt": "2026-10-27T03:00:00.000Z",
+          "held": [
+            "Install day form: Sync the current A5 Install day form — its ruler photos have not been checked yet",
+            "Waiting for Final check (AP approval) — installer pay falls due 7 days after it",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000002",
+          "jobNumber": "HV-1002",
+          "kind": "installation",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb2",
+          "surname": "Number2",
+          "what": "Install",
+        },
+        {
+          "amount": 1150,
+          "approvedAt": "2026-10-26T03:00:00.000Z",
+          "billing": "hivic",
+          "channel": "hivic_sourced",
+          "doneAt": "2026-10-23T03:00:00.000Z",
+          "held": [],
+          "jobId": "00000000-0000-4000-8000-000000000001",
+          "jobNumber": "HV-1001",
+          "kind": "installation",
+          "state": {
+            "kind": "paid",
+            "on": "2026-10-28T05:00:00.000Z",
+          },
+          "suburb": "Suburb1",
+          "surname": "Number1",
+          "what": "Install",
+        },
+        {
+          "amount": null,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": null,
+          "doneAt": "2026-10-24T03:00:00.000Z",
+          "held": [
+            "Mitti safety check form (A3) not marked Complete",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000004",
+          "jobNumber": "HV-1004",
+          "kind": "assessment",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb4",
+          "surname": "Number4",
+          "what": "Pre Insulation Electrical Safety Assessment (PIESA)",
+        },
+        {
+          "amount": null,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": "installer_sourced",
+          "doneAt": "2026-10-21T03:00:00.000Z",
+          "held": [
+            "Safety check form: PIESA form answers have not been read from Mitti yet — sync the form first.",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000003",
+          "jobNumber": "HV-1003",
+          "kind": "assessment",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb3",
+          "surname": "Number3",
+          "what": "Pre Insulation Electrical Safety Assessment (PIESA)",
+        },
+      ],
+    },
+  },
+  "electrician choices: payee reads": {
+    "businesses B1,B2,unknown": {
+      "ok": [
+        [
+          "00000000-0000-4000-8000-0000000000b1",
+          {
+            "id": "00000000-0000-4000-8000-0000000000b1",
+            "in_house": true,
+            "name": "Inst Co",
+            "pays_own_electricians": true,
+            "piesaIncGst": 330,
+          },
+        ],
+        [
+          "00000000-0000-4000-8000-0000000000b2",
+          {
+            "id": "00000000-0000-4000-8000-0000000000b2",
+            "in_house": false,
+            "name": "Sparky Co",
+            "pays_own_electricians": false,
+            "piesaIncGst": null,
+          },
+        ],
+      ],
+    },
+    "businesses none": {
+      "ok": [],
+    },
+    "own electrician businesses": {
+      "ok": [
+        [
+          "00000000-0000-4000-8000-0000000000b1",
+          {
+            "id": "00000000-0000-4000-8000-0000000000b1",
+            "in_house": true,
+            "name": "Inst Co",
+            "pays_own_electricians": true,
+            "piesaIncGst": 330,
+          },
+        ],
+      ],
+    },
+    "payees J3 (installer-supplied) + J4 (older) + J1 (ours)": {
+      "refused": "Could not read the Ready Check electrician choices: read failed",
+    },
+    "payees J4 only": {
+      "refused": "Could not read the Ready Check electrician choices: read failed",
+    },
+    "payees installer-supplied, no originating installer": {
+      "refused": "Installer business has no PIESA rate on its rate card",
+    },
+    "readInstallerPaidElectricians B1": {
+      "ok": {
+        "businessId": "00000000-0000-4000-8000-0000000000b1",
+        "name": "Inst Co",
+        "piesaIncGst": 330,
+      },
+    },
+  },
+  "own visits: money electrician": {
+    "ok": {
+      "allTime": 0,
+      "bankEnding": "7766",
+      "boss": true,
+      "business": "Sparky Co",
+      "kind": "electrician",
+      "month": 0,
+      "next": null,
+      "ownerDirect": [],
+      "paidByInstaller": [],
+      "rows": [],
+    },
+  },
+  "own visits: money owner": {
+    "ok": {
+      "allTime": 690,
+      "bankEnding": "5678",
+      "boss": true,
+      "business": "Inst Co",
+      "kind": "installer",
+      "month": 690,
+      "next": null,
+      "ownerDirect": [],
+      "paidByInstaller": [],
+      "rows": [
+        {
+          "amount": 330,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": null,
+          "doneAt": "2026-10-24T03:00:00.000Z",
+          "held": [
+            "Mitti safety check form (A3) not marked Complete",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000004",
+          "jobNumber": "HV-1004",
+          "kind": "assessment",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb4",
+          "surname": "Number4",
+          "what": "Safety check by Sparky",
+        },
+        {
+          "amount": 360,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": "installer_sourced",
+          "doneAt": "2026-10-21T03:00:00.000Z",
+          "held": [
+            "Safety check form: PIESA form answers have not been read from Mitti yet — sync the form first.",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000003",
+          "jobNumber": "HV-1003",
+          "kind": "assessment",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb3",
+          "surname": "Number3",
+          "what": "Safety check by Sparky",
+        },
+      ],
+    },
+  },
+  "own visits: payee reads": {
+    "businesses B1,B2,unknown": {
+      "ok": [
+        [
+          "00000000-0000-4000-8000-0000000000b1",
+          {
+            "id": "00000000-0000-4000-8000-0000000000b1",
+            "in_house": true,
+            "name": "Inst Co",
+            "pays_own_electricians": true,
+            "piesaIncGst": 330,
+          },
+        ],
+        [
+          "00000000-0000-4000-8000-0000000000b2",
+          {
+            "id": "00000000-0000-4000-8000-0000000000b2",
+            "in_house": false,
+            "name": "Sparky Co",
+            "pays_own_electricians": false,
+            "piesaIncGst": null,
+          },
+        ],
+      ],
+    },
+    "businesses none": {
+      "ok": [],
+    },
+    "own electrician businesses": {
+      "ok": [
+        [
+          "00000000-0000-4000-8000-0000000000b1",
+          {
+            "id": "00000000-0000-4000-8000-0000000000b1",
+            "in_house": true,
+            "name": "Inst Co",
+            "pays_own_electricians": true,
+            "piesaIncGst": 330,
+          },
+        ],
+      ],
+    },
+    "payees J3 (installer-supplied) + J4 (older) + J1 (ours)": {
+      "ok": [
+        [
+          "00000000-0000-4000-8000-000000000003",
+          {
+            "businessId": "00000000-0000-4000-8000-0000000000b1",
+            "name": "Inst Co",
+            "piesaIncGst": 360,
+          },
+        ],
+        [
+          "00000000-0000-4000-8000-000000000004",
+          {
+            "businessId": "00000000-0000-4000-8000-0000000000b1",
+            "name": "Inst Co",
+            "piesaIncGst": 330,
+          },
+        ],
+        [
+          "00000000-0000-4000-8000-000000000001",
+          null,
+        ],
+      ],
+    },
+    "payees J4 only": {
+      "ok": [
+        [
+          "00000000-0000-4000-8000-000000000004",
+          {
+            "businessId": "00000000-0000-4000-8000-0000000000b1",
+            "name": "Inst Co",
+            "piesaIncGst": 330,
+          },
+        ],
+      ],
+    },
+    "payees installer-supplied, no originating installer": {
+      "refused": "Installer business has no PIESA rate on its rate card",
+    },
+    "readInstallerPaidElectricians B1": {
+      "ok": {
+        "businessId": "00000000-0000-4000-8000-0000000000b1",
+        "name": "Inst Co",
+        "piesaIncGst": 330,
+      },
+    },
+  },
+  "payer businesses: money electrician": {
+    "ok": {
+      "allTime": 880,
+      "bankEnding": "7766",
+      "boss": true,
+      "business": "Sparky Co",
+      "kind": "electrician",
+      "month": 880,
+      "next": null,
+      "ownerDirect": [],
+      "paidByInstaller": [],
+      "rows": [
+        {
+          "amount": 220,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": "installer_sourced",
+          "doneAt": "2026-10-25T03:00:00.000Z",
+          "held": [
+            "Mitti electrical fixes form (A4) not marked Complete",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000003",
+          "jobNumber": "HV-1003",
+          "kind": "rectification",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb3",
+          "surname": "Number3",
+          "what": "Fixes",
+        },
+        {
+          "amount": 330,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": null,
+          "doneAt": "2026-10-24T03:00:00.000Z",
+          "held": [
+            "Mitti safety check form (A3) not marked Complete",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000004",
+          "jobNumber": "HV-1004",
+          "kind": "assessment",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb4",
+          "surname": "Number4",
+          "what": "Pre Insulation Electrical Safety Assessment (PIESA)",
+        },
+        {
+          "amount": 330,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": "installer_sourced",
+          "doneAt": "2026-10-21T03:00:00.000Z",
+          "held": [
+            "Safety check form: PIESA form answers have not been read from Mitti yet — sync the form first.",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000003",
+          "jobNumber": "HV-1003",
+          "kind": "assessment",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb3",
+          "surname": "Number3",
+          "what": "Pre Insulation Electrical Safety Assessment (PIESA)",
+        },
+      ],
+    },
+  },
+  "payer businesses: money owner": {
+    "ok": {
+      "allTime": 2800,
+      "bankEnding": "5678",
+      "boss": true,
+      "business": "Inst Co",
+      "kind": "installer",
+      "month": 2800,
+      "next": null,
+      "ownerDirect": [],
+      "paidByInstaller": [],
+      "rows": [
+        {
+          "amount": 1650,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": "hivic_sourced",
+          "doneAt": "2026-10-27T03:00:00.000Z",
+          "held": [
+            "Install day form: Sync the current A5 Install day form — its ruler photos have not been checked yet",
+            "Waiting for Final check (AP approval) — installer pay falls due 7 days after it",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000002",
+          "jobNumber": "HV-1002",
+          "kind": "installation",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb2",
+          "surname": "Number2",
+          "what": "Install",
+        },
+        {
+          "amount": 1150,
+          "approvedAt": "2026-10-26T03:00:00.000Z",
+          "billing": "hivic",
+          "channel": "hivic_sourced",
+          "doneAt": "2026-10-23T03:00:00.000Z",
+          "held": [],
+          "jobId": "00000000-0000-4000-8000-000000000001",
+          "jobNumber": "HV-1001",
+          "kind": "installation",
+          "state": {
+            "kind": "paid",
+            "on": "2026-10-28T05:00:00.000Z",
+          },
+          "suburb": "Suburb1",
+          "surname": "Number1",
+          "what": "Install",
+        },
+        {
+          "amount": null,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": "installer_sourced",
+          "doneAt": "2026-10-21T03:00:00.000Z",
+          "held": [
+            "Safety check form: PIESA form answers have not been read from Mitti yet — sync the form first.",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000003",
+          "jobNumber": "HV-1003",
+          "kind": "assessment",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb3",
+          "surname": "Number3",
+          "what": "Pre Insulation Electrical Safety Assessment (PIESA)",
+        },
+      ],
+    },
+  },
+  "payer businesses: payee reads": {
+    "businesses B1,B2,unknown": {
+      "refused": "Could not read installer electrician-payment configuration.",
+    },
+    "businesses none": {
+      "ok": [],
+    },
+    "own electrician businesses": {
+      "refused": "Could not read installer electrician-payment configuration.",
+    },
+    "payees J3 (installer-supplied) + J4 (older) + J1 (ours)": {
+      "refused": "Could not read installer electrician-payment configuration.",
+    },
+    "payees J4 only": {
+      "refused": "Could not read installer electrician-payment configuration.",
+    },
+    "payees installer-supplied, no originating installer": {
+      "refused": "Installer business has no PIESA rate on its rate card",
+    },
+    "readInstallerPaidElectricians B1": {
+      "refused": "Could not read installer electrician-payment configuration.",
+    },
+  },
+  "payout gate: money electrician": {
+    "refused": "Could not read installer_declarations for the payout check: read failed",
+  },
+  "payout gate: money owner": {
+    "refused": "Could not read installer_declarations for the payout check: read failed",
+  },
+  "payout gate: payee reads": {
+    "businesses B1,B2,unknown": {
+      "ok": [
+        [
+          "00000000-0000-4000-8000-0000000000b1",
+          {
+            "id": "00000000-0000-4000-8000-0000000000b1",
+            "in_house": true,
+            "name": "Inst Co",
+            "pays_own_electricians": true,
+            "piesaIncGst": 330,
+          },
+        ],
+        [
+          "00000000-0000-4000-8000-0000000000b2",
+          {
+            "id": "00000000-0000-4000-8000-0000000000b2",
+            "in_house": false,
+            "name": "Sparky Co",
+            "pays_own_electricians": false,
+            "piesaIncGst": null,
+          },
+        ],
+      ],
+    },
+    "businesses none": {
+      "ok": [],
+    },
+    "own electrician businesses": {
+      "ok": [
+        [
+          "00000000-0000-4000-8000-0000000000b1",
+          {
+            "id": "00000000-0000-4000-8000-0000000000b1",
+            "in_house": true,
+            "name": "Inst Co",
+            "pays_own_electricians": true,
+            "piesaIncGst": 330,
+          },
+        ],
+      ],
+    },
+    "payees J3 (installer-supplied) + J4 (older) + J1 (ours)": {
+      "ok": [
+        [
+          "00000000-0000-4000-8000-000000000003",
+          {
+            "businessId": "00000000-0000-4000-8000-0000000000b1",
+            "name": "Inst Co",
+            "piesaIncGst": 360,
+          },
+        ],
+        [
+          "00000000-0000-4000-8000-000000000004",
+          {
+            "businessId": "00000000-0000-4000-8000-0000000000b1",
+            "name": "Inst Co",
+            "piesaIncGst": 330,
+          },
+        ],
+        [
+          "00000000-0000-4000-8000-000000000001",
+          null,
+        ],
+      ],
+    },
+    "payees J4 only": {
+      "ok": [
+        [
+          "00000000-0000-4000-8000-000000000004",
+          {
+            "businessId": "00000000-0000-4000-8000-0000000000b1",
+            "name": "Inst Co",
+            "piesaIncGst": 330,
+          },
+        ],
+      ],
+    },
+    "payees installer-supplied, no originating installer": {
+      "refused": "Installer business has no PIESA rate on its rate card",
+    },
+    "readInstallerPaidElectricians B1": {
+      "ok": {
+        "businessId": "00000000-0000-4000-8000-0000000000b1",
+        "name": "Inst Co",
+        "piesaIncGst": 330,
+      },
+    },
+  },
+  "rate card lines: money electrician": {
+    "ok": {
+      "allTime": 880,
+      "bankEnding": "7766",
+      "boss": true,
+      "business": "Sparky Co",
+      "kind": "electrician",
+      "month": 880,
+      "next": null,
+      "ownerDirect": [],
+      "paidByInstaller": [],
+      "rows": [
+        {
+          "amount": 220,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": "installer_sourced",
+          "doneAt": "2026-10-25T03:00:00.000Z",
+          "held": [
+            "Mitti electrical fixes form (A4) not marked Complete",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000003",
+          "jobNumber": "HV-1003",
+          "kind": "rectification",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb3",
+          "surname": "Number3",
+          "what": "Fixes",
+        },
+        {
+          "amount": 330,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": null,
+          "doneAt": "2026-10-24T03:00:00.000Z",
+          "held": [
+            "Mitti safety check form (A3) not marked Complete",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000004",
+          "jobNumber": "HV-1004",
+          "kind": "assessment",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb4",
+          "surname": "Number4",
+          "what": "Pre Insulation Electrical Safety Assessment (PIESA)",
+        },
+        {
+          "amount": 330,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": "installer_sourced",
+          "doneAt": "2026-10-21T03:00:00.000Z",
+          "held": [
+            "Safety check form: PIESA form answers have not been read from Mitti yet — sync the form first.",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000003",
+          "jobNumber": "HV-1003",
+          "kind": "assessment",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb3",
+          "surname": "Number3",
+          "what": "Pre Insulation Electrical Safety Assessment (PIESA)",
+        },
+      ],
+    },
+  },
+  "rate card lines: money owner": {
+    "ok": {
+      "allTime": 2800,
+      "bankEnding": "5678",
+      "boss": true,
+      "business": "Inst Co",
+      "kind": "installer",
+      "month": 2800,
+      "next": null,
+      "ownerDirect": [],
+      "paidByInstaller": [],
+      "rows": [
+        {
+          "amount": 1650,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": "hivic_sourced",
+          "doneAt": "2026-10-27T03:00:00.000Z",
+          "held": [
+            "Install day form: Sync the current A5 Install day form — its ruler photos have not been checked yet",
+            "Waiting for Final check (AP approval) — installer pay falls due 7 days after it",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000002",
+          "jobNumber": "HV-1002",
+          "kind": "installation",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb2",
+          "surname": "Number2",
+          "what": "Install",
+        },
+        {
+          "amount": 1150,
+          "approvedAt": "2026-10-26T03:00:00.000Z",
+          "billing": "hivic",
+          "channel": "hivic_sourced",
+          "doneAt": "2026-10-23T03:00:00.000Z",
+          "held": [],
+          "jobId": "00000000-0000-4000-8000-000000000001",
+          "jobNumber": "HV-1001",
+          "kind": "installation",
+          "state": {
+            "kind": "paid",
+            "on": "2026-10-28T05:00:00.000Z",
+          },
+          "suburb": "Suburb1",
+          "surname": "Number1",
+          "what": "Install",
+        },
+        {
+          "amount": null,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": "installer_sourced",
+          "doneAt": "2026-10-21T03:00:00.000Z",
+          "held": [
+            "Safety check form: PIESA form answers have not been read from Mitti yet — sync the form first.",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000003",
+          "jobNumber": "HV-1003",
+          "kind": "assessment",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb3",
+          "surname": "Number3",
+          "what": "Pre Insulation Electrical Safety Assessment (PIESA)",
+        },
+      ],
+    },
+  },
+  "rate card lines: payee reads": {
+    "businesses B1,B2,unknown": {
+      "refused": "Could not read the in-house PIESA prices.",
+    },
+    "businesses none": {
+      "ok": [],
+    },
+    "own electrician businesses": {
+      "refused": "Could not read the in-house PIESA prices.",
+    },
+    "payees J3 (installer-supplied) + J4 (older) + J1 (ours)": {
+      "refused": "Could not read the in-house PIESA prices.",
+    },
+    "payees J4 only": {
+      "refused": "Could not read the in-house PIESA prices.",
+    },
+    "payees installer-supplied, no originating installer": {
+      "refused": "Installer business has no PIESA rate on its rate card",
+    },
+    "readInstallerPaidElectricians B1": {
+      "refused": "Could not read the in-house PIESA prices.",
+    },
+  },
+  "rate cards: money electrician": {
+    "ok": {
+      "allTime": 880,
+      "bankEnding": "7766",
+      "boss": true,
+      "business": "Sparky Co",
+      "kind": "electrician",
+      "month": 880,
+      "next": null,
+      "ownerDirect": [],
+      "paidByInstaller": [],
+      "rows": [
+        {
+          "amount": 220,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": "installer_sourced",
+          "doneAt": "2026-10-25T03:00:00.000Z",
+          "held": [
+            "Mitti electrical fixes form (A4) not marked Complete",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000003",
+          "jobNumber": "HV-1003",
+          "kind": "rectification",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb3",
+          "surname": "Number3",
+          "what": "Fixes",
+        },
+        {
+          "amount": 330,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": null,
+          "doneAt": "2026-10-24T03:00:00.000Z",
+          "held": [
+            "Mitti safety check form (A3) not marked Complete",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000004",
+          "jobNumber": "HV-1004",
+          "kind": "assessment",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb4",
+          "surname": "Number4",
+          "what": "Pre Insulation Electrical Safety Assessment (PIESA)",
+        },
+        {
+          "amount": 330,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": "installer_sourced",
+          "doneAt": "2026-10-21T03:00:00.000Z",
+          "held": [
+            "Safety check form: PIESA form answers have not been read from Mitti yet — sync the form first.",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000003",
+          "jobNumber": "HV-1003",
+          "kind": "assessment",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb3",
+          "surname": "Number3",
+          "what": "Pre Insulation Electrical Safety Assessment (PIESA)",
+        },
+      ],
+    },
+  },
+  "rate cards: money owner": {
+    "ok": {
+      "allTime": 2800,
+      "bankEnding": "5678",
+      "boss": true,
+      "business": "Inst Co",
+      "kind": "installer",
+      "month": 2800,
+      "next": null,
+      "ownerDirect": [],
+      "paidByInstaller": [],
+      "rows": [
+        {
+          "amount": 1650,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": "hivic_sourced",
+          "doneAt": "2026-10-27T03:00:00.000Z",
+          "held": [
+            "Install day form: Sync the current A5 Install day form — its ruler photos have not been checked yet",
+            "Waiting for Final check (AP approval) — installer pay falls due 7 days after it",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000002",
+          "jobNumber": "HV-1002",
+          "kind": "installation",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb2",
+          "surname": "Number2",
+          "what": "Install",
+        },
+        {
+          "amount": 1150,
+          "approvedAt": "2026-10-26T03:00:00.000Z",
+          "billing": "hivic",
+          "channel": "hivic_sourced",
+          "doneAt": "2026-10-23T03:00:00.000Z",
+          "held": [],
+          "jobId": "00000000-0000-4000-8000-000000000001",
+          "jobNumber": "HV-1001",
+          "kind": "installation",
+          "state": {
+            "kind": "paid",
+            "on": "2026-10-28T05:00:00.000Z",
+          },
+          "suburb": "Suburb1",
+          "surname": "Number1",
+          "what": "Install",
+        },
+        {
+          "amount": null,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": "installer_sourced",
+          "doneAt": "2026-10-21T03:00:00.000Z",
+          "held": [
+            "Safety check form: PIESA form answers have not been read from Mitti yet — sync the form first.",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000003",
+          "jobNumber": "HV-1003",
+          "kind": "assessment",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb3",
+          "surname": "Number3",
+          "what": "Pre Insulation Electrical Safety Assessment (PIESA)",
+        },
+      ],
+    },
+  },
+  "rate cards: payee reads": {
+    "businesses B1,B2,unknown": {
+      "refused": "Could not read the in-house PIESA rate cards.",
+    },
+    "businesses none": {
+      "ok": [],
+    },
+    "own electrician businesses": {
+      "refused": "Could not read the in-house PIESA rate cards.",
+    },
+    "payees J3 (installer-supplied) + J4 (older) + J1 (ours)": {
+      "refused": "Could not read the in-house PIESA rate cards.",
+    },
+    "payees J4 only": {
+      "refused": "Could not read the in-house PIESA rate cards.",
+    },
+    "payees installer-supplied, no originating installer": {
+      "refused": "Installer business has no PIESA rate on its rate card",
+    },
+    "readInstallerPaidElectricians B1": {
+      "refused": "Could not read the in-house PIESA rate cards.",
+    },
+  },
+  "recorded quote prices: money electrician": {
+    "ok": {
+      "allTime": 880,
+      "bankEnding": "7766",
+      "boss": true,
+      "business": "Sparky Co",
+      "kind": "electrician",
+      "month": 880,
+      "next": null,
+      "ownerDirect": [],
+      "paidByInstaller": [],
+      "rows": [
+        {
+          "amount": 220,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": "installer_sourced",
+          "doneAt": "2026-10-25T03:00:00.000Z",
+          "held": [
+            "Mitti electrical fixes form (A4) not marked Complete",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000003",
+          "jobNumber": "HV-1003",
+          "kind": "rectification",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb3",
+          "surname": "Number3",
+          "what": "Fixes",
+        },
+        {
+          "amount": 330,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": null,
+          "doneAt": "2026-10-24T03:00:00.000Z",
+          "held": [
+            "Mitti safety check form (A3) not marked Complete",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000004",
+          "jobNumber": "HV-1004",
+          "kind": "assessment",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb4",
+          "surname": "Number4",
+          "what": "Pre Insulation Electrical Safety Assessment (PIESA)",
+        },
+        {
+          "amount": 330,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": "installer_sourced",
+          "doneAt": "2026-10-21T03:00:00.000Z",
+          "held": [
+            "Safety check form: PIESA form answers have not been read from Mitti yet — sync the form first.",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000003",
+          "jobNumber": "HV-1003",
+          "kind": "assessment",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb3",
+          "surname": "Number3",
+          "what": "Pre Insulation Electrical Safety Assessment (PIESA)",
+        },
+      ],
+    },
+  },
+  "recorded quote prices: money owner": {
+    "ok": {
+      "allTime": 2800,
+      "bankEnding": "5678",
+      "boss": true,
+      "business": "Inst Co",
+      "kind": "installer",
+      "month": 2800,
+      "next": null,
+      "ownerDirect": [],
+      "paidByInstaller": [],
+      "rows": [
+        {
+          "amount": 1650,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": "hivic_sourced",
+          "doneAt": "2026-10-27T03:00:00.000Z",
+          "held": [
+            "Install day form: Sync the current A5 Install day form — its ruler photos have not been checked yet",
+            "Waiting for Final check (AP approval) — installer pay falls due 7 days after it",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000002",
+          "jobNumber": "HV-1002",
+          "kind": "installation",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb2",
+          "surname": "Number2",
+          "what": "Install",
+        },
+        {
+          "amount": 1150,
+          "approvedAt": "2026-10-26T03:00:00.000Z",
+          "billing": "hivic",
+          "channel": "hivic_sourced",
+          "doneAt": "2026-10-23T03:00:00.000Z",
+          "held": [],
+          "jobId": "00000000-0000-4000-8000-000000000001",
+          "jobNumber": "HV-1001",
+          "kind": "installation",
+          "state": {
+            "kind": "paid",
+            "on": "2026-10-28T05:00:00.000Z",
+          },
+          "suburb": "Suburb1",
+          "surname": "Number1",
+          "what": "Install",
+        },
+        {
+          "amount": null,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": null,
+          "doneAt": "2026-10-24T03:00:00.000Z",
+          "held": [
+            "Mitti safety check form (A3) not marked Complete",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000004",
+          "jobNumber": "HV-1004",
+          "kind": "assessment",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb4",
+          "surname": "Number4",
+          "what": "Pre Insulation Electrical Safety Assessment (PIESA)",
+        },
+        {
+          "amount": null,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": "installer_sourced",
+          "doneAt": "2026-10-21T03:00:00.000Z",
+          "held": [
+            "Safety check form: PIESA form answers have not been read from Mitti yet — sync the form first.",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000003",
+          "jobNumber": "HV-1003",
+          "kind": "assessment",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb3",
+          "surname": "Number3",
+          "what": "Pre Insulation Electrical Safety Assessment (PIESA)",
+        },
+      ],
+    },
+  },
+  "recorded quote prices: payee reads": {
+    "businesses B1,B2,unknown": {
+      "ok": [
+        [
+          "00000000-0000-4000-8000-0000000000b1",
+          {
+            "id": "00000000-0000-4000-8000-0000000000b1",
+            "in_house": true,
+            "name": "Inst Co",
+            "pays_own_electricians": true,
+            "piesaIncGst": 330,
+          },
+        ],
+        [
+          "00000000-0000-4000-8000-0000000000b2",
+          {
+            "id": "00000000-0000-4000-8000-0000000000b2",
+            "in_house": false,
+            "name": "Sparky Co",
+            "pays_own_electricians": false,
+            "piesaIncGst": null,
+          },
+        ],
+      ],
+    },
+    "businesses none": {
+      "ok": [],
+    },
+    "own electrician businesses": {
+      "ok": [
+        [
+          "00000000-0000-4000-8000-0000000000b1",
+          {
+            "id": "00000000-0000-4000-8000-0000000000b1",
+            "in_house": true,
+            "name": "Inst Co",
+            "pays_own_electricians": true,
+            "piesaIncGst": 330,
+          },
+        ],
+      ],
+    },
+    "payees J3 (installer-supplied) + J4 (older) + J1 (ours)": {
+      "refused": "Could not read recorded safety check quote prices.",
+    },
+    "payees J4 only": {
+      "ok": [
+        [
+          "00000000-0000-4000-8000-000000000004",
+          {
+            "businessId": "00000000-0000-4000-8000-0000000000b1",
+            "name": "Inst Co",
+            "piesaIncGst": 330,
+          },
+        ],
+      ],
+    },
+    "payees installer-supplied, no originating installer": {
+      "refused": "Could not read recorded safety check quote prices.",
+    },
+    "readInstallerPaidElectricians B1": {
+      "ok": {
+        "businessId": "00000000-0000-4000-8000-0000000000b1",
+        "name": "Inst Co",
+        "piesaIncGst": 330,
+      },
+    },
+  },
+  "safety visits: money electrician": {
+    "refused": "Could not read piesa_records for the payout check: read failed",
+  },
+  "safety visits: money owner": {
+    "refused": "Could not read piesa_records for the payout check: read failed",
+  },
+  "safety visits: payee reads": {
+    "businesses B1,B2,unknown": {
+      "ok": [
+        [
+          "00000000-0000-4000-8000-0000000000b1",
+          {
+            "id": "00000000-0000-4000-8000-0000000000b1",
+            "in_house": true,
+            "name": "Inst Co",
+            "pays_own_electricians": true,
+            "piesaIncGst": 330,
+          },
+        ],
+        [
+          "00000000-0000-4000-8000-0000000000b2",
+          {
+            "id": "00000000-0000-4000-8000-0000000000b2",
+            "in_house": false,
+            "name": "Sparky Co",
+            "pays_own_electricians": false,
+            "piesaIncGst": null,
+          },
+        ],
+      ],
+    },
+    "businesses none": {
+      "ok": [],
+    },
+    "own electrician businesses": {
+      "ok": [
+        [
+          "00000000-0000-4000-8000-0000000000b1",
+          {
+            "id": "00000000-0000-4000-8000-0000000000b1",
+            "in_house": true,
+            "name": "Inst Co",
+            "pays_own_electricians": true,
+            "piesaIncGst": 330,
+          },
+        ],
+      ],
+    },
+    "payees J3 (installer-supplied) + J4 (older) + J1 (ours)": {
+      "ok": [
+        [
+          "00000000-0000-4000-8000-000000000003",
+          {
+            "businessId": "00000000-0000-4000-8000-0000000000b1",
+            "name": "Inst Co",
+            "piesaIncGst": 360,
+          },
+        ],
+        [
+          "00000000-0000-4000-8000-000000000004",
+          {
+            "businessId": "00000000-0000-4000-8000-0000000000b1",
+            "name": "Inst Co",
+            "piesaIncGst": 330,
+          },
+        ],
+        [
+          "00000000-0000-4000-8000-000000000001",
+          null,
+        ],
+      ],
+    },
+    "payees J4 only": {
+      "ok": [
+        [
+          "00000000-0000-4000-8000-000000000004",
+          {
+            "businessId": "00000000-0000-4000-8000-0000000000b1",
+            "name": "Inst Co",
+            "piesaIncGst": 330,
+          },
+        ],
+      ],
+    },
+    "payees installer-supplied, no originating installer": {
+      "refused": "Installer business has no PIESA rate on its rate card",
+    },
+    "readInstallerPaidElectricians B1": {
+      "ok": {
+        "businessId": "00000000-0000-4000-8000-0000000000b1",
+        "name": "Inst Co",
+        "piesaIncGst": 330,
+      },
+    },
+  },
+  "their safety checks: money electrician": {
+    "ok": {
+      "allTime": 220,
+      "bankEnding": "7766",
+      "boss": true,
+      "business": "Sparky Co",
+      "kind": "electrician",
+      "month": 220,
+      "next": null,
+      "ownerDirect": [],
+      "paidByInstaller": [
+        {
+          "doneAt": "2026-10-24T03:00:00.000Z",
+          "jobId": "00000000-0000-4000-8000-000000000004",
+          "jobNumber": "HV-1004",
+          "suburb": "Suburb4",
+          "surname": "Number4",
+          "what": "Pre Insulation Electrical Safety Assessment (PIESA)",
+        },
+        {
+          "doneAt": "2026-10-21T03:00:00.000Z",
+          "jobId": "00000000-0000-4000-8000-000000000003",
+          "jobNumber": "HV-1003",
+          "suburb": "Suburb3",
+          "surname": "Number3",
+          "what": "Pre Insulation Electrical Safety Assessment (PIESA)",
+        },
+      ],
+      "rows": [
+        {
+          "amount": 220,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": "installer_sourced",
+          "doneAt": "2026-10-25T03:00:00.000Z",
+          "held": [
+            "Mitti electrical fixes form (A4) not marked Complete",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000003",
+          "jobNumber": "HV-1003",
+          "kind": "rectification",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb3",
+          "surname": "Number3",
+          "what": "Fixes",
+        },
+      ],
+    },
+  },
+  "their safety checks: money owner": {
+    "ok": {
+      "allTime": 2800,
+      "bankEnding": "5678",
+      "boss": true,
+      "business": "Inst Co",
+      "kind": "installer",
+      "month": 2800,
+      "next": null,
+      "ownerDirect": [],
+      "paidByInstaller": [],
+      "rows": [
+        {
+          "amount": 1650,
+          "approvedAt": null,
+          "billing": "hivic",
+          "channel": "hivic_sourced",
+          "doneAt": "2026-10-27T03:00:00.000Z",
+          "held": [
+            "Install day form: Sync the current A5 Install day form — its ruler photos have not been checked yet",
+            "Waiting for Final check (AP approval) — installer pay falls due 7 days after it",
+          ],
+          "jobId": "00000000-0000-4000-8000-000000000002",
+          "jobNumber": "HV-1002",
+          "kind": "installation",
+          "state": {
+            "kind": "checking",
+          },
+          "suburb": "Suburb2",
+          "surname": "Number2",
+          "what": "Install",
+        },
+        {
+          "amount": 1150,
+          "approvedAt": "2026-10-26T03:00:00.000Z",
+          "billing": "hivic",
+          "channel": "hivic_sourced",
+          "doneAt": "2026-10-23T03:00:00.000Z",
+          "held": [],
+          "jobId": "00000000-0000-4000-8000-000000000001",
+          "jobNumber": "HV-1001",
+          "kind": "installation",
+          "state": {
+            "kind": "paid",
+            "on": "2026-10-28T05:00:00.000Z",
+          },
+          "suburb": "Suburb1",
+          "surname": "Number1",
+          "what": "Install",
+        },
+      ],
+    },
+  },
+  "their safety checks: payee reads": {
+    "businesses B1,B2,unknown": {
+      "ok": [
+        [
+          "00000000-0000-4000-8000-0000000000b1",
+          {
+            "id": "00000000-0000-4000-8000-0000000000b1",
+            "in_house": true,
+            "name": "Inst Co",
+            "pays_own_electricians": true,
+            "piesaIncGst": 330,
+          },
+        ],
+        [
+          "00000000-0000-4000-8000-0000000000b2",
+          {
+            "id": "00000000-0000-4000-8000-0000000000b2",
+            "in_house": false,
+            "name": "Sparky Co",
+            "pays_own_electricians": false,
+            "piesaIncGst": null,
+          },
+        ],
+      ],
+    },
+    "businesses none": {
+      "ok": [],
+    },
+    "own electrician businesses": {
+      "ok": [
+        [
+          "00000000-0000-4000-8000-0000000000b1",
+          {
+            "id": "00000000-0000-4000-8000-0000000000b1",
+            "in_house": true,
+            "name": "Inst Co",
+            "pays_own_electricians": true,
+            "piesaIncGst": 330,
+          },
+        ],
+      ],
+    },
+    "payees J3 (installer-supplied) + J4 (older) + J1 (ours)": {
+      "ok": [
+        [
+          "00000000-0000-4000-8000-000000000003",
+          {
+            "businessId": "00000000-0000-4000-8000-0000000000b1",
+            "name": "Inst Co",
+            "piesaIncGst": 360,
+          },
+        ],
+        [
+          "00000000-0000-4000-8000-000000000004",
+          {
+            "businessId": "00000000-0000-4000-8000-0000000000b1",
+            "name": "Inst Co",
+            "piesaIncGst": 330,
+          },
+        ],
+        [
+          "00000000-0000-4000-8000-000000000001",
+          null,
+        ],
+      ],
+    },
+    "payees J4 only": {
+      "ok": [
+        [
+          "00000000-0000-4000-8000-000000000004",
+          {
+            "businessId": "00000000-0000-4000-8000-0000000000b1",
+            "name": "Inst Co",
+            "piesaIncGst": 330,
+          },
+        ],
+      ],
+    },
+    "payees installer-supplied, no originating installer": {
+      "refused": "Installer business has no PIESA rate on its rate card",
+    },
+    "readInstallerPaidElectricians B1": {
+      "ok": {
+        "businessId": "00000000-0000-4000-8000-0000000000b1",
+        "name": "Inst Co",
+        "piesaIncGst": 330,
+      },
+    },
+  },
+}
+`;
