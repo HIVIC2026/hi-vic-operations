@@ -149,13 +149,15 @@ function keyOf(v: unknown): Key | undefined {
 
 const clone = <T,>(v: T): T => (v === null || typeof v !== "object" ? v : (JSON.parse(JSON.stringify(v)) as T));
 
-function project(row: Row, sel: Sel): Row {
+/** The row as the query selected it. `nested` are the embeds the facts read carries on this row: with `*`, every one the
+ *  query did not ask for is dropped (PostgREST's `*` is the table's own columns only, never an embed). */
+function project(row: Row, sel: Sel, nested: readonly Nest[]): Row {
   const out: Row = sel.star ? clone(row) : {};
-  for (const e of sel.embeds) delete out[e.name];
+  for (const n of nested) delete out[n.name];
   for (const c of sel.cols) out[c] = clone(row[c]);
   for (const e of sel.embeds) {
     const v = row[e.name];
-    out[e.name] = Array.isArray(v) ? v.map((x) => project(x as Row, e.sel)) : v && typeof v === "object" ? project(v as Row, e.sel) : null;
+    out[e.name] = Array.isArray(v) ? v.map((x) => project(x as Row, e.sel, [])) : v && typeof v === "object" ? project(v as Row, e.sel, []) : null;
   }
   return out;
 }
@@ -307,7 +309,7 @@ function answer(t: FactTable, nested: readonly Nest[], ops: readonly QueryOp[], 
   if (limit !== null) rows = rows.slice(0, limit);
   if (head) return one || limit !== null || offset !== null ? null : { success: true, data: null, error: null, count: rows.length, status: 200, statusText: "OK" };
   if (withCount && (one || limit !== null || offset !== null)) return null; // count with limit/single: let the database give its own numbers
-  const out = rows.map((r) => project(r, sel));
+  const out = rows.map((r) => project(r, sel, nested));
   if (one) {
     // More than one row (or none for single) is a database error: let the database give it, word for word.
     if (out.length > 1 || (one === "single" && out.length === 0 && !shapeOnly)) return null;

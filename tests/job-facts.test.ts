@@ -53,6 +53,13 @@ describe("answerFromFacts: same answer as the database", () => {
     expect(answerFromFacts(facts, "bookings", q(["select", "id, businesses(name, trading_name)"], ["eq", "job_id", J], ["eq", "kind", "installation"]))!.data).toEqual([{ id: "b1", businesses: { name: "Inst", trading_name: null } }]);
     expect(answerFromFacts(facts, "job_assignments", q(["select", "profiles:user_id(full_name)"], ["eq", "job_id", J], ["eq", "active", true]))!.data).toEqual([{ profiles: { full_name: "Bea" } }]);
   });
+  test("select * returns the row's columns only: embedded rows the query did not ask for are dropped, as PostgREST does", () => {
+    // I1: the facts read quotes with their items and internals; a section asking `*` must not get them (the database would not send them).
+    expect(answerFromFacts(facts, "quotes", q(["select", "*"], ["eq", "job_id", J]))!.data).toEqual([{ id: "q1", job_id: J, kind: "installation", status: "accepted" }]);
+    expect(answerFromFacts(facts, "quotes", q(["select", "*, quote_items(*)"], ["eq", "job_id", J]))!.data).toEqual([{ id: "q1", job_id: J, kind: "installation", status: "accepted", quote_items: [{ code: "PIESA", line_total_inc_gst: 349 }] }]);
+    expect(answerFromFacts(facts, "jobs", q(["select", "*"], ["eq", "id", J], ["maybeSingle"]))!.data).toEqual({ id: J, stage: "installation_booked", channel: "website", deleted_at: null });
+    expect(answerFromFacts(facts, "job_assignments", q(["select", "*"], ["eq", "job_id", J]))!.data).toEqual([{ id: "a1", job_id: J, role: "installer", active: true, user_id: "u1" }]);
+  });
   test("count / head, single and range", () => {
     expect(answerFromFacts(facts, "workflow_events", q(["select", "id", { count: "exact", head: true }], ["eq", "job_id", J]))).toMatchObject({ data: null, count: 4 });
     expect(answerFromFacts(facts, "bookings", q(["select", "id"], ["eq", "job_id", J], ["eq", "kind", "assessment"], ["single"]))!.data).toEqual({ id: "b2" });
