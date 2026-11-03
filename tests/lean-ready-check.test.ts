@@ -219,11 +219,11 @@ describe("build sheet = the lean forms exactly (validateTemplate)", () => {
     expect(validateTemplate("ready_check_priced", leanItems("ready_check_priced"))).toEqual({ ok: true, issues: [] });
     expect(validateTemplate("ready_check", leanItems("ready_check"))).toEqual({ ok: true, issues: [] });
     // Decision 278: A1 lost its quote page (7 questions); decision 290 (corrected): both lost the access charge/fee pair
-    // — A1 34 questions; A2 keeps the no-pricing tick — 35. Decision 359 adds the four Part 6 questions per area → 38 / 39.
+    // — A1 34 questions; A2 keeps the no-pricing tick — 35. Decision 359 adds the four Part 6 questions per area → 38 / 39; the 2 Nov photo ID tick → 39 / 40.
     expect(leanQuestionCount("ready_check_priced", { beforeDecision: 359 })).toBe(34);
     expect(leanQuestionCount("ready_check", { beforeDecision: 359 })).toBe(35);
-    expect(leanQuestionCount("ready_check_priced")).toBe(38);
-    expect(leanQuestionCount("ready_check")).toBe(39);
+    expect(leanQuestionCount("ready_check_priced")).toBe(39);
+    expect(leanQuestionCount("ready_check")).toBe(40);
     // A template built before decision 359 (no Part 6 questions) still validates.
     const before359 = (key: "ready_check" | "ready_check_priced") => FORMS[key].fields.filter((f) => !f.portalOnly && f.addedByDecision !== 359).map((f) => ({ label: f.label, type: typeOf(f) }));
     expect(validateTemplate("ready_check_priced", before359("ready_check_priced"))).toEqual({ ok: true, issues: [] });
@@ -387,7 +387,7 @@ describe("docs/MITTI_READY_CHECK_CHATGPT_PROMPT.md carries every constant verbat
   const body = prompt.slice(prompt.indexOf("\n---\n"));
   test("every question label the portal reads, as a backticked line, in form order", () => {
     let last = -1;
-    const order: (keyof typeof LEAN_Q)[] = ["jobNumber", "siteAddress", "ownerName", "ownerPhone", "ownerEmail", "propertyType", "contactPermission", "lifeSupport", "builtLast5", "premisesType", "roofType", "access", "accessPhoto",
+    const order: (keyof typeof LEAN_Q)[] = ["jobNumber", "siteAddress", "ownerName", "ownerPhone", "ownerEmail", "propertyType", "contactPermission", "photoIdShown", "lifeSupport", "builtLast5", "premisesType", "roofType", "access", "accessPhoto",
       "areaName", "lengthM", "widthM", "measuredHow", "measuredHowOther", "existing", "existingType", "rValue", "depthPhoto", "existingAction", "removeM2", "existingSuitable", "existingConductive", "existingConductivePhoto", "existingKeepReason", "beforeVideo", "downlights", "downlightsCount", "issues", "issueNote", "issuePhoto",
       "product", "outcome", "failReasons", "noPricingTick", "signatureA1", "signatureA2"];
     expect(new Set(order).size).toBe(Object.keys(LEAN_Q).length - 1 - A1_QUOTE_QUESTIONS.length); // every LEAN_Q key but the legacy m² entry and the deleted A1 quote page (decision 278)

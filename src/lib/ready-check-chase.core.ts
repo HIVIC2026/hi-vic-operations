@@ -10,6 +10,9 @@ export const CHASE_AFTER_MS = 24 * 3_600_000;
 /** An unfinished form untouched this long (after its booked visit) counts as left incomplete. */
 export const UNFINISHED_IDLE_MS = 6 * 3_600_000;
 
+/** Installer chase line for an unticked photo ID tick (only a form that asks it). */
+export const READY_CHECK_PHOTO_ID_MISSING = "the photo ID tick";
+
 /** What the installer can fix, in plain installer words. Office-only problems (R2+, life support) are not here. */
 export function installerMissing(f: ReadyCheckFacts): string[] {
   const out: string[] = [];
@@ -19,6 +22,7 @@ export function installerMissing(f: ReadyCheckFacts): string[] {
   if (!f.electricianDecided) out.push("who is doing the electrical safety check");
   // Photos are optional in Mitti (Jo 23 Oct; access hatch photo optional, Jo 26 Oct) — never chased here (decision 396).
   if (f.contactPermission === null) out.push("whether the homeowner agrees to be contacted");
+  if (f.photoIdShown === false) out.push(READY_CHECK_PHOTO_ID_MISSING);
   return out;
 }
 

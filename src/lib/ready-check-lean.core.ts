@@ -19,6 +19,8 @@ export const LEAN_Q = {
   propertyType: "Property type",
   // Page 2 — Before you go up
   contactPermission: "Homeowner agrees to be contacted by Home Insulation Victoria",
+  /** Jo 2 Nov 2026 (approved wording): Code of Conduct cl 9. Required tick on A1 and A2; a form without it reads as not asked. */
+  photoIdShown: "I showed my photo ID (name + business)",
   lifeSupport: "Life support equipment at property?",
   builtLast5: "Was the ceiling or roof built or replaced in the last 5 years?",
   premisesType: "Who lives at the property?",

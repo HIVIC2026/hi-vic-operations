@@ -124,6 +124,7 @@ const READY_CHECK_FIELDS: FormField[] = [
   { label: LEAN_Q.propertyType, type: "choice", required: true, prefill: true, choices: [...PROPERTY_TYPE_OPTIONS], types: ["text"], source: "portal – prefilled from the enquiry (House/Townhouse = Class 1, Unit = Class 2 sole-occupancy unit); no Other text" },
   // Page 2 — Before you go up
   { label: LEAN_Q.contactPermission, type: "yesno", required: true, choices: [...YES_NO], source: "portal – contact permission (quote basic); No = hard stop (STOP_NO_CONTACT)" },
+  { label: LEAN_Q.photoIdShown, type: "tick", required: true, addedByDecision: 900, source: "Code of Conduct cl 9 (Jo 2 Nov 2026 touchpoint review; 900 = after 359, no log number yet)" },
   { label: LEAN_Q.lifeSupport, type: "yesno", required: true, prefill: true, choices: [...YES_NO], types: ["text"], aliases: al("lifeSupport"), source: "portal – prefilled from the office record; A1 Yes = office stop; A2 uses the owner's website answer" },
   { label: LEAN_Q.builtLast5, type: "yesno", required: true, prefill: true, choices: [...YES_NO], types: ["text"], source: `${G} eligibility – prefilled from the owner's declared answer; A1 Yes = office stop; A2 uses the website answer` },
   { label: LEAN_Q.premisesType, type: "choice", required: true, prefill: true, choices: [...PREMISES_TYPE_OPTIONS], source: "Activity Guide v1.2 Appendix C premises type (decision 222) – recorded as the mitti_premises_type event" },
@@ -160,7 +161,7 @@ const READY_CHECK_FIELDS: FormField[] = [
   { label: LEAN_Q.issueNote, type: "text", required: true, perArea: true, when: `${LEAN_Q.issues} = Yes`, aliases: al("issueNote"), source: `${G} safety – hazard description and where it is in the area (kept on the area record)` },
   { label: LEAN_Q.issuePhoto, type: "media", required: true, perArea: true, when: `${LEAN_Q.issues} = Yes`, aliases: al("issuePhoto"), source: `${G} safety – SWMS hazard evidence (restored, decision 222); the only hazard evidence` },
   // Page 5 — Product and result
-  { label: LEAN_Q.product, type: "choice", required: true, choices: [...PRODUCT_OPTIONS], aliases: al("product"), source: "portal – quote basic; exactly one of the 8 approved options (decision 150); always shown, not only on passed (decision 222)" },
+  { label: LEAN_Q.product, type: "choice", required: true, choices: [...PRODUCT_OPTIONS], aliases: al("product"), source: "portal – quote basic; exactly one of the 7 approved options (decision 150); always shown, not only on passed (decision 222)" },
   { label: LEAN_Q.outcome, type: "choice", required: true, choices: [...OUTCOME_OPTIONS], source: "portal – installer's overall call (failed = office review, never an auto-rejection); the portal applies the rules from the answers" },
   { label: LEAN_Q.failReasons, type: "multichoice", required: true, choices: [...FAIL_REASON_OPTIONS], when: `${LEAN_Q.outcome} = ${OUTCOME_FAILED}`, types: ["text"], source: "portal – notes for the office" },
 ];
