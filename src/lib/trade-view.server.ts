@@ -1007,6 +1007,12 @@ export async function inHouseBookVisit(userId: string, input: { jobId: string; k
   const access = await inHouseBookingAccess(userId, input.jobId, client);
   if (!access.allowed) return { ok: false, blockers: access.blockers };
   if(!input.workerId)return {ok:false,blockers:[input.kind==='installation'?(await import('./in-house-booking.core')).LEAD_INSTALLER_BOOKING_REASON:'Choose the person going before booking.']};
+  // Part 7 Task 6: an existing install booking past its 5pm two-days-before lock can't be moved or given another Lead
+  // Installer here (LEAD_LOCKED_MESSAGE); the current booking is read inside the check, never the page's copy.
+  if (input.kind === "installation") {
+    try { await (await import("./lead-installer-confirm.server")).assertLeadInstallerUnlocked(input.jobId, { newStart: input.start, newLeadId: input.workerId }); }
+    catch (error) { return { ok: false, blockers: [error instanceof Error ? error.message : "Booking could not be saved."] }; }
+  }
   try {
     const result=await (await import('./in-house-atomic-save.server')).saveInHouseVisit(input.jobId,userId,{
       kind:input.kind,start:input.start,workerId:input.workerId,

@@ -136,6 +136,15 @@ export const WORKFLOW_DECISIONS = {
       held: ["no lead installer", "lead installer has no mobile", "install form not ready"],
       key: "install-tomorrow:v1:{job}:{booking}:{Melbourne date} (unchanged, one text per install day; a hold never claims it)",
     },
+    // Part 7 Task 6 (Jo 2 Nov 2026, "Lead Installer / ESC 24h rule"); the clock is Part 9 Task 9's rule (prestart.core).
+    leadInstallerConfirm: {
+      email: "ONE office email at 9am Melbourne two days before the install (at once if booked after 9am that day, until 5pm): Confirm or change your Lead Installer by 5pm today (+ pick the crew)",
+      to: "the installer business office email, every installer (not only in-house), one per job + install date (lead-confirm:v1:{job}:{Melbourne date})",
+      wording: "DRAFT behind LEAD_INSTALLER_CONFIRM_EMAIL_APPROVED=false — real offices held and recorded once (lead_installer_confirm_held), TEST → test-send",
+      lock: "from 5pm that day: Lead Installer and install day locked (leadInstallerLocked); LEAD_LOCKED_MESSAGE = Locked: ESC has been told. Email us to move this install.",
+      writers: ["saveCrewWithLead (different Lead refused; crew-only allowed)", "changeInHouseLeadInstaller", "inHouseBookVisit (moved start or other Lead on an existing install booking)"],
+      replaces: "the 2pm day-before crew reminder (#110)",
+    },
   },
   quoteValidity: {
     validDays: 30,

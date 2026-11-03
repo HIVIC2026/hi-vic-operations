@@ -1,4 +1,7 @@
-import { expect, test } from 'bun:test';
+import { expect, setSystemTime, test } from 'bun:test';
+// Part 7 Task 6: the Lead Installer locks from 5pm two days before the install (3 Nov 11am here → 1 Nov 5pm Melbourne);
+// this handover happens the afternoon before that lock, so the clock is pinned (the real date is past the lock).
+setSystemTime(new Date('2026-11-01T05:00:00Z'));
 import ts from 'typescript';
 import { readFileSync } from 'node:fs';
 import { memoryPostgrest } from './helpers/memory-postgrest';

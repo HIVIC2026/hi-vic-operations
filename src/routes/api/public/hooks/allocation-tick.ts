@@ -395,6 +395,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['crewReminders'] = "failed";
         }
         try {
+          // Part 7 Task 6 (Jo 2 Nov): ONE office email at 9am two days before each install, "Confirm or change your Lead
+          // Installer by 5pm today"; every installer; DRAFT wording → real offices held until approved, TEST → test-send.
+          const { sweepLeadInstallerConfirm } = await import("@/lib/lead-installer-confirm.server");
+          (out as Record<string, unknown>)['leadInstallerConfirm'] = await timed("sweepLeadInstallerConfirm", () => sweepLeadInstallerConfirm());
+        } catch (e) {
+          console.error("allocation tick: lead installer confirm sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['leadInstallerConfirm'] = "failed";
+        }
+        try {
           (out as Record<string,unknown>)['inHouseOfficeEmails']=await timed('sweepInHouseInstallOfficeEmails',async()=> (await import('@/lib/in-house-booking-notices.server')).sweepInHouseInstallOfficeEmails());
         }catch(e){console.error('allocation tick: in-house office digest failed',(e as Error).message);(out as Record<string,unknown>)['inHouseOfficeEmails']='failed';}
         try {

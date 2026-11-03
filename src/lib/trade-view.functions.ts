@@ -173,6 +173,8 @@ export const changeInHouseLeadInstaller = createServerFn({ method: 'POST' }).mid
     const w=team.workers.find(w=>w.id===data.workerId)??null;
     const why=(await import('./in-house-booking.core')).bookingWorkerBlocker('installation',w);
     if(why)throw Error(why);
+    // Part 7 Task 6: locked from 5pm two days before the install (LEAD_LOCKED_MESSAGE), read against the current booking.
+    await (await import('./lead-installer-confirm.server')).assertLeadInstallerUnlocked(data.jobId,{newLeadId:data.workerId});
     return (await import('./visit-allocation.server')).saveCrewWithLead(data.jobId,context.userId,{lead:data.workerId,additional:team.selection?.additional??[]});
   });
 

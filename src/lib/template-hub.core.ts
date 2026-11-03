@@ -81,6 +81,8 @@ import { buildInvoicePayload } from "./xero.core";
 import { TRADE_INVITE_DRAFT, renderTradeInviteEmail } from "./trade-access.core";
 import { swmsSignLinkText } from "./swms-sign-text.core";
 import { mittiFormUrl } from "./mitti-link.core";
+import { renderLeadInstallerConfirm } from "./lead-installer-confirm.core";
+import { leadInstallerLock } from "./prestart.core";
 import { renderVisitNewTimesEmail, visitNewTimesText } from "./visit-new-times.core";
 import { piesaTimesReminderText, renderPiesaTimesReminderEmail } from "./piesa-times-reminder.core";
 import { installerPlanningText, renderInstallerPlanningEmail } from "./installer-planning-notice.core";
@@ -607,6 +609,9 @@ const INSTALLER: TemplateEntry[] = [
     render: () => text(installerInstallWindowText({ step: "reminder_10", deadline: "2026-12-04", daysLeft: 10, link: FIELD, jobNumber: "HV-TEST", firstName: "Sam", ownerSuburb: "Glen Waverley" })) }),
   // Install
   ENTRY({id:'installer:install-deposit-paid',section:'installer',step:'install',kind:'email',code:'',name:'Deposit paid — book the install day',when:'In-house installation deposit confirmed, once per invoice',who:'Installer office (email only)',approvalNote:'Jo 1 Nov Task 6',gate:{kind:'email'},source:{builder:'src/lib/deposit-request-email.core.ts',fn:'renderInstallerDepositPaidEmail',sender:'src/lib/deposit-request.server.ts'},render:()=>email(renderInstallerDepositPaidEmail(DEPOSIT_SAMPLE))}),
+  ENTRY({ id: "installer:lead-installer-confirm", section: "installer", step: "install", kind: "email", code: "", name: "Confirm or change your Lead Installer by 5pm today (email)", when: "9am Melbourne two days before each install (or at once when booked after 9am that day, until the 5pm lock), one per job + install date, to the installer business's office email; from 5pm the Lead Installer and the install day are locked (the ESC is told)", who: "Installer office", approvalNote: "DRAFT body (no approved wording yet; the heading and 5pm rule are Jo's 2 Nov 2026 \"Lead Installer / ESC 24h rule\") — LEAD_INSTALLER_CONFIRM_EMAIL_APPROVED stays false; real offices held, TEST → test-send", gate: { kind: "code_off", flag: "LEAD_INSTALLER_CONFIRM_EMAIL_APPROVED" },
+    source: { builder: "src/lib/lead-installer-confirm.core.ts", fn: "renderLeadInstallerConfirm", sender: "src/lib/lead-installer-confirm.server.ts" },
+    render: () => email(renderLeadInstallerConfirm({ jobNumber: "HV-TEST", owner: "Sample Owner", startIso: INSTALL_ISO, address: SHORT_ADDRESS, lead: "Sample Lead Installer", crew: ["Sample Crew One", "Sample Crew Two"], jobUrl: `${FIELD}`, lockLabel: leadInstallerLock(INSTALL_ISO).lockLabel })) }),
   ENTRY({ id: "installer:sms-install_tomorrow", section: "installer", step: "install", kind: "text", code: "", name: "Install tomorrow (text)", when: "The afternoon before the install, to the Lead Installer's own mobile: their safety plan sign link + the Mitti install form (held with a reason when there is no Lead, no mobile or no install form yet)", who: "Lead Installer", approvalNote: "Jo 2 Nov 2026, decision #47 (replaces decision 99)", gate: { kind: "text", smsType: "install_tomorrow" },
     source: { builder: "src/lib/installer-texts.core.ts", fn: "installTomorrowText", sender: "src/lib/installer-texts.server.ts" },
     render: () => text(installTomorrowText({ startIso: INSTALL_ISO, address: SHORT_ADDRESS, jobNumber: "HV-TEST", safetyPlanLink: `${FIELD}/safety-plan`, mittiLink: mittiFormUrl("sample-a5-audit") })) }),

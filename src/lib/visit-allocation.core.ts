@@ -117,3 +117,12 @@ export function dailySendKey(kind: "daily" | "update" | "skip", businessId: stri
 export function addInMittiFirst(name: string, email: string | null): string {
   return `${name} isn't in Mitti yet${email ? ` as ${email}` : ""}. Add them in Mitti first (Business owner does it in Mitti), then allocate.`;
 }
+
+// ── Part 7 Task 6: the Lead Installer lock on the crew writers (rule: prestart.core leadInstallerLocked, Part 9 owns it) ──
+import { LEAD_LOCKED_MESSAGE, leadInstallerLocked } from "./prestart.core";
+/** Why a crew save is refused: after the lock, the Lead Installer of the current confirmed install may not change
+ *  (crew-only changes, a first Lead, or no booking yet are never refused). Null = allowed. */
+export function leadLockBlocker(i: { startIso: string | null; now: Date; currentLeadId: string | null; newLeadId: string | null }): string | null {
+  if (!i.startIso || !i.currentLeadId || !i.newLeadId || i.currentLeadId === i.newLeadId) return null;
+  return leadInstallerLocked(i.startIso, i.now) ? LEAD_LOCKED_MESSAGE : null;
+}

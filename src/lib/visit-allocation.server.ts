@@ -7,7 +7,7 @@ import type { MittiCall } from "./mitti.core";
 import { effectiveWorkerRole, mittiEmailFor } from "./worker-role.core";
 import { melbourneToday } from "./worker-compliance.core";
 import { CREW_CLEARANCE_REASON } from "./worker-compliance.core";
-import { ALLOCATION_REASON, addInMittiFirst, allocationBlocker, allocationOptions, currentAllocation, leadNeedsHandover, visitsForStage, VISIT_ALLOCATED_EVENT, VISIT_LABEL, type AllocationCandidate, type VisitKind } from "./visit-allocation.core";
+import { ALLOCATION_REASON, addInMittiFirst, allocationBlocker, allocationOptions, currentAllocation, leadLockBlocker, leadNeedsHandover, visitsForStage, VISIT_ALLOCATED_EVENT, VISIT_LABEL, type AllocationCandidate, type VisitKind } from "./visit-allocation.core";
 import { crewSelectionProblems, leadWorkerId, type CrewSelection } from "./piisa-a3.core";
 import { early } from "./early-read";
 
@@ -132,6 +132,7 @@ export async function allocateVisit(jobId: string, userId: string, kind: VisitKi
  */
 export async function saveCrewWithLead(jobId: string, userId: string, sel: CrewSelection, call?: MittiCall): Promise<{ needsVerification: string[] }> {
   await (await import('./trade-view.server')).requireTradeJob(userId,jobId);
+  await refuseLockedLeadChange(jobId, leadWorkerId(sel));
   const held=await (await import('./in-house-suppression.server')).readInHouseDispatchState([jobId]);
   if(held.failed)throw new WorkflowError('Could not check the in-house partner. Please try again.');
   if(held.held.has(jobId)){
@@ -140,6 +141,18 @@ export async function saveCrewWithLead(jobId: string, userId: string, sel: CrewS
     return {needsVerification:saved.needsVerification};
   }
   return saveCrewWithLeadInline(jobId,userId,sel,call);
+}
+
+/** Part 7 Task 6 (Jo 2 Nov 2026): from 5pm two days before the install the Lead Installer is locked (the ESC is told) —
+ *  a different Lead is refused with LEAD_LOCKED_MESSAGE; crew-only changes, a first Lead or the same Lead go through.
+ *  Reads the CURRENT confirmed install booking and current Lead here, never a page's copy. Rule: prestart.core (Part 9). */
+async function refuseLockedLeadChange(jobId: string, newLeadId: string | null, now = new Date()): Promise<void> {
+  const { data: book } = await db.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (!book?.scheduled_start) return;
+  const cur = currentAllocation(await allocationEvents(jobId), "install");
+  const savedLead = cur?.worker_id ? null : leadWorkerId((await (await import("./piisa-a3.server")).loadCrew(jobId)).selection ?? { lead: null, additional: [] } as never);
+  const why = leadLockBlocker({ startIso: book.scheduled_start, now, currentLeadId: cur?.worker_id ?? savedLead ?? null, newLeadId });
+  if (why) throw new WorkflowError(why);
 }
 
 /** The original guarded inline crew path, also used before saved-work RPC deployment. */

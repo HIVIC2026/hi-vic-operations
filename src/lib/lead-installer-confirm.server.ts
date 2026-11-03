@@ -1,0 +1,138 @@
+// Part 7 Task 6: the 9am two-days-before Lead Installer email (sweep, 15-minute allocation tick) and the 5pm lock the
+// install writers check. Wording/timing: lead-installer-confirm.core.ts; the clock: prestart.core (Part 9's rule).
+// Every confirmed installation booking within LEAD_CONFIRM_LOOKAHEAD_DAYS, ALL installers (not only in-house), ONE email
+// per job + install date to the installer business's office email. Recorded (`lead_installer_confirm_email`, with the
+// key) BEFORE any send; TEST job / TEST partner → test-send; real → nothing until LEAD_INSTALLER_CONFIRM_EMAIL_APPROVED
+// (held, recorded once as `lead_installer_confirm_held`, key not claimed) and the trade pause; then the existing guarded
+// partner sender. A read failure logs and sends nothing. Never changes a booking, a crew or a stage.
+import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { WorkflowError, logEvent } from "./workflow.server";
+import {
+  LEAD_CONFIRM_EVENT, LEAD_CONFIRM_HELD_EVENT, LEAD_CONFIRM_LOOKAHEAD_DAYS, LEAD_INSTALLER_CONFIRM_EMAIL_APPROVED, leadConfirmDue, leadConfirmInstallYmd, leadConfirmKey,
+  renderLeadInstallerConfirm,
+} from "./lead-installer-confirm.core";
+import { LEAD_LOCKED_MESSAGE, leadInstallerLock, leadInstallerLocked } from "./prestart.core";
+
+type Booking = { id: string; job_id: string; scheduled_start: string; created_at: string | null };
+const PAGE = 200;
+
+export async function sweepLeadInstallerConfirm(now = new Date(), opts: { approved?: boolean } = {}): Promise<{ checked: number; sent: number; held: number }> {
+  const approved = opts.approved ?? LEAD_INSTALLER_CONFIRM_EMAIL_APPROVED;
+  const until = new Date(now.getTime() + LEAD_CONFIRM_LOOKAHEAD_DAYS * 86_400_000).toISOString();
+  const out = { checked: 0, sent: 0, held: 0 };
+  const bookings: Booking[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await admin.from("bookings").select("id, job_id, scheduled_start, created_at").eq("kind", "installation").eq("status", "confirmed")
+      .gte("scheduled_start", now.toISOString()).lte("scheduled_start", until).order("scheduled_start", { ascending: true }).range(from, from + PAGE - 1);
+    if (error) { console.error("lead installer confirm sweep: bookings could not be read", error.message); return out; }
+    bookings.push(...((data ?? []) as Booking[]));
+    if ((data ?? []).length < PAGE) break;
+  }
+  for (const b of bookings) {
+    out.checked++;
+    try {
+      const r = await confirmOne(b, now, approved);
+      if (r.startsWith("email")) out.sent++;
+      else if (r.startsWith("held")) out.held++;
+    } catch (e) { console.error("lead installer confirm email failed", b.job_id, (e as Error).message); }
+  }
+  return out;
+}
+
+async function once(jobId: string, type: string, key: string): Promise<boolean> {
+  const { data, error } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", type).contains("details", { key }).limit(1).maybeSingle();
+  if (error) throw new Error(error.message);
+  return !!data;
+}
+
+async function confirmOne(b: Booking, now: Date, approved: boolean): Promise<string> {
+  const day = leadConfirmInstallYmd(b.scheduled_start);
+  const key = leadConfirmKey(b.job_id, day);
+  const due = leadConfirmDue({ startIso: b.scheduled_start, bookedAt: b.created_at ?? b.scheduled_start, now });
+  if (due !== "send") return `skipped: ${due}`;
+  if (await once(b.job_id, LEAD_CONFIRM_EVENT, key)) return "skipped: already sent";
+  const [{ data: job }, { data: asg }, { data: crewEv }, { data: allocEv }] = await Promise.all([
+    admin.from("jobs").select("id, job_number, source, deleted_at, owners(full_name), properties(address_line, suburb, postcode)").eq("id", b.job_id).maybeSingle(),
+    admin.from("job_assignments").select("business_id").eq("job_id", b.job_id).eq("role", "installer").eq("active", true).limit(1).maybeSingle(),
+    admin.from("workflow_events").select("details").eq("job_id", b.job_id).eq("event_type", "piisa_crew_selected").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("workflow_events").select("details").eq("job_id", b.job_id).eq("event_type", "visit_allocated").order("created_at", { ascending: false }).limit(20),
+  ]);
+  const j = job as { id: string; job_number: string; source: string | null; deleted_at: string | null; owners: { full_name: string | null } | { full_name: string | null }[] | null; properties: { address_line: string | null; suburb: string | null; postcode: string | null } | null } | null;
+  if (!j || j.deleted_at) return "skipped: job not found";
+  const bizId = (asg as { business_id: string | null } | null)?.business_id ?? null;
+  if (!bizId) return "skipped: no installer assigned";
+  const { data: biz } = await admin.from("businesses").select("id, name, email, onboarding_notes").eq("id", bizId).maybeSingle();
+  const bz = biz as { id: string; name: string | null; email: string | null; onboarding_notes: string | null } | null;
+  const to = bz?.email?.trim().toLowerCase() ?? "";
+  if (!to) return "skipped: installer business has no office email";
+  // The Lead Installer: the current install allocation, else the saved crew's lead; crew = the saved crew's additional members.
+  const { currentAllocation } = await import("./visit-allocation.core");
+  const cur = currentAllocation(((allocEv ?? []) as { event_type?: string; details: unknown; created_at: string }[]).map((e) => ({ event_type: "visit_allocated", details: e.details, created_at: e.created_at })), "install");
+  const sel = (crewEv as { details: { selection?: { lead?: unknown; additional?: unknown[] } } | null } | null)?.details?.selection ?? null;
+  const { leadWorkerId } = await import("./piisa-a3.core");
+  const leadId = cur?.worker_id ?? (sel ? leadWorkerId(sel as never) : null);
+  const additional = Array.isArray(sel?.additional) ? sel!.additional! : [];
+  const crewIds = additional.map((a) => (typeof a === "string" ? a : (a as { workerId?: string; other?: { name?: string } })?.workerId ?? null)).filter((x): x is string => !!x);
+  const otherNames = additional.map((a) => (a && typeof a === "object" && "other" in (a as object) ? String((a as { other: { name?: string } }).other?.name ?? "").trim() : "")).filter(Boolean);
+  const ids = [leadId, ...crewIds].filter((x): x is string => !!x);
+  const { data: workers } = ids.length ? await admin.from("partner_workers").select("id, full_legal_name").in("id", ids) : { data: [] };
+  const nameOf = (id: string | null) => (id ? ((workers ?? []) as { id: string; full_legal_name: string | null }[]).find((w) => w.id === id)?.full_legal_name ?? null : null);
+  const lead = nameOf(leadId);
+  const crew = [...crewIds.map(nameOf).filter((x): x is string => !!x), ...otherNames];
+  const { isTestPartner } = await import("./test-send.core");
+  const partnerIsTest = isTestPartner(bz ?? {});
+  const test = j.source === "qa_test" || partnerIsTest;
+  if (!test) {
+    // Real installer offices: held (recorded once per key) until Jo approves the wording and while trade messages are paused.
+    const paused = await (await import("./trade-pause.server")).tradeMessagesPausedNow({ businessId: bz!.id });
+    const reason = !approved ? "wording not approved yet" : paused;
+    if (reason) {
+      if (!(await once(j.id, LEAD_CONFIRM_HELD_EVENT, key))) await logEvent(j.id, null, LEAD_CONFIRM_HELD_EVENT, `Lead Installer confirm email held: ${reason}`, { key, install_date: day, booking_id: b.id, business_id: bz!.id, reason }, { internal: true });
+      return `held: ${reason}`;
+    }
+  }
+  const p = j.properties;
+  const address = [p?.address_line?.trim(), [p?.suburb?.trim(), p?.postcode?.trim()].filter(Boolean).join(" ")].filter(Boolean).join(", ") || j.job_number;
+  const owner = (Array.isArray(j.owners) ? j.owners[0] : j.owners)?.full_name ?? "";
+  const { TEST_APP_BASE } = await import("./test-send.server");
+  const { SET_PASSWORD_BASE } = await import("./set-password-link.core");
+  const mail = renderLeadInstallerConfirm({ jobNumber: j.job_number, owner, startIso: b.scheduled_start, address, lead, crew, jobUrl: `${test ? TEST_APP_BASE : SET_PASSWORD_BASE}/field/${j.id}`, lockLabel: leadInstallerLock(b.scheduled_start).lockLabel, test });
+  // Claimed once, before any send: the next tick finds this event and stops.
+  await logEvent(j.id, null, LEAD_CONFIRM_EVENT, `Lead Installer confirm email to the installer office for the ${day} install`, { key, install_date: day, booking_id: b.id, business_id: bz!.id, to, test, lead_worker_id: leadId }, { internal: true });
+  if (test) {
+    const { sendTestEmail } = await import("./test-send.server");
+    const r = await sendTestEmail({ jobId: j.id, jobSource: j.source, partnerIsTest, label: `lead_installer_confirm:${day}`, actorId: null }, to, mail.subject, mail.html, mail.text);
+    return `email (test) ${r.status}: ${r.detail}`;
+  }
+  const { sendOfficeEmail } = await import("./office-email.server");
+  const r = await sendOfficeEmail({ actorId: null, recipient: "partner", to, contactName: bz!.name, subject: mail.subject, message: mail.text, html: mail.html, text: mail.text, label: key, record: { businessId: bz!.id }, idempotencyKey: key });
+  return `email ${r.status}: ${r.detail}`;
+}
+
+// ── the 5pm lock on the writers ───────────────────────────────────────────────────────────────────────────────────
+/** The CURRENT confirmed install booking and Lead Installer, read fresh (never a page's copy). */
+export async function leadInstallerLockState(jobId: string, now = new Date()): Promise<{ locked: boolean; start: string | null; bookingId: string | null; leadId: string | null }> {
+  const [{ data: book, error }, { data: allocEv }, { data: crewEv }] = await Promise.all([
+    admin.from("bookings").select("id, scheduled_start").eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("workflow_events").select("details, created_at").eq("job_id", jobId).eq("event_type", "visit_allocated").order("created_at", { ascending: false }).limit(20),
+    admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "piisa_crew_selected").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  if (error) throw new WorkflowError(`Could not check the install booking: ${error.message}`);
+  const b = book as { id: string; scheduled_start: string } | null;
+  const { currentAllocation } = await import("./visit-allocation.core");
+  const cur = currentAllocation(((allocEv ?? []) as { details: unknown; created_at: string }[]).map((e) => ({ event_type: "visit_allocated", details: e.details, created_at: e.created_at })), "install");
+  const { leadWorkerId } = await import("./piisa-a3.core");
+  const sel = (crewEv as { details: { selection?: unknown } | null } | null)?.details?.selection ?? null;
+  const leadId = cur?.worker_id ?? (sel ? leadWorkerId(sel as never) : null);
+  return { locked: !!b && leadInstallerLocked(b.scheduled_start, now), start: b?.scheduled_start ?? null, bookingId: b?.id ?? null, leadId };
+}
+
+/** Refuses (LEAD_LOCKED_MESSAGE) a Lead Installer change or an install-time move once the current install is locked.
+ *  Crew-only changes, a first Lead, the same Lead or the same start are never refused. */
+export async function assertLeadInstallerUnlocked(jobId: string, change: { newLeadId?: string | null; newStart?: string | null }, now = new Date()): Promise<void> {
+  const s = await leadInstallerLockState(jobId, now);
+  if (!s.locked || !s.start) return;
+  const leadChange = !!change.newLeadId && !!s.leadId && change.newLeadId !== s.leadId;
+  const timeChange = !!change.newStart && !Number.isNaN(Date.parse(change.newStart)) && Date.parse(change.newStart) !== Date.parse(s.start);
+  if (leadChange || timeChange) throw new WorkflowError(LEAD_LOCKED_MESSAGE);
+}
