@@ -4,6 +4,8 @@
 export const PHOTO_CHECK_FACT = "ai_photo_check";
 export const PHOTO_CHECKED_EVENT = "ai_photo_checked";
 export const PHOTO_CHECK_FAILED_EVENT = "ai_photo_check_failed";
+/** Written just BEFORE each gateway call, so a call cut off mid-request still counts toward the cap and backs off. */
+export const PHOTO_CHECK_STARTED_EVENT = "ai_photo_check_started";
 /** Results saved without a gateway call (TEST stub, video only, no readable photo) — not counted toward the cap. */
 export const PHOTO_CHECK_SKIPPED_EVENT = "ai_photo_check_skipped";
 /** The tick waits until the newest upload is this old, so one upload burst is checked once. */
@@ -85,4 +87,23 @@ export function photosToSend(docs: readonly MediaDoc[]): {
 export function hasNewerMedia(docs: readonly { created_at: string }[], checkedAt: string): boolean {
   const last = Date.parse(checkedAt);
   return docs.some((d) => !(Date.parse(d.created_at) <= last));
+}
+
+/** Backoff from a job's photo-check events: true when, since `sinceMs`, there is a failure, or a start with no result
+ *  (checked / failed / skipped) at or after it — a call cut off mid-request counts as a failure. */
+export function photoCheckBackedOff(
+  events: readonly { event_type: string; created_at: string }[],
+  sinceMs: number,
+): boolean {
+  let lastStart = -Infinity;
+  let lastEnd = -Infinity;
+  for (const e of events) {
+    const t = Date.parse(e.created_at);
+    if (!(t >= sinceMs)) continue;
+    if (e.event_type === PHOTO_CHECK_FAILED_EVENT) return true;
+    if (e.event_type === PHOTO_CHECK_STARTED_EVENT) lastStart = Math.max(lastStart, t);
+    else if (e.event_type === PHOTO_CHECKED_EVENT || e.event_type === PHOTO_CHECK_SKIPPED_EVENT)
+      lastEnd = Math.max(lastEnd, t);
+  }
+  return lastStart > lastEnd;
 }

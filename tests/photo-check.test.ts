@@ -397,3 +397,47 @@ test("tick: skips homes Jo already decided, unless media is newer than her desk 
   expect(await photoCheckTick({ limit: 1 })).toEqual({ done: 1, failed: 0 });
   expect(ai.calls).toHaveLength(1);
 });
+
+test("a started event is written before the gateway call, then the result", async () => {
+  expect(await checkOwnerMedia("a")).toBe("done");
+  const types = tables.workflow_events!.map((e) => e.event_type);
+  expect(types).toEqual(["ai_photo_check_started", "ai_photo_checked"]);
+});
+
+test("started events count toward the daily cap", async () => {
+  const now = new Date().toISOString();
+  for (let i = 0; i < 100; i++)
+    tables.workflow_events!.push({
+      id: "s" + i,
+      job_id: "z" + i,
+      event_type: "ai_photo_check_started",
+      created_at: now,
+    });
+  expect(await photoCheckTick({ limit: 1 })).toEqual({ done: 0, failed: 0 });
+  expect(await checkOwnerMedia("a")).toBe("skipped");
+  expect(ai.calls).toHaveLength(0);
+});
+
+test("a start with no result (call cut off) blocks the job for 24 hours", async () => {
+  tables.workflow_events!.push({
+    id: "s",
+    job_id: "a",
+    event_type: "ai_photo_check_started",
+    created_at: new Date(Date.now() - 3600_000).toISOString(),
+  });
+  expect(await photoCheckTick({ limit: 1 })).toEqual({ done: 0, failed: 0 });
+  expect(await checkOwnerMedia("a")).toBe("skipped");
+  expect(ai.calls).toHaveLength(0);
+  tables.workflow_events![0]!.created_at = new Date(Date.now() - 25 * 3600_000).toISOString();
+  expect(await photoCheckTick({ limit: 1 })).toEqual({ done: 1, failed: 0 });
+});
+
+test("if the start can't be recorded, the gateway is not called", async () => {
+  const ev = tables.workflow_events!;
+  (ev as unknown as { push: () => never }).push = () => {
+    throw new Error("db down");
+  };
+  expect(await checkOwnerMedia("a")).toBe("failed");
+  expect(ai.calls).toHaveLength(0);
+  expect(await checkOwnerMedia("a")).toBe("skipped"); // remembered in memory
+});

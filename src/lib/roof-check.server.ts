@@ -37,6 +37,9 @@ const chunks = <T>(a: T[]) => {
   return out;
 };
 const NO_COVERAGE_RETRY_MS = 7 * 24 * 3600 * 1000;
+const STARTED = "roof_check_started";
+const CHECKED = "roof_checked";
+const FAILED = "roof_check_failed";
 /** Backstop if the event row can't be written: remember in memory so this process doesn't re-call Google. */
 const memoryBackoff = new Map<string, number>();
 export const clearRoofCheckBackoff = () => memoryBackoff.clear();
@@ -64,7 +67,7 @@ const writeEvent = async (
   }
 };
 const failed = async (jobId: string, reason: string, noCoverage = false) => {
-  const saved = await writeEvent(jobId, "roof_check_failed", `Roof check couldn't run: ${reason}`, {
+  const saved = await writeEvent(jobId, FAILED, `Roof check couldn't run: ${reason}`, {
     reason,
     ...(noCoverage ? { no_coverage: true } : {}),
   });
@@ -85,6 +88,12 @@ export async function runRoofCheck(
     .eq("id", jobId)
     .maybeSingle();
   if (!job?.property_id || job.source === "qa_test") return "skipped";
+  // Recorded BEFORE any paid lookup (geocoding, Solar): if the request is cut off, this start still counts toward the
+  // daily cap and blocks the job for 24 h. If it can't be recorded, nothing is called.
+  if (!(await writeEvent(jobId, STARTED, "Roof check started", {}))) {
+    memoryBackoff.set(jobId, Date.now() + RETRY_AFTER_MS);
+    return "failed";
+  }
   let point: [number, number] | null = null;
   try {
     const { data: c } = await admin
@@ -164,7 +173,7 @@ export async function runRoofCheck(
   const form = facts.find((f) => f.key === "roof_form")?.value;
   await writeEvent(
     jobId,
-    "roof_checked",
+    CHECKED,
     `Roof check done (roof: ${typeof form === "string" ? form : "unknown"})`,
     { roof_form: form ?? null },
   );
@@ -219,18 +228,29 @@ async function pickJobs(): Promise<string[]> {
   for (const c of chunks(eligible.map((j) => j.id))) {
     const { data } = await loose
       .from("workflow_events")
-      .select("job_id, details, created_at")
+      .select("job_id, event_type, details, created_at")
       .in("job_id", c)
-      .eq("event_type", "roof_check_failed")
+      .in("event_type", [STARTED, CHECKED, FAILED])
       .gte("created_at", since);
+    const lastStart = new Map<string, number>();
+    const lastEnd = new Map<string, number>();
     for (const r of (data ?? []) as {
       job_id: string;
+      event_type: string;
       details: { no_coverage?: boolean } | null;
       created_at: string;
     }[]) {
-      const window = r.details?.no_coverage ? NO_COVERAGE_RETRY_MS : RETRY_AFTER_MS;
-      if (now - Date.parse(r.created_at) < window) recentFail.add(r.job_id);
+      const t = Date.parse(r.created_at);
+      if (r.event_type === FAILED) {
+        const window = r.details?.no_coverage ? NO_COVERAGE_RETRY_MS : RETRY_AFTER_MS;
+        if (now - t < window) recentFail.add(r.job_id);
+      }
+      if (now - t >= RETRY_AFTER_MS) continue;
+      const m = r.event_type === STARTED ? lastStart : lastEnd;
+      m.set(r.job_id, Math.max(m.get(r.job_id) ?? -Infinity, t));
     }
+    // A start with no result after it (the request was cut off) counts as a failure for 24 h.
+    for (const [job, t] of lastStart) if (t > (lastEnd.get(job) ?? -Infinity)) recentFail.add(job);
   }
   return eligible
     .filter(
@@ -243,14 +263,19 @@ async function pickJobs(): Promise<string[]> {
     .map((j) => j.id);
 }
 
+/** Lookups since Melbourne midnight: one roof_check_started per run (results kept as a floor for runs made before
+ *  starts were recorded). A failed count reads as the cap (fail closed). */
 async function usedToday(): Promise<number> {
   const since = new Date(melbourneMidnight(melbourneYmd(Date.now()))).toISOString();
-  const { count } = await loose
-    .from("workflow_events")
-    .select("id", { count: "exact", head: true })
-    .in("event_type", ["roof_checked", "roof_check_failed"])
-    .gte("created_at", since);
-  return count ?? 0;
+  const count = (types: string[]) =>
+    loose
+      .from("workflow_events")
+      .select("id", { count: "exact", head: true })
+      .in("event_type", types)
+      .gte("created_at", since);
+  const [started, results] = await Promise.all([count([STARTED]), count([CHECKED, FAILED])]);
+  if (started.error || results.error) return DAILY_ROOF_CHECK_CAP;
+  return Math.max(started.count ?? 0, results.count ?? 0);
 }
 
 export async function roofCheckTick(opts: {

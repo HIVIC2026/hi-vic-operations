@@ -178,22 +178,56 @@ test("if the event row cannot be written, the failure still throttles and nothin
   (ev as unknown as { push: () => never }).push = () => {
     throw new Error("db down");
   };
+  // The start can't be recorded, so Google is never called; the job is still throttled in memory.
   expect(await roofCheckTick({ limit: 5, http: notFound })).toEqual({ done: 0, failed: 1 });
-  expect(calls).toBe(1);
+  expect(calls).toBe(0);
   expect(await roofCheckTick({ limit: 5, http: notFound })).toEqual({ done: 0, failed: 0 });
-  expect(calls).toBe(1);
+  expect(calls).toBe(0);
 });
 test("a 404 (no coverage) backs off 7 days, other failures 24 hours", async () => {
+  const age = (ms: number) => {
+    for (const e of tables.workflow_events!) e.created_at = new Date(Date.now() - ms).toISOString();
+  };
   expect(await runRoofCheck("a", notFound)).toBe("failed");
-  const ev = tables.workflow_events!.find((e) => e.event_type === "roof_check_failed")!;
-  ev.created_at = new Date(Date.now() - 3 * 24 * 3600_000).toISOString();
+  age(3 * 24 * 3600_000);
   expect(await roofCheckTick({ limit: 5, http: ok })).toEqual({ done: 0, failed: 0 });
-  ev.created_at = new Date(Date.now() - 8 * 24 * 3600_000).toISOString();
+  age(8 * 24 * 3600_000);
   expect(await roofCheckTick({ limit: 5, http: ok })).toEqual({ done: 1, failed: 0 });
   const boom = async () => ({ status: 500, json: null });
   tables.property_facts = tables.property_facts!.filter((f) => f.fact_key !== "roof_form");
   tables.workflow_events!.length = 0;
   expect(await runRoofCheck("a", boom)).toBe("failed");
-  tables.workflow_events![0]!.created_at = new Date(Date.now() - 25 * 3600_000).toISOString();
+  age(25 * 3600_000);
   expect((await roofCheckTick({ limit: 5, http: ok })).done).toBe(1);
+});
+
+test("a started event is written before the Solar call, then the result", async () => {
+  expect(await runRoofCheck("a", ok)).toBe("done");
+  expect(tables.workflow_events!.map((e) => e.event_type)).toEqual([
+    "roof_check_started",
+    "roof_checked",
+  ]);
+});
+test("started events count toward the daily cap", async () => {
+  const now = new Date().toISOString();
+  for (let i = 0; i < 300; i++)
+    tables.workflow_events!.push({
+      id: "s" + i,
+      job_id: "z" + i,
+      event_type: "roof_check_started",
+      created_at: now,
+    });
+  expect(await roofCheckTick({ limit: 5, http: ok })).toEqual({ done: 0, failed: 0 });
+  expect(calls).toBe(0);
+});
+test("a start with no result (cut off) blocks the job for 24 hours", async () => {
+  tables.workflow_events!.push({
+    job_id: "a",
+    event_type: "roof_check_started",
+    created_at: new Date(Date.now() - 3600_000).toISOString(),
+  });
+  expect(await roofCheckTick({ limit: 5, http: ok })).toEqual({ done: 0, failed: 0 });
+  expect(calls).toBe(0);
+  tables.workflow_events![0]!.created_at = new Date(Date.now() - 25 * 3600_000).toISOString();
+  expect(await roofCheckTick({ limit: 5, http: ok })).toEqual({ done: 1, failed: 0 });
 });

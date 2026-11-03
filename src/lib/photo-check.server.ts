@@ -16,6 +16,8 @@ import {
   PHOTO_CHECK_MAX_BYTES,
   PHOTO_CHECK_PROMPT,
   PHOTO_CHECKED_EVENT,
+  PHOTO_CHECK_STARTED_EVENT,
+  photoCheckBackedOff,
   photosToSend,
   photoVerdictFrom,
   hasNewerMedia,
@@ -138,28 +140,45 @@ async function aiReadPhotos(
   });
 }
 
-/** ai_photo_checked events since Melbourne midnight (one count query). A failed count reads as the cap (fail closed). */
+const BACKOFF_EVENTS = [
+  PHOTO_CHECK_STARTED_EVENT,
+  PHOTO_CHECKED_EVENT,
+  PHOTO_CHECK_FAILED_EVENT,
+  PHOTO_CHECK_SKIPPED_EVENT,
+];
+
+/** Gateway calls since Melbourne midnight: one ai_photo_check_started per call (ai_photo_checked kept as a floor for
+ *  calls made before starts were recorded). Two count queries; a failed count reads as the cap (fail closed). */
 async function usedToday(): Promise<number> {
   const since = new Date(melbourneMidnight(melbourneYmd(Date.now()))).toISOString();
-  const { count, error } = await loose
-    .from("workflow_events")
-    .select("id", { count: "exact", head: true })
-    .eq("event_type", PHOTO_CHECKED_EVENT)
-    .gte("created_at", since);
-  if (error) return DAILY_PHOTO_CHECK_CAP;
-  return count ?? 0;
+  const count = (type: string) =>
+    loose
+      .from("workflow_events")
+      .select("id", { count: "exact", head: true })
+      .eq("event_type", type)
+      .gte("created_at", since);
+  const [started, checked] = await Promise.all([
+    count(PHOTO_CHECK_STARTED_EVENT),
+    count(PHOTO_CHECKED_EVENT),
+  ]);
+  if (started.error || checked.error) return DAILY_PHOTO_CHECK_CAP;
+  return Math.max(started.count ?? 0, checked.count ?? 0);
 }
 
+/** A failure, or a start with no result, in the last 24 h. A failed read counts as backed off (fail closed). */
 async function failedRecently(jobId: string): Promise<boolean> {
   if ((memoryBackoff.get(jobId) ?? 0) > Date.now()) return true;
-  const { data } = await loose
+  const { data, error } = await loose
     .from("workflow_events")
-    .select("id")
+    .select("event_type, created_at")
     .eq("job_id", jobId)
-    .eq("event_type", PHOTO_CHECK_FAILED_EVENT)
-    .gte("created_at", new Date(Date.now() - RETRY_AFTER_MS).toISOString())
-    .limit(1);
-  return (data ?? []).length > 0;
+    .in("event_type", BACKOFF_EVENTS)
+    .gte("created_at", new Date(Date.now() - RETRY_AFTER_MS).toISOString());
+  if (error) return true;
+  return photoCheckBackedOff(
+    (data ?? []) as { event_type: string; created_at: string }[],
+    Date.now() - RETRY_AFTER_MS,
+  );
 }
 
 async function saveFact(
@@ -256,6 +275,16 @@ export async function checkOwnerMedia(jobId: string): Promise<"done" | "skipped"
         }
       }
       if (!files.length) return failed(jobId, "photos could not be read from storage");
+      // Recorded BEFORE the paid call: if the request is cut off, this start still counts toward the cap and blocks
+      // the job for 24 h. If it can't be recorded, the gateway is not called.
+      if (
+        !(await writeEvent(jobId, PHOTO_CHECK_STARTED_EVENT, "AI photo check started", {
+          document_ids: sentIds,
+        }))
+      ) {
+        memoryBackoff.set(jobId, Date.now() + RETRY_AFTER_MS);
+        return "failed";
+      }
       try {
         result = photoVerdictFrom(await aiReadPhotos(files));
       } catch (e) {
@@ -312,8 +341,8 @@ const JO_DECIDED = new Set(["looks_eligible", "not_eligible", "needs_onsite_chec
 
 /** Saved spots still waiting for an installer (our leads only) whose newest owner upload is at least 5 minutes old (so a
  *  burst of uploads is checked once) and has no current AI photo check, or is newer than it. Homes Jo already decided
- *  are skipped unless the newest upload is after her desk check. Oldest upload first; skips TEST and failures in the
- *  last 24 h. */
+ *  are skipped unless the newest upload is after her desk check. Oldest upload first; skips TEST and failures (or a start
+ *  with no result) in the last 24 h. */
 async function pickJobs(): Promise<string[]> {
   const saved = await allRows<{
     job_id: string;
@@ -367,16 +396,20 @@ async function pickJobs(): Promise<string[]> {
       const prev = newest.get(d.job_id);
       if (!prev || Date.parse(d.created_at) > Date.parse(prev)) newest.set(d.job_id, d.created_at);
     }
-    const fails = await allRows<{ job_id: string }>((a, z) =>
-      loose
-        .from("workflow_events")
-        .select("job_id")
-        .in("job_id", c)
-        .eq("event_type", PHOTO_CHECK_FAILED_EVENT)
-        .gte("created_at", since)
-        .range(a, z),
+    const recent = await allRows<{ job_id: string; event_type: string; created_at: string }>(
+      (a, z) =>
+        loose
+          .from("workflow_events")
+          .select("job_id, event_type, created_at")
+          .in("job_id", c)
+          .in("event_type", BACKOFF_EVENTS)
+          .gte("created_at", since)
+          .range(a, z),
     );
-    for (const r of fails) recentFail.add(r.job_id);
+    const byJob = new Map<string, { event_type: string; created_at: string }[]>();
+    for (const r of recent) byJob.set(r.job_id, [...(byJob.get(r.job_id) ?? []), r]);
+    for (const [job, evs] of byJob)
+      if (photoCheckBackedOff(evs, Date.parse(since))) recentFail.add(job);
   }
   const withProp = jobs.filter((j) => j.property_id);
   const props = [...new Set(withProp.map((j) => j.property_id!))];
