@@ -249,7 +249,7 @@ describe("To release loader: band, reason, tags, areas", () => {
     expect(b.streetKnown).toBe(false);
     const c = facts.get("c")!;
     expect(c.roofForm).toBeNull(); // the only roof_form row is not current
-    expect(c.complexRoof).toBe(true);
+    expect(c.complexRoof).toBe(false); // a flat-roof flag is not a complex roof (flat already costs -20)
     expect(c.listing).toBeNull();
     expect(facts.get("d")!.lat).toBeNull();
   });
@@ -295,5 +295,19 @@ describe("To release loader: band, reason, tags, areas", () => {
     expect(n("lead_campaign_responses")).toBe(1);
     expect(n("workflow_events")).toBe(1);
     expect(n("property_facts")).toBe(1);
+  });
+
+  test("only the complex roof flag counts as a complex roof", async () => {
+    const setRisk = (id: string, flags: string[]) => {
+      tables["property_facts"] = tables["property_facts"]!.filter(
+        (r) => !(r["property_id"] === `p-${id}` && r["fact_key"] === "site_roof_risk"),
+      );
+      tables["property_facts"]!.push(fact(id, "site_roof_risk", { flags }));
+    };
+    setRisk("a", ["mixed pitched + flat/low-slope roof"]);
+    setRisk("c", ["likely flat/low-slope roof", "complex roof (9 segments)"]);
+    const facts = await readSpotFacts(["a", "c"], { now: NOW });
+    expect(facts.get("a")!.complexRoof).toBe(false);
+    expect(facts.get("c")!.complexRoof).toBe(true);
   });
 });

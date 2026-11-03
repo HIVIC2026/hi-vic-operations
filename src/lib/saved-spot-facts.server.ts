@@ -233,7 +233,10 @@ export async function readSpotFacts(
       topFloor: yesNo(declared["top_floor"]) ?? yesNo(extras.top_floor),
       areaM2: savedArea != null && savedArea > 0 ? savedArea : null,
       roofForm: pick(fact("roof_form"), ROOF_FORMS),
-      complexRoof: Array.isArray(risk?.flags) && risk.flags.length > 0,
+      // Only Solar's "complex roof (N segments)" flag: flat / mixed roofs already score through roofForm.
+      complexRoof:
+        Array.isArray(risk?.flags) &&
+        risk.flags.some((x) => typeof x === "string" && x.startsWith("complex roof")),
       tapsHatch: pick(tap?.["hatch"], HATCH),
       tapsRoof: pick(tap?.["roof"], ROOF),
       listing: listing.listing,
