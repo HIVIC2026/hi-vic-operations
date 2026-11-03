@@ -93,6 +93,23 @@
 - [ ] Step 4: Run → PASS. Run singly `tests/install-clearance.test.ts`, `tests/prestart*.test.ts`, `tests/a48-b1-coes.test.ts`, `tests/task5-coes-send.test.ts`.
 - [ ] Step 5: Commit `feat(certificate-later): install can be booked, not started, without the certificate`
 
+### Task 4b: Complete PIESA under the new rules; same-day Part C writes the record; own jobs complete themselves
+
+Added 4 Nov after the Task 4 review found it: plan line 29 promised "PIESA approvable" for the same-day A3, and nothing delivers it. With the Mitti price questions gone, `completePiesaAssessment` refuses every "upgrades needed" A3 ("Add the electrical fixes items for today's quote…"), still asks for fixes times when items exist, and the same-day A3 never writes the post_rectification record, so the job sits at `piesa_complete` with outcome `fail` and `installEntryElectricalBlockers` keeps it out of `installation_scheduling`. Installer-added electricians have no login, so nobody presses Complete PIESA on an own job.
+
+**Files:**
+- Modify: `src/lib/piesa-complete.server.ts` — when `electricianBillsUpgrades()`: a live A3 with q20 = Yes completes with no items, no price and no fixes times (the electrician quotes and books with the owner directly; the "Add the electrical fixes items…" refusal and the `rectPlanBlockers` requirement are skipped — items that DO exist stay listed, unpriced "other" items no longer block); after the `initial` record and the `piesa_complete` transition, if `piesaRectificationDone(short)` (q30 = Yes + Part C) → `applyPiesaRecord({ kind: "post_rectification", outcome: "pass", completedDate: <Part C date from the answers, else assessed_on>, sectionCSignedDate: same, source: { kind: "mitti_a3_same_day", auditId } })` so items complete, the deposit is requested, compliance checks pass and the job moves to `installation_scheduling`; the certificate state then reads waiting_for_certificate / certificate_in exactly as the A4 path does.
+- Modify: `src/lib/piesa-record.server.ts` — `source.kind` gains `"mitti_a3_same_day"` with the same once-per-audit dedupe as `mitti_fixes_form` (the `piesa_recorded` event with `{ source, audit_id }`); the `installation_scheduling` transition still runs on a duplicate at the listed stages.
+- Modify: `src/lib/mitti.server.ts` (the A3 sync, after `checkCurrentCoes` / the Task 3 notice) — **own jobs only** (`isInstallerOwnJob`, channel `installer_sourced`, not in-house): a Complete A3 (`completed`) at `piesa_scheduled` auto-runs `completePiesaAssessment({ jobId }, actorId ?? electricianUserId)` once per audit (claim/dedupe on a `piesa_auto_completed` event). A refusal records ONE office Needs row (`piesa_rules_failed`-style, reuse the existing kind if its shape fits, else `own_job_piesa_complete_held`) with the reason, never a loop. HIV-lead and in-house jobs: the electrician/office still presses Complete PIESA (unchanged).
+- Modify: `src/lib/electrician-link.server.ts` — `piesaDone` stays stage-based (so the link moves to the next step once the auto-complete has run).
+- Test: `tests/piesa-complete-upgrades.pglite.test.ts` (new), `tests/piesa-complete*.test.ts` singly, `tests/certificate-later.pglite.test.ts`, `tests/electrician-link.pglite.test.ts`, `tests/install-clearance.test.ts`.
+
+- [ ] Step 1: Failing tests (PGlite): (a) live A3, q20 Yes, q30 No, no items, no price → Complete PIESA succeeds (outcome fail, `piesa_complete`, no fixes times asked); (b) same-day A3 (q20 Yes, q30 Yes, Part C, certificate No) → Complete PIESA → one `post_rectification` pass record, items completed, stage `installation_scheduling`, `certificateState` = waiting_for_certificate, deposit request called; a second Complete / re-sync writes no second record; (c) same-day with the certificate attached (q45) → certificate_in; (d) own job: Mitti sync of a Complete A3 at `piesa_scheduled` auto-completes once; a refused auto-complete leaves ONE office row and the stage unchanged; (e) HIV-lead job: the sync does NOT auto-complete; (f) legacy A3 with a price still completes as before.
+- [ ] Step 2: Run → FAIL.
+- [ ] Step 3: Implement.
+- [ ] Step 4: Run → PASS, one file at a time; `bunx tsc --noEmit -p .`.
+- [ ] Step 5: Commit `feat(certificate-later): Complete PIESA without a fixes quote; same-day Part C records; own jobs complete themselves`
+
 ### Task 5: Chasing sweeps and office flags
 
 **Files:**
