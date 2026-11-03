@@ -3,6 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getMyOwnerQuote } from "@/lib/installer-quote-status.functions";
 import { LinkRow } from "@/components/trade/installer-kit";
+import { PRESS_COMPLETE_LINE, QUOTE_PRICE_NEXT_LINE } from "@/lib/installer-quote-status.core";
+
+// Jo 3 Nov 2026: after Complete the boss enters the price; only then is the quote sent. DRAFT wording (not yet seen by Jo).
+export const OWNER_QUOTE_NOT_SENT_LINE = PRESS_COMPLETE_LINE; // DRAFT
+export const OWNER_QUOTE_PRICE_NEXT_LINE = QUOTE_PRICE_NEXT_LINE; // DRAFT
 
 const aud = (n: number) => n.toLocaleString("en-AU", { style: "currency", currency: "AUD" });
 
@@ -28,7 +33,7 @@ export function OwnerQuoteCard({ jobId, hideStatus = false }: { jobId: string; h
         <p className="flex justify-between text-sm"><span>VEU rebate</span><span className="tabular-nums">−{aud(d.rebate)}</span></p>
         <p className="flex justify-between font-bold"><span>Owner pays</span><span className="tabular-nums">{aud(d.total)}</span></p>
         {d.blockers.length > 0 && <ul data-quote-blockers className="space-y-1 text-sm font-semibold text-rose">{d.blockers.map((b) => <li key={b}>{b}</li>)}</ul>}
-        {!d.sent && <p className="text-sm text-sub">{d.held || d.formCompleted ? "The office is checking the quote and will send it to the owner." : "When your Ready Check is finished, press Complete in Mitti. The office checks the quote and sends it to the owner."}</p>}
+        {!d.sent && <p className="text-sm text-sub">{d.held || d.formCompleted ? OWNER_QUOTE_PRICE_NEXT_LINE : OWNER_QUOTE_NOT_SENT_LINE}</p>}
       </div>}
     </div>
   );

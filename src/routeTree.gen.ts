@@ -114,6 +114,7 @@ import { Route as ApiPublicHooksPostIntakeRouteImport } from './routes/api/publi
 import { Route as ApiPublicHooksResendDeliveryRouteImport } from './routes/api/public/hooks/resend-delivery'
 import { Route as ApiPublicHooksStripePaymentsRouteImport } from './routes/api/public/hooks/stripe-payments'
 import { Route as ApiPublicHooksXeroPaymentsRouteImport } from './routes/api/public/hooks/xero-payments'
+import { Route as ApiPublicPartnerLogoKeyRouteImport } from './routes/api/public/partner-logo.$key'
 import { Route as ApiPublicReferralsRecordSubmissionRouteImport } from './routes/api/public/referrals/record-submission'
 import { Route as ApiPublicReferralsTrackClickRouteImport } from './routes/api/public/referrals/track-click'
 import { Route as ApiPublicTwilioInboundRouteImport } from './routes/api/public/twilio/inbound'
@@ -700,6 +701,11 @@ const ApiPublicHooksXeroPaymentsRoute =
     path: '/api/public/hooks/xero-payments',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicPartnerLogoKeyRoute = ApiPublicPartnerLogoKeyRouteImport.update({
+  id: '/api/public/partner-logo/$key',
+  path: '/api/public/partner-logo/$key',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicReferralsRecordSubmissionRoute =
   ApiPublicReferralsRecordSubmissionRouteImport.update({
     id: '/api/public/referrals/record-submission',
@@ -852,6 +858,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/resend-delivery': typeof ApiPublicHooksResendDeliveryRoute
   '/api/public/hooks/stripe-payments': typeof ApiPublicHooksStripePaymentsRoute
   '/api/public/hooks/xero-payments': typeof ApiPublicHooksXeroPaymentsRoute
+  '/api/public/partner-logo/$key': typeof ApiPublicPartnerLogoKeyRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
   '/api/public/referrals/track-click': typeof ApiPublicReferralsTrackClickRoute
   '/api/public/twilio/inbound': typeof ApiPublicTwilioInboundRoute
@@ -962,6 +969,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/resend-delivery': typeof ApiPublicHooksResendDeliveryRoute
   '/api/public/hooks/stripe-payments': typeof ApiPublicHooksStripePaymentsRoute
   '/api/public/hooks/xero-payments': typeof ApiPublicHooksXeroPaymentsRoute
+  '/api/public/partner-logo/$key': typeof ApiPublicPartnerLogoKeyRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
   '/api/public/referrals/track-click': typeof ApiPublicReferralsTrackClickRoute
   '/api/public/twilio/inbound': typeof ApiPublicTwilioInboundRoute
@@ -1078,6 +1086,7 @@ export interface FileRoutesById {
   '/api/public/hooks/resend-delivery': typeof ApiPublicHooksResendDeliveryRoute
   '/api/public/hooks/stripe-payments': typeof ApiPublicHooksStripePaymentsRoute
   '/api/public/hooks/xero-payments': typeof ApiPublicHooksXeroPaymentsRoute
+  '/api/public/partner-logo/$key': typeof ApiPublicPartnerLogoKeyRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
   '/api/public/referrals/track-click': typeof ApiPublicReferralsTrackClickRoute
   '/api/public/twilio/inbound': typeof ApiPublicTwilioInboundRoute
@@ -1194,6 +1203,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/resend-delivery'
     | '/api/public/hooks/stripe-payments'
     | '/api/public/hooks/xero-payments'
+    | '/api/public/partner-logo/$key'
     | '/api/public/referrals/record-submission'
     | '/api/public/referrals/track-click'
     | '/api/public/twilio/inbound'
@@ -1304,6 +1314,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/resend-delivery'
     | '/api/public/hooks/stripe-payments'
     | '/api/public/hooks/xero-payments'
+    | '/api/public/partner-logo/$key'
     | '/api/public/referrals/record-submission'
     | '/api/public/referrals/track-click'
     | '/api/public/twilio/inbound'
@@ -1419,6 +1430,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/resend-delivery'
     | '/api/public/hooks/stripe-payments'
     | '/api/public/hooks/xero-payments'
+    | '/api/public/partner-logo/$key'
     | '/api/public/referrals/record-submission'
     | '/api/public/referrals/track-click'
     | '/api/public/twilio/inbound'
@@ -1480,6 +1492,7 @@ export interface RootRouteChildren {
   ApiPublicHooksResendDeliveryRoute: typeof ApiPublicHooksResendDeliveryRoute
   ApiPublicHooksStripePaymentsRoute: typeof ApiPublicHooksStripePaymentsRoute
   ApiPublicHooksXeroPaymentsRoute: typeof ApiPublicHooksXeroPaymentsRoute
+  ApiPublicPartnerLogoKeyRoute: typeof ApiPublicPartnerLogoKeyRoute
   ApiPublicReferralsRecordSubmissionRoute: typeof ApiPublicReferralsRecordSubmissionRoute
   ApiPublicReferralsTrackClickRoute: typeof ApiPublicReferralsTrackClickRoute
   ApiPublicTwilioInboundRoute: typeof ApiPublicTwilioInboundRoute
@@ -2224,6 +2237,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksXeroPaymentsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/partner-logo/$key': {
+      id: '/api/public/partner-logo/$key'
+      path: '/api/public/partner-logo/$key'
+      fullPath: '/api/public/partner-logo/$key'
+      preLoaderRoute: typeof ApiPublicPartnerLogoKeyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/referrals/record-submission': {
       id: '/api/public/referrals/record-submission'
       path: '/api/public/referrals/record-submission'
@@ -2521,6 +2541,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksResendDeliveryRoute: ApiPublicHooksResendDeliveryRoute,
   ApiPublicHooksStripePaymentsRoute: ApiPublicHooksStripePaymentsRoute,
   ApiPublicHooksXeroPaymentsRoute: ApiPublicHooksXeroPaymentsRoute,
+  ApiPublicPartnerLogoKeyRoute: ApiPublicPartnerLogoKeyRoute,
   ApiPublicReferralsRecordSubmissionRoute:
     ApiPublicReferralsRecordSubmissionRoute,
   ApiPublicReferralsTrackClickRoute: ApiPublicReferralsTrackClickRoute,

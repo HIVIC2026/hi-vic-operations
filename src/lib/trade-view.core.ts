@@ -239,9 +239,10 @@ export function couldntGetInBlocker(stage: string | null, bookingStart: string |
 // ---------- trade job access (step 9, Jo 7 Oct) ----------
 export type AccessAssignment = { job_id: string; business_id: string | null; user_id: string | null; active: boolean };
 /** A trade may open a job only with an ACTIVE assignment for that job and their own business; staff only when the assignment names them. */
-export function tradeJobAllowed(a: { signedIn: boolean; userId: string | null; businessId: string | null; boss: boolean; jobId: string; assignments: AccessAssignment[] }): boolean {
+/** `office` (fix wave C2): an Office person reads the business's jobs like the boss. */
+export function tradeJobAllowed(a: { signedIn: boolean; userId: string | null; businessId: string | null; boss: boolean; office?: boolean; jobId: string; assignments: AccessAssignment[] }): boolean {
   if (!a.signedIn || !a.userId || !a.businessId) return false;
-  return a.assignments.some((x) => x.job_id === a.jobId && x.active && x.business_id === a.businessId && (a.boss || x.user_id === a.userId));
+  return a.assignments.some((x) => x.job_id === a.jobId && x.active && x.business_id === a.businessId && (a.boss || a.office === true || x.user_id === a.userId));
 }
 /** Visit-current rule: owner name/phone/address show while this business still has a visit to do (or is arranging one);
  *  once every one of its visits on the job is done, contact details are hidden. */
@@ -302,8 +303,7 @@ const daysUntil = (ymd: string, today: string) => Math.round((Date.parse(`${ymd.
 
 export type MittiLogin = "linked" | "not_set" | "email_changed";
 export type TeamMemberView = {
-  dateOfBirth?:string|null;
-  id: string | null; name: string; role: "owner" | "installer" | "electrician"; mobile: string | null; email: string | null;
+  id: string | null; name: string; role: "owner" | "office" | "installer" | "electrician"; mobile: string | null; email: string | null;
   hasLogin: boolean; mittiLogin: MittiLogin;
   /** True when the office has a Mitti record for this worker (linked, invited, reactivated or marked done); null = couldn't be read, so unknown. */
   mittiRecorded: boolean | null;
@@ -319,8 +319,15 @@ export type TeamMemberView = {
   declarationsDue: boolean;
   /** Jo 3 Nov: required details still missing ("mobile", "date of birth", "email"); undefined = owner or unknown. */
   missingDetails?: string[];
+  /** Task 10 (Team screen) checks, set by tradeBusiness for the boss's Team. Optional so older callers compile.
+   *  escRegistered: office ESC stamp (Lead Installers); licenceAndRec: electricianVerified ok; canSeeMoney: Office
+   *  people only; hasDob: a private date of birth is on file (true/false) or unknown (null) — never the date itself. */
+  escRegistered?: boolean;
+  licenceAndRec?: boolean;
+  canSeeMoney?: boolean;
+  hasDob?: boolean | null;
 };
-export const ROLE_LABEL: Record<TeamMemberView["role"], string> = { owner: "owner", installer: "installer", electrician: "electrician" };
+export const ROLE_LABEL: Record<TeamMemberView["role"], string> = { owner: "owner", office: "office", installer: "installer", electrician: "electrician" };
 
 /** "Lead · Mitti ✓" / "Crew · no Mitti" / "Mitti login not set": the Mitti words, with Lead or Crew first for installer staff. */
 export function teamMittiLine(m: Pick<TeamMemberView, "role" | "workerRole" | "mittiLogin" | "mittiRecorded">): string | null {
@@ -508,31 +515,10 @@ export function escNoticeRowLine(s: { state: string; at: string | null; linkSent
   return parts.length ? `Not yet · ${parts.join(", ")}` : "Not yet · no link sent";
 }
 
-/** Installer guide (approved state M7-guide, decisions 21/107/145/236): five steps, the 30 days, getting paid. Static wording, no job data. */
-export const GUIDE_STEPS = [
-  { title: "Get the job", body: "Your own customer: Add a job and enter their details exactly and in full. Our lead: we text and email you the job. Offer the owner three Ready Check times within 24 hours." },
-  { title: "Ready Check", body: "Fill in as much as you can in Mitti. Press Complete only when it's finished: that sends the owner their quote." },
-  { title: "PIESA", body: `We arrange it once the owner accepts. You get the ${PIESA_FULL} at least 24 hours before install.` },
-  { title: "Install days", body: "Once the PIESA is cleared, offer the owner 3 days with arrival times. Install within 30 days of the PIESA, or a new one is needed." },
-  { title: "Install day", body: "Follow the install form from the 6:30am text, top to bottom: the SWMS (Safe Work Method Statement: your safety plan for the job), the PIISA (Pre-installation installer safety assessment: your safety check before you start), then the photos. Press Complete in Mitti, then sign Part B (your declaration) of the VEEC form (the rebate form) on the job." },
-] as const;
-/** Browser tab title for the guide page: electricians see "Electrician guide" (Jo, 29 Oct 2026); installers unchanged. */
-export function guideTabTitle(kind: TradeKind): string {
-  return `${kind === "electrician" ? "Electrician" : "Installer"} guide – Home Insulation Victoria`;
-}
+// Task 11 (Jo 2 Nov 2026): the installer "How it works" guide (GUIDE_STEPS, GUIDE_WORDS, guideTabTitle) is retired — the
+// Job page's one Next step box says what to do next. The electrician guide words below stay until Part 6 removes them.
 /** What the approved business says it will take, on the welcome page (copy approved by Jo 29 Oct 2026). */
 export const WELCOME_TAKES = { installer: "Ready Checks and installs", electrician: `${PIESA_FULL} jobs` } as const;
-export const GUIDE_WORDS = {
-  eyebrow: "Installer guide",
-  title: "How every job works",
-  sub: "Two minutes. Five steps, the 30 days, getting paid.",
-  paidTitle: "Getting every job paid",
-  paidBody: "We check every form and photo before we claim the rebate. If anything's missing, we can't claim it, and the job can't be paid.",
-  photos: "Photos must be taken live at the property on the day (geotagged and timed). The lead installer signs personally.",
-  pay: "Getting paid: your customers when the owner pays the balance; our leads 7 days after we approve the job. We never mark up your price.",
-  back: "Back to My work",
-} as const;
-
 /** Electrician guide (copy approved by Jo 29 Oct 2026, word for word): four steps and getting paid. Static wording, no job data. */
 export const ELECTRICIAN_GUIDE_STEPS = [
   { title: "Take the job", body: "We text and email you each offer. Accept it in My work if you can do it." },

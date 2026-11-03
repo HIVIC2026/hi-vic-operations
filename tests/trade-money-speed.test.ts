@@ -162,7 +162,9 @@ beforeAll(async () => {
   setSystemTime(NOW);
   seed({ inHouse: true });
   // Warm the module cache so the rounds count reads, not first module loads.
-  for (const u of [U_BOSS, U_ELEC]) { await tradeMoney(u); await tradeMoneyExtras(u); }
+  // Task 8 (Jo 3 Nov): electricians have no Money page — tradeMoney refuses them, so the warm-up only expects the extras.
+  await tradeMoney(U_BOSS);
+  for (const u of [U_BOSS, U_ELEC]) await tradeMoneyExtras(u);
   await tradeMoneyJob(J1, U_BOSS); await tradeMoneyJob(J3, U_ELEC);
 });
 afterAll(() => { setSystemTime(); });
@@ -210,13 +212,7 @@ describe("rounds", () => {
       expect(r.rounds).toBeLessThanOrEqual(max);
     });
   }
-  test("tradeMoney electrician owner: at most 3 sequential rounds (was 4)", async () => {
-    failWhen = null; seed();
-    const r = await measured(() => tradeMoney(U_ELEC));
-    expect(r.out.rows.length).toBeGreaterThan(0);
-    if (r.rounds > 3) console.log(`tradeMoney electrician rounds = ${r.rounds}\n${roundsOf(r.log)}`);
-    expect(r.rounds).toBeLessThanOrEqual(3);
-  });
+  // Task 8 (Jo 3 Nov): no electrician Money — the rounds test for it is gone with the page.
   test("tradeMoneyExtras: at most 2 sequential rounds (was 2)", async () => {
     failWhen = null; seed();
     const r = await measured(() => tradeMoneyExtras(U_BOSS));
@@ -275,11 +271,11 @@ describe("failure rules unchanged", () => {
     await expect(tradeMoneyJob(J1, U_BOSS)).rejects.toThrow("Could not read installer_declarations for the payout check");
     failWhen = null;
   });
-  test("a failed safety-visit (money) read fails the electrician's Money, as today", async () => {
+  test("electricians have no Money page (Task 8, Jo 3 Nov): refused before any money read", async () => {
     seed();
-    failWhen = (t) => t === "piesa_records";
-    await expect(tradeMoney(U_ELEC)).rejects.toThrow("Could not read piesa_records for the payout check");
-    failWhen = null;
+    const before = log.length;
+    await expect(tradeMoney(U_ELEC)).rejects.toThrow("Money is only shown to installer businesses.");
+    expect(log.slice(before).map((l) => l.table).filter((t) => MONEY_TABLES.includes(t))).toEqual([]);
   });
   test("a failed in-house payer read keeps its display catch: Money still answers (safety checks not kept)", async () => {
     seed({ inHouse: true });

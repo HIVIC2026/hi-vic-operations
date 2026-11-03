@@ -1,6 +1,10 @@
+import { lazy, Suspense } from "react";
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { loadAccess, userIdOf } from "@/lib/route-guards";
 import { startTradeScreenForPath } from "@/lib/trade-route-prefetch";
+
+// The layout that shows the "you don't need to sign in" page loads on its own, so the guard below stays light.
+const FieldLayout = lazy(() => import("@/components/trade/FieldLayout"));
 
 // Trade work area (installers, electricians and their workers).
 export const Route = createFileRoute("/_authenticated/field")({
@@ -12,5 +16,5 @@ export const Route = createFileRoute("/_authenticated/field")({
     const a = await loadAccess(uid);
     if (!(a.admin || a.installer || a.electrician)) throw redirect({ to: "/home" });
   },
-  component: () => <Outlet />,
+  component: () => <Suspense fallback={<Outlet />}><FieldLayout /></Suspense>,
 });

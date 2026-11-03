@@ -70,6 +70,7 @@ export async function visitFormAuditId(jobId: string, kind: VisitKind): Promise<
 /** Job screen: which visits this job shows, who is on each, and the picker list with grey-out reasons. */
 export async function visitAllocationView(jobId: string, userId: string, pre?: import("./trade-view.server").TradeJobAccess) {
   const c = await (await import("./trade-view.server")).requireTradeJob(userId, jobId, pre);
+  const books = c.boss || c.role === "office"; // fix wave C2: an Office person allocates (books) like the boss
   const { data: job } = await db.from("jobs").select("stage").eq("id", jobId).maybeSingle();
   const kinds = visitsForStage(job?.stage ?? null);
   if (!kinds.length || c.kind !== "installer") return { canAllocate: false, visits: [] as { kind: VisitKind; label: string; current: { workerId: string; name: string } | null; hasForm: boolean; options: ReturnType<typeof allocationOptions> }[] };
@@ -77,7 +78,7 @@ export async function visitAllocationView(jobId: string, userId: string, pre?: i
   // read together (they need only the job, the business and the visit kinds); the visits keep the stage's order.
   const [events, candidates, bookingCreatedAt, forms] = await Promise.all([
     allocationEvents(jobId),
-    c.boss ? allocationCandidates(c.biz.id) : Promise.resolve([] as AllocationCandidate[]),
+    books ? allocationCandidates(c.biz.id) : Promise.resolve([] as AllocationCandidate[]),
     // Decision 319: install days also need a verified White Card unless the installation was booked before the cutoff.
     kinds.includes("install") ? installBookingCreatedAt(jobId) : Promise.resolve(null),
     Promise.all(kinds.map((kind) => visitFormAuditId(jobId, kind))),
@@ -87,9 +88,9 @@ export async function visitAllocationView(jobId: string, userId: string, pre?: i
   const visits = [];
   for (const [i, kind] of kinds.entries()) {
     const cur = currentAllocation(events, kind);
-    visits.push({ kind, label: VISIT_LABEL[kind], current: cur ? { workerId: cur.worker_id, name: cur.worker_name } : null, hasForm: !!forms[i], options: c.boss ? allocationOptions(kind, candidates, today, kind === "install" ? install : undefined) : [] });
+    visits.push({ kind, label: VISIT_LABEL[kind], current: cur ? { workerId: cur.worker_id, name: cur.worker_name } : null, hasForm: !!forms[i], options: books ? allocationOptions(kind, candidates, today, kind === "install" ? install : undefined) : [] });
   }
-  return { canAllocate: c.boss, visits };
+  return { canAllocate: books, visits };
 }
 
 /**
@@ -100,9 +101,10 @@ export async function visitAllocationView(jobId: string, userId: string, pre?: i
 export async function allocateVisit(jobId: string, userId: string, kind: VisitKind, workerId: string, call?: MittiCall, opts?: { crewPicker?: boolean }) {
   const tv = await import("./trade-view.server");
   const c = await tv.requireTradeJob(userId, jobId);
+  const books = c.boss || c.role === "office"; // fix wave C2: an Office person books like the boss
   // Jo 29 Oct 2026: staff can change the install Lead too, but only through the crew picker (saveCrewWithLead).
-  const staffLeadChange = !c.boss && opts?.crewPicker === true && kind === "install";
-  if (!c.boss && !staffLeadChange) throw new WorkflowError("Only the business owner can allocate a visit.");
+  const staffLeadChange = !books && opts?.crewPicker === true && kind === "install";
+  if (!books && !staffLeadChange) throw new WorkflowError("Only the business owner can allocate a visit.");
   if (c.kind !== "installer") throw new WorkflowError("Visits are allocated on installer jobs only.");
   const { data: job } = await db.from("jobs").select("stage, source").eq("id", jobId).maybeSingle();
   if (!visitsForStage(job?.stage ?? null).includes(kind)) throw new WorkflowError(`This job isn't at its ${VISIT_LABEL[kind]} yet.`);

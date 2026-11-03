@@ -162,7 +162,7 @@ describe("tradeHome speed (Task 5)", () => {
   test("staff: the installer home loads in at most 3 sequential rounds of reads", async () => {
     failWhen = null; seed({ inHouse: true });
     const r = await measured(U_STAFF);
-    expect(r.out.home).not.toBeNull();
+    expect(r.out.myWork).not.toBeNull();
     if (r.rounds > 3) console.log(`staff rounds = ${r.rounds}\n${roundsOf(r.log)}`);
     expect(r.rounds).toBeLessThanOrEqual(3);
   });

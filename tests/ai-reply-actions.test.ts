@@ -215,8 +215,9 @@ describe("installer sees the note", () => {
   test("installer job page lists the notes", () => {
     expect(readFileSync("src/lib/trade-view.server.ts", "utf8")).toContain("installerNotes(jobId)");
     const page = readFileSync("src/routes/_authenticated/field.$jobId.tsx", "utf8");
-    expect(page).toContain("(page.notes ?? [])");
-    expect(page).toContain("Notes from the office");
+    // Job page redesign (Task 5): the office notes are rows in the folded Site notes, built on the server.
+    expect(page).toContain("page.rows.siteNotes");
+    expect(readFileSync("src/lib/trade-view.server.ts", "utf8")).toContain("Notes from the office");
   });
 });
 

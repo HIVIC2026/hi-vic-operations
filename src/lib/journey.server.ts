@@ -628,7 +628,7 @@ const s8: StepFn = async (ctx, r) => {
   const row = money.rows.find((x) => x.jobId === ctx.jobId);
   check(r, "installer Money shows this install", !!row, `${money.rows.length} rows`);
   check(r, "installer payout shows Coming", row!.state.kind === "coming", row!.state.kind);
-  ctx.screens.push({ step: "s8_ap_payout", persona: "installer", path: "/field/money", mustSee: ["Coming"] });
+  ctx.screens.push({ step: "s8_ap_payout", persona: "installer", path: "/field/money", mustSee: ["COMING TO YOU"] }); // Task 8: the approved Money tile
 };
 
 const STEP_FNS: Record<JourneyStepKey, StepFn> = {

@@ -156,6 +156,15 @@ export const WORKFLOW_DECISIONS = {
     emailWording: "Your quote is valid for 30 days, until {date}",
     reminderTextsKeep: "held until (decision 32, approved as is)",
   },
+  // Installer screens (Jo 2 Nov 2026, approved mock-ups; new job flow part 5): one Next step box; no How it works tab.
+  installerScreens: {
+    by: "Jo 2 Nov 2026",
+    jobPage: "one Next step box; no How it works tab",
+    removed: ["/field/guide (redirects to /field)", "four-form in-house booking card (Rectification)", "installer guide words GUIDE_STEPS / GUIDE_WORDS", "TeamElectricianPicker"],
+    kept: ["ReturnActions (Can't do this one / Owner cancelled) on the Job page", "electrician guide words until Part 6 removes them"],
+    roles: ["boss", "office"],
+    neverLogIn: ["lead", "crew", "electrician"],
+  },
   partnerPeople: {
     // Decision 402 (Jo 26 Oct 2026): approving/activating a business approves its pending people whose certification is office-verified.
     autoApproveWithBusiness: {

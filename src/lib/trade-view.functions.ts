@@ -8,6 +8,10 @@ const plain = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 export const getTradeHome = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .handler(async ({ context }) => plain(await (await import("./trade-view.server")).tradeHome(context.userId).catch((e: Error) => { if (/isn't linked/.test(e.message)) return null; throw e; })));
 
+/** Who this sign-in is in the trade area: boss, office, or none (Lead Installers, Crew and Electricians don't log in). */
+export const getTradeRole = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => plain(await (await import("./trade-view.server")).tradeRoleFor(context.userId)));
+
 export const getTradeOffer = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ offerId: uuid }).parse(d))
   .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).tradeOffer(data.offerId, context.userId)));
@@ -66,10 +70,6 @@ export const setTradeTaking = createServerFn({ method: "POST" }).middleware([req
   .inputValidator((d) => z.object({ taking: z.boolean() }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSetTaking(context.userId, data.taking));
 
-export const setTradePiesaBooker = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ booker: z.enum(["office", "electrician", "either"]) }).parse(d))
-  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSetPiesaBooker(context.userId, data.booker));
-
 export const getTradeSetupView = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .handler(async ({ context }) => plain(await (await import("./trade-view.server")).tradeSetup(context.userId)));
 
@@ -122,18 +122,31 @@ export const setTeamMemberMobile = createServerFn({ method: "POST" }).middleware
   .inputValidator((d) => z.object({ workerId: z.string().uuid(), mobile: z.string().trim().max(30) }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSetWorkerMobile(context.userId, data.workerId, data.mobile));
 
-/** Jo 3 Nov ~3pm: the business fills a missing date of birth (anyone) or missing email (electricians) from the Team page. */
+/** Jo 3 Nov ~3pm (#134): the business fills a missing date of birth (anyone) or missing email (electricians) from the Team page. */
 export const setTeamMemberMissing = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ workerId: z.string().uuid(), dateOfBirth: z.string().trim().max(10).nullable().optional(), email: z.string().trim().max(254).nullable().optional() }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeFillWorkerMissing(context.userId, data.workerId, { dateOfBirth: data.dateOfBirth ?? null, email: data.email ?? null }));
 
-/** Jo 29 Oct: add a person to the team with no email needed; they sign their declarations by link before any job. */
+/** Jo 29 Oct: add a person to the team with no email needed; they sign their declarations by link before any job.
+ *  Task 10 (Jo 2 Nov): role Office / Lead Installer / Crew / Electrician; mobile + date of birth required for everyone
+ *  (checked server-side); electricians also give licence + REC. `workerRole` is kept for older callers. */
 export const addTeamPerson = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({
-    name: z.string().trim().min(1).max(120), workerRole: z.enum(["lead", "crew"], { message: "Choose Lead or Crew." }), mobile: z.string().trim().max(30).nullable(),
-    email: z.string().trim().max(200).email().or(z.literal("")).nullable().transform((v) => v || null), licenceNumber: z.string().trim().max(60).nullable(),dateOfBirth:z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+    name: z.string().trim().min(1).max(120), role: z.enum(["office", "lead", "crew", "electrician"]).optional(), workerRole: z.enum(["lead", "crew"]).optional(), mobile: z.string().trim().max(30).nullable(),
+    email: z.string().trim().max(200).email().or(z.literal("")).nullable().transform((v) => v || null), licenceNumber: z.string().trim().max(60).nullable(), recNumber: z.string().trim().max(60).nullable().optional(),
+    dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeAddTeamPerson(context.userId, data));
+
+/** Task 10b: the boss adds a date of birth for an existing Team person (private identity row; never read back). */
+export const setTeamMemberDob = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ workerId: uuid, dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSetWorkerDob(context.userId, data.workerId, data.dateOfBirth));
+
+/** Task 10: the boss switches "Can see Money" on/off for an Office person. Boss only (refused server-side and in SQL). */
+export const setTeamMoneyAccess = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ workerId: uuid, on: z.boolean() }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSetMoneyAccess(context.userId, data.workerId, data.on));
 
 /** Jo 24 Oct 2026 (decision 110): A1 installer enters the Ready Check day + time (same slots as the owner's times link). */
 export const setA1ReadyCheckTimeFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -161,14 +174,10 @@ export const getInHouseBookingTeam = createServerFn({ method: 'POST' }).middlewa
   .inputValidator(z.object({jobId:uuid}))
   .handler(async({data,context})=>(await import('./in-house-booking.server')).bookingTeam(data.jobId,context.userId));
 
+/** "Can't do this one": the whole flow (pull-back, cancel what is still booked, ESC ask, owner emails) is `handBackJob`. */
 export const tradeHandBack = createServerFn({method:'POST'}).middleware([requireSupabaseAuth])
   .inputValidator(z.object({jobId:uuid,reason:z.string().trim().min(3).max(480)}))
-  .handler(async({data,context})=>{
-    await (await import('./in-house-booking.server')).bookingTeam(data.jobId,context.userId);
-    await (await import('./in-house-batch.server')).pullBackInHouseJob({jobId:data.jobId,actorId:context.userId,reason:data.reason});
-    await (await import('./in-house-handback-cleanup.server')).finishInHouseHandback(data.jobId,context.userId).catch(e=>console.error('Handback cleanup pending',e));
-    return {ok:true};
-  });
+  .handler(async({data,context})=>(await import('./trade-view.server')).handBackJob(data.jobId,context.userId,data.reason));
 
 export const tradeOwnerCancelled = createServerFn({method:'POST'}).middleware([requireSupabaseAuth])
   .inputValidator(z.object({jobId:uuid,reason:z.string().trim().min(3).max(480)}))
@@ -176,6 +185,9 @@ export const tradeOwnerCancelled = createServerFn({method:'POST'}).middleware([r
     await (await import('./in-house-booking.server')).bookingTeam(data.jobId,context.userId);
     const result=await (await import('./office-actions.server')).cancelJobFully(data.jobId,`Owner cancelled: ${data.reason}`,context.userId,{tell:{owner:false,installer:false},suppressRunNotice:true});
     await (await import('./in-house-booking-notices.server')).notifyOfficeOwnerCancelled(data.jobId,data.reason,context.userId);
+    // Task 6: Part 9's ESC withdrawal ask after the cancel; the owner already knows, so no visit email (answer 4).
+    try{const tv=await import('./trade-view.server');const requireEscWithdrawal=await tv.escWithdrawalFn();if(requireEscWithdrawal)await requireEscWithdrawal(data.jobId,"owner_cancelled",context.userId);}
+    catch(e){await (await import('./trade-view.server')).logTradeFollowUpFailed(data.jobId,context.userId,'ESC withdrawal',e);}
     return result;
   });
 
@@ -203,6 +215,19 @@ export const recordInHouseEscNoticeUpdated = createServerFn({ method:'POST' }).m
     const {error}=await supabaseAdmin.from('workflow_events').insert({id:await stableUuid(`esc-lead-updated:${n.id}`),job_id:data.jobId,actor_id:context.userId,event_type:'in_house_esc_notice_updated',summary:'Office confirmed ESC notice updated for the new Lead Installer',details:{change_id:n.id,worker_id:n.details.worker_id,start:n.details.start},internal:true});
     if(error&&error.code!=='23505')throw Error(error.message);
     return {ok:true};
+  });
+
+/** Task 9: who books the safety check and the upgrades day (boss only). */
+export const setTradeWhoBooks = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ whoBooks: z.enum(["office", "electrician", "either"]) }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSetWhoBooks(context.userId, data.whoBooks));
+
+/** Task 9: the business logo for co-branded quotes (boss only; PNG/JPEG ≤ 2 MB, sent base64). */
+export const uploadTradeLogo = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ name: z.string().trim().min(1).max(200), type: z.enum(["image/png", "image/jpeg"]), base64: z.string().min(1).max(3 * 1024 * 1024) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const bytes = Uint8Array.from(atob(data.base64), (ch) => ch.charCodeAt(0));
+    return (await import("./trade-view.server")).tradeUploadLogo(context.userId, { name: data.name, type: data.type, bytes });
   });
 
 export const getMyMittiInvited = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])

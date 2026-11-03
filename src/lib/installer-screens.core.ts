@@ -313,7 +313,8 @@ export function installerStatusLine(f: StatusLineFacts): StatusLine {
       kind: "quote",
       title: f.quoteLine.replace(/^You:\s*/, ""),
       home: f.quoteLine,
-      yours: f.quoteLine.startsWith("You:"),
+      // Jo 3 Nov 2026: the press-Complete line no longer starts with "You:" but is still the installer's turn.
+      yours: f.quoteLine.startsWith("You:") || f.quoteLine === PRESS_COMPLETE_LINE,
     };
   return { kind: "none", title: "", home: "", yours: false };
 }
@@ -500,7 +501,7 @@ export function jobNext(f: JobNextFacts): JobNext {
         sub: `${visit}The form is still missing:`,
         yours: true,
         items,
-        note: `Press Complete only when it's fully finished — that sends ${owner} their quote.`,
+        note: PRESS_COMPLETE_LINE, // DRAFT (Jo 3 Nov: the boss enters the price after Complete, then the quote goes)
       };
     }
     if (f.needsFinishing)
@@ -527,7 +528,7 @@ export function jobNext(f: JobNextFacts): JobNext {
         yours: false,
       };
     if (f.quoteLine) {
-      const yours = f.quoteLine.startsWith("You:");
+      const yours = f.quoteLine.startsWith("You:") || f.quoteLine === PRESS_COMPLETE_LINE;
       return {
         panel: "quote_status",
         title: f.quoteLine
@@ -541,7 +542,7 @@ export function jobNext(f: JobNextFacts): JobNext {
       return {
         panel: "mitti_form",
         title: `Ready Check ${dayAndTime(f.readyCheckBookedAt)}`,
-        sub: "Fill in the Mitti form on site and press Complete when it's finished — we then send the owner their quote.",
+        sub: PRESS_COMPLETE_LINE, // DRAFT (Jo 3 Nov: the boss enters the price after Complete, then the quote goes)
         yours: true,
       };
     // Approved state M2-own-before-ready-check: the installer arranges the visit with the owner directly (decisions 110/116).
@@ -556,7 +557,7 @@ export function jobNext(f: JobNextFacts): JobNext {
       return {
         panel: "mitti_form",
         title: "Do the Ready Check in Mitti",
-        sub: "Press Complete when it's fully finished — we then send the owner their quote.",
+        sub: PRESS_COMPLETE_LINE, // DRAFT (Jo 3 Nov: the boss enters the price after Complete, then the quote goes)
         yours: true,
       };
     return {
@@ -586,7 +587,7 @@ export function jobNext(f: JobNextFacts): JobNext {
       panel: "quote_status",
       title: f.quoteLine.replace(/^You:\s*/, ""),
       sub: null,
-      yours: f.quoteLine.startsWith("You:"),
+      yours: f.quoteLine.startsWith("You:") || f.quoteLine === PRESS_COMPLETE_LINE,
     };
   return {
     panel: "waiting",
@@ -1250,7 +1251,7 @@ export const OFFER_PAY_LINE =
 export const OFFER_STEPS = [
   "The owner picks one of your times. You get a text with the day, time and address.",
   "Do the Ready Check and fill in the Mitti form. Don't discuss pricing with the owner.",
-  "Press Complete — we send the owner their quote. Once the safety check is cleared, you offer 3 install days.",
+  `${PRESS_COMPLETE_LINE} Once the safety check is cleared, you book the install day with the owner.`, // DRAFT (Jo 3 Nov ruling; "offer 3 install days" retired)
 ] as const;
 export const OFFER_ONLY_YOU =
   "This offer is only for you and stays open 24 hours. If it's not for you, it goes back to the office.";

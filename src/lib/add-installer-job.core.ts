@@ -10,7 +10,9 @@ export type AddInstallerJobPayload = {
   source: string;
   owner: { full_name: string; email: string; phone: string };
   property: { address_line: string; suburb: string; postcode: string };
-  consent: { key: "owner_ticked" | "installer_confirmed"; by: "owner" | "installer"; text: string; sha256: string };
+  consent: { key: "owner_ticked" | "installer_confirmed"; by: "owner" | "installer"; text: string; sha256: string;
+    /** Task 7: Part 3's consent snapshot fields and the event details, merged in by the SQL (absent = the older shape). */
+    record?: { snapshot: Record<string, unknown>; event: Record<string, unknown> } | null };
   electrician_choice: ElectricianChoiceRecord;
   lead_origin: LeadOrigin;
   visit_requested: boolean;

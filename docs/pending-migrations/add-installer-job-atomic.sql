@@ -74,7 +74,7 @@ begin
     values (jid, actor, 'installer', biz, actor, t);
   insert into public.owner_contact_consents (job_id, owner_id, source, consent_key, consent_status, contact_consent, consented_at, snapshot, sha256)
     values (jid, oid, 'onsite_ready_check', c->>'key', 'granted', true, t,
-      jsonb_build_object('by', c->>'by', 'text', c->>'text', 'recorded_by', actor), c->>'sha256');
+      jsonb_build_object('by', c->>'by', 'text', c->>'text', 'recorded_by', actor) || coalesce(c->'record'->'snapshot', '{}'::jsonb), c->>'sha256');
 
   -- Events in the same order as before. now() is the same for the whole transaction (and two clock readings can be
   -- equal), so each event gets its own microsecond step to keep that order when read back by created_at.
@@ -96,7 +96,7 @@ begin
   insert into public.workflow_events (job_id, actor_id, event_type, summary, details, internal, created_at)
     values (jid, actor, 'installer_contact_permission',
       case when by_owner then 'Owner ticked contact and privacy consent on the installer''s phone' else 'Installer confirmed the owner gave consent' end,
-      jsonb_build_object('wording', c->>'text', 'by', c->>'by'), true, et + interval '3 microseconds');
+      jsonb_build_object('wording', c->>'text', 'by', c->>'by') || coalesce(c->'record'->'event', '{}'::jsonb), true, et + interval '3 microseconds');
   return query select jid, jnum, true;
 end $$;
 

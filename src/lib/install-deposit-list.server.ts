@@ -1,6 +1,6 @@
 // Batched, authorised list-only deposit facts. No delivery or mutation dependencies.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { cumulativePaidCents, effectiveLedger, ledgerRecordFromEvent, toCents, withSeparateMarks, paymentPlan, paymentSteps, isStepPaid } from "./payments.core";
+import { cumulativePaidCents, effectiveLedger, ledgerRecordFromEvent, toCents, withSeparateMarks, paymentPlan, paymentSteps, isStepPaid, type PaymentRecord } from "./payments.core";
 import { PAYMENT_EVENT, PAYMENT_REVERSED_EVENT, PAYMENT_MATCH_SEPARATE_EVENT } from "./payment-ledger.server";
 import { safetyCheckCentsFor } from "./safety-check-amount.core";
 import { readByJobIds } from "./sweep-batch.server";
@@ -40,3 +40,22 @@ export async function installDepositPaidForJobs(jobIds: string[]): Promise<Map<s
   }
   return result;
 }
+/** Fix wave I4 (installer My work): the same reconciled ledger as `paymentLedger` (payment-ledger.server, kept lean), for many jobs in one batched read pair
+ *  (no invoice filter: every payment on the job). The caller supplies already-authorised job ids. */
+export async function paymentLedgersForJobs(jobIds: string[]): Promise<Map<string, PaymentRecord[]>> {
+  const ids = [...new Set(jobIds)];
+  const out = new Map<string, PaymentRecord[]>(ids.map((id) => [id, []]));
+  if (!ids.length) return out;
+  type Ev = LedgerRow & { job_id: string };
+  const [rows, marks] = await Promise.all([
+    readByJobIds<Ev>("payment history", ids, (chunk) => admin.from("workflow_events").select("id, job_id, event_type, created_at, actor_id, details").in("job_id", chunk).in("event_type", [PAYMENT_EVENT, PAYMENT_REVERSED_EVENT]).order("created_at")),
+    readByJobIds<{ job_id: string; details: Record<string, unknown> | null }>("payment marks", ids, (chunk) => admin.from("workflow_events").select("job_id, details").in("job_id", chunk).eq("event_type", PAYMENT_MATCH_SEPARATE_EVENT)),
+  ]);
+  for (const id of ids) {
+    const separate = marks.filter((m) => m.job_id === id).map((m) => String(m.details?.["pair_key"] ?? "")).filter(Boolean);
+    const raw = rows.filter((r) => r.job_id === id).map((r) => ({ id: r.id, createdAt: r.created_at, ...ledgerRecordFromEvent(r.event_type, r.created_at, r.actor_id, r.details) }));
+    out.set(id, effectiveLedger(withSeparateMarks(raw, separate)));
+  }
+  return out;
+}
+

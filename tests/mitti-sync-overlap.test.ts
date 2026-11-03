@@ -72,6 +72,7 @@ const rels: Rels = {
   ceiling_measurements: { jobs: { table: "jobs", fk: "job_id", on: "base" } },
   assessments: { jobs: { table: "jobs", fk: "job_id", on: "base" } },
   job_assignments: { businesses: { table: "businesses", fk: "business_id", on: "base" }, profiles: { table: "profiles", fk: "user_id", on: "base" } },
+  business_members: { businesses: { table: "businesses", fk: "business_id", on: "base" } }, // Task 7: Add a job reads the sign-in's trade context (business embedded)
 };
 const q = async <T,>(sql: string, p: unknown[] = []) => (await db.query<T>(sql, p)).rows;
 const shim = embedShim(db, rels);

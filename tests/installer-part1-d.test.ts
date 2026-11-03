@@ -127,7 +127,10 @@ describe("D6 one crew picker", () => {
     expect(picker).toContain(">Change Lead Installer</LinkRow>");
     expect(picker).toContain("staleTime: 20_000");
     expect(picker).not.toContain('"Crew today"');
-    expect(src("src/routes/_authenticated/field.$jobId.tsx")).toContain('{visitsForStage(job.stage).includes("install") && <PiisaCrewPicker jobId={jobId} />}');
+    // Installer screens Task 6: on the Job page the Lead Installer change lives in the Next step box (in-house guarded writer);
+    // Today's job keeps the one crew picker.
+    expect(src("src/routes/_authenticated/field.$jobId.tsx")).not.toContain("<PiisaCrewPicker");
+    expect(src("src/components/trade/NextStepBox.tsx")).toContain("Change Lead Installer");
     expect(src(DAY)).toContain('{data.kind === "install" && <PiisaCrewPicker jobId={jobId} />}');
     const card = src("src/components/trade/visit-allocation.tsx");
     expect(card).toContain('data.visits.filter((v) => v.kind === "ready_check")');

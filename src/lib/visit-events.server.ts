@@ -152,6 +152,24 @@ export async function tradeCancelVisit(jobId: string, userId: string, reason: st
   return { ok: true };
 }
 
+/** Installer screens Task 6 ("Can't do this one"): after the in-house pull-back, every listed booking still `confirmed`
+ *  (install / fixes — the pull-back cancels only Ready Check / PIESA) is cancelled the trade-cancel way: `trade_cancelled`
+ *  recorded, then `reopen` (stage back, ESC regenerate for installs). The caller already proved the trade's membership
+ *  before the pull-back ended it, so no booked-trade check here. The owner is told by Part 4's hand-back email, not O74. */
+export async function cancelBookingsAfterHandBack(jobId: string, bookingIds: string[], actorId: string, reason: string): Promise<string[]> {
+  const cancelled: string[] = [];
+  for (const id of bookingIds) {
+    const { data, error } = await admin.from("bookings").select("id, job_id, kind, scheduled_start, business_id, assignment_id, contractor_id").eq("id", id).eq("job_id", jobId).eq("status", "confirmed").maybeSingle();
+    if (error) throw new Error(error.message);
+    const b = data as Booking | null;
+    if (!b) continue;
+    await record(b, "trade_cancelled", "trade", actorId, reason);
+    await reopen(b, actorId, `handed back: ${reason}`);
+    cancelled.push(b.id);
+  }
+  return cancelled;
+}
+
 /** Timer: trade no-show 4h after start with no arrival and no evidence -> needs attention; reliability drops. */
 export async function sweepTradeNoShows(now = new Date()) {
   const from = new Date(now.getTime() - 7 * 86_400_000).toISOString(), to = new Date(now.getTime() - 4 * 3_600_000).toISOString();
