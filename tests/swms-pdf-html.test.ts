@@ -3,6 +3,7 @@
 // through Part 1's pdf-lib kit (renderPdf), behind PDF_LOOK_APPROVED.swms so the filed PDF is byte-for-byte the old
 // WorkSafe layout until Jo approves the sample. Wording comes from swms.core (never retyped).
 import { describe, expect, test } from "bun:test";
+import { createHash } from "node:crypto";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { PDFDocument } from "pdf-lib";
 import { LOGO_PNG } from "../src/lib/email-hero-assets";
@@ -150,16 +151,30 @@ describe("the same model drawn through Part 1's kit (renderPdf)", () => {
 });
 
 describe("behind PDF_LOOK_APPROVED.swms", () => {
-  test("the flag is false: buildSwmsPdf still draws the WorkSafe landscape layout, byte-for-byte the old builder", async () => {
+  /** Date-stripped bytes: reload, pin both dates, save without object streams (pdf-lib's creation time otherwise sits
+   *  inside a compressed stream, so a plain regex strip is not stable across seconds). */
+  async function dateStripped(bytes: Uint8Array): Promise<Uint8Array> {
+    const doc = await PDFDocument.load(bytes, { updateMetadata: false });
+    const fixed = new Date("2026-01-01T00:00:00Z");
+    doc.setCreationDate(fixed); doc.setModificationDate(fixed);
+    return doc.save({ useObjectStreams: false, updateFieldAppearances: false });
+  }
+  const sha = (x: Uint8Array) => createHash("sha256").update(x).digest("hex");
+  // Recorded from the base commit b62f5fd (the old builder, before Part 7) with the legacy wording plan below — a temp
+  // worktree ran buildSwmsPdf(buildSwms(facts), sigs, { recordRef: "swms:test" }) through the same dateStripped() twice
+  // (1.5 s apart, identical) — then removed. Legacy wording (SWMS_NOV2_WORDING_ON false, legacy downlight step) because
+  // b62f5fd had no 2 Nov wording; the three signatures are the ones above.
+  const OLD_BUILDER_SHA = "5ddef7246732200500f900329ffefff8db2e158c25f7d430e451813ff96f815c";
+  const legacyPlan = buildSwms({ ...facts, houseSteps: [swmsHouseStepTexts(false).downlights] });
+  test("the flag is false: buildSwmsPdf still draws the WorkSafe landscape layout, byte-for-byte the old builder (b62f5fd sha pin)", async () => {
     expect(PDF_LOOK_APPROVED.swms).toBe(false);
-    const a = await buildSwmsPdf(plan, sigs, { recordRef: "swms:test" });
-    const b = await buildSwmsPdf(plan, sigs, { recordRef: "swms:test", look: "worksafe" });
+    const a = await buildSwmsPdf(legacyPlan, sigs, { recordRef: "swms:test" });
+    const b = await buildSwmsPdf(legacyPlan, sigs, { recordRef: "swms:test", look: "worksafe" });
     const doc = await PDFDocument.load(a.bytes);
     expect(doc.getPage(0).getSize()).toEqual({ width: SWMS_PAGE.width, height: SWMS_PAGE.height });
     expect(a.layout.mainHeaderPages.length).toBeGreaterThan(0);
-    // pdf-lib stamps a creation time; compare everything but the two date strings.
-    const strip = (x: Uint8Array) => Buffer.from(x).toString("latin1").replace(/D:\d{14}[^)]*/g, "D:");
-    expect(strip(a.bytes)).toBe(strip(b.bytes));
+    expect(sha(await dateStripped(a.bytes))).toBe(OLD_BUILDER_SHA);
+    expect(sha(await dateStripped(b.bytes))).toBe(OLD_BUILDER_SHA);
   });
   test("with the flag on (overridden) the website look is used", async () => {
     PDF_LOOK_APPROVED.swms = true;
