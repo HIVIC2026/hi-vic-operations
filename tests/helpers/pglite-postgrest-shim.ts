@@ -2,6 +2,8 @@
 // updates (eq/is/in/neq + select) runs against REAL Postgres row locking in tests. Never touches the live database.
 import type { PGlite } from "@electric-sql/pglite";
 
+/** `details->>key` (PostgREST JSON text path) → ("details"->>'key'); a plain column → "col". */
+const colRef = (c: string) => { const m = /^([a-z_0-9]+)->>([a-z_0-9]+)$/.exec(c); return m ? `("${m[1]}"->>'${m[2]}')` : `"${c}"`; };
 type Filter = { sql: string; vals: unknown[] };
 const splitTop = (x: string) => { const out: string[] = []; let d = 0, cur = ""; for (const ch of x) { if (ch === "(") d++; if (ch === ")") d--; if (ch === "," && d === 0) { out.push(cur.trim()); cur = ""; continue; } cur += ch; } if (cur.trim()) out.push(cur.trim()); return out; };
 /** PostgREST logical filter terms → SQL with $? placeholders (eq/neq/gt/gte/lt/lte/is/in/like/ilike, not.*, nested and/or). */
@@ -31,7 +33,7 @@ export function postgrestShim(db: PGlite, options: { jsonColumns?: Record<string
       const b = {
         select(c = "*", o?: { count?: string; head?: boolean }) { if (op !== "select") returning = c; else { cols = c; head = !!o?.head; wantCount = o?.count === "exact"; } return b; },
         update(p: Record<string, unknown>) { op = "update"; patch = p; return b; },
-        eq(c: string, v: unknown) { filters.push({ sql: `"${c}" = $?`, vals: [v] }); return b; },
+        eq(c: string, v: unknown) { filters.push({ sql: `${colRef(c)} = $?`, vals: [v] }); return b; },
         neq(c: string, v: unknown) { filters.push({ sql: `"${c}" <> $?`, vals: [v] }); return b; },
         gte(c: string, v: unknown) { filters.push({ sql: `"${c}" >= $?`, vals: [v] }); return b; },
         gt(c: string, v: unknown) { filters.push({ sql: `"${c}" > $?`, vals: [v] }); return b; },
@@ -40,7 +42,7 @@ export function postgrestShim(db: PGlite, options: { jsonColumns?: Record<string
         is(c: string, v: null) { filters.push({ sql: `"${c}" IS ${v === null ? "NULL" : "NOT NULL"}`, vals: [] }); return b; },
         contains(c: string, v: unknown) { filters.push({ sql: `"${c}" @> $?::jsonb`, vals: [JSON.stringify(v)] }); return b; },
         ilike(c: string, v: string) { filters.push({ sql: `"${c}" ILIKE $?`, vals: [v] }); return b; },
-        in(c: string, v: unknown[]) { filters.push({ sql: `"${c}" = ANY($?)`, vals: [v] }); return b; },
+        in(c: string, v: unknown[]) { filters.push({ sql: `${colRef(c)} = ANY($?)`, vals: [v] }); return b; },
         /** PostgREST `or` string on this table's columns ("a.is.null,a.not.in.(x,y)"). */
         or(expr: string) { const vals: unknown[] = []; filters.push({ sql: `(${orTerms(expr, vals)})`, vals }); return b; },
         insert(p: Record<string, unknown>) { op = "insert"; patch = p; return b; },

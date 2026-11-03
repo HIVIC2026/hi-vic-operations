@@ -46,7 +46,7 @@ await db.exec(`insert into public.businesses(id, name, email, signer_mobile, is_
   create table public.appointment_proposals(id uuid primary key default gen_random_uuid(), job_id uuid, piesa_window_round int, status text, starts_at timestamptz);
   insert into public.jobs(id, source, channel, originating_installer_business_id) values ('${JOB_F}', 'website', 'hivic_sourced', '${TOM}');
   insert into public.partner_offers values ('${OFFER_P}', '${JOB}', '${TOM}', 'piesa', 'pending', '{"suburb":"Preston","job_number":"HIV-1","approx_area_m2":80,"electrician_rate_inc_gst":300}', now(), now() + interval '1 day');`);
-await db.exec(`update public.workflow_settings set sms_message_switches = '{"piesa_offer":true,"job_offer":true,"team_member_invite":true,"install_tomorrow":true,"swms_sign_link":true,"quote_ready":true,"owner_code":true}' where id = 1`);
+await db.exec(`update public.workflow_settings set sms_message_switches = '{"piesa_offer":true,"daily_mitti":true,"job_offer":true,"team_member_invite":true,"install_tomorrow":true,"swms_sign_link":true,"quote_ready":true,"owner_code":true}' where id = 1`);
 
 const twilio: string[] = [];
 const emails: { to: string; subject: string }[] = [];
@@ -76,6 +76,7 @@ const { textInstallerAboutOffer, emailInstallerAboutOffer } = await import("../s
 const { textTeamMemberInvite } = await import("../src/lib/installer-texts.server");
 const { textElectricianAboutOffer } = await import("../src/lib/trade-messages.server");
 
+await db.exec("update public.workflow_settings set daily_mitti_text_enabled = true where id = 1");
 const setPaused = (on: boolean) => db.query("update public.workflow_settings set trade_messages_paused = $1 where id = 1", [on]);
 const smsRows = async (prefix: string) => (await db.query<{ idempotency_key: string; status: string; detail: string | null }>("select idempotency_key, status, detail from public.sms_messages where idempotency_key like $1 order by created_at, idempotency_key", [`${prefix}%`])).rows;
 const officeEmailRecords = async () => (await db.query<{ details: { to: string; status: string; detail: string } }>("select details from public.admin_config_events where event_type = 'office_manual_email' order by created_at, id")).rows.map((r) => r.details);
@@ -183,5 +184,14 @@ describe("flagged business: senders pass their ids (Jo 31 Oct)", () => {
     expect(r).not.toMatch(/^held/);
     expect(r).toMatch(/^electrician sms sent/);
     expect(twilio.length).toBe(t0 + 1);
+  });
+  test("digest_first_job_flagged_for_unflagged_trade_held", async () => {
+    // A daily Mitti digest covers several jobs: its first job (flagged originating installer) must not lift the hold for the unflagged trade.
+    const digest = { type: "daily_mitti" as const, to: "0412 345 678", body: "Good morning! Your jobs today", jobId: JOB_F, businessId: BIZ };
+    expect(await sendRealSms({ ...digest, idempotencyKey: "daily-mitti:digest-old" })).toMatchObject({ status: "sent" }); // job id alone would lift it
+    const r = await sendRealSms({ ...digest, idempotencyKey: "daily-mitti:digest-new", pauseByBusinessOnly: true });
+    expect(r).toMatchObject({ status: "blocked", detail: "Trade messages paused" });
+    const { readFileSync: read } = await import("node:fs");
+    expect(read("src/lib/daily-mitti-text.server.ts", "utf8")).toContain("pauseByBusinessOnly: true");
   });
 });
