@@ -12,6 +12,7 @@ import { mjEmail, esc } from "./mail-mjml.core";
 import { AP_DETAILS } from "./veec-assignment-form.core";
 import { insulationLineWithCodes } from "./invoice-itemisation.core";
 import { bankDetailLines, type BankDetails } from "./payments.core";
+import { COMPLAINT_LINE, contactLine, type BusinessContact } from "./owner-wording.core";
 
 /** Decision 209: the installed product line as it appears on the Xero invoice, with the exact ESC model code(s) when known. */
 export type InstalledLine = { description: string; escModelCodes: string[] };
@@ -22,6 +23,16 @@ export const BUSINESS_LINE = [`${K.ENTITY_LINE} trading as Home Insulation Victo
 export const COMPLETION_EMAILS_APPROVED = true as boolean;
 /** Decision 169: the All done email carries the rebate-form signing request, so it goes to real owners (behind customer_comms_enabled). */
 export const INSTALL_COMPLETE_EMAIL_APPROVED = true as boolean;
+
+/** Part 4 Task 9 (touchpoint 52, done2.png): ONE "All done" email at completion, paid or not. OFF = the current wording
+ *  (same purpose `install_complete`, same key). The contacts block and the "Attached:" line are drafts for Jo. */
+export const ALL_DONE_V2_APPROVED = false as boolean;
+/** Who owners can contact (cl 26): Home Insulation Victoria (the Accredited Person), the installer and, when there was electrical work, the electrician. Trades by OFFICE phone only. */
+export type AllDoneContacts = { ap: BusinessContact; installer: BusinessContact; electrician: BusinessContact | null };
+/** Home Insulation Victoria's own contact line: no phone is printed (the approved picture lists the email only). */
+export const HIV_AP_CONTACT: BusinessContact = { name: "Home Insulation Victoria", tradingName: null, officePhone: null, email: "info@homeinsulationvictoria.com.au" };
+/** Which documents this send really carries (the "Attached:" line only names those). */
+export type AllDoneAttached = { taxInvoice: boolean; rebateForm: boolean; warranty: boolean; instructions: boolean };
 
 type Installer = { name: string | null; phone?: string | null };
 const installerLine = (ins: Installer | null | undefined, action: string) => {
@@ -34,6 +45,8 @@ export type InstallCompleteInput = {
   balancePaid: boolean; signRebateFormUrl: string | null; test?: boolean;
   /** Decision 321: product names whose manufacturer warranty PDF is attached to this email; [] / omitted = none attached. */
   attachedWarranties?: string[];
+  /** Task 9 (flag ALL_DONE_V2_APPROVED): the balance in cents, the Sign and pay link (`?screen=finish`), the contacts block and which documents are attached. */
+  balanceCents?: number; signAndPayUrl?: string; contacts?: AllDoneContacts; attached?: AllDoneAttached;
 };
 
 /** Decision 321: the one line O44 / O47 print when a manufacturer warranty PDF is attached (null = none attached). */
@@ -50,8 +63,71 @@ const numRows = (steps: K.Step[]) => steps.map((s, n) => {
 }).join("");
 const tickRows = (items: string[]) => items.map((t) => `<tr><td width="32" valign="top" style="padding:2px 0 12px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 12px;">${esc(t)}</td></tr>`).join("");
 
-/** Decision 101/119: "All done, {First}. Enjoy a warmer home!" with the rebate-form signing request. */
-export function renderInstallCompleteEmail(i: InstallCompleteInput) {
+/** Why the All done email must wait (null = ready): the installer, and the electrician when there was electrical work, need an OFFICE phone and a business email (cl 26; never a worker's mobile). */
+export function allDoneContactHold(installer: BusinessContact | null, electrician: BusinessContact | null): string | null {
+  if (!installer) return "No installer office on file";
+  const miss = (b: BusinessContact) => { const n = b.tradingName?.trim() || b.name.trim(); return !b.officePhone?.trim() ? `No office phone for ${n}` : !b.email?.trim() ? `No business email for ${n}` : null; };
+  return miss(installer) ?? (electrician ? miss(electrician) : null);
+}
+
+/** Draft for Jo: names only the documents that are really attached. null = nothing attached. */
+export function allDoneAttachedLine(a: AllDoneAttached | null | undefined): string | null {
+  if (!a) return null;
+  const parts = [a.taxInvoice && "your tax invoice", a.rebateForm && "the rebate form to read before you sign", a.warranty && "your product warranty", a.instructions && "the manufacturer's instructions"].filter(Boolean) as string[];
+  if (!parts.length) return null;
+  const list = parts.length === 1 ? parts[0]! : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+  return `Attached: ${list} (PDFs). Once it's all done, we'll send your signed forms.`;
+}
+
+/** Draft for Jo: "name · phone · email", leaving out whatever is not held (a trade is held before this if its phone or email is missing). */
+const contactRow = (b: BusinessContact) => contactLine(b) ?? [b.tradingName?.trim() || b.name.trim(), b.officePhone?.trim() || null, b.email?.trim() || null].filter(Boolean).join(" · ");
+
+/** Touchpoint 52 (done2.png), verbatim where Jo gave it; see the Task 9 notes for the drafted lines. */
+function renderAllDoneV2(i: InstallCompleteInput) {
+  const first = K.cleanName(i.firstName) ?? "there";
+  const c = i.contacts ?? null;
+  const installer = (c ? c.installer.tradingName?.trim() || c.installer.name.trim() : null) || i.installer?.name?.trim() || "Your installer";
+  const subject = `All done, ${first}. Enjoy a warmer home!`;
+  const heading = "All done. Enjoy a warmer home!";
+  const intro = `${installer} finished installing your ceiling insulation today.`;
+  const due = !i.balancePaid && (i.balanceCents ?? 0) > 0;
+  const balance = K.cents((i.balanceCents ?? 0) / 100);
+  const rebateAmt = i.rebate && i.rebate > 0 ? K.whole(i.rebate) : null;
+  const signUrl = i.signAndPayUrl ?? i.signRebateFormUrl ?? null;
+  const title = due ? "Two last things, one page" : "One last thing";
+  const item1 = `${due ? "1. " : ""}Sign your rebate form. It confirms what was installed and lets us claim the ${rebateAmt ? `${rebateAmt} ` : ""}rebate you've already had off your price.`;
+  const item2 = due ? `2. Pay your balance: ${balance}, due today.` : null;
+  const button = due ? "Sign and pay" : "Sign your rebate form";
+  const small = due ? "Takes about a minute. Card or bank transfer." : "Takes about a minute.";
+  const rows: { k: string; v: string; green?: boolean; nowrap?: boolean }[] = [
+    ...(i.product || i.areaM2 ? [{ k: "Installed", v: [i.areaM2 ? K.m2(i.areaM2) : null, i.product?.trim() || null].filter(Boolean).join(" ") }] : []),
+    ...(rebateAmt ? [{ k: "Your rebate", v: `${rebateAmt} off`, green: true, nowrap: true }] : []),
+    ...(due ? [{ k: "Balance due today", v: balance, nowrap: true }] : []),
+  ];
+  const attachedLine = allDoneAttachedLine(i.attached);
+  const people = c ? [`Home Insulation Victoria (Accredited Person) · ${c.ap.email?.trim() || HIV_AP_CONTACT.email}`, contactRow(c.installer), ...(c.electrician ? [contactRow(c.electrician)] : [])] : [];
+  const rowHtml = rows.map((r, n) => {
+    const top = n === 0 ? "" : BT;
+    return `<tr><td style="padding:10px 0;${top}color:#5A6785;">${esc(r.k)}</td><td align="right" style="padding:10px 0 10px 12px;${top}${r.nowrap ? "white-space:nowrap;" : ""}${r.green ? "color:#057D40;" : ""}"><strong>${esc(r.v)}</strong></td></tr>`;
+  }).join("");
+  const peopleHtml = people.map((p, n) => `<tr><td style="padding:8px 0;${n === 0 ? "" : BT}">${esc(p)}</td></tr>`).join("");
+  const body = [
+    `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${esc(heading)}</mj-text><mj-text>${esc(intro)}</mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column><mj-text mj-class="h2" css-class="email-sub" padding="18px 12px 6px">${esc(title)}</mj-text><mj-text>${esc(item1)}${item2 ? `<br /><br />${esc(item2)}` : ""}</mj-text>${signUrl ? `<mj-button href="${esc(signUrl)}">${esc(button)}</mj-button>` : ""}<mj-text mj-class="small" padding="0 12px">${esc(small)}</mj-text></mj-column></mj-section>`,
+    rows.length ? `<mj-section><mj-column mj-class="panel-card"><mj-table padding="8px 18px 8px">${rowHtml}</mj-table></mj-column></mj-section>` : "",
+    attachedLine ? `<mj-section><mj-column><mj-text mj-class="small" padding="10px 12px 0">${esc(attachedLine)}</mj-text></mj-column></mj-section>` : "",
+    people.length ? `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 6px">Your contacts</mj-text><mj-table padding="0 18px 8px">${peopleHtml}</mj-table></mj-column></mj-section>` : "",
+    `<mj-section><mj-column><mj-text mj-class="small" padding="14px 12px 0">${esc(COMPLAINT_LINE)}</mj-text></mj-column></mj-section>`,
+  ].join("");
+  const preview = due ? `Two last things: sign your rebate form and pay your balance, ${balance}.` : "One last thing: sign your rebate form. It takes a minute.";
+  const html = mjEmail({ subject, preview, body, unsubscribe: null, testLabel: i.test === true });
+  const text = K.plainText([subject, "", heading, intro, "", title, item1, ...(item2 ? [item2] : []), ...(signUrl ? [`${button}: ${signUrl}`] : []), small, "", ...rows.map((r) => `${r.k}: ${r.v}`), ...(attachedLine ? ["", attachedLine] : []), ...(people.length ? ["", "YOUR CONTACTS", ...people] : []), "", COMPLAINT_LINE], { testLabel: i.test === true });
+  return { subject, html, text };
+}
+
+/** Decision 101/119: "All done, {First}. Enjoy a warmer home!" with the rebate-form signing request. `v2` = touchpoint 52 (default: ALL_DONE_V2_APPROVED). */
+export function renderInstallCompleteEmail(i: InstallCompleteInput, v2: boolean = ALL_DONE_V2_APPROVED) {
+  if (v2) return renderAllDoneV2(i);
   const first = K.cleanName(i.firstName) ?? "there";
   const installer = i.installer?.name?.trim() || "Your installer";
   const subject = `All done, ${first}. Enjoy a warmer home!`;

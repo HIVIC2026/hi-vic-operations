@@ -269,6 +269,8 @@ async function finalInvoiceFor(jobId: string, now: Date): Promise<FinalInvoiceDu
  */
 export async function onFinalInvoiceDue(jobId: string, now = new Date()): Promise<string> {
   try {
+    // Touchpoint 52: with the new All done email (tax invoice, rebate form and the balance in ONE email) there is no separate final-invoice email.
+    if ((await import("./completion-emails.core")).ALL_DONE_V2_APPROVED) return "not due — the balance is in the All done email";
     const due = await finalInvoiceFor(jobId, now);
     if (!due.ok) return `not due — ${due.reason}`;
     const invoiceId = due.invoiceId;

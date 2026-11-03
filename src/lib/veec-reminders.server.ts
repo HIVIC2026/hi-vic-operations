@@ -33,6 +33,8 @@ async function installCompleteFacts(jobId: string) {
     areaM2: ag?.quoted_area_m2 != null && Number(ag.quoted_area_m2) > 0 ? Number(ag.quoted_area_m2) : null,
     rebate: rebate > 0 ? rebate : null,
     balancePaid: total != null && total > 0 && paid + 0.005 >= total,
+    /** Task 9: what is still owed on the installation invoice, in cents (the invoice total is already after the rebate). */
+    balanceCents: total != null && total > 0 ? Math.max(0, Math.round((total - paid) * 100)) : 0,
   };
 }
 
@@ -47,6 +49,16 @@ export async function sendVeecSignStep(jobId: string, step: VeecReminderStep): P
   }
   if ((await doneSteps(jobId)).includes(step)) return "already handled";
   const request = step === "request";
+  // Touchpoint 52: the All done email waits (step NOT recorded, so the next tick tries again) while an office phone/email or the
+  // tax invoice is missing. Flag off = unchanged.
+  if (request) {
+    const { ALL_DONE_V2_APPROVED } = await import("./completion-emails.core");
+    if (ALL_DONE_V2_APPROVED) {
+      const ad = await import("./all-done.server");
+      const hold = await ad.allDoneHold(jobId);
+      if (hold) { await ad.logAllDoneHeld(jobId, hold); return `held — ${hold}`; }
+    }
+  }
   await logEvent(jobId, null, VEEC_REMINDER_EVENT, request ? `VEEC assignment signing request (${step}) prepared for the owner: ${REQUEST_CARRIED_BY_ALL_DONE} plus the approved text` : `VEEC assignment signing reminder (${step}) prepared for the owner`, { step, ...(request ? { email: REQUEST_CARRIED_BY_ALL_DONE } : {}) }, { internal: true });
   const { data: job } = await admin.from("jobs").select("owner_id, source").eq("id", jobId).maybeSingle();
   if (!job) return "skipped";
@@ -67,7 +79,7 @@ export async function sendVeecSignStep(jobId: string, step: VeecReminderStep): P
   if (request) {
     // The All done email IS the request (decision 169). One per job by its own key, TEST → test-send, real → guarded path.
     const { emailOwnerInstallComplete } = await import("./approved-owner-emails.server");
-    out.push(`All done email ${await emailOwnerInstallComplete(jobId, { product: facts.product, areaM2: facts.areaM2, rebate: facts.rebate, balancePaid: facts.balancePaid, signRebateFormUrl: url })}`);
+    out.push(`All done email ${await emailOwnerInstallComplete(jobId, { product: facts.product, areaM2: facts.areaM2, rebate: facts.rebate, balancePaid: facts.balancePaid, balanceCents: facts.balanceCents, signRebateFormUrl: url })}`);
   }
   if (job.source === "qa_test") {
     const { isTestPartner } = await import("./test-send.core");

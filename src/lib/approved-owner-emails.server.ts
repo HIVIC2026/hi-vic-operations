@@ -62,9 +62,19 @@ export async function emailOwnerInstallDayChanged(jobId: string, startIso: strin
     render: (f) => renderInstallDayChangedEmail({ firstName: f.firstName, installerName: f.installerName, installerPhone: f.installerPhone, address: f.address, when: formatInstallDay(startIso), was: formatInstallDay(wasIso), myJobUrl: f.myJobUrl, test: f.test }) });
 }
 
-export async function emailOwnerInstallComplete(jobId: string, i: Omit<import("./completion-emails.core").InstallCompleteInput, "firstName" | "installer" | "test" | "attachedWarranties">) {
+export async function emailOwnerInstallComplete(jobId: string, i: Omit<import("./completion-emails.core").InstallCompleteInput, "firstName" | "installer" | "test" | "attachedWarranties" | "signAndPayUrl" | "contacts" | "attached">, opts: { v2?: boolean } = {}) {
   // Decision 169: this is the day-0 VEEC signing request (one per job by key), sent from veec-reminders.server.ts.
-  const { INSTALL_COMPLETE_EMAIL_APPROVED, renderInstallCompleteEmail } = await import("./completion-emails.core");
+  const { INSTALL_COMPLETE_EMAIL_APPROVED, ALL_DONE_V2_APPROVED, renderInstallCompleteEmail } = await import("./completion-emails.core");
+  // Part 4 Task 9 (touchpoint 52): with ALL_DONE_V2_APPROVED this ONE email also carries the tax invoice, the rebate form, the
+  // manufacturer's instructions and the contacts, whether or not the balance is paid. Same purpose and key as before.
+  const v2 = opts.v2 ?? ALL_DONE_V2_APPROVED;
+  let contacts: import("./completion-emails.core").AllDoneContacts | undefined;
+  if (v2) {
+    const ad = await import("./all-done.server");
+    const c = await ad.allDoneContacts(jobId);
+    if ("hold" in c) { await ad.logAllDoneHeld(jobId, c.hold); return `held — ${c.hold}`; }
+    contacts = c.contacts;
+  }
   // Decision 321: the manufacturer warranty PDF(s) for the installed product(s) go with this email, and
   // `warranty_copy_provided` is recorded after a confirmed send (no longer waiting for full payment). Missing PDF: send
   // anyway, record nothing (the AP signature holds with "Warranty copy for <product> not on file").
@@ -74,8 +84,18 @@ export async function emailOwnerInstallComplete(jobId: string, i: Omit<import(".
   try { decision = await pw.warrantyDecisionFor(jobId); copies = await pw.prepareWarrantyCopies(jobId, null, decision); }
   catch (e) { console.error("All done email: warranty copy skipped", jobId, (e as Error).message); }
   const attachedNames = copies.attached.map((w) => w.productName);
-  const r = await sendOwnerTemplateEmail({ jobId, purpose: "install_complete", key: `install-complete:v1:${jobId}`, approved: INSTALL_COMPLETE_EMAIL_APPROVED, label: "Install complete email", notSentEvent: "install_complete_email_not_sent", ...(copies.attachments.length ? { attachments: copies.attachments } : {}),
-    render: (f) => renderInstallCompleteEmail({ ...i, firstName: f.firstName, installer: { name: f.installerName, phone: f.installerPhone }, attachedWarranties: attachedNames, test: f.test }) });
+  let extra: import("./email-kit.core").EmailAttachment[] = [];
+  let attached: import("./completion-emails.core").AllDoneAttached | undefined;
+  if (v2) {
+    const ad = await import("./all-done.server");
+    const made = await ad.allDoneAttachments(jobId, decision?.products ?? []);
+    if (made.hold) { await ad.logAllDoneHeld(jobId, made.hold); return `held — ${made.hold}`; }
+    extra = made.attachments;
+    attached = { ...made.attached, warranty: copies.attached.length > 0 };
+  }
+  const all = [...copies.attachments, ...extra];
+  const r = await sendOwnerTemplateEmail({ jobId, purpose: "install_complete", key: `install-complete:v1:${jobId}`, approved: INSTALL_COMPLETE_EMAIL_APPROVED, label: "Install complete email", notSentEvent: "install_complete_email_not_sent", ...(all.length ? { attachments: all } : {}),
+    render: (f) => renderInstallCompleteEmail({ ...i, firstName: f.firstName, installer: { name: f.installerName, phone: f.installerPhone }, attachedWarranties: attachedNames, test: f.test, ...(v2 ? { contacts, attached, signAndPayUrl: `${f.myJobUrl}?screen=finish` } : {}) }, v2) });
   if (decision) {
     const { recordWarrantyCopyProvided } = await import("./completion-pack.server");
     await recordWarrantyCopyProvided(jobId, null, { via: "all_done_email", result: r, decision, attached: copies.attached, missing: copies.missing }).catch((e: Error) => console.error("All done email: warranty record skipped", jobId, e.message));
