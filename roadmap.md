@@ -927,3 +927,11 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] Jo 3 Nov 7:46pm: optional installer Add email box and shared missing-only save; email still optional with no required-detail prompt. Red-first rules and actual-handler two-boss/duplicate/no-overwrite tests passed; related Team/privacy tests 80/0, automatic checks clean. Authenticated live save not run because data changes prohibited; no live data, sends or publishing.
 - Installers: Australian mobile + date of birth required, email optional. Electricians: mobile + date of birth + email. Form + Team add + office/boss add enforce it; Team page shows "Add X's …" prompts. No data changed.
 - [x] Jo 3 Nov ~3pm: Team page boxes to fill a missing date of birth (anyone, private) and missing email (electricians only); sign-up link asks date of birth (required, private). Tests pass; no data changed.
+
+## Mitti auto-invite for Leads (Jo 3 Nov 8:11pm)
+- [x] Q3: Lead with no own email waits ("Mitti invite waiting for Lead's own email"); invited when the boss adds it
+- [x] Q5: Leads approved while paused → Needs me "Mitti invite waiting for pause to lift"; Send only on Jo's confirm
+- [x] Step 1(a) find-by-email checked (real Mitti)
+- [ ] Step 1(b)/(d) create + deactivate TEST user — blocked: jolowexo@hotmail.com is already a Mitti user; needs Jo's choice
+- [ ] Step 1(c) add to group — waiting for MITTI_TRADES_GROUP_ID
+- [ ] Switch on (MITTI_AUTO_INVITE_ENABLED + verified flag) — waiting for Jo after step 1
