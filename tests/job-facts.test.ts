@@ -144,12 +144,36 @@ describe("answerFromFacts: anything it can't be sure of goes to the database (nu
   });
 });
 
+// The admin client the server module imports: a stand-in whose answers each test sets (`stub.answer`), recording what was asked.
+type Asked = { table: string; ops: QueryOp[] };
+const stub = { asked: [] as Asked[], answer: (_q: Asked): unknown => ({ data: [{ from: "db" }], error: null }) };
+const stubFrom = (table: string) => {
+  const ops: QueryOp[] = [];
+  const b: unknown = new Proxy({}, { get(_, m) {
+    if (m === "then") return (ok: (v: unknown) => unknown) => { const q = { table, ops }; stub.asked.push(q); return Promise.resolve(stub.answer(q)).then(ok); };
+    return (...a: unknown[]) => { ops.push({ m: String(m), a }); return b; };
+  } });
+  return b;
+};
+mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: stubFrom, rpc: async () => ({ data: null, error: null }) } }));
+const quiet = async <T,>(f: () => Promise<T>): Promise<{ value: T; errors: string[] }> => { const errors: string[] = []; const e = console.error; console.error = (...a: unknown[]) => { errors.push(a.map(String).join(" ")); }; try { return { value: await f(), errors }; } finally { console.error = e; } };
+
+describe("the three facts reads", () => {
+  test("a failed read is logged and gives null (the sections then read for themselves)", async () => {
+    const { loadJobFacts, loadBusinessFacts, loadSettingsFacts } = await import("../src/lib/job-facts.server");
+    stub.answer = () => ({ data: null, error: { message: "boom" } });
+    const access = { checkedFor: { jobId: J }, biz: { id: "b1" } } as never;
+    const r = await quiet(() => Promise.all([loadJobFacts(J, access), loadBusinessFacts("b1", access), loadSettingsFacts()]));
+    expect(r.value).toEqual([null, null, null]);
+    expect(r.errors).toEqual(["job facts read failed; sections read for themselves boom", "business facts read failed; sections read for themselves boom", "settings facts read failed; sections read for themselves boom"]);
+  });
+});
+
 describe("jobFactsClient: answers, asks once, and steps aside after a write", () => {
   test("facts answer the answerable; others go to the database once; a write stops answering", async () => {
     const sent: string[] = [];
     // A stand-in database client: records each query it is sent and answers a recognisable value.
     const base = { from: (t: string) => { const ops: string[] = []; const b: Record<string, unknown> = {}; for (const m of ["select", "eq", "in", "order", "limit", "maybeSingle", "insert"]) b[m] = (...a: unknown[]) => { ops.push(`${m}(${JSON.stringify(a)})`); return b; }; b["then"] = (ok: (v: unknown) => unknown) => { sent.push(`${t}.${ops.join(".")}`); return Promise.resolve({ data: [{ from: "db" }], error: null }).then(ok); }; return b; } };
-    mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: base }));
     const { jobFactsClient } = await import("../src/lib/job-facts.server");
     let loads = 0;
     const db = jobFactsClient([{ tables: { workflow_events: { col: "job_id", value: J } }, load: async () => { loads++; return facts; } }], base as never) as unknown as { from: (t: string) => Record<string, (...a: unknown[]) => unknown> & PromiseLike<{ data: unknown }> };

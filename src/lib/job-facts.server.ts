@@ -41,6 +41,7 @@ export async function loadBusinessFacts(businessId: string, access: TradeJobAcce
 /** The portal settings row (`workflow_settings` id 1), once. */
 export async function loadSettingsFacts(): Promise<Facts | null> {
   const { data, error } = await supabaseAdmin.from("workflow_settings").select("*").eq("id", 1).maybeSingle();
+  if (error) console.error("settings facts read failed; sections read for themselves", error.message);
   return error || !data ? null : settingsFactsFrom(data as unknown as Row);
 }
 
