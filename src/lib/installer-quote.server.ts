@@ -40,9 +40,9 @@ export async function quoteBillingBlocker(quoteId: string): Promise<string | nul
     if (ie) return "Quote electrical lines could not be checked";
     return (await import("./mitti-installer-quote.core")).mittiQuoteElectricalBlocker(lines ?? [], saved, current);
   }
-  const { data: items } = await admin.from("quote_items").select("code").eq("quote_id", quoteId);
+  const { data: items } = await admin.from("quote_items").select("code, line_total_inc_gst").eq("quote_id", quoteId);
   const { electricalLineBlocker } = await import("./installer-intake.core");
-  return electricalLineBlocker((items ?? []).map((i) => i.code), payerFromChoice(j.electrician_choice));
+  return electricalLineBlocker(items ?? [], payerFromChoice(j.electrician_choice));
 }
 
 export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: string | null, formEntries: { label: string; value: string | null }[], auditId: string, intakePrice?: { totalIncGst: number; includes: string; areaM2?: number; separateLines?: { code: string; description: string; amountIncGst: number }[]; exclusions?: string | null }) {
