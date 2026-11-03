@@ -74,9 +74,9 @@ describe("A5 adult at home (Jo 2 Nov 2026)", () => {
   test("template check: Q1-Q48 unaffected, form health lists the absent item", () => {
     const tpl = { items: installDayTemplate(INSTALL_DAY_QUESTIONS).items };
     expect(installDayMissingQuestions(tpl)).toEqual([]);
-    expect(installDayNov2MissingQuestions(tpl)).toEqual([ADULT_PRESENT_LABEL]);
+    expect(installDayNov2MissingQuestions(tpl)).toContain(ADULT_PRESENT_LABEL);
     const withIt = { items: [...tpl.items, { item_id: "x", label: ADULT_PRESENT_LABEL, type: "question" }] };
-    expect(installDayNov2MissingQuestions(withIt)).toEqual([]);
+    expect(installDayNov2MissingQuestions(withIt)).not.toContain(ADULT_PRESENT_LABEL);
     const health = validateSavedDefinition("piisa", tpl);
     expect(health.ok).toBe(true);
     expect(health.issues.some((i) => i.includes(ADULT_PRESENT_LABEL))).toBe(true);

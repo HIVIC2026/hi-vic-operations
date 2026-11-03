@@ -9,7 +9,7 @@ import { piisaAssessmentDay } from "./piisa-assessment-date.core";
 
 export type PiisaDeclSync = { status: "saved" | "already" | "pending" | "missing" | "no_form" | "error"; message: string };
 /** Decision 328: what the A5 sync read, for the install day confirmation (install-day-confirm.server). */
-export type A3SyncInfo = { auditId: string; completed: boolean; modifiedAt: string | null; installDay: boolean; finalTickTicked: boolean; summary: import("./install-evidence.core").InstallEvidenceSummary | null };
+export type A3SyncInfo = { auditId: string; completed: boolean; modifiedAt: string | null; installDay: boolean; finalTickTicked: boolean; partB?: { onForm: boolean; ticked: boolean; signature: import("./install-day.core").ReadSignature } | undefined; summary: import("./install-evidence.core").InstallEvidenceSummary | null };
 
 export async function syncPiisaDeclaration(jobId: string, actorId: string | null, call?: MittiCall, opts: { testTemplateId?: string; fetchMedia?: import("./mitti.server").MittiMediaFetch; onA3?: (info: A3SyncInfo) => void } = {}): Promise<PiisaDeclSync> {
   const { data: existing } = await admin.from("installer_declarations").select("id,snapshot").eq("job_id", jobId).eq("status", "signed").maybeSingle();
@@ -50,7 +50,7 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
   if (isA3 && opts.onA3) {
     const raw = audit as { modified_at?: unknown; audit_data?: { date_modified?: unknown } } | null;
     const mod = raw?.modified_at ?? raw?.audit_data?.date_modified;
-    opts.onA3({ auditId, completed: !!p.completed, modifiedAt: typeof mod === "string" && mod.trim() ? mod : null, installDay, finalTickTicked, summary: installEvidence });
+    opts.onA3({ auditId, completed: !!p.completed, modifiedAt: typeof mod === "string" && mod.trim() ? mod : null, installDay, finalTickTicked, partB: installDay ? (await import("./install-day.core")).installDayPartB(audit) : undefined, summary: installEvidence });
   }
   // Decision 213: once the form is Complete and the declaration is saved, every evidence check passing records the
   // installation through the one guarded path; anything outstanding is held and shown as the installer's Next line.

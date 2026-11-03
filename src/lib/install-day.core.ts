@@ -12,6 +12,7 @@ import { norm } from "./mitti.core";
 import { ADULT_PRESENT_LABEL, onsiteStartTicked } from "./official-short.core";
 import { B1_OPTIONS, type OfficialAnswers } from "./official-forms.core";
 import { sectionCSigned } from "./piesa-rules-notice.core";
+import { INSTALLER_DECLARATION } from "./veec-assignment-form.core";
 import { mittiMediaFile, type MittiMediaFile } from "./piesa-evidence.core";
 
 export const INSTALL_DAY_TEMPLATE_NAME = "A5 – Install day";
@@ -159,7 +160,21 @@ export function installDayRulerMissingQuestions(template: unknown): string[] {
 export const INSTALL_DAY_NOV2_Q = {
   /** DRAFT wording shared with A3 (Jo has not approved it yet). */
   adultPresent: ADULT_PRESENT_LABEL,
+  /** DRAFT labels (Jo has not approved them yet): the Lead Installer's VEEC Part B tick and signature on the new last page. */
+  partBTick: "I make this declaration as the Lead Installer",
+  partBSignature: "Lead Installer's signature for the rebate form (Part B)",
 } as const;
+/** The new last page of the A5 (after the page holding Q48). */
+export const INSTALL_DAY_PART_B_PAGE = "Rebate form (VEEC) — Lead Installer";
+/** Official ESC form v1.1 Section 3 Part B, derived from INSTALLER_DECLARATION (never retyped), without its blank signature line. */
+export const INSTALL_DAY_PART_B_TEXT = INSTALLER_DECLARATION.split("\n").filter((l) => !/^Installer signature:/.test(l)).join("\n").trimEnd();
+/** The Lead Installer's Part B on a saved A5. `onForm` false = built before the paste (not asked, never blocked). */
+export function installDayPartB(audit: unknown): { onForm: boolean; ticked: boolean; signature: ReadSignature } {
+  const items = labelledItems(audit);
+  const t = allWithLabel(items, INSTALL_DAY_NOV2_Q.partBTick);
+  const s = allWithLabel(items, INSTALL_DAY_NOV2_Q.partBSignature);
+  return { onForm: t.length > 0 || s.length > 0, ticked: t.some((i) => !!i.value), signature: s.find((i) => i.signature.present)?.signature ?? s[0]?.signature ?? NO_SIGNATURE };
+}
 /** Does the saved A5 carry the adult question at all? (false = built before the paste: not asked.) */
 export function installDayAdultOnForm(audit: unknown): boolean {
   return allWithLabel(labelledItems(audit), INSTALL_DAY_NOV2_Q.adultPresent).length > 0;
