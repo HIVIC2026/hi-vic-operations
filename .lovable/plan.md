@@ -1,18 +1,31 @@
-# HV-3682 quick-taps sharing repair (Jo chose this step only)
+# A1–A5 Mitti compatibility and electrical-upgrades wording
 
-## Background (read-only findings)
-- HV-2730 (Wayne Wilson): his "yes" saved on 2 Nov at 7:09pm. His OK to share his details failed 19 times, because quick taps saved it as a code sign-in and the database requires a verified code for that.
-- The 2 Nov fix (0187) is live. Wayne's OK saved at 9:03pm. His job is waiting normally: the batch closes about 7:07pm Thu 5 Nov Sydney, then Jo taps Send.
-- HV-3682 is the only other job affected. The owner said yes, but the OK to share is still not saved.
+## Before you send the prompt
+**Do not send it unchanged yet.** The full question-by-question source review is saved in `docs/MITTI_A1_A5_REBUILD_COMPATIBILITY_REVIEW.md`.
 
-## What will happen
-1. **Dry run** of the existing one-off repair. It lists owners who said yes but have no saved OK. Expected: HV-3682 only. I'll show you the list.
-2. **Apply, only after Jo OKs the list.** It saves HV-3682's OK once, from the owner's recorded "yes", through the same save the owner's own tap uses. It also logs a "quick_taps_share_repaired" entry in the job history.
-3. Confirm the saved OK afterwards.
+The main corrections are:
+- A3 main-switch isolation must say **excluding the mains cables**, including the No-detail option.
+- A3 solar Yes must confirm all four official facts, including shutdown/restart instructions and the accessible ground-level isolator.
+- A5 needs its existing per-area BEFORE and AFTER ruler evidence. Your AFTER multi-file question does not satisfy the omitted repeating ruler section today. Avoid collecting the AFTER photo twice.
+- Keep evidence in Ready Check area order; saying a name in a video does not automatically link it to an area.
+- Retained-insulation reason and occupancy must come from recorded facts or office review, never assumed answers. No repeat questions will be added without your agreement.
+- SWMS wording must include implemented controls; pack photos need model numbers; short videos can still exceed 250 MB.
+- Required electrician attendance must also cover missing alternative-supply instructions, not only PIESA’s attendance answer.
+- “All filled in” is a form check, not ESC approval or a guaranteed immediate text/payment. The existing job-page check remains available.
 
-Nothing is sent. No other jobs, settings or code change, and nothing is published. The repeat-logging change and closing batches early are not included.
+Unchanged official declarations, template IDs, consent, payment gates, private evidence and signed history stay protected. No Mitti draft has been changed or read back; this is source-level compatibility evidence.
 
-## Tests (practice database, before the live run)
-- The dry run lists only owners who said yes and have no saved OK. It skips declines, cancelled or deleted jobs, and anyone already saved.
-- Running the repair twice saves only one OK.
-- The 0187 checks still pass: a quick-tap OK saves for sharing only, and a code sign-in with no code is still refused.
+## What will change in the portal
+1. **Tests first:** literal new-label fixtures for all five forms, repeat/conditional/order cases, independent mains facts and old submissions.
+2. **A1/A2:** add exact aliases across contact/intake, prefills, access/eligibility stops, area names, measurements, insulation facts, media, layout pricing and diagrams. Keep every existing pricing/office-release guard.
+3. **A3:** map the four mains questions to their own official items. Scope repeated switch/RCD/solar defect lists independently; missing or inconsistent answers remain held. Add the other renamed question/evidence aliases.
+4. **A4:** read both old and new scope/completion/CoES/photo labels; preserve prefill and Section C safeguards. A template-title change alone will not change its identity.
+5. **A5:** share aliases across identification, prefills, official answers, evidence and question-health checks. Keep both timed signatures, final tick, before/after evidence, product/crew verification and official fact holds. The label-based A5 path uses its question check; historical native PIISA keeps its separate pinned definition.
+6. **Visible terminology:** use electrical upgrades/upgrades in current pages, Needs me, new emails/texts and quote/invoice descriptions. Keep internal routes/keys/columns/event names, old Mitti aliases, official wording and already-signed/issued records unchanged; list these exceptions in the result.
+7. Run focused and related tests and inspect automatic type/build results. Report existing failures separately. No manual build/typecheck is permitted by this environment. Verify two-user isolation if data-read logic changes.
+
+## What is not included
+No Mitti edits, messages, publishing, live-record edits, communication-switch changes, payment/eligibility redesign or weakening of official/evidence gates. Actual rebuilt-template validation stays pending until the drafts exist.
+
+## Technical approach
+Extend existing pure readers with explicit aliases rather than replacing historical constants. Preserve connected template IDs and first/second signature occurrence; distinguish repeat branches by their own context. Never infer facts from scores, file counts, speech, sibling answers or booking dates. Unresolved official fields remain named blockers.
