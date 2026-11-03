@@ -46,7 +46,13 @@ export function memoryPostgrest(tables: Tables) {
     return child.filter((c) => c[back] === row["id"]);
   };
   const project = (table: string, row: Row, sel: Sel): Row => {
-    const out: Row = sel.star || !sel.cols.length ? { ...row } : Object.fromEntries(sel.cols.map((c) => [c, row[c] ?? null]));
+    // `alias:column->key->key`: a JSON path read under the alias (e.g. `declared:enrichment->base44->declared`).
+    const col = (c: string): [string, unknown] => {
+      const j = /^([a-z_]+):([a-z_]+)((?:->[a-z_0-9]+)+)$/.exec(c);
+      if (!j) return [c, row[c] ?? null];
+      return [j[1]!, j[3]!.split("->").slice(1).reduce<unknown>((o, k) => (o && typeof o === "object" ? (o as Row)[k] : undefined), row[j[2]!]) ?? null];
+    };
+    const out: Row = sel.star || !sel.cols.length ? { ...row } : Object.fromEntries(sel.cols.map(col));
     if (!sel.star && sel.cols.length === 0 && sel.embeds.length) for (const k of Object.keys(out)) delete out[k];
     for (const e of sel.embeds) {
       const v = e.fk ? (T[e.name] ?? []).find((c) => c["id"] === row[e.fk!]) ?? null : embed(table, row, e.name);
@@ -104,8 +110,17 @@ export function memoryPostgrest(tables: Tables) {
           return b;
         },
         or(expr: string) {
-          const parts = expr.split(",").map((p) => { const [c, o, ...rest] = p.split("."); return { c: c!, o: o!, v: rest.join(".") }; });
-          filters.push((r) => parts.some(({ c, o, v }) => o === "is" && v === "null" ? r[c] == null : o === "lt" ? cmp(r[c], v) < 0 : o === "eq" ? String(r[c]) === v : (() => { throw new Error(`memory-postgrest: or(${o}) unsupported`); })()));
+          // Top-level commas only: `in.(a,"b")` and `cs.{a,b}` keep theirs.
+          const split: string[] = []; let depth = 0, cur = "";
+          for (const ch of expr) { if (ch === "(" || ch === "{") depth++; if (ch === ")" || ch === "}") depth--; if (ch === "," && depth === 0) { split.push(cur); cur = ""; } else cur += ch; }
+          split.push(cur);
+          const list = (v: string) => v.slice(1, -1).split(",").map((x) => x.trim().replace(/^"(.*)"$/, "$1"));
+          const parts = split.map((p) => { const [c, o, ...rest] = p.split("."); return { c: c!, o: o!, v: rest.join(".") }; });
+          filters.push((r) => parts.some(({ c, o, v }) => o === "is" && v === "null" ? r[c] == null : o === "lt" ? cmp(r[c], v) < 0 : o === "eq" ? String(r[c]) === v
+            : o === "neq" ? r[c] != null && String(r[c]) !== v
+            : o === "in" ? r[c] != null && list(v).includes(String(r[c]))
+            : o === "cs" ? Array.isArray(r[c]) && list(v).every((x) => (r[c] as unknown[]).map(String).includes(x))
+            : (() => { throw new Error(`memory-postgrest: or(${o}) unsupported`); })()));
           return b;
         },
         order(c: string, o?: { ascending?: boolean; nullsFirst?: boolean }) { orders.push({ col: c, asc: o?.ascending !== false, nullsFirst: o?.nullsFirst ?? o?.ascending === false }); return b; },
