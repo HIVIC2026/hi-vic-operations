@@ -4,7 +4,7 @@
 // Victoria sample-template layout (documents kind "swms", one file per signature set; layout swms-pdf.server.ts,
 // decision 358). Pure rules in swms.core.ts.
 // Never sends anything and never moves a stage.
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 import { WorkflowError, logEvent } from "./workflow.server";
 import { createHash } from "node:crypto";
 import { early } from "./early-read";

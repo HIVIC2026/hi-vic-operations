@@ -7,7 +7,7 @@
 // invoices.total_paid follows it down as well as up. Audit R06: every ledger row carries `details.receipt_key` (Stripe
 // PaymentIntent / refund state, Xero PaymentID / reversal) and pending migration payment-receipt-once.sql makes that key
 // unique, so two concurrent deliveries of one receipt write ONE row; the loser's 23505 reads as "already recorded".
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 import { logEvent, paymentGateActiveForJob } from "./workflow.server";
 import { currentFixesQuote, FIXES_ACCEPT_LATEST } from "./fixes-quote-current.server";
 import {

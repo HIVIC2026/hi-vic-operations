@@ -498,7 +498,9 @@ export async function confirmHivicReadyCheckPricing(jobId: string, userId: strin
 
 /** Money rows: own pay only. Paid = office marked paid; Coming = installers 7 days after AP approval (decisions 30/109/344),
  *  electricians within 7 days of the office approving the completed Mitti form (decision 410; never waits for the owner); else Being checked. */
-async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean) {
+/** `only` (speed, Task 11): just this job's installation rows, for the job page — the same rows the full list gives for it
+ *  (each installation row depends only on its own job's facts), without reading every job of the business. */
+async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean, only?: { jobId: string }) {
   const mine = kind === "installer" ? ["ready_check", "installation"] : ["assessment", "rectification"];
   // Night run 25 Oct 2026: the safety check booking stays "confirmed" after the PIESA (only the fixes / install visits are
   // marked completed), so the electrician's Money showed the Fixes row only. A confirmed safety check counts as done once
@@ -519,19 +521,20 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
   };
   const checkJobsOf = (done: Book[]) => [...new Map(done.filter((b) => b.kind === "assessment").map((b) => [b.job_id, { id: b.job_id, channel: (b.jobs as { channel?: string | null }).channel ?? null, originating_installer_business_id: (b.jobs as { originating_installer_business_id?: string | null }).originating_installer_business_id ?? null }])).values()];
   // Jo 26 Oct 2026: an installer that pays its own electricians (Reinsulate) is paid for the safety checks they did.
-  const displayP = kind === "installer" ? readInstallerPaidElectricians(bizId).catch((error: unknown) => {
+  // (Both read only for safety-check rows, which `only` never returns.)
+  const displayP = kind === "installer" && !only ? readInstallerPaidElectricians(bizId).catch((error: unknown) => {
     console.error("In-house partner display read failed", error);
     return null;
   }) : Promise.resolve(null);
   // Those safety checks are read now and kept only when the display payer allows them (as before; a read error = none).
-  const theirP: PromiseLike<{ data: Book[] | null }> = kind === "installer"
+  const theirP: PromiseLike<{ data: Book[] | null }> = kind === "installer" && !only
     ? admin.from("bookings").select(sel).is("jobs.deleted_at", null).eq("jobs.originating_installer_business_id", bizId).eq("kind", "assessment").in("status", ["completed", "confirmed"]).order("scheduled_start", { ascending: false }) as unknown as PromiseLike<{ data: Book[] | null }>
     : Promise.resolve({ data: [] });
   // An installer's safety-check payees come only from those checks, so their read starts as soon as the checks are in.
   const theirPayeesP = kind === "installer" ? Promise.resolve(theirP).then(({ data }) => safetyCheckPayeesFor(checkJobsOf(doneOf(data ?? [])))) : null;
   theirPayeesP?.catch(() => undefined); // used (with its logged catch) only when those checks are kept
   const [{ data: ownBooks }, displayPayer, { data: theirAll }, { data: piesaRates }] = await Promise.all([
-    admin.from("bookings").select(sel).is("jobs.deleted_at", null).eq("business_id", bizId).in("status", kind === "electrician" ? ["completed", "confirmed"] : ["completed"]).in("kind", mine as never).order("scheduled_start", { ascending: false }) as unknown as PromiseLike<{ data: Book[] | null }>,
+    (only ? admin.from("bookings").select(sel).is("jobs.deleted_at", null).eq("business_id", bizId).in("status", kind === "electrician" ? ["completed", "confirmed"] : ["completed"]).in("kind", mine as never).eq("job_id", only.jobId).eq("kind", "installation") : admin.from("bookings").select(sel).is("jobs.deleted_at", null).eq("business_id", bizId).in("status", kind === "electrician" ? ["completed", "confirmed"] : ["completed"]).in("kind", mine as never)).order("scheduled_start", { ascending: false }) as unknown as PromiseLike<{ data: Book[] | null }>,
     displayP,
     theirP,
     kind === "electrician" ? admin.from("electrician_rates").select("rate_inc_gst, effective_from").eq("business_id", bizId).eq("service_type", "piesa").in("status", ["active", "approved"]).order("effective_from", { ascending: false }).limit(1) : Promise.resolve({ data: [] as { rate_inc_gst: number | string | null }[] }),
@@ -1204,7 +1207,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     installFormFacts(jobId),
     clearanceP,
     c.kind === "installer" ? mittiJobPresentationServer.mittiJobPresentation(jobId, userId, c, shared).catch(() => ({ applies: false as const })) : Promise.resolve({ applies: false as const }),
-    c.boss ? tradeMoneyRows(c.biz.id, c.kind, c.isTest).then((rows) => rows.filter((r) => r.jobId === jobId && r.kind === "installation")) : Promise.resolve([] as Awaited<ReturnType<typeof tradeMoneyRows>>),
+    c.boss ? tradeMoneyRows(c.biz.id, c.kind, c.isTest, { jobId }).then((rows) => rows.filter((r) => r.jobId === jobId && r.kind === "installation")) : Promise.resolve([] as Awaited<ReturnType<typeof tradeMoneyRows>>),
     // Approved states (decision 234): the dates and names each panel prints, every one a recorded fact.
     admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "quote_declined").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "ready_check_basics").contains("details", { completed: true }).order("created_at", { ascending: false }).limit(1).maybeSingle(),
