@@ -150,3 +150,47 @@ describe("Home Insulation Victoria leads are untouched", () => {
     });
   });
 });
+
+// Task 3 follow-up (Task 2 review, judgement 4): the non-Mitti fallback branch of draftInstallerQuoteFromReadyCheck
+// (intake price, no electrician resolution) prices the SAME $349 fee + $349 PIESA lines with the approved labels and order.
+describe("own-customer draft without a Mitti electrician (intake fallback) — same lines as the Ready Check path", () => {
+  test("buildOwnCustomerQuoteDraft: $349 fee + $349 PIESA, approved labels, Insulation · fee · PIESA order", async () => {
+    const { buildOwnCustomerQuoteDraft } = await import("../src/lib/mitti-installer-quote.core");
+    const d = buildOwnCustomerQuoteDraft(baseInput);
+    expect(d.lines.map((l) => [l.code, l.description, l.line_total_inc_gst, l.sort])).toEqual([
+      ["INSTALLER_PRICE", "Insulation works by your installer — includes: R5.0 supply and install", 2000, 0],
+      ["AP_FEE", OWN_CUSTOMER_LABELS.apFee, 349, 1],
+      ["PIESA", OWN_CUSTOMER_LABELS.piesa, OWN_CUSTOMER_PIESA_INC_GST, 2],
+    ]);
+    expect(d.subtotal).toBe(2698);
+    expect(d.afterDiscount).toBe(2098);
+    expect(d.ready).toBe(true);
+    expect(d.blockers).toEqual([]);
+  });
+
+  test("the Ready Check path is the same draft plus the electrician's hold reasons", async () => {
+    const { buildOwnCustomerQuoteDraft } = await import("../src/lib/mitti-installer-quote.core");
+    const plain = buildOwnCustomerQuoteDraft(baseInput);
+    const withElectrician = buildMittiInstallerQuote(baseInput, readyElectrician);
+    expect(JSON.stringify(withElectrician)).toBe(JSON.stringify(plain));
+    const held = buildMittiInstallerQuote(baseInput, notOnboarded);
+    expect(held.lines).toEqual(plain.lines);
+    expect(held.blockers).toEqual([...plain.blockers, ...notOnboarded.reasons]);
+    expect(held.ready).toBe(false);
+  });
+
+  test("separately agreed extras sit between Insulation and the fee on the fallback too", async () => {
+    const { buildOwnCustomerQuoteDraft } = await import("../src/lib/mitti-installer-quote.core");
+    const d = buildOwnCustomerQuoteDraft({ ...baseInput, separateLines: [{ code: "INSTALLER_EXTRA", description: "Extra hatch", amountIncGst: 150 }] });
+    expect(sortedCodes(d)).toEqual(["INSTALLER_PRICE", "INSTALLER_EXTRA", "AP_FEE", "PIESA"]);
+    expect(d.subtotal).toBe(2848);
+  });
+
+  test("installer-quote.server: the non-Mitti branch calls buildOwnCustomerQuoteDraft, never the shared builder, and no longer reads piesaChargeIncGst", async () => {
+    const src = await Bun.file(new URL("../src/lib/installer-quote.server.ts", import.meta.url)).text();
+    const fn = src.slice(src.indexOf("export async function draftInstallerQuoteFromReadyCheck"));
+    expect(fn).toContain("buildOwnCustomerQuoteDraft(draftInput)");
+    expect(fn).not.toMatch(/\bbuildInstallerQuoteDraft\(/);
+    expect(fn).not.toContain("piesaChargeIncGst(");
+  });
+});

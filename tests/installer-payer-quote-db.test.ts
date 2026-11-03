@@ -138,21 +138,23 @@ describe("Jo 22 Oct Mitti three-option quote persistence on practice Postgres", 
 describe("server-drafted owner quote follows the CURRENT electrician payer", () => {
   beforeEach(() => seed(null));
 
-  test("HIV arranges: real quote_items carry the standard $349 PIESA line (HIV route unchanged)", async () => {
+  // Part 10 (Jo 2 Nov 2026): own customers always carry the $349 fee + $349 PIESA, in the approved order, whatever the choice.
+  test("HIV arranges: real quote_items carry Insulation · $349 fee · $349 PIESA", async () => {
     await db.query("update jobs set electrician_choice='hivic_organise'");
     await draftQuoteFromIntake(JOB, U);
     const [q] = await current();
-    expect(await items(q!.id)).toEqual(["INSTALLER_PRICE:3450", "PIESA:349", "AP_FEE:349"]);
+    expect(await items(q!.id)).toEqual(["INSTALLER_PRICE:3450", "AP_FEE:349", "PIESA:349"]);
     expect(Number(q!.subtotal_inc_gst)).toBe(4148);
+    const labels = (await db.query<{ description: string }>("select description from quote_items where quote_id=$1 and code in ('AP_FEE','PIESA') order by sort", [q!.id])).rows.map((r) => r.description);
+    expect(labels).toEqual(["Home Insulation Victoria fee", "Electrical safety check (PIESA)"]);
   });
 
-  test("own electrician: NO PIESA line, AP fee kept, separate-invoice note", async () => {
+  test("own electrician: the same $349 PIESA line (billed through us), AP fee kept", async () => {
     await db.query("update jobs set electrician_choice='preferred'");
     await draftQuoteFromIntake(JOB, U);
     const [q] = await current();
-    expect(await items(q!.id)).toEqual(["INSTALLER_PRICE:3450", "AP_FEE:349"]);
-    expect(Number(q!.subtotal_inc_gst)).toBe(3799);
-    expect(q!.discount_note).toContain("invoices you for it separately");
+    expect(await items(q!.id)).toEqual(["INSTALLER_PRICE:3450", "AP_FEE:349", "PIESA:349"]);
+    expect(Number(q!.subtotal_inc_gst)).toBe(4148);
   });
 
   test("undecided: no quote drafted (held), never a guessed $349", async () => {
@@ -165,7 +167,7 @@ describe("server-drafted owner quote follows the CURRENT electrician payer", () 
 describe("installer changes the payer later on the same job", () => {
   beforeEach(() => seed("hivic_organise"));
 
-  test("HIV -> own: old $349 draft superseded, fresh draft without PIESA, old declaration stops counting", async () => {
+  test("HIV -> own: old draft superseded, fresh draft keeps the $349 PIESA line, old declaration stops counting", async () => {
     await db.query("insert into workflow_events (job_id, event_type, details) values ($1,'installer_owner_fee_awareness',$2)", [JOB, JSON.stringify({ by: "installer", payer: "hivic", wording: FEE_AWARENESS_HIV_REC })]);
     await draftQuoteFromIntake(JOB, U);
     const before = (await current())[0]!;
@@ -175,7 +177,7 @@ describe("installer changes the payer later on the same job", () => {
     expect(all.find((q) => q.id === before.id)!.status).toBe("superseded");
     const now = await current();
     expect(now.length).toBe(1);
-    expect(await items(now[0]!.id)).toEqual(["INSTALLER_PRICE:3450", "AP_FEE:349"]);
+    expect(await items(now[0]!.id)).toEqual(["INSTALLER_PRICE:3450", "AP_FEE:349", "PIESA:349"]);
     const st = await installerIntakeState(JOB);
     expect(st.electricianPayer).toBe("own");
     expect(st.releaseBlockers.some((b) => /fee awareness/i.test(b))).toBe(true);

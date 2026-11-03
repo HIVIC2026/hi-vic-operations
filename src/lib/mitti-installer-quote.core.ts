@@ -11,7 +11,23 @@ import { MITTI_INSTALLER_FEE_INC_GST, type MittiElectricianResolution } from "./
  * the approved labels and order: Insulation · (extras) · Home Insulation Victoria fee · Electrical safety check (PIESA).
  * `electrician.reasons` (not onboarded, no usual electrician saved…) still hold the quote.
  */
-export function buildMittiInstallerQuote(input: Omit<Parameters<typeof buildInstallerQuoteDraft>[0], "piesaIncGst" | "apFeeIncGst">, electrician: MittiElectricianResolution) {
+export function buildMittiInstallerQuote(input: OwnCustomerDraftInput, electrician: MittiElectricianResolution) {
+  const draft = buildOwnCustomerQuoteDraft(input);
+  draft.blockers.push(...electrician.reasons);
+  draft.ready = draft.blockers.length === 0;
+  return draft;
+}
+
+export type OwnCustomerDraftInput = Omit<Parameters<typeof buildInstallerQuoteDraft>[0], "piesaIncGst" | "apFeeIncGst">;
+
+/**
+ * The own-customer owner lines WITHOUT an electrician resolution — the one builder behind both the Ready Check path
+ * (`buildMittiInstallerQuote`) and the intake-price fallback in `installer-quote.server` (Task 2 review, judgement 4):
+ * every `channel = installer_sourced` quote prices the $349 fee + $349 PIESA with the approved labels and order, whatever
+ * `jobs.electrician_choice` says. Home Insulation Victoria leads never come through here (`buildInstallerQuoteDraft` and
+ * `hiv-quote.core` are untouched).
+ */
+export function buildOwnCustomerQuoteDraft(input: OwnCustomerDraftInput) {
   const draft = buildInstallerQuoteDraft({ ...input, piesaIncGst: OWN_CUSTOMER_PIESA_INC_GST, apFeeIncGst: OWN_CUSTOMER_AP_FEE_INC_GST });
   const fee = draft.lines.find((l) => l.code === "AP_FEE");
   const piesa = draft.lines.find((l) => l.code === "PIESA");
@@ -19,8 +35,6 @@ export function buildMittiInstallerQuote(input: Omit<Parameters<typeof buildInst
   if (piesa) { piesa.description = OWN_CUSTOMER_LABELS.piesa; piesa.sort = 2; }
   // Stable: Insulation and extras keep their relative order (all sort 0) ahead of the fee and the PIESA.
   draft.lines = draft.lines.map((l, n) => [l, n] as const).sort((a, b) => a[0].sort - b[0].sort || a[1] - b[1]).map(([l]) => l);
-  draft.blockers.push(...electrician.reasons);
-  draft.ready = draft.blockers.length === 0;
   return draft;
 }
 
