@@ -47,8 +47,8 @@ export const TERMINAL: Stage[] = ["complete", "on_hold", "cancelled"];
 export const INSTALLER_OWN_CUSTOMER_SUMMARY = "Installer's own customer – the installer does the Ready Check (Mitti form); no spot to save";
 
 /** The single deterministic next step for a stage, or a stop with the reason (who/what it waits on). */
-export const ONSITE_START_INSTALL_SUMMARY = "Electrician on site at the start of the install day (fixes quote accepted and paid) – no fixes visit, installation scheduling unlocked";
-export const ONSITE_START_WAITING = "Waiting for the owner to accept and pay the fixes quote (electrician on site at the start of the install day)";
+export const ONSITE_START_INSTALL_SUMMARY = "Electrician on site at the start of the install day (upgrades quote accepted and paid) – no upgrades visit, installation scheduling unlocked";
+export const ONSITE_START_WAITING = "Waiting for the owner to accept and pay the upgrades quote (electrician on site at the start of the install day)";
 
 export function planStep(stage: Stage, f: AdvanceFacts): Step {
   const t = (to: Stage, summary: string): Step => ({ kind: "transition", to, summary });
@@ -83,15 +83,15 @@ export function planStep(stage: Stage, f: AdvanceFacts): Step {
       // is routed by Home Insulation Victoria (variation vs rectification scheduling is not automated).
       if (onsiteCleared) return t("installation_scheduling", ONSITE_START_INSTALL_SUMMARY);
       if (f.openRectItems > 0 && !f.onsiteStartOnly && f.partnerBilledRectification) return t("rectification_scheduling", "Partner needs to book rectification");
-      return f.openRectItems > 0 ? stop("Electrical fixes listed at the PIESA – Home Insulation Victoria must route the electrical fixes") : t("installation_scheduling", "PIESA complete, no electrical fixes – installation scheduling unlocked");
+      return f.openRectItems > 0 ? stop("Electrical upgrades listed at the PIESA – Home Insulation Victoria must route the electrical upgrades") : t("installation_scheduling", "PIESA complete, no electrical upgrades – installation scheduling unlocked");
     case "assessment_complete":
-      return f.openRectItems > 0 ? t("rectification_required", `${f.openRectItems} electrical fixes item(s) required`) : t("ready_for_installer_quotes", "No electrical fixes required – ready for installer quotes");
+      return f.openRectItems > 0 ? t("rectification_required", `${f.openRectItems} electrical upgrades item(s) required`) : t("ready_for_installer_quotes", "No electrical upgrades required – ready for installer quotes");
     case "rectification_required":
-      return f.rectQuoteIssued ? t("awaiting_owner_rectification_approval", "Electrical fixes quote issued to owner") : stop("Electrical fixes quote not yet issued");
+      return f.rectQuoteIssued ? t("awaiting_owner_rectification_approval", "Electrical upgrades quote issued to owner") : stop("Electrical upgrades quote not yet issued");
     case "awaiting_owner_rectification_approval":
-      if (!f.rectQuoteAccepted) return stop("Owner must approve the electrical fixes scope");
+      if (!f.rectQuoteAccepted) return stop("Owner must approve the electrical upgrades scope");
       // Decision 366: installation quote already accepted (Ready Check path) → the fixes flow, never new installer quotes.
-      return f.installQuoteAccepted ? t("rectification_scheduling", "Electrical fixes approved – owner pays the fixes in full, then picks the electrician's time") : t("ready_for_installer_quotes", "Electrical fixes scope approved – preparing final installation quotes");
+      return f.installQuoteAccepted ? t("rectification_scheduling", "Electrical upgrades approved – owner pays the upgrades in full, then picks the electrician's time") : t("ready_for_installer_quotes", "Electrical upgrades scope approved – preparing final installation quotes");
     case "ready_for_installer_quotes":
       return f.installQuotesIssued ? t("awaiting_quote_acceptance", "Installation quotes issued to owner") : { kind: "generate_quotes", to: "awaiting_quote_acceptance", summary: "Installation quotes auto-generated from active rate cards and issued to owner" };
     case "awaiting_quote_acceptance":
@@ -103,13 +103,13 @@ export function planStep(stage: Stage, f: AdvanceFacts): Step {
       if (!f.depositCleared) return stop("Waiting on approved payment option (minimum deposit, paid in full or active 3-instalment plan)");
       if (onsiteCleared) return t("installation_scheduling", ONSITE_START_INSTALL_SUMMARY);
       if (onsiteWaiting) return stop(ONSITE_START_WAITING);
-      return f.openRectItems > 0 ? t("rectification_scheduling", "Payment option verified – electrical fixes scheduling unlocked") : t("installation_scheduling", "Payment option verified – installation scheduling unlocked");
+      return f.openRectItems > 0 ? t("rectification_scheduling", "Payment option verified – electrical upgrades scheduling unlocked") : t("installation_scheduling", "Payment option verified – installation scheduling unlocked");
     case "rectification_scheduling":
       if (onsiteCleared) return t("installation_scheduling", ONSITE_START_INSTALL_SUMMARY);
       if (onsiteWaiting && !f.rectBookingConfirmed) return stop(ONSITE_START_WAITING);
-      return f.rectBookingConfirmed ? t("rectification_booked", "Electrical fixes booking confirmed") : stop("Electrical fixes booking not confirmed");
+      return f.rectBookingConfirmed ? t("rectification_booked", "Electrical upgrades booking confirmed") : stop("Electrical upgrades booking not confirmed");
     case "rectification_booked":
-      return f.openRectItems === 0 ? t("installation_scheduling", "Electrical fixes complete, PIESA passed – installation scheduling unlocked") : stop("Electrical fixes not yet completed");
+      return f.openRectItems === 0 ? t("installation_scheduling", "Electrical upgrades complete, PIESA passed – installation scheduling unlocked") : stop("Electrical upgrades not yet completed");
     case "installation_scheduling":
       return f.installBookingConfirmed ? t("installation_booked", "Installation booking confirmed") : stop("Installation booking not confirmed");
     case "installation_booked":
