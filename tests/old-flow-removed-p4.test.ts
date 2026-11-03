@@ -7,7 +7,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { TEMPLATE_ENTRIES, NOT_LISTED_BUILDERS } from "../src/lib/template-hub.core";
 import { SMS_MESSAGE_TYPES } from "../src/lib/sms.core";
 import { OLD_FLOW_STEPS_P4, jobsApprovingFixesQuote, jobsPickingFixesTime, jobsPickingInstallDays, jobsPickingPiesaTimes, jobsWithElectricianOfferOpen } from "../src/lib/old-flow-steps.core";
-import { INSTALLER_WILL_CALL_TO_BOOK_DRAFT, resolveOwnerScreen, ownerAction } from "../src/lib/owner-myjob.core";
+import { ELECTRICIAN_WILL_CALL_TO_BOOK_DRAFT, INSTALLER_WILL_CALL_TO_BOOK_DRAFT, resolveOwnerScreen, ownerAction } from "../src/lib/owner-myjob.core";
 
 const code = (p: string) => readFileSync(p, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 const exists = (p: string) => existsSync(p);
@@ -110,6 +110,13 @@ test("?screen=fixes and ?screen=book fall through to the job's current single-ac
   expect(sched.title).toBe(INSTALLER_WILL_CALL_TO_BOOK_DRAFT("Rapid Insulation"));
   expect(sched.title).toBe("Rapid Insulation will call you to book your install day.");
   expect(ownerAction({ stage: "installation_scheduling", readyCheckRequested: true, visit: null, quoteOpen: null, bookingOpen: true }).title).toBe("Your installer will call you to book your install day.");
+  // Task 15: the PIESA-booking line never says "Choose times" (retired flow); decision 34's line shows instead (DRAFT constant).
+  const piesa = ownerAction({ stage: "piesa_and_install_window_pending", readyCheckRequested: true, visit: null, quoteOpen: null, bookingOpen: true, installerName: "Rapid Insulation" });
+  expect(piesa.title).toBe(ELECTRICIAN_WILL_CALL_TO_BOOK_DRAFT("Rapid Insulation"));
+  expect(piesa.title).toBe("Rapid Insulation's licensed electrician will call you to book it.");
+  expect(ownerAction({ stage: "piesa_and_install_window_pending", readyCheckRequested: true, visit: null, quoteOpen: null, bookingOpen: true }).title).toBe("Your installer's licensed electrician will call you to book it.");
+  for (const stage of ["measured_quote_accepted", "piesa_and_install_window_pending", "installation_scheduling"])
+    expect({ stage, chooseTimes: /Choose times|Choose your install date/.test(ownerAction({ stage, readyCheckRequested: true, visit: null, quoteOpen: null, bookingOpen: true }).title) }).toEqual({ stage, chooseTimes: false });
 });
 
 test("old step list covers the after-acceptance steps and the readers are read-only", () => {
