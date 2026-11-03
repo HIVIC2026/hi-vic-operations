@@ -147,7 +147,7 @@ describe("Job page bundle (Task 6): same value as before", () => {
   test("a user with no access to the job is refused in every section", async () => {
     seed();
     const r = (await run(U_OUT, j(1)).p) as unknown as Record<string, unknown>;
-    for (const k of ["overview", "role", "page", "installDays", "readyCheckTimes", "allocation", "swms", "workerLinks", "price", "ownerQuote", "crew", "mittiInvited"]) expect(JSON.stringify(r[k]), k).toContain("error");
+    for (const k of ["overview", "role", "page", "installDays", "readyCheckTimes", "allocation", "swms", "workerLinks", "price", "ownerQuote", "crew"]) expect(JSON.stringify(r[k]), k).toContain("error");
   });
 });
 

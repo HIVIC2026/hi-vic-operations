@@ -24,7 +24,6 @@ export const BUNDLE_QUERY_KEYS = {
   workerLinks: (jobId: string) => ["worker-links", jobId],
   price: (jobId: string) => ["installer-price", jobId],
   ownerQuote: (jobId: string) => ["my-owner-quote", jobId],
-  mittiInvited: () => ["mitti-invited"],
   crew: (jobId: string) => ["piisa-crew", jobId],
 } as const;
 

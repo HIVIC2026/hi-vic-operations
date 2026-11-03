@@ -93,7 +93,6 @@ export type TradeJobBundle = {
   ownerQuote?: OwnerQuote | SectionError | undefined;
   /** D6: the install crew picker's saved crew (installer, install stages only). */
   crew?: Crew | SectionError | undefined;
-  mittiInvited: { invited: boolean } | SectionError;
 };
 
 /**
@@ -112,7 +111,7 @@ export async function tradeJobBundle(sb: Sb, userId: string, jobId: string, deps
     const overview = isSectionError(ov) ? ov : ov.row;
     const role = isSectionError(ov) ? ov : ov.role;
     const refused = access;
-    return { overview, role, page: refused, installDays: refused, readyCheckTimes: refused, allocation: refused, swms: refused, workerLinks: refused, price: refused, ownerQuote: refused, crew: refused, mittiInvited: refused };
+    return { overview, role, page: refused, installDays: refused, readyCheckTimes: refused, allocation: refused, swms: refused, workerLinks: refused, price: refused, ownerQuote: refused, crew: refused };
   }
   const pre = access;
   // Speed (Task 11): from here on, the sections' own queries about this job are answered from ONE read of the job's rows,
@@ -162,5 +161,5 @@ async function trustedSections(sb: Sb, userId: string, jobId: string, d: BundleD
     started ? started.ownerQuote : none,
     installer && installStage ? section(d.crew(jobId)) : none,
   ]);
-  return { overview, role, page, installDays, readyCheckTimes, allocation, swms, workerLinks, price, ownerQuote, crew, mittiInvited: { invited: pre.biz.mitti_account_invited === true } };
+  return { overview, role, page, installDays, readyCheckTimes, allocation, swms, workerLinks, price, ownerQuote, crew };
 }

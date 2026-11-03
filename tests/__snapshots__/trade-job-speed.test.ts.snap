@@ -6,9 +6,6 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
     "allocation": undefined,
     "crew": undefined,
     "installDays": undefined,
-    "mittiInvited": {
-      "invited": false,
-    },
     "overview": {
       "channel": "installer_sourced",
       "id": "00000000-0000-4000-8000-000000000001",
@@ -89,9 +86,6 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "expired": false,
       "open": [],
       "turn": "booked",
-    },
-    "mittiInvited": {
-      "invited": true,
     },
     "overview": {
       "channel": "installer_sourced",
@@ -517,9 +511,6 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "open": [],
       "turn": "booked",
     },
-    "mittiInvited": {
-      "invited": true,
-    },
     "overview": {
       "channel": "installer_sourced",
       "id": "00000000-0000-4000-8000-000000000001",
@@ -944,9 +935,6 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "open": [],
       "turn": "booked",
     },
-    "mittiInvited": {
-      "invited": true,
-    },
     "overview": {
       "channel": "installer_sourced",
       "id": "00000000-0000-4000-8000-000000000001",
@@ -1362,9 +1350,6 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "open": [],
       "turn": "booked",
     },
-    "mittiInvited": {
-      "invited": true,
-    },
     "overview": {
       "channel": "installer_sourced",
       "id": "00000000-0000-4000-8000-000000000001",
@@ -1735,9 +1720,6 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "open": [],
       "turn": "booked",
     },
-    "mittiInvited": {
-      "invited": true,
-    },
     "overview": {
       "channel": "installer_sourced",
       "id": "00000000-0000-4000-8000-000000000001",
@@ -2107,9 +2089,6 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "expired": false,
       "open": [],
       "turn": "booked",
-    },
-    "mittiInvited": {
-      "invited": true,
     },
     "overview": {
       "channel": "installer_sourced",

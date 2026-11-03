@@ -296,7 +296,6 @@ describe("failure rules unchanged", () => {
     await expect(requireTradeJob(U_STAFF, J1)).rejects.toThrow("This job isn't assigned to you.");
     const b = await tradeJobBundle(userClient("installer"), U_STAFF, J1);
     expect(b.page).toEqual({ error: "This job isn't assigned to you." } as never);
-    expect(b.mittiInvited).toEqual({ error: "This job isn't assigned to you." } as never);
   });
   test("no business: the sign-in refusal wins over the assignment check", async () => {
     seed();

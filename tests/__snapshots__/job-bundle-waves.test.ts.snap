@@ -7,9 +7,6 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
       "allocation": undefined,
       "crew": undefined,
       "installDays": undefined,
-      "mittiInvited": {
-        "invited": false,
-      },
       "overview": {
         "channel": "installer_sourced",
         "id": "00000000-0000-4000-8000-000000000001",
@@ -41,9 +38,6 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
       "allocation": undefined,
       "crew": undefined,
       "installDays": undefined,
-      "mittiInvited": {
-        "invited": false,
-      },
       "overview": {
         "channel": "hivic_sourced",
         "id": "00000000-0000-4000-8000-000000000002",
@@ -125,9 +119,6 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
         "expired": false,
         "open": [],
         "turn": "booked",
-      },
-      "mittiInvited": {
-        "invited": true,
       },
       "overview": {
         "channel": "hivic_sourced",
@@ -437,9 +428,6 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
         "expired": false,
         "open": [],
         "turn": "not_ready",
-      },
-      "mittiInvited": {
-        "invited": true,
       },
       "overview": {
         "channel": "hivic_sourced",
@@ -788,9 +776,6 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
         "open": [],
         "turn": "not_ready",
       },
-      "mittiInvited": {
-        "invited": true,
-      },
       "overview": {
         "channel": "installer_sourced",
         "id": "00000000-0000-4000-8000-000000000001",
@@ -1125,9 +1110,6 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
         "open": [],
         "turn": "booked",
       },
-      "mittiInvited": {
-        "invited": true,
-      },
       "overview": {
         "channel": "hivic_sourced",
         "id": "00000000-0000-4000-8000-000000000002",
@@ -1447,9 +1429,6 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
         "open": [],
         "turn": "not_ready",
       },
-      "mittiInvited": {
-        "invited": true,
-      },
       "overview": {
         "channel": "installer_sourced",
         "id": "00000000-0000-4000-8000-000000000003",
@@ -1678,9 +1657,6 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
       "installDays": {
         "error": "This job isn't assigned to you.",
       },
-      "mittiInvited": {
-        "error": "This job isn't assigned to you.",
-      },
       "overview": {
         "error": "You don't have permission for this action on this job.",
       },
@@ -1716,9 +1692,6 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
         "error": "Your sign-in isn't linked to an approved business yet.",
       },
       "installDays": {
-        "error": "Your sign-in isn't linked to an approved business yet.",
-      },
-      "mittiInvited": {
         "error": "Your sign-in isn't linked to an approved business yet.",
       },
       "overview": {
