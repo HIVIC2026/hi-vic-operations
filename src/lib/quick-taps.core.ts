@@ -68,6 +68,16 @@ export function quickTapsPassLine(installer: string | null | undefined): string 
   return name ? `Thanks! ${name} will call you soon to book your free Ready Check.` : QUICK_TAPS_COPY.outcome.pass;
 }
 
+/** Jo 2 Nov 2026 (decisions: 3-month phone consent): when the owner's phone consent is older than 3 months as their
+ *  turn comes, the "let's go" tap asks again, naming the installer who will call. Consent current (or no installer name
+ *  on the batch) → the existing approved label. */
+export function quickTapsGoLabel(i: { installer: string | null | undefined; consentCurrent: boolean }): string {
+  const name = (i.installer ?? "").trim();
+  return !i.consentCurrent && name ? `Yes, ${name} can call me` : QUICK_TAPS_COPY.go.options[0]!.label;
+}
+/** owner_contact_consents.source of the row the pass tap records (naming Home Insulation Victoria + the batch installer). */
+export const QUICK_TAPS_RECONSENT_SOURCE = "quick_taps_reconsent";
+
 /** cancelJobFully reasons (plan Task 3). */
 export const QUICK_TAPS_DECLINE_REASON: Record<Exclude<FinalOutcome, "pass">, string> = {
   decline_access: "Quick taps: no roof access",
@@ -117,7 +127,7 @@ export function nextTapStep(a: QuickTapAnswers, blanks: readonly WebsiteKey[] = 
 /** What My job `?screen=taps` shows. `none` = not in a batch asking for taps (the normal My job page shows instead). */
 export type QuickTapsView =
   | { kind: "none" }
-  | { kind: "ask"; name: string | null; address: string | null; website: WebsiteFacts }
+  | { kind: "ask"; name: string | null; address: string | null; website: WebsiteFacts; installer: string | null; consentCurrent: boolean }
   | { kind: "retry" }
   | { kind: "done"; outcome: FinalOutcome; installer?: string | null };
 

@@ -36,7 +36,7 @@ import { LEGACY_WHAT_HAPPENS_NEXT, SPOT_RELEASE_PAGE, type OwnerTurnView } from 
 import { ownerRequestNewQuoteFn } from "@/lib/new-quote-request.functions";
 import { NEW_QUOTE_THANKS } from "@/lib/new-quote-request.core";
 import { ownerQuickTapsAddressSearchFn, ownerQuickTapsDetailsFn, ownerQuickTapsSaveFn, ownerQuickTapsStateFn } from "@/lib/quick-taps.functions";
-import { QUICK_TAPS_COPY, nextTapStep, quickTapsPassLine, tapOutcome, websiteQuestions, type QuickTapAnswers, type QuickTapsView } from "@/lib/quick-taps.core";
+import { QUICK_TAPS_COPY, nextTapStep, quickTapsGoLabel, quickTapsPassLine, tapOutcome, websiteQuestions, type QuickTapAnswers, type QuickTapsView } from "@/lib/quick-taps.core";
 import { createAddressPicker, type PickResult } from "@/lib/address-pick.core";
 import { assertInHouseActionSucceeded } from "@/lib/in-house.core";
 import { completeOwnerQuoteAcceptance, ownerQuoteCanAccept } from "@/lib/owner-quote-visibility.core";
@@ -373,7 +373,8 @@ function TapsScreen({ v, token }: { v: View; token: string }) {
   else if (step === "hatch") body = <><h1 className="font-display text-2xl font-extrabold">{QUICK_TAPS_COPY.hatch.question}</h1>{options(QUICK_TAPS_COPY.hatch.options, (hatch) => answer({ ...a, hatch }))}</>;
   else if (step === "roof") body = <><h1 className="font-display text-2xl font-extrabold">{QUICK_TAPS_COPY.roof.question}</h1>{options(QUICK_TAPS_COPY.roof.options, (roof) => answer({ ...a, roof }))}</>;
   else if (step === "five_years") body = <><h1 className="font-display text-2xl font-extrabold">{QUICK_TAPS_COPY.five_years.question}</h1>{options(QUICK_TAPS_COPY.five_years.options, (five_years) => answer({ ...a, five_years }))}</>;
-  else if (step === "go") body = options(QUICK_TAPS_COPY.go.options, (go) => answer({ ...a, go }));
+  // Task 5 (Jo 2 Nov 2026): phone consent over 3 months old → "Yes, {installer} can call me".
+  else if (step === "go") { const yes = quickTapsGoLabel(view); body = options(QUICK_TAPS_COPY.go.options.map((o) => (o.value === "yes" ? { ...o, label: yes } : o)), (go) => answer({ ...a, go })); }
   else if (step) { const w = QUICK_TAPS_COPY.website[step]; body = <><h1 className="font-display text-2xl font-extrabold">{w.label}</h1>{options(w.options, (value) => answer({ ...a, website: { ...a.website, [step]: value } }))}</>; }
   else body = <button type="button" className={tapPrimary} disabled={busy} onClick={() => void submit(a)}>Try again</button>;
   return <section data-testid="owner-taps" data-step={step ?? "saving"} className={card}>{body}{err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}</section>;

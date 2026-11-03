@@ -1,4 +1,5 @@
 import { isInHousePartner } from "./in-house.core";
+import { contactConsentRecord, phoneConsentCurrent } from "./contact-consent-record.core";
 
 export type BatchJob = {
   id: string; stage: string; source: string; deleted_at: string | null; spot_saved_at: string | null;
@@ -14,6 +15,17 @@ export type InHousePartner = {
 export function batchJobEligible(job: BatchJob): boolean {
   return !job.deleted_at && job.source !== "qa_test" && (job.channel === "installer_sourced" || (!!job.spot_saved_at && job.quickTapsYes === true)) && !job.optedOut && !job.hasActiveInstaller
     && ["preliminary_estimate_ready", "ready_check_ready_to_schedule"].includes(job.stage);
+}
+export const WAITING_FOR_CALL_CONSENT = "Waiting for the owner to say the installer can call";
+export type ConsentRow = { consent_status: string; consented_at: string | null; snapshot: unknown; source: string };
+/** Task 5 (Jo 2 Nov 2026): a Home Insulation Victoria lead is handed to its installer only once the owner has said yes in
+ *  quick taps AND their phone consent is current (given in the last 3 months — the pass tap records one naming the
+ *  installer). Installer's own customers consent at Add a job and are never re-asked. True = otherwise ready to hand
+ *  off, but still waiting for that tap. */
+export function waitingForCallConsent(job: BatchJob, consents: readonly ConsentRow[], nowIso: string): boolean {
+  if (job.channel === "installer_sourced" || !batchJobEligible({ ...job, quickTapsYes: true })) return false;
+  const latest = contactConsentRecord(consents.filter((r) => r.consent_status === "granted"), []);
+  return !job.quickTapsYes || !phoneConsentCurrent(latest?.consentedAt ?? null, nowIso);
 }
 /** No age fallback: hand off the distinct ticked jobs, any number (Jo 2 Nov 2026). */
 export function readyInHouseBatch(jobIds: string[]): string[] {

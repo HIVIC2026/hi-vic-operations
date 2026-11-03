@@ -1,7 +1,7 @@
 // Office-authorised callers only. Allocation is atomic; approved owner notices use the guarded sender afterwards.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { batchJobEligible, batchPartnerCovers, suggestBatches, readyInHouseBatch, type BatchJob, type InHousePartner } from "./in-house-batch.core";
+import { WAITING_FOR_CALL_CONSENT, batchJobEligible, batchPartnerCovers, suggestBatches, readyInHouseBatch, waitingForCallConsent, type BatchJob, type ConsentRow, type InHousePartner } from "./in-house-batch.core";
 import { QUICK_TAPS_ANSWERED_EVENT } from "./quick-taps.core";
 import { sendInHousePartnerCall } from "./in-house-batch-email.server";
 import { inHouseFactsFor } from "./installer-paid-electricians.server";
@@ -38,20 +38,23 @@ async function pagedRows<T>(query: (from: number, to: number) => PromiseLike<{ d
 async function byIds<T>(ids: string[], query: (ids: string[], from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>): Promise<T[]> {
   return (await Promise.all(chunkIds([...new Set(ids)], 200).map(ids => pagedRows<T>((from, to) => query(ids, from, to))))).flat();
 }
-export async function loadInHouseBatches() {
+/** `now` is injectable (tests); the phone consent check is against it. */
+export async function loadInHouseBatches(opts: { now?: Date } = {}) {
+  const nowIso = (opts.now ?? new Date()).toISOString();
   const [jobs, businesses] = await Promise.all([
     pagedRows<Job>((a,b) => db.from("jobs").select("id,job_number,property_id,stage,source,channel,originating_installer_business_id,deleted_at").is("deleted_at", null).neq("source", "qa_test").not("stage", "in", "(complete,cancelled)").order("id").range(a,b)),
     pagedRows<Omit<InHousePartner, "openJobs"> & { trading_name: string | null }>((a,b) => db.from("businesses").select("id,name,trading_name,in_house,is_active,service_postcodes,covers_all_victoria,coverage_lat,coverage_lng,coverage_radius_km").eq("in_house", true).eq("is_active", true).order("id").range(a,b)),
   ]);
   const ids = jobs.map(j => j.id), propertyIds = [...new Set(jobs.map(j => j.property_id))];
-  const [assignments, saved, optouts, properties, facts, events] = ids.length ? await Promise.all([
+  const [assignments, saved, optouts, properties, facts, events, consents] = ids.length ? await Promise.all([
     byIds<Assignment>(ids, (c,a,b) => db.from("job_assignments").select("job_id,business_id,role").in("job_id", c).eq("active", true).order("id").range(a,b)),
     byIds<{ job_id: string; spot_saved_at: string }>(ids, (c,a,b) => db.from("lead_campaign_responses").select("job_id,spot_saved_at").in("job_id", c).not("spot_saved_at", "is", null).order("id").range(a,b)),
     byIds<{ job_id: string }>(ids, (c,a,b) => db.from("customer_email_optouts").select("job_id").in("job_id", c).not("opted_out_at", "is", null).order("id").range(a,b)),
     byIds<Property>(propertyIds, (c,a,b) => db.from("properties").select("id,postcode,address_line,suburb").in("id", c).order("id").range(a,b)),
     byIds<{ property_id: string; value: unknown }>(propertyIds, (c,a,b) => db.from("property_facts").select("property_id,value").in("property_id", c).eq("fact_key", "coordinates").eq("is_current", true).order("id").range(a,b)),
     byIds<{ job_id: string; event_type: string; details: Record<string, unknown> | null; created_at: string }>(ids, (c,a,b) => db.from("workflow_events").select("job_id,event_type,details,created_at").in("job_id", c).in("event_type", [QUICK_TAPS_ANSWERED_EVENT, "area_batch_sent"]).order("created_at", { ascending: false }).order("id", { ascending: false }).range(a,b)),
-  ]) : [[], [], [], [], [], []];
+    byIds<ConsentRow & { job_id: string }>(ids, (c,a,b) => db.from("owner_contact_consents").select("job_id,consent_status,consented_at,snapshot,source").in("job_id", c).order("id").range(a,b)),
+  ]) : [[], [], [], [], [], [], []];
   const partners: InHousePartner[] = businesses.map(b => ({ ...b, name: b.trading_name || b.name, openJobs: assignments.filter(a => a.business_id === b.id && a.role === "installer").length }));
   const batchJobs: BatchJob[] = jobs.map(j => {
     const p = properties.find(p => p.id === j.property_id), coords = facts.find(f => f.property_id === j.property_id)?.value;
@@ -65,8 +68,9 @@ export async function loadInHouseBatches() {
       lat: Array.isArray(coords) && typeof coords[1] === "number" ? coords[1] : null,
       lng: Array.isArray(coords) && typeof coords[0] === "number" ? coords[0] : null };
   });
-  const eligibleJobs = batchJobs.filter(batchJobEligible);
-  return { jobs: eligibleJobs, partners, suggestions: suggestBatches(eligibleJobs, partners) };
+  const waiting = new Set(batchJobs.filter(j => waitingForCallConsent(j, consents.filter(c => c.job_id === j.id), nowIso)).map(j => j.id));
+  const eligibleJobs = batchJobs.filter(j => batchJobEligible(j) && !waiting.has(j.id));
+  return { jobs: eligibleJobs, partners, suggestions: suggestBatches(eligibleJobs, partners), waitingForCallConsent: [...waiting] };
 }
 
 async function selectWorkers(businessId: string) {
@@ -83,16 +87,20 @@ async function selectWorkers(businessId: string) {
   return { installer: installer.profile_id, electrician: null };
 }
 
-export async function sendInHouseBatch(input: { businessId: string; jobIds: string[]; actorId: string }): Promise<{ sent: string[]; refused: { jobId: string; reason: string }[] }> {
+export async function sendInHouseBatch(input: { businessId: string; jobIds: string[]; actorId: string }, opts: { now?: Date } = {}): Promise<{ sent: string[]; refused: { jobId: string; reason: string }[] }> {
   const sent: string[] = [], refused: { jobId: string; reason: string }[] = [];
   const batchId = crypto.randomUUID();
-  const screen = await loadInHouseBatches();
+  const screen = await loadInHouseBatches(opts);
   const partner = screen.partners.find(p => p.id === input.businessId);
-  const requested = [...new Set(input.jobIds)];
+  // Task 5: a lead whose owner hasn't tapped "can call me" (phone consent over 3 months old) is never handed off.
+  for (const jobId of new Set(input.jobIds)) if (screen.waitingForCallConsent.includes(jobId)) refused.push({ jobId, reason: WAITING_FOR_CALL_CONSENT });
+  const requested = [...new Set(input.jobIds)].filter(id => !screen.waitingForCallConsent.includes(id));
+  if (!requested.length) return { sent, refused };
+  input = { ...input, jobIds: requested };
   if (partner) {
     const eligible = requested.filter(id => screen.jobs.some(j => j.id === id && batchPartnerCovers(j, partner) && (!j.waitingBusinessId || j.waitingBusinessId === partner.id)));
     const ready = readyInHouseBatch(eligible);
-    if (!ready.length) return { sent, refused: requested.map(jobId => ({ jobId, reason: "No eligible jobs for this installer" })) };
+    if (!ready.length) return { sent, refused: [...refused, ...requested.map(jobId => ({ jobId, reason: "No eligible jobs for this installer" }))] };
     input = { ...input, jobIds: ready };
   }
   const workers = partner ? await selectWorkers(input.businessId) : { reason: "Partner is not active in-house" };

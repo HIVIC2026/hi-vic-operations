@@ -7,7 +7,7 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
-  QUICK_TAPS_COPY, QUICK_TAPS_DECLINE_REASON, nextTapStep, quickTapsPassLine, tapOutcome, websiteQuestions, type QuickTapAnswers,
+  QUICK_TAPS_COPY, QUICK_TAPS_DECLINE_REASON, QUICK_TAPS_RECONSENT_SOURCE, nextTapStep, quickTapsGoLabel, quickTapsPassLine, tapOutcome, websiteQuestions, type QuickTapAnswers,
 } from "../src/lib/quick-taps.core";
 import { AREA_BATCH_EVENTS, AREA_BATCH_LEFT_EVENT, openBatchId, tapsBatchId } from "../src/lib/area-batch.core";
 import { renderQuickTapsDeclineEmail } from "../src/lib/quick-taps-email.core";
@@ -33,6 +33,11 @@ function fakeAdmin() {
         neq(c: string, v: unknown) { preds.push((r) => get(r, c) !== v); return b; },
         in(c: string, v: unknown[]) { preds.push((r) => v.includes(get(r, c))); return b; },
         is(c: string, v: unknown) { preds.push((r) => (get(r, c) ?? null) === v); return b; },
+        not(c: string, o: string, v: unknown) {
+          if (o === "is") preds.push((r) => (get(r, c) ?? null) !== v);
+          else if (o === "in") { const list = String(v).replace(/^\(|\)$/g, "").split(","); preds.push((r) => !list.includes(String(get(r, c)))); }
+          return b;
+        },
         gte(c: string, v: string) { preds.push((r) => String(get(r, c)) >= v); return b; },
         contains(c: string, v: unknown) { preds.push((r) => subset(get(r, c), v)); return b; },
         order() { return b; }, range() { return b; },
@@ -64,6 +69,12 @@ function fakeAdmin() {
         },
       };
       return b;
+    },
+    // The in-house hand-off RPC (allocate_in_house_batch_job): its own checks are proven in PGlite; here it allocates.
+    async rpc(name: string, i: Row) {
+      if (name !== "allocate_in_house_batch_job") return { data: null, error: { message: `unexpected rpc ${name}` } };
+      (tables["job_assignments"] ??= []).push({ job_id: i["_job"], business_id: i["_business"], role: "installer", active: true, user_id: i["_installer"] });
+      return { data: { sent: true }, error: null };
     },
   };
 }
@@ -112,6 +123,10 @@ mock.module("../src/lib/owner-email-send.server", () => ({
   },
 }));
 mock.module("../src/lib/comms.server", () => ({ assertCustomerDeliveryAllowed: async () => undefined }));
+// In-house hand-off (Task 5): the partner call email and the partner's enable facts.
+const partnerCalls: string[] = [];
+mock.module("../src/lib/in-house-batch-email.server", () => ({ sendInHousePartnerCall: async (jobId: string) => { partnerCalls.push(jobId); return "draft"; } }));
+mock.module("../src/lib/installer-paid-electricians.server", () => ({ inHouseFactsFor: async () => ({ approvedElectricianWorkers: 1, hasActiveRateCardWithPiesa: true, mittiElectricianLogins: 1, mittiAccountInvited: true }) }));
 const places: Record<string, Row> = {};
 mock.module("../src/lib/address-lookup.server", () => ({
   searchAddressSuggestions: async (q: string) => Object.entries(places).filter(([, p]) => String(p["street"]).toLowerCase().includes(q.toLowerCase())).map(([id, p]) => ({ id, label: String(p["street"]) })),
@@ -135,6 +150,7 @@ mock.module("../src/lib/property-coordinates.server", () => ({
 
 const S = await import("../src/lib/quick-taps.server");
 const B = await import("../src/lib/area-batch.server");
+const H = await import("../src/lib/in-house-batch.server");
 
 // ---- fixtures -------------------------------------------------------------------------------------------------------
 const NOW = new Date("2026-10-30T01:00:00.000Z");
@@ -156,17 +172,17 @@ function addJob(id: string, o: { source?: string; stage?: string; name?: string 
   tables["lead_campaign_responses"]!.push({ job_id: id, spot_saved_at: "2026-10-20T00:00:00Z", opted_out_at: null, saved_insulation: null });
   if (o.coords !== null) tables["property_facts"]!.push({ property_id: prop.id, fact_key: "coordinates", value: o.coords ?? pt(0), is_current: true });
 }
-function sendBatchEvent(batchId: string, jobIds: string[], centre: { lat: number; lng: number } | null = { lat: -37.8, lng: 145 }) {
+function sendBatchEvent(batchId: string, jobIds: string[], centre: { lat: number; lng: number } | null = { lat: -37.8, lng: 145 }, installerName = "Sample Insulation") {
   for (const j of jobIds) tables["workflow_events"]!.push({ id: crypto.randomUUID(), job_id: j, event_type: "area_batch_sent", created_at: new Date(++clock).toISOString(),
-    details: { batch_id: batchId, installer_business_id: "biz-1", installer_name: "Sample Insulation", job_ids: jobIds, centre_job_id: jobIds[0], centre, idempotency_key: `area-batch:v1:${j}:1` } });
+    details: { batch_id: batchId, installer_business_id: "biz-1", installer_name: installerName, job_ids: jobIds, centre_job_id: jobIds[0], centre, idempotency_key: `area-batch:v1:${j}:1` } });
 }
 function seed() {
   for (const k of Object.keys(tables)) delete tables[k];
   for (const k of Object.keys(lookupCoords)) delete lookupCoords[k];
   for (const k of Object.keys(places)) delete places[k];
   cancelFails = false; shareFails = false; failUpdates.clear();
-  cancels.length = 0; detailSaves.length = 0; gates.length = 0; mails.length = 0; located.length = 0;
-  for (const t of ["jobs", "owners", "properties", "customer_estimate_links", "lead_campaign_responses", "property_facts", "job_assignments", "partner_offers", "workflow_events"]) tables[t] = [];
+  cancels.length = 0; detailSaves.length = 0; gates.length = 0; mails.length = 0; located.length = 0; partnerCalls.length = 0;
+  for (const t of ["jobs", "owners", "properties", "customer_estimate_links", "lead_campaign_responses", "property_facts", "job_assignments", "partner_offers", "workflow_events", "owner_contact_consents"]) tables[t] = [];
   tables["businesses"] = [{ id: "biz-1", name: "Sample Insulation", trading_name: null, onboarding_notes: null }];
   tables["workflow_settings"] = [{ id: 1, customer_comms_enabled: true, sms_message_switches: { quick_taps: true } }];
 }
@@ -625,6 +641,88 @@ describe("postcode-only homes are batched by their postcode's centre", () => {
   });
 });
 
+// ---- 3-month phone consent re-ask (Task 5, Jo 2 Nov 2026) -------------------------------------------------------------
+describe("quickTapsGoLabel", () => {
+  test("consent older than 3 months → names the installer (Jo 2 Nov, verbatim)", () => {
+    expect(quickTapsGoLabel({ installer: "Rapid Insulation", consentCurrent: false })).toBe("Yes, Rapid Insulation can call me");
+  });
+  test("consent current → the existing approved go label, unchanged", () => {
+    expect(quickTapsGoLabel({ installer: "Rapid Insulation", consentCurrent: true })).toBe("Yes, let's go — you can share my name and number with the installer to book it");
+    expect(quickTapsGoLabel({ installer: "Rapid Insulation", consentCurrent: true })).toBe(QUICK_TAPS_COPY.go.options[0]!.label);
+  });
+  test("no installer name on the batch → the existing approved go label (no new wording)", () => {
+    expect(quickTapsGoLabel({ installer: null, consentCurrent: false })).toBe(QUICK_TAPS_COPY.go.options[0]!.label);
+    expect(quickTapsGoLabel({ installer: "  ", consentCurrent: false })).toBe(QUICK_TAPS_COPY.go.options[0]!.label);
+  });
+  test("the re-ask source", () => expect(QUICK_TAPS_RECONSENT_SOURCE).toBe("quick_taps_reconsent"));
+});
+
+describe("3-month phone consent: hand-off only after the tap", () => {
+  beforeEach(() => {
+    seed();
+    tables["businesses"] = [{ id: "biz-1", name: "Rapid Insulation", trading_name: null, onboarding_notes: null, in_house: true, is_active: true, service_postcodes: ["3000"], covers_all_victoria: false, coverage_lat: null, coverage_lng: null, coverage_radius_km: null }];
+    tables["partner_workers"] = [{ business_id: "biz-1", profile_id: "w-i", trade_role: "installer", approval_status: "approved", removed_at: null, email: null, licence_expires_on: null, created_at: "2026-10-01T00:00:00Z" }];
+    tables["business_members"] = [{ business_id: "biz-1", user_id: "w-i", active: true }];
+    tables["customer_email_optouts"] = [];
+  });
+  const FOUR_MONTHS_AGO = "2026-06-30T01:00:00.000Z";
+  const consent = (jobId: string, at: string, source = "base44") => tables["owner_contact_consents"]!.push({
+    id: crypto.randomUUID(), job_id: jobId, owner_id: `o-${jobId}`, source, consent_key: `${source}:${jobId}`, consent_status: "granted", contact_consent: true, consented_at: at, created_at: at, snapshot: {},
+  });
+  const handOff = (jobIds: string[]) => H.sendInHouseBatch({ businessId: "biz-1", jobIds, actorId: "office" }, { now: NOW });
+  const WAITING = "Waiting for the owner to say the installer can call";
+  const reconsents = (jobId: string) => tables["owner_contact_consents"]!.filter((r) => r["job_id"] === jobId && r["source"] === QUICK_TAPS_RECONSENT_SOURCE);
+
+  test("website lead, consent 4 months old: asked \"Yes, {installer} can call me\", not handed off until the tap; the tap records the installer by name", async () => {
+    addJob("a"); consent("a", FOUR_MONTHS_AGO); sendBatchEvent("b1", ["a"], undefined, "Rapid Insulation");
+    expect(await S.quickTapsState(tok("a"), { now: NOW })).toMatchObject({ kind: "ask", installer: "Rapid Insulation", consentCurrent: false });
+    expect(await handOff(["a"])).toEqual({ sent: [], refused: [{ jobId: "a", reason: WAITING }] });
+    expect(tables["job_assignments"]).toEqual([]); expect(partnerCalls).toEqual([]);
+
+    expect(await S.saveQuickTaps(tok("a"), ALL_GOOD(), undefined, { now: NOW })).toEqual({ kind: "done", outcome: "pass", installer: "Rapid Insulation" });
+    const rows = reconsents("a");
+    expect(rows).toHaveLength(1);
+    const answered = events("quick_taps_answered", "a")[0]!;
+    expect(rows[0]).toMatchObject({ consent_status: "granted", contact_consent: true, owner_id: "o-a", consented_at: answered["created_at"] });
+    expect((rows[0]!["snapshot"] as Row)["who"]).toEqual(["Home Insulation Victoria", "Rapid Insulation"]);
+    expect((rows[0]!["snapshot"] as Row)["wording"]).toBe("Yes, Rapid Insulation can call me");
+    expect(answered["details"]).toMatchObject({ go_label: "Yes, Rapid Insulation can call me" });
+
+    expect(await handOff(["a"])).toEqual({ sent: ["a"], refused: [] });
+    expect(partnerCalls).toEqual(["a"]);
+  });
+  test("a second save (or another device) records no second consent row", async () => {
+    addJob("a"); consent("a", FOUR_MONTHS_AGO); sendBatchEvent("b1", ["a"], undefined, "Rapid Insulation");
+    await S.saveQuickTaps(tok("a"), ALL_GOOD(), undefined, { now: NOW });
+    await S.saveQuickTaps(tok("a"), ALL_GOOD(), undefined, { now: NOW });
+    expect(reconsents("a")).toHaveLength(1);
+  });
+  test("website lead with current consent: the usual label; the pass still records the named installer and hands off", async () => {
+    addJob("a"); consent("a", "2026-10-01T00:00:00.000Z"); sendBatchEvent("b1", ["a"], undefined, "Rapid Insulation");
+    expect(await S.quickTapsState(tok("a"), { now: NOW })).toMatchObject({ kind: "ask", installer: "Rapid Insulation", consentCurrent: true });
+    await S.saveQuickTaps(tok("a"), ALL_GOOD(), undefined, { now: NOW });
+    const rows = reconsents("a");
+    expect(rows).toHaveLength(1);
+    expect((rows[0]!["snapshot"] as Row)["who"]).toEqual(["Home Insulation Victoria", "Rapid Insulation"]);
+    expect((rows[0]!["snapshot"] as Row)["wording"]).toBe(QUICK_TAPS_COPY.go.options[0]!.label);
+    expect(await handOff(["a"])).toEqual({ sent: ["a"], refused: [] });
+  });
+  test("a pass recorded before this change, consent now over 3 months old, no tap naming the installer → not handed off", async () => {
+    addJob("a"); consent("a", FOUR_MONTHS_AGO); sendBatchEvent("b1", ["a"], undefined, "Rapid Insulation");
+    tables["workflow_events"]!.push({ id: crypto.randomUUID(), job_id: "a", event_type: "quick_taps_answered", created_at: new Date(++clock).toISOString(), details: { batch_id: "b1", outcome: "pass", consent_share: true, answers: { name: "Helen a" } } });
+    expect(await handOff(["a"])).toEqual({ sent: [], refused: [{ jobId: "a", reason: WAITING }] });
+  });
+  test("an installer's own customer (consent at Add a job) with a 4-month-old consent is never re-asked and hands off", async () => {
+    addJob("own", { source: "installer" });
+    Object.assign(tables["jobs"]!.find((j) => j["id"] === "own")!, { channel: "installer_sourced", originating_installer_business_id: "biz-1" });
+    consent("own", FOUR_MONTHS_AGO, "onsite_ready_check");
+    sendBatchEvent("b1", ["own"], undefined, "Rapid Insulation");
+    expect(await S.quickTapsState(tok("own"), { now: NOW })).toEqual({ kind: "none" });
+    expect(await handOff(["own"])).toEqual({ sent: ["own"], refused: [] });
+    expect(reconsents("own")).toEqual([]);
+  });
+});
+
 // ---- My job wiring (source) ----------------------------------------------------------------------------------------------
 describe("My job ?screen=taps", () => {
   const route = readFileSync("src/routes/my-job.$token.tsx", "utf8");
@@ -644,6 +742,9 @@ describe("My job ?screen=taps", () => {
 
 describe("My job pass screen (Jo 2 Nov 2026)", () => {
   const src = readFileSync(new URL("../src/routes/my-job.$token.tsx", import.meta.url), "utf8");
+  test("the go tap's yes label comes from quickTapsGoLabel with the server's view (3-month re-ask)", () => {
+    expect(src).toContain("quickTapsGoLabel(view)");
+  });
   test("shows quickTapsPassLine with the installer from the server's view", () => {
     expect(src).toContain("quickTapsPassLine(view.installer)");
   });
