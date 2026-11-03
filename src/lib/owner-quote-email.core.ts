@@ -15,8 +15,9 @@
 // Part 10 Task 5 (Jo 2–3 Nov 2026): an installer's OWN customer gets the same v4 email with the approved lines
 // (own-customer-price.core `ownCustomerRows`, by `code`: Insulation · extras · Home Insulation Victoria fee · Electrical
 // safety check (PIESA) · Rebate · Your price), the installer's logo beside ours (cobrand.core, OWN_CUSTOMER_COBRAND_APPROVED)
-// and the VEU program box at the bottom (owner-wording.core, Fix 1). Behind OWN_CUSTOMER_QUOTE_EMAIL_APPROVED (false):
-// off = exactly Part 3's v4 email. Home Insulation Victoria leads never come through that branch.
+// and the VEU program box at the bottom (owner-wording.core, Fix 1). ONE switch for the email rows/VEU box, the My job page
+// and the tax invoice: OWN_CUSTOMER_COBRAND_APPROVED (cobrand.core; the logo itself still needs the https/name/bytes rule).
+// Off = exactly Part 3's v4 email. Home Insulation Victoria leads never come through that branch.
 // Quote text (decision 87, B): ownerQuoteSms below — brand prefix added by the sender.
 import { currentFeeWording } from "./hiv-quote.core";
 import { aud } from "./workflow";
@@ -38,8 +39,6 @@ export const OWNER_QUOTE_EMAIL_VERSION = "v3-approved-2026-10-24";
 /** Decision #29 (Jo 2 Nov 2026): v4 wording + What's changed box + quote documents attached. Off until Jo OKs the pictures. */
 export const OWNER_QUOTE_EMAIL_V4_APPROVED = false as boolean;
 export const OWNER_QUOTE_EMAIL_V4_VERSION = "v4-approved-2026-11-02";
-/** Part 10 Task 5: the own-customer variant (approved lines, co-brand, VEU box) of the v4 email. Off until Jo OKs the picture. */
-export const OWN_CUSTOMER_QUOTE_EMAIL_APPROVED: boolean = false;
 /** The v4 quote email is never sent without its documents: the sender holds it with this note instead. */
 export const QUOTE_DOCUMENTS_HELD = "Quote documents not ready";
 /** Jo 24 Oct 2026, decisions 89 and 134 (O19 quote reminder, day 3 + expiry): approved. Delivery still behind customer_comms_enabled. */
@@ -83,11 +82,11 @@ export type OwnerQuoteEmailInput = {
   /** quote-changes.core `quoteChangeRows` — v4 only; empty/absent = no box. */
   changes?: QuoteChangeRow[];
   /** Part 10 Task 5: set on an installer's own customer (channel installer_sourced): the installer's name and Part 5's
-   *  https logo URL (null = our logo alone). Ignored unless v4 and OWN_CUSTOMER_QUOTE_EMAIL_APPROVED. */
+   *  https logo URL (null = our logo alone). Ignored unless v4 and OWN_CUSTOMER_COBRAND_APPROVED (final review I4: one switch). */
   ownCustomer?: { installerName: string; installerLogoUrl: string | null } | null;
 };
-/** Test seam for the two Task 5 switches; callers never pass it (the constants decide). */
-export type OwnCustomerSeam = { ownCustomerApproved?: boolean; cobrandApproved?: boolean };
+/** Test seam for the one Task 5 switch (OWN_CUSTOMER_COBRAND_APPROVED); callers never pass it (the constant decides). */
+export type OwnCustomerSeam = { cobrandApproved?: boolean };
 
 const money = (n: number) => aud(n);
 const cleanName = (s: string | null) => s?.trim() || null;
@@ -173,8 +172,8 @@ function ownCustomerQuoteRows(i: OwnerQuoteEmailInput): K.QuoteRow[] | null {
 export function renderOwnerQuoteEmail(i: OwnerQuoteEmailInput, seam: OwnCustomerSeam = {}): { subject: string; html: string; text: string } {
   const v4 = i.v4 === true;
   // Part 10 Task 5: the own-customer variant is a v4 extension; off (or no ownCustomer) = Part 3's email exactly.
-  const own = v4 && !!i.ownCustomer && (seam.ownCustomerApproved ?? OWN_CUSTOMER_QUOTE_EMAIL_APPROVED) ? i.ownCustomer : null;
-  const partnerLogo = own && (seam.cobrandApproved ?? OWN_CUSTOMER_COBRAND_APPROVED) ? cobrandLogos({ installerName: own.installerName, logoUrl: own.installerLogoUrl }).installer : null;
+  const own = v4 && !!i.ownCustomer && (seam.cobrandApproved ?? OWN_CUSTOMER_COBRAND_APPROVED) ? i.ownCustomer : null;
+  const partnerLogo = own ? cobrandLogos({ installerName: own.installerName, logoUrl: own.installerLogoUrl }).installer : null;
   const ownRows = own ? ownCustomerQuoteRows(i) : null;
   const f = quoteFigures(i, v4 ? "Your rebate" : "Your VEU rebate");
   const changes = v4 ? changesBox(i.changes ?? []) : { html: "", text: [] };

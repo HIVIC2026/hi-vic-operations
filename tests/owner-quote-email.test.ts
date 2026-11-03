@@ -276,7 +276,7 @@ test("quote reminders (decisions 88/89/134): reminder line, price box, button, n
 });
 
 /* ---------------------------------------------------------------- Part 10 Task 5: own-customer quote email (co-branded) */
-import { OWN_CUSTOMER_QUOTE_EMAIL_APPROVED } from "../src/lib/owner-quote-email.core";
+import { OWN_CUSTOMER_COBRAND_APPROVED } from "../src/lib/cobrand.core";
 import { VEU_BOX_TEXT, VEU_BOX_LINK, VEU_FACTSHEET_URL } from "../src/lib/owner-wording.core";
 
 const ownInput: OwnerQuoteEmailInput = {
@@ -291,7 +291,7 @@ const ownInput: OwnerQuoteEmailInput = {
   installerName: "Rapid Insulation", installerCertified: true, v4: true, changes: [],
   ownCustomer: { installerName: "Rapid Insulation", installerLogoUrl: "https://x/rapid-logo.png" },
 };
-const on = { ownCustomerApproved: true, cobrandApproved: true };
+const on = { cobrandApproved: true };
 const render = (i: OwnerQuoteEmailInput, seam = on) => renderOwnerQuoteEmail(i, seam);
 /** Row titles in the plain-text "YOUR QUOTE" block (title, then optional " (detail)", then ": amount"). */
 const rowTitles = (text: string) => {
@@ -340,16 +340,9 @@ test("Task 5: separately agreed extras sit between Insulation and the fee under 
   expect(m.text).toContain("Your price: $2,398.00");
 });
 
-test("Task 5: co-brand switch off but email approved → approved rows, our logo only", () => {
-  const m = render(ownInput, { ownCustomerApproved: true, cobrandApproved: false });
-  expect(rowTitles(m.text)).toEqual(["Insulation", "Home Insulation Victoria fee", "Electrical safety check (PIESA)", "Rebate", "Your price"]);
-  expect(m.html).not.toContain("https://x/rapid-logo.png");
-  expect(m.html.match(/<img /g)?.length).toBe(1);
-});
-
-test("Task 5: approval off (as shipped) → an own customer gets Part 3's v4 email unchanged", () => {
-  expect(OWN_CUSTOMER_QUOTE_EMAIL_APPROVED).toBe(false);
-  expect(render(ownInput, { ownCustomerApproved: false, cobrandApproved: true })).toEqual(renderOwnerQuoteEmail(withoutOwn(ownInput)));
+test("Task 5 / I4: the ONE switch off (as shipped) → an own customer gets Part 3's v4 email unchanged (no rows, no VEU box, no logo)", () => {
+  expect(OWN_CUSTOMER_COBRAND_APPROVED).toBe(false);
+  expect(render(ownInput, { cobrandApproved: false })).toEqual(renderOwnerQuoteEmail(withoutOwn(ownInput)));
   expect(renderOwnerQuoteEmail(ownInput)).toEqual(renderOwnerQuoteEmail(withoutOwn(ownInput)));
 });
 

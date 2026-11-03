@@ -178,7 +178,7 @@ mock.module("../src/lib/quote-expiry.core", () => ({
   quoteExpiresAt: (s: string | Date) => realQe.quoteExpiresAt(s, "2026-11-01T00:00:00Z"),
 }));
 let ownOn = false;
-const setV4 = (on: boolean) => { v4 = on; mock.module("../src/lib/owner-quote-email.core", () => ({ ...shipped, OWNER_QUOTE_EMAIL_V4_APPROVED: v4, OWN_CUSTOMER_QUOTE_EMAIL_APPROVED: ownOn, renderOwnerQuoteEmail: (i: Parameters<typeof shipped.renderOwnerQuoteEmail>[0]) => shipped.renderOwnerQuoteEmail(i, { ownCustomerApproved: ownOn, cobrandApproved: ownOn }) })); };
+const setV4 = (on: boolean) => { v4 = on; mock.module("../src/lib/owner-quote-email.core", () => ({ ...shipped, OWNER_QUOTE_EMAIL_V4_APPROVED: v4, renderOwnerQuoteEmail: (i: Parameters<typeof shipped.renderOwnerQuoteEmail>[0]) => shipped.renderOwnerQuoteEmail(i, { cobrandApproved: ownOn }) })); };
 const { notifyOwnerQuoteReady } = await import("../src/lib/quote-ready-notify.server");
 
 describe("quote-ready sender", () => {

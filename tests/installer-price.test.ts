@@ -397,7 +397,8 @@ describe("Enter your price step (Task 4)", () => {
     expect(NEXT_STEP_WORDS.enterPriceTitle).toBe(ENTER_PRICE_STEP.title);
     // Trade-facing rules: says the quote goes by itself after the price; no pay threats, no "HIV", no "fixes".
     const all = [ENTER_PRICE_INTRO, PRICE_NOT_SENT_PREFIX, PRICE_ENTRY_REFUSED, ...Object.values(ENTER_PRICE_STEP)].join("\n");
-    expect(ENTER_PRICE_INTRO).toMatch(/goes to the owner by itself/);
+    expect(ENTER_PRICE_INTRO).toMatch(/sends the owner the quote once every check passes/);
+    expect(ENTER_PRICE_INTRO).not.toMatch(/straight away|by itself/); // I4: true today — the office presses Send while AUTO_QUOTE_SEND_ENABLED is off
     expect(all).not.toMatch(/\bHIV\b|\bfixes\b|no payment|won't be paid/i);
     // Boss and Office enter prices; Lead Installer / crew / electricians (member, null) never.
     expect(canEnterPrice("business_admin")).toBe(true);

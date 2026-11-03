@@ -83,7 +83,7 @@ describe("both channels under one claim", () => {
     expect(mail.label).toBe("enter_price_email");
     expect(mail.subject).toBe("HV-1234: Ready Check done. Time to price it.");
     expect(mail.text).toContain("Hi James,");
-    expect(mail.text).toContain("Here's what John found at Sarah's place.");
+    expect(mail.text).toContain("Here's what John found at Sarah's place. Enter your price and Home Insulation Victoria sends them the quote once every check passes.");
     expect(mail.text).toContain("HV-1234 · Sarah Brown");
     expect(mail.text).toContain("12 Example St, Box Hill VIC 3128 · Ready Check ");
     expect(mail.text).toContain("Measured ceiling: 120 m² (1 area)");

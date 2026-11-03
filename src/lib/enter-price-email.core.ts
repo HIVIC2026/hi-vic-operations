@@ -5,8 +5,10 @@
 // is its own channel under that claim (`enterPriceEmailKey`), so a held email is retried on a later sync without the
 // text going again, and a sent text is never followed by a second text.
 //
-// DRAFT: `ENTER_PRICE_EMAIL_APPROVED = false` until Jo approves the subject and the pronoun. Body wording is the approved
-// price-email.png mock verbatim; the mock says "her" — the draft says "them" because the owner's gender isn't recorded.
+// DRAFT: `ENTER_PRICE_EMAIL_APPROVED = false` until Jo approves the subject, the pronoun and the intro line. Body wording is
+// the approved price-email.png mock; the mock says "her" — the draft says "them" because the owner's gender isn't recorded —
+// and "sends them the quote straight away" became "…once every check passes" (true today: with AUTO_QUOTE_SEND_ENABLED off
+// the office presses Send after the checks; final review I4).
 // Real partner + flag off → held, recorded once (`enter_price_email_held`); TEST job / TEST partner → test-send so Jo
 // sees the draft. Pure: wording, facts from the Ready Check answers, the plan and the keys. No I/O.
 import { bossPriceLinkKey } from "./boss-price-link.core";
@@ -51,7 +53,8 @@ export function renderEnterPriceEmail(f: EnterPriceFacts): { subject: string; ht
   ];
   const blocks: PartnerBlock[] = [
     { kind: "hi", text: `Hi ${f.recipientFirst?.trim() || "there"},` },
-    { kind: "p", text: `Here's what ${checker} found at ${ownerPlace}. Enter your price and Home Insulation Victoria sends them the quote straight away.` },
+    // I4 (final review): true today — with AUTO_QUOTE_SEND_ENABLED off the office presses Send after the checks; no "straight away".
+    { kind: "p", text: `Here's what ${checker} found at ${ownerPlace}. Enter your price and Home Insulation Victoria sends them the quote once every check passes.` },
     {
       kind: "card", title: `${f.jobNumber} · ${f.ownerFull}`, subtitle: `${f.address} · Ready Check ${f.readyCheckOn}`,
       blocks: [

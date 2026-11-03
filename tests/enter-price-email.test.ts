@@ -23,7 +23,7 @@ describe("renderEnterPriceEmail — approved body wording (price-email.png), DRA
     const m = renderEnterPriceEmail(sample);
     for (const s of [
       "Hi James,", "Ready Check done. Time to price it.",
-      "Here's what John found at Sarah's place. Enter your price and Home Insulation Victoria sends them the quote straight away.",
+      "Here's what John found at Sarah's place. Enter your price and Home Insulation Victoria sends them the quote once every check passes.",
       "HV-1234 · Sarah Brown", "12 Example St, Box Hill VIC 3128 · Ready Check Tue 4 Nov",
       "Measured ceiling", "120 m² (2 areas)", "Existing insulation", "Thin batts, R1.0", "Removal needed", "Roof", "Sloped, tiles", "Access", "Standard",
       "Product chosen", "Bradford Gold R5.0", "Downlights", "4 LED", "Built in last 5 years: No", "Life support: No",
@@ -44,7 +44,8 @@ describe("renderEnterPriceEmail — approved body wording (price-email.png), DRA
     expect(all).not.toMatch(/\bfixes\b/i);
     expect(all).not.toMatch(/no payment|won't be paid|not be paid/i);
     expect(all).not.toMatch(/Complete[^.]*sends? the owner/i);
-    expect(m.text).toMatch(/Enter your price and Home Insulation Victoria sends them the quote/);
+    expect(m.text).toMatch(/Enter your price and Home Insulation Victoria sends them the quote once every check passes/);
+    expect(all).not.toMatch(/straight away/); // I4: true today (the office presses Send while AUTO_QUOTE_SEND_ENABLED is off)
   });
   test("TEST sends are marked; real sends are not", () => {
     expect(renderEnterPriceEmail({ ...sample, test: true }).text).toContain("TEST — only sent to Jo.");

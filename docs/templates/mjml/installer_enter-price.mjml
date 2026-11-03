@@ -15,7 +15,7 @@
 <mj-column>
 <mj-text mj-class="hi">Hi James,</mj-text>
 <mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">Ready Check done. Time to price it.</mj-text>
-<mj-text>Here's what John found at Sarah's place. Enter your price and Home Insulation Victoria sends them the quote straight away.</mj-text>
+<mj-text>Here's what John found at Sarah's place. Enter your price and Home Insulation Victoria sends them the quote once every check passes.</mj-text>
 </mj-column>
 </mj-section>
 <mj-section>

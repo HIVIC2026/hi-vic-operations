@@ -102,7 +102,7 @@ export const WORKFLOW_DECISIONS = {
       // logo beside ours (OWN_CUSTOMER_COBRAND_APPROVED, one switch for email/page/invoice) + the VEU program box (Fix 1).
       ownCustomerQuoteEmail: {
         base: "O18 v4 (OWNER_QUOTE_EMAIL_V4_APPROVED)",
-        approvedFlag: "OWN_CUSTOMER_QUOTE_EMAIL_APPROVED",
+        approvedFlag: "OWN_CUSTOMER_COBRAND_APPROVED (one switch: email rows/VEU box, My job page, tax invoice)",
         cobrandFlag: "OWN_CUSTOMER_COBRAND_APPROVED",
         rowsFrom: "ownCustomerRows (quote_items.code)",
         rows: ["Insulation", "extras", "Home Insulation Victoria fee", "Electrical safety check (PIESA)", "Rebate", "Your price"] as const,
