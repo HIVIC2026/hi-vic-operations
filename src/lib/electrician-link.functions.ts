@@ -10,3 +10,8 @@ export const getElectricianLinkView = createServerFn({ method: "POST" })
 export const bookElectricianLinkVisit = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ token: z.string().max(100), kind: z.enum(["assessment", "rectification"]), start: z.string().max(40) }).parse(d))
   .handler(async ({ data }) => (await import("./electrician-link.server")).bookFromElectricianLink(data.token, data.kind, data.start));
+
+/** The certificate is sent as base64 text (15 MB of file is about 20 MB of text). Only the token names the job. */
+export const uploadCoesByLink = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ token: z.string().max(100), name: z.string().max(200), type: z.string().max(100), data: z.string().max(21_000_000) }).parse(d))
+  .handler(async ({ data }) => (await import("./electrician-link.server")).uploadCoesFromElectricianLink(data.token, { name: data.name, type: data.type, bytes: new Uint8Array(Buffer.from(data.data, "base64")) }));

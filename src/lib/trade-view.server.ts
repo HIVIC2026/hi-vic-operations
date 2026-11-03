@@ -1467,3 +1467,16 @@ export async function tradeOfferPiesaTimes(offerId: string, userId: string, pick
   if (!o || o.business_id !== c.biz.id || o.kind !== "piesa") throw new WorkflowError("This offer isn't for your business.");
   return (await import("./piesa-times.server")).acceptPiesaOfferWithTimes(offerId, userId, picks);
 }
+
+/** New job flow Part 6 Task 5: the installer office uploads the Certificate of Electrical Safety for a job. The business owner of
+ *  the job's installer business only. TODO(join): Part 5's role check (`pricesOrThrow`, boss and Office) replaces the boss check.
+ *  Same upload path as the electrician's link, so there is one record. A refusal comes back as a plain message. */
+export async function tradeUploadCoes(jobId: string, userId: string, file: { name: string; type: string; bytes: Uint8Array }): Promise<{ ok: true } | { ok: false; message: string }> {
+  const c = await requireTradeJob(userId, jobId);
+  if (c.kind !== "installer" || !c.boss) throw new WorkflowError("Only the installer's office can upload this.");
+  const { data: asg } = await admin.from("job_assignments").select("id").eq("job_id", jobId).eq("business_id", c.biz.id).eq("role", "installer").eq("active", true).limit(1).maybeSingle();
+  if (!asg) throw new WorkflowError("This job isn't assigned to you.");
+  const { saveUploadedCoes, CoesUploadError } = await import("./coes-upload.server");
+  try { await saveUploadedCoes(jobId, file, { kind: "installer_office", userId }); return { ok: true }; }
+  catch (e) { if (e instanceof CoesUploadError) return { ok: false, message: e.message }; throw e; }
+}

@@ -336,3 +336,38 @@ export async function bookFromElectricianLink(token: string, kind: "assessment" 
     return { ok: true as const, start };
   });
 }
+
+// ---------- uploading the Certificate of Electrical Safety from the link ----------
+export type ElectricianLinkUploadResult = { ok: true } | { ok: false; message: string };
+
+/** Upload the Certificate of Electrical Safety. Everything comes from the token: the job, the electrician and the business are
+ *  never sent by the browser. The file goes through the one upload path the installer office uses (coes-upload.server), so the
+ *  link, the office's Next step and the install gate all read the same record. Plain messages, never the raw error. */
+export async function uploadCoesFromElectricianLink(token: string, file: { name: string; type: string; bytes: Uint8Array }, now = Date.now()): Promise<ElectricianLinkUploadResult> {
+  if (!isTokenShape(token)) return { ok: false, message: ELECTRICIAN_LINK_NOT_VALID };
+  const { data: l, error } = await admin.from("worker_job_links").select("id, job_id, worker_id, business_id, expires_at, revoked_at").eq("token_hash", await hashToken(token)).maybeSingle();
+  if (error) { console.error("Electrician link upload could not read the link", error.message); return { ok: false, message: ELECTRICIAN_LINK_NOT_VALID }; }
+  if (!l) return { ok: false, message: ELECTRICIAN_LINK_NOT_VALID };
+  try {
+    const installer = await installerOf(l.job_id);
+    const state = linkState(l, now);
+    if (state === "revoked") return { ok: false, message: electricianLinkSwitchedOff(installer.name) };
+    if (state === "expired") return { ok: false, message: electricianLinkExpired(installer.name) };
+    const off = { ok: false as const, message: electricianLinkSwitchedOff(installer.name) };
+    const [{ data: w, error: we }, { data: job, error: je }] = await Promise.all([
+      admin.from("partner_workers").select("id, trade_role, approval_status, certification_status, removed_at, profile_id").eq("id", l.worker_id).maybeSingle(),
+      admin.from("jobs").select("stage, deleted_at").eq("id", l.job_id).maybeSingle(),
+    ]);
+    if (we) throw dbErr("the electrician", we);
+    if (je) throw dbErr("the job", je);
+    if (!w || w.trade_role !== "electrician" || w.removed_at || w.approval_status !== "approved" || certificationBlocker(w) || !job || job.deleted_at || job.stage === "cancelled") return off;
+    const asg = await electricianAssignment(l.job_id, l.business_id);
+    if (!asg || !sameElectrician(asg, w)) return off;
+    const { saveUploadedCoes, CoesUploadError } = await import("./coes-upload.server");
+    try { await saveUploadedCoes(l.job_id, file, { kind: "electrician_link", workerId: w.id }); return { ok: true }; }
+    catch (e) { if (e instanceof CoesUploadError) return { ok: false, message: e.message }; throw e; }
+  } catch (e) {
+    console.error("Electrician link upload failed", (e as Error).message);
+    return { ok: false, message: ELECTRICIAN_LINK_NOT_VALID };
+  }
+}

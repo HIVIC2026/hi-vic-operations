@@ -316,3 +316,8 @@ export const getTradeSafetyCheckPdf = createServerFn({ method: "POST" }).middlew
 export const checkTradeInstallForm = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).tradeCheckInstallForm(data.jobId, context.userId)));
+
+/** New job flow Part 6: the installer office uploads the Certificate of Electrical Safety (same record as the electrician's link). */
+export const uploadCoesForJob = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, name: z.string().max(200), type: z.string().max(100), data: z.string().max(21_000_000) }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeUploadCoes(data.jobId, context.userId, { name: data.name, type: data.type, bytes: new Uint8Array(Buffer.from(data.data, "base64")) }));

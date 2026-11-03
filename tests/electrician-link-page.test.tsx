@@ -68,3 +68,26 @@ test("no menu, no prices, no messages, no rate items", () => {
   const src = readFileSync("src/components/trade/ElectricianLinkBody.tsx", "utf8");
   expect(src).not.toMatch(/<TradeShell|TradeTabBar|useAccess/);
 });
+
+// Task 5: the upload step.
+test("the upload step shows a file picker for a photo or PDF and the one green button, no link button", () => {
+  const d = { business: "Spark Co", firstName: "Sam", jobNumber: "HV-5001", owner: null, address: null, buttonUrl: null,
+    view: electricianStep(facts({ piesa: { start: "2026-11-06T23:00:00Z", formUrl: null, outcome: "upgrades", upgradesSameDay: true } })) };
+  const h = renderToStaticMarkup(<ElectricianLinkBody d={d} onUpload={async () => ({ ok: true })} />);
+  expect(h).toContain("Upload the Certificate of Electrical Safety");
+  expect(h).toContain("data-electrician-upload");
+  expect(h).toContain('type="file"');
+  expect(h).toContain('accept="application/pdf,image/*,.pdf,.heic,.heif"');
+  expect(h).toContain("Upload the certificate");
+  expect(h.match(/data-electrician-upload-button/g)).toHaveLength(1);
+});
+test("other steps show no file picker", () => {
+  expect(body()).not.toContain('type="file"');
+});
+test("the route sends the file through the token-only upload function and reloads the step", () => {
+  expect(route).toContain("uploadCoesByLink");
+  expect(route).toContain("onUpload");
+  expect(fns).toContain("export const uploadCoesByLink");
+  expect(fns).toMatch(/uploadCoesByLink[\s\S]*token: z\.string\(\)\.max\(100\)/);
+  expect(fns).not.toContain(".middleware(");
+});

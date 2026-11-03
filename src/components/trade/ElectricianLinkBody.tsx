@@ -30,7 +30,32 @@ function BookForm({ label, onBook }: { label: string; onBook: (startIso: string)
   );
 }
 
-export function ElectricianLinkBody({ d, onBook }: { d: Shown; onBook?: (startIso: string) => Promise<{ ok: true } | { ok: false; message: string }> }) {
+type Result = { ok: true } | { ok: false; message: string };
+const MAX_BYTES = 15 * 1024 * 1024;
+
+/** Pick the certificate (a PDF or a photo) and press the step's button. The server checks the file and the link again. */
+function UploadForm({ label, onUpload }: { label: string; onUpload: (file: File) => Promise<Result> }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const press = async () => {
+    if (!file) { setError("Choose the certificate first."); return; } // DRAFT
+    if (file.size > MAX_BYTES) { setError("That file is too big. Upload one under 15 MB."); return; } // DRAFT
+    setBusy(true); setError(null);
+    try { const r = await onUpload(file); if (!r.ok) setError(r.message); }
+    catch { setError("We couldn't save that file. Try again."); } // DRAFT
+    finally { setBusy(false); }
+  };
+  return (
+    <section className={`${card} space-y-3`} data-electrician-upload>
+      <input type="file" aria-label="Certificate of Electrical Safety" accept="application/pdf,image/*,.pdf,.heic,.heif" className={inputCls} onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+      <button type="button" className={greenBtn} disabled={busy} onClick={press} data-electrician-upload-button>{label}</button>
+      {error && <p className="text-sm text-danger" role="alert" data-electrician-upload-error>{error}</p>}
+    </section>
+  );
+}
+
+export function ElectricianLinkBody({ d, onBook, onUpload }: { d: Shown; onBook?: (startIso: string) => Promise<Result>; onUpload?: (file: File) => Promise<Result> }) {
   return (
     <>
       <div>
@@ -46,6 +71,7 @@ export function ElectricianLinkBody({ d, onBook }: { d: Shown; onBook?: (startIs
         </section>
       )}
       {d.view.canBook && d.view.button && onBook && <BookForm label={d.view.button} onBook={onBook} />}
+      {d.view.step === "upload_certificate" && d.view.button && onUpload && <UploadForm label={d.view.button} onUpload={onUpload} />}
       {d.view.button && d.buttonUrl && <a className={greenBtn} href={d.buttonUrl} data-electrician-button>{d.view.button}</a>}
     </>
   );
