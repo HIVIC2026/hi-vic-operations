@@ -10,6 +10,12 @@ export { esc };
 /** Hosted logo (Gmail and Outlook block embedded `data:` images). Same file as CUSTOMER_BRAND.logoUrl. */
 export const MAIL_LOGO_URL = "https://homeinsulationvictoria.com.au/home-insulation-victoria-logo.png";
 export const MAIL_HEADER = `<mj-section><mj-column><mj-image src="${MAIL_LOGO_URL}" alt="Home Insulation Victoria" width="132px" align="left" padding="0 12px 2px" /></mj-column></mj-section>`;
+/** Part 10 Task 5 (co-brand): our logo on the left and the installer's on the right of the same row (mjml-lite holds one
+ *  column per section, so the row is one table). Only used when the caller passes a checked https logo + alt. */
+function cobrandHeader(p: { url: string; alt: string }): string {
+  const img = (src: string, alt: string) => `<img src="${esc(src)}" alt="${esc(alt)}" width="132" style="border:0;display:block;outline:none;text-decoration:none;height:auto;width:132px;max-width:132px;">`;
+  return `<mj-section><mj-column><mj-table padding="0 12px 2px"><tr><td align="left" valign="middle" style="width:50%;padding:0;">${img(MAIL_LOGO_URL, "Home Insulation Victoria")}</td><td align="right" valign="middle" style="width:50%;padding:0;"><table border="0" cellpadding="0" cellspacing="0" role="presentation" align="right"><tr><td>${img(p.url, p.alt)}</td></tr></table></td></tr></mj-table></mj-column></mj-section>`;
+}
 const TEST_PILL = `<mj-section><mj-column><mj-text padding="8px 12px 0"><span style="display:inline-block;background:#FDF2F6;color:#22376B;font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;">TEST — only sent to Jo</span></mj-text></mj-column></mj-section>`;
 const UNSUB_TOKEN = "__HIV_UNSUBSCRIBE__";
 
@@ -30,11 +36,13 @@ export type MailInput = {
   unsubscribe?: string | "slot" | null;
   /** "TEST — only sent to Jo" pill under the logo. */
   testLabel?: boolean;
+  /** Part 10 Task 5: the installer's logo beside ours (cobrand.core `cobrandLogos`); absent/null = today's header byte-for-byte. */
+  partnerLogo?: { url: string; alt: string } | null;
 };
 
 /** The MJML document `mjEmail` compiles (design samples under docs/templates/mjml are written from this). */
 export function mjEmailSource(i: MailInput): string {
-  return `<mjml lang="en-AU"><mj-head><mj-title>${esc(i.subject)}</mj-title>${i.preview ? `<mj-preview>${esc(i.preview)}</mj-preview>` : ""}<mj-include path="./partials/head.mjml" /></mj-head><mj-body><mj-wrapper css-class="card">${MAIL_HEADER}${i.testLabel ? TEST_PILL : ""}${i.body}${mailFooter(i.unsubscribe)}</mj-wrapper></mj-body></mjml>`;
+  return `<mjml lang="en-AU"><mj-head><mj-title>${esc(i.subject)}</mj-title>${i.preview ? `<mj-preview>${esc(i.preview)}</mj-preview>` : ""}<mj-include path="./partials/head.mjml" /></mj-head><mj-body><mj-wrapper css-class="card">${i.partnerLogo ? cobrandHeader(i.partnerLogo) : MAIL_HEADER}${i.testLabel ? TEST_PILL : ""}${i.body}${mailFooter(i.unsubscribe)}</mj-wrapper></mj-body></mjml>`;
 }
 /** Builds and compiles one email. */
 export function mjEmail(i: MailInput): string {

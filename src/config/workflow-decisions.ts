@@ -98,6 +98,18 @@ export const WORKFLOW_DECISIONS = {
         buttonWhenOn: "Send quote to owner",
         note: "Your price stays editable until the quote is sent.",
       },
+      // Part 10 Task 5: the own customer's quote email = Part 3's v4 email + approved rows by quote_items.code + the installer's
+      // logo beside ours (OWN_CUSTOMER_COBRAND_APPROVED, one switch for email/page/invoice) + the VEU program box (Fix 1).
+      ownCustomerQuoteEmail: {
+        base: "O18 v4 (OWNER_QUOTE_EMAIL_V4_APPROVED)",
+        approvedFlag: "OWN_CUSTOMER_QUOTE_EMAIL_APPROVED",
+        cobrandFlag: "OWN_CUSTOMER_COBRAND_APPROVED",
+        rowsFrom: "ownCustomerRows (quote_items.code)",
+        rows: ["Insulation", "extras", "Home Insulation Victoria fee", "Electrical safety check (PIESA)", "Rebate", "Your price"] as const,
+        installerLogo: "businessLogoUrl https only, else ours alone",
+        veuBox: "owner-wording.core veuBoxMj (Fix 1) at the bottom",
+        hivLeadsUnchanged: true,
+      },
       paymentRule: "not_assumed",
       leadFee: "none",
       marginOnInstallerPrice: "none",

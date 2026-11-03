@@ -168,13 +168,17 @@ mock.module("../src/lib/customer-agreement-pdf.server", () => ({
 const realSor = { ...(await import("../src/lib/statement-of-rights.core")) };
 mock.module("../src/lib/statement-of-rights.core", () => ({ ...realSor, statementOfRightsPdf: () => (sorOnFile ? new Uint8Array([37, 80, 68, 70]) : null) }));
 mock.module("../src/lib/owner-contact.server", () => ({ businessContactForJob: async () => ({ name: "Reinsulate Pty Ltd", tradingName: "Reinsulate", officePhone, email: "office@reinsulate.example" }) }));
+// Part 10 Task 5: the own-customer brand reads Part 5's businessLogoUrl (trade-view.server).
+let logoUrl: string | null = "https://portal.example/api/public/partner-logo/abc";
+mock.module("../src/lib/trade-view.server", () => ({ businessLogoUrl: async () => logoUrl }));
 const realQe = { ...(await import("../src/lib/quote-expiry.core")) };
 mock.module("../src/lib/quote-expiry.core", () => ({
   ...realQe,
   quoteValidDaysFor: (s: string | Date) => realQe.quoteValidDaysFor(s, "2026-11-01T00:00:00Z"),
   quoteExpiresAt: (s: string | Date) => realQe.quoteExpiresAt(s, "2026-11-01T00:00:00Z"),
 }));
-const setV4 = (on: boolean) => { v4 = on; mock.module("../src/lib/owner-quote-email.core", () => ({ ...shipped, OWNER_QUOTE_EMAIL_V4_APPROVED: v4 })); };
+let ownOn = false;
+const setV4 = (on: boolean) => { v4 = on; mock.module("../src/lib/owner-quote-email.core", () => ({ ...shipped, OWNER_QUOTE_EMAIL_V4_APPROVED: v4, OWN_CUSTOMER_QUOTE_EMAIL_APPROVED: ownOn, renderOwnerQuoteEmail: (i: Parameters<typeof shipped.renderOwnerQuoteEmail>[0]) => shipped.renderOwnerQuoteEmail(i, { ownCustomerApproved: ownOn, cobrandApproved: ownOn }) })); };
 const { notifyOwnerQuoteReady } = await import("../src/lib/quote-ready-notify.server");
 
 describe("quote-ready sender", () => {
@@ -233,5 +237,50 @@ describe("quote-ready sender", () => {
     expect(testSends).toHaveLength(1);
     expect(testSends[0]!.text).toContain("What's changed from your estimate");
     expect(testSends[0]!.attachments).toHaveLength(2);
+  });
+});
+
+/* ---------------------------------------------------------------- Part 10 Task 5: own customer through the sender */
+describe("quote-ready sender — installer's own customer (Task 5)", () => {
+  const ownRows = () => Object.assign(rows, {
+    jobs: { ...(rows["jobs"] as Record<string, unknown>), channel: "installer_sourced", originating_installer_business_id: "biz-1" },
+    businesses: { name: "Rapid Insulation Pty Ltd", trading_name: "Rapid Insulation", branding: { logo_url: logoUrl } },
+    quotes: { customer_total_inc_gst: 2098, veec_discount_inc_gst: 600, subtotal_inc_gst: 2698, sent_at: sentAt, kind: "installation", status: "issued", release_state: "released" },
+    quote_items: [
+      { description: "Insulation works by your installer — includes: Ceiling insulation - supply & install", line_total_inc_gst: 2000, sort: 0, code: "INSTALLER_PRICE" },
+      { description: "Home Insulation Victoria fee", line_total_inc_gst: 349, sort: 1, code: "AP_FEE" },
+      { description: "Electrical safety check (PIESA)", line_total_inc_gst: 349, sort: 2, code: "PIESA" },
+    ],
+  });
+  beforeEach(() => { sends.length = 0; testSends.length = 0; events.length = 0; tplActive = true; sorOnFile = true; officePhone = "03 9000 0000"; sentAt = "2026-11-10T01:00:00Z"; source = "website"; logoUrl = "https://portal.example/api/public/partner-logo/abc"; resetRows(); ownRows(); });
+
+  test("approved on: the sender passes code + ownCustomer → approved rows, both logos, VEU box, documents still attached", async () => {
+    ownOn = true; setV4(true);
+    const r = await notifyOwnerQuoteReady("j", "q", "installation");
+    expect(r.email).toBe("sent");
+    const m = sends[0]!.mail;
+    expect(m.text).toContain("Home Insulation Victoria fee: $349.00");
+    expect(m.text).toContain("Electrical safety check (PIESA): $349.00");
+    expect(m.text).toContain("Rebate: −$600.00");
+    expect(m.text).toContain("Your price: $2,098.00");
+    expect(m.text).toContain("About the Victorian Energy Upgrades program");
+    expect((m as { html?: string }).html ?? "").toContain("https://portal.example/api/public/partner-logo/abc");
+    expect(m.attachments?.map((a) => a.filename)).toEqual(["Customer-Agreement-and-payment-terms-v1.3.pdf", "VEU-Statement-of-rights.pdf"]);
+  });
+  test("approved on, no logo on the business → our logo alone", async () => {
+    ownOn = true; setV4(true); logoUrl = null;
+    await notifyOwnerQuoteReady("j", "q", "installation");
+    const html = (sends[0]!.mail as { html?: string }).html ?? "";
+    expect(html).not.toContain("partner-logo");
+    expect(html.match(/<img /g)?.length).toBe(1);
+    expect(sends[0]!.mail.text).toContain("Your price: $2,098.00");
+  });
+  test("approved off (as shipped): an own customer gets Part 3's v4 email — no VEU box, one logo, generic rows", async () => {
+    ownOn = false; setV4(true);
+    await notifyOwnerQuoteReady("j", "q", "installation");
+    const m = sends[0]!.mail;
+    expect(m.text).not.toContain("Victorian Energy Upgrades program");
+    expect(m.text).toContain("You pay: $2,098.00");
+    expect(((m as { html?: string }).html ?? "").match(/<img /g)?.length).toBe(1);
   });
 });

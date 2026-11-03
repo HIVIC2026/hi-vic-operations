@@ -51,7 +51,7 @@ export async function loadOwnerQuoteFacts(
       .maybeSingle(),
     admin
       .from("quote_items")
-      .select("description, line_total_inc_gst, sort")
+      .select("description, line_total_inc_gst, sort, code")
       .eq("quote_id", quoteId),
     admin
       .from("customer_estimate_links")
@@ -91,6 +91,8 @@ export async function loadOwnerQuoteFacts(
         .map((l) => ({
           description: String(l.description ?? ""),
           lineTotalIncGst: Number(l.line_total_inc_gst),
+          // Part 10 Task 5: own customers' rows are built from the code, never the description.
+          code: (l as { code?: string | null }).code ?? null,
         }));
   const address =
     pe || !prop ? null : fullAddress(prop.address_line, prop.suburb, prop.postcode) || null;
@@ -158,9 +160,13 @@ export async function loadOwnerQuoteFacts(
   });
   const product =
     (prod?.details as { product?: { option?: string } } | null)?.product?.option ?? null;
+  // Part 10 Task 5: an installer's own customer gets the co-branded variant — the originating business's name and Part 5's
+  // https logo (`businessLogoUrl`; none → our logo alone). Best-effort: a failed read leaves the brand out, never stops the email.
+  const ownCustomer = await ownCustomerBrand(jobId).catch(() => null);
   return {
     missing: null,
     input: {
+      ...(ownCustomer ? { ownCustomer } : {}),
       firstName: firstName(ownerName),
       address,
       totalIncGst: Number(quote.customer_total_inc_gst),
@@ -185,6 +191,18 @@ export async function loadOwnerQuoteFacts(
       changes,
     },
   };
+}
+
+/** Part 10 Task 5: `{ installerName, installerLogoUrl }` for a `channel = installer_sourced` job, else null. */
+async function ownCustomerBrand(jobId: string): Promise<{ installerName: string; installerLogoUrl: string | null } | null> {
+  const { data: j } = await admin.from("jobs").select("channel, originating_installer_business_id").eq("id", jobId).maybeSingle();
+  const biz = (j as { channel?: string | null; originating_installer_business_id?: string | null } | null);
+  if (biz?.channel !== "installer_sourced" || !biz.originating_installer_business_id) return null;
+  const { data: b } = await admin.from("businesses").select("name, trading_name").eq("id", biz.originating_installer_business_id).maybeSingle();
+  const name = ((b as { trading_name?: string | null; name?: string | null } | null)?.trading_name ?? (b as { name?: string | null } | null)?.name ?? "").trim();
+  if (!name) return null;
+  const installerLogoUrl = await (await import("./trade-view.server")).businessLogoUrl(biz.originating_installer_business_id).catch(() => null);
+  return { installerName: name, installerLogoUrl };
 }
 
 type QuoteEmailInput = NonNullable<OwnerQuoteFacts["input"]>;
