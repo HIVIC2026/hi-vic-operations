@@ -642,14 +642,17 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       const x = f(id); if (x && open) x.ownJobPiesaCompleteHeld = open;
     }
   } catch { unavailable.push("own job safety check not completed"); }
-  // Part 3 Task 4b fix 1: the PIESA completed but its same-day Part C record failed → one row until a retry writes it.
+  // Part 3 Task 4b fix 1: the PIESA completed but its same-day Part C record failed → one row until the portal's tick retry
+  // writes it (fix 2), Part C is recorded another way, or the job moves past the retry stages.
   try {
     const { SAME_DAY_PART_C_FAILED_EVENT, SAME_DAY_PART_C_RECOVERED_EVENT, sameDayPartCFailedOpen } = await import("./same-day-part-c.core");
     const ev = await all("same-day Part C record failures", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).in("event_type", [SAME_DAY_PART_C_FAILED_EVENT, SAME_DAY_PART_C_RECOVERED_EVENT]).order("created_at").range(a, b));
     const byJob = new Map<string, Row[]>();
     for (const e of ev) { const id = String(e["job_id"]); if (idSet.has(id)) byJob.set(id, [...(byJob.get(id) ?? []), e]); }
+    // Fix 2: the row closes on its own once Part C is recorded another way (a current post_rectification pass record).
+    const withPart = byJob.size ? new Set((await all("same-day Part C records", (a, b) => admin.from("piesa_records").select("job_id").in("job_id", [...byJob.keys()]).eq("kind", "post_rectification").eq("outcome", "pass").eq("is_current", true).range(a, b))).map((r) => String(r["job_id"]))) : new Set<string>();
     for (const [id, list] of byJob) {
-      const open = sameDayPartCFailedOpen(list.map((e) => ({ event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as Record<string, unknown> | null })));
+      const open = sameDayPartCFailedOpen(list.map((e) => ({ event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as Record<string, unknown> | null })), { stage: jobById.get(id)?.stage ?? null, postRecord: withPart.has(id) });
       const x = f(id); if (x && open) x.sameDayPartCFailed = open;
     }
   } catch { unavailable.push("same-day Part C record failures"); }

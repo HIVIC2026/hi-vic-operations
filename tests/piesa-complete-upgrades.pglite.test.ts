@@ -111,7 +111,9 @@ mock.module("../src/lib/deposit-request.server", () => ({ requestInstallDeposit:
 mock.module("../src/lib/install-clearance.server", () => ({ notifyInstallerClearance: async () => "mocked" }));
 mock.module("../src/lib/in-house-forms.server", () => ({ closeUnneededForms: async () => undefined }));
 mock.module("../src/lib/in-house-rectification.server", () => ({ optionalPartnerBilledRectificationFor: async () => false }));
-mock.module("../src/lib/repeat-piesa.server", () => ({ currentPiesaSupersededByReopen: async () => false }));
+// Fix round 2: a reopen a test can switch on (the safety check no longer counts).
+const supersededJobs = new Set<string>();
+mock.module("../src/lib/repeat-piesa.server", () => ({ currentPiesaSupersededByReopen: async (job: string) => supersededJobs.has(job) }));
 const realFixes = await import("../src/lib/fixes-day.server");
 mock.module("../src/lib/fixes-day.server", () => ({ ...realFixes, closeUnusedRectificationForm: async () => undefined }));
 const inHouseJobs = new Set<string>();
@@ -303,19 +305,22 @@ describe("Fix round 1", () => {
     expect(failed).toHaveLength(1);
     expect(failed[0]).toMatchObject({ internal: true, details: { audit_id: auditId, reason: "database timeout", needs_office: true } });
     expect(await records(j, "post_rectification")).toHaveLength(0);
+    // Fix round 2 (6): the failed insert leaves nothing half-written — items still listed, the PIESA record still current.
+    expect((await db.query("select status from rectification_items where job_id=$1", [j])).rows).toEqual([{ status: "required" }]);
+    expect(await records(j, "initial")).toMatchObject([{ is_current: true }]);
     // The office sees it.
     const evRows = async () => (await db.query<{ event_type: string; created_at: string; details: Record<string, unknown> }>("select event_type, created_at::text, details from workflow_events where job_id=$1 and event_type = any($2)", [j, [sameDay.SAME_DAY_PART_C_FAILED_EVENT, sameDay.SAME_DAY_PART_C_RECOVERED_EVENT]])).rows;
-    const open = sameDay.sameDayPartCFailedOpen(await evRows());
+    const open = sameDay.sameDayPartCFailedOpen(await evRows(), { stage: "piesa_complete", postRecord: false });
     expect(open).toMatchObject({ reason: "database timeout" });
     const rows = needsCore.needsCandidates({ jobId: j, jobNumber: "HV-1", sameDayPartCFailed: open } as never, Date.now());
-    expect(rows.find((r) => r.kind === "same_day_part_c_failed")).toMatchObject({ line: "Same-day Part C record failed — database timeout", button: { label: "Open job" } });
+    expect(rows.find((r) => r.kind === "same_day_part_c_failed")).toMatchObject({ line: "Same-day Part C record failed — database timeout. The portal retries it each tick.", button: { label: "Open job" } });
     // A later sync writes the missing record once and the job moves on.
     expect(await pc.retrySameDayPartC(j, null)).toBe("recorded");
     expect(await records(j, "post_rectification")).toHaveLength(1);
     expect(await stageOf(j)).toBe("installation_scheduling");
     expect((await db.query("select status from rectification_items where job_id=$1", [j])).rows).toEqual([{ status: "completed" }]);
     expect((await db.query<{ next_action: string | null }>("select next_action from jobs where id=$1", [j])).rows[0]!.next_action).toBeNull();
-    expect(sameDay.sameDayPartCFailedOpen(await evRows())).toBeNull();
+    expect(sameDay.sameDayPartCFailedOpen(await evRows(), { stage: "piesa_complete", postRecord: false })).toBeNull();
     expect(await pc.retrySameDayPartC(j, null)).toBe("none");
     expect(await records(j, "post_rectification")).toHaveLength(1);
   });
@@ -390,5 +395,103 @@ describe("Fix round 1", () => {
     expect(pc.partCDate({ certDate: "2026-11-02" }, "2026-11-01")).toBe("2026-11-02");
     expect(pc.partCDate({ certDate: "2026-11-01" }, "2026-11-01")).toBe("2026-11-01");
     expect(pc.partCDate({}, "2026-11-01")).toBe("2026-11-01");
+  });
+});
+
+describe("Fix round 2 — the same-day record is retried from the tick; the row closes itself", () => {
+  const evRows = async (j: string) => (await db.query<{ event_type: string; created_at: string; details: Record<string, unknown> }>("select event_type, created_at::text, details from workflow_events where job_id=$1 and event_type = any($2)", [j, [sameDay.SAME_DAY_PART_C_FAILED_EVENT, sameDay.SAME_DAY_PART_C_RECOVERED_EVENT]])).rows;
+  const failedSameDay = async () => {
+    const s = await seedJob({ snap: { upgrades: "Yes", today: "Yes", certNow: "No" } });
+    faults.postInsert = "database timeout";
+    try { expect(await run(s.j)).toBe(""); } finally { faults.postInsert = null; }
+    expect(await events(s.j, sameDay.SAME_DAY_PART_C_FAILED_EVENT)).toHaveLength(1);
+    return s;
+  };
+
+  test("1. the tick retries an open failure and writes the record once", async () => {
+    const { j } = await failedSameDay();
+    const out = await pc.sweepSameDayPartCRetries(new Date());
+    expect(out.recorded).toBeGreaterThanOrEqual(1);
+    expect(await records(j, "post_rectification")).toHaveLength(1);
+    expect(await stageOf(j)).toBe("installation_scheduling");
+    expect(await events(j, sameDay.SAME_DAY_PART_C_RECOVERED_EVENT)).toHaveLength(1);
+    // A second tick finds nothing open for this job.
+    await pc.sweepSameDayPartCRetries(new Date());
+    expect(await records(j, "post_rectification")).toHaveLength(1);
+    expect(await events(j, sameDay.SAME_DAY_PART_C_RECOVERED_EVENT)).toHaveLength(1);
+  });
+
+  test("1. one job's error never stops the sweep, and the sweep never throws", async () => {
+    const a = await failedSameDay();
+    const b = await failedSameDay();
+    faults.postInsert = "still down";
+    let out: Awaited<ReturnType<typeof pc.sweepSameDayPartCRetries>>;
+    try { out = await pc.sweepSameDayPartCRetries(new Date()); } finally { faults.postInsert = null; }
+    expect(out.failed).toBeGreaterThanOrEqual(2);
+    expect(await records(a.j, "post_rectification")).toHaveLength(0);
+    expect(await records(b.j, "post_rectification")).toHaveLength(0);
+    await pc.sweepSameDayPartCRetries(new Date());
+    expect(await records(a.j, "post_rectification")).toHaveLength(1);
+    expect(await records(b.j, "post_rectification")).toHaveLength(1);
+  });
+
+  test("2. no backfill: a same-day A3 with no failure row and no record is left alone", async () => {
+    const { j } = await seedJob({ snap: { upgrades: "Yes", today: "Yes", certNow: "No" } });
+    expect(await run(j)).toBe("");
+    // Like a job completed before 4b: the record and its event are not there, and no failure was logged.
+    await db.query("delete from piesa_records where job_id=$1 and kind='post_rectification'", [j]);
+    await db.query("delete from workflow_events where job_id=$1 and event_type='piesa_recorded'", [j]);
+    await db.query("update jobs set stage='piesa_complete' where id=$1", [j]);
+    expect(await pc.retrySameDayPartC(j, null)).toBe("none");
+    await pc.sweepSameDayPartCRetries(new Date());
+    expect(await records(j, "post_rectification")).toHaveLength(0);
+    expect(await stageOf(j)).toBe("piesa_complete");
+  });
+
+  test("3. a safety check superseded by a reopen → the row closes with the reason and nothing is written", async () => {
+    const { j } = await failedSameDay();
+    supersededJobs.add(j);
+    try { expect(await pc.retrySameDayPartC(j, null)).toBe("superseded"); } finally { supersededJobs.delete(j); }
+    expect(await records(j, "post_rectification")).toHaveLength(0);
+    expect(await stageOf(j)).toBe("piesa_complete");
+    const rec = await events(j, sameDay.SAME_DAY_PART_C_RECOVERED_EVENT);
+    expect(rec).toHaveLength(1);
+    expect(rec[0]!.details).toMatchObject({ reason: "safety check superseded by a reopen" });
+    expect(sameDay.sameDayPartCFailedOpen(await evRows(j), { stage: "piesa_complete", postRecord: false })).toBeNull();
+    // The tick doesn't come back to it.
+    await pc.sweepSameDayPartCRetries(new Date());
+    expect(await records(j, "post_rectification")).toHaveLength(0);
+  });
+
+  test("4. the row closes when Part C is recorded another way, or the job has moved past the retry stages", async () => {
+    const F = sameDay.SAME_DAY_PART_C_FAILED_EVENT, R = sameDay.SAME_DAY_PART_C_RECOVERED_EVENT;
+    const failed = [{ event_type: F, created_at: "2026-11-04T01:00:00Z", details: { reason: "x" } }];
+    expect(sameDay.sameDayPartCFailedOpen(failed, { stage: "piesa_complete", postRecord: false })).toMatchObject({ reason: "x" });
+    expect(sameDay.sameDayPartCFailedOpen(failed, { stage: "piesa_complete", postRecord: true })).toBeNull();
+    expect(sameDay.sameDayPartCFailedOpen(failed, { stage: "installation_scheduling", postRecord: false })).toBeNull();
+    // The recovered event still closes it; a tie goes to the failure.
+    expect(sameDay.sameDayPartCFailedOpen([...failed, { event_type: R, created_at: "2026-11-04T02:00:00Z" }], { stage: "piesa_complete", postRecord: false })).toBeNull();
+    expect(sameDay.sameDayPartCFailedOpen([{ event_type: R, created_at: "2026-11-04T01:00:00Z" }, ...failed], { stage: "piesa_complete", postRecord: false })).toMatchObject({ reason: "x" });
+    // On real rows: Part C recorded by hand → the retry writes nothing more.
+    const { j } = await failedSameDay();
+    await db.query("insert into piesa_records (job_id, kind, outcome, completed_date, is_current) values ($1,'post_rectification','pass','2026-11-03',true)", [j]);
+    expect(await pc.retrySameDayPartC(j, null)).toBe("none");
+    expect(await records(j, "post_rectification")).toHaveLength(1);
+  });
+
+  test("wiring: the tick runs the sweep; the office read passes the stage and the Part C record", () => {
+    const tick = readFileSync("src/routes/api/public/hooks/allocation-tick.ts", "utf8");
+    expect(tick).toMatch(/const \{ sweepSameDayPartCRetries \} = await import\("@\/lib\/piesa-complete\.server"\);\s*\(out as Record<string, unknown>\)\['sameDayPartC'\] = await timed\("sweepSameDayPartCRetries", \(\) => sweepSameDayPartCRetries\(\)\);/);
+    const needs = readFileSync("src/lib/office-needs.server.ts", "utf8");
+    const read = needs.slice(needs.indexOf("same-day Part C record failures"), needs.indexOf("same-day Part C record failures") + 1600);
+    expect(read).toMatch(/sameDayPartCFailedOpen\([\s\S]*stage[\s\S]*postRecord/);
+    expect(read).toContain("post_rectification");
+  });
+
+  test("5. wording: the portal retries it each tick (never 'a later sync')", () => {
+    for (const f of ["src/lib/same-day-part-c.core.ts", "src/lib/office-needs.core.ts", "src/lib/piesa-complete.server.ts", "src/lib/office-needs.server.ts"]) {
+      expect(readFileSync(f, "utf8")).not.toMatch(/later sync/);
+    }
+    expect(readFileSync("src/lib/same-day-part-c.core.ts", "utf8")).toContain("the portal retries it each tick");
   });
 });

@@ -29,6 +29,7 @@ const SWEEPS: [string, string][] = [
   ["approved-texts.server", "sweepApprovedTexts"], ["trade-messages.server", "sweepTradeMessages"], ["auto-fixes-quote-send.server", "sweepAutoFixesQuotes"],
   ["daily-brief.server", "sweepDailyBrief"], ["quotes.server", "releaseQueuedQuotes"], ["mitti-complete.server", "sweepCompletedMittiReadyChecks"],
   ["mitti-pickup-auto.server", "sweepMittiPickupAuto"], ["mitti-autoform.server", "sweepReadyCheckForms"], ["install-day-confirm.server", "sweepInstallDayForms"],
+  ["piesa-complete.server", "sweepSameDayPartCRetries"],
 ];
 
 const results: { sweep: string; requests: number; waves: number; rows: number; outcome: string; top: string }[] = [];
@@ -52,4 +53,6 @@ test("every tick sweep's read cost", async () => {
   expect(req("sweepCompletionPacks")).toBeLessThan(30);
   expect(req("sweepOwnerPiesaConfirmations")).toBeLessThan(20);
   expect(req("sweepOwnerFixesConfirmations")).toBeLessThan(20);
+  // Part 3 Task 4b fix 2: one events read (plus one jobs read only when a failure is open).
+  expect(req("sweepSameDayPartCRetries")).toBeLessThan(5);
 }, 600_000);

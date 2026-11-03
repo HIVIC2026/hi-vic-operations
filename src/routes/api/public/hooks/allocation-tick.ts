@@ -117,6 +117,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['fixesForms'] = "failed";
         }
         try {
+          // Part 3 Task 4b fix 2: a same-day Part C record (upgrades done on the safety check visit) whose write failed after
+          // Complete PIESA is retried here — completed A3s are never synced again. Open failure rows only, max 20 a tick.
+          const { sweepSameDayPartCRetries } = await import("@/lib/piesa-complete.server");
+          (out as Record<string, unknown>)['sameDayPartC'] = await timed("sweepSameDayPartCRetries", () => sweepSameDayPartCRetries());
+        } catch (e) {
+          console.error("allocation tick: same-day Part C retry sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['sameDayPartC'] = "failed";
+        }
+        try {
           const { sweepInstallHolds } = await import("@/lib/install-holds.server");
           (out as Record<string, unknown>)['installHolds'] = await timed("sweepInstallHolds", () => sweepInstallHolds());
         } catch (e) {

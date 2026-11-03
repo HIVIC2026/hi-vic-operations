@@ -1,8 +1,9 @@
 // ONE write path for "electrical fixes done + PIESA Section C signed" (the post_rectification PIESA record).
 // Used by the portal "record fixes done" page (portal.functions recordPiesa) and, since decision 293 (Jo 25 Oct 2026),
 // by the Mitti "A4 – Electrical fixes" form completion (fixes-day.server.ts). Callers validate first (role, stage,
-// evidence, Section C dates); this module only writes the same records the portal page always wrote, in the same order:
-// rectification items completed → piesa_records (new current post_rectification row) → piesa_recorded event → on a pass
+// evidence, Section C dates); this module only writes the same records the portal page always wrote, in this order:
+// piesa_records (new current row; Task 4b fix 2: first, so a failed insert writes nothing) → the earlier record no longer
+// current → rectification items completed → piesa_recorded event → on a pass
 // compliance checks, the fixes booking completed, the guarded transition to installation scheduling → autoAdvance →
 // the one installer clearance notice (decision 186). Nothing here sends to the owner.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
@@ -51,8 +52,8 @@ export async function applyPiesaRecord(r: PostRectificationRecord): Promise<{ re
   }
   if (!duplicate) {
   await (await import("./fixes-day.server")).closeUnusedRectificationForm(r.jobId);
-  if (post) await admin.from("rectification_items").update({ status: "completed" }).eq("job_id", r.jobId).eq("status", "required");
-  await admin.from("piesa_records").update({ is_current: false }).eq("job_id", r.jobId).eq("is_current", true);
+  // Part 3 Task 4b fix 2: the record is inserted FIRST, so a failed insert leaves the items listed and the earlier record
+  // current (nothing half-written); the earlier record stops being current and the items are completed only after it.
   const { data: rec, error: recordError } = await admin.from("piesa_records").insert({
     job_id: r.jobId,
     kind: r.kind,
@@ -64,6 +65,8 @@ export async function applyPiesaRecord(r: PostRectificationRecord): Promise<{ re
     ...(post && r.outcome === "pass" ? { section_c_signed_at: `${r.sectionCSignedDate}T00:00:00.000Z` } : {}),
   }).select("id").maybeSingle();
   if (recordError) throw new Error(recordError.message);
+  if (rec?.id) await admin.from("piesa_records").update({ is_current: false }).eq("job_id", r.jobId).eq("is_current", true).neq("id", rec.id);
+  if (post) await admin.from("rectification_items").update({ status: "completed" }).eq("job_id", r.jobId).eq("status", "required");
   await logEvent(r.jobId, r.actorId, "piesa_recorded", `PIESA (${r.kind.replace("_", " ")}) ${r.outcome} on ${r.completedDate}${mittiSource?.kind === "mitti_fixes_form" ? " — from the Mitti rectification form" : mittiSource?.kind === "mitti_a3_same_day" ? " — electrical upgrades done on the safety check visit (Mitti PIESA form)" : ""}`,
     mittiSource ? { source: mittiSource.kind, audit_id: mittiSource.auditId, record_id: rec?.id ?? null } : {});
   recordId = rec?.id ?? null;
