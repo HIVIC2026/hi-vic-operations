@@ -13,6 +13,11 @@ export const TEAM_ERRORS = {
 } as const;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** New installer Team adds require an explicit choice; legacy stored-role reads stay unchanged. */
+export function teamWorkerRoleProblem(kind: TeamKind, workerRole: unknown): string | null {
+  return kind === "installer" && workerRole !== "lead" && workerRole !== "crew" ? "Choose Lead or Crew." : null;
+}
+
 /** First plain problem, or the cleaned values to save. */
 export function teamMemberDetails(kind: TeamKind, p: { mobile: string | null | undefined; email: string | null | undefined; dateOfBirth: string | null | undefined }, today: string):
   { ok: true; mobile: string; email: string | null; dateOfBirth: string } | { ok: false; error: string } {

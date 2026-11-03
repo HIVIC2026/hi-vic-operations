@@ -970,13 +970,15 @@ export async function tradeFillWorkerMissing(userId: string, workerId: string, p
 /** Jo 3 Nov 2:37pm (replaces 29 Oct): installers need an Australian mobile + date of birth (email optional); electricians
  *  need mobile + date of birth + email (`team-required.core`). Installers start as Lead or Crew with the CII certificate
  *  unchecked; electricians need a licence number. Always pending, declarations_due before any job. Sends nothing. */
-export async function tradeAddTeamPerson(userId: string, p: { name: string; workerRole: import("./worker-role.core").WorkerRole; mobile: string | null; email: string | null; licenceNumber: string | null; dateOfBirth?:string|null|undefined }): Promise<{ workerId: string }> {
+export async function tradeAddTeamPerson(userId: string, p: { name: string; workerRole?: import("./worker-role.core").WorkerRole; mobile: string | null; email: string | null; licenceNumber: string | null; dateOfBirth?:string|null|undefined }): Promise<{ workerId: string }> {
   const c = await bossOrThrow(userId);
   const name = p.name.trim();
   if (!name) throw new WorkflowError("Add their full name.");
   const licence = p.licenceNumber?.trim() || null;
   if (c.kind === "electrician" && !licence) throw new WorkflowError("Add their electrical licence number.");
-  const { teamMemberDetails } = await import("./team-required.core");
+  const { teamMemberDetails, teamWorkerRoleProblem } = await import("./team-required.core");
+  const roleProblem = teamWorkerRoleProblem(c.kind, p.workerRole);
+  if (roleProblem) throw new WorkflowError(roleProblem);
   const v = teamMemberDetails(c.kind, { mobile: p.mobile, email: p.email, dateOfBirth: p.dateOfBirth }, (await import("./melbourne-time.core")).melbourneToday());
   if (!v.ok) throw new WorkflowError(v.error);
   const email = v.email;

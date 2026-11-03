@@ -12,6 +12,7 @@ import { melbourneToday } from "@/lib/melbourne-time.core";
 import { teamMemberDetails, teamMissingPrompt } from "@/lib/team-required.core";
 import { CertLinkInline, SendNoticeLinkInline, WhiteCardUploadInline } from "@/components/portal/worker-compliance";
 import { WorkerRoleSwitch } from "@/components/portal/worker-role-switch";
+import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_authenticated/field/business_/team")({
   head: () => ({ meta: [{ title: "Team – Home Insulation Victoria" }, { name: "description", content: "The people in your business who can take Ready Checks and install days." }, { property: "og:title", content: "Team – Home Insulation Victoria" }, { property: "og:description", content: "The people in your business who can take Ready Checks and install days." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
@@ -136,12 +137,12 @@ function MobileInline({ workerId, mobile, onSaved }: { workerId: string; mobile:
   );
 }
 
-/** Jo 29 Oct: name · (Lead or Crew for installers) · (licence number for electricians) · mobile · email, all contact optional.
+/** Jo 3 Nov: installers actively choose Lead or Crew; contact requirements remain in team-required.core.
  *  Adding sends nothing: the new row shows the signing line and the owner makes their signing link. */
 function AddTeamMember({ count, kind, onAdded }: { count: number; kind: "installer" | "electrician"; onAdded: () => void }) {
   const add = useServerFn(addTeamPerson);
   const [open, setOpen] = useState(false);
-  const [f, setF] = useState({ name: "", mobile: "", email: "", licence: "",dateOfBirth:"", role: "lead" as "lead" | "crew" });
+  const [f, setF] = useState({ name: "", mobile: "", email: "", licence: "",dateOfBirth:"", role: "" as "" | "lead" | "crew" });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const input = "mt-1.5 block min-h-[52px] w-full rounded-[12px] border-2 border-estimate-line bg-white px-3.5 text-base";
@@ -165,6 +166,7 @@ function AddTeamMember({ count, kind, onAdded }: { count: number; kind: "install
           {kind === "installer" && (
             <fieldset className="mt-3">
               <legend className="text-sm font-bold text-estimate-navy">{TEAM_ADD_SHEET.role}</legend>
+              <p className="mt-1 whitespace-pre-line text-sm leading-[1.45] text-estimate-sub">{TEAM_ADD_SHEET.roleExplanation}</p>
               {(["lead", "crew"] as const).map((r) => (
                 <label key={r} className="mt-1.5 flex min-h-11 items-center gap-2 text-[15px] text-estimate-navy">
                   <input type="radio" name="team-role" checked={f.role === r} onChange={() => setF({ ...f, role: r })} />{r === "lead" ? TEAM_ADD_SHEET.lead : TEAM_ADD_SHEET.crew}
@@ -180,16 +182,18 @@ function AddTeamMember({ count, kind, onAdded }: { count: number; kind: "install
             <input className={input} value={f.email} inputMode="email" autoComplete="email" onChange={(e) => setF({ ...f, email: e.target.value })} />
           </label>
           {err && <p role="alert" className="mt-2 text-sm font-semibold text-[#8A3B4A]">{err}</p>}
-          <button type="button" disabled={busy || f.name.trim().length < 2 || (kind === "electrician" && !f.licence.trim()) || !f.mobile.trim() || !f.dateOfBirth || (kind === "electrician" && !f.email.trim())} className="mt-4 flex min-h-14 w-full items-center justify-center rounded-[14px] bg-estimate-blue text-[17px] font-bold text-white disabled:opacity-45" onClick={async () => {
+          <Button type="button" disabled={busy || (kind === "installer" && !f.role) || f.name.trim().length < 2 || (kind === "electrician" && !f.licence.trim()) || !f.mobile.trim() || !f.dateOfBirth || (kind === "electrician" && !f.email.trim())} className="mt-4 flex min-h-14 w-full items-center justify-center rounded-[14px] bg-estimate-blue text-[17px] font-bold text-primary-foreground disabled:opacity-45" onClick={async () => {
             setErr(null);
+            const workerRole = kind === "installer" ? f.role : "lead";
+            if (!workerRole) { setErr("Choose Lead or Crew."); return; }
             const check = teamMemberDetails(kind, { mobile: f.mobile, email: f.email, dateOfBirth: f.dateOfBirth }, melbourneToday());
             if (!check.ok) { setErr(check.error); return; }
             setBusy(true);
             try {
-              await add({ data: { name: f.name.trim(), workerRole: kind === "installer" ? f.role : "lead", mobile: f.mobile.trim() || null, email: f.email.trim() || null, licenceNumber: kind === "electrician" ? f.licence.trim() : null,dateOfBirth:f.dateOfBirth } });
-              setOpen(false); setF({ name: "", mobile: "", email: "", licence: "",dateOfBirth:"", role: "lead" }); onAdded();
+              await add({ data: { name: f.name.trim(), workerRole, mobile: f.mobile.trim() || null, email: f.email.trim() || null, licenceNumber: kind === "electrician" ? f.licence.trim() : null,dateOfBirth:f.dateOfBirth } });
+              setOpen(false); setF({ name: "", mobile: "", email: "", licence: "",dateOfBirth:"", role: "" }); onAdded();
             } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
-          }}>{busy ? "Adding…" : TEAM_ADD_SHEET.button}</button>
+          }}>{busy ? "Adding…" : TEAM_ADD_SHEET.button}</Button>
           <button type="button" className="mt-2 flex min-h-11 w-full items-center justify-center text-[15px] font-semibold text-estimate-sub" onClick={() => setOpen(false)}>{TEAM_ADD_SHEET.cancel}</button>
         </section>
       )}
