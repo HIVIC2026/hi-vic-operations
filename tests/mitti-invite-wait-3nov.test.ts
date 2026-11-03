@@ -35,7 +35,7 @@ mock.module("../src/lib/trade-pause.server", () => ({ tradeMessagesPausedNow: as
 
 const calls: string[] = [];
 const call = async (method: string, path: string, body?: unknown) => {
-  calls.push(`${method} ${path}${body && (body as { email?: string[] }).email ? ` ${(body as { email: string[] }).email[0]}` : ""}`);
+  calls.push(`${method} ${path}${body && Array.isArray((body as { email?: unknown }).email) ? ` ${(body as { email: string[] }).email[0]}` : ""}`);
   if (path === "/users/search") return { users: [] };
   if (method === "POST" && path === "/users") return { user_id: "m-new" };
   throw new Error(`Unexpected Mitti call ${method} ${path}`);
