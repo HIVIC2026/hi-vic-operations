@@ -51,6 +51,7 @@ import { MITTI_INVITE_MESSAGE, renderMittiInviteEmail } from "./mitti-invite.cor
 import { officeEmailLayout, electricianInviteLayout } from "./office-email.core";
 import { composeReply } from "./email-reply.core";
 import { brandSmsBody } from "./sms.core";
+import { ownerWillCallEmail, ownerWillCallText } from "./owner-will-call.core";
 import { quickTapsLink, quickTapsReminderText } from "./area-batch.core";
 import { runOfferedText } from "./run-route.core";
 import { exactTimeWords, runSlotCancelledText, runTeamTimeText, runTimeReminderText, runTimeText, windowWords } from "./run-portal.core";
@@ -174,6 +175,7 @@ const QUOTE = {
   lines: [{ description: "Bradford Gold R5.0 ceiling batts, supplied and installed", lineTotalIncGst: 2752 }, { description: "Old insulation removed and taken away", lineTotalIncGst: 600 }, { description: "Electrical safety check (PIESA)", lineTotalIncGst: 349 }, { description: "Accredited Person fee", lineTotalIncGst: 349 }],
   quoteUrl: `${JOB}?screen=quote`, validUntil: new Date("2026-11-07T12:59:59.999Z"), officePhone: null, unsubscribeUrl: UNSUB,
 };
+const WILL_CALL_SAMPLE = { name: "Sample Insulation Co", tradingName: null, officePhone: "03 9000 0000", email: "office@sample-insulation.example" };
 const PARTNER_JOB = { installerFirstName: "Sam", ownerName: "Helen Yang", address: SHORT_ADDRESS, jobNumber: "HV-TEST", jobUrl: FIELD };
 const BANK = { accountName: "Home Insulation Victoria", bsb: "082902", accountNumber: "777966349", payId: null, configured: true };
 
@@ -440,6 +442,14 @@ const OWNER: TemplateEntry[] = [
   ENTRY({ id: "owner:sms-spot_released", section: "owner", step: "ready_check", kind: "text", code: "", name: "It's your turn (text)", when: "With O77 and its day-2 reminder (opens the quick taps)", who: "Owner", approvalNote: "Wording: Jo 2 Nov 2026, decision #22 (IT_IS_YOUR_TURN_V2_APPROVED stays false until Jo OKs the pictures)", gate: { kind: "text", smsType: "spot_released" },
     source: { builder: "src/lib/spot-release.core.ts", fn: "spotReleasedText", sender: "src/lib/area-batch.server.ts" },
     render: () => texts([{ label: "Released", body: spotReleasedText("Helen", quickTapsLink(JOB)) }, { label: "Day-2 reminder", body: spotReleasedText("Helen", quickTapsLink(JOB), true) }]) }),
+  // Decision #23 (Jo 2 Nov 2026): Jo gives the job to an in-house installer → "{Installer} will call you" (email + text) with
+  // the installer's OFFICE phone; replaces the draft DB template in_house_partner_will_call. Off until Jo OKs the pictures.
+  ENTRY({ id: "owner:will-call", section: "owner", step: "ready_check", kind: "email", code: "", name: "{Installer} will call you", when: "Jo gives the job to an in-house installer (batch Send to installer); held with an office note if the installer has no office phone or business email", who: "Owner", approvalNote: "Wording: Jo 2 Nov 2026, decision #23 + Fix 5 (OWNER_WILL_CALL_APPROVED stays false until Jo OKs the pictures)", gate: { kind: "code_off", flag: "OWNER_WILL_CALL_APPROVED" },
+    source: { builder: "src/lib/owner-will-call.core.ts", fn: "ownerWillCallEmail", sender: "src/lib/in-house-batch-email.server.ts" },
+    render: () => email(ownerWillCallEmail({ firstName: "Helen", installer: WILL_CALL_SAMPLE, unsubscribeUrl: UNSUB }) as { subject: string; html: string }) }),
+  ENTRY({ id: "owner:sms-owner_will_call", section: "owner", step: "ready_check", kind: "text", code: "", name: "{Installer} will call you (text)", when: "With the \"will call you\" email", who: "Owner", approvalNote: "Wording: Jo 2 Nov 2026, decision #23 (OWNER_WILL_CALL_APPROVED stays false until Jo OKs the pictures)", gate: { kind: "text", smsType: "owner_will_call" },
+    source: { builder: "src/lib/owner-will-call.core.ts", fn: "ownerWillCallText", sender: "src/lib/in-house-batch-email.server.ts" },
+    render: () => text(ownerWillCallText("Helen", WILL_CALL_SAMPLE) as string) }),
   // Fix round 1 (controller ruling 2 Nov 2026): releases made with the old Release step keep the wording Jo approved for
   // them (decision 389, 25 Oct 2026) for their day-2 reminder / 7am text — unchanged, not behind IT_IS_YOUR_TURN_V2_APPROVED.
   ENTRY({ id: "owner:O77-legacy", section: "owner", step: "ready_check", kind: "email", code: "O77", name: "It's your turn — confirm your free Ready Check (old Release step)", when: "Releases Jo made with the old Release step before 2 Nov 2026: their day-2 reminder (the page opens ?screen=turn)", who: "Owner", approvalNote: "Jo 25 Oct 2026, decision 389", gate: { kind: "email" },
