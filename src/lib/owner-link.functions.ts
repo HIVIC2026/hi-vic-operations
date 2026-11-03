@@ -137,7 +137,7 @@ export const ownerAcceptQuoteFn = createServerFn({ method: "POST" })
         consent: true,
         expectedVersion: data.expectedVersion,
         // Tick 1 is the old "read" + "accept" in one (it covers the agreement, payment terms, rights and documents by email).
-        signing: { authorityType: data.signing.authorityType, readConsumerInfo: data.signing.tick1, acceptAgreement: data.signing.tick1, assistance: data.signing.assistance },
+        signing: { authorityType: data.signing.authorityType, signatoryName: data.signing.typedName, signatureName: data.signing.typedName, readConsumerInfo: data.signing.tick1, acceptAgreement: data.signing.tick1, assistance: data.signing.assistance },
       },
       {
         userId: s.userId,
@@ -149,11 +149,11 @@ export const ownerAcceptQuoteFn = createServerFn({ method: "POST" })
         isOwner: async (jobId) => jobId === s.jobId,
         signQuoteSitting: async (jobId,quoteId,version) => {
           if (jobId !== s.jobId) throw new WorkflowError('This quote is not on your job.');
-          const { buildAcceptancePackage } = await import('./assignment.server');
-          const pkg = await buildAcceptancePackage(quoteId);
           const { signGateDoc,assertQuoteSittingWording } = await import('./owner-gates.server');
           await assertQuoteSittingWording(jobId);
-          for (const key of ['quote_acceptance','payment_terms'] as const) await signGateDoc({jobId,key,signatoryName:pkg.consumer.name,ticked:true,answers:{},method:'link_code',signedBy:s.userId,ip:context.ip,userAgent:context.userAgent,verified:{channel:s.channel,destination:s.destination,codeId:s.codeId},quoteSittingKey:`${quoteId}:${version}`});
+          for (const key of ['quote_acceptance','payment_terms'] as const) await signGateDoc({jobId,key,signatoryName:data.signing.typedName,ticked:true,answers:{},method:'link_code',signedBy:s.userId,ip:context.ip,userAgent:context.userAgent,verified:{channel:s.channel,destination:s.destination,codeId:s.codeId},quoteSittingKey:`${quoteId}:${version}`});
+          const { recordAcceptanceSignature } = await import('./acceptance-signature.server');
+          await recordAcceptanceSignature(jobId,s.userId,{quoteId,version,typedName:data.signing.typedName,signedAt:new Date().toISOString()});
         },
       },
     );

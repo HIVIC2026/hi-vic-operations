@@ -286,6 +286,10 @@ async function signedAcceptancePdfV2OrNull(pkg: AcceptancePackage, p: { signator
     const split = core.paymentSplitCents(totalC, Math.round(safetyCheckIncGstFor({ lines: pkg.quote.items }) * 100));
     const { safetyCheckShort } = await import("./safety-check-amount.core");
     const { signedAcceptancePdfV2 } = await import("./signed-pdf.server");
+    // Typed name and time recorded with the counter-signature at acceptance (same moment for both signatures).
+    const { readAcceptanceCountersignature } = await import("./acceptance-signature.server");
+    const rec = await readAcceptanceCountersignature(jobId, pkg.quote.id, pkg.quote.version).catch(() => null);
+    if (rec) { p = { ...p, signatureName: rec.ownerTypedName }; signedAt = rec.signedAt; }
     const removalM2 = m?.removal_required ? Number(m.removal_m2) || null : null;
     const r = await signedAcceptancePdfV2({
       jobNumber: pkg.job_number, installerName: pkg.installer.business ?? pkg.installer.name ?? "", ownerName: p.signatoryName, ownerTypedName: p.signatureName,
