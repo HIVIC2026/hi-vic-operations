@@ -77,11 +77,11 @@ beforeEach(() => {
 });
 
 describe("Mitti: Leads only, business email for a Lead with no email", () => {
-  test("a Lead with no email is searched / recorded with the business's own email", async () => {
+  test("Jo 3 Nov 8:11pm: a Lead with no email waits for their own (no business-email fallback)", async () => {
     const r = await inv.onPartnerPersonApproved("00000000-0000-4000-8000-0000000000a1", "office", { switches: SW, call });
-    expect(r).toMatchObject({ action: "record_needed" });
-    expect(calls).toEqual(["POST /users/search office@realinsul.com.au"]);
-    expect(events().map((e) => [e["event_type"], (e["details"] as Row)["email"], (e["details"] as Row)["email_source"]])).toEqual([["mitti_invite_needed", "office@realinsul.com.au", "business"]]);
+    expect(r).toEqual({ action: "skip", reason: "Mitti invite waiting for Lead's own email" });
+    expect(calls).toEqual([]);
+    expect(events().map((e) => e["event_type"])).toEqual(["mitti_invite_waiting_email"]);
   });
   test("a stored Crew is never searched or invited", async () => {
     const r = await inv.onPartnerPersonApproved("00000000-0000-4000-8000-0000000000a2", "office", { switches: SW, call });
