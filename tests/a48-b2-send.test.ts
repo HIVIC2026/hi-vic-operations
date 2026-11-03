@@ -85,7 +85,8 @@ mock.module("../src/lib/owner-email-send.server", () => ({
     return guarded;
   },
 }));
-mock.module("../src/lib/veec-copy-email.server", () => ({ ownerMyJobLink: async (jobId: string) => `https://estimate.homeinsulationvictoria.com.au/my-job/T-${jobId}` }));
+// Like the live link rule (trg_owner_links_follow_cancel): a cancelled job's link is revoked, so no working link.
+mock.module("../src/lib/veec-copy-email.server", () => ({ ownerMyJobLink: async (jobId: string) => tables["jobs"]?.find((j) => j["id"] === jobId)?.["stage"] === "cancelled" ? null : `https://estimate.homeinsulationvictoria.com.au/my-job/T-${jobId}` }));
 // Coordinates lookup (Vicmap → Google Places) is stubbed: it records the call and stores the fact like the real one.
 const located: string[] = [];
 mock.module("../src/lib/property-coordinates.server", () => ({
@@ -109,6 +110,14 @@ function installer(o: Partial<BatchInstaller> = {}): BatchInstaller {
 let installers: BatchInstaller[] = [];
 mock.module("../src/lib/installer-waiting.server", () => ({ installerFacts: async () => installers }));
 
+const reopens: string[] = [];
+mock.module("../src/lib/office-actions.server", () => ({
+  // Like the real reopenJob: the stage moves and a stage_changed event is logged.
+  reopenJob: async (jobId: string) => {
+    reopens.push(jobId); tables["jobs"]!.find((r) => r["id"] === jobId)!["stage"] = "ready_check_ready_to_schedule";
+    clock += 1000; tables["workflow_events"]!.push({ id: crypto.randomUUID(), job_id: jobId, event_type: "stage_changed", created_at: new Date(clock).toISOString(), details: { to_stage: "ready_check_ready_to_schedule" } });
+  },
+}));
 const S = await import("../src/lib/area-batch.server");
 
 // ---- fixtures ---------------------------------------------------------------------------------------------------
@@ -580,5 +589,99 @@ describe("To release tick-to-Send", () => {
     expect(fn).toContain("z.array(z.string().uuid()).min(1).max(10)");
     expect(fn).toContain("for (const id of data.jobIds) await requireOfficeJob(context.supabase, id);");
     expect(fn).toContain("officeTestBusinessIds(context.supabase)");
+  });
+});
+
+// ---- one-off re-ask (Jo 3 Nov 2026, Mia HV-1405 tapped "flat roof" by mistake) ----------------------------------
+describe("reaskQuickTaps", () => {
+  beforeEach(() => { seed(); reopens.length = 0; });
+  const Q = () => import("../src/lib/quick-taps.server");
+  async function miaAfterFlat() {
+    addJob("m", { email: "m@example.com" });
+    (tables["jobs"]![0]!["owners"] as Row)["full_name"] = "Mia Sample";
+    await S.sendBatch(["m"], "biz-1", "jo", { now: NOW });
+    const b1 = String((events("area_batch_sent")[0]!["details"] as Row)["batch_id"]);
+    // What the old code saved when she tapped "Flat", then closed the job.
+    tables["workflow_events"]!.push({ id: "ans-1", job_id: "m", event_type: "quick_taps_answered", created_at: new Date(clock += 1000).toISOString(),
+      details: { batch_id: b1, answers: { roof: "flat", hatch: "yes" }, outcome: "decline_access", consent_share: false, idempotency_key: `quick-taps:v1:${b1}:m:answered` } });
+    tables["jobs"]![0]!["stage"] = "cancelled";
+    // The live cancel revokes her link (reason job_cancelled); reopening brings it back.
+    tables["customer_estimate_links"] = [{ job_id: "m", purpose: "step3_estimate", status: "revoked", revocation_reason: "job_cancelled", expires_at: "2027-11-01T00:00:00Z", token: "T-m" }];
+    sent.length = 0; emails.length = 0;
+    return b1;
+  }
+  test("dry run changes nothing", async () => {
+    const b1 = await miaAfterFlat(); const before = events().length;
+    const r = await (await Q()).reaskQuickTaps("m", { apply: false, actorId: "jo", now: NOW });
+    expect(r).toMatchObject({ oldBatchId: b1, answered: "decline_access", installerId: "biz-1", reopened: true, newBatchId: null });
+    expect(events().length).toBe(before); expect(reopens).toEqual([]); expect(sent).toEqual([]);
+  });
+  test("apply: reopened, fresh batch for the same installer, Jo's text only (no email), link asks again", async () => {
+    const b1 = await miaAfterFlat();
+    const Qs = await Q();
+    const r = await Qs.reaskQuickTaps("m", { apply: true, actorId: "jo", now: NOW });
+    expect(reopens).toEqual(["m"]);
+    expect(r.newBatchId).toBeTruthy(); expect(r.newBatchId).not.toBe(b1);
+    expect(events("quick_taps_answered")).toHaveLength(1); // old answer kept, unchanged
+    expect(events("area_batch_left").map((e) => (e["details"] as Row)["batch_id"])).toEqual([b1]);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.body).toStartWith("Hi Mia, it's Home Insulation Victoria. Sorry, we think you may have tapped \"flat roof\" by mistake.");
+    expect(sent[0]!.body).toContain("my-job/T-m");
+    expect(emails).toEqual([]);
+    const { tapsBatchId, batchRowState } = await import("../src/lib/area-batch.core");
+    const evs = events().filter((e) => e["job_id"] === "m") as never[];
+    expect(tapsBatchId(evs)).toBe(r.newBatchId);
+    expect(batchRowState(evs)).toMatchObject({ kind: "waiting" });
+  });
+  test("a second run finds nothing to re-ask and sends nothing", async () => {
+    await miaAfterFlat();
+    const Qs = await Q();
+    await Qs.reaskQuickTaps("m", { apply: true, actorId: "jo", now: NOW });
+    sent.length = 0;
+    await expect(Qs.reaskQuickTaps("m", { apply: true, actorId: "jo", now: NOW })).rejects.toThrow("nothing to re-ask");
+    expect(sent).toEqual([]); expect(reopens).toEqual(["m"]);
+  });
+  test("I1: still works after the old batch's day-3 close (uses her latest answer, not the open batch)", async () => {
+    const b1 = await miaAfterFlat();
+    tables["workflow_events"]!.push({ id: "close-1", job_id: "m", event_type: "area_batch_closed", created_at: new Date(clock += 1000).toISOString(),
+      details: { batch_id: b1, pass_job_ids: [], freed_job_ids: [], result: "none", idempotency_key: `area-batch-closed:${b1}:m` } });
+    const r = await (await Q()).reaskQuickTaps("m", { apply: true, actorId: "jo", now: NOW });
+    expect(r.oldBatchId).toBe(b1); expect(r.newBatchId).toBeTruthy(); expect(sent).toHaveLength(1);
+  });
+  test("I2: refuses an owner whose latest answer isn't a Flat-roof decline (said yes, or No to the hatch)", async () => {
+    const Qs = await Q();
+    for (const [outcome, answers] of [["pass", { roof: "sloped", hatch: "yes" }], ["decline_access", { hatch: "no" }]] as const) {
+      seed(); reopens.length = 0;
+      await miaAfterFlat();
+      const ans = tables["workflow_events"]!.find((e) => e["id"] === "ans-1")!;
+      ans["details"] = { ...(ans["details"] as Row), outcome, answers };
+      await expect(Qs.reaskQuickTaps("m", { apply: true, actorId: "jo", now: NOW })).rejects.toThrow("only for an owner who tapped Flat");
+      expect(reopens).toEqual([]); expect(sent).toEqual([]);
+    }
+  });
+  test("I3: in quiet hours nothing is changed (no reopen) and it says to try after 7am", async () => {
+    await miaAfterFlat();
+    const night = new Date("2026-10-30T10:30:00.000Z"); // 9:30pm Melbourne
+    await expect((await Q()).reaskQuickTaps("m", { apply: true, actorId: "jo", now: night })).rejects.toThrow("quiet hours");
+    expect(reopens).toEqual([]); expect(events("area_batch_left")).toEqual([]); expect(sent).toEqual([]);
+  });
+  test("I4: the re-ask batch is marked, and its day-2 reminder sends no email", async () => {
+    await miaAfterFlat();
+    const r = await (await Q()).reaskQuickTaps("m", { apply: true, actorId: "jo", now: NOW });
+    const ev = events("area_batch_sent").find((e) => (e["details"] as Row)["batch_id"] === r.newBatchId)!;
+    expect((ev["details"] as Row)["reask"]).toBe(true);
+    sent.length = 0; emails.length = 0;
+    tables["workflow_settings"] = [{ id: 1, customer_comms_enabled: true, sms_message_switches: { quick_taps: true, quick_taps_reminder: true } }];
+    await S.sweepAreaBatches(new Date(clock + 49 * 3_600_000).toISOString());
+    expect(sent.length).toBe(1);
+    expect(emails).toEqual([]);
+  });
+  test("a cancelled job whose link was revoked by the cancel is OK (reopen brings it back); an expired one is refused", async () => {
+    await miaAfterFlat();
+    const Qs = await Q();
+    expect((await Qs.reaskQuickTaps("m", { apply: false, actorId: "jo", now: NOW })).reopened).toBe(true);
+    tables["customer_estimate_links"]![0]!["expires_at"] = "2026-01-01T00:00:00Z";
+    await expect(Qs.reaskQuickTaps("m", { apply: true, actorId: "jo", now: NOW })).rejects.toThrow("no working My job link");
+    expect(reopens).toEqual([]);
   });
 });

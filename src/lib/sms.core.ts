@@ -314,8 +314,10 @@ export const SMS_BRAND_PREFIX = "Home Insulation Victoria: ";
 /** A text Jo approved signed off at the end with " - Home Insulation Victoria" (plain hyphen; A48 batch 2 quick taps)
  *  already carries the brand. Only that exact ending: older texts ending "– Home Insulation Victoria" keep the prefix. */
 const SIGNED_OFF = / - Home Insulation Victoria$/;
+/** Jo 3 Nov 2026 (quick taps re-ask): a text that opens "Hi {name}, it's Home Insulation Victoria." already names us. */
+const OPENS_AS_US = /^Hi [^,]+, it's Home Insulation Victoria\./;
 export function brandSmsBody(body: string): string {
-  return body.trimStart().startsWith(SMS_BRAND_PREFIX) || SIGNED_OFF.test(body) ? body : SMS_BRAND_PREFIX + body.trimStart();
+  return body.trimStart().startsWith(SMS_BRAND_PREFIX) || SIGNED_OFF.test(body) || OPENS_AS_US.test(body.trimStart()) ? body : SMS_BRAND_PREFIX + body.trimStart();
 }
 
 /** STOP / START keywords (Twilio standard set). */

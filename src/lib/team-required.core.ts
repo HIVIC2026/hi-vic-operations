@@ -44,3 +44,33 @@ export function teamMissingPrompt(name: string, missing: string[]): string | nul
   const list = missing.length === 1 ? missing[0] : `${missing.slice(0, -1).join(", ")} and ${missing.at(-1)}`;
   return `Add ${first}'s ${list}`;
 }
+
+/** Jo 3 Nov ~3pm: the business fills a MISSING date of birth (anyone) or a MISSING email (electricians only) from the
+ *  Team page. Never overwrites a saved value; installers are never asked for an email. */
+export function teamFillMissing(kind: TeamKind, current: { hasDateOfBirth: boolean; email: string | null },
+  p: { dateOfBirth?: string | null; email?: string | null }, today: string):
+  { ok: true; dateOfBirth: string | null; email: string | null } | { ok: false; error: string } {
+  const dobIn = (p.dateOfBirth ?? "").trim() || null;
+  const emailIn = (p.email ?? "").trim().toLowerCase() || null;
+  if (!dobIn && !emailIn) return { ok: false, error: "Add the missing detail first." };
+  if (dobIn) {
+    if (current.hasDateOfBirth) return { ok: false, error: "Their date of birth is already saved." };
+    const bad = dateOfBirthProblem(dobIn, today);
+    if (bad) return { ok: false, error: bad };
+  }
+  if (emailIn) {
+    if (kind !== "electrician") return { ok: false, error: "Installers don't need an email." };
+    if ((current.email ?? "").trim()) return { ok: false, error: "Their email is already saved." };
+    if (!EMAIL.test(emailIn)) return { ok: false, error: TEAM_ERRORS.badEmail };
+  }
+  return { ok: true, dateOfBirth: dobIn, email: emailIn };
+}
+
+/** Jo 3 Nov ~3pm: the worker's own sign-up link asks their date of birth (required), worded to them. */
+export function joinDateOfBirthProblem(value: string | null | undefined, today: string): string | null {
+  const v = (value ?? "").trim();
+  if (!v) return "Add your date of birth.";
+  const bad = dateOfBirthProblem(v, today);
+  if (!bad) return null;
+  return bad === "Date of birth must be before today." ? "Your date of birth must be before today." : bad;
+}

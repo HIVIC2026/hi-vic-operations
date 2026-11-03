@@ -241,9 +241,12 @@ export async function installersForHomes(jobIdsIn: string[], testBusinessIds?: s
 export type SendResult = { status: string; detail: string };
 export type SendBatchResult = { batchId: string; installer: string; homes: number; texts: (SendResult & { jobId: string; email: SendResult })[] };
 
+/** `ownerText` / `emailOwner: false`: only the one-off quick taps re-ask (quick-taps.server reaskQuickTaps, Jo 3 Nov 2026)
+ *  — its own approved text instead of the batch text, and no email. Jo's Send never passes them. */
+export type SendBatchOpts = { now?: Date | undefined; ownerText?: (ownerName: string | null, link: string) => string; emailOwner?: boolean; reask?: boolean };
 /** Jo taps Send. Every check first; then one claim per job; then one text and one email per job. Refuses if any home is already in an
  *  open batch (one batch at a time) or can't be batched any more. */
-export async function sendBatch(jobIdsIn: string[], businessId: string, actorId: string | null, opts: { now?: Date } = {}): Promise<SendBatchResult> {
+export async function sendBatch(jobIdsIn: string[], businessId: string, actorId: string | null, opts: SendBatchOpts = {}): Promise<SendBatchResult> {
   const now = opts.now ?? new Date();
   const jobIds = [...new Set(jobIdsIn)];
   if (!jobIds.length) throw new WorkflowError("Pick at least one home.");
@@ -295,7 +298,7 @@ export async function sendBatch(jobIdsIn: string[], businessId: string, actorId:
   for (const h of homes) {
     const key = areaBatchKey(h.jobId, nextBatchSeq(evs.get(h.jobId) ?? []));
     const won = await claim(h.jobId, actorId, AREA_BATCH_SENT_EVENT, `Area batch sent (${homes.length} ${homes.length === 1 ? "home" : "homes"}, ${installer.name}) — quick taps texted to the owner`,
-      { batch_id: batchId, installer_business_id: businessId, installer_name: installer.name, job_ids: jobIds, centre_job_id: centreHome.jobId, centre, sent_by: actorId, idempotency_key: key, ...(h.carriedPass ? { carried_pass: true } : {}) });
+      { batch_id: batchId, installer_business_id: businessId, installer_name: installer.name, job_ids: jobIds, centre_job_id: centreHome.jobId, centre, sent_by: actorId, idempotency_key: key, ...(h.carriedPass ? { carried_pass: true } : {}), ...(opts.reask ? { reask: true } : {}) });
     if (!won) {
       // Someone else batched this home at the same moment: undo ours (append-only close) and send nothing.
       for (const c of claimed) await claim(c.jobId, actorId, AREA_BATCH_CLOSED_EVENT, "Area batch stopped before any text went (another batch took a home)", { batch_id: batchId, pass_job_ids: [], freed_job_ids: claimed.map((x) => x.jobId), reason: "send_interrupted" });
@@ -314,8 +317,9 @@ export async function sendBatch(jobIdsIn: string[], businessId: string, actorId:
     const link = links.get(h.jobId)!;
     // Text and email each in their own try/catch: one failing never stops the other (or the batch).
     const [text, email] = await Promise.all([
-      textOwner(h, batchId, link, businessId, actorId).catch((e: unknown): SendResult => ({ status: "failed", detail: (e as Error).message })),
-      emailOwner(h, batchId, link, businessId, actorId, "sent").catch((e: unknown): SendResult => ({ status: "failed", detail: (e as Error).message })),
+      textOwner(h, batchId, link, businessId, actorId, "sent", opts.ownerText).catch((e: unknown): SendResult => ({ status: "failed", detail: (e as Error).message })),
+      opts.emailOwner === false ? Promise.resolve<SendResult>({ status: "not_emailed", detail: "re-ask: text only" })
+        : emailOwner(h, batchId, link, businessId, actorId, "sent").catch((e: unknown): SendResult => ({ status: "failed", detail: (e as Error).message })),
     ]);
     texts.push({ jobId: h.jobId, ...text, email });
   };
@@ -338,9 +342,9 @@ async function claim(jobId: string, actorId: string | null, type: string, summar
 type TextTo = Pick<BatchCandidate, "jobId" | "ownerName" | "phone" | "email" | "isTest" | "source">;
 /** The quick taps text (or the day-2 reminder), once per job + batch (TEST → test-send; real → the one real sender with
  *  its own switch). */
-async function textOwner(h: TextTo, batchId: string, myJobLink: string, businessId: string | null, actorId: string | null, step: "sent" | "reminder" = "sent"): Promise<{ status: string; detail: string }> {
+async function textOwner(h: TextTo, batchId: string, myJobLink: string, businessId: string | null, actorId: string | null, step: "sent" | "reminder" = "sent", ownerText?: (ownerName: string | null, link: string) => string): Promise<{ status: string; detail: string }> {
   const link = quickTapsLink(myJobLink);
-  const body = step === "reminder" ? quickTapsReminderText(h.ownerName, link) : quickTapsText(h.ownerName, link);
+  const body = ownerText ? ownerText(h.ownerName, link) : step === "reminder" ? quickTapsReminderText(h.ownerName, link) : quickTapsText(h.ownerName, link);
   if (h.isTest) {
     const { data: biz } = businessId ? await admin.from("businesses").select("onboarding_notes").eq("id", businessId).maybeSingle() : { data: null };
     const { isTestPartner } = await import("./test-send.core");
@@ -499,7 +503,9 @@ export async function sweepAreaBatches(nowIso: string = new Date().toISOString()
     // when a held text makes a later tick try the reminder again. A thrown text still fails this step (tried again).
     const [text, email] = await Promise.all([
       textOwner(to, batchId, link, businessId, null, "reminder").then((r) => ({ r }), (e: unknown) => ({ e })),
-      emailOwner(to, batchId, link, businessId, null, "reminder").catch((e: unknown): SendResult => ({ status: "failed", detail: (e as Error).message })),
+      // Re-ask batches (Jo 3 Nov 2026): text only, so no reminder email either.
+      (sent?.details as { reask?: unknown } | null)?.reask === true ? Promise.resolve<SendResult>({ status: "not_emailed", detail: "re-ask: text only" })
+        : emailOwner(to, batchId, link, businessId, null, "reminder").catch((e: unknown): SendResult => ({ status: "failed", detail: (e as Error).message })),
     ]);
     if (email.status === "failed") console.error("area batch reminder email failed", jobId, email.detail);
     if ("e" in text) throw text.e;

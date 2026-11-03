@@ -122,6 +122,11 @@ export const setTeamMemberMobile = createServerFn({ method: "POST" }).middleware
   .inputValidator((d) => z.object({ workerId: z.string().uuid(), mobile: z.string().trim().max(30) }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSetWorkerMobile(context.userId, data.workerId, data.mobile));
 
+/** Jo 3 Nov ~3pm: the business fills a missing date of birth (anyone) or missing email (electricians) from the Team page. */
+export const setTeamMemberMissing = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ workerId: z.string().uuid(), dateOfBirth: z.string().trim().max(10).nullable().optional(), email: z.string().trim().max(254).nullable().optional() }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeFillWorkerMissing(context.userId, data.workerId, { dateOfBirth: data.dateOfBirth ?? null, email: data.email ?? null }));
+
 /** Jo 29 Oct: add a person to the team with no email needed; they sign their declarations by link before any job. */
 export const addTeamPerson = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({
