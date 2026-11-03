@@ -85,7 +85,8 @@ mock.module("../src/lib/owner-email-send.server", () => ({
     return guarded;
   },
 }));
-mock.module("../src/lib/veec-copy-email.server", () => ({ ownerMyJobLink: async (jobId: string) => `https://estimate.homeinsulationvictoria.com.au/my-job/T-${jobId}` }));
+// Like the live link rule (trg_owner_links_follow_cancel): a cancelled job's link is revoked, so no working link.
+mock.module("../src/lib/veec-copy-email.server", () => ({ ownerMyJobLink: async (jobId: string) => tables["jobs"]?.find((j) => j["id"] === jobId)?.["stage"] === "cancelled" ? null : `https://estimate.homeinsulationvictoria.com.au/my-job/T-${jobId}` }));
 // Coordinates lookup (Vicmap → Google Places) is stubbed: it records the call and stores the fact like the real one.
 const located: string[] = [];
 mock.module("../src/lib/property-coordinates.server", () => ({
@@ -604,6 +605,8 @@ describe("reaskQuickTaps", () => {
     tables["workflow_events"]!.push({ id: "ans-1", job_id: "m", event_type: "quick_taps_answered", created_at: new Date(clock += 1000).toISOString(),
       details: { batch_id: b1, answers: { roof: "flat", hatch: "yes" }, outcome: "decline_access", consent_share: false, idempotency_key: `quick-taps:v1:${b1}:m:answered` } });
     tables["jobs"]![0]!["stage"] = "cancelled";
+    // The live cancel revokes her link (reason job_cancelled); reopening brings it back.
+    tables["customer_estimate_links"] = [{ job_id: "m", purpose: "step3_estimate", status: "revoked", revocation_reason: "job_cancelled", expires_at: "2027-11-01T00:00:00Z", token: "T-m" }];
     sent.length = 0; emails.length = 0;
     return b1;
   }
@@ -672,5 +675,13 @@ describe("reaskQuickTaps", () => {
     await S.sweepAreaBatches(new Date(clock + 49 * 3_600_000).toISOString());
     expect(sent.length).toBe(1);
     expect(emails).toEqual([]);
+  });
+  test("a cancelled job whose link was revoked by the cancel is OK (reopen brings it back); an expired one is refused", async () => {
+    await miaAfterFlat();
+    const Qs = await Q();
+    expect((await Qs.reaskQuickTaps("m", { apply: false, actorId: "jo", now: NOW })).reopened).toBe(true);
+    tables["customer_estimate_links"]![0]!["expires_at"] = "2026-01-01T00:00:00Z";
+    await expect(Qs.reaskQuickTaps("m", { apply: true, actorId: "jo", now: NOW })).rejects.toThrow("no working My job link");
+    expect(reopens).toEqual([]);
   });
 });
