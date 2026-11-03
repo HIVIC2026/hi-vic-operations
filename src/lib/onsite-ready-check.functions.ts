@@ -25,14 +25,15 @@ export const startOnsiteReadyCheck = createServerFn({ method: "POST" }).middlewa
     return startOnsiteReadyCheckFor(context.userId, data.businessId, data.owner, electrician, undefined, { visit: data.visit ?? null, electricianChoice: data.electricianChoice ?? null, leadOrigin: data.leadOrigin ?? null, requestKey: data.requestKey ?? null });
   });
 
-/** Decision 289: what Add a job needs before it renders — the business's usual electrician (My business), if any. Read-only. */
+/** Decision 289 / Part 2b: what Add a job needs before it renders — the business's usual electrician (My business), if any,
+ *  and every approved, linked electrician the installer may pick (My electricians). Read-only. */
 export const addJobOptions = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ businessId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     const { requireMember } = await import("./pilot.server");
     await requireMember(context.userId, data.businessId);
-    const { electrician, onboarded } = await (await import("./usual-electrician.server")).readUsualElectricianStatus(data.businessId);
-    return { usualElectrician: electrician ? { name: electrician.name, onboarded } : null };
+    const { addJobElectricianChoices } = await import("./onsite-ready-check.server");
+    return addJobElectricianChoices(data.businessId);
   });
 
 /** A5: who is opening Add a job — owner (gets the form), staff (told only the owner can add) or none. Read-only. */

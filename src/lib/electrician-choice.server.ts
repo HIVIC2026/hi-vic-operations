@@ -14,7 +14,12 @@ export async function readElectricianChoice(jobId: string): Promise<ElectricianC
 
 /** Records the choice (validated against the business's saved usual electrician). `choice` null = the default rule
  *  (usual when saved, else Home Insulation Victoria's) — bulk upload and legacy callers. Append-only; never sends. */
-export async function recordElectricianChoice(jobId: string, businessId: string, actorId: string | null, choice: ElectricianChoice | null | undefined, source: ElectricianChoiceRecord["source"]): Promise<ElectricianChoiceRecord | { choice: null; usual_name: null; usual_licence: null; source: ElectricianChoiceRecord["source"] }> {
+export async function recordElectricianChoice(jobId: string, businessId: string, actorId: string | null, choice: ElectricianChoice | null | undefined, source: ElectricianChoiceRecord["source"], opts: { /** Part 2b: one of the installer's approved, linked electricians was picked by name (the caller checked the list); recorded as "usual" naming THEM. */ picked?: { name: string } | null } = {}): Promise<ElectricianChoiceRecord | { choice: null; usual_name: null; usual_licence: null; source: ElectricianChoiceRecord["source"] }> {
+  if (opts.picked) {
+    const record: ElectricianChoiceRecord = { choice: "usual", usual_name: opts.picked.name, usual_licence: null, source };
+    await logEvent(jobId, actorId, ELECTRICIAN_CHOICE_EVENT, electricianChoiceSummary(record), { ...record, business_id: businessId, declared_not_verified: false }, { internal: true });
+    return record;
+  }
   const status = await (await import("./usual-electrician.server")).readUsualElectricianStatus(businessId);
   const usual = status.onboarded ? status.electrician : null;
   const chosen = choice ?? defaultElectricianChoice(usual);

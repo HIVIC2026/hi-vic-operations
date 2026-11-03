@@ -396,6 +396,33 @@ export async function ownJobDocsBlocker(electricianBusinessId: string, today = m
 }
 
 /**
+ * Task 5: the electricians an installer may pick for its OWN jobs (Add a job; the job-page swap applies the same facts
+ * through electrician-swap `eligibility`): linked with an active `partner_relationships` row, an approved + active
+ * business with an approved electrician person (`approvedRecBlocker` with `rateNotNeeded` — the installer pays its own
+ * electricians), and no lapsed document (`ownJobDocsBlocker`). A waiting or not-approved electrician never appears.
+ * `usual` marks the one saved in My business. Usual first, then by name. Read-only.
+ */
+export async function pickableOwnElectricians(installerBusinessId: string): Promise<import("./electrician-choice.core").PickableElectrician[]> {
+  const rels = await admin.from("partner_relationships").select("electrician_business_id").eq("installer_business_id", installerBusinessId).eq("active", true);
+  if (rels.error) throw new WorkflowError("Could not load your electricians. Please try again.");
+  const ids = [...new Set((rels.data ?? []).map((r) => r.electrician_business_id as string))];
+  if (!ids.length) return [];
+  const [{ loadApprovedRecCandidates }, { approvedRecBlocker }, { readUsualElectrician }, { ourLeadUsualRecId }, { displayName }] = await Promise.all([
+    import("./rec-onboarded.server"), import("./rec-onboarded.core"), import("./usual-electrician.server"), import("./our-lead-piesa-electrician.core"), import("./display-name.core"),
+  ]);
+  const candidates = await loadApprovedRecCandidates();
+  const usualId = ourLeadUsualRecId((await readUsualElectrician(installerBusinessId)).electrician, candidates);
+  const out: import("./electrician-choice.core").PickableElectrician[] = [];
+  for (const bid of ids) {
+    const cand = candidates.find((c) => c.business_id === bid);
+    if (!cand || approvedRecBlocker(cand, { rateNotNeeded: true })) continue;
+    if (await ownJobDocsBlocker(bid)) continue;
+    out.push({ businessId: bid, name: displayName(cand.trading_name || cand.name) || "Your electrician", usual: bid === usualId });
+  }
+  return out.sort((a, b) => Number(b.usual) - Number(a.usual) || a.name.localeCompare(b.name, "en-AU"));
+}
+
+/**
  * Office rejection (admin only — the server function checks). The business goes to needs_info with the reason (the
  * installer's list shows "Not approved: {reason}"), the link stays off, and the INSTALLER OFFICE is emailed — held for
  * real installers until Jo approves the wording (REJECTION_EMAIL_APPROVED); the hold is recorded, never silent.

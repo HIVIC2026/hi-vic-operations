@@ -9,8 +9,9 @@ const state = scenario === "open" ? { kind: "open", url: "#mitti-stub" } : scena
 (globalThis as { __mockData?: Record<string, unknown> }).__mockData = {
   startOnsiteReadyCheck: scenario === "dup" ? { __throw: 'duplicate key value violates unique constraint "owners_email_uq"', __delay: 400 } : { __delay: 600, value: { jobId: "job-1", jobNumber: "HV-TEST", booking: scenario === "blocked" ? "blocked" : scenario === "visit" ? "confirmed" : "none", formCreation: "scheduled", state } },
   onsiteFormStatus: state,
-  // Decision 289: the fixture business has a usual electrician, so "My usual electrician (Sam Lee)" is offered and preselected.
-  addJobOptions: { usualElectrician: scenario === "nousual" ? null : { name: "Sam Lee" } },
+  // Decision 289 / Part 2b: the fixture business has a usual electrician, so "My usual electrician (Sam Lee)" is offered and preselected,
+  // with a second approved electrician from My electricians listed after them.
+  addJobOptions: scenario === "nousual" ? { usualElectrician: null, electricians: [] } : { usualElectrician: { name: "Sam Lee", onboarded: true }, electricians: [{ businessId: "elec-usual", name: "Sam Lee", usual: true }, { businessId: "elec-2", name: "Finn Fuse", usual: false }] },
 };
 try { localStorage.removeItem("hiv-onsite-draft"); } catch { /* */ }
 const root = document.getElementById("root");

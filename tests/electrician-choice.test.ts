@@ -68,16 +68,17 @@ describe("wiring (source facts)", () => {
   test("Add a job: the question is on the one screen, sent to the existing guarded handler, recorded once as the event", () => {
     const ui = read("src/components/trade/add-job-flow.tsx");
     expect(ui).toContain("data-electrician-choice");
-    expect(ui).toContain("electricianChoiceOptions(pickable)");
-    expect(ui).toContain("setElectrician(defaultElectricianChoice(pickable))");
-    expect(ui).toContain("electricianChoice: choice }");
+    // Part 2b (Task 5): the radios are every approved, linked electrician (usual first and preselected); the pick goes as `electrician.business_id`.
+    expect(ui).toContain("addJobElectricianOptions(electricians)");
+    expect(ui).toContain("setElectrician(defaultAddJobElectrician(electricians))");
+    expect(ui).toContain('electricianChoice: choice, electrician: { mode: "mine", business_id: picked.businessId } }');
     const fn = read("src/lib/onsite-ready-check.functions.ts");
     expect(fn).toContain('electricianChoice: z.enum(["hivic", "usual"]).nullable().optional()');
     expect(fn).toContain("export const addJobOptions = createServerFn");
     expect(fn).not.toContain("@tanstack/react-start/server");
     const srv = read("src/lib/onsite-ready-check.server.ts");
     expect(srv).toContain("addJobElectricianProblem(electricianChoice, status)");
-    expect(srv).toContain('recordElectricianChoice(job.id, businessId, userId, electricianChoice, "add_job")');
+    expect(srv).toContain('recordElectricianChoice(job.id, businessId, userId, electricianChoice, "add_job", picked ? { picked } : {})');
     expect(srv.indexOf("if (problems.length) throw")).toBeLessThan(srv.indexOf("recordElectricianChoice("));
   });
   test("bulk upload / Add one job: default usual-else-HIV, no new column", () => {
@@ -116,5 +117,6 @@ test("A3: onboarded = an approved REC match; Reinsulate (pays own electricians) 
 });
 test("A3 wiring: server and options read the onboarded status", () => {
   expect(readFileSync("src/lib/onsite-ready-check.server.ts", "utf8")).toContain("addJobElectricianProblem(electricianChoice, status)");
-  expect(readFileSync("src/lib/onsite-ready-check.functions.ts", "utf8")).toContain("readUsualElectricianStatus(data.businessId)");
+  expect(readFileSync("src/lib/onsite-ready-check.functions.ts", "utf8")).toContain("addJobElectricianChoices(data.businessId)");
+  expect(readFileSync("src/lib/onsite-ready-check.server.ts", "utf8")).toContain("readUsualElectricianStatus(businessId)");
 });
