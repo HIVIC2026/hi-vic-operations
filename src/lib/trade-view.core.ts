@@ -465,6 +465,7 @@ export const TEAM_ADD_SHEET = {
   role: "Lead or Crew",
   lead: "Lead · can run install days",
   crew: "Crew · can't lead an install day",
+  roleExplanation: "Lead: runs the install day and fills in the job forms in Mitti, so we set them up with a Mitti login.\nCrew: works with a Lead. No Mitti login needed.",
   mobile: "Mobile",
   email: "Email (optional)",
   emailElectrician: "Email",
