@@ -1,6 +1,7 @@
 // Needs me (O1) + the Job page Next panel (O2): gathers the facts once, then the pure rules in office-needs.core decide
 // the rows and job-next-action.core the Next sentence. Read-only: never moves a job, never sends anything.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import type { Database } from "@/integrations/supabase/types";
 import { loadOffice, type OfficeJob } from "./office.server";
 import { buildNeedsRows, duplicatesInvoiceFailed, type EmailRowInput, type NeedsFacts, type NeedsRow, type SystemRow } from "./office-needs.core";
 import { FAILED_EMAIL_STATUSES, FAILED_SMS_STATUSES, SUCCESS_EMAIL_STATUSES, SUCCESS_SMS_STATUSES, UNSURE_EMAIL_STATUSES, UNSURE_SMS_STATUSES, partnerSendFailedRows, sendFailedRows, tradeTextCoveredKeys } from "./send-failed.core";
@@ -415,7 +416,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     releaseIds.length ? import("./spot-release.server").then((m) => m.spotReleaseStates(releaseIds)) : Promise.resolve(new Map()),
     payQuoteIds.length ? byIds("PIESA lines for unpaid payments", payQuoteIds, (chunk, a, b) => admin.from("quote_items").select("quote_id, line_total_inc_gst").in("quote_id", chunk).eq("code", "PIESA").range(a, b)) : Promise.resolve([] as Row[]),
     payInvIds.length ? byIds("deposit overrides", payInvIds, (chunk, a, b) => admin.from("payment_overrides").select("invoice_id").in("invoice_id", chunk).eq("gate", "deposit").range(a, b)) : Promise.resolve([] as Row[]),
-    depositJobIds.length ? byIds("deposit stage entries", depositJobIds, (chunk, a, b) => admin.from("workflow_events").select("job_id, created_at").in("job_id", chunk).eq("event_type", "stage_changed").in("to_stage", [...INSTALL_DEPOSIT_DUE_STAGES] as ("piesa_complete" | "installation_scheduling" | "installation_booked")[]).order("created_at", { ascending: false }).range(a, b)) : Promise.resolve([] as Row[]),
+    depositJobIds.length ? byIds("deposit stage entries", depositJobIds, (chunk, a, b) => admin.from("workflow_events").select("job_id, created_at").in("job_id", chunk).eq("event_type", "stage_changed").in("to_stage", [...INSTALL_DEPOSIT_DUE_STAGES] as Database["public"]["Enums"]["job_stage"][]).order("created_at", { ascending: false }).range(a, b)) : Promise.resolve([] as Row[]),
   ]);
   {
     const { officeItemWithRelease } = await import("./spot-release.core");

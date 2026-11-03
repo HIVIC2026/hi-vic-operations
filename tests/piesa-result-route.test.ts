@@ -75,6 +75,11 @@ describe("depositOpenAfterPiesa (answer 21)", () => {
     expect(installDepositDueNow("piesa_complete", null)).toBe(true);
     expect(installDepositDueNow("piesa_scheduled", null)).toBe(false);
   });
+  test("installDepositDueNow: partner-billed in-house jobs that moved on to the upgrades stages are still due (C1)", () => {
+    for (const stage of ["rectification_scheduling", "rectification_booked", "electrical_variation_pending", "installation_scheduling", "installation_booked"])
+      expect(installDepositDueNow(stage, { outcome: "fail", section_c_signed_at: null })).toBe(true);
+    for (const stage of ["quote_sent", "piesa_scheduled", "evidence_outstanding", "complete"]) expect(installDepositDueNow(stage, null)).toBe(false);
+  });
 });
 
 describe("owner copy is standalone only when the route says so", () => {

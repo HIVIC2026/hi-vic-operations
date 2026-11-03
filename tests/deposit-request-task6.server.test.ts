@@ -78,4 +78,31 @@ test('failed payment reads preserve pending request and repeated failures raise 
 test('installer deposit rejection retries after 24 hours and successful send never repeats',async()=>{
  paid=true;tables.workflow_events?.push({job_id:'j',event_type:'install_deposit_received',created_at:'2026-11-01T00:00:00Z',details:{invoice_id:'i'}});
  officeOutcome='failed';await notifyInstallerDepositPaid('j',new Date('2026-11-01T00:00:00Z'));officeOutcome='sent';await notifyInstallerDepositPaid('j',new Date('2026-11-03T00:00:00Z'));await notifyInstallerDepositPaid('j',new Date('2026-11-03T00:00:00Z'));expect(offices).toHaveLength(2);expect(texts.every(s=>s.to!=='office@example.invalid')).toBe(true);
+});// Part 4 fix wave C1 (Jo answer 21): a partner-billed in-house job whose PIESA found upgrades auto-advances to
+// rectification_scheduling — the deposit request, its day 3/7 reminders and the sweep must all still cover it.
+const UPGRADES_PIESA={id:'pr',job_id:'j',kind:'initial',outcome:'fail',is_current:true,completed_date:'2026-10-30',signed_off_by:'e',created_at:'2026-10-30T00:00:00Z'};
+test('upgrades still to come at rectification_scheduling: one request, day 3 and day 7 reminders, nothing more after the later CoES',async()=>{
+ tables.jobs![0]!.stage='rectification_scheduling';tables.piesa_records=[UPGRADES_PIESA];
+ tables.rectification_items=[{id:'r',job_id:'j',status:'required',description:'Switchboard',needs_office_pricing:false}];
+ cleared=false;basis='none';
+ await requestInstallDeposit('j',new Date('2026-11-01T00:00:00Z'));
+ expect(emails).toHaveLength(1);expect(texts).toHaveLength(1);expect(emails[0].purpose).toBe('install_deposit_request');
+ expect(tables.workflow_events?.filter(e=>e.event_type==='install_deposit_requested')).toHaveLength(1);
+ // the sweep finds the job at a rectification_* stage without a pending row
+ tables.workflow_events=tables.workflow_events!.filter(e=>e.event_type!=='install_deposit_request_pending'&&e.event_type!=='install_deposit_request_resolved');
+ tables.jobs![0]!.stage='rectification_booked';
+ await sweepDepositRequests(new Date('2026-11-04T00:00:00Z'));expect(emails).toHaveLength(2);expect(emails[1].purpose).toBe('install_deposit_day3');
+ await sweepDepositRequests(new Date('2026-11-08T00:00:00Z'));expect(emails).toHaveLength(3);expect(emails[2].purpose).toBe('install_deposit_day7');expect(texts).toHaveLength(3);
+ // the upgrades are done and the Section C / CoES recorded: the same invoice gets no second request
+ tables.piesa_records.push({id:'pr2',job_id:'j',kind:'post_rectification',outcome:'pass',is_current:true,completed_date:'2026-11-09',signed_off_by:'e',section_c_signed_at:'2026-11-09T00:00:00Z',rectification_completed_at:'2026-11-09T00:00:00Z',created_at:'2026-11-09T00:00:00Z'});
+ UPGRADES_PIESA.is_current=false;tables.rectification_items[0]!.status='completed';tables.jobs![0]!.stage='installation_scheduling';cleared=true;basis='section_c';
+ await requestInstallDeposit('j',new Date('2026-11-09T01:00:00Z'));await sweepDepositRequests(new Date('2026-11-09T01:00:00Z'));
+ expect(emails).toHaveLength(3);expect(texts).toHaveLength(3);expect(tables.workflow_events?.filter(e=>e.event_type==='install_deposit_requested')).toHaveLength(1);
+ UPGRADES_PIESA.is_current=true;
+});
+test('the sweep picks up an unrequested upgrades-pending job at rectification_scheduling only through a recorded pending intent',async()=>{
+ tables.jobs![0]!.stage='rectification_scheduling';tables.piesa_records=[UPGRADES_PIESA];cleared=false;
+ await sweepDepositRequests(new Date('2026-11-01T00:00:00Z'));expect(emails).toHaveLength(0); // no historical catch-up without an intent
+ tables.workflow_events!.push({id:'pend',job_id:'j',event_type:'install_deposit_request_pending',details:{attempts:0}});
+ await sweepDepositRequests(new Date('2026-11-01T00:00:00Z'));expect(emails).toHaveLength(1);expect(texts).toHaveLength(1);
 });

@@ -155,8 +155,11 @@ export function stepPaidAt(plan: PaymentPlan, key: PaymentStepKey, records: { am
 /** Jo 26 Oct 2026: the install is booked only once the 10% install deposit (10% of the install price — never the PIESA
  *  fee or the fixes) is paid. No "book first, pay within 48 hours". The PIESA fee alone never unlocks the install. */
 export const INSTALL_DEPOSIT_BLOCKER = "The 10% install deposit must be paid before the install is booked.";
-/** Stages where the install is the next thing to book, so the 10% deposit is due now. */
-export const INSTALL_DEPOSIT_DUE_STAGES: ReadonlySet<string> = new Set(["piesa_complete", "installation_scheduling", "installation_booked"]);
+/** Stages after the PIESA result where the 10% deposit is due now. Part 4 fix wave C1: a partner-billed in-house job whose
+ *  PIESA found upgrades auto-advances straight to rectification_scheduling / rectification_booked (autoadvance.core), and a
+ *  variation parks it at electrical_variation_pending — the deposit is still due there (answer 21: due straight after the
+ *  result, upgrades still to come or not). */
+export const INSTALL_DEPOSIT_DUE_STAGES: ReadonlySet<string> = new Set(["piesa_complete", "rectification_scheduling", "rectification_booked", "electrical_variation_pending", "installation_scheduling", "installation_booked"]);
 /** Jo 2 Nov 2026 (answer 21, replaces the 26 Oct "fixes first" order): at "piesa_complete" the PIESA result is in, so the deposit
  *  is due now whatever it found (pass, or upgrades still to come). The install day still needs the deposit paid (installDepositBlocker). */
 export function installDepositDueNow(stage: string | null | undefined, _piesa?: { outcome?: string | null; section_c_signed_at?: string | null } | null): boolean {

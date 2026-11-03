@@ -61,6 +61,9 @@ export const WORKFLOW_DECISIONS = {
     // Jo 26 Oct: flat 10% install deposit on the install price only (not the PIESA fee or fixes). 5% tier removed.
     deposit: { installPct: 10, base: "install_price_excluding_piesa_and_fixes" },
     // Jo 2 Nov 2026 (answer 21): the deposit opens straight after the PIESA result, even with electrical upgrades still to come (piesa-result-route.core `depositOpenAfterPiesa`); replaces "fixes signed off BEFORE the deposit".
+    // Part 4 fix wave C1: "after the result" means every stage from piesa_complete on — rectification_scheduling / rectification_booked /
+    // electrical_variation_pending (where partner-billed in-house jobs auto-advance to) as well as installation_scheduling / installation_booked
+    // (payments.core `INSTALL_DEPOSIT_DUE_STAGES`); the deposit request goes on ANY recorded PIESA result (pass or upgrades) and the sweep covers the same stages.
     opensAfter: "piesa_result",
     noApprovedRule: "block_piesa_payment_rule_exception",
     // Part 4 sign-off (Task 17, Jo 2 Nov 2026): the confirm-and-pay page (PIESA confirmation + ESC consent + deposit) opens straight after

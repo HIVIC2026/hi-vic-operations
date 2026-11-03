@@ -79,6 +79,10 @@ describe("which screen is current", () => {
     expect(clearScreenOpen({ ...f, safetyCleared: false })).toBe(false);
     expect(clearScreenOpen({ ...f, stage: "quote_sent" })).toBe(false);
     expect(clearScreenOpen({ ...f, depositCents: 0 })).toBe(false);
+    // C1: a partner-billed in-house job auto-advances to the upgrades stages the moment the PIESA finds upgrades — still open.
+    expect(clearScreenOpen({ ...f, outcome: "upgrades_needed", stage: "rectification_scheduling" })).toBe(true);
+    expect(clearScreenOpen({ ...f, outcome: "upgrades_needed", stage: "rectification_booked" })).toBe(true);
+    expect(clearScreenOpen({ ...f, outcome: "upgrades_needed", stage: "electrical_variation_pending" })).toBe(true);
   });
   test("stays open while a signature is missing even if the deposit is paid; closes when all done and paid", () => {
     const f = { stage: "piesa_complete", outcome: "all_clear" as const, safetyCleared: true, depositCleared: true, depositCents: 18510 };
