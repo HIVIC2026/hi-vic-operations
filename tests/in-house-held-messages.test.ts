@@ -71,7 +71,8 @@ const otherEntries = [
   {file:'install-no-access-notice.server',fn:'sendInstallNoAccessNotice',args:[{jobId:'j',bookingId:'bk',wasStart:'2026-11-04T00:00:00Z',reason:'TEST'}]},
   {file:'install-no-access-notice.server',fn:'resendInstallNoAccessText',args:[{jobId:'j',bookingId:'bk',wasStart:'2026-11-04T00:00:00Z',reason:'TEST',reportedAt:'2026-10-30'}]},
   {file:'visit-new-times.server',fn:'notifyOwnerVisitNewTimes',args:[{jobId:'j',bookingId:'bk',kind:'ready_check',wasIso:'2026-11-04T00:00:00Z'}]},
-  {file:'approved-texts.server',fn:'textOwnerVisitTomorrow',args:['installation','j',{id:'bk',scheduled_start:'2026-10-31T00:00:00Z'},new Date('2026-10-30T06:00:00Z')]},
+  // Part 4 (3 Nov 2026): textOwnerVisitTomorrow is NOT held for in-house jobs any more — the new flow is in-house for everyone,
+  // so the approved #25 day-before text goes to in-house owners too (tests/visit-tomorrow-in-house.test.ts).
   {file:'approved-texts.server',fn:'textOwnerInstallMoved',args:['j',{id:'bk',scheduled_start:'2026-11-04T00:00:00Z',created_at:'2026-10-30'},'2026-11-03',new Date('2026-10-30')]},
   {file:'owner-email-triggers.server',fn:'onSafetyCheckPaid',args:['j','invoice']},
 ];

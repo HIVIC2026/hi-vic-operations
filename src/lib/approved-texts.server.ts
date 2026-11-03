@@ -77,8 +77,8 @@ const handled = (r: string) => !(NOT_HANDLED as readonly string[]).includes(r) &
 
 /** Decisions 82 / 93 / 99: the afternoon before a booked Ready Check (our leads), safety check or install → "See you tomorrow". */
 export async function textOwnerVisitTomorrow(kind: VisitTextKind, jobId: string, booking: { id: string; scheduled_start: string }, now = new Date(), deps: { businessContact?: (jobId: string, role: "installer" | "electrician") => Promise<BusinessContact | null> } = {}): Promise<string> {
-  const skipped = await inHouseDispatchSkip(jobId);
-  if (skipped) return skipped;
+  // Part 4 (3 Nov 2026): no in-house skip here — the new flow is in-house for everyone (Part 3 Task 18), so the approved #25
+  // day-before text goes to in-house owners too. The legacy time-negotiation senders (install moved, etc.) keep their hold.
   if (!visitTomorrowDue(now, booking.scheduled_start)) return "not due";
   const job = await loadJob(jobId);
   if (!job) return "skipped";
