@@ -143,6 +143,7 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
         "piisaSignedAt": null,
         "product": null,
       },
+      "countdown": null,
       "electricianAttendance": null,
       "form": {
         "auditId": "audit-0",
@@ -172,9 +173,27 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
         "rebateSigned": false,
         "recordedAt": null,
       },
+      "installBy": null,
       "jobNumber": "HV-1001",
+      "kind": "installer",
+      "label": "Your customer",
       "mittiInvited": true,
+      "nextStep": {
+        "alsoBookInstall": null,
+        "bookBy": null,
+        "button": null,
+        "kind": "install_booked",
+        "lines": [
+          "Lead Installer locks Fri 30 Oct, 5pm",
+        ],
+        "overdue": false,
+        "phone": null,
+        "sub": "Install · Sun 1 Nov, 2:00pm",
+        "title": "Install booked",
+        "yours": false,
+      },
       "notes": [],
+      "ownerFirst": "Owner",
       "ownerPiesaConfirmed": false,
       "pay": {
         "amount": 2200,
@@ -191,6 +210,24 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "price": {
         "entered": false,
       },
+      "progress": [
+        {
+          "label": "Ready Check",
+          "state": "done",
+        },
+        {
+          "label": "PIESA",
+          "state": "done",
+        },
+        {
+          "label": "Deposit",
+          "state": "done",
+        },
+        {
+          "label": "Install",
+          "state": "now",
+        },
+      ],
       "quote": {
         "accepted": true,
         "acceptedAt": null,
@@ -206,6 +243,72 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
         "bookedAt": "2026-10-09T03:00:00.000Z",
         "done": true,
       },
+      "role": "boss",
+      "rows": {
+        "jobDetails": [
+          [
+            "Area",
+            "92 m²",
+          ],
+          [
+            "Product",
+            "Ceiling batts",
+          ],
+          [
+            "Your install pay",
+            "$2,200.00 · paid once Owner has paid in full",
+          ],
+        ],
+        "owner": [
+          [
+            "Name",
+            "Owner One",
+          ],
+        ],
+        "ownerTold": [],
+        "paperwork": [
+          {
+            "label": "Ready Check report (Mitti, with photos)",
+            "note": null,
+            "ready": true,
+          },
+          {
+            "label": "Signed PIESA",
+            "note": null,
+            "ready": true,
+          },
+          {
+            "label": "Owner's ESC consent",
+            "note": null,
+            "ready": true,
+          },
+          {
+            "label": "Safety plan (SWMS)",
+            "note": null,
+            "ready": true,
+          },
+          {
+            "label": "Install form (Mitti)",
+            "note": null,
+            "ready": true,
+          },
+        ],
+        "siteNotes": [],
+        "visits": [
+          [
+            "Ready Check",
+            "Fri 9 Oct, 2:00pm",
+          ],
+          [
+            "PIESA",
+            "Mon 19 Oct, 2:00pm",
+          ],
+          [
+            "Install",
+            "Sun 1 Nov, 2:00pm",
+          ],
+        ],
+      },
       "stage": "installation_booked",
     },
     "price": {
@@ -217,6 +320,17 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "current": null,
       "electrician": "Home Insulation Victoria's electrician",
       "hivSwitch": null,
+      "locked": true,
+      "mittiProduct": null,
+      "productOptions": [
+        "Bradford Gold R5",
+        "Bradford Gold R6",
+        "Bradford Gold R7",
+        "Fletchers Pink Batts R5",
+        "Fletchers Pink Batts R6",
+        "Fletchers Pink Batts R7",
+        "Earthwool R5",
+      ],
       "readyCheck": {
         "access": "Not on the Ready Check yet",
         "address": "1 Test St, Geelong 3220",
@@ -454,6 +568,7 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
         "piisaSignedAt": null,
         "product": null,
       },
+      "countdown": null,
       "electricianAttendance": null,
       "form": {
         "auditId": "audit-0",
@@ -483,9 +598,27 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
         "rebateSigned": false,
         "recordedAt": null,
       },
+      "installBy": null,
       "jobNumber": "HV-1001",
+      "kind": "installer",
+      "label": "Your customer",
       "mittiInvited": true,
+      "nextStep": {
+        "alsoBookInstall": null,
+        "bookBy": null,
+        "button": null,
+        "kind": "install_booked",
+        "lines": [
+          "Lead Installer locks Fri 30 Oct, 5pm",
+        ],
+        "overdue": false,
+        "phone": null,
+        "sub": "Install · Sun 1 Nov, 2:00pm",
+        "title": "Install booked",
+        "yours": false,
+      },
       "notes": [],
+      "ownerFirst": "Owner",
       "ownerPiesaConfirmed": false,
       "pay": {
         "amount": 2200,
@@ -502,6 +635,24 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "price": {
         "entered": false,
       },
+      "progress": [
+        {
+          "label": "Ready Check",
+          "state": "done",
+        },
+        {
+          "label": "PIESA",
+          "state": "done",
+        },
+        {
+          "label": "Deposit",
+          "state": "done",
+        },
+        {
+          "label": "Install",
+          "state": "now",
+        },
+      ],
       "quote": {
         "accepted": true,
         "acceptedAt": null,
@@ -517,6 +668,72 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
         "bookedAt": "2026-10-09T03:00:00.000Z",
         "done": true,
       },
+      "role": "boss",
+      "rows": {
+        "jobDetails": [
+          [
+            "Area",
+            "92 m²",
+          ],
+          [
+            "Product",
+            "Ceiling batts",
+          ],
+          [
+            "Your install pay",
+            "$2,200.00 · paid once Owner has paid in full",
+          ],
+        ],
+        "owner": [
+          [
+            "Name",
+            "Owner One",
+          ],
+        ],
+        "ownerTold": [],
+        "paperwork": [
+          {
+            "label": "Ready Check report (Mitti, with photos)",
+            "note": null,
+            "ready": true,
+          },
+          {
+            "label": "Signed PIESA",
+            "note": null,
+            "ready": true,
+          },
+          {
+            "label": "Owner's ESC consent",
+            "note": null,
+            "ready": true,
+          },
+          {
+            "label": "Safety plan (SWMS)",
+            "note": null,
+            "ready": true,
+          },
+          {
+            "label": "Install form (Mitti)",
+            "note": null,
+            "ready": true,
+          },
+        ],
+        "siteNotes": [],
+        "visits": [
+          [
+            "Ready Check",
+            "Fri 9 Oct, 2:00pm",
+          ],
+          [
+            "PIESA",
+            "Mon 19 Oct, 2:00pm",
+          ],
+          [
+            "Install",
+            "Sun 1 Nov, 2:00pm",
+          ],
+        ],
+      },
       "stage": "installation_booked",
     },
     "price": {
@@ -528,6 +745,17 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "current": null,
       "electrician": "Home Insulation Victoria's electrician",
       "hivSwitch": null,
+      "locked": true,
+      "mittiProduct": null,
+      "productOptions": [
+        "Bradford Gold R5",
+        "Bradford Gold R6",
+        "Bradford Gold R7",
+        "Fletchers Pink Batts R5",
+        "Fletchers Pink Batts R6",
+        "Fletchers Pink Batts R7",
+        "Earthwool R5",
+      ],
       "readyCheck": {
         "access": "Not on the Ready Check yet",
         "address": "1 Test St, Geelong 3220",
@@ -765,6 +993,7 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
         "piisaSignedAt": null,
         "product": null,
       },
+      "countdown": null,
       "electricianAttendance": null,
       "form": {
         "auditId": "audit-0",
@@ -794,9 +1023,27 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
         "rebateSigned": false,
         "recordedAt": null,
       },
+      "installBy": null,
       "jobNumber": "HV-1001",
+      "kind": "installer",
+      "label": "Your customer",
       "mittiInvited": true,
+      "nextStep": {
+        "alsoBookInstall": null,
+        "bookBy": null,
+        "button": null,
+        "kind": "install_booked",
+        "lines": [
+          "Lead Installer locks Fri 30 Oct, 5pm",
+        ],
+        "overdue": false,
+        "phone": null,
+        "sub": "Install · Sun 1 Nov, 2:00pm",
+        "title": "Install booked",
+        "yours": false,
+      },
       "notes": [],
+      "ownerFirst": "Owner",
       "ownerPiesaConfirmed": false,
       "pay": {
         "amount": 2200,
@@ -813,6 +1060,24 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "price": {
         "entered": false,
       },
+      "progress": [
+        {
+          "label": "Ready Check",
+          "state": "done",
+        },
+        {
+          "label": "PIESA",
+          "state": "done",
+        },
+        {
+          "label": "Deposit",
+          "state": "done",
+        },
+        {
+          "label": "Install",
+          "state": "now",
+        },
+      ],
       "quote": {
         "accepted": true,
         "acceptedAt": null,
@@ -828,6 +1093,72 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
         "bookedAt": "2026-10-09T03:00:00.000Z",
         "done": true,
       },
+      "role": "boss",
+      "rows": {
+        "jobDetails": [
+          [
+            "Area",
+            "92 m²",
+          ],
+          [
+            "Product",
+            "Ceiling batts",
+          ],
+          [
+            "Your install pay",
+            "$2,200.00 · paid once Owner has paid in full",
+          ],
+        ],
+        "owner": [
+          [
+            "Name",
+            "Owner One",
+          ],
+        ],
+        "ownerTold": [],
+        "paperwork": [
+          {
+            "label": "Ready Check report (Mitti, with photos)",
+            "note": null,
+            "ready": true,
+          },
+          {
+            "label": "Signed PIESA",
+            "note": null,
+            "ready": true,
+          },
+          {
+            "label": "Owner's ESC consent",
+            "note": null,
+            "ready": true,
+          },
+          {
+            "label": "Safety plan (SWMS)",
+            "note": null,
+            "ready": true,
+          },
+          {
+            "label": "Install form (Mitti)",
+            "note": null,
+            "ready": true,
+          },
+        ],
+        "siteNotes": [],
+        "visits": [
+          [
+            "Ready Check",
+            "Fri 9 Oct, 2:00pm",
+          ],
+          [
+            "PIESA",
+            "Mon 19 Oct, 2:00pm",
+          ],
+          [
+            "Install",
+            "Sun 1 Nov, 2:00pm",
+          ],
+        ],
+      },
       "stage": "installation_booked",
     },
     "price": {
@@ -839,6 +1170,17 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "current": null,
       "electrician": "Home Insulation Victoria's electrician",
       "hivSwitch": null,
+      "locked": true,
+      "mittiProduct": null,
+      "productOptions": [
+        "Bradford Gold R5",
+        "Bradford Gold R6",
+        "Bradford Gold R7",
+        "Fletchers Pink Batts R5",
+        "Fletchers Pink Batts R6",
+        "Fletchers Pink Batts R7",
+        "Earthwool R5",
+      ],
       "readyCheck": {
         "access": "Not on the Ready Check yet",
         "address": "1 Test St, Geelong 3220",
@@ -1053,6 +1395,7 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
         "piisaSignedAt": null,
         "product": null,
       },
+      "countdown": null,
       "electricianAttendance": null,
       "form": {
         "auditId": "audit-0",
@@ -1082,9 +1425,27 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
         "rebateSigned": false,
         "recordedAt": null,
       },
+      "installBy": null,
       "jobNumber": "HV-1001",
+      "kind": "installer",
+      "label": "Your customer",
       "mittiInvited": true,
+      "nextStep": {
+        "alsoBookInstall": null,
+        "bookBy": null,
+        "button": null,
+        "kind": "install_booked",
+        "lines": [
+          "Lead Installer locks Fri 30 Oct, 5pm",
+        ],
+        "overdue": false,
+        "phone": null,
+        "sub": "Install · Sun 1 Nov, 2:00pm",
+        "title": "Install booked",
+        "yours": false,
+      },
       "notes": [],
+      "ownerFirst": "Owner",
       "ownerPiesaConfirmed": false,
       "pay": {
         "amount": null,
@@ -1101,6 +1462,24 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "price": {
         "entered": false,
       },
+      "progress": [
+        {
+          "label": "Ready Check",
+          "state": "done",
+        },
+        {
+          "label": "PIESA",
+          "state": "done",
+        },
+        {
+          "label": "Deposit",
+          "state": "done",
+        },
+        {
+          "label": "Install",
+          "state": "now",
+        },
+      ],
       "quote": {
         "accepted": true,
         "acceptedAt": null,
@@ -1115,6 +1494,68 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "readyCheck": {
         "bookedAt": "2026-10-09T03:00:00.000Z",
         "done": true,
+      },
+      "role": "none",
+      "rows": {
+        "jobDetails": [
+          [
+            "Area",
+            "92 m²",
+          ],
+          [
+            "Product",
+            "Ceiling batts",
+          ],
+        ],
+        "owner": [
+          [
+            "Name",
+            "Owner One",
+          ],
+        ],
+        "ownerTold": [],
+        "paperwork": [
+          {
+            "label": "Ready Check report (Mitti, with photos)",
+            "note": null,
+            "ready": true,
+          },
+          {
+            "label": "Signed PIESA",
+            "note": null,
+            "ready": true,
+          },
+          {
+            "label": "Owner's ESC consent",
+            "note": null,
+            "ready": true,
+          },
+          {
+            "label": "Safety plan (SWMS)",
+            "note": null,
+            "ready": true,
+          },
+          {
+            "label": "Install form (Mitti)",
+            "note": null,
+            "ready": true,
+          },
+        ],
+        "siteNotes": [],
+        "visits": [
+          [
+            "Ready Check",
+            "Fri 9 Oct, 2:00pm",
+          ],
+          [
+            "PIESA",
+            "Mon 19 Oct, 2:00pm",
+          ],
+          [
+            "Install",
+            "Sun 1 Nov, 2:00pm",
+          ],
+        ],
       },
       "stage": "installation_booked",
     },
@@ -1326,6 +1767,7 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
         "piisaSignedAt": null,
         "product": null,
       },
+      "countdown": null,
       "electricianAttendance": null,
       "form": {
         "auditId": "audit-0",
@@ -1355,9 +1797,27 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
         "rebateSigned": false,
         "recordedAt": null,
       },
+      "installBy": null,
       "jobNumber": "HV-1001",
+      "kind": "installer",
+      "label": "Your customer",
       "mittiInvited": true,
+      "nextStep": {
+        "alsoBookInstall": null,
+        "bookBy": null,
+        "button": null,
+        "kind": "install_booked",
+        "lines": [
+          "Lead Installer locks Fri 30 Oct, 5pm",
+        ],
+        "overdue": false,
+        "phone": null,
+        "sub": "Install · Sun 1 Nov, 2:00pm",
+        "title": "Install booked",
+        "yours": false,
+      },
       "notes": [],
+      "ownerFirst": "Owner",
       "ownerPiesaConfirmed": false,
       "pay": {
         "amount": null,
@@ -1374,6 +1834,24 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "price": {
         "entered": false,
       },
+      "progress": [
+        {
+          "label": "Ready Check",
+          "state": "done",
+        },
+        {
+          "label": "PIESA",
+          "state": "done",
+        },
+        {
+          "label": "Deposit",
+          "state": "done",
+        },
+        {
+          "label": "Install",
+          "state": "now",
+        },
+      ],
       "quote": {
         "accepted": true,
         "acceptedAt": null,
@@ -1388,6 +1866,68 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "readyCheck": {
         "bookedAt": "2026-10-09T03:00:00.000Z",
         "done": true,
+      },
+      "role": "none",
+      "rows": {
+        "jobDetails": [
+          [
+            "Area",
+            "92 m²",
+          ],
+          [
+            "Product",
+            "Ceiling batts",
+          ],
+        ],
+        "owner": [
+          [
+            "Name",
+            "Owner One",
+          ],
+        ],
+        "ownerTold": [],
+        "paperwork": [
+          {
+            "label": "Ready Check report (Mitti, with photos)",
+            "note": null,
+            "ready": true,
+          },
+          {
+            "label": "Signed PIESA",
+            "note": null,
+            "ready": true,
+          },
+          {
+            "label": "Owner's ESC consent",
+            "note": null,
+            "ready": true,
+          },
+          {
+            "label": "Safety plan (SWMS)",
+            "note": null,
+            "ready": true,
+          },
+          {
+            "label": "Install form (Mitti)",
+            "note": null,
+            "ready": true,
+          },
+        ],
+        "siteNotes": [],
+        "visits": [
+          [
+            "Ready Check",
+            "Fri 9 Oct, 2:00pm",
+          ],
+          [
+            "PIESA",
+            "Mon 19 Oct, 2:00pm",
+          ],
+          [
+            "Install",
+            "Sun 1 Nov, 2:00pm",
+          ],
+        ],
       },
       "stage": "installation_booked",
     },
@@ -1599,6 +2139,7 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
         "piisaSignedAt": null,
         "product": null,
       },
+      "countdown": null,
       "electricianAttendance": null,
       "form": {
         "auditId": "audit-0",
@@ -1628,9 +2169,27 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
         "rebateSigned": false,
         "recordedAt": null,
       },
+      "installBy": null,
       "jobNumber": "HV-1001",
+      "kind": "installer",
+      "label": "Your customer",
       "mittiInvited": true,
+      "nextStep": {
+        "alsoBookInstall": null,
+        "bookBy": null,
+        "button": null,
+        "kind": "install_booked",
+        "lines": [
+          "Lead Installer locks Fri 30 Oct, 5pm",
+        ],
+        "overdue": false,
+        "phone": null,
+        "sub": "Install · Sun 1 Nov, 2:00pm",
+        "title": "Install booked",
+        "yours": false,
+      },
       "notes": [],
+      "ownerFirst": "Owner",
       "ownerPiesaConfirmed": false,
       "pay": {
         "amount": null,
@@ -1647,6 +2206,24 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "price": {
         "entered": false,
       },
+      "progress": [
+        {
+          "label": "Ready Check",
+          "state": "done",
+        },
+        {
+          "label": "PIESA",
+          "state": "done",
+        },
+        {
+          "label": "Deposit",
+          "state": "done",
+        },
+        {
+          "label": "Install",
+          "state": "now",
+        },
+      ],
       "quote": {
         "accepted": true,
         "acceptedAt": null,
@@ -1661,6 +2238,68 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "readyCheck": {
         "bookedAt": "2026-10-09T03:00:00.000Z",
         "done": true,
+      },
+      "role": "none",
+      "rows": {
+        "jobDetails": [
+          [
+            "Area",
+            "92 m²",
+          ],
+          [
+            "Product",
+            "Ceiling batts",
+          ],
+        ],
+        "owner": [
+          [
+            "Name",
+            "Owner One",
+          ],
+        ],
+        "ownerTold": [],
+        "paperwork": [
+          {
+            "label": "Ready Check report (Mitti, with photos)",
+            "note": null,
+            "ready": true,
+          },
+          {
+            "label": "Signed PIESA",
+            "note": null,
+            "ready": true,
+          },
+          {
+            "label": "Owner's ESC consent",
+            "note": null,
+            "ready": true,
+          },
+          {
+            "label": "Safety plan (SWMS)",
+            "note": null,
+            "ready": true,
+          },
+          {
+            "label": "Install form (Mitti)",
+            "note": null,
+            "ready": true,
+          },
+        ],
+        "siteNotes": [],
+        "visits": [
+          [
+            "Ready Check",
+            "Fri 9 Oct, 2:00pm",
+          ],
+          [
+            "PIESA",
+            "Mon 19 Oct, 2:00pm",
+          ],
+          [
+            "Install",
+            "Sun 1 Nov, 2:00pm",
+          ],
+        ],
       },
       "stage": "installation_booked",
     },
@@ -1830,6 +2469,7 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "piisaSignedAt": null,
       "product": null,
     },
+    "countdown": null,
     "electricianAttendance": null,
     "form": {
       "auditId": "audit-0",
@@ -1859,9 +2499,27 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "rebateSigned": false,
       "recordedAt": null,
     },
+    "installBy": null,
     "jobNumber": "HV-1001",
+    "kind": "installer",
+    "label": "Your customer",
     "mittiInvited": true,
+    "nextStep": {
+      "alsoBookInstall": null,
+      "bookBy": null,
+      "button": null,
+      "kind": "install_booked",
+      "lines": [
+        "Lead Installer locks Fri 30 Oct, 5pm",
+      ],
+      "overdue": false,
+      "phone": null,
+      "sub": "Install · Sun 1 Nov, 2:00pm",
+      "title": "Install booked",
+      "yours": false,
+    },
     "notes": [],
+    "ownerFirst": "Owner",
     "ownerPiesaConfirmed": false,
     "pay": {
       "amount": 2200,
@@ -1878,6 +2536,24 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
     "price": {
       "entered": false,
     },
+    "progress": [
+      {
+        "label": "Ready Check",
+        "state": "done",
+      },
+      {
+        "label": "PIESA",
+        "state": "done",
+      },
+      {
+        "label": "Deposit",
+        "state": "done",
+      },
+      {
+        "label": "Install",
+        "state": "now",
+      },
+    ],
     "quote": {
       "accepted": true,
       "acceptedAt": null,
@@ -1892,6 +2568,72 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
     "readyCheck": {
       "bookedAt": "2026-10-09T03:00:00.000Z",
       "done": true,
+    },
+    "role": "boss",
+    "rows": {
+      "jobDetails": [
+        [
+          "Area",
+          "92 m²",
+        ],
+        [
+          "Product",
+          "Ceiling batts",
+        ],
+        [
+          "Your install pay",
+          "$2,200.00 · paid once Owner has paid in full",
+        ],
+      ],
+      "owner": [
+        [
+          "Name",
+          "Owner One",
+        ],
+      ],
+      "ownerTold": [],
+      "paperwork": [
+        {
+          "label": "Ready Check report (Mitti, with photos)",
+          "note": null,
+          "ready": true,
+        },
+        {
+          "label": "Signed PIESA",
+          "note": null,
+          "ready": true,
+        },
+        {
+          "label": "Owner's ESC consent",
+          "note": null,
+          "ready": true,
+        },
+        {
+          "label": "Safety plan (SWMS)",
+          "note": null,
+          "ready": true,
+        },
+        {
+          "label": "Install form (Mitti)",
+          "note": null,
+          "ready": true,
+        },
+      ],
+      "siteNotes": [],
+      "visits": [
+        [
+          "Ready Check",
+          "Fri 9 Oct, 2:00pm",
+        ],
+        [
+          "PIESA",
+          "Mon 19 Oct, 2:00pm",
+        ],
+        [
+          "Install",
+          "Sun 1 Nov, 2:00pm",
+        ],
+      ],
     },
     "stage": "installation_booked",
   },
@@ -1910,6 +2652,7 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "piisaSignedAt": null,
       "product": null,
     },
+    "countdown": null,
     "electricianAttendance": null,
     "form": {
       "auditId": "audit-0",
@@ -1939,9 +2682,27 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "rebateSigned": false,
       "recordedAt": null,
     },
+    "installBy": null,
     "jobNumber": "HV-1001",
+    "kind": "installer",
+    "label": "Your customer",
     "mittiInvited": true,
+    "nextStep": {
+      "alsoBookInstall": null,
+      "bookBy": null,
+      "button": null,
+      "kind": "install_booked",
+      "lines": [
+        "Lead Installer locks Fri 30 Oct, 5pm",
+      ],
+      "overdue": false,
+      "phone": null,
+      "sub": "Install · Sun 1 Nov, 2:00pm",
+      "title": "Install booked",
+      "yours": false,
+    },
     "notes": [],
+    "ownerFirst": "Owner",
     "ownerPiesaConfirmed": false,
     "pay": {
       "amount": 2200,
@@ -1958,6 +2719,24 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
     "price": {
       "entered": false,
     },
+    "progress": [
+      {
+        "label": "Ready Check",
+        "state": "done",
+      },
+      {
+        "label": "PIESA",
+        "state": "done",
+      },
+      {
+        "label": "Deposit",
+        "state": "done",
+      },
+      {
+        "label": "Install",
+        "state": "now",
+      },
+    ],
     "quote": {
       "accepted": true,
       "acceptedAt": null,
@@ -1972,6 +2751,72 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
     "readyCheck": {
       "bookedAt": "2026-10-09T03:00:00.000Z",
       "done": true,
+    },
+    "role": "boss",
+    "rows": {
+      "jobDetails": [
+        [
+          "Area",
+          "92 m²",
+        ],
+        [
+          "Product",
+          "Ceiling batts",
+        ],
+        [
+          "Your install pay",
+          "$2,200.00 · paid once Owner has paid in full",
+        ],
+      ],
+      "owner": [
+        [
+          "Name",
+          "Owner One",
+        ],
+      ],
+      "ownerTold": [],
+      "paperwork": [
+        {
+          "label": "Ready Check report (Mitti, with photos)",
+          "note": null,
+          "ready": true,
+        },
+        {
+          "label": "Signed PIESA",
+          "note": null,
+          "ready": true,
+        },
+        {
+          "label": "Owner's ESC consent",
+          "note": null,
+          "ready": true,
+        },
+        {
+          "label": "Safety plan (SWMS)",
+          "note": null,
+          "ready": true,
+        },
+        {
+          "label": "Install form (Mitti)",
+          "note": null,
+          "ready": true,
+        },
+      ],
+      "siteNotes": [],
+      "visits": [
+        [
+          "Ready Check",
+          "Fri 9 Oct, 2:00pm",
+        ],
+        [
+          "PIESA",
+          "Mon 19 Oct, 2:00pm",
+        ],
+        [
+          "Install",
+          "Sun 1 Nov, 2:00pm",
+        ],
+      ],
     },
     "stage": "installation_booked",
   },
@@ -1990,6 +2835,7 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "piisaSignedAt": null,
       "product": null,
     },
+    "countdown": null,
     "electricianAttendance": null,
     "form": {
       "auditId": "audit-0",
@@ -2019,9 +2865,27 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "rebateSigned": false,
       "recordedAt": null,
     },
+    "installBy": null,
     "jobNumber": "HV-1001",
+    "kind": "installer",
+    "label": "Your customer",
     "mittiInvited": true,
+    "nextStep": {
+      "alsoBookInstall": null,
+      "bookBy": null,
+      "button": null,
+      "kind": "install_booked",
+      "lines": [
+        "Lead Installer locks Fri 30 Oct, 5pm",
+      ],
+      "overdue": false,
+      "phone": null,
+      "sub": "Install · Sun 1 Nov, 2:00pm",
+      "title": "Install booked",
+      "yours": false,
+    },
     "notes": [],
+    "ownerFirst": "Owner",
     "ownerPiesaConfirmed": false,
     "pay": {
       "amount": 2200,
@@ -2038,6 +2902,24 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
     "price": {
       "entered": false,
     },
+    "progress": [
+      {
+        "label": "Ready Check",
+        "state": "done",
+      },
+      {
+        "label": "PIESA",
+        "state": "done",
+      },
+      {
+        "label": "Deposit",
+        "state": "done",
+      },
+      {
+        "label": "Install",
+        "state": "now",
+      },
+    ],
     "quote": {
       "accepted": true,
       "acceptedAt": null,
@@ -2052,6 +2934,72 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
     "readyCheck": {
       "bookedAt": "2026-10-09T03:00:00.000Z",
       "done": true,
+    },
+    "role": "boss",
+    "rows": {
+      "jobDetails": [
+        [
+          "Area",
+          "92 m²",
+        ],
+        [
+          "Product",
+          "Ceiling batts",
+        ],
+        [
+          "Your install pay",
+          "$2,200.00 · paid once Owner has paid in full",
+        ],
+      ],
+      "owner": [
+        [
+          "Name",
+          "Owner One",
+        ],
+      ],
+      "ownerTold": [],
+      "paperwork": [
+        {
+          "label": "Ready Check report (Mitti, with photos)",
+          "note": null,
+          "ready": true,
+        },
+        {
+          "label": "Signed PIESA",
+          "note": null,
+          "ready": true,
+        },
+        {
+          "label": "Owner's ESC consent",
+          "note": null,
+          "ready": true,
+        },
+        {
+          "label": "Safety plan (SWMS)",
+          "note": null,
+          "ready": true,
+        },
+        {
+          "label": "Install form (Mitti)",
+          "note": null,
+          "ready": true,
+        },
+      ],
+      "siteNotes": [],
+      "visits": [
+        [
+          "Ready Check",
+          "Fri 9 Oct, 2:00pm",
+        ],
+        [
+          "PIESA",
+          "Mon 19 Oct, 2:00pm",
+        ],
+        [
+          "Install",
+          "Sun 1 Nov, 2:00pm",
+        ],
+      ],
     },
     "stage": "installation_booked",
   },
@@ -2070,6 +3018,7 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "piisaSignedAt": null,
       "product": null,
     },
+    "countdown": null,
     "electricianAttendance": null,
     "form": {
       "auditId": "audit-0",
@@ -2099,9 +3048,27 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "rebateSigned": false,
       "recordedAt": null,
     },
+    "installBy": null,
     "jobNumber": "HV-1001",
+    "kind": "installer",
+    "label": "Your customer",
     "mittiInvited": true,
+    "nextStep": {
+      "alsoBookInstall": null,
+      "bookBy": null,
+      "button": null,
+      "kind": "install_booked",
+      "lines": [
+        "Lead Installer locks Fri 30 Oct, 5pm",
+      ],
+      "overdue": false,
+      "phone": null,
+      "sub": "Install · Sun 1 Nov, 2:00pm",
+      "title": "Install booked",
+      "yours": false,
+    },
     "notes": [],
+    "ownerFirst": "Owner",
     "ownerPiesaConfirmed": false,
     "pay": {
       "amount": null,
@@ -2118,6 +3085,24 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
     "price": {
       "entered": false,
     },
+    "progress": [
+      {
+        "label": "Ready Check",
+        "state": "done",
+      },
+      {
+        "label": "PIESA",
+        "state": "done",
+      },
+      {
+        "label": "Deposit",
+        "state": "done",
+      },
+      {
+        "label": "Install",
+        "state": "now",
+      },
+    ],
     "quote": {
       "accepted": true,
       "acceptedAt": null,
@@ -2132,6 +3117,68 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
     "readyCheck": {
       "bookedAt": "2026-10-09T03:00:00.000Z",
       "done": true,
+    },
+    "role": "none",
+    "rows": {
+      "jobDetails": [
+        [
+          "Area",
+          "92 m²",
+        ],
+        [
+          "Product",
+          "Ceiling batts",
+        ],
+      ],
+      "owner": [
+        [
+          "Name",
+          "Owner One",
+        ],
+      ],
+      "ownerTold": [],
+      "paperwork": [
+        {
+          "label": "Ready Check report (Mitti, with photos)",
+          "note": null,
+          "ready": true,
+        },
+        {
+          "label": "Signed PIESA",
+          "note": null,
+          "ready": true,
+        },
+        {
+          "label": "Owner's ESC consent",
+          "note": null,
+          "ready": true,
+        },
+        {
+          "label": "Safety plan (SWMS)",
+          "note": null,
+          "ready": true,
+        },
+        {
+          "label": "Install form (Mitti)",
+          "note": null,
+          "ready": true,
+        },
+      ],
+      "siteNotes": [],
+      "visits": [
+        [
+          "Ready Check",
+          "Fri 9 Oct, 2:00pm",
+        ],
+        [
+          "PIESA",
+          "Mon 19 Oct, 2:00pm",
+        ],
+        [
+          "Install",
+          "Sun 1 Nov, 2:00pm",
+        ],
+      ],
     },
     "stage": "installation_booked",
   },
@@ -2150,6 +3197,7 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "piisaSignedAt": null,
       "product": null,
     },
+    "countdown": null,
     "electricianAttendance": null,
     "form": {
       "auditId": "audit-0",
@@ -2179,9 +3227,27 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "rebateSigned": false,
       "recordedAt": null,
     },
+    "installBy": null,
     "jobNumber": "HV-1001",
+    "kind": "installer",
+    "label": "Your customer",
     "mittiInvited": true,
+    "nextStep": {
+      "alsoBookInstall": null,
+      "bookBy": null,
+      "button": null,
+      "kind": "install_booked",
+      "lines": [
+        "Lead Installer locks Fri 30 Oct, 5pm",
+      ],
+      "overdue": false,
+      "phone": null,
+      "sub": "Install · Sun 1 Nov, 2:00pm",
+      "title": "Install booked",
+      "yours": false,
+    },
     "notes": [],
+    "ownerFirst": "Owner",
     "ownerPiesaConfirmed": false,
     "pay": {
       "amount": null,
@@ -2198,6 +3264,24 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
     "price": {
       "entered": false,
     },
+    "progress": [
+      {
+        "label": "Ready Check",
+        "state": "done",
+      },
+      {
+        "label": "PIESA",
+        "state": "done",
+      },
+      {
+        "label": "Deposit",
+        "state": "done",
+      },
+      {
+        "label": "Install",
+        "state": "now",
+      },
+    ],
     "quote": {
       "accepted": true,
       "acceptedAt": null,
@@ -2212,6 +3296,68 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
     "readyCheck": {
       "bookedAt": "2026-10-09T03:00:00.000Z",
       "done": true,
+    },
+    "role": "none",
+    "rows": {
+      "jobDetails": [
+        [
+          "Area",
+          "92 m²",
+        ],
+        [
+          "Product",
+          "Ceiling batts",
+        ],
+      ],
+      "owner": [
+        [
+          "Name",
+          "Owner One",
+        ],
+      ],
+      "ownerTold": [],
+      "paperwork": [
+        {
+          "label": "Ready Check report (Mitti, with photos)",
+          "note": null,
+          "ready": true,
+        },
+        {
+          "label": "Signed PIESA",
+          "note": null,
+          "ready": true,
+        },
+        {
+          "label": "Owner's ESC consent",
+          "note": null,
+          "ready": true,
+        },
+        {
+          "label": "Safety plan (SWMS)",
+          "note": null,
+          "ready": true,
+        },
+        {
+          "label": "Install form (Mitti)",
+          "note": null,
+          "ready": true,
+        },
+      ],
+      "siteNotes": [],
+      "visits": [
+        [
+          "Ready Check",
+          "Fri 9 Oct, 2:00pm",
+        ],
+        [
+          "PIESA",
+          "Mon 19 Oct, 2:00pm",
+        ],
+        [
+          "Install",
+          "Sun 1 Nov, 2:00pm",
+        ],
+      ],
     },
     "stage": "installation_booked",
   },
@@ -2230,6 +3376,7 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "piisaSignedAt": null,
       "product": null,
     },
+    "countdown": null,
     "electricianAttendance": null,
     "form": {
       "auditId": "audit-0",
@@ -2259,9 +3406,27 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "rebateSigned": false,
       "recordedAt": null,
     },
+    "installBy": null,
     "jobNumber": "HV-1001",
+    "kind": "installer",
+    "label": "Your customer",
     "mittiInvited": true,
+    "nextStep": {
+      "alsoBookInstall": null,
+      "bookBy": null,
+      "button": null,
+      "kind": "install_booked",
+      "lines": [
+        "Lead Installer locks Fri 30 Oct, 5pm",
+      ],
+      "overdue": false,
+      "phone": null,
+      "sub": "Install · Sun 1 Nov, 2:00pm",
+      "title": "Install booked",
+      "yours": false,
+    },
     "notes": [],
+    "ownerFirst": "Owner",
     "ownerPiesaConfirmed": false,
     "pay": {
       "amount": null,
@@ -2278,6 +3443,24 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
     "price": {
       "entered": false,
     },
+    "progress": [
+      {
+        "label": "Ready Check",
+        "state": "done",
+      },
+      {
+        "label": "PIESA",
+        "state": "done",
+      },
+      {
+        "label": "Deposit",
+        "state": "done",
+      },
+      {
+        "label": "Install",
+        "state": "now",
+      },
+    ],
     "quote": {
       "accepted": true,
       "acceptedAt": null,
@@ -2292,6 +3475,68 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
     "readyCheck": {
       "bookedAt": "2026-10-09T03:00:00.000Z",
       "done": true,
+    },
+    "role": "none",
+    "rows": {
+      "jobDetails": [
+        [
+          "Area",
+          "92 m²",
+        ],
+        [
+          "Product",
+          "Ceiling batts",
+        ],
+      ],
+      "owner": [
+        [
+          "Name",
+          "Owner One",
+        ],
+      ],
+      "ownerTold": [],
+      "paperwork": [
+        {
+          "label": "Ready Check report (Mitti, with photos)",
+          "note": null,
+          "ready": true,
+        },
+        {
+          "label": "Signed PIESA",
+          "note": null,
+          "ready": true,
+        },
+        {
+          "label": "Owner's ESC consent",
+          "note": null,
+          "ready": true,
+        },
+        {
+          "label": "Safety plan (SWMS)",
+          "note": null,
+          "ready": true,
+        },
+        {
+          "label": "Install form (Mitti)",
+          "note": null,
+          "ready": true,
+        },
+      ],
+      "siteNotes": [],
+      "visits": [
+        [
+          "Ready Check",
+          "Fri 9 Oct, 2:00pm",
+        ],
+        [
+          "PIESA",
+          "Mon 19 Oct, 2:00pm",
+        ],
+        [
+          "Install",
+          "Sun 1 Nov, 2:00pm",
+        ],
+      ],
     },
     "stage": "installation_booked",
   },

@@ -13,7 +13,7 @@ import type { InstallerQuote } from "./installer-quote-status.server";
 // Speed (installer screens, Task 5): module-scope imports instead of awaited import() calls inside the loaders.
 import { statusFactsFor, statusView } from "./job-status.server";
 import { installerTab, doneReason } from "./installer-progress.core";
-import { installerHomeGroups, comingForInstaller, sourceLabel as installerSourceLabel } from "./installer-home.core";
+import { sourceLabel as installerSourceLabel } from "./installer-home.core";
 import { installerQuoteLine } from "./installer-quote-status.core";
 import { myWorkCards, greeting as myWorkGreeting, reasonFor } from "./my-work.core";
 import { nextStepBox, type NextStepFacts } from "./next-step-box.core";
@@ -41,6 +41,9 @@ import * as installAttendanceCore from "./install-attendance.core";
 import { electricalClearance } from "./allocation.core";
 import { needsFinishingTask, installerAttendanceLine, historicalReadyCheckDay, couldntGetInDay } from "./trade-view.core";
 import { needsFinishingList } from "./installer-screens.core";
+import { FIXES_COES_DOC_KIND, FIXES_COES_DOC_TITLE } from "./fixes-day.core";
+import * as paymentLedgerServer from "./payment-ledger.server";
+import * as inHouseElectricianServer from "./in-house-electrician.server";
 import { currentAllocation } from "./visit-allocation.core";
 import { isStepPaid } from "./payments.core";
 import { installerTextAddress } from "./installer-texts.core";
@@ -143,6 +146,26 @@ const VISIT: Record<string, string> = { assessment: "Pre Insulation Electrical S
 const HOME_JOB_COLS = "id, job_number, stage, source, channel, qa_archived_at, deleted_at, updated_at, next_action, owners(full_name), properties(address_line, suburb, postcode)";
 type HomeJob = { id: string; job_number: string; stage: string; source: string; channel: string | null; qa_archived_at: string | null; deleted_at: string | null; updated_at: string | null; next_action: string | null; owners: unknown; properties: unknown };
 
+// ---- Fix wave I4: the facts My work and the Job page must agree on, read the same way on both -----------------------------
+/** Who books the PIESA for this business (Task 9 setting, businesses.piesa_booked_by): the pending column missing → "office". */
+export async function whoBooksFor(businessId: string): Promise<WhoBooks> {
+  const r = await ((admin as unknown as { from: (t: string) => any }).from("businesses").select("piesa_booked_by").eq("id", businessId).maybeSingle() as Promise<{ data: { piesa_booked_by?: unknown } | null; error: { code?: string; message: string } | null }>); // eslint-disable-line @typescript-eslint/no-explicit-any
+  if (r.error && !schemaCompatCore.isMissingDbObject(r.error) && !["42703", "PGRST204"].includes(r.error.code ?? "")) console.error("whoBooksFor: who-books could not be read", r.error.code ?? "unknown");
+  return whoBooksOf(r.error ? undefined : r.data?.piesa_booked_by);
+}
+/** The Certificate of Electrical Safety is on file: the A4 fixes form's CoES document (documents kind + title, decision 293). */
+export async function coesOnFileForJobs(jobIds: string[]): Promise<Set<string>> {
+  if (!jobIds.length) return new Set();
+  const { data, error } = await admin.from("documents").select("job_id").in("job_id", jobIds).eq("kind", FIXES_COES_DOC_KIND).eq("title", FIXES_COES_DOC_TITLE);
+  if (error) throw new Error(error.message);
+  return new Set((data ?? []).map((d) => d.job_id).filter((x): x is string => !!x));
+}
+/** The owner's last payment date on the job (the deposit fact both screens print), from the reconciled ledger. */
+const lastPaidOf = (ledger: { paidAt: string }[]): string | null => ledger.map((l) => l.paidAt).sort().pop() ?? null;
+/** The electrician on the job: the Team worker the latest allocation event names (electricians never log in, fix wave C1),
+ *  else (legacy, profile-based assignment) the assignment's profile name. */
+const electricianNameOf = (allocated: { full_legal_name: string } | null, profileName: string | null): string | null => allocated?.full_legal_name?.trim() || profileName?.trim() || null;
+
 /** My work: open offers, things that need this trade, booked visits, and this month. */
 export async function tradeHome(userId: string) {
   // Speed (installer screens, Task 5): three rounds of reads — (1) sign-in context, (2) everything that needs only the
@@ -156,10 +179,13 @@ export async function tradeHome(userId: string) {
   const histQ = admin.from("job_assignments").select("job_id").eq("business_id", c.biz.id).eq("active", false);
   // Review D (as assignmentQuery): bosses and Office people see every active assignment for the business; workers only their own.
   const asgQ = admin.from("job_assignments").select(`job_id, business_id, role, assigned_at, jobs(${HOME_JOB_COLS})`).eq("business_id", c.biz.id).eq("active", true);
-  const [{ data: offers }, { data: asg }, { data: ended }] = await Promise.all([
+  const [{ data: offers }, { data: asg }, { data: ended }, whoBooks, { data: teamElectricians }] = await Promise.all([
     admin.from("partner_offers").select("id, job_id, kind, summary, expires_at").eq("business_id", c.biz.id).eq("status", "pending").order("offered_at", { ascending: false }),
     c.seesJobs ? asgQ : asgQ.eq("user_id", userId),
     c.seesJobs ? histQ : histQ.eq("user_id", userId),
+    // Fix wave I4: the same who-books and electrician facts the Job page reads (business-only, this round).
+    c.kind === "installer" ? whoBooksFor(c.biz.id) : Promise.resolve("office" as WhoBooks),
+    c.kind === "installer" ? admin.from("partner_workers").select("id, full_legal_name").eq("business_id", c.biz.id).eq("trade_role", "electrician").is("removed_at", null) : Promise.resolve({ data: [] as { id: string; full_legal_name: string }[] }),
   ]);
   const jobIds = [...new Set((asg ?? []).map((a) => a.job_id))];
   const jobRows = new Map<string, HomeJob>();
@@ -177,7 +203,7 @@ export async function tradeHome(userId: string) {
   // answers (latest ready_check_basics event) and, on the installer's own jobs, has the boss entered the price.
   const formReads = c.kind === "installer" && live.length > 0;
   // Round 3: every read that needs the job ids, together.
-  const [{ data: books }, { data: missing }, { data: deadlines }, sf, rcQuotes, { data: ms }, { data: basics }, prices, { data: histJobs }, { data: assessRows }] = await Promise.all([
+  const [{ data: books }, { data: missing }, { data: deadlines }, sf, rcQuotes, { data: ms }, { data: basics }, prices, { data: histJobs }, { data: assessRows }, ledgers, coesOnFile, { data: allocEvents }] = await Promise.all([
     admin.from("bookings").select("job_id, kind, status, scheduled_start, scheduled_end").in("job_id", ids).in("status", ["confirmed", "completed"]).order("scheduled_start"),
     admin.from("evidence_requirements").select("job_id, category, gate, label").in("job_id", ids).eq("required", true).in("status", ["outstanding", "rejected"]),
     admin.from("job_piesa_deadlines").select("job_id, install_deadline").in("job_id", ids),
@@ -192,6 +218,11 @@ export async function tradeHome(userId: string) {
       : Promise.resolve({ data: [] as never[] }),
     // My work (Task 4): the PIESA result per job, for the Next step box. Same round, installers only.
     formReads ? admin.from("assessments").select("job_id, status, piesa_outcome").in("job_id", liveIds) : Promise.resolve({ data: [] as { job_id: string; status: string | null; piesa_outcome: string | null }[] }),
+    // Fix wave I4 (same reads as the Job page, batched): the owner's payments (deposit date), the CoES document (certificate
+    // in) and the electrician allocation events (the electrician's name). A failed read fails the page, like the rest of this round.
+    formReads ? paymentLedgerServer.paymentLedgersForJobs(liveIds) : Promise.resolve(new Map<string, { paidAt: string }[]>()),
+    formReads ? coesOnFileForJobs(liveIds) : Promise.resolve(new Set<string>()),
+    formReads ? admin.from("workflow_events").select("job_id, details, created_at").in("job_id", liveIds).eq("event_type", "in_house_electrician_allocated").order("created_at", { ascending: false }) : Promise.resolve({ data: [] as { job_id: string | null; details: unknown; created_at: string }[] }),
   ]);
   const moneyAll = await moneyP;
   const depositIds = c.kind === 'installer' ? live.filter(j => j.stage === 'installation_scheduling' && !!sf.get(j.id)?.inHouseDispatch).map(j => j.id) : [];
@@ -263,22 +294,16 @@ export async function tradeHome(userId: string) {
     ...jobsTabbed.filter((j) => j.tab === "done").map((j) => ({ jobId: j.jobId, jobNumber: j.jobNumber, suburb: j.suburb, channel: j.channel, stage: j.stage, endedAt: byId.get(j.jobId)?.updated_at ?? null, reason: doneReason(j.stage), open: true })),
     ...(histJobs ?? []).filter((j) => !j.qa_archived_at && !j.deleted_at && (!c.isTest || j.source === "qa_test")).map((j) => ({ jobId: j.id, jobNumber: j.job_number, suburb: (j.properties as { suburb: string | null } | null)?.suburb ?? null, channel: j.channel as string | null, stage: j.stage, endedAt: j.updated_at ?? null, reason: doneReason(j.stage), open: false })),
   ];
-  // Installer home (mock-up M1): one "Next:" line and one group per job, from the pure rules only.
-  const upcomingTile = (id: string) => { const b = upcomingOf(id)[0]; return b ? { what: VISIT[b.kind] ?? "Visit", start: b.scheduled_start } : null; };
-  const home = c.kind === "installer" ? installerHomeGroups(jobsTabbed.map((j) => ({
-    jobId: j.jobId, jobNumber: j.jobNumber, street: j.street, suburb: j.suburb, channel: j.channel, stage: j.stage, place: j.place, placeTitle: placeOf.get(j.jobId)?.title ?? null,
-    inHouseDispatch: sf.get(j.jobId)?.inHouseDispatch ?? null,
-    ...(installDeposits.has(j.jobId)?{installDepositPaid:installDeposits.get(j.jobId)??null}:{}),
-    nextAction: (byId.get(j.jobId) as { next_action?: string | null } | undefined)?.next_action ?? null, quoteLine: j.quoteLine, status: j.line ? { text: j.line.text, who: j.line.who } : null,
-    upcoming: upcomingTile(j.jobId), installDeadline: deadline.get(j.jobId) ?? null, endedAt: byId.get(j.jobId)?.updated_at ?? null, waitedSince: byId.get(j.jobId)?.updated_at ?? null,
-    formLinked: formFacts.get(j.jobId)?.linked === true, formCompleted: formFacts.get(j.jobId)?.completed === true, formHasAnswers: formFacts.get(j.jobId)?.hasAnswers ?? null,
-    priceEntered: j.channel === "installer_sourced" ? priced.has(j.jobId) : null, boss: c.boss,
-  }))) : null;
+  // The old installer home groups (mock-up M1, installerHomeGroups) are no longer computed: My work (Task 4) renders the
+  // cards below and nothing read `home` (fix wave minor 13).
   // My work (Task 4, installers only): one Next step box per open job, then the cards. Missing facts are left empty, never guessed.
   const myWork = c.kind === "installer" ? (() => {
     const givenAt = new Map<string, string>();
     for (const a of asg ?? []) { const at = (a as unknown as { assigned_at?: string | null }).assigned_at; if (at && (!givenAt.has(a.job_id) || at < givenAt.get(a.job_id)!)) givenAt.set(a.job_id, at); }
     const piesaOutcome = new Map<string, "pass" | "upgrades">(); for (const r of assessRows ?? []) if (r.status === "complete") piesaOutcome.set(r.job_id, r.piesa_outcome === "pass" ? "pass" : "upgrades");
+    const electricianName = new Map<string, string | null>();
+    const teamElec = new Map((teamElectricians ?? []).map((w) => [w.id, w.full_legal_name]));
+    for (const ev of allocEvents ?? []) if (ev.job_id && !electricianName.has(ev.job_id)) { const id = (ev.details as { worker_id?: unknown } | null)?.worker_id; electricianName.set(ev.job_id, typeof id === "string" ? teamElec.get(id) ?? null : null); }
     const rows = jobsTabbed.filter((j) => j.tab !== "done").map((j) => {
       const raw = byId.get(j.jobId)!;
       const jb = (books ?? []).filter((b) => b.job_id === j.jobId);
@@ -288,17 +313,20 @@ export async function tradeHome(userId: string) {
       const stage = raw.stage;
       const depositPaid = (installDeposits.get(j.jobId) ?? acceptedDeposits.get(j.jobId)) === true;
       const o = (raw.owners as { full_name: string | null } | null)?.full_name?.trim() || null;
+      const readyCheckDone = !!latest("ready_check", "completed") || formFacts.get(j.jobId)?.completed === true;
       const facts: NextStepFacts = {
         channel: raw.channel, stage, ownerFirst: o ? o.split(/\s+/)[0]! : null, ownerName: o, ownerPhone: null, now,
         givenAt: givenAt.get(j.jobId) ?? null,
-        readyCheck: { start: latest("ready_check", "confirmed"), done: !!latest("ready_check", "completed") || formFacts.get(j.jobId)?.completed === true, missing: [] },
+        // Fix wave I4: the same facts as the Job page — what the Mitti form still needs, who books, the electrician by the
+        // allocation event, the certificate by its document, the deposit date by the owner's last payment.
+        readyCheck: { start: latest("ready_check", "confirmed"), done: readyCheckDone, missing: readyCheckDone ? needsFinishingList(raw.next_action) : [] },
         priceEntered: raw.channel === "installer_sourced" ? priced.has(j.jobId) : null,
         quote: q?.declined ? "declined" : q?.accepted ? "accepted" : q?.sent ? "sent" : "none",
         acceptedAt: (q?.quote as { accepted_at?: string | null } | null)?.accepted_at ?? null,
-        whoBooks: "office", electricianName: null, // TODO(join): Part 5's who-books setting; until then every business is "office".
-        piesa: { start: latest("assessment", "confirmed"), outcome, upgradesDone: false, certificateIn: outcome === "upgrades" && /^(installation|evidence|ap_review|ready_for_veec|complete)/.test(stage) },
+        whoBooks, electricianName: electricianName.get(j.jobId) ?? null,
+        piesa: { start: latest("assessment", "confirmed"), outcome, upgradesDone: false, certificateIn: outcome === "upgrades" && coesOnFile.has(j.jobId) },
         access: null,
-        depositPaidAt: depositPaid ? raw.updated_at ?? new Date(0).toISOString() : null,
+        depositPaidAt: depositPaid ? lastPaidOf(ledgers.get(j.jobId) ?? []) ?? now.toISOString() : null,
         install: { start: latest("installation", "confirmed"), lead: null, swmsSigned: 0, swmsTotal: 0 },
         installDone: ["evidence_outstanding", "ap_review", "ready_for_veec", "complete"].includes(stage) || !!latest("installation", "completed"),
         pay: null, mittiFormUrl: null,
@@ -313,7 +341,7 @@ export async function tradeHome(userId: string) {
     const withStreet = (list: typeof cards.all) => list.map((card) => ({ ...card, street: street.get(card.jobId) ?? null }));
     return { greeting: myWorkGreeting(c.biz.name, cards.yourTurn.length), yourTurn: withStreet(cards.yourTurn), all: withStreet(cards.all) };
   })() : null;
-  return { kind: c.kind, boss: c.boss, role: c.role, money: c.money, business: c.biz.name, myWork, firstName: c.firstName, isTest: c.isTest, week, offers: offerList, yourMove, coming: home ? comingForInstaller(coming, home) : coming, jobs: jobsTabbed, done, home, month: c.money ? { jobs: month.length, earned: month.reduce((t, r) => t + (r.amount ?? 0), 0), paid: paidThisMonth } : null };
+  return { kind: c.kind, boss: c.boss, role: c.role, money: c.money, business: c.biz.name, myWork, firstName: c.firstName, isTest: c.isTest, week, offers: offerList, yourMove, coming, jobs: jobsTabbed, done, month: c.money ? { jobs: month.length, earned: month.reduce((t, r) => t + (r.amount ?? 0), 0), paid: paidThisMonth } : null };
 }
 
 /** One offer, trade-side. Owner and address only once this business has taken it. */
@@ -1436,6 +1464,7 @@ function installerJobPageParts(i: {
   piesaPayRead: { piesaIncGst: number | null } | null; swmsRead: { plan: { signers: { role?: string; name: string }[] }; status: { signed: unknown[] } } | null;
   quoteItems: { code: string | null; description: string | null; sort: number | null }[]; priceEntered: boolean | null; notes: string[]; product: string | null;
   payRow: { amount: number | null; state: PayState } | null; mittiCompleted: boolean; needsFinishingItems: string[]; mittiMissing: string[];
+  whoBooks: WhoBooks; coesOnFile: boolean;
 }) {
   const { c, j } = i;
   const now = new Date();
@@ -1448,7 +1477,7 @@ function installerJobPageParts(i: {
   const stage = j?.stage ?? "";
   const outcome = i.a?.status === "complete" ? (i.a.piesa_outcome === "pass" ? ("pass" as const) : ("upgrades" as const)) : null;
   const installDone = ["evidence_outstanding", "ap_review", "ready_for_veec", "complete"].includes(stage) || !!j?.installation_completed_at || i.inBook?.status === "completed";
-  const lastPaid = [...i.ledger].map((l) => l.paidAt).sort().pop() ?? null;
+  const lastPaid = lastPaidOf(i.ledger);
   const swmsSigned = i.swmsRead?.status.signed.length ?? 0;
   const swmsTotal = i.swmsRead?.plan.signers.length ?? 0;
   const lead = i.swmsRead?.plan.signers.find((s) => s.role === "lead")?.name ?? null;
@@ -1460,8 +1489,10 @@ function installerJobPageParts(i: {
     readyCheck: { start: i.rcBook?.status === "confirmed" ? i.rcBook.scheduled_start : null, done: readyCheckDone, missing: readyCheckDone ? i.needsFinishingItems : [] },
     priceEntered: j?.channel === "installer_sourced" ? i.priceEntered : null,
     quote: q, acceptedAt: i.qq?.accepted_at ?? null,
-    whoBooks: "office", electricianName: i.elecName, // TODO(join): Part 9's who-books setting; until then every business is "office".
-    piesa: { start: i.a?.status === "complete" ? null : i.piesaBook?.scheduled_start ?? null, outcome, upgradesDone: !!i.piesaRec?.rectification_completed_at, certificateIn: outcome === "upgrades" && i.clearance.cleared },
+    whoBooks: i.whoBooks, electricianName: i.elecName,
+    // Fix wave I4: the certificate is "in" by its document (as on My work); a cleared PIESA without one (electrician on
+    // site at the start, partner-billed fixes) also counts here, so the box never asks for a certificate the clearance made moot.
+    piesa: { start: i.a?.status === "complete" ? null : i.piesaBook?.scheduled_start ?? null, outcome, upgradesDone: !!i.piesaRec?.rectification_completed_at, certificateIn: outcome === "upgrades" && (i.coesOnFile || i.clearance.cleared) },
     access: i.accessPerson,
     depositPaidAt: i.depositPaid ? lastPaid ?? now.toISOString() : null,
     install: { start: i.inBook?.status === "confirmed" ? i.inBook.scheduled_start : null, lead, swmsSigned, swmsTotal },
@@ -1544,9 +1575,13 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   const piesaPayP = c.kind === "installer" && c.money ? early(import("./installer-paid-electricians.server").then((m2) => m2.readInstallerPaidElectricians(c.biz.id)).catch(() => null)) : early(Promise.resolve(null));
   const swmsP = early(inBookP.then(async ({ data: ib }) => ib ? await import("./swms.server").then((m2) => m2.loadSwms(jobId)).catch(() => null) : null));
   const quoteItemsP = early(admin.from("quotes").select("quote_items(code, description, sort)").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted", "draft"]).order("created_at", { ascending: false }).limit(1).maybeSingle());
+  // Fix wave I4: who books (business setting), the CoES document, and the electrician the allocation event names.
+  const whoBooksP = early(whoBooksFor(c.biz.id));
+  const coesP = early(coesOnFileForJobs([jobId]).then((set) => set.has(jobId)).catch(() => false));
+  const allocatedElecP = early(inHouseElectricianServer.allocatedWorkerId(jobId).then(async (id) => id ? (await admin.from("partner_workers").select("full_legal_name").eq("id", id).maybeSingle()).data : null).catch(() => null));
   const [{ data: j }, { data: rcBook }, { data: inBook }, { data: m }, { data: a }, rebateSigned, quote, pay, form, clearance, mitti, payRows,
     { data: declinedEv }, { data: basicsDone }, { data: piesaBook }, { data: elecAsg }, { data: fixes }, { data: evEv }, { data: alloc }, { data: decl }, { data: finalAsg }, ownerReady, notes,
-    priceEntered, ownerPiesaConfirmed, electricianAttendance, released, { data: mineBk }, accessPerson, { data: piesaRec }, { data: sentRows }, ledger, depositPaid, { data: dl }, { data: given }, { data: consent }, { data: paidEv }, piesaPayRead, swmsRead, { data: quoteItemsRow }] = await Promise.all([
+    priceEntered, ownerPiesaConfirmed, electricianAttendance, released, { data: mineBk }, accessPerson, { data: piesaRec }, { data: sentRows }, ledger, depositPaid, { data: dl }, { data: given }, { data: consent }, { data: paidEv }, piesaPayRead, swmsRead, { data: quoteItemsRow }, whoBooks, coesOnFile, allocatedElec] = await Promise.all([
     jobP,
     admin.from("bookings").select("scheduled_start, status").eq("job_id", jobId).eq("kind", "ready_check").neq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     inBookP,
@@ -1575,10 +1610,10 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     priceEnteredP,
     piesaConfirmedP,
     attendanceP,
-    releaseP, mineBkP, accessP, piesaRecP, sentP, ledgerP, depositP, deadlineP, givenP, consentP, paidEvP, piesaPayP, swmsP, quoteItemsP,
+    releaseP, mineBkP, accessP, piesaRecP, sentP, ledgerP, depositP, deadlineP, givenP, consentP, paidEvP, piesaPayP, swmsP, quoteItemsP, whoBooksP, coesP, allocatedElecP,
   ]);
   const qq = quote.quote as { sent_at?: string | null; accepted_at?: string | null } | null;
-  const elecName = (elecAsg?.profiles as unknown as { full_name: string | null } | null)?.full_name ?? null;
+  const elecName = electricianNameOf(allocatedElec, (elecAsg?.profiles as unknown as { full_name: string | null } | null)?.full_name ?? null);
   const evidence = (evEv?.details as { summary?: { blockers?: string[] } ; blockers?: string[] } | null) ?? null;
   const evidenceBlockers = evidence?.summary?.blockers ?? evidence?.blockers ?? null;
   const installAlloc = currentAllocation((alloc ?? []) as { event_type: string; details: unknown; created_at: string }[], "install");
@@ -1590,7 +1625,8 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     c, j: j as JobPageJob | null, rcBook, inBook, piesaBook, a, m, form, clearance, quote, qq, pay, elecName, piesaRec, accessPerson, mineBk: mineBk ?? [], released,
     sentRows: sentRows ?? [], ledger, depositPaid, deadline: dl?.install_deadline ? String(dl.install_deadline) : null, givenAt: (given as { assigned_at?: string | null } | null)?.assigned_at ?? null,
     consentSigned: !!consent, paidEv: (paidEv ?? []) as { created_at: string; details: unknown }[], piesaPayRead, swmsRead, quoteItems: (quoteItemsRow?.quote_items as { code: string | null; description: string | null; sort: number | null }[] | null) ?? [],
-    priceEntered, notes, product, payRow, mittiCompleted: mitti.applies ? mitti.completed === true : false, needsFinishingItems: mitti.applies ? needsFinishingList(j?.next_action ?? "") : [], mittiMissing: mitti.applies ? mitti.missing : [],
+    priceEntered, notes, product, payRow, mittiCompleted: mitti.applies ? mitti.completed === true : false, needsFinishingItems: needsFinishingList(j?.next_action ?? ""), mittiMissing: mitti.applies ? mitti.missing : [],
+    whoBooks, coesOnFile,
   });
   return {
     ...jobPage,

@@ -116,7 +116,6 @@ import {
   installRow,
   installerStatusLine,
   STAFF_LINKS_LABEL,
-  jobNext,
   mittiLinkPlace,
   payNote,
   quoteStatusRow,

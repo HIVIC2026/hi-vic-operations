@@ -137,9 +137,11 @@ describe("offer panel and This month strip words", () => {
 });
 
 describe("screen files follow the mock-ups and the audit removals", () => {
-  test("B1/B3: the server still builds Coming up from the groups (electrician and later screens); the installer page is the Task 4 My work", () => {
+  test("B1/B3: the server returns Coming up as read (the old installer home groups are no longer computed — fix wave minor 13); the installer page is the Task 4 My work", () => {
     const srv = readFileSync("src/lib/trade-view.server.ts", "utf8");
-    expect(srv).toContain("comingForInstaller(coming, home)");
+    expect(srv).not.toContain("installerHomeGroups(");
+    expect(srv).not.toContain("comingForInstaller(");
+    expect(srv).toMatch(/yourMove, coming, jobs: jobsTabbed, done, month:/);
     const page = readFileSync("src/routes/_authenticated/field.index.tsx", "utf8");
     expect(page).not.toContain("comingUpFold");
     for (const kept of ["data-my-work", "data-job-card", "PillTabs"]) expect(page).toContain(kept);
