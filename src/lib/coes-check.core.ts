@@ -92,6 +92,9 @@ export const coesKey = (mediaIds: readonly string[]) => `coes:${[...new Set(medi
 /** Repairs recorded on the portal page: the certificate is the fixes evidence uploaded there (one key per set of files). */
 export const coesPortalKey = (evidenceFileIds: readonly string[]) => `coes:portal:${[...new Set(evidenceFileIds)].sort().join(",") || "none"}`;
 
+/** A certificate uploaded from the electrician's link or the installer office (one key per set of uploaded documents). */
+export const coesUploadKey = (documentIds: readonly string[]) => `coes:upload:${[...new Set(documentIds)].sort().join(",") || "none"}`;
+
 export type CoesEvent = { id?: string; event_type: string; created_at: string; details: Record<string, unknown> | null };
 export type CoesState = { state: "ticked" | "office" | "rejected" | "unchecked"; why: string | null; at: string | null; eventId: string | null; key: string | null; by: string | null };
 

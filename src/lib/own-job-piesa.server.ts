@@ -222,8 +222,8 @@ export async function ownJobOfficeBookingAccess(userId: string, jobId: string, c
   const installerId = (job.originating_installer_business_id as string | null) ?? null;
   if (!installerId) return no;
   if ((await ownJobCallAndBook(jobId)) !== true) return no;
-  const { readPiesaBooker } = await import("./piesa-booker.server");
-  if ((await readPiesaBooker(installerId)) === "electrician") return no;
+  const { whoBooksFor } = await import("./who-books.server");
+  if ((await whoBooksFor(installerId)) === "electrician") return no;
   const { data: member, error: me } = await client.from("business_members").select("business_id").eq("user_id", userId).eq("business_id", installerId).eq("active", true).maybeSingle();
   if (me || !member) return no;
   const { data: rows, error: ae } = await admin.from("job_assignments").select("id, business_id, user_id, assigned_at, booking_confirmed_at").eq("job_id", jobId).eq("role", "electrician").eq("active", true);
@@ -238,13 +238,13 @@ export async function ownJobOfficeBookingAccess(userId: string, jobId: string, c
 export async function officeBookOwnJobPiesa(userId: string, jobId: string, startIso: string, now: Date = new Date(), client?: SupabaseClient): Promise<{ ok: true; start: string }> {
   const access = await ownJobOfficeBookingAccess(userId, jobId, client);
   if (!access.allowed || !access.assignment?.business_id) throw new Error("You can't book this safety check.");
-  const { bookOwnJobPiesa } = await import("./electrician-link.server");
+  const { bookOwnJobPiesa } = await import("./own-job-electrician-link.server");
   return bookOwnJobPiesa({ jobId, assignment: access.assignment, electricianBusinessId: access.assignment.business_id, startIso, actorId: userId, by: "installer office", now });
 }
 
 /** Email the installer office "Not booked yet". One key per hand-over event (a swap logs a new one, which restarts the clock), so it goes once (held wording is retried). */
 async function sendNotBookedEmail(jobId: string, installerId: string, handedEventId: string): Promise<void> {
-  const [{ officeNotBookedEmail, OWN_JOB_PIESA_NOT_BOOKED_EMAIL_APPROVED }, { emailInstallerOffice }, { SET_PASSWORD_BASE }] = await Promise.all([import("./electrician-link.core"), import("./own-job-piesa-notices.server"), import("./set-password-link.core")]);
+  const [{ officeNotBookedEmail, OWN_JOB_PIESA_NOT_BOOKED_EMAIL_APPROVED }, { emailInstallerOffice }, { SET_PASSWORD_BASE }] = await Promise.all([import("./own-job-electrician-link.core"), import("./own-job-piesa-notices.server"), import("./set-password-link.core")]);
   const { data: ov, error } = await admin.from("job_overview").select("property_address, job_number").eq("id", jobId).maybeSingle();
   if (error) throw new Error(error.message);
   const address = (ov?.property_address as string | null | undefined) || (ov?.job_number as string | null | undefined) || "this job";

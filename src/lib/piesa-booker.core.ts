@@ -5,6 +5,7 @@ import { whoBooksOf, type WhoBooks } from "./business-screen.core";
 
 export type PiesaBooker = WhoBooks;
 export const piesaBookerOf = (raw: unknown): PiesaBooker => whoBooksOf(raw);
+// The reader is who-books.server whoBooksFor (one implementation for every side).
 
 /** The office is always emailed so it knows the job moved; only electrician/either text the electrician. */
 export function bookerNotices(b: PiesaBooker): { textElectrician: boolean; emailOffice: boolean } {

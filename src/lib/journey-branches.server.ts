@@ -1605,8 +1605,8 @@ async function m159OwnJobCallAndBook(rec: Recorder, jobs: BranchResult["jobs"], 
     const jobId = ctx.jobId!;
     const piesaStage = "piesa_and_install_window_pending";
     const own = await import("./own-job-piesa.server");
-    const lk = await import("./electrician-link.server");
-    const lcore = await import("./electrician-link.core");
+    const lk = await import("./own-job-electrician-link.server");
+    const lcore = await import("./own-job-electrician-link.core");
     const { addYmd, melbourneToday } = await import("./melbourne-time.core");
     const tokenOf = (url: string) => url.split("/").filter(Boolean).pop()!;
     const bookingTime = () => { let day = addYmd(melbourneToday(new Date()), 2); for (let i = 0; i < 7 && [0, 6].includes(new Date(`${day}T00:00:00Z`).getUTCDay()); i++) day = addYmd(day, 1); return lcore.melbourneWallToIso(day, "10:00")!; };

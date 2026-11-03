@@ -49,6 +49,8 @@ export function tradeAccessBlocker(w: WorkerForAccess, businessApproved: boolean
   // Lead Installers, Crew and Electricians never get a new login; only Office people do.
   // A worker already linked to a login stays recoverable (re-prepare the sign-in link).
   if (!w.profile_id && (w.trade_role === "installer" || w.trade_role === "electrician")) return NO_LOGIN_NEEDED;
+  // New job flow Part 6 Task 8: electricians never log in — each job reaches them as one no-login link (/e/<token>).
+  if (w.trade_role === "electrician") return NO_LOGIN_NEEDED;
   return null;
 }
 
@@ -58,7 +60,7 @@ export function memberRoleFor(workerEmail: string, businessEmail: string | null,
   return workerTradeRole === "office" ? "office" : "member";
 }
 
-/** Only these trade roles are ever granted by an invite. */
-export function grantedRole(tradeRole: string): "installer" | "electrician" {
-  return tradeRole === "electrician" ? "electrician" : "installer";
+/** The only app role an invite ever grants. Electricians never get one (tradeAccessBlocker stops the invite first). */
+export function grantedRole(_tradeRole: string): "installer" {
+  return "installer";
 }

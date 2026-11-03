@@ -28,7 +28,7 @@ async function needsOffice(jobId: string, code: VisitNeedsCode, kind: VisitKind,
 }
 
 /** Cancel the booking and send the visit back to "pick times" (or to the office for rectification). */
-async function reopen(b: Booking, actorId: string | null, why: string, releaseTradeOverride?: boolean) {
+async function reopen(b: Booking, actorId: string | null, why: string, releaseTradeOverride?: boolean, opts: { /** Withdraw only this business's pending offers (the electrician's link); every other caller withdraws job-wide as before. */ withdrawOffersFor?: string } = {}) {
   const plan = reopenPlan(b.kind);
   const release = releaseTradeOverride ?? plan.releaseTrade;
   await admin.from("bookings").update({ status: "cancelled" }).eq("id", b.id).eq("status", "confirmed");
@@ -40,7 +40,9 @@ async function reopen(b: Booking, actorId: string | null, why: string, releaseTr
   }
   if (release && b.assignment_id) {
     await admin.from("job_assignments").update({ active: false, ended_at: new Date().toISOString(), end_reason: why.slice(0, 300) }).eq("id", b.assignment_id).eq("active", true);
-    await admin.from("partner_offers").update({ status: "withdrawn", superseded_at: new Date().toISOString() }).eq("job_id", b.job_id).eq("status", "pending");
+    let pending = admin.from("partner_offers").update({ status: "withdrawn", superseded_at: new Date().toISOString() }).eq("job_id", b.job_id).eq("status", "pending");
+    if (opts.withdrawOffersFor) pending = pending.eq("business_id", opts.withdrawOffersFor);
+    await pending;
   }
   const { data: job } = await admin.from("jobs").select("stage").eq("id", b.job_id).single();
   if (job?.stage === BOOKED_STAGE[b.kind]) await transition(b.job_id, plan.stage as never, actorId, `${VISIT_LABEL[b.kind]} booking cancelled: ${why}`, { booking_id: b.id });
@@ -168,6 +170,20 @@ export async function cancelBookingsAfterHandBack(jobId: string, bookingIds: str
     cancelled.push(b.id);
   }
   return cancelled;
+}
+
+/** New job flow Part 6 (Task 6): the electrician's no-login link says "Can't do this one". There is no login: the link's token
+ *  and the active assignment for that business were already checked by electrician-link.server, which is the only caller.
+ *  Same record + reopen as `tradeCancelVisit` (the electrician is always released, whatever the kind; only THEIR pending
+ *  offers are withdrawn, another trade's open offer stays), but NO O74 here:
+ *  the owner's "visit can't go ahead" email is Part 4's, sent by the caller once. Returns the cancelled booking, or null when
+ *  that business has no confirmed booking of that kind. */
+export async function cancelVisitFromElectricianLink(jobId: string, kind: "assessment" | "rectification", businessId: string, reason: string): Promise<{ id: string; scheduled_start: string } | null> {
+  const b = await currentBooking(jobId, kind);
+  if (!b || b.business_id !== businessId) return null;
+  await record(b, "trade_cancelled", "trade", null, reason);
+  await reopen(b, null, `electrician can't do this one: ${reason}`, true, { withdrawOffersFor: businessId });
+  return { id: b.id, scheduled_start: b.scheduled_start };
 }
 
 /** Timer: trade no-show 4h after start with no arrival and no evidence -> needs attention; reliability drops. */

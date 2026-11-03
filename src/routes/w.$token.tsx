@@ -3,8 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { ClipboardList, HeartPulse } from "lucide-react";
-import { TradePublicShell, card, navyCard, greenBtn, ghostBtn, inputCls } from "@/components/trade/TradeShell";
-import { addWorkerApprovedRectificationItem, getWorkerApprovedRectificationRates, getWorkerJobView, postWorkerMessage } from "@/lib/worker-links.functions";
+import { TradePublicShell, card, navyCard, greenBtn, ghostBtn } from "@/components/trade/TradeShell";
+import { getWorkerJobView, postWorkerMessage } from "@/lib/worker-links.functions";
 
 export const Route = createFileRoute("/w/$token")({
   ssr: false,
@@ -22,10 +22,6 @@ function WorkerJob() {
   const { data, error, refetch } = useQuery({ queryKey: ["worker-job", token], queryFn: () => load({ data: { token } }), retry: false, refetchInterval: 20000 });
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
-  const rates = useServerFn(getWorkerApprovedRectificationRates);
-  const addRate = useServerFn(addWorkerApprovedRectificationItem);
-  const { data: approvedRates = [], refetch: refetchRates } = useQuery({ queryKey: ["worker-approved-rates", token], queryFn: () => rates({ data: { token } }), retry: false });
-  const [approved, setApproved] = useState({ code: "", quantity: "1", error: "", saved: "" });
   if (error) return <Shell><section className="rounded-[18px] border border-rose bg-pink p-5 text-ink" data-worker-link-invalid><h1 className="font-display text-2xl font-bold">This job link is unavailable.</h1><p className="mt-1 text-sm">{error.message}</p><p className="mt-2 text-sm">The link may have expired, been revoked or no longer match your assignment. Ask your business owner for a current link.</p></section></Shell>;
   if (!data) return <Shell><p className="text-sm text-sub">Loading your job…</p></Shell>;
   const { job, worker } = data;
@@ -58,17 +54,6 @@ function WorkerJob() {
         {job.install_deadline && <p className="mt-2 text-sm">Install must happen by <span className="font-semibold">{fmtDay(job.install_deadline)}</span>{job.days_remaining != null && ` (${job.days_remaining} days left)`} — 30 days from the PIESA.</p>}
       </div>
 
-      {worker.role === "electrician" && approvedRates.length > 0 && (
-        <div className={card}>
-          <h2 className="mb-1 font-display text-lg font-bold">Mandatory safety electrical fixes</h2>
-          <p className="mb-3 text-sm text-sub">Add only an item identified by the assessment and listed on your REC business's approved supplier rate schedule.</p>
-          <select className={`${inputCls} mb-2`} value={approved.code} onChange={(e) => setApproved((x) => ({ ...x, code: e.target.value, error: "", saved: "" }))}><option value="">Choose an approved item</option>{approvedRates.map((rate) => <option key={rate.code} value={rate.code}>{rate.description} · {rate.display_unit || rate.unit}</option>)}</select>
-          <input className={`${inputCls} mb-2`} aria-label="Quantity" type="number" min="0.01" step="0.01" value={approved.quantity} onChange={(e) => setApproved((x) => ({ ...x, quantity: e.target.value, error: "", saved: "" }))} />
-          <button type="button" className={greenBtn} disabled={!approved.code || !(Number(approved.quantity) > 0)} onClick={async () => { try { await addRate({ data: { token, rateCode: approved.code, quantity: Number(approved.quantity) } }); setApproved({ code: "", quantity: "1", error: "", saved: "Item added." }); void refetchRates(); } catch (e) { setApproved((x) => ({ ...x, error: e instanceof Error ? e.message : "Item could not be added.", saved: "" })); } }}>Add approved item</button>
-          {approved.error && <p role="alert" className="mt-2 text-sm text-danger">{approved.error}</p>}
-          {approved.saved && <p role="status" className="mt-2 text-sm text-success">{approved.saved}</p>}
-        </div>
-      )}
 
       <div className={card}>
         <h2 className="mb-1 font-display text-lg font-bold">Messages</h2>

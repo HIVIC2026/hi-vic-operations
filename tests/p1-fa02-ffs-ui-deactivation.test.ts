@@ -38,13 +38,13 @@ describe("P1-FA02 TEST 1 — the FFS card no longer mounts through the UI", () =
       expect(src.includes("FfsProgressCard") || src.includes("ffs-progress")).toBe(false);
     }
   });
-  test("the trade job page keeps its installer and electrician flows", () => {
+  test("the trade job page keeps its installer flow (the electrician flow went with the electrician sign-in, Part 6 Task 8)", () => {
     expect(page).toContain("InstallerFlow");
     expect(page).toContain('role === "installer"');
-    expect(page).toContain("ElectricianFlow");
+    expect(page).not.toContain("ElectricianFlow");
     expect(page).toContain('role === "electrician"');
     expect(page).toContain("<TradeShell");
-    expect(page).toContain("<VisitContactsCard");
+    expect(page).not.toContain("<VisitContactsCard"); // electrician-only card, gone with the electrician screens
   });
 });
 

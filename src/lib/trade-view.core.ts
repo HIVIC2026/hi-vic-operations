@@ -519,21 +519,8 @@ export function escNoticeRowLine(s: { state: string; at: string | null; linkSent
 // Job page's one Next step box says what to do next. The electrician guide words below stay until Part 6 removes them.
 /** What the approved business says it will take, on the welcome page (copy approved by Jo 29 Oct 2026). */
 export const WELCOME_TAKES = { installer: "Ready Checks and installs", electrician: `${PIESA_FULL} jobs` } as const;
-/** Electrician guide (copy approved by Jo 29 Oct 2026, word for word): four steps and getting paid. Static wording, no job data. */
-export const ELECTRICIAN_GUIDE_STEPS = [
-  { title: "Take the job", body: "We text and email you each offer. Accept it in My work if you can do it." },
-  { title: "Book the PIESA", body: "Offer the owner 3 times for the Pre Insulation Electrical Safety Assessment (PIESA). It's booked once they pick one." },
-  { title: "Do the PIESA in Mitti", body: "Fill in the PIESA form on site and take the photos in Mitti. If fixes are needed, add your price for them on the form. Press Complete when it's finished." },
-  { title: "Fixes, if needed", body: "If the owner says yes to the fixes, book a time with them, do the work and fill in the fixes form in Mitti. Press Complete when done." },
-] as const;
-export const ELECTRICIAN_GUIDE_WORDS = {
-  eyebrow: "Electrician guide",
-  title: "How every job works",
-  sub: "One minute. Four steps and getting paid.",
-  paidTitle: "Getting paid",
-  paidBody: "We pay your agreed rate 7 days after we approve your completed form. A form that isn't finished can't be paid.",
-  back: "Back to My work",
-} as const;
+// Part 6 (join 4 Nov 2026): the electrician guide words (ELECTRICIAN_GUIDE_STEPS / ELECTRICIAN_GUIDE_WORDS) are retired too —
+// electricians never log in; the no-login job link says what to do next.
 
 // Decision 317: the electrician's "Pre Insulation Electrical Safety Assessment (PIESA)" document row on their job page.
 export const SAFETY_CHECK_DOC_TITLE = PIESA_FULL;
@@ -565,12 +552,3 @@ export function accountEnding(raw: string | null | undefined): string | null {
   const digits = String(raw ?? "").replace(/\D/g, "");
   return digits.length >= 4 ? digits.slice(-4) : null;
 }
-
-/** Electrician My work: plain trade words for jobs that are waiting on someone else (Jo, 28 Oct 2026). */
-export const ELECTRICIAN_WORK_WORDS = {
-  waitingTile: "Waiting on others",
-  waitingSub: "Nothing for you to do now",
-  waitingFilter: "Waiting on others",
-  slowFilter: "Taking a while",
-  slowEmpty: "Nothing is taking a while right now.",
-} as const;

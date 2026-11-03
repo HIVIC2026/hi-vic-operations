@@ -15,7 +15,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logEvent } from "./workflow.server";
 import {
-  COES_CHECKED_EVENT, COES_PROMPT, COES_REJECTED_EVENT, COES_WHY, coesKey, coesNeedsFact, coesOfficeLine, coesPortalKey, coesQuoteCheck, coesReadableType, coesState, coesVerdictFromModel,
+  COES_CHECKED_EVENT, COES_PROMPT, COES_REJECTED_EVENT, COES_WHY, coesKey, coesNeedsFact, coesOfficeLine, coesPortalKey, coesQuoteCheck, coesReadableType, coesState, coesUploadKey, coesVerdictFromModel,
   type CoesEvent, type CoesFileRef, type CoesVerdict, type CoesWhyCode,
 } from "./coes-check.core";
 
@@ -26,10 +26,25 @@ const loose = admin as unknown as SupabaseClient;
 type Entry = { label: string; value: string | null; media?: { mediaId: string | null }[] };
 const entriesOf = (raw: unknown): Entry[] => (Array.isArray(raw) ? (raw as Entry[]).filter((e) => e && typeof e.label === "string") : []);
 
-export type CurrentCoes = { needed: boolean; ref: CoesFileRef | null; since: string | null; source: "mitti" | "portal" | null };
+export type CurrentCoes = { needed: boolean; ref: CoesFileRef | null; since: string | null; source: "mitti" | "portal" | "upload" | null };
 
-/** Is a certificate needed (repairs were done), and which one is on the job now. */
+/** Is a certificate needed (repairs were done), and which one is on the job now. Certificates uploaded from the electrician's
+ *  link or the installer office (documents source_system "upload", the same kind and title) join the Mitti / portal files in
+ *  ONE ref keyed by the uploaded documents, so a new upload is a new certificate to check. */
 export async function currentCoes(jobId: string): Promise<CurrentCoes> {
+  const base = await baseCoes(jobId);
+  if (!base.needed) return base;
+  const { FIXES_COES_DOC_KIND, FIXES_COES_DOC_TITLE } = await import("./fixes-day.core");
+  const { data, error } = await admin.from("documents").select("id, storage_path, mime_type, created_at").eq("job_id", jobId).eq("kind", FIXES_COES_DOC_KIND).eq("source_system", "upload").eq("title", FIXES_COES_DOC_TITLE).order("created_at", { ascending: true });
+  if (error) throw new Error(`Could not read the uploaded certificates: ${error.message}`);
+  const ups = (data ?? []) as { id: string; storage_path: string; mime_type: string | null; created_at: string | null }[];
+  if (!ups.length) return base;
+  const files = [...(base.ref?.files ?? []), ...ups.map((u) => ({ storagePath: u.storage_path, mimeType: u.mime_type ?? "application/octet-stream" }))];
+  const newest = ups.map((u) => u.created_at).filter((x): x is string => !!x).sort().at(-1) ?? base.since;
+  return { needed: true, ref: { key: coesUploadKey(ups.map((u) => u.id)), files }, since: newest, source: "upload" };
+}
+
+async function baseCoes(jobId: string): Promise<CurrentCoes> {
   const { data: a } = await admin.from("assessments").select("mitti_raw_snapshot").eq("job_id", jobId).maybeSingle();
   const entries = entriesOf(a?.mitti_raw_snapshot);
   if (entries.length) {

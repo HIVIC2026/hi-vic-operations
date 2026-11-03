@@ -14,7 +14,7 @@
 // - Missing link table (pending SQL): the text is held ("link not available"); the office email still goes.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { OWN_JOB_PIESA_INSTALLER_NOT_TOLD_EVENT, OWN_JOB_PIESA_TO_BOOK_EMAIL_APPROVED, electricianLinkText, officeToBookEmail } from "./electrician-link.core";
+import { OWN_JOB_PIESA_INSTALLER_NOT_TOLD_EVENT, OWN_JOB_PIESA_TO_BOOK_EMAIL_APPROVED, electricianLinkText, officeToBookEmail } from "./own-job-electrician-link.core";
 import { SET_PASSWORD_BASE } from "./set-password-link.core";
 
 const db = admin as unknown as SupabaseClient;
@@ -100,7 +100,7 @@ async function textElectrician(jobId: string, a: Assignment, electricianBusiness
     if (de) throw new Error(de.message);
     if (done) return "already";
     let link: { id: string; url: string };
-    const els = await import("./electrician-link.server");
+    const els = await import("./own-job-electrician-link.server");
     try { link = await els.createElectricianLink(jobId, electricianBusinessId); }
     catch (e) { await heldOnce(jobId, `${base}:no_link`, "text", "the link isn't available yet"); return `held: ${(e as Error).message}`; }
     const { error: ce } = await db.from("workflow_events").insert({ id: await stableUuid(`${base}:test`), job_id: jobId, actor_id: null, event_type: "own_job_piesa_link_test_sent", summary: "TEST: electrician's safety check link text", details: { key: base }, internal: true });
@@ -113,7 +113,7 @@ async function textElectrician(jobId: string, a: Assignment, electricianBusiness
   const { smsHoldReason, sendRealSms } = await import("./sms.server");
   const hold = await smsHoldReason(input);
   if (hold) { await heldOnce(jobId, `${base}:${hold}`, "text", hold); return `held: ${hold}`; }
-  const els = await import("./electrician-link.server");
+  const els = await import("./own-job-electrician-link.server");
   let link: { id: string; url: string };
   try { link = await els.createElectricianLink(jobId, electricianBusinessId); }
   catch (e) { await heldOnce(jobId, `${base}:no_link`, "text", "the link isn't available yet"); return `held: ${(e as Error).message}`; }
@@ -137,7 +137,7 @@ export async function sendOwnJobPiesaNotices(jobId: string): Promise<string> {
   if (a.booking_confirmed_at) return "booked";
   const installerId = (job.originating_installer_business_id as string | null) ?? null;
   if (!installerId) return "no_installer";
-  const [{ readPiesaBooker }, { bookerNotices }, { displayName }] = await Promise.all([import("./piesa-booker.server"), import("./piesa-booker.core"), import("./display-name.core")]);
+  const [{ whoBooksFor: readPiesaBooker }, { bookerNotices }, { displayName }] = await Promise.all([import("./who-books.server"), import("./piesa-booker.core"), import("./display-name.core")]);
   const booker = await readPiesaBooker(installerId);
   const n = bookerNotices(booker);
   const [{ data: ov }, { data: inst }, { data: el }] = await Promise.all([

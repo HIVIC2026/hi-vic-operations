@@ -8,7 +8,7 @@ import { autoAdvanceJob } from "./autoadvance.server";
 
 export type BookingKind = "assessment" | "ready_check" | "rectification" | "installation";
 
-export async function validateBooking(jobId: string, kind: BookingKind, start: string, actorId: string, proposedWorkerId?: string) {
+export async function validateBooking(jobId: string, kind: BookingKind, start: string, actorId: string | null, proposedWorkerId?: string) {
   const need = kind === "installation" || kind === "ready_check" ? "installer" : "electrician";
   const stage = await getStage(jobId);
   const map: Record<BookingKind, [Stage[], Stage]> = {
@@ -87,7 +87,7 @@ export async function validateBooking(jobId: string, kind: BookingKind, start: s
   }
   return {stage,target};
 }
-export async function confirmBooking(jobId: string, kind: BookingKind, start: string, actorId: string, roleLabel: string, notes?: string | null) {
+export async function confirmBooking(jobId: string, kind: BookingKind, start: string, actorId: string | null, roleLabel: string, notes?: string | null) {
   const {stage,target}=await validateBooking(jobId,kind,start,actorId);
   const need=kind==='installation'||kind==='ready_check'?'installer':'electrician';
   const {data:contractor,error:contractorError}=await admin.from('job_assignments').select('id,user_id,business_id').eq('job_id',jobId).eq('role',need).eq('active',true).maybeSingle();

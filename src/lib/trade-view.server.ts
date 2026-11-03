@@ -154,12 +154,8 @@ const HOME_JOB_COLS = "id, job_number, stage, source, channel, qa_archived_at, d
 type HomeJob = { id: string; job_number: string; stage: string; source: string; channel: string | null; qa_archived_at: string | null; deleted_at: string | null; updated_at: string | null; next_action: string | null; owners: unknown; properties: unknown };
 
 // ---- Fix wave I4: the facts My work and the Job page must agree on, read the same way on both -----------------------------
-/** Who books the PIESA for this business (Task 9 setting, businesses.piesa_booked_by): the pending column missing → "office". */
-export async function whoBooksFor(businessId: string): Promise<WhoBooks> {
-  const r = await ((admin as unknown as { from: (t: string) => any }).from("businesses").select("piesa_booked_by").eq("id", businessId).maybeSingle() as Promise<{ data: { piesa_booked_by?: unknown } | null; error: { code?: string; message: string } | null }>); // eslint-disable-line @typescript-eslint/no-explicit-any
-  if (r.error && !schemaCompatCore.isMissingDbObject(r.error) && !["42703", "PGRST204"].includes(r.error.code ?? "")) console.error("whoBooksFor: who-books could not be read", r.error.code ?? "unknown");
-  return whoBooksOf(r.error ? undefined : r.data?.piesa_booked_by);
-}
+import { whoBooksFor } from "./who-books.server"; // the one who-books reader (join 4 Nov 2026)
+export { whoBooksFor };
 /** The Certificate of Electrical Safety is on file: the A4 fixes form's CoES document (documents kind + title, decision 293). */
 export async function coesOnFileForJobs(jobIds: string[]): Promise<Set<string>> {
   if (!jobIds.length) return new Set();
@@ -2073,4 +2069,18 @@ export async function tradeSwapElectrician(userId: string, jobId: string, newEle
   const c = await swapBossFor(userId);
   await (await import("./electrician-swap.server")).installerSwapElectrician(jobId, c.biz.id, newElectricianBusinessId, userId);
   return { ok: true as const };
+}
+
+/** New job flow Part 6 Task 5: the installer office uploads the Certificate of Electrical Safety for a job. The business owner of
+ *  the job's installer business only. Part 5's role check (boss and Office) applies.
+ *  Same upload path as the electrician's link, so there is one record. A refusal comes back as a plain message. */
+export async function tradeUploadCoes(jobId: string, userId: string, file: { name: string; type: string; bytes: Uint8Array }): Promise<{ ok: true } | { ok: false; message: string }> {
+  const c = await requireTradeJob(userId, jobId);
+  // Join 4 Nov 2026: Part 5's roles — the boss and Office people of the installer business (Part 5 requireTradeJob).
+  if (c.kind !== "installer" || !(c.boss || c.role === "office")) throw new WorkflowError("Only the installer's office can upload this.");
+  const { data: asg } = await admin.from("job_assignments").select("id").eq("job_id", jobId).eq("business_id", c.biz.id).eq("role", "installer").eq("active", true).limit(1).maybeSingle();
+  if (!asg) throw new WorkflowError("This job isn't assigned to you.");
+  const { saveUploadedCoes, CoesUploadError } = await import("./coes-upload.server");
+  try { await saveUploadedCoes(jobId, file, { kind: "installer_office", userId }); return { ok: true }; }
+  catch (e) { if (e instanceof CoesUploadError) return { ok: false, message: e.message }; throw e; }
 }

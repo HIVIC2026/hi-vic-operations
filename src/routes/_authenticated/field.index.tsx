@@ -3,14 +3,13 @@ import { readTradeCache, writeTradeCache } from "@/lib/trade-cache";
 import { headStartOr, startTradeScreen } from "@/lib/trade-route-prefetch";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronRight } from "lucide-react";
 import { TradeShell, aud, card, greenBtn, inputCls } from "@/components/trade/TradeShell";
-import { NowPanel, Pill, PillTabs, btnClass } from "@/components/portal/kit";
+import { ChevronRight } from "lucide-react";
+import { Pill, PillTabs } from "@/components/portal/kit";
 import { useMemo, useState } from "react";
-import { StatusLineView } from "@/components/trade/job-status";
 import { getTradeHome } from "@/lib/trade-view.functions";
-import { ELECTRICIAN_WORK_WORDS, dayTile, goneIn, tradeGreeting } from "@/lib/trade-view.core";
-import { electricianYourJobs } from "@/lib/work-places.core";
+import { dayTile, goneIn, tradeGreeting } from "@/lib/trade-view.core";
+import { NO_LOGIN_NEEDED } from "@/lib/trade-access-role.core";
 import { sourceLabel } from "@/lib/installer-home.core";
 import { matchesSearch, type MyWorkCard } from "@/lib/my-work.core";
 
@@ -29,8 +28,6 @@ const dayWords = (ymd: string): string => { const d = new Date(`${ymd}T12:00:00Z
 
 function MyWork() {
   const load = useServerFn(getTradeHome);
-  const [onlyChasing, setOnlyChasing] = useState(false);
-  const [onlyMoving, setOnlyMoving] = useState(false);
   const [tab, setTab] = useState<"turn" | "all">("turn");
   const [q, setQ] = useState("");
   // staleTime (decision 280): coming back from a job shows the last answer at once; the 60s poll and every action's invalidation still refresh it.
@@ -43,8 +40,6 @@ function MyWork() {
   if (data === null) return <TradeShell installer={false}><p className={`${card} text-sm`}>Your sign-in isn't linked to an approved business yet. Home Insulation Victoria will sort this out.</p></TradeShell>;
   const installer = data.kind === "installer";
   const g = tradeGreeting(data.firstName, data.week);
-  const first = data.offers[0];
-
   if (installer && data.myWork) {
     const myWork = data.myWork;
     const list = (tab === "turn" ? myWork.yourTurn : myWork.all).filter((c) => matchesSearch(c, q));
@@ -67,74 +62,9 @@ function MyWork() {
     );
   }
 
-  // Electrician view (unchanged apart from the retired installer fact pills).
-  const yourJobs = electricianYourJobs(data.jobs);
-  const chasing = yourJobs.filter((j) => j.line && j.line.tone !== "ok");
-  const moving = yourJobs.filter((j) => j.place === "moving");
-  const shown = onlyMoving ? moving : onlyChasing ? chasing : yourJobs;
-  return (
-    <TradeShell installer={false} boss={data.boss} money={data.money} test={data.isTest}>
-      <div><h1 className="font-display text-[26px] font-bold leading-tight">{g.title}</h1><p className="text-sm text-sub">{g.sub}</p></div>
-      <div className="grid grid-cols-2 gap-2" data-work-tiles>
-        {([
-          ["Offers", data.offers.length, "Pre Insulation Electrical Safety Assessment (PIESA)"],
-          ["Needs me", data.yourMove.length, "Your next actions"],
-          [ELECTRICIAN_WORK_WORDS.waitingTile, moving.length, ELECTRICIAN_WORK_WORDS.waitingSub],
-          ["Coming up", data.coming.length, "Booked visits"],
-        ] as [string, number, string][]).map(([k, n, s]) => (
-          <div key={k} className="rounded-[18px] border border-line bg-paper p-3.5"><p className="text-xs font-semibold text-estimate-navy">{k}</p><p className="mt-1 font-display text-2xl font-bold">{n}</p><p className="mt-1 text-[11px] text-sub">{s}</p></div>
-        ))}
-      </div>
-      {first ? (
-        <NowPanel attention eyebrow={`${data.offers.length} new job offer${data.offers.length === 1 ? "" : "s"}`} due={first.expiresAt ? goneIn(first.expiresAt) : undefined}
-          status={`Pre Insulation Electrical Safety Assessment (PIESA) in ${first.suburb ?? "Victoria"}`}
-          action={<Link to="/field/offer/$offerId" params={{ offerId: first.id }} className={btnClass("primary", "w-full md:w-auto")}>View offer</Link>} />
-      ) : data.yourMove[0] ? (
-        <NowPanel eyebrow="Your next step" status={data.yourMove[0].title} next={data.yourMove[0].detail}
-          action={<Link to="/field/$jobId" params={{ jobId: data.yourMove[0].jobId }} className={btnClass("primary", "w-full md:w-auto")}>Open job</Link>} />
-      ) : null}
-      {data.offers.length > 1 && (
-        <section data-other-offers>
-          <h2 className="mb-2 font-display text-base font-bold">More offers <span className="text-sm font-semibold text-sub">{data.offers.length - 1}</span></h2>
-          <div className="space-y-2">{data.offers.slice(1).map((o) => (
-            <Link key={o.id} to="/field/offer/$offerId" params={{ offerId: o.id }} className="flex min-h-[52px] items-center gap-3 rounded-[14px] border border-line bg-paper p-3 hover:border-action">
-              <span className="min-w-0 flex-1"><span className="block font-bold">Pre Insulation Electrical Safety Assessment (PIESA) in {o.suburb ?? "Victoria"}</span>{o.expiresAt && <span className="block text-sm text-sub">{goneIn(o.expiresAt)}</span>}</span><ChevronRight className="h-5 w-5" />
-            </Link>))}</div>
-        </section>
-      )}
-      {data.yourMove.length > 0 && (
-        <section>
-          <h2 className="mb-2 flex items-center gap-2 font-display text-base font-bold">Your move <Pill tone="rose">{data.yourMove.length}</Pill></h2>
-          <div className="space-y-2">{data.yourMove.map((m) => (
-            <Link key={m.jobId + m.title} to="/field/$jobId" params={{ jobId: m.jobId }} className="flex items-center gap-3 rounded-[18px] border border-line bg-paper hover:border-action p-4"><span className="min-w-0 flex-1"><span className="block font-bold">{m.title}</span><span className="block truncate text-sm text-sub">{m.detail}</span></span><ChevronRight className="h-5 w-5" /></Link>
-          ))}</div>
-        </section>
-      )}
-      <section>
-        <h2 className="mb-2 font-display text-base font-bold">Coming up</h2>
-        {data.coming.length ? <div className="space-y-2">{data.coming.map((b) => { const t = dayTile(b.start); return (
-          <Link key={b.jobId + b.start} to="/field/day/$jobId" params={{ jobId: b.jobId }} className="flex items-center gap-3 rounded-[14px] border border-line bg-paper p-3">
-            <span className="flex w-20 shrink-0 flex-col items-center rounded-2xl bg-estimate-mist py-2"><span className="text-xs font-bold">{t.day}</span><span className="text-xs">{t.time}</span></span>
-            <span className="min-w-0 flex-1"><span className="block font-bold">{b.what} · {b.surname}</span><span className="block truncate text-sm text-sub">{b.address}</span></span><ChevronRight className="h-5 w-5" />
-          </Link>); })}</div> : <p className={`${card} text-sm`}>Nothing booked yet.</p>}
-      </section>
-      {yourJobs.length > 0 && (
-        <section data-your-jobs>
-          <div className="mb-2 flex items-center justify-between gap-2"><h2 className="font-display text-base font-bold">Your jobs <span className="text-sm font-semibold text-sub">{yourJobs.length}</span></h2>
-            <div className="flex gap-1" role="group" aria-label="Filter jobs"><button className={btnClass(onlyChasing || onlyMoving ? "secondary" : "primary", "min-h-[34px] px-3")} aria-pressed={!onlyChasing && !onlyMoving} onClick={() => { setOnlyChasing(false); setOnlyMoving(false); }}>All</button><button data-moving-filter className={btnClass(onlyMoving ? "primary" : "secondary", "min-h-[34px] px-3")} aria-pressed={onlyMoving} onClick={() => { setOnlyMoving(true); setOnlyChasing(false); }}>{ELECTRICIAN_WORK_WORDS.waitingFilter} ({moving.length})</button><button data-needs-chasing className={btnClass(onlyChasing ? "primary" : "secondary", "min-h-[34px] px-3")} aria-pressed={onlyChasing} onClick={() => { setOnlyChasing(true); setOnlyMoving(false); }}>{ELECTRICIAN_WORK_WORDS.slowFilter}{chasing.length ? ` (${chasing.length})` : ""}</button></div></div>
-          {onlyChasing && !shown.length && <p className={`${card} text-sm`}>{ELECTRICIAN_WORK_WORDS.slowEmpty}</p>}
-          <div className="space-y-2">{shown.map((j) => (
-            <Link key={j.jobId} to="/field/$jobId" params={{ jobId: j.jobId }} className="flex items-center gap-3 rounded-[14px] border border-line bg-paper p-3">
-              <span className="min-w-0 flex-1"><span className="block font-bold">{j.jobNumber} · {j.owner ?? "Owner"}</span>{sourceLabel(j.channel) && <span className="block text-[13px] text-sub">{sourceLabel(j.channel)}</span>}<span className="block truncate text-sm text-sub">{j.address}</span><span className="mt-1 block">{j.line ? <StatusLineView line={j.line} compact /> : <Pill>{j.status}</Pill>}</span></span><ChevronRight className="h-5 w-5" />
-            </Link>))}</div>
-        </section>
-      )}
-      {data.month && <section className="flex items-center justify-between rounded-[18px] border border-line bg-mint p-4">
-        <span><span className="block text-xs font-bold uppercase tracking-wide">This month</span><span className="font-bold">{data.month.jobs} job{data.month.jobs === 1 ? "" : "s"} done</span></span>
-        <span className="font-display text-2xl font-bold">{aud(data.month.earned)}</span>
-      </section>}
-    </TradeShell>
-  );
+  // Electricians never log in (new job flow Part 6): each job reaches them as one no-login link. An old electrician
+  // login that still gets here sees one plain line.
+  return <TradeShell installer={false}><p className={`${card} text-base`} data-no-login>{NO_LOGIN_NEEDED}</p></TradeShell>;
 }
 
 /** One job: pill, owner, HV number · suburb, the step and why, and one green button. A red border marks a job past its book-by date. */

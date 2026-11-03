@@ -70,8 +70,8 @@ mock.module("../src/lib/in-house-suppression.server", () => ({
   readInHouseDispatchState: async () => ({ held: new Set(heldInHouse), failed: false }),
   inHouseDispatchSkip: async (jobId: string, state?: { held: Set<string>; failed: boolean }) => (state?.failed ? "in_house_read_failed" : (state?.held ?? heldInHouse).has(jobId) ? "in_house" : null),
 }));
-const realCore = await import("../src/lib/electrician-link.core");
-mock.module("../src/lib/electrician-link.core", () => ({ ...realCore, OWN_JOB_PIESA_NOT_BOOKED_EMAIL_APPROVED: true }));
+const realCore = await import("../src/lib/own-job-electrician-link.core");
+mock.module("../src/lib/own-job-electrician-link.core", () => ({ ...realCore, OWN_JOB_PIESA_NOT_BOOKED_EMAIL_APPROVED: true }));
 const realPayments = await import("../src/lib/payments.server");
 mock.module("../src/lib/payments.server", () => ({ ...realPayments, jobPaymentView: async () => null }));
 mock.module("../src/lib/trade-pause.server", () => ({ tradeMessagesPausedNow: async () => null }));
@@ -87,7 +87,7 @@ const owner: string[] = [];
 mock.module("../src/lib/in-house-booking.server", () => ({ notifyOwnerBooked: async (job: string) => { owner.push(job); return "sent"; } }));
 
 const { inHouseBookVisit } = await import("../src/lib/trade-view.server");
-const { bookOwnJobPiesa } = await import("../src/lib/electrician-link.server");
+const { bookOwnJobPiesa } = await import("../src/lib/own-job-electrician-link.server");
 const { sweepOwnJobPiesaDeadlines, ownJobOfficeBookingAccess, officeBookOwnJobPiesa } = await import("../src/lib/own-job-piesa.server");
 const NOW = new Date("2026-11-04T00:00:00Z"); // after the seeded due date (end of Mon 2 Nov)
 const J_SWAP = id(109), J_RACE = id(110);

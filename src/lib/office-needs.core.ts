@@ -28,7 +28,7 @@ export type NeedsKind =
   | "in_house_ready_check_not_booked" | "in_house_piesa_overdue" | "in_house_install_not_booked"
   | "choose_again" | "quote_check" | "fixes_quote_check" | "sign_consent" | "esc_window" | "final_check" | "send_failed" | "email_change" | "email_unmatched" | "robot_failed" | "piisa_form_failed"
   | "choose_installer" | "choose_electrician" | "veec_a_held" | "veec_b_held" | "piesa_owner_unsigned" | "piesa_fixes_owner_unsigned" | "fixes_times_missing"
-  | "payment_not_in_xero" | "payment_overdue" | "ten_days_left" | "second_no_access" | "veec_day_10" | "lapsed_window"
+  | "payment_not_in_xero" | "payment_overdue" | "ten_days_left" | "second_no_access" | "veec_day_10" | "lapsed_window" | "upgrades_past_30_days"
   | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review" | "payment_reversed" | "mitti_form_problem" | "booking_overdue" | "piesa_fixes_found" | "repeat_piesa_choose" | "payment_stalled" | "invoice_failed" | "old_fixes_invoice_unpaid" | "old_fixes_invoice_paid" | "stop_release_failed" | "quote_expired_blocked" | "new_quote_installer" | "new_quote_unfinished" | "piesa_rules_failed" | "coes_check" | "life_support_plan" | "tenant_notice_held";
 
 /** Where the one button takes the office. `section` is the Job page stage card id; `act` are inline row actions. */
@@ -125,6 +125,8 @@ export type NeedsFacts = {
   /** `balance` (Part 4 Task 12, touchpoint 53): the install balance past day 7 reads "Balance overdue" instead of "Payment overdue". */
   paymentsOverdue?: { at: string; text: string; invoice: InvoiceSlot; reference: string | null; balance?: boolean }[] | null;
   tenDaysLeft?: { at: string; deadline: string | null } | null;
+  /** Part 6 Task 7: the electrician's upgrades day is after the 30-day install deadline (while that upgrades day still stands). */
+  upgradesPast30?: { at: string; upgradesYmd: string; deadline: string } | null;
   secondNoAccess?: { at: string; reason: string | null } | null;
   /** Jo 2 Nov: a Mitti pickup address the lookup could not confirm; clears once the job has a suburb. */
   addressToConfirm?: { at: string; candidates: string[] } | null;
@@ -306,6 +308,7 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   if (f.veecPartBHeld) add({ rank: 121, group: "week", kind: "veec_b_held", line: `VEEC Part B not signed · ${f.veecPartBHeld.reason}`, since: f.veecPartBHeld.at, button: { label: "Open job", to: "job", section: "final-check" } });
   if (f.lapsedWindow) add({ rank: 200, group: "watch", kind: "lapsed_window", line: `30-day window lapsed ${fmtDay(f.lapsedWindow.deadline)} · no install`, since: f.lapsedWindow.deadline, button: { label: "Open job", to: "job", section: "install" } });
   if (f.secondNoAccess) add({ rank: 210, group: "watch", kind: "second_no_access", line: `Couldn’t get in · second time${f.secondNoAccess.reason ? ` · ${f.secondNoAccess.reason}` : ""}`, since: f.secondNoAccess.at, button: { label: "Open job", to: "job", section: "install" } });
+  if (f.upgradesPast30) add({ rank: 205, group: "watch", kind: "upgrades_past_30_days", line: `Upgrades day ${fmtDay(`${f.upgradesPast30.upgradesYmd}T12:00:00+10:00`)} is on or after the 30-day deadline ${fmtDay(`${f.upgradesPast30.deadline}T12:00:00+10:00`)} · install can't happen in time`, since: f.upgradesPast30.at, button: { label: "Open job", to: "job", section: "install" } });
   if (f.tenDaysLeft) add({ rank: 220, group: "watch", kind: "ten_days_left", line: `10 days left on the 30-day clock${f.tenDaysLeft.deadline ? ` · last day ${fmtDay(f.tenDaysLeft.deadline)}` : ""}`, since: f.tenDaysLeft.at, button: { label: "Open job", to: "job", section: "install" } });
   if (f.veecDay10) add({ rank: 230, group: "watch", kind: "veec_day_10", line: "VEEC form unsigned · day 10", since: f.veecDay10.at, button: { label: "Open job", to: "job", section: "final-check" } });
   if (f.paymentNotInXero) add({ rank: 240, group: "watch", kind: "payment_not_in_xero", line: `${f.paymentNotInXero.text} · not in Xero yet`, since: f.paymentNotInXero.at, button: { label: "Open job", to: "job", section: "money" }, slot: "install" });

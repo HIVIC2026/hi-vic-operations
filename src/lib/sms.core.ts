@@ -154,6 +154,10 @@ export const SMS_MESSAGE_TYPES = {
   // `ownerSideContact` keeps the owner's "Do not contact" out of it; a STOP from the tenant's own number still holds it.
   // DRAFT wording: never sends until Jo approves it (also behind TENANT_NOTICE_APPROVED); own switch, off until Jo switches it on.
   tenant_notice: { audience: "owner", ownerSideContact: true, compliancePurpose: "tenant_notice", label: "Install day booked – tenant told the day, time and power-off (cl 23, answers 7/22; DRAFT wording, TENANT_NOTICE_APPROVED)", wordingApproved: false, quietHours: true },
+  // New job flow Part 6 Task 2: the electrician is texted their no-login job link (/e/{token}) right after the installer picks them.
+  // DRAFT wording (electricianLinkText, electrician-link.core.ts) until Jo approves it; also behind ELECTRICIAN_LINK_TEXT_APPROVED.
+  electrician_job_link: { audience: "partner", label: "New safety check job – electrician's job link (Part 6; DRAFT wording, ELECTRICIAN_LINK_TEXT_APPROVED)", wordingApproved: false, quietHours: true },
+  upgrades_nudge: { audience: "partner", label: "Upgrades form not in – nudge to the electrician the day after the upgrades day (Part 6; DRAFT wording, UPGRADES_NUDGE_TEXT_APPROVED)", wordingApproved: false, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 
@@ -249,6 +253,8 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   access_person_booked: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the PIESA / install booking (its created_at); also needs that booking still confirmed (access-person-texts.server)
   access_person_tomorrow: { kind: "window" }, // key = booking + person; due only the afternoon before, recomputed each tick (approved-texts.core visitTomorrowDue)
   tenant_notice: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the install booking (its created_at); also needs that booking still confirmed (tenant-notice.server)
+  electrician_job_link: { kind: "window" }, // key = job + electrician; one per person, recorded after a send (electrician-link.server)
+  upgrades_nudge: { kind: "window" }, // key = job + upgrades day; `upgrades_nudge` recorded before the send (upgrades-watch.server)
 };
 
 export type SmsEventInput = {

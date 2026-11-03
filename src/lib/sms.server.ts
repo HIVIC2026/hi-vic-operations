@@ -19,6 +19,8 @@ export type RealSmsInput = {
   idempotencyKey: string;
   to: string | null | undefined;
   body: string;
+  /** What is saved in sms_messages / job_communications when it must differ from what the provider gets (e.g. a link token masked). Default: the body. */
+  storedBody?: string;
   jobId?: string | null;
   businessId?: string | null;
   /** A text that covers several jobs (daily Mitti digests): the pause is decided on `businessId` alone, never on one job in the list. */
@@ -68,7 +70,7 @@ async function consentAndTest(input: RealSmsInput): Promise<{ consent: boolean; 
 async function logJob(input: RealSmsInput, to: string, status: string, detail: string) {
   if (!input.jobId) return;
   await db.from("job_communications").insert({
-    job_id: input.jobId, direction: "outbound", channel: "sms", recipients: [to], subject: null, body: brandSmsBody(input.body), provider: "twilio",
+    job_id: input.jobId, direction: "outbound", channel: "sms", recipients: [to], subject: null, body: brandSmsBody(input.storedBody ?? input.body), provider: "twilio",
     sent_at: status === "sent" ? new Date().toISOString() : null, delivery_status: status === "blocked" ? "blocked_prelaunch" : status,
     visibility: SMS_MESSAGE_TYPES[input.type].audience === "owner" ? "customer" : "trade", source_event: `sms:${input.type}`, source_reference: detail.slice(0, 200),
   }).then(() => null, () => null);
@@ -136,7 +138,7 @@ export async function sendRealSms(input: RealSmsInput, blast?: { claimId: string
     // Held: RECORDED for the office ("held: reason") under a non-claiming key, so a later allowed attempt still goes once.
     await db.from("sms_messages").insert({
       message_type: input.type, idempotency_key: heldAttemptKey(input.idempotencyKey, crypto.randomUUID()), job_id: input.jobId ?? null, business_id: input.businessId ?? null,
-      to_number: to ?? String(input.to ?? ""), from_sender: from, body: brandSmsBody(input.body), status: "blocked", detail: blocked,
+      to_number: to ?? String(input.to ?? ""), from_sender: from, body: brandSmsBody(input.storedBody ?? input.body), status: "blocked", detail: blocked,
     }).then(({ error: he }: { error: { message: string } | null }) => { if (he) console.error("held SMS attempt not recorded", he.message); }, (e: Error) => console.error("held SMS attempt not recorded", e.message));
     await logJob(input, to ?? String(input.to ?? ""), "blocked", blocked);
     return { status: "blocked", detail: blocked, sid: null };
@@ -145,7 +147,7 @@ export async function sendRealSms(input: RealSmsInput, blast?: { claimId: string
   const { data: row, error } = await db.from("sms_messages").insert({
     ...(blastAllowed && blast ? { id: blast.claimId } : {}),
     message_type: input.type, idempotency_key: input.idempotencyKey, job_id: input.jobId ?? null, business_id: input.businessId ?? null,
-    to_number: to ?? String(input.to ?? ""), from_sender: from, body: brandSmsBody(input.body), status: "sending", detail: null,
+    to_number: to ?? String(input.to ?? ""), from_sender: from, body: brandSmsBody(input.storedBody ?? input.body), status: "sending", detail: null,
   }).select("id").maybeSingle();
   if (error || !row) {
     if (error && error.code !== "23505") throw new Error("Could not reserve SMS safely; nothing sent");

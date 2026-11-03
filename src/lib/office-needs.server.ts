@@ -11,12 +11,13 @@ import { VEEC_OFFICE_ALERT_EVENT } from "./veec-assignment-form.core";
 import { apAutoHoldAlert } from "./veec-ap-auto.core";
 import { consentApHoldAlert } from "./consent-ap-auto.core";
 import { PIESA_OWNER_CONFIRMED_EVENT, PIESA_OWNER_CONFIRM_OFFICE_ALERT_EVENT } from "./piesa-owner-confirm.core";
+import { UPGRADES_PAST_30_DAYS_EVENT, upgradesYmdOf } from "./upgrades-watch.core";
 import { FIXES_PAUSED_STAGES } from "./installer-screens.core";
 import { PIESA_FIXES_CONFIRMED_EVENT, PIESA_FIXES_CONFIRM_OFFICE_ALERT_EVENT } from "./piesa-fixes-confirm.core";
 import { FIXES_TIMES_GIVEN_EVENT, FIXES_TIMES_LINK_EVENT, fixesTimesMissing } from "./fixes-times.core";
 import { OWN_JOB_HANDOFF_STAGES, OWN_JOB_PIESA_HANDED_EVENT, OWN_JOB_PIESA_HELD_EVENT } from "./own-job-piesa.core";
 import { OWN_JOB_SWAP_FORM_NOT_MOVED_EVENT } from "./electrician-swap.core";
-import { OWN_JOB_PIESA_HANDED_BACK_EVENT, OWN_JOB_PIESA_INSTALLER_NOT_TOLD_EVENT, cantDoReasonLabel, type CantDoReason } from "./electrician-link.core";
+import { OWN_JOB_PIESA_HANDED_BACK_EVENT, OWN_JOB_PIESA_INSTALLER_NOT_TOLD_EVENT, cantDoReasonLabel, type CantDoReason } from "./own-job-electrician-link.core";
 /** History only (Part 4 Task 14): the automatic fixes quote send is retired; rows it held earlier still show until resolved. */
 const AUTO_FIXES_QUOTE_HELD_EVENT = "fixes_quote_auto_send_held";
 import { PIESA_AUTOFORM_FAILED_EVENT, piesaFormFailedOpen } from "./piesa-autoform.core";
@@ -249,7 +250,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     });
   })();
   // Wave 1. Needs me reads only open jobs (complete / cancelled are always "ended" and were filtered out below anyway).
-  const [office, consents, veecForms, escRows, emailFails, smsFails, tenDay, noAccess, veecAlerts, overdue, returned, provisionalBookings, piesaAlerts, piesaConfirms, fixesLinks, fixesGiven, fixesAlerts, fixesConfirms, rectDrafts, rectHolds, q, qTest, robotRows, piisaAlerts, items, recLinks, installerElectricians, fb, prestartChecks, upcomingInstalls, piesaFormFails, payInvoices, payQuotes, paySettings, piesaCurRows, payRepeatEv, addrUnresolved, mittiElecHeld, ownJobHeld, tenantNoticeEv, partBEvents] = await Promise.all([
+  const [office, consents, veecForms, escRows, emailFails, smsFails, tenDay, noAccess, veecAlerts, overdue, returned, provisionalBookings, piesaAlerts, piesaConfirms, fixesLinks, fixesGiven, fixesAlerts, fixesConfirms, rectDrafts, rectHolds, q, qTest, robotRows, piisaAlerts, items, recLinks, installerElectricians, fb, prestartChecks, upcomingInstalls, piesaFormFails, payInvoices, payQuotes, paySettings, piesaCurRows, payRepeatEv, addrUnresolved, mittiElecHeld, ownJobHeld, tenantNoticeEv, partBEvents, upgradesFlags, upgradesBookings] = await Promise.all([
     loadOffice(admin, { includeTest: opts.includeTest, ...(opts.onlyIds ? { onlyIds: opts.onlyIds } : { openOnly: true }) }),
     all("ESC consents", (a, b) => scoped(admin.from("owner_esc_consents").select("job_id, owner_signed_at, ap_signed_at, status, scheduled_start, created_at")).not("owner_signed_at", "is", null).is("ap_signed_at", null).range(a, b)),
     all("VEEC forms", (a, b) => scoped(admin.from("customer_assignments").select("job_id, installer_signed_at, ap_signed_at, consumer_signed_at, status, created_at")).eq("record_kind", "final_veec_assignment").neq("status", "cancelled").range(a, b)),
@@ -309,6 +310,9 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     all("tenant notice events", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).in("event_type", [TENANT_NOTICE_HELD_EVENT, TENANT_NOTICE_SENT_EVENT]).gte("created_at", new Date(t0 - 60 * DAY).toISOString()).range(a, b)),
     // Part 8 final review I2: a held VEEC Part B (Mitti signature not applied / portal image held) and the Mitti signing that clears it.
     all("VEEC Part B holds", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).in("event_type", [VEEC_PART_B_MITTI_HELD_EVENT, VEEC_PART_B_IMAGE_HELD_EVENT, VEEC_PART_B_SIGNED_MITTI_EVENT]).range(a, b)),
+    // Part 6 Task 7: the 30-day red flag (one event per job + upgrades day), shown while that upgrades day is still the booked one.
+    all("upgrades red flags", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", UPGRADES_PAST_30_DAYS_EVENT).order("created_at", { ascending: false }).range(a, b)),
+    all("upgrades bookings", (a, b) => scoped(admin.from("bookings").select("job_id, scheduled_start")).eq("kind", "rectification").eq("status", "confirmed").range(a, b)),
   ]);
   const now = office.now;
   const jobs = office.jobs.filter((j) => j.status?.stage !== "ended" || j.stage === "on_hold");
@@ -541,6 +545,15 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   for (const e of noAccess) { const x = f(String(e["job_id"])); const j = jobById.get(String(e["job_id"])); if (x && !x.secondNoAccess && j?.stage === "installation_scheduling") x.secondNoAccess = { at: String(e["created_at"]), reason: s((e["details"] as { reason?: string } | null)?.reason) }; }
   // Decision 296: the alert names its PIESA record; a confirmation of that record (or the install already booked) clears the row.
   const confirmedRecords = new Set(piesaConfirms.map((c) => `${c["job_id"]}:${(c["details"] as { piesa_record_id?: string } | null)?.piesa_record_id ?? ""}`));
+  // Part 6 Task 7: the red flag stays while the flagged upgrades day is still the confirmed one and the job is open.
+  const upgradesDay = new Map<string, string>();
+  for (const b of upgradesBookings) { const id = String(b["job_id"]); const ymd = upgradesYmdOf(String(b["scheduled_start"])); if (!upgradesDay.has(id) || ymd > upgradesDay.get(id)!) upgradesDay.set(id, ymd); }
+  for (const e of upgradesFlags) {
+    const id = String(e["job_id"]), det = (e["details"] as { upgrades_ymd?: string; install_deadline?: string } | null) ?? null;
+    const x = f(id); const j = jobById.get(id);
+    if (!x || x.upgradesPast30 || !j || ["complete", "cancelled"].includes(j.stage) || !det?.upgrades_ymd || !det.install_deadline || upgradesDay.get(id) !== det.upgrades_ymd) continue;
+    x.upgradesPast30 = { at: String(e["created_at"]), upgradesYmd: det.upgrades_ymd, deadline: det.install_deadline };
+  }
   for (const e of piesaAlerts) {
     const id = String(e["job_id"]), rec = (e["details"] as { piesa_record_id?: string; completed_date?: string } | null) ?? null;
     const x = f(id); const j = jobById.get(id);

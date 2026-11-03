@@ -1,122 +1,148 @@
-// Part 2 (Jo 3 Nov 2026): the electrician's no-login link for an installer's own job (/e/<token>). The electrician calls
-// the owner, books the safety check (PIESA) on the link, or says "Can't do this one". Pure rules and held wording only;
-// persistence in electrician-link.server.ts, sends in own-job-piesa-notices.server.ts.
-import { addMelbourneCalendarDays } from "./melbourne-time.core";
-import { weekdayDayMonthLabel } from "./owner-email-triggers.core";
-import { STAGE_ORDER } from "./workflow";
-import type { PiesaBooker } from "./piesa-booker.core";
+// The electrician's next step on the no-login job link (new job flow, Part 6). Pure: facts in, one step out.
+// Electricians never log in and never see a pay screen. Rules run from the end of the job back to the start,
+// first match wins. The Part C lives in Mitti; only the Certificate of Electrical Safety is uploaded.
+// TODO(join): WhoBooks comes from Part 5 `business-screen.core.ts`; it is not in this branch's base, so it is
+// imported from where the same type lives today.
+import type { WhoBooks } from "./installer-accepted-email.core";
 
-export const ELECTRICIAN_LINK_DAYS = 30;
-export const electricianLinkPath = (token: string) => `/e/${token}`;
+export type { WhoBooks };
 
-export const ELECTRICIAN_LINK_MOVED = "This job has moved to another electrician";
-export const LINK_EXPIRED = "This link has expired. Call the installer for a new one.";
-export const LINK_INVALID = "This link isn't valid. Check you have the whole link from the text.";
-export const LINK_NOT_ASSIGNED = "You're no longer the electrician on this job.";
-export const LINK_UNAVAILABLE = "This link isn't working right now. Call the installer.";
-export const JOB_NOT_GOING_AHEAD = "This job is no longer going ahead.";
+export type ElectricianLinkFacts = {
+  whoBooks: WhoBooks;
+  piesa: { start: string | null; formUrl: string | null; outcome: "pass" | "upgrades" | null; upgradesSameDay: boolean };
+  upgrades: { start: string | null; formUrl: string | null; formDone: boolean };
+  certificateIn: boolean;
+  handedBack: boolean;
+  now: Date;
+};
 
-/** Why this link can't be used (null = fine). Revoked wins: a swap or "can't do" revokes the link. */
-export function electricianLinkRefusal(f: { found: boolean; revokedAt: string | null; expiresAt: string; now: Date; stillAssigned: boolean }): string | null {
-  if (!f.found) return LINK_INVALID;
-  if (f.revokedAt) return ELECTRICIAN_LINK_MOVED;
-  if (!(Date.parse(f.expiresAt) > f.now.getTime())) return LINK_EXPIRED;
-  if (!f.stillAssigned) return LINK_NOT_ASSIGNED;
-  return null;
+export type ElectricianStep =
+  | "book_piesa" | "waiting_office_book" | "piesa_day" | "set_upgrades_day" | "waiting_office_upgrades"
+  | "upgrades_day" | "upload_certificate" | "all_done" | "closed";
+
+export type ElectricianStepView = { step: ElectricianStep; title: string; sub: string | null; button: string | null; canBook: boolean; /** A booked day (piesa_day / upgrades_day) the electrician may change from the link (approved #39: "then update it on the job"), when the who-books setting allows. */ canChange: boolean };
+/** DRAFT control wording for changing a booked time from the link. */
+export const ELECTRICIAN_CHANGE_TIME_BUTTON = "Change the time";
+export const ELECTRICIAN_CHANGE_TIME_SAVE = "Save the new time";
+
+/** Approved buttons: "Open safety check form", "Open upgrades form", "Enter day and time". Everything else is DRAFT (Jo has not approved the wording). */
+export const ELECTRICIAN_LINK_WORDS: Record<ElectricianStep, { title: string; sub?: string; button?: string }> = {
+  book_piesa: { title: "Book the safety check", button: "Enter day and time" },
+  // DRAFT
+  waiting_office_book: { title: "The office is booking the safety check", sub: "We'll let you know the day and time." },
+  // DRAFT sub
+  piesa_day: { title: "Safety check day", button: "Open safety check form" },
+  // DRAFT button
+  set_upgrades_day: { title: "When are you doing the upgrades?", button: "Enter the day" },
+  // DRAFT
+  waiting_office_upgrades: { title: "The office is booking the upgrades day", sub: "We'll let you know the day." },
+  // DRAFT sub
+  upgrades_day: { title: "Upgrades day", button: "Open upgrades form" },
+  // DRAFT button
+  upload_certificate: { title: "Upload the Certificate of Electrical Safety", button: "Upload the certificate" },
+  // DRAFT
+  all_done: { title: "All done", sub: "Nothing more to do on this job." },
+  // DRAFT
+  closed: { title: "This job has been handed back", sub: "There's nothing more to do here." },
+};
+
+/** Electrician link can book only when the installer's setting is electrician or either. */
+export function canBookFromLink(whoBooks: WhoBooks): boolean {
+  return whoBooks === "electrician" || whoBooks === "either";
 }
 
-/** The ONE next thing the link page shows. Part 3 adds the upgrades and certificate steps. */
-export type ElectricianStep = "book_piesa" | "do_piesa_in_mitti" | "done";
-export function electricianStep(f: { booked: boolean; piesaDone: boolean }): ElectricianStep {
-  if (f.piesaDone) return "done";
-  return f.booked ? "do_piesa_in_mitti" : "book_piesa";
+/** "Fri 6 Nov, 10:00am" in Melbourne time. */
+export function dayTime(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat("en-AU", {
+      timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true,
+    }).formatToParts(d).map((x) => [x.type, x.value]),
+  );
+  return `${p["weekday"]} ${p["day"]} ${p["month"]}, ${p["hour"]}:${p["minute"]}${String(p["dayPeriod"]).toLowerCase()}`;
 }
 
-/** The safety check is done once the job has moved past "PIESA booked" in the normal order. */
-export function piesaDoneAtStage(stage: string): boolean {
-  const i = STAGE_ORDER.indexOf(stage as (typeof STAGE_ORDER)[number]);
-  return i > STAGE_ORDER.indexOf("piesa_scheduled");
+function view(step: ElectricianStep, canBook: boolean, sub?: string | null, canChange = false): ElectricianStepView {
+  const w = ELECTRICIAN_LINK_WORDS[step];
+  return { step, title: w.title, sub: sub ?? w.sub ?? null, button: w.button ?? null, canBook, canChange };
 }
 
-/** A booking time must be ahead of now and no later than the end of the Melbourne day 30 days after the owner paid. */
-export function piesaBookingProblem(startIso: string, now: Date, paidAt: string): string | null {
-  const start = Date.parse(startIso);
-  if (!Number.isFinite(start)) return "That date and time isn't valid.";
-  if (start <= now.getTime()) return "That time has already passed. Pick a time from now on.";
-  const last = addMelbourneCalendarDays(paidAt, 30);
-  if (start > Date.parse(last)) return `That's more than 30 days after the owner paid. Pick a day on or before ${weekdayDayMonthLabel(last) ?? "the 30th day"}.`;
-  return null;
-}
-
-const MELB_PARTS = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
-const melbWall = (ms: number) => { const p = Object.fromEntries(MELB_PARTS.formatToParts(new Date(ms)).map((x) => [x.type, x.value])); return `${p["year"]}-${p["month"]}-${p["day"]} ${p["hour"]}:${p["minute"]}`; };
-
-/** A Melbourne date (YYYY-MM-DD) and time (HH:mm) from the page's pickers as an ISO instant, using the Melbourne offset at
- *  that very moment (daylight saving safe). Null if either is junk, or the time doesn't exist (the skipped hour). */
-export function melbourneWallToIso(day: string, time: string): string | null {
-  const t = /^(\d{2}):(\d{2})$/.exec(time);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !t || Number(t[1]) > 23 || Number(t[2]) > 59) return null;
-  const [y, m, d] = day.split("-").map(Number);
-  const naive = Date.UTC(y!, m! - 1, d!, Number(t[1]), Number(t[2]));
-  if (!Number.isFinite(naive) || new Date(naive).toISOString().slice(0, 10) !== day) return null;
-  const want = `${day} ${time}`;
-  // Try both offsets Melbourne uses (+10, +11): the one whose instant shows the wanted wall time is right.
-  for (const off of [11, 10]) {
-    const ms = naive - off * 3_600_000;
-    if (melbWall(ms) === want) return new Date(ms).toISOString();
+export function electricianStep(f: ElectricianLinkFacts): ElectricianStepView {
+  const can = canBookFromLink(f.whoBooks);
+  if (f.handedBack) return view("closed", false);
+  if (f.certificateIn) return view("all_done", false);
+  if (f.piesa.outcome === "pass") return view("all_done", false);
+  if (f.piesa.outcome === "upgrades") {
+    if (f.piesa.upgradesSameDay || f.upgrades.formDone) return view("upload_certificate", false);
+    if (f.upgrades.start) return view("upgrades_day", false, dayTime(f.upgrades.start), can);
+    return can ? view("set_upgrades_day", true) : view("waiting_office_upgrades", false);
   }
-  return null;
+  if (f.piesa.start) return view("piesa_day", false, dayTime(f.piesa.start), can);
+  return can ? view("book_piesa", true) : view("waiting_office_book", false);
 }
 
-/** Why a picker date and time can't be used (null = fine). */
-export function melbourneWallProblem(day: string, time: string): string | null {
-  if (melbourneWallToIso(day, time)) return null;
-  const t = /^(\d{2}):(\d{2})$/.exec(time);
-  const real = /^\d{4}-\d{2}-\d{2}$/.test(day) && !!t && Number(t[1]) <= 23 && Number(t[2]) <= 59 && !Number.isNaN(Date.parse(`${day}T00:00:00Z`));
-  return real ? "That time doesn't exist on this day because the clocks change — pick another time." : "That date and time isn't valid.";
+// ---- The link itself (Task 2): lifetime, the text, and the plain messages -------------------------------------------
+const DAY = 86_400_000;
+/** After All done, or after the job is closed/cancelled, the link stays open this long (Jo's plan), then it expires. */
+export const ELECTRICIAN_LINK_DAYS_AFTER_DONE = 14;
+/** Before All done the link stays open: every open pushes the expiry this far out. */
+export const ELECTRICIAN_LINK_OPEN_DAYS = 60;
+
+/** `null` allDoneAt: now + 60 days (renewed on every open). After All done: allDoneAt + 14 days. */
+export function electricianLinkExpiry(f: { allDoneAt: string | null; now: number }): string {
+  if (f.allDoneAt) {
+    const t = new Date(f.allDoneAt).getTime();
+    if (!Number.isNaN(t)) return new Date(t + ELECTRICIAN_LINK_DAYS_AFTER_DONE * DAY).toISOString();
+  }
+  return new Date(f.now + ELECTRICIAN_LINK_OPEN_DAYS * DAY).toISOString();
 }
 
-export const CANT_DO_REASONS = ["busy", "owner_not_answering", "other"] as const;
-export type CantDoReason = (typeof CANT_DO_REASONS)[number];
-const CANT_DO_LABEL: Record<CantDoReason, string> = { busy: "Too busy", owner_not_answering: "Owner not answering", other: "Other" };
-export function cantDoReasonLabel(reason: CantDoReason, note?: string | null): string {
-  const n = (note ?? "").replace(/\s+/g, " ").trim();
-  return reason === "other" && n ? n : CANT_DO_LABEL[reason];
+/** The job-link text stays off until Jo approves the wording. */
+export const ELECTRICIAN_LINK_TEXT_APPROVED = false as boolean;
+export const ELECTRICIAN_LINK_SMS_TYPE = "electrician_job_link" as const;
+export const electricianLinkTextKey = (jobId: string, workerId: string) => `electrician-link:v1:${jobId}:${workerId}`;
+
+const tidy = (v: string | null | undefined) => (v ?? "").trim().replace(/\s+/g, " ");
+/** DRAFT (no approved wording yet): "Home Insulation Victoria: New PIESA job HV-1234, Kew, for Smith Insulation. Your job link: https://…" */
+export function electricianLinkText(i: { jobNumber: string; suburb: string | null; installer: string; url: string }): string {
+  const suburb = tidy(i.suburb);
+  return `Home Insulation Victoria: New PIESA job ${tidy(i.jobNumber)}${suburb ? `, ${suburb}` : ""}, for ${tidy(i.installer)}. Your job link: ${i.url}`;
 }
 
-/** Logged once per hand-over while the office "to book" email is held (wording not approved): the installer wasn't told, so the office calls them. */
-export const OWN_JOB_PIESA_INSTALLER_NOT_TOLD_EVENT = "own_job_piesa_installer_not_told";
-export const OWN_JOB_PIESA_HANDED_BACK_EVENT = "own_job_piesa_handed_back";
+/** The copy of the text we keep on the job: the link token is the only credential, so the path is masked ("…/e/••••"). */
+export const maskElectricianLinkInText = (body: string) => body.replace(/(\/e\/)[^\s]+/g, "$1••••");
 
-// ---------- Wording approved by Jo 3 Nov 2026 (flags kept so a message can be switched off) ----------
+/** DRAFT messages on a link that cannot be opened. */
+export const electricianLinkSwitchedOff = (installer: string) => `This link has been switched off. Ask ${installer} for a new one.`;
+export const electricianLinkExpired = (installer: string) => `This link has expired. Ask ${installer} for a new one.`;
+export const ELECTRICIAN_LINK_NOT_VALID = "This link isn't valid.";
 
-/** "Safety check to book" office email: approved by Jo 3 Nov 2026. */
-export const OWN_JOB_PIESA_TO_BOOK_EMAIL_APPROVED: boolean = true;
-/** "Can't do the safety check" office email: approved by Jo 3 Nov 2026. */
-export const OWN_JOB_PIESA_CANT_DO_EMAIL_APPROVED: boolean = true;
+/** DRAFT messages on the page's Book button (no approved wording yet). */
+export const ELECTRICIAN_LINK_OFFICE_BOOKS = "Your installer books this one. Call them if the time needs to change.";
+export const electricianLinkAlreadyBooked = (iso: string) => `Already booked for ${dayTime(iso) ?? "another time"}.`;
+export const ELECTRICIAN_LINK_NOTHING_TO_BOOK = "There's nothing to book on this job right now.";
+export const ELECTRICIAN_LINK_BAD_TIME = "Choose a day and time that hasn't passed.";
+export const electricianLinkBookFailed = (installer: string) => `We couldn't save that. Try again, or call ${installer}.`;
 
-/** "Not booked yet" office email: approved by Jo 3 Nov 2026. */
-export const OWN_JOB_PIESA_NOT_BOOKED_EMAIL_APPROVED: boolean = true;
+// ---- "Can't do this one" (Task 6) ------------------------------------------------------------------------------------
+/** The event Part 9 reads for ESC timing: details { worker_id, reason, booking_cancelled }. */
+export const ELECTRICIAN_CANT_DO_EVENT = "electrician_cant_do";
+export const ELECTRICIAN_CANT_DO_EMAIL_EVENT = "electrician_cant_do_email";
+/** DRAFT control wording on the link (no approved wording yet). */
+export const ELECTRICIAN_CANT_DO_BUTTON = "Can't do this one";
+export const ELECTRICIAN_CANT_DO_REASON_LABEL = "Why not? A few words is fine.";
+export const ELECTRICIAN_CANT_DO_CONFIRM = "Send the job back";
+/** DRAFT: the reason is required (3 characters or more). */
+export const ELECTRICIAN_CANT_DO_REASON_NEEDED = "Tell us why in a few words.";
+export const electricianCantDoReasonOk = (reason: string) => reason.trim().length >= 3;
+export const electricianCantDoEmailKey = (jobId: string, assignmentId: string) => `electrician-cant-do:v1:${jobId}:${assignmentId}`;
 
-/** The electrician's text (SMS type own_job_piesa_link, wordingApproved:false). */
-export function electricianLinkText(i: { installer: string; address: string; url: string }): string {
-  return `${i.installer} job: safety check (PIESA) to book at ${i.address}. Call the owner, then book it here: ${i.url}`;
+/** The installer office email stays off for real jobs until Jo approves the wording (TEST jobs go to test-send). */
+export const ELECTRICIAN_CANT_DO_EMAIL_APPROVED = false as boolean;
+/** DRAFT: "{HV}: {electrician} can't do this one. Choose another electrician on the job." The reason line under it is also DRAFT. */
+export function electricianCantDoEmailLine(i: { jobNumber: string; electrician: string }): string {
+  return `${tidy(i.jobNumber)}: ${tidy(i.electrician)} can't do this one. Choose another electrician on the job.`;
 }
-
-/** The installer office: this job's safety check is ready to book. */
-export function officeToBookEmail(i: { address: string; electrician: string; booker: PiesaBooker; jobUrl: string }): { subject: string; text: string } {
-  const who = i.booker === "office" ? "Please call the owner and book it within 2 business days."
-    : i.booker === "electrician" ? `We've sent ${i.electrician} a link to call the owner and book it within 2 business days.`
-    : `We've sent ${i.electrician} a link too. Whoever books first, within 2 business days.`;
-  return { subject: `Safety check to book for ${i.address}`, text: `The owner has paid. ${who}\nJob page: ${i.jobUrl}` };
-}
-
-/** The installer office: the electrician can't do this one. */
-export function officeCantDoEmail(i: { address: string; electrician: string; reason: string; jobUrl: string }): { subject: string; text: string } {
-  return { subject: `${i.electrician} can't do the safety check for ${i.address}`, text: `Reason: ${i.reason}.\nPick another electrician on the job page: ${i.jobUrl}` };
-}
-
-/** The installer office: 2 business days passed and the safety check still isn't booked. */
-export function officeNotBookedEmail(i: { address: string; jobUrl: string }): { subject: string; text: string } {
-  return { subject: "Not booked yet — book it or pick another electrician", text: `The safety check (PIESA) at ${i.address} isn't booked yet.\nBook it on the job page, or pick another electrician: ${i.jobUrl}` };
-}
+export const electricianCantDoReasonLine = (reason: string) => `They said: ${tidy(reason)}`;

@@ -135,3 +135,12 @@ describe("0141 migration (practice database)", () => {
     await expect(db.exec(`insert into public.sms_optouts(phone) values ('0477511901')`)).rejects.toThrow();
   });
 });
+
+describe("storedBody: what is kept on the job can differ from what the provider gets", () => {
+  const src = readFileSync("src/lib/sms.server.ts", "utf8");
+  test("sms_messages and job_communications keep storedBody (default the body); Twilio gets the real body", () => {
+    expect(src).toContain("storedBody?: string");
+    expect(src.match(/brandSmsBody\(input\.storedBody \?\? input\.body\)/g)).toHaveLength(3);
+    expect(src).toContain("Body: brandSmsBody(input.body)");
+  });
+});

@@ -288,10 +288,11 @@ describe("TEST 12 — installer workflows remain valid", () => {
 });
 
 describe("TEST 13 — electrician workflows remain valid", () => {
-  test("the field job page still renders the electrician flow", () => {
+  test("the field job page: electricians never log in (Part 6 Task 8) — an electrician role sees the plain line, the installer flow is untouched", () => {
     const page = readFileSync("src/routes/_authenticated/field.$jobId.tsx", "utf8");
-    expect(page).toContain("ElectricianFlow");
+    expect(page).not.toContain("ElectricianFlow");
     expect(page).toContain("role === \"electrician\"");
+    expect(page).toContain("NO_LOGIN_NEEDED");
   });
   test("no electrician completion can be produced by the FFS path", async () => {
     reset();

@@ -6,6 +6,7 @@
 // or changes workflow. Entries are grouped by WHO gets them and ordered by job step. Wording waiting for Jo's approval
 // sits in its own section. Retired templates are simply not listed (their files stay in git).
 // tests/templates-hub.test.ts proves every entry comes from a live code path and every live builder / text type is here.
+import { electricianLinkText } from "./electrician-link.core";
 import { renderQuoteExpiredEmail } from "./quote-expired-email.core";
 import { renderInHouseGiveEmail } from "./in-house-give-email.core";
 import { bookingNotice, ownerBookedMessage } from './in-house-booking.core';
@@ -41,6 +42,9 @@ import { collectionNoticeEmail, noticeLinkEmail, noticeLinkSmsBody, COLLECTION_N
 import { renderReadyCheckOfferEmail } from "./ready-check-offer-email.core";
 import { readyCheckOfferText } from "./ready-check-times.core";
 import { renderElectricianPiesaEmail } from "./electrician-piesa-copy.core";
+import { renderElectricianPiesaBooked } from "./electrician-piesa-booked-email.core";
+import { electricianCantDoEmail } from "./electrician-cant-do-email.core";
+import { upgradesNudgeText, upgradesOfficeEmail, upgradesRedFlagEmail } from "./upgrades-watch.core";
 import { MITTI_INVITE_MESSAGE, renderMittiInviteEmail } from "./mitti-invite.core";
 import { officeEmailLayout, electricianInviteLayout } from "./office-email.core";
 import { composeReply } from "./email-reply.core";
@@ -648,6 +652,10 @@ const ELECTRICIAN: TemplateEntry[] = [
     source: { builder: "src/lib/partner-email.core.ts", fn: "partnerWelcomeEmail", sender: "src/lib/partner-activation.functions.ts" }, design: "docs/templates/mjml/electrician_E13.mjml",
     render: () => email(partnerWelcomeEmail({ firstName: "Sam", businessName: "Spark Electrical", trade: "electrician", email: "sam@example.com", link: `${BASE}/reset-password?token_hash=TEST&type=recovery&next=%2Ffield%2Fwelcome`, test: false })) }),
   // Decision 384 (Jo 25 Oct 2026): approved as drafted in decision 376.
+  ENTRY({ id: "electrician:piesa-booked", section: "electrician", step: "safety_check", kind: "email", code: "", name: "PIESA booked (office email)", when: "A safety check is booked for the electrician; goes to the electrician business's office email (held with nothing sent if none on file) and links the electrician's job page", who: "Electrician business office", approvalNote: "Wording: Jo 2 Nov 2026, decision #39 (PIESA_BOOKED_EMAIL_APPROVED stays false until Jo OKs the picture; until then the earlier plain email goes out, so one booking is one version)", gate: { kind: "email" },
+    source: { builder: "src/lib/electrician-piesa-booked-email.core.ts", fn: "renderElectricianPiesaBooked", sender: "src/lib/in-house-electrician-booked.server.ts" },
+    // Task 9: the "Lets you in" row (a tenant or property manager) appears only once ELECTRICIAN_ACCESS_ROWS_APPROVED is on.
+    render: () => email(renderElectricianPiesaBooked({ jobNumber: "HV-TEST", firstName: "Sam", startIso: PIESA_ISO, address: SHORT_ADDRESS, owner: { name: "Helen Example", phone: "0400 000 000" }, mittiUrl: FIELD, jobUrl: FIELD, access: { name: "Tina Example", role: "tenant", phone: "0400 111 222" } })) }),
   ENTRY({ id: "electrician:piesa-copy", section: "electrician", step: "safety_check", kind: "email", code: "", name: "Your safety check for the property (PIESA copy)", when: "The official PIESA is filed (again after fixes)", who: "Electrician", approvalNote: "Jo 25 Oct 2026, decision 317", gate: { kind: "email" },
     source: { builder: "src/lib/electrician-piesa-copy.core.ts", fn: "renderElectricianPiesaEmail", sender: "src/lib/electrician-piesa-copy.server.ts" },
     render: () => email(renderElectricianPiesaEmail({ address: SHORT_ADDRESS, jobNumber: "HV-TEST", version: "initial" })) }),
@@ -668,6 +676,24 @@ const ELECTRICIAN: TemplateEntry[] = [
   ENTRY({ id: "electrician:sms-owner_changed_visit", section: "electrician", step: "safety_check", kind: "text", code: "", name: "Owner changed the booked safety check (text)", when: "The owner changes a booked safety check on My job", who: "Electrician", approvalNote: "Jo 25 Oct 2026, decision 337", gate: { kind: "text", smsType: "owner_changed_visit" },
     source: { builder: "src/lib/installer-texts.core.ts", fn: "ownerChangedVisitText", sender: "src/lib/installer-texts.server.ts" },
     render: () => text(ownerChangedVisitText({ kind: "assessment", suburb: "Glen Waverley", jobNumber: "HV-TEST", wasIso: PIESA_ISO, link: FIELD })) }),
+  // DRAFT wording: ELECTRICIAN_LINK_TEXT_APPROVED stays false and the SMS type is wordingApproved:false (switch off).
+  ENTRY({ id: "electrician:sms-electrician_job_link", section: "electrician", step: "safety_check", kind: "text", code: "", name: "Your job link (text)", when: "Right after the installer picks the electrician for a new safety check job", who: "Electrician", approvalNote: "DRAFT wording for Jo to approve (new job flow Part 6); ELECTRICIAN_LINK_TEXT_APPROVED stays false", gate: { kind: "text", smsType: "electrician_job_link" },
+    source: { builder: "src/lib/electrician-link.core.ts", fn: "electricianLinkText", sender: "src/lib/electrician-link.server.ts" },
+    render: () => text(electricianLinkText({ jobNumber: "HV-TEST", suburb: "Glen Waverley", installer: "Example Insulation", url: "https://estimate.homeinsulationvictoria.com.au/e/EXAMPLE" })) }),
+  // DRAFT wording: ELECTRICIAN_CANT_DO_EMAIL_APPROVED stays false (TEST jobs go to test-send).
+  ENTRY({ id: "installer:electrician-cant-do", section: "installer", step: "safety_check", kind: "email", code: "", name: "The electrician can't do this one", when: "The electrician taps \"Can't do this one\" on their job link; goes to the installer business's office email (held if none on file). Their booked safety check / upgrades day is cancelled and the owner gets \"Your visit can't go ahead\"", who: "Installer business office", approvalNote: "DRAFT wording for Jo to approve (new job flow Part 6, Task 6); ELECTRICIAN_CANT_DO_EMAIL_APPROVED stays false", gate: { kind: "code_off", flag: "ELECTRICIAN_CANT_DO_EMAIL_APPROVED" },
+    source: { builder: "src/lib/electrician-cant-do-email.core.ts", fn: "electricianCantDoEmail", sender: "src/lib/electrician-link.server.ts" },
+    render: () => email(electricianCantDoEmail({ jobNumber: "HV-TEST", electrician: "Example Electrical", reason: "Double booked that week", test: false })) }),
+  // Part 6 Task 7 — DRAFT wording: UPGRADES_NUDGE_TEXT_APPROVED stays false and the SMS type is wordingApproved:false (switch off).
+  ENTRY({ id: "electrician:sms-upgrades_nudge", section: "electrician", step: "fixes", kind: "text", code: "", name: "Upgrades form not in (text)", when: "9am the day after the booked upgrades day when the upgrades form isn't in; carries a fresh job link", who: "Electrician", approvalNote: "DRAFT wording for Jo to approve (new job flow Part 6, Task 7); UPGRADES_NUDGE_TEXT_APPROVED stays false", gate: { kind: "text", smsType: "upgrades_nudge" },
+    source: { builder: "src/lib/upgrades-watch.core.ts", fn: "upgradesNudgeText", sender: "src/lib/upgrades-watch.server.ts" },
+    render: () => text(upgradesNudgeText({ jobNumber: "HV-TEST", url: "https://estimate.homeinsulationvictoria.com.au/e/EXAMPLE" })) }),
+  ENTRY({ id: "installer:upgrades-form-not-in", section: "installer", step: "fixes", kind: "email", code: "", name: "Upgrades form not in", when: "9am two days after the booked upgrades day, once the electrician was nudged and the form still isn't in; to the installer business's office email", who: "Installer business office", approvalNote: "DRAFT wording for Jo to approve (new job flow Part 6, Task 7); UPGRADES_OFFICE_EMAIL_APPROVED stays false", gate: { kind: "code_off", flag: "UPGRADES_OFFICE_EMAIL_APPROVED" },
+    source: { builder: "src/lib/upgrades-watch.core.ts", fn: "upgradesOfficeEmail", sender: "src/lib/upgrades-watch.server.ts" },
+    render: () => email(upgradesOfficeEmail({ jobNumber: "HV-TEST", electrician: "Example Electrical", upgradesStart: PIESA_ISO, test: false })) }),
+  ENTRY({ id: "installer:upgrades-past-30-days", section: "installer", step: "fixes", kind: "email", code: "", name: "Upgrades day is past the 30-day rule", when: "The booked upgrades day is after the 30-day install deadline; to the installer business's office email with a copy to info@ (the office Needs me row is always on)", who: "Installer business office", approvalNote: "DRAFT wording for Jo to approve (new job flow Part 6, Task 7); UPGRADES_RED_FLAG_EMAIL_APPROVED stays false", gate: { kind: "code_off", flag: "UPGRADES_RED_FLAG_EMAIL_APPROVED" },
+    source: { builder: "src/lib/upgrades-watch.core.ts", fn: "upgradesRedFlagEmail", sender: "src/lib/upgrades-watch.server.ts" },
+    render: () => email(upgradesRedFlagEmail({ jobNumber: "HV-TEST", electrician: "Example Electrical", upgradesStart: PIESA_ISO, installDeadlineYmd: "2026-11-06", test: false })) }),
 ];
 
 /* ---------------------------------------------------------------- OFFICE */

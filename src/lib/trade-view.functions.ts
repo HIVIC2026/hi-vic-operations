@@ -361,3 +361,8 @@ export const getTradeSwapElectricianOptions = createServerFn({ method: "POST" })
 export const tradeSwapElectrician = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, electricianBusinessId: uuid }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSwapElectrician(context.userId, data.jobId, data.electricianBusinessId));
+
+/** New job flow Part 6: the installer office uploads the Certificate of Electrical Safety (same record as the electrician's link). */
+export const uploadCoesForJob = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, name: z.string().max(200), type: z.string().max(100), data: z.string().max(21_000_000) }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeUploadCoes(data.jobId, context.userId, { name: data.name, type: data.type, bytes: new Uint8Array(Buffer.from(data.data, "base64")) }));

@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import * as compliance from "../src/lib/worker-compliance.core";
 function fixture() {
   const worker = { id: "w", business_id: "b", profile_id: "electrician", full_legal_name: "Example Electrician", email: "e@example.invalid", trade_role: "electrician", approval_status: "approved", removed_at: null, licence_number: "A123", rec_number: "REC456", licence_expires_on: "2099-01-01", licence_verified_at: "2026-11-01" };
-  const forms: unknown[] = [], writes: unknown[] = [];
+  const forms: unknown[] = [], writes: unknown[] = [], links: unknown[][] = [];
   let access = true;
   const admin = { from(table: string) {
     const q: any = {};
@@ -18,10 +18,11 @@ function fixture() {
     "@/integrations/supabase/client.server": {supabaseAdmin:admin}, "./worker-compliance.core":compliance,
     "./in-house-suppression.server":{readInHouseDispatchState:async()=>({failed:false,held:new Set(["j"])})},
     "./fixes-day.server":{existingRectificationForm:async()=>({auditId:"A4",closed:false})},
+    "./electrician-link.server":{linkAfterAllocation:async(...a:unknown[])=>{links.push(a);}},
     "./mitti.server":{realMittiCall:()=>{},findMittiUserByEmail:async()=>"mitti-e",reassignMittiFormTo:async(p:unknown)=>forms.push(p)},
   };
   const api: any = {};
-  return {worker,forms,writes,deny:()=>{access=false;},load:()=>{new Function("exports","require",ts.transpile(readFileSync("src/lib/in-house-electrician.server.ts","utf8"),{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}))(api,(name:string)=>{if(!(name in deps))throw new Error(`Unexpected dependency ${name}`);return deps[name];});return api;}};
+  return {worker,forms,writes,links,deny:()=>{access=false;},load:()=>{new Function("exports","require",ts.transpile(readFileSync("src/lib/in-house-electrician.server.ts","utf8"),{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}))(api,(name:string)=>{if(!(name in deps))throw new Error(`Unexpected dependency ${name}`);return deps[name];});return api;}};
 }
 test("allocate unverified refuses with no assignment or form handover",async()=>{const f=fixture();f.worker.licence_verified_at="";await expect(f.load().allocateElectrician("j","owner","w")).rejects.toThrow("Electrician not verified");expect(f.writes).toEqual([]);expect(f.forms).toEqual([]);});
 test("another business worker or user cannot allocate",async()=>{const f=fixture();f.worker.business_id="other";await expect(f.load().allocateElectrician("j","owner","w")).rejects.toThrow("That electrician is not on your Team");expect(f.writes).toEqual([]);const g=fixture();g.deny();await expect(g.load().allocateElectrician("j","outsider","w")).rejects.toThrow("This job is not assigned to your business");expect(g.forms).toEqual([]);});
@@ -54,3 +55,4 @@ test("C1: picker and Add-a-job choices allow a no-profile verified electrician; 
   expect(await api.allocatedWorkerId("j")).toBe("w");
   expect(await api.inHousePiesaBookingBlockerFor("j")).toBeNull();
 });
+test("a verified allocation gives the electrician their job link after the assignment, and none when it is refused",async()=>{const f=fixture();await f.load().allocateElectrician("j","owner","w");expect(f.links).toEqual([["j","w","owner"]]);const g=fixture();g.worker.licence_verified_at="";await expect(g.load().allocateElectrician("j","owner","w")).rejects.toThrow();expect(g.links).toEqual([]);});

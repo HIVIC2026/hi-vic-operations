@@ -65,8 +65,8 @@ mock.module("../src/lib/in-house-booking-notices.server", () => ({ ...realBn, de
 let ledger: { amountCents: number; paidAt: string }[] | null = null;
 const realCoreP = await import("../src/lib/payments.core");
 mock.module("../src/lib/payments.server", () => ({ jobPaymentView: async () => { if (!ledger) throw new Error("unreadable"); return { plan: realCoreP.paymentPlan({ quoteTotalCents: 100000, safetyCheckCents: 34900, fixesCents: 0, repeatCents: 0 }), ledger }; } }));
-const els = await import("../src/lib/electrician-link.server");
-const core = await import("../src/lib/electrician-link.core");
+const els = await import("../src/lib/own-job-electrician-link.server");
+const core = await import("../src/lib/own-job-electrician-link.core");
 const tokenFor = async (job: string, biz = ELEC) => new URL((await els.createElectricianJobLink(job, biz)).url, "https://x.test").pathname.replace("/e/", "");
 const soon = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString();
 
