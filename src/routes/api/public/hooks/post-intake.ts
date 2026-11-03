@@ -32,6 +32,8 @@ export const Route = createFileRoute("/api/public/hooks/post-intake")({
           const sweep = await import("@/lib/first-response-sweep.server");
           try {
             const firstResponse = await sweep.sweepUnansweredFirstResponses();
+            // Roof check for saved spots (ranking only), after the existing sweeps; a failure here never breaks the worker.
+            await import("@/lib/roof-check.server").then((m) => m.roofCheckTick({ limit: 5 })).catch(() => {});
             return Response.json({ ok: true, recovered: r.recovered, claimed: r.claimed,
               results: r.results.map((x) => ({ status: x.status })), first_response: firstResponse });
           } catch (e) {
