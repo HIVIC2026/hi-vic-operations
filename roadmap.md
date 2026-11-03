@@ -1,8 +1,9 @@
 ## Jo 4 Nov A1–A5 Mitti rebuild compatibility
-- [ ] Audit every new question/answer/section/order against readers, identity prefills, official forms, media/area links and A5 completion; report exact breaks and suggested prompt corrections.
-- [ ] Test-first backward-compatible readers and official A3 four-part mains mapping; preserve fail-closed A5 evidence.
-- [ ] Visible electrical upgrades wording across portal/messages/quotes/invoices; preserve internal keys and signed history.
-- [ ] Related tests and automatic type/build checks; no templates, records, sends, publishing or switch changes.
+- [x] Source compatibility report covers changed/unchanged questions, official facts, evidence and prompt corrections.
+- [x] Red-first exact aliases and independent A3 mains mapping; 177 related form/evidence/price tests pass, missing facts stay held.
+- [x] Current electrical-work display wording updated; internal keys, official/legacy labels, issued history and invoice-matching reference suffix retained.
+- [x] Automatic checks clean; additional suite has failures disclosed in the report, not claimed baseline. No templates, records, sends, publishing or switch changes.
+- [ ] Rebuilt Mitti draft readback and end-to-end verification — awaits actual draft definitions; source fixtures are not provider proof.
 
 ## Jo 4 Nov A1/A2 Ready Check forms: ceiling layout, top-ups, approved products, quotes
 - [x] Pure core `ceiling-layout.core.ts`: exact wording, approved ESC 48A list with model numbers, rules 1–5, A2 options, A1 choices/validation, exact line wording, per-option VEU and 15% hold. 18 new tests + 1 practice-DB proof pass; 181 related Ready Check tests pass.

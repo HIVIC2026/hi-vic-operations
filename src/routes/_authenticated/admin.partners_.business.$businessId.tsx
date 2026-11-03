@@ -95,7 +95,7 @@ function BusinessFile() {
             {f.usual ? <>
               <Row k="Business">{f.usual.name} · {f.usual.approved ? "approved REC" : <Pill tone="rose">not approved yet</Pill>}</Row>
               <Row k="REC">{f.usual.rec ?? "—"}</Row>
-              <Row k="PIESA rate">{f.usual.piesaRate != null ? `$${f.usual.piesaRate} agreed · fixes by item (owner pays fixes + $100)` : "Rate to agree"}</Row>
+              <Row k="PIESA rate">{f.usual.piesaRate != null ? `$${f.usual.piesaRate} agreed · upgrades by item (owner pays upgrades + $100)` : "Rate to agree"}</Row>
               <Row k="Used on">{f.usual.usedThisMonth} of {f.usual.jobsThisMonth} jobs this month</Row>
             </> : <Row k="Usual electrician">None named · HIV electrician does the PIESAs</Row>}
           </dl>
