@@ -6,7 +6,7 @@ import { depositReminderDue, depositRequestEligible, INSTALL_DEPOSIT_REQUEST_EVE
 import { depositOwnerText, renderInstallDepositOwnerEmail, renderInstallerDepositPaidEmail, type DepositMessageFacts } from './deposit-request-email.core';
 import { isStepPaid } from './payments.core';
 import { fullAddress } from './address';
-import { CLEAR_TO_INSTALL_EMAIL_APPROVED, type PiesaResultRoute } from './piesa-result-route.core';
+import { CLEAR_TO_INSTALL_EMAIL_APPROVED, UPGRADES_NEEDED_EMAIL_APPROVED, type PiesaResultRoute } from './piesa-result-route.core';
 import type { EmailAttachment } from './email-kit.core';
 
 async function factsFor(jobId:string,now:Date) {
@@ -53,6 +53,8 @@ async function recordRequest(jobId:string,invoiceId:string,now:Date,deadline:str
 /** Part 4 Task 3 (#40): everything the "You're clear to install" send needs, injected so it is testable without PDFs or a database. */
 export type ClearToInstallDeps={
   approved:boolean;
+  /** UPGRADES_NEEDED_EMAIL_APPROVED: when on, the upgrades-needed email (not this request) carries the deposit for upgrades-still-to-come jobs. */
+  upgradesApproved?:boolean;
   route:(jobId:string)=>Promise<PiesaResultRoute[]>;
   inputs:(jobId:string)=>Promise<{checkedOn:string;electrician:string;piesaRecordId:string;signedCopyId:string;attachments:EmailAttachment[]}|{held:string}>;
   record:(p:{jobId:string;recipient:'owner';piesaRecordId:string;signedCopyId:string;recipientUserId:string|null;to:string;detail:string})=>Promise<void>;
@@ -61,6 +63,7 @@ const CLEAR_HELD='Clear to install documents not ready';
 export function defaultClearToInstallDeps():ClearToInstallDeps{
   return{
     approved:CLEAR_TO_INSTALL_EMAIL_APPROVED,
+    upgradesApproved:UPGRADES_NEEDED_EMAIL_APPROVED,
     route:async j=>(await import('./piesa-delivery.server')).ownerPiesaRoute(j),
     inputs:async j=>(await import('./clear-to-install.server')).clearToInstallInputs(j),
     record:async p=>{
@@ -76,6 +79,8 @@ type Facts=NonNullable<Awaited<ReturnType<typeof factsFor>>>;
 async function ownerNotice(jobId:string,c:Facts,step:'request'|'paid'|DepositReminder,at:string,now:Date,deps:ClearToInstallDeps){
   // Quiet hours are checked before either channel; no deferred text at a different time to its email.
   if((await import('./quote-hold.core')).smsQuietReason(now.toISOString()))return 'quiet hours';
+  // Upgrades still to come and that email is on: its button already carries the 10% deposit, so no second request (reminders unchanged).
+  if(step==='request'&&deps.upgradesApproved&&(await deps.route(jobId)).includes('upgrades_needed'))return 'covered by the electrical upgrades needed email';
   const clear=step==='request'&&deps.approved&&(await deps.route(jobId)).includes('clear_to_install');
   // The clear-to-install email carries the owner's legal PIESA copy, so the 24h stale rule never holds it back.
   if(!clear&&(step==='request'||step==='paid') && now.getTime()-Date.parse(at)>86_400_000)return 'stale notice held';

@@ -54,3 +54,19 @@ describe("PIESA copy auto-delivery (Jo 24 Oct 2026, decision 111)", () => {
     expect(src).toContain('from("piesa_deliveries").insert(');
   });
 });
+
+describe("installer PIESA copy (touchpoint 41, Jo 2 Nov 2026)", () => {
+  const mail = renderPiesaCopyEmail({ recipient: "installer", firstName: "Deep", address: "1 A St", jobNumber: "HV-1", signatureDate: "2026-11-02", installStart: null, link: "https://example.invalid/field/j", electrician: { name: "Viking Electrical" }, repairs: null });
+  test("says electrical upgrades, not repairs, and what to do next", () => {
+    expect(mail.text).toContain("Electrical upgrades needed: None");
+    expect(mail.text).not.toContain("Repairs needed");
+    expect(mail.text).toContain("Next: call the owner and book the install in the portal. They pay their 10% deposit to lock it in.");
+    expect(mail.html).toContain("Electrical upgrades needed");
+  });
+  test("owner standalone copy uses the same row label", () => {
+    expect(renderPiesaCopyEmail({ recipient: "owner", firstName: "Sarah", address: "1 A St", jobNumber: "HV-1", signatureDate: "2026-11-02", installStart: null, link: "https://example.invalid/t", repairs: null }).text).toContain("Electrical upgrades needed: None");
+  });
+  test("owner copy has no installer next line", () => {
+    expect(renderPiesaCopyEmail({ recipient: "owner", firstName: "Sarah", address: null, jobNumber: "HV-1", signatureDate: null, installStart: null, link: null }).text).not.toContain("Next: call the owner");
+  });
+});

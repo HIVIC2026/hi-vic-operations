@@ -112,12 +112,14 @@ export function renderPiesaCopyEmail(i: PiesaCopyEmailInput) {
   const rows: { k: string; v: string }[] = [
     ...(signed ? [{ k: "Checked on", v: signed }] : []),
     ...(el ? [{ k: "Electrician", v: el }] : []),
-    { k: "Repairs needed", v: repaired ? `Completed${i.repairs?.cesNumber ? ` · CES ${i.repairs.cesNumber}` : ""}` : "None" },
+    { k: "Electrical upgrades needed", v: repaired ? `Completed${i.repairs?.cesNumber ? ` · CES ${i.repairs.cesNumber}` : ""}` : "None" },
     ...(install ? [{ k: owner ? "Your install" : "Install", v: install }] : []),
   ];
   const after = owner
     ? `Your installer has the same copy. One thing to know: <strong>please don't let anyone into the ceiling before the install.</strong> If anything changes up there, the check may need to be done again.`
     : `Please keep this email with your records. If anything changes in the ceiling before the install, the check may need to be done again.`;
+  // #41 (Jo 2 Nov 2026): the installer office is told what happens next.
+  const next = owner ? null : "Next: call the owner and book the install in the portal. They pay their 10% deposit to lock it in.";
   const questions = owner ? "Questions about the safety check? Just reply to this email." : "Questions? Just reply to this email.";
   // Link check (Jo 27 Oct 2026): the signed PIESA travels as the attached PDF; the button opens My job / the job page.
   const attached = "Your signed safety check is attached to this email (PDF).";
@@ -134,13 +136,14 @@ export function renderPiesaCopyEmail(i: PiesaCopyEmailInput) {
       `<mj-section><mj-column mj-class="panel-mint"><mj-text mj-class="eyebrow center" padding="18px 12px 6px">Safety check result</mj-text><mj-text mj-class="big-green" padding="0 12px 18px" font-size="30px" line-height="36px">${esc(result)} &#10003;</mj-text></mj-column></mj-section>`,
       `<mj-section><mj-column mj-class="panel-card"><mj-table padding="8px 18px 8px">${rows.map((r, n) => { const bt = n === 0 ? "" : "border-top:1px solid #E4E9F5;"; return `<tr><td valign="top" style="padding:10px 12px 10px 0;white-space:nowrap;${bt}" class="muted">${esc(r.k)}</td><td align="right" valign="top" style="padding:10px 0;${bt}font-weight:700;">${esc(r.v)}</td></tr>`; }).join("")}</mj-table></mj-column></mj-section>`,
       `<mj-section><mj-column mj-class="panel"><mj-text mj-class="h2" padding="18px 18px 6px">On install day</mj-text><mj-text padding="0 18px 18px">${esc(part8)}</mj-text></mj-column></mj-section>`,
+      `<mj-section><mj-column><mj-text padding="14px 12px 0"><strong>${esc(next!)}</strong></mj-text></mj-column></mj-section>`,
       `<mj-section><mj-column><mj-text padding="14px 12px 14px"><strong>${esc(attached)}</strong></mj-text>${button("")}<mj-text mj-class="small">${after}</mj-text><mj-text mj-class="small" padding="0 12px 0">${esc(questions)}</mj-text></mj-column></mj-section>`,
     ].join("");
   const html = mjEmail({ subject, preview, body, unsubscribe: null, testLabel: i.test === true });
   const text = K.plainText([
     ...(greeting ? [greeting] : []), headline, "", intro, "",
     "SAFETY CHECK RESULT", result, ...rows.map((r) => `${r.k}: ${r.v}`), "",
-    ...(owner ? [] : ["ON INSTALL DAY", part8, ""]),
+    ...(owner ? [] : ["ON INSTALL DAY", part8, "", next!, ""]),
     attached, ...(i.link ? [`${label}: ${i.link}`] : []), "", K.stripTags(after), "", questions,
   ], { testLabel: i.test === true });
   return { subject, html, text };

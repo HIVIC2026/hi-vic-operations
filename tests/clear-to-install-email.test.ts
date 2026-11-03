@@ -166,3 +166,8 @@ test('already-sent path records the owner delivery when the row is missing', asy
 test('ownerStandaloneDue agrees with the resolver', () => {
   expect(ownerStandaloneDue({ route: ['clear_to_install'], resultAt, now: hoursAfter(25), ownerDelivered: false })).toBe(true);
 });
+
+test('upgrades route (email on): the old deposit request is not sent; the upgrades email carries the deposit', async () => {
+  await requestInstallDeposit('j', at, { ...deps(), upgradesApproved: true, route: async () => ['upgrades_needed' as const] });
+  expect(emails).toHaveLength(0); expect(texts).toHaveLength(0);
+});

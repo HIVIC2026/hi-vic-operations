@@ -114,6 +114,14 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['piesaCopies'] = "failed";
         }
         try {
+          // Part 4 Task 4 (touchpoint 42): "Electrical upgrades needed" email + text (carries the owner's PIESA copy). Inert until UPGRADES_NEEDED_EMAIL_APPROVED.
+          const { sweepUpgradesNeeded } = await import("@/lib/upgrades-needed.server");
+          (out as Record<string, unknown>)['upgradesNeeded'] = await timed("sweepUpgradesNeeded", () => sweepUpgradesNeeded());
+        } catch (e) {
+          console.error("allocation tick: upgrades needed sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['upgradesNeeded'] = "failed";
+        }
+        try {
           // Decision 317: the assigned electrician gets the official PIESA (PDF attached) once per PIESA record — first
           // official PIESA, then the post-fixes version. TEST → test-send; real → partner sender (paused with the master switch).
           const { sweepElectricianPiesaCopies } = await import("@/lib/electrician-piesa-copy.server");
