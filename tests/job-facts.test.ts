@@ -199,3 +199,40 @@ describe("jobFactsClient: answers, asks once, and steps aside after a write", ()
     expect((await db.from("workflow_events").select("id, details").eq("job_id", J)).data).toBe("db");
   });
 });
+
+describe("withJobFacts: two bundles at once, each in its own scope", () => {
+  test("each bundle answers only from its own job's facts, read once each; the other job's rows are never seen", async () => {
+    const { withJobFacts, jobDb } = await import("../src/lib/job-facts.server");
+    const { JOB_FACTS_SELECT } = await import("../src/lib/job-facts.core");
+    stub.asked = [];
+    // The database: each job's facts (its own events), anything else answered with a marker.
+    stub.answer = ({ table, ops }) => {
+      const id = ops.find((o) => o.m === "eq" && o.a[0] === "id")?.a[1];
+      if (table === "jobs" && ops[0]?.a[0] === JOB_FACTS_SELECT && (id === J || id === J2)) return { data: { id, stage: "x", workflow_events: [{ id: `ev-${id === J ? 1 : 2}`, job_id: id, event_type: "installer_note", created_at: null }] }, error: null };
+      return { data: [{ from: "db" }], error: null };
+    };
+    const tick = () => new Promise((r) => setTimeout(r, 1));
+    const events = (jobId: string) => jobDb().from("workflow_events").select("id").eq("job_id", jobId) as unknown as PromiseLike<{ data: unknown }>;
+    const bundle = (jobId: string, other: string) => withJobFacts(jobId, { checkedFor: { jobId }, biz: { id: "b1" } } as never, async () => {
+      await tick(); // let the other bundle start before this one asks anything
+      const mine = (await events(jobId)).data;
+      await tick();
+      const again = (await events(jobId)).data;
+      const theirs = (await events(other)).data; // scoped to the other job: not this bundle's facts, so the database
+      return { mine, again, theirs, client: jobDb() };
+    });
+    const [a, b] = await Promise.all([bundle(J, J2), bundle(J2, J)]);
+    expect(a.mine).toEqual([{ id: "ev-1" }]);
+    expect(a.again).toEqual([{ id: "ev-1" }]);
+    expect(b.mine).toEqual([{ id: "ev-2" }]);
+    expect(b.again).toEqual([{ id: "ev-2" }]);
+    expect(a.theirs).toEqual([{ from: "db" }]);
+    expect(b.theirs).toEqual([{ from: "db" }]);
+    expect(a.client).not.toBe(b.client);
+    // One facts read per job, then one database read per bundle for the other job's events; nothing else.
+    const factsReads = stub.asked.filter((q) => q.table === "jobs").map((q) => q.ops.find((o) => o.m === "eq")?.a[1]).sort();
+    expect(factsReads).toEqual([J, J2]);
+    expect(stub.asked.filter((q) => q.table === "workflow_events").map((q) => q.ops.find((o) => o.m === "eq")?.a[1]).sort()).toEqual([J, J2]);
+    expect(jobDb()).not.toBe(a.client); // outside both bundles: the admin client
+  });
+});
