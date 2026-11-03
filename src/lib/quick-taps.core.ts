@@ -1,6 +1,7 @@
 // A48 batch 2 (spec part 1 + Jo's 30 Oct amendment): the owner's quick taps on My job `?screen=taps`. PURE: no I/O.
-// One question per screen, in this order: full name, address, hatch, roof, 5 years, any website answer the owner left
-// blank, then "Yes, let's go" / "No thanks". A decline tap ends the questions. "Not sure" always passes (the installer
+// One question per screen, in this order: full name, address, hatch, any website answer the owner left blank (never
+// "over 5 years"), then "Yes, let's go" / "No thanks". Jo 3 Nov 2026: the roof and 5-year questions are no longer asked
+// (the installer checks both at the Ready Check); old answers keep their roof / five_years values. A decline tap ends the questions. "Not sure" always passes (the installer
 // checks on the day). Wording is Jo's, verbatim (29–30 Oct 2026); the website questions reuse the portal's existing owner
 // question wording (owner-eligibility.core OWNER_QUESTIONS).
 import { OWNER_QUESTIONS } from "./owner-eligibility.core";
@@ -33,7 +34,7 @@ export type QuickTapAnswers = {
 };
 export type TapOutcome = "pass" | "decline_access" | "decline_5yr" | "no_thanks" | "incomplete";
 export type FinalOutcome = Exclude<TapOutcome, "incomplete">;
-export type TapStep = "name" | "address" | "hatch" | "roof" | "five_years" | "access" | "go" | WebsiteKey;
+export type TapStep = "name" | "address" | "hatch" | "access" | "go" | WebsiteKey;
 
 type Opt<V extends string> = { value: V; label: string };
 const opts = <V extends string>(pairs: readonly (readonly [V, string])[]): Opt<V>[] => pairs.map(([value, label]) => ({ value, label }));
@@ -94,7 +95,8 @@ const isUnit = (v: string | null | undefined) => ["apartment", "unit"].includes(
  *  one the owner has just said is a unit). */
 export function websiteQuestions(onFile: WebsiteFacts, given: WebsiteAnswers = {}): WebsiteKey[] {
   const type = blank(onFile.property_type) ? given.property_type : onFile.property_type;
-  return WEBSITE_KEYS.filter((k) => blank(onFile[k]) && (k !== "top_floor" || isUnit(type)));
+  // Jo 3 Nov 2026: "over 5 years" is never asked here (checked at the Ready Check).
+  return WEBSITE_KEYS.filter((k) => k !== "over_five_years" && blank(onFile[k]) && (k !== "top_floor" || isUnit(type)));
 }
 
 /** An Australian mobile as `+614XXXXXXXX`, or null if it isn't one (landlines and short numbers are refused). */
@@ -131,10 +133,6 @@ export function tapOutcome(a: QuickTapAnswers, blanks: readonly WebsiteKey[] = [
   if (blank(a.name) || blank(a.address)) return "incomplete";
   if (a.hatch === "no") return "decline_access";
   if (!a.hatch) return "incomplete";
-  if (a.roof === "flat") return "decline_access";
-  if (!a.roof) return "incomplete";
-  if (a.five_years === "yes") return "decline_5yr";
-  if (!a.five_years) return "incomplete";
   if (blanks.some((k) => !validWebsite(k, a.website?.[k]))) return "incomplete";
   if (a.go === "no_thanks") return "no_thanks";
   return a.go === "yes" && validAccess(a.access) ? "pass" : "incomplete";
@@ -146,8 +144,6 @@ export function nextTapStep(a: QuickTapAnswers, blanks: readonly WebsiteKey[] = 
   if (blank(a.name)) return "name";
   if (blank(a.address)) return "address";
   if (!a.hatch) return "hatch";
-  if (!a.roof) return "roof";
-  if (!a.five_years) return "five_years";
   const w = blanks.find((k) => !validWebsite(k, a.website?.[k]));
   if (w) return w;
   return validAccess(a.access) ? "go" : "access";

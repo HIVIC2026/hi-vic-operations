@@ -291,7 +291,7 @@ function TurnScreen({ token }: { token: string }) {
 const tapBtn = "flex min-h-14 w-full items-center justify-center rounded-full border border-estimate-navy bg-card px-5 py-3 text-center text-base font-bold disabled:opacity-50";
 const tapPrimary = "flex min-h-14 w-full items-center justify-center rounded-full bg-estimate-green px-5 py-3 text-center text-base font-bold text-estimate-canvas disabled:opacity-50";
 
-/** A48 batch 2: the quick taps. One question per screen, in order: full name, address, hatch, roof, 5 years, any website
+/** A48 batch 2: the quick taps. One question per screen, in order: full name, address, hatch, any website
  *  answer left blank, who lets the installer in (Me / My tenant + their name and mobile), then "Yes, let's go" / "No thanks". A decline tap ends it. Name/address changes are saved as they
  *  are given (a typed name waits for the address when there is no full address on file yet); the answers are saved once.
  *  Not in a batch asking for taps → the normal My job page. The link token is the only credential. */
@@ -374,8 +374,6 @@ function TapsScreen({ v, token }: { v: View; token: string }) {
     <QuickTapsAddressSearch token={token} save={(placeId) => details({ fullName: pendingName, placeId }, (d) => { setPendingName(null); answer({ ...a, name: d.name, address: d.address }); })} />
   </>;
   else if (step === "hatch") body = <><h1 className="font-display text-2xl font-extrabold">{QUICK_TAPS_COPY.hatch.question}</h1>{options(QUICK_TAPS_COPY.hatch.options, (hatch) => answer({ ...a, hatch }))}</>;
-  else if (step === "roof") body = <><h1 className="font-display text-2xl font-extrabold">{QUICK_TAPS_COPY.roof.question}</h1>{options(QUICK_TAPS_COPY.roof.options, (roof) => answer({ ...a, roof }))}</>;
-  else if (step === "five_years") body = <><h1 className="font-display text-2xl font-extrabold">{QUICK_TAPS_COPY.five_years.question}</h1>{options(QUICK_TAPS_COPY.five_years.options, (five_years) => answer({ ...a, five_years }))}</>;
   else if (step === "access") {
     // Who lets the installer in. A tenant's name and mobile are for the installer only; we never contact the tenant.
     const tenant = { who: "tenant" as const, name: tenantName, mobile: tenantMobile };
