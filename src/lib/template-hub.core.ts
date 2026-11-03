@@ -89,6 +89,7 @@ import { legacySpotReleasedText, spotReleasedText } from "./spot-release.core";
 import { renderAddressRequestEmail } from "./address-request-email.core";
 import { addressRequestText } from "./address-request.core";
 import { upgradesNeededEmail, upgradesNeededText } from './upgrades-needed.core';
+import { visitCancelledOwnerEmail } from "./visit-cancelled-owner.core";
 import { renderInstallDepositOwnerEmail, renderInstallerDepositPaidEmail, depositOwnerText, type DepositMessageFacts } from './deposit-request-email.core';
 
 /* ---------------------------------------------------------------- types */
@@ -370,6 +371,9 @@ const OWNER: TemplateEntry[] = [
   ENTRY({ id: "owner:sms-install_no_access-v2", section: "owner", step: "install", kind: "text", code: "", name: "We couldn't get in today (installer will call) (text)", when: "With the O65 email above, once Jo flips INSTALL_NO_ACCESS_V2_APPROVED. No link", who: "Owner", approvalNote: "Jo 2 Nov 2026, touchpoint 51; \"Install by {date} (30-day rule).\" is a draft for Jo", gate: { kind: "text", smsType: "install_no_access" },
     source: { builder: "src/lib/install-no-access-notice.core.ts", fn: "installNoAccessText", sender: "src/lib/install-no-access-notice.server.ts" },
     render: () => text(installNoAccessText({ firstName: "Helen", installerName: "Sample Insulation Co", officePhone: "03 9000 0000", installBy: "4 December" }, true)) }),
+  ENTRY({ id: "owner:visit-cancelled", section: "owner", step: "any", kind: "email", code: "", name: "Your visit can't go ahead", when: "A trade drops a booked visit (\"Can't do this one\" after a booking), straight away, before the office decides who takes it. Email only. Held until Jo flips VISIT_CANCELLED_OWNER_APPROVED; Do not contact stops it", who: "Owner", approvalNote: "Jo 2 Nov 2026, answer 4: the line is hers verbatim; the subject and \"Hi {first},\" are drafts for Jo (VISIT_CANCELLED_OWNER_APPROVED, off)", gate: { kind: "code_off", flag: "VISIT_CANCELLED_OWNER_APPROVED" },
+    source: { builder: "src/lib/visit-cancelled-owner.core.ts", fn: "visitCancelledOwnerEmail", sender: "src/lib/visit-cancelled-owner.server.ts" },
+    render: () => email(visitCancelledOwnerEmail({ firstName: "Helen", startIso: "2026-11-12T21:00:00Z" })) }),
   // Rebate
   ENTRY({ id: "owner:O44", section: "owner", step: "rebate", kind: "email", code: "O44", name: "All done! Sign your rebate form", when: "Install complete (day 0 of the rebate form asks)", who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 169", gate: { kind: "email" },
     source: { builder: "src/lib/completion-emails.core.ts", fn: "renderInstallCompleteEmail", sender: "src/lib/approved-owner-emails.server.ts" }, design: "docs/templates/mjml/owner_O44.mjml",
