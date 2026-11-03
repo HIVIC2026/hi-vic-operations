@@ -58,5 +58,8 @@ test("old step list covers the pick-a-time steps and the script is read-only", (
   for (const s of OLD_FLOW_STEPS_P3) { expect(s.stages.length + s.events.length).toBeGreaterThan(0); }
   const script = code("scripts/old-flow-inflight-count.ts");
   expect(script).not.toMatch(/\.(insert|update|delete|upsert|rpc)\(/);
-  expect(script).toContain("OLD_FLOW_STEPS_P3");
+  expect(script).toContain("oldStepJobs");
+  const reader = code("src/lib/old-flow-inflight.server.ts");
+  expect(reader).not.toMatch(/\.(insert|update|delete|upsert|rpc)\(/);
+  expect(reader).toContain("OLD_FLOW_STEPS_P3");
 });

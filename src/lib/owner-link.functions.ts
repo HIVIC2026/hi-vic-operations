@@ -477,15 +477,6 @@ export const ownerNoRunWindowFn = createServerFn({ method: "POST" })
     return (await import("./installer-run.server")).ownerNoRunWindow(s.jobId, s.userId);
   });
 
-/** Decision 80: owner "Change time" on a booked our-lead Ready Check → back to the installer to offer new times. */
-export const ownerChangeReadyCheckFn = createServerFn({ method: "POST" })
-  .middleware([withRequestMeta])
-  .inputValidator((d) => z.object({ token, session }).parse(d))
-  .handler(async ({ data }) => {
-    const s = await (await import("./owner-verify.server")).ownerSession(data.token, data.session);
-    return (await import("./ready-check-times.server")).ownerChangeReadyCheck(s.jobId, s.userId);
-  });
-
 export const ownerSignConsentFn = createServerFn({ method: "POST" })
   .middleware([withRequestMeta])
   // Approved P3 page (decision 128): the four Section 2 ticks travel with the signature; `signOwnerConsent` still enforces them.

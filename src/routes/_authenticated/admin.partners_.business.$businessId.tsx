@@ -21,6 +21,7 @@ import { getBusinessFile, resolvePartnerChangeRequest, revealPartnerBank } from 
 import { getPartnerProfile, partnerFileUrl, saveBusiness } from "@/lib/pilot.functions";
 import { reviewHigherRates } from "@/lib/rate-requests.functions";
 import { inHouseEnableBlockers, type InHouseFacts } from "@/lib/in-house.core";
+import { moveInstallerToNewFlowFn } from "@/lib/new-flow-move.functions";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
@@ -130,6 +131,8 @@ function InHousePanel({ businessId, business, facts, onDone }: { businessId: str
   const [billing, setBilling] = useState<"partner" | "hivic">(business.rectification_billed_by ?? "hivic");
   const [busy, setBusy] = useState(false);
   const blockers = inHouseEnableBlockers(facts);
+  const move = useServerFn(moveInstallerToNewFlowFn);
+  const [moveBlockers, setMoveBlockers] = useState<string[]>([]);
   return <Panel title="In-house partner">
     <label className="flex items-center justify-between gap-3 text-sm font-semibold">In-house partner<Switch checked={enabled} onCheckedChange={setEnabled} disabled={busy || (!enabled && blockers.length > 0)} aria-label="In-house partner" /></label>
     {blockers.length > 0 && <ul className="mt-3 text-sm text-rose">{blockers.map(b => <li key={b}>{b}</li>)}</ul>}
@@ -143,6 +146,17 @@ function InHousePanel({ businessId, business, facts, onDone }: { businessId: str
       catch (e) { toast.error(e instanceof Error ? e.message : "Could not save in-house partner"); }
       finally { setBusy(false); }
     }}>Save</Btn>
+    {!(business.in_house ?? false) && <div className="mt-4 border-t pt-4" data-new-flow-move>
+      <Btn tone="secondary" disabled={busy} onClick={async () => {
+        setBusy(true); setMoveBlockers([]);
+        try {
+          const r = await move({ data: { businessId } });
+          if (r.moved) { await onDone(); toast.success("Moved to the new flow"); } else setMoveBlockers(r.blockers);
+        } catch (e) { toast.error(e instanceof Error ? e.message : "Could not move to the new flow"); }
+        finally { setBusy(false); }
+      }}>Move to the new flow</Btn>
+      {moveBlockers.length > 0 && <ul className="mt-3 text-sm text-rose" data-new-flow-move-blockers>{moveBlockers.map(b => <li key={b}>{b}</li>)}</ul>}
+    </div>}
   </Panel>;
 }
 
