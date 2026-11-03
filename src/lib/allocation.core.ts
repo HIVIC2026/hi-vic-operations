@@ -1,4 +1,5 @@
 import { rectQuoteUnanswered } from "./rectification.core";
+import { UPGRADES_QUOTE_SEND_BLOCKER, electricianBillsUpgrades } from "./upgrades-billing.core";
 // Contractor allocation + direct self-scheduling (pure rules, no I/O).
 // The portal never becomes a diary-booking desk: trades accept work, owner and trade contact each other
 // directly for the active visit, and a time is booked only when the OTHER party (or office) confirms it.
@@ -296,12 +297,16 @@ export function electricalClearance(f: ClearanceFacts): Clearance {
     if (f.piesaOutcome !== "pass") return { ...base, cleared: false, timingDate: null, basis: null, blocker: "PIESA did not pass." };
     return { ...base, cleared: true, timingDate: f.piesaCompletedAt, basis: "initial_piesa", blocker: null };
   }
-  if (!f.partnerBilledRectification && !f.rectificationQuoteAccepted) return { ...base, cleared: false, timingDate: null, basis: null, blocker: "Owner has not approved the electrical fixes quote." };
+  // Part 3 Task 1 (Jo 2 Nov 2026): the electrician quotes and bills the upgrades on every job, so no Home Insulation
+  // Victoria upgrades quote is ever needed here (the in-house partner-billed exception, now the rule for every job).
+  const noQuoteNeeded = electricianBillsUpgrades(f) || f.partnerBilledRectification === true;
+  if (!noQuoteNeeded && !f.rectificationQuoteAccepted) return { ...base, cleared: false, timingDate: null, basis: null, blocker: "Owner has not approved the electrical fixes quote." };
   // Decision 314 follow-up: "Be on site at the start of the install day" alone — the electrician attends the install day
   // instead of a fixes visit, so there is no Section C. Cleared once the owner has accepted the fixes quote AND the payment
   // rule has cleared; the 30 days still run from the official PIESA date (decision 316).
-  if (f.onsiteStartOnly && !f.partnerBilledRectification) {
-    if (!f.fixesPaymentCleared) return { ...base, cleared: false, timingDate: null, basis: null, blocker: "Waiting for the owner's payment for the electrician on site at the start of the install day." };
+  // Part 3 Task 1: with no Home Insulation Victoria quote or payment, the on-site-only answer clears on the PIESA alone.
+  if (f.onsiteStartOnly) {
+    if (!noQuoteNeeded && !f.fixesPaymentCleared) return { ...base, cleared: false, timingDate: null, basis: null, blocker: "Waiting for the owner's payment for the electrician on site at the start of the install day." };
     return { ...base, cleared: true, timingDate: f.piesaCompletedAt, basis: "electrician_at_start", blocker: null };
   }
   if (!f.rectificationCompletedAt) return { ...base, cleared: false, timingDate: null, basis: null, blocker: "Electrical fixes not completed yet." };
@@ -342,6 +347,8 @@ export type RectQuoteFacts = { kind: string; status: string; office_reviewed_at:
 /** Rectification quotes are always office-reviewed before they reach the owner. */
 export function rectificationSendBlocker(q: RectQuoteFacts, actorIsOffice: boolean): string | null {
   if (q.kind !== "rectification") return null;
+  // Part 3 Task 1 (Jo 2 Nov 2026): Home Insulation Victoria never sends an upgrades quote; the electrician bills the owner.
+  if (electricianBillsUpgrades(q)) return UPGRADES_QUOTE_SEND_BLOCKER;
   if (!actorIsOffice) return "Only Home Insulation Victoria office staff can send electrical fixes quote.";
   if (q.has_unpriced_items) return "Some electrical fixes items still need office pricing.";
   if (q.fixes_times_hold) return q.fixes_times_hold;
@@ -350,7 +357,7 @@ export function rectificationSendBlocker(q: RectQuoteFacts, actorIsOffice: boole
   return null;
 }
 export function rectificationVisitBlocker(f: { quoteAccepted: boolean; recActiveApproved: boolean; partnerBilledRectification?: boolean }): string | null {
-  if (!f.partnerBilledRectification && !f.quoteAccepted) return "Owner must approve the electrical fixes quote before the visit is arranged.";
+  if (!electricianBillsUpgrades(f) && !f.partnerBilledRectification && !f.quoteAccepted) return "Owner must approve the electrical fixes quote before the visit is arranged.";
   if (!f.recActiveApproved) return "The PIESA electrician is no longer approved/active — office must arrange another REC.";
   return null;
 }

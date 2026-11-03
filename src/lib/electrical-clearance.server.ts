@@ -52,15 +52,20 @@ export async function clearanceFacts(jobId: string): Promise<ClearanceFacts> {
     admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", jobId),
   ]);
   const rectificationRequired = (items ?? 0) > 0 || initial?.outcome === 'fail';
-  const partnerBilledRectification = rectificationRequired && rq?.status !== 'accepted'
-    ? await (await import('./in-house-rectification.server')).optionalPartnerBilledRectificationFor(jobId) : false;
-  // Decision 314 follow-up: an A3 whose ONLY repair tick is "Be on site at the start of the install day" clears on the
-  // accepted fixes quote + the payment rule (no fixes visit, no Section C). Read only once the fixes quote is accepted.
-  const onsiteOnly = rq?.status === "accepted" ? await onsiteStartOnlyFor(jobId).catch(() => false) : false;
+  // Part 3 Task 1 (Jo 2 Nov 2026): the electrician bills the upgrades on every job (upgrades-billing.core), so no HIV
+  // quote or fixes payment is ever needed for clearance; `partnerBilledRectification` is that rule for every job.
+  const { electricianBillsUpgrades } = await import("./upgrades-billing.core");
+  const electricianBills = electricianBillsUpgrades(jobId);
+  const partnerBilledRectification = electricianBills || (rectificationRequired && rq?.status !== 'accepted'
+    ? await (await import('./in-house-rectification.server')).optionalPartnerBilledRectificationFor(jobId) : false);
+  // Decision 314 follow-up: an A3 whose ONLY repair tick is "Be on site at the start of the install day" clears with no
+  // fixes visit and no Section C. Read for any job with upgrades needed (it used to wait for the accepted HIV quote).
+  const onsiteOnly = rectificationRequired && (electricianBills || rq?.status === "accepted") ? await onsiteStartOnlyFor(jobId).catch(() => false) : false;
   // Review R08 / audit F14: the generic payment gate clears on the safety check payment alone, so it is NOT the fixes
   // payment. The exception needs BOTH: the approved payment rule still cleared (activation switch, route, accepted quote)
   // AND the full accepted onsite electrical charge received (`onsiteChargePaidFor`). Any read failure = not cleared.
-  const fixesPaymentCleared = onsiteOnly
+  // Not read when the electrician bills the upgrades (no HIV fixes payment exists).
+  const fixesPaymentCleared = onsiteOnly && !electricianBills
     ? (await (await import("./workflow.server")).paymentGate(jobId).then((g) => g.cleared).catch(() => false)) && (await onsiteChargePaidFor(jobId).catch(() => false))
     : false;
   return {

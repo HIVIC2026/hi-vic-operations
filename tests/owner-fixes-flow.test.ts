@@ -45,9 +45,11 @@ describe("fixes payment step (payment gate)", () => {
     const none = paymentPlan({ quoteTotalCents: 400_000 });
     expect(fixesPaymentBlocker(none, paymentSteps(none, { install: 0, fixes: 0, repeat: 0 }, {}, T0))).toBeNull();
   });
-  test("both booking paths carry the fixes-paid blocker", () => {
-    expect(read("src/lib/booking.server.ts")).toMatch(/if \(!partnerBilled\) \{ const blocker = await \(await import\("\.\/payments\.server"\)\)\.fixesPaymentBlockerFor\(jobId\)/);
-    expect(read("src/lib/workflow.server.ts")).toMatch(/to === "rectification_booked"\) \{\s*const fb = await \(await import\("\.\/payments\.server"\)\)\.fixesPaymentBlockerFor\(jobId\)/);
+  // Part 3 Task 1 (Jo 2 Nov 2026): the electrician bills the upgrades on every job, so both booking paths bypass the
+  // fixes-paid blocker through the one predicate (the gate code stays behind it for a one-line reversal).
+  test("both booking paths bypass the fixes-paid blocker through electricianBillsUpgrades", () => {
+    expect(read("src/lib/booking.server.ts")).toMatch(/const partnerBilled = electricianBillsUpgrades\(jobId\);\s*if \(!partnerBilled\) \{ const blocker = await \(await import\("\.\/payments\.server"\)\)\.fixesPaymentBlockerFor\(jobId\)/);
+    expect(read("src/lib/workflow.server.ts")).toMatch(/to === "rectification_booked" && !\(await import\("\.\/upgrades-billing\.core"\)\)\.electricianBillsUpgrades\(jobId\)\) \{\s*const fb = await \(await import\("\.\/payments\.server"\)\)\.fixesPaymentBlockerFor\(jobId\)/);
   });
 });
 

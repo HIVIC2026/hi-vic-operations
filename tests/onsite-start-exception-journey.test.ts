@@ -70,49 +70,45 @@ beforeEach(() => {
 
 const cleared = async () => electricalClearance(await clearanceFacts(JOB));
 
-describe("R08 part 1: the full accepted onsite electrical charge is required at the install-clearance boundary", () => {
-  test("nothing paid → not cleared", async () => {
-    const c = await cleared();
-    expect(c).toMatchObject({ cleared: false, basis: null, blocker: ONSITE_CHARGE_NOT_PAID });
-    expect(await onsiteStartClearedFor(JOB)).toBe(false);
-  });
-  test("$349 safety check paid: the GENERIC gate clears, but the exception does NOT (the defect R08 describes)", async () => {
-    pay(349);
-    expect(genericGate()).toEqual({ cleared: true, option: "safety_check_paid" });
-    const f = await clearanceFacts(JOB);
-    expect(f.onsiteStartOnly).toBe(true);
-    expect(f.fixesPaymentCleared).toBe(false);
-    const c = electricalClearance(f);
-    expect(c.cleared).toBe(false);
-    expect(installationCoordinationBlocker(c)).toBe(`Installation cannot be arranged yet: ${ONSITE_CHARGE_NOT_PAID}`);
-    // Stage entry (installation_scheduling / installation_booked) still blocked by the open fixes item.
-    expect(installEntryElectricalBlockers({ openRectItems: 1, piesaDate: "2026-10-02", piesaOutcome: "fail", onsiteStartCleared: await onsiteStartClearedFor(JOB) })).toContain(FIXES_NOT_COMPLETED_BLOCKER);
-  });
-  test("$349 + part of the $550 onsite charge → still not cleared", async () => {
-    pay(349); pay(300, "stripe", "inv-fix");
-    expect(await onsiteChargePaidFor(JOB)).toBe(false);
-    expect((await cleared()).cleared).toBe(false);
-  });
-  test("$349 + the full $550 → cleared on electrician_at_start; 30 days still from the official PIESA", async () => {
-    pay(349); pay(300, "stripe", "inv-fix"); pay(250, "xero", "inv-fix");
-    expect(await onsiteChargePaidFor(JOB)).toBe(true);
+// Part 3 Task 1 (Jo 2 Nov 2026): the electrician quotes and bills the upgrades on EVERY job, so Home Insulation Victoria
+// no longer collects an onsite electrical charge. The on-site-only job clears on the PIESA alone (electrician_at_start);
+// the R08 money gate is kept behind `electricianBillsUpgrades` (its ledger reader `onsiteChargePaidFor` still works) and
+// `fixesPaymentCleared` is no longer read. Part 2 below (attendance evidence) is unchanged.
+describe("R08 part 1 (retired by Part 3 Task 1): install clearance no longer waits for an HIV onsite electrical charge", () => {
+  test("nothing paid → cleared on electrician_at_start, 30 days from the official PIESA", async () => {
     expect(await cleared()).toMatchObject({ cleared: true, basis: "electrician_at_start", timingDate: "2026-10-02", blocker: null });
     expect(await onsiteStartClearedFor(JOB)).toBe(true);
     expect(installEntryElectricalBlockers({ openRectItems: 1, piesaDate: "2026-10-02", piesaOutcome: "fail", onsiteStartCleared: true })).toEqual([]);
   });
-  test("paid in full but the approved payment rule is not switched on → still not cleared (the old gate is kept)", async () => {
-    gateEnabled = false;
-    pay(349); pay(550, "xero", "inv-fix");
-    expect(await onsiteChargePaidFor(JOB)).toBe(true);
-    expect((await cleared()).cleared).toBe(false);
+  test("the facts: on-site-only is read without an accepted HIV quote; the fixes payment is never read", async () => {
+    const f = await clearanceFacts(JOB);
+    expect(f).toMatchObject({ onsiteStartOnly: true, fixesPaymentCleared: false, partnerBilledRectification: true });
+    tables["quotes"] = []; // no HIV upgrades quote at all (every new job)
+    expect(await clearanceFacts(JOB)).toMatchObject({ onsiteStartOnly: true, rectificationQuoteAccepted: false, partnerBilledRectification: true });
+    expect(await cleared()).toMatchObject({ cleared: true, basis: "electrician_at_start" });
   });
-  test("a reversed (voided) Xero payment stops counting", async () => {
+  test("the generic payment gate and the payment switch no longer change the clearance", async () => {
+    expect(genericGate().cleared).toBe(false);
+    expect((await cleared()).cleared).toBe(true);
+    gateEnabled = false;
+    expect((await cleared()).cleared).toBe(true);
+    pay(349); pay(300, "stripe", "inv-fix");
+    expect((await cleared()).cleared).toBe(true);
+  });
+  test("the ledger reader onsiteChargePaidFor still answers correctly (kept for a reversal): part paid → false", async () => {
+    pay(349); pay(300, "stripe", "inv-fix");
+    expect(await onsiteChargePaidFor(JOB)).toBe(false);
+  });
+  test("… paid in full → true", async () => {
+    pay(349); pay(300, "stripe", "inv-fix"); pay(250, "xero", "inv-fix");
+    expect(await onsiteChargePaidFor(JOB)).toBe(true);
+  });
+  test("… a reversed (voided) Xero payment stops counting", async () => {
     pay(349); pay(550, "xero", "inv-fix");
     tables["workflow_events"]!.push({ id: "r1", job_id: JOB, event_type: "owner_payment_reversed", created_at: "2026-10-09T00:00:00Z", actor_id: null, details: { invoice_id: "inv-fix", amount_cents: 55000, source: "xero", paid_at: "2026-10-02T00:00:00Z", xero_payment_id: "x2" } });
     expect(await onsiteChargePaidFor(JOB)).toBe(false);
-    expect((await cleared()).cleared).toBe(false);
   });
-  test("no invoice / no accepted charge → fails closed", async () => {
+  test("no invoice / no accepted charge → the reader fails closed (pure rule unchanged)", async () => {
     tables["invoices"] = [];
     expect(await onsiteChargePaidFor(JOB)).toBe(false);
     expect(onsiteChargePaid({ quoteTotalCents: 400000, safetyCheckCents: 34900, rectTotalCents: 0, paid: { install: 1_000_000, fixes: 1_000_000 } })).toBe(false);

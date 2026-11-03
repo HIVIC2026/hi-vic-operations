@@ -153,16 +153,18 @@ test("unused rectification form is closed once locally and never recreated by a 
   expect((await s.onRectificationBooked(JOB, "rect-booking", null, call)).status).toBe("not_needed");
   expect(calls.filter(c => c.path === "/audits")).toHaveLength(2);
 });
-test("partner-billed in-house quote creation skips without any HIV quote or invoice", async () => {
-  expect(await load("quotes.server").generateRectificationQuote(JOB, null)).toEqual({ skipped: "in_house_partner_bills" });
+// Part 3 Task 1 (Jo 2 Nov 2026): the electrician bills the upgrades on EVERY job — the quote builder skips for in-house
+// partner-billed, hivic-billed and non-in-house jobs alike, with no read of the partner and no quote or invoice row.
+test("quote creation skips for every job without any HIV quote or invoice (electrician bills)", async () => {
+  expect(await load("quotes.server").generateRectificationQuote(JOB, null)).toEqual({ skipped: "electrician_bills" });
   expect(quoteWrites).toBe(0); expect(tables.invoices ?? []).toEqual([]);
 });
-for (const scenario of ["hivic", "non-in-house"]) test(`${scenario} rectification items still produce the existing quote`, async () => {
+for (const scenario of ["hivic", "non-in-house"]) test(`${scenario} rectification items no longer produce an HIV quote`, async () => {
   if (scenario === "hivic") tables.job_assignments[1].businesses.rectification_billed_by = "hivic";
   else { held = false; tables.job_assignments[1].businesses.in_house = false; }
   tables.rectification_items.push({ job_id: JOB, status: "required", rate_code: "RCD", quantity: 1, description: "RCD" });
-  expect(await load("quotes.server").generateRectificationQuote(JOB, null)).toBe("quote");
-  expect(quoteWrites).toBe(1);
+  expect(await load("quotes.server").generateRectificationQuote(JOB, null)).toEqual({ skipped: "electrician_bills" });
+  expect(quoteWrites).toBe(0);
 });
 test("rectification Mitti creation failure is visible and an uncertain create is not retried", async () => {
   await load("piesa-autoform.server").onPiesaBooked(JOB, "booking", null, { call });
@@ -230,10 +232,11 @@ test("partner-billed same-visit signed form reaches real install clearance witho
  expect(require("../src/lib/install-days.core").installWindowDeadline(cleared.timingDate)).toBe("2026-11-29");
  expect(tables.piesa_records.filter(r=>r.kind==="post_rectification")[0].section_c_signed_at).toBe("2026-11-02T00:00:00.000Z");
 });
-for(const partnerBilled of [false,true]) test(`real clearance quote gate partner billing=${partnerBilled}`,()=>{
+// Part 3 Task 1: the quote gate is gone for every job, whatever the partner-billed fact says.
+for(const partnerBilled of [false,true]) test(`real clearance never needs an HIV quote (partner billing fact=${partnerBilled})`,()=>{
  const facts:any={piesaOutcome:"fail",piesaCompletedAt:"2026-10-30",rectificationRequired:true,rectificationQuoteAccepted:false,rectificationCompletedAt:"2026-11-02",sectionCSignedAt:"2026-11-02",partnerBilledRectification:partnerBilled};
- expect(allocation.electricalClearance(facts).cleared).toBe(partnerBilled);
- expect(allocation.rectificationVisitBlocker({quoteAccepted:false,recActiveApproved:true,partnerBilledRectification:partnerBilled} as any)===null).toBe(partnerBilled);
+ expect(allocation.electricalClearance(facts).cleared).toBe(true);
+ expect(allocation.rectificationVisitBlocker({quoteAccepted:false,recActiveApproved:true,partnerBilledRectification:partnerBilled} as any)).toBeNull();
 });
 test("post_rectification requires explicit Section C date before any writes; reassessment does not",async()=>{
  const s=load("piesa-record.server");
@@ -299,10 +302,13 @@ test("real amended PIESA sync reopens only a new round and resets no-rectificati
  expect(calls.filter(c=>c.path==="/audits")).toHaveLength(3);
 });
 
-test("held-read failure cannot bypass money and keeps clearance blocked without throwing",async()=>{
+// Part 3 Task 1: no partner read decides the quote any more — a held-read failure never reaches the builder; clearance
+// still waits for the upgrades themselves (Part C), not for money.
+test("held-read failure: no quote is built or written; clearance waits for the Part C, not money",async()=>{
  failHeld=true; seedOfficial();
- await expect(load("quotes.server").generateRectificationQuote(JOB,null)).rejects.toThrow("Couldn't check");
- expect(allocation.electricalClearance(await load("electrical-clearance.server").clearanceFacts(JOB)).cleared).toBe(false);
+ expect(await load("quotes.server").generateRectificationQuote(JOB,null)).toEqual({ skipped: "electrician_bills" });
+ const c=allocation.electricalClearance(await load("electrical-clearance.server").clearanceFacts(JOB));
+ expect(c.cleared).toBe(false); expect(c.blocker).toBe("Electrical fixes not completed yet.");
  expect(quoteWrites).toBe(0);
 });
 test('failed post_rectification accepts no Section C date and writes the failed record', async()=>{
@@ -374,7 +380,9 @@ test('PIESA autoform dispatch outage keeps legacy creation and already branch',a
  expect((await s.onPiesaBooked(JOB,'legacy',null,{call})).outcome).toBe('skipped');
  expect(calls.filter(c=>c.path==='/audits')).toHaveLength(1);
 });
-test('sweep skips additional stages for hivic and catches one failed job without stopping the next',async()=>{
+// Part 3 Task 1: every job may complete the A4 on the same visit (the in-house partner-billed rule, now for all), so the
+// sweep reads the piesa_complete form too; one failed job still never stops the next.
+test('sweep reads every open fixes form (same-visit stages included) and catches one failed job without stopping the next',async()=>{
  tables.job_assignments[1].businesses.rectification_billed_by='hivic';
  for (const [audit_id,stage] of [['bad','rectification_booked'],['good','rectification_booked'],['extra','piesa_complete']]) {
  tables.workflow_events.push({job_id:JOB,event_type:core.FIXES_FORM_CREATED_EVENT,details:{audit_id},jobs:{stage,business_unit:'hivic',deleted_at:null,qa_archived_at:null}});
@@ -385,7 +393,8 @@ test('sweep skips additional stages for hivic and catches one failed job without
  return call(method,path,body);
  };
  const out=await load('fixes-day.server').sweepFixesForms({call:sweepCall});
- expect(out.failed).toBe(1);expect(out.checked).toBe(2);expect(calls.some(c=>c.path.includes('/good'))).toBe(true);expect(calls.some(c=>c.path.includes('/extra'))).toBe(false);
+ // bad = the Mitti error; extra = the generic fixture form at piesa_complete, held (not completable) and reported, not thrown.
+ expect(out).toMatchObject({checked:3,waiting:1,failed:2});expect(calls.some(c=>c.path.includes('/good'))).toBe(true);expect(calls.some(c=>c.path.includes('/extra'))).toBe(true);
 });
 test("concurrent completed assessment is not changed by the no-rectification follow-up update",async()=>{
  await load("piesa-autoform.server").onPiesaBooked(JOB,"visit",null,{call}); realMitti=true; setPiesaAudit(false); completeDuringSync=true;

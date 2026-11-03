@@ -611,8 +611,14 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     for (const [id, hit] of await oldFixesInvoicePaidFacts([], oldFixes)) { const x = f(id); if (x) x.oldFixesInvoicePaid = hit; }
   } catch { unavailable.push("old fixes invoices"); }
   // Decision 315: 24h after the fixes-times link with no times → one "Electrician hasn't given fixes times" row.
-  for (const [id, r] of fixesTimesMissing({ links: fixesLinks.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]) })), given: fixesGiven.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]) })), now })) {
-    const x = f(id); if (x) x.fixesTimesMissing = { at: r.at };
+  // Part 3 Task 1 (Jo 2 Nov 2026): the link is no longer sent; an old link on a job with no Home Insulation Victoria
+  // upgrades quote has nothing to chase, so the row stays only where a quote (any state but superseded) still exists.
+  const missingTimes = fixesTimesMissing({ links: fixesLinks.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]) })), given: fixesGiven.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]) })), now });
+  if (missingTimes.size) {
+    try {
+      const quoted = new Set((await all("fixes quotes", (a, b) => admin.from("quotes").select("job_id").eq("kind", "rectification").neq("status", "superseded").in("job_id", [...missingTimes.keys()]).range(a, b))).map((e) => String(e["job_id"])));
+      for (const [id, r] of missingTimes) { const x = f(id); if (x && quoted.has(id)) x.fixesTimesMissing = { at: r.at }; }
+    } catch { unavailable.push("fixes times chases"); }
   }
   // A48 batch 1: the newest A3 safety check breaks the official rules → one row until a corrected form / signed Section C.
   try {

@@ -456,7 +456,8 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
     if (!g.cleared) blockers.push(g.blocker);
   }
   // Decision 366 (audit F03): no fixes visit is booked until the electrical fixes are paid in full.
-  if (to === "rectification_booked") {
+  // Part 3 Task 1 (Jo 2 Nov 2026): the electrician bills the upgrades on every job, so the gate never applies.
+  if (to === "rectification_booked" && !(await import("./upgrades-billing.core")).electricianBillsUpgrades(jobId)) {
     const fb = await (await import("./payments.server")).fixesPaymentBlockerFor(jobId);
     if (fb) {
       // Resolve the exception only where the legacy quote/payment gate would block.

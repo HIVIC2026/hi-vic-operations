@@ -102,13 +102,15 @@ describe("held before the claim while paused; sent once unpaused", () => {
     expect(sms.map((s) => s.type)).toEqual(["boss_price_link"]);
   });
 
-  test("fixes-times link", async () => {
+  // Part 3 Task 1 (Jo 2 Nov 2026): the fixes-times link is no longer sent at all — the electrician books the upgrades day
+  // with the owner directly — so there is nothing to hold or release here; the sender skips before any read or claim.
+  test("fixes-times link (retired: skipped paused or not, nothing recorded or sent)", async () => {
     const i = { auditId: "A3", completedAt: new Date().toISOString(), short: { rectificationOutcome: RECTIFICATION_OUTCOMES[1] } };
-    expect(await textFixesTimesLink("J1", i)).toBe("held: Trade messages paused");
+    expect(await textFixesTimesLink("J1", i)).toBe("skipped: electrician_bills");
     expect((tables["workflow_events"] ?? []).length + sms.length).toBe(0);
     paused = null;
-    expect(await textFixesTimesLink("J1", i)).toMatch(/^fixes times sms sent/);
-    expect(sms.map((s) => s.type)).toEqual(["fixes_times_link"]);
+    expect(await textFixesTimesLink("J1", i)).toBe("skipped: electrician_bills");
+    expect((tables["workflow_events"] ?? []).length + sms.length).toBe(0);
   });
 
   test("safety plan (SWMS) sign link", async () => {

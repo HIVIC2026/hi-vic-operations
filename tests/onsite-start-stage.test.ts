@@ -38,9 +38,10 @@ describe("on-site-only job: accepted + paid fixes quote → straight to installa
     expect(fixesFormNeeded(onsiteShort)).toBe(false);
     expect(fixesTimesNeeded(onsiteShort)).toBe(false);
   });
-  test("before the fixes quote is accepted and paid: waits, never routes to a fixes visit", () => {
+  // Part 3 Task 1 (Jo 2 Nov 2026): no HIV fixes quote or payment any more — the on-site-only answer clears on the PIESA alone.
+  test("no fixes quote or payment is waited for; the stage engine still waits only while the clearance says not cleared", () => {
     const waiting: AdvanceFacts = { ...f, onsiteStartCleared: false };
-    expect(onsiteStartAtInstall(electricalClearance({ ...clearance, onsiteStartOnly: true, fixesPaymentCleared: false }))).toBe(false);
+    expect(onsiteStartAtInstall(electricalClearance({ ...clearance, onsiteStartOnly: true, rectificationQuoteAccepted: false, fixesPaymentCleared: false }))).toBe(true);
     expect(planStep("awaiting_deposit_payment", waiting)).toMatchObject({ kind: "stop" });
     expect(planStep("rectification_scheduling", waiting)).toMatchObject({ kind: "stop" });
     expect(installEntryElectricalBlockers({ openRectItems: 1, piesaDate: "2026-10-01", piesaOutcome: "fail", onsiteStartCleared: false })).toEqual([FIXES_NOT_COMPLETED_BLOCKER, PASSING_PIESA_BLOCKER]);
@@ -100,7 +101,7 @@ describe("source pins", () => {
     // Lean module: no senders, Xero or Mitti in the stage/auto-advance import graph.
     const imports = [...e.matchAll(/(?:from|import\()\s*["']([^"']+)["']/g)].map((m) => m[1]).sort();
     // Review R08: the onsite charge is read through the lean ledger reader + pure rules (never payments.server's senders).
-    expect(imports).toEqual(["./allocation.core", "./fixes-times.core", "./in-house-rectification.server", "./official-short.core", "./payment-ledger.server", "./payments.core", "./safety-check-amount.core", "./workflow.server", "@/integrations/supabase/client.server"]);
+    expect(imports).toEqual(["./allocation.core", "./fixes-times.core", "./in-house-rectification.server", "./job-facts.server", "./official-short.core", "./payment-ledger.server", "./payments.core", "./safety-check-amount.core", "./upgrades-billing.core", "./workflow.server"]);
     expect(e).toContain("(await onsiteChargePaidFor(jobId).catch(() => false))");
     const ledger = read("src/lib/payment-ledger.server.ts");
     expect([...ledger.matchAll(/(?:from|import\()\s*["']([^"']+)["']/g)].map((m) => m[1]).sort()).toEqual(["./payments.core", "@/integrations/supabase/client.server"]);
