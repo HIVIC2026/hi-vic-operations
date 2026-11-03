@@ -18,6 +18,8 @@ import { melbourneYmd } from "./piesa-windows.core";
 import { melbourneHm } from "./daily-mitti-text.core";
 import { melbourneClock, melbourneDayDate } from "./installer-texts.core";
 import { quoteExpiresAt } from "./quote-expiry.core";
+import type { BookedKind, Held } from "./owner-booked-notice.core";
+import { installerName, type TradeContact } from "./owner-will-call.core";
 
 /** Recorded once per text + key BEFORE sending (details: { text, key, ... }). */
 export const APPROVED_TEXT_EVENT = "approved_text_prepared" as const;
@@ -81,26 +83,21 @@ export function readyCheckBookedOwnerText(f: { startIso: string; installer: stri
   if (!installer) return null;
   return `Booked! Your free Ready Check is ${melbourneDayDate(f.startIso)}, ${melbourneClock(f.startIso)}. Installer: ${installer}${clean(f.phone) ? ` ${clean(f.phone)}` : ""}. Details: ${f.link}`;
 }
-/** Decision 82, owner day before (B). */
-export function readyCheckTomorrowOwnerText(f: { startIso: string; installer: string | null; phone: string | null }): string | null {
-  const who = tradeAndPhone(f.installer, f.phone);
-  return who ? `See you tomorrow at ${melbourneClock(f.startIso)} for your free Ready Check (${who}).` : null;
-}
 /** Decision 93, owner booked (A). */
 export function piesaBookedOwnerText(f: { startIso: string; electrician: string | null; phone: string | null; link: string }): string | null {
   const el = clean(f.electrician);
   if (!el) return null;
   return `Booked! Your electrical safety check is ${melbourneDayDate(f.startIso)}, ${melbourneClock(f.startIso)} with ${el}${clean(f.phone) ? ` (${clean(f.phone)})` : ""}. Details: ${f.link}`;
 }
-/** Decision 93, owner day before. */
-export function piesaTomorrowOwnerText(f: { startIso: string; electrician: string | null; phone: string | null }): string | null {
-  const who = tradeAndPhone(f.electrician, f.phone);
-  return who ? `See you tomorrow at ${melbourneClock(f.startIso)} for your electrical safety check (${who}).` : null;
-}
-/** Decision 99, owner day before. */
-export function installTomorrowOwnerText(f: { startIso: string; installer: string | null; phone: string | null }): string | null {
-  const who = tradeAndPhone(f.installer, f.phone);
-  return who ? `See you tomorrow at ${melbourneClock(f.startIso)} for your insulation install (${who}). Reminder: power will be off while they work in the ceiling.` : null;
+/** Decisions 82 / 93 / 99, wording per #25 (Jo 2 Nov 2026, tomorrow.png): the day-before text names the business and its OFFICE
+ *  phone (`businesses.phone`), never a worker's mobile. No office phone → `{ held }` (the sender records an office note, sends nothing). */
+export function visitTomorrowText(i: { kind: BookedKind; time: string; business: TradeContact }): string | Held {
+  const name = installerName(i.business);
+  const phone = clean(i.business.officePhone);
+  if (!phone) return { held: `No office phone for ${name}` };
+  const what = i.kind === "ready_check" ? "your free Ready Check" : i.kind === "piesa" ? "your electrical safety check (PIESA)" : "your insulation install";
+  const tail = i.kind === "install" ? " Reminder: power will be off while they work in the ceiling." : "";
+  return `Home Insulation Victoria: See you tomorrow at ${i.time} for ${what} (${name}, ${phone}).${tail}`;
 }
 /** Decision 89, 3-day text (B). */
 export function quoteReminderDay3Text(f: { firstName: string | null; rebate: number | null; link: string }): string | null {
@@ -124,12 +121,6 @@ export function piesaOfferText(f: { suburb: string | null; jobNumber: string | n
   if (!suburb || !hv || !pay) return null;
   return `New PIESA job near ${suburb} (${hv}), ${pay}. Offer the owner 3 times within 24 hours: ${f.link}`;
 }
-function tradeAndPhone(name: string | null, phone: string | null): string | null {
-  const n = clean(name);
-  if (!n) return null;
-  return clean(phone) ? `${n}, ${clean(phone)}` : n;
-}
-
 // ---- due-rules ----
 export type VisitTextKind = "ready_check" | "assessment" | "installation";
 /** The day-before text is due when, in Melbourne, today is the day before the visit and it is past the send time. */

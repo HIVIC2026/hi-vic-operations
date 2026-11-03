@@ -11,10 +11,12 @@ import { inHouseDispatchSkip } from "./in-house-suppression.server";
 // Nothing here changes a booking, a quote, a turn or a stage.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
+import { melbourneClock } from "./installer-texts.core";
+import type { BusinessContact } from "./owner-wording.core";
 import {
-  APPROVED_TEXT_EVENT, APPROVED_TEXT_SMS_TYPE, APPROVED_TEXT_SWEEP_HOURS, QUIET_HOURS_WAIT, approvedTextKey, installMovedFrom, installMovedText, installTomorrowOwnerText,
-  piesaBookedOwnerText, piesaTomorrowOwnerText, quoteHeldUntil, quoteReminderDay3Text, quoteReminderDue, quoteReminderExpiryText, readyCheckBookedOwnerText,
-  readyCheckTimesOwnerText, readyCheckTomorrowOwnerText, visitTomorrowDue, type ApprovedTextKind, type InstallBookingRow, type VisitTextKind,
+  APPROVED_TEXT_EVENT, APPROVED_TEXT_SMS_TYPE, APPROVED_TEXT_SWEEP_HOURS, QUIET_HOURS_WAIT, approvedTextKey, installMovedFrom, installMovedText,
+  piesaBookedOwnerText, quoteHeldUntil, quoteReminderDay3Text, quoteReminderDue, quoteReminderExpiryText, readyCheckBookedOwnerText,
+  readyCheckTimesOwnerText, visitTomorrowDue, visitTomorrowText, type ApprovedTextKind, type InstallBookingRow, type VisitTextKind,
 } from "./approved-texts.core";
 
 type JobRow = {
@@ -72,7 +74,7 @@ async function deliver(p: { kind: ApprovedTextKind; key: string; job: JobRow; bo
 
 /** Shared "not sent" outcomes (the sweeps count everything else as handled). */
 export const NOT_HANDLED = ["in_house", "in_house_read_failed", "skipped", "already handled", "not due", "not an our-lead job", "no longer current", "owner link missing", "missing facts", QUIET_HOURS_WAIT] as const;
-const handled = (r: string) => !(NOT_HANDLED as readonly string[]).includes(r);
+const handled = (r: string) => !(NOT_HANDLED as readonly string[]).includes(r) && !r.startsWith("held — ");
 
 /** Decision 78: the installer offered the owner Ready Check times → one text per offer event (our leads). */
 export async function textOwnerReadyCheckTimes(jobId: string, triggerEventId: string, offeredAt: string, now = new Date()): Promise<string> {
@@ -142,7 +144,7 @@ export async function textOwnerSafetyCheckBooked(jobId: string, startIso: string
 }
 
 /** Decisions 82 / 93 / 99: the afternoon before a booked Ready Check (our leads), safety check or install → "See you tomorrow". */
-export async function textOwnerVisitTomorrow(kind: VisitTextKind, jobId: string, booking: { id: string; scheduled_start: string }, now = new Date()): Promise<string> {
+export async function textOwnerVisitTomorrow(kind: VisitTextKind, jobId: string, booking: { id: string; scheduled_start: string }, now = new Date(), deps: { businessContact?: (jobId: string, role: "installer" | "electrician") => Promise<BusinessContact | null> } = {}): Promise<string> {
   const skipped = await inHouseDispatchSkip(jobId);
   if (skipped) return skipped;
   if (!visitTomorrowDue(now, booking.scheduled_start)) return "not due";
@@ -153,13 +155,26 @@ export async function textOwnerVisitTomorrow(kind: VisitTextKind, jobId: string,
   const key = approvedTextKey.visitTomorrowOwner(kind, jobId, booking.id, booking.scheduled_start);
   if (await alreadyPrepared(jobId, key)) return "already handled";
   if (await quietNow(textKind, now)) return QUIET_HOURS_WAIT;
-  const trade = await tradeFor(jobId, kind === "assessment" ? "electrician" : "installer");
-  const f = { startIso: booking.scheduled_start, phone: trade.phone };
-  const body = kind === "ready_check" ? readyCheckTomorrowOwnerText({ ...f, installer: trade.name })
-    : kind === "assessment" ? piesaTomorrowOwnerText({ ...f, electrician: trade.name })
-    : installTomorrowOwnerText({ ...f, installer: trade.name });
-  if (!body) return "missing facts";
+  const role = kind === "assessment" ? "electrician" : "installer";
+  // #25: the business OFFICE phone (businesses.phone), never a worker's number; none on file → held with an office note.
+  const business = await (deps.businessContact ?? (await import("./owner-contact.server")).businessContactForJob)(jobId, role);
+  if (!business) return "missing facts";
+  const body = visitTomorrowText({ kind: kind === "assessment" ? "piesa" : kind === "installation" ? "install" : "ready_check", time: melbourneClock(booking.scheduled_start), business });
+  if (typeof body !== "string") {
+    await recordTomorrowHeld(jobId, booking, kind, body.held);
+    return `held — ${body.held}`;
+  }
+  const trade = await tradeFor(jobId, role);
   return deliver({ kind: textKind, key, job, body, summary: `Owner texted: see you tomorrow (${kind === "ready_check" ? "Ready Check, decision 82" : kind === "assessment" ? "safety check, decision 93" : "install, decision 99"})`, details: { booking_id: booking.id, starts_at: booking.scheduled_start, visit: kind }, tradeIsTest: trade.isTest });
+}
+
+/** One office note per booking + reason (repeat sweeps add nothing); it does not claim the send key, so adding the phone sends it. */
+async function recordTomorrowHeld(jobId: string, booking: { id: string; scheduled_start: string }, kind: VisitTextKind, reason: string) {
+  try {
+    const { count } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", "visit_tomorrow_text_held").contains("details", { booking_id: booking.id, reason });
+    if ((count ?? 0) > 0) return;
+    await logEvent(jobId, null, "visit_tomorrow_text_held", `"See you tomorrow" text not sent — ${reason}. Add it on the business, then it goes automatically.`, { booking_id: booking.id, starts_at: booking.scheduled_start, visit: kind, reason }, { internal: true });
+  } catch (e) { console.error("see-you-tomorrow held note failed", (e as Error).message); }
 }
 
 type QuoteRow = { id: string; job_id: string; kind: string; status: string; release_state: string | null; sent_at: string | null; veec_discount_inc_gst: number | null };

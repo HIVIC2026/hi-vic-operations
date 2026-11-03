@@ -58,10 +58,10 @@ import { exactTimeWords, runSlotCancelledText, runTeamTimeText, runTimeReminderT
 import { blastMessage } from "./save-spot-reminder-blast.core";
 import { threeQuestionsSms } from "./three-questions-reminder.core";
 import {
-  readyCheckTimesOwnerText, readyCheckBookedOwnerText, readyCheckTomorrowOwnerText, piesaBookedOwnerText, piesaTomorrowOwnerText,
-  installTomorrowOwnerText, quoteReminderDay3Text, quoteReminderExpiryText, installMovedText, piesaOfferText,
+  readyCheckTimesOwnerText, readyCheckBookedOwnerText, visitTomorrowText, piesaBookedOwnerText,
+  quoteReminderDay3Text, quoteReminderExpiryText, installMovedText, piesaOfferText,
 } from "./approved-texts.core";
-import { readyCheckDaysSuggestedText, readyCheckBookedInstallerText, installTomorrowText, teamMemberInviteText, ownerChangedVisitText } from "./installer-texts.core";
+import { melbourneClock, readyCheckDaysSuggestedText, readyCheckBookedInstallerText, installTomorrowText, teamMemberInviteText, ownerChangedVisitText } from "./installer-texts.core";
 import { usualElectricianReminderBody } from "./usual-electrician.core";
 import { readyCheckIncompleteText } from "./ready-check-chase.core";
 import { dailyText, updateText, diffDay } from "./daily-mitti-text.core";
@@ -185,6 +185,8 @@ const BANK = { accountName: "Home Insulation Victoria", bsb: "082902", accountNu
 /* ---------------------------------------------------------------- helpers */
 
 const email = (m: { subject: string; html: string }): TemplatePreview => ({ kind: "email", subject: m.subject, html: m.html });
+const SAMPLE_BIZ = { name: "Sample Insulation Co", tradingName: null, officePhone: "03 9000 0000", email: "office@sample.test" };
+const S = (r: string | { held: string }) => (typeof r === "string" ? r : null);
 const text = (body: string | null): TemplatePreview => ({ kind: "text", body: brandSmsBody(body ?? "") });
 const texts = (variants: { label: string; body: string | null }[]): TemplatePreview => ({ kind: "texts", variants: variants.map((v) => ({ label: v.label, body: brandSmsBody(v.body ?? "") })) });
 /** Partner/applicant emails that the office sender lays out itself (no html passed): exactly what sendOfficeEmail builds. */
@@ -274,12 +276,12 @@ const OWNER: TemplateEntry[] = [
   ENTRY({ id: "owner:sms-ready_check_booked_owner", section: "owner", step: "ready_check", kind: "text", code: "", name: "Ready Check booked (text)", when: "The owner picks a Ready Check time", who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 82 (text B)", gate: { kind: "text", smsType: "ready_check_booked_owner" },
     source: { builder: "src/lib/approved-texts.core.ts", fn: "readyCheckBookedOwnerText", sender: "src/lib/approved-texts.server.ts" },
     render: () => text(readyCheckBookedOwnerText({ startIso: RC_ISO, installer: "Sample Insulation Co", phone: "0400 000 000", link: JOB })) }),
-  ENTRY({ id: "owner:sms-visit_tomorrow_owner", section: "owner", step: "ready_check", kind: "text", code: "", name: "See you tomorrow (text)", when: "From 4pm the afternoon before a Ready Check, safety check or install", who: "Owner", approvalNote: "Jo 24 Oct 2026, decisions 82, 93, 99", gate: { kind: "text", smsType: "visit_tomorrow_owner" },
-    source: { builder: "src/lib/approved-texts.core.ts", fn: "readyCheckTomorrowOwnerText", sender: "src/lib/approved-texts.server.ts" },
+  ENTRY({ id: "owner:sms-visit_tomorrow_owner", section: "owner", step: "ready_check", kind: "text", code: "", name: "See you tomorrow (text)", when: "From 4pm the afternoon before a Ready Check, safety check or install", who: "Owner", approvalNote: "Jo 24 Oct 2026, decisions 82, 93, 99; business office phone + \"electrical safety check (PIESA)\" per decision #25, Jo 2 Nov 2026", gate: { kind: "text", smsType: "visit_tomorrow_owner" },
+    source: { builder: "src/lib/approved-texts.core.ts", fn: "visitTomorrowText", sender: "src/lib/approved-texts.server.ts" },
     render: () => texts([
-      { label: "Ready Check", body: readyCheckTomorrowOwnerText({ startIso: RC_ISO, installer: "Sample Insulation Co", phone: "0400 000 000" }) },
-      { label: "Safety check", body: piesaTomorrowOwnerText({ startIso: PIESA_ISO, electrician: "Spark Electrical", phone: "0400 111 222" }) },
-      { label: "Install day", body: installTomorrowOwnerText({ startIso: INSTALL_ISO, installer: "Sample Insulation Co", phone: "0400 000 000" }) },
+      { label: "Ready Check", body: S(visitTomorrowText({ kind: "ready_check", time: melbourneClock(RC_ISO), business: SAMPLE_BIZ })) },
+      { label: "Safety check", body: S(visitTomorrowText({ kind: "piesa", time: melbourneClock(RC_ISO), business: { ...SAMPLE_BIZ, tradingName: "Spark Electrical", officePhone: "03 9000 0001" } })) },
+      { label: "Install day", body: S(visitTomorrowText({ kind: "install", time: melbourneClock(RC_ISO), business: SAMPLE_BIZ })) },
     ]) }),
   // Quote
   ENTRY({ id: "owner:O18", section: "owner", step: "quote", kind: "email", code: "O18", name: "Your quote is ready", when: "Quote released to the owner (office Send, or automatically when the Ready Check is complete)", who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 86", gate: { kind: "email" },

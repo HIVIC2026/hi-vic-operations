@@ -107,6 +107,7 @@ for(const entry of otherEntries) for(const payee of [false,true]) test(`${entry.
  f.modules['./rectification.server']={rectificationWindowsExist:async()=>false};
  f.modules['./ai-email-reply.server']={installerNotes:async()=>null};
  f.modules['./ready-check-booked-email.server']={recordBookedNotSent:async()=>{}};
+ f.modules['./owner-contact.server']={businessContactForJob:async()=>({name:'Biz',tradingName:null,officePhone:'03 9000 0000',email:'b@x.test'})};
  f.modules['./payments.server']={jobPaymentView:async()=>({invoiceId:'invoice',steps:[{key:'safety_check',state:'paid'}],plan:{safetyCheckCents:34900,quoteTotalCents:100000,thresholds:{safety_check:34900}},ledger:[]})};
  // These render/eligibility dependencies are not the held rule under test.
  for(const name of ['installer-planning-notice','visit-new-times','install-no-access-notice','deposit-release-notice','fixes-times','ready-check-booked-email','approved-texts','owner-email-triggers']) {

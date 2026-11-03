@@ -3,8 +3,8 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync, existsSync } from "fs";
 import { dirname, resolve } from "path";
 import {
-  APPROVED_TEXT_SMS_TYPE, approvedTextKey, installMovedFrom, installMovedText, installTomorrowOwnerText, piesaBookedOwnerText, piesaOfferText, piesaTomorrowOwnerText,
-  quoteHeldUntil, quoteReminderDay3Text, quoteReminderDue, quoteReminderExpiryText, readyCheckBookedOwnerText, readyCheckTimesOwnerText, readyCheckTomorrowOwnerText,
+  APPROVED_TEXT_SMS_TYPE, approvedTextKey, installMovedFrom, installMovedText, piesaBookedOwnerText, piesaOfferText,
+  quoteHeldUntil, quoteReminderDay3Text, quoteReminderDue, quoteReminderExpiryText, readyCheckBookedOwnerText, readyCheckTimesOwnerText,
   visitTomorrowDue, wholeDollars,
 } from "../src/lib/approved-texts.core";
 import { SMS_FRESHNESS, SMS_MESSAGE_TYPES, brandSmsBody, smsStaleReason } from "../src/lib/sms.core";
@@ -22,11 +22,9 @@ describe("wording is the decisions-log sentence, verbatim (the sender adds the b
       .toBe("Hi Helen, good news! A certified installer near Frankston has offered 3 times for your free Ready Check. Tap to pick one: https://x/j Reply STOP to opt out.");
     expect(readyCheckTimesOwnerText({ firstName: "Helen", suburb: null, link: "https://x/j" })).toBeNull();
   });
-  test("82 owner booked (B) and day before (B)", () => {
+  test("82 owner booked (B)", () => {
     expect(readyCheckBookedOwnerText({ startIso: START, installer: "Reinsulate", phone: "0400 111 222", link: "https://x/j" }))
       .toBe("Booked! Your free Ready Check is Wednesday 28 October, 11am. Installer: Reinsulate 0400 111 222. Details: https://x/j");
-    expect(readyCheckTomorrowOwnerText({ startIso: START, installer: "Reinsulate", phone: "0400 111 222" }))
-      .toBe("See you tomorrow at 11am for your free Ready Check (Reinsulate, 0400 111 222).");
     expect(readyCheckBookedOwnerText({ startIso: START, installer: null, phone: "0400", link: "https://x/j" })).toBeNull();
   });
   test("89 quote reminders: 3-day (B) and expiry (A)", () => {
@@ -35,16 +33,11 @@ describe("wording is the decisions-log sentence, verbatim (the sender adds the b
       .toBe("Hi Helen, your quote price is held until Saturday 7 November. Accept by then to keep your $1,610 rebate price: https://x/q Reply STOP to opt out.");
     expect(quoteReminderDay3Text({ firstName: "Helen", rebate: null, link: "https://x/q" })).toBeNull();
   });
-  test("93 electrician offer (B), owner booked (A), owner day before", () => {
+  test("93 electrician offer (B), owner booked (A)", () => {
     expect(piesaOfferText({ suburb: "Glen Waverley", jobNumber: "HV-3117", pay: 200, link: "https://x/o" })).toBe("New PIESA job near Glen Waverley (HV-3117), $200. Offer the owner 3 times within 24 hours: https://x/o");
     expect(piesaOfferText({ suburb: "Glen Waverley", jobNumber: "HV-3117", pay: null, link: "https://x/o" })).toBeNull();
     expect(piesaBookedOwnerText({ startIso: START, electrician: "Sparky Co", phone: "0400 333 444", link: "https://x/j" }))
       .toBe("Booked! Your electrical safety check is Wednesday 28 October, 11am with Sparky Co (0400 333 444). Details: https://x/j");
-    expect(piesaTomorrowOwnerText({ startIso: START, electrician: "Sparky Co", phone: "0400 333 444" })).toBe("See you tomorrow at 11am for your electrical safety check (Sparky Co, 0400 333 444).");
-  });
-  test("99 owner install day before", () => {
-    expect(installTomorrowOwnerText({ startIso: START, installer: "Reinsulate", phone: "0400 111 222" }))
-      .toBe("See you tomorrow at 11am for your insulation install (Reinsulate, 0400 111 222). Reminder: power will be off while they work in the ceiling.");
   });
   test("135 install moved", () => {
     expect(installMovedText({ startIso: START, link: "https://x/j" })).toBe("Your install has moved to Wednesday 28 October, 11am. Details: https://x/j");
