@@ -743,6 +743,17 @@ export async function tradeBusiness(userId: string) {
       mittiLogin: mittiLogin(w.profile_id), mittiRecorded: mittiRecordsKnown ? mittiRecordedIds.has(w.id) : null, noticeAcknowledged: noticeOf(w.id, w.trade_role), cii: ciiFacts(w.id, w.trade_role), whiteCard: whiteCardOfRow(w), workerRole: roles.get(w.id) ?? null, declarationsDue: w.declarations_due === true,
     })),
   ];
+  // Jo 3 Nov: which required details each person is missing (owner row excluded). Date of birth is read as yes/no only.
+  {
+    const staffIds = team.filter((m) => m.role !== "owner" && m.id).map((m) => m.id!);
+    const { data: ids, error: idErr } = staffIds.length ? await admin.from("partner_worker_identity" as never).select("worker_id").in("worker_id", staffIds) : { data: [], error: null };
+    if (idErr) console.error("tradeBusiness: date of birth facts could not be read", (idErr as { code?: string }).code ?? "unknown");
+    else {
+      const has = new Set(((ids ?? []) as { worker_id: string }[]).map((r) => r.worker_id));
+      const { teamMissingDetails } = await import("./team-required.core");
+      for (const m of team) if (m.role !== "owner" && m.id) m.missingDetails = teamMissingDetails(m.role === "electrician" ? "electrician" : "installer", { mobile: m.mobile, email: m.email, hasDateOfBirth: has.has(m.id) });
+    }
+  }
   const credentials: CredentialView[] = (creds ?? []).map((x) => ({ kind: x.kind, label: x.label, expires: x.expires_at, verified: x.verification === "verified" }));
   const liability = latestExpiry(credentials, "public_liability_insurance");
   const licence = c.kind === "electrician" ? (workers ?? []).map((w) => w.licence_expires_on).filter(Boolean).sort()[0] ?? null : null;
