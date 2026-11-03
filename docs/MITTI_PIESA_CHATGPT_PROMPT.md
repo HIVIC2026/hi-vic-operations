@@ -28,6 +28,7 @@ Text item (not a question), first item on this page (decision 318): `Paid only w
 5. `Is there life support equipment at the property?` — Yes/No — Required — portal fills this in from the office record; the electrician corrects it
 6. `Have you received written consent or a medical plan? Please attach a photo of it.` — Pick one: `Yes – received Consent` / `Yes – received Medical Plan` / `No – not received` (red) — Required — only show when question 5 = Yes
 7. `Written consent or medical plan (kept as an attachment to this assessment)` — Photo — Required — only show when question 6 = `Yes – received Consent` or `Yes – received Medical Plan`
+7a. `Is an adult (18 or over) who understands what's happening at home with you?` — Yes/No — Required — Yes green, No red. Add a text item shown when this = No: `Stop. Don't start. Leave and call the installer's office.` (not part of the official form; DRAFT wording until Jo approves)
 
 ## Group 3: Mains power
 8. `Is the mains power set-up safe? This means the mains cable in the ceiling is identified and marked, the main switch works and can be locked off, the ceiling is confirmed dead when the switch is off, and safety switches (RCDs) are fitted and tested.` — Yes/No — Required

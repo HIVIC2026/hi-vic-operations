@@ -183,8 +183,12 @@ export function piesaMediaFromSnapshot(snapshot: PiesaSnapshotEntry[] | null | u
 const geotagged = (f: PiesaMediaFile) => f.lat != null && f.lng != null;
 
 /** Plain blocker messages. Empty = every required evidence item is present (and geotagged where required). */
+export const PIESA_ADULT_BLOCKER = "PIESA: no adult (18 or over) was at home — the safety check must be done again with an adult present";
+
 export function piesaEvidenceBlockers(a: PiesaEvidenceAnswers, media: PiesaEvidenceMedia): string[] {
   const out: string[] = [];
+  // Code of Conduct (Jo 2 Nov 2026): a "No" holds the PIESA. A form without the question (old form) is never blocked.
+  if (isNo(a["adultPresent"])) out.push(PIESA_ADULT_BLOCKER);
   for (const req of piesaEvidenceRequirements(a)) {
     const files = media[req.id] ?? [];
     if (req.id === "hazard_photos") {
