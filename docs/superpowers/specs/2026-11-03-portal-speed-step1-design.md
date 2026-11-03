@@ -27,6 +27,9 @@ Jo: the portal is "incredibly slow … not usable". Measured on 3 Nov (read-only
 - **Installer My work** (`trade-view.server.ts` `tradeHome`): the deposits and Mitti electrician questions start with the main rounds, not after.
 - **Installer job page** (`trade-job-bundle`): sections reuse the bundle's one access check instead of re-checking (`requireJobRole`, install-days, my-owner-quote, installer price).
 
+- **Installer Money** (`tradeMoney` / `tradeMoneyRows`) and **My business** (`tradeBusiness`): independent reads join one round; `workerRolesFor` and the `usualEarly` chain start with round 2; `loadTeamWorkers` stops doing a second full read when the `declarations_due` column is missing (detect once, not every call).
+- **Installers check who they are once** (Jo, 3 Nov): every trade server call reuses the boundary middleware's user and roles for the trade context (`ctxOrThrow`) instead of re-reading them; only the business link is read if not already known.
+
 ### 4. Office pages start fetching straight away
 - Office list routes (Active jobs, Enquiries, Choose installer) get a route `loader` that starts the server call when the route matches, like the trade routes already do — not after the screen draws.
 
