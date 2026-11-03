@@ -104,7 +104,7 @@ describe("the install texts list each unsigned person's own link", () => {
   });
   test("the 6:30am text carries only the recipient's OWN sign link (Jo 2 Nov 23:08); the install-tomorrow text no longer lists anyone (#47, Jo 2 Nov 2026)", () => {
     const daily = readFileSync(new URL("../src/lib/daily-mitti-text.server.ts", import.meta.url), "utf8");
-    expect(daily).toContain("swmsSignLink(jobId, signerKey");
+    expect(daily).toContain("swmsSignLink(jobId, s.key"); // fix I3: minted per unsigned signer
     expect(daily).toContain("swmsUnsignedSigners(");
     expect(daily).not.toContain("unsignedSwmsSignerLinks");
     // Decision #47 replaces decisions 364/377 for the install-tomorrow text: it goes to the Lead Installer with THEIR own

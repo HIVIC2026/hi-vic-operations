@@ -79,7 +79,7 @@ describe("6:30am text recipient (pure, decision 161 + 165)", () => {
   test("server groups texts per business + recipient and reads the prior snapshot by the recipient's number", () => {
     const src = readFileSync(new URL("../src/lib/daily-mitti-text.server.ts", import.meta.url), "utf8");
     expect(src).toContain("const gKey = `${biz}|${recipient.key}`");
-    expect(src).toContain("allocatedPersonFor(b.job_id, vk)");
+    expect(src).toContain("unsignedSignerRecipients(b.job_id)"); // fix I3: every unsigned signer on the plan, not the allocated Lead
     expect(src).toContain('.eq("to_number", g.trade.phone).in("kind", ["daily", "update"])');
     expect(src).toContain('dailySendKey("daily", g.trade.businessId, date, g.recipient.key)');
     expect(src).not.toContain("`daily:${g.trade.businessId}:${date}`");

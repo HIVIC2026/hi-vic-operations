@@ -253,6 +253,19 @@ describe("the 5pm lock on the writers (server check, current booking read fresh)
     await expect(assertLeadInstallerUnlocked("J1", { newLeadId: "w2" }, at(WED_1700))).resolves.toBeUndefined();
     expect((await leadInstallerLockState("J1", at(WED_1700))).locked).toBe(false);
   });
+  test("the current install booking is the latest-scheduled non-cancelled one (shared helper); a cancelled later booking or a completed one never locks", async () => {
+    tables["bookings"]!.push({ id: "BK2", job_id: "J1", kind: "installation", status: "cancelled", scheduled_start: "2026-11-20T20:30:00Z", created_at: WED_1100 });
+    expect(await leadInstallerLockState("J1", at(WED_1700))).toMatchObject({ locked: true, bookingId: "BK1" });
+    tables["bookings"]!.push({ id: "BK3", job_id: "J1", kind: "installation", status: "confirmed", scheduled_start: "2026-11-25T20:30:00Z", created_at: BOOKED });
+    expect(await leadInstallerLockState("J1", at(WED_1700))).toMatchObject({ locked: false, bookingId: "BK3" }); // moved out: its own lock day
+    tables["bookings"] = [{ id: "BK4", job_id: "J1", kind: "installation", status: "completed", scheduled_start: START, created_at: BOOKED }];
+    expect((await leadInstallerLockState("J1", at(WED_1700))).locked).toBe(false);
+    for (const f of ["src/lib/lead-installer-confirm.server.ts", "src/lib/visit-allocation.server.ts", "src/lib/swms-link.server.ts", "src/lib/swms.server.ts"]) {
+      const src = readFileSync(f, "utf8");
+      expect(src, f).toContain('import("./install-booking.server")');
+      expect(src, f).not.toMatch(/from\("bookings"\)\.select\("[^"]*scheduled_start[^"]*"\)\.eq\("job_id"/);
+    }
+  });
   test("the Lead is read from the saved crew when no allocation event exists", async () => {
     tables["workflow_events"] = tables["workflow_events"]!.filter((e) => e["event_type"] !== "visit_allocated");
     expect((await leadInstallerLockState("J1", at(WED_1700))).leadId).toBe("w1");

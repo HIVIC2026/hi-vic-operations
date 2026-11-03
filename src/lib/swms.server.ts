@@ -40,10 +40,10 @@ export async function swmsFacts(jobId: string): Promise<SwmsFacts> {
   // crew chain, not after it. Read-only; still used only once the job is found.
   const asgP = early(admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle());
   const bizP = early(asgP.then(async ({ data: asg }) => asg?.business_id ? await admin.from("businesses").select("name").eq("id", asg.business_id).maybeSingle() : { data: null }));
-  const [{ data: job }, , { data: book }, { data: asm }, { data: note }, crew, { data: meas }, { data: piesa }] = await Promise.all([
+  const [{ data: job }, , book, { data: asm }, { data: note }, crew, { data: meas }, { data: piesa }] = await Promise.all([
     admin.from("jobs").select("job_number, life_support_status, properties(address_line, suburb, postcode, year_built)").eq("id", jobId).maybeSingle(),
     asgP,
-    admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "installation").neq("status", "cancelled").order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
+    (await import("./install-booking.server")).currentInstallBooking(jobId).catch(() => null),
     admin.from("assessments").select("hazards, piesa_outcome").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", SWMS_NOTE_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     installCrew(jobId),

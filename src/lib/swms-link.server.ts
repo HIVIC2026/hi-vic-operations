@@ -84,11 +84,12 @@ const defaultDeps: SwmsLinkDeps = {
     const { loadSwms } = await import("./swms.server");
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { bookingFormAuditId } = await import("./daily-mitti-text.server");
-    // One round trip: plan + signatures, the job, the install booking and the install form's audit id together.
-    const [{ plan, signatures }, { data: job }, { data: book }, installFormAuditId] = await Promise.all([
+    const { currentInstallBooking } = await import("./install-booking.server");
+    // One round trip: plan + signatures, the job, the current install booking and the install form's audit id together.
+    const [{ plan, signatures }, { data: job }, book, installFormAuditId] = await Promise.all([
       loadSwms(jobId),
       admin.from("jobs").select("installation_completed_at, deleted_at").eq("id", jobId).maybeSingle(),
-      admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "installation").neq("status", "cancelled").order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
+      currentInstallBooking(jobId).catch(() => null),
       bookingFormAuditId(jobId, "installation").catch(() => null),
     ]);
     return { plan, signatures, job: job ?? null, installStart: book?.scheduled_start ?? null, installFormAuditId };

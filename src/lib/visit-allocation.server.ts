@@ -152,7 +152,7 @@ export async function saveCrewWithLead(jobId: string, userId: string, sel: CrewS
  *  Callers: saveCrewWithLead (crew picker) and allocateVisit kind "install" (fix I2); the other two writers
  *  (changeInHouseLeadInstaller, inHouseBookVisit) use assertLeadInstallerUnlocked in lead-installer-confirm.server. */
 async function refuseLockedLeadChange(jobId: string, newLeadId: string | null, now = new Date()): Promise<void> {
-  const { data: book } = await db.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const book = await (await import("./install-booking.server")).currentConfirmedInstallBooking(jobId).catch(() => null);
   if (!book?.scheduled_start) return;
   const cur = currentAllocation(await allocationEvents(jobId), "install");
   const savedLead = cur?.worker_id ? null : leadWorkerId((await (await import("./piisa-a3.server")).loadCrew(jobId)).selection ?? { lead: null, additional: [] } as never);
