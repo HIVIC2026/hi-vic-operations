@@ -743,6 +743,17 @@ export async function tradeBusiness(userId: string) {
       mittiLogin: mittiLogin(w.profile_id), mittiRecorded: mittiRecordsKnown ? mittiRecordedIds.has(w.id) : null, noticeAcknowledged: noticeOf(w.id, w.trade_role), cii: ciiFacts(w.id, w.trade_role), whiteCard: whiteCardOfRow(w), workerRole: roles.get(w.id) ?? null, declarationsDue: w.declarations_due === true,
     })),
   ];
+  // Jo 3 Nov: which required details each person is missing (owner row excluded). Date of birth is read as yes/no only.
+  {
+    const staffIds = team.filter((m) => m.role !== "owner" && m.id).map((m) => m.id!);
+    const { data: ids, error: idErr } = staffIds.length ? await admin.from("partner_worker_identity" as never).select("worker_id").in("worker_id", staffIds) : { data: [], error: null };
+    if (idErr) console.error("tradeBusiness: date of birth facts could not be read", (idErr as { code?: string }).code ?? "unknown");
+    else {
+      const has = new Set(((ids ?? []) as { worker_id: string }[]).map((r) => r.worker_id));
+      const { teamMissingDetails } = await import("./team-required.core");
+      for (const m of team) if (m.role !== "owner" && m.id) m.missingDetails = teamMissingDetails(m.role === "electrician" ? "electrician" : "installer", { mobile: m.mobile, email: m.email, hasDateOfBirth: has.has(m.id) });
+    }
+  }
   const credentials: CredentialView[] = (creds ?? []).map((x) => ({ kind: x.kind, label: x.label, expires: x.expires_at, verified: x.verification === "verified" }));
   const liability = latestExpiry(credentials, "public_liability_insurance");
   const licence = c.kind === "electrician" ? (workers ?? []).map((w) => w.licence_expires_on).filter(Boolean).sort()[0] ?? null : null;
@@ -913,23 +924,21 @@ export async function tradeSetWorkerMobile(userId: string, workerId: string, raw
   return { ok: true, mobile: v.mobile };
 }
 
-/** Jo 29 Oct: the boss adds a person with no email needed (mobile can come later). Installers start as Lead or Crew with
- *  the CII certificate unchecked; electricians need a licence number. Always pending, and they must sign the worker
- *  declarations (declarations_due) before any job. Sends nothing. */
+/** Jo 3 Nov 2:37pm (replaces 29 Oct): installers need an Australian mobile + date of birth (email optional); electricians
+ *  need mobile + date of birth + email (`team-required.core`). Installers start as Lead or Crew with the CII certificate
+ *  unchecked; electricians need a licence number. Always pending, declarations_due before any job. Sends nothing. */
 export async function tradeAddTeamPerson(userId: string, p: { name: string; workerRole: import("./worker-role.core").WorkerRole; mobile: string | null; email: string | null; licenceNumber: string | null; dateOfBirth?:string|null|undefined }): Promise<{ workerId: string }> {
   const c = await bossOrThrow(userId);
   const name = p.name.trim();
   if (!name) throw new WorkflowError("Add their full name.");
   const licence = p.licenceNumber?.trim() || null;
   if (c.kind === "electrician" && !licence) throw new WorkflowError("Add their electrical licence number.");
-  const { crewMobileInput } = await import("./swms-sign-text.core");
-  const v = crewMobileInput(p.mobile);
+  const { teamMemberDetails } = await import("./team-required.core");
+  const v = teamMemberDetails(c.kind, { mobile: p.mobile, email: p.email, dateOfBirth: p.dateOfBirth }, (await import("./melbourne-time.core")).melbourneToday());
   if (!v.ok) throw new WorkflowError(v.error);
-  const email = p.email?.trim().toLowerCase() || null;
+  const email = v.email;
   if(c.kind==='installer'){
-    const problem=(await import('./worker-identity.core')).dateOfBirthProblem(p.dateOfBirth,(await import('./melbourne-time.core')).melbourneToday());
-    if(problem)throw new WorkflowError(problem);
-    const r=await (admin as unknown as import('@supabase/supabase-js').SupabaseClient).rpc('add_team_installer_with_identity',{_business:c.biz.id,_actor:userId,_name:name,_role:p.workerRole,_mobile:v.mobile,_email:email,_dob:p.dateOfBirth});
+    const r=await (admin as unknown as import('@supabase/supabase-js').SupabaseClient).rpc('add_team_installer_with_identity',{_business:c.biz.id,_actor:userId,_name:name,_role:p.workerRole,_mobile:v.mobile,_email:email,_dob:v.dateOfBirth});
     if(r.error){
       if(['PGRST202','42883'].includes(r.error.code))throw new WorkflowError('Private ESC registration details need the pending database update before this person can be added.');
       if(['23502','PGRST204','42703'].includes(r.error.code))throw new WorkflowError("Adding someone without an email needs the office's database update first.");
@@ -948,7 +957,15 @@ export async function tradeAddTeamPerson(userId: string, p: { name: string; work
     if (error.code === "23505") throw new WorkflowError("Someone with that email is already on your team.");
     throw new WorkflowError("Couldn't add them. Please try again.");
   }
-  return { workerId: (data as { id: string }).id };
+  const workerId = (data as { id: string }).id;
+  // Electrician date of birth: private identity row (same table/RLS as installers). If it can't be saved the new person is
+  // removed again, so nobody is ever left without their required date of birth.
+  const { error: ie } = await admin.from("partner_worker_identity" as never).insert({ worker_id: workerId, date_of_birth: v.dateOfBirth, updated_by: userId } as never);
+  if (ie) {
+    await admin.from("partner_workers").delete().eq("id", workerId);
+    throw new WorkflowError("Couldn't add them. Please try again.");
+  }
+  return { workerId };
 }
 
 /** Whether the caller's business has been invited to Mitti by the office (false when unknown). */

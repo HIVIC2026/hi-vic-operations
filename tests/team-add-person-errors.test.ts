@@ -23,7 +23,7 @@ const chain = (table: string): Record<string, unknown> => {
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: (t: string) => chain(t), rpc: async () => {inserts++;return {data:insertError?null:'w1',error:insertError};} } }));
 
 const { tradeAddTeamPerson } = await import("../src/lib/trade-view.server");
-const add = () => tradeAddTeamPerson("u1", { name: "Sam Crew", workerRole: "crew", mobile: null, email: null, licenceNumber: null,dateOfBirth:'1990-01-01' });
+const add = () => tradeAddTeamPerson("u1", { name: "Sam Crew", workerRole: "crew", mobile: "0412 345 678", email: null, licenceNumber: null,dateOfBirth:'1990-01-01' });
 const DB_UPDATE = "Adding someone without an email needs the office's database update first.";
 
 test("missing declarations_due column (PostgREST schema cache) gives the database-update message, no retry", async () => {
