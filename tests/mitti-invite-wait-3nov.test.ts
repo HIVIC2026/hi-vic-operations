@@ -54,7 +54,7 @@ const lead = () => tables["partner_workers"]![0]!;
 beforeEach(() => {
   sent.length = 0; calls.length = 0; paused = null;
   tables = {
-    partner_workers: [{ id: LEAD, email: null, mobile: "0412000111", full_legal_name: "Wayne Lead", trade_role: "installer", worker_role: "lead", approval_status: "approved", removed_at: null, profile_id: null, business_id: "b1" }],
+    partner_workers: [{ id: LEAD, approved_at: "2026-11-03T11:00:00Z", email: null, mobile: "0412000111", full_legal_name: "Wayne Lead", trade_role: "installer", worker_role: "lead", approval_status: "approved", removed_at: null, profile_id: null, business_id: "b1" }],
     businesses: [{ id: "b1", name: "Real Insulation", email: "Office@RealInsul.com.au", onboarding_notes: null }],
     profiles: [], admin_config_events: [], workflow_events: [],
     partner_worker_certifications: [cert(LEAD)],
