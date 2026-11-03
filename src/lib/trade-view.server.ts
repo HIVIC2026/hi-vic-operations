@@ -665,12 +665,16 @@ export async function tradeMoney(userId: string) {
  * insurance expiries, agreement, notice summary. The NEXT panel is derived by pure `businessNext`. Never quotes,
  * prices or other partners.
  */
+/** Speed (portal speed step 1, Task 7): set once this server has seen `partner_workers.declarations_due` missing, so later
+ *  loads read the team once, without it, instead of failing first and reading again. A new server instance checks again. */
+let declarationsDueMissing = false;
 /** The team rows with `declarations_due`. Until 0230 is live the column is missing: re-read without it (nobody is due). */
 async function loadTeamWorkers(businessId: string): Promise<{ data: { id: string; full_legal_name: string; trade_role: string; profile_id: string | null; email: string | null; mobile: string | null; certification: unknown; worker_role?: string | null; declarations_due?: boolean; licence_expires_on: string | null }[] | null; error?: { code?: string } | null }> {
   const load = (cols: string) => (admin as unknown as { from: (t: string) => any }).from("partner_workers").select(cols).eq("business_id", businessId).is("removed_at", null); // eslint-disable-line @typescript-eslint/no-explicit-any
   const base = "id, full_legal_name, trade_role, approval_status, licence_expires_on, profile_id, email, mobile, certification_status, certification, worker_role";
+  if (declarationsDueMissing) return await load(base);
   const first = await load(`${base}, declarations_due`);
-  if (first.error && schemaCompatCore.isMissingDbObject(first.error)) return await load(base);
+  if (first.error && schemaCompatCore.isMissingDbObject(first.error)) { declarationsDueMissing = true; return await load(base); }
   return first;
 }
 
@@ -683,7 +687,7 @@ export async function tradeBusiness(userId: string) {
   if (!c.boss) return staffOnly;
   // Speed (installer screens, Task 9): three rounds — (1) sign-in context and the owner check above, (2) every owner read that
   // needs only the business (started only after the owner check, as before), (3) the reads that need the team rows (profiles,
-  // Mitti records) alongside the second step of the CII and notice records. Same reads, same value, same failure rules.
+  // Mitti records, dates of birth) alongside the second step of the CII and notice records. Same reads, same value, same failure rules.
   const r = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
   type CiiRow = { workerId: string; eecVerified: boolean; clearanceReason?: string | null; level?: string | null; expiresOn?: string | null };
   type NoticeRow = { workerId: string | null; name: string; state: string };
@@ -718,11 +722,14 @@ export async function tradeBusiness(userId: string) {
   const staffRows = (workers ?? []) as { id: string; full_legal_name: string; trade_role: string; profile_id: string | null; email: string | null; mobile: string | null; certification: unknown; worker_role?: string | null; declarations_due?: boolean }[];
   const needCrew = c.kind === "installer" || staffRows.some((w) => w.trade_role === "installer");
   // Round 3. Office Mitti records (linked, invited, reactivated, marked done) per worker: Crew show "Mitti ✓" once the office has added them.
-  const [{ data: profs }, recsRes, cii, notice] = await Promise.all([
+  // Speed (portal speed step 1, Task 7): the dates of birth (yes/no) are read here for every team row and used only for the
+  // staff rows (owner rows excluded, below), instead of in a round of their own.
+  const [{ data: profs }, recsRes, cii, notice, dobRes] = await Promise.all([
     profileIds.length ? admin.from("profiles").select("id, full_name, phone, email, mitti_user_id, mitti_checked_email, mitti_checked_at").in("id", profileIds) : Promise.resolve({ data: [] as never[] }),
     staffRows.length ? admin.from("admin_config_events").select("details").in("event_type", ["mitti_user_linked", "mitti_user_invited", "mitti_invite_linked", "mitti_user_reactivated", "mitti_invite_office_done"]).in("details->>worker_id", staffRows.map((w) => w.id)) : Promise.resolve(null),
     needCrew ? crewEarly ?? crewRead() : Promise.resolve([] as CiiRow[]),
     needCrew ? noticeEarly ?? noticeRead() : Promise.resolve([] as NoticeRow[]),
+    staffRows.length ? admin.from("partner_worker_identity" as never).select("worker_id").in("worker_id", staffRows.map((w) => w.id)).not("date_of_birth", "is", null) : Promise.resolve({ data: [], error: null }),
   ]);
   const profile = (id: string | null | undefined) => (profs ?? []).find((p) => p.id === id) ?? null;
   const mittiLogin = (id: string | null | undefined): MittiLogin => { const p = profile(id); if (!p) return "not_set"; const a = mittiAccessOf(p as never); return a === "member" ? "linked" : a === "email_changed" ? "email_changed" : "not_set"; };
@@ -760,7 +767,7 @@ export async function tradeBusiness(userId: string) {
   // Jo 3 Nov: which required details each person is missing (owner row excluded). Date of birth is read as yes/no only.
   {
     const staffIds = team.filter((m) => m.role !== "owner" && m.id).map((m) => m.id!);
-    const { data: ids, error: idErr } = staffIds.length ? await admin.from("partner_worker_identity" as never).select("worker_id").in("worker_id", staffIds).not("date_of_birth", "is", null) : { data: [], error: null };
+    const { data: ids, error: idErr } = staffIds.length ? dobRes : { data: [], error: null };
     if (idErr) console.error("tradeBusiness: date of birth facts could not be read", (idErr as { code?: string }).code ?? "unknown");
     else {
       const has = new Set(((ids ?? []) as { worker_id: string }[]).map((r) => r.worker_id));
