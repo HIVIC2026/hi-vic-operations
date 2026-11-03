@@ -241,8 +241,8 @@ function Veecs({ q }: { q: Q<VeecsData> }) {
   );
 }
 
-const PRICE_FIELDS: { key: "r5" | "removal" | "piesa" | "moderate" | "difficult"; label: string }[] = [
-  { key: "r5", label: "R5.0 batts per m² (inc GST)" }, { key: "removal", label: "Removal per m² (inc GST)" }, { key: "piesa", label: "Safety check (PIESA) payment" },
+const PRICE_FIELDS: { key: "r5" | "removal" | "piesa" | "moderate" | "difficult" | "topup" | "r6" | "r7"; label: string }[] = [
+  { key: "r5", label: "R5.0 batts per m² (inc GST)" }, { key: "topup", label: "Top-up per m² (inc GST)" }, { key: "r6", label: "R6.0 batts per m² (inc GST)" }, { key: "r7", label: "R7.0 batts per m² (inc GST)" }, { key: "removal", label: "Removal per m² (inc GST)" }, { key: "piesa", label: "Safety check (PIESA) payment" },
   { key: "moderate", label: "Moderate access multiplier" }, { key: "difficult", label: "Difficult access multiplier" },
 ];
 
@@ -254,7 +254,7 @@ function Prices() {
   const [f, setF] = useState<Record<string, string>>({});
   const [reasonText, setReasonText] = useState("");
   const c = q.data?.current;
-  useEffect(() => { if (c) setF({ r5: String(c.r5), removal: String(c.removal), piesa: String(c.piesa), moderate: String(c.moderate), difficult: String(c.difficult), apFee: String(c.apFee) }); }, [c]);
+  useEffect(() => { if (c) setF({ r5: String(c.r5), removal: String(c.removal), piesa: String(c.piesa), moderate: String(c.moderate), difficult: String(c.difficult), apFee: String(c.apFee), topup: c.topup == null ? "" : String(c.topup), r6: c.r6 == null ? "" : String(c.r6), r7: c.r7 == null ? "" : String(c.r7) }); }, [c]);
   if (q.error) return <LoadError what="Prices" error={q.error} retry={() => void q.refetch()} />;
   if (q.isPending) return <Loading what="prices" />;
   if (!c) return <p className="text-sm text-sub">No owner price list is set up.</p>;
@@ -265,7 +265,7 @@ function Prices() {
       <OfficeTable why="decisions 26, 139–142" head={["Setting", "What it says", "Effective", ""]}>
         <tr data-why="decision 26: our fixed owner price list">
           <td className="font-semibold">Owner price list</td>
-          <td>R5.0 batts ${c.r5}/m² · removal ${c.removal}/m² · access ×{c.moderate} moderate, ×{c.difficult} difficult · all inc GST, before the VEEC incentive</td>
+          <td>R5.0 batts ${c.r5}/m² · top-up {c.topup == null ? "not set" : `$${c.topup}/m²`} · R6.0 {c.r6 == null ? "not set" : `$${c.r6}/m²`} · R7.0 {c.r7 == null ? "not set" : `$${c.r7}/m²`} · removal ${c.removal}/m² · access ×{c.moderate} moderate, ×{c.difficult} difficult · all inc GST, before the VEEC incentive</td>
           <td className="text-xs">v{c.version}{lastChange ? ` · ${fmtDay(lastChange.created_at)}` : ""}</td>
           <td><Btn tone="secondary" onClick={() => setEdit((e) => !e)}>{edit ? "Close" : "Edit"}</Btn></td>
         </tr>
@@ -286,7 +286,9 @@ function Prices() {
           <label className="mt-3 block text-xs font-semibold text-ink">Reason for the change (required)<input className={`${fieldInput} mt-1`} value={reasonText} onChange={(e) => setReasonText(e.target.value)} placeholder="e.g. new installer rates agreed" /></label>
           <Btn className="mt-3" disabled={reasonText.trim().length < 3} onClick={async () => {
             const num = (k: string) => (f[k] !== undefined && f[k] !== "" && Number.isFinite(Number(f[k])) ? Number(f[k]) : undefined);
-            const r = await save({ r5: num("r5"), removal: num("removal"), piesa: num("piesa"), moderate: num("moderate"), difficult: num("difficult"), ...(q.data?.canChangeApFee ? { apFee: num("apFee") } : {}), reason: reasonText.trim() }, "New price version published");
+            const bad = (["topup", "r6", "r7"] as const).find((k) => f[k] !== undefined && f[k] !== "" && !(Number(f[k]) > 0));
+            if (bad) { toast.error("Prices must be above $0. Leave it blank if it isn't set yet."); return; }
+            const r = await save({ topup: num("topup"), r6: num("r6"), r7: num("r7"), r5: num("r5"), removal: num("removal"), piesa: num("piesa"), moderate: num("moderate"), difficult: num("difficult"), ...(q.data?.canChangeApFee ? { apFee: num("apFee") } : {}), reason: reasonText.trim() }, "New price version published");
             if (r) { setEdit(false); setReasonText(""); await q.refetch(); }
           }}>Publish new prices</Btn>
         </div>

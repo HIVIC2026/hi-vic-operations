@@ -20,8 +20,8 @@ export const LAYOUT_Q = {
 /** Exact Mitti answer wording. */
 export const LAYOUT_A = {
   none: "None", out: "Yes, taking it out", topup: "Yes, topping up",
-  outR: ["Under R2.0", "R2.0 or more (failed answer)"],
-  topupR: ["R0.5", "R1.0", "R1.5", "R2.0 or more (failed answer)"],
+  outR: ["Under R2.0", "R2.0 or more"],
+  topupR: ["R0.5", "R1.0", "R1.5", "R2.0 or more"],
   brands: ["Bradford Gold", "Pink Batts", "Earthwool", "Ecowool"],
   battsNew: ["R5.0", "R6.0", "R7.0"],
   battsTopup: {
@@ -91,7 +91,8 @@ export function readLayoutArea(kids: Kid[], m2Fallback: number | null = null): L
   const o = nrm(first(kids, LAYOUT_Q.old));
   const old = o === nrm(LAYOUT_A.none) ? "none" : o === nrm(LAYOUT_A.out) ? "out" : o === nrm(LAYOUT_A.topup) ? "topup" : null;
   const rv = first(kids, LAYOUT_Q.oldR);
-  const oldFailed = old !== "none" && /failed answer|or more/i.test(rv ?? "");
+  // Jo 4 Nov follow-up: the Mitti answer is exactly "R2.0 or more" (marked as the failed answer inside Mitti).
+  const oldFailed = old !== "none" && /R\s*2(?:\.0)?\s+or more/i.test(rv ?? "");
   const oldR = old === "topup" && !oldFailed ? rIn(rv) : null;
   return {
     name: first(kids, LAYOUT_Q.areaName)?.split("\n")[0]?.trim() || null,
@@ -280,3 +281,24 @@ export function assembleLayoutQuote(o: { label: string; insulationLines: Omit<La
   }
   return { label: o.label, lines, subtotalIncGst: subtotal, veuDiscountIncGst: veu, reducedForMinimum: veu < raw, customerTotalIncGst: total, holds };
 }
+
+// ---------- A1 owner quote wording + option groups (Jo 4 Nov follow-up) ----------
+export type A1Pick = { brand: Brand; r: number } | null;
+/** One exact line per area (plus its own removal line), from the boss's approved picks. Never "about". */
+export function a1QuoteLines(areas: LayoutArea[], picks: A1Pick[]): string[] {
+  const out: string[] = [];
+  areas.forEach((a, k) => {
+    const p = picks[k];
+    const prod = p ? approvedProduct(p.brand, p.r) : null;
+    if (!prod || !(a.m2 && a.m2 > 0) || a.oldFailed) return;
+    out.push(a.old === "topup" && a.oldR != null ? lineWording.topup(prod.r, prod.brand, a.oldR, r1(a.oldR + prod.r), a.m2) : lineWording.fresh(prod.r, prod.brand, a.m2));
+    if (a.old === "out" && a.removeM2 && a.removeM2 > 0) out.push(lineWording.removal(a.removeM2));
+  });
+  return out;
+}
+
+export const A1_THICKER_CODE = "INSTALLER_A1_THICKER";
+/** Quote options that go to the owner together: the main option and its "thicker too" companion(s). */
+const OPTION_GROUPS: readonly (readonly string[])[] = [["INSTALLER_A1", A1_THICKER_CODE], ["LAYOUT_R5", "LAYOUT_R6", "LAYOUT_R7"]];
+export const optionGroupFor = (code: string | null | undefined): readonly string[] => OPTION_GROUPS.find((g) => g.includes(String(code ?? ""))) ?? [String(code ?? "")];
+export const isThickerOptionCode = (code: string | null | undefined) => code === A1_THICKER_CODE || code === "LAYOUT_R6" || code === "LAYOUT_R7";

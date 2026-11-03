@@ -121,7 +121,7 @@ describe("Mitti reader on the 4 Nov wording", () => {
     ],
   });
   it("taking out → removal with that m², and old R2.0 or more is flagged", () => {
-    const r = parseAudit(audit([[LAYOUT_Q.areaM2, "80"], [LAYOUT_Q.old, LAYOUT_A.out], [LAYOUT_Q.oldR, "R2.0 or more (failed answer)"], [LAYOUT_Q.removeM2, "80"], ["What type of existing insulation is installed? Select all that apply", "Batts"]]));
+    const r = parseAudit(audit([[LAYOUT_Q.areaM2, "80"], [LAYOUT_Q.old, LAYOUT_A.out], [LAYOUT_Q.oldR, "R2.0 or more"], [LAYOUT_Q.removeM2, "80"], ["What type of existing insulation is installed? Select all that apply", "Batts"]]));
     expect(r.patch.removal_required).toBe(true);
     expect(r.patch.removal_m2).toBe(80);
     expect(r.issues.join(" ")).toMatch(/R2\.0 or more – fails/);
@@ -146,5 +146,38 @@ describe("assembling each option", () => {
   it("more than 15% off the owner's estimate is held", () => {
     expect(assembleLayoutQuote({ ...base, veuRawDiscount: 1000, estimateTotal: 1898 / 1.16 }).holds[0]).toMatch(/more than 15%/);
     expect(assembleLayoutQuote({ ...base, veuRawDiscount: 1000, estimateTotal: 1898 / 1.14 }).holds).toEqual([]);
+  });
+});
+
+describe("Jo 4 Nov follow-up", () => {
+  it('matches the exact Mitti answer "R2.0 or more" on both questions', async () => {
+    const { readLayoutArea, LAYOUT_Q: Q, LAYOUT_A: A } = await import("@/lib/ceiling-layout.core");
+    expect(A.outR).toEqual(["Under R2.0", "R2.0 or more"]);
+    expect(A.topupR).toEqual(["R0.5", "R1.0", "R1.5", "R2.0 or more"]);
+    const out = readLayoutArea([{ label: Q.old, value: A.out }, { label: Q.oldR, value: "R2.0 or more" }, { label: Q.areaM2, value: "80" }]);
+    const top = readLayoutArea([{ label: Q.old, value: A.topup }, { label: Q.oldR, value: "R2.0 or more" }, { label: Q.areaM2, value: "80" }]);
+    expect(out.oldFailed).toBe(true);
+    expect(top.oldFailed).toBe(true);
+    expect(readLayoutArea([{ label: Q.old, value: A.out }, { label: Q.oldR, value: "Under R2.0" }]).oldFailed).toBe(false);
+    const { readyCheckStopReasons } = await import("@/lib/ready-check-answers.core");
+    expect(readyCheckStopReasons([{ label: "Old insulation R value?", value: "R2.0 or more" }]).length).toBe(1);
+    expect(readyCheckStopReasons([{ label: "Old insulation R value?", value: "Under R2.0" }]).length).toBe(0);
+  });
+  it("A1 quote lines use the exact per-area wording, never 'about'", async () => {
+    const { a1QuoteLines } = await import("@/lib/ceiling-layout.core");
+    const lines = a1QuoteLines([
+      { name: "Main", m2: 120, old: "topup", oldR: 1.5, oldFailed: false, removeM2: null, battsR: null },
+      { name: "Back", m2: 30, old: "out", oldR: null, oldFailed: false, removeM2: 30, battsR: null },
+    ], [{ brand: "Bradford Gold", r: 3.5 }, { brand: "Bradford Gold", r: 5 }]);
+    expect(lines).toEqual(["R3.5 Bradford Gold batts over your existing R1.5 = R5.0 total – 120 m²", "R5.0 Bradford Gold ceiling batts – 30 m²", "Remove old insulation – 30 m²"]);
+    expect(lines.join(" ")).not.toMatch(/about|approx|around|~/i);
+  });
+  it("the main option and its thicker option go to the owner together", async () => {
+    const { optionGroupFor, isThickerOptionCode } = await import("@/lib/ceiling-layout.core");
+    expect(optionGroupFor("INSTALLER_A1")).toEqual(["INSTALLER_A1", "INSTALLER_A1_THICKER"]);
+    expect(optionGroupFor("LAYOUT_R5")).toEqual(["LAYOUT_R5", "LAYOUT_R6", "LAYOUT_R7"]);
+    expect(optionGroupFor("R5_BATTS")).toEqual(["R5_BATTS"]);
+    expect(isThickerOptionCode("INSTALLER_A1_THICKER")).toBe(true);
+    expect(isThickerOptionCode("INSTALLER_A1")).toBe(false);
   });
 });

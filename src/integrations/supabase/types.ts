@@ -12265,9 +12265,12 @@ export type Database = {
           notes: string | null
           piesa_assessment_inc_gst: number
           r5_install_inc_gst_per_m2: number
+          r6_install_inc_gst_per_m2: number | null
+          r7_install_inc_gst_per_m2: number | null
           removal_inc_gst_per_m2: number
           spec_source_url: string
           spec_version: string
+          topup_inc_gst_per_m2: number | null
           veec_buy_price: number
           veec_value_checked_at: string
           veec_value_source_label: string
@@ -12290,9 +12293,12 @@ export type Database = {
           notes?: string | null
           piesa_assessment_inc_gst: number
           r5_install_inc_gst_per_m2: number
+          r6_install_inc_gst_per_m2?: number | null
+          r7_install_inc_gst_per_m2?: number | null
           removal_inc_gst_per_m2: number
           spec_source_url: string
           spec_version: string
+          topup_inc_gst_per_m2?: number | null
           veec_buy_price?: number
           veec_value_checked_at: string
           veec_value_source_label: string
@@ -12315,9 +12321,12 @@ export type Database = {
           notes?: string | null
           piesa_assessment_inc_gst?: number
           r5_install_inc_gst_per_m2?: number
+          r6_install_inc_gst_per_m2?: number | null
+          r7_install_inc_gst_per_m2?: number | null
           removal_inc_gst_per_m2?: number
           spec_source_url?: string
           spec_version?: string
+          topup_inc_gst_per_m2?: number | null
           veec_buy_price?: number
           veec_value_checked_at?: string
           veec_value_source_label?: string
@@ -13144,6 +13153,7 @@ export type Database = {
           save_my_spot_auto_rules: Json
           save_my_spot_real_send_enabled: boolean
           sms_message_switches: Json
+          topups_count_existing_insulation: boolean
           trade_messages_paused: boolean
           updated_at: string
           urgency_amber_days: number
@@ -13202,6 +13212,7 @@ export type Database = {
           save_my_spot_auto_rules?: Json
           save_my_spot_real_send_enabled?: boolean
           sms_message_switches?: Json
+          topups_count_existing_insulation?: boolean
           trade_messages_paused?: boolean
           updated_at?: string
           urgency_amber_days?: number
@@ -13260,6 +13271,7 @@ export type Database = {
           save_my_spot_auto_rules?: Json
           save_my_spot_real_send_enabled?: boolean
           sms_message_switches?: Json
+          topups_count_existing_insulation?: boolean
           trade_messages_paused?: boolean
           updated_at?: string
           urgency_amber_days?: number
