@@ -22,7 +22,6 @@ import { P1 } from "../src/lib/owner-pages.core";
 import { SPOT_SAVED_PROGRESS, ownerAction } from "../src/lib/owner-myjob.core";
 import { stageWording } from "../src/lib/job-wording";
 import { renderCoverageUnavailableEmail } from "../src/lib/coverage-email";
-import { renderFollowupEmail } from "../src/lib/followup-email";
 import { includedAndNotIncludedText, INCLUDED_CLOSING } from "../src/lib/email-kit.core";
 import { SMS_MESSAGE_TYPES } from "../src/lib/sms.core";
 import { INSULATION_DETAILS_REAL_SEND_APPROVED, SAVE_SPOT_REAL_SEND_APPROVED } from "../src/lib/hot-leads.core";
@@ -94,10 +93,9 @@ describe("pre-release emails and texts are spot-only", () => {
       clean(`${step} text`, m.text); clean(`${step} subject`, m.subject);
     }
   });
-  test("save-spot reminder text (held), estimate-unopened follow-up, not-in-area O7", () => {
+  test("save-spot reminder text (held), not-in-area O7", () => {
     clean("blast", blastMessage("Helen", 2188, 1610, `${EST}/campaign`));
     clean("blast existing", blastMessage("Helen", 2188, 1610, `${EST}/campaign`, true));
-    clean("unopened", renderFollowupEmail({ kind: "estimate_unopened_3d", estimateUrl: EST }).plainText);
     clean("O7", renderCoverageUnavailableEmail({ firstName: "Helen", suburb: "Mildura", postcode: "3500", missing: ["installer"], reference: "HV-TEST" }).plainText);
   });
   test("O76 auto-replies before release: wording and routing (a waiting owner asking for the quote gets the spot-saved answer)", () => {

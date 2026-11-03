@@ -31,7 +31,7 @@ import {
   type OwnerRunSlotView, type Slot, type SlotState, type Window, type WindowClaim,
 } from "./run-portal.core";
 import { isReadyCheckTime } from "./ready-check-times.core";
-import { smsHeldForRecipient } from "./sms.core";
+import { SMS_MESSAGE_TYPES, smsHeldForRecipient } from "./sms.core";
 import { isClosedOrArchivedJob } from "./mitti.core";
 import { distanceM } from "./geo.core";
 
@@ -519,6 +519,7 @@ async function ownerTextsBlocker(businessId: string, homes: readonly { isTest: b
   if (homes.some((h) => h.isTest) || isTestPartner(await businessOf(businessId))) return null;
   const { data: ws } = await loose.from("workflow_settings").select("*").eq("id", 1).maybeSingle();
   const w = (ws ?? null) as { customer_comms_enabled?: boolean | null; sms_message_switches?: Record<string, boolean> | null } | null;
+  if (!SMS_MESSAGE_TYPES[RUN_TIME_SMS_TYPE].wordingApproved) return "Owner time texts have been retired — nothing was sent.";
   if (w?.customer_comms_enabled !== true) return "Customer messages are switched off — nothing was sent.";
   if (w?.sms_message_switches?.[RUN_TIME_SMS_TYPE] !== true) return "The owner time texts are switched off — switch them on in Settings first. Nothing was sent.";
   return null;
@@ -703,7 +704,7 @@ async function ownerTextsOff(): Promise<OwnerTextsOff> {
   const { data, error } = await loose.from("workflow_settings").select("*").eq("id", 1).maybeSingle();
   if (error) throw new Error(`Could not read the message switches: ${error.message}`);
   const w = (data ?? null) as { customer_comms_enabled?: boolean | null; sms_message_switches?: Record<string, boolean> | null } | null;
-  const off = (type: string) => w?.customer_comms_enabled !== true || w?.sms_message_switches?.[type] !== true;
+  const off = (type: "run_time" | "run_time_reminder") => !SMS_MESSAGE_TYPES[type].wordingApproved || w?.customer_comms_enabled !== true || w?.sms_message_switches?.[type] !== true;
   return { time: off(RUN_TIME_SMS_TYPE), reminder: off(RUN_TIME_REMINDER_SMS_TYPE) };
 }
 

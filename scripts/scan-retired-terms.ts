@@ -23,6 +23,8 @@ export const OWNER_WORDING_TERMS: Term[] = [
   { term: "mandatory PIESA", re: /mandatory PIESA/g, action: "electrical safety check (PIESA)", strict: true },
   { term: "install duration", re: /About 4 hours|takes? (?:about )?a few hours|takes about 4 hours|How long:/g, action: "Delete (no install duration)", strict: true },
   { term: "Wrong time link", re: /Wrong time\?/g, action: "Delete (no change links)", strict: true },
+  { term: "Just checking you got your estimate", re: /Just checking you got your estimate/g, action: "Delete (the day 2/7/21 reminders cover it)", strict: true },
+  { term: "owner picks a Ready Check time", re: /[Ii]nstaller will offer you 3 times|will offer you 3 times to pick from|offer you 3 times for your (?:free|Free) Ready Check/g, action: "Delete (the installer will call instead)", strict: true },
   { term: "See where you're up to", re: /See where you're up to/g, action: "Delete the button (no My job home links)", strict: true },
   {
     term: "7-day balance",

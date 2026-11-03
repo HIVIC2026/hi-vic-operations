@@ -7,6 +7,11 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { SMS_FRESHNESS, SMS_MESSAGE_TYPES } from "../src/lib/sms.core";
+
+// Part 3 Task 16: run_time / run_time_reminder are retired in the real registry (wordingApproved false, nothing can send).
+// This file covers the OLD run mechanics (Task 18 deletes them), so it switches the two types back on for this file only.
+// tests/old-flow-removed-p3.test.ts holds the real registry state.
+for (const k of ["run_time", "run_time_reminder"] as const) (SMS_MESSAGE_TYPES[k] as { wordingApproved: boolean }).wordingApproved = true;
 import { planRunDays, runTimeReminderText, runTimeText, windowWords } from "../src/lib/run-portal.core";
 
 type Row = Record<string, unknown>;
@@ -118,7 +123,6 @@ mock.module("../src/lib/booking.server", () => ({
 }));
 const followOns: string[] = [];
 mock.module("../src/lib/mitti-create.server", () => ({ onReadyCheckBooked: async (j: string) => { followOns.push(`mitti:${j}`); } }));
-mock.module("../src/lib/ready-check-booked-email.server", () => ({ emailOwnerReadyCheckBooked: async (j: string) => { followOns.push(`owner-email:${j}`); } }));
 mock.module("../src/lib/installer-texts.server", () => ({ textInstallerReadyCheckBooked: async (j: string) => { followOns.push(`installer-text:${j}`); } }));
 
 const R = await import("../src/lib/installer-run.server");
@@ -210,7 +214,7 @@ describe("pure: wording + plan", () => {
 
 describe("SMS types", () => {
   test("run_time + run_time_reminder: owner audience, approved wording, quiet hours, own switches (off: not in the switches)", () => {
-    expect(SMS_MESSAGE_TYPES.run_time).toMatchObject({ audience: "owner", wordingApproved: true, quietHours: true });
+    expect(SMS_MESSAGE_TYPES.run_time).toMatchObject({ audience: "owner", wordingApproved: true, quietHours: true }); // switched on for this file (see top)
     expect(SMS_MESSAGE_TYPES.run_time_reminder).toMatchObject({ audience: "owner", wordingApproved: true, quietHours: true });
     expect(SMS_FRESHNESS.run_time).toEqual({ kind: "window" });
     expect(SMS_FRESHNESS.run_time_reminder).toEqual({ kind: "window" });
@@ -311,7 +315,7 @@ describe("owner: confirm / can't make it / none suit", () => {
     await R.ownerConfirmRunSlot(j, "u-owner", { now: new Date(clock) });
     await R.ownerConfirmRunSlot(j, "u-owner", { now: new Date(clock) });
     expect(booked).toEqual([{ jobId: j, kind: "ready_check", start: "2026-10-26T22:00:00.000Z", actor: "u-owner", role: "owner (run window)" }]);
-    expect(followOns).toEqual([`mitti:${j}`, `owner-email:${j}`, `installer-text:${j}`]);
+    expect(followOns).toEqual([`mitti:${j}`, `installer-text:${j}`]);
     expect(tables["job_assignments"]!.filter((a) => a["job_id"] === j && a["active"] === true).map((a) => [a["business_id"], a["user_id"], a["role"]])).toEqual([["biz-1", "u-sam", "installer"]]);
     expect(events("run_slot_confirmed", j).length).toBe(1);
     expect((await R.ownerRunSlotState(j, { now: new Date(clock) })).kind).toBe("confirmed");
@@ -902,7 +906,8 @@ describe("wiring", () => {
     for (const f of ["ownerRunSlotFn", "ownerConfirmRunSlotFn", "ownerPickRunWindowFn", "ownerNoRunWindowFn"]) expect(owner).toContain(`export const ${f} = createServerFn`);
     expect(src("src/routes/my-job.$token.tsx")).toContain("<OwnerRunTime token={token} />");
     const hub = src("src/lib/template-hub.core.ts");
-    expect(hub).toContain('smsType: "run_time"');
-    expect(hub).toContain('smsType: "run_time_reminder"');
+    // Retired (Part 3 Task 16): no hub entry for the run-window texts any more.
+    expect(hub).not.toContain('smsType: "run_time"');
+    expect(hub).not.toContain('smsType: "run_time_reminder"');
   });
 });

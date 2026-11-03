@@ -4,7 +4,7 @@ import { readFileSync, existsSync } from "fs";
 import { dirname, resolve } from "path";
 import {
   APPROVED_TEXT_SMS_TYPE, approvedTextKey, installMovedFrom, installMovedText, piesaBookedOwnerText, piesaOfferText,
-  quoteHeldUntil, quoteReminderDay3Text, quoteReminderDue, quoteReminderExpiryText, readyCheckBookedOwnerText, readyCheckTimesOwnerText,
+  quoteHeldUntil, quoteReminderDay3Text, quoteReminderDue, quoteReminderExpiryText,
   visitTomorrowDue, wholeDollars,
 } from "../src/lib/approved-texts.core";
 import { SMS_FRESHNESS, SMS_MESSAGE_TYPES, brandSmsBody, smsStaleReason } from "../src/lib/sms.core";
@@ -17,16 +17,6 @@ const src = (p: string) => readFileSync(p, "utf8");
 const START = "2026-10-28T00:00:00.000Z"; // Wednesday 28 October, 11am Melbourne (AEDT)
 
 describe("wording is the decisions-log sentence, verbatim (the sender adds the brand)", () => {
-  test("78 Ready Check times (A)", () => {
-    expect(readyCheckTimesOwnerText({ firstName: "Helen", suburb: "Frankston", link: "https://x/j" }))
-      .toBe("Hi Helen, good news! A certified installer near Frankston has offered 3 times for your free Ready Check. Tap to pick one: https://x/j Reply STOP to opt out.");
-    expect(readyCheckTimesOwnerText({ firstName: "Helen", suburb: null, link: "https://x/j" })).toBeNull();
-  });
-  test("82 owner booked (B)", () => {
-    expect(readyCheckBookedOwnerText({ startIso: START, installer: "Reinsulate", phone: "0400 111 222", link: "https://x/j" }))
-      .toBe("Booked! Your free Ready Check is Wednesday 28 October, 11am. Installer: Reinsulate 0400 111 222. Details: https://x/j");
-    expect(readyCheckBookedOwnerText({ startIso: START, installer: null, phone: "0400", link: "https://x/j" })).toBeNull();
-  });
   test("89 quote reminders: 3-day (B) and expiry (A)", () => {
     expect(quoteReminderDay3Text({ firstName: "Helen", rebate: 1610, link: "https://x/q" })).toBe("Hi Helen, your quote with $1,610 off is waiting: https://x/q Reply STOP to opt out.");
     expect(quoteReminderExpiryText({ firstName: "Helen", rebate: 1610, heldUntilIso: "2026-11-07T01:00:00.000Z", link: "https://x/q" }))
@@ -84,7 +74,6 @@ describe("due rules", () => {
   test("one key per trigger", () => {
     expect(approvedTextKey.quoteReminder("q1", "day3")).not.toBe(approvedTextKey.quoteReminder("q1", "expiry"));
     expect(approvedTextKey.visitTomorrowOwner("assessment", "j", "b", START)).toBe("visit-tomorrow-owner:v1:assessment:j:b:2026-10-28");
-    expect(approvedTextKey.readyCheckBookedOwner("j", "2026-10-28T00:00:00Z")).toBe(approvedTextKey.readyCheckBookedOwner("j", START));
   });
 });
 
@@ -98,7 +87,7 @@ describe("SMS types: approved, own switch, freshness declared", () => {
     expect(SMS_MESSAGE_TYPES.piesa_offer.audience).toBe("partner");
   });
   test("one-off types never go late (24h use-by), window types are recomputed", () => {
-    expect(smsStaleReason("ready_check_booked_owner", { at: "2026-10-26T00:00:00Z" }, "2026-10-27T01:00:00Z")).toMatch(/Too late/);
+    expect(smsStaleReason("spot_saved", { at: "2026-10-26T00:00:00Z" }, "2026-10-27T01:00:00Z")).toMatch(/Too late/);
     expect(smsStaleReason("piesa_offer", { at: "2026-10-27T00:00:00Z", current: false }, "2026-10-27T01:00:00Z")).toMatch(/no longer current/);
     expect(smsStaleReason("quote_reminder", null, "2026-10-27T01:00:00Z")).toBeNull();
   });
@@ -163,7 +152,7 @@ describe("source pins", () => {
   });
   test("quiet hours are checked before the event is recorded (a text due overnight goes after 7am)", () => {
     const s = src("src/lib/approved-texts.server.ts");
-    for (const fn of ["textOwnerReadyCheckTimes", "textOwnerReadyCheckBooked", "textOwnerSafetyCheckBooked", "textOwnerVisitTomorrow", "textOwnerQuoteReminder", "textOwnerInstallMoved"]) {
+    for (const fn of ["textOwnerSafetyCheckBooked", "textOwnerVisitTomorrow", "textOwnerQuoteReminder", "textOwnerInstallMoved"]) {
       const body = s.split(`export async function ${fn}`)[1]!.split("\nexport async function")[0]!;
       expect(body.indexOf("quietNow(")).toBeGreaterThan(0);
       expect(body.indexOf("quietNow(")).toBeLessThan(body.indexOf("deliver("));

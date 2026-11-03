@@ -42,8 +42,6 @@ mock.module("../src/lib/ready-check-booking-access.server", () => ({
   readyCheckBookingAccess: async () => ({ enabled: true, offeredAt: "2026-10-24T00:00:00Z", allowed: true }),
   assertOwnerReadyCheckBooking: async () => {},
 }));
-mock.module("../src/lib/ready-check-times-email.server", () => ({ emailOwnerReadyCheckTimes: async () => "not sent — wording awaiting approval" }));
-mock.module("../src/lib/ready-check-booked-email.server", () => ({ emailOwnerReadyCheckBooked: async (_j: string, s: string) => { calls.booked.push(s); return "not sent — wording awaiting approval"; } }));
 mock.module("../src/lib/booking.server", () => ({
   // Mirrors confirmBooking for ready_check: cancels the old confirmed booking, writes the new one, booked stage.
   confirmBooking: async (jobId: string, kind: string, start: string, actor: string, label: string) => {
@@ -98,7 +96,7 @@ describe("installer changes the time → rebooked directly", () => {
     const live = await q<{ scheduled_start: string }>("select scheduled_start::text from bookings where job_id=$1 and status='confirmed'", [JOB]);
     expect(live.map((b) => new Date(b.scheduled_start).toISOString())).toEqual([start]);
     expect(await stage()).toBe("ready_check_scheduled");
-    expect(calls.booked).toEqual([start]);
+    expect(calls.booked).toEqual([]); // the old O12 owner email was removed (Part 3 Task 16)
     expect(await q("select id from workflow_events where event_type='ready_check_changed' and details->>'by'='installer'")).toHaveLength(1);
   });
 });
@@ -129,7 +127,7 @@ describe("owner changes the time → back to the installer to offer 3 new times"
     const [p] = await q<{ id: string; starts_at: string }>("select id, starts_at::text from appointment_proposals where job_id=$1 and status='proposed' order by starts_at limit 1", [JOB]);
     expect(await rc.ownerTakeReadyCheckTime(JOB, p!.id, OWNER)).toEqual({ ok: true, booked: true });
     const start = new Date(p!.starts_at).toISOString();
-    expect(calls.booked.at(-1)).toBe(start);
+    expect(calls.booked).toEqual([]);
     expect(await stage()).toBe("ready_check_scheduled");
   });
 });

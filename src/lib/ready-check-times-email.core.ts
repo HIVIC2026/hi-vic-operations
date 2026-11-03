@@ -1,26 +1,10 @@
-// Jo 24 Oct 2026 (decisions 52–53, 77): when the installer offers Ready Check times, the owner gets a link to pick one.
-// Design: docs/templates/mjml/owner_O11.mjml (MJML email refresh, Jo 27 Oct 2026) — "{First}, pick a time for your
-// free Ready Check"; the offered times as tap buttons; "None suit? Suggest other days"; "At your Ready Check"; rebate
-// and price boxes; included / not included. READY_CHECK_TIMES_EMAIL_APPROVED is on (decision 77); real delivery
-// still needs customer_comms_enabled through the guarded owner-email path. Pure.
+// Shared pieces for the owner time-and-estimate emails (tap-a-time buttons, the saved-spot figures boxes). The O11 "pick a
+// time for your free Ready Check" email itself was removed (Part 3 Task 16, Jo 2 Nov 2026: the installer will call
+// instead). Pure.
 import * as K from "./email-kit.core";
 import { esc, mjEmail, plusRow, tickRow } from "./mail-mjml.core";
 
-/** Jo 24 Oct 2026, decision 77 (O11 pick a time for your free Ready Check): approved. Delivery still behind customer_comms_enabled. */
-export const READY_CHECK_TIMES_EMAIL_APPROVED = true as boolean;
-
 export type ReadyCheckTimeSlot = { day: string; time: string; href?: string | null };
-export type ReadyCheckTimesInput = {
-  firstName: string | null;
-  /** Offered times: day + time (tap buttons) or pre-formatted strings. */
-  times: Array<string | ReadyCheckTimeSlot>;
-  installerName: string | null; suburb?: string | null; myJobUrl: string;
-  /** Saved-spot figures for the price box (omitted when unknown). */
-  estimate?: { rebate: number; price: number; areaM2: number } | null;
-  test?: boolean;
-};
-
-/** "Tuesday 28 October at 8:00am" → { day, time }. */
 export function splitDayTime(s: string): ReadyCheckTimeSlot {
   const m = /^(.*?)\s+at\s+(\S+)$/.exec(s.trim());
   return m ? { day: m[1]!, time: m[2]! } : { day: s.trim(), time: "" };
@@ -69,33 +53,4 @@ export function readyCheckEstimateText(e: ReadyCheckEstimate): string[] {
     "NOT INCLUDED – ONLY IF NEEDED", ...NOT_INCLUDED.map(([b, rest]) => `+ ${b}${rest}`), "",
     CLOSING,
   ];
-}
-
-export function renderReadyCheckTimesEmail(i: ReadyCheckTimesInput) {
-  const subject = "Choose a time for your free Ready Check";
-  const first = K.cleanName(i.firstName) ?? "there";
-  const headline = `${first}, pick a time for your free Ready Check`;
-  const suburb = i.suburb?.trim() || null;
-  const where = suburb ? ` near ${suburb}` : "";
-  const intro = `Good news: a certified installer${where} is ready for you. Tap the time that suits you and it's booked.`;
-  const slots = i.times.map((t) => (typeof t === "string" ? splitDayTime(t) : t)).map((t) => ({ day: t.day, time: t.time, href: t.href || i.myJobUrl }));
-  const n = slots.length;
-  const preview = `A certified installer${where} has offered ${n} time${n === 1 ? "" : "s"}. Tap one and it's booked.`;
-  const at = "The installer measures your ceiling, checks your existing insulation and access, and confirms your exact price. It's free. No payment, no obligation.";
-  const est = i.estimate && i.estimate.price > 0 ? i.estimate : null;
-  const body = [
-    `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${esc(headline)}</mj-text><mj-text>${esc(intro)}</mj-text></mj-column></mj-section>`,
-    mjTimeButtons(slots, i.myJobUrl),
-    `<mj-section><mj-column><mj-text mj-class="h2" css-class="email-sub" padding="6px 12px 6px">At your Ready Check</mj-text><mj-text>${esc(at)}</mj-text></mj-column></mj-section>`,
-    est ? mjReadyCheckEstimate(est) : "",
-  ].join("");
-  const html = mjEmail({ subject, preview, body, unsubscribe: null, testLabel: i.test === true });
-  const text = K.plainText([
-    headline, "", intro, "",
-    ...slots.map((s) => `• ${s.day}${s.time ? ` ${s.time}` : ""}`),
-    `Pick a time: ${i.myJobUrl}`, `None suit? Suggest other days: ${i.myJobUrl}`, "",
-    "AT YOUR READY CHECK", at,
-    ...(est ? ["", ...readyCheckEstimateText(est)] : []),
-  ], { testLabel: i.test === true });
-  return { subject, html, text };
 }

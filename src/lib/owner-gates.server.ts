@@ -504,8 +504,7 @@ export async function signGateDoc(i: SignInput) {
   );
 
   // F13: the signed copy is filed on the job above; nothing is queued here and copy_email_queued is no longer set.
-  // Decision 376: the owner's emailed copy (O75, approved by Jo in decision 384) is sent by the 15-minute tick, one email per
-  // signing sitting (paperwork-copy-email.server sweepOwnerPaperworkCopies), with these PDFs attached.
+  // The O75 "Your signed paperwork" email was removed (Part 3 Task 16, Jo 2 Nov 2026): the owner reaches the signed copy on the job page.
   return { id: row.id, draft };
 }
 

@@ -1,25 +1,6 @@
-// Jo 24 Oct 2026 (decisions 80–81): on our leads the owner gets "You're booked" for the free Ready Check, and an updated
-// one when either side changes the time. Our leads only (installers' own customers have no portal booking).
-// Design: docs/templates/mjml/owner_O12.mjml (MJML email refresh, Jo 27 Oct 2026) — blue date/time box with address
-// and installer name + phone; "Before they arrive"; change line (call the installer's office, decision #24); rebate and
-// price boxes; included / not included.
-// Flag on (decisions 81/82); real delivery still needs customer_comms_enabled through the guarded owner-email path. Pure.
-import * as K from "./email-kit.core";
-import { esc, mjEmail } from "./mail-mjml.core";
-import { mjReadyCheckEstimate, readyCheckEstimateText, splitDayTime } from "./ready-check-times-email.core";
-
-/** Jo 24 Oct 2026, decision 81 (O12 "You're booked"): approved. Delivery still behind customer_comms_enabled. */
-export const READY_CHECK_BOOKED_EMAIL_APPROVED = true as boolean;
-/** Jo 24 Oct 2026, decision 82: the "Booked!" owner text wording (B) is approved. No sender uses this flag yet; any text still goes only through sendRealSms. */
-export const READY_CHECK_BOOKED_TEXT_APPROVED = true as boolean;
-
-export type ReadyCheckBookedInput = {
-  firstName: string | null;
-  /** "Tuesday 28 October at 8:00am" */
-  when: string; installerName: string | null; installerPhone?: string | null; address?: string | null; changed: boolean; myJobUrl: string;
-  estimate?: { rebate: number; price: number; areaM2: number } | null;
-  test?: boolean;
-};
+// Shared booking-box pieces for the owner booked emails (safety check booked and friends). The O12 "Ready Check booked"
+// email itself was removed (Part 3 Task 16, Jo 2 Nov 2026): the Ready Check "You're booked" is owner-booked-notice.core. Pure.
+import { esc } from "./mail-mjml.core";
 
 const DISPLAY = "Outfit, Figtree, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif";
 /** Blue booking box: caps label, day, blue time, address/contact lines (O12, safety check booked). */
@@ -29,39 +10,3 @@ export function mjBookingBox(i: { label: string; day: string; time: string; line
 }
 /** "Before they arrive" tick rows (HTML with <strong>, already safe). */
 export const mjBeforeRows = (rows: string[]) => rows.map((b) => `<tr><td width="32" valign="top" style="padding:2px 0 12px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 12px;">${b}</td></tr>`).join("");
-
-export function renderReadyCheckBookedEmail(i: ReadyCheckBookedInput) {
-  const subject = i.changed ? `Your Ready Check time has changed – ${i.when}` : `You're booked: free Ready Check – ${i.when}`;
-  const first = K.cleanName(i.firstName) ?? "there";
-  const headline = i.changed ? `Your new Ready Check time, ${first}` : `You're booked, ${first}`;
-  const lead = i.changed ? "Your free Ready Check has a new time." : "Your free Ready Check is confirmed.";
-  const { day, time } = splitDayTime(i.when);
-  const installer = i.installerName?.trim() || null;
-  const phone = i.installerPhone?.trim() || null;
-  const address = i.address?.trim() || null;
-  const lines = [address, installer ? `Installer: ${installer}${phone ? ` · ${phone}` : ""}` : null].filter((l): l is string => !!l);
-  const preview = installer && address ? `${installer} will come to ${address}. Here's how to get ready.` : `${lead} ${i.when}`;
-  const before = [
-    "Make sure the installer can reach your <strong>ceiling hatch</strong> (clear anything underneath it).",
-    "If you have <strong>pets</strong>, keep them away from the work area.",
-    "Have a think about any <strong>questions</strong> you'd like to ask.",
-  ];
-  // Decision #24 (Jo 2 Nov 2026): no change link — "Need to change it? Call {Installer} on {office phone}." (the
-  // installer's business phone); no installer or office phone on file → no change line, never a blank.
-  const change = installer && phone ? `Need to change it? Call ${esc(installer)} on ${esc(phone)}.` : "";
-  const est = i.estimate && i.estimate.price > 0 ? i.estimate : null;
-  const body = [
-    `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${esc(headline)}</mj-text><mj-text>${esc(lead)}</mj-text></mj-column></mj-section>`,
-    mjBookingBox({ label: i.changed ? "Your new Ready Check time" : "Your Ready Check", day, time, lines }),
-    `<mj-section><mj-column><mj-text mj-class="h2" css-class="email-sub" padding="18px 12px 10px">Before they arrive</mj-text><mj-table padding="0 12px 6px">${mjBeforeRows(before)}</mj-table>${change ? `<mj-text>${change}</mj-text>` : ""}</mj-column></mj-section>`,
-    est ? mjReadyCheckEstimate(est) : "",
-  ].join("");
-  const html = mjEmail({ subject, preview, body, unsubscribe: null, testLabel: i.test === true });
-  const text = K.plainText([
-    headline, "", lead, `When: ${i.when}`, ...lines, "",
-    "BEFORE THEY ARRIVE", ...before.map((b) => `✓ ${K.stripTags(b)}`), "",
-    change ? K.stripTags(change) : null,
-    ...(est ? ["", ...readyCheckEstimateText(est)] : []),
-  ], { testLabel: i.test === true });
-  return { subject, html, text };
-}

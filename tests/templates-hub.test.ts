@@ -51,10 +51,10 @@ describe("Templates navigation", () => {
     expect(body("owner:address-request")).toContain("We need your full address to check your home.");
     expect(body("owner:address-request-reminder")).toContain("Just a reminder — we need your full address to check your home.");
   });
-  test("decision 384: the four decision 376 messages are listed under who gets them, approved, with their designs filed there", () => {
+  test("decision 384: the decision 376 messages are listed under who gets them, approved, with their designs filed there", () => {
     const where: Record<string, [string, string | null]> = {
       "owner:O74": ["owner", "docs/templates/mjml/owner_O74.mjml"], "owner:O74b": ["owner", "docs/templates/mjml/owner_O74b.mjml"],
-      "owner:sms-visit_new_times": ["owner", null], "owner:O75": ["owner", "docs/templates/mjml/owner_O75.mjml"],
+      "owner:sms-visit_new_times": ["owner", null],
       "electrician:E14": ["electrician", "docs/templates/mjml/electrician_E14.mjml"], "electrician:sms-piesa_times_reminder": ["electrician", null],
       "installer:I71": ["installer", "docs/templates/mjml/installer_I71.mjml"], "installer:sms-installer_planning_notice": ["installer", null],
     };
@@ -68,8 +68,8 @@ describe("Templates navigation", () => {
     expect(entriesFor("waiting").some((e) => /visit_new_times|piesa_times_reminder|installer_planning_notice/.test(e.id))).toBe(false);
     // Approved is not live: emails wait for the customer messages switch, texts also for their own switch.
     const byId = (id: string) => TEMPLATE_ENTRIES.find((x) => x.id === id)!;
-    expect(templateStatus(byId("owner:O75"), { customer_comms: false }).label).toBe("Waits for customer messages switch");
-    expect(templateStatus(byId("owner:O75"), { customer_comms: true }).label).toBe("Live");
+    expect(templateStatus(byId("owner:O74"), { customer_comms: false }).label).toBe("Waits for customer messages switch");
+    expect(templateStatus(byId("owner:O74"), { customer_comms: true }).label).toBe("Live");
     for (const t of ["owner:sms-visit_new_times", "electrician:sms-piesa_times_reminder", "installer:sms-installer_planning_notice"]) {
       expect(templateStatus(byId(t), { customer_comms: true }).label).toBe("Waits for its text switch");
       const type = (byId(t).gate as { smsType: string }).smsType;

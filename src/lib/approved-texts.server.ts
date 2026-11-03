@@ -15,8 +15,7 @@ import { melbourneClock } from "./installer-texts.core";
 import type { BusinessContact } from "./owner-wording.core";
 import {
   APPROVED_TEXT_EVENT, APPROVED_TEXT_SMS_TYPE, APPROVED_TEXT_SWEEP_HOURS, QUIET_HOURS_WAIT, approvedTextKey, installMovedFrom, installMovedText,
-  piesaBookedOwnerText, quoteHeldUntil, quoteReminderDay3Text, quoteReminderDue, quoteReminderExpiryText, readyCheckBookedOwnerText,
-  readyCheckTimesOwnerText, visitTomorrowDue, visitTomorrowText, type ApprovedTextKind, type InstallBookingRow, type VisitTextKind,
+  piesaBookedOwnerText, quoteHeldUntil, quoteReminderDay3Text, quoteReminderDue, quoteReminderExpiryText, visitTomorrowDue, visitTomorrowText, type ApprovedTextKind, type InstallBookingRow, type VisitTextKind,
 } from "./approved-texts.core";
 
 type JobRow = {
@@ -75,55 +74,6 @@ async function deliver(p: { kind: ApprovedTextKind; key: string; job: JobRow; bo
 /** Shared "not sent" outcomes (the sweeps count everything else as handled). */
 export const NOT_HANDLED = ["in_house", "in_house_read_failed", "skipped", "already handled", "not due", "not an our-lead job", "no longer current", "owner link missing", "missing facts", QUIET_HOURS_WAIT] as const;
 const handled = (r: string) => !(NOT_HANDLED as readonly string[]).includes(r) && !r.startsWith("held — ");
-
-/** Decision 78: the installer offered the owner Ready Check times → one text per offer event (our leads). */
-export async function textOwnerReadyCheckTimes(jobId: string, triggerEventId: string, offeredAt: string, now = new Date()): Promise<string> {
-  const skipped = await inHouseDispatchSkip(jobId);
-  if (skipped) return skipped;
-  const job = await loadJob(jobId);
-  if (!job) return "skipped";
-  if (job.channel !== "hivic_sourced") return "not an our-lead job";
-  const key = approvedTextKey.readyCheckTimesOwner(jobId, triggerEventId);
-  if (await alreadyPrepared(jobId, key)) return "already handled";
-  const { readyCheckTurnFor } = await import("./ready-check-times.server");
-  if ((await readyCheckTurnFor(jobId)) !== "owner_to_answer") return "no longer current";
-  if (await quietNow("ready_check_times_owner", now)) return QUIET_HOURS_WAIT;
-  const link = await ownerLink(jobId);
-  if (!link) return "owner link missing";
-  const body = readyCheckTimesOwnerText({ firstName: await firstNameOf(job.owners?.full_name), suburb: job.properties?.suburb ?? null, link });
-  if (!body) return "missing facts";
-  const trade = await tradeFor(jobId, "installer");
-  return deliver({ kind: "ready_check_times_owner", key, job, body, summary: "Owner texted: the installer's Ready Check times are ready (decision 78)", details: { trigger_event_id: triggerEventId, offered_at: offeredAt }, event: { at: offeredAt, current: true }, tradeIsTest: trade.isTest });
-}
-
-/** Decision 82 (B): our-lead Ready Check booked → one text per booked start. */
-export async function textOwnerReadyCheckBooked(jobId: string, startIso: string, bookedAt: string, now = new Date()): Promise<string> {
-  const skipped = await inHouseDispatchSkip(jobId);
-  if (skipped) return skipped;
-  // Jo 29 Oct 2026 (HV-3542): no silent skips — each not-sent reason is recorded once for the office.
-  let outcome: string;
-  try { outcome = await attemptBookedOwnerText(jobId, startIso, bookedAt, now); } catch (e) { outcome = `error — ${(e as Error).message}`; }
-  await (await import("./ready-check-booked-email.server")).recordBookedNotSent(jobId, startIso, "text", outcome);
-  return outcome;
-}
-
-async function attemptBookedOwnerText(jobId: string, startIso: string, bookedAt: string, now: Date): Promise<string> {
-  const { READY_CHECK_BOOKED_TEXT_APPROVED } = await import("./ready-check-booked-email.core");
-  if (!READY_CHECK_BOOKED_TEXT_APPROVED) return "skipped";
-  const job = await loadJob(jobId);
-  if (!job) return "skipped";
-  if (job.channel !== "hivic_sourced") return "not an our-lead job";
-  const key = approvedTextKey.readyCheckBookedOwner(jobId, startIso);
-  if (await alreadyPrepared(jobId, key)) return "already handled";
-  if (!(await stillBooked(jobId, "ready_check", startIso))) return "no longer current";
-  if (await quietNow("ready_check_booked_owner", now)) return QUIET_HOURS_WAIT;
-  const link = await ownerLink(jobId);
-  if (!link) return "owner link missing";
-  const trade = await tradeFor(jobId, "installer");
-  const body = readyCheckBookedOwnerText({ startIso, installer: trade.name, phone: trade.phone, link });
-  if (!body) return "missing facts";
-  return deliver({ kind: "ready_check_booked_owner", key, job, body, summary: "Owner texted: Ready Check booked (decision 82)", details: { starts_at: startIso, booked_at: bookedAt }, event: { at: bookedAt, current: true }, tradeIsTest: trade.isTest });
-}
 
 /** Decision 93 (A): safety check (PIESA) booked → one text per booked start. */
 export async function textOwnerSafetyCheckBooked(jobId: string, startIso: string, bookedAt: string, now = new Date()): Promise<string> {
@@ -222,23 +172,20 @@ async function stillBooked(jobId: string, kind: "ready_check" | "assessment" | "
 
 /** 15-minute tick: due day-before texts, quote reminders, and a 24h catch-up for every one-off text above. */
 export async function sweepApprovedTexts(now = new Date()) {
-  const out = { readyCheckTimes: 0, readyCheckBooked: 0, safetyCheckBooked: 0, tomorrow: 0, quoteReminders: 0, installMoved: 0 };
+  const out = { safetyCheckBooked: 0, tomorrow: 0, quoteReminders: 0, installMoved: 0 };
   const since = new Date(now.getTime() - APPROVED_TEXT_SWEEP_HOURS * 3_600_000).toISOString();
   const in48h = new Date(now.getTime() + 48 * 3_600_000).toISOString();
-  const [offered, recent, upcoming, quotes] = await Promise.all([
-    admin.from("workflow_events").select("id, job_id, created_at").eq("event_type", "ready_check_times_offered").gte("created_at", since).limit(500),
+  const [recent, upcoming, quotes] = await Promise.all([
     admin.from("bookings").select("id, job_id, kind, scheduled_start, status, created_at").in("kind", ["ready_check", "assessment", "installation"]).eq("status", "confirmed").gte("created_at", since).limit(500),
     admin.from("bookings").select("id, job_id, kind, scheduled_start").in("kind", ["ready_check", "assessment", "installation"]).eq("status", "confirmed").gt("scheduled_start", now.toISOString()).lte("scheduled_start", in48h).limit(500),
     admin.from("quotes").select("id, job_id, kind, status, release_state, sent_at, veec_discount_inc_gst").eq("kind", "installation").eq("status", "issued").eq("release_state", "released").not("sent_at", "is", null).limit(500),
   ]);
-  for (const r of [offered, recent, upcoming, quotes]) if (r.error) throw new Error(`approved texts sweep: ${r.error.message}`);
+  for (const r of [recent, upcoming, quotes]) if (r.error) throw new Error(`approved texts sweep: ${r.error.message}`);
   const run = async (label: string, f: () => Promise<string>, count: keyof typeof out) => {
     try { if (handled(await f())) out[count]++; } catch (e) { console.error(`${label} text failed`, (e as Error).message); }
   };
-  for (const e of offered.data ?? []) if (e.job_id) await run("ready check times", () => textOwnerReadyCheckTimes(e.job_id!, e.id, e.created_at, now), "readyCheckTimes");
   for (const b of recent.data ?? []) {
-    if (b.kind === "ready_check") await run("ready check booked", () => textOwnerReadyCheckBooked(b.job_id, b.scheduled_start, b.created_at, now), "readyCheckBooked");
-    else if (b.kind === "assessment") await run("safety check booked", () => textOwnerSafetyCheckBooked(b.job_id, b.scheduled_start, b.created_at, now), "safetyCheckBooked");
+    if (b.kind === "assessment") await run("safety check booked", () => textOwnerSafetyCheckBooked(b.job_id, b.scheduled_start, b.created_at, now), "safetyCheckBooked");
     else {
       const { data: all } = await admin.from("bookings").select("id, scheduled_start, status, created_at").eq("job_id", b.job_id).eq("kind", "installation");
       const was = installMovedFrom(b as InstallBookingRow, (all ?? []) as InstallBookingRow[]);

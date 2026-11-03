@@ -14,11 +14,13 @@ export const OPEN_PRIVACY_NOTE = "Email opens can be affected by mailbox privacy
 export type EventType = "email_sent" | "email_delivered" | "email_opened" | "email_clicked" | "estimate_viewed" | "calculator_used" | "booking_started" | "booking_completed" | "followup_queued" | "followup_sent" | "followup_suppressed" | "email_bounced" | "email_failed" | "opted_out";
 export type EngagementEvent = { event_type: EventType | string; occurred_at: string; metadata?: Record<string, unknown> | null };
 export type Tier = "no_email" | "sent_unopened" | "opened" | "clicked" | "estimate_viewed" | "calculator_engaged" | "booked";
-export type ActiveFollowupKind = "estimate_unopened_3d";
+/** No follow-up kind is active any more: The unopened-estimate follow-up was removed (Jo 2 Nov 2026, decision 15; the
+ *  day 2/7/21 reminders cover it). */
+export type ActiveFollowupKind = never;
 /** Retained only to recognize and suppress historical queue rows. */
-export type RetiredFollowupKind = "estimate_engaged_no_booking_3d" | "estimate_second_reminder_7d";
+export type RetiredFollowupKind = "estimate_unopened_3d" | "estimate_engaged_no_booking_3d" | "estimate_second_reminder_7d";
 export type FollowupKind = ActiveFollowupKind | RetiredFollowupKind;
-export const isActiveFollowupKind = (kind: string): kind is ActiveFollowupKind => kind === "estimate_unopened_3d";
+export const isActiveFollowupKind = (_kind: string): _kind is ActiveFollowupKind => false;
 
 export const newTrackingToken = newToken;
 export const isTrackingToken = isWellFormedToken;
@@ -94,11 +96,9 @@ export function tierOf(s: Omit<Summary, "tier">): Tier {
 
 export const strongEngagement = (s: Summary) => !!(s.firstClick || s.firstView || s.firstCalc);
 
-/** One unopened follow-up after a successful initial send; none when already booked. */
-export function planInitialFollowups(sentAt: string, s: Summary) {
-  if (s.bookingCompleted) return [];
-  const t = Date.parse(sentAt);
-  return [{ slot: "3d" as const, kind: "estimate_unopened_3d" as ActiveFollowupKind, due_at: new Date(t + FOLLOWUP_3D_MS).toISOString() }];
+/** No unopened follow-up is queued any more (decision 15, Jo 2 Nov 2026). Rows queued before that are suppressed when due. */
+export function planInitialFollowups(_sentAt: string, _s: Summary): { slot: "3d"; kind: RetiredFollowupKind; due_at: string }[] {
+  return [];
 }
 
 export type SendGates = { commsEnabled: boolean; consent: boolean; activeLink: boolean; eligibilityOk: boolean; providerConfigured: boolean; alreadySent: boolean };
@@ -114,17 +114,11 @@ export function sendBlocker(g: SendGates): string | null {
 }
 
 export type FollowupRow = { slot: "3d" | "7d"; kind: FollowupKind; status: string; due_at: string };
-export type FollowupPlan = { action: "suppress"; reason: string } | { action: "block"; reason: string } | { action: "send"; kind: ActiveFollowupKind };
-export function planFollowup(f: FollowupRow, s: Summary, g: Omit<SendGates, "alreadySent">, now = Date.now()): FollowupPlan {
+export type FollowupPlan = { action: "suppress"; reason: string };
+/** Every queued follow-up is retired: already-final rows say so, the rest are suppressed, nothing is ever sent. */
+export function planFollowup(f: FollowupRow, _s: Summary, _g: Omit<SendGates, "alreadySent">, _now = Date.now()): FollowupPlan {
   if (f.status === "sent" || f.status === "suppressed") return { action: "suppress", reason: "already_final" };
-  if (f.slot !== "3d" || !isActiveFollowupKind(f.kind)) return { action: "suppress", reason: "retired_followup_kind" };
-  if (s.bookingCompleted) return { action: "suppress", reason: "booking_completed" };
-  if (strongEngagement(s) || s.reliableOpen) return { action: "suppress", reason: "estimate_already_engaged" };
-  if (!g.eligibilityOk) return { action: "suppress", reason: "eligibility_not_permitted" };
-  if (now - Date.parse(f.due_at) > FOLLOWUP_STALE_MS) return { action: "suppress", reason: "expired_unsent" };
-  const b = sendBlocker({ ...g, alreadySent: false });
-  if (b) return { action: "block", reason: b };
-  return { action: "send", kind: "estimate_unopened_3d" };
+  return { action: "suppress", reason: "retired_followup_kind" };
 }
 
 /** Retry schedule for blocked/failed attempts: capped exponential backoff, deterministic for auditability. */

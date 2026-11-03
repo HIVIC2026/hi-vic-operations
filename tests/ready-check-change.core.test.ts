@@ -1,9 +1,8 @@
 // Jo 24 Oct 2026 (decision 80): a booked our-lead Ready Check can be changed by either side, like install days.
-// Pure rules + the held "You're booked" email.
+// Pure rules. (The old O12 "You're booked" email was removed in Part 3 Task 16; the new one is owner-booked-notice.core.)
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { installerRebookBlockers, readyCheckChangeBlockers, readyCheckStartAt } from "../src/lib/ready-check-times.core";
-import { READY_CHECK_BOOKED_EMAIL_APPROVED, READY_CHECK_BOOKED_TEXT_APPROVED, renderReadyCheckBookedEmail } from "../src/lib/ready-check-booked-email.core";
 
 const NOW = new Date("2026-10-26T00:00:00Z"); // Mon 26 Oct, 11am Melbourne
 const booked = readyCheckStartAt("2026-10-29", "09:00").toISOString();
@@ -33,42 +32,4 @@ describe("installer's new day + time (same rules as offers)", () => {
   });
   test("under 24 hours away", () => expect(installerRebookBlockers({ day: "2026-10-27", time: "08:00" }, booked, NOW)).toEqual(["The time must be at least 24 hours away."]));
   test("the same time as booked", () => expect(installerRebookBlockers({ day: "2026-10-29", time: "09:00" }, booked, NOW)).toEqual(["That is already the booked time."]));
-});
-
-describe("You're booked email (our leads)", () => {
-  const base = { firstName: "Helen", when: "Thursday 29 October at 9:00am", installerName: "Reinsulate", changed: false, myJobUrl: "https://example.test/my-job/t" };
-  test("first booking", () => {
-    const m = renderReadyCheckBookedEmail(base);
-    expect(m.subject).toBe("You're booked: free Ready Check – Thursday 29 October at 9:00am");
-    expect(m.text).toContain("When: Thursday 29 October at 9:00am");
-    expect(m.text).toContain("Installer: Reinsulate");
-    // Decision #24 (Jo 2 Nov 2026): no change link — the owner calls the installer's office.
-    expect(m.text).not.toMatch(/Change time|job page|Wrong time/);
-    expect(m.html).not.toMatch(/Change time|job page/);
-    const withPhone = renderReadyCheckBookedEmail({ ...base, installerPhone: "03 9000 0000" });
-    expect(withPhone.text).toContain("Need to change it? Call Reinsulate on 03 9000 0000.");
-    expect(m.text).not.toContain("Need to change it?"); // no office phone on file → no change line (never a blank)
-    expect(m.text).not.toContain("See my job: https://example.test/my-job/t");
-    // Decision 81 design: green date card (day + green time), "Before they arrive".
-    expect(m.html).toContain("You're booked, Helen");
-    expect(m.html).toContain(">Thursday 29 October<");
-    expect(m.html).toContain(">9:00am<");
-    expect(m.html).toContain("Before they arrive");
-  });
-  test("after a change", () => {
-    const m = renderReadyCheckBookedEmail({ ...base, changed: true });
-    expect(m.subject).toBe("Your Ready Check time has changed – Thursday 29 October at 9:00am");
-    expect(m.text).toContain("has a new time");
-  });
-  test("approved (decisions 81/82); real jobs still need customer comms on; TEST via test-send; no new sender", () => {
-    expect(READY_CHECK_BOOKED_EMAIL_APPROVED).toBe(true); // decision 81
-    expect(READY_CHECK_BOOKED_TEXT_APPROVED).toBe(true); // decision 82
-    const srv = readFileSync("src/lib/ready-check-booked-email.server.ts", "utf8");
-    expect(srv).toContain("ready_check_booked_email_not_sent");
-    expect(srv).toContain("sendTestEmail");
-    expect(srv).toContain("assertCustomerDeliveryAllowed");
-    expect(srv).toContain('channel !== "hivic_sourced"');
-    expect(srv).not.toMatch(/sendRealSms|sendTestSms|resend|fetch\(/i);
-    expect(srv).toContain("ready-check-booked:v1:${jobId}:${startIso}");
-  });
 });

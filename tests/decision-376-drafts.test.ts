@@ -1,5 +1,5 @@
 // Decision 376 (Jo 25 Oct 2026): the four moments F13 left record-only have messages wired through the existing senders:
-// O74 (+ text) visit cancelled by the trade → owner; O75 signed Gate B paperwork copy → owner (PDFs attached); E14 (+ text)
+// O74 (+ text) visit cancelled by the trade → owner; E14 (+ text)
 // 24h coordination reminder → the electrician who has not offered safety check times; I71 (+ text) safety check booked →
 // installer, planning only. Decision 384 (Jo 25 Oct 2026): all four APPROVED exactly as drafted, so real recipients now go
 // through the existing guarded senders — customer_comms_enabled and each text type's sms_message_switches entry still gate
@@ -11,7 +11,6 @@ import { describe, expect, mock, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { SMS_FRESHNESS, SMS_MESSAGE_TYPES, brandSmsBody, smsBlocker } from "../src/lib/sms.core";
 import { VISIT_NEW_TIMES_APPROVED, VISIT_NEW_TIMES_EVENT, renderVisitNewTimesEmail, visitNewTimesKeys, visitNewTimesLink, visitNewTimesText } from "../src/lib/visit-new-times.core";
-import { OWNER_PAPERWORK_COPY_APPROVED, OWNER_PAPERWORK_COPY_EVENT, PAPERWORK_COPY_QUIET_MINUTES, paperworkCopyBatch, paperworkCopyFilename, paperworkCopyKey, renderPaperworkCopyEmail } from "../src/lib/paperwork-copy-email.core";
 import { PIESA_TIMES_REMINDER_APPROVED, coordinationReminderSends, piesaTimesReminderKeys, piesaTimesReminderText, renderPiesaTimesReminderEmail } from "../src/lib/piesa-times-reminder.core";
 import { INSTALLER_PLANNING_NOTICE_APPROVED, INSTALLER_PLANNING_NOTIFIED_EVENT, installerPlanningKeys, installerPlanningText, renderInstallerPlanningEmail } from "../src/lib/installer-planning-notice.core";
 
@@ -21,7 +20,7 @@ const read = (f: string) => readFileSync(f, "utf8");
 describe("decision 384: Jo approved the four decision 376 messages (delivery still gated by the switches)", () => {
   const gate = { to: "0412 345 678", senderConfigured: true, optedOut: false, consent: true, isTestRecord: false, nowIso: "2026-10-26T02:00:00.000Z" };
   test("every *_APPROVED flag is true and the three text types are approved, under quiet hours, 24h event freshness", () => {
-    expect([VISIT_NEW_TIMES_APPROVED, OWNER_PAPERWORK_COPY_APPROVED, PIESA_TIMES_REMINDER_APPROVED, INSTALLER_PLANNING_NOTICE_APPROVED]).toEqual([true, true, true, true]);
+    expect([VISIT_NEW_TIMES_APPROVED, PIESA_TIMES_REMINDER_APPROVED, INSTALLER_PLANNING_NOTICE_APPROVED]).toEqual([true, true, true]);
     for (const [t, audience] of [["visit_new_times", "owner"], ["piesa_times_reminder", "partner"], ["installer_planning_notice", "partner"]] as const) {
       expect(SMS_MESSAGE_TYPES[t]).toMatchObject({ audience, wordingApproved: true, quietHours: true });
       expect(SMS_FRESHNESS[t]).toEqual({ kind: "event", maxAgeMinutes: 24 * 60 });
@@ -34,7 +33,7 @@ describe("decision 384: Jo approved the four decision 376 messages (delivery sti
     }
   });
   test("approved designs are the email refresh MJML files (owner / electrician / installer)", () => {
-    for (const f of ["owner_O74.mjml", "owner_O74b.mjml", "owner_O75.mjml", "electrician_E14.mjml", "installer_I71.mjml"]) {
+    for (const f of ["owner_O74.mjml", "owner_O74b.mjml", "electrician_E14.mjml", "installer_I71.mjml"]) {
       expect(existsSync(`docs/templates/mjml/${f}`)).toBe(true);
     }
     const log = read("docs/JO_DECISIONS_LOG.md");
@@ -71,33 +70,6 @@ describe("O74 wording (trade cancelled the visit)", () => {
   });
 });
 
-describe("O75 wording and batching (signed paperwork copy)", () => {
-  const sig = (id: string, at: string, extra: Partial<{ gate: string; method: string }> = {}) => ({ id, gate: "B", method: "link_code", signed_at: at, doc_key: "payment_terms", title: "Payment", copy_path: `j/${id}.pdf`, ...extra });
-  const now = new Date("2026-10-25T10:00:00.000Z");
-  test("waits until the sitting is over, then batches every uncopied owner Gate B signature; office items and old ones never", () => {
-    const s = [sig("a", "2026-10-25T09:40:00.000Z"), sig("b", "2026-10-25T09:45:00.000Z"), sig("office", "2026-10-25T09:41:00.000Z", { method: "office" }), sig("gateA", "2026-10-25T09:41:00.000Z", { gate: "A" }), sig("old", "2026-10-20T09:00:00.000Z")];
-    expect(paperworkCopyBatch({ signatures: s, copiedIds: new Set(), now }).map((x) => x.id)).toEqual(["a", "b"]);
-    expect(paperworkCopyBatch({ signatures: [...s, sig("c", "2026-10-25T09:55:00.000Z")], copiedIds: new Set(), now })).toEqual([]); // still signing (< 10 min)
-    expect(PAPERWORK_COPY_QUIET_MINUTES).toBe(10);
-    expect(paperworkCopyBatch({ signatures: s, copiedIds: new Set(["a", "b"]), now })).toEqual([]);
-    expect(paperworkCopyKey("j", ["b", "a"])).toBe("owner-paperwork-copy:v1:j:a");
-    expect(paperworkCopyFilename("Your rebate (VEEC assignment)", "HV-3117")).toBe("Signed - Your rebate (VEEC assignment) - HV-3117.pdf");
-  });
-  test("email lists what was signed; only claims attachments when attached", () => {
-    const m = renderPaperworkCopyEmail({ firstName: "Helen", address: "12 Smith St, Frankston", titles: ["The agreement", "Payment"], attached: true, myJobUrl: MY_JOB, unsubscribeUrl: null });
-    expect(m.subject).toBe("Your signed paperwork");
-    expect(m.text).toContain("Hi Helen, thanks for signing.");
-    expect(m.text).toContain("Here's a copy of what you signed for the ceiling insulation at 12 Smith St, Frankston, for your records.");
-    expect(m.text).toContain("- The agreement\n- Payment");
-    // O75 design: no VEEC jargon for owners in the list (the stored title and filename stay).
-    const r = renderPaperworkCopyEmail({ firstName: "Helen", address: "x", titles: ["Your rebate (VEEC assignment)"], attached: true, myJobUrl: null, unsubscribeUrl: null });
-    expect(r.text).toContain("- Your rebate form");
-    expect(r.html).not.toContain("VEEC");
-    expect(m.text).toContain("The signed copies are attached as PDFs.");
-    expect(renderPaperworkCopyEmail({ firstName: null, address: "", titles: ["Payment"], attached: false, myJobUrl: null, unsubscribeUrl: null }).text).not.toContain("attached");
-  });
-});
-
 describe("E14 / I71 wording", () => {
   test("E14: only the safety check point sends; the electrician is asked to offer 3 times; no prices", () => {
     expect(coordinationReminderSends("piesa")).toBe(true);
@@ -124,7 +96,7 @@ describe("E14 / I71 wording", () => {
     const cancel = ve.slice(ve.indexOf("export async function tradeCancelVisit"), ve.indexOf("export async function sweepTradeNoShows"));
     expect(cancel.indexOf("notifyOwnerVisitNewTimes(")).toBeGreaterThan(cancel.indexOf("await reopen("));
     expect(ve.slice(ve.indexOf("async function ownerMiss"), ve.indexOf("export async function tradeArrived"))).not.toContain("notifyOwnerVisitNewTimes");
-    expect(read("src/routes/api/public/hooks/allocation-tick.ts")).toContain("sweepOwnerPaperworkCopies()");
+    expect(read("src/routes/api/public/hooks/allocation-tick.ts")).not.toContain("sweepOwnerPaperworkCopies"); // O75 removed (Part 3 Task 16)
     const alloc = read("src/lib/allocation.server.ts");
     expect(alloc.indexOf("remindTradeToOfferTimes(")).toBeGreaterThan(alloc.indexOf('"coordination_reminder", `24h'));
     const bk = read("src/lib/booking.server.ts");
@@ -199,7 +171,6 @@ mock.module("../src/lib/allocation.server", () => ({ ownerPiesaWindowState: asyn
 mock.module("../src/lib/visit-events.server", () => ({ currentBooking: async () => null }));
 
 const { notifyOwnerVisitNewTimes } = await import("../src/lib/visit-new-times.server");
-const { sendOwnerPaperworkCopy } = await import("../src/lib/paperwork-copy-email.server");
 const { remindTradeToOfferTimes } = await import("../src/lib/piesa-times-reminder.server");
 const { notifyInstallerPlanning } = await import("../src/lib/installer-planning-notice.server");
 const ev = (job: string, type: string) => db.workflow_events!.filter((e) => e["job_id"] === job && e["event_type"] === type);
@@ -243,34 +214,6 @@ describe("O74 server (mocked)", () => {
     expect(calls.testEmail).toEqual(["visit_new_times:bk9:jo@test.test:Your Ready Check visit needs a new time:0"]);
     expect(calls.testSms[0]).toContain(`Please choose new times here: ${MY_JOB}-job-test`);
     expect(calls.owner.length + calls.sms.length).toBe(0);
-  });
-});
-
-describe("O75 server (mocked)", () => {
-  const now = new Date("2026-10-25T10:00:00.000Z");
-  test("real owner while customer comms are off: one batch event (owner items only) before any send, email paused; never copied twice", async () => {
-    reset();
-    expect(await sendOwnerPaperworkCopy("job-real", now)).toBe("not sent — Customer communications are switched off");
-    expect(ev("job-real", OWNER_PAPERWORK_COPY_EVENT).map((e) => e["details"])).toEqual([{ signature_ids: ["s1", "s2"], doc_keys: ["quote_acceptance", "payment_terms"] }]);
-    expect(calls.owner).toEqual([]);
-    expect(await sendOwnerPaperworkCopy("job-real", now)).toBe("nothing to copy");
-    expect(ev("job-real", OWNER_PAPERWORK_COPY_EVENT).length).toBe(1);
-  });
-  test("real owner with customer comms on: ONE email through the guarded owner sender with both PDFs", async () => {
-    reset({ comms: true });
-    db.owner_gate_signatures!.push(
-      { id: "s4", job_id: "job-real", gate: "B", method: "link_code", signed_at: "2026-10-25T09:44:00.000Z", doc_key: "quote_acceptance", copy_path: "job-real/owner-paperwork/s4.pdf" },
-      { id: "s5", job_id: "job-real", gate: "B", method: "link_code", signed_at: "2026-10-25T09:45:00.000Z", doc_key: "payment_terms", copy_path: "job-real/owner-paperwork/s5.pdf" },
-    );
-    expect(await sendOwnerPaperworkCopy("job-real", now)).toBe("sent (2 PDFs attached)");
-    expect(calls.owner).toEqual(["owner_paperwork_copy:owner-paperwork-copy:v1:job-real:s4"]);
-    expect(calls.testEmail.length).toBe(0);
-  });
-  test("TEST job → test-send with the signed PDF attached", async () => {
-    reset();
-    expect(await sendOwnerPaperworkCopy("job-test", now)).toBe("sent: test (1 PDF attached)");
-    expect(calls.testEmail).toEqual(["owner_paperwork_copy:t1:jo@test.test:Your signed paperwork:1"]);
-    expect(calls.owner.length).toBe(0);
   });
 });
 

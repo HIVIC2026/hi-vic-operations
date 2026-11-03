@@ -74,7 +74,6 @@ mock.module("../src/lib/readycheck-booking.server", () => ({
   ] }),
 }));
 mock.module("../src/lib/ready-check-offer-text.server", () => ({ textInstallerAboutOffer: async (id: string) => { calls.texts.push(id); return "blocked: Wording not approved yet"; }, emailInstallerAboutOffer: async () => "blocked: TEST fixture" }));
-mock.module("../src/lib/ready-check-times-email.server", () => ({ emailOwnerReadyCheckTimes: async (_j: string, s: string[]) => { calls.emails.push(s); return "not sent — wording awaiting approval"; } }));
 mock.module("../src/lib/booking.server", () => ({
   confirmBooking: async (jobId: string, kind: string, start: string, actor: string, label: string) => {
     calls.bookings.push(`${kind}|${start}|${actor}|${label}`);
@@ -156,7 +155,7 @@ describe("installer offers 3 times; owner taps one → booked through the canoni
     const props = await q<{ proposer_role: string; status: string; note: string }>("select proposer_role, status, note from appointment_proposals where job_id=$1", [JOB]);
     expect(props).toHaveLength(3);
     expect(props.every((p) => p.proposer_role === "installer" && p.status === "proposed" && p.note === core.READY_CHECK_TIME_NOTE)).toBe(true);
-    expect(calls.emails).toHaveLength(1);
+    expect(calls.emails).toHaveLength(0); // the owner times email was removed (Part 3 Task 16)
     expect(calls.bookings).toHaveLength(0);
     const s = await rc.ownerReadyCheckTimesState(JOB);
     expect(s).toMatchObject({ applies: true, allowed: true, turn: "owner_to_answer" });

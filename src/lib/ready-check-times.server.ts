@@ -73,20 +73,10 @@ async function insertTimes(jobId: string, userId: string, role: "installer" | "o
 
 const startsOf = (picks: ReadyCheckPick[]) => picks.map((p) => readyCheckStartAt(p.day, p.time).toISOString());
 
-async function tellOwner(jobId: string, starts: string[]) {
-  if (await inHouseDispatchSkip(jobId)) return;
-  await (await import("./ready-check-times-email.server")).emailOwnerReadyCheckTimes(jobId, starts).catch((e) => console.error("ready check times email skipped", (e as Error).message));
-}
-
-/** Owner "You're booked" (decision 80; best-effort, held until the wording is approved and messages are on). */
-async function tellOwnerBooked(jobId: string, startsAt: string) {
-  await (await import("./ready-check-booked-email.server")).emailOwnerReadyCheckBooked(jobId, startsAt).catch((e) => console.error("ready check booked email skipped", (e as Error).message));
-}
-
 /** Jo 29 Oct 2026 (HV-3542): the booked email/texts keep going if the phone drops the connection after the booking
  *  is saved (the platform keeps this promise alive past the request); the request still waits for it as before. */
 async function tellBookedKeepGoing(jobId: string, startsAt: string) {
-  const work = (async () => { await tellOwnerBooked(jobId, startsAt); await tellInstallerBooked(jobId, startsAt); })();
+  const work = tellInstallerBooked(jobId, startsAt);
   const { requestContext } = await import("./background.server");
   requestContext.getStore()?.waitUntil?.(work.catch(() => undefined));
   await work;
@@ -202,7 +192,6 @@ export async function acceptOfferWithTimes(offerId: string, userId: string, pick
   await insertTimes(o.job_id, userId, "installer", a.id, starts);
   await logEvent(o.job_id, userId, "ready_check_times_offered", `Installer accepted the Ready Check and offered the owner ${starts.length} times`, { offer_id: offerId, starts_at: starts, business_id: o.business_id }, { internal: true });
   await admin.from("jobs").update({ next_action: "Waiting for the owner to pick one of the installer's Ready Check times" }).eq("id", o.job_id);
-  await tellOwner(o.job_id, starts);
   return { ok: true };
 }
 
@@ -227,7 +216,6 @@ export async function installerOfferNewTimes(jobId: string, userId: string, pick
   await insertTimes(jobId, userId, "installer", a.id, starts);
   await logEvent(jobId, userId, "ready_check_times_offered", `Installer offered the owner ${starts.length} new Ready Check times`, { starts_at: starts, instead_of_owner_days: c.turn === "installer_to_answer" }, { internal: true });
   await admin.from("jobs").update({ next_action: "Waiting for the owner to pick one of the installer's Ready Check times" }).eq("id", jobId);
-  await tellOwner(jobId, starts);
   return { ok: true };
 }
 

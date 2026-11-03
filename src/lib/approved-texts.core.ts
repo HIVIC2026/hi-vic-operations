@@ -26,8 +26,6 @@ export const APPROVED_TEXT_EVENT = "approved_text_prepared" as const;
 
 /** Each text kind → its SMS type in sms.core SMS_MESSAGE_TYPES (one switch per type). */
 export const APPROVED_TEXT_SMS_TYPE = {
-  ready_check_times_owner: "ready_check_times_owner",
-  ready_check_booked_owner: "ready_check_booked_owner",
   ready_check_tomorrow_owner: "visit_tomorrow_owner",
   piesa_booked_owner: "safety_check_booked_owner",
   piesa_tomorrow_owner: "visit_tomorrow_owner",
@@ -51,8 +49,6 @@ const DAY = 86_400_000;
 
 // ---- keys (one text per trigger) ----
 export const approvedTextKey = {
-  readyCheckTimesOwner: (jobId: string, triggerEventId: string) => `rc-times-owner:v1:${jobId}:${triggerEventId}`,
-  readyCheckBookedOwner: (jobId: string, startIso: string) => `rc-booked-owner:v1:${jobId}:${new Date(startIso).toISOString()}`,
   visitTomorrowOwner: (kind: VisitTextKind, jobId: string, bookingId: string, startIso: string) => `visit-tomorrow-owner:v1:${kind}:${jobId}:${bookingId}:${melbourneYmd(new Date(startIso))}`,
   piesaBookedOwner: (jobId: string, startIso: string) => `piesa-booked-owner:v1:${jobId}:${new Date(startIso).toISOString()}`,
   quoteReminder: (quoteId: string, step: QuoteReminderStep) => `quote-reminder-text:v1:${quoteId}:${step}`,
@@ -71,18 +67,6 @@ const clean = (s: string | null | undefined) => s?.trim() || null;
 // ---- wording (verbatim from docs/JO_DECISIONS_LOG.md; the sender adds "Home Insulation Victoria: ") ----
 // A text that would need a fact we do not have returns null and is not sent (never a made-up name, phone or price).
 
-/** Decision 78 (A). */
-export function readyCheckTimesOwnerText(f: { firstName: string | null; suburb: string | null; link: string }): string | null {
-  const suburb = clean(f.suburb);
-  if (!suburb) return null;
-  return `Hi ${clean(f.firstName) ?? "there"}, good news! A certified installer near ${suburb} has offered 3 times for your free Ready Check. Tap to pick one: ${f.link} Reply STOP to opt out.`;
-}
-/** Decision 82, owner booked (B). */
-export function readyCheckBookedOwnerText(f: { startIso: string; installer: string | null; phone: string | null; link: string }): string | null {
-  const installer = clean(f.installer);
-  if (!installer) return null;
-  return `Booked! Your free Ready Check is ${melbourneDayDate(f.startIso)}, ${melbourneClock(f.startIso)}. Installer: ${installer}${clean(f.phone) ? ` ${clean(f.phone)}` : ""}. Details: ${f.link}`;
-}
 /** Decision 93, owner booked (A). */
 export function piesaBookedOwnerText(f: { startIso: string; electrician: string | null; phone: string | null; link: string }): string | null {
   const el = clean(f.electrician);

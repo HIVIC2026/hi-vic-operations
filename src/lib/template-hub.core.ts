@@ -11,14 +11,11 @@ import { bookingNotice, ownerBookedMessage } from './in-house-booking.core';
 import { renderJoOutcomeEmail } from "./jo-outcome-email.core";
 import { withUnsubscribe } from "./emailsafety.core";
 import { renderCoverageUnavailableEmail } from "./coverage-email";
-import { renderFollowupEmail } from "./followup-email";
 import { renderEstimateFollowupEmail } from "./estimate-followup.core";
 import { renderSpotSavedEmail, renderSpotSavedSms } from "./spot-saved-messages.core";
 import { renderNewSenderReplyEmail } from "./new-sender-reply-email.core";
 import { renderChangeReplyEmail } from "./email-change-reply.core";
 import { ownerCodeEmail, ownerCodeSmsBody } from "./owner-code-delivery.core";
-import { renderReadyCheckTimesEmail } from "./ready-check-times-email.core";
-import { renderReadyCheckBookedEmail } from "./ready-check-booked-email.core";
 import { renderOwnerQuoteEmail, renderQuoteReminderEmail, ownerQuoteSms } from "./owner-quote-email.core";
 import { quoteChangeRows } from "./quote-changes.core";
 import { renderYoureInEmail } from "./acceptance-email.core";
@@ -55,11 +52,11 @@ import { brandSmsBody } from "./sms.core";
 import { ownerWillCallEmail, ownerWillCallText } from "./owner-will-call.core";
 import { quickTapsLink, quickTapsReminderText } from "./area-batch.core";
 import { runOfferedText } from "./run-route.core";
-import { exactTimeWords, runSlotCancelledText, runTeamTimeText, runTimeReminderText, runTimeText, windowWords } from "./run-portal.core";
+import { runSlotCancelledText, windowWords } from "./run-portal.core";
 import { blastMessage } from "./save-spot-reminder-blast.core";
 import { threeQuestionsSms } from "./three-questions-reminder.core";
 import {
-  readyCheckTimesOwnerText, readyCheckBookedOwnerText, visitTomorrowText, piesaBookedOwnerText,
+  visitTomorrowText, piesaBookedOwnerText,
   quoteReminderDay3Text, quoteReminderExpiryText, installMovedText, piesaOfferText,
 } from "./approved-texts.core";
 import { melbourneClock, readyCheckDaysSuggestedText, readyCheckBookedInstallerText, installTomorrowText, teamMemberInviteText, ownerChangedVisitText } from "./installer-texts.core";
@@ -83,7 +80,6 @@ import { buildInvoicePayload } from "./xero.core";
 import { TRADE_INVITE_DRAFT, renderTradeInviteEmail } from "./trade-access.core";
 import { swmsSignLinkText } from "./swms-sign-text.core";
 import { renderVisitNewTimesEmail, visitNewTimesText } from "./visit-new-times.core";
-import { renderPaperworkCopyEmail } from "./paperwork-copy-email.core";
 import { piesaTimesReminderText, renderPiesaTimesReminderEmail } from "./piesa-times-reminder.core";
 import { installerPlanningText, renderInstallerPlanningEmail } from "./installer-planning-notice.core";
 import { ANSWER_CODES, ANSWER_SAMPLES, ANSWER_TYPES, renderOwnerAutoReplyEmail } from "./owner-email-auto-reply.core";
@@ -242,9 +238,6 @@ const OWNER: TemplateEntry[] = [
   ENTRY({ id: "owner:O7", section: "owner", step: "enquiry", kind: "email", code: "O7", name: "Not in your area yet", when: "Office presses Send on a job with no installer or electrician covering the postcode", who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 74", gate: { kind: "email" },
     source: { builder: "src/lib/coverage-email.ts", fn: "renderCoverageUnavailableEmail", sender: "src/lib/coverage.functions.ts" }, design: "docs/templates/mjml/owner_O7.mjml",
     render: () => email(renderCoverageUnavailableEmail({ firstName: "Helen", suburb: "Mildura", postcode: "3500", missing: ["REC / electrician", "installer"], reference: "HV-TEST" })) }),
-  ENTRY({ id: "owner:estimate-unopened", section: "owner", step: "enquiry", kind: "email", code: "", name: "Estimate not opened (3 days)", when: "Three days after the estimate email when the estimate link was never opened", who: "Owner", approvalNote: "The one active estimate follow-up kind (customer-followups hook)", gate: { kind: "email" },
-    source: { builder: "src/lib/followup-email.ts", fn: "renderFollowupEmail", sender: "src/lib/followups.server.ts" },
-    render: () => email(renderFollowupEmail({ kind: "estimate_unopened_3d", estimateUrl: EST })) }),
   ...([["day_2", "O66", "Estimate reminder (day 2)", "owner_O66.mjml"], ["day_7", "O67", "Estimate reminder (day 7)", "owner_O67.mjml"], ["day_21", "O68", "Estimate closing (day 21)", "owner_O68.mjml"]] as const).map(([step, code, name, file]) =>
     ENTRY({ id: `owner:${code}`, section: "owner", step: "enquiry", kind: "email", code, name, when: `${step.replace("day_", "Day ")} after the estimate email, until the spot is saved, they reply or opt out (closes a week after day 21)`, who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 242 (reconfirmed 357); HELD by decision 388 (spot-only rewording awaiting Jo)", gate: { kind: "email" },
       source: { builder: "src/lib/estimate-followup.core.ts", fn: "renderEstimateFollowupEmail", sender: "src/lib/estimate-followup.server.ts" }, design: `docs/templates/mjml/${file}`,
@@ -265,18 +258,6 @@ const OWNER: TemplateEntry[] = [
     source: { builder: "src/lib/spot-saved-messages.core.ts", fn: "renderSpotSavedSms", sender: "src/lib/spot-saved-send.server.ts" },
     render: () => text(renderSpotSavedSms({ firstName: "Helen", rebate: 1610, suburb: "Glen Waverley", shortAddress: SHORT_ADDRESS, myJobUrl: JOB, optOutUrl: UNSUB })) }),
   // Ready Check
-  ENTRY({ id: "owner:O11", section: "owner", step: "ready_check", kind: "email", code: "O11", name: "Pick a time for your Ready Check", when: "The installer offers 3 Ready Check times", who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 77", gate: { kind: "email" },
-    source: { builder: "src/lib/ready-check-times-email.core.ts", fn: "renderReadyCheckTimesEmail", sender: "src/lib/ready-check-times-email.server.ts" }, design: "docs/templates/mjml/owner_O11.mjml",
-    render: () => email(renderReadyCheckTimesEmail({ firstName: "Helen", suburb: "Glen Waverley", installerName: "Sample Insulation Co", times: ["Tuesday 28 October at 8:00am", "Wednesday 29 October at 12:30pm", "Friday 31 October at 7:30am"], myJobUrl: JOB, estimate: { rebate: 1610, price: 2188, areaM2: 137 } })) }),
-  ENTRY({ id: "owner:sms-ready_check_times_owner", section: "owner", step: "ready_check", kind: "text", code: "", name: "Ready Check times are ready (text)", when: "The installer offers 3 Ready Check times", who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 78", gate: { kind: "text", smsType: "ready_check_times_owner" },
-    source: { builder: "src/lib/approved-texts.core.ts", fn: "readyCheckTimesOwnerText", sender: "src/lib/approved-texts.server.ts" },
-    render: () => text(readyCheckTimesOwnerText({ firstName: "Helen", suburb: "Glen Waverley", link: JOB })) }),
-  ENTRY({ id: "owner:O12", section: "owner", step: "ready_check", kind: "email", code: "O12", name: "Ready Check booked", when: "The owner picks a Ready Check time (or it changes)", who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 81; change line \"Need to change it? Call {Installer} on {office phone}.\" (no change link) per decision #24, Jo 2 Nov 2026", gate: { kind: "email" },
-    source: { builder: "src/lib/ready-check-booked-email.core.ts", fn: "renderReadyCheckBookedEmail", sender: "src/lib/ready-check-booked-email.server.ts" }, design: "docs/templates/mjml/owner_O12.mjml",
-    render: () => email(renderReadyCheckBookedEmail({ firstName: "Helen", when: "Wednesday 28 October at 8:00am", installerName: "Sample Insulation Co", installerPhone: "0400 000 000", address: SHORT_ADDRESS, changed: false, myJobUrl: JOB, estimate: { rebate: 1610, price: 2188, areaM2: 137 } })) }),
-  ENTRY({ id: "owner:sms-ready_check_booked_owner", section: "owner", step: "ready_check", kind: "text", code: "", name: "Ready Check booked (text)", when: "The owner picks a Ready Check time", who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 82 (text B)", gate: { kind: "text", smsType: "ready_check_booked_owner" },
-    source: { builder: "src/lib/approved-texts.core.ts", fn: "readyCheckBookedOwnerText", sender: "src/lib/approved-texts.server.ts" },
-    render: () => text(readyCheckBookedOwnerText({ startIso: RC_ISO, installer: "Sample Insulation Co", phone: "0400 000 000", link: JOB })) }),
   ENTRY({ id: "owner:sms-visit_tomorrow_owner", section: "owner", step: "ready_check", kind: "text", code: "", name: "See you tomorrow (text)", when: "From 4pm the afternoon before a Ready Check, safety check or install", who: "Owner", approvalNote: "Jo 24 Oct 2026, decisions 82, 93, 99; business office phone + \"electrical safety check (PIESA)\" per decision #25, Jo 2 Nov 2026", gate: { kind: "text", smsType: "visit_tomorrow_owner" },
     source: { builder: "src/lib/approved-texts.core.ts", fn: "visitTomorrowText", sender: "src/lib/approved-texts.server.ts" },
     render: () => texts([
@@ -420,9 +401,6 @@ const OWNER: TemplateEntry[] = [
       { label: "Owner picks new times", body: visitNewTimesText({ kind: "assessment", wasIso: PIESA_ISO, ownerPicks: true, link: `${JOB}?screen=book` }) },
       { label: "New times on the way", body: visitNewTimesText({ kind: "installation", wasIso: INSTALL_ISO, ownerPicks: false, link: `${JOB}?screen=book` }) },
     ]) }),
-  ENTRY({ id: "owner:O75", section: "owner", step: "quote", kind: "email", code: "O75", name: "Your signed paperwork", when: "One email per signing sitting with the signed Gate B PDFs attached", who: "Owner", approvalNote: "Jo 25 Oct 2026, decision 384 (drafted in decision 376)", gate: { kind: "email" },
-    source: { builder: "src/lib/paperwork-copy-email.core.ts", fn: "renderPaperworkCopyEmail", sender: "src/lib/paperwork-copy-email.server.ts" }, design: "docs/templates/mjml/owner_O75.mjml",
-    render: () => email(renderPaperworkCopyEmail({ firstName: "Helen", address: ADDRESS, titles: ["The agreement", "Payment", "Your rebate (VEEC assignment)"], attached: true, myJobUrl: JOB, unsubscribeUrl: null })) }),
   ENTRY({ id: "owner:signing-code", section: "owner", step: "any", kind: "email", code: "", name: "Your signing code (email)", when: "The owner asks for a 6-digit code to sign on My job", who: "Owner", approvalNote: "Jo (sign-in code wording)", gate: { kind: "always" },
     source: { builder: "src/lib/owner-code-delivery.core.ts", fn: "ownerCodeEmail", sender: "src/lib/owner-code-delivery.server.ts" },
     render: () => email({ subject: "Your signing code", html: ownerCodeEmail("123456").html }) }),
@@ -499,18 +477,6 @@ const OWNER: TemplateEntry[] = [
   ENTRY({ id: "owner:sms-quick_taps_reminder", section: "owner", step: "ready_check", kind: "text", code: "", name: "Confirm a few quick details — day-2 reminder (text, batches sent before 2 Nov)", when: "Day 2 of a batch first sent with the old quick taps text, if the owner hasn't answered", who: "Owner", approvalNote: "Jo 30 Oct 2026 (A48 batch 2)", gate: { kind: "text", smsType: "quick_taps_reminder" },
     source: { builder: "src/lib/area-batch.core.ts", fn: "quickTapsReminderText", sender: "src/lib/area-batch.server.ts" },
     render: () => text(quickTapsReminderText("Helen Sample", `${JOB}?screen=taps`)) }),
-  // A48 batch 2 part 2 (Jo 30 Oct 2026), Portal books: the installer picked the run's day → each owner's 1-hour window to
-  // confirm, plus one reminder at 12 hours.
-  ENTRY({ id: "owner:sms-run_time", section: "owner", step: "ready_check", kind: "text", code: "", name: "Your free Ready Check time — confirm (text)", when: "The installer picks the run's day (Portal books)", who: "Owner", approvalNote: "Jo 30 Oct 2026 (A48 batch 2 part 2 spec)", gate: { kind: "text", smsType: "run_time" },
-    source: { builder: "src/lib/run-portal.core.ts", fn: "runTimeText", sender: "src/lib/installer-run.server.ts" },
-    render: () => text(runTimeText({ name: "Helen Sample", day: "Tuesday 27 October", time: windowWords("09:00", "10:00"), installer: "Sample Insulation", link: JOB })) }),
-  // Task 8 fix round 1 (Jo 30 Oct 2026): the same text type for a time the installer's team entered (exact time, no other times).
-  ENTRY({ id: "owner:sms-run_time_team", section: "owner", step: "ready_check", kind: "text", code: "", name: "Your free Ready Check time from the installer's team — confirm (text)", when: "The installer's team enters the time they agreed with the owner (Our team books)", who: "Owner", approvalNote: "Jo 30 Oct 2026 (A48 batch 2 Task 8 fix round 1)", gate: { kind: "text", smsType: "run_time" },
-    source: { builder: "src/lib/run-portal.core.ts", fn: "runTeamTimeText", sender: "src/lib/installer-run.server.ts" },
-    render: () => text(runTeamTimeText({ name: "Helen Sample", day: "Tuesday 27 October", time: exactTimeWords("2026-10-27", "09:00"), installer: "Sample Insulation", link: JOB })) }),
-  ENTRY({ id: "owner:sms-run_time_reminder", section: "owner", step: "ready_check", kind: "text", code: "", name: "Please confirm your free Ready Check — 12-hour reminder (text)", when: "12 hours after the time text, if the owner hasn't confirmed", who: "Owner", approvalNote: "Jo 30 Oct 2026 (A48 batch 2 part 2 spec)", gate: { kind: "text", smsType: "run_time_reminder" },
-    source: { builder: "src/lib/run-portal.core.ts", fn: "runTimeReminderText", sender: "src/lib/installer-run.server.ts" },
-    render: () => text(runTimeReminderText({ name: "Helen Sample", day: "Tuesday 27 October", time: windowWords("09:00", "10:00"), link: JOB })) }),
 ];
 
 /* ---------------------------------------------------------------- INSTALLER */

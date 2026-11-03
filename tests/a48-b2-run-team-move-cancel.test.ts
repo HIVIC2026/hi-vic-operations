@@ -11,6 +11,11 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { SMS_FRESHNESS, SMS_MESSAGE_TYPES } from "../src/lib/sms.core";
+
+// Part 3 Task 16: run_time / run_time_reminder are retired in the real registry (wordingApproved false, nothing can send).
+// This file covers the OLD run mechanics (Task 18 deletes them), so it switches the two types back on for this file only.
+// tests/old-flow-removed-p3.test.ts holds the real registry state.
+for (const k of ["run_time", "run_time_reminder"] as const) (SMS_MESSAGE_TYPES[k] as { wordingApproved: boolean }).wordingApproved = true;
 import { exactTimeWords, runSlotCancelledText, runTeamTimeText, windowWords } from "../src/lib/run-portal.core";
 import { SET_PASSWORD_BASE } from "../src/lib/set-password-link.core";
 
@@ -114,7 +119,6 @@ mock.module("../src/lib/booking.server", () => ({
 }));
 const followOns: string[] = [];
 mock.module("../src/lib/mitti-create.server", () => ({ onReadyCheckBooked: async (j: string) => { followOns.push(`mitti:${j}`); } }));
-mock.module("../src/lib/ready-check-booked-email.server", () => ({ emailOwnerReadyCheckBooked: async (j: string) => { followOns.push(`owner-email:${j}`); } }));
 mock.module("../src/lib/installer-texts.server", () => ({
   textInstallerReadyCheckBooked: async (j: string) => { followOns.push(`installer-text:${j}`); },
   textTradeOwnerChangedVisit: async () => { followOns.push("owner-changed-text"); },
@@ -372,7 +376,7 @@ describe("Move run", () => {
     now(6);
     await R.ownerConfirmRunSlot(a, "u-owner", { now: new Date(clock) });
     expect(booked.at(-1)).toMatchObject({ jobId: a, start: "2026-10-28T21:00:00.000Z" });
-    expect(followOns).toEqual([`mitti:${a}`, `owner-email:${a}`, `installer-text:${a}`]);
+    expect(followOns).toEqual([`mitti:${a}`, `installer-text:${a}`]);
     expect(tables["job_assignments"]!.filter((x) => x["job_id"] === a && x["active"] === true).length).toBe(1);
   });
   test("a day under 2 days ahead is refused; nothing written, released or sent", async () => {

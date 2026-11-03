@@ -10,8 +10,6 @@ import { renderMjml } from "../src/lib/mjml-lite.core";
 import { renderJoOutcomeEmail } from "../src/lib/jo-outcome-email.core";
 import { renderCoverageUnavailableEmail } from "../src/lib/coverage-email";
 import { renderSpotSavedEmail } from "../src/lib/spot-saved-messages.core";
-import { renderReadyCheckTimesEmail, READY_CHECK_TIMES_EMAIL_APPROVED } from "../src/lib/ready-check-times-email.core";
-import { renderReadyCheckBookedEmail, READY_CHECK_BOOKED_EMAIL_APPROVED } from "../src/lib/ready-check-booked-email.core";
 import { renderOwnerQuoteEmail, renderQuoteReminderEmail, OWNER_QUOTE_EMAIL_APPROVED, QUOTE_REMINDER_EMAIL_APPROVED } from "../src/lib/owner-quote-email.core";
 import { renderYoureInEmail, ACCEPTANCE_EMAIL_APPROVED } from "../src/lib/acceptance-email.core";
 import { renderSafetyCheckTimesEmail, renderSafetyCheckBookedEmail, SAFETY_CHECK_EMAILS_APPROVED } from "../src/lib/safety-check-emails.core";
@@ -104,18 +102,6 @@ describe("approved owner email designs", () => {
     const m = renderSpotSavedEmail({ firstName: "Helen", rebate: 1610, suburb: "Glen Waverley", shortAddress: "824 High Street Road, Glen Waverley", myJobUrl: JOB, optOutUrl: "https://estimate.homeinsulationvictoria.com.au/api/public/unsubscribe?t=x", referralUrl: "https://homeinsulationvictoria.com.au/homeowner?ref=r", estimate: { gross: 3798, customer: 2188, areaM2: 137, address: "824 High Street Road, Glen Waverley VIC 3150", calculatorUrl: `${EST}/calculator` } });
     shell(m.html, m.text, true);
     has(m.html, ["Smart move, Helen. Your spot is saved.", "Your $1,610 rebate is waiting", "You save $1,610", ">$2,188<", "Estimate incl. GST for 137 m². You'll see your exact price before you agree to anything.", "Your place is kept", "<strong>A certified installer will call you</strong>", "They'll measure up and confirm your quote.", "What's included in $2,188", "Have a friend who needs a spot saved?"]);
-  });
-  test("O11 Ready Check times", () => {
-    const m = renderReadyCheckTimesEmail({ firstName: "Helen", suburb: "Glen Waverley", installerName: "Deep Insulation", times: ["Tuesday 28 October at 8:00am", "Wednesday 29 October at 12:30pm", "Friday 31 October at 7:30am"], myJobUrl: JOB, estimate: { rebate: 1610, price: 2188, areaM2: 137 } });
-    shell(m.html, m.text, false);
-    has(m.html, ["Helen, pick a time for your free Ready Check", "a certified installer near Glen Waverley is ready for you", ">Tuesday 28 October<", "8:00am &rsaquo;", "12:30pm &rsaquo;", "Suggest other days", "At your Ready Check", "You save $1,610", "What's included in $2,188"]);
-    expect(READY_CHECK_TIMES_EMAIL_APPROVED).toBe(true); // approved by Jo 24 Oct 2026 (tests/approved-flags.test.ts lists the decision)
-  });
-  test("O12 Ready Check booked", () => {
-    const m = renderReadyCheckBookedEmail({ firstName: "Helen", when: "Tuesday 28 October at 8:00am", installerName: "Deep Insulation", installerPhone: "0400 000 000", address: "824 High Street Road, Glen Waverley", changed: false, myJobUrl: JOB, estimate: { rebate: 1610, price: 2188, areaM2: 137 } });
-    shell(m.html, m.text, false);
-    has(m.html, ["You're booked, Helen", "Your free Ready Check is confirmed.", "Your Ready Check</div>", ">Tuesday 28 October<", ">8:00am<", "Installer: Deep Insulation · 0400 000 000", "Before they arrive", "<strong>ceiling hatch</strong>", "Need to change it? Call Deep Insulation on 0400 000 000.", "What's included in $2,188"]);
-    expect(READY_CHECK_BOOKED_EMAIL_APPROVED).toBe(true); // approved by Jo 24 Oct 2026 (tests/approved-flags.test.ts lists the decision)
   });
   const quote = { firstName: "Helen", address: "824 High Street Road, Glen Waverley VIC 3150", totalIncGst: 2200, rebateIncGst: 1850, subtotalIncGst: 4050, areaM2: 137.6, removalM2: 40, product: "Bradford Gold R5.0", installerName: "Reinsulate", installerCertified: true, safetyCheckPrice: 349,
     lines: [{ description: "Bradford Gold R5.0 ceiling batts, supplied and installed", lineTotalIncGst: 2752 }, { description: "Old insulation removed and taken away", lineTotalIncGst: 600 }, { description: "Electrical safety check (PIESA)", lineTotalIncGst: 349 }, { description: "Accredited Provider fee", lineTotalIncGst: 349 }],

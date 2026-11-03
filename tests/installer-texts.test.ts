@@ -125,7 +125,7 @@ describe("wiring: triggers, tick, guarded senders only", () => {
     expect(suggest.indexOf("tellInstallerDaysSuggested(")).toBeGreaterThan(suggest.indexOf('"ready_check_days_suggested"'));
     const agreed = s.slice(s.indexOf("async function bookAgreedTime"), s.indexOf("async function claim"));
     expect(agreed.indexOf("tellBookedKeepGoing(jobId, startsAt)")).toBeGreaterThan(agreed.indexOf("confirmBooking(jobId"));
-    expect(s.slice(s.indexOf("async function tellBookedKeepGoing"))).toMatch(/tellOwnerBooked\(jobId, startsAt\); await tellInstallerBooked\(jobId, startsAt\)[\s\S]*waitUntil/);
+    expect(s.slice(s.indexOf("async function tellBookedKeepGoing"))).toMatch(/tellInstallerBooked\(jobId, startsAt\)[\s\S]*waitUntil/);
     const change = s.slice(s.indexOf("export async function installerChangeReadyCheck"), s.indexOf("export async function installerOpenReadyCheckDays"));
     expect(change).toContain("tellBookedKeepGoing(jobId, start)");
     expect(s).toContain("export const readyCheckTurnFor");

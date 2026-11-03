@@ -38,7 +38,7 @@ type Est = { scenarios: Scenario[]; access_adjustment: { moderate: number; diffi
 /** Customer-facing copy for the free check confirmation (presentation-only rename of the Home Insulation Ready Check). */
 export const FREE_CHECK_CONFIRM_COPY = {
   name: "Free Ready Check",
-  intro: "Confirm your request below. We will choose an approved installer near you, and they will offer you 3 times to pick from.",
+  intro: "Confirm your request below. We will choose an approved installer near you.",
   free: "FREE · No payment required",
   checklistHeading: "What happens at your visit",
   checklist: ["Measure your ceiling area.", "Assess any existing insulation and confirm whether it can stay or needs to be removed.", "Confirm whether your home meets the rebate eligibility requirements.", "Prepare the job scope so we can confirm your quote."],
@@ -49,7 +49,7 @@ export const FREE_CHECK_CONFIRM_COPY = {
   cta: "Confirm my free Ready Check →",
   stale: "Your estimate changed. Please review it and confirm your free Ready Check again.",
   successHeading: "We’ve received your request",
-  successBody: "We’ll choose an approved installer near you. They’ll offer you 3 times for your Free Ready Check, and we’ll send you a link to pick one. If none suit, you can suggest other days.",
+  successBody: "We’ll choose an approved installer near you.",
   successNext: "They’ll measure your ceiling, assess any existing insulation, confirm eligibility and prepare the job scope so we can confirm your quote.",
 } as const;
 

@@ -73,8 +73,8 @@ export const SMS_MESSAGE_TYPES = {
   install_day_form_reminder: { audience: "partner", label: "Install day form not complete at 5pm – reminder to the lead installer (decision 328)", wordingApproved: true, quietHours: true },
   // Decision 326 (25 Oct 2026): approved wordings that had no sender. Wording verbatim in approved-texts.core.ts; each text
   // records one `approved_text_prepared` event before sending (approved-texts.server.ts). Switches start off (fail closed).
-  ready_check_times_owner: { audience: "owner", label: "Ready Check times are ready – owner picks one (decision 78)", wordingApproved: true, quietHours: true },
-  ready_check_booked_owner: { audience: "owner", label: "Ready Check booked – owner (decision 82, text B)", wordingApproved: true, quietHours: true },
+  ready_check_times_owner: { audience: "owner", label: "Retired 2 Nov 2026 — Ready Check times are ready – owner picks one (decision 78)", wordingApproved: false, quietHours: true },
+  ready_check_booked_owner: { audience: "owner", label: "Retired 2 Nov 2026 — Ready Check booked – owner (decision 82, text B)", wordingApproved: false, quietHours: true },
   visit_tomorrow_owner: { audience: "owner", label: "See you tomorrow – Ready Check / safety check / install, the afternoon before (decisions 82, 93, 99)", wordingApproved: true, quietHours: true },
   safety_check_booked_owner: { audience: "owner", label: "Electrical safety check booked – owner (decision 93, text A)", wordingApproved: true, quietHours: true },
   quote_reminder: { audience: "owner", label: "Quote reminder – 3 days after the quote and 2 days before the price expires (decisions 88/89)", wordingApproved: true, quietHours: true },
@@ -116,8 +116,8 @@ export const SMS_MESSAGE_TYPES = {
   // A48 batch 2 part 2, Portal books (Jo 30 Oct 2026, wording approved in the part 2 spec): the installer picked the run's day
   // → each OWNER gets their 1-hour window to confirm (run-portal.core runTimeText), plus ONE reminder at 12 hours. Own
   // switches, off until Jo switches them on.
-  run_time: { audience: "owner", label: "Your free Ready Check is {day} {time} – tap to confirm (A48 batch 2 runs)", wordingApproved: true, quietHours: true },
-  run_time_reminder: { audience: "owner", label: "Please confirm your free Ready Check – 12-hour reminder (A48 batch 2 runs)", wordingApproved: true, quietHours: true },
+  run_time: { audience: "owner", label: "Retired 2 Nov 2026 — Your free Ready Check is {day} {time} – tap to confirm (A48 batch 2 runs)", wordingApproved: false, quietHours: true },
+  run_time_reminder: { audience: "owner", label: "Retired 2 Nov 2026 — Please confirm your free Ready Check – 12-hour reminder (A48 batch 2 runs)", wordingApproved: false, quietHours: true },
   // A48 batch 2 part 2, Task 8: the owner cancelled a confirmed run window → the INSTALLER is told once, with the run link
   // ("Fill from nearby waiting owners"; run-portal.core runSlotCancelledText). Own switch, off until Jo switches it on;
   // wording approved by Jo 30 Oct 2026 (Task 8 fix round 1).

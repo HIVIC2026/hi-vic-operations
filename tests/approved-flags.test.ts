@@ -10,8 +10,6 @@ import { COLLECTION_NOTICE_EMAIL_APPROVED, COLLECTION_NOTICE_SEND_APPROVED } fro
 import { INSTALL_BOOKED_EMAIL_APPROVED } from "../src/lib/install-booked-email.core";
 import { INSTALL_DAYS_EMAIL_APPROVED } from "../src/lib/install-days-email.core";
 import { INSTALLER_ACCEPTED_EMAIL_APPROVED, INSTALLER_DECLINED_EMAIL_APPROVED } from "../src/lib/installer-accepted-email.core";
-import { READY_CHECK_BOOKED_EMAIL_APPROVED, READY_CHECK_BOOKED_TEXT_APPROVED } from "../src/lib/ready-check-booked-email.core";
-import { READY_CHECK_TIMES_EMAIL_APPROVED } from "../src/lib/ready-check-times-email.core";
 import { READY_CHECK_OFFER_EMAIL_APPROVED } from "../src/lib/ready-check-offer-email.core";
 import { ELECTRICIAN_OFFER_EMAIL_APPROVED } from "../src/lib/electrician-offer-email.core";
 import { OWNER_QUOTE_EMAIL_APPROVED, QUOTE_REMINDER_EMAIL_APPROVED, ownerQuoteSms } from "../src/lib/owner-quote-email.core";
@@ -30,7 +28,6 @@ import { INSULATION_QUESTIONS_SEND_APPROVED } from "../src/lib/insulation-questi
 import { SMS_MESSAGE_TYPES } from "../src/lib/sms.core";
 import { ADDRESS_REQUEST_EMAIL_APPROVED } from "../src/lib/address-request.core";
 import { VISIT_NEW_TIMES_APPROVED } from "../src/lib/visit-new-times.core";
-import { OWNER_PAPERWORK_COPY_APPROVED } from "../src/lib/paperwork-copy-email.core";
 import { PIESA_TIMES_REMINDER_APPROVED } from "../src/lib/piesa-times-reminder.core";
 import { INSTALLER_PLANNING_NOTICE_APPROVED } from "../src/lib/installer-planning-notice.core";
 import { usualElectricianReminderBody } from "../src/lib/usual-electrician.core";
@@ -40,9 +37,6 @@ const APPROVED_EMAIL_FLAGS: Record<string, { value: boolean; decisions: string }
   LAUNCH_COPY_APPROVED: { value: LAUNCH_COPY_APPROVED, decisions: "66/67 (O1, O2)" },
   READY_CHECK_OFFER_EMAIL_APPROVED: { value: READY_CHECK_OFFER_EMAIL_APPROVED, decisions: "106/136/154 (our-lead offer email)" },
   ELECTRICIAN_OFFER_EMAIL_APPROVED: { value: ELECTRICIAN_OFFER_EMAIL_APPROVED, decisions: "93/326 (E1 electrician offer email)" },
-  READY_CHECK_TIMES_EMAIL_APPROVED: { value: READY_CHECK_TIMES_EMAIL_APPROVED, decisions: "77 (O11)" },
-  READY_CHECK_BOOKED_EMAIL_APPROVED: { value: READY_CHECK_BOOKED_EMAIL_APPROVED, decisions: "81 (O12)" },
-  READY_CHECK_BOOKED_TEXT_APPROVED: { value: READY_CHECK_BOOKED_TEXT_APPROVED, decisions: "82 (owner booked text B)" },
   OWNER_QUOTE_EMAIL_APPROVED: { value: OWNER_QUOTE_EMAIL_APPROVED, decisions: "86 (O18)" },
   QUOTE_REMINDER_EMAIL_APPROVED: { value: QUOTE_REMINDER_EMAIL_APPROVED, decisions: "89/134 (O19)" },
   ACCEPTANCE_EMAIL_APPROVED: { value: ACCEPTANCE_EMAIL_APPROVED, decisions: "90 (O22)" },
@@ -67,7 +61,6 @@ const APPROVED_EMAIL_FLAGS: Record<string, { value: boolean; decisions: string }
   CANCEL_NOTICE_EMAILS_APPROVED: { value: CANCEL_NOTICE_EMAILS_APPROVED, decisions: "291 (O69, I70 — Jo 25 Oct 2026)" },
   NEW_SENDER_REPLY_APPROVED: { value: NEW_SENDER_REPLY_APPROVED, decisions: "292 (O70 new-sender calculator reply — Jo 25 Oct 2026)" },
   VISIT_NEW_TIMES_APPROVED: { value: VISIT_NEW_TIMES_APPROVED, decisions: "384 (O74/O74b drafted in 376 — Jo 25 Oct 2026)" },
-  OWNER_PAPERWORK_COPY_APPROVED: { value: OWNER_PAPERWORK_COPY_APPROVED, decisions: "384 (O75 drafted in 376 — Jo 25 Oct 2026)" },
   PIESA_TIMES_REMINDER_APPROVED: { value: PIESA_TIMES_REMINDER_APPROVED, decisions: "384 (E14 drafted in 376 — Jo 25 Oct 2026)" },
   INSTALLER_PLANNING_NOTICE_APPROVED: { value: INSTALLER_PLANNING_NOTICE_APPROVED, decisions: "384 (I71 drafted in 376 — Jo 25 Oct 2026)" },
 };
@@ -87,7 +80,6 @@ const APPROVED_SMS_TYPES: Record<string, string> = {
   electrician_cant_attend_installer: "327 (installer told the electrician can't make the day; wording in install-attendance.core.ts)",
   install_day_form_result: "328 (install day form result to the lead installer; wording in install-day-confirm.core.ts)",
   install_day_form_reminder: "328 (5pm install day form reminder; wording in install-day-confirm.core.ts)",
-  ready_check_times_owner: "78 (A), wired by 326", ready_check_booked_owner: "82 (owner booked, B), wired by 326",
   visit_tomorrow_owner: "82/93/99 (owner day before), wired by 326", safety_check_booked_owner: "93 (owner booked, A), wired by 326",
   quote_reminder: "88/89, wired by 326", install_moved: "135, wired by 326", piesa_offer: "93 (electrician, B), wired by 326",
   swms_sign_link: "380 (crew safety plan link, drafted in 377)",
@@ -115,7 +107,8 @@ describe("approved message switches are on (Jo 24 Oct 2026)", () => {
     // Decision 388 (25 Oct 2026): Jo approved the spot-only spot saved and save-spot reminder texts.
     // Decision 389 (25 Oct 2026): the "It's your turn" text is approved (Jo saw the O77 picture).
     // Jo approved the address request texts and email on 28 Oct 2026 (full address required).
-    expect(off).toEqual([]);
+    // Part 3 Task 16 (Jo 2 Nov 2026): these four are retired on purpose (label "Retired 2 Nov 2026 —"); nothing else is unapproved.
+    expect(off).toEqual(["ready_check_times_owner", "ready_check_booked_owner", "run_time", "run_time_reminder"]);
     expect(ADDRESS_REQUEST_EMAIL_APPROVED).toBe(true);
     expect("ready_check_booking" in SMS_MESSAGE_TYPES).toBe(false);
   });

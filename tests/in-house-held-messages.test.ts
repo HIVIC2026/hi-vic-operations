@@ -47,12 +47,9 @@ function fixture(held: boolean, payee = false, failed = false) {
 }
 const entries = [
   {file:'install-clearance.server',fn:'notifyInstallerClearance',args:['j']},
-  {file:'ready-check-times-email.server',fn:'emailOwnerReadyCheckTimes',args:['j',['2026-11-04T00:00:00Z']]},
-  {file:'ready-check-booked-email.server',fn:'emailOwnerReadyCheckBooked',args:['j','2026-11-04T00:00:00Z']},
   {file:'owner-email-triggers.server',fn:'onInstallDaysOffered',args:['j',['2026-11-04T00:00:00Z'],'2026-11-29']},
   {file:'owner-email-triggers.server',fn:'onSafetyCheckBooked',args:['j','2026-11-04T00:00:00Z',false]},
   {file:'owner-email-triggers.server',fn:'onInstallDayMoved',args:['j','2026-11-04T00:00:00Z','2026-11-03T00:00:00Z']},
-  {file:'approved-texts.server',fn:'textOwnerReadyCheckTimes',args:['j','e','2026-10-30T00:00:00Z',new Date('2026-10-30T00:00:00Z')]},
   {file:'installer-texts.server',fn:'textInstallerOwnerSuggestedDays',args:['j','e','2026-10-30T00:00:00Z']},
   {file:'installer-texts.server',fn:'textTradeOwnerChangedVisit',args:[{jobId:'j',kind:'installation',triggerEventId:'e',changedAt:'2026-10-30T00:00:00Z',wasIso:'2026-11-04T00:00:00Z'}]},
 ];
@@ -79,7 +76,6 @@ const otherEntries = [
   {file:'install-no-access-notice.server',fn:'resendInstallNoAccessText',args:[{jobId:'j',bookingId:'bk',wasStart:'2026-11-04T00:00:00Z',reason:'TEST',reportedAt:'2026-10-30'}]},
   {file:'visit-new-times.server',fn:'notifyOwnerVisitNewTimes',args:[{jobId:'j',bookingId:'bk',kind:'ready_check',wasIso:'2026-11-04T00:00:00Z'}]},
   {file:'fixes-times-link.server',fn:'textFixesTimesLink',args:['j',{auditId:'audit',completedAt:'2026-10-30',short:{}}]},
-  {file:'approved-texts.server',fn:'textOwnerReadyCheckBooked',args:['j','2026-11-04T00:00:00Z','2026-10-30',new Date('2026-10-30')]},
   {file:'approved-texts.server',fn:'textOwnerSafetyCheckBooked',args:['j','2026-11-04T00:00:00Z','2026-10-30',new Date('2026-10-30')]},
   {file:'approved-texts.server',fn:'textOwnerVisitTomorrow',args:['installation','j',{id:'bk',scheduled_start:'2026-10-31T00:00:00Z'},new Date('2026-10-30T06:00:00Z')]},
   {file:'approved-texts.server',fn:'textOwnerInstallMoved',args:['j',{id:'bk',scheduled_start:'2026-11-04T00:00:00Z',created_at:'2026-10-30'},'2026-11-03',new Date('2026-10-30')]},
@@ -106,7 +102,6 @@ for(const entry of otherEntries) for(const payee of [false,true]) test(`${entry.
  f.modules['./visit-events.server']={currentBooking:async()=>null};
  f.modules['./rectification.server']={rectificationWindowsExist:async()=>false};
  f.modules['./ai-email-reply.server']={installerNotes:async()=>null};
- f.modules['./ready-check-booked-email.server']={recordBookedNotSent:async()=>{}};
  f.modules['./owner-contact.server']={businessContactForJob:async()=>({name:'Biz',tradingName:null,officePhone:'03 9000 0000',email:'b@x.test'})};
  f.modules['./payments.server']={jobPaymentView:async()=>({invoiceId:'invoice',steps:[{key:'safety_check',state:'paid'}],plan:{safetyCheckCents:34900,quoteTotalCents:100000,thresholds:{safety_check:34900}},ledger:[]})};
  // These render/eligibility dependencies are not the held rule under test.
