@@ -81,14 +81,15 @@ describe("reading the audit and planning the Complete press", () => {
     const a = { items: [no(Q.done), item(Q.notDone, "RCD still on order")] };
     expect(fixesCompletionPlan(readFixesDay(a), { completed: true, today: "2026-10-25" })).toEqual({ kind: "not_done", text: "RCD still on order" });
   });
-  test("Q9 Yes needs CoES number, date (not future), CoES file, geotagged work photo and signature — each missing one is named", () => {
+  test("Q9 Yes needs the geotagged work photo and signature — each missing one is named; the certificate is optional (Part 3), a future date is still refused", () => {
     const base = fullAudit();
     const plan = fixesCompletionPlan(readFixesDay(base), { completed: true, today: "2026-10-25" });
-    expect(plan.kind).toBe("done");
+    expect(plan).toMatchObject({ kind: "done", certificate: { number: "C123", date: "2026-10-20" } });
     const without = (label: string, replace?: unknown) => ({ items: base.items.map((i) => (i.label === label ? (replace as typeof i) ?? item(label, null) : i)) });
-    expect(fixesCompletionPlan(readFixesDay(without(Q.coesNumber)), { completed: true, today: "2026-10-25" })).toMatchObject({ kind: "missing", missing: [Q.coesNumber] });
+    // Part 3 (Jo 3 Nov 2026): a blank certificate number / file no longer holds the form — what was given is kept as given.
+    expect(fixesCompletionPlan(readFixesDay(without(Q.coesNumber)), { completed: true, today: "2026-10-25" })).toMatchObject({ kind: "done", certificate: { number: null, date: "2026-10-20" } });
     expect(fixesCompletionPlan(readFixesDay(without(Q.certDate, item(Q.certDate, "2026-12-01"))), { completed: true, today: "2026-10-25" })).toMatchObject({ kind: "missing", missing: [`${Q.certDate} (cannot be in the future)`] });
-    expect(fixesCompletionPlan(readFixesDay(without(Q.coesFile)), { completed: true, today: "2026-10-25" })).toMatchObject({ kind: "missing", missing: [Q.coesFile] });
+    expect(fixesCompletionPlan(readFixesDay(without(Q.coesFile)), { completed: true, today: "2026-10-25" })).toMatchObject({ kind: "done", certificate: { number: "C123", files: [] } });
     expect(fixesCompletionPlan(readFixesDay(without(Q.workPhoto, item(Q.workPhoto, null, { media: media() }))), { completed: true, today: "2026-10-25" })).toMatchObject({ kind: "missing", missing: [`${Q.workPhoto} (must be geotagged)`] });
     expect(fixesCompletionPlan(readFixesDay(without(Q.signature)), { completed: true, today: "2026-10-25" })).toMatchObject({ kind: "missing", missing: [Q.signature] });
   });

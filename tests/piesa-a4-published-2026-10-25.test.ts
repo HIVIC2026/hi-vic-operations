@@ -22,8 +22,9 @@ import {
 } from "../src/lib/official-short.core";
 
 const def = JSON.parse(readFileSync("tests/fixtures/mitti-piesa/a4-published-2026-10-25.json", "utf8"));
-// Decision 404: "What is it?" is retired, not a missing required question.
-const NOT_YET_PUBLISHED = [NO_PRICE_TALK_LABEL, APPLIANCE_Q.type, APPLIANCE_Q.where, APPLIANCE_Q.problem, APPLIANCE_Q.action, FIXES_DOWNLIGHT_COUNT_LABEL, FIXES_RCD_COUNT_LABEL, FIXES_OTHER_LABEL, ONSITE_START_LABEL, FIXES_PRICE_LABEL].map((l) => `Missing: ${l}`);
+// Decision 404: "What is it?" is retired, not a missing required question. Part 3 (Jo 2–3 Nov 2026): the price question is
+// retired too (electricians bill upgrades directly) — never reported missing; the 25 Oct q20 wording is read as an alias.
+const NOT_YET_PUBLISHED = [NO_PRICE_TALK_LABEL, APPLIANCE_Q.type, APPLIANCE_Q.where, APPLIANCE_Q.problem, APPLIANCE_Q.action, FIXES_DOWNLIGHT_COUNT_LABEL, FIXES_RCD_COUNT_LABEL, FIXES_OTHER_LABEL, ONSITE_START_LABEL].map((l) => `Missing: ${l}`);
 const APPLIANCE_BLOCK_LABEL = "Add an appliance or flue";
 const APPLIANCE_PARENT_OLD = "Are there any appliances, exhaust fans or flues in the ceiling space?";
 const RETIRED = ["Can the repair work be done before installation?", "No means an electrician must be present on installation day instead.", REPAIR_TICKS_LEGACY_LABEL, REPAIR_OTHER_LEGACY_LABEL];

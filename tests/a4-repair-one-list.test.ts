@@ -32,8 +32,10 @@ describe("decision 324: one plain repair list, price last", () => {
     const ids = SHORT_PIESA_FIELDS.map((f) => f.id);
     expect(ids.indexOf("fixesWork")).toBeLessThan(ids.indexOf("fixesOtherDetail"));
     expect(ids.indexOf("fixesOtherDetail")).toBeLessThan(ids.indexOf("fixesPriceIncGst"));
+    // Part 3 (Jo 2–3 Nov 2026): the price is no longer asked at all (electricians bill upgrades directly); still read from old forms.
     const prompt = mittiAiPrompt("piesa");
-    expect(prompt.indexOf(FIXES_WORK_LABEL)).toBeLessThan(prompt.indexOf(FIXES_PRICE_LABEL));
+    expect(prompt).toContain(FIXES_WORK_LABEL);
+    expect(prompt).not.toContain(FIXES_PRICE_LABEL);
   });
   test("every plain option maps as Jo set out; 'Be on site' adds no B2 tick", () => {
     expect(FIXES_TO_B2[DL]).toBe(B2_OPTIONS[0]);

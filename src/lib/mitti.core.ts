@@ -5,7 +5,7 @@
 import { canonicalMittiTemplateId, mittiTemplateIdentity, sameMittiTemplateId } from "./mitti-identity.core";
 import { PRE_READY_CHECK_STAGES } from "./installer-new-jobs.core";
 import { splitEligibleAreas, type ExcludedArea } from "./excluded-areas.core";
-import { A3_REPAIR_NEEDED_LABEL, LIFE_SUPPORT_PRESENT } from "./official-short.core";
+import { A3_REPAIR_NEEDED_LABEL, A3_REPAIR_NEEDED_LEGACY_LABEL, LIFE_SUPPORT_PRESENT } from "./official-short.core";
 import { EXISTING_DEPTH_Q, isNoSafeAccess, isR2OrAbove, isRValueBandAnswer, LEAN_ALIASES, LEAN_Q, premisesTypeOption } from "./ready-check-lean.core";
 import { norm } from "./trade-shared-consts.core";
 
@@ -606,7 +606,8 @@ export function parseAudit(audit: Any) {
   // fixes). It still only becomes the job's PIESA when the electrician (or office) presses Complete PIESA in the portal —
   // completeAssessment keeps every gate (evidence, date, stage entry). Without this, a Complete A3 left the PIESA
   // outcome pending forever and Complete PIESA was refused ("Still needed: … PIESA outcome").
-  const liveRepair = yesNo(val(entries, [A3_REPAIR_NEEDED_LABEL]));
+  // Part 3 (Jo 3 Nov 2026): "Are electrical upgrades needed?" — the 25 Oct wording is read the same.
+  const liveRepair = yesNo(val(entries, [A3_REPAIR_NEEDED_LABEL, A3_REPAIR_NEEDED_LEGACY_LABEL]));
   // Official B1 wording: "...is not required..." / "...is required..." / "...is not possible...".
   if (/no rectification required|rectification work is not required/.test(po)) issues.push("Mitti reports no electrical fixes required (preliminary B1 only) – PIESA clearance stays pending until confirmed in the portal.");
   else if (/rectification required|rectification work is required|rectification work is not possible/.test(po)) patch.piesa_outcome = "fail";

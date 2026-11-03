@@ -6,6 +6,11 @@ PIESA form (questions 30–37 and 45). This form is only for repair work done on
 answer by its question text, so the wording below is fixed in `src/lib/fixes-day.core.ts` and a test fails if this file
 and the code drift apart.
 
+**Part 3 (Jo 3 Nov 2026, certificate-later design):** the Certificate of Electrical Safety can come later (electricians
+have up to 30 days to issue it), so Q11, Q12 and Q13 are NOT Required and Q13 carries the help line below. Q9, the work
+photo (Q14) and the signature (Q15) stay Required. For a template already built, the exact edits are in
+`docs/MITTI_PART3_EDIT_PROMPT.md`.
+
 ---
 
 You are helping me build a form template in **Mitti** (mitti.com.au field inspection app, web template builder). I will
@@ -47,9 +52,9 @@ Q8: `The repair work listed on the safety assessment:` — Text — portal fills
 Q9: `Have you completed all of the repair work listed, and is the ceiling now safe for insulation?` — Yes/No — Required
 Q10: `Anything not done or changed?` — Text — Required — only show when Q9 = `No` — help text: `Say what is still outstanding or what changed, so the office can follow it up.`
 
-Q11: `Certificate of Electrical Safety number` — Text — Required — only show when Q9 = `Yes`
-Q12: `Date of certification` — Date — Required — only show when Q9 = `Yes`
-Q13: `Certificate of Electrical Safety (photo or PDF)` — Photo, PDF allowed — Required — only show when Q9 = `Yes` — help text: `A photo or the PDF of the certificate.`
+Q11: `Certificate of Electrical Safety number` — Text — NOT required (Part 3: the certificate can come later) — only show when Q9 = `Yes`
+Q12: `Date of certification` — Date — NOT required — only show when Q9 = `Yes`
+Q13: `Certificate of Electrical Safety (photo or PDF)` — Photo, PDF allowed — NOT required — only show when Q9 = `Yes` — help text: `Don't have it yet? Leave this blank — we'll text you a link to add it.`
 Q14: `Photo of the finished work at the switchboard / in the ceiling` — Photo, several files allowed, location on — Required — only show when Q9 = `Yes` — help text: `Show the finished work. More than one photo is fine.`
 
 ## Group 4: Sign

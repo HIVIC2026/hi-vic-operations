@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import {
   PIESA_EVIDENCE, PIESA_NOT_SYNCED, attachPiesaMedia, mittiMediaFile, piesaEvidenceBlockers, piesaEvidenceBlockersFromSnapshot,
   piesaEvidenceFilesToStore, piesaEvidenceIdForLabel, piesaEvidenceRequirements, piesaHazardsListed, piesaMediaFromAudit, piesaMediaFromSnapshot,
-  emptyPiesaEvidenceMedia, type PiesaEvidenceMedia,
+  emptyPiesaEvidenceMedia, piesaCertificateToCome, type PiesaEvidenceMedia,
 } from "../src/lib/piesa-evidence.core";
 import { CEILING_PROBLEMS, MAINS_PROBLEMS, RECTIFICATION_OUTCOMES, shortAnswersFromEntries } from "../src/lib/official-short.core";
 import { parseAudit, planSync } from "../src/lib/mitti.core";
@@ -41,12 +41,16 @@ describe("piesaEvidenceRequirements — which items the answers demand", () => {
     expect(piesaEvidenceRequirements({ ...clean, ceilingSafe: "No" }).find((r) => r.id === "hazard_photos")?.count).toBe(1);
     expect(piesaEvidenceRequirements({ ...clean, downlightsPresent: "Yes", downlightsNonIc: "Yes" }).find((r) => r.id === "hazard_photos")?.hazards).toEqual(["Downlights that are not IC or IC-4 rated"]);
   });
-  test("the CES is required only after rectification was done on this form", () => {
+  test("Part 3 (Jo 3 Nov 2026): the CES is never required to complete; 'certificate to come' is set instead once the upgrades were done on this form", () => {
     expect(piesaEvidenceRequirements({ ...clean, rectificationOutcome: RECTIFICATION_OUTCOMES[1] }).some((r) => r.id === "ces_file")).toBe(false);
     expect(piesaEvidenceRequirements({ ...clean, rectificationOutcome: RECTIFICATION_OUTCOMES[1], rectificationComplete: "No" }).some((r) => r.id === "ces_file")).toBe(false);
-    expect(piesaEvidenceRequirements({ ...clean, rectificationOutcome: RECTIFICATION_OUTCOMES[1], rectificationComplete: "Yes" }).some((r) => r.id === "ces_file")).toBe(true);
-    // "not possible" / "no repair" never ask for a CES even if the yes/no is stray
-    expect(piesaEvidenceRequirements({ ...clean, rectificationOutcome: RECTIFICATION_OUTCOMES[2], rectificationComplete: "Yes" }).some((r) => r.id === "ces_file")).toBe(false);
+    expect(piesaEvidenceRequirements({ ...clean, rectificationOutcome: RECTIFICATION_OUTCOMES[1], rectificationComplete: "Yes" }).some((r) => r.id === "ces_file")).toBe(false);
+    const none = emptyPiesaEvidenceMedia();
+    expect(piesaCertificateToCome({ ...clean, rectificationOutcome: RECTIFICATION_OUTCOMES[1], rectificationComplete: "Yes" }, none)).toBe(true);
+    expect(piesaCertificateToCome({ ...clean, rectificationOutcome: RECTIFICATION_OUTCOMES[1], rectificationComplete: "Yes" }, { ...none, ces_file: [mittiMediaFile(flat("ces.pdf"))] })).toBe(false);
+    expect(piesaCertificateToCome({ ...clean, rectificationOutcome: RECTIFICATION_OUTCOMES[1], rectificationComplete: "No" }, none)).toBe(false);
+    // "not possible" / "no repair" never wait for a CES even if the yes/no is stray
+    expect(piesaCertificateToCome({ ...clean, rectificationOutcome: RECTIFICATION_OUTCOMES[2], rectificationComplete: "Yes" }, none)).toBe(false);
   });
 });
 
@@ -71,10 +75,10 @@ describe("piesaEvidenceBlockers — plain messages", () => {
     expect(piesaEvidenceBlockers(a, { ...ok, hazard_photos: [mittiMediaFile(geo("h1")), mittiMediaFile(flat("h2")), mittiMediaFile(geo("h3"))] })).toEqual(["Hazard photos must be geotagged (1 without a location)"]);
     expect(piesaEvidenceBlockers(a, { ...ok, hazard_photos: [mittiMediaFile(geo("h1")), mittiMediaFile(geo("h2")), mittiMediaFile(geo("h3"))] })).toEqual([]);
   });
-  test("CES: missing only after rectification was done; a PDF with no location is fine", () => {
+  test("CES: never a blocker (Part 3 — it can come later); a PDF with no location is fine", () => {
     const a = { ...clean, rectificationOutcome: RECTIFICATION_OUTCOMES[1], rectificationComplete: "Yes" };
     const ok = withMedia({ switchboard_photo: [mittiMediaFile(geo("s"))], onsite_photo: [mittiMediaFile(geo("o"))] });
-    expect(piesaEvidenceBlockers(a, ok)).toEqual(["Certificate of Electrical Safety missing (photo or PDF)"]);
+    expect(piesaEvidenceBlockers(a, ok)).toEqual([]);
     expect(piesaEvidenceBlockers(a, { ...ok, ces_file: [mittiMediaFile(flat("ces.pdf"))] })).toEqual([]);
     expect(piesaEvidenceBlockers({ ...a, rectificationComplete: "No" }, ok)).toEqual([]);
   });
@@ -82,7 +86,7 @@ describe("piesaEvidenceBlockers — plain messages", () => {
     const a = { ...clean, ceilingSafe: "No", ceilingProblems: CEILING_PROBLEMS[3], rectificationOutcome: RECTIFICATION_OUTCOMES[1], rectificationComplete: "Yes" };
     const r1 = piesaEvidenceBlockers(a, emptyPiesaEvidenceMedia()), r2 = piesaEvidenceBlockers(a, emptyPiesaEvidenceMedia());
     expect(r1).toEqual(r2);
-    expect(r1).toEqual(["Switchboard photo missing", "On-site photo missing", `Hazard photo missing for: ${CEILING_PROBLEMS[3]}`, "Certificate of Electrical Safety missing (photo or PDF)"]);
+    expect(r1).toEqual(["Switchboard photo missing", "On-site photo missing", `Hazard photo missing for: ${CEILING_PROBLEMS[3]}`]);
   });
 });
 
@@ -163,12 +167,17 @@ describe("sync-level: a Mitti PIESA marked complete is refused until the evidenc
     expect(r.blockers).toEqual([]);
     expect(r.completed).toBe(true);
   });
-  test("a hazard answered on the form needs its photo; rectification done needs the CES", () => {
+  test("a hazard answered on the form needs its photo; rectification done completes with or without the CES (Part 3: certificate to come)", () => {
     const base = { completed: true, switchboard: [geo("s1")], onsite: [geo("o1")] };
     expect(syncLike(fixtureAudit({ ...base, mainsSafe: "No" })).blockers).toEqual([`Hazard photo missing for: ${MAINS_PROBLEMS[0]}`]);
     expect(syncLike(fixtureAudit({ ...base, mainsSafe: "No", hazards: [geo("h1")] })).completed).toBe(true);
-    expect(syncLike(fixtureAudit({ ...base, rectDone: true })).blockers).toEqual(["Certificate of Electrical Safety missing (photo or PDF)"]);
-    expect(syncLike(fixtureAudit({ ...base, rectDone: true, ces: [flat("ces-1")] })).completed).toBe(true);
+    const noCes = syncLike(fixtureAudit({ ...base, rectDone: true }));
+    expect(noCes.blockers).toEqual([]);
+    expect(noCes.completed).toBe(true);
+    expect(piesaCertificateToCome(shortAnswersFromEntries("piesa", noCes.snapshot), piesaMediaFromSnapshot(noCes.snapshot))).toBe(true);
+    const withCes = syncLike(fixtureAudit({ ...base, rectDone: true, ces: [flat("ces-1")] }));
+    expect(withCes.completed).toBe(true);
+    expect(piesaCertificateToCome(shortAnswersFromEntries("piesa", withCes.snapshot), piesaMediaFromSnapshot(withCes.snapshot))).toBe(false);
   });
   test("an audit still open in Mitti is never completed, with or without evidence", () => {
     expect(syncLike(fixtureAudit({ completed: false, switchboard: [geo("s1")], onsite: [geo("o1")] })).completed).toBe(false);

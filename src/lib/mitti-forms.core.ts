@@ -27,7 +27,7 @@ export type FormField = {
   addedByDecision?: number;
 };
 import { B1_OPTIONS, B2_OPTIONS, OFFICIAL_ITEMS, type ItemKind } from "./official-forms.core";
-import { SHORT_PIESA_FIELDS, SHORT_PIISA_FIELDS } from "./official-short.core";
+import { A3_UPGRADES_TODAY_LABEL, SHORT_PIESA_FIELDS, SHORT_PIISA_FIELDS } from "./official-short.core";
 import { PIISA_DECLARATION_FIELDS } from "./piisa-declaration.core";
 import { mittiItemType } from "./mitti.core";
 import { PIESA_EVIDENCE } from "./piesa-evidence.core";
@@ -57,9 +57,10 @@ const sup = (label: string, source: string, extra: Partial<FormField> = {}): For
 // accepted earlier wordings come from piesa-evidence.core.ts so the form check and the completion gate never drift.
 const PIESA_SUPPLEMENTAL: FormField[] = PIESA_EVIDENCE.map((e) => sup(e.label, e.id === "ces_file" ? "ESC CES record after rectification (decision 178)" : `${G} Table 4 / ESC 30 Jul 2026 update (decision 178)`, {
   aliases: e.aliases,
-  // Decision 297: one "Photo of the problem" under each hazard section (up to four on the form); decision 298: the CES is on
-  // the A4 fixes form, never on the PIESA visit.
-  ...(e.id === "hazard_photos" ? { when: "Any hazard answered Yes", repeats: 4 } : e.id === "ces_file" ? { when: "A4 fixes form (decision 298)", required: false } : {}),
+  // Decision 297: one "Photo of the problem" under each hazard section (up to four on the form). Part 3 (Jo 3 Nov 2026):
+  // the certificate (q45) shows when the upgrades are done on the visit (q30 = Yes) and is OPTIONAL — help text
+  // CERTIFICATE_LATER_HELP; the electrician adds it later through the texted link (certificate-later design).
+  ...(e.id === "hazard_photos" ? { when: "Any hazard answered Yes", repeats: 4 } : e.id === "ces_file" ? { when: `${A3_UPGRADES_TODAY_LABEL} = Yes`, required: false } : {}),
 }));
 const PIISA_SUPPLEMENTAL: FormField[] = [
   sup("SWMS", `${G} SWMS`),

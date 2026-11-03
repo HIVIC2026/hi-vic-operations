@@ -64,14 +64,15 @@ Text item (not a question), first item on this page (decision 318): `Paid only w
    - Decision 336 (Jo 25 Oct 2026): this replaces `What is it and where is it?` (delete it; old answers are still read as both What and Where). The portal fills the official Part 7 row by row: Flue and Exhaust fan rows answer the official flues question, Appliance rows the appliances question, and all three go in the Appliance / Location / Hazard table (Appliance = `What is it?`, Location = `Where is it?`, Hazard = `What is the problem?`, else "None — safe to insulate around"; the actions line = `What needs to be done to make it safe?`); Other hazard rows go in the official "other hazards" table.
 
 ## Group 7: Repair work
-20. `Is any electrical repair work needed before insulation can be installed?` — Yes/No — Required — Yes red
+20. `Are electrical upgrades needed?` — Yes/No — Required — Yes red
+   - Part 3 (Jo 3 Nov 2026): reworded from `Is any electrical repair work needed before insulation can be installed?` (old forms with that wording are still read the same). Say "electrical upgrades", never "repair work", anywhere the electrician or owner sees it.
    - Decision 309 (Jo 25 Oct 2026, "Remove it"): repairs always happen before installation (same visit or the A4 fixes visit). Do NOT ask `Can the repair work be done before installation?` and do NOT add the instruction `No means an electrician must be present on installation day instead.` — delete both if they are on the form.
 21. `What will you do? Tick everything included in your price.` — Tick all: `Replace downlights with IC-4 rated LED downlights` / `Install RCD safety switches` / `Upgrade circuit protection (breakers) for insulation` / `Replace old cables with TPS cable` / `Secure and support loose cables in the ceiling` / `Repair or replace damaged connections or junction boxes` / `Identify and mark the mains cable in the ceiling` / `Remove or make safe old unused cables` / `Label and protect solar or battery cables in the ceiling` / `Other` — NOT Required (decision 338: it may be empty when the only work is being on site at the start; the portal flags `No repair work ticked and no on-site attendance` if both are empty) — only show when question 20 = Yes — Mitti colours: all these grey (decisions 308/324: the portal fills the official form's repair ticks from this list)
 21a. `How many downlights are you replacing?` — Number — Required — only show when question 21 has `Replace downlights with IC-4 rated LED downlights` ticked (decision 308)
 21b. `How many RCD safety switches are you installing?` — Number — Required — only show when question 21 has `Install RCD safety switches` ticked (decision 308)
 21c. `Describe the other work` — Text — Required — only show when question 21 has `Other` ticked — help text: `Say exactly what you'll do, where, and how many.` (decision 308)
 21d. `Does an electrician need to be on site at the start of the install?` — Yes/No — Required — only show when question 20 = Yes — Mitti colours: Yes red, No green (decision 338: replaces the old `Be on site at the start of the install day` tick; Yes = the official "electrician present at the start of installation" outcome, priced inside the one total)
-22. `Your total price for all the repair work, including GST` — Number — Required — only show when question 20 = Yes — LAST question on this page — for the owner's fixes quote only, not part of the official form (decisions 305/324)
+22. DELETED (Part 3, Jo 2–3 Nov 2026: electricians quote and bill the upgrades with the owner directly, Home Insulation Victoria sends no price). Do NOT ask `Your total price for all the repair work, including GST` — delete it if it is on the form (old answers are still read). The exact edit steps are in `docs/MITTI_PART3_EDIT_PROMPT.md`.
    - Decision 324 (Jo 25 Oct 2026, ONE list): do NOT ask `Please tick the repair work that is required.` or `Please describe the other repair work.` — delete both from the form (old answers are still read). The repair questions are the tick list, the two counts, `Describe the other work`, `Does an electrician need to be on site at the start of the install?` (decision 338), then the price LAST.
    - If Mitti can't show a question based on one tick-all option, make it not Required with help text `Only if you ticked …` (naming the option).
    - Decision 338 (replaces the decision-314 tick): `Does an electrician need to be on site at the start of the install?` = Yes is priced inside the same total. The portal records the official "electrician present at the start of installation" outcome, lines the electrician up for the install day (decision 327), and if nothing else is ticked no fixes visit (A4 form) is needed. Remove `Be on site at the start of the install day` from the tick list (old forms that ticked it are still read the same way).
@@ -86,11 +87,12 @@ Text item (not a question), first item on this page (decision 318): `Paid only w
 28. `I declare that all information contained in and attached to this form is correct and not misleading by inclusion or omission` — Checkbox (must tick) — Required
 29. `Electrician signature` — Signature — Required
 
-## Group 9: After repair work (same visit only)
-30. `Have you completed all of the repair work listed above, and is the ceiling now safe for insulation?` — Yes/No — Required — only show when question 20 = Yes
-31. `Certificate of Electrical Safety number (required for any electrical works completed):` — Text — Required — only show when question 20 = Yes
-32. `Date of Certification:` — Date — Required — only show when question 20 = Yes
-32a. `Certificate of Electrical Safety (photo or PDF)` — Photo/attachment, PDF allowed — Required — only show when question 30 = Yes
+## Group 9: After the electrical upgrades (same visit only)
+30. `Are you doing the electrical upgrades today?` — Yes/No — Required — only show when question 20 = Yes
+   - Part 3 (Jo 3 Nov 2026): reworded from `Have you completed all of the repair work listed above, and is the ceiling now safe for insulation?` (old forms still read the same). Yes = the upgrades are done on this visit and Part C (31–37) and the certificate (45) are filled on this form; No = the electrician enters the upgrades day in the portal and the A4 form is made for that visit.
+31. `Certificate of Electrical Safety number (required for any electrical works completed):` — Text — Required — only show when question 30 = Yes
+32. `Date of Certification:` — Date — Required — only show when question 30 = Yes
+32a. `Certificate of Electrical Safety (photo or PDF)` — Photo/attachment, PDF allowed — NOT required (Part 3: the certificate can come later; the portal texts the electrician a link to add it) — only show when question 30 = Yes — help text: `Don't have it yet? Leave this blank — we'll text you a link to add it.`
 
 Note: the official form repeats the electrician details in Section C; the portal copies them from questions 23–27, so the form does not ask twice.
 
