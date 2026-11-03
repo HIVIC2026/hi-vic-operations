@@ -113,6 +113,16 @@ export const WORKFLOW_DECISIONS = {
       // Part 10 Task 6: the My job quote page for an own customer — same switch, same rows, installer logo in the header.
       ownCustomerQuotePage: { cobrandFlag: "OWN_CUSTOMER_COBRAND_APPROVED", view: "ownCustomerQuoteView", header: "OwnerPageHeader partnerLogo", rows: "quote.ownRows (null = generic rows)" },
       // Part 10 Task 7: the tax invoice PDF for an own customer — same switch (plus PDF_LOOK_APPROVED.taxInvoice), approved rows by code, GST on the full price before the rebate.
+      // Part 10 Task 10 (Jo 2 Nov 2026, answer 2): the owner pays $349 for the PIESA; the electrician is paid their own onboarded
+      // rate; Home Insulation Victoria keeps the difference (office margin only; never shown to the installer or the owner).
+      ownCustomerElectricianPay: {
+        decided: "2026-11-02",
+        ownerPiesaLineIncGst: 349,
+        electricianPaid: "own onboarded PIESA rate (electrician_rates / the installer's rate card PIESA line)",
+        differenceKeptBy: "Home Insulation Victoria",
+        differenceShownTo: "office only (job margin)",
+        payGate: "unchanged (Complete Mitti form + evidence; electricians never wait for the owner — decision 410)",
+      },
       ownCustomerTaxInvoice: { cobrandFlag: "OWN_CUSTOMER_COBRAND_APPROVED", pdfFlag: "PDF_LOOK_APPROVED.taxInvoice", rows: ["Insulation · product facts", "extras", "Home Insulation Victoria fee", "Electrical safety check (PIESA)", "Price before rebate", "Rebate", "Your price (incl. GST)"] as const, gst: "one eleventh of the price before the rebate (unchanged)" },
       paymentRule: "not_assumed",
       leadFee: "none",
