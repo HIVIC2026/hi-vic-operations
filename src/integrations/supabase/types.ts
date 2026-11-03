@@ -1448,6 +1448,7 @@ export type Database = {
           onboarding_status: string
           pays_own_electricians: boolean
           phone: string | null
+          piesa_booked_by: string
           public_liability_cover_amount: number | null
           rec_number: string | null
           receives_hivic_leads: boolean | null
@@ -1519,6 +1520,7 @@ export type Database = {
           onboarding_status?: string
           pays_own_electricians?: boolean
           phone?: string | null
+          piesa_booked_by?: string
           public_liability_cover_amount?: number | null
           rec_number?: string | null
           receives_hivic_leads?: boolean | null
@@ -1590,6 +1592,7 @@ export type Database = {
           onboarding_status?: string
           pays_own_electricians?: boolean
           phone?: string | null
+          piesa_booked_by?: string
           public_liability_cover_amount?: number | null
           rec_number?: string | null
           receives_hivic_leads?: boolean | null
@@ -3768,6 +3771,82 @@ export type Database = {
             columns: ["ready_check_id"]
             isOneToOne: false
             referencedRelation: "ready_checks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      electrician_job_links: {
+        Row: {
+          created_at: string
+          electrician_business_id: string
+          expires_at: string
+          id: string
+          job_id: string
+          revoked_at: string | null
+          revoked_reason: string | null
+          token_hash: string
+        }
+        Insert: {
+          created_at?: string
+          electrician_business_id: string
+          expires_at: string
+          id?: string
+          job_id: string
+          revoked_at?: string | null
+          revoked_reason?: string | null
+          token_hash: string
+        }
+        Update: {
+          created_at?: string
+          electrician_business_id?: string
+          expires_at?: string
+          id?: string
+          job_id?: string
+          revoked_at?: string | null
+          revoked_reason?: string | null
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "electrician_job_links_electrician_business_id_fkey"
+            columns: ["electrician_business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "electrician_job_links_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "electrician_job_links_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "electrician_job_links_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "electrician_job_links_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "electrician_job_links_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
         ]

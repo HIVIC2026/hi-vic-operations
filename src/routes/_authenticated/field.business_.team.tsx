@@ -58,7 +58,7 @@ function Team() {
                     {m.workerRole && <WorkerRoleSwitch workerId={id} role={m.workerRole} onDone={() => { void qc.invalidateQueries({ queryKey: ["trade-business"] }); }} />}
                     <MobileInline workerId={id} mobile={m.mobile} onSaved={() => { void qc.invalidateQueries({ queryKey: ["trade-business"] }); }} />
                     {(m.missingDetails ?? []).includes("date of birth") && <MissingInline workerId={id} field="dateOfBirth" onSaved={() => { void qc.invalidateQueries({ queryKey: ["trade-business"] }); }} />}
-                    {(m.missingDetails ?? []).includes("email") && <MissingInline workerId={id} field="email" onSaved={() => { void qc.invalidateQueries({ queryKey: ["trade-business"] }); }} />}
+                    {!m.email?.trim() && <MissingInline workerId={id} field="email" onSaved={() => { void qc.invalidateQueries({ queryKey: ["trade-business"] }); }} />}
                     {!m.hasLogin && (asked[id] ? <span className="text-[13px] font-semibold text-estimate-green">{asked[id]}</span> : <button type="button" className="min-h-11 rounded-[10px] border border-estimate-line bg-white px-3 text-[13px] font-semibold text-estimate-blue" onClick={async () => { try { await invite({ data: { workerId: id } }); setAsked((a) => ({ ...a, [id]: TEAM_LOGIN.asked })); } catch (e) { setAsked((a) => ({ ...a, [id]: (e as Error).message })); } }}>{TEAM_LOGIN.button}</button>)}
                     {m.declarationsDue && (m.mobile?.trim() || m.email?.trim() ? <CertLinkInline workerId={id} name={m.name} label={TEAM_SIGN.link} /> : <span className="text-[13px] text-estimate-sub">{TEAM_SIGN.needContact}</span>)}
                     {m.noticeAcknowledged === false && <SendNoticeLinkInline workerId={id} />}
@@ -80,7 +80,7 @@ function Team() {
 }
 
 /** Decision 377: the business owner saves each person's mobile once; their own safety plan sign link is texted there. */
-/** Jo 3 Nov ~3pm: fill a missing date of birth (kept private) or electrician email, next to the prompt. */
+/** Fill a missing private date of birth or email; installer email remains optional. */
 function MissingInline({ workerId, field, onSaved }: { workerId: string; field: "dateOfBirth" | "email"; onSaved: () => void }) {
   const save = useServerFn(setTeamMemberMissing);
   const [open, setOpen] = useState(false);

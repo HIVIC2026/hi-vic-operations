@@ -942,8 +942,8 @@ export async function tradeSetWorkerMobile(userId: string, workerId: string, raw
   return { ok: true, mobile: v.mobile };
 }
 
-/** Jo 3 Nov ~3pm: own-business boss fills a MISSING date of birth (private identity table) or a MISSING email
- *  (electricians only). Never overwrites saved values; sends nothing. Rules in `team-required.core`. */
+/** Own-business boss fills a missing private date of birth or email for either trade.
+ *  Installer email stays optional. Never overwrites saved values; sends nothing. Rules in `team-required.core`. */
 export async function tradeFillWorkerMissing(userId: string, workerId: string, p: { dateOfBirth: string | null; email: string | null }) {
   const c = await bossOrThrow(userId);
   const { data: w } = await admin.from("partner_workers").select("id, business_id, email").eq("id", workerId).is("removed_at", null).maybeSingle();

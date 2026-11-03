@@ -45,9 +45,9 @@ export function teamMissingPrompt(name: string, missing: string[]): string | nul
   return `Add ${first}'s ${list}`;
 }
 
-/** Jo 3 Nov ~3pm: the business fills a MISSING date of birth (anyone) or a MISSING email (electricians only) from the
- *  Team page. Never overwrites a saved value; installers are never asked for an email. */
-export function teamFillMissing(kind: TeamKind, current: { hasDateOfBirth: boolean; email: string | null },
+/** The boss fills a missing private date of birth or email for either trade. Installer email stays optional.
+ *  Never overwrites a saved value. */
+export function teamFillMissing(_kind: TeamKind, current: { hasDateOfBirth: boolean; email: string | null },
   p: { dateOfBirth?: string | null; email?: string | null }, today: string):
   { ok: true; dateOfBirth: string | null; email: string | null } | { ok: false; error: string } {
   const dobIn = (p.dateOfBirth ?? "").trim() || null;
@@ -59,7 +59,6 @@ export function teamFillMissing(kind: TeamKind, current: { hasDateOfBirth: boole
     if (bad) return { ok: false, error: bad };
   }
   if (emailIn) {
-    if (kind !== "electrician") return { ok: false, error: "Installers don't need an email." };
     if ((current.email ?? "").trim()) return { ok: false, error: "Their email is already saved." };
     if (!EMAIL.test(emailIn)) return { ok: false, error: TEAM_ERRORS.badEmail };
   }
