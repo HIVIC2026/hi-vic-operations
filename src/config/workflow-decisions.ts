@@ -112,6 +112,8 @@ export const WORKFLOW_DECISIONS = {
       },
       // Part 10 Task 6: the My job quote page for an own customer — same switch, same rows, installer logo in the header.
       ownCustomerQuotePage: { cobrandFlag: "OWN_CUSTOMER_COBRAND_APPROVED", view: "ownCustomerQuoteView", header: "OwnerPageHeader partnerLogo", rows: "quote.ownRows (null = generic rows)" },
+      // Part 10 Task 7: the tax invoice PDF for an own customer — same switch (plus PDF_LOOK_APPROVED.taxInvoice), approved rows by code, GST on the full price before the rebate.
+      ownCustomerTaxInvoice: { cobrandFlag: "OWN_CUSTOMER_COBRAND_APPROVED", pdfFlag: "PDF_LOOK_APPROVED.taxInvoice", rows: ["Insulation · product facts", "extras", "Home Insulation Victoria fee", "Electrical safety check (PIESA)", "Price before rebate", "Rebate", "Your price (incl. GST)"] as const, gst: "one eleventh of the price before the rebate (unchanged)" },
       paymentRule: "not_assumed",
       leadFee: "none",
       marginOnInstallerPrice: "none",

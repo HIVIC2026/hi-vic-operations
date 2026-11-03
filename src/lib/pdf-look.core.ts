@@ -13,7 +13,7 @@ export const BUSINESS_LINES: readonly string[] = [
 export const BUSINESS_ADDRESS = "1/33 Altree Court, Phillip ACT 2606";
 
 export type PdfBlock = { id: string; keepTogether?: boolean; /** Page-1 sizes of the signed acceptance (the approved sample prints its first page smaller than the agreement). */ compact?: boolean } & (
-  | { kind: "header"; eyebrow: string; withAddress?: boolean }
+  | { kind: "header"; eyebrow: string; withAddress?: boolean; /** Part 10 Task 7 (co-brand): a second logo drawn right of ours at the same height. */ partnerLogo?: { bytes: Uint8Array; width: number; height: number; alt: string } }
   | { kind: "title"; text: string; sub?: string }
   | { kind: "para"; text: string; muted?: boolean; small?: boolean; /** Bold lead-in drawn before `text` (wraps together). */ lead?: string }
   | { kind: "facts"; rows: [string, string][]; /** One cell per row, full width (compact grids only). */ full?: boolean; /** Compact grids: cells from this index on are full width (the first ones stay two to a row). */ fullFrom?: number;

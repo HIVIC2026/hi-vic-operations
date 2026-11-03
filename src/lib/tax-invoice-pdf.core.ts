@@ -3,6 +3,8 @@
 // returns `{ held }`.
 import { aud, cumulativePaidCents, type PaymentPlan } from "./payments.core";
 import { reachedOn, type ReceiptPayment } from "./receipt-pdf.core";
+import { OWN_CUSTOMER_COBRAND_APPROVED, cobrandLogos } from "./cobrand.core";
+import { OWN_CUSTOMER_LABELS } from "./own-customer-price.core";
 
 /** GST inside a GST-inclusive price (one eleventh), rounded half up to the cent. */
 export const gstOnFullPriceCents = (priceBeforeRebateCents: number) => Math.round(priceBeforeRebateCents / 11);
@@ -15,11 +17,21 @@ export type TaxInvoiceFacts = {
   /** Extra price lines before the rebate (a later part adds "Home Insulation Victoria fee $349" for installers' own customers). */
   extraLines?: { label: string; cents: number }[];
   rebateCents: number; payments: { label: string; paidOn: string; cents: number }[];
+  /** Part 10 Task 7: an installer's own customer — the installer's name, Part 5's https logo URL and its fetched bytes
+   *  (PNG/JPG; null = our logo alone). `extraLines` then carry the separately agreed extras (their own words) and then the
+   *  "Home Insulation Victoria fee", in that order. Ignored while OWN_CUSTOMER_COBRAND_APPROVED is off. */
+  ownCustomer?: { installerName: string; installerLogoUrl: string | null; installerLogo?: { bytes: Uint8Array; width: number; height: number } | null } | null;
 };
 export type TaxInvoiceModel = {
   rows: { label: string; amount: string }[]; priceBeforeRebate: string; rebate: string; payable: string; gstLine: string; balance: string;
   payments: { label: string; amount: string }[];
+  /** Part 10 Task 7 (own customers only): the approved labels for the subtotal, rebate and total rows; absent = Part 1's. */
+  priceBeforeLabel?: string; rebateLabel?: string; payableLabel?: string;
+  /** Part 10 Task 7: the installer's logo for the header (checked: https URL, name, bytes); absent = our logo alone. */
+  partnerLogo?: { bytes: Uint8Array; width: number; height: number; alt: string };
 };
+/** Test seam for the co-brand switch; callers never pass it. */
+export type TaxInvoiceSeam = { cobrandApproved?: boolean };
 
 export const PIESA_LINE_LABEL = "Electrical safety check (PIESA)";
 export const REBATE_LABEL = "Victorian Energy Upgrades rebate (price reduction)";
@@ -27,7 +39,8 @@ export const REBATE_LABEL = "Victorian Energy Upgrades rebate (price reduction)"
 export const BUSINESS_NAME_LINE = "DC Construction Solutions Pty Ltd trading as Home Insulation Victoria · ABN 44 671 613 979 · 1/33 Altree Court, Phillip ACT 2606 · VEU Accredited Person A003654";
 const held = (why: string) => ({ held: `Tax invoice not made: ${why}` });
 
-export function taxInvoiceModel(f: TaxInvoiceFacts): { held: string } | TaxInvoiceModel {
+export function taxInvoiceModel(f: TaxInvoiceFacts, seam: TaxInvoiceSeam = {}): { held: string } | TaxInvoiceModel {
+  const own = f.ownCustomer && (seam.cobrandApproved ?? OWN_CUSTOMER_COBRAND_APPROVED) ? f.ownCustomer : null;
   if (!(f.invoiceNumber ?? "").trim()) return held("no invoice number yet");
   if (!(f.productLine ?? "").trim()) return held("installed product not confirmed");
   for (const [v, what] of [[f.ownerName, "the owner's name"], [f.installAddress, "the installation address"], [f.installerName, "who installed it"], [f.installedOn, "the install date"], [f.invoiceDate, "the invoice date"]] as const)
@@ -40,6 +53,19 @@ export function taxInvoiceModel(f: TaxInvoiceFacts): { held: string } | TaxInvoi
   const paid = f.payments.reduce((s, p) => s + p.cents, 0);
   if (paid > payable) return held("payments are more than the amount payable");
   const left = payable - paid;
+  // Part 10 Task 7: own customers' rows in the approved order — Insulation (with the ESC product facts) · extras · Home
+  // Insulation Victoria fee · Electrical safety check (PIESA); approved labels for the rebate and the total; the installer's
+  // logo only when the URL is https, the name is set and the bytes were fetched.
+  const logo = own ? cobrandLogos({ installerName: own.installerName, logoUrl: own.installerLogoUrl }).installer : null;
+  const ownExtras: Partial<TaxInvoiceModel> = own ? {
+    rows: [
+      { label: `${OWN_CUSTOMER_LABELS.insulation} · ${f.productLine!}`, amount: aud(f.productCents) },
+      ...extras.map((e) => ({ label: e.label, amount: aud(e.cents) })),
+      ...(f.piesaCents > 0 ? [{ label: OWN_CUSTOMER_LABELS.piesa, amount: aud(f.piesaCents) }] : []),
+    ],
+    priceBeforeLabel: "Price before rebate", rebateLabel: OWN_CUSTOMER_LABELS.rebate, payableLabel: `${OWN_CUSTOMER_LABELS.total} (incl. GST)`,
+    ...(logo && own.installerLogo?.bytes?.length ? { partnerLogo: { ...own.installerLogo, alt: logo.alt } } : {}),
+  } : {};
   return {
     rows: [
       { label: f.productLine!, amount: aud(f.productCents) },
@@ -52,6 +78,7 @@ export function taxInvoiceModel(f: TaxInvoiceFacts): { held: string } | TaxInvoi
     gstLine: `Includes GST of ${aud(gstOnFullPriceCents(price))}, worked out on the price before the rebate (ATO rule for certificate rebates)`,
     balance: left === 0 ? "$0.00 · Paid in full ✓" : `${aud(left)} still to pay`,
     payments: f.payments.map((p) => ({ label: `${p.label}, ${p.paidOn}`, amount: `– ${aud(p.cents)}` })),
+    ...ownExtras,
   };
 }
 
