@@ -5,7 +5,7 @@ import { Check, Phone } from "lucide-react";
 import { cancelMyJob, finishLifeSupportPlanUploadFn, getLifeSupportPlanState, getOwnerMyJob, startLifeSupportPlanUploadFn } from "@/lib/owner-myjob.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { OwnerHouse } from "@/components/owner/OwnerHouse";
-import { PIESA_FIXES_NOTE, agreedWithLabel, ownerPriceTitle } from "@/lib/owner-confirm.core";
+import { agreedWithLabel, ownerPriceTitle } from "@/lib/owner-confirm.core";
 import { HOUSE_LEVEL } from "@/lib/owner-house.core";
 import { ownerHeadline } from "@/lib/owner-headlines.core";
 import { gateACard, SPOT_SAVED_PROGRESS, spotSavedLayout, resolveOwnerScreen } from "@/lib/owner-myjob.core";
@@ -18,6 +18,7 @@ import { QUOTE_CHANGES_FOOTNOTE, QUOTE_CHANGES_HEADING } from "@/lib/quote-chang
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { OwnerPaperwork } from "@/components/owner/OwnerPaperwork";
+import { OwnerConfirmSignPay } from "@/components/owner/OwnerConfirmSignPay";
 import { OwnerCodeGate, signBtn } from "@/components/owner/OwnerSign";
 import { ownerAcceptQuoteFn, ownerAgreementFn, ownerQuoteDocumentFn, ownerBookingStateFn, ownerCardCheckoutFn, ownerChoosePiesaFn, ownerDeclineQuoteFn, ownerChangeInstallDayFn, ownerChangePiesaFn, ownerSignConsentFn, ownerSuggestInstallDaysFn, ownerTakeInstallDayFn, ownerVeecAssignmentFn, ownerSignVeecAssignmentFn, ownerPiesaConfirmFn, ownerSignPiesaConfirmFn, ownerFixesConfirmFn, ownerSignFixesConfirmFn, ownerTakePiesaTimeLinkFn, ownerSuggestPiesaDaysLinkFn, ownerReviewStateFn, ownerReviewStarsFn, ownerReviewFeedbackFn, ownerFixesStateFn, ownerApproveFixesFn, ownerPickFixesTimeFn, ownerRepeatPiesaFn, ownerAcceptRepeatPiesaFn } from "@/lib/owner-link.functions";
 import { OWNER_FIXES_COPY, ownerFixesNeedsOwner } from "@/lib/owner-fixes.core";
@@ -48,7 +49,7 @@ import { completeOwnerQuoteAcceptance, ownerQuoteCanAccept } from "@/lib/owner-q
 // Decision 389: "turn" = "It's your turn" (O77's link): Confirm the free Ready Check, or no longer interested.
 // Batch 3a: "newquote" = O78's "Send me a new quote" button: the request runs on arrival, then the approved thanks line.
 // A48 batch 2: "taps" = the quick taps (the batch text's link): one question per screen, big buttons.
-const SCREENS = ["home", "spot", "quote", "pay", "piesa", "veec", "book", "done", "review", "fixes", "turn", "newquote", "taps"] as const satisfies readonly OwnerScreen[];
+const SCREENS = ["home", "spot", "quote", "pay", "piesa", "veec", "book", "done", "review", "fixes", "turn", "newquote", "taps", "clear"] as const satisfies readonly OwnerScreen[];
 
 export const Route = createFileRoute("/my-job/$token")({
   ssr: false,
@@ -104,6 +105,7 @@ function MyJobPage() {
           : screen === "newquote" ? <NewQuoteScreen v={data} token={token} />
           : screen === "quote" ? <QuoteScreen v={data} token={token} />
           : screen === "pay" ? <><RepeatPiesaCard token={token} /><PayNowCard v={data} token={token} /></>
+          : screen === "clear" ? <OwnerConfirmSignPay v={data} token={token} />
           : screen === "piesa" ? <PiesaConfirmCard v={data} token={token} />
           : screen === "veec" ? <VeecAssignmentCard v={data} token={token} />
           : screen === "fixes" ? <FixesScreen v={data} token={token} />
@@ -1002,11 +1004,6 @@ function FixesScreen({ v, token }: { v: View; token: string }) {
   </>;
 }
 
-/** Jo insists this is clear and boxed (7 Oct 2026). */
-function FixesNote() {
-  return <section role="note" data-piesa-fixes-note className="rounded-[22px] border-2 border-estimate-navy/40 bg-card p-5 text-sm"><p className="font-bold">About electrical fixes</p><p className="mt-1">{PIESA_FIXES_NOTE}</p></section>;
-}
-
 function BookScreen({ v, token }: { v: View; token: string }) {
   const today = melbourneToday();
   if (v.inHouseDispatch) return <><Back token={token} /><PayNowCard v={v} token={token} /><BookPickers token={token} /></>;
@@ -1020,7 +1017,6 @@ function BookScreen({ v, token }: { v: View; token: string }) {
       <p className="mt-2 text-sm">Pick 2-hour windows that suit you: {TWO_HOUR_WINDOWS.join(", ")}.</p>
     </section>
     <ThirtyDayClock />
-    <FixesNote />
     <BookPickers token={token} />
     <PayNowCard v={v} token={token} />
     {/* Decision 337: the change-day email says "you can cancel on the same page" — while the owner may cancel, it is here too. */}

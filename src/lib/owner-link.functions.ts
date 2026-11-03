@@ -846,3 +846,60 @@ export const ownerAcceptRepeatPiesaFn = createServerFn({ method: "POST" })
     const s = await (await import("./repeat-piesa.server")).acceptRepeatPiesa(jobId);
     return (await import("./repeat-piesa.core")).ownerRepeatView(s);
   });
+
+// ---------- Part 4 Task 5 (Jo 2 Nov 2026, answers 10 and 21): ?screen=clear — confirm, sign and pay on ONE page ----------
+/** What the page shows (safety check facts, the consent form's Section 1, the deposit). Link token only (read); scoped to the token's job. */
+export const ownerConfirmSignPayStateFn = createServerFn({ method: "POST" })
+  .middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token }).parse(d))
+  .handler(async ({ data }) => {
+    const jobId = await ownerJobId(data.token);
+    if (!jobId) return null;
+    const { confirmSignPayPage } = await import("./confirm-sign-pay.server");
+    try {
+      return JSON.parse(JSON.stringify(await confirmSignPayPage(jobId))) as Awaited<ReturnType<typeof confirmSignPayPage>>;
+    } catch {
+      return null;
+    }
+  });
+
+/** "View the full form ›": the filled PIESA or the pre-filled consent form as a PDF. Link token only (read). */
+export const ownerConfirmSignPayFormFn = createServerFn({ method: "POST" })
+  .middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token, doc: z.enum(["piesa", "consent"]) }).parse(d))
+  .handler(async ({ data }) => {
+    const jobId = await ownerJobId(data.token);
+    if (!jobId) return null;
+    return (await import("./confirm-sign-pay.server")).confirmSignPayForm(jobId, data.doc);
+  });
+
+/** Signs the steps not yet signed (one typed name, 6-digit code session), sends the signed consent copy at once, then returns the card page or the bank lines. */
+export const ownerConfirmSignPayFn = createServerFn({ method: "POST" })
+  .middleware([withRequestMeta])
+  .inputValidator((d) =>
+    z
+      .object({
+        token,
+        session,
+        piesaTick: z.boolean(),
+        consentTicks: z.tuple([z.boolean(), z.boolean(), z.boolean(), z.boolean()]),
+        typedName: z.string().max(200),
+        authorityType: z.enum(["owner", "authorised_representative"]),
+        method: z.enum(["card", "bank"]),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const s = await (await import("./owner-verify.server")).ownerSession(data.token, data.session);
+    const { CUSTOMER_BASE } = await import("./engagement.core");
+    return (await import("./confirm-sign-pay.server")).confirmSignPay(s.jobId, s, {
+      piesaTick: data.piesaTick,
+      consentTicks: data.consentTicks,
+      typedName: data.typedName,
+      method: data.method,
+      authority: data.authorityType,
+      returnUrl: `${CUSTOMER_BASE}/my-job/${data.token}`,
+      ip: context.ip,
+      userAgent: context.userAgent,
+    });
+  });

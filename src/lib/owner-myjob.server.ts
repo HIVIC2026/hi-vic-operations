@@ -131,7 +131,15 @@ export async function resolveOwnerJob(token: unknown) {
     else if (quoteOpen) currentAction = quoteIsExpired({kind:'installation',sent_at:quote?.sent_at ?? null}) ? 'newquote' : 'quote';
     else {
       const confirmation = await (await import('./piesa-owner-confirm.server')).ownerPiesaConfirmFacts(jobId);
-      if ((payment?.dueNow ?? 0) > 0 || payment?.provisional) currentAction='pay';
+      // Part 4 T5 (Jo 2 Nov, answer 21): straight after the PIESA result — also with upgrades still to come — the ONE confirm-and-pay page,
+      // while the 10% deposit is unpaid. Everything it covers that is already signed (old flow) just shows as done there.
+      const { clearScreenOpen } = await import('./confirm-sign-pay.core');
+      const { piesaOutcomeKind } = await import('./piesa-owner-confirm.core');
+      const stepOf = (k: string) => payment?.steps.find((x) => x.key === k);
+      const cleared = (k: string) => ['paid', 'waived'].includes(stepOf(k)?.state ?? '');
+      const clearOpen = !!confirmation && clearScreenOpen({ stage, outcome: piesaOutcomeKind(confirmation) === 'all_clear' ? 'all_clear' : 'upgrades_needed', safetyCleared: cleared('safety_check'), depositCleared: cleared('install_deposit'), depositCents: Math.round((stepOf('install_deposit')?.amount ?? 0) * 100) });
+      if (clearOpen) currentAction = 'clear';
+      else if ((payment?.dueNow ?? 0) > 0 || payment?.provisional) currentAction='pay';
       else if (confirmation && !confirmation.confirmation) currentAction = 'piesa';
       else {
         const fixes = ['piesa_complete','electrical_variation_pending','rectification_scheduling','rectification_booked','installation_scheduling'].includes(stage) ? await (await import('./owner-fixes.server')).ownerFixesState(jobId) : {step:'none'};
@@ -153,7 +161,7 @@ export async function resolveOwnerJob(token: unknown) {
       if(invited?.length){const review=await (await import('./owner-review.server')).ownerReviewState(jobId);if(review.open && (!review.latestStars || review.latestStars<=3&&!review.feedbackSent))currentAction='review';}
     }
   }
-  currentAction=currentOwnerAction({taps:currentAction==='taps',spot:currentAction==='spot',quote:currentAction==='quote',pay:currentAction==='pay',piesa:currentAction==='piesa',veec:currentAction==='veec',book:currentAction==='book',fixes:currentAction==='fixes',newquote:currentAction==='newquote',review:currentAction==='review',turn:currentAction==='turn'});
+  currentAction=currentOwnerAction({clear:currentAction==='clear',taps:currentAction==='taps',spot:currentAction==='spot',quote:currentAction==='quote',pay:currentAction==='pay',piesa:currentAction==='piesa',veec:currentAction==='veec',book:currentAction==='book',fixes:currentAction==='fixes',newquote:currentAction==='newquote',review:currentAction==='review',turn:currentAction==='turn'});
   return {
     currentAction,
     inHouseDispatch,
