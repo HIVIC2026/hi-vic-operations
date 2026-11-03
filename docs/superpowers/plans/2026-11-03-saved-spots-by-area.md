@@ -208,3 +208,22 @@
 - [ ] **Step 4 (after merge):** run Task 7 Step 6 (load last night's results).
 - [ ] **Step 5 (after merge):** create the nightly scheduled task (name "Saved spots listing check", ~11:40pm Sydney, cloud). Its prompt: GET the queue (limit 40) with the cron secret; for each address, search for a listing of that exact house (max 3 searches, never owner names, never guess numbers, only what the page says); POST results; message Jo only if the endpoint errors.
 - [ ] **Step 6:** Tell Jo in one line what's live and that the Google daily cap (Task 6 Step 6) is hers to set.
+
+### Task 7b: Estimated ceiling size (spec addendum)
+
+**Files:**
+- Modify: `src/lib/saved-spot-rank.core.ts` (add `estimatedCeiling`, use it in `spotScore`, `spotReason`, `spotTags`)
+- Modify: `src/lib/saved-spot-facts.server.ts` (read `solar_summary.roof_ground_area_m2`; pass listing `floorAreaM2`)
+- Modify: `src/components/portal/saved-spots-by-area.tsx` (show the estimate line)
+- Test: `tests/saved-spot-rank.core.test.ts`, `tests/installer-waiting-rank.test.ts`
+
+**Interfaces:**
+- `SpotFacts` gains `roofGroundM2: number | null; footprintM2: number | null; listingFloorM2: number | null`.
+- `estimatedCeiling(f: SpotFacts): { m2: number; source: "listing" | "above" } | null` — listing floor area when single storey/unknown storeys; else (roofGroundM2 ?? footprintM2) × 0.85; rounded to nearest 5; null when nothing.
+- Row gains `estCeiling: { m2: number; source: "listing" | "above" } | null`.
+
+- [ ] **Step 1: Failing tests:** listing 180 m², storeys 1 → {180, listing}; listing 180, storeys 2 → falls back to above and tag "Check size"; roofGround 200 → {170, above}; owner 100 vs est 170 → tag "Check size" and reason contains "owner said 100 m²"; size score uses 170 not 100; nothing → null and score uses owner's 100.
+- [ ] **Step 2: Run** `bun test tests/saved-spot-rank.core.test.ts` — FAIL.
+- [ ] **Step 3: Implement** core + reader + display ("Est. ceiling ~170 m² (from above)").
+- [ ] **Step 4: Run** both test files, each in its own process — PASS.
+- [ ] **Step 5: Commit** `feat(saved-spots): estimated ceiling size from listing or from above`

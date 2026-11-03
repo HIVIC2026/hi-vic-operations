@@ -104,3 +104,13 @@ The exact weights live in one pure function (`spotRank` in a new `saved-spot-ran
 - AI photo check: unit tests on the result → band mapping; Jo's desk check overrides AI.
 - Listing facts: write limited to the allowed fact keys; "none found" stops re-searching.
 - QA in the running portal (TEST office login): By area view, ticking a Weak spot and a spot in another area, Send to a covering installer with a TEST job.
+
+## Addendum (3 Nov 2026, 3:45pm) — estimated ceiling size
+
+Jo: "we want roof size measured". No online source gives an exact ceiling size, so the portal works out a **best estimate** per saved spot and Jo chose **show it and rank by it**:
+- **From listing** when a listing has a floor area and the home is single storey (or storeys unknown): estimate = listing floor area.
+- **Otherwise from above**: Google Solar roof ground area (`solar_summary.roof_ground_area_m2`, else `building_ground_footprint.m2`) × 0.85 (eaves allowance).
+- Shown on the spot as **"Est. ceiling ~X m² (from listing)"** or **"(from above)"**, rounded to the nearest 5 m².
+- Tag **"Check size"** when the listing says 2+ storeys, or the estimate differs from the owner's figure by more than 30% (reason line adds "owner said Y m²").
+- Ranking: the size part of the score uses the estimate when there is one, otherwise the owner's figure.
+- The owner's saved estimate, m² and price are **not changed**. The installer still measures at the Ready Check.
