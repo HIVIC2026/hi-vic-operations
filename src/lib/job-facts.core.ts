@@ -13,6 +13,8 @@ export const JOB_FACT_TABLES = [
   "workflow_events", "bookings", "job_assignments", "quotes", "ceiling_measurements", "piesa_records", "assessments",
   "appointment_proposals", "customer_assignments", "installer_declarations", "rectification_items", "invoices",
   "payment_overrides", "ready_check_windows", "assessment_payments", "owner_esc_consents", "ready_checks", "worker_job_links",
+  // Join 4 Nov 2026 (Part 5's job page inside the #135 budget): the owner messages sent and the job's documents (CoES).
+  "customer_email_sends", "documents",
 ] as const;
 export type JobFactTable = (typeof JOB_FACT_TABLES)[number];
 
@@ -23,7 +25,8 @@ export type JobFactTable = (typeof JOB_FACT_TABLES)[number];
  */
 export type Nest = { readonly name: string; readonly fk?: string; readonly via?: string; readonly cols: string };
 export const NESTED: Readonly<Record<string, readonly Nest[]>> = {
-  jobs: [{ name: "properties", fk: "jobs_property_id_fkey", cols: "*" }],
+  // `owners(full_name, phone, email)`: Part 5's job page reads the owner with the job (join 4 Nov 2026).
+  jobs: [{ name: "properties", fk: "jobs_property_id_fkey", cols: "*" }, { name: "owners", fk: "jobs_owner_id_fkey", cols: "full_name, phone, email" }],
   quotes: [{ name: "quote_items", cols: "*" }, { name: "quote_internals", cols: "*" }],
   bookings: [{ name: "businesses", fk: "bookings_business_id_fkey", cols: "name, trading_name" }],
   // `profiles:user_id(full_name)`: the assigned person's name, embedded through the row's user_id (PostgREST column hint).

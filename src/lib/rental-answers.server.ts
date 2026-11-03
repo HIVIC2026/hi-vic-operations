@@ -2,7 +2,7 @@
 // `quick_taps_answered` event's details (`answers.rental`); an office correction is a newer `rental_answers_corrected`
 // event of the same shape; the latest event that carries rental answers wins. A read failure throws (callers must not
 // treat "could not read" as "not rented"). No SQL.
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 import { QUICK_TAPS_ANSWERED_EVENT } from "./quick-taps.core";
 import {
   RENTAL_ANSWERS_CORRECTED_EVENT, accessPersonOf, buildRentalAnswers, rentalAnswersFromTaps, rentalAnswersProblems, tenantOf,

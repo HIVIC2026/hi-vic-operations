@@ -1,5 +1,5 @@
 // Batched, authorised list-only deposit facts. No delivery or mutation dependencies.
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 import { cumulativePaidCents, effectiveLedger, ledgerRecordFromEvent, toCents, withSeparateMarks, paymentPlan, paymentSteps, isStepPaid, type PaymentRecord } from "./payments.core";
 import { PAYMENT_EVENT, PAYMENT_REVERSED_EVENT, PAYMENT_MATCH_SEPARATE_EVENT } from "./payment-ledger.server";
 import { safetyCheckCentsFor } from "./safety-check-amount.core";

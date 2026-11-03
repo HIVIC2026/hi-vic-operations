@@ -47,7 +47,7 @@ export type Crew = { staff: StaffOption[]; selection: CrewSelection | null };
 
 /** The section readers, injectable so the bundle's role rules and error isolation can be tested without a database. */
 export type BundleDeps = {
-  overview: (sb: Sb, userId: string, jobId: string) => Promise<{ role: JobRole; row: Overview }>;
+  overview: (sb: Sb, userId: string, jobId: string, tradeAccessP?: Promise<TradeJobAccess | null>) => Promise<{ role: JobRole; row: Overview }>;
   access: (userId: string, jobId: string) => Promise<TradeJobAccess>;
   page: (jobId: string, userId: string, pre: TradeJobAccess, shared: SharedJobReads) => Promise<PageFacts>;
   installDays: (jobId: string, userId: string, shared: SharedJobReads) => Promise<InstallDays>;
@@ -62,7 +62,7 @@ export type BundleDeps = {
 
 function realDeps(): BundleDeps {
   return {
-    overview: (sb, userId, jobId) => overviewServer.jobOverviewFor(sb, userId, jobId),
+    overview: (sb, userId, jobId, tradeAccessP) => overviewServer.jobOverviewFor(sb, userId, jobId, tradeAccessP),
     access: (userId, jobId) => tv.requireTradeJob(userId, jobId),
     page: (jobId, userId, pre, shared) => tv.tradeJobPage(jobId, userId, pre, shared),
     installDays: (jobId, userId, shared) => installDaysServer.installerInstallDayState(jobId, userId, shared),
@@ -103,8 +103,10 @@ export type TradeJobBundle = {
  */
 export async function tradeJobBundle(sb: Sb, userId: string, jobId: string, deps?: BundleDeps): Promise<TradeJobBundle> {
   const d = deps ?? realDeps();
-  const ovP = section(d.overview(sb, userId, jobId));
-  const access = await section(d.access(userId, jobId));
+  // One trade access check: the overview's Office fallback (fix wave C2) reuses it instead of building the context again.
+  const accessP = d.access(userId, jobId);
+  const ovP = section(d.overview(sb, userId, jobId, accessP.catch(() => null)));
+  const access = await section(accessP);
   if (isSectionError(access)) {
     const ov = await ovP;
     const overview = isSectionError(ov) ? ov : ov.row;

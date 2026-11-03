@@ -15,7 +15,7 @@ function fixture() {
     return q;
   }, async rpc(name: string, args: unknown) {writes.push({name,args});return {error:null,data:{already_allocated:false}};} };
   const deps: Record<string, unknown> = {
-    "@/integrations/supabase/client.server": {supabaseAdmin:admin}, "./worker-compliance.core":compliance,
+    "@/integrations/supabase/client.server": {supabaseAdmin:admin}, "./job-facts.server":{jobAdmin:admin}, "./worker-compliance.core":compliance,
     "./in-house-suppression.server":{readInHouseDispatchState:async()=>({failed:false,held:new Set(["j"])})},
     "./fixes-day.server":{existingRectificationForm:async()=>({auditId:"A4",closed:false})},
     "./electrician-link.server":{linkAfterAllocation:async(...a:unknown[])=>{links.push(a);}},

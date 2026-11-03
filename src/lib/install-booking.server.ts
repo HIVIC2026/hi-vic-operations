@@ -1,7 +1,7 @@
 // The CURRENT install booking of a job, read fresh (never a page's copy): the latest-scheduled installation booking that
 // isn't cancelled. One helper for the Lead Installer lock (lead-installer-confirm.server, visit-allocation.server) and
 // the safety plan readers (swms.server, swms-link.server), so every reader picks the same booking.
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 
 export type CurrentInstallBooking = { id: string; scheduled_start: string; status: string; created_at: string | null };
 

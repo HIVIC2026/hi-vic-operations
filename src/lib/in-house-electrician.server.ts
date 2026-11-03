@@ -1,6 +1,6 @@
 // Explicit own-Team selection. Office verification and atomic assignment RPCs own writes;
 // existing Mitti handover preflights own A3/A4 forms. No creation or delivery here.
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { jobAdmin as supabaseAdmin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 import { electricianVerified, inHouseElectricianBookingBlocker, melbourneToday, type ElectricianVerification } from "./worker-compliance.core";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MittiCall } from "./mitti.core";

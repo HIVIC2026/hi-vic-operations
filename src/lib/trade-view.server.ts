@@ -1,7 +1,7 @@
 // Trade view reads + the few trade actions (Jo-approved designs, 6 Oct 2026). Every read is scoped to the signed-in
 // person's own business. Trades never see customer prices, margins, the office's electrician list or other partners.
 import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
-import { WorkflowError, logEvent } from "./workflow.server";
+import { WorkflowError, logEvent, piesaStatus } from "./workflow.server";
 import { fullAddress, shortAddress } from "./address";
 import { isTestPartner } from "./test-send.core";
 import { offerTiming } from "./offer-timing.core";
@@ -68,6 +68,7 @@ import * as usualElectricianServer from "./usual-electrician.server";
 import * as workerIdentityServer from "./worker-identity.server";
 import * as recOnboardedServer from "./rec-onboarded.server";
 import * as installerPaidServer from "./installer-paid-electricians.server";
+import { paysOwnElectricians } from "./installer-paid-electricians.core";
 import * as schemaCompatCore from "./schema-compat.core";
 import { mittiAccessOf } from "./mitti-membership.core";
 import { OWNER_ONLY_REFUSALS } from "./owner-only.core";
@@ -1682,11 +1683,21 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   const sentP = early(admin.from("customer_email_sends").select("purpose, sent_at, created_at").eq("job_id", jobId).eq("status", "sent").order("created_at", { ascending: true }));
   const ledgerP = early(paymentsServer.paymentLedger(jobId).catch(() => [] as { amountCents: number; paidAt: string }[]));
   const depositP = early(import("./install-deposit-list.server").then((m2) => m2.installDepositPaidForJobs([jobId])).then((x) => x.get(jobId) === true).catch(() => false));
-  const deadlineP = early(admin.from("job_piesa_deadlines").select("install_deadline").eq("job_id", jobId).maybeSingle());
+  // Join (Task 11 budget): the same deadlines query the overview's piesaStatus makes, so inside the bundle it is asked once.
+  const deadlineP = early(piesaStatus(jobId).then((d) => ({ data: d as { install_deadline?: string | null } | null })));
   const givenP = early(admin.from("job_assignments").select("assigned_at").eq("job_id", jobId).eq("business_id", c.biz.id).eq("role", "installer").order("assigned_at", { ascending: true }).limit(1).maybeSingle());
   const consentP = early(admin.from("owner_esc_consents").select("owner_signed_at").eq("job_id", jobId).not("owner_signed_at", "is", null).not("status", "in", "(stale,cancelled)").limit(1).maybeSingle());
   const paidEvP = early(admin.from("workflow_events").select("created_at, details").eq("job_id", jobId).eq("event_type", "payout_marked_paid").order("created_at", { ascending: false }));
-  const piesaPayP = c.kind === "installer" && c.money ? early(import("./installer-paid-electricians.server").then((m2) => m2.readInstallerPaidElectricians(c.biz.id)).catch(() => null)) : early(Promise.resolve(null));
+  // The installer-paid PIESA read (rate cards + lines, portal speed 2B's one round) is asked only for a business that pays
+  // its own electricians — the flags come from the caller's own business row, which the bundle already holds (#135 budget).
+  // Same answer: readInstallerPaidElectricians gives null for every other business.
+  const piesaPayP = c.kind === "installer" && c.money
+    ? early((async () => {
+        const { data: flags } = await admin.from("businesses").select("in_house, pays_own_electricians").eq("id", c.biz.id).maybeSingle();
+        if (!flags || !paysOwnElectricians(flags as { in_house?: boolean; pays_own_electricians?: boolean })) return null;
+        return installerPaidServer.readInstallerPaidElectricians(c.biz.id);
+      })().catch(() => null))
+    : early(Promise.resolve(null));
   const swmsP = early(inBookP.then(async ({ data: ib }) => ib ? await import("./swms.server").then((m2) => m2.loadSwms(jobId)).catch(() => null) : null));
   // I3: up to five quotes so the money rows can prefer an ACCEPTED quote over a newer draft (ownCustomerQuoteFigures); the
   // product detection below keeps reading the newest, as before.
@@ -1792,7 +1803,7 @@ export async function tradeDayExtras(jobId: string, userId: string) {
   const payP = early(installerPayForJob(jobId));
   const formP = early(installFormFacts(jobId));
   const needsElecP = early(piesaNeedsElectricianAtStart(jobId));
-  const dlP = early(admin.from("job_piesa_deadlines").select("install_deadline").eq("job_id", jobId).maybeSingle());
+  const dlP = early(piesaStatus(jobId).then((d) => ({ data: d as { install_deadline?: string | null } | null }))); // one deadlines query shape (see tradeJobPage)
   const allocP = early(admin.from("workflow_events").select("event_type, details, created_at").eq("job_id", jobId).eq("event_type", "visit_allocated").order("created_at", { ascending: false }));
   const declP = early(admin.from("installer_declarations").select("installer_name, signed_at").eq("job_id", jobId).eq("status", "signed").order("signed_at", { ascending: false }).limit(1).maybeSingle());
   const evEvP = early(admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "install_evidence_synced").order("created_at", { ascending: false }).limit(1).maybeSingle());

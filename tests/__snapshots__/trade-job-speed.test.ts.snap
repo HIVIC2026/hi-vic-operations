@@ -210,6 +210,7 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "price": {
         "entered": false,
       },
+      "prices": true,
       "progress": [
         {
           "label": "Ready Check",
@@ -255,8 +256,8 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
             "Ceiling batts",
           ],
           [
-            "Your install pay",
-            "$2,200.00 · paid once Owner has paid in full",
+            "Owner's quote",
+            "$3,500",
           ],
         ],
         "owner": [
@@ -339,6 +340,7 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
         "removal": "None",
       },
       "removalRequired": false,
+      "sendOnPress": false,
     },
     "readyCheckTimes": {
       "applies": false,
@@ -635,6 +637,7 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "price": {
         "entered": false,
       },
+      "prices": true,
       "progress": [
         {
           "label": "Ready Check",
@@ -680,8 +683,8 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
             "Ceiling batts",
           ],
           [
-            "Your install pay",
-            "$2,200.00 · paid once Owner has paid in full",
+            "Owner's quote",
+            "$3,500",
           ],
         ],
         "owner": [
@@ -764,6 +767,7 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
         "removal": "None",
       },
       "removalRequired": false,
+      "sendOnPress": false,
     },
     "readyCheckTimes": {
       "applies": false,
@@ -1060,6 +1064,7 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "price": {
         "entered": false,
       },
+      "prices": true,
       "progress": [
         {
           "label": "Ready Check",
@@ -1105,8 +1110,8 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
             "Ceiling batts",
           ],
           [
-            "Your install pay",
-            "$2,200.00 · paid once Owner has paid in full",
+            "Owner's quote",
+            "$3,500",
           ],
         ],
         "owner": [
@@ -1189,6 +1194,7 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
         "removal": "None",
       },
       "removalRequired": false,
+      "sendOnPress": false,
     },
     "readyCheckTimes": {
       "applies": false,
@@ -1462,6 +1468,7 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "price": {
         "entered": false,
       },
+      "prices": false,
       "progress": [
         {
           "label": "Ready Check",
@@ -1834,6 +1841,7 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "price": {
         "entered": false,
       },
+      "prices": false,
       "progress": [
         {
           "label": "Ready Check",
@@ -2206,6 +2214,7 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
       "price": {
         "entered": false,
       },
+      "prices": false,
       "progress": [
         {
           "label": "Ready Check",
@@ -2536,6 +2545,7 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
     "price": {
       "entered": false,
     },
+    "prices": true,
     "progress": [
       {
         "label": "Ready Check",
@@ -2581,8 +2591,8 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
           "Ceiling batts",
         ],
         [
-          "Your install pay",
-          "$2,200.00 · paid once Owner has paid in full",
+          "Owner's quote",
+          "$3,500",
         ],
       ],
       "owner": [
@@ -2719,6 +2729,7 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
     "price": {
       "entered": false,
     },
+    "prices": true,
     "progress": [
       {
         "label": "Ready Check",
@@ -2764,8 +2775,8 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
           "Ceiling batts",
         ],
         [
-          "Your install pay",
-          "$2,200.00 · paid once Owner has paid in full",
+          "Owner's quote",
+          "$3,500",
         ],
       ],
       "owner": [
@@ -2902,6 +2913,7 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
     "price": {
       "entered": false,
     },
+    "prices": true,
     "progress": [
       {
         "label": "Ready Check",
@@ -2947,8 +2959,8 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
           "Ceiling batts",
         ],
         [
-          "Your install pay",
-          "$2,200.00 · paid once Owner has paid in full",
+          "Owner's quote",
+          "$3,500",
         ],
       ],
       "owner": [
@@ -3085,6 +3097,7 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
     "price": {
       "entered": false,
     },
+    "prices": false,
     "progress": [
       {
         "label": "Ready Check",
@@ -3264,6 +3277,7 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
     "price": {
       "entered": false,
     },
+    "prices": false,
     "progress": [
       {
         "label": "Ready Check",
@@ -3443,6 +3457,7 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
     "price": {
       "entered": false,
     },
+    "prices": false,
     "progress": [
       {
         "label": "Ready Check",

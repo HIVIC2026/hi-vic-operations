@@ -1,7 +1,7 @@
 // Who books the safety check (PIESA) and the upgrades day for an installer business — ONE reader for the Part 5 setting
 // `businesses.piesa_booked_by` (My business › Who books; installer-business-settings.sql). Used by the Job page / My work
 // (trade-view.server), the electrician's no-login link (electrician-link.server) and main's Part 2 own-job readers.
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 import { whoBooksOf, type WhoBooks } from "./business-screen.core";
 import { isMissingDbObject } from "./schema-compat.core";
 

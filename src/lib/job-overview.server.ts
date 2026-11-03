@@ -13,7 +13,7 @@ import { early } from "./early-read";
 type Sb = SupabaseClient<Database>;
 
 /** The overview row the caller may see, plus the role `my_job_role` gave them (the bundle seeds the page's role from it). */
-export async function jobOverviewFor(sb: Sb, userId: string, jobId: string) {
+export async function jobOverviewFor(sb: Sb, userId: string, jobId: string, tradeAccessP?: Promise<import("./trade-view.server").TradeJobAccess | null>) {
   // Speed (installer screens, Task 6): the role check and every read that needs only the job id start together (two
   // rounds, not seven). Nothing read here is used, shaped or returned until the role check has passed, and its refusal
   // wins. The originating business, the contact release and the hidden-address read are the trade-only facts below.
@@ -23,8 +23,9 @@ export async function jobOverviewFor(sb: Sb, userId: string, jobId: string) {
   const roleP = early((async () => {
     try { return await requireJobRole(sb, jobId, ["admin", "owner", "electrician", "installer"]); }
     catch (e) {
-      const { requireTradeJob } = await import("./trade-view.server");
-      const c = await requireTradeJob(userId, jobId).catch(() => null);
+      // Inside the job page bundle the trade access check is already running (one context build, one assignment check):
+      // its answer is reused here, so a refused caller costs no second round (#135 budget). Alone, it is asked here.
+      const c = tradeAccessP ? await tradeAccessP : await (await import("./trade-view.server")).requireTradeJob(userId, jobId).catch(() => null);
       if (c && c.role === "office") return c.kind as JobRole;
       throw e;
     }
