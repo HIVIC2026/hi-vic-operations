@@ -76,8 +76,9 @@ type Facts=NonNullable<Awaited<ReturnType<typeof factsFor>>>;
 async function ownerNotice(jobId:string,c:Facts,step:'request'|'paid'|DepositReminder,at:string,now:Date,deps:ClearToInstallDeps){
   // Quiet hours are checked before either channel; no deferred text at a different time to its email.
   if((await import('./quote-hold.core')).smsQuietReason(now.toISOString()))return 'quiet hours';
-  if((step==='request'||step==='paid') && now.getTime()-Date.parse(at)>86_400_000)return 'stale notice held';
   const clear=step==='request'&&deps.approved&&(await deps.route(jobId)).includes('clear_to_install');
+  // The clear-to-install email carries the owner's legal PIESA copy, so the 24h stale rule never holds it back.
+  if(!clear&&(step==='request'||step==='paid') && now.getTime()-Date.parse(at)>86_400_000)return 'stale notice held';
   // The clear-to-install email carries the owner's PIESA copy, so it is a compliance send (purpose piesa_copy, also reaches unsubscribed owners).
   const purpose=clear?'piesa_copy':`install_deposit_${step}`;
   await (await import('./comms.server')).assertCustomerDeliveryAllowed(jobId,'Install deposit notice',...(clear?['piesa_copy' as const]:[]));
@@ -87,7 +88,20 @@ async function ownerNotice(jobId:string,c:Facts,step:'request'|'paid'|DepositRem
   if(clear){
     const sent=await admin.from('customer_email_sends').select('status').eq('job_id',jobId).eq('idempotency_key',key).maybeSingle();
     if(sent.error)throw Error('Could not read clear-to-install history.');
-    if(sent.data?.status==='sent')return 'already sent'; // no PDFs rebuilt on every tick
+    if(sent.data?.status==='sent'){
+      // Sent but the owner delivery row never landed (crash after the provider accepted): record it now, idempotently.
+      const rec=await admin.from('piesa_records').select('id').eq('job_id',jobId).eq('is_current',true).maybeSingle();
+      if(rec.error)throw Error('Could not read PIESA record.');
+      if(rec.data){
+        const have=await admin.from('piesa_deliveries').select('id',{count:'exact',head:true}).eq('piesa_record_id',rec.data.id).eq('recipient','owner');
+        if(have.error)throw Error('Could not read PIESA deliveries.');
+        if(!have.count){
+          const i=await deps.inputs(jobId);
+          if(!('held' in i))await deps.record({jobId,recipient:'owner',piesaRecordId:i.piesaRecordId,signedCopyId:i.signedCopyId,recipientUserId:null,to:c.owner.email,detail:'with the "You\'re clear to install" email'});
+        }
+      }
+      return 'already sent'; // no PDFs rebuilt on every tick once the delivery is recorded
+    }
     const i=await deps.inputs(jobId);
     if('held' in i)return i.held||CLEAR_HELD;
     if(!i.attachments.length)return CLEAR_HELD;

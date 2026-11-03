@@ -30,3 +30,15 @@ export function piesaResultRoute(
 export function depositOpenAfterPiesa(f: { outcome: PiesaOutcome | null }): boolean {
   return f.outcome === "all_clear" || f.outcome === "upgrades_needed";
 }
+
+/** Safety net (Jo ruling 3 Nov): a non-standalone route may only hold back the owner's standalone PIESA copy for 24 hours
+ *  after the PIESA result. The clear-to-install / upgrades-needed email can be blocked (paid, booked, no deadline, no invoice,
+ *  documents held), and a double copy is harmless where a missing legal copy is not. */
+export const OWNER_STANDALONE_GRACE_MS = 24 * 60 * 60 * 1000;
+export function ownerStandaloneDue(f: { route: PiesaResultRoute[]; resultAt: Date | string | null; now: Date; ownerDelivered: boolean }): boolean {
+  if (f.ownerDelivered) return false;
+  if (f.route.includes("standalone_copy")) return true;
+  const at = f.resultAt == null ? NaN : (f.resultAt instanceof Date ? f.resultAt.getTime() : Date.parse(f.resultAt));
+  if (!Number.isFinite(at)) return true; // unknown result time: fail open to the legal copy
+  return f.now.getTime() - at >= OWNER_STANDALONE_GRACE_MS;
+}

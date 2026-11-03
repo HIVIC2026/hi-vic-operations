@@ -1,6 +1,6 @@
 // Part 4 Task 2 (Jo 2 Nov 2026, answers 21 + touchpoints 40/42): one owner message per PIESA result.
 import { describe, expect, test } from "bun:test";
-import { piesaResultRoute, depositOpenAfterPiesa, CLEAR_TO_INSTALL_EMAIL_APPROVED, UPGRADES_NEEDED_EMAIL_APPROVED } from "../src/lib/piesa-result-route.core";
+import { piesaResultRoute, depositOpenAfterPiesa, ownerStandaloneDue, OWNER_STANDALONE_GRACE_MS, CLEAR_TO_INSTALL_EMAIL_APPROVED, UPGRADES_NEEDED_EMAIL_APPROVED } from "../src/lib/piesa-result-route.core";
 import { piesaDeliveryPlan, type PiesaDeliveryFacts } from "../src/lib/piesa-delivery.core";
 import { depositRequestEligible } from "../src/lib/deposit-request.core";
 import { installDepositDueNow } from "../src/lib/payments.core";
@@ -98,10 +98,45 @@ describe("sender wiring", () => {
   const src = readFileSync("src/lib/piesa-delivery.server.ts", "utf8") as string;
   test("the owner copy follows the route through an injectable dependency; the installer copy is not gated by it", () => {
     expect(src).toContain("deps: PiesaDeliveryDeps");
-    expect(src).toContain('(await deps.route(jobId)).includes("standalone_copy")');
+    expect(src).toContain("resolveOwnerStandalone(");
+    expect(src).toContain("ownerStandaloneDue(");
     expect(src).toContain("ownerStandalone");
   });
   test("a route read failure falls back to the standalone legal copy", () => {
     expect(src).toMatch(/catch \(e\) \{[\s\S]*return \["standalone_copy"\]/);
+  });
+});
+
+describe("ownerStandaloneDue (24h safety net)", () => {
+  const resultAt = "2026-11-02T00:00:00Z";
+  const at = (h: number) => new Date(Date.parse(resultAt) + h * 3600_000);
+  const due = (o: Partial<Parameters<typeof ownerStandaloneDue>[0]>) => ownerStandaloneDue({ route: ["clear_to_install"], resultAt, now: at(1), ownerDelivered: false, ...o });
+  test("the grace window is 24 hours", () => { expect(OWNER_STANDALONE_GRACE_MS).toBe(86_400_000); });
+  test("standalone route: due straight away", () => { expect(due({ route: ["standalone_copy"] })).toBe(true); });
+  for (const route of ["clear_to_install", "upgrades_needed"] as const) {
+    test(`${route}: held for 24h, then due`, () => {
+      expect(due({ route: [route], now: at(1) })).toBe(false);
+      expect(due({ route: [route], now: at(23.9) })).toBe(false);
+      expect(due({ route: [route], now: at(24) })).toBe(true);
+      expect(due({ route: [route], now: at(200) })).toBe(true);
+    });
+  }
+  test("an owner copy already recorded is never due again", () => {
+    expect(due({ ownerDelivered: true, now: at(200) })).toBe(false);
+    expect(due({ ownerDelivered: true, route: ["standalone_copy"] })).toBe(false);
+  });
+  test("unknown or unreadable result time fails open to the legal copy", () => {
+    expect(due({ resultAt: null })).toBe(true);
+    expect(due({ resultAt: "not a date" })).toBe(true);
+  });
+});
+
+describe("sweep re-visits overdue owner copies", () => {
+  const { readFileSync } = require("node:fs");
+  const src = readFileSync("src/lib/piesa-delivery.server.ts", "utf8") as string;
+  test("the sweep adds jobs past the 24h grace with no owner delivery row, ahead of the generic candidates", () => {
+    expect(src).toContain("overdueOwnerCopyJobs(now)");
+    expect(src).toMatch(/\[\.\.\.overdue, \.\.\.\(ready/);
+    expect(src).toContain('.eq("recipient", "owner").in("piesa_record_id"');
   });
 });

@@ -11,7 +11,7 @@ import {
   PIESA_COPY_DELIVERED_EVENT, PIESA_COPY_EMAIL_APPROVED, PIESA_COPY_EMAIL_VERSION, PIESA_COPY_MAX_PER_TICK, PIESA_COPY_NOT_SENT_EVENT,
   piesaCopyKey, piesaDeliveryPlan, renderPiesaCopyEmail, type PiesaCopyRecipient,
 } from "./piesa-delivery.core";
-import { piesaResultRoute, type PiesaResultRoute } from "./piesa-result-route.core";
+import { OWNER_STANDALONE_GRACE_MS, ownerStandaloneDue, piesaResultRoute, type PiesaResultRoute } from "./piesa-result-route.core";
 
 /** Part 4 Task 2: what the owner's PIESA message is for this job (piesa-result-route.core). Reads fail closed to the standalone legal copy. */
 export async function ownerPiesaRoute(jobId: string): Promise<PiesaResultRoute[]> {
@@ -31,7 +31,22 @@ export async function ownerPiesaRoute(jobId: string): Promise<PiesaResultRoute[]
   }
 }
 
-export type PiesaDeliveryDeps = { route: (jobId: string) => Promise<PiesaResultRoute[]> };
+/** When the current PIESA result was recorded (null when unreadable: the standalone copy then goes). */
+export async function piesaResultAt(jobId: string): Promise<string | null> {
+  try {
+    const { data } = await admin.from("piesa_records").select("created_at").eq("job_id", jobId).eq("is_current", true).maybeSingle();
+    return data?.created_at ?? null;
+  } catch { return null; }
+}
+
+export type PiesaDeliveryDeps = { route: (jobId: string) => Promise<PiesaResultRoute[]>; resultAt?: (jobId: string) => Promise<string | null> };
+
+/** Should the owner get the standalone signed copy now? Follows the route, with the 24h safety net (piesa-result-route.core). */
+export async function resolveOwnerStandalone(jobId: string, now: Date, ownerDelivered: boolean, deps: PiesaDeliveryDeps): Promise<boolean> {
+  const route = await deps.route(jobId);
+  const resultAt = route.includes("standalone_copy") || ownerDelivered ? null : await (deps.resultAt ?? piesaResultAt)(jobId);
+  return ownerStandaloneDue({ route, resultAt, now, ownerDelivered });
+}
 
 export type PiesaDeliveryResult = { jobId: string; hold: string | null; late: boolean; sent: PiesaCopyRecipient[]; held: Record<string, string> };
 
@@ -53,7 +68,7 @@ export async function recordDelivery(p: { jobId: string; recipient: PiesaCopyRec
 }
 
 /** Emails the signed PIESA copy to whoever hasn't got it yet, then records the deliveries. Safe to call every tick. */
-export async function deliverPiesaCopies(jobId: string, now = new Date(), deps: PiesaDeliveryDeps = { route: ownerPiesaRoute }): Promise<PiesaDeliveryResult> {
+export async function deliverPiesaCopies(jobId: string, now = new Date(), deps: PiesaDeliveryDeps = { route: ownerPiesaRoute, resultAt: piesaResultAt }): Promise<PiesaDeliveryResult> {
   const out: PiesaDeliveryResult = { jobId, hold: null, late: false, sent: [], held: {} };
   const { data: job } = await admin.from("jobs").select("id, job_number, source, stage, deleted_at, qa_archived_at, owners(full_name, email), properties(address_line, suburb)").eq("id", jobId).maybeSingle();
   if (!job) return { ...out, hold: "job not found" };
@@ -78,7 +93,8 @@ export async function deliverPiesaCopies(jobId: string, now = new Date(), deps: 
   const biz = (asg?.businesses ?? null) as { email: string | null; onboarding_notes: string | null } | null;
   const installerEmail = prof?.email?.trim() || biz?.email?.trim() || null;
   // One owner message per result: a new-flow owner's PIESA rides on the clear-to-install / upgrades-needed email, so no standalone owner copy.
-  const ownerStandalone = (await deps.route(jobId)).includes("standalone_copy");
+  // The 24h safety net: after a day with no owner copy recorded (clear email blocked or never sent), the standalone copy goes anyway.
+  const ownerStandalone = await resolveOwnerStandalone(jobId, now, has("owner"), deps);
   const plan = piesaDeliveryPlan({
     ownerStandalone, signedCopyId: copyId, piesaRecordId: rec?.id ?? null, installStart: bk?.scheduled_start ?? null,
     delivered: { owner: has("owner"), installer: has("installer") }, email: { owner: owner?.email?.trim() || null, installer: installerEmail },
@@ -136,13 +152,29 @@ export async function deliverPiesaCopies(jobId: string, now = new Date(), deps: 
   return out;
 }
 
+const OVERDUE_LOOKBACK_MS = 60 * 24 * 60 * 60 * 1000;
+/** Open jobs whose current PIESA result is past the 24h grace and has no owner delivery row yet. */
+async function overdueOwnerCopyJobs(now: Date): Promise<string[]> {
+  const from = new Date(now.getTime() - OVERDUE_LOOKBACK_MS).toISOString(), to = new Date(now.getTime() - OWNER_STANDALONE_GRACE_MS).toISOString();
+  const { data: recs, error } = await admin.from("piesa_records").select("id, job_id, jobs!inner(stage, deleted_at)").eq("is_current", true).gte("created_at", from).lte("created_at", to)
+    .in("jobs.stage", ["piesa_complete", "electrical_variation_pending", "awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling"]).is("jobs.deleted_at", null).order("created_at").limit(PIESA_COPY_MAX_PER_TICK * 4);
+  if (error) throw new Error(`PIESA copy sweep could not read overdue safety checks: ${error.message}`);
+  if (!recs?.length) return [];
+  const { data: done, error: e2 } = await admin.from("piesa_deliveries").select("piesa_record_id").eq("recipient", "owner").in("piesa_record_id", recs.map((r) => r.id));
+  if (e2) throw new Error(`PIESA copy sweep could not read deliveries: ${e2.message}`);
+  const have = new Set((done ?? []).map((d) => d.piesa_record_id));
+  return recs.filter((r) => !have.has(r.id)).map((r) => r.job_id);
+}
+
 /** 15-minute tick: every job with a confirmed future install booking whose signed PIESA copies aren't both recorded yet. */
 export async function sweepPiesaCopyDeliveries(now = new Date()) {
   const { data: bks, error } = await admin.from("bookings").select("job_id, scheduled_start").eq("kind", "installation").eq("status", "confirmed").gt("scheduled_start", now.toISOString()).order("scheduled_start").limit(PIESA_COPY_MAX_PER_TICK * 2);
   if (error) throw new Error(`PIESA copy sweep could not read bookings: ${error.message}`);
   const {data:ready,error:readyError} = await admin.from('jobs').select('id').in('stage',['piesa_complete','electrical_variation_pending','awaiting_deposit_payment','rectification_scheduling','rectification_booked','installation_scheduling']).is('deleted_at',null).limit(PIESA_COPY_MAX_PER_TICK);
   if(readyError) throw new Error('Could not read completed safety checks');
-  const ids = [...new Set([...(ready ?? []).map(j=>j.id), ...(bks ?? []).map((b) => b.job_id)])].slice(0, PIESA_COPY_MAX_PER_TICK);
+  // Safety net: results older than the 24h grace with no owner copy recorded are always re-visited, so the sweep cannot starve them.
+  const overdue = await overdueOwnerCopyJobs(now);
+  const ids = [...new Set([...overdue, ...(ready ?? []).map(j=>j.id), ...(bks ?? []).map((b) => b.job_id)])].slice(0, PIESA_COPY_MAX_PER_TICK);
   const out = { checked: ids.length, sent: 0, held: 0, failed: 0 };
   for (const jobId of ids) {
     try {

@@ -2,20 +2,23 @@ import { beforeEach, expect, mock, test } from 'bun:test';
 import { memoryPostgrest, type Tables } from './helpers/memory-postgrest';
 // Part 4 Task 3: "You're clear to install" (#40). Core wording + the server send (flag on/off, attachments, deliveries).
 const tables: Tables = {}; const admin = memoryPostgrest(tables);
+let paidNow = false, bookedNow = false, deadlineNow: string | null = '2026-12-05';
 let outcome: 'pass' | 'fail' = 'pass', inputsOk = true, routeClear = true, paused = false, unsubscribed = false;
 const emails: any[] = [], texts: any[] = [], recorded: any[] = [], guards: any[] = [];
 const emailKeys = new Set<string>();
 mock.module('@/integrations/supabase/client.server', () => ({ supabaseAdmin: admin }));
 mock.module('../src/lib/in-house-suppression.server', () => ({ readInHouseDispatchState: async () => ({ failed: false, held: new Set(['j']) }) }));
 mock.module('../src/lib/allocation.server', () => ({ clearanceFacts: async () => ({ piesaOutcome: outcome }) }));
-mock.module('../src/lib/install-days.server', () => ({ installDayContext: async () => ({ clearance: { cleared: true, basis: 'initial_piesa' }, deadline: '2026-12-05', booked: false }) }));
-mock.module('../src/lib/payments.server', () => ({ jobPaymentView: async () => ({ invoiceId: 'i', invoices: { install: { id: 'i', xero_invoice_id: 'x' } }, plan: { installDepositCents: 15700 }, steps: [{ key: 'install_deposit', state: 'due', outstandingCents: 15700 }], bank: { configured: true, accountName: 'P', bsb: '123456', accountNumber: '12345678' }, reference: 'INV-1', stripe: { available: true } }) }));
+mock.module('../src/lib/install-days.server', () => ({ installDayContext: async () => ({ clearance: { cleared: true, basis: 'initial_piesa' }, deadline: deadlineNow, booked: bookedNow }) }));
+mock.module('../src/lib/payments.server', () => ({ jobPaymentView: async () => ({ invoiceId: 'i', invoices: { install: { id: 'i', xero_invoice_id: 'x' } }, plan: { installDepositCents: 15700 }, steps: [{ key: 'install_deposit', state: paidNow ? 'paid' : 'due', outstandingCents: paidNow ? 0 : 15700 }], bank: { configured: true, accountName: 'P', bsb: '123456', accountNumber: '12345678' }, reference: 'INV-1', stripe: { available: true } }) }));
 mock.module('../src/lib/veec-copy-email.server', () => ({ ownerMyJobLink: async () => 'https://example.invalid/my-job/token' }));
 mock.module('../src/lib/comms.server', () => ({ assertCustomerDeliveryAllowed: async (_j: string, _l: string, purpose?: string) => { guards.push(purpose ?? null); if (paused) throw Error('held'); if (unsubscribed && purpose !== 'piesa_copy') throw Error('unsubscribed'); } }));
 mock.module('../src/lib/owner-email-send.server', () => ({ sendGuardedOwnerEmail: async (p: any) => { if (emailKeys.has(p.key)) return 'already attempted'; emailKeys.add(p.key); emails.push({ ...p, mail: p.build(null) }); return 'sent'; } }));
 mock.module('../src/lib/sms.server', () => ({ sendRealSms: async (p: any) => { texts.push(p); return { status: 'sent' }; } }));
 const { renderInstallDepositOwnerEmail } = await import('../src/lib/deposit-request-email.core');
 const { requestInstallDeposit } = await import('../src/lib/deposit-request.server');
+const { ownerStandaloneDue } = await import('../src/lib/piesa-result-route.core');
+const { resolveOwnerStandalone } = await import('../src/lib/piesa-delivery.server');
 const { COMPLIANCE_OWNER_EMAIL_PURPOSES } = await import('../src/lib/do-not-contact.core');
 
 const facts = { name: 'Sarah', firstName: 'Sarah', installer: 'Rapid Insulation', jobNumber: 'HV-1', address: '1 A St', ownerPhone: null, deadline: '2026-12-05', amountCents: 15700, link: 'https://example.invalid/my-job/t?screen=clear', bank: { configured: true, accountName: 'P', bsb: '1', accountNumber: '2' }, reference: 'R', card: true, checkedOn: '2026-11-07', electrician: 'Viking Electrical', upgrades: 'None' as const };
@@ -63,9 +66,9 @@ beforeEach(() => {
   tables.properties = [{ id: 'p', address_line: '1 Practice St', suburb: 'Melbourne', postcode: '3000' }];
   tables.businesses = [{ id: 'b', name: 'Practice Insulation', email: 'office@example.invalid', in_house: true }];
   tables.job_assignments = [{ id: 'a', job_id: 'j', business_id: 'b', user_id: 'u', role: 'installer', active: true }];
-  tables.workflow_events = []; tables.customer_email_sends = [];
+  tables.workflow_events = []; tables.customer_email_sends = []; tables.piesa_records = [{ id: 'r', job_id: 'j', is_current: true, created_at: '2026-11-01T00:00:00Z' }]; tables.piesa_deliveries = [];
   emails.length = texts.length = recorded.length = guards.length = 0; emailKeys.clear();
-  outcome = 'pass'; inputsOk = true; routeClear = true; paused = false; unsubscribed = false;
+  paidNow = false; bookedNow = false; deadlineNow = '2026-12-05'; outcome = 'pass'; inputsOk = true; routeClear = true; paused = false; unsubscribed = false;
 });
 const at = new Date('2026-11-01T00:00:00Z');
 test('flag on: one clear email, same key, both PDFs attached, owner deliveries recorded once', async () => {
@@ -109,4 +112,57 @@ test('route says standalone (upgrades still to come / do not contact): old depos
   await requestInstallDeposit('j', at, deps());
   expect(emails[0].mail.subject).toBe('Your 10% install deposit');
   expect(recorded).toHaveLength(0);
+});
+
+// Safety net (Jo ruling 3 Nov): when the clear email cannot go, the owner still gets the standalone PIESA copy after 24h.
+const resultAt = '2026-11-01T00:00:00Z';
+const hoursAfter = (h: number) => new Date(Date.parse(resultAt) + h * 3600_000);
+const standaloneDeps = () => ({ route: async () => ['clear_to_install' as const], resultAt: async () => resultAt });
+const ownerGets = async (h: number) => resolveOwnerStandalone('j', hoursAfter(h), recorded.length > 0, standaloneDeps());
+const blocked: [string, () => void][] = [
+  ['deposit already paid', () => { paidNow = true; }],
+  ['install already booked', () => { bookedNow = true; }],
+  ['no install deadline', () => { deadlineNow = null; }],
+  ['documents held', () => { inputsOk = false; }],
+];
+for (const [name, block] of blocked) {
+  test(`clear route but ${name}: no email, nothing yet within 24h, standalone copy after 24h`, async () => {
+    block();
+    await requestInstallDeposit('j', hoursAfter(1), deps()).catch(() => 'pending');
+    expect(emails).toHaveLength(0); expect(recorded).toHaveLength(0);
+    expect(await ownerGets(1)).toBe(false);
+    expect(await ownerGets(23)).toBe(false);
+    expect(await ownerGets(25)).toBe(true);
+  });
+}
+test('stale request: the clear email still goes more than 24h after the request was recorded', async () => {
+  inputsOk = false;
+  await requestInstallDeposit('j', hoursAfter(1), deps()); // request recorded, documents not ready
+  inputsOk = true;
+  const r = await requestInstallDeposit('j', hoursAfter(30), deps()); // 29h later
+  expect(r).not.toContain('stale');
+  expect(emails).toHaveLength(1); expect(recorded).toHaveLength(1);
+});
+test('stale rule still holds the old (non-clear) deposit request', async () => {
+  routeClear = false;
+  await requestInstallDeposit('j', hoursAfter(1), { ...deps(), approved: false }).catch(() => 0);
+  emails.length = 0; emailKeys.clear(); tables.customer_email_sends = [];
+  expect(await requestInstallDeposit('j', hoursAfter(30), { ...deps(), approved: false })).toContain('stale notice held');
+});
+test('clear email sent and recorded: no standalone copy', async () => {
+  await requestInstallDeposit('j', hoursAfter(1), deps());
+  expect(recorded).toHaveLength(1);
+  expect(await ownerGets(200)).toBe(false);
+});
+test('already-sent path records the owner delivery when the row is missing', async () => {
+  await requestInstallDeposit('j', hoursAfter(1), deps());
+  tables.customer_email_sends = [{ id: 's', job_id: 'j', idempotency_key: 'install-deposit:v1:i', status: 'sent' }];
+  recorded.length = 0;
+  const r = await requestInstallDeposit('j', hoursAfter(2), deps());
+  expect(r).toContain('already sent');
+  expect(recorded).toHaveLength(1);
+  expect(recorded[0]).toMatchObject({ jobId: 'j', recipient: 'owner', piesaRecordId: 'r', signedCopyId: 'c' });
+});
+test('ownerStandaloneDue agrees with the resolver', () => {
+  expect(ownerStandaloneDue({ route: ['clear_to_install'], resultAt, now: hoursAfter(25), ownerDelivered: false })).toBe(true);
 });
