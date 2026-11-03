@@ -6,11 +6,15 @@ import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 import { OWNER_PAGE_FOOTER, THIRTY_DAY_CLOCK } from "@/lib/owner-pages.core";
 
 /** White top bar: logo left, job number right (P2–P4). */
-export function OwnerPageHeader({ right }: { right?: ReactNode }) {
+/** Part 10 Task 6: `partnerLogo` (cobrand.core, https + alt only) sits beside ours, same height; absent = today's header, no layout shift. */
+export function OwnerPageHeader({ right, partnerLogo }: { right?: ReactNode; partnerLogo?: { url: string; alt: string } | null }) {
   return (
     <header className="border-b border-estimate-line bg-card">
       <div className="mx-auto flex max-w-[560px] items-center justify-between gap-3 px-4 py-3 sm:px-5">
-        <img src={logo.url} alt="Home Insulation Victoria" className="h-9 w-auto max-w-[120px] object-contain object-left" />
+        <span className="flex items-center gap-3">
+          <img src={logo.url} alt="Home Insulation Victoria" className="h-9 w-auto max-w-[120px] object-contain object-left" />
+          {partnerLogo && <img src={partnerLogo.url} alt={partnerLogo.alt} className="h-9 w-auto max-w-[120px] object-contain object-right" />}
+        </span>
         {right && <span className="text-xs text-estimate-sub">{right}</span>}
       </div>
     </header>

@@ -31,12 +31,10 @@ export const ymdShort = (ymd: string, withWeekday = false) =>
 export const firstName = (full: string | null | undefined): string | null =>
   displayName(full).split(" ")[0] || null;
 
-/** Decision 48: the quiet source label. Never the installer's own business name repeated back. */
-export function sourceLabel(channel: string | null | undefined): string | null {
-  if (channel === "installer_sourced") return "Your customer";
-  if (channel === "hivic_sourced") return "Home Insulation Victoria lead";
-  return null;
-}
+/** Decision 48: the quiet source label. Never the installer's own business name repeated back. ONE function (Part 10 Task 9),
+ *  kept in installer-status-line.core so My work's split (speed) and the Job page share it. */
+export { sourceLabel } from "./installer-status-line.core";
+import { sourceLabel } from "./installer-status-line.core";
 
 // ---------- M2 · Job page: ONE "Next" panel ----------
 export type InstallTurn =
@@ -179,6 +177,7 @@ import { BASIC_PRICE, isPriceNextAction } from "./ready-check-basics.core";
 import { OWNER_PIESA_CONFIRM_WAITING, FIXES_FORM_LINK_LABEL } from "./trade-shared-consts.core";
 import { PIESA_FULL } from "./job-wording";
 import { displayName } from "./display-name.core";
+import { OWN_CUSTOMER_PAY_RULE } from "./own-customer-price.core";
 
 /** "Needs finishing: price, owner mobile/email/permission on the Mitti form" → the approved M2 list ("Your price", "The owner's email", …). */
 export function needsFinishingList(nextAction: string | null | undefined): string[] {
@@ -1004,7 +1003,7 @@ export function moneyJobDetail(f: MoneyJobFacts): {
     ],
     timeline,
     footnote: own
-      ? "Your customers are paid once the office approves the paperwork and the owner has paid their balance."
+      ? OWN_CUSTOMER_PAY_RULE
       : "Our leads are paid within 7 days of the office approving the paperwork.",
   };
 }

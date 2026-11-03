@@ -8,6 +8,8 @@ import { escConsentPdf } from "../src/lib/consent-pdf.server";
 import { officialFormPdf } from "../src/lib/official-form-pdf.server";
 import { fullAnswers } from "./official-form-samples";
 import { sampleSignaturePng } from "./sample-signature-png";
+import { taxInvoicePdf } from "../src/lib/tax-invoice-pdf.server";
+import { LOGO_PNG } from "../src/lib/email-hero-assets";
 
 export const AGREEMENT_SAMPLE_FACTS: AgreementFacts = {
   owner_name: "Sarah Brown", address: "12 Example St, Box Hill VIC 3128", job_number: "HV-1234", installer_name: "Rapid Insulation",
@@ -44,6 +46,19 @@ const RENDERERS: Record<string, () => Promise<{ file: string; bytes: Uint8Array 
       "p8.signature": { images: [{ bytes: sampleSignaturePng("Will Casdorff"), contentType: "image/png", signedOn: "2026-11-20" }] },
     })).bytes,
   }),
+  // Part 10 Task 7: an installer's own customer — both logos, the approved lines (our own logo stands in for the installer's).
+  "tax-invoice-own-customer": async () => {
+    const r = await taxInvoicePdf({
+      invoiceNumber: "INV-1234", invoiceDate: "Thu 13 Nov 2026", jobNumber: "HV-1234", ownerName: "Sarah Brown", installAddress: "12 Example St, Box Hill VIC 3128",
+      installerName: "Rapid Insulation", installedOn: "Thu 13 Nov 2026", productLine: "Bradford Gold R5.0 · R5.0 · 120 m² · supplied and installed",
+      productCents: 200000, piesaCents: 34900, rebateCents: 60000, extraLines: [{ label: "Home Insulation Victoria fee", cents: 34900 }],
+      payments: [{ label: "Electrical safety check (PIESA)", paidOn: "8 Nov", cents: 34900 }, { label: "10% deposit", paidOn: "10 Nov", cents: 17490 }, { label: "Final payment", paidOn: "13 Nov", cents: 157410 }],
+      ownCustomer: { installerName: "Rapid Insulation", installerLogoUrl: "https://example.invalid/rapid-logo.png", installerLogo: { bytes: new Uint8Array(Buffer.from(LOGO_PNG, "base64")), width: 400, height: 171 } },
+    }, { cobrandApproved: true });
+    if ("held" in r) throw new Error(r.held);
+    console.log(`tax-invoice-own-customer: ${r.layout.pages} page(s), split: ${r.layout.split.join(",") || "none"}`);
+    return { file: "tax-invoice-own-customer.pdf", bytes: r.bytes };
+  },
 };
 
 if (import.meta.main) {

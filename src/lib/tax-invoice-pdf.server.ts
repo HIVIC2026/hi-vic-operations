@@ -3,32 +3,55 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { PdfBlock } from "./pdf-look.core";
 import { renderPdf } from "./pdf-look.server";
 import { PDF_LOOK_APPROVED } from "./pdf-approvals.core";
-import { BUSINESS_NAME_LINE, REBATE_LABEL, removalM2ForInvoice, taxInvoiceModel, taxInvoicePayments, taxInvoiceProductLine, type TaxInvoiceFacts, type TaxInvoiceModel } from "./tax-invoice-pdf.core";
+import { BUSINESS_NAME_LINE, REBATE_LABEL, removalM2ForInvoice, taxInvoiceModel, taxInvoicePayments, taxInvoiceProductLine, type TaxInvoiceFacts, type TaxInvoiceModel, type TaxInvoiceSeam } from "./tax-invoice-pdf.core";
 
 export type { TaxInvoiceFacts } from "./tax-invoice-pdf.core";
 
 export function taxInvoiceBlocks(f: TaxInvoiceFacts, m: TaxInvoiceModel): PdfBlock[] {
   const tick = m.balance.includes("✓");
   return [
-    { id: "t-head", kind: "header", eyebrow: `TAX INVOICE${f.jobNumber ? ` · JOB ${f.jobNumber}` : ""}`, compact: true, withAddress: true },
+    // Part 10 Task 7: an own customer's invoice carries the installer's logo beside ours (model.partnerLogo); absent = Part 1's header.
+    { id: "t-head", kind: "header", eyebrow: `TAX INVOICE${f.jobNumber ? ` · JOB ${f.jobNumber}` : ""}`, compact: true, withAddress: true, ...(m.partnerLogo ? { partnerLogo: m.partnerLogo } : {}) },
     { id: "t-title", kind: "title", text: "Tax invoice", sub: `Invoice ${f.invoiceNumber} · Date ${f.invoiceDate}`, compact: true },
     { id: "t-facts", kind: "facts", compact: true, fullFrom: 2, rows: [
       ["Bill to", f.ownerName], ["Installation address", f.installAddress],
       ["Contracting business (Accredited Person)", BUSINESS_NAME_LINE], ["Installed by", `${f.installerName}, on ${f.installedOn}`],
     ] },
     { id: "t-items", kind: "ledger", head: { label: "Installed", amount: "Amount" }, note: m.gstLine,
-      rows: [...m.rows, { label: "Price before VEU rebate", amount: m.priceBeforeRebate, strong: true }, { label: REBATE_LABEL, amount: m.rebate }],
-      total: { label: "Amount payable after rebate (incl. GST)", amount: m.payable } },
+      rows: [...m.rows, { label: m.priceBeforeLabel ?? "Price before VEU rebate", amount: m.priceBeforeRebate, strong: true }, { label: m.rebateLabel ?? REBATE_LABEL, amount: m.rebate }],
+      total: { label: m.payableLabel ?? "Amount payable after rebate (incl. GST)", amount: m.payable } },
     { id: "t-paid", kind: "ledger", head: { label: "Payments", amount: "" }, rows: m.payments,
       total: { label: "Balance", amount: m.balance.replace(/\s*✓$/, ""), ...(tick ? { tick } : {}) } },
   ];
 }
 
-export async function taxInvoicePdf(f: TaxInvoiceFacts): Promise<{ held: string } | { bytes: Uint8Array }> {
-  const m = taxInvoiceModel(f);
+export async function taxInvoicePdf(f: TaxInvoiceFacts, seam: TaxInvoiceSeam = {}): Promise<{ held: string } | { bytes: Uint8Array; layout: import("./pdf-look.core").PdfLayoutReport }> {
+  const m = taxInvoiceModel(f, seam);
   if ("held" in m) return m;
-  const { bytes } = await renderPdf({ title: "Tax invoice", blocks: taxInvoiceBlocks(f, m) });
-  return { bytes };
+  const { bytes, layout } = await renderPdf({ title: "Tax invoice", blocks: taxInvoiceBlocks(f, m) });
+  return { bytes, layout };
+}
+
+/** Part 10 Task 7 (final review M6): the installer's logo bytes for the PDF, read from storage through Part 5's
+ *  `partnerLogoByKey` (the key at the end of the https logo URL) — never a self-HTTP fetch. PNG/JPG under 2 MB; anything
+ *  else → null = our logo alone. */
+export async function fetchPartnerLogo(url: string | null): Promise<{ bytes: Uint8Array; width: number; height: number } | null> {
+  const key = /^https:\/\/[^/]+\/api\/public\/partner-logo\/([0-9a-f]{32})\.(?:png|jpg)(?:[?#].*)?$/.exec(url ?? "")?.[1] ?? null;
+  if (!key) return null;
+  try {
+    const logo = await (await import("./trade-view.server")).partnerLogoByKey(key);
+    if (!logo) return null;
+    const { data, error } = await admin.storage.from("job-files").download(logo.path);
+    if (error || !data) return null;
+    const bytes = new Uint8Array(await data.arrayBuffer());
+    if (!bytes.length || bytes.length > 2_000_000) return null;
+    const png = bytes[0] === 0x89 && bytes[1] === 0x50, jpg = bytes[0] === 0xff && bytes[1] === 0xd8;
+    if (!png && !jpg) return null;
+    const { PDFDocument } = await import("pdf-lib");
+    const probe = await PDFDocument.create();
+    const img = png ? await probe.embedPng(bytes) : await probe.embedJpg(bytes);
+    return { bytes, width: img.width, height: img.height };
+  } catch { return null; }
 }
 
 const TAX_INVOICE_KIND = "tax_invoice";
@@ -46,7 +69,7 @@ export async function fileTaxInvoicePdf(jobId: string): Promise<{ path: string }
     import("./payments.server"), import("./receipt-pdf.core"), import("./invoice-itemisation.server"), import("./invoice-itemisation.core"), import("./address"),
   ]);
   const [{ data: job, error: jobErr }, view, { data: asg, error: asgErr }] = await Promise.all([
-    admin.from("jobs").select("job_number, installation_completed_at, owners(full_name), properties(address_line, suburb, state, postcode)").eq("id", jobId).maybeSingle(),
+    admin.from("jobs").select("job_number, installation_completed_at, channel, originating_installer_business_id, owners(full_name), properties(address_line, suburb, state, postcode)").eq("id", jobId).maybeSingle(),
     jobPaymentView(jobId),
     admin.from("job_assignments").select("businesses(name, trading_name)").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle(),
   ]);
@@ -65,9 +88,31 @@ export async function fileTaxInvoicePdf(jobId: string): Promise<{ path: string }
   if (qErr || iErr || dErr || nErr || mErr) return { held: "Tax invoice not made: the quote or invoice could not be read" };
   if (!q || !items?.length) return { held: "Tax invoice not made: the quote lines are missing" };
   const piesaCents = items.filter((r) => r.code === "PIESA").reduce((s, r) => s + cents(r.line_total_inc_gst), 0);
-  const productCents = items.filter((r) => r.code !== "PIESA" && cents(r.line_total_inc_gst) > 0).reduce((s, r) => s + cents(r.line_total_inc_gst), 0);
+  // Part 10 Task 7: an installer's own customer (co-brand approved) — the insulation line is INSTALLER_PRICE alone; the
+  // separately agreed extras (their own words) and the Home Insulation Victoria fee are extra lines, by code never description.
+  const { OWN_CUSTOMER_COBRAND_APPROVED } = await import("./cobrand.core");
+  const jobRow = job as { channel?: string | null; originating_installer_business_id?: string | null };
+  const ownJob = OWN_CUSTOMER_COBRAND_APPROVED && jobRow.channel === "installer_sourced" && !!jobRow.originating_installer_business_id;
+  let extraLines: { label: string; cents: number }[] | undefined;
+  let productCents: number;
+  if (ownJob) {
+    const { data: named, error: namedErr } = await admin.from("quote_items").select("code, description, line_total_inc_gst, sort").eq("quote_id", inv.quote_id);
+    if (namedErr) return { held: "Tax invoice not made: the quote or invoice could not be read" };
+    const sorted = [...(named ?? [])].sort((a, b) => Number(a.sort ?? 0) - Number(b.sort ?? 0));
+    productCents = sorted.filter((r) => r.code === "INSTALLER_PRICE").reduce((s, r) => s + cents(r.line_total_inc_gst), 0);
+    const { OWN_CUSTOMER_LABELS } = await import("./own-customer-price.core");
+    extraLines = [
+      ...sorted.filter((r) => (r.code === "INSTALLER_REMOVAL" || r.code === "INSTALLER_EXTRA") && cents(r.line_total_inc_gst) > 0).map((r) => ({ label: String(r.description ?? ""), cents: cents(r.line_total_inc_gst) })),
+      ...sorted.filter((r) => r.code === "AP_FEE" && cents(r.line_total_inc_gst) > 0).map((r) => ({ label: OWN_CUSTOMER_LABELS.apFee, cents: cents(r.line_total_inc_gst) })),
+    ];
+    const other = sorted.filter((r) => !["INSTALLER_PRICE", "INSTALLER_REMOVAL", "INSTALLER_EXTRA", "AP_FEE", "PIESA"].includes(String(r.code)) && cents(r.line_total_inc_gst) > 0);
+    if (other.length || !(productCents > 0)) return { held: "Tax invoice not made: the quote lines are not the approved own-customer lines" };
+  } else {
+    productCents = items.filter((r) => r.code !== "PIESA" && cents(r.line_total_inc_gst) > 0).reduce((s, r) => s + cents(r.line_total_inc_gst), 0);
+  }
+  const extrasCents = (extraLines ?? []).reduce((s, e) => s + e.cents, 0);
   const rebateCents = cents(q.veec_discount_inc_gst);
-  if (productCents + piesaCents - rebateCents !== cents(inv.total_inc_gst)) return { held: "Tax invoice not made: the quote lines do not add up to the invoice total" };
+  if (productCents + extrasCents + piesaCents - rebateCents !== cents(inv.total_inc_gst)) return { held: "Tax invoice not made: the quote lines do not add up to the invoice total" };
 
   const line = insulationLine(await installedProductFacts(jobId, { afterInstall: true }));
   const o = job.owners as unknown as { full_name: string | null } | null;
@@ -83,7 +128,19 @@ export async function fileTaxInvoicePdf(jobId: string): Promise<{ path: string }
     installedOn: job.installation_completed_at ? fmtLong(job.installation_completed_at) : "",
     productLine: taxInvoiceProductLine(line, removalM2),
     productCents, piesaCents, rebateCents, payments,
+    ...(extraLines ? { extraLines } : {}),
   };
+  if (ownJob) {
+    // The originating business's name and Part 5's logo; a failed read or fetch = our logo alone, never a broken image.
+    const bizId = jobRow.originating_installer_business_id!;
+    const [{ data: ob }, logoUrl] = await Promise.all([
+      admin.from("businesses").select("name, trading_name").eq("id", bizId).maybeSingle(),
+      (await import("./trade-view.server")).businessLogoUrl(bizId).catch(() => null),
+    ]);
+    const own = ob as { name: string | null; trading_name: string | null } | null;
+    const installerName = (own?.trading_name ?? own?.name ?? "").replace(/^\[TEST PARTNER\]\s*/, "").trim();
+    facts.ownCustomer = installerName ? { installerName, installerLogoUrl: logoUrl, installerLogo: await fetchPartnerLogo(logoUrl) } : null;
+  }
   const made = await taxInvoicePdf(facts);
   if ("held" in made) return made;
 

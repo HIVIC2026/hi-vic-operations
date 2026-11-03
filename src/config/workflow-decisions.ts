@@ -96,6 +96,75 @@ export const WORKFLOW_DECISIONS = {
     },
     installer_supplied: {
       mittiReadyCheck: { hivFeeIncGst: 349, hivElectricianIncGst: 349, choices: ["Home Insulation Victoria electrician", "My usual electrician", "A different electrician"], priceBasis: "full_installer_plus_hiv_fee_plus_electrician_minus_veu", missingUsual: "hold_quote" },
+      // FEES (Jo 2 Nov 2026, CORRECTION): EVERY job has TWO separate fees — $349 AP fee (Home Insulation Victoria) AND $349 PIESA
+      // (electrical safety check). Installers' own customers: owner price = installer price + $349 AP fee + $349 PIESA, minus rebate.
+      // The owner's PIESA line is $349 whatever the electrician's own rate (the electrician is still paid their rate; Home Insulation
+      // Victoria keeps the difference) — supersedes decisions 302/303 for the OWN-CUSTOMER OWNER PRICE ONLY (`own-customer-price.core`,
+      // `mitti-installer-quote.core`). Quote + invoice lines in this order with these labels.
+      ownCustomerFees: {
+        decided: "2026-11-02",
+        apFeeIncGst: 349,
+        piesaIncGst: 349,
+        piesaLineWhateverElectricianRate: true,
+        supersedes: ["302", "303"] as const,
+        supersededScope: "own_customer_owner_price_only",
+        lineLabels: ["Insulation", "Home Insulation Victoria fee", "Electrical safety check (PIESA)", "Rebate", "Your price"] as const,
+      },
+      // Jo 3 Nov 2026 22:58 (Part 10 Task 3): after an A1 Ready Check is Complete with no price the BUSINESS OWNER gets BOTH the
+      // decision-288 text AND the "Enter your price" email (`enter-price-email.core`, sent by `boss-price-link.server`) — the plan's
+      // "never both" is overridden. One claim per job covers the pair; the email is its own channel under it (held → recorded once,
+      // retried while fresh, the text never resent). DRAFT: subject + pronoun wait for Jo (ENTER_PRICE_EMAIL_APPROVED = false).
+      enterPriceEmail: {
+        decided: "2026-11-03",
+        channels: ["text", "email"] as const,
+        bothNotEither: true,
+        oneClaimPerJob: "boss_price_link_sent",
+        emailKeySuffix: ":email",
+        heldEvent: "enter_price_email_held",
+        recipient: "businesses.email",
+        maxAgeHours: 24,
+        approvedFlag: "ENTER_PRICE_EMAIL_APPROVED",
+        draftsForJo: ["subject", "pronoun them (mock says her)"] as const,
+        quoteGoesOnlyAfterBossPrice: true,
+      },
+      // Part 10 Task 4 (Jo 3 Nov 2026): Boss OR Office enter the price (Part 5 seesPrices); "Send quote to owner" only while
+      // OWN_CUSTOMER_SEND_ON_PRESS_ENABLED, through the one guarded auto-send (every check; holds come back as plain reasons).
+      enterPriceStep: {
+        decided: "2026-11-03",
+        whoEnters: ["boss", "office"] as const,
+        refusedServerSide: ["lead_installer", "crew", "electrician"] as const,
+        sendOnPressFlag: "OWN_CUSTOMER_SEND_ON_PRESS_ENABLED",
+        releaseOnlyThrough: "maybeAutoSendInstallerQuote",
+        buttonWhenOff: "Save",
+        buttonWhenOn: "Send quote to owner",
+        note: "Your price stays editable until the quote is sent.",
+      },
+      // Part 10 Task 5: the own customer's quote email = Part 3's v4 email + approved rows by quote_items.code + the installer's
+      // logo beside ours (OWN_CUSTOMER_COBRAND_APPROVED, one switch for email/page/invoice) + the VEU program box (Fix 1).
+      ownCustomerQuoteEmail: {
+        base: "O18 v4 (OWNER_QUOTE_EMAIL_V4_APPROVED)",
+        approvedFlag: "OWN_CUSTOMER_COBRAND_APPROVED (one switch: email rows/VEU box, My job page, tax invoice)",
+        cobrandFlag: "OWN_CUSTOMER_COBRAND_APPROVED",
+        rowsFrom: "ownCustomerRows (quote_items.code)",
+        rows: ["Insulation", "extras", "Home Insulation Victoria fee", "Electrical safety check (PIESA)", "Rebate", "Your price"] as const,
+        installerLogo: "businessLogoUrl https only, else ours alone",
+        veuBox: "owner-wording.core veuBoxMj (Fix 1) at the bottom",
+        hivLeadsUnchanged: true,
+      },
+      // Part 10 Task 6: the My job quote page for an own customer — same switch, same rows, installer logo in the header.
+      ownCustomerQuotePage: { cobrandFlag: "OWN_CUSTOMER_COBRAND_APPROVED", view: "ownCustomerQuoteView", header: "OwnerPageHeader partnerLogo", rows: "quote.ownRows (null = generic rows)" },
+      // Part 10 Task 7: the tax invoice PDF for an own customer — same switch (plus PDF_LOOK_APPROVED.taxInvoice), approved rows by code, GST on the full price before the rebate.
+      // Part 10 Task 10 (Jo 2 Nov 2026, answer 2): the owner pays $349 for the PIESA; the electrician is paid their own onboarded
+      // rate; Home Insulation Victoria keeps the difference (office margin only; never shown to the installer or the owner).
+      ownCustomerElectricianPay: {
+        decided: "2026-11-02",
+        ownerPiesaLineIncGst: 349,
+        electricianPaid: "own onboarded PIESA rate (electrician_rates / the installer's rate card PIESA line)",
+        differenceKeptBy: "Home Insulation Victoria",
+        differenceShownTo: "office only (job margin)",
+        payGate: "unchanged (Complete Mitti form + evidence; electricians never wait for the owner — decision 410)",
+      },
+      ownCustomerTaxInvoice: { cobrandFlag: "OWN_CUSTOMER_COBRAND_APPROVED", pdfFlag: "PDF_LOOK_APPROVED.taxInvoice", rows: ["Insulation · product facts", "extras", "Home Insulation Victoria fee", "Electrical safety check (PIESA)", "Price before rebate", "Rebate", "Your price (incl. GST)"] as const, gst: "one eleventh of the price before the rebate (unchanged)" },
       paymentRule: "not_assumed",
       leadFee: "none",
       marginOnInstallerPrice: "none",

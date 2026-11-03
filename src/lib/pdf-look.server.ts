@@ -272,6 +272,14 @@ async function draw(b: PdfBlock, page: PDFPage, pageNo: number, x: number, top: 
     case "header": {
       const logo = await X.logo();
       page.drawImage(logo, { x, y: top - LOGO_H, width: LOGO_W, height: LOGO_H });
+      // Part 10 Task 7: the installer's logo beside ours (same height, width from its own ratio, capped); counted as a picture.
+      if (b.partnerLogo && b.partnerLogo.bytes.length && b.partnerLogo.height > 0) {
+        let img = X.images.get(`${b.id}:partner`);
+        if (!img) { img = await embedImage(X.pdf, b.partnerLogo.bytes); X.images.set(`${b.id}:partner`, img); }
+        const pw = Math.min(LOGO_H * (b.partnerLogo.width / b.partnerLogo.height), LOGO_W * 1.5);
+        page.drawImage(img, { x: x + LOGO_W + 12, y: top - LOGO_H, width: pw, height: LOGO_H });
+        imgs.push({ block: b.id, page: pageNo });
+      }
       const biz = b.withAddress ? [...BUSINESS_LINES.slice(0, 3), BUSINESS_ADDRESS, ...BUSINESS_LINES.slice(3)] : [...BUSINESS_LINES];
       const bizSize = b.compact ? K_BIZ : BIZ, bizLh = b.compact ? K_BIZ_LH : BIZ_LH;
       biz.forEach((l, i) => text(page, l, x + w - (b.compact ? R_INSET : 0), base(top - i * bizLh, bizLh, bizSize), F.r, bizSize, C.muted, { right: true }));

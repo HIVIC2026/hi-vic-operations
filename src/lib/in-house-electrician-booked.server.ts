@@ -53,7 +53,7 @@ export async function notifyInHouseElectricianBooked(jobId:string,bookingId:stri
  const test=j.source==='qa_test';
  let subject=`${j.job_number}: Pre Insulation Electrical Safety Assessment (PIESA) booked`;
  let text=`${j.job_number}: Pre Insulation Electrical Safety Assessment (PIESA) booked for ${when}. Address: ${address}. Owner phone: ${j.owners?.phone??'not recorded'}.`;
- let mail=partnerEmailLayout({subject,blocks:[{kind:'p',text}],test});
+ let mail:{html:string;text:string}=partnerEmailLayout({subject,blocks:[{kind:'p',text}],test}); // Part 10's layout also returns its mjml source (design samples only); the send needs html + text
  let stored=text;let to=worker.data.email as string;let contactName:string|null=worker.data.full_legal_name;
  if(d.approved){
   // A failed link or Mitti lookup never stops the email: it goes without them.

@@ -33,7 +33,7 @@ export async function resolveOwnerJob(token: unknown) {
   const jobId = l.job_id;
   // At most six reads per wave: the published runtime has six outbound slots.
   const [{ data: j }, { data: quotes }, { data: bookings }, { data: invoices }, { data: est }, { data: ws }] = await Promise.all([
-    admin.from("jobs").select("job_number, stage, deleted_at, channel, external_refs, cancelled_reason, installation_completed_at, owners(full_name, email, phone), properties(address_line, suburb, state, postcode)").eq("id", jobId).single(),
+    admin.from("jobs").select("job_number, stage, deleted_at, channel, originating_installer_business_id, external_refs, cancelled_reason, installation_completed_at, owners(full_name, email, phone), properties(address_line, suburb, state, postcode)").eq("id", jobId).single(),
     admin.from("quotes").select("id, kind, status, release_state, option_label, customer_total_inc_gst, veec_discount_inc_gst, subtotal_inc_gst, sent_at, accepted_at, version, quote_items(code, description, quantity, line_total_inc_gst, sort)").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted", "declined", "expired"]).order("created_at", { ascending: false }),
     admin.from("bookings").select("kind, status, scheduled_start, contractor_id, business_id").eq("job_id", jobId).in("status", ["confirmed", "completed"]).order("scheduled_start"),
     // "Paid" next to the install price: the installation invoice (batch 3b: fixes / repeat check have their own invoices).
@@ -175,6 +175,25 @@ export async function resolveOwnerJob(token: unknown) {
     }
   }
   currentAction=currentOwnerAction({clear:currentAction==='clear',taps:currentAction==='taps',spot:currentAction==='spot',quote:currentAction==='quote',pay:currentAction==='pay',piesa:currentAction==='piesa',veec:currentAction==='veec',book:currentAction==='book',fixes:currentAction==='fixes',newquote:currentAction==='newquote',review:currentAction==='review',turn:currentAction==='turn'});
+  // Part 10 Task 6: an installer's own customer — the originating business's name + Part 5's https logo and the approved
+  // rows from the quote's codes (one extra read, only for installer_sourced jobs; a failed read = our logo + generic rows).
+  const ownView = await (async () => {
+    const { OWN_CUSTOMER_COBRAND_APPROVED } = await import("./cobrand.core");
+    const { ownCustomerQuoteView } = await import("./own-customer-price.core");
+    const channel = (j as { channel?: string | null }).channel ?? null;
+    const bizId = (j as { originating_installer_business_id?: string | null }).originating_installer_business_id ?? null;
+    if (channel !== "installer_sourced" || !OWN_CUSTOMER_COBRAND_APPROVED || !quote || !bizId) return { cobrand: null, rows: null };
+    const [{ data: b }, logoUrl] = await Promise.all([
+      admin.from("businesses").select("name, trading_name").eq("id", bizId).maybeSingle(),
+      (await import("./trade-view.server")).businessLogoUrl(bizId).catch(() => null),
+    ]);
+    const biz = b as { name: string | null; trading_name: string | null } | null;
+    return ownCustomerQuoteView({
+      channel, approved: OWN_CUSTOMER_COBRAND_APPROVED, installerName: biz?.trading_name ?? biz?.name ?? null, logoUrl,
+      items: (quote.quote_items ?? []).map((i) => ({ code: i.code ?? null, description: currentFeeWording(i.description), line_total_inc_gst: n(i.line_total_inc_gst) })),
+      rebateIncGst: n(quote.veec_discount_inc_gst), totalIncGst: n(quote.customer_total_inc_gst),
+    });
+  })().catch(() => ({ cobrand: null, rows: null }));
   return {
     currentAction,
     clearStepsUnsigned,
@@ -184,7 +203,11 @@ export async function resolveOwnerJob(token: unknown) {
     visit: upcoming ? { kind: upcoming.kind, startsAt: upcoming.scheduled_start } : null, progress,
     numbers: { rebate, cost: total, paid }, agreed,
     // heldUntil: the "price held" date (30 days for a 30-day quote, else the 14-day date the action card already uses (approved P2 page shows it in the sub line).
-    quote: quote ? { id: quote.id, status: quote.status, accepted_at: quote.accepted_at, label: quote.option_label, total, rebate: n(quote.veec_discount_inc_gst), version: quote.version, heldUntil: quoteValid?.until ?? quoteOpen?.expiresAt ?? null, validLine: quoteValid?.line ?? null, changes: quoteChanges, lines: [...(quote.quote_items ?? [])].sort((a, b) => a.sort - b.sort).map((i) => ({ description: currentFeeWording(i.description), amount: n(i.line_total_inc_gst) })), split: total != null ? splitForOption(total, safetyCheckIncGstFor({ lines: quote.quote_items ?? [], settingIncGst: ws?.safety_check_payment_inc_gst ?? null })) : null } : null,
+    // Part 10 Task 6: the installer's logo beside ours (null = our logo alone) — behind OWN_CUSTOMER_COBRAND_APPROVED.
+    cobrand: ownView.cobrand,
+    quote: quote ? { id: quote.id, status: quote.status, accepted_at: quote.accepted_at, label: quote.option_label, total, rebate: n(quote.veec_discount_inc_gst), version: quote.version,
+      // Part 10 Task 6: an own customer's approved rows (Insulation · extras · fee · PIESA · Rebate · Your price); null = the generic rows below.
+      ownRows: ownView.rows, heldUntil: quoteValid?.until ?? quoteOpen?.expiresAt ?? null, validLine: quoteValid?.line ?? null, changes: quoteChanges, lines: [...(quote.quote_items ?? [])].sort((a, b) => a.sort - b.sort).map((i) => ({ description: currentFeeWording(i.description), amount: n(i.line_total_inc_gst) })), split: total != null ? splitForOption(total, safetyCheckIncGstFor({ lines: quote.quote_items ?? [], settingIncGst: ws?.safety_check_payment_inc_gst ?? null })) : null } : null,
     payment,
     // Part 4 Task 14: the separate P3 consent step is gone — the ESC consent is signed on the confirm-and-pay page (?screen=clear).
     spotSaved: isSpotSavedStage(stage, spot ?? null, !!upcoming || (bookings ?? []).some((b) => b.kind === "ready_check")) ? {

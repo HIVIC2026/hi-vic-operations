@@ -5,7 +5,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { type LocationVariables } from "./activity48.core";
 import { wholeVeecDiscount } from "./estimate.core";
-import { buildInstallerQuoteDraft, quotedPriceFromEntries } from "./installer-led.core";
+import { quotedPriceFromEntries } from "./installer-led.core";
 import { installerQuoteReleaseBlockers, payerFromChoice } from "./installer-intake.core";
 import { IN_HOUSE_PIESA_HOLD_REASON } from "./installer-paid-electricians.core";
 
@@ -40,9 +40,9 @@ export async function quoteBillingBlocker(quoteId: string): Promise<string | nul
     if (ie) return "Quote electrical lines could not be checked";
     return (await import("./mitti-installer-quote.core")).mittiQuoteElectricalBlocker(lines ?? [], saved, current);
   }
-  const { data: items } = await admin.from("quote_items").select("code").eq("quote_id", quoteId);
+  const { data: items } = await admin.from("quote_items").select("code, line_total_inc_gst").eq("quote_id", quoteId);
   const { electricalLineBlocker } = await import("./installer-intake.core");
-  return electricalLineBlocker((items ?? []).map((i) => i.code), payerFromChoice(j.electrician_choice));
+  return electricalLineBlocker(items ?? [], payerFromChoice(j.electrician_choice));
 }
 
 export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: string | null, formEntries: { label: string; value: string | null }[], auditId: string, intakePrice?: { totalIncGst: number; includes: string; areaM2?: number; separateLines?: { code: string; description: string; amountIncGst: number }[]; exclusions?: string | null }) {
@@ -83,19 +83,21 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   // Jo 24 Oct: the installer's total INCLUDES any difficult access fee (never added twice); the fee is shown on the
   // installer line and taken out only for the per-m² price check.
   const accessFee = !intakePrice ? answers.difficultAccessFee(entries) : { amountIncGst: null, reason: null };
-  const apFee = job.ap_fee_override_inc_gst != null ? Number(job.ap_fee_override_inc_gst) : rs ? Number(rs.ap_management_inc_gst) : null;
-  const installerPiesa = intakePrice ? await (await import("./installer-paid-electricians.server")).installerSafetyCheckPrice(job.originating_installer_business_id) : mittiElectrician?.priceIncGst ?? null;
+  // Part 10 (Jo 2 Nov 2026, FEES correction): every own-customer quote carries the $349 Home Insulation Victoria fee and
+  // the $349 PIESA line whatever the electrician's choice or rate (`own-customer-price.core`); the settings' AP/PIESA
+  // amounts and `ap_fee_override_inc_gst` are no longer read on this path.
   const draftInput = {
     price: intakePrice ? { ok: true, issues: [], price: { included: [intakePrice.exclusions ? `${intakePrice.includes} (excludes: ${intakePrice.exclusions})` : intakePrice.includes], otherDescription: "", totalIncGst: Math.round(intakePrice.totalIncGst * 100) / 100, agreedWithOwner: false } } : quotedPriceFromEntries(entries, m?.removal_required ?? null), measuredM2: m2, wholeVeec,
-    // CURRENT recorded payer: HIV = standard; own electrician (billed through us, Jo 26 Oct) or undecided = held until the Ready Check gives the price.
     separateLines: intakePrice?.separateLines ?? [],
-    piesaIncGst: installerPiesa, apFeeIncGst: apFee,
     caps: {
       metropolitan: loc ? (loc as unknown as LocationVariables).metropolitan_or_regional === "Metropolitan" : null,
       minCopay: rs ? Number(rs.minimum_customer_copayment_inc_gst) : 200,
     },
   };
-  const draft = mittiElectrician ? (await import("./mitti-installer-quote.core")).buildMittiInstallerQuote(draftInput, mittiElectrician) : buildInstallerQuoteDraft(draftInput);
+  const quoteCore = await import("./mitti-installer-quote.core");
+  // Same lines on both branches (Task 2 review): the Ready Check path adds the electrician's hold reasons; the intake-price
+  // fallback (no Mitti electrician) still holds below while the electrician is undecided.
+  const draft = mittiElectrician ? quoteCore.buildMittiInstallerQuote(draftInput, mittiElectrician) : quoteCore.buildOwnCustomerQuoteDraft(draftInput);
   const payer = payerFromChoice(job.electrician_choice);
   if (!mittiElectrician && payer === "undecided") draft.blockers.unshift("Electrician not decided yet — the owner's electrician cost must be known before the quote");
   if (!mittiElectrician && payer === "undecided") draft.ready = false;

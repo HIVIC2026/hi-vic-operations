@@ -1,4 +1,5 @@
 import { describe, expect, mock, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { PDFDocument } from "pdf-lib";
 import { gstOnFullPriceCents, taxInvoiceModel, type TaxInvoiceFacts } from "../src/lib/tax-invoice-pdf.core";
@@ -95,5 +96,93 @@ describe("payments are this installation invoice's only", () => {
     const r = taxInvoicePayments(plan, ledger, () => "8 Nov");
     expect(r.received).toBe(34900);
     expect(r.payments).toEqual([{ label: "Electrical safety check (PIESA)", paidOn: "8 Nov", cents: 34900 }]);
+  });
+});
+
+/* ---------------------------------------------------------------- Part 10 Task 7: an installer's own customer (co-branded, approved lines) */
+import { LOGO_PNG } from "../src/lib/email-hero-assets";
+import { taxInvoiceBlocks } from "../src/lib/tax-invoice-pdf.server";
+import { OWN_CUSTOMER_COBRAND_APPROVED } from "../src/lib/cobrand.core";
+
+const OWN: TaxInvoiceFacts = {
+  ...SAMPLE, productLine: "Bradford Gold R5.0 · R5.0 · 120 m² · supplied and installed", productCents: 200000, piesaCents: 34900, rebateCents: 60000,
+  extraLines: [{ label: "Home Insulation Victoria fee", cents: 34900 }],
+  payments: [{ label: "Electrical safety check (PIESA)", paidOn: "8 Nov", cents: 34900 }],
+  ownCustomer: { installerName: "Rapid Insulation", installerLogoUrl: "https://x/rapid-logo.png", installerLogo: { bytes: new Uint8Array(Buffer.from(LOGO_PNG, "base64")), width: 400, height: 171 } },
+};
+const seam = { cobrandApproved: true };
+
+describe("own customer tax invoice (Task 7)", () => {
+  test("approved + logo: both logos in the header, the five labels in order, GST on the full price before the rebate", async () => {
+    const r = (await taxInvoicePdf(OWN, seam)) as { bytes: Uint8Array; layout: { images: { block: string }[] } };
+    const t = (await pdfText(r.bytes)).join(" ").replace(/\s+/g, " ");
+    expect((await PDFDocument.load(r.bytes)).getPageCount()).toBe(1);
+    const at = (s: string) => { const i = t.indexOf(s); expect(i, s).toBeGreaterThan(-1); return i; };
+    const order = ["Insulation", "Home Insulation Victoria fee", "Electrical safety check (PIESA)", "Rebate", "Your price"].map(at);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(t).toContain("Includes GST of $245.27, worked out on the price before the rebate");
+    expect(t).toContain("Insulation · Bradford Gold R5.0 · R5.0 · 120 m² · supplied and installed");
+    expect(t).toContain("$2,698.00");
+    expect(t).toContain("– $600.00");
+    expect(t).toContain("$2,098.00");
+    expect(t).not.toMatch(/VEU rebate|Victorian Energy Upgrades rebate \(price reduction\)|lawyer|\bHIV\b|\bfixes\b/);
+    // every ESC field Part 1 prints is still there
+    for (const s of ["Tax invoice", "Invoice INV-1234", "Bill to", "Installation address", "Contracting business (Accredited Person)", "ABN 44 671 613 979", "1/33 Altree Court, Phillip ACT 2606", "VEU Accredited Person A003654", "Installed by", "Rapid Insulation, on Thu 13 Nov 2026"]) expect(t.toLowerCase()).toContain(s.toLowerCase());
+    for (const s of ["Sarah Brown", "12 Example St, Box Hill VIC 3128", "DC Construction Solutions Pty Ltd", "Date Thu 13 Nov 2026"]) expect(t).toContain(s);
+    // the installer's logo is drawn in the header block
+    expect(r.layout.images.map((i) => i.block)).toEqual(["t-head"]);
+    const m = taxInvoiceModel(OWN, seam) as any;
+    expect(m.rows.map((x: any) => x.label)).toEqual(["Insulation · Bradford Gold R5.0 · R5.0 · 120 m² · supplied and installed", "Home Insulation Victoria fee", "Electrical safety check (PIESA)"]);
+    expect(m.rebateLabel).toBe("Rebate");
+    expect(m.payableLabel).toBe("Your price (incl. GST)");
+  });
+  test("extras sit between Insulation and the fee, under their own words", () => {
+    const m = taxInvoiceModel({ ...OWN, extraLines: [{ label: "Removal of existing insulation (40 m²)", cents: 30000 }, { label: "Home Insulation Victoria fee", cents: 34900 }] }, seam) as any;
+    expect(m.rows.map((x: any) => x.label)).toEqual(["Insulation · Bradford Gold R5.0 · R5.0 · 120 m² · supplied and installed", "Removal of existing insulation (40 m²)", "Home Insulation Victoria fee", "Electrical safety check (PIESA)"]);
+    expect(m.priceBeforeRebate).toBe("$2,998.00");
+  });
+  test("no logo (null, http, missing bytes) → one logo, same rows", async () => {
+    for (const own of [{ ...OWN.ownCustomer!, installerLogo: null }, { ...OWN.ownCustomer!, installerLogoUrl: "http://x/logo.png" }, { ...OWN.ownCustomer!, installerLogoUrl: null, installerLogo: null }]) {
+      const r = (await taxInvoicePdf({ ...OWN, ownCustomer: own }, seam)) as { bytes: Uint8Array; layout: { images: { block: string }[] } };
+      expect(r.layout.images).toEqual([]);
+      const t = (await pdfText(r.bytes)).join(" ").replace(/\s+/g, " ");
+      expect(t).toContain("Home Insulation Victoria fee");
+      expect(t).toContain("Your price");
+    }
+  });
+  test("switch off (as shipped) or a Home Insulation Victoria lead → Part 1's invoice exactly (model + blocks pinned at 40340e1)", () => {
+    expect(OWN_CUSTOMER_COBRAND_APPROVED).toBe(false);
+    const hiv = taxInvoiceModel(SAMPLE) as any;
+    expect(JSON.stringify(hiv)).toBe(MODEL_PIN);
+    expect(JSON.stringify(taxInvoiceBlocks(SAMPLE, hiv))).toBe(BLOCKS_PIN);
+    expect(JSON.stringify(taxInvoiceModel(SAMPLE, seam))).toBe(MODEL_PIN); // no ownCustomer → unchanged even with the seam on
+    const off = taxInvoiceModel(OWN) as any; // switch off → generic rows and labels (Part 1's), no logo
+    expect(off.rows.map((x: any) => x.label)).toEqual(["Bradford Gold R5.0 · R5.0 · 120 m² · supplied and installed", "Electrical safety check (PIESA)", "Home Insulation Victoria fee"]);
+    expect(off.rebateLabel).toBeUndefined();
+    expect(JSON.stringify(taxInvoiceBlocks(OWN, off))).not.toContain("partnerLogo");
+  });
+});
+const MODEL_PIN = "{\"rows\":[{\"label\":\"Bradford Gold Hi-Performance Ceiling Batts · R5.0 · 137 m² · supplied and installed (includes removal of 40 m² of old insulation)\",\"amount\":\"$3,449.00\"},{\"label\":\"Electrical safety check (PIESA)\",\"amount\":\"$349.00\"}],\"priceBeforeRebate\":\"$3,798.00\",\"rebate\":\"– $1,610.00\",\"payable\":\"$2,188.00\",\"gstLine\":\"Includes GST of $345.27, worked out on the price before the rebate (ATO rule for certificate rebates)\",\"balance\":\"$0.00 · Paid in full ✓\",\"payments\":[{\"label\":\"Electrical safety check (PIESA), 8 Nov\",\"amount\":\"– $349.00\"},{\"label\":\"10% deposit, 10 Nov\",\"amount\":\"– $183.90\"},{\"label\":\"Final payment, 13 Nov\",\"amount\":\"– $1,655.10\"}]}";
+const BLOCKS_PIN = "[{\"id\":\"t-head\",\"kind\":\"header\",\"eyebrow\":\"TAX INVOICE · JOB HV-1234\",\"compact\":true,\"withAddress\":true},{\"id\":\"t-title\",\"kind\":\"title\",\"text\":\"Tax invoice\",\"sub\":\"Invoice INV-1234 · Date Thu 13 Nov 2026\",\"compact\":true},{\"id\":\"t-facts\",\"kind\":\"facts\",\"compact\":true,\"fullFrom\":2,\"rows\":[[\"Bill to\",\"Sarah Brown\"],[\"Installation address\",\"12 Example St, Box Hill VIC 3128\"],[\"Contracting business (Accredited Person)\",\"DC Construction Solutions Pty Ltd trading as Home Insulation Victoria · ABN 44 671 613 979 · 1/33 Altree Court, Phillip ACT 2606 · VEU Accredited Person A003654\"],[\"Installed by\",\"Rapid Insulation, on Thu 13 Nov 2026\"]]},{\"id\":\"t-items\",\"kind\":\"ledger\",\"head\":{\"label\":\"Installed\",\"amount\":\"Amount\"},\"note\":\"Includes GST of $345.27, worked out on the price before the rebate (ATO rule for certificate rebates)\",\"rows\":[{\"label\":\"Bradford Gold Hi-Performance Ceiling Batts · R5.0 · 137 m² · supplied and installed (includes removal of 40 m² of old insulation)\",\"amount\":\"$3,449.00\"},{\"label\":\"Electrical safety check (PIESA)\",\"amount\":\"$349.00\"},{\"label\":\"Price before VEU rebate\",\"amount\":\"$3,798.00\",\"strong\":true},{\"label\":\"Victorian Energy Upgrades rebate (price reduction)\",\"amount\":\"– $1,610.00\"}],\"total\":{\"label\":\"Amount payable after rebate (incl. GST)\",\"amount\":\"$2,188.00\"}},{\"id\":\"t-paid\",\"kind\":\"ledger\",\"head\":{\"label\":\"Payments\",\"amount\":\"\"},\"rows\":[{\"label\":\"Electrical safety check (PIESA), 8 Nov\",\"amount\":\"– $349.00\"},{\"label\":\"10% deposit, 10 Nov\",\"amount\":\"– $183.90\"},{\"label\":\"Final payment, 13 Nov\",\"amount\":\"– $1,655.10\"}],\"total\":{\"label\":\"Balance\",\"amount\":\"$0.00 · Paid in full\",\"tick\":true}}]";
+
+// Final review M6 / M5: the logo bytes come from storage through Part 5's partnerLogoByKey (never a self-HTTP fetch);
+// a $0 AP_FEE line adds no extra row.
+describe("M6: fetchPartnerLogo reads the stored logo by key", () => {
+  test("only a /api/public/partner-logo/{32-hex} https URL is looked up; anything else → null", async () => {
+    const { fetchPartnerLogo } = await import("../src/lib/tax-invoice-pdf.server");
+    expect(await fetchPartnerLogo(null)).toBeNull();
+    expect(await fetchPartnerLogo("http://x/api/public/partner-logo/" + "a".repeat(32))).toBeNull();
+    expect(await fetchPartnerLogo("https://x/logo.png")).toBeNull();
+    expect(await fetchPartnerLogo("https://x/api/public/partner-logo/not-a-key.png")).toBeNull();
+    expect(await fetchPartnerLogo("https://x/api/public/partner-logo/" + "a".repeat(32))).toBeNull(); // no extension = not our route
+    const src = readFileSync("src/lib/tax-invoice-pdf.server.ts", "utf8");
+    const fn = src.slice(src.indexOf("export async function fetchPartnerLogo"), src.indexOf("const TAX_INVOICE_KIND"));
+    expect(fn).toContain("partnerLogoByKey(key)");
+    expect(fn).toContain('storage.from("job-files").download(logo.path)');
+    expect(fn).not.toMatch(/\bfetch\(/);
+  });
+  test("M5: the Home Insulation Victoria fee extra line is added only when its amount is above $0", () => {
+    const src = readFileSync("src/lib/tax-invoice-pdf.server.ts", "utf8");
+    expect(src).toContain('r.code === "AP_FEE" && cents(r.line_total_inc_gst) > 0');
   });
 });

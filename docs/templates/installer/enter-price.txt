@@ -1,0 +1,36 @@
+HV-1234: Ready Check done. Time to price it.
+
+Hi James,
+
+Ready Check done. Time to price it.
+
+Here's what John found at Sarah's place. Enter your price and Home Insulation Victoria sends them the quote once every check passes.
+
+HV-1234 · Sarah Brown
+12 Example St, Box Hill VIC 3128 · Ready Check Tue 4 Nov
+
+Measured ceiling: 120 m² (2 areas)
+
+Existing insulation: Thin batts, R1.0
+
+Removal needed: None
+
+Roof: Sloped, tiles
+
+Access: Standard
+
+Product chosen: Bradford Gold R5.0
+
+Downlights: 4
+
+Built in last 5 years: No · Life support: No
+
+Enter your price: https://estimate.homeinsulationvictoria.com.au/field/TEST-JOB#price
+
+Your price stays editable until the quote is sent.
+
+See the full Ready Check ›: https://estimate.homeinsulationvictoria.com.au/api/files/TEST/Ready-Check.pdf
+
+Home Insulation Victoria · info@homeinsulationvictoria.com.au
+
+Home Insulation Victoria · VEU Accredited Person A003654 · DC Construction Solutions Pty Ltd · ABN 44 671 613 979

@@ -3,6 +3,7 @@
 // The phone is ALWAYS the installer's OFFICE phone (`businesses.phone`), never a worker's mobile: no office phone or no
 // business email → `{ held }` (the sender records an office note and sends nothing). Replaces the draft DB template
 // `in_house_partner_will_call` (left in the database as a draft, no longer read).
+import { ownCustomerPreQuoteBlocker } from "./own-customer-messages.core";
 import * as K from "./email-kit.core";
 import { mjEmail } from "./mail-mjml.core";
 import { AP_CERTIFICATES_LINE, contactLine, type BusinessContact } from "./owner-wording.core";
@@ -14,6 +15,9 @@ export type TradeContact = BusinessContact;
 export const OWNER_WILL_CALL_APPROVED = false as boolean;
 export const OWNER_WILL_CALL_SMS_TYPE = "owner_will_call" as const;
 export const OWNER_WILL_CALL_HELD_EVENT = "owner_will_call_held";
+/** Part 10 Task 8: "{installer} will call you" is for Home Insulation Victoria leads only — an installer's own customer
+ *  already knows their installer, and their first email from us is the quote. Checked before any claim, send or held note. */
+export const willCallAllowed = (channel: string | null | undefined): boolean => ownCustomerPreQuoteBlocker(channel) === null;
 
 export type Held = { held: string };
 const clean = (v: string | null | undefined) => (v ?? "").trim();

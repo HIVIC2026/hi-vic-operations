@@ -22,6 +22,7 @@ import { LOGO_MAX_BYTES, LOGO_TYPES, businessRows, logoFileProblem, needsYou, wh
 import { CUSTOMER_BASE } from "./engagement.core";
 import { PRESS_COMPLETE_LINE } from "./installer-quote-status.core";
 import { installCountdown } from "./next-step-dates.core";
+import { jobMoneyRows, ownCustomerQuoteFigures } from "./own-customer-price.core";
 import { JOB_PAGE_WORDS, jobDetailsRows, nextForOwner, ownerRows, ownerToldRows, ownerToldSummary, paperworkRows, progressSteps, siteNotesRows, visitsRows } from "./job-page-rows.core";
 import { swmsHouseFacts } from "./swms-house.core";
 import * as rentalAnswersServer from "./rental-answers.server";
@@ -1564,7 +1565,7 @@ function installerJobPageParts(i: {
   sentRows: { purpose: string; sent_at: string | null; created_at: string }[]; ledger: { amountCents: number; paidAt: string }[]; depositPaid: boolean;
   deadline: string | null; givenAt: string | null; consentSigned: boolean; paidEv: { created_at: string; details: unknown }[];
   piesaPayRead: { piesaIncGst: number | null } | null; swmsRead: { plan: { signers: { role?: string; name: string }[] }; status: { signed: unknown[] } } | null;
-  quoteItems: { code: string | null; description: string | null; sort: number | null }[]; priceEntered: boolean | null; notes: string[]; product: string | null;
+  quoteItems: { code: string | null; description: string | null; sort: number | null; line_total_inc_gst?: number | string | null }[]; quotesForMoney?: Parameters<typeof ownCustomerQuoteFigures>[0]; priceEntered: boolean | null; notes: string[]; product: string | null;
   payRow: { amount: number | null; state: PayState } | null; mittiCompleted: boolean; needsFinishingItems: string[]; mittiMissing: string[];
   whoBooks: WhoBooks; coesOnFile: boolean;
 }) {
@@ -1619,13 +1620,22 @@ function installerJobPageParts(i: {
   const removalM2 = i.m?.removal_required && i.m.removal_m2 != null ? Number(i.m.removal_m2) : null;
   const piesaPaysOwn = c.money && i.piesaPayRead != null && !!j?.electrician_choice && j.electrician_choice !== "hivic";
   const piesaPaidEv = i.paidEv.find((p) => (p.details as { kind?: string } | null)?.kind === "assessment") ?? null;
-  const jobDetails = jobDetailsRows({
+  const ownCustomer = j?.channel === "installer_sourced";
+  // Part 10 Task 9: an own customer's money rows (Owner's quote — Boss/Office `seesPrices`; Your pay = the installer's own
+  // price line — Money) come from jobMoneyRows; a Home Insulation Victoria lead keeps its "Your install pay" row unchanged.
+  const figures = ownCustomerQuoteFigures(i.quotesForMoney ?? []);
+  const ownMoney = ownCustomer ? jobMoneyRows({
+    channel: j?.channel ?? null, canSeePrices: c.prices, canSeeMoney: c.money,
+    ownerPriceIncGst: figures.ownerPriceIncGst, installerPriceIncGst: figures.installerPayIncGst, hivLeadPayIncGst: null,
+    payRule: JOB_PAGE_WORDS.ownPayRule(ownerFirst ?? "the owner"),
+  }) : [];
+  const jobDetails = [...jobDetailsRows({
     measuredM2: i.m?.measured_area_m2 == null ? null : Number(i.m.measured_area_m2), areas: house.areas.length || null, existing: null,
     removal: removalM2 != null ? `${removalM2} m² to remove` : null, product, access: house.accessRating ?? i.m?.access_difficulty ?? null,
-    installPay: c.money ? i.pay : null,
-    installPayRule: j?.channel === "installer_sourced" ? JOB_PAGE_WORDS.ownPayRule(ownerFirst ?? "the owner") : JOB_PAGE_WORDS.hivicPayRule,
-    piesaPay: i.piesaPayRead?.piesaIncGst ?? null, piesaPaidAt: piesaPaidEv?.created_at ?? null, piesaPayApplies: piesaPaysOwn, ownCustomer: j?.channel === "installer_sourced",
-  });
+    installPay: ownCustomer ? null : c.money ? i.pay : null,
+    installPayRule: ownCustomer ? JOB_PAGE_WORDS.ownPayRule(ownerFirst ?? "the owner") : JOB_PAGE_WORDS.hivicPayRule,
+    piesaPay: i.piesaPayRead?.piesaIncGst ?? null, piesaPaidAt: piesaPaidEv?.created_at ?? null, piesaPayApplies: piesaPaysOwn, ownCustomer,
+  }), ...ownMoney];
 
   const events = i.sentRows.flatMap((s) => { const t = ownerToldSummary(s.purpose); return t ? [{ at: s.sent_at ?? s.created_at, type: s.purpose, summary: t }] : []; });
   const payments = i.ledger.map((l) => ({ at: l.paidAt, label: `paid ${centsWords(l.amountCents)} ✓` }));
@@ -1678,7 +1688,9 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   const paidEvP = early(admin.from("workflow_events").select("created_at, details").eq("job_id", jobId).eq("event_type", "payout_marked_paid").order("created_at", { ascending: false }));
   const piesaPayP = c.kind === "installer" && c.money ? early(import("./installer-paid-electricians.server").then((m2) => m2.readInstallerPaidElectricians(c.biz.id)).catch(() => null)) : early(Promise.resolve(null));
   const swmsP = early(inBookP.then(async ({ data: ib }) => ib ? await import("./swms.server").then((m2) => m2.loadSwms(jobId)).catch(() => null) : null));
-  const quoteItemsP = early(admin.from("quotes").select("quote_items(code, description, sort)").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted", "draft"]).order("created_at", { ascending: false }).limit(1).maybeSingle());
+  // I3: up to five quotes so the money rows can prefer an ACCEPTED quote over a newer draft (ownCustomerQuoteFigures); the
+  // product detection below keeps reading the newest, as before.
+  const quoteItemsP = early(admin.from("quotes").select("status, created_at, customer_total_inc_gst, quote_items(code, description, sort, line_total_inc_gst)").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted", "draft"]).order("created_at", { ascending: false }).limit(5));
   // Fix wave I4: who books (business setting), the CoES document, and the electrician the allocation event names.
   const whoBooksP = early(whoBooksFor(c.biz.id));
   const coesP = early(coesOnFileForJobs([jobId]).then((set) => set.has(jobId)).catch(() => false));
@@ -1728,7 +1740,9 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   const jobPage = installerJobPageParts({
     c, j: j as JobPageJob | null, rcBook, inBook, piesaBook, a, m, form, clearance, quote, qq, pay, elecName, piesaRec, accessPerson, mineBk: mineBk ?? [], released,
     sentRows: sentRows ?? [], ledger, depositPaid, deadline: dl?.install_deadline ? String(dl.install_deadline) : null, givenAt: (given as { assigned_at?: string | null } | null)?.assigned_at ?? null,
-    consentSigned: !!consent, paidEv: (paidEv ?? []) as { created_at: string; details: unknown }[], piesaPayRead, swmsRead, quoteItems: (quoteItemsRow?.quote_items as { code: string | null; description: string | null; sort: number | null }[] | null) ?? [],
+    consentSigned: !!consent, paidEv: (paidEv ?? []) as { created_at: string; details: unknown }[], piesaPayRead, swmsRead, quoteItems: ((quoteItemsRow as unknown as { quote_items: unknown }[] | null)?.[0]?.quote_items as { code: string | null; description: string | null; sort: number | null; line_total_inc_gst?: number | string | null }[] | null) ?? [],
+    // Part 10 Task 9 / I3: the quotes the Job details money rows read (own customers only; figures never shown to staff).
+    quotesForMoney: ((quoteItemsRow as unknown as { status: string | null; created_at: string | null; customer_total_inc_gst: number | string | null; quote_items: { code: string | null; line_total_inc_gst: number | string | null }[] | null }[] | null) ?? []).map((q) => ({ status: q.status, created_at: q.created_at, customer_total_inc_gst: q.customer_total_inc_gst, items: q.quote_items ?? [] })),
     priceEntered, notes, product, payRow, mittiCompleted: mitti.applies ? mitti.completed === true : false, needsFinishingItems: needsFinishingList(j?.next_action ?? ""), mittiMissing: mitti.applies ? mitti.missing : [],
     whoBooks, coesOnFile,
   });
@@ -1746,6 +1760,8 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     boss: c.boss,
     // Fix wave C2: the page branches on these (an Office person has no my_job_role answer).
     role: c.role, kind: c.kind,
+    // Part 10 Task 4: Boss and Office see and enter prices (trade-access-role.core seesPrices); the price card renders on this.
+    prices: c.prices,
     quote: quote.applies ? { line: installerQuoteLine(quote), sent: quote.sent, accepted: quote.accepted, declined: quote.declined, held: quote.held, formCompleted: quote.formCompleted === true, sentAt: qq?.sent_at ?? null, acceptedAt: qq?.accepted_at ?? null, declinedAt: quote.declined ? declinedEv?.created_at ?? null : null } : null,
     pay: { amount: c.money ? pay : null, areaM2: m?.measured_area_m2 == null ? null : Number(m.measured_area_m2), removalM2: m?.removal_required && m.removal_m2 != null ? Number(m.removal_m2) : null },
     piesa: { passedOn: a?.status === "complete" && a.piesa_outcome === "pass" ? a.completed_at ?? null : null, bookedAt: a?.status === "complete" ? null : piesaBook?.scheduled_start ?? null, electrician: elecName, fixesNote: (fixes ?? []).length ? (fixes ?? []).map((f) => f.description).join(", ") : null,

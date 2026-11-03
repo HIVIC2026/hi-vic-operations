@@ -142,7 +142,9 @@ export async function releaseSpot(jobId: string, actorId: string | null, busines
   // Every check the installer offer will make, BEFORE the owner is told anything (so Confirm can't hit a refusal we knew about).
   const { readyCheckOfferStartBlockers } = await import("./ready-check-times.core");
   const { count: open } = await admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", "ready_check").eq("status", "pending");
-  const b = readyCheckOfferStartBlockers({ channel: job.channel, stage: job.stage, deleted: !!job.deleted_at, hasInstaller: job.hasInstaller, openOffers: open ?? 0, picks: 1 });
+  // Part 10 Task 8: an installer's own customer never gets "It's your turn" (their first email is the quote).
+  const own = (await import("./own-customer-messages.core")).ownCustomerPreQuoteBlocker(job.channel);
+  const b = own ? [own] : readyCheckOfferStartBlockers({ channel: job.channel, stage: job.stage, deleted: !!job.deleted_at, hasInstaller: job.hasInstaller, openOffers: open ?? 0, picks: 1 });
   if (b.length) throw new WorkflowError(`The spot can't be released: ${b.join(" ")}`);
   const { candidates } = await (await import("./readycheck-booking.server")).installerCandidatesFor(jobId);
   const c = candidates.find((x) => x.business_id === businessId);

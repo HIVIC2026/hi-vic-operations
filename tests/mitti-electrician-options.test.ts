@@ -15,17 +15,21 @@ describe("Jo's three Mitti electrician options", () => {
     expect(d.subtotal).toBe(3098); expect(d.discount).toBe(1400); expect(d.afterDiscount).toBe(1698);
     expect(mittiQuoteElectricalBlocker(d.lines, r, r)).toBeNull();
   });
-  test("My usual electrician uses saved $275, not hidden form price, and retains identity", () => {
+  test("My usual electrician uses saved $275 for their pay, not hidden form price, and retains identity; owner line stays $349", () => {
     const r = resolveMittiElectrician({ choice: "usual", usual, different });
     const d = buildMittiInstallerQuote(base, r);
     expect(r).toMatchObject({ name: "TEST Usual REC", licence: "TEST-LIC-01", priceIncGst: 275, source: "installer_profile" });
-    expect(d.ready).toBe(true); expect(d.subtotal).toBe(3024); expect(d.afterDiscount).toBe(1624);
+    // Part 10 (Jo 2 Nov 2026): $275 is what the electrician is paid; the owner's PIESA line is $349 whatever the rate.
+    expect(d.ready).toBe(true); expect(d.subtotal).toBe(3098); expect(d.afterDiscount).toBe(1698);
+    expect(d.lines.find((l) => l.code === "PIESA")?.line_total_inc_gst).toBe(349);
   });
-  test("A different electrician uses form $450.50 and form identity", () => {
+  test("A different electrician uses form $450.50 for their pay and form identity; owner line stays $349", () => {
     const r = resolveMittiElectrician({ choice: "different", usual, different });
     const d = buildMittiInstallerQuote(base, r);
     expect(r).toMatchObject({ name: "TEST Different REC", licence: "TEST-LIC-02", priceIncGst: 450.5, source: "mitti_form" });
-    expect(d.ready).toBe(true); expect(d.subtotal).toBe(3199.5); expect(d.afterDiscount).toBe(1799.5);
+    // Part 10 (Jo 2 Nov 2026): the owner's PIESA line is $349 even when the electrician's rate is above it.
+    expect(d.ready).toBe(true); expect(d.subtotal).toBe(3098); expect(d.afterDiscount).toBe(1698);
+    expect(d.lines.find((l) => l.code === "PIESA")?.line_total_inc_gst).toBe(349);
   });
   test("missing usual profile holds, requests profile and never substitutes form or $349", () => {
     const r = resolveMittiElectrician({ choice: "usual", usual: null, different });

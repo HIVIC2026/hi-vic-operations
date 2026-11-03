@@ -12,6 +12,12 @@
 // "What's changed from your estimate" box under the price (only changed rows, hidden when nothing changed, footnote
 // QUOTE_CHANGES_FOOTNOTE); a 30-day quote says "Your quote is valid for 30 days, until {date}" (14-day quotes keep
 // held-until). The sender attaches the quote documents and holds the email when they aren't ready.
+// Part 10 Task 5 (Jo 2–3 Nov 2026): an installer's OWN customer gets the same v4 email with the approved lines
+// (own-customer-price.core `ownCustomerRows`, by `code`: Insulation · extras · Home Insulation Victoria fee · Electrical
+// safety check (PIESA) · Rebate · Your price), the installer's logo beside ours (cobrand.core, OWN_CUSTOMER_COBRAND_APPROVED)
+// and the VEU program box at the bottom (owner-wording.core, Fix 1). ONE switch for the email rows/VEU box, the My job page
+// and the tax invoice: OWN_CUSTOMER_COBRAND_APPROVED (cobrand.core; the logo itself still needs the https/name/bytes rule).
+// Off = exactly Part 3's v4 email. Home Insulation Victoria leads never come through that branch.
 // Quote text (decision 87, B): ownerQuoteSms below — brand prefix added by the sender.
 import { currentFeeWording } from "./hiv-quote.core";
 import { aud } from "./workflow";
@@ -23,6 +29,9 @@ import type { AgreementFacts } from "./customer-agreement.core";
 import type { BusinessContact } from "./owner-wording.core";
 import { aud as audCents, formatValidUntil, paymentSplitCents } from "./signed-acceptance.core";
 import { safetyCheckShort } from "./safety-check-amount.core";
+import { OWN_CUSTOMER_COBRAND_APPROVED, cobrandLogos } from "./cobrand.core";
+import { ownCustomerRows } from "./own-customer-price.core";
+import { VEU_BOX_TITLE, veuBoxMj, veuBoxText } from "./owner-wording.core";
 
 /** v3 approved 24 Oct 2026; design applied under decision 137. */
 export const OWNER_QUOTE_EMAIL_APPROVED = true as boolean;
@@ -35,7 +44,7 @@ export const QUOTE_DOCUMENTS_HELD = "Quote documents not ready";
 /** Jo 24 Oct 2026, decisions 89 and 134 (O19 quote reminder, day 3 + expiry): approved. Delivery still behind customer_comms_enabled. */
 export const QUOTE_REMINDER_EMAIL_APPROVED = true as boolean;
 
-export type OwnerQuoteLine = { description: string; lineTotalIncGst: number };
+export type OwnerQuoteLine = { description: string; lineTotalIncGst: number; /** quote_items.code (own customers: the rows are built from it, never from the description). */ code?: string | null };
 export type OwnerQuoteEmailInput = {
   firstName: string | null;
   address: string | null;
@@ -72,7 +81,12 @@ export type OwnerQuoteEmailInput = {
   v4?: boolean;
   /** quote-changes.core `quoteChangeRows` — v4 only; empty/absent = no box. */
   changes?: QuoteChangeRow[];
+  /** Part 10 Task 5: set on an installer's own customer (channel installer_sourced): the installer's name and Part 5's
+   *  https logo URL (null = our logo alone). Ignored unless v4 and OWN_CUSTOMER_COBRAND_APPROVED (final review I4: one switch). */
+  ownCustomer?: { installerName: string; installerLogoUrl: string | null } | null;
 };
+/** Test seam for the one Task 5 switch (OWN_CUSTOMER_COBRAND_APPROVED); callers never pass it (the constant decides). */
+export type OwnCustomerSeam = { cobrandApproved?: boolean };
 
 const money = (n: number) => aud(n);
 const cleanName = (s: string | null) => s?.trim() || null;
@@ -141,8 +155,26 @@ function changesBox(rows: QuoteChangeRow[]): { html: string; text: string[] } {
   return { html, text: [QUOTE_CHANGES_HEADING, ...rows.map((r) => `${r.label}: estimate ${r.estimate}, quote ${r.quote}`), QUOTE_CHANGES_FOOTNOTE, ""] };
 }
 
-export function renderOwnerQuoteEmail(i: OwnerQuoteEmailInput): { subject: string; html: string; text: string } {
+/** Part 10 Task 5: the own-customer rows by `code` (never a description regex). Null = fall back to Part 3's rows (a
+ *  malformed line set never guesses a label or a fee; `ownCustomerRows` throws on anything unexpected). */
+function ownCustomerQuoteRows(i: OwnerQuoteEmailInput): K.QuoteRow[] | null {
+  const items = i.lines.map((l) => ({ code: l.code ?? null, description: l.description, line_total_inc_gst: l.lineTotalIncGst }));
+  let rows: ReturnType<typeof ownCustomerRows>;
+  try { rows = ownCustomerRows(items, i.rebateIncGst ?? 0, i.totalIncGst); } catch { return null; }
+  return rows.map((r) => ({
+    title: r.label,
+    detail: r.detail,
+    amount: r.key === "rebate" ? `−${money(Math.abs(r.amountIncGst))}` : money(r.amountIncGst),
+    ...(r.key === "rebate" ? { bold: true, color: "#057D40" } : r.key === "total" ? { bold: true } : {}),
+  }));
+}
+
+export function renderOwnerQuoteEmail(i: OwnerQuoteEmailInput, seam: OwnCustomerSeam = {}): { subject: string; html: string; text: string } {
   const v4 = i.v4 === true;
+  // Part 10 Task 5: the own-customer variant is a v4 extension; off (or no ownCustomer) = Part 3's email exactly.
+  const own = v4 && !!i.ownCustomer && (seam.cobrandApproved ?? OWN_CUSTOMER_COBRAND_APPROVED) ? i.ownCustomer : null;
+  const partnerLogo = own ? cobrandLogos({ installerName: own.installerName, logoUrl: own.installerLogoUrl }).installer : null;
+  const ownRows = own ? ownCustomerQuoteRows(i) : null;
   const f = quoteFigures(i, v4 ? "Your rebate" : "Your VEU rebate");
   const changes = v4 ? changesBox(i.changes ?? []) : { html: "", text: [] };
   const subject = f.rebate ? `${f.name ? `${f.name}, your` : "Your"} quote is ready – save ${K.whole(f.rebate)} on ceiling insulation` : `Your ceiling insulation quote is ready${f.name ? `, ${f.name}` : ""}`;
@@ -153,9 +185,13 @@ export function renderOwnerQuoteEmail(i: OwnerQuoteEmailInput): { subject: strin
   const safety = i.safetyCheckPrice != null && i.safetyCheckPrice > 0 ? money(i.safetyCheckPrice) : null;
   // Itemised rows from the quote lines, with the approved detail lines where the facts are known.
   const perM2 = (amount: number, m: number) => `${K.m2(m)} × ${money(amount / m)} per m²`;
-  const rows: K.QuoteRow[] = i.lines.map((l) => {
+  const rows: K.QuoteRow[] = ownRows ?? i.lines.map((l) => {
     const d = l.description;
-    const isRemoval = /remov/i.test(d), isPiesa = /PIESA|electrical safety/i.test(d), isAp = /accredited|management|compliance/i.test(d);
+    // C1: classify by quote_items.code when present ("Home Insulation Victoria fee" would otherwise read as insulation); the
+    // wording regexes stay as the fallback for old quotes with no code.
+    const code = l.code ?? null;
+    const known = code === "AP_FEE" || code === "PIESA" || code === "INSTALLER_REMOVAL" || code === "INSTALLER_PRICE";
+    const isRemoval = known ? code === "INSTALLER_REMOVAL" : /remov/i.test(d), isPiesa = known ? code === "PIESA" : /PIESA|electrical safety/i.test(d), isAp = known ? code === "AP_FEE" : /accredited|management|compliance/i.test(d);
     const isProduct = !isRemoval && !isPiesa && !isAp && /insulation|batts|R\d/i.test(d);
     const detail = isPiesa ? "By a licensed electrician, before any insulation goes in"
       : isAp ? `Home Insulation Victoria (VEU ${K.AP_NUMBER}): your quote, compliance checks, paperwork and rebate claim`
@@ -164,15 +200,16 @@ export function renderOwnerQuoteEmail(i: OwnerQuoteEmailInput): { subject: strin
             : null;
     return { title: lineTitle(d), detail, amount: money(l.lineTotalIncGst) };
   });
-  if (f.full && f.rebate) rows.push({ title: "Full price", detail: "incl. GST", amount: money(f.full), bold: true }, { title: v4 ? "Rebate" : "VEU rebate", detail: "Taken off upfront, nothing to claim", amount: `−${money(f.rebate)}`, bold: true, color: "#057D40" });
+  if (!ownRows && f.full && f.rebate) rows.push({ title: "Full price", detail: "incl. GST", amount: money(f.full), bold: true }, { title: v4 ? "Rebate" : "VEU rebate", detail: "Taken off upfront, nothing to claim", amount: `−${money(f.rebate)}`, bold: true, color: "#057D40" });
   const next = `<strong>Next:</strong> accept and pay ${safety ? `${esc(safety)} ` : ""}→ ${v4 ? "electrical safety check (PIESA)" : "electrician safety check"} → book your install day.`;
   const validity = !i.validUntil ? null : v4 && i.validDays === 30 ? quoteValidLine(i.validUntil) : `Your price is held until ${formatQuoteValidUntil(i.validUntil)}.`;
   // Jo 26 Oct: no HIV phone number and no "call us" in owner emails — owners reply by email only.
   const questions = "Questions? Just reply to this email.";
   const closing = [validity, NOT_FOR_YOU, questions].filter(Boolean).join(" ");
   const youPay = `<tr><td valign="middle" style="border-top:2px solid #22376B;padding:12px 12px 12px 0;font-size:18px;"><strong>You pay</strong></td><td width="110" align="right" valign="middle" style="border-top:2px solid #22376B;padding:12px 0;white-space:nowrap;min-width:110px;word-break:keep-all;overflow-wrap:normal;word-wrap:normal;font-size:18px;color:#3C51C4;"><strong>${esc(f.total)}</strong></td></tr>`;
+  // Own customers (approved rows): "Your price" is the last approved row, so the "You pay" row is not repeated.
   const quote = rows.length
-    ? `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 10px">Your quote</mj-text><mj-table padding="0 18px 6px">${rows.map((r, n) => quoteRowHtml(r, n === 0)).join("")}${youPay}</mj-table><mj-text mj-class="small" padding="0 18px 18px">${esc(NOT_INCLUDED)}</mj-text></mj-column></mj-section>`
+    ? `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 10px">Your quote</mj-text><mj-table padding="0 18px 6px">${rows.map((r, n) => quoteRowHtml(r, n === 0)).join("")}${ownRows ? "" : youPay}</mj-table><mj-text mj-class="small" padding="0 18px 18px">${esc(NOT_INCLUDED)}</mj-text></mj-column></mj-section>`
     : `<mj-section><mj-column><mj-text mj-class="small" padding="0 12px 0">${esc(NOT_INCLUDED)}</mj-text></mj-column></mj-section>`;
   const body = [
     `<mj-section><mj-column><mj-text mj-class="hi">${esc(hi)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${esc(f.headline)}</mj-text></mj-column></mj-section>`,
@@ -181,13 +218,16 @@ export function renderOwnerQuoteEmail(i: OwnerQuoteEmailInput): { subject: strin
     `<mj-section><mj-column>${mjButton(i.quoteUrl)}</mj-column></mj-section>`,
     quote,
     `<mj-section><mj-column><mj-text padding="18px 12px 14px">${next}</mj-text><mj-text mj-class="small" padding="0 12px 0">${esc(closing)}</mj-text></mj-column></mj-section>`,
+    // Part 10 Task 5 / VEU Fix 1: the program box at the bottom of an own customer's first email.
+    own ? veuBoxMj() : "",
   ].join("");
   const preview = [`You pay ${f.total}${f.rebate ? " after the rebate" : ""}.`, validity].filter(Boolean).join(" ");
-  const html = mjEmail({ subject, preview, body, unsubscribe: i.unsubscribeUrl, testLabel: i.test === true });
+  const html = mjEmail({ subject, preview, body, unsubscribe: i.unsubscribeUrl, testLabel: i.test === true, ...(partnerLogo ? { partnerLogo } : {}) });
+  const veu = own ? ["", `${VEU_BOX_TITLE} — ${veuBoxText()[1]}`, veuBoxText()[2]!] : [];
   const text = K.plainText([
     hi, "", f.headline, "", ...f.boxText, "", ...changes.text, `View and accept your quote: ${i.quoteUrl}`, "",
-    ...(rows.length ? ["YOUR QUOTE", ...rows.map((r) => `${r.title}${r.detail ? ` (${r.detail})` : ""}: ${r.amount}`), `You pay: ${f.total}`, ""] : []),
-    NOT_INCLUDED, "", K.stripTags(next), "", closing,
+    ...(rows.length ? ["YOUR QUOTE", ...rows.map((r) => `${r.title}${r.detail ? ` (${r.detail})` : ""}: ${r.amount}`), ...(ownRows ? [] : [`You pay: ${f.total}`]), ""] : []),
+    NOT_INCLUDED, "", K.stripTags(next), "", closing, ...veu,
   ], { unsubscribe: i.unsubscribeUrl, testLabel: i.test === true });
   return { subject, html, text };
 }

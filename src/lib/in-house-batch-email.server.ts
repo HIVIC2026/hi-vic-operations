@@ -13,7 +13,7 @@
 //   one real SMS sender (its own switch, STOP, consent) and only once the email has gone.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { BusinessContact } from "./owner-wording.core";
-import { OWNER_WILL_CALL_APPROVED, OWNER_WILL_CALL_HELD_EVENT, OWNER_WILL_CALL_SMS_TYPE, ownerWillCallEmail, ownerWillCallText } from "./owner-will-call.core";
+import { willCallAllowed, OWNER_WILL_CALL_APPROVED, OWNER_WILL_CALL_HELD_EVENT, OWNER_WILL_CALL_SMS_TYPE, ownerWillCallEmail, ownerWillCallText } from "./owner-will-call.core";
 import { STAGE_ORDER } from "./workflow";
 import { smsQuietReason } from "./quote-hold.core";
 import type { RealSmsInput, RealSmsResult } from "./sms.server";
@@ -61,13 +61,15 @@ export async function sendInHousePartnerCall(jobId: string, over: Partial<WillCa
   if (!d.approved) return "awaiting approval";
   const db = d.db;
   const [job, pending, assignments, ledger, booked] = await Promise.all([
-    db.from("jobs").select("id,source,stage,owners(email,full_name,phone)").eq("id", jobId).is("deleted_at", null).neq("source", "qa_test").maybeSingle(),
+    db.from("jobs").select("id,source,stage,channel,owners(email,full_name,phone)").eq("id", jobId).is("deleted_at", null).neq("source", "qa_test").maybeSingle(),
     db.from("workflow_events").select("job_id,details,created_at").eq("job_id", jobId).eq("event_type", PENDING).order("created_at").limit(1).maybeSingle(),
     db.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true),
     db.from("customer_email_sends").select("id").eq("job_id", jobId).eq("purpose", PURPOSE).limit(1),
     db.from("bookings").select("job_id").eq("job_id", jobId).eq("kind", "ready_check").eq("status", "confirmed").limit(1),
   ]);
   if (job.error || pending.error || assignments.error || ledger.error || booked.error) throw new Error("Could not read partner call email safeguards.");
+  // Part 10 Task 8: an installer's own customer never gets this (before any claim, send or held note).
+  if (job.data && !willCallAllowed((job.data as { channel?: string | null }).channel ?? null)) return "not applicable: installer's own customer";
   const details = (pending.data as Pending | null)?.details;
   const owner = job.data?.owners as { email: string | null; full_name: string | null; phone: string | null } | null;
   if (!job.data || pastBookingStep(job.data.stage) || (booked.data ?? []).length || !owner?.email || !details?.business_id
@@ -108,10 +110,11 @@ export async function sweepInHousePartnerCalls(over: Partial<WillCallDeps> = {})
   const d = { ...defaults(), ...over };
   if (!d.approved) return { checked: 0, sent: 0 };
   // Read only current real jobs; exclude attempts BEFORE limiting so sent history cannot starve new pending jobs.
-  const events = await d.db.from("workflow_events").select("job_id,jobs!inner(id)").eq("event_type", PENDING)
+  const events = await d.db.from("workflow_events").select("job_id,jobs!inner(id,channel)").eq("event_type", PENDING)
     .is("jobs.deleted_at", null).neq("jobs.source", "qa_test").order("created_at");
   if (events.error) throw new Error("Could not read pending partner call emails.");
-  const ids = [...new Set(((events.data ?? []) as { job_id: string | null }[]).flatMap(e => e.job_id ? [e.job_id] : []))];
+  // Part 10 Task 8: installers' own customers are never candidates (the sender refuses them too).
+  const ids = [...new Set(((events.data ?? []) as { job_id: string | null; jobs?: { channel?: string | null } | null }[]).flatMap(e => e.job_id && willCallAllowed(e.jobs?.channel ?? null) ? [e.job_id] : []))];
   if (!ids.length) return { checked: 0, sent: 0 };
   const attempts = await d.db.from("customer_email_sends").select("job_id").in("job_id", ids).eq("purpose", PURPOSE);
   if (attempts.error) throw new Error("Could not read partner call email attempts.");

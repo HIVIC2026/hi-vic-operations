@@ -23,6 +23,13 @@ export type StatusLine = {
   home: string;
   yours: boolean;
 };
+/** Decision 48: the quiet source label — ONE function, shared by My work and the Job page so the two can't drift (Part 10
+ *  Task 9). Lives here (import-free) so My work keeps speed's split and does not load all of installer-screens.core. */
+export function sourceLabel(channel: string | null | undefined): string | null {
+  if (channel === "installer_sourced") return "Your customer";
+  if (channel === "hivic_sourced") return "Home Insulation Victoria lead";
+  return null;
+}
 export const DO_READY_CHECK_TITLE = "Do the Ready Check";
 export const ENTER_PRICE_TITLE = "Enter your price";
 export const WAITING_BOSS_TITLE = "Nothing for you — waiting on your business owner";

@@ -14,7 +14,8 @@ export const getInstallerPriceFn = createServerFn({ method: "POST" })
     return installerPriceView(data.jobId, context.userId);
   });
 
-/** Business admin only (requireMember(..., true) inside); append-only event; never sends. */
+/** Boss or Office (canEnterPrice inside); append-only event. `send` = "Send quote to owner" (Task 4): releases through the
+ *  guarded auto-send only while OWN_CUSTOMER_SEND_ON_PRESS_ENABLED; otherwise it only saves. */
 export const setInstallerPriceFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) =>
@@ -26,15 +27,16 @@ export const setInstallerPriceFn = createServerFn({ method: "POST" })
         includedOther: z.string().max(300).optional().nullable(),
         productOption: z.string().max(80).optional().nullable(),
         notes: z.string().max(1000).optional().nullable(),
+        send: z.boolean().optional(),
         // Decision 289: no electrician fields — chosen once at Add a job.
       })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
     const { setInstallerPrice } = await import("./installer-price-set.server");
-    const { jobId, ...input } = data;
-    const saved = await setInstallerPrice(jobId, context.userId, input);
-    return { ok: true as const, setAt: saved.setAt };
+    const { jobId, send, ...input } = data;
+    const r = await setInstallerPrice(jobId, context.userId, input, { send: send === true });
+    return { ok: true as const, setAt: r.stored.setAt, sent: r.sent, reasons: r.reasons };
   });
 
 /** Jo 28 Oct 2026: one-way switch to Home Insulation Victoria's electrician; business admin only (checked inside). */

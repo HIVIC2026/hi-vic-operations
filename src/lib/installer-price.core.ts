@@ -10,6 +10,7 @@
 import { ELECTRICIAN_OPTIONS, INCLUDED_OPTIONS, LEAN_Q } from "./ready-check-lean.core";
 import { insulationProduct } from "./insulation-product.core";
 import type { ElectricianChoice } from "./electrician-choice.core";
+import { seesPrices, tradeRoleOf } from "./trade-access-role.core";
 
 export const INSTALLER_PRICE_EVENT = "installer_price_set";
 /** The auto quote holds with exactly this reason while neither the portal nor an old form carries a price. */
@@ -348,4 +349,29 @@ export function priceEventSummary(f: {
     parts.push(`Product changed from ${f.previousProduct ?? "none"} to ${r.product_option}`);
   if (r.notes) parts.push(`Notes: ${r.notes}`);
   return parts.join(" · ");
+}
+
+// ---------- Part 10 Task 4 (Jo 3 Nov 2026): the "Enter your price" step — Boss OR Office; "Send quote to owner" ----------
+/** Approved (plan Task 4): the step's title, the two button labels and the note under the form. */
+export const ENTER_PRICE_STEP = {
+  title: "Enter your price",
+  send: "Send quote to owner",
+  save: "Save",
+  note: "Your price stays editable until the quote is sent.",
+} as const;
+/** A button that says "send" must send: the send label only while OWN_CUSTOMER_SEND_ON_PRESS_ENABLED is on. */
+export function enterPriceButton(sendOnPress: boolean): string {
+  return sendOnPress ? ENTER_PRICE_STEP.send : ENTER_PRICE_STEP.save;
+}
+/** DRAFT (Jo hasn't seen it): the line above the form. True today (final review I4): the quote goes to the owner once every
+ *  check passes — with AUTO_QUOTE_SEND_ENABLED off the office presses Send; nothing goes out on Complete (Jo 22:58). */
+export const ENTER_PRICE_INTRO =
+  "We add the $349 Home Insulation Victoria fee and the $349 PIESA, take off the rebate, and Home Insulation Victoria sends the owner the quote once every check passes.";
+/** DRAFT: shown with the plain hold reasons when "Send quote to owner" could not send (the price is still saved). */
+export const PRICE_NOT_SENT_PREFIX = "Saved. Not sent yet: ";
+/** DRAFT: server refusal for anyone who is not the Boss or Office of the job's business (Lead Installer, crew, electricians, strangers). */
+export const PRICE_ENTRY_REFUSED = "Only the business owner or the office can enter the price.";
+/** Part 5's role rule (trade-access-role.core `seesPrices`): business_admin (Boss) and office enter prices; nobody else. */
+export function canEnterPrice(memberRole: string | null | undefined): boolean {
+  return seesPrices(tradeRoleOf({ memberRole: memberRole ?? null, workerTradeRole: null }));
 }
