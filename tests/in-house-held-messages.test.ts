@@ -31,6 +31,7 @@ function fixture(held: boolean, payee = false, failed = false) {
     './ready-check-times.server':{readyCheckTurnFor:async()=> 'owner_to_answer'}, './quote-hold.core':{smsQuietReason:()=>null},
     './mitti.core':{isClosedOrArchivedJob:()=>false}, './payments.server':{jobPaymentView:async()=>null},
     './approved-owner-emails.server':new Proxy({}, {get:(_,key)=>key==='then'?undefined:async()=>{calls.push('message');return 'sent';}}),
+    './owner-contact.server':{businessContactForJob:async()=>({name:'Test Electrical',tradingName:null,officePhone:'0399999999',email:'test@example.test'})},
     './booking.server':{confirmBooking:async()=>{writes.push('booking');return 'b';}},
   };
   const cache:Record<string,any>={};

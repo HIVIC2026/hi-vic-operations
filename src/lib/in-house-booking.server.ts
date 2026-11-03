@@ -2,8 +2,15 @@ import { supabaseAdmin as admin } from '@/integrations/supabase/client.server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { bookingWorkerBlocker, ownerBookedMessage, OWNER_BOOKED_V2_APPROVED, leadNoticePending, LEAD_INSTALLER_NOTICE_WAIT, type BookingWorker } from './in-house-booking.core';
 import type { BookedKind } from './owner-booked-notice.core';
+import type { TradeContact } from './owner-will-call.core';
 /** Tests inject the approval flags; production uses OWNER_BOOKED_V2_APPROVED (owner-booked-notice.core, re-exported by in-house-booking.core). */
-export type OwnerBookedDeps = { v2Approved?: Record<BookedKind, boolean> };
+export type OwnerBookedDeps = {
+  v2Approved?: Record<BookedKind, boolean>;
+  /** PIESA: the job's electrician business office contact (default: businessContactForJob). */
+  electrician?: (jobId: string) => Promise<TradeContact | null>;
+  /** Install: the balance due on install day, in cents (default: the job's paymentPlan). */
+  balanceCents?: (jobId: string) => Promise<number | null>;
+};
 import { stableUuid } from './mitti-create-claim.core';
 const db=admin as unknown as SupabaseClient;
 async function read<T>(q:PromiseLike<{data:unknown;error:{message:string}|null}>):Promise<T>{const r=await q;if(r.error)throw Error(r.error.message);return r.data as T;}
@@ -59,11 +66,15 @@ export async function notifyOwnerBooked(jobId:string,kind:'ready_check'|'piesa'|
   const intent=await db.from('workflow_events').insert({id:intentId,job_id:jobId,actor_id:null,event_type:'in_house_booked_notice_pending',summary:'Booking confirmation awaiting delivery',details:{kind,startIso,who,booking_id:booking.id},internal:true});
   if(intent.error&&intent.error.code!=='23505')throw Error(intent.error.message);
   const b=a.businesses;
-  // Decision #24 + Fix 5: Ready Check → approved wording when switched on (office phone + business email, else held);
-  // otherwise the current bookingNotice wording (in-house-booking.core). Same purpose and key either way: one version per booking.
-  const v2=kind==='ready_check'&&(deps.v2Approved??OWNER_BOOKED_V2_APPROVED).ready_check;
+  // Decisions #24 (Ready Check), #38 (PIESA), #46 (install): each kind uses the approved wording when its switch is on (office
+  // phone + business email, else held); otherwise the current bookingNotice wording. Same purpose and key either way: one
+  // version per booking. PIESA is the ELECTRICIAN's business (the installer is named in the 30-day rule); install carries the balance.
+  const v2=(deps.v2Approved??OWNER_BOOKED_V2_APPROVED)[kind];
   const changed=v2&&(await read<{id:string}[]>(db.from('bookings').select('id').eq('job_id',jobId).eq('kind',bookingKind).eq('status','cancelled').limit(1))).length>0;
-  const n=ownerBookedMessage({kind,start:startIso,who,installer:b.trading_name||b.name,phone:b.phone,ownerName:job.owners.full_name??null,business:{name:b.name,tradingName:b.trading_name,officePhone:b.phone,email:b.email??null},changed,test:job.source==='qa_test'},deps.v2Approved);
+  const installerBusiness:TradeContact={name:b.name,tradingName:b.trading_name,officePhone:b.phone,email:b.email??null};
+  const business=v2&&kind==='piesa'?await (deps.electrician??(async(id:string)=>(await import('./owner-contact.server')).businessContactForJob(id,'electrician')))(jobId):installerBusiness;
+  const balanceCents=v2&&kind==='install'?await (deps.balanceCents??(async(id:string)=>{const v=await (await import('./payments.server')).jobPaymentView(id).catch(()=>null);return v?v.plan.balanceCents:null;}))(jobId):null;
+  const n=ownerBookedMessage({kind,start:startIso,who,installer:b.trading_name||b.name,phone:b.phone,ownerName:job.owners.full_name??null,business,changed,test:job.source==='qa_test',installerName:b.trading_name||b.name,balanceCents},deps.v2Approved);
   if('held' in n){
     // One office note per booking/person and reason; the pending intent stays, so the sweep sends once it's fixed.
     const held=await db.from('workflow_events').insert({id:await stableUuid(`${key}:held:${n.held}`),job_id:jobId,actor_id:null,event_type:'owner_booked_held',summary:`"You're booked" not sent: ${n.held}`,details:{kind,startIso,booking_id:booking.id,reason:n.held},internal:true});

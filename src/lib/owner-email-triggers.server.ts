@@ -29,10 +29,12 @@ export async function fireOwnerEmailOnce(jobId: string, code: OwnerEmailCode, ke
   }
 }
 
-async function electricianFor(jobId: string): Promise<{ name: string | null; phone: string | null }> {
-  const { data } = await admin.from("job_assignments").select("businesses(name, trading_name, phone)").eq("job_id", jobId).eq("role", "electrician").eq("active", true).maybeSingle();
-  const b = (data?.businesses ?? null) as { name: string | null; trading_name: string | null; phone: string | null } | null;
-  return { name: (b?.trading_name ?? b?.name ?? null)?.replace(/^\[TEST PARTNER\]\s*/, "") ?? null, phone: b?.phone ?? null };
+/** The job's electrician as the owner sees them: trading name and the business OFFICE phone + email (never a worker's mobile). */
+async function electricianFor(jobId: string): Promise<{ name: string | null; phone: string | null; email: string | null }> {
+  const { businessContactForJob } = await import("./owner-contact.server");
+  const c = await businessContactForJob(jobId, "electrician");
+  if (!c) return { name: null, phone: null, email: null };
+  return { name: (c.tradingName || c.name || null)?.replace(/^\[TEST PARTNER\]\s*/, "") ?? null, phone: c.officePhone || null, email: c.email || null };
 }
 
 /** Safety check amount the owner has paid (dollars), or null while it is not paid. */
@@ -60,8 +62,15 @@ export async function onSafetyCheckTimesOffered(jobId: string, startsAt: string[
 export async function onSafetyCheckBooked(jobId: string, startIso: string, changed: boolean): Promise<string> {
   const skipped = await inHouseDispatchSkip(jobId);
   if (skipped) return skipped;
+  const el = await electricianFor(jobId).catch((e) => { console.error("owner email O26_booked: electrician read failed", jobId, errText(e)); return null; });
+  if (!el) return "not sent — electrician not read";
+  if (!el.name || !el.phone || !el.email) {
+    // Never a blank phone: no electrician office phone / business email → nothing sent, one internal office note.
+    const why = !el.name ? "No electrician on the job" : !el.phone ? `No office phone for ${el.name}` : `No business email for ${el.name}`;
+    await logEvent(jobId, null, "owner_booked_held", `"You're booked" (safety check) not sent: ${why}`, { kind: "piesa", startIso, reason: why }, { internal: true }).catch(() => {});
+    return `held — ${why}`;
+  }
   return fireOwnerEmailOnce(jobId, "O26_booked", ownerEmailKey.safetyCheckBooked(jobId, startIso), async () => {
-    const el = await electricianFor(jobId);
     const { emailOwnerSafetyCheckBooked } = await import("./approved-owner-emails.server");
     return emailOwnerSafetyCheckBooked(jobId, startIso, el, changed);
   }, { changed });

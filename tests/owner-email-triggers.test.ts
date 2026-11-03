@@ -128,6 +128,21 @@ describe("O22 receipt date and labels", () => {
 const src = (p: string) => readFileSync(p, "utf8");
 const count = (s: string, needle: string) => s.split(needle).length - 1;
 
+describe("electrician contact (Part 4 Task 1): office phone via businessContactForJob, held when missing", () => {
+  const t = src("src/lib/owner-email-triggers.server.ts");
+  const fn = (name: string) => t.slice(t.indexOf(`async function ${name}(`), t.indexOf("\n}\n", t.indexOf(`async function ${name}(`)));
+  test("electricianFor reads the business contact, never its own phone query", () => {
+    const body = fn("electricianFor");
+    expect(body).toContain("businessContactForJob(jobId, \"electrician\")");
+    expect(body).not.toContain("job_assignments");
+  });
+  test("the booked email is held (office note, nothing sent, key not used) when the electrician has no office phone or email", () => {
+    const body = fn("onSafetyCheckBooked");
+    expect(body.indexOf("owner_booked_held")).toBeGreaterThan(-1);
+    expect(body.indexOf("owner_booked_held")).toBeLessThan(body.indexOf("fireOwnerEmailOnce("));
+  });
+});
+
 describe("source pins: each trigger calls its sender exactly once with its key", () => {
   const t = src("src/lib/owner-email-triggers.server.ts");
   test("every trigger goes through fireOwnerEmailOnce (event recorded before the send) and one approved sender", () => {

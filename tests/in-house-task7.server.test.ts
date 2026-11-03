@@ -116,3 +116,63 @@ test('PIESA and install keep the current wording even with the Ready Check wordi
  await f.api.notifyOwnerBooked('j','install','2026-11-03T22:00:00Z',who,f.now,ON);
  expect(f.sends[0].subject).toBe("You're booked — install");
 });
+
+
+// Part 4 Task 1: the PIESA (#38) and install (#46) versions — same purpose and key as the current wording.
+const viking={name:'Viking Electrical',tradingName:null,officePhone:'03 9111 1111',email:'jobs@viking.example'};
+function piesaFixture(){
+ const f=readyCheckFixture();
+ f.rows.bookings[0]={id:'b',job_id:'j',kind:'assessment',status:'confirmed',scheduled_start:'2026-11-06T23:00:00Z',created_at:f.now.toISOString()};
+ return f;
+}
+const PIESA_ON={v2Approved:{ready_check:false,piesa:true,install:false},electrician:async()=>viking};
+const dan={id:'d',name:'Dan Lee',phone:'0422 222 222'};
+test('PIESA with the new wording on: electrician office phone, installer named in the 30-day rule, same purpose and key',async()=>{
+ const f=piesaFixture();
+ expect(await f.api.notifyOwnerBooked('j','piesa','2026-11-06T23:00:00Z',dan,f.now,PIESA_ON)).toBe('sent; sent');
+ const [email,sms]=f.sends;
+ expect(email).toMatchObject({channel:'email',key:'in-house-booked:v1:b:d',purpose:'in_house_booked',subject:"You're booked for your electrical safety check (PIESA)"});
+ expect(email.text).toContain('Rapid Insulation will call you to book your install day.');
+ expect(email.text).toContain('Viking Electrical · 03 9111 1111 · jobs@viking.example');
+ expect(sms).toMatchObject({key:'in-house-booked:v1:b:d:sms',type:'in_house_booked_owner'});
+ expect(sms.body).toBe("Home Insulation Victoria: Hi Sarah, you're booked for your electrical safety check (PIESA): Sat 7 Nov, 10:00am. Dan Lee from Viking Electrical is coming. Need to change it? Call Viking Electrical on 03 9111 1111.");
+ expect(JSON.stringify(f.sends)).not.toContain('0422 222 222');
+});
+test('PIESA switched off (as shipped): the current wording keeps going, same purpose and key',async()=>{
+ const f=piesaFixture();
+ expect(await f.api.notifyOwnerBooked('j','piesa','2026-11-06T23:00:00Z',dan,f.now)).toBe('sent; sent');
+ const old=core.bookingNotice({kind:'piesa',start:'2026-11-06T23:00:00Z',who:dan,installer:'Rapid Insulation',phone:'03 9000 0000'});
+ expect(f.sends[0]).toMatchObject({key:'in-house-booked:v1:b:d',purpose:'in_house_booked',subject:old.subject});
+ expect(f.sends[1].body).toBe(old.sms);
+});
+test('PIESA on, no electrician business or no office phone → held with one office note, nothing sent',async()=>{
+ const f=piesaFixture();
+ expect(await f.api.notifyOwnerBooked('j','piesa','2026-11-06T23:00:00Z',dan,f.now,{...PIESA_ON,electrician:async()=>null})).toBe('held: No electrician business on file');
+ expect(await f.api.notifyOwnerBooked('j','piesa','2026-11-06T23:00:00Z',dan,f.now,{...PIESA_ON,electrician:async()=>({...viking,officePhone:''})})).toBe('held: No office phone for Viking Electrical');
+ expect(f.sends).toEqual([]);
+ expect(f.rows.workflow_events.filter((e:any)=>e.event_type==='owner_booked_held').every((e:any)=>e.internal===true)).toBe(true);
+});
+test('install with the new wording on: lead installer, balance line, installer office phone, same purpose and key',async()=>{
+ const f=readyCheckFixture();
+ f.rows.bookings[0]={id:'b',job_id:'j',kind:'installation',status:'confirmed',scheduled_start:'2026-11-12T21:00:00Z',created_at:f.now.toISOString()};
+ const tom={id:'t',name:'Tom Ray',phone:'0433 333 333'};
+ expect(await f.api.notifyOwnerBooked('j','install','2026-11-12T21:00:00Z',tom,f.now,{v2Approved:{ready_check:false,piesa:false,install:true},balanceCents:async()=>141200})).toBe('sent; sent');
+ const [email,sms]=f.sends;
+ expect(email).toMatchObject({key:'in-house-booked:v1:b:t',purpose:'in_house_booked',subject:"You're booked for your insulation install"});
+ expect(email.text).toContain('Lead Installer: Tom Ray');
+ expect(email.text).toContain('The rest of your payment, $1,412.00, is due on install day.');
+ expect(sms.body).toBe("Home Insulation Victoria: Hi Sarah, you're booked for your insulation install: Fri 13 Nov, 8:00am. Tom Ray from Rapid Insulation is coming. Need to change it? Call Rapid Insulation on 03 9000 0000.");
+ expect(JSON.stringify(f.sends)).not.toContain('0433 333 333');
+});
+test('install on, no balance on file → held, nothing sent',async()=>{
+ const f=readyCheckFixture();
+ f.rows.bookings[0]={id:'b',job_id:'j',kind:'installation',status:'confirmed',scheduled_start:'2026-11-12T21:00:00Z',created_at:f.now.toISOString()};
+ expect(await f.api.notifyOwnerBooked('j','install','2026-11-12T21:00:00Z',who,f.now,{v2Approved:{ready_check:false,piesa:false,install:true},balanceCents:async()=>null})).toBe('held: No balance on file');
+ expect(f.sends).toEqual([]);
+});
+test('a PIESA booking that already got the old wording gets nothing more when the new wording turns on',async()=>{
+ const f=piesaFixture();
+ await f.api.notifyOwnerBooked('j','piesa','2026-11-06T23:00:00Z',dan,f.now);
+ await f.api.notifyOwnerBooked('j','piesa','2026-11-06T23:00:00Z',dan,f.now,PIESA_ON);
+ expect(f.sends.filter((s:any)=>s.channel==='email')).toHaveLength(1);
+});

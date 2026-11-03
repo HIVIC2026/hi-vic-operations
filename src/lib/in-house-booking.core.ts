@@ -36,15 +36,16 @@ export function bookingNotice(i:{kind:'ready_check'|'piesa'|'install';start:stri
   const text=`You're booked for your ${label}: ${when}. Who's coming: ${person}. Need a different time? Call ${i.installer} on ${i.phone||'the number in your booking details'}.`;
   return {subject:`You're booked — ${label}`,text,sms:`You're booked for your ${label}: ${when}. ${person} is coming. Details in your email.`};
 }
-/** Owner "You're booked" message for an in-house visit. Ready Check with OWNER_BOOKED_V2_APPROVED.ready_check on →
- *  the approved #24 + Fix 5 wording (owner-booked-notice.core: office phone only, held when the office phone or business
- *  email is missing); otherwise the current bookingNotice wording. PIESA / install stay on bookingNotice (Part 4). */
-export type OwnerBookedInput = Parameters<typeof bookingNotice>[0] & { ownerName: string|null; business: TradeContact|null; changed: boolean; test?: boolean };
+/** Owner "You're booked" message for an in-house visit. A kind whose OWNER_BOOKED_V2_APPROVED flag is on → the approved
+ *  wording (owner-booked-notice.core: #24 Ready Check, #38 PIESA, #46 install; office phone only, held when the office phone
+ *  or business email is missing); otherwise the current bookingNotice wording. `business` is the business coming: the
+ *  installer, and for PIESA the ELECTRICIAN's (`installerName` then names who calls to book the install). */
+export type OwnerBookedInput = Parameters<typeof bookingNotice>[0] & { ownerName: string|null; business: TradeContact|null; changed: boolean; test?: boolean; installerName?: string|null|undefined; installDeadline?: string|undefined; balanceCents?: number|null|undefined };
 export function ownerBookedMessage(i:OwnerBookedInput,approved:Record<BookedKind,boolean>=OWNER_BOOKED_V2_APPROVED):
   {version:'v1';subject:string;text:string;sms:string}|{version:'v2';subject:string;text:string;html:string;sms:string}|{held:string} {
-  if(i.kind==='ready_check'&&approved.ready_check){
-    if(!i.business)return{held:'No installer business on file'};
-    const n=ownerBookedNotice({kind:'ready_check',firstName:i.ownerName,startIso:i.start,whoName:i.who.name,business:i.business,changed:i.changed},{test:i.test===true});
+  if(approved[i.kind]){
+    if(!i.business)return{held:i.kind==='piesa'?'No electrician business on file':'No installer business on file'};
+    const n=ownerBookedNotice({kind:i.kind,firstName:i.ownerName,startIso:i.start,whoName:i.who.name,business:i.business,changed:i.changed,installerName:i.installerName,installDeadline:i.installDeadline,balanceCents:i.balanceCents},{test:i.test===true});
     return 'held' in n?n:{version:'v2',...n};
   }
   const old=bookingNotice(i);

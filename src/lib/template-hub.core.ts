@@ -175,8 +175,10 @@ const QUOTE = {
 };
 const WILL_CALL_SAMPLE = { name: "Sample Insulation Co", tradingName: null, officePhone: "03 9000 0000", email: "office@sample-insulation.example" };
 // The sample renders the new wording (as it will read once OWNER_BOOKED_READY_CHECK_APPROVED is on).
-const BOOKED_ON = { ready_check: true, piesa: false, install: false };
+const BOOKED_ON = { ready_check: true, piesa: true, install: true };
 const BOOKED_SAMPLE = { kind: "ready_check" as const, start: "2026-11-03T22:00:00Z", who: { name: "Sample Installer", phone: null }, installer: "Sample Insulation Co", phone: "03 9000 0000", ownerName: "Helen", business: WILL_CALL_SAMPLE, changed: false };
+const BOOKED_PIESA_SAMPLE = { ...BOOKED_SAMPLE, kind: "piesa" as const, start: "2026-11-06T23:00:00Z", who: { name: "Sample Electrician", phone: null }, business: { name: "Sample Electrical Co", tradingName: null, officePhone: "03 9111 1111", email: "office@sample-electrical.example" }, installerName: "Sample Insulation Co", installDeadline: "2026-12-06" };
+const BOOKED_INSTALL_SAMPLE = { ...BOOKED_SAMPLE, kind: "install" as const, start: "2026-11-12T21:00:00Z", who: { name: "Sample Lead Installer", phone: null }, balanceCents: 141200 };
 const PARTNER_JOB = { installerFirstName: "Sam", ownerName: "Helen Yang", address: SHORT_ADDRESS, jobNumber: "HV-TEST", jobUrl: FIELD };
 const BANK = { accountName: "Home Insulation Victoria", bsb: "082902", accountNumber: "777966349", payId: null, configured: true };
 
@@ -455,6 +457,20 @@ const OWNER: TemplateEntry[] = [
   ENTRY({ id: "owner:sms-booked-ready-check", section: "owner", step: "ready_check", kind: "text", code: "", name: "You're booked for your free Ready Check (text)", when: "With the Ready Check \"You're booked\" email", who: "Owner", approvalNote: "Wording: Jo 2 Nov 2026, decision #24 (OWNER_BOOKED_READY_CHECK_APPROVED stays false until Jo OKs the pictures)", gate: { kind: "text", smsType: "in_house_booked_owner" },
     source: { builder: "src/lib/in-house-booking.core.ts", fn: "ownerBookedMessage", sender: "src/lib/in-house-booking.server.ts" },
     render: () => text((ownerBookedMessage(BOOKED_SAMPLE, BOOKED_ON) as { sms: string }).sms) }),
+  // Part 4 Task 1 — #38 PIESA and #46 install: the same layout, same purpose and key; the current in-house wording keeps going
+  // out until the flag is on. PIESA: the ELECTRICIAN's office phone on the change line; the 30-day rule names the installer.
+  ENTRY({ id: "owner:booked-piesa", section: "owner", step: "safety_check", kind: "email", code: "", name: "You're booked for your electrical safety check (PIESA)", when: "The electrician is booked for the PIESA (or the time changes — \"Your time has changed\"); held with an office note if the electrician has no office phone or business email", who: "Owner", approvalNote: "Wording: Jo 2 Nov 2026, decision #38 (OWNER_BOOKED_PIESA_APPROVED stays false until Jo OKs the pictures)", gate: { kind: "code_off", flag: "OWNER_BOOKED_PIESA_APPROVED" },
+    source: { builder: "src/lib/in-house-booking.core.ts", fn: "ownerBookedMessage", sender: "src/lib/in-house-booking.server.ts" },
+    render: () => email(ownerBookedMessage(BOOKED_PIESA_SAMPLE, BOOKED_ON) as { subject: string; html: string }) }),
+  ENTRY({ id: "owner:sms-booked-piesa", section: "owner", step: "safety_check", kind: "text", code: "", name: "You're booked for your electrical safety check (PIESA) (text)", when: "With the PIESA \"You're booked\" email", who: "Owner", approvalNote: "Wording: Jo 2 Nov 2026, decision #38 (OWNER_BOOKED_PIESA_APPROVED stays false until Jo OKs the pictures)", gate: { kind: "text", smsType: "in_house_booked_owner" },
+    source: { builder: "src/lib/in-house-booking.core.ts", fn: "ownerBookedMessage", sender: "src/lib/in-house-booking.server.ts" },
+    render: () => text((ownerBookedMessage(BOOKED_PIESA_SAMPLE, BOOKED_ON) as { sms: string }).sms) }),
+  ENTRY({ id: "owner:booked-install", section: "owner", step: "install", kind: "email", code: "", name: "You're booked for your insulation install", when: "The installer books the install day (or the time changes — \"Your time has changed\"); held with an office note if the installer has no office phone or business email, or the balance is not on file", who: "Owner", approvalNote: "Wording: Jo 2 Nov 2026, decision #46, no install duration (OWNER_BOOKED_INSTALL_APPROVED stays false until Jo OKs the pictures)", gate: { kind: "code_off", flag: "OWNER_BOOKED_INSTALL_APPROVED" },
+    source: { builder: "src/lib/in-house-booking.core.ts", fn: "ownerBookedMessage", sender: "src/lib/in-house-booking.server.ts" },
+    render: () => email(ownerBookedMessage(BOOKED_INSTALL_SAMPLE, BOOKED_ON) as { subject: string; html: string }) }),
+  ENTRY({ id: "owner:sms-booked-install", section: "owner", step: "install", kind: "text", code: "", name: "You're booked for your insulation install (text)", when: "With the install \"You're booked\" email", who: "Owner", approvalNote: "Wording: Jo 2 Nov 2026, decision #46 (OWNER_BOOKED_INSTALL_APPROVED stays false until Jo OKs the pictures)", gate: { kind: "text", smsType: "in_house_booked_owner" },
+    source: { builder: "src/lib/in-house-booking.core.ts", fn: "ownerBookedMessage", sender: "src/lib/in-house-booking.server.ts" },
+    render: () => text((ownerBookedMessage(BOOKED_INSTALL_SAMPLE, BOOKED_ON) as { sms: string }).sms) }),
   // Fix round 1 (controller ruling 2 Nov 2026): releases made with the old Release step keep the wording Jo approved for
   // them (decision 389, 25 Oct 2026) for their day-2 reminder / 7am text — unchanged, not behind IT_IS_YOUR_TURN_V2_APPROVED.
   ENTRY({ id: "owner:O77-legacy", section: "owner", step: "ready_check", kind: "email", code: "O77", name: "It's your turn — confirm your free Ready Check (old Release step)", when: "Releases Jo made with the old Release step before 2 Nov 2026: their day-2 reminder (the page opens ?screen=turn)", who: "Owner", approvalNote: "Jo 25 Oct 2026, decision 389", gate: { kind: "email" },
