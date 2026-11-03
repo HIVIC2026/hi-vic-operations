@@ -2,10 +2,10 @@
 // makes few sequential database round trips ("waves"). REAL server modules against an in-memory database
 // (tests/helpers/memory-postgrest.ts) with a wave counter (tests/helpers/wave-counter.ts). The signed-in client's own calls
 // (getUser, my_job_role, can_access_job, has_role) are counted as round trips too. Run on its own (mock.module leaks).
-import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, mock, setSystemTime, test } from "bun:test";
 import type { Tables } from "./helpers/memory-postgrest";
 import { outcome, waveCounter } from "./helpers/wave-counter";
+import { fillLiveColumns } from "./helpers/live-columns";
 
 const tables: Tables = {};
 const wc = waveCounter(tables);
@@ -77,22 +77,8 @@ function seed() {
     workflow_settings: [{ id: 1, safety_check_payment_inc_gst: 349 }],
     appointment_proposals: [], invoices: [], installer_declarations: [], customer_assignments: [], rectification_items: [], payment_overrides: [], ready_check_windows: [],
   });
-  fillColumns();
+  fillLiveColumns(tables);
   tables["job_overview"] = tables["jobs"]!.map((jb) => ({ id: jb["id"], job_number: jb["job_number"], stage: jb["stage"], channel: jb["channel"], property_id: jb["property_id"], owner_name: "Owner Name", owner_phone: "0400 000 000", owner_email: "owner@example.com", property_address: "1 Test St, Geelong 3220" }));
-}
-
-/** Tables the job-facts read takes whole (`select *`). A live `select *` returns every column, so the seed rows get every
- *  column the generated types list (null when the seed doesn't set it): a column missing here is missing live. */
-const FACT_TABLES = ["jobs", "workflow_events", "bookings", "job_assignments", "quotes", "quote_items", "quote_internals", "ceiling_measurements", "piesa_records", "assessments", "appointment_proposals", "customer_assignments", "installer_declarations", "rectification_items", "invoices", "payment_overrides", "ready_check_windows", "assessment_payments", "owner_esc_consents", "ready_checks", "properties", "businesses", "partner_workers", "business_members", "workflow_settings", "worker_job_links", "partner_activations"];
-const TYPES = readFileSync(new URL("../src/integrations/supabase/types.ts", import.meta.url), "utf8");
-function columnsOf(table: string): string[] {
-  const start = TYPES.indexOf(`\n      ${table}: {\n        Row: {`);
-  if (start < 0) throw new Error(`no Row type for ${table}`);
-  const body = TYPES.slice(start, TYPES.indexOf("\n        }", start + 30));
-  return [...body.matchAll(/^          ([a-z_0-9]+)\??:/gm)].map((m) => m[1]!);
-}
-function fillColumns() {
-  for (const t of FACT_TABLES) { const cols = columnsOf(t); tables[t] = (tables[t] ?? []).map((r) => ({ ...Object.fromEntries(cols.map((c) => [c, null])), ...r })); }
 }
 
 /** Who the database says each caller is on each job (what `my_job_role` / `can_access_job` / `has_role` answer). */
