@@ -97,9 +97,11 @@ describe("per-business exception (messages_while_paused)", () => {
     expect(await tradeMessagesPausedNow({ businessId: TOM })).toBeNull();
     expect((await db.query<{ p: boolean }>("select trade_messages_paused p from public.workflow_settings where id=1")).rows[0]!.p).toBe(true);
   });
-  test("a partner text to the flagged business is still held (emails only)", async () => {
+  test("a partner text to the flagged business now goes (Jo 31 Oct: texts and emails)", async () => {
     const r = await sendRealSms({ type: "swms_sign_link", idempotencyKey: "swms-sign:v1:tom", to: "0412 000 111", body: "x", jobId: JOB, businessId: TOM });
-    expect(r).toMatchObject({ status: "blocked", detail: "Trade messages paused" });
+    expect(r.status).toBe("sent");
+    const held = await sendRealSms({ type: "swms_sign_link", idempotencyKey: "swms-sign:v1:acme", to: "0412 345 678", body: "x", jobId: JOB, businessId: BIZ });
+    expect(held).toMatchObject({ status: "blocked", detail: "Trade messages paused" });
   });
 });
 

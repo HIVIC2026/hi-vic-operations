@@ -27,7 +27,7 @@ export async function notifyInstallerPlanning(i: { jobId: string; assignmentId: 
     if (!job || job.deleted_at || !asg?.active) return "skipped";
     // Jo 30 Oct 2026: "Pause all trade messages" — held before the once-only event (TEST unchanged).
     if (job.source !== "qa_test" && !(await import("./test-send.core")).isTestPartner((asg.businesses ?? {}) as never)) {
-      const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow();
+      const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow({ jobId: i.jobId });
       if (tradePaused) return `held: ${tradePaused}`;
     }
     const notifiedAt = new Date().toISOString();

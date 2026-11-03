@@ -35,7 +35,18 @@ await db.exec(`create schema auth; create function auth.uid() returns uuid langu
   insert into public.partner_worker_invites values ('${INVITE}', '${BIZ}', now() + interval '14 days', null, null);`);
 await db.exec(readFileSync("docs/pending-migrations/0141_real_sms_sender.sql", "utf8"));
 await db.exec(readFileSync("docs/pending-migrations/trade-messages-paused.sql", "utf8"));
-await db.exec(`update public.workflow_settings set sms_message_switches = '{"job_offer":true,"team_member_invite":true,"install_tomorrow":true,"swms_sign_link":true,"quote_ready":true,"owner_code":true}' where id = 1`);
+await db.exec(readFileSync("docs/pending-migrations/business-messages-while-paused.sql", "utf8"));
+const TOM = "55555555-5555-5555-5555-555555555555";
+const JOB_F = "66666666-6666-6666-6666-666666666666";
+const OFFER_P = "77777777-7777-7777-7777-777777777777";
+await db.exec(`insert into public.businesses(id, name, email, signer_mobile, is_active, approved_at, messages_while_paused) values ('${TOM}', 'Tom Electrical', 'tom@tom.example', '0412 000 111', true, now(), true);
+  alter table public.jobs add column originating_installer_business_id uuid;
+  create table public.partner_relationships(id uuid primary key default gen_random_uuid(), installer_business_id uuid, electrician_business_id uuid, active boolean not null default true);
+  create table public.job_assignments(id uuid primary key default gen_random_uuid(), job_id uuid, business_id uuid, role text, active boolean not null default true);
+  create table public.appointment_proposals(id uuid primary key default gen_random_uuid(), job_id uuid, piesa_window_round int, status text, starts_at timestamptz);
+  insert into public.jobs(id, source, channel, originating_installer_business_id) values ('${JOB_F}', 'website', 'hivic_sourced', '${TOM}');
+  insert into public.partner_offers values ('${OFFER_P}', '${JOB}', '${TOM}', 'piesa', 'pending', '{"suburb":"Preston","job_number":"HIV-1","approx_area_m2":80,"electrician_rate_inc_gst":300}', now(), now() + interval '1 day');`);
+await db.exec(`update public.workflow_settings set sms_message_switches = '{"piesa_offer":true,"job_offer":true,"team_member_invite":true,"install_tomorrow":true,"swms_sign_link":true,"quote_ready":true,"owner_code":true}' where id = 1`);
 
 const twilio: string[] = [];
 const emails: { to: string; subject: string }[] = [];
@@ -63,6 +74,7 @@ const { sendRealSms } = await import("../src/lib/sms.server");
 const { sendOfficeEmail } = await import("../src/lib/office-email.server");
 const { textInstallerAboutOffer, emailInstallerAboutOffer } = await import("../src/lib/ready-check-offer-text.server");
 const { textTeamMemberInvite } = await import("../src/lib/installer-texts.server");
+const { textElectricianAboutOffer } = await import("../src/lib/trade-messages.server");
 
 const setPaused = (on: boolean) => db.query("update public.workflow_settings set trade_messages_paused = $1 where id = 1", [on]);
 const smsRows = async (prefix: string) => (await db.query<{ idempotency_key: string; status: string; detail: string | null }>("select idempotency_key, status, detail from public.sms_messages where idempotency_key like $1 order by created_at, idempotency_key", [`${prefix}%`])).rows;
@@ -144,6 +156,32 @@ describe("representative trade paths while paused", () => {
     expect(twilio.length).toBe(t0);
     await setPaused(false);
     expect((await textTeamMemberInvite({ inviteId: INVITE, businessId: BIZ, mobile: "0412 999 888", token: "tok123", createdAt: nowIso() })).status).toBe("sent");
+    expect(twilio.length).toBe(t0 + 1);
+  });
+});
+
+describe("flagged business: senders pass their ids (Jo 31 Oct)", () => {
+  test("partner_text_for_flagged_job_sends", async () => {
+    const r = await sendRealSms({ type: "swms_sign_link", idempotencyKey: "swms-sign:v1:flagged-job", to: "0412 345 678", body: "Sign the safety plan", jobId: JOB_F, businessId: BIZ });
+    expect(r.status).toBe("sent");
+  });
+  test("partner_text_for_flagged_business_sends", async () => {
+    const r = await sendRealSms({ type: "swms_sign_link", idempotencyKey: "swms-sign:v1:flagged-biz", to: "0412 000 111", body: "Sign the safety plan", jobId: JOB, businessId: TOM });
+    expect(r.status).toBe("sent");
+  });
+  test("partner_text_unflagged_held", async () => {
+    const r = await sendRealSms({ type: "swms_sign_link", idempotencyKey: "swms-sign:v1:unflagged", to: "0412 345 678", body: "Sign the safety plan", jobId: JOB, businessId: BIZ });
+    expect(r).toMatchObject({ status: "blocked", detail: "Trade messages paused" });
+  });
+  test("partner_text_no_ids_held", async () => {
+    const r = await sendRealSms({ type: "swms_sign_link", idempotencyKey: "swms-sign:v1:noids", to: "0412 345 678", body: "Sign the safety plan" });
+    expect(r).toMatchObject({ status: "blocked", detail: "Trade messages paused" });
+  });
+  test("piesa_offer_text_flagged_sends", async () => {
+    const t0 = twilio.length;
+    const r = await textElectricianAboutOffer(OFFER_P);
+    expect(r).not.toMatch(/^held/);
+    expect(r).toMatch(/^electrician sms sent/);
     expect(twilio.length).toBe(t0 + 1);
   });
 });

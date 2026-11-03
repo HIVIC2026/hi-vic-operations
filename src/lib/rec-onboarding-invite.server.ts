@@ -42,8 +42,14 @@ export async function sweepRecOnboardingInvites(now = new Date()) {
   const out = { checked: pending.size, sent: 0, skipped: {} as Record<string, number>, failed: 0 };
   if (!pending.size) return out;
   const { customerCommsEnabled } = await import("./comms.server");
+  const commsOn = await customerCommsEnabled();
   // Jo 30 Oct 2026: "Pause all trade messages" counts as paused comms here — nothing claimed or recorded, retried next tick.
-  const commsEnabled = (await customerCommsEnabled()) && !(await (await import("./trade-pause.server")).tradeMessagesPausedNow());
+  // Decided per invite by the nominating installer's business (Jo 31 Oct), read once per business per sweep.
+  const pausedFor = new Map<string, boolean>();
+  const isPaused = async (bizId: string) => {
+    if (!pausedFor.has(bizId)) pausedFor.set(bizId, !!(await (await import("./trade-pause.server")).tradeMessagesPausedNow({ businessId: bizId })));
+    return pausedFor.get(bizId)!;
+  };
   const { data: issued, error: ie } = await admin.from("admin_config_events").select("details").eq("event_type", REC_ONBOARDING_INVITE_EVENT).in("details->>key", [...pending.keys()]);
   if (ie) throw new Error("Could not read earlier onboarding invites.");
   const issuedKeys = new Set((issued ?? []).map((r) => String((r.details as { key?: string } | null)?.key ?? "")));
@@ -63,6 +69,7 @@ export async function sweepRecOnboardingInvites(now = new Date()) {
         attempted = !!attempts?.length;
       }
     }
+    const commsEnabled = commsOn && !(await isPaused(el.installerBusinessId));
     const decision = recInviteDecision({ electrician: el, commsEnabled, alreadyIssued: issuedKeys.has(key), existingNomination: nomination ? { ...nomination, attempted } : null });
     if (decision.action === "skip") {
       out.skipped[decision.reason] = (out.skipped[decision.reason] ?? 0) + 1;
