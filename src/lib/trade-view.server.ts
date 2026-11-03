@@ -15,6 +15,8 @@ import { statusFactsFor, statusView } from "./job-status.server";
 import { installerTab, doneReason } from "./installer-progress.core";
 import { installerHomeGroups, comingForInstaller } from "./installer-home.core";
 import { installerQuoteLine } from "./installer-quote-status.core";
+import { myWorkCards, greeting as myWorkGreeting, reasonFor } from "./my-work.core";
+import { nextStepBox, type NextStepFacts } from "./next-step-box.core";
 import { inHouseTradeBookingText } from "./in-house-message.core";
 import { withoutRetiredInstallDayPhotos } from "./ready-check-chase.core";
 import { early } from "./early-read";
@@ -141,7 +143,7 @@ export async function tradeHome(userId: string) {
   moneyP.catch(() => undefined); // handled where it is awaited; this only stops an early rejection being reported as unhandled
   const histQ = admin.from("job_assignments").select("job_id").eq("business_id", c.biz.id).eq("active", false);
   // Review D (as assignmentQuery): bosses see every active assignment for the business; workers only their own.
-  const asgQ = admin.from("job_assignments").select(`job_id, business_id, role, jobs(${HOME_JOB_COLS})`).eq("business_id", c.biz.id).eq("active", true);
+  const asgQ = admin.from("job_assignments").select(`job_id, business_id, role, assigned_at, jobs(${HOME_JOB_COLS})`).eq("business_id", c.biz.id).eq("active", true);
   const [{ data: offers }, { data: asg }, { data: ended }] = await Promise.all([
     admin.from("partner_offers").select("id, job_id, kind, summary, expires_at").eq("business_id", c.biz.id).eq("status", "pending").order("offered_at", { ascending: false }),
     c.boss ? asgQ : asgQ.eq("user_id", userId),
@@ -163,7 +165,7 @@ export async function tradeHome(userId: string) {
   // answers (latest ready_check_basics event) and, on the installer's own jobs, has the boss entered the price.
   const formReads = c.kind === "installer" && live.length > 0;
   // Round 3: every read that needs the job ids, together.
-  const [{ data: books }, { data: missing }, { data: deadlines }, sf, rcQuotes, { data: ms }, { data: basics }, prices, { data: histJobs }] = await Promise.all([
+  const [{ data: books }, { data: missing }, { data: deadlines }, sf, rcQuotes, { data: ms }, { data: basics }, prices, { data: histJobs }, { data: assessRows }] = await Promise.all([
     admin.from("bookings").select("job_id, kind, status, scheduled_start, scheduled_end").in("job_id", ids).in("status", ["confirmed", "completed"]).order("scheduled_start"),
     admin.from("evidence_requirements").select("job_id, category, gate, label").in("job_id", ids).eq("required", true).in("status", ["outstanding", "rejected"]),
     admin.from("job_piesa_deadlines").select("job_id, install_deadline").in("job_id", ids),
@@ -176,10 +178,18 @@ export async function tradeHome(userId: string) {
     histIds.length
       ? admin.from("jobs").select("id, job_number, stage, source, channel, qa_archived_at, deleted_at, updated_at, properties(suburb)").in("id", histIds).in("stage", ["complete", "cancelled"])
       : Promise.resolve({ data: [] as never[] }),
+    // My work (Task 4): the PIESA result per job, for the Next step box. Same round, installers only.
+    formReads ? admin.from("assessments").select("job_id, status, piesa_outcome").in("job_id", liveIds) : Promise.resolve({ data: [] as { job_id: string; status: string | null; piesa_outcome: string | null }[] }),
   ]);
   const moneyAll = await moneyP;
   const depositIds = c.kind === 'installer' ? live.filter(j => j.stage === 'installation_scheduling' && !!sf.get(j.id)?.inHouseDispatch).map(j => j.id) : [];
-  const installDeposits = await (await import('./install-deposit-list.server')).installDepositPaidForJobs(depositIds).catch(() => new Map<string, boolean | null>(depositIds.map(id => [id, null])));
+  // My work (Task 4): the deposit is also read for jobs the owner has accepted, so the Next step box can say "Deposit paid". Same call, run alongside.
+  const acceptedIds = c.kind === 'installer' ? live.filter(j => !depositIds.includes(j.id) && rcQuotes.get(j.id)?.accepted === true).map(j => j.id) : [];
+  const depositModule = await import('./install-deposit-list.server');
+  const [installDeposits, acceptedDeposits] = await Promise.all([
+    depositModule.installDepositPaidForJobs(depositIds).catch(() => new Map<string, boolean | null>(depositIds.map(id => [id, null]))),
+    acceptedIds.length ? depositModule.installDepositPaidForJobs(acceptedIds).catch(() => new Map<string, boolean | null>(acceptedIds.map(id => [id, null]))) : Promise.resolve(new Map<string, boolean | null>()),
+  ]);
   // Decision 396: rows the retired install-day photo chase created are not missing photos.
   const miss = new Map<string, number>(); for (const r of withoutRetiredInstallDayPhotos(missing ?? [])) miss.set(r.job_id, (miss.get(r.job_id) ?? 0) + 1);
   const deadline = new Map<string, string>(); for (const d of deadlines ?? []) if (d.job_id && d.install_deadline) deadline.set(d.job_id, String(d.install_deadline));
@@ -252,7 +262,46 @@ export async function tradeHome(userId: string) {
     formLinked: formFacts.get(j.jobId)?.linked === true, formCompleted: formFacts.get(j.jobId)?.completed === true, formHasAnswers: formFacts.get(j.jobId)?.hasAnswers ?? null,
     priceEntered: j.channel === "installer_sourced" ? priced.has(j.jobId) : null, boss: c.boss,
   }))) : null;
-  return { kind: c.kind, boss: c.boss, role: c.role, money: c.money, business: c.biz.name, firstName: c.firstName, isTest: c.isTest, week, offers: offerList, yourMove, coming: home ? comingForInstaller(coming, home) : coming, jobs: jobsTabbed, done, home, month: c.money ? { jobs: month.length, earned: month.reduce((t, r) => t + (r.amount ?? 0), 0), paid: paidThisMonth } : null };
+  // My work (Task 4, installers only): one Next step box per open job, then the cards. Missing facts are left empty, never guessed.
+  const myWork = c.kind === "installer" ? (() => {
+    const givenAt = new Map<string, string>();
+    for (const a of asg ?? []) { const at = (a as unknown as { assigned_at?: string | null }).assigned_at; if (at && (!givenAt.has(a.job_id) || at < givenAt.get(a.job_id)!)) givenAt.set(a.job_id, at); }
+    const piesaOutcome = new Map<string, "pass" | "upgrades">(); for (const r of assessRows ?? []) if (r.status === "complete") piesaOutcome.set(r.job_id, r.piesa_outcome === "pass" ? "pass" : "upgrades");
+    const rows = jobsTabbed.filter((j) => j.tab !== "done").map((j) => {
+      const raw = byId.get(j.jobId)!;
+      const jb = (books ?? []).filter((b) => b.job_id === j.jobId);
+      const latest = (kind: string, status: string) => jb.filter((b) => b.kind === kind && b.status === status).map((b) => b.scheduled_start).sort().pop() ?? null;
+      const q = rcQuotes.get(j.jobId);
+      const outcome = piesaOutcome.get(j.jobId) ?? null;
+      const stage = raw.stage;
+      const depositPaid = (installDeposits.get(j.jobId) ?? acceptedDeposits.get(j.jobId)) === true;
+      const o = (raw.owners as { full_name: string | null } | null)?.full_name?.trim() || null;
+      const facts: NextStepFacts = {
+        channel: raw.channel, stage, ownerFirst: o ? o.split(/\s+/)[0]! : null, ownerName: o, ownerPhone: null, now,
+        givenAt: givenAt.get(j.jobId) ?? null,
+        readyCheck: { start: latest("ready_check", "confirmed"), done: !!latest("ready_check", "completed") || formFacts.get(j.jobId)?.completed === true, missing: [] },
+        priceEntered: raw.channel === "installer_sourced" ? priced.has(j.jobId) : null,
+        quote: q?.declined ? "declined" : q?.accepted ? "accepted" : q?.sent ? "sent" : "none",
+        acceptedAt: (q?.quote as { accepted_at?: string | null } | null)?.accepted_at ?? null,
+        whoBooks: "office", electricianName: null, // TODO(join): Part 5's who-books setting; until then every business is "office".
+        piesa: { start: latest("assessment", "confirmed"), outcome, upgradesDone: false, certificateIn: outcome === "upgrades" && /^(installation|evidence|ap_review|ready_for_veec|complete)/.test(stage) },
+        access: null,
+        depositPaidAt: depositPaid ? raw.updated_at ?? new Date(0).toISOString() : null,
+        install: { start: latest("installation", "confirmed"), lead: null, swmsSigned: 0, swmsTotal: 0 },
+        installDone: ["evidence_outstanding", "ap_review", "ready_for_veec", "complete"].includes(stage) || !!latest("installation", "completed"),
+        pay: null, mittiFormUrl: null,
+      };
+      const box = nextStepBox(facts);
+      return { jobId: j.jobId, jobNumber: String(j.jobNumber), owner: j.owner, street: j.street, suburb: j.suburb, channel: j.channel, box, reason: reasonFor(box.kind) };
+    });
+    // A job with a pending offer shows as the offer card only (owner details stay hidden until the offer is taken); the card's key is the offer id.
+    const offerRows = offerList.filter((o) => o.kind === "ready_check").map((o) => ({ id: o.id, jobId: o.id, suburb: o.suburb }));
+    const cards = myWorkCards(rows.filter((r) => r.box.kind !== "closed" && !offerJobs.has(r.jobId)), offerRows);
+    const street = new Map(rows.map((r) => [r.jobId, r.street]));
+    const withStreet = (list: typeof cards.all) => list.map((card) => ({ ...card, street: street.get(card.jobId) ?? null }));
+    return { greeting: myWorkGreeting(c.biz.name, cards.yourTurn.length), yourTurn: withStreet(cards.yourTurn), all: withStreet(cards.all) };
+  })() : null;
+  return { kind: c.kind, boss: c.boss, role: c.role, money: c.money, business: c.biz.name, myWork, firstName: c.firstName, isTest: c.isTest, week, offers: offerList, yourMove, coming: home ? comingForInstaller(coming, home) : coming, jobs: jobsTabbed, done, home, month: c.money ? { jobs: month.length, earned: month.reduce((t, r) => t + (r.amount ?? 0), 0), paid: paidThisMonth } : null };
 }
 
 /** One offer, trade-side. Owner and address only once this business has taken it. */

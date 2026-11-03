@@ -137,18 +137,18 @@ describe("offer panel and This month strip words", () => {
 });
 
 describe("screen files follow the mock-ups and the audit removals", () => {
-  test("B1/B3: Coming up comes from the groups, and More offers hides no list", () => {
+  test("B1/B3: the server still builds Coming up from the groups (electrician and later screens); the installer page is the Task 4 My work", () => {
     const srv = readFileSync("src/lib/trade-view.server.ts", "utf8");
     expect(srv).toContain("comingForInstaller(coming, home)");
     const page = readFileSync("src/routes/_authenticated/field.index.tsx", "utf8");
     expect(page).not.toContain("comingUpFold");
-    expect(page).not.toContain("{!offersList && <>");
-    for (const kept of ['group="action"', 'group="progress"', "<DoneGroup", "data-coming-up"]) expect(page).toContain(kept);
+    for (const kept of ["data-my-work", "data-job-card", "PillTabs"]) expect(page).toContain(kept);
   });
-  test("My work: no windows, no first-to-accept, no intake Q&A, no Add a job button, no bulk upload, groups from the pure core", () => {
+  test("My work: no windows, no first-to-accept, no intake Q&A, no Add a job button, no bulk upload; cards come from the pure my-work core", () => {
     const page = readFileSync("src/routes/_authenticated/field.index.tsx", "utf8");
     for (const gone of ["8–10am", "first to accept", "Quoted?", "Site check?", "InstallerFactsLine", "SourceBadge", "bulk-import", "Upload multiple jobs", "PlusCircle", "Installer customer"]) expect(page).not.toContain(gone);
-    for (const kept of ["installer-home.core", "data-my-work", "Coming up", "This month", "View offer", 'to="/field/money"']) expect(page).toContain(kept);
+    for (const kept of ["my-work.core", "data-my-work"]) expect(page).toContain(kept);
+    expect(readFileSync("src/lib/my-work.core.ts", "utf8")).toContain("View offer");
     expect(readFileSync("src/lib/trade-view.server.ts", "utf8")).not.toMatch(/intakeQuoteAnswers|installer_quoted|o\.kind === "ready_check" \|\| o\.kind === "installer"/);
   });
   test("Add a job: one screen, picked address, permission tick, optional visit, one Add job button, no bulk link or electrician choice", () => {

@@ -4,16 +4,15 @@ import { headStartOr, startTradeScreen } from "@/lib/trade-route-prefetch";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ChevronRight } from "lucide-react";
-import { TradeShell, aud, card } from "@/components/trade/TradeShell";
-import { NowPanel, Pill, btnClass } from "@/components/portal/kit";
-import { useMemo, useState, type ReactNode } from "react";
+import { TradeShell, aud, card, greenBtn, inputCls } from "@/components/trade/TradeShell";
+import { NowPanel, Pill, PillTabs, btnClass } from "@/components/portal/kit";
+import { useMemo, useState } from "react";
 import { StatusLineView } from "@/components/trade/job-status";
-import { getTradeHome,getInHouseBookingList } from "@/lib/trade-view.functions";
+import { getTradeHome } from "@/lib/trade-view.functions";
 import { ELECTRICIAN_WORK_WORDS, dayTile, goneIn, tradeGreeting } from "@/lib/trade-view.core";
 import { electricianYourJobs } from "@/lib/work-places.core";
-import { GROUP_LABEL, HOME_EMPTY, doneSub, homeIsEmpty, monthStripWords, offerPanelWords, offersListView, sourceLabel, type InstallerHomeRow } from "@/lib/installer-home.core";
-import { InHouseBookingRow } from '@/components/trade/InHouseBookingCard';
-import { inHouseVisitForStage } from '@/lib/in-house-message.core';
+import { sourceLabel } from "@/lib/installer-home.core";
+import { matchesSearch, type MyWorkCard } from "@/lib/my-work.core";
 
 export const Route = createFileRoute("/_authenticated/field/")({
   head: () => ({ meta: [{ title: "My work – Home Insulation Victoria" }, { name: "description", content: "New job offers, what needs you and what's coming up." }, { property: "og:title", content: "My work – Home Insulation Victoria" }, { property: "og:description", content: "New job offers, what needs you and what's coming up." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
@@ -22,18 +21,18 @@ export const Route = createFileRoute("/_authenticated/field/")({
   component: MyWork,
 });
 
-// Mock-up M1 (Jo approved, decision 198): greeting · one job offer panel · Coming up (exact times) · Action needed /
-// In progress / Done with one "Next:" line each · This month (business owner, own pay only). Presentation only — every
-// fact comes from tradeHome (business-scoped) and the pure installer-home.core rules.
-const EYEBROW = "text-xs font-bold uppercase tracking-[1.1px] text-sub";
-const ROW = "flex items-center gap-3 border-b border-line py-3 min-h-[72px]";
-const CHEVRON = <span aria-hidden className="text-xl leading-none text-sub">›</span>;
+// My work (mywork2.png): greeting · Your turn / All jobs pill tabs · search · one card per job with one green button.
+// Presentation only — every fact comes from tradeHome (business-scoped) and the pure my-work.core / next-step-box.core rules.
+const SHOWN_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const SHOWN_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const dayWords = (ymd: string): string => { const d = new Date(`${ymd}T12:00:00Z`); return `${SHOWN_DAYS[d.getUTCDay()]} ${d.getUTCDate()} ${SHOWN_MONTHS[d.getUTCMonth()]}`; };
 
 function MyWork() {
   const load = useServerFn(getTradeHome);
   const [onlyChasing, setOnlyChasing] = useState(false);
   const [onlyMoving, setOnlyMoving] = useState(false);
-  const [offersOpen, setOffersOpen] = useState(false);
+  const [tab, setTab] = useState<"turn" | "all">("turn");
+  const [q, setQ] = useState("");
   // staleTime (decision 280): coming back from a job shows the last answer at once; the 60s poll and every action's invalidation still refresh it.
   // Return visit: the last copy (this user only, under 24 h) shows at once; it is old, so a fresh copy still loads straight away.
   const uid = Route.useRouteContext().user.id;
@@ -46,63 +45,24 @@ function MyWork() {
   const g = tradeGreeting(data.firstName, data.week);
   const first = data.offers[0];
 
-  if (installer) {
-    const home = data.home ?? { action: [], coming: [], progress: [], done: [] };
-    const words = first ? offerPanelWords(first, data.offers.length) : null;
-    // Approved state M1-more-offers: the "Job offers · N" list opens under the first offer and the rest folds (decision 235).
-    const offersList = offersOpen ? offersListView(data.offers, goneIn) : null;
-    const empty = homeIsEmpty({ offers: data.offers.length, coming: home.coming.length, action: home.action.length, progress: home.progress.length, done: data.done.length });
+  if (installer && data.myWork) {
+    const myWork = data.myWork;
+    const list = (tab === "turn" ? myWork.yourTurn : myWork.all).filter((c) => matchesSearch(c, q));
     return (
       <TradeShell installer boss={data.boss} money={data.money} test={data.isTest} redesign>
-        <div data-my-work data-empty={empty || undefined}>
-          <h1 className="font-display text-[22px] font-semibold leading-[1.2]">{g.title}</h1>
-          <p className="mt-1 text-sm text-sub">{g.sub}</p>
+        <div data-my-work>
+          <h1 className="font-display text-[22px] font-semibold leading-[1.2]">{myWork.greeting.title}</h1>
+          <p className="mt-1 text-sm text-sub">{myWork.greeting.sub}</p>
         </div>
-
-        {first && words && (
-          <Link to="/field/offer/$offerId" params={{ offerId: first.id }} data-offer-panel className="block rounded-[18px] bg-mist px-4 pb-3.5 pt-4">
-            <span className="block text-[11px] font-bold uppercase tracking-[1.3px] text-hiv-blue">{words.eyebrow}</span>
-            <span className="mt-1.5 block text-[17px] font-semibold leading-[1.3]">{words.title}</span>
-            <span className="mt-1 block text-sm text-sub">{words.detail}</span>
-            {first.expiresAt && <span className="mt-0.5 block text-[13px] text-sub">{goneIn(first.expiresAt)}</span>}
-            <span className="mt-3.5 flex min-h-12 items-center justify-center rounded-[12px] bg-hiv-blue text-base font-semibold text-white">View offer</span>
-          </Link>
-        )}
-        {data.offers.length > 1 && (
-          <button type="button" data-more-offers aria-expanded={offersOpen} onClick={() => setOffersOpen((o) => !o)} className="-mt-3 flex min-h-11 w-full items-center justify-between text-[15px] font-semibold text-hiv-blue">
-            <span>{offersOpen ? "Hide the other offers" : `More offers · ${data.offers.length - 1}`}</span><span className="text-xl text-sub">{offersOpen ? "▴" : "›"}</span>
-          </button>
-        )}
-        {offersList && (
-          <section data-other-offers>
-            <h2 className={`${EYEBROW} border-b border-line pb-2`}>{offersList.heading}</h2>
-            {offersList.rows.map((o) => (
-              <Link key={o.id} to="/field/offer/$offerId" params={{ offerId: o.id }} className="flex min-h-[60px] items-center gap-3 border-b border-line py-2.5">
-                <span className="min-w-0 flex-1"><span className="block text-base font-semibold">{o.title}</span><span className="mt-0.5 block text-sm text-sub">{o.detail}</span>{o.closes && <span className="block text-[13px] text-sub">{o.closes}</span>}</span>{CHEVRON}
-              </Link>))}
-            <p className="mt-2 text-[13px] leading-[1.45] text-sub">{offersList.note}</p>
-          </section>
-        )}
-
-        <section data-coming-up>
-          <h2 className={`${EYEBROW} border-b border-line pb-2`}>Coming up</h2>
-          {data.coming.length ? data.coming.map((b) => { const t = dayTile(b.start); return (
-            <Link key={b.jobId + b.start} to="/field/day/$jobId" params={{ jobId: b.jobId }} className="flex min-h-[60px] items-center gap-3.5 border-b border-line py-2.5">
-              <span className="w-[74px] shrink-0 rounded-[12px] bg-mist py-2 text-center"><span className="block text-xs font-bold">{t.day}</span><span className="mt-0.5 block text-sm font-semibold text-hiv-blue">{t.time}</span></span>
-              <span className="min-w-0 flex-1"><span className="block text-base font-semibold">{b.what} · {b.surname}</span><span className="mt-0.5 block text-sm text-sub">{b.address}</span></span>{CHEVRON}
-            </Link>); })
-            : <p className="py-3 text-sm text-sub">{HOME_EMPTY.coming}</p>}
-        </section>
-
-        <JobGroup group="action" rows={home.action} empty={HOME_EMPTY.action} emptyAction={empty && data.boss ? <Link to="/partner/import" data-empty-add-job className="mt-3 flex min-h-12 w-full items-center justify-center rounded-[12px] bg-hiv-blue text-base font-semibold text-white">{HOME_EMPTY.actionButton}</Link> : null} />
-        <JobGroup group="progress" rows={home.progress} empty={HOME_EMPTY.progress} />
-        <DoneGroup rows={data.done} />
-
-        {data.boss && data.month && (() => { const m = monthStripWords(data.month); return (
-          <Link to="/field/money" data-this-month className="flex min-h-14 items-center justify-between rounded-[14px] border border-line px-4 py-3.5">
-            <span><span className="block text-[11px] font-bold uppercase tracking-[1.1px] text-sub">This month</span><span className="mt-[3px] block text-[15px] font-medium">{m.installs}</span></span>
-            <span className="text-right"><span className="block text-[17px] font-semibold text-hiv-green">{m.paid}</span><span className="mt-0.5 block text-xs text-sub">Money ›</span></span>
-          </Link>); })()}
+        <PillTabs label="Show jobs" value={tab} onChange={setTab} options={[
+          { value: "turn", label: `Your turn · ${myWork.yourTurn.length}` },
+          { value: "all", label: `All jobs · ${myWork.all.length}` },
+        ]} />
+        <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, address or HV number" aria-label="Search name, address or HV number" className={inputCls} />
+        <div className="space-y-3" data-job-cards>
+          {list.length ? list.map((c) => <JobCard key={(c.offerId ?? c.jobId) + c.step} c={c} />)
+            : <p className="py-3 text-sm text-sub">{q ? "No jobs match that." : tab === "turn" ? "Nothing needs you right now." : "No jobs yet."}</p>}
+        </div>
       </TradeShell>
     );
   }
@@ -177,40 +137,26 @@ function MyWork() {
   );
 }
 
-/** Action needed / In progress: address · job number + source label · one "Next:" line (blue when it's the installer's move). */
-function JobGroup({ group, rows, empty, emptyAction }: { group: "action" | "progress"; rows: InstallerHomeRow[]; empty: string; emptyAction?: ReactNode }) {
-  const load=useServerFn(getInHouseBookingList);
-  const ids=rows.filter(j=>group==='action'&&j.boss&&j.inHouseDispatch==='in_house'&&inHouseVisitForStage(j.stage)).map(j=>j.jobId);
-  const context=useQuery({queryKey:['in-house-booking-list',ids],queryFn:()=>load({data:{jobIds:ids}}),enabled:ids.length>0,retry:false});
+/** One job: pill, owner, HV number · suburb, the step and why, and one green button. A red border marks a job past its book-by date. */
+function JobCard({ c }: { c: MyWorkCard }) {
+  const open = c.offerId
+    ? <Link to="/field/offer/$offerId" params={{ offerId: c.offerId }} className="min-w-0 flex-1">{cardBody(c)}</Link>
+    : <Link to="/field/$jobId" params={{ jobId: c.jobId }} className="min-w-0 flex-1">{cardBody(c)}</Link>;
   return (
-    <section data-job-group={group}>
-      <h2 className={`${EYEBROW} border-b border-line pb-2`}>{GROUP_LABEL[group]}{rows.length > 0 && <span className="font-medium normal-case tracking-normal"> · {rows.length}</span>}</h2>
-      {rows.length ? rows.map((j) => (
-        <div key={j.jobId}><Link to="/field/$jobId" params={{ jobId: j.jobId }} data-job-card className={ROW}>
-          <span className="min-w-0 flex-1">
-            <span className="block text-base font-semibold">{j.street ?? j.suburb ?? "Address to come"}</span>
-            <span className="mt-0.5 block text-[13px] text-sub">{[j.jobNumber, sourceLabel(j.channel)].filter(Boolean).join(" · ")}</span>
-            <span data-card-line className={`mt-1.5 block text-sm ${group === "action" ? "font-medium text-hiv-blue" : "text-ink"}`}>{j.next}</span>
-          </span>{CHEVRON}
-        </Link>{ids.includes(j.jobId)&&(context.isError?<p role="alert">Could not check your Team or deposit. Booking stays unavailable until those records can be checked.</p>:context.data?.[j.jobId]?<InHouseBookingRow jobId={j.jobId} context={context.data[j.jobId]} kind={j.stage==='installation_scheduling'?'installation':j.stage==='rectification_scheduling'?'rectification':inHouseVisitForStage(j.stage)==='PIESA'?'assessment':'ready_check'}/>:<p>Checking your Team and deposit before booking.</p>)}</div>
-      )) : <p className="py-3 text-sm text-sub">{empty}</p>}
-      {!rows.length && emptyAction}
-    </section>
+    <div data-job-card className={`${card} flex flex-col gap-3 ${c.overdue ? "border-rose" : ""}`}>
+      <div className="flex items-start gap-3">{open}<ChevronRight aria-hidden className="mt-1 h-5 w-5 shrink-0 text-sub" /></div>
+      {c.button && (c.offerId
+        ? <Link to="/field/offer/$offerId" params={{ offerId: c.offerId }} className={greenBtn}>{c.button}</Link>
+        : <Link to="/field/$jobId" params={{ jobId: c.jobId }} className={greenBtn}>{c.button}</Link>)}
+    </div>
   );
 }
-
-/** Done: job number · suburb, then "source · Job complete {date}". Ended assignments stay read-only (no link, no owner data). */
-function DoneGroup({ rows }: { rows: { jobId: string; jobNumber: string | number | null; suburb: string | null; channel: string | null; stage: string; endedAt: string | null; open: boolean }[] }) {
-  const body = (d: (typeof rows)[number]) => (<>
-    <span className="min-w-0 flex-1"><span className="block text-base font-semibold">{[d.jobNumber, d.suburb].filter(Boolean).join(" · ")}</span><span className="mt-0.5 block text-[13px] text-sub">{doneSub(d.channel, d.stage, d.endedAt)}{d.open ? "" : " · summary only"}</span></span>{d.open ? CHEVRON : null}
+function cardBody(c: MyWorkCard) {
+  return (<>
+    <Pill tone={c.pill === "Your customer" ? "plain" : "green"}>{c.pill}</Pill>
+    <span className="mt-2 block font-display text-lg font-semibold leading-tight">{c.owner}</span>
+    {c.hvSuburb && <span className="mt-0.5 block text-sm text-sub">{c.hvSuburb}</span>}
+    <span className="mt-2 block text-base font-semibold">{c.step}</span>
+    <span className="mt-0.5 block text-sm text-sub">{c.reason}{c.by ? ` · book by ${dayWords(c.by)}` : ""}{c.overdue ? <span className="font-semibold text-rose"> · overdue</span> : null}</span>
   </>);
-  return (
-    <section data-job-group="done">
-      <h2 className={`${EYEBROW} border-b border-line pb-2`}>{GROUP_LABEL.done} <span className="font-medium normal-case tracking-normal">· {rows.length}</span></h2>
-      {rows.length ? rows.map((d) => d.open
-        ? <Link key={d.jobId} to="/field/$jobId" params={{ jobId: d.jobId }} data-done-card className="flex min-h-14 items-center gap-3 border-b border-line py-2.5">{body(d)}</Link>
-        : <div key={d.jobId} data-done-card data-readonly className="flex min-h-14 items-center gap-3 border-b border-line py-2.5">{body(d)}</div>)
-        : <p className="py-3 text-sm text-sub">No finished jobs yet.</p>}
-    </section>
-  );
 }
