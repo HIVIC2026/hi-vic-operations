@@ -5,6 +5,7 @@ import { addYmd, melbourneToday } from "./melbourne-time.core";
 import { melbourneMidnight } from "./daily-brief.core";
 import { melbourneYmd } from "./piesa-windows.core";
 import type { AccessPerson } from "./rental-answers.core";
+import { QUOTE_PRICE_NEXT_LINE } from "./installer-quote-status.core";
 
 export type NextStepFacts = {
   channel: string | null; stage: string; ownerFirst: string | null;
@@ -48,6 +49,9 @@ export const NEXT_STEP_WORDS = {
   readyCheckMissingTitle: "Finish the Ready Check", // DRAFT
   waitingQuoteTitle: "Waiting for the owner to decide", // DRAFT
   waitingQuoteSub: "Nothing for you to do.", // approved fragment (plan Task 3 table)
+  quotePreparingTitle: "Quote being prepared", // DRAFT (fix wave I5: no quote has gone to the owner yet)
+  quoteCheckingSub: "Home Insulation Victoria is checking the quote.", // DRAFT (fix wave I5)
+  quotePriceNextSub: QUOTE_PRICE_NEXT_LINE, // DRAFT (installer-quote-status.core; own customer, price not in yet)
   quoteDeclinedSub: "The owner didn't take this one up. Nothing for you to do.", // DRAFT
   bookPiesaTitle: "Book the PIESA", // DRAFT
   bookPiesaSub: (name: string, by: string | null) => `${name} has said yes. Give ${name} a call, agree a day for the PIESA, then add it here.${by ? ` Book by ${by}.` : ""}`, // DRAFT
@@ -181,6 +185,12 @@ export function nextStepBox(f: NextStepFacts): NextStepBox {
       return box("ready_check_missing", W.readyCheckMissingTitle, { sub: W.stillNeeds(f.readyCheck.missing.join(", ")), yours: true, button: W.mittiButton });
     }
     if (f.priceEntered === false) return box("enter_price", W.enterPriceTitle, { yours: true });
+    // Fix wave I5: before any quote has gone to the owner there is nobody "deciding" — the own customer's price step is
+    // next (price not in yet), otherwise Home Insulation Victoria is checking the quote (own customer with the price in, or our lead).
+    if (f.quote === "none") {
+      const own = f.channel === "installer_sourced";
+      return box("waiting_quote", W.quotePreparingTitle, { sub: own && f.priceEntered !== true ? W.quotePriceNextSub : W.quoteCheckingSub });
+    }
     return box("waiting_quote", W.waitingQuoteTitle, { sub: f.quote === "declined" || f.quote === "expired" ? W.quoteDeclinedSub : W.waitingQuoteSub });
   }
   if (f.readyCheck.start) {

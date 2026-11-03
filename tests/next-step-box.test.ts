@@ -46,6 +46,20 @@ describe("Next step box", () => {
     expect(b.sub).toContain("Nothing for you to do.");
     expect(JSON.stringify(b)).not.toMatch(/call|chase/i);
   });
+  // Fix wave I5: no quote has gone yet after the Ready Check — never "Waiting for the owner to decide".
+  test("Ready Check done, no quote yet: Home Insulation Victoria lead → we are checking the quote; own customer → the price step is next", () => {
+    const lead = nextStepBox(f({ readyCheck: rcDone, quote: "none" }));
+    expect(lead).toMatchObject({ kind: "waiting_quote", title: "Quote being prepared", sub: "Home Insulation Victoria is checking the quote.", yours: false });
+    expect(lead.title).not.toContain("owner");
+    const ownNoPrice = nextStepBox(f({ channel: "installer_sourced", readyCheck: rcDone, quote: "none", priceEntered: null }));
+    expect(ownNoPrice).toMatchObject({ kind: "waiting_quote", title: "Quote being prepared", sub: "Your boss enters the price next, then we send the owner their quote.", yours: false });
+    // own customer, price already in, quote not sent yet: the price line would be wrong — it is being checked
+    const ownPriced = nextStepBox(f({ channel: "installer_sourced", readyCheck: rcDone, quote: "none", priceEntered: true }));
+    expect(ownPriced).toMatchObject({ kind: "waiting_quote", sub: "Home Insulation Victoria is checking the quote.", yours: false });
+    // the sent quote keeps its waiting line
+    expect(nextStepBox(f({ readyCheck: rcDone, quote: "sent" }))).toMatchObject({ title: "Waiting for the owner to decide", sub: "Nothing for you to do." });
+    expect(nextStepBox(f({ readyCheck: rcDone, quote: "declined" })).sub).toContain("didn't take this one up");
+  });
   test("accepted: book the PIESA", () => {
     expect(nextStepBox(f({ readyCheck: rcDone, ...accepted }))).toMatchObject({ kind: "book_piesa", bookBy: "2026-11-04", button: "Book" });
   });

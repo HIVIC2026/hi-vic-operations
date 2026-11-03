@@ -63,6 +63,9 @@ describe("cards", () => {
   });
   test("reasonFor covers every step", () => {
     expect(reasonFor("book_ready_check")).toBe("New job");
+    // fix wave I5: no quote gone yet → the card says the Ready Check is done, not "Waiting for the owner"
+    expect(reasonFor("waiting_quote", { title: "Quote being prepared" })).toBe("Ready Check done");
+    expect(reasonFor("waiting_quote", { title: "Waiting for the owner to decide" })).toBe("Waiting for the owner");
     expect(reasonFor("closed")).toBeTruthy();
   });
   test("a pending job offer is a Your turn card", () => {

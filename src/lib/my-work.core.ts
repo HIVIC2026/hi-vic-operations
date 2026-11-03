@@ -1,5 +1,5 @@
 // My work (installer home): one card per job, "Your turn" first. Pure; the Next step box decides each card.
-import type { NextStepBox, NextStepKind } from "./next-step-box.core";
+import { NEXT_STEP_WORDS, type NextStepBox, type NextStepKind } from "./next-step-box.core";
 
 export type MyWorkCard = {
   jobId: string; owner: string; hvSuburb: string; pill: "Home Insulation Victoria lead" | "Your customer";
@@ -47,7 +47,9 @@ const REASON: Record<NextStepKind, string> = {
   after_install: "Install done", // DRAFT
   closed: "Closed", // DRAFT
 };
-export const reasonFor = (kind: NextStepKind): string => REASON[kind];
+/** `box` (fix wave I5): a "waiting_quote" box before any quote has gone is "Ready Check done" (approved), not "Waiting for the owner". */
+export const reasonFor = (kind: NextStepKind, box?: Pick<NextStepBox, "title">): string =>
+  kind === "waiting_quote" && box?.title === NEXT_STEP_WORDS.quotePreparingTitle ? REASON.enter_price : REASON[kind];
 
 // Overdue first, then the earliest book-by date, cards with no date last. Stable otherwise.
 function byUrgency(a: MyWorkCard, b: MyWorkCard): number {

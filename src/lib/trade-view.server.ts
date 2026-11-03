@@ -304,7 +304,7 @@ export async function tradeHome(userId: string) {
         pay: null, mittiFormUrl: null,
       };
       const box = nextStepBox(facts);
-      return { jobId: j.jobId, jobNumber: String(j.jobNumber), owner: j.owner, street: j.street, suburb: j.suburb, channel: j.channel, box, reason: reasonFor(box.kind) };
+      return { jobId: j.jobId, jobNumber: String(j.jobNumber), owner: j.owner, street: j.street, suburb: j.suburb, channel: j.channel, box, reason: reasonFor(box.kind, box) };
     });
     // A job with a pending offer shows as the offer card only (owner details stay hidden until the offer is taken); the card's key is the offer id.
     const offerRows = offerList.filter((o) => o.kind === "ready_check").map((o) => ({ id: o.id, jobId: o.id, suburb: o.suburb }));
