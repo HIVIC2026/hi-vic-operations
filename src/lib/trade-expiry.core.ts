@@ -25,8 +25,9 @@ export const TRADE_DOC_LABEL: Record<string, string> = {
   worker_cii: "CII certificate",
 };
 
-/** Business documents whose lapse stops new offers / assignments to the business (per-person licences and CII are blocked person by person). */
-export const BLOCKING_BUSINESS_DOCS = ["public_liability_insurance", "installer_certification", "rec_registration"] as const;
+/** Business documents whose lapse stops new offers / assignments to the business (per-person licences and CII are blocked person by person).
+ *  Part 2b (3 Nov 2026): the electrical licence an installer uploaded for their own electrician is a business document too. */
+export const BLOCKING_BUSINESS_DOCS = ["public_liability_insurance", "installer_certification", "rec_registration", "electrical_licence"] as const;
 export type BlockingBusinessDoc = (typeof BLOCKING_BUSINESS_DOCS)[number];
 
 const daysBetween = (from: string, to: string) => Math.round((Date.parse(`${to.slice(0, 10)}T00:00:00Z`) - Date.parse(`${from.slice(0, 10)}T00:00:00Z`)) / 86_400_000);

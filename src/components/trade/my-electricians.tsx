@@ -14,7 +14,7 @@ import { melbourneToday } from "@/lib/melbourne-time.core";
 import { shortDate } from "@/lib/trade-view.core";
 
 export const MY_ELECTRICIANS_KEY = ["my-electricians"] as const;
-const ADD_ELECTRICIAN_INTRO = "Electricians you add here can do the safety check (PIESA) and electrical upgrades on your own jobs. Home Insulation Victoria checks their paperwork before they're approved. They're never offered Home Insulation Victoria leads.";
+const ADD_ELECTRICIAN_INTRO = "Electricians you add here can do the safety check (PIESA) and electrical upgrades on your own jobs. Home Insulation Victoria checks their paperwork before they're approved. Electricians who join through here only work on your jobs — they aren't offered Home Insulation Victoria's own leads.";
 const EMPLOYS_QUESTION = "Does this electrician employ anyone, including themselves through a company?";
 const SOLE_TRADER_TICK = "Sole trader with no staff — no WorkCover needed";
 const CHIP = { green: "bg-estimate-green-soft text-estimate-green", blue: "bg-estimate-panel text-estimate-blue", pink: "bg-owner-house-pink text-[#5A1F2C]" } as const;

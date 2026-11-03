@@ -72,6 +72,33 @@ export function approveChecklist(f: ChecklistFacts): string[] {
   return p;
 }
 
+// ---- Office approve / reject (Task 4). Pure wording and rules; the writes live in my-electricians.server.ts ----
+
+/** Jo's decision (3 Nov 2026): an installer-added electrician works on that installer's jobs only — never a Home Insulation Victoria lead candidate. */
+/** Reads the pending column loosely: generated row types don't have it until the SQL is applied; absent = not installer-added. */
+export const isInstallerAddedElectrician = (b: object | null | undefined) => !!(b as { added_by_installer_business_id?: string | null } | null | undefined)?.added_by_installer_business_id;
+/** The electrician businesses that may be offered Home Insulation Victoria's own leads: everyone not added by an installer. */
+export function hivLeadElectricianCandidates<T extends object>(rows: readonly T[]): T[] {
+  return rows.filter((b) => !isInstallerAddedElectrician(b));
+}
+
+/** Welcome text to the electrician on approval. HELD (sms.core wordingApproved:false) until Jo approves this wording. */
+export const welcomeSmsKey = (electricianBusinessId: string) => `installer-added-electrician-welcome:v1:${electricianBusinessId}`;
+export function welcomeSmsText(i: { electricianName: string; installerName: string }): string {
+  const first = i.electricianName.trim().split(/\s+/)[0] || "there";
+  return `Hi ${first}, ${i.installerName.trim()} has added you as their electrician with Home Insulation Victoria. They'll send you jobs to book. Cheers, the Home Insulation Victoria team`;
+}
+
+/** Jo has not approved the rejection email yet: real installer offices get nothing (the hold is recorded); TEST installers use the normal sender. */
+export const REJECTION_EMAIL_APPROVED: boolean = false;
+export function rejectionEmail(i: { electricianName: string; reason: string }): { subject: string; message: string } {
+  const name = i.electricianName.trim() || "Your electrician";
+  return { subject: `${name} wasn't approved`, message: `${name} wasn't approved: ${i.reason.trim()}. Fix it in My electricians.` };
+}
+
+/** The Needs me line for one waiting installer-added electrician. */
+export const approveElectricianLine = (electricianName: string, installerName: string) => `Approve electrician ${electricianName.trim() || "name not given"} — added by ${installerName.trim() || "an installer"}`;
+
 // ---- "My electricians" screen rules (pure; the component in components/trade/my-electricians.tsx only renders these) ----
 
 export const ANSWER_WORKCOVER = "Answer the WorkCover question";

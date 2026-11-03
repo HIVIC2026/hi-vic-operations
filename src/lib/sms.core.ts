@@ -11,6 +11,8 @@ export const SMS_MESSAGE_TYPES = {
   in_house_booked_owner: { audience:'owner',label:'In-house visit booking confirmation (Jo 1 Nov Task 7)',wordingApproved:true,quietHours:true },
   // Part 2 (Jo 3 Nov 2026): an installer's own job — the electrician's no-login link to call the owner and book the safety check. HELD until Jo approves.
   own_job_piesa_link: { audience: "partner", label: "Own job: electrician's link to book the safety check (Part 2)", wordingApproved: true, quietHours: true },
+  // Part 2b Task 4 (Jo 3 Nov 2026): the office approved an electrician an installer added → ONE welcome text to that electrician. HELD until Jo approves the wording (my-electricians.core welcomeSmsText).
+  installer_added_electrician_welcome: { audience: "partner", label: "Installer-added electrician approved – welcome text (Part 2b)", wordingApproved: false, quietHours: true },
   install_deposit_request: { audience: 'owner', label: 'In-house 10% install deposit request (Jo 1 Nov Task 6)', wordingApproved: true, quietHours: true },
   install_deposit_reminder: { audience: 'owner', label: 'In-house unpaid install deposit day 3/7 reminder (Jo 1 Nov Task 6)', wordingApproved: true, quietHours: true },
   install_deposit_paid: { audience: 'owner', label: 'In-house install deposit received (Jo 1 Nov Task 6)', wordingApproved: true, quietHours: true },
@@ -154,6 +156,7 @@ export type SmsFreshness = { kind: "event"; maxAgeMinutes: number } | { kind: "w
 export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   in_house_booked_owner: {kind:'event',maxAgeMinutes:24*60},
   own_job_piesa_link: { kind: "window" }, // key = the electrician's assignment (+ attempt); sent only while that assignment is active and unbooked
+  installer_added_electrician_welcome: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the office approving the electrician; one key per electrician business
   install_deposit_request: { kind: 'event', maxAgeMinutes: 24 * 60 },
   install_deposit_reminder: { kind: 'window' },
   install_deposit_paid: { kind: 'event', maxAgeMinutes: 24 * 60 },
