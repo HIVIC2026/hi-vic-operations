@@ -131,6 +131,19 @@ describe("answerFromFacts: anything it can't be sure of goes to the database (nu
     no("quotes", ["select", "id"], ["eq", "job_id", J], ["not", "quote_internals", "is", null]);
     no("job_assignments", ["select", "id"], ["eq", "job_id", J], ["order", "profiles"]);
   });
+  test("an embed read whole under a present row: its named columns are checked against its column list, items or not", () => {
+    // M2b: a quote with no items has no inner row to check against; the database would still refuse `bogus` and answer
+    // `quote_items(count)` with [{count: 0}], so both go to the database. A listed column answers [].
+    const noItems = jobFactsFrom(J, { id: J, quotes: [{ id: "q9", job_id: J, quote_items: [], quote_internals: null }] }, { quote_items: ["id", "code"] });
+    expect(answerFromFacts(noItems, "quotes", q(["select", "*, quote_items(bogus)"], ["eq", "job_id", J]))).toBeNull();
+    expect(answerFromFacts(noItems, "quotes", q(["select", "*, quote_items(count)"], ["eq", "job_id", J]))).toBeNull();
+    expect(answerFromFacts(noItems, "quotes", q(["select", "id, quote_internals(cost_ex_gst)"], ["eq", "job_id", J]))).toBeNull(); // no list for quote_internals here
+    expect(answerFromFacts(noItems, "quotes", q(["select", "id, quote_items(code)"], ["eq", "job_id", J]))!.data).toEqual([{ id: "q9", quote_items: [] }]);
+    // With items present, the row's own keys decide as before (a column on the row but not in the list still answers).
+    const withItems = jobFactsFrom(J, { id: J, quotes: [{ id: "q9", job_id: J, quote_items: [{ code: "PIESA", extra: 1 }] }] }, { quote_items: ["id", "code"] });
+    expect(answerFromFacts(withItems, "quotes", q(["select", "id, quote_items(extra)"], ["eq", "job_id", J]))!.data).toEqual([{ id: "q9", quote_items: [{ extra: 1 }] }]);
+    expect(answerFromFacts(withItems, "quotes", q(["select", "id, quote_items(bogus)"], ["eq", "job_id", J]))).toBeNull();
+  });
   test("text order (collation), dates compared by eq, JSON path filters, or(), unknown methods", () => {
     no("workflow_events", ["select", "id"], ["eq", "job_id", J], ["order", "event_type"]);
     no("workflow_events", ["select", "id"], ["eq", "job_id", J], ["eq", "created_at", "2026-10-28T01:00:00+00:00"]);

@@ -202,14 +202,16 @@ function answer(t: FactTable, nested: readonly Nest[], ops: readonly QueryOp[], 
   const known = new Set(sample ? Object.keys(sample).filter((k) => !embedNames.has(k)) : [...(t.columns ?? []), scopeCol]);
   const has = (c: string) => shapeOnly || known.has(c);
   if (!sel.cols.every(has)) return null;
+  // Embedded rows: their columns must exist too. The first embedded row met vouches for them; with none (no rows, or
+  // rows whose embed is empty), only the embed's own column list can — a fixed-column embed was already checked by
+  // parseSel, and one read whole (`*`) needs `embedColumns`. `quote_items(count)` and the like go to the database.
   for (const e of sel.embeds) {
+    if (shapeOnly) continue;
     const nest = nested.find((n) => n.name === e.name)!;
-    if (sample) {
-      // Embedded rows: their columns must exist too (checked on the first embedded row met).
-      if (!Object.prototype.hasOwnProperty.call(sample, e.name)) return null;
-      const inner = all.flatMap((r) => { const v = r[e.name]; return Array.isArray(v) ? v : v ? [v] : []; })[0] as Row | undefined;
-      if (inner && !e.sel.cols.every((c) => Object.prototype.hasOwnProperty.call(inner, c))) return null;
-    } else if (!shapeOnly && nest.cols === "*" && !e.sel.cols.every((c) => t.embedColumns?.[nest.name]?.includes(c))) return null; // an embed read whole: only its column list can vouch for a column
+    if (sample && !Object.prototype.hasOwnProperty.call(sample, e.name)) return null;
+    const inner = all.flatMap((r) => { const v = r[e.name]; return Array.isArray(v) ? v : v ? [v] : []; })[0] as Row | undefined;
+    const vouches = inner ? (c: string) => Object.prototype.hasOwnProperty.call(inner, c) : nest.cols === "*" ? (c: string) => t.embedColumns?.[nest.name]?.includes(c) === true : () => true;
+    if (!e.sel.cols.every(vouches)) return null;
   }
 
   const filters: ((r: Row) => boolean | null)[] = [];
