@@ -30,6 +30,8 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
   const [shown, setShown] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Jo 3 Nov ruling: a job whose electrician could not be put on it is still added; the installer is told, then goes to the job.
+  const [addedJobId, setAddedJobId] = useState<string | null>(null);
   const bannerRef = useRef<HTMLParagraphElement>(null);
   const inFlight = useRef(false);
   // Task 7: the business name (for the consent line) and its Team electricians, read once before the form is used.
@@ -38,6 +40,8 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
   const electricians = options.data?.electricians ?? [];
   const businessName = options.data?.businessName ?? null;
   const [electrician, setElectrician] = useState<string>("");
+  // Consent integrity: the tick is only ever shown with the exact line for THIS business; if the name changes the tick is reset.
+  useEffect(() => { setCustomer((c) => (c.contact_permission || c.consent_by ? { ...c, contact_permission: false, consent_by: null } : c)); }, [businessName]);
   // A1: asked fresh every time (not kept in the phone draft).
   const [leadOrigin, setLeadOrigin] = useState<LeadOrigin | null>(null);
   // A6: one request key per draft, kept across Try again and reloads (in the phone draft).
@@ -66,6 +70,7 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
     try {
       const r = await start({ data: { businessId, owner: customer, leadOrigin, requestKey, electricianWorkerId: electrician } });
       try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+      if (r.electrician === "not_allocated") { setAddedJobId(r.jobId); return; }
       toast.success(nextLine(r.ownerFirstName ?? "the owner"));
       await navigate({ to: "/field/$jobId", params: { jobId: r.jobId } });
     } catch (e) { setErr(saveErrorMessage(e instanceof Error ? e.message : null)); }
@@ -76,6 +81,12 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
   const errors = { ...fieldErrors(shown), ...(ecpShown ? { electrician: ecpShown } : {}) };
   const summary = errorSummary(shown.length);
   const consentLabel = businessName ? addJobConsentLine(businessName) : undefined;
+  if (addedJobId) return (
+    <div className="space-y-4" data-add-job-flow data-step="added">
+      <p role="alert" className="rounded-[12px] border-2 border-line bg-paper p-3 text-[15px]" data-electrician-not-allocated>{ADD_JOB_DRAFT_WORDS.electricianNotAllocated}</p>
+      <button type="button" className={PRIMARY_BTN} onClick={() => void navigate({ to: "/field/$jobId", params: { jobId: addedJobId } })}>{ADD_JOB_DRAFT_WORDS.goToJob}</button>
+    </div>
+  );
   return (
     <div className="space-y-5" data-add-job-flow data-step="customer">
       {summary && <p ref={bannerRef} tabIndex={-1} role="alert" className="rounded-[12px] border-2 px-3.5 py-3 text-[15px] font-bold leading-[1.4] outline-none" style={{ borderColor: "#8A3B4A", background: "#FBEFF1", color: "#8A3B4A" }} data-step-problems>{summary}</p>}
@@ -92,7 +103,8 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
       </fieldset>
       <section className={CARD} data-owner-card>
         <h2 className={CARD_TITLE}>{OWNER_CARD_TITLE}</h2>
-        <div className="mt-3.5"><CustomerFields value={customer} consentLabel={consentLabel} errors={errors} onChange={(n) => { setCustomer(n); setErr(null); }} /></div>
+        <div className="mt-3.5"><CustomerFields value={customer} labels={{ name: ADD_JOB_WORDS.name, mobile: ADD_JOB_WORDS.mobile, email: ADD_JOB_WORDS.email, address: ADD_JOB_WORDS.address }} consentLabel={consentLabel} hideConsent={!consentLabel} errors={errors} onChange={(n) => { setCustomer(n); setErr(null); }} /></div>
+        {!consentLabel && <p className="mt-3 text-sm text-sub" data-consent-loading>{ADD_JOB_DRAFT_WORDS.loadingBusiness}</p>}
       </section>
       <section className={CARD} data-electrician-picker>
         <label className="block">

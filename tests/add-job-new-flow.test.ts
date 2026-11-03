@@ -111,3 +111,12 @@ describe("Add a job — the screen", () => {
     expect(srv).toContain('const { onReadyCheckJobAdded } = await import("./mitti-create.server")');
   });
 });
+
+describe("fix round 1 — fieldErrors routing", () => {
+  test("the consent problem routes to the permission line even when the business is called '…Electrician…'", () => {
+    const p = consentProblem("Bright Electrician Co");
+    const e = fieldErrors([p]);
+    expect(e.permission).toBeTruthy();
+    expect(e.electrician).toBeUndefined();
+  });
+});

@@ -20,7 +20,11 @@ export function FieldError({ children, id }: { children: string | undefined; id?
   return children ? <p id={id} role="alert" className="mt-1.5 text-[13px] font-semibold" style={{ color: ERR }} data-field-error>{children}</p> : null;
 }
 
-export function CustomerFields({ value, onChange, consentLabel, offline = false, errors = {}, addressProvider }: { addressProvider?: Parameters<typeof VerifiedAddressInput>[0]["provider"]; value: OnsiteInput; onChange: (v: OnsiteInput) => void; consentLabel?: string | undefined; offline?: boolean; errors?: Partial<Record<AddJobField, string>> }) {
+export type CustomerFieldLabels = { name: string; mobile: string; email: string; address: string };
+const DEFAULT_LABELS: CustomerFieldLabels = { name: "Owner's full name", mobile: "Mobile", email: "Email", address: "Address" };
+
+/** `hideConsent`: Task 7 — Add a job renders no consent tick until it knows the exact line to show (never a fallback line). */
+export function CustomerFields({ value, onChange, consentLabel, hideConsent = false, labels = DEFAULT_LABELS, offline = false, errors = {}, addressProvider }: { addressProvider?: Parameters<typeof VerifiedAddressInput>[0]["provider"]; value: OnsiteInput; onChange: (v: OnsiteInput) => void; consentLabel?: string | undefined; hideConsent?: boolean; labels?: CustomerFieldLabels; offline?: boolean; errors?: Partial<Record<AddJobField, string>> }) {
   // Jo 24 Oct: the address is picked from the Google list, so street number, suburb and postcode always match.
   // Typing afterwards clears the pick; the suburb/postcode are shown, never typed.
   const [text, setText] = useState(() => addressText(value));
@@ -36,11 +40,11 @@ export function CustomerFields({ value, onChange, consentLabel, offline = false,
   );
   const permission = consentLabel ?? OWNER_CONTACT_PERMISSION;
   return <div className="space-y-3.5" data-customer-fields>
-    {field("full_name", "Owner's full name", { autoComplete: "name", maxLength: 200 }, errors.full_name)}
+    {field("full_name", labels.name, { autoComplete: "name", maxLength: 200 }, errors.full_name)}
     {offline || value.address_typed
-      ? <>{field("address_line", "Address", {}, errors.address)}<div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-2">{field("suburb", "Suburb")}{field("postcode", "Postcode", { inputMode: "numeric", maxLength: 4 })}</div>{value.address_typed && !offline && <button type="button" className="mt-1.5 text-[14px] font-bold text-hiv-blue underline" data-address-pick-again onClick={() => onChange({ ...latest.current, address_typed: false, address_verified: false })}>{ADDRESS_PICK_AGAIN}</button>}</>
+      ? <>{field("address_line", labels.address, {}, errors.address)}<div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-2">{field("suburb", "Suburb")}{field("postcode", "Postcode", { inputMode: "numeric", maxLength: 4 })}</div>{value.address_typed && !offline && <button type="button" className="mt-1.5 text-[14px] font-bold text-hiv-blue underline" data-address-pick-again onClick={() => onChange({ ...latest.current, address_typed: false, address_verified: false })}>{ADDRESS_PICK_AGAIN}</button>}</>
       : <div>
-        <label className={FIELD_LABEL} htmlFor="customer-address">Address</label>
+        <label className={FIELD_LABEL} htmlFor="customer-address">{labels.address}</label>
         <div className="mt-1.5" data-address-field data-invalid={errors.address ? "true" : undefined}>
           <VerifiedAddressInput id="customer-address" victoriaOnly value={text} resolved={resolved} inputStyle={inputStyle(!!errors.address)} mutedColor="#5A6785" {...(addressProvider ? { provider: addressProvider } : {})} onNoMatch={setNoMatch}
             onChange={(next) => { setText(next); if (latest.current.address_verified) onChange({ ...latest.current, address_verified: false }); }}
@@ -56,15 +60,15 @@ export function CustomerFields({ value, onChange, consentLabel, offline = false,
         {noMatch && !value.address_verified && <button type="button" className="mt-1.5 text-[14px] font-bold text-hiv-blue underline" data-address-type-in onClick={() => onChange({ ...latest.current, address_typed: true, address_verified: false })}>{ADDRESS_TYPE_IN}</button>}
         <p className="mt-1.5 text-[13px] text-sub">Start typing, then pick the address from the list.</p>
       </div>}
-    {field("phone", "Mobile", { inputMode: "tel", autoComplete: "tel", maxLength: 40 }, errors.phone)}
-    {field("email", "Email", { type: "email", autoComplete: "email", maxLength: 200 }, errors.email)}
-    <div>
+    {field("phone", labels.mobile, { inputMode: "tel", autoComplete: "tel", maxLength: 40 }, errors.phone)}
+    {field("email", labels.email, { type: "email", autoComplete: "email", maxLength: 200 }, errors.email)}
+    {!hideConsent && <div>
       <label className="flex min-h-14 items-center gap-3 rounded-[12px] border-2 bg-paper px-3.5 py-2.5" style={{ borderColor: errors.permission ? ERR : LINE }} data-permission-row>
         <input type="checkbox" className="peer sr-only" checked={value.contact_permission} onChange={(e) => onChange({ ...value, contact_permission: e.target.checked, consent_by: e.target.checked ? "installer" : null })} aria-label={permission} aria-invalid={errors.permission ? true : undefined} />
         <span aria-hidden className={`grid h-[26px] w-[26px] shrink-0 place-items-center rounded-[7px] text-[15px] font-bold peer-focus-visible:ring-2 peer-focus-visible:ring-hiv-blue/40 ${value.contact_permission ? "bg-hiv-blue text-white" : "border-2 bg-paper text-transparent"}`} style={value.contact_permission ? undefined : { borderColor: errors.permission ? ERR : LINE }}>✓</span>
         <span className="text-[15px] font-medium leading-[1.4] text-ink">{permission}</span>
       </label>
       <FieldError>{errors.permission}</FieldError>
-    </div>
+    </div>}
   </div>;
 }

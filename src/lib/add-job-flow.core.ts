@@ -27,6 +27,9 @@ export const ADD_JOB_DRAFT_WORDS = {
   chooseElectrician: "Choose the electrician", // DRAFT (dropdown placeholder)
   loading: "Loading…", // existing
   teamFailed: "Your Team couldn't load. Check your signal and try again.", // DRAFT
+  loadingBusiness: "Loading your business details…", // DRAFT (shown in place of the consent tick until the exact line is known)
+  electricianNotAllocated: "The electrician couldn't be put on the job — choose them again on the job page.", // DRAFT (Jo 3 Nov ruling: never blocks the job)
+  goToJob: "Go to the job", // DRAFT (button after that line)
 } as const;
 export const NO_TEAM_ELECTRICIAN = ADD_JOB_DRAFT_WORDS.noTeamElectrician;
 
@@ -104,11 +107,12 @@ export function fieldErrors(problems: string[]): Partial<Record<AddJobField, str
   const out: Partial<Record<AddJobField, string>> = {};
   for (const p of problems) {
     if (p === LEAD_ORIGIN_BLOCKED || p === LEAD_ORIGIN_MISSING) out.lead_origin ??= p;
+    // The consent line names the business, so it is matched BEFORE the electrician words (a business called "… Electrician …").
+    else if (/permission|agreed to/i.test(p)) out.permission ??= "Tick this once the owner has agreed.";
     else if (p === ELECTRICIAN_MISSING || /electrical safety check|usual electrician|electrician/i.test(p)) out.electrician ??= p;
     else if (/full name|first and last|owner's name/i.test(p)) out.full_name ??= "Enter the owner's first and last name.";
     else if (/mobile/i.test(p)) out.phone ??= /Check the mobile/i.test(p) ? "That doesn't look like a mobile number." : "Enter the owner's mobile.";
     else if (/email/i.test(p)) out.email ??= /Check the email/i.test(p) ? "That doesn't look like an email address." : "Enter the owner's email.";
-    else if (/permission|agreed to/i.test(p)) out.permission ??= "Tick this once the owner has agreed.";
     else if (p === PICK_ADDRESS || /address|street|suburb|postcode|Victorian/i.test(p)) out.address ??= /Victorian jobs|postcode list/i.test(p) ? p.replace(/ — .*$/, ".") : "Pick the address from the list.";
     else out.visit ??= p.replace(/\.?$/, ".");
   }

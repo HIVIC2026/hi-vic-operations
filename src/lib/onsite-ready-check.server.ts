@@ -129,7 +129,7 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
     try { await (await import("./in-house-electrician.server")).allocateElectrician(job.id, userId, opts.electricianWorkerId, call); electricianAllocated = "allocated"; }
     catch (error) {
       electricianAllocated = "not_allocated";
-      await logEvent(job.id, userId, "add_job_electrician_not_allocated", "The electrician chosen on Add a job could not be put on the job; choose again on the job page", { worker_id: opts.electricianWorkerId, reason: error instanceof Error ? error.message : String(error) }, { internal: true });
+      await logEvent(job.id, userId, "add_job_electrician_not_allocated", "The electrician chosen on Add a job could not be put on the job; choose again on the job page", { worker_id: opts.electricianWorkerId, reason: error instanceof Error ? error.message : String(error) }, { internal: true }).catch(console.error);
     }
   }
   // Start the guarded create immediately after saving, booking or not. A booking background attempt can share

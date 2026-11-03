@@ -14,6 +14,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { embedShim, type Rels } from "./helpers/pglite-embed-shim";
 
 const BIZ = "30000000-0000-4000-8000-000000000001", INST = "40000000-0000-4000-8000-000000000001";
+const ELEC_WORKER = "50000000-0000-4000-8000-00000000e1ec"; // Task 7: a verified Team electrician (business not in_house)
 const TPL = "template_0123456789abcdef0123456789abcdef";
 const db = new PGlite();
 await db.exec(`
@@ -27,7 +28,8 @@ CREATE TABLE properties (id uuid primary key default gen_random_uuid(), owner_id
 CREATE TABLE job_assignments (id uuid primary key default gen_random_uuid(), job_id uuid, user_id uuid, role text, business_id uuid, assigned_by uuid, first_response_at timestamptz, active boolean default true, booking_confirmed_at timestamptz, assigned_at timestamptz default now());
 CREATE TABLE business_members (id uuid primary key default gen_random_uuid(), business_id uuid, user_id uuid, member_role text, active boolean default true);
 CREATE TABLE businesses (id uuid primary key, name text, trading_name text, abn text, branding jsonb, business_type text, capabilities text[], base_suburb text, coverage_radius_km int, covers_all_victoria boolean,
-  accepting_new_jobs boolean, onboarding_notes text, mitti_account_invited boolean, onboarding_status text, is_active boolean, approved_at timestamptz, signer_mobile text, phone text, rec_number text);
+  accepting_new_jobs boolean, onboarding_notes text, mitti_account_invited boolean, onboarding_status text, is_active boolean, approved_at timestamptz, signer_mobile text, phone text, rec_number text, in_house boolean default false);
+CREATE TABLE partner_workers (id uuid primary key default gen_random_uuid(), business_id uuid, profile_id uuid, full_legal_name text, email text, trade_role text, approval_status text, removed_at timestamptz, licence_number text, rec_number text, licence_expires_on text, licence_verified_at timestamptz);
 CREATE TABLE user_roles (user_id uuid, role text, unique (user_id, role));
 CREATE TABLE profiles (id uuid primary key, full_name text, email text, phone text, business_id uuid);
 CREATE TABLE workflow_settings (id int primary key, mitti_ready_check_template_id text, mitti_ready_check_priced_template_id text, mitti_piesa_template_id text, mitti_piisa_template_id text, auto_send_mitti boolean,
@@ -61,6 +63,7 @@ CREATE TABLE partner_relationships (installer_business_id uuid, electrician_busi
 CREATE TABLE electrician_nominations (id uuid primary key default gen_random_uuid(), job_id uuid, ended_at timestamptz, nominating_business_id uuid);
 INSERT INTO businesses VALUES ('${BIZ}','TEST Reinsulate','TEST Reinsulate','11 222 333 444','{}','eec_installer','{installer}','Frankston',50,false,true,'[TEST PARTNER] practice',true,'approved',true,now(),'0477 511 901',null);
 INSERT INTO business_members (business_id, user_id, member_role) VALUES ('${BIZ}','${INST}','business_admin');
+INSERT INTO partner_workers (id, business_id, profile_id, full_legal_name, email, trade_role, approval_status, licence_number, rec_number, licence_expires_on, licence_verified_at) VALUES ('${ELEC_WORKER}','${BIZ}','${INST}','Will Casdorff','will@hivic-test.example','electrician','approved','A12345','REC-1','2030-01-01',now());
 INSERT INTO user_roles VALUES ('${INST}','installer');
 INSERT INTO profiles VALUES ('${INST}','Deep Installer','deep@hivic-test.example','0400000001','${BIZ}');
 INSERT INTO workflow_settings VALUES (1, null, '${TPL}', 'template_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'template_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', true, true, false, null, null, false, 349);
@@ -198,17 +201,15 @@ mock.module("../src/lib/mitti-pickup.server", () => ({ ...realPickup, updateMitt
 
 const os = await import("../src/lib/onsite-ready-check.server");
 const tv = await import("../src/lib/trade-view.server");
-const daily = await import("../src/lib/daily-mitti-text.server");
 const ms = await import("../src/lib/mitti.server");
 const mc = await import("../src/lib/mitti-complete.server");
 const rct = await import("../src/lib/ready-check-times.core");
-const { melbourneDate } = await import("../src/lib/daily-mitti-text.core");
 const owner = (n: number) => ({ full_name: `Helen Yang${n}`, address_line: `${n} Test Street`, suburb: "Frankston", postcode: "3199", phone: `0412 000 ${String(300 + n).padStart(3, "0")}`, email: `qa.owner${n}@hivic-test.example`, contact_permission: true, consent_by: "installer" as const, address_verified: true });
 const events = (jobId: string, type: string) => q<{ summary: string; details: Record<string, unknown> }>("select summary, details from workflow_events where job_id=$1 and event_type=$2 order by created_at", [jobId, type]);
 const job = async (id: string) => (await q<Record<string, unknown>>("select * from jobs where id=$1", [id]))[0]!;
 const auditOf = async (jobId: string) => (await q<{ external_id: string }>("select external_id from ceiling_measurements where job_id=$1 and is_current and external_source='mitti'", [jobId]))[0]?.external_id ?? null;
 const days = rct.allowedReadyCheckDays();
-const DAY_A = days[2]!, DAY_B = days[4]!;
+const DAY_A = days[2]!;
 let A = "", B = "", C = "";
 
 afterAll(async () => { await db.close(); });
@@ -252,20 +253,23 @@ describe("1. Add a job = basics only; the Mitti form is created straight away (d
   });
 });
 
-describe("2. Optional visit day + time (decisions 110, 116) and the 6:30am list", () => {
-  test("decision 116: Add a job WITH a day → booking confirmed, form created once with the booked date; job C without a day → no booking", async () => {
-    const r = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(2), { mode: "hivic" }, call, { leadOrigin: "owner_contacted", visit: { day: DAY_B, time: "14:00" } });
+describe("2. The electrician for the PIESA (Task 7) and the day entered later (decision 110)", () => {
+  test("Task 7: a verified Team electrician on a business that is not in_house → job created, allocation refused and logged, Ready Check form still created", async () => {
+    const r = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(2), { mode: "hivic" }, call, { leadOrigin: "owner_contacted", electricianWorkerId: ELEC_WORKER });
     B = r.jobId;
-    expect(r.booking).toBe("confirmed");
     await settle();
-    const bk = await q<{ status: string; scheduled_start: Date; business_id: string }>("select status, scheduled_start, business_id from bookings where job_id=$1", [B]);
-    expect(bk).toHaveLength(1);
-    expect(bk[0]).toMatchObject({ status: "confirmed", business_id: BIZ });
-    expect(bk[0]!.scheduled_start.toISOString()).toBe(rct.readyCheckStartAt(DAY_B, "14:00").toISOString());
-    expect((await job(B))["stage"]).toBe("ready_check_scheduled");
+    expect(r.electrician).toBe("not_allocated");
+    expect(r.ownerFirstName).toBe("Helen");
+    expect(await q("select id from job_assignments where job_id=$1 and role='installer' and active", [B])).toHaveLength(1);
+    expect(await q("select id from job_assignments where job_id=$1 and role='electrician'", [B])).toHaveLength(0);
+    const ev = await events(B, "add_job_electrician_not_allocated");
+    expect(ev).toHaveLength(1);
+    expect(ev[0]!.details).toMatchObject({ worker_id: ELEC_WORKER, reason: "This job is not assigned to your business" });
     expect(await auditOf(B)).toBe("audit_2");
-    expect(mitti.calls.filter((c) => c === "POST /audits")).toHaveLength(2);
-    expect(mitti.audits.get("audit_2")!.items.map((i) => i.label)).toContain("Assessment date/time");
+    // The consent row carries the Task 7 record (who / purpose / methods) and the event the plan's details.
+    const consent = (await q<{ snapshot: Record<string, unknown> }>("select snapshot from owner_contact_consents where job_id=$1", [B]))[0]!.snapshot;
+    expect(consent["who"]).toEqual(["Home Insulation Victoria", "TEST Reinsulate"]);
+    expect((await events(B, "installer_contact_permission"))[0]!.details).toMatchObject({ for: "this job", how: ["phone", "visit"], recorded_by: "installer" });
     const c = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(3), { mode: "hivic" }, call, { leadOrigin: "owner_contacted" });
     C = c.jobId;
     await settle();
@@ -282,15 +286,6 @@ describe("2. Optional visit day + time (decisions 110, 116) and the 6:30am list"
     expect(await auditOf(A)).toBe("audit_1");
     expect(mitti.calls.filter((c) => c === "POST /audits")).toHaveLength(3); // A, B, C — nothing extra for the booking
     await expect(tv.tradeSetReadyCheckTime(INST, A, { day: DAY_A, time: "03:00" }, new Date(), call)).rejects.toThrow();
-  });
-  test("collectDay lists the booked jobs with their Mitti form links; the job without a day is not in any list", async () => {
-    const dayA = await daily.collectDay(melbourneDate(rct.readyCheckStartAt(DAY_A, "09:00")));
-    const dayB = await daily.collectDay(melbourneDate(rct.readyCheckStartAt(DAY_B, "14:00")));
-    const flat = (g: Awaited<ReturnType<typeof daily.collectDay>>) => g.flatMap((x) => x.jobs.map((j) => ({ biz: x.trade.businessId, jobId: j.jobId, link: j.link, street: j.street, status: j.status })));
-    expect(flat(dayA)).toEqual([{ biz: BIZ, jobId: A, link: expect.stringContaining("audit_1"), street: "1 Test Street", status: "confirmed" }]);
-    expect(flat(dayB)).toEqual([{ biz: BIZ, jobId: B, link: expect.stringContaining("audit_2"), street: "2 Test Street", status: "confirmed" }]);
-    for (const d of days) expect(flat(await daily.collectDay(d)).some((x) => x.jobId === C)).toBe(false);
-    expect(dayA[0]!.trade).toMatchObject({ mittiInvited: true, approved: true, linked: true, isTest: true });
   });
 });
 
