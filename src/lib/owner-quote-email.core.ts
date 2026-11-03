@@ -73,7 +73,7 @@ export function safetyCheckPriceFromLines(lines: OwnerQuoteLine[]): number | nul
 /** Retained for callers/tests; the approved short quote email no longer repeats it. */
 export const INSULATION_BENEFIT = "Ceiling insulation is the best barrier against summer heat and winter cold, and can save you up to 20% on your heating and cooling costs (Sustainability Victoria). Warmer winters, cooler summers, lower bills for years.";
 
-const NOT_INCLUDED = "Not included: electrical fixes, only if the safety check finds any. They're quoted separately, and nothing is done without your OK.";
+const NOT_INCLUDED = "Not included: electrical upgrades, only if the safety check finds any. They're quoted separately, and nothing is done without your OK.";
 const NOT_FOR_YOU = "Not ready, or not for you? You can tell us on the same page.";
 /** Rule (Jo): "Accredited Person", never "Accredited Provider" — older quote lines still carry the old fee name. */
 const lineTitle = (d: string) => currentFeeWording(d);

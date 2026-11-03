@@ -30,6 +30,8 @@ import { B1_OPTIONS, B2_OPTIONS, OFFICIAL_ITEMS, type ItemKind } from "./officia
 import { SHORT_PIESA_FIELDS, SHORT_PIISA_FIELDS } from "./official-short.core";
 import { PIISA_DECLARATION_FIELDS } from "./piisa-declaration.core";
 import { mittiItemType } from "./mitti.core";
+import { canonicalMittiLabel, mittiLabelAliases } from './mitti-rebuild-labels.core';
+import { SPLIT_MAINS_Q } from './official-short.core';
 import { PIESA_EVIDENCE } from "./piesa-evidence.core";
 import { FIXES_DAY_QUESTIONS, FIXES_DAY_TEMPLATE_NAME, type FixesDayType } from "./fixes-day.core";
 import { ACCESS_OPTIONS, AREA_GROUP_BUTTON, ELECTRICIAN_OPTIONS, EXISTING_ACTION_OPTIONS, EXISTING_TYPE_OPTIONS, FAIL_REASON_OPTIONS, INCLUDED_OPTIONS, LEAN_ALIASES, LEAN_Q, MEASURED_HOW_OPTIONS, OUTCOME_FAILED, OUTCOME_OPTIONS, PREMISES_TYPE_OPTIONS, PRODUCT_OPTIONS, PROPERTY_TYPE_OPTIONS, R_ABOVE_LEGACY, R_AT_OR_ABOVE, R_VALUE_OPTIONS, ROOF_OPTIONS, YES_NO } from "./ready-check-lean.core";
@@ -218,17 +220,31 @@ export function validateTemplate(key: FormKey, items: TemplateItem[]): { ok: boo
   const issues: string[] = [];
   const byLabel = new Map<string, TemplateItem[]>();
   for (const it of items) {
-    const full = norm(it.label ?? "");
+    const full = norm(canonicalMittiLabel(it.label ?? ""));
     if (!full) continue;
     byLabel.set(full, [...(byLabel.get(full) ?? []), it]);
     // Mitti appends help text after a line break (e.g. "How many ceiling areas need to be measured separately?\nCount areas...").
     // Index the first line too so the required wording still matches while the help text stays visible in Mitti.
-    const first = norm(String(it.label ?? "").split("\n")[0] ?? "");
+    const first = norm(canonicalMittiLabel(String(it.label ?? "").split("\n")[0] ?? ""));
     if (first && first !== full) byLabel.set(first, [...(byLabel.get(first) ?? []), it]);
   }
   // Official forms repeat some labels (e.g. "Licence no:" in B3 and Section C): expect exactly that many.
   const expected = new Map<string, number>();
-  const fields = FORMS[key].fields.filter((f) => !f.statement);
+  let fields: FormField[] = FORMS[key].fields.filter((f) => !f.statement).map(f => ({ ...f, aliases: [...(f.aliases ?? []), ...mittiLabelAliases(f.label)] }));
+  const rebuiltReady = (key === 'ready_check' || key === 'ready_check_priced') && byLabel.has(norm('Old insulation in this area?'));
+  if (rebuiltReady) {
+    const replaced = [LEAN_Q.existing, LEAN_Q.existingAction, LEAN_Q.rValue, LEAN_Q.product, LEAN_Q.premisesType];
+    const websiteOnly = [LEAN_Q.ownerPhone, LEAN_Q.ownerEmail, LEAN_Q.contactPermission, LEAN_Q.lifeSupport, LEAN_Q.builtLast5];
+    fields = fields.filter(f => !replaced.includes(f.label as typeof replaced[number]) && !(key === 'ready_check' && websiteOnly.includes(f.label as typeof websiteOnly[number])));
+    fields = fields.map(f => ({ ...f, ...(f.label === LEAN_Q.outcome ? { aliases: [...(f.aliases ?? []), 'Can the job go ahead?'] } : {}), ...(f.label === LEAN_Q.issuePhoto ? { aliases: [...(f.aliases ?? []), 'Photo of the problem'] } : {}) }));
+    fields.push({ label: 'Old insulation in this area?', type: 'choice', required: true, perArea: true, source: '4 Nov replacement' }, { label: 'Old insulation R value?', type: 'choice', required: true, perArea: true, source: '4 Nov replacement' });
+    if (key === 'ready_check') fields.push({ label: 'Which brand are you installing?', type: 'choice', required: true, source: '4 Nov replacement' }, { label: 'Which batts?', type: 'choice', required: true, perArea: true, source: '4 Nov replacement' });
+  }
+  if (key === 'piesa' && items.some(it => Object.values(SPLIT_MAINS_Q).some(label => norm(label) === norm(it.label)))) {
+    fields = fields.filter(f => f.id !== 'mainsSafe' && f.id !== 'mainsProblems');
+    for (const [id, label] of Object.entries(SPLIT_MAINS_Q)) fields.push({ id, label, aliases: id === 'switchSafe' ? ['Does the main switch work, can you reach it, does it safely isolate the ceiling circuits (excluding the mains cables), and can it be locked off?'] : [], type: 'yesno', required: true, source: '4 Nov split mains' });
+    fields = fields.map(f => ({ ...f, ...(f.id === 'solarProblems' ? { aliases: [...(f.aliases ?? []), "Tick everything that's not right."] } : {}), ...(f.repeats && f.label === 'Photo of the problem' ? { repeats: 6 } : {}) }));
+  }
   for (const f of fields) if (!f.perArea && !f.perPriceLine && !f.row) expected.set(norm(f.label), (expected.get(norm(f.label)) ?? 0) + 1);
   // Deduplicated: a curly/straight apostrophe alias normalises to the same key and must not count the item twice.
   const labelsOf = (f: FormField) => [...new Set([norm(f.label), ...(f.aliases ?? []).map(norm)])];

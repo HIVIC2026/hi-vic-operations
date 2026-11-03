@@ -8,6 +8,7 @@
 // The exact wording of every question is fixed here; docs/MITTI_FIXES_FORM_PROMPT.md is the ChatGPT build prompt and
 // tests/fixes-day.test.ts fails if the two drift apart (same pattern as the Install day form, install-day.core.ts).
 import { norm } from "./mitti.core";
+import { canonicalMittiLabel } from "./mitti-rebuild-labels.core";
 import { mittiMediaFile, PIESA_EVIDENCE_BY_ID, type MittiMediaFile } from "./piesa-evidence.core";
 import { RECTIFICATION_OUTCOMES, SHORT_PIESA_FIELDS, repairWorkBesidesOnsite } from "./official-short.core";
 import { B2_OPTIONS } from "./official-forms.core";
@@ -18,15 +19,15 @@ export const FIXES_DAY_RULE = "fixes-day-2026-10-25";
 /** workflow_settings column holding the connected template id (pending migration docs/pending-migrations/mitti-fixes-template.sql). */
 export const FIXES_TEMPLATE_COLUMN = "mitti_fixes_template_id";
 export const FIXES_TEMPLATE_MIGRATION = "docs/pending-migrations/mitti-fixes-template.sql";
-export const FIXES_TEMPLATE_MISSING = "Electrical fixes Mitti form is not set up. Connect the \"A4 – Electrical fixes\" form in Compliance → Mitti forms; until then the electrician records the fixes on the portal job page.";
-export const FIXES_TEMPLATE_PENDING_DB = `Electrical fixes Mitti form: waiting for the database change (${FIXES_TEMPLATE_MIGRATION}). The electrician records the fixes on the portal job page until then.`;
+export const FIXES_TEMPLATE_MISSING = "Electrical upgrades Mitti form is not set up. Connect the A4 electrical upgrades form in Compliance → Mitti forms.";
+export const FIXES_TEMPLATE_PENDING_DB = `Electrical upgrades Mitti form: waiting for the database change (${FIXES_TEMPLATE_MIGRATION}).`;
 /** Workflow events (append-only history; the latest per audit wins). */
 export const FIXES_FORM_CREATED_EVENT = "fixes_form_created";
 export const FIXES_FORM_HELD_EVENT = "fixes_form_held";
 export const FIXES_FORM_COMPLETED_EVENT = "fixes_form_completed";
 export const FIXES_FORM_NOT_DONE_EVENT = "fixes_form_not_done";
 /** Office item title when the form could not be created (template missing, electrician not in Mitti, Mitti error). */
-export const FIXES_FORM_NOT_SET_UP = "Fixes form not set up";
+export const FIXES_FORM_NOT_SET_UP = "Upgrades form not set up";
 /** Job-file title of the CoES file(s) kept from the A4 form (documents kind piesa_evidence, source mitti). Decision 322:
  *  the completion pack finds the CoES to attach by this exact title, so keep the two in step. */
 export const FIXES_COES_DOC_TITLE = "PIESA evidence – Certificate of Electrical Safety (photo or PDF)";
@@ -94,7 +95,7 @@ export const FIXES_DAY_QUESTIONS: readonly FixesDayQuestion[] = (() => {
 // ======================================================================================================
 // Reading an audit / template by label (same shape as install-day.core)
 // ======================================================================================================
-const labelKey = (label: unknown) => norm(String(label ?? "").split("\n")[0]);
+const labelKey = (label: unknown) => norm(canonicalMittiLabel(String(label ?? "")).split("\n")[0]);
 type ReadSignature = { present: boolean; name: string | null; signedAt: string | null; mediaId: string | null };
 type Labelled = { id: string | null; label: string; value: string | null; media: MittiMediaFile[]; signature: ReadSignature };
 const NO_SIGNATURE: ReadSignature = { present: false, name: null, signedAt: null, mediaId: null };
@@ -114,6 +115,7 @@ function labelledItems(doc: unknown): Labelled[] {
     if (Array.isArray(x)) { x.forEach(walk); return; }
     if (!x || typeof x !== "object") return;
     const o = x as Record<string, any>;
+    if (o["inactive"] === true) return;
     if (typeof o["label"] === "string") {
       const r = (o["responses"] ?? {}) as Record<string, any>;
       const selected: string[] = Array.isArray(r["selected"]) ? r["selected"].map((s: any) => String(s?.label ?? s)) : [];

@@ -31,20 +31,20 @@ export function FixesTimesCard({ jobId }: { jobId: string }) {
   if (!data?.show) return null;
   return (
     <div id={FIXES_TIMES_ANCHOR} className="scroll-mt-4" data-fixes-times>
-      <Section title="Electrical fixes times">
+      <Section title="Electrical upgrades times">
         {data.given ? (
           <>
-            <p className="text-sm text-sub">Thanks — the owner picks one of these when they approve the fixes quote.</p>
+            <p className="text-sm text-sub">Thanks — the owner picks one of these when they approve the upgrades quote.</p>
             <ul className="mt-2 space-y-1 text-sm">{data.windows.map((w) => <li key={w.starts_at}>{formatPiesaWindow(w.starts_at, w.ends_at)}{w.status === "accepted" ? " · picked by the owner" : w.status === "proposed" ? "" : " · closed"}</li>)}</ul>
           </>
         ) : (
           <>
-            <p className="mb-2 text-sm text-sub">The {PIESA_FULL} needs electrical fixes. Pick 3 to 5 times you can do the work and how long it will take.</p>
+            <p className="mb-2 text-sm text-sub">The {PIESA_FULL} needs electrical upgrades. Pick 3 to 5 times you can do the work and how long it will take.</p>
             <RectPlanFields value={plan} onChange={setPlan} />
             <Button size="field" className="mt-3 w-full" disabled={busy || rectPlanProblems(plan).length > 0} onClick={async () => {
               setBusy(true);
-              try { await save({ jobId, hours: Number(plan.hours), windows: plan.picks }, "Fixes times sent"); } finally { setBusy(false); }
-            }}><Check /> {busy ? "Saving…" : "Send my fixes times"}</Button>
+              try { await save({ jobId, hours: Number(plan.hours), windows: plan.picks }, "Upgrades times sent"); } finally { setBusy(false); }
+            }}><Check /> {busy ? "Saving…" : "Send my upgrades times"}</Button>
           </>
         )}
       </Section>

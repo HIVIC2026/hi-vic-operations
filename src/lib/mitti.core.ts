@@ -9,6 +9,7 @@ import { A3_REPAIR_NEEDED_LABEL, LIFE_SUPPORT_PRESENT } from "./official-short.c
 import { EXISTING_DEPTH_Q, isNoSafeAccess, isR2OrAbove, isRValueBandAnswer, LEAN_ALIASES, LEAN_Q, premisesTypeOption } from "./ready-check-lean.core";
 import { norm } from "./trade-shared-consts.core";
 import { isLayoutForm, readLayoutArea, type LayoutArea } from "./ceiling-layout.core";
+import { canonicalMittiLabel } from "./mitti-rebuild-labels.core";
 
 export const MITTI_TEMPLATE_ID = "template_fd20c6437f4e4db2b49b2d6dbe0d3f91";
 /** Electrical rate codes Lovable can price. Everything else from Mitti is manual office review. */
@@ -146,7 +147,7 @@ export function flatten(doc: Any): Entry[] {
     const chain: string[] = [];
     let p = parent, guard = 0;
     while (p && guard++ < 20) { const x = byId.get(String(p)); if (!x) break; chain.unshift(norm(x.it.label)); p = x.parent; }
-    return { id: String(it.item_id ?? it.id ?? ""), label: String(it.label ?? ""), norm: norm(it.label), type: mittiItemType(it), value: responseValue(it), parent: parent ? String(parent) : null, section: chain.join(" / "), header };
+    return { id: String(it.item_id ?? it.id ?? ""), label: String(it.label ?? ""), norm: norm(canonicalMittiLabel(String(it.label ?? ""))), type: mittiItemType(it), value: responseValue(it), parent: parent ? String(parent) : null, section: chain.join(" / "), header };
   });
 }
 
@@ -490,7 +491,7 @@ export function parseAudit(audit: Any) {
     // The note is kept as the hazard description; only the photo is evidence. A flag without a photo is an office item.
     const hazardFlag = yesNo(val(kids, [LEAN_Q.issues, ...(LEAN_ALIASES.issues ?? [])]));
     const hazardNote = val(kids, [LEAN_Q.issueNote, ...(LEAN_ALIASES.issueNote ?? [])])?.trim().slice(0, 2000) || null;
-    const hazardEvidence = has([LEAN_Q.issuePhoto, ...(LEAN_ALIASES.issuePhoto ?? [])]);
+    const hazardEvidence = has([LEAN_Q.issuePhoto, ...(LEAN_ALIASES.issuePhoto ?? []), 'Photo of the problem']);
     const downlights = count(val(kids, [LEAN_Q.downlightsCount, ...(LEAN_ALIASES.downlightsCount ?? [])]), LEAN_Q.downlightsCount).value;
     // Decision 359: the official PIISA Part 6 facts (asked only where existing insulation is present; absent on older forms).
     const suitable = present === true ? yesNo(val(kids, [LEAN_Q.existingSuitable])) : null;
@@ -585,7 +586,7 @@ export function parseAudit(audit: Any) {
   const hz = val(entries, ["Hazards identified", "Hazards", "Hazards seen in the ceiling space"]); if (hz) patch.hazards = hz.slice(0, 4000);
   // Installer-flagged hazards per ceiling area (both A1 and A2 per-area questions) — flagged jobs go to office review.
   if (rooms.length && patch.hazards == null) {
-    const flagged = rooms.filter((r) => { const kids = areaKids(r.parent); const a = val(kids, ["Are there any issues that could affect the insulation installation?", "Hazards in this area?"]); return a != null && /^(yes|y|true)\b/.test(norm(a)); });
+  const flagged = rooms.filter((r) => r.hazardFlag === true);
     const notes = flagged.map((r) => r.hazardNote ? `${r.name ?? "Area"}: ${r.hazardNote}` : null).filter(Boolean).join("; ");
     if (flagged.length > 0) { patch.hazards = `Installer flagged hazards in ${flagged.length} ceiling area(s)${notes ? ` – ${notes}` : ""} – confirm details and evidence in office.`.slice(0, 4000); issues.push("Installer flagged hazards in a ceiling area – office review required."); }
   }
@@ -702,7 +703,7 @@ export type MittiContactAnswers = {
 export function contactAnswersFromEntries(entries: { label: string; value: string | null }[]): MittiContactAnswers {
   const find = (labels: string[]): string | null => {
     for (const l of labels) {
-      const hit = entries.find((e) => (e.label ?? "").trim().toLowerCase() === l.toLowerCase());
+      const hit = entries.find((e) => canonicalMittiLabel(e.label ?? "").trim().toLowerCase() === l.toLowerCase());
       if (hit?.value != null && String(hit.value).trim() !== "") return String(hit.value).trim();
     }
     return null;

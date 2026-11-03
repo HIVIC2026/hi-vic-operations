@@ -27,7 +27,7 @@ import type { ElectricianSource } from "./our-lead-piesa-electrician.core";
 export const fixesMarginFor = (electricianSource: ElectricianSource = "ours"): number =>
   electricianSource === "installer_usual" ? 0 : RECTIFICATION_MARGIN_INC_GST;
 
-export const A4_FIXES_LINE_DESCRIPTION = "Electrical repair work";
+export const A4_FIXES_LINE_DESCRIPTION = "Electrical upgrades";
 /** Recorded in quote_internals.calc_snapshot.pricing_source so the office can see where the price came from. */
 export const A4_FIXES_PRICING_SOURCE = "a4_piesa_electrician_total";
 const MAX_PRICE_INC_GST = 100_000;

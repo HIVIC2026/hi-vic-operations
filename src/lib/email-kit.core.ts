@@ -22,8 +22,8 @@ export type TickItem = { title: string; detail?: string | null } | string;
 export type Step = { title: string; detail?: string | null };
 export type QuoteRow = { title: string; detail?: string | null; amount: string; bold?: boolean; color?: string };
 export const THIRTY_DAY_CLOCK_TEXT = (expiresOn?: string | null) => expiresOn
-  ? `The 30-day clock: please approve this quickly. Your safety check expires 30 days after it was done (on ${expiresOn}), and the fixes and the install both need to happen before then. If it expires, a new safety check is needed and may be charged.`
-  : "The 30-day clock: your install must happen within 30 days of this safety check. After 30 days the check expires and has to be done again, and a new check may be charged. So once it's done, please book your install day as soon as the installer offers times, and approve any electrical fixes quickly.";
+  ? `The 30-day clock: please approve this quickly. Your safety check expires 30 days after it was done (on ${expiresOn}), and the upgrades and the install both need to happen before then. If it expires, a new safety check is needed and may be charged.`
+  : "The 30-day clock: your install must happen within 30 days of this safety check. After 30 days the check expires and has to be done again, and a new check may be charged. So once it's done, please book your install day as soon as the installer offers times, and approve any electrical upgrades quickly.";
 
 export const HOMEOWNER_PAGE_URL = "https://homeinsulationvictoria.com.au/homeowner";
 export const FRIEND_SHARE_SUBJECT = "Free ceiling insulation check";
@@ -43,7 +43,7 @@ export function notIncludedItems(someInsulation = false): string[] {
   return [
     someInsulation ? "<strong>Removing old insulation</strong>, only if it can't stay ($15 per m², see above)" : "<strong>Removing old insulation</strong>, if any needs to come out",
     "<strong>Ceiling access fee</strong>, if your ceiling is hard to get into",
-    "<strong>Electrical fixes</strong>, if the safety check finds any",
+    "<strong>Electrical upgrades</strong>, if the safety check finds any",
     "<strong>A bigger ceiling</strong> than you told us",
   ];
 }

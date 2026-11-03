@@ -75,8 +75,8 @@ function DayPage() {
 
         {o ? (
           <>
-            {o.kind === "all_clear" && <Result good title="All clear. Done and dusted." body="No fixes needed, so the install's good to go." />}
-            {o.kind === "fixes" && <Result title={`${o.items.length} fix${o.items.length === 1 ? "" : "es"} found. We'll take it from here.`} body="We'll price these from your rates and send the owner the quote. If they say yes, it comes straight back to you." items={o.items} />}
+            {o.kind === "all_clear" && <Result good title="All clear. Done and dusted." body="No electrical upgrades needed, so the install's good to go." />}
+            {o.kind === "fixes" && <Result title={`${o.items.length} electrical upgrade${o.items.length === 1 ? "" : "s"} needed. We'll take it from here.`} body="We'll price these from your rates and send the owner the quote. If they say yes, it comes straight back to you." items={o.items} />}
             {o.kind === "quoted" && <Result good title="Quote's in. Done and dusted." body={data.channel === "hivic_sourced" ? "We'll send the owner their quote. When they say yes, the install comes straight back to you." : "We'll send the owner your quote. When they say yes, the install comes straight back to you."} />}
             {o.kind === "not_eligible" && <Result title="Not eligible this time." body="Thanks for checking. We'll let the owner know, so you don't have to." items={o.reason ? [o.reason] : []} />}
             {o.kind === "wrap" && (x?.installForm.complete && !x.rebateSigned
