@@ -76,10 +76,6 @@ import { InstallerFinalDeclaration } from "@/components/portal/assignment";
 import { JobStatusCard, useTradeJobStatus } from "@/components/trade/job-status";
 import { OwnerQuoteCard } from "@/components/trade/OwnerQuoteCard";
 import { SafetyPlanCard } from "@/components/trade/SafetyPlanCard";
-import {
-  InstallerReadyCheckTimesCard,
-  useInstallerReadyCheckTimes,
-} from "@/components/portal/ready-check-times-installer";
 import { InstallFinishedButton } from "@/components/trade/InstallFinishedButton";
 import {
   addApprovedRectItem,
@@ -97,7 +93,6 @@ import { melbourneToday } from "@/lib/melbourne-time.core";
 import { PIESA_FULL } from "@/lib/job-wording";
 import { MittiFormLink } from "@/components/portal/MittiFormLink";
 import { CheckMyFormButton } from "@/components/trade/CheckMyFormButton";
-import { InstallerInstallDays, useInstallerInstallDays } from "@/components/portal/install-days";
 import { ElectricianPiesaTimesCard } from "@/components/portal/piesa-times-electrician";
 import { WhosDoingThis } from "@/components/trade/visit-allocation";
 import { NextStepBox } from "@/components/trade/NextStepBox";
@@ -137,7 +132,7 @@ import { FixesTimesCard, useTradeFixesTimes } from "@/components/trade/FixesTime
 import { SafetyCheckDocRow } from "@/components/trade/SafetyCheckDocRow";
 import { InstallAttendanceCard } from "@/components/trade/InstallAttendanceCard";
 import { ELECTRICIAN_ATTENDANCE_CONFIRMED } from "@/lib/trade-view.core";
-import { InHouseBookingCard, ReturnActions, useInHouseBookingAccess } from "@/components/trade/InHouseBookingCard";
+import { ReturnActions, useInHouseBookingAccess } from "@/components/trade/ReturnActions";
 
 export const Route = createFileRoute("/_authenticated/field/$jobId")({
   head: () => ({
@@ -345,8 +340,8 @@ function FieldJobBody({ jobId }: { jobId: string }) {
           <BlockersPanel jobId={jobId} quietWhenClear partner />
         </div>
         <div className="space-y-4">
-          {/* Decision 333: the electrician offers the owner 3 safety check times (the owner picks one or suggests days). */}
-          <InHouseBookingCard jobId={jobId} />
+          {/* Task 11: the old four-form booking card is gone (in-house people never log in; the installer's boss books
+              from the Next step box). Decision 333: the electrician offers the owner 3 safety check times. */}
           {role === "electrician" && inHouseAccess.data?.allowed !== true && (
             <ElectricianPiesaTimesCard jobId={jobId} />
           )}

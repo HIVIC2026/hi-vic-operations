@@ -25,7 +25,7 @@ describe("installer Job page layout (jobA3-1/2)", () => {
     expect(src).toMatch(/function Fold\(/);
   });
   test("the bottom links keep the guarded hand-back and owner-cancelled writers", () => {
-    const card = readFileSync("src/components/trade/InHouseBookingCard.tsx", "utf8");
+    const card = readFileSync("src/components/trade/ReturnActions.tsx", "utf8"); // Task 11 moved them out of the retired booking card
     expect(card).toContain("Can't do this one");
     expect(card).toContain("Owner cancelled");
     expect(card).toMatch(/export function ReturnActions/);

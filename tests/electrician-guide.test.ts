@@ -1,7 +1,7 @@
 // Task 9: short "How it works" for electricians (copy approved by Jo 29 Oct 2026, word for word).
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { ELECTRICIAN_GUIDE_STEPS, ELECTRICIAN_GUIDE_WORDS, GUIDE_STEPS } from "../src/lib/trade-view.core";
+import { ELECTRICIAN_GUIDE_STEPS, ELECTRICIAN_GUIDE_WORDS } from "../src/lib/trade-view.core";
 
 test("electrician guide copy is the approved copy", () => {
   expect(ELECTRICIAN_GUIDE_STEPS).toEqual([
@@ -20,36 +20,5 @@ test("electrician guide copy is the approved copy", () => {
   });
 });
 
-test("installer guide steps are unchanged", () => {
-  expect(GUIDE_STEPS.map((s) => s.title)).toEqual(["Get the job", "Ready Check", "PIESA", "Install days", "Install day"]);
-});
-
-test("guide page loads the business and shows the electrician guide only for electricians", () => {
-  const page = readFileSync("src/routes/_authenticated/field.guide.tsx", "utf8");
-  expect(page).toContain("getTradeBusiness");
-  expect(page).toContain('kind === "electrician"');
-  expect(page).toContain("ELECTRICIAN_GUIDE_STEPS");
-  expect(page).toContain("GUIDE_STEPS.map");
-  const elec = page.slice(page.indexOf("function ElectricianGuide"), page.indexOf("function InstallerGuide"));
-  expect(elec).toContain("<TradeShell installer={false}>");
-  for (const gone of ["NoFormNoPay", "GUIDE_WORDS.photos", "GUIDE_WORDS.pay"]) expect(elec).not.toContain(gone);
-});
-
-test("business page guide row sub differs for electricians only", () => {
-  const page = readFileSync("src/routes/_authenticated/field.business.tsx", "utf8");
-  expect(page).toContain('"One minute: every job and getting paid"');
-  expect(page).toContain('"The 2-minute guide: every job, the 30 days, getting paid"');
-  expect(page).toMatch(/installer \? "The 2-minute guide: every job, the 30 days, getting paid" : "One minute: every job and getting paid"/);
-});
-
-import { guideTabTitle } from "../src/lib/trade-view.core";
-test("browser tab says Electrician guide for electricians; installers unchanged", () => {
-  expect(guideTabTitle("electrician")).toBe("Electrician guide – Home Insulation Victoria");
-  expect(guideTabTitle("installer")).toBe("Installer guide – Home Insulation Victoria");
-  const page = readFileSync("src/routes/_authenticated/field.guide.tsx", "utf8");
-  expect(page).toContain('{ title: "Installer guide – Home Insulation Victoria" }');
-  const elec = page.slice(page.indexOf("function ElectricianGuide"), page.indexOf("function InstallerGuide"));
-  expect(elec).toContain('useEffect(() => { document.title = guideTabTitle("electrician"); }, []);');
-  const inst = page.slice(page.indexOf("function InstallerGuide"));
-  expect(inst).not.toContain("document.title");
-});
+// Task 11 (installer screens): the guide page is retired (/field/guide redirects to My work) and the installer guide words
+// are gone; the electrician words above stay until Part 6 removes them. The page / tab-title / business-row tests went with it.

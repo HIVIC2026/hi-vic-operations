@@ -10,7 +10,7 @@ import { HOME_EMPTY, homeIsEmpty, monthStripWords, offerPanelWords, offersListVi
 import { QUOTE_DECLINED_LINE, QUOTE_HELD_LINE, QUOTE_SENT_LINE } from "../src/lib/installer-quote-status.core";
 import { ADD_JOB_OFFLINE_NOTE, errorSummary, fieldErrors } from "../src/lib/add-job-flow.core";
 import { PICK_ADDRESS } from "../src/lib/onsite-ready-check.core";
-import { AGREEMENT_COVERS, GUIDE_STEPS, TEAM_ADD_SHEET, TEAM_LOGIN, bankOnFileRows, escNoticeRowLine, signedOnLine, teamCountLine } from "../src/lib/trade-view.core";
+import { AGREEMENT_COVERS, TEAM_ADD_SHEET, TEAM_LOGIN, bankOnFileRows, escNoticeRowLine, signedOnLine, teamCountLine } from "../src/lib/trade-view.core";
 
 const base: JobNextFacts = {
   channel: "hivic_sourced", stage: "installation_scheduling", ownerFirstName: "Helen", formLinked: true, formCompleted: true, quoteLine: "Waiting on owner: quote accepted – waiting for owner's payment",
@@ -264,7 +264,7 @@ describe("M7 sub-page states", () => {
     expect(escNoticeRowLine({ state: "acknowledged", at: "2026-10-03T03:14:00Z" })).toBe("Acknowledged 3 Oct 2026");
     expect(escNoticeRowLine({ state: "pending", at: null, linkSentAt: "2026-10-20T22:00:00Z", reminderAt: "2026-10-23T22:00:00Z" })).toBe("Not yet · link sent Wed 21 Oct, reminder Sat 24 Oct");
     expect(escNoticeRowLine({ state: "pending", at: null })).toBe("Not yet · no link sent");
-    expect(GUIDE_STEPS.map((s) => s.title)).toEqual(["Get the job", "Ready Check", "PIESA", "Install days", "Install day"]);
+    // Task 11: the installer guide (GUIDE_STEPS) is retired with the How it works tab.
   });
 });
 

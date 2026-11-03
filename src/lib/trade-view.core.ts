@@ -510,31 +510,10 @@ export function escNoticeRowLine(s: { state: string; at: string | null; linkSent
   return parts.length ? `Not yet · ${parts.join(", ")}` : "Not yet · no link sent";
 }
 
-/** Installer guide (approved state M7-guide, decisions 21/107/145/236): five steps, the 30 days, getting paid. Static wording, no job data. */
-export const GUIDE_STEPS = [
-  { title: "Get the job", body: "Your own customer: Add a job and enter their details exactly and in full. Our lead: we text and email you the job. Offer the owner three Ready Check times within 24 hours." },
-  { title: "Ready Check", body: "Fill in as much as you can in Mitti. Press Complete only when it's finished: that sends the owner their quote." },
-  { title: "PIESA", body: `We arrange it once the owner accepts. You get the ${PIESA_FULL} at least 24 hours before install.` },
-  { title: "Install days", body: "Once the PIESA is cleared, offer the owner 3 days with arrival times. Install within 30 days of the PIESA, or a new one is needed." },
-  { title: "Install day", body: "Follow the install form from the 6:30am text, top to bottom: the SWMS (Safe Work Method Statement: your safety plan for the job), the PIISA (Pre-installation installer safety assessment: your safety check before you start), then the photos. Press Complete in Mitti, then sign Part B (your declaration) of the VEEC form (the rebate form) on the job." },
-] as const;
-/** Browser tab title for the guide page: electricians see "Electrician guide" (Jo, 29 Oct 2026); installers unchanged. */
-export function guideTabTitle(kind: TradeKind): string {
-  return `${kind === "electrician" ? "Electrician" : "Installer"} guide – Home Insulation Victoria`;
-}
+// Task 11 (Jo 2 Nov 2026): the installer "How it works" guide (GUIDE_STEPS, GUIDE_WORDS, guideTabTitle) is retired — the
+// Job page's one Next step box says what to do next. The electrician guide words below stay until Part 6 removes them.
 /** What the approved business says it will take, on the welcome page (copy approved by Jo 29 Oct 2026). */
 export const WELCOME_TAKES = { installer: "Ready Checks and installs", electrician: `${PIESA_FULL} jobs` } as const;
-export const GUIDE_WORDS = {
-  eyebrow: "Installer guide",
-  title: "How every job works",
-  sub: "Two minutes. Five steps, the 30 days, getting paid.",
-  paidTitle: "Getting every job paid",
-  paidBody: "We check every form and photo before we claim the rebate. If anything's missing, we can't claim it, and the job can't be paid.",
-  photos: "Photos must be taken live at the property on the day (geotagged and timed). The lead installer signs personally.",
-  pay: "Getting paid: your customers when the owner pays the balance; our leads 7 days after we approve the job. We never mark up your price.",
-  back: "Back to My work",
-} as const;
-
 /** Electrician guide (copy approved by Jo 29 Oct 2026, word for word): four steps and getting paid. Static wording, no job data. */
 export const ELECTRICIAN_GUIDE_STEPS = [
   { title: "Take the job", body: "We text and email you each offer. Accept it in My work if you can do it." },

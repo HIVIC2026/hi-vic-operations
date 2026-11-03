@@ -235,57 +235,8 @@ test("Ready Check also uses the existing booking writer", async () => {
 });
 
 // Execute the real page's card-selection conditions, rather than matching source strings.
-function pageCardConditions(component: string, access: unknown, panel = "offer_install_days") {
-  const source = ts.createSourceFile("field.tsx", readFileSync("src/routes/_authenticated/field.$jobId.tsx", "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const conditions: string[] = [];
-  const walk = (node: ts.Node) => {
-    if (ts.isJsxExpression(node) && node.expression && ts.isBinaryExpression(node.expression)) {
-      const e = node.expression;
-      if (e.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken && ts.isJsxSelfClosingElement(e.right) && e.right.tagName.getText(source) === component) conditions.push(e.left.getText(source));
-    }
-    ts.forEachChild(node, walk);
-  };
-  walk(source);
-  return conditions.map(condition => new Function("inHouseAccess", "role", "next", "job", "a1ReadyCheckEntryAllowed", `return ${condition}`)(access, "electrician", { panel }, { channel: "installer_sourced", stage: "ready_check_ready_to_schedule" }, () => true));
-}
-for (const state of ["loading", "error"]) {
-  test(`${state} in-house access keeps legacy scheduling available and hides partner controls`, () => {
-    const access = { data: undefined, isLoading: state === "loading", isError: state === "error" };
-    for (const component of ["ElectricianPiesaTimesCard", "FixesTimesCard", "InstallerInstallDays", "InstallerReadyCheckTimesCard", "A1ReadyCheckTimeCard"]) {
-      const panel = component === "InstallerReadyCheckTimesCard" ? "ready_check_offer_times" : component === "A1ReadyCheckTimeCard" ? "ready_check_set_time" : "offer_install_days";
-      expect(pageCardConditions(component, access, panel)).toEqual([true]);
-    }
-    expect(renderBookingCard(access)).toBe("");
-  });
-}
-test("in-house install keeps its booked panel but not the legacy offer panel", () => {
-  expect(pageCardConditions("InstallerInstallDays", { data: { allowed: true } }, "install_booked")).toEqual([true]);
-  expect(pageCardConditions("InstallerInstallDays", { data: { allowed: true } }, "offer_install_days")).toEqual([false]);
-});
-function renderBookingCard(access: unknown) {
-  const out: any = {};
-  const element = (props: any) => React.createElement("div", props, props.children);
-  const deps: Record<string, any> = {
-    react: React, "react/jsx-runtime": require("react/jsx-runtime"),
-    "@tanstack/react-query": { useQuery: (o:any) => o.queryKey[0]==="in-house-booking-team" ? {data:{workers:[],depositPaid:true,selection:null}} : access, useQueryClient: () => ({ invalidateQueries: async () => {} }) },
-    "@tanstack/react-start": { useServerFn: (fn: unknown) => fn }, sonner: { toast: {} },
-    "@/lib/trade-view.functions": {}, "@/lib/in-house-booking.core": require("../src/lib/in-house-booking.core"), "@/lib/install-days.core": installDays,
-    "@/lib/office-list-refresh": { markOfficeChanged: () => {} },
-    "@/components/ui/input": { Input: (p: any) => React.createElement("input", p) },
-    "@/components/ui/label": { Label: element }, "@/components/ui/button": { Button: element }, "./installer-kit": { Group: element },
-    "./TeamElectricianPicker": { TeamElectricianPicker: () => null },
-  };
-  const code = ts.transpile(readFileSync("src/components/trade/InHouseBookingCard.tsx", "utf8"), { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX });
-  new Function("exports", "require", code)(out, (path: string) => deps[path]);
-  return renderToStaticMarkup(React.createElement(out.InHouseBookingCard, { jobId: JOB }));
-}
-test("partner card shows the current booking date, Melbourne time and status for every visit", () => {
-  const bookings = ["ready_check", "assessment", "rectification", "installation"].map(kind => ({ id: kind, kind, scheduled_start: "2026-11-02T22:00:00.000Z", status: "confirmed" }));
-  const html = renderBookingCard({ data: { allowed: true, blockers: [], bookings } });
-  expect(html.match(/3 Nov 2026/g)).toHaveLength(4);
-  expect(html.match(/9:00 am/g)).toHaveLength(4);
-  expect(html.match(/Confirmed/g)).toHaveLength(4);
-});
+// Task 11 (installer screens): the four-form partner booking card and the legacy time-offer cards on the job page are
+// gone (the Next step box books through the same guarded writers), so their render/condition tests went with them.
 test("current bookings are read only for the job's own active in-house member", async () => {
   await book("installation");
   const own = await load("trade-view.server").inHouseBookingAccess(MEMBER, JOB);

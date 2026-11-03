@@ -12,7 +12,7 @@ import { Phone } from "lucide-react";
 import { card, ghostBtn, greenBtn, inputCls } from "@/components/trade/TradeShell";
 import { MittiFormLink } from "@/components/portal/MittiFormLink";
 import { getInHouseBookingTeam, inHouseBookVisit, changeInHouseLeadInstaller, setA1ReadyCheckTimeFn } from "@/lib/trade-view.functions";
-import { useInHouseBookingAccess } from "@/components/trade/InHouseBookingCard";
+import { useInHouseBookingAccess } from "@/components/trade/ReturnActions";
 import { getTeamElectricians, allocateElectricianFn } from "@/lib/visit-allocation.functions";
 import { bookingWorkerBlocker, emptyBookingTeamBlocker, type BookingWorker } from "@/lib/in-house-booking.core";
 import { NEXT_STEP_WORDS, type NextStepBox as NextStepBoxShape } from "@/lib/next-step-box.core";

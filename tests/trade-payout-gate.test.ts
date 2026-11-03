@@ -122,7 +122,6 @@ describe("Jo's approved wording, the same everywhere", () => {
     expect(money.indexOf("<NoFormNoPay />")).toBeLessThan(money.indexOf('<Group title="Jobs">'));
     expect(money).toContain("heldPayPill(r.held)");
     expect(src("src/routes/_authenticated/field.offer.$offerId.tsx").match(/<NoFormNoPay line\b/g)?.length).toBe(2);
-    expect(src("src/routes/_authenticated/field.guide.tsx")).toContain("<NoFormNoPay />");
   });
   test("welcome email appends the paragraph (html + text) after the approved content", () => {
     for (const trade of ["installer", "electrician"] as const) {
