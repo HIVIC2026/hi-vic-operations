@@ -6,7 +6,7 @@ import { postgrestShim } from "./helpers/pglite-postgrest-shim";
 const db = new PGlite();
 await db.exec(`
 CREATE TABLE businesses (id uuid primary key default gen_random_uuid(), business_type text, capabilities jsonb default '[]', name text, email text, phone text, rec_number text, onboarding_status text, is_active boolean, public_liability_cover_amount numeric,
-  added_by_installer_business_id uuid references businesses(id), workcover_exempt_declared_at timestamptz, installer_added_rejected_reason text);
+  added_by_installer_business_id uuid references businesses(id), workcover_exempt_declared_at timestamptz, installer_added_rejected_reason text, onboarding_notes text);
 CREATE TABLE partner_workers (id uuid primary key default gen_random_uuid(), business_id uuid, trade_role text, full_legal_name text, email text, mobile text, rec_number text, licence_number text, licence_expires_on date, approval_status text, added_by uuid, removed_at timestamptz);
 CREATE TABLE business_credentials (id uuid primary key default gen_random_uuid(), business_id uuid, kind text, label text, number text, expires_at date, document_path text, verification text, critical boolean, created_by uuid);
 CREATE TABLE partner_relationships (id uuid primary key default gen_random_uuid(), installer_business_id uuid not null, electrician_business_id uuid not null, active boolean not null default true, preferred boolean default false, is_primary boolean default false, source text, notes text, created_by uuid, UNIQUE (installer_business_id, electrician_business_id));
@@ -15,7 +15,19 @@ CREATE TABLE admin_config_events (id uuid primary key default gen_random_uuid(),
 const id = (n: number) => `00000000-0000-0000-0000-${String(n).padStart(12, "0")}`;
 const INST = id(1), INST2 = id(2), APPROVED = id(3), U_BOSS = id(11), U_BOSS2 = id(12), U_STAFF = id(13), U_ELEC = id(14);
 await db.query(`insert into businesses (id, business_type, name, onboarding_status, is_active, capabilities) values ($1,'eec_installer','Insul One','approved',true,'[]'), ($2,'eec_installer','Insul Two','approved',true,'[]'), ($3,'rec','Volt Co','approved',true,'["electrician"]')`, [INST, INST2, APPROVED]);
-await db.query(`insert into partner_workers (business_id, trade_role, full_legal_name, email, licence_number, approval_status) values ($1,'electrician','Vic Volt','Vic@Volt.test','REC-L 99','approved')`, [APPROVED]);
+await db.query(`insert into partner_workers (business_id, trade_role, full_legal_name, email, licence_number, licence_expires_on, approval_status) values ($1,'electrician','Vic Volt','Vic@Volt.test','REC-L 99','2099-01-01','approved')`, [APPROVED]);
+await db.query(`insert into business_credentials (business_id, kind, expires_at, verification) values ($1,'public_liability_insurance','2099-01-01','verified'), ($1,'workers_comp_insurance','2099-01-01','verified')`, [APPROVED]);
+// Extra electricians for the status branches (licence numbers EXP1, INACT1, REJ1, REJ2, TEST1).
+const mk = async (n: number, lic: string, o: { status: string; active: boolean; licExp: string; rejected?: string; addedBy?: string; notes?: string }) => {
+  await db.query(`insert into businesses (id, business_type, name, onboarding_status, is_active, capabilities, installer_added_rejected_reason, added_by_installer_business_id, workcover_exempt_declared_at, onboarding_notes) values ($1,'rec',$2,$3,$4,'["electrician"]',$5,$6,now(),$7)`, [id(n), "E" + n, o.status, o.active, o.rejected ?? null, o.addedBy ?? null, o.notes ?? null]);
+  await db.query(`insert into partner_workers (business_id, trade_role, full_legal_name, email, licence_number, licence_expires_on, approval_status) values ($1,'electrician',$2,$3,$4,$5,$6)`, [id(n), "E" + n, `e${n}@x.test`, lic, o.licExp, o.status === "approved" ? "approved" : "pending"]);
+  await db.query(`insert into business_credentials (business_id, kind, expires_at, verification) values ($1,'public_liability_insurance','2099-01-01','verified')`, [id(n)]);
+};
+await mk(20, "EXP1", { status: "approved", active: true, licExp: "2020-01-01" });
+await mk(21, "INACT1", { status: "approved", active: false, licExp: "2099-01-01" });
+await mk(22, "REJ1", { status: "submitted", active: false, licExp: "2099-01-01", rejected: "Blurry licence photo", addedBy: INST });
+await mk(23, "REJ2", { status: "submitted", active: false, licExp: "2099-01-01", rejected: "Blurry licence photo", addedBy: INST2 });
+await mk(24, "TEST1", { status: "approved", active: true, licExp: "2099-01-01", notes: "[TEST PARTNER]" });
 
 const people: Record<string, { biz: string; kind: string; boss: boolean }> = { [U_BOSS]: { biz: INST, kind: "installer", boss: true }, [U_BOSS2]: { biz: INST2, kind: "installer", boss: true }, [U_STAFF]: { biz: INST, kind: "installer", boss: false }, [U_ELEC]: { biz: APPROVED, kind: "electrician", boss: true } };
 const WorkflowErr = class extends Error {};
@@ -134,6 +146,52 @@ describe("installerAddElectrician", () => {
     expect(await reject(els.installerAddElectrician(U_BOSS, input({ email: "n5@x.test", licenceNumber: "N5" })))).toBe("bad file");
     expect(await count("businesses")).toBe(before);
     badFile = false;
+  });
+
+  test("linking an approved electrician whose licence has lapsed is refused", async () => {
+    expect(await reject(els.installerAddElectrician(U_BOSS, input({ email: "a@x.test", licenceNumber: "exp1" })))).toBe("Their paperwork has expired. Ask them to update it with Home Insulation Victoria.");
+    expect((await db.query("select 1 from partner_relationships where electrician_business_id=$1", [id(20)])).rows).toHaveLength(0);
+  });
+  test("an approved but switched-off electrician gets the same message", async () => {
+    expect(await reject(els.installerAddElectrician(U_BOSS, input({ email: "a@x.test", licenceNumber: "INACT1" })))).toMatch(/^Their paperwork has expired/);
+  });
+  test("rejected, added by this installer: says why and where to fix it", async () => {
+    expect(await reject(els.installerAddElectrician(U_BOSS, input({ email: "a@x.test", licenceNumber: "REJ1" })))).toBe("Not approved: Blurry licence photo. Fix it in My electricians.");
+  });
+  test("rejected, added by another installer: neutral message, no reason shown", async () => {
+    expect(await reject(els.installerAddElectrician(U_BOSS, input({ email: "a@x.test", licenceNumber: "REJ2" })))).toBe("This electrician can't be added right now — contact Home Insulation Victoria");
+  });
+  test("a TEST electrician is never matched by a real installer (a new one is added instead)", async () => {
+    const r = await els.installerAddElectrician(U_BOSS, input({ email: "t@x.test", licenceNumber: "TEST1" }));
+    expect(r.result).toBe("added"); expect(r.businessId).not.toBe(id(24));
+  });
+  test("bad dates, email and mobile are refused in plain words", async () => {
+    const before = await count("businesses");
+    expect(await reject(els.installerAddElectrician(U_BOSS, input({ licenceExpiry: "2099-99-99" })))).toBe("Enter a real date");
+    expect(await reject(els.installerAddElectrician(U_BOSS, input({ plExpiry: "2099-02-30" })))).toBe("Enter a real date");
+    expect(await reject(els.installerAddElectrician(U_BOSS, input({ email: "not-an-email" })))).toBe("Enter a valid email");
+    expect(await reject(els.installerAddElectrician(U_BOSS, input({ mobile: "12345" })))).toBe("Enter a valid Australian mobile");
+    expect(await count("businesses")).toBe(before);
+  });
+  test("two installers adding the same new electrician at once: one business, one link, the loser is told why and the winner's rows survive", async () => {
+    const p2 = { licenceFilePath: `partners/${INST2}/electrician-uploads/a.jpg`, plFilePath: `partners/${INST2}/electrician-uploads/b.pdf` };
+    const same = { email: "race@x.test", licenceNumber: "RACE-1" };
+    const [a, b] = await Promise.allSettled([els.installerAddElectrician(U_BOSS, input(same)), els.installerAddElectrician(U_BOSS2, input({ ...same, ...p2 }))]);
+    expect([a.status, b.status].sort()).toEqual(["fulfilled", "rejected"]);
+    const loser = (a.status === "rejected" ? a : b) as PromiseRejectedResult;
+    expect(loser.reason.message).toBe("This electrician is already waiting for approval");
+    expect((await db.query("select 1 from businesses where rec_number='REC5555' and email='race@x.test'")).rows).toHaveLength(1);
+    const bid = ((a.status === "fulfilled" ? a : b) as PromiseFulfilledResult<{ businessId: string }>).value.businessId;
+    expect((await db.query("select 1 from partner_relationships where electrician_business_id=$1", [bid])).rows).toHaveLength(1);
+    expect((await db.query("select 1 from partner_workers where business_id=$1", [bid])).rows).toHaveLength(1);
+    expect((await db.query("select 1 from business_credentials where business_id=$1", [bid])).rows).toHaveLength(3);
+  });
+  test("the same installer racing itself is told 'Already on your list'", async () => {
+    const same = { email: "race2@x.test", licenceNumber: "RACE-2" };
+    const rs = await Promise.allSettled([els.installerAddElectrician(U_BOSS, input(same)), els.installerAddElectrician(U_BOSS, input(same))]);
+    expect(rs.map((r) => r.status).sort()).toEqual(["fulfilled", "rejected"]);
+    expect(((rs.find((r) => r.status === "rejected") as PromiseRejectedResult).reason as Error).message).toBe("Already on your list");
+    expect((await db.query("select 1 from businesses where email='race2@x.test'")).rows).toHaveLength(1);
   });
 
   test("until the pending SQL is applied it refuses and writes nothing", async () => {
