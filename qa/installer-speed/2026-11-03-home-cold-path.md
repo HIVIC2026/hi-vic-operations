@@ -32,3 +32,19 @@ What stays and why: the entry is 90% framework (react-dom 203 kB raw, router cor
 Pinned by `tests/trade-home-first-load.test.ts`: the home route's static source graph ≤ 200,000 bytes (was 335,328; now 168,429) and the heavy modules absent — always; the built cold path ≤ 285,000 bytes gz and the route chunks ≤ 40,000 bytes gz — when `.output` exists (skipped, never passed, otherwise).
 
 Not measured here: time. The published portal is measured with `bun scripts/installer-speed.ts --base https://portal.homeinsulationvictoria.com.au --label after-home --screens home` (runs in Lovable: needs `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and the server key; see `qa/installer-speed/README.md`), compared with `qa/installer-speed/2026-10-31-after-1s.md` (home cold median 7,970 ms owner / 5,058 ms staff; `tradeHome` 2,940 / 1,793 ms).
+
+## Installer app cache (service worker, 3 Nov 2026, switch OFF)
+
+`vite.config.ts` now also writes `.output/public/sw.js` from the build's Start manifest: 25 files precached (the 24 chunks
+of the cold path above + the stylesheet; 976 kB raw / 274 kB gz) under cache `hiv-installer-app:<hash of the list>`.
+Nothing registers it until `SERVICE_WORKER_ENABLED` in `src/lib/installer-app-cache.core.ts` is true (one line + publish).
+Cold path bytes: unchanged by this (a worker only helps repeat visits; the first visit still downloads everything, and the
+worker's own install reads those same files from the HTTP cache). Repeat visit with the worker on: every hashed
+/assets/ file of My work comes from the phone (expected 0 static bytes from the network; the HTML shell is asked for
+fresh, ~7 kB, with the kept copy as the fallback when there is no signal); the server call and Supabase are never cached.
+Measured live by `bun scripts/installer-app-cache-check.ts --base <published url>` (Lovable; TEST owner; read-only),
+written to `qa/installer-speed/<date>-app-cache.md` — NOT_RUN here (no published build, no keys).
+Known limit: with the network off, the /field guard's roles read (`route-guards.ts` `loadAccessFresh`) answers "no
+roles" on a failed fetch and sends the person to /home, so the shell loads from the phone but My work does not show
+until that guard tolerates a failed read; `scripts/installer-app-cache-check.ts` records `offline.landed` and
+`offline.myWorkShown` so this is visible.

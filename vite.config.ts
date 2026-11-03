@@ -6,8 +6,9 @@
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import type { Plugin } from "vite";
-import { readdirSync, readFileSync, rmSync, existsSync } from "node:fs";
+import { readdirSync, readFileSync, rmSync, existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { cacheVersion, parseStartManifest, precacheList, serviceWorkerSource } from "./src/lib/installer-app-cache.core";
 
 // S101 / B3-06: Prune orphaned server-only chunks from the PUBLIC client bundle.
 //
@@ -89,6 +90,39 @@ function pruneOrphanServerChunks(outDir = ".output/public/assets"): Plugin {
   };
 }
 
+// Installer app cache (Jo, 3 Nov 2026): after the whole build is written, generate .output/public/sw.js from this
+// build's Start manifest (the shell routes' preloads, every chunk they import, the stylesheet) so a return visit on a
+// bad signal draws My work from the phone. The worker is registered only when the switch in
+// installer-app-cache.core is on; writing the file changes nothing until then. Rules in that core module.
+function installerServiceWorker(outDir = ".output"): Plugin {
+  return {
+    name: "hiv-installer-app-cache-sw",
+    apply: "build",
+    closeBundle: {
+      order: "post",
+      sequential: true,
+      handler() {
+        const serverDir = join(outDir, "server");
+        const assetsDir = join(outDir, "public", "assets");
+        if (!existsSync(serverDir) || !existsSync(assetsDir)) return;
+        const manifestFile = readdirSync(serverDir).find((f) => f.startsWith("_tanstack-start-manifest"));
+        if (!manifestFile) return;
+        const routes = parseStartManifest(readFileSync(join(serverDir, manifestFile), "utf8"));
+        const assets = readdirSync(assetsDir);
+        const importsOf = (assetPath: string) => {
+          const file = join(outDir, "public", assetPath);
+          if (!existsSync(file)) return [];
+          return [...readFileSync(file, "utf8").matchAll(/from\s*["']\.\/([A-Za-z0-9._-]+\.js)["']/g)].map((m) => `/assets/${m[1]}`);
+        };
+        const precache = precacheList(routes, importsOf, assets);
+        const version = cacheVersion(precache);
+        writeFileSync(join(outDir, "public", "sw.js"), serviceWorkerSource({ version, precache }));
+        console.log(`[installer-app-cache] wrote public/sw.js (cache ${version}, ${precache.length} files precached).`);
+      },
+    },
+  };
+}
+
 const TEARDOWN = /^(aborted|socket hang ?up|premature close|ECONNRESET|EPIPE)$|abortIncoming|socketOnClose/i;
 
 // Dev only: when the browser drops a request mid-load (reload, HMR, flaky
@@ -139,7 +173,7 @@ export default defineConfig({
     server: { entry: "server" },
   },
   vite: {
-    plugins: [ignoreClientDisconnects(), pruneOrphanServerChunks()],
+    plugins: [ignoreClientDisconnects(), pruneOrphanServerChunks(), installerServiceWorker()],
     environments: { client: { build: { rolldownOptions: { output: { codeSplitting: CLIENT_CHUNK_GROUPS } } } } },
   },
 });
