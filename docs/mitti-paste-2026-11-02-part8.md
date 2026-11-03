@@ -3,7 +3,7 @@
 Jo, paste the box below into ChatGPT, then publish all four forms in Mitti. Template IDs don't change.
 This replaces the three smaller 2 Nov paste files. Only paste once you're happy with the wording (everything except the
 photo ID tick is still a draft). Forms already sent keep working; once you've published, send installers new forms.
-The new size choice, the new before-video wording and the R value items are not in here. They come in a second paste.
+The size choice and the new before-video wording come in a second paste.
 
 Copy everything in the box below into ChatGPT.
 

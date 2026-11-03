@@ -30,7 +30,9 @@ describe("Part 8 form-health check", () => {
     expect(spec("A3").texts).toEqual([ADULT_PRESENT_STOP_A3]);
     expect(spec("A5").labels).toEqual(Object.values(INSTALL_DAY_NOV2_Q));
     expect(spec("A5").texts).toContain(INSTALL_DAY_PART_B_PAGE);
-    expect(spec("A5").texts).toContain(INSTALL_DAY_PART_B_TEXT.split("\n")[0]);
+    // Final review I3: the FULL Part B text is compared (normalised), never just its first line.
+    expect(spec("A5").texts).toContain(INSTALL_DAY_PART_B_TEXT);
+    expect(spec("A5").texts).not.toContain(INSTALL_DAY_PART_B_TEXT.split("\n")[0]);
   });
   test("published A1 and A2 before the paste: tick missing and ECOWOL R5 still offered", () => {
     for (const k of ["A1", "A2"]) {
@@ -82,6 +84,19 @@ describe("Part 8 form-health check", () => {
     expect(r0.ok).toBe(false);
     const full = { template: { items: [...old.template.items, ...Object.values(INSTALL_DAY_NOV2_Q).map(item), { type: "section", label: INSTALL_DAY_PART_B_PAGE }, { type: "text", text: INSTALL_DAY_PART_B_TEXT }, { type: "text", text: ADULT_PRESENT_STOP_A3 }] } };
     expect(checkPart8Template(full, spec("A5"))).toMatchObject({ ok: true, missing: [], textMissing: [] });
+  });
+  test("A5 (final review I3): a Part B text with only its first line, or a changed later line, is reported; whitespace/punctuation differences are not", () => {
+    const base = INSTALL_DAY_QUESTIONS.map((q) => item(q.label)).concat(Object.values(INSTALL_DAY_NOV2_Q).map(item), [{ type: "section", label: INSTALL_DAY_PART_B_PAGE } as any, { type: "text", text: ADULT_PRESENT_STOP_A3 } as any]);
+    const withText = (text: string) => ({ template: { items: [...base, { type: "text", text }] } });
+    const firstLineOnly = checkPart8Template(withText(INSTALL_DAY_PART_B_TEXT.split("\n")[0]!), spec("A5"));
+    expect(firstLineOnly.ok).toBe(false);
+    expect(firstLineOnly.textMissing).toEqual([INSTALL_DAY_PART_B_TEXT]);
+    const lines = INSTALL_DAY_PART_B_TEXT.split("\n");
+    const changedLater = checkPart8Template(withText([...lines.slice(0, -1), lines.at(-1)!.replace("complete and accurate", "accurate")].join("\n")), spec("A5"));
+    expect(changedLater.textMissing).toEqual([INSTALL_DAY_PART_B_TEXT]);
+    const tidied = checkPart8Template(withText(INSTALL_DAY_PART_B_TEXT.replace(/\n/g, "\n\n").replace(/ {1}/g, "  ")), spec("A5"));
+    expect(tidied.textMissing).toEqual([]);
+    expect(tidied.ok).toBe(true);
   });
   test("an unreadable reply is never reported as 'missing'", () => {
     const r = checkPart8Template({ template: { name: "x" } }, spec("A1"));

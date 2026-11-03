@@ -51,6 +51,7 @@ import {
 } from "./veec-assignment-form.core";
 import { melbourneToday } from "./melbourne-time.core";
 import { PDF_LOOK_APPROVED } from "./pdf-approvals.core";
+import { VEEC_PART_B_IMAGE_HELD_EVENT } from "./veec-part-b-mitti.core";
 
 export async function loadTemplates(): Promise<Template[]> {
   const { data, error } = await admin
@@ -1488,8 +1489,8 @@ export async function veecFinalCopyPdf(a: NonNullable<Awaited<ReturnType<typeof 
       const bytes = dl.data ? new Uint8Array(await dl.data.arrayBuffer()) : null;
       if (!bytes?.length) {
         const reason = "The Lead Installer's signature image could not be read, so the VEEC form was not built. Check the file and try again";
-        const { data: prev } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "veec_part_b_image_held").order("created_at", { ascending: false }).limit(1).maybeSingle();
-        if ((prev?.details as { reason?: string } | null)?.reason !== reason) await logEvent(jobId, actorId, "veec_part_b_image_held", `VEEC form held: ${reason}`, { reason, image_path: imagePath, needs_office: true }, { internal: true }).catch(() => undefined);
+        const { data: prev } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", VEEC_PART_B_IMAGE_HELD_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle();
+        if ((prev?.details as { reason?: string } | null)?.reason !== reason) await logEvent(jobId, actorId, VEEC_PART_B_IMAGE_HELD_EVENT, `VEEC form held: ${reason}`, { reason, image_path: imagePath, needs_office: true }, { internal: true }).catch(() => undefined);
         return { held: reason };
       }
       installer = { ...installer, image: bytes };

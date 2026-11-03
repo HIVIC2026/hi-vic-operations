@@ -25,7 +25,8 @@ export const PART8_TEMPLATES: Part8Template[] = [
   {
     key: "A5", templateId: "1f325828-3f71-4b1a-988f-083c83414f95",
     labels: Object.values(INSTALL_DAY_NOV2_Q),
-    texts: [ADULT_PRESENT_STOP_A3, INSTALL_DAY_PART_B_PAGE, INSTALL_DAY_PART_B_TEXT.split("\n")[0]!],
+    // Final review I3: the FULL Part B declaration (normalised: case, spacing and punctuation ignored), never just its first line.
+    texts: [ADULT_PRESENT_STOP_A3, INSTALL_DAY_PART_B_PAGE, INSTALL_DAY_PART_B_TEXT],
     absentChoices: [],
   },
 ];

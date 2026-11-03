@@ -54,10 +54,14 @@ export async function applyMittiPartB(jobId: string, auditId: string, audit: unk
       if (a.installer_signed_at) return "skipped";
       preparedHere = true;
     }
-    // Facts must be what the Lead Installer saw. An assignment prepared by this very call is built from this audit's completed facts, so it is signable;
-    // one that already existed and was prepared after the Mitti signature is not. This image must also never have been used on an earlier row.
-    if (!preparedHere && (!a.prepared_at || Date.parse(a.prepared_at as string) >= Date.parse(sig.signedAt!))) return hold(jobId, auditId, FACTS_CHANGED, true);
-    const { data: rows } = await admin.from("customer_assignments").select("id, installer_snapshot").eq("job_id", jobId);
+    // Facts must be what the Lead Installer saw. An assignment prepared by this very call is built from this audit's completed facts, so it is
+    // signable; so is the office's FIRST preparation after an earlier sync could not prepare (no earlier row: nothing was re-prepared, Part 8 final
+    // review I1). Only a real re-preparation — an EARLIER final assignment row existed — prepared after the Mitti signature holds, and this image
+    // must never have been used on an earlier row.
+    const { data: rows } = await admin.from("customer_assignments").select("id, record_kind, installer_snapshot").eq("job_id", jobId);
+    const earlier = (rows ?? []).filter((r) => r.id !== a!.id && r.record_kind !== "legacy_quote_time");
+    const preparedAfterSignature = !a.prepared_at || Date.parse(a.prepared_at as string) >= Date.parse(sig.signedAt!);
+    if (!preparedHere && earlier.length > 0 && preparedAfterSignature) return hold(jobId, auditId, FACTS_CHANGED, true);
     if ((rows ?? []).some((r) => r.id !== a!.id && (r.installer_snapshot as { media_id?: string } | null)?.media_id === sig.mediaId)) return hold(jobId, auditId, FACTS_CHANGED, true);
     const { count: openVar } = await admin.from("assignment_variations").select("id", { count: "exact", head: true }).eq("assignment_id", a.id).eq("status", "pending");
     const blocker = core.signingOrderBlocker({ status: a.status, installerSigned: false, apSigned: !!a.ap_signed_at, consumerSigned: !!a.consumer_signed_at, openVariation: (openVar ?? 0) > 0, consumerFinalRequired: a.consumer_final_required, consumerFinalSigned: !!a.consumer_final_signed_at }, "installer");

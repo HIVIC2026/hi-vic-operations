@@ -142,15 +142,35 @@ describe("applyMittiPartB fix round", () => {
     expect(prepared).toBe(1);
     expect(tables.customer_assignments![0]!.installer_signed_at).toBe(AT);
   });
-  test("an assignment already prepared after the Mitti signature holds for the office and writes nothing", async () => {
+  test("a re-prepared assignment (an earlier row existed) prepared after the Mitti signature holds for the office and writes nothing", async () => {
     tables.customer_assignments = [
-      { id: "a2", job_id: "j1", status: "awaiting_installer_signature", final_facts: { template_version: "v1.1" }, final_facts_sha256: "f2", consumer_declaration_version: "v1.1", installer_signed_at: null, prepared_at: "2026-10-31T00:00:00Z" },
+      { id: "a1", job_id: "j1", status: "cancelled", record_kind: "final_veec_assignment", final_facts: { template_version: "v1.1" }, final_facts_sha256: "f1", consumer_declaration_version: "v1.1", installer_signed_at: null, prepared_at: "2026-10-29T00:00:00Z" },
+      { id: "a2", job_id: "j1", status: "awaiting_installer_signature", record_kind: "final_veec_assignment", final_facts: { template_version: "v1.1" }, final_facts_sha256: "f2", consumer_declaration_version: "v1.1", installer_signed_at: null, prepared_at: "2026-10-31T00:00:00Z" },
     ];
     expect(await applyMittiPartB("j1", "aud-1", auditWith(), fetchMedia)).toBe("held");
     expect(prepared).toBe(0);
     expect(fetches).toBe(0);
-    expect(tables.customer_assignments![0]!.installer_signed_at).toBeNull();
+    expect(tables.customer_assignments![1]!.installer_signed_at).toBeNull();
     expect(heldEvents()[0]!.details).toMatchObject({ needs_office: true, reason: REASON });
+  });
+  test("final review I1: the office's FIRST preparation after a same-sync prepare failure (no earlier row) is signable even though prepared after the Mitti signature", async () => {
+    prepareThrows = true;
+    expect(await applyMittiPartB("j1", "aud-1", auditWith(), fetchMedia)).toBe("held");
+    expect(heldEvents()[0]!.details.needs_office).toBe(false);
+    // The office prepares the assignment later (one row only, prepared after the signature time).
+    tables.customer_assignments = [
+      { id: "a2", job_id: "j1", status: "awaiting_installer_signature", record_kind: "final_veec_assignment", final_facts: { template_version: "v1.1" }, final_facts_sha256: "f2", consumer_declaration_version: "v1.1", installer_signed_at: null, prepared_at: "2026-10-31T00:00:00Z" },
+    ];
+    expect(await applyMittiPartB("j1", "aud-1", auditWith(), fetchMedia)).toBe("applied");
+    expect(tables.customer_assignments![0]!.installer_signed_at).toBe(AT);
+    expect(heldEvents()).toHaveLength(1);
+  });
+  test("a legacy_quote_time row is not an earlier preparation", async () => {
+    tables.customer_assignments = [
+      { id: "lq", job_id: "j1", status: "cancelled", record_kind: "legacy_quote_time", installer_signed_at: null },
+      { id: "a2", job_id: "j1", status: "awaiting_installer_signature", record_kind: "final_veec_assignment", final_facts: { template_version: "v1.1" }, final_facts_sha256: "f2", consumer_declaration_version: "v1.1", installer_signed_at: null, prepared_at: "2026-10-31T00:00:00Z" },
+    ];
+    expect(await applyMittiPartB("j1", "aud-1", auditWith(), fetchMedia)).toBe("applied");
   });
   test("a media id already on an earlier assignment row of this job holds for the office", async () => {
     tables.customer_assignments = [
