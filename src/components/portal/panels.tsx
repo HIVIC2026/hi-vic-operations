@@ -1,6 +1,7 @@
 import { tradeBlockerLines } from "@/lib/portal-presentation.core";
 import { RectWindowChoice, useRectWindows } from "./rectification-times";
 import { useRef, useState } from "react";
+import { toast } from "sonner";
 import { requiredDepositCents } from "@/lib/payment-gate.core";
 import { getJobPayments, getOwnerPaymentPlan, refreshPayNowLink } from "@/lib/payments.functions";
 import { QUOTE_EXPIRED_OWNER_MESSAGE, quoteExpiresAt, quoteIsExpired } from "@/lib/quote-expiry.core";
@@ -346,7 +347,7 @@ export function BookingPanel({ jobId, kind, canBook, isAdmin = false }: { jobId:
     <Section title={`${kind[0]!.toUpperCase()}${kind.slice(1)} booking`}>
       {current ? <p className="text-sm">Booked: <strong>{fmtDateTime(current.scheduled_start)}</strong> <Pill t="good">{current.status}</Pill>{isAdmin && <Button size="sm" variant="ghost" className="ml-2" onClick={async () => { const r = await reason.ask({ title: "Cancel booking", description: "A reason is required and permanently audited.", placeholder: "Reason for cancelling this booking (required, audited)", minLength: 1 }); if (r) cancel({ jobId, kind, reason: r }, "Booking cancelled"); }}>Cancel booking</Button>}</p> : <p className="text-sm text-muted-foreground">Not booked yet.</p>}
       {canBook && (
-        <form className="mt-3 flex flex-col gap-2 sm:flex-row" onSubmit={(e) => { e.preventDefault(); if (when) book({ jobId, kind, start: new Date(when).toISOString() }, "Booking saved"); }}>
+        <form className="mt-3 flex flex-col gap-2 sm:flex-row" onSubmit={(e) => { e.preventDefault(); if (when) void book({ jobId, kind, start: new Date(when).toISOString() }, "Booking saved").then((r) => { if (r && "warning" in r && r.warning) toast.warning(r.warning); }); }}>
           <Input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} className="h-12" required />
           <Button type="submit" size="field">{current ? "Reschedule" : "Confirm date"}</Button>
         </form>

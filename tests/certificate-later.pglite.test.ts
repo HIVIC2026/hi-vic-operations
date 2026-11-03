@@ -75,7 +75,20 @@ const storage = {
     remove: async (paths: string[]) => { for (const p of paths) stored.delete(p); return { data: null, error: null }; },
   }),
 };
-mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { ...postgrestShim(db), storage } }));
+// Task 4: a hook to hold a workflow_events delete (forces the "two taps after a stale claim" interleaving).
+let holdEventDelete: ((n: number) => Promise<void>) | null = null;
+let eventDeletes = 0;
+const shim = postgrestShim(db);
+const admin = { ...shim, storage, from(table: string) {
+  const b = shim.from(table) as ReturnType<typeof shim.from> & { delete: () => unknown; run: () => Promise<unknown> };
+  if (table !== "workflow_events") return b;
+  const del = b.delete.bind(b), run = b.run.bind(b);
+  let isDelete = false;
+  b.delete = () => { isDelete = true; return del(); };
+  b.run = async () => { if (isDelete && holdEventDelete) await holdEventDelete(++eventDeletes); return run(); };
+  return b;
+} };
+mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: admin }));
 mock.module("../src/lib/upload-safety.server", () => ({
   BAD_FILE_MESSAGE: "bad file", CHECK_UNAVAILABLE_MESSAGE: "unavailable",
   verifyStoredUpload: async (_b: string, path: string) => { const bytes = stored.get(path); if (!bytes) throw new Error("unavailable"); if (bytes[0] !== 0x25) { stored.delete(path); throw new Error("bad file"); } },
@@ -178,6 +191,23 @@ describe("enter the upgrades day", () => {
     await db.query("update workflow_events set created_at = now() - interval '10 minutes' where id=$1", [claimId]);
     await expect(els.linkEnterUpgradesDay(t, soon(6))).rejects.toThrow("already set");
     expect((await db.query("select * from bookings where job_id=$1 and kind='rectification' and status='confirmed'", [J])).rows).toHaveLength(1);
+  });
+  test("Task 4 carried item: two taps after a stale claim book once (the reset delete is conditional)", async () => {
+    const J = id(209);
+    await seedJob(J, "rectification_scheduling", snapshot({ today: "No" }), { record: false });
+    const asg = (await db.query<{ id: string }>("select id from job_assignments where job_id=$1", [J])).rows[0]!.id;
+    const claimId = await stableUuid(`${UPGRADES_DAY_LINK_CLAIM_EVENT}:${asg}:none`);
+    await db.query("insert into workflow_events (id, job_id, event_type, summary, details, internal, created_at) values ($1,$2,$3,'claim','{}',true, now() - interval '10 minutes')", [claimId, J, UPGRADES_DAY_LINK_CLAIM_EVENT]);
+    const t = await tokenFor(J);
+    // Both taps read the stale claim; the second tap's reset delete runs only after the first tap re-claimed.
+    eventDeletes = 0;
+    holdEventDelete = async (n) => { if (n <= 2) await new Promise((r) => setTimeout(r, n === 1 ? 30 : 60)); };
+    const r = await Promise.allSettled([els.linkEnterUpgradesDay(t, soon(5)), els.linkEnterUpgradesDay(t, soon(5))]).finally(() => { holdEventDelete = null; });
+    expect(r.filter((x) => x.status === "fulfilled")).toHaveLength(1);
+    expect(String((r.find((x) => x.status === "rejected") as PromiseRejectedResult).reason.message)).toContain("already set");
+    expect((await db.query("select * from bookings where job_id=$1 and kind='rectification'", [J])).rows).toHaveLength(1);
+    const claims = (await db.query<{ details: Record<string, unknown> }>("select details from workflow_events where job_id=$1 and event_type=$2", [J, UPGRADES_DAY_LINK_CLAIM_EVENT])).rows;
+    expect(claims).toHaveLength(1);
   });
   test("a revoked link can't enter a day", async () => {
     const J = id(205);

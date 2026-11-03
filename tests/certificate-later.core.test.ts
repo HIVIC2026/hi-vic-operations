@@ -120,4 +120,11 @@ describe("held wording", () => {
     expect(n.sms).toContain("electrical upgrades");
     expect(`${n.subject} ${n.text} ${n.sms}`).not.toMatch(/fixes|repair/i);
   });
+  test("Task 4: Home Insulation Victoria with no office phone on file → 'Call Home Insulation Victoria.' with no number", () => {
+    const n = bookingNotice({ kind: "upgrades", start: "2026-11-10T22:00:00Z", who: { name: "Sparky Sam", phone: null }, installer: "Home Insulation Victoria", phone: null });
+    expect(n.text).toContain("Need a different time? Call Home Insulation Victoria.");
+    expect(n.text).not.toContain("booking details");
+    const withPhone = bookingNotice({ kind: "upgrades", start: "2026-11-10T22:00:00Z", who: { name: "Sparky Sam", phone: null }, installer: "Home Insulation Victoria", phone: "03 9000 0000" });
+    expect(withPhone.text).toContain("Call Home Insulation Victoria on 03 9000 0000.");
+  });
 });

@@ -7,11 +7,27 @@ import { electricalClearance, onsiteStartAtInstall, type ClearanceFacts } from "
 /** Decision 314: the stored A3 PIESA snapshot's ONLY repair tick is "Be on site at the start of the install day"
  *  (fixes-times.core `onsiteStartOnly`). No snapshot = false. */
 export async function onsiteStartOnlyFor(jobId: string): Promise<boolean> {
+  const short = await piesaShortAnswersFor(jobId);
+  if (!short) return false;
+  const { onsiteStartOnly } = await import("./fixes-times.core");
+  return onsiteStartOnly(short);
+}
+
+/** The stored A3 PIESA answers by short id (official-short.core), or null when there is no snapshot. */
+async function piesaShortAnswersFor(jobId: string): Promise<Record<string, string | null> | null> {
   const { data: a } = await admin.from("assessments").select("mitti_raw_snapshot").eq("job_id", jobId).maybeSingle();
   const entries = Array.isArray(a?.mitti_raw_snapshot) ? (a!.mitti_raw_snapshot as unknown as { label: string; value: string | null }[]) : [];
-  if (!entries.length) return false;
-  const [{ shortAnswersFromEntries }, { onsiteStartOnly }] = await Promise.all([import("./official-short.core"), import("./fixes-times.core")]);
-  return onsiteStartOnly(shortAnswersFromEntries("piesa", entries));
+  if (!entries.length) return null;
+  const { shortAnswersFromEntries } = await import("./official-short.core");
+  return shortAnswersFromEntries("piesa", entries) as Record<string, string | null>;
+}
+
+/** Part 3 Task 4: Part C recorded on the stored PIESA answers (A3 same-day upgrades, or the A4 merged onto them). No snapshot = false. */
+export async function partCRecordedOnFormFor(jobId: string): Promise<boolean> {
+  const short = await piesaShortAnswersFor(jobId);
+  if (!short) return false;
+  const { piesaRectificationDone } = await import("./piesa-evidence.core");
+  return piesaRectificationDone(short);
 }
 
 /** Review R08 / audit F14: has the owner paid the FULL accepted onsite electrical (fixes) charge on its own fixes invoice
@@ -68,6 +84,10 @@ export async function clearanceFacts(jobId: string): Promise<ClearanceFacts> {
   const fixesPaymentCleared = onsiteOnly && !electricianBills
     ? (await (await import("./workflow.server")).paymentGate(jobId).then((g) => g.cleared).catch(() => false)) && (await onsiteChargePaidFor(jobId).catch(() => false))
     : false;
+  // Part 3 Task 4 (Jo 3 Nov 2026): upgrades needed and not on-site-only → Part C recorded clears (the A3 same-day path writes
+  // no post-upgrades record, so it is read from the answers). The certificate is never read here: it is a pre-start fact.
+  const partCRecorded = rectificationRequired && !onsiteOnly && !(rect?.rectification_completed_at && rect.section_c_signed_at)
+    ? await partCRecordedOnFormFor(jobId).catch(() => false) : false;
   return {
     piesaOutcome: (initial?.outcome as "pass" | "fail" | null) ?? null,
     piesaCompletedAt: initial?.completed_date && initial.signed_off_by ? initial.completed_date : null,
@@ -78,6 +98,7 @@ export async function clearanceFacts(jobId: string): Promise<ClearanceFacts> {
     onsiteStartOnly: onsiteOnly,
     fixesPaymentCleared,
     partnerBilledRectification,
+    partCRecorded,
   };
 }
 

@@ -47,6 +47,35 @@ export function certificateStatusLine(f: { state: CertificateState; electrician:
   return null;
 }
 
+// ---------- Part 3 Task 4: the install can be booked, not started, without the certificate ----------
+/** The certificate as the day-before pre-start check reads it (prestart.core `PrestartFacts.certificate`). */
+export type PrestartCertificate = "not_needed" | "missing" | "unchecked" | "ticked";
+/** The line every install booking records and shows while the certificate is outstanding (booking is never blocked by it). */
+export const INSTALL_CERTIFICATE_WARNING = "Certificate of Electrical Safety still to come — the install can't start without it";
+/** Logged once per install start when the install is booked with the certificate outstanding. */
+export const INSTALL_CERTIFICATE_WARNING_EVENT = "install_booked_certificate_outstanding";
+/** Office wording when the certificate facts could not be read (the pre-start fails closed). */
+export const CERTIFICATE_UNREADABLE = "the certificate couldn't be read — check the job";
+
+/**
+ * The pre-start certificate fact from the job's certificate state (Jo 3 Nov 2026):
+ * - on-site-only (electrician at the start of the install day) → not_needed: clear after the PIESA;
+ * - no upgrades → not_needed, unless the existing certificate check still asks for one (`legacyWhy`, fail closed);
+ * - upgrades not recorded yet, or Part C recorded with no file → missing;
+ * - the office rejected it, or a file that isn't ticked → unchecked, with the existing check's reason (`why`);
+ * - ticked → ticked.
+ */
+export function prestartCertificate(f: { onsiteOnly: boolean; state: CertificateState; rejected: boolean; why: string | null; legacyWhy?: string | null }): { certificate: PrestartCertificate; why: string | null } {
+  if (f.onsiteOnly) return { certificate: "not_needed", why: null };
+  switch (f.state) {
+    case "none_needed": return f.legacyWhy ? { certificate: "unchecked", why: f.legacyWhy } : { certificate: "not_needed", why: null };
+    case "upgrades_pending": return { certificate: "missing", why: null };
+    case "waiting_for_certificate": return f.rejected ? { certificate: "unchecked", why: f.why ?? "not checked yet" } : { certificate: "missing", why: null };
+    case "certificate_in": return { certificate: "unchecked", why: f.why ?? "not checked yet" };
+    case "clear": return { certificate: "ticked", why: null };
+  }
+}
+
 // ---------- The electrician link's steps ----------
 /** The upgrades day must be a real time ahead of now (the 30-day install clock is the installer's, not a limit here). */
 export function upgradesDayProblem(startIso: string, now: Date): string | null {

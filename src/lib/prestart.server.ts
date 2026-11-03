@@ -80,6 +80,10 @@ export async function prestartFacts(jobId: string, start: string) {
     // rules Installation complete uses (esc.server installReadiness / owner-gates), so both places agree.
     piesaCopyBlockers: (await import("./esc.core")).piesaCopyDeliveryBlockers(start, await (await import("./esc.server")).piesaCopyDeliveries(jobId)),
     piesaCopyReceiptBlocker: null, // Retired owner receipt; recorded PIESA delivery remains independently checked.
+    // Part 3 Task 4 (Jo 3 Nov 2026): the install can be booked while the Certificate of Electrical Safety is outstanding; it
+    // can't start. Missing → "Certificate of Electrical Safety not in yet"; a file not ticked → "Check electrical certificate — …".
+    // On-site-only jobs (electrician at the start of the install day) are clear after the PIESA.
+    ...(await (await import("./certificate-later.server")).prestartCertificateFacts(jobId, { onsiteOnly: cf.onsiteStartOnly === true }).then((c) => ({ certificate: c.certificate, certificateWhy: c.certificateWhy }))),
   };
 }
 

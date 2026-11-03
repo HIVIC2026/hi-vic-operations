@@ -284,6 +284,9 @@ export type ClearanceFacts = {
   fixesPaymentCleared?: boolean;
   /** Server-verified held in-house business bills the rectification directly. */
   partnerBilledRectification?: boolean;
+  /** Part 3 Task 4 (Jo 3 Nov 2026): Part C is recorded on the PIESA answers (A3 same-day upgrades — no post-upgrades record
+   *  is written on that path). Never the certificate: that is a pre-start fact, not clearance. Absent = false. */
+  partCRecorded?: boolean;
 };
 export type ClearanceBasis = "initial_piesa" | "section_c" | "electrician_at_start";
 export type Clearance = { cleared: boolean; timingDate: string | null; basis: ClearanceBasis | null; blocker: string | null; pendingConfirmation: string };
@@ -309,6 +312,8 @@ export function electricalClearance(f: ClearanceFacts): Clearance {
     if (!noQuoteNeeded && !f.fixesPaymentCleared) return { ...base, cleared: false, timingDate: null, basis: null, blocker: "Waiting for the owner's payment for the electrician on site at the start of the install day." };
     return { ...base, cleared: true, timingDate: f.piesaCompletedAt, basis: "electrician_at_start", blocker: null };
   }
+  // Part 3 Task 4: upgrades needed (not on-site-only) → Part C recorded is what clears; the certificate never does or blocks.
+  if (f.partCRecorded) return { ...base, cleared: true, timingDate: f.piesaCompletedAt, basis: "section_c", blocker: null };
   if (!f.rectificationCompletedAt) return { ...base, cleared: false, timingDate: null, basis: null, blocker: "Electrical fixes not completed yet." };
   if (!f.sectionCSignedAt) return { ...base, cleared: false, timingDate: null, basis: null, blocker: "Section C not completed and signed yet." };
   // Decision 316 (Jo 25 Oct 2026): fixes clear the job, but the 30 days still run from the official PIESA date.

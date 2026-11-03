@@ -1,9 +1,13 @@
 // Part 3 Task 3 (Jo 3 Nov 2026): the job's certificate facts, built from records that already exist — the PIESA answers
 // (Task 2 ids: q20 upgrades needed, q30 doing them today, Part C recorded), the upgrades booking, the A4 completion / the
-// post_rectification PIESA record, and the certificate as coes-check.server reads it (`currentCoes` + `coesState`). Read-only:
-// nothing here writes, sends or moves a stage. Rules in certificate-later.core.ts.
+// post_rectification PIESA record, and the certificate as coes-check.server reads it (`currentCoes` + `coesState`). Read-only
+// except `recordInstallCertificateWarning` (one office event per install start, Part 3 Task 4): nothing here sends or moves a
+// stage. Rules in certificate-later.core.ts.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { certificateState, certificateStatusLine, type CertificateState } from "./certificate-later.core";
+import {
+  CERTIFICATE_UNREADABLE, INSTALL_CERTIFICATE_WARNING, INSTALL_CERTIFICATE_WARNING_EVENT, certificateState, certificateStatusLine, prestartCertificate,
+  type CertificateState, type PrestartCertificate,
+} from "./certificate-later.core";
 
 export type CertificateFacts = {
   upgradesNeeded: boolean;
@@ -19,6 +23,8 @@ export type CertificateFacts = {
   certificateRejectedWhy: string | null;
   /** The current certificate's key (coes-check), null when no file. */
   certificateKey: string | null;
+  /** Why the current file still needs the office (coes-check.core `coesState` why), null when ticked or no file. */
+  certificateWhy: string | null;
   electrician: string | null;
   state: CertificateState;
   /** The job-page status line, or null. */
@@ -67,7 +73,7 @@ export async function jobCertificateFacts(jobId: string): Promise<CertificateFac
   // Dates are Melbourne calendar dates (YYYY-MM-DD); a timestamp-shaped read is cut to its date.
   const ymd = (v: string | null | undefined) => (v ? v.slice(0, 10) : null);
   const upgradesDoneAt = partCRecorded ? ymd(record?.completed_date) ?? ymd(doneDate) ?? ymd(completedAt) : null;
-  let certificateFileAt: string | null = null, certificateTicked = false, certificateKey: string | null = null, certificateRejectedWhy: string | null = null;
+  let certificateFileAt: string | null = null, certificateTicked = false, certificateKey: string | null = null, certificateRejectedWhy: string | null = null, certificateWhy: string | null = null;
   if (partCRecorded) {
     const coes = await import("./coes-check.server");
     const c = await coes.currentCoes(jobId);
@@ -78,6 +84,7 @@ export async function jobCertificateFacts(jobId: string): Promise<CertificateFac
       const { data: evs } = await admin.from("workflow_events").select("id, event_type, created_at, details").eq("job_id", jobId).in("event_type", ["coes_checked", "coes_rejected"]).order("created_at", { ascending: true });
       const st = coesState((evs ?? []) as never, c.ref.key);
       certificateTicked = st.state === "ticked";
+      certificateWhy = certificateTicked ? null : st.why;
       // Rejected by the office: the electrician's link asks for a new one, with the office's note.
       if (st.state === "rejected") {
         const last = ((evs ?? []) as { id?: string; details: Record<string, unknown> | null }[]).find((e) => e.id === st.eventId);
@@ -88,10 +95,57 @@ export async function jobCertificateFacts(jobId: string): Promise<CertificateFac
   }
   const upgradesDaySet = ((bk ?? []) as unknown[]).length > 0;
   const state = certificateState({ upgradesNeeded, upgradesDoneAt, partCRecorded, certificateFileAt, certificateTicked, certificateRejectedWhy });
-  return { upgradesNeeded, upgradesToday, upgradesDaySet, upgradesDoneAt, partCRecorded, certificateFileAt, certificateTicked, certificateRejectedWhy, certificateKey, electrician: who.name, state, line: certificateStatusLine({ state, electrician: who.name, upgradesDaySet }) };
+  return { upgradesNeeded, upgradesToday, upgradesDaySet, upgradesDoneAt, partCRecorded, certificateFileAt, certificateTicked, certificateRejectedWhy, certificateKey, certificateWhy, electrician: who.name, state, line: certificateStatusLine({ state, electrician: who.name, upgradesDaySet }) };
 }
 
 /** The job-page status line only (installer + office pages). Never throws: a failed read shows nothing rather than a wrong line. */
 export async function certificateLineFor(jobId: string): Promise<{ state: CertificateState; line: string | null } | null> {
   try { const f = await jobCertificateFacts(jobId); return { state: f.state, line: f.line }; } catch (e) { console.error("certificate facts not read", jobId, (e as Error).message); return null; }
+}
+
+// ---------- Part 3 Task 4 (Jo 3 Nov 2026): the install can be booked, not started, without the certificate ----------
+
+/** The pre-start certificate fact (prestart.server `prestartFacts`). `onsiteOnly` = the job clears on the electrician at the
+ *  start of the install day (clear after the PIESA). Fails closed: a read failure is "unchecked" (the pre-start fails). */
+export async function prestartCertificateFacts(jobId: string, opts: { onsiteOnly: boolean }): Promise<{ certificate: PrestartCertificate; certificateWhy: string | null; state: CertificateState | null }> {
+  if (opts.onsiteOnly) return { certificate: "not_needed", certificateWhy: null, state: null };
+  try {
+    const f = await jobCertificateFacts(jobId);
+    // An odd job the new facts call "no upgrades" but the existing certificate check still asks for one: that check stands.
+    const legacyWhy = f.state === "none_needed" ? await (await import("./coes-check.server")).coesWhyFor(jobId) : null;
+    const r = prestartCertificate({ onsiteOnly: false, state: f.state, rejected: f.certificateRejectedWhy != null, why: f.certificateWhy, legacyWhy });
+    return { certificate: r.certificate, certificateWhy: r.why, state: f.state };
+  } catch (e) {
+    console.error("certificate facts not read for the pre-start check", jobId, (e as Error).message);
+    return { certificate: "unchecked", certificateWhy: CERTIFICATE_UNREADABLE, state: null };
+  }
+}
+
+/** The warning for an install booking: the certificate is outstanding (the pre-start check would fail on it), else null. */
+export async function installCertificateWarningFor(jobId: string): Promise<string | null> {
+  const { clearanceFacts } = await import("./electrical-clearance.server");
+  const onsiteOnly = (await clearanceFacts(jobId).catch(() => null))?.onsiteStartOnly === true;
+  const c = await prestartCertificateFacts(jobId, { onsiteOnly });
+  return c.certificate === "missing" || c.certificate === "unchecked" ? INSTALL_CERTIFICATE_WARNING : null;
+}
+
+/** After an install booking: record the warning once per install start (office history) and return it for the screen.
+ *  Never throws — a booking is never undone by this. */
+export async function recordInstallCertificateWarning(jobId: string, actorId: string | null, startIso: string): Promise<string | null> {
+  try {
+    const warning = await installCertificateWarningFor(jobId);
+    if (!warning) return null;
+    const start = new Date(startIso).toISOString();
+    const { data, error } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", INSTALL_CERTIFICATE_WARNING_EVENT);
+    if (error) throw new Error(error.message);
+    const seen = ((data ?? []) as { details: { scheduled_start?: string } | null }[]).some((e) => e.details?.scheduled_start && new Date(e.details.scheduled_start).toISOString() === start);
+    if (!seen) {
+      const { logEvent } = await import("./workflow.server");
+      await logEvent(jobId, actorId, INSTALL_CERTIFICATE_WARNING_EVENT, `Install booked: ${warning}`, { scheduled_start: start, warning }, { internal: true });
+    }
+    return warning;
+  } catch (e) {
+    console.error("install certificate warning not recorded", jobId, (e as Error).message);
+    return null;
+  }
 }

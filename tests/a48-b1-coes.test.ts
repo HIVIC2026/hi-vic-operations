@@ -63,8 +63,18 @@ function seed(values: Record<string, string>, mediaIds: string[], docs = mediaId
 }
 const events = (type: string) => tables["workflow_events"]!.filter((e) => e["event_type"] === type);
 const evRows = () => tables["workflow_events"]!.map((e) => ({ id: String(e["id"]), event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: e["details"] as Record<string, unknown> }));
-const coesBlocked = async () => (await stageEntryBlockers(J, "installation_booked")).filter((b) => b.startsWith(LINE));
+// Part 3 Task 4 (Jo 3 Nov 2026): the certificate check is unchanged, but it is no longer an install-BOOKING gate — the
+// day-before pre-start check reads it. "Blocked" below = the check's own line (coesBlockerFor), which the pre-start uses.
+const coesBlocked = async () => [await server.coesBlockerFor(J)].filter((b): b is string => !!b && b.startsWith(LINE));
 const reply = (verdict: string, quote: string | null) => JSON.stringify({ verdict, quote });
+
+describe("Part 3 Task 4: booking the install is not gated by the certificate", () => {
+  test("repairs done, certificate not checked → the check still says so, but entering installation_booked carries no certificate blocker", async () => {
+    seed(repaired(), ["m1"]);
+    expect(await coesBlocked()).toEqual([`${LINE}${core.COES_WHY.not_checked}`]);
+    expect((await stageEntryBlockers(J, "installation_booked")).filter((b) => b.startsWith(LINE))).toEqual([]);
+  });
+});
 
 describe("pure: verdict, wording, Needs me row", () => {
   test("model reply → verdict (JSON, fenced JSON); ceiling_work needs a quote; anything else is unsure", () => {

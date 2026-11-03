@@ -168,5 +168,8 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
     await logEvent(jobId, actorId, "in_house_form_sync_failed", "In-house forms need office attention", { reason: e instanceof Error ? e.message : "Form update failed", needs_office: true }, { internal: true });
   }
   await autoAdvanceJob(jobId, actorId, "booking confirmed");
-  return { ok: true };
+  // Part 3 Task 4 (Jo 3 Nov 2026): an install booked while the Certificate of Electrical Safety is outstanding is allowed —
+  // the warning is recorded once per start and returned for the screen (the pre-start check stops the start). Never throws.
+  const warning = kind === "installation" ? await (await import("./certificate-later.server")).recordInstallCertificateWarning(jobId, actorId, start) : null;
+  return { ok: true as const, ...(warning ? { warning } : {}) };
 }

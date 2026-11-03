@@ -1098,7 +1098,7 @@ export async function inHouseBookingAccess(userId: string, jobId: string, client
 }
 
 /** A thin member-scoped wrapper: all booking rules and writes stay in confirmBooking. */
-export async function inHouseBookVisit(userId: string, input: { jobId: string; kind: import("./booking.server").BookingKind; start: string; workerId?: string; crewIds?: string[] }, client = admin): Promise<{ ok: true; bookingId: string } | { ok: false; blockers: string[] }> {
+export async function inHouseBookVisit(userId: string, input: { jobId: string; kind: import("./booking.server").BookingKind; start: string; workerId?: string; crewIds?: string[] }, client = admin): Promise<{ ok: true; bookingId: string; warning?: string } | { ok: false; blockers: string[] }> {
   const access = await inHouseBookingAccess(userId, input.jobId, client);
   if (!access.allowed) return { ok: false, blockers: access.blockers };
   // Part 2: an installer's own job books its safety check ONLY through bookOwnJobPiesa (claim, 30-day check, owner notice); never this in-house writer.
@@ -1110,7 +1110,10 @@ export async function inHouseBookVisit(userId: string, input: { jobId: string; k
       ...(input.kind==='installation'?{selection:{lead:input.workerId,additional:(input.crewIds??[]).map(workerId=>({workerId}))}}:{}),
     });
     if(!result.bookingId)throw Error('Booking could not be saved.');
-    return {ok:true,bookingId:result.bookingId};
+    // Part 3 Task 4: the in-house writer (commit_in_house_visit) books without confirmBooking, so the certificate warning is
+    // recorded here too (once per start — confirmBooking's inline path records the same event, never twice).
+    const warning=input.kind==='installation'?await (await import('./certificate-later.server')).recordInstallCertificateWarning(input.jobId,userId,input.start):null;
+    return {ok:true,bookingId:result.bookingId,...(warning?{warning}:{})};
   } catch (error) {
     return {ok:false,blockers:[error instanceof Error?error.message:'Booking could not be saved.']};
   }

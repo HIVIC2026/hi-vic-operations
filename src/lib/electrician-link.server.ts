@@ -294,9 +294,11 @@ export async function linkEnterUpgradesDay(token: string, startIso: string, now:
     const age = prior?.created_at ? now.getTime() - Date.parse(prior.created_at as string) : 0;
     if (!(booked ?? []).length && age > STALE_CLAIM_MS) {
       console.warn("stale upgrades-day claim reset", r.jobId, claimId, `${Math.round(age / 1000)}s old, no booking`);
-      const { error: del } = await admin.from("workflow_events").delete().eq("id", claimId);
+      // Task 4: the delete only takes a claim that is STILL stale. Two taps that both saw the stale claim: the second one's
+      // delete finds nothing (the first tap's new claim is fresh) and is "already set" — never a second booking.
+      const { data: gone, error: del } = await admin.from("workflow_events").delete().eq("id", claimId).lt("created_at", new Date(now.getTime() - STALE_CLAIM_MS).toISOString()).select("id");
       if (del) throw new Error(del.message);
-      ({ error: claimError } = await admin.from("workflow_events").insert(claimRow(true)));
+      if (((gone ?? []) as unknown[]).length) ({ error: claimError } = await admin.from("workflow_events").insert(claimRow(true)));
     }
   }
   if (claimError) { if (claimError.code === "23505") throw new Error("The upgrades day is already set."); throw new Error(claimError.message); }

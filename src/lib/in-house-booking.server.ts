@@ -61,7 +61,7 @@ export async function notifyOwnerBooked(jobId:string,kind:BookingNoticeKind,star
   if(!job||job.deleted_at||job.stage==='cancelled'||!job.owners?.email)return 'held';
   if(!a?.businesses&&kind!=='upgrades')return 'held';
   // Who the owner calls to change the time: the installer's office, else (upgrades on an HIV lead with no installer yet) ours.
-  const contact=a?.businesses?{installer:a.businesses.trading_name||a.businesses.name,phone:a.businesses.phone}:{installer:'Home Insulation Victoria',phone:process.env['HIV_OFFICE_PHONE']?.trim()||null};
+  const contact=a?.businesses?{installer:a.businesses.trading_name||a.businesses.name,phone:a.businesses.phone}:{installer:'Home Insulation Victoria',phone:(await import('./office-phone.server')).officePhone()};
   const key=`in-house-booked:v1:${booking.id}:${who.id}`;
   const intentId=await stableUuid(`${key}:intent`);
   const intent=await db.from('workflow_events').insert({id:intentId,job_id:jobId,actor_id:null,event_type:'in_house_booked_notice_pending',summary:'Booking confirmation awaiting delivery',details:{kind,startIso,who,booking_id:booking.id},internal:true});

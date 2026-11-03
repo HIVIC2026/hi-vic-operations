@@ -29,12 +29,14 @@ export function leadNoticePending(change:LeadChange|null,ack:string|null,now=new
 /** Part 3 Task 3 (Jo 3 Nov 2026): the owner's "You're booked" for the electrical upgrades day (entered on the electrician's link) is
  *  new wording — HELD until Jo approves it (the notice is recorded as pending and sent once this is true). */
 export const OWNER_UPGRADES_BOOKED_APPROVED: boolean = false;
+/** Part 3 Task 4: with no office phone on file, the owner is told to call Home Insulation Victoria — never "the number in your booking details" (there is none). */
+const HIV_NAME='Home Insulation Victoria';
 export type BookingNoticeKind='ready_check'|'piesa'|'install'|'upgrades';
 export function bookingNotice(i:{kind:BookingNoticeKind;start:string;who:Pick<BookingWorker,'name'|'phone'>;installer:string;phone:string|null}) {
   const label={ready_check:'Ready Check',piesa:'Pre Insulation Electrical Safety Assessment (PIESA)',install:'install',upgrades:'electrical upgrades'}[i.kind];
   const when=new Date(i.start).toLocaleString('en-AU',{timeZone:'Australia/Melbourne',weekday:'long',day:'numeric',month:'long',hour:'numeric',minute:'2-digit'});
   const person=`${i.who.name}${i.kind==='install'?' (Lead Installer)':''}${i.who.phone?`, phone ${i.who.phone}`:''}`;
-  const text=`You're booked for your ${label}: ${when}. Who's coming: ${person}. Need a different time? Call ${i.installer} on ${i.phone||'the number in your booking details'}.`;
+  const text=`You're booked for your ${label}: ${when}. Who's coming: ${person}. Need a different time? Call ${i.installer}${i.phone?` on ${i.phone}`:i.installer===HIV_NAME?'':' on the number in your booking details'}.`;
   return {subject:`You're booked — ${label}`,text,sms:`You're booked for your ${label}: ${when}. ${person} is coming. Details in your email.`};
 }
 export type DigestInstall={jobId:string;jobNumber:string;start:string;name:string;url:string};

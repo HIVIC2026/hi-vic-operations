@@ -197,12 +197,20 @@ export async function checkCurrentCoes(jobId: string, actorId: string | null, op
   }
 }
 
-/** Install-day gate: repairs were done and the current certificate isn't ticked → "Check electrical certificate — {why}". */
-export async function coesBlockerFor(jobId: string): Promise<string | null> {
+/** Why the current certificate still needs the office (null = not needed, or ticked). The same rule as `coesBlockerFor`. */
+export async function coesWhyFor(jobId: string): Promise<string | null> {
   const c = await currentCoes(jobId);
   if (!c.needed || !c.ref) return null;
   const s = coesState(await coesEvents(jobId), c.ref.key);
-  return s.state === "ticked" ? null : coesOfficeLine(s.why ?? COES_WHY.not_checked);
+  return s.state === "ticked" ? null : s.why ?? COES_WHY.not_checked;
+}
+
+/** Repairs were done and the current certificate isn't ticked → "Check electrical certificate — {why}".
+ *  Part 3 Task 4 (Jo 3 Nov 2026): no longer an install-BOOKING gate; the day-before pre-start check reads the certificate
+ *  (prestart.server → certificate-later.server `prestartCertificateFacts`). */
+export async function coesBlockerFor(jobId: string): Promise<string | null> {
+  const why = await coesWhyFor(jobId);
+  return why ? coesOfficeLine(why) : null;
 }
 
 /** Needs me fact from the live certificate (used for jobs with no certificate event yet, so "not checked" is never a dead end). */
@@ -216,7 +224,7 @@ export async function coesNeedsFor(jobId: string, now = new Date()): Promise<{ a
 
 type CoesNeeds = { at: string; why: string; eventId: string | null };
 /** Needs me facts for many jobs. Jobs waiting on the install booking (installation_scheduling) always read the CURRENT
- *  certificate live (`coesNeedsFor`, the same key the install gate checks), so a newer file after a tick shows "not
+ *  certificate live (`coesNeedsFor`, the same key the pre-start check reads), so a newer file after a tick shows "not
  *  checked yet" with Check again instead of no row while the gate blocks. Other jobs: the newest certificate event. */
 export async function coesNeedsForJobs(jobs: readonly { id: string; stage: string }[], eventsByJob: ReadonlyMap<string, CoesEvent[]>, cap = 200): Promise<Map<string, CoesNeeds>> {
   const out = new Map<string, CoesNeeds>();
