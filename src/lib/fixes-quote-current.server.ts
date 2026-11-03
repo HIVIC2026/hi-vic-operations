@@ -1,4 +1,4 @@
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 
 /** All acceptance/payment readers must use the newest non-superseded revision, not the newest accepted one. */
 export async function currentFixesQuote(jobId: string) {

@@ -4,7 +4,7 @@
 // replies, only with the switch on; sent after the sync). Best-effort: never throws to the copier.
 // sendAiDraft / discardAiDraft: office-only, from the job page. Send goes through the guarded owner sender (TEST jobs →
 // TEST inbox only), with a per-draft once-only key so the same email can never go twice.
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MailMessage } from "./outlook-correspondence.core";
 import {

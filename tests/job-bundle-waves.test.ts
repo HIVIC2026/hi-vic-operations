@@ -5,12 +5,19 @@
 import { afterAll, beforeAll, describe, expect, mock, setSystemTime, test } from "bun:test";
 import type { Tables } from "./helpers/memory-postgrest";
 import { outcome, waveCounter } from "./helpers/wave-counter";
+import { fillLiveColumns } from "./helpers/live-columns";
 
 const tables: Tables = {};
 const wc = waveCounter(tables);
-mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: wc.client }));
+/** Task 11: admin reads asked inside the job page's trusted part (after the access check, where `jobDb()` is the facts
+ *  client) vs outside it (the overview and the access check itself). Counted when the query is built on this client. */
+const asked = { trusted: 0, before: 0 };
+let jobDbNow: (() => unknown) | null = null;
+const admin = { ...wc.client, from: (t: string) => { if (jobDbNow && jobDbNow() !== admin) asked.trusted++; else asked.before++; return wc.client.from(t); } };
+mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: admin }));
 
 const { tradeJobBundle } = await import("../src/lib/trade-job-bundle.server");
+jobDbNow = (await import("../src/lib/job-facts.server")).jobDb;
 
 const NOW = new Date("2026-10-29T03:00:00.000Z");
 const B1 = "00000000-0000-4000-8000-0000000000b1", B2 = "00000000-0000-4000-8000-0000000000b2";
@@ -70,6 +77,7 @@ function seed() {
     workflow_settings: [{ id: 1, safety_check_payment_inc_gst: 349 }],
     appointment_proposals: [], invoices: [], installer_declarations: [], customer_assignments: [], rectification_items: [], payment_overrides: [], ready_check_windows: [],
   });
+  fillLiveColumns(tables);
   tables["job_overview"] = tables["jobs"]!.map((jb) => ({ id: jb["id"], job_number: jb["job_number"], stage: jb["stage"], channel: jb["channel"], property_id: jb["property_id"], owner_name: "Owner Name", owner_phone: "0400 000 000", owner_email: "owner@example.com", property_address: "1 Test St, Geelong 3220" }));
 }
 
@@ -151,6 +159,7 @@ describe("Job page bundle (Task 6): waves", () => {
       console.log(`WAVES ${name}: ${r.waves} waves, ${r.log.length} reads (sign-in client calls: ${s.calls.join(",")})`);
       if (process.env["SHOW_DUPES"]) { const c: Record<string, number> = {}; for (const l of r.log) c[l.table] = (c[l.table] ?? 0) + 1; console.log(JSON.stringify(c)); }
       if (process.env["SHOW_WAVES"]) console.log(wc.wavesOf(r.log));
+      if (process.env["SHOW_READS"]) { const c: Record<string, number> = {}; for (const l of r.log) { const k = `${l.table} | ${l.sel} |${l.info}`; c[k] = (c[k] ?? 0) + 1; } for (const [k, n] of Object.entries(c).sort()) console.log(`READ ${n}x ${k}`); }
       expect(r.waves).toBeLessThanOrEqual(WAVES_BEFORE[name]!);
       if (READS_BEFORE[name]) expect(r.log.length).toBeLessThan(READS_BEFORE[name]!);
     });
@@ -168,9 +177,10 @@ describe("Job page bundle (Task 6): one access answer, each shared read taken on
       const sbCalls = (n: string) => s.calls.filter((c) => c === n).length;
       expect([sbCalls("getUser"), sbCalls("my_job_role"), sbCalls("can_access_job")]).toEqual([1, 1, name.includes("not assigned") ? 0 : 1]);
       if (name.includes("not assigned")) return;
-      expect(count(r.log, "quotes", "id, job_id, status, sent_at")).toBe(1); // loadInstallerQuote (was 4)
+      // Task 11: these are now answered from the job's one facts read (0 database reads each); never more than Task 6's.
+      expect(count(r.log, "quotes", "id, job_id, status, sent_at")).toBeLessThanOrEqual(1); // loadInstallerQuote (was 4)
       // clearanceFacts (was 2 from the page and install days). A booked install (J2) also reads it inside the owner-ready payment view.
-      expect(count(r.log, "piesa_records", "outcome, completed_date")).toBe(job === j(2) ? 2 : 1);
+      expect(count(r.log, "piesa_records", "outcome, completed_date")).toBeLessThanOrEqual(job === j(2) ? 2 : 1);
       expect(count(r.log, "business_members", "business_id, member_role, businesses(")).toBe(1); // tradeContext (was 2)
     });
   }
@@ -235,4 +245,19 @@ describe("Job page bundle (Task 6): a section called on its own keeps its own ch
     await expect(tradeJobPage(j(1), U_STAFF)).rejects.toThrow("This job isn't assigned to you.");
     await expect(tradeJobPage(j(1), U_OUT)).rejects.toThrow("Your sign-in isn't linked to an approved business yet.");
   });
+});
+
+describe("Job page bundle (Task 11): the job's rows are read once", () => {
+  for (const [name, u, job] of CASES) {
+    test(`${name}: at most 10 database reads after the access check`, async () => {
+      seed(); wc.state.failWhen = null;
+      const s = signedIn(u);
+      asked.trusted = 0; asked.before = 0;
+      const r = await wc.measured(() => quiet(() => tradeJobBundle(s.sb as never, u, job)));
+      console.log(`TASK11 ${name}: ${r.log.length} reads in all; ${asked.trusted} after the access check, ${asked.before} admin reads before/outside it, ${s.calls.length} sign-in client calls`);
+      expect(asked.trusted).toBeLessThanOrEqual(10);
+      // A refused caller reads nothing about the job after the (failed) access check.
+      if (name.includes("not assigned") || name.includes("no access")) expect(asked.trusted).toBe(0);
+    });
+  }
 });

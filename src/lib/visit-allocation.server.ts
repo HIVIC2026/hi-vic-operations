@@ -1,7 +1,7 @@
 // Visit allocation persistence (decision 161). Business-scoped: the signed-in business OWNER allocates a visit on a job
 // assigned to their business to one of THEIR staff. Rules are pure (visit-allocation.core.ts); Mitti stays behind
 // mitti.server.ts; the record is an append-only `visit_allocated` workflow event. Nothing here sends.
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 import { WorkflowError, logEvent } from "./workflow.server";
 import type { MittiCall } from "./mitti.core";
 import { effectiveWorkerRole, mittiEmailFor } from "./worker-role.core";

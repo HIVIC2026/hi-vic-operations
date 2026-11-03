@@ -1,6 +1,6 @@
 // Flat PIESA payee: pays_own_electricians OR in_house; this does not decide held visits.
 // Read-only, batched by job id; money read errors throw (fail closed upstream).
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 import { installerPaysOwnElectricians, paysOwnElectricians, safetyCheckPayee, type InstallerPaidElectricians, type InstallerPiesaResult } from "./installer-paid-electricians.core";
 import type { InHousePiesaBusiness } from "./installer-paid-electricians.core";
 import type { SupabaseClient } from "@supabase/supabase-js";

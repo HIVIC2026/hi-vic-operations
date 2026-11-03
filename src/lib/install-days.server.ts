@@ -1,7 +1,7 @@
 // Install days, installer offers first (Jo 24 Oct 2026): installer offers 3 → owner takes one or suggests days →
 // installer takes one or offers 3 new ones, until a day is agreed. Agreement books it. The office is never involved
 // (only the 10-days-left alert below). Never auto-replaces the installer.
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 import { WorkflowError, logEvent, piesaStatus } from "./workflow.server";
 import {
   INSTALL_DAY_LEAD_HOURS, allowedInstallDays, dayOfferBlockers, installDayBounds, installStartAt, isInstallTime, installDayOutsideWindow, installDayTurn, installDaysLeft, installWindowDeadline, shouldFlagTenDaysLeft,

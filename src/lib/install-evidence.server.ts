@@ -2,7 +2,7 @@
 // upgrade areas and keeps the result as the append-only `install_evidence_synced` workflow event (latest per job wins;
 // a new event only when the result changed). Rules are pure in install-evidence.core.ts. The safety plan (SWMS) lives
 // in swms.server.ts (decision 261). Never sends; the only stage move is through recordInstallationComplete.
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 import { logEvent } from "./workflow.server";
 import { melbourneToday, addYmd } from "./melbourne-time.core";
 import { declaredProductProblems, evaluateInstallEvidence, withJobProduct, installEvidenceGateLines, jobProductOptions, readInstallEvidence, type InstallEvidenceCtx, type InstallEvidenceSummary, type InstallPrefillCtx, type JobZone } from "./install-evidence.core";

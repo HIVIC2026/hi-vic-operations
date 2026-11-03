@@ -1,7 +1,7 @@
 // Quick taps (Jo 2 Nov 2026): who will be at the home to let the installer in, read from the newest
 // quick_taps_answered event (details.answers.access). Read-only; nothing is ever sent to the tenant.
 // Fails closed: no event, an older event without the answer, an invalid answer or a failed read → nothing shown.
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 import { QUICK_TAPS_ANSWERED_EVENT, accessLine, normaliseAccess } from "./quick-taps.core";
 
 export type JobAccess = { line: string | null };

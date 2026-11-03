@@ -1,4 +1,4 @@
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 import { installerQuoteLine } from "./installer-quote-status.core";
 import { needsFinishingTask, jobCardLine } from "./trade-view.core";
 import { sharedFor, type SharedJobReads } from "./job-shared-reads";

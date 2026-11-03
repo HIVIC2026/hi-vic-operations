@@ -2,7 +2,7 @@
 // the Mitti syncs already keep. Server-only, READ-ONLY: no writes, no senders, no Mitti call. Batched by job id.
 // Callers: office Money › Payouts (office-money.server), office Mark paid (office.functions markPayoutPaid) and the trade
 // Money rows (trade-view.server) — one rule, one set of facts.
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 import { tradePayoutBlockers, type PayoutKind, type SafetyVisitFacts, type TradePayoutFacts } from "./trade-payout-gate.core";
 import { piesaEvidenceBlockersFromSnapshot } from "./piesa-evidence.core";
 import { shortAnswersFromEntries } from "./official-short.core";
