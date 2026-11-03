@@ -102,6 +102,15 @@ function signedIn(userId: string, calls: string[] = []) {
 }
 const run = (userId: string, jobId: string) => { const s = signedIn(userId); return { s, p: tradeJobBundle(s.sb as never, userId, jobId) }; };
 
+/** Waves before this task (measured by the "before" commit), per case name. The change must not add any. */
+const WAVES_BEFORE: Record<string, number> = {
+  "installer boss, owner's own job (J1)": 4, "installer boss, other job, booked (J4 complete)": 4, "installer boss, job assigned to their staff (J2)": 4,
+  "installer staff, assigned booked job (J2)": 4, "installer staff, assigned ready check job (J3)": 3, "installer staff, not assigned (J1)": 2,
+  "electrician (J1)": 3, "electrician (J2)": 3, "user with no access (J1)": 2,
+};
+/** Reads before this task, for the cases that read a lot (the duplicate reads this task removes). */
+const READS_BEFORE: Record<string, number> = { "installer boss, owner's own job (J1)": 149, "installer boss, other job, booked (J4 complete)": 131, "installer boss, job assigned to their staff (J2)": 167, "installer staff, assigned booked job (J2)": 122, "installer staff, assigned ready check job (J3)": 83 };
+
 const CASES: [string, string, string][] = [
   ["installer boss, owner's own job (J1)", U_BOSS, j(1)],
   ["installer boss, other job, booked (J4 complete)", U_BOSS, j(4)],
@@ -142,7 +151,88 @@ describe("Job page bundle (Task 6): waves", () => {
       console.log(`WAVES ${name}: ${r.waves} waves, ${r.log.length} reads (sign-in client calls: ${s.calls.join(",")})`);
       if (process.env["SHOW_DUPES"]) { const c: Record<string, number> = {}; for (const l of r.log) c[l.table] = (c[l.table] ?? 0) + 1; console.log(JSON.stringify(c)); }
       if (process.env["SHOW_WAVES"]) console.log(wc.wavesOf(r.log));
-      expect(r.waves).toBeGreaterThan(0);
+      expect(r.waves).toBeLessThanOrEqual(WAVES_BEFORE[name]!);
+      if (READS_BEFORE[name]) expect(r.log.length).toBeLessThan(READS_BEFORE[name]!);
     });
   }
+});
+
+const count = (log: { table: string; sel: string }[], table: string, selStart: string) => log.filter((l) => l.table === table && l.sel.startsWith(selStart)).length;
+
+describe("Job page bundle (Task 6): one access answer, each shared read taken once", () => {
+  for (const [name, u, job] of CASES.filter(([n]) => n.startsWith("installer"))) {
+    test(`${name}: one sign-in check, one job-role check, one access check; quote, clearance and trade context read once`, async () => {
+      seed(); wc.state.failWhen = null;
+      const s = signedIn(u);
+      const r = await wc.measured(() => quiet(() => tradeJobBundle(s.sb as never, u, job)));
+      const sbCalls = (n: string) => s.calls.filter((c) => c === n).length;
+      expect([sbCalls("getUser"), sbCalls("my_job_role"), sbCalls("can_access_job")]).toEqual([1, 1, name.includes("not assigned") ? 0 : 1]);
+      if (name.includes("not assigned")) return;
+      expect(count(r.log, "quotes", "id, job_id, status, sent_at")).toBe(1); // loadInstallerQuote (was 4)
+      // clearanceFacts (was 2 from the page and install days). A booked install (J2) also reads it inside the owner-ready payment view.
+      expect(count(r.log, "piesa_records", "outcome, completed_date")).toBe(job === j(2) ? 2 : 1);
+      expect(count(r.log, "business_members", "business_id, member_role, businesses(")).toBe(1); // tradeContext (was 2)
+    });
+  }
+
+  test("a user with no access is refused, and no section reads anything about the job", async () => {
+    seed(); wc.state.failWhen = null;
+    const s = signedIn(U_OUT);
+    const r = await wc.measured(() => quiet(() => tradeJobBundle(s.sb as never, U_OUT, j(1))));
+    expect(count(r.log, "quotes", "")).toBe(0);
+    expect(count(r.log, "piesa_records", "")).toBe(0);
+    expect(count(r.log, "workflow_events", "")).toBe(0);
+  });
+});
+
+describe("Job page bundle (Task 6): a section called on its own keeps its own check", () => {
+  const tv = () => import("../src/lib/trade-view.server");
+  const reads = async (userId: string, jobId: string) => {
+    const { sharedJobReads } = await import("../src/lib/job-shared-reads");
+    const { loadInstallerQuote } = await import("../src/lib/installer-quote-status.server");
+    const { clearanceFacts } = await import("../src/lib/electrical-clearance.server");
+    const { electricalClearance } = await import("../src/lib/allocation.core");
+    return sharedJobReads(await (await tv()).requireTradeJob(userId, jobId), userId, jobId, { quote: loadInstallerQuote, clearance: async (id) => electricalClearance(await clearanceFacts(id)) });
+  };
+
+  test("install days: standalone, and with another person's shared answer, still refuse a caller who is not the quoted installer", async () => {
+    seed();
+    const { installerInstallDayState } = await import("../src/lib/install-days.server");
+    await expect(installerInstallDayState(j(2), U_OUT)).rejects.toThrow("Only the quoted installer can arrange these days.");
+    const bossShared = await reads(U_BOSS, j(1));
+    await expect(installerInstallDayState(j(1), U_OUT, bossShared)).rejects.toThrow("Only the quoted installer can arrange these days.");
+    await expect(installerInstallDayState(j(1), U_BOSS, bossShared)).resolves.toBeDefined();
+  });
+
+  test("owner quote: standalone, and with another person's shared answer, still run the access check", async () => {
+    seed();
+    const { myOwnerQuoteFor } = await import("../src/lib/my-owner-quote.server");
+    const out = signedIn(U_OUT);
+    await expect(myOwnerQuoteFor(out.sb as never, U_OUT, j(1))).rejects.toThrow("Not your job.");
+    const bossShared = await reads(U_BOSS, j(1));
+    await expect(myOwnerQuoteFor(out.sb as never, U_OUT, j(1), bossShared)).rejects.toThrow("Not your job.");
+    expect(out.calls).toContain("can_access_job");
+    // The boss's own shared answer is used only for the boss.
+    const boss = signedIn(U_BOSS);
+    const q = await myOwnerQuoteFor(boss.sb as never, U_BOSS, j(1), bossShared);
+    expect(boss.calls).toContain("can_access_job");
+    expect(q.applies).toBe(true);
+  });
+
+  test("a shared answer taken for another job is not used", async () => {
+    seed();
+    const { sharedFor } = await import("../src/lib/job-shared-reads");
+    const shared = await reads(U_BOSS, j(1));
+    expect(sharedFor(shared, U_BOSS, j(1))).toBe(shared);
+    expect(sharedFor(shared, U_BOSS, j(4))).toBeUndefined();
+    expect(sharedFor(shared, U_STAFF, j(1))).toBeUndefined();
+    expect(sharedFor(undefined, U_BOSS, j(1))).toBeUndefined();
+  });
+
+  test("the staff job page, the price card and the electrician's page: standalone refusals unchanged", async () => {
+    seed();
+    const { tradeJobPage } = await tv();
+    await expect(tradeJobPage(j(1), U_STAFF)).rejects.toThrow("This job isn't assigned to you.");
+    await expect(tradeJobPage(j(1), U_OUT)).rejects.toThrow("Your sign-in isn't linked to an approved business yet.");
+  });
 });

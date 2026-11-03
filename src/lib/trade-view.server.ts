@@ -18,6 +18,7 @@ import { installerQuoteLine } from "./installer-quote-status.core";
 import { inHouseTradeBookingText } from "./in-house-message.core";
 import { withoutRetiredInstallDayPhotos } from "./ready-check-chase.core";
 import { early } from "./early-read";
+import { sharedFor, type SharedJobReads } from "./job-shared-reads";
 import { PIESA_BOOKERS, type PiesaBooker } from "./piesa-booker.core";
 import { isMissingDbObject } from "./schema-compat.core";
 import { readPiesaBooker } from "./piesa-booker.server";
@@ -1170,8 +1171,10 @@ async function ownerReadyFacts(jobId: string): Promise<import("./installer-scree
   return { consent: consent ? (consent.owner_signed_at ? "signed" : "waiting") : null, deposit };
 }
 
-export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJobAccess) {
+export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJobAccess, sharedReads?: SharedJobReads) {
   const c = await requireTradeJob(userId, jobId, pre);
+  // Speed (Task 6): the job page bundle's one quote read and one clearance read, when they were taken for this caller and job.
+  const shared = sharedFor(sharedReads, userId, jobId);
   // Speed (installer screens, Task 6): every read that needs only the job id starts in ONE round — the page facts, the
   // panel dates/names, the notes and the boss's own pay rows. The reads that are gated on another fact keep their gate and
   // start the moment that fact is in: the owner's side once the install booking is read (decision 251), the PIESA owner
@@ -1179,7 +1182,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   // channel is read. Modules are imported at module scope.
   const jobP = early(admin.from("jobs").select("job_number, stage, channel, next_action, installation_completed_at").eq("id", jobId).single());
   const inBookP = early(admin.from("bookings").select("scheduled_start, status").eq("job_id", jobId).eq("kind", "installation").neq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle());
-  const clearanceP = early(allocationServer.clearanceFacts(jobId).then(electricalClearance));
+  const clearanceP = early(shared ? shared.clearance() : allocationServer.clearanceFacts(jobId).then(electricalClearance));
   // Decision 251: the owner's side is read only once the install is booked (the M2-install-booked state); nothing is read before that.
   const ownerReadyP = early(inBookP.then(async ({ data: inBook }) => inBook?.status === "confirmed" ? await ownerReadyFacts(jobId).catch(() => null) : null));
   // Decision 278: only whether the boss has entered the price (true/false on the installer's own jobs, null otherwise).
@@ -1196,11 +1199,11 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     admin.from("ceiling_measurements").select("measured_area_m2, removal_m2, removal_required").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
     admin.from("assessments").select("status, piesa_outcome, completed_at").eq("job_id", jobId).maybeSingle(),
     rebateSignedByInstaller(jobId),
-    loadInstallerQuote(jobId),
+    shared ? shared.quote() : loadInstallerQuote(jobId),
     installerPayForJob(jobId),
     installFormFacts(jobId),
     clearanceP,
-    c.kind === "installer" ? mittiJobPresentationServer.mittiJobPresentation(jobId, userId, c).catch(() => ({ applies: false as const })) : Promise.resolve({ applies: false as const }),
+    c.kind === "installer" ? mittiJobPresentationServer.mittiJobPresentation(jobId, userId, c, shared).catch(() => ({ applies: false as const })) : Promise.resolve({ applies: false as const }),
     c.boss ? tradeMoneyRows(c.biz.id, c.kind, c.isTest).then((rows) => rows.filter((r) => r.jobId === jobId && r.kind === "installation")) : Promise.resolve([] as Awaited<ReturnType<typeof tradeMoneyRows>>),
     // Approved states (decision 234): the dates and names each panel prints, every one a recorded fact.
     admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "quote_declined").order("created_at", { ascending: false }).limit(1).maybeSingle(),
