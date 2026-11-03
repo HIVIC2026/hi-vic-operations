@@ -398,6 +398,16 @@ export type ReaskResult = { oldBatchId: string | null; answered: string | null; 
  *  FRESH batch for the same installer: reopen a cancelled job, mark it as having left its old batch, then the normal
  *  sendBatch with Jo's approved re-ask text and no email. Their old answer stays with the old batch. Dry run unless
  *  `apply`. Once done, the old batch is no longer the open one, so a second run finds nothing to re-ask. */
+/** The owner's My job link works now, or — for a cancelled job — will work again once it's reopened: the live rule
+ *  trg_owner_links_follow_cancel revokes links on cancel (reason `job_cancelled`) and restores the latest one on reopen. */
+async function linkWorksAfterReopen(jobId: string, cancelled: boolean, now: Date): Promise<boolean> {
+  if (!cancelled) return !!await (await import("./veec-copy-email.server")).ownerMyJobLink(jobId);
+  const { LINK_PURPOSE } = await import("./estimatelink.core");
+  const { data, error } = await loose.from("customer_estimate_links").select("expires_at").eq("job_id", jobId).eq("purpose", LINK_PURPOSE).eq("status", "revoked").eq("revocation_reason", "job_cancelled");
+  if (error) throw new Error(`Could not check the owner's link: ${error.message}`);
+  return ((data ?? []) as { expires_at: string | null }[]).some((l) => !l.expires_at || Date.parse(l.expires_at) > now.getTime());
+}
+
 export async function reaskQuickTaps(jobId: string, opts: { apply: boolean; actorId: string; now?: Date }): Promise<ReaskResult> {
   const now = opts.now ?? new Date();
   const c = await load(jobId);
@@ -426,8 +436,7 @@ export async function reaskQuickTaps(jobId: string, opts: { apply: boolean; acto
     const w = ws as { customer_comms_enabled?: boolean | null; sms_message_switches?: Record<string, boolean> | null } | null;
     if (w?.customer_comms_enabled !== true || w?.sms_message_switches?.["quick_taps"] !== true) throw new WorkflowError("Customer messages or the quick taps texts are switched off. Nothing was changed.");
   }
-  const { ownerMyJobLink } = await import("./veec-copy-email.server");
-  if (!await ownerMyJobLink(jobId)) throw new WorkflowError("The owner has no working My job link. Nothing was changed.");
+  if (!await linkWorksAfterReopen(jobId, c.job.stage === "cancelled", now)) throw new WorkflowError("The owner has no working My job link. Nothing was changed.");
   if (!opts.apply) return out;
 
   if (c.job.stage === "cancelled") {
