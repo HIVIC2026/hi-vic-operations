@@ -119,6 +119,19 @@ export async function releaseQuoteToOwner(
     ),
   ]);
   if (blockers.length) throw new WorkflowError(blockers.join(" • "));
+  // Jo 4 Nov follow-up: the main option and its held "thicker too" companion go to the owner together; each passes
+  // the same checks first, then ONE owner notification.
+  const { optionGroupFor } = await import("./ceiling-layout.core");
+  const group = optionGroupFor(quote.option_code).filter((c) => c !== quote.option_code);
+  const { data: siblingRows, error: sbe } = group.length
+    ? await admin.from("quotes").select("id, job_id, kind, status, sent_at, release_state, release_hold_reason, created_at, option_code").eq("job_id", jobId).eq("kind", quote.kind).eq("status", "draft").is("sent_at", null).in("option_code", group)
+    : { data: [], error: null };
+  if (sbe) throw new WorkflowError("The other quote option could not be checked.");
+  const siblings = (siblingRows ?? []).filter((s) => quoteNeedsOfficeReview(s));
+  for (const s of siblings) {
+    const sbl = await officeQuoteBlockers(jobId, s);
+    if (sbl.length) throw new WorkflowError(`${s.option_code}: ${sbl.join(" • ")}`);
+  }
   if (!permission.allowed) throw permission.error;
   // Jo 24 Oct: release only when the owner can actually accept it — right stage, invoicing settled, and a secure link.
   if (st?.stage === "ready_check_complete") {
@@ -155,7 +168,7 @@ export async function releaseQuoteToOwner(
     if (le || !(await import("./estimatelink.core")).linkUsable(link))
       throw new WorkflowError("TEST owner quote link must be prepared before Send.");
   }
-  if (quote.option_code === "INSTALLER_A1")
+  if (quote.option_code === "INSTALLER_A1" || quote.option_code === "INSTALLER_A1_THICKER")
     await (await import("./pilot.server")).applyCobrand(jobId);
   const now = new Date().toISOString();
   const { data: claimed, error: ce } = await admin
@@ -176,6 +189,11 @@ export async function releaseQuoteToOwner(
     .maybeSingle();
   if (ce) throw new WorkflowError(ce.message);
   if (!claimed) throw new WorkflowError("The quote changed or was already sent. Reload it.");
+  for (const s of siblings) {
+    const { error: se } = await admin.from("quotes").update({ status: "issued", release_state: "released", release_hold_reason: null, sent_at: now, ...(how === "office" ? { office_reviewed_at: now, office_reviewed_by: actorId } : {}) })
+      .eq("id", s.id).eq("job_id", jobId).eq("status", s.status).is("sent_at", null);
+    if (se) throw new WorkflowError(se.message);
+  }
   if (how === "office")
     await logEvent(
       jobId,
